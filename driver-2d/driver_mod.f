@@ -613,7 +613,8 @@ c ######################################################################
         double precision :: dt,dtbase,cnfactor,cnf_d,alpha,gamma
         double precision :: tmax,dstep,rstep,time,dfreq,dtexp
 
-        double precision,allocatable,dimension(:) :: fold,fsrc
+        double precision,allocatable,dimension(:) :: fold,fsrc,cnf
+     .                                              ,one_over_dt
 
         double precision :: u_max,v_max,bx_max,by_max
 

@@ -152,6 +152,10 @@ c Check time limits
         stop
       endif
 
+      allocate(cnf(neqd),one_over_dt(neqd))
+
+      call defineTSParameters
+
 c End program
 
       end subroutine initializeCalculation

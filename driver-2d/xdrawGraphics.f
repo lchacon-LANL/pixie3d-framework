@@ -152,6 +152,8 @@ c Begin program
 
         call contour_step(xl(imin,ngrd),yl(jmin,ngrd),ucontour,1)
 
+        call line_diagnostics(itime)
+
       endif
 
       if (itime > 0) write(ulineplot) real(time),real(diagnostics)

@@ -22,7 +22,7 @@ c Local variables
 
       integer          :: i,j,ieq,ii
 
-      double precision :: dudt(neqd),cnf(neqd),one_over_dt(neqd)
+      double precision :: dudt(neqd)
 
       type (var_array) :: varray
 
@@ -38,7 +38,7 @@ c Evaluate nonlinear function
 
 c Calculate residuals
 
-      call defineTSParameters(cnf,one_over_dt)
+      call defineTSParameters
       
       do j = 1,nyd
         do i = 1,nxd
