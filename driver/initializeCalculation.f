@@ -90,6 +90,7 @@ c Initialize MG and create grid
 
       call createGrid(1,nxd,1,nyd,1,nzd,nxd,nyd,nzd,gpack=g_pack)
 cc      call checkGrid
+cc      stop
 
 c Check grid
 
@@ -143,6 +144,8 @@ c Set unperturbed forcing fields
 
       if (.not.source) fsrc = 0d0
 
+cc      write (*,*) u_n%array_var(3)%array(:,1,1)
+cc      stop
 c Set initial condition
 
       call setInitialCondition(u_n,u_np)
@@ -404,7 +407,7 @@ c     Begin program
 
       close (urecord)
 
-      write (*,*) 'Done!'
+      write (*,*) ' Done!'
 
 c     End
 
@@ -488,8 +491,9 @@ c     ####################################################################
         real(8)    :: xmin,xmax,x,period,ff
         integer(4) :: bcs(2),nh
 
-        logical    :: neumann(2),dirichlet(2)
+        logical    :: neumann(2),dirichlet(2),spoint(2)
 
+        spoint    = (bcs == SP ) .or. (bcs == SP2)
         neumann   = (bcs == NEU) .or. (bcs == SYM)
         dirichlet = (bcs == DIR) .or. (bcs ==-SYM) .or. (bcs == EQU)
 
@@ -516,10 +520,10 @@ c     ####################################################################
             period = 3*period/4.
           endif
           ff = sin(period*(x-xmin)/(xmax-xmin))
-        elseif (bcs(1) == SP .and. dirichlet(2)) then
+        elseif (spoint(1) .and. dirichlet(2)) then
           ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
      .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
-        elseif (bcs(1) == SP .and. neumann(2)) then
+        elseif (spoint(1) .and. neumann(2)) then
           if (.not.odd) then
             period = period/2.
             ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
