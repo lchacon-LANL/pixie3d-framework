@@ -164,7 +164,7 @@ cc            write (*,*) xx,yy,zz,rr
 
           !Solve Jacobian system
 
-            call solve(jac_mat,rhs,dx)
+            call solve(3,jac_mat,rhs,dx)
 
           !Update Newton solution
 
@@ -209,19 +209,21 @@ c     #################################################################
 
 c     solve
 c     #################################################################
-      subroutine solve(mat,rhs,x)
+      subroutine solve(size,mat,rhs,x)
 
         implicit none
 
-        real(8) :: mat(3,3),rhs(3),x(3)
+        integer(4) :: size
 
-        integer(4) :: ipiv(3),info
+        real(8)    :: mat(size,size),rhs(size),x(size)
+
+        integer(4) :: ipiv(size),info
 
         external dgesv
 
         x = rhs
 
-        call dgesv(3,1,mat,3,ipiv,x,3,info)  !LAPACK routine
+        call dgesv(size,1,mat,size,ipiv,x,size,info)  !LAPACK routine
 
         if (info /= 0) then
           if (info < 0) then
@@ -2101,6 +2103,7 @@ c #####################################################################
           integer(4) :: ngrdx
           integer(4) :: ngrdy
           integer(4) :: ngrdz
+          integer(4) :: ngrid
           real(8)   ,pointer,dimension(:)  :: xx
           real(8)   ,pointer,dimension(:)  :: yy
           real(8)   ,pointer,dimension(:)  :: zz
@@ -2113,10 +2116,14 @@ c #####################################################################
           integer(4),pointer,dimension(:)  :: nxv
           integer(4),pointer,dimension(:)  :: nyv
           integer(4),pointer,dimension(:)  :: nzv
+          integer(4),pointer,dimension(:)  :: ntotv
           integer(4),pointer,dimension(:)  :: istartx
           integer(4),pointer,dimension(:)  :: istarty
           integer(4),pointer,dimension(:)  :: istartz
           integer(4),pointer,dimension(:)  :: istartp
+          integer(4),pointer,dimension(:)  :: mg_ratio_x
+          integer(4),pointer,dimension(:)  :: mg_ratio_y
+          integer(4),pointer,dimension(:)  :: mg_ratio_z
           real(8)                          :: params(5)
         end type grid_def
 
@@ -2659,7 +2666,7 @@ c     Call variables
 c     Local variables
 
         integer(4) :: i,n1,n2,n3
-        integer(4) :: ngrd,ngrdx,ngrdy,ngrdz
+        integer(4) :: ngrdx,ngrdy,ngrdz
 
 c     Begin program
 
@@ -2702,19 +2709,35 @@ c     Allocate grid storage structure
 
 c     Initialize MG arrays
 
+        grid_params%mg_ratio_x = 1
+        grid_params%mg_ratio_y = 1
+        grid_params%mg_ratio_z = 1
+
         grid_params%nxv(1) = nxx
         do i = 2,ngrdx
           grid_params%nxv(i) = grid_params%nxv(i-1) / mg_ratio
+          grid_params%mg_ratio_x(i-1) = mg_ratio
+        enddo
+        do i = ngrdx+1,grid_params%ngrid
+          grid_params%nxv(i) = grid_params%nxv(i-1)
         enddo
 
         grid_params%nyv(1) = nyy
         do i = 2,ngrdy
           grid_params%nyv(i) = grid_params%nyv(i-1) / mg_ratio
+          grid_params%mg_ratio_y(i-1) = mg_ratio
+        enddo
+        do i = ngrdy+1,grid_params%ngrid
+          grid_params%nyv(i) = grid_params%nyv(i-1)
         enddo
 
         grid_params%nzv(1) = nzz
         do i = 2,ngrdz
           grid_params%nzv(i) = grid_params%nzv(i-1) / mg_ratio
+          grid_params%mg_ratio_z(i-1) = mg_ratio
+        enddo
+        do i = ngrdz+1,grid_params%ngrid
+          grid_params%nzv(i) = grid_params%nzv(i-1)
         enddo
 
         grid_params%istartx(1) = 1
@@ -2735,14 +2758,12 @@ c     Initialize MG arrays
      .                            +(grid_params%nzv(i-1)+2)
         enddo
 
-        ngrd = max(ngrdx,ngrdy,ngrdz)
-
         grid_params%istartp(1) = 1
-        do i = 2,ngrd
+        do i = 2,grid_params%ngrid
           grid_params%istartp(i) = grid_params%istartp(i-1)
-     .                            +grid_params%nxv(min(i-1,ngrdx))
-     .                            *grid_params%nyv(min(i-1,ngrdy))
-     .                            *grid_params%nzv(min(i-1,ngrdz))
+     .                            +grid_params%nxv(i-1)
+     .                            *grid_params%nyv(i-1)
+     .                            *grid_params%nzv(i-1)
         enddo
 
 c     Set grid parameters
@@ -2804,6 +2825,7 @@ c     Begin program
         grid_params%ngrdx = ngridx
         grid_params%ngrdy = ngridy
         grid_params%ngrdz = ngridz
+        grid_params%ngrid = ngrid
 
         if (.not.associated(grid_params%xx)) then
           allocate(grid_params%xx(2*nxx+2*ngridx))
@@ -2815,13 +2837,17 @@ c     Begin program
           allocate(grid_params%dxh(2*nxx+2*ngridx))
           allocate(grid_params%dyh(2*nyy+2*ngridy))
           allocate(grid_params%dzh(2*nzz+2*ngridz))
-          allocate(grid_params%nxv(ngridx))
-          allocate(grid_params%nyv(ngridy))
-          allocate(grid_params%nzv(ngridz))
+          allocate(grid_params%nxv(ngrid))
+          allocate(grid_params%nyv(ngrid))
+          allocate(grid_params%nzv(ngrid))
+          allocate(grid_params%ntotv(ngrid))
           allocate(grid_params%istartx(ngridx))
           allocate(grid_params%istarty(ngridy))
           allocate(grid_params%istartz(ngridz))
           allocate(grid_params%istartp(ngrid))
+          allocate(grid_params%mg_ratio_x(ngrid))
+          allocate(grid_params%mg_ratio_y(ngrid))
+          allocate(grid_params%mg_ratio_z(ngrid))
         endif
 
 c     End program
