@@ -240,8 +240,9 @@ c CG solve
         rr0 = sqrt(sum(b*b))
       endif
 
-      if (rr0.lt.abstol .and. out .ge. 1) then
-        write (*,*) 'Initial guess seems exact solution in CG' 
+      if (rr0.lt.abstol) then
+        if (out .ge. 1)
+     .       write (*,*) 'Initial guess seems exact solution in CG' 
         return
       endif
 
@@ -419,9 +420,10 @@ c Calculate magnitude of initial residual
         rold = sqrt(sum(b*b))
       endif
 
-      if (rold.lt.abstol .and. iout .ge. 1) then
+      if (rold.lt.abstol) then
         ierr = -1
-        write (*,*) 'Initial guess seems exact solution in GMRES' 
+        if (iout .ge. 1)
+     .       write (*,*) 'Initial guess seems exact solution in GMRES' 
         call killgm
         return
       endif
