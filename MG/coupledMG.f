@@ -4895,7 +4895,7 @@ c     Local variables
 
       real(8),allocatable,dimension(:)::x1,dummy,dummy2
 
-      real(8)    :: dd1,dd2,error
+      real(8)    :: dd1,dd2,err
       integer(4) :: nx,ny,nz,nn,ii,jj,i1,j1,i2,j2,ix1,iy1,ix2,iy2,ieq
 
 c     Begin program
@@ -4913,7 +4913,7 @@ c     Initialize variables
 
       allocate(x1(nn),dummy(nn),dummy2(nn))
 
-      error = 0d0
+      err = 0d0
 
       do ii = 1,nn
         x1    (ii) = 0d0
@@ -4950,7 +4950,7 @@ c       diagonal)
             if(abs(dummy(jj)).gt.1d-15.or.abs(dummy2(ii)).gt.1d-15) then
               write(*,15) jj,ii,dummy(jj),ii,jj,dummy2(ii),dd1
      .             ,100*dd1/max(abs(dummy(jj)),abs(dummy2(ii)))
-              error = error + dd1
+              err = err + dd1
             endif
 
           enddo
@@ -4958,7 +4958,7 @@ c       diagonal)
         enddo
       enddo
 
-      write (*,20) error
+      write (*,20) err
 
       stop
 
