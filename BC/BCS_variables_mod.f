@@ -22,6 +22,8 @@ c####################################################################
 
         use generalPurposeFunctions
 
+        use oned_int
+
         integer(4) :: nnvar,imax,imin,jmax,jmin,kmax,kmin
         integer(4) :: nxbc,nybc,nzbc,igxbc,igybc,igzbc
 

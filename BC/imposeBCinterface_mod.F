@@ -58,7 +58,7 @@ c       Perform local sum
           vol = volume(i,j,k,igxbc,igybc,igzbc)
           x0  = grid_params%xx(ig-1)
 
-          call IntDriver1d(order1+1,grid_params%xx(ig)
+          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
      .                    ,array(i:i+order1+1,j,k)
      .                    ,1,x0,rho0,order1)
 
@@ -109,10 +109,10 @@ c     Local variables
       integer(4) :: i,j,k
 
       integer(4) :: ic,ig,jg,kg,order1
-      real(8)    :: x0(1),vol,lavg_x,lavg_y,lavg_z,lavg_vol
-     .                       , avg_x, avg_y, avg_z, avg_vol
-      real(8)    :: cx1(1),cy1(1),cz1(1)
-      real(8),allocatable,dimension(:) :: ax0,ay0,az0,cx,cy,cz
+      real(8)    :: vol,lavg_x,lavg_y,lavg_z,lavg_vol
+     .                 , avg_x, avg_y, avg_z, avg_vol
+      real(8)    :: daxdr(1),daydr(1),dummy1,dummy2
+      real(8),allocatable,dimension(:) :: ax0,ay0,az0,cx,cy,cz,xx
 
 c     External
 
@@ -130,9 +130,17 @@ c     Set interpolation order
 
       order1 = min(order,ihig-ilog)
 
-c     Find average cartesian coordinates
+c     Allocate quantities for interpolation
 
       allocate(ax0(nzbc),ay0(nzbc),az0(nzbc))
+      allocate(cx(0:order1+1),cy(0:order1+1),cz(0:order1+1)
+     .        ,xx(0:order1+1))
+
+      call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+
+      xx(0:order1+1) = grid_params%xx(ig-1:ig+order1)
+
+c     Find average cartesian coordinates
 
       do k=1,nzbc
 
@@ -145,27 +153,34 @@ c       Perform local sum
         do j=1,nybc
           call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
           vol = volume(i,j,k,igxbc,igybc,igzbc)
-          x0  = grid_params%xx(ig-1)
 
-          allocate(cx(order1+1),cy(order1+1),cz(order1+1))
           do ic=1,order1+1
             call transformVectorToCartesian(ic,j,k,igxbc,igybc,igzbc
      .           ,vec(ic,j,k,1),vec(ic,j,k,2),vec(ic,j,k,3),cov
      .           ,cx(ic),cy(ic),cz(ic))
           enddo
 
-          call IntDriver1d(order1+1,grid_params%xx(ig),cx,1,x0,cx1
-     .                    ,order1)
-          call IntDriver1d(order1+1,grid_params%xx(ig),cy,1,x0,cy1
-     .                    ,order1)
-          call IntDriver1d(order1+1,grid_params%xx(ig),cz,1,x0,cz1
-     .                    ,order1)
-          deallocate(cx,cy,cz)
+          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
+     .                    ,cx(1:order1+1),1,grid_params%xx(ig-1:ig-1)
+     .                    ,cx(0),order1)
+          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
+     .                    ,cy(1:order1+1),1,grid_params%xx(ig-1:ig-1)
+     .                    ,cy(0),order1)
+          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
+     .                    ,cz(1:order1+1),1,grid_params%xx(ig-1:ig-1)
+     .                    ,cz(0),order1)
+cc          call IntDriver1d(order1+1,xx(1:order1+1)
+cc     .                    ,cx(1:order1+1),1,xx(0),cx(0),order1)
+cc          call IntDriver1d(order1+1,xx(1:order1+1)
+cc     .                    ,cy(1:order1+1),1,xx(0),cy(0),order1)
+cc          call IntDriver1d(order1+1,xx(1:order1+1)
+cc     .                    ,cz(1:order1+1),1,xx(0),cz(0),order1)
 
-          lavg_x   = lavg_x   + vol*cx1(1)
-          lavg_y   = lavg_y   + vol*cy1(1)
-          lavg_z   = lavg_z   + vol*cz1(1)
+          lavg_x   = lavg_x   + vol*cx(0)
+          lavg_y   = lavg_y   + vol*cy(0)
+          lavg_z   = lavg_z   + vol*cz(0)
           lavg_vol = lavg_vol + vol
+
         enddo
 
 c       Perform global sum (and broadcast it to all processors)
@@ -191,21 +206,20 @@ c       Perform average
         ax0(k) = avg_x/avg_vol
         ay0(k) = avg_y/avg_vol
         az0(k) = avg_z/avg_vol
-      enddo
-      
-c     Transform to curvilinear components at SP
 
-      i = 0
+      enddo
+
+      i = ilog-1
       do k=1,nzbc
-cc        do j=1,nybc
-        do j=0,nybc+1    !This also fills ghost cells
+        do j=0,nybc+1           !This also fills ghost cells
           call transformVectorToCurvilinear(i,j,k,igxbc,igybc,igzbc
-     .               ,ax0(k),ay0(k),az0(k),cov
-     .               ,vec(i,j,k,1),vec(i,j,k,2),vec(i,j,k,3))
+     .                 ,ax0(k),ay0(k),az0(k),cov
+     .                 ,vec(i,j,k,1),vec(i,j,k,2),vec(i,j,k,3))
         enddo
       enddo
 
       deallocate(ax0,ay0,az0)
+      deallocate(cx,cy,cz,xx)
 
 c     End program
 
@@ -560,7 +574,7 @@ cc            endif
 
 c     Singular point boundary condition
 
-      if (bcond(1) == SP) call singularBC(array,order)
+      if (bcSP()) call singularBC(array,order)
 
 c     Fill edges
 
@@ -744,7 +758,7 @@ c     Synchronize covariant and contravariant components => contravariant
 
 c     Impose singular point BCs
 
-      if (bcond(1,1) == SP) then
+      if (bcSP()) then
         if (is__vec) then
           call singularBC(v_cnv,.false.,order)
         else
@@ -2057,7 +2071,9 @@ c     Identify directions for extrapolation.
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
         select_bc(i) =    (bcond(i_bc) == EQU)
-     .                .or.(bcond(i_bc) == SP)
+     .                .or.(bcSP(ibc=i_bc)    )
+cc     .                .or.(bcond(i_bc) == SP )
+cc     .                .or.(bcond(i_bc) == SP2)
 cc     .                .or.(bcond(i_bc) == SYM)
       enddo
 
