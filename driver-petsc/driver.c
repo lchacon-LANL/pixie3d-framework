@@ -67,7 +67,6 @@ typedef struct {
   Vec         x0;
   Vec         xold;
   Vec         xk;
-  /*  Vec         fold;*/
   Vec         fsrc;
   PetscTruth  hdf5c;
 } AppCtx;
@@ -79,28 +78,24 @@ extern void FORTRAN_NAME(EVALUATENONLINEARRESIDUAL)
 		       int*, int*, int*, int*, int*, int*);
 extern void FORTRAN_NAME(FORMEQUILIBRIUM) (Field*, int*, int*, int*, int*, int*, int*);
 extern void FORTRAN_NAME(FORMINITIALCONDITION) (Field*,int*,int*,int*,int*,int*,int*,PetscScalar*);
-
 extern void FORTRAN_NAME(PROCESSOLDSOLUTION) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
 extern void FORTRAN_NAME(CORRECTTIMESTEP) (PetscScalar*,PetscScalar*,PetscScalar*,int*,PetscScalar*);
 extern void FORTRAN_NAME(FORTRANDESTROY) ();
 extern void FORTRAN_NAME(READINPUTFILE) (input_CTX*);
 extern void FORTRAN_NAME(SETUPSHELLPC) (Field*, int*, int*, int*, int*, int*, int*);
 extern void FORTRAN_NAME(APPLYSHELLPC) (Field*, Field*, int*, int*, int*, int*, int*, int*);
-
 #else
 extern void FORTRAN_NAME(evaluatenonlinearresidual) 
                       (Field*, Field*, int*, int*, int*, int*, int*, int*,
 		       int*, int*, int*, int*, int*, int*);
 extern void FORTRAN_NAME(formequilibrium) (Field*, int*, int*, int*, int*, int*, int*);
 extern void FORTRAN_NAME(forminitialcondition) (Field*,int*,int*,int*,int*,int*,int*,PetscScalar*);
-
 extern void FORTRAN_NAME(processoldsolution) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
 extern void FORTRAN_NAME(correcttimestep) (PetscScalar*,PetscScalar*,PetscScalar*,int*,PetscScalar*);
 extern void FORTRAN_NAME(fortrandestroy) ();
 extern void FORTRAN_NAME(readinputfile) (input_CTX*);
 extern void FORTRAN_NAME(setupshellpc) (Field*, int*, int*, int*, int*, int*, int*);
 extern void FORTRAN_NAME(applyshellpc) (Field*, Field*, int*, int*, int*, int*, int*, int*);
-
 #endif
 
 /* User-defined routines */
