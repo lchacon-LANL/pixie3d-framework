@@ -2,11 +2,16 @@ SRC  := $(wildcard *.f)
 
 MODS := $(wildcard *_mod.f)
 
-OBJS := $(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))
+OBJS := $(patsubst %.f,%.o,$(filter-out $(MODS) test.f,$(SRC)))
 
 OBJMOD := $(MODS:.f=.o)
 
 LIBS := 
+
+SUBDIRS := ../interpolation/cubic_spline ../interpolation ../interpolation/xerror
+
+COMMON_SRC  = $(foreach dir,$(SUBDIRS),$(wildcard $(dir)/*.f))
+COMMON_OBJS = $(COMMON_SRC:.f=.o)
 
 #Define compiler flags
 
@@ -47,11 +52,22 @@ endif
 
 #Define targets
 
-target: $(OBJMOD) $(OBJS)
-#	$(FC) -o fft $(OBJS)
+target:    $(OBJMOD) $(OBJS)
+
+test:   common $(OBJMOD) $(OBJS) test.o $(COMMON_OBJS)
+	$(FC) -o fft $(OBJS) $(OBJMOD) test.o $(COMMON_OBJS)
+
+common: ;
+	-for subdir in $(SUBDIRS) ; do \
+		$(MAKE) -e -C $$subdir ; \
+		cp $$subdir/*.mod $(prefix) >& /dev/null ; done
 
 clean:
 	rm -f *.o *.mod
+
+recclean: clean
+	for subdir in $(SUBDIRS) ; do \
+		$(MAKE) -C $$subdir clean;  done
 
 #Define dependencies
 
