@@ -21,8 +21,7 @@ c##########################################################################
 
 c Local variables
 
-      integer(4) :: ierr,system,nplot,igx,igy,igz
-      real(8)    :: tmplot
+      integer(4)     :: ierr,system,nplot,igx,igy,igz
       character*(40) :: command
 
 c Begin program
@@ -37,15 +36,19 @@ c Initialize
 
 c Backup record file
 
-      command='cp '//trim(recordfile)//' '//trim(recordfile)//'.bak'
-
-      ierr=system(trim(command))
-
-      if (ierr /= 0) then
-        write (*,*) 'Unable to find record file'
-        write (*,*) 'Aborting...'
-        stop
-      endif
+cc      write (*,*) 'Backing up record file...'
+cc
+cc      command='cp '//trim(recordfile)//' '//trim(recordfile)//'.bak'
+cc
+cc      ierr=system(trim(command))
+cc
+cc      if (ierr /= 0) then
+cc        write (*,*) 'Unable to find record file'
+cc        write (*,*) 'Aborting...'
+cc        stop
+cc      else
+cc        write (*,*) 'Done!'
+cc      endif
 
 c Initialize counters
 
@@ -56,9 +59,11 @@ c Time loop
 
       do
 
+        u_n  = u_np
+
 c     Read next record
 
-        call readRecord(urecord,itime,time,u_np,ierr)
+        call readRecord(urecord,itime,time,dt,u_np,ierr)
 
 c     Check for error
 
@@ -69,7 +74,7 @@ cc        write (*,*) ierr
         if (ierr == -1) cycle  !Error, but not EOF
         if (ierr == -2) exit   !EOF
 
-c     Update counters (only if timeStep is successful)
+c     Update counters
 
         nplot  = nplot + 1
 
@@ -109,8 +114,8 @@ cc      ierr=system('mv draw*in plots')
 
 c Remove backup copy
 
-      command='rm '//trim(recordfile)//'.bak'
-      ierr=system(trim(command))
+cc      command='rm '//trim(recordfile)//'.bak'
+cc      ierr=system(trim(command))
 
 c End program
 
@@ -206,7 +211,7 @@ c Begin program
 
 c Read user initializations
 
-      call readGraphicsInput
+      call readGraphicsInput(sel_diag,sel_graph,ndplot,dplot)
 
 c Open graphics file
 
@@ -253,7 +258,7 @@ c Allocate records
 
 c Read equilibrium
 
-      call readRecord(urecord,itime,time,u_0,ierr)
+      call readRecord(urecord,itime,time,dt,u_0,ierr)
       if (ierr /= 0) then
         write (*,*) 'Unable to read equilibrium'
         write (*,*) 'Aborting...'
@@ -264,11 +269,13 @@ c Read equilibrium
 
 c Initialize graphics
 
+      u_n     = u_0
+      u_np    = u_0   !Required to "prime" u_np for pointers
       u_graph = u_0
 
-      u_np = u_0   !Required to "prime" u_np for pointers
-
       call initializeGraphics(igx,igy,igz,bcond)
+
+      call dumpTimeStepPlots
 
 c Initialize diagnostics
 
@@ -277,45 +284,6 @@ c Initialize diagnostics
 c End program
 
       end subroutine initializeCalculation
-
-c readGraphicsInput
-c######################################################################
-      subroutine readGraphicsInput
-
-c----------------------------------------------------------------------
-c     Initializes MG and creates grid
-c----------------------------------------------------------------------
-
-      use graphics
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-      namelist /graphdef/ sel_diag,sel_graph,ndplot,dplot
-
-c Begin program
-
-c Read computation initializations (external)
-
-      call readInput
-
-c Graphics defaults
-
-      ndplot = 0
-      dplot  = 0d0
-
-c Read graphics initialization parameters
-
-      open(unit=25,file='3dmhd.in',status='old')
-      read(25,graphdef)
-      close(unit=25)
-
-c End program
-
-      end subroutine readGraphicsInput
 
 ccc createGraphics
 ccc######################################################################
