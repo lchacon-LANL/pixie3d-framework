@@ -316,7 +316,7 @@ c     ####################################################################
         logical    :: neumann(2),dirichlet(2)
 
         neumann   = (bcs == NEU) .or. (bcs == SYM)
-        dirichlet = (bcs == DIR) .or. (bcs ==-SYM)
+        dirichlet = (bcs == DIR) .or. (bcs ==-SYM) .or. (bcs == EQU)
 
         period = pi
         if (odd) period = 2*pi
