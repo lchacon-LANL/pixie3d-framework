@@ -189,7 +189,7 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: ieq
+      integer(4) :: ieq,igx,igy,igz
 
       real(8),allocatable,dimension(:,:,:,:) :: var
 
@@ -198,6 +198,10 @@ c Local variables
       integer(4),allocatable,dimension(:,:)  :: bcs
 
 c Begin program
+
+      igx = 1
+      igy = 1
+      igz = 1
 
 c Set equilibrium u_0 and define BCs on all variables
 
@@ -211,7 +215,7 @@ c Set equilibrium u_0 and define BCs on all variables
 
       var = 0d0
 
-      call setEquilibrium(var,bcs,label)
+      call setEquilibrium(igx,igy,igz,var,bcs,label)
 
       call packVariables(u_0)
 
