@@ -10,24 +10,25 @@ c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 c THIS ROUTINE REQUIRES THE FOLLOWING EXTERNAL ROUTINES:
 c
-c     subroutine matvec(elem,ntot,x,b,igrid,bcond)
+c     subroutine matvec(elem,neq,ntot,x,b,igrid,bcnd)
 c
 c WHERE:
 c     * elem: whether matvec is to be applied to the whole vector
 c             (elem=0), or to find only the component elem<>0 of
 c             the vector.
+c     * neq: number of coupled equations
 c     * ntot: size of vector
 c     * x(ntot): vector to apply matrix operator on.
 c     * b(ntot): resulting vector (b=Ax)
 c     * igrid (integer): grid level operation is applied at.
-c     * bcond(6,neq): boundary condition information for all
+c     * bcnd(6,neq): boundary condition information for all
 c             dimensions of the problem.
 c    
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
 c getSolver
 c####################################################################
-      recursive subroutine getSolver(neq,ntot,b,x,matvec,igrid,bcond
+      recursive subroutine getSolver(neq,ntot,b,x,matvec,igrid,bcnd
      .                              ,guess,out,depth)
 c--------------------------------------------------------------------
 c     Solves Ax=b matrix-free using a variety of solvers.
@@ -39,7 +40,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcond(6,neq)
+      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
       real*8         x(ntot),b(ntot)
 
       external       matvec
@@ -62,11 +63,11 @@ c Read solver definition from solver hierarchy
 
 c Symmetry test
 
-      if (options%sym_test) call symm_test(neq,2,matvec,bcond)
+      if (options%sym_test) call symm_test(neq,2,matvec,bcnd)
 
 c Invoke solver
 
-      call solver_meth(neq,ntot,b,x,matvec,igrid,bcond
+      call solver_meth(neq,ntot,b,x,matvec,igrid,bcnd
      .                ,guess,out,solver,options,depth)
 
 c Check convergence
@@ -88,13 +89,13 @@ cc      write (*,*) options%iter_out
 c End program
 
  100  format (/,' ',a2,' did not converge to prescribed tolerance',
-     .        /,' Residual =',1pe10.2,' > Tolerance =',e10.2,/)
+     .        /,' Relat. residual =',1pe10.2,' > Tolerance =',e10.2,/)
 
       end subroutine getSolver
 
 c solver_meth
 c####################################################################
-      recursive subroutine solver_meth(neq,ntot,b,x,matvec,igrid,bcond
+      recursive subroutine solver_meth(neq,ntot,b,x,matvec,igrid,bcnd
      .                                ,guess,out,solver,options,depth)
 c--------------------------------------------------------------------
 c     Solves Ax=b matrix-free using a variety of solvers.
@@ -106,7 +107,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcond(6,neq)
+      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
       real*8         x(ntot),b(ntot)
 
       type (solver_options):: options
@@ -123,23 +124,23 @@ c Solve
       select case (solver)
       case ('cg')
 
-        call cg(neq,ntot,b,x,matvec,options,igrid,bcond,guess,out,depth)
+        call cg(neq,ntot,b,x,matvec,options,igrid,bcnd,guess,out,depth)
 
       case ('gm')
 
-        call gm(neq,ntot,b,x,matvec,options,igrid,bcond,guess,out,depth)
+        call gm(neq,ntot,b,x,matvec,options,igrid,bcnd,guess,out,depth)
 
       case ('jb')
 
-        call jb(neq,ntot,b,x,matvec,options,igrid,bcond,guess,out,depth)
+        call jb(neq,ntot,b,x,matvec,options,igrid,bcnd,guess,out,depth)
 
       case ('gs')
 
-        call gs(neq,ntot,b,x,matvec,options,igrid,bcond,guess,out,depth)
+        call gs(neq,ntot,b,x,matvec,options,igrid,bcnd,guess,out,depth)
 
       case ('mg')
 
-        call mg(neq,ntot,b,x,matvec,options,igrid,bcond,guess,out,depth)
+        call mg(neq,ntot,b,x,matvec,options,igrid,bcnd,guess,out,depth)
 
       case ('id')
 
@@ -159,7 +160,7 @@ c End program
 
 c cg
 c####################################################################
-      recursive subroutine cg(neq,ntot,b,x,matvec,options,igrid,bcond
+      recursive subroutine cg(neq,ntot,b,x,matvec,options,igrid,bcnd
      .                       ,guess,out,depth)
 c--------------------------------------------------------------------
 c     Matrix-free Preconditioned Conjugate Gradient routine to solve
@@ -181,7 +182,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,ntot,igrid,guess,out,depth,bcond(6,neq)
+      integer(4) :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
       real(8)    :: x(ntot),b(ntot)
 
       type (solver_options) :: options
@@ -225,7 +226,7 @@ c     For zero initial guess
 
 c     For arbitrary initial guess (rr = b - Ax)
 
-        call matvec(0,ntot,x,rr,igrid,bcond)
+        call matvec(0,neq,ntot,x,rr,igrid,bcnd)
 
         rr = b - rr
 
@@ -249,7 +250,7 @@ cc      if (out.ge.2) write (*,10) iter,rr0,rr0/rr0
 
 c     Preconditioner (zz = P rr)
 
-      call getSolver(neq,ntot,rr,zz,matvec,igrid,bcond,0,precout,depth1)
+      call getSolver(neq,ntot,rr,zz,matvec,igrid,bcnd,0,precout,depth1)
 
 c     CG preparation
 
@@ -263,7 +264,7 @@ c     CG step
 
         rho0 = rho1
 
-        call matvec(0,ntot,pp,qq,igrid,bcond)
+        call matvec(0,neq,ntot,pp,qq,igrid,bcnd)
 
         alpha = rho0/sum(pp*qq)
 
@@ -289,7 +290,7 @@ cc        if (mag1.lt.tol) exit
 
 c     Preconditioner (zz = P rr)
 
-        call getSolver(neq,ntot,rr,zz,matvec,igrid,bcond,0,precout
+        call getSolver(neq,ntot,rr,zz,matvec,igrid,bcnd,0,precout
      .                ,depth1)
 
 c     Prepare next step
@@ -319,7 +320,7 @@ c End program
 
 c gm
 c#######################################################################
-      recursive subroutine gm(neq,ntot,b,x,matvec,options,igrid,bcond
+      recursive subroutine gm(neq,ntot,b,x,matvec,options,igrid,bcnd
      .                       ,guess,iout,depth)
 c--------------------------------------------------------------------
 c     Matrix-free Preconditioned Conjugate Gradient routine to solve
@@ -342,7 +343,7 @@ c--------------------------------------------------------------------
 c Call variables
 
       integer*4     neq,ntot,im,iout,ierr,igrid,its,guess,depth
-     .             ,bcond(6,neq)
+     .             ,bcnd(6,neq)
       real*8        b(ntot),x(ntot)
 
       external      matvec
@@ -400,7 +401,7 @@ c     For zero initial guess
 
 c     For arbitrary initial guess (vv(:,1) = b - Ax)
 
-        call matvec(0,ntot,x,vv(:,1),igrid,bcond)
+        call matvec(0,neq,ntot,x,vv(:,1),igrid,bcnd)
 
         vv(:,1) = b(:) - vv(:,1)
 
@@ -449,10 +450,10 @@ c      GMRES iteration
 
 c        Call preconditioner
 
-          call getSolver(neq,ntot,vv(1,i),zz(1,i),matvec,igrid,bcond,0
+          call getSolver(neq,ntot,vv(1,i),zz(1,i),matvec,igrid,bcnd,0
      .                  ,precout,depth1)
 
-          call matvec(0,ntot,zz(1,i),vv(1,i1),igrid,bcond)
+          call matvec(0,neq,ntot,zz(1,i),vv(1,i1),igrid,bcnd)
 
 c        Modified gram - schmidt.
 
