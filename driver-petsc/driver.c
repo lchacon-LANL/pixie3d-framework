@@ -4,12 +4,12 @@ static char help[] = "Options:
 	-nx <nx> -ny <ny> -nz <nz> : grid size of each direction\n\
         -nmax <nmax>: max. iteration # of time steps\n";
 
-/*T
- *    Concepts: SNES^matrix-free/finite-difference Jacobian methods
- *    Concepts: SNES^user-provided preconditioner;
+/*
+ *    Concepts: SNES matrix-free/finite-difference Jacobian methods
+ *    Concepts: SNES user-provided preconditioner;
  *    Processors: n (parallel)
  *    
-T*/
+ */
 
 #include "petscsnes.h"
 #include "petscda.h"
@@ -225,6 +225,7 @@ int MAIN__(int argc, char **argv)
   ierr = EvaluateFunction(snes,x,user.fsrc,&user);CHKERRQ(ierr);
 
   ierr = FormInitialCondition(snes, x, &user);CHKERRQ(ierr);
+  /*ierr = FormInitialCondition(snes, user.fsrc, &user);CHKERRQ(ierr);*/
 
  
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -242,10 +243,12 @@ int MAIN__(int argc, char **argv)
 
     ierr = SNESGetNumberLinearIterations(snes,&user.gmits);CHKERRQ(ierr);
     
-    /*PetscPrintf(PETSC_COMM_WORLD,"Steps = %d Number of Newton iterations = %d\n"\
+    /*
+    PetscPrintf(PETSC_COMM_WORLD,"Steps = %d Number of Newton iterations = %d\n"\
       ,steps, user.nwits);
+    PetscPrintf(PETSC_COMM_WORLD,"Steps = %d Number of Krylov iterations = %d\n"\
+      ,steps, user.gmits);
     */
-
   }
   
   ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
@@ -406,11 +409,23 @@ int FormInitialCondition(SNES snes,Vec X,void *ptr)
 
   user->nwits = 0;
   user->gmits = 0;
-    
+
+  /*
+   * Scatter ghost points to local vector,using the 2-step process
+   * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
+   * By placing code between these two statements, computations can be
+   * done while messages are in transition.
+   */
+  
+  ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
+  
+  ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  
   /*
    * Get pointers to vector data
    */
-  ierr = DAVecGetArray(user->da, X, (void**)&xvec);CHKERRQ(ierr);
+  ierr = DAVecGetArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
   
   /*
    * Get local grid boundaries
@@ -443,15 +458,17 @@ int FormInitialCondition(SNES snes,Vec X,void *ptr)
    */
 
 #ifdef absoft
-  FORTRAN_NAME(FORMINITIALCONDITION)(&(xvec[zs-1][ys-1][xs-1])\
-                                           ,&xs,&xe,&ys,&ye,&zs,&ze);
+  FORTRAN_NAME(FORMINITIALCONDITION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+                                           ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
 #else
-  FORTRAN_NAME(forminitialcondition)(&(xvec[zs-1][ys-1][xs-1])\
-                                           ,&xs,&xe,&ys,&ye,&zs,&ze);
+  FORTRAN_NAME(forminitialcondition)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+                                           ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
 #endif
 
   /* Restore vectors */
-  ierr = DAVecRestoreArray(user->da, X, (void**)&xvec);CHKERRQ(ierr);
+  ierr = DAVecRestoreArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
+  ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
+  ierr = DALocalToGlobal(user->da,localX,INSERT_VALUES,X);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }

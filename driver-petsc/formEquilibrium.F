@@ -22,7 +22,7 @@ c----------------------------------------------------------------------
 
       use icond
 
-      use mpi
+      use generalPurposeFunctions
 
       implicit none
 
@@ -32,25 +32,34 @@ c Call variables
 
       type(petsc_var) :: array(imin:imax,jmin:jmax,kmin:kmax)
 
-c FIX PARALLEL
-      integer(4)      :: my_rank,ierr
-      character*(5)   :: ext
-c FIX PARALLEL
-
 c Local variables
 
       type(petsc_array) :: petscarray
 
 c Begin program
 
-      urecord    = 25
+c Initialize global domain limit variables
 
-#if defined(petsc)
-      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,ierr)
-      recordfile = 'record.bin'//trim(ext)//'.bin'
-#else
-      recordfile = 'record.bin'
-#endif
+      ihig = imax
+      ilog = imin
+      jhig = jmax
+      jlog = jmin
+      khig = kmax
+      klog = kmin
+
+c Initialize parallel MPI info
+
+      call initMPI
+
+c Set output file
+
+      urecord    = 25 + my_rank
+
+      if (np > 1) then
+        recordfile = 'record_proc'//trim(int2char(my_rank))//'.bin'
+      else
+        recordfile = 'record.bin'
+      endif
 
 c Check for autoinitializing parameters
 
@@ -74,13 +83,6 @@ c Check for autoinitializing parameters
 
 c Initialize vector dimensions for global and local problems
 
-      ihig = imax
-      ilog = imin
-      jhig = jmax
-      jlog = jmin
-      khig = kmax
-      klog = kmin
-
       call setVectorDimensions
 
 c Allocate constant arrays
@@ -97,8 +99,6 @@ c Initialize MG and create grid
 
       call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd)
 
-cc      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,ierr)
-cc      call MPI_Finalize(ierr)
 cc      if (my_rank == 3) then
 cc        write (*,*) 'Grid in processor',my_rank
 cc        call checkGrid
@@ -128,40 +128,97 @@ c Transfer to Petsc format
       array = petscarray%array(ilo:ihi,jlo:jhi,klo:khi)
 
       call deallocatePetscType(petscarray)
+      call deallocateDerivedType(u_n)
 
 c End program
 
       contains
 
-      function int2char(n) result (chr)
+c     initMPI
+c     #####################################################################
+      subroutine initMPI
 
-      integer(4)   :: n
-      character(10):: chr
+c     ---------------------------------------------------------------------
+c     Initialize needed MPI constructs
+c     ---------------------------------------------------------------------
 
-      integer(4)   :: i,exp,k
-      character(3) :: c
+c     Call variables
 
-      if (abs(n) > 0) then
-         exp = int(log(float(n))/log(1d1))
-      else
-         exp = 0
-      endif
+c     Local variables
 
-      if (n >= 0) then
-        chr=''
-      else
-        chr='-'
-      endif
+        integer(4),allocatable,dimension(:) :: process_ranks
+        integer(4)        :: lnp_sp,gnp_sp,inp,rilog
 
-      k = abs(n)
-      do i=exp,0,-1
-         j = k/10**i
-         c = achar(48+j)
-         chr = trim(chr)//trim(c)
-         if (i > 0 ) k = mod(k,j*10**i)
-      enddo
+c     Rank and number of processors
 
-      end function int2char
+        call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
+        call MPI_Comm_size(MPI_COMM_WORLD,np     ,mpierr)
+
+cc      write (*,*) 'proc',my_rank,'coords',imin,imax,jmin,jmax,kmin,kmax
+cc
+cc      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cc      call MPI_Finalize(mpierr)
+cc      stop
+
+c     i=1 boundary communicator (for singular point calculations)
+
+        if (bcond(1) /= SP) return
+
+        !Number of processes (-> gnp_sp, in ALL processors)
+        lnp_sp = 0
+        if (ilog == 1) lnp_sp = 1
+
+        call MPI_Allreduce(lnp_sp,gnp_sp,1,MPI_INTEGER
+     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+
+        allocate(process_ranks(0:gnp_sp-1))
+
+        !Select processes
+        if (my_rank == 0) then
+          lnp_sp = 0
+          if (ilog == 1) then
+            process_ranks(lnp_sp)=0
+            lnp_sp = lnp_sp+1
+          endif
+          do inp=1,np-1
+            tag = 0
+            call MPI_Recv(rilog,1,MPI_INTEGER,inp,tag
+     .                   ,MPI_COMM_WORLD,status,mpierr)
+            if (rilog == 1) then 
+              process_ranks(lnp_sp) = inp
+              lnp_sp = lnp_sp+1
+            endif
+          enddo
+        else
+          tag  = 0
+          dest = 0
+          call MPI_Send(ilog,1,MPI_INTEGER,dest,tag,MPI_COMM_WORLD
+     .                 ,mpierr)
+        endif
+
+        !Synchronize process_ranks in ALL processes
+        call MPI_Bcast(process_ranks,gnp_sp,MPI_INTEGER,root
+     .                ,MPI_COMM_WORLD,mpierr)
+
+        !Get group underlying MPI_COMM_WORLD
+        call MPI_Comm_group(MPI_COMM_WORLD,group_world,mpierr)
+
+        !Create new group using process_ranks (-> group_sp)
+        call MPI_Group_incl(group_world,gnp_sp,process_ranks,group_sp
+     .                     ,mpierr)
+
+        !Create new communicator (-> MPI_COMM_SP)
+        call MPI_Comm_create(MPI_COMM_WORLD,group_sp,MPI_COMM_SP,mpierr)
+
+cc      write (*,*) 'sp procs',process_ranks
+cc
+cc      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cc      call MPI_Finalize(mpierr)
+cc      stop
+
+        deallocate(process_ranks)
+
+      end subroutine initMPI
 
       end subroutine formEquilibrium
 

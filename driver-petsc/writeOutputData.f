@@ -1,7 +1,7 @@
 c writeOutputData
 c ######################################################################
-      subroutine writeOutputData(array,imin,imax,jmin,jmax,kmin,kmax
-     .                             ,gmits,nwits)
+      subroutine writeOutputData(array,imingc,imaxgc,jmingc,jmaxgc
+     .                               ,kmingc,kmaxgc,gmits,nwits)
 
       use variables
 
@@ -15,11 +15,14 @@ c ######################################################################
 
 c Call variables
 
-      integer(4)      :: imin,imax,jmin,jmax,kmin,kmax,nwits,gmits
+      integer(4)      :: imingc,imaxgc,jmingc,jmaxgc,kmingc,kmaxgc
+     .                   ,gmits,nwits
 
-      type(petsc_var) :: array(imin:imax,jmin:jmax,kmin:kmax)
+      type(petsc_var) ::array(imingc:imaxgc,jmingc:jmaxgc,kmingc:kmaxgc)
 
 c Local variables
+
+      integer(4)      :: imingcl,imaxgcl,jmingcl,jmaxgcl,kmingcl,kmaxgcl
 
       type(petsc_array) :: petscarray
 
@@ -33,8 +36,13 @@ c Begin program
 
       call allocatePetscType(petscarray)
 
-      petscarray%array(imin:imax,jmin:jmax,kmin:kmax)
-     .         = array(imin:imax,jmin:jmax,kmin:kmax)
+      call fromGlobalToLocalLimits(imingc ,jmingc ,kmingc
+     $                            ,imingcl,jmingcl,kmingcl)
+      call fromGlobalToLocalLimits(imaxgc ,jmaxgc ,kmaxgc
+     $                            ,imaxgcl,jmaxgcl,kmaxgcl)
+
+      petscarray%array(imingcl:imaxgcl,jmingcl:jmaxgcl,kmingcl:kmaxgcl)
+     .         = array(imingc :imaxgc ,jmingc :jmaxgc ,kmingc :kmaxgc )
 
 c Map old solution
 
@@ -54,7 +62,7 @@ c Output per time step
       itgmres = gmits
       itnewt  = nwits
 
-      call output
+      if (my_rank == 0) call output
 
 c Deallocate memory
 

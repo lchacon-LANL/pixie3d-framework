@@ -18,7 +18,8 @@ c #####################################################################
 
       integer(4) :: ilo ,ihi ,jlo ,jhi ,klo ,khi
      .             ,ilom,ihip,jlom,jhip,klom,khip
-     $             ,ilog,ihig,jlog,jhig,klog,khig
+     $             ,ilog ,ihig ,jlog ,jhig ,klog ,khig
+     .             ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
 
       integer(4) :: ntotd,ntotdp,ntimemax
 
@@ -36,7 +37,15 @@ c     #################################################################
 cc        ntotdp  = nxd*nyd*nzd
 cc        ntotd   = neqd*ntotdp
 
-      !Local problem info (ihi,ilo,etc. initialized elsewhere)
+        !Define offset quantities (global grid)
+        ihipg = ihig+1
+        ilomg = ilog-1
+        jhipg = jhig+1
+        jlomg = jlog-1
+        khipg = khig+1
+        klomg = klog-1
+
+      !Local problem info (ihig,ilog,etc. initialized elsewhere)
 
         nxl  = ihig-ilog+1
         nyl  = jhig-jlog+1
@@ -50,7 +59,7 @@ cc        ntotd   = neqd*ntotdp
         klo  = 1
         khi  = nzl
 
-        !Define offset quantities (local grid 1:n?l)
+        !Define offset quantities (local grid)
         ihip = ihi+1
         ilom = ilo-1
         jhip = jhi+1
@@ -450,6 +459,7 @@ c     Local variables
 c     Begin program
 
         if (frmt) then
+          write (unit,*) ilomg,ihipg,jlomg,jhipg,klomg,khipg
           write (unit,*) varray%nvar
           do ieq=1,varray%nvar
             write(unit,*) varray%array_var(ieq)%array
@@ -457,6 +467,7 @@ c     Begin program
             write(unit,*) varray%array_var(ieq)%descr
           enddo
         else
+          write (unit) ilomg,ihipg,jlomg,jhipg,klomg,khipg
           write (unit) varray%nvar
           do ieq=1,varray%nvar
             write(unit) varray%array_var(ieq)%array
@@ -488,10 +499,13 @@ c     Begin program
         ierr = 0
 
         if (format) then
-          read (unit,*,iostat=ierr,end=100) varray%nvar
+          read (unit,*,iostat=ierr,end=100)
+     .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
+          read (unit,*,iostat=ierr,end=100)varray%nvar
           if (ierr /= 0) goto 200
           do ieq=1,varray%nvar
-            read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)%array
+            read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)
+     .                 %array(ilom:ihip,jlom:jhip,klom:khip)
             if (ierr /= 0) goto 200
             read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)%bconds
             if (ierr /= 0) goto 200
@@ -499,10 +513,13 @@ c     Begin program
             if (ierr /= 0) goto 200
           enddo
         else
+          read (unit,iostat=ierr,end=100)
+     .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
           read (unit,iostat=ierr,end=100) varray%nvar
           if (ierr /= 0) goto 200
           do ieq=1,varray%nvar
-            read(unit,iostat=ierr,end=100) varray%array_var(ieq)%array
+            read(unit,iostat=ierr,end=100) varray%array_var(ieq)
+     .                 %array(ilom:ihip,jlom:jhip,klom:khip)
             if (ierr /= 0) goto 200
             read(unit,iostat=ierr,end=100) varray%array_var(ieq)%bconds
             if (ierr /= 0) goto 200
@@ -881,13 +898,13 @@ c     End program
 
       end module variables
 
-c module generalOperators
+c module generalPurposeFunctions
 c ######################################################################
-      module generalOperators
+      module generalPurposeFunctions
 
         use grid
 
-c$$$      contains
+      contains
 
 c$$$c     integral
 c$$$c     ################################################################
@@ -934,7 +951,39 @@ c$$$c     End
 c$$$
 c$$$      end function integral
 
-      end module generalOperators
+      function int2char(n) result (chr)
+
+      implicit none
+
+      integer(4)   :: n
+      character(10):: chr
+
+      integer(4)   :: i,exp,k,j
+      character(3) :: c
+
+      if (abs(n) > 0) then
+         exp = int(log(float(n))/log(1d1))
+      else
+         exp = 0
+      endif
+
+      if (n >= 0) then
+        chr=''
+      else
+        chr='-'
+      endif
+
+      k = abs(n)
+      do i=exp,0,-1
+         j = k/10**i
+         c = achar(48+j)
+         chr = trim(chr)//trim(c)
+         if (i > 0 ) k = mod(k,j*10**i)
+      enddo
+
+      end function int2char
+
+      end module generalPurposeFunctions
 
 c module icond
 c ######################################################################
@@ -994,10 +1043,16 @@ c module iosetup
 c ######################################################################
       module iosetup
 
+        use mpi
+
         integer(4)     :: ilevel
 
         integer(4)     :: urecord
         character*(20) :: recordfile
+
+        !MPI
+        integer(4)     :: np,my_rank,mpierr,MPI_COMM_SP,group_world
+     .                   ,group_sp,tag=0,dest=0,root=0,status
 
       contains
 

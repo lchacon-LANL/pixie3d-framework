@@ -90,6 +90,8 @@ c--------------------------------------------------------------------
 
       use variable_setup
 
+      use grid
+
       implicit none
 
 c Call variables
@@ -123,6 +125,8 @@ c Store function evaluation
           do i = ilo,ihi
             ii = vecPos(neqd,i,j,k)
             call nonlinearRHS(i,j,k,varray,fi(ii+1:ii+neqd))
+cc            fi(ii+1:ii+neqd) = cos(grid_params%xx(i+1)
+cc     .                            *grid_params%yy(j+1))
           enddo
         enddo
       enddo
