@@ -22,6 +22,8 @@ c----------------------------------------------------------------------
 
       use icond
 
+      use mpi
+
       implicit none
 
 c Call variables
@@ -31,7 +33,8 @@ c Call variables
       type(petsc_var) :: array(imin:imax,jmin:jmax,kmin:kmax)
 
 c FIX PARALLEL
-cc      character*(*)   :: ext
+      integer(4)      :: my_rank,ierr
+      character*(5)   :: ext
 c FIX PARALLEL
 
 c Local variables
@@ -41,11 +44,13 @@ c Local variables
 c Begin program
 
       urecord    = 25
-c FIX PARALLEL
-      !In the future, "ext" should be passed via subroutine call from C
-cc      recordfile = 'record'//trim(ext)//'.bin'
+
+#if defined(petsc)
+      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,ierr)
+      recordfile = 'record.bin'//trim(ext)//'.bin'
+#else
       recordfile = 'record.bin'
-c FIX PARALLEL
+#endif
 
 c Check for autoinitializing parameters
 
@@ -91,7 +96,14 @@ c Allocate constant arrays
 c Initialize MG and create grid
 
       call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd)
-cc      call checkGrid
+
+cc      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,ierr)
+cc      call MPI_Finalize(ierr)
+cc      if (my_rank == 3) then
+cc        write (*,*) 'Grid in processor',my_rank
+cc        call checkGrid
+cc      endif
+cc      stop
 
 c Create nonlinear solver
 
@@ -118,6 +130,38 @@ c Transfer to Petsc format
       call deallocatePetscType(petscarray)
 
 c End program
+
+      contains
+
+      function int2char(n) result (chr)
+
+      integer(4)   :: n
+      character(10):: chr
+
+      integer(4)   :: i,exp,k
+      character(3) :: c
+
+      if (abs(n) > 0) then
+         exp = int(log(float(n))/log(1d1))
+      else
+         exp = 0
+      endif
+
+      if (n >= 0) then
+        chr=''
+      else
+        chr='-'
+      endif
+
+      k = abs(n)
+      do i=exp,0,-1
+         j = k/10**i
+         c = achar(48+j)
+         chr = trim(chr)//trim(c)
+         if (i > 0 ) k = mod(k,j*10**i)
+      enddo
+
+      end function int2char
 
       end subroutine formEquilibrium
 
