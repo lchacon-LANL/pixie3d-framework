@@ -18,7 +18,8 @@ c######################################################################
 
         INTERFACE
           subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,arr_cov
-     .                      ,arr0,icomp,is_cnv,is_vec,iorder)
+     .                      ,arr0,icomp,is_cnv,is_vec,result_is_vec
+     .                      ,iorder)
             integer(4) :: nnx,nny,nnz,neq,bcnd(6,neq),iig,gpos
             real(8)    :: array(0:nnx+1,0:nny+1,0:nnz+1,neq)
             real(8),optional,intent(INOUT) ::
@@ -27,6 +28,7 @@ c######################################################################
      .                    arr0   (0:nnx+1,0:nny+1,0:nnz+1,neq)
             integer(4),optional,intent(IN) :: icomp,iorder
             logical   ,optional,intent(IN) :: is_cnv,is_vec
+     .                                       ,result_is_vec
           end subroutine setMGBC
         END INTERFACE
 
@@ -563,6 +565,12 @@ c     Begin program
      .                ,iflag+ieq-1,nunit)
         enddo
 
+cc        if (igr == igmax) then
+cc          write (*,*) debug(nx/2,1:ny,1,1)
+cc          write (*,*) debug(nx/2,1:ny,1,2)
+cc          write (*,*) debug(nx/2,1:ny,1,3)
+cc        endif
+
 c     End program
 
         deallocate(debug)
@@ -719,7 +727,7 @@ c ######################################################################
           type(garray),pointer,dimension(:) :: grid
         end type mg_array
 
-        logical :: is__cnv,have_equl
+        logical :: is__cnv,is__vec,have_equl
 
         type(mg_array) :: equl
 
@@ -822,7 +830,7 @@ c     End program
 c     restrictMGArray
 c     #################################################################
       subroutine restrictMGArray(icmp,neq,mgarray,bcnd,igrid,order
-     .                          ,iscnv,equil)
+     .                          ,iscnv,isvec,equil)
 c     -----------------------------------------------------------------
 c     Restricts MG array in all grids with ghost nodes.
 c     -----------------------------------------------------------------
@@ -833,7 +841,7 @@ c     Call variables
 
       integer(4)     :: neq,icmp,bcnd(6,neq),order,igrid
       type(mg_array) :: mgarray
-      logical,optional,intent(IN) :: iscnv
+      logical,optional,intent(IN) :: iscnv,isvec
       type(mg_array),optional,intent(IN) :: equil
 
 c     Local variables
@@ -846,6 +854,12 @@ c     Begin program
         is__cnv = iscnv
       else
         is__cnv = .true.   !Contravariant representation by default
+      endif
+
+      if (PRESENT(isvec)) then
+        is__vec = isvec
+      else
+        is__vec = .true.   !Contravariant representation by default
       endif
 
       if (PRESENT(equil)) then
@@ -998,14 +1012,15 @@ c     Map vector to array
         if (have_equl) then
           call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
      .                ,arr0=equl%grid(igc)%array
-     .                ,icomp=icmp,is_cnv=is__cnv,iorder=order)
+     .                ,icomp=icmp,is_cnv=is__cnv,is_vec=is__vec
+     .                ,iorder=order)
         else
           bcmod = bcnd
           where (bcnd == EQU)
             bcmod = EXT
           end where
           call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod,icomp=icmp
-     .              ,is_cnv=is__cnv,iorder=order)
+     .              ,is_cnv=is__cnv,is_vec=is__vec,iorder=order)
 cc     .              ,is_cnv=is__cnv)
         endif
       endif
@@ -1222,20 +1237,6 @@ c Find diagonal for smoothers
         elseif (associated(options%diag)) then !Diagonal provided externally
           if (out.ge.2) write (*,*) 'Diagonal externally provided'
           allocate(diag(neq*nblk,2*ntot*nblk))
-c diag ****
-cc          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-cc     .                     ,ncolors)
-cc          diag = -options%diag+diag
-cc          do i=1,ntot/neq
-cc            do j=1,neq
-cc            write (*,*) diag(j,(i-1)*neq+1:i*neq)
-cccc     .                 -options%diag(j,(i-1)*neq+1:i*neq)
-cc            enddo
-cc            write (*,*)
-cc          enddo
-cc          write (*,*) sqrt(sum(diag**2))
-cc          stop
-c diag ****
           diag = options%diag
         else                      !Form diagonal
           if (out.ge.2) write (*,*) 'Forming diagonal...'
@@ -1308,6 +1309,7 @@ c     Check MG convergence
         call matvec(0,neq,ntot,xx(istart(igrid)),rr,igrid,bcnd)
 
         call vecadd(igrid,neq,ntot,-1d0,rr,1d0,y)
+
         mag = sqrt(dot(igrid,neq,ntot,rr,rr))
 
         mag1 = mag/rr1
@@ -1422,7 +1424,28 @@ c     Begin program
 
 c     Relax error/solution on grid number igr/igrid (find new xx)
 
+c diag ****
+cc        if (igr == igmax-1) then
+cc          write (*,*) 'Plotting here at level',igr
+cc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
+cc          call vecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+cc          call MGplot(neq,wrk,igr,0,'fine2.bin')
+cc        endif
+c diag ****
+
         call smooth(igr)
+
+c diag ****
+cc        if (igr == igmax-1) then
+cc          write (*,*) 'Plotting here at level',igr
+cc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
+cc          call vecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+cc          call MGplot(neq,wrk,igr,0,'fine2.bin')
+cc
+cc          call MGplot(neq,xx ,igr,0,'fine.bin')
+cc
+cc        endif
+c diag ****
 
 c     Evaluate residual (ie wrk = yy - A xx = yy - wrk )
 
@@ -1435,26 +1458,18 @@ c     Evaluate residual (ie wrk = yy - A xx = yy - wrk )
 c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
 
         call crestrict(neq
-     .                  ,yy(isigc),ntotv(igc),nxv(igc),nyv(igc),nzv(igc)
-     .                  ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
-     .                  ,orderres,igr,volf)
+     .                ,yy(isigc),ntotv(igc),nxv(igc),nyv(igc),nzv(igc)
+     .                ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
+     .                ,orderres,igr,volf)
 
-cc        write (*,*) 'volume averaged?',volf
-cc        if (igr == 1) then
-cc          write (*,*) 'Plotting here at level',igc
-cc          call MGplot(neq,wrk,igr,0,'fine.bin')
-cc        endif
-cc
-cc        if (igc == igmax-1) then
-cc          write (*,*) 'Plotting here at level',igc
-cc          call MGplot(neq,yy,igc,0,'coarse.bin')
-cc        endif
-cc        stop
-cc
+
+c diag ****
 cc        if (igc == igmax) then
 cc          write (*,*) 'Plotting here at level',igc
 cc          call MGplot(neq,yy,igc,0,'coarse.bin')
+cccc          write (*,*) yy(isigc:isigc+ntotv(igc)-1)
 cc        endif
+c diag ****
 
 c     Initialize solution on coarse grid
 
@@ -1462,7 +1477,6 @@ c     Initialize solution on coarse grid
 
 c     If on coarsest grid, solve for error, else descend a grid level
 
-cc        write (*,*) igc,igmax
         if (igc.eq.igmax) then
           call coarseSolve(igc)
         else
@@ -1471,34 +1485,62 @@ cc        write (*,*) igc,igmax
           enddo
         endif
 
-c     Cycle back up to grid igr updating errors (xx)
-c     with fixed R.H.S. (yy)
-
+c diag ****
 cc        if (igc == igmax) then
 cc          write (*,*) 'Plotting here at level',igc
 cc          call MGplot(neq,xx,igc,1,'coarse.bin')
+cc
+cc          call matvec(0,neq,nnc,xx(isigc),wrk(isigc),igc,bcnd)
+cc          call vecadd(igc,neq,nnc,-1d0,wrk(isigc),1d0,yy(isigc))
+cc          call MGplot(neq,wrk,igc,1,'coarse.bin')
 cc        endif
+c diag ****
+
+c     Cycle back up to grid igr updating errors (xx)
+c     with fixed R.H.S. (yy)
 
 c     Prolong error (wrk = P * xx_1) to a finer grid
 
         call cprolong(neq
-     .                 ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
-     .                 ,xx(isigc),ntotv(igc),nxv(igc),nyv(igc),nzv(igc)
-     .                 ,orderprol,igc,bcnd)
+     .               ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
+     .               ,xx(isigc),ntotv(igc),nxv(igc),nyv(igc),nzv(igc)
+     .               ,orderprol,igc,bcnd)
 
 c     Update existing solution on grid igr (i.e. xx_igr): xx_igr = xx_igr + wrk 
 
+c diag ****
+cc        xx(isig:isig+nn-1) = 0d0
+cc        wrk(isig:isig+nn-1) = 0d0
+c diag ****
+
         call vecadd(igr,neq,nn,1d0,xx(isig),1d0,wrk(isig))
 
-cc        if (igc == igmax-1) then
-cc          write (*,*) 'Plotting here at level',igc
-cc          call MGplot(neq,wrk,igc,1,'fine.bin')
-cccc          call MGplot(neq,xx ,igc,1,'fine.bin')
+c diag ****
+cc        if (igr == igmax-1) then
+cc          write (*,*) 'Plotting here at level',igr
+cc          call MGplot(neq,wrk,igr,1,'fine.bin')
+cc          call MGplot(neq,xx ,igr,1,'fine.bin')
+cc
+cc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
+cc          call vecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+cc          call MGplot(neq,wrk,igr,1,'fine2.bin')
 cc        endif
+c diag ****
 
 c     Relax updated solution on igr (i.e. xx_igr)
 
         call smooth(igr)
+
+c diag ****
+cc        if (igr == igmax-1) then
+cc          write (*,*) 'Plotting here at level',igr
+cc
+cc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
+cc          call vecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+cc          call MGplot(neq,wrk,igr,1,'fine2.bin')
+cc        endif
+c diag ****
+
 
 c     End program
 
@@ -2080,7 +2122,12 @@ c Local variables
  
       real(8)    :: xxf(ntotf/neq),arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
 
-      integer(4) :: ic,jc,if,jf,iic,iif,i,ieq,nntotc,nntotf
+      integer(4) :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg
+     .             ,ieq,nntotc,nntotf,igf
+
+c Diag
+
+cc      real(8)    :: mag(3)
 
 c Begin program
 
@@ -2093,7 +2140,62 @@ c Unpack vector into array
 
 c Impose boundary conditions (external)
 
-      call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd)
+      call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+     .            ,iorder=min(order,3))
+
+ccc diag ****
+cccc      if (MGgrid%ilo(igc) == 1 .and. bcnd(1,1) == SP) then
+cccc        do k=1,nzc
+cccc          mag = 0d0
+cccc          do j=1,nyc
+cccc            mag = mag + arrayc(1,j,k,:)
+cccc          enddo
+cccc          do j=1,nyc
+cccc            arrayc(1,j,k,:) = mag/nyc
+cccc          enddo
+cccc        enddo
+cccccc            arrayc(1,:,:,:) = arrayc(0,:,:,:)
+cccccc        arrayc(2,:,:,:) = arrayc(0,:,:,:)
+cccccc        arrayc(3,:,:,:) = arrayc(0,:,:,:)
+cccc        arrayc = 1d-0
+cccc      endif
+cc      open(unit=111,file='mgdebug.bin',form='unformatted'
+cc     .        ,status='replace')
+cc      do ieq=1,neq
+cccc        write (*,*) 'Top'
+cccc        write (*,*) arrayc(:,nyc+1,1,ieq)
+cccc        write (*,*) arrayc(:,1    ,1,ieq)
+cccc        write (*,*) 'Bottom'
+cccc        write (*,*) arrayc(:,nyc,1,ieq)
+cccc        write (*,*) arrayc(:,0  ,1,ieq)
+cccc        write (*,*)
+cc        call contour(arrayc(:,:,0,ieq),nxc+2,nyc+2,0d0,1d0,0d0,1d0,ieq-1
+cc     .              ,111)
+cc      enddo
+cc      do ieq=1,neq
+cccc        write (*,*) 'Top'
+cccc        write (*,*) arrayc(:,nyc+1,1,ieq)
+cccc        write (*,*) arrayc(:,1    ,1,ieq)
+cccc        write (*,*) 'Bottom'
+cccc        write (*,*) arrayc(:,nyc,1,ieq)
+cccc        write (*,*) arrayc(:,0  ,1,ieq)
+cccc        write (*,*)
+cc        call contour(arrayc(:,:,1,ieq),nxc+2,nyc+2,0d0,1d0,0d0,1d0,ieq
+cc     .              ,111)
+cc      enddo
+cc      do ieq=1,neq
+cccc        write (*,*) 'Top'
+cccc        write (*,*) arrayc(:,nyc+1,1,ieq)
+cccc        write (*,*) arrayc(:,1    ,1,ieq)
+cccc        write (*,*) 'Bottom'
+cccc        write (*,*) arrayc(:,nyc,1,ieq)
+cccc        write (*,*) arrayc(:,0  ,1,ieq)
+cccc        write (*,*)
+cc        call contour(arrayc(:,:,2,ieq),nxc+2,nyc+2,0d0,1d0,0d0,1d0,ieq
+cc     .              ,111)
+cc      enddo
+cc      close(111)
+ccc diag ****
 
 c Prolong arrays
 
@@ -2234,7 +2336,7 @@ c     Prepare 3d spline interpolation
         call db3ink(xx,nx,yy,ny,zz,nz
      .        ,arrayc(iminc-1:imaxc+1,jminc-1:jmaxc+1,kminc-1:kmaxc+1)
      .        ,nx,ny,kx,ky,kz,tx,ty,tz,bcoef,work,flg)
-        
+
 c     Interpolate
 
         call limits(0,nxf,nyf,nzf,igf
@@ -2515,22 +2617,18 @@ c     Calculate interpolation
      .               ,tx,nx,kx,bcoef,q,work)
           deallocate(q)
         elseif (nx == 1) then
-cc          call db2ink(yy,ny,zz,nz,arrayf(1:nx,1:ny,1:nz)
           call db2ink(yy,ny,zz,nz
      .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
      .               ,ny,ky,kz,ty,tz,bcoef,work,flg)
         elseif (ny == 1) then
-cc          call db2ink(xx,nx,zz,nz,arrayf(1:nx,1:ny,1:nz)
           call db2ink(xx,nx,zz,nz
      .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
      .               ,nx,kx,kz,tx,tz,bcoef,work,flg)
         elseif (nz == 1) then
-cc          call db2ink(xx,nx,yy,ny,arrayf(1:nx,1:ny,1:nz)
           call db2ink(xx,nx,yy,ny
      .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
      .               ,nx,kx,ky,tx,ty,bcoef,work,flg)
         else
-cc          call db3ink(xx,nx,yy,ny,zz,nz,arrayf(1:nx,1:ny,1:nz)
           call db3ink(xx,nx,yy,ny,zz,nz
      .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
      .               ,nx,ny,kx,ky,kz,tx,ty,tz,bcoef,work,flg)
@@ -2617,7 +2715,7 @@ c Call variables
 c Local variables
 
       integer(4) :: iter,alloc_stat,isig,itr,nn,ieq,irbg1,nrbg1,igridc
-      integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+      integer(4) :: imin,imax,jmin,jmax,kmin,kmax,iming
       real(8)    :: omega0,omega10,omega01,tol
       logical    :: fdiag,fpointers,vbr
 
@@ -2802,7 +2900,7 @@ c       STANDARD RELAXATION
                 do ieq=1,neq
                   zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
                 enddo
-            
+
                 mag = mag + sum(rhs*rhs)
 
               enddo
@@ -2835,6 +2933,11 @@ c Calculate final residual and output info
         call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
         call vecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
         mag = sqrt(dot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
+
+        if (itr.eq.0) then
+          mag0 = mag
+          mag1 = mag
+        endif
       endif
 
       if (out.ge.2) then
@@ -2858,8 +2961,8 @@ c End program
 
  10   format (' JB Iteration:',i4,'; Residual:',1p,1e10.2,
      .        '; Ratio:',1e10.2)
- 20   format (' JB Iteration:',i4,'; Residual:',1e10.2,
-     .        '; Ratio:',1p,1e10.2,'; Damping:',1e10.2)
+ 20   format (' JB Iteration:',i4,'; Residual:',1p,1e10.2,
+     .        '; Ratio:',1e10.2,'; Damping:',1e10.2)
 
       contains
 
