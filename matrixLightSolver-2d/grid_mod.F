@@ -378,14 +378,21 @@ c     Input variables
 
 c     Local variables
 
+        integer(4) :: ligx,ligy,ligz
+
 c     Begin program
 
-c$$$        ig = i -grid_params%ilo(igx)+1 + grid_params%istartx(igx)
-c$$$        jg = j -grid_params%jlo(igy)+1 + grid_params%istarty(igy)
-c$$$        kg = k -grid_params%klo(igz)+1 + grid_params%istartz(igz)
-        ig = i + grid_params%istartx(igx)
-        jg = j + grid_params%istarty(igy)
-        kg = k + grid_params%istartz(igz)
+c     Transform MG grid order from igr=1 finest to igr=1 coarsest
+
+        ligx = grid_params%ngrid - igx + 1
+        ligy = grid_params%ngrid - igy + 1
+        ligz = grid_params%ngrid - igz + 1
+
+c     Give MG vector coordinates
+
+        ig = i + grid_params%istartx(ligx)
+        jg = j + grid_params%istarty(ligy)
+        kg = k + grid_params%istartz(ligz)
 
       end subroutine getMGmap
 
