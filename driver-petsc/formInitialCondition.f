@@ -418,8 +418,8 @@ c Open record file
 
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
 
-cc        u_graph = u_n
-        u_graph = u_0
+        u_graph = u_n
+cc        u_graph = u_0
 cc        u_graph = fsrc
 
         !Open record file

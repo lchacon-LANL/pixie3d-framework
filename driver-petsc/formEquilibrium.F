@@ -94,7 +94,7 @@ c Check grid
 
 c diag ******* NUMERICAL GRID QUANTITIES
 cc      if (my_rank == 1) then
-cc        write (*,*) 'proc',my_rank,'lim',ilog,ihig,jlog,jhig,klog,khig
+        write (*,*) 'proc',my_rank,'lim',ilog,ihig,jlog,jhig,klog,khig
 cc        write (*,*) 'Grid in processor',my_rank
 cc        call checkGrid
 cc      endif
