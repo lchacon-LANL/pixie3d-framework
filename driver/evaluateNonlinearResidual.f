@@ -23,7 +23,7 @@ c Local variables
 
       integer(4) :: i,j,k,ieq,ii
 
-      real(8)    :: dudt(neqd),cnf(neqd),one_over_dt(neqd),dvol
+      real(8)    :: dudt(neqd),cnf(neqd),one_over_dt(neqd),ivol
 
       type (var_array) :: varray
 
@@ -46,6 +46,7 @@ c Calculate residuals
           do i = 1,nxd
 
             ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
+            ivol = 1d0/volume(i,j,k,1,1,1)
 
             do ieq=1,neqd
 cc              dudt(ieq) = volume(i,j,k,1,1,1)*one_over_dt(ieq)
@@ -60,8 +61,7 @@ cc     .                              -               fsrc(ii+ieq)
      .                    *one_over_dt(ieq)
      .                    + ((1.-cnf(ieq))*f   (ii+ieq)
      .                    +      cnf(ieq) *fold(ii+ieq)
-     .                    -                fsrc(ii+ieq))
-     .                      /volume(i,j,k,1,1,1)
+     .                    -                fsrc(ii+ieq))*ivol
             enddo
 
           enddo
@@ -88,6 +88,7 @@ c--------------------------------------------------------------------
 
       use variable_setup
 
+
       implicit none
 
 c Call variables
@@ -99,6 +100,15 @@ c Local variables
 
       integer          :: i,j,k,ii
       double precision :: tmp(neqd)
+
+c Interfaces
+
+      INTERFACE
+         subroutine setupNonlinearFunction(varray)
+           use variable_setup
+           type (var_array),target :: varray
+         end subroutine setupNonlinearFunction
+      END INTERFACE
 
 c Begin program
 
