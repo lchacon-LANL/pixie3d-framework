@@ -197,7 +197,7 @@ c     Determine inexact Newton constant
 
 c     Setup preconditioner
 
-        call setupPreconditioner(ntot,x)
+        call setupPC(ntot,x)
 
 c     Jacobian-free solve
 
