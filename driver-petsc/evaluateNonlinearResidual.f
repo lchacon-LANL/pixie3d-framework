@@ -3,8 +3,7 @@ c####################################################################
       subroutine evaluateNonlinearResidual(x,f,ilo,ihi,jlo,jhi,klo,khi
      .                           ,ilogc,ihigc,jlogc,jhigc,klogc,khigc)
 c--------------------------------------------------------------------
-c     Calculates nonlinear residuals, of the form:
-c             dt Ui + Fi(Uj) = 0
+c     Calculates Fi(Uj) in equations of the form: dt Ui + Fi(Uj) = 0
 c--------------------------------------------------------------------
 
       use grid
@@ -30,15 +29,12 @@ c Local variables
 
       real(8)    :: dudt(neqd),cnf(neqd),one_over_dt(neqd),ff(ntotd)
 
-      type (var_array)  :: varray
+      type(var_array)   :: varray
 
       type(petsc_array) :: petscarray
 
 c Begin program
 
-cc      write (*,*) ilo,ihi,jlo,jhi,klo,khi
-cc     .               ,ilogc,ihigc,jlogc,jhigc,klogc,khigc
-cc      stop
       call allocatePetscType(petscarray)
 
       petscarray%array(ilogc:ihigc,jlogc:jhigc,klogc:khigc)
@@ -60,7 +56,7 @@ c Assign ff to f
             ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
             do ieq=1,neqd
 
-              f(i,j,k)%var(ieq) = ff  (ii+ieq)
+              f(i,j,k)%var(ieq) = ff(ii+ieq)
 
             enddo
           enddo
