@@ -25,10 +25,6 @@ c Local variables
       integer(4)     :: ierr,system,nplot,igx,igy,igz
       character*(40) :: command
 
-c diag
-      integer(4)      :: uref=100
-c diag
-
 c Begin program
 
       igx = 1
@@ -38,9 +34,10 @@ c Begin program
 c Initialize 
 
 #if defined(petsc)
-      call MPI_Init(mpierr)
-      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
-      call MPI_Comm_size(MPI_COMM_WORLD,np     ,mpierr)
+      call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
+cc      call MPI_Init(mpierr)
+      call MPI_Comm_rank(PETSC_COMM_WORLD,my_rank,mpierr)
+      call MPI_Comm_size(PETSC_COMM_WORLD,np     ,mpierr)
 #endif
 
       call initializeCalculation(igx,igy,igz)
@@ -58,9 +55,14 @@ c     Store previous record
 
         u_n = u_np
 
+c diag ***** Redefine perturbations for preconditioner debugging
+        u_ic = u_n
+        call imposeBoundaryConditions(u_ic,igx,igy,igz)
+c diag *****
+
 c     Read next record
 
-        call readRecordFile(urecord,itime,time,dt,u_np,ierr)
+        call readTimeStep(u_np,ierr)
 
 c     Check for error
 
@@ -98,12 +100,20 @@ c Close graphics files and create draw*.in files
 
       call finalizeDiagnostics
 
+#if !defined(petsc)
+      if (allocated(murecord)) then
+        do ifile=1,nfiles
+          close(murecord(ifile))
+        enddo
+
+        deallocate(mrecfile,murecord)
+      else
+        close(urecord)
+      endif
+#else
       close(urecord)
-
-c Finalize MPI
-
-#if defined(petsc)
-      call MPI_Finalize(mpierr)
+cc      call MPI_Finalize(mpierr)
+      call PetscFinalize(mpierr)
 #endif
 
 c Second order test
@@ -217,32 +227,13 @@ c Local variables
 
 c Begin program
 
-c Initialize graphics files
-
-#if defined(petsc)
-      urecord    = 25 + my_rank
-
-      if (np > 1) then
-        recordfile = 'record_proc'//trim(int2char(my_rank))//'.bin'
-      else
-        recordfile = 'record.bin'
-      endif
-#else
-      urecord    = 2
-      recordfile = 'record.bin'
-#endif
-
 c Read user initializations
 
       call readGraphicsInput(sel_diag,sel_graph,ndplot,dplot)
 
-c Open graphics file
+c Open graphics files
 
-#if !defined(petsc)
-      call mergeGraphicsFiles
-#endif
-
-      call openGraphicsFile(urecord,recordfile)
+      call openGraphicsFiles
 
 c Initialize vector dimensions
 
@@ -269,16 +260,25 @@ c Allocate records
 
       call allocateDerivedType(u_ic)
       call allocateDerivedType(u_0)
+      call allocateDerivedType(u_n)
       call allocateDerivedType(u_np)
       call allocateDerivedType(u_graph)
 
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
-      call readRecordFile(urecord,itime,time,dt,u_0,ierr)
+      call readTimeStep(u_0,ierr)
 
       if (ierr /= 0) then
+#if defined(petsc)
+        if (my_rank == 0) then
+          write (*,*) 'Unable to read equilibrium'
+          write (*,*) 'Aborting...'
+        endif
+        call PetscFinalize(mpierr)
+#else
         write (*,*) 'Unable to read equilibrium'
         write (*,*) 'Aborting...'
+#endif
         stop
       endif
 
@@ -303,9 +303,9 @@ c End program
 
       end subroutine initializeCalculation
 
-c openGraphicsFile
+c openGraphicsFiles
 c######################################################################
-      subroutine openGraphicsFile(unit,file)
+      subroutine openGraphicsFiles
 
 c----------------------------------------------------------------------
 c     In parallel runs, it merges all output files 'record_proc*.bin'
@@ -331,14 +331,9 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4)   :: unit
-      character(*) :: file
-
 c Local variables
 
-      integer(4) :: nx,ny,nz,ierr,nfiles,ifile
-      integer(4),allocatable,dimension(:)     :: murecord
-      character*(20),allocatable,dimension(:) :: mrecfile
+      integer(4) :: nx,ny,nz,ierr
 
 c Externals
 
@@ -346,46 +341,136 @@ c Externals
 
 c Begin program
 
-c Open graphics file
+c Open graphics files
 
-      open(unit,file=file,form='unformatted',status='unknown')
+#if !defined(petsc)
+      ierr = system('ls record_proc* >& /dev/null')
 
-c Consistency check
+      if (ierr == 0) then
 
-      read (unit) nx,ilog,ihig
-      read (unit) ny,jlog,jhig
-      read (unit) nz,klog,khig
+        write (*,*) 'Opening multiple graphics files...'
 
-      nxl  = ihig-ilog+1
-      nyl  = jhig-jlog+1
-      nzl  = khig-klog+1
+        !Find out number of graphics files
+        nfiles = -1
+        ierr   = 0
+        do while (ierr == 0)
+          nfiles=nfiles+1
+          ierr=
+     .        system('ls record_proc'//trim(int2char(nfiles))
+     .               //'.bin >& /dev/null')
+        enddo
 
-#if defined(petsc)
-      if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)
-     .    .and.(my_rank == 0)) then
-        write (*,*) 'Grid meshes do not agree; cannot restart'
-        write (*,*) 'Aborting...'
-        stop
-      endif
+        allocate(mrecfile(nfiles),murecord(nfiles))
+
+        do ifile=1,nfiles
+          murecord(ifile) = 100+ifile
+          mrecfile(ifile) =
+     .         'record_proc'//trim(int2char(ifile-1))//'.bin'
+        enddo
+
+        nx = 0
+        ny = 0
+        nz = 0
+        do ifile=1,nfiles
+
+          open(murecord(ifile),file=mrecfile(ifile),form='unformatted'
+     .        ,status='old')
+
+          read (murecord(ifile)) nxl,ilog,ihig
+          read (murecord(ifile)) nyl,jlog,jhig
+          read (murecord(ifile)) nzl,klog,khig
+
+cc          if (nxl /= nxd) then
+cc            nx = nx + nxl
+cc          else
+cc            nx = nxl
+cc          endif
+cc          if (nyl /= nyd) then
+cc            ny = ny + nyl
+cc          else
+cc            ny = nyl
+cc          endif
+cc          if (nzl /= nzd) then
+cc            nz = nz + nzl
+cc          else
+cc            nz = nzl
+cc          endif
+
+        enddo
+
+        !Consistency check
+cc        if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
+cc          write (*,*) 'Grid size does not agree:',nx,ny,nz
+cc     .                ,'vs.',nxd,nyd,nzd
+cc          write (*,*) 'Aborting opening of multiple files...'
+cc          stop
+cc        endif
+
+        !Set global limits (NOT a parallel run)
+        ihig = nxd
+        ilog = 1
+        jhig = nyd
+        jlog = 1
+        khig = nzd
+        klog = 1
+
+      else
+
+        urecord    = 100
+        recordfile = 'record.bin'
+
 #else
-      if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
-        write (*,*) 'Grid size does not agree'
-        write (*,*) 'Aborting graphics dump...'
-        stop
-      endif
+
+        urecord    = 100 + my_rank
+
+        if (np > 1) then
+          recordfile = 'record_proc'//trim(int2char(my_rank))//'.bin'
+        else
+          recordfile = 'record.bin'
+        endif
+
 #endif
 
+        open(urecord,file=recordfile,form='unformatted'
+     .      ,status='unknown')
+
+c     Consistency check
+
+        read (urecord) nx,ilog,ihig
+        read (urecord) ny,jlog,jhig
+        read (urecord) nz,klog,khig
+
+        nxl  = ihig-ilog+1
+        nyl  = jhig-jlog+1
+        nzl  = khig-klog+1
+
+#if defined(petsc)
+        if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)
+     .    .and.(my_rank == 0)) then
+          write (*,*) 'Grid meshes do not agree.'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+#else
+        if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
+          write (*,*) 'Grid size does not agree'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
+      endif
+#endif
+        
 c End programs
 
-      end subroutine openGraphicsFile
+      end subroutine openGraphicsFiles
 
-c mergeGraphicsFile
+c readTimeStep
 c######################################################################
-      subroutine mergeGraphicsFiles
+      subroutine readTimeStep(varray,ierr)
 
 c----------------------------------------------------------------------
-c     In parallel runs, it merges all output files 'record_proc*.bin'
-c     to a serial file 'record.bin'.
+c     Reads time step info from single or multiple files.
 c----------------------------------------------------------------------
 
       use parameters
@@ -406,141 +491,195 @@ c----------------------------------------------------------------------
 
 c Call variables
 
+      type(var_array) :: varray
+      integer(4)      :: ierr
+
 c Local variables
-
-      integer(4) :: nx,ny,nz,ierr,nfiles,ifile
-      integer(4),allocatable,dimension(:)     :: murecord
-      character*(20),allocatable,dimension(:) :: mrecfile
-
-c Externals
-
-      integer(4) :: system
 
 c Begin program
 
-      ierr = system('ls record_proc* >& /dev/null')
+#if defined(petsc)
 
-      if (ierr == 0) then
+      call readRecordFile(urecord,itime,time,dt,varray,ierr)
 
-        write (*,*) 'Merging graphics files...'
+#else
 
-        !Find out number of graphics files
-        nfiles = -1
-        ierr   = 0
-        do while (ierr == 0)
-          nfiles=nfiles+1
-          ierr=
-     .        system('ls record_proc'//trim(int2char(nfiles))
-     .               //'.bin >& /dev/null')
-        enddo
-
-        allocate(mrecfile(nfiles),murecord(nfiles))
-
+      if (allocated(murecord)) then
         do ifile=1,nfiles
-          murecord(ifile) = 20+ifile
-          mrecfile(ifile) =
-     .         'record_proc'//trim(int2char(ifile-1))//'.bin'
-        enddo
-
-        open(urecord,file=recordfile,form='unformatted'
-     .       ,status='unknown')
-
-        !Merge graphics files: INITIALIZATION
-        nx = 0
-        ny = 0
-        nz = 0
-        do ifile=1,nfiles
-
-          open(murecord(ifile),file=mrecfile(ifile),form='unformatted'
-     .        ,status='old')
-
-          read (murecord(ifile)) nxl,ilog,ihig
-          read (murecord(ifile)) nyl,jlog,jhig
-          read (murecord(ifile)) nzl,klog,khig
-
-          if (nxl /= nxd) then
-            nx = nx + nxl
-          else
-            nx = nxl
-          endif
-          if (nyl /= nyd) then
-            ny = ny + nyl
-          else
-            ny = nyl
-          endif
-          if (nzl /= nzd) then
-            nz = nz + nzl
-          else
-            nz = nzl
-          endif
-
-        enddo
-
-        write (urecord) nxd,1,nxd
-        write (urecord) nyd,1,nyd
-        write (urecord) nzd,1,nzd
-
-        !Consistency check
-
-cc        if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
-cc          write (*,*) 'Grid size does not agree:',nx,ny,nz
-cc          write (*,*) 'Aborting graphics files merging...'
-cc          stop
-cc        endif
-
-        ihig = nxd
-        ilog = 1
-        jhig = nyd
-        jlog = 1
-        khig = nzd
-        klog = 1
-
-        call setVectorDimensions
-
-        call allocateDerivedType(u_0)
-
-        do 
-
-          do ifile=1,nfiles
-
-            call readRecordFile(murecord(ifile),itime,time,dt,u_0,ierr)
-            if (ierr == -1) cycle !Error, but not EOF
-            if (ierr == -2) cycle !EOF
-
-          enddo
-
+          call readRecordFile(murecord(ifile),itime,time,dt,varray,ierr)
           if (ierr == -1) cycle !Error, but not EOF
-          if (ierr == -2) exit  !EOF
-
-          !Reset vector dimensions (readRecordFile alters defs of some values)
-
-          ihig = nxd
-          ilog = 1
-          jhig = nyd
-          jlog = 1
-          khig = nzd
-          klog = 1
-
-          call setVectorDimensions
-
-          call writeRecordFile(urecord,itime,time,dt,u_0)
-
+          if (ierr == -2) cycle !EOF
         enddo
-
-        !Close files
-        close(urecord)
-        do ifile=1,nfiles
-          close(murecord(ifile))
-        enddo
-
-        deallocate(mrecfile,murecord)
+      else
+        call readRecordFile(urecord,itime,time,dt,varray,ierr)
       endif
 
-      call deallocateDerivedType(u_0)
+#endif
 
-c End programs
+c End program
 
-      end subroutine mergeGraphicsFiles
+      end subroutine readTimeStep
+
+ccc mergeGraphicsFile
+ccc######################################################################
+cc      subroutine mergeGraphicsFiles
+cc
+ccc----------------------------------------------------------------------
+ccc     In parallel runs, it merges all output files 'record_proc*.bin'
+ccc     to a serial file 'record.bin'.
+ccc----------------------------------------------------------------------
+cc
+cc      use parameters
+cc
+cc      use constants
+cc
+cc      use timeStepping
+cc
+cc      use variables
+cc
+cc      use graphics
+cc
+cc      use iosetup
+cc
+cc      use generalPurposeFunctions
+cc
+cc      implicit none
+cc
+ccc Call variables
+cc
+ccc Local variables
+cc
+cc      integer(4) :: nx,ny,nz,ierr,nfiles,ifile
+cc
+ccc Externals
+cc
+cc      integer(4) :: system
+cc
+ccc Begin program
+cc
+cc      ierr = system('ls record_proc* >& /dev/null')
+cc
+cc      if (ierr == 0) then
+cc
+cc        write (*,*) 'Merging graphics files...'
+cc
+cc        !Find out number of graphics files
+cc        nfiles = -1
+cc        ierr   = 0
+cc        do while (ierr == 0)
+cc          nfiles=nfiles+1
+cc          ierr=
+cc     .        system('ls record_proc'//trim(int2char(nfiles))
+cc     .               //'.bin >& /dev/null')
+cc        enddo
+cc
+cc        allocate(mrecfile(nfiles),murecord(nfiles))
+cc
+cc        do ifile=1,nfiles
+cc          murecord(ifile) = 20+ifile
+cc          mrecfile(ifile) =
+cc     .         'record_proc'//trim(int2char(ifile-1))//'.bin'
+cc        enddo
+cc
+cc        open(urecord,file=recordfile,form='unformatted'
+cc     .       ,status='unknown')
+cc
+cc        !Merge graphics files: INITIALIZATION
+cc        nx = 0
+cc        ny = 0
+cc        nz = 0
+cc        do ifile=1,nfiles
+cc
+cc          open(murecord(ifile),file=mrecfile(ifile),form='unformatted'
+cc     .        ,status='old')
+cc
+cc          read (murecord(ifile)) nxl,ilog,ihig
+cc          read (murecord(ifile)) nyl,jlog,jhig
+cc          read (murecord(ifile)) nzl,klog,khig
+cc
+cc          if (nxl /= nxd) then
+cc            nx = nx + nxl
+cc          else
+cc            nx = nxl
+cc          endif
+cc          if (nyl /= nyd) then
+cc            ny = ny + nyl
+cc          else
+cc            ny = nyl
+cc          endif
+cc          if (nzl /= nzd) then
+cc            nz = nz + nzl
+cc          else
+cc            nz = nzl
+cc          endif
+cc
+cc        enddo
+cc
+cc        write (urecord) nxd,1,nxd
+cc        write (urecord) nyd,1,nyd
+cc        write (urecord) nzd,1,nzd
+cc
+cc        !Consistency check
+cc
+cccc        if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
+cccc          write (*,*) 'Grid size does not agree:',nx,ny,nz
+cccc          write (*,*) 'Aborting graphics files merging...'
+cccc          stop
+cccc        endif
+cc
+cc        ihig = nxd
+cc        ilog = 1
+cc        jhig = nyd
+cc        jlog = 1
+cc        khig = nzd
+cc        klog = 1
+cc
+cc        call setVectorDimensions
+cc
+cc        call allocateDerivedType(u_0)
+cc
+cc        do 
+cc
+cc          do ifile=1,nfiles
+cc
+cc            call readRecordFile(murecord(ifile),itime,time,dt,u_0,ierr)
+cc            if (ierr == -1) cycle !Error, but not EOF
+cc            if (ierr == -2) cycle !EOF
+cc
+cc          enddo
+cc
+cc          if (ierr == -1) cycle !Error, but not EOF
+cc          if (ierr == -2) exit  !EOF
+cc
+cc          !Reset vector dimensions (readRecordFile alters defs of some values)
+cc
+cc          ihig = nxd
+cc          ilog = 1
+cc          jhig = nyd
+cc          jlog = 1
+cc          khig = nzd
+cc          klog = 1
+cc
+cc          call setVectorDimensions
+cc
+cc          call writeRecordFile(urecord,itime,time,dt,u_0)
+cc
+cc        enddo
+cc
+cc        !Close files
+cc        close(urecord)
+cc        do ifile=1,nfiles
+cc          close(murecord(ifile))
+cc        enddo
+cc
+cc        deallocate(mrecfile,murecord)
+cc      endif
+cc
+cc      call deallocateDerivedType(u_0)
+cc
+ccc End programs
+cc
+cc      end subroutine mergeGraphicsFiles
 
 ccc compare
 ccc ########################################################################
