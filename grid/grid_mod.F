@@ -4131,19 +4131,19 @@ c     Find local domain limits lmin_loc,lmax_loc
 
         ig = 1  !Finest grid level
 
-        length = lmax-lmin
-
-        !Global mesh spacing
-        dh = length/nglobal(ig)
-
-        !Domain partition according to finest grid level local limits
-        !(It satisfies dh=(lmax-lmin)/nglobal=(lmax_loc-lmin_log)/nlocal)
-        lmin_loc = lmin + (ilo(ig)-1)*dh
-        lmax_loc = lmin +  ihi(ig)   *dh
+cc        length = lmax-lmin
+cc
+cc        !Global mesh spacing
+cc        dh = length/nglobal(ig)
+cc
+cc        !Domain partition according to finest grid level local limits
+cc        !(It satisfies dh=(lmax-lmin)/nglobal=(lmax_loc-lmin_log)/nlocal)
+cc        lmin_loc = lmin + (ilo(ig)-1)*dh
+cc        lmax_loc = lmin +  ihi(ig)   *dh
 
 c     Find local length
 
-        length = lmax_loc-lmin_loc
+cc        length = lmax_loc-lmin_loc
 
         dx0    = dpack%dx0
         dxl    = dpack%dx0
@@ -4167,13 +4167,13 @@ c     Find grid quantities
 
           !Find half mesh spacings
           if (bcs1 == SP .and. ilo(1) == 1) then
-            dxh(1 + isig) =  dx(0 + isig)
+            dxh(1 + isig) =  0.5*(xx(2+isig)+xx(1+isig))
           else
-            dxh(1 + isig) = (dx(1 + isig) + dx(0   + isig))/2.
+            dxh(1 + isig) = 0.5*(dx(1 + isig) + dx(0   + isig))
           endif
 
           do i = 2,nx(ig)
-            dxh(i + isig) = (dx(i + isig) + dx(i-1 + isig))/2.
+            dxh(i + isig) = 0.5*(dx(i + isig) + dx(i-1 + isig))
           enddo
 
           if (bcs1 == PER) then
@@ -4181,13 +4181,59 @@ c     Find grid quantities
             dxh(nx(ig)+1 + isig) = dxh(1      + isig)
           elseif (bcs1 == SP .and. ilo(1) == 1) then
             dxh(0        + isig) = dx(0      + isig)
-            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)/2.
+            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5
           else
-            dxh(0        + isig) = dx(0      + isig)/2.
-            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)/2.
+            dxh(0        + isig) = dx(0      + isig)*0.5
+            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5
           endif
 
-          ng = max(ng/mgr(ig),1)
+cc          !Find cell centers
+cc          dh = length/float(nx(ig))
+cc
+cc          !Starting point (i=1)
+cc          if (bcs1 == PER) then
+cc            lstart = lmin_loc
+cc          else
+cc            lstart = lmin_loc+dh/2.
+cc          endif
+cc
+cc          xx(1 + isig) = lstart
+cc          do i = 2,nx(ig)+1
+cc            xx(i + isig) = xx(i-1 + isig) + dh
+cc          enddo
+cc          if (bcs1 == SP .and. ilo(1) == 1) then
+cc            xx(0 + isig) = 1d-8*dh
+cccc            xx(0 + isig) = 1d-2
+cc          else
+cc            xx(0 + isig) = xx(1+isig) - dh
+cc          endif
+cc
+cc          !Find integer mesh spacings
+cc          do i = 0,nx(ig)
+cc            dx(i + isig) = xx(i+1 + isig) - xx(i + isig)
+cc          enddo
+cc
+cc          !Find half mesh spacings
+cc          if (bcs1 == SP .and. ilo(1) == 1) then
+cc            dxh(1 + isig) = dh
+cc          else
+cc            dxh(1 + isig) = (dx(1 + isig) + dx(0   + isig))/2.
+cc          endif
+cc
+cc          do i = 2,nx(ig)
+cc            dxh(i + isig) = (dx(i + isig) + dx(i-1 + isig))/2.
+cc          enddo
+cc
+cc          if (bcs1 == PER) then
+cc            dxh(0        + isig) = dxh(nx(ig) + isig)
+cc            dxh(nx(ig)+1 + isig) = dxh(1      + isig)
+cc          elseif (bcs1 == SP .and. ilo(1) == 1) then
+cc            dxh(0        + isig) = dx(0      + isig)
+cc            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)/2.
+cc          else
+cc            dxh(0        + isig) = dx(0      + isig)/2.
+cc            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)/2.
+cc          endif
 
         enddo
 
