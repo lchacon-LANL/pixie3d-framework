@@ -424,7 +424,7 @@ c     ######################################################################
       subroutine setASMflag(asm_flag)
 
 c     -----------------------------------------------------------------
-c     Sets boundary conditions for Additive Schwartz method PC.
+c     Sets flag to indicate Additive Schwartz method.
 c     -----------------------------------------------------------------
 
       implicit none
@@ -435,6 +435,7 @@ c     -----------------------------------------------------------------
 
       end subroutine setASMflag
 
+#if defined(petsc)
 c     setASM_PC_BC
 c     ######################################################################
       subroutine setASM_PC_BC(igx,igy,igz,bcs)
@@ -456,7 +457,7 @@ c     -----------------------------------------------------------------
       kgmin = grid_params%klo(igz)
       kgmax = grid_params%khi(igz)
 
-      asm = .false.
+      asm = .false.       !This needs to be here for do__nothing!!!
 
       do dim=1,3
         do loc=0,1
@@ -469,6 +470,7 @@ c     -----------------------------------------------------------------
       if (np > 1) asm = .true.  !PC employs additive Schwartz method
 
       end subroutine setASM_PC_BC
+#endif
 
 c     imposeBConScalar
 c     #################################################################
