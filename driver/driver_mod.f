@@ -3,7 +3,8 @@ c ######################################################################
       module constants
 
         real(8) :: pi
-        real(8), allocatable, dimension(:,:,:) :: zeros,ones
+        real(8), allocatable, dimension(:,:,:)   :: zeros,ones
+        real(8), allocatable, dimension(:,:,:,:) :: vzeros
 
       end module constants
 
