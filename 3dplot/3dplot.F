@@ -76,10 +76,6 @@ c     Read next record
 
 c     Check for error
 
-cc        if (ierr /= 0) exit
-
-cc        write (*,*) ierr
-
         if (ierr == -1) cycle  !Error, but not EOF
         if (ierr == -2) exit   !EOF
 
@@ -180,7 +176,7 @@ c Begin program
       endif
 
       if (plot) then
-        write (*,120) itime,time,' dumped plots'
+        write (*,120) itime,time,' --> dumped plots'
       else
         write (*,110) itime,time
       endif
@@ -193,9 +189,9 @@ c End program
 
  10   format (/,'  Grid mesh:................',i4,'x',i3,'x',i3
      .        /,'  Number of grid levels:....',i4,',',i2,',',i2)
- 100  format ('   itime    time')
- 110  format (i7,f9.2)
- 120  format (i7,f9.2,a)
+ 100  format ('   itime      time')
+ 110  format (i7,2x,1p,e10.2)
+ 120  format (i7,2x,1p,e10.2,a)
 
       end subroutine output
 
