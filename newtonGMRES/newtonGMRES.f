@@ -36,6 +36,8 @@ c ###################################################################
 
       real(8)    :: pdt,check
 
+      real(8),parameter :: mv_eps=1d-8,epsmac=1d-15
+
       integer(4) :: jit
 
       logical    :: pseudo_dt
@@ -144,7 +146,7 @@ cc       check_lim = 1d1
 
       pdt = pdt0
 
-      if (atol == 0d0) atol = ntot*1d-15 !Set absolute tolerance to roundoff
+      if (atol == 0d0) atol = ntot*epsmac !Set absolute tolerance to roundoff
 
       convergence = .false.
       failure     = .false.
@@ -274,8 +276,8 @@ c     Store magnitude of residual
 c     Change pseudo-transient time step
 
         if (pseudo_dt) then
-          pdt = min(pdt/check,1d30)
-cc          pdt = min(pdt0/sqrt(check),1d30)
+cc          pdt = min(pdt/check,1d30)
+          pdt = min(pdt0/sqrt(check),1d30)
 cc          if (check < 1d-3) pdt = min(pdt0*jit,1d0)
 cc          pdt = min(pdt0/check**2,1d30)
         endif
@@ -303,8 +305,8 @@ c End program
  200  format 
      .   (/,' New_it   Av_updt    Abs_res   Rel_res     Damping'
      .     ,'      pdt_n      eta_k     GMRES')
- 210  format (i4,3x,1p6e11.3,3x,i4)
- 220  format ('    Max newton its. exceeded; rel. residual: ',1p1e10.2)
+ 210  format (i4,3x,1p,6e11.3,3x,i4)
+ 220  format ('    Max newton its. exceeded; rel. residual: ',1p,1e10.2)
  230  format ('    Relative residual =',f7.2,' >',f7.2)
  240  format ('    Newton converged in too many iterations (>',i2,')')
  320  format ('Residual  eqn. ',i2,': ',1pe9.2)
@@ -369,7 +371,7 @@ c Begin program
 
       x = x + damp*ddx
 
-      dxavg = sqrt(sum(ddx*ddx))/dfloat(ntot)
+      dxavg = sqrt(sum(ddx*ddx))/float(ntot)
 
 c End program
 
@@ -439,7 +441,7 @@ c Local variables
 c External
 
       real(8)    :: fmedval
-      external   :: fmedval
+      external      fmedval
 
 c Begin program
 
@@ -526,13 +528,13 @@ c --------------------------------------------------------------------
 
 c Call variables
 
-      integer*4   itk,ierr,nn,ksmax,iguess,iout,maxitgm
-      real*8      b(nn),x(nn),etak
+      integer(4) :: itk,ierr,nn,ksmax,iguess,iout,maxitgm
+      real(8)    :: b(nn),x(nn),etak
 
 c Local variables
 
-      integer*4   iiout
-      real*8      eps
+      integer(4) :: iiout
+      real(8)    :: eps
 
 c Begin program
 
@@ -551,15 +553,15 @@ c Initialize the GMRES(k) algorithm
 
 c Call the preconditioned GMRES(k) algorithm
 
-      call fgmresMeth(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
+      call fgmres(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
 
 c End program
 
       end subroutine gmresDriver
 
-c fgmresMeth
+c fgmres
 c ######################################################################
-      subroutine fgmresMeth(ntot,rhs,sol,eps,im,maxits,iout,ierr,its)
+      subroutine fgmres(ntot,rhs,sol,eps,im,maxits,iout,ierr,its)
 c----------------------------------------------------------------------*
 c                                                                      *
 c               *** Preconditioned Flexible GMRES ***                  *
@@ -622,10 +624,8 @@ c Local variables
 
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
       real(8)    :: vv(ntot,im+1),zz(ntot,im+1)
-      real(8)    :: epsmac,rold,ro,eps1,gam,t
+      real(8)    :: rold,ro,eps1,gam,t
       integer(4) :: i,j,i1,k,k1,ii,jj,n,rstrt,irstrt,precout
-
-      data epsmac /1.d-16/
 
 c Begin program
 
@@ -640,14 +640,14 @@ c Calculate magnitude of nonlinear residual
 
       eps1=eps*rold
 
-      if (rold .lt. (n*1d-15)) then
+      if (rold .lt. (n*epsmac)) then
         ierr = -1
         return
       endif
 
 c Compute initial residual vector
 
-      call matrixFreeMatVec(n,sol,vv)
+      call matrixFreeMatVec(n,sol,vv(:,1))
 
       vv(:,1) = rhs(:) - vv(:,1)
 
@@ -729,7 +729,7 @@ c       Perform previous transformations on i-th column of h
 c       If gamma is zero then any small value will do
 c       Will affect only residual estimate
 
-          if (gam .eq. 0.0d0) gam = epsmac
+          if (gam.eq.0d0) gam = epsmac
 
 c       Get next plane rotation
 
@@ -820,7 +820,7 @@ c End program
 
  199  format(' GMRES its =', i4,';  res/rold norm =', 1pd10.2)
 
-      end
+      end subroutine fgmres
 
 c matrixFreeMatVec
 c##################################################################
@@ -859,17 +859,15 @@ c Call variables
 c Local variables
 
       integer(4) :: i
-      real(8)    :: dummy(nn),pert,ipert,modz,modx,xdotz,eps
+      real(8)    :: dummy(nn),pert,ipert,modz,modx,xdotz
 
 c Begin program
 
-      eps   = 1d-8
-
-      modz  = sum(z*z)
+      modz  = epsmac + sum(z*z)
 
 c Calculate J.x
 
-      if (sqrt(modz) < 1d-16) then  !Failsafe for the case z=0
+      if (sqrt(modz) < epsmac) then  !Failsafe for the case z=0
 
         y = 0d0
 
@@ -880,11 +878,7 @@ c     Calculate difference parameter
         modx  = sum(xk*xk)
         xdotz = sum(z *xk)
 
-cc        pert  = eps*sqrt((1d0 + modx)/modz)
-        pert  = eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
-
-c$$$        write (*,*) sqrt(modz),sqrt(modx),pert
-c$$$     .           ,xdotz/sqrt(modx*modz)
+        pert  = mv_eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
 
 c     Perturb state variables x + eps z --> dummy
 
@@ -956,7 +950,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      real*8       p1,p2,p3
+      real(8) :: p1,p2,p3
 
 c Local variables
 
