@@ -102,6 +102,41 @@ c     -----------------------------------------------------------------
 
       end subroutine deallocPointers
 
+c     getMGvcomp
+c     #################################################################
+      function getMGvcomp(i,j,k,igr,ieq,neq) result(ijkg)
+
+c     -----------------------------------------------------------------
+c     Gives MG vector component corresponing to coordinates (i,j,k) on
+c     grid igx,igy,igz.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer(4) :: i,j,k,igr,ieq,neq,ijkg
+
+c     Local variables
+
+        integer(4) :: nx,ny,nz
+        logical    :: fpointers
+
+c     Begin program
+
+        call allocPointers(neq,fpointers)
+
+        nx = nxv(igr)
+        ny = nyv(igr)
+        nz = nzv(igr)
+
+        ijkg = neq*(i-1 + nx*(j-1) + nx*ny*(k-1)) + ieq
+     .     + istart(igr) - 1
+
+        call deallocPointers(fpointers)
+
+      end function getMGvcomp
+
 c     mapArrayToMGVector
 c     ##################################################################
       subroutine mapArrayToMGVector(ieq,neq,nx,ny,nz,array,mgvector,igr)
@@ -143,7 +178,8 @@ c     End program
 
 c     mapMGVectorToArray
 c     ##################################################################
-      subroutine mapMGVectorToArray(ieq,neq,mgvector,nx,ny,nz,array,igr)
+      subroutine mapMGVectorToArray(gpos,ieq,neq,mgvector,nx,ny,nz
+     .                             ,array,igr)
 c     ------------------------------------------------------------------
 c     Maps a vector into an array, filling ghost cells.
 c     If vector is a MG vector, set igrid to grid level. Otherwise,
@@ -154,21 +190,34 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ieq,neq,igr,nx,ny,nz
+      integer(4) :: ieq,neq,igr,nx,ny,nz,gpos
       real(8)    :: mgvector(*),array(0:nx+1,0:ny+1,0:nz+1)
 
 c     Local variables
 
-      integer(4) :: i,j,k,ii
+      integer(4) :: i,j,k,ii,offset
+      integer(4) :: imin ,imax ,jmin ,jmax ,kmin ,kmax
+     .             ,iimin,iimax,jjmin,jjmax,kkmin,kkmax
       logical    :: fpointers
 
 c     Begin program
 
+      offset = 1
+
       call allocPointers(neq,fpointers)
 
-      do k = 1,nz
-        do j = 1,ny
-          do i = 1,nx
+      call limits(gpos,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax)
+
+      iimin = max(imin-offset,1)
+      iimax = min(imax+offset,nx)
+      jjmin = max(jmin-offset,1)
+      jjmax = min(jmax+offset,ny)
+      kkmin = max(kmin-offset,1)
+      kkmax = min(kmax+offset,nz)
+
+      do k = kkmin,kkmax
+        do j = jjmin,jjmax
+          do i = iimin,iimax
             ii = neq*(i-1 + nx*(j-1) + nx*ny*(k-1)) + ieq
      .         + istart(igr) - 1
             array(i,j,k) = mgvector(ii)
@@ -181,6 +230,51 @@ c     Begin program
 c     End program
 
       end subroutine mapMGVectorToArray
+
+c     limits
+c     ###############################################################
+      subroutine limits(elem,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax)
+      implicit none
+c     ---------------------------------------------------------------
+c     Finds limits on loops for matvec routines. Used in finding 
+c     diagonal from matvec.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer(4) :: elem,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax
+
+c     Local variables
+
+      integer(4) :: el1
+
+c     Begin program
+
+      if (elem.eq.0) then
+        imin = 1
+        imax = nx
+        jmin = 1
+        jmax = ny
+        kmin = 1
+        kmax = nz
+      else
+        el1  = mod(elem,nx*ny)
+        if (el1 == 0) el1 = nx*ny
+
+        imin = mod(el1 ,nx)
+        if (imin == 0) imin = nx
+        imax = imin
+
+        jmin = 1 + (el1 - imin)/nx
+        jmax = jmin
+
+        kmin = 1 + (elem - imin - nx*(jmin-1))/nx*ny
+        kmax = kmin
+      endif
+
+c     End program
+
+      end subroutine limits
 
 c     blockSolve
 c     #################################################################
@@ -586,13 +680,13 @@ c Unpack vector into array
 
       do ieq = 1,neq
         !Set grid=1 because xc is NOT a MG vector.
-        call mapMGVectorToArray(ieq,neq,xc,nxc,nyc,nzc
+        call mapMGVectorToArray(0,ieq,neq,xc,nxc,nyc,nzc
      .                         ,arrayc(:,:,:,ieq),1)
       enddo
 
 c Impose boundary conditions (external)
 
-      call setMGBC(neq,nxc,nyc,nzc,igc,arrayc,bcnd)
+      call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd)
 
 c Restric arrays
 
@@ -709,12 +803,13 @@ c     Setup dimension vectors
 c     Prepare 3d spline interpolation
 
         flg = 0
-        kx = order+1
-        ky = order+1
-        kz = order+1
         nx = nxc + 2
         ny = nyc + 2
         nz = nzc + 2
+        kx = min(order+1,nx-1)
+        ky = min(order+1,ny-1)
+        kz = min(order+1,nz-1)
+
         dim = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
 
         allocate(tx(nx+kx))
@@ -808,13 +903,13 @@ ccc Unpack vector into array
 cc
 cc      do ieq = 1,neq
 cc        !Set grid=1 because xf is NOT a MG vector.
-cc        call mapMGVectorToArray(ieq,neq,xf,nxf,nyf,nzf
+cc        call mapMGVectorToArray(0,ieq,neq,xf,nxf,nyf,nzf
 cc     .                         ,arrayf(:,:,:,ieq),1)
 cc      enddo
 cc
 ccc Impose boundary conditions (external)
 cc
-cc      call setMGBC(neq,nxf,nyf,nzf,igf,arrayf,bcnd)
+cc      call setMGBC(0,neq,nxf,nyf,nzf,igf,arrayf,bcnd)
 cc
 ccc Restrict arrays
 cc
@@ -913,8 +1008,8 @@ c Interpolation
       real(8), dimension(:),allocatable:: tx,ty,tz,work
       real(8), dimension(:,:,:),allocatable:: bcoef
 
-      real(8)    :: db3val
-      external      db3val
+      real(8)    :: db2val,db3val
+      external      db2val,db3val
 
 c Begin program
 
@@ -969,7 +1064,7 @@ c     Map vectors into arrays
         yy = grid_params%yy(jfg:jfg+nyf-1)
         zz = grid_params%zz(kfg:kfg+nzf-1)
 
-        call mapMGVectorToArray(1,1,xf,nxf,nyf,nzf,arrayf,1)
+        call mapMGVectorToArray(0,1,1,xf,nxf,nyf,nzf,arrayf,1)
 
 c     Renormalize without volume fractions
 
@@ -988,12 +1083,13 @@ c     Renormalize without volume fractions
 c     Calculate interpolation
 
         flg = 0
-        kx = order+1
-        ky = order+1
-        kz = order+1
         nx = nxf
         ny = nyf
         nz = nzf
+        kx = min(order+1,nx-1)
+        ky = min(order+1,ny-1)
+        kz = min(order+1,nz-1)
+
         dim = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
 
         allocate(tx(nx+kx))
@@ -1002,8 +1098,19 @@ c     Calculate interpolation
         allocate(work(dim))
         allocate(bcoef(nx,ny,nz))
 
-        call db3ink(xx,nx,yy,ny,zz,nz,arrayf(1:nx,1:ny,1:nz)
-     .             ,nx,ny,kx,ky,kz,tx,ty,tz,bcoef,work,flg)
+        if (nx == 1) then
+          call db2ink(yy,ny,zz,nz,arrayf(1:nx,1:ny,1:nz),ny,ky,kz,ty,tz
+     .               ,bcoef,work,flg)
+        elseif (ny == 1) then
+          call db2ink(xx,nx,zz,nz,arrayf(1:nx,1:ny,1:nz),nx,kx,kz,tx,tz
+     .               ,bcoef,work,flg)
+        elseif (nz == 1) then
+          call db2ink(xx,nx,yy,ny,arrayf(1:nx,1:ny,1:nz),nx,kx,ky,tx,ty
+     .               ,bcoef,work,flg)
+        else
+          call db3ink(xx,nx,yy,ny,zz,nz,arrayf(1:nx,1:ny,1:nz)
+     .               ,nx,ny,kx,ky,kz,tx,ty,tz,bcoef,work,flg)
+        endif
 
         do kc = 1,nzc
           do jc = 1,nyc
@@ -1017,8 +1124,16 @@ c     Calculate interpolation
               yyc = grid_params%yy(jcg)
               zzc = grid_params%zz(kcg)
 
-              xc(iic) = db3val(xxc,yyc,zzc,0,0,0,tx,ty,tz,nx,ny,nz
+              if (nx == 1) then
+                xc(iic)=db2val(yyc,zzc,0,0,ty,tz,ny,nz,ky,kz,bcoef,work)
+              elseif (ny == 1) then
+                xc(iic)=db2val(xxc,zzc,0,0,tx,tz,nx,nz,kx,kz,bcoef,work)
+              elseif (nz == 1) then
+                xc(iic)=db2val(xxc,yyc,0,0,tx,ty,nx,ny,kx,ky,bcoef,work)
+              else
+                xc(iic)=db3val(xxc,yyc,zzc,0,0,0,tx,ty,tz,nx,ny,nz
      .                        ,kx,ky,kz,bcoef,work)
+              endif
 
               if (volf) then
                 xc(iic) = xc(iic)
@@ -1267,8 +1382,8 @@ c Begin program
 
       iter   = options%iter
       omega0 = options%omega
-cc      omega10= options%omega10
-cc      omega01= options%omega01
+      omega10= options%omega10
+      omega01= options%omega01
       tol    = options%tol
       fdiag  = options%fdiag
 
@@ -1799,11 +1914,11 @@ c     Finds block diagonals for neq equations.
 
 c         Find column vector corresponding to grid node ii and equation ieq
 
-            call findBaseVector(ii,ieq,neq,nn,x1,1d0) !Set to 1d0
+            x1(neq*(ii-1) + ieq) = 1d0
 
             call matvec(ii,nn,x1,dummy,igr,bbcnd)
 
-            call findBaseVector(ii,ieq,neq,nn,x1,0d0) !Set to 0d0
+            x1(neq*(ii-1) + ieq) = 0d0
 
 c         Fill diagonal
 
