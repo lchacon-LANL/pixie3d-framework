@@ -423,16 +423,11 @@ c Define new coordinates
 c Define new vector
 
       vec1(1) = vec(1)
-      do i = 2,nv
+      vec1(nv)= vec(nx)
+      do i = 2,nv-1
         call locatep (x,nx,x1(i),j)
         vec1(i) = q_int (nx,vec,x,x1(i),j)
       enddo
-
-      if (abs(vec1(nv)-vec(nx)).gt.1d-3) then
-        write (*,*) 'Something is wrong with vec1; vec1(nv) - vec(nx) ='
-     .              ,vec1(nv)-vec(nx)
-        stop
-      endif
 
 c End program
 
@@ -507,21 +502,14 @@ c Local variables
 
 c Begin program
 
-      if (j == nx) then
-        jm = j-2
-        jj = j-1
-        jp = j
-      elseif (j == 1) then
-        jm = j
-        jj = j+1
-        jp = j+2
-      else
-        jm = j-1
-        jj = j
-        jp = j+1
-      endif
+      if (j == nx) j = nx -1
+      if (j == 1 ) j = 2
 
-        q_int = 
+      jm = j-1
+      jj = j
+      jp = j+1
+
+      q_int = 
      .   vec(j)* (x1 -x(jm))*(x1 - x(jp))/(x(jj)-x(jm))/(x(jj)-x(jp))
      . + vec(jp)*(x1 -x(jm))*(x1 - x(jj))/(x(jp)-x(jm))/(x(jp)-x(jj))
      . + vec(jm)*(x1 -x(jj))*(x1 - x(jp))/(x(jm)-x(jj))/(x(jm)-x(jp))
