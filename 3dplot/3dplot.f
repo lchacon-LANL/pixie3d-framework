@@ -21,6 +21,7 @@ c##########################################################################
 
 c Local variables
 
+      integer(4)     :: i,j,k,ig,jg,kg
       integer(4)     :: ierr,system,nplot,igx,igy,igz
       character*(40) :: command
 
@@ -58,8 +59,6 @@ c Initialize counters
 c Time loop
 
       do
-
-        u_n  = u_np
 
 c     Read next record
 
@@ -106,6 +105,10 @@ c Close graphics files and create draw*.in files
       call finalizeDiagnostics
 
       close(urecord)
+
+c Second order test
+
+cc      call order_tst
 
 c Move files to 'plot' directory
 
@@ -236,6 +239,7 @@ c Initialize vector dimensions
 c Initialize MG and create grid
 
       call createGrid(nxd,nyd,nzd)
+cc      call checkGrid
 
 c Define application arrays (external)
 
@@ -252,11 +256,10 @@ c Define application arrays (external)
 c Allocate records
 
       call allocateDerivedType(u_0)
-      call allocateDerivedType(u_n)
       call allocateDerivedType(u_np)
       call allocateDerivedType(u_graph)
 
-c Read equilibrium
+c Read and postprocess equilibrium
 
       call readRecord(urecord,itime,time,dt,u_0,ierr)
       if (ierr /= 0) then
@@ -269,9 +272,7 @@ c Read equilibrium
 
 c Initialize graphics
 
-      u_n     = u_0
       u_np    = u_0   !Required to "prime" u_np for pointers
-      u_graph = u_0
 
       call initializeGraphics(igx,igy,igz,bcond)
 
