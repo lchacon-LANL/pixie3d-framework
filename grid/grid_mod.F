@@ -2360,6 +2360,46 @@ c     End program
 
 #endif
 
+c module error
+c ######################################################################
+      module error
+
+#if defined(petsc)
+        use local_mpi
+#endif
+
+        character(80) :: messg
+
+      contains
+
+c     pstop
+c     ################################################################
+      subroutine pstop(routine,message)
+
+c     ---------------------------------------------------------------
+c     Stops program at "routine" with "message"
+c     ---------------------------------------------------------------
+
+        implicit none
+
+        character(*) :: routine, message
+
+c     Begin program
+
+        write (*,*)
+        write (*,*) trim(message)
+        write (*,*) 'Program stopped at routine ',trim(routine)
+
+#if defined(petsc)
+        call PetscEnd(mpierr)
+#endif
+
+        stop
+
+      end subroutine pstop
+
+      end module error
+
 c module grid_metric
 c #####################################################################
       module grid_metric
@@ -3868,6 +3908,8 @@ c module grid
 c #####################################################################
       module grid
 
+        use error
+
         use grid_operations
 
         implicit none
@@ -3979,8 +4021,8 @@ c     Initialize MG grid-size arrays
         do i = 2,ngrdx
           grid_params%nxgl(i) = grid_params%nxgl(i-1) / mg_ratio
           grid_params%nxv (i) = grid_params%nxv (i-1) / mg_ratio
-cc          grid_params%ilo(i) = max(grid_params%ilo(i-1) / mg_ratio,1)
-          grid_params%ilo (i) = imin
+          grid_params%ilo(i) = grid_params%ilo(i-1)/mg_ratio + 1
+cc          grid_params%ilo (i) = imin
           grid_params%ihi (i) = grid_params%ilo(i)+grid_params%nxv(i)-1
           grid_params%mg_ratio_x(i-1) = mg_ratio
         enddo
@@ -3998,8 +4040,8 @@ cc          grid_params%ilo(i) = max(grid_params%ilo(i-1) / mg_ratio,1)
         do i = 2,ngrdy
           grid_params%nygl(i) = grid_params%nygl(i-1) / mg_ratio
           grid_params%nyv (i) = grid_params%nyv(i-1) / mg_ratio
-cc          grid_params%jlo(i) = max(grid_params%jlo(i-1) / mg_ratio,1)
-          grid_params%jlo (i) = jmin
+          grid_params%jlo(i) = grid_params%jlo(i-1)/mg_ratio + 1
+cc          grid_params%jlo (i) = jmin
           grid_params%jhi (i) = grid_params%jlo(i)+grid_params%nyv(i)-1
           grid_params%mg_ratio_y(i-1) = mg_ratio
         enddo
@@ -4017,8 +4059,8 @@ cc          grid_params%jlo(i) = max(grid_params%jlo(i-1) / mg_ratio,1)
         do i = 2,ngrdz
           grid_params%nzgl(i) = grid_params%nzgl(i-1) / mg_ratio
           grid_params%nzv (i) = grid_params%nzv (i-1) / mg_ratio
-cc          grid_params%klo(i) = max(grid_params%klo(i-1) / mg_ratio,1)
-          grid_params%klo (i) = kmin
+          grid_params%klo(i) = grid_params%klo(i-1)/mg_ratio + 1
+cc          grid_params%klo (i) = kmin
           grid_params%khi (i) = grid_params%klo(i)+grid_params%nzv(i)-1
           grid_params%mg_ratio_z(i-1) = mg_ratio
         enddo
@@ -4665,8 +4707,6 @@ c     Multigrid parameters
 cc        call hessianCheck(igx,igy,igz
 cc     .             ,grid_params%nxv,grid_params%nyv,grid_params%nzv)
 
-        stop
-
 c     End program
 
       contains
@@ -4851,43 +4891,3 @@ c     End program
       end subroutine checkGrid
 
       end module grid
-
-c module error
-c ######################################################################
-      module error
-
-#if defined(petsc)
-        use local_mpi
-#endif
-
-        character(80) :: messg
-
-      contains
-
-c     pstop
-c     ################################################################
-      subroutine pstop(routine,message)
-
-c     ---------------------------------------------------------------
-c     Stops program at "routine" with "message"
-c     ---------------------------------------------------------------
-
-        implicit none
-
-        character(*) :: routine, message
-
-c     Begin program
-
-        write (*,*) trim(message)
-        write (*,*) 'Program stopped at routine ',trim(routine)
-
-#if defined(petsc)
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-        call MPI_Finalize(mpierr)
-#endif
-
-        stop
-
-      end subroutine pstop
-
-      end module error
