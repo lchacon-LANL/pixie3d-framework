@@ -170,7 +170,7 @@ c Call variables
 
       integer          :: ierr
 
-      type (var_array),target :: vnp,vn
+      type (var_array) :: vnp,vn
 
 c Local variables
 
@@ -355,12 +355,14 @@ c     calculate_dt
 c     #######################################################################
       subroutine calculate_dt
 
-        real(8) ::    coef1,coef2
-
-        if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor .eq. 1d0)) then
-          call findExplicitDt(dt)
+        if (timecorr) then
+          if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor .eq. 1d0)) then
+            call findExplicitDt(dt)
+          else
+            call adapt_dt(dtbase)
+          endif
         else
-          call adapt_dt(dtbase)
+          dt = dtbase
         endif
 
       end subroutine calculate_dt
@@ -375,28 +377,23 @@ c     #######################################################################
         coef1 = 0.8             !Time subcycling coefficient
         coef2 = 1.05            !Time recovery   coefficient
 
-        if (timecorr) then
-cc          write (*,*) ierr
-          if (ierr.gt.0) then
-            dt = dt*coef1
-            if (dt < 1d-3*dtbase) then
-              write (*,*) 'Time step too small'
-              write (*,*) 'Aborting...'
-              stop
-            endif
-            if (ierr.eq.2) write (*,240)
-            write (*,400) dt
-          else
-            if (itm.le.sm_pass+1) then
-              dt = dtbase/2.
-            elseif (itm.eq.(sm_pass+2)) then
-              dt = dtbase
-            else
-              dt = min(dtbase,dt*coef2)
-            endif
+        if (ierr.gt.0) then
+          dt = dt*coef1
+          if (dt < 1d-3*dtbase) then
+            write (*,*) 'Time step too small'
+            write (*,*) 'Aborting...'
+            stop
           endif
+          if (ierr.eq.2) write (*,240)
+          write (*,400) dt
         else
-          dt = dtbase
+          if (itm.le.sm_pass+1) then
+            dt = dtbase/2.
+          elseif (itm.eq.(sm_pass+2)) then
+            dt = dtbase
+          else
+            dt = min(dtbase,dt*coef2)
+          endif
         endif
 
  240    format ('    Too many Newton iterations')
