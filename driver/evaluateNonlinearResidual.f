@@ -56,6 +56,8 @@ c Calculate residuals
      .                    -                fsrc(ii+ieq))
             enddo
 
+            f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*volume(i,j,k,1,1,1)
+
           enddo
         enddo
       enddo
