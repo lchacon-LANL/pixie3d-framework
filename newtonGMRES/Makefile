@@ -31,17 +31,17 @@ endif
 
 #Setup compiler options
 
-OPT = opt
+OPT = O 
 
 FFLAGS =
 
-ifneq (,$(findstring opt,$(OPT)))
+ifneq (,$(findstring O,$(OPT)))
 FFLAGS += $(OPTIMIZATION)
 endif
-ifneq (,$(findstring deb,$(OPT)))
+ifneq (,$(findstring g,$(OPT)))
 FFLAGS += $(DEBUG)
 endif
-ifneq (,$(findstring prof,$(OPT)))
+ifneq (,$(findstring p,$(OPT)))
 FFLAGS += $(PROFILE)
 endif
 

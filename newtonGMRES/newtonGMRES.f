@@ -23,7 +23,7 @@ c        * iout, if > 0, indicates output level (input)
 c
 c == subroutine killPreconditioner
 c
-c      Deallocates variables used in preconditioner
+c      Deallocates dynamic storage space used in preconditioner
 c
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
@@ -32,15 +32,19 @@ c module newtonGmres
 c ###################################################################
       module newton_gmres
 
-      double precision, allocatable, dimension(:):: res
+      double precision, allocatable, dimension(:):: res,x0,xk
+
+      double precision :: dt,check
+
+      integer          :: jit
 
       end module newton_gmres
 
 c newtonGmres
 c####################################################################
-      subroutine newtonGmres(neq,ntot,x,method,damp,global,tolgm,kmax
-     .           ,gmit_max,tolnewt,ntit_max_acc,ntit_max_rej,gmit_out
-     .           ,ntit_out,iguess,out,ierr)
+      subroutine newtonGmres(neq,ntot,x,method,damp,global,dt0
+     .           ,tolgm,kmax,gmit_max,tolnewt,ntit_max_acc
+     .           ,ntit_max_rej,gmit_out,ntit_out,iguess,out,ierr)
 c--------------------------------------------------------------------
 c     Performs Jacobian-free inexact Newton iteration on b(x) = 0, 
 c     where b is calculated in 'evaluateNonlinearResidual' (provided
@@ -56,8 +60,11 @@ c               method = 0 --> constant
 c               method = 1 --> unused
 c               method = 2 --> power law adaptive strategy
 c       * damp  : damping parameter for Newton update
-c       * global: if true, uses linesearch backtracking as globalization
-c                 procedure
+c       * global: determines the globalization procedure:
+c               global = 0 --> no globalization
+c               global = 1 --> linesearch backtracking 
+c               global = 2 --> pseudo-transient
+c       * dt0: initial time step for pseudo-transient
 c       * tolgm: GMRES convergence tolerance
 c       * kmax: dimension of krylov subspace for restarted GMRES(Kmax)
 c       * gmit_max: maximum number of GMRES its. (restart if > kmax)
@@ -96,15 +103,15 @@ c Call variables
 
       double precision :: x(ntot),tolgm,tolnewt,damp
 
-      logical          :: global
+      integer          :: global
 
 c Local variables
 
-      integer*4   itk,jit,i,j,ig,iout
+      integer*4   itk,i,j,ig,iout
 
-      real*8      dxavg,check_lim,check,residuals(neq)
+      real*8      dxavg,check_lim,residuals(neq)
 
-      real*8      b(ntot),ddx(ntot)
+      real*8      b(ntot),ddx(ntot),dt0
 
       real*8      f0,fkm,fk,fkp,fm,etak,etakm,theta,dampm,gamm,alph
 
@@ -118,23 +125,34 @@ c Begin program
 
 c Initialize
 
-      allocate (res(ntot))
+      allocate (res(ntot),x0(ntot),xk(ntot))
 
       ierr     = 0
       gmit_out = 0
       itk      = 0
 
-      check_lim = 1d1
-
       if (out.ge.1) write (*,200)
+
+      check_lim = 1d30
+cc      if (global.ne.2) check_lim = 1d1
+
+      if (global.ne.2) dt0 = 1d30
+      dt = dt0
+
+      x0 = x    !Save initial guess
+      xk = x    !Save previous Newton state
 
 c Evaluate rhs and norms
 
-      call evaluateNonlinearResidual(ntot,x,res)
+      call evaluateNewtonResidual(ntot,x,res)
 
       b = -res
 
       f0 = sqrt(sum(b*b))
+
+c Initial output
+
+      if (out.ge.1) write (*,210) 0,0d0,f0,1d0,1d0,0
 
 c Start Newton iteration
 
@@ -186,15 +204,19 @@ c       Determine inexact Newton constant
 
 c       Calculate damping coefficient
 
-        if (global) call findDamping (ntot,x,ddx,etak,fk,damp)
+cc        if (global.eq.1) call findDamping (ntot,x,ddx,etak,fk,damp)
+
+        if (global.ge.1) call findDamping (ntot,x,ddx,etak,fk,damp)
 
 c     Update solution (x = x + ddx)
+
+        xk = x   !Save previous Newton state
 
         call updateNewtonSolution(x,ddx,ntot,damp,dxavg)
 
 c     Evaluate rhs and norms
 
-        call evaluateNonlinearResidual(ntot,x,res)
+        call evaluateNewtonResidual(ntot,x,res)
 
         b = -res
 
@@ -204,7 +226,7 @@ c     Check Newton convergence
 
         check = fkp/f0
 
-        if (out.ge.1) write (*,210) jit,dxavg,check,damp,itk
+        if (out.ge.1) write (*,210) jit,dxavg,fkp,check,damp,dt,itk
 
         if (out.ge.3) then
           call calculateResidualNorms(neq,ntot,b,residuals)
@@ -223,13 +245,16 @@ c     Store magnitude of residual
 
         etakm = etak
 
+c     Change pseudo-transient time step
+
+cc        if (global.eq.2) dt = min(dt/check,1d30)
+        if (global.eq.2) dt = min(dt0/check,1d30)
+cc        if (global.eq.2.and.check.lt.1d-3) dt = min(dt0*jit,1d0)
+cc        if (global.eq.2) dt = min(dt0/check**2,1d30)
+
       enddo       !End of Newton loop
 
 c Check error in Newton convergence
-
-cc      if (jit.gt.ntit_max_rej) then          !No convergence: reject solution
-cc        write (*,220) check
-cc        ierr = 1
 
       !No convergence: reject solution
       if (jit.gt.ntit_max_rej.or.check.gt.check_lim) then 
@@ -244,12 +269,14 @@ cc        ierr = 1
 
 c End program
 
-      deallocate (res)
+      deallocate (res,x0,xk)
 
       return
 
- 200  format (/,' New_it   Av_updt    Rel_res    Damping  GMRES')
- 210  format (i4,3x,1p3e11.3,i4)
+ 200  format 
+     .   (/,' New_it   Av_updt    Abs_res   Rel_res     Damping'
+     .     ,'      dt_n     GMRES')
+ 210  format (i4,3x,1p5e11.3,3x,i4)
  220  format ('    Max newton its. exceeded; rel. residual: ',1p1e10.2)
  230  format ('    Relative residual =',f7.2,' >',f7.2)
  240  format ('    Newton converged in too many iterations (>',i2,')')
@@ -374,7 +401,8 @@ c Call variables
 c Local variables
 
       integer ::  idamp
-      double precision :: dampm,theta,dxavg,b(ntot),dummy(ntot),fkp,fm
+      double precision :: dampm,theta,etak0,dxavg,fkp,fm
+      double precision :: b(ntot),dummy(ntot)
 
 c External
 
@@ -384,27 +412,30 @@ c External
 c Begin program
 
       damp = 1d0
+      etak0 = etak
 
       do idamp = 1,100
         dummy = x
         call updateNewtonSolution(dummy,ddx,ntot,damp,dxavg)
-        call evaluateNonlinearResidual(ntot,dummy,b)
+        call evaluateNewtonResidual(ntot,dummy,b)
         fkp = sqrt(sum(b*b))
         if (fkp.gt.(1.-1e-4*(1.-etak))*fk) then
           dampm = .5*damp
           dummy = x
           call updateNewtonSolution(dummy,ddx,ntot,dampm,dxavg)
-          call evaluateNonlinearResidual(ntot,dummy,b)
+          call evaluateNewtonResidual(ntot,dummy,b)
           fm = sqrt(sum(b*b))
           theta = .5*(1.5*fk + 0.5*fkp - 2.*fm)/(fk + fkp - 2.*fm)
           theta = fmedval(1d-1,8d-1,theta)
           damp = damp*theta
-cc            write (*,*) 'New damping parameter',damp
+cc          write (*,*) 'New damping parameter',damp
           etak = 1.- theta*(1.-etak)
         else
           exit
         endif
       enddo
+
+cc      if (damp.lt.1d-5) etak = etak0
 
 c End program
 
@@ -687,7 +718,7 @@ cFG       call applyPreconditioner(n,rhs,vv(1,im+1),precout)
 
 c     Update solution
 
-       sol(:) = sol(:) + vv(:,im+1)
+        sol(:) = sol(:) + vv(:,im+1)
 
 c     Check convergence and restart outer loop if necessary
 
@@ -786,20 +817,21 @@ c Calculate J.x
 
       else
 
-        eps = 1d-6
+        eps = 1d-4
 
 cc        pert = eps*dsqrt(pert/scale)/nn
         pert = eps*(1.+pert/scale/nn)
 cc        pert = eps*(1.+dsqrt(pert/scale))
 cc        pert = eps*2d0/dsqrt(scale)
 
+cc        write (*,*) pert
 c     Perturb state variables x + eps z --> dummy
 
         dummy = x + pert*z
 
 c     Nonlinear function evaluation --> y
 
-        call evaluateNonlinearResidual(nn,dummy,y)
+        call evaluateNewtonResidual(nn,dummy,y)
 
 c     Compute the product J.x using the matrix-free approx
 
@@ -811,6 +843,39 @@ c End
 
       return
       end
+
+c evaluateNewtonResidual
+c####################################################################
+      subroutine evaluateNewtonResidual(ntot,x,f)
+
+c--------------------------------------------------------------------
+c     Calculates nonlinear residuals. 
+c--------------------------------------------------------------------
+
+      use newton_gmres
+
+      implicit none
+
+c Call variables
+
+      integer  :: ntot
+      real*8      x(ntot),f(ntot)
+
+c Local variables
+
+c Begin program
+
+c Evaluate nonlinear residual
+
+      call evaluateNonlinearResidual(ntot,x,f)
+
+c Add pseudo-transient term
+
+      f = (x - x0)/dt + f
+
+c End program
+
+      end subroutine
 
 c fmedval
 c####################################################################
