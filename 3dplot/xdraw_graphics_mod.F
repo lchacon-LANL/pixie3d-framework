@@ -919,6 +919,7 @@ c     Initialize FORTRAN interface
       call h5open_f(error)
 
 #if defined(petsc)
+c PARALLEL
 c     Set up file access property list with parallel I/O access
       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,error)
       call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,
@@ -929,6 +930,7 @@ c     Open an existing file.
      $               access_prp = plist_id)
       call h5pclose_f(plist_id,error)
 #else
+c SERIAL
 c     Open an existing file.
       call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,error,
      $               H5P_DEFAULT_F)
@@ -948,6 +950,7 @@ c     Create the dataspace of actual data and its attributes
      $                       ,error)
 
 #if defined(petsc)
+c PARALLEL
 c     Each process defines dataset in memory and writes it to the hyperslab
 c     in the file.
 
@@ -977,10 +980,10 @@ c     Create property list for collective dataset write.
 
 c     Write the coordinate data
 
-      if (itime == 0) then
+      allocate (cell(ilom:ihip,jlom:jhip,klom:khip,3)
+     .         ,node(ilom:ihip,jlom:jhip,klom:khip,3))
 
-        allocate (cell(ilom:ihip,jlom:jhip,klom:khip,3)
-     .           ,node(ilom:ihip,jlom:jhip,klom:khip,3))
+      if (itime == 0) then
 
         !Cell center positions
         call h5gopen_f(file_id,cell_coords_gname,group_id,error) 
@@ -995,7 +998,9 @@ c     Write the coordinate data
         enddo
 
         do icoords=1,ARRAY_RANK
+
 #if defined(petsc)
+c PARALLEL
           call h5dcreate_f(group_id,coords_descr(icoords),
      $                     H5T_IEEE_F64BE,
      $                     dataspace_id,dataset_id,error)
@@ -1015,6 +1020,7 @@ c         Write data to the dataset
 
           call h5sclose_f(hs_dataspace_id,error)
 #else
+c SERIAL
           call h5dcreate_f(group_id,coords_descr(icoords),
      $                     H5T_IEEE_F64BE,
      $                     dataspace_id,dataset_id,error)
@@ -1033,17 +1039,7 @@ c         Write data to the dataset
         !Node positions
         call h5gopen_f(file_id,node_coords_gname,group_id,error) 
 
-        do k=klo,khip
-          do j=jlo,jhip
-            do i=ilo,ihip
-              node(i,j,k,:) = 0.125
-     .                       *(cell(i  ,j  ,k  ,:)+cell(i-1,j  ,k  ,:)
-     .                        +cell(i  ,j-1,k  ,:)+cell(i-1,j-1,k  ,:)
-     .                        +cell(i  ,j  ,k-1,:)+cell(i-1,j  ,k-1,:)
-     .                        +cell(i  ,j-1,k-1,:)+cell(i-1,j-1,k-1,:))
-            enddo
-          enddo
-        enddo
+        call interpolateNodalData
 
         do icoords=1,ARRAY_RANK
           call h5dcreate_f(group_id,coords_descr(icoords),
@@ -1051,6 +1047,7 @@ c         Write data to the dataset
      $                     node_dataspace_id,dataset_id,error)
 
 #if defined(petsc)
+c PARALLEL
 c         Select hyperslab in the file.
           call h5dget_space_f(dataset_id,hs_dataspace_id,error)
           call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
@@ -1060,12 +1057,14 @@ c         Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
      $                 node(ilo:ihip,jlo:jhip,klo:khip,icoords),
      $                 array_dim_i,
-     $                 error,file_space_id = hs_dataspace_id,
+     $                 error,
+     .                 file_space_id = hs_dataspace_id,
      $                 mem_space_id = p_node_dataspace_id,
      $                 xfer_prp = plist_id)
 
           call h5sclose_f(hs_dataspace_id,error)
 #else
+c SERIAL
 c         Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
      $                    node(ilo:ihip,jlo:jhip,klo:khip,icoords),
@@ -1077,9 +1076,9 @@ c         Write data to the dataset
 
         call h5gclose_f(group_id, error)
 
-        deallocate(cell,node)
-
       endif
+
+      deallocate(cell,node)
 
 c     Write the actual data
 
@@ -1090,8 +1089,10 @@ c     Write the actual data
 c       Open an existing group of the specified file.
         call h5gopen_f(group_id,graph(igrp)%descr,subgroup_id,error)
 
-c       Write "Attribute data"
         if (graph(igrp)%cartesian) then
+
+c         Write "Attribute data"
+
           call h5tcopy_f(H5T_NATIVE_CHARACTER,attr_type_id,error)
           call h5tset_size_f(attr_type_id,strlength,error)
 
@@ -1103,46 +1104,107 @@ c       Write "Attribute data"
      $                    attr_data,
      $                    attr_dim,error)
           call h5aclose_f(attribute_id,error)
-        endif
 
-        do ieq=1,nqty(igrp)
+c         Write nodal data
 
-c         Create the dataset
-          call h5dcreate_f(subgroup_id,
-     $                     graph(igrp)%array_graph(ieq)%descr,
-     $                     H5T_IEEE_F64BE,
-     $                     dataspace_id,dataset_id,error)
+          allocate (cell(ilom:ihip,jlom:jhip,klom:khip,1)
+     .             ,node(ilom:ihip,jlom:jhip,klom:khip,1))
+
+          do ieq=1,nqty(igrp)
+
+c           Create the dataset
+            call h5dcreate_f(subgroup_id
+     $                      ,graph(igrp)%array_graph(ieq)%descr
+     $                      ,H5T_IEEE_F64BE
+     $                      ,node_dataspace_id,dataset_id,error)
+
+c           Interpolate nodal values
+
+            cell(:,:,:,1) = graph(igrp)%array_graph(ieq)%array
+
+            call interpolateNodalData
 
 #if defined(petsc)
-c         Select hyperslab in the file.
-          call h5dget_space_f(dataset_id,hs_dataspace_id,error)
-          call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
-     $                              offset,count,error)    
+c PARALLEL
+c           Select hyperslab in the file.
+            call h5dget_space_f(dataset_id,hs_dataspace_id,error)
+            call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F
+     $                                ,offset,node_count,error)    
 
-c         Write data to the dataset
-          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
-     $                    graph(igrp)%array_graph(ieq)
-     $                       %array(ilo:ihi,jlo:jhi,klo:khi),
-     $                    array_dim_i,
-     $                    error,file_space_id = hs_dataspace_id,
-     $                    mem_space_id = p_dataspace_id,
-     $                    xfer_prp = plist_id)
+c           Write data to the dataset
+            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
+     $                     ,node(ilo:ihip,jlo:jhip,klo:khip,1)
+     $                     ,array_dim_i
+     $                     ,error
+     $                     ,file_space_id = hs_dataspace_id
+     $                     ,mem_space_id = p_node_dataspace_id
+     $                     ,xfer_prp = plist_id)
+
+c           Release resources
+            call h5sclose_f(hs_dataspace_id,error)
+#else
+c SERIAL
+c           Write data to the dataset
+            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
+     $                     ,node(ilo:ihip,jlo:jhip,klo:khip,1)
+     $                     ,node_array_dim,error)
+#endif
 
 c         Release resources
-          call h5sclose_f(hs_dataspace_id,error)
+
+            call h5dclose_f(dataset_id,error)
+
+          enddo
+
+          deallocate(cell,node)
+
+        else
+
+c         Write cell-centered data
+
+          do ieq=1,nqty(igrp)
+
+c           Create the dataset
+            call h5dcreate_f(subgroup_id
+     $                      ,graph(igrp)%array_graph(ieq)%descr
+     $                      ,H5T_IEEE_F64BE
+     $                      ,dataspace_id,dataset_id,error)
+
+#if defined(petsc)
+c PARALLEL
+c           Select hyperslab in the file.
+            call h5dget_space_f(dataset_id,hs_dataspace_id,error)
+            call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F
+     $                                ,offset,count,error)    
+
+c           Write data to the dataset
+            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
+     $                     ,graph(igrp)%array_graph(ieq)
+     $                         %array(ilo:ihi,jlo:jhi,klo:khi)
+     $                     ,array_dim_i
+     $                     ,error,file_space_id = hs_dataspace_id
+     $                     ,mem_space_id = p_dataspace_id
+     $                     ,xfer_prp = plist_id)
+
+c           Release resources
+            call h5sclose_f(hs_dataspace_id,error)
 #else
-c         Write data to the dataset
-          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
-     $                    graph(igrp)%array_graph(ieq)
-     $                       %array(ilo:ihi,jlo:jhi,klo:khi), !must specify index ranges
-     $                    array_dim,error)
+c SERIAL
+c           Write data to the dataset
+            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
+     $                     ,graph(igrp)%array_graph(ieq)
+     $                                 %array(ilo:ihi,jlo:jhi,klo:khi) !must specify index ranges
+     $                     ,array_dim,error)
 
 #endif
 
 c         Release resources
 
-          call h5dclose_f(dataset_id,error)
-        enddo
+            call h5dclose_f(dataset_id,error)
+
+          enddo
+
+        endif
 
         call h5gclose_f(subgroup_id, error)
 
@@ -1151,17 +1213,65 @@ c         Release resources
 c     Release resources
 
       call h5gclose_f(group_id, error)
+
 #if defined(petsc)
+c PARALLEL
       call h5sclose_f(p_dataspace_id,error)
       call h5sclose_f(p_node_dataspace_id,error)
       call h5pclose_f(plist_id,error)
 #endif
+
       call h5sclose_f(dataspace_id,error)
       call h5sclose_f(node_dataspace_id,error)
       call h5fclose_f(file_id,error)
       call h5close_f (error)
 
 c     End program
+
+      contains
+
+c     interpolateNodalData
+c     ####################################################################
+      subroutine interpolateNodalData
+
+c     ---------------------------------------------------------------------
+c     Interpolates cell-centered data to nodal data
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+        do k=klo,khip
+          do j=jlo,jhip
+            do i=ilo,ihip
+cc              node(i,j,k,:) = 0.125
+cc     .                       *(cell(i  ,j  ,k  ,:)+cell(i-1,j  ,k  ,:)
+cc     .                        +cell(i  ,j-1,k  ,:)+cell(i-1,j-1,k  ,:)
+cc     .                        +cell(i  ,j  ,k-1,:)+cell(i-1,j  ,k-1,:)
+cc     .                        +cell(i  ,j-1,k-1,:)+cell(i-1,j-1,k-1,:))
+cc              if (i == ilo .and. ilog == 1 .and. bcond(1) == SP) then
+cc                node(i,j,k,1:2) = 0.25*(cell(i-1,j  ,k  ,1:2)
+cc     .                                 +cell(i-1,j-1,k  ,1:2)
+cc     .                                 +cell(i-1,j  ,k-1,1:2)
+cc     .                                 +cell(i-1,j-1,k-1,1:2))
+cc              endif
+
+              if (i == ilo .and. ilog == 1 .and. bcond(1) == SP) then
+                node(i,j,k,:) = 0.25*(cell(i-1,j  ,k  ,:)
+     .                               +cell(i-1,j-1,k  ,:)
+     .                               +cell(i-1,j  ,k-1,:)
+     .                               +cell(i-1,j-1,k-1,:))
+              else
+                node(i,j,k,:) = 0.125
+     .                       *(cell(i  ,j  ,k  ,:)+cell(i-1,j  ,k  ,:)
+     .                        +cell(i  ,j-1,k  ,:)+cell(i-1,j-1,k  ,:)
+     .                        +cell(i  ,j  ,k-1,:)+cell(i-1,j  ,k-1,:)
+     .                        +cell(i  ,j-1,k-1,:)+cell(i-1,j-1,k-1,:))
+              endif
+            enddo
+          enddo
+        enddo
+
+      end subroutine interpolateNodalData
 
       end subroutine writeHDF5file
 
