@@ -28,6 +28,7 @@ c ######################################################################
      .                   ,diag_log(ngraph)
 
         integer(4)     :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
+     .                   ,iggx,iggy,iggz,iig,jjg,kkg
 
         integer(4)     :: sel_diag(9),sel_graph(9),ndplot
         real(8)        :: dplot,tmplot
@@ -79,6 +80,10 @@ c     Begin program
         isx = grid_params%istartx(igx)
         isy = grid_params%istartx(igy)
         isz = grid_params%istartx(igz)
+
+        iggx = igx
+        iggy = igy
+        iggz = igz
 
 c     Set graphics plotting range
 
@@ -338,11 +343,17 @@ cc          write (*,*) yl(jmaxg/3)
           if (cartesian) then
             select case(comp)
             case(1)
-              car(:) = inverse_map(xl(l),yl(1),zl(1))
+              call getCartesianCoordinates(l,1,1,iggx,iggy,iggz
+     .                                ,iig,jjg,kkg,car(1),car(2),car(3))
+cc              car(:) = x_xi(xl(l),yl(1),zl(1))
             case(2)
-              car(:) = inverse_map(xl(1),yl(l),zl(1))
+              call getCartesianCoordinates(1,l,1,iggx,iggy,iggz
+     .                                ,iig,jjg,kkg,car(1),car(2),car(3))
+cc              car(:) = x_xi(xl(1),yl(l),zl(1))
             case(3)
-              car(:) = inverse_map(xl(1),yl(1),zl(l))
+              call getCartesianCoordinates(1,1,l,iggx,iggy,iggz
+     .                                ,iig,jjg,kkg,car(1),car(2),car(3))
+cc              car(:) = x_xi(xl(1),yl(1),zl(l))
             end select
             write(unit) real(car(comp)),real(profiles(l,1:nqty))
           else
@@ -445,7 +456,9 @@ c         Write initialization headings
 
             do j=jming,jmaxg
               do i=iming,imaxg
-                car(i,j,k,:) = inverse_map(xl(i),yl(j),zl(k))
+                call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
+     .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
+cc                car(i,j,k,:) = x_xi(xl(i),yl(j),zl(k))
               enddo
             enddo
  
@@ -488,7 +501,7 @@ cc          write(nunit) (imaxg-iming),(kmaxg-kming)
 cc
 cc          do k=kming,kmaxg
 cc            do i=iming,imaxg
-cc              car(i,j,k,:) = inverse_map(xl(i),yl(j),zl(k))
+cc              car(i,j,k,:) = x_xi(xl(i),yl(j),zl(k))
 cc            enddo
 cc          enddo
 cc
