@@ -237,8 +237,7 @@ c     Begin program
       varray%nvar = neqd
 
       do ieq = 1,neqd
-        call VarPack (nxd,nyd,nzd,var(:,:,:,ieq),bcs(:,ieq),label(ieq)
-     .               ,ieq,varray)
+        call VarPack (var(:,:,:,ieq),bcs(:,ieq),label(ieq),ieq,varray)
       enddo
 
 c     End program

@@ -291,7 +291,7 @@ c     calculate_gammat
 c     #######################################################################
       subroutine calculate_gammat
 
-        use generalOperators
+        use generalPurposeFunctions
 
 c     Calculation of local growth rate for CN
 
