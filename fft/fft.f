@@ -133,7 +133,7 @@ c        + 'nv' is fft vector dimension
 c        + 'psir' is real part of transform
 c        + 'psii' is imaginary part of transform
 c        + 'ak' is new abcissae (k or omega)
-c        + 'inter' decides if interpolation is required (1).
+c        + 'inter' decides if interpolation is required (1)
 c        + 'ism' decides if smoothing is performed (1).
 c***********************************************************************
 
@@ -184,7 +184,7 @@ cc      endif
 c Interpolate time plots to provide uniform spacing
 
       if (inter.eq.1 .or. nx /= nv) then
-        call interpol (nx,x,psi,nv,x_wrk,psi_wrk)
+        call IntDriver1d (nx,x,psi,nv,x_wrk,psi_wrk,3)
       else
         psi_wrk = psi
         x_wrk   = x
@@ -288,7 +288,7 @@ c Reconstruct uniform grid from ak
 c Interpolate ifft to original grid
 
       if (nx /= nv) then
-        call interpol (nv,x_wrk,psi_wrk,nx,x,psi)
+        call IntDriver1d (nv,x_wrk,psi_wrk,nx,x,psi,3)
       else
         psi = psi_wrk
         x   = x_wrk
@@ -377,148 +377,6 @@ c Begin program
 
       return
       end
-
-
-c interpol
-c#######################################################################
-      subroutine interpol (nx,x,vec,nv,x1,vec1)
-      implicit none       !For safe Fortran
-c***********************************************************************
-c     Interpolates vector vec along coordinate x to vector vec1 along x1
-c     using uniform intervals for FFT.
-c***********************************************************************
-
-c Call variables
-
-      integer*4      nx,nv
-      real*8         x(nx),vec(nv)
-
-c Local variables
-
-      real*8         x1(nv),vec1(nv),dxx
-      integer*4      i,j
-
-c Externals
-
-      real*8         q_int
-      external       q_int
-
-c Begin program
-
-c Define new coordinates
-
-      dxx = (x(nx)-x(1))/(nv-1)
-
-      x1(1) = x(1)
-      do i = 2,nv
-        x1(i) = x1(i-1) + dxx
-      enddo
-
-      if ( abs(x1(nv)-x(nx)).gt.1d-3) then
-        write (*,*) 'Something is wrong with x1; x1(nv) - x(nx) ='
-     .              ,x1(nv)-x(nx)
-        stop
-      endif
-
-c Define new vector
-
-      vec1(1) = vec(1)
-      vec1(nv)= vec(nx)
-      do i = 2,nv-1
-        call locatep (x,nx,x1(i),j)
-        vec1(i) = q_int (nx,vec,x,x1(i),j)
-      enddo
-
-c End program
-
-      return
-      end
-
-c locatep
-c#######################################################################
-      subroutine locatep (xx,n,x,j)
-      implicit      none                          ! for safe FORTRAN
-
-c-----------------------------------------------------------------------
-c     Given an array xx(1:n) and given a value x, returns a value j
-c     such that x is between xx(j) and xx(j+1). xx(1:n) must be 
-c     monotonic, either decreasing of increasing. j = 0 or j = n is
-c     returned to indicate that x is out of range.
-c-----------------------------------------------------------------------
-
-c Variables in call
-
-      integer*4     j,n
-      real*8        x,xx(n)
- 
-c Local variables
-
-      integer*4     jl,jm,ju
-
-c Begin program
-
-      jl = 0
-      ju = n + 1
-
-      do j = 1,n
-        if (ju-jl.le.1) exit
-        jm = (ju+jl)/2
-        if ((xx(n).ge.xx(1)).eqv.(x.ge.xx(jm))) then
-          jl = jm
-        else
-          ju = jm
-        endif
-      enddo
-
-      if (x.eq.xx(1)) then 
-        j = 1
-      elseif (x.eq.xx(n)) then
-        j = n - 1
-      else
-        j = jl
-      endif
-
-c End
-
-      return
-      end
-
-c q_int
-c#######################################################################
-      real*8  function q_int (nx,vec,x,x1,j)
-      implicit      none                          ! for safe FORTRAN
-c-----------------------------------------------------------------------
-c     Interpolate vec(x) at x1 using the nodes (j-1),j,(j+1).
-c-----------------------------------------------------------------------
-
-c Variables in call
-
-      integer*4     nx,j
-      real*8        x1,x(nx),vec(nx)
- 
-c Local variables
-
-      integer*4     jm,jp,jj
-
-c Begin program
-
-      if (j == nx) j = nx -1
-      if (j == 1 ) j = 2
-
-      jm = j-1
-      jj = j
-      jp = j+1
-
-      q_int = 
-     .   vec(j)* (x1 -x(jm))*(x1 - x(jp))/(x(jj)-x(jm))/(x(jj)-x(jp))
-     . + vec(jp)*(x1 -x(jm))*(x1 - x(jj))/(x(jp)-x(jm))/(x(jp)-x(jj))
-     . + vec(jm)*(x1 -x(jj))*(x1 - x(jp))/(x(jm)-x(jj))/(x(jm)-x(jp))
-
-c End
-
-      return
-      end
-
 
 c test
 c#######################################################################
