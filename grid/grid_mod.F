@@ -1,3 +1,50 @@
+c module debug
+c ######################################################################
+      module debug
+
+        real(8) :: lxmax,lxmin,lymax,lymin
+
+      contains
+
+c     contour
+c     #####################################################################
+      subroutine contour(arr,nx,ny,xmin,xmax,ymin,ymax,iopt,nunit)
+      implicit none               !For safe fortran
+c     ---------------------------------------------------------------------
+c     Contours 2D array in xdraw format. In call:
+c       * arr: 2D array to be plotted
+c       * nx,ny: dimensions of array
+c       * xmin,xmax,ymin,ymax: 2D domain limits
+c       * iopt: whether to initialize xdraw plot (iopt=0) or not.
+c       * nunit: integer file identifier.
+c     ---------------------------------------------------------------------
+
+c     Call variables
+
+      integer(4) :: nx,ny,iopt,nunit
+      real(8)    :: arr(nx,ny),xmin,xmax,ymin,ymax
+
+c     Local variables
+
+      integer(4) :: i,j
+
+c     Begin program
+
+      if(iopt == 0) then
+        write(nunit) nx-1,ny-1,0
+        write(nunit) real(xmin,4),real(xmax,4)
+     .              ,real(ymin,4),real(ymax,4) 
+      endif
+      write(nunit) ((real(arr(i,j),4),i=1,nx),j=1,ny)
+cc      write (*,*) ((real(arr(i,j),4),i=1,nx),j=1,ny)
+cc      write (*,*)
+
+c     End program
+
+      end subroutine contour
+
+      end module debug
+
 c module grid_structures
 c #####################################################################
       module grid_structures
@@ -419,6 +466,42 @@ c     Begin program
 
       end subroutine getCurvilinearCoordinates
 
+c     vecPos
+c     #################################################################
+      function vecPos(neq,i,j,k,igx,igy,igz) result (ijk)
+
+        implicit none
+
+        integer(4) :: ijk,i,j,k,neq,igx,igy,igz
+
+        integer(4) :: nxl,nyl,nzl,ilo,jlo,klo
+
+        ilo = 1
+        jlo = 1
+        klo = 1
+
+        nxl = grid_params%nxv(igx)
+        nyl = grid_params%nyv(igy)
+        nzl = grid_params%nzv(igz)
+
+        ijk = neq*(i-ilo + nxl*(j-jlo) + nxl*nyl*(k-klo))
+      
+      end function vecPos
+
+c     fromGlobalToLocalLimits
+c     #################################################################
+      subroutine fromGlobalToLocalLimits(ig,jg,kg,il,jl,kl,igx,igy,igz)
+
+        implicit none
+
+        integer(4) :: ig,jg,kg,il,jl,kl,igx,igy,igz
+
+        il = ig - grid_params%ilo(igx) + 1
+        jl = jg - grid_params%jlo(igy) + 1
+        kl = kg - grid_params%klo(igz) + 1
+
+      end subroutine fromGlobalToLocalLimits
+
       end module grid_structures
 
 c module grid_definition
@@ -792,7 +875,7 @@ c     Begin program
             case (1)
               vec = (/ (xmax*(ymax + 2*eps*Pi*Cos((2*Pi*x2)/ymax)*
      -                                        Sin((2*Pi*x1)/xmax)))/
-     -                 (xmax*ymax + eps*Pi*(xmax - ymax)*
+     -                 (xmax*ymax + eps*Pi*(xmax - ymax)
      -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
      -                            + eps*Pi*(xmax + ymax)
      .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
@@ -1773,7 +1856,7 @@ c     -----------------------------------------------------------------
         implicit none
 
         integer(4) :: PER,DIR,NEU,SP,EQU,DEF,EXT
-        parameter (EQU=1,EXT=2,PER=3,NEU=4,DIR=5,SP=6,DEF=7)
+        parameter (PER=1,EQU=2,EXT=3,NEU=4,DIR=5,SP=6,DEF=7)
 
         integer(4),parameter :: BCLIM=5
 
@@ -1795,6 +1878,17 @@ c     #################################################################
 
       end function isSP
 
+c     alt__eom
+c     #################################################################
+      function alt__eom()
+
+        logical :: alt__eom
+
+        alt__eom=.false.
+        if (bcond(1) == SP) alt__eom=.true.
+
+      end function alt__eom
+
       end module bc_def
 
 #if defined(petsc)
@@ -1814,6 +1908,10 @@ c ######################################################################
      .               ,group_sp,tag=0,dest=0,root=0
      .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
+     .               ,npx=0,npy=0,npz=0
+
+        integer(4),private :: il ,ih ,jl ,jh ,kl ,kh
+     .                       ,ilm,ihp,jlm,jhp,klm,khp
 
         integer(4) :: l_lim(3,0:1),g_lim(3,0:1),rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
@@ -1821,6 +1919,26 @@ c ######################################################################
         integer(4) :: MPI_COMM_SP
         integer(4),allocatable,dimension(:) :: MPI_COMM_PER
         integer(4),allocatable,dimension(:) :: MPI_COMM_NBRS
+
+        type :: userctx
+#define PETSC_AVOID_DECLARATIONS
+#include "finclude/petsc.h"
+#include "finclude/petscvec.h"
+#include "finclude/petscda.h"
+#undef PETSC_AVOID_DECLARATIONS
+          DA      :: da
+          Vec     :: Xg
+          integer :: xs,xe,xm,gxs,gxe,gxm
+          integer :: ys,ye,ym,gys,gye,gym
+          integer :: zs,ze,zm,gzs,gze,gzm
+          integer :: lgxs,lgxe
+          integer :: lgys,lgye
+          integer :: lgzs,lgze
+          integer :: mx,my,mz,rank
+          integer :: igx,igy,igz
+        end type userctx
+
+        type (userctx) :: dactx
 
       contains
 
@@ -1849,7 +1967,7 @@ c     Rank and number of processors
 
 c     Singular-point boundary MPI communicator
 
-        call createBoundaryComm2(1,SP,MPI_COMM_SP)
+        call createBoundaryComm(1,SP,MPI_COMM_SP)
 
 c diag ****
 cc        write (*,*) 'Proc',my_rank,', SP COMM' ,MPI_COMM_SP
@@ -1862,39 +1980,15 @@ cc        call MPI_Finalize(mpierr)
 cc        stop
 c diag ****
 
-c     Periodic MPI communicators
+c     Neighbors MPI communicators (PETSc)
 
-        allocate(MPI_COMM_PER(3))
-
-        do dim=1,3
-          call createBoundaryComm2(dim,PER,MPI_COMM_PER(dim))
-        enddo
-
-c     Neighbors MPI communicators
-
-cc        allocate(MPI_COMM_NBRS(3))
-cc
-cc          do dim=1,3
-cc            call createNeighborComm(inp,dim,MPI_COMM_NBRS(dim))
-cc          enddo
-
-c diag ****
-cc        write (*,*) 'Proc',my_rank,', PER COMM',MPI_COMM_PER
-cc        do dim=1,3
-cc          if (MPI_COMM_PER(dim) == MPI_COMM_NULL) cycle
-cc          call MPI_Comm_size(MPI_COMM_PER(dim),my_rank,mpierr)
-cc          write (*,*) '# ranks PER_COMM #',dim,my_rank
-cc        enddo
-cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cc        call MPI_Finalize(mpierr)
-cc        stop
-c diag ****
+        call createDA
 
       end subroutine initMPI
 
-c     createBoundaryComm2
+c     createBoundaryComm
 c     #####################################################################
-      subroutine createBoundaryComm2(dim,BC,MPI_COMM)
+      subroutine createBoundaryComm(dim,BC,MPI_COMM)
 
 c     ---------------------------------------------------------------------
 c     Creates MPI communicator for a given boundary condition BC at the
@@ -1925,17 +2019,9 @@ c     Create communicator
         call MPI_Comm_split(MPI_COMM_WORLD,split_key,my_rank
      .                     ,MPI_COMM,mpierr)
 
-c diag ****
-cc          write (*,*) 'Proc',my_rank,'split key',split_key
-cc     .               ,'MPI_COMM',MPI_COMM
-cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cc        call MPI_Finalize(mpierr)
-cc        stop
-c diag ****
-
 c     End programs
 
-      end subroutine createBoundaryComm2
+      end subroutine createBoundaryComm
 
 c     selectRank
 c     #####################################################################
@@ -1958,7 +2044,7 @@ c     Local variables
 
 c     Begin program
 
-c     Set local limits l_lim(dim,loc)
+c     Set global limits of local domain l_lim(dim,loc)
 
         l_lim(1,0) = grid_params%ilo(1)
         l_lim(2,0) = grid_params%jlo(1)
@@ -1967,7 +2053,7 @@ c     Set local limits l_lim(dim,loc)
         l_lim(2,1) = grid_params%jhi(1)
         l_lim(3,1) = grid_params%khi(1)
 
-c     Set global limits g_lim(dim,loc)
+c     Set global limits of global domain g_lim(dim,loc)
 
         g_lim(1,0) = 1
         g_lim(2,0) = 1
@@ -2022,308 +2108,263 @@ c     Begin program
 
       end function checkBCLim
 
-ccc     createNeighborComm
-ccc     #####################################################################
-cc      subroutine createNeighborComm(dim,MPI_COMM)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     Creates MPI communicator for a given boundary condition and a given
-ccc     reference processor.
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer(4) :: dim,MPI_COMM
-cc
-ccc     Local variables
-cc
-cc        integer(4) :: group_np
-cc        integer(4),allocatable,dimension(:) :: group_ranks
-cc
-ccc     Begin program
-cc
-cc        allocate(group_ranks(np))
-cc
-cc        call numberRanks(dim,group_np)
-cc
-cc        call selectRanks(BC,group_np,group_ranks)
-cc
-ccc diag ****
-cccc        write (*,*) 'ref_proc',ref_processor
-cccc     .             ,'# procs',group_np
-cccc     .             ,'periodic procs',group_ranks(1:group_np)
-cccc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cccc        call MPI_Finalize(mpierr)
-cccc        stop
-ccc diag ****
-cc
-cc        call createComm(group_np,group_ranks,MPI_COMM)
-cc
-cc        deallocate(group_ranks)
-cc
-ccc     End programs
-cc
-cc      end subroutine createNeighborComm
-cc
-ccc     numberRanks
-ccc     #####################################################################
-cc      subroutine numberRanks(dim,nranks)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     Finds number of processors in MPI communicator
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer(4) :: dim,nranks
-cc
-ccc     Local variables
-cc
-cc        integer(4) :: loc,lrank,inp
-cc
-ccc     Begin program
-cc
-ccc     Set local limits l_lim(dim,loc)
-cc
-cc        l_lim(1,0) = ilog
-cc        l_lim(2,0) = jlog
-cc        l_lim(3,0) = klog
-cc        l_lim(1,1) = ihig
-cc        l_lim(2,1) = jhig
-cc        l_lim(3,1) = khig
-cc
-ccc     Set global limits g_lim(dim,loc)
-cc
-cc        g_lim(1,0) = 1
-cc        g_lim(2,0) = 1
-cc        g_lim(3,0) = 1
-cc        g_lim(1,1) = nxd
-cc        g_lim(2,1) = nyd
-cc        g_lim(3,1) = nzd
-cc
-ccc     Cycle over all processors
-cc
-cc        do inp=0,np-1
-cc
-ccc     Get reference processor info, make it available in all processors
-cc
-cc          if (my_rank == inp) then
-cc            rp_l_lim = l_lim
-cc          elseif (my_rank == 0) then
-cc            tag = 1
-cc            call MPI_Recv(rp_l_lim,6,MPI_INTEGER,inp,tag
-cc     .                   ,MPI_COMM_WORLD,status,mpierr)
-cc          elseif (my_rank == rp) then
-cc            tag  = 1
-cc            dest = 
-cc            call MPI_Send(l_lim,6,MPI_INTEGER,dest,tag,MPI_COMM_WORLD
-cc     .                   ,mpierr)
-cc          endif
-cc
-cc          call MPI_Bcast(rp_l_lim,6,MPI_INTEGER,0,MPI_COMM_WORLD,mpierr)
-cc
-ccc diag ****
-cccc        write (*,*) 'proc',my_rank,'limits',(rp_l_lim(dim,:),dim=1,3)
-cccc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cccc        call MPI_Finalize(mpierr)
-cccc        stop
-ccc diag ****
-cc
-ccc     Find number of processes (-> nranks, in ALL processors)
-cc
-cc        lrank = 0
-cc        do dim=1,3
-cc          do loc=0,1
-cc            if(checkLim(BC,dim,loc,l_lim,g_lim,rp_l_lim).and.lrank == 0)
-cc     .           lrank = 1
-cc          enddo
-cc        enddo
-cc
-cc        call MPI_Allreduce(lrank,nranks,1,MPI_INTEGER
-cc     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-cc
-cc        if (nranks == 0) then
-cc          return
-cc        elseif (nranks > np) then
-cc          write (*,*) 'User-defined MPI_COMM finds more processors'
-cc          write (*,*) 'than are available'
-cc          write (*,*) 'Aborting...'
-cc          stop
-cc        endif
-cc
-ccc     End program
-cc
-cc      end subroutine numberRanks
-cc
-ccc     selectRanks
-ccc     #####################################################################
-cc      subroutine selectRanks(BC,nranks,ranks)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     Selects ranks for MPI communicator
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer(4) :: rp,BC,nranks,ranks(np)
-cc
-ccc     Local variables
-cc
-cc        integer(4) :: inp,dim,loc,lrank
-cc        logical    :: flag(np)
-cc
-ccc     Begin program
-cc
-cc
-ccc     Select processes
-cc
-cc        if (my_rank == 0) then
-cc
-cc          flag = .false.
-cc
-cc          !Count current processor
-cc          do dim=1,3
-cc            do loc=0,1
-cc              flag(1) = checkLim(BC,dim,loc,l_lim,g_lim,rp_l_lim)
-cc              if (flag(1)) exit
-cc            enddo
-cc            if (flag(1)) exit
-cc          enddo
-cc
-cc          !Other processors
-cc          do inp=1,np-1
-cc            tag = 0
-cc            call MPI_Recv(rem_l_lim,6,MPI_INTEGER,inp,tag
-cc     .                   ,MPI_COMM_WORLD,status,mpierr)
-cc
-cc            do dim=1,3
-cc              do loc=0,1
-cc                flag(inp+1) = checkLim(BC,dim,loc
-cc     .                                ,rem_l_lim,g_lim,rp_l_lim)
-cc                if (flag(inp+1)) exit
-cc              enddo
-cc              if (flag(inp+1)) exit
-cc            enddo
-cc
-cc          enddo
-cc
-ccc diag ****
-cccc          write (*,*) nranks,flag
-ccc diag ****
-cc
-cc        else
-cc          tag  = 0
-cc          dest = 0
-cc          call MPI_Send(l_lim,6,MPI_INTEGER,dest,tag,MPI_COMM_WORLD
-cc     .                 ,mpierr)
-cc        endif
-cc
-ccc     Save processes
-cc
-cc        lrank = 0
-cc        do inp=0,np-1
-cc          if (flag(inp+1)) then
-cc            lrank = lrank+1
-cc            ranks(lrank)=inp
-cc          endif
-cc        enddo
-cc
-ccc     Synchronize ranks in ALL processes
-cc
-cc        call MPI_Bcast(ranks,nranks,MPI_INTEGER,root
-cc     .                ,MPI_COMM_WORLD,mpierr)
-cc
-ccc     End program
-cc
-cc      end subroutine selectRanks
-cc
-ccc     checkLim
-ccc     #####################################################################
-cc      function checkLim(BC,dim,loc,llim,glim,rplim) result(include_proc)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     Checks whether a processor should be included in an MPI_COMM according
-ccc     to a reference processor rp, the boundary type BC, and the local vs.
-ccc     global limits
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-cc        integer(4) :: BC,dim,loc,llim(3,0:1),glim(3,0:1)
-cc     .               ,rplim(3,0:1),ibc
-cc        logical    :: include_proc,ref_flag
-cc
-cc        ibc(dim,loc) = (1+loc)+2*(dim-1)
-cc
-cc        if (maxval(rplim) < 0) then !Base decision only on current processor
-cc
-cc          include_proc
-cc     .       =(llim(dim,loc)==glim(dim,loc)).and.bcond(ibc(dim,loc))==BC
-cc
-cc        else                        !Include reference processor in decision
-cc
-ccc diag ****
-cccc          write (*,*) llim(dim,0),llim(dim,1)
-cccc          write (*,*) rplim(dim,1),llim(dim,0)
-ccc diag ****
-cc          ref_flag =(    (   rplim(dim,1)==llim(dim,0)
-cc     .                   .or.rplim(dim,0)==llim(dim,1))
-cc     .               .or.(   rplim(dim,1)==llim(dim,1)
-cc     .                   .or.rplim(dim,0)==llim(dim,0)))
-cc     .              .and.(    llim(dim,0)/=llim(dim,1)) !Avoid single-point directions
-cc
-cc          include_proc=(llim(dim,loc)==glim(dim,loc))
-cc     .                 .and.bcond(ibc(dim,loc))==BC.and.ref_flag
-ccc diag ****
-cccc          write (*,*) ref_flag
-ccc diag ****
-cc
-cc        endif
-cc
-cc      end function checkLim
-cc
-ccc     createComm
-ccc     #####################################################################
-cc      subroutine createComm(nranks,ranks,MPIcomm)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     Creates MPI communicator
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer(4) :: nranks,ranks(nranks),MPIcomm
-cc
-ccc     Local variables
-cc
-cc        integer(4) :: comm_group
-cc
-ccc     Begin program
-cc
-cc        if (nranks == 0) return
-cc
-cc        !Get group underlying MPI_COMM_WORLD
-cc        call MPI_Comm_group(MPI_COMM_WORLD,group_world,mpierr)
-cc
-cc        !Create new group using ranks (-> group_sp)
-cc        call MPI_Group_incl(group_world,nranks,ranks,comm_group,mpierr)
-cc
-cc        !Create new communicator (-> MPI_COMM_SP)
-cc        call MPI_Comm_create(MPI_COMM_WORLD,comm_group,MPIcomm,mpierr)
-cc
-ccc     End program
-cc
-cc      end subroutine createComm
+c     createDA
+c     #################################################################
+      subroutine createDA
+
+c     -----------------------------------------------------------------
+c     Creates PETSc distributed array for boundary communication in
+c     fortran.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+#include "finclude/petsc.h"
+#include "finclude/petscvec.h"
+#include "finclude/petscda.h"
+
+c     Call variables
+
+c     Local variables
+
+        integer(4) :: BC,ierr,nxg,nyg,nzg,igr
+
+c     Begin program
+
+        igr = 1
+
+        nxg = grid_params%nxgl(igr)
+        nyg = grid_params%nygl(igr)
+        nzg = grid_params%nzgl(igr)
+
+        if (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)==PER) then
+          BC = DA_XYZPERIODIC
+        elseif (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)/=PER) then
+          BC = DA_XYPERIODIC
+        elseif (bcond(1)==PER.and.bcond(3)/=PER.and.bcond(5)==PER) then
+          BC = DA_XZPERIODIC
+        elseif (bcond(1)/=PER.and.bcond(3)==PER.and.bcond(5)==PER) then
+          BC = DA_YZPERIODIC
+        elseif (bcond(1)==PER.and.bcond(3)/=PER.and.bcond(5)/=PER) then
+          BC = DA_XPERIODIC
+        elseif (bcond(1)/=PER.and.bcond(3)==PER.and.bcond(5)/=PER) then
+          BC = DA_YPERIODIC
+        elseif (bcond(1)/=PER.and.bcond(3)/=PER.and.bcond(5)==PER) then
+          BC = DA_ZPERIODIC
+        elseif (bcond(1)/=PER.and.bcond(3)/=PER.and.bcond(5)/=PER) then
+          BC = DA_NONPERIODIC
+        endif
+
+        if (npx == 0) npx = PETSC_DECIDE
+        if (npy == 0) npy = PETSC_DECIDE
+        if (npz == 0) npz = PETSC_DECIDE
+
+        call DACreate3d(PETSC_COMM_WORLD,BC,DA_STENCIL_BOX,nxg,nyg,nzg
+     &                 ,npx,npy,npz,1,1
+     &                 ,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER
+     &                 ,PETSC_NULL_INTEGER,dactx%da,ierr)
+
+
+        call DACreateGlobalVector(dactx%da,dactx%Xg,ierr)
+
+c       Get local grid boundaries in global grid
+
+        call DAGetCorners(dactx%da,dactx%xs,dactx%ys,dactx%zs
+     &     ,dactx%xm,dactx%ym,dactx%zm,ierr)
+        call DAGetGhostCorners(dactx%da,dactx%gxs,dactx%gys
+     &     ,dactx%gzs,dactx%gxm,dactx%gym,dactx%gzm,ierr)
+
+       dactx%xs  = dactx%xs+1
+       dactx%ys  = dactx%ys+1
+       dactx%zs  = dactx%zs+1
+       dactx%gxs = dactx%gxs+1
+       dactx%gys = dactx%gys+1
+       dactx%gzs = dactx%gzs+1
+
+       dactx%ye  = dactx%ys+dactx%ym-1
+       dactx%xe  = dactx%xs+dactx%xm-1
+       dactx%ze  = dactx%zs+dactx%zm-1
+       dactx%gye = dactx%gys+dactx%gym-1
+       dactx%gxe = dactx%gxs+dactx%gxm-1
+       dactx%gze = dactx%gzs+dactx%gzm-1
+
+       dactx%igx = igr
+       dactx%igy = igr
+       dactx%igz = igr
+
+c     Define local limits
+
+        call fromGlobalToLocalLimits(dactx%gxs ,dactx%gys ,dactx%gzs
+     $                              ,dactx%lgxs,dactx%lgys,dactx%lgzs
+     $                              ,dactx%igx,dactx%igy,dactx%igz)
+        call fromGlobalToLocalLimits(dactx%gxe ,dactx%gye ,dactx%gze
+     $                              ,dactx%lgxe,dactx%lgye,dactx%lgze
+     $                              ,dactx%igx,dactx%igy,dactx%igz)
+
+       il = 1
+       jl = 1
+       kl = 1
+       ih = grid_params%nxv(igr)
+       jh = grid_params%nyv(igr)
+       kh = grid_params%nzv(igr)
+
+       ilm = il-1
+       ihp = ih+1
+       jlm = jl-1
+       jhp = jh+1
+       klm = kl-1
+       khp = kh+1
+
+c     End program
+
+      end subroutine createDA
+
+c     destroyDA
+c     #################################################################
+      subroutine destroyDA
+
+        implicit none
+
+#include "finclude/petsc.h"
+#include "finclude/petscvec.h"
+#include "finclude/petscda.h"
+
+c     Call variables
+
+c     Local variables
+
+        integer(4) :: ierr
+
+c     Begin program
+
+        call VecDestroy(dactx%Xg,ierr)
+        call DADestroy (dactx%da,ierr)
+
+c     End program
+
+      end subroutine destroyDA
+
+c     fillLocalVec
+c     #################################################################
+      subroutine fillLocalVec(array,x)
+
+        implicit none
+
+c     Call variables
+
+        real(8) :: array(ilm:ihp,jlm:jhp,klm:khp)
+     .            ,x    (dactx%gxs:dactx%gxe 
+     .                  ,dactx%gys:dactx%gye 
+     .                  ,dactx%gzs:dactx%gze)
+
+c     Local variables
+
+c     Begin program
+
+        x(dactx%xs:dactx%xe 
+     .   ,dactx%ys:dactx%ye 
+     .   ,dactx%zs:dactx%ze) = array(il:ih,jl:jh,kl:kh)
+
+c     End program
+
+      end subroutine fillLocalVec
+
+c     emptyLocalVec
+c     #################################################################
+      subroutine emptyLocalVec(array,x)
+
+        implicit none
+
+c     Call variables
+
+        real(8) :: array(ilm:ihp,jlm:jhp,klm:khp)
+     .            ,x    (dactx%gxs:dactx%gxe 
+     .                  ,dactx%gys:dactx%gye 
+     .                  ,dactx%gzs:dactx%gze)
+
+c     Local variables
+
+c     Begin program
+
+        array(dactx%lgxs:dactx%lgxe
+     .       ,dactx%lgys:dactx%lgye
+     .       ,dactx%lgzs:dactx%lgze) = x(dactx%gxs:dactx%gxe 
+     .                                  ,dactx%gys:dactx%gye 
+     .                                  ,dactx%gzs:dactx%gze)
+
+c     End program                     
+
+      end subroutine emptyLocalVec
+
+c     fillPetscGhostCells
+c     #################################################################
+      subroutine fillPetscGhostCells(array)
+
+        implicit none
+
+#include "finclude/petsc.h"
+#include "finclude/petscvec.h"
+#include "finclude/petscda.h"
+#include "finclude/petscvec.h90"
+
+c     Call variables
+
+        real(8) :: array(ilm:ihp,jlm:jhp,klm:khp)
+
+c     Local variables
+
+        Vec :: localX
+
+        PetscScalar,pointer :: lx_v(:)
+
+        integer(4) :: ierr
+
+c     Begin program
+
+c     Fill known values of dactx%Xg
+
+        !Get pointer to vector data
+        call DAGetLocalVector(dactx%da,localX,ierr)
+        call VecGetArrayF90  (localX,lx_v,ierr)
+
+        !Assignment: array -> lx_v
+        call fillLocalVec(array,lx_v)
+
+        !Restore vector
+        call VecRestoreArrayF90(localX,lx_v,ierr)
+
+        !Insert values into global vector
+        call DALocalToGlobal(dactx%da,localX,INSERT_VALUES,dactx%Xg
+     $                      ,ierr)
+cc        call DARestoreLocalVector(dactx%da,localX,ierr)
+  
+c     Fill ghost cells
+
+        !Get pointer to vector data w/ghost cells
+cc        call DAGetLocalVector    (dactx%da,localX,ierr)
+        call DAGlobalToLocalBegin(dactx%da,dactx%Xg,INSERT_VALUES,localX
+     $                           ,ierr)
+        call DAGlobalToLocalEnd  (dactx%da,dactx%Xg,INSERT_VALUES,localX
+     $                           ,ierr)
+
+        call VecGetArrayF90(localX,lx_v,ierr)
+
+        !Assignment: lx_v -> array
+        call emptyLocalVec(array,lx_v)
+
+        !Restore vector
+        call VecRestoreArrayF90(localX,lx_v,ierr)
+
+c     Deallocate memory
+
+        call DARestoreLocalVector(dactx%da,localX,ierr)
+
+c     End program
+
+      end subroutine fillPetscGhostCells
 
       end module local_mpi
+
 #endif
 
 c module grid_metric
@@ -2488,19 +2529,6 @@ c     Local variables
      .               ,gamma(3,3,3),gamm1(3,3,3),mag,dhp,dhm,dhh
         real(8),allocatable,dimension(:,:,:,:,:) :: dr
 
-c     Interpolation
-
-        integer(4) :: kx,ky,kz,nnx,nny,nnz,dim,flg,order
-
-        real(8)    :: xp,yp,zp
-        real(8),allocatable,dimension(:) :: sx,sy,sz
-        real(8), dimension(:),allocatable:: tx,ty,tz,work
-        real(8), dimension(:,:,:,:,:),allocatable:: drbcoef
-        real(8), dimension(:,:,:,:,:,:),allocatable:: gambcoef
-
-        real(8)    :: db3val
-        external      db3val
-
 c     Begin program
 
         anal_map = checkGridDatabase()
@@ -2515,7 +2543,8 @@ c     Begin program
           igrmax = grid_params%ngrid
         endif
 
-c       ANALYTICAL QUANTITIES
+c       ANALYTICAL QUANTITIES **********************************
+
         if ((.not.numerical_grid).and.anal_map) then
 
           do igrid=igrmin,igrmax
@@ -2572,7 +2601,8 @@ c       ANALYTICAL QUANTITIES
 
           enddo
 
-c       NUMERICAL QUANTITIES
+c       NUMERICAL QUANTITIES ***********************************
+
         else
 
           do igrid=igrmin,igrmax
@@ -2633,68 +2663,6 @@ c       NUMERICAL QUANTITIES
                 call topol_bc(dr(:,:,:,i,j))
               enddo
             enddo
-
-cc      if (my_rank == 0) then
-cc        open(unit=110,file='debug0.bin'
-cc     .           ,form='unformatted',status='replace')
-cc      else
-cc        open(unit=110,file='debug1.bin'
-cc     .           ,form='unformatted',status='replace')
-cc      endif
-cc      igx = 1
-cc      do i=1,3
-cc        do j=1,3
-cc          nnx = grid_params%nxv(igx)
-cc          nny = grid_params%nyv(igx)
-cc          nnz = grid_params%nzv(igx)
-cccc          debug = gmetric%grid(igx)%cnv(0:nx+1,0:ny+1,0:nz+1,i,j)
-cccc          debug = gmetric%grid(igx)%Gamma(0:nx+1,0:ny+1,0:nz+1,1,i,j)
-cccc     .           *gmetric%grid(igx)%jac
-cc
-cc          call contour(dr(0:nnx+1,0:nny+1,2,i,j),nnx+2,nny+2,0d0
-cc     .                ,xmax,0d0,ymax,i+j-2,110)
-cc        enddo
-cc      enddo
-cc      close(110)
-cc      call MPI_Finalize(mpierr)
-cc      stop
-
-          !Spline dr for interpolation on coarser grids
-cc          order = 2
-cc
-cc          nnx = nxp+1
-cc          nny = nyp+1
-cc          nnz = nzp+1
-cc
-cc          allocate(sx(nnx),sy(nny),sz(nnz))
-cc
-cc          call getMGmap(1,1,1,igx,igy,igz,ig,jg,kg)
-cc
-cc          sx(1:nnx) = grid_params%xx(ig-1:ig+nxp-1)
-cc          sy(1:nny) = grid_params%yy(jg-1:jg+nyp-1)
-cc          sz(1:nnz) = grid_params%zz(kg-1:kg+nzp-1)
-cc
-cc          flg = 0
-cc
-cc          kx = min(order+1,nnx-1)
-cc          ky = min(order+1,nny-1)
-cc          kz = min(order+1,nnz-1)
-cc
-cc          dim = nnx*nny*nnz+max(2*kx*(nnx+1),2*ky*(nny+1),2*kz*(nnz+1))
-cc
-cc          allocate(tx(nnx+kx))
-cc          allocate(ty(nny+ky))
-cc          allocate(tz(nnz+kz))
-cc          allocate(work(dim))
-cc          allocate(drbcoef(nnx,nny,nnz,3,3))
-cc
-cc          do i=1,3
-cc            do j=1,3
-cc              call db3ink(sx,nnx,sy,nny,sz,nnz,dr(:,:,:,i,j),nnx,nny
-cc     .                   ,kx,ky,kz,tx,ty,tz,drbcoef(:,:,:,i,j)
-cc     .                   ,work,flg)
-cc            enddo
-cc          enddo
 
           !Evaluate grid quantities
             do k = klom,khip
@@ -2763,10 +2731,6 @@ cc          enddo
                   kp=k0+1
                   km=k0-1
 
-                  xp = grid_params%xx(ig)
-                  yp = grid_params%yy(jg)
-                  zp = grid_params%zz(kg)
-
                   do l=1,3
                     do m=1,3
                       do n=m,3
@@ -2830,34 +2794,11 @@ cc          enddo
                         endif
                         vec = (carp-carm)/dhh
 
-cc                      select case(m)
-cc                      case(1)
-cc                        do p=1,3
-cc                          vec(p)=db3val(xp,yp,zp,1,0,0,tx,ty,tz
-cc     .                          ,nnx,nny,nnz,kx,ky,kz,drbcoef(:,:,:,n,p)
-cc     .                          ,work)
-cc                        enddo
-cc                      case(2)
-cc                        do p=1,3
-cc                          vec(p)=db3val(xp,yp,zp,0,1,0,tx,ty,tz
-cc     .                          ,nnx,nny,nnz,kx,ky,kz,drbcoef(:,:,:,n,p)
-cc     .                          ,work)
-cc                        enddo
-cc                      case(3)
-cc                        do p=1,3
-cc                          vec(p)=db3val(xp,yp,zp,0,0,1,tx,ty,tz
-cc     .                          ,nnx,nny,nnz,kx,ky,kz,drbcoef(:,:,:,n,p)
-cc     .                          ,work)
-cc                        enddo
-cc                      end select
-
                         gamma(l,m,n) = dot_product(vec,cov(l,:))
                         gamma(l,n,m) = gamma(l,m,n) !Symmetry
                       enddo
                     enddo
                   enddo
-
-cc                  gamma = christ_2knd(i,j,k,igx,igy,igz)
 
                   !Store grid quantities
                   gmetric%grid(igrid)%jac  (i,j,k)       = jac
@@ -2921,29 +2862,6 @@ cc      stop
 
 cc        if (my_rank == 0) write (*,*) 'grid_level',igrid
 
-          !Spline Christoffel symbols for interpolation on coarser grids
-cc          allocate(gambcoef(nnx,nny,nnz,3,3,3))
-cc          flg = 0
-cc
-cc          do k=1,3
-cc            do j=1,3
-cc              do i=1,3
-cc                call db3ink(sx,nnx,sy,nny,sz,nnz
-cc     .                     ,gmetric%grid(igrid)%Gamma(:,:,:,i,j,k)
-cc     .                     ,nnx,nny,kx,ky,kz,tx,ty,tz
-cc     .                     ,gambcoef(:,:,:,i,j,k),work,flg)
-cc              enddo
-cc            enddo
-cc          enddo
-
-c       Restrict grid metric info to coarser grids
-
-cc          call restrictGridMetrics
-
-c       Deallocate spline auxiliary variables
-
-cc          deallocate(sx,sy,sz,tx,ty,tz,work,drbcoef,gambcoef)
-
           enddo
 
 c       Test of numerical calculation vs. analytical calculation
@@ -3001,43 +2919,6 @@ c     End program
 
       contains
 
-c     contour
-c     #####################################################################
-      subroutine contour(arr,nx,ny,xmin,xmax,ymin,ymax,iopt,nunit)
-      implicit none               !For safe fortran
-c     ---------------------------------------------------------------------
-c     Contours 2D array in xdraw format. In call:
-c       * arr: 2D array to be plotted
-c       * nx,ny: dimensions of array
-c       * xmin,xmax,ymin,ymax: 2D domain limits
-c       * iopt: whether to initialize xdraw plot (iopt=0) or not.
-c       * nunit: integer file identifier.
-c     ---------------------------------------------------------------------
-
-c     Call variables
-
-      integer(4) :: nx,ny,iopt,nunit
-      real(8)    :: arr(nx,ny),xmin,xmax,ymin,ymax
-
-c     Local variables
-
-      integer(4) :: i,j
-
-c     Begin program
-
-      if(iopt == 0) then
-        write(nunit) nx-1,ny-1,0
-        write(nunit) real(xmin,4),real(xmax,4)
-     .              ,real(ymin,4),real(ymax,4) 
-      endif
-      write(nunit) ((real(arr(i,j),4),i=1,nx),j=1,ny)
-cc      write (*,*) ((real(arr(i,j),4),i=1,nx),j=1,ny)
-cc      write (*,*)
-
-c     End program
-
-      end subroutine contour
-
 c     map
 c     #################################################################
       function map(i,j,k,igx,igy,igz,ig,jg,kg) result(car)
@@ -3063,208 +2944,6 @@ c     Begin program
 
       end function map
 
-c$$$c     restrictGridMetrics
-c$$$c     #################################################################
-c$$$      subroutine restrictGridMetrics
-c$$$c     -----------------------------------------------------------------
-c$$$c     Restricts arrays with geometric grid info.
-c$$$c     -----------------------------------------------------------------
-c$$$
-c$$$      implicit none    !For safe fortran
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$      real (8) :: xp,yp,zp
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$      do igrid=2,grid_params%ngrid
-c$$$
-c$$$        igx = igrid
-c$$$        igy = igrid
-c$$$        igz = igrid
-c$$$
-c$$$        nxp = grid_params%nxv(igrid)+1
-c$$$        nyp = grid_params%nyv(igrid)+1
-c$$$        nzp = grid_params%nzv(igrid)+1
-c$$$
-c$$$        allocate(dr(0:nxp,0:nyp,0:nzp,3,3))
-c$$$
-c$$$        !Evaluate dx/dxi vectors (splined)
-c$$$        do k = 0,nzp
-c$$$          do j = 0,nyp
-c$$$            do i = 0,nxp
-c$$$              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-c$$$
-c$$$              xp = grid_params%xx(ig)
-c$$$              yp = grid_params%yy(jg)
-c$$$              zp = grid_params%zz(kg)
-c$$$
-c$$$              do l=1,3
-c$$$                do m=1,3
-c$$$                  dr(i,j,k,l,m) =
-c$$$     .                db3val(xp,yp,zp,0,0,0,tx,ty,tz,nnx,nny,nnz
-c$$$     .                      ,kx,ky,kz,drbcoef(:,:,:,l,m),work)
-c$$$                enddo
-c$$$              enddo
-c$$$
-c$$$            enddo
-c$$$          enddo
-c$$$        enddo
-c$$$
-c$$$        !Enforce topological constraints on dr
-c$$$        do i=1,3
-c$$$          do j=1,3
-c$$$            call topol_bc(dr(:,:,:,i,j))
-c$$$          enddo
-c$$$        enddo
-c$$$
-c$$$        !Evaluate grid quantities
-c$$$        do k = 0,nzp
-c$$$          do j = 0,nyp
-c$$$            do i = 0,nxp
-c$$$
-c$$$              r = dr(i,j,k,:,:)
-c$$$
-c$$$              !Evaluate Jacobian
-c$$$              jac = triple_product(r(1,:),r(2,:),r(3,:))
-c$$$              ijac = 1d0/jac
-c$$$
-c$$$              !Contravariant vectors
-c$$$              cnv(:,:) = r(:,:)*ijac
-c$$$
-c$$$              !Covariant vectors
-c$$$              cov(1,:) = cross_product(r(2,:),r(3,:))*ijac
-c$$$              cov(2,:) = cross_product(r(3,:),r(1,:))*ijac
-c$$$              cov(3,:) = cross_product(r(1,:),r(2,:))*ijac
-c$$$
-c$$$              !Metric tensors
-c$$$              do m=1,3
-c$$$                do l=m,3
-c$$$                  gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
-c$$$                  gsub(m,l) = gsub(l,m) !Symmetry
-c$$$                  gsup(l,m) = jac*dot_product(cov(l,:),cov(m,:))
-c$$$                  gsup(m,l) = gsup(l,m) !Symmetry
-c$$$                enddo
-c$$$              enddo
-c$$$
-c$$$              !Grid spacings
-c$$$              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-c$$$              dh(1) = grid_params%dxh(ig)
-c$$$              dh(2) = grid_params%dyh(jg)
-c$$$              dh(3) = grid_params%dzh(kg)
-c$$$
-c$$$              !Christoffel symbols (splined)
-c$$$
-c$$$                if (i==0) then
-c$$$                  i0=1
-c$$$                elseif (i==nxp) then
-c$$$                  i0=nxp-1
-c$$$                else
-c$$$                  i0=i
-c$$$                endif
-c$$$
-c$$$                if (j==0) then
-c$$$                  j0=0
-c$$$                elseif (j==nyp) then
-c$$$                  j0=nyp
-c$$$                else
-c$$$                  j0=j
-c$$$                endif
-c$$$
-c$$$                if (k==0) then
-c$$$                  k0=1
-c$$$                elseif (k==nzp) then
-c$$$                  k0=nzp-1
-c$$$                else
-c$$$                  k0=k
-c$$$                endif
-c$$$
-c$$$                ip=i0+1
-c$$$                im=i0-1
-c$$$                jp=j0+1
-c$$$                jm=j0-1
-c$$$                kp=k0+1
-c$$$                km=k0-1
-c$$$
-c$$$              xp = grid_params%xx(ig)
-c$$$              yp = grid_params%yy(jg)
-c$$$              zp = grid_params%zz(kg)
-c$$$
-c$$$              do l=1,3
-c$$$                do m=1,3
-c$$$                  do n=m,3
-c$$$cc                    gamma(l,m,n) =
-c$$$cc     .                db3val(xp,yp,zp,0,0,0,tx,ty,tz,nnx,nny,nnz
-c$$$cc     .                      ,kx,ky,kz,gambcoef(:,:,:,l,m,n)
-c$$$cc     .                      ,work)
-c$$$
-c$$$                    select case(m)
-c$$$                    case(1)
-c$$$                      call getMGmap(i0,j0,k0,igx,igy,igz,ig0,jg,kg)
-c$$$                      call getMGmap(im,j0,k0,igx,igy,igz,igm,jg,kg)
-c$$$                      call getMGmap(ip,j0,k0,igx,igy,igz,igp,jg,kg)
-c$$$                      carp= 0.5*(dr(ip,j0,k0,n,:)+dr(i0,j0,k0,n,:))
-c$$$                      carm= 0.5*(dr(im,j0,k0,n,:)+dr(i0,j0,k0,n,:))
-c$$$                      dhh = 0.5*(grid_params%xx(igp)
-c$$$     .                              -grid_params%xx(igm))
-c$$$                    case(2)
-c$$$                      call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg0,kg)
-c$$$                      call getMGmap(i0,jm,k0,igx,igy,igz,ig,jgm,kg)
-c$$$                      call getMGmap(i0,jp,k0,igx,igy,igz,ig,jgp,kg)
-c$$$                      carp= 0.5*(dr(i0,jp,k0,n,:)+dr(i0,j0,k0,n,:))
-c$$$                      carm= 0.5*(dr(i0,jm,k0,n,:)+dr(i0,j0,k0,n,:))
-c$$$                      dhh = 0.5*(grid_params%yy(jgp)
-c$$$     .                              -grid_params%yy(jgm))
-c$$$                    case(3)
-c$$$                      call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg,kg0)
-c$$$                      call getMGmap(i0,j0,km,igx,igy,igz,ig,jg,kgm)
-c$$$                      call getMGmap(i0,j0,kp,igx,igy,igz,ig,jg,kgp)
-c$$$                      carp= 0.5*(dr(i0,j0,kp,n,:)+dr(i0,j0,k0,n,:))
-c$$$                      carm= 0.5*(dr(i0,j0,km,n,:)+dr(i0,j0,k0,n,:))
-c$$$                      dhh = 0.5*(grid_params%zz(kgp)
-c$$$     .                              -grid_params%zz(kgm))
-c$$$                    end select
-c$$$                    vec = (carp-carm)/dhh
-c$$$
-c$$$                    gamma(l,m,n) = dot_product(vec,cov(l,:))
-c$$$                    gamma(l,n,m) = gamma(l,m,n) !Symmetry
-c$$$                  enddo
-c$$$                enddo
-c$$$              enddo
-c$$$
-c$$$              !Store grid quantities
-c$$$              gmetric%grid(igrid)%jac(i,j,k) = jac
-c$$$              gmetric%grid(igrid)%gsub (i,j,k,:,:)   = gsub
-c$$$              gmetric%grid(igrid)%gsup (i,j,k,:,:)   = gsup
-c$$$              gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
-c$$$              gmetric%grid(igrid)%cov  (i,j,k,:,:)   = cov
-c$$$              gmetric%grid(igrid)%cnv  (i,j,k,:,:)   = cnv
-c$$$
-c$$$            enddo
-c$$$          enddo
-c$$$        enddo
-c$$$
-c$$$        !Enforce topological constraints on Christoffel symbols
-c$$$        do i=1,3
-c$$$          do j=1,3
-c$$$            do k=1,3
-c$$$              call topol_bc(gmetric%grid(igrid)%Gamma(:,:,:,i,j,k))
-c$$$            enddo
-c$$$          enddo
-c$$$        enddo
-c$$$
-c$$$        !Deallocate auxiliary variables
-c$$$        deallocate(dr)
-c$$$
-c$$$      enddo
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine restrictGridMetrics
-
 c     topol_bc
 c     #################################################################
       subroutine topol_bc(array)
@@ -3282,9 +2961,8 @@ c     Call variables
 c     Local variables
 
         integer(4) :: nxl,nyl,nzl,nxg,nyg,nzg,dim
-        integer(4) :: my_per_rank,dest_rank,count,request1,request2
 
-        real(8),allocatable,dimension(:,:) :: put,get
+c     External
 
 c     Begin program
 
@@ -3310,199 +2988,14 @@ c     Begin program
         endif
 
 #else
-
-        nxg = grid_params%nxgl(1)
-        nyg = grid_params%nygl(1)
-        nzg = grid_params%nzgl(1)
-
-c       X-direction
-
-        dim = 1
-
-        call findDestProc(dim,my_per_rank,dest_rank)
-
-        if (dest_rank >= 0) then
-
-          !X-direction: SEND
-          if (bcond(1) == PER .and. grid_params%ilo(1)==1) then
-            tag_send=2
-            count = size(array(1,:,:))
-            call MPI_ISend
-     .         (array(1,:,:),count,MPI_REAL8,dest_rank,tag_send
-     .         ,MPI_COMM_PER(dim),request1,mpierr)
-          endif
-
-          if (bcond(1) == PER .and. grid_params%ihi(1)==nxg) then
-            tag_send=1
-            count = size(array(1,:,:))
-            call MPI_ISend
-     .         (array(nxl,:,:),count,MPI_REAL8,dest_rank,tag_send
-     .         ,MPI_COMM_PER(dim),request2,mpierr)
-          endif
-
-          !X-direction: RECV
-          if (bcond(1) == PER .and. grid_params%ilo(1)==1) then
-            tag_recv=1
-            count = size(array(1,:,:))
-            call MPI_Recv
-     .         (array(0,:,:),count,MPI_REAL8,dest_rank,tag_recv
-     .         ,MPI_COMM_PER(dim),status,mpierr)
-cc            array(0,:,:) = array(nxl,:,:)
-          endif
-
-          if (bcond(1) == PER .and. grid_params%ihi(1)==nxg) then
-            tag_recv=2
-            count = size(array(1,:,:))
-            call MPI_Recv
-     .         (array(nxl+1,:,:),count,MPI_REAL8,dest_rank,tag_recv
-     .         ,MPI_COMM_PER(dim),status,mpierr)
-cc            array(nxl+1,:,:) = array(1,:,:)
-          endif
-
+        if (igrid == 1) then
+          call fillPetscGhostCells(array)
         endif
-
-c       Y-direction
-
-        dim = 2
-
-        call findDestProc(dim,my_per_rank,dest_rank)
-
-        if (dest_rank >= 0) then
-
-          !Y-direction: SEND
-          if  (bcond(3) == PER .and. grid_params%jlo(1)==1) then
-            tag_send=4
-            count = size(array(:,1,:))
-            call MPI_Isend
-     .        (array(:,1,:),count,MPI_REAL8,dest_rank,tag_send
-     .        ,MPI_COMM_PER(dim),request1,mpierr)
-cc            write (*,*) dest_rank,tag_send,MPI_COMM_PER(dim),count
-cc            write (*,*) array(0:nxl+1,1  ,0:nzl+1)
-          endif
-
-          if (bcond(3) == PER .and. grid_params%jhi(1)==nyg) then
-            tag_send=3
-            count = size(array(:,1,:))
-            call MPI_Isend
-     .        (array(:,nyl  ,:),count,MPI_REAL8,dest_rank,tag_send
-     .        ,MPI_COMM_PER(dim),request2,mpierr)
-cc            write (*,*) 'send',dest_rank,tag_send,MPI_COMM_PER(dim),count
-cc            write (*,*) array(0:nxl+1,nyl,0:nzl+1)
-          endif
-
-          !Y-direction: RECV
-          if  (bcond(3) == PER .and. grid_params%jlo(1)==1) then
-            tag_recv=3
-            count = size(array(:,1,:))
-            call MPI_Recv
-     .        (array(:,0,:),count,MPI_REAL8,dest_rank,tag_recv
-     .        ,MPI_COMM_PER(dim),status,mpierr)
-cc            write (*,*)'recv',dest_rank,tag_recv,MPI_COMM_PER(dim),count
-cc            write (*,*) array(0:nxl+1,0,0:nzl+1)
-cc            array(:,0,:) = array(:,nyl,:)
-          endif
-
-          if (bcond(3) == PER .and. grid_params%jhi(1)==nyg) then
-            tag_recv=4
-            count = size(array(:,1,:))
-            call MPI_Recv
-     .        (array(:,nyl+1,:),count,MPI_REAL8,dest_rank,tag_recv
-     .        ,MPI_COMM_PER(dim),status,mpierr)
-cc          write (*,*) dest_rank,tag_recv,MPI_COMM_PER(dim),count
-cc          write (*,*) array(0:nxl+1,nyl+1,0:nzl+1)
-cc          array(:,nyl+1,:) = array(:,1,:)
-          endif
-
-        endif
-
-c diag ****
-cc        if (igrid > 1) then
-cc          call MPI_Finalize(mpierr)
-cc          stop
-cc        endif
-c diag ****
-
-c       Z-direction
-
-        dim = 3
-
-        call findDestProc(dim,my_per_rank,dest_rank)
-
-        if (dest_rank >= 0) then
-
-          !Z-direction: SEND
-          if (bcond(5) == PER .and. grid_params%klo(1)==1) then
-            tag_send=6
-            count=size(array(:,:,1))
-            call MPI_ISend
-     .         (array(:,:,1),count,MPI_REAL8,dest_rank,tag_send
-     .         ,MPI_COMM_PER(dim),request1,mpierr)
-          endif
-
-          if (bcond(5) == PER .and. grid_params%khi(1)==nzg) then
-            tag_send=5
-            count=size(array(:,:,nzl))
-            call MPI_ISend
-     .         (array(:,:,nzl),count,MPI_REAL8,dest_rank,tag_send
-     .         ,MPI_COMM_PER(dim),request2,mpierr)
-          endif
-
-          !Z-direction: RECV
-          if (bcond(5) == PER .and. grid_params%klo(1)==1) then
-            tag_recv=5
-            count=size(array(:,:,1))
-            call MPI_Recv
-     .         (array(:,:,0),count,MPI_REAL8,dest_rank,tag_recv
-     .         ,MPI_COMM_PER(dim),status,mpierr)
-cc          array(:,:,0  ) = array(:,:,nzl)
-          endif
-
-          if (bcond(5) == PER .and. grid_params%khi(1)==nzg) then
-            tag_recv=6
-            count=size(array(:,:,nzl))
-            call MPI_Recv
-     .         (array(:,:,nzl+1),count,MPI_REAL8,dest_rank,tag_recv
-     .         ,MPI_COMM_PER(dim),status,mpierr)
-cc          array(:,:,nzl+1) = array(:,:,1    )
-          endif
-
-        endif
-
 #endif
 
 c     End program
 
       end subroutine topol_bc
-
-#if defined(petsc)
-c     findDestProc
-c     ##################################################################
-      subroutine findDestProc(dim,my_per_rank,dest_rank)
-
-        implicit none
-
-        integer(4) :: dest_rank,dim,my_per_size,my_per_rank
-
-        if (MPI_COMM_PER(dim) == MPI_COMM_NULL) then
-          dest_rank = -1
-          return
-        endif
-
-        call MPI_Comm_rank(MPI_COMM_PER(dim),my_per_rank,mpierr)
-        call MPI_Comm_size(MPI_COMM_PER(dim),my_per_size,mpierr)
-
-        if (my_per_size > 2) then
-          write (*,*) 'There are more than 2 processors in this'
-          write (*,*) 'periodic communicator'
-          write (*,*) 'Aborting topol_bc...'
-          call MPI_Finalize(mpierr)
-          stop
-        else
-          dest_rank = my_per_size -1 -my_per_rank
-        endif
-
-      end subroutine findDestProc
-#endif
 
 c     gammaZeroForce
 c     #################################################################
@@ -3522,9 +3015,10 @@ c     Call variables
 c     Local variables
 
         integer(4) :: ii,ll,kk,mm,jj,ig,jg,kg
-        real(8)    :: x1,y1,z1,summ,summ2,dh,jac,jacp,jacm,const
+        real(8)    :: x1,y1,z1,summ,summ2,dh,jac,jacp,jacm,const,hlf
         real(8)    :: hess(3,3,3),table(3,3,3),gsub(3,3)
      .               ,gsup(3,3),gsupp(3,3),gsupm(3,3),gamma(3,3,3)
+        logical    :: alt_eom
 
 c     Begin program
 
@@ -3532,9 +3026,9 @@ c     Begin program
      .       .or.(j == jlom .or. j == jhip)       !Avoid y-boundaries
      .       .or.(k == klom .or. k == khip)       !Avoid z-boundaries
      .       .or. isSP(i,j,k,igx,igy,igz)         !Avoid singular point
-cc     .       .or.(grid_params%ilo(igx) == 1
-cc     .            .and. bcond(1) == SP     )      !Avoid singular point
      .       ) return
+
+        igrid = igx
 
         gamma = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
         gsub  = gmetric%grid(igrid)%gsub(i,j,k,:,:)
@@ -3544,12 +3038,14 @@ cc     .            .and. bcond(1) == SP     )      !Avoid singular point
 
         do ii=1,3 !cycle through Chistoffel symbols
 
-          if (ii == 2 .and. bcond(1) == SP) then
+          alt_eom = (ii == 2 .and. alt__eom())
+
+          if (alt_eom) then
             jac  = gmetric%grid(igrid)%jac(i,j,k)
             const= 2d0
           else
-            jac=1d0
-            const=1d0
+            jac  = 1d0
+            const= 1d0
           endif
 
           do ll=1,3
@@ -3557,7 +3053,7 @@ cc     .            .and. bcond(1) == SP     )      !Avoid singular point
               select case (kk)
               case(1)
                 dh = 2*grid_params%dxh(ig)
-                if (ii == 2 .and. bcond(1) == SP) then
+                if (alt_eom) then
                   jacp = gmetric%grid(igrid)%jac(i+1,j,k)
                   jacm = gmetric%grid(igrid)%jac(i-1,j,k)
                 else
@@ -3568,7 +3064,7 @@ cc     .            .and. bcond(1) == SP     )      !Avoid singular point
                 gsupm = jacm*gmetric%grid(igrid)%gsup (i-1,j,k,:,:)
               case(2)
                 dh = 2*grid_params%dyh(jg)
-                if (ii == 2 .and. bcond(1) == SP) then
+                if (alt_eom) then
                   jacp = gmetric%grid(igrid)%jac(i,j+1,k)
                   jacm = gmetric%grid(igrid)%jac(i,j-1,k)
                 else
@@ -3579,7 +3075,7 @@ cc     .            .and. bcond(1) == SP     )      !Avoid singular point
                 gsupm = jacm*gmetric%grid(igrid)%gsup (i,j-1,k,:,:)
               case(3)
                 dh = 2*grid_params%dzh(kg)
-                if (ii == 2 .and. bcond(1) == SP) then
+                if (alt_eom) then
                   jacp = gmetric%grid(igrid)%jac(i,j,k+1)
                   jacm = gmetric%grid(igrid)%jac(i,j,k-1)
                 else
@@ -3611,90 +3107,379 @@ cc     .            .and. bcond(1) == SP     )      !Avoid singular point
 
         enddo
 
-        gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = table
+        !Symmetrize
+        do ii=1,3
+          do ll=1,3             !cycle through tensor components
+            do kk=1,3
+              gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
+     $                    = 0.5*( table(ii,ll,kk)+table(ii,kk,ll) )
+            enddo
+          enddo
+        enddo
 
+cc        !Postprocessing for alt_eom case (ii == 2 .and. bcond(1) == SP) 
+cc        if (bcond(1) == SP) then
+cc
+cc          gamma = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+cc
+cc          jac   = gmetric%grid(igrid)%jac(i,j,k)
+cc
+cc          do ii=1,3             !cycle through Chistoffel symbols
+cc            do ll=1,3
+cc              do kk=1,3
+cc                select case (kk)
+cc                case(1)
+cc                  dh = grid_params%dxh(ig)
+cc                  jacp = hlf*(jac+gmetric%grid(igrid)%jac(i+1,j,k))
+cc                  jacm = hlf*(jac+gmetric%grid(igrid)%jac(i-1,j,k))
+cc                  gsupp = jacp
+cc     $                 *hlf*(gsup+gmetric%grid(igrid)%gsup(i+1,j,k,:,:))
+cc                  gsupm = jacm
+cc     $                 *hlf*(gsup+gmetric%grid(igrid)%gsup(i-1,j,k,:,:))
+cc                case(2)
+cc                  dh = grid_params%dyh(jg)
+cc                  jacp = hlf*(jac+gmetric%grid(igrid)%jac(i,j+1,k))
+cc                  jacm = hlf*(jac+gmetric%grid(igrid)%jac(i,j-1,k))
+cc                  gsupp = jacp
+cc     $                 *hlf*(gsup+gmetric%grid(igrid)%gsup(i,j+1,k,:,:))
+cc                  gsupm = jacm
+cc     $                 *hlf*(gsup+gmetric%grid(igrid)%gsup(i,j-1,k,:,:))
+cc                case(3)
+cc                  dh = grid_params%dzh(kg)
+cc                  jacp = hlf*(jac+gmetric%grid(igrid)%jac(i,j,k+1))
+cc                  jacm = hlf*(jac+gmetric%grid(igrid)%jac(i,j,k-1))
+cc                  gsupp = jacp
+cc     $                 *hlf*(gsup+gmetric%grid(igrid)%gsup(i,j,k+1,:,:))
+cc                  gsupm = jacm
+cc     $                 *hlf*(gsup+gmetric%grid(igrid)%gsup(i,j,k-1,:,:))
+cc                end select
+cc
+cc                table(ii,kk,ll) =
+cc     $                -gsub(ll,1)*(gsupp(1,ii)-gsupm(1,ii))/dh/jac
+cc     .                -gsub(ll,2)*(gsupp(2,ii)-gsupm(2,ii))/dh/jac
+cc     .                -gsub(ll,3)*(gsupp(3,ii)-gsupm(3,ii))/dh/jac
+cc     .                +delta(ii,ll)*(gamma(1,kk,1)
+cc     .                              +gamma(2,kk,2)
+cc     .                              +gamma(3,kk,3))
+cc
+cc                summ=0d0
+cc                do mm=1,3
+cc                  do jj=1,3
+cc                    summ= summ + gsub(ll,mm)*gsup(ii,jj)*gamma(mm,jj,kk)
+cc                  enddo
+cc                enddo
+cc
+cc                table(ii,kk,ll) = table(ii,kk,ll) - summ
+cc
+cc              enddo
+cc            enddo
+cc          enddo
+cc
+cc          !Symmetrize
+cc          do ii=1,3             !cycle through Chistoffel symbols
+cc            do ll=1,3
+cc              do kk=ll,3
+cc                table(ii,kk,ll) = hlf*(table(ii,kk,ll)+table(ii,ll,kk))
+cc                table(ii,ll,kk) = table(ii,kk,ll)
+cc              enddo
+cc            enddo
+cc          enddo
+cc
+cc          !Invert SI systems
+cc          do ii=1,3
+cc            do ll=1,3
+cc              do kk=1,3
+cc                if (ii==ll.and.ii/=kk) then
+cc                  select case(ii)
+cc                  case(1)
+cc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cc     .                 = -table(2,kk,2)-table(3,kk,3)
+cc                  case(2)
+cc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cc     $                 = -table(1,kk,1)-table(3,kk,3)
+cc                  case(3)
+cc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cc     $                 = -table(1,kk,1)-table(2,kk,2)
+cc                  end select
+cc                elseif(ii==kk .and.ii/=ll) then
+cc                  select case(ii)
+cc                  case(1)
+cc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cc     .                 = -table(2,2,ll)-table(3,3,ll)
+cc                  case(2)
+cc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cc     $                 = -table(1,1,ll)-table(3,3,ll)
+cc                  case(3)
+cc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cc     $                 = -table(1,1,ll)-table(2,2,ll)
+cc                  end select
+cc                elseif(ii==kk .and.ii==ll) then
+cc                  gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cc     .                 = gamma(ii,kk,ll)
+cc                else
+cc                  gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cc     $                 = table(ii,kk,ll)
+cc                endif
+cccc                if (ii == ll) then
+cccc                  select case(ii)
+cccc                  case(1)
+cccc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cccc     .                 = matmul(inv,table(ii,:,ii))
+cccccc     $                 = hlf*(table(1,kk,1)-table(2,kk,2)-table(3,kk,3))
+cccccc     $                 =0.25*(table(1,1,kk)-table(2,2,kk)-table(3,3,kk)
+cccccc     $                       +table(1,kk,1)-table(2,kk,2)-table(3,kk,3))
+cccc                  case(2)
+cccc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cccc     $                 = hlf*(table(2,kk,2)-table(1,kk,1)-table(3,kk,3))
+cccccc     $                 =0.25*(table(2,2,kk)-table(1,1,kk)-table(3,3,kk)
+cccccc     $                       +table(2,kk,2)-table(1,kk,1)-table(3,kk,3))
+cccc                  case(3)
+cccc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cccc     $                 = hlf*(table(3,kk,3)-table(1,kk,1)-table(2,kk,2))
+cccccc     $                 =0.25*(table(3,3,kk)-table(1,1,kk)-table(2,2,kk)
+cccccc     $                       +table(3,kk,3)-table(1,kk,1)-table(2,kk,2))
+cccc                  end select
+cccc                elseif (ii == kk) then
+cccc                  select case(ii)
+cccc                  case(1)
+cccc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cccc     $                 = hlf*(table(1,ll,1)-table(2,ll,2)-table(3,ll,3))
+cccccc     $                 =0.25*(table(1,1,ll)-table(2,2,ll)-table(3,3,ll)
+cccccc     $                       +table(1,ll,1)-table(2,ll,2)-table(3,ll,3))
+cccc                  case(2)
+cccc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cccc     $                 = hlf*(table(2,ll,2)-table(1,ll,1)-table(3,ll,3))
+cccccc     $                 =0.25*(table(2,2,ll)-table(1,1,ll)-table(3,3,ll)
+cccccc     $                       +table(2,ll,2)-table(1,ll,1)-table(3,ll,3))
+cccc                  case(3)
+cccc                    gmetric%grid(igrid)%Gamma(i,j,k,ii,kk,ll)
+cccc     $                 = hlf*(table(3,ll,3)-table(1,ll,1)-table(2,ll,2))
+cccccc     $                 =0.25*(table(3,3,ll)-table(1,1,ll)-table(2,2,ll)
+cccccc     $                       +table(3,ll,3)-table(1,ll,1)-table(2,ll,2))
+cccc                  end select
+cccc                else
+cccc                  gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
+cccc     $                    = hlf*( table(ii,ll,kk)+table(ii,kk,ll) )
+cccc                endif
+cc              enddo
+cc            enddo
+cc
+cc          enddo
+
+cc                if (ii /= ll .and. ii /= kk) then
+cc                  gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
+cccc     $                    = table(ii,ll,kk)
+cc     $                    = hlf*( table(ii,ll,kk)+table(ii,kk,ll) )
+cc                else
+cc                  if (ii == ll) then
+cc                    select case(ii)
+cc                    case(1)
+cc                      gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
+ccc$$$     $                 = hlf*(table(1,1,kk)-table(2,2,kk)-table(3,3,kk))
+cc     $                 =0.25*(table(1,1,kk)-table(2,2,kk)-table(3,3,kk)
+cc     $                       +table(1,kk,1)-table(2,kk,2)-table(3,kk,3))
+cc                    case(2)
+cc                      gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
+ccc$$$     $                 = hlf*(table(2,2,kk)-table(1,1,kk)-table(3,3,kk))
+cc     $                 =0.25*(table(2,2,kk)-table(1,1,kk)-table(3,3,kk)
+cc     $                       +table(2,kk,2)-table(1,kk,1)-table(3,kk,3))
+cc                    case(3)
+cc                      gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
+ccc$$$     $                 = hlf*(table(3,3,kk)-table(1,1,kk)-table(2,2,kk))
+cc     $                 =0.25*(table(3,3,kk)-table(1,1,kk)-table(2,2,kk)
+cc     $                       +table(3,kk,3)-table(1,kk,1)-table(2,kk,2))
+cc                    end select
+cc                  else
+cc                    select case(ii)
+cc                    case(1)
+cc                      gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
+ccc$$$     $                 = hlf*(table(1,ll,1)-table(2,ll,2)-table(3,ll,3))
+ccc$$$     $                 = hlf*(table(1,1,ll)-table(2,2,ll)-table(3,3,ll))
+cc     $                 =0.25*(table(1,1,ll)-table(2,2,ll)-table(3,3,ll)
+cc     $                       +table(1,ll,1)-table(2,ll,2)-table(3,ll,3))
+cc                    case(2)
+cc                      gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
+ccc$$$     $                 = hlf*(table(2,ll,2)-table(1,ll,1)-table(3,ll,3))
+ccc$$$     $                 = hlf*(table(2,2,ll)-table(1,1,ll)-table(3,3,ll))
+cc     $                 =0.25*(table(2,2,ll)-table(1,1,ll)-table(3,3,ll)
+cc     $                       +table(2,ll,2)-table(1,ll,1)-table(3,ll,3))
+cc                    case(3)
+cc                      gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
+ccc$$$     $                 = hlf*(table(3,ll,3)-table(1,ll,1)-table(2,ll,2))
+ccc$$$     $                 = hlf*(table(3,3,ll)-table(1,1,ll)-table(2,2,ll))
+cc     $                 =0.25*(table(3,3,ll)-table(1,1,ll)-table(2,2,ll)
+cc     $                       +table(3,ll,3)-table(1,ll,1)-table(2,ll,2))
+cc                    end select
+cc
+cc                  endif
+cc                endif
+cc              enddo
+cc            enddo
+cc          enddo
+cc
+cc        endif
+        
 c      START CHECKS
 
-cc        write (*,*)
-cc        write (*,*) 'Grid:',igrid,'  Grid node:',i,j,k
-
-c      Check difference between correction and prediction
-
-cc        table = table - gamma
-cc
-cc        summ2= sqrt(sum(gamma*gamma))
-cc        summ = sqrt(sum(table*table))/summ2
-cc
-cc        write (*,*) summ
-
-c      Check zero-force property: g^lk G^i_lk = -nabla_m(g^mi)
-
-cc        do ii=1,3 !cycle through Chistoffel symbols
-cc
-cc          summ = 0d0
-cc
-cc          dh = 2*grid_params%dxh(ig)
-cc          gsupp = gmetric%grid(igrid)%gsup (i+1,j,k,:,:)
-cc          gsupm = gmetric%grid(igrid)%gsup (i-1,j,k,:,:)
-cc
-cc          summ = summ -(gsupp(1,ii)-gsupm(1,ii))/dh
-cc
-cc          dh = 2*grid_params%dyh(jg)
-cc          gsupp = gmetric%grid(igrid)%gsup (i,j+1,k,:,:)
-cc          gsupm = gmetric%grid(igrid)%gsup (i,j-1,k,:,:)
-cc
-cc          summ = summ -(gsupp(2,ii)-gsupm(2,ii))/dh
-cc
-cc          dh = 2*grid_params%dzh(kg)
-cc          gsupp = gmetric%grid(igrid)%gsup (i,j,k+1,:,:)
-cc          gsupm = gmetric%grid(igrid)%gsup (i,j,k-1,:,:)
-cc
-cc          summ = summ -(gsupp(3,ii)-gsupm(3,ii))/dh
-cc
-cc          summ2 = 0d0
-cc          do ll=1,3
-cc            do kk=1,3
-cc              summ2 = summ2 + gsup(ll,kk)*gamma(ii,ll,kk)
-cc            enddo
-cc          enddo
-cc
-cc          write (*,*) summ-summ2
-cc        enddo
-
-c      Check cancellation property g^lk(d_il G^j_kj-g_lm g^ij G^m_jk) = 0
-
-cc        do ii=1,3 !cycle through Chistoffel symbols
-cc          do ll=1,3
-cc            do kk=1,3
-cc              table(ii,ll,kk) =
-cc     .               delta(ii,ll)*(gamma(1,kk,1)
-cc     .                            +gamma(2,kk,2)
-cc     .                            +gamma(3,kk,3))
-cc
-cc              summ=0d0
-cc              do mm=1,3
-cc                do jj=1,3
-cc                  summ = summ + gsub(ll,mm)*gsup(ii,jj)*gamma(mm,jj,kk)
-cc                enddo
-cc              enddo
-cc
-cc              table(ii,ll,kk) = table(ii,ll,kk) - summ
-cc            enddo
-cc          enddo
-cc
-cc          summ = 0d0
-cc          do ll=1,3
-cc            do kk=1,3
-cc              summ = summ + gsup(ll,kk)*table(ii,ll,kk)
-cc            enddo
-cc          enddo
-cc
-cc          write (*,*) summ
-cc        enddo
+cc        call zeroForceCheck(i,j,k,igrid,gamma
+cc     $                     ,gmetric%grid(igrid)%Gamma(i,j,k,:,:,:))
 
 c     End program
 
       end subroutine gammaZeroForce
+
+c     zeroForceCheck
+c     #################################################################
+      subroutine zeroForceCheck(i,j,k,igrid,gold,gnew)
+
+c     -----------------------------------------------------------------
+c     Postprocess Christoffel symbol to satisfy zero-force condition
+c     to machine accuracy
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+        integer(4) :: i,j,k,igrid
+        real(8)    :: gold(3,3,3),gnew(3,3,3)
+        
+c     Local variables
+
+        integer(4) :: ii,ll,kk,mm,jj,ig,jg,kg
+        real(8)    :: summ,summ2,dh,jac,jacp,jacm,const,hlf
+        real(8)    :: hess(3,3,3),gsup(3,3),gsub(3,3)
+     $               ,gsupp(3,3),gsupm(3,3)
+        logical    :: alt_eom
+
+c     Begin program
+
+        write (*,*)
+        write (*,*) 'Grid:',igrid,'  Grid node:',i,j,k
+
+        call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+        gsup  = gmetric%grid(igrid)%gsup(i,j,k,:,:)
+        gsub  = gmetric%grid(igrid)%gsub(i,j,k,:,:)
+
+        hlf = 0.5
+
+c      Check difference between correction and prediction
+
+        hess = gnew - gold
+
+        summ2= sqrt(sum(gold*gold))
+        summ = sqrt(sum(hess*hess))/summ2
+
+        write (*,*) 'Correction size:',summ
+
+c      Check cancellation property g^lk(d_il G^j_kj-g_lm g^ij G^m_jk) = 0
+
+        do ii=1,3 !cycle through Chistoffel symbols
+          do ll=1,3
+            do kk=1,3
+              hess(ii,ll,kk) =
+     .               delta(ii,ll)*(gnew(1,kk,1)
+     .                            +gnew(2,kk,2)
+     .                            +gnew(3,kk,3))
+
+              summ=0d0
+              do mm=1,3
+                do jj=1,3
+                  summ = summ + gsub(ll,mm)*gsup(ii,jj)*gnew(mm,jj,kk)
+                enddo
+              enddo
+
+              hess(ii,ll,kk) = hess(ii,ll,kk) - summ
+            enddo
+          enddo
+
+          summ = 0d0
+          do ll=1,3
+            do kk=1,3
+              summ = summ + gsup(ll,kk)*hess(ii,ll,kk)
+            enddo
+          enddo
+
+          write (*,*) 'Cancellation property comp.#',ii,':',summ
+        enddo
+
+c      Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
+
+        do ii=1,3 !cycle through Chistoffel symbols
+
+          alt_eom = (ii == 2 .and. alt__eom())
+
+          if (alt_eom) then
+            jac  = gmetric%grid(igrid)%jac(i,j,k)
+            const= 1d0
+          else
+            jac  = 1d0
+            const= 0d0
+          endif
+
+          summ = 0d0
+
+          dh = grid_params%dxh(ig)
+          if (alt_eom) then
+            jacp = hlf*(jac+gmetric%grid(igrid)%jac(i+1,j,k))
+            jacm = hlf*(jac+gmetric%grid(igrid)%jac(i-1,j,k))
+          else
+            jacp=1d0
+            jacm=1d0
+          endif
+          gsupp = jacp
+     $         *hlf*(gsup+gmetric%grid(igrid)%gsup(i+1,j,k,:,:))
+          gsupm = jacm
+     $         *hlf*(gsup+gmetric%grid(igrid)%gsup(i-1,j,k,:,:))
+
+          summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
+
+          dh = grid_params%dyh(jg)
+          if (alt_eom) then
+            jacp = hlf*(jac+gmetric%grid(igrid)%jac(i,j+1,k))
+            jacm = hlf*(jac+gmetric%grid(igrid)%jac(i,j-1,k))
+          else
+            jacp=1d0
+            jacm=1d0
+          endif
+          gsupp = jacp
+     $         *hlf*(gsup+gmetric%grid(igrid)%gsup(i,j+1,k,:,:))
+          gsupm = jacm
+     $         *hlf*(gsup+gmetric%grid(igrid)%gsup(i,j-1,k,:,:))
+
+          summ = summ +(gsupp(2,ii)-gsupm(2,ii))/dh/jac
+
+          dh = grid_params%dzh(kg)
+          if (alt_eom) then
+            jacp = hlf*(jac+gmetric%grid(igrid)%jac(i,j,k+1))
+            jacm = hlf*(jac+gmetric%grid(igrid)%jac(i,j,k-1))
+          else
+            jacp=1d0
+            jacm=1d0
+          endif
+          gsupp = jacp
+     $         *hlf*(gsup+gmetric%grid(igrid)%gsup(i,j,k+1,:,:))
+          gsupm = jacm
+     $         *hlf*(gsup+gmetric%grid(igrid)%gsup(i,j,k-1,:,:))
+
+          summ = summ +(gsupp(3,ii)-gsupm(3,ii))/dh/jac
+
+          summ2 = 0d0
+          do ll=1,3
+            do kk=1,3
+              summ2 = summ2 + gsup(ll,kk)*gnew(ii,ll,kk)
+     $                - const*gsup(ll,ii)*gnew(kk,ll,kk)
+            enddo
+          enddo
+
+          write (*,*) 'Zero force comp. #',ii,':',summ,summ2,summ+summ2
+cc          write (*,*) 'Zero force   property comp.#',ii,':',summ+summ2
+        enddo
+
+c     End program
+
+      end subroutine zeroForceCheck
 
       end subroutine defineGridMetric
 
@@ -3748,9 +3533,10 @@ c     Begin program
 
 c     delta
 c     #################################################################
-      real(8) function delta(i,j)
+      function delta(i,j)
 
         integer(4) :: i,j
+        real(8)    :: delta
 
         delta = 0d0
         if (i == j) delta = 1d0
@@ -3812,34 +3598,16 @@ c     Local variables
 
 c     Begin program
 
+        vec = (/ c1,c2,c3 /)
+
         if (covariant) then
-
-          do ic =1,3
-            T_to_car(:,ic) = gmetric%grid(igx)%cov(i,j,k,ic,:)
-          enddo
-
-          vec = (/ c1,c2,c3 /)
-
-          vec = matmul(T_to_car,vec)
-
-          cx = vec(1)
-          cy = vec(2)
-          cz = vec(3)
-            
+          cx = dot_product(vec,gmetric%grid(igx)%cov(i,j,k,:,1))
+          cy = dot_product(vec,gmetric%grid(igx)%cov(i,j,k,:,2))
+          cz = dot_product(vec,gmetric%grid(igx)%cov(i,j,k,:,3))
         else
-
-          do ic =1,3
-            T_to_car(:,ic) = gmetric%grid(igx)%cnv(i,j,k,ic,:)
-          enddo
-
-          vec = (/ c1,c2,c3 /)
-
-          vec = matmul(T_to_car,vec)
-
-          cx = vec(1)
-          cy = vec(2)
-          cz = vec(3)
-
+          cx = dot_product(vec,gmetric%grid(igx)%cnv(i,j,k,:,1))
+          cy = dot_product(vec,gmetric%grid(igx)%cnv(i,j,k,:,2))
+          cz = dot_product(vec,gmetric%grid(igx)%cnv(i,j,k,:,3))
         endif
 
       end subroutine transformVectorToCartesian
@@ -3873,37 +3641,19 @@ c     Begin program
 
         jac = gmetric%grid(igx)%jac(i,j,k)
 
+        vec = (/ cx,cy,cz /)
+
         if (covariant) then
 
-          do ic =1,3
-            T_to_curv(:,ic) = gmetric%grid(igx)%cnv(i,j,k,ic,:)
-          enddo
-
-          T_to_curv = jac*transpose(T_to_curv)
-
-          vec = (/ cx,cy,cz /)
-
-          vec = matmul( T_to_curv,vec)
-
-          c1 = vec(1)
-          c2 = vec(2)
-          c3 = vec(3)
+          c1 = jac*dot_product(vec,gmetric%grid(igx)%cnv(i,j,k,1,:))
+          c2 = jac*dot_product(vec,gmetric%grid(igx)%cnv(i,j,k,2,:))
+          c3 = jac*dot_product(vec,gmetric%grid(igx)%cnv(i,j,k,3,:))
             
         else
 
-          do ic =1,3
-            T_to_curv(:,ic) = gmetric%grid(igx)%cov(i,j,k,ic,:)
-          enddo
-
-          T_to_curv = jac*transpose(T_to_curv)
-
-          vec = (/ cx,cy,cz /)
-
-          vec = matmul(T_to_curv,vec)
-
-          c1 = vec(1)
-          c2 = vec(2)
-          c3 = vec(3)
+          c1 = jac*dot_product(vec,gmetric%grid(igx)%cov(i,j,k,1,:))
+          c2 = jac*dot_product(vec,gmetric%grid(igx)%cov(i,j,k,2,:))
+          c3 = jac*dot_product(vec,gmetric%grid(igx)%cov(i,j,k,3,:))
 
         endif
 
@@ -3944,13 +3694,36 @@ c     Begin program
         select case(he)
         case(1)
           ip = i+1
-          if (isSP(ip,j,k,igx,igy,igz)) ip = i  !SP is located at i=-1 ghost cell
-          if (tocnv) then
-            tensor = 0.5*(gmetric%grid(igx)%gsup(ip,j,k,:,:)
-     .                   +gmetric%grid(igx)%gsup(i ,j,k,:,:))
+          if (isSP(ip,j,k,igx,igy,igz)) then !We are right @ SP ghost cell
+            if (tocnv) then
+              tensor = gmetric%grid(igx)%gsup(i,j,k,:,:)
+            else
+              tensor = gmetric%grid(igx)%gsub(i,j,k,:,:)
+            endif
+          elseif (isSP(i,j,k,igx,igy,igz)) then !We are right SP
+            if (tocnv) then
+              tensor = (gmetric%grid(igx)%gsup(ip,j,k,:,:)
+     .                 *gmetric%grid(igx)%jac (ip,j,k)
+     .                 +gmetric%grid(igx)%gsup(i ,j,k,:,:)
+     .                 *gmetric%grid(igx)%jac (i ,j,k))
+     .                 /(gmetric%grid(igx)%jac(ip,j,k)
+     .                  +gmetric%grid(igx)%jac(i ,j,k))
+            else
+              tensor = (gmetric%grid(igx)%gsub(ip,j,k,:,:)
+     .                 *gmetric%grid(igx)%jac (ip,j,k)
+     .                 +gmetric%grid(igx)%gsub(i ,j,k,:,:)
+     .                 *gmetric%grid(igx)%jac (i ,j,k))
+     .                 /(gmetric%grid(igx)%jac(ip,j,k)
+     .                  +gmetric%grid(igx)%jac(i ,j,k))
+            endif
           else
-            tensor = 0.5*(gmetric%grid(igx)%gsub(ip,j,k,:,:)
-     .                   +gmetric%grid(igx)%gsub(i ,j,k,:,:))
+            if (tocnv) then
+              tensor = 0.5*(gmetric%grid(igx)%gsup(ip,j,k,:,:)
+     .                     +gmetric%grid(igx)%gsup(i ,j,k,:,:))
+            else
+              tensor = 0.5*(gmetric%grid(igx)%gsub(ip,j,k,:,:)
+     .                     +gmetric%grid(igx)%gsub(i ,j,k,:,:))
+            endif
           endif
         case(2)
           if (tocnv) then
@@ -4367,7 +4140,8 @@ c     Find grid quantities
             xx(i + isig) = xx(i-1 + isig) + dh
           enddo
           if (bcs1 == SP .and. ilo(1) == 1) then
-            xx(0 + isig) = 1d-3*dh
+            xx(0 + isig) = 1d-8*dh
+cc            xx(0 + isig) = 1d-2
           else
             xx(0 + isig) = xx(1+isig) - dh
           endif
@@ -4471,20 +4245,20 @@ c     Begin program
 
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
-        if (numerical_grid) then
+cc        if (numerical_grid) then
           if (nxx == 1) then
             xmin = 0d0
-            xmax = 1d-3
+            xmax = 1d-4
           endif
           if (nyy == 1) then
             ymin = 0d0
-            ymax = 1d-3
+            ymax = 1d-4
           endif
           if (nzz == 1) then
             zmin = 0d0
-            zmax = 1d-3
+            zmax = 1d-4
           endif
-        endif
+cc        endif
 
       end subroutine consistencyCheck
 
@@ -4512,10 +4286,6 @@ c     Multigrid parameters
         igx = grid_params%ngrid
         igy = grid_params%ngrid
         igz = grid_params%ngrid
-
-cc        igx = 1
-cc        igy = 1 
-cc        igz = 1
 
         write (*,*)
         write (*,*) 'Coordinate system: ',coords
@@ -4698,8 +4468,6 @@ c     Begin program
               y1 = grid_params%yy(jg)
               z1 = grid_params%zz(kg)
 
-cc              gup   = g_sup(i,j,k,igx,igy,igz)
-cc              gdown = g_sub(i,j,k,igx,igy,igz)
               gup   = gmetric%grid(igx)%gsup(i,j,k,:,:)
               gdown = gmetric%grid(igx)%gsub(i,j,k,:,:)
 
