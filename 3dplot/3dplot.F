@@ -35,7 +35,6 @@ c Initialize
 
 #if defined(petsc)
       call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
-cc      call MPI_Init(mpierr)
       call MPI_Comm_rank(PETSC_COMM_WORLD,my_rank,mpierr)
       call MPI_Comm_size(PETSC_COMM_WORLD,np     ,mpierr)
 #endif
@@ -112,7 +111,6 @@ c Close graphics files and create draw*.in files
       endif
 #else
       close(urecord)
-cc      call MPI_Finalize(mpierr)
       call PetscFinalize(mpierr)
 #endif
 
@@ -229,7 +227,8 @@ c Begin program
 
 c Read user initializations
 
-      call readGraphicsInput(sel_diag,sel_graph,ndplot,dplot)
+      call readGraphicsInput(sel_diag,sel_graph,ndplot,dplot
+     .                      ,iplot,jplot,kplot)
 
 c Open graphics files
 
@@ -241,7 +240,8 @@ c Initialize vector dimensions
 
 c Initialize MG and create grid
 
-      call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd)
+      call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd
+     .               ,gpack=g_pack)
 cc      call checkGrid
 
 c Define application arrays (external)
