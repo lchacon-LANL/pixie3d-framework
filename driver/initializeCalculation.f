@@ -31,6 +31,7 @@ c Begin program
       urecord    = 25
       recordfile = 'record.bin'
 
+
 c Read user initializations
 
       call readInput
@@ -58,6 +59,16 @@ c Check for autoinitializing parameters
 c Initialize vector dimensions
 
       call setVectorDimensions
+
+c Allocate constant arrays
+
+      allocate(zeros (0:nxdp,0:nydp,0:nzdp))
+      allocate(vzeros(0:nxdp,0:nydp,0:nzdp,3))
+      allocate(ones  (0:nxdp,0:nydp,0:nzdp))
+
+      zeros  = 0d0
+      vzeros = 0d0
+      ones   = 1d0
 
 c Initialize MG and create grid
 
@@ -137,10 +148,6 @@ c Begin program
       call allocateStructures
 
       allocate(fold(ntotd),fsrc(ntotd))
-
-      allocate(zeros(0:nxdp,0:nydp,0:nzdp))
-
-      zeros = 0d0
 
 c End programs
 
