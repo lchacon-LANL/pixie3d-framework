@@ -238,7 +238,7 @@ c Initialize vector dimensions
 
 c Initialize MG and create grid
 
-      call createGrid(nxd,nyd,nzd)
+      call createGrid(1,nxd,1,nyd,1,nzd,nxd,nyd,nzd)
 cc      call checkGrid
 
 c Define application arrays (external)
