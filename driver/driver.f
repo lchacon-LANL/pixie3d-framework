@@ -98,7 +98,6 @@ c     Check for error in time stepping
  
 c     Update counters (only if timeStep is successful)
 
-cc        time   = time  + dt
         tmrst  = tmrst + dt
         nrst   = nrst  + 1
 
@@ -106,7 +105,7 @@ c     Output per time step
 
         call output
 
-c     Time level plots (xdraw)
+c     Time level data dump
 
         if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
           nrst  = 0
