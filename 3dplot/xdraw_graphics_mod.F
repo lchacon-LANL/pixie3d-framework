@@ -36,6 +36,10 @@ c ######################################################################
         integer(4)     :: ndplot
         real(8)        :: dplot,tmplot
 
+        integer(4) :: nfiles,ifile
+        integer(4),allocatable,dimension(:)     :: murecord
+        character*(20),allocatable,dimension(:) :: mrecfile
+
       end module graphics_variables
 
 c module XDRAW
@@ -397,7 +401,7 @@ c     Begin program
 
 c     X-Y plots
 
-        k = (kmaxg-kming+1)/3
+        k = max((kmaxg-kming+1)/3,1)
 cc        k = kming
 
         if (kmaxg -kming /= 1) then
@@ -519,7 +523,7 @@ c     ----------------------------------------------------------------
 c     Call variables
 
         integer     :: nvar,ivariables(ngraph),dvariables(nvar)
-     .                ,logvar(nvar)
+     .                ,logvar(ngraph)
         character(*):: binf,drawfile,graphlabel,descr(ngraph),ivar
         logical     :: spline
 
@@ -1159,7 +1163,12 @@ c           Interpolate nodal values
 
             cell(:,:,:,1) = graph(igrp)%array_graph(ieq)%array
 
+cc            write (*,*) cell(:,:,:,1)
+cc            pause
             call interpolateNodalData
+
+cc            write (*,*) node(:,:,:,1)
+cc            pause
 
 #if defined(petsc)
 c PARALLEL
