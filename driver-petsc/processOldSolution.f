@@ -44,16 +44,36 @@ c Evaluate nonlinear function at old time for theta scheme
 
       call evaluateNonlinearFunction(u_n,fold)
 
+c diag ******
 cc      u_n = u_n - u_np
 cc      write (*,*) imin,imax,jmin,jmax,kmin,kmax
 cc
 cc      do ieq=1,neqd
-cc        mag = sqrt(sum(u_n%array_var(ieq)%array**2))
+cc        mag = sqrt(sum(u_n%array_var(ieq)
+cc     .                 %array(imin:imax,jmin:jmax,1)**2))
 cc        write (*,*) mag
 cc      enddo
+
+cc      call writeDerivedType(u_n,6,.true.)
+
+cc      open(unit=110,file='debug.bin',form='unformatted'
+cc     .       ,status='replace')
+cc      do ieq=1,neqd
+cc        call contour(u_n%array_var(ieq)%array(imin:imax,jmin:jmax,1)
+cc     .              ,imax-imin+1,jmax-jmin+1,0d0,1d0,0d0,1d0,ieq-1,110)
+cc      enddo
+cc      close(110)
+
+cc      open(unit=110,file='debug.bin',form='unformatted'
+cc     .       ,status='replace')
+cc      do ieq=1,neqd
+cc        call contour(u_n%array_var(ieq)%array(0:nxd+1,0:nyd+1,0)
+cc     .              ,nxd+2,nyd+2,0d0,1d0,0d0,1d0,ieq-1,110)
+cc      enddo
+cc      close(110)
 cc
-cccc      call writeDerivedType(u_n,6,.true.)
 cc      stop
+c diag ******
 
 c Time level plots (xdraw)
 
@@ -247,3 +267,39 @@ c     #######################################################################
       end subroutine adapt_dt
 
       end subroutine correctTimeStep
+
+c     contour
+c     #####################################################################
+      subroutine contour(arr,nx,ny,xmin,xmax,ymin,ymax,iopt,nunit)
+      implicit none               !For safe fortran
+c     ---------------------------------------------------------------------
+c     Contours arr in xdraw format
+c     Notes:
+c      put the next 2 lines in main
+c      open(unit=nunit,file='contour.bin',form='unformatted') before
+c      close(unit=nunit) after
+c     ---------------------------------------------------------------------
+
+c     Call variables
+
+      integer(4) :: nx,ny,iopt,nunit
+      real(8)    :: arr(nx,ny),xmin,xmax,ymin,ymax
+
+c     Local variables
+
+      integer(4) :: i,j
+
+c     Begin program
+
+      if(iopt.eq.0) then
+        write(nunit) nx-1,ny-1,0
+        write(nunit) real(xmin,4),real(xmax,4)
+     .              ,real(ymin,4),real(ymax,4) 
+      endif
+      write(nunit) ((real(arr(i,j),4),i=1,nx),j=1,ny)
+cc      write (*,*) ((real(arr(i,j),4),i=1,nx),j=1,ny)
+cc      write (*,*)
+
+c     End program
+
+      end subroutine contour
