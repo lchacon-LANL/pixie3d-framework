@@ -2426,16 +2426,22 @@ c     ---------------------------------------------------------------
 
         implicit none
 
-        character(*) :: routine, message
+        character(*)  :: routine, message
 
 c     Begin program
 
+#if defined(petsc)
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) trim(message)
+          write (*,*) 'Program stopped at routine ',trim(routine)
+        endif
+
+        call PetscEnd(mpierr)
+#else
         write (*,*)
         write (*,*) trim(message)
         write (*,*) 'Program stopped at routine ',trim(routine)
-
-#if defined(petsc)
-        call PetscEnd(mpierr)
 #endif
 
         stop
