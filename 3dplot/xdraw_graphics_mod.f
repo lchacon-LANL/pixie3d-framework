@@ -30,7 +30,7 @@ c ######################################################################
         integer(4)     :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
 
         integer(4)     :: sel_diag(9),sel_graph(9),ndplot
-        real(8)        :: dplot
+        real(8)        :: dplot,tmplot
 
         real(8), allocatable, dimension(:) :: xl,yl,zl
 
@@ -94,7 +94,7 @@ c     Find grid in logical space
 
 c     Define graphics i/o and initialize graph arrays (external)
 
-        call defineGraphics(igx,igy,igz)
+        call defineGraphics
 
 c     Initialize profile description array
 
