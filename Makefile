@@ -12,8 +12,8 @@ OBJS  := $(filter %.o,$(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))\
                       $(patsubst %.c,%.o,$(filter-out $(MODS),$(SRC)))\
                       $(patsubst %.F,%.o,$(filter-out $(MODS),$(SRC))))
 
-OBJMOD := $(filter %.o, $(patsubst %.f,%.o,$(MODS))\
-                        $(patsubst %.F,%.o,$(MODS)))
+OBJMOD := $(sort $(filter %.o, $(patsubst %.f,%.o,$(MODS))\
+                               $(patsubst %.F,%.o,$(MODS))))
 
 
 COMMON_MODS = $(foreach dir,$(SUBDIRS),$(wildcard $(dir)/*_mod.[f,F]))
