@@ -4,7 +4,6 @@ c #####################################################################
 
         implicit none
 
-
         integer(4) :: PER,DIR,NEU,SP,EQU,DEF
         parameter (EQU=1,PER=2,NEU=3,DIR=4,SP=5,DEF=6)
 
@@ -26,6 +25,12 @@ c #####################################################################
           integer(4),pointer,dimension(:)  :: iline       !Restrict ops. to i=iline in MG
           integer(4),pointer,dimension(:)  :: jline       !Restrict ops. to j=jline in MG
           integer(4),pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
+          integer(4),pointer,dimension(:)  :: ilo         !Global lower limit in X
+          integer(4),pointer,dimension(:)  :: jlo         !Global lower limit in Y
+          integer(4),pointer,dimension(:)  :: klo         !Global lower limit in Z
+          integer(4),pointer,dimension(:)  :: ihi         !Global higher limit in X
+          integer(4),pointer,dimension(:)  :: jhi         !Global higher limit in Y
+          integer(4),pointer,dimension(:)  :: khi         !Global higher limit in Z
           real(8)   ,pointer,dimension(:)  :: xx          !Grid node positions in X (all grids)
           real(8)   ,pointer,dimension(:)  :: yy          !Grid node positions in Y (")
           real(8)   ,pointer,dimension(:)  :: zz          !Grid node positions in Z (")
@@ -35,9 +40,12 @@ c #####################################################################
           real(8)   ,pointer,dimension(:)  :: dxh         !Grid spacings in X for half mesh (")
           real(8)   ,pointer,dimension(:)  :: dyh         !Grid spacings in Y for half mesh (")
           real(8)   ,pointer,dimension(:)  :: dzh         !Grid spacings in Z for half mesh (")
-          integer(4),pointer,dimension(:)  :: nxv         !# of grid nodes in X  (")
-          integer(4),pointer,dimension(:)  :: nyv         !# of grid nodes in Y  (")
-          integer(4),pointer,dimension(:)  :: nzv         !# of grid nodes in Z  (")
+          integer(4),pointer,dimension(:)  :: nxv         !Local # of grid nodes in X  (")
+          integer(4),pointer,dimension(:)  :: nyv         !Local # of grid nodes in Y  (")
+          integer(4),pointer,dimension(:)  :: nzv         !Local # of grid nodes in Z  (")
+          integer(4),pointer,dimension(:)  :: nxgl        !Global # of grid nodes in X  (")
+          integer(4),pointer,dimension(:)  :: nygl        !Global # of grid nodes in Y  (")
+          integer(4),pointer,dimension(:)  :: nzgl        !Global # of grid nodes in Z  (")
           integer(4),pointer,dimension(:)  :: ntotv       !Total # of grid nodes (")
           integer(4),pointer,dimension(:)  :: istartx     !Pointer for MG vectors in X
           integer(4),pointer,dimension(:)  :: istarty     !Pointer for MG vectors in Y
@@ -102,6 +110,15 @@ c     Begin program
           allocate(grid_st%nxv(ngrid))
           allocate(grid_st%nyv(ngrid))
           allocate(grid_st%nzv(ngrid))
+          allocate(grid_st%nxgl(ngrid))
+          allocate(grid_st%nygl(ngrid))
+          allocate(grid_st%nzgl(ngrid))
+          allocate(grid_st%ilo(ngrid))
+          allocate(grid_st%jlo(ngrid))
+          allocate(grid_st%klo(ngrid))
+          allocate(grid_st%ihi(ngrid))
+          allocate(grid_st%jhi(ngrid))
+          allocate(grid_st%khi(ngrid))
           allocate(grid_st%ntotv(ngrid))
           allocate(grid_st%istartx(ngrid))
           allocate(grid_st%istarty(ngrid))
@@ -176,6 +193,15 @@ c     Begin program
           deallocate(grid_st%nxv)
           deallocate(grid_st%nyv)
           deallocate(grid_st%nzv)
+          deallocate(grid_st%nxgl)
+          deallocate(grid_st%nygl)
+          deallocate(grid_st%nzgl)
+          deallocate(grid_st%ilo)
+          deallocate(grid_st%jlo)
+          deallocate(grid_st%klo)
+          deallocate(grid_st%ihi)
+          deallocate(grid_st%jhi)
+          deallocate(grid_st%khi)
           deallocate(grid_st%ntotv)
           deallocate(grid_st%istartx)
           deallocate(grid_st%istarty)
@@ -240,6 +266,15 @@ c     Begin program
         grid_st2%nxv        = grid_st1%nxv       
         grid_st2%nyv        = grid_st1%nyv       
         grid_st2%nzv        = grid_st1%nzv       
+        grid_st2%nxgl       = grid_st1%nxgl       
+        grid_st2%nygl       = grid_st1%nygl       
+        grid_st2%nzgl       = grid_st1%nzgl       
+        grid_st2%ilo        = grid_st1%ilo
+        grid_st2%jlo        = grid_st1%jlo
+        grid_st2%klo        = grid_st1%klo
+        grid_st2%ihi        = grid_st1%ihi
+        grid_st2%jhi        = grid_st1%jhi
+        grid_st2%khi        = grid_st1%khi
         grid_st2%ntotv      = grid_st1%ntotv     
         grid_st2%istartx    = grid_st1%istartx   
         grid_st2%istarty    = grid_st1%istarty   
@@ -285,7 +320,16 @@ c     Begin program
         write (*,*) 'dzh',grid_st%dzh       
         write (*,*) 'nxv',grid_st%nxv       
         write (*,*) 'nyv',grid_st%nyv       
-        write (*,*) 'nzv',grid_st%nzv       
+        write (*,*) 'nzv',grid_st%nzv
+        write (*,*) 'nxgl',grid_st%nxgl       
+        write (*,*) 'nygl',grid_st%nygl       
+        write (*,*) 'nzgl',grid_st%nzgl
+        write (*,*) 'ilo',grid_st%ilo       
+        write (*,*) 'jlo',grid_st%jlo       
+        write (*,*) 'klo',grid_st%klo
+        write (*,*) 'ihi',grid_st%ihi       
+        write (*,*) 'jhi',grid_st%jhi       
+        write (*,*) 'khi',grid_st%khi       
         write (*,*) 'ntotv',grid_st%ntotv     
         write (*,*) 'istartx',grid_st%istartx   
         write (*,*) 'istarty',grid_st%istarty   
@@ -318,6 +362,9 @@ c     Local variables
 
 c     Begin program
 
+c$$$        ig = i -grid_params%ilo(igx)+1 + grid_params%istartx(igx)
+c$$$        jg = j -grid_params%jlo(igy)+1 + grid_params%istarty(igy)
+c$$$        kg = k -grid_params%klo(igz)+1 + grid_params%istartz(igz)
         ig = i + grid_params%istartx(igx)
         jg = j + grid_params%istarty(igy)
         kg = k + grid_params%istartz(igz)
@@ -368,7 +415,7 @@ c #####################################################################
 
         character*(3)   :: coords
 
-        real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D grid dimension
+        real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D domain dimensions
 
         real(8),private :: pi,lambda,cc,ypp,eps,mm,kk,aa,phi,major_r
 
@@ -1738,7 +1785,7 @@ c     Call variables
 
 c     Local variables
 
-        integer(4)      :: igrid,nxp,nyp,nzp
+        integer(4)      :: igrid,ilom,ihip,jlom,jhip,klom,khip
 
 c     Begin program
 
@@ -1748,15 +1795,31 @@ c     Begin program
 
         do igrid=1,grid_params%ngrid
           if (.not.associated(gmetric%grid(igrid)%jac)) then
-            nxp = grid_params%nxv(igrid)+1
-            nyp = grid_params%nyv(igrid)+1
-            nzp = grid_params%nzv(igrid)+1
-            allocate(gmetric%grid(igrid)%jac  (0:nxp,0:nyp,0:nzp))
-            allocate(gmetric%grid(igrid)%gsub (0:nxp,0:nyp,0:nzp,3,3))
-            allocate(gmetric%grid(igrid)%gsup (0:nxp,0:nyp,0:nzp,3,3))
-            allocate(gmetric%grid(igrid)%cov  (0:nxp,0:nyp,0:nzp,3,3))
-            allocate(gmetric%grid(igrid)%cnv  (0:nxp,0:nyp,0:nzp,3,3))
-            allocate(gmetric%grid(igrid)%Gamma(0:nxp,0:nyp,0:nzp,3,3,3))
+c$$$            ilom = grid_params%ilo(igrid)-1
+c$$$            jlom = grid_params%jlo(igrid)-1
+c$$$            klom = grid_params%klo(igrid)-1
+c$$$            ihip = grid_params%ihi(igrid)+1
+c$$$            jhip = grid_params%jhi(igrid)+1
+c$$$            khip = grid_params%khi(igrid)+1
+            ilom = 0
+            jlom = 0
+            klom = 0
+            ihip = grid_params%nxv(igrid)+1
+            jhip = grid_params%nyv(igrid)+1
+            khip = grid_params%nzv(igrid)+1
+            allocate(gmetric%grid(igrid)
+     $           %jac  (ilom:ihip,jlom:jhip,klom:khip))
+            allocate(gmetric%grid(igrid)
+     $           %gsub (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %gsup (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %cov  (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %cnv  (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %Gamma(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
+
           endif
         enddo
 
@@ -1821,7 +1884,10 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: igrid,nxp,nyp,nzp,i,j,k,igx,igy,igz
+        integer(4) :: igrid,ilo,ihi,jlo,jhi,klo,khi
+     $               ,ilom,ihip,jlom,jhip,klom,khip
+
+        integer(4) :: i,j,k,igx,igy,igz
      .               ,i0,ip,im,j0,jp,jm,k0,kp,km,l,m,n,p
      .               ,ig,ig0,igm,igp,jg,jg0,jgm,jgp,kg,kg0,kgm,kgp
         real(8)    :: r(3,3),car0(3),carp(3),carm(3),dh(3),jac,ijac
@@ -1858,13 +1924,29 @@ c       Find analytical geometric quantitites on grid
             igy = igrid
             igz = igrid
 
-            nxp = grid_params%nxv(igrid)+1
-            nyp = grid_params%nyv(igrid)+1
-            nzp = grid_params%nzv(igrid)+1
+c$$$            ilo = grid_params%ilo(igrid)
+c$$$            jlo = grid_params%jlo(igrid)
+c$$$            klo = grid_params%klo(igrid)
+c$$$            ihi = grid_params%ihi(igrid)
+c$$$            jhi = grid_params%jhi(igrid)
+c$$$            khi = grid_params%khi(igrid)
+            ilo = 1
+            jlo = 1
+            klo = 1
+            ihi = grid_params%nxv(igrid)
+            jhi = grid_params%nyv(igrid)
+            khi = grid_params%nzv(igrid)
 
-            do k = 0,nzp
-              do j = 0,nyp
-                do i = 0,nxp
+            ilom = ilo-1
+            jlom = jlo-1
+            klom = klo-1
+            ihip = ihi+1
+            jhip = jhi+1
+            khip = khi+1
+
+            do k = klom,khip
+              do j = jlom,jhip
+                do i = ilom,ihip
                   gmetric%grid(igrid)%jac  (i,j,k)
      .                      = jacobian(i,j,k,igx,igy,igz)
                   gmetric%grid(igrid)%gsub (i,j,k,:,:)
@@ -1884,15 +1966,15 @@ c       Find analytical geometric quantitites on grid
             enddo
 
             !Zero force condition on Christoffel symbols (only on finest grid)
-cc            if (igrid == 1) then
-cc              do k = 1,grid_params%nzv(igrid)
-cc                do j = 1,grid_params%nyv(igrid)
-cc                  do i = 1,grid_params%nxv(igrid)
-cc                    call gammaZeroForce(i,j,k,igx,igy,igz)
-cc                  enddo
-cc                enddo
-cc              enddo
-cc            endif
+            if (igrid == 1) then
+              do k = klo,khi
+                do j = jlo,jhi
+                  do i = ilo,ihi
+                    call gammaZeroForce(i,j,k,igx,igy,igz)
+                  enddo
+                enddo
+              enddo
+            endif
 
           enddo
 
@@ -1908,23 +1990,39 @@ cc          igrid=1
             igy = igrid
             igz = igrid
 
-            nxp = grid_params%nxv(igrid)+1
-            nyp = grid_params%nyv(igrid)+1
-            nzp = grid_params%nzv(igrid)+1
+c$$$            ilo = grid_params%ilo(igrid)
+c$$$            jlo = grid_params%jlo(igrid)
+c$$$            klo = grid_params%klo(igrid)
+c$$$            ihi = grid_params%ihi(igrid)
+c$$$            jhi = grid_params%jhi(igrid)
+c$$$            khi = grid_params%khi(igrid)
 
-            allocate(dr(0:nxp,0:nyp,0:nzp,3,3))
+            ilo = 1
+            jlo = 1
+            klo = 1
+            ihi = grid_params%nxv(igrid)
+            jhi = grid_params%nyv(igrid)
+            khi = grid_params%nzv(igrid)
+
+            ilom = ilo-1
+            jlom = jlo-1
+            klom = klo-1
+            ihip = ihi+1
+            jhip = jhi+1
+            khip = khi+1
+
+            allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
 
             !Evaluate dx/dxi vectors
-            do k = 0,nzp
-              do j = 0,nyp
-                do i = 0,nxp
-
-                  ip=min(i+1,nxp)
-                  im=max(i-1,0)
-                  jp=min(j+1,nyp)
-                  jm=max(j-1,0)
-                  kp=min(k+1,nzp)
-                  km=max(k-1,0)
+            do k = klom,khip
+              do j = jlom,jhip
+                do i = ilom,ihip
+                  ip=min(i+1,ihip)
+                  im=max(i-1,ilom)
+                  jp=min(j+1,jhip)
+                  jm=max(j-1,jlom)
+                  kp=min(k+1,khip)
+                  km=max(k-1,klom)
 
                   carp = map(ip,j,k,igx,igy,igz,igp,jg,kg)
                   carm = map(im,j,k,igx,igy,igz,igm,jg,kg)
@@ -1990,10 +2088,9 @@ cc            enddo
 cc          enddo
 
           !Evaluate grid quantities
-            do k = 0,nzp
-              do j = 0,nyp
-                do i = 0,nxp
-
+            do k = klom,khip
+              do j = jlom,jhip
+                do i = ilom,ihip
                   r = dr(i,j,k,:,:)
 
                   !Evaluate Jacobian
@@ -2026,26 +2123,26 @@ cc          enddo
 
                   !Christoffel symbols
 
-                  if (i==0) then
-                    i0=1
-                  elseif (i==nxp) then
-                    i0=nxp-1
+                  if (i==ilom) then
+                    i0=ilo
+                  elseif (i==ihip) then
+                    i0=ihi
                   else
                     i0=i
                   endif
 
-                  if (j==0) then
-                    j0=0
-                  elseif (j==nyp) then
-                    j0=nyp
+                  if (j==jlom) then
+                    j0=jlo
+                  elseif (j==jhip) then
+                    j0=jhi
                   else
                     j0=j
                   endif
 
-                  if (k==0) then
-                    k0=1
-                  elseif (k==nzp) then
-                    k0=nzp-1
+                  if (k==klom) then
+                    k0=klo
+                  elseif (k==khip) then
+                    k0=khi
                   else
                     k0=k
                   endif
@@ -2169,9 +2266,9 @@ cc                  gamma = christ_2knd(i,j,k,igx,igy,igz)
 
             !Zero-force condition on Christoffle symbols 
             if (igrid == 1) then
-              do k = 1,grid_params%nzv(igrid)
-                do j = 1,grid_params%nyv(igrid)
-                  do i = 1,grid_params%nxv(igrid)
+              do k = klo,khi
+                do j = jlo,jhi
+                  do i = ilo,ihi
                     call gammaZeroForce(i,j,k,igx,igy,igz)
                   enddo
                 enddo
@@ -2296,207 +2393,207 @@ c     Begin program
 
       end function map
 
-c     restrictGridMetrics
-c     #################################################################
-      subroutine restrictGridMetrics
-c     -----------------------------------------------------------------
-c     Restricts arrays with geometric grid info.
-c     -----------------------------------------------------------------
-
-      implicit none    !For safe fortran
-
-c     Call variables
-
-c     Local variables
-
-      real (8) :: xp,yp,zp
-
-c     Begin program
-
-      do igrid=2,grid_params%ngrid
-
-        igx = igrid
-        igy = igrid
-        igz = igrid
-
-        nxp = grid_params%nxv(igrid)+1
-        nyp = grid_params%nyv(igrid)+1
-        nzp = grid_params%nzv(igrid)+1
-
-        allocate(dr(0:nxp,0:nyp,0:nzp,3,3))
-
-        !Evaluate dx/dxi vectors (splined)
-        do k = 0,nzp
-          do j = 0,nyp
-            do i = 0,nxp
-              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-
-              xp = grid_params%xx(ig)
-              yp = grid_params%yy(jg)
-              zp = grid_params%zz(kg)
-
-              do l=1,3
-                do m=1,3
-                  dr(i,j,k,l,m) =
-     .                db3val(xp,yp,zp,0,0,0,tx,ty,tz,nnx,nny,nnz
-     .                      ,kx,ky,kz,drbcoef(:,:,:,l,m),work)
-                enddo
-              enddo
-
-            enddo
-          enddo
-        enddo
-
-        !Enforce topological constraints on dr
-        do i=1,3
-          do j=1,3
-            call topol_bc(dr(:,:,:,i,j))
-          enddo
-        enddo
-
-        !Evaluate grid quantities
-        do k = 0,nzp
-          do j = 0,nyp
-            do i = 0,nxp
-
-              r = dr(i,j,k,:,:)
-
-              !Evaluate Jacobian
-              jac = triple_product(r(1,:),r(2,:),r(3,:))
-              ijac = 1d0/jac
-
-              !Contravariant vectors
-              cnv(:,:) = r(:,:)*ijac
-
-              !Covariant vectors
-              cov(1,:) = cross_product(r(2,:),r(3,:))*ijac
-              cov(2,:) = cross_product(r(3,:),r(1,:))*ijac
-              cov(3,:) = cross_product(r(1,:),r(2,:))*ijac
-
-              !Metric tensors
-              do m=1,3
-                do l=m,3
-                  gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
-                  gsub(m,l) = gsub(l,m) !Symmetry
-                  gsup(l,m) = jac*dot_product(cov(l,:),cov(m,:))
-                  gsup(m,l) = gsup(l,m) !Symmetry
-                enddo
-              enddo
-
-              !Grid spacings
-              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-              dh(1) = grid_params%dxh(ig)
-              dh(2) = grid_params%dyh(jg)
-              dh(3) = grid_params%dzh(kg)
-
-              !Christoffel symbols (splined)
-
-                if (i==0) then
-                  i0=1
-                elseif (i==nxp) then
-                  i0=nxp-1
-                else
-                  i0=i
-                endif
-
-                if (j==0) then
-                  j0=0
-                elseif (j==nyp) then
-                  j0=nyp
-                else
-                  j0=j
-                endif
-
-                if (k==0) then
-                  k0=1
-                elseif (k==nzp) then
-                  k0=nzp-1
-                else
-                  k0=k
-                endif
-
-                ip=i0+1
-                im=i0-1
-                jp=j0+1
-                jm=j0-1
-                kp=k0+1
-                km=k0-1
-
-              xp = grid_params%xx(ig)
-              yp = grid_params%yy(jg)
-              zp = grid_params%zz(kg)
-
-              do l=1,3
-                do m=1,3
-                  do n=m,3
-cc                    gamma(l,m,n) =
-cc     .                db3val(xp,yp,zp,0,0,0,tx,ty,tz,nnx,nny,nnz
-cc     .                      ,kx,ky,kz,gambcoef(:,:,:,l,m,n)
-cc     .                      ,work)
-
-                    select case(m)
-                    case(1)
-                      call getMGmap(i0,j0,k0,igx,igy,igz,ig0,jg,kg)
-                      call getMGmap(im,j0,k0,igx,igy,igz,igm,jg,kg)
-                      call getMGmap(ip,j0,k0,igx,igy,igz,igp,jg,kg)
-                      carp= 0.5*(dr(ip,j0,k0,n,:)+dr(i0,j0,k0,n,:))
-                      carm= 0.5*(dr(im,j0,k0,n,:)+dr(i0,j0,k0,n,:))
-                      dhh = 0.5*(grid_params%xx(igp)
-     .                              -grid_params%xx(igm))
-                    case(2)
-                      call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg0,kg)
-                      call getMGmap(i0,jm,k0,igx,igy,igz,ig,jgm,kg)
-                      call getMGmap(i0,jp,k0,igx,igy,igz,ig,jgp,kg)
-                      carp= 0.5*(dr(i0,jp,k0,n,:)+dr(i0,j0,k0,n,:))
-                      carm= 0.5*(dr(i0,jm,k0,n,:)+dr(i0,j0,k0,n,:))
-                      dhh = 0.5*(grid_params%yy(jgp)
-     .                              -grid_params%yy(jgm))
-                    case(3)
-                      call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg,kg0)
-                      call getMGmap(i0,j0,km,igx,igy,igz,ig,jg,kgm)
-                      call getMGmap(i0,j0,kp,igx,igy,igz,ig,jg,kgp)
-                      carp= 0.5*(dr(i0,j0,kp,n,:)+dr(i0,j0,k0,n,:))
-                      carm= 0.5*(dr(i0,j0,km,n,:)+dr(i0,j0,k0,n,:))
-                      dhh = 0.5*(grid_params%zz(kgp)
-     .                              -grid_params%zz(kgm))
-                    end select
-                    vec = (carp-carm)/dhh
-
-                    gamma(l,m,n) = dot_product(vec,cov(l,:))
-                    gamma(l,n,m) = gamma(l,m,n) !Symmetry
-                  enddo
-                enddo
-              enddo
-
-              !Store grid quantities
-              gmetric%grid(igrid)%jac(i,j,k) = jac
-              gmetric%grid(igrid)%gsub (i,j,k,:,:)   = gsub
-              gmetric%grid(igrid)%gsup (i,j,k,:,:)   = gsup
-              gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
-              gmetric%grid(igrid)%cov  (i,j,k,:,:)   = cov
-              gmetric%grid(igrid)%cnv  (i,j,k,:,:)   = cnv
-
-            enddo
-          enddo
-        enddo
-
-        !Enforce topological constraints on Christoffel symbols
-        do i=1,3
-          do j=1,3
-            do k=1,3
-              call topol_bc(gmetric%grid(igrid)%Gamma(:,:,:,i,j,k))
-            enddo
-          enddo
-        enddo
-
-        !Deallocate auxiliary variables
-        deallocate(dr)
-
-      enddo
-
-c     End program
-
-      end subroutine restrictGridMetrics
+c$$$c     restrictGridMetrics
+c$$$c     #################################################################
+c$$$      subroutine restrictGridMetrics
+c$$$c     -----------------------------------------------------------------
+c$$$c     Restricts arrays with geometric grid info.
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$      implicit none    !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      real (8) :: xp,yp,zp
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      do igrid=2,grid_params%ngrid
+c$$$
+c$$$        igx = igrid
+c$$$        igy = igrid
+c$$$        igz = igrid
+c$$$
+c$$$        nxp = grid_params%nxv(igrid)+1
+c$$$        nyp = grid_params%nyv(igrid)+1
+c$$$        nzp = grid_params%nzv(igrid)+1
+c$$$
+c$$$        allocate(dr(0:nxp,0:nyp,0:nzp,3,3))
+c$$$
+c$$$        !Evaluate dx/dxi vectors (splined)
+c$$$        do k = 0,nzp
+c$$$          do j = 0,nyp
+c$$$            do i = 0,nxp
+c$$$              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+c$$$
+c$$$              xp = grid_params%xx(ig)
+c$$$              yp = grid_params%yy(jg)
+c$$$              zp = grid_params%zz(kg)
+c$$$
+c$$$              do l=1,3
+c$$$                do m=1,3
+c$$$                  dr(i,j,k,l,m) =
+c$$$     .                db3val(xp,yp,zp,0,0,0,tx,ty,tz,nnx,nny,nnz
+c$$$     .                      ,kx,ky,kz,drbcoef(:,:,:,l,m),work)
+c$$$                enddo
+c$$$              enddo
+c$$$
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+c$$$
+c$$$        !Enforce topological constraints on dr
+c$$$        do i=1,3
+c$$$          do j=1,3
+c$$$            call topol_bc(dr(:,:,:,i,j))
+c$$$          enddo
+c$$$        enddo
+c$$$
+c$$$        !Evaluate grid quantities
+c$$$        do k = 0,nzp
+c$$$          do j = 0,nyp
+c$$$            do i = 0,nxp
+c$$$
+c$$$              r = dr(i,j,k,:,:)
+c$$$
+c$$$              !Evaluate Jacobian
+c$$$              jac = triple_product(r(1,:),r(2,:),r(3,:))
+c$$$              ijac = 1d0/jac
+c$$$
+c$$$              !Contravariant vectors
+c$$$              cnv(:,:) = r(:,:)*ijac
+c$$$
+c$$$              !Covariant vectors
+c$$$              cov(1,:) = cross_product(r(2,:),r(3,:))*ijac
+c$$$              cov(2,:) = cross_product(r(3,:),r(1,:))*ijac
+c$$$              cov(3,:) = cross_product(r(1,:),r(2,:))*ijac
+c$$$
+c$$$              !Metric tensors
+c$$$              do m=1,3
+c$$$                do l=m,3
+c$$$                  gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
+c$$$                  gsub(m,l) = gsub(l,m) !Symmetry
+c$$$                  gsup(l,m) = jac*dot_product(cov(l,:),cov(m,:))
+c$$$                  gsup(m,l) = gsup(l,m) !Symmetry
+c$$$                enddo
+c$$$              enddo
+c$$$
+c$$$              !Grid spacings
+c$$$              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+c$$$              dh(1) = grid_params%dxh(ig)
+c$$$              dh(2) = grid_params%dyh(jg)
+c$$$              dh(3) = grid_params%dzh(kg)
+c$$$
+c$$$              !Christoffel symbols (splined)
+c$$$
+c$$$                if (i==0) then
+c$$$                  i0=1
+c$$$                elseif (i==nxp) then
+c$$$                  i0=nxp-1
+c$$$                else
+c$$$                  i0=i
+c$$$                endif
+c$$$
+c$$$                if (j==0) then
+c$$$                  j0=0
+c$$$                elseif (j==nyp) then
+c$$$                  j0=nyp
+c$$$                else
+c$$$                  j0=j
+c$$$                endif
+c$$$
+c$$$                if (k==0) then
+c$$$                  k0=1
+c$$$                elseif (k==nzp) then
+c$$$                  k0=nzp-1
+c$$$                else
+c$$$                  k0=k
+c$$$                endif
+c$$$
+c$$$                ip=i0+1
+c$$$                im=i0-1
+c$$$                jp=j0+1
+c$$$                jm=j0-1
+c$$$                kp=k0+1
+c$$$                km=k0-1
+c$$$
+c$$$              xp = grid_params%xx(ig)
+c$$$              yp = grid_params%yy(jg)
+c$$$              zp = grid_params%zz(kg)
+c$$$
+c$$$              do l=1,3
+c$$$                do m=1,3
+c$$$                  do n=m,3
+c$$$cc                    gamma(l,m,n) =
+c$$$cc     .                db3val(xp,yp,zp,0,0,0,tx,ty,tz,nnx,nny,nnz
+c$$$cc     .                      ,kx,ky,kz,gambcoef(:,:,:,l,m,n)
+c$$$cc     .                      ,work)
+c$$$
+c$$$                    select case(m)
+c$$$                    case(1)
+c$$$                      call getMGmap(i0,j0,k0,igx,igy,igz,ig0,jg,kg)
+c$$$                      call getMGmap(im,j0,k0,igx,igy,igz,igm,jg,kg)
+c$$$                      call getMGmap(ip,j0,k0,igx,igy,igz,igp,jg,kg)
+c$$$                      carp= 0.5*(dr(ip,j0,k0,n,:)+dr(i0,j0,k0,n,:))
+c$$$                      carm= 0.5*(dr(im,j0,k0,n,:)+dr(i0,j0,k0,n,:))
+c$$$                      dhh = 0.5*(grid_params%xx(igp)
+c$$$     .                              -grid_params%xx(igm))
+c$$$                    case(2)
+c$$$                      call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg0,kg)
+c$$$                      call getMGmap(i0,jm,k0,igx,igy,igz,ig,jgm,kg)
+c$$$                      call getMGmap(i0,jp,k0,igx,igy,igz,ig,jgp,kg)
+c$$$                      carp= 0.5*(dr(i0,jp,k0,n,:)+dr(i0,j0,k0,n,:))
+c$$$                      carm= 0.5*(dr(i0,jm,k0,n,:)+dr(i0,j0,k0,n,:))
+c$$$                      dhh = 0.5*(grid_params%yy(jgp)
+c$$$     .                              -grid_params%yy(jgm))
+c$$$                    case(3)
+c$$$                      call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg,kg0)
+c$$$                      call getMGmap(i0,j0,km,igx,igy,igz,ig,jg,kgm)
+c$$$                      call getMGmap(i0,j0,kp,igx,igy,igz,ig,jg,kgp)
+c$$$                      carp= 0.5*(dr(i0,j0,kp,n,:)+dr(i0,j0,k0,n,:))
+c$$$                      carm= 0.5*(dr(i0,j0,km,n,:)+dr(i0,j0,k0,n,:))
+c$$$                      dhh = 0.5*(grid_params%zz(kgp)
+c$$$     .                              -grid_params%zz(kgm))
+c$$$                    end select
+c$$$                    vec = (carp-carm)/dhh
+c$$$
+c$$$                    gamma(l,m,n) = dot_product(vec,cov(l,:))
+c$$$                    gamma(l,n,m) = gamma(l,m,n) !Symmetry
+c$$$                  enddo
+c$$$                enddo
+c$$$              enddo
+c$$$
+c$$$              !Store grid quantities
+c$$$              gmetric%grid(igrid)%jac(i,j,k) = jac
+c$$$              gmetric%grid(igrid)%gsub (i,j,k,:,:)   = gsub
+c$$$              gmetric%grid(igrid)%gsup (i,j,k,:,:)   = gsup
+c$$$              gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
+c$$$              gmetric%grid(igrid)%cov  (i,j,k,:,:)   = cov
+c$$$              gmetric%grid(igrid)%cnv  (i,j,k,:,:)   = cnv
+c$$$
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+c$$$
+c$$$        !Enforce topological constraints on Christoffel symbols
+c$$$        do i=1,3
+c$$$          do j=1,3
+c$$$            do k=1,3
+c$$$              call topol_bc(gmetric%grid(igrid)%Gamma(:,:,:,i,j,k))
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+c$$$
+c$$$        !Deallocate auxiliary variables
+c$$$        deallocate(dr)
+c$$$
+c$$$      enddo
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine restrictGridMetrics
 
 c     topol_bc
 c     #################################################################
@@ -2510,9 +2607,18 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        real(8) :: array(0:nxp,0:nyp,0:nzp)
+        real(8) :: array(ilom:ihip,jlom:jhip,klom:khip)
+
+c     Local variables
+
+        integer(4) :: nxp,nyp,nzp
 
 c     Begin program
+
+c FIX PARALLEL
+        nxp = grid_params%nxv(igrid)+1
+        nyp = grid_params%nyv(igrid)+1
+        nzp = grid_params%nzv(igrid)+1
 
         if (bcond(1) == PER .or. bcond(2) == PER) then
           array(0  ,:,:) = array(nxp-1,:,:)
@@ -2528,6 +2634,7 @@ c     Begin program
           array(:,:,0  ) = array(:,:,nzp-1)
           array(:,:,nzp) = array(:,:,1    )
         endif
+c FIX PARALLEL
 
 c     End program
 
@@ -2557,10 +2664,11 @@ c     Local variables
 
 c     Begin program
 
-        if  (    (i == 0 .or. i == grid_params%nxv(igrid)+1) !Avoid x-boundaries
-     .       .or.(j == 0 .or. j == grid_params%nyv(igrid)+1) !Avoid y-boundaries
-     .       .or.(k == 0 .or. k == grid_params%nzv(igrid)+1) !Avoid z-boundaries
-     .       .or.(i == 1 .and. bcond(1) == SP)               !Avoid singular point
+        if  (    (i == ilom .or. i == ihip)       !Avoid x-boundaries
+     .       .or.(j == jlom .or. j == jhip)       !Avoid y-boundaries
+     .       .or.(k == klom .or. k == khip)       !Avoid z-boundaries
+     .       .or.(grid_params%ilo(igx) == 1
+     $            .and. bcond(1) == SP     )      !Avoid singular point
      .       ) return
 
         gamma = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
@@ -3101,17 +3209,21 @@ c #####################################################################
 
 c     createGrid
 c     #################################################################
-      subroutine createGrid(nx,ny,nz)
+      subroutine createGrid(imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz)
 
 c     -----------------------------------------------------------------
-c     Defines logical grid and finds grid quantities
+c     Defines logical grid and finds grid quantities from:
+c       * imin,imax: grid limits in X
+c       * jmin,jmax: grid limits in Y
+c       * kmin,kmax: grid limits in Z
+c       * nx,ny,nz: global grid size
 c     -----------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer(4) :: nx,ny,nz
+        integer(4) :: imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
 
 c     Local variables
 
@@ -3120,9 +3232,9 @@ c     Local variables
 
 c     Begin program
 
-        nxx = nx
-        nyy = ny
-        nzz = nz
+        nxx = imax-imin+1
+        nyy = jmax-jmin+1
+        nzz = kmax-kmin+1
 
         pi = acos(-1d0)
 
@@ -3158,38 +3270,70 @@ c     Allocate grid storage structure
         call allocateGridStructure(nxx,nyy,nzz,ngrdx,ngrdy,ngrdz
      .                            ,grid_params)
 
-c     Initialize MG arrays
+c     Initialize MG grid-size arrays
 
         grid_params%mg_ratio_x = 1
         grid_params%mg_ratio_y = 1
         grid_params%mg_ratio_z = 1
 
-        grid_params%nxv(1) = nxx
+        grid_params%nxgl(1) = nx
+        grid_params%nxv (1) = nxx
+        grid_params%ilo (1) = imin
+        grid_params%ihi (1) = imax
         do i = 2,ngrdx
-          grid_params%nxv(i) = grid_params%nxv(i-1) / mg_ratio
+          grid_params%nxgl(i) = grid_params%nxgl(i-1) / mg_ratio
+          grid_params%nxv (i) = grid_params%nxv (i-1) / mg_ratio
+cc          grid_params%ilo(i) = max(grid_params%ilo(i-1) / mg_ratio,1)
+          grid_params%ilo (i) = imin
+          grid_params%ihi (i) = grid_params%ilo(i)+grid_params%nxv(i)-1
           grid_params%mg_ratio_x(i-1) = mg_ratio
         enddo
         do i = ngrdx+1,grid_params%ngrid
-          grid_params%nxv(i) = grid_params%nxv(i-1)
+          grid_params%nxgl(i) = grid_params%nxgl(i-1)
+          grid_params%nxv (i) = grid_params%nxv (i-1)
+          grid_params%ilo (i) = grid_params%ilo (i-1)
+          grid_params%ihi (i) = grid_params%ihi (i-1)
         enddo
 
-        grid_params%nyv(1) = nyy
+        grid_params%nygl(1) = ny
+        grid_params%nyv (1) = nyy
+        grid_params%jlo (1) = jmin
+        grid_params%jhi (1) = jmax
         do i = 2,ngrdy
-          grid_params%nyv(i) = grid_params%nyv(i-1) / mg_ratio
+          grid_params%nygl(i) = grid_params%nygl(i-1) / mg_ratio
+          grid_params%nyv (i) = grid_params%nyv(i-1) / mg_ratio
+cc          grid_params%jlo(i) = max(grid_params%jlo(i-1) / mg_ratio,1)
+          grid_params%jlo (i) = jmin
+          grid_params%jhi (i) = grid_params%jlo(i)+grid_params%nyv(i)-1
           grid_params%mg_ratio_y(i-1) = mg_ratio
         enddo
         do i = ngrdy+1,grid_params%ngrid
-          grid_params%nyv(i) = grid_params%nyv(i-1)
+          grid_params%nygl(i) = grid_params%nygl(i-1)
+          grid_params%nyv (i) = grid_params%nyv (i-1)
+          grid_params%jlo (i) = grid_params%jlo (i-1)
+          grid_params%jhi (i) = grid_params%jhi (i-1)
         enddo
 
-        grid_params%nzv(1) = nzz
+        grid_params%nzgl(1) = nz
+        grid_params%nzv (1) = nzz
+        grid_params%klo (1) = kmin
+        grid_params%khi (1) = kmax
         do i = 2,ngrdz
-          grid_params%nzv(i) = grid_params%nzv(i-1) / mg_ratio
+          grid_params%nzgl(i) = grid_params%nzgl(i-1) / mg_ratio
+          grid_params%nzv (i) = grid_params%nzv (i-1) / mg_ratio
+cc          grid_params%klo(i) = max(grid_params%klo(i-1) / mg_ratio,1)
+          grid_params%klo (i) = kmin
+          grid_params%khi (i) = grid_params%klo(i)+grid_params%nzv(i)-1
           grid_params%mg_ratio_z(i-1) = mg_ratio
         enddo
         do i = ngrdz+1,grid_params%ngrid
-          grid_params%nzv(i) = grid_params%nzv(i-1)
+          grid_params%nzgl(i) = grid_params%nzgl(i-1)
+          grid_params%nzv (i) = grid_params%nzv (i-1)
+          grid_params%klo (i) = grid_params%klo (i-1)
+          grid_params%khi (i) = grid_params%khi (i-1)
         enddo
+
+c     Initialize MG pointer arrays
 
         grid_params%istartx(1) = 1
         do i = 2,grid_params%ngrid
@@ -3225,24 +3369,24 @@ c     Consistency checks
 
         call consistencyCheck
 
-c     Define uniform logical grid on ALL grid levels
+c     Define uniform logical LOCAL grid on ALL grid levels
 
-        call createLogicalGrid(nxx,grid_params%xx,grid_params%dx
+        call createLogicalGrid(nx,grid_params%xx,grid_params%dx
      .                        ,grid_params%dxh,grid_params%nxv
-cc     .                        ,grid_params%ngrdx,grid_params%istartx
      .                        ,grid_params%ngrid,grid_params%istartx
+     .                        ,grid_params%ilo,grid_params%ihi
      .                        ,xmin,xmax,bcond(1),bcond(2))
 
-        call createLogicalGrid(nyy,grid_params%yy,grid_params%dy
+        call createLogicalGrid(ny,grid_params%yy,grid_params%dy
      .                        ,grid_params%dyh,grid_params%nyv
-cc     .                        ,grid_params%ngrdy,grid_params%istarty
      .                        ,grid_params%ngrid,grid_params%istarty
+     .                        ,grid_params%jlo,grid_params%jhi
      .                        ,ymin,ymax,bcond(3),bcond(4))
 
-        call createLogicalGrid(nzz,grid_params%zz,grid_params%dz
+        call createLogicalGrid(nz,grid_params%zz,grid_params%dz
      .                        ,grid_params%dzh,grid_params%nzv
-cc     .                        ,grid_params%ngrdz,grid_params%istartz
      .                        ,grid_params%ngrid,grid_params%istartz
+     .                        ,grid_params%klo,grid_params%khi
      .                        ,zmin,zmax,bcond(5),bcond(6))
 
 c     Store grid metric parameters in grid metric structure
@@ -3253,129 +3397,93 @@ c     Store grid metric parameters in grid metric structure
 
 c     createLogicalGrid
 c     #################################################################
-      subroutine createLogicalGrid (nn,xx,dx,dxh,nx,ngrid,istart
-     .                             ,lmin,lmax,bcs1,bcs2)
+      subroutine createLogicalGrid (nglobal,xx,dx,dxh,nx,ngrid,istart
+     .                             ,ilo,ihi,lmin,lmax,bcs1,bcs2)
 
         implicit none
 
 c     Call variables
 
-        integer(4) :: nn,ngrid,nx(ngrid),istart(ngrid),bcs1,bcs2
+        integer(4) :: nglobal,ngrid,nx(ngrid),istart(ngrid)
+     $               ,ilo(ngrid),ihi(ngrid),bcs1,bcs2
         real(8)    :: xx(*),dx(*),dxh(*),lmin,lmax
 
 c     Local variables
         
         integer(4) :: ig,i,isig
-        real(8)    :: dh,length
+        real(8)    :: dh,length,lmax_loc,lmin_loc,lstart
 
 c     Begin program
 
+c     Find local domain limits lmin_loc,lmax_loc
+
+        ig = 1  !Finest grid level
+
         length = lmax-lmin
 
-c     Periodic
+        !Global mesh spacing
+        dh = length/nglobal
 
-        if (bcs1 == PER .or. bcs2 == PER) then
+        !Domain partition according to finest grid level local limits
+        !(It satisfies dh=(lmax-lmin)/nglobal=(lmax_loc-lmin_log)/nlocal)
+        lmin_loc = lmin + (ilo(ig)-1)*dh
+        lmax_loc = lmin +  ihi(ig)   *dh
 
-          do ig = 1,ngrid
+c     Find local length
 
-            isig = istart(ig)
+        length = lmax_loc-lmin_loc
+
+c     Find grid quantities
+
+        do ig = 1,ngrid
+
+          isig = istart(ig)
 
           !Find cell centers
-            dh = length/dfloat(nx(ig))
+          dh = length/dfloat(nx(ig))
 
-            xx(1 + isig) = lmin
-            do i = 2,nx(ig)+1
-              xx(i + isig) = xx(i-1 + isig) + dh
-            enddo
-            xx(0 + isig) = xx(1+isig) - dh
-cc            xx(0 + isig) = xx(nx(ig)+isig)
-cc            xx(nx(ig)+1 +isig) = xx(1+isig)
+          !Starting point (i=1)
+          if (bcs1 == PER) then
+            lstart = lmin_loc
+          else
+            lstart = lmin_loc+dh/2.
+          endif
 
-          !Find integer mesh spacings
-            do i = 1,nx(ig)
-              dx(i + isig) = xx(i+1 + isig) - xx(i + isig)
-            enddo
-            dx(0       +isig) = dx(nx(ig)+isig)
-            dx(nx(ig)+1+isig) = dx(1     +isig)
-
-          !Find half mesh spacings
-            do i = 1,nx(ig)+1
-              dxh(i + isig) = (dx(i + isig) + dx(i-1 + isig))/2.
-            enddo
-            dxh(0 + isig) = dxh(nx(ig) + isig)
-
+          xx(1 + isig) = lstart
+          do i = 2,nx(ig)+1
+            xx(i + isig) = xx(i-1 + isig) + dh
           enddo
-
-c     Radial (singular point at r=0)
-
-        elseif (bcs1 == SP) then
-
-          do ig = 1,ngrid
-
-            isig = istart(ig)
-
-          !Find cell centers
-            dh = length/dfloat(nx(ig))
-
+          if (bcs1 == SP .and. ilo(1) == 1) then
             xx(0 + isig) = 1d-8*dh
-            xx(1 + isig) = dh/2.
-            do i = 2,nx(ig)+1
-cc            xx(0 + isig) = -dh/2.
-cc            do i = 1,nx(ig)+1
-              xx(i + isig) = xx(i-1 + isig) + dh
-            enddo
+          else
+            xx(0 + isig) = xx(1+isig) - dh
+          endif
 
           !Find integer mesh spacings
-cc            dx(0 + isig) = dh/2.
-cc            do i = 1,nx(ig)
-            do i = 0,nx(ig)
-              dx(i + isig) = xx(i+1 + isig) - xx(i + isig)
-            enddo
+          do i = 0,nx(ig)
+            dx(i + isig) = xx(i+1 + isig) - xx(i + isig)
+          enddo
 
           !Find half mesh spacings
+          if (bcs1 == SP .and. ilo(1) == 1) then
             dxh(1 + isig) = dh
-            do i = 2,nx(ig)
-cc            do i = 1,nx(ig)
-              dxh(i + isig) = (dx(i + isig) + dx(i-1 + isig))/2.
-            enddo
-            dxh(0        + isig) = dx(0      + isig)/2.
-            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)/2.
+          else
+            dxh(1 + isig) = (dx(1 + isig) + dx(0   + isig))/2.
+          endif
 
-cc            xx(0 + isig) = 1d-8
+          do i = 2,nx(ig)
+            dxh(i + isig) = (dx(i + isig) + dx(i-1 + isig))/2.
           enddo
 
-c     Other
-
-        else
-
-          do ig = 1,ngrid
-
-            isig = istart(ig)
-
-          !Find cell centers
-c-ncv            dh = length/dfloat(nx(ig)+1)
-            dh = length/dfloat(nx(ig))
-
-c-ncv            xx(0 + isig) = lmin
-            xx(0 + isig) = lmin-dh/2.
-            do i = 1,nx(ig)+1
-              xx(i + isig) = xx(i-1 + isig) + dh
-            enddo
-
-          !Find integer mesh spacings
-            do i = 0,nx(ig)
-              dx(i + isig) = xx(i+1 + isig) - xx(i + isig)
-            enddo
-
-          !Find half mesh spacings
-            do i = 1,nx(ig)
-              dxh(i + isig) = (dx(i + isig) + dx(i-1 + isig))/2.
-            enddo
+          if (bcs1 == PER) then
+            dxh(0        + isig) = dxh(nx(ig) + isig)
+            dxh(nx(ig)+1 + isig) = dxh(1      + isig)
+          else
             dxh(0        + isig) = dx(0      + isig)/2.
             dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)/2.
-          enddo
+          endif
 
-        endif
+        enddo
 
       end subroutine createLogicalGrid
 
@@ -3447,18 +3555,20 @@ c     Begin program
 
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
-cc        if (nxx == 1) then
-cc          xmin = 0d0
-cc          xmax = 1d-3
-cc        endif
-cc        if (nyy == 1) then
-cc          ymin = 0d0
-cc          ymax = 1d-3
-cc        endif
-cc        if (nzz == 1) then
-cc          zmin = 0d0
-cc          zmax = 1d-3
-cc        endif
+        if (numerical_grid) then
+          if (nxx == 1) then
+            xmin = 0d0
+            xmax = 1d-3
+          endif
+          if (nyy == 1) then
+            ymin = 0d0
+            ymax = 1d-3
+          endif
+          if (nzz == 1) then
+            zmin = 0d0
+            zmax = 1d-3
+          endif
+        endif
 
       end subroutine consistencyCheck
 
