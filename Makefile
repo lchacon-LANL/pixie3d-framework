@@ -26,13 +26,20 @@ LIBS :=
 
 prefix = .
 
+ifeq ($(origin FC), default)
+  FC = f90 -w -O2 -cpu:host   #Set to f90 if not user-defined
+endif
+
 #Module search path
 
 MODDIRS = $(MODPATH) $(patsubst $(COMMONDIR)%,$(ADDMODFLAG)$(COMMONDIR)%,$(SUBDIRS))
 
 #Define targets
 
-.PHONY: message clean distclean common $(SUBDIRS)
+.PHONY: target lib message clean distclean common $(SUBDIRS)
+
+lib: common $(OBJMOD) $(OBJS) $(COMMON_OBJS)
+	ar rs $(LIBNAME) $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 
 target: common message $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 
