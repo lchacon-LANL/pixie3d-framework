@@ -106,7 +106,7 @@ c     Time level plots (xdraw)
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
           call imposeBoundaryConditions(u_np,1,1,1)
-          call writeRecordFile(urecord,itime,time,u_np)
+          call writeRecordFile(urecord,itime,time,dt,u_np)
         endif
 
 c     Output per time step
@@ -135,8 +135,8 @@ c Final statistics
 c Formats
 
  300  format (/,'Final statistics',/,/,
-     .          'itime  Newt/ndt  GMRES/ndt  GMRES/Newt  Whst/GMRES')
- 310  format (i4,3x,f7.1,4x,f7.1,4x,f7.1,4x,f7.1)
+     .          ' itime  Newt/ndt  GMRES/ndt  GMRES/Newt  Whst/GMRES')
+ 310  format (i5,3x,f7.1,4x,f7.1,4x,f7.1,4x,f7.1)
 
 c End program
 
@@ -307,20 +307,23 @@ c     Begin program
         do ieq=1,neqd
 
           array = (varray%array_var(ieq)%array
-     .            -u_0   %array_var(ieq)%array )**2
+     .            -u_0   %array_var(ieq)%array )
+          array = array*array
 
           dpert = integral(nxd,nyd,nzd,array,1,1,1,.true.)
 
           dpert = sqrt(dpert)
 
           array = (u_n%array_var(ieq)%array
-     .            -u_0%array_var(ieq)%array )**2
+     .            -u_0%array_var(ieq)%array )
+          array = array*array
 
           dmag1 = integral(nxd,nyd,nzd,array,1,1,1,.true.)
 
           array = (varray%array_var(ieq)%array
      .            +u_n   %array_var(ieq)%array
-     .         -2.*u_0   %array_var(ieq)%array )**2
+     .         -2.*u_0   %array_var(ieq)%array )
+          array = array*array
 
           dmag2 = integral(nxd,nyd,nzd,array,1,1,1,.true.)
 
