@@ -12,9 +12,17 @@ c module parameters
 c #####################################################################
       module parameters
 
+c$$$      integer(4) :: neqd
+c$$$     .             ,nxd,nyd,nzd
+c$$$     .             ,nxdp,nydp,nzdp
+
       integer(4) :: neqd
-     .             ,nxd,nyd,nzd
-     .             ,nxdp,nydp,nzdp
+     .             ,nxd,nyd,nzd,nxdp,nydp,nzdp
+     .             ,nxl,nyl,nzl,nxlp,nylp,nzlp
+
+      integer(4) :: ilo ,ihi ,jlo ,jhi ,klo ,khi
+     .             ,ilom,ihip,jlom,jhip,klom,khip
+     $             ,ilog,ihig,jlog,jhig,klog,khig
 
       integer(4) :: ntotd,ntotdp,ntimemax
 
@@ -24,11 +32,42 @@ c     setVectorDimensions
 c     #################################################################
       subroutine setVectorDimensions
 
+        ihig = nxd 
+        ilog = 1
+        jhig = nyd 
+        jlog = 1
+        khig = nzd 
+        klog = 1 
+
+        nxl = nxd
+        nyl = nyd
+        nzl = nzd
+
+        ilo  = 1
+        ihi  = nxl
+        jlo  = 1
+        jhi  = nyl
+        klo  = 1
+        khi  = nzl
+
+        !Define offset quantities (local grid 1:n?l)
+        ihip = ihi+1
+        ilom = ilo-1
+        jhip = jhi+1
+        jlom = jlo-1
+        khip = khi+1
+        klom = klo-1
+
         nxdp = nxd+1
         nydp = nyd+1
         nzdp = nzd+1
 
-        ntotdp  = nxd*nyd*nzd
+        nxlp = nxl+1
+        nylp = nyl+1
+        nzlp = nzl+1
+
+        !Define local vector dimensions
+        ntotdp  = nxl*nyl*nzl
         ntotd   = neqd*ntotdp
 
       end subroutine setVectorDimensions

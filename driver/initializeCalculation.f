@@ -71,7 +71,7 @@ c Allocate constant arrays
 
 c Initialize MG and create grid
 
-      call createGrid(nxd,nyd,nzd)
+      call createGrid(1,nxd,1,nyd,1,nzd,nxd,nyd,nzd)
 cc      call checkGrid
 
 c Create nonlinear solver
