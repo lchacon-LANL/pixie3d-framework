@@ -93,12 +93,10 @@ c Initialize old time solution
 
 c Set unperturbed forcing fields
 
-      if (source) then
-        call evaluateNonlinearFunction(u_n,fsrc)
-      else
-        fsrc = 0d0
-        call imposeBoundaryConditions(u_n,1,1,1)
-      endif
+      !This not only evaluates fsrc, but defines pointers and BCs on u_n
+      call evaluateNonlinearFunction(u_n,fsrc)
+
+      if (.not.source) fsrc = 0d0
 
 c Set initial condition
 
@@ -346,12 +344,12 @@ c     Begin program
 
       write (*,*) ' Reading restart file...'
 
-      call readRecord(urecord,itime,time,vn,ierr)
+      call readRecord(urecord,itime,time,dt,vn,ierr)
 
       vnp = vn
 
       do
-        call readRecord(urecord,itime,time,vmed,ierr)
+        call readRecord(urecord,itime,time,dt,vmed,ierr)
 
         if (ierr /= 0) then
           exit
@@ -391,7 +389,7 @@ c     Call variables
 c     Local variables
 
       integer*4 :: i,j,k,ig,jg,kg,igx,igy,igz
-      real(8)   :: x1,y1,z1,car(3)
+      real(8)   :: x1,y1,z1,car(3),jac
       real(8)   :: fx(0:nxdp),fy(0:nydp),fz(0:nzdp) 
 
 c     Begin program
@@ -422,13 +420,15 @@ c     Begin program
         do j = 1,nyd
           do i = 1,nxd
             array(i,j,k) = array(i,j,k) + perturb*fx(i)*fy(j)*fz(k)
-
 c For MSW test case
-cc            call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-cc     .                                    ,x1,y1,z1)
+cc            call getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+cc     .                                  ,x1,y1,z1)
+cc            jac = jacobian(x1,y1,z1,.true.)
+cc            if (ieq == 1) jac = 1d0
 cc            array(i,j,k) = array(i,j,k)
-cc     .                   + perturb*cos(2*pi*(x1-xmin)/(xmax-xmin)
-cc     .                                +2*pi*(y1-ymin)/(ymax-ymin))
+cc     .                   + jac*perturb*cos(2*pi*(x1-xmin)/(xmax-xmin)
+cc     .                                    +2*pi*(y1-ymin)/(ymax-ymin))
+
           enddo
         enddo
       enddo
@@ -525,8 +525,14 @@ c Open record file
 
       if (.not.restart) then
 
-        !Impose BC's on u_0 -> u_graph (do not overwrite u_0, since it contains equil. BCs)
+        !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
         u_graph = u_0
+        !initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
+cc        u_graph = u_n
+        !Check source
+cc        u_graph = fsrc
+cc        u_graph%array_var(1)%array = u_0%array_var(1)%array  !Set rho finite
+
         call imposeBoundaryConditions(u_graph,1,1,1)
 
         !Open record file
@@ -537,10 +543,8 @@ c Open record file
         write (urecord) nyd
         write (urecord) nzd
 
-        !initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
-cc        call writeRecordFile(urecord,0,0d0,u_graph)
-        call writeRecordFile(urecord,0,0d0,u_n)
-        call writeRecordFile(urecord,0,0d0,u_np)
+        call writeRecordFile(urecord,0,0d0,dt,u_graph)
+        call writeRecordFile(urecord,0,0d0,dt,u_np)
 
       else
 
