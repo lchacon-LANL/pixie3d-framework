@@ -34,28 +34,29 @@ c Call variables
 
 c Local variables
 
-      integer(4)      :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl
-
-      type(petsc_array) :: petscarray
+      integer(4)      :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl,ieq
 
 c Begin program
 
-      call allocatePetscType(petscarray)
-
-      call fromGlobalToLocalLimits(imin,jmin,kmin,iminl,jminl,kminl)
-      call fromGlobalToLocalLimits(imax,jmax,kmax,imaxl,jmaxl,kmaxl)
-
-      petscarray%array(iminl:imaxl,jminl:jmaxl,kminl:kmaxl)
-     .         = array(imin :imax ,jmin :jmax ,kmin :kmax )
+      call fromGlobalToLocalLimits(imin,jmin,kmin,iminl,jminl,kminl
+     $                            ,1,1,1)
+      call fromGlobalToLocalLimits(imax,jmax,kmax,imaxl,jmaxl,kmaxl
+     $                            ,1,1,1)
 
 c Map petsc array
 
-      u_n = petscarray
+      call allocateDerivedType(u_n)
+
+      do ieq=1,neqd
+        u_n%array_var(ieq)
+     .       %array(iminl:imaxl,jminl:jmaxl,kminl:kmaxl)
+     .      = array(imin :imax ,jmin :jmax ,kmin :kmax )%var(ieq)
+      enddo
 
 c Set initial condition
 
       !For source plotting
-      u_n%array_var(1)%array = 1d0
+cc      u_n%array_var(1)%array = 1d0
 
 cc      u_n%array_var(1)%array = gmetric%grid(1)%jac
 cc      u_n%array_var(2)%array = gmetric%grid(1)%gsub(:,:,:,1,1)
@@ -96,12 +97,12 @@ c Initialize counters
 
 c Transfer to Petsc format
 
-      petscarray = u_np
+      do ieq=1,neqd
+        array(imin :imax ,jmin :jmax ,kmin :kmax )%var(ieq)
+     .      = u_np%array_var(ieq)
+     .            %array(iminl:imaxl,jminl:jmaxl,kminl:kmaxl)
+      enddo
 
-      array(imin:imax,jmin:jmax,kmin:kmax) =
-     .          petscarray%array(iminl:imaxl,jminl:jmaxl,kminl:kmaxl)
-
-      call deallocatePetscType(petscarray)
       call deallocateDerivedType(u_np)
       call deallocateDerivedType(u_n)
 
@@ -213,12 +214,12 @@ c     Begin program
 
       if (my_rank == 0) write (*,*) 'Reading restart file...'
 
-      call readRecord(urecord,itime,time,dt,vn,ierr)
+      call readRecordFile(urecord,itime,time,dt,vn,ierr)
 
       vnp = vn
 
       do
-        call readRecord(urecord,itime,time,dt,vmed,ierr)
+        call readRecordFile(urecord,itime,time,dt,vmed,ierr)
 
         if (ierr /= 0) then
           exit
