@@ -444,6 +444,8 @@ c     Begin program
         fx(i) = factor(xmin,xmax,x1,bcs(1:2),nh1)
       enddo
 
+cc      write (*,*) fx,bcs(1:2)
+
       do j = 1,nyd
         call getCurvilinearCoordinates(1,j,1,igx,igy,igz,ig,jg,kg
      .                                ,x1,y1,z1)
@@ -499,15 +501,25 @@ c     ####################################################################
           if (.not.odd) period = period/2.
           ff = cos(period*(x-xmin)/(xmax-xmin))
         elseif (bcs(1) == DIR .and. bcs(2) == NEU) then
-          period = 3*period/4.
-          if (.not.odd) period = period/2.
+          if (.not.odd) then
+            period = period/2.
+          else
+            period = 3*period/4.
+          endif
           ff = sin(period*(x-xmin)/(xmax-xmin))
         elseif (bcs(1) == SP .and. bcs(2) == DIR) then
-          ff = x**(nh+1)*sin(period*(x-xmin)/(xmax-xmin)) !To satisfy regularity at r=0 (r^m)
+cc          ff = x**(nh+1)*sin(period*(x-xmin)/(xmax-xmin)) !To satisfy regularity at r=0 (r^m)
+          ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+     .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
         elseif (bcs(1) == SP .and. bcs(2) == NEU) then
-          period = 3*period/4.
-          if (.not.odd) period = period/2.
-          ff = x**(nh+1)*cos(period*(x-xmin)/(xmax-xmin)) !To satisfy regularity at r=0 (r^m)
+          if (.not.odd) then
+            period = period/2.
+            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+          else
+            period = 3*period/4.
+            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+     .        *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
+          endif
         else
           ff = sin(period*(x-xmin)/(xmax-xmin))
         endif
