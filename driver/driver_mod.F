@@ -12,17 +12,14 @@ c module parameters
 c #####################################################################
       module parameters
 
-c$$$      integer(4) :: neqd
-c$$$     .             ,nxd,nyd,nzd
-c$$$     .             ,nxdp,nydp,nzdp
-
       integer(4) :: neqd
      .             ,nxd,nyd,nzd,nxdp,nydp,nzdp
      .             ,nxl,nyl,nzl,nxlp,nylp,nzlp
 
       integer(4) :: ilo ,ihi ,jlo ,jhi ,klo ,khi
      .             ,ilom,ihip,jlom,jhip,klom,khip
-     $             ,ilog,ihig,jlog,jhig,klog,khig
+     $             ,ilog ,ihig ,jlog ,jhig ,klog ,khig
+     .             ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
 
       integer(4) :: ntotd,ntotdp,ntimemax
 
@@ -32,10 +29,29 @@ c     setVectorDimensions
 c     #################################################################
       subroutine setVectorDimensions
 
-        nxl = nxd
-        nyl = nyd
-        nzl = nzd
+      !Global problem info
+        nxdp = nxd+1
+        nydp = nyd+1
+        nzdp = nzd+1
 
+cc        ntotdp  = nxd*nyd*nzd
+cc        ntotd   = neqd*ntotdp
+
+        !Define offset quantities (global grid)
+        ihipg = ihig+1
+        ilomg = ilog-1
+        jhipg = jhig+1
+        jlomg = jlog-1
+        khipg = khig+1
+        klomg = klog-1
+
+      !Local problem info (ihig,ilog,etc. initialized elsewhere)
+
+        nxl  = ihig-ilog+1
+        nyl  = jhig-jlog+1
+        nzl  = khig-klog+1
+
+        !Define local limits
         ilo  = 1
         ihi  = nxl
         jlo  = 1
@@ -43,7 +59,7 @@ c     #################################################################
         klo  = 1
         khi  = nzl
 
-        !Define offset quantities (local grid 1:n?l)
+        !Define offset quantities (local grid)
         ihip = ihi+1
         ilom = ilo-1
         jhip = jhi+1
@@ -51,27 +67,291 @@ c     #################################################################
         khip = khi+1
         klom = klo-1
 
-        nxdp = nxd+1
-        nydp = nyd+1
-        nzdp = nzd+1
-
         nxlp = nxl+1
         nylp = nyl+1
         nzlp = nzl+1
 
         !Define local vector dimensions
-        ntotdp  = nxl*nyl*nzl
-        ntotd   = neqd*ntotdp
+        ntotdp = nxl*nyl*nzl
+        ntotd  = neqd*ntotdp
 
       end subroutine setVectorDimensions
 
+c     vecPos
+c     #################################################################
+      function vecPos(neq,i,j,k) result (ijk)
+
+        implicit none
+
+        integer(4) :: ijk,i,j,k,neq
+
+        ijk = neq*(i-ilo + nxl*(j-jlo) + nxl*nyl*(k-klo))
+      
+      end function vecPos
+
+c     fromGlobalToLocalLimits
+c     #################################################################
+      subroutine fromGlobalToLocalLimits(ig,jg,kg,il,jl,kl)
+
+        implicit none
+
+        integer(4) :: ig,jg,kg,il,jl,kl
+
+        il = ig - ilog + 1
+        jl = jg - jlog + 1
+        kl = kg - klog + 1
+
+      end subroutine fromGlobalToLocalLimits
+
       end module parameters
+
+#if defined(petsc)
+c module petsc_var_setup
+c #####################################################################
+      module petsc_var_setup
+
+        use parameters
+
+        implicit none
+
+        !NVAR is defined via C preprocessor flag
+        type :: petsc_var
+          real(8) :: var(NVAR)
+        end type petsc_var
+
+        type :: petsc_array
+          type(petsc_var),pointer,dimension(:,:,:) :: array
+        end type petsc_array
+
+      contains
+
+c     allocatePetcsType
+c     #################################################################
+      subroutine allocatePetscType(petscarray)
+
+        implicit none
+
+c     Call variables
+
+        type(petsc_array)  :: petscarray
+
+c     Local variables
+
+        integer(4)         :: ieq
+
+c     Begin program
+
+        !Error check
+        if (neqd /= NVAR) then
+          write (*,*) 'Different number of equations in Petsc and F90'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
+        if (.not.associated(petscarray%array)) then
+          allocate(petscarray%array(ilom:ihip,jlom:jhip,klom:khip))
+          do ieq=1,neqd
+            petscarray%array(:,:,:)%var(ieq) = 0d0
+          enddo
+        endif
+
+c     End program
+
+      end subroutine allocatePetscType
+
+c     deallocatePetscType
+c     #################################################################
+      subroutine deallocatePetscType(petscarray)
+
+        implicit none
+
+c     Call variables
+
+        type(petsc_array)  :: petscarray
+
+c     Local variables
+
+c     Begin program
+
+        if (associated(petscarray%array)) deallocate(petscarray%array)
+
+c     End program
+
+      end subroutine deallocatePetscType
+
+c     equatePetscType
+c     #################################################################
+      subroutine equatePetscType(petscarray2,petscarray1)
+      implicit none
+c     -----------------------------------------------------------------
+c     Performs petscarray2 = petscarray1
+c     -----------------------------------------------------------------
+
+c     Call variables
+
+        type(petsc_array),intent(in)  :: petscarray1
+        type(petsc_array),intent(out) :: petscarray2
+
+c     Local variables
+
+c     Begin program
+
+        call allocatePetscType(petscarray2)
+
+        petscarray2%array = petscarray1%array
+
+c     End program
+
+      end subroutine equatePetscType
+
+c     initializePetscType
+c     #################################################################
+      subroutine initializePetscType(petscarray)
+
+c     -----------------------------------------------------------------
+c     Initializes fields of petscarray.
+c     -----------------------------------------------------------------
+
+c     Call variables
+
+        type(petsc_array)  :: petscarray
+
+c     Local variables
+
+c     Begin program
+
+        call allocatePetscType(petscarray)
+
+c     End program
+
+      end subroutine initializePetscType
+
+c     substractPetscType
+c     #################################################################
+      function substractPetscType(petscarray2,petscarray1)
+     .         result (petscarray3)
+
+c     -----------------------------------------------------------------
+c     Performs petscarray3 = petscarray2 - petscarray1
+c     -----------------------------------------------------------------
+
+c     Call variables
+
+        type(petsc_array),intent(in)  :: petscarray1,petscarray2
+        type(petsc_array)             :: petscarray3
+
+c     Local variables
+
+        integer(4)                    :: ieq
+
+c     Begin program
+
+        call allocatePetscType(petscarray3)
+
+        do ieq=1,neqd
+          petscarray3%array(:,:,:)%var(ieq) =
+     .           petscarray2%array(:,:,:)%var(ieq)
+     .         - petscarray1%array(:,:,:)%var(ieq)
+        enddo
+
+c     End program
+
+      end function substractPetscType
+
+c     mapPetscToVector
+c     #################################################################
+      subroutine mapPetscToVector(x,petscarray)
+
+c     -----------------------------------------------------------------
+c     Maps petsc array petscarray into vector x (without ghost cells)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8),intent(out) :: x(ntotd)
+
+      type (petsc_array),intent(in)  :: petscarray
+
+c     Local variables
+
+      integer(4) :: i,j,k,ii,ieq
+
+c     Begin program
+
+c     Form vector x
+
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
+            ii = vecPos(neqd,i,j,k)
+            do ieq = 1,neqd
+              x(ii+ieq) = petscarray%array(i,j,k)%var(ieq)
+            enddo
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine mapPetscToVector
+
+c     mapVectorToPetsc
+c     #################################################################
+      subroutine mapVectorToPetsc(petscarray,x)
+
+c     -----------------------------------------------------------------
+c     Maps vector solution into Petsc arrays.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8),intent(in)             :: x(ntotd)
+
+      type (petsc_array),intent(out) :: petscarray
+
+c     Local variables
+
+      integer(4) :: i,j,k,ii,ieq
+
+c     Begin program
+
+c     Initialize petscarray
+
+      call initializePetscType(petscarray)
+
+c     Unpack vector x
+
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
+            ii = vecPos(neqd,i,j,k)
+            do ieq = 1,neqd
+              petscarray%array(i,j,k)%var(ieq) = x(ii+ieq)
+            enddo
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine mapVectorToPetsc
+
+      end module petsc_var_setup
+#endif
 
 c module variable_setup
 c #####################################################################
       module variable_setup
 
         use parameters
+
+#if defined(petsc)
+        use petsc_var_setup
+#endif
 
         implicit none
 
@@ -92,10 +372,17 @@ c #####################################################################
           module procedure equateDerivedType
      .                    ,mapStructureToVector
      .                    ,mapVectorToStructure
+#if defined(petsc)
+     .                    ,mapPetscToStructure
+     .                    ,mapStructureToPetsc
+#endif
         END INTERFACE
 
         INTERFACE OPERATOR (-)
           module procedure substractDerivedType
+#if defined(petsc)
+     .                    ,substractPetscType
+#endif
         END INTERFACE
 
       contains
@@ -124,7 +411,8 @@ c     Begin program
 
         do ieq=1,neqd
           if (.not.associated(varray%array_var(ieq)%array)) then
-            allocate(varray%array_var(ieq)%array(0:nxdp,0:nydp,0:nzdp))
+            allocate(varray%array_var(ieq)
+     $                     %array(ilom:ihip,jlom:jhip,klom:khip))
             varray%array_var(ieq)%array = 0d0
           endif
         enddo
@@ -179,7 +467,7 @@ c     Local variables
 c     Begin program
 
         if (frmt) then
-          write (unit,*) ilom,ihip,jlom,jhip,klom,khip
+          write (unit,*) ilomg,ihipg,jlomg,jhipg,klomg,khipg
           write (unit,*) varray%nvar
           do ieq=1,varray%nvar
             write(unit,*) varray%array_var(ieq)%array
@@ -187,7 +475,7 @@ c     Begin program
             write(unit,*) varray%array_var(ieq)%descr
           enddo
         else
-          write (unit) ilom,ihip,jlom,jhip,klom,khip
+          write (unit) ilomg,ihipg,jlomg,jhipg,klomg,khipg
           write (unit) varray%nvar
           do ieq=1,varray%nvar
             write(unit) varray%array_var(ieq)%array
@@ -219,12 +507,13 @@ c     Begin program
         ierr = 0
 
         if (format) then
-          read (unit,*,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
-          read (unit,*,iostat=ierr,end=100) varray%nvar
+          read (unit,*,iostat=ierr,end=100)
+     .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
+          read (unit,*,iostat=ierr,end=100)varray%nvar
           if (ierr /= 0) goto 200
           do ieq=1,varray%nvar
             read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)
-     .           %array(ilom:ihip,jlom:jhip,klom:khip)
+     .                 %array(ilom:ihip,jlom:jhip,klom:khip)
             if (ierr /= 0) goto 200
             read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)%bconds
             if (ierr /= 0) goto 200
@@ -232,13 +521,13 @@ c     Begin program
             if (ierr /= 0) goto 200
           enddo
         else
-          read (unit,iostat=ierr,end=100) ilom,ihip,jlom,jhip,klom,khip
-cc          write (*,*) ilom,ihip,jlom,jhip,klom,khip
+          read (unit,iostat=ierr,end=100)
+     .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
           read (unit,iostat=ierr,end=100) varray%nvar
           if (ierr /= 0) goto 200
           do ieq=1,varray%nvar
             read(unit,iostat=ierr,end=100) varray%array_var(ieq)
-     .           %array(ilom:ihip,jlom:jhip,klom:khip)
+     .                 %array(ilom:ihip,jlom:jhip,klom:khip)
             if (ierr /= 0) goto 200
             read(unit,iostat=ierr,end=100) varray%array_var(ieq)%bconds
             if (ierr /= 0) goto 200
@@ -282,7 +571,6 @@ c     Begin program
         varray2%nvar = varray1%nvar
         do ieq=1,varray2%nvar
           varray2%array_var(ieq)%bconds = varray1%array_var(ieq)%bconds
-cc          write (*,*) ieq
 cc          write (*,*) shape(varray1%array_var(ieq)%array)
 cc          write (*,*) shape(varray2%array_var(ieq)%array)
           varray2%array_var(ieq)%array  = varray1%array_var(ieq)%array
@@ -360,7 +648,7 @@ c     End program
 
 c     varPack
 c     #################################################################
-      subroutine varPack(nx,ny,nz,array,bcs,desc,veq,varray)
+      subroutine varPack(array,bcs,desc,veq,varray)
 
 c     -----------------------------------------------------------------
 c     Fills structure fields of varray with pertinent data corresponding
@@ -370,9 +658,9 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer          :: nx,ny,nz,veq,bcs(6)
-        real(8) :: array(0:nx+1,0:ny+1,0:nz+1)
-        character(*)     :: desc
+        integer(4)   :: veq,bcs(6)
+        real(8)      :: array(ilom:ihip,jlom:jhip,klom:khip)
+        character(*) :: desc
 
         type (var_array) :: varray
 
@@ -392,13 +680,13 @@ c     End program
 
 c     varUnPack
 c     #################################################################
-      subroutine varUnPack(varray,veq,nx,ny,nz,array,bcs,desc)
+      subroutine varUnPack(varray,veq,array,bcs,desc)
 
 c     Call variables
 
-        integer          :: nx,ny,nz,veq,bcs(6)
-        real(8) :: array(0:nx+1,0:ny+1,0:nz+1)
-        character(20)    :: desc
+        integer(4)    :: nx,ny,nz,veq,bcs(6)
+        real(8)       :: array(ilom:ihip,jlom:jhip,klom:khip)
+        character(20) :: desc
 
         type (var_array) :: varray
 
@@ -419,7 +707,7 @@ c     #################################################################
       subroutine mapStructureToVector(x,varray)
 
 c     -----------------------------------------------------------------
-c     Maps solution into Newton vector (without ghost cells)
+c     Maps structure into vector (without ghost cells)
 c     -----------------------------------------------------------------
 
       implicit none
@@ -432,7 +720,7 @@ c     Call variables
 
 c     Local variables
 
-      integer*4   i,j,k,ii,ieq,neq
+      integer(4) :: i,j,k,ii,ieq,neq
 
 c     Begin program
 
@@ -440,12 +728,12 @@ c     Unpack vector x
 
       neq = varray%nvar
 
-      do k = 1,nzd
-        do j = 1,nyd
-          do i = 1,nxd
-            do ieq = 1,neq
-              ii = ieq + neq*( (i-1) + nxd*(j-1) + nxd*nyd*(k-1) )
-              x(ii) = varray%array_var(ieq)%array(i,j,k)
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
+            ii = vecPos(neq,i,j,k)
+            do ieq=1,neq
+              x(ii+ieq) = varray%array_var(ieq)%array(i,j,k)
             enddo
           enddo
         enddo
@@ -460,8 +748,7 @@ c     #################################################################
       subroutine mapVectorToStructure(varray,x)
 
 c     -----------------------------------------------------------------
-c     Maps Newton vector solution into arrays using varray0 for 
-c     boundary conditions.
+c     Maps vector solution into structure.
 c     -----------------------------------------------------------------
 
       implicit none
@@ -476,8 +763,6 @@ c     Local variables
 
       integer(4) :: i,j,k,ii,ieq,neq
 
-cc      external imposeBoundaryConditions
-
 c     Begin program
 
 c     Initialize varray
@@ -488,24 +773,106 @@ c     Unpack vector x
 
       neq = varray%nvar
 
-      do ieq = 1,neq
-        do k = 1,nzd
-          do j = 1,nyd
-            do i = 1,nxd
-              ii = ieq + neq*( (i-1) + nxd*(j-1) + nxd*nyd*(k-1) )
-              varray%array_var(ieq)%array(i,j,k) = x(ii)
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
+            ii = vecPos(neq,i,j,k)
+            do ieq=1,neq
+              varray%array_var(ieq)%array(i,j,k) = x(ii+ieq)
             enddo
           enddo
         enddo
       enddo
 
-c     Impose boundary conditions (external)
-
-cc      call imposeBoundaryConditions(varray)
-
 c     End program
 
       end subroutine mapVectorToStructure
+
+#if defined(petsc)
+c     mapPetscToStructure
+c     #################################################################
+      subroutine mapPetscToStructure(varray,petscarray)
+
+c     -----------------------------------------------------------------
+c     Maps structure into Petsc format.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type (var_array  ),intent(out)  :: varray
+      type (petsc_array),intent(in)   :: petscarray
+
+c     Local variables
+
+      integer(4) :: i,j,k,ieq
+
+c     Begin program
+
+c     Initialize structure
+
+      call initializeDerivedType(varray)
+
+c     Perform mapping
+
+      do k = klom,khip
+        do j = jlom,jhip
+          do i = ilom,ihip
+            do ieq = 1,neqd
+              varray%array_var(ieq)%array(i,j,k)
+     .             = petscarray%array(i,j,k)%var(ieq)
+            enddo
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine mapPetscToStructure
+
+c     mapStructureToPetsc
+c     #################################################################
+      subroutine mapStructureToPetsc(petscarray,varray)
+
+c     -----------------------------------------------------------------
+c     Maps structure into petscarray.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type (var_array  ),intent(in ) :: varray
+      type (petsc_array),intent(out) :: petscarray
+
+c     Local variables
+
+      integer(4) :: i,j,k,ieq
+
+c     Begin program
+
+c     Initialize petsc array
+
+      call initializePetscType(petscarray)
+
+c     Perform mapping
+
+      do k = klom,khip
+        do j = jlom,jhip
+          do i = ilom,ihip
+            do ieq = 1,neqd
+              petscarray%array(i,j,k)%var(ieq)
+     .             = varray%array_var(ieq)%array(i,j,k)
+            enddo
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine mapStructureToPetsc
+#endif
 
       end module variable_setup
 
@@ -541,11 +908,15 @@ c     End program
 
       end module variables
 
-c module generalOperators
+c module generalPurposeFunctions
 c ######################################################################
-      module generalOperators
+      module generalPurposeFunctions
 
         use grid
+
+#if defined(petsc)
+        use mpi
+#endif
 
       contains
 
@@ -569,7 +940,7 @@ c     Local variables
 
       integer(4) :: i,j,k
 
-      real(8)    :: tvolume,vol
+      real(8)    :: tvolume,vol,lvolume,lintegral
 
 c     Begin program
 
@@ -587,6 +958,16 @@ c     Integrate
           enddo
         enddo
       enddo
+
+#if defined(petsc)
+      call MPI_Allreduce(lintegral,integral,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      call MPI_Allreduce(lvolume  ,tvolume ,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+#else
+      integral = lintegral
+      tvolume  = lvolume
+#endif
 
       if (avg) integral = integral/tvolume
 
@@ -626,7 +1007,7 @@ c     End
 
       end function int2char
 
-      end module generalOperators
+      end module generalPurposeFunctions
 
 c module icond
 c ######################################################################
@@ -653,7 +1034,9 @@ c ######################################################################
         real(8)    :: dt,dtbase,cnfactor,cnf_d,alpha,gammat
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0
 
+#if !defined(petsc)
         real(8),allocatable,dimension(:) :: fold,fsrc
+#endif
 
         real(8)    :: vx_max,vy_max,vz_max,bx_max,by_max,bz_max
 
@@ -669,10 +1052,9 @@ c module newtongm
 c ######################################################################
       module newtongm
 
-        integer          ::  maxitnwt,maxitgm,iguess,maxksp
-     .                      ,method,global
+        integer(4) ::  maxitnwt,maxitgm,iguess,maxksp,method,global
 
-        real(8) ::  tolgm,rtol,atol
+        real(8)    ::  tolgm,rtol,atol
 
       end module newtongm
 
@@ -680,8 +1062,8 @@ c module counters
 c ######################################################################
       module counters
 
-        integer          :: itnewt,itgmres,itwhistler
-        integer          :: gmres_tot,newt_tot,wh_tot
+        integer(4) :: itnewt,itgmres,itwhistler
+        integer(4) :: gmres_tot,newt_tot,wh_tot
 
       end module counters
 
@@ -689,10 +1071,14 @@ c module iosetup
 c ######################################################################
       module iosetup
 
-        integer  ::     ilevel
+#if defined(petsc)
+        use local_mpi
+#endif
 
-        integer(4)     :: urecord,uinput
-        character*(20) :: recordfile,inputfile
+        integer(4)     :: ilevel
+
+        integer(4)     :: urecord,uinput,uhdf5
+        character*(20) :: recordfile,inputfile,hdf5file
 
       contains
 
@@ -769,5 +1155,23 @@ c     Begin program
 c     End
 
       end subroutine writeRecordFile
+
+c     closeRecordFile
+c     #################################################################
+      subroutine closeRecordFile
+
+c     -----------------------------------------------------------------
+c     Closes record file
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Begin program
+
+      close(urecord)
+
+c     End
+
+      end subroutine closeRecordFile
 
       end module iosetup
