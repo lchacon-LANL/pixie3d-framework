@@ -376,9 +376,9 @@ c #####################################################################
      .                    ,mapVectorToStructure
         END INTERFACE
 
-        INTERFACE OPERATOR (-)
-          module procedure substractDerivedType
-        END INTERFACE
+cc        INTERFACE OPERATOR (-)
+cc          module procedure substractDerivedType
+cc        END INTERFACE
 
       contains
 
@@ -500,7 +500,7 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq
+        integer          :: ieq,ilom,ihip,jlom,jhip,klom,khip
 
 c     Begin program
 
@@ -510,6 +510,10 @@ c     Begin program
 #if defined(petsc)
           read (unit,*,iostat=ierr,end=100)
      .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
+          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
+     .                                ,1,1,1)
+          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
+     .                                ,1,1,1)
 #else
           read (unit,*,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
 #endif
@@ -528,6 +532,11 @@ c     Begin program
 #if defined(petsc)
           read (unit,iostat=ierr,end=100)
      .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
+          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
+     .                                ,1,1,1)
+          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
+     .                                ,1,1,1)
+cc          write (*,*) ilom,ihip,jlom,jhip,klom,khip
 #else
           read (unit,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
 #endif
@@ -542,6 +551,9 @@ c     Begin program
             read(unit,iostat=ierr,end=100) varray%array_var(ieq)%descr
             if (ierr /= 0) goto 200
           enddo
+cc            write (*,*) varray%array_var(1)
+cc     .                 %array(ilom:ihip,jlom:jhip,klom:khip)
+cc            stop
         endif
 
         return
@@ -573,6 +585,8 @@ c     Local variables
         integer(4) :: ieq
 
 c     Begin program
+
+        if (varray2%nvar /= neqd) nullify(varray2%array_var)
 
         call allocateDerivedType(varray2)
 
@@ -621,9 +635,42 @@ c     End program
 
       end subroutine initializeDerivedType
 
+ccc     substractDerivedType
+ccc     #################################################################
+cc      function substractDerivedType(varray2,varray1) result (varray3)
+cc
+ccc     -----------------------------------------------------------------
+ccc     Performs varray3 = varray2 - varray1
+ccc     -----------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc        type(var_array)             :: varray3
+cc        type(var_array),intent(in)  :: varray1,varray2
+cc
+ccc     Local variables
+cc
+cc        integer          :: ieq
+cc
+ccc     Begin program
+cc
+cc        call allocateDerivedType(varray3)
+cc
+cc        varray3%nvar = varray2%nvar
+cc        do ieq=1,varray3%nvar
+cc          varray3%array_var(ieq)%bconds = varray2%array_var(ieq)%bconds
+cc          varray3%array_var(ieq)%array  = varray2%array_var(ieq)%array
+cc     .                                   -varray1%array_var(ieq)%array
+cc          varray3%array_var(ieq)%descr  = varray2%array_var(ieq)%descr
+cc        enddo
+cc
+ccc     End program
+cc
+cc      end function substractDerivedType
+
 c     substractDerivedType
 c     #################################################################
-      function substractDerivedType(varray2,varray1) result (varray3)
+      subroutine substractDerivedType(varray2,varray1,varray3)
 
 c     -----------------------------------------------------------------
 c     Performs varray3 = varray2 - varray1
@@ -631,8 +678,8 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(var_array),intent(in)  :: varray1,varray2
-        type(var_array)             :: varray3
+        type(var_array),intent(OUT) :: varray3
+        type(var_array),intent(IN)  :: varray1,varray2
 
 c     Local variables
 
@@ -652,7 +699,7 @@ c     Begin program
 
 c     End program
 
-      end function substractDerivedType
+      end subroutine substractDerivedType
 
 c     varPack
 c     #################################################################
@@ -836,15 +883,11 @@ c ######################################################################
 
         use grid
 
-#if defined(petsc)
-        use mpi
-#endif
-
       contains
 
 c     integral
 c     ################################################################
-      real(8) function integral(nx,ny,nz,array,igx,igy,igz,avg)
+      function integral(nx,ny,nz,array,igx,igy,igz,avg)
 
 c     ---------------------------------------------------------------
 c     Integrates array(i,j,k) on domain (nx)x(ny)x(nz).
@@ -855,7 +898,7 @@ c     ---------------------------------------------------------------
 c    Call variables
 
       integer(4) :: igx,igy,igz,nx,ny,nz
-      real(8)    :: array(0:nx+1,0:ny+1,0:nz+1)
+      real(8)    :: array(0:nx+1,0:ny+1,0:nz+1),integral
       logical    :: avg
 
 c     Local variables
@@ -995,10 +1038,6 @@ c module iosetup
 c ######################################################################
       module iosetup
 
-#if defined(petsc)
-        use local_mpi
-#endif
-
         integer(4)     :: ilevel
 
         integer(4)     :: urecord,uinput,uhdf5
@@ -1101,3 +1140,43 @@ c     End
       end subroutine closeRecordFile
 
       end module iosetup
+
+c module error
+c ######################################################################
+      module error
+
+#if defined(petsc)
+        use local_mpi
+#endif
+
+        character(80) :: messg
+
+      contains
+
+c     pstop
+c     ################################################################
+      subroutine pstop(routine,message)
+
+c     ---------------------------------------------------------------
+c     Stops program at "routine" with "message"
+c     ---------------------------------------------------------------
+
+        implicit none
+
+        character(*) :: routine, message
+
+c     Begin program
+
+        write (*,*) trim(message)
+        write (*,*) 'Program stopped at routine ',trim(routine)
+
+#if defined(petsc)
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+        call MPI_Finalize(mpierr)
+#endif
+
+        stop
+
+      end subroutine pstop
+
+      end module error
