@@ -170,9 +170,6 @@ int MAIN__(int argc, char **argv)
   if (npx == 0) npx = PETSC_DECIDE;
   if (npy == 0) npy = PETSC_DECIDE;
   if (npz == 0) npz = PETSC_DECIDE;
-  npx = PETSC_DECIDE;
-  npy = PETSC_DECIDE;
-  npz = PETSC_DECIDE;
 
   atol 	   = PETSC_DEFAULT;
   rtol 	   = user.indata.rtol;
@@ -487,13 +484,6 @@ int FormInitialCondition(SNES snes,Vec X,void *ptr)
   Vec     localX;
 
   PetscFunctionBegin;
-
-  /*
-   * Initialize counters
-   */
-
-  user->snes_its = 0;
-  user->ksp_its = 0;
 
   /*
    * Scatter ghost points to local vector,using the 2-step process
