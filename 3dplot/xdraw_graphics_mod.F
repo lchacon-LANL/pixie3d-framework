@@ -236,11 +236,15 @@ c     Call variables
 c     Local variables
 
         integer(4) :: i,j,k,iimin,iimax,jjmin,jjmax,kkmin,kkmax,igr
-        integer(4) :: l,llmin,llmax
+        integer(4) :: l,llmin,llmax,iplt,jplt,kplt
         real(8 )   :: car(3),coord
         real(8),allocatable,dimension(:,:) :: profiles
 
 c     Begin program
+
+        iplt = abs(iplot)
+        jplt = abs(jplot)
+        kplt = abs(kplot)
 
         iimin = iming
         iimax = imaxg
@@ -248,27 +252,46 @@ c     Begin program
         jjmin = jming
         jjmax = jmaxg
 
-        kkmax = 1
-        kkmin = 1
+        kkmax = kming
+        kkmin = kmaxg
 
         select case (comp)
         case(1)
           if (.not.average) then
-            jjmin = max(2*jmaxg/3,1)
-            jjmax = max(2*jmaxg/3,1)
+            jjmin = jplt
+            jjmax = jplt
+
+            kkmin = kplt
+            kkmax = kplt
           endif
 
           llmin = iming
           llmax = imaxg
+
         case(2)
           if (.not.average) then
-            iimin = max(2*imaxg/3,1)
-            iimax = max(2*imaxg/3,1)
+            iimin = iplt
+            iimax = iplt
+
+            kkmin = kplt
+            kkmax = kplt
           endif
 
           llmin = jming
           llmax = jmaxg
         case(3)
+          if (.not.average) then
+            iimin = iplt
+            iimax = iplt
+
+            jjmin = jplt
+            jjmax = jplt
+          endif
+
+          llmin = kming
+          llmax = kmaxg
+
+        case default
 
           write (*,*) 'Profile direction not implemented'
           write (*,*) 'Aborting..'
@@ -404,90 +427,144 @@ c     Call variables
 c     Local variables
 
         integer(4) :: nsblk,nusblk
-        integer(4) :: i,j,k,igr
+        integer(4) :: i,j,k,igr,plt(3)
         real(8),allocatable,dimension(:,:,:,:) :: car
+        logical    :: cut(3)
 
 c     Begin program
 
         nsblk  = 1              ! Number of structured blocks
         nusblk = 0              ! Number of unestructured blocks
 
+c     Select 2D cuts
+
+        plt = (/ iplot,jplot,kplot /)
+
+        cut = .false.
+        where (plt < 0) cut = .true.
+
+        plt = abs(plt)
+
+        if (count(cut == .true.) > 1) then
+          messg = 'More than 1 2D cut selected!'
+          call pstop('contour_step',messg)
+        elseif (count(cut == .true.) < 1) then
+          cut(3) = .true. !Default X-Y plot
+          plt(3) = 1
+        endif
+
+c     Perform 2d cuts
+
+        if (cut(1)) then
+          axes_label =(/'y','z'/)
+          call twodcut(plt(1),plt(1),plt(1),jming,jmaxg,kming,kmaxg
+     .                ,'X-slice contour at i=')
+        elseif (cut(2)) then
+          axes_label =(/'x','z'/)
+          call twodcut(plt(2),iming,imaxg,plt(2),plt(2),kming,kmaxg
+     .                ,'Y-slice contour at j=')
+        else
+          axes_label =(/'x','y'/)
+          call twodcut(plt(3),iming,imaxg,jming,jmaxg,plt(3),plt(3)
+     .                ,'Z-slice contour at k=')
+        endif
+
 c     X-Y plots
 
-        k = max((kmaxg-kming+1)/3,1)
-cc        k = kming
-
-        if (kmaxg -kming /= 1) then
-          write (*,*) 'Z-slice contour at k=',k
-        endif
-
-        if(iopt.eq.0) then
-
-c         Write initialization headings
-
-          write(nunit) nsblk,nusblk,nqty
-          write(nunit) (imaxg-iming),(jmaxg-jming)
-
-          if (cartsn) then      !Write cartesian coordinates
-
-            allocate (car(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
-
-            do j=jming,jmaxg
-              do i=iming,imaxg
-                call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
-     .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
-              enddo
-            enddo
- 
-            write(nunit)
-     .           ((real(car(i,j,k,1),4),i=iming,imaxg),j=jming,jmaxg)
-     .          ,((real(car(i,j,k,2),4),i=iming,imaxg),j=jming,jmaxg)
-
-            deallocate(car)
-
-cc            write (*,*) 'here'
-
-          else             !Write logical coordinates
-
-            write(nunit) ((real(xl(i),4),i=iming,imaxg),j=jming,jmaxg)
-     .                  ,((real(yl(j),4),i=iming,imaxg),j=jming,jmaxg)
-
-          endif
-
-        else
-
-c         Write arrays
-
-          do igr=1,nqty
-            write(nunit) ((real(array_graph(igr)%array(i,j,k),4)
-     .                    ,i=iming,imaxg),j=jming,jmaxg)
-          enddo
-
-        endif
-
-c     X-Z plots
-
-cc        j = jming
+cc        if (kplot == 0) then
+cc          k = max((kmaxg-kming+1)/3,1)
+cc        else
+cc          k = kplot
+cc        endif
+cc
+cc        if (kmaxg -kming /= 1) then
+cc          write (*,*) 'Z-slice contour at k=',k
+cc        endif
 cc
 cc        if(iopt.eq.0) then
 cc
-cc          allocate (car(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
+ccc         Write initialization headings
+cc
+cc          write(nunit) nsblk,nusblk,nqty
+cc          write(nunit) (imaxg-iming),(jmaxg-jming)
+cc
+cc          if (cartsn) then      !Write cartesian coordinates
+cc
+cc            allocate (car(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
+cc
+cc            do j=jming,jmaxg
+cc              do i=iming,imaxg
+cc                call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
+cc     .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
+cc              enddo
+cc            enddo
+cc 
+cc            write(nunit)
+cc     .           ((real(car(i,j,k,1),4),i=iming,imaxg),j=jming,jmaxg)
+cc     .          ,((real(car(i,j,k,2),4),i=iming,imaxg),j=jming,jmaxg)
+cc
+cc            deallocate(car)
+cc
+cc          else             !Write logical coordinates
+cc
+cc            write(nunit) ((real(xl(i),4),i=iming,imaxg),j=jming,jmaxg)
+cc     .                  ,((real(yl(j),4),i=iming,imaxg),j=jming,jmaxg)
+cc
+cc          endif
+cc
+cc        else
+cc
+ccc         Write arrays
+cc
+cc          do igr=1,nqty
+cc            write(nunit) ((real(array_graph(igr)%array(i,j,k),4)
+cc     .                    ,i=iming,imaxg),j=jming,jmaxg)
+cc          enddo
+cc
+cc        endif
+
+c     X-Z plots
+
+cc        if (jplot == 0) then
+cc          j = max((jmaxg-jming+1)/3,1)
+cc        else
+cc          j = jplot
+cc        endif
+cc
+cc        if (jmaxg -jming /= 1) then
+cc          write (*,*) 'Y-slice contour at j=',j
+cc        endif
+cc
+cc        if(iopt.eq.0) then
 cc
 ccc         Write initialization headings
 cc
 cc          write(nunit) nsblk,nusblk,nqty
 cc          write(nunit) (imaxg-iming),(kmaxg-kming)
 cc
-cc          do k=kming,kmaxg
-cc            do i=iming,imaxg
-cc              car(i,j,k,:) = x_xi(xl(i),yl(j),zl(k))
+cc          if (cartsn) then      !Write cartesian coordinates
+cc
+cc            allocate (car(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
+cc
+cc            do k=kming,kmaxg
+cc              do i=iming,imaxg
+cc                call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
+cc     .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
+cc              enddo
 cc            enddo
-cc          enddo
 cc
-cc          write(nunit) ((real(car(i,j,k,1),4),i=iming,imaxg),k=kming,kmaxg)
-cc     .                ,((real(car(i,j,k,3),4),i=iming,imaxg),k=kming,kmaxg)
+cc            write(nunit)
+cc     .           ((real(car(i,j,k,1),4),i=iming,imaxg),k=kming,kmaxg)
+cc     .          ,((real(car(i,j,k,3),4),i=iming,imaxg),k=kming,kmaxg)
 cc
-cc          deallocate(car)
+cc            deallocate(car)
+cc
+cc          else             !Write logical coordinates
+cc
+cc            write(nunit) ((real(xl(i),4),i=iming,imaxg),k=kming,kmaxg)
+cc     .                  ,((real(zl(k),4),i=iming,imaxg),k=kming,kmaxg)
+cc
+cc          endif
 cc
 cc        else
 cc
@@ -498,7 +575,138 @@ cc          enddo
 cc
 cc        endif
 
+c     Y-Z plots
+
+cc        if (iplot == 0) then
+cc          i = max((imaxg-iming+1)/3,1)
+cc        else
+cc          i = iplot
+cc        endif
+cc
+cc        if (imaxg -iming /= 1) then
+cc          write (*,*) 'X-slice contour at i=',i
+cc        endif
+cc
+cc        if(iopt.eq.0) then
+cc
+ccc         Write initialization headings
+cc
+cc          write(nunit) nsblk,nusblk,nqty
+cc          write(nunit) (jmaxg-jming),(kmaxg-kming)
+cc
+cc          if (cartsn) then      !Write cartesian coordinates
+cc
+cc            allocate (car(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
+cc
+cc            do k=kming,kmaxg
+cc              do j=jming,jmaxg
+cc                call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
+cc     .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
+cc              enddo
+cc            enddo
+cc
+cc            write(nunit)
+cc     .           ((real(car(i,j,k,2),4),j=jming,jmaxg),k=kming,kmaxg)
+cc     .          ,((real(car(i,j,k,3),4),j=jming,jmaxg),k=kming,kmaxg)
+cc
+cc            deallocate(car)
+cc
+cc          else             !Write logical coordinates
+cc
+cc            write(nunit) ((real(yl(j),4),j=jming,jmaxg),k=kming,kmaxg)
+cc     .                  ,((real(zl(k),4),j=jming,jmaxg),k=kming,kmaxg)
+cc
+cc          endif
+cc
+cc        else
+cc
+cc          do igr=1,nqty
+cc            write(nunit) ((real(array_graph(igr)%array(i,j,k),4)
+cc     .                    ,j=jming,jmaxg),k=kming,kmaxg)
+cc          enddo
+cc
+cc        endif
+
 c     End program
+
+      contains
+
+c     twodcut
+c     ################################################################
+      subroutine twodcut(iplt,imng,imxg,jmng,jmxg,kmng,kmxg,messg)
+
+        implicit none
+
+        integer(4)   :: normal,iplt,imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
+        character(*) :: messg
+
+        write (*,*) messg,iplt
+
+        if(iopt.eq.0) then
+
+c         Write initialization headings
+
+          write(nunit) nsblk,nusblk,nqty
+          if (imng == imxg) then
+            write(nunit) (jmxg-jmng),(kmxg-kmng)
+            i1 = 2
+            i2 = 3
+          elseif (jmng == jmxg) then
+            write(nunit) (imxg-imng),(kmxg-kmng)
+            i1 = 1
+            i2 = 3
+          else
+            write(nunit) (imxg-imng),(jmxg-jmng)
+            i1 = 1
+            i2 = 2
+          endif
+
+          allocate (car(imng:imxg,jmng:jmxg,kmng:kmxg,3))
+
+          if (cartsn) then      !Write cartesian coordinates
+
+            do k=kmng,kmxg
+              do j=jmng,jmxg
+                do i=imng,imxg
+                  call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
+     .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
+                enddo
+              enddo
+            enddo
+
+          else             !Write logical coordinates
+
+            do k=kmng,kmxg
+              do j=jmng,jmxg
+                do i=imng,imxg
+                  car(i,j,k,1) = xl(i)
+                  car(i,j,k,2) = yl(j)
+                  car(i,j,k,3) = zl(k)
+                enddo
+              enddo
+            enddo
+
+          endif
+
+          write(nunit) (((real(car(i,j,k,i1),4),i=imng,imxg)
+     .                                         ,j=jmng,jmxg)
+     .                                         ,k=kmng,kmxg)
+     .                ,(((real(car(i,j,k,i2),4),i=imng,imxg)
+     .                                         ,j=jmng,jmxg)
+     .                                         ,k=kmng,kmxg)
+
+          deallocate(car)
+
+        else
+
+          do igr=1,nqty
+            write(nunit) (((real(array_graph(igr)%array(i,j,k),4)
+     .                    ,i=imng,imxg),j=jmng,jmxg),k=kmng,kmxg)
+          enddo
+
+        endif
+
+      end subroutine twodcut
 
       end subroutine contour_step
 
@@ -805,7 +1013,7 @@ c       variables for parallel HDF5
         integer(hid_t) :: hs_dataspace_id
         integer(hid_t) :: p_dataspace_id,p_node_dataspace_id
 
-        integer(4)     :: error,igrp
+        integer(4)     :: hdferr,igrp
 
         integer(4), parameter :: ARRAY_RANK = 3
         integer(4), parameter :: ATTR_RANK = 1
@@ -862,15 +1070,15 @@ c     Exit if not in rank=0
 #endif
 
 c     Initialize FORTRAN interface
-      call h5open_f(error)
+      call h5open_f(hdferr)
 
 c     Create a new file using default properties.
-      call h5fcreate_f(hdf5_fname, H5F_ACC_TRUNC_F, file_id, error)
+      call h5fcreate_f(hdf5_fname, H5F_ACC_TRUNC_F, file_id, hdferr)
       
 c     Terminate access to the file.
-      call h5fclose_f(file_id, error)
+      call h5fclose_f(file_id, hdferr)
 
-      call h5close_f(error)
+      call h5close_f(hdferr)
 
 c     End program
 
@@ -902,40 +1110,40 @@ c     Begin program
 
 c     Initialize FORTRAN interface
 
-      call h5open_f(error)
+      call h5open_f(hdferr)
 
 c     Create a new file using default properties.
 
-      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,error,
+      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
      $               H5P_DEFAULT_F)
 
 c     Create a group for coordinates data
 
       if (step == 0) then
         !Cell center positions
-        call h5gcreate_f(file_id,cell_coords_gname,group_id,error,0)
-        call h5gclose_f(group_id,error)
+        call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr,0)
+        call h5gclose_f(group_id,hdferr)
         !Node positions
-        call h5gcreate_f(file_id,node_coords_gname,group_id,error,0)
-        call h5gclose_f(group_id,error)
+        call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr,0)
+        call h5gclose_f(group_id,hdferr)
       endif
 
 c     Create groups for computation data
 
-      call h5gcreate_f(file_id,groupname,group_id,error, 0)
+      call h5gcreate_f(file_id,groupname,group_id,hdferr, 0)
 
       do igrp=1,ngroups
         call h5gcreate_f(group_id,graph(igrp)%descr,subgroup_id,
-     $                  error,0)
-        call h5gclose_f(subgroup_id, error)
+     $                  hdferr,0)
+        call h5gclose_f(subgroup_id, hdferr)
       enddo
 
-      call h5gclose_f(group_id, error)
+      call h5gclose_f(group_id, hdferr)
 
 c     Terminate access to the file.
-      call h5fclose_f(file_id, error)
+      call h5fclose_f(file_id, hdferr)
 
-      call h5close_f(error)
+      call h5close_f(hdferr)
 
 c     End program
 
@@ -972,38 +1180,38 @@ c     Create the output file and data groups
       call createGroups(itime)
 
 c     Initialize FORTRAN interface
-      call h5open_f(error)
+      call h5open_f(hdferr)
 
 #if defined(petsc)
 c PARALLEL
 c     Set up file access property list with parallel I/O access
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,error)
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,hdferr)
       call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,
-     $                        error)
+     $                        hdferr)
 
 c     Open an existing file.
-      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,error,
+      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
      $               access_prp = plist_id)
-      call h5pclose_f(plist_id,error)
+      call h5pclose_f(plist_id,hdferr)
 #else
 c SERIAL
 c     Open an existing file.
-      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,error,
+      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
      $               H5P_DEFAULT_F)
 #endif
 
 c     Create the dataspace of actual data and its attributes
 
       !Cell-centered data
-      call h5screate_simple_f(ARRAY_RANK,array_dim,dataspace_id,error)
+      call h5screate_simple_f(ARRAY_RANK,array_dim,dataspace_id,hdferr)
 
       !Node-centered data
       call h5screate_simple_f(ARRAY_RANK,node_array_dim
-     .                       ,node_dataspace_id,error)
+     .                       ,node_dataspace_id,hdferr)
 
       !Attribute data
       call h5screate_simple_f(ATTR_RANK,attr_dim,dataspace_attr_id
-     $                       ,error)
+     $                       ,hdferr)
 
 #if defined(petsc)
 c PARALLEL
@@ -1019,7 +1227,7 @@ c     in the file.
       count(2) = nyl
       count(3) = nzl
 
-      call h5screate_simple_f(ARRAY_RANK,count,p_dataspace_id,error)
+      call h5screate_simple_f(ARRAY_RANK,count,p_dataspace_id,hdferr)
 
       !Node-centered data
       node_count(1) = nxl+1
@@ -1027,11 +1235,11 @@ c     in the file.
       node_count(3) = nzl+1
 
       call h5screate_simple_f(ARRAY_RANK,node_count,p_node_dataspace_id
-     .                       ,error)
+     .                       ,hdferr)
 
 c     Create property list for collective dataset write.
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,error)
-      call h5pset_dxpl_mpio_f(plist_id,H5FD_MPIO_COLLECTIVE_F,error)
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,hdferr)
+      call h5pset_dxpl_mpio_f(plist_id,H5FD_MPIO_COLLECTIVE_F,hdferr)
 #endif
 
 c     Write the coordinate data
@@ -1042,7 +1250,7 @@ c     Write the coordinate data
       if (itime == 0) then
 
         !Cell center positions
-        call h5gopen_f(file_id,cell_coords_gname,group_id,error) 
+        call h5gopen_f(file_id,cell_coords_gname,group_id,hdferr) 
 
         do k=klom,khip
           do j=jlom,jhip
@@ -1059,78 +1267,78 @@ c     Write the coordinate data
 c PARALLEL
           call h5dcreate_f(group_id,coords_descr(icoords),
      $                     H5T_IEEE_F64BE,
-     $                     dataspace_id,dataset_id,error)
+     $                     dataspace_id,dataset_id,hdferr)
 
 c         Select hyperslab in the file.
-          call h5dget_space_f(dataset_id,hs_dataspace_id,error)
+          call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
           call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
-     $                               offset,count,error)    
+     $                               offset,count,hdferr)    
 
 c         Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
      $                 cell(ilo:ihi,jlo:jhi,klo:khi,icoords),
      $                 array_dim_i,
-     $                 error,file_space_id = hs_dataspace_id,
+     $                 hdferr,file_space_id = hs_dataspace_id,
      $                 mem_space_id = p_dataspace_id,
      $                 xfer_prp = plist_id)
 
-          call h5sclose_f(hs_dataspace_id,error)
+          call h5sclose_f(hs_dataspace_id,hdferr)
 #else
 c SERIAL
           call h5dcreate_f(group_id,coords_descr(icoords),
      $                     H5T_IEEE_F64BE,
-     $                     dataspace_id,dataset_id,error)
+     $                     dataspace_id,dataset_id,hdferr)
 
 c         Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
      $                    cell(ilo:ihi,jlo:jhi,klo:khi,icoords), !must specify index ranges
-     $                    array_dim,error)
+     $                    array_dim,hdferr)
           
 #endif
-          call h5dclose_f(dataset_id,error)
+          call h5dclose_f(dataset_id,hdferr)
         enddo
 
-        call h5gclose_f(group_id, error)
+        call h5gclose_f(group_id, hdferr)
 
         !Node positions
-        call h5gopen_f(file_id,node_coords_gname,group_id,error) 
+        call h5gopen_f(file_id,node_coords_gname,group_id,hdferr) 
 
         call interpolateNodalData
 
         do icoords=1,ARRAY_RANK
           call h5dcreate_f(group_id,coords_descr(icoords),
      $                     H5T_IEEE_F64BE,
-     $                     node_dataspace_id,dataset_id,error)
+     $                     node_dataspace_id,dataset_id,hdferr)
 
 #if defined(petsc)
 c PARALLEL
 c         Select hyperslab in the file.
-          call h5dget_space_f(dataset_id,hs_dataspace_id,error)
+          call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
           call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
-     $                               offset,node_count,error)    
+     $                               offset,node_count,hdferr)    
 
 c         Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
      $                 node(ilo:ihip,jlo:jhip,klo:khip,icoords),
      $                 array_dim_i,
-     $                 error,
+     $                 hdferr,
      .                 file_space_id = hs_dataspace_id,
      $                 mem_space_id = p_node_dataspace_id,
      $                 xfer_prp = plist_id)
 
-          call h5sclose_f(hs_dataspace_id,error)
+          call h5sclose_f(hs_dataspace_id,hdferr)
 #else
 c SERIAL
 c         Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
      $                    node(ilo:ihip,jlo:jhip,klo:khip,icoords),
-     $                    node_array_dim,error)
+     $                    node_array_dim,hdferr)
 #endif
 
-          call h5dclose_f(dataset_id,error)
+          call h5dclose_f(dataset_id,hdferr)
         enddo
 
-        call h5gclose_f(group_id, error)
+        call h5gclose_f(group_id, hdferr)
 
       endif
 
@@ -1138,28 +1346,28 @@ c         Write data to the dataset
 
 c     Write the actual data
 
-      call h5gopen_f(file_id,timestep,group_id,error)
+      call h5gopen_f(file_id,timestep,group_id,hdferr)
 
       do igrp=1,ngroups
 
 c       Open an existing group of the specified file.
-        call h5gopen_f(group_id,graph(igrp)%descr,subgroup_id,error)
+        call h5gopen_f(group_id,graph(igrp)%descr,subgroup_id,hdferr)
 
         if (graph(igrp)%cartesian) then
 
 c         Write "Attribute data"
 
-          call h5tcopy_f(H5T_NATIVE_CHARACTER,attr_type_id,error)
-          call h5tset_size_f(attr_type_id,strlength,error)
+          call h5tcopy_f(H5T_NATIVE_CHARACTER,attr_type_id,hdferr)
+          call h5tset_size_f(attr_type_id,strlength,hdferr)
 
           call h5acreate_f(subgroup_id,attr_name,attr_type_id,
      $                     dataspace_attr_id,attribute_id,
-     $                     error)
+     $                     hdferr)
 
           call h5awrite_f(attribute_id,attr_type_id,
      $                    attr_data,
-     $                    attr_dim,error)
-          call h5aclose_f(attribute_id,error)
+     $                    attr_dim,hdferr)
+          call h5aclose_f(attribute_id,hdferr)
 
 c         Write nodal data
 
@@ -1172,7 +1380,7 @@ c           Create the dataset
             call h5dcreate_f(subgroup_id
      $                      ,graph(igrp)%array_graph(ieq)%descr
      $                      ,H5T_IEEE_F64BE
-     $                      ,node_dataspace_id,dataset_id,error)
+     $                      ,node_dataspace_id,dataset_id,hdferr)
 
 c           Interpolate nodal values
 
@@ -1188,32 +1396,32 @@ cc            pause
 #if defined(petsc)
 c PARALLEL
 c           Select hyperslab in the file.
-            call h5dget_space_f(dataset_id,hs_dataspace_id,error)
+            call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
             call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F
-     $                                ,offset,node_count,error)    
+     $                                ,offset,node_count,hdferr)    
 
 c           Write data to the dataset
             call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
      $                     ,node(ilo:ihip,jlo:jhip,klo:khip,1)
      $                     ,array_dim_i
-     $                     ,error
+     $                     ,hdferr
      $                     ,file_space_id = hs_dataspace_id
      $                     ,mem_space_id = p_node_dataspace_id
      $                     ,xfer_prp = plist_id)
 
 c           Release resources
-            call h5sclose_f(hs_dataspace_id,error)
+            call h5sclose_f(hs_dataspace_id,hdferr)
 #else
 c SERIAL
 c           Write data to the dataset
             call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
      $                     ,node(ilo:ihip,jlo:jhip,klo:khip,1)
-     $                     ,node_array_dim,error)
+     $                     ,node_array_dim,hdferr)
 #endif
 
 c         Release resources
 
-            call h5dclose_f(dataset_id,error)
+            call h5dclose_f(dataset_id,hdferr)
 
           enddo
 
@@ -1229,63 +1437,63 @@ c           Create the dataset
             call h5dcreate_f(subgroup_id
      $                      ,graph(igrp)%array_graph(ieq)%descr
      $                      ,H5T_IEEE_F64BE
-     $                      ,dataspace_id,dataset_id,error)
+     $                      ,dataspace_id,dataset_id,hdferr)
 
 #if defined(petsc)
 c PARALLEL
 c           Select hyperslab in the file.
-            call h5dget_space_f(dataset_id,hs_dataspace_id,error)
+            call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
             call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F
-     $                                ,offset,count,error)    
+     $                                ,offset,count,hdferr)    
 
 c           Write data to the dataset
             call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
      $                     ,graph(igrp)%array_graph(ieq)
      $                         %array(ilo:ihi,jlo:jhi,klo:khi)
      $                     ,array_dim_i
-     $                     ,error,file_space_id = hs_dataspace_id
+     $                     ,hdferr,file_space_id = hs_dataspace_id
      $                     ,mem_space_id = p_dataspace_id
      $                     ,xfer_prp = plist_id)
 
 c           Release resources
-            call h5sclose_f(hs_dataspace_id,error)
+            call h5sclose_f(hs_dataspace_id,hdferr)
 #else
 c SERIAL
 c           Write data to the dataset
             call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
      $                     ,graph(igrp)%array_graph(ieq)
      $                                 %array(ilo:ihi,jlo:jhi,klo:khi) !must specify index ranges
-     $                     ,array_dim,error)
+     $                     ,array_dim,hdferr)
 
 #endif
 
 c         Release resources
 
-            call h5dclose_f(dataset_id,error)
+            call h5dclose_f(dataset_id,hdferr)
 
           enddo
 
         endif
 
-        call h5gclose_f(subgroup_id, error)
+        call h5gclose_f(subgroup_id, hdferr)
 
       enddo
 
 c     Release resources
 
-      call h5gclose_f(group_id, error)
+      call h5gclose_f(group_id, hdferr)
 
 #if defined(petsc)
 c PARALLEL
-      call h5sclose_f(p_dataspace_id,error)
-      call h5sclose_f(p_node_dataspace_id,error)
-      call h5pclose_f(plist_id,error)
+      call h5sclose_f(p_dataspace_id,hdferr)
+      call h5sclose_f(p_node_dataspace_id,hdferr)
+      call h5pclose_f(plist_id,hdferr)
 #endif
 
-      call h5sclose_f(dataspace_id,error)
-      call h5sclose_f(node_dataspace_id,error)
-      call h5fclose_f(file_id,error)
-      call h5close_f (error)
+      call h5sclose_f(dataspace_id,hdferr)
+      call h5sclose_f(node_dataspace_id,hdferr)
+      call h5fclose_f(file_id,hdferr)
+      call h5close_f (hdferr)
 
 c     End program
 
@@ -1304,19 +1512,7 @@ c     ---------------------------------------------------------------------
         do k=klo,khip
           do j=jlo,jhip
             do i=ilo,ihip
-cc              node(i,j,k,:) = 0.125
-cc     .                       *(cell(i  ,j  ,k  ,:)+cell(i-1,j  ,k  ,:)
-cc     .                        +cell(i  ,j-1,k  ,:)+cell(i-1,j-1,k  ,:)
-cc     .                        +cell(i  ,j  ,k-1,:)+cell(i-1,j  ,k-1,:)
-cc     .                        +cell(i  ,j-1,k-1,:)+cell(i-1,j-1,k-1,:))
-cc              if (i == ilo .and. ilog == 1 .and. bcond(1) == SP) then
-cc                node(i,j,k,1:2) = 0.25*(cell(i-1,j  ,k  ,1:2)
-cc     .                                 +cell(i-1,j-1,k  ,1:2)
-cc     .                                 +cell(i-1,j  ,k-1,1:2)
-cc     .                                 +cell(i-1,j-1,k-1,1:2))
-cc              endif
-
-              if (i == ilo .and. ilog == 1 .and. bcond(1) == SP) then
+              if (i == ilo .and. ilog == 1 .and. bcSP()) then
                 node(i,j,k,:) = 0.25*(cell(i-1,j  ,k  ,:)
      .                               +cell(i-1,j-1,k  ,:)
      .                               +cell(i-1,j  ,k-1,:)
@@ -1479,7 +1675,7 @@ c     Begin program
         if (bcond(1) == PER) then
           iming = 1
           imaxg = nx+1
-        elseif (bcond(1) == SP) then
+        elseif (bcSP()) then
 cc          iming = 1
           iming = 0
           imaxg = nx+1
@@ -1491,19 +1687,13 @@ cc          iming = 1
         if (bcond(3) == PER) then
           jming = 1
           jmaxg = ny+1
-        elseif (bcond(3) == SP) then
-          jming = 1
-          jmaxg = ny+1
         else
           jming = 0
           jmaxg = ny+1
         endif
 
         if (bcond(5) == PER) then
-          kming = 1
-          kmaxg = nz+1
-        elseif (bcond(5) == SP) then
-          kming = 1
+          kming = 0
           kmaxg = nz+1
         else
           kming = 0
