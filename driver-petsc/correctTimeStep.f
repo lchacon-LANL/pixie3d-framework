@@ -1,7 +1,7 @@
-c processOldSolution
+c correctTimeStepRoutine
 c ######################################################################
-      subroutine processOldSolution(array,imin,imax,jmin,jmax,kmin,kmax
-     .                             ,gmits,nwits)
+      subroutine correctTimeStepRoutine(array,imin,imax,jmin,jmax,kmin,
+     .                                  kmax,gmits,nwits)
 
       use variables
 
@@ -40,10 +40,6 @@ c Map old solution
 
       u_n = petscarray
 
-c Evaluate nonlinear function at old time for theta scheme
-
-      call evaluateNonlinearFunction(u_n,fold)
-
 c diag ******
 cc      u_n = u_n - u_np
 cc      write (*,*) imin,imax,jmin,jmax,kmin,kmax
@@ -75,22 +71,6 @@ cc
 cc      stop
 c diag ******
 
-c Time level plots (xdraw)
-
-      if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
-        nrst  = 0
-        if (itime.gt.0) tmrst = tmrst - dstep
-        call writeRecordFile(itime,time,dt,u_n)
-cc        write (*,*) itime,time
-      endif
-
-c Output per time step
-
-      itgmres = gmits
-      itnewt  = nwits
-
-      call output
-
 c Find new time step
 
       call correctTimeStep(u_n,itime+1,ierr)
@@ -107,7 +87,7 @@ c Deallocate memory
 
       call deallocatePetscType(petscarray)
 
-      end subroutine processOldSolution
+      end subroutine correctTimeStepRoutine
 
 c correctTimeStep
 c####################################################################

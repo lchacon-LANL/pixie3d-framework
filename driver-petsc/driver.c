@@ -49,16 +49,22 @@ typedef struct {
 extern void FORTRAN_NAME(EVALUATENONLINEARRESIDUAL) 
                       (Field*, Field*, int*, int*, int*, int*, int*, int*,
 		       int*, int*, int*, int*, int*, int*);
-extern void FORTRAN_NAME(INITIALIZECALCULATION) (Field*, int*, int*, int*, int*, int*, int*);
-extern void FORTRAN_NAME(PROCESSOLDSOLUTION) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
+extern void FORTRAN_NAME(FORMEQUILIBRIUM) (Field*, int*, int*, int*, int*, int*, int*);
+extern void FORTRAN_NAME(FORMINITIALCONDITION) (Field*, int*, int*, int*, int*, int*, int*);
+
+extern void FORTRAN_NAME(WRITEOUTPUTDATA) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
+extern void FORTRAN_NAME(CORRECTTIMESTEPROUTINE) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
 extern void FORTRAN_NAME(FORTRANDESTROY) ();
 extern void FORTRAN_NAME(READINPUTFILE) (input_CTX*);
 #else
 extern void FORTRAN_NAME(evaluatenonlinearresidual) 
                       (Field*, Field*, int*, int*, int*, int*, int*, int*,
 		       int*, int*, int*, int*, int*, int*);
-extern void FORTRAN_NAME(initializecalculation) (Field*, int*, int*, int*, int*, int*, int*);
-extern void FORTRAN_NAME(processoldsolution) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
+extern void FORTRAN_NAME(formequilibrium) (Field*, int*, int*, int*, int*, int*, int*);
+extern void FORTRAN_NAME(forminitialcondition) (Field*, int*, int*, int*, int*, int*, int*);
+
+extern void FORTRAN_NAME(writeoutputdata) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
+extern void FORTRAN_NAME(correcttimesteproutine) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
 extern void FORTRAN_NAME(fortrandestroy) ();
 extern void FORTRAN_NAME(readinputfile) (input_CTX*);
 #endif
@@ -67,14 +73,19 @@ extern void FORTRAN_NAME(readinputfile) (input_CTX*);
 typedef struct {
   DA	    da;
   input_CTX indata;
-  int       nwits,gmits;
+  int       nwits;
+  int       gmits;
+  Vec       xold;
+  Vec       fold;
+  Vec       fsrc;
 } AppCtx;
 
 /* User-defined routines */
 extern int ReadInputNInitialize(input_CTX*, DAPeriodicType*);
-extern int FormFunction    (SNES, Vec, Vec, void*);
-extern int FormInitialGuess(SNES, Vec, void*);
-extern int Monitor         (SNES, int, double, void*);
+extern int FormFunction        (SNES, Vec, Vec, void*);
+extern int FormEquilibrium     (SNES, Vec, void*);
+extern int FormInitialCondition(SNES, Vec, void*);
+extern int Monitor             (SNES, int, double, void*);
 extern int MatrixFreePreconditioner(void*,Vec,Vec);
 
 #if !defined(lahey)
@@ -101,7 +112,6 @@ int MAIN__(int argc, char **argv)
 
   PetscReal atol,rtol,tolgm;
   int       maxitnwt,maxitgm;
-  /*char      BC[256];*/
  
   DAPeriodicType     BC=DA_NONPERIODIC;
 
@@ -141,13 +151,15 @@ int MAIN__(int argc, char **argv)
 
   ierr = SNESCreate(PETSC_COMM_WORLD, &snes);CHKERRQ(ierr);
 
-  /*BC=DA_NONPERIODIC;*/
   ierr = DACreate3d(PETSC_COMM_WORLD,BC,DA_STENCIL_BOX, nxd,nyd,nzd,\
 		    PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,\
 		    NVAR,1,PETSC_NULL,PETSC_NULL,PETSC_NULL,&user.da);CHKERRQ(ierr);
 
   ierr = DACreateGlobalVector(user.da,&x);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&r);CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&user.xold);CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&user.fold);CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&user.fsrc);CHKERRQ(ierr);
   
   ierr = SNESSetFunction(snes,r,FormFunction,(void*)&user);CHKERRQ(ierr);
   
@@ -179,9 +191,6 @@ int MAIN__(int argc, char **argv)
     ierr = KSPSetTolerances(ksp,tolgm,PETSC_DEFAULT,PETSC_DEFAULT,maxitgm);CHKERRQ(ierr);
     ierr = PetscOptionsHasName(PETSC_NULL,"-user_precond",&user_precond);CHKERRQ(ierr);
     if (user_precond) {
-      /*
-      SETERRQ(1, "user-defined preconditoner is not defined yet!!!");
-      */
       ierr = PCSetType(pc,PCSHELL);CHKERRQ(ierr);
       ierr = PCShellSetApply(pc,MatrixFreePreconditioner,PETSC_NULL);CHKERRQ(ierr);
       ierr = PCShellSetName(pc,"user-defined preconditioner");CHKERRQ(ierr);
@@ -200,8 +209,16 @@ int MAIN__(int argc, char **argv)
      Initialize calculation 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   
-  ierr = FormInitialGuess(snes, x, &user);CHKERRQ(ierr);
-  
+  /*ierr = FormInitialGuess(snes, x, &user);CHKERRQ(ierr);*/
+
+  ierr = FormEquilibrium(snes, x, &user);CHKERRQ(ierr);
+
+  ierr = EvaluateFunction(snes,x,user.fsrc,&user);CHKERRQ(ierr);
+
+  ierr = FormInitialCondition(snes, x, &user);CHKERRQ(ierr);
+
+  ierr = VecCopy(x, user.xold);CHKERRQ(ierr);
+ 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Time stepping 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -212,7 +229,9 @@ int MAIN__(int argc, char **argv)
     ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
     
     ierr = SNESSolve(snes,x,&user.nwits);CHKERRQ(ierr);
-    
+
+    ierr = VecCopy(x, user.xold);CHKERRQ(ierr);
+
     ierr = SNESGetNumberLinearIterations(snes,&user.gmits);CHKERRQ(ierr);
     
     /*PetscPrintf(PETSC_COMM_WORLD,"Steps = %d Number of Newton iterations = %d\n"\
@@ -233,10 +252,13 @@ int MAIN__(int argc, char **argv)
   FORTRAN_NAME(fortrandestroy) ();
 #endif
 
-  VecDestroy(x);           
-  VecDestroy(r);
-  SNESDestroy(snes);
-  DADestroy(user.da);
+  ierr = VecDestroy(x);CHKERRQ(ierr);
+  ierr = VecDestroy(r);CHKERRQ(ierr);
+  ierr = VecDestroy(user.xold);CHKERRQ(ierr);
+  ierr = VecDestroy(user.fold);CHKERRQ(ierr);
+  ierr = VecDestroy(user.fsrc);CHKERRQ(ierr);
+  ierr = SNESDestroy(snes);CHKERRQ(ierr);
+  ierr = DADestroy(user.da);CHKERRQ(ierr);
   PetscFinalize();
   
   PetscFunctionReturn(0);
@@ -299,10 +321,10 @@ int Monitor(SNES snes, int its, double fnorm, void *ctx)
   PetscFunctionReturn(0);
 }
 
-/* --------------------  Form initial approximation ----------------- */
+/* --------------------  Form equilibrium ------------------------- */
 #undef __FUNCT__
-#define __FUNCT__ "FormInitialGuess"
-int FormInitialGuess(SNES snes,Vec X,void *ptr)
+#define __FUNCT__ "FormEquilibrium"
+int FormEquilibrium(SNES snes,Vec X,void *ptr)
 {
   AppCtx  *user = (AppCtx*)ptr;
   Field	  ***xvec;
@@ -321,22 +343,9 @@ int FormInitialGuess(SNES snes,Vec X,void *ptr)
   user->gmits = 0;
     
   /*
-   * Scatter ghost points to local vector,using the 2-step process
-   * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
-   * By placing code between these two statements, computations can be
-   * done while messages are in transition.
-   */
-  
-  /*ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
-  
-  ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);*/
-
-  /*
    * Get pointers to vector data
    */
-  /*ierr = DAVecGetArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);*/
-  DAVecGetArray(user->da, X, (void**)&xvec);
+  ierr = DAVecGetArray(user->da, X, (void**)&xvec);CHKERRQ(ierr);
   
   /*
    * Get local grid boundaries
@@ -369,40 +378,28 @@ int FormInitialGuess(SNES snes,Vec X,void *ptr)
    */
 
 #ifdef absoft
-  /*FORTRAN_NAME(INITIALIZECALCULATION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-    ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);*/
+  FORTRAN_NAME(FORMEQUILIBRIUM)(&(xvec[zs-1][ys-1][xs-1])\
+                                           ,&xs,&xe,&ys,&ye,&zs,&ze);
 #else
-  /*FORTRAN_NAME(initializecalculation)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-    ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);*/
+  FORTRAN_NAME(formequilibrium)(&(xvec[zs-1][ys-1][xs-1])\
+                                           ,&xs,&xe,&ys,&ye,&zs,&ze);
 #endif
 
-#ifdef absoft
-  FORTRAN_NAME(INITIALIZECALCULATION)(&(xvec[zs-1][ys-1][xs-1])\
-                                           ,&xs,&xe,&ys,&ye,&zs,&ze);
-#else
-  FORTRAN_NAME(initializecalculation)(&(xvec[zs-1][ys-1][xs-1])\
-                                           ,&xs,&xe,&ys,&ye,&zs,&ze);
-#endif
 
   /* Restore vectors */
   ierr = DAVecRestoreArray(user->da, X, (void**)&xvec);CHKERRQ(ierr);
-  /*ierr = DAVecRestoreArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
-  ierr = DALocalToGlobalBegin(user->da, localX, X); CHKERRQ(ierr);
-  ierr = DALocalToGlobalEnd  (user->da, localX, X); CHKERRQ(ierr);
-  ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);*/
 
   PetscFunctionReturn(0);
 }
 
-/* --------------------  Process old time solution ----------------- */
+/* --------------------  Form initial condition ----------------- */
 #undef __FUNCT__
-#define __FUNCT__ "ProcessOldSolution"
-int ProcessOldSolution(SNES snes,Vec X,void *ptr)
+#define __FUNCT__ "FormInitialCondition"
+int FormInitialCondition(SNES snes,Vec X,void *ptr)
 {
-  AppCtx	*user = (AppCtx*)ptr;
-  Field	***xvec;
-  PetscScalar	hx, hy, hz, xp, yp;
-  int	ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
+  AppCtx  *user = (AppCtx*)ptr;
+  Field	  ***xvec;
+  int	  ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
   int     ze,ye,xe;
   int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
   Vec     localX;
@@ -410,27 +407,21 @@ int ProcessOldSolution(SNES snes,Vec X,void *ptr)
   PetscFunctionBegin;
 
   /*
-   * Scatter ghost points to local vector,using the 2-step process
-   * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
-   * By placing code between these two statements, computations can be
-   * done while messages are in transition.
+   * Initialize counters
    */
-  
-  ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
-  
-  ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  
+
+  user->nwits = 0;
+  user->gmits = 0;
+    
   /*
    * Get pointers to vector data
    */
-  DAVecGetArray(user->da, localX, (void**)&xvec);
-  /*DAVecGetArray(user->da, X, (void**)&xvec);*/
+  ierr = DAVecGetArray(user->da, X, (void**)&xvec);CHKERRQ(ierr);
   
   /*
    * Get local grid boundaries
    */
-  DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);
+  ierr = DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);CHKERRQ(ierr);
   
   zs = zs + 1;
   ys = ys + 1;
@@ -452,19 +443,113 @@ int ProcessOldSolution(SNES snes,Vec X,void *ptr)
   ze_g = zs_g + zm_g - 1;
   ye_g = ys_g + ym_g - 1;
   xe_g = xs_g + xm_g - 1;
-	
+
+  /*
+   * Compute function over the locally owned part of the grid
+   */
+
 #ifdef absoft
-  FORTRAN_NAME(PROCESSOLDSOLUTION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+  FORTRAN_NAME(FORMINITIALCONDITION)(&(xvec[zs-1][ys-1][xs-1])\
+                                           ,&xs,&xe,&ys,&ye,&zs,&ze);
+#else
+  FORTRAN_NAME(forminitialcondition)(&(xvec[zs-1][ys-1][xs-1])\
+                                           ,&xs,&xe,&ys,&ye,&zs,&ze);
+#endif
+
+  /* Restore vectors */
+  ierr = DAVecRestoreArray(user->da, X, (void**)&xvec);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
+
+/* --------------------  Process old time solution ----------------- */
+#undef __FUNCT__
+#define __FUNCT__ "ProcessOldSolution"
+int ProcessOldSolution(SNES snes,Vec X,void *ptr)
+{
+  AppCtx        *user = (AppCtx*)ptr;
+  Field         ***xvec;
+  PetscScalar   hx, hy, hz, xp, yp;
+  int           ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
+  int           ze,ye,xe;
+  int           xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
+  Vec           localX;
+
+  PetscFunctionBegin;
+
+  /*
+   * Form old time fluxes
+   */
+
+  ierr = EvaluateFunction(snes, X, user->fold, (void*)user);CHKERRQ(ierr);
+
+  /*
+   * Scatter ghost points to local vector,using the 2-step process
+   * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
+   * By placing code between these two statements, computations can be
+   * done while messages are in transition.
+   */
+  
+  ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
+  
+  ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  
+  /*
+   * Get pointers to vector data
+   */
+  ierr = DAVecGetArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
+  /*DAVecGetArray(user->da, X, (void**)&xvec);*/
+  
+  /*
+   * Get local grid boundaries
+   */
+  ierr = DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);CHKERRQ(ierr);
+  
+  zs = zs + 1;
+  ys = ys + 1;
+  xs = xs + 1;
+  
+  ze = zs + zm - 1; 
+  ye = ys + ym - 1; 
+  xe = xs + xm - 1;
+  
+  /*
+   * Obtain ghost cell boundaries
+   */
+  ierr = DAGetGhostCorners(user->da,&xs_g,&ys_g,&zs_g,&xm_g,&ym_g,&zm_g);CHKERRQ(ierr);
+
+  zs_g = zs_g + 1;
+  ys_g = ys_g + 1;
+  xs_g = xs_g + 1;
+
+  ze_g = zs_g + zm_g - 1;
+  ye_g = ys_g + ym_g - 1;
+  xe_g = xs_g + xm_g - 1;
+
+#ifdef absoft
+  FORTRAN_NAME(WRITEOUTPUTDATA)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
 				   ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
 				   ,&user->gmits,&user->nwits);
 #else
-  FORTRAN_NAME(processoldsolution)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+  FORTRAN_NAME(writeoutputdata)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
 				   ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
 				   ,&user->gmits,&user->nwits);
 #endif
 
+#ifdef absoft
+  FORTRAN_NAME(CORRECTTIMESTEPROUTINE)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+				   ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
+				   ,&user->gmits,&user->nwits);
+#else
+  FORTRAN_NAME(correcttimesteproutine)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+				   ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
+				   ,&user->gmits,&user->nwits);
+#endif
+
+
+
   /* Restore vectors */
-  /*ierr = DAVecRestoreArray(user->da, X, (void**)&xvec);CHKERRQ(ierr);*/
   ierr = DAVecRestoreArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
   ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
 
@@ -478,13 +563,110 @@ int FormFunction(SNES snes,Vec X,Vec F,void* ptr)
 {
   AppCtx  *user = (AppCtx*)ptr;
   
-  int     ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
+  int     ierr,i,j,k,l;
+  int     xs,ys,zs,xm,ym,zm;
+  Field   ***x,***f,***xold,***fold,***fsrc;
+  Vec     localX,localXold;
+  double  dt, theta;
+  
+  int     ye,xe,ze;
+  int     ivar,my_rank, xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
+
+  double cnf[NVAR],one_over_dt[NVAR];
+
+  PetscFunctionBegin;
+
+  ierr = EvaluateFunction(snes, X, F, (void*)user);CHKERRQ(ierr);
+
+  /*
+   * Scatter ghost points to local vector,using the 2-step process
+   * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
+   * By placing code between these two statements, computations can be
+   * done while messages are in transition.
+   */
+  
+  ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
+  ierr = VecDuplicate(localX,&localXold);CHKERRQ(ierr)
+
+  ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DAGlobalToLocalBegin(user->da,user->xold,INSERT_VALUES,localXold);CHKERRQ(ierr);
+  ierr = DAGlobalToLocalEnd  (user->da,user->xold,INSERT_VALUES,localXold);CHKERRQ(ierr);
+
+  /* 
+   *Get pointers to vector data
+   */
+
+  ierr = DAVecGetArray(user->da,localX,(void**)&x);CHKERRQ(ierr);
+  ierr = DAVecGetArray(user->da,F     ,(void**)&f);CHKERRQ(ierr);
+  ierr = DAVecGetArray(user->da,localXold,(void**)&xold);CHKERRQ(ierr);
+  ierr = DAVecGetArray(user->da,user->fold,(void**)&fold);CHKERRQ(ierr);
+  ierr = DAVecGetArray(user->da,user->fsrc,(void**)&fsrc);CHKERRQ(ierr);
+
+  /*
+   * Get local grid boundaries
+   */
+  ierr = DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);CHKERRQ(ierr);
+	
+  /*
+   * Evaluate Time Step...
+   */
+
+#ifdef absoft
+  FORTRAN_NAME(DEFINETSPARAMETERSROUTINE) (&(cnf[0]),&(one_over_dt[0]));
+#else
+  FORTRAN_NAME(definetsparametersroutine) (&(cnf[0]),&(one_over_dt[0]));
+#endif
+
+  for (k=zs; k<zs+zm; k++) {
+    for (j=ys; j<ys+ym; j++) {
+      for (i=xs; i<xs+xm; i++) {
+	for (l=0; l<NVAR; l++) {
+	  f[k][j][i].var[l] = (x[k][j][i].var[l] - xold[k][j][i].var[l])*one_over_dt[l]
+	                     + (1.0 - cnf[l])*f   [k][j][i].var[l] 
+	                     +        cnf[l] *fold[k][j][i].var[l]
+                             -                fsrc[k][j][i].var[l];
+	}
+      }
+    }
+  }
+
+  /*
+   * Restore vectors
+   */
+  ierr = DAVecRestoreArray(user->da,localX,(void**)&x);CHKERRQ(ierr);
+  ierr = DAVecRestoreArray(user->da,F     ,(void**)&f);CHKERRQ(ierr);
+
+  ierr = DAVecRestoreArray(user->da,localXold,(void**)&xold);CHKERRQ(ierr);
+  ierr = DAVecRestoreArray(user->da,user->fold,(void**)&fold);CHKERRQ(ierr);
+  ierr = DAVecRestoreArray(user->da,user->fsrc,(void**)&fsrc);CHKERRQ(ierr);
+
+
+  ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
+  ierr = DARestoreLocalVector(user->da,&localXold);CHKERRQ(ierr);
+
+  ierr = PetscLogFlops((22 + 4*POWFLOP)*zm*ym*xm);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+
+}
+
+
+/* --------------------  Evaluate Function F(x,t) --------------------- */
+#undef __FUNCT__
+#define __FUNCT__ "EvaluateFunction"
+int EvaluateFunction(SNES snes,Vec X,Vec F,void* ptr)
+{
+  AppCtx  *user = (AppCtx*)ptr;
+  
+  int     ierr,i,j,k,l;
+  int     xs,ys,zs,xm,ym,zm,mx,my,mz;
   Field   ***x,***f;
   Vec     localX;
   double  dt, theta;
   
   int     ye,xe,ze;
-  int     ivar,my_rank, xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
+  int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
+
 
   PetscFunctionBegin;
 
@@ -556,7 +738,6 @@ int FormFunction(SNES snes,Vec X,Vec F,void* ptr)
   PetscFunctionReturn(0);
 
 }
-
 
 #undef __FUNCT__
 #define __FUNCT__ "MatrixFreePreconditioer"

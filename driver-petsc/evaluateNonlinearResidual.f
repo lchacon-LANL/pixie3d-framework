@@ -26,13 +26,13 @@ c Call variables
 
 c Local variables
 
-      type(petsc_array) :: petscarray
-
       integer(4) :: i,j,k,ieq,ii
 
       real(8)    :: dudt(neqd),cnf(neqd),one_over_dt(neqd),ff(ntotd)
 
-      type (var_array) :: varray
+      type (var_array)  :: varray
+
+      type(petsc_array) :: petscarray
 
 c Begin program
 
@@ -52,30 +52,21 @@ c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
       call evaluateNonlinearFunction(varray,ff)
 
-c Calculate residuals
+c Assign ff to f
 
-      call defineTSParameters(cnf,one_over_dt)
-
-      do k = 1,nzd
-        do j = 1,nyd
-          do i = 1,nxd
-
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
             ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
-
             do ieq=1,neqd
-              f(i,j,k)%var(ieq) = 
-     .                     (varray%array_var(ieq)%array(i,j,k)
-     .                    -    u_n%array_var(ieq)%array(i,j,k))
-     .                    *one_over_dt(ieq)
-     .                    + ((1.-cnf(ieq))*ff  (ii+ieq)
-     .                    +      cnf(ieq) *fold(ii+ieq)
-     .                    -                fsrc(ii+ieq))
-            enddo
 
+              f(i,j,k)%var(ieq) = ff  (ii+ieq)
+
+            enddo
           enddo
         enddo
       enddo
-
+      
 c Deallocate structures
 
       call deallocateDerivedType(varray)
