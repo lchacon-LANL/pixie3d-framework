@@ -42,7 +42,7 @@ c ###################################################################
 
 c newtonGmres
 c####################################################################
-      subroutine newtonGmres(neq,ntot,x,method,damp,global,dt0
+      subroutine newtonGmres(neq,ntot,x,etak_meth,damp,global,dt0
      .           ,tolgm,kmax,gmit_max,tolnewt,ntit_max_acc
      .           ,ntit_max_rej,gmit_out,ntit_out,iguess,out,ierr)
 c--------------------------------------------------------------------
@@ -54,11 +54,10 @@ c     Call parameters:
 c       * neq: number of equations
 c       * ntot: dimension of vector of unknowns.
 c       * x: on input, initial guess; on output, solution.
-c       * method: specifies method to determine inexact Newton forcing 
-c                 parameter. Currently:
-c               method = 0 --> constant
-c               method = 1 --> unused
-c               method = 2 --> power law adaptive strategy
+c       * etak_meth: specifies method to determine inexact Newton forcing 
+c           parameter. Currently:
+c               etak_meth = 0 --> constant
+c               etak_meth > 0 --> power law adaptive strategy
 c       * damp  : damping parameter for Newton update
 c       * global: determines the globalization procedure:
 c               global = 0 --> no globalization
@@ -98,7 +97,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer          :: ntot,neq,method,kmax,gmit_max,ntit_max_acc
+      integer          :: ntot,neq,etak_meth,kmax,gmit_max,ntit_max_acc
      .                   ,ntit_max_rej,gmit_out,ntit_out,out,iguess,ierr
 
       double precision :: x(ntot),tolgm,tolnewt,damp
@@ -113,7 +112,7 @@ c Local variables
 
       real*8      b(ntot),ddx(ntot),dt0,roundoff
 
-      real*8      f0,fkm,fk,fkp,fm,etak,etakm,theta,dampm,gamm,alph
+      real*8      f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
 
 c Begin program
 
@@ -162,10 +161,19 @@ c Initial output
 
       if (out.ge.1) write (*,210) 0,0d0,f0,1d0,1d0,0
 
+      if (out.ge.3) then
+        call calculateResidualNorms(neq,ntot,b,residuals)
+        do i = 1,neq
+          write (*,320) i,residuals(i)
+        enddo
+      endif
+
 c Start Newton iteration
 
       fk    = f0
       fkm   = f0
+      flimit= roundoff + tolnewt*f0
+
       etakm = tolgm
       etak  = tolgm
 
@@ -206,7 +214,7 @@ c     Globalization procedure
 
 c       Determine inexact Newton constant
 
-        call find_etak (fk,fkm,tolgm,etak,etakm,method)
+        call find_etak (fk,fkm,flimit,tolgm,etak,etakm,etak_meth)
 
 c       Calculate damping coefficient
 
@@ -240,9 +248,7 @@ c     Check Newton convergence
           enddo
         endif
 
-        if(fkp.lt.(roundoff + tolnewt*f0).or.check.gt.check_lim) exit
-cc        if(fkp.lt.(1d-11 + tolnewt*f0).or.check.gt.check_lim) exit
-cc        if(fkp.lt.(1d-11 + tolnewt*f0)) exit
+        if(fkp.lt.flimit.or.check.gt.check_lim) exit
 
 c     Store magnitude of residual
 
@@ -266,6 +272,7 @@ c Check error in Newton convergence
       if (jit.gt.ntit_max_rej.or.check.gt.check_lim) then 
         if (jit.gt.ntit_max_rej) write (*,220) check
         if (check.gt.check_lim) write (*,230) check,check_lim
+        if (check.gt.check_lim) write (*,*) check,check_lim
         ierr = 1
       !Accept solution, but warn user
       elseif ((jit-1).gt.ntit_max_acc) then 
@@ -358,17 +365,17 @@ c End program
 
 c find_etak
 c####################################################################
-      subroutine find_etak (fk,fkm,tolgm,etak,etakm,method)
+      subroutine find_etak (fk,fkm,flimit,tolgm,etak,etakm,etak_meth)
       implicit none       !For safe fortran
 c--------------------------------------------------------------------
 c     Finds inexact Newton forcing parameter, using two methods:
-c     constant (method = 0) or power law adaptive strategy.
+c     constant (etak_meth = 0) or power law adaptive strategy.
 c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4   method
-      real*8      fk,fkm,tolgm,etak,etakm
+      integer*4   etak_meth
+      real*8      fk,fkm,flimit,tolgm,etak,etakm
 
 c Local variables
 
@@ -376,14 +383,23 @@ c Local variables
 
 c Begin program
 
-      if (method.eq.0) then
+      if (etak_meth.eq.0) then
         etak = tolgm
       else
-        gamm = .5
+        gamm = .9
         alph = 1.5
+
+        !For superlinear convergence, alph>1
         etak = gamm*(fk/fkm)**alph
+
+        !First safeguard: avoid sharp decrease of etak
         etak = min(tolgm,max(etak,gamm*etakm**alph))
+
+        !Second safeguard: avoid oversolving
+        etak = min(tolgm,max(etak,gamm*flimit/fk))
       endif
+
+cc      write (*,*) etak
 
 c End program
 
@@ -477,7 +493,7 @@ c Local variables
 
 c Begin program
 
-c Compute the initial guess
+c Compute the initial guess x
 
       if(iguess.eq.1) then
         iiout = iout - 2
@@ -607,7 +623,7 @@ c Restarted GMRES loop
 
         if (iout .gt. 0 ) then
           if (its .eq. 0) then
-            write(*, 199) its, ro/rold
+            write (*,199) its, ro/rold
           else
             write (*,*) 'Restarting GMRES... (',irstrt-1,')'
           endif
@@ -800,15 +816,24 @@ c Call variables
 
 c Local variables
 
-      real*8      dummy(nn)
-
-      real*8      pert,pertinv,scale,eps
-      integer*4   i,j,m,ii
+      integer*4   i
+      real*8      dummy(nn),pert,scale,eps
 
 c Begin program
 
-      scale = sqrt(sum(z*z))
-      pert  = sqrt(1d0 + sum(x*x))
+      eps   = 1d-6
+
+c Calculate difference parameter
+
+      scale = sum(z*z)
+
+cc      pert  = (1d0 + sum(x*x))/scale
+cc      pert  = eps*sqrt(pert)
+
+      pert  = sum(z*x)
+      pert  = eps*(sqrt(scale)+abs(pert))/scale*sign(1d0,pert)
+
+cc      write (*,*) pert,scale
 
 c Calculate J.x
 
@@ -820,15 +845,6 @@ c Calculate J.x
 
       else
 
-        eps = 1d-6
-
-cc        pert = eps*dsqrt(pert/scale)/nn
-cc        pert = eps*(1.+pert/scale/nn)
-        pert = eps*(1.+pert/scale)
-cc        pert = eps*(1.+dsqrt(pert/scale))
-cc        pert = eps*2d0/dsqrt(scale)
-
-cc        write (*,*) pert
 c     Perturb state variables x + eps z --> dummy
 
         dummy = x + pert*z
@@ -845,8 +861,7 @@ c     Compute the product J.x using the matrix-free approx
 
 c End
 
-      return
-      end
+      end subroutine matrixFreeMatVec
 
 c evaluateNewtonResidual
 c####################################################################
@@ -875,7 +890,7 @@ c Evaluate nonlinear residual
 
 c Add pseudo-transient term
 
-      f = (x - x0)/dt + f
+      f = (x - x0)/dt - f
 
 c End program
 
