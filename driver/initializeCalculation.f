@@ -447,8 +447,6 @@ c     Begin program
         fx(i) = factor(xmin,xmax,x1,bcs(1:2),nh1)
       enddo
 
-cc      write (*,*) fx,bcs(1:2)
-
       do j = 1,nyd
         call getCurvilinearCoordinates(1,j,1,igx,igy,igz,ig,jg,kg
      .                                ,x1,y1,z1)
@@ -489,9 +487,11 @@ c     ####################################################################
 
         real(8)    :: xmin,xmax,x,period,ff
         integer(4) :: bcs(2),nh
-        logical    :: neumann(2)
 
-        neumann = (bcs == NEU) .or. (bcs == SYM)
+        logical    :: neumann(2),dirichlet(2)
+
+        neumann   = (bcs == NEU) .or. (bcs == SYM)
+        dirichlet = (bcs == DIR) .or. (bcs ==-SYM)
 
         period = pi
         if (odd) period = 2*pi
@@ -502,18 +502,21 @@ c     ####################################################################
           call random_number(ff)
         elseif (neumann(1) .and. neumann(2)) then
           ff = cos(period*(x-xmin)/(xmax-xmin))
-        elseif (neumann(1) .and. bcs(2) == DIR) then
-          period = 3*period/4.
-          if (.not.odd) period = period/2.
+        elseif (neumann(1) .and. dirichlet(2)) then
+          if (.not.odd) then
+            period = period/2.
+          else
+            period = 3*period/4.
+          endif
           ff = cos(period*(x-xmin)/(xmax-xmin))
-        elseif (bcs(1) == DIR .and. neumann(2)) then
+        elseif (dirichlet(1) .and. neumann(2)) then
           if (.not.odd) then
             period = period/2.
           else
             period = 3*period/4.
           endif
           ff = sin(period*(x-xmin)/(xmax-xmin))
-        elseif (bcs(1) == SP .and. bcs(2) == DIR) then
+        elseif (bcs(1) == SP .and. dirichlet(2)) then
           ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
      .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
         elseif (bcs(1) == SP .and. neumann(2)) then
@@ -528,42 +531,6 @@ c     ####################################################################
         else
           ff = sin(period*(x-xmin)/(xmax-xmin))
         endif
-
-cc        period = pi
-cc        if (odd) period = 2*pi
-cc
-cc        if (bcs(1) == PER) then
-cc          ff = cos(nh*2*pi*(x-xmin)/(xmax-xmin))
-cc        elseif (random) then
-cc          call random_number(ff)
-cc        elseif (bcs(1) == NEU .and. bcs(2) == NEU) then
-cc          ff = cos(period*(x-xmin)/(xmax-xmin))
-cc        elseif (bcs(1) == NEU .and. bcs(2) == DIR) then
-cc          period = 3*period/4.
-cc          if (.not.odd) period = period/2.
-cc          ff = cos(period*(x-xmin)/(xmax-xmin))
-cc        elseif (bcs(1) == DIR .and. bcs(2) == NEU) then
-cc          if (.not.odd) then
-cc            period = period/2.
-cc          else
-cc            period = 3*period/4.
-cc          endif
-cc          ff = sin(period*(x-xmin)/(xmax-xmin))
-cc        elseif (bcs(1) == SP .and. bcs(2) == DIR) then
-cc          ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
-cc     .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
-cc        elseif (bcs(1) == SP .and. bcs(2) == NEU) then
-cc          if (.not.odd) then
-cc            period = period/2.
-cc            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
-cc          else
-cc            period = 3*period/4.
-cc            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
-cc     .        *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
-cc          endif
-cc        else
-cc          ff = sin(period*(x-xmin)/(xmax-xmin))
-cc        endif
 
       end function factor
 
