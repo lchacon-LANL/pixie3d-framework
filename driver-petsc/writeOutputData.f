@@ -24,8 +24,6 @@ c Local variables
 
       integer(4)      :: imingcl,imaxgcl,jmingcl,jmaxgcl,kmingcl,kmaxgcl
 
-      type(petsc_array) :: petscarray
-
       integer(4)        :: ierr,i,j,k,ieq
 
       real(8) :: mag
@@ -34,19 +32,21 @@ c Begin program
 
       ierr = 0
 
-      call allocatePetscType(petscarray)
-
       call fromGlobalToLocalLimits(imingc ,jmingc ,kmingc
-     $                            ,imingcl,jmingcl,kmingcl)
+     $                            ,imingcl,jmingcl,kmingcl,1,1,1)
       call fromGlobalToLocalLimits(imaxgc ,jmaxgc ,kmaxgc
-     $                            ,imaxgcl,jmaxgcl,kmaxgcl)
-
-      petscarray%array(imingcl:imaxgcl,jmingcl:jmaxgcl,kmingcl:kmaxgcl)
-     .         = array(imingc :imaxgc ,jmingc :jmaxgc ,kmingc :kmaxgc )
+     $                            ,imaxgcl,jmaxgcl,kmaxgcl,1,1,1)
 
 c Map old solution
 
-      u_n = petscarray
+      call allocateDerivedType(u_n)
+
+      do ieq=1,neqd
+        u_n%array_var(ieq)
+     .      %array(imingcl:imaxgcl,jmingcl:jmaxgcl,kmingcl:kmaxgcl)
+     .     = array(imingc :imaxgc ,jmingc :jmaxgc ,kmingc :kmaxgc )
+     .       %var(ieq)
+      enddo
 
 c Time level plots (xdraw)
 
@@ -64,8 +64,8 @@ c Output per time step
 
       if (my_rank == 0) call output
 
-c Deallocate memory
+c End program
 
-      call deallocatePetscType(petscarray)
+      call deallocateDerivedType(u_n)
 
       end subroutine writeOutputData
