@@ -1,11 +1,9 @@
-static char help[] = "- Div (alpha T^beta Grad T) = 0.\n\
-Different matrices for the Jacobian and the preconditioner.\n\
-Demonstrates the use of matrix-free Newton-Krylov methods in conjucntion\n\
-with a user-provided precondintioner. Input arguments are:\n\
+static char help[] = "Options:
 	-snes_mf : use matrix-free Newton methods (default)\n\
-	-snes_view : print the SNES data structure\n\
-	-draw_pause <sec> : set time (in seconds) that the program pauses\n\
-	-nox : disable all x-windows output\n";
+	-user_precond: use user-defined preconditioner (-snes_mf)\n\
+	-nx <nx> -ny <ny> -nz <nz> : grid size of each direction\n\
+        -nmax <nmax>: max. iteration # of time steps\n";
+
 /*T
  *    Concepts: SNES^matrix-free/finite-difference Jacobian methods
  *    Concepts: SNES^user-provided preconditioner;
@@ -23,7 +21,7 @@ T*/
 #define DIFF_NORM 1.0e-10
 
 typedef struct {
-  Scalar var[NVAR];
+  PetscScalar var[NVAR];
 } Field;
 
 /* User-defined application context */
@@ -72,7 +70,7 @@ typedef struct {
 } AppCtx;
 
 /* User-defined routines */
-extern int ReadInputNInitialize(input_CTX*);
+extern int ReadInputNInitialize(input_CTX*, char*);
 extern int FormFunction    (SNES, Vec, Vec, void*);
 extern int FormInitialGuess(SNES, Vec, void*);
 extern int Monitor         (SNES, int, double, void*);
@@ -84,170 +82,163 @@ int main(int argc, char **argv)
 int MAIN__(int argc, char **argv)
 #endif
 {
-	SNES	snes;	        /* SNES context */
-	SLES    sles;           /* SLES context */
-	KSP     ksp;            /* KSP context  */
-	PC      pc;             /* PC context   */
-	Vec	x, r;	        /* Vec x: solution, r: residual */
-	AppCtx	user;
+  SNES     snes;	        /* SNES context */
+  SLES     sles;           /* SLES context */
+  KSP      ksp;            /* KSP context  */
+  PC       pc;             /* PC context   */
+  Vec	   x, r;	        /* Vec x: solution, r: residual */
+  AppCtx   user;
+  
+  int     ierr;
+  int     nxd = 32;         /* x-drirection grid size, i.e., nx */
+  int     nyd = 32;         /* y-drirection grid size, i.e., ny */
+  int     nzd = 1;          /* z-drirection grid size, i.e., nz */
+  int     i, steps;
+  int     size;           /* num. of processors used */
+  int     my_rank;        /* id of my processor */
 
-	int	ierr;
-	int     nxd = 32;         /* x-drirection grid size, i.e., nx */
-	int     nyd = 32;         /* y-drirection grid size, i.e., ny */
-	int     nzd = 1;          /* z-drirection grid size, i.e., nz */
-	int     i, steps;
-	int     size;           /* num. of processors used */
-	int     my_rank;        /* id of my processor */
+  PetscReal atol,rtol,tolgm;
+  int       maxitnwt,maxitgm;
+  char      BC[256];
 
-	PetscReal atol,rtol,tolgm;
-	int       maxitnwt,maxitgm;
+  Mat                J;     /* Jacobian matrix for FD approximation */
+  PetscTruth         matrix_free,user_precond;
 
-	Mat                J;     /* Jacobian matrix for FD approximation */
-	PetscTruth         matrix_free, fdcoloring, user_precond;
-	MatFDColoring      matfdcoloring;
-	ISColoring         iscoloring;
+  
+  
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     Begin program
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */	
+  ierr = PetscInitialize(&argc, &argv, (char *)0, help);CHKERRQ(ierr);
 
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     Set problem parameters
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
+  ierr = ReadInputNInitialize(&user.indata, BC);CHKERRQ(ierr);
+  
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-nmax",&user.nmax,PETSC_NULL);CHKERRQ(ierr);
+  
+  nxd = user.indata.nxd;
+  nyd = user.indata.nyd;
+  nzd = user.indata.nzd;
+  
+  atol = PETSC_DEFAULT;
+  rtol = user.indata.rtol;
+  tolgm = user.indata.tolgm;
+  maxitnwt = user.indata.maxitnwt;
+  if (maxitnwt == 0)
+    maxitnwt = (int) PetscMax((1.5*log(rtol)/log(tolgm)),10.);
 
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     Create SNES context 
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
 
-	/* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	                    Begin program
-           - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */	
-	ierr = PetscInitialize(&argc, &argv, (char *)0, help);CHKERRQ(ierr);
+  ierr = SNESCreate(PETSC_COMM_WORLD, &snes);CHKERRQ(ierr);
+  
+  ierr = DACreate3d(PETSC_COMM_WORLD,*BC,DA_STENCIL_BOX, nxd,nyd,nzd,\
+		    PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,\
+		    NVAR,1,PETSC_NULL,PETSC_NULL,PETSC_NULL,&user.da);CHKERRQ(ierr);
 
-	/* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	                    Set problem parameters
-           - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
-	ierr = ReadInputNInitialize(&user.indata);CHKERRQ(ierr);
+  ierr = DACreateGlobalVector(user.da,&x);CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&r);CHKERRQ(ierr);
+  
+  ierr = SNESSetFunction(snes,r,FormFunction,(void*)&user);CHKERRQ(ierr);
+  
+  ierr = SNESSetMonitor(snes,Monitor,(void*)&user,PETSC_NULL);CHKERRQ(ierr);
 
-	ierr = PetscOptionsGetInt(PETSC_NULL,"-nmax",&user.nmax,PETSC_NULL);CHKERRQ(ierr);
+  
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     Customize nonlinear solver; set runtime options
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
+  /* 
+     Set linear solver defaults for this problem. By extracting the
+     SLES, KSP, and PC contexts from the SNES context, we can then
+     directly call any SLES, KSP, and PC routines to set various options.
+  */
 
-	nxd = user.indata.nxd;
-	nyd = user.indata.nyd;
-	nzd = user.indata.nzd;
+  /* SNESSetTolerances(snes,atol,rtol,stol,maxit,maxf); */
+  
+  ierr = SNESSetTolerances(snes,atol,rtol,PETSC_DEFAULT,maxitnwt,PETSC_DEFAULT);CHKERRQ(ierr);
 
-	atol = PETSC_DEFAULT;
-	rtol = user.indata.rtol;
-	tolgm = user.indata.tolgm;
-	maxitnwt = user.indata.maxitnwt;
-	if (maxitnwt == 0)
-	  maxitnwt = (int) PetscMax((1.5*log(rtol)/log(tolgm)),10.);
+  /* KSPSetTolerances(ksp,rtol,atol,dtol,maxits); */
+  
+  /* Set preconditioner for matrix-free method */
+  ierr = PetscOptionsHasName(PETSC_NULL,"-snes_mf",&matrix_free);CHKERRQ(ierr);
+  if (matrix_free) {
+    ierr = SNESGetSLES(snes,&sles); CHKERRQ(ierr);
+    ierr = SLESGetKSP (sles,&ksp ); CHKERRQ(ierr);
+    ierr = SLESGetPC  (sles,&pc  ); CHKERRQ(ierr);
+    ierr = KSPSetTolerances(ksp,tolgm,PETSC_DEFAULT,PETSC_DEFAULT,maxitgm);CHKERRQ(ierr);
+    ierr = PetscOptionsHasName(PETSC_NULL,"-user_precond",&user_precond);CHKERRQ(ierr);
+    if (user_precond) {
+      /*
+      SETERRQ(1, "user-defined preconditoner is not defined yet!!!");
+      */
+      ierr = PCSetType(pc,PCSHELL);CHKERRQ(ierr);
+      ierr = PCShellSetApply(pc,MatrixFreePreconditioner,PETSC_NULL);CHKERRQ(ierr);
+      ierr = PCShellSetName(pc,"user-defined preconditioner");CHKERRQ(ierr);
+    } else {
+      ierr = PCSetType(pc,PCNONE); CHKERRQ(ierr);
+    }
+  } else {
+    SETERRQ(1, "You shoud use \"matrix-free method\", i.e., -snes_mf");
+  }
 
-	/* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	                    Create SNES context 
-           - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
+  /* Set SNES run time options */
+  
+  ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
+  
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     Initialize calculation 
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
+  ierr = FormInitialGuess(snes, x, &user);CHKERRQ(ierr);
+  
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     Time stepping 
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
+  /* for (steps = 1; (steps < 100) && (norm_2 > DIFF_NORM); steps++) { */
+  for (steps = 0; steps < user.nmax; steps++) {
+    
+    ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
+    
+    ierr = SNESSolve(snes,x,&user.nwits);CHKERRQ(ierr);
+    
+    ierr = SNESGetNumberLinearIterations(snes,&user.gmits);CHKERRQ(ierr);
+    
+    /*PetscPrintf(PETSC_COMM_WORLD,"Steps = %d Number of Newton iterations = %d\n"\
+      ,steps, user.nwits);
+    */
 
-	ierr = SNESCreate(PETSC_COMM_WORLD, SNES_NONLINEAR_EQUATIONS, &snes);CHKERRQ(ierr);
-
-	ierr = DACreate3d(PETSC_COMM_WORLD,DA_NONPERIODIC,DA_STENCIL_BOX, nxd,nyd,nzd,\
-			  PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,\
-			  NVAR,1,PETSC_NULL,PETSC_NULL,PETSC_NULL,&user.da);CHKERRQ(ierr);
-
-	ierr = DACreateGlobalVector(user.da,&x);CHKERRQ(ierr);
-	ierr = VecDuplicate(x,&r);CHKERRQ(ierr);
-	
-	ierr = SNESSetFunction(snes,r,FormFunction,(void*)&user);CHKERRQ(ierr);
-	
-	ierr = SNESSetMonitor(snes,Monitor,(void*)&user,PETSC_NULL);CHKERRQ(ierr);
-
-
-        /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-                Customize nonlinear solver; set runtime options
-           - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-
-	/* 
-	   Set linear solver defaults for this problem. By extracting the
-	   SLES, KSP, and PC contexts from the SNES context, we can then
-	   directly call any SLES, KSP, and PC routines to set various options.
-	*/
-
-	/* SNESSetTolerances(snes,atol,rtol,stol,maxit,maxf); */
-
-	ierr = SNESSetTolerances(snes,atol,rtol,PETSC_DEFAULT,maxitnwt,PETSC_DEFAULT);
-               CHKERRQ(ierr);
-
-	/* KSPSetTolerances(ksp,rtol,atol,dtol,maxits); */
-	    
-	/* Set preconditioner for matrix-free method */
-	ierr = PetscOptionsHasName(PETSC_NULL,"-snes_mf",&matrix_free);CHKERRQ(ierr);
-	if (matrix_free) {
-	  ierr = SNESGetSLES(snes,&sles); CHKERRQ(ierr);
-	  ierr = SLESGetKSP(sles,&ksp); CHKERRQ(ierr);
-	  ierr = SLESGetPC(sles,&pc); CHKERRQ(ierr);
-	  ierr = KSPSetTolerances(ksp,tolgm,PETSC_DEFAULT,PETSC_DEFAULT,maxitgm);CHKERRQ(ierr);
-	  ierr = PetscOptionsHasName(PETSC_NULL,"-user_precond",&user_precond);CHKERRQ(ierr);
-	  ierr = PetscOptionsHasName(PETSC_NULL,"-fdcoloring",&fdcoloring);CHKERRQ(ierr);
-	  if (user_precond) {
-	    SETERRQ(1, "user-defined preconditoner is not defined yet!!!");
-	    PCSetType(pc,PCSHELL);
-	    PCShellSetApply(pc,MatrixFreePreconditioner,PETSC_NULL);
-	  } else if (fdcoloring) {
-	    ierr = DAGetColoring(user.da, IS_COLORING_GLOBAL, MATMPIAIJ, &iscoloring, &J);CHKERRQ(ierr);
-	    ierr = MatFDColoringCreate(J, iscoloring, &matfdcoloring);CHKERRQ(ierr);
-	    ierr = ISColoringDestroy(iscoloring);CHKERRQ(ierr);
-	    ierr = MatFDColoringSetFunction(matfdcoloring, (int (*)(void))FormFunction, &user);CHKERRQ(ierr);
-	    ierr = MatFDColoringSetFromOptions(matfdcoloring);CHKERRQ(ierr);
-	    ierr = SNESSetJacobian(snes, J, J, SNESDefaultComputeJacobianColor, matfdcoloring);CHKERRQ(ierr);
-	  } else {
-	    ierr = PCSetType(pc,PCNONE); CHKERRQ(ierr);
-	  }
-	} else {
-	  SETERRQ(1, "You shoud use \"matrix-free method\", i.e., -snes_mf");
-	}
-
-	/* Set SNES run time options */
-
-	ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
-
-	/* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	                      Initialize calculation 
-           - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-
-	ierr = FormInitialGuess(snes, x, &user);CHKERRQ(ierr);
-
-	/* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	                          Time stepping 
-           - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-
-	/* for (steps = 1; (steps < 100) && (norm_2 > DIFF_NORM); steps++) { */
-	for (steps = 0; steps < user.nmax; steps++) {
-
-	  ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
-
-	  ierr = SNESSolve(snes,x,&user.nwits);CHKERRQ(ierr);
-
-	  ierr = SNESGetNumberLinearIterations(snes,&user.gmits);CHKERRQ(ierr);
-
-	  /*PetscPrintf(PETSC_COMM_WORLD,"Steps = %d Number of Newton iterations = %d\n"\
-                     ,steps, user.nwits);
-	  */
-
-	}
-
-	ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
-
-	/* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	                     Deallocate memory and finish
-           - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-
+  }
+  
+  ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
+  
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     Deallocate memory and finish
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  
 #ifdef absoft
-	FORTRAN_NAME(FORTRANDESTROY) ();
+  FORTRAN_NAME(FORTRANDESTROY) ();
 #else
-	FORTRAN_NAME(fortrandestroy) ();
+  FORTRAN_NAME(fortrandestroy) ();
 #endif
 
-	VecDestroy(x);           
-	VecDestroy(r);
-	SNESDestroy(snes);
-	DADestroy(user.da);
-	PetscFinalize();
-	
-	PetscFunctionReturn(0);
+  VecDestroy(x);           
+  VecDestroy(r);
+  SNESDestroy(snes);
+  DADestroy(user.da);
+  PetscFinalize();
+  
+  PetscFunctionReturn(0);
 }
 
 /* -------------------- Read input file routine ------------- */
 #undef __FUNCT__
 #define __FUNCT__ "ReadInputNInitialize"
-int ReadInputNInitialize(input_CTX* data)
+int ReadInputNInitialize(input_CTX* data, char* BC)
 {
 
   char       dummy[256], dummy_ch, *bc_def = "'def'";
@@ -263,27 +254,23 @@ int ReadInputNInitialize(input_CTX* data)
   FORTRAN_NAME(readinputfile) (data);
 #endif
 
-  /*
-  printf("tolgm %g\n",data->tolgm);
-  printf("rtol %g\n",data->rtol);
-  printf("atol %g\n",data->atol);
-  printf("damp %g\n",data->damp);
-  printf("dt0 %g\n",data->dt0);
-  printf("nxd %d\n",data->nxd);
-  printf("nyd %d\n",data->nyd);
-  printf("nzd %d\n",data->nzd);
-  printf("nxd %d\n", data->maxitnwt);
-  printf("nxd %d\n", data->maxksp);
-  printf("nxd %d\n", data->maxitgm);
-  printf("nxd %d\n", data->method);
-  printf("nxd %d\n", data->global);
-  printf("nxd %d\n", data->iguess);
-  for (i=0; i < 6; i++){
-    printf("bcs %d\n",data->bcs[i]);
+  if (data->bcs[0] && data->bcs[2] && data->bcs[4]) {
+    strcpy(BC, "DA_XYZPERIODIC");
+  } else if (data->bcs[0] && data->bcs[2] && !data->bcs[4]) {
+    strcpy(BC, "DA_XYPERIODIC");
+  } else if (data->bcs[0] && !data->bcs[2] && data->bcs[4]) {
+    strcpy(BC, "DA_XZPERIODIC");
+  } else if (data->bcs[0] && !data->bcs[2] && !data->bcs[4]) {
+    strcpy(BC, "DA_XPERIODIC");
+  } else if (!data->bcs[0] && data->bcs[2] && data->bcs[4]) {
+    strcpy(BC, "DA_YZPERIODIC");
+  } else if (!data->bcs[0] && data->bcs[2] && !data->bcs[4]) {
+    strcpy(BC, "DA_YPERIODIC");
+  } else if (!data->bcs[0] && !data->bcs[2] && data->bcs[4]) {
+    strcpy(BC, "DA_ZPERIODIC");
+  } else {
+    strcpy(BC, "DA_NONPERIODIC");
   }
-
-  getchar();
-  */
 
   ierr = PetscOptionsGetInt(PETSC_NULL,"-nx",&data->nxd,PETSC_NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(PETSC_NULL,"-ny",&data->nyd,PETSC_NULL);CHKERRQ(ierr);
@@ -298,11 +285,11 @@ int ReadInputNInitialize(input_CTX* data)
 int Monitor(SNES snes, int its, double fnorm, void *ctx)
 {
 
-	PetscFunctionBegin;
-	
-	/* EMPTY */
-
-	PetscFunctionReturn(0);
+  PetscFunctionBegin;
+  
+  /* EMPTY */
+  
+  PetscFunctionReturn(0);
 }
 
 /* --------------------  Form initial approximation ----------------- */
@@ -310,68 +297,69 @@ int Monitor(SNES snes, int its, double fnorm, void *ctx)
 #define __FUNCT__ "FormInitialGuess"
 int FormInitialGuess(SNES snes,Vec X,void *ptr)
 {
-	AppCtx	*user = (AppCtx*)ptr;
-	Field	***xvec;
-	int	ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
-	int     ze,ye,xe;
-	int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
+  AppCtx	*user = (AppCtx*)ptr;
+  Field	***xvec;
+  int	ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
+  int     ze,ye,xe;
+  int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
+  
 
+  PetscFunctionBegin;
 
-	PetscFunctionBegin;
-	/*
-	 * Initialize counters
-	 */
+  /*
+   * Initialize counters
+   */
 
-	user->nwits = 0;
-	user->gmits = 0;
+  user->nwits = 0;
+  user->gmits = 0;
+  
+  /*
+   * Get pointers to vector data
+   */
+  DAVecGetArray(user->da, X, (void**)&xvec);
+  
+  /*
+   * Get local grid boundaries
+   */
+  DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);
+  
+  zs = zs + 1;
+  ys = ys + 1;
+  xs = xs + 1;
+  
+  ze = zs + zm - 1; 
+  ye = ys + ym - 1; 
+  xe = xs + xm - 1;
+  
+  /*
+   * Obtain ghost cell boundaries
+   */
+  ierr = DAGetGhostCorners(user->da,&xs_g,&ys_g,&zs_g,&xm_g,&ym_g,&zm_g);CHKERRQ(ierr);
+  
+  zs_g = zs_g + 1;
+  ys_g = ys_g + 1;
+  xs_g = xs_g + 1;
+  
+  ze_g = zs_g + zm_g - 1;
+  ye_g = ys_g + ym_g - 1;
+  xe_g = xs_g + xm_g - 1;
 
-	/*
-	 * Get pointers to vector data
-	 */
-	DAVecGetArray(user->da, X, (void**)&xvec);
-
-	/*
-	 * Get local grid boundaries
-	 */
-	DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);
-
-	zs = zs + 1;
-	ys = ys + 1;
-	xs = xs + 1;
-	
-	ze = zs + zm - 1; 
-	ye = ys + ym - 1; 
-	xe = xs + xm - 1;
-
-	/*
-	 * Obtain ghost cell boundaries
-	 */
-	ierr = DAGetGhostCorners(user->da,&xs_g,&ys_g,&zs_g,&xm_g,&ym_g,&zm_g);CHKERRQ(ierr);
-
-	zs_g = zs_g + 1;
-	ys_g = ys_g + 1;
-	xs_g = xs_g + 1;
-
-        ze_g = zs_g + zm_g - 1;
-	ye_g = ys_g + ym_g - 1;
-	xe_g = xs_g + xm_g - 1;
-
-	/*
-	 * Compute function over the locally owned part of the grid
-	 */
+  /*
+   * Compute function over the locally owned part of the grid
+   */
 
 #ifdef absoft
-	FORTRAN_NAME(INITIALIZECALCULATION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+  FORTRAN_NAME(INITIALIZECALCULATION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
                                            ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
 #else
-	FORTRAN_NAME(initializecalculation)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+  FORTRAN_NAME(initializecalculation)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
                                            ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
 #endif
 
-	/* Restore vectors */
-	DAVecRestoreArray(user->da, X, (void**)&xvec);
+  /* Restore vectors */
+  DAVecRestoreArray(user->da, X, (void**)&xvec);
 
-	PetscFunctionReturn(0);
+  PetscFunctionReturn(0);
 }
 
 /* --------------------  Process old time solution ----------------- */
@@ -379,59 +367,59 @@ int FormInitialGuess(SNES snes,Vec X,void *ptr)
 #define __FUNCT__ "ProcessOldSolution"
 int ProcessOldSolution(SNES snes,Vec X,void *ptr)
 {
-	AppCtx	*user = (AppCtx*)ptr;
-	Field	***xvec;
-	Scalar	hx, hy, hz, xp, yp;
-	int	ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
-	int     ze,ye,xe;
-	int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
+  AppCtx	*user = (AppCtx*)ptr;
+  Field	***xvec;
+  PetscScalar	hx, hy, hz, xp, yp;
+  int	ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
+  int     ze,ye,xe;
+  int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
+  
+  PetscFunctionBegin;
+  /*
+   * Get pointers to vector data
+   */
+  DAVecGetArray(user->da, X, (void**)&xvec);
+  
+  /*
+   * Get local grid boundaries
+   */
+  DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);
+  
+  zs = zs + 1;
+  ys = ys + 1;
+  xs = xs + 1;
+  
+  ze = zs + zm - 1; 
+  ye = ys + ym - 1; 
+  xe = xs + xm - 1;
+  
+  /*
+   * Obtain ghost cell boundaries
+   */
+  ierr = DAGetGhostCorners(user->da,&xs_g,&ys_g,&zs_g,&xm_g,&ym_g,&zm_g);CHKERRQ(ierr);
 
-	PetscFunctionBegin;
-	/*
-	 * Get pointers to vector data
-	 */
-	DAVecGetArray(user->da, X, (void**)&xvec);
+  zs_g = zs_g + 1;
+  ys_g = ys_g + 1;
+  xs_g = xs_g + 1;
 
-	/*
-	 * Get local grid boundaries
-	 */
-	DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);
-
-	zs = zs + 1;
-	ys = ys + 1;
-	xs = xs + 1;
-
-	ze = zs + zm - 1; 
-	ye = ys + ym - 1; 
-	xe = xs + xm - 1;
-
-	/*
-	 * Obtain ghost cell boundaries
-	 */
-	ierr = DAGetGhostCorners(user->da,&xs_g,&ys_g,&zs_g,&xm_g,&ym_g,&zm_g);CHKERRQ(ierr);
-
-	zs_g = zs_g + 1;
-	ys_g = ys_g + 1;
-	xs_g = xs_g + 1;
-
-        ze_g = zs_g + zm_g - 1;
-	ye_g = ys_g + ym_g - 1;
-	xe_g = xs_g + xm_g - 1;
-
+  ze_g = zs_g + zm_g - 1;
+  ye_g = ys_g + ym_g - 1;
+  xe_g = xs_g + xm_g - 1;
+	
 #ifdef absoft
-	FORTRAN_NAME(PROCESSOLDSOLUTION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-                                        ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
-                                        ,&user->gmits,&user->nwits);
+  FORTRAN_NAME(PROCESSOLDSOLUTION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+				   ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
+				   ,&user->gmits,&user->nwits);
 #else
-	FORTRAN_NAME(processoldsolution)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-                                        ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
-                                        ,&user->gmits,&user->nwits);
+  FORTRAN_NAME(processoldsolution)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+				   ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
+				   ,&user->gmits,&user->nwits);
 #endif
 
-	/* Restore vectors */
-	DAVecRestoreArray(user->da, X, (void**)&xvec);
-
-	PetscFunctionReturn(0);
+  /* Restore vectors */
+  DAVecRestoreArray(user->da, X, (void**)&xvec);
+  
+  PetscFunctionReturn(0);
 }
 
 /* --------------------  Evaluate Function G(x,t) --------------------- */
@@ -439,84 +427,84 @@ int ProcessOldSolution(SNES snes,Vec X,void *ptr)
 #define __FUNCT__ "FormFunction"
 int FormFunction(SNES snes,Vec X,Vec F,void* ptr)
 {
-	AppCtx  *user = (AppCtx*)ptr;
+  AppCtx  *user = (AppCtx*)ptr;
+  
+  int     ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
+  Field   ***x,***f;
+  Vec     localX;
+  double  dt, theta;
+  
+  int     ye,xe,ze;
+  int     ivar,my_rank, xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
+
+  PetscFunctionBegin;
+
+  /*
+   * Scatter ghost points to local vector,using the 2-step process
+   * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
+   * By placing code between these two statements, computations can be
+   * done while messages are in transition.
+   */
+  
+  ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
+  /*ierr = DAGetInfo(user->da,PETSC_NULL,&mx,&my,&mz,0,0,0,0,0,0,0);CHKERRQ(ierr);*/
+  
+  ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  
+  /* 
+   *Get pointers to vector data
+   */
+
+  ierr = DAVecGetArray(user->da,localX,(void**)&x);CHKERRQ(ierr);
+  ierr = DAVecGetArray(user->da,F     ,(void**)&f);CHKERRQ(ierr);
+  
+  /*
+   * Get local grid boundaries
+   */
+  ierr = DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);CHKERRQ(ierr);
+  
+  zs = zs + 1;
+  ys = ys + 1;
+  xs = xs + 1;
+  
+  ze = zs + zm - 1; 
+  ye = ys + ym - 1; 
+  xe = xs + xm - 1;
+
+  /*
+   * Obtain ghost cell boundaries
+   */
+  ierr = DAGetGhostCorners(user->da,&xs_g,&ys_g,&zs_g,&xm_g,&ym_g,&zm_g);CHKERRQ(ierr);
+
+  zs_g = zs_g + 1;
+  ys_g = ys_g + 1;
+  xs_g = xs_g + 1;
+
+  ze_g = zs_g + zm_g - 1;
+  ye_g = ys_g + ym_g - 1;
+  xe_g = xs_g + xm_g - 1;
 	
-	int     ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
-	Field   ***x,***f;
-	Vec     localX;
-	double  dt, theta;
-
-	int     ye,xe,ze;
-	int     ivar,my_rank, xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
-
-	PetscFunctionBegin;
-
-	/*
-	 * Scatter ghost points to local vector,using the 2-step process
-	 * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
-	 * By placing code between these two statements, computations can be
-	 * done while messages are in transition.
-	 */
-
-	ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
-	/*ierr = DAGetInfo(user->da,PETSC_NULL,&mx,&my,&mz,0,0,0,0,0,0,0);CHKERRQ(ierr);*/
-
-	ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
-	ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  
-        /* 
-	 *Get pointers to vector data
-         */
-
-	ierr = DAVecGetArray(user->da,localX,(void**)&x);CHKERRQ(ierr);
-	ierr = DAVecGetArray(user->da,F     ,(void**)&f);CHKERRQ(ierr);
-  
-	/*
-	 * Get local grid boundaries
-	 */
-	ierr = DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);CHKERRQ(ierr);
-
-	zs = zs + 1;
-	ys = ys + 1;
-	xs = xs + 1;
-
-	ze = zs + zm - 1; 
-	ye = ys + ym - 1; 
-	xe = xs + xm - 1;
-
-	/*
-	 * Obtain ghost cell boundaries
-	 */
-	ierr = DAGetGhostCorners(user->da,&xs_g,&ys_g,&zs_g,&xm_g,&ym_g,&zm_g);CHKERRQ(ierr);
-
-	zs_g = zs_g + 1;
-	ys_g = ys_g + 1;
-	xs_g = xs_g + 1;
-
-        ze_g = zs_g + zm_g - 1;
-	ye_g = ys_g + ym_g - 1;
-	xe_g = xs_g + xm_g - 1;
-
-	/*
-	 * Evaluate nonlinear residual
-	 */
+  /*
+   * Evaluate nonlinear residual
+   */
 
 #ifdef absoft
-	FORTRAN_NAME(EVALUATENONLINEARRESIDUAL) (&(x[zs_g-1][ys_g-1][xs_g-1]),&(f[zs-1][ys-1][xs-1])\
+  FORTRAN_NAME(EVALUATENONLINEARRESIDUAL) (&(x[zs_g-1][ys_g-1][xs_g-1]),&(f[zs-1][ys-1][xs-1])\
 	  ,&xs,&xe,&ys,&ye,&zs,&ze,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
 #else
-	FORTRAN_NAME(evaluatenonlinearresidual) (&(x[zs_g-1][ys_g-1][xs_g-1]),&(f[zs-1][ys-1][xs-1])\
+  FORTRAN_NAME(evaluatenonlinearresidual) (&(x[zs_g-1][ys_g-1][xs_g-1]),&(f[zs-1][ys-1][xs-1])\
 	  ,&xs,&xe,&ys,&ye,&zs,&ze,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
 #endif
 
-	/*
-	 * Restore vectors
-	 */
-	ierr = DAVecRestoreArray(user->da,localX,(void**)&x);CHKERRQ(ierr);
-	ierr = DAVecRestoreArray(user->da,F     ,(void**)&f);CHKERRQ(ierr);
-	ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
-	ierr = PetscLogFlops((22 + 4*POWFLOP)*zm*ym*xm);CHKERRQ(ierr);
-	PetscFunctionReturn(0);
+  /*
+   * Restore vectors
+   */
+  ierr = DAVecRestoreArray(user->da,localX,(void**)&x);CHKERRQ(ierr);
+  ierr = DAVecRestoreArray(user->da,F     ,(void**)&f);CHKERRQ(ierr);
+  ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
+  ierr = PetscLogFlops((22 + 4*POWFLOP)*zm*ym*xm);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
 
 }
 
@@ -536,9 +524,9 @@ int FormFunction(SNES snes,Vec X,Vec F,void* ptr)
 int MatrixFreePreconditioner(void *ctx,Vec x,Vec y)
 {
 
-	PetscFunctionBegin;
-
-	VecCopy(x,y);
-
-	PetscFunctionReturn(0);
+  PetscFunctionBegin;
+  
+  VecCopy(x,y);
+  
+  PetscFunctionReturn(0);
 }
