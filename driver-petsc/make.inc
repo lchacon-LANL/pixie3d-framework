@@ -7,4 +7,4 @@ SUBDIRS = $(COMMONDIR)/grid \
 
 # Petsc include
 
-include ${PETSC_DIR}/bmake/${PETSC_ARCH}/base
+include ${PETSC_DIR}/bmake/common/base
