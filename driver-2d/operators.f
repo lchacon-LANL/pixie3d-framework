@@ -258,8 +258,8 @@ c Begin program
       else
         laplace = ( (arr(ip,jj)-arr(ii,jj))/grid_params%dx(ig  )
      .             -(arr(ii,jj)-arr(im,jj))/grid_params%dx(ig-1) )/dxx
-     .          + ( (arr(ii,jp)-arr(ii,jj))/grid_params%dy(ig  )      
-     .             -(arr(ii,jj)-arr(ii,jm))/grid_params%dy(ig-1) )/dyy
+     .          + ( (arr(ii,jp)-arr(ii,jj))/grid_params%dy(jg  )      
+     .             -(arr(ii,jj)-arr(ii,jm))/grid_params%dy(jg-1) )/dyy
       endif
 
 c End program
