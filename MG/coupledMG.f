@@ -18,13 +18,15 @@ c######################################################################
 
         INTERFACE
           subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,arr_cov
-     .                      ,icomp,is_cnv)
+     .                      ,arr0,icomp,is_cnv,is_vec,iorder)
             integer(4) :: nnx,nny,nnz,neq,bcnd(6,neq),iig,gpos
             real(8)    :: array(0:nnx+1,0:nny+1,0:nnz+1,neq)
             real(8),optional,intent(INOUT) ::
      .                    arr_cov(0:nnx+1,0:nny+1,0:nnz+1,neq)
-            integer(4),optional,intent(IN) :: icomp
-            logical   ,optional,intent(IN) :: is_cnv
+            real(8),optional,intent(IN) ::
+     .                    arr0   (0:nnx+1,0:nny+1,0:nnz+1,neq)
+            integer(4),optional,intent(IN) :: icomp,iorder
+            logical   ,optional,intent(IN) :: is_cnv,is_vec
           end subroutine setMGBC
         END INTERFACE
 
@@ -33,6 +35,8 @@ c######################################################################
 c module mg_internal
 c######################################################################
       module mg_internal
+
+        use grid
 
         use mlsolverSetup
 
@@ -458,7 +462,7 @@ c     Local variables
 
         real(8),allocatable,dimension(:) :: work
 
-        external   :: dgetri,dgetrf
+        external   dgetri,dgetrf
 
 c     Begin program
 
@@ -700,6 +704,400 @@ c     Begin program
       end function dot
 
       end module mg_internal
+
+c module mgarraySetup
+c ######################################################################
+      module mgarraySetup
+
+        use mg_internal
+
+        type :: garray
+          real(8),pointer,dimension(:,:,:,:) :: array
+        end type garray
+
+        type :: mg_array
+          type(garray),pointer,dimension(:) :: grid
+        end type mg_array
+
+        logical :: is__cnv,have_equl
+
+        type(mg_array) :: equl
+
+        INTERFACE ASSIGNMENT (=)
+          module procedure equateMGArray
+        END INTERFACE
+
+      contains
+
+c     allocateMGArray
+c     #################################################################
+      subroutine allocateMGarray(neq,mgarray)
+
+        implicit none
+
+c     Call variables
+
+        integer(4)      :: neq
+        type(mg_array)  :: mgarray
+
+c     Local variables
+
+        integer(4)      :: igrid,nxp,nyp,nzp
+
+c     Begin program
+
+        if (.not.associated(mgarray%grid)) then
+          allocate(mgarray%grid(grid_params%ngrid))
+          do igrid=1,grid_params%ngrid
+            nxp = grid_params%nxv(igrid)+1
+            nyp = grid_params%nyv(igrid)+1
+            nzp = grid_params%nzv(igrid)+1
+            allocate(mgarray%grid(igrid)%array(0:nxp,0:nyp,0:nzp,neq))
+            mgarray%grid(igrid)%array = 0d0
+          enddo
+        endif
+
+c     End program
+
+      end subroutine allocateMGarray
+
+c     deallocateMGArray
+c     #################################################################
+      subroutine deallocateMGArray(mgarray)
+
+        implicit none
+
+c     Call variables
+
+        type(mg_array)  :: mgarray
+
+c     Local variables
+
+        integer          :: igrid
+
+c     Begin program
+
+        if (associated(mgarray%grid)) then
+          do igrid=1,grid_params%ngrid
+            if (associated(mgarray%grid(igrid)%array)) then
+              deallocate(mgarray%grid(igrid)%array)
+            endif
+          enddo
+          deallocate(mgarray%grid)
+        endif
+
+c     End program
+
+      end subroutine deallocateMGArray
+
+c     equateMGArray
+c     #################################################################
+      subroutine equateMGArray(mg2,mg1)
+
+        implicit none
+
+c     Call variables
+
+        type(mg_array),intent(IN)  :: mg1
+        type(mg_array),intent(OUT) :: mg2
+
+c     Local variables
+
+        integer          :: igrid,neq
+
+c     Begin program
+
+        neq = size(mg1%grid(1)%array,4)
+
+        call allocateMGArray(neq,mg2)
+
+        do igrid=1,grid_params%ngrid
+          mg2%grid(igrid)%array = mg1%grid(igrid)%array
+        enddo
+
+c     End program
+
+      end subroutine equateMGArray
+
+c     restrictMGArray
+c     #################################################################
+      subroutine restrictMGArray(icmp,neq,mgarray,bcnd,igrid,order
+     .                          ,iscnv,equil)
+c     -----------------------------------------------------------------
+c     Restricts MG array in all grids with ghost nodes.
+c     -----------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      integer(4)     :: neq,icmp,bcnd(6,neq),order,igrid
+      type(mg_array) :: mgarray
+      logical,optional,intent(IN) :: iscnv
+      type(mg_array),optional,intent(IN) :: equil
+
+c     Local variables
+
+      integer(4)     :: igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
+
+c     Begin program
+
+      if (PRESENT(iscnv)) then
+        is__cnv = iscnv
+      else
+        is__cnv = .true.   !Contravariant representation by default
+      endif
+
+      if (PRESENT(equil)) then
+        have_equl = .true.
+        equl = equil
+      else
+        have_equl = .false.
+      endif
+        
+c     Consistency check
+
+      if (size(mgarray%grid(igrid)%array,4) /= neq) then
+        write (*,*) 'Cannot restrict MG array: ',
+     .              'inconsistent number of components'
+        write (*,*) neq,size(mgarray%grid)
+        write (*,*) 'Aborting...'
+        stop
+      endif
+
+c     Restrict array
+
+      do igc=igrid+1,grid_params%ngrid
+        igf = igc-1
+
+        nxf = grid_params%nxv(igf)
+        nyf = grid_params%nyv(igf)
+        nzf = grid_params%nzv(igf)
+        nxc = grid_params%nxv(igc)
+        nyc = grid_params%nyv(igc)
+        nzc = grid_params%nzv(igc)
+
+        call restrictArrayToArray(icmp,neq
+     .       ,igf,nxf,nyf,nzf,mgarray%grid(igf)%array
+     .       ,igc,nxc,nyc,nzc,mgarray%grid(igc)%array
+     .       ,order,.false.,bcnd)
+      enddo
+
+      if (have_equl) call deallocateMGArray(equl)
+
+c     End program
+
+      end subroutine restrictMGArray
+
+c     restrictArrayToArray
+c     #################################################################
+      subroutine restrictArrayToArray(icmp,neq,igf,nxf,nyf,nzf,arrayf
+     .                                        ,igc,nxc,nyc,nzc,arrayc
+     .                               ,order,volf,bcnd)
+c     -----------------------------------------------------------------
+c     Restricts array to array in all grids (with ghost nodes),
+c     starting at grid igf.
+c     -----------------------------------------------------------------
+
+      use setMGBC_interface
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      integer(4) :: neq,igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
+     .             ,order,bcnd(6,neq),icmp
+      real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1,neq)
+     .             ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
+      logical    :: volf
+
+c     Local variables
+
+      integer(4) :: igridf,igridc,isigf,isigc,i,j,k,ii,ieq
+     .             ,nxxf,nyyf,nzzf,nxxc,nyyc,nzzc,ntotc,ntotf
+     .             ,bcmod(6,neq)
+
+      real(8),allocatable,dimension(:) :: vecf,vecc
+      logical    :: fpointers
+
+c     Begin program
+
+      call allocPointers(neq,fpointers)
+
+c     Consistency check
+
+      nxxf = nxv(igf)
+      nyyf = nyv(igf)
+      nzzf = nzv(igf)
+
+      if (nxf /= nxxf .or. nyf /= nyyf .or. nzf /= nzzf) then
+        write (*,*) 'Grid mismatch in restrictArrayToArray:'
+        write (*,*) 'Aborting...'
+        stop
+      endif
+
+c     Allocate vectors
+
+      nxxc = nxxf
+      nyyc = nyyf
+      nzzc = nzzf
+
+      ntotf = neq*nxxf*nyyf*nzzf
+      ntotc = ntotf
+
+      allocate(vecf(ntotf))
+      allocate(vecc(ntotc))
+
+c     Map arrays onto MG vector
+
+      !Set igrid=1 since vecf is NOT a MG vector
+      call mapArrayToMGVector(neq,nxxf,nyyf,nzzf,arrayf,vecc,1)
+
+c     Restrict MG vectors
+
+      do igridc = igf+1,igc
+
+        igridf = igridc-1
+
+c       Characterize coarse and fine grids
+
+        nxxf = grid_params%nxv(igridf)
+        nyyf = grid_params%nyv(igridf)
+        nzzf = grid_params%nzv(igridf)
+
+        nxxc = grid_params%nxv(igridc)
+        nyyc = grid_params%nyv(igridc)
+        nzzc = grid_params%nzv(igridc)
+
+        ntotf = neq*nxxf*nyyf*nzzf
+        ntotc = neq*nxxc*nyyc*nzzc
+
+c       Allocate coarse mesh vector
+
+        deallocate(vecf)
+        allocate(vecf(ntotf))
+
+        vecf = vecc
+
+        deallocate(vecc)
+        allocate(vecc(ntotc))
+
+c       Restrict vector
+
+        call crestrict(neq,vecc,ntotc,nxxc,nyyc,nzzc
+     .                    ,vecf,ntotf,nxxf,nyyf,nzzf
+     .                ,order,igridf,volf)
+
+      enddo
+
+c     Map vector to array
+
+      call mapMGVectorToArray(0,neq,vecc,nxc,nyc,nzc,arrayc,igc,.false.)
+
+      if (icmp /= 0) then
+        if (have_equl) then
+          call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+     .                ,arr0=equl%grid(igc)%array
+     .                ,icomp=icmp,is_cnv=is__cnv,iorder=order)
+        else
+          bcmod = bcnd
+          where (bcnd == EQU)
+            bcmod = EXT
+          end where
+          call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod,icomp=icmp
+     .              ,is_cnv=is__cnv,iorder=order)
+cc     .              ,is_cnv=is__cnv)
+        endif
+      endif
+
+c     Deallocate vectors
+
+      deallocate(vecf,vecc)
+
+      call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine restrictArrayToArray
+
+c     restrictArrayToMGVector
+c     #################################################################
+      subroutine restrictArrayToMGVector(neq,nx,ny,nz,array,mgvector
+     .                                  ,igr0,order,volf)
+c     -----------------------------------------------------------------
+c     Restricts array to mgvector in all grids (without ghost nodes),
+c     starting at grid igr0.
+c     -----------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      integer(4) :: neq,nx,ny,nz,order
+      real(8)    :: array(0:nx+1,0:ny+1,0:nz+1,neq)
+      real(8)    :: mgvector(*)
+      logical    :: volf
+
+c     Local variables
+
+      integer(4) :: ieq,nxf,nyf,nzf,nxc,nyc,nzc,igridc,igridf,igr0
+     .             ,isigf,isigc,ntotc,ntotf
+      logical    :: fpointers
+
+c     Begin program
+
+      call allocPointers(neq,fpointers)
+
+c     Consistency check
+
+      nxf = nxv(igr0)
+      nyf = nyv(igr0)
+      nzf = nzv(igr0)
+
+      if (nxf /= nx .or. nyf /= ny .or. nzf /= nz) then
+        write (*,*) 'Grid mismatch in restrictArray:'
+        write (*,*) 'Aborting...'
+        stop
+      endif
+
+c     Map array in initial grid onto MG vector
+
+      call mapArrayToMGVector(neq,nx,ny,nz,array,mgvector,igr0)
+
+c     Restrict array to coarser grids
+
+      do igridc = igr0+1,grid_params%ngrid
+
+        igridf = igridc-1
+
+c       Characterize coarse and fine grids
+
+        nxf = nxv(igridf)
+        nyf = nyv(igridf)
+        nzf = nzv(igridf)
+
+        nxc = nxv(igridc)
+        nyc = nyv(igridc)
+        nzc = nzv(igridc)
+
+        isigc = istart(igridc)
+        isigf = istart(igridf)
+
+        ntotf = neq*nxf*nyf*nzf
+        ntotc = neq*nxc*nyc*nzc
+
+c       Restrict MG vector
+
+        call crestrict(neq,mgvector(isigc),ntotc,nxc,nyc,nzc
+     .                    ,mgvector(isigf),ntotf,nxf,nyf,nzf
+     .                ,order,igridf,volf)
+      enddo
+
+      call deallocPointers(fpointers)
+
+      end subroutine restrictArrayToMGVector
+
+      end module mgarraySetup
 
 c mg
 c#######################################################################
@@ -959,11 +1357,11 @@ c End program
  5    format (/,' MG method output:')
  7    format (/,' MG V-cycle #:',i3)
  8    format (/,' MG W-cycle #:',i3)
- 10   format (  ' MG residual:',1p1e12.4,'; Ratio:',1p1e12.4)
- 20   format (  ' MG residual:',1p1e12.4,'; Ratio:',1p1e12.4,
-     .          '; V-cycle #:'i3)
- 21   format (  ' MG residual:',1p1e12.4,'; Ratio:',1p1e12.4,
-     .          '; W-cycle #:'i3)
+ 10   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4)
+ 20   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
+     .          '; V-cycle #:',i3)
+ 21   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
+     .          '; W-cycle #:',i3)
 
       contains
 
@@ -1041,10 +1439,17 @@ c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
      .                  ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
      .                  ,orderres,igr,volf)
 
+cc        write (*,*) 'volume averaged?',volf
+cc        if (igr == 1) then
+cc          write (*,*) 'Plotting here at level',igc
+cc          call MGplot(neq,wrk,igr,0,'fine.bin')
+cc        endif
+cc
 cc        if (igc == igmax-1) then
 cc          write (*,*) 'Plotting here at level',igc
-cc          call MGplot(neq,yy,igc,0,'fine.bin')
+cc          call MGplot(neq,yy,igc,0,'coarse.bin')
 cc        endif
+cc        stop
 cc
 cc        if (igc == igmax) then
 cc          write (*,*) 'Plotting here at level',igc
@@ -1088,7 +1493,7 @@ c     Update existing solution on grid igr (i.e. xx_igr): xx_igr = xx_igr + wrk
 cc        if (igc == igmax-1) then
 cc          write (*,*) 'Plotting here at level',igc
 cc          call MGplot(neq,wrk,igc,1,'fine.bin')
-cc          call MGplot(neq,xx ,igc,1,'fine.bin')
+cccc          call MGplot(neq,xx ,igc,1,'fine.bin')
 cc        endif
 
 c     Relax updated solution on igr (i.e. xx_igr)
@@ -1422,13 +1827,13 @@ c     End program
 
  5    format(/,' *****************************************************')
  6    format(  ' *****************************************************')
- 7    format('  Initial residual:',1p1e10.2)
+ 7    format('  Initial residual:',1p,1e10.2)
 
- 10   format('  X-plane relax. Residual:',1p1e10.2,'; Ratio:',1p1e10.2)
+ 10   format('  X-plane relax. Residual:',1p,1e10.2,'; Ratio:',1e10.2)
 
- 20   format('  Y-plane relax. Residual:',1p1e10.2,'; Ratio:',1p1e10.2)
+ 20   format('  Y-plane relax. Residual:',1p,1e10.2,'; Ratio:',1e10.2)
 
- 30   format('  Z-plane relax. Residual:',1p1e10.2,'; Ratio:',1p1e10.2)
+ 30   format('  Z-plane relax. Residual:',1p,1e10.2,'; Ratio:',1e10.2)
 
       end subroutine linesmooth
         
@@ -1760,7 +2165,7 @@ c Extrapolation
       real(8), dimension(:,:,:),allocatable:: bcoef
 
       real(8)    :: db3val
-      external   :: db3val
+      external      db3val
 
 c Begin program
 
@@ -2451,10 +2856,10 @@ c End program
 
       return
 
- 10   format (' JB Iteration:',i4,'; Residual:',1p1e10.2,
-     .        '; Ratio:',1p1e10.2)
- 20   format (' JB Iteration:',i4,'; Residual:',1p1e10.2,
-     .        '; Ratio:',1p1e10.2,'; Damping:',1p1e10.2)
+ 10   format (' JB Iteration:',i4,'; Residual:',1p,1e10.2,
+     .        '; Ratio:',1e10.2)
+ 20   format (' JB Iteration:',i4,'; Residual:',1e10.2,
+     .        '; Ratio:',1p,1e10.2,'; Damping:',1e10.2)
 
       contains
 
@@ -2943,10 +3348,10 @@ c End program
 
       return
 
- 10   format (' GS Iteration:',i4,'; Residual:',1p1e10.2,
-     .        '; Ratio:',1p1e10.2)
- 20   format (' GS Iteration:',i4,'; Residual:',1p1e10.2,
-     .        '; Ratio:',1p1e10.2,'; Damping:',1p1e10.2)
+ 10   format (' GS Iteration:',i4,'; Residual:',1p,1e10.2,
+     .        '; Ratio:',1e10.2)
+ 20   format (' GS Iteration:',i4,'; Residual:',1p,1e10.2,
+     .        '; Ratio:',1e10.2,'; Damping:',1e10.2)
 
       contains
 
