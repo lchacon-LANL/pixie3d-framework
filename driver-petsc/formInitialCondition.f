@@ -321,15 +321,24 @@ c     ####################################################################
           if (.not.odd) period = period/2.
           ff = cos(period*(x-xmin)/(xmax-xmin))
         elseif (bcs(1) == DIR .and. bcs(2) == NEU) then
-          period = 3*period/4.
-          if (.not.odd) period = period/2.
+          if (.not.odd) then
+            period = period/2.
+          else
+            period = 3*period/4.
+          endif
           ff = sin(period*(x-xmin)/(xmax-xmin))
         elseif (bcs(1) == SP .and. bcs(2) == DIR) then
-          ff = x**(nh+1)*sin(period*(x-xmin)/(xmax-xmin)) !To satisfy regularity at r=0 (r^m)
+          ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+     .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
         elseif (bcs(1) == SP .and. bcs(2) == NEU) then
-          period = 3*period/4.
-          if (.not.odd) period = period/2.
-          ff = x**(nh+1)*cos(period*(x-xmin)/(xmax-xmin)) !To satisfy regularity at r=0 (r^m)
+          if (.not.odd) then
+            period = period/2.
+            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+          else
+            period = 3*period/4.
+            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+     .        *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
+          endif
         else
           ff = sin(period*(x-xmin)/(xmax-xmin))
         endif
@@ -374,8 +383,8 @@ c Set data dumping intervals
       if (tmax.gt.0d0) then
         if (dstep.eq.0d0) then
           dstep = dt*max(int((tmax-time)/dfreq/dt),1)
-        else
-          dstep = max(dstep,dt)
+cc        else
+cc          dstep = max(dstep,dt)
         endif
         rstep = min(dt*max(int((tmax-time)/dfreq/dt),1),dstep)
         ndstep  = -1
@@ -413,7 +422,7 @@ c Open record file
           
       endif
 
-c End programs
+c End program
 
       end subroutine initializeRecordFile
 
