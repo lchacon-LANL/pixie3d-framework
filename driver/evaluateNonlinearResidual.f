@@ -48,18 +48,29 @@ c Calculate residuals
             ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
 
             do ieq=1,neqd
-              dudt(ieq) = volume(i,j,k,1,1,1)*one_over_dt(ieq)
-     .                   *( varray%array_var(ieq)%array(i,j,k)
-     .                     -   u_n%array_var(ieq)%array(i,j,k) )
-            enddo
+cc              dudt(ieq) = volume(i,j,k,1,1,1)*one_over_dt(ieq)
+cc     .                   *( varray%array_var(ieq)%array(i,j,k)
+cc     .                     -   u_n%array_var(ieq)%array(i,j,k) )
+cc              f(ii+ieq) = dudt(ieq) + (1.-cnf(ieq))*f   (ii+ieq)
+cc     .                              +     cnf(ieq) *fold(ii+ieq)
+cc     .                              -               fsrc(ii+ieq)
 
-            f(ii+1:ii+neqd) = dudt(:) + (1.-cnf)*f   (ii+1:ii+neqd)
-     .                                +     cnf *fold(ii+1:ii+neqd)
-     .                                -          fsrc(ii+1:ii+neqd)
+              f(ii+ieq) = (varray%array_var(ieq)%array(i,j,k)
+     .                    -   u_n%array_var(ieq)%array(i,j,k))
+     .                    *one_over_dt(ieq)
+     .                    + ((1.-cnf(ieq))*f   (ii+ieq)
+     .                    +      cnf(ieq) *fold(ii+ieq)
+     .                    -                fsrc(ii+ieq))
+     .                      /volume(i,j,k,1,1,1)
+            enddo
 
           enddo
         enddo
       enddo
+
+c Deallocate structure
+
+      call deallocateDerivedType(varray)
 
 c End program
 
