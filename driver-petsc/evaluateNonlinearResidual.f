@@ -44,7 +44,7 @@ c Find local limits
 
 c Unpack petsc array
 
-      call allocateDerivedType(varray)
+      call initializeDerivedType(varray)
 
       do ieq=1,neqd
         varray%array_var(ieq)
@@ -58,14 +58,25 @@ c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
 c Assign ff (vector) to f (PETSc array)
 
+      call defineTSParameters
+
       do k = kmin,kmax
         do j = jmin,jmax
           do i = imin,imax
             call fromGlobalToLocalLimits(i,j,k,il,jl,kl,1,1,1)
             ii = vecPos(neqd,il,jl,kl,1,1,1)
             do ieq=1,neqd
-              f(i,j,k)%var(ieq) = ff(ii+ieq)
+              f(i,j,k)%var(ieq)= (varray%array_var(ieq)%array(il,jl,kl)
+     .                           -   u_n%array_var(ieq)%array(il,jl,kl))
+     .                           *one_over_dt(ieq)
+     .                           + ((1.-cnf(ieq))*ff  (ii+ieq)
+     .                           +      cnf(ieq) *fold(ii+ieq)
+     .                           -                fsrc(ii+ieq))
+cc              f(i,j,k)%var(ieq) = ff(ii+ieq)
             enddo
+
+            f(i,j,k)%var(:) = f(i,j,k)%var(:)*volume(il,jl,kl,1,1,1)
+
           enddo
         enddo
       enddo

@@ -272,11 +272,11 @@ c$$$c     Call variables
 c$$$
 c$$$      real(8),intent(out) :: x(ntotd)
 c$$$
-c$$$      type (petsc_array),intent(in)  :: petscarray
+c$$$      type (petsc_var),intent(in)  :: petscarray(ilo:ihi,jlo:jhi,klo:khi)
 c$$$
 c$$$c     Local variables
 c$$$
-c$$$      integer(4) :: i,j,k,ii,ieq
+c$$$      integer(4) :: i,j,k,il,jl,kl,ii,ieq
 c$$$
 c$$$c     Begin program
 c$$$
@@ -285,9 +285,10 @@ c$$$
 c$$$      do k = klo,khi
 c$$$        do j = jlo,jhi
 c$$$          do i = ilo,ihi
-c$$$            ii = vecPos(neqd,i,j,k)
+c$$$            call fromGlobalToLocalLimits(i,j,k,il,jl,kl,1,1,1)
+c$$$            ii = vecPos(neqd,il,jl,kl,1,1,1)
 c$$$            do ieq = 1,neqd
-c$$$              x(ii+ieq) = petscarray%array(i,j,k)%var(ieq)
+c$$$              x(ii+ieq) = petscarray(i,j,k)%var(ieq)
 c$$$            enddo
 c$$$          enddo
 c$$$        enddo
@@ -1001,9 +1002,9 @@ c ######################################################################
         real(8)    :: dt,dtbase,cnfactor,cnf_d,alpha,gammat
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0
 
-#if !defined(petsc)
+cc#if !defined(petsc)
         real(8),allocatable,dimension(:) :: fold,fsrc
-#endif
+cc#endif
 
         real(8)    :: vx_max,vy_max,vz_max,bx_max,by_max,bz_max
 
@@ -1142,3 +1143,14 @@ c     End
       end subroutine closeRecordFile
 
       end module iosetup
+
+c module precond_setup
+c ######################################################################
+      module precond_setup
+
+        integer(4)    :: nsweep,maxvcyc,precpass
+        real(8)       :: mgtol
+
+        character*(10):: precon
+
+      end module precond_setup

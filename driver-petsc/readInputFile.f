@@ -22,6 +22,8 @@ c----------------------------------------------------------------------
 
       use icond
 
+      use precond_setup
+
       implicit none
 
 c Call variables
@@ -33,6 +35,7 @@ c Call variables
         real(8)    :: damp
         real(8)    :: dt
         real(8)    :: tmax
+        integer(4) :: ilevel
         integer(4) :: nxd
         integer(4) :: nyd
         integer(4) :: nzd
@@ -47,6 +50,7 @@ c Call variables
         integer(4) :: global
         integer(4) :: iguess
         integer(4) :: bcsi(6)
+        logical    :: user_PC
       end type indata
 
       type(indata) :: inputdata
@@ -55,16 +59,19 @@ c Local variables
 
 c Begin program
 
+      g_pack%dim(:)%pack = .false.
+
       call readInput
 
 c Define structure components
 
-      inputdata%nxd = nxd
-      inputdata%nyd = nyd
-      inputdata%nzd = nzd
-      inputdata%npx = npx
-      inputdata%npy = npy
-      inputdata%npz = npz
+      inputdata%ilevel   = ilevel
+      inputdata%nxd      = nxd
+      inputdata%nyd      = nyd
+      inputdata%nzd      = nzd
+      inputdata%npx      = npx
+      inputdata%npy      = npy
+      inputdata%npz      = npz
       inputdata%numtime  = numtime
       inputdata%maxitnwt = maxitnwt
       inputdata%maxksp   = maxksp 
@@ -85,6 +92,12 @@ c Define structure components
       inputdata%damp     = damp   
       inputdata%dt       = dt   
       inputdata%tmax     = tmax
+
+      if (precon == 'id') then
+        inputdata%user_PC = .false.
+      else
+        inputdata%user_PC = .true.
+      endif
 
 c Write structure
 

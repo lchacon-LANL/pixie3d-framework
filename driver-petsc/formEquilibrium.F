@@ -87,16 +87,20 @@ c Allocate constant arrays
 
 c Initialize MG, MPI, fortran DA, and create grid
 
-      call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd)
+      call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd
+     .               ,gpack=g_pack)
 
 c Check grid
 
 c diag ******* NUMERICAL GRID QUANTITIES
-cc      if (my_rank == 2) then
+cc      if (my_rank == 1) then
 cc        write (*,*) 'proc',my_rank,'lim',ilog,ihig,jlog,jhig,klog,khig
 cc        write (*,*) 'Grid in processor',my_rank
 cc        call checkGrid
 cc      endif
+cc
+cc      call PetscEnd(mpierr)
+cc
 cc
 cc      if (my_rank == 0) then
 cc        open(unit=110,file='debug.bin',form='unformatted'
@@ -125,7 +129,7 @@ cc        close(110)
 cc      endif
 cc
 cc      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cc      call MPI_Finalize(mpierr)
+cc      call PetscFinalize(mpierr)
 cc      stop
 c diag *******
 
@@ -164,7 +168,7 @@ c Transfer to Petsc format
      .      = u_n%array_var(ieq)%array(ilo:ihi,jlo:jhi,klo:khi)
       enddo
 
-      call deallocateDerivedType(u_n)       !DO NOT deallocate u_0; needed in imposeBC routine
+cc      call deallocateDerivedType(u_n)       !DO NOT deallocate u_0; needed in imposeBC routine
 
 c End program
  
@@ -196,6 +200,7 @@ c Begin program
 
       call allocateStructures
       allocate(cnf(neqd),one_over_dt(neqd))
+      allocate(fold(ntotd),fsrc(ntotd))
 
 c End programs
 
