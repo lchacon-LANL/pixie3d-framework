@@ -397,8 +397,12 @@ c     Begin program
 
 c     X-Y plots
 
-        k = (kmaxg-kming+1)/2
-cc        k = 2
+        k = (kmaxg-kming+1)/3
+cc        k = kming
+
+        if (kmaxg -kming /= 1) then
+          write (*,*) 'Z-slice contour at k=',k
+        endif
 
         if(iopt.eq.0) then
 
@@ -764,6 +768,8 @@ c ##################################################################
 
         use timeStepping
 
+        use generalPurposeFunctions
+
         character*(20) :: hdf5_fname = 'record.h5'
 
 #if defined(hdf5)
@@ -802,36 +808,7 @@ c       variables for parallel HDF5
 
         character(strlength), dimension(ARRAY_RANK) :: attr_data
 
-        PRIVATE :: int2char
-
       contains 
-
-c     int2char
-c     ##################################################################
-      function int2char(n) result (chr)
-
-      integer(4)   :: n
-      character(10):: chr
-
-      integer(4)   :: i,j,exp,k
-      character(3) :: c
-
-      if (n > 0) then
-         exp = int(log(float(n))/log(1d1))
-      else
-         exp = 0
-      endif
-
-      chr=''
-      k = n
-      do i=exp,0,-1
-         j = k/10**i
-         c = achar(48+j)
-         chr = trim(chr)//trim(c)
-         if (i > 0 ) k = mod(k,j*10**i)
-      enddo
-
-      end function int2char
 
 c     initializeHDF5file
 c     ##############################################################
@@ -1400,7 +1377,6 @@ c     Find grid in logical space
         yl(:) = grid_params%yy(jming+isy:jmaxg+isy)
         zl(:) = grid_params%zz(kming+isz:kmaxg+isz)
 
-
 c     Define graphics i/o and initialize graph arrays (external)
 
         call defineGraphics
@@ -1416,7 +1392,9 @@ c     Determine actual number of 3D plots
         enddo
 
 c     Initialize XDRAW
-#if !defined(petsc)
+#if defined(petsc)
+        if (np == 1) call initializeXDRAW
+#else
         call initializeXDRAW
 #endif
 
@@ -1444,7 +1422,9 @@ c     Local variables
 
 c     Begin program
 
-#if !defined(petsc)
+#if defined(petsc)
+        if (np == 1) call closeXDRAWGraphicsFiles
+#else
         call closeXDRAWGraphicsFiles
 #endif
 
@@ -1542,7 +1522,9 @@ c     Local variables
 
 c     Begin program
 
-#if !defined(petsc)
+#if defined(petsc)
+        if (np == 1) call dumpXDRAWplots
+#else
         call dumpXDRAWplots
 #endif
 
