@@ -26,19 +26,23 @@ c######################################################################
           integer(4) :: krylov_subspace
 
           !MG quantities
-          integer(4) :: igridmin
-          integer(4) :: vcyc
-          integer(4) :: orderres
-          integer(4) :: orderprol
-          integer(4) :: mg_coarse_solver_depth
-          integer(4) :: mg_mu
-          integer(4) :: mg_line_nsweep
-          integer(4) :: mg_line_vcyc
-          integer(4) :: mg_line_coarse_solver_depth
-          logical    :: mg_line_relax
-          real(8)    :: mg_line_tol
-          real(8)    :: mg_line_omega
-          logical    :: vertex_based_relax
+          integer(4)   :: igridmin
+          integer(4)   :: vcyc
+          integer(4)   :: orderres
+          integer(4)   :: orderprol
+          integer(4)   :: mg_coarse_solver_depth
+          integer(4)   :: mg_mu
+          integer(4)   :: mg_line_nsweep
+          integer(4)   :: mg_line_vcyc
+          integer(4)   :: mg_line_coarse_solver_depth
+          logical      :: mg_line_relax
+          logical      :: mg_line_x
+          logical      :: mg_line_y
+          logical      :: mg_line_z
+          character(2) :: mg_line_solve
+          real(8)      :: mg_line_tol
+          real(8)      :: mg_line_omega
+          logical      :: vertex_based_relax
 
           type(grid_def)  :: mg_grid_def
 
@@ -108,6 +112,11 @@ c       Initializes solver options
           solverOptions%mg_line_omega  = 1d0       !Damping parameter for line relax
           solverOptions%mg_line_coarse_solver_depth= 0  !Identifies coarse solver for line solves
                                                         !  (if =0, use smoother)
+          solverOptions%mg_line_solve  = "mg"      !Which line solver to use (mg,gm,gs,jb)
+          solverOptions%mg_line_x      = .true.    !Whether to do lines in x-direction
+          solverOptions%mg_line_y      = .true.    !Whether to do lines in y-direction
+          solverOptions%mg_line_z      = .true.    !Whether to do lines in z-direction
+
           solverOptions%vertex_based_relax=.false. !Whether to do vertex-based relax.
           solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
 
