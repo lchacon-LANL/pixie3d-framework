@@ -1,3 +1,7 @@
+#Define message
+
+MESSAGE = "Compiling PETSC driver"
+
 #Define subdirectories for common code
 
 COMMONDIR = ..
