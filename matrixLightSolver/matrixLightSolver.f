@@ -410,7 +410,7 @@ c     For arbitrary initial guess (vv(:,1) = b - Ax)
 
 c Calculate restarting loops
 
-      rstrt = maxits/kmax + 1
+      rstrt = min(maxits/kmax + 1,maxits)
 
 c Calculate magnitude of initial residual
 
@@ -423,12 +423,14 @@ c Calculate magnitude of initial residual
       if (rold.lt.abstol) then
         ierr = -1
         if (iout .ge. 1)
-     .       write (*,*) 'Initial guess seems exact solution in GMRES' 
+     .       write (*,*) 'Initial guess seems exact solution in GMRES'
         call killgm
         return
       endif
 
       eps1=eps*rold
+
+      ro = rold
 
 c Restarted GMRES loop
 
