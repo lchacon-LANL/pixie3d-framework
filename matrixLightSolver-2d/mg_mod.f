@@ -115,17 +115,24 @@ c     End program
           enddo
           xx(0,ig) = xx(1,ig) - dx(ig)
 
-
           do ig = ngrid-1,1,-1
 
-            dx(ig) = dx(ig+1)*2d0
+cc            dx(ig) = dx(ig+1)*2d0
+cc
+cc            do i = 1,nx(ig)
+cc              if = 2*i
+cc              xx(i,ig) = .5*(xx(if,ig+1)+xx(if-1,ig+1))
+cc            enddo
+cc            xx(0       ,ig) = xx(1     ,ig) - dx(ig)/2.
+cc            xx(nx(ig)+1,ig) = xx(nx(ig),ig) + dx(ig)/2.
 
-            do i = 1,nx(ig)
-              if = 2*i
-              xx(i,ig) = .5*(xx(if,ig+1)+xx(if-1,ig+1))
+            dx(ig) = length/dfloat(nx(ig)-1)
+
+            xx(1,ig) = 0d0
+            do i = 2,nx(ig)+1
+              xx(i,ig) = xx(i-1,ig) + dx(ig)
             enddo
-            xx(0       ,ig) = xx(1     ,ig) - dx(ig)/2.
-            xx(nx(ig)+1,ig) = xx(nx(ig),ig) + dx(ig)/2.
+            xx(0,ig) = xx(1,ig) - dx(ig)
 
           enddo
 
@@ -142,7 +149,7 @@ c     End program
 
           do ig = ngrid-1,1,-1
 
-            dx(ig) = 1d0/dfloat(nx(ig)+1)
+            dx(ig) = length/dfloat(nx(ig)+1)
 
             xx(0,ig) = 0d0
             do j = 1,nx(ig)+1
@@ -164,7 +171,7 @@ c     End program
 
           do ig = ngrid-1,1,-1
 
-            dx(ig) = 1d0/dfloat(nx(ig))
+            dx(ig) = length/dfloat(nx(ig))
 
             xx(0,ig) = -dx(ig)
             do j = 1,nx(ig)+1
@@ -186,7 +193,7 @@ c     End program
 
           do ig = ngrid-1,1,-1
 
-            dx(ig) = 1d0/dfloat(nx(ig))
+            dx(ig) = length/dfloat(nx(ig))
 
             xx(0,ig) = 0d0
             do j = 1,nx(ig)+1
@@ -208,7 +215,7 @@ c     End program
 
           do ig = ngrid-1,1,-1
 
-            dx(ig) = 1d0/dfloat(nx(ig)-1)
+            dx(ig) = length/dfloat(nx(ig)-1)
 
             xx(0,ig) = -dx(ig)
             do j = 1,nx(ig)+1
