@@ -16,9 +16,7 @@ c #####################################################################
      .             ,nxd,nyd,nzd
      .             ,nxdp,nydp,nzdp
 
-      integer(4) :: ntotd,ntotdp,ntotd2p,ntimemax
-
-cc      parameter(ntimemax=1000000)
+      integer(4) :: ntotd,ntotdp,ntimemax
 
       contains
 
@@ -31,7 +29,6 @@ c     #################################################################
         nzdp = nzd+1
 
         ntotdp  = nxd*nyd*nzd
-        ntotd2p = 2*ntotdp
         ntotd   = neqd*ntotdp
 
       end subroutine setVectorDimensions
@@ -75,6 +72,8 @@ c     allocateDerivedType
 c     #################################################################
       subroutine allocateDerivedType(varray)
 
+        implicit none
+
 c     Call variables
 
         type(var_array)  :: varray
@@ -91,12 +90,12 @@ c     Begin program
           allocate(varray%array_var(neqd))
         endif
 
-        if (.not.associated(varray%array_var(1)%array)) then
-          do ieq=1,neqd
+        do ieq=1,neqd
+          if (.not.associated(varray%array_var(ieq)%array)) then
             allocate(varray%array_var(ieq)%array(0:nxdp,0:nydp,0:nzdp))
             varray%array_var(ieq)%array = 0d0
-          enddo
-        endif
+          endif
+        enddo
 
 c     End program
 
@@ -105,6 +104,8 @@ c     End program
 c     deallocateDerivedType
 c     #################################################################
       subroutine deallocateDerivedType(varray)
+
+        implicit none
 
 c     Call variables
 
@@ -117,11 +118,11 @@ c     Local variables
 c     Begin program
 
         if (associated(varray%array_var)) then
-          if (associated(varray%array_var(1)%array)) then
-            do ieq=1,neqd
+          do ieq=1,neqd
+            if (associated(varray%array_var(ieq)%array)) then
               deallocate(varray%array_var(ieq)%array)
-            enddo
-          endif
+            endif
+          enddo
           deallocate(varray%array_var)
         endif
 
@@ -464,7 +465,7 @@ cc      call imposeBoundaryConditions(varray)
 
 c     End program
 
-      end subroutine
+      end subroutine mapVectorToStructure
 
       end module variable_setup
 
