@@ -17,8 +17,8 @@ c     * elem: whether matvec is to be applied to the whole vector
 c             (elem=0), or to find only the component elem<>0 of
 c             the vector.
 c     * ntot: size of vector
-c     * x(ntot): vector to apply operator on.
-c     * b(ntot): resulting vector
+c     * x(ntot): vector to apply matrix operator on.
+c     * b(ntot): resulting vector (b=Ax)
 c     * igrid (integer): grid level operation is applied at.
 c     * bcond(6,neq): boundary condition information for all
 c             dimensions of the problem.
@@ -62,7 +62,7 @@ c Read solver definition from solver hierarchy
 
 c Symmetry test
 
-      if (options%sym_test) call symm_test(neq,2,matvec,bcond)
+cc      if (options%sym_test) call symm_test(neq,2,matvec,bcond)
 
 c Invoke solver
 

@@ -15,8 +15,8 @@ c######################################################################
           integer         :: vcyc
           integer         :: igridmin
           integer         :: stp_test
-          logical         :: sym_test
-          logical         :: fdiag
+cc          logical         :: sym_test
+          logical         :: fdiag,vol_res
           integer         :: krylov_subspace
           integer         :: orderres
           integer         :: orderprol
@@ -51,7 +51,7 @@ c     ###################################################################
 c       Initializes solver options
 
           !Test options
-          solverOptions%sym_test = .false.     !Whether to perform symmetry 
+cc          solverOptions%sym_test = .false.     !Whether to perform symmetry 
                                                !  test on matvec operator
 
           !Generic options
@@ -68,6 +68,7 @@ c       Initializes solver options
                                                !  prolongation (MG)
           solverOptions%fdiag    = .true.      !Whether to form matrix diagonal
                                                !  for smoothing
+          solverOptions%vol_res  = .false.     !Whether residual contains volume information
           nullify(solverOptions%diag)          !Diagonal not provided externally
           solverOptions%omega = 1d0            !Relaxation parameter
           solverOptions%omega10= 0d0           !Weighed Jacobi relaxation parameter

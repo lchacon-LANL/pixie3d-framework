@@ -56,7 +56,7 @@ endif
 
 COMMONDIR = ..
 
-#SUBDIRS = $(COMMONDIR)/MG
+SUBDIRS = $(COMMONDIR)/grid
 
 MODDIRS = $(patsubst $(COMMONDIR)%,$(MODPATH) $(COMMONDIR)%,$(SUBDIRS))
 
