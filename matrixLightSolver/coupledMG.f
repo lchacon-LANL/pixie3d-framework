@@ -1,22 +1,22 @@
 c TODO list:
 c
-c 1) Implement direct block solver for neq > 2
+c 1) Implement direct block solver for neq > 2.
 c
-c 2) Clean mg_setup module (including pertaining routines)
+c 2) Clean mg_setup module (including pertaining routines).
 c
-c 4) Eliminate hardwired boundary conditions (Dirichtlet, periodic) in
-c    higher-order MG restriction and prolongation.
+c 3) Eliminate hardwired boundary conditions (periodic) in Find_mf 
+c    routine.
 
 c cmgmeth
 c####################################################################
       recursive subroutine cmgmeth(neq,ntot,y,x,matvec,smoother,igridn
-     .                 ,igridmin,orderres,orderprol,vcyc,iter,omega
-     .                 ,tol,guess,fdiag,out)
+     .                 ,igridmin,orderres,orderprol,vcyc,mgtol
+     .                 ,iter,omega0,omega1,tol,guess,fdiag,out)
 c-------------------------------------------------------------------
-c     This subroutine solves A x = y for the vector x using a coupled
+c     This subroutine solves A x = y for the vector x using a [coupled]
 c     multigrid correction scheme. The coarse grid operators are 
 c     implemented matrix-free using the 'matvec' routine, and 
-c     smoothing is done in a coupled manner using 'smoother'.
+c     smoothing is done using 'smoother'.
 c-------------------------------------------------------------------
 
       use mg_setup
@@ -26,35 +26,36 @@ c-------------------------------------------------------------------
 c Call variables
 
       integer*4      neq,ntot,igridn,vcyc,iter,guess,out,igridmin
-      real*8         x(ntot),y(ntot),omega,tol
-
-      external       matvec,smoother
 
       integer*4      orderres,orderprol
+
+      real*8         x(ntot),y(ntot),omega0,omega1,tol,mgtol
+
+      external       matvec,smoother
 
       logical        fdiag
 
 c Local variables
 
-cc      real*8         diag(neq,2*ntot)
-      double precision, allocatable, dimension(:,:):: diag
+      integer*4      iter_res,iter_prol,guess2,outc,alloc_stat
 
-      real*8         xx(2*ntot),yy(2*ntot),wrk(2*ntot)
       integer*4      izero,i,j,ii,ivcyc,igrid,nn,isig
 
-      real*8         omega_res,omega_prol,rr0,rr1,mag,mag1
-      integer*4      iter_res,iter_prol,guess2,outc
+      double precision, save, allocatable, dimension(:,:):: diag
+
+      real*8         xx(2*ntot),yy(2*ntot),wrk(2*ntot)
+
+      real*8         rr0,rr1,mag,mag1
+cc      real*8         omega_res,omega_prol,rr0,rr1,mag,mag1
 
       real*8         dummy(ntot),rr(ntot)
 
-      save           diag
-
 c Begin program
 
-      omega_res = omega
+cc      omega_res = omega
       iter_res  = iter
 
-      omega_prol = omega
+cc      omega_prol = omega
       iter_prol  = iter
 
       if (out.ge.2.and.igridmin.lt.igridn) write (*,5)
@@ -62,11 +63,7 @@ c Begin program
       outc = out
       if (igridmin.lt.igridn) outc = out - 2
 
-      allocate(diag(neq,2*ntot))
-
 c Set pointers
-
-      allocate(istart(igridn),ntotv(igridn))
 
       istart(igridmin-1) = 1
       do i = igridmin,igridn
@@ -75,6 +72,14 @@ c Set pointers
       enddo
 
 c Find diagonal for smoothers
+
+      allocate(diag(neq,2*ntot),STAT = alloc_stat)
+
+      !Failed memory allocation
+      if (alloc_stat.ne.0) then
+        if (out.ge.2) write (*,*) 'Diagonal already allocated'
+        fdiag = .false.
+      endif
 
       if (fdiag) then
         if (out.ge.2) write (*,*) 'Forming diagonal...'
@@ -108,7 +113,6 @@ c Compute initial residual and check convergence
 
       if (rr0.lt.1d-16*ntot) then
         if (out.ge.1) write (*,*) 'Initial solution seems exact in MG'
-        deallocate(istart,ntotv,diag)
         return
       endif
 
@@ -125,7 +129,8 @@ c Start V-cycle
 c     Perform Vcycle recursively
 
         if (igridn.eq.igridmin) then
-          call solve (igridn,tol,iter_res,omega_res)
+cc          call solve (igridn,tol,iter_res,omega_res)
+          call solve (igridn,tol,iter_res,omega0,omega1)
           exit
         else
           call vcycle(igridn)
@@ -147,7 +152,7 @@ c     Check MG convergence
 
         rr1 = mag
 
-        if (mag/rr0 < tol) exit
+        if (mag/rr0 < mgtol) exit
 
       enddo
 
@@ -161,17 +166,17 @@ c MG convergence info
 
       if (igridmin.lt.igridn) then
         if (out.eq.1) then
-          write (*,20) mag,mag1,vcyc
+          write (*,20) mag,mag1,min(ivcyc,vcyc)
         elseif (out.ge.2.and.vcyc.gt.1) then
           write (*,*) 
           write (*,*) 'Final MG convergence info:'
-          write (*,20) mag,mag1,vcyc
+          write (*,20) mag,mag1,min(ivcyc,vcyc)
         endif
       endif
 
 c End program
 
-      deallocate(istart,ntotv,diag)
+      if (fdiag) deallocate(diag)
 
       return
 
@@ -198,7 +203,8 @@ c       Begin program
 
 c       Relax error/solution on grid number igr/igridn (find new xx)
 
-          call solve(igr,tol,iter_res,omega_res)
+cc          call solve(igr,tol,iter_res,omega_res)
+          call solve(igr,tol,iter_res,omega0,omega1)
 
 c       Evaluate residual (ie wrk = yy - A xx = yy - wrk )
 
@@ -218,7 +224,8 @@ c       Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) down a grid
 c       If on coarsest grid, solve for error, else descend a grid level
 
           if (igr-1.eq.igridmin) then
-            call solve (igr-1,tol,iter_res,omega_res)
+cc            call solve (igr-1,tol,iter_res,omega_res)
+            call solve (igr-1,tol,iter_res,omega0,omega1)
           else
             call vcycle(igr-1)
           endif
@@ -241,24 +248,25 @@ c       Update existing error on grid 2 (i.e. xx_2): xx_2 = xx_2 + wrk
 
 c       Relax updated error on igr (i.e. xx_igr)
 
-          call solve(igr,tol,iter_prol,omega_prol)
+cc          call solve(igr,tol,iter_prol,omega_prol)
+          call solve(igr,tol,iter_prol,omega0,omega1)
 
         end subroutine vcycle
 
 c       solve
 c       ###################################################################
-        subroutine solve(igr,tol,iter,omega)
+        recursive subroutine solve(igr,tol,iter,omega0,omega1)
 
           implicit none
           integer :: igr,nn,isig,iter
-          double precision :: tol,omega
+          double precision :: tol,omega0,omega1
 
 
           nn   = ntotv(igr)
           isig = istart(igr)
 
           call smoother(neq,nn,yy(isig),xx(isig),matvec,diag(1,isig)
-     .                 ,igr,iter,omega,tol,guess2,outc)
+     .                 ,igr,iter,omega0,omega1,tol,guess2,outc)
 
         end subroutine solve
 
@@ -460,9 +468,9 @@ c Call variables
 
 c Local variables
  
-      real*8       uc(0:nxc+1,0:nyc+1)
+      real*8       uc(nxc,nyc)
 
-      real*8       xxf,yyf,ff,xx(nxc+2),yy(nyc+2)
+      real*8       xxf,yyf,ff,xx(nxc),yy(nyc)
 
       integer*4    ic,if,jc,jf,ii,i,igf,iic,iif
 
@@ -503,8 +511,8 @@ c     Determine current coarse grid
 
 c     Map vectors into arrays
 
-        xx(1:nxc+2) = xl(0:nxc+1,igc)
-        yy(1:nyc+2) = yl(0:nyc+1,igc)
+        xx(1:nxc) = xl(1:nxc,igc)
+        yy(1:nyc) = yl(1:nyc,igc)
 
         do ic = 1,nxc
           do jc = 1,nyc
@@ -513,29 +521,13 @@ c     Map vectors into arrays
           enddo
         enddo
 
-c     Impose boundary conditions on arrays
-
-c       Top and bottom (residuals are zero at Dirichlet boundaries)
-
-        do ic=0,nxc+1
-          uc(ic,nyc+1) = 0d0
-          uc(ic,0)     = 0d0
-        enddo
-
-c       Periodic BC's
-
-        do jc=0,nyc+1
-          uc(0    ,jc) = uc(nxc-1,jc)
-          uc(nxc+1,jc) = uc(2  ,jc)
-        enddo
-
 c     Calculate interpolation
 
         flg = 0
         kx = order+1
         ky = order+1
-        nx = nxc+2
-        ny = nyc+2
+        nx = nxc
+        ny = nyc
         dim = nx*ny + max(2*kx*(nx+1),2*ky*(ny+1))
 
         allocate(tx(nx+kx))
@@ -615,9 +607,9 @@ c Call variables
 
 c Local variables
  
-      real*8       uf(0:nxf+1,0:nyf+1)
+      real*8       uf(nxf,nyf)
 
-      real*8       xxc,yyc,xx(nxf+2),yy(nyf+2)
+      real*8       xxc,yyc,xx(nxf),yy(nyf)
 
       integer*4    ic,if,jc,jf,iif,iic,i,igc
 
@@ -654,8 +646,8 @@ c Interpolation
 
 c     Map vectors into arrays
 
-        xx(1:nxf+2) = xl(0:nxf+1,igf)
-        yy(1:nyf+2) = yl(0:nyf+1,igf)
+        xx(1:nxf) = xl(1:nxf,igf)
+        yy(1:nyf) = yl(1:nyf,igf)
 
         do if = 1,nxf
           do jf = 1,nyf
@@ -664,29 +656,13 @@ c     Map vectors into arrays
           enddo
         enddo
 
-c     Impose boundary conditions on arrays (hardwired --> fix)
-
-c       Top and bottom (residuals are zero at Dirichlet boundaries)
-
-        do if=0,nxf+1
-          uf(if,nyf+1) = 0d0
-          uf(if,0)     = 0d0
-        enddo
-
-c       Periodic BC's
-
-        do jf=0,nyf+1
-          uf(0    ,jf) = uf(nxf-1,jf)
-          uf(nxf+1,jf) = uf(2    ,jf)
-        enddo
-
 c     Calculate interpolation
 
         flg = 0
         kx = order + 1
         ky = order + 1
-        nx = nxf+2
-        ny = nyf+2
+        nx = nxf
+        ny = nyf
         dim = nx*ny + max(2*kx*(nx+1),2*ky*(ny+1))
 
         allocate(tx(nx+kx))
@@ -727,7 +703,7 @@ c End program
 c cjacobi
 c####################################################################
       subroutine cjacobi (neq,ntot,rr,zz,matvec,diag,igrid,iter
-     .                   ,omega,tol,guess,out)
+     .                   ,omega0,omega1,tol,guess,out)
 c-------------------------------------------------------------------
 c     Does matrix-free jacobi iteration on system A*zz = rr. 
 c     In call, zz contains initial guess.
@@ -741,13 +717,14 @@ c Call variables
 
       integer*4   ntot,igrid,iter,guess,out,neq
       real*8      rr(ntot),zz(ntot),diag(neq,ntot)
-      real*8      omega,tol
+      real*8      omega0,omega1,tol
 
       external    matvec
 
 c Local variables
 
-      integer*4   i,j,itr,nn,ieq,ii,iii
+      integer*4   i,j,itr,nn,ieq,nx,ny
+      integer*4   ii,iii,iip,iim,jjp,jjm
       real*8      mag0,mag1,mag,yy(ntot)
       real*8      dummy(neq),rhs(neq),delta
 
@@ -775,15 +752,94 @@ c Jacobi iteration
         select case (neq)
         case (1)
 
-          do ii = 1,nn
-            rhs(neq) = rr(ii) - yy(ii)
-            dummy(neq) = rhs(neq)/diag(neq,ii)
-            zz(ii) = zz(ii) + omega*dummy(neq)
-            mag = mag + rhs(neq)**2
-          enddo
+          if (omega1.eq.0d0) then
+
+            do ii = 1,nn
+              rhs(neq) = rr(ii) - yy(ii)
+              dummy(neq) = rhs(neq)/diag(neq,ii)
+              zz(ii) = zz(ii) + omega0*dummy(neq)
+              mag = mag + rhs(neq)**2
+            enddo
+
+          else
+
+            nx = nxvp(igrid)
+            ny = nyvp(igrid)
+
+            do i = 1,nx
+
+              j = 1
+
+              call shiftIndices(i,j,ii,iim,iip,jjm,jjp,nx,ny,1)
+
+cc            ii  = i   + nx*(j-1)
+cc            iig = ii + istartp(igrid) - 1
+cc            iip = ii + 1
+cc            if (i.eq.nx) iip = 2 + nx*(j-1)
+cc            iim = ii - 1
+cc            if (i.eq.1) iim = nx-1 + nx*(j-1)
+cc            jjp = i   + nx* j
+
+              zz(ii) = zz(ii)+omega0*  (rr(ii) -yy(ii) )/diag(neq,ii )
+     .                       +omega1*( (rr(iip)-yy(iip))/diag(neq,iip)
+     .                                +(rr(iim)-yy(iim))/diag(neq,iim)
+     .                                +(rr(jjp)-yy(jjp))/diag(neq,jjp))
+
+              mag = mag + (rr(ii)-yy(ii))**2
+
+              do j = 2,ny-1
+
+                call shiftIndices(i,j,ii,iim,iip,jjm,jjp,nx,ny,1)
+
+cc                ii  = i   + nx*(j-1)
+cc                iig = ii + istartp(igrid) - 1
+cc                iip = ii + 1 
+cc                if (i.eq.nx) iip = 2 + nx*(j-1)
+cc                iim = ii - 1 
+cc                if (i.eq.1) iim = nx-1 + nx*(j-1)
+cc                jjp = i   + nx* j
+cc                jjm = i   + nx*(j-2)
+
+                zz(ii) =zz(ii)+omega0*  (rr(ii) -yy(ii) )/diag(neq,ii )
+     .                        +omega1*( (rr(iip)-yy(iip))/diag(neq,iip)
+     .                                 +(rr(iim)-yy(iim))/diag(neq,iim)
+     .                                 +(rr(jjp)-yy(jjp))/diag(neq,jjp)
+     .                                 +(rr(jjm)-yy(jjm))/diag(neq,jjm))
+
+                mag = mag + (rr(ii)-yy(ii))**2
+              enddo
+
+              j = ny
+
+              call shiftIndices(i,j,ii,iim,iip,jjm,jjp,nx,ny,1)
+
+cc              ii  = i   + nx*(j-1)
+cc              iig = ii + istartp(igrid) - 1
+cc              iip = ii + 1
+cc              if (i.eq.nx) iip = 2 + nx*(j-1)
+cc              iim = ii - 1
+cc              if (i.eq.1) iim = nx-1 + nx*(j-1)
+cc              jjm = i   + nx*(j-2)
+
+              zz(ii) = zz(ii)+omega0*  (rr(ii) -yy(ii) )/diag(neq,ii )
+     .                       +omega1*( (rr(iip)-yy(iip))/diag(neq,iip)
+     .                                +(rr(iim)-yy(iim))/diag(neq,iim)
+     .                                +(rr(jjm)-yy(jjm))/diag(neq,jjm))
+
+              mag = mag + (rr(ii)-yy(ii))**2
+
+            enddo
+
+          endif
 
         case (2)
 
+          if (omega1.ne.0d0) then
+            write (*,*)'Weighed jacobi not available in coupled Jacobi'
+            write (*,*)'Aborting...'
+            stop
+          endif
+  
           do ii = 1,nn/neq
 
             do ieq = 1,neq
@@ -798,11 +854,10 @@ c Jacobi iteration
             dummy(2) = (rhs(2)*diag(1,iii+1)-rhs(1)*diag(1,iii+2))/delta
 
             do ieq=1,neq
-              zz(iii+ieq) = zz(iii+ieq) + omega*dummy(ieq)
+              zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
             enddo
 
             mag = mag + sum(rhs**2)
-cc            mag = mag + rhs(2)**2
           enddo
 
         case default
@@ -847,7 +902,7 @@ c End program
 c csgs
 c####################################################################
       subroutine csgs(neq,ntot,rr,zz,matvec,diag,igrid,iter
-     .               ,omega,tol,guess,out)
+     .               ,omega0,omega1,tol,guess,out)
       implicit none       !For safe fortran
 c-------------------------------------------------------------------
 c     Does matrix-free SGS iteration on system, A zz = rr. In call, 
@@ -858,7 +913,7 @@ c Call variables
 
       integer*4   ntot,igrid,iter,guess,out,neq
       real*8      rr(ntot),zz(ntot),diag(neq,ntot)
-      real*8      omega,tol
+      real*8      omega0,omega1,tol
 
       external    matvec
 
@@ -896,7 +951,7 @@ c       Forward pass
             call matvec(ii,ntot,zz,yy,igrid)
             rhs(neq) = rr(ii) - yy(ii)
             dummy(neq) = rhs(neq)/diag(neq,ii)
-            zz(ii) = zz(ii) + omega*dummy(neq)
+            zz(ii) = zz(ii) + omega0*dummy(neq)
           enddo
 
 c       Backward pass
@@ -905,7 +960,7 @@ c       Backward pass
             call matvec(ii,ntot,zz,yy,igrid)
             rhs(neq) = rr(ii) - yy(ii)
             dummy(neq) = rhs(neq)/diag(neq,ii)
-            zz(ii) = zz(ii) + omega*dummy(neq)
+            zz(ii) = zz(ii) + omega0*dummy(neq)
             mag = mag + rhs(neq)**2
           enddo
 
@@ -928,7 +983,7 @@ c       Forward pass
             dummy(2) = (rhs(2)*diag(1,iii+1)-rhs(1)*diag(1,iii+2))/delta
 
             do ieq=1,neq
-              zz(iii+ieq) = zz(iii+ieq) + omega*dummy(ieq)
+              zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
             enddo
 
           enddo
@@ -950,7 +1005,7 @@ c       Backward pass
             dummy(2) = (rhs(2)*diag(1,iii+1)-rhs(1)*diag(1,iii+2))/delta
 
             do ieq=1,neq
-              zz(iii+ieq) = zz(iii+ieq) + omega*dummy(ieq)
+              zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
             enddo
 
             mag = mag + sum(rhs**2)

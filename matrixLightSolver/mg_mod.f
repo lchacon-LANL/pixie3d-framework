@@ -52,9 +52,11 @@ c     Find ngrd
 
 c     Allocate arrays
 
-      allocate(nxvp(ngrd),nyvp(ngrd),ntotvp(ngrd),istartp(ngrd))
+      allocate(nxvp(ngrd),nyvp(ngrd))
       allocate(dx(ngrd),dy(ngrd))
       allocate(xl(0:nx+1,ngrd),yl(0:ny+1,ngrd))
+      allocate(istartp(ngrd),ntotvp(ngrd))
+      allocate(istart (ngrd),ntotv (ngrd))
 
 c     Initialize MG
 

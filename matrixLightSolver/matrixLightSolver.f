@@ -571,14 +571,13 @@ c#######################################################################
       recursive subroutine jb(ntot,b,x,matvec,options,igrid
      .                       ,guess,out,depth)
 c--------------------------------------------------------------------
-c     Matrix-free Preconditioned Conjugate Gradient routine to solve
-c     Ax = b. Call variables:
+c     Matrix-free Jacobi routine to solve Ax = b. Call variables:
 c       * ntot: grid dimension
 c       * b,x: rhs, solution vectors
 c       * matvec: matrix-free matvec product (external)
 c       * options: structure containing solver defs.
 c       * igrid: grid level in MG applications
-c       * guess: 0->no initial guess; 1 -> initial guess provided.
+c       * guess: 0 -> no initial guess; 1 -> initial guess provided.
 c       * out: convergence info output on screen if out > 1. 
 c       * depth: integer specifying solver depth in solver_queue
 c                definitions
@@ -600,7 +599,7 @@ c Call variables
 c Local variables
 
       integer          :: iter,neq,orderres,orderprol
-      double precision :: omega,tol
+      double precision :: omega0,omega1,tol,mgtol
       logical          :: fdiag
 
 c Externals
@@ -611,15 +610,18 @@ c Begin program
 
       neq   = options%neq
       iter  = options%iter
-      omega = options%omega
+      omega0= options%omega
+      omega1= options%omega1
       tol   = options%tol
       orderres = options%orderres
       orderprol= options%orderprol
       fdiag    = options%fdiag
 
+      mgtol = tol
+
       call cmgmeth(neq,ntot,b,x,matvec,cjacobi,igrid
-     .            ,igrid,orderres,orderprol,1,iter
-     .            ,omega,tol,guess,fdiag,out)
+     .            ,igrid,orderres,orderprol,1,mgtol,iter
+     .            ,omega0,omega1,tol,guess,fdiag,out)
 
       options%iter_out = iter
       options%tol_out  = tol
@@ -662,7 +664,7 @@ c Call variables
 c Local variables
 
       integer          :: iter,neq,orderres,orderprol
-      double precision :: omega,tol
+      double precision :: omega0,omega1,tol,mgtol
       logical          :: fdiag
 
 c Externals
@@ -673,15 +675,18 @@ c Begin program
 
       neq   = options%neq
       iter  = options%iter
-      omega = options%omega
+      omega0= options%omega
+      omega1= options%omega1
       tol   = options%tol
       orderres = options%orderres
       orderprol= options%orderprol
       fdiag    = options%fdiag
 
+      mgtol = tol
+
       call cmgmeth(neq,ntot,b,x,matvec,csgs,igrid
-     .            ,igrid,orderres,orderprol,1,iter
-     .            ,omega,tol,guess,fdiag,out)
+     .            ,igrid,orderres,orderprol,1,mgtol,iter
+     .            ,omega0,omega1,tol,guess,fdiag,out)
 
       options%iter_out = iter
       options%tol_out  = tol
@@ -725,7 +730,7 @@ c Local variables
 
       integer          :: iter,neq,igridmin,vcyc,depth1
       integer          :: orderres,orderprol
-      double precision :: omega,tol
+      double precision :: omega0,omega1,tol,mgtol
       logical          :: fdiag
       character(2)     :: smoother
 
@@ -740,7 +745,7 @@ c Begin program
       neq      = options%neq
       igridmin = options%igridmin
       vcyc     = options%vcyc
-      tol      = options%tol
+      mgtol    = options%tol
       orderres = options%orderres
       orderprol= options%orderprol
       fdiag    = options%fdiag
@@ -752,23 +757,25 @@ c Read smoother definition
       call readSolverHierarchy(smoother_def,depth1)
 
       smoother = smoother_def%solver
-      omega    = smoother_def%options%omega
+      omega0   = smoother_def%options%omega
+      omega1   = smoother_def%options%omega1
       iter     = smoother_def%options%iter
+      tol      = smoother_def%options%tol
 
 c Call coupled MG
 
       if (smoother == 'gs') then
         call cmgmeth(neq,ntot,b,x,matvec,csgs   ,igrid
-     .            ,igridmin,orderres,orderprol,vcyc,iter
-     .            ,omega,tol,guess,fdiag,out)
+     .            ,igridmin,orderres,orderprol,vcyc,mgtol,iter
+     .            ,omega0,omega1,tol,guess,fdiag,out)
       elseif (smoother == 'jb') then
         call cmgmeth(neq,ntot,b,x,matvec,cjacobi,igrid
-     .            ,igridmin,orderres,orderprol,vcyc,iter
-     .            ,omega,tol,guess,fdiag,out)
+     .            ,igridmin,orderres,orderprol,vcyc,mgtol,iter
+     .            ,omega0,omega1,tol,guess,fdiag,out)
       else
         call cmgmeth(neq,ntot,b,x,matvec,genericSmoother,igrid
-     .            ,igridmin,orderres,orderprol,vcyc,depth1
-     .            ,omega,tol,guess,fdiag,out)
+     .            ,igridmin,orderres,orderprol,vcyc,mgtol,depth1
+     .            ,omega0,omega1,tol,guess,fdiag,out)
       endif
 
       options%tol_out = tol
@@ -779,8 +786,8 @@ c End program
 
 c genericSmoother
 c####################################################################
-      subroutine genericSmoother(neq,ntot,rr,zz,matvec,diag,igrid
-     .                          ,depth,omega,tol,guess,out)
+      recursive subroutine genericSmoother(neq,ntot,rr,zz,matvec
+     .                          ,diag,igrid,depth,omega,tol,guess,out)
 
 c-------------------------------------------------------------------
 c     This routine is an interface between the smoother call in MG
@@ -921,9 +928,17 @@ c     diagonal)
             ix2 = mod(ii,nx)
             if (ix2.eq.0) ix2 = nx
             iy2 = 1 + (ii - ix2)/nx
-            write(*,10) ii,jj,dd1
+cc            write(*,10) ii,jj,dd1
+cc     .                ,100*dd1/max(abs(dummy(jj)),abs(dummy2(ii)))
+cc     .                ,ix1,iy1,ix2,iy2
+            write(*,15) jj,ii,dummy(jj),ii,jj,dummy2(ii),dd1
      .                ,100*dd1/max(abs(dummy(jj)),abs(dummy2(ii)))
-     .                ,ix1,iy1,ix2,iy2
+cc            if (mod(jj,nx).eq.1.or.mod(jj,nx).eq.0) then
+cc              write (*,*) 'periodic in jj'
+cc            endif
+cc            if (mod(ii,nx).eq.1.or.mod(ii,nx).eq.0) then
+cc              write (*,*) 'periodic in ii'
+cc            endif
             error = error + dd1
           endif
 
@@ -942,7 +957,9 @@ c End program
 
  10   format ('Element:',2i4,'  Error:',e10.2,
      .        '  Perc.:',f7.2,'%  (',i2,',',i2,')  (',i2,',',i2,')')
- 20   format (/,'Total error:',1pe10.3)
+ 15   format ('(',i2,',',i2,'):',1pe10.2,'; (',i2,',',i2,'):',e10.2,
+     .        '  Error:',e10.2,'  %error:',0pf7.2)
+ 20   format (/,'Total relative error:',1pe10.3)
 
       end subroutine
 

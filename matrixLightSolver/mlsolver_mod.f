@@ -10,6 +10,7 @@ c######################################################################
           double precision:: tol
           double precision:: tol_out
           double precision:: omega
+          double precision:: omega1
           integer         :: vcyc
           integer         :: igridmin
           integer         :: stp_test
@@ -22,7 +23,6 @@ c######################################################################
         end type solver_options
 
         type:: solver_unit
-cc          external        :: solver
           character*2            :: solver
           type (solver_options)  :: options
         end type solver_unit
@@ -49,15 +49,17 @@ c     ###################################################################
 
 c       Initializes solver options
 
+          !Test options
           solverOptions%sym_test = .false.     !Whether to perform symmetry 
                                                !  test on matvec operator
-          solverOptions%fdiag    = .true.      !Whether to form matrix diagonal
-                                               !  for smoothing
 
-          solverOptions%iter = 10              !Number of iterations
-          solverOptions%tol  = 1d-5            !Convergence tolerance
-          solverOptions%omega= 1d0             !Relaxation parameter
+          !Generic options
+          solverOptions%iter  = 10             !Number of iterations
+          solverOptions%tol   = 1d-5           !Convergence tolerance
+          solverOptions%omega = 1d0            !Relaxation parameter
+          solverOptions%omega1= 0d0            !Weighed Jacobi relaxation parameter
 
+          !MG and smoother options
           solverOptions%neq      = 1           !Number of equations (MG)
           solverOptions%vcyc     = 1           !Number of V-cycles (MG)
           solverOptions%igridmin = 3           !Minimum grid level 
@@ -66,12 +68,16 @@ c       Initializes solver options
                                                !  restriction (MG)
           solverOptions%orderprol= 0           !Interpolation order in 
                                                !  prolongation (MG)
+          solverOptions%fdiag    = .true.      !Whether to form matrix diagonal
+                                               !  for smoothing
 
+          !Krylov methods options
           solverOptions%stp_test = 0           !Stopping criterion (CG, GMRES)
                                                !If one, use initial residual; 
                                                !  else, use rhs.
           solverOptions%krylov_subspace = 15   !Krylov subspace dimension (GMRES)
 
+          !Output
           solverOptions%iter_out = 0           !Number of iterations (output)
           solverOptions%tol_out  = 0d0         !Convergence achieved (output)
         return
@@ -133,14 +139,6 @@ c       Reads TOP solver definition from solver hierarchy
 
         !Begin
 
-          if (is_empty(solver_queue)) then
-            write (*,*) 'No more solver definitions present'
-            write (*,*) 'Aborting...'
-            stop
-cc            exit
-          endif
-
-cc            call take_from_front (solver_queue,solver_def)
           call read_node (solver_queue,solver_def,depth)
 
         end subroutine readSolverHierarchy
@@ -156,14 +154,6 @@ c       Modifies solver definition at depth 'depth' in solver hierarchy
 
         !Begin
 
-          if (is_empty(solver_queue)) then
-            write (*,*) 'No solver definitions present'
-            write (*,*) 'Aborting...'
-            stop
-cc            exit
-          endif
-
-cc            call take_from_front (solver_queue,solver_def)
           call write_node (solver_queue,solver_def,depth)
 
         end subroutine writeSolverHierarchy
@@ -191,27 +181,30 @@ c     ###################################################################
 c       Reads TOP solver definition from solver hierarchy
 
           type (solver_unit) :: solver_def
-          integer            :: depth
+          integer            :: depth,idepth
 
         !Begin
 
-          depth = 0
+cc          idepth = 0
 
-          do
+          depth = count_elements(solver_queue)
 
-            if (is_empty(solver_queue)) then
-              write (*,*) 'No more solver definitions present'
+          do idepth = 1,depth
+
+cc            if (is_empty(solver_queue)) then
+cc              write (*,*) 'No more solver definitions present'
 cc              write (*,*) 'Aborting...'
 cc              stop
-              exit
-            endif
+cc              exit
+cc            endif
 
-            depth = depth + 1
+cc            idepth = idepth + 1
 
 cc            call take_from_front (solver_queue,solver_def)
-            call read_node (solver_queue,solver_def,depth)
 
-            write (*,10) depth
+            call read_node (solver_queue,solver_def,idepth)
+
+            write (*,10) idepth
             write (*,*) solver_def
             write (*,*)
           enddo
@@ -326,15 +319,15 @@ c       Deletes front node from queue
 
         !Begin
 
-          count = 1
+          count = 0
 
           node_ptr => q%front
 
         !Traverse the list
 
           do while (associated(node_ptr))
-            if (count == depth) exit
             count = count + 1
+            if (count == depth) exit
             node_ptr => node_ptr%next_solver
           enddo
 
@@ -365,15 +358,15 @@ c       Deletes front node from queue
 
         !Begin
 
-          count = 1
+          count = 0
 
           node_ptr => q%front
 
         !Traverse the list
 
           do while (associated(node_ptr))
-            if (count == depth) exit
             count = count + 1
+            if (count == depth) exit
             node_ptr => node_ptr%next_solver
           enddo
 
