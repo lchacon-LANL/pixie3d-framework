@@ -233,7 +233,7 @@ c #####################################################################
 
         integer(4),private :: bctype,dim,loc,ibc,i,j,k
 
-cc        logical    :: symm=.false.
+        logical    :: asm = .false.
 
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
@@ -345,14 +345,17 @@ c     ---------------------------------------------------------------------
 
 c     Begin program
 
-      select case(dim)
-      case (1)
-        call checkLimits(i1,i2,grid_params%nxgl(igxbc))
-      case(2)
-        call checkLimits(j1,j2,grid_params%nygl(igybc))
-      case(3)
-        call checkLimits(k1,k2,grid_params%nzgl(igzbc))
-      end select
+        do__nothing = .false.
+        if (asm) return      !Return if additive Schwartz method is used (PC)
+
+        select case(dim)
+        case (1)
+          call checkLimits(i1,i2,grid_params%nxgl(igxbc))
+        case(2)
+          call checkLimits(j1,j2,grid_params%nygl(igybc))
+        case(3)
+          call checkLimits(k1,k2,grid_params%nzgl(igzbc))
+        end select
 
 c     End program
 
@@ -372,8 +375,6 @@ c     ---------------------------------------------------------------------
         integer(4) :: igl,igr,nxg
 
 c     Begin program
-
-        do__nothing = .false.
 
         select case(loc)
         case(0)
@@ -417,6 +418,57 @@ c     Begin program
 cc      selectFace = .true.
 
       end function selectFace
+
+c     setASMflag
+c     ######################################################################
+      subroutine setASMflag(asm_flag)
+
+c     -----------------------------------------------------------------
+c     Sets boundary conditions for Additive Schwartz method PC.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+      logical :: asm_flag
+
+      asm = asm_flag
+
+      end subroutine setASMflag
+
+c     setASM_PC_BC
+c     ######################################################################
+      subroutine setASM_PC_BC(igx,igy,igz,bcs)
+
+c     -----------------------------------------------------------------
+c     Sets boundary conditions for Additive Schwartz method PC.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+      integer(4) :: igx,igy,igz,bcs(:,:)
+
+      integer(4) :: dim,loc,ibc,igmin,igmax,jgmin,jgmax,kgmin,kgmax
+
+      igmin = grid_params%ilo(igx)
+      igmax = grid_params%ihi(igx)
+      jgmin = grid_params%jlo(igy)
+      jgmax = grid_params%jhi(igy)
+      kgmin = grid_params%klo(igz)
+      kgmax = grid_params%khi(igz)
+
+      asm = .false.
+
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+          if (do__nothing(dim,loc,igmin,igmax,jgmin,jgmax,kgmin,kgmax))
+     .         bcs(ibc,:) = NEU
+        enddo
+      enddo
+
+      if (np > 1) asm = .true.  !PC employs additive Schwartz method
+
+      end subroutine setASM_PC_BC
 
 c     imposeBConScalar
 c     #################################################################
@@ -997,13 +1049,13 @@ c     Begin program
 
 c     Determine boundary limits
 
-      if (do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))
-     .     return
+      if (do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax)) then
+cc        if (bctype == EXT) write (*,*) 'Proc',my_rank,'EXT return'
+        return
+      endif
 
       call findLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                           ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
-
-cc      if (do_nothing) return
 
 c     Allocate rhs
 
@@ -1174,7 +1226,8 @@ c     Determine boundary limits
       call findLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                           ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
-cc      if (do_nothing) return
+cc      write (*,*) 'Proc',my_rank,iimin,iimax,jjmin,jjmax,kkmin,kkmax
+cc      write (*,*) 'Proc',my_rank,imin,imax,jmin,jmax,kmin,kmax
 
 c     Select edge
 
