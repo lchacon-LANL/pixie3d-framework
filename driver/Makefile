@@ -1,8 +1,6 @@
 SRC  := $(wildcard *.f)
 
-#MODS := $(wildcard *_mod.f)
-
-MODS := driver_mod.f graphics_mod.f
+MODS := $(wildcard *_mod.f)
 
 OBJS := $(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))
 
@@ -26,6 +24,7 @@ ifeq ($(FC),f90)
 OPTIMIZATION = -O2 -B101 -cpu:host -s
 DEBUG = -g
 PROFILE = -P
+MODPATH = -p
 
 else
 
@@ -33,6 +32,7 @@ else
 OPTIMIZATION = -O --tpp
 DEBUG = -g --trace
 PROFILE =
+MODPATH = -M
 
 endif
 
@@ -59,14 +59,15 @@ COMMONDIR = ..
 SUBDIRS = $(COMMONDIR)/grid \
 	  $(COMMONDIR)/newtonGMRES
 
+MODDIRS = $(patsubst $(COMMONDIR)%,$(MODPATH) $(COMMONDIR)%,$(SUBDIRS))
+
 #Define targets
 
 target: common $(OBJMOD) $(OBJS) $(COMMON_SRC)
 
 common: ;
 	-for subdir in $(SUBDIRS) ; do \
-		$(MAKE) -e -C $$subdir ; \
-		cp $$subdir/*.mod $(prefix) >& /dev/null ; done
+		$(MAKE) -e -C $$subdir ; done 
 
 clean:
 	-rm -f *.o *.mod
@@ -82,4 +83,4 @@ $(OBJS) : $(MODS)
 #Define patterns
 
 %.o : %.f
-	$(FC) -c $(FFLAGS) $<
+	$(FC) -c $(MODDIRS) $(FFLAGS) $<
