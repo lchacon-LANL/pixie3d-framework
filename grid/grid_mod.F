@@ -3912,7 +3912,7 @@ c     Begin program
 c     transformFromCurvToCurv
 c     #################################################################
       subroutine transformFromCurvToCurv(i,j,k,igx,igy,igz
-     .             ,cov1,cov2,cov3,cnv1,cnv2,cnv3,tocnv)
+     .             ,cov1,cov2,cov3,cnv1,cnv2,cnv3,tocnv,half_elem)
 c     -----------------------------------------------------------------
 c     Transforms a curvilinear vector from covariant to contravariant 
 c     (tocnv=.true.) or viceversa at grid coordinates (i,j,k).
@@ -3923,24 +3923,66 @@ c     -----------------------------------------------------------------
 c     Input variables
 
         integer(4) :: i,j,k,igx,igy,igz
+        integer(4),optional,intent(IN) :: half_elem
+
         real(8)    :: cov1,cov2,cov3,cnv1,cnv2,cnv3
         logical    :: tocnv
 
 c     Local variables
 
-        real(8)    :: cov(3),cnv(3)
+        integer(4) :: he,ip
+        real(8)    :: cov(3),cnv(3),tensor(3,3)
 
 c     Begin program
 
+        if (PRESENT(half_elem)) then
+          he = half_elem
+        else
+          he = 0
+        endif
+
+        select case(he)
+        case(1)
+          ip = i+1
+          if (isSP(ip,j,k,igx,igy,igz)) ip = i  !SP is located at i=-1 ghost cell
+          if (tocnv) then
+            tensor = 0.5*(gmetric%grid(igx)%gsup(ip,j,k,:,:)
+     .                   +gmetric%grid(igx)%gsup(i ,j,k,:,:))
+          else
+            tensor = 0.5*(gmetric%grid(igx)%gsub(ip,j,k,:,:)
+     .                   +gmetric%grid(igx)%gsub(i ,j,k,:,:))
+          endif
+        case(2)
+          if (tocnv) then
+            tensor = 0.5*(gmetric%grid(igx)%gsup(i,j+1,k,:,:)
+     .                   +gmetric%grid(igx)%gsup(i,j  ,k,:,:))
+          else                                        
+            tensor = 0.5*(gmetric%grid(igx)%gsub(i,j+1,k,:,:)
+     .                   +gmetric%grid(igx)%gsub(i,j  ,k,:,:))
+          endif
+        case(3)
+          if (tocnv) then
+            tensor = 0.5*(gmetric%grid(igx)%gsup(i,j,k+1,:,:)
+     .                   +gmetric%grid(igx)%gsup(i,j,k  ,:,:))
+          else                                          
+            tensor = 0.5*(gmetric%grid(igx)%gsub(i,j,k+1,:,:)
+     .                   +gmetric%grid(igx)%gsub(i,j,k  ,:,:))
+          endif
+        case(0)
+          if (tocnv) then
+            tensor = gmetric%grid(igx)%gsup(i,j,k,:,:)
+          else
+            tensor = gmetric%grid(igx)%gsub(i,j,k,:,:)
+          endif
+        end select
+
         if (tocnv) then
-          cnv  = matmul(gmetric%grid(igx)%gsup(i,j,k,:,:)
-     .                 , (/ cov1,cov2,cov3 /))
+          cnv  = matmul(tensor,(/ cov1,cov2,cov3 /))
           cnv1 = cnv(1)
           cnv2 = cnv(2)
           cnv3 = cnv(3)
         else
-          cov  = matmul(gmetric%grid(igx)%gsub(i,j,k,:,:)
-     .                 , (/ cnv1,cnv2,cnv3 /))
+          cov  = matmul(tensor,(/ cnv1,cnv2,cnv3 /))
           cov1 = cov(1)
           cov2 = cov(2)
           cov3 = cov(3)
@@ -4325,7 +4367,7 @@ c     Find grid quantities
             xx(i + isig) = xx(i-1 + isig) + dh
           enddo
           if (bcs1 == SP .and. ilo(1) == 1) then
-            xx(0 + isig) = 1d-8*dh
+            xx(0 + isig) = 1d-3*dh
           else
             xx(0 + isig) = xx(1+isig) - dh
           endif
