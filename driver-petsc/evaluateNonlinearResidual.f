@@ -33,26 +33,24 @@ c Local variables
 
       type(var_array)   :: varray
 
-      type(petsc_array) :: petscarray
-
 c Begin program
 
-cc      write (*,*) 'proc',my_rank,'lim',imin,imax,jmin,jmax,kmin,kmax
-cc      write (*,*) my_rank,imingc,imaxgc,jmingc,jmaxgc,kmingc,kmaxgc
-
-      call allocatePetscType(petscarray)
+c Find local limits
 
       call fromGlobalToLocalLimits(imingc ,jmingc ,kmingc
-     $                            ,imingcl,jmingcl,kmingcl)
+     $                            ,imingcl,jmingcl,kmingcl,1,1,1)
       call fromGlobalToLocalLimits(imaxgc ,jmaxgc ,kmaxgc
-     $                            ,imaxgcl,jmaxgcl,kmaxgcl)
-
-      petscarray%array(imingcl:imaxgcl,jmingcl:jmaxgcl,kmingcl:kmaxgcl)
-     .             = x(imingc :imaxgc ,jmingc :jmaxgc ,kmingc :kmaxgc )
+     $                            ,imaxgcl,jmaxgcl,kmaxgcl,1,1,1)
 
 c Unpack petsc array
 
-      varray = petscarray   !Overloaded assignment
+      call allocateDerivedType(varray)
+
+      do ieq=1,neqd
+        varray%array_var(ieq)
+     .       %array(imingcl:imaxgcl,jmingcl:jmaxgcl,kmingcl:kmaxgcl)
+     .       = x(imingc:imaxgc,jmingc:jmaxgc,kmingc:kmaxgc)%var(ieq)
+      enddo
 
 c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
@@ -63,8 +61,8 @@ c Assign ff (vector) to f (PETSc array)
       do k = kmin,kmax
         do j = jmin,jmax
           do i = imin,imax
-            call fromGlobalToLocalLimits(i,j,k,il,jl,kl)
-            ii = vecPos(neqd,il,jl,kl)
+            call fromGlobalToLocalLimits(i,j,k,il,jl,kl,1,1,1)
+            ii = vecPos(neqd,il,jl,kl,1,1,1)
             do ieq=1,neqd
               f(i,j,k)%var(ieq) = ff(ii+ieq)
             enddo
@@ -75,11 +73,10 @@ c Assign ff (vector) to f (PETSc array)
 c Deallocate structures
 
       call deallocateDerivedType(varray)
-      call deallocatePetscType(petscarray)
 
 c End program
 
-      end subroutine
+      end subroutine evaluateNonlinearResidual
 
 c evaluateNonlinearFunction
 c####################################################################
@@ -106,6 +103,10 @@ c Local variables
 
       integer(4)       :: i,j,k,ii
 
+c Diag
+
+      integer(4)       :: ieq
+
 c Interfaces
 
       INTERFACE
@@ -126,10 +127,8 @@ c Store function evaluation
       do k = klo,khi
         do j = jlo,jhi
           do i = ilo,ihi
-            ii = vecPos(neqd,i,j,k)
+            ii = vecPos(neqd,i,j,k,1,1,1)
             call nonlinearRHS(i,j,k,varray,fi(ii+1:ii+neqd))
-cc            fi(ii+1:ii+neqd) = cos(grid_params%xx(i+1)
-cc     .                            *grid_params%yy(j+1))
           enddo
         enddo
       enddo
