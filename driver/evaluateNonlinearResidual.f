@@ -37,7 +37,7 @@ c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
 c Calculate residuals
 
-      call defineTSParameters(cnf,one_over_dt)
+      call defineTSParameters
       
       do k = 1,nzd
         do j = 1,nyd
