@@ -53,11 +53,11 @@ clean: ;
 	-rm -f *.o *.mod
 
 distclean: clean
-	-for subdir in $(SUBDIRS) ; do \
+	-@for subdir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$subdir clean;  done
 
 replicate: ;
-	-for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
+	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
 		ln -s $(PWD)/Makefile $$subdir/makefile ; done
 
 lib: common $(OBJMOD) $(OBJS) $(COMMON_OBJS)
