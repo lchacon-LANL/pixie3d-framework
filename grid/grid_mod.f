@@ -2100,31 +2100,34 @@ c #####################################################################
         implicit none
 
         type :: grid_def
-          integer(4) :: ngrdx
-          integer(4) :: ngrdy
-          integer(4) :: ngrdz
-          integer(4) :: ngrid
-          real(8)   ,pointer,dimension(:)  :: xx
-          real(8)   ,pointer,dimension(:)  :: yy
-          real(8)   ,pointer,dimension(:)  :: zz
-          real(8)   ,pointer,dimension(:)  :: dx
-          real(8)   ,pointer,dimension(:)  :: dy
-          real(8)   ,pointer,dimension(:)  :: dz
-          real(8)   ,pointer,dimension(:)  :: dxh
-          real(8)   ,pointer,dimension(:)  :: dyh
-          real(8)   ,pointer,dimension(:)  :: dzh
-          integer(4),pointer,dimension(:)  :: nxv
-          integer(4),pointer,dimension(:)  :: nyv
-          integer(4),pointer,dimension(:)  :: nzv
-          integer(4),pointer,dimension(:)  :: ntotv
-          integer(4),pointer,dimension(:)  :: istartx
-          integer(4),pointer,dimension(:)  :: istarty
-          integer(4),pointer,dimension(:)  :: istartz
-          integer(4),pointer,dimension(:)  :: istartp
-          integer(4),pointer,dimension(:)  :: mg_ratio_x
-          integer(4),pointer,dimension(:)  :: mg_ratio_y
-          integer(4),pointer,dimension(:)  :: mg_ratio_z
-          real(8)                          :: params(5)
+          integer(4) :: ngrdx                             !# meshes in X
+          integer(4) :: ngrdy                             !# meshes in Y
+          integer(4) :: ngrdz                             !# meshes in Y
+          integer(4) :: ngrid                             !# meshes for MG
+          integer(4),pointer,dimension(:)  :: iline       !Restrict ops. to i=iline in MG
+          integer(4),pointer,dimension(:)  :: jline       !Restrict ops. to j=jline in MG
+          integer(4),pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
+          real(8)   ,pointer,dimension(:)  :: xx          !Grid node positions in X (all grids)
+          real(8)   ,pointer,dimension(:)  :: yy          !Grid node positions in Y (")
+          real(8)   ,pointer,dimension(:)  :: zz          !Grid node positions in Z (")
+          real(8)   ,pointer,dimension(:)  :: dx          !Grid spacings in X for integer mesh (")
+          real(8)   ,pointer,dimension(:)  :: dy          !Grid spacings in Y for integer mesh (")
+          real(8)   ,pointer,dimension(:)  :: dz          !Grid spacings in Z for integer mesh (")
+          real(8)   ,pointer,dimension(:)  :: dxh         !Grid spacings in X for half mesh (")
+          real(8)   ,pointer,dimension(:)  :: dyh         !Grid spacings in Y for half mesh (")
+          real(8)   ,pointer,dimension(:)  :: dzh         !Grid spacings in Z for half mesh (")
+          integer(4),pointer,dimension(:)  :: nxv         !# of grid nodes in X  (")
+          integer(4),pointer,dimension(:)  :: nyv         !# of grid nodes in Y  (")
+          integer(4),pointer,dimension(:)  :: nzv         !# of grid nodes in Z  (")
+          integer(4),pointer,dimension(:)  :: ntotv       !Total # of grid nodes (")
+          integer(4),pointer,dimension(:)  :: istartx     !Pointer for MG vectors in X
+          integer(4),pointer,dimension(:)  :: istarty     !Pointer for MG vectors in Y
+          integer(4),pointer,dimension(:)  :: istartz     !Pointer for MG vectors in Z
+          integer(4),pointer,dimension(:)  :: istartp     !Pointer for global MG vectors
+          integer(4),pointer,dimension(:)  :: mg_ratio_x  !MG coarsening ratio in X
+          integer(4),pointer,dimension(:)  :: mg_ratio_y  !MG coarsening ratio in Y
+          integer(4),pointer,dimension(:)  :: mg_ratio_z  !MG coarsening ratio in Z
+          real(8)                          :: params(5)   !Grid configuration parameters
         end type grid_def
 
         type (grid_def) :: grid_params
@@ -2200,7 +2203,7 @@ c     #################################################################
      .                                    ,x1,y1,z1)
 
 c     -----------------------------------------------------------------
-c     Inverts curvilinear coordinates to give Cartesian coordinates
+c     Finds curvilinear coordinates for position (i,j,k)
 c     -----------------------------------------------------------------
 
         implicit none
@@ -2647,6 +2650,10 @@ c #####################################################################
 
         real(8),private :: pi
 
+        INTERFACE ASSIGNMENT (=)
+          module procedure equateGridStructure
+        END INTERFACE
+
       contains
 
 c     createGrid
@@ -2705,7 +2712,7 @@ c     Find adequate number of grid levels (for MG)
 
 c     Allocate grid storage structure
 
-        call allocateGridStructure(ngrdx,ngrdy,ngrdz)
+        call allocateGridStructure(ngrdx,ngrdy,ngrdz,grid_params)
 
 c     Initialize MG arrays
 
@@ -2811,11 +2818,17 @@ cc     .                        ,grid_params%ngrdz,grid_params%istartz
 
 c     allocateGridStructure
 c     #################################################################
-      subroutine allocateGridStructure(ngridx,ngridy,ngridz)
+      subroutine allocateGridStructure(ngridx,ngridy,ngridz,grid_st)
+c     -----------------------------------------------------------------
+c     Allocates grid structure
+c     -----------------------------------------------------------------
+
+        implicit none
 
 c     Call variables
 
-        integer(4) :: ngridx,ngridy,ngridz
+        integer(4)     :: ngridx,ngridy,ngridz
+        type(grid_def) :: grid_st
 
 c     Local variables
 
@@ -2825,37 +2838,44 @@ c     Begin program
 
         ngrid = max(ngridx,ngridy,ngridz)
 
-        grid_params%ngrdx = ngridx
-        grid_params%ngrdy = ngridy
-        grid_params%ngrdz = ngridz
-        grid_params%ngrid = ngrid
+        grid_st%ngrdx = ngridx
+        grid_st%ngrdy = ngridy
+        grid_st%ngrdz = ngridz
+        grid_st%ngrid = ngrid
 
         nxmg=findMGsize(nxx,ngridx,ngrid)
         nymg=findMGsize(nyy,ngridy,ngrid)
         nzmg=findMGsize(nzz,ngridz,ngrid)
 
-        if (.not.associated(grid_params%xx)) then
-          allocate(grid_params%xx(nxmg+2*ngrid))
-          allocate(grid_params%yy(nymg+2*ngrid))
-          allocate(grid_params%zz(nzmg+2*ngrid))
-          allocate(grid_params%dx(nxmg+2*ngrid))
-          allocate(grid_params%dy(nymg+2*ngrid))
-          allocate(grid_params%dz(nzmg+2*ngrid))
-          allocate(grid_params%dxh(nxmg+2*ngrid))
-          allocate(grid_params%dyh(nymg+2*ngrid))
-          allocate(grid_params%dzh(nzmg+2*ngrid))
-          allocate(grid_params%nxv(ngrid))
-          allocate(grid_params%nyv(ngrid))
-          allocate(grid_params%nzv(ngrid))
-          allocate(grid_params%ntotv(ngrid))
-          allocate(grid_params%istartx(ngrid))
-          allocate(grid_params%istarty(ngrid))
-          allocate(grid_params%istartz(ngrid))
-          allocate(grid_params%istartp(ngrid))
-          allocate(grid_params%mg_ratio_x(ngrid))
-          allocate(grid_params%mg_ratio_y(ngrid))
-          allocate(grid_params%mg_ratio_z(ngrid))
+        if (.not.associated(grid_st%xx)) then
+          allocate(grid_st%xx(nxmg+2*ngrid))
+          allocate(grid_st%yy(nymg+2*ngrid))
+          allocate(grid_st%zz(nzmg+2*ngrid))
+          allocate(grid_st%dx(nxmg+2*ngrid))
+          allocate(grid_st%dy(nymg+2*ngrid))
+          allocate(grid_st%dz(nzmg+2*ngrid))
+          allocate(grid_st%dxh(nxmg+2*ngrid))
+          allocate(grid_st%dyh(nymg+2*ngrid))
+          allocate(grid_st%dzh(nzmg+2*ngrid))
+          allocate(grid_st%nxv(ngrid))
+          allocate(grid_st%nyv(ngrid))
+          allocate(grid_st%nzv(ngrid))
+          allocate(grid_st%ntotv(ngrid))
+          allocate(grid_st%istartx(ngrid))
+          allocate(grid_st%istarty(ngrid))
+          allocate(grid_st%istartz(ngrid))
+          allocate(grid_st%istartp(ngrid))
+          allocate(grid_st%mg_ratio_x(ngrid))
+          allocate(grid_st%mg_ratio_y(ngrid))
+          allocate(grid_st%mg_ratio_z(ngrid))
+          allocate(grid_st%iline(ngrid))
+          allocate(grid_st%jline(ngrid))
+          allocate(grid_st%kline(ngrid))
         endif
+
+        grid_st%iline = 0
+        grid_st%jline = 0
+        grid_st%kline = 0
 
 c     End program
 
@@ -2880,6 +2900,107 @@ c     -----------------------------------------------------------------
       end function findMGsize
 
       end subroutine allocateGridStructure
+
+c     equateGridStructure
+c     #################################################################
+      subroutine equateGridStructure(grid_st2,grid_st1)
+
+c     -----------------------------------------------------------------
+c     Performs grid_st2 = grid_st1
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_def),intent(in)  :: grid_st1
+        type(grid_def),intent(out) :: grid_st2
+
+c     Local variables
+
+        integer(4)     :: ngridx,ngridy,ngridz
+
+c     Begin program
+
+        ngridx = grid_st1%ngrdx
+        ngridy = grid_st1%ngrdy
+        ngridz = grid_st1%ngrdz
+
+        call allocateGridStructure(ngridx,ngridy,ngridz,grid_st2)
+
+        grid_st2%iline      = grid_st1%iline
+        grid_st2%jline      = grid_st1%jline
+        grid_st2%kline      = grid_st1%kline
+        grid_st2%xx         = grid_st1%xx        
+        grid_st2%yy         = grid_st1%yy        
+        grid_st2%zz         = grid_st1%zz        
+        grid_st2%dx         = grid_st1%dx        
+        grid_st2%dy         = grid_st1%dy        
+        grid_st2%dz         = grid_st1%dz        
+        grid_st2%dxh        = grid_st1%dxh       
+        grid_st2%dyh        = grid_st1%dyh       
+        grid_st2%dzh        = grid_st1%dzh       
+        grid_st2%nxv        = grid_st1%nxv       
+        grid_st2%nyv        = grid_st1%nyv       
+        grid_st2%nzv        = grid_st1%nzv       
+        grid_st2%ntotv      = grid_st1%ntotv     
+        grid_st2%istartx    = grid_st1%istartx   
+        grid_st2%istarty    = grid_st1%istarty   
+        grid_st2%istartz    = grid_st1%istartz   
+        grid_st2%istartp    = grid_st1%istartp   
+        grid_st2%mg_ratio_x = grid_st1%mg_ratio_x
+        grid_st2%mg_ratio_y = grid_st1%mg_ratio_y
+        grid_st2%mg_ratio_z = grid_st1%mg_ratio_z
+
+c     End program
+
+      end subroutine equateGridStructure
+
+c     writeGridStructure
+c     #################################################################
+      subroutine writeGridStructure(grid_st)
+
+c     -----------------------------------------------------------------
+c     Performs grid_st2 = grid_st1
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_def) :: grid_st
+
+c     Local variables
+
+c     Begin program
+
+        write (*,*) 'ngrdx',grid_st%ngrdx
+        write (*,*) 'ngrdy',grid_st%ngrdy
+        write (*,*) 'ngrdz',grid_st%ngrdz
+        write (*,*) 'xx',grid_st%xx        
+        write (*,*) 'yy',grid_st%yy        
+        write (*,*) 'zz',grid_st%zz        
+        write (*,*) 'dx',grid_st%dx        
+        write (*,*) 'dy',grid_st%dy        
+        write (*,*) 'dz',grid_st%dz        
+        write (*,*) 'dxh',grid_st%dxh       
+        write (*,*) 'dyh',grid_st%dyh       
+        write (*,*) 'dzh',grid_st%dzh       
+        write (*,*) 'nxv',grid_st%nxv       
+        write (*,*) 'nyv',grid_st%nyv       
+        write (*,*) 'nzv',grid_st%nzv       
+        write (*,*) 'ntotv',grid_st%ntotv     
+        write (*,*) 'istartx',grid_st%istartx   
+        write (*,*) 'istarty',grid_st%istarty   
+        write (*,*) 'istartz',grid_st%istartz   
+        write (*,*) 'istartp',grid_st%istartp   
+        write (*,*) 'mg_ratio_x',grid_st%mg_ratio_x
+        write (*,*) 'mg_ratio_y',grid_st%mg_ratio_y
+        write (*,*) 'mg_ratio_z',grid_st%mg_ratio_z
+
+c     End program
+
+      end subroutine writeGridStructure
 
 c     createLogicalGrid
 c     #################################################################
