@@ -55,8 +55,8 @@ c     Store previous record
         u_n = u_np
 
 c diag ***** Redefine perturbations for preconditioner debugging
-        u_ic = u_n
-        call imposeBoundaryConditions(u_ic,igx,igy,igz)
+cc        u_ic = u_n
+cc        call imposeBoundaryConditions(u_ic,igx,igy,igz)
 c diag *****
 
 c     Read next record
