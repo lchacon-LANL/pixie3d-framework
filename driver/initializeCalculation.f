@@ -79,23 +79,29 @@ c Create equilibrium u_0
 
       call createEquilibrium
 
-c Set initial condition u_n, u_np
+c Initialize old time solution
 
-      call setInitialCondition(u_0,u_n)
+      u_n = u_0   !Overloaded assignment
+
+c Set unperturbed forcing fields
+
+      if (source) then
+        call evaluateNonlinearFunction(u_n,fsrc)
+      else
+        fsrc = 0d0
+      endif
+
+c Perturb initial condition u_n
+
+      call setInitialCondition(u_n)
+
+c Initialize new time solution
 
       u_np = u_n
 
 c Create graphics
 
       call createGraphics
-
-c Set unperturbed forcing fields
-
-      if (source) then
-        call evaluateNonlinearFunction(u_0,fsrc)
-      else
-        fsrc = 0d0
-      endif
 
 c Check time limits
 
@@ -195,7 +201,7 @@ c Set equilibrium u_0 and define BCs on all variables
 
       call packVariables(u_0)
 
-      call imposeBoundaryConditions(u_0)
+cc      call imposeBoundaryConditions(u_0)
 
       deallocate(var,label,bcs)
 
@@ -238,7 +244,7 @@ c     End program
 
 c setInitialCondition
 c####################################################################
-      subroutine setInitialCondition(varray0,varray)
+      subroutine setInitialCondition(varray)
 
 c--------------------------------------------------------------------
 c     Set initial conditions for initial value calculation. Variables
@@ -259,7 +265,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      type (var_array) :: varray0,varray
+      type (var_array) :: varray
 
 c Local variables
 
@@ -267,22 +273,17 @@ c Local variables
 
 c Begin program
 
-c Initialize new time step solution
-
-      varray = varray0   !Overloaded assignment
-
 c Perturb equilibrium
 
       if (.not.restart) then
 
         do ieq = 1,neqd
           call perturbEquilibrium(varray %array_var(ieq)%array
-     .                           ,varray0%array_var(ieq)%array
      .                           ,varray %array_var(ieq)%bconds
      .                           ,pert(ieq))
         enddo
 
-        call imposeBoundaryConditions(varray)
+cc        call imposeBoundaryConditions(varray)
 
         time     = 0d0
         inewtime = 1
@@ -305,7 +306,7 @@ c End program
 
 c     perturbEquilibrium
 c     #################################################################
-      subroutine perturbEquilibrium(array,array0,bcs,perturb)
+      subroutine perturbEquilibrium(array,bcs,perturb)
 
 c     -----------------------------------------------------------------
 c     Perturbs equilibrium quantity in array0 with a sinusoidal
@@ -319,7 +320,6 @@ c     Call variables
       integer(4) :: bcs(6)
       real(8)    :: perturb
       real(8)    :: array (0:nxdp,0:nydp,0:nzdp)
-     .             ,array0(0:nxdp,0:nydp,0:nzdp)
 
 c     Local variables
 
@@ -354,7 +354,7 @@ c     Begin program
       do k = 1,nzd
         do j = 1,nyd
           do i = 1,nxd
-            array(i,j,k) = array0(i,j,k) + perturb*fx(i)*fy(j)*fz(k)
+            array(i,j,k) = array(i,j,k) + perturb*fx(i)*fy(j)*fz(k)
           enddo
         enddo
       enddo
