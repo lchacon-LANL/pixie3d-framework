@@ -36,11 +36,11 @@ c Call variables
 
 c Local variables
 
-c Debug
-
-      integer(4) :: nt,ii,i,j,k,igx,nx,ny,nz
-      real(8) :: mag
-      real(8),allocatable,dimension(:,:) :: v_mat,debug2
+ccc Debug
+cc
+cc      integer(4) :: nt,ii,i,j,k,igx,nx,ny,nz
+cc      real(8) :: mag
+cc      real(8),allocatable,dimension(:,:) :: v_mat,debug2
 
 c Begin program
 
@@ -75,6 +75,8 @@ c Initialize vector dimensions for global and local problems
 
       call setVectorDimensions
 
+      write (*,*) 'proc',my_rank,'lim',ilog,ihig,jlog,jhig,klog,khig
+
 c Allocate constant arrays
 
       allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
@@ -94,7 +96,6 @@ c Check grid
 
 c diag ******* NUMERICAL GRID QUANTITIES
 cc      if (my_rank == 1) then
-        write (*,*) 'proc',my_rank,'lim',ilog,ihig,jlog,jhig,klog,khig
 cc        write (*,*) 'Grid in processor',my_rank
 cc        call checkGrid
 cc      endif
@@ -157,18 +158,12 @@ c Create equilibrium u_0
 
       call createEquilibrium
 
-c Initialize old time solution
-
-      u_n = u_0   !Overloaded assignment
-
 c Transfer to Petsc format
 
       do ieq=1,neqd
         array(ilog:ihig,jlog:jhig,klog:khig)%var(ieq)
-     .      = u_n%array_var(ieq)%array(ilo:ihi,jlo:jhi,klo:khi)
+     .      = u_0%array_var(ieq)%array(ilo:ihi,jlo:jhi,klo:khi)
       enddo
-
-cc      call deallocateDerivedType(u_n)       !DO NOT deallocate u_0; needed in imposeBC routine
 
 c End program
  
