@@ -759,7 +759,7 @@ c     Begin program
 
       end function jacobian
 
-c     covariantVector2
+c     covariantVector
 c     #################################################################
       function covariantVector(comp,i,j,k,igx,igy,igz) result (vec)
 
@@ -1849,6 +1849,7 @@ c     Standard BCs:
 c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
 c       DIR: Homogeneous dirichlet
 c       NEU: Neumann (homogeneous/inhomogeneous)
+c       SYM: Symmetry (odd,even depend on sign)
 c       DEF: Default (set in application code)
 c       EXT: By extrapolation
 c     The actual integers chosen indicate a particular order that the BC
@@ -2761,9 +2762,11 @@ c       NUMERICAL QUANTITIES ***********************************
                   cnv(:,:) = r(:,:)*ijac
 
                   !Covariant vectors
-                  cov(1,:) = cross_product(r(2,:),r(3,:))*ijac
-                  cov(2,:) = cross_product(r(3,:),r(1,:))*ijac
-                  cov(3,:) = cross_product(r(1,:),r(2,:))*ijac
+                  cov(1,:) = cross_product(r(2,:),r(3,:))
+                  cov(2,:) = cross_product(r(3,:),r(1,:))
+                  cov(3,:) = cross_product(r(1,:),r(2,:))
+
+                  cov = cov*ijac
 
                   !Metric tensors
                   do m=1,3
@@ -3621,8 +3624,11 @@ c     #################################################################
         integer(4) :: i,j
         real(8)    :: delta
 
-        delta = 0d0
-        if (i == j) delta = 1d0
+        if (i == j) then
+          delta = 1d0
+        else
+          delta = 0d0
+        endif
 
       end function delta
 
