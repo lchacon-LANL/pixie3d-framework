@@ -36,7 +36,7 @@ c ###################################################################
 
       real(8)    :: pdt,check
 
-      real(8),parameter :: mv_eps=1d-8,epsmac=1d-15
+      real(8),parameter :: mv_eps=1d-5,epsmac=1d-15
 
       integer(4) :: jit
 
