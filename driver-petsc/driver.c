@@ -1,7 +1,6 @@
 static char help[] = "Options:
 	-snes_mf : use matrix-free Newton methods (default)\n\
 	-user_precond: use user-defined preconditioner (-snes_mf)\n\
-	-nx <nx> -ny <ny> -nz <nz> : grid size of each direction\n\
         -nmax <nmax>: max. iteration # of time steps\n";
 
 /*
