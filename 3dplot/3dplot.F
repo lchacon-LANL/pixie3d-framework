@@ -66,6 +66,10 @@ c Time loop
 
       do
 
+c     Store previous record
+
+        u_n = u_np
+
 c     Read next record
 
         call readRecord(urecord,itime,time,dt,u_np,ierr)
@@ -302,6 +306,8 @@ c Initialize graphics
       call dumpTimeStepPlots
 
 c Initialize diagnostics
+
+      u_n = u_np
 
       call initializeDiagnostics(u_np,igx,igy,igz)
 
