@@ -93,13 +93,40 @@ c     Begin program
         if (.not.associated(varray%array_var(1)%array)) then
           do ieq=1,neqd
             allocate(varray%array_var(ieq)%array(0:nxdp,0:nydp,0:nzdp))
-cc            varray%array_var(ieq)%array = 0d0
+            varray%array_var(ieq)%array = 0d0
           enddo
         endif
 
 c     End program
 
       end subroutine allocateDerivedType
+
+c     deallocateDerivedType
+c     #################################################################
+      subroutine deallocateDerivedType(varray)
+
+c     Call variables
+
+        type(var_array)  :: varray
+
+c     Local variables
+
+        integer          :: ieq
+
+c     Begin program
+
+        if (associated(varray%array_var)) then
+          if (associated(varray%array_var(1)%array)) then
+            do ieq=1,neqd
+              deallocate(varray%array_var(ieq)%array)
+            enddo
+          endif
+          deallocate(varray%array_var)
+        endif
+
+c     End program
+
+      end subroutine deallocateDerivedType
 
 c     writeDerivedType
 c     #################################################################
@@ -188,7 +215,7 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq
+        integer(4) :: ieq
 
 c     Begin program
 
@@ -197,6 +224,8 @@ c     Begin program
         varray2%nvar = varray1%nvar
         do ieq=1,varray2%nvar
           varray2%array_var(ieq)%bconds = varray1%array_var(ieq)%bconds
+cc          write (*,*) shape(varray1%array_var(ieq)%array)
+cc          write (*,*) shape(varray2%array_var(ieq)%array)
           varray2%array_var(ieq)%array  = varray1%array_var(ieq)%array
           varray2%array_var(ieq)%descr  = varray1%array_var(ieq)%descr
         enddo
@@ -484,6 +513,10 @@ c ######################################################################
 
         logical          :: timecorr,restart,source
 
+        real(8)    :: tmrst,tmplot
+
+        integer(4) :: itime,nrst,nplot
+
       end module timeStepping
 
 c module newtongm
@@ -493,19 +526,9 @@ c ######################################################################
         integer          ::  maxitnwt,maxitgm,iguess,maxksp
      .                      ,method,global
 
-        double precision ::  tolgm,tolnewt
+        double precision ::  tolgm,rtol,atol
 
       end module newtongm
-
-c module precond_setup
-c ######################################################################
-      module precond_setup
-
-        integer       ::  precpass,nsweep,maxvcyc
-
-        character*(10)::  precon
-
-      end module precond_setup
 
 c module counters
 c ######################################################################
