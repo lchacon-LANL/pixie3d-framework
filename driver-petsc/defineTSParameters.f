@@ -1,6 +1,6 @@
 c defineTSParametersRoutine
 c####################################################################
-      subroutine defineTSParametersRoutine(cnf,one_over_dt)
+      subroutine defineTSParametersRoutine(cnf1,one_over_dt1)
 
 c--------------------------------------------------------------------
 c     Calculates nonlinear residuals, of the form:
@@ -17,17 +17,16 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      real(8)    :: cnf(neqd),one_over_dt(neqd)
+      real(8)    :: cnf1(neqd),one_over_dt1(neqd)
 
 c Local variables
 
-
 c Begin program
 
+      call defineTSParameters
 
-c Calculate residuals
-
-      call defineTSParameters(cnf,one_over_dt)
+      cnf1 = cnf
+      one_over_dt1 = one_over_dt
 
 c End program
 

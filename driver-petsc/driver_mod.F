@@ -1013,6 +1013,8 @@ c ######################################################################
 
         integer(4) :: itime,nrst
 
+        real(8),allocatable,dimension(:) :: cnf,one_over_dt
+
       end module timeStepping
 
 c module newtongm

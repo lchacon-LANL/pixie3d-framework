@@ -29,7 +29,7 @@ c Local variables
       integer(4) :: i,j,k,il,jl,kl,ieq,ii
      .             ,imingcl,imaxgcl,jmingcl,jmaxgcl,kmingcl,kmaxgcl
 
-      real(8)    :: dudt(neqd),cnf(neqd),one_over_dt(neqd),ff(ntotd)
+      real(8)    :: dudt(neqd),ff(ntotd)
 
       type(var_array)   :: varray
 
