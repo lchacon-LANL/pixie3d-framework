@@ -77,38 +77,38 @@ cc        ntotd   = neqd*ntotdp
 
       end subroutine setVectorDimensions
 
-c     vecPos
-c     #################################################################
-      function vecPos(neq,i,j,k) result (ijk)
-
-        implicit none
-
-        integer(4) :: ijk,i,j,k,neq
-
-        ijk = neq*(i-ilo + nxl*(j-jlo) + nxl*nyl*(k-klo))
-      
-      end function vecPos
-
-c     fromGlobalToLocalLimits
-c     #################################################################
-      subroutine fromGlobalToLocalLimits(ig,jg,kg,il,jl,kl)
-
-        implicit none
-
-        integer(4) :: ig,jg,kg,il,jl,kl
-
-        il = ig - ilog + 1
-        jl = jg - jlog + 1
-        kl = kg - klog + 1
-
-      end subroutine fromGlobalToLocalLimits
+c$$$c     vecPos
+c$$$c     #################################################################
+c$$$      function vecPos(neq,i,j,k,igx,igy,igz) result (ijk)
+c$$$
+c$$$        implicit none
+c$$$
+c$$$        integer(4) :: ijk,i,j,k,neq,igx,igy,igz
+c$$$
+c$$$        ijk = neq*(i-ilo + nxl*(j-jlo) + nxl*nyl*(k-klo))
+c$$$      
+c$$$      end function vecPos
+c$$$
+c$$$c     fromGlobalToLocalLimits
+c$$$c     #################################################################
+c$$$      subroutine fromGlobalToLocalLimits(ig,jg,kg,il,jl,kl,igx,igy,igz)
+c$$$
+c$$$        implicit none
+c$$$
+c$$$        integer(4) :: ig,jg,kg,il,jl,kl,igx,igy,igz
+c$$$
+c$$$        il = ig - ilog + 1
+c$$$        jl = jg - jlog + 1
+c$$$        kl = kg - klog + 1
+c$$$
+c$$$      end subroutine fromGlobalToLocalLimits
 
       end module parameters
 
 #if defined(petsc)
-c module petsc_var_setup
+c module petsc_var_def
 c #####################################################################
-      module petsc_var_setup
+      module petsc_var_def
 
         use parameters
 
@@ -119,228 +119,228 @@ c #####################################################################
           real(8) :: var(NVAR)
         end type petsc_var
 
-        type :: petsc_array
-          type(petsc_var),pointer,dimension(:,:,:) :: array
-        end type petsc_array
-
-      contains
-
-c     allocatePetcsType
-c     #################################################################
-      subroutine allocatePetscType(petscarray)
-
-        implicit none
-
-c     Call variables
-
-        type(petsc_array)  :: petscarray
-
-c     Local variables
-
-        integer(4)         :: ieq
-
-c     Begin program
-
-        !Error check
-        if (neqd /= NVAR) then
-          write (*,*) 'Different number of equations in Petsc and F90'
-          write (*,*) 'Aborting...'
-          stop
-        endif
-
-        if (.not.associated(petscarray%array)) then
-          allocate(petscarray%array(ilom:ihip,jlom:jhip,klom:khip))
-          do ieq=1,neqd
-            petscarray%array(:,:,:)%var(ieq) = 0d0
-          enddo
-        endif
-
-c     End program
-
-      end subroutine allocatePetscType
-
-c     deallocatePetscType
-c     #################################################################
-      subroutine deallocatePetscType(petscarray)
-
-        implicit none
-
-c     Call variables
-
-        type(petsc_array)  :: petscarray
-
-c     Local variables
-
-c     Begin program
-
-        if (associated(petscarray%array)) deallocate(petscarray%array)
-
-c     End program
-
-      end subroutine deallocatePetscType
-
-c     equatePetscType
-c     #################################################################
-      subroutine equatePetscType(petscarray2,petscarray1)
-      implicit none
-c     -----------------------------------------------------------------
-c     Performs petscarray2 = petscarray1
-c     -----------------------------------------------------------------
-
-c     Call variables
-
-        type(petsc_array),intent(in)  :: petscarray1
-        type(petsc_array),intent(out) :: petscarray2
-
-c     Local variables
-
-c     Begin program
-
-        call allocatePetscType(petscarray2)
-
-        petscarray2%array = petscarray1%array
-
-c     End program
-
-      end subroutine equatePetscType
-
-c     initializePetscType
-c     #################################################################
-      subroutine initializePetscType(petscarray)
-
-c     -----------------------------------------------------------------
-c     Initializes fields of petscarray.
-c     -----------------------------------------------------------------
-
-c     Call variables
-
-        type(petsc_array)  :: petscarray
-
-c     Local variables
-
-c     Begin program
-
-        call allocatePetscType(petscarray)
-
-c     End program
-
-      end subroutine initializePetscType
-
-c     substractPetscType
-c     #################################################################
-      function substractPetscType(petscarray2,petscarray1)
-     .         result (petscarray3)
-
-c     -----------------------------------------------------------------
-c     Performs petscarray3 = petscarray2 - petscarray1
-c     -----------------------------------------------------------------
-
-c     Call variables
-
-        type(petsc_array),intent(in)  :: petscarray1,petscarray2
-        type(petsc_array)             :: petscarray3
-
-c     Local variables
-
-        integer(4)                    :: ieq
-
-c     Begin program
-
-        call allocatePetscType(petscarray3)
-
-        do ieq=1,neqd
-          petscarray3%array(:,:,:)%var(ieq) =
-     .           petscarray2%array(:,:,:)%var(ieq)
-     .         - petscarray1%array(:,:,:)%var(ieq)
-        enddo
-
-c     End program
-
-      end function substractPetscType
-
-c     mapPetscToVector
-c     #################################################################
-      subroutine mapPetscToVector(x,petscarray)
-
-c     -----------------------------------------------------------------
-c     Maps petsc array petscarray into vector x (without ghost cells)
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      real(8),intent(out) :: x(ntotd)
-
-      type (petsc_array),intent(in)  :: petscarray
-
-c     Local variables
-
-      integer(4) :: i,j,k,ii,ieq
-
-c     Begin program
-
-c     Form vector x
-
-      do k = klo,khi
-        do j = jlo,jhi
-          do i = ilo,ihi
-            ii = vecPos(neqd,i,j,k)
-            do ieq = 1,neqd
-              x(ii+ieq) = petscarray%array(i,j,k)%var(ieq)
-            enddo
-          enddo
-        enddo
-      enddo
-
-c     End program
-
-      end subroutine mapPetscToVector
-
-c     mapVectorToPetsc
-c     #################################################################
-      subroutine mapVectorToPetsc(petscarray,x)
-
-c     -----------------------------------------------------------------
-c     Maps vector solution into Petsc arrays.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      real(8),intent(in)             :: x(ntotd)
-
-      type (petsc_array),intent(out) :: petscarray
-
-c     Local variables
-
-      integer(4) :: i,j,k,ii,ieq
-
-c     Begin program
-
-c     Initialize petscarray
-
-      call initializePetscType(petscarray)
-
-c     Unpack vector x
-
-      do k = klo,khi
-        do j = jlo,jhi
-          do i = ilo,ihi
-            ii = vecPos(neqd,i,j,k)
-            do ieq = 1,neqd
-              petscarray%array(i,j,k)%var(ieq) = x(ii+ieq)
-            enddo
-          enddo
-        enddo
-      enddo
-
-c     End program
-
-      end subroutine mapVectorToPetsc
-
-      end module petsc_var_setup
+c$$$        type :: petsc_array
+c$$$          type(petsc_var),pointer,dimension(:,:,:) :: array
+c$$$        end type petsc_array
+c$$$
+c$$$      contains
+c$$$
+c$$$c     allocatePetcsType
+c$$$c     #################################################################
+c$$$      subroutine allocatePetscType(petscarray)
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(petsc_array)  :: petscarray
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer(4)         :: ieq
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        !Error check
+c$$$        if (neqd /= NVAR) then
+c$$$          write (*,*) 'Different number of equations in Petsc and F90'
+c$$$          write (*,*) 'Aborting...'
+c$$$          stop
+c$$$        endif
+c$$$
+c$$$        if (.not.associated(petscarray%array)) then
+c$$$          allocate(petscarray%array(ilom:ihip,jlom:jhip,klom:khip))
+c$$$          do ieq=1,neqd
+c$$$            petscarray%array(:,:,:)%var(ieq) = 0d0
+c$$$          enddo
+c$$$        endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine allocatePetscType
+c$$$
+c$$$c     deallocatePetscType
+c$$$c     #################################################################
+c$$$      subroutine deallocatePetscType(petscarray)
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(petsc_array)  :: petscarray
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        if (associated(petscarray%array)) deallocate(petscarray%array)
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine deallocatePetscType
+c$$$
+c$$$c     equatePetscType
+c$$$c     #################################################################
+c$$$      subroutine equatePetscType(petscarray2,petscarray1)
+c$$$      implicit none
+c$$$c     -----------------------------------------------------------------
+c$$$c     Performs petscarray2 = petscarray1
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(petsc_array),intent(in)  :: petscarray1
+c$$$        type(petsc_array),intent(out) :: petscarray2
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        call allocatePetscType(petscarray2)
+c$$$
+c$$$        petscarray2%array = petscarray1%array
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine equatePetscType
+c$$$
+c$$$c     initializePetscType
+c$$$c     #################################################################
+c$$$      subroutine initializePetscType(petscarray)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Initializes fields of petscarray.
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(petsc_array)  :: petscarray
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        call allocatePetscType(petscarray)
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine initializePetscType
+c$$$
+c$$$c     substractPetscType
+c$$$c     #################################################################
+c$$$      function substractPetscType(petscarray2,petscarray1)
+c$$$     .         result (petscarray3)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Performs petscarray3 = petscarray2 - petscarray1
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(petsc_array),intent(in)  :: petscarray1,petscarray2
+c$$$        type(petsc_array)             :: petscarray3
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer(4)                    :: ieq
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        call allocatePetscType(petscarray3)
+c$$$
+c$$$        do ieq=1,neqd
+c$$$          petscarray3%array(:,:,:)%var(ieq) =
+c$$$     .           petscarray2%array(:,:,:)%var(ieq)
+c$$$     .         - petscarray1%array(:,:,:)%var(ieq)
+c$$$        enddo
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function substractPetscType
+c$$$
+c$$$c     mapPetscToVector
+c$$$c     #################################################################
+c$$$      subroutine mapPetscToVector(x,petscarray)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Maps petsc array petscarray into vector x (without ghost cells)
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      real(8),intent(out) :: x(ntotd)
+c$$$
+c$$$      type (petsc_array),intent(in)  :: petscarray
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer(4) :: i,j,k,ii,ieq
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$c     Form vector x
+c$$$
+c$$$      do k = klo,khi
+c$$$        do j = jlo,jhi
+c$$$          do i = ilo,ihi
+c$$$            ii = vecPos(neqd,i,j,k)
+c$$$            do ieq = 1,neqd
+c$$$              x(ii+ieq) = petscarray%array(i,j,k)%var(ieq)
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine mapPetscToVector
+c$$$
+c$$$c     mapVectorToPetsc
+c$$$c     #################################################################
+c$$$      subroutine mapVectorToPetsc(petscarray,x)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Maps vector solution into Petsc arrays.
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      real(8),intent(in)             :: x(ntotd)
+c$$$
+c$$$      type (petsc_array),intent(out) :: petscarray
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer(4) :: i,j,k,ii,ieq
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$c     Initialize petscarray
+c$$$
+c$$$      call initializePetscType(petscarray)
+c$$$
+c$$$c     Unpack vector x
+c$$$
+c$$$      do k = klo,khi
+c$$$        do j = jlo,jhi
+c$$$          do i = ilo,ihi
+c$$$            ii = vecPos(neqd,i,j,k)
+c$$$            do ieq = 1,neqd
+c$$$              petscarray%array(i,j,k)%var(ieq) = x(ii+ieq)
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine mapVectorToPetsc
+
+      end module petsc_var_def
 #endif
 
 c module variable_setup
@@ -349,8 +349,10 @@ c #####################################################################
 
         use parameters
 
+        use grid
+
 #if defined(petsc)
-        use petsc_var_setup
+        use petsc_var_def
 #endif
 
         implicit none
@@ -372,17 +374,10 @@ c #####################################################################
           module procedure equateDerivedType
      .                    ,mapStructureToVector
      .                    ,mapVectorToStructure
-#if defined(petsc)
-     .                    ,mapPetscToStructure
-     .                    ,mapStructureToPetsc
-#endif
         END INTERFACE
 
         INTERFACE OPERATOR (-)
           module procedure substractDerivedType
-#if defined(petsc)
-     .                    ,substractPetscType
-#endif
         END INTERFACE
 
       contains
@@ -411,18 +406,8 @@ c     Begin program
             allocate(varray%array_var(ieq)
      $                     %array(ilom:ihip,jlom:jhip,klom:khip))
             varray%array_var(ieq)%array = 0d0
-cc            write (*,*) ieq,shape(varray%array_var(ieq)%array)
           enddo
         endif
-
-cc        do ieq=1,neqd
-cc          if (.not.associated(varray%array_var(ieq)%array)) then
-cc            allocate(varray%array_var(ieq)
-cc     $                     %array(ilom:ihip,jlom:jhip,klom:khip))
-cc            varray%array_var(ieq)%array = 0d0
-cccc          write (*,*) ieq,shape(varray%array_var(ieq)%array)
-cc          endif
-cc        enddo
 
 c     End program
 
@@ -754,7 +739,7 @@ c     Unpack vector x
       do k = klo,khi
         do j = jlo,jhi
           do i = ilo,ihi
-            ii = vecPos(neq,i,j,k)
+            ii = vecPos(neq,i,j,k,1,1,1)
             do ieq=1,neq
               x(ii+ieq) = varray%array_var(ieq)%array(i,j,k)
             enddo
@@ -799,7 +784,7 @@ c     Unpack vector x
       do k = klo,khi
         do j = jlo,jhi
           do i = ilo,ihi
-            ii = vecPos(neq,i,j,k)
+            ii = vecPos(neq,i,j,k,1,1,1)
             do ieq=1,neq
               varray%array_var(ieq)%array(i,j,k) = x(ii+ieq)
             enddo
@@ -810,92 +795,6 @@ c     Unpack vector x
 c     End program
 
       end subroutine mapVectorToStructure
-
-#if defined(petsc)
-c     mapPetscToStructure
-c     #################################################################
-      subroutine mapPetscToStructure(varray,petscarray)
-
-c     -----------------------------------------------------------------
-c     Maps structure into Petsc format.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type (var_array  ),intent(out)  :: varray
-      type (petsc_array),intent(in)   :: petscarray
-
-c     Local variables
-
-      integer(4) :: i,j,k,ieq
-
-c     Begin program
-
-c     Initialize structure
-
-      call initializeDerivedType(varray)
-
-c     Perform mapping
-
-      do k = klom,khip
-        do j = jlom,jhip
-          do i = ilom,ihip
-            do ieq = 1,neqd
-              varray%array_var(ieq)%array(i,j,k)
-     .             = petscarray%array(i,j,k)%var(ieq)
-            enddo
-          enddo
-        enddo
-      enddo
-
-c     End program
-
-      end subroutine mapPetscToStructure
-
-c     mapStructureToPetsc
-c     #################################################################
-      subroutine mapStructureToPetsc(petscarray,varray)
-
-c     -----------------------------------------------------------------
-c     Maps structure into petscarray.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type (var_array  ),intent(in ) :: varray
-      type (petsc_array),intent(out) :: petscarray
-
-c     Local variables
-
-      integer(4) :: i,j,k,ieq
-
-c     Begin program
-
-c     Initialize petsc array
-
-      call initializePetscType(petscarray)
-
-c     Perform mapping
-
-      do k = klom,khip
-        do j = jlom,jhip
-          do i = ilom,ihip
-            do ieq = 1,neqd
-              petscarray%array(i,j,k)%var(ieq)
-     .             = varray%array_var(ieq)%array(i,j,k)
-            enddo
-          enddo
-        enddo
-      enddo
-
-c     End program
-
-      end subroutine mapStructureToPetsc
-#endif
 
       end module variable_setup
 
@@ -1027,7 +926,7 @@ c     ################################################################
          j = k/10**i
          c = achar(48+j)
          chr = trim(chr)//trim(c)
-         if (i > 0 ) k = mod(k,j*10**i)
+         if (i > 0 .and. j /= 0) k = mod(k,j*10**i)
       enddo
 
       end function int2char
@@ -1109,9 +1008,9 @@ c ######################################################################
 
       contains
 
-c     readRecord
+c     readRecordFile
 c     #################################################################
-      subroutine readRecord(unit,itime,time,dt,varray,ierr)
+      subroutine readRecordFile(unit,itime,time,dt,varray,ierr)
 
 c     -----------------------------------------------------------------
 c     Reads record file
@@ -1151,7 +1050,7 @@ c     Begin program
 
 c     End
 
-      end subroutine readRecord
+      end subroutine readRecordFile
 
 c     writeRecordFile
 c     #################################################################
