@@ -187,6 +187,8 @@ c----------------------------------------------------------------------
 
       use graphics
 
+      use constants
+
       implicit none
 
 c Call variables
@@ -233,6 +235,14 @@ c Initialize MG and create grid
 c Define application arrays (external)
 
       call allocateApplicationVariables     !External
+
+      allocate(zeros (0:nxdp,0:nydp,0:nzdp))
+      allocate(vzeros(0:nxdp,0:nydp,0:nzdp,3))
+      allocate(ones  (0:nxdp,0:nydp,0:nzdp))
+
+      zeros  = 0d0
+      vzeros = 0d0
+      ones   = 1d0
 
 c Allocate records
 
