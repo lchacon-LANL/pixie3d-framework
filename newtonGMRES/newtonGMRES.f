@@ -625,13 +625,12 @@ c Local variables
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
       real(8)    :: vv(ntot,im+1),zz(ntot,im+1)
       real(8)    :: rold,ro,eps1,gam,t
-      integer(4) :: i,j,i1,k,k1,ii,jj,n,rstrt,irstrt,precout
+      integer(4) :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
 
 c Begin program
 
       precout = iout - 2
 
-      n = ntot
       its = 0
 
 c Calculate magnitude of nonlinear residual
@@ -640,14 +639,14 @@ c Calculate magnitude of nonlinear residual
 
       eps1=eps*rold
 
-      if (rold .lt. (n*epsmac)) then
+      if (rold .lt. (ntot*epsmac)) then
         ierr = -1
         return
       endif
 
 c Compute initial residual vector
 
-      call matrixFreeMatVec(n,sol,vv(:,1))
+      call matrixFreeMatVec(ntot,sol,vv(:,1))
 
       vv(:,1) = rhs(:) - vv(:,1)
 
@@ -667,7 +666,7 @@ c Restarted GMRES loop
 
         if (iout .gt. 0 ) then
           if (its .eq. 0) then
-            write (*,199) its, ro/rold
+            write (*,199) its, ro, ro/rold
           else
             write (*,*) 'Restarting GMRES... (',irstrt-1,')'
           endif
@@ -689,11 +688,11 @@ c     GMRES iteration
           its = its + 1
           i1  = i + 1
 
-cFG           call applyPreconditioner(n,vv(1,i),rhs,precout)
-          call applyPreconditioner(n,vv(:,i),zz(:,i),precout)
+cFG           call applyPreconditioner(ntot,vv(1,i),rhs,precout)
+          call applyPreconditioner(ntot,vv(:,i),zz(:,i),precout)
 
-cFG           call matrixFreeMatVec(n,rhs,vv(1,i1))
-          call matrixFreeMatVec(n,zz(:,i),vv(:,i1))
+cFG           call matrixFreeMatVec(ntot,rhs,vv(1,i1))
+          call matrixFreeMatVec(ntot,zz(:,i),vv(:,i1))
 
 c       Modified gram - schmidt.
 
@@ -744,7 +743,7 @@ c       Determine residual norm and test for convergence
           ro = abs(rs(i1))
 
           if (iout .gt. 0) then
-            write(*, 199) its, ro/rold
+            write(*, 199) its, ro, ro/rold
           endif
 
           !The i=im condition below is necessary because i is used afterwards
@@ -780,7 +779,7 @@ cFG         rhs(:) = rhs(:) + t*vv(:,j)
 c     Call preconditioner
 
         vv(:,im+1) = rhs(:)
-cFG       call applyPreconditioner(n,rhs,vv(1,im+1),precout)
+cFG       call applyPreconditioner(ntot,rhs,vv(1,im+1),precout)
 
 c     Update solution
 
@@ -818,7 +817,8 @@ c     Restart outer loop
 
 c End program
 
- 199  format(' GMRES its =', i4,';  res/rold norm =', 1pd10.2)
+ 199  format(' GMRES its =', i4,';  Res =',1p,d10.2
+     .      ,';  Ratio =', d10.2)
 
       end subroutine fgmres
 
@@ -863,7 +863,7 @@ c Local variables
 
 c Begin program
 
-      modz  = epsmac + sum(z*z)
+      modz  = sum(z*z)
 
 c Calculate J.x
 
