@@ -23,7 +23,7 @@ c Local variables
 
       integer(4) :: i,j,k,ieq,ii
 
-      real(8)    :: dudt(neqd),cnf(neqd),one_over_dt(neqd),ivol
+      real(8)    :: dudt(neqd),cnf(neqd),one_over_dt(neqd)
 
       type (var_array) :: varray
 
@@ -33,7 +33,7 @@ c Unpack vector x
 
       varray = x         !Overloaded assignment
 
-c Evaluate nonlinear function
+c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
       call evaluateNonlinearFunction(varray,f)
 
@@ -46,7 +46,6 @@ c Calculate residuals
           do i = 1,nxd
 
             ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
-            ivol = 1d0/volume(i,j,k,1,1,1)
 
             do ieq=1,neqd
 cc              dudt(ieq) = volume(i,j,k,1,1,1)*one_over_dt(ieq)
@@ -61,7 +60,7 @@ cc     .                              -               fsrc(ii+ieq)
      .                    *one_over_dt(ieq)
      .                    + ((1.-cnf(ieq))*f   (ii+ieq)
      .                    +      cnf(ieq) *fold(ii+ieq)
-     .                    -                fsrc(ii+ieq))*ivol
+     .                    -                fsrc(ii+ieq))
             enddo
 
           enddo
@@ -93,13 +92,12 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      double precision :: fi(ntotd)
+      real(8)          :: fi(ntotd)
       type (var_array) :: varray
 
 c Local variables
 
-      integer          :: i,j,k,ii
-      double precision :: tmp(neqd)
+      integer(4)       :: i,j,k,ii
 
 c Interfaces
 
@@ -122,8 +120,7 @@ c Store function evaluation
         do j = 1,nyd
           do i = 1,nxd
             ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
-            call nonlinearRHS(i,j,k,varray,tmp)
-            fi(ii+1:ii+neqd) = tmp
+            call nonlinearRHS(i,j,k,varray,fi(ii+1:ii+neqd))
           enddo
         enddo
       enddo
