@@ -33,7 +33,7 @@ c #####################################################################
           integer(4),pointer,dimension(:)  :: nxgl        !Global # of grid nodes in X  (")
           integer(4),pointer,dimension(:)  :: nygl        !Global # of grid nodes in Y  (")
           integer(4),pointer,dimension(:)  :: nzgl        !Global # of grid nodes in Z  (")
-          integer(4),pointer,dimension(:)  :: ntotv       !Total # of grid nodes (")
+cc          integer(4),pointer,dimension(:)  :: ntotv       !Total # of grid nodes (")
           integer(4),pointer,dimension(:)  :: istartx     !Pointer for MG vectors in X
           integer(4),pointer,dimension(:)  :: istarty     !Pointer for MG vectors in Y
           integer(4),pointer,dimension(:)  :: istartz     !Pointer for MG vectors in Z
@@ -106,7 +106,7 @@ c     Begin program
           allocate(grid_st%ihi(ngrid))
           allocate(grid_st%jhi(ngrid))
           allocate(grid_st%khi(ngrid))
-          allocate(grid_st%ntotv(ngrid))
+cc          allocate(grid_st%ntotv(ngrid))
           allocate(grid_st%istartx(ngrid))
           allocate(grid_st%istarty(ngrid))
           allocate(grid_st%istartz(ngrid))
@@ -119,6 +119,34 @@ c     Begin program
           allocate(grid_st%kline(ngrid))
         endif
 
+        grid_st%xx = 0.
+        grid_st%yy = 0.
+        grid_st%zz = 0.
+        grid_st%dx = 0.
+        grid_st%dy = 0.
+        grid_st%dz = 0.
+        grid_st%dxh = 0.
+        grid_st%dyh = 0.
+        grid_st%dzh = 0.
+        grid_st%nxv = 0
+        grid_st%nyv = 0
+        grid_st%nzv = 0
+        grid_st%nxgl = 0
+        grid_st%nygl = 0
+        grid_st%nzgl = 0
+        grid_st%ilo = 0
+        grid_st%jlo = 0
+        grid_st%klo = 0
+        grid_st%ihi = 0
+        grid_st%jhi = 0
+        grid_st%khi = 0
+        grid_st%istartx = 0
+        grid_st%istarty = 0
+        grid_st%istartz = 0
+        grid_st%istartp = 0
+        grid_st%mg_ratio_x = 0
+        grid_st%mg_ratio_y = 0
+        grid_st%mg_ratio_z = 0
         grid_st%iline = 0
         grid_st%jline = 0
         grid_st%kline = 0
@@ -189,7 +217,7 @@ c     Begin program
           deallocate(grid_st%ihi)
           deallocate(grid_st%jhi)
           deallocate(grid_st%khi)
-          deallocate(grid_st%ntotv)
+cc          deallocate(grid_st%ntotv)
           deallocate(grid_st%istartx)
           deallocate(grid_st%istarty)
           deallocate(grid_st%istartz)
@@ -218,8 +246,8 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_def),intent(in)  :: grid_st1
-        type(grid_def),intent(out) :: grid_st2
+        type(grid_def),intent(IN ) :: grid_st1
+        type(grid_def),intent(OUT) :: grid_st2
 
 c     Local variables
 
@@ -238,9 +266,6 @@ c     Begin program
         call allocateGridStructure(nx,ny,nz,ngridx,ngridy,ngridz
      .                            ,grid_st2)
 
-        grid_st2%iline      = grid_st1%iline
-        grid_st2%jline      = grid_st1%jline
-        grid_st2%kline      = grid_st1%kline
         grid_st2%xx         = grid_st1%xx        
         grid_st2%yy         = grid_st1%yy        
         grid_st2%zz         = grid_st1%zz        
@@ -262,7 +287,7 @@ c     Begin program
         grid_st2%ihi        = grid_st1%ihi
         grid_st2%jhi        = grid_st1%jhi
         grid_st2%khi        = grid_st1%khi
-        grid_st2%ntotv      = grid_st1%ntotv     
+cc        grid_st2%ntotv      = grid_st1%ntotv     
         grid_st2%istartx    = grid_st1%istartx   
         grid_st2%istarty    = grid_st1%istarty   
         grid_st2%istartz    = grid_st1%istartz   
@@ -270,6 +295,9 @@ c     Begin program
         grid_st2%mg_ratio_x = grid_st1%mg_ratio_x
         grid_st2%mg_ratio_y = grid_st1%mg_ratio_y
         grid_st2%mg_ratio_z = grid_st1%mg_ratio_z
+        grid_st2%iline      = grid_st1%iline
+        grid_st2%jline      = grid_st1%jline
+        grid_st2%kline      = grid_st1%kline
 
 c     End program
 
@@ -317,7 +345,7 @@ c     Begin program
         write (*,*) 'ihi',grid_st%ihi       
         write (*,*) 'jhi',grid_st%jhi       
         write (*,*) 'khi',grid_st%khi       
-        write (*,*) 'ntotv',grid_st%ntotv     
+cc        write (*,*) 'ntotv',grid_st%ntotv     
         write (*,*) 'istartx',grid_st%istartx   
         write (*,*) 'istarty',grid_st%istarty   
         write (*,*) 'istartz',grid_st%istartz   
@@ -325,6 +353,9 @@ c     Begin program
         write (*,*) 'mg_ratio_x',grid_st%mg_ratio_x
         write (*,*) 'mg_ratio_y',grid_st%mg_ratio_y
         write (*,*) 'mg_ratio_z',grid_st%mg_ratio_z
+        write (*,*) 'iline',grid_st%iline
+        write (*,*) 'jline',grid_st%jline
+        write (*,*) 'kline',grid_st%kline
 
 c     End program
 
@@ -1722,12 +1753,29 @@ c module bc_def
 c #####################################################################
       module bc_def
 
+c     -----------------------------------------------------------------
+c     This module defines the types of BCs possible:
+c     Topological BCs (set topology of computational domain):
+c       PER: periodic
+c       SP : singular point (as in cylindrical, toroidal)
+c     Standard BCs:
+c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
+c       DIR: Homogeneous dirichlet
+c       NEU: Neumann (homogeneous/inhomogeneous)
+c       DEF: Default (set in application code)
+c       EXT: By extrapolation
+c     The actual integers chosen indicate a particular order that the BC
+c     scheduler follows to impose the boundary conditions.
+c     -----------------------------------------------------------------
+
         use grid_structures
 
         implicit none
 
-        integer(4) :: PER,DIR,NEU,SP,EQU,DEF
-        parameter (EQU=1,PER=2,NEU=3,DIR=4,SP=5,DEF=6)
+        integer(4) :: PER,DIR,NEU,SP,EQU,DEF,EXT
+        parameter (EQU=1,EXT=2,PER=3,NEU=4,DIR=5,SP=6,DEF=7)
+
+        integer(4),parameter :: BCLIM=5
 
         integer(4) :: bcond(6)
         
@@ -1763,7 +1811,8 @@ c ######################################################################
         implicit none
 
         integer(4) :: np,inp,my_rank,mpierr,group_world
-     .               ,group_sp,tag=0,dest=0,root=0,status(3)
+     .               ,group_sp,tag=0,dest=0,root=0
+     .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
 
         integer(4) :: l_lim(3,0:1),g_lim(3,0:1),rem_l_lim(3,0:1)
@@ -4029,9 +4078,9 @@ c     #################################################################
 
 c     -----------------------------------------------------------------
 c     Defines logical grid and finds grid quantities from:
-c       * imin,imax: grid limits in X
-c       * jmin,jmax: grid limits in Y
-c       * kmin,kmax: grid limits in Z
+c       * imin,imax: global grid limits in X
+c       * jmin,jmax: global grid limits in Y
+c       * kmin,kmax: global grid limits in Z
 c       * nx,ny,nz: global grid size
 c     -----------------------------------------------------------------
 
