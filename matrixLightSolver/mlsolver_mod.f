@@ -12,14 +12,17 @@ c######################################################################
           double precision:: omega
           double precision:: omega10
           double precision:: omega01
+          integer         :: ncolors
           integer         :: vcyc
           integer         :: igridmin
           integer         :: stp_test
-cc          logical         :: sym_test
+          logical         :: sym_test
           logical         :: fdiag,vol_res
           integer         :: krylov_subspace
           integer         :: orderres
           integer         :: orderprol
+          integer         :: mg_coarse_solver_depth
+          integer         :: mg_mu
           double precision, pointer, dimension(:,:) :: diag
         end type solver_options
 
@@ -51,7 +54,7 @@ c     ###################################################################
 c       Initializes solver options
 
           !Test options
-cc          solverOptions%sym_test = .false.     !Whether to perform symmetry 
+          solverOptions%sym_test = .false.     !Whether to perform symmetry 
                                                !  test on matvec operator
 
           !Generic options
@@ -73,6 +76,10 @@ cc          solverOptions%sym_test = .false.     !Whether to perform symmetry
           solverOptions%omega = 1d0            !Relaxation parameter
           solverOptions%omega10= 0d0           !Weighed Jacobi relaxation parameter
           solverOptions%omega01= 0d0           !Weighed Jacobi relaxation parameter
+          solverOptions%ncolors= 1             !Number of colors in colored GS
+          solverOptions
+     .        %mg_coarse_solver_depth= 0       !Identify coarse solver for MG (if =0, use smoother)
+          solverOptions%mg_mu  = 1             !Identifies MG cycle: V-cycle (mu=1), W-cycle (mu=2)
 
           !Krylov methods options
           solverOptions%stp_test = 0           !Stopping criterion (CG, GMRES)
@@ -282,6 +289,20 @@ c       Counts number of elements in a queue
           enddo
 
         end function count_elements
+
+c     countSolverLevels
+c     ###################################################################
+        subroutine countSolverLevels(count)
+
+c       Counts number of elements in a queue
+
+          integer :: count
+
+        !Begin
+
+          count = count_elements(solver_queue)
+
+        end subroutine countSolverLevels
 
 c     take_from_front
 c     ###################################################################
