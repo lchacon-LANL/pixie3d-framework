@@ -17,10 +17,14 @@ c######################################################################
       module setMGBC_interface
 
         INTERFACE
-          subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,icomp)
+          subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,arr_cov
+     .                      ,icomp,is_cnv)
             integer(4) :: nnx,nny,nnz,neq,bcnd(6,neq),iig,gpos
-            integer(4),optional,intent(IN) :: icomp
             real(8)    :: array(0:nnx+1,0:nny+1,0:nnz+1,neq)
+            real(8),optional,intent(INOUT) ::
+     .                    arr_cov(0:nnx+1,0:nny+1,0:nnz+1,neq)
+            integer(4),optional,intent(IN) :: icomp
+            logical   ,optional,intent(IN) :: is_cnv
           end subroutine setMGBC
         END INTERFACE
 
@@ -736,13 +740,14 @@ c Call variables
 c Local variables
 
       integer(4) :: iter,igridmin,vcyc,crsedpth,isig,ncolors
-      integer(4) :: orderres,orderprol,alloc_stat,line_nsweep
+      integer(4) :: orderres,orderprol,alloc_stat
+     .             ,line_nsweep,line_crse_depth,line_vcyc
 
       integer(4) :: guess2,outc,mu
       integer(4) :: izero,i,j,k,ii,ivcyc,nblk
 
       real(8)    :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot)
-      real(8)    :: rr0,rr1,mag,mag1,mgtol
+      real(8)    :: rr0,rr1,mag,mag1,mgtol,line_tol,line_omega
 
       logical    :: fdiag,line_relax,fpointers,volf
 
@@ -754,20 +759,24 @@ c Consistency check
 
 c Assign options
 
-      igridmin    = options%igridmin
-      vcyc        = options%vcyc
-      mgtol       = options%tol
-      orderres    = options%orderres
-      orderprol   = options%orderprol
-      fdiag       = options%fdiag
-      volf        = options%vol_res
-      crsedpth    = options%mg_coarse_solver_depth
-      mu          = options%mg_mu
-      vbr_mg      = options%vertex_based_relax
-      MGgrid      = options%mg_grid_def
-      line_relax  = options%mg_line_relax
-      line_nsweep = options%mg_line_nsweep
-      ncolors     = options%ncolors
+      igridmin        = options%igridmin
+      vcyc            = options%vcyc
+      mgtol           = options%tol
+      orderres        = options%orderres
+      orderprol       = options%orderprol
+      fdiag           = options%fdiag
+      volf            = options%vol_res
+      crsedpth        = options%mg_coarse_solver_depth
+      mu              = options%mg_mu
+      vbr_mg          = options%vertex_based_relax
+      MGgrid          = options%mg_grid_def
+      line_relax      = options%mg_line_relax
+      line_vcyc       = options%mg_line_vcyc
+      line_nsweep     = options%mg_line_nsweep
+      line_tol        = options%mg_line_tol
+      line_omega      = options%mg_line_omega
+      line_crse_depth = options%mg_line_coarse_solver_depth 
+      ncolors         = options%ncolors
 
 c Consistency check
 
@@ -865,7 +874,11 @@ c Compute initial residual and check convergence
       endif
 
       if (rr0.lt.1d-16*ntot) then
-        if (out.ge.1) write (*,*) 'Initial solution seems exact in MG'
+        if (out.ge.1) then
+          write (*,*) 'Initial solution seems exact in MG'
+cc          write (*,'(a,1pe10.2,a,e10.2)') '    Residual=',rr0
+cc     .          ,' < limit =',1d-16*ntot
+        endif
         call killmg
         return
       endif
@@ -1028,7 +1041,15 @@ c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
      .                  ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
      .                  ,orderres,igr,volf)
 
-cc        if (igc == 2) call MGplot(neq,yy,igc,0,'res_coarse.bin')
+cc        if (igc == igmax-1) then
+cc          write (*,*) 'Plotting here at level',igc
+cc          call MGplot(neq,yy,igc,0,'fine.bin')
+cc        endif
+cc
+cc        if (igc == igmax) then
+cc          write (*,*) 'Plotting here at level',igc
+cc          call MGplot(neq,yy,igc,0,'coarse.bin')
+cc        endif
 
 c     Initialize solution on coarse grid
 
@@ -1048,9 +1069,9 @@ cc        write (*,*) igc,igmax
 c     Cycle back up to grid igr updating errors (xx)
 c     with fixed R.H.S. (yy)
 
-cc        if (igc == 2) then
-cc          call MGplot(neq,xx,igc,1,'res_coarse.bin')
-cc          stop
+cc        if (igc == igmax) then
+cc          write (*,*) 'Plotting here at level',igc
+cc          call MGplot(neq,xx,igc,1,'coarse.bin')
 cc        endif
 
 c     Prolong error (wrk = P * xx_1) to a finer grid
@@ -1064,9 +1085,10 @@ c     Update existing solution on grid igr (i.e. xx_igr): xx_igr = xx_igr + wrk
 
         call vecadd(igr,neq,nn,1d0,xx(isig),1d0,wrk(isig))
 
-cc        if (igc == 2) then
-cc          call MGplot(neq,wrk,igc,1,'res_coarse.bin')
-cc          stop
+cc        if (igc == igmax-1) then
+cc          write (*,*) 'Plotting here at level',igc
+cc          call MGplot(neq,wrk,igc,1,'fine.bin')
+cc          call MGplot(neq,xx ,igc,1,'fine.bin')
 cc        endif
 
 c     Relax updated solution on igr (i.e. xx_igr)
@@ -1170,7 +1192,7 @@ c     Begin program
 
         nsweep = line_nsweep
 
-        omega = 1d0
+        omega  = line_omega
 
 c     Schedule planes/lines
 
@@ -1481,20 +1503,25 @@ c     Allocate new diagonal and transfer elements
 
 c     Configure recursive plane/line MG solve
 
-cc        options%tol                    = mgtol
-        options%tol                    = 1d-1
-        options%vcyc                   = 10
-        options%igridmin               = igridmin
-        options%orderres               = orderres
-        options%orderprol              = orderprol
-        options%mg_mu                  = mu
-        options%vol_res                = volf        
-        options%mg_coarse_solver_depth = 0 !By default, same as smoother
-        options%mg_line_relax          = .true.
-        options%mg_line_nsweep         = line_nsweep
-        options%mg_grid_def            = mg_grid
-        options%vertex_based_relax     = vbr_mg
-        options%fdiag                  = fdiag
+        options%tol                         = line_tol
+        options%vcyc                        = line_vcyc
+        options%igridmin                    = igridmin
+        options%orderres                    = orderres
+        options%orderprol                   = orderprol
+        options%mg_mu                       = mu
+        options%vol_res                     = volf        
+
+        options%mg_coarse_solver_depth      = line_crse_depth
+        options%mg_line_relax               = .true.
+        options%mg_line_nsweep              = line_nsweep
+        options%mg_line_vcyc                = line_vcyc
+        options%mg_line_tol                 = line_tol
+        options%mg_line_omega               = line_omega
+        options%mg_line_coarse_solver_depth = line_crse_depth
+        options%mg_grid_def                 = mg_grid
+
+        options%vertex_based_relax          = vbr_mg
+        options%fdiag                       = fdiag
 
 c     Call plane/line MG
 
@@ -2868,6 +2895,10 @@ cc            enddo
         endif
 
 c     Check convergence
+
+cc        call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
+cc        call vecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
+cc        mag = sqrt(dot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
 
         mag = sqrt(mag)
 
