@@ -6,7 +6,7 @@ c #####################################################################
 
 
         integer(4) :: PER,DIR,NEU,SP,EQU,DEF
-        parameter (PER=2,SP=5,DIR=4,NEU=3,EQU=1,DEF=6)
+        parameter (EQU=1,PER=2,NEU=3,DIR=4,SP=5,DEF=6)
 
         integer(4) :: bcond(6)
 
@@ -3485,13 +3485,13 @@ c     Begin program
 
 c     Multigrid parameters
 
-cc        igx = grid_params%ngrid
-cc        igy = grid_params%ngrid
-cc        igz = grid_params%ngrid
+        igx = grid_params%ngrid
+        igy = grid_params%ngrid
+        igz = grid_params%ngrid
 
-        igx = 1
-        igy = 1 
-        igz = 1
+cc        igx = 1
+cc        igy = 1 
+cc        igz = 1
 
         write (*,*)
         write (*,*) 'Coordinate system: ',coords
