@@ -20,11 +20,19 @@ c----------------------------------------------------------------------
 
       use iosetup
 
+cc      use debug
+
       implicit none
 
 c Call variables
 
 c Local variables
+
+c Debug
+
+cc      integer(4) :: nt,ii,i,j,k,igx,nx,ny,nz
+cc      real(8) :: mag
+cc      real(8),allocatable,dimension(:,:) :: v_mat,debug2
 
 c Begin program
 
@@ -80,6 +88,35 @@ c Initialize MG and create grid
 
       call createGrid(1,nxd,1,nyd,1,nzd,nxd,nyd,nzd)
 cc      call checkGrid
+
+c Check grid
+
+c diag ******* NUMERICAL GRID QUANTITIES
+cc      open(unit=110,file='debug.bin',form='unformatted'
+cc     .    ,status='replace')
+cc      igx = 1
+cc      nx = grid_params%nxv(igx)
+cc      ny = grid_params%nyv(igx)
+cc      nz = grid_params%nzv(igx)
+cc      allocate(debug2(0:nx+1,0:ny+1))
+cc        debug2 = gmetric%grid(igx)%jac(0:nx+1,0:ny+1,1)
+cc        call contour(debug2(0:nx+1,0:ny+1),nx+2,ny+2,0d0
+cc     .            ,xmax,0d0,ymax,0,110)
+cc      do i=1,3
+cc        do j=1,3
+cccc            debug2 = gmetric%grid(igx)%cnv(0:nx+1,0:ny+1,1,i,j)
+cccc     .              *gmetric%grid(igx)%jac(0:nx+1,0:ny+1,1)
+cc          debug2 = gmetric%grid(igx)%Gamma(0:nx+1,0:ny+1,1,1,i,j)
+cc     .            *gmetric%grid(igx)%jac(0:nx+1,0:ny+1,1)
+cc          call contour(debug2(0:nx+1,0:ny+1),nx+2,ny+2,0d0
+cc     .            ,xmax,0d0,ymax,1,110)
+cccc     .           ,xmax,0d0,ymax,i+j-2,110)
+cc        enddo
+cc      enddo
+cc      deallocate(debug2)
+cc      close(110)
+cc      stop
+c diag *******
 
 c Create nonlinear solver
 
@@ -347,12 +384,12 @@ c     Begin program
 
       write (*,*) ' Reading restart file...'
 
-      call readRecord(urecord,itime,time,dt,vn,ierr)
+      call readRecordFile(urecord,itime,time,dt,vn,ierr)
 
       vnp = vn
 
       do
-        call readRecord(urecord,itime,time,dt,vmed,ierr)
+        call readRecordFile(urecord,itime,time,dt,vmed,ierr)
 
         if (ierr /= 0) then
           exit

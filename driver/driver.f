@@ -328,7 +328,7 @@ c     Begin program
 
           dmag2 = integral(nxd,nyd,nzd,array,1,1,1,.true.)
 
-          if (dpert /= 0d0.and.dmag2 /= 0d0) then
+          if (dpert/=sqrt(dmag1).and.dmag2 /=0d0) then
             mag(ieq) = .5*dt*sqrt(dmag2)/(dpert-sqrt(dmag1))
           else
             mag(ieq) = 1e30
