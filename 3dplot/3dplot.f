@@ -211,10 +211,6 @@ c Read user initializations
 
       call readGraphicsInput(sel_diag,sel_graph,ndplot,dplot)
 
-c Open graphics file
-
-      call openGraphicsFile
-
 c Initialize vector dimensions
 
       call setVectorDimensions
@@ -242,14 +238,11 @@ c Allocate records
       call allocateDerivedType(u_np)
       call allocateDerivedType(u_graph)
 
-c Read and postprocess equilibrium
+c Open graphics file and read equilibrium u_0
 
-      call readRecord(urecord,itime,time,dt,u_0,ierr)
-      if (ierr /= 0) then
-        write (*,*) 'Unable to read equilibrium'
-        write (*,*) 'Aborting...'
-        stop
-      endif
+      call openGraphicsFile
+
+c Postprocess equilibrium
 
       call postProcessSolution(u_0,igx,igy,igz)
 
@@ -276,6 +269,7 @@ c######################################################################
 c----------------------------------------------------------------------
 c     In parallel runs, it merges all output files 'record_proc*.bin'
 c     to a serial file 'record.bin', and then opens it for postprocessing.
+c     Finally, it reads equilibrium information and stores it in u_0.
 c----------------------------------------------------------------------
 
       use parameters
@@ -383,17 +377,11 @@ c For parallel runs, merge graphics files
           stop
         endif
 
-        !Initialize vector dimensions
-        call setVectorDimensions
-
-        !Merge graphics files: DATA
-        call allocateDerivedType(u_np)
-
         do 
 
           do ifile=1,nfiles
 
-            call readRecord(murecord(ifile),itime,time,dt,u_np,ierr)
+            call readRecord(murecord(ifile),itime,time,dt,u_0,ierr)
             if (ierr == -1) cycle !Error, but not EOF
             if (ierr == -2) cycle !EOF
 
@@ -402,10 +390,10 @@ c For parallel runs, merge graphics files
           if (ierr == -1) cycle !Error, but not EOF
           if (ierr == -2) exit  !EOF
 
-          !Reset vector dimensions
+          !Reset vector dimensions (readRecord alters defs of some values)
           call setVectorDimensions
 
-          call writeRecordFile(urecord,itime,time,dt,u_np)
+          call writeRecordFile(urecord,itime,time,dt,u_0)
 
         enddo
 
@@ -416,7 +404,6 @@ c For parallel runs, merge graphics files
         enddo
 
         deallocate(mrecfile,murecord)
-        call deallocateDerivedType(u_np)
       endif
 
 c Open graphics file
@@ -432,6 +419,15 @@ c Consistency check
       if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
         write (*,*) 'Grid size does not agree'
         write (*,*) 'Aborting graphics dump...'
+        stop
+      endif
+
+c Read equilibrium
+
+      call readRecord(urecord,itime,time,dt,u_0,ierr)
+      if (ierr /= 0) then
+        write (*,*) 'Unable to read equilibrium'
+        write (*,*) 'Aborting...'
         stop
       endif
 
