@@ -1875,12 +1875,55 @@ c     #################################################################
         integer(4) :: i,j,k,igx,igy,igz
         logical    :: sing_point
 
-
         sing_point=.false.
         if (i+grid_params%ilo(igx)-1 == 1 .and. bcond(1) == SP)
      .       sing_point=.true.
 
       end function isSP
+
+c     isSYM
+c     #################################################################
+      function isSYM(i,igr,dim,loc)
+
+        integer(4) :: i,igr,dim,loc
+        logical    :: isSYM
+
+        integer(4) :: ibc,ilog,itst
+
+        ibc = (1+loc)+2*(dim-1)
+
+        isSYM=.false.
+
+        select case(dim)
+        case(1)
+          ilog = grid_params%ilo(igr)
+          select case(loc)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nxgl(igr)
+          end select
+        case(2)
+          ilog = grid_params%jlo(igr)
+          select case(loc)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nygl(igr)
+          end select
+        case(3)
+          ilog = grid_params%klo(igr)
+          select case(loc)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nzgl(igr)
+          end select
+        end select
+
+        if (i+ilog-1 == itst .and. bcond(ibc) == SYM)  isSYM=.true.
+
+      end function isSYM
 
 c     alt__eom
 c     #################################################################
