@@ -1,3 +1,217 @@
+c module singularBCinterface
+c####################################################################
+      module singularBCinterface
+
+        use BCS_variables
+
+#if defined(petsc)
+        use iosetup
+        use mpi
+#endif
+
+        INTERFACE singularBC
+          module procedure scalarSingularBC,vectorSingularBC
+        end INTERFACE
+
+      contains
+
+c     scalarSingularBC
+c     #################################################################
+      subroutine scalarSingularBC(array,order)
+c     -----------------------------------------------------------------
+c     Imposes singular point BC. On input:
+c        * array: contains variable on which singular BC is imposed
+c        * order: order of interpolation towards singular point
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer(4) :: order
+      real(8)    :: array(0:nxbc+1,0:nybc+1,0:nzbc+1)
+
+c     Local variables
+
+      integer(4) :: i,j,k,ig,jg,kg,order1
+      real(8)    :: lavg_q,lavg_vol,avg_q,avg_vol,rho0,vol,x0
+
+c     Begin program
+
+c     Check that we are domain adjacent to singular point
+
+      if (ilog /= 1) then
+        return
+      else
+        i = ilog
+      endif
+
+c     Set interpolation order
+
+      order1 = min(order,ihig-ilog-1)
+
+c     Find scalar value at singular point by averaging neighboring cells
+
+      do k=1,nzbc
+
+c       Perform local sum
+        lavg_q   = 0d0
+        lavg_vol = 0d0
+
+        do j=1,nybc
+          call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+          vol = volume(i,j,k,igxbc,igybc,igzbc)
+          x0  = xx(ig-1)
+
+          call IntDriver1d(order1+1,xx(ig),array(i:i+order1+1,j,k)
+     .                    ,1,x0,rho0,order1)
+
+          lavg_q   = lavg_q   + vol*rho0
+          lavg_vol = lavg_vol + vol
+        enddo
+
+c       Perform global sum (and broadcast it to all processors)
+
+#if defined(petsc)
+        call MPI_Allreduce(lavg_q  ,avg_q  ,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+        call MPI_Allreduce(lavg_vol,avg_vol,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+#else
+        avg_q   = lavg_q
+        avg_vol = lavg_vol
+#endif
+
+c       Perform average
+
+        array(0,:,k) = avg_q/avg_vol
+
+      enddo
+
+c     End program
+
+      end subroutine scalarSingularBC
+
+c     vectorSingularBC
+c     #################################################################
+      subroutine vectorSingularBC(vec,cov,order)
+c     -----------------------------------------------------------------
+c     Averages vector components around singular point and calculates
+c     curvilinear components at singular point.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer(4) :: order
+      real(8)    :: vec(0:nxbc+1,0:nybc+1,0:nzbc+1,3)
+      logical    :: cov
+
+c     Local variables
+
+      integer(4) :: i,j,k
+
+      integer(4) :: ic,ig,jg,kg,order1
+      real(8)    :: x0,vol,lavg_x,lavg_y,lavg_z,lavg_vol
+     .                    , avg_x, avg_y, avg_z, avg_vol
+      real(8)    :: cx1,cy1,cz1
+      real(8),allocatable,dimension(:) :: ax0,ay0,az0,cx,cy,cz
+
+c     External
+
+c     Begin program
+
+c     Check that we are domain adjacent to singular point
+
+      if (ilog /= 1) then
+        return
+      else
+        i = ilog
+      endif
+
+c     Set interpolation order
+
+      order1 = min(order,ihig-ilog-1)
+
+c     Find average cartesian coordinates
+
+      allocate(ax0(nzbc),ay0(nzbc),az0(nzbc))
+
+      do k=1,nzbc
+
+c       Perform local sum
+        lavg_x   = 0d0
+        lavg_y   = 0d0
+        lavg_z   = 0d0
+        lavg_vol = 0d0
+
+        do j=1,nybc
+          call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+          vol = volume(i,j,k,igxbc,igybc,igzbc)
+          x0  = xx(ig-1)
+
+          allocate(cx(order1+1),cy(order1+1),cz(order1+1))
+          do ic=1,order1+1
+            call transformVectorToCartesian(ic,j,k,igxbc,igybc,igzbc
+     .           ,vec(ic,j,k,1),vec(ic,j,k,2),vec(ic,j,k,3),cov
+     .           ,cx(ic),cy(ic),cz(ic))
+          enddo
+
+          call IntDriver1d(order1+1,xx(ig),cx,1,x0,cx1,order)
+          call IntDriver1d(order1+1,xx(ig),cy,1,x0,cy1,order)
+          call IntDriver1d(order1+1,xx(ig),cz,1,x0,cz1,order)
+          deallocate(cx,cy,cz)
+
+          lavg_x   = lavg_x   + vol*cx1
+          lavg_y   = lavg_y   + vol*cy1
+          lavg_z   = lavg_z   + vol*cz1
+          lavg_vol = lavg_vol + vol
+        enddo
+
+c       Perform global sum (and broadcast it to all processors)
+
+#if defined(petsc)
+        call MPI_Allreduce(lavg_x  ,avg_x  ,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+        call MPI_Allreduce(lavg_y  ,avg_y  ,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+        call MPI_Allreduce(lavg_z  ,avg_z  ,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+        call MPI_Allreduce(lavg_vol,avg_vol,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+#else
+        avg_x   = lavg_x
+        avg_y   = lavg_y
+        avg_z   = lavg_z
+        avg_vol = lavg_vol
+#endif
+
+c       Perform average
+
+        ax0(k) = avg_x/avg_vol
+        ay0(k) = avg_y/avg_vol
+        az0(k) = avg_z/avg_vol
+      enddo
+      
+c     Transform to curvilinear components at SP
+
+      i = 0
+      do k=1,nzbc
+        do j=1,nybc
+          call transformVectorToCurvilinear(i,j,k,igxbc,igybc,igzbc
+     .               ,ax0(k),ay0(k),az0(k),cov
+     .               ,vec(i,j,k,1),vec(i,j,k,2),vec(i,j,k,3))
+        enddo
+      enddo
+
+      deallocate(ax0,ay0,az0)
+
+c     End program
+
+      end subroutine vectorSingularBC
+
+      end module singularBCinterface
 
 c module imposeBCinterface
 c #####################################################################
@@ -48,7 +262,11 @@ c     Begin program
 
 c     Initialize interpolation order
 
-      if (PRESENT(iorder)) order = iorder
+      if (PRESENT(iorder)) then
+        order = iorder
+      else
+        order = 1
+      endif
 
 c     Initialize BC grid quantities
 
@@ -121,7 +339,7 @@ c     imposeBConVector
 c     #################################################################
       subroutine imposeBConVector(fcomp,nx,ny,nz,v_cnv,v_cov,var0,bcond
      .                           ,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
-     .                           ,iorder,is_cnv)
+     .                           ,iorder,is_cnv,is_vec)
 c     -----------------------------------------------------------------
 c     Imposes BC on vector field
 c     -----------------------------------------------------------------
@@ -135,15 +353,22 @@ c     Call variables
      .             ,var0 (0:nx+1,0:ny+1,0:nz+1,3)
      .             ,v_cov(0:nx+1,0:ny+1,0:nz+1,3)
       integer(4),optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
-      logical   ,optional,intent(IN) :: is_cnv
+      logical   ,optional,intent(IN) :: is_cnv,is_vec
 
 c     Local variables
 
       integer(4) :: ivar,ieq,ibc,loc,dim,bctype
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
-      logical    :: cov_to_cnv,to_cnv
+      logical    :: cov_to_cnv,to_cnv,is__vec
 
 c     Begin program
+
+      !By default, we assume input are vector components
+      if (PRESENT(is_vec)) then
+        is__vec = is_vec
+      else
+        is__vec = .true.
+      endif
 
       !By default, we assume input is in cnv representation
       if (PRESENT(is_cnv)) then
@@ -154,7 +379,11 @@ c     Begin program
 
 c     Initialize interpolation order
 
-      if (PRESENT(iorder)) order = iorder  !order defined by default in module header
+      if (PRESENT(iorder)) then
+        order = iorder
+      else
+        order = 1
+      endif
 
 c     Initialize BC grid quantities
 
@@ -188,24 +417,28 @@ c     Initialize global limits
 
 c     Find cov components (we assume cnv components are defined)
 
-#if defined(petsc)
-      call fromGlobalToLocalLimits(iimin,jjmin,kkmin,ilmin,jlmin,klmin)
-      call fromGlobalToLocalLimits(iimax,jjmax,kkmax,ilmax,jlmax,klmax)
+      if (is__vec) then
 
-      do k=klmin-1,klmax+1
-        do j=jlmin-1,jlmax+1
-          do i=ilmin-1,ilmax+1
+#if defined(petsc)
+       call fromGlobalToLocalLimits(iimin,jjmin,kkmin,ilmin,jlmin,klmin)
+       call fromGlobalToLocalLimits(iimax,jjmax,kkmax,ilmax,jlmax,klmax)
+
+       do k=klmin-1,klmax+1
+         do j=jlmin-1,jlmax+1
+           do i=ilmin-1,ilmax+1
 #else
-      do k=kkmin-1,kkmax+1
-        do j=jjmin-1,jjmax+1
-          do i=iimin-1,iimax+1
+       do k=kkmin-1,kkmax+1
+         do j=jjmin-1,jjmax+1
+           do i=iimin-1,iimax+1
 #endif
-            call transformFromCurvToCurv(i,j,k,igxbc,igybc,igzbc
+              call transformFromCurvToCurv(i,j,k,igxbc,igybc,igzbc
      .            ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
      .            ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3),to_cnv)
-          enddo
-        enddo
-      enddo
+           enddo
+         enddo
+       enddo
+
+      endif
 
 c     Impose BCs
 
@@ -221,7 +454,7 @@ c     Impose BCs
 
               if (abs(bcond(ibc,ivar)) == bctype) then
 
-                if (bcond(ibc,ivar) < 0) then
+                if (bcond(ibc,ivar) < 0 .and. is__vec) then
                   call FillGhostNodes(ieq,ivar,3,dim,loc,bctype,v_cov
      .                               ,var0)
                   cov_to_cnv = .true.
@@ -242,9 +475,19 @@ c     Synchronize covariant and contravariant components => contravariant
 
       if (cov_to_cnv) call synchronize_cnv(v_cnv,v_cov,bcond)
 
-c     Impose vector singular point BCs
+c     Impose singular point BCs
 
-      if (bcond(1,1) == SP) call singularBC(v_cnv,.false.,2)
+cc      if (bcond(1,1) == SP) call singularBC(v_cnv,.false.,2)
+
+      if (bcond(1,1) == SP) then
+        if (is__vec) then
+          call singularBC(v_cnv,.false.,2)
+        else
+          do ivar=1,3
+            call singularBC(v_cnv(:,:,:,ivar),2)
+          enddo
+        endif
+      endif
 
 c     Fill edges
 
@@ -270,8 +513,10 @@ c     Fill corners
 
 c     Find covariant components at ALL boundary ghost cells
 
-      do dim = 1,3
-        do loc = 0,1
+      if (is__vec) then
+
+        do dim = 1,3
+          do loc = 0,1
 
           call findLoopLimits(dim,loc,iimin-1,iimax+1
      .                               ,jjmin-1,jjmax+1
@@ -288,8 +533,10 @@ c     Find covariant components at ALL boundary ghost cells
             enddo
           enddo
 
+          enddo
         enddo
-      enddo
+
+      endif
 
 c     End program
 
