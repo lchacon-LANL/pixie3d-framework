@@ -53,7 +53,7 @@ c Time level plots (xdraw)
       if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
         nrst  = 0
         if (itime.gt.0) tmrst = tmrst - dstep
-        call writeRecordFile(itime,time,dt,u_n)
+        call writeRecordFile(urecord,itime,time,dt,u_n)
 cc        write (*,*) itime,time
       endif
 
