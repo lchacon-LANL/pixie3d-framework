@@ -32,11 +32,13 @@ c module newtonGmres
 c ###################################################################
       module newton_gmres
 
-      double precision, allocatable, dimension(:):: res,xx0,xk
+      real(8), allocatable, dimension(:):: res,xx0,xk
 
-      double precision :: pdt,check
+      real(8)    :: pdt,check
 
-      integer          :: jit
+      integer(4) :: jit
+
+      logical    :: pseudo_dt
 
       end module newton_gmres
 
@@ -46,8 +48,8 @@ c####################################################################
      .           ,eta0,ksmax,gmmax,rtol,atol,ntit_max_acc
      .           ,ntit_max_rej,gmit_out,ntit_out,iguess,out,ierr)
 c--------------------------------------------------------------------
-c     Performs Jacobian-free inexact Newton iteration on b(x) = 0, 
-c     where b is calculated in 'evaluateNonlinearResidual' (provided
+c     Performs Jacobian-free inexact Newton iteration on res(x) = 0, 
+c     where res is calculated in 'evaluateNonlinearResidual' (provided
 c     by user). 
 c
 c     Call parameters:
@@ -102,15 +104,13 @@ c Call variables
      .             ,ntit_max_rej,gmit_out,ntit_out,out,iguess,ierr
      .             ,global
 
-      real(8)    :: x(ntot),eta0,atol,rtol,damp
+      real(8)    :: x(ntot),eta0,atol,rtol,damp,pdt0
 
 c Local variables
 
       integer(4) :: itk,i,j,ig,iout
 
-      real(8)    :: dxavg,check_lim,residuals(neq)
-
-      real(8)    :: b(ntot),ddx(ntot),pdt0
+      real(8)    :: dxavg,check_lim,residuals(neq),ddx(ntot)
 
       real(8)    :: f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
 
@@ -126,22 +126,23 @@ c Begin program
 
 c Initialize
 
-      allocate (res(ntot),xx0(ntot),xk(ntot))
-
       ierr     = 0
       gmit_out = 0
       itk      = 0
 
       if (out.ge.1) write (*,200)
 
-      check_lim = 1d30
-cc      if (global.ne.2) check_lim = 1d1
+      if (global == 2) then   !Activate pseudo-transient
+        pseudo_dt = .true.
+        check_lim = 1d30
+      else
+        pseudo_dt = .false.
+        pdt0      = 1d30
+        check_lim = 1d30
+cc       check_lim = 1d1
+      endif
 
-      if (global.ne.2) pdt0 = 1d30
       pdt = pdt0
-
-      xx0 = x    !Save initial guess
-      xk  = x    !Save previous Newton state
 
       if (atol == 0d0) atol = ntot*1d-15 !Set absolute tolerance to roundoff
 
@@ -150,15 +151,16 @@ cc      if (global.ne.2) check_lim = 1d1
 
 c Evaluate rhs and norms
 
+      allocate (res(ntot))
+
       call evaluateNewtonResidual(ntot,x,res)
 
-      b = -res
-
-      f0 = sqrt(sum(b*b))
+      f0 = sqrt(sum(res*res))
 
       !Check if initial guess is exact, and if so exit Newton step
       if (f0.lt.atol) then
         ierr = -1
+        deallocate(res)
         return
       endif
 
@@ -167,13 +169,18 @@ c Initial output
       if (out.ge.1) write (*,210) 0,0d0,f0,1d0,1d0,pdt0,eta0,0
 
       if (out.ge.3) then
-        call calculateResidualNorms(neq,ntot,b,residuals)
+        call calculateResidualNorms(neq,ntot,-res,residuals)
         do i = 1,neq
           write (*,320) i,residuals(i)
         enddo
       endif
 
 c Start Newton iteration
+
+      allocate(xx0(ntot),xk(ntot))
+
+      xx0 = x    !Save initial guess
+      xk  = x    !Save previous Newton state
 
       fk    = f0
       fkm   = f0
@@ -184,6 +191,10 @@ c Start Newton iteration
 
       do jit = 1,ntit_max_rej
 
+c     Determine inexact Newton constant
+
+        call find_etak (fk,fkm,flimit,eta0,etak,etakm,etak_meth)
+
 c     Setup preconditioner
 
         call setupPreconditioner(ntot,x)
@@ -192,7 +203,7 @@ c     Jacobian-free solve
 
         iout = out - 1
 
-        call gmresDriver(ntot,x,b,ddx,itk,etak,ksmax,gmmax
+        call gmresDriver(ntot,-res,ddx,itk,etak,ksmax,gmmax
      .                  ,iguess,iout,ierr)
 
 c     Kill preconditioner
@@ -215,16 +226,9 @@ c     Check for error in GMRES
           exit !Do not continue Newton iteration
         endif
 
-c     Globalization procedure
+c     Globalization procedure: damping coefficient
 
-c       Determine inexact Newton constant
-
-        call find_etak (fk,fkm,flimit,eta0,etak,etakm,etak_meth)
-
-c       Calculate damping coefficient
-
-cc        if (global.eq.1) call findDamping (ntot,x,ddx,etak,fk,damp)
-        if (global.ge.1) call findDamping (ntot,x,ddx,etak,fk,damp)
+        if (global >= 1) call findDamping (ntot,x,ddx,etak,fk,damp)
 
 c     Update solution (x = x + ddx)
 
@@ -236,9 +240,7 @@ c     Evaluate rhs and norms
 
         call evaluateNewtonResidual(ntot,x,res)
 
-        b = -res
-
-        fkp = sqrt(sum(b*b))
+        fkp = sqrt(sum(res*res))
 
 c     Check Newton convergence/failure
 
@@ -247,7 +249,7 @@ c     Check Newton convergence/failure
         if (out.ge.1) write (*,210)jit,dxavg,fkp,check,damp,pdt,etak,itk
 
         if (out.ge.3) then
-          call calculateResidualNorms(neq,ntot,b,residuals)
+          call calculateResidualNorms(neq,ntot,-res,residuals)
           do i = 1,neq
             write (*,320) i,residuals(i)
           enddo
@@ -272,10 +274,12 @@ c     Store magnitude of residual
 
 c     Change pseudo-transient time step
 
-cc        if (global.eq.2) pdt = min(pdt/check,1d30)
-        if (global.eq.2) pdt = min(pdt0/sqrt(check),1d30)
-cc        if (global.eq.2.and.check.lt.1d-3) pdt = min(pdt0*jit,1d0)
-cc        if (global.eq.2) pdt = min(pdt0/check**2,1d30)
+        if (pseudo_dt) then
+cc          pdt = min(pdt/check,1d30)
+          pdt = min(pdt0/sqrt(check),1d30)
+cc          if (check < 1d-3) pdt = min(pdt0*jit,1d0)
+cc          pdt = min(pdt0/check**2,1d30)
+        endif
 
       enddo       !End of Newton loop
 
@@ -306,7 +310,7 @@ c End program
  240  format ('    Newton converged in too many iterations (>',i2,')')
  320  format ('Residual  eqn. ',i2,': ',1pe9.2)
 
-      end
+      end subroutine newtonGmres
 
 c calculateResidualNorms
 c####################################################################
@@ -320,12 +324,12 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer ::  neq,ntot
-      real*8      b(ntot),ravg(neq)
+      integer(4) :: neq,ntot
+      real(8)    :: b(ntot),ravg(neq)
 
 c Local variables
 
-      integer*4   i,j
+      integer(4) :: i,j
 
 c Begin program
 
@@ -345,8 +349,7 @@ c    Calculate magnitude of residuals
 
 c End program
 
-      return
-      end
+      end subroutine calculateResidualNorms
 
 c updateNewtonSolution
 c####################################################################
@@ -358,8 +361,8 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4   ntot
-      real*8      x(ntot),ddx(ntot),damp,dxavg
+      integer(4) :: ntot
+      real(8)    :: x(ntot),ddx(ntot),damp,dxavg
 
 c Local variables
 
@@ -371,8 +374,7 @@ c Begin program
 
 c End program
 
-      return
-      end
+      end subroutine updateNewtonSolution
 
 c find_etak
 c####################################################################
@@ -385,12 +387,12 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4   etak_meth
-      real*8      fk,fkm,flimit,eta0,etak,etakm
+      integer(4) :: etak_meth
+      real(8)    :: fk,fkm,flimit,eta0,etak,etakm
 
 c Local variables
 
-      real*8      gamm,alph
+      real(8)    :: gamm,alph
 
 c Begin program
 
@@ -412,8 +414,7 @@ c Begin program
 
 c End program
 
-      return
-      end
+      end subroutine find_etak
 
 c findDamping
 c####################################################################
@@ -426,20 +427,20 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer ::  ntot
-      double precision ::  x(ntot),ddx(ntot),fk,etak,damp
+      integer(4) :: ntot
+      real(8)    :: x(ntot),ddx(ntot),fk,etak,damp
 
 c Local variables
 
-      integer ::  idamp
-      real(8) :: dampm,theta,etak0,dxavg,fkp,fm,df,ddf
-      real(8) :: b(ntot),dummy(ntot)
-      real(8) :: alpha,sigma0,sigma1
+      integer(4) :: idamp
+      real(8)    :: dampm,theta,etak0,dxavg,fkp,fm,df,ddf
+      real(8)    :: b(ntot),dummy(ntot)
+      real(8)    :: alpha,sigma0,sigma1
 
 c External
 
-      double precision :: fmedval
-      external            fmedval
+      real(8)    :: fmedval
+      external   :: fmedval
 
 c Begin program
 
@@ -505,17 +506,16 @@ cc        endif
 
 c End program
 
-      return
-      end
+      end subroutine findDamping
 
 c gmresDriver
 c ####################################################################
-      subroutine gmresDriver(nn,x0,b,x,itk,etak,ksmax,maxitgm,iguess
+      subroutine gmresDriver(nn,b,x,itk,etak,ksmax,maxitgm,iguess
      .                      ,iout,ierr)
 c --------------------------------------------------------------------
 c   This subroutine solves the linear system
 c
-c      A(x0) x = b
+c      A x = b
 c
 c   using the Generalized Minimal Residual (GMRES(K))
 c   iteration algorithm with right pre-conditioning
@@ -528,7 +528,7 @@ c --------------------------------------------------------------------
 c Call variables
 
       integer*4   itk,ierr,nn,ksmax,iguess,iout,maxitgm
-      real*8      b(nn),x(nn),x0(nn),etak
+      real*8      b(nn),x(nn),etak
 
 c Local variables
 
@@ -552,17 +552,15 @@ c Initialize the GMRES(k) algorithm
 
 c Call the preconditioned GMRES(k) algorithm
 
-      call fgmresMeth(nn,x0,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
+      call fgmresMeth(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
 
 c End program
 
-      return
-      end
+      end subroutine gmresDriver
 
 c fgmresMeth
 c ######################################################################
-      subroutine fgmresMeth(ntot,x0,rhs,sol,eps,im,maxits,iout,ierr,its)
-      implicit none             !For safe fortran
+      subroutine fgmresMeth(ntot,rhs,sol,eps,im,maxits,iout,ierr,its)
 c----------------------------------------------------------------------*
 c                                                                      *
 c               *** Preconditioned Flexible GMRES ***                  *
@@ -578,7 +576,6 @@ c on entry:                                                            *
 c==========                                                            *
 c                                                                      *
 c ntot  == integer. The dimension of the matrix.                       *
-c x0    == current newton state to calculate Jacobian                  *
 c rhs   == real vector of length n containing the right hand side.     *
 c          Destroyed on return.                                        *
 c sol   == real vector of length n containing an initial guess to the  *
@@ -613,10 +610,14 @@ c----------------------------------------------------------------------*
 c arnoldi size should not exceed im=50 in this version.                *
 c----------------------------------------------------------------------*
 
+      use newton_gmres
+
+      implicit none             !For safe fortran
+
 c Call variables
 
       integer(4) :: ntot,im,maxits,iout,ierr,its
-      real(8)    :: x0(ntot),rhs(ntot),sol(ntot),eps
+      real(8)    :: rhs(ntot),sol(ntot),eps
 
 c Local variables
 
@@ -647,7 +648,7 @@ c Calculate magnitude of nonlinear residual
 
 c Compute initial residual vector
 
-      call matrixFreeMatVec(n,x0,sol,vv)
+      call matrixFreeMatVec(n,sol,vv)
 
       vv(:,1) = rhs(:) - vv(:,1)
 
@@ -692,8 +693,8 @@ c     GMRES iteration
 cFG           call applyPreconditioner(n,vv(1,i),rhs,precout)
           call applyPreconditioner(n,vv(:,i),zz(:,i),precout)
 
-cFG           call matrixFreeMatVec(n,x0,rhs,vv(1,i1))
-          call matrixFreeMatVec(n,x0,zz(:,i),vv(:,i1))
+cFG           call matrixFreeMatVec(n,rhs,vv(1,i1))
+          call matrixFreeMatVec(n,zz(:,i),vv(:,i1))
 
 c       Modified gram - schmidt.
 
@@ -824,27 +825,27 @@ c End program
 
 c matrixFreeMatVec
 c##################################################################
-      subroutine matrixFreeMatVec(nn,x,z,y)
+      subroutine matrixFreeMatVec(nn,z,y)
 
 c------------------------------------------------------------------
-c   This subroutine computes
+c     This subroutine computes
 c
-c     y = J(x)*z
+c       y = J(xk)*z,
 c
-c   where J is the Jacobian matrix.  A finite difference
-c   approximation is used to compute this product,
+c     where J(xk) is the Jacobian matrix at the previous Newton iterate.
+c     A finite difference approximation is used to compute this product,
 c
-c     y ~ (F(x+ez) - F(x))/e
+c       y ~ (F(xk+ez) - F(xk))/e
 c
-c   where e is some small perturbation constant
+c     where e is some small perturbation constant
 c
-c   The integer array idiag contains the information
-c   that relates the actual column to the main diagonal
-c   since only the non-zero diagonals of A are stored, i.e.,
+c     The integer array idiag contains the information
+c     that relates the actual column to the main diagonal
+c     since only the non-zero diagonals of A are stored, i.e.,
 c
-c     i = row number
-c     j = column number = i + idiag(k)
-c     k = non-zero diagonal index numbered from left to right
+c       i = row number
+c       j = column number = i + idiag(k)
+c       k = non-zero diagonal index numbered from left to right
 c------------------------------------------------------------------
 
       use newton_gmres
@@ -854,7 +855,7 @@ c------------------------------------------------------------------
 c Call variables
 
       integer(4) :: nn
-      real(8)    :: x(nn),z(nn),y(nn)
+      real(8)    :: z(nn),y(nn)
 
 c Local variables
 
@@ -877,8 +878,8 @@ c Calculate J.x
 
 c     Calculate difference parameter
 
-        modx  = sum(x*x)
-        xdotz = sum(z*x)
+        modx  = sum(xk*xk)
+        xdotz = sum(z *xk)
 
 cc        pert  = eps*sqrt((1d0 + modx)/modz)
         pert  = eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
@@ -888,7 +889,7 @@ c$$$     .           ,xdotz/sqrt(modx*modz)
 
 c     Perturb state variables x + eps z --> dummy
 
-        dummy = x + pert*z
+        dummy = xk + pert*z
 
 c     Nonlinear function evaluation --> y
 
@@ -935,10 +936,11 @@ c Evaluate nonlinear residual
 
 c Add pseudo-transient term
 
-cc      invpdt = 1d0/pdt
-cc      if (invpdt < 1d-5) invpdt = 0d0
-cc
-cc      f = (x - xx0)*invpdt + f
+      if (pseudo_dt) then
+        invpdt = 1d0/pdt
+        if (invpdt < 1d-5) invpdt = 0d0
+        f = (x - xx0)*invpdt + f
+      endif
 
 c End program
 
