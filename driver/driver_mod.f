@@ -243,6 +243,7 @@ c     Begin program
         varray2%nvar = varray1%nvar
         do ieq=1,varray2%nvar
           varray2%array_var(ieq)%bconds = varray1%array_var(ieq)%bconds
+cc          write (*,*) ieq
 cc          write (*,*) shape(varray1%array_var(ieq)%array)
 cc          write (*,*) shape(varray2%array_var(ieq)%array)
           varray2%array_var(ieq)%array  = varray1%array_var(ieq)%array
