@@ -362,7 +362,7 @@ c Local variables
       double precision,allocatable,dimension(:)  :: c,s,rs
       double precision,allocatable,dimension(:,:):: hh,vv,zz
 
-      data epsmac /1d-16/
+      data epsmac /1d-20/
 
 c Begin program
 
@@ -374,7 +374,6 @@ c Begin program
       depth1 = depth + 1
 
       abstol = epsmac*nn
-cc      abstol = 0d0
 
 c Extract options
 
@@ -509,7 +508,9 @@ c        Determine residual norm and test for convergence
 
           if (iout.ge.2) write(*,10) its,ro,ro/rold
 
-          if (ro.le.(abstol+eps1).or.i.ge.min(kmax,maxits)) exit
+          if (    ro .le.(abstol+eps1)
+     .        .or.i  .ge.min(kmax,maxits)
+     .        .or.its.ge.maxits          ) exit
 
         enddo
 
@@ -577,9 +578,15 @@ c      Else compute residual vector and continue
 
 c      Restart outer loop
 
+        if (iout > 1 .and. rstrt > 1) then
+          write (*,*)
+          write (*,*) 'Restarting GMRES; restart level #',irstrt+1
+          write (*,*) 
+        endif
+
       enddo
 
-      if (iout.eq.1) write (*,10) its,ro,ro/rold
+      if (iout.eq.1) write (*,20) its,ro,ro/rold,min(rstrt,irstrt)-1
       if (iout.ge.2) write (*,*)
 
       options%iter_out = its
@@ -591,6 +598,8 @@ c End program
 
  10   format (' GMRES Iteration:',i4,'; Residual:',1p,1e12.4,
      .        '; Ratio:',1p,1e12.4)
+ 20   format (' GMRES Iteration:',i4,'; Residual:',1p,1e12.4,
+     .        '; Ratio:',1p,1e12.4,'; # restarts:',i2)
 
       contains
 
