@@ -57,6 +57,13 @@ c Check for autoinitializing parameters
 
 c Initialize vector dimensions
 
+      ihig = nxd
+      ilog = 1
+      jhig = nyd
+      jlog = 1
+      khig = nzd
+      klog = 1
+
       call setVectorDimensions
 
 c Allocate constant arrays
