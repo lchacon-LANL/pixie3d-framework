@@ -78,7 +78,11 @@ extern int FormInitialGuess(SNES, Vec, void*);
 extern int Monitor         (SNES, int, double, void*);
 extern int MatrixFreePreconditioner(void*,Vec,Vec);
 
+#if !defined(lahey)
 int main(int argc, char **argv)
+#else
+int MAIN__(int argc, char **argv)
+#endif
 {
 	SNES	snes;	        /* SNES context */
 	SLES    sles;           /* SLES context */
