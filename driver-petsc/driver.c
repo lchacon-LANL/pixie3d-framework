@@ -270,7 +270,7 @@ int MAIN__(int argc, char **argv)
      Time stepping  
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   
-  for (steps=1; (steps<=numtime)&&(time<=tmax+user.dt); steps++,time+=user.dt) {
+  for (steps=1; (steps<=numtime)&&(time<1.00001*tmax); steps++,time+=user.dt) {
     
     ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
 
