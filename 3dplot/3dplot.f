@@ -365,17 +365,17 @@ c For parallel runs, merge graphics files
 
         enddo
 
-        write (urecord) nx
-        write (urecord) ny
-        write (urecord) nz
+        write (urecord) nxd
+        write (urecord) nyd
+        write (urecord) nzd
 
         !Consistency check
 
-        if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
-          write (*,*) 'Grid size does not agree'
-          write (*,*) 'Aborting graphics files merging...'
-          stop
-        endif
+cc        if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
+cc          write (*,*) 'Grid size does not agree:',nx,ny,nz
+cc          write (*,*) 'Aborting graphics files merging...'
+cc          stop
+cc        endif
 
         do 
 
