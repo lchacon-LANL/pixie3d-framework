@@ -220,7 +220,7 @@ c     Map previous time step solution into Newton vector for initial guess
 c     Newton iteration
 
         call newtonGmres(neqd,ntotd,x,method,damp,global,dt0
-     .                  ,tolgm,maxksp,maxitgm,rtol,atol,maxitnwt
+     .                  ,tolgm,maxksp,maxitgm,rtol,atol,0.5*maxitnwt
      .                  ,maxitnwt,itgmres,itnewt,iguess,ilevel,ierr)
 
 c     If no error, map Newton solution to vnp
