@@ -20,6 +20,8 @@ c######################################################################
      .                    ,nxv,nyv,nzv
      .                    ,mg_ratio_x,mg_ratio_y,mg_ratio_z
 
+        logical :: cnbr_mg
+
       contains
 
 c     allocPointers
@@ -455,7 +457,7 @@ c Local variables
       integer(4) :: orderres,orderprol,alloc_stat
 
       integer(4) :: guess2,outc,mu
-      integer(4) :: izero,i,j,ii,ivcyc
+      integer(4) :: izero,i,j,ii,ivcyc,nblock
 
       real(8)    :: xx(2*ntot),yy(2*ntot),wrk(2*ntot)
       real(8)    :: rr0,rr1,mag,mag1,mgtol
@@ -474,6 +476,16 @@ c Begin program
       volf     = options%vol_res
       crsedpth = options%mg_coarse_solver_depth
       mu       = options%mg_mu
+      cnbr_mg  = options%coarse_node_based_relax
+
+c Consistency check
+
+      if (crsedpth == 0 .and. cnbr_mg) then
+        write (*,*) 'Coarsest level solver not defined'
+        write (*,*) 'Cannot do coarse node-based relaxation in MG'
+        write (*,*) 'Aborting...'
+        stop
+      endif
 
 c Set pointers and find ngrid
 
@@ -498,6 +510,12 @@ c Check limits
 
 c Find diagonal for smoothers
 
+      if (cnbr_mg) then
+        nblock = mg_ratio_x(igrid)*mg_ratio_y(igrid)*mg_ratio_z(igrid)
+      else
+        nblock = 1
+      endif
+
       if (fdiag) then
 
         if (allocated(diag)) then !Diagonal is known
@@ -505,12 +523,12 @@ c Find diagonal for smoothers
           fdiag = .false.
         elseif (associated(options%diag)) then !Diagonal provided externally
           if (out.ge.2) write (*,*) 'Diagonal externally provided'
-          allocate(diag(neq,2*ntot))
+          allocate(diag(neq*nblock,2*ntot))
           diag = options%diag
         else                      !Form diagonal
           if (out.ge.2) write (*,*) 'Forming diagonal...'
-          allocate(diag(neq,2*ntot))
-          call find_mf_diag(neq,ntot,matvec,igrid,bcnd,diag)
+          allocate(diag(neq*nblock,2*ntot))
+          call find_mf_diag(neq,nblock,ntot,matvec,igrid,bcnd,diag)
           if (out.ge.2) write (*,*) 'Finished!'
         endif
 
@@ -1234,181 +1252,200 @@ c End program
 
       end subroutine restrict
 
-cc*deck restrict
-ccc######################################################################
-cc      subroutine restrict(xc,nxc,nyc,nzc,arrayf,nxf,nyf,nzf
-cc     .                   ,order,igf,volf)
-ccc----------------------------------------------------------------------
-ccc     This is a restriction routine for a single quantity, with
-ccc     arbitrary order of interpolation.
-ccc
-ccc     In call sequence, we have:
-ccc       * xc (real): vector in coarse grid
-ccc       * nxc,nyc,nzc(int): dimensions of coarse grid
-ccc       * arrayf (real): array of values in fine grid
-ccc       * nxf,nyf,nzf(int): dimensions of fine grid
-ccc       * order (int): order of interpolation (0-arbitrary)
-ccc           If order = 0, it employs simple injection.
-ccc           If order > 0, it employs spline interpolation.
-ccc       * igf (int): fine grid level identifier
-ccc       * bbcnd (int array): boundary condition info.
-ccc       * volf (logical): whether vectors contain volume fractions.
-ccc----------------------------------------------------------------------
+ccc jb
+ccc#######################################################################
+cc      recursive subroutine jb(neq,ntot,rr,zz,matvec,options,igrid,bcnd
+cc     .                       ,guess,out,depth)
+ccc--------------------------------------------------------------------
+ccc     Matrix-free Jacobi routine to solve Azz = rr. Call variables:
+ccc       * neq: number of equations (system JB)
+ccc       * ntot: grid dimension
+ccc       * rr,zz: rhs, solution vectors
+ccc       * matvec: matrix-free matvec product (external)
+ccc       * options: structure containing solver defs.
+ccc       * igrid: grid level in MG applications
+ccc       * guess: 0 -> no initial guess; 1 -> initial guess provided.
+ccc       * out: convergence info output on screen if out > 1. 
+ccc       * depth: integer specifying solver depth in solver_queue
+ccc                definitions
+ccc--------------------------------------------------------------------
+cc
+cc      use mlsolverSetup
 cc
 cc      use mg_internal
 cc
-cc      implicit none        !For safe fortran
+cc      implicit none       !For safe fortran
 cc
 ccc Call variables
 cc
-cc      integer(4) :: nxc,nyc,nzc,nxf,nyf,nzf,order,igf
+cc      integer(4) :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
+cc      real(8)    :: rr(ntot),zz(ntot)
 cc
-cc      real(8)    :: xc(nxc*nyc*nzc),arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
+cc      type (solver_options) :: options
 cc
-cc      logical    :: volf
+cc      external     matvec
 cc
 ccc Local variables
-cc 
-cc      integer(4) :: ic,if,jc,jf,kc,kf,iif,iic,igc
-cc     .             ,icg,jcg,kcg,ifg,jfg,kfg
 cc
-cc      real(8)    :: volt,vol
+cc      integer(4) :: iter,alloc_stat,isig
+cc      real(8)    :: omega0,omega10,omega01,tol
+cc      logical    :: fdiag,fpointers
 cc
-cc      logical    :: fpointers
+cc      integer(4) :: i,j,itr,nn,ieq,nx,ny
+cc      integer(4) :: ii,iii,iip,iim,jj,jjp,jjm
+cc      integer(4) :: ig,ipg,img,jg,jpg,jmg,iig
+cc      real(8)    :: mag0,mag1,mag,yy(ntot),delta
+cc      real(8)    :: aw,ae,an,as
 cc
-ccc Interpolation
-cc
-cc      real(8)    :: xxc,yyc,zzc,ff
-cc
-cc      real(8)    :: xx(nxf+2),yy(nyf+2),zz(nzf+2)
-cc
-cc      integer(4) ::  kx,ky,kz,nx,ny,nz,dim,flg
-cc      real(8), dimension(:),allocatable:: tx,ty,tz,work
-cc      real(8), dimension(:,:,:),allocatable:: bcoef
-cc
-cc      real(8)    :: db3val
-cc      external      db3val
+cc      real(8),allocatable, dimension(:)  :: dummy,rhs
 cc
 ccc Begin program
 cc
-cc      call allocPointers(1,fpointers)
+ccc Read solver configuration
 cc
-ccc Agglomeration
+cc      iter   = options%iter
+cc      omega0 = options%omega
+cc      omega10= options%omega10
+cc      omega01= options%omega01
+cc      tol    = options%tol
+cc      fdiag  = options%fdiag
 cc
-cc      if (order.eq.0) then
+cc      if (out.ge.2) write (*,*)
 cc
-cc        do kc = 1,nzc
-cc          do jc = 1,nyc
-cc            do ic = 1,nxc
+ccc Allocate pointers
 cc
-cc              iic = ic + nxc*(jc-1) + nxc*nyc*(kc-1)
+cc      call allocPointers(neq,fpointers)
 cc
-cc              xc(iic)=0d0
-cc              do kf = mg_ratio_z(igf)*(kc-1)+1,mg_ratio_z(igf)*kc
-cc                do jf = mg_ratio_y(igf)*(jc-1)+1,mg_ratio_y(igf)*jc
-cc                  do if = mg_ratio_x(igf)*(ic-1)+1,mg_ratio_x(igf)*ic
-cccc                    iif = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+cc      if (fpointers.and.out.ge.2) write (*,*) 'Allocating pointers...'
 cc
-cc                    if (.not.volf) then
-cc                      vol = volume(if,jf,kf,min(igf,ngrdx)
-cc     .                            ,min(igf,ngrdy),min(igf,ngrdz))
-cc                      xc(iic) = xc(iic) + arrayf(if,jf,kf)*vol
-cc                      volt = volt + vol
-cc                    else
-cc                      xc(iic) = xc(iic) + arrayf(if,jf,kf)
-cc                    endif
+cc      isig = istart(igrid)
 cc
-cc                  enddo
-cc                enddo
-cc              enddo
+ccc Find diagonal for smoothers
 cc
-cc              if (.not.volf) xc(iic) = xc(iic)/volt
-cc            enddo
-cc          enddo
-cc        enddo
+cc      if (fdiag) then
 cc
-ccc Interpolation
-cc
-cc      else
-cc
-cc        igc = igf + 1
-cc
-ccc     Map vectors into arrays
-cc
-cc        call getMGmap(0,0,0,min(igf,ngrdx),min(igf,ngrdy),min(igf,ngrdz)
-cc     .               ,ifg,jfg,kfg)
-cc        xx(1:nxf+2) = grid_params%xx(ifg:ifg+nxf+1)
-cc        yy(1:nyf+2) = grid_params%yy(jfg:jfg+nyf+1)
-cc        zz(1:nzf+2) = grid_params%zz(kfg:kfg+nzf+1)
-cc
-ccc     Renormalize without volume fractions
-cc
-cc        if (volf) then
-cc          do kf = 0,nzf+1
-cc            do jf = 0,nyf+1
-cc              do if = 0,nxf+1
-cc                arrayf(if,jf,kf) = arrayf(if,jf,kf)
-cc     .                        /volume(if,jf,kf,min(igf,ngrdx)
-cc     .                               ,min(igf,ngrdy),min(igf,ngrdz))
-cc              enddo
-cc            enddo
-cc          enddo
+cc        if (allocated(diag)) then !Diagonal is known
+cc          if (out.ge.2) write (*,*) 'Diagonal already allocated'
+cc          fdiag = .false.
+cc        elseif (associated(options%diag)) then !Diagonal provided externally
+cc          if (out.ge.2) write (*,*) 'Diagonal externally provided'
+cc          allocate(diag(neq,2*ntot))
+cc          diag = options%diag
+cc        else                      !Form diagonal
+cc          if (out.ge.2) write (*,*) 'Forming diagonal...'
+cc          allocate(diag(neq,2*ntot))
+cc          call find_mf_diag(neq,ntot,matvec,igrid,bcnd,diag)
+cc          if (out.ge.2) write (*,*) 'Finished!'
 cc        endif
-cc
-ccc     Calculate interpolation
-cc
-cc        flg = 0
-cc        kx = order+1
-cc        ky = order+1
-cc        kz = order+1
-cc        nx = nxf + 2
-cc        ny = nyf + 2
-cc        nz = nzf + 2
-cc        dim = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
-cc
-cc        allocate(tx(nx+kx))
-cc        allocate(ty(ny+ky))
-cc        allocate(tz(nz+kz))
-cc        allocate(work(dim))
-cc        allocate(bcoef(nx,ny,nz))
-cc
-cc        call db3ink(xx,nx,yy,ny,zz,nz,arrayf,nx,ny,kx,ky,kz,tx,ty,tz
-cc     .             ,bcoef,work,flg)
-cc
-cc        do kc = 1,nzc
-cc          do jc = 1,nyc
-cc            do ic = 1,nxc
-cc
-cc              iic = ic + nxc*(jc-1) + nxc*nyc*(kc-1)
-cc
-cc              call getMGmap(ic,jc,kc,min(igc,ngrdx),min(igc,ngrdy)
-cc     .                     ,min(igc,ngrdz),icg,jcg,kcg)
-cc              xxc = grid_params%xx(icg)
-cc              yyc = grid_params%yy(jcg)
-cc              zzc = grid_params%zz(kcg)
-cc
-cc              xc(iic) = db3val(xxc,yyc,zzc,0,0,0,tx,ty,tz,nx,ny,nz
-cc     .                        ,kx,ky,kz,bcoef,work)
-cc
-cc              if (volf) then
-cc                xc(iic) = xc(iic)
-cc     .                   *volume(ic,jc,kc,min(igc,ngrdx)
-cc     .                          ,min(igc,ngrdy),min(igc,ngrdz))
-cc              endif
-cc
-cc            enddo
-cc          enddo
-cc        enddo
-cc
-cc        deallocate(tx,ty,tz,work,bcoef)
 cc
 cc      endif
 cc
+ccc Preparation for iteration
+cc
+cc      nn = ntot
+cc
+cc      if (guess.eq.0) zz = 0d0
+cc
+ccc Jacobi iteration
+cc
+cc      allocate(dummy(neq),rhs(neq))
+cc
+cc      do itr=1,iter
+cc
+cc        mag1 = mag
+cc        mag  = 0d0
+cc
+ccc$$$            nx = nxv(igrid)
+ccc$$$            ny = nyv(igrid)
+ccc$$$
+ccc$$$            do i = 1,nx
+ccc$$$              do j = 1,ny
+ccc$$$                call shiftcoeffs  (i,j,bcnd(1,1))
+ccc$$$
+ccc$$$                call shiftIndices(i,j,ii,iim,iip,jj,jjm,jjp,nx,ny,1
+ccc$$$     .                            ,bcnd(1,1))
+ccc$$$                call shiftIndices(i,j,ig,img,ipg,jg,jmg,jpg,nx,ny,isig
+ccc$$$     .                            ,bcnd(1,1))
+ccc$$$
+ccc$$$                zz(ii) =zz(ii)
+ccc$$$     .                 +omega0*     (rr(ii) -yy(ii) )/diag(neq,ig )
+ccc$$$     .                 +omega10*(ae*(rr(iip)-yy(iip))/diag(neq,ipg)
+ccc$$$     .                          +aw*(rr(iim)-yy(iim))/diag(neq,img))
+ccc$$$     .                 +omega01*(an*(rr(jjp)-yy(jjp))/diag(neq,jpg)
+ccc$$$     .                          +as*(rr(jjm)-yy(jjm))/diag(neq,jmg))
+ccc$$$
+ccc$$$                mag = mag + (rr(ii)-yy(ii))**2
+ccc$$$              enddo
+ccc$$$            enddo
+ccc$$$
+ccc$$$          endif
+cc
+cccc        if (omega10.ne.0d0.or.omega01.ne.0d0) then
+cccc          write (*,*)'Weighed jacobi not available in coupled Jacobi'
+cccc          write (*,*)'Aborting...'
+cccc          stop
+cccc        endif
+cc
+cc        call matvec(0,ntot,zz,yy,igrid,bcnd)
+cc
+cc        do ii = 1,nn/neq
+cc
+cc          iii = neq*(ii-1)
+cc
+cc          !Find new residual
+cc          do ieq = 1,neq
+cc            rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+cc          enddo
+cc
+cc          !Multiply by D^-1 (stored in diag)
+cc          iig = iii + isig - 1
+cc          dummy = matmul(diag(:,iig+1:iig+neq),rhs)
+cc
+cc          !Update zz
+cc          do ieq=1,neq
+cc            zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
+cc          enddo
+cc
+cc          mag = mag + sum(rhs*rhs)
+cc        enddo
+cc
+ccc     Check convergence
+cc
+cc        mag = sqrt(mag)
+cc
+cc        if (itr.eq.1) then
+cc          mag0 = mag
+cc          if (out.ge.2) write (*,10) itr,mag,mag/mag0
+cc        else
+cc          if (out.ge.2) write (*,20) itr,mag,mag/mag0,mag/mag1
+cc          if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
+cc        endif
+cc
+cc      enddo
+cc
+cc      itr = min(itr,iter)
+cc
+cc      if (out.ge.2) write (*,*)
+cc      if (out.eq.1) write (*,10) itr,mag,mag/mag0
+cc
+cc      options%iter_out = itr
+cc      options%tol_out  = mag/mag0
+cc
 ccc End program
 cc
+cc      deallocate (dummy,rhs)
+cc
+cc      if (fdiag)  deallocate(diag)
 cc      call deallocPointers(fpointers)
 cc
-cc      end subroutine restrict
+cc      return
+cc
+cc 10   format (' JB Iteration:',i4,'; Residual:',1p1e10.2,
+cc     .        '; Ratio:',1p1e10.2)
+cc 20   format (' JB Iteration:',i4,'; Residual:',1p1e10.2,
+cc     .        '; Ratio:',1p1e10.2,'; Damping:',1p1e10.2)
+cc
+cc      end subroutine jb
 
 c jb
 c#######################################################################
@@ -1445,15 +1482,13 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: iter,alloc_stat,isig
+      integer(4) :: iter,alloc_stat,isig,isigc,itr,nn,ieq
       real(8)    :: omega0,omega10,omega01,tol
-      logical    :: fdiag,fpointers
+      logical    :: fdiag,fpointers,cnbr
 
-      integer(4) :: i,j,itr,nn,ieq,nx,ny
-      integer(4) :: ii,iii,iip,iim,jj,jjp,jjm
-      integer(4) :: ig,ipg,img,jg,jpg,jmg,iig
-      real(8)    :: mag0,mag1,mag,yy(ntot),delta
-      real(8)    :: aw,ae,an,as
+      integer(4) :: ic,jc,kc,if,jf,kf,nxc,nyc,nzc,nxf,nyf,nzf,igridc
+      integer(4) :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblock
+      real(8)    :: mag0,mag1,mag,yy(ntot)
 
       real(8),allocatable, dimension(:)  :: dummy,rhs
 
@@ -1467,6 +1502,7 @@ c Read solver configuration
       omega01= options%omega01
       tol    = options%tol
       fdiag  = options%fdiag
+      cnbr   = options%coarse_node_based_relax
 
       if (out.ge.2) write (*,*)
 
@@ -1474,28 +1510,45 @@ c Allocate pointers
 
       call allocPointers(neq,fpointers)
 
-      if (fpointers.and.out.ge.2) write (*,*) 'Allocating pointers...'
+      if (fpointers) igmax = igrid  !JB is NOT called from MG
 
-      isig = istart(igrid)
+      if (fpointers.and.out.ge.2) write (*,*) 'Allocated pointers.'
+
+      igridc = igrid+1
+
+      isig  = istart(igrid )
+      isigc = istart(igridc)
+
+      nxc = nxv(igridc)
+      nyc = nyv(igridc)
+      nzc = nzv(igridc)
+
+      nxf = nxv(igrid)
+      nyf = nyv(igrid)
+      nzf = nzv(igrid)
+
+      if (cnbr.or.cnbr_mg) then
+        nblock = mg_ratio_x(igrid)*mg_ratio_y(igrid)*mg_ratio_z(igrid)
+        cnbr = .true.
+      else
+        nblock = 1
+      endif
 
 c Find diagonal for smoothers
 
       if (fdiag) then
 
-cc        allocate(diag(neq,2*ntot),STAT = alloc_stat)
-
-cc        if (alloc_stat.ne.0) then !Diagonal is known (failed alloc)
         if (allocated(diag)) then !Diagonal is known
           if (out.ge.2) write (*,*) 'Diagonal already allocated'
           fdiag = .false.
         elseif (associated(options%diag)) then !Diagonal provided externally
           if (out.ge.2) write (*,*) 'Diagonal externally provided'
-          allocate(diag(neq,2*ntot))
+          allocate(diag(neq*nblock,2*ntot))
           diag = options%diag
         else                      !Form diagonal
           if (out.ge.2) write (*,*) 'Forming diagonal...'
-          allocate(diag(neq,2*ntot))
-          call find_mf_diag(neq,ntot,matvec,igrid,bcnd,diag)
+          allocate(diag(neq*nblock,2*ntot))
+          call find_mf_diag(neq,nblock,ntot,matvec,igrid,bcnd,diag)
           if (out.ge.2) write (*,*) 'Finished!'
         endif
 
@@ -1509,66 +1562,109 @@ c Preparation for iteration
 
 c Jacobi iteration
 
-      allocate(dummy(neq),rhs(neq))
+      allocate(dummy(neq*nblock),rhs(neq*nblock))
 
       do itr=1,iter
 
         mag1 = mag
         mag  = 0d0
 
-c$$$            nx = nxv(igrid)
-c$$$            ny = nyv(igrid)
-c$$$
-c$$$            do i = 1,nx
-c$$$              do j = 1,ny
-c$$$                call shiftcoeffs  (i,j,bcnd(1,1))
-c$$$
-c$$$                call shiftIndices(i,j,ii,iim,iip,jj,jjm,jjp,nx,ny,1
-c$$$     .                            ,bcnd(1,1))
-c$$$                call shiftIndices(i,j,ig,img,ipg,jg,jmg,jpg,nx,ny,isig
-c$$$     .                            ,bcnd(1,1))
-c$$$
-c$$$                zz(ii) =zz(ii)
-c$$$     .                 +omega0*     (rr(ii) -yy(ii) )/diag(neq,ig )
-c$$$     .                 +omega10*(ae*(rr(iip)-yy(iip))/diag(neq,ipg)
-c$$$     .                          +aw*(rr(iim)-yy(iim))/diag(neq,img))
-c$$$     .                 +omega01*(an*(rr(jjp)-yy(jjp))/diag(neq,jpg)
-c$$$     .                          +as*(rr(jjm)-yy(jjm))/diag(neq,jmg))
-c$$$
-c$$$                mag = mag + (rr(ii)-yy(ii))**2
-c$$$              enddo
-c$$$            enddo
-c$$$
-c$$$          endif
-
-cc        if (omega10.ne.0d0.or.omega01.ne.0d0) then
-cc          write (*,*)'Weighed jacobi not available in coupled Jacobi'
-cc          write (*,*)'Aborting...'
-cc          stop
-cc        endif
-
         call matvec(0,ntot,zz,yy,igrid,bcnd)
 
-        do ii = 1,nn/neq
+c       COARSE NODE BASED RELAXATION
+        if (cnbr) then
 
-          iii = neq*(ii-1)
+          do kc=1,nzc
+            do jc=1,nyc
+              do ic=1,nxc
 
-          !Find new residual
-          do ieq = 1,neq
-            rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+              iic = ic + nxc*(jc-1) + nxc*nyc*(kc-1)
+
+              !Find new residual
+              do kblock=1,mg_ratio_z(igrid)
+                do jblock=1,mg_ratio_y(igrid)
+                  do iblock=1,mg_ratio_x(igrid)
+
+                    iib = iblock + mg_ratio_x(igrid)*(jblock-1)
+     .                           + mg_ratio_x(igrid)
+     .                            *mg_ratio_y(igrid)*(kblock-1)
+
+                    if = mg_ratio_x(igrid)*(ic-1) + iblock
+                    jf = mg_ratio_y(igrid)*(jc-1) + jblock
+                    kf = mg_ratio_z(igrid)*(kc-1) + kblock
+
+                    ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                    do ieq = 1,neq
+                      iii  = neq*(ii -1) + ieq
+                      iiib = neq*(iib-1) + ieq
+                      rhs(iiib) = rr(iii) - yy(iii)
+                    enddo
+
+                  enddo
+                enddo
+              enddo
+
+             !Multiply by D^-1 (stored in diag)
+              iig = neq*nblock*(iic-1) + isig - 1
+              dummy = matmul(diag(:,iig+1:iig+neq*nblock),rhs)
+
+             !Update zz
+              do kblock=1,mg_ratio_z(igridc)
+                do jblock=1,mg_ratio_y(igridc)
+                  do iblock=1,mg_ratio_x(igridc)
+
+                    iib = iblock + mg_ratio_x(igridc)*(jblock-1)
+     .                           + mg_ratio_x(igridc)
+     .                            *mg_ratio_y(igridc)*(kblock-1)
+
+                    if = mg_ratio_x(igrid)*(ic-1) + iblock
+                    jf = mg_ratio_y(igrid)*(jc-1) + jblock
+                    kf = mg_ratio_z(igrid)*(kc-1) + kblock
+
+                    ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                    do ieq = 1,neq
+                      iii  = neq*(ii -1) + ieq
+                      iiib = neq*(iib-1) + ieq
+                      zz(iii) = zz(iii) + omega0*dummy(iiib)
+                    enddo
+
+                  enddo
+                enddo
+              enddo
+
+              mag = mag + sum(rhs*rhs)
+
+              enddo
+            enddo
           enddo
 
-          !Multiply by D^-1 (stored in diag)
-          iig = iii + isig - 1
-          dummy = matmul(diag(:,iig+1:iig+neq),rhs)
+c       STANDARD RELAXATION
+        else
 
-          !Update zz
-          do ieq=1,neq
-            zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
+          do ii = 1,nn/neq
+
+            iii = neq*(ii-1)
+
+            !Find new residual
+            do ieq = 1,neq
+              rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+            enddo
+
+            !Multiply by D^-1 (stored in diag)
+            iig = iii + isig - 1
+            dummy = matmul(diag(:,iig+1:iig+neq),rhs)
+
+            !Update zz
+            do ieq=1,neq
+              zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
+            enddo
+
+            mag = mag + sum(rhs*rhs)
           enddo
 
-          mag = mag + sum(rhs*rhs)
-        enddo
+        endif
 
 c     Check convergence
 
@@ -1643,14 +1739,15 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: iter,alloc_stat,isig
+      integer(4) :: iter,alloc_stat,isig,isigc,itr,nn,ieq,i,j,k
       real(8)    :: omega0,tol
-      logical    :: fdiag,fpointers,fbcnd
+      logical    :: fdiag,fpointers,cnbr
 
-      integer(4) :: i,j,k,itr,nn,ieq
-      integer(4) :: ii,iii,iig,dum
-      integer(4) :: ncolors,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
+      integer(4) :: ic,jc,kc,if,jf,kf,nxc,nyc,nzc,nxf,nyf,nzf,igridc
+      integer(4) :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblock
       real(8)    :: mag0,mag1,mag,yy(ntot)
+
+      integer(4) :: ncolors,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
 
       real(8),allocatable, dimension(:) :: dummy,rhs
 
@@ -1663,6 +1760,7 @@ c Read solver configuration
       tol    = options%tol
       fdiag  = options%fdiag
       ncolors= options%ncolors
+      cnbr   = options%coarse_node_based_relax
 
       if (out.ge.2) write (*,*)
 
@@ -1670,28 +1768,45 @@ c Set pointers
 
       call allocPointers(neq,fpointers)
 
+      if (fpointers) igmax = igrid  !GS is NOT called from MG
+
       if (fpointers.and.out.ge.2) write (*,*) 'Allocating pointers...'
 
-      isig = istart(igrid)
+      igridc = igrid+1
+
+      isig  = istart(igrid )
+      isigc = istart(igridc)
+
+      nxc = nxv(igridc)
+      nyc = nyv(igridc)
+      nzc = nzv(igridc)
+
+      nxf = nxv(igrid)
+      nyf = nyv(igrid)
+      nzf = nzv(igrid)
+
+      if (cnbr.or.cnbr_mg) then
+        nblock = mg_ratio_x(igrid)*mg_ratio_y(igrid)*mg_ratio_z(igrid)
+        cnbr = .true.
+      else
+        nblock = 1
+      endif
 
 c Find diagonal for smoothers
 
       if (fdiag) then
 
-cc        allocate(diag(neq,2*ntot),STAT = alloc_stat)
-
-cc        if (alloc_stat.ne.0) then !Diagonal is known (failed alloc)
         if (allocated(diag)) then !Diagonal is known
           if (out.ge.2) write (*,*) 'Diagonal already allocated'
           fdiag = .false.
         elseif (associated(options%diag)) then !Diagonal provided externally
           if (out.ge.2) write (*,*) 'Diagonal externally provided'
-          allocate(diag(neq,2*ntot))
+          allocate(diag(neq*nblock,2*ntot))
           diag = options%diag
         else                      !Form diagonal
           if (out.ge.2) write (*,*) 'Forming diagonal...'
-          allocate(diag(neq,2*ntot))
-          call find_mf_diag(neq,ntot,matvec,igrid,bcnd,diag)
+          allocate(diag(neq*nblock,2*ntot))
+          call find_mf_diag(neq,nblock,ntot,matvec,igrid,bcnd,diag)
           if (out.ge.2) write (*,*) 'Finished!'
         endif
 
@@ -1705,7 +1820,7 @@ c Preparation for iteration
 
 c GS iteration
 
-      allocate(dummy(neq),rhs(neq))
+      allocate(dummy(neq*nblock),rhs(neq*nblock))
 
       do itr=1,iter
 
@@ -1734,7 +1849,87 @@ c       Colored GS
             stop
           end select
 
-c         Colored grid loops
+c       COARSE NODE BASED RELAXATION
+        if (cnbr) then
+
+          do irbg1 = 1,nrbg1
+            do irbg2 = 1,nrbg2
+              do irbg3 = 1,nrbg3
+
+                call matvec(0,ntot,zz,yy,igrid,bcnd)
+
+                do kc=1+mod((    irbg3-1),nrbg3),nzc,nrbg3
+                  do jc=1+mod((kc   +irbg1-2),nrbg1),nyc,nrbg1
+                    do ic=1+mod((jc+kc+irbg2-1),nrbg2),nxc,nrbg2
+
+                      iic = ic + nxc*(jc-1) + nxc*nyc*(kc-1)
+
+                     !Find new residual
+                      do kblock=1,mg_ratio_z(igrid)
+                        do jblock=1,mg_ratio_y(igrid)
+                          do iblock=1,mg_ratio_x(igrid)
+
+                            iib = iblock + mg_ratio_x(igrid)*(jblock-1)
+     .                                   + mg_ratio_x(igrid)
+     .                                    *mg_ratio_y(igrid)*(kblock-1)
+
+                            if = mg_ratio_x(igrid)*(ic-1) + iblock
+                            jf = mg_ratio_y(igrid)*(jc-1) + jblock
+                            kf = mg_ratio_z(igrid)*(kc-1) + kblock
+
+                            ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                            do ieq = 1,neq
+                              iii  = neq*(ii -1) + ieq
+                              iiib = neq*(iib-1) + ieq
+                              rhs(iiib) = rr(iii) - yy(iii)
+                            enddo
+
+                          enddo
+                        enddo
+                      enddo
+
+                      !Multiply by D^-1 (stored in diag)
+                      iig = neq*nblock*(iic-1) + isig - 1
+                      dummy = matmul(diag(:,iig+1:iig+neq*nblock),rhs)
+
+                      !Update zz
+                      do kblock=1,mg_ratio_z(igridc)
+                        do jblock=1,mg_ratio_y(igridc)
+                          do iblock=1,mg_ratio_x(igridc)
+
+                            iib = iblock + mg_ratio_x(igridc)*(jblock-1)
+     .                                   + mg_ratio_x(igridc)
+     .                                    *mg_ratio_y(igridc)*(kblock-1)
+
+                            if = mg_ratio_x(igrid)*(ic-1) + iblock
+                            jf = mg_ratio_y(igrid)*(jc-1) + jblock
+                            kf = mg_ratio_z(igrid)*(kc-1) + kblock
+
+                            ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                            do ieq = 1,neq
+                              iii  = neq*(ii -1) + ieq
+                              iiib = neq*(iib-1) + ieq
+                              zz(iii) = zz(iii) + omega0*dummy(iiib)
+                            enddo
+
+                          enddo
+                        enddo
+                      enddo
+
+                      mag = mag + sum(rhs*rhs)
+
+                    enddo
+                  enddo
+                enddo
+
+              enddo
+            enddo
+          enddo
+
+c       STANDARD RELAXATION
+        else
 
           do irbg1 = 1,nrbg1
             do irbg2 = 1,nrbg2
@@ -1773,7 +1968,83 @@ c         Colored grid loops
             enddo
           enddo
 
+        endif
+
 c       Regular GS
+        else
+
+c       COARSE NODE BASED RELAXATION
+        if (cnbr) then
+
+          do kc=1,nzc
+            do jc=1,nyc
+              do ic=1,nxc
+
+              iic = ic + nxc*(jc-1) + nxc*nyc*(kc-1)
+
+              !Find new residual
+              do kblock=1,mg_ratio_z(igrid)
+                do jblock=1,mg_ratio_y(igrid)
+                  do iblock=1,mg_ratio_x(igrid)
+
+                    iib = iblock + mg_ratio_x(igrid)*(jblock-1)
+     .                           + mg_ratio_x(igrid)
+     .                            *mg_ratio_y(igrid)*(kblock-1)
+
+                    if = mg_ratio_x(igrid)*(ic-1) + iblock
+                    jf = mg_ratio_y(igrid)*(jc-1) + jblock
+                    kf = mg_ratio_z(igrid)*(kc-1) + kblock
+
+                    ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                    call matvec(-ii,ntot,zz,yy,igrid,bcnd)
+
+                    do ieq = 1,neq
+                      iii  = neq*(ii -1) + ieq
+                      iiib = neq*(iib-1) + ieq
+                      rhs(iiib) = rr(iii) - yy(iii)
+                    enddo
+
+                  enddo
+                enddo
+              enddo
+
+             !Multiply by D^-1 (stored in diag)
+              iig = neq*nblock*(iic-1) + isig - 1
+              dummy = matmul(diag(:,iig+1:iig+neq*nblock),rhs)
+
+             !Update zz
+              do kblock=1,mg_ratio_z(igridc)
+                do jblock=1,mg_ratio_y(igridc)
+                  do iblock=1,mg_ratio_x(igridc)
+
+                    iib = iblock + mg_ratio_x(igridc)*(jblock-1)
+     .                           + mg_ratio_x(igridc)
+     .                            *mg_ratio_y(igridc)*(kblock-1)
+
+                    if = mg_ratio_x(igrid)*(ic-1) + iblock
+                    jf = mg_ratio_y(igrid)*(jc-1) + jblock
+                    kf = mg_ratio_z(igrid)*(kc-1) + kblock
+
+                    ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                    do ieq = 1,neq
+                      iii  = neq*(ii -1) + ieq
+                      iiib = neq*(iib-1) + ieq
+                      zz(iii) = zz(iii) + omega0*dummy(iiib)
+                    enddo
+
+                  enddo
+                enddo
+              enddo
+
+              mag = mag + sum(rhs*rhs)
+
+              enddo
+            enddo
+          enddo
+
+c       STANDARD RELAXATION
         else
 
 c         Forward pass
@@ -1828,15 +2099,17 @@ cc          enddo
 
         endif
 
+        endif
+
 c     Check convergence
 
         mag = sqrt(mag)
 
         if (itr.eq.1) then
           mag0 = mag
-          if (out.ge.2) write (*,10) itr,mag,mag/mag0
+          if (out.ge.2) write (*,10) itr-1,mag,mag/mag0
         else
-          if (out.ge.2) write (*,20) itr,mag,mag/mag0,mag/mag1
+          if (out.ge.2) write (*,20) itr-1,mag,mag/mag0,mag/mag1
           if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
         endif
 
@@ -1866,9 +2139,9 @@ c End program
 
       end subroutine gs
 
-c find_mf_diag
+c find_mf_diag_std
 c####################################################################
-      subroutine find_mf_diag(neq,ntot,matvec,igrid,bbcnd,diag1)
+      subroutine find_mf_diag_std(neq,ntot,matvec,igrid,bbcnd,diag1)
 c--------------------------------------------------------------------
 c     Finds diagonal elements matrix-free using subroutine matvec
 c     for all grids, commencing with grid "igrid".
@@ -1981,6 +2254,206 @@ c     Invert diagonal and store in diag1
         end select
 
       enddo
+
+c Deallocate pointers
+
+      call deallocPointers(fpointers)
+
+c End program
+
+      end subroutine find_mf_diag_std
+
+c find_mf_diag
+c####################################################################
+      subroutine find_mf_diag(neq,nblock,ntot,matvec,igrid,bbcnd
+     .                            ,diag1)
+c--------------------------------------------------------------------
+c     Finds diagonal elements for "coarse node-based relaxation". This
+c     is done matrix-free using subroutine matvec for all grids except
+c     coarsest, commencing with grid "igrid".
+c     
+c     Careful: diagonal not formed for coarsest grid since no additional
+c     grid levels are available. MG needs additional coarsest level
+c     solver (such as GMRES).
+c
+c     In call sequence:
+c       * neq: number of coupled equations
+c       * nblock: number of fine grid cells per coarse cell.
+c           If nblock=1, we use standard single-node relaxation.
+c           Otherwise, we use coarse node-based relaxation.
+c       * ntot: dimension of vectors (neq*nx*ny*nz)
+c       * matvec: external indicating matrix-vector routine.
+c       * igrid: current grid level
+c       * bbcnd: boundary condition information (passed on to matvec)
+c       * diag1: returns inverse of diagonal.
+c--------------------------------------------------------------------
+
+      use mg_internal
+
+      implicit none      !For safe fortran
+
+c Call variables
+
+      integer(4) :: neq,nblock,ntot,bbcnd(6,neq),igrid
+
+      real(8)    :: diag1(neq*nblock,2*ntot)
+
+      external      matvec
+
+c Local variables
+
+      real(8)    :: x1(ntot),dummy(ntot),mag(3)
+      integer(4) :: ii,jj,nn,ig,isig,size
+      integer(4) :: ic,jc,kc,if,jf,kf,nxc,nyc,nzc,nxf,nyf,nzf
+      integer(4) :: iii,icolb,irowb,icol,iic,iig,icg,irowmin,irowmax
+     .             ,iblock ,jblock ,kblock
+     .             ,iblock2,jblock2,kblock2,nblkg
+
+      integer(4) :: igr,igc,ieq,alloc_stat
+      logical    :: fpointers
+
+c Begin program
+
+c Allocate MG pointers
+
+      call allocPointers(neq,fpointers)
+
+      if (fpointers) igmax=grid_params%ngrid-1  !Routine not called from JB,GS,MG
+
+c Consistency check
+
+      nn  = ntotv(igrid)
+
+      if (nn /= ntot) then
+        write (*,*) 'Error in input of find_mf_diag'
+        write (*,*) 'Aborting...'
+        stop
+      endif
+
+c Form diagonal
+
+c     STANDARD RELAXATION
+      if (nblock == 1) then
+
+        call find_mf_diag_std(neq,ntot,matvec,igrid,bbcnd,diag1)
+
+C     COARSE NODE-BASED RELAXATION
+      else
+
+        do igr = igrid,igmax
+
+          igc = igr+1
+
+          nxc = nxv(igc)
+          nyc = nyv(igc)
+          nzc = nzv(igc)
+
+          nxf = nxv(igr)
+          nyf = nyv(igr)
+          nzf = nzv(igr)
+
+          nblkg = mg_ratio_x(igr)*mg_ratio_y(igr)*mg_ratio_z(igr)
+
+          nn    = ntotv(igr)
+
+          isig  = istart(igr)   !Fine grid determines MG vector position
+
+          size  = neq*nblkg
+
+          x1(1:nn) = 0d0
+
+c       Coarse grid guides diagonal formation process for coarse node-based relaxation
+
+          do kc=1,nzc
+            do jc=1,nyc
+              do ic=1,nxc
+
+              !This defines coarse cell numbers (lexicographic)
+              iic = ic + nxc*(jc-1) + nxc*nyc*(kc-1)
+              icg  = (iic-1)*size + isig - 1
+
+              !Sample block diagonal columns
+              do kblock=1,mg_ratio_z(igr)
+                do jblock=1,mg_ratio_y(igr)
+                  do iblock=1,mg_ratio_x(igr)
+
+                    !This define block column index
+                    icolb = iblock + mg_ratio_x(igr)*(jblock-1)
+     .                             + mg_ratio_x(igr)
+     .                              *mg_ratio_y(igr)*(kblock-1)
+
+                    !This defines fine cell position (lexicographic)
+                    if = mg_ratio_x(igr)*(ic-1) + iblock
+                    jf = mg_ratio_y(igr)*(jc-1) + jblock
+                    kf = mg_ratio_z(igr)*(kc-1) + kblock
+
+                    ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                    !Sample block diagonal rows
+                    do kblock2=1,mg_ratio_z(igr)
+                      do jblock2=1,mg_ratio_y(igr)
+                        do iblock2=1,mg_ratio_x(igr)
+ 
+                          !This defines block row index
+                          irowb =iblock2 + mg_ratio_x(igr)*(jblock2-1)
+     .                                   + mg_ratio_x(igr)
+     .                                    *mg_ratio_y(igr)*(kblock2-1)
+
+                          !This defines fine cell position (lexicographic)
+                          if = mg_ratio_x(igr)*(ic-1) + iblock2
+                          jf = mg_ratio_y(igr)*(jc-1) + jblock2
+                          kf = mg_ratio_z(igr)*(kc-1) + kblock2
+                            
+                          jj  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                          !Sample equations
+                          do ieq = 1,neq
+
+                            !This defines column index of system matrix
+                            iii  = neq*(ii   -1) + ieq
+                            !This defines column index in diagonal block
+                            icol = neq*(icolb-1) + ieq
+                            !This defines min and max row indices in diagonal block
+                            irowmin = icg + neq*(irowb-1)+1
+                            irowmax = icg + neq* irowb
+
+                            !Set column vector corresponding to fine grid node ii and equation ieq
+                            x1(iii) = 1d0
+
+                            !Find matrix components corresponding to column iii and rows
+                            !((jj-1)*neq+1) to (jj*neq)
+                            call matvec(jj,nn,x1,dummy,igr,bbcnd)
+
+                            !Reset vector x1 to zero
+                            x1(iii) = 0d0
+
+                            !Store results in diagonal
+                            diag1(icol,irowmin:irowmax)
+     .                                = dummy((jj-1)*neq+1:jj*neq)
+                          enddo
+
+                        enddo
+                      enddo
+                    enddo
+
+                  enddo
+                enddo
+              enddo
+
+              enddo
+            enddo
+          enddo
+
+c         Invert diagonal and store in diag1
+
+          do iic = 1,ntotvp(igc)
+            icg = size*(iic - 1) + isig - 1
+            call blockInv(size,diag1(1:size,icg+1:icg+size))
+          enddo
+
+        enddo
+
+      endif
 
 c Deallocate pointers
 
