@@ -669,7 +669,7 @@ c     Begin program
             label = 'Vector plot (' // trim(descr(variables(i)))
      .              // ',' // trim(descr(variables(i)+1))//')'
             write (mfile,'(i2,a,i2,4a)') variables(i),' ',variables(i)+1
-     .         ,'       ',options,'         ',label
+     .         ,'       ',options,'         ',trim(label)
           endif
         enddo
         write (mfile,*)
