@@ -21,6 +21,8 @@ c----------------------------------------------------------------------
 
       use iosetup
 
+      use icond
+
       implicit none
 
 c Call variables
@@ -40,7 +42,7 @@ c Begin program
 
 c Read user initializations
 
-      call readInput
+cc      call readInput
 
 c Check for autoinitializing parameters
 

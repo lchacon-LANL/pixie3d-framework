@@ -202,7 +202,7 @@ c     #######################################################################
 
         if (timecorr) then
           if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor .eq. 1d0)) then
-            call findExplicitDt(dt)
+            call findExplicitDt
           else
             call adapt_dt(dtbase)
           endif
