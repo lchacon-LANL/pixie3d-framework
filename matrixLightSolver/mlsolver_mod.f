@@ -137,10 +137,24 @@ c     solverKill
 c     ###################################################################
         subroutine solverKill
 
-c       Kills solver
+c       Deallocates solver queue
 
-          if (associated(solver_queue%front) )
-     .             deallocate(solver_queue%front)
+          implicit none
+    
+          type (node_type), pointer :: temp
+
+        !Begin
+
+          do while (.not.is_empty(solver_queue))
+            temp => solver_queue%front%next_solver
+
+            deallocate (solver_queue%front)
+
+            solver_queue%front => temp
+          enddo
+
+cc          if (associated(solver_queue%front) )
+cc     .             deallocate(solver_queue%front)
 cc          if (associated(solver_queue%rear ) )
 cc     .             deallocate(solver_queue%rear)
 
