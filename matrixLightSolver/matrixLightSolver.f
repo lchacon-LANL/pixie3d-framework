@@ -241,8 +241,10 @@ c CG solve
       endif
 
       if (rr0.lt.abstol) then
-        if (out .ge. 1)
-     .       write (*,*) 'Initial guess seems exact solution in CG' 
+        if (out .ge. 1) then
+          write (*,*) 'CG residual',rr0
+          write (*,*) 'Initial guess seems exact solution in CG' 
+        endif
         return
       endif
 
@@ -280,8 +282,8 @@ c     Check convergence
         if (out.ge.2) write (*,10) iter,mag,mag1
 cc        if (mag1.lt.tol) exit
 
-        if (mag.lt.(abstol + tol*rr0)) then
-          if (mag > tol*rr0 .and. mag < abstol) then
+        if (mag < (abstol + tol*rr0)) then
+          if (mag > tol*rr0) then
             if (out.gt.1) write (*,*) 'Solution in CG is in round-off.'
             if (out.gt.1) write (*,*) 'Aborting CG...'
           endif
