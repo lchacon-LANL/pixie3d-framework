@@ -34,7 +34,7 @@ c ###################################################################
 
       double precision, allocatable, dimension(:):: res,x0,xk
 
-      double precision :: dt,check
+      double precision :: pdt,check
 
       integer          :: jit
 
@@ -42,8 +42,8 @@ c ###################################################################
 
 c newtonGmres
 c####################################################################
-      subroutine newtonGmres(neq,ntot,x,etak_meth,damp,global,dt0
-     .           ,tolgm,kmax,gmit_max,tolnewt,ntit_max_acc
+      subroutine newtonGmres(neq,ntot,x,etak_meth,damp,global,pdt0
+     .           ,eta0,ksmax,gmmax,rtol,atol,ntit_max_acc
      .           ,ntit_max_rej,gmit_out,ntit_out,iguess,out,ierr)
 c--------------------------------------------------------------------
 c     Performs Jacobian-free inexact Newton iteration on b(x) = 0, 
@@ -63,11 +63,12 @@ c       * global: determines the globalization procedure:
 c               global = 0 --> no globalization
 c               global = 1 --> linesearch backtracking 
 c               global = 2 --> pseudo-transient
-c       * dt0: initial time step for pseudo-transient
-c       * tolgm: GMRES convergence tolerance
-c       * kmax: dimension of krylov subspace for restarted GMRES(Kmax)
-c       * gmit_max: maximum number of GMRES its. (restart if > kmax)
-c       * tolnewt: Newton convergence tolerance
+c       * pdt0: initial time step for pseudo-transient
+c       * eta0: initial inexact Newton parameter (GMRES convergence tolerance)
+c       * ksmax: dimension of krylov subspace for restarted GMRES(Ksmax)
+c       * gmmax: maximum number of GMRES its. (restart if > ksmax)
+c       * rtol: Newton relative convergence tolerance
+c       * atol: Newton absolute convergence tolerance
 c       * ntit_max_acc: maximum number of Newton its. to accept
 c                       solution without subcycling time step
 c       * ntit_max_rej: maximum number of Newton its. to reject solution
@@ -97,22 +98,23 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer          :: ntot,neq,etak_meth,kmax,gmit_max,ntit_max_acc
-     .                   ,ntit_max_rej,gmit_out,ntit_out,out,iguess,ierr
+      integer(4) :: ntot,neq,etak_meth,ksmax,gmmax,ntit_max_acc
+     .             ,ntit_max_rej,gmit_out,ntit_out,out,iguess,ierr
+     .             ,global
 
-      double precision :: x(ntot),tolgm,tolnewt,damp
-
-      integer          :: global
+      real(8)    :: x(ntot),eta0,atol,rtol,damp
 
 c Local variables
 
-      integer*4   itk,i,j,ig,iout
+      integer(4) :: itk,i,j,ig,iout
 
-      real*8      dxavg,check_lim,residuals(neq)
+      real(8)    :: dxavg,check_lim,residuals(neq)
 
-      real*8      b(ntot),ddx(ntot),dt0,roundoff
+      real(8)    :: b(ntot),ddx(ntot),pdt0
 
-      real*8      f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
+      real(8)    :: f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
+
+      logical    :: convergence,failure
 
 c Begin program
 
@@ -135,13 +137,16 @@ c Initialize
       check_lim = 1d30
 cc      if (global.ne.2) check_lim = 1d1
 
-      if (global.ne.2) dt0 = 1d30
-      dt = dt0
+      if (global.ne.2) pdt0 = 1d30
+      pdt = pdt0
 
       x0 = x    !Save initial guess
       xk = x    !Save previous Newton state
 
-      roundoff = ntot*1d-15
+      if (atol == 0d0) atol = ntot*1d-15 !Set absolute tolerance to roundoff
+
+      convergence = .false.
+      failure     = .false.
 
 c Evaluate rhs and norms
 
@@ -152,14 +157,14 @@ c Evaluate rhs and norms
       f0 = sqrt(sum(b*b))
 
       !Check if initial guess is exact, and if so exit Newton step
-      if (f0.lt.roundoff) then
+      if (f0.lt.atol) then
         ierr = -1
         return
       endif
 
-c Initial output
+ccc Initial output
 
-      if (out.ge.1) write (*,210) 0,0d0,f0,1d0,1d0,dt0,tolgm,0
+      if (out.ge.1) write (*,210) 0,0d0,f0,1d0,1d0,pdt0,eta0,0
 
       if (out.ge.3) then
         call calculateResidualNorms(neq,ntot,b,residuals)
@@ -172,10 +177,10 @@ c Start Newton iteration
 
       fk    = f0
       fkm   = f0
-      flimit= roundoff + tolnewt*f0
+      flimit= atol + rtol*f0
 
-      etakm = tolgm
-      etak  = tolgm
+      etakm = eta0
+      etak  = eta0
 
       do jit = 1,ntit_max_rej
 
@@ -187,7 +192,7 @@ c     Jacobian-free solve
 
         iout = out - 1
 
-        call gmresDriver(ntot,x,b,ddx,itk,etak,kmax,gmit_max
+        call gmresDriver(ntot,x,b,ddx,itk,etak,ksmax,gmmax
      .                  ,iguess,iout,ierr)
 
 c     Kill preconditioner
@@ -203,9 +208,9 @@ c     Check for error in GMRES
 
         if (ierr.eq.1) then
           write(*,*) 
-     .          '   Exceeded maximum GMRES iterations (',gmit_max,')'
+     .          '   Exceeded maximum GMRES iterations (',gmmax,')'
           ierr = 0  !Use GMRES solution for Newton update regardless
-        elseif (ierr.eq.-1) then !Got to roundoff in the Newton residual
+        elseif (ierr.eq.-1) then !Got to atol in the Newton residual
           ierr = 0
           exit !Do not continue Newton iteration
         endif
@@ -214,7 +219,7 @@ c     Globalization procedure
 
 c       Determine inexact Newton constant
 
-        call find_etak (fk,fkm,flimit,tolgm,etak,etakm,etak_meth)
+        call find_etak (fk,fkm,flimit,eta0,etak,etakm,etak_meth)
 
 c       Calculate damping coefficient
 
@@ -235,11 +240,11 @@ c     Evaluate rhs and norms
 
         fkp = sqrt(sum(b*b))
 
-c     Check Newton convergence
+c     Check Newton convergence/failure
 
         check = fkp/f0
 
-        if (out.ge.1) write (*,210) jit,dxavg,fkp,check,damp,dt,etak,itk
+        if (out.ge.1) write (*,210)jit,dxavg,fkp,check,damp,pdt,etak,itk
 
         if (out.ge.3) then
           call calculateResidualNorms(neq,ntot,b,residuals)
@@ -248,7 +253,20 @@ c     Check Newton convergence
           enddo
         endif
 
-        if(fkp.lt.flimit.or.check.gt.check_lim) exit
+        if (fkp <= flimit .or.dxavg <= atol) then
+          convergence = .true.
+        elseif (    check > check_lim
+     .         .or. damp  < 1d-4
+     .         .or. jit   == ntit_max_rej ) then
+          failure = .true.
+        endif
+
+        if (convergence .or. failure) exit
+
+cc        if(    fkp   <= flimit
+cc     .     .or.check > check_lim
+cc     .     .or.dxavg <= atol
+cc     .     .or.damp  <= 1d-4) exit
 
 c     Store magnitude of residual
 
@@ -259,20 +277,20 @@ c     Store magnitude of residual
 
 c     Change pseudo-transient time step
 
-cc        if (global.eq.2) dt = min(dt/check,1d30)
-        if (global.eq.2) dt = min(dt0/sqrt(check),1d30)
-cc        if (global.eq.2.and.check.lt.1d-3) dt = min(dt0*jit,1d0)
-cc        if (global.eq.2) dt = min(dt0/check**2,1d30)
+cc        if (global.eq.2) pdt = min(pdt/check,1d30)
+        if (global.eq.2) pdt = min(pdt0/sqrt(check),1d30)
+cc        if (global.eq.2.and.check.lt.1d-3) pdt = min(pdt0*jit,1d0)
+cc        if (global.eq.2) pdt = min(pdt0/check**2,1d30)
 
       enddo       !End of Newton loop
 
 c Check error in Newton convergence
 
       !No convergence: reject solution
-      if (jit.gt.ntit_max_rej.or.check.gt.check_lim) then 
-        if (jit.gt.ntit_max_rej) write (*,220) check
-        if (check.gt.check_lim) write (*,230) check,check_lim
-        if (check.gt.check_lim) write (*,*) check,check_lim
+      if (failure) then 
+        if (jit == ntit_max_rej) write (*,220) check
+        if (check > check_lim) write (*,230) check,check_lim
+        if (damp  < 1d-4) write (*,*) 'Damping parameter too small'
         ierr = 1
       !Accept solution, but warn user
       elseif ((jit-1).gt.ntit_max_acc) then 
@@ -284,11 +302,9 @@ c End program
 
       deallocate (res,x0,xk)
 
-      return
-
  200  format 
      .   (/,' New_it   Av_updt    Abs_res   Rel_res     Damping'
-     .     ,'      dt_n      eta_k     GMRES')
+     .     ,'      pdt_n      eta_k     GMRES')
  210  format (i4,3x,1p6e11.3,3x,i4)
  220  format ('    Max newton its. exceeded; rel. residual: ',1p1e10.2)
  230  format ('    Relative residual =',f7.2,' >',f7.2)
@@ -356,7 +372,7 @@ c Begin program
 
       x = x + damp*ddx
 
-      dxavg = damp/dfloat(ntot)*sqrt(sum(ddx*ddx))
+      dxavg = sqrt(sum(ddx*ddx))/dfloat(ntot)
 
 c End program
 
@@ -365,7 +381,7 @@ c End program
 
 c find_etak
 c####################################################################
-      subroutine find_etak (fk,fkm,flimit,tolgm,etak,etakm,etak_meth)
+      subroutine find_etak (fk,fkm,flimit,eta0,etak,etakm,etak_meth)
       implicit none       !For safe fortran
 c--------------------------------------------------------------------
 c     Finds inexact Newton forcing parameter, using two methods:
@@ -375,7 +391,7 @@ c--------------------------------------------------------------------
 c Call variables
 
       integer*4   etak_meth
-      real*8      fk,fkm,flimit,tolgm,etak,etakm
+      real*8      fk,fkm,flimit,eta0,etak,etakm
 
 c Local variables
 
@@ -384,7 +400,7 @@ c Local variables
 c Begin program
 
       if (etak_meth.eq.0) then
-        etak = tolgm
+        etak = eta0
       else
         gamm = .9
         alph = 1.5
@@ -393,10 +409,10 @@ c Begin program
         etak = gamm*(fk/fkm)**alph
 
         !First safeguard: avoid sharp decrease of etak
-        etak = min(tolgm,max(etak,gamm*etakm**alph))
+        etak = min(eta0,max(etak,gamm*etakm**alph))
 
         !Second safeguard: avoid oversolving
-        etak = min(tolgm,max(etak,gamm*flimit/fk))
+        etak = min(eta0,max(etak,gamm*flimit/fk))
       endif
 
 c End program
@@ -465,7 +481,10 @@ c Begin program
               damp = dampm
             endif
           endif
-          if (damp < 1d-2) exit
+cc          if (damp < 1d-2) then
+cc            damp = 1d0
+cc            exit
+cc          endif
 cc          write (*,*) 'Residuals',fk,fm,fkp
 cc          write (*,*) 'Damping parameters',dampm,damp
 cc          etak = 1.- theta*(1.-etak)
@@ -496,7 +515,7 @@ c End program
 
 c gmresDriver
 c ####################################################################
-      subroutine gmresDriver(nn,x0,b,x,itk,etak,kmax,maxitgm,iguess
+      subroutine gmresDriver(nn,x0,b,x,itk,etak,ksmax,maxitgm,iguess
      .                      ,iout,ierr)
 c --------------------------------------------------------------------
 c   This subroutine solves the linear system
@@ -513,7 +532,7 @@ c --------------------------------------------------------------------
 
 c Call variables
 
-      integer*4   itk,ierr,nn,kmax,iguess,iout,maxitgm
+      integer*4   itk,ierr,nn,ksmax,iguess,iout,maxitgm
       real*8      b(nn),x(nn),x0(nn),etak
 
 c Local variables
@@ -538,7 +557,7 @@ c Initialize the GMRES(k) algorithm
 
 c Call the preconditioned GMRES(k) algorithm
 
-      call fgmresMeth(nn,x0,b,x,eps,kmax,maxitgm,iout,ierr,itk)
+      call fgmresMeth(nn,x0,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
 
 c End program
 
@@ -601,15 +620,15 @@ c----------------------------------------------------------------------*
 
 c Call variables
 
-      integer*4     ntot,im,maxits,iout,ierr,its
-      real*8        x0(ntot),rhs(ntot),sol(ntot),eps
+      integer(4) :: ntot,im,maxits,iout,ierr,its
+      real(8)    :: x0(ntot),rhs(ntot),sol(ntot),eps
 
 c Local variables
 
-      real*8        hh(im+1,im), c(im), s(im), rs(im+1)
-      real*8        vv(ntot,im+1),zz(ntot,im+1)
-      real*8        epsmac,rold,ro,eps1,gam,t
-      integer*4     i,j,i1,k,k1,ii,jj,n,rstrt,irstrt,precout
+      real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
+      real(8)    :: vv(ntot,im+1),zz(ntot,im+1)
+      real(8)    :: epsmac,rold,ro,eps1,gam,t
+      integer(4) :: i,j,i1,k,k1,ii,jj,n,rstrt,irstrt,precout
 
       data epsmac /1.d-16/
 
@@ -804,8 +823,6 @@ c     Restart outer loop
 
 c End program
 
-      return
-
  199  format(' GMRES its =', i4,';  res/rold norm =', 1pd10.2)
 
       end
@@ -851,7 +868,7 @@ c Local variables
 
 c Begin program
 
-      eps   = 1d-4
+      eps   = 1d-8
 
 c Calculate difference parameter
 
@@ -906,19 +923,24 @@ c--------------------------------------------------------------------
 c Call variables
 
       integer  :: ntot
-      real*8      x(ntot),f(ntot)
+      real(8)  :: x(ntot),f(ntot)
 
 c Local variables
+
+      real(8)  :: dummy(ntot),invpdt
 
 c Begin program
 
 c Evaluate nonlinear residual
 
-      call evaluateNonlinearResidual(ntot,x,f)
+      call evaluateNonlinearResidual(ntot,x,dummy)
 
 c Add pseudo-transient term
 
-      f = (x - x0)/dt + f
+      invpdt = 1d0/pdt
+      if (invpdt < 1d-5) invpdt = 0d0
+
+      f = (x - x0)*invpdt + dummy
 
 c End program
 
@@ -926,7 +948,7 @@ c End program
 
 c fmedval
 c####################################################################
-      real*8 function fmedval(p1,p2,p3)
+      real(8) function fmedval(p1,p2,p3)
       implicit none                !For safe fortran
 c--------------------------------------------------------------------
 c    This function computes intermediate value of p1, p2, p3.
@@ -944,5 +966,4 @@ c Begin program
 
 c End
 
-      return
-      end
+      end function fmedval
