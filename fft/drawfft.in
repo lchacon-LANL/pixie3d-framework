@@ -1,0 +1,23 @@
+Type (G=Graph, C=Contour):      G
+
+filename(s)
+fft.bin
+
+graph title:   Psi norm and Fourier components
+
+variable names
+0       omega 
+1       fk_r 
+2       fk_i 
+;3       log(ps) 
+
+
+ix      iy      window title
+0      1        Real transform
+0      2        "Imaginary transform 
+;0      3        Power spectrum 
+
+; carriage return after last line is critical.
+; ; is used for commenting out a line
+; Here I plot 4 quantities (phimax, vormax,...) vs. time on the same plot.
+

@@ -1,0 +1,23 @@
+Type (G=Graph, C=Contour):      G
+
+filename(s)
+ifft.bin
+
+graph title:   Psi norm and Fourier components
+
+variable names
+0       omega 
+1       signal
+2       ifft 
+;3       log(ps) 
+
+
+ix      iy      window title
+0      1        Signal
+0      2        "Inverse transform 
+;0      3        Power spectrum 
+
+; carriage return after last line is critical.
+; ; is used for commenting out a line
+; Here I plot 4 quantities (phimax, vormax,...) vs. time on the same plot.
+
