@@ -2607,7 +2607,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        real(8) :: array(ilom:ihip,jlom:jhip,klom:khip)
+        real(8)    :: array(ilom:ihip,jlom:jhip,klom:khip)
 
 c     Local variables
 
@@ -2616,6 +2616,7 @@ c     Local variables
 c     Begin program
 
 c FIX PARALLEL
+#if !defined(petsc)
         nxp = grid_params%nxv(igrid)+1
         nyp = grid_params%nyv(igrid)+1
         nzp = grid_params%nzv(igrid)+1
@@ -2634,6 +2635,7 @@ c FIX PARALLEL
           array(:,:,0  ) = array(:,:,nzp-1)
           array(:,:,nzp) = array(:,:,1    )
         endif
+#endif
 c FIX PARALLEL
 
 c     End program
