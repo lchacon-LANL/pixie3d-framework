@@ -1842,8 +1842,9 @@ c #####################################################################
 c     -----------------------------------------------------------------
 c     This module defines the types of BCs possible:
 c     Topological BCs (set topology of computational domain):
-c       PER: periodic
-c       SP : singular point (as in cylindrical, toroidal)
+c       PER: Periodic
+c       SP : Singular point (as in cylindrical, toroidal)
+c       SYM: Symmetry (homogeneous Neumann)
 c     Standard BCs:
 c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
 c       DIR: Homogeneous dirichlet
@@ -2405,18 +2406,18 @@ c #####################################################################
       module grid_metric
 
 c ---------------------------------------------------------------------
-c     This module packs routines that perform operations on grid
-c     quantities, such as coordinate transformation of vector components,
-c     vector norms and scalar products. It contains the following
-c     routines:
-c          * transformVectorToCartesian 
-c          * transformVectorToCurvilinear 
-c          * transformFromCurvToCurv 
-c          * volume
-c          * vectorNorm
-c          * scalarProduct
-c     It is assumed that the grid metric structure gmetric is allocated 
-c     and filled.
+c     This module allocates and fills the grid metric structure gmetric.
+c     It contains the following routines: 
+c        * allocateGridMetric
+c        * deallocateGridMetric
+c        * defineGridMetric
+c           -> map
+c           -> topol_bc
+c           -> gammaZeroForce
+c           -> zeroForceCheck
+c        * cross_product
+c        * triple_product
+c        * delta
 c ---------------------------------------------------------------------
 
         use grid_definition
@@ -4421,9 +4422,13 @@ cc          stop
 
           dh = length/ng
 
-          if (   (bcs1 == PER .and. bcs2 == PER)
-     .       .or.(bcs1 == SYM .and. bcs2 == SYM)) then
+          if (bcs1 == PER .and. bcs2 == PER) then
             dh = length/ng
+            lstart = lmin
+            lend   = lmax
+          elseif (bcs1 == SYM .and. bcs2 == SYM) then
+            write (*,*) 'here'
+            dh = length/(ng-1)
             lstart = lmin
             lend   = lmax
           elseif (bcs1 == SYM .and. bcs2 /= SYM) then
