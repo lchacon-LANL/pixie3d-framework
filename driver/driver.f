@@ -1,8 +1,7 @@
-      program threed_mhd_driver
+      program driver_3d
 
 c ******************************************************************
-c  This program computes the implicit solution for the 3-D XMHD
-c  system in a generalized coordinate system.
+c  This program drives the time stepping of an arbitrary 3D system.
 c ******************************************************************
 
       use variables
@@ -127,10 +126,10 @@ c Final statistics
       prec_tot = gmres_tot + iguess*newt_tot
 
       write(*,300) 
-      write(*,310) (itime-1),dfloat(newt_tot )/(itime-inewtime)
-     .                      ,dfloat(gmres_tot)/(itime-inewtime)
-     .                      ,dfloat(gmres_tot)/newt_tot
-     .                      ,dfloat(wh_tot)   /prec_tot
+      write(*,310) (itime-1),float(newt_tot )/(itime-inewtime)
+     .                      ,float(gmres_tot)/(itime-inewtime)
+     .                      ,float(gmres_tot)/newt_tot
+     .                      ,float(wh_tot)   /prec_tot
 
 c Formats
 

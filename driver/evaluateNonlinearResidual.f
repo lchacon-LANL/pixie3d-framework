@@ -16,8 +16,8 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer  :: ntot
-      real*8      x(ntot),f(ntot)
+      integer(4) :: ntot
+      real(8)    :: x(ntot),f(ntot)
 
 c Local variables
 

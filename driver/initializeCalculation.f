@@ -202,11 +202,9 @@ c Set equilibrium u_0 and define BCs on all variables
 
       var = 0d0
 
-      call setEquilibrium(var,bcs,label)
+      call setEquilibrium(1,1,1,var,bcs,label)
 
       call packVariables(u_0)
-
-cc      call imposeBoundaryConditions(u_0,igx,igy,igz)
 
       deallocate(var,label,bcs)
 
@@ -393,9 +391,9 @@ c     Call variables
 
 c     Local variables
 
-      integer*4 :: i,j,k,ig,jg,kg,igx,igy,igz
-      real(8)   :: x1,y1,z1
-      real(8)   :: fx(0:nxdp),fy(0:nydp),fz(0:nzdp) 
+      integer(4) :: i,j,k,ig,jg,kg,igx,igy,igz
+      real(8)    :: x1,y1,z1
+      real(8)    :: fx(0:nxdp),fy(0:nydp),fz(0:nzdp) 
 
 c     Begin program
 
