@@ -12,6 +12,8 @@ cc        parameter        (ngraph=30,ngroups=5)
         character*(20),allocatable,dimension(:) ::
      .                    graphfile,drawgraph,profilefile,drawprof
         character*(20),allocatable,dimension(:,:) :: prof_desc
+        integer(4)    ,allocatable,dimension(:,:) :: prof_ivar,prof_log
+        logical       ,allocatable,dimension(:)   :: prof_spline
 
         integer(4)     :: udebug
         integer(4),allocatable,dimension(:) :: ugraph,uprofile,nqty
@@ -66,8 +68,7 @@ c     Local variables
 
         integer(4) :: nx,ny,nz,isx,isy,isz
 
-        integer(4) :: i,nplots,prof_ivar(ngraph)
-     .               ,prof_log(ngraph)
+        integer(4) :: i,nplots
 
         character*(30) :: prof_title
 
@@ -136,16 +137,6 @@ c     Initialize plot dump
 
 c     Create draw*.in files
 
-cc        sel_gr(1,:) = (/ 1,2,3,4,5,6,7,8,11 /)
-cc        sel_gr(2,:) = (/ 1,2,3,4,5,6,7,8,11 /)
-        sel_gr(1,:) = sel_graph
-        sel_gr(2,:) = sel_graph
-        sel_gr(3,:) = sel_graph
-        sel_gr(4,:) = (/ (i,i=1,nqty(4)),(0,i=nqty(4),9) /)
-        sel_gr(5,:) = (/ (i,i=1,nqty(5)),(0,i=nqty(5),9) /)
-cc        sel_gr(4,:) = (/ 1,2,3,4,0,0,0,0,0 /)
-cc        sel_gr(5,:) = (/ 1,2,3,4,5,6,7,8,0 /)
-
 c       Contours
 
         do igroup=1,ngroups
@@ -160,15 +151,13 @@ c       Contours
 
 c       Profiles (selects same profiles as contour plots except vector plots)
 
-        prof_ivar(:) = 0        !All profiles have same (default) independent variable: x
-        prof_log(:)  = 0        !No log scales
-
         do igroup=1,ngroups
           nplots = count (sel_gr(igroup,:) /= 0)
           prof_title = 'Profiles '//graph(igroup)%descr
           call createDrawInGfile(nplots,profilefile(igroup),prof_title
-     .          ,'x',abs(sel_gr(igroup,:)),prof_desc(igroup,:),prof_ivar
-     .          ,prof_log,drawprof(igroup),.false.)
+     .          ,'x',abs(sel_gr(igroup,:)),prof_desc(igroup,:)
+     .          ,prof_ivar(igroup,:),prof_log(igroup,:)
+     .          ,drawprof(igroup),prof_spline(igroup))
         enddo
 
 c     End program
@@ -298,8 +287,8 @@ c     Begin program
             jjmin = jmin
             jjmax = jmax
           else
-            jjmin = jmax/3
-            jjmax = jmax/3
+            jjmin = max(jmax/3,1)
+            jjmax = max(jmax/3,1)
           endif
           kkmax = 1
           kkmin = 1
@@ -605,7 +594,9 @@ c     Begin program
 
         allocate(ugraph(ngroups),uprofile(ngroups),nqty(ngroups))
 
-        allocate(prof_desc(ngroups,ngraph),sel_gr(ngroups,9))
+        allocate(prof_desc(ngroups,ngraph),sel_gr(ngroups,9)
+     .          ,prof_ivar(ngroups,ngraph),prof_log(ngroups,ngraph)
+     .          ,prof_spline(ngroups))
 
         allocate(graph(ngroups))
 
@@ -625,7 +616,7 @@ c     Begin program
 
         deallocate(ugraph,uprofile,nqty)
 
-        deallocate(prof_desc,sel_gr)
+        deallocate(prof_desc,sel_gr,prof_ivar,prof_log,prof_spline)
 
         deallocate(graph)
 

@@ -209,7 +209,7 @@ c Call variables
 
 c Local variables
 
-      double precision :: x(ntotd),damp,dt0
+      double precision :: x(ntotd)
 
 c Diagnostics
 
@@ -252,9 +252,6 @@ c     Map previous time step solution into Newton vector for initial guess
         x = vn  !Overloaded assignment
 
 c     Newton iteration
-
-        damp = 1d0
-        dt0 = 1d30
 
         call newtonGmres(neqd,ntotd,x,method,damp,global,dt0
      .                  ,tolgm,maxksp,maxitgm,tolnewt,maxitnwt,maxitnwt

@@ -476,7 +476,7 @@ c ######################################################################
         integer :: numtime,ndstep,nrstep,sm_pass,sm_flag,inewtime
 
         double precision :: dt,dtbase,cnfactor,cnf_d,alpha,gammat
-        double precision :: tmax,dstep,rstep,time,dfreq,dtexp
+        double precision :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0
 
         double precision,allocatable,dimension(:) :: fold,fsrc
 
