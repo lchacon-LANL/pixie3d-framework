@@ -162,7 +162,7 @@ c Evaluate rhs and norms
         return
       endif
 
-ccc Initial output
+c Initial output
 
       if (out.ge.1) write (*,210) 0,0d0,f0,1d0,1d0,pdt0,eta0,0
 
@@ -256,7 +256,7 @@ c     Check Newton convergence/failure
         if (fkp <= flimit .or.dxavg <= atol) then
           convergence = .true.
         elseif (    check > check_lim
-     .         .or. damp  < 1d-4
+cc     .         .or. damp  < 1d-7
      .         .or. jit   == ntit_max_rej ) then
           failure = .true.
         endif
