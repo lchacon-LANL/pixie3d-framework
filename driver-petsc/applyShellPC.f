@@ -3,7 +3,7 @@ c######################################################################
       subroutine applyShellPC(yarr,xarr,imin,imax,jmin,jmax,kmin,kmax)
 
 c----------------------------------------------------------------------
-c     Initializes MG and creates grid
+c     Applies PC on local domain. Input vector yarr, output vector xarr.
 c----------------------------------------------------------------------
 
       use parameters

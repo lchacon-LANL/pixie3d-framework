@@ -62,9 +62,13 @@ typedef struct {
   int         ksp_its;
   PetscReal   snes_res0;
   int         snes_its;
+  int         aspc_its;
   Vec         x0;
   Vec         xold;
   Vec         xk;
+  Vec         dzk;
+  Vec         rk;
+  Mat         J;
   PetscTruth  hdf5c;
 } AppCtx;
 
@@ -105,7 +109,8 @@ extern int FormInitialCondition(SNES, Vec, void*);
 extern int correctTimeStep     (SNES, Vec, void*);
 extern int MySNESMonitor       (SNES, int, PetscReal, void*);
 extern int MyKSPMonitor        (KSP , int, PetscReal, void*);
-extern int ApplyPreconditioner (void*,Vec,Vec);
+extern int ApplyPC             (void*,Vec,Vec);
+extern int ApplyASPC           (void*,Vec,Vec);
 extern int SetupPreconditioner (void*);
 
 #if !defined(lahey)
@@ -114,20 +119,20 @@ int main(int argc, char **argv)
 int MAIN__(int argc, char **argv)
 #endif
 {
-  SNES     snes;	        /* SNES context */
-  KSP      ksp;                 /* KSP context  */
-  PC       pc;                  /* PC context   */
-  Vec	   x, r;	        /* Vec x: solution, r: residual */
-  AppCtx   user;
+  SNES      snes;	        /* SNES context */
+  KSP       ksp;                /* KSP context  */
+  PC        pc;                 /* PC context   */
+  Vec	    x, r;	        /* Vec x: solution, r: residual */
+  AppCtx    user;
   
-  int     ierr;
-  int     nxd = 32;         /* x-direction grid size, i.e., nx */
-  int     nyd = 32;         /* y-direction grid size, i.e., ny */
-  int     nzd = 1;          /* z-direction grid size, i.e., nz */
-  int     numtime;
-  int     i, steps=0;
-  int     np,npx,npy,npz;           /* num. of processors used */
-  int     my_rank;        /* id of my processor */
+  int       ierr;
+  int       nxd = 32;         	/* x-direction grid size, i.e., nx */
+  int       nyd = 32;         	/* y-direction grid size, i.e., ny */
+  int       nzd = 1;          	/* z-direction grid size, i.e., nz */
+  int       numtime;
+  int       i, steps=0;
+  int       np,npx,npy,npz;     /* num. of processors used */
+  int       my_rank;            /* id of my processor */
   PetscReal atol;
   PetscReal rtol;
   PetscReal tolgm;
@@ -186,68 +191,82 @@ int MAIN__(int argc, char **argv)
   maxitnwt = user.indata.maxitnwt;
   if (maxitnwt == 0) maxitnwt = (int) PetscMax((1.5*log(rtol)/log(tolgm)),10.);
 
+  user.aspc_its = 0;   /* Initialize Additive Schwartz method */
+
   /* Set runtime options */
   
-  ierr = PetscOptionsGetInt(PETSC_NULL,"-nmax",&numtime,PETSC_NULL)	       ; CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-nmax",&numtime,PETSC_NULL)	        ;CHKERRQ(ierr);
 
   ierr = PetscOptionsGetInt(PETSC_NULL,"-ilevel",&user.indata.ilevel,PETSC_NULL);CHKERRQ(ierr);
   
-  ierr = PetscOptionsGetReal(PETSC_NULL,"-tmax",&tmax   ,PETSC_NULL)	       ; CHKERRQ(ierr);
+  ierr = PetscOptionsGetReal(PETSC_NULL,"-tmax",&tmax   ,PETSC_NULL)	        ;CHKERRQ(ierr);
 
-  ierr = PetscOptionsHasName(PETSC_NULL,"-snes_mf",&matrix_free)               ; CHKERRQ(ierr);
+  ierr = PetscOptionsHasName(PETSC_NULL,"-snes_mf",&matrix_free)                ;CHKERRQ(ierr);
+
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-aspc_its",&user.aspc_its,PETSC_NULL)   ;CHKERRQ(ierr);
+
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     Create DA context 
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
+
+  ierr = SNESCreate(PETSC_COMM_WORLD, &snes)                                    ;CHKERRQ(ierr);
+
+  /* Create DA */
+  ierr = DACreate3d(PETSC_COMM_WORLD,BC,DA_STENCIL_BOX,nxd,nyd,nzd,npx,npy,npz,\
+		    NVAR,1,PETSC_NULL,PETSC_NULL,PETSC_NULL,&user.da)	       	;CHKERRQ(ierr);
+  
+  ierr = DACreateGlobalVector(user.da,&x)		      	     	       	;CHKERRQ(ierr);
+
+  /* Initialize vectors */
+  ierr = VecDuplicate(x,&r)        	 		      	     	       	;CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&user.x0  )	 		      	     	       	;CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&user.xold)	 		      	     	       	;CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&user.dzk )	 		      	     	       	;CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&user.rk  )	 		      	     	       	;CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create SNES context 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
 
-  ierr = SNESCreate(PETSC_COMM_WORLD, &snes);CHKERRQ(ierr);
+  /* Initialize SNES */
+  ierr = SNESSetFunction(snes,r,EvaluateFunction,(void*)&user)	     	       	;CHKERRQ(ierr);
 
-  /* Create DA */
-  ierr = DACreate3d(PETSC_COMM_WORLD,BC,DA_STENCIL_BOX,nxd,nyd,nzd,npx,npy,npz,\
-		    NVAR,1,PETSC_NULL,PETSC_NULL,PETSC_NULL,&user.da)	       ; CHKERRQ(ierr);
-  
-  ierr = DACreateGlobalVector(user.da,&x)		      	     	       ; CHKERRQ(ierr);
+  /* Set SNES monitor */
+  ierr = SNESSetMonitor(snes,MySNESMonitor,(void*)&user,PETSC_NULL)  	       	;CHKERRQ(ierr);
 
-  /* Initialize vectors */
-  ierr = VecDuplicate(x,&r)        	 		      	     	       ; CHKERRQ(ierr);
-  ierr = VecDuplicate(x,&user.x0  )	 		      	     	       ; CHKERRQ(ierr);
-  ierr = VecDuplicate(x,&user.xk  )	 		      	     	       ; CHKERRQ(ierr);
-  ierr = VecDuplicate(x,&user.xold)	 		      	     	       ; CHKERRQ(ierr);
-
-  ierr = SNESSetFunction(snes,r,EvaluateFunction,(void*)&user)	     	       ; CHKERRQ(ierr);
-  
-  ierr = SNESSetMonitor(snes,MySNESMonitor,(void*)&user,PETSC_NULL)  	       ; CHKERRQ(ierr);
-
-  
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Customize nonlinear and linear solvers; set runtime options
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   
   /* Customize SNES */
   
-  ierr = SNESSetTolerances(snes,atol,rtol,PETSC_DEFAULT,maxitnwt,PETSC_DEFAULT); CHKERRQ(ierr);
+  ierr = SNESSetTolerances(snes,atol,rtol,PETSC_DEFAULT,maxitnwt,PETSC_DEFAULT)	;CHKERRQ(ierr);
   
   if (matrix_free) {
 
     /* Customize KSP */
 
-    ierr = SNESGetKSP (snes, &ksp)                                             ; CHKERRQ(ierr);
-    ierr = KSPSetType (ksp,KSPFGMRES)                                          ; CHKERRQ(ierr);
-    ierr = KSPSetTolerances(ksp,tolgm,PETSC_DEFAULT,PETSC_DEFAULT,maxitgm)     ; CHKERRQ(ierr);
-    ierr = KSPSetPreconditionerSide(ksp,PC_RIGHT);                             ; CHKERRQ(ierr);
-    ierr = KSPSetMonitor(ksp,MyKSPMonitor,(void*)&user,PETSC_NULL)             ; CHKERRQ(ierr);
-    if (user.indata.iguess == 1) ierr = KSPSetInitialGuessKnoll(ksp,PETSC_TRUE); CHKERRQ(ierr);
+    ierr = SNESGetKSP (snes, &ksp)                                             	;CHKERRQ(ierr);
+    ierr = KSPSetType (ksp,KSPFGMRES)                                          	;CHKERRQ(ierr);
+    ierr = KSPSetTolerances(ksp,tolgm,PETSC_DEFAULT,PETSC_DEFAULT,maxitgm)     	;CHKERRQ(ierr);
+    ierr = KSPSetPreconditionerSide(ksp,PC_RIGHT);                             	;CHKERRQ(ierr);
+    ierr = KSPSetMonitor(ksp,MyKSPMonitor,(void*)&user,PETSC_NULL)             	;CHKERRQ(ierr);
+    if (user.indata.iguess == 1) ierr = KSPSetInitialGuessKnoll(ksp,PETSC_TRUE)	;CHKERRQ(ierr);
 
     /* Customize PC */
 
-    ierr = KSPGetPC(ksp,&pc)                                                   ; CHKERRQ(ierr);
+    ierr = KSPGetPC(ksp,&pc)                                                   	;CHKERRQ(ierr);
     if (user.indata.user_PC) {
-      ierr = PCSetType(pc,PCSHELL)                                             ; CHKERRQ(ierr);
-      ierr = PCShellSetApply(pc,ApplyPreconditioner,(void*)&user)              ; CHKERRQ(ierr);
-      ierr = PCShellSetName(pc,"Physics-based preconditioner")                 ; CHKERRQ(ierr);
-      ierr = PCShellSetSetUp(pc,SetupPreconditioner)                           ; CHKERRQ(ierr);
+      ierr = PCSetType(pc,PCSHELL)                                             	;CHKERRQ(ierr);
+      if (user.aspc_its == 0) { 
+	ierr = PCShellSetApply(pc,ApplyPC  ,(void*)&user)                      	;CHKERRQ(ierr);
+      } else { 
+	ierr = PCShellSetApply(pc,ApplyASPC,(void*)&user)                      	;CHKERRQ(ierr);
+      }
+      ierr = PCShellSetName(pc,"Physics-based preconditioner")                 	;CHKERRQ(ierr);
+      ierr = PCShellSetSetUp(pc,SetupPreconditioner)                           	;CHKERRQ(ierr);
     } else {
-      ierr = PCSetType(pc,PCNONE)                                              ; CHKERRQ(ierr);
+      ierr = PCSetType(pc,PCNONE)                                              	;CHKERRQ(ierr);
     }
 
   } else {
@@ -258,19 +277,19 @@ int MAIN__(int argc, char **argv)
 
   /* Set SNES runtime options */
   
-  ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
+  ierr = SNESSetFromOptions(snes)                                              	;CHKERRQ(ierr);
   
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize calculation 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
-  ierr = FormEquilibrium(snes, x, &user);CHKERRQ(ierr);
+  ierr = FormEquilibrium(snes, x, &user)     				       	;CHKERRQ(ierr);
 
-  ierr = VecCopy(x, user.x0  );CHKERRQ(ierr);
+  ierr = VecCopy(x, user.x0  )               				       	;CHKERRQ(ierr);
 
-  ierr = VecCopy(x, user.xold);CHKERRQ(ierr);
+  ierr = VecCopy(x, user.xold)               				       	;CHKERRQ(ierr);
 
-  ierr = FormInitialCondition(snes, x, &user);CHKERRQ(ierr);
+  ierr = FormInitialCondition(snes, x, &user)				       	;CHKERRQ(ierr);
 
   time = user.time+user.indata.dt;
 
@@ -279,24 +298,26 @@ int MAIN__(int argc, char **argv)
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   
   for (steps=1; (steps<=numtime)&&(time<1.00001*tmax); steps++,time+=user.indata.dt) {
-    
+
+    /* Process nonlinear solution */
     ierr = ProcessOldSolution(snes,x,&user)           	    			;CHKERRQ(ierr);
 
     /* Save current time step */
     ierr = VecCopy(x, user.xold)                      	    			;CHKERRQ(ierr);
 
-    /* Set initial Newton state variable for PC */
-    ierr = VecCopy(x, user.xk  )                      	    			;CHKERRQ(ierr);
+    /* Get initial Newton state info for PC */
+    ierr = SNESSetUp(snes,x)                                                    ;CHKERRQ(ierr);
+    ierr = SNESGetSolution(snes,&user.xk)                                       ;CHKERRQ(ierr);
+    ierr = SNESGetJacobian(snes,&user.J,PETSC_NULL,PETSC_NULL,PETSC_NULL)       ;CHKERRQ(ierr);
 
+    /* Solve nonlinear problem */
     ierr = SNESSolve(snes, x)                         	    			;CHKERRQ(ierr);
 
     ierr = SNESGetIterationNumber(snes,&user.snes_its)	    			;CHKERRQ(ierr);
 
-    ierr = SNESGetNumberLinearIterations(snes,&user.ksp_its)			;CHKERRQ(ierr);          
-
   }
   
-  ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
+  ierr = ProcessOldSolution(snes,x,&user)                                       ;CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Deallocate memory and finish
@@ -308,13 +329,15 @@ int MAIN__(int argc, char **argv)
   FORTRAN_NAME(fortrandestroy) ();
 #endif
 
-  ierr = VecDestroy(x);CHKERRQ(ierr);
-  ierr = VecDestroy(r);CHKERRQ(ierr);
-  ierr = VecDestroy(user.x0  );CHKERRQ(ierr);
-  ierr = VecDestroy(user.xk  );CHKERRQ(ierr);
-  ierr = VecDestroy(user.xold);CHKERRQ(ierr);
-  ierr = SNESDestroy(snes);CHKERRQ(ierr);
-  ierr = DADestroy(user.da);CHKERRQ(ierr);
+  ierr = VecDestroy(x)	      						       	;CHKERRQ(ierr);
+  ierr = VecDestroy(r)	      						       	;CHKERRQ(ierr);
+  ierr = VecDestroy(user.x0  )						       	;CHKERRQ(ierr);
+  ierr = VecDestroy(user.xold)						       	;CHKERRQ(ierr);
+  ierr = VecDestroy(user.dzk )						       	;CHKERRQ(ierr);
+  ierr = VecDestroy(user.rk  )						       	;CHKERRQ(ierr);
+  ierr = SNESDestroy(snes)    						       	;CHKERRQ(ierr);
+  ierr = DADestroy(user.da)   						       	;CHKERRQ(ierr);
+
   PetscFinalize();
   
   PetscFunctionReturn(0);
@@ -356,10 +379,6 @@ int ReadInputNInitialize(input_CTX* data, DAPeriodicType* BC)
   } else {
     *BC=DA_NONPERIODIC;
   }
-
-  ierr = PetscOptionsGetInt(PETSC_NULL,"-nx",&data->nxd,PETSC_NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(PETSC_NULL,"-ny",&data->nyd,PETSC_NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetInt(PETSC_NULL,"-nz",&data->nzd,PETSC_NULL);CHKERRQ(ierr);
   
   PetscFunctionReturn(0);
 }
@@ -374,14 +393,14 @@ int MySNESMonitor(SNES snes, int its, double fnorm, void *ctx)
 
   int     ierr;
   PetscReal  rel_res;
-  Vec     x;
 
   PetscFunctionBegin;
-  
-  ierr = SNESGetSolution(snes,&x) ; CHKERRQ(ierr);
 
-  ierr = VecCopy(x,user->xk)      ; CHKERRQ(ierr);
-  
+  /* Get nonlinear solver info relevant for PC */
+  ierr = SNESGetSolution(snes,&user->xk)                                ; CHKERRQ(ierr);
+  ierr = SNESGetJacobian(snes,&user->J,PETSC_NULL,PETSC_NULL,PETSC_NULL); CHKERRQ(ierr);
+
+  /* Monitor */
   if (user->indata.ilevel > 0) {
     ierr = SNESGetNumberLinearIterations(snes,&user->ksp_its); CHKERRQ(ierr);
     if (its == 0) user->snes_res0 = fnorm;
@@ -803,7 +822,56 @@ int EvaluateFunction(SNES snes,Vec X,Vec F,void* ptr)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "ApplyPreconditioer"
+#define __FUNCT__ "ApplyASPC"
+/* See ex6.c of SNES */
+/* ------------------------------------------------------------------- */
+/*
+   Additive Schwartz preconditioner, using physics-based PC for diagonal
+   inversion. 
+
+   Input Parameters:
+   ctx - optional user-defined context, as set by PCShellSetApply()
+   y - input vector
+
+   Output Parameter:
+   z - preconditioned vector
+*/
+int ApplyASPC(void *ctx,Vec y,Vec z)
+{
+  AppCtx  *user = (AppCtx*)ctx;
+
+  int	  ierr,k;
+  PetscScalar  mone=-1.,omega=1.;
+  Vec     t;
+
+  PetscFunctionBegin;
+
+  for (k=1;k<=user->aspc_its;++k) {
+
+    /* Calculate residual rk=y-J*zk*/
+    if (k == 1) {
+      ierr = VecCopy(y,user->rk)            	        	     ;CHKERRQ(ierr);
+    } else {
+      ierr = MatMult(user->J ,z,user->rk)               	     ;CHKERRQ(ierr);
+      /*ierr = VecView(user->rk,PETSC_VIEWER_STDOUT_WORLD)	     ;CHKERRQ(ierr);*/
+      ierr = VecAYPX(&mone   ,y,user->rk)               	     ;CHKERRQ(ierr);
+    }
+
+    /* Calculate update dzk=P^-1(rk) */
+    ierr = ApplyPC(user,user->rk,user->dzk)	   		     ;CHKERRQ(ierr);
+
+    /* Correct solution: z = z + omega*dzk */
+    ierr = VecAXPY(&omega,user->dzk,z)      	   		     ;CHKERRQ(ierr);
+
+  }
+
+  PetscFunctionReturn(0);
+
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "ApplyPC"
 /* See ex6.c of SNES */
 /* ------------------------------------------------------------------- */
 /*
@@ -812,14 +880,16 @@ int EvaluateFunction(SNES snes,Vec X,Vec F,void* ptr)
    y - input vector
 
    Output Parameter:
-   x - preconditioned vector
+   z - preconditioned vector
+
+   Current does additive NKSchwartz
 */
-int ApplyPreconditioner(void *ctx,Vec y,Vec x)
+int ApplyPC(void *ctx,Vec y,Vec x)
 {
   AppCtx  *user = (AppCtx*)ctx;
 
   Field	  ***xvec,***yvec;
-  int	  ierr,i,j,k,xs,ys,zs,xm,ym,zm,ze,ye,xe,mx,my,mz;
+  int	  ierr,xs,ys,zs,xm,ym,zm,ze,ye,xe,mx,my,mz;
 
   PetscFunctionBegin;
 
