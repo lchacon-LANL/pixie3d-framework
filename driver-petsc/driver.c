@@ -26,7 +26,7 @@ T*/
 
 #include "petscsnes.h"
 #include "petscda.h"
-#include "/home2/lchacon/include/fortran.h"
+#include "fortran.h"
 
 typedef struct {
   Scalar var[NVAR];
