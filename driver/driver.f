@@ -27,9 +27,7 @@ c Common variables
 
 c Local variables
 
-      real(8)    :: tmrst,tmplot,error,tu0
-
-      integer(4) :: i,j,ieq,itime,nrst,nplot,ierr,prec_tot
+      integer(4) :: prec_tot,ierr
 
 c Begin program
 
@@ -52,13 +50,11 @@ c Initialize counters
       nrst      = 0
       tmrst     = 0d0
 
-      tu0       = 0d0
-
       dtexp     = 0d0
 
 c Initial output
 
-      call output(itime)
+      call output
 
 c Time loop
 
@@ -108,7 +104,6 @@ c     Update counters (only if timeStep is successful)
         time   = time   + dt
         tmplot = tmplot + dt
         tmrst  = tmrst  + dt
-        tu0    = tu0    + dt
 
         nplot  = nplot + 1
         nrst   = nrst  + 1
@@ -129,21 +124,21 @@ c     Time level plots (xdraw)
 
 c     Output per time step
 
-        call output(itime)
+        call output
 
 c     Periodic dump to restart
 
         if (nrst.eq.nrstep.or.tmrst.ge.rstep) then
           nrst  = 0
           tmrst = tmrst - rstep
-          call writeRestartFile(itime,nxd,nyd,nzd,u_np)
+          call writeRestartFile(nxd,nyd,nzd,u_np)
         endif
 
       enddo       !End of time loop
 
 c Dump to restart
 
-      call writeRestartFile(itime,nxd,nyd,nzd,u_np)
+      call writeRestartFile(nxd,nyd,nzd,u_np)
 
 c Average explicit time step
 
@@ -254,8 +249,8 @@ c     Map previous time step solution into Newton vector for initial guess
 c     Newton iteration
 
         call newtonGmres(neqd,ntotd,x,method,damp,global,dt0
-     .                  ,tolgm,maxksp,maxitgm,tolnewt,maxitnwt,maxitnwt
-     .                  ,itgmres,itnewt,iguess,ilevel,ierr)
+     .                  ,tolgm,maxksp,maxitgm,rtol,atol,maxitnwt
+     .                  ,maxitnwt,itgmres,itnewt,iguess,ilevel,ierr)
 
 c     If no error, map Newton solution to vnp
 
@@ -285,7 +280,7 @@ c End program
 
 c readRestartFile
 c######################################################################
-      subroutine readRestartFile(itime,nx,ny,nz,varray)
+      subroutine readRestartFile(nx,ny,nz,varray)
 
 c----------------------------------------------------------------------
 c     Reads restart file
@@ -301,7 +296,7 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer*4   itime,nx,ny,nz
+      integer*4   nx,ny,nz
 
       type (var_array):: varray
 
@@ -335,7 +330,7 @@ c End
 
 c writeRestartFile
 c######################################################################
-      subroutine writeRestartFile(itime,nx,ny,nz,varray)
+      subroutine writeRestartFile(nx,ny,nz,varray)
 
 c----------------------------------------------------------------------
 c     Writes restart file
@@ -351,7 +346,7 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer*4   itime,nx,ny,nz
+      integer*4   nx,ny,nz
 
       type (var_array):: varray
 
@@ -436,34 +431,50 @@ c     #######################################################################
 
         real(8) ::    coef1,coef2
 
+        if (itm.eq.1 .or. cnfactor .eq. 1d0) then
+          call findExplicitDt(dt)
+        else
+          call adapt_dt(dtbase)
+        endif
+
+      end subroutine calculate_dt
+
+c     adapt_dt
+c     #######################################################################
+      subroutine adapt_dt(dtbase)
+
+        real(8) ::    dtbase
+        real(8) ::    coef1,coef2
+
         coef1 = 0.8             !Time subcycling coefficient
         coef2 = 1.05            !Time recovery   coefficient
 
-        if (itm.eq.1 .or. cnfactor .eq. 1d0) then
-          call findExplicitDt(dt)
-cc            if (debug) dt = dtbase
-cc            dt = dtbase
-        elseif (itm.le.sm_pass+1) then
-          dt = dtbase/2.
-        elseif (itm.eq.(sm_pass+2)) then
-          dt = dtbase
-        else
-          if (timecorr) then
-            if (ierr.gt.0) then
-              dt = dt*coef1
-              if (ierr.eq.2) write (*,240)
-              write (*,400) dt
+        if (timecorr) then
+          if (ierr.gt.0) then
+            dt = dt*coef1
+            if (dt < 1d-3*dtbase) then
+              write (*,*) 'Time step too small'
+              write (*,*) 'Aborting...'
+              stop
+            endif
+            if (ierr.eq.2) write (*,240)
+            write (*,400) dt
+          else
+            if (itm.le.sm_pass+1) then
+              dt = dtbase/2.
+            elseif (itm.eq.(sm_pass+2)) then
+              dt = dtbase
             else
               dt = min(dtbase,dt*coef2)
             endif
-          else
-            dt = dtbase
           endif
+        else
+          dt = dtbase
         endif
 
  240    format ('    Too many Newton iterations')
  400    format ('    Subcycling time step... New time step:',f7.4)
 
-      end subroutine calculate_dt
+      end subroutine adapt_dt
 
       end subroutine correctTimeStep
