@@ -544,7 +544,7 @@ c     Input variables
 c     Begin program
 
         select case(coords)
-        case('car','scl','cyl','hel','tor','sin')
+        case('car','scl','cyl','hel','hl2','tor','sin')
 
           anal_map = .true.
 
@@ -653,6 +653,15 @@ c     Begin program
           xx = x1*cos(phi)
           yy = x1*sin(phi)
           zz = x3
+        case ('hl2')
+          mm = gparams(1)
+          kk = gparams(2)
+          aa = kk/mm
+          phi = (x2-aa*x3)
+
+          xx = sqrt(2*x1)*cos(phi)
+          yy = sqrt(2*x1)*sin(phi)
+          zz = x3
         case ('tor')
           major_r = gparams(1)
 
@@ -733,6 +742,8 @@ c     Begin program
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
           jac = x1
+        case ('hl2')
+          jac = 1d0
         case ('tor')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
@@ -779,7 +790,7 @@ c     Local variables
         integer(4) :: ig,jg,kg
         real(8)    :: x1,x2,x3,vec(3)
 
-        real(8)    :: car(3),curv(3),jac
+        real(8)    :: car(3),curv(3),jac,r
 
 c     Begin program
 
@@ -840,6 +851,24 @@ c     Begin program
           select case (comp)
             case (1)
               vec = (/ cos(phi),sin(phi),0d0 /)
+            case (2)
+              vec = (/-sin(phi)/curv(1),cos(phi)/curv(1),aa /)
+            case (3)
+              vec = (/ 0d0,0d0,1d0 /)
+          end select
+        case ('hl2')
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ sqrt(2*x1),x2,x3 /)
+
+          mm = gparams(1)
+          kk = gparams(2)
+          aa = kk/mm
+          phi = (curv(2)-aa*curv(3))
+
+          select case (comp)
+            case (1)
+              vec = (/ cos(phi),sin(phi),0d0 /)*curv(1)
             case (2)
               vec = (/-sin(phi)/curv(1),cos(phi)/curv(1),aa /)
             case (3)
@@ -914,7 +943,7 @@ c     Begin program
 
       end function covariantVector
 
-c     contravariantVector2
+c     contravariantVector
 c     #################################################################
       function contravariantVector(comp,i,j,k,igx,igy,igz) result (vec)
 
@@ -995,6 +1024,23 @@ c     Begin program
               vec = (/-sin(phi),cos(phi),0d0 /)
             case (3)
               vec = (/ aa*sin(phi),-aa*cos(phi),1d0/curv(1) /)
+          end select
+        case ('hl2')
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ sqrt(2*x1),x2,x3 /)
+
+          mm = gparams(1)
+          kk = gparams(2)
+          aa = kk/mm
+          phi = (curv(2)-aa*curv(3))
+          select case (comp)
+            case (1)
+              vec = (/ cos(phi),sin(phi),0d0 /)/curv(1)
+            case (2)
+              vec = (/-sin(phi),cos(phi),0d0 /)*curv(1)
+            case (3)
+              vec = (/ aa*sin(phi)*curv(1),-aa*cos(phi)*curv(1),1d0 /)
           end select
         case ('tor')
           major_r = gparams(1)
@@ -1227,6 +1273,48 @@ c     Begin program
           end select
 
           vec = -vec
+
+        case ('hl2')
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ 2*x1,x2,x3 /)
+
+          mm = gparams(1)
+          kk = gparams(2)
+          aa = kk/mm
+          phi = (curv(2)-aa*curv(3))
+          select case (l)
+            case (1)
+              vec(1) = -1d0/curv(1)
+              vec(2) = 0d0
+              vec(3) = 0d0
+              vec(4) = vec(2)
+              vec(5) = -curv(1)
+              vec(6) = aa*curv(1)
+              vec(7) = vec(3)
+              vec(8) = vec(6)
+              vec(9) = -aa**2*curv(1)
+            case (2)
+              vec(1) = 0d0
+              vec(2) = 1./curv(1)
+              vec(3) = -aa/curv(1)
+              vec(4) = vec(2)
+              vec(5) = 0d0
+              vec(6) = 0d0
+              vec(7) = vec(3)
+              vec(8) = vec(6)
+              vec(9) = 0d0
+            case (3)
+              vec(1) = 0d0
+              vec(2) = 0d0
+              vec(3) = 0d0
+              vec(4) = vec(2)
+              vec(5) = 0d0
+              vec(6) = 0d0
+              vec(7) = vec(3)
+              vec(8) = vec(6)
+              vec(9) = 0d0
+          end select
 
         case ('tor')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
@@ -1622,6 +1710,17 @@ c     Begin program
           vec = (/ 1./curv(1),0d0, 0d0
      .            ,0d0, curv(1) ,-aa*curv(1)
      .            ,0d0,-aa*curv(1), 1./curv(1) + aa**2*curv(1) /)
+        case ('hl2')
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ 2*x1,x2,x3 /)
+
+          mm = gparams(1)
+          kk = gparams(2)
+          aa = kk/mm
+          vec = (/ 1./curv(1),0d0, 0d0
+     .            ,0d0, curv(1) ,-aa*curv(1)
+     .            ,0d0,-aa*curv(1), 1 + aa**2*curv(1) /)
         case ('tor')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
@@ -1758,6 +1857,17 @@ c     Begin program
           vec = (/ curv(1),0d0,0d0
      .            ,0d0,1./curv(1) + aa**2*curv(1), aa*curv(1)
      .            ,0d0, aa*curv(1), curv(1) /)
+        case ('hl2')
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ 2*x1,x2,x3 /)
+
+          mm = gparams(1)
+          kk = gparams(2)
+          aa = kk/mm
+          vec = (/ curv(1),0d0,0d0
+     .            ,0d0,1./curv(1) + aa**2, aa
+     .            ,0d0, aa, 1d0 /)
         case ('tor')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
@@ -1844,6 +1954,7 @@ c     This module defines the types of BCs possible:
 c     Topological BCs (set topology of computational domain):
 c       PER: Periodic
 c       SP : Singular point (as in cylindrical, toroidal)
+c       SP2: Singular point with second-order variable grid
 c       SYM: Symmetry (homogeneous Neumann)
 c     Standard BCs:
 c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
@@ -1860,14 +1971,35 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-        integer(4) :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM
-        parameter (PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7,DEF=8)
+        integer(4) :: PER,DIR,NEU,SP,SP2,EQU,DEF,EXT,SYM
+        parameter (DEF=0,PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7
+     .            ,SP2=8)
 
         integer(4),parameter :: BCLIM=6
 
         integer(4) :: bcond(6)
         
       contains
+
+c     bcSP
+c     #################################################################
+      function bcSP(ibc) result(sing_bc)
+
+        integer(4),optional :: ibc
+        logical    :: sing_bc
+
+        integer(4) :: iibc
+
+        if (PRESENT(ibc)) then
+          iibc = ibc
+        else
+          iibc = 1
+        endif
+
+        sing_bc=.false.
+        if (bcond(iibc) == SP .or. bcond(iibc) == SP2) sing_bc=.true.
+
+      end function bcSP
 
 c     isSP
 c     #################################################################
@@ -1877,10 +2009,35 @@ c     #################################################################
         logical    :: sing_point
 
         sing_point=.false.
-        if (i+grid_params%ilo(igx)-1 == 1 .and. bcond(1) == SP)
-     .       sing_point=.true.
+        if (i+grid_params%ilo(igx)-1==1.and.bcSP()) sing_point=.true.
 
       end function isSP
+
+c     isSP1
+c     #################################################################
+      function isSP1(i,j,k,igx,igy,igz) result(sing_point)
+
+        integer(4) :: i,j,k,igx,igy,igz
+        logical    :: sing_point
+
+        sing_point=.false.
+        if (i+grid_params%ilo(igx)-1==1.and.bcond(1)==SP)
+     .       sing_point=.true.
+
+      end function isSP1
+
+c     isSP2
+c     #################################################################
+      function isSP2(i,j,k,igx,igy,igz) result(sing_point)
+
+        integer(4) :: i,j,k,igx,igy,igz
+        logical    :: sing_point
+
+        sing_point=.false.
+        if (i+grid_params%ilo(igx)-1==1.and.bcond(1)==SP2)
+     .       sing_point=.true.
+
+      end function isSP2
 
 c     isSYM
 c     #################################################################
@@ -1933,7 +2090,7 @@ c     #################################################################
         logical :: alt__eom
 
         alt__eom=.false.
-        if (bcond(1) == SP) alt__eom=.true.
+        if (bcSP()) alt__eom=.true.
 
       end function alt__eom
 
@@ -2018,7 +2175,7 @@ c     Rank and number of processors
 
 c     Singular-point boundary MPI communicator
 
-        call createBoundaryComm(1,SP,MPI_COMM_SP)
+        if (bcSP()) call createBoundaryComm(1,bcond(1),MPI_COMM_SP)
 
 c diag ****
 cc        write (*,*) 'Proc',my_rank,', SP COMM' ,MPI_COMM_SP
@@ -3204,7 +3361,7 @@ c     Begin program
         enddo
 
 cc        !Postprocessing for alt_eom case (ii == 2 .and. bcond(1) == SP) 
-cc        if (bcond(1) == SP) then
+cc        if (bcSP()) then
 cc
 cc          gamma = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
 cc
@@ -3884,6 +4041,8 @@ c     Begin program
         
         vol = jac*dx1*dx2*dx3
 
+cc        if (isSP2(i,j,k,igx,igy,igz)) vol = 0.25*(2+sqrt(2d0))*vol
+
       end function volume
 
 c     vectorNorm
@@ -4222,30 +4381,23 @@ c     Local variables
         integer(4) :: ig,i,isig,ng
         real(8)    :: dh,length,lmax_loc,lmin_loc,lstart
      .               ,dx0,dxl,dxr,alpha1=1d0,alpha2=1d0
+        logical    :: sing_point,spt1,spt2
 
 c     Begin program
+
+        spt1 = (bcs1 == SP)
+        spt2 = (bcs1 == SP2)
+        sing_point = spt1 .or. spt2
 
 c     Find local domain limits lmin_loc,lmax_loc
 
         ig = 1  !Finest grid level
 
-cc        length = lmax-lmin
-cc
-cc        !Global mesh spacing
-cc        dh = length/nglobal(ig)
-cc
-cc        !Domain partition according to finest grid level local limits
-cc        !(It satisfies dh=(lmax-lmin)/nglobal=(lmax_loc-lmin_log)/nlocal)
-cc        lmin_loc = lmin + (ilo(ig)-1)*dh
-cc        lmax_loc = lmin +  ihi(ig)   *dh
-
 c     Find local length
 
-cc        length = lmax_loc-lmin_loc
-
-        dx0    = dpack%dx0
-        dxl    = dpack%dx0
-        dxr    = dpack%dx0
+        dx0 = dpack%dx0
+        dxl = dpack%dx0
+        dxr = dpack%dx0
 
 c     Find grid quantities
 
@@ -4264,8 +4416,8 @@ c     Find grid quantities
           enddo
 
           !Find half mesh spacings
-          if (bcs1 == SP .and. ilo(1) == 1) then
-            dxh(1 + isig) =  0.5*(xx(2+isig)+xx(1+isig))
+          if (sing_point .and. ilo(1) == 1) then
+            dxh(1 + isig) = 0.5*(xx(2+isig)+xx(1+isig))
           else
             dxh(1 + isig) = 0.5*(dx(1 + isig) + dx(0   + isig))
           endif
@@ -4277,61 +4429,13 @@ c     Find grid quantities
           if (bcs1 == PER) then
             dxh(0        + isig) = dxh(nx(ig) + isig)
             dxh(nx(ig)+1 + isig) = dxh(1      + isig)
-          elseif (bcs1 == SP .and. ilo(1) == 1) then
+          elseif (sing_point .and. ilo(1) == 1) then
             dxh(0        + isig) = dx(0      + isig)
             dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5
           else
             dxh(0        + isig) = dx(0      + isig)*0.5
             dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5
           endif
-
-cc          !Find cell centers
-cc          dh = length/float(nx(ig))
-cc
-cc          !Starting point (i=1)
-cc          if (bcs1 == PER) then
-cc            lstart = lmin_loc
-cc          else
-cc            lstart = lmin_loc+dh/2.
-cc          endif
-cc
-cc          xx(1 + isig) = lstart
-cc          do i = 2,nx(ig)+1
-cc            xx(i + isig) = xx(i-1 + isig) + dh
-cc          enddo
-cc          if (bcs1 == SP .and. ilo(1) == 1) then
-cc            xx(0 + isig) = 1d-8*dh
-cccc            xx(0 + isig) = 1d-2
-cc          else
-cc            xx(0 + isig) = xx(1+isig) - dh
-cc          endif
-cc
-cc          !Find integer mesh spacings
-cc          do i = 0,nx(ig)
-cc            dx(i + isig) = xx(i+1 + isig) - xx(i + isig)
-cc          enddo
-cc
-cc          !Find half mesh spacings
-cc          if (bcs1 == SP .and. ilo(1) == 1) then
-cc            dxh(1 + isig) = dh
-cc          else
-cc            dxh(1 + isig) = (dx(1 + isig) + dx(0   + isig))/2.
-cc          endif
-cc
-cc          do i = 2,nx(ig)
-cc            dxh(i + isig) = (dx(i + isig) + dx(i-1 + isig))/2.
-cc          enddo
-cc
-cc          if (bcs1 == PER) then
-cc            dxh(0        + isig) = dxh(nx(ig) + isig)
-cc            dxh(nx(ig)+1 + isig) = dxh(1      + isig)
-cc          elseif (bcs1 == SP .and. ilo(1) == 1) then
-cc            dxh(0        + isig) = dx(0      + isig)
-cc            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)/2.
-cc          else
-cc            dxh(0        + isig) = dx(0      + isig)/2.
-cc            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)/2.
-cc          endif
 
         enddo
 
@@ -4442,7 +4546,7 @@ cc            call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
           endif
 
           !X0 ghost cell
-          if (bcs1 == SP .and. ilo(1) == 1) then
+          if (sing_point .and. ilo(1) == 1) then
             xg(0) = 1d-8*dh
           elseif (bcs1 == PER) then
             xg(0) = xg(1) - (xg(ng)-xg(ng-1))
@@ -4494,6 +4598,10 @@ cc          stop
             dh = length/(ng - 0.5)
             lstart = lmin+dh/2.
             lend   = lmax
+          elseif (spt2) then
+            dh = sqrt(2d0)*length/(1+sqrt(2d0)*(ng - 0.5))
+            lstart = lmin+dh/sqrt(2d0)
+            lend   = lmax-dh/2.
           else
             dh = length/ng
             lstart = lmin+dh/2.
@@ -4504,7 +4612,7 @@ cc          stop
           do i = 2,ng+1
             xg(i) = xg(i-1) + dh
           enddo
-          if (bcs1 == SP) then
+          if (sing_point) then
             xg(0) = 1d-8*dh
           else
             xg(0) = xg(1) - dh
@@ -4543,8 +4651,6 @@ c     Begin program
 
         call find_xi(nn-1,rhs,xi)
 
-cc        write (*,*) 'Geometric factor',xi
-
         if (dx0 > 0d0) then !Pack to the left
 
           xx(1) = lmin
@@ -4566,9 +4672,6 @@ cc        write (*,*) 'Geometric factor',xi
         else
           alpha = 1
         endif
-
-cc        write (*,*) alpha,mgr(ig)
-cc        write (*,*) xx
 
 c     End program
 
@@ -4674,20 +4777,14 @@ c     Begin program
         select case (coords)
         case ('car')
         case ('scl')
-        case ('cyl')
-          if (xmin /= 0d0 .and. bcond(1) == SP) then
-            write (*,*) 'Error in setup: xmin =/0 is not singular point'
-            write (*,*) 'Aborting...'
-            stop
-          endif
-        case ('hel')
-          if (xmin /= 0d0 .and. bcond(1) == SP) then
+        case ('cyl','hel','hl2')
+          if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
             write (*,*) 'Aborting...'
             stop
           endif
         case ('tor')
-          if (xmin /= 0d0 .and. bcond(1) == SP) then
+          if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
             write (*,*) 'Aborting...'
             stop
