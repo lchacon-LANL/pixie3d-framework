@@ -698,8 +698,8 @@ c ######################################################################
 
         integer  ::     ilevel
 
-        integer(4)     :: urecord
-        character*(20) :: recordfile
+        integer(4)     :: urecord,uinput
+        character*(20) :: recordfile,inputfile
 
       contains
 
