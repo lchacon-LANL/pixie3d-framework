@@ -17,7 +17,9 @@ c######################################################################
           integer         :: igridmin
           integer         :: stp_test
           logical         :: sym_test
-          logical         :: fdiag,vol_res
+          logical         :: fdiag
+          logical         :: vol_res
+          logical         :: coarse_node_based_relax
           integer         :: krylov_subspace
           integer         :: orderres
           integer         :: orderprol
@@ -80,6 +82,8 @@ c       Initializes solver options
           solverOptions
      .        %mg_coarse_solver_depth= 0       !Identify coarse solver for MG (if =0, use smoother)
           solverOptions%mg_mu  = 1             !Identifies MG cycle: V-cycle (mu=1), W-cycle (mu=2)
+          solverOptions
+     .        %coarse_node_based_relax=.false. !Specifies whether to do coarse node-based relax. or not.
 
           !Krylov methods options
           solverOptions%stp_test = 0           !Stopping criterion (CG, GMRES)
