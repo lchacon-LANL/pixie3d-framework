@@ -33,6 +33,12 @@ c Begin program
 
 c Initialize 
 
+#if defined(petsc)
+      call MPI_Init(mpierr)
+      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
+      call MPI_Comm_size(MPI_COMM_WORLD,np     ,mpierr)
+#endif
+
       call initializeCalculation(igx,igy,igz)
 
 c Backup record file
@@ -106,6 +112,12 @@ c Close graphics files and create draw*.in files
 
       close(urecord)
 
+c Finalize MPI
+
+#if defined(petsc)
+      call MPI_Finalize(mpierr)
+#endif
+
 c Second order test
 
 cc      call order_tst
@@ -148,6 +160,10 @@ c Local variables
 
 c Begin program
 
+#if defined(petsc)
+      if (my_rank == 0) then
+#endif
+
       ngrd = (/ grid_params%ngrdx,grid_params%ngrdy,grid_params%ngrdz /)
 
       if (itime.eq.0) then
@@ -164,6 +180,10 @@ c Begin program
       else
         write (*,110) itime,time
       endif
+
+#if defined(petsc)
+      endif
+#endif
 
 c End program
 
@@ -211,29 +231,41 @@ c Read user initializations
 
       call readGraphicsInput(sel_diag,sel_graph,ndplot,dplot)
 
+c Open graphics file
+
+#if defined(petsc)
+      call openGraphicsFile
+#endif
+
 c Initialize vector dimensions
 
+cc      write (*,*) 'Proc',my_rank,ilog,ihig,jlog,jhig,klog,khig
+cc      call MPI_Finalize(mpierr)
+cc      stop
+
+#if !defined(petsc)
       ihig = nxd
       ilog = 1
       jhig = nyd
       jlog = 1
       khig = nzd
       klog = 1
+#endif
 
       call setVectorDimensions
 
 c Initialize MG and create grid
 
-      call createGrid(1,nxd,1,nyd,1,nzd,nxd,nyd,nzd)
+      call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd)
 cc      call checkGrid
 
 c Define application arrays (external)
 
       call allocateApplicationVariables     !External
 
-      allocate(zeros (0:nxdp,0:nydp,0:nzdp))
-      allocate(vzeros(0:nxdp,0:nydp,0:nzdp,3))
-      allocate(ones  (0:nxdp,0:nydp,0:nzdp))
+      allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
+      allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
+      allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
 
       zeros  = 0d0
       vzeros = 0d0
@@ -245,13 +277,24 @@ c Allocate records
       call allocateDerivedType(u_np)
       call allocateDerivedType(u_graph)
 
-c Open graphics file and read equilibrium u_0
+c Open graphics file
 
+#if !defined(petsc)
       call openGraphicsFile
+#endif
 
-c Postprocess equilibrium
+c Read and postprocess equilibrium u_0
+
+      call readRecord(urecord,itime,time,dt,u_0,ierr)
+
+      if (ierr /= 0) then
+        write (*,*) 'Unable to read equilibrium'
+        write (*,*) 'Aborting...'
+        stop
+      endif
 
       call postProcessSolution(u_0,igx,igy,igz)
+
 
 c Initialize graphics
 
@@ -260,6 +303,11 @@ c Initialize graphics
       call initializeGraphics(igx,igy,igz,bcond)
 
       call dumpTimeStepPlots
+
+
+cc      write (*,*) 'Proc',my_rank,ilog,ihig,jlog,jhig,klog,khig
+cc      call MPI_Finalize(mpierr)
+cc      stop
 
 c Initialize diagnostics
 
@@ -311,11 +359,22 @@ c Begin program
 
 c Initialize graphics
 
+#if defined(petsc)
+      urecord    = 25 + my_rank
+
+      if (np > 1) then
+        recordfile = 'record_proc'//trim(int2char(my_rank))//'.bin'
+      else
+        recordfile = 'record.bin'
+      endif
+#else
       urecord    = 2
       recordfile = 'record.bin'
+#endif
 
 c For parallel runs, merge graphics files
 
+#if !defined(petsc)
       ierr = system('ls record_proc* >& /dev/null')
 
       if (ierr == 0) then
@@ -350,9 +409,9 @@ c For parallel runs, merge graphics files
           open(murecord(ifile),file=mrecfile(ifile),form='unformatted'
      .        ,status='old')
 
-          read (murecord(ifile)) nxl
-          read (murecord(ifile)) nyl
-          read (murecord(ifile)) nzl
+          read (murecord(ifile)) nxl,ilog,ihig
+          read (murecord(ifile)) nyl,jlog,jhig
+          read (murecord(ifile)) nzl,klog,khig
 
           if (nxl /= nxd) then
             nx = nx + nxl
@@ -372,9 +431,9 @@ c For parallel runs, merge graphics files
 
         enddo
 
-        write (urecord) nxd
-        write (urecord) nyd
-        write (urecord) nzd
+        write (urecord) nxd,1,nxd
+        write (urecord) nyd,1,nyd
+        write (urecord) nzd,1,nzd
 
         !Consistency check
 
@@ -398,9 +457,15 @@ cc        endif
           if (ierr == -2) exit  !EOF
 
           !Reset vector dimensions (readRecord alters defs of some values)
-          call setVectorDimensions
 
-cc          call imposeBoundaryConditions(u_0,1,1,1)
+          ihig = nxd
+          ilog = 1
+          jhig = nyd
+          jlog = 1
+          khig = nzd
+          klog = 1
+
+          call setVectorDimensions
 
           call writeRecordFile(urecord,itime,time,dt,u_0)
 
@@ -414,6 +479,7 @@ cc          call imposeBoundaryConditions(u_0,1,1,1)
 
         deallocate(mrecfile,murecord)
       endif
+#endif
 
 c Open graphics file
 
@@ -421,24 +487,28 @@ c Open graphics file
 
 c Consistency check
 
-      read (urecord) nx
-      read (urecord) ny
-      read (urecord) nz
+      read (urecord) nx,ilog,ihig
+      read (urecord) ny,jlog,jhig
+      read (urecord) nz,klog,khig
 
+      nxl  = ihig-ilog+1
+      nyl  = jhig-jlog+1
+      nzl  = khig-klog+1
+
+#if defined(petsc)
+      if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)
+     .    .and.(my_rank == 0)) then
+        write (*,*) 'Grid meshes do not agree; cannot restart'
+        write (*,*) 'Aborting...'
+        stop
+      endif
+#else
       if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
         write (*,*) 'Grid size does not agree'
         write (*,*) 'Aborting graphics dump...'
         stop
       endif
-
-c Read equilibrium
-
-      call readRecord(urecord,itime,time,dt,u_0,ierr)
-      if (ierr /= 0) then
-        write (*,*) 'Unable to read equilibrium'
-        write (*,*) 'Aborting...'
-        stop
-      endif
+#endif
 
 c End programs
 

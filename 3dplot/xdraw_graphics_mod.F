@@ -42,6 +42,8 @@ c #####################################################################
 
         use graphics_variables
 
+        use variables
+
         character*(20) :: debugfile
         character*(20),allocatable,dimension(:) ::
      .                    graphfile,drawgraph,profilefile,drawprof
@@ -63,8 +65,6 @@ c     #################################################################
 c     ---------------------------------------------------------------
 c     Initializes XDRAW graphics
 c     ---------------------------------------------------------------
-
-        use variables
 
         implicit none
 
@@ -141,12 +141,6 @@ c     Call variables
         integer(4) :: ngroups
 
 c     Begin program
-
-c     Allocate graph groups
-
-        allocate(graph(ngroups),nqty(ngroups))
-
-c     Allocate XDRAW quantities
 
         allocate(graphfile(ngroups)
      .          ,drawgraph(ngroups)
@@ -402,7 +396,7 @@ c     Begin program
 c     X-Y plots
 
 cc        k = (kmaxg-kming+1)/2
-        k = 1
+        k = 2
 
         if(iopt.eq.0) then
 
@@ -699,6 +693,362 @@ c     ##################################################################
 
       end module XDRAW
 
+c     module HDF5_graphicsSEQMPI
+c     ##############################################################
+      module HDF5_graphicsSEQMPI
+
+        use HDF5
+
+        use graphics_variables
+
+        use variables
+
+        use timeStepping
+
+#if defined(petsc)
+        use mpi
+#endif
+
+        character*(20) :: hdf5_fname = 'pixie3d.h5'
+
+        integer(hid_t) :: group_id,subgroup_id
+        integer(hid_t) :: file_id        
+        integer(hid_t) :: dataset_id     
+        integer(hid_t) :: dataspace_id
+
+c       variables for parallel HDF5
+        integer(hid_t) :: plist_id
+        integer(hid_t) :: hs_dataspace_id
+        integer(hid_t) :: p_dataspace_id
+
+        integer(4)     :: error,igrp
+
+        integer(hsize_t), dimension(3) :: array_dim
+        integer(4), dimension(7) :: array_dim_i 
+        
+        integer(4), parameter  :: ARRAY_RANK = 3
+
+        integer(4), dimension(5) :: groupdim
+
+      contains 
+
+c     int2char
+c     ##################################################################
+      function int2charHDF5(n) result (chr)
+
+      integer(4)   :: n
+      character(10):: chr
+
+      integer(4)   :: i,j,exp,k
+      character(3) :: c
+
+      if (n > 0) then
+         exp = int(log(float(n))/log(1d1))
+      else
+         exp = 0
+      endif
+
+      chr=''
+      k = n
+      do i=exp,0,-1
+         j = k/10**i
+         c = achar(48+j)
+         chr = trim(chr)//trim(c)
+         if (i > 0 ) k = mod(k,j*10**i)
+      enddo
+
+      end function int2charHDF5
+
+c     initializeHDF5file
+c     ##############################################################
+      subroutine initializeHDF5file
+
+      implicit none
+
+c     call variables
+      
+c     local variables
+
+#if defined(petsc)
+      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
+
+      if (my_rank /= 0) return
+#endif
+
+c     Initialize FORTRAN interface
+      call h5open_f(error)
+
+c     Create a new file using default properties.
+      call h5fcreate_f(hdf5_fname, H5F_ACC_TRUNC_F, file_id, error)
+      
+c     Terminate access to the file.
+      call h5fclose_f(file_id, error)
+
+      call h5close_f(error)
+
+c     End program
+
+      end subroutine initializeHDF5file
+
+c     createGroup
+c     #################################################################
+      subroutine createGroup(groupname)
+
+      implicit none
+
+c     call variables
+      
+      integer(4)         :: step
+      character*(*)      :: groupname
+
+c     local variables
+
+      integer(4)     :: ieq,my_rank,mpierr
+
+c     Initialize FORTRAN interface
+
+#if defined(petsc)
+      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
+
+      if (my_rank /= 0) return
+#endif
+
+      call h5open_f(error)
+
+c     Create a new file using default properties.
+
+      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,error,
+     $               H5P_DEFAULT_F)
+
+c     Create a new group.
+
+      call h5gcreate_f(file_id,groupname,group_id,error, 0)
+
+      do igrp=1,ngroups
+        call h5gcreate_f(group_id,graph(igrp)%descr,subgroup_id,
+     $                  error,0)
+        call h5gclose_f(subgroup_id, error)
+      enddo
+
+      call h5gclose_f(group_id, error)
+
+c     Terminate access to the file.
+      call h5fclose_f(file_id, error)
+
+      call h5close_f(error)
+
+c     End program
+
+      end subroutine createGroup
+
+#if !defined(petsc)
+c     writeHDF5file
+c     ##################################################################
+      subroutine writeHDF5file
+
+c     ------------------------------------------------------------------
+c     Write the output date using HDF5 HyperSlab Column
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+c     Local variables
+
+      integer(4)     :: i,j,k,ieq
+
+      character*(20) :: timestep
+
+      integer(hsize_t), dimension(ARRAY_RANK) :: count(3)
+      integer(hsize_t), dimension(ARRAY_RANK) :: offset(3)
+
+c     Begin program
+
+      array_dim = (/nxd,nyd,nzd/)
+
+c     Create the output file and data groups
+
+      timestep = int2charHDF5(itime)
+      timestep = trim('Timestep '//int2charHDF5(itime))
+
+      call createGroup(timestep)
+
+c     Initialize FORTRAN interface
+      call h5open_f(error)
+
+c     Open an existing file.
+      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,error,
+     $               H5P_DEFAULT_F)
+
+c     Write the actual data in each group
+
+c     Create the dataspace of actual data and its attributes
+c     ARRAY_RANK = rank of array,array_dim = dimension of array
+      call h5screate_simple_f(ARRAY_RANK,array_dim,dataspace_id,error)
+
+      call h5gopen_f(file_id,timestep,group_id,error)
+
+      do igrp=1,ngroups
+
+c       Open an existing group of the specified file.
+        call h5gopen_f(group_id,graph(igrp)%descr,subgroup_id,error)
+
+        do ieq=1,nqty(igrp)
+c         Create the dataset
+          call h5dcreate_f(subgroup_id,
+     $                     graph(igrp)%array_graph(ieq)%descr,
+     $                     H5T_IEEE_F64BE,
+     $                     dataspace_id,dataset_id,error)
+    
+c         Write data to the dataset
+          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
+     $                    graph(igrp)%array_graph(ieq)
+     $                    %array(1:nxd,1:nyd,1:nzd), !must specify index ranges
+     $                    array_dim,error)
+
+c         Release resources
+         call h5dclose_f(dataset_id,error)
+        enddo
+
+        call h5gclose_f(subgroup_id, error)
+
+      enddo
+
+c     Release resources
+        call h5gclose_f(group_id, error)
+      call h5sclose_f(dataspace_id,error)
+      call h5fclose_f(file_id,error)
+
+      call h5close_f(error)
+
+c     End program
+
+      end subroutine writeHDF5file
+
+#else
+
+c     writeHDF5file
+c     ##################################################################
+      subroutine writeHDF5file
+c     ------------------------------------------------------------------
+c     Write the output date using HDF5 HyperSlab Column
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+c     Local variables
+
+      integer(4)     :: i,j,k,ieq
+
+      integer(4)     :: my_rank,mpierr
+
+      character*(20) :: timestep
+
+      integer(hsize_t), dimension(ARRAY_RANK) :: count(3)
+      integer(hsize_t), dimension(ARRAY_RANK) :: offset(3)
+
+c     Begin program
+
+      array_dim = (/nxd,nyd,nzd/)
+      array_dim_i = (/nxd,nyd,nzd,0,0,0,0/)
+
+c     Create the output file and data groups
+
+      timestep = int2charHDF5(itime)
+      timestep = trim('Timestep '//int2charHDF5(itime))
+
+      call createGroup(timestep)
+
+c     Initialize FORTRAN interface
+      call h5open_f(error)
+
+c     Set up file access property list with parallel I/O access
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,error)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,
+     $                        error)
+
+c     Open an existing file.
+      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,error,
+     $               access_prp = plist_id)
+      call h5pclose_f(plist_id,error)
+
+c     Write the actual data in each group
+
+c     Create the dataspace of actual data and its attributes
+      call h5screate_simple_f(ARRAY_RANK,array_dim,dataspace_id,error)
+
+c     Each process defines dataset in memory and writes it to the hyperslab
+c     in the file.
+      count(1) = nxl
+      count(2) = nyl
+      count(3) = nzl
+      offset(1) = ilomg
+      offset(2) = jlomg
+      offset(3) = klomg
+
+      call h5screate_simple_f(ARRAY_RANK,count,p_dataspace_id,error)
+
+c     Create property list for collective dataset write.
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,error)
+      call h5pset_dxpl_mpio_f(plist_id,H5FD_MPIO_COLLECTIVE_F,error)
+
+      call h5gopen_f(file_id,timestep,group_id,error)
+
+      do igrp=1,ngroups
+
+c       Open an existing group of the specified file.
+        call h5gopen_f(group_id,graph(igrp)%descr,subgroup_id,error)
+
+        do ieq=1,nqty(igrp)
+c         Create the dataset
+          call h5dcreate_f(subgroup_id,
+     $                     graph(igrp)%array_graph(ieq)%descr,
+     $                     H5T_IEEE_F64BE,
+     $                     dataspace_id,dataset_id,error)
+
+c         Select hyperslab in the file.
+          call h5dget_space_f(dataset_id,hs_dataspace_id,error)
+          call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
+     $                              offset,count,error)    
+
+c         Write data to the dataset
+          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
+     $                     graph(igrp)%array_graph(ieq)
+     $                       %array(ilo:ihi,jlo:jhi,klo:khi),
+     $                    array_dim_i,
+     $                    error,file_space_id = hs_dataspace_id,
+     $                    mem_space_id = p_dataspace_id,
+     $                    xfer_prp = plist_id)
+
+c         Release resources
+         call h5dclose_f(dataset_id,error)
+         call h5sclose_f(hs_dataspace_id,error)
+
+        enddo
+
+        call h5gclose_f(subgroup_id, error)
+
+      enddo
+
+c     Release resources
+        call h5gclose_f(group_id, error)
+      call h5sclose_f(p_dataspace_id,error)
+      call h5pclose_f(plist_id,error)
+      call h5sclose_f(dataspace_id,error)
+      call h5fclose_f(file_id,error)
+
+      call h5close_f(error)
+
+c     End program
+
+      end subroutine writeHDF5fileMPI
+#endif
+
+      end module HDF5_graphicsSEQMPI
+
 c module graphics
 c ######################################################################
       module graphics
@@ -707,9 +1057,9 @@ c ######################################################################
 
         use graphics_variables
 
-c XDRAW
         use XDRAW
-c XDRAW
+
+        use HDF5_graphicsSEQMPI
 
       contains
 
@@ -731,7 +1081,7 @@ c     Local variables
         integer(4) :: nx,ny,nz,isx,isy,isz
 
         integer(4) :: i,nplots
-
+        
         character*(30) :: prof_title
 
 c     Begin program
@@ -760,6 +1110,7 @@ c     Find grid in logical space
         yl(:) = grid_params%yy(jming+isy:jmaxg+isy)
         zl(:) = grid_params%zz(kming+isz:kmaxg+isz)
 
+
 c     Define graphics i/o and initialize graph arrays (external)
 
         call defineGraphics
@@ -774,12 +1125,17 @@ c     Determine actual number of 3D plots
           enddo
         enddo
 
-c XDRAW
 c     Initialize XDRAW
-
+#if !defined(petsc)
         call initializeXDRAW
-c XDRAW
+#endif
 
+c     Initialize HDF5
+#if defined(petsc)
+        if (my_rank == 0) call initializeHDF5file()
+#else
+        call initializeHDF5file()
+#endif
 c     End program
 
       end subroutine initializeGraphics
@@ -800,9 +1156,9 @@ c     Local variables
 
 c     Begin program
 
-c XDRAW
+#if !defined(petsc)
         call closeXDRAWGraphicsFiles
-c XDRAW
+#endif
 
         call deallocateGraphicsVariables
 
@@ -888,12 +1244,14 @@ c     ---------------------------------------------------------------
 c     Call variables
 
 c     Local variables
- 
+
 c     Begin program
 
-c XDRAW
+#if !defined(petsc)
         call dumpXDRAWplots
-c XDRAW
+#endif
+
+        call writeHDF5file
 
 c     End program
 
@@ -917,9 +1275,7 @@ c     Allocate graph groups
 
 c     Allocate XDRAW quantities
 
-c XDRAW
         call allocateXDRAWvariables(ngroups)
-c XDRAW
 
       end subroutine allocateGraphicsVariables
 
@@ -935,9 +1291,9 @@ c     Begin program
 
         deallocate(graph,nqty)
 
-c XDRAW
+#if !defined(petsc)
         call deallocateXDRAWvariables
-c XDRAW
+#endif
 
       end subroutine deallocateGraphicsVariables
 
