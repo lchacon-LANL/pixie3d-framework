@@ -796,6 +796,7 @@ c     Perform mat-vec and map directly to local grid
 
                 !Perform stencil-wise matvec
 cc                call matvec(gloc,neq,nn,xg,yg,igr,bcnd)
+c THIS IS HARDWIRED FOR NOW!!!!!!!!!!
                 call v_mtvc(gloc,neq,nn,xg,yg,igr,bcnd)
 
                 yl(iil) = yg(iii)
@@ -1261,8 +1262,10 @@ c Local variables
       real(8)    :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot)
       real(8)    :: rr0,rr1,mag,mag1,mgtol,line_tol,line_omega
 
-      logical    :: fdiag,line_relax,fpointers,volf,line_gmsolve
+      logical    :: fdiag,line_relax,fpointers,volf
      .             ,line_x,line_y,line_z
+
+      character(2) :: line_solve
 
 c Begin program
 
@@ -1290,7 +1293,7 @@ c Assign options
       line_tol        = options%mg_line_tol
       line_omega      = options%mg_line_omega
       line_crse_depth = options%mg_line_coarse_solver_depth 
-      line_gmsolve    = options%mg_line_gmsolve
+      line_solve      = options%mg_line_solve
       line_x          = options%mg_line_x
       line_y          = options%mg_line_y
       line_z          = options%mg_line_z
@@ -2063,17 +2066,31 @@ c       Recursive MG (at least 2D or if 1D MG is wanted)\
 
           call lineMGsolver(nn,mg_grid,b,x,igr,guess)
 
-c       GMRES 1D solver
-cc        elseif (line_gmsolve) then
-cc
-cc          call lineGMsolver(nn,mg_grid,b,x,igr,guess)
-cc
-c       JB/GS 1D solver
-        else
+c       GMRES 1D solver (matvec HARDWIRED to v_mtvc for now)
+        elseif (line_solve == "gm") then
+
+          call lineGMsolver(nn,mg_grid,b,x,igr,guess)
+
+c       MG 1D solver
+        elseif (line_solve == "mg") then
 
           call lineMGsolver(nn,mg_grid,b,x,igr,guess,oned_solve=.true.)
 
-cc          call lineGSsolver(nn,mg_grid,b,x,igr,guess)
+c       GS 1D solver
+        elseif (line_solve == "gs") then
+
+          call lineGSsolver(nn,mg_grid,b,x,igr,guess)
+
+c       JB 1D solver
+        elseif (line_solve == "jb") then
+
+          call lineJBsolver(nn,mg_grid,b,x,igr,guess)
+
+        else
+
+          write (*,*) 'Line solver undefined'
+          write (*,*) 'Aborting...'
+          stop
 
         endif
 
@@ -2274,13 +2291,11 @@ c     Allocate new diagonal and transfer elements
 
         diag = old_diag(:,istart_sv(igr):size(old_diag,2))
 
-c     Configure recursive plane/line MG solve
+c     Configure recursive plane/line GS solve
 
-        options%iter        = 100
-        options%ncolors     = 4
-
-cc        options%igridmin      = ngrid + 1  !This does only smoothing
-cc        options%mg_line_relax = .false.
+        options%iter                        = 100
+        options%ncolors                     = 4
+        options%omega                       = 1.0           
 
         options%tol                         = line_tol
         options%vcyc                        = line_vcyc
@@ -2302,12 +2317,8 @@ cc        options%mg_line_relax = .false.
         options%vertex_based_relax          = vbr_mg
         options%fdiag                       = fdiag
 
-c     Call plane/line MG
+c     Call plane/line GS
 
-cc        options%omega       = 1d0
-cc        call jb(neq,nn,b,x,matvec,options,igr,bcnd,guess,outc-1,depth)
-
-        options%omega       = 1.1
         call gs(neq,nn,b,x,matvec,options,igr,bcnd,guess,outc-1,depth)
 
 c     Recover configuration for parent level MG
@@ -2329,6 +2340,125 @@ c     Deallocate memory
         call deallocateGridStructure(options%mg_grid_def)
 
       end subroutine lineGSsolver
+
+c     lineJBsolver
+c     #####################################################################
+      recursive subroutine lineJBsolver(nn,mg_grid,b,x,igr,guess)
+
+c     ---------------------------------------------------------------------
+c     This routine performs a recursive MG solve on selected planes/lines.
+c     In call:
+c       * nn: total grid size at grid level igr
+c       * mg_grid: MG grid definition structure that defines local grid patch
+c       * b: rhs vector
+c       * x: solution vector
+c       * igr: grid level
+c       * guess: whether initial guess is provided (guess=1) or not (guess=0).
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4)     :: igr,nn,guess
+        real(8)        :: b(nn),x(nn)
+        type(grid_def) :: mg_grid
+        logical        :: prelax
+
+c     Local variables
+
+        integer(4)     :: istart_sv(ngrid)
+     .                   ,istartp_sv(ngrid)
+     .                   ,istartb_sv(ngrid)
+
+        real(8),allocatable,dimension(:,:) :: old_diag
+
+        type (solver_options) :: options
+
+        logical               :: fpointers
+
+c     Begin program
+
+c     Save parent MG grid configuration (shared with filial MG via mg_internal module)
+
+        !Save pointers
+        istart_sv  = istart
+        istartp_sv = istartp
+        istartb_sv = istartb
+
+        !Save diagonal
+        allocate(old_diag(size(diag,1),size(diag,2)))
+        old_diag = diag
+        deallocate(diag)
+
+c     'Prime' grid structure variable to pass to filial MG call
+
+        options%mg_grid_def%ngrdx = 0
+        options%mg_grid_def%ngrdy = 0
+        options%mg_grid_def%ngrdz = 0
+        options%mg_grid_def%ngrid = 0
+
+        options%mg_grid_def = MGgrid_sv
+          
+c     Shift MG pointers to current grid level igr
+
+        call transferMGPointers(igr)
+
+c     Allocate new diagonal and transfer elements
+
+        allocate(diag(size(old_diag,1)
+     .               ,size(old_diag,2)-istart_sv(igr)+1))
+
+        diag = old_diag(:,istart_sv(igr):size(old_diag,2))
+
+c     Configure recursive plane/line JB solve
+
+        options%iter                        = 100
+        options%omega                       = 1d0           
+
+        options%tol                         = line_tol
+        options%vcyc                        = line_vcyc
+        options%igridmin                    = igridmin
+        options%orderres                    = orderres
+        options%orderprol                   = orderprol
+        options%mg_mu                       = mu
+        options%vol_res                     = volf        
+
+        options%mg_coarse_solver_depth      = line_crse_depth
+        options%mg_line_relax               = .false.
+        options%mg_line_nsweep              = line_nsweep
+        options%mg_line_vcyc                = line_vcyc
+        options%mg_line_tol                 = line_tol
+        options%mg_line_omega               = line_omega
+        options%mg_line_coarse_solver_depth = line_crse_depth
+        options%mg_grid_def                 = mg_grid
+
+        options%vertex_based_relax          = vbr_mg
+        options%fdiag                       = fdiag
+
+c     Call plane/line JB
+
+        call jb(neq,nn,b,x,matvec,options,igr,bcnd,guess,outc-1,depth)
+
+c     Recover configuration for parent level MG
+
+        !Recover pointers
+        istart  = istart_sv
+        istartp = istartp_sv
+        istartb = istartb_sv
+        MGgrid  = mg_grid
+
+        !Recover diagonal
+        deallocate(diag)
+        allocate(diag(size(old_diag,1),size(old_diag,2)))
+        diag = old_diag
+        deallocate(old_diag)
+
+c     Deallocate memory
+
+        call deallocateGridStructure(options%mg_grid_def)
+
+      end subroutine lineJBsolver
 
 c     lineMGsolver
 c     #####################################################################
