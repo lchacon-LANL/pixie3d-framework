@@ -4,6 +4,8 @@ c ######################################################################
 
         use grid
 
+        use iosetup
+
         integer(4)     :: ngraph,ngroups
         parameter        (ngraph=30)
 
@@ -24,7 +26,7 @@ c ######################################################################
 
         integer(4),allocatable,dimension(:) :: nqty
 
-        logical        :: plot,debug
+        logical        :: plot
 
         integer(4)     :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
      .                   ,iggx,iggy,iggz,iig,jjg,kkg
@@ -44,7 +46,8 @@ c #####################################################################
 
         use variables
 
-        character*(20) :: debugfile
+        character*(20) :: debugfile,axes_label(2)=(/'x','y'/)
+     .                   ,prof_axis_label = 'x'
         character*(20),allocatable,dimension(:) ::
      .                    graphfile,drawgraph,profilefile,drawprof
         character*(20),allocatable,dimension(:,:) :: prof_desc
@@ -74,7 +77,7 @@ c     Local variables
  
         integer(4) :: nplots
 
-        character*(30) :: prof_title
+        character*(30) :: prof_label
 
 c     Begin program
 
@@ -110,7 +113,8 @@ c       Contours
 
           call createDrawInMfile(nplots,graphfile(igroup)
      .                          ,graph(igroup)%descr
-     .                          ,'time','x','y',sel_gr(igroup,:)
+     .                          ,'time',trim(axes_label(1))
+     .                          ,trim(axes_label(2)),sel_gr(igroup,:)
      .                          ,graph(igroup)%array_graph%descr
      .                          ,'-L50',drawgraph(igroup))
         enddo
@@ -119,11 +123,12 @@ c       Profiles (selects same profiles as contour plots except vector plots)
 
         do igroup=1,ngroups
           nplots = count (sel_gr(igroup,:) /= 0)
-          prof_title = 'Profiles '//graph(igroup)%descr
-          call createDrawInGfile(nplots,profilefile(igroup),prof_title
-     .          ,'x',abs(sel_gr(igroup,:)),prof_desc(igroup,:)
-     .          ,prof_ivar(igroup,:),prof_log(igroup,:)
-     .          ,drawprof(igroup),prof_spline(igroup))
+          prof_label = 'Profiles '//graph(igroup)%descr
+          call createDrawInGfile(nplots,profilefile(igroup),prof_label
+     .          ,trim(prof_axis_label),abs(sel_gr(igroup,:))
+     .          ,prof_desc(igroup,:),prof_ivar(igroup,:)
+     .          ,prof_log(igroup,:),drawprof(igroup)
+     .          ,prof_spline(igroup))
         enddo
 
 c     End program
@@ -476,7 +481,7 @@ c     End program
 
 c     createDrawInGfile
 c     ################################################################
-      subroutine createDrawInGfile(nvar,binf,graphtitle,ivar
+      subroutine createDrawInGfile(nvar,binf,graphlabel,ivar
      .                       ,dvariables,descr,ivariables,logvar
      .                       ,drawfile,spline)
 
@@ -485,7 +490,7 @@ c     Creates the G-type (x-y curves) draw.in file for xdraw graphics.
 c     On call sequence:
 c       * nvar : number of variables in consideration for plotting
 c       * binf : name of binary file to be read
-c       * graphtitle : character array of arbitrary length
+c       * graphlabel : character array of arbitrary length
 c       * ivar : independent variable axis name
 c       * dvariables : integer array of size (nvar) identifying the 
 c                      dependent variables (although they can also be 
@@ -511,13 +516,13 @@ c     Call variables
 
         integer     :: nvar,ivariables(ngraph),dvariables(nvar)
      .                ,logvar(nvar)
-        character(*):: binf,drawfile,graphtitle,descr(ngraph),ivar
+        character(*):: binf,drawfile,graphlabel,descr(ngraph),ivar
         logical     :: spline
 
 c     Local variables
 
         integer      :: i,j,mfile
-        character(50):: title
+        character(50):: label
         logical      :: flag
 
 c     Begin program
@@ -531,7 +536,7 @@ c     Begin program
         write (mfile,'(a)') 'filename(s)'
         write (mfile,'(a,/)') trim(binf)
 
-        write (mfile,'(2a,/)') 'graph title: ',trim(graphtitle)
+        write (mfile,'(2a,/)') 'graph title: ',trim(graphlabel)
         write (mfile,'(a)') 'variable names'
         write (mfile,'(2a)') ' 0       ',trim(ivar)
         do i=1,size(descr)
@@ -587,11 +592,11 @@ c     End program
 
 c     createDrawInMfile
 c     ################################################################
-      subroutine createDrawInMfile(nvar,binf,graphtitle,ivart,ivarx
+      subroutine createDrawInMfile(nvar,binf,graphlabel,ivart,ivarx
      .                       ,ivary,variables,descr,options,drawfile)
 
 c     ----------------------------------------------------------------
-c     Creates drawfile for xdraw graphics.
+c     Creates drawfile for "M-type" xdraw graphics.
 c     ----------------------------------------------------------------
 
         implicit none
@@ -599,13 +604,13 @@ c     ----------------------------------------------------------------
 c     Call variables
 
         integer     :: nvar,variables(nvar)
-        character(*):: binf,drawfile,graphtitle,options,descr(ngraph)
+        character(*):: binf,drawfile,graphlabel,options,descr(ngraph)
         character(*):: ivart,ivarx,ivary
 
 c     Local variables
 
         integer      :: i,j,mfile
-        character(50):: title
+        character(50):: label
         logical      :: flag
 
 c     Begin program
@@ -619,7 +624,7 @@ c     Begin program
         write (mfile,'(a)') 'filename(s)'
         write (mfile,'(a,/)') trim(binf)
 
-        write (mfile,'(2a,/)') 'comment:      ',graphtitle
+        write (mfile,'(2a,/)') 'comment:      ',graphlabel
         write (mfile,'(a)') 'independent variable names'
         write (mfile,'(2a)')   't       ',trim(ivart)
         write (mfile,'(2a)')   'x       ',trim(ivarx)
@@ -640,10 +645,10 @@ c     Begin program
             cycle
           else
             variables(i) = - variables(i)
-            title = 'Vector plot (' // trim(descr(variables(i)))
+            label = 'Vector plot (' // trim(descr(variables(i)))
      .              // ',' // trim(descr(variables(i)+1))//')'
             write (mfile,'(i2,a,i2,4a)') variables(i),' ',variables(i)+1
-     .         ,'       ',options,'         ',title
+     .         ,'       ',options,'         ',label
           endif
         enddo
         write (mfile,*)
@@ -653,6 +658,61 @@ c     Begin program
 c     End program
 
       end subroutine createDrawInMfile
+
+c     createDrawInCfile
+c     ################################################################
+      subroutine createDrawInCfile(nvar,binf,graphlabel,ivart,ivarx
+     .                       ,ivary,descr,options,drawfile)
+
+c     ----------------------------------------------------------------
+c     Creates drawfile for "C-type" xdraw graphics.
+c     ----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer     :: nvar
+        character(*):: binf,drawfile,graphlabel,options,descr(nvar)
+        character(*):: ivart,ivarx,ivary
+
+c     Local variables
+
+        integer      :: i,j,cfile
+        character(50):: label
+        logical      :: flag
+
+c     Begin program
+
+        cfile = 111
+
+        open (unit=cfile,file=drawfile,status='unknown')
+
+        write (cfile,'(1a,/)') 
+     .     'Type (G=Graph, C=Contour, M=TS contour):      C'
+        write (cfile,'(a)') 'filename(s)'
+        write (cfile,'(a,/)') trim(binf)
+
+        write (cfile,'(2a,/)') 'comment:      ',graphlabel
+        write (cfile,'(a)') 'variable names'
+        write (cfile,'(a)')    '0        H'
+        write (cfile,'(2a)')   'i0       ',trim(ivart)
+        write (cfile,'(2a)')   'i1       ',trim(ivarx)
+        write (cfile,'(2a,/)') 'i2       ',trim(ivary)
+        write (cfile,'(a)') 'ix      iy      other           title'
+
+        do i=1,nvar
+          write (cfile,'(4a,i1,2a)') 'i2      i1'
+     .         ,'     ',options,' -i0=',nvar-1
+     .         ,'     ',trim(descr(i))
+        enddo
+        write (cfile,*)
+
+        close (cfile)
+
+c     End program
+
+      end subroutine createDrawInCfile
 
 c     openXDRAWGraphicsFiles
 c     ##################################################################
@@ -1312,7 +1372,7 @@ c     Local variables
 
         integer(4) :: i,nplots
         
-        character*(30) :: prof_title
+        character*(30) :: prof_label
 
 c     Begin program
 
