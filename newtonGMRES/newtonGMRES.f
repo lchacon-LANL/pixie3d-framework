@@ -111,7 +111,7 @@ c Local variables
 
       real*8      dxavg,check_lim,residuals(neq)
 
-      real*8      b(ntot),ddx(ntot),dt0
+      real*8      b(ntot),ddx(ntot),dt0,roundoff
 
       real*8      f0,fkm,fk,fkp,fm,etak,etakm,theta,dampm,gamm,alph
 
@@ -142,6 +142,8 @@ cc      if (global.ne.2) check_lim = 1d1
       x0 = x    !Save initial guess
       xk = x    !Save previous Newton state
 
+      roundoff = ntot*1d-15
+
 c Evaluate rhs and norms
 
       call evaluateNewtonResidual(ntot,x,res)
@@ -149,6 +151,12 @@ c Evaluate rhs and norms
       b = -res
 
       f0 = sqrt(sum(b*b))
+
+      !Check if initial guess is exact, and if so exit Newton step
+      if (f0.lt.roundoff) then
+        ierr = -1
+        return
+      endif
 
 c Initial output
 
@@ -183,17 +191,15 @@ c     Update counters
         gmit_out = gmit_out + itk
         ntit_out = jit
 
-c     Check error in gmresDriver
+c     Check for error in GMRES
 
         if (ierr.eq.1) then
           write(*,*) 
      .          '   Exceeded maximum GMRES iterations (',gmit_max,')'
           ierr = 0  !Use GMRES solution for Newton update regardless
-        elseif (ierr.eq.-1) then
-          write(*,*)
-          write(*,*) '   Initial guess seems to be exact solution'
-          write(*,*) '   Aborting...'
-          exit
+        elseif (ierr.eq.-1) then !Got to roundoff in the Newton residual
+          ierr = 0
+          exit !Do not continue Newton iteration
         endif
 
 c     Globalization procedure
@@ -205,7 +211,6 @@ c       Determine inexact Newton constant
 c       Calculate damping coefficient
 
 cc        if (global.eq.1) call findDamping (ntot,x,ddx,etak,fk,damp)
-
         if (global.ge.1) call findDamping (ntot,x,ddx,etak,fk,damp)
 
 c     Update solution (x = x + ddx)
@@ -235,7 +240,8 @@ c     Check Newton convergence
           enddo
         endif
 
-        if(fkp.lt.(1d-11 + tolnewt*f0).or.check.gt.check_lim) exit
+        if(fkp.lt.(roundoff + tolnewt*f0).or.check.gt.check_lim) exit
+cc        if(fkp.lt.(1d-11 + tolnewt*f0).or.check.gt.check_lim) exit
 cc        if(fkp.lt.(1d-11 + tolnewt*f0)) exit
 
 c     Store magnitude of residual
