@@ -200,9 +200,9 @@ c     Begin program
 
       open(unit=urecord,file=recordfile,form='unformatted',status='old')
 
-      read (urecord) nx
-      read (urecord) ny
-      read (urecord) nz
+      read (urecord) nx,ilog,ihig
+      read (urecord) ny,jlog,jhig
+      read (urecord) nz,klog,khig
 
       if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)
      .    .and.(my_rank == 0)) then
@@ -213,12 +213,12 @@ c     Begin program
 
       if (my_rank == 0) write (*,*) 'Reading restart file...'
 
-      call readRecord(itime,time,dt,vn,ierr)
+      call readRecord(urecord,itime,time,dt,vn,ierr)
 
       vnp = vn
 
       do
-        call readRecord(itime,time,dt,vmed,ierr)
+        call readRecord(urecord,itime,time,dt,vmed,ierr)
 
         if (ierr /= 0) then
           exit
@@ -398,12 +398,12 @@ c Open record file
         open(unit=urecord,file=recordfile
      .      ,form='unformatted',status='unknown')
 
-        write (urecord) nxl
-        write (urecord) nyl
-        write (urecord) nzl
+        write (urecord) nxl,ilog,ihig
+        write (urecord) nyl,jlog,jhig
+        write (urecord) nzl,klog,khig
 
-        call writeRecordFile(0,0d0,dt,u_n)
-        call writeRecordFile(0,0d0,dt,u_np)
+        call writeRecordFile(urecord,0,0d0,dt,u_n)
+        call writeRecordFile(urecord,0,0d0,dt,u_np)
 
       else
 
