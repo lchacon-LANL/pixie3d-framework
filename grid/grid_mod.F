@@ -4359,12 +4359,14 @@ c     Begin program
             dxl = alpha1*dxl  !Modify initial interval for coarser grids
 
 cc            call packGrid(ig,n1,lstart,xp,-dxl,xg(1:n1),alpha1,xi)
-            call packGrid(ig,n1,lstart,xp-dxl,-dxl,xg(1:n1),alpha1,xil)
+            call packGrid(ig,n1,lstart,xp-dxl/2,-dxl,xg(1:n1),alpha1
+     .                   ,xil)
 
             dxr = alpha2*dxr  !Modify initial interval for coarser grids
 
 cc            call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
-            call packGrid(ig,n2,xp,lend,dxr,xg(n1+1:ng),alpha2,xir)
+            call packGrid(ig,n2,xp+dxr/2,lend,dxr,xg(n1+1:ng),alpha2
+     .                   ,xir)
 
           else
 
