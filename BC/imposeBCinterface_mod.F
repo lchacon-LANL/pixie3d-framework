@@ -529,8 +529,8 @@ c     End program
 
 c     imposeBConVector
 c     #################################################################
-      subroutine imposeBConVector(fcomp,nx,ny,nz,v_cnv,v_cov,var0,bcond
-     .                           ,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
+      subroutine imposeBConVector(fcomp,ncomp,nx,ny,nz,v_cnv,v_cov,var0
+     .                           ,bcond,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
      .                           ,iorder,is_cnv,is_vec)
 c     -----------------------------------------------------------------
 c     Imposes BC on vector field
@@ -540,10 +540,10 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: bcond(6,3),fcomp,nx,ny,nz,iigx,iigy,iigz
-      real(8)    :: v_cnv(0:nx+1,0:ny+1,0:nz+1,3)
-     .             ,var0 (0:nx+1,0:ny+1,0:nz+1,3)
-     .             ,v_cov(0:nx+1,0:ny+1,0:nz+1,3)
+      integer(4) :: ncomp,bcond(6,ncomp),fcomp,nx,ny,nz,iigx,iigy,iigz
+      real(8)    :: v_cnv(0:nx+1,0:ny+1,0:nz+1,ncomp)
+     .             ,var0 (0:nx+1,0:ny+1,0:nz+1,ncomp)
+     .             ,v_cov(0:nx+1,0:ny+1,0:nz+1,ncomp)
       integer(4),optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
       logical   ,optional,intent(IN) :: is_cnv,is_vec
 
@@ -560,6 +560,12 @@ c     Begin program
         is__vec = is_vec
       else
         is__vec = .true.
+      endif
+
+      if (is__vec .and. ncomp < 3) then
+        write (*,*) 'Cannot impose BC on vector; # components < 3'
+        write (*,*) 'Aborting...'
+        stop
       endif
 
       !By default, we assume input is in cnv representation
@@ -636,8 +642,6 @@ c     Find cov components (we assume cnv components are defined)
 
 c     Impose BCs
 
-cc#if !defined(nobc)
-
       cov_to_cnv = .false.
 
       do bctype=1,BCLIM            !Enforces a particular order in the BCs (see grid_mod.f)
@@ -645,18 +649,18 @@ cc#if !defined(nobc)
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
 
-            do ivar = 1,3
+            do ivar = 1,ncomp
               ieq = ivar + fcomp - 1
 
               if (abs(bcond(ibc,ivar)) == bctype) then
 
                 if (bcond(ibc,ivar) < 0 .and. is__vec) then
-                  call FillGhostNodes(ieq,ivar,3,dim,loc,bctype,v_cov
-     .                               ,var0)
+                  call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
+     .                               ,v_cov,var0)
                   cov_to_cnv = .true.
                 else
-                  call FillGhostNodes(ieq,ivar,3,dim,loc,bctype,v_cnv
-     .                               ,var0)
+                  call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
+     .                               ,v_cnv,var0)
                 endif
 
              endif
@@ -673,13 +677,11 @@ c     Synchronize covariant and contravariant components => contravariant
 
 c     Impose singular point BCs
 
-cc      if (bcond(1,1) == SP) call singularBC(v_cnv,.false.,2)
-
       if (bcond(1,1) == SP) then
         if (is__vec) then
           call singularBC(v_cnv,.false.,order)
         else
-          do ivar=1,3
+          do ivar=1,ncomp
             call singularBC(v_cnv(:,:,:,ivar),order)
           enddo
         endif
@@ -689,9 +691,9 @@ c     Fill edges
 
       do dim=1,3
         do loc=0,1
-          do ivar=1,3
+          do ivar=1,ncomp
             call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                    ,dim,loc,bcond)
+     .                    ,dim,loc,bcond(:,ivar))
           enddo
         enddo
       enddo
@@ -700,9 +702,9 @@ c     Fill corners
 
       do dim=1,3
         do loc=0,1
-          do ivar=1,3
+          do ivar=1,ncomp
             call fillCorners(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                      ,dim,loc,bcond)
+     .                      ,dim,loc,bcond(:,ivar))
           enddo
         enddo
       enddo
@@ -714,19 +716,17 @@ cc      do dim=1,3
 cc        do loc=0,1
 cc          ibc = (1+loc)+2*(dim-1)
 cc
-cc          do ivar = 1,3
+cc          do ivar = 1,ncomp
 cc            ieq = ivar + fcomp - 1
 cc
 cc            if (abs(bcond(ibc,ivar)) == bctype) then
-cc              call FillGhostNodes(ieq,ivar,3,dim,loc,bctype,v_cnv
+cc              call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cnv
 cc     .                               ,var0)
 cc            endif
 cc          enddo
 cc
 cc        enddo
 cc      enddo
-
-cc#endif
 
 c     Find covariant components at ALL boundary ghost cells
 
