@@ -35,6 +35,7 @@ c Call variables
         integer(4) :: nxd
         integer(4) :: nyd
         integer(4) :: nzd
+        integer(4) :: numtime
         integer(4) :: maxitnwt
         integer(4) :: maxksp
         integer(4) :: maxitgm
@@ -57,6 +58,7 @@ c Define structure components
       inputdata%nxd = nxd
       inputdata%nyd = nyd
       inputdata%nzd = nzd
+      inputdata%numtime  = numtime
       inputdata%maxitnwt = maxitnwt
       inputdata%maxksp   = maxksp 
       inputdata%maxitgm  = maxitgm
