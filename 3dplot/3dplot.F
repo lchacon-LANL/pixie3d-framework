@@ -225,6 +225,8 @@ c Local variables
 
 c Begin program
 
+      g_pack%dim(:)%pack = .false.
+
 c Read user initializations
 
       call readGraphicsInput(sel_diag,sel_graph,ndplot,dplot
