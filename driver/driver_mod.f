@@ -186,6 +186,7 @@ c     Local variables
 c     Begin program
 
         if (frmt) then
+          write (unit,*) ilom,ihip,jlom,jhip,klom,khip
           write (unit,*) varray%nvar
           do ieq=1,varray%nvar
             write(unit,*) varray%array_var(ieq)%array
@@ -193,6 +194,7 @@ c     Begin program
             write(unit,*) varray%array_var(ieq)%descr
           enddo
         else
+          write (unit) ilom,ihip,jlom,jhip,klom,khip
           write (unit) varray%nvar
           do ieq=1,varray%nvar
             write(unit) varray%array_var(ieq)%array
@@ -224,10 +226,12 @@ c     Begin program
         ierr = 0
 
         if (format) then
+          read (unit,*,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
           read (unit,*,iostat=ierr,end=100) varray%nvar
           if (ierr /= 0) goto 200
           do ieq=1,varray%nvar
-            read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)%array
+            read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)
+     .           %array(ilom:ihip,jlom:jhip,klom:khip)
             if (ierr /= 0) goto 200
             read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)%bconds
             if (ierr /= 0) goto 200
@@ -235,10 +239,13 @@ c     Begin program
             if (ierr /= 0) goto 200
           enddo
         else
+          read (unit,iostat=ierr,end=100) ilom,ihip,jlom,jhip,klom,khip
+cc          write (*,*) ilom,ihip,jlom,jhip,klom,khip
           read (unit,iostat=ierr,end=100) varray%nvar
           if (ierr /= 0) goto 200
           do ieq=1,varray%nvar
-            read(unit,iostat=ierr,end=100) varray%array_var(ieq)%array
+            read(unit,iostat=ierr,end=100) varray%array_var(ieq)
+     .           %array(ilom:ihip,jlom:jhip,klom:khip)
             if (ierr /= 0) goto 200
             read(unit,iostat=ierr,end=100) varray%array_var(ieq)%bconds
             if (ierr /= 0) goto 200
@@ -593,6 +600,38 @@ c     Integrate
 c     End 
 
       end function integral
+
+      function int2char(n) result (chr)
+
+      implicit none
+
+      integer(4)   :: n
+      character(10):: chr
+
+      integer(4)   :: i,exp,k,j
+      character(3) :: c
+
+      if (abs(n) > 0) then
+         exp = int(log(float(n))/log(1d1))
+      else
+         exp = 0
+      endif
+
+      if (n >= 0) then
+        chr=''
+      else
+        chr='-'
+      endif
+
+      k = abs(n)
+      do i=exp,0,-1
+         j = k/10**i
+         c = achar(48+j)
+         chr = trim(chr)//trim(c)
+         if (i > 0 ) k = mod(k,j*10**i)
+      enddo
+
+      end function int2char
 
       end module generalOperators
 

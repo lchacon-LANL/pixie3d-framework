@@ -524,10 +524,10 @@ c Open record file
         !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
 cc        u_graph = u_0
         !initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
-        u_graph = u_n
+cc        u_graph = u_n
         !Check source
-cc        u_graph = fsrc
-cc        u_graph%array_var(1)%array = u_0%array_var(1)%array  !Set rho finite
+        u_graph = fsrc
+        u_graph%array_var(1)%array = u_0%array_var(1)%array  !Set rho finite
 
         call imposeBoundaryConditions(u_graph,1,1,1)
 
