@@ -121,7 +121,7 @@ c     imposeBConVector
 c     #################################################################
       subroutine imposeBConVector(fcomp,nx,ny,nz,v_cnv,v_cov,var0,bcond
      .                           ,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
-     .                           ,iorder)
+     .                           ,iorder,is_cnv)
 c     -----------------------------------------------------------------
 c     Imposes BC on vector field
 c     -----------------------------------------------------------------
@@ -135,18 +135,26 @@ c     Call variables
      .             ,var0 (0:nx+1,0:ny+1,0:nz+1,3)
      .             ,v_cov(0:nx+1,0:ny+1,0:nz+1,3)
       integer(4),optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
+      logical   ,optional,intent(IN) :: is_cnv
 
 c     Local variables
 
       integer(4) :: ivar,ieq,ibc,loc,dim,bctype
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
-      logical    :: cov_to_cnv
+      logical    :: cov_to_cnv,to_cnv
 
 c     Begin program
 
+      !By default, we assume input is in cnv representation
+      if (PRESENT(is_cnv)) then
+        to_cnv = .not.is_cnv
+      else
+        to_cnv = .false.
+      endif
+
 c     Initialize interpolation order
 
-      if (PRESENT(iorder)) order = iorder
+      if (PRESENT(iorder)) order = iorder  !order defined by default in module header
 
 c     Initialize BC grid quantities
 
@@ -194,7 +202,7 @@ c     Find cov components (we assume cnv components are defined)
 #endif
             call transformFromCurvToCurv(i,j,k,igxbc,igybc,igzbc
      .            ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-     .            ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3),.false.)
+     .            ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3),to_cnv)
           enddo
         enddo
       enddo
