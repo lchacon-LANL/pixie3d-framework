@@ -2052,26 +2052,27 @@ c     Identify directions for extrapolation.
       !Identify special boundaries to interpolate **along**
       !   1) equilibrium boundary
       !   2) SP boundary
-      !   3) even symmetry boundary
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
-cc        select_bc(i) = (bcond(i_bc) == EQU)
         select_bc(i) =    (bcond(i_bc) == EQU)
      .                .or.(bcond(i_bc) == SP)
-     .                .or.(bcond(i_bc) == SYM)
+cc     .                .or.(bcond(i_bc) == SYM)
       enddo
 
       call select_along
 
       !Identify special boundaries to interpolate **across**
       !   1) periodic boundary
+      !   2) Symmetry boundary
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
-        select_bc(i) = (bcond(i_bc) == PER)
+        select_bc(i) =    (    bcond(i_bc)  == PER)
+     .                .or.(abs(bcond(i_bc)) == SYM)
+cc     .                .or.(bcond(i_bc) ==-SYM)
       enddo
 
       call select_across
@@ -2118,8 +2119,16 @@ c     X extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         xto = grid_params%xx(ig)
 
-        call IntDriver1d(inx,xx,array(imni:imxi,jto,kto)
+        if (abs(bcond(ibcl(1))) == SYM) then  !Exception for symmetry BC
+          if (ito == imn) then
+            valx(1) = sign(1,bcond(1))*array(ito+2,jto,kto)
+          else
+            valx(1) = sign(1,bcond(1))*array(ito-2,jto,kto)
+          endif
+        else
+          call IntDriver1d(inx,xx,array(imni:imxi,jto,kto)
      .                  ,1,xto,valx,order_int(1))
+        endif
 
         num = num + 1
       endif
@@ -2143,9 +2152,17 @@ c     Y extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         yto = grid_params%yy(jg)
 
-        call IntDriver1d(iny,yy,array(ito,jmni:jmxi,kto)
+        if (abs(bcond(ibcl(2))) == SYM) then  !Exception for symmetry BC
+          if (jto == jmn) then
+            valy(1) = sign(1,bcond(1))*array(ito,jto+2,kto)
+          else                                                   
+            valy(1) = sign(1,bcond(1))*array(ito,jto-2,kto)
+          endif
+        else
+          call IntDriver1d(iny,yy,array(ito,jmni:jmxi,kto)
      .                  ,1,yto,valy,order_int(2))
-        
+        endif
+
         num = num + 1
 
       endif
@@ -2169,8 +2186,16 @@ c     Z extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         zto = grid_params%zz(kg)
 
-        call IntDriver1d(inz,zz,array(ito,jto,kmni:kmxi)
+        if (abs(bcond(ibcl(3))) == SYM) then  !Exception for symmetry BC
+          if (kto == kmn) then
+            valz(1) = sign(1,bcond(1))*array(ito,jto,kto+2)
+          else                                                   
+            valz(1) = sign(1,bcond(1))*array(ito,jto,kto-2)
+          endif
+        else
+          call IntDriver1d(inz,zz,array(ito,jto,kmni:kmxi)
      .                  ,1,zto,valz,order_int(3))
+        endif
 
         num = num + 1
       endif
