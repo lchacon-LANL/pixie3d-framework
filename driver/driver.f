@@ -17,8 +17,6 @@ c ******************************************************************
 
       use grid
 
-      use graphics
-
       use icond
 
 c Common variables
@@ -44,9 +42,6 @@ c Initialize counters
 
       itime     = inewtime - 1
 
-      nplot     = 0
-      tmplot    = 0d0
-
       nrst      = 0
       tmrst     = 0d0
 
@@ -67,7 +62,7 @@ c Time loop
 
 c     Find new time step
 
-        call correctTimeStep(itime,ierr)
+        call correctTimeStep(u_np,itime,ierr)
 
 c     Assign old time solution
 
@@ -98,48 +93,27 @@ c     Check for error in time stepping
           exit
 
         endif
-
+ 
 c     Update counters (only if timeStep is successful)
 
-        time   = time   + dt
-        tmplot = tmplot + dt
-        tmrst  = tmrst  + dt
-
-        nplot  = nplot + 1
+        time   = time  + dt
+        tmrst  = tmrst + dt
         nrst   = nrst  + 1
 
 c     Time level plots (xdraw)
 
-        if (plot) then
-
-          call evaluateDiagnostics(u_np,.false.)
-
-          if (nplot.eq.ndstep.or.tmplot.ge.dstep) then
-            nplot  = 0
-            if (itime.gt.0) tmplot = tmplot - dstep
-            call dumpTimeStepPlots(1,1,1)
-            call writeRecordFile(udebug,itime,time,u_np)
-          endif
-
+        if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
+          nrst  = 0
+          if (itime.gt.0) tmrst = tmrst - dstep
+          call imposeBoundaryConditions(u_np,1,1,1)
+          call writeRecordFile(urecord,itime,time,u_np)
         endif
 
 c     Output per time step
 
         call output
 
-c     Periodic dump to restart
-
-        if (nrst.eq.nrstep.or.tmrst.ge.rstep) then
-          nrst  = 0
-          tmrst = tmrst - rstep
-          call writeRestartFile(nxd,nyd,nzd,u_np)
-        endif
-
       enddo       !End of time loop
-
-c Dump to restart
-
-      call writeRestartFile(nxd,nyd,nzd,u_np)
 
 c Average explicit time step
 
@@ -158,13 +132,6 @@ c Final statistics
      .                      ,dfloat(gmres_tot)/newt_tot
      .                      ,dfloat(wh_tot)   /prec_tot
 
-c Close graphics files and create draw*.in files
-
-      if (plot) then
-        call finalizeGraphics
-        call finalizeDiagnostics
-      endif
-
 c Formats
 
  300  format (/,'Final statistics',/,/,
@@ -172,6 +139,8 @@ c Formats
  310  format (i4,3x,f7.1,4x,f7.1,4x,f7.1,4x,f7.1)
 
 c End program
+
+      close (urecord)
 
       end
 
@@ -279,168 +248,9 @@ c End program
 
       end subroutine
 
-c readRestartFile
-c######################################################################
-      subroutine readRestartFile(nx,ny,nz,varray)
-
-c----------------------------------------------------------------------
-c     Reads restart file
-c----------------------------------------------------------------------
-
-      use timeStepping
-
-      use variables
-
-      use graphics
-
-      implicit none
-
-c Call variables
-
-      integer*4   nx,ny,nz
-
-      type (var_array):: varray
-
-c Local variables
-
-      integer(4) :: ieq
-
-c Begin program
-
-      open(2,file='restart.bin',form='unformatted',status='unknown')
-
-      read (2) time
-      read (2) itime
-
-      read (2) nx
-      read (2) ny
-      read (2) nz
-
-      call readDerivedType(varray,2,.false.)
-
-      read (2) vx_max,vy_max,vy_max
-      read (2) bx_max,by_max,by_max
-      read (2) diagnostics
-      read (2) gammat
-
-      close (2)
-
-c End
-
-      end subroutine readRestartFile
-
-c writeRestartFile
-c######################################################################
-      subroutine writeRestartFile(nx,ny,nz,varray)
-
-c----------------------------------------------------------------------
-c     Writes restart file
-c----------------------------------------------------------------------
-
-      use timeStepping
-
-      use variables
-
-      use graphics
-
-      implicit none
-
-c Call variables
-
-      integer*4   nx,ny,nz
-
-      type (var_array):: varray
-
-c Local variables
-
-      integer(4) :: ieq
-
-c Begin program
-
-      open(2,file='restart.bin',form='unformatted',status='unknown')
-
-      write (2) time
-      write (2) itime
-
-      write (2) nx
-      write (2) ny
-      write (2) nz
-
-      call writeDerivedType(varray,2,.false.)
-
-      write (2) vx_max,vy_max,vy_max
-      write (2) bx_max,by_max,by_max
-      write (2) diagnostics
-      write (2) gammat
-
-      close (2)
-
-c End
-
-      end subroutine writeRestartFile
-
-c readRecord
-c######################################################################
-      subroutine readRecord(unit,itime,time,varray,ierr)
-
-c----------------------------------------------------------------------
-c     Reads restart file
-c----------------------------------------------------------------------
-
-      use variables
-
-      implicit none
-
-c Call variables
-
-      integer(4) :: ierr,itime,unit
-      real(8)    :: time
-      type (var_array):: varray
-
-c Begin program
-
-      ierr = 0
-      read (unit) time
-      read (unit) itime
-
-      call readDerivedType(varray,unit,.false.)
-
-c End
-
-      end subroutine readRecord
-
-c writeRecordFile
-c######################################################################
-      subroutine writeRecordFile(unit,itime,time,varray)
-
-c----------------------------------------------------------------------
-c     Writes record file
-c----------------------------------------------------------------------
-
-      use variables
-
-      implicit none
-
-c Call variables
-
-      integer(4) :: itime,unit
-      real(8)    :: time
-      type (var_array):: varray
-
-c Begin program
-
-      write (unit) time
-      write (unit) itime
-
-      call writeDerivedType(varray,unit,.false.)
-
-c End
-
-      end subroutine writeRecordFile
-
 c correctTimeStep
 c####################################################################
-      subroutine correctTimeStep(itm,ierr)
+      subroutine correctTimeStep(varray,itm,ierr)
 
 c--------------------------------------------------------------------
 c     Correct time step
@@ -450,15 +260,23 @@ c--------------------------------------------------------------------
 
       use iosetup
 
+      use variables
+
+      use parameters
+
       implicit none
 
 c Call variables
 
-      integer*4     ierr,itm
+      integer(4)       ::  ierr,itm
+
+      type (var_array) :: varray
 
 c Local variables
 
 c Begin program
+
+      call calculate_gammat
 
       call calculate_dt
 
@@ -469,6 +287,54 @@ c Begin program
 c End program
 
       contains
+
+c     calculate_gammat
+c     #######################################################################
+      subroutine calculate_gammat
+
+        use generalOperators
+
+c     Calculation of local growth rate for CN
+
+        integer (4) :: ieq
+
+        real(8)     :: dmag1,dmag2,dpert,mag(neqd)
+
+        real(8)     :: array(0:nxdp,0:nydp,0:nzdp)
+
+c     Begin program
+
+        do ieq=1,neqd
+
+          array = (varray%array_var(ieq)%array
+     .            -u_0   %array_var(ieq)%array )**2
+
+          dpert = integral(nxd,nyd,nzd,array,1,1,1,.true.)
+
+          dpert = sqrt(dpert)
+
+          array = (u_n%array_var(ieq)%array
+     .            -u_0%array_var(ieq)%array )**2
+
+          dmag1 = integral(nxd,nyd,nzd,array,1,1,1,.true.)
+
+          array = (varray%array_var(ieq)%array
+     .            +u_n   %array_var(ieq)%array
+     .         -2.*u_0   %array_var(ieq)%array )**2
+
+          dmag2 = integral(nxd,nyd,nzd,array,1,1,1,.true.)
+
+          if (dpert /= 0d0.and.dmag2 /= 0d0) then
+            mag(ieq) = .5*dt*sqrt(dmag2)/(dpert-sqrt(dmag1))
+          else
+            mag(ieq) = 1e30
+          endif
+
+        enddo
+
+        gammat = 1./minval(abs(mag))
+
+      end subroutine calculate_gammat
 
 c     calculate_cnfactor
 c     #######################################################################

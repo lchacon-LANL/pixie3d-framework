@@ -18,6 +18,8 @@ c----------------------------------------------------------------------
 
       use constants
 
+      use iosetup
+
       implicit none
 
 c Call variables
@@ -25,6 +27,9 @@ c Call variables
 c Local variables
 
 c Begin program
+
+      urecord    = 25
+      recordfile = 'record.bin'
 
 c Read user initializations
 
@@ -84,17 +89,13 @@ c Set unperturbed forcing fields
         call imposeBoundaryConditions(u_n,1,1,1)
       endif
 
-c Perturb initial condition u_n
+c Set initial condition
 
-      call setInitialCondition(u_n)
+      call setInitialCondition(u_n,u_np)
 
-c Initialize new time solution
+c Initialize record file
 
-      u_np = u_n
-
-c Create graphics
-
-      call createGraphics
+      call initializeRecordFile
 
 c Check time limits
 
@@ -237,7 +238,7 @@ c     End program
 
 c setInitialCondition
 c####################################################################
-      subroutine setInitialCondition(varray)
+      subroutine setInitialCondition(varrayn,varraynp)
 
 c--------------------------------------------------------------------
 c     Set initial conditions for initial value calculation. Variables
@@ -254,11 +255,13 @@ c--------------------------------------------------------------------
 
       use constants
 
+      use iosetup
+
       implicit none
 
 c Call variables
 
-      type (var_array) :: varray
+      type (var_array) :: varrayn,varraynp
 
 c Local variables
 
@@ -271,19 +274,20 @@ c Perturb equilibrium
       if (.not.restart) then
 
         do ieq = 1,neqd
-          call perturbEquilibrium(varray %array_var(ieq)%array
-     .                           ,varray %array_var(ieq)%bconds
+          call perturbEquilibrium(varrayn%array_var(ieq)%array
+     .                           ,abs(varrayn%array_var(ieq)%bconds)
      .                           ,pert(ieq))
         enddo
-
-cc        call imposeBoundaryConditions(varray,igx,igy,igz)
 
         time     = 0d0
         inewtime = 1
 
+        varraynp = varrayn
+
       else
 
-        call readRestartFile (nx,ny,nz,varray)
+        call readRestartFile (nx,ny,nz,itime,time,varrayn,varraynp)
+
         inewtime = itime
 
         if (nx.ne.nxd.or.ny.ne.nyd.or.nz.ne.nzd) then
@@ -297,6 +301,68 @@ cc        call imposeBoundaryConditions(varray,igx,igy,igz)
 c End program
 
       contains
+
+c     readRestartFile
+c     #################################################################
+      subroutine readRestartFile(nx,ny,nz,itime,time,vn,vnp)
+
+c     -----------------------------------------------------------------
+c     Reads restart file
+c     -----------------------------------------------------------------
+
+      use variables
+
+      implicit none
+
+c     Call variables
+
+      integer(4),intent(OUT) :: nx,ny,nz,itime
+      real(8),intent(OUT)    :: time
+
+      type (var_array)       :: vn,vnp
+
+c     Local variables
+
+      integer(4) :: ierr
+
+      type (var_array)       :: vmed
+
+c     Begin program
+
+      call allocateDerivedType(vmed)
+
+      open(unit=urecord,file=recordfile,form='unformatted',status='old')
+
+      read (urecord) nx
+      read (urecord) ny
+      read (urecord) nz
+
+      write (*,*) ' Reading restart file...'
+
+      call readRecord(urecord,itime,time,vn,ierr)
+
+      vnp = vn
+
+      do
+        call readRecord(urecord,itime,time,vmed,ierr)
+
+        if (ierr /= 0) then
+          exit
+        else
+          vn  = vnp
+          vnp = vmed
+        endif
+      enddo
+
+      close (urecord)
+
+      write (*,*) 'Done!'
+
+c     End
+
+      call deallocateDerivedType(vmed)
+
+      end subroutine readRestartFile
 
 c     perturbEquilibrium
 c     #################################################################
@@ -404,9 +470,9 @@ c     ####################################################################
 
       end subroutine setInitialCondition
 
-c createGraphics
+c initializeRecordFile
 c######################################################################
-      subroutine createGraphics
+      subroutine initializeRecordFile
 
 c----------------------------------------------------------------------
 c     Creates graphics pointers, defines dumping intervals
@@ -416,7 +482,7 @@ c----------------------------------------------------------------------
 
       use variables
 
-      use graphics
+      use iosetup
 
       implicit none
 
@@ -448,24 +514,31 @@ c Set data dumping intervals
         tmax  = 0d0
       endif
 
-c Initialize graphics
+c Open record file
 
-      u_graph = u_np - u_0
+      if (.not.restart) then
 
-      if (plot) then
+        u_graph = u_0
+        call imposeBoundaryConditions(u_graph,1,1,1)
 
-        call initializeGraphics(1,1,1,bcond,restart)
-        call initializeDiagnostics
+        open(unit=urecord,file=recordfile
+     .      ,form='unformatted',status='replace')
 
-        write (udebug) nxd
-        write (udebug) nyd
-        write (udebug) nzd
-        call writeRecordFile(udebug,0,0d0,u_0)
-        call writeRecordFile(udebug,0,0d0,u_np)
+        write (urecord) nxd
+        write (urecord) nyd
+        write (urecord) nzd
+cc        call writeRecordFile(urecord,0,0d0,u_0)
+        call writeRecordFile(urecord,0,0d0,u_graph)
+        call writeRecordFile(urecord,0,0d0,u_np)
 
+      else
+
+        open(unit=urecord,file=recordfile
+     .      ,form='unformatted',status='old',position='append')
+          
       endif
 
 c End programs
 
-      end subroutine createGraphics
+      end subroutine initializeRecordFile
 
