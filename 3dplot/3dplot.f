@@ -291,7 +291,7 @@ c----------------------------------------------------------------------
 
       use iosetup
 
-      use generalOperators
+      use generalPurposeFunctions
 
       implicit none
 
