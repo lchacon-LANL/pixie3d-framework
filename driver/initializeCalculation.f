@@ -527,10 +527,14 @@ c Open record file
 
       if (.not.restart) then
 
+        !Initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
+        if (debug) then
+          u_graph = u_n
+        else
         !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
-        u_graph = u_0
-        !initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
-cc        u_graph = u_n
+          u_graph = u_0
+        endif
+
         !Check source
 cc        u_graph = fsrc
 cc        u_graph%array_var(1)%array = u_0%array_var(1)%array  !Set rho finite
