@@ -26,27 +26,9 @@ LIBS :=
 
 prefix = .
 
-#Define compiler flags
+#Module search path
 
-FC = f90
-
-# Flags for Absoft f90
-ifeq ($(FC),f90)
-  MODPATH = -p
-  MODDIRS = $(patsubst $(COMMONDIR)%,$(MODPATH)$(COMMONDIR)%,$(SUBDIRS))
-endif
-
-# Flags for Lahey lf95
-ifeq ($(FC),lf95)
-  MODPATH = -M
-  MODDIRS = $(MODPATH) . $(patsubst $(COMMONDIR)%,-I $(COMMONDIR)%,$(SUBDIRS))
-endif
-
-# Flags for Intel ifort
-ifeq ($(FC),ifort)
-  MODPATH =
-  MODDIRS = $(patsubst $(COMMONDIR)%,-I $(COMMONDIR)%,$(SUBDIRS))
-endif
+MODDIRS = $(MODPATH). $(patsubst $(COMMONDIR)%,$(ADDMODPATH)$(COMMONDIR)%,$(SUBDIRS))
 
 #Define targets
 
