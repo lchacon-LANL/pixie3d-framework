@@ -25,6 +25,10 @@ c Local variables
       integer(4)     :: ierr,system,nplot,igx,igy,igz
       character*(40) :: command
 
+c diag
+      integer(4)      :: uref=100
+c diag
+
 c Begin program
 
       igx = 1
@@ -41,22 +45,6 @@ c Initialize
 
       call initializeCalculation(igx,igy,igz)
 
-c Backup record file
-
-cc      write (*,*) 'Backing up record file...'
-cc
-cc      command='cp '//trim(recordfile)//' '//trim(recordfile)//'.bak'
-cc
-cc      ierr=system(trim(command))
-cc
-cc      if (ierr /= 0) then
-cc        write (*,*) 'Unable to find record file'
-cc        write (*,*) 'Aborting...'
-cc        stop
-cc      else
-cc        write (*,*) 'Done!'
-cc      endif
-
 c Initialize counters
 
       nplot     = 0
@@ -72,7 +60,7 @@ c     Store previous record
 
 c     Read next record
 
-        call readRecord(urecord,itime,time,dt,u_np,ierr)
+        call readRecordFile(urecord,itime,time,dt,u_np,ierr)
 
 c     Check for error
 
@@ -217,6 +205,8 @@ c----------------------------------------------------------------------
 
       use constants
 
+      use generalPurposeFunctions
+
       implicit none
 
 c Call variables
@@ -227,26 +217,34 @@ c Local variables
 
 c Begin program
 
+c Initialize graphics files
+
+#if defined(petsc)
+      urecord    = 25 + my_rank
+
+      if (np > 1) then
+        recordfile = 'record_proc'//trim(int2char(my_rank))//'.bin'
+      else
+        recordfile = 'record.bin'
+      endif
+#else
+      urecord    = 2
+      recordfile = 'record.bin'
+#endif
+
 c Read user initializations
 
       call readGraphicsInput(sel_diag,sel_graph,ndplot,dplot)
 
 c Open graphics file
 
-#if defined(petsc)
-      call openGraphicsFile
+#if !defined(petsc)
+      call mergeGraphicsFiles
 #endif
+
+      call openGraphicsFile(urecord,recordfile)
 
 c Initialize vector dimensions
-
-#if !defined(petsc)
-      ihig = nxd
-      ilog = 1
-      jhig = nyd
-      jlog = 1
-      khig = nzd
-      klog = 1
-#endif
 
       call setVectorDimensions
 
@@ -274,15 +272,9 @@ c Allocate records
       call allocateDerivedType(u_np)
       call allocateDerivedType(u_graph)
 
-c Open graphics file
-
-#if !defined(petsc)
-      call openGraphicsFile
-#endif
-
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
-      call readRecord(urecord,itime,time,dt,u_0,ierr)
+      call readRecordFile(urecord,itime,time,dt,u_0,ierr)
 
       if (ierr /= 0) then
         write (*,*) 'Unable to read equilibrium'
@@ -313,12 +305,87 @@ c End program
 
 c openGraphicsFile
 c######################################################################
-      subroutine openGraphicsFile
+      subroutine openGraphicsFile(unit,file)
 
 c----------------------------------------------------------------------
 c     In parallel runs, it merges all output files 'record_proc*.bin'
 c     to a serial file 'record.bin', and then opens it for postprocessing.
 c     Finally, it reads equilibrium information and stores it in u_0.
+c----------------------------------------------------------------------
+
+      use parameters
+
+      use constants
+
+      use timeStepping
+
+      use variables
+
+      use graphics
+
+      use iosetup
+
+      use generalPurposeFunctions
+
+      implicit none
+
+c Call variables
+
+      integer(4)   :: unit
+      character(*) :: file
+
+c Local variables
+
+      integer(4) :: nx,ny,nz,ierr,nfiles,ifile
+      integer(4),allocatable,dimension(:)     :: murecord
+      character*(20),allocatable,dimension(:) :: mrecfile
+
+c Externals
+
+      integer(4) :: system
+
+c Begin program
+
+c Open graphics file
+
+      open(unit,file=file,form='unformatted',status='unknown')
+
+c Consistency check
+
+      read (unit) nx,ilog,ihig
+      read (unit) ny,jlog,jhig
+      read (unit) nz,klog,khig
+
+      nxl  = ihig-ilog+1
+      nyl  = jhig-jlog+1
+      nzl  = khig-klog+1
+
+#if defined(petsc)
+      if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)
+     .    .and.(my_rank == 0)) then
+        write (*,*) 'Grid meshes do not agree; cannot restart'
+        write (*,*) 'Aborting...'
+        stop
+      endif
+#else
+      if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
+        write (*,*) 'Grid size does not agree'
+        write (*,*) 'Aborting graphics dump...'
+        stop
+      endif
+#endif
+
+c End programs
+
+      end subroutine openGraphicsFile
+
+c mergeGraphicsFile
+c######################################################################
+      subroutine mergeGraphicsFiles
+
+c----------------------------------------------------------------------
+c     In parallel runs, it merges all output files 'record_proc*.bin'
+c     to a serial file 'record.bin'.
 c----------------------------------------------------------------------
 
       use parameters
@@ -351,27 +418,11 @@ c Externals
 
 c Begin program
 
-c Initialize graphics
-
-#if defined(petsc)
-      urecord    = 25 + my_rank
-
-      if (np > 1) then
-        recordfile = 'record_proc'//trim(int2char(my_rank))//'.bin'
-      else
-        recordfile = 'record.bin'
-      endif
-#else
-      urecord    = 2
-      recordfile = 'record.bin'
-#endif
-
-c For parallel runs, merge graphics files
-
-#if !defined(petsc)
       ierr = system('ls record_proc* >& /dev/null')
 
       if (ierr == 0) then
+
+        write (*,*) 'Merging graphics files...'
 
         !Find out number of graphics files
         nfiles = -1
@@ -437,11 +488,22 @@ cc          write (*,*) 'Aborting graphics files merging...'
 cc          stop
 cc        endif
 
+        ihig = nxd
+        ilog = 1
+        jhig = nyd
+        jlog = 1
+        khig = nzd
+        klog = 1
+
+        call setVectorDimensions
+
+        call allocateDerivedType(u_0)
+
         do 
 
           do ifile=1,nfiles
 
-            call readRecord(murecord(ifile),itime,time,dt,u_0,ierr)
+            call readRecordFile(murecord(ifile),itime,time,dt,u_0,ierr)
             if (ierr == -1) cycle !Error, but not EOF
             if (ierr == -2) cycle !EOF
 
@@ -450,7 +512,7 @@ cc        endif
           if (ierr == -1) cycle !Error, but not EOF
           if (ierr == -2) exit  !EOF
 
-          !Reset vector dimensions (readRecord alters defs of some values)
+          !Reset vector dimensions (readRecordFile alters defs of some values)
 
           ihig = nxd
           ilog = 1
@@ -473,37 +535,190 @@ cc        endif
 
         deallocate(mrecfile,murecord)
       endif
-#endif
 
-c Open graphics file
-
-      open(urecord,file=recordfile,form='unformatted',status='unknown')
-
-c Consistency check
-
-      read (urecord) nx,ilog,ihig
-      read (urecord) ny,jlog,jhig
-      read (urecord) nz,klog,khig
-
-      nxl  = ihig-ilog+1
-      nyl  = jhig-jlog+1
-      nzl  = khig-klog+1
-
-#if defined(petsc)
-      if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)
-     .    .and.(my_rank == 0)) then
-        write (*,*) 'Grid meshes do not agree; cannot restart'
-        write (*,*) 'Aborting...'
-        stop
-      endif
-#else
-      if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
-        write (*,*) 'Grid size does not agree'
-        write (*,*) 'Aborting graphics dump...'
-        stop
-      endif
-#endif
+      call deallocateDerivedType(u_0)
 
 c End programs
 
-      end subroutine openGraphicsFile
+      end subroutine mergeGraphicsFiles
+
+ccc compare
+ccc ########################################################################
+cc      subroutine compare
+cc
+cc      use parameters
+cc
+cc      use variables
+cc
+cc      use grid
+cc
+cc      use iosetup
+cc
+cc      use timeStepping
+cc
+cc      use equilibrium
+cc
+cc      use slatec_splines
+cc
+cc      implicit none
+cc
+ccc Local variables
+cc
+cc      integer(4)     :: i,j,k,ig,jg,kg,nx,ny,nz
+cc      integer(4)     :: ierr,system,nplot,igx,igy,igz
+cc
+cc      real(8)        :: mag,mag0,jac
+cc      real(8),allocatable,dimension(:,:,:,:) :: pos 
+cc      real(8),pointer,dimension(:,:,:) :: array
+cc
+cc      type (var_array),target :: vref,vsol
+cc
+ccc Interpolation
+cc
+cc      real(8)    :: xp,yp,zp,interp
+cc      real(8),allocatable,dimension(:) :: xx,yy,zz
+cc
+cccc      integer(4) :: kx,ky,kz,nx,ny,nz,dim,flg,order
+cccc
+cccc      real(8), dimension(:),allocatable:: tx,ty,tz,work
+cccc      real(8), dimension(:,:,:),allocatable:: bcoef
+cccc
+cccc      real(8)    :: db2val,db3val
+cccc      external      db2val,db3val
+cc
+ccc Begin program
+cc
+cc      write (*,*)
+cc      write (*,*) ' Starting reference test...'
+cc
+ccc Read reference grid info
+cc
+cc      open(unit=urecord,file='record-ref.bin'
+cc     .    ,form='unformatted',status='old')
+cc
+cc      read (urecord) nxd,ilog,ihig
+cc      read (urecord) nyd,jlog,jhig
+cc      read (urecord) nzd,klog,khig
+cc
+cc      write (*,*)
+cc      write (*,*) ' Reading reference file...'
+cc      write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
+cc
+cc      !Read solutions
+cc      call allocateDerivedType(vref)
+cc
+cc      do
+cc        call readRecordFile(urecord,itime,time,dt,vref,ierr)
+cc
+cc        if (ierr /= 0) exit
+cc      enddo
+cc
+cc      close (urecord)
+cc
+cc      array => vref%array_var(IVX)%array
+cc
+ccc Spline reference solution
+cc
+cc      order = 2
+cc
+cc      nx = nxd+2
+cc      ny = nyd+2
+cc      nz = nzd+2
+cc
+cc      allocate(xx(nx),yy(ny),zz(nz))
+cc
+cc      call getMGmap(1,1,1,igx,igy,igz,ig,jg,kg)
+cc
+cc      xx(1:nx) = grid_params%xx(ig-1:ig+nxd)
+cc      yy(1:ny) = grid_params%yy(jg-1:jg+nyd)
+cc      zz(1:nz) = grid_params%zz(kg-1:kg+nzd)
+cc
+cc      flg = 0
+cc
+cc      kx = min(order+1,nx-1)
+cc      ky = min(order+1,ny-1)
+cc      kz = min(order+1,nz-1)
+cc
+cc      dim = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
+cc
+cc      allocate(tx(nx+kx))
+cc      allocate(ty(ny+ky))
+cc      allocate(tz(nz+kz))
+cc      allocate(work(dim))
+cc      allocate(bcoef(nx,ny,nz))
+cc
+cc      call db3ink(xx,nx,yy,ny,zz,nz,array(0:nxd+1,0:nyd+1,0:nzd+1)
+cc     .           ,nx,ny,kx,ky,kz,tx,ty,tz,bcoef,work,flg)
+cc
+cc      call deallocateGridMetric(gmetric)
+cc      call deallocateGridStructure(grid_params)
+cc
+ccc Initialize current grid info and read current grid solution
+cc
+cc      igx = 1
+cc      igy = 1
+cc      igz = 1
+cc
+cc      open(urecord,file=recordfile,form='unformatted',status='unknown')
+cc
+cc      read (urecord) nxd,ilog,ihig
+cc      read (urecord) nyd,jlog,jhig
+cc      read (urecord) nzd,klog,khig
+cc
+cc      write (*,*)
+cc      write (*,*) ' Reading solution file...'
+cc      write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
+cc
+cc      call setVectorDimensions
+cc
+cc      call createGrid(1,nxd,1,nyd,1,nzd,nxd,nyd,nzd)
+cc
+cc      call allocateDerivedType(vsol)
+cc
+cc      do
+cc        call readRecordFile(urecord,itime,time,dt,vsol,ierr)
+cc
+cc        if (ierr /= 0) exit
+cc      enddo
+cc
+cc      close (urecord)
+cc
+cc      array => vsol%array_var(IVX)%array
+cc
+ccc Calculate difference
+cc
+cc      mag0= 0d0
+cc      mag = 0d0
+cc
+cc      do k = 1,nzd
+cc        do j = 1,nyd
+cc          do i = 1,nxd
+cc            call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+cc
+cc            xp = grid_params%xx(ig)
+cc            yp = grid_params%yy(jg)
+cc            zp = grid_params%zz(kg)
+cc
+cc            jac = gmetric%grid(igx)%jac(i,j,k)
+cc
+cc            interp = db3val(xp,yp,zp,0,0,0,tx,ty,tz,nx,ny,nz
+cc     .                     ,kx,ky,kz,bcoef,work)
+cc
+cccc            mag0 = mag0 + jac* array(i,j,k)**2
+cc            mag0 = mag0 + jac* interp**2
+cc            mag  = mag  + jac*(array(i,j,k)-interp)**2
+cc
+cc          enddo
+cc        enddo
+cc      enddo
+cc
+cc      mag = sqrt(mag/mag0)
+cc
+cc      write (*,*)
+cc      write (*,*) ' L2-norm relative error:',mag
+cc
+ccc End program
+cc
+cc      deallocate(tx,ty,tz,work,bcoef,xx,yy,zz)
+cc
+cc      end subroutine compare
