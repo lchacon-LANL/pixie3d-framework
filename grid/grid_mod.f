@@ -2806,15 +2806,15 @@ c     Begin program
         grid_params%ngrdz = ngridz
 
         if (.not.associated(grid_params%xx)) then
-          allocate(grid_params%xx(2*(nxx+2)))
-          allocate(grid_params%yy(2*(nyy+2)))
-          allocate(grid_params%zz(2*(nzz+2)))
-          allocate(grid_params%dx(2*(nxx+2)))
-          allocate(grid_params%dy(2*(nyy+2)))
-          allocate(grid_params%dz(2*(nzz+2)))
-          allocate(grid_params%dxh(2*(nxx+2)))
-          allocate(grid_params%dyh(2*(nyy+2)))
-          allocate(grid_params%dzh(2*(nzz+2)))
+          allocate(grid_params%xx(2*nxx+2*ngridx))
+          allocate(grid_params%yy(2*nyy+2*ngridy))
+          allocate(grid_params%zz(2*nzz+2*ngridz))
+          allocate(grid_params%dx(2*nxx+2*ngridx))
+          allocate(grid_params%dy(2*nyy+2*ngridy))
+          allocate(grid_params%dz(2*nzz+2*ngridz))
+          allocate(grid_params%dxh(2*nxx+2*ngridx))
+          allocate(grid_params%dyh(2*nyy+2*ngridy))
+          allocate(grid_params%dzh(2*nzz+2*ngridz))
           allocate(grid_params%nxv(ngridx))
           allocate(grid_params%nyv(ngridy))
           allocate(grid_params%nzv(ngridz))
@@ -2838,7 +2838,8 @@ c     #################################################################
 c     Call variables
 
         integer(4) :: nn,ngrid,nx(ngrid),istart(ngrid),bcs1,bcs2
-        real(8)    :: xx(2*(nn+2)),dx(2*(nn+2)),dxh(2*(nn+2)),lmin,lmax
+        real(8)    :: xx(2*nn+2*ngrid),dx(2*nn+2*ngrid)
+     .               ,dxh(2*nn+2*ngrid),lmin,lmax
 
 c     Local variables
         
