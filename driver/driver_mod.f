@@ -222,7 +222,7 @@ c     End program
 c     equateDerivedType
 c     #################################################################
       subroutine equateDerivedType(varray2,varray1)
-
+      implicit none
 c     -----------------------------------------------------------------
 c     Performs varray2 = varray1
 c     -----------------------------------------------------------------
@@ -434,7 +434,7 @@ c     Call variables
 
 c     Local variables
 
-      integer          :: i,j,k,ii,ieq,neq
+      integer(4) :: i,j,k,ii,ieq,neq
 
 cc      external imposeBoundaryConditions
 
@@ -627,7 +627,7 @@ c ######################################################################
 
 c     readRecord
 c     #################################################################
-      subroutine readRecord(unit,itime,time,varray,ierr)
+      subroutine readRecord(unit,itime,time,dt,varray,ierr)
 
 c     -----------------------------------------------------------------
 c     Reads record file
@@ -640,7 +640,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer(4) :: ierr,itime,unit
-      real(8)    :: time
+      real(8)    :: time,dt
       type (var_array):: varray
 
 c     Begin program
@@ -651,6 +651,9 @@ c     Begin program
       if (ierr /= 0) goto 200
 
       read (unit,iostat=ierr,end=100) itime
+      if (ierr /= 0) goto 200
+
+      read (unit,iostat=ierr,end=100) dt
       if (ierr /= 0) goto 200
 
       call readDerivedType(varray,unit,.false.,ierr)
@@ -668,7 +671,7 @@ c     End
 
 c     writeRecordFile
 c     #################################################################
-      subroutine writeRecordFile(unit,itime,time,varray)
+      subroutine writeRecordFile(unit,itime,time,dt,varray)
 
 c     -----------------------------------------------------------------
 c     Writes record file
@@ -681,13 +684,14 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer(4) :: itime,unit
-      real(8)    :: time
+      real(8)    :: time,dt
       type (var_array):: varray
 
 c     Begin program
 
       write (unit) time
       write (unit) itime
+      write (unit) dt
 
       call writeDerivedType(varray,unit,.false.)
 
