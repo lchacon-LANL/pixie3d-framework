@@ -1858,10 +1858,10 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-        integer(4) :: PER,DIR,NEU,SP,EQU,DEF,EXT
-        parameter (PER=1,EQU=2,EXT=3,NEU=4,DIR=5,SP=6,DEF=7)
+        integer(4) :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM
+        parameter (PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7,DEF=8)
 
-        integer(4),parameter :: BCLIM=5
+        integer(4),parameter :: BCLIM=6
 
         integer(4) :: bcond(6)
         
@@ -3878,11 +3878,26 @@ c #####################################################################
 
         real(8),private :: pi
 
+        type :: dim_pack
+          logical    :: pack
+cc          real(8)    :: xi
+          real(8)    :: xp
+          real(8)    :: dx0
+cc          integer(4) :: n1
+        end type dim_pack
+
+        type :: grid_pack
+          type(dim_pack),dimension(3) :: dim
+        end type grid_pack
+
+        type(grid_pack) :: g_pack
+
       contains
 
 c     createGrid
 c     #################################################################
-      subroutine createGrid(imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz)
+      subroutine createGrid(imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+     .                     ,gpack)
 
 c     -----------------------------------------------------------------
 c     Defines logical grid and finds grid quantities from:
@@ -3897,13 +3912,21 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         integer(4) :: imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+        type(grid_pack),optional :: gpack
 
 c     Local variables
 
         integer(4) :: i,n1,n2,n3
         integer(4) :: ngrdx,ngrdy,ngrdz
+        type(grid_pack) :: g_pack
 
 c     Begin program
+
+        if (PRESENT(gpack)) then
+          g_pack = gpack
+        else
+          g_pack%dim(:)%pack = .false.
+        endif
 
         nxx = imax-imin+1
         nyy = jmax-jmin+1
@@ -4044,23 +4067,29 @@ c     Consistency checks
 
 c     Define uniform logical LOCAL grid on ALL grid levels
 
-        call createLogicalGrid(nx,grid_params%xx,grid_params%dx
+        call createLogicalGrid(grid_params%nxgl,grid_params%mg_ratio_x
+     .                        ,grid_params%xx,grid_params%dx
      .                        ,grid_params%dxh,grid_params%nxv
      .                        ,grid_params%ngrid,grid_params%istartx
      .                        ,grid_params%ilo,grid_params%ihi
-     .                        ,xmin,xmax,bcond(1),bcond(2))
+     .                        ,xmin,xmax,bcond(1),bcond(2)
+     .                        ,g_pack%dim(1))
 
-        call createLogicalGrid(ny,grid_params%yy,grid_params%dy
+        call createLogicalGrid(grid_params%nygl,grid_params%mg_ratio_y
+     .                        ,grid_params%yy,grid_params%dy
      .                        ,grid_params%dyh,grid_params%nyv
      .                        ,grid_params%ngrid,grid_params%istarty
      .                        ,grid_params%jlo,grid_params%jhi
-     .                        ,ymin,ymax,bcond(3),bcond(4))
+     .                        ,ymin,ymax,bcond(3),bcond(4)
+     .                        ,g_pack%dim(2))
 
-        call createLogicalGrid(nz,grid_params%zz,grid_params%dz
+        call createLogicalGrid(grid_params%nzgl,grid_params%mg_ratio_z
+     .                        ,grid_params%zz,grid_params%dz
      .                        ,grid_params%dzh,grid_params%nzv
      .                        ,grid_params%ngrid,grid_params%istartz
      .                        ,grid_params%klo,grid_params%khi
-     .                        ,zmin,zmax,bcond(5),bcond(6))
+     .                        ,zmin,zmax,bcond(5),bcond(6)
+     .                        ,g_pack%dim(3))
 
 c     Initialize MPI for BCs
 
@@ -4076,21 +4105,25 @@ c     Store grid metric parameters in grid metric structure
 
 c     createLogicalGrid
 c     #################################################################
-      subroutine createLogicalGrid (nglobal,xx,dx,dxh,nx,ngrid,istart
-     .                             ,ilo,ihi,lmin,lmax,bcs1,bcs2)
+      subroutine createLogicalGrid (nglobal,mgr,xx,dx,dxh,nx,ngrid
+     .                             ,istart,ilo,ihi,lmin,lmax,bcs1,bcs2
+     .                             ,dpack)
 
         implicit none
 
 c     Call variables
 
-        integer(4) :: nglobal,ngrid,nx(ngrid),istart(ngrid)
-     $               ,ilo(ngrid),ihi(ngrid),bcs1,bcs2
+        integer(4) :: ngrid,nglobal(ngrid),nx(ngrid),istart(ngrid)
+     $               ,mgr(ngrid),ilo(ngrid),ihi(ngrid),bcs1,bcs2
         real(8)    :: xx(*),dx(*),dxh(*),lmin,lmax
+
+        type(dim_pack) :: dpack
 
 c     Local variables
         
-        integer(4) :: ig,i,isig
+        integer(4) :: ig,i,isig,ng
         real(8)    :: dh,length,lmax_loc,lmin_loc,lstart
+     .               ,dx0,dxl,dxr,alpha1=1d0,alpha2=1d0
 
 c     Begin program
 
@@ -4101,7 +4134,7 @@ c     Find local domain limits lmin_loc,lmax_loc
         length = lmax-lmin
 
         !Global mesh spacing
-        dh = length/nglobal
+        dh = length/nglobal(ig)
 
         !Domain partition according to finest grid level local limits
         !(It satisfies dh=(lmax-lmin)/nglobal=(lmax_loc-lmin_log)/nlocal)
@@ -4112,32 +4145,20 @@ c     Find local length
 
         length = lmax_loc-lmin_loc
 
+        dx0    = dpack%dx0
+        dxl    = dpack%dx0
+        dxr    = dpack%dx0
+
 c     Find grid quantities
 
         do ig = 1,ngrid
 
           isig = istart(ig)
 
-          !Find cell centers
-          dh = length/float(nx(ig))
+          ng   = nglobal(ig)
 
-          !Starting point (i=1)
-          if (bcs1 == PER) then
-            lstart = lmin_loc
-          else
-            lstart = lmin_loc+dh/2.
-          endif
-
-          xx(1 + isig) = lstart
-          do i = 2,nx(ig)+1
-            xx(i + isig) = xx(i-1 + isig) + dh
-          enddo
-          if (bcs1 == SP .and. ilo(1) == 1) then
-            xx(0 + isig) = 1d-8*dh
-cc            xx(0 + isig) = 1d-2
-          else
-            xx(0 + isig) = xx(1+isig) - dh
-          endif
+          !Find grid spacing
+          call findLocalGrid(ig,xx(isig),ng)
 
           !Find integer mesh spacings
           do i = 0,nx(ig)
@@ -4146,7 +4167,7 @@ cc            xx(0 + isig) = 1d-2
 
           !Find half mesh spacings
           if (bcs1 == SP .and. ilo(1) == 1) then
-            dxh(1 + isig) = dh
+            dxh(1 + isig) =  dx(0 + isig)
           else
             dxh(1 + isig) = (dx(1 + isig) + dx(0   + isig))/2.
           endif
@@ -4166,7 +4187,304 @@ cc            xx(0 + isig) = 1d-2
             dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)/2.
           endif
 
+          ng = max(ng/mgr(ig),1)
+
         enddo
+
+      contains
+
+c     findLocalGrid
+c     #################################################################
+      subroutine findLocalGrid(ig,xx,ng)
+
+c     -----------------------------------------------------------------
+c     Finds grid on local processor
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: ig,ng
+        real(8)    :: xx(*)
+
+c     Local variables
+
+        real(8)    :: xg(0:ng+1)
+
+c     Begin program
+
+c     Find global grid
+
+        call findGlobalGrid(ig,xg,ng)
+
+c     Assign local grid
+
+        xx(1:nx(ig)+2) = xg(ilo(ig)-1:ihi(ig)+1)
+
+c     End program
+
+      end subroutine findLocalGrid
+
+c     findGlobalGrid
+c     #################################################################
+      subroutine findGlobalGrid(ig,xg,ng)
+
+c     -----------------------------------------------------------------
+c     Finds global grid
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: ig,ng
+        real(8)    :: xg(0:ng+1)
+
+c     Local variables
+
+        integer(4) :: n1,n2
+        real(8)    :: dh,length,lstart,lend,xp,xi,xil,xir
+        logical    :: pack_l,pack_r
+
+c     Begin program
+
+        length = lmax-lmin
+
+        if (dpack%pack) then
+
+          dh = length/ng
+          lstart = lmin
+          lend   = lmax
+
+          xp = dpack%xp
+
+          pack_l = .false.
+          pack_r = .false.
+
+          if (xp < lend .and. xp > lstart) then
+
+            n1 = (xp - lmin)/length*ng
+
+            n2 = ng - n1
+
+            dxl = alpha1*dxl  !Modify initial interval for coarser grids
+
+cc            call packGrid(ig,n1,lstart,xp,-dxl,xg(1:n1),alpha1,xi)
+            call packGrid(ig,n1,lstart,xp-dxl,-dxl,xg(1:n1),alpha1,xil)
+
+            dxr = alpha2*dxr  !Modify initial interval for coarser grids
+
+cc            call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
+            call packGrid(ig,n2,xp,lend,dxr,xg(n1+1:ng),alpha2,xir)
+
+          else
+
+            dx0 = alpha1*dx0  !Modify initial interval for coarser grids
+
+            if (xp <= lstart) then  !Pack to the left
+              pack_l = .true.
+              call packGrid(ig,ng,lstart,lend, dx0,xg(1:ng),alpha1,xi)
+            else                    !Pack to the right
+              pack_r = .true.
+              call packGrid(ig,ng,lstart,lend,-dx0,xg(1:ng),alpha1,xi)
+            endif
+
+            xil = xi
+            xir = xi
+
+          endif
+
+          !X0 ghost cell
+          if (bcs1 == SP .and. ilo(1) == 1) then
+            xg(0) = 1d-8*dh
+          elseif (bcs1 == PER) then
+            xg(0) = xg(1) - (xg(ng)-xg(ng-1))
+          elseif (abs(bcs1) == SYM) then
+            xg(0) = xg(1) - (xg(2 )-xg(1   ))
+          else
+            if (pack_l) then
+              xg(0) = xg(1) - (xg(2 )-xg(1   ))
+            else
+              xg(0) = xg(1) - (xg(2 )-xg(1   ))*xil
+            endif
+          endif
+
+          !Xn ghost cell
+          if (bcs2 == PER) then
+            xg(ng+1) = xg(ng) + (xg(2) -xg(1)   )
+          elseif (abs(bcs2) == SYM) then
+            xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))
+          else
+            if (pack_r) then
+              xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))
+            else
+              xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))*xir
+            endif
+          endif
+
+cc          write (*,*) xp,lmin,lmax,lstart,lend,dh,n1,n2,ng
+cc          write (*,*) xg
+cc          stop
+
+        else  !Uniform grid
+
+          dh = length/ng
+
+          if (   (bcs1 == PER .and. bcs2 == PER)
+     .       .or.(bcs1 == SYM .and. bcs2 == SYM)) then
+            dh = length/ng
+            lstart = lmin
+            lend   = lmax
+          elseif (bcs1 == SYM .and. bcs2 /= SYM) then
+            dh = length/(ng - 0.5)
+            lstart = lmin
+            lend   = lmax-dh/2.
+          elseif (bcs1 /= SYM .and. bcs2 == SYM) then
+            dh = length/(ng - 0.5)
+            lstart = lmin+dh/2.
+            lend   = lmax
+          else
+            dh = length/ng
+            lstart = lmin+dh/2.
+            lend   = lmax-dh/2.
+          endif
+
+          xg(1) = lstart
+          do i = 2,ng+1
+            xg(i) = xg(i-1) + dh
+          enddo
+          if (bcs1 == SP) then
+            xg(0) = 1d-8*dh
+          else
+            xg(0) = xg(1) - dh
+          endif
+
+        endif
+
+c     End program
+
+      end subroutine findGlobalGrid
+
+c     packGrid
+c     #################################################################
+      subroutine packGrid(ig,nn,lmin,lmax,dx0,xx,alpha,xi)
+
+c     -----------------------------------------------------------------
+c     Finds packed grid, packing to the right if dx0<0 and to the 
+c     left if dx0>0.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: nn,ig
+        real(8)    :: lmin,lmax,dx0,xx(nn),alpha,xi
+
+c     Local variables
+
+        integer(4) :: i
+        real(8)    :: rhs
+
+c     Begin program
+
+        rhs = (lmax-lmin)/abs(dx0)
+
+        call find_xi(nn-1,rhs,xi)
+
+cc        write (*,*) 'Geometric factor',xi
+
+        if (dx0 > 0d0) then !Pack to the left
+
+          xx(1) = lmin
+          do i = 2,nn
+            xx(i) = xx(i-1) + dx0*xi**(i-2)
+          enddo
+            
+        else              !Pack to the right
+
+          xx(nn) = lmax
+          do i = nn,2,-1
+            xx(i-1) = xx(i) - abs(dx0)*xi**(nn-i)
+          enddo
+
+        endif
+
+        if (mgr(ig) > 1 ) then
+          alpha = (xi**mgr(ig)-1)/(xi-1)
+        else
+          alpha = 1
+        endif
+
+cc        write (*,*) alpha,mgr(ig)
+cc        write (*,*) xx
+
+c     End program
+
+      end subroutine packGrid
+
+c     find_xi
+c     #################################################################
+      subroutine find_xi(nn,rhs,xi)
+
+c     -----------------------------------------------------------------
+c     Finds geometric factor xi using Newton's method according to the
+c     formula:
+c              (xi^nn-1)/(xi-1) = rhs
+c     The Newton iteration is initialized by using xi=1+eps, and
+c     expanding in eps to second order in the formula above to find:
+c              eps_0 ~ 2*(rhs-nn)/nn^2
+c     This result is used to initialize a single Picard iteration,
+c              xi_0 ~ exp(log(1+eps_0*rhs)/nn)
+c     which is used as the first guess for Newton.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: nn
+        real(8)    :: rhs,xi
+
+c     Local variables
+
+        integer(4) :: i,nit=20
+        real(8)    :: ijac,dxi,res
+
+c     Begin program
+
+cc        write (*,*) nn,rhs
+
+        !Initial guess
+        xi = 2*(rhs-nn)/nn**2  !Initial guess
+        xi = exp(log(1+xi*rhs)/nn)
+
+cc        write (*,*) 'xi0',xi
+
+        do i=1,nit
+cc          res = rhs-(xi**nn-1)/(xi-1)
+cc          ijac = (xi-1)**2/((nn-1)*xi**nn-nn*xi**(nn-1)+1)
+          res = rhs-0.5*(xi**nn+xi**(nn+1)-2)/(xi-1)
+          ijac = 2*(xi-1)**2/(nn*(xi**(nn+1)-xi**(nn-1))-2*xi**nn+2)
+
+cc          write (*,*) 'Newton it.',i,' res. in find_xi',abs(res)
+
+          dxi = res*ijac
+          xi = xi + dxi
+cc          write (*,*) 'xi',xi
+          if (abs(res) < 1d-10) exit
+        enddo
+
+        if (i >= nit) then
+          write (*,*) 'Newton it. in find_xi did not converge'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
+c     End program
+
+      end subroutine find_xi
 
       end subroutine createLogicalGrid
 
@@ -4238,7 +4556,7 @@ c     Begin program
 
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
-cc        if (numerical_grid) then
+        if (numerical_grid) then
           if (nxx == 1) then
             xmin = 0d0
             xmax = 1d-3
@@ -4251,7 +4569,7 @@ cc        if (numerical_grid) then
             zmin = 0d0
             zmax = 1d-3
           endif
-cc        endif
+        endif
 
       end subroutine consistencyCheck
 
