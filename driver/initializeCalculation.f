@@ -483,12 +483,15 @@ c     End program
 
 c     factor
 c     ####################################################################
-      real(8) function factor(xmin,xmax,x,bcs,nh) result(ff)
+      function factor(xmin,xmax,x,bcs,nh) result(ff)
 
         implicit none
 
-        real(8)    :: xmin,xmax,x,period
+        real(8)    :: xmin,xmax,x,period,ff
         integer(4) :: bcs(2),nh
+        logical    :: neumann(2)
+
+        neumann = (bcs == NEU) .or. (bcs == SYM)
 
         period = pi
         if (odd) period = 2*pi
@@ -497,13 +500,13 @@ c     ####################################################################
           ff = cos(nh*2*pi*(x-xmin)/(xmax-xmin))
         elseif (random) then
           call random_number(ff)
-        elseif (bcs(1) == NEU .and. bcs(2) == NEU) then
+        elseif (neumann(1) .and. neumann(2)) then
           ff = cos(period*(x-xmin)/(xmax-xmin))
-        elseif (bcs(1) == NEU .and. bcs(2) == DIR) then
+        elseif (neumann(1) .and. bcs(2) == DIR) then
           period = 3*period/4.
           if (.not.odd) period = period/2.
           ff = cos(period*(x-xmin)/(xmax-xmin))
-        elseif (bcs(1) == DIR .and. bcs(2) == NEU) then
+        elseif (bcs(1) == DIR .and. neumann(2)) then
           if (.not.odd) then
             period = period/2.
           else
@@ -513,7 +516,7 @@ c     ####################################################################
         elseif (bcs(1) == SP .and. bcs(2) == DIR) then
           ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
      .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
-        elseif (bcs(1) == SP .and. bcs(2) == NEU) then
+        elseif (bcs(1) == SP .and. neumann(2)) then
           if (.not.odd) then
             period = period/2.
             ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
@@ -525,6 +528,42 @@ c     ####################################################################
         else
           ff = sin(period*(x-xmin)/(xmax-xmin))
         endif
+
+cc        period = pi
+cc        if (odd) period = 2*pi
+cc
+cc        if (bcs(1) == PER) then
+cc          ff = cos(nh*2*pi*(x-xmin)/(xmax-xmin))
+cc        elseif (random) then
+cc          call random_number(ff)
+cc        elseif (bcs(1) == NEU .and. bcs(2) == NEU) then
+cc          ff = cos(period*(x-xmin)/(xmax-xmin))
+cc        elseif (bcs(1) == NEU .and. bcs(2) == DIR) then
+cc          period = 3*period/4.
+cc          if (.not.odd) period = period/2.
+cc          ff = cos(period*(x-xmin)/(xmax-xmin))
+cc        elseif (bcs(1) == DIR .and. bcs(2) == NEU) then
+cc          if (.not.odd) then
+cc            period = period/2.
+cc          else
+cc            period = 3*period/4.
+cc          endif
+cc          ff = sin(period*(x-xmin)/(xmax-xmin))
+cc        elseif (bcs(1) == SP .and. bcs(2) == DIR) then
+cc          ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+cc     .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
+cc        elseif (bcs(1) == SP .and. bcs(2) == NEU) then
+cc          if (.not.odd) then
+cc            period = period/2.
+cc            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+cc          else
+cc            period = 3*period/4.
+cc            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+cc     .        *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
+cc          endif
+cc        else
+cc          ff = sin(period*(x-xmin)/(xmax-xmin))
+cc        endif
 
       end function factor
 
