@@ -205,6 +205,9 @@ int MAIN__(int argc, char **argv)
 
   ierr = PetscOptionsGetInt(PETSC_NULL,"-aspc_its",&user.aspc_its,PETSC_NULL)   ;CHKERRQ(ierr);
 
+  ierr = PetscOptionsGetLogical(PETSC_NULL,"-user_PC",&user.indata.user_PC\
+                               ,PETSC_NULL)                                    ; CHKERRQ(ierr);
+
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create DA context 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
