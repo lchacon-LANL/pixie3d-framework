@@ -39,6 +39,8 @@ c Begin program
       urecord    = 25
       recordfile = 'record.bin'
 
+      g_pack%dim(:)%pack = .false.
+
 c Read user initializations
 
       call readInput
@@ -86,7 +88,7 @@ c Allocate constant arrays
 
 c Initialize MG and create grid
 
-      call createGrid(1,nxd,1,nyd,1,nzd,nxd,nyd,nzd)
+      call createGrid(1,nxd,1,nyd,1,nzd,nxd,nyd,nzd,gpack=g_pack)
 cc      call checkGrid
 
 c Check grid
@@ -189,6 +191,7 @@ c Begin program
       call allocateStructures
 
       allocate(fold(ntotd),fsrc(ntotd))
+      allocate(cnf(neqd),one_over_dt(neqd))
 
 c End programs
 
@@ -558,7 +561,7 @@ c Set data dumping intervals
         if (dstep.eq.0d0) then
           dstep = dt*max(int((tmax-time)/dfreq/dt),1)
         else
-          dstep = max(dstep,dt)
+cc          dstep = max(dstep,dt)
         endif
         rstep = min(dt*max(int((tmax-time)/dfreq/dt),1),dstep)
         ndstep = -1
