@@ -23,8 +23,6 @@ c Local variables
 
       integer(4) :: i,j,k,ieq,ii
 
-      real(8)    :: cnf(neqd),one_over_dt(neqd)
-
       type (var_array) :: varray
 
 c Begin program
