@@ -117,7 +117,8 @@ c     Time level plots (xdraw)
           if (nplot.eq.ndstep.or.tmplot.ge.dstep) then
             nplot  = 0
             if (itime.gt.0) tmplot = tmplot - dstep
-            call dumpTimeStepPlots
+            call dumpTimeStepPlots(1,1,1)
+            call writeRecordFile(udebug,itime,time,u_np)
           endif
 
         endif
@@ -377,6 +378,65 @@ c Begin program
 c End
 
       end subroutine writeRestartFile
+
+c readRecord
+c######################################################################
+      subroutine readRecord(unit,itime,time,varray,ierr)
+
+c----------------------------------------------------------------------
+c     Reads restart file
+c----------------------------------------------------------------------
+
+      use variables
+
+      implicit none
+
+c Call variables
+
+      integer(4) :: ierr,itime,unit
+      real(8)    :: time
+      type (var_array):: varray
+
+c Begin program
+
+      ierr = 0
+      read (unit) time
+      read (unit) itime
+
+      call readDerivedType(varray,unit,.false.)
+
+c End
+
+      end subroutine readRecord
+
+c writeRecordFile
+c######################################################################
+      subroutine writeRecordFile(unit,itime,time,varray)
+
+c----------------------------------------------------------------------
+c     Writes record file
+c----------------------------------------------------------------------
+
+      use variables
+
+      implicit none
+
+c Call variables
+
+      integer(4) :: itime,unit
+      real(8)    :: time
+      type (var_array):: varray
+
+c Begin program
+
+      write (unit) time
+      write (unit) itime
+
+      call writeDerivedType(varray,unit,.false.)
+
+c End
+
+      end subroutine writeRecordFile
 
 c correctTimeStep
 c####################################################################

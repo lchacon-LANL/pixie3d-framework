@@ -78,7 +78,7 @@ c End program
 
 c evaluateNonlinearFunction
 c####################################################################
-      subroutine  evaluateNonlinearFunction(varray,fi)
+      subroutine evaluateNonlinearFunction(varray,fi)
 c--------------------------------------------------------------------
 c     Stores evaluation of nonlinear function Fi(Uj) in vector fi.
 c     The Uj's are given in varray.

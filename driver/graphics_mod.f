@@ -6,7 +6,6 @@ c ######################################################################
 
         integer(4)     :: ngraph,ngroups
         parameter        (ngraph=30)
-cc        parameter        (ngraph=30,ngroups=5)
 
         character*(20) :: debugfile
         character*(20),allocatable,dimension(:) ::
@@ -96,7 +95,7 @@ c     Find grid in logical space
 
 c     Define graphics i/o and initialize graph arrays (external)
 
-        call defineGraphics
+        call defineGraphics(igx,igy,igz)
 
 c     Initialize profile description array
 
@@ -132,7 +131,7 @@ c     Initialize plot dump
      .                       ,graph(igroup)%cartesian,0)
           enddo
 
-          call dumpTimeStepPlots
+          call dumpTimeStepPlots(igx,igy,igz)
         endif
 
 c     Create draw*.in files
@@ -222,7 +221,7 @@ c     End program
 
 c     dumpTimeStepPlots
 c     #################################################################
-      subroutine dumpTimeStepPlots
+      subroutine dumpTimeStepPlots(igx,igy,igz)
 
 c     ---------------------------------------------------------------
 c     Dumps time plots
@@ -232,11 +231,13 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
+        integer(4) :: igx,igy,igz
+
 c     Local variables
  
 c     Begin program
 
-        call prepareTimeStepPlots
+        call prepareTimeStepPlots(igx,igy,igz)
 
         do igroup=1,ngroups
           call profplot(nqty(igroup),uprofile(igroup)

@@ -16,13 +16,7 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-      use iosetup
-
       use constants
-
-      use graphics
-
-      use icond
 
       implicit none
 
@@ -87,7 +81,7 @@ c Set unperturbed forcing fields
         call evaluateNonlinearFunction(u_n,fsrc)
       else
         fsrc = 0d0
-        call imposeBoundaryConditions(u_n)
+        call imposeBoundaryConditions(u_n,1,1,1)
       endif
 
 c Perturb initial condition u_n
@@ -200,7 +194,7 @@ c Set equilibrium u_0 and define BCs on all variables
 
       call packVariables(u_0)
 
-cc      call imposeBoundaryConditions(u_0)
+cc      call imposeBoundaryConditions(u_0,igx,igy,igz)
 
       deallocate(var,label,bcs)
 
@@ -282,7 +276,7 @@ c Perturb equilibrium
      .                           ,pert(ieq))
         enddo
 
-cc        call imposeBoundaryConditions(varray)
+cc        call imposeBoundaryConditions(varray,igx,igy,igz)
 
         time     = 0d0
         inewtime = 1
@@ -355,6 +349,13 @@ c     Begin program
         do j = 1,nyd
           do i = 1,nxd
             array(i,j,k) = array(i,j,k) + perturb*fx(i)*fy(j)*fz(k)
+
+c For MSW test case
+cc            call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+cc     .                                    ,x1,y1,z1)
+cc            array(i,j,k) = array(i,j,k)
+cc     .                   + perturb*cos(2*pi*(x1-xmin)/(xmax-xmin)
+cc     .                                +2*pi*(y1-ymin)/(ymax-ymin))
           enddo
         enddo
       enddo
@@ -411,10 +412,6 @@ c----------------------------------------------------------------------
 c     Creates graphics pointers, defines dumping intervals
 c----------------------------------------------------------------------
 
-      use parameters
-
-      use constants
-
       use timeStepping
 
       use variables
@@ -454,11 +451,18 @@ c Set data dumping intervals
 c Initialize graphics
 
       u_graph = u_np - u_0
-cc      call imposeBoundaryConditions(u_graph)
 
       if (plot) then
-        call initializeDiagnostics
+
         call initializeGraphics(1,1,1,bcond,restart)
+        call initializeDiagnostics
+
+        write (udebug) nxd
+        write (udebug) nyd
+        write (udebug) nzd
+        call writeRecordFile(udebug,0,0d0,u_0)
+        call writeRecordFile(udebug,0,0d0,u_np)
+
       endif
 
 c End programs
