@@ -65,7 +65,6 @@ typedef struct {
   Vec         x0;
   Vec         xold;
   Vec         xk;
-  Vec         fsrc;
   PetscTruth  hdf5c;
 } AppCtx;
 
@@ -192,9 +191,13 @@ int MAIN__(int argc, char **argv)
 
   /* Set runtime options */
   
-  ierr = PetscOptionsGetInt (PETSC_NULL,"-nmax",&numtime,PETSC_NULL)	       ; CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-nmax",&numtime,PETSC_NULL)	       ; CHKERRQ(ierr);
+
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-ilevel",&user.indata.ilevel,PETSC_NULL);CHKERRQ(ierr);
   
   ierr = PetscOptionsGetReal(PETSC_NULL,"-tmax",&tmax   ,PETSC_NULL)	       ; CHKERRQ(ierr);
+
+  ierr = PetscOptionsHasName(PETSC_NULL,"-snes_mf",&matrix_free)               ; CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create SNES context 
@@ -202,17 +205,17 @@ int MAIN__(int argc, char **argv)
 
   ierr = SNESCreate(PETSC_COMM_WORLD, &snes);CHKERRQ(ierr);
 
+  /* Create DA */
   ierr = DACreate3d(PETSC_COMM_WORLD,BC,DA_STENCIL_BOX,nxd,nyd,nzd,npx,npy,npz,\
 		    NVAR,1,PETSC_NULL,PETSC_NULL,PETSC_NULL,&user.da)	       ; CHKERRQ(ierr);
   
   ierr = DACreateGlobalVector(user.da,&x)		      	     	       ; CHKERRQ(ierr);
+
+  /* Initialize vectors */
   ierr = VecDuplicate(x,&r)        	 		      	     	       ; CHKERRQ(ierr);
   ierr = VecDuplicate(x,&user.x0  )	 		      	     	       ; CHKERRQ(ierr);
   ierr = VecDuplicate(x,&user.xk  )	 		      	     	       ; CHKERRQ(ierr);
   ierr = VecDuplicate(x,&user.xold)	 		      	     	       ; CHKERRQ(ierr);
-
-  ierr = VecDuplicate(x,&user.fsrc)	 		      	     	       ; CHKERRQ(ierr);
-  ierr = VecSet(&zero,user.fsrc)   	 		      	     	       ; CHKERRQ(ierr);      
 
   ierr = SNESSetFunction(snes,r,EvaluateFunction,(void*)&user)	     	       ; CHKERRQ(ierr);
   
@@ -220,14 +223,13 @@ int MAIN__(int argc, char **argv)
 
   
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     Customize nonlinear and linear solver; set runtime options
+     Customize nonlinear and linear solvers; set runtime options
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   
   /* Customize SNES */
   
   ierr = SNESSetTolerances(snes,atol,rtol,PETSC_DEFAULT,maxitnwt,PETSC_DEFAULT); CHKERRQ(ierr);
   
-  ierr = PetscOptionsHasName(PETSC_NULL,"-snes_mf",&matrix_free)               ; CHKERRQ(ierr);
   if (matrix_free) {
 
     /* Customize KSP */
@@ -257,7 +259,7 @@ int MAIN__(int argc, char **argv)
 
   }
 
-  /* Set SNES run time options */
+  /* Set SNES runtime options */
   
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
   
@@ -708,9 +710,9 @@ int correctTimeStep(SNES snes,Vec X,void *ptr)
    */
 
 #ifdef absoft
-  FORTRAN_NAME(CORRECTTIMESTEP)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr,&user->dt);
+  FORTRAN_NAME(CORRECTTIMESTEP)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr,&user->indata.dt);
 #else
-  FORTRAN_NAME(correcttimestep)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr,&user->dt);
+  FORTRAN_NAME(correcttimestep)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr,&user->indata.dt);
 #endif
 
   /*
