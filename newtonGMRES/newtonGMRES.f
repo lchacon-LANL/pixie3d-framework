@@ -151,7 +151,10 @@ cc       check_lim = 1d1
 
 c Evaluate rhs and norms
 
-      allocate (res(ntot))
+      allocate (xx0(ntot),xk(ntot),res(ntot))
+
+      xx0 = x    !Save initial guess
+      xk  = x    !Save previous Newton state
 
       call evaluateNewtonResidual(ntot,x,res)
 
@@ -176,11 +179,6 @@ c Initial output
       endif
 
 c Start Newton iteration
-
-      allocate(xx0(ntot),xk(ntot))
-
-      xx0 = x    !Save initial guess
-      xk  = x    !Save previous Newton state
 
       fk    = f0
       fkm   = f0
@@ -228,7 +226,8 @@ c     Check for error in GMRES
 
 c     Globalization procedure: damping coefficient
 
-        if (global >= 1) call findDamping (ntot,x,ddx,etak,fk,damp)
+cc        if (global >= 1) call findDamping (ntot,x,ddx,etak,fk,damp)
+        if (global == 1) call findDamping (ntot,x,ddx,etak,fk,damp)
 
 c     Update solution (x = x + ddx)
 
@@ -275,8 +274,8 @@ c     Store magnitude of residual
 c     Change pseudo-transient time step
 
         if (pseudo_dt) then
-cc          pdt = min(pdt/check,1d30)
-          pdt = min(pdt0/sqrt(check),1d30)
+          pdt = min(pdt/check,1d30)
+cc          pdt = min(pdt0/sqrt(check),1d30)
 cc          if (check < 1d-3) pdt = min(pdt0*jit,1d0)
 cc          pdt = min(pdt0/check**2,1d30)
         endif
@@ -938,13 +937,14 @@ c Add pseudo-transient term
 
       if (pseudo_dt) then
         invpdt = 1d0/pdt
-        if (invpdt < 1d-5) invpdt = 0d0
-        f = (x - xx0)*invpdt + f
+        if (abs(invpdt) < 1d-5) invpdt = 0d0
+        f = (x - xk)*invpdt + f
+cc        f = (x-xx0)*invpdt + f
       endif
 
 c End program
 
-      end subroutine
+      end subroutine evaluateNewtonResidual
 
 c fmedval
 c####################################################################
