@@ -195,6 +195,7 @@ c Local variables
 c Begin program
 
       call allocateStructures
+      allocate(cnf(neqd),one_over_dt(neqd))
 
 c End programs
 
