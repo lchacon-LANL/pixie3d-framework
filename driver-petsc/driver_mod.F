@@ -467,7 +467,11 @@ c     Local variables
 c     Begin program
 
         if (frmt) then
+#if defined(petsc)
           write (unit,*) ilomg,ihipg,jlomg,jhipg,klomg,khipg
+#else
+          write (unit,*) ilom,ihip,jlom,jhip,klom,khip
+#endif
           write (unit,*) varray%nvar
           do ieq=1,varray%nvar
             write(unit,*) varray%array_var(ieq)%array
@@ -475,7 +479,11 @@ c     Begin program
             write(unit,*) varray%array_var(ieq)%descr
           enddo
         else
+#if defined(petsc)
           write (unit) ilomg,ihipg,jlomg,jhipg,klomg,khipg
+#else
+          write (unit) ilom,ihip,jlom,jhip,klom,khip
+#endif
           write (unit) varray%nvar
           do ieq=1,varray%nvar
             write(unit) varray%array_var(ieq)%array
@@ -507,8 +515,12 @@ c     Begin program
         ierr = 0
 
         if (format) then
+#if defined(petsc)
           read (unit,*,iostat=ierr,end=100)
      .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
+#else
+          read (unit,*,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
+#endif
           read (unit,*,iostat=ierr,end=100)varray%nvar
           if (ierr /= 0) goto 200
           do ieq=1,varray%nvar
@@ -521,8 +533,12 @@ c     Begin program
             if (ierr /= 0) goto 200
           enddo
         else
+#if defined(petsc)
           read (unit,iostat=ierr,end=100)
      .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
+#else
+          read (unit,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
+#endif
           read (unit,iostat=ierr,end=100) varray%nvar
           if (ierr /= 0) goto 200
           do ieq=1,varray%nvar
