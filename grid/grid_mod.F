@@ -496,7 +496,7 @@ c     Local variables
 
 c     Externals
 
-        external   :: map
+        external   map
 
 c     Begin program
 
@@ -2356,6 +2356,7 @@ c ---------------------------------------------------------------------
         implicit none
 
         type :: grid_metrics
+cc          real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
           real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
@@ -2390,16 +2391,15 @@ c     Begin program
 
         if (.not.associated(gmetric%grid)) then
           allocate(gmetric%grid(grid_params%ngrid))
-        endif
-
-        do igrid=1,grid_params%ngrid
-          if (.not.associated(gmetric%grid(igrid)%jac)) then
+          do igrid=1,grid_params%ngrid
             ilom = 0
             jlom = 0
             klom = 0
             ihip = grid_params%nxv(igrid)+1
             jhip = grid_params%nyv(igrid)+1
             khip = grid_params%nzv(igrid)+1
+cc            allocate(gmetric%grid(igrid)
+cc     $           %car  (ilom:ihip,jlom:jhip,klom:khip,3))
             allocate(gmetric%grid(igrid)
      $           %jac  (ilom:ihip,jlom:jhip,klom:khip))
             allocate(gmetric%grid(igrid)
@@ -2413,8 +2413,8 @@ c     Begin program
             allocate(gmetric%grid(igrid)
      $           %Gamma(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
 
-          endif
-        enddo
+          enddo
+        endif
 
 c     End program
 
@@ -2436,18 +2436,16 @@ c     Local variables
 
 c     Begin program
 
-        do igrid=1,grid_params%ngrid
-          if (associated(gmetric%grid(igrid)%jac)) then
+        if (associated(gmetric%grid)) then
+          do igrid=1,grid_params%ngrid
+cc            deallocate(gmetric%grid(igrid)%car  )
             deallocate(gmetric%grid(igrid)%jac  )
             deallocate(gmetric%grid(igrid)%gsub )
             deallocate(gmetric%grid(igrid)%gsup )
             deallocate(gmetric%grid(igrid)%cov  )
             deallocate(gmetric%grid(igrid)%cnv  )
             deallocate(gmetric%grid(igrid)%Gamma)
-          endif
-        enddo
-
-        if (associated(gmetric%grid)) then
+          enddo
           deallocate(gmetric%grid)
         endif
 
@@ -2457,7 +2455,7 @@ c     End program
 
 c     defineGridMetric
 c     #################################################################
-      subroutine defineGridMetric(gmetric)
+      subroutine defineGridMetric(gmetric,igr)
 
 c     -----------------------------------------------------------------
 c     This routine calculates all grid metric quantities required for
@@ -2473,11 +2471,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+        integer(4),optional,intent(IN) :: igr
+
         type(MG_grid_metrics) :: gmetric
 
 c     Local variables
 
-        integer(4) :: igrid,ilo,ihi,jlo,jhi,klo,khi
+        integer(4) :: igrmin,igrmax,igrid,ilo,ihi,jlo,jhi,klo,khi
      $               ,ilom,ihip,jlom,jhip,klom,khip
 
         integer(4) :: i,j,k,igx,igy,igz
@@ -2499,7 +2499,7 @@ c     Interpolation
         real(8), dimension(:,:,:,:,:,:),allocatable:: gambcoef
 
         real(8)    :: db3val
-        external   :: db3val
+        external      db3val
 
 c     Begin program
 
@@ -2507,11 +2507,18 @@ c     Begin program
 
         call allocateGridMetric(gmetric)
 
+        if (PRESENT(igr)) then
+          igrmin = igr
+          igrmax = igr
+        else
+          igrmin = 1
+          igrmax = grid_params%ngrid
+        endif
+
+c       ANALYTICAL QUANTITIES
         if ((.not.numerical_grid).and.anal_map) then
 
-c       Find analytical geometric quantitites on grid
-
-          do igrid=1,grid_params%ngrid
+          do igrid=igrmin,igrmax
 
             igx = igrid
             igy = igrid
@@ -2565,13 +2572,10 @@ c       Find analytical geometric quantitites on grid
 
           enddo
 
+c       NUMERICAL QUANTITIES
         else
 
-c       Find numerical geometric quantities on finest grid
-
-cc          igrid=1
-
-          do igrid=1,grid_params%ngrid
+          do igrid=igrmin,igrmax
 
             igx = igrid
             igy = igrid
@@ -3052,14 +3056,10 @@ c     Input variables
 
 c     Local variables
 
-        real(8)    :: x1,y1,z1
-
 c     Begin program
 
         call getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                              ,x1,y1,z1)
-
-        car = (/ x1,y1,z1 /)
+     .                              ,car(1),car(2),car(3))
 
       end function map
 
@@ -4353,7 +4353,7 @@ c     Find grid quantities
           isig = istart(ig)
 
           !Find cell centers
-          dh = length/dfloat(nx(ig))
+          dh = length/float(nx(ig))
 
           !Starting point (i=1)
           if (bcs1 == PER) then
