@@ -421,8 +421,9 @@ c Call variables
 c Local variables
 
       integer ::  idamp
-      double precision :: dampm,theta,etak0,dxavg,fkp,fm
-      double precision :: b(ntot),dummy(ntot)
+      real(8) :: dampm,theta,etak0,dxavg,fkp,fm,df,ddf
+      real(8) :: b(ntot),dummy(ntot)
+      real(8) :: alpha,sigma0,sigma1
 
 c External
 
@@ -434,28 +435,59 @@ c Begin program
       damp = 1d0
       etak0 = etak
 
+      sigma0 = 0.1
+      sigma1 = 0.5
+
+      alpha = 1d-1
+
       do idamp = 1,100
         dummy = x
         call updateNewtonSolution(dummy,ddx,ntot,damp,dxavg)
         call evaluateNewtonResidual(ntot,dummy,b)
         fkp = sqrt(sum(b*b))
-        if (fkp.gt.(1.-1e-4*(1.-etak))*fk) then
-          dampm = .5*damp
+        if (fkp.gt.(1.-alpha*damp)*fk) then
+          dampm = sigma1*damp
           dummy = x
           call updateNewtonSolution(dummy,ddx,ntot,dampm,dxavg)
           call evaluateNewtonResidual(ntot,dummy,b)
           fm = sqrt(sum(b*b))
-          theta = .5*(1.5*fk + 0.5*fkp - 2.*fm)/(fk + fkp - 2.*fm)
-          theta = fmedval(1d-1,8d-1,theta)
-          damp = damp*theta
-cc          write (*,*) 'New damping parameter',damp
-          etak = 1.- theta*(1.-etak)
+          if (fm.lt.(1.-alpha*dampm)*fk) then
+            damp = dampm
+            exit
+          else
+            ddf = 2/(damp-dampm)*((fkp-fk)/damp-(fm-fk)/dampm)
+            if (ddf > 0) then
+              df = 1./(damp-dampm)*(-dampm/damp*(fkp-fk)
+     .                              +damp/dampm*(fm -fk))
+              theta = -df/ddf
+              damp = fmedval(sigma0*damp,sigma1*damp,theta)
+            else
+              damp = dampm
+            endif
+          endif
+          if (damp < 1d-2) exit
+cc          write (*,*) 'Residuals',fk,fm,fkp
+cc          write (*,*) 'Damping parameters',dampm,damp
+cc          etak = 1.- theta*(1.-etak)
         else
           exit
         endif
+cc        if (fkp.gt.(1.-alpha*(1.-etak))*fk) then
+cc          dampm = .5*damp
+cc          dummy = x
+cc          call updateNewtonSolution(dummy,ddx,ntot,dampm,dxavg)
+cc          call evaluateNewtonResidual(ntot,dummy,b)
+cc          fm = sqrt(sum(b*b))
+cc          theta = .5*(1.5*fk + 0.5*fkp - 2.*fm)/(fk + fkp - 2.*fm)
+cc          theta = fmedval(sigma0,sigma1,theta)
+cc          damp = damp*theta
+cccc          write (*,*) 'New damping parameter',damp
+cc          etak = 1.- theta*(1.-etak)
+cc          if (damp < 1d-2) exit
+cc        else
+cc          exit
+cc        endif
       enddo
-
-cc      if (damp.lt.1d-5) etak = etak0
 
 c End program
 
