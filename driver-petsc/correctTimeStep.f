@@ -61,7 +61,7 @@ c     Local variables
 
 c     Begin program
 
-        where (dnp /= 0d0 .and. dnh /= 0d0)
+        where (dnp /= dn .and. dnh /= 0d0)
           mag = dt*dnh/(dnp-dn)
         elsewhere
           mag = 1e30
