@@ -32,7 +32,7 @@ c module newtonGmres
 c ###################################################################
       module newton_gmres
 
-      double precision, allocatable, dimension(:):: res,x0,xk
+      double precision, allocatable, dimension(:):: res,xx0,xk
 
       double precision :: pdt,check
 
@@ -126,7 +126,7 @@ c Begin program
 
 c Initialize
 
-      allocate (res(ntot),x0(ntot),xk(ntot))
+      allocate (res(ntot),xx0(ntot),xk(ntot))
 
       ierr     = 0
       gmit_out = 0
@@ -140,8 +140,8 @@ cc      if (global.ne.2) check_lim = 1d1
       if (global.ne.2) pdt0 = 1d30
       pdt = pdt0
 
-      x0 = x    !Save initial guess
-      xk = x    !Save previous Newton state
+      xx0 = x    !Save initial guess
+      xk  = x    !Save previous Newton state
 
       if (atol == 0d0) atol = ntot*1d-15 !Set absolute tolerance to roundoff
 
@@ -228,9 +228,9 @@ cc        if (global.eq.1) call findDamping (ntot,x,ddx,etak,fk,damp)
 
 c     Update solution (x = x + ddx)
 
-        xk = x   !Save previous Newton state
-
         call updateNewtonSolution(x,ddx,ntot,damp,dxavg)
+
+        xk = x   !Save current Newton state
 
 c     Evaluate rhs and norms
 
@@ -262,11 +262,6 @@ cc     .         .or. damp  < 1d-7
         endif
 
         if (convergence .or. failure) exit
-
-cc        if(    fkp   <= flimit
-cc     .     .or.check > check_lim
-cc     .     .or.dxavg <= atol
-cc     .     .or.damp  <= 1d-4) exit
 
 c     Store magnitude of residual
 
@@ -300,7 +295,7 @@ c Check error in Newton convergence
 
 c End program
 
-      deallocate (res,x0,xk)
+      deallocate (res,xx0,xk)
 
  200  format 
      .   (/,' New_it   Av_updt    Abs_res   Rel_res     Damping'
@@ -564,7 +559,7 @@ c End program
       return
       end
 
-c gmresMeth
+c fgmresMeth
 c ######################################################################
       subroutine fgmresMeth(ntot,x0,rhs,sol,eps,im,maxits,iout,ierr,its)
       implicit none             !For safe fortran
@@ -695,10 +690,10 @@ c     GMRES iteration
           i1  = i + 1
 
 cFG           call applyPreconditioner(n,vv(1,i),rhs,precout)
-          call applyPreconditioner(n,vv(1,i),zz(1,i),precout)
+          call applyPreconditioner(n,vv(:,i),zz(:,i),precout)
 
 cFG           call matrixFreeMatVec(n,x0,rhs,vv(1,i1))
-          call matrixFreeMatVec(n,x0,zz(1,i),vv(1,i1))
+          call matrixFreeMatVec(n,x0,zz(:,i),vv(:,i1))
 
 c       Modified gram - schmidt.
 
@@ -858,37 +853,38 @@ c------------------------------------------------------------------
 
 c Call variables
 
-      integer*4   nn
-      real*8      x(nn),z(nn),y(nn)
+      integer(4) :: nn
+      real(8)    :: x(nn),z(nn),y(nn)
 
 c Local variables
 
-      integer*4   i
-      real*8      dummy(nn),pert,scale,eps
+      integer(4) :: i
+      real(8)    :: dummy(nn),pert,ipert,modz,modx,xdotz,eps
 
 c Begin program
 
-      eps   = 1d-8
+      eps   = 1d-5
 
-c Calculate difference parameter
-
-      scale = sum(z*z)
-
-cc      pert  = eps*sqrt((1d0 + sum(x*x))/scale)
-
-      pert  = eps*(sqrt(scale)+abs(sum(z*x)))/scale*sign(1d0,pert)
-
-cc      write (*,*) pert,scale
+      modz  = sum(z*z)
 
 c Calculate J.x
 
-      if (scale .lt. 1d-16) then
+      if (sqrt(modz) < 1d-16) then  !Fail safe for the case z=0
 
-         do i = 1,nn
-            y(i) = 0d0
-         enddo
+        y = 0d0
 
       else
+
+c     Calculate difference parameter
+
+        modx  = sum(x*x)
+        xdotz = sum(z*x)
+
+cc        pert  = eps*sqrt((1d0 + modx)/modz)
+        pert  = eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
+
+c$$$        write (*,*) sqrt(modz),sqrt(modx),pert
+c$$$     .           ,xdotz/sqrt(modx*modz)
 
 c     Perturb state variables x + eps z --> dummy
 
@@ -900,7 +896,9 @@ c     Nonlinear function evaluation --> y
 
 c     Compute the product J.x using the matrix-free approx
 
-        y = (y-res)/pert
+        ipert = 1d0/pert
+
+        y = (y-res)*ipert
 
       endif
 
@@ -927,20 +925,20 @@ c Call variables
 
 c Local variables
 
-      real(8)  :: dummy(ntot),invpdt
+      real(8)  :: invpdt
 
 c Begin program
 
 c Evaluate nonlinear residual
 
-      call evaluateNonlinearResidual(ntot,x,dummy)
+      call evaluateNonlinearResidual(ntot,x,f)
 
 c Add pseudo-transient term
 
-      invpdt = 1d0/pdt
-      if (invpdt < 1d-5) invpdt = 0d0
-
-      f = (x - x0)*invpdt + dummy
+cc      invpdt = 1d0/pdt
+cc      if (invpdt < 1d-5) invpdt = 0d0
+cc
+cc      f = (x - xx0)*invpdt + f
 
 c End program
 
