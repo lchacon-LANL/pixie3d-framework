@@ -12,6 +12,20 @@ c    operation.
 c
 c 3) Document i/o variables in all subroutines consistently.
 
+c module setMGBC_interface
+c######################################################################
+      module setMGBC_interface
+
+        INTERFACE
+          subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,icomp)
+            integer(4) :: nnx,nny,nnz,neq,bcnd(6,neq),iig,gpos
+            integer(4),optional,intent(IN) :: icomp
+            real(8)    :: array(0:nnx+1,0:nny+1,0:nnz+1,neq)
+          end subroutine setMGBC
+        END INTERFACE
+
+      end module setMGBC_interface
+
 c module mg_internal
 c######################################################################
       module mg_internal
@@ -35,7 +49,7 @@ c######################################################################
 
 c     allocPointers
 c     #################################################################
-      subroutine allocPointers(neq,mg_grid,fpointers)
+      subroutine allocPointers(neq,fpointers,mg_grid)
 
 c     -----------------------------------------------------------------
 c     Initializes pointers for block MG. In call sequence:
@@ -52,7 +66,7 @@ c     Call variables
 
       integer(4)          :: neq
       logical,intent(OUT) :: fpointers
-      type(grid_def)      :: mg_grid
+      type(grid_def),optional,intent(IN) :: mg_grid
 
 c     Local variables
 
@@ -62,12 +76,16 @@ c     Begin program
 
       fpointers = .false.
 
-      if (.not.associated(mg_grid%xx)) mg_grid=grid_params     !Failsafe grid definition
+      if (PRESENT(mg_grid)) then
+        MGgrid=mg_grid
+      else
+        if (.not.associated(MGgrid%xx)) MGgrid=grid_params     !Failsafe grid definition
+      endif
 
-      ngrdx = mg_grid%ngrdx
-      ngrdy = mg_grid%ngrdy
-      ngrdz = mg_grid%ngrdz
-      ngrid = mg_grid%ngrid
+      ngrdx = MGgrid%ngrdx
+      ngrdy = MGgrid%ngrdy
+      ngrdz = MGgrid%ngrdz
+      ngrid = MGgrid%ngrid
 
 c     Check if MG pointers are allocated
 
@@ -79,15 +97,13 @@ c     Check if MG pointers are allocated
      .          ,nxv(ngrid),nyv(ngrid),nzv(ngrid),nblock(ngrid)
      .          ,mg_ratio_x(ngrid),mg_ratio_y(ngrid),mg_ratio_z(ngrid))
 
-        mg_ratio_x = mg_grid%mg_ratio_x
-        mg_ratio_y = mg_grid%mg_ratio_y
-        mg_ratio_z = mg_grid%mg_ratio_z
+        mg_ratio_x = MGgrid%mg_ratio_x
+        mg_ratio_y = MGgrid%mg_ratio_y
+        mg_ratio_z = MGgrid%mg_ratio_z
 
-        nxv = mg_grid%nxv
-        nyv = mg_grid%nyv
-        nzv = mg_grid%nzv
-
-cc        istartp = mg_grid%istartp
+        nxv = MGgrid%nxv
+        nyv = MGgrid%nyv
+        nzv = MGgrid%nzv
 
         istartp(1) = 1
         istart (1) = 1
@@ -108,14 +124,6 @@ cc        istartp = mg_grid%istartp
 
         fpointers = .true.
 
-cc      else
-cc
-cc        !This is the only pointer redefined if pointers are allocated,
-cc        !for the case of recursive plane/line smoothing
-cc        mg_ratio_x = mg_grid%mg_ratio_x
-cc        mg_ratio_y = mg_grid%mg_ratio_y
-cc        mg_ratio_z = mg_grid%mg_ratio_z
-
       endif
 
 c     End program
@@ -135,9 +143,11 @@ c     -----------------------------------------------------------------
 
       logical :: fpointers
 
-      if (fpointers) deallocate(istart,ntotv,istartp,ntotvp
-     .                         ,istartb,ntotb,nxv,nyv,nzv,nblock
-     .                         ,mg_ratio_x,mg_ratio_y,mg_ratio_z)
+      if (fpointers) then
+        deallocate(istart,ntotv,istartp,ntotvp
+     .            ,istartb,ntotb,nxv,nyv,nzv,nblock
+     .            ,mg_ratio_x,mg_ratio_y,mg_ratio_z)
+      endif
 
       end subroutine deallocPointers
 
@@ -195,7 +205,7 @@ c     Local variables
 
 c     Begin program
 
-      call allocPointers(neq,MGgrid,fpointers)
+      call allocPointers(neq,fpointers)
 
       do k = 1,nz
         do j = 1,ny
@@ -252,7 +262,7 @@ c     Local variables
 
 c     Begin program
 
-      call allocPointers(neq,MGgrid,fpointers)
+      call allocPointers(neq,fpointers)
 
       call limits(gpos,nx,ny,nz,igr,imin,imax,jmin,jmax,kmin,kmax)
 
@@ -275,6 +285,8 @@ c     Map vector to array
       else
         igptr = 1
       endif
+
+      array = 0d0
 
       do k = kkmin,kkmax
         do j = jjmin,jjmax
@@ -519,7 +531,7 @@ c     Local variables
 
 c     Begin program
 
-        call allocPointers(neq,MGgrid,fpointers)
+        call allocPointers(neq,fpointers)
 
         nunit = 110
 
@@ -590,7 +602,7 @@ c     End program
 
 c     vecadd
 c     ###################################################################
-      subroutine vecadd(igr,neq,coef1,vec1,coef2,vec2)
+      subroutine vecadd(igr,neq,ntot,coef1,vec1,coef2,vec2)
 
 c     -------------------------------------------------------------------
 c     Performs the vector add operation vec1 <- coef1*vec1 + coef2*vec2,
@@ -598,6 +610,7 @@ c     but restricted on a grid patch at grid level igr. The grid patch is
 c     determined by a call to the "limits" routine. In call:
 c       * igr: grid level
 c       * neq: number of variables contained in vectors.
+c       * ntot: vector dimension
 c       * coef1,vec1: on input, first term of sum. On output, vec1 contains
 c           sum result.
 c       * coef2,vec2: second term of sum.
@@ -607,8 +620,8 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: igr,neq
-      real(8)    :: coef1,coef2,vec1(*),vec2(*)
+      integer(4) :: igr,neq,ntot
+      real(8)    :: coef1,coef2,vec1(ntot),vec2(ntot)
 
 c     Local variables
 
@@ -637,7 +650,7 @@ cc     .                       + nxv(igr)*nyv(igr)*(k-1)) + ieq
 
 c     dot
 c     ###################################################################
-      real(8) function dot(igr,neq,vec1,vec2)
+      function dot(igr,neq,ntot,vec1,vec2)
 
 c     -------------------------------------------------------------------
 c     Performs scalar product (vec1,vec2),but restricted on a grid patch
@@ -645,6 +658,7 @@ c     at grid level igr. The grid patch is determined by a call to the
 c     "limits" routine. In call:
 c       * igr: grid level
 c       * neq: number of variables contained in vectors.
+c       * ntot: vector dimension
 c       * vec1: vector, first term of scalar product.
 c       * vec2: vector, second term of scalar product.
 c     -------------------------------------------------------------------
@@ -653,8 +667,8 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: igr,neq
-      real(8)    :: vec1(*),vec2(*)
+      integer(4) :: igr,neq,ntot
+      real(8)    :: vec1(ntot),vec2(ntot),dot
 
 c     Local variables
 
@@ -673,8 +687,6 @@ c     Begin program
           do i=imin,imax
             do ieq=1,neq
               iii=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1,ieq,neq)
-cc              iii = neq*(i-1 + nxv(igr)*(j-1)
-cc     .                       + nxv(igr)*nyv(igr)*(k-1)) + ieq
               dot = dot + vec1(iii)*vec2(iii)
             enddo
           enddo
@@ -723,11 +735,11 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: iter,igridmin,vcyc,crsedpth,isig
+      integer(4) :: iter,igridmin,vcyc,crsedpth,isig,ncolors
       integer(4) :: orderres,orderprol,alloc_stat,line_nsweep
 
       integer(4) :: guess2,outc,mu
-      integer(4) :: izero,i,j,ii,ivcyc,nblk
+      integer(4) :: izero,i,j,k,ii,ivcyc,nblk
 
       real(8)    :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot)
       real(8)    :: rr0,rr1,mag,mag1,mgtol
@@ -755,6 +767,7 @@ c Assign options
       MGgrid      = options%mg_grid_def
       line_relax  = options%mg_line_relax
       line_nsweep = options%mg_line_nsweep
+      ncolors     = options%ncolors
 
 c Consistency check
 
@@ -767,7 +780,7 @@ c Consistency check
 
 c Set pointers and find ngrid
 
-      call allocPointers(neq,MGgrid,fpointers)
+      call allocPointers(neq,fpointers)
 
       if (fpointers.and.out.ge.2) write (*,*) 'Allocating pointers...'
 
@@ -800,14 +813,28 @@ c Find diagonal for smoothers
           if (out.ge.2) write (*,*) 'Diagonal already allocated'
           fdiag = .false.
         elseif (associated(options%diag)) then !Diagonal provided externally
-cc        if (associated(options%diag)) then !Diagonal provided externally
           if (out.ge.2) write (*,*) 'Diagonal externally provided'
           allocate(diag(neq*nblk,2*ntot*nblk))
+c diag ****
+cc          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+cc     .                     ,ncolors)
+cc          diag = -options%diag+diag
+cc          do i=1,ntot/neq
+cc            do j=1,neq
+cc            write (*,*) diag(j,(i-1)*neq+1:i*neq)
+cccc     .                 -options%diag(j,(i-1)*neq+1:i*neq)
+cc            enddo
+cc            write (*,*)
+cc          enddo
+cc          write (*,*) sqrt(sum(diag**2))
+cc          stop
+c diag ****
           diag = options%diag
         else                      !Form diagonal
           if (out.ge.2) write (*,*) 'Forming diagonal...'
           allocate(diag(neq*nblk,2*ntot*nblk))
-          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag)
+          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+     .                     ,ncolors)
           if (out.ge.2) write (*,*) 'Finished!'
         endif
 
@@ -830,11 +857,11 @@ c Initialize local solution vector (xx) and local r.h.s. (yy)
 c Compute initial residual and check convergence
 
       if (guess.eq.0) then
-        rr0 = sqrt(dot(igrid,neq,y,y))
+        rr0 = sqrt(dot(igrid,neq,ntot,y,y))
       else
         call matvec(0,neq,ntot,x,rr,igrid,bcnd)
-        call vecadd(igrid,neq,-1d0,rr,1d0,y)
-        rr0 = sqrt(dot(igrid,neq,rr,rr))
+        call vecadd(igrid,neq,ntot,-1d0,rr,1d0,y)
+        rr0 = sqrt(dot(igrid,neq,ntot,rr,rr))
       endif
 
       if (rr0.lt.1d-16*ntot) then
@@ -842,8 +869,6 @@ c Compute initial residual and check convergence
         call killmg
         return
       endif
-
-cc      write (*,*) 'initial residual', rr0
 
       rr1 = rr0
 
@@ -871,8 +896,8 @@ c     Check MG convergence
 
         call matvec(0,neq,ntot,xx(istart(igrid)),rr,igrid,bcnd)
 
-        call vecadd(igrid,neq,-1d0,rr,1d0,y)
-        mag = sqrt(dot(igrid,neq,rr,rr))
+        call vecadd(igrid,neq,ntot,-1d0,rr,1d0,y)
+        mag = sqrt(dot(igrid,neq,ntot,rr,rr))
 
         mag1 = mag/rr1
 
@@ -994,7 +1019,7 @@ c     Evaluate residual (ie wrk = yy - A xx = yy - wrk )
 
         call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
 
-        call vecadd(igr,neq,-1d0,wrk(isig),1d0,yy(isig))
+        call vecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
 
 c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
 
@@ -1003,12 +1028,15 @@ c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
      .                  ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
      .                  ,orderres,igr,volf)
 
+cc        if (igc == 2) call MGplot(neq,yy,igc,0,'res_coarse.bin')
+
 c     Initialize solution on coarse grid
 
         xx(isigc:isigc+nnc-1) = 0d0
 
 c     If on coarsest grid, solve for error, else descend a grid level
 
+cc        write (*,*) igc,igmax
         if (igc.eq.igmax) then
           call coarseSolve(igc)
         else
@@ -1020,6 +1048,11 @@ c     If on coarsest grid, solve for error, else descend a grid level
 c     Cycle back up to grid igr updating errors (xx)
 c     with fixed R.H.S. (yy)
 
+cc        if (igc == 2) then
+cc          call MGplot(neq,xx,igc,1,'res_coarse.bin')
+cc          stop
+cc        endif
+
 c     Prolong error (wrk = P * xx_1) to a finer grid
 
         call cprolong(neq
@@ -1029,7 +1062,12 @@ c     Prolong error (wrk = P * xx_1) to a finer grid
 
 c     Update existing solution on grid igr (i.e. xx_igr): xx_igr = xx_igr + wrk 
 
-        call vecadd(igr,neq,1d0,xx(isig),1d0,wrk(isig))
+        call vecadd(igr,neq,nn,1d0,xx(isig),1d0,wrk(isig))
+
+cc        if (igc == 2) then
+cc          call MGplot(neq,wrk,igc,1,'res_coarse.bin')
+cc          stop
+cc        endif
 
 c     Relax updated solution on igr (i.e. xx_igr)
 
@@ -1152,10 +1190,10 @@ c         Initialize quantities
 c         Find initial residual
 
           call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
-          call vecadd(igr,neq,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
+          call vecadd(igr,neq,nn,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
 
           if (outc > 0) then
-            mag0 = sqrt(dot(igr,neq,rr,rr))
+            mag0 = sqrt(dot(igr,neq,nn,rr,rr))
             if (outc > 1) write (*,*)
             write (*,7) mag0
           endif
@@ -1199,18 +1237,18 @@ cc            do iter=1,nsweep
                 call lineMGsolver(nn,line_mg_grid,rr,dx,igr,0)
 
                 !Update solution (x = x + dx)
-                call vecadd(igr,neq,1d0,xx(isig),omega,dx)
+                call vecadd(igr,neq,nn,1d0,xx(isig),omega,dx)
 
                 !Find residual
                 call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
-                call vecadd(igr,neq,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
+                call vecadd(igr,neq,nn,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
 
               enddo
 
             enddo
 
             if (outc > 0) then
-              mag = sqrt(dot(igr,neq,rr,rr))
+              mag = sqrt(dot(igr,neq,nn,rr,rr))
               if (outc > 1) write (*,5)
               write (*,10) mag,mag/mag0
               if (outc > 1) write (*,6)
@@ -1255,18 +1293,18 @@ c         Planes/Lines in Y-direction
                 call lineMGsolver(nn,line_mg_grid,rr,dx,igr,0)
 
                 !Update solution
-                call vecadd(igr,neq,1d0,xx(isig),omega,dx)
+                call vecadd(igr,neq,nn,1d0,xx(isig),omega,dx)
 
                 !Find residual
                 call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
-                call vecadd(igr,neq,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
+                call vecadd(igr,neq,nn,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
 
               enddo
 
             enddo
 
             if (outc > 0) then
-              mag = sqrt(dot(igr,neq,rr,rr))
+              mag = sqrt(dot(igr,neq,nn,rr,rr))
               if (outc > 1) write (*,5)
               write (*,20) mag,mag/mag0
               if (outc > 1) write (*,6)
@@ -1310,18 +1348,18 @@ c         Planes/Lines in Z-direction
                 call lineMGsolver(nn,line_mg_grid,rr,dx,igr,0)
 
                 !Update solution
-                call vecadd(igr,neq,1d0,xx(isig),omega,dx)
+                call vecadd(igr,neq,nn,1d0,xx(isig),omega,dx)
 
                 !Find residual
                 call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
-                call vecadd(igr,neq,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
+                call vecadd(igr,neq,nn,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
 
               enddo
 
             enddo
 
             if (outc > 0) then
-              mag = sqrt(dot(igr,neq,rr,rr))
+              mag = sqrt(dot(igr,neq,nn,rr,rr))
               if (outc > 1) write (*,5)
               write (*,30) mag,mag/mag0
               if (outc > 1) write (*,6)
@@ -1564,6 +1602,7 @@ c     ###################################################################
 
         if (fdiag)  deallocate(diag)
         call deallocPointers(fpointers)
+        call deallocateGridStructure(MGgrid)
 
       end subroutine killmg
 
@@ -1595,6 +1634,8 @@ c----------------------------------------------------------------------
 
       use mg_internal
 
+      use setMGBC_interface
+
       implicit none            ! For safe Fortran
 
 c Call variables
@@ -1622,7 +1663,7 @@ c Impose boundary conditions (external)
 
       call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd)
 
-c Restric arrays
+c Prolong arrays
 
       do ieq=1,neq
 
@@ -1696,7 +1737,7 @@ c Extrapolation
 
 c Begin program
 
-      call allocPointers(1,MGgrid,fpointers)
+      call allocPointers(1,fpointers)
 
 c Define fine grid
 
@@ -1926,7 +1967,7 @@ c Interpolation
 
 c Begin program
 
-      call allocPointers(1,MGgrid,fpointers)
+      call allocPointers(1,fpointers)
 
       igc = igf + 1
 
@@ -2148,7 +2189,7 @@ c Local variables
       real(8)    :: omega0,omega10,omega01,tol
       logical    :: fdiag,fpointers,vbr
 
-      integer(4) :: i,j,k,iv,jv,kv,if,jf,kf,nxf,nyf,nzf,iiv,ivg
+      integer(4) :: i,j,k,iv,jv,kv,if,jf,kf,nxf,nyf,nzf,iiv,ivg,ncolors
       integer(4) :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblk
       real(8)    :: mag0,mag1,mag,yy(ntot)
 
@@ -2160,7 +2201,7 @@ c Begin program
 
 c Allocate pointers
 
-      call allocPointers(neq,MGgrid,fpointers)
+      call allocPointers(neq,fpointers)
 
       if (fpointers) then          !JB is NOT called from MG
         igmax = igrid
@@ -2180,6 +2221,7 @@ c$$$      omega01= options%omega01
       tol    = options%tol
       fdiag  = options%fdiag
       vbr    = options%vertex_based_relax
+      ncolors= options%ncolors
 
 c Initialize auxiliary variables
 
@@ -2210,7 +2252,8 @@ c Find diagonal for smoothers
         else                      !Form diagonal
           if (out.ge.2) write (*,*) 'Forming diagonal...'
           allocate(diag(neq*nblk,2*ntot*nblk))
-          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag)
+          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+     .                     ,ncolors)
           if (out.ge.2) write (*,*) 'Finished!'
         endif
 
@@ -2358,8 +2401,8 @@ c Calculate final residual and output info
 
       if (out.ge.1) then
         call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
-        call vecadd(igrid,neq,-1d0,yy,1d0,rr)  !yy=rr-yy
-        mag = sqrt(dot(igrid,neq,yy,yy))       !sqrt(yy*yy)
+        call vecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
+        mag = sqrt(dot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
       endif
 
       if (out.ge.2) then
@@ -2457,7 +2500,7 @@ c Begin program
 
 c Set pointers
 
-      call allocPointers(neq,MGgrid,fpointers)
+      call allocPointers(neq,fpointers)
 
       if (fpointers) then          !GS is NOT called from MG
         igmax = igrid
@@ -2506,7 +2549,8 @@ c Find diagonal for smoothers
         else                      !Form diagonal
           if (out.ge.2) write (*,*) 'Forming diagonal...'
           allocate(diag(neq*nblk,2*ntot*nblk))
-          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag)
+          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+     .                     ,ncolors)
           if (out.ge.2) write (*,*) 'Finished!'
         endif
 
@@ -2845,8 +2889,8 @@ c Calculate final residual and output info
 
       if (out.ge.1) then
         call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
-        call vecadd(igrid,neq,-1d0,yy,1d0,rr)  !yy=rr-yy
-        mag = sqrt(dot(igrid,neq,yy,yy))       !sqrt(yy*yy)
+        call vecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
+        mag = sqrt(dot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
       endif
 
       if (out.ge.2) then
@@ -2927,16 +2971,16 @@ c Begin program
 
 c Allocate MG pointers
 
-      call allocPointers(neq,MGgrid,fpointers)
+      call allocPointers(neq,fpointers)
 
-      if (fpointers) igmax=grid_params%ngrid-1  !Routine not called from JB,GS,MG
+      if (fpointers) igmax=grid_params%ngrid  !Routine not called from JB,GS,MG
 
 c Consistency check
 
       nn  = ntotv(igrid)
 
       if (nn /= ntot) then
-        write (*,*) 'Error in input of find_mf_mat'
+        write (*,*) 'Error in input of find_mf_diag_stc'
         write (*,*) 'Aborting...'
         stop
       endif
@@ -3021,10 +3065,192 @@ c End program
 
       end subroutine find_mf_diag_std
 
+c find_mf_diag_colored
+c####################################################################
+      subroutine find_mf_diag_colored(neq,ntot,matvec,igrid,bbcnd,diag1
+     .                               ,ncolors)
+c--------------------------------------------------------------------
+c     Finds diagonal elements matrix-free using subroutine matvec
+c     for all grids, commencing with grid "igrid". This routine
+c     employs a colored arrangement of the grid that allows one
+c     to find the diagonal using full-vector matvecs, instead of
+c     point-wise matvecs.
+c--------------------------------------------------------------------
+
+      use mg_internal
+
+      implicit none      !For safe fortran
+
+c Call variables
+
+      integer(4) :: neq,ntot,bbcnd(6,neq),igrid,ncolors
+
+      real(8)    :: diag1(neq,2*ntot)
+
+      external      matvec
+
+c Local variables
+
+      real(8)    :: x1(ntot),dummy(ntot),mat(neq,neq),mat2(neq,neq)
+     $             ,det
+      integer(4) :: ii,jj,nn,ig,iig,isig
+      integer(4) :: igr,ieq,alloc_stat
+      logical    :: fpointers
+
+      integer(4) :: i,j,k,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
+
+c Begin program
+
+c Allocate MG pointers
+
+      call allocPointers(neq,fpointers)
+
+      if (fpointers) igmax=grid_params%ngrid  !Routine not called from JB,GS,MG
+
+c Consistency check
+
+      nn  = ntotv(igrid)
+
+      if (nn /= ntot) then
+        write (*,*) 'Error in input of find_mf_diag_colored'
+        write (*,*) 'Aborting...'
+        stop
+      endif
+
+c Form diagonal
+
+      diag1 = 0d0
+
+      if (ncolors == 1) then
+
+        call find_mf_diag_std(neq,ntot,matvec,igrid,bbcnd,diag1)
+
+      else
+
+        select case(ncolors)
+        case(2)
+          nrbg1 = 2
+          nrbg2 = 1
+          nrbg3 = 1
+        case(4)
+          nrbg1 = 2
+          nrbg2 = 2
+          nrbg3 = 1
+        case(8)
+          nrbg1 = 2
+          nrbg2 = 2
+          nrbg3 = 2
+        case default
+          write (*,*) 'Unsupported number of colors in form_mf_diag'
+          write (*,*) 'Aborting...'
+          stop
+        end select
+
+        do igr = igrid,igmax
+
+c       Form diagonal terms for smoother
+
+          nn  = ntotv(igr)
+
+          isig = istart(igr)
+
+          x1(1:nn) = 0d0
+
+c       Finds block diagonals for neq equations.
+
+          do ieq = 1,neq
+
+            do irbg3 = 1,nrbg3
+              do irbg2 = 1,nrbg2
+                do irbg1 = 1,nrbg1
+
+                  do k=1+mod((irbg3-1),nrbg3),nzv(igr),nrbg3
+                    do j=1+mod((k+irbg2+irbg1-1),nrbg2),nyv(igr),nrbg2
+                      do i=1+mod((j+k+irbg1-1),nrbg1),nxv(igr),nrbg1
+
+                        ii = i +nxv(igr)*(j-1) +nxv(igr)*nyv(igr)*(k-1)
+
+                        jj = (ii-1)*neq + isig - 1
+
+                        x1((ii-1)*neq+ieq) = 1d0
+                      enddo
+                    enddo
+                  enddo
+
+                  call matvec(0,neq,nn,x1,dummy,igr,bbcnd)
+
+                  do k=1+mod((irbg3-1),nrbg3),nzv(igr),nrbg3
+                    do j=1+mod((k+irbg2+irbg1-1),nrbg2),nyv(igr),nrbg2
+                      do i=1+mod((j+k+irbg1-1),nrbg1),nxv(igr),nrbg1
+
+                        ii = i +nxv(igr)*(j-1) +nxv(igr)*nyv(igr)*(k-1)
+
+                        jj = (ii-1)*neq + isig - 1
+
+                        x1((ii-1)*neq+ieq) = 0d0
+
+                        diag1(ieq,jj+1:jj+neq)
+     .                                     = dummy((ii-1)*neq+1:ii*neq)
+                      enddo
+                    enddo
+                  enddo
+
+                enddo
+              enddo
+            enddo
+
+          enddo
+
+c       Invert diagonal and store in diag1
+
+          select case (neq)
+          case (1)
+
+            do ii = 1,ntotvp(igr)
+              ig = ii + isig - 1
+              diag1(neq,ig) = 1d0/diag1(neq,ig)
+            enddo
+
+          case (2)
+
+            do ii = 1,ntotvp(igr)
+              iig = neq*(ii - 1) + isig - 1
+              det = diag1(1,iig+1)*diag1(2,iig+2)
+     .             -diag1(2,iig+1)*diag1(1,iig+2)
+              mat(1,1) = diag1(2,iig+2)/det
+              mat(1,2) =-diag1(2,iig+1)/det
+              mat(2,1) =-diag1(1,iig+2)/det
+              mat(2,2) = diag1(1,iig+1)/det
+
+              diag1(:,iig+1:iig+neq) = mat
+            enddo
+
+          case default
+
+            !Invert
+            do ii = 1,ntotvp(igr)
+              iig = neq*(ii - 1) + isig - 1
+              call blockInv(neq,diag1(:,iig+1:iig+neq))
+            enddo
+
+          end select
+
+        enddo
+
+      endif
+
+c Deallocate pointers
+
+      call deallocPointers(fpointers)
+
+c End program
+
+      end subroutine find_mf_diag_colored
+
 c find_mf_diag
 c####################################################################
       subroutine find_mf_diag(neq,nblk,ntot,matvec,igrid,bbcnd
-     .                       ,diag1)
+     .                       ,diag1,ncolors)
 c--------------------------------------------------------------------
 c     Finds diagonal elements for relaxation. Thisis done matrix-free
 c     using subroutine matvec for all grids, commencing with grid "igrid".
@@ -3043,6 +3269,7 @@ c       * matvec: external indicating matrix-vector routine.
 c       * igrid: current grid level
 c       * bbcnd: boundary condition information (passed on to matvec)
 c       * diag1: returns inverse of diagonal.
+c       * ncolors: number of colors for colored algorithm
 c--------------------------------------------------------------------
 
       use mg_internal
@@ -3051,7 +3278,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,nblk,ntot,bbcnd(6,neq),igrid
+      integer(4) :: neq,nblk,ntot,bbcnd(6,neq),igrid,ncolors
 
       real(8)    :: diag1(neq*nblk,2*ntot*nblk)
 
@@ -3073,9 +3300,9 @@ c Begin program
 
 c Allocate MG pointers
 
-      call allocPointers(neq,MGgrid,fpointers)
+      call allocPointers(neq,fpointers)
 
-      if (fpointers) igmax=grid_params%ngrid-1  !Routine not called from JB,GS,MG
+      if (fpointers) igmax=grid_params%ngrid  !Routine not called from JB,GS,MG
 
 c Consistency check
 
@@ -3092,10 +3319,13 @@ c Form diagonal
 c     STANDARD RELAXATION
       if (nblk == 1) then
 
-        call find_mf_diag_std(neq,ntot,matvec,igrid,bbcnd,diag1)
+        call find_mf_diag_colored(neq,ntot,matvec,igrid,bbcnd,diag1
+     .                           ,ncolors)
 
 C     VERTEX-BASED RELAXATION
       else
+
+        diag1 = 0d0
 
         do igr = igrid,igmax
 
@@ -3244,7 +3474,7 @@ c Begin program
 
 c Allocate MG pointers
 
-      call allocPointers(neq,MGgrid,fpointers)
+      call allocPointers(neq,fpointers)
 
 c Consistency check
 
