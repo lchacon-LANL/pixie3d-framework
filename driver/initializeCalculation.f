@@ -31,7 +31,6 @@ c Begin program
       urecord    = 25
       recordfile = 'record.bin'
 
-
 c Read user initializations
 
       call readInput
@@ -93,7 +92,7 @@ c Initialize old time solution
 
 c Set unperturbed forcing fields
 
-      !This not only evaluates fsrc, but defines pointers and BCs on u_n
+      !This not only evaluates fsrc, but defines BCs on u_n
       call evaluateNonlinearFunction(u_n,fsrc)
 
       if (.not.source) fsrc = 0d0
@@ -423,12 +422,11 @@ c     Begin program
 c For MSW test case
 cc            call getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
 cc     .                                  ,x1,y1,z1)
-cc            jac = jacobian(x1,y1,z1,.true.)
+cc            jac = gmetric%grid(igx)%jac(i,j,k)
 cc            if (ieq == 1) jac = 1d0
 cc            array(i,j,k) = array(i,j,k)
 cc     .                   + jac*perturb*cos(2*pi*(x1-xmin)/(xmax-xmin)
 cc     .                                    +2*pi*(y1-ymin)/(ymax-ymin))
-
           enddo
         enddo
       enddo
