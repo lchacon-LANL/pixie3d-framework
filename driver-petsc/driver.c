@@ -38,6 +38,9 @@ typedef struct {
   int       nxd;
   int       nyd;
   int       nzd;
+  int       npx;
+  int       npy;
+  int       npz;
   int       numtime;
   int       maxitnwt;
   int       maxksp;
@@ -140,6 +143,7 @@ int MAIN__(int argc, char **argv)
      Begin program
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */	
   ierr = PetscInitialize(&argc, &argv, (char *)0, help);CHKERRQ(ierr);
+  ierr = PetscInitializeFortran();CHKERRQ(ierr);
 
   MPI_Comm_rank(PETSC_COMM_WORLD, &my_rank);
   MPI_Comm_size(PETSC_COMM_WORLD, &np);
@@ -156,7 +160,18 @@ int MAIN__(int argc, char **argv)
   nxd = user.indata.nxd;
   nyd = user.indata.nyd;
   nzd = user.indata.nzd;
-  
+
+  npx = user.indata.npx;
+  npy = user.indata.npy;
+  npz = user.indata.npz;
+
+  if (npx == 0) npx = PETSC_DECIDE;
+  if (npy == 0) npy = PETSC_DECIDE;
+  if (npz == 0) npz = PETSC_DECIDE;
+  npx = PETSC_DECIDE;
+  npy = PETSC_DECIDE;
+  npz = PETSC_DECIDE;
+
   atol 	   = PETSC_DEFAULT;
   rtol 	   = user.indata.rtol;
   tolgm    = user.indata.tolgm;
@@ -174,19 +189,6 @@ int MAIN__(int argc, char **argv)
   ierr = PetscOptionsGetInt (PETSC_NULL,"-nmax",&numtime,PETSC_NULL);CHKERRQ(ierr);
   
   ierr = PetscOptionsGetReal(PETSC_NULL,"-tmax",&tmax   ,PETSC_NULL);CHKERRQ(ierr);
-
-  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     Set processor distribution
-     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
-
-  npx = PETSC_DECIDE;
-  npy = PETSC_DECIDE;
-  npz = PETSC_DECIDE;
-  if (np >= 2) {
-    if (np%2 == 0) {
-      /*      npx = 2;*/
-    }
-  }
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create SNES context 
@@ -268,7 +270,7 @@ int MAIN__(int argc, char **argv)
      Time stepping  
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   
-  for (steps=1; (steps<=numtime)&&(time<=tmax); steps++,time+=user.dt) {
+  for (steps=1; (steps<=numtime)&&(time<=tmax+user.dt); steps++,time+=user.dt) {
     
     ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
 
@@ -280,8 +282,8 @@ int MAIN__(int argc, char **argv)
 
     ierr = SNESGetNumberLinearIterations(snes,&user.gmits);CHKERRQ(ierr);
 
-    /*
-    PetscPrintf(PETSC_COMM_WORLD,"Time = %g, Tmax = %g \n",time,tmax);
+    
+    /*PetscPrintf(PETSC_COMM_WORLD,"Time = %g, Tmax = %g \n",time,tmax);
     PetscPrintf(PETSC_COMM_WORLD,"Steps = %d Number of Newton iterations = %d\n"\
       ,steps, user.nwits);
     PetscPrintf(PETSC_COMM_WORLD,"Steps = %d Number of Krylov iterations = %d\n"\
@@ -688,7 +690,6 @@ int FormFunction(SNES snes,Vec X,Vec F,void* ptr)
   int     ierr,i,j,k,l;
   int     xs,ys,zs,xm,ym,zm;
   Field   ***x,***f,***xold,***fold,***fsrc;
-  Vec     localX,localXold;
   double  dt, theta;
   
   int     ye,xe,ze;
@@ -700,28 +701,13 @@ int FormFunction(SNES snes,Vec X,Vec F,void* ptr)
 
   ierr = EvaluateFunction(snes, X, F, (void*)user);CHKERRQ(ierr);
 
-  /*
-   * Scatter ghost points to local vector,using the 2-step process
-   * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
-   * By placing code between these two statements, computations can be
-   * done while messages are in transition.
-   */
-  
-  ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
-  ierr = VecDuplicate(localX,&localXold);CHKERRQ(ierr)
-
-  ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  ierr = DAGlobalToLocalBegin(user->da,user->xold,INSERT_VALUES,localXold);CHKERRQ(ierr);
-  ierr = DAGlobalToLocalEnd  (user->da,user->xold,INSERT_VALUES,localXold);CHKERRQ(ierr);
-
   /* 
    *Get pointers to vector data
    */
 
-  ierr = DAVecGetArray(user->da,localX,(void**)&x);CHKERRQ(ierr);
-  ierr = DAVecGetArray(user->da,F     ,(void**)&f);CHKERRQ(ierr);
-  ierr = DAVecGetArray(user->da,localXold,(void**)&xold);CHKERRQ(ierr);
+  ierr = DAVecGetArray(user->da,X         ,(void**)&x   );CHKERRQ(ierr);
+  ierr = DAVecGetArray(user->da,F         ,(void**)&f   );CHKERRQ(ierr);
+  ierr = DAVecGetArray(user->da,user->xold,(void**)&xold);CHKERRQ(ierr);
   ierr = DAVecGetArray(user->da,user->fold,(void**)&fold);CHKERRQ(ierr);
   ierr = DAVecGetArray(user->da,user->fsrc,(void**)&fsrc);CHKERRQ(ierr);
 
@@ -756,16 +742,12 @@ int FormFunction(SNES snes,Vec X,Vec F,void* ptr)
   /*
    * Restore vectors
    */
-  ierr = DAVecRestoreArray(user->da,localX,(void**)&x);CHKERRQ(ierr);
-  ierr = DAVecRestoreArray(user->da,F     ,(void**)&f);CHKERRQ(ierr);
+  ierr = DAVecRestoreArray(user->da,X,(void**)&x);CHKERRQ(ierr);
+  ierr = DAVecRestoreArray(user->da,F,(void**)&f);CHKERRQ(ierr);
 
-  ierr = DAVecRestoreArray(user->da,localXold,(void**)&xold);CHKERRQ(ierr);
+  ierr = DAVecRestoreArray(user->da,user->xold,(void**)&xold);CHKERRQ(ierr);
   ierr = DAVecRestoreArray(user->da,user->fold,(void**)&fold);CHKERRQ(ierr);
   ierr = DAVecRestoreArray(user->da,user->fsrc,(void**)&fsrc);CHKERRQ(ierr);
-
-
-  ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
-  ierr = DARestoreLocalVector(user->da,&localXold);CHKERRQ(ierr);
 
   ierr = PetscLogFlops((22 + 4*POWFLOP)*zm*ym*xm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
