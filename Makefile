@@ -4,18 +4,19 @@ include make.inc
 
 # GENERAL PURPOSE MAKEFILE
 
-SRC  := $(wildcard *.f)
+SRC  := $(wildcard *.[F,f,c])
 
-MODS := $(wildcard *_mod.f)
+MODS := $(wildcard *_mod.[F,f])
 
-OBJS := $(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))
+OBJS := $(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC))) $(patsubst %.F,%.o,$(filter-out $(MODS),$(SRC))) $(patsubst %.c,%.o,$(filter-out $(MODS),$(SRC)))
 
-OBJMOD := $(MODS:.f=.o)
+OBJMOD := $(MODS:.f=.o) $(MODS:.F=.o)
 
 LIBS :=
 
-COMMON_SRC  = $(foreach dir,$(SUBDIRS),$(filter-out $(dir)/test.f,$(wildcard $(dir)/*.f)))
-COMMON_OBJS = $(COMMON_SRC:.f=.o)
+COMMON_SRC  = $(foreach dir,$(SUBDIRS),$(filter-out $(dir)/test.f,$(wildcard $(dir)/*.[f,F,c])))
+COMMON_OBJS = $(filter %.o, $(patsubst %.f,%.o,$(COMMON_SRC))\
+              $(patsubst %.c,%.o,$(COMMON_SRC))\ $(patsubst %.F,%.o,$(COMMON_SRC)))
 
 prefix = .
 
@@ -103,4 +104,7 @@ $(OBJS) : $(MODS)
 #Define patterns
 
 %.o : %.f
+	$(FC) -c $(MODDIRS) $(FFLAGS) $<
+
+%.o : %.F
 	$(FC) -c $(MODDIRS) $(FFLAGS) $<
