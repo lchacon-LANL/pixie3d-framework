@@ -23,7 +23,7 @@ c Local variables
 
       integer(4) :: i,j,k,ieq,ii
 
-      real(8)    :: dudt(neqd),cnf(neqd),one_over_dt(neqd)
+      real(8)    :: cnf(neqd),one_over_dt(neqd)
 
       type (var_array) :: varray
 
@@ -48,13 +48,6 @@ c Calculate residuals
             ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
 
             do ieq=1,neqd
-cc              dudt(ieq) = volume(i,j,k,1,1,1)*one_over_dt(ieq)
-cc     .                   *( varray%array_var(ieq)%array(i,j,k)
-cc     .                     -   u_n%array_var(ieq)%array(i,j,k) )
-cc              f(ii+ieq) = dudt(ieq) + (1.-cnf(ieq))*f   (ii+ieq)
-cc     .                              +     cnf(ieq) *fold(ii+ieq)
-cc     .                              -               fsrc(ii+ieq)
-
               f(ii+ieq) = (varray%array_var(ieq)%array(i,j,k)
      .                    -   u_n%array_var(ieq)%array(i,j,k))
      .                    *one_over_dt(ieq)

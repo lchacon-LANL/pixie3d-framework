@@ -178,10 +178,9 @@ c Local variables
 
 c Diagnostics
 
-      double precision :: dummy(ntotd),dummy2(nxd),norm
-      double precision, pointer, dimension (:,:):: arr
-
-      integer          :: ieq
+cc      double precision :: dummy(ntotd),dummy2(nxd),norm
+cc      double precision, pointer, dimension (:,:):: arr
+cc      integer          :: ieq
 
 c Begin program
 
