@@ -785,6 +785,12 @@ cc        if (associated(options%diag)) then !Diagonal provided externally
           if (out.ge.2) write (*,*) 'Finished!'
         endif
 
+c diag *****
+cc        do iter=1,neq
+cc          write (*,*) diag(iter,istart(5):istart(5)+2)
+cc        enddo
+cc        stop
+c diag *****
       endif
 
 c Initialize local solution vector (xx) and local r.h.s. (yy)
@@ -949,7 +955,7 @@ c     ###################################################################
           integer(4) :: igr,igc,isigc,isig,nn,nnc,imu
 
 c diag ********        
-          character*(1) :: plot
+cc          character*(1) :: plot
 c diag ********
 
 c       Begin program
@@ -1383,7 +1389,7 @@ c       Local variables
      .                     ,istartp_sv(ngrid)
      .                     ,istartb_sv(ngrid)
 
-          real(8),allocatable,dimension(:,:),target :: old_diag
+          real(8),allocatable,dimension(:,:) :: old_diag
 
           type (solver_options) :: options
 
@@ -1417,9 +1423,26 @@ c       Shift MG pointers to current grid level igr
 
 c       Allocate new diagonal and transfer elements
 
-          allocate(diag(neq,2*nn))
+          allocate(diag(size(old_diag,1)
+     .                 ,size(old_diag,2)-istart_sv(igr)+1))
 
-          diag = old_diag(:,istart_sv(igr):istart_sv(igr)+2*nn-1)
+          diag = old_diag(:,istart_sv(igr):size(old_diag,2))
+
+c diag ****
+cc        write (*,*) 'new'
+cc        do iter=1,neq
+cc          write (*,*) diag(iter,istart(5):istart(5)+2)
+cc        enddo
+cc        write (*,*) 'old'
+cc        do iter=1,neq
+cc          write (*,*) old_diag(iter,istart_sv(5):istart_sv(5)+2)
+cc        enddo
+cc        pause
+cc        stop
+c diag ****
+
+cc          allocate(diag(neq,2*nn))
+cc          diag = old_diag(:,istart_sv(igr):istart_sv(igr)+2*nn-1)
 
 c       Configure recursive plane/line MG solve
 
@@ -1484,9 +1507,9 @@ c       If not at finest grid level, shift MG pointers
           if (igr > 1) then
 
             do ig=ngrid,igr+1,-1
-              istartp(ig) = istartp(ig)-istartp(ig-1)+1
-              istart (ig) = istart (ig)-istart (ig-1)+1
-              istartb(ig) = istartb(ig)-istartb(ig-1)+1
+              istartp(ig) = istartp(ig)-istartp(igr)+1
+              istart (ig) = istart (ig)-istart (igr)+1
+              istartb(ig) = istartb(ig)-istartb(igr)+1
             enddo
             istartp(igr) = 1
             istart (igr) = 1
@@ -2332,7 +2355,18 @@ c Local variables
 
       real(8),allocatable, dimension(:)  :: dummy,rhs
 
+c Diagnostics
+
+c diag ********        
+cc      character*(1) :: plot
+cc      logical       :: flg
+c diag ********
+
 c Begin program
+
+c diag ********
+cc      flg = .true.
+c diag ********
 
       if (out.ge.2) write (*,*)
 
@@ -2502,7 +2536,6 @@ cc          write (*,*) 'JB Loop limits:',imin,imax,jmin,jmax,kmin,kmax
                 iig = iii + isig - 1
                 dummy = matmul(diag(:,iig+1:iig+neq),rhs)
 
-
                 !Update zz
                 do ieq=1,neq
                   zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
@@ -2510,12 +2543,29 @@ cc          write (*,*) 'JB Loop limits:',imin,imax,jmin,jmax,kmin,kmax
             
                 mag = mag + sum(rhs*rhs)
 
-cc                write (*,*) 'rhs ',rhs
-cc                write (*,*) 'dx  ',dummy
-cc                write (*,*) 'zz  ',zz(iii+1:iii+neq)
-cc                write (*,*) 'yy  ',yy(iii+1:iii+neq)
-cc                write (*,*) 'omega',omega0
-cc                write (*,*) 'mag ',mag
+c diag ******
+cc              if (igrid == ngrid .and. flg) then
+cc                write (*,*) 'Write now?'
+cc                read (*,'(a)') plot
+cc                if (plot == 'y') then
+cc                  write (*,*) 'i,j,k',i,j,k
+cc                  write (*,*) 'nxf,nyf,nzf',nxf,nyf,nzf
+cc                  write (*,*) 'JB Loop limits:',imin,imax,jmin,jmax
+cc     .                                         ,kmin,kmax
+cc                  write (*,*) 'rhs ',rhs
+cc                  write (*,*) 'dx  ',dummy
+cc                  do ieq=1,neq
+cc                    write (*,*) 'diag row',ieq,diag(ieq,iig+1:iig+neq)
+cc                  enddo
+cc                  write (*,*) 'zz  ',zz(iii+1:iii+neq)
+cc                  write (*,*) 'yy  ',yy(iii+1:iii+neq)
+cc                  write (*,*) 'omega',omega0
+cc                  write (*,*) 'mag ',mag
+cc                else
+cc                  flg = .false.
+cc                endif
+cc              endif
+c diag ******
 
               enddo
             enddo
