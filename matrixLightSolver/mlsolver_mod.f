@@ -93,7 +93,7 @@ c       Initializes solver options
           solverOptions%orderprol= 0               !Interpolation order in prolongation (MG)
           solverOptions%fdiag    = .true.          !Whether to form matrix diagonal
                                                    !  for smoothing
-          solverOptions%vol_res  = .false.         !Whether residual contains volume information
+          solverOptions%vol_res  = .true.          !Whether residual contains volume information
           nullify(solverOptions%diag)              !Diagonal not provided externally
           solverOptions%omega = 1d0                !Relaxation parameter
           solverOptions%omega10= 0d0               !Weighed Jacobi relaxation parameter
