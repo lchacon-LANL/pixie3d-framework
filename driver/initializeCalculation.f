@@ -16,8 +16,6 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-      use precond_setup
-
       use iosetup
 
       use constants
@@ -43,7 +41,7 @@ c Check for autoinitializing parameters
       pi = acos(-1d0)
 
       if (maxitnwt.eq.0) 
-     .      maxitnwt = max(floor(1.5*log(tolnewt)/log(tolgm)),10)
+     .      maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
 
       alpha = 1. - cnfactor
 
@@ -89,6 +87,7 @@ c Set unperturbed forcing fields
         call evaluateNonlinearFunction(u_n,fsrc)
       else
         fsrc = 0d0
+        call imposeBoundaryConditions(u_n)
       endif
 
 c Perturb initial condition u_n
@@ -290,7 +289,8 @@ cc        call imposeBoundaryConditions(varray)
 
       else
 
-        call readRestartFile (inewtime,nx,ny,nz,varray)
+        call readRestartFile (nx,ny,nz,varray)
+        inewtime = itime
 
         if (nx.ne.nxd.or.ny.ne.nyd.or.nz.ne.nzd) then
            write (*,*) 'Grid meshes do not agree; cannot restart'
@@ -436,13 +436,19 @@ c Set data dumping intervals
       dfreq = 8d0
 
       if (tmax.gt.0d0) then
-        if (dstep.eq.0d0) dstep = dt*max(int((tmax-time)/dfreq/dt),1)
+        if (dstep.eq.0d0) then
+          dstep = dt*max(int((tmax-time)/dfreq/dt),1)
+        else
+          dstep = max(dstep,dt)
+        endif
         rstep = min(dt*max(int((tmax-time)/dfreq/dt),1),dstep)
         ndstep = -1
+        numtime = -1
       else
         if (ndstep.eq.0) ndstep = max(numtime/int(dfreq),1)
         nrstep = min(max(numtime/int(dfreq),1),ndstep)
         dstep = 1e30
+        tmax  = 0d0
       endif
 
 c Initialize graphics
