@@ -213,6 +213,13 @@ c Read user initializations
 
 c Initialize vector dimensions
 
+      ihig = nxd
+      ilog = 1
+      jhig = nyd
+      jlog = 1
+      khig = nzd
+      klog = 1
+
       call setVectorDimensions
 
 c Initialize MG and create grid
@@ -392,6 +399,8 @@ cc        endif
 
           !Reset vector dimensions (readRecord alters defs of some values)
           call setVectorDimensions
+
+cc          call imposeBoundaryConditions(u_0,1,1,1)
 
           call writeRecordFile(urecord,itime,time,dt,u_0)
 
