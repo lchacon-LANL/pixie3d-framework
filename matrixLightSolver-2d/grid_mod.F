@@ -363,7 +363,7 @@ c     End program
 
 c     getMGmap
 c     #################################################################
-      subroutine getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+      subroutine getMGmap(i,j,igr,ig,jg)
 
 c     -----------------------------------------------------------------
 c     Gets MG vector components (ig,jg,kg) for grid quantities
@@ -374,32 +374,28 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
+        integer(4) :: i,j,igr,ig,jg
 
 c     Local variables
 
-        integer(4) :: ligx,ligy,ligz
+        integer(4) :: ligr
 
 c     Begin program
 
 c     Transform MG grid order from igr=1 finest to igr=1 coarsest
 
-        ligx = grid_params%ngrid - igx + 1
-        ligy = grid_params%ngrid - igy + 1
-        ligz = grid_params%ngrid - igz + 1
+        ligr = grid_params%ngrid - igr + 1
 
 c     Give MG vector coordinates
 
-        ig = i + grid_params%istartx(ligx)
-        jg = j + grid_params%istarty(ligy)
-        kg = k + grid_params%istartz(ligz)
+        ig = i + grid_params%istartx(ligr)
+        jg = j + grid_params%istarty(ligr)
 
       end subroutine getMGmap
 
 c     getCoordinates
 c     #################################################################
-      subroutine getCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                    ,x1,y1,z1)
+      subroutine getCoordinates(i,j,igr,ig,jg,x1,y1)
 
 c     -----------------------------------------------------------------
 c     Finds curvilinear coordinates for position (i,j,k)
@@ -409,20 +405,17 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
-        real(8)    :: x1,y1,z1
+        integer(4) :: i,j,igr,ig,jg
+        real(8)    :: x1,y1
 
 c     Local variables
 
-        integer(4) :: ii,jj,ny
-
 c     Begin program
 
-        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+        call getMGmap(i,j,igr,ig,jg)
 
         x1 = grid_params%xx(ig)
         y1 = grid_params%yy(jg)
-        z1 = grid_params%zz(kg)
 
       end subroutine getCoordinates
 
