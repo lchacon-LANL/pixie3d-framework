@@ -407,15 +407,22 @@ c     Begin program
 
         if (.not.associated(varray%array_var)) then
           allocate(varray%array_var(neqd))
-        endif
-
-        do ieq=1,neqd
-          if (.not.associated(varray%array_var(ieq)%array)) then
+          do ieq=1,neqd
             allocate(varray%array_var(ieq)
      $                     %array(ilom:ihip,jlom:jhip,klom:khip))
             varray%array_var(ieq)%array = 0d0
-          endif
-        enddo
+cc            write (*,*) ieq,shape(varray%array_var(ieq)%array)
+          enddo
+        endif
+
+cc        do ieq=1,neqd
+cc          if (.not.associated(varray%array_var(ieq)%array)) then
+cc            allocate(varray%array_var(ieq)
+cc     $                     %array(ilom:ihip,jlom:jhip,klom:khip))
+cc            varray%array_var(ieq)%array = 0d0
+cccc          write (*,*) ieq,shape(varray%array_var(ieq)%array)
+cc          endif
+cc        enddo
 
 c     End program
 
@@ -587,8 +594,8 @@ c     Begin program
         varray2%nvar = varray1%nvar
         do ieq=1,varray2%nvar
           varray2%array_var(ieq)%bconds = varray1%array_var(ieq)%bconds
-cc          write (*,*) shape(varray1%array_var(ieq)%array)
-cc          write (*,*) shape(varray2%array_var(ieq)%array)
+cc          write (*,*) ieq,shape(varray1%array_var(ieq)%array)
+cc          write (*,*) ieq,shape(varray2%array_var(ieq)%array)
           varray2%array_var(ieq)%array  = varray1%array_var(ieq)%array
           varray2%array_var(ieq)%descr  = varray1%array_var(ieq)%descr
         enddo
@@ -898,7 +905,7 @@ c #####################################################################
 
         use variable_setup
 
-        type (var_array),target :: u_np,u_n,u_graph
+        type (var_array),target :: u_np,u_n,u_graph,u_ic
 
       contains
 
@@ -962,15 +969,15 @@ c     Begin program
 
 c     Integrate
 
-      integral = 0d0
-      tvolume  = 0d0
+      lintegral = 0d0
+      lvolume   = 0d0
 
       do k = 1,nz
         do j = 1,ny
           do i = 1,nx
             vol = volume(i,j,k,igx,igy,igz)
-            integral = integral + array(i,j,k)*vol
-            tvolume = tvolume + vol
+            lintegral = lintegral + array(i,j,k)*vol
+            lvolume = lvolume + vol
           enddo
         enddo
       enddo
@@ -991,6 +998,8 @@ c     End
 
       end function integral
 
+c     int2char
+c     ################################################################
       function int2char(n) result (chr)
 
       implicit none
