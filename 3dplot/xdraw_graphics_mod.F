@@ -33,7 +33,7 @@ c ######################################################################
 
         integer(4)     :: sel_diag(9),sel_graph(9)
 
-        integer(4)     :: ndplot
+        integer(4)     :: ndplot,iplot,jplot,kplot
         real(8)        :: dplot,tmplot
 
         integer(4) :: nfiles,ifile
@@ -58,7 +58,8 @@ c #####################################################################
         integer(4)    ,allocatable,dimension(:,:) :: prof_ivar,prof_log
         logical       ,allocatable,dimension(:)   :: prof_spline
 
-        integer(4)     :: udebug
+        integer(4)     :: udebug,prof_axis=1
+
         integer(4),allocatable,dimension(:) :: ugraph,uprofile
 
         integer(4),allocatable,dimension(:,:) :: sel_gr
@@ -203,7 +204,7 @@ c     Begin program
         do igroup=1,ngroups
           call profplot(nqty(igroup),uprofile(igroup)
      .                 ,graph(igroup)%array_graph
-     .                 ,graph(igroup)%cartesian,1,.false.)
+     .                 ,graph(igroup)%cartesian,prof_axis,.false.)
 
           call contour_step(nqty(igroup),ugraph(igroup)
      .                     ,graph(igroup)%array_graph
@@ -241,25 +242,37 @@ c     Local variables
 
 c     Begin program
 
+        iimin = iming
+        iimax = imaxg
+
+        jjmin = jming
+        jjmax = jmaxg
+
+        kkmax = 1
+        kkmin = 1
+
         select case (comp)
         case(1)
-          iimin = iming
-          iimax = imaxg
-          if (average) then
-            jjmin = jming
-            jjmax = jmaxg
-          else
+          if (.not.average) then
             jjmin = max(2*jmaxg/3,1)
             jjmax = max(2*jmaxg/3,1)
           endif
-          kkmax = 1
-          kkmin = 1
 
           llmin = iming
           llmax = imaxg
         case(2)
+          if (.not.average) then
+            iimin = max(2*imaxg/3,1)
+            iimax = max(2*imaxg/3,1)
+          endif
 
+          llmin = jming
+          llmax = jmaxg
         case(3)
+
+          write (*,*) 'Profile direction not implemented'
+          write (*,*) 'Aborting..'
+          stop
 
         end select
 
@@ -291,7 +304,7 @@ c     Average in periodic direction(s)
             profiles(:,igr) = profiles(:,igr)/(jjmax-jjmin+1)
      .                                       /(kkmax-kkmin+1)
           case(2)
-            profiles(:,igr) = profiles(:,igr)/(iimax-jjmin+1)
+            profiles(:,igr) = profiles(:,igr)/(iimax-iimin+1)
      .                                       /(kkmax-kkmin+1)
           case(3)
             profiles(:,igr) = profiles(:,igr)/(jjmax-jjmin+1)
