@@ -525,17 +525,21 @@ c Open record file
 
       if (.not.restart) then
 
+        !Impose BC's on u_0 -> u_graph (do not overwrite u_0, since it contains equil. BCs)
         u_graph = u_0
         call imposeBoundaryConditions(u_graph,1,1,1)
 
+        !Open record file
         open(unit=urecord,file=recordfile
      .      ,form='unformatted',status='replace')
 
         write (urecord) nxd
         write (urecord) nyd
         write (urecord) nzd
-cc        call writeRecordFile(urecord,0,0d0,u_0)
-        call writeRecordFile(urecord,0,0d0,u_graph)
+
+        !initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
+cc        call writeRecordFile(urecord,0,0d0,u_graph)
+        call writeRecordFile(urecord,0,0d0,u_n)
         call writeRecordFile(urecord,0,0d0,u_np)
 
       else
