@@ -445,6 +445,8 @@ c         Write initialization headings
 
             deallocate(car)
 
+cc            write (*,*) 'here'
+
           else             !Write logical coordinates
 
             write(nunit) ((real(xl(i),4),i=iming,imaxg),j=jming,jmaxg)
@@ -1389,7 +1391,7 @@ c     Begin program
 
 c     Set graphics plotting range
 
-        call setGraphicsRange(nx,ny,nz,bcs)
+cc        call setGraphicsRange(nx,ny,nz,bcs)
 
 c     Find grid in logical space
 

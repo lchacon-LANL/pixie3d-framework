@@ -55,8 +55,9 @@ c     Store previous record
         u_n = u_np
 
 c diag ***** Redefine perturbations for preconditioner debugging
-cc        u_ic = u_n
-cc        call imposeBoundaryConditions(u_ic,igx,igy,igz)
+        write (*,*) 'Redefined perts for PC debugging in 3dplot'
+        u_ic = u_n
+        call imposeBoundaryConditions(u_ic,igx,igy,igz)
 c diag *****
 
 c     Read next record
@@ -284,12 +285,18 @@ c Read equilibrium u_0 (Do NOT postprocess for BC)
         stop
       endif
 
-      u_ic = u_0   !Store initial condition (with BCs)
-      call postProcessSolution(u_ic,igx,igy,igz)
-
 c Initialize graphics
 
-      u_np = u_ic  !Prime u_np
+      !Set graphics range
+      call setGraphicsRange(nxd,nyd,nzd,bcond)
+
+      !Store initial condition w/ BCs and initialize postprocessing quantities
+      u_ic = u_0
+
+      call postProcessSolution(u_ic,igx,igy,igz)
+
+      !Prime u_np and initialize graphics quantities
+      u_np = u_ic
 
       call initializeGraphics(igx,igy,igz,bcond)
 
