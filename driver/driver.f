@@ -431,7 +431,7 @@ c     #######################################################################
 
         real(8) ::    coef1,coef2
 
-        if (itm.eq.1 .or. cnfactor .eq. 1d0) then
+        if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor .eq. 1d0)) then
           call findExplicitDt(dt)
         else
           call adapt_dt(dtbase)
@@ -450,6 +450,7 @@ c     #######################################################################
         coef2 = 1.05            !Time recovery   coefficient
 
         if (timecorr) then
+cc          write (*,*) ierr
           if (ierr.gt.0) then
             dt = dt*coef1
             if (dt < 1d-3*dtbase) then
