@@ -233,7 +233,7 @@ c #####################################################################
 
         integer(4),private :: bctype,dim,loc,ibc,i,j,k
 
-cc        logical    :: do_nothing
+cc        logical    :: symm=.false.
 
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
@@ -484,8 +484,21 @@ c     Impose BCs
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
-            if (bcond(ibc) == bctype) then
-              call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
+cc            if (bcond(ibc) == bctype) then
+cc              call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
+cc            endif
+            if (abs(bcond(ibc)) == bctype) then
+              if (bcond(ibc) < 0 .and. bctype == SYM) then
+                symm = .true.
+                call FillGhostNodes(ieq,1,1,dim,loc,DIR,array,array0)
+                symm = .false.
+              elseif (bcond(ibc) > 0 .and. bctype == SYM) then
+                symm = .true.
+                call FillGhostNodes(ieq,1,1,dim,loc,NEU,array,array0)
+                symm = .false.
+              else
+                call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
+              endif
             endif
           enddo
         enddo
@@ -1020,6 +1033,8 @@ cc     .                    ,ieq,dim,loc,order)
 cc          call dirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc,order)
         case(NEU)
           call neumannBC(array(:,:,:,nvar),ieq,dim,loc)
+cc        case(SYM)
+cc          call neumannBC(array(:,:,:,nvar),ieq,dim,loc)
         case(EXT)
           call fillFaces(array(:,:,:,nvar),dim,loc)
         case default
@@ -1038,6 +1053,8 @@ cc          call dirichletBC(ivar,array,vzeros,ieq,dim,loc,order)
           call dirichletBC(ivar,array,vzeros,ieq,dim,loc,1)
         case(NEU)
           call neumannBC(ivar,array,ieq,dim,loc)
+cc        case(SYM)
+cc          call neumannBC(ivar,array,ieq,dim,loc,symm=.true.)
         case(EXT)
           call fillFaces(array(:,:,:,ivar),dim,loc)
         case default
@@ -1847,6 +1864,7 @@ c     Local variables
      .             ,ibcl(3),i_bc,i1,i2
 
       real(8)    :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1)
+     .             ,smooth(3)
 
       logical    :: flg(3),select_bc(3)
 
@@ -1864,9 +1882,40 @@ c     Identify directions for extrapolation.
 
       flg = .true.
 
+      !Order in each direction
       order_int(1) = min(order,inx-1)
       order_int(2) = min(order,iny-1)
       order_int(3) = min(order,inz-1)
+
+      !Smoothness indicator
+      smooth = 0d0
+      if (order >= 2) then
+        if (order_int(1) == order) then
+          if (ito == imn) then
+            smooth(1) = array(ito+1,jto,kto)-array(ito+2,jto,kto)
+          else
+            smooth(1) = array(ito-1,jto,kto)-array(ito-2,jto,kto)
+          endif
+        endif
+
+        if (order_int(2) == order) then
+          if (jto == jmn) then
+            smooth(2) = array(ito,jto+1,kto)-array(ito,jto+2,kto)
+          else                                              
+            smooth(2) = array(ito,jto-1,kto)-array(ito,jto-2,kto)
+          endif
+        endif
+
+        if (order_int(3) == order) then
+          if (kto == kmn) then
+            smooth(3) = array(ito,jto,kto+1)-array(ito,jto,kto+2)
+          else                                                  
+            smooth(3) = array(ito,jto,kto-1)-array(ito,jto,kto-2)
+          endif
+        endif
+
+        smooth = abs(smooth)
+      endif
 
       !Do not interpolate **along** direction if
       !   1) not enough points,
@@ -1948,12 +1997,15 @@ c     Identify directions for extrapolation.
       !Identify special boundaries to interpolate **along**
       !   1) equilibrium boundary
       !   2) SP boundary
+      !   3) even symmetry boundary
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
 cc        select_bc(i) = (bcond(i_bc) == EQU)
-        select_bc(i) = (bcond(i_bc) == EQU).or.(bcond(i_bc) == SP)
+        select_bc(i) =    (bcond(i_bc) == EQU)
+     .                .or.(bcond(i_bc) == SP)
+     .                .or.(bcond(i_bc) == SYM)
       enddo
 
       call select_along
@@ -1995,6 +2047,7 @@ c     Initialize accumulators
 c     X extrapolation
 
       if (flg(1)) then
+
         if (ito == imn) then
           call getMGmap(imn+1,jmn,kmn,igxbc,igybc,igzbc,ig,jg,kg)
           xx = grid_params%xx(ig:ig+inx-1)
@@ -2095,11 +2148,33 @@ c     -----------------------------------------------------------------------
 
         !Identify cases in which an edge has two or more selected directions:
         !  can't eliminate both interpolation directions simultaneously;
-        !  resolve indetermination by choosing largest intepolation support
+        !  resolve indetermination by choosing smoothest direction
         if (select_bc(i) .and. (select_bc(i1) .or. select_bc(i2))) then
 
+cc          if (select_bc(i1).and.select_bc(i2)) then
+cc            if (order_int(i1) <= order_int(i2)) then
+cc              select_bc(i1) = .false.
+cc            else
+cc              select_bc(i2) = .false.
+cc            endif
+cc          endif
+cc
+cc          if (select_bc(i1)) then
+cc            if (order_int(i) <= order_int(i1)) then
+cc              cycle
+cc            else
+cc              flg(i) = .not.select_bc(i)
+cc            endif
+cc          else
+cc            if (order_int(i) <= order_int(i2)) then
+cc              cycle
+cc            else
+cc              flg(i) = .not.select_bc(i)
+cc            endif
+cc          endif
+
           if (select_bc(i1).and.select_bc(i2)) then
-            if (order_int(i1) <= order_int(i2)) then
+            if (smooth(i1) <= smooth(i2)) then
               select_bc(i1) = .false.
             else
               select_bc(i2) = .false.
@@ -2107,18 +2182,19 @@ c     -----------------------------------------------------------------------
           endif
 
           if (select_bc(i1)) then
-            if (order_int(i) <= order_int(i1)) then
+            if (smooth(i) <= smooth(i1)) then
               cycle
             else
               flg(i) = .not.select_bc(i)
             endif
           else
-            if (order_int(i) <= order_int(i2)) then
+            if (smooth(i) <= smooth(i2)) then
               cycle
             else
               flg(i) = .not.select_bc(i)
             endif
           endif
+
         elseif (select_bc(i)) then
           flg(i) = .not.select_bc(i)
         endif
