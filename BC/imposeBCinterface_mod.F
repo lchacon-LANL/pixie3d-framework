@@ -4,11 +4,6 @@ c####################################################################
 
         use BCS_variables
 
-#if defined(petsc)
-        use iosetup
-        use mpi
-#endif
-
         INTERFACE singularBC
           module procedure scalarSingularBC,vectorSingularBC
         end INTERFACE
@@ -34,7 +29,7 @@ c     Call variables
 c     Local variables
 
       integer(4) :: i,j,k,ig,jg,kg,order1
-      real(8)    :: lavg_q,lavg_vol,avg_q,avg_vol,rho0,vol,x0
+      real(8)    :: lavg_q,lavg_vol,avg_q,avg_vol,rho0(1),vol,x0(1)
 
 c     Begin program
 
@@ -67,7 +62,7 @@ c       Perform local sum
      .                    ,array(i:i+order1+1,j,k)
      .                    ,1,x0,rho0,order1)
 
-          lavg_q   = lavg_q   + vol*rho0
+          lavg_q   = lavg_q   + vol*rho0(1)
           lavg_vol = lavg_vol + vol
         enddo
 
@@ -114,9 +109,9 @@ c     Local variables
       integer(4) :: i,j,k
 
       integer(4) :: ic,ig,jg,kg,order1
-      real(8)    :: x0,vol,lavg_x,lavg_y,lavg_z,lavg_vol
-     .                    , avg_x, avg_y, avg_z, avg_vol
-      real(8)    :: cx1,cy1,cz1
+      real(8)    :: x0(1),vol,lavg_x,lavg_y,lavg_z,lavg_vol
+     .                       , avg_x, avg_y, avg_z, avg_vol
+      real(8)    :: cx1(1),cy1(1),cz1(1)
       real(8),allocatable,dimension(:) :: ax0,ay0,az0,cx,cy,cz
 
 c     External
@@ -167,9 +162,9 @@ c       Perform local sum
      .                    ,order1)
           deallocate(cx,cy,cz)
 
-          lavg_x   = lavg_x   + vol*cx1
-          lavg_y   = lavg_y   + vol*cy1
-          lavg_z   = lavg_z   + vol*cz1
+          lavg_x   = lavg_x   + vol*cx1(1)
+          lavg_y   = lavg_y   + vol*cy1(1)
+          lavg_z   = lavg_z   + vol*cz1(1)
           lavg_vol = lavg_vol + vol
         enddo
 
@@ -234,7 +229,11 @@ c #####################################################################
           module procedure imposeBConScalar,imposeBConVector
         end INTERFACE
 
+        integer(4) :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
+
         integer(4),private :: bctype,dim,loc,ibc,i,j,k
+
+cc        logical    :: do_nothing
 
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
@@ -242,6 +241,182 @@ c #####################################################################
         integer(4),private :: order=1
 
       contains
+
+c     findLoopLimits
+c     ##############################################################
+      subroutine findLoopLimits(dim,loc,i1 ,i2 ,j1 ,j2 ,k1 ,k2
+     .                                 ,imn,imx,jmn,jmx,kmn,kmx)
+c     --------------------------------------------------------------
+c     Finds local limits for BC loops. On input, it takes global 
+c     limits (i1,i2), (j1,j2), (k1,k2) and outputs local loop limits
+c     (imn,imx), (jmn,jmx), (kmn,kmx).
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      integer(4),intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
+      integer(4),intent(OUT):: imn,imx,jmn,jmx,kmn,kmx
+
+c     Begin program
+
+      select case(dim)
+      case (1)
+
+        call selectLimits(i1,i2,grid_params%ilo(igxbc)
+     .                   ,nxbc,grid_params%nxgl(igxbc),imn,imx)
+
+        jmn = j1 - grid_params%jlo(igybc) + 1
+        jmx = j2 - grid_params%jlo(igybc) + 1
+
+        kmn = k1 - grid_params%klo(igzbc) + 1
+        kmx = k2 - grid_params%klo(igzbc) + 1
+
+      case(2)
+        imn = i1 - grid_params%ilo(igxbc) + 1
+        imx = i2 - grid_params%ilo(igxbc) + 1
+
+        call selectLimits(j1,j2,grid_params%jlo(igybc)
+     .                   ,nybc,grid_params%nygl(igybc),jmn,jmx)
+
+        kmn = k1 - grid_params%klo(igzbc) + 1
+        kmx = k2 - grid_params%klo(igzbc) + 1
+
+      case(3)
+        imn = i1 - grid_params%ilo(igxbc) + 1
+        imx = i2 - grid_params%ilo(igxbc) + 1
+
+        jmn = j1 - grid_params%jlo(igybc) + 1
+        jmx = j2 - grid_params%jlo(igybc) + 1
+
+        call selectLimits(k1,k2,grid_params%klo(igzbc)
+     .                   ,nzbc,grid_params%nzgl(igzbc),kmn,kmx)
+
+      end select
+
+c     End program
+
+      contains
+
+c     selectLimits
+c     #####################################################################
+      subroutine selectLimits(igl,igr,igmin,nxl,nxg,ill,ilr)
+
+c     ---------------------------------------------------------------------
+c     Selects LOCAL limits for BC treatment at boundary location determined
+c     by (dim,loc).
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+        integer(4) :: igl,igr,igmin,nxl,nxg,ill,ilr
+
+c     Begin program
+
+cc        do_nothing = .false.
+
+        select case(loc)
+        case(0)
+cc          if (igl > 1) do_nothing = .true.
+          ill = min(igl - igmin + 1,1)
+          ilr = ill
+        case(1)
+cc          if (igr < nxg) do_nothing = .true.
+          ill = max(igr - igmin + 1,nxl)
+          ilr = ill
+        end select
+
+      end subroutine selectLimits
+
+      end subroutine findLoopLimits
+
+c     do__nothing
+c     #####################################################################
+      function do__nothing(dim,loc,i1,i2,j1,j2,k1,k2)
+
+c     ---------------------------------------------------------------------
+c     Selects whether to fill or not ghost cells of a given local domain
+c     based on its position in the global grid.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+        logical    :: do__nothing
+        integer(4),intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
+
+c     Begin program
+
+      select case(dim)
+      case (1)
+        call checkLimits(i1,i2,grid_params%nxgl(igxbc))
+      case(2)
+        call checkLimits(j1,j2,grid_params%nygl(igybc))
+      case(3)
+        call checkLimits(k1,k2,grid_params%nzgl(igzbc))
+      end select
+
+c     End program
+
+      contains
+
+c     checkLimits
+c     #####################################################################
+      subroutine checkLimits(igl,igr,nxg)
+
+c     ---------------------------------------------------------------------
+c     Selects LOCAL limits for BC treatment at boundary location determined
+c     by (dim,loc).
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+        integer(4) :: igl,igr,nxg
+
+c     Begin program
+
+        do__nothing = .false.
+
+        select case(loc)
+        case(0)
+          if (igl > 1) do__nothing = .true.
+        case(1)
+          if (igr < nxg) do__nothing = .true.
+        end select
+
+      end subroutine checkLimits
+
+      end function do__nothing
+
+c     selectFace
+c     #####################################################################
+      function selectFace(ibc)
+
+c     ---------------------------------------------------------------------
+c     Selects LOCAL limits for BC treatment at boundary location determined
+c     by (dim,loc).
+c     ---------------------------------------------------------------------
+
+      implicit none
+
+      logical    :: selectFace
+
+      integer(4) :: dim,loc,ibc
+
+c     Begin program
+
+      loc = abs(mod(ibc,2)-2)-1
+      dim = 1 + (ibc-1-loc)/2
+
+#if defined(petsc)
+      selectFace= .not.((bcond(ibc) == PER).or.
+     .     do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))
+#else
+      selectFace= 
+     .     .not.do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax)
+#endif
+
+cc      selectFace = .true.
+
+      end function selectFace
 
 c     imposeBConScalar
 c     #################################################################
@@ -265,7 +440,6 @@ c     Local variables
 
 c     Begin program
 
-cc#if !defined(nobc)
 c     Initialize interpolation order
 
       if (PRESENT(iorder)) then
@@ -319,7 +493,7 @@ c     Impose BCs
 
 c     Singular point boundary condition
 
-      if (bcond(1) == SP) call singularBC(array,2)
+      if (bcond(1) == SP) call singularBC(array,order)
 
 c     Fill edges
 
@@ -348,8 +522,6 @@ cc            call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
 cc          endif
 cc        enddo
 cc      enddo
-
-cc#endif
 
 c     End program
 
@@ -505,10 +677,10 @@ cc      if (bcond(1,1) == SP) call singularBC(v_cnv,.false.,2)
 
       if (bcond(1,1) == SP) then
         if (is__vec) then
-          call singularBC(v_cnv,.false.,2)
+          call singularBC(v_cnv,.false.,order)
         else
           do ivar=1,3
-            call singularBC(v_cnv(:,:,:,ivar),2)
+            call singularBC(v_cnv(:,:,:,ivar),order)
           enddo
         endif
       endif
@@ -624,12 +796,13 @@ c     Begin program
               cycle
             elseif (bcond(ibc,ivar) < 0) then
 
+              if (do__nothing(dim,loc
+     .                       ,iimin,iimax,jjmin,jjmax,kkmin,kkmax)) exit
+
               call findLoopLimits(dim,loc,iimin,iimax
      .                                   ,jjmin,jjmax
      .                                   ,kkmin,kkmax
      .                                   ,imin,imax,jmin,jmax,kmin,kmax)
-
-              if (do_nothing) exit
 
               select case (ibc)
               case (1)
@@ -644,7 +817,8 @@ c     Begin program
      .                                    +gsuper(1,3)*v_cov(i-1,j,k,3)
      .                                    -v_cnv(i-1,j,k,1))/gsuper(1,1)
 
-                      call transformFromCurvToCurv(i-1,j,k,igxbc,igybc,igzbc
+                      call transformFromCurvToCurv(i-1,j,k
+     .               ,igxbc,igybc,igzbc
      .               ,v_cov(i-1,j,k,1),v_cov(i-1,j,k,2),v_cov(i-1,j,k,3)
      .               ,v_cnv(i-1,j,k,1),v_cnv(i-1,j,k,2),v_cnv(i-1,j,k,3)
      .               ,.true.)
@@ -665,7 +839,8 @@ c     Begin program
      .                                    +gsuper(1,3)*v_cov(i+1,j,k,3)
      .                                    -v_cnv(i+1,j,k,1))/gsuper(1,1)
 
-                      call transformFromCurvToCurv(i+1,j,k,igxbc,igybc,igzbc
+                      call transformFromCurvToCurv(i+1,j,k
+     .               ,igxbc,igybc,igzbc
      .               ,v_cov(i+1,j,k,1),v_cov(i+1,j,k,2),v_cov(i+1,j,k,3)
      .               ,v_cnv(i+1,j,k,1),v_cnv(i+1,j,k,2),v_cnv(i+1,j,k,3)
      .               ,.true.)
@@ -686,7 +861,8 @@ c     Begin program
      .                                    +gsuper(2,3)*v_cov(i,j-1,k,3)
      .                                    -v_cnv(i,j-1,k,2))/gsuper(2,2)
 
-                      call transformFromCurvToCurv(i,j-1,k,igxbc,igybc,igzbc
+                      call transformFromCurvToCurv(i,j-1,k
+     .               ,igxbc,igybc,igzbc
      .               ,v_cov(i,j-1,k,1),v_cov(i,j-1,k,2),v_cov(i,j-1,k,3)
      .               ,v_cnv(i,j-1,k,1),v_cnv(i,j-1,k,2),v_cnv(i,j-1,k,3)
      .               ,.true.)
@@ -707,7 +883,8 @@ c     Begin program
      .                                    +gsuper(2,3)*v_cov(i,j+1,k,3)
      .                                    -v_cnv(i,j+1,k,2))/gsuper(2,2)
 
-                      call transformFromCurvToCurv(i,j+1,k,igxbc,igybc,igzbc
+                      call transformFromCurvToCurv(i,j+1,k
+     .               ,igxbc,igybc,igzbc
      .               ,v_cov(i,j+1,k,1),v_cov(i,j+1,k,2),v_cov(i,j+1,k,3)
      .               ,v_cnv(i,j+1,k,1),v_cnv(i,j+1,k,2),v_cnv(i,j+1,k,3)
      .               ,.true.)
@@ -728,7 +905,8 @@ c     Begin program
      .                                    +gsuper(3,2)*v_cov(i,j,k-1,2)
      .                                    -v_cnv(i,j,k-1,3))/gsuper(3,3)
 
-                      call transformFromCurvToCurv(i,j,k-1,igxbc,igybc,igzbc
+                      call transformFromCurvToCurv(i,j,k-1
+     .               ,igxbc,igybc,igzbc
      .               ,v_cov(i,j,k-1,1),v_cov(i,j,k-1,2),v_cov(i,j,k-1,3)
      .               ,v_cnv(i,j,k-1,1),v_cnv(i,j,k-1,2),v_cnv(i,j,k-1,3)
      .               ,.true.)
@@ -748,7 +926,8 @@ c     Begin program
      .                                    +gsuper(3,2)*v_cov(i,j,k+1,2)
      .                                    -v_cnv(i,j,k+1,3))/gsuper(3,3)
 
-                      call transformFromCurvToCurv(i,j,k+1,igxbc,igybc,igzbc
+                      call transformFromCurvToCurv(i,j,k+1
+     .               ,igxbc,igybc,igzbc
      .               ,v_cov(i,j,k+1,1),v_cov(i,j,k+1,2),v_cov(i,j,k+1,3)
      .               ,v_cnv(i,j,k+1,1),v_cnv(i,j,k+1,2),v_cnv(i,j,k+1,3)
      .               ,.true.)
@@ -805,10 +984,13 @@ c     Begin program
 
 c     Determine boundary limits
 
+      if (do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))
+     .     return
+
       call findLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                           ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
-      if (do_nothing) return
+cc      if (do_nothing) return
 
 c     Allocate rhs
 
@@ -969,10 +1151,13 @@ c     Begin program
 
 c     Determine boundary limits
 
+      if (do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))
+     .     return
+
       call findLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                           ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
-      if (do_nothing) return
+cc      if (do_nothing) return
 
 c     Select edge
 
@@ -1130,8 +1315,6 @@ c     Determine boundary limits
       call findLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                           ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
-      if (do_nothing) return
-
 c     Select edge
 
       select case (ibc)
@@ -1144,7 +1327,7 @@ c     Select edge
           imn   = min(ito,ifrom)
           imx   = max(ito,ifrom)
 
-          if (jmin == 1) then
+          if (jmin == 1.and.(selectFace(ibc).or.selectFace(3))) then  !Check faces #1,#3
             jto   = jmin-1
             jfrom = min(jmin+order,nybc)
 
@@ -1161,7 +1344,7 @@ c     Select edge
             enddo
           endif
 
-          if (jmax == nybc) then
+          if (jmax == nybc.and.(selectFace(ibc).or.selectFace(4))) then  !Check faces #1,#4
             jto   = jmax+1
             jfrom = max(jmax-order,1)
 
@@ -1189,7 +1372,7 @@ c     Select edge
           imn   = min(ito,ifrom)
           imx   = max(ito,ifrom)
 
-          if (jmin == 1) then
+          if (jmin == 1.and.(selectFace(ibc).or.selectFace(3))) then  !Check faces #2,#3
             jto   = jmin-1
             jfrom = min(jmin+order,nybc)
 
@@ -1206,7 +1389,7 @@ c     Select edge
             enddo
           endif
 
-          if (jmax == nybc) then
+          if (jmax == nybc.and.(selectFace(ibc).or.selectFace(4))) then  !Check faces #2,#4
             jto   = jmax+1
             jfrom = max(jmax-order,1)
 
@@ -1235,7 +1418,7 @@ c     Select edge
           jmn   = min(jto,jfrom)
           jmx   = max(jto,jfrom)
 
-          if (kmin == 1) then
+          if (kmin == 1.and.(selectFace(ibc).or.selectFace(5))) then  !Check faces #3,#5
 
             kto   = kmin-1
             kfrom = min(kmin+order,nzbc)
@@ -1253,7 +1436,7 @@ c     Select edge
             enddo
           endif
 
-          if (kmax == nzbc) then
+          if (kmax == nzbc.and.(selectFace(ibc).or.selectFace(6))) then  !Check faces #3,#6
 
             kto   = kmax+1
             kfrom = max(kmax-order,1)
@@ -1283,7 +1466,7 @@ c     Select edge
           jmn   = min(jto,jfrom)
           jmx   = max(jto,jfrom)
 
-          if (kmin == 1) then
+          if (kmin == 1.and.(selectFace(ibc).or.selectFace(5))) then  !Check faces #4,#5
 
             kto   = kmin-1
             kfrom = min(kmin+order,nzbc)
@@ -1301,7 +1484,7 @@ c     Select edge
             enddo
           endif
 
-          if (kmax == nzbc) then
+          if (kmax == nzbc.and.(selectFace(ibc).or.selectFace(6))) then  !Check faces #4,#6
 
             kto   = kmax+1
             kfrom = max(kmax-order,1)
@@ -1331,7 +1514,7 @@ c     Select edge
           kmn   = min(kto,kfrom)
           kmx   = max(kto,kfrom)
 
-          if (imin == 1) then
+          if (imin == 1.and.(selectFace(ibc).or.selectFace(1))) then  !Check faces #5,#1
 
             ito   = imin-1
             ifrom = min(imin+order,nxbc)
@@ -1349,7 +1532,7 @@ c     Select edge
             enddo
           endif
 
-          if (imax == nxbc) then
+          if (imax == nxbc.and.(selectFace(ibc).or.selectFace(2))) then  !Check faces #5,#2
 
             ito   = imax+1
             ifrom = max(imax-order,1)
@@ -1379,7 +1562,7 @@ c     Select edge
           kmn   = min(kto,kfrom)
           kmx   = max(kto,kfrom)
 
-          if (imin == 1) then
+          if (imin == 1.and.(selectFace(ibc).or.selectFace(1))) then  !Check faces #6,#1
 
             ito   = imin-1
             ifrom = min(imin+order,nxbc)
@@ -1397,7 +1580,7 @@ c     Select edge
             enddo
           endif
 
-          if (imax == nxbc) then
+          if (imax == nxbc.and.(selectFace(ibc).or.selectFace(2))) then  !Check faces #6,#2
 
             ito   = imax+1
             ifrom = max(imax-order,1)
@@ -1456,11 +1639,10 @@ c     Determine boundary limits
       call findLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                           ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
-      if (do_nothing) return
+c     Select corner
 
-c     Select edge
-
-      if     (imin == 1  .and. jmin == 1  .and. kmin == 1) then
+      if (      imin == 1  .and. jmin == 1  .and. kmin == 1
+     .    .and.(selectFace(1).or.selectFace(3).or.selectFace(5)) ) then   !Check concurrent faces
         ifrom = min(imin+order,nxbc)
         jfrom = min(jmin+order,nybc)
         kfrom = min(kmin+order,nzbc)
@@ -1479,7 +1661,8 @@ c     Select edge
      .          ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
       endif
 
-      if (imin == 1  .and. jmax == nybc .and. kmin == 1) then
+      if (     imin == 1  .and. jmax == nybc .and. kmin == 1
+     .    .and.(selectFace(1).or.selectFace(4).or.selectFace(5))) then
 
         ifrom = min(imin+order,nxbc)
         jfrom = max(jmax-order,1   )
@@ -1499,7 +1682,8 @@ c     Select edge
      .           ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
       endif
 
-      if (imax == nxbc .and. jmin == 1  .and. kmin == 1) then
+      if (     imax == nxbc .and. jmin == 1  .and. kmin == 1
+     .    .and.(selectFace(2).or.selectFace(3).or.selectFace(5))) then
 
         ifrom = max(imax-order,1   )
         jfrom = min(jmin+order,nybc)
@@ -1519,7 +1703,8 @@ c     Select edge
      .            ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
       endif
 
-      if (imax == nxbc .and. jmax == nybc .and. kmin == 1) then
+      if (     imax == nxbc .and. jmax == nybc .and. kmin == 1
+     .    .and.(selectFace(2).or.selectFace(4).or.selectFace(5))) then
 
         ifrom = max(imax-order,1   )
         jfrom = max(jmax-order,1   )
@@ -1539,7 +1724,8 @@ c     Select edge
      .            ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
       endif
 
-      if (imin == 1  .and. jmin == 1  .and. kmax == nzbc) then
+      if (     imin == 1  .and. jmin == 1  .and. kmax == nzbc
+     .    .and.(selectFace(1).or.selectFace(3).or.selectFace(6))) then
 
         ifrom = min(imin+order,nxbc)
         jfrom = min(jmin+order,nybc)
@@ -1559,7 +1745,8 @@ c     Select edge
      .            ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
       endif
 
-      if (imin == 1  .and. jmax == nybc .and. kmax == nzbc) then
+      if (     imin == 1  .and. jmax == nybc .and. kmax == nzbc
+     .    .and.(selectFace(1).or.selectFace(4).or.selectFace(6))) then
 
         ifrom = min(imin+order,nxbc)
         jfrom = max(jmax-order,1   )
@@ -1579,7 +1766,8 @@ c     Select edge
      .            ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
       endif
 
-      if (imax == nxbc .and. jmin == 1  .and. kmax == nzbc) then
+      if (     imax == nxbc .and. jmin == 1  .and. kmax == nzbc
+     .    .and.(selectFace(2).or.selectFace(3).or.selectFace(6))) then
 
         ifrom = max(imax-order,1   )
         jfrom = min(jmin+order,nybc)
@@ -1599,7 +1787,8 @@ c     Select edge
      .            ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
       endif
 
-      if (imax == nxbc .and. jmax == nybc .and. kmax == nzbc) then
+      if (     imax == nxbc .and. jmax == nybc .and. kmax == nzbc
+     .    .and.(selectFace(2).or.selectFace(4).or.selectFace(6))) then
 
         ifrom = max(imax-order,1 )
         jfrom = max(jmax-order,1 )
