@@ -2,6 +2,8 @@ c module mlsolverSetup
 c######################################################################
       module mlsolverSetup
 
+        use grid
+
         implicit none
 
         type:: solver_options
@@ -19,12 +21,14 @@ c######################################################################
           logical         :: sym_test
           logical         :: fdiag
           logical         :: vol_res
-          logical         :: coarse_node_based_relax
+          logical         :: mg_line_relax
+          logical         :: vertex_based_relax
           integer         :: krylov_subspace
           integer         :: orderres
           integer         :: orderprol
           integer         :: mg_coarse_solver_depth
           integer         :: mg_mu
+          type(grid_def)  :: mg_grid_def
           double precision, pointer, dimension(:,:) :: diag
         end type solver_options
 
@@ -56,46 +60,47 @@ c     ###################################################################
 c       Initializes solver options
 
           !Test options
-          solverOptions%sym_test = .false.     !Whether to perform symmetry 
-                                               !  test on matvec operator
+          solverOptions%sym_test = .false.         !Whether to perform symmetry 
+                                                   !  test on matvec operator
 
           !Generic options
-          solverOptions%iter  = 10             !Number of iterations
-          solverOptions%tol   = 1d-5           !Convergence tolerance
+          solverOptions%iter  = 10                 !Number of iterations
+          solverOptions%tol   = 1d-5               !Convergence tolerance
 
           !MG and smoother options
-          solverOptions%vcyc     = 1           !Number of V-cycles (MG)
-          solverOptions%igridmin = 2           !Minimum grid level 
-                                               !  considered (MG)
-          solverOptions%orderres = 0           !Interpolation order in 
-                                               !  restriction (MG)
-          solverOptions%orderprol= 0           !Interpolation order in 
-                                               !  prolongation (MG)
-          solverOptions%fdiag    = .true.      !Whether to form matrix diagonal
-                                               !  for smoothing
-          solverOptions%vol_res  = .false.     !Whether residual contains volume information
-          nullify(solverOptions%diag)          !Diagonal not provided externally
-          solverOptions%omega = 1d0            !Relaxation parameter
-          solverOptions%omega10= 0d0           !Weighed Jacobi relaxation parameter
-          solverOptions%omega01= 0d0           !Weighed Jacobi relaxation parameter
-          solverOptions%ncolors= 1             !Number of colors in colored GS
-          solverOptions
-     .        %mg_coarse_solver_depth= 0       !Identify coarse solver for MG (if =0, use smoother)
-          solverOptions%mg_mu  = 1             !Identifies MG cycle: V-cycle (mu=1), W-cycle (mu=2)
-          solverOptions
-     .        %coarse_node_based_relax=.false. !Specifies whether to do coarse node-based relax. or not.
+          solverOptions%vcyc     = 1               !Number of V-cycles (MG)
+          solverOptions%igridmin = 2               !Minimum grid level considered (MG)
+          solverOptions%orderres = 0               !Interpolation order in restriction (MG)
+          solverOptions%orderprol= 0               !Interpolation order in prolongation (MG)
+          solverOptions%fdiag    = .true.          !Whether to form matrix diagonal
+                                                   !  for smoothing
+          solverOptions%vol_res  = .false.         !Whether residual contains volume information
+          nullify(solverOptions%diag)              !Diagonal not provided externally
+          solverOptions%omega = 1d0                !Relaxation parameter
+          solverOptions%omega10= 0d0               !Weighed Jacobi relaxation parameter
+          solverOptions%omega01= 0d0               !Weighed Jacobi relaxation parameter
+          solverOptions%ncolors= 1                 !Number of colors in colored GS
+          solverOptions%mg_coarse_solver_depth= 0  !Identifies coarse solver for MG 
+                                                   !  (if =0, use smoother)
+          solverOptions%mg_mu  = 1                 !Identifies MG cycle: V-cycle (mu=1),
+                                                   !                     W-cycle (mu=2)
+          solverOptions%mg_line_relax=.false.      !Specifies whether to do point-wise 
+                                                   !  relaxation (false) or line-wise 
+                                                   !  relaxation (true).
+          solverOptions%vertex_based_relax=.false. !Specifies whether to do vertex-based relax.
+          solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
 
           !Krylov methods options
-          solverOptions%stp_test = 0           !Stopping criterion (CG, GMRES)
-                                               !If one, use initial residual; 
-                                               !  else, use rhs.
-          solverOptions%krylov_subspace = 15   !Krylov subspace dimension (GMRES)
+          solverOptions%stp_test = 0               !Stopping criterion (CG, GMRES)
+                                                   !If one, use initial residual; 
+                                                   !  else, use rhs.
+          solverOptions%krylov_subspace = 15       !Krylov subspace dimension (GMRES)
 
           !Output
-          solverOptions%iter_out = 0           !Number of iterations (output)
-          solverOptions%tol_out  = 0d0         !Convergence achieved (output)
-        return
-        end subroutine
+          solverOptions%iter_out = 0               !Number of iterations (output)
+          solverOptions%tol_out  = 0d0             !Convergence achieved (output)
+
+        end subroutine solverOptionsInit
 
 c     solverInit
 c     ###################################################################
