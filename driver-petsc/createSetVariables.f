@@ -26,8 +26,6 @@ c Begin program
 
       call allocateStructures
 
-      allocate(fold(ntotd),fsrc(ntotd))
-
 c End programs
 
       end subroutine createNonlinearSolver
@@ -68,7 +66,8 @@ c Begin program
 
 c Set equilibrium u_0 and define BCs on all variables
 
-      allocate(var(0:nxdp,0:nydp,0:nzdp,neqd),label(neqd),bcs(6,neqd))
+      allocate(var(ilom:ihip,jlom:jhip,klom:khip,neqd)
+     $            ,label(neqd),bcs(6,neqd))
 
       !Initialize boundary conditions
       do ieq = 1,neqd
@@ -80,8 +79,6 @@ c Set equilibrium u_0 and define BCs on all variables
       call setEquilibrium(var,bcs,label)
 
       call packVariables(u_0)
-
-cc      call imposeBoundaryConditions(u_0,igx,igy,igz)
 
       deallocate(var,label,bcs)
 
@@ -112,7 +109,7 @@ c     Begin program
       varray%nvar = neqd
 
       do ieq = 1,neqd
-        call VarPack (nxd,nyd,nzd,var(:,:,:,ieq),bcs(:,ieq),label(ieq)
+        call varPack (var(:,:,:,ieq),bcs(:,ieq),label(ieq)
      .               ,ieq,varray)
       enddo
 
@@ -172,15 +169,9 @@ c Perturb equilibrium
 
       else
 
-        call readRestartFile (nx,ny,nz,itime,time,varrayn,varraynp)
+        call readRestartFile (itime,time,varrayn,varraynp)
 
-        inewtime = itime
-
-        if (nx.ne.nxd.or.ny.ne.nyd.or.nz.ne.nzd) then
-           write (*,*) 'Grid meshes do not agree; cannot restart'
-           write (*,*) 'Aborting.'
-           stop
-        endif
+        inewtime = itime + 1
 
       endif
 
@@ -190,7 +181,7 @@ c End program
 
 c     readRestartFile
 c     #################################################################
-      subroutine readRestartFile(nx,ny,nz,itime,time,vn,vnp)
+      subroutine readRestartFile(itime,time,vn,vnp)
 
 c     -----------------------------------------------------------------
 c     Reads restart file
@@ -202,14 +193,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4),intent(OUT) :: nx,ny,nz,itime
+      integer(4),intent(OUT) :: itime
       real(8),intent(OUT)    :: time
 
       type (var_array)       :: vn,vnp
 
 c     Local variables
 
-      integer(4) :: ierr
+      integer(4)             :: ierr,nx,ny,nz,il,jl,kl,ih,jh,kh
 
       type (var_array)       :: vmed
 
@@ -222,6 +213,12 @@ c     Begin program
       read (urecord) nx
       read (urecord) ny
       read (urecord) nz
+
+      if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
+        write (*,*) 'Grid meshes do not agree; cannot restart'
+        write (*,*) 'Aborting.'
+        stop
+      endif
 
       write (*,*) ' Reading restart file...'
 
@@ -265,13 +262,13 @@ c     Call variables
 
       integer(4) :: bcs(6)
       real(8)    :: perturb
-      real(8)    :: array (0:nxdp,0:nydp,0:nzdp)
+      real(8)    :: array (ilom:ihip,jlom:jhip,klom:khip)
 
 c     Local variables
 
       integer*4 :: i,j,k,ig,jg,kg,igx,igy,igz
       real(8)   :: x1,y1,z1,car(3),jac
-      real(8)   :: fx(0:nxdp),fy(0:nydp),fz(0:nzdp) 
+      real(8)   :: fx(ilo:ihi),fy(jlo:jhi),fz(klo:khi) 
 
 c     Begin program
 
@@ -279,27 +276,27 @@ c     Begin program
       igy = 1
       igz = 1
 
-      do i = 1,nxd
-        call getCurvilinearCoordinates(i,1,1,igx,igy,igz,ig,jg,kg
+      do i = ilo,ihi
+        call getCurvilinearCoordinates(i,jlo,klo,igx,igy,igz,ig,jg,kg
      .                                ,x1,y1,z1)
         fx(i) = factor(xmin,xmax,x1,bcs(1:2),nh1)
       enddo
 
-      do j = 1,nyd
-        call getCurvilinearCoordinates(1,j,1,igx,igy,igz,ig,jg,kg
+      do j = jlo,jhi
+        call getCurvilinearCoordinates(ilo,j,klo,igx,igy,igz,ig,jg,kg
      .                                ,x1,y1,z1)
         fy(j) = factor(ymin,ymax,y1,bcs(3:4),nh2)
       enddo
 
-      do k = 1,nzd
-        call getCurvilinearCoordinates(1,1,k,igx,igy,igz,ig,jg,kg
+      do k = klo,khi
+        call getCurvilinearCoordinates(ilo,jlo,k,igx,igy,igz,ig,jg,kg
      .                                ,x1,y1,z1)
         fz(k) = factor(zmin,zmax,z1,bcs(5:6),nh3)
       enddo
 
-      do k = 1,nzd
-        do j = 1,nyd
-          do i = 1,nxd
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
             array(i,j,k) = array(i,j,k) + perturb*fx(i)*fy(j)*fz(k)
 c For MSW test case
 cc            call getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
@@ -419,9 +416,9 @@ cc        u_graph%array_var(1)%array = u_0%array_var(1)%array  !Set rho finite
         open(unit=urecord,file=recordfile
      .      ,form='unformatted',status='replace')
 
-        write (urecord) nxd
-        write (urecord) nyd
-        write (urecord) nzd
+        write (urecord) nxl
+        write (urecord) nyl
+        write (urecord) nzl
 
         call writeRecordFile(0,0d0,dt,u_graph)
         call writeRecordFile(0,0d0,dt,u_np)

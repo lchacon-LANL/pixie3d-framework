@@ -13,8 +13,12 @@ c #####################################################################
       module parameters
 
       integer(4) :: neqd
-     .             ,nxd,nyd,nzd
-     .             ,nxdp,nydp,nzdp
+     .             ,nxd,nyd,nzd,nxdp,nydp,nzdp
+     .             ,nxl,nyl,nzl,nxlp,nylp,nzlp
+
+      integer(4) :: ilo ,ihi ,jlo ,jhi ,klo ,khi
+     .             ,ilom,ihip,jlom,jhip,klom,khip
+     $             ,ilog,ihig,jlog,jhig,klog,khig
 
       integer(4) :: ntotd,ntotdp,ntimemax
 
@@ -24,14 +28,71 @@ c     setVectorDimensions
 c     #################################################################
       subroutine setVectorDimensions
 
+      !Global problem info
         nxdp = nxd+1
         nydp = nyd+1
         nzdp = nzd+1
 
-        ntotdp  = nxd*nyd*nzd
-        ntotd   = neqd*ntotdp
+cc        ntotdp  = nxd*nyd*nzd
+cc        ntotd   = neqd*ntotdp
+
+      !Local problem info (ihi,ilo,etc. initialized elsewhere)
+
+        nxl  = ihig-ilog+1
+        nyl  = jhig-jlog+1
+        nzl  = khig-klog+1
+
+        !Define local limits
+        ilo  = 1
+        ihi  = nxl
+        jlo  = 1
+        jhi  = nyl
+        klo  = 1
+        khi  = nzl
+
+        !Define offset quantities (local grid 1:n?l)
+        ihip = ihi+1
+        ilom = ilo-1
+        jhip = jhi+1
+        jlom = jlo-1
+        khip = khi+1
+        klom = klo-1
+
+        nxlp = nxl+1
+        nylp = nyl+1
+        nzlp = nzl+1
+
+        !Define local vector dimensions
+        ntotdp = nxl*nyl*nzl
+        ntotd  = neqd*ntotdp
 
       end subroutine setVectorDimensions
+
+c     vecPos
+c     #################################################################
+      function vecPos(neq,i,j,k) result (ijk)
+
+        implicit none
+
+        integer(4) :: ijk,i,j,k,neq
+
+        ijk = neq*(i-ilo + nxl*(j-jlo) + nxl*nyl*(k-klo))
+      
+      end function vecPos
+
+c     fromGlobalToLocalLimits
+c     #################################################################
+      subroutine fromGlobalToLocalLimits(ig,jg,kg,il,jl,kl)
+
+        implicit none
+
+        integer(4) :: ig,jg,kg,il,jl,kl
+
+        il = ig - ilog + 1
+        jl = jg - jlog + 1
+        kl = kg - klog + 1
+
+      end subroutine fromGlobalToLocalLimits
 
       end module parameters
 
@@ -78,7 +139,7 @@ c     Begin program
         endif
 
         if (.not.associated(petscarray%array)) then
-          allocate(petscarray%array(0:nxdp,0:nydp,0:nzdp))
+          allocate(petscarray%array(ilom:ihip,jlom:jhip,klom:khip))
           do ieq=1,neqd
             petscarray%array(:,:,:)%var(ieq) = 0d0
           enddo
@@ -211,12 +272,12 @@ c     Begin program
 
 c     Form vector x
 
-      do k = 1,nzd
-        do j = 1,nyd
-          do i = 1,nxd
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
+            ii = vecPos(neqd,i,j,k)
             do ieq = 1,neqd
-              ii = ieq + neqd*( (i-1) + nxd*(j-1) + nxd*nyd*(k-1) )
-              x(ii) = petscarray%array(i,j,k)%var(ieq)
+              x(ii+ieq) = petscarray%array(i,j,k)%var(ieq)
             enddo
           enddo
         enddo
@@ -254,12 +315,12 @@ c     Initialize petscarray
 
 c     Unpack vector x
 
-      do k = 1,nzd
-        do j = 1,nyd
-          do i = 1,nxd
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
+            ii = vecPos(neqd,i,j,k)
             do ieq = 1,neqd
-              ii = ieq + neqd*( (i-1) + nxd*(j-1) + nxd*nyd*(k-1) )
-              petscarray%array(i,j,k)%var(ieq) = x(ii)
+              petscarray%array(i,j,k)%var(ieq) = x(ii+ieq)
             enddo
           enddo
         enddo
@@ -333,7 +394,8 @@ c     Begin program
 
         do ieq=1,neqd
           if (.not.associated(varray%array_var(ieq)%array)) then
-            allocate(varray%array_var(ieq)%array(0:nxdp,0:nydp,0:nzdp))
+            allocate(varray%array_var(ieq)
+     $                     %array(ilom:ihip,jlom:jhip,klom:khip))
             varray%array_var(ieq)%array = 0d0
           endif
         enddo
@@ -561,7 +623,7 @@ c     End program
 
 c     varPack
 c     #################################################################
-      subroutine varPack(nx,ny,nz,array,bcs,desc,veq,varray)
+      subroutine varPack(array,bcs,desc,veq,varray)
 
 c     -----------------------------------------------------------------
 c     Fills structure fields of varray with pertinent data corresponding
@@ -571,9 +633,9 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer          :: nx,ny,nz,veq,bcs(6)
-        real(8) :: array(0:nx+1,0:ny+1,0:nz+1)
-        character(*)     :: desc
+        integer(4)   :: veq,bcs(6)
+        real(8)      :: array(ilom:ihip,jlom:jhip,klom:khip)
+        character(*) :: desc
 
         type (var_array) :: varray
 
@@ -593,13 +655,13 @@ c     End program
 
 c     varUnPack
 c     #################################################################
-      subroutine varUnPack(varray,veq,nx,ny,nz,array,bcs,desc)
+      subroutine varUnPack(varray,veq,array,bcs,desc)
 
 c     Call variables
 
-        integer          :: nx,ny,nz,veq,bcs(6)
-        real(8) :: array(0:nx+1,0:ny+1,0:nz+1)
-        character(20)    :: desc
+        integer(4)    :: nx,ny,nz,veq,bcs(6)
+        real(8)       :: array(ilom:ihip,jlom:jhip,klom:khip)
+        character(20) :: desc
 
         type (var_array) :: varray
 
@@ -641,12 +703,12 @@ c     Unpack vector x
 
       neq = varray%nvar
 
-      do k = 1,nzd
-        do j = 1,nyd
-          do i = 1,nxd
-            do ieq = 1,neq
-              ii = ieq + neq*( (i-1) + nxd*(j-1) + nxd*nyd*(k-1) )
-              x(ii) = varray%array_var(ieq)%array(i,j,k)
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
+            ii = vecPos(neq,i,j,k)
+            do ieq=1,neq
+              x(ii+ieq) = varray%array_var(ieq)%array(i,j,k)
             enddo
           enddo
         enddo
@@ -676,8 +738,6 @@ c     Local variables
 
       integer(4) :: i,j,k,ii,ieq,neq
 
-cc      external imposeBoundaryConditions
-
 c     Begin program
 
 c     Initialize varray
@@ -688,20 +748,16 @@ c     Unpack vector x
 
       neq = varray%nvar
 
-      do ieq = 1,neq
-        do k = 1,nzd
-          do j = 1,nyd
-            do i = 1,nxd
-              ii = ieq + neq*( (i-1) + nxd*(j-1) + nxd*nyd*(k-1) )
-              varray%array_var(ieq)%array(i,j,k) = x(ii)
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
+            ii = vecPos(neq,i,j,k)
+            do ieq=1,neq
+              varray%array_var(ieq)%array(i,j,k) = x(ii+ieq)
             enddo
           enddo
         enddo
       enddo
-
-c     Impose boundary conditions (external)
-
-cc      call imposeBoundaryConditions(varray)
 
 c     End program
 
@@ -734,12 +790,9 @@ c     Initialize structure
 
 c     Perform mapping
 
-      do k = 0,nzdp
-        do j = 0,nydp
-          do i = 0,nxdp
-cc      do k = 1,nzd
-cc        do j = 1,nyd
-cc          do i = 1,nxd
+      do k = klom,khip
+        do j = jlom,jhip
+          do i = ilom,ihip
             do ieq = 1,neqd
               varray%array_var(ieq)%array(i,j,k)
      .             = petscarray%array(i,j,k)%var(ieq)
@@ -779,9 +832,9 @@ c     Initialize petsc array
 
 c     Perform mapping
 
-      do k = 0,nzdp
-        do j = 0,nydp
-          do i = 0,nxdp
+      do k = klom,khip
+        do j = jlom,jhip
+          do i = ilom,ihip
             do ieq = 1,neqd
               petscarray%array(i,j,k)%var(ieq)
      .             = varray%array_var(ieq)%array(i,j,k)
@@ -834,52 +887,52 @@ c ######################################################################
 
         use grid
 
-      contains
+c$$$      contains
 
-c     integral
-c     ################################################################
-      real(8) function integral(nx,ny,nz,array,igx,igy,igz,avg)
-
-c     ---------------------------------------------------------------
-c     Integrates array(i,j,k) on domain (nx)x(ny)x(nz).
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c    Call variables
-
-      integer(4) :: igx,igy,igz,nx,ny,nz
-      real(8)    :: array(0:nx+1,0:ny+1,0:nz+1)
-      logical    :: avg
-
-c     Local variables
-
-      integer(4) :: i,j,k
-
-      real(8)    :: tvolume,vol
-
-c     Begin program
-
-c     Integrate
-
-      integral = 0d0
-      tvolume  = 0d0
-
-      do k = 1,nz
-        do j = 1,ny
-          do i = 1,nx
-            vol = volume(i,j,k,igx,igy,igz)
-            integral = integral + array(i,j,k)*vol
-            tvolume = tvolume + vol
-          enddo
-        enddo
-      enddo
-
-      if (avg) integral = integral/tvolume
-
-c     End 
-
-      end function integral
+c$$$c     integral
+c$$$c     ################################################################
+c$$$      real(8) function integral(nx,ny,nz,array,igx,igy,igz,avg)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Integrates array(i,j,k) on domain (nx)x(ny)x(nz).
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c    Call variables
+c$$$
+c$$$      integer(4) :: igx,igy,igz,nx,ny,nz
+c$$$      real(8)    :: array(0:nx+1,0:ny+1,0:nz+1)
+c$$$      logical    :: avg
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer(4) :: i,j,k
+c$$$
+c$$$      real(8)    :: tvolume,vol
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$c     Integrate
+c$$$
+c$$$      integral = 0d0
+c$$$      tvolume  = 0d0
+c$$$
+c$$$      do k = 1,nz
+c$$$        do j = 1,ny
+c$$$          do i = 1,nx
+c$$$            vol = volume(i,j,k,igx,igy,igz)
+c$$$            integral = integral + array(i,j,k)*vol
+c$$$            tvolume = tvolume + vol
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$      if (avg) integral = integral/tvolume
+c$$$
+c$$$c     End 
+c$$$
+c$$$      end function integral
 
       end module generalOperators
 
@@ -908,8 +961,6 @@ c ######################################################################
         real(8)    :: dt,dtbase,cnfactor,cnf_d,alpha,gammat
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0
 
-        real(8),allocatable,dimension(:) :: fold,fsrc
-
         real(8)    :: vx_max,vy_max,vz_max,bx_max,by_max,bz_max
 
         logical    :: timecorr,restart,source
@@ -934,8 +985,8 @@ c module counters
 c ######################################################################
       module counters
 
-        integer          :: itnewt,itgmres,itwhistler
-        integer          :: gmres_tot,newt_tot,wh_tot
+        integer(4) :: itnewt,itgmres,itwhistler
+        integer(4) :: gmres_tot,newt_tot,wh_tot
 
       end module counters
 
@@ -943,7 +994,7 @@ c module iosetup
 c ######################################################################
       module iosetup
 
-        integer  ::     ilevel
+        integer(4)     :: ilevel
 
         integer(4)     :: urecord
         character*(20) :: recordfile

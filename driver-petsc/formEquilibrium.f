@@ -1,7 +1,6 @@
 c formEquilibrium
 c######################################################################
-      subroutine formEquilibrium(array,imin,imax,jmin,jmax
-     .                                ,kmin,kmax)
+      subroutine formEquilibrium(array,imin,imax,jmin,jmax,kmin,kmax)
 
 c----------------------------------------------------------------------
 c     Initializes MG and creates grid
@@ -27,9 +26,13 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4)      ::imin,imax,jmin,jmax,kmin,kmax
+      integer(4)      :: imin,imax,jmin,jmax,kmin,kmax
 
-      type(petsc_var) ::array(imin:imax,jmin:jmax,kmin:kmax)
+      type(petsc_var) :: array(imin:imax,jmin:jmax,kmin:kmax)
+
+c FIX PARALLEL
+cc      character*(*)   :: ext
+c FIX PARALLEL
 
 c Local variables
 
@@ -38,11 +41,11 @@ c Local variables
 c Begin program
 
       urecord    = 25
+c FIX PARALLEL
+      !In the future, "ext" should be passed via subroutine call from C
+cc      recordfile = 'record'//trim(ext)//'.bin'
       recordfile = 'record.bin'
-
-c Read user initializations
-
-cc      call readInput
+c FIX PARALLEL
 
 c Check for autoinitializing parameters
 
@@ -64,15 +67,22 @@ c Check for autoinitializing parameters
 
       cnf_d = 1d0
 
-c Initialize vector dimensions
+c Initialize vector dimensions for global and local problems
+
+      ihig = imax
+      ilog = imin
+      jhig = jmax
+      jlog = jmin
+      khig = kmax
+      klog = kmin
 
       call setVectorDimensions
 
 c Allocate constant arrays
 
-      allocate(zeros (0:nxdp,0:nydp,0:nzdp))
-      allocate(vzeros(0:nxdp,0:nydp,0:nzdp,3))
-      allocate(ones  (0:nxdp,0:nydp,0:nzdp))
+      allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
+      allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
+      allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
 
       zeros  = 0d0
       vzeros = 0d0
@@ -80,7 +90,7 @@ c Allocate constant arrays
 
 c Initialize MG and create grid
 
-      call createGrid(nxd,nyd,nzd)
+      call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd)
 cc      call checkGrid
 
 c Create nonlinear solver
@@ -103,10 +113,9 @@ c Transfer to Petsc format
 
       petscarray = u_n
 
-      array = petscarray%array(imin:imax,jmin:jmax,kmin:kmax)
+      array = petscarray%array(ilo:ihi,jlo:jhi,klo:khi)
 
       call deallocatePetscType(petscarray)
-
 
 c End program
 

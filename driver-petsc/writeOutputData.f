@@ -56,7 +56,6 @@ c Output per time step
 
       call output
 
-
 c Deallocate memory
 
       call deallocatePetscType(petscarray)

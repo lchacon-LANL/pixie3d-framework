@@ -1,13 +1,8 @@
-c correctTimeStepRoutine
+c correctTimeStep
 c ######################################################################
-      subroutine correctTimeStepRoutine(array,imin,imax,jmin,jmax,kmin,
-     .                                  kmax,gmits,nwits)
-
-      use variables
+      subroutine correctTimeStep(dn,dnh,dnp,ierr)
 
       use timeStepping
-
-      use iosetup
 
       use counters
 
@@ -15,65 +10,22 @@ c ######################################################################
 
 c Call variables
 
-      integer(4)      :: imin,imax,jmin,jmax,kmin,kmax,nwits,gmits
-
-      type(petsc_var) :: array(imin:imax,jmin:jmax,kmin:kmax)
+      integer(4)  :: ierr
+      real(8)     :: dn(neqd),dnh(neqd),dnp(neqd)
 
 c Local variables
 
-      type(petsc_array) :: petscarray
-
-      integer(4)        :: ierr,i,j,k,ieq
-
-      real(8) :: mag
-
 c Begin program
 
-      ierr = 0
+cc      write (*,*) 'ierr',ierr
 
-      call allocatePetscType(petscarray)
+c Estimate local growth rate
 
-      petscarray%array(imin:imax,jmin:jmax,kmin:kmax)
-     .         = array(imin:imax,jmin:jmax,kmin:kmax)
-
-c Map old solution
-
-      u_n = petscarray
-
-c diag ******
-cc      u_n = u_n - u_np
-cc      write (*,*) imin,imax,jmin,jmax,kmin,kmax
-cc
-cc      do ieq=1,neqd
-cc        mag = sqrt(sum(u_n%array_var(ieq)
-cc     .                 %array(imin:imax,jmin:jmax,1)**2))
-cc        write (*,*) mag
-cc      enddo
-
-cc      call writeDerivedType(u_n,6,.true.)
-
-cc      open(unit=110,file='debug.bin',form='unformatted'
-cc     .       ,status='replace')
-cc      do ieq=1,neqd
-cc        call contour(u_n%array_var(ieq)%array(imin:imax,jmin:jmax,1)
-cc     .              ,imax-imin+1,jmax-jmin+1,0d0,1d0,0d0,1d0,ieq-1,110)
-cc      enddo
-cc      close(110)
-
-cc      open(unit=110,file='debug.bin',form='unformatted'
-cc     .       ,status='replace')
-cc      do ieq=1,neqd
-cc        call contour(u_n%array_var(ieq)%array(0:nxd+1,0:nyd+1,0)
-cc     .              ,nxd+2,nyd+2,0d0,1d0,0d0,1d0,ieq-1,110)
-cc      enddo
-cc      close(110)
-cc
-cc      stop
-c diag ******
+      call calculate_gammat
 
 c Find new time step
 
-      call correctTimeStep(u_n,itime+1,ierr)
+      call findNewTimeStep(itime+1,ierr)
 
 c Update counters (only if timeStep is successful)
 
@@ -83,18 +35,48 @@ c Update counters (only if timeStep is successful)
       tmrst  = tmrst + dt
       nrst   = nrst  + 1
 
-c Deallocate memory
+c End program
 
-      call deallocatePetscType(petscarray)
+      contains
 
-      end subroutine correctTimeStepRoutine
+c     calculate_gammat
+c     #######################################################################
+      subroutine calculate_gammat
 
-c correctTimeStep
+c     -----------------------------------------------------------------------
+c     Calculation of local growth rate for CN
+c    ------------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+c     Local variables
+
+        integer (4) :: ieq
+
+        real(8)     :: mag(neqd)
+
+c     Begin program
+
+        where (dnp /= 0d0 .and. dnh /= 0d0)
+          mag = dt*dnh/(dnp-dn)
+        elsewhere
+          mag = 1e30
+        end where
+
+        gammat = 1./minval(abs(mag))
+
+      end subroutine calculate_gammat
+
+      end subroutine correctTimeStep
+
+c findNewTimeStep
 c####################################################################
-      subroutine correctTimeStep(varray,itm,ierr)
+      subroutine findNewTimeStep(itm,ierr)
 
 c--------------------------------------------------------------------
-c     Correct time step
+c     Find new time step
 c--------------------------------------------------------------------
 
       use timeStepping
@@ -109,15 +91,11 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4)       ::  ierr,itm
-
-      type (var_array) :: varray
+      integer(4) ::  ierr,itm
 
 c Local variables
 
 c Begin program
-
-      call calculate_gammat
 
       call calculate_dt
 
@@ -129,64 +107,14 @@ c End program
 
       contains
 
-c     calculate_gammat
-c     #######################################################################
-      subroutine calculate_gammat
-
-        use generalOperators
-
-c     Calculation of local growth rate for CN
-
-        integer (4) :: ieq
-
-        real(8)     :: dmag1,dmag2,dpert,mag(neqd)
-
-        real(8)     :: array(0:nxdp,0:nydp,0:nzdp)
-
-c     Begin program
-
-        do ieq=1,neqd
-
-          array = (varray%array_var(ieq)%array
-     .            -u_0   %array_var(ieq)%array )
-          array = array*array
-
-          dpert = integral(nxd,nyd,nzd,array,1,1,1,.true.)
-
-          dpert = sqrt(dpert)
-
-          array = (u_n%array_var(ieq)%array
-     .            -u_0%array_var(ieq)%array )
-          array = array*array
-
-          dmag1 = integral(nxd,nyd,nzd,array,1,1,1,.true.)
-
-          array = (varray%array_var(ieq)%array
-     .            +u_n   %array_var(ieq)%array
-     .         -2.*u_0   %array_var(ieq)%array )
-          array = array*array
-
-          dmag2 = integral(nxd,nyd,nzd,array,1,1,1,.true.)
-
-          if (dpert /= 0d0.and.dmag2 /= 0d0) then
-            mag(ieq) = .5*dt*sqrt(dmag2)/(dpert-sqrt(dmag1))
-          else
-            mag(ieq) = 1e30
-          endif
-
-        enddo
-
-        gammat = 1./minval(abs(mag))
-
-      end subroutine calculate_gammat
-
 c     calculate_cnfactor
 c     #######################################################################
       subroutine calculate_cnfactor
 
-        if (itm.eq.1) then
-          cnfactor = .5
-        elseif (itm.le.sm_pass+1) then
+cc        if (itm.eq.1) then
+cc          cnfactor = .5
+cc        elseif (itm.le.sm_pass+1) then
+        if (itm.le.sm_pass) then
           cnfactor = .3
         else
 cc          write (*,*) 'gamma ',gammat,'dt ',dt
@@ -199,13 +127,8 @@ c     calculate_dt
 c     #######################################################################
       subroutine calculate_dt
 
-
-        if (timecorr .or. cnfactor == 1d0) then
-          if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor == 1d0)) then
-            call findExplicitDt
-          else
-            call adapt_dt(dtbase)
-          endif
+        if (timecorr) then
+          call adapt_dt(dtbase)
         else
           dt = dtbase
         endif
@@ -232,9 +155,11 @@ c     #######################################################################
           if (ierr.eq.2) write (*,240)
           write (*,400) dt
         else
-          if (itm.le.sm_pass+1) then
+cc          if (itm.le.sm_pass+1) then
+          if (itm.le.sm_pass) then
             dt = dtbase/2.
-          elseif (itm.eq.(sm_pass+2)) then
+cc          elseif (itm.eq.(sm_pass+2)) then
+          elseif (itm.eq.(sm_pass+1)) then
             dt = dtbase
           else
             dt = min(dtbase,dt*coef2)
@@ -246,40 +171,4 @@ c     #######################################################################
 
       end subroutine adapt_dt
 
-      end subroutine correctTimeStep
-
-c     contour
-c     #####################################################################
-      subroutine contour(arr,nx,ny,xmin,xmax,ymin,ymax,iopt,nunit)
-      implicit none               !For safe fortran
-c     ---------------------------------------------------------------------
-c     Contours arr in xdraw format
-c     Notes:
-c      put the next 2 lines in main
-c      open(unit=nunit,file='contour.bin',form='unformatted') before
-c      close(unit=nunit) after
-c     ---------------------------------------------------------------------
-
-c     Call variables
-
-      integer(4) :: nx,ny,iopt,nunit
-      real(8)    :: arr(nx,ny),xmin,xmax,ymin,ymax
-
-c     Local variables
-
-      integer(4) :: i,j
-
-c     Begin program
-
-      if(iopt.eq.0) then
-        write(nunit) nx-1,ny-1,0
-        write(nunit) real(xmin,4),real(xmax,4)
-     .              ,real(ymin,4),real(ymax,4) 
-      endif
-      write(nunit) ((real(arr(i,j),4),i=1,nx),j=1,ny)
-cc      write (*,*) ((real(arr(i,j),4),i=1,nx),j=1,ny)
-cc      write (*,*)
-
-c     End program
-
-      end subroutine contour
+      end subroutine findNewTimeStep

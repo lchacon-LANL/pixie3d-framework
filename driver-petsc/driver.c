@@ -53,7 +53,7 @@ extern void FORTRAN_NAME(FORMEQUILIBRIUM) (Field*, int*, int*, int*, int*, int*,
 extern void FORTRAN_NAME(FORMINITIALCONDITION) (Field*, int*, int*, int*, int*, int*, int*);
 
 extern void FORTRAN_NAME(WRITEOUTPUTDATA) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
-extern void FORTRAN_NAME(CORRECTTIMESTEPROUTINE) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
+extern void FORTRAN_NAME(CORRECTTIMESTEP) (PetscScalar*,PetscScalar*,PetscScalar*,int*);
 extern void FORTRAN_NAME(FORTRANDESTROY) ();
 extern void FORTRAN_NAME(READINPUTFILE) (input_CTX*);
 #else
@@ -64,20 +64,22 @@ extern void FORTRAN_NAME(formequilibrium) (Field*, int*, int*, int*, int*, int*,
 extern void FORTRAN_NAME(forminitialcondition) (Field*, int*, int*, int*, int*, int*, int*);
 
 extern void FORTRAN_NAME(writeoutputdata) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
-extern void FORTRAN_NAME(correcttimesteproutine) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
+extern void FORTRAN_NAME(correcttimestep) (PetscScalar*,PetscScalar*,PetscScalar*,int*);
 extern void FORTRAN_NAME(fortrandestroy) ();
 extern void FORTRAN_NAME(readinputfile) (input_CTX*);
 #endif
 
 
 typedef struct {
-  DA	    da;
-  input_CTX indata;
-  int       nwits;
-  int       gmits;
-  Vec       xold;
-  Vec       fold;
-  Vec       fsrc;
+  DA	      da;
+  input_CTX   indata;
+  int         nwits;
+  int         gmits;
+  int         ierr;
+  Vec         x0;
+  Vec         xold;
+  Vec         fold;
+  Vec         fsrc;
 } AppCtx;
 
 /* User-defined routines */
@@ -85,6 +87,7 @@ extern int ReadInputNInitialize(input_CTX*, DAPeriodicType*);
 extern int FormFunction        (SNES, Vec, Vec, void*);
 extern int FormEquilibrium     (SNES, Vec, void*);
 extern int FormInitialCondition(SNES, Vec, void*);
+extern int correctTimeStep     (SNES, Vec, void*);
 extern int Monitor             (SNES, int, double, void*);
 extern int MatrixFreePreconditioner(void*,Vec,Vec);
 
@@ -128,6 +131,9 @@ int MAIN__(int argc, char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set problem parameters
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
+
+  user.ierr = 0;
+
   ierr = ReadInputNInitialize(&user.indata, &BC);CHKERRQ(ierr);
   
   nxd = user.indata.nxd;
@@ -157,6 +163,7 @@ int MAIN__(int argc, char **argv)
 
   ierr = DACreateGlobalVector(user.da,&x);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&r);CHKERRQ(ierr);
+  ierr = VecDuplicate(x,&user.x0  );CHKERRQ(ierr);
   ierr = VecDuplicate(x,&user.xold);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&user.fold);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&user.fsrc);CHKERRQ(ierr);
@@ -208,16 +215,17 @@ int MAIN__(int argc, char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize calculation 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  
-  /*ierr = FormInitialGuess(snes, x, &user);CHKERRQ(ierr);*/
 
   ierr = FormEquilibrium(snes, x, &user);CHKERRQ(ierr);
+
+  ierr = VecCopy(x, user.x0  );CHKERRQ(ierr);
+
+  ierr = VecCopy(x, user.xold);CHKERRQ(ierr);
 
   ierr = EvaluateFunction(snes,x,user.fsrc,&user);CHKERRQ(ierr);
 
   ierr = FormInitialCondition(snes, x, &user);CHKERRQ(ierr);
 
-  ierr = VecCopy(x, user.xold);CHKERRQ(ierr);
  
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Time stepping 
@@ -227,10 +235,10 @@ int MAIN__(int argc, char **argv)
   for (steps = 0; steps < numtime; steps++) {
     
     ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
-    
-    ierr = SNESSolve(snes,x,&user.nwits);CHKERRQ(ierr);
 
     ierr = VecCopy(x, user.xold);CHKERRQ(ierr);
+
+    ierr = SNESSolve(snes,x,&user.nwits);CHKERRQ(ierr);
 
     ierr = SNESGetNumberLinearIterations(snes,&user.gmits);CHKERRQ(ierr);
     
@@ -254,6 +262,7 @@ int MAIN__(int argc, char **argv)
 
   ierr = VecDestroy(x);CHKERRQ(ierr);
   ierr = VecDestroy(r);CHKERRQ(ierr);
+  ierr = VecDestroy(user.x0  );CHKERRQ(ierr);
   ierr = VecDestroy(user.xold);CHKERRQ(ierr);
   ierr = VecDestroy(user.fold);CHKERRQ(ierr);
   ierr = VecDestroy(user.fsrc);CHKERRQ(ierr);
@@ -328,9 +337,7 @@ int FormEquilibrium(SNES snes,Vec X,void *ptr)
 {
   AppCtx  *user = (AppCtx*)ptr;
   Field	  ***xvec;
-  int	  ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
-  int     ze,ye,xe;
-  int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
+  int	  ierr,i,j,k,xs,ys,zs,xm,ym,zm,ze,ye,xe,mx,my,mz;
   Vec     localX;
 
   PetscFunctionBegin;
@@ -359,19 +366,6 @@ int FormEquilibrium(SNES snes,Vec X,void *ptr)
   ze = zs + zm - 1; 
   ye = ys + ym - 1; 
   xe = xs + xm - 1;
-  
-  /*
-   * Obtain ghost cell boundaries
-   */
-  ierr = DAGetGhostCorners(user->da,&xs_g,&ys_g,&zs_g,&xm_g,&ym_g,&zm_g);CHKERRQ(ierr);
-
-  zs_g = zs_g + 1;
-  ys_g = ys_g + 1;
-  xs_g = xs_g + 1;
-
-  ze_g = zs_g + zm_g - 1;
-  ye_g = ys_g + ym_g - 1;
-  xe_g = xs_g + xm_g - 1;
 
   /*
    * Compute function over the locally owned part of the grid
@@ -499,7 +493,6 @@ int ProcessOldSolution(SNES snes,Vec X,void *ptr)
    * Get pointers to vector data
    */
   ierr = DAVecGetArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
-  /*DAVecGetArray(user->da, X, (void**)&xvec);*/
   
   /*
    * Get local grid boundaries
@@ -527,6 +520,10 @@ int ProcessOldSolution(SNES snes,Vec X,void *ptr)
   ye_g = ys_g + ym_g - 1;
   xe_g = xs_g + xm_g - 1;
 
+  /*
+   * Write output data
+   */
+
 #ifdef absoft
   FORTRAN_NAME(WRITEOUTPUTDATA)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
 				   ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
@@ -537,21 +534,88 @@ int ProcessOldSolution(SNES snes,Vec X,void *ptr)
 				   ,&user->gmits,&user->nwits);
 #endif
 
-#ifdef absoft
-  FORTRAN_NAME(CORRECTTIMESTEPROUTINE)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-				   ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
-				   ,&user->gmits,&user->nwits);
-#else
-  FORTRAN_NAME(correcttimesteproutine)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-				   ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
-				   ,&user->gmits,&user->nwits);
-#endif
+  /*
+   * Correct time step
+   */
 
+  ierr = correctTimeStep(snes,X,user);CHKERRQ(ierr);
 
-
-  /* Restore vectors */
+  /* 
+   * Restore vectors 
+   */
   ierr = DAVecRestoreArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
   ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
+
+/* --------------------  Correct time step ----------------- */
+#undef __FUNCT__
+#define __FUNCT__ "correctTimeStep"
+int correctTimeStep(SNES snes,Vec X,void *ptr)
+{
+  AppCtx        *user = (AppCtx*)ptr;
+  int           ierr,ieq;
+  PetscScalar   dnp[NVAR],dn[NVAR],dnh[NVAR];
+  Vec           dummy;
+  PetscScalar   one=1.0, mone=-1.0, half=0.5;
+
+  PetscFunctionBegin;
+
+  ierr = VecDuplicate(X,&dummy); CHKERRQ(ierr);
+
+  /*
+   * Evaluate dnp (norm of perturbation from equilibrium of time level n+1)
+   */
+
+  ierr = VecCopy(X,dummy); CHKERRQ(ierr);
+
+  ierr = VecAXPY(&mone,user->x0,dummy);CHKERRQ(ierr);
+
+  for (ieq=0;ieq < NVAR;ieq++) {
+    ierr = VecStrideNorm(dummy,ieq,NORM_2,&dnp[ieq]);CHKERRQ(ierr);
+  }
+
+  /*
+   * Evaluate dn (norm of perturbation from equilibrium of time level n)
+   */
+
+  ierr = VecCopy(user->xold,dummy); CHKERRQ(ierr);
+
+  ierr = VecAXPY(&mone,user->x0,dummy);CHKERRQ(ierr);
+
+  for (ieq=0;ieq < NVAR;ieq++) {
+    ierr = VecStrideNorm(dummy,ieq,NORM_2,&dn[ieq]);CHKERRQ(ierr);
+  }
+
+  /*
+   * Evaluate dnh (norm of perturbation from equilibrium of time level n+1/2)
+   */
+
+  ierr = VecCopy(X,dummy); CHKERRQ(ierr);
+
+  ierr = VecAXPY (&one       ,user->xold,dummy);CHKERRQ(ierr);
+  ierr = VecAXPBY(&mone,&half,user->x0  ,dummy);CHKERRQ(ierr);
+
+  for (ieq=0;ieq < NVAR;ieq++) {
+    ierr = VecStrideNorm(dummy,ieq,NORM_2,&dnh[ieq]);CHKERRQ(ierr);
+  }
+
+  /*
+   * Correct time step (using previous norm quantities)
+   */
+
+#ifdef absoft
+  FORTRAN_NAME(CORRECTTIMESTEP)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr);
+#else
+  FORTRAN_NAME(correcttimestep)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr);
+#endif
+
+  /*
+   * Deallocate memory
+   */
+
+  ierr = VecDestroy(dummy);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }

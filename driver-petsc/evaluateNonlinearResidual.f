@@ -1,7 +1,8 @@
 c evaluateNonlinearResidual
 c####################################################################
-      subroutine evaluateNonlinearResidual(x,f,ilo,ihi,jlo,jhi,klo,khi
-     .                           ,ilogc,ihigc,jlogc,jhigc,klogc,khigc)
+      subroutine evaluateNonlinearResidual(x,f
+     $                    ,imin  ,imax  ,jmin  ,jmax  ,kmin  ,kmax
+     .                    ,imingc,imaxgc,jmingc,jmaxgc,kmingc,kmaxgc)
 c--------------------------------------------------------------------
 c     Calculates Fi(Uj) in equations of the form: dt Ui + Fi(Uj) = 0
 c--------------------------------------------------------------------
@@ -16,16 +17,17 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4)  ::  ilo,ihi,jlo,jhi,klo,khi
-     .               ,ilogc,ihigc,jlogc,jhigc,klogc,khigc
+      integer(4)  ::  imin,imax,jmin,jmax,kmin,kmax
+     .               ,imingc,imaxgc,jmingc,jmaxgc,kmingc,kmaxgc
 
-      type(petsc_var) :: x(ilogc:ihigc,jlogc:jhigc,klogc:khigc)
+      type(petsc_var) :: x(imingc:imaxgc,jmingc:jmaxgc,kmingc:kmaxgc)
 
-      type(petsc_var) :: f(ilo:ihi,jlo:jhi,klo:khi)
+      type(petsc_var) :: f(imin:imax,jmin:jmax,kmin:kmax)
 
 c Local variables
 
-      integer(4) :: i,j,k,ieq,ii
+      integer(4) :: i,j,k,il,jl,kl,ieq,ii
+     .             ,imingcl,imaxgcl,jmingcl,jmaxgcl,kmingcl,kmaxgcl
 
       real(8)    :: dudt(neqd),cnf(neqd),one_over_dt(neqd),ff(ntotd)
 
@@ -37,10 +39,15 @@ c Begin program
 
       call allocatePetscType(petscarray)
 
-      petscarray%array(ilogc:ihigc,jlogc:jhigc,klogc:khigc)
-     .             = x(ilogc:ihigc,jlogc:jhigc,klogc:khigc)
+      call fromGlobalToLocalLimits(imingc ,jmingc ,kmingc
+     $                            ,imingcl,jmingcl,kmingcl)
+      call fromGlobalToLocalLimits(imaxgc ,jmaxgc ,kmaxgc
+     $                            ,imaxgcl,jmaxgcl,kmaxgcl)
 
-c Unpack petsc array x
+      petscarray%array(imingcl:imaxgcl,jmingcl:jmaxgcl,kmingcl:kmaxgcl)
+     .             = x(imingc :imaxgc ,jmingc :jmaxgc ,kmingc :kmaxgc )
+
+c Unpack petsc array
 
       varray = petscarray   !Overloaded assignment
 
@@ -48,16 +55,15 @@ c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
       call evaluateNonlinearFunction(varray,ff)
 
-c Assign ff to f
+c Assign ff (vector) to f (PETSc array)
 
-      do k = klo,khi
-        do j = jlo,jhi
-          do i = ilo,ihi
-            ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
+      do k = kmin,kmax
+        do j = jmin,jmax
+          do i = imin,imax
+            call fromGlobalToLocalLimits(i,j,k,il,jl,kl)
+            ii = vecPos(neqd,il,jl,kl)
             do ieq=1,neqd
-
               f(i,j,k)%var(ieq) = ff(ii+ieq)
-
             enddo
           enddo
         enddo
@@ -112,10 +118,10 @@ c Prepare auxiliar quantities
 
 c Store function evaluation
 
-      do k = 1,nzd
-        do j = 1,nyd
-          do i = 1,nxd
-            ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
+            ii = vecPos(neqd,i,j,k)
             call nonlinearRHS(i,j,k,varray,fi(ii+1:ii+neqd))
           enddo
         enddo
