@@ -1,91 +1,462 @@
-c module grid_core
+c module bc_def
 c #####################################################################
-      module grid_core
+      module bc_def
 
         implicit none
 
-        real(8)    :: gparams(5)
 
-        character*(3) :: coords
+        integer(4) :: PER,DIR,NEU,SP,EQU,DEF
+        parameter (PER=2,SP=5,DIR=4,NEU=3,EQU=1,DEF=6)
 
-        real(8)    :: xmax,ymax,zmax,xmin,ymin,zmin  !3D grid dimension
+        integer(4) :: bcond(6)
 
-        real(8),private :: pi,lambda,cc,ypp,eps,mm,kk,aa,phi,major_r
+      end module bc_def
+
+c module grid_structures
+c #####################################################################
+      module grid_structures
+
+        implicit none
+
+        type :: grid_def
+          integer(4) :: ngrdx                             !# meshes in X
+          integer(4) :: ngrdy                             !# meshes in Y
+          integer(4) :: ngrdz                             !# meshes in Y
+          integer(4) :: ngrid                             !# meshes for MG
+          integer(4),pointer,dimension(:)  :: iline       !Restrict ops. to i=iline in MG
+          integer(4),pointer,dimension(:)  :: jline       !Restrict ops. to j=jline in MG
+          integer(4),pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
+          real(8)   ,pointer,dimension(:)  :: xx          !Grid node positions in X (all grids)
+          real(8)   ,pointer,dimension(:)  :: yy          !Grid node positions in Y (")
+          real(8)   ,pointer,dimension(:)  :: zz          !Grid node positions in Z (")
+          real(8)   ,pointer,dimension(:)  :: dx          !Grid spacings in X for integer mesh (")
+          real(8)   ,pointer,dimension(:)  :: dy          !Grid spacings in Y for integer mesh (")
+          real(8)   ,pointer,dimension(:)  :: dz          !Grid spacings in Z for integer mesh (")
+          real(8)   ,pointer,dimension(:)  :: dxh         !Grid spacings in X for half mesh (")
+          real(8)   ,pointer,dimension(:)  :: dyh         !Grid spacings in Y for half mesh (")
+          real(8)   ,pointer,dimension(:)  :: dzh         !Grid spacings in Z for half mesh (")
+          integer(4),pointer,dimension(:)  :: nxv         !# of grid nodes in X  (")
+          integer(4),pointer,dimension(:)  :: nyv         !# of grid nodes in Y  (")
+          integer(4),pointer,dimension(:)  :: nzv         !# of grid nodes in Z  (")
+          integer(4),pointer,dimension(:)  :: ntotv       !Total # of grid nodes (")
+          integer(4),pointer,dimension(:)  :: istartx     !Pointer for MG vectors in X
+          integer(4),pointer,dimension(:)  :: istarty     !Pointer for MG vectors in Y
+          integer(4),pointer,dimension(:)  :: istartz     !Pointer for MG vectors in Z
+          integer(4),pointer,dimension(:)  :: istartp     !Pointer for global MG vectors
+          integer(4),pointer,dimension(:)  :: mg_ratio_x  !MG coarsening ratio in X
+          integer(4),pointer,dimension(:)  :: mg_ratio_y  !MG coarsening ratio in Y
+          integer(4),pointer,dimension(:)  :: mg_ratio_z  !MG coarsening ratio in Z
+          real(8)                          :: params(5)   !Grid configuration parameters
+        end type grid_def
+
+        type (grid_def) :: grid_params
+
+        INTERFACE ASSIGNMENT (=)
+          module procedure equateGridStructure
+        END INTERFACE
 
       contains
 
-c     xi_x
+c     allocateGridStructure
 c     #################################################################
-      function xi_x(xx,yy,zz) result(curv)
+      subroutine allocateGridStructure(nx,ny,nz,ngridx,ngridy,ngridz
+     .                                ,grid_st)
+c     -----------------------------------------------------------------
+c     Allocates grid structure
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4)     :: nx,ny,nz,ngridx,ngridy,ngridz
+        type(grid_def) :: grid_st
+
+c     Local variables
+
+        integer(4) :: ngrid,nxmg,nymg,nzmg
+
+c     Begin program
+
+        ngrid = max(ngridx,ngridy,ngridz)
+
+        grid_st%ngrdx = ngridx
+        grid_st%ngrdy = ngridy
+        grid_st%ngrdz = ngridz
+        grid_st%ngrid = ngrid
+
+        nxmg=findMGsize(nx,ngridx,ngrid)
+        nymg=findMGsize(ny,ngridy,ngrid)
+        nzmg=findMGsize(nz,ngridz,ngrid)
+
+        if (.not.associated(grid_st%xx)) then
+          allocate(grid_st%xx(nxmg+2*ngrid))
+          allocate(grid_st%yy(nymg+2*ngrid))
+          allocate(grid_st%zz(nzmg+2*ngrid))
+          allocate(grid_st%dx(nxmg+2*ngrid))
+          allocate(grid_st%dy(nymg+2*ngrid))
+          allocate(grid_st%dz(nzmg+2*ngrid))
+          allocate(grid_st%dxh(nxmg+2*ngrid))
+          allocate(grid_st%dyh(nymg+2*ngrid))
+          allocate(grid_st%dzh(nzmg+2*ngrid))
+          allocate(grid_st%nxv(ngrid))
+          allocate(grid_st%nyv(ngrid))
+          allocate(grid_st%nzv(ngrid))
+          allocate(grid_st%ntotv(ngrid))
+          allocate(grid_st%istartx(ngrid))
+          allocate(grid_st%istarty(ngrid))
+          allocate(grid_st%istartz(ngrid))
+          allocate(grid_st%istartp(ngrid))
+          allocate(grid_st%mg_ratio_x(ngrid))
+          allocate(grid_st%mg_ratio_y(ngrid))
+          allocate(grid_st%mg_ratio_z(ngrid))
+          allocate(grid_st%iline(ngrid))
+          allocate(grid_st%jline(ngrid))
+          allocate(grid_st%kline(ngrid))
+        endif
+
+        grid_st%iline = 0
+        grid_st%jline = 0
+        grid_st%kline = 0
+
+c     End program
+
+      contains
+
+c     findMGsize
+c     #################################################################
+      function findMGsize(nn,ngrd,ngrdt) result (nnmg)
+      implicit none
+c     -----------------------------------------------------------------
+c     Finds size for MG vectors, taking into account total grid levels
+c     ngrdt, grid levels in the relevant direction ngrd, and the 
+c     number of mesh points in the finest grid nn. The formula ensures
+c     enough space even if nn=1 in the finest grid. It does NOT include
+c     ghost cells (this requires an additional term of 2*ngrdt).
+c     -----------------------------------------------------------------
+
+        integer(4) :: nn,nnmg,ngrd,ngrdt
+
+        nnmg = 2*nn + ngrdt - ngrd -1
+
+      end function findMGsize
+
+      end subroutine allocateGridStructure
+
+c     deallocateGridStructure
+c     #################################################################
+      subroutine deallocateGridStructure(grid_st)
+c     -----------------------------------------------------------------
+c     Allocates grid structure
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_def) :: grid_st
+
+c     Begin program
+
+        grid_st%ngrdx = 0
+        grid_st%ngrdy = 0
+        grid_st%ngrdz = 0
+        grid_st%ngrid = 0
+
+        if (associated(grid_st%xx)) then
+          deallocate(grid_st%xx)
+          deallocate(grid_st%yy)
+          deallocate(grid_st%zz)
+          deallocate(grid_st%dx)
+          deallocate(grid_st%dy)
+          deallocate(grid_st%dz)
+          deallocate(grid_st%dxh)
+          deallocate(grid_st%dyh)
+          deallocate(grid_st%dzh)
+          deallocate(grid_st%nxv)
+          deallocate(grid_st%nyv)
+          deallocate(grid_st%nzv)
+          deallocate(grid_st%ntotv)
+          deallocate(grid_st%istartx)
+          deallocate(grid_st%istarty)
+          deallocate(grid_st%istartz)
+          deallocate(grid_st%istartp)
+          deallocate(grid_st%mg_ratio_x)
+          deallocate(grid_st%mg_ratio_y)
+          deallocate(grid_st%mg_ratio_z)
+          deallocate(grid_st%iline)
+          deallocate(grid_st%jline)
+          deallocate(grid_st%kline)
+        endif
+
+c     End program
+
+      end subroutine deallocateGridStructure
+
+c     equateGridStructure
+c     #################################################################
+      subroutine equateGridStructure(grid_st2,grid_st1)
 
 c     -----------------------------------------------------------------
-c     Gives curvilinear coordinates from Cartesian coordinates
+c     Performs grid_st2 = grid_st1
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_def),intent(in)  :: grid_st1
+        type(grid_def),intent(out) :: grid_st2
+
+c     Local variables
+
+        integer(4)     :: ngridx,ngridy,ngridz,nx,ny,nz
+
+c     Begin program
+
+        ngridx = grid_st1%ngrdx
+        ngridy = grid_st1%ngrdy
+        ngridz = grid_st1%ngrdz
+
+        nx = grid_st1%nxv(1)
+        ny = grid_st1%nyv(1)
+        nz = grid_st1%nzv(1)
+
+        call allocateGridStructure(nx,ny,nz,ngridx,ngridy,ngridz
+     .                            ,grid_st2)
+
+        grid_st2%iline      = grid_st1%iline
+        grid_st2%jline      = grid_st1%jline
+        grid_st2%kline      = grid_st1%kline
+        grid_st2%xx         = grid_st1%xx        
+        grid_st2%yy         = grid_st1%yy        
+        grid_st2%zz         = grid_st1%zz        
+        grid_st2%dx         = grid_st1%dx        
+        grid_st2%dy         = grid_st1%dy        
+        grid_st2%dz         = grid_st1%dz        
+        grid_st2%dxh        = grid_st1%dxh       
+        grid_st2%dyh        = grid_st1%dyh       
+        grid_st2%dzh        = grid_st1%dzh       
+        grid_st2%nxv        = grid_st1%nxv       
+        grid_st2%nyv        = grid_st1%nyv       
+        grid_st2%nzv        = grid_st1%nzv       
+        grid_st2%ntotv      = grid_st1%ntotv     
+        grid_st2%istartx    = grid_st1%istartx   
+        grid_st2%istarty    = grid_st1%istarty   
+        grid_st2%istartz    = grid_st1%istartz   
+        grid_st2%istartp    = grid_st1%istartp   
+        grid_st2%mg_ratio_x = grid_st1%mg_ratio_x
+        grid_st2%mg_ratio_y = grid_st1%mg_ratio_y
+        grid_st2%mg_ratio_z = grid_st1%mg_ratio_z
+
+c     End program
+
+      end subroutine equateGridStructure
+
+c     writeGridStructure
+c     #################################################################
+      subroutine writeGridStructure(grid_st)
+
+c     -----------------------------------------------------------------
+c     Performs grid_st2 = grid_st1
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_def) :: grid_st
+
+c     Local variables
+
+c     Begin program
+
+        write (*,*) 'ngrdx',grid_st%ngrdx
+        write (*,*) 'ngrdy',grid_st%ngrdy
+        write (*,*) 'ngrdz',grid_st%ngrdz
+        write (*,*) 'xx',grid_st%xx        
+        write (*,*) 'yy',grid_st%yy        
+        write (*,*) 'zz',grid_st%zz        
+        write (*,*) 'dx',grid_st%dx        
+        write (*,*) 'dy',grid_st%dy        
+        write (*,*) 'dz',grid_st%dz        
+        write (*,*) 'dxh',grid_st%dxh       
+        write (*,*) 'dyh',grid_st%dyh       
+        write (*,*) 'dzh',grid_st%dzh       
+        write (*,*) 'nxv',grid_st%nxv       
+        write (*,*) 'nyv',grid_st%nyv       
+        write (*,*) 'nzv',grid_st%nzv       
+        write (*,*) 'ntotv',grid_st%ntotv     
+        write (*,*) 'istartx',grid_st%istartx   
+        write (*,*) 'istarty',grid_st%istarty   
+        write (*,*) 'istartz',grid_st%istartz   
+        write (*,*) 'istartp',grid_st%istartp   
+        write (*,*) 'mg_ratio_x',grid_st%mg_ratio_x
+        write (*,*) 'mg_ratio_y',grid_st%mg_ratio_y
+        write (*,*) 'mg_ratio_z',grid_st%mg_ratio_z
+
+c     End program
+
+      end subroutine writeGridStructure
+
+c     getMGmap
+c     #################################################################
+      subroutine getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+c     -----------------------------------------------------------------
+c     Gets MG vector components (ig,jg,kg) for grid quantities
+c     corresponding to node position (i,j,k) in grid levels igx,igy,igz
 c     -----------------------------------------------------------------
 
         implicit none
 
 c     Input variables
 
-        real(8)    :: xx,yy,zz,curv(3)
+        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
 
 c     Local variables
 
-        real(8)    :: x1,x2,x3
+c     Begin program
+
+        ig = i + grid_params%istartx(igx)
+        jg = j + grid_params%istarty(igy)
+        kg = k + grid_params%istartz(igz)
+
+      end subroutine getMGmap
+
+c     getCurvilinearCoordinates
+c     #################################################################
+      subroutine getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                    ,x1,y1,z1)
+
+c     -----------------------------------------------------------------
+c     Finds curvilinear coordinates for position (i,j,k)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
+        real(8)    :: x1,y1,z1
+
+c     Local variables
+
+        integer(4) :: ii,jj,ny
 
 c     Begin program
 
-        select case (coords)
-        case ('car')
-          x1 = xx
-          x2 = yy
-          x3 = zz
-        case ('scl')
-          lambda = gparams(1)
-          cc = 0.5/lambda
-          cc = 1./tanh(cc)
+        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
-          x1 = xx
-          x2 = 0.5*ymax*(1.+cc*tanh((yy-0.5)/lambda))
-          x3 = zz
-        case ('cyl')
-          x1 = sqrt(xx**2 + yy**2)
-          x2 = atan(yy/xx)
-          x3 = zz
-        case ('hel')
-          mm = gparams(1)
-          kk = gparams(2)
-          aa = kk/mm
+        x1 = grid_params%xx(ig)
+        y1 = grid_params%yy(jg)
+        z1 = grid_params%zz(kg)
 
-          x1 = sqrt(xx**2 + yy**2)
-          x2 = atan(yy/xx) + aa*zz
-          x3 = zz
-        case ('tor')
-          major_r = gparams(1)
+      end subroutine getCurvilinearCoordinates
 
-          x1 = sqrt( zz**2 + (sqrt(xx**2 + yy**2) - major_r)**2 )
-          x2 = atan( (sqrt(xx**2 + yy**2) - major_r)/zz)
-          x3 = atan( yy/xx )
-        case ('sin')
+      end module grid_structures
 
-          pi = acos(-1d0)
+c module grid_definition
+c #####################################################################
+      module grid_definition
 
-          eps = gparams(1)
-          x1 = xx + eps*sin(2*pi*xx/xmax)*sin(2*pi*yy/ymax)
-          x2 = yy + eps*sin(2*pi*xx/xmax)*sin(2*pi*yy/ymax)
-          x3 = zz
+        use grid_structures
+
+        implicit none
+
+        real(8)         :: gparams(5)
+
+        character*(3)   :: coords
+
+        real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D grid dimension
+
+        real(8),private :: pi,lambda,cc,ypp,eps,mm,kk,aa,phi,major_r
+
+        logical         :: numerical_grid,anal_map
+
+      contains
+
+c     checkGridDatabase
+c     #################################################################
+      function checkGridDatabase() result(anal_map)
+
+c     -----------------------------------------------------------------
+c     Checks grid database for analytical mappings
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        logical :: anal_map
+
+c     Begin program
+
+        select case(coords)
+        case('car','scl','cyl','hel','tor','sin')
+
+          anal_map = .true.
+
         case default
-          write (*,*) 'Grid not implemented'
-          write (*,*) 'Aborting...'
-          stop
+
+          anal_map = .false.
+
         end select
 
-        curv = (/ x1,x2,x3 /)
+      end function checkGridDatabase
 
-      end function xi_x
+c     getCartesianCoordinates
+c     #################################################################
+      subroutine getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,y1,z1)
+
+c     -----------------------------------------------------------------
+c     Inverts curvilinear coordinates to give Cartesian coordinates.
+c     Requires external routine 'map', with call sequence:
+c
+c             map(i,j,k,igx,igy,igz,ig,jg,kg,x1,y1,z1)
+c
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
+        real(8)    :: x1,y1,z1
+
+c     Local variables
+
+        real(8)    :: car(3)
+
+c     Externals
+
+        external   :: map
+
+c     Begin program
+
+        if (checkGridDatabase()) then
+
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,y1,z1)
+
+          car = x_xi(x1,y1,z1)
+
+          x1 = car(1)
+          y1 = car(2)
+          z1 = car(3)
+
+        else
+
+          call map(i,j,k,igx,igy,igz,ig,jg,kg,x1,y1,z1)
+
+        endif
+
+      end subroutine getCartesianCoordinates
 
 c     x_xi
 c     #################################################################
-      function x_xi(x1,x2,x3) result(cartesian)
+      function x_xi(x1,x2,x3) result(car)
 
 c     -----------------------------------------------------------------
 c     Gives Cartesian coordinates from curvilinear coordinates
@@ -95,7 +466,7 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        real(8)    :: x1,x2,x3,cartesian(3)
+        real(8)    :: x1,x2,x3,car(3)
 
 c     Local variables
 
@@ -127,6 +498,7 @@ c     Begin program
           kk = gparams(2)
           aa = kk/mm
           phi = (x2-aa*x3)
+
           xx = x1*cos(phi)
           yy = x1*sin(phi)
           zz = x3
@@ -137,63 +509,19 @@ c     Begin program
           yy = (major_r + x1*sin(x2))*sin(x3)
           zz = x1*cos(x2)
         case ('sin')
+          pi = acos(-1d0)
+          eps = gparams(1)
 
-          !Initial guess
-          xx = x1
-          yy = x2
+          xx = x1 + eps*sin(2*pi*x1/xmax)*sin(2*pi*x2/ymax)
+          yy = x2 + eps*sin(2*pi*x1/xmax)*sin(2*pi*x2/ymax)
           zz = x3
-
-          !Initial residual
-          rhs = -( (/x1,x2,x3/) - xi_x(xx,yy,zz) )
-
-          rr0 = sqrt(sum(rhs*rhs))
-          rr  = rr0
-
-cc          write (*,*)
-
-          do inewt = 1,10
-
-cc            write (*,*) xx,yy,zz,rr
-
-            if (rr < (1d-10 + 1d-4*rr0)) exit
-
-          !Jacobian
-            do ic =1,3
-              jac_mat(ic,:) = -covariantVector(ic,xx,yy,zz,.true.)
-            enddo
-
-          !Solve Jacobian system
-
-            call solve(3,jac_mat,rhs,dx)
-
-          !Update Newton solution
-
-            xx = xx + dx(1)
-            yy = yy + dx(2)
-            zz = zz + dx(3)
-
-          !Check residual
-
-            rhs = -( (/x1,x2,x3/) - xi_x(xx,yy,zz) )
-
-            rr = sqrt(sum(rhs*rhs))
-
-          enddo
-
-          if (inewt >= 10) then
-            write (*,*) 'Newton did not converge in',inewt,' iterations'
-            write (*,*) 'Problem in x_xi'
-            write (*,*) 'Aborting'
-            stop
-          endif
-
         case default
-          write (*,*) 'Grid not implemented'
+          write (*,*) 'Grid not implemented in x_xi'
           write (*,*) 'Aborting...'
           stop
-         end select
+        end select
 
-        cartesian = (/ xx,yy,zz /)
+        car = (/ xx,yy,zz /)
 
       contains
 
@@ -207,45 +535,11 @@ c     #################################################################
 
       end function atanh
 
-c     solve
-c     #################################################################
-      subroutine solve(size,mat,rhs,x)
-
-        implicit none
-
-        integer(4) :: size
-
-        real(8)    :: mat(size,size),rhs(size),x(size)
-
-        integer(4) :: ipiv(size),info
-
-        external dgesv
-
-        x = rhs
-
-        call dgesv(size,1,mat,size,ipiv,x,size,info)  !LAPACK routine
-
-        if (info /= 0) then
-          if (info < 0) then
-            write (*,*) 'Problem in factorization in argument',-info
-            write (*,*) 'Error in x_xi'
-            write (*,*) 'Aborting'
-            stop
-          else
-            write (*,*) 'Matrix is singular'
-            write (*,*) 'Error in x_xi'
-            write (*,*) 'Aborting'
-            stop
-          endif
-        endif
-
-      end subroutine solve
-
       end function x_xi
 
 c     jacobian
 c     #################################################################
-      function jacobian(x1,x2,x3,cartesian) result(jac)
+      function jacobian(i,j,k,igx,igy,igz) result(jac)
 
 c     -----------------------------------------------------------------
 c     Calculates Jacobian of curvilinear coordinate system
@@ -255,12 +549,13 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        real(8) :: x1,x2,x3,jac
-        logical :: cartesian
+        integer(4) :: i,j,k,igx,igy,igz
+        real(8)    :: jac
 
 c     Local variables
 
-        real(8) :: car(3),curv(3)
+        integer(4) :: ig,jg,kg
+        real(8)    :: x1,x2,x3,car(3),curv(3)
 
 c     Begin program
 
@@ -268,66 +563,54 @@ c     Begin program
         case ('car')
           jac = 1d0
         case ('scl')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+
+          curv = (/ x1,x2,x3 /)
+
           lambda = gparams(1)
+
           cc = 0.5/lambda
           cc = 1./tanh(cc)
           ypp = (2*curv(2)/ymax-1.)
           jac = cc*lambda/(cc**2-ypp**2)
         case ('cyl')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
-          jac = curv(1)
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          jac = x1
         case ('hel')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
-          jac = curv(1)
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          jac = x1
         case ('tor')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
-          major_r = gparams(1)
-          jac = curv(1)*(major_r + curv(1)*sin(curv(2)))
-        case ('sin')
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
 
+          major_r = gparams(1)
+
+          jac = x1*(major_r + x1*sin(x2))
+        case ('sin')
           pi = acos(-1d0)
 
-          if (cartesian) then
-            car = (/ x1,x2,x3 /)
-          else
-            car = x_xi(x1,x2,x3)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+
           eps = gparams(1)
-cc          jac = 1./(1 + 2*Pi*eps*Sin(2*Pi*(car(1) + car(2))))
-          jac = (xmax*ymax)/
-     -          (xmax*ymax +
-     -        eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -        eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -        eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -        eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
+          jac = (xmax*ymax + eps*Pi*(xmax - ymax)*
+     -          Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -          eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax)))
+     -          /(xmax*ymax)
         case default
-          write (*,*) 'Grid not implemented'
+          write (*,*) 'Grid not implemented in jacobian'
           write (*,*) 'Aborting...'
           stop
         end select
 
       end function jacobian
 
-c     covariantVector
+c     covariantVector2
 c     #################################################################
-      function covariantVector(comp,x1,x2,x3,cartesian) result (vec)
+      function covariantVector(comp,i,j,k,igx,igy,igz) result (vec)
 
 c     -----------------------------------------------------------------
 c     Calculates covariant vectors of curvilinear coordinate system
@@ -338,11 +621,12 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: comp
-        real(8)    :: x1,x2,x3,vec(3)
-        logical    :: cartesian
+        integer(4) :: comp,i,j,k,igx,igy,igz
 
 c     Local variables
+
+        integer(4) :: ig,jg,kg
+        real(8)    :: x1,x2,x3,vec(3)
 
         real(8)    :: car(3),curv(3),jac
 
@@ -360,11 +644,12 @@ c     Begin program
           end select
         case ('scl')
           lambda = gparams(1)
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+
+          curv = (/ x1,x2,x3 /)
+
           cc = 0.5/lambda
           cc = 1./tanh(cc)
           ypp = (2*curv(2)/ymax-1.)
@@ -379,11 +664,10 @@ c     Begin program
               vec = (/ 0d0,0d0,1d0 /)
           end select
         case ('cyl')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           select case (comp)
             case (1)
               vec = (/ cos(curv(2)),sin(curv(2)),0d0 /)
@@ -393,15 +677,15 @@ c     Begin program
               vec = (/ 0d0,0d0,1d0 /)
           end select
         case ('hel')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           mm = gparams(1)
           kk = gparams(2)
           aa = kk/mm
           phi = (curv(2)-aa*curv(3))
+
           select case (comp)
             case (1)
               vec = (/ cos(phi),sin(phi),0d0 /)
@@ -412,11 +696,11 @@ c     Begin program
           end select
         case ('tor')
           major_r = gparams(1)
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           select case (comp)
             case (1)
               vec = (/ sin(curv(2))*cos(curv(3))
@@ -434,39 +718,54 @@ c     Begin program
 
           pi = acos(-1d0)
 
-          if (cartesian) then
-            car = (/ x1,x2,x3 /)
-          else
-            car = x_xi(x1,x2,x3)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+
           eps = gparams(1)
+
           select case (comp)
             case (1)
-              vec = (/ 1 + (2*eps*Pi*Cos((2*car(1)*Pi)/xmax)
-     .                              *Sin((2*car(2)*Pi)/ymax))/xmax
-     .                ,    (2*eps*Pi*Cos((2*car(2)*Pi)/ymax)
-     .                              *Sin((2*car(1)*Pi)/xmax))/ymax
-     .                ,0d0 /)
+              vec = (/ (xmax*(ymax + 2*eps*Pi*Cos((2*Pi*x2)/ymax)*
+     -                                        Sin((2*Pi*x1)/xmax)))/
+     -                 (xmax*ymax + eps*Pi*(xmax - ymax)*
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                            + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              , (-2*eps*Pi*xmax*Cos((2*Pi*x2)/ymax)
+     .                               *Sin((2*Pi*x1)/xmax))/
+     -                (xmax*ymax + eps*Pi*(xmax - ymax)
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))  
+     -                           + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              , 0d0 /)
             case (2)
-              vec = (/     (2*eps*Pi*Cos((2*car(1)*Pi)/xmax)
-     .                              *Sin((2*car(2)*Pi)/ymax))/xmax
-     .                ,1 + (2*eps*Pi*Cos((2*car(2)*Pi)/ymax)
-     .                              *Sin((2*car(1)*Pi)/xmax))/ymax
-     .                ,0d0 /)
+              vec = (/ (-2*eps*Pi*ymax*Cos((2*Pi*x1)/xmax)
+     .                                *Sin((2*Pi*x2)/ymax))/
+     -                 (xmax*ymax + eps*Pi*(xmax - ymax)
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                            + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              , (ymax*(xmax + 2*eps*Pi*Cos((2*Pi*x1)/xmax)
+     .                                      *Sin((2*Pi*x2)/ymax)))/
+     -                (xmax*ymax + eps*Pi*(xmax - ymax)
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                           + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              ,0d0 /)
             case (3)
               vec = (/ 0d0,0d0,1d0 /)
           end select
         case default
-          write (*,*) 'Grid not implemented'
+          write (*,*) 'Grid not implemented in covariantVector'
           write (*,*) 'Aborting...'
           stop
         end select
 
       end function covariantVector
 
-c     contravariantVector
+c     contravariantVector2
 c     #################################################################
-      function contravariantVector(comp,x1,x2,x3,cartesian) result (vec)
+      function contravariantVector(comp,i,j,k,igx,igy,igz) result (vec)
 
 c     -----------------------------------------------------------------
 c     Calculates contravariant vectors of curvilinear coordinate system
@@ -477,13 +776,13 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: comp
-        real(8)    :: x1,x2,x3,vec(3)
-        logical    :: cartesian
+        integer(4) :: comp,i,j,k,igx,igy,igz
 
 c     Local variables
 
+        integer(4) :: ig,jg,kg
         real(8)    :: car(3),curv(3),jac
+        real(8)    :: x1,x2,x3,vec(3)
 
 c     Begin program
 
@@ -498,12 +797,10 @@ c     Begin program
               vec = (/ 0d0,0d0,1d0 /)
           end select
        case ('scl')
-          lambda = gparams(1)
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           lambda = gparams(1)
           cc = 0.5/lambda
           cc = 1./tanh(cc)
@@ -519,11 +816,10 @@ c     Begin program
               vec = (/ 0d0,0d0,jac /)
           end select
         case ('cyl')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           select case (comp)
             case (1)
               vec = (/ cos(curv(2)),sin(curv(2)),0d0 /)/curv(1)
@@ -533,11 +829,10 @@ c     Begin program
               vec = (/ 0d0,0d0,1d0 /)/curv(1)
           end select
         case ('hel')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           mm = gparams(1)
           kk = gparams(2)
           aa = kk/mm
@@ -552,6 +847,11 @@ c     Begin program
           end select
         case ('tor')
           major_r = gparams(1)
+
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           select case (comp)
             case (1)
               vec = (/ sin(curv(2))*cos(curv(3))
@@ -570,62 +870,78 @@ c     Begin program
 
           pi = acos(-1d0)
 
-          if (cartesian) then
-            car = (/ x1,x2,x3 /)
-          else
-            car = x_xi(x1,x2,x3)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+
           eps = gparams(1)
+
           select case (comp)
             case (1)
-              vec = (/ 1 + (2*eps*Pi*Cos((2*car(2)*Pi)/ymax)
-     .                              *Sin((2*car(1)*Pi)/xmax))/ymax
-     .                ,   -(2*eps*Pi*Cos((2*car(1)*Pi)/xmax)
-     .                              *Sin((2*car(2)*Pi)/ymax))/xmax
-     .                ,0d0 /)
+              vec = (/ (ymax*(xmax + 2*eps*Pi*Cos((2*Pi*x1)/xmax)*
+     -                                        Sin((2*Pi*x2)/ymax)))/
+     -                 (xmax*ymax + eps*Pi*(xmax - ymax)
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                            + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              , (2*eps*Pi*ymax*Cos((2*Pi*x1)/xmax)
+     .                              *Sin((2*Pi*x2)/ymax))/
+     -                (xmax*ymax + eps*Pi*(xmax - ymax)
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                           + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              ,0d0 /)
             case (2)
-              vec = (/    -(2*eps*Pi*Cos((2*car(2)*Pi)/ymax)
-     .                              *Sin((2*car(1)*Pi)/xmax))/ymax
-     .                ,1 + (2*eps*Pi*Cos((2*car(1)*Pi)/xmax)
-     .                              *Sin((2*car(2)*Pi)/ymax))/xmax
-     .                ,0d0 /)
+              vec = (/ (2*eps*Pi*xmax*Cos((2*Pi*x2)/ymax)
+     .                               *Sin((2*Pi*x1)/xmax))/
+     -                 (xmax*ymax + eps*Pi*(xmax - ymax)
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                            + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              ,(xmax*(ymax + 2*eps*Pi*Cos((2*Pi*x2)/ymax)
+     .                                     *Sin((2*Pi*x1)/xmax)))/
+     -               (xmax*ymax + eps*Pi*(xmax - ymax)
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                          + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              ,0d0 /)
             case (3)
               vec = (/ 0d0
      .                ,0d0
-     .                ,1 + (2*eps*Pi*Cos((2*car(2)*Pi)/ymax)
-     .                              *Sin((2*car(1)*Pi)/xmax))/ymax 
-     -                   + (2*eps*Pi*Cos((2*car(1)*Pi)/xmax)
-     .                              *Sin((2*car(2)*Pi)/ymax))/xmax/)
+     .                ,(xmax*ymax)/(xmax*ymax
+     .                  + eps*Pi*(xmax - ymax)
+     -                       *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                  + eps*Pi*(xmax + ymax)
+     .                       *Sin(2*Pi*(x1/xmax + x2/ymax))) /)
           end select
         case default
-          write (*,*) 'Grid not implemented'
+          write (*,*) 'Grid not implemented in contravariantVector'
           write (*,*) 'Aborting...'
           stop
         end select
 
       end function contravariantVector
 
-c     hessian
+c     hessian22
 c     #################################################################
-      function hessian(k,x1,x2,x3,cartesian) result (tensor)
+      function hessian22(l,i,j,k,igx,igy,igz) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates hessian elements of curvilinear coordinate system in
 c     the covariant basis, i.e., 
-c            hessian[k](i,j) = J^2 <cnv(i)|grad(cov[k])|cnv(j)>
+c            hessian[l](i,j) = J^2 <cnv(i)|grad(cov[l])|cnv(j)>
 c     -----------------------------------------------------------------
 
         implicit none
 
 c     Input variables
 
-        integer(4) :: k
-        real(8)    :: x1,x2,x3,tensor(3,3)
-        logical    :: cartesian
+        integer(4) :: l,i,j,k,igx,igy,igz
 
 c     Local variables
 
+        integer(4) :: ig,jg,kg
         real(8)    :: car(3),curv(3),vec(9)
+        real(8)    :: x1,x2,x3,tensor(3,3)
 
 c     Begin program
 
@@ -633,17 +949,16 @@ c     Begin program
         case ('car')
           vec = (/ 0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0 /)
         case ('scl')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           lambda = gparams(1)
           cc = 0.5/lambda
           cc = 1./tanh(cc)
           ypp = (2*curv(2)/ymax-1.)
 
-          select case (k)
+          select case (l)
             case (1)
               vec(1) = 0d0
               vec(2) = 0d0
@@ -675,13 +990,15 @@ c     Begin program
               vec(8) = vec(6)
               vec(9) = 0d0
           end select
+
+          vec = -vec
+
         case ('cyl')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
-          select case (k)
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
+          select case (l)
             case (1)
               vec(1) = 0d0
               vec(2) = 0d0
@@ -713,17 +1030,19 @@ c     Begin program
               vec(8) = vec(6)
               vec(9) = 0d0
           end select
+
+          vec = -vec
+
         case ('hel')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           mm = gparams(1)
           kk = gparams(2)
           aa = kk/mm
           phi = (curv(2)-aa*curv(3))
-          select case (k)
+          select case (l)
             case (1)
               vec(1) = 0d0
               vec(2) = 0d0
@@ -755,14 +1074,16 @@ c     Begin program
               vec(8) = vec(6)
               vec(9) = 0d0
           end select
+
+          vec = -vec
+
         case ('tor')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           major_r = gparams(1)
-          select case (k)
+          select case (l)
             case (1)
               vec(1) = 0d0
               vec(2) = 0d0
@@ -796,265 +1117,66 @@ c     Begin program
               vec(8) = vec(6)
               vec(9) = 0d0
           end select
+
+          vec = -vec
+
         case ('sin')
 
           pi = acos(-1d0)
 
-          if (cartesian) then
-            car = (/ x1,x2,x3 /)
-          else
-            car = x_xi(x1,x2,x3)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           eps = gparams(1)
-          select case (k)
+
+          select case (l)
             case (1)
-              vec(1) =
-     .    (4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*ymax**2*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)- 
-     -      eps*Pi**2*ymax**2*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      4*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-
-              vec(2) =
-     .   (-4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      2*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax) + 
-     -      2*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-
+              vec(1) = (-4*eps*Pi**2*ymax*Sin((2*Pi*x1)/xmax)*
+     -                                    Sin((2*Pi*x2)/ymax))/
+     -          (xmax*(xmax*ymax + eps*Pi*(xmax - ymax)*
+     -           Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -           eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))
+              vec(2) = (4*eps*Pi**2*Cos((2*Pi*x1)/xmax)
+     .                             *Cos((2*Pi*x2)/ymax))/
+     -            (xmax*ymax + eps*Pi*(xmax - ymax)*
+     -              Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -            eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax)))
               vec(3) = 0d0
               vec(4) = vec(2)
-
-              vec(5) =
-     .   (4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax) + 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax**2*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)- 
-     -      eps*Pi**2*xmax**2*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      4*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-
+              vec(5) = (-4*eps*Pi**2*xmax*Sin((2*Pi*x1)/xmax)
+     .                                   *Sin((2*Pi*x2)/ymax))/
+     -            (ymax*(xmax*ymax + eps*Pi*(xmax - ymax)*
+     -            Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -            eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))
               vec(6) = 0d0
               vec(7) = vec(3)
               vec(8) = vec(6)
               vec(9) = 0d0
             case (2)
-              vec(1) =
-     .    (4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*ymax**2*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)- 
-     -      eps*Pi**2*ymax**2*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      4*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-
-              vec(2) =
-     .   (-4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      2*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax) + 
-     -      2*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-
+              vec(1) = (-4*eps*Pi**2*ymax*Sin((2*Pi*x1)/xmax)
+     -                                   *Sin((2*Pi*x2)/ymax))/
+     -                 (xmax*(xmax*ymax
+     .                 + eps*Pi*(xmax - ymax)
+     -                     *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                 + eps*Pi*(xmax + ymax)
+     .                     *Sin(2*Pi*(x1/xmax + x2/ymax))))
+              vec(2) = (4*eps*Pi**2*Cos((2*Pi*x1)/xmax)
+     .                             *Cos((2*Pi*x2)/ymax))/
+     -                 (xmax*ymax
+     .                 + eps*Pi*(xmax - ymax)
+     -                     *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                 + eps*Pi*(xmax + ymax)
+     .                     *Sin(2*Pi*(x1/xmax + x2/ymax)))
               vec(3) = 0d0
               vec(4) = vec(2)
-
-              vec(5) =
-     .    (4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax**2*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)- 
-     -      eps*Pi**2*xmax**2*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      4*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-
+              vec(5) = (-4*eps*Pi**2*xmax*Sin((2*Pi*x1)/xmax)
+     .                                   *Sin((2*Pi*x2)/ymax))/
+     -                  (ymax*(xmax*ymax
+     .                  + eps*Pi*(xmax - ymax)
+     -                      *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                  + eps*Pi*(xmax + ymax)
+     .                      *Sin(2*Pi*(x1/xmax + x2/ymax))))
               vec(6) = 0d0
               vec(7) = vec(3)
               vec(8) = vec(6)
@@ -1070,15 +1192,45 @@ c     Begin program
               vec(8) = vec(6)
               vec(9) = 0d0
           end select
+
         case default
-          write (*,*) 'Grid not implemented'
+          write (*,*) 'Grid not implemented in hessian'
           write (*,*) 'Aborting...'
           stop
         end select
 
-        tensor = transpose(reshape(vec, (/3,3/)))
+        tensor = reshape(vec,(/3,3/))
 
-      end function hessian
+      end function hessian22
+
+c     christ_2knd
+c     #################################################################
+      function christ_2knd(i,j,k,igx,igy,igz) result (tensor)
+
+c     -----------------------------------------------------------------
+c     Calculates elements of Christoffel symbol of the second kind,
+c     Gamma[l](i,j) defined as: 
+c            gamma[l](i,j) = -J^2 <cnv(i)|grad(cov[l])|cnv(j)>
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer(4) :: l,i,j,k,igx,igy,igz
+        real(8)    :: tensor(3,3,3)
+
+c     Local variables
+
+c     Begin program
+
+        tensor(1,:,:) = hessian22(1,i,j,k,igx,igy,igz)
+        tensor(2,:,:) = hessian22(2,i,j,k,igx,igy,igz)
+        tensor(3,:,:) = hessian22(3,i,j,k,igx,igy,igz)
+
+c     End program
+
+      end function christ_2knd
 
 c     hessian_cnv
 c     #################################################################
@@ -1247,418 +1399,9 @@ c     Begin program
               vec(8) = -cos(x2)*(major_r + x1*Sin(x2))/x1
               vec(9) = 0d0
           end select
-        case ('sin')
 
-          pi = acos(-1d0)
-
-          car = x_xi(x1,x2,x3)
-          eps = gparams(1)
-          select case (k)
-            case (1)
-              vec(1) =
-     .   (-4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      2*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax) + 
-     -      2*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-              vec(2) =
-     .   (-4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*ymax**2*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)- 
-     -      eps*Pi**2*ymax**2*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      4*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-              vec(3) = 0d0
-              vec(4) =
-     .    (4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax**2*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)- 
-     -      eps*Pi**2*xmax**2*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      4*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-              vec(5) =
-     .    (4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      2*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax) + 
-     -      2*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-              vec(6) = 0d0
-              vec(7) = 0d0
-              vec(8) = 0d0
-              vec(9) = 0d0
-            case (2)
-              vec(1) =
-     .    (4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      2*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax) + 
-     -      2*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-              vec(2) =
-     .   (4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax) + 
-     -     2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi**2*ymax**2*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -     2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps*Pi**2*ymax**2*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      4*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-              vec(3) = 0d0
-              vec(4) =
-     .   (-4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax**2*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)- 
-     -      eps*Pi**2*xmax**2*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      4*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-              vec(5) =
-     .   (-4*(eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (6*car(2)*Pi)/ymax)+ 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      2*eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)+ 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((6*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps**3*Pi**4*Cos((2*car(1)*Pi)/xmax + (6*car(2)*Pi)/ymax) + 
-     -      2*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax) + 
-     -      2*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-              vec(6) = 0d0
-              vec(7) = 0d0
-              vec(8) = 0d0
-              vec(9) = 0d0
-            case (3)
-              vec(1) = 0d0
-              vec(2) = 0d0
-              vec(3) =
-     .   (-4*(eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      eps*Pi**2*ymax**2*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi**2*ymax**2*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -      2*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax) - 
-     -      2*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-              vec(4) = 0d0
-              vec(5) = 0d0
-              vec(6) =
-     .   (4*(eps*Pi**2*xmax**2*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      eps*Pi**2*xmax**2*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -      eps*Pi**2*xmax*ymax*
-     -       Cos((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -      2*eps**2*Pi**3*xmax*Sin((4*car(1)*Pi)/xmax) - 
-     -      2*eps**2*Pi**3*ymax*Sin((4*car(2)*Pi)/ymax)))/
-     -  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 - 
-     -    2*xmax**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax*ymax*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
-              vec(7) = 0d0
-              vec(8) = 0d0
-              vec(9) = 0d0
-          end select
         case default
-          write (*,*) 'Grid not implemented'
+          write (*,*) 'Grid not implemented in hessian_cnv'
           write (*,*) 'Aborting...'
           stop
         end select
@@ -1667,9 +1410,9 @@ c     Begin program
 
       end function hessian_cnv
 
-c     G_sub
+c     g_sub
 c     #################################################################
-      function G_sub(x1,x2,x3,cartesian) result (tensor)
+      function g_sub(i,j,k,igx,igy,igz) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates contravariant metric tensor of curvilinear coordinate 
@@ -1680,12 +1423,14 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        real(8)    :: x1,x2,x3,tensor(3,3)
-        logical    :: cartesian
+        integer(4) :: i,j,k,igx,igy,igz
+        real(8)    :: tensor(3,3)
 
 c     Local variables
 
+        integer(4) :: ig,jg,kg
         real(8)    :: vec(9),jac,car(3),curv(3)
+        real(8)    :: x1,x2,x3
 
 c     Begin program
 
@@ -1695,11 +1440,10 @@ c     Begin program
      .            ,0d0, 1d0, 0d0
      .            ,0d0, 0d0, 1d0 /)
         case ('scl')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           lambda = gparams(1)
           cc = 0.5/lambda
           cc = 1./tanh(cc)
@@ -1709,20 +1453,18 @@ c     Begin program
      .            ,0d0    , jac, 0d0
      .            ,0d0    , 0d0, 1d0/jac /)
         case ('cyl')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           vec = (/ 1d0/curv(1), 0d0     , 0d0
      .            ,0d0        , curv(1) , 0d0
      .            ,0d0        , 0d0     , 1d0/curv(1) /)
         case ('hel')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           mm = gparams(1)
           kk = gparams(2)
           aa = kk/mm
@@ -1730,11 +1472,10 @@ c     Begin program
      .            ,0d0, curv(1) ,-aa*curv(1)
      .            ,0d0,-aa*curv(1), 1./curv(1) + aa**2*curv(1) /)
         case ('tor')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           major_r = gparams(1)
           vec = (/ 1d0/curv(1)/(major_r + curv(1)*sin(curv(2))),0d0,0d0
      .            ,0d0, curv(1)/(major_r + curv(1)*sin(curv(2))), 0d0
@@ -1743,144 +1484,71 @@ c     Begin program
 
           pi = acos(-1d0)
 
-          if (cartesian) then
-            car = (/ x1,x2,x3 /)
-          else
-            car = x_xi(x1,x2,x3)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+
           eps = gparams(1)
+
           vec(1) =
-     .  (2*eps**2*Pi**2*xmax**2 + 2*eps**2*Pi**2*ymax**2 + 
-     -    2*xmax**2*ymax**2 - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))/
-     -  (2.*xmax*ymax*(xmax*ymax + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)))
+     .         (ymax*(2*eps**2*Pi**2 + xmax**2 + 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x1)/xmax) - 
+     -        eps**2*Pi**2*Cos(Pi*((4*x1)/xmax - (4*x2)/ymax)) - 
+     -        eps**2*Pi**2*Cos(4*Pi*(x1/xmax + x2/ymax)) - 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x2)/ymax) - 
+     -        2*eps*Pi*xmax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        2*eps*Pi*xmax*Sin(2*Pi*(x1/xmax + x2/ymax))))/
+     -    (xmax*(xmax*ymax + eps*Pi*(xmax - ymax)*
+     -         Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))
 
           vec(2) =
-     .  (-2*eps**2*Pi**2*xmax**2 - 2*eps**2*Pi**2*ymax**2 + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    2*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    2*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    2*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) - 
-     -    2*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))/
-     -  (2.*xmax*ymax*(xmax*ymax + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)))
+     .         (eps*Pi*(eps*Pi*Cos(Pi*((4*x1)/xmax - (4*x2)/ymax)) - 
+     -        eps*Pi*Cos(4*Pi*(x1/xmax + x2/ymax)) + 
+     -        xmax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) - 
+     -        ymax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        xmax*Sin(2*Pi*(x1/xmax + x2/ymax)) + 
+     -        ymax*Sin(2*Pi*(x1/xmax + x2/ymax))))/
+     -    (xmax*ymax + eps*Pi*(xmax - ymax)*
+     -       Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -      eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax)))
 
           vec(3) = 0d0
           vec(4) = vec(2)
 
           vec(5) =
-     .  (2*eps**2*Pi**2*xmax**2 + 2*eps**2*Pi**2*ymax**2 + 
-     -    2*xmax**2*ymax**2 - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))/
-     -  (2.*xmax*ymax*(xmax*ymax + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)))
+     .         (xmax*(2*eps**2*Pi**2 + ymax**2 - 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x1)/xmax) - 
+     -        eps**2*Pi**2*Cos(Pi*((4*x1)/xmax - (4*x2)/ymax)) - 
+     -        eps**2*Pi**2*Cos(4*Pi*(x1/xmax + x2/ymax)) + 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x2)/ymax) + 
+     -        2*eps*Pi*ymax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        2*eps*Pi*ymax*Sin(2*Pi*(x1/xmax + x2/ymax))))/
+     -    (ymax*(xmax*ymax + eps*Pi*(xmax - ymax)*
+     -         Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))!
 
           vec(6) = 0d0
           vec(7) = vec(3)
           vec(8) = vec(6)
 
-          vec(9) = (xmax*ymax + eps*Pi*xmax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -    eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))/
-     -     (xmax*ymax)
+          vec(9) = (xmax*ymax)/
+     -    (xmax*ymax + eps*Pi*(xmax - ymax)*
+     -       Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -      eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax)))
+
         case default
-          write (*,*) 'Grid not implemented'
+          write (*,*) 'Grid not implemented in g_sub'
           write (*,*) 'Aborting...'
           stop
         end select
 
         tensor = reshape(vec, (/3,3/))
 
-      end function G_sub
+      end function g_sub
 
-c     G_sub_elem
+c     g_sup
 c     #################################################################
-      function G_sub_elem(i,j,x1,x2,x3,cartesian) result (element)
-
-c     -----------------------------------------------------------------
-c     Calculates contravariant metric tensor of curvilinear coordinate 
-c     system
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        integer(4) :: i,j
-        real(8)    :: x1,x2,x3,element
-        logical    :: cartesian
-
-c     Local variables
-
-        real(8)    :: tensor(3,3)
-
-c     Begin program
-
-        tensor  = G_sub(x1,x2,x3,cartesian)
-        element = tensor(i,j)
-
-      end function G_sub_elem
-
-c     G_super
-c     #################################################################
-      function G_super(x1,x2,x3,cartesian) result (tensor)
+      function g_sup(i,j,k,igx,igy,igz) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates covariant metric tensor of curvilinear coordinate 
@@ -1891,12 +1559,14 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        real(8)    :: x1,x2,x3,tensor(3,3)
-        logical    :: cartesian
+        integer(4) :: i,j,k,igx,igy,igz
+        real(8)    :: tensor(3,3)
 
 c     Local variables
 
+        integer(4) :: ig,jg,kg
         real(8)    :: vec(9),jac,car(3),curv(3)
+        real(8)    :: x1,x2,x3
 
 c     Begin program
 
@@ -1906,11 +1576,10 @@ c     Begin program
      .            ,0d0, 1d0, 0d0
      .            ,0d0, 0d0, 1d0 /)
        case ('scl')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           lambda = gparams(1)
           cc = 0.5/lambda
           cc = 1./tanh(cc)
@@ -1920,20 +1589,18 @@ c     Begin program
      .            ,0d0, 1d0/jac, 0d0
      .            ,0d0, 0d0    , jac /)
         case ('cyl')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           vec = (/ curv(1) , 0d0   , 0d0
      .            ,0d0, 1d0/curv(1), 0d0
      .            ,0d0, 0d0   , curv(1) /)
         case ('hel')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           mm = gparams(1)
           kk = gparams(2)
           aa = kk/mm
@@ -1941,11 +1608,10 @@ c     Begin program
      .            ,0d0,1./curv(1) + aa**2*curv(1), aa*curv(1)
      .            ,0d0, aa*curv(1), curv(1) /)
         case ('tor')
-          if (cartesian) then
-            curv = xi_x(x1,x2,x3)
-          else
-            curv = (/ x1,x2,x3 /)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
           major_r = gparams(1)
           vec = (/ curv(1)*(major_r + curv(1)*sin(curv(2))), 0d0, 0d0
      .            ,0d0, (major_r/curv(1) + sin(curv(2))), 0d0
@@ -1954,190 +1620,102 @@ c     Begin program
 
           pi = acos(-1d0)
 
-          if (cartesian) then
-            car = (/ x1,x2,x3 /)
-          else
-            car = x_xi(x1,x2,x3)
-          endif
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,x2,x3)
+
           eps = gparams(1)
+
           vec(1) =
-     .  (2*eps**2*Pi**2*xmax**2 + 2*eps**2*Pi**2*ymax**2 + 
-     -    2*xmax**2*ymax**2 - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))/
-     -  (2.*xmax*ymax*(xmax*ymax + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)))
+     .         (xmax*(2*eps**2*Pi**2 + ymax**2 - 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x1)/xmax) - 
+     -        eps**2*Pi**2*Cos(Pi*((4*x1)/xmax - (4*x2)/ymax)) - 
+     -        eps**2*Pi**2*Cos(4*Pi*(x1/xmax + x2/ymax)) + 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x2)/ymax) + 
+     -        2*eps*Pi*ymax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        2*eps*Pi*ymax*Sin(2*Pi*(x1/xmax + x2/ymax))))/
+     -    (ymax*(xmax*ymax + eps*Pi*(xmax - ymax)*
+     -         Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))
 
           vec(2) =
-     .  (2*eps**2*Pi**2*xmax**2 + 2*eps**2*Pi**2*ymax**2 - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    2*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    2*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    2*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -    2*eps*Pi*xmax*ymax**2*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))/
-     -  (2.*xmax*ymax*(xmax*ymax + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)))
+     .         -((eps*Pi*(eps*Pi*Cos(Pi*((4*x1)/xmax - (4*x2)/ymax)) - 
+     -          eps*Pi*Cos(4*Pi*(x1/xmax + x2/ymax)) + 
+     -          xmax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) - 
+     -          ymax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -          xmax*Sin(2*Pi*(x1/xmax + x2/ymax)) + 
+     -          ymax*Sin(2*Pi*(x1/xmax + x2/ymax))))/
+     -      (xmax*ymax + eps*Pi*(xmax - ymax)*
+     -         Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))
 
           vec(3) = 0d0
           vec(4) = vec(2)
 
           vec(5) =
-     .  (2*eps**2*Pi**2*xmax**2 + 2*eps**2*Pi**2*ymax**2 + 
-     -    2*xmax**2*ymax**2 - 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(1)*Pi)/xmax) + 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(1)*Pi)/xmax) - 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax - (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*xmax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) - 
-     -    eps**2*Pi**2*ymax**2*
-     -     Cos((4*car(1)*Pi)/xmax + (4*car(2)*Pi)/ymax) + 
-     -    2*eps**2*Pi**2*xmax**2*Cos((4*car(2)*Pi)/ymax) - 
-     -    2*eps**2*Pi**2*ymax**2*Cos((4*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    4*eps*Pi*xmax**2*ymax*
-     -     Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))/
-     -  (2.*xmax*ymax*(xmax*ymax + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -      eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax)))
+     .         (ymax*(2*eps**2*Pi**2 + xmax**2 + 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x1)/xmax) - 
+     -        eps**2*Pi**2*Cos(Pi*((4*x1)/xmax - (4*x2)/ymax)) - 
+     -        eps**2*Pi**2*Cos(4*Pi*(x1/xmax + x2/ymax)) - 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x2)/ymax) - 
+     -        2*eps*Pi*xmax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        2*eps*Pi*xmax*Sin(2*Pi*(x1/xmax + x2/ymax))))/
+     -    (xmax*(xmax*ymax + eps*Pi*(xmax - ymax)*
+     -         Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))
 
           vec(6) = 0d0
           vec(7) = vec(3)
           vec(8) = vec(6)
 
-          vec(9) = (xmax*ymax)/
-     -  (xmax*ymax + eps*Pi*xmax*
-     -     Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) - 
-     -    eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax - (2*car(2)*Pi)/ymax) + 
-     -    eps*Pi*xmax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax) + 
-     -    eps*Pi*ymax*Sin((2*car(1)*Pi)/xmax + (2*car(2)*Pi)/ymax))
+          vec(9) = (xmax*ymax + eps*Pi*(xmax - ymax)*
+     -       Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -      eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .         /(xmax*ymax)
+
         case default
-          write (*,*) 'Grid not implemented'
+          write (*,*) 'Grid not implemented in g_sup'
           write (*,*) 'Aborting...'
           stop
         end select
 
         tensor = reshape(vec, (/3,3/))
 
-      end function G_super
+      end function g_sup
 
-c     G_super_elem
-c     #################################################################
-      function G_super_elem(i,j,x1,x2,x3,cartesian) result (element)
+      end module grid_definition
 
-c     -----------------------------------------------------------------
-c     Calculates covariant metric tensor of curvilinear coordinate 
-c     system
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        integer(4) :: i,j
-        real(8)    :: x1,x2,x3,element
-        logical    :: cartesian
-
-c     Local variables
-
-        real(8)    :: tensor(3,3)
-
-c     Begin program
-
-        tensor  = G_super(x1,x2,x3,cartesian)
-        element = tensor(i,j)
-
-      end function G_super_elem
-
-      end module grid_core
-
-c module grid_interface
+c module grid_metric
 c #####################################################################
-      module grid_interface
+      module grid_metric
 
-        use grid_core
+c ---------------------------------------------------------------------
+c     This module packs routines that perform operations on grid
+c     quantities, such as coordinate transformation of vector components,
+c     vector norms and scalar products. It contains the following
+c     routines:
+c          * transformVectorToCartesian 
+c          * transformVectorToCurvilinear 
+c          * transformFromCurvToCurv 
+c          * volume
+c          * vectorNorm
+c          * scalarProduct
+c     It is assumed that the grid metric structure gmetric is allocated 
+c     and filled.
+c ---------------------------------------------------------------------
+
+        use grid_definition
+
+        use bc_def
 
         implicit none
-
-        type :: grid_def
-          integer(4) :: ngrdx                             !# meshes in X
-          integer(4) :: ngrdy                             !# meshes in Y
-          integer(4) :: ngrdz                             !# meshes in Y
-          integer(4) :: ngrid                             !# meshes for MG
-          integer(4),pointer,dimension(:)  :: iline       !Restrict ops. to i=iline in MG
-          integer(4),pointer,dimension(:)  :: jline       !Restrict ops. to j=jline in MG
-          integer(4),pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
-          real(8)   ,pointer,dimension(:)  :: xx          !Grid node positions in X (all grids)
-          real(8)   ,pointer,dimension(:)  :: yy          !Grid node positions in Y (")
-          real(8)   ,pointer,dimension(:)  :: zz          !Grid node positions in Z (")
-          real(8)   ,pointer,dimension(:)  :: dx          !Grid spacings in X for integer mesh (")
-          real(8)   ,pointer,dimension(:)  :: dy          !Grid spacings in Y for integer mesh (")
-          real(8)   ,pointer,dimension(:)  :: dz          !Grid spacings in Z for integer mesh (")
-          real(8)   ,pointer,dimension(:)  :: dxh         !Grid spacings in X for half mesh (")
-          real(8)   ,pointer,dimension(:)  :: dyh         !Grid spacings in Y for half mesh (")
-          real(8)   ,pointer,dimension(:)  :: dzh         !Grid spacings in Z for half mesh (")
-          integer(4),pointer,dimension(:)  :: nxv         !# of grid nodes in X  (")
-          integer(4),pointer,dimension(:)  :: nyv         !# of grid nodes in Y  (")
-          integer(4),pointer,dimension(:)  :: nzv         !# of grid nodes in Z  (")
-          integer(4),pointer,dimension(:)  :: ntotv       !Total # of grid nodes (")
-          integer(4),pointer,dimension(:)  :: istartx     !Pointer for MG vectors in X
-          integer(4),pointer,dimension(:)  :: istarty     !Pointer for MG vectors in Y
-          integer(4),pointer,dimension(:)  :: istartz     !Pointer for MG vectors in Z
-          integer(4),pointer,dimension(:)  :: istartp     !Pointer for global MG vectors
-          integer(4),pointer,dimension(:)  :: mg_ratio_x  !MG coarsening ratio in X
-          integer(4),pointer,dimension(:)  :: mg_ratio_y  !MG coarsening ratio in Y
-          integer(4),pointer,dimension(:)  :: mg_ratio_z  !MG coarsening ratio in Z
-          real(8)                          :: params(5)   !Grid configuration parameters
-        end type grid_def
-
-        type (grid_def) :: grid_params
 
         type :: grid_metrics
           real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
-          real(8),pointer,dimension(:,:,:)       :: vol   !Cell volumes
           real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
           real(8),pointer,dimension(:,:,:,:,:,:) :: Gamma !Christoffel symbol at cell centers
+          real(8),pointer,dimension(:,:,:,:,:)   :: cov   !Covariant vectors
+          real(8),pointer,dimension(:,:,:,:,:)   :: cnv   !Contravariant vectors
         end type grid_metrics
 
         type :: MG_grid_metrics
@@ -2148,40 +1726,554 @@ c #####################################################################
 
       contains
 
-c     getMGmap
+c     allocateGridMetric
 c     #################################################################
-      subroutine getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-
-c     -----------------------------------------------------------------
-c     Inverts curvilinear coordinates to give Cartesian coordinates
-c     -----------------------------------------------------------------
+      subroutine allocateGridMetric(gmetric)
 
         implicit none
 
-c     Input variables
+c     Call variables
 
-        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
+        type(MG_grid_metrics) :: gmetric
 
 c     Local variables
+
+        integer(4)      :: igrid,nxp,nyp,nzp
 
 c     Begin program
 
-        ig = i + grid_params%istartx(igx)
-        jg = j + grid_params%istarty(igy)
-        kg = k + grid_params%istartz(igz)
+        if (.not.associated(gmetric%grid)) then
+          allocate(gmetric%grid(grid_params%ngrid))
+        endif
 
-      end subroutine getMGmap
+        do igrid=1,grid_params%ngrid
+          if (.not.associated(gmetric%grid(igrid)%jac)) then
+            nxp = grid_params%nxv(igrid)+1
+            nyp = grid_params%nyv(igrid)+1
+            nzp = grid_params%nzv(igrid)+1
+            allocate(gmetric%grid(igrid)%jac  (0:nxp,0:nyp,0:nzp))
+            allocate(gmetric%grid(igrid)%gsub (0:nxp,0:nyp,0:nzp,3,3))
+            allocate(gmetric%grid(igrid)%gsup (0:nxp,0:nyp,0:nzp,3,3))
+            allocate(gmetric%grid(igrid)%cov  (0:nxp,0:nyp,0:nzp,3,3))
+            allocate(gmetric%grid(igrid)%cnv  (0:nxp,0:nyp,0:nzp,3,3))
+            allocate(gmetric%grid(igrid)%Gamma(0:nxp,0:nyp,0:nzp,3,3,3))
+          endif
+        enddo
 
-c     getCoordinates
+c     End program
+
+      end subroutine allocateGridMetric
+
+c     deallocateGridMetric
 c     #################################################################
-      subroutine getCoordinates(i,j,k,igx,igy,igz,ig,jg,kg,x1,y1,z1
-     .                         ,cartesian)
+      subroutine deallocateGridMetric(gmetric)
+
+        implicit none
+
+c     Call variables
+
+        type(MG_grid_metrics) :: gmetric
+
+c     Local variables
+
+        integer(4)      :: igrid,nxp,nyp,nzp
+
+c     Begin program
+
+        do igrid=1,grid_params%ngrid
+          if (associated(gmetric%grid(igrid)%jac)) then
+            deallocate(gmetric%grid(igrid)%jac  )
+            deallocate(gmetric%grid(igrid)%gsub )
+            deallocate(gmetric%grid(igrid)%gsup )
+            deallocate(gmetric%grid(igrid)%cov  )
+            deallocate(gmetric%grid(igrid)%cnv  )
+            deallocate(gmetric%grid(igrid)%Gamma)
+          endif
+        enddo
+
+        if (associated(gmetric%grid)) then
+          deallocate(gmetric%grid)
+        endif
+
+c     End program
+
+      end subroutine deallocateGridMetric
+
+c     defineGridMetric
+c     #################################################################
+      subroutine defineGridMetric(gmetric)
 
 c     -----------------------------------------------------------------
-c     Finds optimal coordinates (cartesian,curvilinear) for calculation
-c     of grid quantities, depending on grid definition. If analytical
-c     inverse map is available, gives curvilinear (cartesian=.false.);
-c     otherwise, gives cartesian.
+c     This routine calculates all grid metric quantities required for
+c     the curvilinear representation of a set of PDE's: jacobian,
+c     metric tensors, covariant and contravariant vectors, Christoffel
+c     symbols of the second kind. All quantities are stored in
+c     structure gmetric. There are two modes of computation:
+c        * Analytical (numerical_grid=.false.)
+c        * Numerical  (numerical_grid=.true.)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(MG_grid_metrics) :: gmetric
+
+c     Local variables
+
+        integer(4) :: igrid,nxp,nyp,nzp,i,j,k,igx,igy,igz
+     .               ,i0,ip,im,j0,jp,jm,k0,kp,km,l,m,n,p
+     .               ,ig,ig0,igm,igp,jg,jg0,jgm,jgp,kg,kg0,kgm,kgp
+        real(8)    :: r(3,3),car0(3),carp(3),carm(3),dh(3),jac,ijac
+     .               ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
+     .               ,gamma(3,3,3),gamm1(3,3,3),mag,dhp,dhm,dhh
+        real(8),allocatable,dimension(:,:,:,:,:) :: dr
+
+c     Interpolation
+
+        integer(4) :: kx,ky,kz,nnx,nny,nnz,dim,flg,order
+
+        real(8)    :: xp,yp,zp
+        real(8),allocatable,dimension(:) :: sx,sy,sz
+        real(8), dimension(:),allocatable:: tx,ty,tz,work
+        real(8), dimension(:,:,:,:,:),allocatable:: drbcoef
+        real(8), dimension(:,:,:,:,:,:),allocatable:: gambcoef
+
+        real(8)    :: db3val
+        external   :: db3val
+
+c     Begin program
+
+        anal_map = checkGridDatabase()
+
+        call allocateGridMetric(gmetric)
+
+        if ((.not.numerical_grid).and.anal_map) then
+
+c       Find analytical geometric quantitites on grid
+
+          do igrid=1,grid_params%ngrid
+
+            igx = igrid
+            igy = igrid
+            igz = igrid
+
+            nxp = grid_params%nxv(igrid)+1
+            nyp = grid_params%nyv(igrid)+1
+            nzp = grid_params%nzv(igrid)+1
+
+            do k = 0,nzp
+              do j = 0,nyp
+                do i = 0,nxp
+                  gmetric%grid(igrid)%jac  (i,j,k)
+     .                      = jacobian(i,j,k,igx,igy,igz)
+                  gmetric%grid(igrid)%gsub (i,j,k,:,:)
+     .                      = g_sub   (i,j,k,igx,igy,igz)
+                  gmetric%grid(igrid)%gsup (i,j,k,:,:)
+     .                      = g_sup   (i,j,k,igx,igy,igz)
+                  gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+     .                      = christ_2knd(i,j,k,igx,igy,igz)
+                  do l=1,3
+                    gmetric%grid(igrid)%cov(i,j,k,l,:)
+     .                      = covariantVector    (l,i,j,k,igx,igy,igz)
+                    gmetric%grid(igrid)%cnv(i,j,k,l,:)
+     .                      = contravariantVector(l,i,j,k,igx,igy,igz)
+                  enddo
+                enddo
+              enddo
+            enddo
+
+            !Zero force condition on Christoffel symbols (only on finest grid)
+cc            if (igrid == 1) then
+cc              do k = 1,grid_params%nzv(igrid)
+cc                do j = 1,grid_params%nyv(igrid)
+cc                  do i = 1,grid_params%nxv(igrid)
+cc                    call gammaZeroForce(i,j,k,igx,igy,igz)
+cc                  enddo
+cc                enddo
+cc              enddo
+cc            endif
+
+          enddo
+
+        else
+
+c       Find numerical geometric quantities on finest grid
+
+cc          igrid=1
+
+          do igrid=1,grid_params%ngrid
+
+            igx = igrid
+            igy = igrid
+            igz = igrid
+
+            nxp = grid_params%nxv(igrid)+1
+            nyp = grid_params%nyv(igrid)+1
+            nzp = grid_params%nzv(igrid)+1
+
+            allocate(dr(0:nxp,0:nyp,0:nzp,3,3))
+
+            !Evaluate dx/dxi vectors
+            do k = 0,nzp
+              do j = 0,nyp
+                do i = 0,nxp
+
+                  ip=min(i+1,nxp)
+                  im=max(i-1,0)
+                  jp=min(j+1,nyp)
+                  jm=max(j-1,0)
+                  kp=min(k+1,nzp)
+                  km=max(k-1,0)
+
+                  carp = map(ip,j,k,igx,igy,igz,igp,jg,kg)
+                  carm = map(im,j,k,igx,igy,igz,igm,jg,kg)
+                  dh(1)= (grid_params%xx(igp)-grid_params%xx(igm))
+                  dr(i,j,k,1,:) = (carp-carm)/dh(1)
+
+                  carp = map(i,jp,k,igx,igy,igz,ig,jgp,kg)
+                  carm = map(i,jm,k,igx,igy,igz,ig,jgm,kg)
+                  dh(2)= (grid_params%yy(jgp)-grid_params%yy(jgm))
+                  dr(i,j,k,2,:) = (carp-carm)/dh(2)
+
+                  carp = map(i,j,kp,igx,igy,igz,ig,jg,kgp)
+                  carm = map(i,j,km,igx,igy,igz,ig,jg,kgm)
+                  dh(3)= (grid_params%zz(kgp)-grid_params%zz(kgm))
+                  dr(i,j,k,3,:) = (carp-carm)/dh(3)
+
+                enddo
+              enddo
+            enddo
+
+            !Enforce topological constraints on dr
+            do i=1,3
+              do j=1,3
+                call topol_bc(dr(:,:,:,i,j))
+              enddo
+            enddo
+
+          !Spline dr for interpolation on coarser grids
+cc          order = 2
+cc
+cc          nnx = nxp+1
+cc          nny = nyp+1
+cc          nnz = nzp+1
+cc
+cc          allocate(sx(nnx),sy(nny),sz(nnz))
+cc
+cc          call getMGmap(1,1,1,igx,igy,igz,ig,jg,kg)
+cc
+cc          sx(1:nnx) = grid_params%xx(ig-1:ig+nxp-1)
+cc          sy(1:nny) = grid_params%yy(jg-1:jg+nyp-1)
+cc          sz(1:nnz) = grid_params%zz(kg-1:kg+nzp-1)
+cc
+cc          flg = 0
+cc
+cc          kx = min(order+1,nnx-1)
+cc          ky = min(order+1,nny-1)
+cc          kz = min(order+1,nnz-1)
+cc
+cc          dim = nnx*nny*nnz+max(2*kx*(nnx+1),2*ky*(nny+1),2*kz*(nnz+1))
+cc
+cc          allocate(tx(nnx+kx))
+cc          allocate(ty(nny+ky))
+cc          allocate(tz(nnz+kz))
+cc          allocate(work(dim))
+cc          allocate(drbcoef(nnx,nny,nnz,3,3))
+cc
+cc          do i=1,3
+cc            do j=1,3
+cc              call db3ink(sx,nnx,sy,nny,sz,nnz,dr(:,:,:,i,j),nnx,nny
+cc     .                   ,kx,ky,kz,tx,ty,tz,drbcoef(:,:,:,i,j)
+cc     .                   ,work,flg)
+cc            enddo
+cc          enddo
+
+          !Evaluate grid quantities
+            do k = 0,nzp
+              do j = 0,nyp
+                do i = 0,nxp
+
+                  r = dr(i,j,k,:,:)
+
+                  !Evaluate Jacobian
+                  jac = triple_product(r(1,:),r(2,:),r(3,:))
+                  ijac = 1d0/jac
+
+                  !Contravariant vectors
+                  cnv(:,:) = r(:,:)*ijac
+
+                  !Covariant vectors
+                  cov(1,:) = cross_product(r(2,:),r(3,:))*ijac
+                  cov(2,:) = cross_product(r(3,:),r(1,:))*ijac
+                  cov(3,:) = cross_product(r(1,:),r(2,:))*ijac
+
+                  !Metric tensors
+                  do m=1,3
+                    do l=m,3
+                      gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
+                      gsub(m,l) = gsub(l,m) !Symmetry
+                      gsup(l,m) = jac*dot_product(cov(l,:),cov(m,:))
+                      gsup(m,l) = gsup(l,m) !Symmetry
+                    enddo
+                  enddo
+
+                  !Grid spacings
+                  call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+                  dh(1) = grid_params%dxh(ig)
+                  dh(2) = grid_params%dyh(jg)
+                  dh(3) = grid_params%dzh(kg)
+
+                  !Christoffel symbols
+
+                  if (i==0) then
+                    i0=1
+                  elseif (i==nxp) then
+                    i0=nxp-1
+                  else
+                    i0=i
+                  endif
+
+                  if (j==0) then
+                    j0=0
+                  elseif (j==nyp) then
+                    j0=nyp
+                  else
+                    j0=j
+                  endif
+
+                  if (k==0) then
+                    k0=1
+                  elseif (k==nzp) then
+                    k0=nzp-1
+                  else
+                    k0=k
+                  endif
+
+                  ip=i0+1
+                  im=i0-1
+                  jp=j0+1
+                  jm=j0-1
+                  kp=k0+1
+                  km=k0-1
+
+                  xp = grid_params%xx(ig)
+                  yp = grid_params%yy(jg)
+                  zp = grid_params%zz(kg)
+
+                  do l=1,3
+                    do m=1,3
+                      do n=m,3
+                        if (m == n) then
+                          select case(m)
+                          case(1)
+                            car0 = map(i0,j0,k0,igx,igy,igz,ig0,jg,kg)
+                            carp = map(ip,j0,k0,igx,igy,igz,igp,jg,kg)
+                            carm = map(im,j0,k0,igx,igy,igz,igm,jg,kg)
+                            dhp = (grid_params%xx(igp)
+     .                            -grid_params%xx(ig0))
+                            dhm = (grid_params%xx(ig0)
+     .                            -grid_params%xx(igm))
+                          case(2)
+                            car0 = map(i0,j0,k0,igx,igy,igz,ig,jg0,kg)
+                            carp = map(i0,jp,k0,igx,igy,igz,ig,jgp,kg)
+                            carm = map(i0,jm,k0,igx,igy,igz,ig,jgm,kg)
+                            dhp = (grid_params%yy(jgp)
+     .                            -grid_params%yy(jg0))
+                            dhm = (grid_params%yy(jg0)
+     .                            -grid_params%yy(jgm))
+                          case(3)
+                            car0 = map(i0,j0,k0,igx,igy,igz,ig,jg,kg0)
+                            carp = map(i0,j0,kp,igx,igy,igz,ig,jg,kgp)
+                            carm = map(i0,j0,km,igx,igy,igz,ig,jg,kgm)
+                            dhp = (grid_params%zz(kgp)
+     .                            -grid_params%zz(kg0))
+                            dhm = (grid_params%zz(kg0)
+     .                            -grid_params%zz(kgm))
+                          end select
+                          carp = (carp-car0)/dhp
+                          carm = (car0-carm)/dhm
+                          dhh  = 0.5*(dhp+dhm)
+                        else
+                          select case(m)
+                          case(1)
+                           call getMGmap(i0,j0,k0,igx,igy,igz,ig0,jg,kg)
+                           call getMGmap(im,j0,k0,igx,igy,igz,igm,jg,kg)
+                           call getMGmap(ip,j0,k0,igx,igy,igz,igp,jg,kg)
+                           carp= 0.5*(dr(ip,j0,k0,n,:)+dr(i0,j0,k0,n,:))
+                           carm= 0.5*(dr(im,j0,k0,n,:)+dr(i0,j0,k0,n,:))
+                           dhh = 0.5*(grid_params%xx(igp)
+     .                               -grid_params%xx(igm))
+                          case(2)
+                           call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg0,kg)
+                           call getMGmap(i0,jm,k0,igx,igy,igz,ig,jgm,kg)
+                           call getMGmap(i0,jp,k0,igx,igy,igz,ig,jgp,kg)
+                           carp= 0.5*(dr(i0,jp,k0,n,:)+dr(i0,j0,k0,n,:))
+                           carm= 0.5*(dr(i0,jm,k0,n,:)+dr(i0,j0,k0,n,:))
+                           dhh = 0.5*(grid_params%yy(jgp)
+     .                               -grid_params%yy(jgm))
+                          case(3)
+                           call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg,kg0)
+                           call getMGmap(i0,j0,km,igx,igy,igz,ig,jg,kgm)
+                           call getMGmap(i0,j0,kp,igx,igy,igz,ig,jg,kgp)
+                           carp= 0.5*(dr(i0,j0,kp,n,:)+dr(i0,j0,k0,n,:))
+                           carm= 0.5*(dr(i0,j0,km,n,:)+dr(i0,j0,k0,n,:))
+                           dhh = 0.5*(grid_params%zz(kgp)
+     .                               -grid_params%zz(kgm))
+                          end select
+                        endif
+                        vec = (carp-carm)/dhh
+
+cc                      select case(m)
+cc                      case(1)
+cc                        do p=1,3
+cc                          vec(p)=db3val(xp,yp,zp,1,0,0,tx,ty,tz
+cc     .                          ,nnx,nny,nnz,kx,ky,kz,drbcoef(:,:,:,n,p)
+cc     .                          ,work)
+cc                        enddo
+cc                      case(2)
+cc                        do p=1,3
+cc                          vec(p)=db3val(xp,yp,zp,0,1,0,tx,ty,tz
+cc     .                          ,nnx,nny,nnz,kx,ky,kz,drbcoef(:,:,:,n,p)
+cc     .                          ,work)
+cc                        enddo
+cc                      case(3)
+cc                        do p=1,3
+cc                          vec(p)=db3val(xp,yp,zp,0,0,1,tx,ty,tz
+cc     .                          ,nnx,nny,nnz,kx,ky,kz,drbcoef(:,:,:,n,p)
+cc     .                          ,work)
+cc                        enddo
+cc                      end select
+
+                        gamma(l,m,n) = dot_product(vec,cov(l,:))
+                        gamma(l,n,m) = gamma(l,m,n) !Symmetry
+                      enddo
+                    enddo
+                  enddo
+
+cc                  gamma = christ_2knd(i,j,k,igx,igy,igz)
+
+                  !Store grid quantities
+                  gmetric%grid(igrid)%jac  (i,j,k)       = jac
+                  gmetric%grid(igrid)%gsub (i,j,k,:,:)   = gsub
+                  gmetric%grid(igrid)%gsup (i,j,k,:,:)   = gsup
+                  gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
+                  gmetric%grid(igrid)%cov  (i,j,k,:,:)   = cov
+                  gmetric%grid(igrid)%cnv  (i,j,k,:,:)   = cnv
+
+                enddo
+              enddo
+            enddo
+
+            deallocate(dr)
+
+            !Zero-force condition on Christoffle symbols 
+            if (igrid == 1) then
+              do k = 1,grid_params%nzv(igrid)
+                do j = 1,grid_params%nyv(igrid)
+                  do i = 1,grid_params%nxv(igrid)
+                    call gammaZeroForce(i,j,k,igx,igy,igz)
+                  enddo
+                enddo
+              enddo
+            endif
+
+            !Enforce topological constraints on Christoffel symbols
+            do i=1,3
+              do j=1,3
+                do k=1,3
+                  call topol_bc(gmetric%grid(igrid)%Gamma(:,:,:,i,j,k))
+                enddo
+              enddo
+            enddo
+
+          !Spline Christoffel symbols for interpolation on coarser grids
+cc          allocate(gambcoef(nnx,nny,nnz,3,3,3))
+cc          flg = 0
+cc
+cc          do k=1,3
+cc            do j=1,3
+cc              do i=1,3
+cc                call db3ink(sx,nnx,sy,nny,sz,nnz
+cc     .                     ,gmetric%grid(igrid)%Gamma(:,:,:,i,j,k)
+cc     .                     ,nnx,nny,kx,ky,kz,tx,ty,tz
+cc     .                     ,gambcoef(:,:,:,i,j,k),work,flg)
+cc              enddo
+cc            enddo
+cc          enddo
+
+c       Restrict grid metric info to coarser grids
+
+cc          call restrictGridMetrics
+
+c       Deallocate spline auxiliary variables
+
+cc          deallocate(sx,sy,sz,tx,ty,tz,work,drbcoef,gambcoef)
+
+          enddo
+
+c       Test of numerical calculation vs. analytical calculation
+
+cc          do igrid=1,grid_params%ngrid
+cc
+cc            igx = igrid
+cc            igy = igrid
+cc            igz = igrid
+cc
+cc            nxp = grid_params%nxv(igrid)+1
+cc            nyp = grid_params%nyv(igrid)+1
+cc            nzp = grid_params%nzv(igrid)+1
+cc
+cc            do k = 0,nzp
+cc              do j = 0,nyp
+cc                do i = 0,nxp
+cc                  gmetric%grid(igrid)%jac  (i,j,k)
+cc     .                      = gmetric%grid(igrid)%jac  (i,j,k)
+cc     .                       -jacobian(i,j,k,igx,igy,igz)
+cc                  gmetric%grid(igrid)%gsub (i,j,k,:,:)
+cc     .                      = gmetric%grid(igrid)%gsub (i,j,k,:,:)
+cc     .                       -g_sub   (i,j,k,igx,igy,igz)
+cc                  gmetric%grid(igrid)%gsup (i,j,k,:,:)
+cc     .                      = gmetric%grid(igrid)%gsup (i,j,k,:,:)
+cc     .                       -g_sup   (i,j,k,igx,igy,igz)
+cc                  gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+cc     .                      = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+cc     .                       -christ_2knd(i,j,k,igx,igy,igz)
+cc                enddo
+cc              enddo
+cc            enddo
+cc
+cc            write (*,*) 'Grid level:',igrid
+cc          
+cc            mag =
+cc     .     sum(gmetric%grid(igrid)%jac(1:nxp-1,1:nyp-1,1:nzp-1)**2)
+cc            write (*,*)'Jacobian tst=',sqrt(mag/(nxp-1)/(nyp-1)/(nzp-1))
+cc            mag =
+cc     .     sum(gmetric%grid(igrid)%gsub(2:nxp-1,1:nyp-1,1:nzp-1,:,:)**2)
+cc            write (*,*)'Gsub tst    =',sqrt(mag/(nxp-1)/(nyp-1)/(nzp-1))
+cc            mag =
+cc     .     sum(gmetric%grid(igrid)%gsup(2:nxp-1,1:nyp-1,1:nzp-1,:,:)**2)
+cc            write (*,*)'Gsup tst    =',sqrt(mag/(nxp-1)/(nyp-1)/(nzp-1))
+cc            mag =
+cc     .  sum(gmetric%grid(igrid)%Gamma(2:nxp-1,1:nyp-1,1:nzp-1,:,:,:)**2)
+cc            write (*,*)'Gamma tst   =',sqrt(mag/(nxp-1)/(nyp-1)/(nzp-1))
+cc
+cc          enddo
+cc          stop
+
+        endif
+
+c     End program
+
+      contains
+
+c     map
+c     #################################################################
+      function map(i,j,k,igx,igy,igz,ig,jg,kg) result(car)
+
+c     -----------------------------------------------------------------
+c     Give Cartesian coordinates corresponding to node (i,j,k) at grid
+c     level (igx,igy,igz).
 c     -----------------------------------------------------------------
 
         implicit none
@@ -2189,90 +2281,535 @@ c     -----------------------------------------------------------------
 c     Input variables
 
         integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
-        real(8)    :: x1,y1,z1
-        logical    :: cartesian
-
-c     Local variables
-
         real(8)    :: car(3)
 
+c     Local variables
+
+        real(8)    :: x1,y1,z1
+
 c     Begin program
 
-        select case (coords)
-        case ('sin')
-          call getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,y1,z1)
-          cartesian = .true.
-        case default
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,y1,z1)
-          cartesian = .false.
-        end select
+        call getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                              ,x1,y1,z1)
 
-      end subroutine getCoordinates
+        car = (/ x1,y1,z1 /)
 
-c     getCurvilinearCoordinates
+      end function map
+
+c     restrictGridMetrics
 c     #################################################################
-      subroutine getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                    ,x1,y1,z1)
-
+      subroutine restrictGridMetrics
 c     -----------------------------------------------------------------
-c     Finds curvilinear coordinates for position (i,j,k)
+c     Restricts arrays with geometric grid info.
 c     -----------------------------------------------------------------
 
-        implicit none
+      implicit none    !For safe fortran
 
-c     Input variables
-
-        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
-        real(8)    :: x1,y1,z1
+c     Call variables
 
 c     Local variables
 
-        integer(4) :: ii,jj,ny
+      real (8) :: xp,yp,zp
 
 c     Begin program
+
+      do igrid=2,grid_params%ngrid
+
+        igx = igrid
+        igy = igrid
+        igz = igrid
+
+        nxp = grid_params%nxv(igrid)+1
+        nyp = grid_params%nyv(igrid)+1
+        nzp = grid_params%nzv(igrid)+1
+
+        allocate(dr(0:nxp,0:nyp,0:nzp,3,3))
+
+        !Evaluate dx/dxi vectors (splined)
+        do k = 0,nzp
+          do j = 0,nyp
+            do i = 0,nxp
+              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+              xp = grid_params%xx(ig)
+              yp = grid_params%yy(jg)
+              zp = grid_params%zz(kg)
+
+              do l=1,3
+                do m=1,3
+                  dr(i,j,k,l,m) =
+     .                db3val(xp,yp,zp,0,0,0,tx,ty,tz,nnx,nny,nnz
+     .                      ,kx,ky,kz,drbcoef(:,:,:,l,m),work)
+                enddo
+              enddo
+
+            enddo
+          enddo
+        enddo
+
+        !Enforce topological constraints on dr
+        do i=1,3
+          do j=1,3
+            call topol_bc(dr(:,:,:,i,j))
+          enddo
+        enddo
+
+        !Evaluate grid quantities
+        do k = 0,nzp
+          do j = 0,nyp
+            do i = 0,nxp
+
+              r = dr(i,j,k,:,:)
+
+              !Evaluate Jacobian
+              jac = triple_product(r(1,:),r(2,:),r(3,:))
+              ijac = 1d0/jac
+
+              !Contravariant vectors
+              cnv(:,:) = r(:,:)*ijac
+
+              !Covariant vectors
+              cov(1,:) = cross_product(r(2,:),r(3,:))*ijac
+              cov(2,:) = cross_product(r(3,:),r(1,:))*ijac
+              cov(3,:) = cross_product(r(1,:),r(2,:))*ijac
+
+              !Metric tensors
+              do m=1,3
+                do l=m,3
+                  gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
+                  gsub(m,l) = gsub(l,m) !Symmetry
+                  gsup(l,m) = jac*dot_product(cov(l,:),cov(m,:))
+                  gsup(m,l) = gsup(l,m) !Symmetry
+                enddo
+              enddo
+
+              !Grid spacings
+              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+              dh(1) = grid_params%dxh(ig)
+              dh(2) = grid_params%dyh(jg)
+              dh(3) = grid_params%dzh(kg)
+
+              !Christoffel symbols (splined)
+
+                if (i==0) then
+                  i0=1
+                elseif (i==nxp) then
+                  i0=nxp-1
+                else
+                  i0=i
+                endif
+
+                if (j==0) then
+                  j0=0
+                elseif (j==nyp) then
+                  j0=nyp
+                else
+                  j0=j
+                endif
+
+                if (k==0) then
+                  k0=1
+                elseif (k==nzp) then
+                  k0=nzp-1
+                else
+                  k0=k
+                endif
+
+                ip=i0+1
+                im=i0-1
+                jp=j0+1
+                jm=j0-1
+                kp=k0+1
+                km=k0-1
+
+              xp = grid_params%xx(ig)
+              yp = grid_params%yy(jg)
+              zp = grid_params%zz(kg)
+
+              do l=1,3
+                do m=1,3
+                  do n=m,3
+cc                    gamma(l,m,n) =
+cc     .                db3val(xp,yp,zp,0,0,0,tx,ty,tz,nnx,nny,nnz
+cc     .                      ,kx,ky,kz,gambcoef(:,:,:,l,m,n)
+cc     .                      ,work)
+
+                    select case(m)
+                    case(1)
+                      call getMGmap(i0,j0,k0,igx,igy,igz,ig0,jg,kg)
+                      call getMGmap(im,j0,k0,igx,igy,igz,igm,jg,kg)
+                      call getMGmap(ip,j0,k0,igx,igy,igz,igp,jg,kg)
+                      carp= 0.5*(dr(ip,j0,k0,n,:)+dr(i0,j0,k0,n,:))
+                      carm= 0.5*(dr(im,j0,k0,n,:)+dr(i0,j0,k0,n,:))
+                      dhh = 0.5*(grid_params%xx(igp)
+     .                              -grid_params%xx(igm))
+                    case(2)
+                      call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg0,kg)
+                      call getMGmap(i0,jm,k0,igx,igy,igz,ig,jgm,kg)
+                      call getMGmap(i0,jp,k0,igx,igy,igz,ig,jgp,kg)
+                      carp= 0.5*(dr(i0,jp,k0,n,:)+dr(i0,j0,k0,n,:))
+                      carm= 0.5*(dr(i0,jm,k0,n,:)+dr(i0,j0,k0,n,:))
+                      dhh = 0.5*(grid_params%yy(jgp)
+     .                              -grid_params%yy(jgm))
+                    case(3)
+                      call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg,kg0)
+                      call getMGmap(i0,j0,km,igx,igy,igz,ig,jg,kgm)
+                      call getMGmap(i0,j0,kp,igx,igy,igz,ig,jg,kgp)
+                      carp= 0.5*(dr(i0,j0,kp,n,:)+dr(i0,j0,k0,n,:))
+                      carm= 0.5*(dr(i0,j0,km,n,:)+dr(i0,j0,k0,n,:))
+                      dhh = 0.5*(grid_params%zz(kgp)
+     .                              -grid_params%zz(kgm))
+                    end select
+                    vec = (carp-carm)/dhh
+
+                    gamma(l,m,n) = dot_product(vec,cov(l,:))
+                    gamma(l,n,m) = gamma(l,m,n) !Symmetry
+                  enddo
+                enddo
+              enddo
+
+              !Store grid quantities
+              gmetric%grid(igrid)%jac(i,j,k) = jac
+              gmetric%grid(igrid)%gsub (i,j,k,:,:)   = gsub
+              gmetric%grid(igrid)%gsup (i,j,k,:,:)   = gsup
+              gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
+              gmetric%grid(igrid)%cov  (i,j,k,:,:)   = cov
+              gmetric%grid(igrid)%cnv  (i,j,k,:,:)   = cnv
+
+            enddo
+          enddo
+        enddo
+
+        !Enforce topological constraints on Christoffel symbols
+        do i=1,3
+          do j=1,3
+            do k=1,3
+              call topol_bc(gmetric%grid(igrid)%Gamma(:,:,:,i,j,k))
+            enddo
+          enddo
+        enddo
+
+        !Deallocate auxiliary variables
+        deallocate(dr)
+
+      enddo
+
+c     End program
+
+      end subroutine restrictGridMetrics
+
+c     topol_bc
+c     #################################################################
+      subroutine topol_bc(array)
+
+c     -----------------------------------------------------------------
+c     !Enforce topological constraints on array
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+        real(8) :: array(0:nxp,0:nyp,0:nzp)
+
+c     Begin program
+
+        if (bcond(1) == PER .or. bcond(2) == PER) then
+          array(0  ,:,:) = array(nxp-1,:,:)
+          array(nxp,:,:) = array(1    ,:,:)
+        endif
+
+        if (bcond(3) == PER .or. bcond(4) == PER) then
+          array(:,0  ,:) = array(:,nyp-1,:)
+          array(:,nyp,:) = array(:,1    ,:)
+        endif
+        
+        if (bcond(5) == PER .or. bcond(6) == PER) then
+          array(:,:,0  ) = array(:,:,nzp-1)
+          array(:,:,nzp) = array(:,:,1    )
+        endif
+
+c     End program
+
+      end subroutine topol_bc
+
+c     gammaZeroForce
+c     #################################################################
+      subroutine gammaZeroForce(i,j,k,igx,igy,igz)
+
+c     -----------------------------------------------------------------
+c     Postprocess Christoffel symbol to satisfy zero-force condition
+c     to machine accuracy
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+        integer(4) :: i,j,k,igx,igy,igz
+
+c     Local variables
+
+        integer(4) :: ii,ll,kk,mm,jj,ig,jg,kg
+        real(8)    :: x1,y1,z1,summ,summ2,dh,jac,jacp,jacm,const
+        real(8)    :: hess(3,3,3),table(3,3,3),gsub(3,3)
+     .               ,gsup(3,3),gsupp(3,3),gsupm(3,3),gamma(3,3,3)
+
+c     Begin program
+
+        if  (    (i == 0 .or. i == grid_params%nxv(igrid)+1) !Avoid x-boundaries
+     .       .or.(j == 0 .or. j == grid_params%nyv(igrid)+1) !Avoid y-boundaries
+     .       .or.(k == 0 .or. k == grid_params%nzv(igrid)+1) !Avoid z-boundaries
+     .       .or.(i == 1 .and. bcond(1) == SP)               !Avoid singular point
+     .       ) return
+
+        gamma = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+        gsub  = gmetric%grid(igrid)%gsub(i,j,k,:,:)
+        gsup  = gmetric%grid(igrid)%gsup(i,j,k,:,:)
 
         call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
-        x1 = grid_params%xx(ig)
-        y1 = grid_params%yy(jg)
-        z1 = grid_params%zz(kg)
+        do ii=1,3 !cycle through Chistoffel symbols
 
-      end subroutine getCurvilinearCoordinates
+          if (ii == 2 .and. bcond(1) == SP) then
+            jac  = gmetric%grid(igrid)%jac(i,j,k)
+            const= 2d0
+          else
+            jac=1d0
+            const=1d0
+          endif
 
-c     getCartesianCoordinates
+          do ll=1,3
+            do kk=1,3
+              select case (kk)
+              case(1)
+                dh = 2*grid_params%dxh(ig)
+                if (ii == 2 .and. bcond(1) == SP) then
+                  jacp = gmetric%grid(igrid)%jac(i+1,j,k)
+                  jacm = gmetric%grid(igrid)%jac(i-1,j,k)
+                else
+                  jacp=1d0
+                  jacm=1d0
+                endif
+                gsupp = jacp*gmetric%grid(igrid)%gsup (i+1,j,k,:,:)
+                gsupm = jacm*gmetric%grid(igrid)%gsup (i-1,j,k,:,:)
+              case(2)
+                dh = 2*grid_params%dyh(jg)
+                if (ii == 2 .and. bcond(1) == SP) then
+                  jacp = gmetric%grid(igrid)%jac(i,j+1,k)
+                  jacm = gmetric%grid(igrid)%jac(i,j-1,k)
+                else
+                  jacp=1d0
+                  jacm=1d0
+                endif
+                gsupp = jacp*gmetric%grid(igrid)%gsup (i,j+1,k,:,:)
+                gsupm = jacm*gmetric%grid(igrid)%gsup (i,j-1,k,:,:)
+              case(3)
+                dh = 2*grid_params%dzh(kg)
+                if (ii == 2 .and. bcond(1) == SP) then
+                  jacp = gmetric%grid(igrid)%jac(i,j,k+1)
+                  jacm = gmetric%grid(igrid)%jac(i,j,k-1)
+                else
+                  jacp=1d0
+                  jacm=1d0
+                endif
+                gsupp = jacp*gmetric%grid(igrid)%gsup (i,j,k+1,:,:)
+                gsupm = jacm*gmetric%grid(igrid)%gsup (i,j,k-1,:,:)
+              end select
+                
+              table(ii,ll,kk) =
+     .              -gsub(ll,1)*(gsupp(1,ii)-gsupm(1,ii))/dh/jac
+     .              -gsub(ll,2)*(gsupp(2,ii)-gsupm(2,ii))/dh/jac
+     .              -gsub(ll,3)*(gsupp(3,ii)-gsupm(3,ii))/dh/jac
+     .              +const*delta(ii,ll)*(gamma(1,kk,1)
+     .                                  +gamma(2,kk,2)
+     .                                  +gamma(3,kk,3))
+
+              summ=0d0
+              do mm=1,3
+                do jj=1,3
+                  summ = summ + gsub(ll,mm)*gsup(ii,jj)*gamma(mm,jj,kk)
+                enddo
+              enddo
+
+              table(ii,ll,kk) = table(ii,ll,kk) - summ
+            enddo
+          enddo
+
+        enddo
+
+        gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = table
+
+c      START CHECKS
+
+cc        write (*,*)
+cc        write (*,*) 'Grid:',igrid,'  Grid node:',i,j,k
+
+c      Check difference between correction and prediction
+
+cc        table = table - gamma
+cc
+cc        summ2= sqrt(sum(gamma*gamma))
+cc        summ = sqrt(sum(table*table))/summ2
+cc
+cc        write (*,*) summ
+
+c      Check zero-force property: g^lk G^i_lk = -nabla_m(g^mi)
+
+cc        do ii=1,3 !cycle through Chistoffel symbols
+cc
+cc          summ = 0d0
+cc
+cc          dh = 2*grid_params%dxh(ig)
+cc          gsupp = gmetric%grid(igrid)%gsup (i+1,j,k,:,:)
+cc          gsupm = gmetric%grid(igrid)%gsup (i-1,j,k,:,:)
+cc
+cc          summ = summ -(gsupp(1,ii)-gsupm(1,ii))/dh
+cc
+cc          dh = 2*grid_params%dyh(jg)
+cc          gsupp = gmetric%grid(igrid)%gsup (i,j+1,k,:,:)
+cc          gsupm = gmetric%grid(igrid)%gsup (i,j-1,k,:,:)
+cc
+cc          summ = summ -(gsupp(2,ii)-gsupm(2,ii))/dh
+cc
+cc          dh = 2*grid_params%dzh(kg)
+cc          gsupp = gmetric%grid(igrid)%gsup (i,j,k+1,:,:)
+cc          gsupm = gmetric%grid(igrid)%gsup (i,j,k-1,:,:)
+cc
+cc          summ = summ -(gsupp(3,ii)-gsupm(3,ii))/dh
+cc
+cc          summ2 = 0d0
+cc          do ll=1,3
+cc            do kk=1,3
+cc              summ2 = summ2 + gsup(ll,kk)*gamma(ii,ll,kk)
+cc            enddo
+cc          enddo
+cc
+cc          write (*,*) summ-summ2
+cc        enddo
+
+c      Check cancellation property g^lk(d_il G^j_kj-g_lm g^ij G^m_jk) = 0
+
+cc        do ii=1,3 !cycle through Chistoffel symbols
+cc          do ll=1,3
+cc            do kk=1,3
+cc              table(ii,ll,kk) =
+cc     .               delta(ii,ll)*(gamma(1,kk,1)
+cc     .                            +gamma(2,kk,2)
+cc     .                            +gamma(3,kk,3))
+cc
+cc              summ=0d0
+cc              do mm=1,3
+cc                do jj=1,3
+cc                  summ = summ + gsub(ll,mm)*gsup(ii,jj)*gamma(mm,jj,kk)
+cc                enddo
+cc              enddo
+cc
+cc              table(ii,ll,kk) = table(ii,ll,kk) - summ
+cc            enddo
+cc          enddo
+cc
+cc          summ = 0d0
+cc          do ll=1,3
+cc            do kk=1,3
+cc              summ = summ + gsup(ll,kk)*table(ii,ll,kk)
+cc            enddo
+cc          enddo
+cc
+cc          write (*,*) summ
+cc        enddo
+
+c     End program
+
+      end subroutine gammaZeroForce
+
+      end subroutine defineGridMetric
+
+c     cross_product
 c     #################################################################
-      subroutine getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,y1,z1)
+      function cross_product(vec1,vec2) result(vec3)
 
 c     -----------------------------------------------------------------
-c     Inverts curvilinear coordinates to give Cartesian coordinates
+c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
+c     where the vectors are in Cartesian coordinates.
 c     -----------------------------------------------------------------
 
         implicit none
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
-        real(8)    :: x1,y1,z1
+        real(8)    :: vec1(3),vec2(3),vec3(3)
 
 c     Local variables
 
-        real(8)    :: car(3)
+c     Begin program
+
+        vec3(1) = vec1(2)*vec2(3)-vec1(3)*vec2(2)
+        vec3(2) = vec1(3)*vec2(1)-vec1(1)*vec2(3)
+        vec3(3) = vec1(1)*vec2(2)-vec1(2)*vec2(1)
+
+      end function cross_product
+
+c     triple_product
+c     #################################################################
+      function triple_product(vec1,vec2,vec3) result(scalar)
+
+c     -----------------------------------------------------------------
+c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
+c     where the vectors are in Cartesian coordinates.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        real(8)    :: vec1(3),vec2(3),vec3(3),scalar
+
+c     Local variables
 
 c     Begin program
 
-        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,y1,z1)
+        scalar = dot_product(vec1,cross_product(vec2,vec3))
 
-        car = x_xi(x1,y1,z1)
+      end function triple_product
 
-        x1 = car(1)
-        y1 = car(2)
-        z1 = car(3)
+c     delta
+c     #################################################################
+      real(8) function delta(i,j)
 
-      end subroutine getCartesianCoordinates
+        integer(4) :: i,j
+
+        delta = 0d0
+        if (i == j) delta = 1d0
+
+      end function delta
+
+      end module grid_metric
+
+c module grid_operations
+c #####################################################################
+      module grid_operations
+
+c ---------------------------------------------------------------------
+c     This module packs routines that perform operations on grid
+c     quantities, such as coordinate transformation of vector components,
+c     vector norms and scalar products. It contains the following
+c     routines:
+c          * transformVectorToCartesian 
+c          * transformVectorToCurvilinear 
+c          * transformFromCurvToCurv 
+c          * volume
+c          * vectorNorm
+c          * scalarProduct
+c     It is assumed that the grid metric structure gmetric is allocated 
+c     and filled.
+c ---------------------------------------------------------------------
+
+        use grid_metric
+
+        implicit none
+
+      contains
 
 c     transformVectorToCartesian
 c     #################################################################
@@ -2281,8 +2818,9 @@ c     #################################################################
      .                                     ,cx,cy,cz)
 
 c     -----------------------------------------------------------------
-c     Interface for transformVecToCar that reads logical indeces (i,j,k)
-c     instead of spatial coordinates.
+c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
+c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -2296,41 +2834,6 @@ c     Input variables
 
 c     Local variables
 
-        integer(4) :: ig,jg,kg
-        real(8)    :: x,y,z
-        logical    :: cartesian
-
-c     Begin program
-
-        call getCoordinates(i,j,k,igx,igy,igz,ig,jg,kg,x,y,z,cartesian)
-
-        call transformVecToCar(x,y,z,cartesian,c1,c2,c3,covariant
-     .                        ,cx,cy,cz)
-
-      end subroutine transformVectorToCartesian
-
-c     transformVecToCar
-c     #################################################################
-      subroutine transformVecToCar(x,y,z,cartesian
-     .                            ,c1,c2,c3,covariant
-     .                            ,cx,cy,cz)
-
-c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
-c     at spatial coordinates (x,y,z) (cartesian if cartesian=true, logical
-c     otherwise).
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        real(8)    :: x,y,z,c1,c2,c3,cx,cy,cz
-        logical    :: covariant,cartesian
-        
-
-c     Local variables
-
         integer(4) :: ic
         real(8)    :: T_to_car(3,3),vec(3)
 
@@ -2339,7 +2842,7 @@ c     Begin program
         if (covariant) then
 
           do ic =1,3
-            T_to_car(:,ic) = covariantVector(ic,x,y,z,cartesian)
+            T_to_car(:,ic) = gmetric%grid(igx)%cov(i,j,k,ic,:)
           enddo
 
           vec = (/ c1,c2,c3 /)
@@ -2353,7 +2856,7 @@ c     Begin program
         else
 
           do ic =1,3
-            T_to_car(:,ic) = contravariantVector(ic,x,y,z,cartesian)
+            T_to_car(:,ic) = gmetric%grid(igx)%cnv(i,j,k,ic,:)
           enddo
 
           vec = (/ c1,c2,c3 /)
@@ -2366,7 +2869,7 @@ c     Begin program
 
         endif
 
-      end subroutine transformVecToCar
+      end subroutine transformVectorToCartesian
 
 c     transformVectorToCurvilinear
 c     #################################################################
@@ -2375,8 +2878,9 @@ c     #################################################################
      .                                       ,c1,c2,c3)
 
 c     -----------------------------------------------------------------
-c     Interface for transformVec2Curv that reads logical indeces (i,j,k)
-c     instead of spatial coordinates.
+c     Transforms a Cartesian vector (cx,cy,cz) to curvilinear (c1,c2,c3)
+c     (covariant if covariant=.true., contravariant otherwise)
+c     at grid coordinates (i,j,k). 
 c     -----------------------------------------------------------------
 
         implicit none
@@ -2386,41 +2890,6 @@ c     Input variables
         integer(4) :: i,j,k,igx,igy,igz
         real(8)    :: c1,c2,c3,cx,cy,cz
         logical    :: covariant
-        
-
-c     Local variables
-
-        integer(4) :: ig,jg,kg
-        real(8)    :: x,y,z
-        logical    :: cartesian
-
-c     Begin program
-
-        call getCoordinates(i,j,k,igx,igy,igz,ig,jg,kg,x,y,z,cartesian)
-
-        call transformVec2Curv(x,y,z,cartesian,cx,cy,cz
-     .                        ,c1,c2,c3,covariant)
-
-      end subroutine transformVectorToCurvilinear
-
-c     transformVec2Curv
-c     #################################################################
-      subroutine transformVec2Curv(x,y,z,cartesian,cx,cy,cz
-     .                            ,c1,c2,c3,covariant)
-
-c     -----------------------------------------------------------------
-c     Transforms a Cartesian vector (cx,cy,cz) to curvilinear (c1,c2,c3)
-c     at spatial coordinates x,y,z (cartesian if cartesian=.true., logical
-c     otherwise).
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        real(8)    :: x,y,z,c1,c2,c3,cx,cy,cz
-        logical    :: covariant,cartesian
-        
 
 c     Local variables
 
@@ -2429,12 +2898,12 @@ c     Local variables
 
 c     Begin program
 
-        jac = jacobian(x,y,z,cartesian)
+        jac = gmetric%grid(igx)%jac(i,j,k)
 
         if (covariant) then
 
           do ic =1,3
-            T_to_curv(:,ic) = contravariantVector(ic,x,y,z,cartesian)
+            T_to_curv(:,ic) = gmetric%grid(igx)%cnv(i,j,k,ic,:)
           enddo
 
           T_to_curv = jac*transpose(T_to_curv)
@@ -2450,7 +2919,7 @@ c     Begin program
         else
 
           do ic =1,3
-            T_to_curv(:,ic) = covariantVector(ic,x,y,z,cartesian)
+            T_to_curv(:,ic) = gmetric%grid(igx)%cov(i,j,k,ic,:)
           enddo
 
           T_to_curv = jac*transpose(T_to_curv)
@@ -2465,15 +2934,15 @@ c     Begin program
 
         endif
 
-      end subroutine transformVec2Curv
+      end subroutine transformVectorToCurvilinear
 
 c     transformFromCurvToCurv
 c     #################################################################
       subroutine transformFromCurvToCurv(i,j,k,igx,igy,igz
      .             ,cov1,cov2,cov3,cnv1,cnv2,cnv3,tocnv)
 c     -----------------------------------------------------------------
-c     Interface for transformCurvToCurv that reads logical indices
-c     (i,j,k).
+c     Transforms a curvilinear vector from covariant to contravariant 
+c     (tocnv=.true.) or viceversa at grid coordinates (i,j,k).
 c     -----------------------------------------------------------------
 
         implicit none
@@ -2486,59 +2955,27 @@ c     Input variables
 
 c     Local variables
 
-        integer(4) :: ig,jg,kg
-        real(8)    :: x,y,z
-        logical    :: cartesian
-
-c     Begin program
-
-        call getCoordinates(i,j,k,igx,igy,igz,ig,jg,kg,x,y,z,cartesian)
-
-        call transformCurvToCurv(x,y,z,cartesian
-     .             ,cov1,cov2,cov3,cnv1,cnv2,cnv3,tocnv)
-
-      end subroutine transformFromCurvToCurv
-
-c     transformCurvToCurv
-c     #################################################################
-      subroutine transformCurvToCurv(x,y,z,cartesian
-     .             ,cov1,cov2,cov3,cnv1,cnv2,cnv3,tocnv)
-c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector from covariant to contravariant 
-c     (tocnv=.true.) or viceversa at spatial coordinates (x,y,z)
-c     (cartesian if cartesian=true, logical otherwise).
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        real(8)    :: x,y,z,cov1,cov2,cov3,cnv1,cnv2,cnv3
-        logical    :: tocnv,cartesian
-
-c     Local variables
-
         real(8)    :: gmat(3,3),cov(3),cnv(3)
 
 c     Begin program
 
         if (tocnv) then
           cov = (/ cov1,cov2,cov3 /)
-          gmat= G_super(x,y,z,cartesian)
+          gmat= gmetric%grid(igx)%gsup(i,j,k,:,:)
           cnv = matmul(gmat,cov)
           cnv1 = cnv(1)
           cnv2 = cnv(2)
           cnv3 = cnv(3)
         else
           cnv  = (/ cnv1,cnv2,cnv3 /)
-          gmat = G_sub(x,y,z,cartesian)
+          gmat = gmetric%grid(igx)%gsub(i,j,k,:,:)
           cov  = matmul(gmat,cnv)
           cov1 = cov(1)
           cov2 = cov(2)
           cov3 = cov(3)
         endif
 
-      end subroutine transformCurvToCurv
+      end subroutine transformFromCurvToCurv
 
 c     volume
 c     #################################################################
@@ -2559,18 +2996,16 @@ c     Local variables
 
         integer(4) :: ig,jg,kg
         real(8)    :: x1,x2,x3,dx1,dx2,dx3,jac
-        logical    :: cartesian
 
 c     Begin program
 
-        call getCoordinates(i,j,k,igx,igy,igz,ig,jg,kg,x1,x2,x3
-     .                     ,cartesian)
+        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
         dx1 = grid_params%dxh(ig)
         dx2 = grid_params%dyh(jg)
         dx3 = grid_params%dzh(kg)
 
-        jac = jacobian(x1,x2,x3,cartesian)
+        jac = gmetric%grid(igx)%jac(i,j,k)
         
         vol = jac*dx1*dx2*dx3
 
@@ -2578,7 +3013,7 @@ c     Begin program
 
 c     vectorNorm
 c     ################################################################
-      real(8) function vectorNorm(x1,y1,z1,ax,ay,az,covar,cartesian)
+      real(8) function vectorNorm(i,j,k,igx,igy,igz,ax,ay,az,covar)
 
 c     ---------------------------------------------------------------
 c     Finds norm of vector A given its curvilinear components.
@@ -2588,26 +3023,29 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      real(8)    :: x1,y1,z1,ax,ay,az
-      logical    :: covar,cartesian
+      integer(4) :: i,j,k,igx,igy,igz
+      real(8)    :: ax,ay,az
+      logical    :: covar
 
 c     Local variables
 
-      real(8)    :: tensor(3,3),cnv(3),cov(3)
+      real(8)    :: tensor(3,3),cnv(3),cov(3),jac
 
 c     Begin program
 
+      jac = gmetric%grid(igx)%jac(i,j,k)
+
       if (covar) then
-        tensor = G_super(x1,y1,z1,cartesian)
+        tensor = gmetric%grid(igx)%gsup(i,j,k,:,:)
         cov = (/ ax,ay,az /)
         cnv = matmul(tensor,cov)
       else
-        tensor = G_sub(x1,y1,z1,cartesian)
+        tensor = gmetric%grid(igx)%gsub(i,j,k,:,:)
         cnv = (/ ax,ay,az /)
         cov = matmul(tensor,cnv)
       endif
 
-      vectorNorm = dot_product(cov,cnv)/jacobian(x1,y1,z1,cartesian)
+      vectorNorm = dot_product(cov,cnv)/jac
 
 c     End 
 
@@ -2615,8 +3053,8 @@ c     End
 
 c     scalarProduct
 c     ################################################################
-      function scalarProduct(x1,y1,z1,cov1,cov2,cov3,cnv1,cnv2,cnv3
-     .                      ,cartesian) result (dot)
+      function scalarProduct(i,j,k,igx,igy,igz,cov1,cov2,cov3
+     .                       ,cnv1,cnv2,cnv3) result (dot)
 
 c     ---------------------------------------------------------------
 c     Finds scalar product of two vectors, one covariant and the
@@ -2627,8 +3065,8 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      real(8)    :: dot,cov1,cov2,cov3,cnv1,cnv2,cnv3,x1,y1,z1
-      logical    :: cartesian
+      integer(4) :: i,j,k,igx,igy,igz
+      real(8)    :: dot,cov1,cov2,cov3,cnv1,cnv2,cnv3
 
 c     Local variables
 
@@ -2639,34 +3077,27 @@ c     Begin program
       cnv = (/ cnv1,cnv2,cnv3 /)
       cov = (/ cov1,cov2,cov3 /)
 
-      dot = dot_product(cov,cnv)/jacobian(x1,y1,z1,cartesian)
+      dot = dot_product(cov,cnv)/gmetric%grid(igx)%jac(i,j,k)
 
 c     End 
 
       end function scalarProduct
 
-      end module grid_interface
+      end module grid_operations
 
 c module grid
 c #####################################################################
       module grid
 
-        use grid_interface
+        use grid_operations
 
         implicit none
 
-        integer(4) :: PER,DIR,NEU,SP,EQU,DEF
-        parameter (PER=2,SP=5,DIR=4,NEU=3,EQU=1,DEF=6)
-
         integer(4),private :: nxx,nyy,nzz
 
-        integer(4) :: mg_ratio,bcond(6)
+        integer(4) :: mg_ratio
 
         real(8),private :: pi
-
-        INTERFACE ASSIGNMENT (=)
-          module procedure equateGridStructure
-        END INTERFACE
 
       contains
 
@@ -2726,7 +3157,8 @@ c     Find adequate number of grid levels (for MG)
 
 c     Allocate grid storage structure
 
-        call allocateGridStructure(ngrdx,ngrdy,ngrdz,grid_params)
+        call allocateGridStructure(nxx,nyy,nzz,ngrdx,ngrdy,ngrdz
+     .                            ,grid_params)
 
 c     Initialize MG arrays
 
@@ -2793,19 +3225,6 @@ c     Set grid parameters
 
 c     Consistency checks
 
-        if (xmax == 0d0) then
-          xmax = 2*pi
-          xmin = 0d0
-        endif
-        if (ymax == 0d0) then
-          ymax = 2*pi
-          ymin = 0d0
-        endif
-        if (zmax == 0d0) then
-          zmax = 2*pi
-          zmin = 0d0
-        endif
-
         call consistencyCheck
 
 c     Define uniform logical grid on ALL grid levels
@@ -2828,288 +3247,11 @@ cc     .                        ,grid_params%ngrdz,grid_params%istartz
      .                        ,grid_params%ngrid,grid_params%istartz
      .                        ,zmin,zmax,bcond(5),bcond(6))
 
+c     Store grid metric parameters in grid metric structure
+
+        if (checkGridDatabase()) call defineGridMetric(gmetric)
+
       end subroutine createGrid
-
-c     allocateGridStructure
-c     #################################################################
-      subroutine allocateGridStructure(ngridx,ngridy,ngridz,grid_st)
-c     -----------------------------------------------------------------
-c     Allocates grid structure
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer(4)     :: ngridx,ngridy,ngridz
-        type(grid_def) :: grid_st
-
-c     Local variables
-
-        integer(4) :: ngrid,nxmg,nymg,nzmg
-
-c     Begin program
-
-        ngrid = max(ngridx,ngridy,ngridz)
-
-        grid_st%ngrdx = ngridx
-        grid_st%ngrdy = ngridy
-        grid_st%ngrdz = ngridz
-        grid_st%ngrid = ngrid
-
-        nxmg=findMGsize(nxx,ngridx,ngrid)
-        nymg=findMGsize(nyy,ngridy,ngrid)
-        nzmg=findMGsize(nzz,ngridz,ngrid)
-
-        if (.not.associated(grid_st%xx)) then
-          allocate(grid_st%xx(nxmg+2*ngrid))
-          allocate(grid_st%yy(nymg+2*ngrid))
-          allocate(grid_st%zz(nzmg+2*ngrid))
-          allocate(grid_st%dx(nxmg+2*ngrid))
-          allocate(grid_st%dy(nymg+2*ngrid))
-          allocate(grid_st%dz(nzmg+2*ngrid))
-          allocate(grid_st%dxh(nxmg+2*ngrid))
-          allocate(grid_st%dyh(nymg+2*ngrid))
-          allocate(grid_st%dzh(nzmg+2*ngrid))
-          allocate(grid_st%nxv(ngrid))
-          allocate(grid_st%nyv(ngrid))
-          allocate(grid_st%nzv(ngrid))
-          allocate(grid_st%ntotv(ngrid))
-          allocate(grid_st%istartx(ngrid))
-          allocate(grid_st%istarty(ngrid))
-          allocate(grid_st%istartz(ngrid))
-          allocate(grid_st%istartp(ngrid))
-          allocate(grid_st%mg_ratio_x(ngrid))
-          allocate(grid_st%mg_ratio_y(ngrid))
-          allocate(grid_st%mg_ratio_z(ngrid))
-          allocate(grid_st%iline(ngrid))
-          allocate(grid_st%jline(ngrid))
-          allocate(grid_st%kline(ngrid))
-        endif
-
-        grid_st%iline = 0
-        grid_st%jline = 0
-        grid_st%kline = 0
-
-c     End program
-
-      contains
-
-c     findMGsize
-c     #################################################################
-      function findMGsize(nn,ngrd,ngrdt) result (nnmg)
-      implicit none
-c     -----------------------------------------------------------------
-c     Finds size for MG vectors, taking into account total grid levels
-c     ngrdt, grid levels in the relevant direction ngrd, and the 
-c     number of mesh points in the finest grid nn. The formula ensures
-c     enough space even if nn=1 in the finest grid. It does NOT include
-c     ghost cells (this requires an additional term of 2*ngrdt).
-c     -----------------------------------------------------------------
-
-        integer(4) :: nn,nnmg,ngrd,ngrdt
-
-        nnmg = 2*nn + ngrdt - ngrd -1
-
-      end function findMGsize
-
-      end subroutine allocateGridStructure
-
-c     equateGridStructure
-c     #################################################################
-      subroutine equateGridStructure(grid_st2,grid_st1)
-
-c     -----------------------------------------------------------------
-c     Performs grid_st2 = grid_st1
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_def),intent(in)  :: grid_st1
-        type(grid_def),intent(out) :: grid_st2
-
-c     Local variables
-
-        integer(4)     :: ngridx,ngridy,ngridz
-
-c     Begin program
-
-        ngridx = grid_st1%ngrdx
-        ngridy = grid_st1%ngrdy
-        ngridz = grid_st1%ngrdz
-
-        call allocateGridStructure(ngridx,ngridy,ngridz,grid_st2)
-
-        grid_st2%iline      = grid_st1%iline
-        grid_st2%jline      = grid_st1%jline
-        grid_st2%kline      = grid_st1%kline
-        grid_st2%xx         = grid_st1%xx        
-        grid_st2%yy         = grid_st1%yy        
-        grid_st2%zz         = grid_st1%zz        
-        grid_st2%dx         = grid_st1%dx        
-        grid_st2%dy         = grid_st1%dy        
-        grid_st2%dz         = grid_st1%dz        
-        grid_st2%dxh        = grid_st1%dxh       
-        grid_st2%dyh        = grid_st1%dyh       
-        grid_st2%dzh        = grid_st1%dzh       
-        grid_st2%nxv        = grid_st1%nxv       
-        grid_st2%nyv        = grid_st1%nyv       
-        grid_st2%nzv        = grid_st1%nzv       
-        grid_st2%ntotv      = grid_st1%ntotv     
-        grid_st2%istartx    = grid_st1%istartx   
-        grid_st2%istarty    = grid_st1%istarty   
-        grid_st2%istartz    = grid_st1%istartz   
-        grid_st2%istartp    = grid_st1%istartp   
-        grid_st2%mg_ratio_x = grid_st1%mg_ratio_x
-        grid_st2%mg_ratio_y = grid_st1%mg_ratio_y
-        grid_st2%mg_ratio_z = grid_st1%mg_ratio_z
-
-c     End program
-
-      end subroutine equateGridStructure
-
-c     writeGridStructure
-c     #################################################################
-      subroutine writeGridStructure(grid_st)
-
-c     -----------------------------------------------------------------
-c     Performs grid_st2 = grid_st1
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_def) :: grid_st
-
-c     Local variables
-
-c     Begin program
-
-        write (*,*) 'ngrdx',grid_st%ngrdx
-        write (*,*) 'ngrdy',grid_st%ngrdy
-        write (*,*) 'ngrdz',grid_st%ngrdz
-        write (*,*) 'xx',grid_st%xx        
-        write (*,*) 'yy',grid_st%yy        
-        write (*,*) 'zz',grid_st%zz        
-        write (*,*) 'dx',grid_st%dx        
-        write (*,*) 'dy',grid_st%dy        
-        write (*,*) 'dz',grid_st%dz        
-        write (*,*) 'dxh',grid_st%dxh       
-        write (*,*) 'dyh',grid_st%dyh       
-        write (*,*) 'dzh',grid_st%dzh       
-        write (*,*) 'nxv',grid_st%nxv       
-        write (*,*) 'nyv',grid_st%nyv       
-        write (*,*) 'nzv',grid_st%nzv       
-        write (*,*) 'ntotv',grid_st%ntotv     
-        write (*,*) 'istartx',grid_st%istartx   
-        write (*,*) 'istarty',grid_st%istarty   
-        write (*,*) 'istartz',grid_st%istartz   
-        write (*,*) 'istartp',grid_st%istartp   
-        write (*,*) 'mg_ratio_x',grid_st%mg_ratio_x
-        write (*,*) 'mg_ratio_y',grid_st%mg_ratio_y
-        write (*,*) 'mg_ratio_z',grid_st%mg_ratio_z
-
-c     End program
-
-      end subroutine writeGridStructure
-
-c     allocateGridMetric
-c     #################################################################
-      subroutine allocateGridMetric(gmetric)
-
-        implicit none
-
-c     Call variables
-
-        type(MG_grid_metrics) :: gmetric
-
-c     Local variables
-
-        integer(4)      :: igrid,nxp,nyp,nzp
-
-c     Begin program
-
-        if (.not.associated(gmetric%grid)) then
-          allocate(gmetric%grid(grid_params%ngrid))
-        endif
-
-        do igrid=1,grid_params%ngrid
-          if (.not.associated(gmetric%grid(igrid)%jac)) then
-            nxp = grid_params%nxv(igrid)+1
-            nyp = grid_params%nyv(igrid)+1
-            nzp = grid_params%nzv(igrid)+1
-            allocate(gmetric%grid(igrid)%jac  (0:nxp,0:nyp,0:nzp))
-            allocate(gmetric%grid(igrid)%vol  (0:nxp,0:nyp,0:nzp))
-            allocate(gmetric%grid(igrid)%gsub (0:nxp,0:nyp,0:nzp,3,3))
-            allocate(gmetric%grid(igrid)%gsup (0:nxp,0:nyp,0:nzp,3,3))
-            allocate(gmetric%grid(igrid)%Gamma(0:nxp,0:nyp,0:nzp,3,3,3))
-          endif
-        enddo
-
-c     End program
-
-      end subroutine allocateGridMetric
-
-c     defineGridMetric
-c     #################################################################
-      subroutine defineGridMetric
-
-        implicit none
-
-c     Call variables
-
-cc        type(MG_grid_metrics) :: gmetric
-
-c     Local variables
-
-        integer(4)      :: igrid,nxp,nyp,nzp,i,j,k,ig,jg,kg
-     .                    ,igx,igy,igz
-        real(8)         :: x0,y0,z0
-        logical         :: cartsn
-
-c     Begin program
-
-        call allocateGridMetric(gmetric)
-
-        do igrid=1,grid_params%ngrid
-
-          igx = igrid
-          igy = igrid
-          igz = igrid
-
-          do k = 0,grid_params%nzv(igrid)+1
-            do j = 0,grid_params%nyv(igrid)+1
-              do i = 0,grid_params%nxv(igrid)+1
-
-                call getCoordinates(i,j,k,igx,igy,igz,ig,jg,kg,x0,y0,z0
-     .                             ,cartsn)
-
-                gmetric%grid(igrid)%jac  (i,j,k)
-     .                      = jacobian(x0,y0,z0,cartsn)
-                gmetric%grid(igrid)%vol  (i,j,k)
-     .                      = volume(i,j,k,igx,igy,igz)
-                gmetric%grid(igrid)%gsub (i,j,k,:,:)
-     .                      = g_sub   (x0,y0,z0,cartsn)
-                gmetric%grid(igrid)%gsup (i,j,k,:,:)
-     .                      = g_super (x0,y0,z0,cartsn)
-                gmetric%grid(igrid)%Gamma(i,j,k,1,:,:)
-     .                      = hessian(1,x0,y0,z0,cartsn)
-                gmetric%grid(igrid)%Gamma(i,j,k,2,:,:)
-     .                      = hessian(2,x0,y0,z0,cartsn)
-                gmetric%grid(igrid)%Gamma(i,j,k,3,:,:)
-     .                      = hessian(3,x0,y0,z0,cartsn)
-              enddo
-            enddo
-          enddo
-
-        enddo
-
-c     End program
-
-      end subroutine defineGridMetric
 
 c     createLogicalGrid
 c     #################################################################
@@ -3257,6 +3399,21 @@ c     Local variables
 
 c     Begin program
 
+        !Default sizes
+        if (xmax == 0d0) then
+          xmax = 2*pi
+          xmin = 0d0
+        endif
+        if (ymax == 0d0) then
+          ymax = 2*pi
+          ymin = 0d0
+        endif
+        if (zmax == 0d0) then
+          zmax = 2*pi
+          zmin = 0d0
+        endif
+
+        !Consistency
         select case (coords)
         case ('car')
         case ('scl')
@@ -3288,12 +3445,22 @@ c     Begin program
             stop
           endif
 
-        case ('sin')
-        case default
-          write (*,*) 'Grid not implemented'
-          write (*,*) 'Aborting...'
-          stop
         end select
+
+        !Ensure ignorable directions are small for numerical computation
+        !  of grid parameters
+        if (nxx == 1) then
+          xmin = 0d0
+          xmax = 1d-3
+        endif
+        if (nyy == 1) then
+          ymin = 0d0
+          ymax = 1d-3
+        endif
+        if (nzz == 1) then
+          zmin = 0d0
+          zmax = 1d-3
+        endif
 
       end subroutine consistencyCheck
 
@@ -3318,12 +3485,13 @@ c     Begin program
 
 c     Multigrid parameters
 
-cc        igx = grid_params%ngrdx
-cc        igy = grid_params%ngrdy
-cc        igz = grid_params%ngrdz
-        igx = grid_params%ngrid
-        igy = grid_params%ngrid
-        igz = grid_params%ngrid
+cc        igx = grid_params%ngrid
+cc        igy = grid_params%ngrid
+cc        igz = grid_params%ngrid
+
+        igx = 1
+        igy = 1 
+        igz = 1
 
         write (*,*)
         write (*,*) 'Coordinate system: ',coords
@@ -3343,8 +3511,8 @@ cc        igz = grid_params%ngrdz
         call metricTensorCheck(igx,igy,igz
      .             ,grid_params%nxv,grid_params%nyv,grid_params%nzv)
 
-        call hessianCheck(igx,igy,igz
-     .             ,grid_params%nxv,grid_params%nyv,grid_params%nzv)
+cc        call hessianCheck(igx,igy,igz
+cc     .             ,grid_params%nxv,grid_params%nyv,grid_params%nzv)
 
         stop
 
@@ -3423,17 +3591,13 @@ c     Begin program
           do j = 1,nyv(igy)
             do k = 1,nzv(igz)
 
-cc              call getCoordinates(i,j,k,igx,igy,igz,x1,y1,z1,cartesian)
-
               call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
               x1 = grid_params%xx(ig)
               y1 = grid_params%yy(jg)
               z1 = grid_params%zz(kg)
 
-              hess(1,:,:) = hessian(1,x1,y1,z1,.false.)
-              hess(2,:,:) = hessian(2,x1,y1,z1,.false.)
-              hess(3,:,:) = hessian(3,x1,y1,z1,.false.)
+              hess = -christ_2knd(i,j,k,igx,igy,igz)
 
               hess_cnv(1,:,:) = hessian_cnv(1,x1,y1,z1)
               hess_cnv(2,:,:) = hessian_cnv(2,x1,y1,z1)
@@ -3473,17 +3637,6 @@ c     End program
 
       end subroutine hessianCheck
 
-c     delta
-c     #################################################################
-      real(8) function delta(i,j)
-
-        integer(4) :: i,j
-
-        delta = 0d0
-        if (i == j) delta = 1d0
-
-      end function delta
-
 c     metricTensorCheck
 c     #################################################################
       subroutine metricTensorCheck(igx,igy,igz,nxv,nyv,nzv)
@@ -3515,17 +3668,16 @@ c     Begin program
           do j = 1,nyv(igy)
             do k = 1,nzv(igz)
 
-              call getCoordinates(i,j,k,igx,igy,igz,ig,jg,kg,x1,y1,z1
-     .                           ,cartesian)
+              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
-cc              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-cc
-cc              x1 = grid_params%xx(ig)
-cc              y1 = grid_params%yy(jg)
-cc              z1 = grid_params%zz(kg)
+              x1 = grid_params%xx(ig)
+              y1 = grid_params%yy(jg)
+              z1 = grid_params%zz(kg)
 
-              gup = g_super(x1,y1,z1,cartesian)
-              gdown = g_sub(x1,y1,z1,cartesian)
+cc              gup   = g_sup(i,j,k,igx,igy,igz)
+cc              gdown = g_sub(i,j,k,igx,igy,igz)
+              gup   = gmetric%grid(igx)%gsup(i,j,k,:,:)
+              gdown = gmetric%grid(igx)%gsub(i,j,k,:,:)
 
               tensor = matmul(gup,gdown)
 
