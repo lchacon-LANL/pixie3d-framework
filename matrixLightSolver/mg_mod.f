@@ -6,36 +6,41 @@ c######################################################################
         double precision,dimension(:,:),allocatable:: xl,yl
         double precision,dimension(:)  ,allocatable:: dx,dy
         integer         ,dimension(:)  ,allocatable:: istartp,
-     .           nxvp,nyvp,ntotvp
-
-cc        double precision, allocatable, dimension(:,:):: diag
-
-cc        logical :: fpointers
+     .                                                nxvp,nyvp,ntotvp
 
       contains
 
 c     setupMG
 c     #################################################################
-      subroutine setupMG(nx,ny,xlength,ylength)
+      subroutine setupMG(nx,xlength,ny,ylength,bcond)
 
 c     -----------------------------------------------------------------
-c     Initializes MG and creates 2D uniform grid
+c     Initializes MG and creates 2D uniform grid.
+c
+c     Input variables:
+c         * nx : number of mesh points in X
+c         * xlength : dimension of domain in X
+c         * xper : logical variable that indicates if X is periodic
+c         * ny : number of mesh points in Y
+c         * ylength : dimension of domain in Y
+c         * yper : logical variable that indicates if Y is periodic
 c     -----------------------------------------------------------------
 
       implicit none        !For safe fortran
 
 c     Call variables
 
-      integer         :: nx,ny
-      double precision:: xlength,ylength
+      integer          :: nx,ny,bcond(4)
+      double precision :: xlength,ylength
+cc      logical          :: xper,yper
 
 c     Local variables
 
-      integer*4      n1,n2,i,j,ig,if,jf,nx1,ny1
+      integer          :: n1,n2,i,j,ig,if,jf,nx1,ny1
 
 c     Begin program
 
-c     Find ngrd
+c     Find number of grid levels (ngrd)
 
       if (ngrd.eq.0) then
         n1 = int(dlog(1d0*nx)/dlog(2d0)+0.001)
@@ -52,15 +57,14 @@ c     Find ngrd
         ny1 = ny/2**(ngrd-1)
       endif
 
-c     Allocate arrays
+c     Allocate MG arrays
 
       allocate(nxvp(ngrd),nyvp(ngrd))
       allocate(dx(ngrd),dy(ngrd))
       allocate(xl(0:nx+1,ngrd),yl(0:ny+1,ngrd))
       allocate(istartp(ngrd),ntotvp(ngrd))
-cc      allocate(istart (ngrd),ntotv (ngrd))
 
-c     Initialize MG
+c     Initialize MG arrays
 
       nxvp(1) = nx1
       nyvp(1) = ny1
@@ -80,59 +84,394 @@ c     Error check
          stop
       endif
 
-c     Define the uniform grid at all levels
+c     Define uniform grid at all grid levels
 
-      dx(ngrd) = xlength/dfloat(nx-1)
-      dy(ngrd) = ylength/dfloat(ny+1)
+      call defineGrid(nx,xl,dx,nxvp,ngrd,xlength,bcond(3),bcond(4))
 
-      ig = ngrd
+      call defineGrid(ny,yl,dy,nyvp,ngrd,ylength,bcond(1),bcond(2))
 
-      xl(1,ig) = 0d0
-      do i = 2,nxvp(ig)+1
-        xl(i,ig) = xl(i-1,ig) + dx(ig)
-      enddo
-      xl(0,ig) = xl(1,ig) - dx(ig)
+c     End program
 
-      yl(0,ig) = 0d0
-      do j = 1,nyvp(ig)+1
-        yl(j,ig) = yl(j-1,ig) + dy(ig)
-      enddo
+      contains
 
-      do ig = ngrd-1,1,-1
+      subroutine defineGrid (nn,xx,dx,nx,ngrid,length,bc1,bc2)
 
-cc        dx(ig) = xlength/dfloat(nxvp(ig)-1)
-        dx(ig) = dx(ig+1)*2d0
+        implicit none
 
-        do i = 1,nxvp(ig)
-          if = 2*i
-          xl(i,ig) = .5*(xl(if,ig+1)+xl(if-1,ig+1))
-        enddo
-        xl(0         ,ig) = xl(1       ,ig) - dx(ig)/2.
-        xl(nxvp(ig)+1,ig) = xl(nxvp(ig),ig) + dx(ig)/2.
+        integer          :: nn,ngrid,nx(ngrid),bc1,bc2
+        double precision :: xx(0:nn+1,ngrid),dx(ngrid),length
+        
+        integer          :: ig,i
 
-cc        dy(ig) = dy(ig+1)*2d0
-cc        yl(0,ig) = 0d0
-cc        do j = 1,nyvp(ig)
-cc          jf = 2*j
-cc          yl(j,ig) = .5*(yl(jf,ig+1)+yl(jf-1,ig+1))
-cc        enddo
-cc        yl(nyvp(ig)+1,ig) = 1d0
+        if (bc1 == 0 .or. bc2 == 0) then
 
-        dy(ig) = 1d0/dfloat(nyvp(ig)+1)
-        yl(0,ig) = 0d0
-        do j = 1,nyvp(ig)+1
-          yl(j,ig) = yl(j-1,ig) + dy(ig)
-        enddo
+          ig = ngrid
 
-cc        write (*,*) 'next grid: ',ig
-cc        write (*,*) xl(0:nxvp(ig)+1,ig)
-cc        write (*,*)
-cc        write (*,*) yl(0:nyvp(ig)+1,ig)
+          dx(ig) = length/dfloat(nx(ig)-1)
+
+          xx(1,ig) = 0d0
+          do i = 2,nx(ig)+1
+            xx(i,ig) = xx(i-1,ig) + dx(ig)
+          enddo
+          xx(0,ig) = xx(1,ig) - dx(ig)
+
+
+          do ig = ngrid-1,1,-1
+
+            dx(ig) = dx(ig+1)*2d0
+
+            do i = 1,nx(ig)
+              if = 2*i
+              xx(i,ig) = .5*(xx(if,ig+1)+xx(if-1,ig+1))
+            enddo
+            xx(0       ,ig) = xx(1     ,ig) - dx(ig)/2.
+            xx(nx(ig)+1,ig) = xx(nx(ig),ig) + dx(ig)/2.
+
+          enddo
+
+        elseif (bc1 == 1 .and. bc2 == 1) then
+
+          ig = ngrid
+
+          dx(ig) = length/dfloat(nx(ig)+1)
+
+          xx(0,ig) = 0d0
+          do j = 1,nx(ig)+1
+            xx(j,ig) = xx(j-1,ig) + dx(ig)
+          enddo
+
+          do ig = ngrid-1,1,-1
+
+            dx(ig) = 1d0/dfloat(nx(ig)+1)
+
+            xx(0,ig) = 0d0
+            do j = 1,nx(ig)+1
+              xx(j,ig) = xx(j-1,ig) + dx(ig)
+            enddo
+
+          enddo
+
+        elseif (bc1 == 2 .and. bc2 == 1) then
+
+          ig = ngrid
+
+          dx(ig) = length/dfloat(nx(ig))
+
+          xx(0,ig) = -dx(ig)
+          do j = 1,nx(ig)+1
+            xx(j,ig) = xx(j-1,ig) + dx(ig)
+          enddo
+
+          do ig = ngrid-1,1,-1
+
+            dx(ig) = 1d0/dfloat(nx(ig))
+
+            xx(0,ig) = -dx(ig)
+            do j = 1,nx(ig)+1
+              xx(j,ig) = xx(j-1,ig) + dx(ig)
+            enddo
+
+          enddo
+
+        elseif (bc1 == 1 .and. bc2 == 2) then
+
+          ig = ngrid
+
+          dx(ig) = length/dfloat(nx(ig))
+
+          xx(0,ig) = 0d0
+          do j = 1,nx(ig)+1
+            xx(j,ig) = xx(j-1,ig) + dx(ig)
+          enddo
+
+          do ig = ngrid-1,1,-1
+
+            dx(ig) = 1d0/dfloat(nx(ig))
+
+            xx(0,ig) = 0d0
+            do j = 1,nx(ig)+1
+              xx(j,ig) = xx(j-1,ig) + dx(ig)
+            enddo
+
+          enddo
+
+        elseif (bc1 == 2 .and. bc2 == 2) then
+
+          ig = ngrid
+
+          dx(ig) = length/dfloat(nx(ig)-1)
+
+          xx(0,ig) = -dx(ig)
+          do j = 1,nx(ig)+1
+            xx(j,ig) = xx(j-1,ig) + dx(ig)
+          enddo
+
+          do ig = ngrid-1,1,-1
+
+            dx(ig) = 1d0/dfloat(nx(ig)-1)
+
+            xx(0,ig) = -dx(ig)
+            do j = 1,nx(ig)+1
+              xx(j,ig) = xx(j-1,ig) + dx(ig)
+            enddo
+
+          enddo
+
+        endif
+
+      end subroutine defineGrid
+
+      end subroutine setupMG
+
+c     restrictArray
+c     ###############################################################
+      subroutine restrictArray(nx,ny,array,mgvector,order,bcond)
+c     --------------------------------------------------------------
+c     Restricts array to mgvector in all grids (without ghost nodes)
+c     --------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      integer         nx,ny,order,bcond(4)
+      real*8          array(0:nx+1,0:ny+1)
+      real*8          mgvector(2*nx*ny)
+
+c     Local variables
+
+      integer*4       nxf,nyf,nxc,nyc,igrid,igridf
+
+      real*8          dx1,dy1
+
+      double precision, allocatable,dimension(:,:)::arrayf,arrayc
+
+c     Begin program
+
+c     Map array in finest grid onto MG vector
+
+      dx1 = dx(ngrd)
+      dy1 = dy(ngrd)
+
+      nxf  = nxvp(ngrd)
+      nyf  = nyvp(ngrd)
+
+      call mapArrayToMGVector(nxf,nyf,array,mgvector,ngrd)
+
+      allocate(arrayf(0:nxf+1,0:nyf+1))
+
+      arrayf = array
+
+      igridf = ngrd
+ 
+c     Restrict array to coarser grids
+
+      do igrid = ngrd-1,2,-1
+
+c       Characterize coarse grid and define arrays
+
+        dx1 = dx(igrid)
+        dy1 = dy(igrid)
+
+        nxc  = nxvp(igrid)
+        nyc  = nyvp(igrid)
+
+        allocate(arrayc(0:nxc+1,0:nyc+1))
+
+c       Restrict arrayf -> arrayc
+
+        call restrictArraytoArray(nxf,nyf,arrayf,igridf
+     .                           ,nxc,nyc,arrayc,igrid ,order,bcond)
+
+c       Map arrayc onto MG vector
+
+        call mapArrayToMGVector(nxc,nyc,arrayc,mgvector,igrid)
+
+c       Transfer grid information
+
+        if (order.eq.0) then
+          igridf = igrid
+          nxf = nxc
+          nyf = nyc
+
+          deallocate(arrayf)
+          allocate(arrayf(0:nxf+1,0:nyf+1))
+
+          arrayf = arrayc
+        endif
+
+c       Deallocate variables
+
+        deallocate(arrayc)
+
       enddo
 
 c     End program
 
+      deallocate(arrayf)
+
       return
+      end subroutine
+
+c     mapArrayToMGVector
+c     ###############################################################
+      subroutine mapArrayToMGVector(nx,ny,array,mgvector,igrid)
+c     --------------------------------------------------------------
+c     Maps array into a MG vector
+c     --------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      integer ::      igrid,nx,ny
+      real*8          mgvector(2*nx*ny),array(0:nx+1,0:ny+1)
+
+c     Local variables
+
+      integer*4       i,j,ii
+
+c     Begin program
+
+      do i = 1,nx
+        do j = 1,ny
+          ii = i + nx*(j-1) + istartp(igrid)-1
+          mgvector(ii) = array(i,j)
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine
+
+c     mapMGVectorToArray
+c     ###############################################################
+      subroutine mapMGVectorToArray(nx,ny,mgvector,array,igrid,bcond)
+c     --------------------------------------------------------------
+c     Maps a MG vector into an array, filling ghost cells.
+c     --------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      integer ::      igrid,nx,ny,bcond(4)
+      real*8          mgvector(2*nx*ny),array(0:nx+1,0:ny+1)
+
+c     Local variables
+
+      integer*4       i,j,ii
+
+c     Begin program
+
+      do i = 1,nx
+        do j = 1,ny
+          ii = i + nx*(j-1) + istartp(igrid)-1
+          array(i,j) = mgvector(ii)
+        enddo
+      enddo
+
+      call setBoundaryConditions(array,nx,ny,bcond)
+
+c     End program
+
+      end subroutine
+
+c     restrictArraytoArray
+c     ###############################################################
+      subroutine restrictArraytoArray(nxf,nyf,arrayf,igridf
+     .                               ,nxc,nyc,arrayc,igridc,order,bcond)
+c     --------------------------------------------------------------
+c     Restricts full array (including ghost nodes) from igridf to
+c     igridc with interpolation order 'order'.
+c     --------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      integer ::      igridc,igridf,nxc,nyc,nxf,nyf,order,bcond(4)
+      real*8          arrayf(0:nxf+1,0:nyf+1),arrayc(0:nxc+1,0:nyc+1)
+
+c     Local variables
+
+      integer*4       ic,jc,if,jf
+
+      real*8          xxc,yyc,xx(nxf+2),yy(nyf+2)
+
+c     Interpolation
+
+      integer*4    kx,ky,nx,ny,dim,flg
+      real*8, dimension(:),allocatable:: tx,ty,work
+      real*8, dimension(:,:),allocatable:: bcoef
+
+      real*8       db2val
+      external     db2val
+
+c     Begin program
+
+c     Agglomeration
+
+      if (order.eq.0) then
+
+        do jc = 1,nyc
+          do ic = 1,nxc
+            jf = 2*jc
+            if = 2*ic
+
+            arrayc(ic,jc) = (arrayf(if,jf  ) + arrayf(if-1,jf  )
+     .                      +arrayf(if,jf-1) + arrayf(if-1,jf-1))/4d0
+          enddo
+        enddo
+
+        call setBoundaryConditions(arrayc,nxc,nyc,bcond)
+
+      else
+
+c     Interpolate fine grid array using splines
+
+        xx(1:nxf+2) = xl(0:nxf+1,igridf)
+        yy(1:nyf+2) = yl(0:nyf+1,igridf)
+
+        flg = 0
+        kx = order+1
+        ky = order+1
+        nx = nxf+2
+        ny = nyf+2
+        dim = nx*ny + max(2*kx*(nx+1),2*ky*(ny+1))
+
+        allocate(tx(nx+kx))
+        allocate(ty(nx+ky))
+        allocate(work(dim))
+        allocate(bcoef(nx,ny))
+
+        call db2ink(xx,nx,yy,ny,arrayf,nx,kx,ky,tx,ty,bcoef,work,flg)
+
+c     Map array into vector vv for all grids
+
+        do jc = 1,nyc
+          do ic = 1,nxc
+
+            xxc = xl(ic,igridc)
+            yyc = yl(jc,igridc)
+
+            arrayc(ic,jc) = 
+     .           db2val(xxc,yyc,0,0,tx,ty,nx,ny,kx,ky,bcoef,work)
+
+          enddo
+        enddo
+
+        call setBoundaryConditions(arrayc,nxc,nyc,bcond)
+
+        deallocate(tx)
+        deallocate(ty)
+        deallocate(work)
+        deallocate(bcoef)
+
+      endif
+
+c     End program
+
       end subroutine
 
       end module mg_setup

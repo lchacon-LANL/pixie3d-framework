@@ -4,8 +4,7 @@ c 1) Implement direct block solver for neq > 2.
 c
 c 2) Clean mg_setup module (including pertaining routines).
 c
-c 3) Eliminate hardwired boundary conditions (periodic) in Find_mf 
-c    routine.
+c 3) Document i/o variables in all subroutines consistently.
 
 c module mg_internal
 c######################################################################
@@ -42,7 +41,7 @@ c     Begin program
 
       fpointers = .false.
 
-      allocate(istart (ngrid),ntotv (ngrid), STAT = alloc_stat)
+      allocate(istart(ngrid),ntotv(ngrid), STAT = alloc_stat)
 
       !Successful memory allocation
       if (alloc_stat == 0) then
@@ -78,7 +77,7 @@ c     -----------------------------------------------------------------
 
 c mg
 c#######################################################################
-      recursive subroutine mg(ntot,y,x,matvec,options,igrid
+      recursive subroutine mg(neq,ntot,y,x,matvec,options,igrid,bcond
      .                       ,guess,out,depth)
 c--------------------------------------------------------------------
 c     Matrix-free coupled MG routine to solve
@@ -102,7 +101,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4    ntot,igrid,guess,out,depth
+      integer*4    neq,ntot,igrid,guess,out,depth,bcond(4,neq)
       real*8       x(ntot),y(ntot)
 
       type (solver_options) :: options
@@ -111,7 +110,7 @@ c Call variables
 
 c Local variables
 
-      integer          :: iter,neq,igridmin,vcyc
+      integer          :: iter,igridmin,vcyc
       integer          :: orderres,orderprol,alloc_stat
 
       integer          :: guess2,outc
@@ -121,12 +120,10 @@ c Local variables
       double precision :: rr0,rr1,mag,mag1,mgtol
       double precision :: dummy(ntot),rr(ntot)
 
-      logical          :: fdiag
-      logical          :: fpointers
+      logical          :: fdiag,fpointers
 
 c Begin program
 
-      neq      = options%neq
       igridmin = options%igridmin
       vcyc     = options%vcyc
       mgtol    = options%tol
@@ -159,7 +156,7 @@ c Find diagonal for smoothers
           diag = options%diag
         else                      !Form diagonal
           if (out.ge.2) write (*,*) 'Forming diagonal...'
-          call find_mf_diag_neq(neq,ntot,matvec,igrid,diag)
+          call find_mf_diag_neq(neq,ntot,matvec,igrid,bcond,diag)
           if (out.ge.2) write (*,*) 'Finished!'
         endif
 
@@ -184,7 +181,7 @@ c Compute initial residual and check convergence
       if (guess.eq.0) then
         rr0 = sqrt(sum(y*y))
       else
-        call matvec(0,ntot,x,dummy,igrid)
+        call matvec(0,ntot,x,dummy,igrid,bcond)
         rr = y - dummy
         rr0 = sqrt(sum(rr*rr))
       endif
@@ -216,7 +213,7 @@ c     Perform Vcycle recursively
 
 c     Check MG convergence
 
-        call matvec(0,ntot,xx(istart(igrid)),dummy,igrid)
+        call matvec(0,ntot,xx(istart(igrid)),dummy,igrid,bcond)
 
         rr   = y - dummy
         mag  = sqrt(sum(rr*rr))
@@ -289,7 +286,7 @@ c       Relax error/solution on grid number igr/igrid (find new xx)
 
 c       Evaluate residual (ie wrk = yy - A xx = yy - wrk )
 
-          call matvec(0,nn,xx(isig),wrk(isig),igr)
+          call matvec(0,nn,xx(isig),wrk(isig),igr,bcond)
 
           wrk(isig:isig+nn-1) = yy(isig:isig+nn-1) - wrk(isig:isig+nn-1)
 
@@ -298,7 +295,7 @@ c       Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) down a grid
           call crestrict (neq
      .                   ,yy(isigm),ntotv(igr-1),nxvp(igr-1),nyvp(igr-1)
      .                   ,wrk(isig),ntotv(igr  ),nxvp(igr  ),nyvp(igr  )
-     .                   ,orderres,igr,4d0)
+     .                   ,orderres,igr,bcond,4d0)
 
           guess2 = 0
 
@@ -320,7 +317,7 @@ c       Prolong error (wrk = P * xx_1) on grid 1 to grid 2
           call cprolong (neq
      .                  ,wrk(isig),ntotv(igr  ),nxvp(igr  ),nyvp(igr  )
      .                  ,xx(isigm),ntotv(igr-1),nxvp(igr-1),nyvp(igr-1)
-     .                  ,orderprol,igr-1)
+     .                  ,orderprol,igr-1,bcond)
 
 c       Update existing error on grid 2 (i.e. xx_2): xx_2 = xx_2 + wrk 
 
@@ -344,8 +341,8 @@ c       ###################################################################
 
           depth1 = depth + 1
 
-          call getSolver(nn,yy(isig),xx(isig),matvec,igr,guess2,outc
-     .                  ,depth1)
+          call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcond
+     .                  ,guess2,outc,depth1)
 
         end subroutine solve
 
@@ -355,8 +352,7 @@ c       ###################################################################
 
           implicit none
 
-          if (fdiag) deallocate(diag)
-
+          if (fdiag)  deallocate(diag)
           call deallocPointers(fpointers)
 
         end subroutine killmg
@@ -365,7 +361,7 @@ c       ###################################################################
 
 c jb
 c#######################################################################
-      recursive subroutine jb(ntot,rr,zz,matvec,options,igrid
+      recursive subroutine jb(neq,ntot,rr,zz,matvec,options,igrid,bcond
      .                       ,guess,out,depth)
 c--------------------------------------------------------------------
 c     Matrix-free Jacobi routine to solve Ax = b. Call variables:
@@ -388,7 +384,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer          :: ntot,igrid,guess,out,depth
+      integer          :: neq,ntot,igrid,guess,out,depth,bcond(4,neq)
       double precision :: rr(ntot),zz(ntot)
 
       type (solver_options) :: options
@@ -397,21 +393,20 @@ c Call variables
 
 c Local variables
 
-      integer          :: iter,neq,alloc_stat,isig
+      integer          :: iter,alloc_stat,isig
       double precision :: omega0,omega10,omega01,tol
-      logical          :: fdiag
-      logical          :: fpointers
+      logical          :: fdiag,fpointers
 
       integer*4    i,j,itr,nn,ieq,nx,ny
-      integer*4    ii,iii,iip,iim,jjp,jjm
-      integer*4    ig,ipg,img,jpg,jmg,iig
+      integer*4    ii,iii,iip,iim,jj,jjp,jjm
+      integer*4    ig,ipg,img,jg,jpg,jmg,iig
       real*8       mag0,mag1,mag,yy(ntot),delta
+      double precision :: aw,ae,an,as
 
       double precision,allocatable, dimension(:)  :: dummy,rhs
 
 c Begin program
 
-      neq    = options%neq
       iter   = options%iter
       omega0 = options%omega
       omega10= options%omega10
@@ -443,7 +438,7 @@ c Find diagonal for smoothers
           diag = options%diag
         else                      !Form diagonal
           if (out.ge.2) write (*,*) 'Forming diagonal...'
-          call find_mf_diag_neq(neq,ntot,matvec,igrid,diag)
+          call find_mf_diag_neq(neq,ntot,matvec,igrid,bcond,diag)
           if (out.ge.2) write (*,*) 'Finished!'
         endif
 
@@ -465,7 +460,7 @@ c Jacobi iteration
 
       do itr=1,iter
 
-        call matvec(0,ntot,zz,yy,igrid)
+        call matvec(0,ntot,zz,yy,igrid,bcond)
 
         mag1 = mag
         mag  = 0d0
@@ -489,45 +484,23 @@ c Jacobi iteration
             ny = nyvp(igrid)
 
             do i = 1,nx
+              do j = 1,ny
+                call shiftcoeffs  (i,j,bcond(1,1))
 
-              j = 1
+                call shiftIndices(i,j,ii,iim,iip,jj,jjm,jjp,nx,ny,1
+     .                            ,bcond(1,1))
+                call shiftIndices(i,j,ig,img,ipg,jg,jmg,jpg,nx,ny,isig
+     .                            ,bcond(1,1))
 
-              call shiftIndices(i,j,ii,iim,iip,jjm,jjp,nx,ny,1)
-              call shiftIndices(i,j,ig,img,ipg,jmg,jpg,nx,ny,isig)
-
-              zz(ii) = zz(ii)+omega0*  (rr(ii) -yy(ii) )/diag(neq,ig )
-     .                       +omega10*((rr(iip)-yy(iip))/diag(neq,ipg)
-     .                                +(rr(iim)-yy(iim))/diag(neq,img))
-     .                       +omega01* (rr(jjp)-yy(jjp))/diag(neq,jpg)
-
-              mag = mag + (rr(ii)-yy(ii))**2
-
-              do j = 2,ny-1
-
-                call shiftIndices(i,j,ii,iim,iip,jjm,jjp,nx,ny,1)
-                call shiftIndices(i,j,ig,img,ipg,jmg,jpg,nx,ny,isig)
-
-                zz(ii) =zz(ii)+omega0*  (rr(ii) -yy(ii) )/diag(neq,ig )
-     .                        +omega10*((rr(iip)-yy(iip))/diag(neq,ipg)
-     .                                 +(rr(iim)-yy(iim))/diag(neq,img))
-     .                        +omega01*((rr(jjp)-yy(jjp))/diag(neq,jpg)
-     .                                 +(rr(jjm)-yy(jjm))/diag(neq,jmg))
+                zz(ii) =zz(ii)
+     .                 +omega0*     (rr(ii) -yy(ii) )/diag(neq,ig )
+     .                 +omega10*(ae*(rr(iip)-yy(iip))/diag(neq,ipg)
+     .                          +aw*(rr(iim)-yy(iim))/diag(neq,img))
+     .                 +omega01*(an*(rr(jjp)-yy(jjp))/diag(neq,jpg)
+     .                          +as*(rr(jjm)-yy(jjm))/diag(neq,jmg))
 
                 mag = mag + (rr(ii)-yy(ii))**2
               enddo
-
-              j = ny
-
-              call shiftIndices(i,j,ii,iim,iip,jjm,jjp,nx,ny,1)
-              call shiftIndices(i,j,ig,img,ipg,jmg,jpg,nx,ny,isig)
-
-              zz(ii) = zz(ii)+omega0*  (rr(ii) -yy(ii) )/diag(neq,ig )
-     .                       +omega10*((rr(iip)-yy(iip))/diag(neq,ipg)
-     .                                +(rr(iim)-yy(iim))/diag(neq,img))
-     .                       +omega01* (rr(jjm)-yy(jjm))/diag(neq,jmg)
-
-              mag = mag + (rr(ii)-yy(ii))**2
-
             enddo
 
           endif
@@ -593,7 +566,7 @@ c End program
 
       deallocate (dummy,rhs)
 
-      if (fdiag)     deallocate(diag)
+      if (fdiag)  deallocate(diag)
       call deallocPointers(fpointers)
 
       return
@@ -603,11 +576,45 @@ c End program
  20   format (' JB Iteration:',i4,'; Residual:',1p1e10.2,
      .        '; Ratio:',1p1e10.2,'; Damping:',1p1e10.2)
 
+      contains
+
+c     shiftcoeffs
+c     ###############################################################
+      subroutine shiftcoeffs(i,j,bcond)
+      implicit none
+c     ---------------------------------------------------------------
+c     Shifts indices in a 5pt stencil for both arrays (isig = 0) 
+c     and MG vectors (isig = pointer to grid), accounting for boundary 
+c     conditions as defined in integer array bcond.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer          :: i,j,bcond(4)
+
+c     Local variables
+
+c     Begin program
+
+      an = 1d0
+      as = 1d0
+      ae = 1d0
+      aw = 1d0
+
+      if (i+1 > nx .and. bcond(4) /= 0) ae = 0d0  !Zero out if not periodic
+      if (i-1 < 1  .and. bcond(3) /= 0) aw = 0d0
+      if (j+1 > ny .and. bcond(2) /= 0) an = 0d0
+      if (j-1 < 1  .and. bcond(1) /= 0) as = 0d0
+
+c     End program
+
+      end subroutine
+
       end subroutine
 
 c gs
 c#######################################################################
-      recursive subroutine gs(ntot,rr,zz,matvec,options,igrid
+      recursive subroutine gs(neq,ntot,rr,zz,matvec,options,igrid,bcond
      .                       ,guess,out,depth)
 c--------------------------------------------------------------------
 c     Matrix-free Jacobi routine to solve Ax = b. Call variables:
@@ -630,7 +637,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer          :: ntot,igrid,guess,out,depth
+      integer          :: neq,ntot,igrid,guess,out,depth,bcond(4,neq)
       double precision :: rr(ntot),zz(ntot)
 
       type (solver_options) :: options
@@ -639,10 +646,9 @@ c Call variables
 
 c Local variables
 
-      integer          :: iter,neq,alloc_stat,isig
+      integer          :: iter,alloc_stat,isig
       double precision :: omega0,tol
-      logical          :: fdiag
-      logical          :: fpointers
+      logical          :: fdiag,fpointers,fbcond
 
       integer*4    i,j,itr,nn,ieq,nx,ny
       integer*4    ii,iii,iip,iim,jjp,jjm
@@ -653,7 +659,6 @@ c Local variables
 
 c Begin program
 
-      neq    = options%neq
       iter   = options%iter
       omega0 = options%omega
       tol    = options%tol
@@ -685,7 +690,7 @@ c Find diagonal for smoothers
           diag = options%diag
         else                      !Form diagonal
           if (out.ge.2) write (*,*) 'Forming diagonal...'
-          call find_mf_diag_neq(neq,ntot,matvec,igrid,diag)
+          call find_mf_diag_neq(neq,ntot,matvec,igrid,bcond,diag)
           if (out.ge.2) write (*,*) 'Finished!'
         endif
 
@@ -713,7 +718,7 @@ c       Forward pass
 
           do ii = 1,nn
             ig = ii + isig - 1
-            call matvec(ii,ntot,zz,yy,igrid)
+            call matvec(ii,ntot,zz,yy,igrid,bcond)
             rhs(neq) = rr(ii) - yy(ii)
             dummy(neq) = rhs(neq)/diag(neq,ig)
             zz(ii) = zz(ii) + omega0*dummy(neq)
@@ -723,7 +728,7 @@ c       Backward pass
 
           do ii = nn,1,-1
             ig = ii + isig - 1
-            call matvec(ii,ntot,zz,yy,igrid)
+            call matvec(ii,ntot,zz,yy,igrid,bcond)
             rhs(neq) = rr(ii) - yy(ii)
             dummy(neq) = rhs(neq)/diag(neq,ig)
             zz(ii) = zz(ii) + omega0*dummy(neq)
@@ -738,7 +743,7 @@ c       Forward pass
 
             do ieq = 1,neq
               iii = neq*(ii-1) + ieq 
-              call matvec(iii,ntot,zz,yy,igrid)
+              call matvec(iii,ntot,zz,yy,igrid,bcond)
               rhs(ieq) = rr(iii) - yy(iii)
             enddo
 
@@ -761,7 +766,7 @@ c       Backward pass
 
             do ieq = 1,neq
               iii = neq*(ii-1) + ieq 
-              call matvec(iii,ntot,zz,yy,igrid)
+              call matvec(iii,ntot,zz,yy,igrid,bcond)
               rhs(ieq) = rr(iii) - yy(iii)
             enddo
 
@@ -812,7 +817,7 @@ c End program
 
       deallocate (dummy,rhs)
 
-      if (fdiag) deallocate(diag)
+      if (fdiag)  deallocate(diag)
       call deallocPointers(fpointers)
 
       return
@@ -827,7 +832,7 @@ c End program
 *deck cprolong
 c######################################################################
       subroutine cprolong(neq,xf,ntotf,nxf,nyf,xc,ntotc,nxc,nyc,order
-     .                   ,igc)
+     .                   ,igc,bcond)
 c----------------------------------------------------------------------
 c     This is a prolongation routine for MG. 
 c
@@ -841,8 +846,9 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer      neq,ntotc,nxc,nyc,ntotf,nxf,nyf,order,igc
-      real*8       xc(ntotc),xf(ntotf)
+      integer :: neq,ntotc,nxc,nyc,ntotf,nxf,nyf,order,igc
+     .          ,bcond(4,neq)
+      double precision ::  xc(ntotc),xf(ntotf)
 
 c Local variables
  
@@ -852,30 +858,28 @@ c Local variables
 
 c Begin program
 
-c Injection
+cc      if (order.eq.0) then
 
-      if (order.eq.0) then
+cc      do jc = 1,nyc
 
-      do jc = 1,nyc
+cc        do ic = 1,nxc
+cc          jf = 2*jc
+cc          if = 2*ic
 
-        do ic = 1,nxc
-          jf = 2*jc
-          if = 2*ic
+cc          do ieq = 1,neq
+cc            iic = ieq + neq*(ic-1 + nxc*(jc-1))
+cc            iif = ieq + neq*(if-1 + nxf*(jf-1))
 
-          do ieq = 1,neq
-            iic = ieq + neq*(ic-1 + nxc*(jc-1))
-            iif = ieq + neq*(if-1 + nxf*(jf-1))
+cc            xf(iif                ) = xc(iic) 
+cc            xf(iif - neq          ) = xc(iic) 
+cc            xf(iif - neq*nxf      ) = xc(iic) 
+cc            xf(iif - neq*nxf - neq) = xc(iic) 
+cc          enddo
+cc        enddo
 
-            xf(iif                ) = xc(iic) 
-            xf(iif - neq          ) = xc(iic) 
-            xf(iif - neq*nxf      ) = xc(iic) 
-            xf(iif - neq*nxf - neq) = xc(iic) 
-          enddo
-        enddo
+cc      enddo
 
-      enddo
-
-      else
+cc      else
 
 c Interpolation
 
@@ -893,7 +897,8 @@ c     Unpack vector
 c     Use scalar prolongation
 
           call prolong(xxf,nntotf,nxf,nyf
-     .                ,xxc,nntotc,nxc,nyc,order,igc)
+     .                ,xxc,nntotc,nxc,nyc
+     .                ,order,igc,bcond(1,ieq))
 
 c     Repack prolonged vector
 
@@ -903,7 +908,7 @@ c     Repack prolonged vector
 
         enddo
 
-      endif
+cc      endif
 
 c End program
 
@@ -913,7 +918,7 @@ c End program
 *deck crestrict
 c######################################################################
       subroutine crestrict(neq,xc,ntotc,nxc,nyc,xf,ntotf,nxf,nyf,order
-     .                   ,igf,volf)
+     .                    ,igf,bcond,volf)
 c----------------------------------------------------------------------
 c     This is a restriction routine for MG. 
 c
@@ -927,9 +932,10 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer*4    ntotc,nxc,nyc,ntotf,nxf,nyf,order,igf,neq
+      integer ::   ntotc,nxc,nyc,ntotf,nxf,nyf,order,igf,neq
+     .            ,bcond(4,neq)
 
-      real*8       xc(ntotc),xf(ntotf),volf
+      double precision :: xc(ntotc),xf(ntotf),volf
 
 c Local variables
  
@@ -941,26 +947,26 @@ c Begin program
 
 c Agglomeration
 
-      if (order.eq.0) then
+cc      if (order.eq.0) then
 
-        do jc = 1,nyc
+cc        do jc = 1,nyc
 
-          do ic = 1,nxc
-            jf = 2*jc
-            if = 2*ic
+cc          do ic = 1,nxc
+cc            jf = 2*jc
+cc            if = 2*ic
 
-            do ieq = 1,neq
-              iic = ieq + neq*(ic-1 + nxc*(jc-1))
-              iif = ieq + neq*(if-1 + nxf*(jf-1))
+cc            do ieq = 1,neq
+cc              iic = ieq + neq*(ic-1 + nxc*(jc-1))
+cc              iif = ieq + neq*(if-1 + nxf*(jf-1))
 
-              xc(iic) = (xf(iif)        +xf(iif        -neq)
-     .                 + xf(iif-nxf*neq)+xf(iif-nxf*neq-neq))/4d0*volf
-            enddo
-          enddo
+cc              xc(iic) = (xf(iif)        +xf(iif        -neq)
+cc     .                 + xf(iif-nxf*neq)+xf(iif-nxf*neq-neq))/4d0*volf
+cc            enddo
+cc          enddo
 
-        enddo
+cc        enddo
 
-      else
+cc      else
 
 c Interpolation
 
@@ -978,7 +984,8 @@ c     Unpack vector
 c     Use scalar restriction
 
           call restrict(xxc,nntotc,nxc,nyc
-     .                 ,xxf,nntotf,nxf,nyf,order,igf,volf)
+     .                 ,xxf,nntotf,nxf,nyf
+     .                 ,order,igf,bcond(1,ieq),volf)
 
 c     Repack restricted vector
 
@@ -988,7 +995,7 @@ c     Repack restricted vector
 
         enddo
 
-      endif
+cc      endif
 
 c End program
 
@@ -997,7 +1004,8 @@ c End program
 
 *deck prolong
 c######################################################################
-      subroutine prolong(xf,ntotf,nxf,nyf,xc,ntotc,nxc,nyc,order,igc)
+      subroutine prolong(xf,ntotf,nxf,nyf,xc,ntotc,nxc,nyc,order
+     .                  ,igc,bbcond)
 c----------------------------------------------------------------------
 c     This is a prolongation routine for MG. 
 c
@@ -1011,16 +1019,16 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer      ntotc,nxc,nyc,ntotf,nxf,nyf,order,igc
+      integer      ntotc,nxc,nyc,ntotf,nxf,nyf,order,igc,bbcond(4)
       real*8       xc(ntotc),xf(ntotf)
 
 c Local variables
- 
-      real*8       uc(nxc,nyc)
 
-      real*8       xxf,yyf,ff,xx(nxc),yy(nyc)
+      double precision :: xxf,yyf,ff
 
-      integer*4    ic,if,jc,jf,ii,i,igf,iic,iif
+      double precision :: xx(nxc+2),yy(nyc+2),uc(0:nxc+1,0:nyc+1)
+
+      integer          :: ic,if,jc,jf,ii,i,igf,iic,iif
 
 c Interpolation
 
@@ -1059,23 +1067,18 @@ c     Determine current coarse grid
 
 c     Map vectors into arrays
 
-        xx(1:nxc) = xl(1:nxc,igc)
-        yy(1:nyc) = yl(1:nyc,igc)
+        xx(1:nxc+2) = xl(0:nxc+1,igc)
+        yy(1:nyc+2) = yl(0:nyc+1,igc)
 
-        do ic = 1,nxc
-          do jc = 1,nyc
-            ii = ic + nxc*(jc-1)
-            uc(ic,jc) = xc(ii)
-          enddo
-        enddo
+        call mapMGVectorToArray(nxc,nyc,xc,uc,1,bbcond)
 
 c     Calculate interpolation
 
         flg = 0
         kx = order+1
         ky = order+1
-        nx = nxc
-        ny = nyc
+        nx = nxc + 2
+        ny = nyc + 2
         dim = nx*ny + max(2*kx*(nx+1),2*ky*(ny+1))
 
         allocate(tx(nx+kx))
@@ -1135,7 +1138,7 @@ c End program
 *deck restrict
 c######################################################################
       subroutine restrict(xc,ntotc,nxc,nyc,xf,ntotf,nxf,nyf,order
-     .                   ,igf,volf)
+     .                   ,igf,bbcond,volf)
 c----------------------------------------------------------------------
 c     This is a restriction routine for MG. 
 c
@@ -1149,15 +1152,15 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer*4    ntotc,nxc,nyc,ntotf,nxf,nyf,order,igf
+      integer*4    ntotc,nxc,nyc,ntotf,nxf,nyf,order,igf,bbcond(4)
 
       real*8       xc(ntotc),xf(ntotf),volf
 
 c Local variables
  
-      real*8       uf(nxf,nyf)
+      real*8       uf(0:nxf+1,0:nyf+1)
 
-      real*8       xxc,yyc,xx(nxf),yy(nyf)
+      real*8       xxc,yyc,xx(nxf+2),yy(nyf+2)
 
       integer*4    ic,if,jc,jf,iif,iic,i,igc
 
@@ -1194,23 +1197,18 @@ c Interpolation
 
 c     Map vectors into arrays
 
-        xx(1:nxf) = xl(1:nxf,igf)
-        yy(1:nyf) = yl(1:nyf,igf)
+        xx(1:nxf+2) = xl(0:nxf+1,igf)
+        yy(1:nyf+2) = yl(0:nyf+1,igf)
 
-        do if = 1,nxf
-          do jf = 1,nyf
-            iif = if + nxf*(jf-1)
-            uf(if,jf) = xf(iif)
-          enddo
-        enddo
+        call mapMGVectorToArray(nxf,nyf,xf,uf,1,bbcond)
 
 c     Calculate interpolation
 
         flg = 0
         kx = order + 1
         ky = order + 1
-        nx = nxf
-        ny = nyf
+        nx = nxf+2
+        ny = nyf+2
         dim = nx*ny + max(2*kx*(nx+1),2*ky*(ny+1))
 
         allocate(tx(nx+kx))
@@ -1250,7 +1248,7 @@ c End program
 
 c find_mf_diag_neq
 c####################################################################
-      subroutine find_mf_diag_neq(neq,ntot,matvec,ngrid,diag1)
+      subroutine find_mf_diag_neq(neq,ntot,matvec,ngrid,bbcnd,diag1)
 c--------------------------------------------------------------------
 c     Finds diagonal elements matrix-free using subroutine matvec.
 c--------------------------------------------------------------------
@@ -1261,7 +1259,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4      neq,ntot,ngrid
+      integer*4      neq,ntot,ngrid,bbcnd(4,neq)
 
       double precision :: diag1(neq,2*ntot)
 
@@ -1303,11 +1301,11 @@ c Finds block diagonals for neq equations.
 
 c         Find column vector corresponding to grid node ii and equation ieq
 
-            call findBaseVector(ii,ieq,neq,nn,igrid,x1,1d0)
+            call findBaseVector(ii,ieq,neq,nn,igrid,bbcnd(1,ieq),x1,1d0)
 
-            call matvec(ii,nn,x1,dummy,igrid)
+            call matvec(ii,nn,x1,dummy,igrid,bbcnd)
 
-            call findBaseVector(ii,ieq,neq,nn,igrid,x1,0d0)
+            call findBaseVector(ii,ieq,neq,nn,igrid,bbcnd(1,ieq),x1,0d0)
 
 c         Fill diagonal
 
@@ -1328,9 +1326,104 @@ c End program
       return
       end subroutine
 
+c symm_test
+c####################################################################
+      recursive subroutine symm_test(neq,igrid,matvec,bcond)
+c--------------------------------------------------------------------
+c     Performs symmetry test on matvec.
+c--------------------------------------------------------------------
+
+      use mg_setup
+
+      implicit none     !For safe fortran
+
+c Call variables
+
+      integer*4      neq,igrid,bcond(4,*)
+
+      external       matvec
+
+c Local variables
+
+      double precision,allocatable,dimension(:)::x1,dummy,dummy2
+
+      real*8         dd1,dd2,error
+      integer*4      nx,ny,i,j,ii,nn,jj,i1,j1,i2,j2,ix1,iy1,ix2,iy2,ieq
+
+c Begin program
+
+      nx = nxvp(igrid)
+      ny = nyvp(igrid)
+
+      nn = neq*nx*ny
+
+      write (*,*) 'Performing symmetry test of system matrix ',
+     .            'on grid:',nx,'x',ny,'...'
+
+      allocate(x1(nn),dummy(nn),dummy2(nn))
+
+      error = 0d0
+
+      do ii = 1,nn
+        x1    (ii) = 0d0
+        dummy (ii) = 0d0
+        dummy2(ii) = 0d0
+      enddo
+
+      do ii = 1,nn/neq
+
+        do ieq =1,neq
+
+c     Find column vector ii
+
+          call findBaseVector(ii,ieq,neq,nn,igrid,bcond(1,ieq),x1,1d0)
+
+          call matvec(0,nn,x1,dummy,igrid,bcond)
+
+          call findBaseVector(ii,ieq,neq,nn,igrid,bcond(1,ieq),x1,0d0)
+
+c     Compare column vector ii with corresponding row vector (intersect in
+c     diagonal)
+
+          do jj = ii,nn/neq
+
+            call findBaseVector(jj,ieq,neq,nn,igrid,bcond(1,ieq),x1,1d0)
+
+            call matvec(ii,nn,x1,dummy2,igrid,bcond)
+
+            call findBaseVector(jj,ieq,neq,nn,igrid,bcond(1,ieq),x1,0d0)
+
+            dd1 = abs(dummy(jj) - dummy2(ii))
+            if(abs(dummy(jj)).gt.1d-15.or.abs(dummy2(ii)).gt.1d-15) then
+              write(*,15) jj,ii,dummy(jj),ii,jj,dummy2(ii),dd1
+     .             ,100*dd1/max(abs(dummy(jj)),abs(dummy2(ii)))
+              error = error + dd1
+            endif
+
+          enddo
+
+        enddo
+      enddo
+
+      write (*,20) error
+
+      stop
+
+c End program
+
+      deallocate (x1,dummy,dummy2)
+
+      return
+
+ 15   format ('(',i3,',',i3,'):',1pe10.2,'; (',i3,',',i3,'):',e10.2,
+     .        '  Error:',e10.2,'  %error:',0pf7.2)
+ 20   format (/,'Total relative error:',1pe10.3)
+
+      end subroutine
+
 c findBaseVector
 c####################################################################
-      subroutine findBaseVector(ii,ieq,neq,ntot,igrid,x1,coef)
+      subroutine findBaseVector(ii,ieq,neq,ntot,igrid,bcond,x1,coef)
 c--------------------------------------------------------------------
 c     Finds base vector corresponding to grid node ii and equation ieq.
 c     Assumes that x1 has been initialized to zero elsewhere.
@@ -1342,29 +1435,51 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer          :: neq,ii,ieq,ntot,igrid
+      integer          :: neq,ii,ieq,ntot,igrid,bcond(4)
 
       double precision :: x1(ntot),coef
 
 c Local variables
 
-      integer          :: nx,ny,iii
+      integer          :: nx,ny,iii,imin,imax,jmin,jmax
 
 c Begin program
 
       nx  = nxvp(igrid)
       ny  = nyvp(igrid)
 
-      if (mod(ii,nx).eq.1) then
-        iii = neq*(ii-1) + ieq
-        x1(iii) = coef
-        iii = neq*(ii+nx-2) + ieq
-        x1(iii) = coef
-      elseif (mod(ii,nx).eq.0) then
-        iii = neq*(ii-1) + ieq
-        x1(iii) = coef
-        iii = neq*(ii-nx) + ieq
-        x1(iii) = coef
+      call limits(ii,nx,ny,imin,imax,jmin,jmax)
+
+      if (bcond(3) == 0 .or. bcond(4) == 0) then
+        if (imin.eq.1) then
+          iii = neq*(ii-1) + ieq
+          x1(iii) = coef
+          iii = neq*(ii+nx-2) + ieq
+          x1(iii) = coef
+        elseif (imin.eq.nx) then
+          iii = neq*(ii-1) + ieq
+          x1(iii) = coef
+          iii = neq*(ii-nx) + ieq
+          x1(iii) = coef
+        else
+          iii = neq*(ii-1) + ieq
+          x1(iii) = coef
+        endif
+      elseif (bcond(1) == 0 .or. bcond(2) == 0) then
+        if (jmin.eq.1) then
+          iii = neq*(ii-1) + ieq
+          x1(iii) = coef
+          iii = neq*(ii-1+nx*(ny-1)) + ieq
+          x1(iii) = coef
+        elseif (jmin.eq.ny) then
+          iii = neq*(ii-1) + ieq
+          x1(iii) = coef
+          iii = neq*(ii-1-nx*(ny-1)) + ieq
+          x1(iii) = coef
+        else
+          iii = neq*(ii-1) + ieq
+          x1(iii) = coef
+        endif
       else
         iii = neq*(ii-1) + ieq
         x1(iii) = coef
@@ -1373,4 +1488,277 @@ c Begin program
 c End program
 
       return
+      end subroutine
+
+c limits
+c####################################################################
+      subroutine limits(elem,nx,ny,imin,imax,jmin,jmax)
+      implicit none
+c--------------------------------------------------------------------
+c     Finds limits on loops for matvec routines. Used in finding 
+c     diagonal from matvec.
+c--------------------------------------------------------------------
+
+c Call variables
+
+      integer*4       elem,nx,ny,imin,imax,jmin,jmax
+
+c Local variables
+
+c Begin program
+
+      if (elem.eq.0) then
+        imin = 1
+        imax = nx
+        jmin = 1
+        jmax = ny
+      else
+        imin = mod(elem,nx)
+        if (imin.eq.0) imin = nx
+        imax = imin
+        jmin = 1 + (elem - imin)/nx
+        jmax = jmin
+      endif
+
+c End program
+
+      return
+      end subroutine
+
+c shiftIndices
+c####################################################################
+      subroutine shiftIndices(i,j,ii,im,ip,jj,jm,jp,nx,ny,isig,bcond)
+      implicit none
+c--------------------------------------------------------------------
+c     Shifts indices in a 5pt stencil for both arrays (isig = 0) 
+c     and MG vectors (isig = pointer to grid), accounting for boundary 
+c     conditions as defined in integer array bcond.
+c--------------------------------------------------------------------
+
+c Call variables
+
+      integer :: i,j,ii,jj,im,ip,jm,jp,nx,ny,isig,bcond(4)
+
+c Local variables
+
+      integer :: nxx,row
+
+c Functions
+
+      row(i,j) = i + nx*(j-1) + isig - 1
+
+c Begin program
+
+
+      if (bcond(3) == 0 .or. bcond(4) == 0) then
+        call    periodicBC(i,nx,ii,im,ip)
+      else
+        call nonperiodicBC(i,nx,ii,im,ip,bcond(3),bcond(4))
+      endif
+
+      if (bcond(1) == 0 .or. bcond(2) == 0) then
+        call    periodicBC(j,ny,jj,jm,jp)
+      else
+        call nonperiodicBC(j,ny,jj,jm,jp,bcond(1),bcond(2))
+      endif
+
+      if (isig.gt.0) then    !Transform to MG vector coordinates
+        ip = min(row(ip,jj),row(nx,ny))
+        im = max(row(im,jj),row(1 , 1))
+        jp = min(row(ii,jp),row(nx,ny))
+        jm = max(row(ii,jm),row(1 , 1))
+        ii = row(ii,jj)
+        jj = ii
+      endif
+
+c End program
+
+      contains
+
+      subroutine periodicBC(i,nx,ii,im,ip)
+
+      implicit none
+
+      integer :: i,ii,im,ip,nx
+
+      if (i.lt.1) then
+        ii = nx + i - 1 
+      elseif (i.gt.nx) then
+        ii = i - nx + 1 
+      else
+        ii = i 
+      endif
+
+      if (i.eq.nx) then
+        ip = 2 
+      else
+        ip = ii + 1
+      endif
+
+      if (i.eq.1 ) then
+        im = nx - 1 
+      else
+        im = ii - 1
+      endif
+
+      end subroutine
+
+      subroutine nonperiodicBC(i,nx,ii,im,ip,bcs1,bcs2)
+
+      implicit none
+
+      integer :: i,ii,im,ip,nx,bcs1,bcs2
+
+      ii = i
+      if (i == 1 .and. bcs1 == 2) then
+cc        im = i
+        im = i+1
+      else 
+        im = i-1
+      endif
+
+      if (i == nx .and. bcs2 == 2) then
+cc        ip = i
+        ip = i-1
+      else
+        ip = i+1
+      endif
+
+      end subroutine
+
+      end subroutine
+
+c setBoundaryConditions
+c####################################################################
+      subroutine setBoundaryConditions(array,nx,ny,bcs)
+
+c--------------------------------------------------------------------
+c     Sets adequate boundary conditions on array.
+c
+c     On input:
+c       * array  -> real array with ghost-nodes
+c       * nx,ny  -> domain size
+c       * bcs    -> integer array of size 4 containing BC setup:
+c           + bcs(1) ---> bottom
+c           + bcs(2) ---> top
+c           + bcs(3) ---> left
+c           + bcs(4) ---> right
+c         If bcs = 0  --> periodic BC's
+c         If bcs = 1  --> dirichlet BC's (always zero because MG deals with
+c                                         error updates)
+c         If bcs = 2  --> Neumann BC's
+c         If bcs = 3  --> second-order derivative = 0 (linear extrapolation)
+c--------------------------------------------------------------------
+
+      implicit none       !For safe fortran
+
+c Call variables
+
+      integer*4  nx,ny,bcs(4)
+      real*8     array(0:nx+1,0:ny+1)
+
+c Local variables
+
+      integer*4  i,j
+
+c Begin program
+
+c Bottom
+
+      if (bcs(1).eq.0) then
+        do i=1,nx
+          array(i,0)    = array(i,ny-1)
+        enddo
+      elseif (bcs(1).eq.1) then
+        do i=1,nx
+          array(i,0)    = 0d0
+        enddo
+      elseif (bcs(1).eq.2) then
+        do i=1,nx
+          array(i,0)    = array(i,2)
+cc          array(i,0)    = array(i,1)
+        enddo
+      elseif (bcs(1).eq.3) then
+        do i=1,nx
+          array(i,0)    = 2*array(i,1) - array(i,2)
+        enddo
+      else
+        write (*,*) 'Boundary condition type not implemented at bottom'
+        stop
+      endif
+
+c Top
+
+      if (bcs(2).eq.0) then
+        do i=1,nx
+          array(i,ny+1) = array(i,2)
+        enddo
+      elseif (bcs(2).eq.1) then
+        do i=1,nx
+          array(i,ny+1) = 0d0
+        enddo
+      elseif (bcs(2).eq.2) then
+        do i=1,nx
+          array(i,ny+1) = array(i,ny-1)
+cc          array(i,ny+1) = array(i,ny)
+        enddo
+      elseif (bcs(2).eq.3) then
+        do i=1,nx
+          array(i,ny+1) = 2*array(i,ny) - array(i,ny-1)
+        enddo
+      else
+        write (*,*) 'Boundary condition type not implemented at top'
+        stop
+      endif
+
+c Left
+
+      if (bcs(3).eq.0) then
+        do j=0,ny+1
+          array(0   ,j) = array(nx-1,j)
+        enddo
+      elseif (bcs(3).eq.1) then
+        do j=0,ny+1
+          array(0   ,j) = 0d0
+        enddo
+      elseif (bcs(3).eq.2) then
+        do j=0,ny+1
+          array(0   ,j) = array(2,j)
+cc          array(0   ,j) = array(1,j)
+        enddo
+      elseif (bcs(3).eq.3) then
+        do j=0,ny+1
+          array(0   ,j) = 2*array(1,j) - array(2,j)
+        enddo
+      else
+        write (*,*) 'Boundary condition type not implemented at left'
+        stop
+      endif
+
+c Right
+
+      if (bcs(4).eq.0) then
+        do j=0,ny+1
+          array(nx+1,j) = array(2,j)
+        enddo
+      elseif (bcs(4).eq.1) then
+        do j=0,ny+1
+          array(nx+1,j) = 0d0
+        enddo
+      elseif (bcs(4).eq.2) then
+        do j=0,ny+1
+          array(nx+1,j) = array(nx-1,j)
+cc          array(nx+1,j) = array(nx,j)
+        enddo
+      elseif (bcs(4).eq.3) then
+        do j=0,ny+1
+          array(nx+1,j) = 2*array(nx,j) - array(nx-1,j)
+        enddo
+      else
+        write (*,*) 'Boundary condition type not implemented at right'
+        stop
+      endif
+
+c End
+
       end subroutine

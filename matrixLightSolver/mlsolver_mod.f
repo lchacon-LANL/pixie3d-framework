@@ -17,7 +17,6 @@ c######################################################################
           integer         :: stp_test
           logical         :: sym_test
           logical         :: fdiag
-          integer         :: neq
           integer         :: krylov_subspace
           integer         :: orderres
           integer         :: orderprol
@@ -58,14 +57,10 @@ c       Initializes solver options
           !Generic options
           solverOptions%iter  = 10             !Number of iterations
           solverOptions%tol   = 1d-5           !Convergence tolerance
-          solverOptions%omega = 1d0            !Relaxation parameter
-          solverOptions%omega10= 0d0           !Weighed Jacobi relaxation parameter
-          solverOptions%omega01= 0d0           !Weighed Jacobi relaxation parameter
 
           !MG and smoother options
-          solverOptions%neq      = 1           !Number of equations (MG)
           solverOptions%vcyc     = 1           !Number of V-cycles (MG)
-          solverOptions%igridmin = 3           !Minimum grid level 
+          solverOptions%igridmin = 2           !Minimum grid level 
                                                !  considered (MG)
           solverOptions%orderres = 0           !Interpolation order in 
                                                !  restriction (MG)
@@ -74,6 +69,9 @@ c       Initializes solver options
           solverOptions%fdiag    = .true.      !Whether to form matrix diagonal
                                                !  for smoothing
           nullify(solverOptions%diag)          !Diagonal not provided externally
+          solverOptions%omega = 1d0            !Relaxation parameter
+          solverOptions%omega10= 0d0           !Weighed Jacobi relaxation parameter
+          solverOptions%omega01= 0d0           !Weighed Jacobi relaxation parameter
 
           !Krylov methods options
           solverOptions%stp_test = 0           !Stopping criterion (CG, GMRES)
@@ -118,7 +116,6 @@ c     ###################################################################
 
 c       Assembles solver queue
 
-          integer   :: depth
           character*2 :: solver
 
           type (solver_unit) :: solver_def

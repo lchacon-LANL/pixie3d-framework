@@ -1,8 +1,5 @@
 c TO DO list:
 c
-c 1) Implement boundary conditions information for restriction, prolongation
-c    and matrix element determination.
-c
 c 2) Posibility of linking to user-provided solvers.
 c
 c 3) Separating 2D dependent routines, to allow more general use in 3D.
@@ -15,8 +12,8 @@ c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
 c getSolver
 c####################################################################
-      recursive subroutine getSolver(ntot,b,x,matvec,igrid,guess
-     .                              ,out,depth)
+      recursive subroutine getSolver(neq,ntot,b,x,matvec,igrid,bcond
+     .                              ,guess,out,depth)
 c--------------------------------------------------------------------
 c     Solves Ax=b matrix-free using a variety of solvers.
 c--------------------------------------------------------------------
@@ -27,7 +24,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4      ntot,igrid,iter,guess,out,depth
+      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcond(4,neq)
       real*8         x(ntot),b(ntot)
 
       external       matvec
@@ -50,11 +47,11 @@ c Read solver definition from solver hierarchy
 
 c Symmetry test
 
-      if (options%sym_test) call symm_test(2,matvec)
+      if (options%sym_test) call symm_test(neq,2,matvec,bcond)
 
 c Invoke solver
 
-      call solver_meth(ntot,b,x,matvec,igrid
+      call solver_meth(neq,ntot,b,x,matvec,igrid,bcond
      .                ,guess,out,solver,options,depth)
 
 c Check convergence
@@ -82,7 +79,7 @@ c End program
 
 c solver_meth
 c####################################################################
-      recursive subroutine solver_meth(ntot,b,x,matvec,igrid
+      recursive subroutine solver_meth(neq,ntot,b,x,matvec,igrid,bcond
      .                               ,guess,out,solver,options,depth)
 c--------------------------------------------------------------------
 c     Solves Ax=b matrix-free using a variety of solvers.
@@ -94,7 +91,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4      ntot,igrid,iter,guess,out,depth
+      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcond(4,neq)
       real*8         x(ntot),b(ntot)
 
       type (solver_options):: options
@@ -111,23 +108,23 @@ c Solve
       select case (solver)
       case ('cg')
 
-        call cgmeth(ntot,b,x,matvec,options,igrid,guess,out,depth)
+        call cg(neq,ntot,b,x,matvec,options,igrid,bcond,guess,out,depth)
 
       case ('gm')
 
-        call gmres(ntot,b,x,matvec,options,igrid,guess,out,depth)
+        call gm(neq,ntot,b,x,matvec,options,igrid,bcond,guess,out,depth)
 
       case ('jb')
 
-        call jb(ntot,b,x,matvec,options,igrid,guess,out,depth)
+        call jb(neq,ntot,b,x,matvec,options,igrid,bcond,guess,out,depth)
 
       case ('gs')
 
-        call gs(ntot,b,x,matvec,options,igrid,guess,out,depth)
+        call gs(neq,ntot,b,x,matvec,options,igrid,bcond,guess,out,depth)
 
       case ('mg')
 
-        call mg(ntot,b,x,matvec,options,igrid,guess,out,depth)
+        call mg(neq,ntot,b,x,matvec,options,igrid,bcond,guess,out,depth)
 
       case ('id')
 
@@ -145,10 +142,10 @@ c End program
 
       end subroutine
 
-c cgmeth
+c cg
 c####################################################################
-      recursive subroutine cgmeth(ntot,b,x,matvec,options,igrid
-     .                           ,guess,out,depth)
+      recursive subroutine cg(neq,ntot,b,x,matvec,options,igrid,bcond
+     .                       ,guess,out,depth)
 c--------------------------------------------------------------------
 c     Matrix-free Preconditioned Conjugate Gradient routine to solve
 c     Ax = b. Call variables:
@@ -169,7 +166,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4    ntot,igrid,guess,out,depth
+      integer*4    neq,ntot,igrid,guess,out,depth,bcond(4,neq)
       real*8       x(ntot),b(ntot)
 
       type (solver_options) :: options
@@ -178,7 +175,7 @@ c Call variables
 
 c Local variables
 
-      integer*4    niter,stp_test,depth1
+      integer*4    niter,stp_test,depth1,ierr
       integer*4    i,iter,smit,nn,vcycle,precout
       real*8       alpha,beta,mag,mag1,rr0,rho0,rho1
       real*8       smtol,tol,abstol
@@ -214,7 +211,7 @@ c     For zero initial guess
 
 c     For arbitrary initial guess (rr = b - Ax)
 
-        call matvec(0,ntot,x,rr,igrid)
+        call matvec(0,ntot,x,rr,igrid,bcond)
 
         rr = b - rr
 
@@ -229,8 +226,7 @@ c CG solve
       endif
 
       if (rr0.lt.abstol) then
-        if (out.ge.1) 
-     .        write (*,*) 'Initial guess seems exact solution in CG' 
+        write (*,*) 'Initial guess seems exact solution in CG' 
         return
       endif
 
@@ -239,7 +235,7 @@ cc      if (out.ge.2) write (*,10) iter,rr0,rr0/rr0
 
 c     Preconditioner (zz = P rr)
 
-      call getSolver(ntot,rr,zz,matvec,igrid,0,precout,depth1)
+      call getSolver(neq,ntot,rr,zz,matvec,igrid,bcond,0,precout,depth1)
 
 c     CG preparation
 
@@ -253,7 +249,7 @@ c     CG step
 
         rho0 = rho1
 
-        call matvec(0,ntot,pp,qq,igrid)
+        call matvec(0,ntot,pp,qq,igrid,bcond)
 
         alpha = rho0/sum(pp*qq)
 
@@ -267,11 +263,20 @@ c     Check convergence
         mag1 = mag/rr0
         if (out.ge.2) write (*,10) iter,mag,mag1
 cc        if (mag1.lt.tol) exit
-        if (mag.lt.(abstol + tol*rr0)) exit
+
+        if (mag.lt.(abstol + tol*rr0)) then
+          if (mag > tol*rr0 .and. mag < abstol) then
+            if (out.gt.1) write (*,*) 'Solution in CG is in round-off.'
+            if (out.gt.1) write (*,*) 'Aborting CG...'
+          endif
+          ierr = 0
+          exit
+        endif
 
 c     Preconditioner (zz = P rr)
 
-        call getSolver(ntot,rr,zz,matvec,igrid,0,precout,depth1)
+        call getSolver(neq,ntot,rr,zz,matvec,igrid,bcond,0,precout
+     .                ,depth1)
 
 c     Prepare next step
 
@@ -298,15 +303,15 @@ c End program
 
       end subroutine
 
-c gmres
+c gm
 c#######################################################################
-      recursive subroutine gmres(ntot,rhs,sol,matvec,options,igrid
-     .                          ,guess,iout,depth)
+      recursive subroutine gm(neq,ntot,b,x,matvec,options,igrid,bcond
+     .                       ,guess,iout,depth)
 c--------------------------------------------------------------------
 c     Matrix-free Preconditioned Conjugate Gradient routine to solve
 c     Ax = b. Call variables:
 c       * ntot: grid dimension
-c       * rhs,sol: rhs, solution vectors
+c       * b,x: rhs, solution vectors
 c       * matvec: matrix-free matvec product (external)
 c       * options: structure containing solver defs.
 c       * igrid: grid level in MG applications
@@ -322,8 +327,9 @@ c--------------------------------------------------------------------
       
 c Call variables
 
-      integer*4     ntot,im,iout,ierr,igrid,its,guess,depth
-      real*8        rhs(ntot),sol(ntot)
+      integer*4     neq,ntot,im,iout,ierr,igrid,its,guess,depth
+     .             ,bcond(4,neq)
+      real*8        b(ntot),x(ntot)
 
       external      matvec
 
@@ -371,15 +377,15 @@ c Compute initial residual vector
 
 c     For zero initial guess
 
-        vv(:,1) = rhs(:)
+        vv(:,1) = b(:)
 
       else
 
 c     For arbitrary initial guess (vv(:,1) = b - Ax)
 
-        call matvec(0,ntot,sol,vv,igrid)
+        call matvec(0,ntot,x,vv,igrid,bcond)
 
-        vv(:,1) = rhs(:) - vv(:,1)
+        vv(:,1) = b(:) - vv(:,1)
 
       endif
 
@@ -392,7 +398,14 @@ c Calculate magnitude of initial residual
       if (stp_test.eq.1) then
         rold = sqrt(sum(vv(:,1)*vv(:,1)))
       else
-        rold = sqrt(sum(rhs*rhs))
+        rold = sqrt(sum(b*b))
+      endif
+
+      if (rold.lt.abstol) then
+        ierr = -1
+        write (*,*) 'Initial guess seems exact solution in GMRES' 
+        call killgm
+        return
       endif
 
       eps1=eps*rold
@@ -406,16 +419,6 @@ c Restarted GMRES loop
 cc        if (iout.ge.2.and.its.eq.0) write(*,10) its,ro,ro/rold
 
 cc        if (its .eq. 0) eps1=eps*rold
-
-        if (ro.lt.abstol) then
-          ierr = -1
-          if (iout.ge.1) 
-     .       write (*,*) 'Initial guess seems exact solution in GMRES' 
-          exit
-        elseif (ro.le.(abstol+eps1)) then
-          ierr = 0
-          exit
-        endif
 
         tt = 1.0d0/ro
         vv(:,1) = vv(:,1)*tt
@@ -433,10 +436,10 @@ c      GMRES iteration
 
 c        Call preconditioner
 
-          call getSolver(ntot,vv(1,i),zz(1,i),matvec,igrid,0,precout
-     .                  ,depth1)
+          call getSolver(neq,ntot,vv(1,i),zz(1,i),matvec,igrid,bcond,0
+     .                  ,precout,depth1)
 
-          call matvec(0,ntot,zz(1,i),vv(1,i1),igrid)
+          call matvec(0,ntot,zz(1,i),vv(1,i1),igrid,bcond)
 
 c        Modified gram - schmidt.
 
@@ -509,23 +512,28 @@ c      Form linear combination of z(*,i)'s to get solution
 
         tt = rs(1)
         do k=1, nn
-          rhs(k) = zz(k,1)*tt
+          b(k) = zz(k,1)*tt
         enddo
 
         do j=2, i
           tt = rs(j)
           do k=1, nn
-            rhs(k) = rhs(k)+tt*zz(k,j)
+            b(k) = b(k)+tt*zz(k,j)
           enddo
         enddo
 
 c      Form solution
 
-        sol = sol + rhs
+        x = x + b
 
 c      Check convergence and restart outer loop if necessary
 
-        if (ro.le.eps1) then
+        if (ro.le.(abstol+eps1)) then
+          if (ro > eps1 .and. ro < abstol) then
+            if (iout.gt.1)
+     $           write (*,*) 'Solution in GMRES is in round-off.'
+            if (iout.gt.1) write (*,*) 'Aborting GMRES...'
+          endif
           ierr = 0
           exit
         endif
@@ -561,138 +569,18 @@ c      Restart outer loop
 
 c End program
 
-      deallocate(hh,vv,zz)
-      deallocate(c,s,rs)
-
-      return
+      call killgm
 
  10   format (' GMRES Iteration:',i4,'; Residual:',1p1e12.4,
      .        '; Ratio:',1p1e12.4)
 
-      end subroutine
+      contains
 
-c symm_test
-c####################################################################
-      recursive subroutine symm_test(igrid,matvec)
-c--------------------------------------------------------------------
-c     Performs symmetry test on matvec.
-c--------------------------------------------------------------------
+      subroutine killgm
 
-      use mg_setup
+        deallocate(hh,vv,zz)
+        deallocate(c,s,rs)
 
-      implicit none     !For safe fortran
+      end subroutine killgm
 
-c Call variables
-
-      integer*4      igrid
-
-      external       matvec
-
-c Local variables
-
-      double precision,allocatable,dimension(:)::x1,dummy,dummy2
-
-      real*8         dd1,dd2,error
-      integer*4      nx,ny,i,j,ii,nn,jj,i1,j1,i2,j2,ix1,iy1,ix2,iy2
-
-c Begin program
-
-      nx = nxvp(igrid)
-      ny = nyvp(igrid)
-
-      nn = nx*ny
-
-      write (*,*) 'Performing symmetry test of system matrix ',
-     .            'on grid:',nx,'x',ny,'...'
-
-      allocate(x1(nn),dummy(nn),dummy2(nn))
-
-      error = 0d0
-
-      do ii = 1,nn
-        x1    (ii) = 0d0
-        dummy (ii) = 0d0
-        dummy2(ii) = 0d0
-      enddo
-
-      do ii = 1,nn
-
-c     Find column vector ii
-
-        call findBaseVector(ii,1,1,nn,igrid,x1,1d0)
-
-        call matvec(0,nn,x1,dummy,igrid)
-
-        call findBaseVector(ii,1,1,nn,igrid,x1,0d0)
-
-c     Compare column vector ii with corresponding row vector (intersect in
-c     diagonal)
-
-        do jj = ii,nn
-
-          call findBaseVector(jj,1,1,nn,igrid,x1,1d0)
-
-          call matvec(ii,nn,x1,dummy2,igrid)
-
-          call findBaseVector(jj,1,1,nn,igrid,x1,0d0)
-
-          dd1 = abs(dummy(jj) - dummy2(ii))
-          if (abs(dummy(jj)).gt.1d-15.or.abs(dummy2(ii)).gt.1d-15) then
-            write(*,15) jj,ii,dummy(jj),ii,jj,dummy2(ii),dd1
-     .                ,100*dd1/max(abs(dummy(jj)),abs(dummy2(ii)))
-            error = error + dd1
-          endif
-
-        enddo
-      enddo
-
-      write (*,20) error
-
-      stop
-
-c End program
-
-      deallocate (x1,dummy,dummy2)
-
-      return
-
- 15   format ('(',i3,',',i3,'):',1pe10.2,'; (',i3,',',i3,'):',e10.2,
-     .        '  Error:',e10.2,'  %error:',0pf7.2)
- 20   format (/,'Total relative error:',1pe10.3)
-
-      end subroutine
-
-c limits
-c####################################################################
-      subroutine limits(elem,nx,ny,imin,imax,jmin,jmax)
-      implicit none
-c--------------------------------------------------------------------
-c     Finds limits on loops for matvec routines. Used in finding 
-c     diagonal from matvec.
-c--------------------------------------------------------------------
-
-c Call variables
-
-      integer*4       elem,nx,ny,imin,imax,jmin,jmax
-
-c Local variables
-
-c Begin program
-
-      if (elem.eq.0) then
-        imin = 1
-        imax = nx
-        jmin = 1
-        jmax = ny
-      else
-        imin = mod(elem,nx)
-        if (imin.eq.0) imin = nx
-        imax = imin
-        jmin = 1 + (elem - imin)/nx
-        jmax = jmin
-      endif
-
-c End program
-
-      return
-      end subroutine
+      end subroutine gm
