@@ -358,7 +358,7 @@ c       Deletes front node from queue
 
           integer :: depth
           type (queue_type), intent (in out) ::q
-          type (solver_unit), intent (out)   ::buffer
+          type (solver_unit), intent (in)   ::buffer
 
           integer :: count
           type (node_type), pointer :: node_ptr
