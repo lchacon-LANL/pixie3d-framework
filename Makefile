@@ -28,7 +28,7 @@ prefix = .
 
 #Module search path
 
-MODDIRS = $(GMODPATH) $(MODPATH). $(patsubst $(COMMONDIR)%,$(ADDMODPATH)$(COMMONDIR)%,$(SUBDIRS))
+MODDIRS = $(MODPATH) $(patsubst $(COMMONDIR)%,$(ADDMODFLAG)$(COMMONDIR)%,$(SUBDIRS))
 
 #Define targets
 
