@@ -38,7 +38,7 @@ c ###################################################################
 
 c newtonGmres
 c####################################################################
-      subroutine newtonGmres(neq,ntot,x,method,global,tolgm,kmax
+      subroutine newtonGmres(neq,ntot,x,method,damp,global,tolgm,kmax
      .           ,gmit_max,tolnewt,ntit_max_acc,ntit_max_rej,gmit_out
      .           ,ntit_out,iguess,out,ierr)
 c--------------------------------------------------------------------
@@ -55,6 +55,7 @@ c                 parameter. Currently:
 c               method = 0 --> constant
 c               method = 1 --> unused
 c               method = 2 --> power law adaptive strategy
+c       * damp  : damping parameter for Newton update
 c       * global: if true, uses linesearch backtracking as globalization
 c                 procedure
 c       * tolgm: GMRES convergence tolerance
@@ -93,15 +94,15 @@ c Call variables
       integer          :: ntot,neq,method,kmax,gmit_max,ntit_max_acc
      .                   ,ntit_max_rej,gmit_out,ntit_out,out,iguess,ierr
 
-      double precision :: x(ntot),tolgm,tolnewt
+      double precision :: x(ntot),tolgm,tolnewt,damp
 
       logical          :: global
 
 c Local variables
 
-      integer*4   itk,jit,i,j,ig,idamp,iout
+      integer*4   itk,jit,i,j,ig,iout
 
-      real*8      dxavg,check_lim,check,damp,residuals(neq)
+      real*8      dxavg,check_lim,check,residuals(neq)
 
       real*8      b(ntot),ddx(ntot)
 
@@ -185,7 +186,7 @@ c       Determine inexact Newton constant
 
 c       Calculate damping coefficient
 
-        call findDamping (ntot,x,ddx,etak,fk,damp,global)
+        if (global) call findDamping (ntot,x,ddx,etak,fk,damp)
 
 c     Update solution (x = x + ddx)
 
@@ -229,11 +230,14 @@ c Check error in Newton convergence
 cc      if (jit.gt.ntit_max_rej) then          !No convergence: reject solution
 cc        write (*,220) check
 cc        ierr = 1
-      if (jit.gt.ntit_max_rej.or.check.gt.check_lim) then !No convergence: reject solution
+
+      !No convergence: reject solution
+      if (jit.gt.ntit_max_rej.or.check.gt.check_lim) then 
         if (jit.gt.ntit_max_rej) write (*,220) check
         if (check.gt.check_lim) write (*,230) check,check_lim
         ierr = 1
-      elseif ((jit-1).gt.ntit_max_acc) then  !Accept solution, but warn user
+      !Accept solution, but warn user
+      elseif ((jit-1).gt.ntit_max_acc) then 
         write (*,240) ntit_max_acc
         ierr = 2
       endif
@@ -355,7 +359,7 @@ c End program
 
 c findDamping
 c####################################################################
-      subroutine findDamping (ntot,x,ddx,etak,fk,damp,global)
+      subroutine findDamping (ntot,x,ddx,etak,fk,damp)
       implicit none       !For safe fortran
 c--------------------------------------------------------------------
 c     If global is true, uses linesearch backtracking to ensure
@@ -364,7 +368,6 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      logical ::  global
       integer ::  ntot
       double precision ::  x(ntot),ddx(ntot),fk,etak,damp
 
@@ -382,28 +385,26 @@ c Begin program
 
       damp = 1d0
 
-      if (global) then
-        do idamp = 1,100
+      do idamp = 1,100
+        dummy = x
+        call updateNewtonSolution(dummy,ddx,ntot,damp,dxavg)
+        call evaluateNonlinearResidual(ntot,dummy,b)
+        fkp = sqrt(sum(b*b))
+        if (fkp.gt.(1.-1e-4*(1.-etak))*fk) then
+          dampm = .5*damp
           dummy = x
-          call updateNewtonSolution(dummy,ddx,ntot,damp,dxavg)
+          call updateNewtonSolution(dummy,ddx,ntot,dampm,dxavg)
           call evaluateNonlinearResidual(ntot,dummy,b)
-          fkp = sqrt(sum(b*b))
-          if (fkp.gt.(1.-1e-4*(1.-etak))*fk) then
-            dampm = .5*damp
-            dummy = x
-            call updateNewtonSolution(dummy,ddx,ntot,dampm,dxavg)
-            call evaluateNonlinearResidual(ntot,dummy,b)
-            fm = sqrt(sum(b*b))
-            theta = .5*(1.5*fk + 0.5*fkp - 2.*fm)/(fk + fkp - 2.*fm)
-            theta = fmedval(1d-1,8d-1,theta)
-            damp = damp*theta
+          fm = sqrt(sum(b*b))
+          theta = .5*(1.5*fk + 0.5*fkp - 2.*fm)/(fk + fkp - 2.*fm)
+          theta = fmedval(1d-1,8d-1,theta)
+          damp = damp*theta
 cc            write (*,*) 'New damping parameter',damp
-            etak = 1.- theta*(1.-etak)
-          else
-            exit
-          endif
-        enddo
-      endif
+          etak = 1.- theta*(1.-etak)
+        else
+          exit
+        endif
+      enddo
 
 c End program
 
@@ -420,7 +421,7 @@ c
 c      A(x0) x = b
 c
 c   using the Generalized Minimal Residual (GMRES(K))
-c   iteration algorithm with MG right pre-conditioning
+c   iteration algorithm with right pre-conditioning
 c   Note that this subroutine calls the gmres subroutine from
 c   the SPARSKIT package by Y. Saad, modified by L. Chacon.
 c --------------------------------------------------------------------
@@ -435,7 +436,7 @@ c Call variables
 c Local variables
 
       integer*4   iiout
-      real*8      vv(nn,kmax+1),zz(nn,kmax+1),eps
+      real*8      eps
 
 c Begin program
 
@@ -454,7 +455,7 @@ c Initialize the GMRES(k) algorithm
 
 c Call the preconditioned GMRES(k) algorithm
 
-      call gmresMeth(nn,x0,b,x,vv,zz,eps,kmax,maxitgm,iout,ierr,itk)
+      call fgmresMeth(nn,x0,b,x,eps,kmax,maxitgm,iout,ierr,itk)
 
 c End program
 
@@ -462,44 +463,24 @@ c End program
       end
 
 c gmresMeth
-c #######################################################################
-      subroutine gmresMeth(ntot,x0,rhs,sol,vv,zz,eps,im,maxits
-     .                    ,iout,ierr,its)
+c ######################################################################
+      subroutine fgmresMeth(ntot,x0,rhs,sol,eps,im,maxits,iout,ierr,its)
       implicit none             !For safe fortran
 c----------------------------------------------------------------------*
 c                                                                      *
-c                     *** Preconditioned GMRES ***                     *
+c               *** Preconditioned Flexible GMRES ***                  *
 c                                                                      *
 c----------------------------------------------------------------------*
-c This is a simple version of the ILUT preconditioned GMRES algorithm. *
-c The ILUT preconditioner uses a dual strategy for dropping elements   *
-c instead  of the usual level of-fill-in approach. See details in ILUT *
-c subroutine documentation. PGMRES uses the L and U matrices generated *
-c from the subroutine ILUT to precondition the GMRES algorithm.        *
-c The preconditioning is applied to the right. The stopping criterion  *
-c utilized is based simply on reducing the residual norm by epsilon.   *
-c This preconditioning is more reliable than ilu0 but requires more    *
-c storage. It seems to be much less prone to difficulties related to   *
-c strong nonsymmetries in the matrix. We recommend using a nonzero tol *
-c (tol=.005 or .001 usually give good results) in ILUT. Use a large    *
-c lfil whenever possible (e.g. lfil = 5 to 10). The higher lfil the    *
-c more reliable the code is. Efficiency may also be much improved.     *
-c Note that lfil=n and tol=0.0 in ILUT  will yield the same factors as *
-c Gaussian elimination without pivoting.                               *
-c                                                                      *
-c ILU(0) and MILU(0) are also provided for comparison purposes         *
-c USAGE: first call ILUT or ILU0 or MILU0 to set up preconditioner and *
-c then call pgmres.                                                    *
-c----------------------------------------------------------------------*
-c Coded by Y. Saad - This version dated May, 7, 1990.                  *
+c This is a simple version of the right-preconditioned GMRES algorithm.*
+c The stopping criterion utilized is based simply on reducing the      *
+c residual norm by epsilon.                                            *
 c----------------------------------------------------------------------*
 c parameters                                                           *
 c-----------                                                           *
 c on entry:                                                            *
 c==========                                                            *
 c                                                                      *
-c n     == integer. The dimension of the matrix.                       *
-c im    == size of krylov subspace.                                    *
+c ntot  == integer. The dimension of the matrix.                       *
 c x0    == current newton state to calculate Jacobian                  *
 c rhs   == real vector of length n containing the right hand side.     *
 c          Destroyed on return.                                        *
@@ -508,23 +489,10 @@ c          solution on input. approximate solution on output           *
 c eps   == tolerance for stopping criterion. process is stopped        *
 c          as soon as ( ||.|| is the euclidean norm):                  *
 c          || current residual||/||initial residual|| <= eps           *
-c maxits== maximum number of iterations allowed                        *
+c im    == size of krylov subspace.                                    *
+c maxits== maximum number of GMRES iterations allowed                  *
 c iout  == output unit number number for printing intermediate results *
 c          if (iout .le. 0) nothing is printed out.                    *
-c                                                                      *
-c aa, ja,                                                              *
-c ia    == the input matrix in compressed sparse row format:           *
-c          aa(1:nnz)  = nonzero elements of A stored row-wise in order *
-c          ja(1:nnz) = corresponding column indices.                   *
-c          ia(1:n+1) = pointer to beginning of each row in aa and ja.  *
-c          here nnz = number of nonzero elements in A = ia(n+1)-ia(1)  *
-c                                                                      *
-c alu,jlu== A matrix stored in Modified Sparse Row format containing   *
-c           the L and U factors, as computed by subroutine ilut.       *
-c                                                                      *
-c ju     == integer array of length n containing the pointers to       *
-c           the beginning of each row of U in alu, jlu as computed     *
-c           by subroutine ILUT.                                        *
 c                                                                      *
 c on return:                                                           *
 c==========                                                            *
@@ -534,6 +502,7 @@ c          ierr = 0 --> successful return.                             *
 c          ierr = 1 --> convergence not achieved in itmax iterations.  *
 c          ierr =-1 --> the initial guess seems to be the exact        *
 c                       solution (initial residual computed was zero)  *
+c its   == final number of GMRES iterations                            *
 c                                                                      *
 c----------------------------------------------------------------------*
 c                                                                      *
@@ -541,15 +510,10 @@ c work arrays:                                                         *
 c=============                                                         *
 c vv    == work array of length  n x (im+1) (used to store the Arnoli  *
 c          basis)                                                      *
+c zz    == work array of length  n x (im+1) (used to store the Arnoli  *
+c          basis times the preconditioner operator (FGMRES))
 c----------------------------------------------------------------------*
 c arnoldi size should not exceed im=50 in this version.                *
-c----------------------------------------------------------------------*
-c----------------------------------------------------------------------*
-c subroutines called :                                                 *
-c amux   : SPARSKIT routine to do the matrix by vector multiplication  *
-c          delivers y=Ax, given x  -- see SPARSKIT/BLASSM/amux         *
-c lusol0 : combined forward and backward solves (Preconditioning ope.) *
-c BLAS1  routines.                                                     *
 c----------------------------------------------------------------------*
 
 c Call variables
@@ -579,7 +543,7 @@ c Calculate magnitude of nonlinear residual
 
       eps1=eps*rold
 
-      if (rold .lt. (n*1d-16)) then
+      if (rold .lt. (n*1d-15)) then
         ierr = -1
         return
       endif
@@ -592,7 +556,11 @@ c Compute initial residual vector
 
 c Calculate number of restarting loops
 
-      rstrt = maxits/im + 1
+      if (maxits > 0) then
+        rstrt = maxits/im + 1
+      else
+        rstrt = 0
+      endif
 
 c Restarted GMRES loop
 
@@ -600,16 +568,18 @@ c Restarted GMRES loop
 
         ro = sqrt(sum(vv(:,1)*vv(:,1)))
 
-        if (iout .gt. 0 .and. its .eq. 0) then
-          write(*, 199) its, ro/rold
+        if (iout .gt. 0 ) then
+          if (its .eq. 0) then
+            write(*, 199) its, ro/rold
+          else
+            write (*,*) 'Restarting GMRES... (',irstrt-1,')'
+          endif
         endif
 
         if (ro.le.eps1) exit
 
         t = 1.0d0/ro
         vv(:,1) = vv(:,1)*t
-
-cUGH        if (its .eq. 0) eps1=eps*ro
 
 c     Initialize 1-st term  of rhs of hessenberg system
 
@@ -680,7 +650,8 @@ c       Determine residual norm and test for convergence
             write(*, 199) its, ro/rold
           endif
 
-          if (ro.le.eps1.or.i.eq.im) exit
+          !The i=im condition below is necessary because i is used afterwards
+          if (ro <= eps1.or.its >= maxits.or.i.eq.im) exit
 
         enddo
 
@@ -697,7 +668,7 @@ c     Now compute solution. First solve upper triangular system
           rs(k) = t/hh(k,k)
         enddo
 
-c      Form linear combination of v(*,i)'s to get solution
+c      Form linear combination of zz=P*vv to get solution
 
         t = rs(1)
         rhs(:) = zz(:,1)*t
@@ -711,26 +682,26 @@ cFG         rhs(:) = rhs(:) + t*vv(:,j)
 
 c     Call preconditioner
 
+        vv(:,im+1) = rhs(:)
 cFG       call applyPreconditioner(n,rhs,vv(1,im+1),precout)
 
 c     Update solution
 
-        sol = sol + rhs
-cFG       sol(:) = sol(:) + vv(:,im+1)
+       sol(:) = sol(:) + vv(:,im+1)
 
-c      Check convergence and restart outer loop if necessary
+c     Check convergence and restart outer loop if necessary
 
-        if (ro.le.eps1) then
+        if (ro <= eps1) then
           ierr = 0
           exit
         endif
 
-        if (its.ge.maxits) then
+        if (its >= maxits) then
           ierr = 1
           exit
         endif
 
-c      Else compute residual vector and continue
+c     Else compute residual vector and continue
 
         do j=1,i
           jj = i1-j+1
@@ -744,17 +715,17 @@ c      Else compute residual vector and continue
           vv(:,1) = vv(:,1) + t*vv(:,j)
         enddo
 
-c      Restart outer loop
+c     Restart outer loop
 
-       enddo
+      enddo
 
 c End program
 
-       return
+      return
 
- 199   format(' GMRES its =', i4,';  res/rold norm =', 1pd10.2)
+ 199  format(' GMRES its =', i4,';  res/rold norm =', 1pd10.2)
 
-       end
+      end
 
 c matrixFreeMatVec
 c##################################################################
