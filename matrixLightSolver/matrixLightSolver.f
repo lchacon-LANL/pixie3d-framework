@@ -62,7 +62,7 @@ c Read solver definition from solver hierarchy
 
 c Symmetry test
 
-cc      if (options%sym_test) call symm_test(neq,2,matvec,bcond)
+      if (options%sym_test) call symm_test(neq,2,matvec,bcond)
 
 c Invoke solver
 
@@ -95,7 +95,7 @@ c End program
 c solver_meth
 c####################################################################
       recursive subroutine solver_meth(neq,ntot,b,x,matvec,igrid,bcond
-     .                               ,guess,out,solver,options,depth)
+     .                                ,guess,out,solver,options,depth)
 c--------------------------------------------------------------------
 c     Solves Ax=b matrix-free using a variety of solvers.
 c--------------------------------------------------------------------
@@ -181,8 +181,8 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4    neq,ntot,igrid,guess,out,depth,bcond(6,neq)
-      real*8       x(ntot),b(ntot)
+      integer(4) :: neq,ntot,igrid,guess,out,depth,bcond(6,neq)
+      real(8)    :: x(ntot),b(ntot)
 
       type (solver_options) :: options
 
@@ -190,12 +190,11 @@ c Call variables
 
 c Local variables
 
-      integer*4    niter,stp_test,depth1,ierr
-      integer*4    i,iter,smit,nn,vcycle,precout
-      real*8       alpha,beta,mag,mag1,rr0,rho0,rho1
-      real*8       smtol,tol,abstol
-
-      double precision:: rr(ntot),zz(ntot),pp(ntot),qq(ntot)
+      integer(4) :: niter,stp_test,depth1,ierr
+      integer(4) :: i,iter,smit,nn,vcycle,precout
+      real(8)    :: alpha,beta,mag,mag1,rr0,rho0,rho1
+      real(8)    :: smtol,tol,abstol
+      real(8)    :: rr(ntot),zz(ntot),pp(ntot),qq(ntot)
 
 c Begin program
 
@@ -353,7 +352,7 @@ c Call variables
 c Local variables
 
       integer*4     kmax,stp_test,depth1
-      real*8        eps,epsmac,rold,ro,eps1,gam,tt,mag,abstol
+      real*8        eps,epsmac,rold,ro,eps1,gam,tt,mag,abstol,dx(ntot)
 
       integer*4     i,j,i1,k,k1,ii,jj
       integer*4     nn,rstrt,irstrt,precout,maxits
@@ -361,7 +360,7 @@ c Local variables
       double precision,allocatable,dimension(:)  :: c,s,rs
       double precision,allocatable,dimension(:,:):: hh,vv,zz
 
-      data epsmac /1.d-16/
+      data epsmac /1d-16/
 
 c Begin program
 
@@ -372,14 +371,15 @@ c Begin program
 
       depth1 = depth + 1
 
-      abstol = 1d-16*nn
+      abstol = epsmac*nn
+cc      abstol = 0d0
 
 c Extract options
 
-      maxits   = options%iter             !Maximum number of GMRES its
-      stp_test = options%stp_test         !Stopping test type (0 -> rhs, 1-> residual)
-      eps      = options%tol              !Convergence tolerance
-      kmax     = options%krylov_subspace  !Maximum krylov subspace
+      maxits   = options%iter                       !Maximum number of GMRES its
+      stp_test = options%stp_test                   !Stopping test type (0 -> rhs, 1-> residual)
+      eps      = options%tol                        !Convergence tolerance
+      kmax     = min(options%krylov_subspace,ntot)  !Maximum krylov subspace
 
 c Allocate work arrays
 
@@ -394,11 +394,13 @@ c     For zero initial guess
 
         vv(:,1) = b(:)
 
+        x = 0d0
+
       else
 
 c     For arbitrary initial guess (vv(:,1) = b - Ax)
 
-        call matvec(0,ntot,x,vv,igrid,bcond)
+        call matvec(0,ntot,x,vv(:,1),igrid,bcond)
 
         vv(:,1) = b(:) - vv(:,1)
 
@@ -430,10 +432,6 @@ c Restarted GMRES loop
       do irstrt = 1,rstrt
 
         ro = sqrt(sum(vv(:,1)*vv(:,1)))
-
-cc        if (iout.ge.2.and.its.eq.0) write(*,10) its,ro,ro/rold
-
-cc        if (its .eq. 0) eps1=eps*rold
 
         tt = 1.0d0/ro
         vv(:,1) = vv(:,1)*tt
@@ -527,19 +525,19 @@ c      Form linear combination of z(*,i)'s to get solution
 
         tt = rs(1)
         do k=1, nn
-          b(k) = zz(k,1)*tt
+          dx(k) = zz(k,1)*tt
         enddo
 
         do j=2, i
           tt = rs(j)
           do k=1, nn
-            b(k) = b(k)+tt*zz(k,j)
+            dx(k) = dx(k)+tt*zz(k,j)
           enddo
         enddo
 
 c      Form solution
 
-        x = x + b
+        x = x + dx
 
 c      Check convergence and restart outer loop if necessary
 
