@@ -1,16 +1,3 @@
-c module bc_def
-c #####################################################################
-      module bc_def
-
-        implicit none
-
-        integer(4) :: PER,DIR,NEU,SP,EQU,DEF
-        parameter (EQU=1,PER=2,NEU=3,DIR=4,SP=5,DEF=6)
-
-        integer(4) :: bcond(6)
-
-      end module bc_def
-
 c module grid_structures
 c #####################################################################
       module grid_structures
@@ -1731,6 +1718,37 @@ c     Begin program
 
       end module grid_definition
 
+c module bc_def
+c #####################################################################
+      module bc_def
+
+        use grid_structures
+
+        implicit none
+
+        integer(4) :: PER,DIR,NEU,SP,EQU,DEF
+        parameter (EQU=1,PER=2,NEU=3,DIR=4,SP=5,DEF=6)
+
+        integer(4) :: bcond(6)
+        
+      contains
+
+c     isSP
+c     #################################################################
+      function isSP(i,j,k,igx,igy,igz) result(sing_point)
+
+        integer(4) :: i,j,k,igx,igy,igz
+        logical    :: sing_point
+
+
+        sing_point=.false.
+        if (i+grid_params%ilo(igx)-1 == 1 .and. bcond(1) == SP)
+     .       sing_point=.true.
+
+      end function isSP
+
+      end module bc_def
+
 #if defined(petsc)
 c module local_mpi
 c ######################################################################
@@ -1753,6 +1771,7 @@ c ######################################################################
 
         integer(4) :: MPI_COMM_SP
         integer(4),allocatable,dimension(:) :: MPI_COMM_PER
+        integer(4),allocatable,dimension(:) :: MPI_COMM_NBRS
 
       contains
 
@@ -1785,6 +1804,10 @@ c     Singular-point boundary MPI communicator
 
 c diag ****
 cc        write (*,*) 'Proc',my_rank,', SP COMM' ,MPI_COMM_SP
+cc        if (MPI_COMM_SP /= MPI_COMM_NULL) then
+cc          call MPI_Comm_size(MPI_COMM_SP,my_rank,mpierr)
+cc          write (*,*) '# ranks SP_COMM ',my_rank
+cc        endif
 cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
 cc        call MPI_Finalize(mpierr)
 cc        stop
@@ -1798,13 +1821,13 @@ c     Periodic MPI communicators
           call createBoundaryComm2(dim,PER,MPI_COMM_PER(dim))
         enddo
 
-ccc     Neighbors MPI communicators
+c     Neighbors MPI communicators
+
+cc        allocate(MPI_COMM_NBRS(3))
 cc
-cc        allocate(MPI_COMM_PER(np))
-cc
-cc        do inp=0,np-1
-cc          call createBoundaryComm(inp,PER,MPI_COMM_PER(inp))
-cc        enddo
+cc          do dim=1,3
+cc            call createNeighborComm(inp,dim,MPI_COMM_NBRS(dim))
+cc          enddo
 
 c diag ****
 cc        write (*,*) 'Proc',my_rank,', PER COMM',MPI_COMM_PER
@@ -1825,8 +1848,9 @@ c     #####################################################################
       subroutine createBoundaryComm2(dim,BC,MPI_COMM)
 
 c     ---------------------------------------------------------------------
-c     Creates MPI communicator for a given boundary condition and a given
-c     reference processor.
+c     Creates MPI communicator for a given boundary condition BC at the
+c     calling processor. If BC=0, if builds a communicator for the neighboring
+c     domains to a given processor.
 c     ---------------------------------------------------------------------
 
         implicit none
@@ -1906,9 +1930,7 @@ c     Set global limits g_lim(dim,loc)
 c     Select rank
 
         do loc=0,1
-          if (checkLim(BC,dim,loc,l_lim,g_lim)) then
-            split_key = BC
-          endif
+          if (checkBCLim(BC,dim,loc,l_lim,g_lim)) split_key = BC
         enddo
 
         !Create self-communicator for single-point dimensions
@@ -1922,9 +1944,9 @@ c     End program
 
       end subroutine selectRank
 
-c     checkLim
+c     checkBCLim
 c     #####################################################################
-      function checkLim(BC,dim,loc,llim,glim) result(include_proc)
+      function checkBCLim(BC,dim,loc,llim,glim) result(include_proc)
 
 c     ---------------------------------------------------------------------
 c     Checks whether a processor should be included in an MPI_COMM according
@@ -1946,15 +1968,14 @@ c     Begin program
 
         ibc(dim,loc) = (1+loc)+2*(dim-1)
 
-        include_proc=     (llim(dim,loc)==glim(dim,loc))
-cc     .               .and.(llim(dim,0  )/=llim(dim,1  ))
-     .               .and.bcond(ibc(dim,loc))==BC
+        include_proc= (llim(dim,loc)==glim(dim,loc))
+     .                 .and.bcond(ibc(dim,loc))==BC
 
-      end function checkLim
-cc
-ccc     createBoundaryComm
+      end function checkBCLim
+
+ccc     createNeighborComm
 ccc     #####################################################################
-cc      subroutine createBoundaryComm(ref_processor,BC,MPI_COMM)
+cc      subroutine createNeighborComm(dim,MPI_COMM)
 cc
 ccc     ---------------------------------------------------------------------
 ccc     Creates MPI communicator for a given boundary condition and a given
@@ -1965,7 +1986,7 @@ cc        implicit none
 cc
 ccc     Call variables
 cc
-cc        integer(4) :: MPI_COMM,BC,ref_processor
+cc        integer(4) :: dim,MPI_COMM
 cc
 ccc     Local variables
 cc
@@ -1976,7 +1997,7 @@ ccc     Begin program
 cc
 cc        allocate(group_ranks(np))
 cc
-cc        call numberRanks(ref_processor,BC,group_np)
+cc        call numberRanks(dim,group_np)
 cc
 cc        call selectRanks(BC,group_np,group_ranks)
 cc
@@ -1995,11 +2016,11 @@ cc        deallocate(group_ranks)
 cc
 ccc     End programs
 cc
-cc      end subroutine 
+cc      end subroutine createNeighborComm
 cc
 ccc     numberRanks
 ccc     #####################################################################
-cc      subroutine numberRanks(rp,BC,nranks)
+cc      subroutine numberRanks(dim,nranks)
 cc
 ccc     ---------------------------------------------------------------------
 ccc     Finds number of processors in MPI communicator
@@ -2009,11 +2030,11 @@ cc        implicit none
 cc
 ccc     Call variables
 cc
-cc        integer(4) :: BC,nranks,rp
+cc        integer(4) :: dim,nranks
 cc
 ccc     Local variables
 cc
-cc        integer(4) :: dim,loc,lrank
+cc        integer(4) :: loc,lrank,inp
 cc
 ccc     Begin program
 cc
@@ -2035,26 +2056,26 @@ cc        g_lim(1,1) = nxd
 cc        g_lim(2,1) = nyd
 cc        g_lim(3,1) = nzd
 cc
+ccc     Cycle over all processors
+cc
+cc        do inp=0,np-1
+cc
 ccc     Get reference processor info, make it available in all processors
 cc
-cc        if (rp >= 0) then
-cc          if (my_rank == rp.and.my_rank==0) then
+cc          if (my_rank == inp) then
 cc            rp_l_lim = l_lim
 cc          elseif (my_rank == 0) then
 cc            tag = 1
-cc            call MPI_Recv(rp_l_lim,6,MPI_INTEGER,rp,tag
+cc            call MPI_Recv(rp_l_lim,6,MPI_INTEGER,inp,tag
 cc     .                   ,MPI_COMM_WORLD,status,mpierr)
 cc          elseif (my_rank == rp) then
 cc            tag  = 1
-cc            dest = 0
+cc            dest = 
 cc            call MPI_Send(l_lim,6,MPI_INTEGER,dest,tag,MPI_COMM_WORLD
 cc     .                   ,mpierr)
 cc          endif
-cc        else
-cc          rp_l_lim = -1
-cc        endif
 cc
-cc        call MPI_Bcast(rp_l_lim,6,MPI_INTEGER,0,MPI_COMM_WORLD,mpierr)
+cc          call MPI_Bcast(rp_l_lim,6,MPI_INTEGER,0,MPI_COMM_WORLD,mpierr)
 cc
 ccc diag ****
 cccc        write (*,*) 'proc',my_rank,'limits',(rp_l_lim(dim,:),dim=1,3)
@@ -3461,8 +3482,9 @@ c     Begin program
         if  (    (i == ilom .or. i == ihip)       !Avoid x-boundaries
      .       .or.(j == jlom .or. j == jhip)       !Avoid y-boundaries
      .       .or.(k == klom .or. k == khip)       !Avoid z-boundaries
-     .       .or.(grid_params%ilo(igx) == 1
-     $            .and. bcond(1) == SP     )      !Avoid singular point
+     .       .or. isSP(i,j,k,igx,igy,igz)         !Avoid singular point
+cc     .       .or.(grid_params%ilo(igx) == 1
+cc     .            .and. bcond(1) == SP     )      !Avoid singular point
      .       ) return
 
         gamma = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
@@ -4278,6 +4300,9 @@ c     Find grid quantities
           if (bcs1 == PER) then
             dxh(0        + isig) = dxh(nx(ig) + isig)
             dxh(nx(ig)+1 + isig) = dxh(1      + isig)
+          elseif (bcs1 == SP .and. ilo(1) == 1) then
+            dxh(0        + isig) = dx(0      + isig)
+            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)/2.
           else
             dxh(0        + isig) = dx(0      + isig)/2.
             dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)/2.
