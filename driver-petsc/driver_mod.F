@@ -919,6 +919,10 @@ c     Integrate
         do j = 1,ny
           do i = 1,nx
             vol = volume(i,j,k,igx,igy,igz)
+            if (i == 1  .and. bcond(1) == SYM) vol = 0.5*vol
+            if (i == nx .and. bcond(2) == SYM) vol = 0.5*vol
+            if (j == 1  .and. bcond(3) == SYM) vol = 0.5*vol
+            if (j == ny .and. bcond(4) == SYM) vol = 0.5*vol
             lintegral = lintegral + array(i,j,k)*vol
             lvolume = lvolume + vol
           enddo
