@@ -166,11 +166,11 @@ int main(int argc, char **argv)
 	/* for (steps = 1; (steps < 100) && (norm_2 > DIFF_NORM); steps++) { */
 	for (steps = 0; steps < user.nmax; steps++) {
 
-	  ierr = ProcessOldSolution(snes,x,&user);
+	  ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
 
 	  ierr = SNESSolve(snes,x,&user.nwits);CHKERRQ(ierr);
 
-	  ierr = SNESGetNumberLinearIterations(snes,&user.gmits);
+	  ierr = SNESGetNumberLinearIterations(snes,&user.gmits);CHKERRQ(ierr);
 
 	  /*PetscPrintf(PETSC_COMM_WORLD,"Steps = %d Number of Newton iterations = %d\n"\
                      ,steps, user.nwits);
@@ -178,7 +178,7 @@ int main(int argc, char **argv)
 
 	}
 
-	ierr = ProcessOldSolution(snes,x,&user);
+	ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
 
 	/* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	                     Deallocate memory and finish
