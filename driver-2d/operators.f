@@ -211,6 +211,62 @@ c End program
       return
       end
 
+c laplace_new
+c####################################################################
+      function laplace_new(i,j,nx,ny,igr,arr) result(laplace)
+c--------------------------------------------------------------------
+c     Calculates lap(arr).
+c--------------------------------------------------------------------
+
+      use grid
+
+      implicit none           !For safe fortran
+
+c Call variables
+
+      integer*4  i,j,nx,ny,bcond(4),igr
+      real*8     arr(0:nx+1,0:ny+1),laplace
+
+c Local variables
+
+      integer*4  ip,im,jp,jm,ii,jj,ig,jg
+      real(8)  :: dxx,dyy
+
+c Begin program
+
+      call getMGmap(i,j,igr,ig,jg)
+
+      dxx = grid_params%dxh(ig)
+      dyy = grid_params%dyh(jg)
+      
+      bcond(1) = 1
+      bcond(2) = 1
+      bcond(3) = 0
+      bcond(4) = 0
+      call shiftIndices(i,j,ii,im,ip,jj,jm,jp,nx,ny,0,bcond)
+
+      if (j.eq.0) then
+        laplace = ( (arr(ip,jj)-arr(ii,jj))/dxx
+     .             -(arr(ii,jj)-arr(im,jj))/dxx )/dxx
+     .          + ( 2*arr(ii,jj  )-5*arr(ii,jp  )
+     .             +4*arr(ii,jp+1)-  arr(ii,jp+2) )/dyy**2
+      elseif (j.eq.ny+1) then
+        laplace = ( (arr(ip,jj)-arr(ii,jj))/dxx
+     .             -(arr(ii,jj)-arr(im,jj))/dxx )/dxx
+     .          + ( 2*arr(ii,jj  )-5*arr(ii,jm  )
+     .             +4*arr(ii,jm-1)-  arr(ii,jm-2) )/dyy**2
+      else
+        laplace = ( (arr(ip,jj)-arr(ii,jj))/grid_params%dx(ig  )
+     .             -(arr(ii,jj)-arr(im,jj))/grid_params%dx(ig-1) )/dxx
+     .          + ( (arr(ii,jp)-arr(ii,jj))/grid_params%dy(ig  )      
+     .             -(arr(ii,jj)-arr(ii,jm))/grid_params%dy(ig-1) )/dyy
+      endif
+
+c End program
+
+      return
+      end
+
 c divDgrad
 c####################################################################
       real*8 function divDgrad(i,j,nx,ny,dxx,dyy,arr,diff)
