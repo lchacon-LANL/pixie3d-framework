@@ -398,7 +398,7 @@ c     #######################################################################
         endif
 
  240    format ('    Too many Newton iterations')
- 400    format ('    Subcycling time step... New time step:',f7.4)
+ 400    format ('    Subcycling time step... New time step: ',1p,e10.4)
 
       end subroutine adapt_dt
 
