@@ -801,11 +801,8 @@ c Local variables
 
 c Begin program
 
-      pert  = 1d0
-      scale = 0d0
-
       scale = sqrt(sum(z*z))
-      pert  = sqrt(pert + sum(x*x))
+      pert  = sqrt(1d0 + sum(x*x))
 
 c Calculate J.x
 
@@ -817,10 +814,11 @@ c Calculate J.x
 
       else
 
-        eps = 1d-4
+        eps = 1d-6
 
 cc        pert = eps*dsqrt(pert/scale)/nn
-        pert = eps*(1.+pert/scale/nn)
+cc        pert = eps*(1.+pert/scale/nn)
+        pert = eps*(1.+pert/scale)
 cc        pert = eps*(1.+dsqrt(pert/scale))
 cc        pert = eps*2d0/dsqrt(scale)
 
