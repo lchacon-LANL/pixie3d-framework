@@ -30,6 +30,8 @@ c----------------------------------------------------------------------
 
       use icond
 
+      use grid
+
       implicit none
 
 c Call variables
@@ -41,6 +43,8 @@ c Local variables
       character*(5),allocatable,dimension(:) :: label
 
       integer(4),allocatable,dimension(:,:)  :: bcs
+
+cc      integer :: igrid
 
 c Begin program
 
@@ -92,6 +96,22 @@ c Allocate variables
 c Initialize MG and create grid
 
       call setupMG(nxd,nyd,bcond)
+
+cc      do igrid=ngrd,1,-1
+cc        write (*,*) xl(:,igrid)
+cc      enddo
+cc      do igrid=ngrd,1,-1
+cc        write (*,*) yl(:,igrid)
+cc      enddo
+
+      xmin = 0d0
+      xmax = xlength
+      ymin = 0d0
+      ymax = ylength
+      zmin = 0d0
+      zmax = 1d0
+      call createGrid(nxd,nyd,1,bcond)
+cc      call checkGrid
 
 c Set equilibrium u_0 and define BCs on all variables
 
