@@ -1,0 +1,183 @@
+*DECK DPLINT
+      SUBROUTINE DPLINT (N, X, Y, C)
+C***BEGIN PROLOGUE  DPLINT
+C***PURPOSE  Produce the polynomial which interpolates a set of discrete
+C            data points.
+C***LIBRARY   SLATEC
+C***CATEGORY  E1B
+C***TYPE      DOUBLE PRECISION (POLINT-S, DPLINT-D)
+C***KEYWORDS  POLYNOMIAL INTERPOLATION
+C***AUTHOR  Huddleston, R. E., (SNLL)
+C***DESCRIPTION
+C
+C     Abstract
+C        Subroutine DPLINT is designed to produce the polynomial which
+C     interpolates the data  (X(I),Y(I)), I=1,...,N.  DPLINT sets up
+C     information in the array C which can be used by subroutine DPOLVL
+C     to evaluate the polynomial and its derivatives and by subroutine
+C     DPOLCF to produce the coefficients.
+C
+C     Formal Parameters
+C     *** All TYPE REAL variables are DOUBLE PRECISION ***
+C     N  - the number of data points  (N .GE. 1)
+C     X  - the array of abscissas (all of which must be distinct)
+C     Y  - the array of ordinates
+C     C  - an array of information used by subroutines
+C     *******  Dimensioning Information  *******
+C     Arrays X,Y, and C must be dimensioned at least N in the calling
+C     program.
+C
+C***REFERENCES  L. F. Shampine, S. M. Davenport and R. E. Huddleston,
+C                 Curve fitting by polynomials in one variable, Report
+C                 SLA-74-0270, Sandia Laboratories, June 1974.
+C***ROUTINES CALLED  XERMSG
+C***REVISION HISTORY  (YYMMDD)
+C   740601  DATE WRITTEN
+C   891006  Cosmetic changes to prologue.  (WRB)
+C   891006  REVISION DATE from Version 3.2
+C   891214  Prologue converted to Version 4.0 format.  (BAB)
+C   900315  CALLs to XERROR changed to CALLs to XERMSG.  (THJ)
+C   920501  Reformatted the REFERENCES section.  (WRB)
+C***END PROLOGUE  DPLINT
+
+========================================================================
+*DECK DPOLVL
+      SUBROUTINE DPOLVL (NDER, XX, YFIT, YP, N, X, C, WORK, IERR)
+C***BEGIN PROLOGUE  DPOLVL
+C***PURPOSE  Calculate the value of a polynomial and its first NDER
+C            derivatives where the polynomial was produced by a previous
+C            call to DPLINT.
+C***LIBRARY   SLATEC
+C***CATEGORY  E3
+C***TYPE      DOUBLE PRECISION (POLYVL-S, DPOLVL-D)
+C***KEYWORDS  POLYNOMIAL EVALUATION
+C***AUTHOR  Huddleston, R. E., (SNLL)
+C***DESCRIPTION
+C
+C     Abstract -
+C        Subroutine DPOLVL calculates the value of the polynomial and
+C     its first NDER derivatives where the polynomial was produced by
+C     a previous call to DPLINT.
+C        The variable N and the arrays X and C must not be altered
+C     between the call to DPLINT and the call to DPOLVL.
+C
+C     ******  Dimensioning Information *******
+C
+C     YP   must be dimensioned by at least NDER
+C     X    must be dimensioned by at least N (see the abstract )
+C     C    must be dimensioned by at least N (see the abstract )
+C     WORK must be dimensioned by at least 2*N if NDER is .GT. 0.
+C
+C     *** Note ***
+C       If NDER=0, neither YP nor WORK need to be dimensioned variables.
+C       If NDER=1, YP does not need to be a dimensioned variable.
+C
+C
+C     *****  Input parameters
+C       ***  All TYPE REAL variables are DOUBLE PRECISION ***
+C
+C     NDER - the number of derivatives to be evaluated
+C
+C     XX   - the argument at which the polynomial and its derivatives
+C            are to be evaluated.
+C
+C     N    - *****
+C            *       N, X, and C must not be altered between the call
+C     X    - *       to DPLINT and the call to DPOLVL.
+C     C    - *****
+C
+C
+C     *****  Output Parameters
+C       ***  All TYPE REAL variables are DOUBLE PRECISION ***
+C
+C     YFIT - the value of the polynomial at XX
+C
+C     YP   - the derivatives of the polynomial at XX.  The derivative of
+C            order J at XX is stored in  YP(J) , J = 1,...,NDER.
+C
+C     IERR - Output error flag with the following possible values.
+C          = 1  indicates normal execution
+C
+C     ***** Storage Parameters
+C
+C     WORK  = this is an array to provide internal working storage for
+C             DPOLVL.  It must be dimensioned by at least 2*N if NDER is
+C             .GT. 0.  If NDER=0, WORK does not need to be a dimensioned
+C             variable.
+C
+C***REFERENCES  L. F. Shampine, S. M. Davenport and R. E. Huddleston,
+C                 Curve fitting by polynomials in one variable, Report
+C                 SLA-74-0270, Sandia Laboratories, June 1974.
+C***ROUTINES CALLED  (NONE)
+C***REVISION HISTORY  (YYMMDD)
+C   740601  DATE WRITTEN
+C   890531  Changed all specific intrinsics to generic.  (WRB)
+C   891006  Cosmetic changes to prologue.  (WRB)
+C   891006  REVISION DATE from Version 3.2
+C   891214  Prologue converted to Version 4.0 format.  (BAB)
+C   920501  Reformatted the REFERENCES section.  (WRB)
+C***END PROLOGUE  DPOLVL
+
+========================================================================
+*DECK DPOLCF
+      SUBROUTINE DPOLCF (XX, N, X, C, D, WORK)
+C***BEGIN PROLOGUE  DPOLCF
+C***PURPOSE  Compute the coefficients of the polynomial fit (including
+C            Hermite polynomial fits) produced by a previous call to
+C            POLINT.
+C***LIBRARY   SLATEC
+C***CATEGORY  E1B
+C***TYPE      DOUBLE PRECISION (POLCOF-S, DPOLCF-D)
+C***KEYWORDS  COEFFICIENTS, POLYNOMIAL
+C***AUTHOR  Huddleston, R. E., (SNLL)
+C***DESCRIPTION
+C
+C     Abstract
+C        Subroutine DPOLCF computes the coefficients of the polynomial
+C     fit (including Hermite polynomial fits ) produced by a previous
+C     call to DPLINT.  The coefficients of the polynomial, expanded
+C     about XX, are stored in the array D. The expansion is of the form
+C     P(Z) = D(1) + D(2)*(Z-XX) +D(3)*((Z-XX)**2) + ... +
+C                                                  D(N)*((Z-XX)**(N-1)).
+C     Between the call to DPLINT and the call to DPOLCF the variable N
+C     and the arrays X and C must not be altered.
+C
+C     *****  INPUT PARAMETERS
+C      *** All TYPE REAL variables are DOUBLE PRECISION ***
+C
+C     XX   - The point about which the Taylor expansion is to be made.
+C
+C     N    - ****
+C            *     N, X, and C must remain unchanged between the
+C     X    - *     call to DPLINT and the call to DPOLCF.
+C     C    - ****
+C
+C     *****  OUTPUT PARAMETER
+C      *** All TYPE REAL variables are DOUBLE PRECISION ***
+C
+C     D    - The array of coefficients for the Taylor expansion as
+C            explained in the abstract
+C
+C     *****  STORAGE PARAMETER
+C
+C     WORK - This is an array to provide internal working storage. It
+C            must be dimensioned by at least 2*N in the calling program.
+C
+C
+C     **** Note - There are two methods for evaluating the fit produced
+C     by DPLINT. You may call DPOLVL to perform the task, or you may
+C     call DPOLCF to obtain the coefficients of the Taylor expansion and
+C     then write your own evaluation scheme. Due to the inherent errors
+C     in the computations of the Taylor expansion from the Newton
+C     coefficients produced by DPLINT, much more accuracy may be
+C     expected by calling DPOLVL as opposed to writing your own scheme.
+C
+C***REFERENCES  (NONE)
+C***ROUTINES CALLED  (NONE)
+C***REVISION HISTORY  (YYMMDD)
+C   890213  DATE WRITTEN
+C   891006  Cosmetic changes to prologue.  (WRB)
+C   891024  Corrected KEYWORD section.  (WRB)
+C   891024  REVISION DATE from Version 3.2
+C   891214  Prologue converted to Version 4.0 format.  (BAB)
+C***END PROLOGUE  DPOLCF

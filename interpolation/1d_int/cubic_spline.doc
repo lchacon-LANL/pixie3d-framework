@@ -1,0 +1,4423 @@
+C***BEGIN PROLOGUE  DPCHFD
+C***DATE WRITTEN   811020   (YYMMDD)
+C***REVISION DATE  870707   (YYMMDD)
+C***CATEGORY NO.  E3,H1
+C***KEYWORDS  LIBRARY=SLATEC(PCHIP),
+C             TYPE=DOUBLE PRECISION(PCHFD-S DPCHFD-D),
+C             CUBIC HERMITE DIFFERENTIATION,CUBIC HERMITE EVALUATION,
+C             HERMITE INTERPOLATION,PIECEWISE CUBIC EVALUATION
+C***AUTHOR  FRITSCH, F. N., (LLNL)
+C             MATHEMATICS AND STATISTICS DIVISION
+C             LAWRENCE LIVERMORE NATIONAL LABORATORY
+C             P.O. BOX 808  (L-316)
+C             LIVERMORE, CA  94550
+C             FTS 532-4275, (415) 422-4275
+C***PURPOSE  Evaluate a piecewise cubic hermite function and its first
+C            derivative at an array of points.  May be used by itself
+C            for Hermite interpolation, or as an evaluator for DPCHIM
+C            or DPCHIC. If only function values are required, use
+C            DPCHFE instead.
+C***DESCRIPTION
+C
+C       **** Double Precision version of PCHFD ****
+C
+C          DPCHFD:  Piecewise Cubic Hermite Function and Derivative
+C                  evaluator
+C
+C     Evaluates the cubic Hermite function defined by  N, X, F, D,  to-
+C     gether with its first derivative, at the points  XE(J), J=1(1)NE.
+C
+C     If only function values are required, use DPCHFE, instead.
+C
+C     To provide compatibility with DPCHIM and DPCHIC, includes an
+C     increment between successive values of the F- and D-arrays.
+C
+C ----------------------------------------------------------------------
+C
+C  Calling sequence:
+C
+C        PARAMETER  (INCFD = ...)
+C        INTEGER  N, NE, IERR
+C        DOUBLE PRECISION  X(N), F(INCFD,N), D(INCFD,N), XE(NE), FE(NE),
+C                          DE(NE)
+C        LOGICAL  SKIP
+C
+C        CALL  DPCHFD (N, X, F, D, INCFD, SKIP, NE, XE, FE, DE, IERR)
+C
+C   Parameters:
+C
+C     N -- (input) number of data points.  (Error return if N.LT.2 .)
+C
+C     X -- (input) real*8 array of independent variable values.  The
+C           elements of X must be strictly increasing:
+C                X(I-1) .LT. X(I),  I = 2(1)N.
+C           (Error return if not.)
+C
+C     F -- (input) real*8 array of function values.  F(1+(I-1)*INCFD) is
+C           the value corresponding to X(I).
+C
+C     D -- (input) real*8 array of derivative values.  D(1+(I-1)*INCFD)
+C           is the value corresponding to X(I).
+C
+C     INCFD -- (input) increment between successive values in F and D.
+C           (Error return if  INCFD.LT.1 .)
+C
+C     SKIP -- (input/output) logical variable which should be set to
+C           .TRUE. if the user wishes to skip checks for validity of
+C           preceding parameters, or to .FALSE. otherwise.
+C           This will save time in case these checks have already
+C           been performed (say, in DPCHIM or DPCHIC).
+C           SKIP will be set to .TRUE. on normal return.
+C
+C     NE -- (input) number of evaluation points.  (Error return if
+C           NE.LT.1 .)
+C
+C     XE -- (input) real*8 array of points at which the functions are to
+C           be evaluated.
+C
+C
+C          NOTES:
+C           1. The evaluation will be most efficient if the elements
+C              of XE are increasing relative to X;
+C              that is,   XE(J) .GE. X(I)
+C              implies    XE(K) .GE. X(I),  all K.GE.J .
+C           2. If any of the XE are outside the interval [X(1),X(N)],
+C              values are extrapolated from the nearest extreme cubic,
+C              and a warning error is returned.
+C
+C     FE -- (output) real*8 array of values of the cubic Hermite
+C           function defined by  N, X, F, D  at the points  XE.
+C
+C     DE -- (output) real*8 array of values of the first derivative of
+C           the same function at the points  XE.
+C
+C     IERR -- (output) error flag.
+C           Normal return:
+C              IERR = 0  (no errors).
+C           Warning error:
+C              IERR.GT.0  means that extrapolation was performed at
+C                 IERR points.
+C           "Recoverable" errors:
+C              IERR = -1  if N.LT.2 .
+C              IERR = -2  if INCFD.LT.1 .
+C              IERR = -3  if the X-array is not strictly increasing.
+C              IERR = -4  if NE.LT.1 .
+C           (Output arrays have not been changed in any of these cases.)
+C               NOTE:  The above errors are checked in the order listed,
+C                   and following arguments have **NOT** been validated.
+C              IERR = -5  if an error has occurred in the lower-level
+C                         routine DCHFDV.  NB: this should never happen.
+C                         Notify the author **IMMEDIATELY** if it does.
+C
+C***REFERENCES  (NONE)
+C***ROUTINES CALLED  DCHFDV,XERROR
+C***END PROLOGUE  DPCHFD
+C
+C ----------------------------------------------------------------------
+C
+C  Change record:
+C     82-08-03   Minor cosmetic changes for release 1.
+C     87-07-07   Corrected XERROR calls for d.p. name(s).
+C
+C ----------------------------------------------------------------------
+C
+C  Programming notes:
+C
+C     1. To produce a single precision version, simply:
+C        a. Change DPCHFD to PCHFD, and DCHFDV to CHFDV, wherever they
+C           occur,
+C        b. Change the double precision declaration to real,
+C
+C     2. Most of the coding between the call to DCHFDV and the end of
+C        the IR-loop could be eliminated if it were permissible to
+C        assume that XE is ordered relative to X.
+C
+C     3. DCHFDV does not assume that X1 is less than X2.  thus, it would
+C        be possible to write a version of DPCHFD that assumes a strict-
+C        ly decreasing X-array by simply running the IR-loop backwards
+C        (and reversing the order of appropriate tests).
+C
+C     4. The present code has a minor bug, which I have decided is not
+C        worth the effort that would be required to fix it.
+C        If XE contains points in [X(N-1),X(N)], followed by points .LT.
+C        X(N-1), followed by points .GT.X(N), the extrapolation points
+C        will be counted (at least) twice in the total returned in IERR.
+C
+C  DECLARE ARGUMENTS.
+C
+C
+C  DECLARE LOCAL VARIABLES.
+C
+C
+C  VALIDITY-CHECK ARGUMENTS.
+C
+C***FIRST EXECUTABLE STATEMENT  DPCHFD
+C
+C
+C  FUNCTION DEFINITION IS OK, GO ON.
+C
+C
+C  LOOP OVER INTERVALS.        (   INTERVAL INDEX IS  IL = IR-1  . )
+C                              ( INTERVAL IS X(IL).LE.X.LT.X(IR) . )
+C
+C     SKIP OUT OF LOOP IF HAVE PROCESSED ALL EVALUATION POINTS.
+C
+C
+C     LOCATE ALL POINTS IN INTERVAL.
+C
+C
+C     HAVE LOCATED FIRST POINT BEYOND INTERVAL.
+C
+C
+C
+C     SKIP EVALUATION IF NO POINTS IN INTERVAL.
+C
+C
+C     EVALUATE CUBIC AT XE(I),  I = JFIRST (1) J-1 .
+C
+C       ----------------------------------------------------------------
+C       ----------------------------------------------------------------
+C
+C        IF (NEXT(2) .GT. 0)  THEN
+C           IN THE CURRENT SET OF XE-POINTS, THERE ARE NEXT(2) TO THE
+C           RIGHT OF X(IR).
+C
+C           IF (IR .EQ. N)  THEN
+C              THESE ARE ACTUALLY EXTRAPOLATION POINTS.
+C           ELSE
+C              WE SHOULD NEVER HAVE GOTTEN HERE.
+C           ENDIF
+C        ENDIF
+C
+C        IF (NEXT(1) .GT. 0)  THEN
+C           IN THE CURRENT SET OF XE-POINTS, THERE ARE NEXT(1) TO THE
+C           LEFT OF X(IR-1).
+C
+C           IF (IR .EQ. 2)  THEN
+C              THESE ARE ACTUALLY EXTRAPOLATION POINTS.
+C           ELSE
+C              XE IS NOT ORDERED RELATIVE TO X, SO MUST ADJUST
+C              EVALUATION INTERVAL.
+C
+C              FIRST, LOCATE FIRST POINT TO LEFT OF X(IR-1).
+C              NOTE-- CANNOT DROP THROUGH HERE UNLESS THERE IS AN ERROR
+C                     IN DCHFDV.
+C
+C              RESET J.  (THIS WILL BE THE NEW JFIRST.)
+C
+C              NOW FIND OUT HOW FAR TO BACK UP IN THE X-ARRAY.
+C              NB-- CAN NEVER DROP THROUGH HERE, SINCE XE(J).LT.X(IR-1).
+C
+C              AT THIS POINT, EITHER  XE(J) .LT. X(1)
+C                 OR      X(I-1) .LE. XE(J) .LT. X(I) .
+C              RESET IR, RECOGNIZING THAT IT WILL BE INCREMENTED BEFORE
+C              CYCLING.
+C           ENDIF
+C        ENDIF
+C
+C
+C     END OF IR-LOOP.
+C
+C
+C  NORMAL RETURN.
+C
+C
+C  ERROR RETURNS.
+C
+C     N.LT.2 RETURN.
+C
+C     INCFD.LT.1 RETURN.
+C
+C     X-ARRAY NOT STRICTLY INCREASING.
+C
+C     NE.LT.1 RETURN.
+C
+C     ERROR RETURN FROM DCHFDV.
+C   *** THIS CASE SHOULD NEVER OCCUR ***
+C------------- LAST LINE OF DPCHFD FOLLOWS -----------------------------
+C***BEGIN PROLOGUE  XERROR
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Processes an error (diagnostic) message.
+C***DESCRIPTION
+C     Abstract
+C        XERROR processes a diagnostic message, in a manner
+C        determined by the value of LEVEL and the current value
+C        of the library error control flag, KONTRL.
+C        (See subroutine XSETF for details.)
+C
+C     Description of Parameters
+C      --Input--
+C        MESSG - the Hollerith message to be processed, containing
+C                no more than 72 characters.
+C        NMESSG- the actual number of characters in MESSG.
+C        NERR  - the error number associated with this message.
+C                NERR must not be zero.
+C        LEVEL - error category.
+C                =2 means this is an unconditionally fatal error.
+C                =1 means this is a recoverable error.  (I.e., it is
+C                   non-fatal if XSETF has been appropriately called.)
+C                =0 means this is a warning message only.
+C                =-1 means this is a warning message which is to be
+C                   printed at most once, regardless of how many
+C                   times this call is executed.
+C
+C     Examples
+C        CALL XERROR('SMOOTH -- NUM WAS ZERO.',23,1,2)
+C        CALL XERROR('INTEG  -- LESS THAN FULL ACCURACY ACHIEVED.',
+C                    43,2,1)
+C        CALL XERROR('ROOTER -- ACTUAL ZERO OF F FOUND BEFORE INTERVAL F
+C    1ULLY COLLAPSED.',65,3,0)
+C        CALL XERROR('EXP    -- UNDERFLOWS BEING SET TO ZERO.',39,1,-1)
+C
+C     Latest revision ---  19 MAR 1980
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  XERRWV
+C***END PROLOGUE  XERROR
+C***FIRST EXECUTABLE STATEMENT  XERROR
+C***BEGIN PROLOGUE  XERRWV
+C***DATE WRITTEN   800319   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Processes error message allowing 2 integer and two real
+C            values to be included in the message.
+C***DESCRIPTION
+C     Abstract
+C        XERRWV processes a diagnostic message, in a manner
+C        determined by the value of LEVEL and the current value
+C        of the library error control flag, KONTRL.
+C        (See subroutine XSETF for details.)
+C        In addition, up to two integer values and two real
+C        values may be printed along with the message.
+C
+C     Description of Parameters
+C      --Input--
+C        MESSG - the Hollerith message to be processed.
+C        NMESSG- the actual number of characters in MESSG.
+C        NERR  - the error number associated with this message.
+C                NERR must not be zero.
+C        LEVEL - error category.
+C                =2 means this is an unconditionally fatal error.
+C                =1 means this is a recoverable error.  (I.e., it is
+C                   non-fatal if XSETF has been appropriately called.)
+C                =0 means this is a warning message only.
+C                =-1 means this is a warning message which is to be
+C                   printed at most once, regardless of how many
+C                   times this call is executed.
+C        NI    - number of integer values to be printed. (0 to 2)
+C        I1    - first integer value.
+C        I2    - second integer value.
+C        NR    - number of real values to be printed. (0 to 2)
+C        R1    - first real value.
+C        R2    - second real value.
+C
+C     Examples
+C        CALL XERRWV('SMOOTH -- NUM (=I1) WAS ZERO.',29,1,2,
+C    1   1,NUM,0,0,0.,0.)
+C        CALL XERRWV('QUADXY -- REQUESTED ERROR (R1) LESS THAN MINIMUM (
+C    1R2).,54,77,1,0,0,0,2,ERRREQ,ERRMIN)
+C
+C     Latest revision ---  19 MAR 1980
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  FDUMP,I1MACH,J4SAVE,XERABT,XERCTL,XERPRT,XERSAV,
+C                    XGETUA
+C***END PROLOGUE  XERRWV
+C     GET FLAGS
+C***FIRST EXECUTABLE STATEMENT  XERRWV
+C     CHECK FOR VALID INPUT
+C     RECORD MESSAGE
+C     LET USER OVERRIDE
+C     RESET TO ORIGINAL VALUES
+C     DECIDE WHETHER TO PRINT MESSAGE
+C           INTRODUCTION
+C        MESSAGE
+C              ERROR NUMBER
+C        TRACE-BACK
+C     QUIT HERE IF MESSAGE IS NOT FATAL
+C        PRINT REASON FOR ABORT
+C        PRINT ERROR SUMMARY
+C     ABORT
+C***BEGIN PROLOGUE  XERSAV
+C***DATE WRITTEN   800319   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  Z
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Records that an error occurred.
+C***DESCRIPTION
+C     Abstract
+C        Record that this error occurred.
+C
+C     Description of Parameters
+C     --Input--
+C       MESSG, NMESSG, NERR, LEVEL are as in XERROR,
+C       except that when NMESSG=0 the tables will be
+C       dumped and cleared, and when NMESSG is less than zero the
+C       tables will be dumped and not cleared.
+C     --Output--
+C       ICOUNT will be the number of times this message has
+C       been seen, or zero if the table has overflowed and
+C       does not contain this message specifically.
+C       When NMESSG=0, ICOUNT will not be altered.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C     Latest revision ---  19 Mar 1980
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  I1MACH,S88FMT,XGETUA
+C***END PROLOGUE  XERSAV
+C     NEXT TWO DATA STATEMENTS ARE NECESSARY TO PROVIDE A BLANK
+C     ERROR TABLE INITIALLY
+C***FIRST EXECUTABLE STATEMENT  XERSAV
+C     DUMP THE TABLE
+C        PRINT TO EACH UNIT
+C           PRINT TABLE HEADER
+C           PRINT BODY OF TABLE
+C           PRINT NUMBER OF OTHER ERRORS
+C        CLEAR THE ERROR TABLES
+C     PROCESS A MESSAGE...
+C     SEARCH FOR THIS MESSG, OR ELSE AN EMPTY SLOT FOR THIS MESSG,
+C     OR ELSE DETERMINE THAT THE ERROR TABLE IS FULL.
+C     THREE POSSIBLE CASES...
+C     TABLE IS FULL
+C     MESSAGE FOUND IN TABLE
+C     EMPTY SLOT FOUND FOR NEW MESSAGE
+C***BEGIN PROLOGUE  XGETUA
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Returns unit number(s) to which error messages are being
+C            sent.
+C***DESCRIPTION
+C     Abstract
+C        XGETUA may be called to determine the unit number or numbers
+C        to which error messages are being sent.
+C        These unit numbers may have been set by a call to XSETUN,
+C        or a call to XSETUA, or may be a default value.
+C
+C     Description of Parameters
+C      --Output--
+C        IUNIT - an array of one to five unit numbers, depending
+C                on the value of N.  A value of zero refers to the
+C                default unit, as defined by the I1MACH machine
+C                constant routine.  Only IUNIT(1),...,IUNIT(N) are
+C                defined by XGETUA.  The values of IUNIT(N+1),...,
+C                IUNIT(5) are not defined (for N .LT. 5) or altered
+C                in any way by XGETUA.
+C        N     - the number of units to which copies of the
+C                error messages are being sent.  N will be in the
+C                range from 1 to 5.
+C
+C     Latest revision ---  19 MAR 1980
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  J4SAVE
+C***END PROLOGUE  XGETUA
+C***FIRST EXECUTABLE STATEMENT  XGETUA
+C***BEGIN PROLOGUE  I1MACH
+C***DATE WRITTEN   750101   (YYMMDD)
+C***REVISION DATE  840405   (YYMMDD)
+C***CATEGORY NO.  R1
+C***KEYWORDS  MACHINE CONSTANTS
+C***AUTHOR  FOX, P. A., (BELL LABS)
+C           HALL, A. D., (BELL LABS)
+C           SCHRYER, N. L., (BELL LABS)
+C***PURPOSE  Returns integer machine dependent constants
+C***DESCRIPTION
+C
+C     This is the CMLIB version of I1MACH, the integer machine
+C     constants subroutine originally developed for the PORT library.
+C
+C     I1MACH can be used to obtain machine-dependent parameters
+C     for the local machine environment.  It is a function
+C     subroutine with one (input) argument, and can be called
+C     as follows, for example
+C
+C          K = I1MACH(I)
+C
+C     where I=1,...,16.  The (output) value of K above is
+C     determined by the (input) value of I.  The results for
+C     various values of I are discussed below.
+C
+C  I/O unit numbers.
+C    I1MACH( 1) = the standard input unit.
+C    I1MACH( 2) = the standard output unit.
+C    I1MACH( 3) = the standard punch unit.
+C    I1MACH( 4) = the standard error message unit.
+C
+C  Words.
+C    I1MACH( 5) = the number of bits per integer storage unit.
+C    I1MACH( 6) = the number of characters per integer storage unit.
+C
+C  Integers.
+C    assume integers are represented in the S-digit, base-A form
+C
+C               sign ( X(S-1)*A**(S-1) + ... + X(1)*A + X(0) )
+C
+C               where 0 .LE. X(I) .LT. A for I=0,...,S-1.
+C    I1MACH( 7) = A, the base.
+C    I1MACH( 8) = S, the number of base-A digits.
+C    I1MACH( 9) = A**S - 1, the largest magnitude.
+C
+C  Floating-Point Numbers.
+C    Assume floating-point numbers are represented in the T-digit,
+C    base-B form
+C               sign (B**E)*( (X(1)/B) + ... + (X(T)/B**T) )
+C
+C               where 0 .LE. X(I) .LT. B for I=1,...,T,
+C               0 .LT. X(1), and EMIN .LE. E .LE. EMAX.
+C    I1MACH(10) = B, the base.
+C
+C  Single-Precision
+C    I1MACH(11) = T, the number of base-B digits.
+C    I1MACH(12) = EMIN, the smallest exponent E.
+C    I1MACH(13) = EMAX, the largest exponent E.
+C
+C  Double-Precision
+C    I1MACH(14) = T, the number of base-B digits.
+C    I1MACH(15) = EMIN, the smallest exponent E.
+C    I1MACH(16) = EMAX, the largest exponent E.
+C
+C  To alter this function for a particular environment,
+C  the desired set of DATA statements should be activated by
+C  removing the C from column 1.  Also, the values of
+C  I1MACH(1) - I1MACH(4) should be checked for consistency
+C  with the local operating system.
+C***REFERENCES  FOX P.A., HALL A.D., SCHRYER N.L.,*FRAMEWORK FOR A
+C                 PORTABLE LIBRARY*, ACM TRANSACTIONS ON MATHEMATICAL
+C                 SOFTWARE, VOL. 4, NO. 2, JUNE 1978, PP. 177-188.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  I1MACH
+C
+C
+C     MACHINE CONSTANTS FOR IEEE ARITHMETIC MACHINES, SUCH AS THE AT&T
+C     3B SERIES, MOTOROLA 68000 BASED MACHINES (E.G. SUN 3 AND AT&T
+C     PC 7300), SUN SPARCSTATIONS, SILICON GRAPHCS WORKSTATIONS, HP
+C     9000 WORKSTATIONS, IBM RS/6000 WORKSTATIONS, AND 8087 BASED 
+C     MICROS (E.G. IBM PC AND AT&T 6300).
+C
+C === MACHINE = ATT.3B
+C === MACHINE = ATT.6300
+C === MACHINE = ATT.7300
+C === MACHINE = HP.9000
+C === MACHINE = IBM.PC
+C === MACHINE = IBM.RS6000
+C === MACHINE = IEEE.MOST-SIG-BYTE-FIRST
+C === MACHINE = IEEE.LEAST-SIG-BYTE-FIRST
+C === MACHINE = SGI
+C === MACHINE = SUN
+C === MACHINE = 68000
+C === MACHINE = 8087
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -125 /
+C      DATA IMACH(13) /  128 /
+C      DATA IMACH(14) /   53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR SUN WORKSTATIONS.  f77 WITH -r8 OPTION.
+C
+C === MACHINE = SUN.F77-WITH-R8-OPTION
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    6 /
+C      DATA IMACH( 4) /    0 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   53 /
+C      DATA IMACH(12) / -1021 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /   113 /
+C      DATA IMACH(15) / -16382 /
+C      DATA IMACH(16) /  16384 /
+C
+C     MACHINE CONSTANTS FOR SGI Origin 2000 with -r8 -d16 options.
+C
+C === MACHINE = SGI.ORIGIN.F77-WITH-R8-D16-OPTIONS
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    6 /
+C      DATA IMACH( 4) /    0 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   53 /
+C      DATA IMACH(12) / -1022 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /   107 /
+C      DATA IMACH(15) /  -916 /
+C      DATA IMACH(16) /  1025 /
+C
+C     MACHINE CONSTANTS FOR IBM RS/6000 WORKSTATIONS WITH -qautodbl=dblpad.
+C
+C === MACHINE = IBM.RS6000.XLF-WITH-AUTODBL-OPTION
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    6 /
+C      DATA IMACH( 4) /    0 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   53 /
+C      DATA IMACH(12) / -1021 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /   114 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR AMDAHL MACHINES.
+C
+C === MACHINE = AMDAHL
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  32 /
+C      DATA IMACH( 6) /   4 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /  16 /
+C      DATA IMACH(11) /   6 /
+C      DATA IMACH(12) / -64 /
+C      DATA IMACH(13) /  63 /
+C      DATA IMACH(14) /  14 /
+C      DATA IMACH(15) / -64 /
+C      DATA IMACH(16) /  63 /
+C
+C     MACHINE CONSTANTS FOR THE BURROUGHS 1700 SYSTEM.
+C
+C === MACHINE = BURROUGHS.1700
+C      DATA IMACH( 1) /    7 /
+C      DATA IMACH( 2) /    2 /
+C      DATA IMACH( 3) /    2 /
+C      DATA IMACH( 4) /    2 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   33 /
+C      DATA IMACH( 9) / Z1FFFFFFFF /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -256 /
+C      DATA IMACH(13) /  255 /
+C      DATA IMACH(14) /   60 /
+C      DATA IMACH(15) / -256 /
+C      DATA IMACH(16) /  255 /
+C
+C     MACHINE CONSTANTS FOR THE BURROUGHS 5700 SYSTEM.
+C
+C === MACHINE = BURROUGHS.5700
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  48 /
+C      DATA IMACH( 6) /   6 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  39 /
+C      DATA IMACH( 9) / O0007777777777777 /
+C      DATA IMACH(10) /   8 /
+C      DATA IMACH(11) /  13 /
+C      DATA IMACH(12) / -50 /
+C      DATA IMACH(13) /  76 /
+C      DATA IMACH(14) /  26 /
+C      DATA IMACH(15) / -50 /
+C      DATA IMACH(16) /  76 /
+C
+C     MACHINE CONSTANTS FOR THE BURROUGHS 6700/7700 SYSTEMS.
+C
+C === MACHINE = BURROUGHS.6700
+C === MACHINE = BURROUGHS.7700
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  48 /
+C      DATA IMACH( 6) /   6 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  39 /
+C      DATA IMACH( 9) / O0007777777777777 /
+C      DATA IMACH(10) /   8 /
+C      DATA IMACH(11) /  13 /
+C      DATA IMACH(12) / -50 /
+C      DATA IMACH(13) /  76 /
+C      DATA IMACH(14) /  26 /
+C      DATA IMACH(15) / -32754 /
+C      DATA IMACH(16) /  32780 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES
+C
+C === MACHINE = CONVEX
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    0 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   53 /
+C      DATA IMACH(15) / -1023 /
+C      DATA IMACH(16) /  1023 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES (NATIVE MODE)
+C     WITH -P8 OPTION
+C
+C === MACHINE = CONVEX.P8
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     0 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    63 /
+C      DATA IMACH( 9) / 9223372036854775807 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    53 /
+C      DATA IMACH(12) / -1023 /
+C      DATA IMACH(13) /  1023 /
+C      DATA IMACH(14) /   112 /
+C      DATA IMACH(15) / -16383 /
+C      DATA IMACH(16) /  16383 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES (IEEE MODE)
+C
+C === MACHINE = CONVEX.IEEE
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    0 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -125 /
+C      DATA IMACH(13) /  128 /
+C      DATA IMACH(14) /   53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES(IEEE MODE)
+C     WITH -P8 OPTION
+C
+C === MACHINE = CONVEX.IEEE.P8
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     0 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    32 /
+C      DATA IMACH( 6) /     4 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    53 /
+C      DATA IMACH(12) / -1021 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /    53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR THE CYBER 170/180 SERIES USING NOS (FTN5).
+C
+C === MACHINE = CYBER.170.NOS
+C === MACHINE = CYBER.180.NOS
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   60 /
+C      DATA IMACH( 6) /   10 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   48 /
+C      DATA IMACH( 9) / O"00007777777777777777" /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   48 /
+C      DATA IMACH(12) / -974 /
+C      DATA IMACH(13) / 1070 /
+C      DATA IMACH(14) /   96 /
+C      DATA IMACH(15) / -927 /
+C      DATA IMACH(16) / 1070 /
+C
+C     MACHINE CONSTANTS FOR THE CDC 180 SERIES USING NOS/VE
+C
+C === MACHINE = CYBER.180.NOS/VE
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     7 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    63 /
+C      DATA IMACH( 9) / 9223372036854775807 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    47 /
+C      DATA IMACH(12) / -4095 /
+C      DATA IMACH(13) /  4094 /
+C      DATA IMACH(14) /    94 /
+C      DATA IMACH(15) / -4095 /
+C      DATA IMACH(16) /  4094 /
+C
+C     MACHINE CONSTANTS FOR THE CYBER 205
+C
+C === MACHINE = CYBER.205
+C      DATA IMACH( 1) /      5 /
+C      DATA IMACH( 2) /      6 /
+C      DATA IMACH( 3) /      7 /
+C      DATA IMACH( 4) /      6 /
+C      DATA IMACH( 5) /     64 /
+C      DATA IMACH( 6) /      8 /
+C      DATA IMACH( 7) /      2 /
+C      DATA IMACH( 8) /     47 /
+C      DATA IMACH( 9) / X'00007FFFFFFFFFFF' /
+C      DATA IMACH(10) /      2 /
+C      DATA IMACH(11) /     47 /
+C      DATA IMACH(12) / -28625 /
+C      DATA IMACH(13) /  28718 /
+C      DATA IMACH(14) /     94 /
+C      DATA IMACH(15) / -28625 /
+C      DATA IMACH(16) /  28718 /
+C
+C     MACHINE CONSTANTS FOR THE CDC 6000/7000 SERIES.
+C
+C === MACHINE = CDC.6000
+C === MACHINE = CDC.7000
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   60 /
+C      DATA IMACH( 6) /   10 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   48 /
+C      DATA IMACH( 9) / 00007777777777777777B /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   48 /
+C      DATA IMACH(12) / -974 /
+C      DATA IMACH(13) / 1070 /
+C      DATA IMACH(14) /   96 /
+C      DATA IMACH(15) / -927 /
+C      DATA IMACH(16) / 1070 /
+C
+C     MACHINE CONSTANTS FOR THE CRAY 1, XMP, 2, AND 3.
+C     USING THE 46 BIT INTEGER COMPILER OPTION
+C
+C === MACHINE = CRAY.46-BIT-INTEGER
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /   102 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    46 /
+C      DATA IMACH( 9) /  777777777777777777777B /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    47 /
+C      DATA IMACH(12) / -8189 /
+C      DATA IMACH(13) /  8190 /
+C      DATA IMACH(14) /    94 /
+C      DATA IMACH(15) / -8099 /
+C      DATA IMACH(16) /  8190 /
+C
+C     MACHINE CONSTANTS FOR THE CRAY 1, XMP, 2, AND 3.
+C     USING THE 64 BIT INTEGER COMPILER OPTION
+C
+C === MACHINE = CRAY.64-BIT-INTEGER
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /   102 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    63 /
+C      DATA IMACH( 9) /  777777777777777777777B /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    47 /
+C      DATA IMACH(12) / -8189 /
+C      DATA IMACH(13) /  8190 /
+C      DATA IMACH(14) /    94 /
+C      DATA IMACH(15) / -8099 /
+C      DATA IMACH(16) /  8190 /C
+C     MACHINE CONSTANTS FOR THE DATA GENERAL ECLIPSE S/200
+C
+C === MACHINE = DATA_GENERAL.ECLIPSE.S/200
+C      DATA IMACH( 1) /   11 /
+C      DATA IMACH( 2) /   12 /
+C      DATA IMACH( 3) /    8 /
+C      DATA IMACH( 4) /   10 /
+C      DATA IMACH( 5) /   16 /
+C      DATA IMACH( 6) /    2 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   15 /
+C      DATA IMACH( 9) /32767 /
+C      DATA IMACH(10) /   16 /
+C      DATA IMACH(11) /    6 /
+C      DATA IMACH(12) /  -64 /
+C      DATA IMACH(13) /   63 /
+C      DATA IMACH(14) /   14 /
+C      DATA IMACH(15) /  -64 /
+C      DATA IMACH(16) /   63 /
+C
+C     ELXSI  6400
+C
+C === MACHINE = ELSXI.6400
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     6 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    32 /
+C      DATA IMACH( 6) /     4 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    32 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    24 /
+C      DATA IMACH(12) /  -126 /
+C      DATA IMACH(13) /   127 /
+C      DATA IMACH(14) /    53 /
+C      DATA IMACH(15) / -1022 /
+C      DATA IMACH(16) /  1023 /
+C
+C     MACHINE CONSTANTS FOR THE HARRIS 220
+C     MACHINE CONSTANTS FOR THE HARRIS SLASH 6 AND SLASH 7
+C
+C === MACHINE = HARRIS.220
+C === MACHINE = HARRIS.SLASH6
+C === MACHINE = HARRIS.SLASH7
+C      DATA IMACH( 1) /       5 /
+C      DATA IMACH( 2) /       6 /
+C      DATA IMACH( 3) /       0 /
+C      DATA IMACH( 4) /       6 /
+C      DATA IMACH( 5) /      24 /
+C      DATA IMACH( 6) /       3 /
+C      DATA IMACH( 7) /       2 /
+C      DATA IMACH( 8) /      23 /
+C      DATA IMACH( 9) / 8388607 /
+C      DATA IMACH(10) /       2 /
+C      DATA IMACH(11) /      23 /
+C      DATA IMACH(12) /    -127 /
+C      DATA IMACH(13) /     127 /
+C      DATA IMACH(14) /      38 /
+C      DATA IMACH(15) /    -127 /
+C      DATA IMACH(16) /     127 /
+C
+C     MACHINE CONSTANTS FOR THE HONEYWELL 600/6000 SERIES.
+C     MACHINE CONSTANTS FOR THE HONEYWELL DPS 8/70 SERIES.
+C
+C === MACHINE = HONEYWELL.600/6000
+C === MACHINE = HONEYWELL.DPS.8/70
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /   43 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / O377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   63 /
+C      DATA IMACH(15) / -127 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR THE HP 2100
+C     3 WORD DOUBLE PRECISION OPTION WITH FTN4
+C
+C === MACHINE = HP.2100.3_WORD_DP
+C      DATA IMACH(1) /      5/
+C      DATA IMACH(2) /      6 /
+C      DATA IMACH(3) /      4 /
+C      DATA IMACH(4) /      1 /
+C      DATA IMACH(5) /     16 /
+C      DATA IMACH(6) /      2 /
+C      DATA IMACH(7) /      2 /
+C      DATA IMACH(8) /     15 /
+C      DATA IMACH(9) /  32767 /
+C      DATA IMACH(10)/      2 /
+C      DATA IMACH(11)/     23 /
+C      DATA IMACH(12)/   -128 /
+C      DATA IMACH(13)/    127 /
+C      DATA IMACH(14)/     39 /
+C      DATA IMACH(15)/   -128 /
+C      DATA IMACH(16)/    127 /
+C
+C     MACHINE CONSTANTS FOR THE HP 2100
+C     4 WORD DOUBLE PRECISION OPTION WITH FTN4
+C
+C === MACHINE = HP.2100.4_WORD_DP
+C      DATA IMACH(1) /      5 /
+C      DATA IMACH(2) /      6 /
+C      DATA IMACH(3) /      4 /
+C      DATA IMACH(4) /      1 /
+C      DATA IMACH(5) /     16 /
+C      DATA IMACH(6) /      2 /
+C      DATA IMACH(7) /      2 /
+C      DATA IMACH(8) /     15 /
+C      DATA IMACH(9) /  32767 /
+C      DATA IMACH(10)/      2 /
+C      DATA IMACH(11)/     23 /
+C      DATA IMACH(12)/   -128 /
+C      DATA IMACH(13)/    127 /
+C      DATA IMACH(14)/     55 /
+C      DATA IMACH(15)/   -128 /
+C      DATA IMACH(16)/    127 /
+C
+C     MACHINE CONSTANTS FOR THE IBM 360/370 SERIES,
+C     THE XEROX SIGMA 5/7/9 AND THE SEL SYSTEMS 85/86 AND
+C     THE INTERDATA 3230 AND INTERDATA 7/32.
+C
+C === MACHINE = IBM.360
+C === MACHINE = IBM.370
+C === MACHINE = XEROX.SIGMA.5
+C === MACHINE = XEROX.SIGMA.7
+C === MACHINE = XEROX.SIGMA.9
+C === MACHINE = SEL.85
+C === MACHINE = SEL.86
+C === MACHINE = INTERDATA.3230
+C === MACHINE = INTERDATA.7/32
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  32 /
+C      DATA IMACH( 6) /   4 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  31 /
+C      DATA IMACH( 9) / Z7FFFFFFF /
+C      DATA IMACH(10) /  16 /
+C      DATA IMACH(11) /   6 /
+C      DATA IMACH(12) / -64 /
+C      DATA IMACH(13) /  63 /
+C      DATA IMACH(14) /  14 /
+C      DATA IMACH(15) / -64 /
+C      DATA IMACH(16) /  63 /
+C
+C     MACHINE CONSTANTS FOR THE INTERDATA 8/32
+C     WITH THE UNIX SYSTEM FORTRAN 77 COMPILER.
+C
+C     FOR THE INTERDATA FORTRAN VII COMPILER REPLACE
+C     THE Z'S SPECIFYING HEX CONSTANTS WITH Y'S.
+C
+C === MACHINE = INTERDATA.8/32.UNIX
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   6 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  32 /
+C      DATA IMACH( 6) /   4 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  31 /
+C      DATA IMACH( 9) / Z'7FFFFFFF' /
+C      DATA IMACH(10) /  16 /
+C      DATA IMACH(11) /   6 /
+C      DATA IMACH(12) / -64 /
+C      DATA IMACH(13) /  62 /
+C      DATA IMACH(14) /  14 /
+C      DATA IMACH(15) / -64 /
+C      DATA IMACH(16) /  62 /
+C
+C     MACHINE CONSTANTS FOR THE PDP-10 (KA PROCESSOR).
+C
+C === MACHINE = PDP-10.KA
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    5 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / "377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -128 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   54 /
+C      DATA IMACH(15) / -101 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR THE PDP-10 (KI PROCESSOR).
+C
+C === MACHINE = PDP-10.KI
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    5 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / "377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -128 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   62 /
+C      DATA IMACH(15) / -128 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR PDP-11 FORTRANS SUPPORTING
+C     32-BIT INTEGER ARITHMETIC.
+C
+C === MACHINE = PDP-11.32-BIT
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   56 /
+C      DATA IMACH(15) / -127 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR PDP-11 FORTRANS SUPPORTING
+C     16-BIT INTEGER ARITHMETIC. 
+C
+C === MACHINE = PDP-11.16-BIT
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   16 /
+C      DATA IMACH( 6) /    2 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   15 /
+C      DATA IMACH( 9) / 32767 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   56 /
+C      DATA IMACH(15) / -127 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR THE SEQUENT BALANCE 8000.
+C
+C === MACHINE = SEQUENT.BALANCE.8000
+C      DATA IMACH( 1) /     0 /
+C      DATA IMACH( 2) /     0 /
+C      DATA IMACH( 3) /     7 /
+C      DATA IMACH( 4) /     0 /
+C      DATA IMACH( 5) /    32 /
+C      DATA IMACH( 6) /     1 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    31 /
+C      DATA IMACH( 9) /  2147483647 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    24 /
+C      DATA IMACH(12) /  -125 /
+C      DATA IMACH(13) /   128 /
+C      DATA IMACH(14) /    53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR THE UNIVAC 1100 SERIES. FTN COMPILER
+C
+C === MACHINE = UNIVAC.1100
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    1 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / O377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -128 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   60 /
+C      DATA IMACH(15) /-1024 /
+C      DATA IMACH(16) / 1023 /
+C
+C     MACHINE CONSTANTS FOR THE VAX 11/780
+C
+C === MACHINE = VAX.11/780
+C      DATA IMACH(1) /    5 /
+C      DATA IMACH(2) /    6 /
+C      DATA IMACH(3) /    5 /
+C      DATA IMACH(4) /    6 /
+C      DATA IMACH(5) /   32 /
+C      DATA IMACH(6) /    4 /
+C      DATA IMACH(7) /    2 /
+C      DATA IMACH(8) /   31 /
+C      DATA IMACH(9) /2147483647 /
+C      DATA IMACH(10)/    2 /
+C      DATA IMACH(11)/   24 /
+C      DATA IMACH(12)/ -127 /
+C      DATA IMACH(13)/  127 /
+C      DATA IMACH(14)/   56 /
+C      DATA IMACH(15)/ -127 /
+C      DATA IMACH(16)/  127 /
+C
+C
+C***FIRST EXECUTABLE STATEMENT  I1MACH
+C
+C
+C***BEGIN PROLOGUE  DCHFDV
+C***DATE WRITTEN   811019   (YYMMDD)
+C***REVISION DATE  870707   (YYMMDD)
+C***CATEGORY NO.  E3,H1
+C***KEYWORDS  LIBRARY=SLATEC(PCHIP),
+C             TYPE=DOUBLE PRECISION(CHFDV-S DCHFDV-D),
+C             CUBIC HERMITE DIFFERENTIATION,CUBIC HERMITE EVALUATION,
+C             CUBIC POLYNOMIAL EVALUATION
+C***AUTHOR  FRITSCH, F. N., (LLNL)
+C             MATHEMATICS AND STATISTICS DIVISION
+C             LAWRENCE LIVERMORE NATIONAL LABORATORY
+C             P.O. BOX 808  (L-316)
+C             LIVERMORE, CA  94550
+C             FTS 532-4275, (415) 422-4275
+C***PURPOSE  Evaluate a cubic polynomial given in Hermite form and its
+C            first derivative at an array of points.  While designed for
+C            use by DPCHFD, it may be useful directly as an evaluator
+C            for a piecewise cubic Hermite function in applications,
+C            such as graphing, where the interval is known in advance.
+C            If only function values are required, use DCHFEV instead.
+C***DESCRIPTION
+C
+C       **** Double Precision version of CHFDV ****
+C
+C        DCHFDV:  Cubic Hermite Function and Derivative Evaluator
+C
+C     Evaluates the cubic polynomial determined by function values
+C     F1,F2 and derivatives D1,D2 on interval (X1,X2), together with
+C     its first derivative, at the points  XE(J), J=1(1)NE.
+C
+C     If only function values are required, use DCHFEV, instead.
+C
+C ----------------------------------------------------------------------
+C
+C  Calling sequence:
+C
+C        INTEGER  NE, NEXT(2), IERR
+C        DOUBLE PRECISION  X1, X2, F1, F2, D1, D2, XE(NE), FE(NE),
+C                          DE(NE)
+C
+C        CALL  DCHFDV (X1,X2, F1,F2, D1,D2, NE, XE, FE, DE, NEXT, IERR)
+C
+C   Parameters:
+C
+C     X1,X2 -- (input) endpoints of interval of definition of cubic.
+C           (Error return if  X1.EQ.X2 .)
+C
+C     F1,F2 -- (input) values of function at X1 and X2, respectively.
+C
+C     D1,D2 -- (input) values of derivative at X1 and X2, respectively.
+C
+C     NE -- (input) number of evaluation points.  (Error return if
+C           NE.LT.1 .)
+C
+C     XE -- (input) real*8 array of points at which the functions are to
+C           be evaluated.  If any of the XE are outside the interval
+C           [X1,X2], a warning error is returned in NEXT.
+C
+C     FE -- (output) real*8 array of values of the cubic function
+C           defined by  X1,X2, F1,F2, D1,D2  at the points  XE.
+C
+C     DE -- (output) real*8 array of values of the first derivative of
+C           the same function at the points  XE.
+C
+C     NEXT -- (output) integer array indicating number of extrapolation
+C           points:
+C            NEXT(1) = number of evaluation points to left of interval.
+C            NEXT(2) = number of evaluation points to right of interval.
+C
+C     IERR -- (output) error flag.
+C           Normal return:
+C              IERR = 0  (no errors).
+C           "Recoverable" errors:
+C              IERR = -1  if NE.LT.1 .
+C              IERR = -2  if X1.EQ.X2 .
+C                (Output arrays have not been changed in either case.)
+C
+C***REFERENCES  (NONE)
+C***ROUTINES CALLED  XERROR
+C***END PROLOGUE  DCHFDV
+C
+C ----------------------------------------------------------------------
+C
+C  Change record:
+C     82-08-03   Minor cosmetic changes for release 1.
+C     87-07-07   Corrected XERROR calls for d.p. names(s).
+C
+C ----------------------------------------------------------------------
+C
+C  Programming notes:
+C
+C     To produce a single precision version, simply:
+C        a. Change DCHFDV to CHFDV wherever it occurs,
+C        b. Change the double precision declaration to real,
+C        c. Change the constant ZERO to single precision, and
+C        d. Change the names of the Fortran functions:  AMAX1, AMIN1.
+C
+C  DECLARE ARGUMENTS.
+C
+C
+C  DECLARE LOCAL VARIABLES.
+C
+C
+C  VALIDITY-CHECK ARGUMENTS.
+C
+C***FIRST EXECUTABLE STATEMENT  DCHFDV
+C
+C  INITIALIZE.
+C
+C
+C  COMPUTE CUBIC COEFFICIENTS (EXPANDED ABOUT X1).
+C
+C                                           (DELTA IS NO LONGER NEEDED.)
+C                               (H, DEL1 AND DEL2 ARE NO LONGER NEEDED.)
+C
+C  EVALUATION LOOP.
+C
+C          COUNT EXTRAPOLATION POINTS.
+C        (NOTE REDUNDANCY--IF EITHER CONDITION IS TRUE, OTHER IS FALSE.)
+C
+C  NORMAL RETURN.
+C
+C
+C  ERROR RETURNS.
+C
+C     NE.LT.1 RETURN.
+C
+C     X1.EQ.X2 RETURN.
+C------------- LAST LINE OF DCHFDV FOLLOWS -----------------------------
+C***BEGIN PROLOGUE  FDUMP
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  Z
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Symbolic dump (should be locally written).
+C***DESCRIPTION
+C        ***Note*** Machine Dependent Routine
+C        FDUMP is intended to be replaced by a locally written
+C        version which produces a symbolic dump.  Failing this,
+C        it should be replaced by a version which prints the
+C        subprogram nesting list.  Note that this dump must be
+C        printed on each of up to five files, as indicated by the
+C        XGETUA routine.  See XSETUA and XGETUA for details.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C     Latest revision ---  23 May 1979
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  FDUMP
+C***FIRST EXECUTABLE STATEMENT  FDUMP
+C***BEGIN PROLOGUE  J4SAVE
+C***REFER TO  XERROR
+C     Abstract
+C        J4SAVE saves and recalls several global variables needed
+C        by the library error handling routines.
+C
+C     Description of Parameters
+C      --Input--
+C        IWHICH - Index of item desired.
+C                = 1 Refers to current error number.
+C                = 2 Refers to current error control flag.
+C                 = 3 Refers to current unit number to which error
+C                    messages are to be sent.  (0 means use standard.)
+C                 = 4 Refers to the maximum number of times any
+C                     message is to be printed (as set by XERMAX).
+C                 = 5 Refers to the total number of units to which
+C                     each error message is to be written.
+C                 = 6 Refers to the 2nd unit for error messages
+C                 = 7 Refers to the 3rd unit for error messages
+C                 = 8 Refers to the 4th unit for error messages
+C                 = 9 Refers to the 5th unit for error messages
+C        IVALUE - The value to be set for the IWHICH-th parameter,
+C                 if ISET is .TRUE. .
+C        ISET   - If ISET=.TRUE., the IWHICH-th parameter will BE
+C                 given the value, IVALUE.  If ISET=.FALSE., the
+C                 IWHICH-th parameter will be unchanged, and IVALUE
+C                 is a dummy parameter.
+C      --Output--
+C        The (old) value of the IWHICH-th parameter will be returned
+C        in the function value, J4SAVE.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C    Adapted from Bell Laboratories PORT Library Error Handler
+C     Latest revision ---  23 MAY 1979
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  J4SAVE
+C***FIRST EXECUTABLE STATEMENT  J4SAVE
+C***BEGIN PROLOGUE  XERABT
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Aborts program execution and prints error message.
+C***DESCRIPTION
+C     Abstract
+C        ***Note*** machine dependent routine
+C        XERABT aborts the execution of the program.
+C        The error message causing the abort is given in the calling
+C        sequence, in case one needs it for printing on a dayfile,
+C        for example.
+C
+C     Description of Parameters
+C        MESSG and NMESSG are as in XERROR, except that NMESSG may
+C        be zero, in which case no message is being supplied.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C     Latest revision ---  19 MAR 1980
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  XERABT
+C***FIRST EXECUTABLE STATEMENT  XERABT
+C***BEGIN PROLOGUE  XERCTL
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Allows user control over handling of individual errors.
+C***DESCRIPTION
+C     Abstract
+C        Allows user control over handling of individual errors.
+C        Just after each message is recorded, but before it is
+C        processed any further (i.e., before it is printed or
+C        a decision to abort is made), a call is made to XERCTL.
+C        If the user has provided his own version of XERCTL, he
+C        can then override the value of KONTROL used in processing
+C        this message by redefining its value.
+C        KONTRL may be set to any value from -2 to 2.
+C        The meanings for KONTRL are the same as in XSETF, except
+C        that the value of KONTRL changes only for this message.
+C        If KONTRL is set to a value outside the range from -2 to 2,
+C        it will be moved back into that range.
+C
+C     Description of Parameters
+C
+C      --Input--
+C        MESSG1 - the first word (only) of the error message.
+C        NMESSG - same as in the call to XERROR or XERRWV.
+C        NERR   - same as in the call to XERROR or XERRWV.
+C        LEVEL  - same as in the call to XERROR or XERRWV.
+C        KONTRL - the current value of the control flag as set
+C                 by a call to XSETF.
+C
+C      --Output--
+C        KONTRL - the new value of KONTRL.  If KONTRL is not
+C                 defined, it will remain at its original value.
+C                 This changed value of control affects only
+C                 the current occurrence of the current message.
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  XERCTL
+C***FIRST EXECUTABLE STATEMENT  XERCTL
+C***BEGIN PROLOGUE  XERPRT
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  Z
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Prints error messages.
+C***DESCRIPTION
+C     Abstract
+C        Print the Hollerith message in MESSG, of length NMESSG,
+C        on each file indicated by XGETUA.
+C     Latest revision ---  19 MAR 1980
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  I1MACH,S88FMT,XGETUA
+C***END PROLOGUE  XERPRT
+C     OBTAIN UNIT NUMBERS AND WRITE LINE TO EACH UNIT
+C***FIRST EXECUTABLE STATEMENT  XERPRT
+C***BEGIN PROLOGUE  DPCHFE
+C***DATE WRITTEN   811020   (YYMMDD)
+C***REVISION DATE  870707   (YYMMDD)
+C***CATEGORY NO.  E3
+C***KEYWORDS  LIBRARY=SLATEC(PCHIP),
+C             TYPE=DOUBLE PRECISION(PCHFE-S DPCHFE-D),
+C             CUBIC HERMITE EVALUATION,HERMITE INTERPOLATION,
+C             PIECEWISE CUBIC EVALUATION
+C***AUTHOR  FRITSCH, F. N., (LLNL)
+C             MATHEMATICS AND STATISTICS DIVISION
+C             LAWRENCE LIVERMORE NATIONAL LABORATORY
+C             P.O. BOX 808  (L-316)
+C             LIVERMORE, CA  94550
+C             FTS 532-4275, (415) 422-4275
+C***PURPOSE  Evaluate a piecewise cubic Hermite function at an array of
+C            points.  May be used by itself for Hermite interpolation,
+C            or as an evaluator for DPCHIM or DPCHIC.
+C***DESCRIPTION
+C
+C       **** Double Precision version of PCHFE ****
+C
+C          DPCHFE:  Piecewise Cubic Hermite Function Evaluator
+C
+C     Evaluates the cubic Hermite function defined by  N, X, F, D  at
+C     the points  XE(J), J=1(1)NE.
+C
+C     To provide compatibility with DPCHIM and DPCHIC, includes an
+C     increment between successive values of the F- and D-arrays.
+C
+C ----------------------------------------------------------------------
+C
+C  Calling sequence:
+C
+C        PARAMETER  (INCFD = ...)
+C        INTEGER  N, NE, IERR
+C        DOUBLE PRECISION  X(N), F(INCFD,N), D(INCFD,N), XE(NE), FE(NE)
+C        LOGICAL  SKIP
+C
+C        CALL  DPCHFE (N, X, F, D, INCFD, SKIP, NE, XE, FE, IERR)
+C
+C   Parameters:
+C
+C     N -- (input) number of data points.  (Error return if N.LT.2 .)
+C
+C     X -- (input) real*8 array of independent variable values.  The
+C           elements of X must be strictly increasing:
+C                X(I-1) .LT. X(I),  I = 2(1)N.
+C           (Error return if not.)
+C
+C     F -- (input) real*8 array of function values.  F(1+(I-1)*INCFD) is
+C           the value corresponding to X(I).
+C
+C     D -- (input) real*8 array of derivative values.  D(1+(I-1)*INCFD)
+C           is the value corresponding to X(I).
+C
+C     INCFD -- (input) increment between successive values in F and D.
+C           (Error return if  INCFD.LT.1 .)
+C
+C     SKIP -- (input/output) logical variable which should be set to
+C           .TRUE. if the user wishes to skip checks for validity of
+C           preceding parameters, or to .FALSE. otherwise.
+C           This will save time in case these checks have already
+C           been performed (say, in DPCHIM or DPCHIC).
+C           SKIP will be set to .TRUE. on normal return.
+C
+C     NE -- (input) number of evaluation points.  (Error return if
+C           NE.LT.1 .)
+C
+C     XE -- (input) real*8 array of points at which the function is to
+C           be evaluated.
+C
+C          NOTES:
+C           1. The evaluation will be most efficient if the elements
+C              of XE are increasing relative to X;
+C              that is,   XE(J) .GE. X(I)
+C              implies    XE(K) .GE. X(I),  all K.GE.J .
+C           2. If any of the XE are outside the interval [X(1),X(N)],
+C              values are extrapolated from the nearest extreme cubic,
+C              and a warning error is returned.
+C
+C     FE -- (output) real*8 array of values of the cubic Hermite
+C           function defined by  N, X, F, D  at the points  XE.
+C
+C     IERR -- (output) error flag.
+C           Normal return:
+C              IERR = 0  (no errors).
+C           Warning error:
+C              IERR.GT.0  means that extrapolation was performed at
+C                 IERR points.
+C           "Recoverable" errors:
+C              IERR = -1  if N.LT.2 .
+C              IERR = -2  if INCFD.LT.1 .
+C              IERR = -3  if the X-array is not strictly increasing.
+C              IERR = -4  if NE.LT.1 .
+C             (The FE-array has not been changed in any of these cases.)
+C               NOTE:  The above errors are checked in the order listed,
+C                   and following arguments have **NOT** been validated.
+C
+C***REFERENCES  (NONE)
+C***ROUTINES CALLED  DCHFEV,XERROR
+C***END PROLOGUE  DPCHFE
+C
+C ----------------------------------------------------------------------
+C
+C  Change record:
+C     82-08-03   Minor cosmetic changes for release 1.
+C     87-07-07   Corrected XERROR calls for d.p. name(s).
+C
+C ----------------------------------------------------------------------
+C
+C  Programming notes:
+C
+C     1. To produce a single precision version, simply:
+C        a. Change DPCHFE to PCHFE, and DCHFEV to CHFEV, wherever they
+C           occur,
+C        b. Change the double precision declaration to real,
+C
+C     2. Most of the coding between the call to DCHFEV and the end of
+C        the IR-loop could be eliminated if it were permissible to
+C        assume that XE is ordered relative to X.
+C
+C     3. DCHFEV does not assume that X1 is less than X2.  thus, it would
+C        be possible to write a version of DPCHFE that assumes a
+C        decreasing X-array by simply running the IR-loop backwards
+C        (and reversing the order of appropriate tests).
+C
+C     4. The present code has a minor bug, which I have decided is not
+C        worth the effort that would be required to fix it.
+C        If XE contains points in [X(N-1),X(N)], followed by points .LT.
+C        X(N-1), followed by points .GT.X(N), the extrapolation points
+C        will be counted (at least) twice in the total returned in IERR.
+C
+C  DECLARE ARGUMENTS.
+C
+C
+C  DECLARE LOCAL VARIABLES.
+C
+C
+C  VALIDITY-CHECK ARGUMENTS.
+C
+C***FIRST EXECUTABLE STATEMENT  DPCHFE
+C
+C
+C  FUNCTION DEFINITION IS OK, GO ON.
+C
+C
+C  LOOP OVER INTERVALS.        (   INTERVAL INDEX IS  IL = IR-1  . )
+C                              ( INTERVAL IS X(IL).LE.X.LT.X(IR) . )
+C
+C     SKIP OUT OF LOOP IF HAVE PROCESSED ALL EVALUATION POINTS.
+C
+C
+C     LOCATE ALL POINTS IN INTERVAL.
+C
+C
+C     HAVE LOCATED FIRST POINT BEYOND INTERVAL.
+C
+C
+C
+C     SKIP EVALUATION IF NO POINTS IN INTERVAL.
+C
+C
+C     EVALUATE CUBIC AT XE(I),  I = JFIRST (1) J-1 .
+C
+C       ----------------------------------------------------------------
+C       ----------------------------------------------------------------
+C
+C        IF (NEXT(2) .GT. 0)  THEN
+C           IN THE CURRENT SET OF XE-POINTS, THERE ARE NEXT(2) TO THE
+C           RIGHT OF X(IR).
+C
+C           IF (IR .EQ. N)  THEN
+C              THESE ARE ACTUALLY EXTRAPOLATION POINTS.
+C           ELSE
+C              WE SHOULD NEVER HAVE GOTTEN HERE.
+C           ENDIF
+C        ENDIF
+C
+C        IF (NEXT(1) .GT. 0)  THEN
+C           IN THE CURRENT SET OF XE-POINTS, THERE ARE NEXT(1) TO THE
+C           LEFT OF X(IR-1).
+C
+C           IF (IR .EQ. 2)  THEN
+C              THESE ARE ACTUALLY EXTRAPOLATION POINTS.
+C           ELSE
+C              XE IS NOT ORDERED RELATIVE TO X, SO MUST ADJUST
+C              EVALUATION INTERVAL.
+C
+C              FIRST, LOCATE FIRST POINT TO LEFT OF X(IR-1).
+C              NOTE-- CANNOT DROP THROUGH HERE UNLESS THERE IS AN ERROR
+C                     IN DCHFEV.
+C
+C              RESET J.  (THIS WILL BE THE NEW JFIRST.)
+C
+C              NOW FIND OUT HOW FAR TO BACK UP IN THE X-ARRAY.
+C              NB-- CAN NEVER DROP THROUGH HERE, SINCE XE(J).LT.X(IR-1).
+C
+C              AT THIS POINT, EITHER  XE(J) .LT. X(1)
+C                 OR      X(I-1) .LE. XE(J) .LT. X(I) .
+C              RESET IR, RECOGNIZING THAT IT WILL BE INCREMENTED BEFORE
+C              CYCLING.
+C           ENDIF
+C        ENDIF
+C
+C
+C     END OF IR-LOOP.
+C
+C
+C  NORMAL RETURN.
+C
+C
+C  ERROR RETURNS.
+C
+C     N.LT.2 RETURN.
+C
+C     INCFD.LT.1 RETURN.
+C
+C     X-ARRAY NOT STRICTLY INCREASING.
+C
+C     NE.LT.1 RETURN.
+C
+C     ERROR RETURN FROM DCHFEV.
+C   *** THIS CASE SHOULD NEVER OCCUR ***
+C------------- LAST LINE OF DPCHFE FOLLOWS -----------------------------
+C***BEGIN PROLOGUE  XERROR
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Processes an error (diagnostic) message.
+C***DESCRIPTION
+C     Abstract
+C        XERROR processes a diagnostic message, in a manner
+C        determined by the value of LEVEL and the current value
+C        of the library error control flag, KONTRL.
+C        (See subroutine XSETF for details.)
+C
+C     Description of Parameters
+C      --Input--
+C        MESSG - the Hollerith message to be processed, containing
+C                no more than 72 characters.
+C        NMESSG- the actual number of characters in MESSG.
+C        NERR  - the error number associated with this message.
+C                NERR must not be zero.
+C        LEVEL - error category.
+C                =2 means this is an unconditionally fatal error.
+C                =1 means this is a recoverable error.  (I.e., it is
+C                   non-fatal if XSETF has been appropriately called.)
+C                =0 means this is a warning message only.
+C                =-1 means this is a warning message which is to be
+C                   printed at most once, regardless of how many
+C                   times this call is executed.
+C
+C     Examples
+C        CALL XERROR('SMOOTH -- NUM WAS ZERO.',23,1,2)
+C        CALL XERROR('INTEG  -- LESS THAN FULL ACCURACY ACHIEVED.',
+C                    43,2,1)
+C        CALL XERROR('ROOTER -- ACTUAL ZERO OF F FOUND BEFORE INTERVAL F
+C    1ULLY COLLAPSED.',65,3,0)
+C        CALL XERROR('EXP    -- UNDERFLOWS BEING SET TO ZERO.',39,1,-1)
+C
+C     Latest revision ---  19 MAR 1980
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  XERRWV
+C***END PROLOGUE  XERROR
+C***FIRST EXECUTABLE STATEMENT  XERROR
+C***BEGIN PROLOGUE  XERRWV
+C***DATE WRITTEN   800319   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Processes error message allowing 2 integer and two real
+C            values to be included in the message.
+C***DESCRIPTION
+C     Abstract
+C        XERRWV processes a diagnostic message, in a manner
+C        determined by the value of LEVEL and the current value
+C        of the library error control flag, KONTRL.
+C        (See subroutine XSETF for details.)
+C        In addition, up to two integer values and two real
+C        values may be printed along with the message.
+C
+C     Description of Parameters
+C      --Input--
+C        MESSG - the Hollerith message to be processed.
+C        NMESSG- the actual number of characters in MESSG.
+C        NERR  - the error number associated with this message.
+C                NERR must not be zero.
+C        LEVEL - error category.
+C                =2 means this is an unconditionally fatal error.
+C                =1 means this is a recoverable error.  (I.e., it is
+C                   non-fatal if XSETF has been appropriately called.)
+C                =0 means this is a warning message only.
+C                =-1 means this is a warning message which is to be
+C                   printed at most once, regardless of how many
+C                   times this call is executed.
+C        NI    - number of integer values to be printed. (0 to 2)
+C        I1    - first integer value.
+C        I2    - second integer value.
+C        NR    - number of real values to be printed. (0 to 2)
+C        R1    - first real value.
+C        R2    - second real value.
+C
+C     Examples
+C        CALL XERRWV('SMOOTH -- NUM (=I1) WAS ZERO.',29,1,2,
+C    1   1,NUM,0,0,0.,0.)
+C        CALL XERRWV('QUADXY -- REQUESTED ERROR (R1) LESS THAN MINIMUM (
+C    1R2).,54,77,1,0,0,0,2,ERRREQ,ERRMIN)
+C
+C     Latest revision ---  19 MAR 1980
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  FDUMP,I1MACH,J4SAVE,XERABT,XERCTL,XERPRT,XERSAV,
+C                    XGETUA
+C***END PROLOGUE  XERRWV
+C     GET FLAGS
+C***FIRST EXECUTABLE STATEMENT  XERRWV
+C     CHECK FOR VALID INPUT
+C     RECORD MESSAGE
+C     LET USER OVERRIDE
+C     RESET TO ORIGINAL VALUES
+C     DECIDE WHETHER TO PRINT MESSAGE
+C           INTRODUCTION
+C        MESSAGE
+C              ERROR NUMBER
+C        TRACE-BACK
+C     QUIT HERE IF MESSAGE IS NOT FATAL
+C        PRINT REASON FOR ABORT
+C        PRINT ERROR SUMMARY
+C     ABORT
+C***BEGIN PROLOGUE  XERSAV
+C***DATE WRITTEN   800319   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  Z
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Records that an error occurred.
+C***DESCRIPTION
+C     Abstract
+C        Record that this error occurred.
+C
+C     Description of Parameters
+C     --Input--
+C       MESSG, NMESSG, NERR, LEVEL are as in XERROR,
+C       except that when NMESSG=0 the tables will be
+C       dumped and cleared, and when NMESSG is less than zero the
+C       tables will be dumped and not cleared.
+C     --Output--
+C       ICOUNT will be the number of times this message has
+C       been seen, or zero if the table has overflowed and
+C       does not contain this message specifically.
+C       When NMESSG=0, ICOUNT will not be altered.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C     Latest revision ---  19 Mar 1980
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  I1MACH,S88FMT,XGETUA
+C***END PROLOGUE  XERSAV
+C     NEXT TWO DATA STATEMENTS ARE NECESSARY TO PROVIDE A BLANK
+C     ERROR TABLE INITIALLY
+C***FIRST EXECUTABLE STATEMENT  XERSAV
+C     DUMP THE TABLE
+C        PRINT TO EACH UNIT
+C           PRINT TABLE HEADER
+C           PRINT BODY OF TABLE
+C           PRINT NUMBER OF OTHER ERRORS
+C        CLEAR THE ERROR TABLES
+C     PROCESS A MESSAGE...
+C     SEARCH FOR THIS MESSG, OR ELSE AN EMPTY SLOT FOR THIS MESSG,
+C     OR ELSE DETERMINE THAT THE ERROR TABLE IS FULL.
+C     THREE POSSIBLE CASES...
+C     TABLE IS FULL
+C     MESSAGE FOUND IN TABLE
+C     EMPTY SLOT FOUND FOR NEW MESSAGE
+C***BEGIN PROLOGUE  XGETUA
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Returns unit number(s) to which error messages are being
+C            sent.
+C***DESCRIPTION
+C     Abstract
+C        XGETUA may be called to determine the unit number or numbers
+C        to which error messages are being sent.
+C        These unit numbers may have been set by a call to XSETUN,
+C        or a call to XSETUA, or may be a default value.
+C
+C     Description of Parameters
+C      --Output--
+C        IUNIT - an array of one to five unit numbers, depending
+C                on the value of N.  A value of zero refers to the
+C                default unit, as defined by the I1MACH machine
+C                constant routine.  Only IUNIT(1),...,IUNIT(N) are
+C                defined by XGETUA.  The values of IUNIT(N+1),...,
+C                IUNIT(5) are not defined (for N .LT. 5) or altered
+C                in any way by XGETUA.
+C        N     - the number of units to which copies of the
+C                error messages are being sent.  N will be in the
+C                range from 1 to 5.
+C
+C     Latest revision ---  19 MAR 1980
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  J4SAVE
+C***END PROLOGUE  XGETUA
+C***FIRST EXECUTABLE STATEMENT  XGETUA
+C***BEGIN PROLOGUE  I1MACH
+C***DATE WRITTEN   750101   (YYMMDD)
+C***REVISION DATE  840405   (YYMMDD)
+C***CATEGORY NO.  R1
+C***KEYWORDS  MACHINE CONSTANTS
+C***AUTHOR  FOX, P. A., (BELL LABS)
+C           HALL, A. D., (BELL LABS)
+C           SCHRYER, N. L., (BELL LABS)
+C***PURPOSE  Returns integer machine dependent constants
+C***DESCRIPTION
+C
+C     This is the CMLIB version of I1MACH, the integer machine
+C     constants subroutine originally developed for the PORT library.
+C
+C     I1MACH can be used to obtain machine-dependent parameters
+C     for the local machine environment.  It is a function
+C     subroutine with one (input) argument, and can be called
+C     as follows, for example
+C
+C          K = I1MACH(I)
+C
+C     where I=1,...,16.  The (output) value of K above is
+C     determined by the (input) value of I.  The results for
+C     various values of I are discussed below.
+C
+C  I/O unit numbers.
+C    I1MACH( 1) = the standard input unit.
+C    I1MACH( 2) = the standard output unit.
+C    I1MACH( 3) = the standard punch unit.
+C    I1MACH( 4) = the standard error message unit.
+C
+C  Words.
+C    I1MACH( 5) = the number of bits per integer storage unit.
+C    I1MACH( 6) = the number of characters per integer storage unit.
+C
+C  Integers.
+C    assume integers are represented in the S-digit, base-A form
+C
+C               sign ( X(S-1)*A**(S-1) + ... + X(1)*A + X(0) )
+C
+C               where 0 .LE. X(I) .LT. A for I=0,...,S-1.
+C    I1MACH( 7) = A, the base.
+C    I1MACH( 8) = S, the number of base-A digits.
+C    I1MACH( 9) = A**S - 1, the largest magnitude.
+C
+C  Floating-Point Numbers.
+C    Assume floating-point numbers are represented in the T-digit,
+C    base-B form
+C               sign (B**E)*( (X(1)/B) + ... + (X(T)/B**T) )
+C
+C               where 0 .LE. X(I) .LT. B for I=1,...,T,
+C               0 .LT. X(1), and EMIN .LE. E .LE. EMAX.
+C    I1MACH(10) = B, the base.
+C
+C  Single-Precision
+C    I1MACH(11) = T, the number of base-B digits.
+C    I1MACH(12) = EMIN, the smallest exponent E.
+C    I1MACH(13) = EMAX, the largest exponent E.
+C
+C  Double-Precision
+C    I1MACH(14) = T, the number of base-B digits.
+C    I1MACH(15) = EMIN, the smallest exponent E.
+C    I1MACH(16) = EMAX, the largest exponent E.
+C
+C  To alter this function for a particular environment,
+C  the desired set of DATA statements should be activated by
+C  removing the C from column 1.  Also, the values of
+C  I1MACH(1) - I1MACH(4) should be checked for consistency
+C  with the local operating system.
+C***REFERENCES  FOX P.A., HALL A.D., SCHRYER N.L.,*FRAMEWORK FOR A
+C                 PORTABLE LIBRARY*, ACM TRANSACTIONS ON MATHEMATICAL
+C                 SOFTWARE, VOL. 4, NO. 2, JUNE 1978, PP. 177-188.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  I1MACH
+C
+C
+C     MACHINE CONSTANTS FOR IEEE ARITHMETIC MACHINES, SUCH AS THE AT&T
+C     3B SERIES, MOTOROLA 68000 BASED MACHINES (E.G. SUN 3 AND AT&T
+C     PC 7300), SUN SPARCSTATIONS, SILICON GRAPHCS WORKSTATIONS, HP
+C     9000 WORKSTATIONS, IBM RS/6000 WORKSTATIONS, AND 8087 BASED 
+C     MICROS (E.G. IBM PC AND AT&T 6300).
+C
+C === MACHINE = ATT.3B
+C === MACHINE = ATT.6300
+C === MACHINE = ATT.7300
+C === MACHINE = HP.9000
+C === MACHINE = IBM.PC
+C === MACHINE = IBM.RS6000
+C === MACHINE = IEEE.MOST-SIG-BYTE-FIRST
+C === MACHINE = IEEE.LEAST-SIG-BYTE-FIRST
+C === MACHINE = SGI
+C === MACHINE = SUN
+C === MACHINE = 68000
+C === MACHINE = 8087
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -125 /
+C      DATA IMACH(13) /  128 /
+C      DATA IMACH(14) /   53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR SUN WORKSTATIONS.  f77 WITH -r8 OPTION.
+C
+C === MACHINE = SUN.F77-WITH-R8-OPTION
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    6 /
+C      DATA IMACH( 4) /    0 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   53 /
+C      DATA IMACH(12) / -1021 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /   113 /
+C      DATA IMACH(15) / -16382 /
+C      DATA IMACH(16) /  16384 /
+C
+C     MACHINE CONSTANTS FOR SGI Origin 2000 with -r8 -d16 options.
+C
+C === MACHINE = SGI.ORIGIN.F77-WITH-R8-D16-OPTIONS
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    6 /
+C      DATA IMACH( 4) /    0 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   53 /
+C      DATA IMACH(12) / -1022 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /   107 /
+C      DATA IMACH(15) /  -916 /
+C      DATA IMACH(16) /  1025 /
+C
+C     MACHINE CONSTANTS FOR IBM RS/6000 WORKSTATIONS WITH -qautodbl=dblpad.
+C
+C === MACHINE = IBM.RS6000.XLF-WITH-AUTODBL-OPTION
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    6 /
+C      DATA IMACH( 4) /    0 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   53 /
+C      DATA IMACH(12) / -1021 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /   114 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR AMDAHL MACHINES.
+C
+C === MACHINE = AMDAHL
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  32 /
+C      DATA IMACH( 6) /   4 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /  16 /
+C      DATA IMACH(11) /   6 /
+C      DATA IMACH(12) / -64 /
+C      DATA IMACH(13) /  63 /
+C      DATA IMACH(14) /  14 /
+C      DATA IMACH(15) / -64 /
+C      DATA IMACH(16) /  63 /
+C
+C     MACHINE CONSTANTS FOR THE BURROUGHS 1700 SYSTEM.
+C
+C === MACHINE = BURROUGHS.1700
+C      DATA IMACH( 1) /    7 /
+C      DATA IMACH( 2) /    2 /
+C      DATA IMACH( 3) /    2 /
+C      DATA IMACH( 4) /    2 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   33 /
+C      DATA IMACH( 9) / Z1FFFFFFFF /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -256 /
+C      DATA IMACH(13) /  255 /
+C      DATA IMACH(14) /   60 /
+C      DATA IMACH(15) / -256 /
+C      DATA IMACH(16) /  255 /
+C
+C     MACHINE CONSTANTS FOR THE BURROUGHS 5700 SYSTEM.
+C
+C === MACHINE = BURROUGHS.5700
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  48 /
+C      DATA IMACH( 6) /   6 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  39 /
+C      DATA IMACH( 9) / O0007777777777777 /
+C      DATA IMACH(10) /   8 /
+C      DATA IMACH(11) /  13 /
+C      DATA IMACH(12) / -50 /
+C      DATA IMACH(13) /  76 /
+C      DATA IMACH(14) /  26 /
+C      DATA IMACH(15) / -50 /
+C      DATA IMACH(16) /  76 /
+C
+C     MACHINE CONSTANTS FOR THE BURROUGHS 6700/7700 SYSTEMS.
+C
+C === MACHINE = BURROUGHS.6700
+C === MACHINE = BURROUGHS.7700
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  48 /
+C      DATA IMACH( 6) /   6 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  39 /
+C      DATA IMACH( 9) / O0007777777777777 /
+C      DATA IMACH(10) /   8 /
+C      DATA IMACH(11) /  13 /
+C      DATA IMACH(12) / -50 /
+C      DATA IMACH(13) /  76 /
+C      DATA IMACH(14) /  26 /
+C      DATA IMACH(15) / -32754 /
+C      DATA IMACH(16) /  32780 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES
+C
+C === MACHINE = CONVEX
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    0 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   53 /
+C      DATA IMACH(15) / -1023 /
+C      DATA IMACH(16) /  1023 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES (NATIVE MODE)
+C     WITH -P8 OPTION
+C
+C === MACHINE = CONVEX.P8
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     0 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    63 /
+C      DATA IMACH( 9) / 9223372036854775807 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    53 /
+C      DATA IMACH(12) / -1023 /
+C      DATA IMACH(13) /  1023 /
+C      DATA IMACH(14) /   112 /
+C      DATA IMACH(15) / -16383 /
+C      DATA IMACH(16) /  16383 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES (IEEE MODE)
+C
+C === MACHINE = CONVEX.IEEE
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    0 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -125 /
+C      DATA IMACH(13) /  128 /
+C      DATA IMACH(14) /   53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES(IEEE MODE)
+C     WITH -P8 OPTION
+C
+C === MACHINE = CONVEX.IEEE.P8
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     0 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    32 /
+C      DATA IMACH( 6) /     4 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    53 /
+C      DATA IMACH(12) / -1021 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /    53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR THE CYBER 170/180 SERIES USING NOS (FTN5).
+C
+C === MACHINE = CYBER.170.NOS
+C === MACHINE = CYBER.180.NOS
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   60 /
+C      DATA IMACH( 6) /   10 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   48 /
+C      DATA IMACH( 9) / O"00007777777777777777" /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   48 /
+C      DATA IMACH(12) / -974 /
+C      DATA IMACH(13) / 1070 /
+C      DATA IMACH(14) /   96 /
+C      DATA IMACH(15) / -927 /
+C      DATA IMACH(16) / 1070 /
+C
+C     MACHINE CONSTANTS FOR THE CDC 180 SERIES USING NOS/VE
+C
+C === MACHINE = CYBER.180.NOS/VE
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     7 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    63 /
+C      DATA IMACH( 9) / 9223372036854775807 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    47 /
+C      DATA IMACH(12) / -4095 /
+C      DATA IMACH(13) /  4094 /
+C      DATA IMACH(14) /    94 /
+C      DATA IMACH(15) / -4095 /
+C      DATA IMACH(16) /  4094 /
+C
+C     MACHINE CONSTANTS FOR THE CYBER 205
+C
+C === MACHINE = CYBER.205
+C      DATA IMACH( 1) /      5 /
+C      DATA IMACH( 2) /      6 /
+C      DATA IMACH( 3) /      7 /
+C      DATA IMACH( 4) /      6 /
+C      DATA IMACH( 5) /     64 /
+C      DATA IMACH( 6) /      8 /
+C      DATA IMACH( 7) /      2 /
+C      DATA IMACH( 8) /     47 /
+C      DATA IMACH( 9) / X'00007FFFFFFFFFFF' /
+C      DATA IMACH(10) /      2 /
+C      DATA IMACH(11) /     47 /
+C      DATA IMACH(12) / -28625 /
+C      DATA IMACH(13) /  28718 /
+C      DATA IMACH(14) /     94 /
+C      DATA IMACH(15) / -28625 /
+C      DATA IMACH(16) /  28718 /
+C
+C     MACHINE CONSTANTS FOR THE CDC 6000/7000 SERIES.
+C
+C === MACHINE = CDC.6000
+C === MACHINE = CDC.7000
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   60 /
+C      DATA IMACH( 6) /   10 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   48 /
+C      DATA IMACH( 9) / 00007777777777777777B /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   48 /
+C      DATA IMACH(12) / -974 /
+C      DATA IMACH(13) / 1070 /
+C      DATA IMACH(14) /   96 /
+C      DATA IMACH(15) / -927 /
+C      DATA IMACH(16) / 1070 /
+C
+C     MACHINE CONSTANTS FOR THE CRAY 1, XMP, 2, AND 3.
+C     USING THE 46 BIT INTEGER COMPILER OPTION
+C
+C === MACHINE = CRAY.46-BIT-INTEGER
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /   102 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    46 /
+C      DATA IMACH( 9) /  777777777777777777777B /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    47 /
+C      DATA IMACH(12) / -8189 /
+C      DATA IMACH(13) /  8190 /
+C      DATA IMACH(14) /    94 /
+C      DATA IMACH(15) / -8099 /
+C      DATA IMACH(16) /  8190 /
+C
+C     MACHINE CONSTANTS FOR THE CRAY 1, XMP, 2, AND 3.
+C     USING THE 64 BIT INTEGER COMPILER OPTION
+C
+C === MACHINE = CRAY.64-BIT-INTEGER
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /   102 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    63 /
+C      DATA IMACH( 9) /  777777777777777777777B /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    47 /
+C      DATA IMACH(12) / -8189 /
+C      DATA IMACH(13) /  8190 /
+C      DATA IMACH(14) /    94 /
+C      DATA IMACH(15) / -8099 /
+C      DATA IMACH(16) /  8190 /C
+C     MACHINE CONSTANTS FOR THE DATA GENERAL ECLIPSE S/200
+C
+C === MACHINE = DATA_GENERAL.ECLIPSE.S/200
+C      DATA IMACH( 1) /   11 /
+C      DATA IMACH( 2) /   12 /
+C      DATA IMACH( 3) /    8 /
+C      DATA IMACH( 4) /   10 /
+C      DATA IMACH( 5) /   16 /
+C      DATA IMACH( 6) /    2 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   15 /
+C      DATA IMACH( 9) /32767 /
+C      DATA IMACH(10) /   16 /
+C      DATA IMACH(11) /    6 /
+C      DATA IMACH(12) /  -64 /
+C      DATA IMACH(13) /   63 /
+C      DATA IMACH(14) /   14 /
+C      DATA IMACH(15) /  -64 /
+C      DATA IMACH(16) /   63 /
+C
+C     ELXSI  6400
+C
+C === MACHINE = ELSXI.6400
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     6 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    32 /
+C      DATA IMACH( 6) /     4 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    32 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    24 /
+C      DATA IMACH(12) /  -126 /
+C      DATA IMACH(13) /   127 /
+C      DATA IMACH(14) /    53 /
+C      DATA IMACH(15) / -1022 /
+C      DATA IMACH(16) /  1023 /
+C
+C     MACHINE CONSTANTS FOR THE HARRIS 220
+C     MACHINE CONSTANTS FOR THE HARRIS SLASH 6 AND SLASH 7
+C
+C === MACHINE = HARRIS.220
+C === MACHINE = HARRIS.SLASH6
+C === MACHINE = HARRIS.SLASH7
+C      DATA IMACH( 1) /       5 /
+C      DATA IMACH( 2) /       6 /
+C      DATA IMACH( 3) /       0 /
+C      DATA IMACH( 4) /       6 /
+C      DATA IMACH( 5) /      24 /
+C      DATA IMACH( 6) /       3 /
+C      DATA IMACH( 7) /       2 /
+C      DATA IMACH( 8) /      23 /
+C      DATA IMACH( 9) / 8388607 /
+C      DATA IMACH(10) /       2 /
+C      DATA IMACH(11) /      23 /
+C      DATA IMACH(12) /    -127 /
+C      DATA IMACH(13) /     127 /
+C      DATA IMACH(14) /      38 /
+C      DATA IMACH(15) /    -127 /
+C      DATA IMACH(16) /     127 /
+C
+C     MACHINE CONSTANTS FOR THE HONEYWELL 600/6000 SERIES.
+C     MACHINE CONSTANTS FOR THE HONEYWELL DPS 8/70 SERIES.
+C
+C === MACHINE = HONEYWELL.600/6000
+C === MACHINE = HONEYWELL.DPS.8/70
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /   43 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / O377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   63 /
+C      DATA IMACH(15) / -127 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR THE HP 2100
+C     3 WORD DOUBLE PRECISION OPTION WITH FTN4
+C
+C === MACHINE = HP.2100.3_WORD_DP
+C      DATA IMACH(1) /      5/
+C      DATA IMACH(2) /      6 /
+C      DATA IMACH(3) /      4 /
+C      DATA IMACH(4) /      1 /
+C      DATA IMACH(5) /     16 /
+C      DATA IMACH(6) /      2 /
+C      DATA IMACH(7) /      2 /
+C      DATA IMACH(8) /     15 /
+C      DATA IMACH(9) /  32767 /
+C      DATA IMACH(10)/      2 /
+C      DATA IMACH(11)/     23 /
+C      DATA IMACH(12)/   -128 /
+C      DATA IMACH(13)/    127 /
+C      DATA IMACH(14)/     39 /
+C      DATA IMACH(15)/   -128 /
+C      DATA IMACH(16)/    127 /
+C
+C     MACHINE CONSTANTS FOR THE HP 2100
+C     4 WORD DOUBLE PRECISION OPTION WITH FTN4
+C
+C === MACHINE = HP.2100.4_WORD_DP
+C      DATA IMACH(1) /      5 /
+C      DATA IMACH(2) /      6 /
+C      DATA IMACH(3) /      4 /
+C      DATA IMACH(4) /      1 /
+C      DATA IMACH(5) /     16 /
+C      DATA IMACH(6) /      2 /
+C      DATA IMACH(7) /      2 /
+C      DATA IMACH(8) /     15 /
+C      DATA IMACH(9) /  32767 /
+C      DATA IMACH(10)/      2 /
+C      DATA IMACH(11)/     23 /
+C      DATA IMACH(12)/   -128 /
+C      DATA IMACH(13)/    127 /
+C      DATA IMACH(14)/     55 /
+C      DATA IMACH(15)/   -128 /
+C      DATA IMACH(16)/    127 /
+C
+C     MACHINE CONSTANTS FOR THE IBM 360/370 SERIES,
+C     THE XEROX SIGMA 5/7/9 AND THE SEL SYSTEMS 85/86 AND
+C     THE INTERDATA 3230 AND INTERDATA 7/32.
+C
+C === MACHINE = IBM.360
+C === MACHINE = IBM.370
+C === MACHINE = XEROX.SIGMA.5
+C === MACHINE = XEROX.SIGMA.7
+C === MACHINE = XEROX.SIGMA.9
+C === MACHINE = SEL.85
+C === MACHINE = SEL.86
+C === MACHINE = INTERDATA.3230
+C === MACHINE = INTERDATA.7/32
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  32 /
+C      DATA IMACH( 6) /   4 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  31 /
+C      DATA IMACH( 9) / Z7FFFFFFF /
+C      DATA IMACH(10) /  16 /
+C      DATA IMACH(11) /   6 /
+C      DATA IMACH(12) / -64 /
+C      DATA IMACH(13) /  63 /
+C      DATA IMACH(14) /  14 /
+C      DATA IMACH(15) / -64 /
+C      DATA IMACH(16) /  63 /
+C
+C     MACHINE CONSTANTS FOR THE INTERDATA 8/32
+C     WITH THE UNIX SYSTEM FORTRAN 77 COMPILER.
+C
+C     FOR THE INTERDATA FORTRAN VII COMPILER REPLACE
+C     THE Z'S SPECIFYING HEX CONSTANTS WITH Y'S.
+C
+C === MACHINE = INTERDATA.8/32.UNIX
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   6 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  32 /
+C      DATA IMACH( 6) /   4 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  31 /
+C      DATA IMACH( 9) / Z'7FFFFFFF' /
+C      DATA IMACH(10) /  16 /
+C      DATA IMACH(11) /   6 /
+C      DATA IMACH(12) / -64 /
+C      DATA IMACH(13) /  62 /
+C      DATA IMACH(14) /  14 /
+C      DATA IMACH(15) / -64 /
+C      DATA IMACH(16) /  62 /
+C
+C     MACHINE CONSTANTS FOR THE PDP-10 (KA PROCESSOR).
+C
+C === MACHINE = PDP-10.KA
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    5 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / "377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -128 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   54 /
+C      DATA IMACH(15) / -101 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR THE PDP-10 (KI PROCESSOR).
+C
+C === MACHINE = PDP-10.KI
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    5 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / "377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -128 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   62 /
+C      DATA IMACH(15) / -128 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR PDP-11 FORTRANS SUPPORTING
+C     32-BIT INTEGER ARITHMETIC.
+C
+C === MACHINE = PDP-11.32-BIT
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   56 /
+C      DATA IMACH(15) / -127 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR PDP-11 FORTRANS SUPPORTING
+C     16-BIT INTEGER ARITHMETIC. 
+C
+C === MACHINE = PDP-11.16-BIT
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   16 /
+C      DATA IMACH( 6) /    2 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   15 /
+C      DATA IMACH( 9) / 32767 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   56 /
+C      DATA IMACH(15) / -127 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR THE SEQUENT BALANCE 8000.
+C
+C === MACHINE = SEQUENT.BALANCE.8000
+C      DATA IMACH( 1) /     0 /
+C      DATA IMACH( 2) /     0 /
+C      DATA IMACH( 3) /     7 /
+C      DATA IMACH( 4) /     0 /
+C      DATA IMACH( 5) /    32 /
+C      DATA IMACH( 6) /     1 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    31 /
+C      DATA IMACH( 9) /  2147483647 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    24 /
+C      DATA IMACH(12) /  -125 /
+C      DATA IMACH(13) /   128 /
+C      DATA IMACH(14) /    53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR THE UNIVAC 1100 SERIES. FTN COMPILER
+C
+C === MACHINE = UNIVAC.1100
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    1 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / O377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -128 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   60 /
+C      DATA IMACH(15) /-1024 /
+C      DATA IMACH(16) / 1023 /
+C
+C     MACHINE CONSTANTS FOR THE VAX 11/780
+C
+C === MACHINE = VAX.11/780
+C      DATA IMACH(1) /    5 /
+C      DATA IMACH(2) /    6 /
+C      DATA IMACH(3) /    5 /
+C      DATA IMACH(4) /    6 /
+C      DATA IMACH(5) /   32 /
+C      DATA IMACH(6) /    4 /
+C      DATA IMACH(7) /    2 /
+C      DATA IMACH(8) /   31 /
+C      DATA IMACH(9) /2147483647 /
+C      DATA IMACH(10)/    2 /
+C      DATA IMACH(11)/   24 /
+C      DATA IMACH(12)/ -127 /
+C      DATA IMACH(13)/  127 /
+C      DATA IMACH(14)/   56 /
+C      DATA IMACH(15)/ -127 /
+C      DATA IMACH(16)/  127 /
+C
+C
+C***FIRST EXECUTABLE STATEMENT  I1MACH
+C
+C
+C***BEGIN PROLOGUE  DCHFEV
+C***DATE WRITTEN   811019   (YYMMDD)
+C***REVISION DATE  870707   (YYMMDD)
+C***CATEGORY NO.  E3,H1
+C***KEYWORDS  LIBRARY=SLATEC(PCHIP),
+C             TYPE=DOUBLE PRECISION(CHFEV-S DCHFEV-D),
+C             CUBIC HERMITE EVALUATION,CUBIC POLYNOMIAL EVALUATION
+C***AUTHOR  FRITSCH, F. N., (LLNL)
+C             MATHEMATICS AND STATISTICS DIVISION
+C             LAWRENCE LIVERMORE NATIONAL LABORATORY
+C             P.O. BOX 808  (L-316)
+C             LIVERMORE, CA  94550
+C             FTS 532-4275, (415) 422-4275
+C***PURPOSE  Evaluate a cubic polynomial given in Hermite form at an
+C            array of points.  While designed for use by DPCHFE, it may
+C            be useful directly as an evaluator for a piecewise cubic
+C            Hermite function in applications, such as graphing, where
+C            the interval is known in advance.
+C***DESCRIPTION
+C
+C       **** Double Precision version of CHFEV ****
+C
+C          DCHFEV:  Cubic Hermite Function EValuator
+C
+C     Evaluates the cubic polynomial determined by function values
+C     F1,F2 and derivatives D1,D2 on interval (X1,X2) at the points
+C     XE(J), J=1(1)NE.
+C
+C ----------------------------------------------------------------------
+C
+C  Calling sequence:
+C
+C        INTEGER  NE, NEXT(2), IERR
+C        DOUBLE PRECISION  X1, X2, F1, F2, D1, D2, XE(NE), FE(NE)
+C
+C        CALL  DCHFEV (X1,X2, F1,F2, D1,D2, NE, XE, FE, NEXT, IERR)
+C
+C   Parameters:
+C
+C     X1,X2 -- (input) endpoints of interval of definition of cubic.
+C           (Error return if  X1.EQ.X2 .)
+C
+C     F1,F2 -- (input) values of function at X1 and X2, respectively.
+C
+C     D1,D2 -- (input) values of derivative at X1 and X2, respectively.
+C
+C     NE -- (input) number of evaluation points.  (Error return if
+C           NE.LT.1 .)
+C
+C     XE -- (input) real*8 array of points at which the function is to
+C           be evaluated.  If any of the XE are outside the interval
+C           [X1,X2], a warning error is returned in NEXT.
+C
+C     FE -- (output) real*8 array of values of the cubic function
+C           defined by  X1,X2, F1,F2, D1,D2  at the points  XE.
+C
+C     NEXT -- (output) integer array indicating number of extrapolation
+C           points:
+C            NEXT(1) = number of evaluation points to left of interval.
+C            NEXT(2) = number of evaluation points to right of interval.
+C
+C     IERR -- (output) error flag.
+C           Normal return:
+C              IERR = 0  (no errors).
+C           "Recoverable" errors:
+C              IERR = -1  if NE.LT.1 .
+C              IERR = -2  if X1.EQ.X2 .
+C                (The FE-array has not been changed in either case.)
+C
+C***REFERENCES  (NONE)
+C***ROUTINES CALLED  XERROR
+C***END PROLOGUE  DCHFEV
+C
+C ----------------------------------------------------------------------
+C
+C  Change record:
+C     82-08-03   Minor cosmetic changes for release 1.
+C
+C ----------------------------------------------------------------------
+C
+C  Programming notes:
+C
+C     To produce a single precision version, simply:
+C        a. Change DCHFEV to CHFEV wherever it occurs,
+C        b. Change the double precision declaration to real,
+C        c. Change the constant ZERO to single precision, and
+C        d. Change the names of the Fortran functions:  AMAX1, AMIN1.
+C
+C  DECLARE ARGUMENTS.
+C
+C
+C  DECLARE LOCAL VARIABLES.
+C
+C
+C  VALIDITY-CHECK ARGUMENTS.
+C
+C***FIRST EXECUTABLE STATEMENT  DCHFEV
+C
+C  INITIALIZE.
+C
+C
+C  COMPUTE CUBIC COEFFICIENTS (EXPANDED ABOUT X1).
+C
+C                                           (DELTA IS NO LONGER NEEDED.)
+C                               (H, DEL1 AND DEL2 ARE NO LONGER NEEDED.)
+C
+C  EVALUATION LOOP.
+C
+C          COUNT EXTRAPOLATION POINTS.
+C        (NOTE REDUNDANCY--IF EITHER CONDITION IS TRUE, OTHER IS FALSE.)
+C
+C  NORMAL RETURN.
+C
+C
+C  ERROR RETURNS.
+C
+C     NE.LT.1 RETURN.
+C
+C     X1.EQ.X2 RETURN.
+C------------- LAST LINE OF DCHFEV FOLLOWS -----------------------------
+C***BEGIN PROLOGUE  FDUMP
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  Z
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Symbolic dump (should be locally written).
+C***DESCRIPTION
+C        ***Note*** Machine Dependent Routine
+C        FDUMP is intended to be replaced by a locally written
+C        version which produces a symbolic dump.  Failing this,
+C        it should be replaced by a version which prints the
+C        subprogram nesting list.  Note that this dump must be
+C        printed on each of up to five files, as indicated by the
+C        XGETUA routine.  See XSETUA and XGETUA for details.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C     Latest revision ---  23 May 1979
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  FDUMP
+C***FIRST EXECUTABLE STATEMENT  FDUMP
+C***BEGIN PROLOGUE  J4SAVE
+C***REFER TO  XERROR
+C     Abstract
+C        J4SAVE saves and recalls several global variables needed
+C        by the library error handling routines.
+C
+C     Description of Parameters
+C      --Input--
+C        IWHICH - Index of item desired.
+C                = 1 Refers to current error number.
+C                = 2 Refers to current error control flag.
+C                 = 3 Refers to current unit number to which error
+C                    messages are to be sent.  (0 means use standard.)
+C                 = 4 Refers to the maximum number of times any
+C                     message is to be printed (as set by XERMAX).
+C                 = 5 Refers to the total number of units to which
+C                     each error message is to be written.
+C                 = 6 Refers to the 2nd unit for error messages
+C                 = 7 Refers to the 3rd unit for error messages
+C                 = 8 Refers to the 4th unit for error messages
+C                 = 9 Refers to the 5th unit for error messages
+C        IVALUE - The value to be set for the IWHICH-th parameter,
+C                 if ISET is .TRUE. .
+C        ISET   - If ISET=.TRUE., the IWHICH-th parameter will BE
+C                 given the value, IVALUE.  If ISET=.FALSE., the
+C                 IWHICH-th parameter will be unchanged, and IVALUE
+C                 is a dummy parameter.
+C      --Output--
+C        The (old) value of the IWHICH-th parameter will be returned
+C        in the function value, J4SAVE.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C    Adapted from Bell Laboratories PORT Library Error Handler
+C     Latest revision ---  23 MAY 1979
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  J4SAVE
+C***FIRST EXECUTABLE STATEMENT  J4SAVE
+C***BEGIN PROLOGUE  XERABT
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Aborts program execution and prints error message.
+C***DESCRIPTION
+C     Abstract
+C        ***Note*** machine dependent routine
+C        XERABT aborts the execution of the program.
+C        The error message causing the abort is given in the calling
+C        sequence, in case one needs it for printing on a dayfile,
+C        for example.
+C
+C     Description of Parameters
+C        MESSG and NMESSG are as in XERROR, except that NMESSG may
+C        be zero, in which case no message is being supplied.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C     Latest revision ---  19 MAR 1980
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  XERABT
+C***FIRST EXECUTABLE STATEMENT  XERABT
+C***BEGIN PROLOGUE  XERCTL
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Allows user control over handling of individual errors.
+C***DESCRIPTION
+C     Abstract
+C        Allows user control over handling of individual errors.
+C        Just after each message is recorded, but before it is
+C        processed any further (i.e., before it is printed or
+C        a decision to abort is made), a call is made to XERCTL.
+C        If the user has provided his own version of XERCTL, he
+C        can then override the value of KONTROL used in processing
+C        this message by redefining its value.
+C        KONTRL may be set to any value from -2 to 2.
+C        The meanings for KONTRL are the same as in XSETF, except
+C        that the value of KONTRL changes only for this message.
+C        If KONTRL is set to a value outside the range from -2 to 2,
+C        it will be moved back into that range.
+C
+C     Description of Parameters
+C
+C      --Input--
+C        MESSG1 - the first word (only) of the error message.
+C        NMESSG - same as in the call to XERROR or XERRWV.
+C        NERR   - same as in the call to XERROR or XERRWV.
+C        LEVEL  - same as in the call to XERROR or XERRWV.
+C        KONTRL - the current value of the control flag as set
+C                 by a call to XSETF.
+C
+C      --Output--
+C        KONTRL - the new value of KONTRL.  If KONTRL is not
+C                 defined, it will remain at its original value.
+C                 This changed value of control affects only
+C                 the current occurrence of the current message.
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  XERCTL
+C***FIRST EXECUTABLE STATEMENT  XERCTL
+C***BEGIN PROLOGUE  XERPRT
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  Z
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Prints error messages.
+C***DESCRIPTION
+C     Abstract
+C        Print the Hollerith message in MESSG, of length NMESSG,
+C        on each file indicated by XGETUA.
+C     Latest revision ---  19 MAR 1980
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  I1MACH,S88FMT,XGETUA
+C***END PROLOGUE  XERPRT
+C     OBTAIN UNIT NUMBERS AND WRITE LINE TO EACH UNIT
+C***FIRST EXECUTABLE STATEMENT  XERPRT
+C***BEGIN PROLOGUE  DPCHSP
+C***DATE WRITTEN   820503   (YYMMDD)
+C***REVISION DATE  870707   (YYMMDD)
+C***CATEGORY NO.  E1B
+C***KEYWORDS  LIBRARY=SLATEC(PCHIP),
+C             TYPE=DOUBLE PRECISION(PCHSP-S DPCHSP-D),
+C             CUBIC HERMITE INTERPOLATION,PIECEWISE CUBIC INTERPOLATION,
+C             SPLINE INTERPOLATION
+C***AUTHOR  FRITSCH, F. N., (LLNL)
+C             MATHEMATICS AND STATISTICS DIVISION
+C             LAWRENCE LIVERMORE NATIONAL LABORATORY
+C             P.O. BOX 808  (L-316)
+C             LIVERMORE, CA  94550
+C             FTS 532-4275, (415) 422-4275
+C***PURPOSE  Set derivatives needed to determine the Hermite represen-
+C            tation of the cubic spline interpolant to given data, with
+C            specified boundary conditions.
+C***DESCRIPTION
+C
+C       **** Double Precision version of PCHSP ****
+C
+C          DPCHSP:   Piecewise Cubic Hermite Spline
+C
+C     Computes the Hermite representation of the cubic spline inter-
+C     polant to the data given in X and F satisfying the boundary
+C     conditions specified by IC and VC.
+C
+C     To facilitate two-dimensional applications, includes an increment
+C     between successive values of the F- and D-arrays.
+C
+C     The resulting piecewise cubic Hermite function may be evaluated
+C     by DPCHFE or DPCHFD.
+C
+C     NOTE:  This is a modified version of C. de Boor'S cubic spline
+C            routine CUBSPL.
+C
+C ----------------------------------------------------------------------
+C
+C  Calling sequence:
+C
+C        PARAMETER  (INCFD = ...)
+C        INTEGER  IC(2), N, NWK, IERR
+C        DOUBLE PRECISION  VC(2), X(N), F(INCFD,N), D(INCFD,N), WK(NWK)
+C
+C        CALL  DPCHSP (IC, VC, N, X, F, D, INCFD, WK, NWK, IERR)
+C
+C   Parameters:
+C
+C     IC -- (input) integer array of length 2 specifying desired
+C           boundary conditions:
+C           IC(1) = IBEG, desired condition at beginning of data.
+C           IC(2) = IEND, desired condition at end of data.
+C
+C           IBEG = 0  to set D(1) so that the third derivative is con-
+C              tinuous at X(2).  This is the "not a knot" condition
+C              provided by de Boor'S cubic spline routine CUBSPL.
+C              < This is the default boundary condition. >
+C           IBEG = 1  if first derivative at X(1) is given in VC(1).
+C           IBEG = 2  if second derivative at X(1) is given in VC(1).
+C           IBEG = 3  to use the 3-point difference formula for D(1).
+C                     (Reverts to the default b.c. if N.LT.3 .)
+C           IBEG = 4  to use the 4-point difference formula for D(1).
+C                     (Reverts to the default b.c. if N.LT.4 .)
+C          NOTES:
+C           1. An error return is taken if IBEG is out of range.
+C           2. For the "natural" boundary condition, use IBEG=2 and
+C              VC(1)=0.
+C
+C           IEND may take on the same values as IBEG, but applied to
+C           derivative at X(N).  In case IEND = 1 or 2, the value is
+C           given in VC(2).
+C
+C          NOTES:
+C           1. An error return is taken if IEND is out of range.
+C           2. For the "natural" boundary condition, use IEND=2 and
+C              VC(2)=0.
+C
+C     VC -- (input) real*8 array of length 2 specifying desired boundary
+C           values, as indicated above.
+C           VC(1) need be set only if IC(1) = 1 or 2 .
+C           VC(2) need be set only if IC(2) = 1 or 2 .
+C
+C     N -- (input) number of data points.  (Error return if N.LT.2 .)
+C
+C     X -- (input) real*8 array of independent variable values.  The
+C           elements of X must be strictly increasing:
+C                X(I-1) .LT. X(I),  I = 2(1)N.
+C           (Error return if not.)
+C
+C     F -- (input) real*8 array of dependent variable values to be
+C           interpolated.  F(1+(I-1)*INCFD) is value corresponding to
+C           X(I).
+C
+C     D -- (output) real*8 array of derivative values at the data
+C           points.  These values will determine the cubic spline
+C           interpolant with the requested boundary conditions.
+C           The value corresponding to X(I) is stored in
+C                D(1+(I-1)*INCFD),  I=1(1)N.
+C           No other entries in D are changed.
+C
+C     INCFD -- (input) increment between successive values in F and D.
+C           This argument is provided primarily for 2-D applications.
+C           (Error return if  INCFD.LT.1 .)
+C
+C     WK -- (scratch) real*8 array of working storage.
+C
+C     NWK -- (input) length of work array.
+C           (Error return if NWK.LT.2*N .)
+C
+C     IERR -- (output) error flag.
+C           Normal return:
+C              IERR = 0  (no errors).
+C           "Recoverable" errors:
+C              IERR = -1  if N.LT.2 .
+C              IERR = -2  if INCFD.LT.1 .
+C              IERR = -3  if the X-array is not strictly increasing.
+C              IERR = -4  if IBEG.LT.0 or IBEG.GT.4 .
+C              IERR = -5  if IEND.LT.0 of IEND.GT.4 .
+C              IERR = -6  if both of the above are true.
+C              IERR = -7  if NWK is too small.
+C               NOTE:  The above errors are checked in the order listed,
+C                   and following arguments have **NOT** been validated.
+C             (The D-array has not been changed in any of these cases.)
+C              IERR = -8  in case of trouble solving the linear system
+C                         for the interior derivative values.
+C             (The D-array may have been changed in this case.)
+C             (             Do **NOT** use it!                )
+C
+C***REFERENCES  CARL DE BOOR, A PRACTICAL GUIDE TO SPLINES, SPRINGER-
+C                 VERLAG (NEW YORK, 1978), PP. 53-59.
+C***ROUTINES CALLED  DPCHDF,XERROR
+C***END PROLOGUE  DPCHSP
+C
+C ----------------------------------------------------------------------
+C
+C  Change record:
+C     82-08-04   Converted to SLATEC library version.
+C     87-07-07   Corrected XERROR calls for d.p. name(s).
+C
+C ----------------------------------------------------------------------
+C
+C  Programming notes:
+C
+C     To produce a single precision version, simply:
+C        a. Change DPCHSP to PCHSP wherever it occurs,
+C        b. Change the double precision declarations to real, and
+C        c. Change the constants ZERO, HALF, ... to single precision.
+C
+C  DECLARE ARGUMENTS.
+C
+C
+C  DECLARE LOCAL VARIABLES.
+C
+C
+C
+C  VALIDITY-CHECK ARGUMENTS.
+C
+C***FIRST EXECUTABLE STATEMENT  DPCHSP
+C
+C
+C  FUNCTION DEFINITION IS OK -- GO ON.
+C
+C
+C  COMPUTE FIRST DIFFERENCES OF X SEQUENCE AND STORE IN WK(1,.). ALSO,
+C  COMPUTE FIRST DIVIDED DIFFERENCE OF DATA AND STORE IN WK(2,.).
+C
+C  SET TO DEFAULT BOUNDARY CONDITIONS IF N IS TOO SMALL.
+C
+C
+C  SET UP FOR BOUNDARY CONDITIONS.
+C
+C        PICK UP FIRST IBEG POINTS, IN REVERSE ORDER.
+C           INDEX RUNS FROM IBEG DOWN TO 1.
+C                 --------------------------------
+C                 --------------------------------
+C
+C        PICK UP LAST IEND POINTS.
+C           INDEX RUNS FROM N+1-IEND UP TO N.
+C                 --------------------------------
+C                 --------------------------------
+C
+C --------------------( BEGIN CODING FROM CUBSPL )--------------------
+C
+C  **** A TRIDIAGONAL LINEAR SYSTEM FOR THE UNKNOWN SLOPES S(J) OF
+C  F  AT X(J), J=1,...,N, IS GENERATED AND THEN SOLVED BY GAUSS ELIM-
+C  INATION, WITH S(J) ENDING UP IN D(1,J), ALL J.
+C     WK(1,.) AND WK(2,.) ARE USED FOR TEMPORARY STORAGE.
+C
+C  CONSTRUCT FIRST EQUATION FROM FIRST BOUNDARY CONDITION, OF THE FORM
+C             WK(2,1)*S(1) + WK(1,1)*S(2) = D(1,1)
+C
+C           NO CONDITION AT LEFT END AND N = 2.
+C           NOT-A-KNOT CONDITION AT LEFT END AND N .GT. 2.
+C        SLOPE PRESCRIBED AT LEFT END.
+C        SECOND DERIVATIVE PRESCRIBED AT LEFT END.
+C
+C  IF THERE ARE INTERIOR KNOTS, GENERATE THE CORRESPONDING EQUATIONS AND
+C  CARRY OUT THE FORWARD PASS OF GAUSS ELIMINATION, AFTER WHICH THE J-TH
+C  EQUATION READS    WK(2,J)*S(J) + WK(1,J)*S(J+1) = D(1,J).
+C
+C
+C  CONSTRUCT LAST EQUATION FROM SECOND BOUNDARY CONDITION, OF THE FORM
+C           (-G*WK(2,N-1))*S(N-1) + WK(2,N)*S(N) = D(1,N)
+C
+C     IF SLOPE IS PRESCRIBED AT RIGHT END, ONE CAN GO DIRECTLY TO BACK-
+C     SUBSTITUTION, SINCE ARRAYS HAPPEN TO BE SET UP JUST RIGHT FOR IT
+C     AT THIS POINT.
+C
+C           NOT-A-KNOT AT RIGHT ENDPOINT AND AT LEFT ENDPOINT AND N = 2.
+C           EITHER (N=3 AND NOT-A-KNOT ALSO AT LEFT) OR (N=2 AND *NOT*
+C           NOT-A-KNOT AT LEFT END POINT).
+C           NOT-A-KNOT AND N .GE. 3, AND EITHER N.GT.3 OR  ALSO NOT-A-
+C           KNOT AT LEFT END POINT.
+C           DO NOT NEED TO CHECK FOLLOWING DENOMINATORS (X-DIFFERENCES).
+C        SECOND DERIVATIVE PRESCRIBED AT RIGHT ENDPOINT.
+C
+C  COMPLETE FORWARD PASS OF GAUSS ELIMINATION.
+C
+C
+C  CARRY OUT BACK SUBSTITUTION
+C
+C --------------------(  END  CODING FROM CUBSPL )--------------------
+C
+C  NORMAL RETURN.
+C
+C
+C  ERROR RETURNS.
+C
+C     N.LT.2 RETURN.
+C
+C     INCFD.LT.1 RETURN.
+C
+C     X-ARRAY NOT STRICTLY INCREASING.
+C
+C     IC OUT OF RANGE RETURN.
+C
+C     NWK TOO SMALL RETURN.
+C
+C     SINGULAR SYSTEM.
+C   *** THEORETICALLY, THIS CAN ONLY OCCUR IF SUCCESSIVE X-VALUES   ***
+C   *** ARE EQUAL, WHICH SHOULD ALREADY HAVE BEEN CAUGHT (IERR=-3). ***
+C
+C     ERROR RETURN FROM DPCHDF.
+C   *** THIS CASE SHOULD NEVER OCCUR ***
+C------------- LAST LINE OF DPCHSP FOLLOWS -----------------------------
+C***BEGIN PROLOGUE  XERROR
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Processes an error (diagnostic) message.
+C***DESCRIPTION
+C     Abstract
+C        XERROR processes a diagnostic message, in a manner
+C        determined by the value of LEVEL and the current value
+C        of the library error control flag, KONTRL.
+C        (See subroutine XSETF for details.)
+C
+C     Description of Parameters
+C      --Input--
+C        MESSG - the Hollerith message to be processed, containing
+C                no more than 72 characters.
+C        NMESSG- the actual number of characters in MESSG.
+C        NERR  - the error number associated with this message.
+C                NERR must not be zero.
+C        LEVEL - error category.
+C                =2 means this is an unconditionally fatal error.
+C                =1 means this is a recoverable error.  (I.e., it is
+C                   non-fatal if XSETF has been appropriately called.)
+C                =0 means this is a warning message only.
+C                =-1 means this is a warning message which is to be
+C                   printed at most once, regardless of how many
+C                   times this call is executed.
+C
+C     Examples
+C        CALL XERROR('SMOOTH -- NUM WAS ZERO.',23,1,2)
+C        CALL XERROR('INTEG  -- LESS THAN FULL ACCURACY ACHIEVED.',
+C                    43,2,1)
+C        CALL XERROR('ROOTER -- ACTUAL ZERO OF F FOUND BEFORE INTERVAL F
+C    1ULLY COLLAPSED.',65,3,0)
+C        CALL XERROR('EXP    -- UNDERFLOWS BEING SET TO ZERO.',39,1,-1)
+C
+C     Latest revision ---  19 MAR 1980
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  XERRWV
+C***END PROLOGUE  XERROR
+C***FIRST EXECUTABLE STATEMENT  XERROR
+C***BEGIN PROLOGUE  XERRWV
+C***DATE WRITTEN   800319   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Processes error message allowing 2 integer and two real
+C            values to be included in the message.
+C***DESCRIPTION
+C     Abstract
+C        XERRWV processes a diagnostic message, in a manner
+C        determined by the value of LEVEL and the current value
+C        of the library error control flag, KONTRL.
+C        (See subroutine XSETF for details.)
+C        In addition, up to two integer values and two real
+C        values may be printed along with the message.
+C
+C     Description of Parameters
+C      --Input--
+C        MESSG - the Hollerith message to be processed.
+C        NMESSG- the actual number of characters in MESSG.
+C        NERR  - the error number associated with this message.
+C                NERR must not be zero.
+C        LEVEL - error category.
+C                =2 means this is an unconditionally fatal error.
+C                =1 means this is a recoverable error.  (I.e., it is
+C                   non-fatal if XSETF has been appropriately called.)
+C                =0 means this is a warning message only.
+C                =-1 means this is a warning message which is to be
+C                   printed at most once, regardless of how many
+C                   times this call is executed.
+C        NI    - number of integer values to be printed. (0 to 2)
+C        I1    - first integer value.
+C        I2    - second integer value.
+C        NR    - number of real values to be printed. (0 to 2)
+C        R1    - first real value.
+C        R2    - second real value.
+C
+C     Examples
+C        CALL XERRWV('SMOOTH -- NUM (=I1) WAS ZERO.',29,1,2,
+C    1   1,NUM,0,0,0.,0.)
+C        CALL XERRWV('QUADXY -- REQUESTED ERROR (R1) LESS THAN MINIMUM (
+C    1R2).,54,77,1,0,0,0,2,ERRREQ,ERRMIN)
+C
+C     Latest revision ---  19 MAR 1980
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  FDUMP,I1MACH,J4SAVE,XERABT,XERCTL,XERPRT,XERSAV,
+C                    XGETUA
+C***END PROLOGUE  XERRWV
+C     GET FLAGS
+C***FIRST EXECUTABLE STATEMENT  XERRWV
+C     CHECK FOR VALID INPUT
+C     RECORD MESSAGE
+C     LET USER OVERRIDE
+C     RESET TO ORIGINAL VALUES
+C     DECIDE WHETHER TO PRINT MESSAGE
+C           INTRODUCTION
+C        MESSAGE
+C              ERROR NUMBER
+C        TRACE-BACK
+C     QUIT HERE IF MESSAGE IS NOT FATAL
+C        PRINT REASON FOR ABORT
+C        PRINT ERROR SUMMARY
+C     ABORT
+C***BEGIN PROLOGUE  XERSAV
+C***DATE WRITTEN   800319   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  Z
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Records that an error occurred.
+C***DESCRIPTION
+C     Abstract
+C        Record that this error occurred.
+C
+C     Description of Parameters
+C     --Input--
+C       MESSG, NMESSG, NERR, LEVEL are as in XERROR,
+C       except that when NMESSG=0 the tables will be
+C       dumped and cleared, and when NMESSG is less than zero the
+C       tables will be dumped and not cleared.
+C     --Output--
+C       ICOUNT will be the number of times this message has
+C       been seen, or zero if the table has overflowed and
+C       does not contain this message specifically.
+C       When NMESSG=0, ICOUNT will not be altered.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C     Latest revision ---  19 Mar 1980
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  I1MACH,S88FMT,XGETUA
+C***END PROLOGUE  XERSAV
+C     NEXT TWO DATA STATEMENTS ARE NECESSARY TO PROVIDE A BLANK
+C     ERROR TABLE INITIALLY
+C***FIRST EXECUTABLE STATEMENT  XERSAV
+C     DUMP THE TABLE
+C        PRINT TO EACH UNIT
+C           PRINT TABLE HEADER
+C           PRINT BODY OF TABLE
+C           PRINT NUMBER OF OTHER ERRORS
+C        CLEAR THE ERROR TABLES
+C     PROCESS A MESSAGE...
+C     SEARCH FOR THIS MESSG, OR ELSE AN EMPTY SLOT FOR THIS MESSG,
+C     OR ELSE DETERMINE THAT THE ERROR TABLE IS FULL.
+C     THREE POSSIBLE CASES...
+C     TABLE IS FULL
+C     MESSAGE FOUND IN TABLE
+C     EMPTY SLOT FOUND FOR NEW MESSAGE
+C***BEGIN PROLOGUE  XGETUA
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Returns unit number(s) to which error messages are being
+C            sent.
+C***DESCRIPTION
+C     Abstract
+C        XGETUA may be called to determine the unit number or numbers
+C        to which error messages are being sent.
+C        These unit numbers may have been set by a call to XSETUN,
+C        or a call to XSETUA, or may be a default value.
+C
+C     Description of Parameters
+C      --Output--
+C        IUNIT - an array of one to five unit numbers, depending
+C                on the value of N.  A value of zero refers to the
+C                default unit, as defined by the I1MACH machine
+C                constant routine.  Only IUNIT(1),...,IUNIT(N) are
+C                defined by XGETUA.  The values of IUNIT(N+1),...,
+C                IUNIT(5) are not defined (for N .LT. 5) or altered
+C                in any way by XGETUA.
+C        N     - the number of units to which copies of the
+C                error messages are being sent.  N will be in the
+C                range from 1 to 5.
+C
+C     Latest revision ---  19 MAR 1980
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  J4SAVE
+C***END PROLOGUE  XGETUA
+C***FIRST EXECUTABLE STATEMENT  XGETUA
+C***BEGIN PROLOGUE  I1MACH
+C***DATE WRITTEN   750101   (YYMMDD)
+C***REVISION DATE  840405   (YYMMDD)
+C***CATEGORY NO.  R1
+C***KEYWORDS  MACHINE CONSTANTS
+C***AUTHOR  FOX, P. A., (BELL LABS)
+C           HALL, A. D., (BELL LABS)
+C           SCHRYER, N. L., (BELL LABS)
+C***PURPOSE  Returns integer machine dependent constants
+C***DESCRIPTION
+C
+C     This is the CMLIB version of I1MACH, the integer machine
+C     constants subroutine originally developed for the PORT library.
+C
+C     I1MACH can be used to obtain machine-dependent parameters
+C     for the local machine environment.  It is a function
+C     subroutine with one (input) argument, and can be called
+C     as follows, for example
+C
+C          K = I1MACH(I)
+C
+C     where I=1,...,16.  The (output) value of K above is
+C     determined by the (input) value of I.  The results for
+C     various values of I are discussed below.
+C
+C  I/O unit numbers.
+C    I1MACH( 1) = the standard input unit.
+C    I1MACH( 2) = the standard output unit.
+C    I1MACH( 3) = the standard punch unit.
+C    I1MACH( 4) = the standard error message unit.
+C
+C  Words.
+C    I1MACH( 5) = the number of bits per integer storage unit.
+C    I1MACH( 6) = the number of characters per integer storage unit.
+C
+C  Integers.
+C    assume integers are represented in the S-digit, base-A form
+C
+C               sign ( X(S-1)*A**(S-1) + ... + X(1)*A + X(0) )
+C
+C               where 0 .LE. X(I) .LT. A for I=0,...,S-1.
+C    I1MACH( 7) = A, the base.
+C    I1MACH( 8) = S, the number of base-A digits.
+C    I1MACH( 9) = A**S - 1, the largest magnitude.
+C
+C  Floating-Point Numbers.
+C    Assume floating-point numbers are represented in the T-digit,
+C    base-B form
+C               sign (B**E)*( (X(1)/B) + ... + (X(T)/B**T) )
+C
+C               where 0 .LE. X(I) .LT. B for I=1,...,T,
+C               0 .LT. X(1), and EMIN .LE. E .LE. EMAX.
+C    I1MACH(10) = B, the base.
+C
+C  Single-Precision
+C    I1MACH(11) = T, the number of base-B digits.
+C    I1MACH(12) = EMIN, the smallest exponent E.
+C    I1MACH(13) = EMAX, the largest exponent E.
+C
+C  Double-Precision
+C    I1MACH(14) = T, the number of base-B digits.
+C    I1MACH(15) = EMIN, the smallest exponent E.
+C    I1MACH(16) = EMAX, the largest exponent E.
+C
+C  To alter this function for a particular environment,
+C  the desired set of DATA statements should be activated by
+C  removing the C from column 1.  Also, the values of
+C  I1MACH(1) - I1MACH(4) should be checked for consistency
+C  with the local operating system.
+C***REFERENCES  FOX P.A., HALL A.D., SCHRYER N.L.,*FRAMEWORK FOR A
+C                 PORTABLE LIBRARY*, ACM TRANSACTIONS ON MATHEMATICAL
+C                 SOFTWARE, VOL. 4, NO. 2, JUNE 1978, PP. 177-188.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  I1MACH
+C
+C
+C     MACHINE CONSTANTS FOR IEEE ARITHMETIC MACHINES, SUCH AS THE AT&T
+C     3B SERIES, MOTOROLA 68000 BASED MACHINES (E.G. SUN 3 AND AT&T
+C     PC 7300), SUN SPARCSTATIONS, SILICON GRAPHCS WORKSTATIONS, HP
+C     9000 WORKSTATIONS, IBM RS/6000 WORKSTATIONS, AND 8087 BASED 
+C     MICROS (E.G. IBM PC AND AT&T 6300).
+C
+C === MACHINE = ATT.3B
+C === MACHINE = ATT.6300
+C === MACHINE = ATT.7300
+C === MACHINE = HP.9000
+C === MACHINE = IBM.PC
+C === MACHINE = IBM.RS6000
+C === MACHINE = IEEE.MOST-SIG-BYTE-FIRST
+C === MACHINE = IEEE.LEAST-SIG-BYTE-FIRST
+C === MACHINE = SGI
+C === MACHINE = SUN
+C === MACHINE = 68000
+C === MACHINE = 8087
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -125 /
+C      DATA IMACH(13) /  128 /
+C      DATA IMACH(14) /   53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR SUN WORKSTATIONS.  f77 WITH -r8 OPTION.
+C
+C === MACHINE = SUN.F77-WITH-R8-OPTION
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    6 /
+C      DATA IMACH( 4) /    0 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   53 /
+C      DATA IMACH(12) / -1021 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /   113 /
+C      DATA IMACH(15) / -16382 /
+C      DATA IMACH(16) /  16384 /
+C
+C     MACHINE CONSTANTS FOR SGI Origin 2000 with -r8 -d16 options.
+C
+C === MACHINE = SGI.ORIGIN.F77-WITH-R8-D16-OPTIONS
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    6 /
+C      DATA IMACH( 4) /    0 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   53 /
+C      DATA IMACH(12) / -1022 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /   107 /
+C      DATA IMACH(15) /  -916 /
+C      DATA IMACH(16) /  1025 /
+C
+C     MACHINE CONSTANTS FOR IBM RS/6000 WORKSTATIONS WITH -qautodbl=dblpad.
+C
+C === MACHINE = IBM.RS6000.XLF-WITH-AUTODBL-OPTION
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    6 /
+C      DATA IMACH( 4) /    0 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   53 /
+C      DATA IMACH(12) / -1021 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /   114 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR AMDAHL MACHINES.
+C
+C === MACHINE = AMDAHL
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  32 /
+C      DATA IMACH( 6) /   4 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /  16 /
+C      DATA IMACH(11) /   6 /
+C      DATA IMACH(12) / -64 /
+C      DATA IMACH(13) /  63 /
+C      DATA IMACH(14) /  14 /
+C      DATA IMACH(15) / -64 /
+C      DATA IMACH(16) /  63 /
+C
+C     MACHINE CONSTANTS FOR THE BURROUGHS 1700 SYSTEM.
+C
+C === MACHINE = BURROUGHS.1700
+C      DATA IMACH( 1) /    7 /
+C      DATA IMACH( 2) /    2 /
+C      DATA IMACH( 3) /    2 /
+C      DATA IMACH( 4) /    2 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   33 /
+C      DATA IMACH( 9) / Z1FFFFFFFF /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -256 /
+C      DATA IMACH(13) /  255 /
+C      DATA IMACH(14) /   60 /
+C      DATA IMACH(15) / -256 /
+C      DATA IMACH(16) /  255 /
+C
+C     MACHINE CONSTANTS FOR THE BURROUGHS 5700 SYSTEM.
+C
+C === MACHINE = BURROUGHS.5700
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  48 /
+C      DATA IMACH( 6) /   6 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  39 /
+C      DATA IMACH( 9) / O0007777777777777 /
+C      DATA IMACH(10) /   8 /
+C      DATA IMACH(11) /  13 /
+C      DATA IMACH(12) / -50 /
+C      DATA IMACH(13) /  76 /
+C      DATA IMACH(14) /  26 /
+C      DATA IMACH(15) / -50 /
+C      DATA IMACH(16) /  76 /
+C
+C     MACHINE CONSTANTS FOR THE BURROUGHS 6700/7700 SYSTEMS.
+C
+C === MACHINE = BURROUGHS.6700
+C === MACHINE = BURROUGHS.7700
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  48 /
+C      DATA IMACH( 6) /   6 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  39 /
+C      DATA IMACH( 9) / O0007777777777777 /
+C      DATA IMACH(10) /   8 /
+C      DATA IMACH(11) /  13 /
+C      DATA IMACH(12) / -50 /
+C      DATA IMACH(13) /  76 /
+C      DATA IMACH(14) /  26 /
+C      DATA IMACH(15) / -32754 /
+C      DATA IMACH(16) /  32780 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES
+C
+C === MACHINE = CONVEX
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    0 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   53 /
+C      DATA IMACH(15) / -1023 /
+C      DATA IMACH(16) /  1023 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES (NATIVE MODE)
+C     WITH -P8 OPTION
+C
+C === MACHINE = CONVEX.P8
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     0 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    63 /
+C      DATA IMACH( 9) / 9223372036854775807 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    53 /
+C      DATA IMACH(12) / -1023 /
+C      DATA IMACH(13) /  1023 /
+C      DATA IMACH(14) /   112 /
+C      DATA IMACH(15) / -16383 /
+C      DATA IMACH(16) /  16383 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES (IEEE MODE)
+C
+C === MACHINE = CONVEX.IEEE
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    0 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -125 /
+C      DATA IMACH(13) /  128 /
+C      DATA IMACH(14) /   53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR THE CONVEX C1, C2, C3 SERIES(IEEE MODE)
+C     WITH -P8 OPTION
+C
+C === MACHINE = CONVEX.IEEE.P8
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     0 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    32 /
+C      DATA IMACH( 6) /     4 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    53 /
+C      DATA IMACH(12) / -1021 /
+C      DATA IMACH(13) /  1024 /
+C      DATA IMACH(14) /    53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR THE CYBER 170/180 SERIES USING NOS (FTN5).
+C
+C === MACHINE = CYBER.170.NOS
+C === MACHINE = CYBER.180.NOS
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   60 /
+C      DATA IMACH( 6) /   10 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   48 /
+C      DATA IMACH( 9) / O"00007777777777777777" /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   48 /
+C      DATA IMACH(12) / -974 /
+C      DATA IMACH(13) / 1070 /
+C      DATA IMACH(14) /   96 /
+C      DATA IMACH(15) / -927 /
+C      DATA IMACH(16) / 1070 /
+C
+C     MACHINE CONSTANTS FOR THE CDC 180 SERIES USING NOS/VE
+C
+C === MACHINE = CYBER.180.NOS/VE
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     7 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    63 /
+C      DATA IMACH( 9) / 9223372036854775807 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    47 /
+C      DATA IMACH(12) / -4095 /
+C      DATA IMACH(13) /  4094 /
+C      DATA IMACH(14) /    94 /
+C      DATA IMACH(15) / -4095 /
+C      DATA IMACH(16) /  4094 /
+C
+C     MACHINE CONSTANTS FOR THE CYBER 205
+C
+C === MACHINE = CYBER.205
+C      DATA IMACH( 1) /      5 /
+C      DATA IMACH( 2) /      6 /
+C      DATA IMACH( 3) /      7 /
+C      DATA IMACH( 4) /      6 /
+C      DATA IMACH( 5) /     64 /
+C      DATA IMACH( 6) /      8 /
+C      DATA IMACH( 7) /      2 /
+C      DATA IMACH( 8) /     47 /
+C      DATA IMACH( 9) / X'00007FFFFFFFFFFF' /
+C      DATA IMACH(10) /      2 /
+C      DATA IMACH(11) /     47 /
+C      DATA IMACH(12) / -28625 /
+C      DATA IMACH(13) /  28718 /
+C      DATA IMACH(14) /     94 /
+C      DATA IMACH(15) / -28625 /
+C      DATA IMACH(16) /  28718 /
+C
+C     MACHINE CONSTANTS FOR THE CDC 6000/7000 SERIES.
+C
+C === MACHINE = CDC.6000
+C === MACHINE = CDC.7000
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   60 /
+C      DATA IMACH( 6) /   10 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   48 /
+C      DATA IMACH( 9) / 00007777777777777777B /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   48 /
+C      DATA IMACH(12) / -974 /
+C      DATA IMACH(13) / 1070 /
+C      DATA IMACH(14) /   96 /
+C      DATA IMACH(15) / -927 /
+C      DATA IMACH(16) / 1070 /
+C
+C     MACHINE CONSTANTS FOR THE CRAY 1, XMP, 2, AND 3.
+C     USING THE 46 BIT INTEGER COMPILER OPTION
+C
+C === MACHINE = CRAY.46-BIT-INTEGER
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /   102 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    46 /
+C      DATA IMACH( 9) /  777777777777777777777B /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    47 /
+C      DATA IMACH(12) / -8189 /
+C      DATA IMACH(13) /  8190 /
+C      DATA IMACH(14) /    94 /
+C      DATA IMACH(15) / -8099 /
+C      DATA IMACH(16) /  8190 /
+C
+C     MACHINE CONSTANTS FOR THE CRAY 1, XMP, 2, AND 3.
+C     USING THE 64 BIT INTEGER COMPILER OPTION
+C
+C === MACHINE = CRAY.64-BIT-INTEGER
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /   102 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    64 /
+C      DATA IMACH( 6) /     8 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    63 /
+C      DATA IMACH( 9) /  777777777777777777777B /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    47 /
+C      DATA IMACH(12) / -8189 /
+C      DATA IMACH(13) /  8190 /
+C      DATA IMACH(14) /    94 /
+C      DATA IMACH(15) / -8099 /
+C      DATA IMACH(16) /  8190 /C
+C     MACHINE CONSTANTS FOR THE DATA GENERAL ECLIPSE S/200
+C
+C === MACHINE = DATA_GENERAL.ECLIPSE.S/200
+C      DATA IMACH( 1) /   11 /
+C      DATA IMACH( 2) /   12 /
+C      DATA IMACH( 3) /    8 /
+C      DATA IMACH( 4) /   10 /
+C      DATA IMACH( 5) /   16 /
+C      DATA IMACH( 6) /    2 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   15 /
+C      DATA IMACH( 9) /32767 /
+C      DATA IMACH(10) /   16 /
+C      DATA IMACH(11) /    6 /
+C      DATA IMACH(12) /  -64 /
+C      DATA IMACH(13) /   63 /
+C      DATA IMACH(14) /   14 /
+C      DATA IMACH(15) /  -64 /
+C      DATA IMACH(16) /   63 /
+C
+C     ELXSI  6400
+C
+C === MACHINE = ELSXI.6400
+C      DATA IMACH( 1) /     5 /
+C      DATA IMACH( 2) /     6 /
+C      DATA IMACH( 3) /     6 /
+C      DATA IMACH( 4) /     6 /
+C      DATA IMACH( 5) /    32 /
+C      DATA IMACH( 6) /     4 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    32 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    24 /
+C      DATA IMACH(12) /  -126 /
+C      DATA IMACH(13) /   127 /
+C      DATA IMACH(14) /    53 /
+C      DATA IMACH(15) / -1022 /
+C      DATA IMACH(16) /  1023 /
+C
+C     MACHINE CONSTANTS FOR THE HARRIS 220
+C     MACHINE CONSTANTS FOR THE HARRIS SLASH 6 AND SLASH 7
+C
+C === MACHINE = HARRIS.220
+C === MACHINE = HARRIS.SLASH6
+C === MACHINE = HARRIS.SLASH7
+C      DATA IMACH( 1) /       5 /
+C      DATA IMACH( 2) /       6 /
+C      DATA IMACH( 3) /       0 /
+C      DATA IMACH( 4) /       6 /
+C      DATA IMACH( 5) /      24 /
+C      DATA IMACH( 6) /       3 /
+C      DATA IMACH( 7) /       2 /
+C      DATA IMACH( 8) /      23 /
+C      DATA IMACH( 9) / 8388607 /
+C      DATA IMACH(10) /       2 /
+C      DATA IMACH(11) /      23 /
+C      DATA IMACH(12) /    -127 /
+C      DATA IMACH(13) /     127 /
+C      DATA IMACH(14) /      38 /
+C      DATA IMACH(15) /    -127 /
+C      DATA IMACH(16) /     127 /
+C
+C     MACHINE CONSTANTS FOR THE HONEYWELL 600/6000 SERIES.
+C     MACHINE CONSTANTS FOR THE HONEYWELL DPS 8/70 SERIES.
+C
+C === MACHINE = HONEYWELL.600/6000
+C === MACHINE = HONEYWELL.DPS.8/70
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /   43 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / O377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   63 /
+C      DATA IMACH(15) / -127 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR THE HP 2100
+C     3 WORD DOUBLE PRECISION OPTION WITH FTN4
+C
+C === MACHINE = HP.2100.3_WORD_DP
+C      DATA IMACH(1) /      5/
+C      DATA IMACH(2) /      6 /
+C      DATA IMACH(3) /      4 /
+C      DATA IMACH(4) /      1 /
+C      DATA IMACH(5) /     16 /
+C      DATA IMACH(6) /      2 /
+C      DATA IMACH(7) /      2 /
+C      DATA IMACH(8) /     15 /
+C      DATA IMACH(9) /  32767 /
+C      DATA IMACH(10)/      2 /
+C      DATA IMACH(11)/     23 /
+C      DATA IMACH(12)/   -128 /
+C      DATA IMACH(13)/    127 /
+C      DATA IMACH(14)/     39 /
+C      DATA IMACH(15)/   -128 /
+C      DATA IMACH(16)/    127 /
+C
+C     MACHINE CONSTANTS FOR THE HP 2100
+C     4 WORD DOUBLE PRECISION OPTION WITH FTN4
+C
+C === MACHINE = HP.2100.4_WORD_DP
+C      DATA IMACH(1) /      5 /
+C      DATA IMACH(2) /      6 /
+C      DATA IMACH(3) /      4 /
+C      DATA IMACH(4) /      1 /
+C      DATA IMACH(5) /     16 /
+C      DATA IMACH(6) /      2 /
+C      DATA IMACH(7) /      2 /
+C      DATA IMACH(8) /     15 /
+C      DATA IMACH(9) /  32767 /
+C      DATA IMACH(10)/      2 /
+C      DATA IMACH(11)/     23 /
+C      DATA IMACH(12)/   -128 /
+C      DATA IMACH(13)/    127 /
+C      DATA IMACH(14)/     55 /
+C      DATA IMACH(15)/   -128 /
+C      DATA IMACH(16)/    127 /
+C
+C     MACHINE CONSTANTS FOR THE IBM 360/370 SERIES,
+C     THE XEROX SIGMA 5/7/9 AND THE SEL SYSTEMS 85/86 AND
+C     THE INTERDATA 3230 AND INTERDATA 7/32.
+C
+C === MACHINE = IBM.360
+C === MACHINE = IBM.370
+C === MACHINE = XEROX.SIGMA.5
+C === MACHINE = XEROX.SIGMA.7
+C === MACHINE = XEROX.SIGMA.9
+C === MACHINE = SEL.85
+C === MACHINE = SEL.86
+C === MACHINE = INTERDATA.3230
+C === MACHINE = INTERDATA.7/32
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   7 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  32 /
+C      DATA IMACH( 6) /   4 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  31 /
+C      DATA IMACH( 9) / Z7FFFFFFF /
+C      DATA IMACH(10) /  16 /
+C      DATA IMACH(11) /   6 /
+C      DATA IMACH(12) / -64 /
+C      DATA IMACH(13) /  63 /
+C      DATA IMACH(14) /  14 /
+C      DATA IMACH(15) / -64 /
+C      DATA IMACH(16) /  63 /
+C
+C     MACHINE CONSTANTS FOR THE INTERDATA 8/32
+C     WITH THE UNIX SYSTEM FORTRAN 77 COMPILER.
+C
+C     FOR THE INTERDATA FORTRAN VII COMPILER REPLACE
+C     THE Z'S SPECIFYING HEX CONSTANTS WITH Y'S.
+C
+C === MACHINE = INTERDATA.8/32.UNIX
+C      DATA IMACH( 1) /   5 /
+C      DATA IMACH( 2) /   6 /
+C      DATA IMACH( 3) /   6 /
+C      DATA IMACH( 4) /   6 /
+C      DATA IMACH( 5) /  32 /
+C      DATA IMACH( 6) /   4 /
+C      DATA IMACH( 7) /   2 /
+C      DATA IMACH( 8) /  31 /
+C      DATA IMACH( 9) / Z'7FFFFFFF' /
+C      DATA IMACH(10) /  16 /
+C      DATA IMACH(11) /   6 /
+C      DATA IMACH(12) / -64 /
+C      DATA IMACH(13) /  62 /
+C      DATA IMACH(14) /  14 /
+C      DATA IMACH(15) / -64 /
+C      DATA IMACH(16) /  62 /
+C
+C     MACHINE CONSTANTS FOR THE PDP-10 (KA PROCESSOR).
+C
+C === MACHINE = PDP-10.KA
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    5 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / "377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -128 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   54 /
+C      DATA IMACH(15) / -101 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR THE PDP-10 (KI PROCESSOR).
+C
+C === MACHINE = PDP-10.KI
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    5 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / "377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -128 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   62 /
+C      DATA IMACH(15) / -128 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR PDP-11 FORTRANS SUPPORTING
+C     32-BIT INTEGER ARITHMETIC.
+C
+C === MACHINE = PDP-11.32-BIT
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   32 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   31 /
+C      DATA IMACH( 9) / 2147483647 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   56 /
+C      DATA IMACH(15) / -127 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR PDP-11 FORTRANS SUPPORTING
+C     16-BIT INTEGER ARITHMETIC. 
+C
+C === MACHINE = PDP-11.16-BIT
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    7 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   16 /
+C      DATA IMACH( 6) /    2 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   15 /
+C      DATA IMACH( 9) / 32767 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   24 /
+C      DATA IMACH(12) / -127 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   56 /
+C      DATA IMACH(15) / -127 /
+C      DATA IMACH(16) /  127 /
+C
+C     MACHINE CONSTANTS FOR THE SEQUENT BALANCE 8000.
+C
+C === MACHINE = SEQUENT.BALANCE.8000
+C      DATA IMACH( 1) /     0 /
+C      DATA IMACH( 2) /     0 /
+C      DATA IMACH( 3) /     7 /
+C      DATA IMACH( 4) /     0 /
+C      DATA IMACH( 5) /    32 /
+C      DATA IMACH( 6) /     1 /
+C      DATA IMACH( 7) /     2 /
+C      DATA IMACH( 8) /    31 /
+C      DATA IMACH( 9) /  2147483647 /
+C      DATA IMACH(10) /     2 /
+C      DATA IMACH(11) /    24 /
+C      DATA IMACH(12) /  -125 /
+C      DATA IMACH(13) /   128 /
+C      DATA IMACH(14) /    53 /
+C      DATA IMACH(15) / -1021 /
+C      DATA IMACH(16) /  1024 /
+C
+C     MACHINE CONSTANTS FOR THE UNIVAC 1100 SERIES. FTN COMPILER
+C
+C === MACHINE = UNIVAC.1100
+C      DATA IMACH( 1) /    5 /
+C      DATA IMACH( 2) /    6 /
+C      DATA IMACH( 3) /    1 /
+C      DATA IMACH( 4) /    6 /
+C      DATA IMACH( 5) /   36 /
+C      DATA IMACH( 6) /    4 /
+C      DATA IMACH( 7) /    2 /
+C      DATA IMACH( 8) /   35 /
+C      DATA IMACH( 9) / O377777777777 /
+C      DATA IMACH(10) /    2 /
+C      DATA IMACH(11) /   27 /
+C      DATA IMACH(12) / -128 /
+C      DATA IMACH(13) /  127 /
+C      DATA IMACH(14) /   60 /
+C      DATA IMACH(15) /-1024 /
+C      DATA IMACH(16) / 1023 /
+C
+C     MACHINE CONSTANTS FOR THE VAX 11/780
+C
+C === MACHINE = VAX.11/780
+C      DATA IMACH(1) /    5 /
+C      DATA IMACH(2) /    6 /
+C      DATA IMACH(3) /    5 /
+C      DATA IMACH(4) /    6 /
+C      DATA IMACH(5) /   32 /
+C      DATA IMACH(6) /    4 /
+C      DATA IMACH(7) /    2 /
+C      DATA IMACH(8) /   31 /
+C      DATA IMACH(9) /2147483647 /
+C      DATA IMACH(10)/    2 /
+C      DATA IMACH(11)/   24 /
+C      DATA IMACH(12)/ -127 /
+C      DATA IMACH(13)/  127 /
+C      DATA IMACH(14)/   56 /
+C      DATA IMACH(15)/ -127 /
+C      DATA IMACH(16)/  127 /
+C
+C
+C***FIRST EXECUTABLE STATEMENT  I1MACH
+C
+C
+C***BEGIN PROLOGUE  DPCHDF
+C***REFER TO  DPCHCE,DPCHSP
+C***ROUTINES CALLED  XERROR
+C***REVISION DATE  870707   (YYMMDD)
+C***DESCRIPTION
+C
+C          DPCHDF:   DPCHIP Finite Difference Formula
+C
+C     Uses a divided difference formulation to compute a K-point approx-
+C     imation to the derivative at X(K) based on the data in X and S.
+C
+C     Called by  DPCHCE  and  DPCHSP  to compute 3- and 4-point boundary
+C     derivative approximations.
+C
+C ----------------------------------------------------------------------
+C
+C     On input:
+C        K      is the order of the desired derivative approximation.
+C               K must be at least 3 (error return if not).
+C        X      contains the K values of the independent variable.
+C               X need not be ordered, but the values **MUST** be
+C               distinct.  (Not checked here.)
+C        S      contains the associated slope values:
+C                  S(I) = (F(I+1)-F(I))/(X(I+1)-X(I)), I=1(1)K-1.
+C               (Note that S need only be of length K-1.)
+C
+C     On return:
+C        S      will be destroyed.
+C        IERR   will be set to -1 if K.LT.2 .
+C        DPCHDF  will be set to the desired derivative approximation if
+C               IERR=0 or to zero if IERR=-1.
+C
+C ----------------------------------------------------------------------
+C
+C  Reference:  Carl de Boor, A Practical Guide to Splines, Springer-
+C              Verlag (New York, 1978), pp. 10-16.
+C
+C***END PROLOGUE  DPCHDF
+C
+C ----------------------------------------------------------------------
+C
+C  Programmed by:  Fred N. Fritsch,  FTS 532-4275, (415) 422-4275,
+C                  Mathematics and Statistics Division,
+C                  Lawrence Livermore National Laboratory.
+C
+C  Change record:
+C     82-08-05   Converted to SLATEC library version.
+C     87-07-07   Corrected XERROR calls for d.p. name(s).
+C
+C ----------------------------------------------------------------------
+C
+C  Programming notes:
+C
+C     To produce a single precision version, simply:
+C        a. Change DPCHDF to PCHDF wherever it occurs,
+C        b. Change the double precision declarations to real, and
+C        c. Change the constant ZERO to single precision.
+C
+C  DECLARE ARGUMENTS.
+C
+C
+C  DECLARE LOCAL VARIABLES.
+C
+C
+C  CHECK FOR LEGAL VALUE OF K.
+C
+C***FIRST EXECUTABLE STATEMENT  DPCHDF
+C
+C  COMPUTE COEFFICIENTS OF INTERPOLATING POLYNOMIAL.
+C
+C
+C  EVALUATE DERIVATIVE AT X(K).
+C
+C
+C  NORMAL RETURN.
+C
+C
+C  ERROR RETURN.
+C
+C     K.LT.3 RETURN.
+C------------- LAST LINE OF DPCHDF FOLLOWS -----------------------------
+C***BEGIN PROLOGUE  FDUMP
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  Z
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Symbolic dump (should be locally written).
+C***DESCRIPTION
+C        ***Note*** Machine Dependent Routine
+C        FDUMP is intended to be replaced by a locally written
+C        version which produces a symbolic dump.  Failing this,
+C        it should be replaced by a version which prints the
+C        subprogram nesting list.  Note that this dump must be
+C        printed on each of up to five files, as indicated by the
+C        XGETUA routine.  See XSETUA and XGETUA for details.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C     Latest revision ---  23 May 1979
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  FDUMP
+C***FIRST EXECUTABLE STATEMENT  FDUMP
+C***BEGIN PROLOGUE  J4SAVE
+C***REFER TO  XERROR
+C     Abstract
+C        J4SAVE saves and recalls several global variables needed
+C        by the library error handling routines.
+C
+C     Description of Parameters
+C      --Input--
+C        IWHICH - Index of item desired.
+C                = 1 Refers to current error number.
+C                = 2 Refers to current error control flag.
+C                 = 3 Refers to current unit number to which error
+C                    messages are to be sent.  (0 means use standard.)
+C                 = 4 Refers to the maximum number of times any
+C                     message is to be printed (as set by XERMAX).
+C                 = 5 Refers to the total number of units to which
+C                     each error message is to be written.
+C                 = 6 Refers to the 2nd unit for error messages
+C                 = 7 Refers to the 3rd unit for error messages
+C                 = 8 Refers to the 4th unit for error messages
+C                 = 9 Refers to the 5th unit for error messages
+C        IVALUE - The value to be set for the IWHICH-th parameter,
+C                 if ISET is .TRUE. .
+C        ISET   - If ISET=.TRUE., the IWHICH-th parameter will BE
+C                 given the value, IVALUE.  If ISET=.FALSE., the
+C                 IWHICH-th parameter will be unchanged, and IVALUE
+C                 is a dummy parameter.
+C      --Output--
+C        The (old) value of the IWHICH-th parameter will be returned
+C        in the function value, J4SAVE.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C    Adapted from Bell Laboratories PORT Library Error Handler
+C     Latest revision ---  23 MAY 1979
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  J4SAVE
+C***FIRST EXECUTABLE STATEMENT  J4SAVE
+C***BEGIN PROLOGUE  XERABT
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Aborts program execution and prints error message.
+C***DESCRIPTION
+C     Abstract
+C        ***Note*** machine dependent routine
+C        XERABT aborts the execution of the program.
+C        The error message causing the abort is given in the calling
+C        sequence, in case one needs it for printing on a dayfile,
+C        for example.
+C
+C     Description of Parameters
+C        MESSG and NMESSG are as in XERROR, except that NMESSG may
+C        be zero, in which case no message is being supplied.
+C
+C     Written by Ron Jones, with SLATEC Common Math Library Subcommittee
+C     Latest revision ---  19 MAR 1980
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  XERABT
+C***FIRST EXECUTABLE STATEMENT  XERABT
+C***BEGIN PROLOGUE  XERCTL
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  R3C
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Allows user control over handling of individual errors.
+C***DESCRIPTION
+C     Abstract
+C        Allows user control over handling of individual errors.
+C        Just after each message is recorded, but before it is
+C        processed any further (i.e., before it is printed or
+C        a decision to abort is made), a call is made to XERCTL.
+C        If the user has provided his own version of XERCTL, he
+C        can then override the value of KONTROL used in processing
+C        this message by redefining its value.
+C        KONTRL may be set to any value from -2 to 2.
+C        The meanings for KONTRL are the same as in XSETF, except
+C        that the value of KONTRL changes only for this message.
+C        If KONTRL is set to a value outside the range from -2 to 2,
+C        it will be moved back into that range.
+C
+C     Description of Parameters
+C
+C      --Input--
+C        MESSG1 - the first word (only) of the error message.
+C        NMESSG - same as in the call to XERROR or XERRWV.
+C        NERR   - same as in the call to XERROR or XERRWV.
+C        LEVEL  - same as in the call to XERROR or XERRWV.
+C        KONTRL - the current value of the control flag as set
+C                 by a call to XSETF.
+C
+C      --Output--
+C        KONTRL - the new value of KONTRL.  If KONTRL is not
+C                 defined, it will remain at its original value.
+C                 This changed value of control affects only
+C                 the current occurrence of the current message.
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  (NONE)
+C***END PROLOGUE  XERCTL
+C***FIRST EXECUTABLE STATEMENT  XERCTL
+C***BEGIN PROLOGUE  XERPRT
+C***DATE WRITTEN   790801   (YYMMDD)
+C***REVISION DATE  820801   (YYMMDD)
+C***CATEGORY NO.  Z
+C***KEYWORDS  ERROR,XERROR PACKAGE
+C***AUTHOR  JONES, R. E., (SNLA)
+C***PURPOSE  Prints error messages.
+C***DESCRIPTION
+C     Abstract
+C        Print the Hollerith message in MESSG, of length NMESSG,
+C        on each file indicated by XGETUA.
+C     Latest revision ---  19 MAR 1980
+C***REFERENCES  JONES R.E., KAHANER D.K., "XERROR, THE SLATEC ERROR-
+C                 HANDLING PACKAGE", SAND82-0800, SANDIA LABORATORIES,
+C                 1982.
+C***ROUTINES CALLED  I1MACH,S88FMT,XGETUA
+C***END PROLOGUE  XERPRT
+C     OBTAIN UNIT NUMBERS AND WRITE LINE TO EACH UNIT
+C***FIRST EXECUTABLE STATEMENT  XERPRT
