@@ -239,10 +239,6 @@ c Open graphics file
 
 c Initialize vector dimensions
 
-cc      write (*,*) 'Proc',my_rank,ilog,ihig,jlog,jhig,klog,khig
-cc      call MPI_Finalize(mpierr)
-cc      stop
-
 #if !defined(petsc)
       ihig = nxd
       ilog = 1
@@ -273,6 +269,7 @@ c Define application arrays (external)
 
 c Allocate records
 
+      call allocateDerivedType(u_ic)
       call allocateDerivedType(u_0)
       call allocateDerivedType(u_np)
       call allocateDerivedType(u_graph)
@@ -283,7 +280,7 @@ c Open graphics file
       call openGraphicsFile
 #endif
 
-c Read and postprocess equilibrium u_0
+c Read equilibrium u_0 (Do NOT postprocess for BC)
 
       call readRecord(urecord,itime,time,dt,u_0,ierr)
 
@@ -293,25 +290,20 @@ c Read and postprocess equilibrium u_0
         stop
       endif
 
-      call postProcessSolution(u_0,igx,igy,igz)
-
+      u_ic = u_0   !Store initial condition (with BCs)
+      call postProcessSolution(u_ic,igx,igy,igz)
 
 c Initialize graphics
 
-      u_np    = u_0   !Required to "prime" u_np for pointers
+      u_np = u_ic  !Prime u_np
 
       call initializeGraphics(igx,igy,igz,bcond)
 
       call dumpTimeStepPlots
 
-
-cc      write (*,*) 'Proc',my_rank,ilog,ihig,jlog,jhig,klog,khig
-cc      call MPI_Finalize(mpierr)
-cc      stop
-
 c Initialize diagnostics
 
-      call initializeDiagnostics(u_0,igx,igy,igz)
+      call initializeDiagnostics(u_np,igx,igy,igz)
 
 c End program
 
