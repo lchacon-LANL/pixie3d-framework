@@ -495,7 +495,7 @@ c     Begin program
 
         else
 
-          call map(i,j,k,igx,igy,igz,ig,jg,kg,x1,y1,z1)
+          call map(i,j,k,igx,igy,igz,ig,jg,kg,x1,y1,z1) !External
 
         endif
 
@@ -1731,6 +1731,531 @@ c     Begin program
 
       end module grid_definition
 
+#if defined(petsc)
+c module local_mpi
+c ######################################################################
+      module local_mpi
+
+        use mpi
+
+        use grid_definition
+
+        use bc_def
+
+        implicit none
+
+        integer(4) :: np,inp,my_rank,mpierr,group_world
+     .               ,group_sp,tag=0,dest=0,root=0,status(3)
+     .               ,tag_send,tag_recv,request
+
+        integer(4) :: l_lim(3,0:1),g_lim(3,0:1),rem_l_lim(3,0:1)
+     .               ,rp_l_lim(3,0:1)
+
+        integer(4) :: MPI_COMM_SP
+        integer(4),allocatable,dimension(:) :: MPI_COMM_PER
+
+      contains
+
+c     initMPI
+c     #####################################################################
+      subroutine initMPI
+
+c     ---------------------------------------------------------------------
+c     Initialize needed MPI constructs
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+c     Local variables
+
+        integer(4) :: dim
+
+c     Begin program
+
+c     Rank and number of processors
+
+        call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
+        call MPI_Comm_size(MPI_COMM_WORLD,np     ,mpierr)
+
+c     Singular-point boundary MPI communicator
+
+        call createBoundaryComm2(1,SP,MPI_COMM_SP)
+
+c diag ****
+cc        write (*,*) 'Proc',my_rank,', SP COMM' ,MPI_COMM_SP
+cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cc        call MPI_Finalize(mpierr)
+cc        stop
+c diag ****
+
+c     Periodic MPI communicators
+
+        allocate(MPI_COMM_PER(3))
+
+        do dim=1,3
+          call createBoundaryComm2(dim,PER,MPI_COMM_PER(dim))
+        enddo
+
+ccc     Neighbors MPI communicators
+cc
+cc        allocate(MPI_COMM_PER(np))
+cc
+cc        do inp=0,np-1
+cc          call createBoundaryComm(inp,PER,MPI_COMM_PER(inp))
+cc        enddo
+
+c diag ****
+cc        write (*,*) 'Proc',my_rank,', PER COMM',MPI_COMM_PER
+cc        do dim=1,3
+cc          if (MPI_COMM_PER(dim) == MPI_COMM_NULL) cycle
+cc          call MPI_Comm_size(MPI_COMM_PER(dim),my_rank,mpierr)
+cc          write (*,*) '# ranks PER_COMM #',dim,my_rank
+cc        enddo
+cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cc        call MPI_Finalize(mpierr)
+cc        stop
+c diag ****
+
+      end subroutine initMPI
+
+c     createBoundaryComm2
+c     #####################################################################
+      subroutine createBoundaryComm2(dim,BC,MPI_COMM)
+
+c     ---------------------------------------------------------------------
+c     Creates MPI communicator for a given boundary condition and a given
+c     reference processor.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: dim,MPI_COMM,BC
+
+c     Local variables
+
+        integer(4) :: split_key
+
+c     Begin program
+
+c     Find split key
+
+        split_key = MPI_UNDEFINED
+
+        call selectRank(dim,BC,split_key)
+
+c     Create communicator
+
+        call MPI_Comm_split(MPI_COMM_WORLD,split_key,my_rank
+     .                     ,MPI_COMM,mpierr)
+
+c diag ****
+cc          write (*,*) 'Proc',my_rank,'split key',split_key
+cc     .               ,'MPI_COMM',MPI_COMM
+cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cc        call MPI_Finalize(mpierr)
+cc        stop
+c diag ****
+
+c     End programs
+
+      end subroutine createBoundaryComm2
+
+c     selectRank
+c     #####################################################################
+      subroutine selectRank(dim,BC,split_key)
+
+c     ---------------------------------------------------------------------
+c     Finds number of processors in MPI communicator
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: dim,BC,split_key
+
+c     Local variables
+
+        real(8)    :: random
+        integer(4) :: loc,lrank
+
+c     Begin program
+
+c     Set local limits l_lim(dim,loc)
+
+        l_lim(1,0) = grid_params%ilo(1)
+        l_lim(2,0) = grid_params%jlo(1)
+        l_lim(3,0) = grid_params%klo(1)
+        l_lim(1,1) = grid_params%ihi(1)
+        l_lim(2,1) = grid_params%jhi(1)
+        l_lim(3,1) = grid_params%khi(1)
+
+c     Set global limits g_lim(dim,loc)
+
+        g_lim(1,0) = 1
+        g_lim(2,0) = 1
+        g_lim(3,0) = 1
+        g_lim(1,1) = grid_params%nxgl(1)
+        g_lim(2,1) = grid_params%nygl(1)
+        g_lim(3,1) = grid_params%nzgl(1)
+
+c     Select rank
+
+        do loc=0,1
+          if (checkLim(BC,dim,loc,l_lim,g_lim)) then
+            split_key = BC
+          endif
+        enddo
+
+        !Create self-communicator for single-point dimensions
+        if (l_lim(dim,0) == l_lim(dim,1) .and. split_key == BC) then
+          call random_seed()
+          call random_number(random)
+          split_key=split_key+my_rank+1
+        endif
+
+c     End program
+
+      end subroutine selectRank
+
+c     checkLim
+c     #####################################################################
+      function checkLim(BC,dim,loc,llim,glim) result(include_proc)
+
+c     ---------------------------------------------------------------------
+c     Checks whether a processor should be included in an MPI_COMM according
+c     to the boundary type BC, and the local vs. global limits
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: BC,dim,loc,llim(3,0:1),glim(3,0:1)
+        logical    :: include_proc
+
+c     Local variables
+
+        integer(4) :: ibc
+
+c     Begin program
+
+        ibc(dim,loc) = (1+loc)+2*(dim-1)
+
+        include_proc=     (llim(dim,loc)==glim(dim,loc))
+cc     .               .and.(llim(dim,0  )/=llim(dim,1  ))
+     .               .and.bcond(ibc(dim,loc))==BC
+
+      end function checkLim
+cc
+ccc     createBoundaryComm
+ccc     #####################################################################
+cc      subroutine createBoundaryComm(ref_processor,BC,MPI_COMM)
+cc
+ccc     ---------------------------------------------------------------------
+ccc     Creates MPI communicator for a given boundary condition and a given
+ccc     reference processor.
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer(4) :: MPI_COMM,BC,ref_processor
+cc
+ccc     Local variables
+cc
+cc        integer(4) :: group_np
+cc        integer(4),allocatable,dimension(:) :: group_ranks
+cc
+ccc     Begin program
+cc
+cc        allocate(group_ranks(np))
+cc
+cc        call numberRanks(ref_processor,BC,group_np)
+cc
+cc        call selectRanks(BC,group_np,group_ranks)
+cc
+ccc diag ****
+cccc        write (*,*) 'ref_proc',ref_processor
+cccc     .             ,'# procs',group_np
+cccc     .             ,'periodic procs',group_ranks(1:group_np)
+cccc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cccc        call MPI_Finalize(mpierr)
+cccc        stop
+ccc diag ****
+cc
+cc        call createComm(group_np,group_ranks,MPI_COMM)
+cc
+cc        deallocate(group_ranks)
+cc
+ccc     End programs
+cc
+cc      end subroutine 
+cc
+ccc     numberRanks
+ccc     #####################################################################
+cc      subroutine numberRanks(rp,BC,nranks)
+cc
+ccc     ---------------------------------------------------------------------
+ccc     Finds number of processors in MPI communicator
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer(4) :: BC,nranks,rp
+cc
+ccc     Local variables
+cc
+cc        integer(4) :: dim,loc,lrank
+cc
+ccc     Begin program
+cc
+ccc     Set local limits l_lim(dim,loc)
+cc
+cc        l_lim(1,0) = ilog
+cc        l_lim(2,0) = jlog
+cc        l_lim(3,0) = klog
+cc        l_lim(1,1) = ihig
+cc        l_lim(2,1) = jhig
+cc        l_lim(3,1) = khig
+cc
+ccc     Set global limits g_lim(dim,loc)
+cc
+cc        g_lim(1,0) = 1
+cc        g_lim(2,0) = 1
+cc        g_lim(3,0) = 1
+cc        g_lim(1,1) = nxd
+cc        g_lim(2,1) = nyd
+cc        g_lim(3,1) = nzd
+cc
+ccc     Get reference processor info, make it available in all processors
+cc
+cc        if (rp >= 0) then
+cc          if (my_rank == rp.and.my_rank==0) then
+cc            rp_l_lim = l_lim
+cc          elseif (my_rank == 0) then
+cc            tag = 1
+cc            call MPI_Recv(rp_l_lim,6,MPI_INTEGER,rp,tag
+cc     .                   ,MPI_COMM_WORLD,status,mpierr)
+cc          elseif (my_rank == rp) then
+cc            tag  = 1
+cc            dest = 0
+cc            call MPI_Send(l_lim,6,MPI_INTEGER,dest,tag,MPI_COMM_WORLD
+cc     .                   ,mpierr)
+cc          endif
+cc        else
+cc          rp_l_lim = -1
+cc        endif
+cc
+cc        call MPI_Bcast(rp_l_lim,6,MPI_INTEGER,0,MPI_COMM_WORLD,mpierr)
+cc
+ccc diag ****
+cccc        write (*,*) 'proc',my_rank,'limits',(rp_l_lim(dim,:),dim=1,3)
+cccc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cccc        call MPI_Finalize(mpierr)
+cccc        stop
+ccc diag ****
+cc
+ccc     Find number of processes (-> nranks, in ALL processors)
+cc
+cc        lrank = 0
+cc        do dim=1,3
+cc          do loc=0,1
+cc            if(checkLim(BC,dim,loc,l_lim,g_lim,rp_l_lim).and.lrank == 0)
+cc     .           lrank = 1
+cc          enddo
+cc        enddo
+cc
+cc        call MPI_Allreduce(lrank,nranks,1,MPI_INTEGER
+cc     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+cc
+cc        if (nranks == 0) then
+cc          return
+cc        elseif (nranks > np) then
+cc          write (*,*) 'User-defined MPI_COMM finds more processors'
+cc          write (*,*) 'than are available'
+cc          write (*,*) 'Aborting...'
+cc          stop
+cc        endif
+cc
+ccc     End program
+cc
+cc      end subroutine numberRanks
+cc
+ccc     selectRanks
+ccc     #####################################################################
+cc      subroutine selectRanks(BC,nranks,ranks)
+cc
+ccc     ---------------------------------------------------------------------
+ccc     Selects ranks for MPI communicator
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer(4) :: rp,BC,nranks,ranks(np)
+cc
+ccc     Local variables
+cc
+cc        integer(4) :: inp,dim,loc,lrank
+cc        logical    :: flag(np)
+cc
+ccc     Begin program
+cc
+cc
+ccc     Select processes
+cc
+cc        if (my_rank == 0) then
+cc
+cc          flag = .false.
+cc
+cc          !Count current processor
+cc          do dim=1,3
+cc            do loc=0,1
+cc              flag(1) = checkLim(BC,dim,loc,l_lim,g_lim,rp_l_lim)
+cc              if (flag(1)) exit
+cc            enddo
+cc            if (flag(1)) exit
+cc          enddo
+cc
+cc          !Other processors
+cc          do inp=1,np-1
+cc            tag = 0
+cc            call MPI_Recv(rem_l_lim,6,MPI_INTEGER,inp,tag
+cc     .                   ,MPI_COMM_WORLD,status,mpierr)
+cc
+cc            do dim=1,3
+cc              do loc=0,1
+cc                flag(inp+1) = checkLim(BC,dim,loc
+cc     .                                ,rem_l_lim,g_lim,rp_l_lim)
+cc                if (flag(inp+1)) exit
+cc              enddo
+cc              if (flag(inp+1)) exit
+cc            enddo
+cc
+cc          enddo
+cc
+ccc diag ****
+cccc          write (*,*) nranks,flag
+ccc diag ****
+cc
+cc        else
+cc          tag  = 0
+cc          dest = 0
+cc          call MPI_Send(l_lim,6,MPI_INTEGER,dest,tag,MPI_COMM_WORLD
+cc     .                 ,mpierr)
+cc        endif
+cc
+ccc     Save processes
+cc
+cc        lrank = 0
+cc        do inp=0,np-1
+cc          if (flag(inp+1)) then
+cc            lrank = lrank+1
+cc            ranks(lrank)=inp
+cc          endif
+cc        enddo
+cc
+ccc     Synchronize ranks in ALL processes
+cc
+cc        call MPI_Bcast(ranks,nranks,MPI_INTEGER,root
+cc     .                ,MPI_COMM_WORLD,mpierr)
+cc
+ccc     End program
+cc
+cc      end subroutine selectRanks
+cc
+ccc     checkLim
+ccc     #####################################################################
+cc      function checkLim(BC,dim,loc,llim,glim,rplim) result(include_proc)
+cc
+ccc     ---------------------------------------------------------------------
+ccc     Checks whether a processor should be included in an MPI_COMM according
+ccc     to a reference processor rp, the boundary type BC, and the local vs.
+ccc     global limits
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+cc        integer(4) :: BC,dim,loc,llim(3,0:1),glim(3,0:1)
+cc     .               ,rplim(3,0:1),ibc
+cc        logical    :: include_proc,ref_flag
+cc
+cc        ibc(dim,loc) = (1+loc)+2*(dim-1)
+cc
+cc        if (maxval(rplim) < 0) then !Base decision only on current processor
+cc
+cc          include_proc
+cc     .       =(llim(dim,loc)==glim(dim,loc)).and.bcond(ibc(dim,loc))==BC
+cc
+cc        else                        !Include reference processor in decision
+cc
+ccc diag ****
+cccc          write (*,*) llim(dim,0),llim(dim,1)
+cccc          write (*,*) rplim(dim,1),llim(dim,0)
+ccc diag ****
+cc          ref_flag =(    (   rplim(dim,1)==llim(dim,0)
+cc     .                   .or.rplim(dim,0)==llim(dim,1))
+cc     .               .or.(   rplim(dim,1)==llim(dim,1)
+cc     .                   .or.rplim(dim,0)==llim(dim,0)))
+cc     .              .and.(    llim(dim,0)/=llim(dim,1)) !Avoid single-point directions
+cc
+cc          include_proc=(llim(dim,loc)==glim(dim,loc))
+cc     .                 .and.bcond(ibc(dim,loc))==BC.and.ref_flag
+ccc diag ****
+cccc          write (*,*) ref_flag
+ccc diag ****
+cc
+cc        endif
+cc
+cc      end function checkLim
+cc
+ccc     createComm
+ccc     #####################################################################
+cc      subroutine createComm(nranks,ranks,MPIcomm)
+cc
+ccc     ---------------------------------------------------------------------
+ccc     Creates MPI communicator
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer(4) :: nranks,ranks(nranks),MPIcomm
+cc
+ccc     Local variables
+cc
+cc        integer(4) :: comm_group
+cc
+ccc     Begin program
+cc
+cc        if (nranks == 0) return
+cc
+cc        !Get group underlying MPI_COMM_WORLD
+cc        call MPI_Comm_group(MPI_COMM_WORLD,group_world,mpierr)
+cc
+cc        !Create new group using ranks (-> group_sp)
+cc        call MPI_Group_incl(group_world,nranks,ranks,comm_group,mpierr)
+cc
+cc        !Create new communicator (-> MPI_COMM_SP)
+cc        call MPI_Comm_create(MPI_COMM_WORLD,comm_group,MPIcomm,mpierr)
+cc
+ccc     End program
+cc
+cc      end subroutine createComm
+
+      end module local_mpi
+#endif
+
 c module grid_metric
 c #####################################################################
       module grid_metric
@@ -1752,7 +2277,11 @@ c ---------------------------------------------------------------------
 
         use grid_definition
 
+#if defined(petsc)
+        use local_mpi
+#else
         use bc_def
+#endif
 
         implicit none
 
@@ -1795,12 +2324,6 @@ c     Begin program
 
         do igrid=1,grid_params%ngrid
           if (.not.associated(gmetric%grid(igrid)%jac)) then
-c$$$            ilom = grid_params%ilo(igrid)-1
-c$$$            jlom = grid_params%jlo(igrid)-1
-c$$$            klom = grid_params%klo(igrid)-1
-c$$$            ihip = grid_params%ihi(igrid)+1
-c$$$            jhip = grid_params%jhi(igrid)+1
-c$$$            khip = grid_params%khi(igrid)+1
             ilom = 0
             jlom = 0
             klom = 0
@@ -1924,12 +2447,6 @@ c       Find analytical geometric quantitites on grid
             igy = igrid
             igz = igrid
 
-c$$$            ilo = grid_params%ilo(igrid)
-c$$$            jlo = grid_params%jlo(igrid)
-c$$$            klo = grid_params%klo(igrid)
-c$$$            ihi = grid_params%ihi(igrid)
-c$$$            jhi = grid_params%jhi(igrid)
-c$$$            khi = grid_params%khi(igrid)
             ilo = 1
             jlo = 1
             klo = 1
@@ -1990,13 +2507,6 @@ cc          igrid=1
             igy = igrid
             igz = igrid
 
-c$$$            ilo = grid_params%ilo(igrid)
-c$$$            jlo = grid_params%jlo(igrid)
-c$$$            klo = grid_params%klo(igrid)
-c$$$            ihi = grid_params%ihi(igrid)
-c$$$            jhi = grid_params%jhi(igrid)
-c$$$            khi = grid_params%khi(igrid)
-
             ilo = 1
             jlo = 1
             klo = 1
@@ -2049,6 +2559,31 @@ c$$$            khi = grid_params%khi(igrid)
                 call topol_bc(dr(:,:,:,i,j))
               enddo
             enddo
+
+cc      if (my_rank == 0) then
+cc        open(unit=110,file='debug0.bin'
+cc     .           ,form='unformatted',status='replace')
+cc      else
+cc        open(unit=110,file='debug1.bin'
+cc     .           ,form='unformatted',status='replace')
+cc      endif
+cc      igx = 1
+cc      do i=1,3
+cc        do j=1,3
+cc          nnx = grid_params%nxv(igx)
+cc          nny = grid_params%nyv(igx)
+cc          nnz = grid_params%nzv(igx)
+cccc          debug = gmetric%grid(igx)%cnv(0:nx+1,0:ny+1,0:nz+1,i,j)
+cccc          debug = gmetric%grid(igx)%Gamma(0:nx+1,0:ny+1,0:nz+1,1,i,j)
+cccc     .           *gmetric%grid(igx)%jac
+cc
+cc          call contour(dr(0:nnx+1,0:nny+1,2,i,j),nnx+2,nny+2,0d0
+cc     .                ,xmax,0d0,ymax,i+j-2,110)
+cc        enddo
+cc      enddo
+cc      close(110)
+cc      call MPI_Finalize(mpierr)
+cc      stop
 
           !Spline dr for interpolation on coarser grids
 cc          order = 2
@@ -2284,6 +2819,34 @@ cc                  gamma = christ_2knd(i,j,k,igx,igy,igz)
               enddo
             enddo
 
+cc      if (my_rank == 0) then
+cc        open(unit=110,file='debug0.bin'
+cc     .           ,form='unformatted',status='replace')
+cc      else
+cc        open(unit=110,file='debug1.bin'
+cc     .           ,form='unformatted',status='replace')
+cc      endif
+cc      igx = 1
+cc      do i=1,3
+cc        do j=1,3
+cc          nnx = grid_params%nxv(igx)
+cc          nny = grid_params%nyv(igx)
+cc          nnz = grid_params%nzv(igx)
+cccc          debug = gmetric%grid(igx)%cnv(0:nx+1,0:ny+1,0:nz+1,i,j)
+cccc          debug = gmetric%grid(igx)%Gamma(0:nx+1,0:ny+1,0:nz+1,1,i,j)
+cccc     .           *gmetric%grid(igx)%jac
+cc
+cc          call contour(gmetric%grid(igrid)%Gamma(:,:,1,i,j,1)
+cc     .                ,nnx+2,nny+2
+cc     .                ,0d0,xmax,0d0,ymax,i+j-2,110)
+cc        enddo
+cc      enddo
+cc      close(110)
+cc      call MPI_Finalize(mpierr)
+cc      stop
+
+cc        if (my_rank == 0) write (*,*) 'grid_level',igrid
+
           !Spline Christoffel symbols for interpolation on coarser grids
 cc          allocate(gambcoef(nnx,nny,nnz,3,3,3))
 cc          flg = 0
@@ -2363,6 +2926,43 @@ cc          stop
 c     End program
 
       contains
+
+c     contour
+c     #####################################################################
+      subroutine contour(arr,nx,ny,xmin,xmax,ymin,ymax,iopt,nunit)
+      implicit none               !For safe fortran
+c     ---------------------------------------------------------------------
+c     Contours 2D array in xdraw format. In call:
+c       * arr: 2D array to be plotted
+c       * nx,ny: dimensions of array
+c       * xmin,xmax,ymin,ymax: 2D domain limits
+c       * iopt: whether to initialize xdraw plot (iopt=0) or not.
+c       * nunit: integer file identifier.
+c     ---------------------------------------------------------------------
+
+c     Call variables
+
+      integer(4) :: nx,ny,iopt,nunit
+      real(8)    :: arr(nx,ny),xmin,xmax,ymin,ymax
+
+c     Local variables
+
+      integer(4) :: i,j
+
+c     Begin program
+
+      if(iopt == 0) then
+        write(nunit) nx-1,ny-1,0
+        write(nunit) real(xmin,4),real(xmax,4)
+     .              ,real(ymin,4),real(ymax,4) 
+      endif
+      write(nunit) ((real(arr(i,j),4),i=1,nx),j=1,ny)
+cc      write (*,*) ((real(arr(i,j),4),i=1,nx),j=1,ny)
+cc      write (*,*)
+
+c     End program
+
+      end subroutine contour
 
 c     map
 c     #################################################################
@@ -2611,36 +3211,228 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: nxp,nyp,nzp
+        integer(4) :: nxl,nyl,nzl,nxg,nyg,nzg,dim
+        integer(4) :: my_per_rank,dest_rank,count,request1,request2
+
+        real(8),allocatable,dimension(:,:) :: put,get
 
 c     Begin program
 
-c FIX PARALLEL
+        nxl = grid_params%nxv(igrid)
+        nyl = grid_params%nyv(igrid)
+        nzl = grid_params%nzv(igrid)
+
 #if !defined(petsc)
-        nxp = grid_params%nxv(igrid)+1
-        nyp = grid_params%nyv(igrid)+1
-        nzp = grid_params%nzv(igrid)+1
 
         if (bcond(1) == PER .or. bcond(2) == PER) then
-          array(0  ,:,:) = array(nxp-1,:,:)
-          array(nxp,:,:) = array(1    ,:,:)
+          array(0    ,:,:) = array(nxl,:,:)
+          array(nxl+1,:,:) = array(1  ,:,:)
         endif
 
         if (bcond(3) == PER .or. bcond(4) == PER) then
-          array(:,0  ,:) = array(:,nyp-1,:)
-          array(:,nyp,:) = array(:,1    ,:)
+          array(:,0    ,:) = array(:,nyl,:)
+          array(:,nyl+1,:) = array(:,1  ,:)
         endif
         
         if (bcond(5) == PER .or. bcond(6) == PER) then
-          array(:,:,0  ) = array(:,:,nzp-1)
-          array(:,:,nzp) = array(:,:,1    )
+          array(:,:,0    ) = array(:,:,nzl)
+          array(:,:,nzl+1) = array(:,:,1  )
         endif
+
+#else
+
+        nxg = grid_params%nxgl(1)
+        nyg = grid_params%nygl(1)
+        nzg = grid_params%nzgl(1)
+
+c       X-direction
+
+        dim = 1
+
+        call findDestProc(dim,my_per_rank,dest_rank)
+
+        if (dest_rank >= 0) then
+
+          !X-direction: SEND
+          if (bcond(1) == PER .and. grid_params%ilo(1)==1) then
+            tag_send=2
+            count = size(array(1,:,:))
+            call MPI_ISend
+     .         (array(1,:,:),count,MPI_REAL8,dest_rank,tag_send
+     .         ,MPI_COMM_PER(dim),request1,mpierr)
+          endif
+
+          if (bcond(1) == PER .and. grid_params%ihi(1)==nxg) then
+            tag_send=1
+            count = size(array(1,:,:))
+            call MPI_ISend
+     .         (array(nxl,:,:),count,MPI_REAL8,dest_rank,tag_send
+     .         ,MPI_COMM_PER(dim),request2,mpierr)
+          endif
+
+          !X-direction: RECV
+          if (bcond(1) == PER .and. grid_params%ilo(1)==1) then
+            tag_recv=1
+            count = size(array(1,:,:))
+            call MPI_Recv
+     .         (array(0,:,:),count,MPI_REAL8,dest_rank,tag_recv
+     .         ,MPI_COMM_PER(dim),status,mpierr)
+cc            array(0,:,:) = array(nxl,:,:)
+          endif
+
+          if (bcond(1) == PER .and. grid_params%ihi(1)==nxg) then
+            tag_recv=2
+            count = size(array(1,:,:))
+            call MPI_Recv
+     .         (array(nxl+1,:,:),count,MPI_REAL8,dest_rank,tag_recv
+     .         ,MPI_COMM_PER(dim),status,mpierr)
+cc            array(nxl+1,:,:) = array(1,:,:)
+          endif
+
+        endif
+
+c       Y-direction
+
+        dim = 2
+
+        call findDestProc(dim,my_per_rank,dest_rank)
+
+        if (dest_rank >= 0) then
+
+          !Y-direction: SEND
+          if  (bcond(3) == PER .and. grid_params%jlo(1)==1) then
+            tag_send=4
+            count = size(array(:,1,:))
+            call MPI_Isend
+     .        (array(:,1,:),count,MPI_REAL8,dest_rank,tag_send
+     .        ,MPI_COMM_PER(dim),request1,mpierr)
+cc            write (*,*) dest_rank,tag_send,MPI_COMM_PER(dim),count
+cc            write (*,*) array(0:nxl+1,1  ,0:nzl+1)
+          endif
+
+          if (bcond(3) == PER .and. grid_params%jhi(1)==nyg) then
+            tag_send=3
+            count = size(array(:,1,:))
+            call MPI_Isend
+     .        (array(:,nyl  ,:),count,MPI_REAL8,dest_rank,tag_send
+     .        ,MPI_COMM_PER(dim),request2,mpierr)
+cc            write (*,*) 'send',dest_rank,tag_send,MPI_COMM_PER(dim),count
+cc            write (*,*) array(0:nxl+1,nyl,0:nzl+1)
+          endif
+
+          !Y-direction: RECV
+          if  (bcond(3) == PER .and. grid_params%jlo(1)==1) then
+            tag_recv=3
+            count = size(array(:,1,:))
+            call MPI_Recv
+     .        (array(:,0,:),count,MPI_REAL8,dest_rank,tag_recv
+     .        ,MPI_COMM_PER(dim),status,mpierr)
+cc            write (*,*)'recv',dest_rank,tag_recv,MPI_COMM_PER(dim),count
+cc            write (*,*) array(0:nxl+1,0,0:nzl+1)
+cc            array(:,0,:) = array(:,nyl,:)
+          endif
+
+          if (bcond(3) == PER .and. grid_params%jhi(1)==nyg) then
+            tag_recv=4
+            count = size(array(:,1,:))
+            call MPI_Recv
+     .        (array(:,nyl+1,:),count,MPI_REAL8,dest_rank,tag_recv
+     .        ,MPI_COMM_PER(dim),status,mpierr)
+cc          write (*,*) dest_rank,tag_recv,MPI_COMM_PER(dim),count
+cc          write (*,*) array(0:nxl+1,nyl+1,0:nzl+1)
+cc          array(:,nyl+1,:) = array(:,1,:)
+          endif
+
+        endif
+
+c diag ****
+cc        if (igrid > 1) then
+cc          call MPI_Finalize(mpierr)
+cc          stop
+cc        endif
+c diag ****
+
+c       Z-direction
+
+        dim = 3
+
+        call findDestProc(dim,my_per_rank,dest_rank)
+
+        if (dest_rank >= 0) then
+
+          !Z-direction: SEND
+          if (bcond(5) == PER .and. grid_params%klo(1)==1) then
+            tag_send=6
+            count=size(array(:,:,1))
+            call MPI_ISend
+     .         (array(:,:,1),count,MPI_REAL8,dest_rank,tag_send
+     .         ,MPI_COMM_PER(dim),request1,mpierr)
+          endif
+
+          if (bcond(5) == PER .and. grid_params%khi(1)==nzg) then
+            tag_send=5
+            count=size(array(:,:,nzl))
+            call MPI_ISend
+     .         (array(:,:,nzl),count,MPI_REAL8,dest_rank,tag_send
+     .         ,MPI_COMM_PER(dim),request2,mpierr)
+          endif
+
+          !Z-direction: RECV
+          if (bcond(5) == PER .and. grid_params%klo(1)==1) then
+            tag_recv=5
+            count=size(array(:,:,1))
+            call MPI_Recv
+     .         (array(:,:,0),count,MPI_REAL8,dest_rank,tag_recv
+     .         ,MPI_COMM_PER(dim),status,mpierr)
+cc          array(:,:,0  ) = array(:,:,nzl)
+          endif
+
+          if (bcond(5) == PER .and. grid_params%khi(1)==nzg) then
+            tag_recv=6
+            count=size(array(:,:,nzl))
+            call MPI_Recv
+     .         (array(:,:,nzl+1),count,MPI_REAL8,dest_rank,tag_recv
+     .         ,MPI_COMM_PER(dim),status,mpierr)
+cc          array(:,:,nzl+1) = array(:,:,1    )
+          endif
+
+        endif
+
 #endif
-c FIX PARALLEL
 
 c     End program
 
       end subroutine topol_bc
+
+#if defined(petsc)
+c     findDestProc
+c     ##################################################################
+      subroutine findDestProc(dim,my_per_rank,dest_rank)
+
+        implicit none
+
+        integer(4) :: dest_rank,dim,my_per_size,my_per_rank
+
+        if (MPI_COMM_PER(dim) == MPI_COMM_NULL) then
+          dest_rank = -1
+          return
+        endif
+
+        call MPI_Comm_rank(MPI_COMM_PER(dim),my_per_rank,mpierr)
+        call MPI_Comm_size(MPI_COMM_PER(dim),my_per_size,mpierr)
+
+        if (my_per_size > 2) then
+          write (*,*) 'There are more than 2 processors in this'
+          write (*,*) 'periodic communicator'
+          write (*,*) 'Aborting topol_bc...'
+          call MPI_Finalize(mpierr)
+          stop
+        else
+          dest_rank = my_per_size -1 -my_per_rank
+        endif
+
+      end subroutine findDestProc
+#endif
 
 c     gammaZeroForce
 c     #################################################################
@@ -3390,6 +4182,12 @@ c     Define uniform logical LOCAL grid on ALL grid levels
      .                        ,grid_params%ngrid,grid_params%istartz
      .                        ,grid_params%klo,grid_params%khi
      .                        ,zmin,zmax,bcond(5),bcond(6))
+
+c     Initialize MPI for BCs
+
+#if defined(petsc)
+        call initMPI
+#endif
 
 c     Store grid metric parameters in grid metric structure
 
