@@ -539,7 +539,7 @@ c Begin program
 
 c Compute the initial guess x
 
-      if(iguess.eq.1) then
+      if (iguess.eq.1) then
         iiout = iout - 2
         call applyPreconditioner(nn,b,x,iiout)
       else
@@ -863,13 +863,13 @@ c Local variables
 
 c Begin program
 
-      eps   = 1d-5
+      eps   = 1d-8
 
       modz  = sum(z*z)
 
 c Calculate J.x
 
-      if (sqrt(modz) < 1d-16) then  !Fail safe for the case z=0
+      if (sqrt(modz) < 1d-16) then  !Failsafe for the case z=0
 
         y = 0d0
 
