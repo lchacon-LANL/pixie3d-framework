@@ -69,6 +69,8 @@ c     Assign old time solution
 
 c     Time update
 
+        time   = time  + dt
+
         call timeStep(u_n,u_np,ierr)
 
 c     Check for error in time stepping
@@ -76,6 +78,7 @@ c     Check for error in time stepping
         if (ierr.eq.1) then     !Restart time step
 
           itime = itime - 1
+          time  = time - dt
 
           if (timecorr) then
             cycle
@@ -95,9 +98,13 @@ c     Check for error in time stepping
  
 c     Update counters (only if timeStep is successful)
 
-        time   = time  + dt
+cc        time   = time  + dt
         tmrst  = tmrst + dt
         nrst   = nrst  + 1
+
+c     Output per time step
+
+        call output
 
 c     Time level plots (xdraw)
 
@@ -107,10 +114,6 @@ c     Time level plots (xdraw)
           call imposeBoundaryConditions(u_np,1,1,1)
           call writeRecordFile(urecord,itime,time,dt,u_np)
         endif
-
-c     Output per time step
-
-        call output
 
       enddo       !End of time loop
 
@@ -244,7 +247,7 @@ c Update counters
 
 c End program
 
-      end subroutine
+      end subroutine timeStep
 
 c correctTimeStep
 c####################################################################
