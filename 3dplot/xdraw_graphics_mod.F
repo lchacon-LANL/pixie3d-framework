@@ -693,9 +693,9 @@ c     ##################################################################
 
       end module XDRAW
 
-c     module HDF5_graphicsSEQMPI
-c     ##############################################################
-      module HDF5_graphicsSEQMPI
+c module HDF5_graphics
+c ##################################################################
+      module HDF5_graphics
 
         use HDF5
 
@@ -1034,7 +1034,8 @@ c         Release resources
       enddo
 
 c     Release resources
-        call h5gclose_f(group_id, error)
+
+      call h5gclose_f(group_id, error)
       call h5sclose_f(p_dataspace_id,error)
       call h5pclose_f(plist_id,error)
       call h5sclose_f(dataspace_id,error)
@@ -1044,10 +1045,10 @@ c     Release resources
 
 c     End program
 
-      end subroutine writeHDF5fileMPI
+      end subroutine writeHDF5file
 #endif
 
-      end module HDF5_graphicsSEQMPI
+      end module HDF5_graphics
 
 c module graphics
 c ######################################################################
@@ -1059,7 +1060,7 @@ c ######################################################################
 
         use XDRAW
 
-        use HDF5_graphicsSEQMPI
+        use HDF5_graphics
 
       contains
 
