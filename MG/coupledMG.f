@@ -711,105 +711,105 @@ c     Begin program
 
       end function dot
 
-c     lmtvc
-c     ###############################################################
-      subroutine lmtvc(gpos,neq,ntot,xl,yl,igr,bcnd)
-c     ---------------------------------------------------------------
-c     This subroutine is a proxy matvec routine to perform local
-c     matvec on global grid for GMRES routine
-c     ---------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer(4) :: neq,ntot,igr,gpos,bcnd(6,neq)
-        real(8)    :: xl(ntot),yl(ntot)
-
-c     Local variables
-
-        integer(4) :: nn,nxl,nyl,nzl
-        integer(4) :: imin,imax,jmin,jmax,kmin,kmax
-        integer(4) :: i,j,k,il,jl,kl,iii,iil,gloc,ieq
-
-        real(8),allocatable,dimension(:) :: xg,yg
-
-        external v_mtvc
-
-c     Begin program
-
-c     Global parameters
-
-        nn = ntotv(igr)
-
-        allocate(xg(nn),yg(nn))
-
-        xg = 0d0
-        yg = 0d0
-
-c     Local parameters
-
-        nxl = MGgrid%nxv(igr)
-        nyl = MGgrid%nyv(igr)
-        nzl = MGgrid%nzv(igr)
-
-c     Map local vector to global vector
-
-        !Use global grid limits for this
-        call limits(0,nxv(igr),nyv(igr),nzv(igr),igr
-     .             ,imin,imax,jmin,jmax,kmin,kmax)
-
-        do k=kmin,kmax
-          do j=jmin,jmax
-            do i=imin,imax
-              do ieq=1,neq
-                !Global vector location
-                iii=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1
-     .                        ,ieq,neq)
-                !Local indices
-                il = i - imin + 1
-                jl = j - jmin + 1
-                kl = k - kmin + 1
-                iil=getMGvcomp(il,jl,kl,nxl,nyl,nzl,1,ieq,neq)
-
-                xg(iii) = xl(iil)
-              enddo
-            enddo
-          enddo
-        enddo
-
-c     Perform mat-vec and map directly to local grid
-
-        do k=kmin,kmax
-          do j=jmin,jmax
-            do i=imin,imax
-              do ieq=1,neq
-                !Global vector and node locations
-                gloc=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1,1,1)
-                iii =getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1
-     .                         ,ieq,neq)
-                !Local indices
-                il = i - imin + 1
-                jl = j - jmin + 1
-                kl = k - kmin + 1
-                iil=getMGvcomp(il,jl,kl,nxl,nyl,nzl,1,ieq,neq)
-
-                !Perform stencil-wise matvec
-cc                call matvec(gloc,neq,nn,xg,yg,igr,bcnd)
-c THIS IS HARDWIRED FOR NOW!!!!!!!!!!
-                call v_mtvc(gloc,neq,nn,xg,yg,igr,bcnd)
-
-                yl(iil) = yg(iii)
-              enddo
-            enddo
-          enddo
-        enddo
-
-c     End program
-
-        deallocate(xg)
-
-      end subroutine lmtvc
+ccc     lmtvc
+ccc     ###############################################################
+cc      subroutine lmtvc(gpos,neq,ntot,xl,yl,igr,bcnd)
+ccc     ---------------------------------------------------------------
+ccc     This subroutine is a proxy matvec routine to perform local
+ccc     matvec on global grid for GMRES routine
+ccc     ---------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer(4) :: neq,ntot,igr,gpos,bcnd(6,neq)
+cc        real(8)    :: xl(ntot),yl(ntot)
+cc
+ccc     Local variables
+cc
+cc        integer(4) :: nn,nxl,nyl,nzl
+cc        integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+cc        integer(4) :: i,j,k,il,jl,kl,iii,iil,gloc,ieq
+cc
+cc        real(8),allocatable,dimension(:) :: xg,yg
+cc
+cc        external v_mtvc
+cc
+ccc     Begin program
+cc
+ccc     Global parameters
+cc
+cc        nn = ntotv(igr)
+cc
+cc        allocate(xg(nn),yg(nn))
+cc
+cc        xg = 0d0
+cc        yg = 0d0
+cc
+ccc     Local parameters
+cc
+cc        nxl = MGgrid%nxv(igr)
+cc        nyl = MGgrid%nyv(igr)
+cc        nzl = MGgrid%nzv(igr)
+cc
+ccc     Map local vector to global vector
+cc
+cc        !Use global grid limits for this
+cc        call limits(0,nxv(igr),nyv(igr),nzv(igr),igr
+cc     .             ,imin,imax,jmin,jmax,kmin,kmax)
+cc
+cc        do k=kmin,kmax
+cc          do j=jmin,jmax
+cc            do i=imin,imax
+cc              do ieq=1,neq
+cc                !Global vector location
+cc                iii=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1
+cc     .                        ,ieq,neq)
+cc                !Local indices
+cc                il = i - imin + 1
+cc                jl = j - jmin + 1
+cc                kl = k - kmin + 1
+cc                iil=getMGvcomp(il,jl,kl,nxl,nyl,nzl,1,ieq,neq)
+cc
+cc                xg(iii) = xl(iil)
+cc              enddo
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+ccc     Perform mat-vec and map directly to local grid
+cc
+cc        do k=kmin,kmax
+cc          do j=jmin,jmax
+cc            do i=imin,imax
+cc              do ieq=1,neq
+cc                !Global vector and node locations
+cc                gloc=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1,1,1)
+cc                iii =getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1
+cc     .                         ,ieq,neq)
+cc                !Local indices
+cc                il = i - imin + 1
+cc                jl = j - jmin + 1
+cc                kl = k - kmin + 1
+cc                iil=getMGvcomp(il,jl,kl,nxl,nyl,nzl,1,ieq,neq)
+cc
+cc                !Perform stencil-wise matvec
+cccc                call matvec(gloc,neq,nn,xg,yg,igr,bcnd)
+ccc THIS IS HARDWIRED FOR NOW!!!!!!!!!!
+cc                call v_mtvc(gloc,neq,nn,xg,yg,igr,bcnd)
+cc
+cc                yl(iil) = yg(iii)
+cc              enddo
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+ccc     End program
+cc
+cc        deallocate(xg)
+cc
+cc      end subroutine lmtvc 
 
       end module mg_internal
 
@@ -2067,9 +2067,9 @@ c       Recursive MG (at least 2D or if 1D MG is wanted)\
           call lineMGsolver(nn,mg_grid,b,x,igr,guess)
 
 c       GMRES 1D solver (matvec HARDWIRED to v_mtvc for now)
-        elseif (line_solve == "gm") then
-
-          call lineGMsolver(nn,mg_grid,b,x,igr,guess)
+cc        elseif (line_solve == "gm") then
+cc
+cc          call lineGMsolver(nn,mg_grid,b,x,igr,guess)
 
 c       MG 1D solver
         elseif (line_solve == "mg") then
@@ -2098,122 +2098,122 @@ c     End program
 
       end subroutine lineSolver
 
-c     lineGMsolver
-c     #####################################################################
-      recursive subroutine lineGMsolver(nn,mg_grid,b,x,igr,guess)
-
-c     ---------------------------------------------------------------------
-c     This routine performs a GMRES solve on selected lines.
-c     In call:
-c       * nn: total grid size at grid level igr
-c       * mg_grid: MG grid definition structure that defines local grid patch
-c       * b: rhs vector
-c       * x: solution vector
-c       * igr: grid level
-c       * guess: whether initial guess is provided (guess=1) or not (guess=0).
-c     ---------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer(4)     :: igr,nn,guess
-        real(8)        :: b(nn),x(nn)
-        type(grid_def) :: mg_grid
-        logical        :: prelax
-
-c     Local variables
-
-        integer(4) :: nxl,nyl,nzl,nnl,depth1
-        integer(4) :: imin,imax,jmin,jmax,kmin,kmax
-     .               ,i,j,k,iii,il,jl,kl,iil,ieq
-
-        real(8),allocatable,dimension(:) :: bb,xx
-
-        type (solver_options) :: options
-
-c     Begin program
-
-c     Find local problem size
-
-        nxl = mg_grid%nxv(igr)
-        nyl = mg_grid%nyv(igr)
-        nzl = mg_grid%nzv(igr)
-
-        nnl = nxl*nyl*nzl*neq
-
-        allocate(bb(nnl),xx(nnl))
-
-        xx = 0d0
-
-c     Map global to local vectors
-
-        !Use global grid limits for this
-        call limits(0,nxv(igr),nyv(igr),nzv(igr),igr
-     .             ,imin,imax,jmin,jmax,kmin,kmax)
-
-        do k=kmin,kmax
-          do j=jmin,jmax
-            do i=imin,imax
-              do ieq=1,neq
-                !Global vector location
-                iii=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1
-     .                        ,ieq,neq)
-                !Local indices
-                il = i - imin + 1
-                jl = j - jmin + 1
-                kl = k - kmin + 1
-                iil=getMGvcomp(il,jl,kl,nxl,nyl,nzl,1,ieq,neq)
-
-                bb(iil) = b(iii)
-                if (guess == 1) xx(iil) = x(iii)
-              enddo
-            enddo
-          enddo
-        enddo
-
-c     Configure GMRES solve (need to initialize ALL relevant options)
-
-        options%sym_test        = .false.
-
-        options%tol             = line_tol
-
-        options%krylov_subspace = nnl
-        options%iter            = nnl
-        options%stp_test        = 1 
-
-c     Call GMRES (proxy routine lmtvc is defined in mg_internal module)
-
-        depth1 =depth + 1
-        call gm(neq,nnl,bb,xx,lmtvc,options,igr,bcnd,guess,outc-1
-     .         ,depth1)
-
-c     Map solution to global grid
-
-        do k=kmin,kmax
-          do j=jmin,jmax
-            do i=imin,imax
-              do ieq=1,neq
-                !Global vector location
-                iii=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1
-     .                        ,ieq,neq)
-                !Local indices
-                il = i - imin + 1
-                jl = j - jmin + 1
-                kl = k - kmin + 1
-                iil=getMGvcomp(il,jl,kl,nxl,nyl,nzl,1,ieq,neq)
-
-                x(iii) = xx(iil)
-              enddo
-            enddo
-          enddo
-        enddo
-
-c     Deallocate memory
-
-        deallocate(bb,xx)
-
-      end subroutine lineGMsolver
+ccc     lineGMsolver
+ccc     #####################################################################
+cc      recursive subroutine lineGMsolver(nn,mg_grid,b,x,igr,guess)
+cc
+ccc     ---------------------------------------------------------------------
+ccc     This routine performs a GMRES solve on selected lines.
+ccc     In call:
+ccc       * nn: total grid size at grid level igr
+ccc       * mg_grid: MG grid definition structure that defines local grid patch
+ccc       * b: rhs vector
+ccc       * x: solution vector
+ccc       * igr: grid level
+ccc       * guess: whether initial guess is provided (guess=1) or not (guess=0).
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer(4)     :: igr,nn,guess
+cc        real(8)        :: b(nn),x(nn)
+cc        type(grid_def) :: mg_grid
+cc        logical        :: prelax
+cc
+ccc     Local variables
+cc
+cc        integer(4) :: nxl,nyl,nzl,nnl,depth1
+cc        integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+cc     .               ,i,j,k,iii,il,jl,kl,iil,ieq
+cc
+cc        real(8),allocatable,dimension(:) :: bb,xx
+cc
+cc        type (solver_options) :: options
+cc
+ccc     Begin program
+cc
+ccc     Find local problem size
+cc
+cc        nxl = mg_grid%nxv(igr)
+cc        nyl = mg_grid%nyv(igr)
+cc        nzl = mg_grid%nzv(igr)
+cc
+cc        nnl = nxl*nyl*nzl*neq
+cc
+cc        allocate(bb(nnl),xx(nnl))
+cc
+cc        xx = 0d0
+cc
+ccc     Map global to local vectors
+cc
+cc        !Use global grid limits for this
+cc        call limits(0,nxv(igr),nyv(igr),nzv(igr),igr
+cc     .             ,imin,imax,jmin,jmax,kmin,kmax)
+cc
+cc        do k=kmin,kmax
+cc          do j=jmin,jmax
+cc            do i=imin,imax
+cc              do ieq=1,neq
+cc                !Global vector location
+cc                iii=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1
+cc     .                        ,ieq,neq)
+cc                !Local indices
+cc                il = i - imin + 1
+cc                jl = j - jmin + 1
+cc                kl = k - kmin + 1
+cc                iil=getMGvcomp(il,jl,kl,nxl,nyl,nzl,1,ieq,neq)
+cc
+cc                bb(iil) = b(iii)
+cc                if (guess == 1) xx(iil) = x(iii)
+cc              enddo
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+ccc     Configure GMRES solve (need to initialize ALL relevant options)
+cc
+cc        options%sym_test        = .false.
+cc
+cc        options%tol             = line_tol
+cc
+cc        options%krylov_subspace = nnl
+cc        options%iter            = nnl
+cc        options%stp_test        = 1 
+cc
+ccc     Call GMRES (proxy routine lmtvc is defined in mg_internal module)
+cc
+cc        depth1 =depth + 1
+cc        call gm(neq,nnl,bb,xx,lmtvc,options,igr,bcnd,guess,outc-1
+cc     .         ,depth1)
+cc
+ccc     Map solution to global grid
+cc
+cc        do k=kmin,kmax
+cc          do j=jmin,jmax
+cc            do i=imin,imax
+cc              do ieq=1,neq
+cc                !Global vector location
+cc                iii=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1
+cc     .                        ,ieq,neq)
+cc                !Local indices
+cc                il = i - imin + 1
+cc                jl = j - jmin + 1
+cc                kl = k - kmin + 1
+cc                iil=getMGvcomp(il,jl,kl,nxl,nyl,nzl,1,ieq,neq)
+cc
+cc                x(iii) = xx(iil)
+cc              enddo
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+ccc     Deallocate memory
+cc
+cc        deallocate(bb,xx)
+cc
+cc      end subroutine lineGMsolver
 
 c     lineGSsolver
 c     #####################################################################
