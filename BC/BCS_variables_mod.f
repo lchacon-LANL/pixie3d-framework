@@ -14,8 +14,6 @@ c####################################################################
 
         use equilibrium
 
-        use transport_params
-
         use constants
 
         use variables
