@@ -438,7 +438,7 @@ c     -----------------------------------------------------------------
 #if defined(petsc)
 c     setASM_PC_BC
 c     ######################################################################
-      subroutine setASM_PC_BC(igx,igy,igz,bcs)
+      subroutine setASM_PC_BC(igx,igy,igz,bcs,IIBC)
 
 c     -----------------------------------------------------------------
 c     Sets boundary conditions for Additive Schwartz method PC.
@@ -446,7 +446,7 @@ c     -----------------------------------------------------------------
 
       implicit none
 
-      integer(4) :: igx,igy,igz,bcs(:,:)
+      integer(4) :: igx,igy,igz,bcs(:,:),IIBC
 
       integer(4) :: dim,loc,ibc,igmin,igmax,jgmin,jgmax,kgmin,kgmax
 
@@ -463,7 +463,7 @@ c     -----------------------------------------------------------------
         do loc=0,1
           ibc = (1+loc)+2*(dim-1)
           if (do__nothing(dim,loc,igmin,igmax,jgmin,jgmax,kgmin,kgmax))
-     .         bcs(ibc,:) = NEU
+     .         bcs(ibc,:) = IIBC
         enddo
       enddo
 
