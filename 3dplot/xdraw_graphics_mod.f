@@ -1,37 +1,11 @@
-c module graphics
+c module graphics_variables
 c ######################################################################
-      module graphics
+      module graphics_variables
 
         use grid
 
         integer(4)     :: ngraph,ngroups
         parameter        (ngraph=30)
-
-        character*(20) :: debugfile
-        character*(20),allocatable,dimension(:) ::
-     .                    graphfile,drawgraph,profilefile,drawprof
-        character*(20),allocatable,dimension(:,:) :: prof_desc
-        integer(4)    ,allocatable,dimension(:,:) :: prof_ivar,prof_log
-        logical       ,allocatable,dimension(:)   :: prof_spline
-
-        integer(4)     :: udebug
-        integer(4),allocatable,dimension(:) :: ugraph,uprofile,nqty
-        integer(4),allocatable,dimension(:,:) :: sel_gr
-
-        logical        :: plot,debug
-
-        real(8)        :: diagnostics(ngraph)
-
-        character*(20) :: diag_desc(ngraph)
-
-        integer(4)     :: diag_ivar(ngraph)
-     .                   ,diag_log(ngraph)
-
-        integer(4)     :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
-     .                   ,iggx,iggy,iggz,iig,jjg,kkg
-
-        integer(4)     :: sel_diag(9),sel_graph(9),ndplot
-        real(8)        :: dplot,tmplot
 
         real(8), allocatable, dimension(:) :: xl,yl,zl
 
@@ -48,58 +22,65 @@ c ######################################################################
 
         type (graph_group),pointer,dimension(:) :: graph
 
+        integer(4),allocatable,dimension(:) :: nqty
+
+        logical        :: plot,debug
+
+        integer(4)     :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
+     .                   ,iggx,iggy,iggz,iig,jjg,kkg
+
+        integer(4)     :: sel_diag(9),sel_graph(9)
+
+        integer(4)     :: ndplot
+        real(8)        :: dplot,tmplot
+
+      end module graphics_variables
+
+c module XDRAW
+c #####################################################################
+      module XDRAW
+
+        use graphics_variables
+
+        character*(20) :: debugfile
+        character*(20),allocatable,dimension(:) ::
+     .                    graphfile,drawgraph,profilefile,drawprof
+        character*(20),allocatable,dimension(:,:) :: prof_desc
+        integer(4)    ,allocatable,dimension(:,:) :: prof_ivar,prof_log
+        logical       ,allocatable,dimension(:)   :: prof_spline
+
+        integer(4)     :: udebug
+        integer(4),allocatable,dimension(:) :: ugraph,uprofile
+
+        integer(4),allocatable,dimension(:,:) :: sel_gr
+
       contains
 
-c     initializeGraphics
-c     ###############################################################
-      subroutine initializeGraphics (igx,igy,igz,bcond)
+c     initializeXDRAW
+c     #################################################################
+      subroutine initializeXDRAW
+
 c     ---------------------------------------------------------------
-c     Set graphics files and dumping intervals
+c     Initializes XDRAW graphics
 c     ---------------------------------------------------------------
+
+        use variables
 
         implicit none
 
 c     Call variables
 
-        integer(4) :: igx,igy,igz,bcond(6)
-
 c     Local variables
-
-        integer(4) :: nx,ny,nz,isx,isy,isz
-
-        integer(4) :: i,nplots
+ 
+        integer(4) :: nplots
 
         character*(30) :: prof_title
 
 c     Begin program
 
-        nx = grid_params%nxv(igx)
-        ny = grid_params%nyv(igy)
-        nz = grid_params%nzv(igz)
+c     Open XDRAW graphics files
 
-        isx = grid_params%istartx(igx)
-        isy = grid_params%istartx(igy)
-        isz = grid_params%istartx(igz)
-
-        iggx = igx
-        iggy = igy
-        iggz = igz
-
-c     Set graphics plotting range
-
-        call setGraphicsRange(nx,ny,nz,bcond)
-
-c     Find grid in logical space
-
-        allocate(xl(iming:imaxg),yl(jming:jmaxg),zl(kming:kmaxg))
-
-        xl(:) = grid_params%xx(iming+isx:imaxg+isx)
-        yl(:) = grid_params%yy(jming+isy:jmaxg+isy)
-        zl(:) = grid_params%zz(kming+isz:kmaxg+isz)
-
-c     Define graphics i/o and initialize graph arrays (external)
-
-        call defineGraphics
+        call openXDRAWGraphicsFiles
 
 c     Initialize profile description array
 
@@ -111,20 +92,6 @@ c     Initialize profile description array
             prof_desc(igroup,:) = ''
           end where
         enddo
-
-c     Determine actual number of 3D plots
-
-        do igroup=1,ngroups
-          nqty(igroup) = 0
-          do i = 1,size(graph(igroup)%array_graph)
-            if (len(trim(graph(igroup)%array_graph(i)%descr)) == 0) exit
-            nqty(igroup) = nqty(igroup) + 1
-          enddo
-        enddo
-
-c     Open graphics files
-
-        call openGraphicsFiles
 
 c     Initialize contour files
 
@@ -161,74 +128,60 @@ c       Profiles (selects same profiles as contour plots except vector plots)
 
 c     End program
 
-      end subroutine initializeGraphics
+      end subroutine initializeXDRAW
 
-c     setGraphicsRange
-c     #################################################################
-      subroutine setGraphicsRange(nx,ny,nz,bcond)
-
-c     ---------------------------------------------------------------
-c     Find graphics plotting range according to boundary conditions
-c     ---------------------------------------------------------------
+c     allocateXDRAWvariables
+c     ##################################################################
+      subroutine allocateXDRAWvariables(ngroups)
 
         implicit none
 
 c     Call variables
 
-        integer(4) :: nx,ny,nz,bcond(6)
+        integer(4) :: ngroups
 
-c     Local variables
- 
 c     Begin program
 
-        if (bcond(1) == PER) then
-          iming = 1
-          imaxg = nx+1
-        elseif (bcond(1) == SP) then
-cc          iming = 1
-          iming = 0
-          imaxg = nx+1
-        else
-          iming = 0
-          imaxg = nx+1
-        endif
+c     Allocate graph groups
 
-        if (bcond(3) == PER) then
-          jming = 1
-          jmaxg = ny+1
-        elseif (bcond(3) == SP) then
-          jming = 1
-          jmaxg = ny+1
-        else
-          jming = 0
-          jmaxg = ny+1
-        endif
+        allocate(graph(ngroups),nqty(ngroups))
 
-        if (bcond(5) == PER) then
-          kming = 1
-          kmaxg = nz+1
-        elseif (bcond(5) == SP) then
-          kming = 1
-          kmaxg = nz+1
-        else
-          kming = 0
-          kmaxg = nz+1
-        endif
+c     Allocate XDRAW quantities
 
-cc          iming = 0
-cc          imaxg = nx+1
-cc          jming = 0
-cc          jmaxg = ny+1
-cc          kming = 0
-cc          kmaxg = nz+1
+        allocate(graphfile(ngroups)
+     .          ,drawgraph(ngroups)
+     .          ,profilefile(ngroups)
+     .          ,drawprof(ngroups))
 
-c     End program
+        allocate(ugraph(ngroups),uprofile(ngroups))
 
-      end subroutine setGraphicsRange
+        allocate(prof_desc(ngroups,ngraph),sel_gr(ngroups,9)
+     .          ,prof_ivar(ngroups,ngraph),prof_log(ngroups,ngraph)
+     .          ,prof_spline(ngroups))
 
-c     dumpTimeStepPlots
+      end subroutine allocateXDRAWvariables
+
+c     deallocateXDRAWvariables
+c     ##################################################################
+      subroutine deallocateXDRAWvariables
+
+        implicit none
+
+c     Call variables
+
+c     Begin program
+
+        deallocate(graphfile,drawgraph,profilefile,drawprof)
+
+        deallocate(ugraph,uprofile)
+
+        deallocate(prof_desc,sel_gr,prof_ivar,prof_log,prof_spline)
+
+      end subroutine deallocateXDRAWvariables
+
+c     dumpXDRAWPlots
 c     #################################################################
-      subroutine dumpTimeStepPlots
+      subroutine dumpXDRAWPlots
 
 c     ---------------------------------------------------------------
 c     Dumps time plots
@@ -256,7 +209,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine dumpTimeStepPlots
+      end subroutine dumpXDRAWPlots
 
 c     profplot
 c     ###############################################################
@@ -448,8 +401,8 @@ c     Begin program
 
 c     X-Y plots
 
-        k = (kmaxg-kming+1)/2
-cc        k = 1
+cc        k = (kmaxg-kming+1)/2
+        k = 1
 
         if(iopt.eq.0) then
 
@@ -529,111 +482,6 @@ cc        endif
 c     End program
 
       end subroutine contour_step
-
-c     finalizeGraphics
-c     ###############################################################
-      subroutine finalizeGraphics 
-
-c     ---------------------------------------------------------------
-c     Close graphics files
-c     ---------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-c     Local variables
-
-c     Begin program
-
-        call closeGraphicsFiles
-
-        call deallocateGraphicsVariables
-
-c     End program
-
-      end subroutine finalizeGraphics
-
-c     openGraphicsFiles
-c     ##################################################################
-      subroutine openGraphicsFiles
-
-        implicit none
-
-c     Call variables
-
-c     Begin program
-
-        do igroup =1,ngroups
-          open(unit=ugraph(igroup),file=graphfile(igroup)
-     .            ,form='unformatted',status='replace')
-          open(unit=uprofile(igroup),file=profilefile(igroup)
-     .            ,form='unformatted',status='replace')
-        enddo
-
-        if (debug) open(unit=udebug,file=debugfile,form='unformatted')
-
-      end subroutine openGraphicsFiles
-
-c     allocateGraphicsVariables
-c     ##################################################################
-      subroutine allocateGraphicsVariables(ngroups)
-
-        implicit none
-
-c     Call variables
-
-        integer(4) :: ngroups
-
-c     Begin program
-
-        allocate(graphfile(ngroups)
-     .          ,drawgraph(ngroups)
-     .          ,profilefile(ngroups)
-     .          ,drawprof(ngroups))
-
-        allocate(ugraph(ngroups),uprofile(ngroups),nqty(ngroups))
-
-        allocate(prof_desc(ngroups,ngraph),sel_gr(ngroups,9)
-     .          ,prof_ivar(ngroups,ngraph),prof_log(ngroups,ngraph)
-     .          ,prof_spline(ngroups))
-
-        allocate(graph(ngroups))
-
-      end subroutine allocateGraphicsVariables
-
-c     deallocateGraphicsVariables
-c     ##################################################################
-      subroutine deallocateGraphicsVariables
-
-        implicit none
-
-c     Call variables
-
-c     Begin program
-
-        deallocate(graphfile,drawgraph,profilefile,drawprof)
-
-        deallocate(ugraph,uprofile,nqty)
-
-        deallocate(prof_desc,sel_gr,prof_ivar,prof_log,prof_spline)
-
-        deallocate(graph)
-
-      end subroutine deallocateGraphicsVariables
-
-c     closeGraphicsFiles
-c     ##################################################################
-      subroutine closeGraphicsFiles
-
-        do igroup=1,ngroups
-          close(unit=ugraph(igroup))
-          close(unit=uprofile(igroup))
-        enddo
-
-        if (debug) close(unit=udebug)
-
-      end subroutine closeGraphicsFiles
 
 c     createDrawInGfile
 c     ################################################################
@@ -814,5 +662,283 @@ c     Begin program
 c     End program
 
       end subroutine createDrawInMfile
+
+c     openXDRAWGraphicsFiles
+c     ##################################################################
+      subroutine openXDRAWGraphicsFiles
+
+        implicit none
+
+c     Call variables
+
+c     Begin program
+
+        do igroup =1,ngroups
+          open(unit=ugraph(igroup),file=graphfile(igroup)
+     .            ,form='unformatted',status='replace')
+          open(unit=uprofile(igroup),file=profilefile(igroup)
+     .            ,form='unformatted',status='replace')
+        enddo
+
+        if (debug) open(unit=udebug,file=debugfile,form='unformatted')
+
+      end subroutine openXDRAWGraphicsFiles
+
+c     closeXDRAWGraphicsFiles
+c     ##################################################################
+      subroutine closeXDRAWGraphicsFiles
+
+        do igroup=1,ngroups
+          close(unit=ugraph(igroup))
+          close(unit=uprofile(igroup))
+        enddo
+
+        if (debug) close(unit=udebug)
+
+      end subroutine closeXDRAWGraphicsFiles
+
+      end module XDRAW
+
+c module graphics
+c ######################################################################
+      module graphics
+
+        use grid
+
+        use graphics_variables
+
+c XDRAW
+        use XDRAW
+c XDRAW
+
+      contains
+
+c     initializeGraphics
+c     ###############################################################
+      subroutine initializeGraphics (igx,igy,igz,bcs)
+c     ---------------------------------------------------------------
+c     Set graphics files and dumping intervals
+c     ---------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: igx,igy,igz,bcs(6)
+
+c     Local variables
+
+        integer(4) :: nx,ny,nz,isx,isy,isz
+
+        integer(4) :: i,nplots
+
+        character*(30) :: prof_title
+
+c     Begin program
+
+        nx = grid_params%nxv(igx)
+        ny = grid_params%nyv(igy)
+        nz = grid_params%nzv(igz)
+
+        isx = grid_params%istartx(igx)
+        isy = grid_params%istartx(igy)
+        isz = grid_params%istartx(igz)
+
+        iggx = igx
+        iggy = igy
+        iggz = igz
+
+c     Set graphics plotting range
+
+        call setGraphicsRange(nx,ny,nz,bcs)
+
+c     Find grid in logical space
+
+        allocate(xl(iming:imaxg),yl(jming:jmaxg),zl(kming:kmaxg))
+
+        xl(:) = grid_params%xx(iming+isx:imaxg+isx)
+        yl(:) = grid_params%yy(jming+isy:jmaxg+isy)
+        zl(:) = grid_params%zz(kming+isz:kmaxg+isz)
+
+c     Define graphics i/o and initialize graph arrays (external)
+
+        call defineGraphics
+
+c     Determine actual number of 3D plots
+
+        do igroup=1,ngroups
+          nqty(igroup) = 0
+          do i = 1,size(graph(igroup)%array_graph)
+            if (len(trim(graph(igroup)%array_graph(i)%descr)) == 0) exit
+            nqty(igroup) = nqty(igroup) + 1
+          enddo
+        enddo
+
+c XDRAW
+c     Initialize XDRAW
+
+        call initializeXDRAW
+c XDRAW
+
+c     End program
+
+      end subroutine initializeGraphics
+
+c     finalizeGraphics
+c     ###############################################################
+      subroutine finalizeGraphics 
+
+c     ---------------------------------------------------------------
+c     Close graphics files
+c     ---------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+c     Local variables
+
+c     Begin program
+
+c XDRAW
+        call closeXDRAWGraphicsFiles
+c XDRAW
+
+        call deallocateGraphicsVariables
+
+c     End program
+
+      end subroutine finalizeGraphics
+
+c     setGraphicsRange
+c     #################################################################
+      subroutine setGraphicsRange(nx,ny,nz,bcond)
+
+c     ---------------------------------------------------------------
+c     Find graphics plotting range according to boundary conditions
+c     ---------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: nx,ny,nz,bcond(6)
+
+c     Local variables
+ 
+c     Begin program
+
+        if (bcond(1) == PER) then
+          iming = 1
+          imaxg = nx+1
+        elseif (bcond(1) == SP) then
+cc          iming = 1
+          iming = 0
+          imaxg = nx+1
+        else
+          iming = 0
+          imaxg = nx+1
+        endif
+
+        if (bcond(3) == PER) then
+          jming = 1
+          jmaxg = ny+1
+        elseif (bcond(3) == SP) then
+          jming = 1
+          jmaxg = ny+1
+        else
+          jming = 0
+          jmaxg = ny+1
+        endif
+
+        if (bcond(5) == PER) then
+          kming = 1
+          kmaxg = nz+1
+        elseif (bcond(5) == SP) then
+          kming = 1
+          kmaxg = nz+1
+        else
+          kming = 0
+          kmaxg = nz+1
+        endif
+
+cc          iming = 0
+cc          imaxg = nx+1
+cc          jming = 0
+cc          jmaxg = ny+1
+cc          kming = 0
+cc          kmaxg = nz+1
+
+c     End program
+
+      end subroutine setGraphicsRange
+
+c     dumpTimeStepPlots
+c     #################################################################
+      subroutine dumpTimeStepPlots
+
+c     ---------------------------------------------------------------
+c     Dumps time plots
+c     ---------------------------------------------------------------
+
+        use variables
+
+        implicit none
+
+c     Call variables
+
+c     Local variables
+ 
+c     Begin program
+
+c XDRAW
+        call dumpXDRAWplots
+c XDRAW
+
+c     End program
+
+      end subroutine dumpTimeStepPlots
+
+c     allocateGraphicsVariables
+c     ##################################################################
+      subroutine allocateGraphicsVariables(ngroups)
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: ngroups
+
+c     Begin program
+
+c     Allocate graph groups
+
+        allocate(graph(ngroups),nqty(ngroups))
+
+c     Allocate XDRAW quantities
+
+c XDRAW
+        call allocateXDRAWvariables(ngroups)
+c XDRAW
+
+      end subroutine allocateGraphicsVariables
+
+c     deallocateGraphicsVariables
+c     ##################################################################
+      subroutine deallocateGraphicsVariables
+
+        implicit none
+
+c     Call variables
+
+c     Begin program
+
+        deallocate(graph,nqty)
+
+c XDRAW
+        call deallocateXDRAWvariables
+c XDRAW
+
+      end subroutine deallocateGraphicsVariables
 
       end module graphics
