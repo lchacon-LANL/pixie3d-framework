@@ -1,3 +1,4 @@
+
 c module imposeBCinterface
 c #####################################################################
       module imposeBCinterface
@@ -111,19 +112,6 @@ c     Fill corners
           call fillCorners(array,array0,dim,loc,bcond)
         enddo
       enddo
-
-ccc     Synchronize periodic boundaries
-cc
-cc      bctype=PER
-cc
-cc      do dim=1,3
-cc        do loc=0,1
-cc          ibc = (1+loc)+2*(dim-1)
-cc          if (bcond(ibc) == bctype) then
-cc            call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
-cc          endif
-cc        enddo
-cc      enddo
 
 c     End program
 
@@ -271,22 +259,6 @@ c     Fill corners
           enddo
         enddo
       enddo
-
-ccc     Synchronize periodic boundaries
-cc
-cc      bctype=PER
-cc
-cc      do dim=1,3
-cc        do loc=0,1
-cc          ibc = (1+loc)+2*(dim-1)
-cc          do ivar = 1,3
-cc            ieq = ivar + fcomp - 1
-cc            if (bcond(ibc,ivar) == bctype) then
-cc              call FillGhostNodes(ieq,ivar,3,dim,loc,bctype,v_cnv,var0)
-cc            endif
-cc          enddo
-cc        enddo
-cc      enddo
 
 c     Find covariant components at ALL boundary ghost cells
 
@@ -588,26 +560,6 @@ c     Find BC update
         end select
       endif
 
-c     Update BC ghost nodes
-
-cc      select case (ibc)
-cc      case (1)                  !x0
-cc        array(0     ,jmin:jmax,kmin:kmax,ivar)= rhs(jmin:jmax,kmin:kmax)
-cc      case (2)                  !x1
-cc        array(nxbc+1,jmin:jmax,kmin:kmax,ivar)= rhs(jmin:jmax,kmin:kmax)
-cc      case (3)                  !y0
-cc        array(imin:imax,0     ,kmin:kmax,ivar)= rhs(imin:imax,kmin:kmax)
-cc      case (4)                  !y1
-cc        array(imin:imax,nybc+1,kmin:kmax,ivar)= rhs(imin:imax,kmin:kmax)
-cc      case (5)                  !z0
-cc        array(imin:imax,jmin:jmax,0     ,ivar)= rhs(imin:imax,jmin:jmax)
-cc      case (6)                  !z1
-cc        array(imin:imax,jmin:jmax,nzbc+1,ivar)= rhs(imin:imax,jmin:jmax)
-cc      case default
-cc        write (*,*) 'Boundary',ibc,' non existent'
-cc        stop
-cc      end select
-
       deallocate(rhs)
 
 c     End
@@ -654,38 +606,6 @@ c     Begin program
        write (*,*) 'Boundary',ibc,' non existent'
        stop
       end select
-
-cc      select case (ibc)
-cc      case (1)
-cc        rhs(jmin:jmax,kmin:kmax) = array(nxbc,jmin:jmax,kmin:kmax)
-cc      case (2)
-cc        rhs(jmin:jmax,kmin:kmax) = array(1   ,jmin:jmax,kmin:kmax)
-cc      case (3)
-cc        rhs(imin:imax,kmin:kmax) = array(imin:imax,nybc,kmin:kmax)
-cc      case (4)
-cc        rhs(imin:imax,kmin:kmax) = array(imin:imax,1   ,kmin:kmax)
-cc      case (5)
-cc        rhs(imin:imax,jmin:jmax) = array(imin:imax,jmin:jmax,nzbc)
-cc      case (6)
-cc        rhs(imin:imax,jmin:jmax) = array(imin:imax,jmin:jmax,1   )
-cc      end select
-cc
-cc#else !Do nothing
-cc
-cc      select case (ibc)
-cc      case (1)
-cc        rhs(jmin:jmax,kmin:kmax) = array(0     ,jmin:jmax,kmin:kmax)
-cc      case (2)
-cc        rhs(jmin:jmax,kmin:kmax) = array(nxbc+1,jmin:jmax,kmin:kmax)
-cc      case (3)
-cc        rhs(imin:imax,kmin:kmax) = array(imin:imax,0     ,kmin:kmax)
-cc      case (4)
-cc        rhs(imin:imax,kmin:kmax) = array(imin:imax,nybc+1,kmin:kmax)
-cc      case (5)
-cc        rhs(imin:imax,jmin:jmax) = array(imin:imax,jmin:jmax,0     )
-cc      case (6)
-cc        rhs(imin:imax,jmin:jmax) = array(imin:imax,jmin:jmax,nzbc+1)
-cc      end select
 
 #endif
 
@@ -910,7 +830,7 @@ c     Select edge
             jmx   = max(jto,jfrom)
 
             do k=kmin,kmax
-              if ((bcond(1)==EQU.or.bcond(3)==EQU) .and. order == 0)then
+              if ((bcond(1)==EQU.or.bcond(3)==EQU) .and.order == 0) then
                 array(ito,jto,k) = array0(ito,jto,k)
               else
                 call extrapolateToCorner(ibc,ito,jto,k,imn,jmn,k
@@ -927,7 +847,7 @@ c     Select edge
             jmx   = max(jto,jfrom)
 
             do k=kmin,kmax
-              if ((bcond(1)==EQU.or.bcond(4)==EQU).and. order == 0)then
+              if ((bcond(1)==EQU.or.bcond(4)==EQU).and.order == 0) then
                 array(ito,jto,k) = array0(ito,jto,k)
               else
                 call extrapolateToCorner(ibc,ito,jto,k,imn,jmn,k
@@ -955,7 +875,7 @@ c     Select edge
             jmx   = max(jto,jfrom)
 
             do k=kmin,kmax
-              if ((bcond(2)==EQU.or.bcond(3)==EQU).and. order == 0)then
+              if ((bcond(2)==EQU.or.bcond(3)==EQU).and.order == 0) then
                 array(ito,jto,k) = array0(ito,jto,k)
               else
                 call extrapolateToCorner(ibc,ito,jto,k,imn,jmn,k
@@ -972,7 +892,7 @@ c     Select edge
             jmx   = max(jto,jfrom)
 
             do k=kmin,kmax
-              if ((bcond(2)==EQU.or.bcond(4)==EQU).and. order == 0)then
+              if ((bcond(2)==EQU.or.bcond(4)==EQU).and.order == 0) then
                 array(ito,jto,k) = array0(ito,jto,k)
               else
                 call extrapolateToCorner(ibc,ito,jto,k,imn,jmn,k
@@ -1002,7 +922,7 @@ c     Select edge
             kmx   = max(kto,kfrom)
 
             do i=imin,imax
-              if ((bcond(3)==EQU.or.bcond(5)==EQU).and. order == 0)then
+              if ((bcond(3)==EQU.or.bcond(5)==EQU).and.order == 0) then
                 array(i,jto,kto) = array0(i,jto,kto)
               else
                 call extrapolateToCorner(ibc,i,jto,kto,i,jmn,kmn
@@ -1020,7 +940,7 @@ c     Select edge
             kmx   = max(kto,kfrom)
 
             do i=imin,imax
-              if ((bcond(3)==EQU.or.bcond(6)==EQU).and. order == 0)then
+              if ((bcond(3)==EQU.or.bcond(6)==EQU).and.order == 0) then
                 array(i,jto,kto) = array0(i,jto,kto)
               else
                 call extrapolateToCorner(ibc,i,jto,kto,i,jmn,kmn
@@ -1050,7 +970,7 @@ c     Select edge
             kmx   = max(kto,kfrom)
 
             do i=imin,imax
-              if ((bcond(4)==EQU.or.bcond(5)==EQU).and. order == 0)then
+              if ((bcond(4)==EQU.or.bcond(5)==EQU).and.order == 0) then
                 array(i,jto,kto) = array0(i,jto,kto)
               else
                 call extrapolateToCorner(ibc,i,jto,kto,i,jmn,kmn
@@ -1068,7 +988,7 @@ c     Select edge
             kmx   = max(kto,kfrom)
 
             do i=imin,imax
-              if ((bcond(4)==EQU.or.bcond(6)==EQU).and. order == 0)then
+              if ((bcond(4)==EQU.or.bcond(6)==EQU).and.order == 0) then
                 array(i,jto,kto) = array0(i,jto,kto)
               else
                 call extrapolateToCorner(ibc,i,jto,kto,i,jmn,kmn
@@ -1098,7 +1018,7 @@ c     Select edge
             imx   = max(ito,ifrom)
 
             do j=jmin,jmax
-              if ((bcond(5)==EQU.or.bcond(1)==EQU).and. order == 0)then
+              if ((bcond(5)==EQU.or.bcond(1)==EQU).and.order == 0) then
                 array(ito,j,kto) = array0(ito,j,kto)
               else
                 call extrapolateToCorner(ibc,ito,j,kto,imn,j,kmn
@@ -1116,7 +1036,7 @@ c     Select edge
             imx   = max(ito,ifrom)
 
             do j=jmin,jmax
-              if ((bcond(5)==EQU.or.bcond(2)==EQU).and. order == 0)then
+              if ((bcond(5)==EQU.or.bcond(2)==EQU).and.order == 0) then
                 array(ito,j,kto) = array0(ito,j,kto)
               else
                 call extrapolateToCorner(ibc,ito,j,kto,imn,j,kmn
@@ -1146,7 +1066,7 @@ c     Select edge
             imx   = max(ito,ifrom)
 
             do j=jmin,jmax
-              if ((bcond(6)==EQU.or.bcond(1)==EQU).and. order == 0)then
+              if ((bcond(6)==EQU.or.bcond(1)==EQU).and.order == 0) then
                 array(ito,j,kto) = array0(ito,j,kto)
               else
                 call extrapolateToCorner(ibc,ito,j,kto,imn,j,kmn
@@ -1164,7 +1084,7 @@ c     Select edge
             imx   = max(ito,ifrom)
 
             do j=jmin,jmax
-              if ((bcond(6)==EQU.or.bcond(2)==EQU).and. order == 0)then
+              if ((bcond(6)==EQU.or.bcond(2)==EQU).and.order == 0) then
                 array(ito,j,kto) = array0(ito,j,kto)
               else
                 call extrapolateToCorner(ibc,ito,j,kto,imn,j,kmn
