@@ -2641,7 +2641,7 @@ c #####################################################################
         integer(4) :: PER,DIR,NEU,SP,EQU,DEF
         parameter (PER=2,SP=5,DIR=4,NEU=3,EQU=1,DEF=6)
 
-        integer(4) :: nxx,nyy,nzz
+        integer(4),private :: nxx,nyy,nzz
 
         integer(4) :: mg_ratio,bcond(6)
 
@@ -2741,19 +2741,19 @@ c     Initialize MG arrays
         enddo
 
         grid_params%istartx(1) = 1
-        do i = 2,ngrdx
+        do i = 2,grid_params%ngrid
           grid_params%istartx(i) = grid_params%istartx(i-1)
      .                            +(grid_params%nxv(i-1)+2)
         enddo
 
         grid_params%istarty(1) = 1
-        do i = 2,ngrdy
+        do i = 2,grid_params%ngrid
           grid_params%istarty(i) = grid_params%istarty(i-1)
      .                            +(grid_params%nyv(i-1)+2)
         enddo
 
         grid_params%istartz(1) = 1
-        do i = 2,ngrdz
+        do i = 2,grid_params%ngrid
           grid_params%istartz(i) = grid_params%istartz(i-1)
      .                            +(grid_params%nzv(i-1)+2)
         enddo
@@ -2787,21 +2787,24 @@ c     Consistency checks
 
         call consistencyCheck
 
-c     Define uniform logical grid on all grid levels
+c     Define uniform logical grid on ALL grid levels
 
         call createLogicalGrid(nxx,grid_params%xx,grid_params%dx
      .                        ,grid_params%dxh,grid_params%nxv
-     .                        ,grid_params%ngrdx,grid_params%istartx
+cc     .                        ,grid_params%ngrdx,grid_params%istartx
+     .                        ,grid_params%ngrid,grid_params%istartx
      .                        ,xmin,xmax,bcond(1),bcond(2))
 
         call createLogicalGrid(nyy,grid_params%yy,grid_params%dy
      .                        ,grid_params%dyh,grid_params%nyv
-     .                        ,grid_params%ngrdy,grid_params%istarty
+cc     .                        ,grid_params%ngrdy,grid_params%istarty
+     .                        ,grid_params%ngrid,grid_params%istarty
      .                        ,ymin,ymax,bcond(3),bcond(4))
 
         call createLogicalGrid(nzz,grid_params%zz,grid_params%dz
      .                        ,grid_params%dzh,grid_params%nzv
-     .                        ,grid_params%ngrdz,grid_params%istartz
+cc     .                        ,grid_params%ngrdz,grid_params%istartz
+     .                        ,grid_params%ngrid,grid_params%istartz
      .                        ,zmin,zmax,bcond(5),bcond(6))
 
       end subroutine createGrid
@@ -2816,7 +2819,7 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: ngrid
+        integer(4) :: ngrid,nxmg,nymg,nzmg
 
 c     Begin program
 
@@ -2827,23 +2830,27 @@ c     Begin program
         grid_params%ngrdz = ngridz
         grid_params%ngrid = ngrid
 
+        nxmg=findMGsize(nxx,ngridx,ngrid)
+        nymg=findMGsize(nyy,ngridy,ngrid)
+        nzmg=findMGsize(nzz,ngridz,ngrid)
+
         if (.not.associated(grid_params%xx)) then
-          allocate(grid_params%xx(2*nxx+2*ngridx))
-          allocate(grid_params%yy(2*nyy+2*ngridy))
-          allocate(grid_params%zz(2*nzz+2*ngridz))
-          allocate(grid_params%dx(2*nxx+2*ngridx))
-          allocate(grid_params%dy(2*nyy+2*ngridy))
-          allocate(grid_params%dz(2*nzz+2*ngridz))
-          allocate(grid_params%dxh(2*nxx+2*ngridx))
-          allocate(grid_params%dyh(2*nyy+2*ngridy))
-          allocate(grid_params%dzh(2*nzz+2*ngridz))
+          allocate(grid_params%xx(nxmg+2*ngrid))
+          allocate(grid_params%yy(nymg+2*ngrid))
+          allocate(grid_params%zz(nzmg+2*ngrid))
+          allocate(grid_params%dx(nxmg+2*ngrid))
+          allocate(grid_params%dy(nymg+2*ngrid))
+          allocate(grid_params%dz(nzmg+2*ngrid))
+          allocate(grid_params%dxh(nxmg+2*ngrid))
+          allocate(grid_params%dyh(nymg+2*ngrid))
+          allocate(grid_params%dzh(nzmg+2*ngrid))
           allocate(grid_params%nxv(ngrid))
           allocate(grid_params%nyv(ngrid))
           allocate(grid_params%nzv(ngrid))
           allocate(grid_params%ntotv(ngrid))
-          allocate(grid_params%istartx(ngridx))
-          allocate(grid_params%istarty(ngridy))
-          allocate(grid_params%istartz(ngridz))
+          allocate(grid_params%istartx(ngrid))
+          allocate(grid_params%istarty(ngrid))
+          allocate(grid_params%istartz(ngrid))
           allocate(grid_params%istartp(ngrid))
           allocate(grid_params%mg_ratio_x(ngrid))
           allocate(grid_params%mg_ratio_y(ngrid))
@@ -2851,6 +2858,26 @@ c     Begin program
         endif
 
 c     End program
+
+      contains
+
+c     findMGsize
+c     #################################################################
+      function findMGsize(nn,ngrd,ngrdt) result (nnmg)
+      implicit none
+c     -----------------------------------------------------------------
+c     Finds size for MG vectors, taking into account total grid levels
+c     ngrdt, grid levels in the relevant direction ngrd, and the 
+c     number of mesh points in the finest grid nn. The formula ensures
+c     enough space even if nn=1 in the finest grid. It does NOT include
+c     ghost cells (this requires an additional term of 2*ngrdt).
+c     -----------------------------------------------------------------
+
+        integer(4) :: nn,nnmg,ngrd,ngrdt
+
+        nnmg = 2*nn + ngrdt - ngrd -1
+
+      end function findMGsize
 
       end subroutine allocateGridStructure
 
@@ -2864,8 +2891,7 @@ c     #################################################################
 c     Call variables
 
         integer(4) :: nn,ngrid,nx(ngrid),istart(ngrid),bcs1,bcs2
-        real(8)    :: xx(2*nn+2*ngrid),dx(2*nn+2*ngrid)
-     .               ,dxh(2*nn+2*ngrid),lmin,lmax
+        real(8)    :: xx(*),dx(*),dxh(*),lmin,lmax
 
 c     Local variables
         
@@ -3062,9 +3088,12 @@ c     Begin program
 
 c     Multigrid parameters
 
-        igx = grid_params%ngrdx
-        igy = grid_params%ngrdy
-        igz = grid_params%ngrdz
+cc        igx = grid_params%ngrdx
+cc        igy = grid_params%ngrdy
+cc        igz = grid_params%ngrdz
+        igx = grid_params%ngrid
+        igy = grid_params%ngrid
+        igz = grid_params%ngrid
 
         write (*,*)
         write (*,*) 'Coordinate system: ',coords
