@@ -33,8 +33,8 @@ c Cubic splines
 
 c Externals
 
-      real(8)    ::  q_int,l_int
-      external   ::  q_int,l_int
+      real(8)    :: q_int,l_int
+      external      q_int,l_int
 
 c Begin program
 
@@ -132,12 +132,12 @@ c-----------------------------------------------------------------------
 
 c Variables in call
 
-      integer*4     j,n
-      real*8        x,xx(n)
+      integer(4) :: j,n
+      real(8)    :: x,xx(n)
  
 c Local variables
 
-      integer*4     jl,jm,ju
+      integer(4) :: jl,jm,ju
 
 c Begin program
 
@@ -169,7 +169,7 @@ c End
 
 c q_int
 c#######################################################################
-      real*8  function q_int (nx,vec,x,x1,j)
+      function q_int (nx,vec,x,x1,j)
       implicit      none                          ! for safe FORTRAN
 c-----------------------------------------------------------------------
 c     Interpolate vec(x) at x1 using the nodes (j-1),j,(j+1).
@@ -177,12 +177,12 @@ c-----------------------------------------------------------------------
 
 c Variables in call
 
-      integer*4     nx,j
-      real*8        x1,x(nx),vec(nx)
+      integer(4) :: nx,j
+      real(8)    :: x1,x(nx),vec(nx),q_int
  
 c Local variables
 
-      integer*4     jm,jp,jj
+      integer(4) :: jm,jp,jj
 
 c Begin program
 
@@ -205,7 +205,7 @@ c End
 
 c l_int
 c#######################################################################
-      real*8  function l_int (nx,vec,x,x1,j)
+      function l_int (nx,vec,x,x1,j)
       implicit      none                          ! for safe FORTRAN
 c-----------------------------------------------------------------------
 c     Interpolate vec(x) at x1 using the nodes j,(j+1).
@@ -213,12 +213,12 @@ c-----------------------------------------------------------------------
 
 c Variables in call
 
-      integer*4     nx,j
-      real*8        x1,x(nx),vec(nx)
+      integer(4) :: nx,j
+      real(8)    :: x1,x(nx),vec(nx),l_int
  
 c Local variables
 
-      integer*4     jp,jj
+      integer(4) :: jp,jj
 
 c Begin program
 
