@@ -107,7 +107,8 @@ c     Output per time step
 
 c     Time level data dump
 
-        if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
+        if (nrst.eq.ndstep.or.tmrst.ge.0.99*dstep) then
+cc          write (*,*) 'Dumped here'
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
           call imposeBoundaryConditions(u_np,1,1,1)
