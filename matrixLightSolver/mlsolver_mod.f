@@ -28,6 +28,7 @@ c######################################################################
           integer         :: orderprol
           integer         :: mg_coarse_solver_depth
           integer         :: mg_mu
+          integer         :: mg_line_nsweep
           type(grid_def)  :: mg_grid_def
           double precision, pointer, dimension(:,:) :: diag
         end type solver_options
@@ -87,6 +88,7 @@ c       Initializes solver options
           solverOptions%mg_line_relax=.false.      !Specifies whether to do point-wise 
                                                    !  relaxation (false) or line-wise 
                                                    !  relaxation (true).
+          solverOptions%mg_line_nsweep = 1         !Specifies number of line relaxation sweeps
           solverOptions%vertex_based_relax=.false. !Specifies whether to do vertex-based relax.
           solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
 
