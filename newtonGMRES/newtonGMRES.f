@@ -159,7 +159,7 @@ c Evaluate rhs and norms
 
 c Initial output
 
-      if (out.ge.1) write (*,210) 0,0d0,f0,1d0,1d0,0
+      if (out.ge.1) write (*,210) 0,0d0,f0,1d0,1d0,dt0,tolgm,0
 
       if (out.ge.3) then
         call calculateResidualNorms(neq,ntot,b,residuals)
@@ -239,7 +239,7 @@ c     Check Newton convergence
 
         check = fkp/f0
 
-        if (out.ge.1) write (*,210) jit,dxavg,fkp,check,damp,dt,itk
+        if (out.ge.1) write (*,210) jit,dxavg,fkp,check,damp,dt,etak,itk
 
         if (out.ge.3) then
           call calculateResidualNorms(neq,ntot,b,residuals)
@@ -260,7 +260,7 @@ c     Store magnitude of residual
 c     Change pseudo-transient time step
 
 cc        if (global.eq.2) dt = min(dt/check,1d30)
-        if (global.eq.2) dt = min(dt0/check,1d30)
+        if (global.eq.2) dt = min(dt0/sqrt(check),1d30)
 cc        if (global.eq.2.and.check.lt.1d-3) dt = min(dt0*jit,1d0)
 cc        if (global.eq.2) dt = min(dt0/check**2,1d30)
 
@@ -288,8 +288,8 @@ c End program
 
  200  format 
      .   (/,' New_it   Av_updt    Abs_res   Rel_res     Damping'
-     .     ,'      dt_n     GMRES')
- 210  format (i4,3x,1p5e11.3,3x,i4)
+     .     ,'      dt_n      eta_k     GMRES')
+ 210  format (i4,3x,1p6e11.3,3x,i4)
  220  format ('    Max newton its. exceeded; rel. residual: ',1p1e10.2)
  230  format ('    Relative residual =',f7.2,' >',f7.2)
  240  format ('    Newton converged in too many iterations (>',i2,')')
@@ -398,8 +398,6 @@ c Begin program
         !Second safeguard: avoid oversolving
         etak = min(tolgm,max(etak,gamm*flimit/fk))
       endif
-
-cc      write (*,*) etak
 
 c End program
 
@@ -821,23 +819,21 @@ c Local variables
 
 c Begin program
 
-      eps   = 1d-6
+      eps   = 1d-4
 
 c Calculate difference parameter
 
       scale = sum(z*z)
 
-cc      pert  = (1d0 + sum(x*x))/scale
-cc      pert  = eps*sqrt(pert)
+cc      pert  = eps*sqrt((1d0 + sum(x*x))/scale)
 
-      pert  = sum(z*x)
-      pert  = eps*(sqrt(scale)+abs(pert))/scale*sign(1d0,pert)
+      pert  = eps*(sqrt(scale)+abs(sum(z*x)))/scale*sign(1d0,pert)
 
 cc      write (*,*) pert,scale
 
 c Calculate J.x
 
-      if (scale .lt. 1.0d-16) then
+      if (scale .lt. 1d-16) then
 
          do i = 1,nn
             y(i) = 0d0
@@ -890,7 +886,7 @@ c Evaluate nonlinear residual
 
 c Add pseudo-transient term
 
-      f = (x - x0)/dt - f
+      f = (x - x0)/dt + f
 
 c End program
 
