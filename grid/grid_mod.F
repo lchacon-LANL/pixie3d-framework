@@ -3,6 +3,7 @@ c ######################################################################
       module debug
 
         real(8) :: lxmax,lxmin,lymax,lymin
+        real(8),allocatable,dimension(:,:,:,:) :: dbg
 
       contains
 
@@ -309,6 +310,8 @@ c     Begin program
         nx = grid_st1%nxv(1)
         ny = grid_st1%nyv(1)
         nz = grid_st1%nzv(1)
+
+        if (grid_st2%ngrdx /= ngridx) nullify(grid_st2%xx)
 
         call allocateGridStructure(nx,ny,nz,ngridx,ngridy,ngridz
      .                            ,grid_st2)
@@ -1896,13 +1899,16 @@ c module local_mpi
 c ######################################################################
       module local_mpi
 
-        use mpi
-
         use grid_definition
 
         use bc_def
 
         implicit none
+
+#include "finclude/petsc.h"
+#include "finclude/petscvec.h"
+#include "finclude/petscda.h"
+#include "finclude/petscvec.h90"
 
         integer(4) :: np,inp,my_rank,mpierr,group_world
      .               ,group_sp,tag=0,dest=0,root=0
@@ -1921,11 +1927,11 @@ c ######################################################################
         integer(4),allocatable,dimension(:) :: MPI_COMM_NBRS
 
         type :: userctx
-#define PETSC_AVOID_DECLARATIONS
-#include "finclude/petsc.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscda.h"
-#undef PETSC_AVOID_DECLARATIONS
+cc#define PETSC_AVOID_DECLARATIONS
+cc#include "finclude/petsc.h"
+cc#include "finclude/petscvec.h"
+cc#include "finclude/petscda.h"
+cc#undef PETSC_AVOID_DECLARATIONS
           DA      :: da
           Vec     :: Xg
           integer :: xs,xe,xm,gxs,gxe,gxm
@@ -2119,10 +2125,6 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-#include "finclude/petsc.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscda.h"
-
 c     Call variables
 
 c     Local variables
@@ -2225,10 +2227,6 @@ c     #################################################################
 
         implicit none
 
-#include "finclude/petsc.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscda.h"
-
 c     Call variables
 
 c     Local variables
@@ -2301,11 +2299,6 @@ c     #################################################################
       subroutine fillPetscGhostCells(array)
 
         implicit none
-
-#include "finclude/petsc.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscda.h"
-#include "finclude/petscvec.h90"
 
 c     Call variables
 
@@ -2966,11 +2959,11 @@ c     External
 
 c     Begin program
 
+#if !defined(petsc)
+
         nxl = grid_params%nxv(igrid)
         nyl = grid_params%nyv(igrid)
         nzl = grid_params%nzv(igrid)
-
-#if !defined(petsc)
 
         if (bcond(1) == PER .or. bcond(2) == PER) then
           array(0    ,:,:) = array(nxl,:,:)
@@ -3014,7 +3007,7 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: ii,ll,kk,mm,jj,ig,jg,kg
+        integer(4) :: ii,ll,kk,mm,jj,ig,jg,kg,igrid
         real(8)    :: x1,y1,z1,summ,summ2,dh,jac,jacp,jacm,const,hlf
         real(8)    :: hess(3,3,3),table(3,3,3),gsub(3,3)
      .               ,gsup(3,3),gsupp(3,3),gsupm(3,3),gamma(3,3,3)
@@ -4248,15 +4241,15 @@ c     Begin program
 cc        if (numerical_grid) then
           if (nxx == 1) then
             xmin = 0d0
-            xmax = 1d-4
+            xmax = 1d-3
           endif
           if (nyy == 1) then
             ymin = 0d0
-            ymax = 1d-4
+            ymax = 1d-3
           endif
           if (nzz == 1) then
             zmin = 0d0
-            zmax = 1d-4
+            zmax = 1d-3
           endif
 cc        endif
 
