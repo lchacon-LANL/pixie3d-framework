@@ -215,6 +215,13 @@ cc          iming = 1
           kmaxg = nz+1
         endif
 
+cc          iming = 0
+cc          imaxg = nx+1
+cc          jming = 0
+cc          jmaxg = ny+1
+cc          kming = 0
+cc          kmaxg = nz+1
+
 c     End program
 
       end subroutine setGraphicsRange
@@ -441,7 +448,8 @@ c     Begin program
 
 c     X-Y plots
 
-        k = kming
+        k = (kmaxg-kming+1)/2
+cc        k = 1
 
         if(iopt.eq.0) then
 
@@ -458,7 +466,6 @@ c         Write initialization headings
               do i=iming,imaxg
                 call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
      .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
-cc                car(i,j,k,:) = x_xi(xl(i),yl(j),zl(k))
               enddo
             enddo
  
