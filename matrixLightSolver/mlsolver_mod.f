@@ -21,6 +21,7 @@ c######################################################################
           integer         :: krylov_subspace
           integer         :: orderres
           integer         :: orderprol
+          double precision, pointer, dimension(:,:) :: diag
         end type solver_options
 
         type:: solver_unit
@@ -72,6 +73,7 @@ c       Initializes solver options
                                                !  prolongation (MG)
           solverOptions%fdiag    = .true.      !Whether to form matrix diagonal
                                                !  for smoothing
+          nullify(solverOptions%diag)          !Diagonal not provided externally
 
           !Krylov methods options
           solverOptions%stp_test = 0           !Stopping criterion (CG, GMRES)
@@ -178,42 +180,42 @@ c       Gets solver options at depth 'depth'
 
 c     printSolverHierarchy
 c     ###################################################################
-        subroutine printSolverHierarchy
+cc        subroutine printSolverHierarchy
 
 c       Reads TOP solver definition from solver hierarchy
 
-          type (solver_unit) :: solver_def
-          integer            :: depth,idepth
+cc          type (solver_unit) :: solver_def
+cc          integer            :: depth,idepth
 
         !Begin
 
-cc          idepth = 0
+cccc          idepth = 0
 
-          depth = count_elements(solver_queue)
+cc          depth = count_elements(solver_queue)
 
-          do idepth = 1,depth
+cc          do idepth = 1,depth
 
-cc            if (is_empty(solver_queue)) then
-cc              write (*,*) 'No more solver definitions present'
-cc              write (*,*) 'Aborting...'
-cc              stop
-cc              exit
-cc            endif
+cccc            if (is_empty(solver_queue)) then
+cccc              write (*,*) 'No more solver definitions present'
+cccc              write (*,*) 'Aborting...'
+cccc              stop
+cccc              exit
+cccc            endif
 
-cc            idepth = idepth + 1
+cccc            idepth = idepth + 1
 
-cc            call take_from_front (solver_queue,solver_def)
+cccc            call take_from_front (solver_queue,solver_def)
 
-            call read_node (solver_queue,solver_def,idepth)
+cc            call read_node (solver_queue,solver_def,idepth)
 
-            write (*,10) idepth
-            write (*,*) solver_def
-            write (*,*)
-          enddo
+cc            write (*,10) idepth
+cc            write (*,*) solver_def
+cc            write (*,*)
+cc          enddo
 
- 10       format ('Solver level:',i3,/,'Options:')
+cc 10       format ('Solver level:',i3,/,'Options:')
 
-        end subroutine printSolverHierarchy
+cc        end subroutine printSolverHierarchy
 
 c     init_queue
 c     ###################################################################

@@ -7,10 +7,10 @@ c######################################################################
         double precision,dimension(:)  ,allocatable:: dx,dy
         integer         ,dimension(:)  ,allocatable:: istartp,
      .           nxvp,nyvp,ntotvp
-        integer         ,dimension(:)  ,allocatable:: istart,
-     .           ntotv
 
-        double precision, allocatable, dimension(:,:):: diag
+cc        double precision, allocatable, dimension(:,:):: diag
+
+cc        logical :: fpointers
 
       contains
 

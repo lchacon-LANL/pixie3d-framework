@@ -7,9 +7,78 @@ c
 c 3) Eliminate hardwired boundary conditions (periodic) in Find_mf 
 c    routine.
 
+c module mg_internal
+c######################################################################
+      module mg_internal
+
+        use mg_setup
+
+        double precision, allocatable, dimension(:,:) :: diag
+
+        integer,dimension(:),allocatable :: istart,ntotv
+
+      contains
+
+c     allocPointers
+c     #################################################################
+      subroutine allocPointers(neq,ngrid,fpointers)
+
+c     -----------------------------------------------------------------
+c     Initializes MG and creates 2D uniform grid
+c     -----------------------------------------------------------------
+
+      implicit none        !For safe fortran
+
+c     Call variables
+
+      integer :: neq,ngrid
+      logical :: fpointers
+
+c     Local variables
+
+      integer :: i,alloc_stat
+
+c     Begin program
+
+      fpointers = .false.
+
+      allocate(istart (ngrid),ntotv (ngrid), STAT = alloc_stat)
+
+      !Successful memory allocation
+      if (alloc_stat == 0) then
+        istart(1) = 1
+        do i = 2,ngrid
+          istart(i) = neq*nxvp(i-1)*nyvp(i-1) + istart (i-1)
+          ntotv (i) = neq*nxvp(i)*nyvp(i)
+        enddo
+        fpointers = .true.
+      endif
+
+c     End program
+
+      end subroutine allocPointers
+
+c     deallocPointers
+c     #################################################################
+      subroutine deallocPointers(fpointers)
+
+c     -----------------------------------------------------------------
+c     Initializes MG and creates 2D uniform grid
+c     -----------------------------------------------------------------
+
+      implicit none        !For safe fortran
+
+      logical :: fpointers
+
+      if (fpointers) deallocate(istart,ntotv)
+
+      end subroutine deallocPointers
+
+      end module mg_internal
+
 c mg
 c#######################################################################
-      recursive subroutine mg(ntot,y,x,matvec,options,igridn
+      recursive subroutine mg(ntot,y,x,matvec,options,igrid
      .                       ,guess,out,depth)
 c--------------------------------------------------------------------
 c     Matrix-free coupled MG routine to solve
@@ -27,13 +96,13 @@ c--------------------------------------------------------------------
 
       use mlsolverSetup
 
-      use mg_setup
+      use mg_internal
 
       implicit none       !For safe fortran
 
 c Call variables
 
-      integer*4    ntot,igridn,guess,out,depth
+      integer*4    ntot,igrid,guess,out,depth
       real*8       x(ntot),y(ntot)
 
       type (solver_options) :: options
@@ -52,7 +121,8 @@ c Local variables
       double precision :: rr0,rr1,mag,mag1,mgtol
       double precision :: dummy(ntot),rr(ntot)
 
-      logical          :: fdiag,fpointers
+      logical          :: fdiag
+      logical          :: fpointers
 
 c Begin program
 
@@ -64,41 +134,35 @@ c Begin program
       orderprol= options%orderprol
       fdiag    = options%fdiag
 
-      if (out.ge.2.and.igridmin.lt.igridn) write (*,5)
+      if (out.ge.2.and.igridmin.lt.igrid) write (*,5)
 
       outc = out
-      if (igridmin.lt.igridn) outc = out - 2
+      if (igridmin.lt.igrid) outc = out - 2
 
 c Set pointers
 
-      fpointers = .false.
+      call allocPointers(neq,igrid,fpointers)
 
-      allocate(istart (ngrd),ntotv (ngrd), STAT = alloc_stat)
-
-      !Successful memory allocation
-      if (alloc_stat == 0) then
-        istart(igridmin-1) = 1
-        do i = igridmin,igridn
-          istart(i) = neq*nxvp(i-1)*nyvp(i-1) + istart (i-1)
-          ntotv (i) = neq*nxvp(i)*nyvp(i)
-        enddo
-        fpointers = .true.
-      endif
+      if (fpointers.and.out.ge.2) write (*,*) 'Allocating pointers...'
 
 c Find diagonal for smoothers
 
-      allocate(diag(neq,2*ntot),STAT = alloc_stat)
-
-      !Failed memory allocation
-      if (alloc_stat.ne.0) then
-        if (out.ge.2) write (*,*) 'Diagonal already allocated'
-        fdiag = .false.
-      endif
-
       if (fdiag) then
-        if (out.ge.2) write (*,*) 'Forming diagonal...'
-        call find_mf_diag_neq(neq,ntot,matvec,igridn,igridmin)
-        if (out.ge.2) write (*,*) 'Finished!'
+
+        allocate(diag(neq,2*ntot),STAT = alloc_stat)
+
+        if (alloc_stat.ne.0) then !Diagonal is known (failed alloc)
+          if (out.ge.2) write (*,*) 'Diagonal already allocated'
+          fdiag = .false.
+        elseif (associated(options%diag)) then !Diagonal provided externally
+          if (out.ge.2) write (*,*) 'Diagonal externally provided'
+          diag = options%diag
+        else                      !Form diagonal
+          if (out.ge.2) write (*,*) 'Forming diagonal...'
+          call find_mf_diag_neq(neq,ntot,matvec,igrid,diag)
+          if (out.ge.2) write (*,*) 'Finished!'
+        endif
+
       endif
 
 c Initialize local solution vector (xx) and local r.h.s. (yy)
@@ -109,10 +173,10 @@ c Initialize local solution vector (xx) and local r.h.s. (yy)
 
       if (guess.eq.0) then
         x = 0d0
-        yy(istart(igridn):istart(igridn) + ntot - 1) = y(:)
+        yy(istart(igrid):istart(igrid) + ntot - 1) = y(:)
       else
-        xx(istart(igridn):istart(igridn) + ntot - 1) = x(:)
-        yy(istart(igridn):istart(igridn) + ntot - 1) = y(:)
+        xx(istart(igrid):istart(igrid) + ntot - 1) = x(:)
+        yy(istart(igrid):istart(igrid) + ntot - 1) = y(:)
       endif
 
 c Compute initial residual and check convergence
@@ -120,7 +184,7 @@ c Compute initial residual and check convergence
       if (guess.eq.0) then
         rr0 = sqrt(sum(y*y))
       else
-        call matvec(0,ntot,x,dummy,igridn)
+        call matvec(0,ntot,x,dummy,igrid)
         rr = y - dummy
         rr0 = sqrt(sum(rr*rr))
       endif
@@ -139,20 +203,20 @@ c Start V-cycle
 
       do ivcyc = 1,vcyc
 
-        if (outc.ge.1.and.igridmin.lt.igridn) write (*,7) ivcyc
+        if (outc.ge.1.and.igridmin.lt.igrid) write (*,7) ivcyc
 
 c     Perform Vcycle recursively
 
-        if (igridn.eq.igridmin) then
-          call solve (igridn)
+        if (igrid.eq.igridmin) then
+          call solve (igrid)
           exit
         else
-          call vcycle(igridn)
+          call vcycle(igrid)
         endif
 
 c     Check MG convergence
 
-        call matvec(0,ntot,xx(istart(igridn)),dummy,igridn)
+        call matvec(0,ntot,xx(istart(igrid)),dummy,igrid)
 
         rr   = y - dummy
         mag  = sqrt(sum(rr*rr))
@@ -173,19 +237,20 @@ cc        if (mag/rr0 < mgtol) exit
 
 c Map solution from local vector xx to external vector x
 
-      x(:) = xx(istart(igridn):istart(igridn) + ntot - 1)
+      x(:) = xx(istart(igrid):istart(igrid) + ntot - 1)
 
 c MG convergence info
 
       mag1 = mag/rr0
 
-      if (igridmin.lt.igridn) then
+      if (igridmin.lt.igrid) then
         if (out.eq.1) then
           write (*,20) mag,mag1,min(ivcyc,vcyc)
         elseif (out.ge.2.and.vcyc.gt.1) then
           write (*,*) 
           write (*,*) 'Final MG convergence info:'
           write (*,20) mag,mag1,min(ivcyc,vcyc)
+          write (*,*)
         endif
       endif
 
@@ -218,7 +283,7 @@ c       Begin program
           isig  = istart(igr)
           isigm = istart(igr-1)
 
-c       Relax error/solution on grid number igr/igridn (find new xx)
+c       Relax error/solution on grid number igr/igrid (find new xx)
 
           call solve(igr)
 
@@ -290,8 +355,9 @@ c       ###################################################################
 
           implicit none
 
-          if (fdiag)     deallocate(diag)
-          if (fpointers) deallocate(istart,ntotv)
+          if (fdiag) deallocate(diag)
+
+          call deallocPointers(fpointers)
 
         end subroutine killmg
 
@@ -316,7 +382,7 @@ c--------------------------------------------------------------------
 
       use mlsolverSetup
 
-      use mg_setup
+      use mg_internal
 
       implicit none       !For safe fortran
 
@@ -333,7 +399,8 @@ c Local variables
 
       integer          :: iter,neq,alloc_stat,isig
       double precision :: omega0,omega10,omega01,tol
-      logical          :: fdiag,fpointers
+      logical          :: fdiag
+      logical          :: fpointers
 
       integer*4    i,j,itr,nn,ieq,nx,ny
       integer*4    ii,iii,iip,iim,jjp,jjm
@@ -354,36 +421,32 @@ c Begin program
 
       if (out.ge.2) write (*,*)
 
-c Set pointers
+c Allocate pointers
 
-      fpointers = .false.
+      call allocPointers(neq,igrid,fpointers)
 
-      allocate(istart (ngrd),ntotv (ngrd), STAT = alloc_stat)
-
-      !Successful memory allocation
-      if (alloc_stat == 0) then
-        if (out.ge.2) write (*,*) 'Allocating pointers...'
-        istart(igrid) = neq*nxvp(igrid-1)*nyvp(igrid-1) + 1
-        ntotv (igrid) = neq*nxvp(igrid)*nyvp(igrid)
-        fpointers = .true.
-      endif
+      if (fpointers.and.out.ge.2) write (*,*) 'Allocating pointers...'
 
       isig = istart(igrid)
 
 c Find diagonal for smoothers
 
-      allocate(diag(neq,2*ntot),STAT = alloc_stat)
-
-      !Failed memory allocation
-      if (alloc_stat.ne.0) then
-        if (out.ge.2) write (*,*) 'Diagonal already allocated'
-        fdiag = .false.
-      endif
-
       if (fdiag) then
-        if (out.ge.2) write (*,*) 'Forming diagonal...'
-        call find_mf_diag_neq(neq,ntot,matvec,igrid,igrid)
-        if (out.ge.2) write (*,*) 'Finished!'
+
+        allocate(diag(neq,2*ntot),STAT = alloc_stat)
+
+        if (alloc_stat.ne.0) then !Diagonal is known (failed alloc)
+          if (out.ge.2) write (*,*) 'Diagonal already allocated'
+          fdiag = .false.
+        elseif (associated(options%diag)) then !Diagonal provided externally
+          if (out.ge.2) write (*,*) 'Diagonal externally provided'
+          diag = options%diag
+        else                      !Form diagonal
+          if (out.ge.2) write (*,*) 'Forming diagonal...'
+          call find_mf_diag_neq(neq,ntot,matvec,igrid,diag)
+          if (out.ge.2) write (*,*) 'Finished!'
+        endif
+
       endif
 
 c Allocate internal arrays
@@ -432,14 +495,6 @@ c Jacobi iteration
               call shiftIndices(i,j,ii,iim,iip,jjm,jjp,nx,ny,1)
               call shiftIndices(i,j,ig,img,ipg,jmg,jpg,nx,ny,isig)
 
-cc            ii  = i   + nx*(j-1)
-cc            iig = ii + istartp(igrid) - 1
-cc            iip = ii + 1
-cc            if (i.eq.nx) iip = 2 + nx*(j-1)
-cc            iim = ii - 1
-cc            if (i.eq.1) iim = nx-1 + nx*(j-1)
-cc            jjp = i   + nx* j
-
               zz(ii) = zz(ii)+omega0*  (rr(ii) -yy(ii) )/diag(neq,ig )
      .                       +omega10*((rr(iip)-yy(iip))/diag(neq,ipg)
      .                                +(rr(iim)-yy(iim))/diag(neq,img))
@@ -451,15 +506,6 @@ cc            jjp = i   + nx* j
 
                 call shiftIndices(i,j,ii,iim,iip,jjm,jjp,nx,ny,1)
                 call shiftIndices(i,j,ig,img,ipg,jmg,jpg,nx,ny,isig)
-
-cc                ii  = i   + nx*(j-1)
-cc                iig = ii + istartp(igrid) - 1
-cc                iip = ii + 1 
-cc                if (i.eq.nx) iip = 2 + nx*(j-1)
-cc                iim = ii - 1 
-cc                if (i.eq.1) iim = nx-1 + nx*(j-1)
-cc                jjp = i   + nx* j
-cc                jjm = i   + nx*(j-2)
 
                 zz(ii) =zz(ii)+omega0*  (rr(ii) -yy(ii) )/diag(neq,ig )
      .                        +omega10*((rr(iip)-yy(iip))/diag(neq,ipg)
@@ -474,14 +520,6 @@ cc                jjm = i   + nx*(j-2)
 
               call shiftIndices(i,j,ii,iim,iip,jjm,jjp,nx,ny,1)
               call shiftIndices(i,j,ig,img,ipg,jmg,jpg,nx,ny,isig)
-
-cc              ii  = i   + nx*(j-1)
-cc              iig = ii + istartp(igrid) - 1
-cc              iip = ii + 1
-cc              if (i.eq.nx) iip = 2 + nx*(j-1)
-cc              iim = ii - 1
-cc              if (i.eq.1) iim = nx-1 + nx*(j-1)
-cc              jjm = i   + nx*(j-2)
 
               zz(ii) = zz(ii)+omega0*  (rr(ii) -yy(ii) )/diag(neq,ig )
      .                       +omega10*((rr(iip)-yy(iip))/diag(neq,ipg)
@@ -556,7 +594,7 @@ c End program
       deallocate (dummy,rhs)
 
       if (fdiag)     deallocate(diag)
-      if (fpointers) deallocate(istart,ntotv)
+      call deallocPointers(fpointers)
 
       return
 
@@ -586,7 +624,7 @@ c--------------------------------------------------------------------
 
       use mlsolverSetup
 
-      use mg_setup
+      use mg_internal
 
       implicit none       !For safe fortran
 
@@ -603,7 +641,8 @@ c Local variables
 
       integer          :: iter,neq,alloc_stat,isig
       double precision :: omega0,tol
-      logical          :: fdiag,fpointers
+      logical          :: fdiag
+      logical          :: fpointers
 
       integer*4    i,j,itr,nn,ieq,nx,ny
       integer*4    ii,iii,iip,iim,jjp,jjm
@@ -626,34 +665,30 @@ c Begin program
 
 c Set pointers
 
-      fpointers = .false.
+      call allocPointers(neq,igrid,fpointers)
 
-      allocate(istart (ngrd),ntotv (ngrd), STAT = alloc_stat)
-
-      !Successful memory allocation
-      if (alloc_stat == 0) then
-        if (out.ge.2) write (*,*) 'Allocating pointers...'
-        istart(igrid) = neq*nxvp(igrid-1)*nyvp(igrid-1) + 1
-        ntotv (igrid) = neq*nxvp(igrid)*nyvp(igrid)
-        fpointers = .true.
-      endif
+      if (fpointers.and.out.ge.2) write (*,*) 'Allocating pointers...'
 
       isig = istart(igrid)
 
 c Find diagonal for smoothers
 
-      allocate(diag(neq,2*ntot),STAT = alloc_stat)
-
-      !Failed memory allocation
-      if (alloc_stat.ne.0) then
-        if (out.ge.2) write (*,*) 'Diagonal already allocated'
-        fdiag = .false.
-      endif
-
       if (fdiag) then
-        if (out.ge.2) write (*,*) 'Forming diagonal...'
-        call find_mf_diag_neq(neq,ntot,matvec,igrid,igrid)
-        if (out.ge.2) write (*,*) 'Finished!'
+
+        allocate(diag(neq,2*ntot),STAT = alloc_stat)
+
+        if (alloc_stat.ne.0) then !Diagonal is known (failed alloc)
+          if (out.ge.2) write (*,*) 'Diagonal already allocated'
+          fdiag = .false.
+        elseif (associated(options%diag)) then !Diagonal provided externally
+          if (out.ge.2) write (*,*) 'Diagonal externally provided'
+          diag = options%diag
+        else                      !Form diagonal
+          if (out.ge.2) write (*,*) 'Forming diagonal...'
+          call find_mf_diag_neq(neq,ntot,matvec,igrid,diag)
+          if (out.ge.2) write (*,*) 'Finished!'
+        endif
+
       endif
 
 c SGS iteration
@@ -778,7 +813,7 @@ c End program
       deallocate (dummy,rhs)
 
       if (fdiag) deallocate(diag)
-      if (fpointers) deallocate(istart,ntotv)
+      call deallocPointers(fpointers)
 
       return
 
@@ -800,7 +835,7 @@ c     If order = 0, it employs simple injection.
 c     If order > 1, it employs spline interpolation of order "order".
 c----------------------------------------------------------------------
 
-      use mg_setup
+      use mg_internal
 
       implicit none            ! For safe Fortran
 
@@ -844,8 +879,6 @@ c Injection
 
 c Interpolation
 
-cc        order = 0
-
         nntotc = ntotc/neq
         nntotf = ntotf/neq
 
@@ -888,7 +921,7 @@ c     If order = 0, it employs simple agglomeration.
 c     If order > 1, it employs spline interpolation of order "order".
 c----------------------------------------------------------------------
 
-      use mg_setup
+      use mg_internal
 
       implicit none        !For safe fortran
 
@@ -931,8 +964,6 @@ c Agglomeration
 
 c Interpolation
 
-cc        order = 0
-
         nntotc = ntotc/neq
         nntotf = ntotf/neq
 
@@ -974,7 +1005,7 @@ c     If order = 0, it employs simple injection.
 c     If order > 1, it employs spline interpolation of order "order".
 c----------------------------------------------------------------------
 
-      use mg_setup
+      use mg_internal
 
       implicit none            ! For safe Fortran
 
@@ -1112,7 +1143,7 @@ c     If order = 0, it employs simple agglomeration.
 c     If order > 1, it employs spline interpolation of order "order".
 c----------------------------------------------------------------------
 
-      use mg_setup
+      use mg_internal
 
       implicit none        !For safe fortran
 
@@ -1219,30 +1250,39 @@ c End program
 
 c find_mf_diag_neq
 c####################################################################
-      subroutine find_mf_diag_neq(neq,ntot,matvec,ngrid,igridmin)
+      subroutine find_mf_diag_neq(neq,ntot,matvec,ngrid,diag1)
 c--------------------------------------------------------------------
 c     Finds diagonal elements matrix-free using subroutine matvec.
 c--------------------------------------------------------------------
 
-      use mg_setup
+      use mg_internal
 
       implicit none      !For safe fortran
 
 c Call variables
 
-      integer*4      neq,ntot,ngrid,igridmin
+      integer*4      neq,ntot,ngrid
+
+      double precision :: diag1(neq,2*ntot)
 
       external       matvec
 
 c Local variables
 
       real*8         x1(ntot),dummy(ntot)
-      integer*4      i,j,ii,nn,jj,i1,j1,i2,j2
-      integer*4      nx,ny,igrid,iii,ieq
+      integer*4      ii,jj,nn
+      integer*4      nx,ny,igrid,ieq,alloc_stat
+      logical        fpointers
 
 c Begin program
 
-      do igrid = ngrid,igridmin,-1
+c Allocate pointers
+
+      call allocPointers(neq,ngrid,fpointers)
+
+c Form diagonal
+
+      do igrid = ngrid,2,-1
 
 c     Form diagonal terms for smoother
 
@@ -1251,10 +1291,7 @@ c     Form diagonal terms for smoother
 
         nn = neq*nx*ny
 
-        do ii = 1,nn
-          x1    (ii) = 0d0
-          dummy (ii) = 0d0
-        enddo
+        x1(1:nn) = 0d0
 
 c Finds block diagonals for neq equations.
 
@@ -1264,47 +1301,74 @@ c Finds block diagonals for neq equations.
 
           do ieq = 1,neq
 
-c       Find column vector ii
+c         Find column vector corresponding to grid node ii and equation ieq
 
-          if (mod(ii,nx).eq.1) then
-            iii = neq*(ii-1) + ieq
-            x1(iii) = 1d0
-            iii = neq*(ii+nx-2) + ieq
-            x1(iii) = 1d0
-          elseif (mod(ii,nx).eq.0) then
-            iii = neq*(ii-1) + ieq
-            x1(iii) = 1d0
-            iii = neq*(ii-nx) + ieq
-            x1(iii) = 1d0
-          else
-            iii = neq*(ii-1) + ieq
-            x1(iii) = 1d0
-          endif
+            call findBaseVector(ii,ieq,neq,nn,igrid,x1,1d0)
 
-          call matvec(ii,nn,x1,dummy,igrid)
+            call matvec(ii,nn,x1,dummy,igrid)
 
-          if (mod(ii,nx).eq.1) then
-            iii = neq*(ii-1) + ieq
-            x1(iii) = 0d0
-            iii = neq*(ii+nx-2) + ieq
-            x1(iii) = 0d0
-          elseif (mod(ii,nx).eq.0) then
-            iii = neq*(ii-1) + ieq
-            x1(iii) = 0d0
-            iii = neq*(ii-nx) + ieq
-            x1(iii) = 0d0
-          else
-            iii = neq*(ii-1) + ieq
-            x1(iii) = 0d0
-          endif
+            call findBaseVector(ii,ieq,neq,nn,igrid,x1,0d0)
 
-          diag(ieq,jj+1:jj+neq) = dummy((ii-1)*neq+1:ii*neq)
+c         Fill diagonal
+
+            diag1(ieq,jj+1:jj+neq) = dummy((ii-1)*neq+1:ii*neq)
 
           enddo
 
         enddo
 
       enddo
+
+c Deallocate pointers
+
+      call deallocPointers(fpointers)
+
+c End program
+
+      return
+      end subroutine
+
+c findBaseVector
+c####################################################################
+      subroutine findBaseVector(ii,ieq,neq,ntot,igrid,x1,coef)
+c--------------------------------------------------------------------
+c     Finds base vector corresponding to grid node ii and equation ieq.
+c     Assumes that x1 has been initialized to zero elsewhere.
+c--------------------------------------------------------------------
+
+      use mg_setup
+
+      implicit none      !For safe fortran
+
+c Call variables
+
+      integer          :: neq,ii,ieq,ntot,igrid
+
+      double precision :: x1(ntot),coef
+
+c Local variables
+
+      integer          :: nx,ny,iii
+
+c Begin program
+
+      nx  = nxvp(igrid)
+      ny  = nyvp(igrid)
+
+      if (mod(ii,nx).eq.1) then
+        iii = neq*(ii-1) + ieq
+        x1(iii) = coef
+        iii = neq*(ii+nx-2) + ieq
+        x1(iii) = coef
+      elseif (mod(ii,nx).eq.0) then
+        iii = neq*(ii-1) + ieq
+        x1(iii) = coef
+        iii = neq*(ii-nx) + ieq
+        x1(iii) = coef
+      else
+        iii = neq*(ii-1) + ieq
+        x1(iii) = coef
+      endif
 
 c End program
 

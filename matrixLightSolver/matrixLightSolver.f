@@ -1,7 +1,16 @@
+c TO DO list:
+c
+c 1) Implement boundary conditions information for restriction, prolongation
+c    and matrix element determination.
+c
+c 2) Posibility of linking to user-provided solvers.
+c
+c 3) Separating 2D dependent routines, to allow more general use in 3D.
+
 
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 c THIS ROUTINE WORKS IN COMBINATION WITH THE FOLLOWING ROUTINES:
-c     coupledMG.f, mlsolver_mod.f
+c     coupledMG.f, mlsolver_mod.f mg_mod.f
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
 c getSolver
@@ -610,74 +619,27 @@ c Begin program
 
 c     Find column vector ii
 
-        if (mod(ii,nx).eq.1) then
-          x1(ii     ) = 1d0
-          x1(ii+nx-1) = 1d0
-        elseif (mod(ii,nx).eq.0) then
-          x1(ii     ) = 1d0
-          x1(ii-nx+1) = 1d0
-        else
-          x1(ii) = 1d0
-        endif
+        call findBaseVector(ii,1,1,nn,igrid,x1,1d0)
 
         call matvec(0,nn,x1,dummy,igrid)
 
-        if (mod(ii,nx).eq.1) then
-          x1(ii     ) = 0d0
-          x1(ii+nx-1) = 0d0
-        elseif (mod(ii,nx).eq.0) then
-          x1(ii     ) = 0d0
-          x1(ii-nx+1) = 0d0
-        else
-          x1(ii) = 0d0
-        endif
+        call findBaseVector(ii,1,1,nn,igrid,x1,0d0)
 
 c     Compare column vector ii with corresponding row vector (intersect in
 c     diagonal)
 
         do jj = ii,nn
 
-          if (mod(jj,nx).eq.1) then
-            x1(jj     ) = 1d0
-            x1(jj+nx-1) = 1d0
-          elseif (mod(jj,nx).eq.0) then
-            x1(jj     ) = 1d0
-            x1(jj-nx+1) = 1d0
-          else
-            x1(jj) = 1d0
-          endif
+          call findBaseVector(jj,1,1,nn,igrid,x1,1d0)
 
-          call matvec(0,nn,x1,dummy2,igrid)
+          call matvec(ii,nn,x1,dummy2,igrid)
 
-          if (mod(jj,nx).eq.1) then
-            x1(jj     ) = 0d0
-            x1(jj+nx-1) = 0d0
-          elseif (mod(jj,nx).eq.0) then
-            x1(jj     ) = 0d0
-            x1(jj-nx+1) = 0d0
-          else
-            x1(jj) = 0d0
-          endif
+          call findBaseVector(jj,1,1,nn,igrid,x1,0d0)
 
           dd1 = abs(dummy(jj) - dummy2(ii))
           if (abs(dummy(jj)).gt.1d-15.or.abs(dummy2(ii)).gt.1d-15) then
-            ix1 = mod(jj,nx)
-            if (ix1.eq.0) ix1 = nx
-            iy1 = 1 + (jj - ix1)/nx
-            ix2 = mod(ii,nx)
-            if (ix2.eq.0) ix2 = nx
-            iy2 = 1 + (ii - ix2)/nx
-cc            write(*,10) ii,jj,dd1
-cc     .                ,100*dd1/max(abs(dummy(jj)),abs(dummy2(ii)))
-cc     .                ,ix1,iy1,ix2,iy2
             write(*,15) jj,ii,dummy(jj),ii,jj,dummy2(ii),dd1
      .                ,100*dd1/max(abs(dummy(jj)),abs(dummy2(ii)))
-cc            if (mod(jj,nx).eq.1.or.mod(jj,nx).eq.0) then
-cc              write (*,*) 'periodic in jj'
-cc            endif
-cc            if (mod(ii,nx).eq.1.or.mod(ii,nx).eq.0) then
-cc              write (*,*) 'periodic in ii'
-cc            endif
             error = error + dd1
           endif
 
@@ -694,9 +656,7 @@ c End program
 
       return
 
- 10   format ('Element:',2i4,'  Error:',e10.2,
-     .        '  Perc.:',f7.2,'%  (',i2,',',i2,')  (',i2,',',i2,')')
- 15   format ('(',i2,',',i2,'):',1pe10.2,'; (',i2,',',i2,'):',e10.2,
+ 15   format ('(',i3,',',i3,'):',1pe10.2,'; (',i3,',',i3,'):',e10.2,
      .        '  Error:',e10.2,'  %error:',0pf7.2)
  20   format (/,'Total relative error:',1pe10.3)
 
