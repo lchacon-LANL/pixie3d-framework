@@ -14,9 +14,9 @@ c #####################################################################
 
       contains
 
-c     direct_map
+c     xi_x
 c     #################################################################
-      function direct_map(xx,yy,zz) result(curv)
+      function xi_x(xx,yy,zz) result(curv)
 
 c     -----------------------------------------------------------------
 c     Gives curvilinear coordinates from Cartesian coordinates
@@ -81,11 +81,11 @@ c     Begin program
 
         curv = (/ x1,x2,x3 /)
 
-      end function direct_map
+      end function xi_x
 
-c     inverse_map
+c     x_xi
 c     #################################################################
-      function inverse_map(x1,x2,x3) result(cartesian)
+      function x_xi(x1,x2,x3) result(cartesian)
 
 c     -----------------------------------------------------------------
 c     Gives Cartesian coordinates from curvilinear coordinates
@@ -144,7 +144,7 @@ c     Begin program
           zz = x3
 
           !Initial residual
-          rhs = -( (/x1,x2,x3/) - direct_map(xx,yy,zz) )
+          rhs = -( (/x1,x2,x3/) - xi_x(xx,yy,zz) )
 
           rr0 = sqrt(sum(rhs*rhs))
           rr  = rr0
@@ -174,7 +174,7 @@ cc            write (*,*) xx,yy,zz,rr
 
           !Check residual
 
-            rhs = -( (/x1,x2,x3/) - direct_map(xx,yy,zz) )
+            rhs = -( (/x1,x2,x3/) - xi_x(xx,yy,zz) )
 
             rr = sqrt(sum(rhs*rhs))
 
@@ -182,7 +182,7 @@ cc            write (*,*) xx,yy,zz,rr
 
           if (inewt >= 10) then
             write (*,*) 'Newton did not converge in',inewt,' iterations'
-            write (*,*) 'Problem in inverse_map'
+            write (*,*) 'Problem in x_xi'
             write (*,*) 'Aborting'
             stop
           endif
@@ -228,12 +228,12 @@ c     #################################################################
         if (info /= 0) then
           if (info < 0) then
             write (*,*) 'Problem in factorization in argument',-info
-            write (*,*) 'Error in inverse_map'
+            write (*,*) 'Error in x_xi'
             write (*,*) 'Aborting'
             stop
           else
             write (*,*) 'Matrix is singular'
-            write (*,*) 'Error in inverse_map'
+            write (*,*) 'Error in x_xi'
             write (*,*) 'Aborting'
             stop
           endif
@@ -241,7 +241,7 @@ c     #################################################################
 
       end subroutine solve
 
-      end function inverse_map
+      end function x_xi
 
 c     jacobian
 c     #################################################################
@@ -269,7 +269,7 @@ c     Begin program
           jac = 1d0
         case ('scl')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -280,21 +280,21 @@ c     Begin program
           jac = cc*lambda/(cc**2-ypp**2)
         case ('cyl')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
           jac = curv(1)
         case ('hel')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
           jac = curv(1)
         case ('tor')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -307,7 +307,7 @@ c     Begin program
           if (cartesian) then
             car = (/ x1,x2,x3 /)
           else
-            car = inverse_map(x1,x2,x3)
+            car = x_xi(x1,x2,x3)
           endif
           eps = gparams(1)
 cc          jac = 1./(1 + 2*Pi*eps*Sin(2*Pi*(car(1) + car(2))))
@@ -361,7 +361,7 @@ c     Begin program
         case ('scl')
           lambda = gparams(1)
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -380,7 +380,7 @@ c     Begin program
           end select
         case ('cyl')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -394,7 +394,7 @@ c     Begin program
           end select
         case ('hel')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -413,7 +413,7 @@ c     Begin program
         case ('tor')
           major_r = gparams(1)
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -437,7 +437,7 @@ c     Begin program
           if (cartesian) then
             car = (/ x1,x2,x3 /)
           else
-            car = inverse_map(x1,x2,x3)
+            car = x_xi(x1,x2,x3)
           endif
           eps = gparams(1)
           select case (comp)
@@ -500,7 +500,7 @@ c     Begin program
        case ('scl')
           lambda = gparams(1)
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -520,7 +520,7 @@ c     Begin program
           end select
         case ('cyl')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -534,7 +534,7 @@ c     Begin program
           end select
         case ('hel')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -573,7 +573,7 @@ c     Begin program
           if (cartesian) then
             car = (/ x1,x2,x3 /)
           else
-            car = inverse_map(x1,x2,x3)
+            car = x_xi(x1,x2,x3)
           endif
           eps = gparams(1)
           select case (comp)
@@ -634,7 +634,7 @@ c     Begin program
           vec = (/ 0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0 /)
         case ('scl')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -677,7 +677,7 @@ c     Begin program
           end select
         case ('cyl')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -715,7 +715,7 @@ c     Begin program
           end select
         case ('hel')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -757,7 +757,7 @@ c     Begin program
           end select
         case ('tor')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -803,7 +803,7 @@ c     Begin program
           if (cartesian) then
             car = (/ x1,x2,x3 /)
           else
-            car = inverse_map(x1,x2,x3)
+            car = x_xi(x1,x2,x3)
           endif
           eps = gparams(1)
           select case (k)
@@ -1251,7 +1251,7 @@ c     Begin program
 
           pi = acos(-1d0)
 
-          car = inverse_map(x1,x2,x3)
+          car = x_xi(x1,x2,x3)
           eps = gparams(1)
           select case (k)
             case (1)
@@ -1696,7 +1696,7 @@ c     Begin program
      .            ,0d0, 0d0, 1d0 /)
         case ('scl')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -1710,7 +1710,7 @@ c     Begin program
      .            ,0d0    , 0d0, 1d0/jac /)
         case ('cyl')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -1719,7 +1719,7 @@ c     Begin program
      .            ,0d0        , 0d0     , 1d0/curv(1) /)
         case ('hel')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -1731,7 +1731,7 @@ c     Begin program
      .            ,0d0,-aa*curv(1), 1./curv(1) + aa**2*curv(1) /)
         case ('tor')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -1746,7 +1746,7 @@ c     Begin program
           if (cartesian) then
             car = (/ x1,x2,x3 /)
           else
-            car = inverse_map(x1,x2,x3)
+            car = x_xi(x1,x2,x3)
           endif
           eps = gparams(1)
           vec(1) =
@@ -1907,7 +1907,7 @@ c     Begin program
      .            ,0d0, 0d0, 1d0 /)
        case ('scl')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -1921,7 +1921,7 @@ c     Begin program
      .            ,0d0, 0d0    , jac /)
         case ('cyl')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -1930,7 +1930,7 @@ c     Begin program
      .            ,0d0, 0d0   , curv(1) /)
         case ('hel')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -1942,7 +1942,7 @@ c     Begin program
      .            ,0d0, aa*curv(1), curv(1) /)
         case ('tor')
           if (cartesian) then
-            curv = direct_map(x1,x2,x3)
+            curv = xi_x(x1,x2,x3)
           else
             curv = (/ x1,x2,x3 /)
           endif
@@ -1957,7 +1957,7 @@ c     Begin program
           if (cartesian) then
             car = (/ x1,x2,x3 /)
           else
-            car = inverse_map(x1,x2,x3)
+            car = x_xi(x1,x2,x3)
           endif
           eps = gparams(1)
           vec(1) =
@@ -2132,6 +2132,20 @@ c #####################################################################
 
         type (grid_def) :: grid_params
 
+        type :: grid_metrics
+          real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
+          real(8),pointer,dimension(:,:,:)       :: vol   !Cell volumes
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
+          real(8),pointer,dimension(:,:,:,:,:,:) :: Gamma !Christoffel symbol at cell centers
+        end type grid_metrics
+
+        type :: MG_grid_metrics
+          type(grid_metrics),pointer,dimension(:) :: grid
+        end type MG_grid_metrics
+
+        type(MG_grid_metrics) :: gmetric
+
       contains
 
 c     getMGmap
@@ -2252,7 +2266,7 @@ c     Begin program
         call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                ,x1,y1,z1)
 
-        car = inverse_map(x1,y1,z1)
+        car = x_xi(x1,y1,z1)
 
         x1 = car(1)
         y1 = car(2)
@@ -3001,6 +3015,101 @@ c     Begin program
 c     End program
 
       end subroutine writeGridStructure
+
+c     allocateGridMetric
+c     #################################################################
+      subroutine allocateGridMetric(gmetric)
+
+        implicit none
+
+c     Call variables
+
+        type(MG_grid_metrics) :: gmetric
+
+c     Local variables
+
+        integer(4)      :: igrid,nxp,nyp,nzp
+
+c     Begin program
+
+        if (.not.associated(gmetric%grid)) then
+          allocate(gmetric%grid(grid_params%ngrid))
+        endif
+
+        do igrid=1,grid_params%ngrid
+          if (.not.associated(gmetric%grid(igrid)%jac)) then
+            nxp = grid_params%nxv(igrid)+1
+            nyp = grid_params%nyv(igrid)+1
+            nzp = grid_params%nzv(igrid)+1
+            allocate(gmetric%grid(igrid)%jac  (0:nxp,0:nyp,0:nzp))
+            allocate(gmetric%grid(igrid)%vol  (0:nxp,0:nyp,0:nzp))
+            allocate(gmetric%grid(igrid)%gsub (0:nxp,0:nyp,0:nzp,3,3))
+            allocate(gmetric%grid(igrid)%gsup (0:nxp,0:nyp,0:nzp,3,3))
+            allocate(gmetric%grid(igrid)%Gamma(0:nxp,0:nyp,0:nzp,3,3,3))
+          endif
+        enddo
+
+c     End program
+
+      end subroutine allocateGridMetric
+
+c     defineGridMetric
+c     #################################################################
+      subroutine defineGridMetric
+
+        implicit none
+
+c     Call variables
+
+cc        type(MG_grid_metrics) :: gmetric
+
+c     Local variables
+
+        integer(4)      :: igrid,nxp,nyp,nzp,i,j,k,ig,jg,kg
+     .                    ,igx,igy,igz
+        real(8)         :: x0,y0,z0
+        logical         :: cartsn
+
+c     Begin program
+
+        call allocateGridMetric(gmetric)
+
+        do igrid=1,grid_params%ngrid
+
+          igx = igrid
+          igy = igrid
+          igz = igrid
+
+          do k = 0,grid_params%nzv(igrid)+1
+            do j = 0,grid_params%nyv(igrid)+1
+              do i = 0,grid_params%nxv(igrid)+1
+
+                call getCoordinates(i,j,k,igx,igy,igz,ig,jg,kg,x0,y0,z0
+     .                             ,cartsn)
+
+                gmetric%grid(igrid)%jac  (i,j,k)
+     .                      = jacobian(x0,y0,z0,cartsn)
+                gmetric%grid(igrid)%vol  (i,j,k)
+     .                      = volume(i,j,k,igx,igy,igz)
+                gmetric%grid(igrid)%gsub (i,j,k,:,:)
+     .                      = g_sub   (x0,y0,z0,cartsn)
+                gmetric%grid(igrid)%gsup (i,j,k,:,:)
+     .                      = g_super (x0,y0,z0,cartsn)
+                gmetric%grid(igrid)%Gamma(i,j,k,1,:,:)
+     .                      = hessian(1,x0,y0,z0,cartsn)
+                gmetric%grid(igrid)%Gamma(i,j,k,2,:,:)
+     .                      = hessian(2,x0,y0,z0,cartsn)
+                gmetric%grid(igrid)%Gamma(i,j,k,3,:,:)
+     .                      = hessian(3,x0,y0,z0,cartsn)
+              enddo
+            enddo
+          enddo
+
+        enddo
+
+c     End program
+
+      end subroutine defineGridMetric
 
 c     createLogicalGrid
 c     #################################################################
