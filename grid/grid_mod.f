@@ -2955,21 +2955,19 @@ c     Input variables
 
 c     Local variables
 
-        real(8)    :: gmat(3,3),cov(3),cnv(3)
+        real(8)    :: cov(3),cnv(3)
 
 c     Begin program
 
         if (tocnv) then
-          cov = (/ cov1,cov2,cov3 /)
-          gmat= gmetric%grid(igx)%gsup(i,j,k,:,:)
-          cnv = matmul(gmat,cov)
+          cnv  = matmul(gmetric%grid(igx)%gsup(i,j,k,:,:)
+     .                 , (/ cov1,cov2,cov3 /))
           cnv1 = cnv(1)
           cnv2 = cnv(2)
           cnv3 = cnv(3)
         else
-          cnv  = (/ cnv1,cnv2,cnv3 /)
-          gmat = gmetric%grid(igx)%gsub(i,j,k,:,:)
-          cov  = matmul(gmat,cnv)
+          cov  = matmul(gmetric%grid(igx)%gsub(i,j,k,:,:)
+     .                 , (/ cnv1,cnv2,cnv3 /))
           cov1 = cov(1)
           cov2 = cov(2)
           cov3 = cov(3)
@@ -3449,18 +3447,18 @@ c     Begin program
 
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
-        if (nxx == 1) then
-          xmin = 0d0
-          xmax = 1d-3
-        endif
-        if (nyy == 1) then
-          ymin = 0d0
-          ymax = 1d-3
-        endif
-        if (nzz == 1) then
-          zmin = 0d0
-          zmax = 1d-3
-        endif
+cc        if (nxx == 1) then
+cc          xmin = 0d0
+cc          xmax = 1d-3
+cc        endif
+cc        if (nyy == 1) then
+cc          ymin = 0d0
+cc          ymax = 1d-3
+cc        endif
+cc        if (nzz == 1) then
+cc          zmin = 0d0
+cc          zmax = 1d-3
+cc        endif
 
       end subroutine consistencyCheck
 
