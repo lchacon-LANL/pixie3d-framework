@@ -715,6 +715,9 @@ c ##################################################################
         integer(hid_t) :: file_id        
         integer(hid_t) :: dataset_id     
         integer(hid_t) :: dataspace_id
+        integer(hid_t) :: attribute_id
+        integer(hid_t) :: dataspace_attr_id
+        integer(hid_t) :: attr_type_id
 
 c       variables for parallel HDF5
         integer(hid_t) :: plist_id
@@ -723,12 +726,23 @@ c       variables for parallel HDF5
 
         integer(4)     :: error,igrp
 
-        integer(hsize_t), dimension(3) :: array_dim
-        integer(4), dimension(7) :: array_dim_i 
-        
-        integer(4), parameter  :: ARRAY_RANK = 3
+        integer(4)     :: strlength
+        parameter(strlength = 9)
 
-        integer(4), dimension(5) :: groupdim
+        integer(hsize_t), dimension(3) :: array_dim
+        integer(hsize_t), dimension(1) :: attr_dim
+        integer(4), dimension(7)       :: array_dim_i 
+        
+        integer(4), parameter          :: ARRAY_RANK = 3
+        integer(4), parameter          :: ATTR_RANK = 1
+
+        integer(4), dimension(5)       :: groupdim
+
+        character(20), dimension(3) :: coords_descr
+
+        character(20)               :: coords_groupname
+        character(20)               :: attr_name
+        character(strlength), dimension(3) :: attr_data
 
       contains 
 
@@ -822,8 +836,15 @@ c     Create a new file using default properties.
 
 c     Create a new group.
 
+c     Create a group for coordinates data
+      if (itime == 0) then
+        call h5gcreate_f(file_id,coords_groupname,group_id,error,0)
+        call h5gclose_f(group_id,error)
+      endif
+
       call h5gcreate_f(file_id,groupname,group_id,error, 0)
 
+c     Create groups for computation data
       do igrp=1,ngroups
         call h5gcreate_f(group_id,graph(igrp)%descr,subgroup_id,
      $                  error,0)
@@ -856,21 +877,32 @@ c     Call variables
 
 c     Local variables
 
-      integer(4)     :: i,j,k,ieq
+      integer(4)     :: i,j,k,ieq,icoords
 
       character*(20) :: timestep
 
       integer(hsize_t), dimension(ARRAY_RANK) :: count(3)
       integer(hsize_t), dimension(ARRAY_RANK) :: offset(3)
 
+      real(8),allocatable,dimension(:,:,:,:) :: car
+
 c     Begin program
 
       array_dim = (/nxd,nyd,nzd/)
+      attr_dim  = (/3/)
+      coords_descr = (/'X','Y','Z'/)
+      coords_groupname = 'coords'
+      attr_name        = 'coords'
+
+      do i=1,attr_dim(1)
+        attr_data(i) = trim('/'//trim(coords_groupname)//
+     $                 '/'//trim(coords_descr(i)))
+      enddo
 
 c     Create the output file and data groups
 
       timestep = int2charHDF5(itime)
-      timestep = trim('Timestep '//int2charHDF5(itime))
+      timestep = trim('Timestep_'//int2charHDF5(itime))
 
       call createGroup(timestep)
 
@@ -881,18 +913,66 @@ c     Open an existing file.
       call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,error,
      $               H5P_DEFAULT_F)
 
-c     Write the actual data in each group
-
 c     Create the dataspace of actual data and its attributes
 c     ARRAY_RANK = rank of array,array_dim = dimension of array
       call h5screate_simple_f(ARRAY_RANK,array_dim,dataspace_id,error)
+      call h5screate_simple_f(ATTR_RANK,attr_dim,dataspace_attr_id,
+     $                        error)
 
+c     Write the coordinate data
+
+      if (itime == 0) then
+
+        call h5gopen_f(file_id,coords_groupname,group_id,error) 
+
+        allocate (car(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
+        
+        do k=kming,kmaxg
+          do j=jming,jmaxg
+            do i=iming,imaxg
+              call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
+     .             ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
+            enddo
+          enddo
+        enddo
+          
+        do icoords=1,3
+          call h5dcreate_f(group_id,coords_descr(icoords),
+     $                     H5T_IEEE_F64BE,
+     $                     dataspace_id,dataset_id,error)
+          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
+     $                    car(ilo:ihi,jlo:jhi,klo:khi,icoords), !must specify index ranges
+     $                    array_dim,error)
+          
+          call h5dclose_f(dataset_id,error)
+        enddo
+
+        call h5gclose_f(group_id, error)
+
+      endif
+
+c     Write the actual data in each group
       call h5gopen_f(file_id,timestep,group_id,error)
 
       do igrp=1,ngroups
 
 c       Open an existing group of the specified file.
         call h5gopen_f(group_id,graph(igrp)%descr,subgroup_id,error)
+
+c       Write "Attribute data"
+        if (graph(igrp)%cartesian) then
+          call h5tcopy_f(H5T_NATIVE_CHARACTER,attr_type_id,error)
+          call h5tset_size_f(attr_type_id,strlength,error)
+
+          call h5acreate_f(subgroup_id,attr_name,attr_type_id,
+     $                     dataspace_attr_id,attribute_id,
+     $                     error)
+
+          call h5awrite_f(attribute_id,attr_type_id,
+     $                    attr_data,
+     $                    attr_dim,error)
+          call h5aclose_f(attribute_id,error)
+        endif
 
         do ieq=1,nqty(igrp)
 c         Create the dataset
@@ -916,7 +996,7 @@ c         Release resources
       enddo
 
 c     Release resources
-        call h5gclose_f(group_id, error)
+      call h5gclose_f(group_id, error)
       call h5sclose_f(dataspace_id,error)
       call h5fclose_f(file_id,error)
 
@@ -941,7 +1021,7 @@ c     Call variables
 
 c     Local variables
 
-      integer(4)     :: i,j,k,ieq
+      integer(4)     :: i,j,k,ieq,icoords
 
       integer(4)     :: my_rank,mpierr
 
@@ -950,15 +1030,25 @@ c     Local variables
       integer(hsize_t), dimension(ARRAY_RANK) :: count(3)
       integer(hsize_t), dimension(ARRAY_RANK) :: offset(3)
 
+      real(8),allocatable,dimension(:,:,:,:) :: car
+
 c     Begin program
 
       array_dim = (/nxd,nyd,nzd/)
-      array_dim_i = (/nxd,nyd,nzd,0,0,0,0/)
+      attr_dim  = (/3/)
+      coords_descr = (/'X','Y','Z'/)
+      coords_groupname = 'coords'
+      attr_name = 'coords'
+
+      do i=1,attr_dim(1)
+        attr_data(i) = trim('/'//trim(coords_groupname)//
+     $                 '/'//trim(coords_descr(i)))
+      enddo
 
 c     Create the output file and data groups
 
       timestep = int2charHDF5(itime)
-      timestep = trim('Timestep '//int2charHDF5(itime))
+      timestep = trim('Timestep_'//int2charHDF5(itime))
 
       call createGroup(timestep)
 
@@ -979,6 +1069,8 @@ c     Write the actual data in each group
 
 c     Create the dataspace of actual data and its attributes
       call h5screate_simple_f(ARRAY_RANK,array_dim,dataspace_id,error)
+      call h5screate_simple_f(ATTR_RANK,attr_dim,dataspace_attr_id,
+     $                        error)
 
 c     Each process defines dataset in memory and writes it to the hyperslab
 c     in the file.
@@ -995,12 +1087,73 @@ c     Create property list for collective dataset write.
       call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,error)
       call h5pset_dxpl_mpio_f(plist_id,H5FD_MPIO_COLLECTIVE_F,error)
 
+c     Write the coordinate data
+
+      if (itime == 0) then
+
+        call h5gopen_f(file_id,coords_groupname,group_id,error) 
+
+        allocate (car(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
+        
+        do k=kming,kmaxg
+          do j=jming,jmaxg
+            do i=iming,imaxg
+              call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
+     .             ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
+            enddo
+          enddo
+        enddo
+
+        do icoords=1,ARRAY_RANK
+          call h5dcreate_f(group_id,coords_descr(icoords),
+     $                     H5T_IEEE_F64BE,
+     $                     dataspace_id,dataset_id,error)
+
+c         Select hyperslab in the file.
+          call h5dget_space_f(dataset_id,hs_dataspace_id,error)
+          call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
+     $                               offset,count,error)    
+
+c         Write data to the dataset
+          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
+     $                 car(ilo:ihi,jlo:jhi,klo:khi,icoords),
+cc     $                 car(iming:imaxg,jming:jmaxg,kming:kmaxg,icoords),
+     $                 array_dim_i,
+     $                 error,file_space_id = hs_dataspace_id,
+     $                 mem_space_id = p_dataspace_id,
+     $                 xfer_prp = plist_id)
+
+          call h5dclose_f(dataset_id,error)
+          call h5sclose_f(hs_dataspace_id,error)
+        enddo
+
+        call h5gclose_f(group_id, error)
+
+      endif
+
+c     Write the actual data
+
       call h5gopen_f(file_id,timestep,group_id,error)
 
       do igrp=1,ngroups
 
 c       Open an existing group of the specified file.
         call h5gopen_f(group_id,graph(igrp)%descr,subgroup_id,error)
+
+c       Write "Attribute data"
+        if (graph(igrp)%cartesian) then
+          call h5tcopy_f(H5T_NATIVE_CHARACTER,attr_type_id,error)
+          call h5tset_size_f(attr_type_id,strlength,error)
+
+          call h5acreate_f(subgroup_id,attr_name,attr_type_id,
+     $                     dataspace_attr_id,attribute_id,
+     $                     error)
+
+          call h5awrite_f(attribute_id,attr_type_id,
+     $                    attr_data,
+     $                    attr_dim,error)
+          call h5aclose_f(attribute_id,error)
+        endif
 
         do ieq=1,nqty(igrp)
 c         Create the dataset
@@ -1016,7 +1169,8 @@ c         Select hyperslab in the file.
 
 c         Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
-     $                     graph(igrp)%array_graph(ieq)
+     $                    graph(igrp)%array_graph(ieq)
+cc     $                      %array(iming:imaxg,jming:jmaxg,kming:kmaxg),
      $                       %array(ilo:ihi,jlo:jhi,klo:khi),
      $                    array_dim_i,
      $                    error,file_space_id = hs_dataspace_id,
