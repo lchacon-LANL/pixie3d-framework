@@ -200,8 +200,8 @@ c     #######################################################################
       subroutine calculate_dt
 
 
-        if (timecorr) then
-          if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor .eq. 1d0)) then
+        if (timecorr .or. cnfactor == 1d0) then
+          if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor == 1d0)) then
             call findExplicitDt
           else
             call adapt_dt(dtbase)
