@@ -20,6 +20,8 @@ c Begin program
       call deallocateDerivedType(u_n)
       call deallocateDerivedType(u_graph)
 
+      call destroyDA
+
 c End program
 
       end subroutine fortrandestroy
