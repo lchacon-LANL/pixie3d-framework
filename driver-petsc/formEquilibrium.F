@@ -38,29 +38,6 @@ c Local variables
 
 c Begin program
 
-c Initialize global domain limit variables
-
-      ihig = imax
-      ilog = imin
-      jhig = jmax
-      jlog = jmin
-      khig = kmax
-      klog = kmin
-
-c Initialize parallel MPI info
-
-      call initMPI
-
-c Set output file
-
-      urecord    = 25 + my_rank
-
-      if (np > 1) then
-        recordfile = 'record_proc'//trim(int2char(my_rank))//'.bin'
-      else
-        recordfile = 'record.bin'
-      endif
-
 c Check for autoinitializing parameters
 
       pi = acos(-1d0)
@@ -83,6 +60,13 @@ c Check for autoinitializing parameters
 
 c Initialize vector dimensions for global and local problems
 
+      ihig = imax
+      ilog = imin
+      jhig = jmax
+      jlog = jmin
+      khig = kmax
+      klog = kmin
+
       call setVectorDimensions
 
 c Allocate constant arrays
@@ -95,15 +79,28 @@ c Allocate constant arrays
       vzeros = 0d0
       ones   = 1d0
 
-c Initialize MG and create grid
+c Initialize MG, MPI, and create grid
 
+cc      write (*,*) ilog,ihig,jlog,jhig,klog,khig
       call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd)
+
+c Check grid
 
 cc      if (my_rank == 3) then
 cc        write (*,*) 'Grid in processor',my_rank
 cc        call checkGrid
 cc      endif
 cc      stop
+
+c Set output file
+
+      urecord    = 25 + my_rank
+
+      if (np > 1) then
+        recordfile = 'record_proc'//trim(int2char(my_rank))//'.bin'
+      else
+        recordfile = 'record.bin'
+      endif
 
 c Create nonlinear solver
 
@@ -128,97 +125,128 @@ c Transfer to Petsc format
       array = petscarray%array(ilo:ihi,jlo:jhi,klo:khi)
 
       call deallocatePetscType(petscarray)
-      call deallocateDerivedType(u_n)
+      call deallocateDerivedType(u_n)       !DO NOT deallocate u_0; needed in imposeBC routine
 
 c End program
+ 
+      end subroutine formEquilibrium
+
+c createNonlinearSolver
+c######################################################################
+      subroutine createNonlinearSolver
+
+c----------------------------------------------------------------------
+c     Allocates nonlinear solver arrays
+c----------------------------------------------------------------------
+
+      use parameters
+
+      use constants
+
+      use timeStepping
+
+      use variables
+
+      implicit none
+
+c Call variables
+
+c Local variables
+
+c Begin program
+
+      call allocateStructures
+
+c End programs
+
+      end subroutine createNonlinearSolver
+
+c createEquilibrium
+c######################################################################
+      subroutine createEquilibrium
+
+c----------------------------------------------------------------------
+c     Creates equilibrium according to user input.
+c----------------------------------------------------------------------
+
+      use parameters
+
+      use constants
+
+      use timeStepping
+
+      use variable_setup
+
+      use grid
+
+      implicit none
+
+c Call variables
+
+c Local variables
+
+      integer(4) :: ieq
+
+      real(8),allocatable,dimension(:,:,:,:) :: var
+
+      character*(20),allocatable,dimension(:):: label
+
+      integer(4),allocatable,dimension(:,:)  :: bcs
+
+c Begin program
+
+c Set equilibrium u_0 and define BCs on all variables
+
+      allocate(var(ilom:ihip,jlom:jhip,klom:khip,neqd)
+     $            ,label(neqd),bcs(6,neqd))
+
+      !Initialize boundary conditions
+      do ieq = 1,neqd
+        bcs(:,ieq) = bcond
+      enddo
+
+      var = 0d0
+
+      call setEquilibrium(var,bcs,label)
+
+      call packVariables(u_0)
+
+      deallocate(var,label,bcs)
+
+c End programs
 
       contains
 
-c     initMPI
-c     #####################################################################
-      subroutine initMPI
+c     packVariables
+c     #################################################################
+      subroutine packVariables(varray)
 
-c     ---------------------------------------------------------------------
-c     Initialize needed MPI constructs
-c     ---------------------------------------------------------------------
+c     -----------------------------------------------------------------
+c     Packs arrays into variable structure 
+c     -----------------------------------------------------------------
+
+      implicit none
 
 c     Call variables
 
+      type (var_array) :: varray
+
 c     Local variables
 
-        integer(4),allocatable,dimension(:) :: process_ranks
-        integer(4)        :: lnp_sp,gnp_sp,inp,rilog
+      integer(4) :: ieq
 
-c     Rank and number of processors
+c     Begin program
 
-        call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
-        call MPI_Comm_size(MPI_COMM_WORLD,np     ,mpierr)
+      varray%nvar = neqd
 
-cc      write (*,*) 'proc',my_rank,'coords',imin,imax,jmin,jmax,kmin,kmax
-cc
-cc      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cc      call MPI_Finalize(mpierr)
-cc      stop
+      do ieq = 1,neqd
+        call varPack (var(:,:,:,ieq),bcs(:,ieq),label(ieq)
+     .               ,ieq,varray)
+      enddo
 
-c     i=1 boundary communicator (for singular point calculations)
+c     End program
 
-        if (bcond(1) /= SP) return
+      end subroutine PackVariables
 
-        !Number of processes (-> gnp_sp, in ALL processors)
-        lnp_sp = 0
-        if (ilog == 1) lnp_sp = 1
-
-        call MPI_Allreduce(lnp_sp,gnp_sp,1,MPI_INTEGER
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-
-        allocate(process_ranks(0:gnp_sp-1))
-
-        !Select processes
-        if (my_rank == 0) then
-          lnp_sp = 0
-          if (ilog == 1) then
-            process_ranks(lnp_sp)=0
-            lnp_sp = lnp_sp+1
-          endif
-          do inp=1,np-1
-            tag = 0
-            call MPI_Recv(rilog,1,MPI_INTEGER,inp,tag
-     .                   ,MPI_COMM_WORLD,status,mpierr)
-            if (rilog == 1) then 
-              process_ranks(lnp_sp) = inp
-              lnp_sp = lnp_sp+1
-            endif
-          enddo
-        else
-          tag  = 0
-          dest = 0
-          call MPI_Send(ilog,1,MPI_INTEGER,dest,tag,MPI_COMM_WORLD
-     .                 ,mpierr)
-        endif
-
-        !Synchronize process_ranks in ALL processes
-        call MPI_Bcast(process_ranks,gnp_sp,MPI_INTEGER,root
-     .                ,MPI_COMM_WORLD,mpierr)
-
-        !Get group underlying MPI_COMM_WORLD
-        call MPI_Comm_group(MPI_COMM_WORLD,group_world,mpierr)
-
-        !Create new group using process_ranks (-> group_sp)
-        call MPI_Group_incl(group_world,gnp_sp,process_ranks,group_sp
-     .                     ,mpierr)
-
-        !Create new communicator (-> MPI_COMM_SP)
-        call MPI_Comm_create(MPI_COMM_WORLD,group_sp,MPI_COMM_SP,mpierr)
-
-cc      write (*,*) 'sp procs',process_ranks
-cc
-cc      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cc      call MPI_Finalize(mpierr)
-cc      stop
-
-        deallocate(process_ranks)
-
-      end subroutine initMPI
-
-      end subroutine formEquilibrium
+      end subroutine createEquilibrium
 

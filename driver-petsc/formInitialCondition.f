@@ -1,7 +1,7 @@
 c formInitialCondition
 c######################################################################
-      subroutine formInitialCondition(array,imingc,imaxgc,jmingc,jmaxgc
-     .                               ,kmingc,kmaxgc)
+      subroutine formInitialCondition(array,imin,imax,jmin,jmax
+     .                               ,kmin,kmax)
 
 c----------------------------------------------------------------------
 c     Initializes MG and creates grid
@@ -27,13 +27,13 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4)      ::imingc,imaxgc,jmingc,jmaxgc,kmingc,kmaxgc
+      integer(4)      :: imin,imax,jmin,jmax,kmin,kmax
 
-      type(petsc_var) ::array(imingc:imaxgc,jmingc:jmaxgc,kmingc:kmaxgc)
+      type(petsc_var) :: array(imin:imax,jmin:jmax,kmin:kmax)
 
 c Local variables
 
-      integer(4)      :: imingcl,imaxgcl,jmingcl,jmaxgcl,kmingcl,kmaxgcl
+      integer(4)      :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl
 
       type(petsc_array) :: petscarray
 
@@ -41,13 +41,11 @@ c Begin program
 
       call allocatePetscType(petscarray)
 
-      call fromGlobalToLocalLimits(imingc ,jmingc ,kmingc
-     $                            ,imingcl,jmingcl,kmingcl)
-      call fromGlobalToLocalLimits(imaxgc ,jmaxgc ,kmaxgc
-     $                            ,imaxgcl,jmaxgcl,kmaxgcl)
+      call fromGlobalToLocalLimits(imin,jmin,kmin,iminl,jminl,kminl)
+      call fromGlobalToLocalLimits(imax,jmax,kmax,imaxl,jmaxl,kmaxl)
 
-      petscarray%array(imingcl:imaxgcl,jmingcl:jmaxgcl,kmingcl:kmaxgcl)
-     .         = array(imingc :imaxgc ,jmingc :jmaxgc ,kmingc :kmaxgc )
+      petscarray%array(iminl:imaxl,jminl:jmaxl,kminl:kmaxl)
+     .         = array(imin :imax ,jmin :jmax ,kmin :kmax )
 
 c Map petsc array
 
@@ -94,8 +92,8 @@ c Transfer to Petsc format
 
       petscarray = u_np
 
-      array(imingc:imaxgc,jmingc:jmaxgc,kmingc:kmaxgc) =
-     . petscarray%array(imingcl:imaxgcl,jmingcl:jmaxgcl,kmingcl:kmaxgcl)
+      array(imin:imax,jmin:jmax,kmin:kmax) =
+     .          petscarray%array(iminl:imaxl,jminl:jmaxl,kminl:kmaxl)
 
       call deallocatePetscType(petscarray)
       call deallocateDerivedType(u_np)

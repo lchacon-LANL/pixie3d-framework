@@ -1043,16 +1043,12 @@ c module iosetup
 c ######################################################################
       module iosetup
 
-        use mpi
+        use local_mpi
 
         integer(4)     :: ilevel
 
         integer(4)     :: urecord
         character*(20) :: recordfile
-
-        !MPI
-        integer(4)     :: np,my_rank,mpierr,MPI_COMM_SP,group_world
-     .                   ,group_sp,tag=0,dest=0,root=0,status
 
       contains
 

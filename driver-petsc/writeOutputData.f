@@ -1,7 +1,7 @@
 c writeOutputData
 c ######################################################################
       subroutine writeOutputData(array,imingc,imaxgc,jmingc,jmaxgc
-     .                               ,kmingc,kmaxgc,gmits,nwits)
+     .                                ,kmingc,kmaxgc,gmits,nwits)
 
       use variables
 

@@ -453,7 +453,8 @@ int FormInitialCondition(SNES snes,Vec X,void *ptr)
   xe_g = xs_g + xm_g - 1;
 
   /*
-   * Compute function over the locally owned part of the grid
+   * Compute initial condition over the locally owned part of the grid, including 
+   * ghost cells (which are needed for restarting the calculation)
    */
 
 #ifdef absoft
@@ -471,6 +472,7 @@ int FormInitialCondition(SNES snes,Vec X,void *ptr)
 
   PetscFunctionReturn(0);
 }
+
 
 /* --------------------  Process old time solution ----------------- */
 #undef __FUNCT__
