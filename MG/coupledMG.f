@@ -3050,7 +3050,7 @@ c Call variables
 c Local variables
 
       real(8)    :: x1(ntot),dummy(ntot),mat(neq,neq),mat2(neq,neq)
-     $             ,delta
+     $             ,det
       integer(4) :: ii,jj,nn,ig,iig,isig
       integer(4) :: igr,ieq,alloc_stat
       logical    :: fpointers
@@ -3123,12 +3123,12 @@ c     Invert diagonal and store in diag1
 
           do ii = 1,ntotvp(igr)
             iig = neq*(ii - 1) + isig - 1
-            delta = diag1(1,iig+1)*diag1(2,iig+2)
-     .             -diag1(2,iig+1)*diag1(1,iig+2)
-            mat(1,1) = diag1(2,iig+2)/delta
-            mat(1,2) =-diag1(2,iig+1)/delta
-            mat(2,1) =-diag1(1,iig+2)/delta
-            mat(2,2) = diag1(1,iig+1)/delta
+            det = diag1(1,iig+1)*diag1(2,iig+2)
+     .           -diag1(2,iig+1)*diag1(1,iig+2)
+            mat(1,1) = diag1(2,iig+2)/det
+            mat(1,2) =-diag1(2,iig+1)/det
+            mat(2,1) =-diag1(1,iig+2)/det
+            mat(2,2) = diag1(1,iig+1)/det
 
             diag1(:,iig+1:iig+neq) = mat
           enddo
