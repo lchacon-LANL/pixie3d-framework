@@ -293,8 +293,8 @@ c     Begin program
             jjmin = jming
             jjmax = jmaxg
           else
-            jjmin = max(jmaxg/3,1)
-            jjmax = max(jmaxg/3,1)
+            jjmin = max(2*jmaxg/3,1)
+            jjmax = max(2*jmaxg/3,1)
           endif
           kkmax = 1
           kkmin = 1

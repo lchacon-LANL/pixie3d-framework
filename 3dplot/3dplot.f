@@ -201,16 +201,11 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: igx,igy,igz
+      integer(4) :: igx,igy,igz,ierr
 
 c Local variables
 
-      integer(4) :: nx,ny,nz,ierr
-
 c Begin program
-
-      urecord = 2
-      recordfile = 'record.bin'
 
 c Read user initializations
 
@@ -218,19 +213,7 @@ c Read user initializations
 
 c Open graphics file
 
-      open(urecord,file=recordfile,form='unformatted',status='unknown')
-
-      read (urecord) nx
-      read (urecord) ny
-      read (urecord) nz
-
-c Consistency check
-
-      if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
-        write (*,*) 'Grid size does not agree'
-        write (*,*) 'Aborting graphics dump...'
-        stop
-      endif
+      call openGraphicsFile
 
 c Initialize vector dimensions
 
@@ -286,62 +269,172 @@ c End program
 
       end subroutine initializeCalculation
 
-ccc createGraphics
-ccc######################################################################
-cc      subroutine createGraphics(igx,igy,igz)
-cc
-ccc----------------------------------------------------------------------
-ccc     Creates graphics pointers, defines dumping intervals
-ccc----------------------------------------------------------------------
-cc
-cc      use parameters
-cc
-cc      use constants
-cc
-cc      use timeStepping
-cc
-cc      use variables
-cc
-cc      use graphics
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer(4) :: igx,igy,igz
-cc
-ccc Local variables
-cc
-ccc Begin program
-cc
-ccc Initialize graphics
-cc
-cc
-ccc End programs
-cc
-cc      end subroutine createGraphics
+c openGraphicsFile
+c######################################################################
+      subroutine openGraphicsFile
 
-ccc imposeBoundaryConditions
-ccc####################################################################
-cc      subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz)
-ccc--------------------------------------------------------------------
-ccc     Sets adequate boundary conditions on array structure varray.
-ccc--------------------------------------------------------------------
-cc
-cc      use variables
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer(4) :: iigx,iigy,iigz
-cc
-cc      type (var_array) :: varray
-cc
-ccc Local variables
-cc
-ccc Begin program
-cc
-ccc End program
-cc
-cc      end subroutine imposeBoundaryConditions
+c----------------------------------------------------------------------
+c     In parallel runs, it merges all output files 'record_proc*.bin'
+c     to a serial file 'record.bin', and then opens it for postprocessing.
+c----------------------------------------------------------------------
+
+      use parameters
+
+      use constants
+
+      use timeStepping
+
+      use variables
+
+      use graphics
+
+      use iosetup
+
+      use generalOperators
+
+      implicit none
+
+c Call variables
+
+c Local variables
+
+      integer(4) :: nx,ny,nz,ierr,nfiles,ifile
+      integer(4),allocatable,dimension(:)     :: murecord
+      character*(20),allocatable,dimension(:) :: mrecfile
+
+c Externals
+
+      integer(4) :: system
+
+c Begin program
+
+c Initialize graphics
+
+      urecord    = 2
+      recordfile = 'record.bin'
+
+c For parallel runs, merge graphics files
+
+      ierr = system('ls record_proc* >& /dev/null')
+
+      if (ierr == 0) then
+
+        !Find out number of graphics files
+        nfiles = -1
+        ierr   = 0
+        do while (ierr == 0)
+          nfiles=nfiles+1
+          ierr=
+     .        system('ls record_proc'//trim(int2char(nfiles))
+     .               //'.bin >& /dev/null')
+        enddo
+
+        allocate(mrecfile(nfiles),murecord(nfiles))
+
+        do ifile=1,nfiles
+          murecord(ifile) = 20+ifile
+          mrecfile(ifile) =
+     .         'record_proc'//trim(int2char(ifile-1))//'.bin'
+        enddo
+
+        open(urecord,file=recordfile,form='unformatted'
+     .       ,status='unknown')
+
+        !Merge graphics files: INITIALIZATION
+        nx = 0
+        ny = 0
+        nz = 0
+        do ifile=1,nfiles
+
+          open(murecord(ifile),file=mrecfile(ifile),form='unformatted'
+     .        ,status='old')
+
+          read (murecord(ifile)) nxl
+          read (murecord(ifile)) nyl
+          read (murecord(ifile)) nzl
+
+          if (nxl /= nxd) then
+            nx = nx + nxl
+          else
+            nx = nxl
+          endif
+          if (nyl /= nyd) then
+            ny = ny + nyl
+          else
+            ny = nyl
+          endif
+          if (nzl /= nzd) then
+            nz = nz + nzl
+          else
+            nz = nzl
+          endif
+
+        enddo
+
+        write (urecord) nx
+        write (urecord) ny
+        write (urecord) nz
+
+        !Consistency check
+
+        if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
+          write (*,*) 'Grid size does not agree'
+          write (*,*) 'Aborting graphics files merging...'
+          stop
+        endif
+
+        !Initialize vector dimensions
+        call setVectorDimensions
+
+        !Merge graphics files: DATA
+        call allocateDerivedType(u_np)
+
+        do 
+
+          do ifile=1,nfiles
+
+            call readRecord(murecord(ifile),itime,time,dt,u_np,ierr)
+            if (ierr == -1) cycle !Error, but not EOF
+            if (ierr == -2) cycle !EOF
+
+          enddo
+
+          if (ierr == -1) cycle !Error, but not EOF
+          if (ierr == -2) exit  !EOF
+
+          !Reset vector dimensions
+          call setVectorDimensions
+
+          call writeRecordFile(urecord,itime,time,dt,u_np)
+
+        enddo
+
+        !Close files
+        close(urecord)
+        do ifile=1,nfiles
+          close(murecord(ifile))
+        enddo
+
+        deallocate(mrecfile,murecord)
+        call deallocateDerivedType(u_np)
+      endif
+
+c Open graphics file
+
+      open(urecord,file=recordfile,form='unformatted',status='unknown')
+
+c Consistency check
+
+      read (urecord) nx
+      read (urecord) ny
+      read (urecord) nz
+
+      if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
+        write (*,*) 'Grid size does not agree'
+        write (*,*) 'Aborting graphics dump...'
+        stop
+      endif
+
+c End programs
+
+      end subroutine openGraphicsFile
