@@ -16,6 +16,10 @@ static char help[] = "Options:
 #include <stdio.h>
 #include <string.h>
 
+#include "hdf5.h"
+#include <assert.h>
+#include <math.h>
+
 #define POWFLOP 5 /* assume a pow() takes five flops */
 #define DIFF_NORM 1.0e-10
 
@@ -25,12 +29,12 @@ typedef struct {
 
 /* User-defined application context */
 typedef struct {
-
   PetscReal tolgm;
   PetscReal rtol;
   PetscReal atol;
   PetscReal damp;
-  PetscReal dt0;
+  PetscReal dt;
+  PetscReal tmax;
   int       nxd;
   int       nyd;
   int       nzd;
@@ -44,45 +48,69 @@ typedef struct {
   int       bcs[6];
 } input_CTX;
 
-#ifdef absoft
-extern void FORTRAN_NAME(EVALUATENONLINEARRESIDUAL) 
-                      (Field*, Field*, int*, int*, int*, int*, int*, int*,
-		       int*, int*, int*, int*, int*, int*);
-extern void FORTRAN_NAME(FORMEQUILIBRIUM) (Field*, int*, int*, int*, int*, int*, int*);
-extern void FORTRAN_NAME(FORMINITIALCONDITION) (Field*, int*, int*, int*, int*, int*, int*);
-
-extern void FORTRAN_NAME(WRITEOUTPUTDATA) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
-extern void FORTRAN_NAME(CORRECTTIMESTEP) (PetscScalar*,PetscScalar*,PetscScalar*,int*);
-extern void FORTRAN_NAME(FORTRANDESTROY) ();
-extern void FORTRAN_NAME(READINPUTFILE) (input_CTX*);
-#else
-extern void FORTRAN_NAME(evaluatenonlinearresidual) 
-                      (Field*, Field*, int*, int*, int*, int*, int*, int*,
-		       int*, int*, int*, int*, int*, int*);
-extern void FORTRAN_NAME(formequilibrium) (Field*, int*, int*, int*, int*, int*, int*);
-extern void FORTRAN_NAME(forminitialcondition) (Field*, int*, int*, int*, int*, int*, int*);
-
-extern void FORTRAN_NAME(writeoutputdata) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
-extern void FORTRAN_NAME(correcttimestep) (PetscScalar*,PetscScalar*,PetscScalar*,int*);
-extern void FORTRAN_NAME(fortrandestroy) ();
-extern void FORTRAN_NAME(readinputfile) (input_CTX*);
-#endif
-
-
 typedef struct {
   DA	      da;
   input_CTX   indata;
   int         nwits;
   int         gmits;
   int         ierr;
+  PetscReal   dt;
+  PetscReal   time;
   Vec         x0;
   Vec         xold;
   Vec         fold;
   Vec         fsrc;
+  PetscTruth  hdf5c;
 } AppCtx;
 
+#include "writeOutputDataHDF5c.h"
+
+#ifdef absoft
+extern void FORTRAN_NAME(EVALUATENONLINEARRESIDUAL) 
+                      (Field*, Field*, int*, int*, int*, int*, int*, int*,
+		       int*, int*, int*, int*, int*, int*);
+extern void FORTRAN_NAME(FORMEQUILIBRIUM) (Field*, int*, int*, int*, int*, int*, int*);
+extern void FORTRAN_NAME(FORMINITIALCONDITION) (Field*,int*,int*,int*,int*,int*,int*,PetscScalar*);
+
+extern void FORTRAN_NAME(WRITEOUTPUTDATA) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
+extern void FORTRAN_NAME(CORRECTTIMESTEP) (PetscScalar*,PetscScalar*,PetscScalar*,int*,PetscScalar*);
+extern void FORTRAN_NAME(FORTRANDESTROY) ();
+extern void FORTRAN_NAME(READINPUTFILE) (input_CTX*);
+extern void FORTRAN_NAME(INITIALIZEHDF5FILE) (char*);
+extern void FORTRAN_NAME(CREATEGROUP) (int*, char*);
+extern void FORTRAN_NAME(WRITEHDF5FILE) (int*, int*, int*, int*, int*, int*,
+					 int*, int*, int*, int*,
+					 double*, char*, Field*);
+extern void FORTRAN_NAME(READHDF5FILE) (int*, int*, int*, int*, int*, int*,
+					int*, int*, int*, int*,
+					double*, char*, Field*);
+#else
+extern void FORTRAN_NAME(evaluatenonlinearresidual) 
+                      (Field*, Field*, int*, int*, int*, int*, int*, int*,
+		       int*, int*, int*, int*, int*, int*);
+extern void FORTRAN_NAME(formequilibrium) (Field*, int*, int*, int*, int*, int*, int*);
+extern void FORTRAN_NAME(forminitialcondition) (Field*,int*,int*,int*,int*,int*,int*,PetscScalar*);
+
+extern void FORTRAN_NAME(writeoutputdata) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
+extern void FORTRAN_NAME(correcttimestep) (PetscScalar*,PetscScalar*,PetscScalar*,int*,PetscScalar*);
+extern void FORTRAN_NAME(fortrandestroy) ();
+extern void FORTRAN_NAME(readinputfile) (input_CTX*);
+extern void FORTRAN_NAME(initializehdf5file) (char*);
+extern void FORTRAN_NAME(creategroup) (int*, char*);
+extern void FORTRAN_NAME(writehdf5file) (int*, int*, int*, int*, int*, int*,
+					 int*, int*, int*, int*,
+					 double*, char*, Field*);
+extern void FORTRAN_NAME(readhdf5file) (int*, int*, int*, int*, int*, int*,
+					int*, int*, int*, int*,
+					double*, char*, Field*);
+#endif
+
 /* User-defined routines */
+
+
 extern int ReadInputNInitialize(input_CTX*, DAPeriodicType*);
+extern int writeOutputDataHDF5(int, char* [], char*, Vec, void*);
+extern int readOutputDataHDF5(int, char* [], char*, Vec, void*);
 extern int FormFunction        (SNES, Vec, Vec, void*);
 extern int FormEquilibrium     (SNES, Vec, void*);
 extern int FormInitialCondition(SNES, Vec, void*);
@@ -97,7 +125,6 @@ int MAIN__(int argc, char **argv)
 #endif
 {
   SNES     snes;	        /* SNES context */
-  SLES     sles;           /* SLES context */
   KSP      ksp;            /* KSP context  */
   PC       pc;             /* PC context   */
   Vec	   x, r;	        /* Vec x: solution, r: residual */
@@ -108,24 +135,48 @@ int MAIN__(int argc, char **argv)
   int     nyd = 32;         /* y-direction grid size, i.e., ny */
   int     nzd = 1;          /* z-direction grid size, i.e., nz */
   int     numtime;
-  int     i, steps;
-  int     size;           /* num. of processors used */
+  int     i, steps=0;
+  int     np,npx,npy,npz;           /* num. of processors used */
   int     my_rank;        /* id of my processor */
-
-  PetscReal atol,rtol,tolgm;
-  int       maxitnwt,maxitgm;
+  PetscReal atol;
+  PetscReal rtol;
+  PetscReal tolgm;
+  PetscReal time,tmax;
+  int       maxitnwt;
+  int       maxitgm;
  
   DAPeriodicType     BC=DA_NONPERIODIC;
 
   Mat                J;     /* Jacobian matrix for FD approximation */
-  PetscTruth         matrix_free,user_precond;
+  PetscTruth         matrix_free;
+  PetscTruth         user_precond;
 
-  
+  char *filename = "3dmhd.h5";
+  char *datasetname[] = {"Rho", "Vx", "Vy", "Vz", "Bx", "By", "Bz", "Temp"};
   
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Begin program
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */	
   ierr = PetscInitialize(&argc, &argv, (char *)0, help);CHKERRQ(ierr);
+
+  MPI_Comm_rank(PETSC_COMM_WORLD, &my_rank);
+  MPI_Comm_size(PETSC_COMM_WORLD, &np);
+
+  /* Create the output file and data groups                                */
+  user.hdf5c = 0;
+  ierr = PetscOptionsHasName(PETSC_NULL,"-hdf5c",&user.hdf5c);CHKERRQ(ierr);
+
+  if (my_rank == 0) {
+    if (user.hdf5c) {
+      initializeOutputFile(datasetname, filename);
+    } else {
+#ifdef absoft
+      FORTRAN_NAME(INITIALIZEHDF5FILE) (filename);
+#else
+      FORTRAN_NAME(initializehdf5file) (filename);
+#endif
+    }
+  }
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set problem parameters
@@ -143,12 +194,32 @@ int MAIN__(int argc, char **argv)
   rtol 	   = user.indata.rtol;
   tolgm    = user.indata.tolgm;
   numtime  = user.indata.numtime;
+  if (numtime < 0) numtime = 10000000;
+  tmax     = user.indata.tmax;
+  if (tmax == 0.) tmax = 1e30;
   maxitnwt = user.indata.maxitnwt;
   if (maxitnwt == 0) maxitnwt = (int) PetscMax((1.5*log(rtol)/log(tolgm)),10.);
 
+  user.dt = user.indata.dt;
+
   /* Set runtime options */
   
-  ierr = PetscOptionsGetInt(PETSC_NULL,"-nmax",&numtime,PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt (PETSC_NULL,"-nmax",&numtime,PETSC_NULL);CHKERRQ(ierr);
+  
+  ierr = PetscOptionsGetReal(PETSC_NULL,"-tmax",&tmax   ,PETSC_NULL);CHKERRQ(ierr);
+
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+     Set processor distribution
+     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
+
+  npx = PETSC_DECIDE;
+  npy = PETSC_DECIDE;
+  npz = PETSC_DECIDE;
+  if (np >= 2) {
+    if (np%2 == 0) {
+      /*      npx = 2;*/
+    }
+  }
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create SNES context 
@@ -156,10 +227,9 @@ int MAIN__(int argc, char **argv)
 
   ierr = SNESCreate(PETSC_COMM_WORLD, &snes);CHKERRQ(ierr);
 
-  ierr = DACreate3d(PETSC_COMM_WORLD,BC,DA_STENCIL_BOX, nxd,nyd,nzd,\
-		    PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,\
+  ierr = DACreate3d(PETSC_COMM_WORLD,BC,DA_STENCIL_BOX,nxd,nyd,nzd,npx,npy,npz,\
 		    NVAR,1,PETSC_NULL,PETSC_NULL,PETSC_NULL,&user.da);CHKERRQ(ierr);
-
+  
   ierr = DACreateGlobalVector(user.da,&x);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&r);CHKERRQ(ierr);
   ierr = VecDuplicate(x,&user.x0  );CHKERRQ(ierr);
@@ -191,9 +261,8 @@ int MAIN__(int argc, char **argv)
   /* Set preconditioner for matrix-free method */
   ierr = PetscOptionsHasName(PETSC_NULL,"-snes_mf",&matrix_free);CHKERRQ(ierr);
   if (matrix_free) {
-    ierr = SNESGetSLES(snes,&sles); CHKERRQ(ierr);
-    ierr = SLESGetKSP (sles,&ksp ); CHKERRQ(ierr);
-    ierr = SLESGetPC  (sles,&pc  ); CHKERRQ(ierr);
+    ierr = SNESGetKSP (snes, &ksp); CHKERRQ(ierr);
+    ierr = KSPGetPC   (ksp, &pc); CHKERRQ(ierr);
     ierr = KSPSetTolerances(ksp,tolgm,PETSC_DEFAULT,PETSC_DEFAULT,maxitgm);CHKERRQ(ierr);
     ierr = PetscOptionsHasName(PETSC_NULL,"-user_precond",&user_precond);CHKERRQ(ierr);
     if (user_precond) {
@@ -204,7 +273,7 @@ int MAIN__(int argc, char **argv)
       ierr = PCSetType(pc,PCNONE); CHKERRQ(ierr);
     }
   } else {
-    SETERRQ(1, "You shoud use \"matrix-free method\", i.e., -snes_mf");
+    SETERRQ(1, "You should use \"matrix-free method\", i.e., -snes_mf");
   }
 
   /* Set SNES run time options */
@@ -226,23 +295,30 @@ int MAIN__(int argc, char **argv)
   ierr = FormInitialCondition(snes, x, &user);CHKERRQ(ierr);
   /*ierr = FormInitialCondition(snes, user.fsrc, &user);CHKERRQ(ierr);*/
 
- 
+  ierr = writeOutputDataHDF5(steps, datasetname, filename, x, (void*)&user);CHKERRQ(ierr); 
+
+  time = user.time+user.dt;
+
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     Time stepping 
+     Time stepping  
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   
-  /* for (steps = 1; (steps < 100) && (norm_2 > DIFF_NORM); steps++) { */
-  for (steps = 0; steps < numtime; steps++) {
+  for (steps=1; (steps<=numtime)&&(time<=tmax); steps++,time+=user.dt) {
     
     ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
 
     ierr = VecCopy(x, user.xold);CHKERRQ(ierr);
 
-    ierr = SNESSolve(snes,x,&user.nwits);CHKERRQ(ierr);
+    ierr = SNESSolve(snes, x); CHKERRQ(ierr);
+
+    ierr = SNESGetIterationNumber(snes,&user.nwits);CHKERRQ(ierr);
 
     ierr = SNESGetNumberLinearIterations(snes,&user.gmits);CHKERRQ(ierr);
-    
+
+    ierr = writeOutputDataHDF5(steps, datasetname, filename, x, (void*)&user);CHKERRQ(ierr);
+
     /*
+    PetscPrintf(PETSC_COMM_WORLD,"Time = %g, Tmax = %g \n",time,tmax);
     PetscPrintf(PETSC_COMM_WORLD,"Steps = %d Number of Newton iterations = %d\n"\
       ,steps, user.nwits);
     PetscPrintf(PETSC_COMM_WORLD,"Steps = %d Number of Krylov iterations = %d\n"\
@@ -251,7 +327,12 @@ int MAIN__(int argc, char **argv)
   }
   
   ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
-  
+
+  /*steps -= 1;
+  ierr = readOutputDataHDF5(steps, datasetname, filename, x, (void*)&user);CHKERRQ(ierr);
+  steps += 1;
+  ierr = writeOutputDataHDF5(steps, datasetname, filename, x, (void*)&user);CHKERRQ(ierr);*/
+
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Deallocate memory and finish
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -317,6 +398,138 @@ int ReadInputNInitialize(input_CTX* data, DAPeriodicType* BC)
   ierr = PetscOptionsGetInt(PETSC_NULL,"-nz",&data->nzd,PETSC_NULL);CHKERRQ(ierr);
   
   PetscFunctionReturn(0);
+}
+
+/* -------------------- Write output data routine using HDF5 ------------- */
+#undef __FUNCT__
+#define __FUNCT__ "readOutputDataHDF5"
+int readOutputDataHDF5(int steps, char* datasetname[], char* filename, Vec X, void *ctx)
+{
+  AppCtx        *user = (AppCtx*)ctx;
+  Field	        ***xvec;
+  PetscScalar	dt;
+  int	        xs, ys, zs, xm, ym, zm,  mx, my, mz;
+  int           ze,ye,xe;
+  int           my_rank;
+  int           ierr, i, j, k, ivar;
+  
+  MPI_Comm_rank(PETSC_COMM_WORLD, &my_rank);
+
+  DAGetInfo(user->da, PETSC_NULL, &mx, &my, &mz, PETSC_NULL, PETSC_NULL,
+	    PETSC_NULL, PETSC_NULL, PETSC_NULL, PETSC_NULL, PETSC_NULL);
+  
+  /*
+   * Get pointers to vector data
+   */
+  DAVecGetArray(user->da, X, (void**)&xvec);
+  
+  /*
+   * Get local grid boundaries
+   */
+  DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);  
+  
+  for (ivar = 0; ivar < NVAR; ivar++)
+    for (k = zs; k < zs+zm; k++)
+      for (j = ys; j < ys+ym; j++)
+	for (i = xs; i < xs+xm; i++)
+	  xvec[k][j][i].var[ivar] = 0.0;
+
+  zs = zs + 1;
+  ys = ys + 1;
+  xs = xs + 1;
+
+  ze = zs + zm - 1; 
+  ye = ys + ym - 1; 
+  xe = xs + xm - 1;
+
+  dt = 0.5;
+ 
+  if (user->hdf5c) {
+    xs -= 1; ys -= 1; zs -= 1;
+    readOutputDataRoutineHSR(mx, my, mz, xs, ys, zs, xm, ym, zm, steps, dt, 
+			     datasetname, filename, xvec);
+  } else {
+#ifdef absoft
+    FORTRAN_NAME(READHDF5FILE) (&xs, &xe, &ys, &ye, 
+                                &zs, &ze, &xm, &ym, &zm, 
+                                &steps, &dt, 
+         			filename, &(xvec[zs-1][ys-1][xs-1]));
+#else
+    FORTRAN_NAME(readhdf5file) (&xs, &xe, &ys, &ye, 
+				&zs, &ze, &xm, &ym, &zm, 
+                                &steps, &dt,
+  				filename, &(xvec[zs-1][ys-1][xs-1]));
+#endif
+  }
+
+  /* Restore vectors */
+  DAVecRestoreArray(user->da, X, (void**)&xvec);
+
+  return(0);
+	
+}
+
+/* -------------------- Write output data routine using HDF5 ------------- */
+#undef __FUNCT__
+#define __FUNCT__ "writeOutputDataHDF5"
+int writeOutputDataHDF5(int steps, char* datasetname[], char* filename, Vec X, void *ctx)
+{
+  AppCtx        *user = (AppCtx*)ctx;
+  Field	        ***xvec;
+  PetscScalar	dt;
+  int	        ierr, i, j, k, xs, ys, zs, xm, ym, zm,  mx, my, mz;
+  int           ze,ye,xe;
+  int           my_rank;
+  
+  MPI_Comm_rank(PETSC_COMM_WORLD, &my_rank);
+
+  DAGetInfo(user->da, PETSC_NULL, &mx, &my, &mz, PETSC_NULL, PETSC_NULL,
+	    PETSC_NULL, PETSC_NULL, PETSC_NULL, PETSC_NULL, PETSC_NULL);
+  
+  /*
+   * Get pointers to vector data
+   */
+  DAVecGetArray(user->da, X, (void**)&xvec);
+  
+  /*
+   * Get local grid boundaries
+   */
+  DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);  
+
+  zs = zs + 1;
+  ys = ys + 1;
+  xs = xs + 1;
+
+  ze = zs + zm - 1; 
+  ye = ys + ym - 1; 
+  xe = xs + xm - 1;
+
+  dt = 0.5;
+
+  if (user->hdf5c) {
+    if (!my_rank) createGroup(steps, filename);
+    xs -= 1; ys -= 1; zs -= 1;
+    writeOutputDataRoutineHSR(mx, my, mz, xs, ys, zs, xm, ym, zm, steps, dt, 
+			      datasetname, filename, xvec);
+  } else {
+#ifdef absoft
+    FORTRAN_NAME(WRITEHDF5FILE) (&xs, &xe, &ys, &ye, 
+					  &zs, &ze, &xm, &ym, &zm, 
+                                          &steps, &dt, 
+         			          filename, &(xvec[zs-1][ys-1][xs-1]));
+#else
+    FORTRAN_NAME(writehdf5file) (&xs, &xe, &ys, &ye, 
+					  &zs, &ze, &xm, &ym, &zm, 
+                                          &steps, &dt,
+  					  filename, &(xvec[zs-1][ys-1][xs-1]));
+#endif
+  }
+
+  /* Restore vectors */
+  DAVecRestoreArray(user->da, X, (void**)&xvec);
+
+  return(0);
+	
 }
 
 /* -------------------- User-defined Monitor() routine ------------- */
@@ -459,10 +672,10 @@ int FormInitialCondition(SNES snes,Vec X,void *ptr)
 
 #ifdef absoft
   FORTRAN_NAME(FORMINITIALCONDITION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-                                           ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
+                                           ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g,&user->time);
 #else
   FORTRAN_NAME(forminitialcondition)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-                                           ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
+                                           ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g,&user->time);
 #endif
 
   /* Restore vectors */
@@ -624,9 +837,9 @@ int correctTimeStep(SNES snes,Vec X,void *ptr)
    */
 
 #ifdef absoft
-  FORTRAN_NAME(CORRECTTIMESTEP)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr);
+  FORTRAN_NAME(CORRECTTIMESTEP)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr,&user->dt);
 #else
-  FORTRAN_NAME(correcttimestep)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr);
+  FORTRAN_NAME(correcttimestep)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr,&user->dt);
 #endif
 
   /*

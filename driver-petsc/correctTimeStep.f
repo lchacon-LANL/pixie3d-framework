@@ -1,6 +1,6 @@
 c correctTimeStep
 c ######################################################################
-      subroutine correctTimeStep(dn,dnh,dnp,ierr)
+      subroutine correctTimeStep(dn,dnh,dnp,ierr,dt_to_c)
 
       use timeStepping
 
@@ -11,7 +11,7 @@ c ######################################################################
 c Call variables
 
       integer(4)  :: ierr
-      real(8)     :: dn(neqd),dnh(neqd),dnp(neqd)
+      real(8)     :: dn(neqd),dnh(neqd),dnp(neqd),dt_to_c
 
 c Local variables
 
@@ -34,6 +34,8 @@ c Update counters (only if timeStep is successful)
       time   = time  + dt
       tmrst  = tmrst + dt
       nrst   = nrst  + 1
+
+      dt_to_c = dt
 
 c End program
 

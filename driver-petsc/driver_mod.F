@@ -1047,8 +1047,8 @@ c ######################################################################
 
         integer(4)     :: ilevel
 
-        integer(4)     :: urecord
-        character*(20) :: recordfile
+        integer(4)     :: urecord,uinput,uhdf5
+        character*(20) :: recordfile,inputfile,hdf5file
 
       contains
 

@@ -81,15 +81,17 @@ c Allocate constant arrays
 
 c Initialize MG, MPI, and create grid
 
-cc      write (*,*) ilog,ihig,jlog,jhig,klog,khig
       call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd)
 
 c Check grid
 
-cc      if (my_rank == 3) then
+cc      if (my_rank == 2) then
+cc        write (*,*) 'proc',my_rank,'lim',ilog,ihig,jlog,jhig,klog,khig
 cc        write (*,*) 'Grid in processor',my_rank
 cc        call checkGrid
 cc      endif
+cc      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cc      call MPI_Finalize(mpierr)
 cc      stop
 
 c Set output file
@@ -101,6 +103,8 @@ c Set output file
       else
         recordfile = 'record.bin'
       endif
+
+      hdf5file='record.h5'
 
 c Create nonlinear solver
 

@@ -37,6 +37,9 @@ c Local variables
 
 c Begin program
 
+cc      write (*,*) 'proc',my_rank,'lim',imin,imax,jmin,jmax,kmin,kmax
+cc      write (*,*) my_rank,imingc,imaxgc,jmingc,jmaxgc,kmingc,kmaxgc
+
       call allocatePetscType(petscarray)
 
       call fromGlobalToLocalLimits(imingc ,jmingc ,kmingc

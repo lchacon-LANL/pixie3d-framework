@@ -1,7 +1,7 @@
 c formInitialCondition
 c######################################################################
       subroutine formInitialCondition(array,imin,imax,jmin,jmax
-     .                               ,kmin,kmax)
+     .                               ,kmin,kmax,time_to_c)
 
 c----------------------------------------------------------------------
 c     Initializes MG and creates grid
@@ -28,6 +28,7 @@ c----------------------------------------------------------------------
 c Call variables
 
       integer(4)      :: imin,imax,jmin,jmax,kmin,kmax
+      real(8)         :: time_to_c
 
       type(petsc_var) :: array(imin:imax,jmin:jmax,kmin:kmax)
 
@@ -54,7 +55,7 @@ c Map petsc array
 c Set initial condition
 
       !For source plotting
-cc      u_n%array_var(1)%array = 1d0
+      u_n%array_var(1)%array = 1d0
 
 cc      u_n%array_var(1)%array = gmetric%grid(1)%jac
 cc      u_n%array_var(2)%array = gmetric%grid(1)%gsub(:,:,:,1,1)
@@ -73,15 +74,20 @@ c Initialize record file
 c Check time limits
 
       if (tmax.gt.0d0.and.(tmax-time).le.0d0) then
-        write(*,*)
-        write(*,*) 'Tmax is less or equal than restarting time'
-        write(*,*) 'Aborting'
+        if (my_rank == 0) then
+          write(*,*)
+          write(*,*) 'Tmax is less or equal than restarting time'
+          write(*,*) 'Aborting'
+        endif
+        call MPI_Finalize(mpierr)
         stop
       endif
 
 c Initialize counters
 
       itime     = inewtime-1
+
+      time_to_c = time
 
       nrst      = 0
       tmrst     = 0d0
@@ -198,13 +204,14 @@ c     Begin program
       read (urecord) ny
       read (urecord) nz
 
-      if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
+      if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)
+     .    .and.(my_rank == 0)) then
         write (*,*) 'Grid meshes do not agree; cannot restart'
-        write (*,*) 'Aborting.'
+        write (*,*) 'Aborting...'
         stop
       endif
 
-      write (*,*) ' Reading restart file...'
+      if (my_rank == 0) write (*,*) 'Reading restart file...'
 
       call readRecord(itime,time,dt,vn,ierr)
 
@@ -223,7 +230,7 @@ c     Begin program
 
       close (urecord)
 
-      write (*,*) 'Done!'
+      if (my_rank == 0) write (*,*) 'Done!'
 
 c     End
 

@@ -31,7 +31,8 @@ c Call variables
         real(8)    :: rtol
         real(8)    :: atol
         real(8)    :: damp
-        real(8)    :: dt0
+        real(8)    :: dt
+        real(8)    :: tmax
         integer(4) :: nxd
         integer(4) :: nyd
         integer(4) :: nzd
@@ -76,7 +77,8 @@ c Define structure components
       inputdata%rtol     = rtol   
       inputdata%atol     = atol   
       inputdata%damp     = damp   
-      inputdata%dt0      = dt0    
+      inputdata%dt       = dt   
+      inputdata%tmax     = tmax
 
 c Write structure
 
