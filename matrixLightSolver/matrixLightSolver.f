@@ -40,8 +40,8 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
-      real*8         x(ntot),b(ntot)
+      integer(4) ::  neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
+      real(8)    ::  x(ntot),b(ntot)
 
       external       matvec
 
@@ -107,8 +107,8 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
-      real*8         x(ntot),b(ntot)
+      integer(4) ::  neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
+      real(8)    ::  x(ntot),b(ntot)
 
       type (solver_options):: options
       character*(2)  solver
@@ -314,8 +314,8 @@ c End program
 
       return
 
- 10   format (' CG Iteration:',i4,'; Residual:',1p1e12.4,
-     .        '; Ratio:',1p1e12.4)
+ 10   format (' CG Iteration:',i4,'; Residual:',1p,1e12.4,
+     .        '; Ratio:',1p,1e12.4)
 
       end subroutine cg
 
@@ -343,9 +343,9 @@ c--------------------------------------------------------------------
       
 c Call variables
 
-      integer*4     neq,ntot,im,iout,ierr,igrid,its,guess,depth
+      integer(4) :: neq,ntot,im,iout,ierr,igrid,its,guess,depth
      .             ,bcnd(6,neq)
-      real*8        b(ntot),x(ntot)
+      real(8)    :: b(ntot),x(ntot)
 
       external      matvec
 
@@ -353,11 +353,11 @@ c Call variables
 
 c Local variables
 
-      integer*4     kmax,stp_test,depth1
-      real*8        eps,epsmac,rold,ro,eps1,gam,tt,mag,abstol,dx(ntot)
+      integer(4) :: kmax,stp_test,depth1
+      real(8)    :: eps,epsmac,rold,ro,eps1,gam,tt,mag,abstol,dx(ntot)
 
-      integer*4     i,j,i1,k,k1,ii,jj
-      integer*4     nn,rstrt,irstrt,precout,maxits
+      integer(4) :: i,j,i1,k,k1,ii,jj
+      integer(4) :: nn,rstrt,irstrt,precout,maxits
 
       double precision,allocatable,dimension(:)  :: c,s,rs
       double precision,allocatable,dimension(:,:):: hh,vv,zz
@@ -587,8 +587,8 @@ c End program
 
       call killgm
 
- 10   format (' GMRES Iteration:',i4,'; Residual:',1p1e12.4,
-     .        '; Ratio:',1p1e12.4)
+ 10   format (' GMRES Iteration:',i4,'; Residual:',1p,1e12.4,
+     .        '; Ratio:',1p,1e12.4)
 
       contains
 
