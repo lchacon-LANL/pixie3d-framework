@@ -4,8 +4,9 @@ c#######################################################################
       implicit none       !For safe Fortran
 c***********************************************************************
 c     Interpolates vector vec along coordinate x to vector vec1 along x1,
-c     with interpolation order "order". Currently, we consider first
-c     order (order=1), second order (2) and cubic splines (3). 
+c     with interpolation order "order". Currently, we consider zeroth
+c     order (order=0), first order (order=1), second order (2) and cubic
+c     splines (3). 
 c
 c     This routine requires linking with cubic spline routines dpchsp
 c     (spline preparation) and dpchfe (interpolant evaluation).
@@ -13,28 +14,27 @@ c***********************************************************************
 
 c Call variables
 
-      integer*4      nx,nv,order
-      real*8         x(nx),vec(nx),x1(nv),vec1(nv)
+      integer(4) :: nx,nv,order
+      real(8)    :: x(nx),vec(nx),x1(nv),vec1(nv)
 
 c Local variables
 
-      real*8         dxx
-      integer*4      i,j
+      real(8)    ::  dxx
+      integer(4) ::  i,j
 
 c Cubic splines
 
-      integer ::     incfd
-      parameter     (incfd = 1)  !Stride to take for input vectors in spline routine
+      integer(4),parameter :: incfd = 1  !Stride to take for input vectors in spline routine
 
-      integer ::     ic(2),nwk,ierr
-      real(8) ::     vc(2),f(incfd,nx),d(incfd,nx)
+      integer(4) :: ic(2),nwk,ierr
+      real(8)    :: vc(2),f(incfd,nx),d(incfd,nx)
       real(8), allocatable, dimension(:) :: wk
-      logical ::     skip
+      logical    :: skip
 
 c Externals
 
-      real*8         q_int,l_int
-      external       q_int,l_int
+      real(8)    ::  q_int,l_int
+      external   ::  q_int,l_int
 
 c Begin program
 
