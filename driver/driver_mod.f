@@ -32,13 +32,6 @@ c     setVectorDimensions
 c     #################################################################
       subroutine setVectorDimensions
 
-        ihig = nxd 
-        ilog = 1
-        jhig = nyd 
-        jlog = 1
-        khig = nzd 
-        klog = 1 
-
         nxl = nxd
         nyl = nyd
         nzl = nzd
