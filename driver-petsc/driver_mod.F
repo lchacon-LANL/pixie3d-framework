@@ -105,6 +105,7 @@ c     #################################################################
 
       end module parameters
 
+#if defined(petsc)
 c module petsc_var_setup
 c #####################################################################
       module petsc_var_setup
@@ -340,6 +341,7 @@ c     End program
       end subroutine mapVectorToPetsc
 
       end module petsc_var_setup
+#endif
 
 c module variable_setup
 c #####################################################################
@@ -347,7 +349,9 @@ c #####################################################################
 
         use parameters
 
+#if defined(petsc)
         use petsc_var_setup
+#endif
 
         implicit none
 
@@ -368,13 +372,17 @@ c #####################################################################
           module procedure equateDerivedType
      .                    ,mapStructureToVector
      .                    ,mapVectorToStructure
+#if defined(petsc)
      .                    ,mapPetscToStructure
      .                    ,mapStructureToPetsc
+#endif
         END INTERFACE
 
         INTERFACE OPERATOR (-)
           module procedure substractDerivedType
+#if defined(petsc)
      .                    ,substractPetscType
+#endif
         END INTERFACE
 
       contains
@@ -780,6 +788,7 @@ c     End program
 
       end subroutine mapVectorToStructure
 
+#if defined(petsc)
 c     mapPetscToStructure
 c     #################################################################
       subroutine mapPetscToStructure(varray,petscarray)
@@ -863,6 +872,7 @@ c     Perform mapping
 c     End program
 
       end subroutine mapStructureToPetsc
+#endif
 
       end module variable_setup
 
@@ -904,52 +914,66 @@ c ######################################################################
 
         use grid
 
+#if defined(petsc)
+        use mpi
+#endif
+
       contains
 
-c$$$c     integral
-c$$$c     ################################################################
-c$$$      real(8) function integral(nx,ny,nz,array,igx,igy,igz,avg)
-c$$$
-c$$$c     ---------------------------------------------------------------
-c$$$c     Integrates array(i,j,k) on domain (nx)x(ny)x(nz).
-c$$$c     ---------------------------------------------------------------
-c$$$
-c$$$      implicit none
-c$$$
-c$$$c    Call variables
-c$$$
-c$$$      integer(4) :: igx,igy,igz,nx,ny,nz
-c$$$      real(8)    :: array(0:nx+1,0:ny+1,0:nz+1)
-c$$$      logical    :: avg
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$      integer(4) :: i,j,k
-c$$$
-c$$$      real(8)    :: tvolume,vol
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$c     Integrate
-c$$$
-c$$$      integral = 0d0
-c$$$      tvolume  = 0d0
-c$$$
-c$$$      do k = 1,nz
-c$$$        do j = 1,ny
-c$$$          do i = 1,nx
-c$$$            vol = volume(i,j,k,igx,igy,igz)
-c$$$            integral = integral + array(i,j,k)*vol
-c$$$            tvolume = tvolume + vol
-c$$$          enddo
-c$$$        enddo
-c$$$      enddo
-c$$$
-c$$$      if (avg) integral = integral/tvolume
-c$$$
-c$$$c     End 
-c$$$
-c$$$      end function integral
+c     integral
+c     ################################################################
+      real(8) function integral(nx,ny,nz,array,igx,igy,igz,avg)
+
+c     ---------------------------------------------------------------
+c     Integrates array(i,j,k) on domain (nx)x(ny)x(nz).
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c    Call variables
+
+      integer(4) :: igx,igy,igz,nx,ny,nz
+      real(8)    :: array(0:nx+1,0:ny+1,0:nz+1)
+      logical    :: avg
+
+c     Local variables
+
+      integer(4) :: i,j,k
+
+      real(8)    :: tvolume,vol,lvolume,lintegral
+
+c     Begin program
+
+c     Integrate
+
+      integral = 0d0
+      tvolume  = 0d0
+
+      do k = 1,nz
+        do j = 1,ny
+          do i = 1,nx
+            vol = volume(i,j,k,igx,igy,igz)
+            integral = integral + array(i,j,k)*vol
+            tvolume = tvolume + vol
+          enddo
+        enddo
+      enddo
+
+#if defined(petsc)
+      call MPI_Allreduce(lintegral,integral,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      call MPI_Allreduce(lvolume  ,tvolume ,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+#else
+      integral = lintegral
+      tvolume  = lvolume
+#endif
+
+      if (avg) integral = integral/tvolume
+
+c     End 
+
+      end function integral
 
       function int2char(n) result (chr)
 
@@ -1010,6 +1034,10 @@ c ######################################################################
         real(8)    :: dt,dtbase,cnfactor,cnf_d,alpha,gammat
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0
 
+#if !defined(petsc)
+        real(8),allocatable,dimension(:) :: fold,fsrc
+#endif
+
         real(8)    :: vx_max,vy_max,vz_max,bx_max,by_max,bz_max
 
         logical    :: timecorr,restart,source
@@ -1043,7 +1071,9 @@ c module iosetup
 c ######################################################################
       module iosetup
 
+#if defined(petsc)
         use local_mpi
+#endif
 
         integer(4)     :: ilevel
 
@@ -1054,7 +1084,7 @@ c ######################################################################
 
 c     readRecord
 c     #################################################################
-      subroutine readRecord(itime,time,dt,varray,ierr)
+      subroutine readRecord(unit,itime,time,dt,varray,ierr)
 
 c     -----------------------------------------------------------------
 c     Reads record file
@@ -1066,7 +1096,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ierr,itime
+      integer(4) :: ierr,itime,unit
       real(8)    :: time,dt
       type (var_array):: varray
 
@@ -1074,16 +1104,16 @@ c     Begin program
 
       ierr = 0
 
-      read (urecord,iostat=ierr,end=100) time
+      read (unit,iostat=ierr,end=100) time
       if (ierr /= 0) goto 200
 
-      read (urecord,iostat=ierr,end=100) itime
+      read (unit,iostat=ierr,end=100) itime
       if (ierr /= 0) goto 200
 
-      read (urecord,iostat=ierr,end=100) dt
+      read (unit,iostat=ierr,end=100) dt
       if (ierr /= 0) goto 200
 
-      call readDerivedType(varray,urecord,.false.,ierr)
+      call readDerivedType(varray,unit,.false.,ierr)
 
       return
 
@@ -1098,7 +1128,7 @@ c     End
 
 c     writeRecordFile
 c     #################################################################
-      subroutine writeRecordFile(itime,time,dt,varray)
+      subroutine writeRecordFile(unit,itime,time,dt,varray)
 
 c     -----------------------------------------------------------------
 c     Writes record file
@@ -1110,17 +1140,17 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: itime
+      integer(4) :: itime,unit
       real(8)    :: time,dt
       type (var_array):: varray
 
 c     Begin program
 
-      write (urecord) time
-      write (urecord) itime
-      write (urecord) dt
+      write (unit) time
+      write (unit) itime
+      write (unit) dt
 
-      call writeDerivedType(varray,urecord,.false.)
+      call writeDerivedType(varray,unit,.false.)
 
 c     End
 
