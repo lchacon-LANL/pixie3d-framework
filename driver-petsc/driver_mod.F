@@ -1105,6 +1105,8 @@ c ######################################################################
         integer(4)     :: urecord,uinput,uhdf5
         character*(20) :: recordfile,inputfile,hdf5file
 
+        logical        :: debug
+
       contains
 
 c     readRecord
