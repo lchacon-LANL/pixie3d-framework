@@ -511,7 +511,6 @@ c     ####################################################################
           endif
           ff = sin(period*(x-xmin)/(xmax-xmin))
         elseif (bcs(1) == SP .and. bcs(2) == DIR) then
-cc          ff = x**(nh+1)*sin(period*(x-xmin)/(xmax-xmin)) !To satisfy regularity at r=0 (r^m)
           ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
      .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
         elseif (bcs(1) == SP .and. bcs(2) == NEU) then
@@ -558,11 +557,7 @@ c Set data dumping intervals
       dfreq = 8d0
 
       if (tmax.gt.0d0) then
-        if (dstep.eq.0d0) then
-          dstep = dt*max(int((tmax-time)/dfreq/dt),1)
-        else
-cc          dstep = max(dstep,dt)
-        endif
+        if (dstep.eq.0d0) dstep = dt*max(int((tmax-time)/dfreq/dt),1)
         rstep = min(dt*max(int((tmax-time)/dfreq/dt),1),dstep)
         ndstep = -1
         numtime = -1
