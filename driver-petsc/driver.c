@@ -35,6 +35,7 @@ typedef struct {
   int       nxd;
   int       nyd;
   int       nzd;
+  int       numtime;
   int       maxitnwt;
   int       maxksp;
   int       maxitgm;
@@ -66,11 +67,11 @@ extern void FORTRAN_NAME(readinputfile) (input_CTX*);
 typedef struct {
   DA	    da;
   input_CTX indata;
-  int       nmax,nwits,gmits;
+  int       nwits,gmits;
 } AppCtx;
 
 /* User-defined routines */
-extern int ReadInputNInitialize(input_CTX*, char*);
+extern int ReadInputNInitialize(input_CTX*, DAPeriodicType*);
 extern int FormFunction    (SNES, Vec, Vec, void*);
 extern int FormInitialGuess(SNES, Vec, void*);
 extern int Monitor         (SNES, int, double, void*);
@@ -90,16 +91,19 @@ int MAIN__(int argc, char **argv)
   AppCtx   user;
   
   int     ierr;
-  int     nxd = 32;         /* x-drirection grid size, i.e., nx */
-  int     nyd = 32;         /* y-drirection grid size, i.e., ny */
-  int     nzd = 1;          /* z-drirection grid size, i.e., nz */
+  int     nxd = 32;         /* x-direction grid size, i.e., nx */
+  int     nyd = 32;         /* y-direction grid size, i.e., ny */
+  int     nzd = 1;          /* z-direction grid size, i.e., nz */
+  int     numtime;
   int     i, steps;
   int     size;           /* num. of processors used */
   int     my_rank;        /* id of my processor */
 
   PetscReal atol,rtol,tolgm;
   int       maxitnwt,maxitgm;
-  char      BC[256];
+  /*char      BC[256];*/
+ 
+  DAPeriodicType     BC=DA_NONPERIODIC;
 
   Mat                J;     /* Jacobian matrix for FD approximation */
   PetscTruth         matrix_free,user_precond;
@@ -114,28 +118,31 @@ int MAIN__(int argc, char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set problem parameters
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
-  ierr = ReadInputNInitialize(&user.indata, BC);CHKERRQ(ierr);
-  
-  ierr = PetscOptionsGetInt(PETSC_NULL,"-nmax",&user.nmax,PETSC_NULL);CHKERRQ(ierr);
+  ierr = ReadInputNInitialize(&user.indata, &BC);CHKERRQ(ierr);
   
   nxd = user.indata.nxd;
   nyd = user.indata.nyd;
   nzd = user.indata.nzd;
   
-  atol = PETSC_DEFAULT;
-  rtol = user.indata.rtol;
-  tolgm = user.indata.tolgm;
+  atol 	   = PETSC_DEFAULT;
+  rtol 	   = user.indata.rtol;
+  tolgm    = user.indata.tolgm;
+  numtime  = user.indata.numtime;
   maxitnwt = user.indata.maxitnwt;
-  if (maxitnwt == 0)
-    maxitnwt = (int) PetscMax((1.5*log(rtol)/log(tolgm)),10.);
+  if (maxitnwt == 0) maxitnwt = (int) PetscMax((1.5*log(rtol)/log(tolgm)),10.);
+
+  /* Set runtime options */
+  
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-nmax",&numtime,PETSC_NULL);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create SNES context 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
 
   ierr = SNESCreate(PETSC_COMM_WORLD, &snes);CHKERRQ(ierr);
-  
-  ierr = DACreate3d(PETSC_COMM_WORLD,*BC,DA_STENCIL_BOX, nxd,nyd,nzd,\
+
+  /*BC=DA_NONPERIODIC;*/
+  ierr = DACreate3d(PETSC_COMM_WORLD,BC,DA_STENCIL_BOX, nxd,nyd,nzd,\
 		    PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,\
 		    NVAR,1,PETSC_NULL,PETSC_NULL,PETSC_NULL,&user.da);CHKERRQ(ierr);
 
@@ -200,7 +207,7 @@ int MAIN__(int argc, char **argv)
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   
   /* for (steps = 1; (steps < 100) && (norm_2 > DIFF_NORM); steps++) { */
-  for (steps = 0; steps < user.nmax; steps++) {
+  for (steps = 0; steps < numtime; steps++) {
     
     ierr = ProcessOldSolution(snes,x,&user);CHKERRQ(ierr);
     
@@ -238,7 +245,7 @@ int MAIN__(int argc, char **argv)
 /* -------------------- Read input file routine ------------- */
 #undef __FUNCT__
 #define __FUNCT__ "ReadInputNInitialize"
-int ReadInputNInitialize(input_CTX* data, char* BC)
+int ReadInputNInitialize(input_CTX* data, DAPeriodicType* BC)
 {
 
   char       dummy[256], dummy_ch, *bc_def = "'def'";
@@ -255,21 +262,21 @@ int ReadInputNInitialize(input_CTX* data, char* BC)
 #endif
 
   if (data->bcs[0] && data->bcs[2] && data->bcs[4]) {
-    strcpy(BC, "DA_XYZPERIODIC");
+    *BC=DA_XYZPERIODIC;
   } else if (data->bcs[0] && data->bcs[2] && !data->bcs[4]) {
-    strcpy(BC, "DA_XYPERIODIC");
+    *BC=DA_XYPERIODIC;
   } else if (data->bcs[0] && !data->bcs[2] && data->bcs[4]) {
-    strcpy(BC, "DA_XZPERIODIC");
+    *BC=DA_XZPERIODIC;
   } else if (data->bcs[0] && !data->bcs[2] && !data->bcs[4]) {
-    strcpy(BC, "DA_XPERIODIC");
+    *BC=DA_XPERIODIC;
   } else if (!data->bcs[0] && data->bcs[2] && data->bcs[4]) {
-    strcpy(BC, "DA_YZPERIODIC");
+    *BC=DA_YZPERIODIC;
   } else if (!data->bcs[0] && data->bcs[2] && !data->bcs[4]) {
-    strcpy(BC, "DA_YPERIODIC");
+    *BC=DA_YPERIODIC;
   } else if (!data->bcs[0] && !data->bcs[2] && data->bcs[4]) {
-    strcpy(BC, "DA_ZPERIODIC");
+    *BC=DA_ZPERIODIC;
   } else {
-    strcpy(BC, "DA_NONPERIODIC");
+    *BC=DA_NONPERIODIC;
   }
 
   ierr = PetscOptionsGetInt(PETSC_NULL,"-nx",&data->nxd,PETSC_NULL);CHKERRQ(ierr);
@@ -297,12 +304,12 @@ int Monitor(SNES snes, int its, double fnorm, void *ctx)
 #define __FUNCT__ "FormInitialGuess"
 int FormInitialGuess(SNES snes,Vec X,void *ptr)
 {
-  AppCtx	*user = (AppCtx*)ptr;
-  Field	***xvec;
-  int	ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
+  AppCtx  *user = (AppCtx*)ptr;
+  Field	  ***xvec;
+  int	  ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
   int     ze,ye,xe;
   int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
-  
+  Vec     localX;
 
   PetscFunctionBegin;
 
@@ -312,16 +319,29 @@ int FormInitialGuess(SNES snes,Vec X,void *ptr)
 
   user->nwits = 0;
   user->gmits = 0;
+    
+  /*
+   * Scatter ghost points to local vector,using the 2-step process
+   * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
+   * By placing code between these two statements, computations can be
+   * done while messages are in transition.
+   */
   
+  /*ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
+  
+  ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);*/
+
   /*
    * Get pointers to vector data
    */
+  /*ierr = DAVecGetArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);*/
   DAVecGetArray(user->da, X, (void**)&xvec);
   
   /*
    * Get local grid boundaries
    */
-  DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);
+  ierr = DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);CHKERRQ(ierr);
   
   zs = zs + 1;
   ys = ys + 1;
@@ -335,11 +355,11 @@ int FormInitialGuess(SNES snes,Vec X,void *ptr)
    * Obtain ghost cell boundaries
    */
   ierr = DAGetGhostCorners(user->da,&xs_g,&ys_g,&zs_g,&xm_g,&ym_g,&zm_g);CHKERRQ(ierr);
-  
+
   zs_g = zs_g + 1;
   ys_g = ys_g + 1;
   xs_g = xs_g + 1;
-  
+
   ze_g = zs_g + zm_g - 1;
   ye_g = ys_g + ym_g - 1;
   xe_g = xs_g + xm_g - 1;
@@ -349,15 +369,27 @@ int FormInitialGuess(SNES snes,Vec X,void *ptr)
    */
 
 #ifdef absoft
-  FORTRAN_NAME(INITIALIZECALCULATION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-                                           ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
+  /*FORTRAN_NAME(INITIALIZECALCULATION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+    ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);*/
 #else
-  FORTRAN_NAME(initializecalculation)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-                                           ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
+  /*FORTRAN_NAME(initializecalculation)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+    ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);*/
+#endif
+
+#ifdef absoft
+  FORTRAN_NAME(INITIALIZECALCULATION)(&(xvec[zs-1][ys-1][xs-1])\
+                                           ,&xs,&xe,&ys,&ye,&zs,&ze);
+#else
+  FORTRAN_NAME(initializecalculation)(&(xvec[zs-1][ys-1][xs-1])\
+                                           ,&xs,&xe,&ys,&ye,&zs,&ze);
 #endif
 
   /* Restore vectors */
-  DAVecRestoreArray(user->da, X, (void**)&xvec);
+  ierr = DAVecRestoreArray(user->da, X, (void**)&xvec);CHKERRQ(ierr);
+  /*ierr = DAVecRestoreArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
+  ierr = DALocalToGlobalBegin(user->da, localX, X); CHKERRQ(ierr);
+  ierr = DALocalToGlobalEnd  (user->da, localX, X); CHKERRQ(ierr);
+  ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);*/
 
   PetscFunctionReturn(0);
 }
@@ -373,12 +405,27 @@ int ProcessOldSolution(SNES snes,Vec X,void *ptr)
   int	ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
   int     ze,ye,xe;
   int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
-  
+  Vec     localX;
+
   PetscFunctionBegin;
+
+  /*
+   * Scatter ghost points to local vector,using the 2-step process
+   * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
+   * By placing code between these two statements, computations can be
+   * done while messages are in transition.
+   */
+  
+  ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
+  
+  ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  
   /*
    * Get pointers to vector data
    */
-  DAVecGetArray(user->da, X, (void**)&xvec);
+  DAVecGetArray(user->da, localX, (void**)&xvec);
+  /*DAVecGetArray(user->da, X, (void**)&xvec);*/
   
   /*
    * Get local grid boundaries
@@ -417,8 +464,10 @@ int ProcessOldSolution(SNES snes,Vec X,void *ptr)
 #endif
 
   /* Restore vectors */
-  DAVecRestoreArray(user->da, X, (void**)&xvec);
-  
+  /*ierr = DAVecRestoreArray(user->da, X, (void**)&xvec);CHKERRQ(ierr);*/
+  ierr = DAVecRestoreArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
+  ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
