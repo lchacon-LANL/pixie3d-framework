@@ -43,15 +43,19 @@ c Begin program
       call fromGlobalToLocalLimits(imax,jmax,kmax,imaxl,jmaxl,kmaxl
      $                            ,1,1,1)
 
-c Map petsc array
-
-      call initializeDerivedType(u_n)
+c Map petsc array (to get BCs from Petsc)
 
       do ieq=1,neqd
-        u_n%array_var(ieq)
+        u_0%array_var(ieq)
      .       %array(iminl:imaxl,jminl:jmaxl,kminl:kmaxl)
      .      = array(imin :imax ,jmin :jmax ,kmin :kmax )%var(ieq)
       enddo
+
+c Initialize old time solution
+
+      call initializeDerivedType(u_n)
+
+      u_n = u_0   !Overloaded assignment
 
 c Set unperturbed forcing fields
 
@@ -61,17 +65,6 @@ c Set unperturbed forcing fields
       if (.not.source) fsrc = 0d0
 
 c Set initial condition
-
-      !For source plotting
-cc      u_n%array_var(1)%array = 1d0
-
-cc      u_n%array_var(1)%array = gmetric%grid(1)%jac
-cc      u_n%array_var(2)%array = gmetric%grid(1)%gsub(:,:,:,1,1)
-cc      u_n%array_var(3)%array = gmetric%grid(1)%gsub(:,:,:,1,2)
-cc      u_n%array_var(4)%array = gmetric%grid(1)%gsub(:,:,:,1,3)
-cc      u_n%array_var(5)%array = gmetric%grid(1)%gsub(:,:,:,2,2)
-cc      u_n%array_var(6)%array = gmetric%grid(1)%gsub(:,:,:,2,3)
-cc      u_n%array_var(7)%array = gmetric%grid(1)%gsub(:,:,:,3,3)
 
       call setInitialCondition(u_n,u_np)
 
@@ -111,7 +104,6 @@ c Transfer to Petsc format
       enddo
 
       call deallocateDerivedType(u_np)
-cc      call deallocateDerivedType(u_n)
 
 c End program
 
@@ -418,9 +410,9 @@ c Open record file
 
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
 
-        u_graph = u_n
-cc        u_graph = u_0
-cc        u_graph = fsrc
+        u_graph = u_0    !Needed for BCs
+cc        u_graph = u_n  !For debugging to compare agains PC solution
+cc        u_graph = fsrc !For debugging source
 
         !Open record file
         open(unit=urecord,file=recordfile
