@@ -48,7 +48,7 @@ c     Check that we are domain adjacent to singular point
 
 c     Set interpolation order
 
-      order1 = min(order,ihig-ilog-1)
+      order1 = min(order,ihig-ilog)
 
 c     Find scalar value at singular point by averaging neighboring cells
 
@@ -61,9 +61,10 @@ c       Perform local sum
         do j=1,nybc
           call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
           vol = volume(i,j,k,igxbc,igybc,igzbc)
-          x0  = xx(ig-1)
+          x0  = grid_params%xx(ig-1)
 
-          call IntDriver1d(order1+1,xx(ig),array(i:i+order1+1,j,k)
+          call IntDriver1d(order1+1,grid_params%xx(ig)
+     .                    ,array(i:i+order1+1,j,k)
      .                    ,1,x0,rho0,order1)
 
           lavg_q   = lavg_q   + vol*rho0
@@ -132,7 +133,7 @@ c     Check that we are domain adjacent to singular point
 
 c     Set interpolation order
 
-      order1 = min(order,ihig-ilog-1)
+      order1 = min(order,ihig-ilog)
 
 c     Find average cartesian coordinates
 
@@ -149,7 +150,7 @@ c       Perform local sum
         do j=1,nybc
           call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
           vol = volume(i,j,k,igxbc,igybc,igzbc)
-          x0  = xx(ig-1)
+          x0  = grid_params%xx(ig-1)
 
           allocate(cx(order1+1),cy(order1+1),cz(order1+1))
           do ic=1,order1+1
@@ -158,9 +159,12 @@ c       Perform local sum
      .           ,cx(ic),cy(ic),cz(ic))
           enddo
 
-          call IntDriver1d(order1+1,xx(ig),cx,1,x0,cx1,order)
-          call IntDriver1d(order1+1,xx(ig),cy,1,x0,cy1,order)
-          call IntDriver1d(order1+1,xx(ig),cz,1,x0,cz1,order)
+          call IntDriver1d(order1+1,grid_params%xx(ig),cx,1,x0,cx1
+     .                    ,order1)
+          call IntDriver1d(order1+1,grid_params%xx(ig),cy,1,x0,cy1
+     .                    ,order1)
+          call IntDriver1d(order1+1,grid_params%xx(ig),cz,1,x0,cz1
+     .                    ,order1)
           deallocate(cx,cy,cz)
 
           lavg_x   = lavg_x   + vol*cx1
@@ -198,7 +202,8 @@ c     Transform to curvilinear components at SP
 
       i = 0
       do k=1,nzbc
-        do j=1,nybc
+cc        do j=1,nybc
+        do j=0,nybc+1    !This also fills ghost cells
           call transformVectorToCurvilinear(i,j,k,igxbc,igybc,igzbc
      .               ,ax0(k),ay0(k),az0(k),cov
      .               ,vec(i,j,k,1),vec(i,j,k,2),vec(i,j,k,3))
@@ -260,6 +265,7 @@ c     Local variables
 
 c     Begin program
 
+cc#if !defined(nobc)
 c     Initialize interpolation order
 
       if (PRESENT(iorder)) then
@@ -330,6 +336,20 @@ c     Fill corners
           call fillCorners(array,array0,dim,loc,bcond)
         enddo
       enddo
+
+c     Periodic boundary synchronizing
+
+cc      bctype=PER
+cc      do dim=1,3
+cc        do loc=0,1
+cc          ibc = (1+loc)+2*(dim-1)
+cc          if (bcond(ibc) == bctype) then
+cc            call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
+cc          endif
+cc        enddo
+cc      enddo
+
+cc#endif
 
 c     End program
 
@@ -420,8 +440,10 @@ c     Find cov components (we assume cnv components are defined)
       if (is__vec) then
 
 #if defined(petsc)
-       call fromGlobalToLocalLimits(iimin,jjmin,kkmin,ilmin,jlmin,klmin)
-       call fromGlobalToLocalLimits(iimax,jjmax,kkmax,ilmax,jlmax,klmax)
+       call fromGlobalToLocalLimits(iimin,jjmin,kkmin,ilmin,jlmin,klmin
+     $                             ,igxbc,igybc,igzbc)
+       call fromGlobalToLocalLimits(iimax,jjmax,kkmax,ilmax,jlmax,klmax
+     $                             ,igxbc,igybc,igzbc)
 
        do k=klmin-1,klmax+1
          do j=jlmin-1,jlmax+1
@@ -441,6 +463,8 @@ c     Find cov components (we assume cnv components are defined)
       endif
 
 c     Impose BCs
+
+cc#if !defined(nobc)
 
       cov_to_cnv = .false.
 
@@ -510,6 +534,27 @@ c     Fill corners
           enddo
         enddo
       enddo
+
+c     Periodic boundary synchronizing
+
+cc      bctype=PER
+cc      do dim=1,3
+cc        do loc=0,1
+cc          ibc = (1+loc)+2*(dim-1)
+cc
+cc          do ivar = 1,3
+cc            ieq = ivar + fcomp - 1
+cc
+cc            if (abs(bcond(ibc,ivar)) == bctype) then
+cc              call FillGhostNodes(ieq,ivar,3,dim,loc,bctype,v_cnv
+cc     .                               ,var0)
+cc            endif
+cc          enddo
+cc
+cc        enddo
+cc      enddo
+
+cc#endif
 
 c     Find covariant components at ALL boundary ghost cells
 
@@ -786,9 +831,11 @@ c     Find BC update
           call periodicBC(array(:,:,:,nvar),ibc)
         case(EQU)
           call dirichletBC(array(:,:,:,nvar),array0(:,:,:,nvar)
-     .                    ,ieq,dim,loc,order)
+     .                    ,ieq,dim,loc,1)
+cc     .                    ,ieq,dim,loc,order)
         case(DIR)
-          call dirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc,order)
+          call dirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc,1)
+cc          call dirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc,order)
         case(NEU)
           call neumannBC(array(:,:,:,nvar),ieq,dim,loc)
         case(EXT)
@@ -802,9 +849,11 @@ c     Find BC update
         case(PER)
           call periodicBC(array(:,:,:,ivar),ibc)
         case(EQU)
-          call dirichletBC(ivar,array,array0,ieq,dim,loc,order)
+cc          call dirichletBC(ivar,array,array0,ieq,dim,loc,order)
+          call dirichletBC(ivar,array,array0,ieq,dim,loc,1)
         case(DIR)
-          call dirichletBC(ivar,array,vzeros,ieq,dim,loc,order)
+cc          call dirichletBC(ivar,array,vzeros,ieq,dim,loc,order)
+          call dirichletBC(ivar,array,vzeros,ieq,dim,loc,1)
         case(NEU)
           call neumannBC(ivar,array,ieq,dim,loc)
         case(EXT)
@@ -861,6 +910,24 @@ c     Begin program
        write (*,*) 'Boundary',ibc,' non existent'
        stop
       end select
+
+cc      select case (ibc)
+cc      case (1)                  !x0
+cc       array(0     ,:,:)=array(nxbc,:,:)
+cc      case (2)                  !x1                                       
+cc       array(nxbc+1,:,:)=array(1   ,:,:)
+cc      case (3)                  !y0                                       
+cc       array(:,0     ,:)=array(:,nybc,:)
+cc      case (4)                  !y1                                       
+cc       array(:,nybc+1,:)=array(:,1   ,:)
+cc      case (5)                  !z0                                       
+cc       array(:,:,0     )=array(:,:,nzbc)
+cc      case (6)                  !z1                                       
+cc       array(:,:,nzbc+1)=array(:,:,1   )
+cc      case default
+cc       write (*,*) 'Boundary',ibc,' non existent'
+cc       stop
+cc      end select
 
 #endif
 
@@ -1586,12 +1653,13 @@ c     Call variables
 c     Local variables
 
       integer(4) :: i,j,k,ig,jg,kg,inx,iny,inz
-     .             ,orderx,ordery,orderz,offset
+     .             ,order_int(3),offset
      .             ,imni,imxi,jmni,jmxi,kmni,kmxi,num
+     .             ,ibcl(3),i_bc,i1,i2
 
       real(8)    :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1)
 
-      logical    :: flgx,flgy,flgz
+      logical    :: flg(3),select_bc(3)
 
 c     Extrapolation
 
@@ -1605,69 +1673,119 @@ c     Identify directions for extrapolation.
       iny = jmx-jmn
       inz = kmx-kmn
 
-      flgx = .true.
-      flgy = .true.
-      flgz = .true.
+      flg = .true.
+
+      order_int(1) = min(order,inx-1)
+      order_int(2) = min(order,iny-1)
+      order_int(3) = min(order,inz-1)
 
       !Do not interpolate **along** direction if
       !   1) not enough points,
-      if (inx == 0) flgx = .false.
-      if (iny == 0) flgy = .false.
-      if (inz == 0) flgz = .false.
+      if (inx == 0) flg(1) = .false.
+      if (iny == 0) flg(2) = .false.
+      if (inz == 0) flg(3) = .false.
 
-      !Interpolate **across** boundary if
-      !   1) periodic boundary
-      if (bcond(1) == PER .and. flgx) then
-        flgy = .false.
-        flgz = .false.
-      endif
-      if (bcond(3) == PER .and. flgy) then
-        flgx = .false.
-        flgz = .false.
-      endif
-      if (bcond(5) == PER .and. flgz) then
-        flgx = .false.
-        flgy = .false.
-      endif
+      !Select boundaries involved 
+      ![ibc = (1+loc)+2*(dim-1), with dim=1,2,3, and loc=0(left),1(right)]
 
-cc      select case(ibc)
-cc      case(1,2)
-cc        if (bcond(ibc) == PER .and. flgx) then
-cc          flgy = .false.
-cc          flgz = .false.
-cc        endif
-cc      case(3,4)
-cc        if (bcond(ibc) == PER .and. flgy) then
-cc          flgx = .false.
-cc          flgz = .false.
-cc        endif
-cc      case(5,6)
-cc        if (bcond(ibc) == PER .and. flgz) then
-cc          flgx = .false.
-cc          flgy = .false.
-cc        endif
-cc      end select
+      ibcl = 0
 
-      !Interpolate **along** boundary if
+      if (flg(1) .and. flg(2) .and. flg(3)) then !Corner
+
+        if (ito == 0 .and. jto == 0 .and. kto == 0) then
+          ibcl(1) = 1
+          ibcl(2) = 3
+          ibcl(3) = 5
+        elseif (ito == 0 .and. jto == 0 .and. kto /= 0) then
+          ibcl(1) = 1
+          ibcl(2) = 3
+          ibcl(3) = 6
+        elseif (ito == 0 .and. jto /= 0 .and. kto == 0) then
+          ibcl(1) = 1
+          ibcl(2) = 4
+          ibcl(3) = 5
+        elseif (ito /= 0 .and. jto == 0 .and. kto == 0) then
+          ibcl(1) = 2
+          ibcl(2) = 3
+          ibcl(3) = 5
+        elseif (ito /= 0 .and. jto /= 0 .and. kto == 0) then
+          ibcl(1) = 2
+          ibcl(2) = 4
+          ibcl(3) = 5
+        elseif (ito /= 0 .and. jto == 0 .and. kto /= 0) then
+          ibcl(1) = 2
+          ibcl(2) = 3
+          ibcl(3) = 6
+        elseif (ito == 0 .and. jto /= 0 .and. kto /= 0) then
+          ibcl(1) = 1
+          ibcl(2) = 4
+          ibcl(3) = 6
+        elseif (ito /= 0 .and. jto /= 0 .and. kto /= 0) then
+          ibcl(1) = 2
+          ibcl(2) = 4
+          ibcl(3) = 6
+        endif
+
+      else !Edge
+
+        select case(ibc)
+        case (1,2)
+          ibcl(1) = ibc
+          if (jto == 0) then
+            ibcl(2) = 3
+          else
+            ibcl(2) = 4
+          endif
+        case (3,4)
+          ibcl(2) = ibc
+          if (kto == 0) then
+            ibcl(3) = 5
+          else
+            ibcl(3) = 6
+          endif
+        case (5,6)
+          ibcl(3) = ibc
+          if (ito == 0) then
+            ibcl(1) = 1
+          else
+            ibcl(1) = 2
+          endif
+        end select
+
+      endif
+        
+      !Treat special boundaries
+
+      !Identify special boundaries to interpolate **along**
       !   1) equilibrium boundary
-      select case(ibc)
-      case(1,2)
-        if (bcond(ibc) == EQU .and. (flgy.or.flgz)) then
-          flgx = .false.
-        endif
-      case(3,4)
-        if (bcond(ibc) == EQU .and. (flgx.or.flgz)) then
-          flgy = .false.
-        endif
-      case(5,6)
-        if (bcond(ibc) == EQU .and. (flgx.or.flgy)) then
-          flgz = .false.
-        endif
-      end select
+      !   2) SP boundary
+      select_bc = .false.
+      do i=1,3
+        i_bc = ibcl(i)
+        if (i_bc == 0) cycle
+cc        select_bc(i) = (bcond(i_bc) == EQU)
+        select_bc(i) = (bcond(i_bc) == EQU).or.(bcond(i_bc) == SP)
+      enddo
+
+      call select_along
+
+      !Identify special boundaries to interpolate **across**
+      !   1) periodic boundary
+      select_bc = .false.
+      do i=1,3
+        i_bc = ibcl(i)
+        if (i_bc == 0) cycle
+        select_bc(i) = (bcond(i_bc) == PER)
+      enddo
+
+      call select_across
 
       !Check some direction for interpolation exists
-      if ((.not.flgx).and.(.not.flgy).and.(.not.flgz)) then
+
+      if ((.not.flg(1)).and.(.not.flg(2)).and.(.not.flg(3))) then
         write (*,*) 'Error in extrapolateToCorner:'
+        write (*,*) 'Extrapolation directions',flg
+        write (*,*) 'Boundaries involved',ibcl
         write (*,*) 'No extrapolation directions left'
         write (*,*) 'Aborting...'
         stop
@@ -1687,7 +1805,7 @@ c     Initialize accumulators
 
 c     X extrapolation
 
-      if (flgx) then
+      if (flg(1)) then
         if (ito == imn) then
           call getMGmap(imn+1,jmn,kmn,igxbc,igybc,igzbc,ig,jg,kg)
           xx = grid_params%xx(ig:ig+inx-1)
@@ -1703,16 +1821,15 @@ c     X extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         xto = grid_params%xx(ig)
 
-        orderx = min(order,inx-1)
         call IntDriver1d(inx,xx,array(imni:imxi,jto,kto)
-     .                  ,1,xto,valx,orderx)
+     .                  ,1,xto,valx,order_int(1))
 
         num = num + 1
       endif
 
 c     Y extrapolation
 
-      if (flgy) then
+      if (flg(2)) then
 
         if (jto == jmn) then
           call getMGmap(imn,jmn+1,kmn,igxbc,igybc,igzbc,ig,jg,kg)
@@ -1729,9 +1846,8 @@ c     Y extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         yto = grid_params%yy(jg)
 
-        ordery = min(order,iny-1)
         call IntDriver1d(iny,yy,array(ito,jmni:jmxi,kto)
-     .                  ,1,yto,valy,ordery)
+     .                  ,1,yto,valy,order_int(2))
         
         num = num + 1
 
@@ -1739,7 +1855,7 @@ c     Y extrapolation
 
 c     Z extrapolation
 
-      if (flgz) then
+      if (flg(3)) then
 
         if (kto == kmn) then
           call getMGmap(imn,jmn,kmn+1,igxbc,igybc,igzbc,ig,jg,kg)
@@ -1756,9 +1872,8 @@ c     Z extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         zto = grid_params%zz(kg)
 
-        orderz = min(order,inz-1)
         call IntDriver1d(inz,zz,array(ito,jto,kmni:kmxi)
-     .                  ,1,zto,valz,orderz)
+     .                  ,1,zto,valz,order_int(3))
 
         num = num + 1
       endif
@@ -1770,6 +1885,83 @@ c     Average extrapolation results and fill ghost cell
 c     End program
 
       deallocate(xx,yy,zz)
+
+      contains
+
+c     select_along
+c     ######################################################################
+      subroutine select_along
+c     -----------------------------------------------------------------------
+c     Selects interpolation directions so that interpolation occurs ALONG
+c     selected boundary only.
+c     -----------------------------------------------------------------------
+
+      do i=1,3
+
+        !Identify other directions
+        i1 = mod(i+1,3)
+        i2 = mod(i+2,3)
+        if (i1 == 0) i1 = 3
+        if (i2 == 0) i2 = 3
+
+        !Identify cases in which an edge has two or more selected directions:
+        !  can't eliminate both interpolation directions simultaneously;
+        !  resolve indetermination by choosing largest intepolation support
+        if (select_bc(i) .and. (select_bc(i1) .or. select_bc(i2))) then
+
+          if (select_bc(i1).and.select_bc(i2)) then
+            if (order_int(i1) <= order_int(i2)) then
+              select_bc(i1) = .false.
+            else
+              select_bc(i2) = .false.
+            endif
+          endif
+
+          if (select_bc(i1)) then
+            if (order_int(i) <= order_int(i1)) then
+              cycle
+            else
+              flg(i) = .not.select_bc(i)
+            endif
+          else
+            if (order_int(i) <= order_int(i2)) then
+              cycle
+            else
+              flg(i) = .not.select_bc(i)
+            endif
+          endif
+        elseif (select_bc(i)) then
+          flg(i) = .not.select_bc(i)
+        endif
+
+      enddo
+
+      end subroutine select_along
+
+c     select_across
+c     ######################################################################
+      subroutine select_across
+c     -----------------------------------------------------------------------
+c     Selects interpolation directions so that interpolation occurs ACROSS
+c     selected boundary only.
+c     -----------------------------------------------------------------------
+
+      do i=1,3
+
+        !Identify other directions
+        i1 = mod(i+1,3)
+        i2 = mod(i+2,3)
+        if (i1 == 0) i1 = 3
+        if (i2 == 0) i2 = 3
+
+        if (select_bc(i) .and. flg(i)) then
+          flg(i1) = .false.
+          flg(i2) = .false.
+        endif
+
+      enddo
+
+      end subroutine select_across
 
       end subroutine extrapolateToCorner
 
