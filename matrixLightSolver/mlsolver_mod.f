@@ -7,30 +7,44 @@ c######################################################################
         implicit none
 
         type:: solver_options
-          integer         :: iter
-          integer         :: iter_out
-          double precision:: tol
-          double precision:: tol_out
-          double precision:: omega
-          double precision:: omega10
-          double precision:: omega01
-          integer         :: ncolors
-          integer         :: vcyc
-          integer         :: igridmin
-          integer         :: stp_test
-          logical         :: sym_test
-          logical         :: fdiag
-          logical         :: vol_res
-          logical         :: mg_line_relax
-          logical         :: vertex_based_relax
-          integer         :: krylov_subspace
-          integer         :: orderres
-          integer         :: orderprol
-          integer         :: mg_coarse_solver_depth
-          integer         :: mg_mu
-          integer         :: mg_line_nsweep
+          !Global quantities
+          integer(4) :: iter
+          real(8)    :: tol
+
+          !Stationary iterative methods quantities
+          real(8)    :: omega
+          real(8)    :: omega10
+          real(8)    :: omega01
+          integer(4) :: ncolors
+          logical    :: fdiag
+          real(8), pointer, dimension(:,:) :: diag
+
+          !Krylov methods quantities
+          integer(4) :: stp_test
+          logical    :: sym_test
+          logical    :: vol_res
+          integer(4) :: krylov_subspace
+
+          !MG quantities
+          integer(4) :: igridmin
+          integer(4) :: vcyc
+          integer(4) :: orderres
+          integer(4) :: orderprol
+          integer(4) :: mg_coarse_solver_depth
+          integer(4) :: mg_mu
+          integer(4) :: mg_line_nsweep
+          integer(4) :: mg_line_vcyc
+          integer(4) :: mg_line_coarse_solver_depth
+          logical    :: mg_line_relax
+          real(8)    :: mg_line_tol
+          real(8)    :: mg_line_omega
+          logical    :: vertex_based_relax
+
           type(grid_def)  :: mg_grid_def
-          double precision, pointer, dimension(:,:) :: diag
+
+          !Output quantities
+          integer(4) :: iter_out
+          real(8)    :: tol_out
         end type solver_options
 
         type:: solver_unit
@@ -85,11 +99,16 @@ c       Initializes solver options
                                                    !  (if =0, use smoother)
           solverOptions%mg_mu  = 1                 !Identifies MG cycle: V-cycle (mu=1),
                                                    !                     W-cycle (mu=2)
-          solverOptions%mg_line_relax=.false.      !Specifies whether to do point-wise 
+          solverOptions%mg_line_relax=.false.      !Whether to do point-wise 
                                                    !  relaxation (false) or line-wise 
                                                    !  relaxation (true).
-          solverOptions%mg_line_nsweep = 1         !Specifies number of line relaxation sweeps
-          solverOptions%vertex_based_relax=.false. !Specifies whether to do vertex-based relax.
+          solverOptions%mg_line_nsweep = 1         !Number of line relaxation sweeps
+          solverOptions%mg_line_vcyc   = 10        !Number of V-cycles in MG line solver
+          solverOptions%mg_line_tol    = 1d-1      !Tolerance for line solves
+          solverOptions%mg_line_omega  = 1d0       !Damping parameter for line relax
+          solverOptions%mg_line_coarse_solver_depth= 0  !Identifies coarse solver for line solves
+                                                        !  (if =0, use smoother)
+          solverOptions%vertex_based_relax=.false. !Whether to do vertex-based relax.
           solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
 
           !Krylov methods options
@@ -155,7 +174,7 @@ c     ###################################################################
 c       Reads TOP solver definition from solver hierarchy
 
           type (solver_unit) :: solver_def
-          integer            :: depth
+          integer(4)            :: depth
 
         !Begin
 
@@ -170,7 +189,7 @@ c     ###################################################################
 c       Modifies solver definition at depth 'depth' in solver hierarchy
 
           type (solver_unit) :: solver_def
-          integer            :: depth
+          integer(4)            :: depth
 
         !Begin
 
@@ -184,7 +203,7 @@ c     ###################################################################
 
 c       Gets solver options at depth 'depth'
 
-          integer :: depth
+          integer(4) :: depth
           type (solver_unit) :: solver_def
 
         !Begin
@@ -201,7 +220,7 @@ cc        subroutine printSolverHierarchy
 c       Reads TOP solver definition from solver hierarchy
 
 cc          type (solver_unit) :: solver_def
-cc          integer            :: depth,idepth
+cc          integer(4)            :: depth,idepth
 
         !Begin
 
@@ -282,7 +301,7 @@ c     ###################################################################
 
 c       Counts number of elements in a queue
 
-          integer :: count
+          integer(4) :: count
           type (queue_type), intent (in) :: q
           type (node_type), pointer      :: node_ptr
 
@@ -307,7 +326,7 @@ c     ###################################################################
 
 c       Counts number of elements in a queue
 
-          integer :: count
+          integer(4) :: count
 
         !Begin
 
@@ -344,11 +363,11 @@ c     ###################################################################
 
 c       Deletes front node from queue
 
-          integer :: depth
+          integer(4) :: depth
           type (queue_type), intent (in out) ::q
           type (solver_unit), intent (out)   ::buffer
 
-          integer :: count
+          integer(4) :: count
           type (node_type), pointer :: node_ptr
 
         !Begin
@@ -383,11 +402,11 @@ c     ###################################################################
 
 c       Deletes front node from queue
 
-          integer :: depth
+          integer(4) :: depth
           type (queue_type), intent (in out) ::q
           type (solver_unit), intent (in)   ::buffer
 
-          integer :: count
+          integer(4) :: count
           type (node_type), pointer :: node_ptr
 
         !Begin
