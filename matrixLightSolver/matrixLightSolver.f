@@ -1,13 +1,28 @@
 c TO DO list:
 c
-c 2) Posibility of linking to user-provided solvers.
-c
-c 3) Separating 2D dependent routines, to allow more general use in 3D.
-
+c 1) Posibility of linking to user-provided solvers.
 
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 c THIS ROUTINE WORKS IN COMBINATION WITH THE FOLLOWING ROUTINES:
-c     coupledMG.f, mlsolver_mod.f mg_mod.f
+c     mlsolver_mod.f,coupledMG.f
+c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+c THIS ROUTINE REQUIRES THE FOLLOWING EXTERNAL ROUTINES:
+c
+c     subroutine matvec(elem,ntot,x,b,igrid,bcond)
+c
+c WHERE:
+c     * elem: whether matvec is to be applied to the whole vector
+c             (elem=0), or to find only the component elem<>0 of
+c             the vector.
+c     * ntot: size of vector
+c     * x(ntot): vector to apply operator on.
+c     * b(ntot): resulting vector
+c     * igrid (integer): grid level operation is applied at.
+c     * bcond(6,neq): boundary condition information for all
+c             dimensions of the problem.
+c    
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
 c getSolver
@@ -24,7 +39,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcond(4,neq)
+      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcond(6,neq)
       real*8         x(ntot),b(ntot)
 
       external       matvec
@@ -75,7 +90,7 @@ c End program
  100  format (/,' ',a2,' did not converge to prescribed tolerance',
      .        /,' Residual =',1pe10.2,' > Tolerance =',e10.2,/)
 
-      end subroutine
+      end subroutine getSolver
 
 c solver_meth
 c####################################################################
@@ -91,7 +106,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcond(4,neq)
+      integer*4      neq,ntot,igrid,iter,guess,out,depth,bcond(6,neq)
       real*8         x(ntot),b(ntot)
 
       type (solver_options):: options
@@ -140,7 +155,7 @@ c Solve
 
 c End program
 
-      end subroutine
+      end subroutine solver_meth
 
 c cg
 c####################################################################
@@ -166,7 +181,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer*4    neq,ntot,igrid,guess,out,depth,bcond(4,neq)
+      integer*4    neq,ntot,igrid,guess,out,depth,bcond(6,neq)
       real*8       x(ntot),b(ntot)
 
       type (solver_options) :: options
@@ -301,7 +316,7 @@ c End program
  10   format (' CG Iteration:',i4,'; Residual:',1p1e12.4,
      .        '; Ratio:',1p1e12.4)
 
-      end subroutine
+      end subroutine cg
 
 c gm
 c#######################################################################
@@ -328,7 +343,7 @@ c--------------------------------------------------------------------
 c Call variables
 
       integer*4     neq,ntot,im,iout,ierr,igrid,its,guess,depth
-     .             ,bcond(4,neq)
+     .             ,bcond(6,neq)
       real*8        b(ntot),x(ntot)
 
       external      matvec

@@ -7,7 +7,12 @@ OBJS := $(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))
 OBJMOD := $(MODS:.f=.o)
 
 LIBS :=
- 
+
+COMMON_SRC  = $(foreach dir,$(SUBDIRS),$(filter-out $(dir)/test.f,$(wildcard $(dir)/*.f)))
+COMMON_OBJS = $(COMMON_SRC:.f=.o)
+
+prefix = .
+
 #Define compiler flags
 
 FC = f90
@@ -19,6 +24,7 @@ ifeq ($(FC),f90)
 OPTIMIZATION = -O2 -B101 -cpu:host -s
 DEBUG = -g
 PROFILE = -P
+MODPATH = -p
 
 else
 
@@ -26,6 +32,7 @@ else
 OPTIMIZATION = -O --tpp
 DEBUG = -g --trace
 PROFILE =
+MODPATH = -M
 
 endif
 
@@ -45,18 +52,34 @@ ifneq (,$(findstring p,$(OPT)))
 FFLAGS += $(PROFILE)
 endif
 
+#Define subdirectories for common code
+
+COMMONDIR = ..
+
+#SUBDIRS = $(COMMONDIR)/MG
+
+MODDIRS = $(patsubst $(COMMONDIR)%,$(MODPATH) $(COMMONDIR)%,$(SUBDIRS))
+
 #Define targets
 
-target: $(OBJMOD) $(OBJS)
+target: common $(OBJMOD) $(OBJS) $(COMMON_SRC)
+
+common: ;
+	-for subdir in $(SUBDIRS) ; do \
+		$(MAKE) -e -C $$subdir ; done 
 
 clean:
-	rm -f *.o *.mod
+	-rm -f *.o *.mod
+
+recclean: clean
+	for subdir in $(SUBDIRS) ; do \
+		$(MAKE) -C $$subdir clean;  done
 
 #Define dependencies
 
-$(OBJS) : $(OBJMOD)
+$(OBJS) : $(MODS)
 
 #Define patterns
 
 %.o : %.f
-	$(FC) -c $(FFLAGS) $<
+	$(FC) -c $(MODDIRS) $(FFLAGS) $<
