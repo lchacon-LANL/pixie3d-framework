@@ -185,7 +185,9 @@ c Initialize local solution vector (xx) and local r.h.s. (yy)
       yy  = 0d0
       wrk = 0d0
 
+c memcheck ****
       dummy = 0d0
+c memcheck ****
 
       if (guess.eq.0) then
         x = 0d0
