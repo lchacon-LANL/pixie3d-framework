@@ -12,8 +12,6 @@ c--------------------------------------------------------------------
 c     Solves Ax=b matrix-free using a variety of solvers.
 c--------------------------------------------------------------------
 
-      use mg_setup
-
       use mlsolverSetup
 
       implicit none     !For safe fortran
@@ -80,8 +78,6 @@ c####################################################################
 c--------------------------------------------------------------------
 c     Solves Ax=b matrix-free using a variety of solvers.
 c--------------------------------------------------------------------
-
-      use mg_setup
 
       use mlsolverSetup
 

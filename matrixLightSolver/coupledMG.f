@@ -127,6 +127,7 @@ c Compute initial residual and check convergence
 
       if (rr0.lt.1d-16*ntot) then
         if (out.ge.1) write (*,*) 'Initial solution seems exact in MG'
+        call killmg
         return
       endif
 
@@ -192,8 +193,7 @@ c End program
 
       options%tol_out = mag1
 
-      if (fdiag) deallocate(diag)
-      if (fpointers) deallocate(istart,ntotv)
+      call killmg
 
       return
 
@@ -284,6 +284,17 @@ c       ###################################################################
 
         end subroutine solve
 
+c       killmg
+c       ###################################################################
+        subroutine killmg
+
+          implicit none
+
+          if (fdiag)     deallocate(diag)
+          if (fpointers) deallocate(istart,ntotv)
+
+        end subroutine killmg
+
       end subroutine
 
 c jb
@@ -343,8 +354,6 @@ c Begin program
 
       if (out.ge.2) write (*,*)
 
-      allocate(dummy(neq),rhs(neq))
-
 c Set pointers
 
       fpointers = .false.
@@ -353,6 +362,7 @@ c Set pointers
 
       !Successful memory allocation
       if (alloc_stat == 0) then
+        if (out.ge.2) write (*,*) 'Allocating pointers...'
         istart(igrid) = neq*nxvp(igrid-1)*nyvp(igrid-1) + 1
         ntotv (igrid) = neq*nxvp(igrid)*nyvp(igrid)
         fpointers = .true.
@@ -375,6 +385,10 @@ c Find diagonal for smoothers
         call find_mf_diag_neq(neq,ntot,matvec,igrid,igrid)
         if (out.ge.2) write (*,*) 'Finished!'
       endif
+
+c Allocate internal arrays
+
+      allocate(dummy(neq),rhs(neq))
 
 c Jacobi iteration
 
@@ -487,7 +501,7 @@ cc              jjm = i   + nx*(j-2)
             write (*,*)'Aborting...'
             stop
           endif
-  
+
           do ii = 1,nn/neq
 
             do ieq = 1,neq
@@ -495,7 +509,7 @@ cc              jjm = i   + nx*(j-2)
               rhs(ieq) = rr(iii) - yy(iii)
             enddo
 
-            iig = neq*(ii + isig - 2)
+            iig = neq*(ii - 1) + isig - 1
             delta = diag(1,iig+1)*diag(2,iig+2)
      .             -diag(2,iig+1)*diag(1,iig+2)
             dummy(1) = (rhs(1)*diag(2,iig+2)-rhs(2)*diag(2,iig+1))/delta
@@ -541,7 +555,7 @@ c End program
 
       deallocate (dummy,rhs)
 
-      if (fdiag) deallocate(diag)
+      if (fdiag)     deallocate(diag)
       if (fpointers) deallocate(istart,ntotv)
 
       return
@@ -618,6 +632,7 @@ c Set pointers
 
       !Successful memory allocation
       if (alloc_stat == 0) then
+        if (out.ge.2) write (*,*) 'Allocating pointers...'
         istart(igrid) = neq*nxvp(igrid-1)*nyvp(igrid-1) + 1
         ntotv (igrid) = neq*nxvp(igrid)*nyvp(igrid)
         fpointers = .true.
@@ -692,7 +707,7 @@ c       Forward pass
               rhs(ieq) = rr(iii) - yy(iii)
             enddo
 
-            iig = neq*(ii + isig - 2)
+            iig = neq*(ii - 1) + isig - 1
             delta = diag(1,iig+1)*diag(2,iig+2)
      .             -diag(2,iig+1)*diag(1,iig+2)
             dummy(1) = (rhs(1)*diag(2,iig+2)-rhs(2)*diag(2,iig+1))/delta
@@ -715,7 +730,7 @@ c       Backward pass
               rhs(ieq) = rr(iii) - yy(iii)
             enddo
 
-            iig = neq*(ii + isig - 2)
+            iig = neq*(ii - 1) + isig - 1
             delta = diag(1,iig+1)*diag(2,iig+2)
      .             -diag(2,iig+1)*diag(1,iig+2)
             dummy(1) = (rhs(1)*diag(2,iig+2)-rhs(2)*diag(2,iig+1))/delta

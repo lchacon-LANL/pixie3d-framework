@@ -10,7 +10,8 @@ c######################################################################
           double precision:: tol
           double precision:: tol_out
           double precision:: omega
-          double precision:: omega1
+          double precision:: omega10
+          double precision:: omega01
           integer         :: vcyc
           integer         :: igridmin
           integer         :: stp_test
@@ -57,7 +58,8 @@ c       Initializes solver options
           solverOptions%iter  = 10             !Number of iterations
           solverOptions%tol   = 1d-5           !Convergence tolerance
           solverOptions%omega = 1d0            !Relaxation parameter
-          solverOptions%omega1= 0d0            !Weighed Jacobi relaxation parameter
+          solverOptions%omega10= 0d0           !Weighed Jacobi relaxation parameter
+          solverOptions%omega01= 0d0           !Weighed Jacobi relaxation parameter
 
           !MG and smoother options
           solverOptions%neq      = 1           !Number of equations (MG)

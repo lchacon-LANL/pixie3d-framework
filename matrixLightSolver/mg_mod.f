@@ -10,6 +10,8 @@ c######################################################################
         integer         ,dimension(:)  ,allocatable:: istart,
      .           ntotv
 
+        double precision, allocatable, dimension(:,:):: diag
+
       contains
 
 c     setupMG
@@ -56,7 +58,7 @@ c     Allocate arrays
       allocate(dx(ngrd),dy(ngrd))
       allocate(xl(0:nx+1,ngrd),yl(0:ny+1,ngrd))
       allocate(istartp(ngrd),ntotvp(ngrd))
-      allocate(istart (ngrd),ntotv (ngrd))
+cc      allocate(istart (ngrd),ntotv (ngrd))
 
 c     Initialize MG
 
