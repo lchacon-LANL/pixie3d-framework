@@ -534,16 +534,15 @@ cc        u_graph = u_n
         !Check source
 cc        u_graph = fsrc
 cc        u_graph%array_var(1)%array = u_0%array_var(1)%array  !Set rho finite
-
-        call imposeBoundaryConditions(u_graph,1,1,1)
+cc        call imposeBoundaryConditions(u_graph,1,1,1)
 
         !Open record file
         open(unit=urecord,file=recordfile
      .      ,form='unformatted',status='replace')
 
-        write (urecord) nxd
-        write (urecord) nyd
-        write (urecord) nzd
+        write (urecord) nxd,1,nxd
+        write (urecord) nyd,1,nyd
+        write (urecord) nzd,1,nzd
 
         call writeRecordFile(urecord,0,0d0,dt,u_graph)
         call writeRecordFile(urecord,0,0d0,dt,u_np)
