@@ -317,7 +317,7 @@ c     mapArrayToMGVector
 c     ###############################################################
       subroutine mapArrayToMGVector(nx,ny,array,mgvector,igrid)
 c     --------------------------------------------------------------
-c     Maps array into a MG vector
+c     Maps array into a MG vector excluding ghost nodes.
 c     --------------------------------------------------------------
 
       implicit none    !For safe fortran
@@ -371,7 +371,7 @@ c     Begin program
         enddo
       enddo
 
-      call setBoundaryConditions(array,nx,ny,bcond)
+      call setBoundaryConditions(array,1,nx,1,ny,nx,ny,bcond)
 
 c     End program
 
@@ -424,7 +424,7 @@ c     Agglomeration
           enddo
         enddo
 
-        call setBoundaryConditions(arrayc,nxc,nyc,bcond)
+        call setBoundaryConditions(arrayc,1,nxc,1,nyc,nxc,nyc,bcond)
 
       else
 
@@ -461,7 +461,7 @@ c     Map array into vector vv for all grids
           enddo
         enddo
 
-        call setBoundaryConditions(arrayc,nxc,nyc,bcond)
+        call setBoundaryConditions(arrayc,1,nxc,1,nyc,nxc,nyc,bcond)
 
         deallocate(tx)
         deallocate(ty)

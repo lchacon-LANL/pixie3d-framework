@@ -5,6 +5,23 @@ c
 c 2) Clean mg_setup module (including pertaining routines).
 c
 c 3) Document i/o variables in all subroutines consistently.
+c
+c 4) Implement general robin boundary conditions. This requires
+c    defining a new structure that contains information of
+c    robin constants alpha, beta, and gamma for each boundary:
+c
+c         alpha*u + beta*u' = gamma
+c
+c    The following could work:
+c
+c        structure defBC:
+c           logical periodic
+c           real(8) alpha
+c           real(8) beta
+c           real(8) gamma
+c
+c    Implementation: define structure defBC in module mlsolversetup, 
+c    and declare structure array bcond(4,neq) of type defBC where used.
 
 c module mg_internal
 c######################################################################
@@ -1549,7 +1566,6 @@ c Functions
 
 c Begin program
 
-
       if (bcond(3) == 0 .or. bcond(4) == 0) then
         call    periodicBC(i,nx,ii,im,ip)
       else
@@ -1630,7 +1646,150 @@ cc        ip = i
 
 c setBoundaryConditions
 c####################################################################
-      subroutine setBoundaryConditions(array,nx,ny,bcs)
+      subroutine setBoundaryConditions(array,imin,imax,jmin,jmax
+     .                                ,nx,ny,bcs)
+
+c--------------------------------------------------------------------
+c     Sets adequate boundary conditions on array.
+c
+c     On input:
+c       * array  -> real array with ghost-nodes
+c       * nx,ny  -> domain size
+c       * bcs    -> integer array of size 4 containing BC setup:
+c           + bcs(1) ---> bottom
+c           + bcs(2) ---> top
+c           + bcs(3) ---> left
+c           + bcs(4) ---> right
+c         If bcs = 0  --> periodic BC's
+c         If bcs = 1  --> dirichlet BC's (always zero because MG deals with
+c                                         error updates)
+c         If bcs = 2  --> Neumann BC's
+c         If bcs = 3  --> second-order derivative = 0 (linear extrapolation)
+c--------------------------------------------------------------------
+
+      implicit none       !For safe fortran
+
+c Call variables
+
+      integer*4  nx,ny,imin,imax,jmin,jmax,bcs(4)
+      real*8     array(0:nx+1,0:ny+1)
+
+c Local variables
+
+      integer*4  i,j
+
+c Begin program
+
+c Bottom
+
+      if (bcs(1).eq.0) then
+        do i=imin,imax
+          array(i,0)    = array(i,ny-1)
+        enddo
+      elseif (bcs(1).eq.1) then
+        do i=imin,imax
+          array(i,0)    = 0d0
+        enddo
+      elseif (bcs(1).eq.2) then
+        do i=imin,imax
+cc          array(i,0)    = array(i,2)
+          array(i,0)    = array(i,1)
+        enddo
+      elseif (bcs(1).eq.3) then
+        do i=imin,imax
+          array(i,0)    = 2*array(i,1) - array(i,2)
+        enddo
+      else
+        write (*,*) 'Boundary condition type not implemented at bottom'
+        stop
+      endif
+
+c Top
+
+      if (bcs(2).eq.0) then
+        do i=imin,imax
+          array(i,ny+1) = array(i,2)
+        enddo
+      elseif (bcs(2).eq.1) then
+        do i=imin,imax
+          array(i,ny+1) = 0d0
+        enddo
+      elseif (bcs(2).eq.2) then
+        do i=imin,imax
+cc          array(i,ny+1) = array(i,ny-1)
+          array(i,ny+1) = array(i,ny)
+        enddo
+      elseif (bcs(2).eq.3) then
+        do i=imin,imax
+          array(i,ny+1) = 2*array(i,ny) - array(i,ny-1)
+        enddo
+      else
+        write (*,*) 'Boundary condition type not implemented at top'
+        stop
+      endif
+
+c Left
+
+      if (bcs(3).eq.0) then
+        do j=jmin-1,jmax+1
+          array(0   ,j) = array(nx-1,j)
+        enddo
+      elseif (bcs(3).eq.1) then
+        do j=jmin-1,jmax+1
+          array(0   ,j) = 0d0
+        enddo
+      elseif (bcs(3).eq.2) then
+        do j=jmin-1,jmax+1
+cc          array(0   ,j) = array(2,j)
+          array(0   ,j) = array(1,j)
+        enddo
+      elseif (bcs(3).eq.3) then
+        do j=jmin-1,jmax+1
+          array(0   ,j) = 2*array(1,j) - array(2,j)
+        enddo
+      else
+        write (*,*) 'Boundary condition type not implemented at left'
+        stop
+      endif
+
+c Right
+
+      if (bcs(4).eq.0) then
+        do j=jmin-1,jmax+1
+          array(nx+1,j) = array(2,j)
+        enddo
+      elseif (bcs(4).eq.1) then
+        do j=jmin-1,jmax+1
+          array(nx+1,j) = 0d0
+        enddo
+      elseif (bcs(4).eq.2) then
+        do j=jmin-1,jmax+1
+cc          array(nx+1,j) = array(nx-1,j)
+          array(nx+1,j) = array(nx,j)
+        enddo
+      elseif (bcs(4).eq.3) then
+        do j=jmin-1,jmax+1
+          array(nx+1,j) = 2*array(nx,j) - array(nx-1,j)
+        enddo
+      else
+        write (*,*) 'Boundary condition type not implemented at right'
+        stop
+      endif
+
+c Resolve singularity if no BC is Dirichlet
+
+cc      if (      bcs(1) /= 1 .and. bcs(2) /= 1 
+cc     .    .and. bcs(3) /= 1 .and. bcs(4) /= 1 ) then
+cc        array(0,0) = 0d0
+cc      endif
+
+c End
+
+      end subroutine
+
+c setBoundaryConditions
+c####################################################################
+      subroutine setBoundaryConditions2(array,nx,ny,bcs)
 
 c--------------------------------------------------------------------
 c     Sets adequate boundary conditions on array.
@@ -1758,6 +1917,7 @@ cc          array(nx+1,j) = array(nx,j)
         write (*,*) 'Boundary condition type not implemented at right'
         stop
       endif
+
 
 c End
 
