@@ -1,3 +1,7 @@
+#Define message
+
+MESSAGE = "Compiling grid modules"
+
 #Define subdirectories for common code
 
 #COMMONDIRS = ../interpolation/slatec/
