@@ -494,7 +494,7 @@ c     ####################################################################
         logical    :: neumann(2),dirichlet(2),spoint(2)
 
         spoint    = (bcs == SP ) .or. (bcs == SP2)
-        neumann   = (bcs == NEU) .or. (bcs == SYM)
+        neumann   = (abs(bcs) == NEU) .or. (bcs == SYM)
         dirichlet = (bcs == DIR) .or. (bcs ==-SYM) .or. (bcs == EQU)
 
         period = pi
@@ -522,7 +522,7 @@ c     ####################################################################
           ff = sin(period*(x-xmin)/(xmax-xmin))
         elseif (spoint(1) .and. dirichlet(2)) then
           ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
-     .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
+     .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))**(nh+1)
         elseif (spoint(1) .and. neumann(2)) then
           if (.not.odd) then
             period = period/2.
@@ -560,6 +560,11 @@ c Call variables
 
 c Local variables
 
+      integer(4) :: ierr
+
+      integer(4) :: system
+      external   :: system
+
 c Begin program
 
 c Set data dumping intervals
@@ -582,13 +587,15 @@ c Open record file
 
       if (.not.restart) then
 
+        ierr=system('rm -f record*.bin >& /dev/null')
+
         !Initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
-        if (debug) then
-          u_graph = u_n
-        else
+cc        if (debug) then
+cc          u_graph = u_n
+cc        else
         !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
           u_graph = u_0
-        endif
+cc        endif
 
         !Check source
 cc        u_graph = fsrc
