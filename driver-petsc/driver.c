@@ -50,7 +50,6 @@ typedef struct {
   int       global;
   int       iguess;
   int       bcs[6];
-  PetscTruth  user_PC;
 } input_CTX;
 
 typedef struct {
@@ -70,6 +69,7 @@ typedef struct {
   Vec         rk;
   Mat         J;
   PetscTruth  hdf5c;
+  PetscTruth  petsc_PC;
 } AppCtx;
 
 
@@ -193,6 +193,8 @@ int MAIN__(int argc, char **argv)
 
   user.aspc_its = 0;   /* Initialize Additive Schwartz method */
 
+  user.petsc_PC = 0;   /* Do not use PETSC PC */
+
   /* Set runtime options */
   
   ierr = PetscOptionsGetInt(PETSC_NULL,"-nmax",&numtime,PETSC_NULL)	        ;CHKERRQ(ierr);
@@ -205,8 +207,7 @@ int MAIN__(int argc, char **argv)
 
   ierr = PetscOptionsGetInt(PETSC_NULL,"-aspc_its",&user.aspc_its,PETSC_NULL)   ;CHKERRQ(ierr);
 
-  ierr = PetscOptionsGetLogical(PETSC_NULL,"-user_PC",&user.indata.user_PC\
-                               ,PETSC_NULL)                                    ; CHKERRQ(ierr);
+  ierr = PetscOptionsGetLogical(PETSC_NULL,"-petsc_PC",&user.petsc_PC,PETSC_NULL);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create DA context 
@@ -259,7 +260,7 @@ int MAIN__(int argc, char **argv)
     /* Customize PC */
 
     ierr = KSPGetPC(ksp,&pc)                                                   	;CHKERRQ(ierr);
-    if (user.indata.user_PC) {
+    if (!user.petsc_PC) {
       ierr = PCSetType(pc,PCSHELL)                                             	;CHKERRQ(ierr);
       if (user.aspc_its == 0) { 
 	ierr = PCShellSetApply(pc,ApplyPC  ,(void*)&user)                      	;CHKERRQ(ierr);
@@ -282,6 +283,8 @@ int MAIN__(int argc, char **argv)
   
   ierr = SNESSetFromOptions(snes)                                              	;CHKERRQ(ierr);
   
+  ierr = SNESSetUp(snes,x)                                                      ;CHKERRQ(ierr);
+
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize calculation 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -309,10 +312,9 @@ int MAIN__(int argc, char **argv)
     ierr = VecCopy(x, user.xold)                      	    			;CHKERRQ(ierr);
 
     /* Get initial Newton state info for PC */
-    ierr = SNESSetUp(snes,x)                                                    ;CHKERRQ(ierr);
     ierr = SNESGetSolution(snes,&user.xk)                                       ;CHKERRQ(ierr);
     ierr = SNESGetJacobian(snes,&user.J,PETSC_NULL,PETSC_NULL,PETSC_NULL)       ;CHKERRQ(ierr);
-
+    
     /* Solve nonlinear problem */
     ierr = SNESSolve(snes, x)                         	    			;CHKERRQ(ierr);
 
@@ -404,8 +406,8 @@ int MySNESMonitor(SNES snes, int its, double fnorm, void *ctx)
   ierr = SNESGetJacobian(snes,&user->J,PETSC_NULL,PETSC_NULL,PETSC_NULL); CHKERRQ(ierr);
 
   /* Monitor */
+  ierr = SNESGetNumberLinearIterations(snes,&user->ksp_its); CHKERRQ(ierr);
   if (user->indata.ilevel > 0) {
-    ierr = SNESGetNumberLinearIterations(snes,&user->ksp_its); CHKERRQ(ierr);
     if (its == 0) user->snes_res0 = fnorm;
     if (user->indata.ilevel > 1) PetscPrintf(PETSC_COMM_WORLD,"\n");
     rel_res = fnorm/user->snes_res0;
@@ -845,7 +847,6 @@ int ApplyASPC(void *ctx,Vec y,Vec z)
 
   int	  ierr,k;
   PetscScalar  mone=-1.,omega=1.;
-  Vec     t;
 
   PetscFunctionBegin;
 
