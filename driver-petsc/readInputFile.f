@@ -96,10 +96,6 @@ c Define structure components
       inputdata%dt       = dt   
       inputdata%tmax     = tmax
 
-c Write structure
-
-cc      write (*,*) inputdata
-
 c End program
 
       end subroutine readInputFile
