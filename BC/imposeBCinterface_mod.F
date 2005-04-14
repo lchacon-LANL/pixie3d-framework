@@ -357,19 +357,25 @@ c     ---------------------------------------------------------------------
         logical    :: do__nothing
         integer(4),intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
 
+        integer(4) :: ibc
+
 c     Begin program
 
         do__nothing = .false.
         if (asm) return      !Return if additive Schwartz method is used (PC)
 
         select case(dim)
-        case (1)
+        case(1)
           call checkLimits(i1,i2,grid_params%nxgl(igxbc))
         case(2)
           call checkLimits(j1,j2,grid_params%nygl(igybc))
         case(3)
           call checkLimits(k1,k2,grid_params%nzgl(igzbc))
         end select
+
+        ibc = (1+loc)+2*(dim-1)
+        if ((.not.do__nothing).and.(bcond(ibc) == PER.and.asm_dir(dim)))
+     .       do__nothing = .true.  !Do nothing for periodic BCs in parallel
 
 c     End program
 
@@ -421,13 +427,13 @@ c     Begin program
       loc = abs(mod(ibc,2)-2)-1
       dim = 1 + (ibc-1-loc)/2
 
-#if defined(petsc)
-      selectFace= .not.((bcond(ibc) == PER).or.
-     .     do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))
-#else
+cc#if defined(petsc)
+cc      selectFace= .not.((bcond(ibc) == PER).or.
+cc     .     do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))
+cc#else
       selectFace= 
      .     .not.do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax)
-#endif
+cc#endif
 
 cc      selectFace = .true.
 
@@ -449,7 +455,6 @@ c     -----------------------------------------------------------------
 
       end subroutine setASMflag
 
-#if defined(petsc)
 c     setASM_PC_BC
 c     ######################################################################
       subroutine setASM_PC_BC(igx,igy,igz,bcs,IIBC)
@@ -463,6 +468,8 @@ c     -----------------------------------------------------------------
       integer(4) :: igx,igy,igz,bcs(:,:),IIBC
 
       integer(4) :: dim,loc,ibc,igmin,igmax,jgmin,jgmax,kgmin,kgmax
+
+      if (np == 1) return
 
       igmin = grid_params%ilo(igx)
       igmax = grid_params%ihi(igx)
@@ -478,13 +485,17 @@ c     -----------------------------------------------------------------
           ibc = (1+loc)+2*(dim-1)
           if (do__nothing(dim,loc,igmin,igmax,jgmin,jgmax,kgmin,kgmax))
      .         bcs(ibc,:) = IIBC
+cc     .    then
+cc            bcs(ibc,:) = IIBC
+cc          elseif (bcond(ibc) == PER.and.asm_dir(dim)) then !Take care of PER boundaries in ASM
+cc            bcs(ibc,:) = IIBC
+cc          endif
         enddo
       enddo
 
-      if (np > 1) asm = .true.  !PC employs additive Schwartz method
+      asm = .true.  !PC employs additive Schwartz method
 
       end subroutine setASM_PC_BC
-#endif
 
 c     imposeBConScalar
 c     #################################################################
@@ -1158,25 +1169,33 @@ c     Local variables
 
 c     Begin program
 
-#if !defined(petsc)
+      if (np == 1 .or. asm) then
 
       select case (ibc)
       case (1)                  !x0
-       array(0     ,jmin:jmax,kmin:kmax)=array(nxbc,jmin:jmax,kmin:kmax)
+       if (.not.asm_dir(1))
+     . array(0     ,jmin:jmax,kmin:kmax)=array(nxbc,jmin:jmax,kmin:kmax)
       case (2)                  !x1                                       
-       array(nxbc+1,jmin:jmax,kmin:kmax)=array(1   ,jmin:jmax,kmin:kmax)
+       if (.not.asm_dir(1))
+     . array(nxbc+1,jmin:jmax,kmin:kmax)=array(1   ,jmin:jmax,kmin:kmax)
       case (3)                  !y0                                       
-       array(imin:imax,0     ,kmin:kmax)=array(imin:imax,nybc,kmin:kmax)
+       if (.not.asm_dir(2))
+     . array(imin:imax,0     ,kmin:kmax)=array(imin:imax,nybc,kmin:kmax)
       case (4)                  !y1                                       
-       array(imin:imax,nybc+1,kmin:kmax)=array(imin:imax,1   ,kmin:kmax)
+       if (.not.asm_dir(2))
+     . array(imin:imax,nybc+1,kmin:kmax)=array(imin:imax,1   ,kmin:kmax)
       case (5)                  !z0                                       
-       array(imin:imax,jmin:jmax,0     )=array(imin:imax,jmin:jmax,nzbc)
+       if (.not.asm_dir(3))
+     . array(imin:imax,jmin:jmax,0     )=array(imin:imax,jmin:jmax,nzbc)
       case (6)                  !z1                                       
-       array(imin:imax,jmin:jmax,nzbc+1)=array(imin:imax,jmin:jmax,1   )
+       if (.not.asm_dir(3))
+     . array(imin:imax,jmin:jmax,nzbc+1)=array(imin:imax,jmin:jmax,1   )
       case default
        write (*,*) 'Boundary',ibc,' non existent'
        stop
       end select
+
+      endif
 
 cc      select case (ibc)
 cc      case (1)                  !x0
@@ -1195,8 +1214,6 @@ cc      case default
 cc       write (*,*) 'Boundary',ibc,' non existent'
 cc       stop
 cc      end select
-
-#endif
 
 c     End program
 
