@@ -455,31 +455,41 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq
+        integer          :: ieq,ilom,ihip,jlom,jhip,klom,khip
 
 c     Begin program
 
         if (frmt) then
 #if defined(petsc)
           write (unit,*) ilomg,ihipg,jlomg,jhipg,klomg,khipg
+          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
+     .                                ,1,1,1)
+          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
+     .                                ,1,1,1)
 #else
           write (unit,*) ilom,ihip,jlom,jhip,klom,khip
 #endif
           write (unit,*) varray%nvar
           do ieq=1,varray%nvar
-            write(unit,*) varray%array_var(ieq)%array
+            write(unit,*) varray%array_var(ieq)
+     .                          %array(ilom:ihip,jlom:jhip,klom:khip)
             write(unit,*) varray%array_var(ieq)%bconds
             write(unit,*) varray%array_var(ieq)%descr
           enddo
         else
 #if defined(petsc)
           write (unit) ilomg,ihipg,jlomg,jhipg,klomg,khipg
+          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
+     .                                ,1,1,1)
+          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
+     .                                ,1,1,1)
 #else
           write (unit) ilom,ihip,jlom,jhip,klom,khip
 #endif
           write (unit) varray%nvar
           do ieq=1,varray%nvar
-            write(unit) varray%array_var(ieq)%array
+            write(unit) varray%array_var(ieq)
+     .                        %array(ilom:ihip,jlom:jhip,klom:khip)
             write(unit) varray%array_var(ieq)%bconds
             write(unit) varray%array_var(ieq)%descr
           enddo
@@ -1045,16 +1055,77 @@ c ######################################################################
 
       end module counters
 
+c module graphics_variables
+c ######################################################################
+      module graphics_variables
+
+        integer(4)     :: ngraph,ngroups
+        parameter        (ngraph=30)
+
+        real(8), allocatable, dimension(:) :: xl,yl,zl
+
+        type :: graph_var_def
+          double precision,pointer,dimension(:,:,:) :: array
+          character(20)                             :: descr
+          character(20)                             :: vector_name=''
+        end type graph_var_def
+
+        type :: graph_group
+          type (graph_var_def),dimension(ngraph) :: array_graph
+          logical                                :: cartesian
+          character(20)                          :: descr
+        end type graph_group
+
+        type (graph_group),pointer,dimension(:) :: graph
+
+        integer(4),allocatable,dimension(:) :: nqty
+
+        logical        :: plot,hdf_plot=.false.
+
+        integer(4)     :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
+     .                   ,iggx,iggy,iggz,iig,jjg,kkg
+
+        integer(4)     :: sel_diag(9),sel_graph(9)
+
+        integer(4)     :: ndplot
+        real(8)        :: dplot,tmplot
+
+        !Profile conf
+        type :: prof_info
+          integer(4)     :: line = 1
+          character*(3)  :: label = 'x'
+          integer(4)     :: coords(3) = (/1,1,1/)
+        end type prof_info
+
+        type(prof_info) :: prof_conf
+
+        !Contour conf
+        type :: cont_info
+          integer(4)     :: plane = 3
+          character*(3)  :: label(2) = (/'x','y'/)
+          integer(4)     :: coords(3)= (/1,1,1/)
+        end type cont_info
+
+        type(cont_info) :: cont_conf
+
+      end module graphics_variables
+
 c module iosetup
 c ######################################################################
       module iosetup
 
+        use graphics_variables
+
         integer(4)     :: ilevel
 
-        integer(4)     :: urecord,uinput,uhdf5
-        character*(20) :: recordfile,inputfile,hdf5file
+        integer(4)     :: urecord,usave,uinput,uhdf5
+        character*(20) :: recordfile,recordsave,inputfile,hdf5file
 
-        logical        :: debug
+        integer(4) :: nfiles,ifile
+        integer(4),allocatable,dimension(:)     :: murecord,musave
+        character*(20),allocatable,dimension(:) :: mrecfile,mrecsave
+
+        logical        :: debug,clean=.false.
 
       contains
 
