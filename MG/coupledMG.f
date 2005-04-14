@@ -2793,8 +2793,6 @@ c Local variables
 
 c Diag
 
-cc      real(8)    :: mag(3)
-
 c Begin program
 
       nntotc = ntotc/neq
