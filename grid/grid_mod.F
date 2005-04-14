@@ -52,6 +52,8 @@ c #####################################################################
 
         implicit none
 
+        integer(4) :: nxgl,nygl,nzgl
+
         type :: grid_def
           integer(4) :: ngrdx                             !# meshes in X
           integer(4) :: ngrdy                             !# meshes in Y
@@ -66,9 +68,12 @@ c #####################################################################
           integer(4),pointer,dimension(:)  :: ihi         !Global higher limit in X
           integer(4),pointer,dimension(:)  :: jhi         !Global higher limit in Y
           integer(4),pointer,dimension(:)  :: khi         !Global higher limit in Z
-          real(8)   ,pointer,dimension(:)  :: xx          !Grid node positions in X (all grids)
-          real(8)   ,pointer,dimension(:)  :: yy          !Grid node positions in Y (")
-          real(8)   ,pointer,dimension(:)  :: zz          !Grid node positions in Z (")
+          real(8)   ,pointer,dimension(:)  :: xg          !Global grid nodes in X (top grid)
+          real(8)   ,pointer,dimension(:)  :: yg          !Global grid nodes in Y (")
+          real(8)   ,pointer,dimension(:)  :: zg          !Global grid nodes in Z (")
+          real(8)   ,pointer,dimension(:)  :: xx          !Local grid nodes in X (all grids)
+          real(8)   ,pointer,dimension(:)  :: yy          !Local grid nodes in Y (")
+          real(8)   ,pointer,dimension(:)  :: zz          !Local grid nodes in Z (")
           real(8)   ,pointer,dimension(:)  :: dx          !Grid spacings in X for integer mesh (")
           real(8)   ,pointer,dimension(:)  :: dy          !Grid spacings in Y for integer mesh (")
           real(8)   ,pointer,dimension(:)  :: dz          !Grid spacings in Z for integer mesh (")
@@ -133,6 +138,9 @@ c     Begin program
         nzmg=findMGsize(nz,ngridz,ngrid)
 
         if (.not.associated(grid_st%xx)) then
+          allocate(grid_st%xg(0:nxgl+1))
+          allocate(grid_st%yg(0:nygl+1))
+          allocate(grid_st%zg(0:nzgl+1))
           allocate(grid_st%xx(nxmg+2*ngrid))
           allocate(grid_st%yy(nymg+2*ngrid))
           allocate(grid_st%zz(nzmg+2*ngrid))
@@ -167,6 +175,9 @@ cc          allocate(grid_st%ntotv(ngrid))
           allocate(grid_st%kline(ngrid))
         endif
 
+        grid_st%xg = 0.
+        grid_st%yg = 0.
+        grid_st%zg = 0.
         grid_st%xx = 0.
         grid_st%yy = 0.
         grid_st%zz = 0.
@@ -244,6 +255,9 @@ c     Begin program
         grid_st%ngrid = 0
 
         if (associated(grid_st%xx)) then
+          deallocate(grid_st%xg)
+          deallocate(grid_st%yg)
+          deallocate(grid_st%zg)
           deallocate(grid_st%xx)
           deallocate(grid_st%yy)
           deallocate(grid_st%zz)
@@ -316,6 +330,9 @@ c     Begin program
         call allocateGridStructure(nx,ny,nz,ngridx,ngridy,ngridz
      .                            ,grid_st2)
 
+        grid_st2%xg         = grid_st1%xg        
+        grid_st2%yg         = grid_st1%yg        
+        grid_st2%zg         = grid_st1%zg        
         grid_st2%xx         = grid_st1%xx        
         grid_st2%yy         = grid_st1%yy        
         grid_st2%zz         = grid_st1%zz        
@@ -374,6 +391,9 @@ c     Begin program
         write (*,*) 'ngrdx',grid_st%ngrdx
         write (*,*) 'ngrdy',grid_st%ngrdy
         write (*,*) 'ngrdz',grid_st%ngrdz
+        write (*,*) 'xg',grid_st%xg
+        write (*,*) 'yg',grid_st%yg        
+        write (*,*) 'zg',grid_st%zg        
         write (*,*) 'xx',grid_st%xx        
         write (*,*) 'yy',grid_st%yy        
         write (*,*) 'zz',grid_st%zz        
@@ -1978,6 +1998,8 @@ c     -----------------------------------------------------------------
         integer(4),parameter :: BCLIM=6
 
         integer(4) :: bcond(6)
+
+        logical    :: asm_dir(3)=.false.
         
       contains
 
@@ -2096,14 +2118,15 @@ c     #################################################################
 
       end module bc_def
 
-#if defined(petsc)
 c module local_mpi
 c ######################################################################
       module local_mpi
 
-        use grid_definition
+#if defined(petsc)
 
         use bc_def
+
+        use grid_definition
 
         implicit none
 
@@ -2147,6 +2170,8 @@ cc#undef PETSC_AVOID_DECLARATIONS
         end type userctx
 
         type (userctx) :: dactx
+
+        character(80) :: messg
 
       contains
 
@@ -2193,6 +2218,108 @@ c     Neighbors MPI communicators (PETSc)
         call createDA
 
       end subroutine initMPI
+
+c     processorAlloc
+c     ######################################################################
+      subroutine processorAlloc(nx1,ny1,nz1)
+
+      implicit none
+
+c     Call variables
+
+      integer(4) :: nx1,ny1,nz1
+
+c     Local variables
+
+      integer(4) :: nx,ny,nz,sum_exp,nd,navg,exp(3),npt(3)
+
+c     Begin program
+
+      nx = nx1
+      ny = ny1
+      nz = nz1
+
+      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
+      call MPI_Comm_size(MPI_COMM_WORLD,np     ,mpierr)
+
+      !Defaults
+      npx = 0
+      npy = 0
+      npz = 0
+
+      exp = 0
+
+c     Check MG is an option
+
+      sum_exp = floor(log(1d0*np)/log(2d0))
+
+      if (sum_exp < 1) return  !Only one processor
+
+      if (2**sum_exp /= np) then
+        messg = 'Number of processors unsuitable for MG'
+        call pstop('processorAlloc',messg)
+      endif
+
+c     Exclude directions based on topological constraints (PER, SP)
+c     Priority: SP, PER
+
+      if (bcond(1) == SP  .or.  bcond(3) == PER) ny = 1
+      if (bcond(1) == PER .and. ny /= 1        ) nx = 1
+      if (bcond(5) == PER .and.(nx/=1.or.ny/=1)) nz = 1
+
+      !Store processor topology for ASM PC treatment
+cc      asm_dir(1) = (nx == 1) .and. (nx1 /= 1)
+cc      asm_dir(2) = (ny == 1) .and. (ny1 /= 1)
+cc      asm_dir(3) = (nz == 1) .and. (nz1 /= 1)
+      asm_dir(1) = (nx /= 1) .and. (np > 1)
+      asm_dir(2) = (ny /= 1) .and. (np > 1)
+      asm_dir(3) = (nz /= 1) .and. (np > 1)
+
+c     Find dimensionality
+
+      nd = 3
+      if (nx == 1) nd = nd-1
+      if (ny == 1) nd = nd-1
+      if (nz == 1) nd = nd-1
+
+      if (nd == 0) then
+        messg = 'No available dimensions!'
+        call pstop('processorAlloc',messg)
+      endif
+
+      !Find exponents
+      navg = floor((nx*ny*nz/np)**(1./nd))
+
+      npt = (/nx,ny,nz/)
+      exp = floor(log(max(1d0*npt/navg,1d0))/log(2d0))
+
+cc      if (my_rank == 0) write (*,*) npt
+cc      if (my_rank == 0) write (*,*) exp
+
+      !Consistency check
+      if (sum(exp) /= sum_exp) then
+        if (nx >= ny .and. nx >= nz) then
+          exp(1) = sum_exp - exp(2) - exp(3)
+        elseif (ny >= nx .and. ny >= nz) then
+          exp(2) = sum_exp - exp(1) - exp(3)
+        else
+          exp(3) = sum_exp - exp(1) - exp(2)
+        endif
+      endif
+
+      !Find processor distribution
+      npx = 2**exp(1)
+      npy = 2**exp(2)
+      npz = 2**exp(3)
+
+cc      if (my_rank == 0) write (*,*) sum_exp,nd,navg
+cc      if (my_rank == 0) write (*,*) npx,npy,npz
+cc      call PetscEnd(mpierr)
+cc      stop
+
+c     End program
+
+      end subroutine processorAlloc
 
 c     createBoundaryComm
 c     #####################################################################
@@ -2558,21 +2685,28 @@ c     End program
 
       end subroutine fillPetscGhostCells
 
-      end module local_mpi
+c     isProc
+c     #################################################################
+      function isProc(proc_id)
 
-#endif
+        implicit none
 
-c module error
-c ######################################################################
-      module error
+c     Call variables
 
-#if defined(petsc)
-        use local_mpi
-#endif
+        integer(4) :: proc_id
+        logical    :: isProc
 
-        character(80) :: messg
+c     Local variables
 
-      contains
+c     Begin program
+
+        call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
+
+        isProc = (my_rank == proc_id)
+
+c     End program
+
+      end function isProc
 
 c     pstop
 c     ################################################################
@@ -2588,7 +2722,6 @@ c     ---------------------------------------------------------------
 
 c     Begin program
 
-#if defined(petsc)
         if (my_rank == 0) then
           write (*,*)
           write (*,*) trim(message)
@@ -2596,15 +2729,95 @@ c     Begin program
         endif
 
         call PetscEnd(mpierr)
-#else
-        write (*,*)
-        write (*,*) trim(message)
-        write (*,*) 'Program stopped at routine ',trim(routine)
-#endif
 
         stop
 
       end subroutine pstop
+
+#else
+
+        use bc_def
+
+        integer(4)    :: np,my_rank
+        character(80) :: messg
+
+      contains
+
+c     initMPI
+c     #####################################################################
+      subroutine initMPI
+
+c     ---------------------------------------------------------------------
+c     Initialize needed MPI constructs
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+c     Local variables
+
+c     Begin program
+
+        np = 1
+        my_rank = 0
+
+        asm_dir = .false.
+
+      end subroutine initMPI
+
+c     isProc
+c     #################################################################
+      function isProc(proc_id)
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: proc_id
+        logical    :: isProc
+
+c     Local variables
+
+c     Begin program
+
+      isProc = .true.
+
+c     End program
+
+      end function isProc
+
+c     pstop
+c     ################################################################
+      subroutine pstop(routine,message)
+
+c     ---------------------------------------------------------------
+c     Stops program at "routine" with "message"
+c     ---------------------------------------------------------------
+
+        implicit none
+
+        character(*)  :: routine, message
+
+c     Begin program
+
+        write (*,*)
+        write (*,*) trim(message)
+        write (*,*) 'Program stopped at routine ',trim(routine)
+
+        stop
+
+      end subroutine pstop
+
+#endif
+
+      end module local_mpi
+
+c module error
+c ######################################################################
+      module error
+
+        use local_mpi
 
       end module error
 
@@ -2629,11 +2842,9 @@ c ---------------------------------------------------------------------
 
         use grid_definition
 
-#if defined(petsc)
         use local_mpi
-#else
+
         use bc_def
-#endif
 
         implicit none
 
@@ -4050,7 +4261,7 @@ c     ################################################################
       real(8) function vectorNorm(i,j,k,igx,igy,igz,ax,ay,az,covar)
 
 c     ---------------------------------------------------------------
-c     Finds norm of vector A given its curvilinear components.
+c     Finds L2-norm of vector A given its curvilinear components.
 c     ---------------------------------------------------------------
 
       implicit none
@@ -4123,7 +4334,7 @@ c module grid
 c #####################################################################
       module grid
 
-        use error
+        use local_mpi
 
         use grid_operations
 
@@ -4179,12 +4390,19 @@ c     Local variables
 
 c     Begin program
 
+        !Check for packing
         if (PRESENT(gpack)) then
           g_pack = gpack
         else
           g_pack%dim(:)%pack = .false.
         endif
 
+        !Initialize global quantities
+        nxgl = nx
+        nygl = ny
+        nzgl = nz
+
+        !Initialize local quantities
         nxx = imax-imin+1
         nyy = jmax-jmin+1
         nzz = kmax-kmin+1
@@ -4325,34 +4543,32 @@ c     Consistency checks
 c     Define uniform logical LOCAL grid on ALL grid levels
 
         call createLogicalGrid(grid_params%nxgl,grid_params%mg_ratio_x
-     .                        ,grid_params%xx,grid_params%dx
-     .                        ,grid_params%dxh,grid_params%nxv
-     .                        ,grid_params%ngrid,grid_params%istartx
-     .                        ,grid_params%ilo,grid_params%ihi
-     .                        ,xmin,xmax,bcond(1),bcond(2)
-     .                        ,g_pack%dim(1))
+     .                     ,grid_params%xg,grid_params%xx,grid_params%dx
+     .                     ,grid_params%dxh,grid_params%nxv
+     .                     ,grid_params%ngrid,grid_params%istartx
+     .                     ,grid_params%ilo,grid_params%ihi
+     .                     ,xmin,xmax,bcond(1),bcond(2)
+     .                     ,g_pack%dim(1))
 
         call createLogicalGrid(grid_params%nygl,grid_params%mg_ratio_y
-     .                        ,grid_params%yy,grid_params%dy
-     .                        ,grid_params%dyh,grid_params%nyv
-     .                        ,grid_params%ngrid,grid_params%istarty
-     .                        ,grid_params%jlo,grid_params%jhi
-     .                        ,ymin,ymax,bcond(3),bcond(4)
-     .                        ,g_pack%dim(2))
+     .                     ,grid_params%yg,grid_params%yy,grid_params%dy
+     .                     ,grid_params%dyh,grid_params%nyv
+     .                     ,grid_params%ngrid,grid_params%istarty
+     .                     ,grid_params%jlo,grid_params%jhi
+     .                     ,ymin,ymax,bcond(3),bcond(4)
+     .                     ,g_pack%dim(2))
 
         call createLogicalGrid(grid_params%nzgl,grid_params%mg_ratio_z
-     .                        ,grid_params%zz,grid_params%dz
-     .                        ,grid_params%dzh,grid_params%nzv
-     .                        ,grid_params%ngrid,grid_params%istartz
-     .                        ,grid_params%klo,grid_params%khi
-     .                        ,zmin,zmax,bcond(5),bcond(6)
-     .                        ,g_pack%dim(3))
+     .                     ,grid_params%zg,grid_params%zz,grid_params%dz
+     .                     ,grid_params%dzh,grid_params%nzv
+     .                     ,grid_params%ngrid,grid_params%istartz
+     .                     ,grid_params%klo,grid_params%khi
+     .                     ,zmin,zmax,bcond(5),bcond(6)
+     .                     ,g_pack%dim(3))
 
 c     Initialize MPI for BCs
 
-#if defined(petsc)
         call initMPI
-#endif
 
 c     Store grid metric parameters in grid metric structure
 
@@ -4362,7 +4578,7 @@ c     Store grid metric parameters in grid metric structure
 
 c     createLogicalGrid
 c     #################################################################
-      subroutine createLogicalGrid (nglobal,mgr,xx,dx,dxh,nx,ngrid
+      subroutine createLogicalGrid (nglobal,mgr,xg,xx,dx,dxh,nx,ngrid
      .                             ,istart,ilo,ihi,lmin,lmax,bcs1,bcs2
      .                             ,dpack)
 
@@ -4372,7 +4588,7 @@ c     Call variables
 
         integer(4) :: ngrid,nglobal(ngrid),nx(ngrid),istart(ngrid)
      $               ,mgr(ngrid),ilo(ngrid),ihi(ngrid),bcs1,bcs2
-        real(8)    :: xx(*),dx(*),dxh(*),lmin,lmax
+        real(8)    :: xg(*),xx(*),dx(*),dxh(*),lmin,lmax
 
         type(dim_pack) :: dpack
 
@@ -4458,17 +4674,21 @@ c     Call variables
 
 c     Local variables
 
-        real(8)    :: xg(0:ng+1)
+        real(8)    :: xxg(0:ng+1)
 
 c     Begin program
 
 c     Find global grid
 
-        call findGlobalGrid(ig,xg,ng)
+        call findGlobalGrid(ig,xxg,ng)
+
+c     Assign global grid
+
+        if (ig == 1) xg(1:ng+2) = xxg(0:ng+1)
 
 c     Assign local grid
 
-        xx(1:nx(ig)+2) = xg(ilo(ig)-1:ihi(ig)+1)
+        xx(1:nx(ig)+2) = xxg(ilo(ig)-1:ihi(ig)+1)
 
 c     End program
 
