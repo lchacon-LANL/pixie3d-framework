@@ -1,64 +1,21 @@
-c module graphics_variables
-c ######################################################################
-      module graphics_variables
-
-        use grid
-
-        use iosetup
-
-        integer(4)     :: ngraph,ngroups
-        parameter        (ngraph=30)
-
-        real(8), allocatable, dimension(:) :: xl,yl,zl
-
-        type :: graph_var_def
-          double precision,pointer,dimension(:,:,:) :: array
-          character(20)                             :: descr
-        end type graph_var_def
-
-        type :: graph_group
-          type (graph_var_def),dimension(ngraph) :: array_graph
-          logical                                :: cartesian
-          character(20)                          :: descr
-        end type graph_group
-
-        type (graph_group),pointer,dimension(:) :: graph
-
-        integer(4),allocatable,dimension(:) :: nqty
-
-        logical        :: plot
-
-        integer(4)     :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
-     .                   ,iggx,iggy,iggz,iig,jjg,kkg
-
-        integer(4)     :: sel_diag(9),sel_graph(9)
-
-        integer(4)     :: ndplot,iplot,jplot,kplot
-        real(8)        :: dplot,tmplot
-
-        integer(4) :: nfiles,ifile
-        integer(4),allocatable,dimension(:)     :: murecord
-        character*(20),allocatable,dimension(:) :: mrecfile
-
-      end module graphics_variables
-
 c module XDRAW
 c #####################################################################
       module XDRAW
 
-        use graphics_variables
+        use iosetup
+
+        use grid
 
         use variables
 
-        character*(20) :: debugfile,axes_label(2)=(/'x','y'/)
-     .                   ,prof_axis_label = 'x'
+        character*(20) :: debugfile
         character*(20),allocatable,dimension(:) ::
      .                    graphfile,drawgraph,profilefile,drawprof
         character*(20),allocatable,dimension(:,:) :: prof_desc
         integer(4)    ,allocatable,dimension(:,:) :: prof_ivar,prof_log
         logical       ,allocatable,dimension(:)   :: prof_spline
 
-        integer(4)     :: udebug,prof_axis=1
+        integer(4)     :: udebug
 
         integer(4),allocatable,dimension(:) :: ugraph,uprofile
 
@@ -117,11 +74,11 @@ c       Contours
           nplots = count (sel_gr(igroup,:) /= 0)
 
           call createDrawInMfile(nplots,graphfile(igroup)
-     .                          ,graph(igroup)%descr
-     .                          ,'time',trim(axes_label(1))
-     .                          ,trim(axes_label(2)),sel_gr(igroup,:)
-     .                          ,graph(igroup)%array_graph%descr
-     .                          ,'-L50',drawgraph(igroup))
+     .                        ,graph(igroup)%descr
+     .                        ,'time',trim(cont_conf%label(1))
+     .                        ,trim(cont_conf%label(2)),sel_gr(igroup,:)
+     .                        ,graph(igroup)%array_graph%descr
+     .                        ,'-L50',drawgraph(igroup))
         enddo
 
 c       Profiles (selects same profiles as contour plots except vector plots)
@@ -130,7 +87,7 @@ c       Profiles (selects same profiles as contour plots except vector plots)
           nplots = count (sel_gr(igroup,:) /= 0)
           prof_label = 'Profiles '//graph(igroup)%descr
           call createDrawInGfile(nplots,profilefile(igroup),prof_label
-     .          ,trim(prof_axis_label),abs(sel_gr(igroup,:))
+     .          ,trim(prof_conf%label),abs(sel_gr(igroup,:))
      .          ,prof_desc(igroup,:),prof_ivar(igroup,:)
      .          ,prof_log(igroup,:),drawprof(igroup)
      .          ,prof_spline(igroup))
@@ -204,7 +161,7 @@ c     Begin program
         do igroup=1,ngroups
           call profplot(nqty(igroup),uprofile(igroup)
      .                 ,graph(igroup)%array_graph
-     .                 ,graph(igroup)%cartesian,prof_axis,.false.)
+     .                 ,graph(igroup)%cartesian,prof_conf%line,.false.)
 
           call contour_step(nqty(igroup),ugraph(igroup)
      .                     ,graph(igroup)%array_graph
@@ -242,9 +199,9 @@ c     Local variables
 
 c     Begin program
 
-        iplt = abs(iplot)
-        jplt = abs(jplot)
-        kplt = abs(kplot)
+        iplt = abs(prof_conf%coords(1))
+        jplt = abs(prof_conf%coords(2))
+        kplt = abs(prof_conf%coords(3))
 
         iimin = iming
         iimax = imaxg
@@ -438,194 +395,34 @@ c     Begin program
 
 c     Select 2D cuts
 
-        plt = (/ iplot,jplot,kplot /)
+        plt = cont_conf%coords
 
         cut = .false.
-        where (plt < 0) cut = .true.
+        cut(cont_conf%plane) = .true.
+cc        where (plt < 0) cut = .true.
 
-        plt = abs(plt)
-
-        if (count(cut == .true.) > 1) then
-          messg = 'More than 1 2D cut selected!'
-          call pstop('contour_step',messg)
-        elseif (count(cut == .true.) < 1) then
-          cut(3) = .true. !Default X-Y plot
-          plt(3) = 1
-        endif
+cc        plt = abs(plt)
+cc
+cc        if (count(cut == .true.) > 1) then
+cc          messg = 'More than 1 2D cut selected!'
+cc          call pstop('contour_step',messg)
+cc        elseif (count(cut == .true.) < 1) then
+cc          cut(3) = .true. !Default X-Y plot
+cc          plt(3) = 1
+cc        endif
 
 c     Perform 2d cuts
 
         if (cut(1)) then
-          axes_label =(/'y','z'/)
           call twodcut(plt(1),plt(1),plt(1),jming,jmaxg,kming,kmaxg
      .                ,'X-slice contour at i=')
         elseif (cut(2)) then
-          axes_label =(/'x','z'/)
           call twodcut(plt(2),iming,imaxg,plt(2),plt(2),kming,kmaxg
      .                ,'Y-slice contour at j=')
         else
-          axes_label =(/'x','y'/)
           call twodcut(plt(3),iming,imaxg,jming,jmaxg,plt(3),plt(3)
      .                ,'Z-slice contour at k=')
         endif
-
-c     X-Y plots
-
-cc        if (kplot == 0) then
-cc          k = max((kmaxg-kming+1)/3,1)
-cc        else
-cc          k = kplot
-cc        endif
-cc
-cc        if (kmaxg -kming /= 1) then
-cc          write (*,*) 'Z-slice contour at k=',k
-cc        endif
-cc
-cc        if(iopt.eq.0) then
-cc
-ccc         Write initialization headings
-cc
-cc          write(nunit) nsblk,nusblk,nqty
-cc          write(nunit) (imaxg-iming),(jmaxg-jming)
-cc
-cc          if (cartsn) then      !Write cartesian coordinates
-cc
-cc            allocate (car(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
-cc
-cc            do j=jming,jmaxg
-cc              do i=iming,imaxg
-cc                call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
-cc     .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
-cc              enddo
-cc            enddo
-cc 
-cc            write(nunit)
-cc     .           ((real(car(i,j,k,1),4),i=iming,imaxg),j=jming,jmaxg)
-cc     .          ,((real(car(i,j,k,2),4),i=iming,imaxg),j=jming,jmaxg)
-cc
-cc            deallocate(car)
-cc
-cc          else             !Write logical coordinates
-cc
-cc            write(nunit) ((real(xl(i),4),i=iming,imaxg),j=jming,jmaxg)
-cc     .                  ,((real(yl(j),4),i=iming,imaxg),j=jming,jmaxg)
-cc
-cc          endif
-cc
-cc        else
-cc
-ccc         Write arrays
-cc
-cc          do igr=1,nqty
-cc            write(nunit) ((real(array_graph(igr)%array(i,j,k),4)
-cc     .                    ,i=iming,imaxg),j=jming,jmaxg)
-cc          enddo
-cc
-cc        endif
-
-c     X-Z plots
-
-cc        if (jplot == 0) then
-cc          j = max((jmaxg-jming+1)/3,1)
-cc        else
-cc          j = jplot
-cc        endif
-cc
-cc        if (jmaxg -jming /= 1) then
-cc          write (*,*) 'Y-slice contour at j=',j
-cc        endif
-cc
-cc        if(iopt.eq.0) then
-cc
-ccc         Write initialization headings
-cc
-cc          write(nunit) nsblk,nusblk,nqty
-cc          write(nunit) (imaxg-iming),(kmaxg-kming)
-cc
-cc          if (cartsn) then      !Write cartesian coordinates
-cc
-cc            allocate (car(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
-cc
-cc            do k=kming,kmaxg
-cc              do i=iming,imaxg
-cc                call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
-cc     .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
-cc              enddo
-cc            enddo
-cc
-cc            write(nunit)
-cc     .           ((real(car(i,j,k,1),4),i=iming,imaxg),k=kming,kmaxg)
-cc     .          ,((real(car(i,j,k,3),4),i=iming,imaxg),k=kming,kmaxg)
-cc
-cc            deallocate(car)
-cc
-cc          else             !Write logical coordinates
-cc
-cc            write(nunit) ((real(xl(i),4),i=iming,imaxg),k=kming,kmaxg)
-cc     .                  ,((real(zl(k),4),i=iming,imaxg),k=kming,kmaxg)
-cc
-cc          endif
-cc
-cc        else
-cc
-cc          do igr=1,nqty
-cc            write(nunit) ((real(array_graph(igr)%array(i,j,k),4)
-cc     .                    ,i=iming,imaxg),k=kming,kmaxg)
-cc          enddo
-cc
-cc        endif
-
-c     Y-Z plots
-
-cc        if (iplot == 0) then
-cc          i = max((imaxg-iming+1)/3,1)
-cc        else
-cc          i = iplot
-cc        endif
-cc
-cc        if (imaxg -iming /= 1) then
-cc          write (*,*) 'X-slice contour at i=',i
-cc        endif
-cc
-cc        if(iopt.eq.0) then
-cc
-ccc         Write initialization headings
-cc
-cc          write(nunit) nsblk,nusblk,nqty
-cc          write(nunit) (jmaxg-jming),(kmaxg-kming)
-cc
-cc          if (cartsn) then      !Write cartesian coordinates
-cc
-cc            allocate (car(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
-cc
-cc            do k=kming,kmaxg
-cc              do j=jming,jmaxg
-cc                call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
-cc     .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
-cc              enddo
-cc            enddo
-cc
-cc            write(nunit)
-cc     .           ((real(car(i,j,k,2),4),j=jming,jmaxg),k=kming,kmaxg)
-cc     .          ,((real(car(i,j,k,3),4),j=jming,jmaxg),k=kming,kmaxg)
-cc
-cc            deallocate(car)
-cc
-cc          else             !Write logical coordinates
-cc
-cc            write(nunit) ((real(yl(j),4),j=jming,jmaxg),k=kming,kmaxg)
-cc     .                  ,((real(zl(k),4),j=jming,jmaxg),k=kming,kmaxg)
-cc
-cc          endif
-cc
-cc        else
-cc
-cc          do igr=1,nqty
-cc            write(nunit) ((real(array_graph(igr)%array(i,j,k),4)
-cc     .                    ,j=jming,jmaxg),k=kming,kmaxg)
-cc          enddo
-cc
-cc        endif
 
 c     End program
 
@@ -1003,6 +800,7 @@ c ##################################################################
         integer(hid_t) :: group_id,subgroup_id
         integer(hid_t) :: file_id        
         integer(hid_t) :: dataset_id     
+        integer(hid_t) :: datatype_id     
         integer(hid_t) :: dataspace_id,node_dataspace_id
         integer(hid_t) :: attribute_id
         integer(hid_t) :: dataspace_attr_id
@@ -1015,14 +813,18 @@ c       variables for parallel HDF5
 
         integer(4)     :: hdferr,igrp
 
+c       generic HDF5 variables
         integer(4), parameter :: ARRAY_RANK = 3
         integer(4), parameter :: ATTR_RANK = 1
+        integer(4), parameter :: VEXP_RANK = 1
         integer(4), parameter :: strlength = 20
 
         integer(hsize_t), dimension(ARRAY_RANK) ::
      .                         array_dim,node_array_dim
         integer(hsize_t), dimension(ATTR_RANK ) ::
      .                         attr_dim = (/ARRAY_RANK/)
+        integer(hsize_t), dimension(VEXP_RANK ) ::
+     .                         vexp_dim = (/VEXP_RANK/)
         integer(4), dimension(7)                :: array_dim_i 
 
         character(20), dimension(ARRAY_RANK) :: coords_descr
@@ -1047,7 +849,8 @@ c     Call variables
       
 c     Local variables
 
-      integer(4) :: iattr
+      integer(4) :: iattr,slth
+      character(300) :: vexp
 
 c     Begin program
 
@@ -1064,23 +867,110 @@ c     Setup plot dump variables
 
 c     Exit if not in rank=0
 
-#if defined(petsc)
-      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
-      if (my_rank /= 0) return
-#endif
+cc#if defined(petsc)
+cc      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
+cc      if (my_rank /= 0) return
+cc#endif
+
+      if (.not.isProc(0)) return
 
 c     Initialize FORTRAN interface
       call h5open_f(hdferr)
 
-c     Create a new file using default properties.
+c     Create HDF% file
+
+      !Create a new file using default properties.
       call h5fcreate_f(hdf5_fname, H5F_ACC_TRUNC_F, file_id, hdferr)
       
-c     Terminate access to the file.
+      !Terminate access to the file.
       call h5fclose_f(file_id, hdferr)
 
+c     Create VISIT expressions
+
+      call selectExpressions
+
+      slth = len(trim(vexp))
+
+      !Open .h5 file using default properties
+      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
+     $               H5P_DEFAULT_F)
+
+      !Create dataspace
+      call h5screate_simple_f(VEXP_RANK,vexp_dim,dataspace_id,hdferr)
+
+      !Create datatype
+      call h5tcopy_f(H5T_NATIVE_CHARACTER,datatype_id,hdferr)
+      call h5tset_size_f(datatype_id,slth,hdferr)
+      call h5tset_strpad_f(datatype_id,H5T_STR_NULLTERM_F,hdferr)
+
+      !Create dataset
+      call h5dcreate_f(file_id,'/visit_expressions',datatype_id
+     .                ,dataspace_id,dataset_id,hdferr,H5P_DEFAULT_F)
+
+      !Write to dataset
+      call h5dwrite_f(dataset_id,datatype_id,trim(vexp),vexp_dim,hdferr)
+
+      !Close dataset
+      call h5dclose_f(dataset_id,hdferr)
+
+      !Close datatype
+      call h5tclose_f(datatype_id,hdferr)
+
+      !Close dataspace
+      call h5sclose_f(dataspace_id,hdferr)
+
+      !Close .h5 file
+      call h5fclose_f(file_id, hdferr)
+
+c     Close fortran interface
       call h5close_f(hdferr)
 
 c     End program
+
+      contains
+
+c     selectExpressions
+c     #################################################################
+      subroutine selectExpressions
+
+      integer(4)   :: igrp,ivar,ivp,ivm
+      character(20) :: str1,str2,str3
+      logical      :: first
+
+      first = .true.
+      vexp = ''
+
+      do igrp=1,ngroups
+        if (graph(igrp)%cartesian) then
+          do ivar=1,ngraph
+            ivm = max(ivar-1,1)
+            ivp = min(ivar+1,ngraph)
+            str1 = trim(graph(igrp)%array_graph(ivm )%vector_name)
+            str2 = trim(graph(igrp)%array_graph(ivar)%vector_name)
+            str3 = trim(graph(igrp)%array_graph(ivp )%vector_name)
+            if (str2 /='' .and. (first.or.str1 /= str2)) then
+              if (.not.first) then
+                vexp = trim(vexp)//' ;'
+              else
+                first = .false.
+              endif
+              vexp=trim(vexp)//' '//trim(str2)//':{<'
+     .           //trim(graph(igrp)%descr)
+     .           //'/'//trim(graph(igrp)%array_graph(ivar)%descr)
+            elseif (str2 /='' .and. str3 /= str2) then
+              vexp= trim(vexp)//'>,<'//trim(graph(igrp)%descr)//
+     .           '/'//trim(graph(igrp)%array_graph(ivar)%descr)//'>}'
+            elseif (str2 /='') then
+              vexp= trim(vexp)//'>,<'//trim(graph(igrp)%descr)//
+     .           '/'//trim(graph(igrp)%array_graph(ivar)%descr)
+            endif
+          enddo
+        endif
+      enddo
+
+cc      write (*,*) vexp
+
+      end subroutine selectExpressions
 
       end subroutine initializeHDF5file
 
@@ -1101,10 +991,12 @@ c     Local variables
 
 c     Begin program
 
-#if defined(petsc)
-      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
-      if (my_rank /= 0) return
-#endif
+cc#if defined(petsc)
+cc      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
+cc      if (my_rank /= 0) return
+cc#endif
+
+      if (.not.isProc(0)) return
 
       groupname = trim('Timestep_'//int2char(step))
 
@@ -1112,7 +1004,7 @@ c     Initialize FORTRAN interface
 
       call h5open_f(hdferr)
 
-c     Create a new file using default properties.
+c     Open .h5 file using default properties.
 
       call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
      $               H5P_DEFAULT_F)
@@ -1369,6 +1261,8 @@ c         Write "Attribute data"
      $                    attr_dim,hdferr)
           call h5aclose_f(attribute_id,hdferr)
 
+          call h5tclose_f(attr_type_id,hdferr)
+
 c         Write nodal data
 
           allocate (cell(ilom:ihip,jlom:jhip,klom:khip,1)
@@ -1620,7 +1514,7 @@ c     Initialize XDRAW
 
 c     Initialize HDF5
 #if defined(hdf5)
-        call initializeHDF5file()
+        if (hdf_plot) call initializeHDF5file
 #endif
 c     End program
 
@@ -1743,7 +1637,7 @@ c     Begin program
 #endif
 
 #if defined(hdf5)
-        call writeHDF5file
+        if (hdf_plot) call writeHDF5file
 #endif
 
 c     End program
