@@ -55,9 +55,9 @@ c     Store previous record
         u_n = u_np
 
 c diag ***** Redefine perturbations for preconditioner debugging
-        write (*,*) 'Redefined perts for PC debugging in 3dplot'
-        u_ic = u_n
-        call imposeBoundaryConditions(u_ic,igx,igy,igz)
+cc        write (*,*) 'Redefined perts for PC debugging in 3dplot'
+cc        u_ic = u_n
+cc        call imposeBoundaryConditions(u_ic,igx,igy,igz)
 c diag *****
 
 c     Read next record
@@ -82,8 +82,8 @@ c     Time level plots (xdraw)
 
           call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
-          plot = .true.
-          nplot  = 0
+          plot  = .true.
+          nplot = 0
           if (itime.gt.0) tmplot = time
           call dumpTimeStepPlots
         endif
@@ -104,14 +104,18 @@ c Close graphics files and create draw*.in files
       if (allocated(murecord)) then
         do ifile=1,nfiles
           close(murecord(ifile))
+          if (clean) close(musave(ifile))
         enddo
 
         deallocate(mrecfile,murecord)
+        if (clean) deallocate(mrecsave,musave)
       else
         close(urecord)
+        if (clean) close (usave)
       endif
 #else
       close(urecord)
+      if (clean) close (usave)
       call PetscFinalize(mpierr)
 #endif
 
@@ -230,8 +234,7 @@ c Begin program
 
 c Read user initializations
 
-      call readGraphicsInput(sel_diag,sel_graph,ndplot,dplot
-     .                      ,iplot,jplot,kplot)
+      call readGraphicsInput
 
 c Open graphics files
 
@@ -370,11 +373,17 @@ c Open graphics files
         enddo
 
         allocate(mrecfile(nfiles),murecord(nfiles))
+        if (clean) allocate(mrecsave(nfiles),musave(nfiles))
 
         do ifile=1,nfiles
           murecord(ifile) = 100+ifile
           mrecfile(ifile) =
      .         'record_proc'//trim(int2char(ifile-1))//'.bin'
+          if (clean) then
+            musave  (ifile) = 200 + ifile
+            mrecsave(ifile) =
+     .         'record_proc_sav'//trim(int2char(ifile-1))//'.bin'
+          endif
         enddo
 
         nx = 0
@@ -388,6 +397,15 @@ c Open graphics files
           read (murecord(ifile)) nxl,ilog,ihig
           read (murecord(ifile)) nyl,jlog,jhig
           read (murecord(ifile)) nzl,klog,khig
+
+          if (clean) then
+            open(musave(ifile),file=mrecsave(ifile),form='unformatted'
+     .          ,status='unknown')
+
+            write (musave(ifile)) nxl,ilog,ihig
+            write (musave(ifile)) nyl,jlog,jhig
+            write (musave(ifile)) nzl,klog,khig
+          endif
 
 cc          if (nxl /= nxd) then
 cc            nx = nx + nxl
@@ -428,14 +446,23 @@ cc        endif
         urecord    = 100
         recordfile = 'record.bin'
 
+        if (clean) then
+         usave      = 200
+         recordsave = 'record_sav.bin'
+        endif
 #else
 
         urecord    = 100 + my_rank
 
+        if (clean) usave = 200 + my_rank
+
         if (np > 1) then
           recordfile = 'record_proc'//trim(int2char(my_rank))//'.bin'
+          if (clean) recordsave
+     .           = 'record_proc_sav'//trim(int2char(my_rank))//'.bin'
         else
           recordfile = 'record.bin'
+          if (clean) recordsave = 'record_sav.bin'
         endif
 
 #endif
@@ -443,11 +470,20 @@ cc        endif
         open(urecord,file=recordfile,form='unformatted'
      .      ,status='unknown')
 
+        if (clean) open(usave,file=recordsave,form='unformatted'
+     .      ,status='unknown')
+
 c     Consistency check
 
         read (urecord) nx,ilog,ihig
         read (urecord) ny,jlog,jhig
         read (urecord) nz,klog,khig
+
+        if (clean) then
+          write (usave) nx,ilog,ihig
+          write (usave) ny,jlog,jhig
+          write (usave) nz,klog,khig
+        endif
 
         nxl  = ihig-ilog+1
         nyl  = jhig-jlog+1
@@ -511,6 +547,8 @@ c Begin program
 
       call readRecordFile(urecord,itime,time,dt,varray,ierr)
 
+      if (clean) call writeRecordFile(usave,itime,time,dt,varray)
+
 #else
 
       if (allocated(murecord)) then
@@ -518,9 +556,17 @@ c Begin program
           call readRecordFile(murecord(ifile),itime,time,dt,varray,ierr)
           if (ierr == -1) cycle !Error, but not EOF
           if (ierr == -2) cycle !EOF
+          if (clean) then
+cc            call writeRecordFile(musave(ifile),itime,time,dt,varray)
+            write (*,*) 'Recycling a parallel run using the serial'
+            write (*,*) 'does not work yet. Need to fix the serial'
+            write (*,*) 'write routine to dump only local domain info'
+            call pstop('readTimeStep','')
+          endif
         enddo
       else
         call readRecordFile(urecord,itime,time,dt,varray,ierr)
+        if (clean) call writeRecordFile(usave,itime,time,dt,varray)
       endif
 
 #endif
