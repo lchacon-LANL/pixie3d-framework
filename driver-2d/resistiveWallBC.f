@@ -294,13 +294,16 @@ c End program
 c IntForFFT
 c#######################################################################
       subroutine IntForFFT (nx,x,vec,nv,x1,vec1,order)
-      implicit none       !For safe Fortran
 c***********************************************************************
 c     Interpolates vector vec along coordinate x to vector vec1 along x1
 c     using uniform intervals for FFT, with interpolation order "order". 
 c     Currently, we consider first order (order=1), second order (2)
 c     and cubic splines (3). 
 c***********************************************************************
+
+      use oned_int
+
+      implicit none       !For safe Fortran
 
 c Call variables
 
@@ -311,11 +314,6 @@ c Local variables
 
       real*8         dxx
       integer*4      i,j
-
-c Externals
-
-      real*8         q_int,l_int
-      external       q_int,l_int
 
 c Begin program
 

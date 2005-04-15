@@ -1,6 +1,6 @@
 #Define subdirectories for common code
 
-COMMONDIR = $(HOME)/programs/common
+COMMONDIR = ..
 
 SUBDIRS = $(COMMONDIR)/matrixLightSolver-2d \
 	  $(COMMONDIR)/newtonGMRES \

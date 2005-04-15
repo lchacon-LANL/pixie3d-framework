@@ -108,7 +108,7 @@ c End program
 c fft
 c#######################################################################
       subroutine fft(nx,psi,x,nv,psir,psii,ak,inter,ism)
-      implicit none     !For safe Fortran
+
 c***********************************************************************
 c     Preprocesses and calculates FFT of input 'psi', and gives output
 c     in psir (real part) and psii (imaginary part).
@@ -130,6 +130,10 @@ c        + 'ak' is new abcissae (k or omega)
 c        + 'inter' decides if interpolation is required (1)
 c        + 'ism' decides if smoothing is performed (1).
 c***********************************************************************
+
+      use oned_int
+
+      implicit none     !For safe Fortran
 
 c Call variables
 
@@ -213,7 +217,6 @@ c End program
 c ifft
 c#######################################################################
       subroutine ifft(nx,psi,x,nv,psir,psii,ak,inter)
-cc      implicit none     !For safe Fortran
 c***********************************************************************
 c     Performs inverse Fourier transform. Odd entries in data() are real 
 c     parts of the FT; even entries are the imaginary parts of the FT.  
@@ -233,6 +236,10 @@ c        + 'psii' is imaginary part of transform
 c        + 'ak' is the abcissae (k or omega)
 c        + 'inter' is dummy
 c***********************************************************************
+
+      use oned_int
+
+cc      implicit none     !For safe Fortran
 
 c Call variables
 
