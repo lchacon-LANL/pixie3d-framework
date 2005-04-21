@@ -36,6 +36,8 @@ MODDIRS = $(MODPATH) $(patsubst $(COMMONDIR)%,$(ADDMODFLAG)$(COMMONDIR)%,$(SUBDI
 
 #Define targets
 
+PWD = `pwd`
+
 .PHONY: setup target lib message clean distclean common $(SUBDIRS)
 
 target: common message $(OBJMOD) $(OBJS) $(COMMON_OBJS)
