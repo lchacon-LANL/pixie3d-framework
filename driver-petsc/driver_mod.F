@@ -455,17 +455,13 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq,ilom,ihip,jlom,jhip,klom,khip
+        integer          :: ieq
 
 c     Begin program
 
         if (frmt) then
 #if defined(petsc)
           write (unit,*) ilomg,ihipg,jlomg,jhipg,klomg,khipg
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
 #else
           write (unit,*) ilom,ihip,jlom,jhip,klom,khip
 #endif
@@ -479,10 +475,6 @@ c     Begin program
         else
 #if defined(petsc)
           write (unit) ilomg,ihipg,jlomg,jhipg,klomg,khipg
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
 #else
           write (unit) ilom,ihip,jlom,jhip,klom,khip
 #endif
@@ -547,7 +539,6 @@ c     Begin program
      .                                ,1,1,1)
           call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
      .                                ,1,1,1)
-cc          write (*,*) ilom,ihip,jlom,jhip,klom,khip
 #else
           read (unit,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
 #endif
@@ -562,9 +553,6 @@ cc          write (*,*) ilom,ihip,jlom,jhip,klom,khip
             read(unit,iostat=ierr,end=100) varray%array_var(ieq)%descr
             if (ierr /= 0) goto 200
           enddo
-cc            write (*,*) varray%array_var(1)
-cc     .                 %array(ilom:ihip,jlom:jhip,klom:khip)
-cc            stop
         endif
 
         return
@@ -1080,15 +1068,21 @@ c ######################################################################
 
         integer(4),allocatable,dimension(:) :: nqty
 
-        logical        :: plot,hdf_plot=.false.
+        logical    :: plot
 
-        integer(4)     :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
-     .                   ,iggx,iggy,iggz,iig,jjg,kkg
+#if defined(petsc)
+        logical    :: hdf_plot=.true.
+#else
+        logical    :: hdf_plot=.false.
+#endif
 
-        integer(4)     :: sel_diag(9),sel_graph(9)
+        integer(4) :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
+     .               ,iggx,iggy,iggz,iig,jjg,kkg
 
-        integer(4)     :: ndplot
-        real(8)        :: dplot,tmplot
+        integer(4) :: sel_diag(9),sel_graph(9)
+
+        integer(4) :: ndplot
+        real(8)    :: dplot,tmplot
 
         !Profile conf
         type :: prof_info
@@ -1097,7 +1091,7 @@ c ######################################################################
           integer(4)     :: coords(3) = (/1,1,1/)
         end type prof_info
 
-        type(prof_info) :: prof_conf
+        type(prof_info),save :: prof_conf
 
         !Contour conf
         type :: cont_info
@@ -1106,7 +1100,7 @@ c ######################################################################
           integer(4)     :: coords(3)= (/1,1,1/)
         end type cont_info
 
-        type(cont_info) :: cont_conf
+        type(cont_info),save :: cont_conf
 
       end module graphics_variables
 
@@ -1118,11 +1112,11 @@ c ######################################################################
 
         integer(4)     :: ilevel
 
-        integer(4)     :: urecord,usave,uinput,uhdf5
-        character*(20) :: recordfile,recordsave,inputfile,hdf5file
+        integer(4)     :: urecord=100,usave=200,uinput=25
+        character*(20) :: recordfile,recordsave,inputfile
 
-        integer(4) :: nfiles,ifile
-        integer(4),allocatable,dimension(:)     :: murecord,musave
+        integer(4)     :: nfiles,ifile
+        integer(4)    ,allocatable,dimension(:) :: murecord,musave
         character*(20),allocatable,dimension(:) :: mrecfile,mrecsave
 
         logical        :: debug,clean=.false.
