@@ -44,6 +44,40 @@ c     End program
 
       end subroutine contour
 
+c     int2char
+c     ################################################################
+      function int2char(n) result (chr)
+
+      implicit none
+
+      integer(4)   :: n
+      character(10):: chr
+
+      integer(4)   :: i,exp,k,j
+      character(3) :: c
+
+      if (abs(n) > 0) then
+         exp = int(log(float(n))/log(1d1))
+      else
+         exp = 0
+      endif
+
+      if (n >= 0) then
+        chr=''
+      else
+        chr='-'
+      endif
+
+      k = abs(n)
+      do i=exp,0,-1
+         j = k/10**i
+         c = achar(48+j)
+         chr = trim(chr)//trim(c)
+         if (i > 0 .and. j /= 0) k = mod(k,j*10**i)
+      enddo
+
+      end function int2char
+
       end module debug
 
 c module grid_structures
@@ -1975,6 +2009,7 @@ c     Topological BCs (set topology of computational domain):
 c       PER: Periodic
 c       SP : Singular point (as in cylindrical, toroidal)
 c       SP2: Singular point with second-order variable grid
+c       SP3: Singular point with ghost cell @ -dr/2
 c       SYM: Symmetry (homogeneous Neumann)
 c     Standard BCs:
 c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
@@ -1991,11 +2026,10 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-        integer(4) :: PER,DIR,NEU,SP,SP2,EQU,DEF,EXT,SYM
-        parameter (DEF=0,PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7
-     .            ,SP2=8)
+        integer(4) :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM
+        parameter (DEF=0,PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7)
 
-        integer(4),parameter :: BCLIM=6
+        integer(4),parameter :: BCLIM=7
 
         integer(4) :: bcond(6)
 
@@ -2018,8 +2052,7 @@ c     #################################################################
           iibc = 1
         endif
 
-        sing_bc=.false.
-        if (bcond(iibc) == SP .or. bcond(iibc) == SP2) sing_bc=.true.
+        sing_bc = (bcond(iibc) == SP)
 
       end function bcSP
 
@@ -2030,36 +2063,9 @@ c     #################################################################
         integer(4) :: i,j,k,igx,igy,igz
         logical    :: sing_point
 
-        sing_point=.false.
-        if (i+grid_params%ilo(igx)-1==1.and.bcSP()) sing_point=.true.
+        sing_point = (i+grid_params%ilo(igx)-1==1).and.bcSP()
 
       end function isSP
-
-c     isSP1
-c     #################################################################
-      function isSP1(i,j,k,igx,igy,igz) result(sing_point)
-
-        integer(4) :: i,j,k,igx,igy,igz
-        logical    :: sing_point
-
-        sing_point=.false.
-        if (i+grid_params%ilo(igx)-1==1.and.bcond(1)==SP)
-     .       sing_point=.true.
-
-      end function isSP1
-
-c     isSP2
-c     #################################################################
-      function isSP2(i,j,k,igx,igy,igz) result(sing_point)
-
-        integer(4) :: i,j,k,igx,igy,igz
-        logical    :: sing_point
-
-        sing_point=.false.
-        if (i+grid_params%ilo(igx)-1==1.and.bcond(1)==SP2)
-     .       sing_point=.true.
-
-      end function isSP2
 
 c     isSYM
 c     #################################################################
@@ -2864,6 +2870,8 @@ cc          real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in c
 
         type(MG_grid_metrics) :: gmetric
 
+        logical :: check_grid
+
       contains
 
 c     allocateGridMetric
@@ -3042,13 +3050,7 @@ c       ANALYTICAL QUANTITIES **********************************
 
             !Zero force condition on Christoffel symbols (only on finest grid)
             if (igrid == 1) then
-              do k = klo,khi
-                do j = jlo,jhi
-                  do i = ilo,ihi
-                    call gammaZeroForce(i,j,k,igx,igy,igz)
-                  enddo
-                enddo
-              enddo
+              call gammaZeroForce(igx,igy,igz)
             endif
 
           enddo
@@ -3270,13 +3272,7 @@ c       NUMERICAL QUANTITIES ***********************************
 
             !Zero-force condition on Christoffle symbols 
             if (igrid == 1) then
-              do k = klo,khi
-                do j = jlo,jhi
-                  do i = ilo,ihi
-                    call gammaZeroForce(i,j,k,igx,igy,igz)
-                  enddo
-                enddo
-              enddo
+              call gammaZeroForce(igx,igy,igz)
             endif
 
             !Enforce topological constraints on Christoffel symbols
@@ -3288,84 +3284,14 @@ c       NUMERICAL QUANTITIES ***********************************
               enddo
             enddo
 
-cc      if (my_rank == 0) then
-cc        open(unit=110,file='debug0.bin'
-cc     .           ,form='unformatted',status='replace')
-cc      else
-cc        open(unit=110,file='debug1.bin'
-cc     .           ,form='unformatted',status='replace')
-cc      endif
-cc      igx = 1
-cc      do i=1,3
-cc        do j=1,3
-cc          nnx = grid_params%nxv(igx)
-cc          nny = grid_params%nyv(igx)
-cc          nnz = grid_params%nzv(igx)
-cccc          debug = gmetric%grid(igx)%cnv(0:nx+1,0:ny+1,0:nz+1,i,j)
-cccc          debug = gmetric%grid(igx)%Gamma(0:nx+1,0:ny+1,0:nz+1,1,i,j)
-cccc     .           *gmetric%grid(igx)%jac
-cc
-cc          call contour(gmetric%grid(igrid)%Gamma(:,:,1,i,j,1)
-cc     .                ,nnx+2,nny+2
-cc     .                ,0d0,xmax,0d0,ymax,i+j-2,110)
-cc        enddo
-cc      enddo
-cc      close(110)
-cc      call MPI_Finalize(mpierr)
-cc      stop
-
-cc        if (my_rank == 0) write (*,*) 'grid_level',igrid
-
           enddo
 
 c       Test of numerical calculation vs. analytical calculation
 
-cc          do igrid=1,grid_params%ngrid
-cc
-cc            igx = igrid
-cc            igy = igrid
-cc            igz = igrid
-cc
-cc            nxp = grid_params%nxv(igrid)+1
-cc            nyp = grid_params%nyv(igrid)+1
-cc            nzp = grid_params%nzv(igrid)+1
-cc
-cc            do k = 0,nzp
-cc              do j = 0,nyp
-cc                do i = 0,nxp
-cc                  gmetric%grid(igrid)%jac  (i,j,k)
-cc     .                      = gmetric%grid(igrid)%jac  (i,j,k)
-cc     .                       -jacobian(i,j,k,igx,igy,igz)
-cc                  gmetric%grid(igrid)%gsub (i,j,k,:,:)
-cc     .                      = gmetric%grid(igrid)%gsub (i,j,k,:,:)
-cc     .                       -g_sub   (i,j,k,igx,igy,igz)
-cc                  gmetric%grid(igrid)%gsup (i,j,k,:,:)
-cc     .                      = gmetric%grid(igrid)%gsup (i,j,k,:,:)
-cc     .                       -g_sup   (i,j,k,igx,igy,igz)
-cc                  gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-cc     .                      = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-cc     .                       -christ_2knd(i,j,k,igx,igy,igz)
-cc                enddo
-cc              enddo
-cc            enddo
-cc
-cc            write (*,*) 'Grid level:',igrid
-cc          
-cc            mag =
-cc     .     sum(gmetric%grid(igrid)%jac(1:nxp-1,1:nyp-1,1:nzp-1)**2)
-cc            write (*,*)'Jacobian tst=',sqrt(mag/(nxp-1)/(nyp-1)/(nzp-1))
-cc            mag =
-cc     .     sum(gmetric%grid(igrid)%gsub(2:nxp-1,1:nyp-1,1:nzp-1,:,:)**2)
-cc            write (*,*)'Gsub tst    =',sqrt(mag/(nxp-1)/(nyp-1)/(nzp-1))
-cc            mag =
-cc     .     sum(gmetric%grid(igrid)%gsup(2:nxp-1,1:nyp-1,1:nzp-1,:,:)**2)
-cc            write (*,*)'Gsup tst    =',sqrt(mag/(nxp-1)/(nyp-1)/(nzp-1))
-cc            mag =
-cc     .  sum(gmetric%grid(igrid)%Gamma(2:nxp-1,1:nyp-1,1:nzp-1,:,:,:)**2)
-cc            write (*,*)'Gamma tst   =',sqrt(mag/(nxp-1)/(nyp-1)/(nzp-1))
-cc
-cc          enddo
-cc          stop
+          if (check_grid) then
+            call numericalGridCoeffsCheck
+            call graphicsCheck
+          endif
 
         endif
 
@@ -3453,7 +3379,7 @@ c     End program
 
 c     gammaZeroForce
 c     #################################################################
-      subroutine gammaZeroForce(i,j,k,igx,igy,igz)
+      subroutine gammaZeroForce(igx,igy,igz)
 
 c     -----------------------------------------------------------------
 c     Postprocess Christoffel symbol to satisfy zero-force condition
@@ -3464,11 +3390,11 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: i,j,k,igx,igy,igz
+        integer(4) :: igx,igy,igz
 
 c     Local variables
 
-        integer(4) :: ii,ll,kk,mm,jj,ig,jg,kg,igrid
+        integer(4) :: i,j,k,ii,ll,kk,mm,jj,ig,jg,kg,igrid
         real(8)    :: x1,y1,z1,summ,summ2,dh,jac,jacp,jacm,const,hlf
         real(8)    :: hess(3,3,3),table(3,3,3),gsub(3,3)
      .               ,gsup(3,3),gsupp(3,3),gsupm(3,3),gamma(3,3,3)
@@ -3476,97 +3402,118 @@ c     Local variables
 
 c     Begin program
 
-        if  (    (i == ilom .or. i == ihip)       !Avoid x-boundaries
-     .       .or.(j == jlom .or. j == jhip)       !Avoid y-boundaries
-     .       .or.(k == klom .or. k == khip)       !Avoid z-boundaries
-     .       .or. isSP(i,j,k,igx,igy,igz)         !Avoid singular point
-     .       ) return
+cc        if  (    (i == ilom .or. i == ihip)       !Avoid x-boundaries
+cc     .       .or.(j == jlom .or. j == jhip)       !Avoid y-boundaries
+cc     .       .or.(k == klom .or. k == khip)       !Avoid z-boundaries
+cccc     .       .or. isSP(i,j,k,igx,igy,igz)         !Avoid singular point
+cc     .       ) return
 
         igrid = igx
 
-        gamma = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-        gsub  = gmetric%grid(igrid)%gsub(i,j,k,:,:)
-        gsup  = gmetric%grid(igrid)%gsup(i,j,k,:,:)
+        if (check_grid) then
+          write (*,*)
+          write (*,*) '********************************'
+          write (*,*) 'Checking zero-force condition...'
+          write (*,*) '********************************'
+          write (*,*)
+        endif
 
-        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+        do k = klo,khi
+          do j = jlo,jhi
+            do i = ilo,ihi
 
-        do ii=1,3 !cycle through Chistoffel symbols
+            gamma = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+            gsub  = gmetric%grid(igrid)%gsub(i,j,k,:,:)
+            gsup  = gmetric%grid(igrid)%gsup(i,j,k,:,:)
 
-          alt_eom = (ii == 2 .and. alt__eom())
+            call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
-          if (alt_eom) then
-            jac  = gmetric%grid(igrid)%jac(i,j,k)
-            const= 2d0
-          else
-            jac  = 1d0
-            const= 1d0
-          endif
+            do ii=1,3 !cycle through Chistoffel symbols
 
-          do ll=1,3
-            do kk=1,3
-              select case (kk)
-              case(1)
-                dh = 2*grid_params%dxh(ig)
-                if (alt_eom) then
-                  jacp = gmetric%grid(igrid)%jac(i+1,j,k)
-                  jacm = gmetric%grid(igrid)%jac(i-1,j,k)
-                else
-                  jacp=1d0
-                  jacm=1d0
-                endif
-                gsupp = jacp*gmetric%grid(igrid)%gsup (i+1,j,k,:,:)
-                gsupm = jacm*gmetric%grid(igrid)%gsup (i-1,j,k,:,:)
-              case(2)
-                dh = 2*grid_params%dyh(jg)
-                if (alt_eom) then
-                  jacp = gmetric%grid(igrid)%jac(i,j+1,k)
-                  jacm = gmetric%grid(igrid)%jac(i,j-1,k)
-                else
-                  jacp=1d0
-                  jacm=1d0
-                endif
-                gsupp = jacp*gmetric%grid(igrid)%gsup (i,j+1,k,:,:)
-                gsupm = jacm*gmetric%grid(igrid)%gsup (i,j-1,k,:,:)
-              case(3)
-                dh = 2*grid_params%dzh(kg)
-                if (alt_eom) then
-                  jacp = gmetric%grid(igrid)%jac(i,j,k+1)
-                  jacm = gmetric%grid(igrid)%jac(i,j,k-1)
-                else
-                  jacp=1d0
-                  jacm=1d0
-                endif
-                gsupp = jacp*gmetric%grid(igrid)%gsup (i,j,k+1,:,:)
-                gsupm = jacm*gmetric%grid(igrid)%gsup (i,j,k-1,:,:)
-              end select
-                
-              table(ii,ll,kk) =
-     .              -gsub(ll,1)*(gsupp(1,ii)-gsupm(1,ii))/dh/jac
-     .              -gsub(ll,2)*(gsupp(2,ii)-gsupm(2,ii))/dh/jac
-     .              -gsub(ll,3)*(gsupp(3,ii)-gsupm(3,ii))/dh/jac
-     .              +const*delta(ii,ll)*(gamma(1,kk,1)
-     .                                  +gamma(2,kk,2)
-     .                                  +gamma(3,kk,3))
+              alt_eom = (ii == 2 .and. alt__eom())
 
-              summ=0d0
-              do mm=1,3
-                do jj=1,3
-                  summ = summ + gsub(ll,mm)*gsup(ii,jj)*gamma(mm,jj,kk)
+              if (alt_eom) then
+                jac  = gmetric%grid(igrid)%jac(i,j,k)
+                const= 2d0
+              else
+                jac  = 1d0
+                const= 1d0
+              endif
+
+              do ll=1,3
+                do kk=1,3
+                  select case (kk)
+                  case(1)
+                    dh = 2*grid_params%dxh(ig)
+                    if (alt_eom) then
+                      jacp = gmetric%grid(igrid)%jac(i+1,j,k)
+                      jacm = gmetric%grid(igrid)%jac(i-1,j,k)
+                    else
+                      jacp=1d0
+                      jacm=1d0
+                    endif
+                    gsupp = jacp*gmetric%grid(igrid)%gsup (i+1,j,k,:,:)
+                    gsupm = jacm*gmetric%grid(igrid)%gsup (i-1,j,k,:,:)
+                  case(2)
+                    dh = 2*grid_params%dyh(jg)
+                    if (alt_eom) then
+                      jacp = gmetric%grid(igrid)%jac(i,j+1,k)
+                      jacm = gmetric%grid(igrid)%jac(i,j-1,k)
+                    else
+                      jacp=1d0
+                      jacm=1d0
+                    endif
+                    gsupp = jacp*gmetric%grid(igrid)%gsup (i,j+1,k,:,:)
+                    gsupm = jacm*gmetric%grid(igrid)%gsup (i,j-1,k,:,:)
+                  case(3)
+                    dh = 2*grid_params%dzh(kg)
+                    if (alt_eom) then
+                      jacp = gmetric%grid(igrid)%jac(i,j,k+1)
+                      jacm = gmetric%grid(igrid)%jac(i,j,k-1)
+                    else
+                      jacp=1d0
+                      jacm=1d0
+                    endif
+                    gsupp = jacp*gmetric%grid(igrid)%gsup (i,j,k+1,:,:)
+                    gsupm = jacm*gmetric%grid(igrid)%gsup (i,j,k-1,:,:)
+                  end select
+                    
+                  table(ii,ll,kk) =
+     .                  -gsub(ll,1)*(gsupp(1,ii)-gsupm(1,ii))/dh/jac
+     .                  -gsub(ll,2)*(gsupp(2,ii)-gsupm(2,ii))/dh/jac
+     .                  -gsub(ll,3)*(gsupp(3,ii)-gsupm(3,ii))/dh/jac
+     .                  +const*delta(ii,ll)*(gamma(1,kk,1)
+     .                                      +gamma(2,kk,2)
+     .                                      +gamma(3,kk,3))
+
+                  summ=0d0
+                  do mm=1,3
+                    do jj=1,3
+                      summ=summ+gsub(ll,mm)*gsup(ii,jj)*gamma(mm,jj,kk)
+                    enddo
+                  enddo
+
+                  table(ii,ll,kk) = table(ii,ll,kk) - summ
                 enddo
               enddo
 
-              table(ii,ll,kk) = table(ii,ll,kk) - summ
             enddo
-          enddo
 
-        enddo
+            !Symmetrize
+            do ii=1,3
+              do ll=1,3             !cycle through tensor components
+                do kk=1,3
+                  gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
+     $                        = 0.5*( table(ii,ll,kk)+table(ii,kk,ll) )
+                enddo
+              enddo
+            enddo
 
-        !Symmetrize
-        do ii=1,3
-          do ll=1,3             !cycle through tensor components
-            do kk=1,3
-              gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
-     $                    = 0.5*( table(ii,ll,kk)+table(ii,kk,ll) )
+c           START CHECKS
+
+            if (check_grid) call zeroForceCheck(i,j,k,igrid,gamma
+     $                     ,gmetric%grid(igrid)%Gamma(i,j,k,:,:,:))
+
             enddo
           enddo
         enddo
@@ -3773,10 +3720,6 @@ cc          enddo
 cc
 cc        endif
         
-c      START CHECKS
-
-cc        call zeroForceCheck(i,j,k,igrid,gamma
-cc     $                     ,gmetric%grid(igrid)%Gamma(i,j,k,:,:,:))
 
 c     End program
 
@@ -3787,8 +3730,7 @@ c     #################################################################
       subroutine zeroForceCheck(i,j,k,igrid,gold,gnew)
 
 c     -----------------------------------------------------------------
-c     Postprocess Christoffel symbol to satisfy zero-force condition
-c     to machine accuracy
+c     Check zero-force condition of Christoffle symbols
 c     -----------------------------------------------------------------
 
         implicit  none
@@ -3825,7 +3767,7 @@ c      Check difference between correction and prediction
         summ2= sqrt(sum(gold*gold))
         summ = sqrt(sum(hess*hess))/summ2
 
-        write (*,*) 'Correction size:',summ
+        write (*,*) '  Correction size:',summ
 
 c      Check cancellation property g^lk(d_il G^j_kj-g_lm g^ij G^m_jk) = 0
 
@@ -3855,7 +3797,7 @@ c      Check cancellation property g^lk(d_il G^j_kj-g_lm g^ij G^m_jk) = 0
             enddo
           enddo
 
-          write (*,*) 'Cancellation property comp.#',ii,':',summ
+          write(*,*)'  Cancel. of corrector term for Gamma^',ii,':',summ
         enddo
 
 c      Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
@@ -3927,13 +3869,179 @@ c      Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
             enddo
           enddo
 
-          write (*,*) 'Zero force comp. #',ii,':',summ,summ2,summ+summ2
-cc          write (*,*) 'Zero force   property comp.#',ii,':',summ+summ2
+cc          write(*,*) '  Zero force cancellation for i=',ii,':',summ,summ2,summ+summ2
+          write (*,*) '  Zero force cancellation for i=',ii,':'
+     .               ,summ+summ2
         enddo
 
 c     End program
 
       end subroutine zeroForceCheck
+
+c     numericalGridCoeffsCheck
+c     #################################################################
+      subroutine numericalGridCoeffsCheck
+
+c     -----------------------------------------------------------------
+c     Test of numerical calculation vs. analytical calculation of
+c     grid quantities.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+      real(8)    :: mag,mag1,mag2(3,3),mag3(3,3),mag4(3,3,3)
+
+c     Begin program
+
+      if (anal_map) then
+        write (*,*)
+        write (*,*) '*************************************************'
+        write (*,*) 'Checking accuracy of numerical grid quantities...'
+        write (*,*) '*************************************************'
+        write (*,*)
+      else
+        write (*,*) 'Cannot check numerical grid quantities: analytical'
+        write (*,*) '  mapping unavailable'
+      endif
+
+      do igrid=1,grid_params%ngrid
+
+        igx = igrid
+        igy = igrid
+        igz = igrid
+
+        mag1 = 0d0
+        mag2 = 0d0
+        mag3 = 0d0
+        mag4 = 0d0
+
+        do k = klom,khip
+          do j = jlom,jhip
+            do i = ilom,ihip
+              mag1 = mag1 + (gmetric%grid(igrid)%jac  (i,j,k)
+     .                      -jacobian(i,j,k,igx,igy,igz))**2
+              mag2 = mag2 + (gmetric%grid(igrid)%gsub (i,j,k,:,:)
+     .                      -g_sub   (i,j,k,igx,igy,igz))**2
+              mag3 = mag3 + (gmetric%grid(igrid)%gsup (i,j,k,:,:)
+     .                      -g_sup   (i,j,k,igx,igy,igz))**2
+              mag4 = mag4 + (gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+     .                      -christ_2knd(i,j,k,igx,igy,igz))**2
+            enddo
+          enddo
+        enddo
+
+        write (*,*) 'Grid level:',igrid
+          
+        mag = sqrt(    mag1 /(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))
+        write (*,*)'   Jacobian tst=',mag
+        mag = sum(sqrt(mag2)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/9.
+        write (*,*)'   Gsub tst    =',mag
+        mag = sum(sqrt(mag3)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/9.
+        write (*,*)'   Gsup tst    =',mag
+        mag = sum(sqrt(mag4)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/27.
+        write (*,*)'   Gamma tst   =',mag
+        write (*,*)
+
+      enddo
+
+      end subroutine numericalGridCoeffsCheck
+
+c     graphicsCheck
+c     #################################################################
+      subroutine graphicsCheck
+
+c     -----------------------------------------------------------------
+c     Test of numerical calculation vs. analytical calculation of
+c     grid quantities.
+c     -----------------------------------------------------------------
+
+      use debug
+
+      implicit none
+
+      integer(4) :: nx,ny,nz,i,j,k,l,m,n,igrid
+      real(8)    :: tensor(3,3,3)
+      character(17) :: debugfile
+
+c     Begin program
+
+      if (anal_map) then
+        write (*,*)
+        write (*,*) '**********************************'
+        write (*,*) 'Dumping grid debugging graphics...'
+        write (*,*) '**********************************'
+        write (*,*)
+      else
+        write (*,*) 'Cannot dump debugging graphics: analytical'
+        write (*,*) '  mapping unavailable'
+        return
+      endif
+
+      igrid = 1
+
+      debugfile = 'grid_debug'//trim(int2char(my_rank))//'.bin'
+      open(unit=110,file=trim(debugfile),form='unformatted'
+     .    ,status='replace')
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
+
+      allocate(dbg(0:nx+1,0:ny+1,0:nz+1,1))
+
+      !Jacobian
+      k = 1
+      do j=0,ny+1
+        do i=0,nx+1
+          dbg(i,j,1,1) = gmetric%grid(igrid)%jac(i,j,k)
+     .                  -jacobian(i,j,k,igrid,igrid,igrid)
+        enddo
+      enddo
+      call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,0,110)
+
+      !Metric tensors
+      do l=1,3
+        do m=1,3
+          k = 1
+          do j=0,ny+1
+            do i=0,nx+1
+              tensor(:,:,1)  = g_sub(i,j,k,igrid,igrid,igrid)
+              dbg(i,j,k,1) = gmetric%grid(igrid)%gsub(i,j,k,l,m)
+     .                  *gmetric%grid(igrid)%jac(i,j,k)
+     .                      -tensor(l,m,1)
+     .                  *jacobian(i,j,k,igrid,igrid,igrid)
+            enddo
+          enddo
+          call contour(dbg(:,:,k,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
+        enddo
+      enddo
+
+      !Christoffle symbols
+      do l=1,3
+        do m=1,3
+          do n=1,3
+            k = 1
+            do j=0,ny+1
+              do i=0,nx+1
+                tensor  = christ_2knd(i,j,k,igrid,igrid,igrid)
+                dbg(i,j,k,1) = gmetric%grid(igrid)%Gamma(i,j,k,l,m,n)
+     .                  *gmetric%grid(igrid)%jac(i,j,k)
+     .                        -tensor(l,m,n)
+     .                  *jacobian(i,j,k,igrid,igrid,igrid)
+              enddo
+            enddo
+            call contour(dbg(:,:,k,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
+          enddo
+        enddo
+      enddo
+
+      deallocate(dbg)
+      close(110)
+
+      write (*,*) 'Done...'
+      write (*,*) 
+
+      end subroutine graphicsCheck
 
       end subroutine defineGridMetric
 
@@ -4252,8 +4360,6 @@ c     Begin program
         
         vol = jac*dx1*dx2*dx3
 
-cc        if (isSP2(i,j,k,igx,igy,igz)) vol = 0.25*(2+sqrt(2d0))*vol
-
       end function volume
 
 c     vectorNorm
@@ -4347,18 +4453,16 @@ c #####################################################################
         real(8),private :: pi
 
         type :: dim_pack
-          logical    :: pack
-cc          real(8)    :: xi
-          real(8)    :: xp
-          real(8)    :: dx0
-cc          integer(4) :: n1
+          logical    :: pack = .false.
+          real(8)    :: xp = 0d0
+          real(8)    :: dx0 = 0d0
         end type dim_pack
 
         type :: grid_pack
           type(dim_pack),dimension(3) :: dim
         end type grid_pack
 
-        type(grid_pack) :: g_pack
+        type(grid_pack),save :: g_pack
 
       contains
 
@@ -4570,9 +4674,25 @@ c     Initialize MPI for BCs
 
         call initMPI
 
+c     Initialize check grid output
+
+        if (check_grid) then
+          write (*,*)
+          write (*,*) 'Coordinate system: ',coords
+          write (*,*)
+          write (*,*) 'Number of grid levels:'
+          write (*,*) 'nx: ',grid_params%ngrid
+     .            ,'   ny: ',grid_params%ngrid
+     .            ,'   nz: ',grid_params%ngrid
+        endif
+
 c     Store grid metric parameters in grid metric structure
 
         if (checkGridDatabase()) call defineGridMetric(gmetric)
+
+c     Perform grid checks
+
+        if (check_grid) call checkGrid
 
       end subroutine createGrid
 
@@ -4597,13 +4717,8 @@ c     Local variables
         integer(4) :: ig,i,isig,ng
         real(8)    :: dh,length,lmax_loc,lmin_loc,lstart
      .               ,dx0,dxl,dxr,alpha1=1d0,alpha2=1d0
-        logical    :: sing_point,spt1,spt2
 
 c     Begin program
-
-        spt1 = (bcs1 == SP)
-        spt2 = (bcs1 == SP2)
-        sing_point = spt1 .or. spt2
 
 c     Find local domain limits lmin_loc,lmax_loc
 
@@ -4632,11 +4747,7 @@ c     Find grid quantities
           enddo
 
           !Find half mesh spacings
-          if (sing_point .and. ilo(1) == 1) then
-            dxh(1 + isig) = 0.5*(xx(2+isig)+xx(1+isig))
-          else
-            dxh(1 + isig) = 0.5*(dx(1 + isig) + dx(0   + isig))
-          endif
+          dxh(1 + isig) = 0.5*(dx(1 + isig) + dx(0   + isig))
 
           do i = 2,nx(ig)
             dxh(i + isig) = 0.5*(dx(i + isig) + dx(i-1 + isig))
@@ -4645,9 +4756,6 @@ c     Find grid quantities
           if (bcs1 == PER) then
             dxh(0        + isig) = dxh(nx(ig) + isig)
             dxh(nx(ig)+1 + isig) = dxh(1      + isig)
-          elseif (sing_point .and. ilo(1) == 1) then
-            dxh(0        + isig) = dx(0      + isig)
-            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5
           else
             dxh(0        + isig) = dx(0      + isig)*0.5
             dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5
@@ -4766,9 +4874,7 @@ cc            call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
           endif
 
           !X0 ghost cell
-          if (sing_point .and. ilo(1) == 1) then
-            xg(0) = 1d-8*dh
-          elseif (bcs1 == PER) then
+          if (bcs1 == PER) then
             xg(0) = xg(1) - (xg(ng)-xg(ng-1))
           elseif (abs(bcs1) == SYM) then
             xg(0) = xg(1) - (xg(2 )-xg(1   ))
@@ -4793,10 +4899,6 @@ cc            call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
             endif
           endif
 
-cc          write (*,*) xp,lmin,lmax,lstart,lend,dh,n1,n2,ng
-cc          write (*,*) xg
-cc          stop
-
         else  !Uniform grid
 
           dh = length/ng
@@ -4806,7 +4908,6 @@ cc          stop
             lstart = lmin
             lend   = lmax
           elseif (bcs1 == SYM .and. bcs2 == SYM) then
-            write (*,*) 'here'
             dh = length/(ng-1)
             lstart = lmin
             lend   = lmax
@@ -4818,10 +4919,6 @@ cc          stop
             dh = length/(ng - 0.5)
             lstart = lmin+dh/2.
             lend   = lmax
-          elseif (spt2) then
-            dh = sqrt(2d0)*length/(1+sqrt(2d0)*(ng - 0.5))
-            lstart = lmin+dh/sqrt(2d0)
-            lend   = lmax-dh/2.
           else
             dh = length/ng
             lstart = lmin+dh/2.
@@ -4832,11 +4929,11 @@ cc          stop
           do i = 2,ng+1
             xg(i) = xg(i-1) + dh
           enddo
-          if (sing_point) then
-            xg(0) = 1d-8*dh
-          else
+cc          if (bcSP()) then
+cc            xg(0) = xg(1) - dh + 1d-10
+cc          else
             xg(0) = xg(1) - dh
-          endif
+cc          endif
 
         endif
 
@@ -5045,7 +5142,7 @@ c     #################################################################
       subroutine checkGrid
 
 c     -----------------------------------------------------------------
-c     Defines logical grid and finds grid quantities
+c     Dumps grid info and checks metric tensors.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -5065,12 +5162,6 @@ c     Multigrid parameters
         igy = grid_params%ngrid
         igz = grid_params%ngrid
 
-        write (*,*)
-        write (*,*) 'Coordinate system: ',coords
-        write (*,*)
-        write (*,*) 'Number of grid levels:'
-        write (*,*) 'nx: ',igx,'   ny: ',igy,'   nz: ',igz
-
         call gridInfo('X',igx,grid_params%istartx,grid_params%nxv
      .               ,grid_params%xx,grid_params%dx,grid_params%dxh)
 
@@ -5080,11 +5171,13 @@ c     Multigrid parameters
         call gridInfo('Z',igz,grid_params%istartz,grid_params%nzv
      .               ,grid_params%zz,grid_params%dz,grid_params%dzh)
 
-        call metricTensorCheck(igx,igy,igz
+        call metricTensorCheck(1,1,1
      .             ,grid_params%nxv,grid_params%nyv,grid_params%nzv)
 
 cc        call hessianCheck(igx,igy,igz
 cc     .             ,grid_params%nxv,grid_params%nyv,grid_params%nzv)
+
+        stop
 
 c     End program
 
@@ -5233,8 +5326,10 @@ c     Begin program
         write (*,*) '   Metric Tensor check'
         write (*,*) '*************************'
         write (*,*)
+        write (*,*) 'Grid levels:',igx,igy,igz
+        write (*,*)
 
-        do i = 2,nxv(igx)   !Start at 2 to avoid singular points
+        do i = 1,nxv(igx)   !Start at 2 to avoid singular points
           do j = 1,nyv(igy)
             do k = 1,nzv(igz)
 
@@ -5249,8 +5344,37 @@ c     Begin program
 
               tensor = matmul(gup,gdown)
 
-              write (*,5) 'Grid point: (',x1,',',y1,',',z1,')'
- 5            format (/,a,f7.3,a,f7.3,a,f7.3,a)
+cc              write (*,5) 'Grid point: (',x1,',',y1,',',z1,')'
+cc 5            format (/,a,f7.3,a,f7.3,a,f7.3,a)
+              write (*,5) 'Grid point: (',i,',',j,',',k,')'
+ 5            format (/,a,i3,a,i3,a,i3,a)
+
+              write (*,*)
+              write (*,*) 'Gup'
+              write (*,10) gup(1,1:3)
+              write (*,10) gup(2,1:3)
+              write (*,10) gup(3,1:3)
+
+              write (*,*)
+              write (*,*) 'Gdown'
+              write (*,10) gdown(1,1:3)
+              write (*,10) gdown(2,1:3)
+              write (*,10) gdown(3,1:3)
+
+              write (*,*)
+              write (*,*) 'Cov: cov1      cov2      cov3'
+              write (*,10) gmetric%grid(igx)%cov(i,j,k,1:3,1)
+              write (*,10) gmetric%grid(igx)%cov(i,j,k,1:3,2)
+              write (*,10) gmetric%grid(igx)%cov(i,j,k,1:3,3)
+
+              write (*,*)
+              write (*,*) 'Cnv: cnv1      cnv2      cnv3'
+              write (*,10) gmetric%grid(igx)%cnv(i,j,k,1:3,1)
+              write (*,10) gmetric%grid(igx)%cnv(i,j,k,1:3,2)
+              write (*,10) gmetric%grid(igx)%cnv(i,j,k,1:3,3)
+
+              write (*,*)
+              write (*,*) 'Jac:',gmetric%grid(igx)%jac(i,j,k)
 
               write (*,*) 
               write (*,*) 'Metric tensor product'
