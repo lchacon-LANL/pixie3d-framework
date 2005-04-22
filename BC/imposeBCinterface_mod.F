@@ -4,15 +4,11 @@ c####################################################################
 
         use BCS_variables
 
-        INTERFACE singularBC
-          module procedure scalarSingularBC,vectorSingularBC
-        end INTERFACE
-
       contains
 
-c     scalarSingularBC
+c     scalarSingularBC2
 c     #################################################################
-      subroutine scalarSingularBC(array,order)
+      subroutine scalarSingularBC2(array,order)
 c     -----------------------------------------------------------------
 c     Imposes singular point BC. On input:
 c        * array: contains variable on which singular BC is imposed
@@ -86,11 +82,55 @@ c       Perform average
 
 c     End program
 
+      end subroutine scalarSingularBC2
+
+c     scalarSingularBC
+c     #################################################################
+      subroutine scalarSingularBC(array,order)
+c     -----------------------------------------------------------------
+c     Imposes singular point BC. On input:
+c        * array: contains variable on which singular BC is imposed
+c        * order: order of interpolation towards singular point
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer(4) :: order
+      real(8)    :: array(0:nxbc+1,0:nybc+1,0:nzbc+1)
+
+c     Local variables
+
+      integer(4) :: i,j,k,ig,jg,kg,jj
+
+c     Begin program
+
+c     Check that we are domain adjacent to singular point
+
+      if (ilog /= 1) then
+        return
+      else
+        i = ilog
+      endif
+
+c     Element exchange in poloidal direction
+
+      do k=1,nzbc
+        do j=1,nybc
+          jj = mod(j+nybc/2,nybc)
+          if (jj == 0) jj = nybc
+          array(i-1,j,k) = array(i,jj,k)
+        enddo
+      enddo
+
+c     End program
+
       end subroutine scalarSingularBC
 
-c     vectorSingularBC
+c     vectorSingularBC2
 c     #################################################################
-      subroutine vectorSingularBC(vec,cov,order)
+      subroutine vectorSingularBC2(vec,cov,order)
 c     -----------------------------------------------------------------
 c     Averages vector components around singular point and calculates
 c     curvilinear components at singular point.
@@ -169,12 +209,6 @@ c       Perform local sum
           call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
      .                    ,cz(1:order1+1),1,grid_params%xx(ig-1:ig-1)
      .                    ,cz(0),order1)
-cc          call IntDriver1d(order1+1,xx(1:order1+1)
-cc     .                    ,cx(1:order1+1),1,xx(0),cx(0),order1)
-cc          call IntDriver1d(order1+1,xx(1:order1+1)
-cc     .                    ,cy(1:order1+1),1,xx(0),cy(0),order1)
-cc          call IntDriver1d(order1+1,xx(1:order1+1)
-cc     .                    ,cz(1:order1+1),1,xx(0),cz(0),order1)
 
           lavg_x   = lavg_x   + vol*cx(0)
           lavg_y   = lavg_y   + vol*cy(0)
@@ -220,6 +254,66 @@ c       Perform average
 
       deallocate(ax0,ay0,az0)
       deallocate(cx,cy,cz,xx)
+
+c     End program
+
+      end subroutine vectorSingularBC2
+
+c     vectorSingularBC
+c     #################################################################
+      subroutine vectorSingularBC(ivar,vec,cov)
+c     -----------------------------------------------------------------
+c     Averages vector components around singular point and calculates
+c     curvilinear components at singular point.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer(4) :: ivar
+      real(8)    :: vec(0:nxbc+1,0:nybc+1,0:nzbc+1)
+      logical    :: cov
+
+c     Local variables
+
+      integer(4) :: i,j,k,jj
+
+c     External
+
+c     Begin program
+
+c     Check that we are domain adjacent to singular point
+
+      if (ilog /= 1) then
+        return
+      else
+        i = ilog
+      endif
+
+c     Element exchange in poloidal direction
+
+      do k=1,nzbc
+        do j=1,nybc
+          jj = mod(j+nybc/2,nybc)
+          if (jj == 0) jj = nybc
+          if (cov) then
+            select case(ivar)
+            case(1)
+              vec(i-1,j,k) = -vec(i,jj,k)
+            case(2,3)
+              vec(i-1,j,k) =  vec(i,jj,k)
+            end select
+          else
+            select case(ivar)
+            case(1)
+              vec(i-1,j,k) =  vec(i,jj,k)
+            case(2,3)
+              vec(i-1,j,k) = -vec(i,jj,k)
+            end select
+          endif
+        enddo
+      enddo
 
 c     End program
 
@@ -583,10 +677,6 @@ cc            endif
         enddo
       enddo
 
-c     Singular point boundary condition
-
-      if (bcSP()) call singularBC(array,order)
-
 c     Fill edges
 
       do dim=1,3
@@ -748,7 +838,7 @@ c     Impose BCs
 
                 if (bcond(ibc,ivar) < 0 .and. is__vec) then
                   call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
-     .                               ,v_cov,var0)
+     .                               ,v_cov,var0,cnv=.false.)
                   cov_to_cnv = .true.
                 else
                   call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
@@ -766,18 +856,6 @@ c     Impose BCs
 c     Synchronize covariant and contravariant components => contravariant
 
       if (cov_to_cnv) call synchronize_cnv(v_cnv,v_cov,bcond)
-
-c     Impose singular point BCs
-
-      if (bcSP()) then
-        if (is__vec) then
-          call singularBC(v_cnv,.false.,order)
-        else
-          do ivar=1,ncomp
-            call singularBC(v_cnv(:,:,:,ivar),order)
-          enddo
-        endif
-      endif
 
 c     Fill edges
 
@@ -1042,7 +1120,7 @@ c     End program
 c     fillGhostNodes
 c     ###############################################################
       subroutine fillGhostNodes(ieq,ivar,nvar,dim,loc,bctype
-     .                         ,array,array0)
+     .                         ,array,array0,cnv)
 
 c     ---------------------------------------------------------------
 c     Sets adequate boundary conditions on array.
@@ -1056,6 +1134,7 @@ c       * loc    -> location in dimension (0 -> right, 1 -> left)
 c       * bctype -> type of BC (dirichlet, neumann, periodic, etc.)
 c       * array  -> real array with ghost-nodes
 c       * array0 -> auxiliary real array
+c       * cov    -> whether vector components are covariant (optional)
 c     ---------------------------------------------------------------
 
       implicit none       !For safe fortran
@@ -1065,15 +1144,23 @@ c     Call variables
       integer(4) :: ieq,dim,loc,bctype,nvar,ivar
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1,nvar)
      .             ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1,nvar)
+      logical,optional :: cnv
 
 c     Local variables
 
       integer(4) :: neq,ibc,i,j,k,ig,jg,kg
+      logical    :: cov
 
 c     Begin program
 
       nnvar = nvar
 
+      if (PRESENT(cnv)) then
+        cov = .not.cnv
+      else
+        cov = .false.
+      endif
+      
 c     Determine boundary limits
 
       if (do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax)) then
@@ -1106,16 +1193,16 @@ c     Find BC update
         case(EQU)
           call dirichletBC(array(:,:,:,nvar),array0(:,:,:,nvar)
      .                    ,ieq,dim,loc,1)
-cc     .                    ,ieq,dim,loc,order)
         case(DIR)
           call dirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc,1)
-cc          call dirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc,order)
         case(NEU)
           call neumannBC(array(:,:,:,nvar),ieq,dim,loc)
 cc        case(SYM)
 cc          call neumannBC(array(:,:,:,nvar),ieq,dim,loc)
         case(EXT)
           call fillFaces(array(:,:,:,nvar),dim,loc)
+        case(SP)
+          call scalarSingularBC(array(:,:,:,nvar),order)
         case default
           write (*,*) 'BC',bctype,' not implemented'
           stop
@@ -1125,10 +1212,8 @@ cc          call neumannBC(array(:,:,:,nvar),ieq,dim,loc)
         case(PER)
           call periodicBC(array(:,:,:,ivar),ibc)
         case(EQU)
-cc          call dirichletBC(ivar,array,array0,ieq,dim,loc,order)
           call dirichletBC(ivar,array,array0,ieq,dim,loc,1)
         case(DIR)
-cc          call dirichletBC(ivar,array,vzeros,ieq,dim,loc,order)
           call dirichletBC(ivar,array,vzeros,ieq,dim,loc,1)
         case(NEU)
           call neumannBC(ivar,array,ieq,dim,loc)
@@ -1136,6 +1221,8 @@ cc        case(SYM)
 cc          call neumannBC(ivar,array,ieq,dim,loc,symm=.true.)
         case(EXT)
           call fillFaces(array(:,:,:,ivar),dim,loc)
+        case(SP)
+          call vectorSingularBC(ivar,array(:,:,:,ivar),cov)
         case default
           write (*,*) 'BC',bctype,' not implemented'
           stop
@@ -2089,9 +2176,6 @@ c     Identify directions for extrapolation.
         if (i_bc == 0) cycle
         select_bc(i) =    (bcond(i_bc) == EQU)
      .                .or.(bcSP(ibc=i_bc)    )
-cc     .                .or.(bcond(i_bc) == SP )
-cc     .                .or.(bcond(i_bc) == SP2)
-cc     .                .or.(bcond(i_bc) == SYM)
       enddo
 
       call select_along
@@ -2105,7 +2189,6 @@ cc     .                .or.(bcond(i_bc) == SYM)
         if (i_bc == 0) cycle
         select_bc(i) =    (    bcond(i_bc)  == PER)
      .                .or.(abs(bcond(i_bc)) == SYM)
-cc     .                .or.(bcond(i_bc) ==-SYM)
       enddo
 
       call select_across
