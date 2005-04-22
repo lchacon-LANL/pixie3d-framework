@@ -23,6 +23,8 @@ c----------------------------------------------------------------------
 
       use icond
 
+      use generalpurposefunctions
+
       implicit none
 
 c Call variables
@@ -35,6 +37,12 @@ c Call variables
 c Local variables
 
       integer(4)      :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl,ieq
+     .                  ,ierr
+
+c External
+
+      integer(4) :: system
+      external   :: system
 
 c Begin program
 
@@ -63,6 +71,20 @@ c Set unperturbed forcing fields
       call evaluateNonlinearFunction(u_n,fsrc)
 
       if (.not.source) fsrc = 0d0
+
+c Set output file
+
+      if (.not.restart) then
+        if (my_rank == 0)
+     .     ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+      endif
+
+      urecord = urecord + my_rank
+
+      if (np > 1) then
+        recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
+      endif
 
 c Set initial condition
 
@@ -308,7 +330,7 @@ c     ####################################################################
 
         logical    :: neumann(2),dirichlet(2),spoint(2)
 
-        spoint    = (bcs == SP ) .or. (bcs == SP2)
+        spoint    = (bcs == SP )
         neumann   = (bcs == NEU) .or. (bcs == SYM)
         dirichlet = (bcs == DIR) .or. (bcs ==-SYM) .or. (bcs == EQU)
 
@@ -408,7 +430,8 @@ c Open record file
 
       if (.not.restart) then
 
-        if (my_rank == 0) ierr=system('rm -f record*.bin >& /dev/null')
+cc        if (my_rank == 0)
+cc     .       ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
 
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
 
