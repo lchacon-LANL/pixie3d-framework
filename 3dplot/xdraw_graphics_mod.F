@@ -794,7 +794,7 @@ c ##################################################################
 
         use generalPurposeFunctions
 
-        character*(20) :: hdf5_fname = 'record.h5'
+        character(20) :: hdf5_fname
 
 #if defined(hdf5)
         integer(hid_t) :: group_id,subgroup_id
@@ -1506,6 +1506,7 @@ c     Determine actual number of 3D plots
         enddo
 
 c     Initialize XDRAW
+
 #if defined(petsc)
         if (np == 1) call initializeXDRAW
 #else
@@ -1513,9 +1514,11 @@ c     Initialize XDRAW
 #endif
 
 c     Initialize HDF5
+
 #if defined(hdf5)
         if (hdf_plot) call initializeHDF5file
 #endif
+
 c     End program
 
       end subroutine initializeGraphics
