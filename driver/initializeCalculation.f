@@ -36,9 +36,6 @@ cc      real(8),allocatable,dimension(:,:) :: v_mat,debug2
 
 c Begin program
 
-      urecord    = 25
-      recordfile = 'record.bin'
-
       g_pack%dim(:)%pack = .false.
 
 c Read user initializations
@@ -89,37 +86,6 @@ c Allocate constant arrays
 c Initialize MG and create grid
 
       call createGrid(1,nxd,1,nyd,1,nzd,nxd,nyd,nzd,gpack=g_pack)
-cc      call checkGrid
-cc      stop
-
-c Check grid
-
-c diag ******* NUMERICAL GRID QUANTITIES
-cc      open(unit=110,file='debug.bin',form='unformatted'
-cc     .    ,status='replace')
-cc      igx = 1
-cc      nx = grid_params%nxv(igx)
-cc      ny = grid_params%nyv(igx)
-cc      nz = grid_params%nzv(igx)
-cc      allocate(debug2(0:nx+1,0:ny+1))
-cc        debug2 = gmetric%grid(igx)%jac(0:nx+1,0:ny+1,1)
-cc        call contour(debug2(0:nx+1,0:ny+1),nx+2,ny+2,0d0
-cc     .            ,xmax,0d0,ymax,0,110)
-cc      do i=1,3
-cc        do j=1,3
-cccc            debug2 = gmetric%grid(igx)%cnv(0:nx+1,0:ny+1,1,i,j)
-cccc     .              *gmetric%grid(igx)%jac(0:nx+1,0:ny+1,1)
-cc          debug2 = gmetric%grid(igx)%Gamma(0:nx+1,0:ny+1,1,1,i,j)
-cc     .            *gmetric%grid(igx)%jac(0:nx+1,0:ny+1,1)
-cc          call contour(debug2(0:nx+1,0:ny+1),nx+2,ny+2,0d0
-cc     .            ,xmax,0d0,ymax,1,110)
-cccc     .           ,xmax,0d0,ymax,i+j-2,110)
-cc        enddo
-cc      enddo
-cc      deallocate(debug2)
-cc      close(110)
-cc      stop
-c diag *******
 
 c Create nonlinear solver
 
@@ -144,8 +110,6 @@ c Set unperturbed forcing fields
 
       if (.not.source) fsrc = 0d0
 
-cc      write (*,*) u_n%array_var(3)%array(:,1,1)
-cc      stop
 c Set initial condition
 
       call setInitialCondition(u_n,u_np)
@@ -493,7 +457,7 @@ c     ####################################################################
 
         logical    :: neumann(2),dirichlet(2),spoint(2)
 
-        spoint    = (bcs == SP ) .or. (bcs == SP2)
+        spoint    = (bcs == SP)
         neumann   = (abs(bcs) == NEU) .or. (bcs == SYM)
         dirichlet = (bcs == DIR) .or. (bcs ==-SYM) .or. (bcs == EQU)
 
@@ -563,7 +527,7 @@ c Local variables
       integer(4) :: ierr
 
       integer(4) :: system
-      external   :: system
+      external      system
 
 c Begin program
 
@@ -587,7 +551,7 @@ c Open record file
 
       if (.not.restart) then
 
-        ierr=system('rm -f record*.bin >& /dev/null')
+        ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
 
         !Initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
 cc        if (debug) then
