@@ -6,9 +6,12 @@ MESSAGE = "Compiling PETSC driver"
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/grid \
-          $(COMMONDIR)/newtonGMRES
+SUBDIRS = $(COMMONDIR)/grid
 
 # Petsc include
 
 include ${PETSC_DIR}/bmake/common/base
+
+# Module order
+
+MODS := setup_mod.F driver_mod.F
