@@ -49,6 +49,7 @@ typedef struct {
   int       method;
   int       global;
   int       iguess;
+  int       precpass;
   int       bcs[6];
 } input_CTX;
 
@@ -60,6 +61,7 @@ typedef struct {
   PetscReal   ksp_res0;
   int         ksp_its;
   PetscReal   snes_res0;
+  PetscReal   snes_etak;
   int         snes_its;
   int         aspc_its;
   Vec         x0;
@@ -139,6 +141,7 @@ int MAIN__(int argc, char **argv)
   PetscReal time,tmax;
   int       maxitnwt;
   int       maxitgm;
+  int       method;
  
   PetscScalar   zero=0.0;
 
@@ -176,9 +179,11 @@ int MAIN__(int argc, char **argv)
   if (npy == 0) npy = PETSC_DECIDE;
   if (npz == 0) npz = PETSC_DECIDE;
 
-  atol 	   = PETSC_DEFAULT;
+  /*atol 	   = PETSC_DEFAULT;*/
+  atol 	   = user.indata.atol;
   rtol 	   = user.indata.rtol;
   tolgm    = user.indata.tolgm;
+  method   = user.indata.method;
 
   numtime  = user.indata.numtime;
   if (numtime < 0) numtime = 10000000;
@@ -191,7 +196,7 @@ int MAIN__(int argc, char **argv)
   maxitnwt = user.indata.maxitnwt;
   if (maxitnwt == 0) maxitnwt = (int) PetscMax((1.5*log(rtol)/log(tolgm)),10.);
 
-  user.aspc_its = 0;   /* Initialize Additive Schwartz method */
+  user.aspc_its = user.indata.precpass;   /* Initialize Additive Schwartz method */
 
   user.petsc_PC = 0;   /* Do not use PETSC PC */
 
@@ -245,17 +250,27 @@ int MAIN__(int argc, char **argv)
   /* Customize SNES */
   
   ierr = SNESSetTolerances(snes,atol,rtol,PETSC_DEFAULT,maxitnwt,PETSC_DEFAULT)	;CHKERRQ(ierr);
+
+  /* Set SNES runtime options */
   
+  ierr = SNESSetFromOptions(snes)                                              	;CHKERRQ(ierr);
+
   if (matrix_free) {
 
     /* Customize KSP */
 
     ierr = SNESGetKSP (snes, &ksp)                                             	;CHKERRQ(ierr);
-    ierr = KSPSetType (ksp,KSPFGMRES)                                          	;CHKERRQ(ierr);
-    ierr = KSPSetTolerances(ksp,tolgm,PETSC_DEFAULT,PETSC_DEFAULT,maxitgm)     	;CHKERRQ(ierr);
+    /*ierr = KSPSetType (ksp,KSPFGMRES)                                          	;CHKERRQ(ierr);*/
+    ierr = KSPSetType (ksp,KSPGMRES)                                          	;CHKERRQ(ierr);
+    ierr = KSPSetTolerances(ksp,tolgm,PETSC_DEFAULT,PETSC_DEFAULT,maxitgm)      ;CHKERRQ(ierr);
     ierr = KSPSetPreconditionerSide(ksp,PC_RIGHT);                             	;CHKERRQ(ierr);
     ierr = KSPSetMonitor(ksp,MyKSPMonitor,(void*)&user,PETSC_NULL)             	;CHKERRQ(ierr);
     if (user.indata.iguess == 1) ierr = KSPSetInitialGuessKnoll(ksp,PETSC_TRUE)	;CHKERRQ(ierr);
+
+    if (method == 1) {
+      ierr = SNES_KSP_SetConvergenceTestEW(snes)  	                        ;CHKERRQ(ierr);
+      ierr = SNES_KSP_SetParametersEW(snes,2,tolgm,0.9,0.9,1.5,1.5,0.1)         ;CHKERRQ(ierr);
+    }
 
     /* Customize PC */
 
@@ -279,10 +294,8 @@ int MAIN__(int argc, char **argv)
 
   }
 
-  /* Set SNES runtime options */
-  
-  ierr = SNESSetFromOptions(snes)                                              	;CHKERRQ(ierr);
-  
+  /* Initialize SNES (needed to get solution and Jacobian later) */
+
   ierr = SNESSetUp(snes,x)                                                      ;CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -396,6 +409,7 @@ int MySNESMonitor(SNES snes, int its, double fnorm, void *ctx)
 {
   AppCtx  *user = (AppCtx*)ctx;
 
+  KSP     ksp;
   int     ierr;
   PetscReal  rel_res;
 
@@ -406,16 +420,26 @@ int MySNESMonitor(SNES snes, int its, double fnorm, void *ctx)
   ierr = SNESGetJacobian(snes,&user->J,PETSC_NULL,PETSC_NULL,PETSC_NULL); CHKERRQ(ierr);
 
   /* Monitor */
-  ierr = SNESGetNumberLinearIterations(snes,&user->ksp_its); CHKERRQ(ierr);
+  ierr = SNESGetKSP (snes, &ksp)                                   	; CHKERRQ(ierr);
+  ierr = KSPGetIterationNumber(ksp,&user->ksp_its)                      ; CHKERRQ(ierr);
+
   if (user->indata.ilevel > 0) {
-    if (its == 0) user->snes_res0 = fnorm;
+    if (its == 0) {
+      user->snes_res0 = fnorm;
+      user->snes_etak = user->indata.tolgm;
+    } else {
+      ierr = KSPGetTolerances(ksp,&user->snes_etak,PETSC_NULL,PETSC_NULL,PETSC_NULL);CHKERRQ(ierr);
+    }
     if (user->indata.ilevel > 1) PetscPrintf(PETSC_COMM_WORLD,"\n");
     rel_res = fnorm/user->snes_res0;
     PetscPrintf(PETSC_COMM_WORLD\
-               ,"SNES its = %d ; res norm = %4.2e; res/rold norm = %4.2e; KSP its = %d \n"\
-               ,its,fnorm,rel_res,user->ksp_its);
+       ,"SNES its = %d ; res norm = %4.2e; res/rold norm = %4.2e; KSP its = %d ; etak = %4.2e\n"\
+       ,its,fnorm,rel_res,user->ksp_its,user->snes_etak);
     if (user->indata.ilevel > 1) PetscPrintf(PETSC_COMM_WORLD,"\n");
   }
+
+  /* Monitor total number of Krylov iterations*/
+  ierr = SNESGetNumberLinearIterations(snes,&user->ksp_its)             ; CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
@@ -427,11 +451,14 @@ int MyKSPMonitor(KSP ksp, int its, double fnorm, void *ctx)
 {
   AppCtx  *user = (AppCtx*)ctx;
 
+  int        ierr;
   PetscReal  rel_res;
+  PetscReal  etak;
 
   PetscFunctionBegin;
 
   if (user->indata.ilevel > 1) {
+    /* Get KSP info */
     if (its == 0) user->ksp_res0 = fnorm;
     rel_res = fnorm/user->ksp_res0;
     PetscPrintf(PETSC_COMM_WORLD," KSP its = %d ; res/rold norm = %4.2e \n",its,rel_res);
@@ -846,9 +873,11 @@ int ApplyASPC(void *ctx,Vec y,Vec z)
   AppCtx  *user = (AppCtx*)ctx;
 
   int	  ierr,k;
-  PetscScalar  mone=-1.,omega=1.;
+  PetscScalar  mone=-1.,omega=1.,zero=0.;
 
   PetscFunctionBegin;
+
+  ierr = VecSet(&zero,z)                                             ;CHKERRQ(ierr);
 
   for (k=1;k<=user->aspc_its;++k) {
 
