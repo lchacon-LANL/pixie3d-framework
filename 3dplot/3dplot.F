@@ -147,6 +147,8 @@ c----------------------------------------------------------------------
 
       use timeStepping
 
+      use parameters
+
       use grid
 
       implicit none
