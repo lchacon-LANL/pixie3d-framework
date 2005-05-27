@@ -20,19 +20,11 @@ c----------------------------------------------------------------------
 
       use iosetup
 
-cc      use debug
-
       implicit none
 
 c Call variables
 
 c Local variables
-
-c Debug
-
-cc      integer(4) :: nt,ii,i,j,k,igx,nx,ny,nz
-cc      real(8) :: mag
-cc      real(8),allocatable,dimension(:,:) :: v_mat,debug2
 
 c Begin program
 
@@ -159,6 +151,8 @@ c Begin program
 
       allocate(fold(ntotd),fsrc(ntotd))
       allocate(cnf(neqd),one_over_dt(neqd))
+
+cc      allocate(old_f(ntotd,2))
 
 c End programs
 
@@ -557,7 +551,7 @@ c Open record file
 cc        if (debug) then
 cc          u_graph = u_n
 cc        else
-        !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
+cc        !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
           u_graph = u_0
 cc        endif
 
