@@ -4,16 +4,19 @@
 
 # GENERAL PURPOSE MAKEFILE
 
+ifndef SRC
 SRC  := $(wildcard *.[F,f,c])
+endif
 
+ifndef MODS
 MODS := $(wildcard *_mod.[F,f])
+endif
 
 OBJS  := $(filter %.o,$(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))\
                       $(patsubst %.c,%.o,$(filter-out $(MODS),$(SRC)))\
                       $(patsubst %.F,%.o,$(filter-out $(MODS),$(SRC))))
 
-OBJMOD := $(sort $(filter %.o, $(patsubst %.f,%.o,$(MODS))\
-                               $(patsubst %.F,%.o,$(MODS))))
+OBJMOD :=  $(patsubst %.f,%.o,$(patsubst %.F,%.f,$(MODS)))
 
 
 COMMON_MODS = $(foreach dir,$(SUBDIRS),$(wildcard $(dir)/*_mod.[f,F]))
