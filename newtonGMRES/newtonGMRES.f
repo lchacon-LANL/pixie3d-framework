@@ -38,9 +38,11 @@ c ###################################################################
 
       real(8),parameter :: mv_eps=1d-5,epsmac=1d-15
 
-      integer(4) :: jit
+      integer(4) :: jit=1
 
       logical    :: pseudo_dt
+
+      character(2) :: krylov_method='gm'
 
       end module newton_gmres
 
@@ -524,6 +526,8 @@ c   Note that this subroutine calls the gmres subroutine from
 c   the SPARSKIT package by Y. Saad, modified by L. Chacon.
 c --------------------------------------------------------------------
 
+      use newton_gmres
+
       implicit none    !For safe fortran
 
 c Call variables
@@ -553,7 +557,11 @@ c Initialize the GMRES(k) algorithm
 
 c Call the preconditioned GMRES(k) algorithm
 
-      call fgmres(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
+      if (krylov_method=='fg') then
+        call fgmres(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
+      else
+        call gmres(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
+      endif
 
 c End program
 
@@ -658,7 +666,7 @@ c Calculate number of restarting loops
         rstrt = 0
       endif
 
-c Restarted GMRES loop
+c Restarted FGMRES loop
 
       do irstrt = 1,rstrt
 
@@ -668,30 +676,28 @@ c Restarted GMRES loop
           if (its .eq. 0) then
             write (*,199) its, ro, ro/rold
           else
-            write (*,*) 'Restarting GMRES... (',irstrt-1,')'
+            write (*,*) 'Restarting FGMRES... (',irstrt-1,')'
           endif
         endif
 
         if (ro.le.eps1) exit
 
-        t = 1.0d0/ro
+        t = 1d0/ro
         vv(:,1) = vv(:,1)*t
 
 c     Initialize 1-st term  of rhs of hessenberg system
 
         rs(1) = ro
 
-c     GMRES iteration
+c     FGMRES iteration
 
         do i = 1,im
 
           its = its + 1
           i1  = i + 1
 
-cFG           call applyPreconditioner(ntot,vv(1,i),rhs,precout)
           call applyPreconditioner(ntot,vv(:,i),zz(:,i),precout)
 
-cFG           call matrixFreeMatVec(ntot,rhs,vv(1,i1))
           call matrixFreeMatVec(ntot,zz(:,i),vv(:,i1))
 
 c       Modified gram - schmidt.
@@ -764,22 +770,275 @@ c     Now compute solution. First solve upper triangular system
           rs(k) = t/hh(k,k)
         enddo
 
-c      Form linear combination of zz=P*vv to get solution
+c     Form linear combination of zz=P*vv to get solution
 
         t = rs(1)
         rhs(:) = zz(:,1)*t
-cFG       rhs(:) = vv(:,1)*t
 
         do j=2, i
           t = rs(j)
           rhs(:) = rhs(:) + t*zz(:,j)
-cFG         rhs(:) = rhs(:) + t*vv(:,j)
         enddo
 
 c     Call preconditioner
 
         vv(:,im+1) = rhs(:)
-cFG       call applyPreconditioner(ntot,rhs,vv(1,im+1),precout)
+
+c     Update solution
+
+        sol(:) = sol(:) + vv(:,im+1)
+
+c     Check convergence and restart outer loop if necessary
+
+        if (ro <= eps1) then
+          ierr = 0
+          exit
+        endif
+
+        if (its >= maxits) then
+          ierr = 1
+          exit
+        endif
+
+c     Else compute residual vector and continue
+
+        do j=1,i
+          jj = i1-j+1
+          rs(jj-1) = -s(jj-1)*rs(jj)
+          rs(jj)   =  c(jj-1)*rs(jj)
+        enddo
+
+        do j=1,i1
+          t = rs(j)
+          if (j .eq. 1)  t = t-1.0d0
+          vv(:,1) = vv(:,1) + t*vv(:,j)
+        enddo
+
+c     Restart outer loop
+
+      enddo
+
+c End program
+
+ 199  format(' FGMRES its =', i4,';  Res =',1p,d10.2
+     .      ,';  Ratio =', d10.2)
+
+      end subroutine fgmres
+
+c gmres
+c ######################################################################
+      subroutine gmres(ntot,rhs,sol,eps,im,maxits,iout,ierr,its)
+c----------------------------------------------------------------------*
+c                                                                      *
+c               *** Preconditioned GMRES ***                  *
+c                                                                      *
+c----------------------------------------------------------------------*
+c This is a simple version of the right-preconditioned GMRES algorithm.*
+c The stopping criterion utilized is based simply on reducing the      *
+c residual norm by epsilon.                                            *
+c----------------------------------------------------------------------*
+c parameters                                                           *
+c-----------                                                           *
+c on entry:                                                            *
+c==========                                                            *
+c                                                                      *
+c ntot  == integer. The dimension of the matrix.                       *
+c rhs   == real vector of length n containing the right hand side.     *
+c          Destroyed on return.                                        *
+c sol   == real vector of length n containing an initial guess to the  *
+c          solution on input. approximate solution on output           *
+c eps   == tolerance for stopping criterion. process is stopped        *
+c          as soon as ( ||.|| is the euclidean norm):                  *
+c          || current residual||/||initial residual|| <= eps           *
+c im    == size of krylov subspace.                                    *
+c maxits== maximum number of GMRES iterations allowed                  *
+c iout  == output unit number number for printing intermediate results *
+c          if (iout .le. 0) nothing is printed out.                    *
+c                                                                      *
+c on return:                                                           *
+c==========                                                            *
+c sol   == contains an approximate solution (upon successful return).  *
+c ierr  == integer. Error message with the following meaning.          *
+c          ierr = 0 --> successful return.                             *
+c          ierr = 1 --> convergence not achieved in itmax iterations.  *
+c          ierr =-1 --> the initial guess seems to be the exact        *
+c                       solution (initial residual computed was zero)  *
+c its   == final number of GMRES iterations                            *
+c                                                                      *
+c----------------------------------------------------------------------*
+c                                                                      *
+c work arrays:                                                         *
+c=============                                                         *
+c vv    == work array of length  n x (im+1) (used to store the Arnoli  *
+c          basis)                                                      *
+c----------------------------------------------------------------------*
+c arnoldi size should not exceed im=50 in this version.                *
+c----------------------------------------------------------------------*
+
+      use newton_gmres
+
+      implicit none             !For safe fortran
+
+c Call variables
+
+      integer(4) :: ntot,im,maxits,iout,ierr,its
+      real(8)    :: rhs(ntot),sol(ntot),eps
+
+c Local variables
+
+      real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
+      real(8)    :: vv(ntot,im+1)
+      real(8)    :: rold,ro,eps1,gam,t
+      integer(4) :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
+
+c Begin program
+
+      precout = iout - 2
+
+      its = 0
+
+c Calculate magnitude of nonlinear residual
+
+      rold = sqrt(sum(rhs*rhs))
+
+      eps1=eps*rold
+
+      if (rold .lt. (ntot*epsmac)) then
+        ierr = -1
+        return
+      endif
+
+c Compute initial residual vector
+
+      call matrixFreeMatVec(ntot,sol,vv(:,1))
+
+      vv(:,1) = rhs(:) - vv(:,1)
+
+c Calculate number of restarting loops
+
+      if (maxits > 0) then
+        rstrt = maxits/im + 1
+      else
+        rstrt = 0
+      endif
+
+c Restarted FGMRES loop
+
+      do irstrt = 1,rstrt
+
+        ro = sqrt(sum(vv(:,1)*vv(:,1)))
+
+        if (iout .gt. 0 ) then
+          if (its .eq. 0) then
+            write (*,199) its, ro, ro/rold
+          else
+            write (*,*) 'Restarting GMRES... (',irstrt-1,')'
+          endif
+        endif
+
+        if (ro.le.eps1) exit
+
+        t = 1d0/ro
+        vv(:,1) = vv(:,1)*t
+
+c     Initialize 1-st term  of rhs of hessenberg system
+
+        rs(1) = ro
+
+c     FGMRES iteration
+
+        do i = 1,im
+
+          its = its + 1
+          i1  = i + 1
+
+          call applyPreconditioner(ntot,vv(1,i),rhs,precout)
+
+          call matrixFreeMatVec(ntot,rhs,vv(1,i1))
+
+c       Modified gram - schmidt.
+
+          do j=1,i
+            t = sum(vv(:,j)*vv(:,i1))
+            hh(j,i) = t
+            vv(:,i1) = vv(:,i1)-t*vv(:,j)
+          enddo
+
+          t = sqrt(sum(vv(:,i1)*vv(:,i1)))
+          hh(i1,i) = t
+
+          if (t.ne.0d0) then
+            t = 1d0/t
+            vv(:,i1) = vv(:,i1)*t
+          endif
+
+c       Done with modified Gram-Schimdt and arnoldi step
+c       Now update factorization of hh
+c       Perform previous transformations on i-th column of h
+
+          if (i .gt. 1) then
+            do k=2,i
+              k1 = k-1
+              t = hh(k1,i)
+              hh(k1,i) =  c(k1)*t + s(k1)*hh(k,i)
+              hh(k ,i) = -s(k1)*t + c(k1)*hh(k,i)
+            enddo
+          endif
+
+          gam = sqrt(hh(i,i)**2 + hh(i1,i)**2)
+
+c       If gamma is zero then any small value will do
+c       Will affect only residual estimate
+
+          if (gam.eq.0d0) gam = epsmac
+
+c       Get next plane rotation
+
+          c(i)   = hh(i ,i)/gam
+          s(i)   = hh(i1,i)/gam
+          rs(i1) = -s(i)*rs(i)
+          rs(i)  =  c(i)*rs(i)
+
+c       Determine residual norm and test for convergence
+
+          hh(i,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
+          ro = abs(rs(i1))
+
+          if (iout .gt. 0) then
+            write(*, 199) its, ro, ro/rold
+          endif
+
+          !The i=im condition below is necessary because i is used afterwards
+          if (ro <= eps1.or.its >= maxits.or.i.eq.im) exit
+
+        enddo
+
+c     Now compute solution. First solve upper triangular system
+
+        rs(i) = rs(i)/hh(i,i)
+        do ii=2,i
+          k=i-ii+1
+          k1 = k+1
+          t=rs(k)
+          do j=k1,i
+            t = t-hh(k,j)*rs(j)
+          enddo
+          rs(k) = t/hh(k,k)
+        enddo
+
+c     Form linear combination of zz=P*vv to get solution
+
+        t = rs(1)
+        rhs(:) = vv(:,1)*t
+
+        do j=2, i
+          t = rs(j)
+          rhs(:) = rhs(:) + t*vv(:,j)
+        enddo
+
+c     Call preconditioner
+
+       call applyPreconditioner(ntot,rhs,vv(1,im+1),precout)
 
 c     Update solution
 
@@ -820,7 +1079,7 @@ c End program
  199  format(' GMRES its =', i4,';  Res =',1p,d10.2
      .      ,';  Ratio =', d10.2)
 
-      end subroutine fgmres
+      end subroutine gmres
 
 c matrixFreeMatVec
 c##################################################################
