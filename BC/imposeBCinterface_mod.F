@@ -618,7 +618,7 @@ c     Initialize interpolation order
       if (PRESENT(iorder)) then
         order = iorder
       else
-        order = 1
+        order = 2
       endif
 
 c     Initialize BC grid quantities
@@ -712,8 +712,8 @@ c     End program
 c     imposeBConVector
 c     #################################################################
       subroutine imposeBConVector(fcomp,ncomp,nx,ny,nz,v_cnv,v_cov,var0
-     .                           ,bcond,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
-     .                           ,iorder,is_cnv,is_vec)
+     .                          ,bcond,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
+     .                          ,iorder,is_cnv,is_vec)
 c     -----------------------------------------------------------------
 c     Imposes BC on vector field
 c     -----------------------------------------------------------------
@@ -762,7 +762,7 @@ c     Initialize interpolation order
       if (PRESENT(iorder)) then
         order = iorder
       else
-        order = 1
+        order = 2
       endif
 
 c     Initialize BC grid quantities
