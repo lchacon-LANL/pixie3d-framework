@@ -49,6 +49,7 @@ c Call variables
         integer(4) :: method
         integer(4) :: global
         integer(4) :: iguess
+        integer(4) :: precpass
         integer(4) :: bcsi(6)
       end type indata
 
@@ -82,6 +83,7 @@ c Define structure components
       inputdata%method   = method 
       inputdata%global   = global 
       inputdata%iguess   = iguess
+      inputdata%precpass = precpass
 
       where (bcond == PER)
         inputdata%bcsi = 1
