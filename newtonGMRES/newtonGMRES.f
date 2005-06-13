@@ -27,8 +27,7 @@ c      Deallocates dynamic storage space used in preconditioner
 c
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
-
-c module newtonGmres
+c module newton_gmres
 c ###################################################################
       module newton_gmres
 
@@ -36,21 +35,41 @@ c ###################################################################
 
       real(8)    :: pdt,check
 
-      real(8),parameter :: mv_eps=1d-5,epsmac=1d-15
+      real(8),parameter :: mv_eps=1d-4,epsmac=1d-15
 
       integer(4) :: jit=1
 
       logical    :: pseudo_dt
 
-      character(2) :: krylov_method='gm'
+      character(2) :: krylov_method='fg'
+
+      type :: nk_options
+        integer(4)   :: etak_meth=0
+        integer(4)   :: global_meth=0
+        integer(4)   :: ksmax=10
+        integer(4)   :: gmmax=10
+        integer(4)   :: nwt_max_it_acc=5
+        integer(4)   :: nwt_max_it_rej=10
+        integer(4)   :: gm_it_out
+        integer(4)   :: nwt_it_out
+        real(8)      :: damp=1d0
+        real(8)      :: pdt0=1d30
+        real(8)      :: eta0=1d-1
+        real(8)      :: atol=0d0
+        real(8)      :: rtol=1d-4
+        character(2) :: krylov_method='gm'
+      end type nk_options
+
+      type(nk_options) :: nk_conf
 
       end module newton_gmres
 
-c newtonGmres
+c nk
 c####################################################################
-      subroutine newtonGmres(neq,ntot,x,etak_meth,damp,global,pdt0
-     .           ,eta0,ksmax,gmmax,rtol,atol,ntit_max_acc
-     .           ,ntit_max_rej,gmit_out,ntit_out,iguess,out,ierr)
+cc      subroutine newtonGmres(neq,ntot,x,etak_meth,damp,global,pdt0
+cc     .           ,eta0,ksmax,gmmax,rtol,atol,ntit_max_acc
+cc     .           ,ntit_max_rej,gmit_out,ntit_out,iguess,out,ierr)
+      subroutine nk(neq,ntot,x,iguess,out,ierr)
 c--------------------------------------------------------------------
 c     Performs Jacobian-free inexact Newton iteration on res(x) = 0, 
 c     where res is calculated in 'evaluateNonlinearResidual' (provided
@@ -60,6 +79,24 @@ c     Call parameters:
 c       * neq: number of equations
 c       * ntot: dimension of vector of unknowns.
 c       * x: on input, initial guess; on output, solution.
+c       * iguess: whether to use preconditioner to provide initial guess
+c                 (iguess = 1).
+c       * out: level of output:
+c              out = 0 --> No output
+c              out = 1 --> Newton convergence output
+c              out = 2 --> Previous plus GMRES convergence output
+c              out = 3 --> Previous plus residual information output
+c              out > 4 --> Previous plus preconditioner output (controlled
+c                          in preconditioner routine).
+c       * ierr: error flag:
+c              ierr =-1 --> Initial guess is exact solution
+c              ierr = 0 --> No error
+c              ierr = 1 --> No Newton convergence to prescribed tolerance in
+c                           prescribed number of iterations (ntit_max_rej)
+c              ierr = 2 --> Newton converged, but took too many iterations
+c                           (>  ntit_max_acc)
+c
+c     Configuration parameters (input via nk_options type):
 c       * etak_meth: specifies method to determine inexact Newton forcing 
 c           parameter. Currently:
 c               etak_meth = 0 --> constant
@@ -80,22 +117,6 @@ c                       solution without subcycling time step
 c       * ntit_max_rej: maximum number of Newton its. to reject solution
 c       * gmit_out: on output, actual number of gmres its.
 c       * ntit_out: on output, actual number of newton its.
-c       * iguess: whether to use preconditioner to provide initial guess
-c                 (iguess = 1).
-c       * out: level of output:
-c              out = 0 --> No output
-c              out = 1 --> Newton convergence output
-c              out = 2 --> Previous plus GMRES convergence output
-c              out = 3 --> Previous plus residual information output
-c              out > 4 --> Previous plus preconditioner output (controlled
-c                          in preconditioner routine).
-c       * ierr: error flag:
-c              ierr =-1 --> Initial guess is exact solution
-c              ierr = 0 --> No error
-c              ierr = 1 --> No Newton convergence to prescribed tolerance in
-c                           prescribed number of iterations (ntit_max_rej)
-c              ierr = 2 --> Newton converged, but took too many iterations
-c                           (>  ntit_max_acc)
 c--------------------------------------------------------------------
 
       use newton_gmres
@@ -104,17 +125,18 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: ntot,neq,etak_meth,ksmax,gmmax,ntit_max_acc
-     .             ,ntit_max_rej,gmit_out,ntit_out,out,iguess,ierr
-     .             ,global
+      integer(4) :: ntot,neq,out,iguess,ierr
+     .             
 
-      real(8)    :: x(ntot),eta0,atol,rtol,damp,pdt0
+      real(8)    :: x(ntot)
 
 c Local variables
 
-      integer(4) :: itk,i,j,ig,iout
+      integer(4) :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
+     .             ,ntit_max_rej,global
 
       real(8)    :: dxavg,check_lim,residuals(neq),ddx(ntot)
+     .             ,eta0,atol,rtol,damp,pdt0
 
       real(8)    :: f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
 
@@ -122,16 +144,31 @@ c Local variables
 
 c Begin program
 
+c Initialize
+
+      etak_meth    = nk_conf%etak_meth
+      ksmax        = nk_conf%ksmax
+      gmmax        = nk_conf%gmmax
+      ntit_max_acc = nk_conf%nwt_max_it_acc
+      ntit_max_rej = nk_conf%nwt_max_it_rej
+      global       = nk_conf%global_meth
+
+      eta0         = nk_conf%eta0
+      damp         = nk_conf%damp
+      pdt0         = nk_conf%pdt0
+      atol         = nk_conf%atol
+      rtol         = nk_conf%rtol
+
+      nk_conf%gm_it_out  = 0
+      nk_conf%nwt_it_out = 0
+
       if (ntit_max_acc > ntit_max_rej) then
         write (*,*) 'Error in Newton input: ntit_max_acc > ntit_max_rej'
         write (*,*) 'Aborting...'
         stop
       endif
 
-c Initialize
-
       ierr     = 0
-      gmit_out = 0
       itk      = 0
 
       if (out.ge.1) write (*,200)
@@ -214,8 +251,8 @@ c     Kill preconditioner
 
 c     Update counters
 
-        gmit_out = gmit_out + itk
-        ntit_out = jit
+        nk_conf%gm_it_out  = nk_conf%gm_it_out + itk
+        nk_conf%nwt_it_out = jit
 
 c     Check for error in GMRES
 
@@ -313,7 +350,7 @@ c End program
  240  format ('    Newton converged in too many iterations (>',i2,')')
  320  format ('Residual  eqn. ',i2,': ',1pe9.2)
 
-      end subroutine newtonGmres
+      end subroutine nk
 
 c calculateResidualNorms
 c####################################################################
