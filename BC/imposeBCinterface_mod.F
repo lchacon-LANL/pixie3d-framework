@@ -2056,9 +2056,9 @@ c     Identify directions for extrapolation.
       flg = .true.
 
       !Order in each direction
-      order_int(1) = min(order,inx-1)
-      order_int(2) = min(order,iny-1)
-      order_int(3) = min(order,inz-1)
+      order_int(1) = min(order,max(inx-1,0))
+      order_int(2) = min(order,max(iny-1,0))
+      order_int(3) = min(order,max(inz-1,0))
 
       !Smoothness indicator
       smooth = 0d0
@@ -2204,10 +2204,6 @@ c     Identify directions for extrapolation.
         stop
       endif
 
-c     Allocate spatial coordinate vectors.
-
-      allocate(xx(inx),yy(iny),zz(inz))
-
 c     Initialize accumulators
 
       valx = 0d0
@@ -2219,6 +2215,8 @@ c     Initialize accumulators
 c     X extrapolation
 
       if (flg(1)) then
+
+        allocate(xx(inx))
 
         if (ito == imn) then
           call getMGmap(imn+1,jmn,kmn,igxbc,igybc,igzbc,ig,jg,kg)
@@ -2247,11 +2245,15 @@ c     X extrapolation
         endif
 
         num = num + 1
+
+        deallocate(xx)
       endif
 
 c     Y extrapolation
 
       if (flg(2)) then
+
+        allocate(yy(iny))
 
         if (jto == jmn) then
           call getMGmap(imn,jmn+1,kmn,igxbc,igybc,igzbc,ig,jg,kg)
@@ -2281,11 +2283,15 @@ c     Y extrapolation
 
         num = num + 1
 
+        deallocate(yy)
+
       endif
 
 c     Z extrapolation
 
       if (flg(3)) then
+
+        allocate(zz(inz))
 
         if (kto == kmn) then
           call getMGmap(imn,jmn,kmn+1,igxbc,igybc,igzbc,ig,jg,kg)
@@ -2314,6 +2320,8 @@ c     Z extrapolation
         endif
 
         num = num + 1
+
+        deallocate(zz)
       endif
 
 c     Average extrapolation results and fill ghost cell
@@ -2321,8 +2329,6 @@ c     Average extrapolation results and fill ghost cell
       array(ito,jto,kto) = (valx(1) + valy(1) + valz(1))/num
 
 c     End program
-
-      deallocate(xx,yy,zz)
 
       contains
 
