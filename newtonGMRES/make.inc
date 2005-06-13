@@ -1,6 +1,6 @@
 #Define message
 
-MESSAGE = "Compiling f90 Newton-GMRES modules"
+MESSAGE = "Compiling f90 NK modules"
 
 #Define subdirectories for common code
 

@@ -27,11 +27,11 @@ c      Deallocates dynamic storage space used in preconditioner
 c
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
-c module newton_gmres
+c module nk_mod
 c ###################################################################
-      module newton_gmres
+      module nk_mod
 
-      real(8), allocatable, dimension(:):: res,xx0,xk
+      real(8), allocatable, dimension(:):: rk,xx0,xk
 
       real(8)    :: pdt,check
 
@@ -40,8 +40,6 @@ c ###################################################################
       integer(4) :: jit=1
 
       logical    :: pseudo_dt
-
-      character(2) :: krylov_method='fg'
 
       type :: nk_options
         integer(4)   :: etak_meth=0
@@ -62,15 +60,12 @@ c ###################################################################
 
       type(nk_options) :: nk_conf
 
-      end module newton_gmres
+      contains
 
-c nk
-c####################################################################
-cc      subroutine newtonGmres(neq,ntot,x,etak_meth,damp,global,pdt0
-cc     .           ,eta0,ksmax,gmmax,rtol,atol,ntit_max_acc
-cc     .           ,ntit_max_rej,gmit_out,ntit_out,iguess,out,ierr)
+c     nk
+c     ###############################################################
       subroutine nk(neq,ntot,x,iguess,out,ierr)
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
 c     Performs Jacobian-free inexact Newton iteration on res(x) = 0, 
 c     where res is calculated in 'evaluateNonlinearResidual' (provided
 c     by user). 
@@ -117,20 +112,18 @@ c                       solution without subcycling time step
 c       * ntit_max_rej: maximum number of Newton its. to reject solution
 c       * gmit_out: on output, actual number of gmres its.
 c       * ntit_out: on output, actual number of newton its.
-c--------------------------------------------------------------------
-
-      use newton_gmres
+c     ---------------------------------------------------------------
 
       implicit none   !For safe fortran
 
-c Call variables
+c     Call variables
 
       integer(4) :: ntot,neq,out,iguess,ierr
      .             
 
       real(8)    :: x(ntot)
 
-c Local variables
+c     Local variables
 
       integer(4) :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
      .             ,ntit_max_rej,global
@@ -142,9 +135,9 @@ c Local variables
 
       logical    :: convergence,failure
 
-c Begin program
+c     Begin program
 
-c Initialize
+c     Initialize
 
       etak_meth    = nk_conf%etak_meth
       ksmax        = nk_conf%ksmax
@@ -190,36 +183,36 @@ cc       check_lim = 1d1
       convergence = .false.
       failure     = .false.
 
-c Evaluate rhs and norms
+c     Evaluate rhs and norms
 
-      allocate (xx0(ntot),xk(ntot),res(ntot))
+      allocate (xx0(ntot),xk(ntot),rk(ntot))
 
       xx0 = x    !Save initial guess
       xk  = x    !Save previous Newton state
 
-      call evaluateNewtonResidual(ntot,x,res)
+      call evaluateNewtonResidual(ntot,x,rk)
 
-      f0 = sqrt(sum(res*res))
+      f0 = sqrt(sum(rk*rk))
 
       !Check if initial guess is exact, and if so exit Newton step
       if (f0.lt.atol) then
         ierr = -1
-        deallocate(res)
+        deallocate(rk)
         return
       endif
 
-c Initial output
+c     Initial output
 
       if (out.ge.1) write (*,210) 0,0d0,f0,1d0,1d0,pdt0,eta0,0
 
       if (out.ge.3) then
-        call calculateResidualNorms(neq,ntot,-res,residuals)
+        call calculateResidualNorms(neq,ntot,-rk,residuals)
         do i = 1,neq
           write (*,320) i,residuals(i)
         enddo
       endif
 
-c Start Newton iteration
+c     Start Newton iteration
 
       fk    = f0
       fkm   = f0
@@ -242,7 +235,7 @@ c     Jacobian-free solve
 
         iout = out - 1
 
-        call gmresDriver(ntot,-res,ddx,itk,etak,ksmax,gmmax
+        call gmresDriver(ntot,-rk,ddx,itk,etak,ksmax,gmmax
      .                  ,iguess,iout,ierr)
 
 c     Kill preconditioner
@@ -278,9 +271,9 @@ c     Update solution (x = x + ddx)
 
 c     Evaluate rhs and norms
 
-        call evaluateNewtonResidual(ntot,x,res)
+        call evaluateNewtonResidual(ntot,x,rk)
 
-        fkp = sqrt(sum(res*res))
+        fkp = sqrt(sum(rk*rk))
 
 c     Check Newton convergence/failure
 
@@ -289,7 +282,7 @@ c     Check Newton convergence/failure
         if (out.ge.1) write (*,210)jit,dxavg,fkp,check,damp,pdt,etak,itk
 
         if (out.ge.3) then
-          call calculateResidualNorms(neq,ntot,-res,residuals)
+          call calculateResidualNorms(neq,ntot,-rk,residuals)
           do i = 1,neq
             write (*,320) i,residuals(i)
           enddo
@@ -323,7 +316,7 @@ cc          pdt = min(pdt0/check**2,1d30)
 
       enddo       !End of Newton loop
 
-c Check error in Newton convergence
+c     Check error in Newton convergence
 
       !No convergence: reject solution
       if (failure) then 
@@ -337,9 +330,9 @@ c Check error in Newton convergence
         ierr = 2
       endif
 
-c End program
+c     End program
 
-      deallocate (res,xx0,xk)
+      deallocate (rk,xx0,xk)
 
  200  format 
      .   (/,' New_it   Av_updt    Abs_res   Rel_res     Damping'
@@ -352,28 +345,28 @@ c End program
 
       end subroutine nk
 
-c calculateResidualNorms
-c####################################################################
+c     calculateResidualNorms
+c     ###############################################################
       subroutine calculateResidualNorms(neq,ntot,b,ravg)
 
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
 c     Calculates norms of residuals
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
 
       implicit none     !For safe fortran
 
-c Call variables
+c     Call variables
 
       integer(4) :: neq,ntot
       real(8)    :: b(ntot),ravg(neq)
 
-c Local variables
+c     Local variables
 
       integer(4) :: i,j
 
-c Begin program
+c     Begin program
 
-c Calculate residuals
+c     Calculate residuals
 
       ravg = 0d0
 
@@ -383,58 +376,58 @@ c Calculate residuals
         enddo
       enddo
 
-c    Calculate magnitude of residuals
+c     Calculate magnitude of residuals
 
       ravg = sqrt(ravg)
 
-c End program
+c     End program
 
       end subroutine calculateResidualNorms
 
-c updateNewtonSolution
-c####################################################################
+c     updateNewtonSolution
+c     ###############################################################
       subroutine updateNewtonSolution(x,ddx,ntot,damp,dxavg)
       implicit none         !For safe fortran
-c--------------------------------------------------------------------
-c    Updates solution in Newton iteration
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
+c     Updates solution in Newton iteration
+c     ---------------------------------------------------------------
 
-c Call variables
+c     Call variables
 
       integer(4) :: ntot
       real(8)    :: x(ntot),ddx(ntot),damp,dxavg
 
-c Local variables
+c     Local variables
 
-c Begin program
+c     Begin program
 
       x = x + damp*ddx
 
       dxavg = sqrt(sum(ddx*ddx))/float(ntot)
 
-c End program
+c     End program
 
       end subroutine updateNewtonSolution
 
-c find_etak
-c####################################################################
+c     find_etak
+c     ###############################################################
       subroutine find_etak (fk,fkm,flimit,eta0,etak,etakm,etak_meth)
       implicit none       !For safe fortran
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
 c     Finds inexact Newton forcing parameter, using two methods:
 c     constant (etak_meth = 0) or power law adaptive strategy.
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
 
-c Call variables
+c     Call variables
 
       integer(4) :: etak_meth
       real(8)    :: fk,fkm,flimit,eta0,etak,etakm
 
-c Local variables
+c     Local variables
 
       real(8)    :: gamm,alph
 
-c Begin program
+c     Begin program
 
       if (etak_meth.eq.0) then
         etak = eta0
@@ -452,37 +445,32 @@ c Begin program
         etak = min(eta0,max(etak,gamm*flimit/fk))
       endif
 
-c End program
+c     End program
 
       end subroutine find_etak
 
-c findDamping
-c####################################################################
+c     findDamping
+c     ###############################################################
       subroutine findDamping (ntot,x,ddx,etak,fk,damp)
       implicit none       !For safe fortran
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
 c     If global is true, uses linesearch backtracking to ensure
 c     sufficient reduction in the Newton residual norm.
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
 
-c Call variables
+c     Call variables
 
       integer(4) :: ntot
       real(8)    :: x(ntot),ddx(ntot),fk,etak,damp
 
-c Local variables
+c     Local variables
 
       integer(4) :: idamp
       real(8)    :: dampm,theta,etak0,dxavg,fkp,fm,df,ddf
       real(8)    :: b(ntot),dummy(ntot)
       real(8)    :: alpha,sigma0,sigma1
 
-c External
-
-      real(8)    :: fmedval
-      external      fmedval
-
-c Begin program
+c     Begin program
 
       damp = 1d0
       etak0 = etak
@@ -544,42 +532,40 @@ cc          exit
 cc        endif
       enddo
 
-c End program
+c     End program
 
       end subroutine findDamping
 
-c gmresDriver
-c ####################################################################
+c     gmresDriver
+c     ################################################################
       subroutine gmresDriver(nn,b,x,itk,etak,ksmax,maxitgm,iguess
      .                      ,iout,ierr)
-c --------------------------------------------------------------------
-c   This subroutine solves the linear system
+c     ----------------------------------------------------------------
+c     This subroutine solves the linear system
 c
-c      A x = b
+c        A x = b
 c
-c   using the Generalized Minimal Residual (GMRES(K))
-c   iteration algorithm with right pre-conditioning
-c   Note that this subroutine calls the gmres subroutine from
-c   the SPARSKIT package by Y. Saad, modified by L. Chacon.
-c --------------------------------------------------------------------
-
-      use newton_gmres
+c     using the Generalized Minimal Residual (GMRES(K))
+c     iteration algorithm with right pre-conditioning
+c     Note that this subroutine calls the gmres subroutine from
+c     the SPARSKIT package by Y. Saad, modified by L. Chacon.
+c     ----------------------------------------------------------------
 
       implicit none    !For safe fortran
 
-c Call variables
+c     Call variables
 
       integer(4) :: itk,ierr,nn,ksmax,iguess,iout,maxitgm
       real(8)    :: b(nn),x(nn),etak
 
-c Local variables
+c     Local variables
 
       integer(4) :: iiout
       real(8)    :: eps
 
-c Begin program
+c     Begin program
 
-c Compute the initial guess x
+c     Compute the initial guess x
 
       if (iguess.eq.1) then
         iiout = iout - 2
@@ -588,97 +574,95 @@ c Compute the initial guess x
         x = 0d0
       endif
 
-c Initialize the GMRES(k) algorithm
+c     Initialize the GMRES(k) algorithm
 
       eps = etak               !GMRES convergence tolerance
 
-c Call the preconditioned GMRES(k) algorithm
+c     Call the preconditioned GMRES(k) algorithm
 
-      if (krylov_method=='fg') then
+      if (nk_conf%krylov_method=='fg') then
         call fgmres(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
       else
         call gmres(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
       endif
 
-c End program
+c     End program
 
       end subroutine gmresDriver
 
-c fgmres
-c ######################################################################
+c     fgmres
+c     #######################################################################
       subroutine fgmres(ntot,rhs,sol,eps,im,maxits,iout,ierr,its)
-c----------------------------------------------------------------------*
-c                                                                      *
-c               *** Preconditioned Flexible GMRES ***                  *
-c                                                                      *
-c----------------------------------------------------------------------*
-c This is a simple version of the right-preconditioned GMRES algorithm.*
-c The stopping criterion utilized is based simply on reducing the      *
-c residual norm by epsilon.                                            *
-c----------------------------------------------------------------------*
-c parameters                                                           *
-c-----------                                                           *
-c on entry:                                                            *
-c==========                                                            *
-c                                                                      *
-c ntot  == integer. The dimension of the matrix.                       *
-c rhs   == real vector of length n containing the right hand side.     *
-c          Destroyed on return.                                        *
-c sol   == real vector of length n containing an initial guess to the  *
-c          solution on input. approximate solution on output           *
-c eps   == tolerance for stopping criterion. process is stopped        *
-c          as soon as ( ||.|| is the euclidean norm):                  *
-c          || current residual||/||initial residual|| <= eps           *
-c im    == size of krylov subspace.                                    *
-c maxits== maximum number of GMRES iterations allowed                  *
-c iout  == output unit number number for printing intermediate results *
-c          if (iout .le. 0) nothing is printed out.                    *
-c                                                                      *
-c on return:                                                           *
-c==========                                                            *
-c sol   == contains an approximate solution (upon successful return).  *
-c ierr  == integer. Error message with the following meaning.          *
-c          ierr = 0 --> successful return.                             *
-c          ierr = 1 --> convergence not achieved in itmax iterations.  *
-c          ierr =-1 --> the initial guess seems to be the exact        *
-c                       solution (initial residual computed was zero)  *
-c its   == final number of GMRES iterations                            *
-c                                                                      *
-c----------------------------------------------------------------------*
-c                                                                      *
-c work arrays:                                                         *
-c=============                                                         *
-c vv    == work array of length  n x (im+1) (used to store the Arnoli  *
-c          basis)                                                      *
-c zz    == work array of length  n x (im+1) (used to store the Arnoli  *
-c          basis times the preconditioner operator (FGMRES))
-c----------------------------------------------------------------------*
-c arnoldi size should not exceed im=50 in this version.                *
-c----------------------------------------------------------------------*
-
-      use newton_gmres
+c     ----------------------------------------------------------------------*
+c                                                                           *
+c                    *** Preconditioned Flexible GMRES ***                  *
+c                                                                           *
+c     ----------------------------------------------------------------------*
+c      This is a simple version of the right-preconditioned GMRES algorithm.*
+c      The stopping criterion utilized is based simply on reducing the      *
+c      residual norm by epsilon.                                            *
+c     ----------------------------------------------------------------------*
+c      parameters                                                           *
+c     -----------                                                           *
+c      on entry:                                                            *
+c     ==========                                                            *
+c                                                                           *
+c      ntot  == integer. The dimension of the matrix.                       *
+c      rhs   == real vector of length n containing the right hand side.     *
+c               Destroyed on return.                                        *
+c      sol   == real vector of length n containing an initial guess to the  *
+c               solution on input. approximate solution on output           *
+c      eps   == tolerance for stopping criterion. process is stopped        *
+c               as soon as ( ||.|| is the euclidean norm):                  *
+c               || current residual||/||initial residual|| <= eps           *
+c      im    == size of krylov subspace.                                    *
+c      maxits== maximum number of GMRES iterations allowed                  *
+c      iout  == output unit number number for printing intermediate results *
+c               if (iout .le. 0) nothing is printed out.                    *
+c                                                                           *
+c      on return:                                                           *
+c     ==========                                                            *
+c      sol   == contains an approximate solution (upon successful return).  *
+c      ierr  == integer. Error message with the following meaning.          *
+c               ierr = 0 --> successful return.                             *
+c               ierr = 1 --> convergence not achieved in itmax iterations.  *
+c               ierr =-1 --> the initial guess seems to be the exact        *
+c                            solution (initial residual computed was zero)  *
+c      its   == final number of GMRES iterations                            *
+c                                                                           *
+c     ----------------------------------------------------------------------*
+c                                                                           *
+c      work arrays:                                                         *
+c     =============                                                         *
+c      vv    == work array of length  n x (im+1) (used to store the Arnoli  *
+c               basis)                                                      *
+c      zz    == work array of length  n x (im+1) (used to store the Arnoli  *
+c               basis times the preconditioner operator (FGMRES))
+c     ----------------------------------------------------------------------*
+c      arnoldi size should not exceed im=50 in this version.                *
+c     ----------------------------------------------------------------------*
 
       implicit none             !For safe fortran
 
-c Call variables
+c     Call variables
 
       integer(4) :: ntot,im,maxits,iout,ierr,its
       real(8)    :: rhs(ntot),sol(ntot),eps
 
-c Local variables
+c     Local variables
 
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
       real(8)    :: vv(ntot,im+1),zz(ntot,im+1)
       real(8)    :: rold,ro,eps1,gam,t
       integer(4) :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
 
-c Begin program
+c     Begin program
 
       precout = iout - 2
 
       its = 0
 
-c Calculate magnitude of nonlinear residual
+c     Calculate magnitude of nonlinear residual
 
       rold = sqrt(sum(rhs*rhs))
 
@@ -689,13 +673,13 @@ c Calculate magnitude of nonlinear residual
         return
       endif
 
-c Compute initial residual vector
+c     Compute initial residual vector
 
       call matrixFreeMatVec(ntot,sol,vv(:,1))
 
       vv(:,1) = rhs(:) - vv(:,1)
 
-c Calculate number of restarting loops
+c     Calculate number of restarting loops
 
       if (maxits > 0) then
         rstrt = maxits/im + 1
@@ -703,7 +687,7 @@ c Calculate number of restarting loops
         rstrt = 0
       endif
 
-c Restarted FGMRES loop
+c     Restarted FGMRES loop
 
       do irstrt = 1,rstrt
 
@@ -722,11 +706,11 @@ c Restarted FGMRES loop
         t = 1d0/ro
         vv(:,1) = vv(:,1)*t
 
-c     Initialize 1-st term  of rhs of hessenberg system
+c         Initialize 1-st term  of rhs of hessenberg system
 
         rs(1) = ro
 
-c     FGMRES iteration
+c         FGMRES iteration
 
         do i = 1,im
 
@@ -855,86 +839,84 @@ c     Restart outer loop
 
       enddo
 
-c End program
+c     End program
 
  199  format(' FGMRES its =', i4,';  Res =',1p,d10.2
      .      ,';  Ratio =', d10.2)
 
       end subroutine fgmres
 
-c gmres
-c ######################################################################
+c     gmres
+c     ######################################################################
       subroutine gmres(ntot,rhs,sol,eps,im,maxits,iout,ierr,its)
-c----------------------------------------------------------------------*
-c                                                                      *
-c               *** Preconditioned GMRES ***                  *
-c                                                                      *
-c----------------------------------------------------------------------*
-c This is a simple version of the right-preconditioned GMRES algorithm.*
-c The stopping criterion utilized is based simply on reducing the      *
-c residual norm by epsilon.                                            *
-c----------------------------------------------------------------------*
-c parameters                                                           *
-c-----------                                                           *
-c on entry:                                                            *
-c==========                                                            *
-c                                                                      *
-c ntot  == integer. The dimension of the matrix.                       *
-c rhs   == real vector of length n containing the right hand side.     *
-c          Destroyed on return.                                        *
-c sol   == real vector of length n containing an initial guess to the  *
-c          solution on input. approximate solution on output           *
-c eps   == tolerance for stopping criterion. process is stopped        *
-c          as soon as ( ||.|| is the euclidean norm):                  *
-c          || current residual||/||initial residual|| <= eps           *
-c im    == size of krylov subspace.                                    *
-c maxits== maximum number of GMRES iterations allowed                  *
-c iout  == output unit number number for printing intermediate results *
-c          if (iout .le. 0) nothing is printed out.                    *
-c                                                                      *
-c on return:                                                           *
-c==========                                                            *
-c sol   == contains an approximate solution (upon successful return).  *
-c ierr  == integer. Error message with the following meaning.          *
-c          ierr = 0 --> successful return.                             *
-c          ierr = 1 --> convergence not achieved in itmax iterations.  *
-c          ierr =-1 --> the initial guess seems to be the exact        *
-c                       solution (initial residual computed was zero)  *
-c its   == final number of GMRES iterations                            *
-c                                                                      *
-c----------------------------------------------------------------------*
-c                                                                      *
-c work arrays:                                                         *
-c=============                                                         *
-c vv    == work array of length  n x (im+1) (used to store the Arnoli  *
-c          basis)                                                      *
-c----------------------------------------------------------------------*
-c arnoldi size should not exceed im=50 in this version.                *
-c----------------------------------------------------------------------*
-
-      use newton_gmres
+c     ----------------------------------------------------------------------*
+c                                                                           *
+c                    *** Preconditioned GMRES ***                  *
+c                                                                           *
+c     ----------------------------------------------------------------------*
+c      This is a simple version of the right-preconditioned GMRES algorithm.*
+c      The stopping criterion utilized is based simply on reducing the      *
+c      residual norm by epsilon.                                            *
+c     ----------------------------------------------------------------------*
+c      parameters                                                           *
+c     -----------                                                           *
+c      on entry:                                                            *
+c     ==========                                                            *
+c                                                                           *
+c      ntot  == integer. The dimension of the matrix.                       *
+c      rhs   == real vector of length n containing the right hand side.     *
+c               Destroyed on return.                                        *
+c      sol   == real vector of length n containing an initial guess to the  *
+c               solution on input. approximate solution on output           *
+c      eps   == tolerance for stopping criterion. process is stopped        *
+c               as soon as ( ||.|| is the euclidean norm):                  *
+c               || current residual||/||initial residual|| <= eps           *
+c      im    == size of krylov subspace.                                    *
+c      maxits== maximum number of GMRES iterations allowed                  *
+c      iout  == output unit number number for printing intermediate results *
+c               if (iout .le. 0) nothing is printed out.                    *
+c                                                                           *
+c      on return:                                                           *
+c     ==========                                                            *
+c      sol   == contains an approximate solution (upon successful return).  *
+c      ierr  == integer. Error message with the following meaning.          *
+c               ierr = 0 --> successful return.                             *
+c               ierr = 1 --> convergence not achieved in itmax iterations.  *
+c               ierr =-1 --> the initial guess seems to be the exact        *
+c                            solution (initial residual computed was zero)  *
+c      its   == final number of GMRES iterations                            *
+c                                                                           *
+c     ----------------------------------------------------------------------*
+c                                                                           *
+c      work arrays:                                                         *
+c     =============                                                         *
+c      vv    == work array of length  n x (im+1) (used to store the Arnoli  *
+c               basis)                                                      *
+c     ----------------------------------------------------------------------*
+c      arnoldi size should not exceed im=50 in this version.                *
+c     ----------------------------------------------------------------------*
 
       implicit none             !For safe fortran
 
-c Call variables
+c     Call variables
 
       integer(4) :: ntot,im,maxits,iout,ierr,its
       real(8)    :: rhs(ntot),sol(ntot),eps
 
-c Local variables
+c     Local variables
 
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
       real(8)    :: vv(ntot,im+1)
       real(8)    :: rold,ro,eps1,gam,t
       integer(4) :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
 
-c Begin program
+c     Begin program
 
       precout = iout - 2
 
       its = 0
 
-c Calculate magnitude of nonlinear residual
+c     Calculate magnitude of nonlinear residual
 
       rold = sqrt(sum(rhs*rhs))
 
@@ -945,13 +927,13 @@ c Calculate magnitude of nonlinear residual
         return
       endif
 
-c Compute initial residual vector
+c     Compute initial residual vector
 
       call matrixFreeMatVec(ntot,sol,vv(:,1))
 
       vv(:,1) = rhs(:) - vv(:,1)
 
-c Calculate number of restarting loops
+c     Calculate number of restarting loops
 
       if (maxits > 0) then
         rstrt = maxits/im + 1
@@ -959,7 +941,7 @@ c Calculate number of restarting loops
         rstrt = 0
       endif
 
-c Restarted FGMRES loop
+c     Restarted FGMRES loop
 
       do irstrt = 1,rstrt
 
@@ -1111,18 +1093,18 @@ c     Restart outer loop
 
       enddo
 
-c End program
+c     End program
 
  199  format(' GMRES its =', i4,';  Res =',1p,d10.2
      .      ,';  Ratio =', d10.2)
 
       end subroutine gmres
 
-c matrixFreeMatVec
-c##################################################################
+c     matrixFreeMatVec
+c     #############################################################
       subroutine matrixFreeMatVec(nn,z,y)
 
-c------------------------------------------------------------------
+c     -------------------------------------------------------------
 c     This subroutine computes
 c
 c       y = J(xk)*z,
@@ -1141,27 +1123,25 @@ c
 c       i = row number
 c       j = column number = i + idiag(k)
 c       k = non-zero diagonal index numbered from left to right
-c------------------------------------------------------------------
-
-      use newton_gmres
+c     -------------------------------------------------------------
 
       implicit none       !For safe fortran
 
-c Call variables
+c     Call variables
 
       integer(4) :: nn
       real(8)    :: z(nn),y(nn)
 
-c Local variables
+c     Local variables
 
       integer(4) :: i
       real(8)    :: dummy(nn),pert,ipert,modz,modx,xdotz
 
-c Begin program
+c     Begin program
 
       modz  = sum(z*z)
 
-c Calculate J.x
+c     Calculate J.x
 
       if (sqrt(modz) < epsmac) then  !Failsafe for the case z=0
 
@@ -1169,61 +1149,59 @@ c Calculate J.x
 
       else
 
-c     Calculate difference parameter
+c       Calculate difference parameter
 
         modx  = sum(xk*xk)
         xdotz = sum(z *xk)
 
         pert  = mv_eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
 
-c     Perturb state variables x + eps z --> dummy
+c       Perturb state variables x + eps z --> dummy
 
         dummy = xk + pert*z
 
-c     Nonlinear function evaluation --> y
+c       Nonlinear function evaluation --> y
 
         call evaluateNewtonResidual(nn,dummy,y)
 
-c     Compute the product J.x using the matrix-free approx
+c       Compute the product J.x using the matrix-free approx
 
         ipert = 1d0/pert
 
-        y = (y-res)*ipert
+        y = (y-rk)*ipert
 
       endif
 
-c End
+c     End
 
       end subroutine matrixFreeMatVec
 
-c evaluateNewtonResidual
-c####################################################################
+c     evaluateNewtonResidual
+c     ###############################################################
       subroutine evaluateNewtonResidual(ntot,x,f)
 
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
 c     Calculates nonlinear residuals. 
-c--------------------------------------------------------------------
-
-      use newton_gmres
+c     ---------------------------------------------------------------
 
       implicit none
 
-c Call variables
+c     Call variables
 
       integer  :: ntot
       real(8)  :: x(ntot),f(ntot)
 
-c Local variables
+c     Local variables
 
       real(8)  :: invpdt
 
-c Begin program
+c     Begin program
 
-c Evaluate nonlinear residual
+c     Evaluate nonlinear residual
 
       call evaluateNonlinearResidual(ntot,x,f)
 
-c Add pseudo-transient term
+c     Add pseudo-transient term
 
       if (pseudo_dt) then
         invpdt = 1d0/pdt
@@ -1232,28 +1210,38 @@ c Add pseudo-transient term
 cc        f = (x-xx0)*invpdt + f
       endif
 
-c End program
+c     End program
 
       end subroutine evaluateNewtonResidual
 
-c fmedval
-c####################################################################
+c     fmedval
+c     ###############################################################
       real(8) function fmedval(p1,p2,p3)
       implicit none                !For safe fortran
-c--------------------------------------------------------------------
-c    This function computes intermediate value of p1, p2, p3.
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
+c     This function computes intermediate value of p1, p2, p3.
+c     ---------------------------------------------------------------
 
-c Call variables
+c     Call variables
 
       real(8) :: p1,p2,p3
 
-c Local variables
+c     Local variables
 
-c Begin program
+c     Begin program
 
       fmedval = min( max(p1,p2) , max( p3,min(p1,p2) ) )
 
-c End
+c     End
 
       end function fmedval
+
+      end module nk_mod
+
+ccc module newton_gmres
+ccc ###################################################################
+cc      module newton_gmres
+cc
+cc        use nk_mod
+cc
+cc      end module newton_gmres
