@@ -162,6 +162,8 @@ c----------------------------------------------------------------------
 
       use newtongm
 
+      use newton_gmres
+
       use counters
 
       use iosetup
@@ -203,9 +205,29 @@ c     Initial guess
         
 c     Newton iteration
 
-        call newtonGmres(neqd,ntotd,x,method,damp,global,dt0
-     .                  ,tolgm,maxksp,maxitgm,rtol,atol,maxitnwt/2
-     .                  ,maxitnwt,itgmres,itnewt,iguess,ilevel,ierr)
+        nk_conf%etak_meth      = method
+        nk_conf%ksmax          = maxksp
+        nk_conf%gmmax          = maxitgm
+        nk_conf%nwt_max_it_acc = maxitnwt/2
+        nk_conf%nwt_max_it_rej = maxitnwt
+        nk_conf%global_meth    = global
+
+        nk_conf%eta0 = tolgm
+        nk_conf%damp = damp
+        nk_conf%pdt0 = dt0
+        nk_conf%atol = atol
+        nk_conf%rtol = rtol
+
+        nk_conf%krylov_method='fg'
+
+        call nk(neqd,ntotd,x,iguess,ilevel,ierr)
+cc        call newtonGmres(neqd,ntotd,x,method,damp,global,dt0
+cc     .                  ,tolgm,maxksp,maxitgm,rtol,atol,maxitnwt/2
+cc     .                  ,maxitnwt,itgmres,itnewt,iguess,ilevel,ierr)
+
+
+        itgmres = nk_conf%gm_it_out
+        itnewt  = nk_conf%nwt_it_out
 
 c     If no error, map Newton solution to vnp
 
