@@ -22,6 +22,7 @@ c######################################################################
           !Krylov methods quantities
           integer(4) :: stp_test
           logical    :: sym_test
+          integer(4) :: ngrd_tst
           logical    :: vol_res
           integer(4) :: krylov_subspace
 
@@ -81,6 +82,7 @@ c       Initializes solver options
           !Test options
           solverOptions%sym_test = .false.         !Whether to perform symmetry 
                                                    !  test on matvec operator
+          solverOptions%ngrd_tst = 1               !Grid level to perform symmetry test
 
           !Generic options
           solverOptions%iter  = 10                 !Number of iterations

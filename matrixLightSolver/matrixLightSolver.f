@@ -63,7 +63,8 @@ c Read solver definition from solver hierarchy
 
 c Symmetry test
 
-      if (options%sym_test) call symm_test(neq,2,matvec,bcnd)
+      if (options%sym_test)
+     .     call symm_test(neq,options%ngrd_tst,matvec,bcnd)
 
 c Invoke solver
 
