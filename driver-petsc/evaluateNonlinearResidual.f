@@ -72,10 +72,10 @@ c Assign ff (vector) to f (PETSc array)
      .                           + ((1.-cnf(ieq))*ff  (ii+ieq)
      .                           +      cnf(ieq) *fold(ii+ieq)
      .                           -                fsrc(ii+ieq))
-cc              f(i,j,k)%var(ieq) = ff(ii+ieq)
             enddo
 
-            f(i,j,k)%var(:) = f(i,j,k)%var(:)*volume(il,jl,kl,1,1,1)
+            if (vol_wgt)
+     .          f(i,j,k)%var(:) = f(i,j,k)%var(:)*volume(il,jl,kl,1,1,1)
 
           enddo
         enddo

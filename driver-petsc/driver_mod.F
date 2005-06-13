@@ -74,6 +74,8 @@ c ######################################################################
 
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
 
+        logical    :: vol_wgt=.true.
+
 #if !defined(petsc)
         type(var_array) :: dn,dnm,dnp
         real(8)    :: l_np,l_n,dt_n,et1,et2
