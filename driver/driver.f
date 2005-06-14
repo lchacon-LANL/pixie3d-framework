@@ -162,8 +162,6 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-      use newton_gmres
-
       use counters
 
       use iosetup
@@ -224,7 +222,6 @@ c     Newton iteration
 cc        call newtonGmres(neqd,ntotd,x,method,damp,global,dt0
 cc     .                  ,tolgm,maxksp,maxitgm,rtol,atol,maxitnwt/2
 cc     .                  ,maxitnwt,itgmres,itnewt,iguess,ilevel,ierr)
-
 
         itgmres = nk_conf%gm_it_out
         itnewt  = nk_conf%nwt_it_out
