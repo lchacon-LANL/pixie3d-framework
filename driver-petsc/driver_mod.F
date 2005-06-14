@@ -16,6 +16,10 @@ c module newtongm
 c ######################################################################
       module newtongm
 
+#if !defined(petsc)
+        use nk_mod
+#endif
+
         integer(4) ::  maxitnwt,maxitgm,iguess,maxksp,method,global
 
         real(8)    ::  tolgm,rtol,atol
