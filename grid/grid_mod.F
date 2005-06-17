@@ -5012,35 +5012,42 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: i,nit=20
-        real(8)    :: ijac,dxi,res
+        integer(4),parameter :: nit=20
+        integer(4) :: i
+        real(8)    :: ijac,dxi(nit),res(nit)
 
 c     Begin program
 
-cc        write (*,*) nn,rhs
+c     Initial guess
 
-        !Initial guess
-        xi = 2*(rhs-nn)/nn**2  !Initial guess
+        xi = 2*(rhs-nn)/nn**2
         xi = exp(log(1+xi*rhs)/nn)
 
-cc        write (*,*) 'xi0',xi
+c     Newton iteration
 
         do i=1,nit
-cc          res = rhs-(xi**nn-1)/(xi-1)
-cc          ijac = (xi-1)**2/((nn-1)*xi**nn-nn*xi**(nn-1)+1)
-          res = rhs-0.5*(xi**nn+xi**(nn+1)-2)/(xi-1)
+          res(i) = rhs-0.5*(xi**nn+xi**(nn+1)-2)/(xi-1)
           ijac = 2*(xi-1)**2/(nn*(xi**(nn+1)-xi**(nn-1))-2*xi**nn+2)
 
-cc          write (*,*) 'Newton it.',i,' res. in find_xi',abs(res)
+          dxi(i) = res(i)*ijac
+          xi = xi + dxi(i)
 
-          dxi = res*ijac
-          xi = xi + dxi
-cc          write (*,*) 'xi',xi
-          if (abs(res) < 1d-10) exit
+          if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
         enddo
 
+c     Convergence check
+
         if (i >= nit) then
-          write (*,*) 'Newton it. in find_xi did not converge'
+          write (*,*)
+          write (*,*) 'Newton it. in grid-packing routine find_xi'
+     .               ,' did not converge'
+          write (*,*)
+          write (*,*) 'Convergence history:'
+          do i=1,nit
+            write (*,*) 'Newton it.',i,' residual',abs(res(i))
+     .                 ,'update',abs(dxi(i))
+          enddo
+          write (*,*)
           write (*,*) 'Aborting...'
           stop
         endif
