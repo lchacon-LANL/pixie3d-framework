@@ -1,6 +1,6 @@
 c module debug
 c ######################################################################
-      module debug
+      module debug_mod
 
         real(8) :: lxmax,lxmin,lymax,lymin
         real(8),allocatable,dimension(:,:,:,:) :: dbg
@@ -78,7 +78,7 @@ c     ################################################################
 
       end function int2char
 
-      end module debug
+      end module debug_mod
 
 c module grid_structures
 c #####################################################################
@@ -2026,10 +2026,10 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-        integer(4) :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM
-        parameter (DEF=0,PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7)
+        integer(4) :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM,IFC
+        parameter (DEF=0,PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7,IFC=8)
 
-        integer(4),parameter :: BCLIM=7
+        integer(4),parameter :: BCLIM=8
 
         integer(4) :: bcond(6)
 
@@ -2491,6 +2491,8 @@ c     Begin program
         elseif (bcond(1)/=PER.and.bcond(3)/=PER.and.bcond(5)/=PER) then
           BC = DA_NONPERIODIC
         endif
+
+        call processorAlloc(nxg,nyg,nzg)
 
         if (npx == 0) npx = PETSC_DECIDE
         if (npy == 0) npy = PETSC_DECIDE
@@ -3955,7 +3957,7 @@ c     Test of numerical calculation vs. analytical calculation of
 c     grid quantities.
 c     -----------------------------------------------------------------
 
-      use debug
+      use debug_mod
 
       implicit none
 
