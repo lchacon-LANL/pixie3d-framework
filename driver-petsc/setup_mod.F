@@ -1028,9 +1028,9 @@ c ######################################################################
         real(8), allocatable, dimension(:) :: xl,yl,zl
 
         type :: graph_var_def
-          double precision,pointer,dimension(:,:,:) :: array
-          character(20)                             :: descr
-          character(20)                             :: vector_name=''
+          real(8),pointer,dimension(:,:,:) :: array
+          character(20)                    :: descr
+          character(20)                    :: vector_name=''
         end type graph_var_def
 
         type :: graph_group
