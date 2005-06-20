@@ -39,7 +39,7 @@ c     Call variables
 
 c     Local variables
  
-        integer(4) :: nplots
+        integer(4) :: nplots,igraph
 
         character*(30) :: prof_label
 
@@ -52,9 +52,17 @@ c     Open XDRAW graphics files
 c     Initialize profile description array
 
         do igroup=1,ngroups
-          where (graph(igroup)%array_graph%descr /= '')
-            prof_desc(igroup,:) = 'Prof '
-     .                            // graph(igroup)%array_graph%descr 
+cc          do igraph=1,ngraph
+cc            if (graph(igroup)%array_graph(igraph)%descr /= '') then
+cc              prof_desc(igroup,igraph) = 'Prof '
+cc     .             // trim(graph(igroup)%array_graph(igraph)%descr)
+cc            else
+cc              prof_desc(igroup,:) = ''
+cc            endif
+cc          enddo
+          where (graph(igroup)%array_graph(:)%descr /= '')
+              prof_desc(igroup,:) = 'Prof '
+     .                      // graph(igroup)%array_graph(:)%descr
           elsewhere
             prof_desc(igroup,:) = ''
           end where
