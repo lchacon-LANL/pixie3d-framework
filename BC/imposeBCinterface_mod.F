@@ -1203,6 +1203,8 @@ cc          call neumannBC(array(:,:,:,nvar),ieq,dim,loc)
           call fillFaces(array(:,:,:,nvar),dim,loc)
         case(SP)
           call scalarSingularBC(array(:,:,:,nvar),order)
+        case(IFC)
+          call interpolateToFace(array(:,:,:,nvar),ibc)
         case default
           write (*,*) 'BC',bctype,' not implemented'
           stop
@@ -1223,6 +1225,8 @@ cc          call neumannBC(ivar,array,ieq,dim,loc,symm=.true.)
           call fillFaces(array(:,:,:,ivar),dim,loc)
         case(SP)
           call vectorSingularBC(ivar,array(:,:,:,ivar),cov)
+        case(IFC)
+          call interpolateToFace(array(:,:,:,ivar),ibc)
         case default
           write (*,*) 'BC',bctype,' not implemented'
           stop
@@ -1305,6 +1309,89 @@ cc      end select
 c     End program
 
       end subroutine periodicBC
+
+c     interpolateToFace
+c     #################################################################
+      subroutine interpolateToFace(array,ibc)
+c     -----------------------------------------------------------------
+c     Interpolates values to face for EQU BC. On input:
+c        * array -> 3D array to impose BC's on.
+c        * ibc   -> integer boundary identifier
+c                   (0 -> X1, 1->X2, 2->y1, 3->y2, 4->z1, 5->z2)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer(4) :: ibc
+      real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
+
+c     Local variables
+
+c     Begin program
+
+      if (np == 1 .or. asm) then
+
+      select case (ibc)
+      case (1)                  !x0
+       if (.not.asm_dir(1))
+     . array(0     ,jmin:jmax,kmin:kmax)=
+     .      0.5*(array(0,jmin:jmax,kmin:kmax)
+     .          +array(1,jmin:jmax,kmin:kmax))
+      case (2)                  !x1                                       
+       if (.not.asm_dir(1))
+     . array(nxbc+1,jmin:jmax,kmin:kmax)=
+     .      0.5*(array(nxbc+1,jmin:jmax,kmin:kmax)
+     .          +array(nxbc  ,jmin:jmax,kmin:kmax))
+      case (3)                  !y0                                       
+       if (.not.asm_dir(2))
+     . array(imin:imax,0     ,kmin:kmax)=
+     .      0.5*(array(imin:imax,0,kmin:kmax)
+     .          +array(imin:imax,1,kmin:kmax))
+      case (4)                  !y1                                       
+       if (.not.asm_dir(2))
+     . array(imin:imax,nybc+1,kmin:kmax)=
+     .      0.5*(array(imin:imax,nybc+1,kmin:kmax)
+     .          +array(imin:imax,nybc  ,kmin:kmax))
+      case (5)                  !z0                                       
+       if (.not.asm_dir(3))
+     . array(imin:imax,jmin:jmax,0     )=
+     .      0.5*(array(imin:imax,jmin:jmax,0)
+     .          +array(imin:imax,jmin:jmax,1))
+      case (6)                  !z1                                       
+       if (.not.asm_dir(3))
+     . array(imin:imax,jmin:jmax,nzbc+1)=
+     .      0.5*(array(imin:imax,jmin:jmax,nzbc+1)
+     .          +array(imin:imax,jmin:jmax,nzbc  ))
+      case default
+       write (*,*) 'Boundary',ibc,' non existent'
+       stop
+      end select
+
+      endif
+
+cc      select case (ibc)
+cc      case (1)                  !x0
+cc       array(0     ,:,:)=array(nxbc,:,:)
+cc      case (2)                  !x1                                       
+cc       array(nxbc+1,:,:)=array(1   ,:,:)
+cc      case (3)                  !y0                                       
+cc       array(:,0     ,:)=array(:,nybc,:)
+cc      case (4)                  !y1                                       
+cc       array(:,nybc+1,:)=array(:,1   ,:)
+cc      case (5)                  !z0                                       
+cc       array(:,:,0     )=array(:,:,nzbc)
+cc      case (6)                  !z1                                       
+cc       array(:,:,nzbc+1)=array(:,:,1   )
+cc      case default
+cc       write (*,*) 'Boundary',ibc,' non existent'
+cc       stop
+cc      end select
+
+c     End program
+
+      end subroutine interpolateToFace
 
 c     fillFaces
 c     #################################################################
