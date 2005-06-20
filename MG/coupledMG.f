@@ -4940,7 +4940,9 @@ c       diagonal)
 
             call findBaseVector(jj,ieq,neq,nn,x1,1d0)
 
-            call matvec(ii,neq,nn,x1,dummy2,igrid,bcnd)
+c THIS DOESN'T WORK ANYMORE. NEED TO FIX.
+cc            call matvec(ii,neq,nn,x1,dummy2,igrid,bcnd)
+            call matvec(0,neq,nn,x1,dummy2,igrid,bcnd)
 
             call findBaseVector(jj,ieq,neq,nn,x1,0d0)
 
@@ -4966,7 +4968,7 @@ c     End program
 
  15   format ('(',i3,',',i3,'):',1pe10.2,'; (',i3,',',i3,'):',e10.2,
      .        '  Error:',e10.2,'  %error:',0pf7.2)
- 20   format (/,'Total relative error:',1pe10.3)
+ 20   format (/,'Total error:',1pe10.3)
 
       end subroutine symm_test
 
