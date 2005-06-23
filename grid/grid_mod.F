@@ -2858,6 +2858,7 @@ c ---------------------------------------------------------------------
 
         type :: grid_metrics
 cc          real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
+          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
           real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
@@ -2904,6 +2905,8 @@ c     Begin program
 cc            allocate(gmetric%grid(igrid)
 cc     $           %car  (ilom:ihip,jlom:jhip,klom:khip,3))
             allocate(gmetric%grid(igrid)
+     $           %dvol (ilom:ihip,jlom:jhip,klom:khip))
+            allocate(gmetric%grid(igrid)
      $           %jac  (ilom:ihip,jlom:jhip,klom:khip))
             allocate(gmetric%grid(igrid)
      $           %gsub (ilom:ihip,jlom:jhip,klom:khip,3,3))
@@ -2942,6 +2945,7 @@ c     Begin program
         if (associated(gmetric%grid)) then
           do igrid=1,grid_params%ngrid
 cc            deallocate(gmetric%grid(igrid)%car  )
+            deallocate(gmetric%grid(igrid)%dvol )
             deallocate(gmetric%grid(igrid)%jac  )
             deallocate(gmetric%grid(igrid)%gsub )
             deallocate(gmetric%grid(igrid)%gsup )
@@ -3296,6 +3300,38 @@ c       Test of numerical calculation vs. analytical calculation
           endif
 
         endif
+
+c     Store cell volume
+
+        do igrid=igrmin,igrmax
+
+          igx = igrid
+          igy = igrid
+          igz = igrid
+
+          ilo = 1
+          jlo = 1
+          klo = 1
+          ihi = grid_params%nxv(igrid)
+          jhi = grid_params%nyv(igrid)
+          khi = grid_params%nzv(igrid)
+
+          ilom = ilo-1
+          jlom = jlo-1
+          klom = klo-1
+          ihip = ihi+1
+          jhip = jhi+1
+          khip = khi+1
+
+          do k = klom,khip
+            do j = jlom,jhip
+              do i = ilom,ihip
+               gmetric%grid(igrid)%dvol(i,j,k)=volume(i,j,k,igx,igy,igz)
+              enddo
+            enddo
+          enddo
+
+        enddo
 
 c     End program
 
@@ -4110,6 +4146,40 @@ c     #################################################################
 
       end function delta
 
+c     volume
+c     #################################################################
+      function volume(i,j,k,igx,igy,igz) result(vol)
+
+c     -----------------------------------------------------------------
+c     Calculates Jacobian of curvilinear coordinate system
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer(4) :: i,j,k,igx,igy,igz
+        real(8)    :: vol
+
+c     Local variables
+
+        integer(4) :: ig,jg,kg
+        real(8)    :: x1,x2,x3,dx1,dx2,dx3,jac
+
+c     Begin program
+
+        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+        dx1 = grid_params%dxh(ig)
+        dx2 = grid_params%dyh(jg)
+        dx3 = grid_params%dzh(kg)
+
+        jac = gmetric%grid(igx)%jac(i,j,k)
+        
+        vol = jac*dx1*dx2*dx3
+
+      end function volume
+
       end module grid_metric
 
 c module grid_operations
@@ -4322,40 +4392,6 @@ cc            endif
         endif
 
       end subroutine transformFromCurvToCurv
-
-c     volume
-c     #################################################################
-      function volume(i,j,k,igx,igy,igz) result(vol)
-
-c     -----------------------------------------------------------------
-c     Calculates Jacobian of curvilinear coordinate system
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        integer(4) :: i,j,k,igx,igy,igz
-        real(8)    :: vol
-
-c     Local variables
-
-        integer(4) :: ig,jg,kg
-        real(8)    :: x1,x2,x3,dx1,dx2,dx3,jac
-
-c     Begin program
-
-        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-
-        dx1 = grid_params%dxh(ig)
-        dx2 = grid_params%dyh(jg)
-        dx3 = grid_params%dzh(kg)
-
-        jac = gmetric%grid(igx)%jac(i,j,k)
-        
-        vol = jac*dx1*dx2*dx3
-
-      end function volume
 
 c     vectorNorm
 c     ################################################################
