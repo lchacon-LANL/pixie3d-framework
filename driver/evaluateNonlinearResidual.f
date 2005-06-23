@@ -55,7 +55,9 @@ c Calculate residuals
             enddo
 
             if (vol_wgt) 
-     .        f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*volume(i,j,k,1,1,1)
+     .        f(ii+1:ii+neqd) = f(ii+1:ii+neqd)
+     .                         *gmetric%grid(1)%dvol(i,j,k)
+cc     .        f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*volume(i,j,k,1,1,1)
 
           enddo
         enddo

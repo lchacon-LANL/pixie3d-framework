@@ -75,7 +75,9 @@ c Assign ff (vector) to f (PETSc array)
             enddo
 
             if (vol_wgt)
-     .          f(i,j,k)%var(:) = f(i,j,k)%var(:)*volume(il,jl,kl,1,1,1)
+     .          f(i,j,k)%var(:) = f(i,j,k)%var(:)
+     .                           *gmetric%grid(1)%dvol(il,jl,kl)
+cc     .          f(i,j,k)%var(:) = f(i,j,k)%var(:)*volume(il,jl,kl,1,1,1)
 
           enddo
         enddo
