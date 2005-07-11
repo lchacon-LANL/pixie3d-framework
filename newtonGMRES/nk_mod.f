@@ -58,7 +58,7 @@ c ###################################################################
         character(2) :: krylov_method='gm'
       end type nk_options
 
-      type(nk_options) :: nk_conf
+      type(nk_options),save :: nk_conf
 
       contains
 
