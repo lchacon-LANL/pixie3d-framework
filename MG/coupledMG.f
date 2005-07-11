@@ -3139,7 +3139,8 @@ c Agglomeration
                     iif = if + nxf*(jf-1) + nxf*nyf*(kf-1)
 
                     if (.not.volf) then
-                      vol = volume(if,jf,kf,igf,igf,igf)
+cc                      vol = volume(if,jf,kf,igf,igf,igf)
+                      vol = gmetric%grid(igf)%dvol(if,jf,kf)
                       xc(iic) = xc(iic) + xf(iif)*vol
                       volt = volt + vol
                     else
@@ -3184,7 +3185,8 @@ c     Renormalize without volume fractions
             do jf = jminf,jmaxf
               do if = iminf,imaxf
                 arrayf(if,jf,kf) = arrayf(if,jf,kf)
-     .                            /volume(if,jf,kf,igf,igf,igf)
+     .                            /gmetric%grid(igf)%dvol(if,jf,kf)
+cc     .                            /volume(if,jf,kf,igf,igf,igf)
               enddo
             enddo
           enddo
@@ -3281,7 +3283,8 @@ c     Calculate interpolation
      .                        ,kx,ky,kz,bcoef,work)
               endif
 
-              if (volf) xc(iic) = xc(iic)*volume(ic,jc,kc,igc,igc,igc)
+cc              if (volf) xc(iic) = xc(iic)*volume(ic,jc,kc,igc,igc,igc)
+              if (volf) xc(iic)=xc(iic)*gmetric%grid(igc)%dvol(ic,jc,kc)
 
             enddo
           enddo
