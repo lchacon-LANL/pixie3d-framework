@@ -1059,6 +1059,8 @@ c ######################################################################
         integer(4) :: ndplot
         real(8)    :: dplot,tmplot
 
+        integer(4) :: iplot=1,jplot=1,kplot=1
+
         !Profile conf
         type :: prof_info
           integer(4)     :: line = 1
