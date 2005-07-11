@@ -52,7 +52,7 @@ c Time loop
 
 c     Store previous record
 
-        u_n = u_np
+cc        u_n = u_np
 
 c diag ***** Redefine perturbations for preconditioner debugging
 cc        write (*,*) 'Redefined perts for PC debugging in 3dplot'
@@ -86,6 +86,10 @@ c     Time level plots (xdraw)
           nplot = 0
           if (itime.gt.0) tmplot = time
           call dumpTimeStepPlots
+
+          !Store previous record (only if plotting is done, for diagnostics)
+          u_n = u_np
+
         endif
 
 c     Output per time step
