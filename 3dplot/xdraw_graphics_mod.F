@@ -71,7 +71,7 @@ cc          enddo
 c     Initialize contour files
 
         do igroup=1,ngroups
-          call contour_step(nqty(igroup),ugraph(igroup)
+          call contour_step(igroup,ugraph(igroup),nqty(igroup)
      .                     ,graph(igroup)%array_graph
      .                     ,graph(igroup)%cartesian,0)
         enddo
@@ -84,6 +84,7 @@ c       Contours
           nplots = count (sel_gr(igroup,:) /= 0)
 
           call createDrawInMfile(nplots,graphfile(igroup)
+     .                        ,graph(igroup)%cartesian
      .                        ,graph(igroup)%descr
      .                        ,'time',trim(cont_conf%label(1))
      .                        ,trim(cont_conf%label(2)),sel_gr(igroup,:)
@@ -173,7 +174,7 @@ c     Begin program
      .                 ,graph(igroup)%array_graph
      .                 ,graph(igroup)%cartesian,prof_conf%line,.false.)
 
-          call contour_step(nqty(igroup),ugraph(igroup)
+          call contour_step(igroup,ugraph(igroup),nqty(igroup)
      .                     ,graph(igroup)%array_graph
      .                     ,graph(igroup)%cartesian,1)
         enddo
@@ -375,17 +376,17 @@ c     End program
 
 c     contour_step
 c     #####################################################################
-      subroutine contour_step(nqty,nunit,array_graph,cartsn,iopt)
+      subroutine contour_step(igroup,nunit,nqty,array_graph,cartsn,iopt)
 
 c     ---------------------------------------------------------------------
-c     Dumps graph arrays in array_graph in xdraw format.
+c     Dumps graph arrays in array_graph in M xdraw format.
 c     ---------------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer(4) :: nqty,iopt,nunit
+        integer(4) :: nqty,iopt,nunit,igroup
 
         logical    :: cartsn
 
@@ -409,17 +410,6 @@ c     Select 2D cuts
 
         cut = .false.
         cut(cont_conf%plane) = .true.
-cc        where (plt < 0) cut = .true.
-
-cc        plt = abs(plt)
-cc
-cc        if (count(cut == .true.) > 1) then
-cc          messg = 'More than 1 2D cut selected!'
-cc          call pstop('contour_step',messg)
-cc        elseif (count(cut == .true.) < 1) then
-cc          cut(3) = .true. !Default X-Y plot
-cc          plt(3) = 1
-cc        endif
 
 c     Perform 2d cuts
 
@@ -444,76 +434,244 @@ c     ################################################################
 
         implicit none
 
-        integer(4)   :: normal,iplt,imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
+c     Call variables
+
+        integer(4)   :: iplt,imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
         character(*) :: messg
+
+c     Local variables
+
+        integer(4) :: nxgr,nygr,nxgr_old=0
+     .               ,nygr_old=0,zero=0,one=1
+     .               ,nt=1,nt_prev=0
+
+        logical    :: flag(ngroups)
+
+c     Begin program
+
+c     Write messg to standard output
 
         write (*,*) messg,iplt
 
-        if(iopt.eq.0) then
+        if (cartsn) then
+
+          if (iopt == 0) then
 
 c         Write initialization headings
 
-          write(nunit) nsblk,nusblk,nqty
-          if (imng == imxg) then
-            write(nunit) (jmxg-jmng),(kmxg-kmng)
-            i1 = 2
-            i2 = 3
-          elseif (jmng == jmxg) then
-            write(nunit) (imxg-imng),(kmxg-kmng)
-            i1 = 1
-            i2 = 3
+            write(nunit) nsblk,nusblk,nqty
+
+            flag(igroup) = .true.
+
+          elseif (iopt == 1) then
+
+            if (imng == imxg) then
+              nxgr = jmxg-jmng
+              nygr = kmxg-kmng
+              i1 = 2
+              i2 = 3
+            elseif (jmng == jmxg) then
+              nxgr = imxg-imng
+              nygr = kmxg-kmng
+              i1 = 1
+              i2 = 3
+            else
+              nxgr = imxg-imng
+              nygr = jmxg-jmng
+              i1 = 1
+              i2 = 2
+            endif
+
+c         Write data
+
+            if (flag(igroup)) then
+              write(nunit) zero,nxgr,nygr,nt,zero,zero,zero
+              flag(igroup) = .false.
+            else
+              write(nunit) zero,nxgr,nygr,nt,nxgr_old,nygr_old,nt_prev
+            endif
+
+            call write_coords(imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2)
+
+            write(nunit) one
+            do igr=1,nqty
+              write(nunit) (((real(array_graph(igr)%array(i,j,k),4)
+     .                    ,i=imng,imxg),j=jmng,jmxg),k=kmng,kmxg)
+            enddo
+
+            nxgr_old = nxgr
+            nygr_old = nygr
+            nt_prev  = nt
+
           else
-            write(nunit) (imxg-imng),(jmxg-jmng)
-            i1 = 1
-            i2 = 2
-          endif
 
-          allocate (car(imng:imxg,jmng:jmxg,kmng:kmxg,3))
-
-          if (cartsn) then      !Write cartesian coordinates
-
-            do k=kmng,kmxg
-              do j=jmng,jmxg
-                do i=imng,imxg
-                  call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
-     .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
-                enddo
-              enddo
-            enddo
-
-          else             !Write logical coordinates
-
-            do k=kmng,kmxg
-              do j=jmng,jmxg
-                do i=imng,imxg
-                  car(i,j,k,1) = xl(i)
-                  car(i,j,k,2) = yl(j)
-                  car(i,j,k,3) = zl(k)
-                enddo
-              enddo
-            enddo
+            write(nunit) zero,zero,zero,zero,nxgr_old,nygr_old,nt_prev
 
           endif
-
-          write(nunit) (((real(car(i,j,k,i1),4),i=imng,imxg)
-     .                                         ,j=jmng,jmxg)
-     .                                         ,k=kmng,kmxg)
-     .                ,(((real(car(i,j,k,i2),4),i=imng,imxg)
-     .                                         ,j=jmng,jmxg)
-     .                                         ,k=kmng,kmxg)
-
-          deallocate(car)
 
         else
 
-          do igr=1,nqty
-            write(nunit) (((real(array_graph(igr)%array(i,j,k),4)
+          if(iopt == 0) then
+
+c         Write initialization headings
+
+            write(nunit) nsblk,nusblk,nqty
+
+            if (imng == imxg) then
+              write(nunit) (jmxg-jmng),(kmxg-kmng)
+              i1 = 2
+              i2 = 3
+            elseif (jmng == jmxg) then
+              write(nunit) (imxg-imng),(kmxg-kmng)
+              i1 = 1
+              i2 = 3
+            else
+              write(nunit) (imxg-imng),(jmxg-jmng)
+              i1 = 1
+              i2 = 2
+            endif
+
+            call write_coords(imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2)
+
+          else
+
+c         Write data
+
+            do igr=1,nqty
+              write(nunit) (((real(array_graph(igr)%array(i,j,k),4)
      .                    ,i=imng,imxg),j=jmng,jmxg),k=kmng,kmxg)
-          enddo
+            enddo
+
+          endif
 
         endif
 
       end subroutine twodcut
+
+c     write_coords
+c     ################################################################
+      subroutine write_coords(imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2)
+
+        implicit none
+
+        integer(4) :: imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
+
+        integer(4) :: ii
+
+        allocate (car(imng:imxg,jmng:jmxg,kmng:kmxg,3))
+
+        if (cartsn) then      !Write cartesian coordinates
+
+          do k=kmng,kmxg
+            do j=jmng,jmxg
+              do i=imng,imxg
+                call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
+     .            ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
+              enddo
+            enddo
+          enddo
+
+        else             !Write logical coordinates
+
+          do k=kmng,kmxg
+            do j=jmng,jmxg
+              do i=imng,imxg
+                car(i,j,k,1) = xl(i)
+                car(i,j,k,2) = yl(j)
+                car(i,j,k,3) = zl(k)
+              enddo
+            enddo
+          enddo
+
+        endif
+
+        write(nunit) (((real(car(i,j,k,i1),4),i=imng,imxg)
+     .                                       ,j=jmng,jmxg)
+     .                                       ,k=kmng,kmxg)
+     .              ,(((real(car(i,j,k,i2),4),i=imng,imxg)
+     .                                       ,j=jmng,jmxg)
+     .                                       ,k=kmng,kmxg)
+
+        deallocate(car)
+
+      end subroutine write_coords
+
+ccc     twodcut
+ccc     ################################################################
+cc      subroutine twodcut(iplt,imng,imxg,jmng,jmxg,kmng,kmxg,messg)
+cc
+cc        implicit none
+cc
+cc        integer(4)   :: normal,iplt,imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
+cc        character(*) :: messg
+cc
+cc        write (*,*) messg,iplt
+cc
+cc        if(iopt.eq.0) then
+cc
+ccc         Write initialization headings
+cc
+cc          write(nunit) nsblk,nusblk,nqty
+cc          if (imng == imxg) then
+cc            write(nunit) (jmxg-jmng),(kmxg-kmng)
+cc            i1 = 2
+cc            i2 = 3
+cc          elseif (jmng == jmxg) then
+cc            write(nunit) (imxg-imng),(kmxg-kmng)
+cc            i1 = 1
+cc            i2 = 3
+cc          else
+cc            write(nunit) (imxg-imng),(jmxg-jmng)
+cc            i1 = 1
+cc            i2 = 2
+cc          endif
+cc
+cc          allocate (car(imng:imxg,jmng:jmxg,kmng:kmxg,3))
+cc
+cc          if (cartsn) then      !Write cartesian coordinates
+cc
+cc            do k=kmng,kmxg
+cc              do j=jmng,jmxg
+cc                do i=imng,imxg
+cc                  call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
+cc     .              ,iig,jjg,kkg,car(i,j,k,1),car(i,j,k,2),car(i,j,k,3))
+cc                enddo
+cc              enddo
+cc            enddo
+cc
+cc          else             !Write logical coordinates
+cc
+cc            do k=kmng,kmxg
+cc              do j=jmng,jmxg
+cc                do i=imng,imxg
+cc                  car(i,j,k,1) = xl(i)
+cc                  car(i,j,k,2) = yl(j)
+cc                  car(i,j,k,3) = zl(k)
+cc                enddo
+cc              enddo
+cc            enddo
+cc
+cc          endif
+cc
+cc          write(nunit) (((real(car(i,j,k,i1),4),i=imng,imxg)
+cc     .                                         ,j=jmng,jmxg)
+cc     .                                         ,k=kmng,kmxg)
+cc     .                ,(((real(car(i,j,k,i2),4),i=imng,imxg)
+cc     .                                         ,j=jmng,jmxg)
+cc     .                                         ,k=kmng,kmxg)
+cc
+cc          deallocate(car)
+cc
+cc        else
+cc
+cc          do igr=1,nqty
+cc            write(nunit) (((real(array_graph(igr)%array(i,j,k),4)
+cc     .                    ,i=imng,imxg),j=jmng,jmxg),k=kmng,kmxg)
+cc          enddo
+cc
+cc        endif
+cc
+cc      end subroutine twodcut
 
       end subroutine contour_step
 
@@ -630,8 +788,8 @@ c     End program
 
 c     createDrawInMfile
 c     ################################################################
-      subroutine createDrawInMfile(nvar,binf,graphlabel,ivart,ivarx
-     .                       ,ivary,variables,descr,options,drawfile)
+      subroutine createDrawInMfile(nvar,binf,cartesian,graphlabel
+     .            ,ivart,ivarx,ivary,variables,descr,options,drawfile)
 
 c     ----------------------------------------------------------------
 c     Creates drawfile for "M-type" xdraw graphics.
@@ -644,6 +802,7 @@ c     Call variables
         integer     :: nvar,variables(nvar)
         character(*):: binf,drawfile,graphlabel,options,descr(ngraph)
         character(*):: ivart,ivarx,ivary
+        logical     :: cartesian
 
 c     Local variables
 
@@ -657,8 +816,13 @@ c     Begin program
 
         open (unit=mfile,file=drawfile,status='unknown')
 
-        write (mfile,'(1a,/)') 
+        if (cartesian) then
+          write (mfile,'(1a,/)') 
+     .     'Type (G=Graph, C=Contour, M=TS contour):      M2'
+        else
+          write (mfile,'(1a,/)') 
      .     'Type (G=Graph, C=Contour, M=TS contour):      M'
+        endif
         write (mfile,'(a)') 'filename(s)'
         write (mfile,'(a,/)') trim(binf)
 
@@ -778,6 +942,13 @@ c     ##################################################################
       subroutine closeXDRAWGraphicsFiles
 
         do igroup=1,ngroups
+
+          !Finalize M2 type contour plots
+          if (graph(igroup)%cartesian)
+     .         call contour_step(igroup,ugraph(igroup),nqty(igroup)
+     .                          ,graph(igroup)%array_graph
+     .                          ,graph(igroup)%cartesian,2)
+
           close(unit=ugraph(igroup))
           close(unit=uprofile(igroup))
         enddo
