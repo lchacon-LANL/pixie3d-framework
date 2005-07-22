@@ -262,7 +262,8 @@ c     -----------------------------------------------------------------
 
         integer(4) :: nn,nnmg,ngrd,ngrdt
 
-        nnmg = 2*nn + ngrdt - ngrd -1
+cc        nnmg = 2*nn + ngrdt - ngrd -1
+        nnmg = (2+ngrdt-ngrd)*nn
 
       end function findMGsize
 
@@ -5209,13 +5210,14 @@ c     Multigrid parameters
         call gridInfo('Z',igz,grid_params%istartz,grid_params%nzv
      .               ,grid_params%zz,grid_params%dz,grid_params%dzh)
 
-        call metricTensorCheck(1,1,1
+        if (checkGridDatabase()) then
+          call metricTensorCheck(1,1,1
      .             ,grid_params%nxv,grid_params%nyv,grid_params%nzv)
+cc          call hessianCheck(igx,igy,igz
+cc     .               ,grid_params%nxv,grid_params%nyv,grid_params%nzv)
+        endif
 
-cc        call hessianCheck(igx,igy,igz
-cc     .             ,grid_params%nxv,grid_params%nyv,grid_params%nzv)
-
-        stop
+        call pstop('checkGrid','End of grid check')
 
 c     End program
 
