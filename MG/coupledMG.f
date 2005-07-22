@@ -930,7 +930,7 @@ c     End program
 c     restrictMGArray
 c     #################################################################
       subroutine restrictMGArray(icmp,neq,mgarray,bcnd,igrid,order
-     .                          ,iscnv,isvec,equil)
+     .                          ,iscnv,isvec,equilb)
 c     -----------------------------------------------------------------
 c     Restricts MG array in all grids with ghost nodes.
 c     -----------------------------------------------------------------
@@ -942,7 +942,7 @@ c     Call variables
       integer(4)     :: neq,icmp,bcnd(6,neq),order,igrid
       type(mg_array) :: mgarray
       logical,optional,intent(IN) :: iscnv,isvec
-      type(mg_array),optional,intent(IN) :: equil
+      type(mg_array),optional,intent(IN) :: equilb
 
 c     Local variables
 
@@ -962,9 +962,9 @@ c     Begin program
         is__vec = .true.   !Contravariant representation by default
       endif
 
-      if (PRESENT(equil)) then
+      if (PRESENT(equilb)) then
         have_equl = .true.
-        equl = equil
+        equl = equilb
       else
         have_equl = .false.
       endif
@@ -995,6 +995,7 @@ c     Restrict array
      .       ,igf,nxf,nyf,nzf,mgarray%grid(igf)%array
      .       ,igc,nxc,nyc,nzc,mgarray%grid(igc)%array
      .       ,order,.false.,bcnd)
+
       enddo
 
       if (have_equl) call deallocateMGArray(equl)
