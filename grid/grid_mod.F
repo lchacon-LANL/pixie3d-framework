@@ -3066,6 +3066,8 @@ c       NUMERICAL QUANTITIES ***********************************
 
         else
 
+          numerical_grid = .true.
+
           do igrid=igrmin,igrmax
 
             igx = igrid
