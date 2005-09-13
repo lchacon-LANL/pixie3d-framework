@@ -453,7 +453,7 @@ c     Write messg to standard output
 
         write (*,*) messg,iplt
 
-        if (cartsn) then
+        if (cartsn) then   !Type M2 contours
 
           if (iopt == 0) then
 
@@ -509,7 +509,7 @@ c         Write data
 
           endif
 
-        else
+        else   !Type M contours
 
           if(iopt == 0) then
 
