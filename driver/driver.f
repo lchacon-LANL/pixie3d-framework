@@ -219,18 +219,17 @@ c     Newton iteration
         nk_conf%krylov_method='fg'
 
         call nk(neqd,ntotd,x,iguess,ilevel,ierr)
-cc        call newtonGmres(neqd,ntotd,x,method,damp,global,dt0
-cc     .                  ,tolgm,maxksp,maxitgm,rtol,atol,maxitnwt/2
-cc     .                  ,maxitnwt,itgmres,itnewt,iguess,ilevel,ierr)
 
         itgmres = nk_conf%gm_it_out
         itnewt  = nk_conf%nwt_it_out
 
-c     If no error, map Newton solution to vnp
+c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
           vnp = x               !Overloaded assignment
           if (predictor) call storeTSinfo(vn,vnp)
+        elseif (ierr == 1) then
+          vnp = vn
         endif
 
       else

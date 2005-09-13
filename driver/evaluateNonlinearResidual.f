@@ -21,7 +21,8 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: i,j,k,ieq,ii
+      integer(4) :: i,j,k,ieq,ii,ig,jg,kg
+      real(8)    :: dvol
 
       type (var_array) :: varray
 
@@ -38,10 +39,12 @@ c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 c Calculate residuals
 
       call defineTSParameters
-      
+
       do k = 1,nzd
         do j = 1,nyd
           do i = 1,nxd
+
+            call getMGmap(i,j,k,1,1,1,ig,jg,kg)
 
             ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
 
@@ -49,15 +52,20 @@ c Calculate residuals
               f(ii+ieq) = (varray%array_var(ieq)%array(i,j,k)
      .                    -   u_n%array_var(ieq)%array(i,j,k))
      .                    *one_over_dt(ieq)
-     .                    + ((1.-cnf(ieq))*f   (ii+ieq)
+     .                    + (1d0-cnf(ieq))*f   (ii+ieq)
      .                    +      cnf(ieq) *fold(ii+ieq)
-     .                    -                fsrc(ii+ieq))
+     .                    -                fsrc(ii+ieq)
             enddo
 
-            if (vol_wgt) 
-     .        f(ii+1:ii+neqd) = f(ii+1:ii+neqd)
-     .                         *gmetric%grid(1)%dvol(i,j,k)
-cc     .        f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*volume(i,j,k,1,1,1)
+            !Do not include Jacobian here to allow for moving grid cases
+            dvol = grid_params%dxh(ig)
+     .            *grid_params%dyh(jg)
+     .            *grid_params%dzh(kg)
+            f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*dvol
+
+cc            if (vol_wgt) 
+cc     .        f(ii+1:ii+neqd) = f(ii+1:ii+neqd)
+cc     .                         *gmetric%grid(1)%dvol(i,j,k)
 
           enddo
         enddo
