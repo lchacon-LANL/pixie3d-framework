@@ -35,9 +35,9 @@ c ###################################################################
 
       real(8)    :: pdt,check
 
-      real(8),parameter :: mv_eps=1d-4,epsmac=1d-15
+      real(8),parameter :: mv_eps=1d-8,epsmac=1d-15
 
-      integer(4) :: jit=1
+      integer(4) :: jit=0
 
       logical    :: pseudo_dt
 
@@ -183,6 +183,8 @@ cc       check_lim = 1d1
       convergence = .false.
       failure     = .false.
 
+      jit = 0
+
 c     Evaluate rhs and norms
 
       allocate (xx0(ntot),xk(ntot),rk(ntot))
@@ -197,7 +199,7 @@ c     Evaluate rhs and norms
       !Check if initial guess is exact, and if so exit Newton step
       if (f0.lt.atol) then
         ierr = -1
-        deallocate(rk)
+        deallocate(xx0,xk,rk)
         return
       endif
 
