@@ -327,7 +327,7 @@ c     Check error in Newton convergence
         if (damp  < 1d-4) write (*,*) 'Damping parameter too small'
         ierr = 1
       !Accept solution, but warn user
-      elseif ((jit-1).gt.ntit_max_acc) then 
+      elseif ((jit-1).ge.ntit_max_acc) then 
         write (*,240) ntit_max_acc
         ierr = 2
       endif
