@@ -210,11 +210,13 @@ c     Newton iteration
         nk_conf%nwt_max_it_rej = maxitnwt
         nk_conf%global_meth    = global
 
-        nk_conf%eta0 = tolgm
-        nk_conf%damp = damp
-        nk_conf%pdt0 = dt0
-        nk_conf%atol = atol
-        nk_conf%rtol = rtol
+        nk_conf%eta0   = tolgm
+        nk_conf%damp   = damp
+        nk_conf%pdt0   = dt0
+        if (atol  > 0d0) nk_conf%atol   = atol
+        if (rtol  > 0d0) nk_conf%rtol   = rtol
+        if (stol  > 0d0) nk_conf%stol   = stol
+        if (mf_eps> 0d0) nk_conf%mf_eps = mf_eps
 
         nk_conf%krylov_method='fg'
 
