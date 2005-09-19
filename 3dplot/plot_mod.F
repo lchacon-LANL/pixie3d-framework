@@ -18,7 +18,7 @@ c ######################################################################
 
         integer(4) ::  maxitnwt,maxitgm,iguess,maxksp,method,global
 
-        real(8)    ::  tolgm,rtol,atol
+        real(8)    ::  tolgm,rtol,atol,stol,mf_eps
 
       end module newtongm
 
