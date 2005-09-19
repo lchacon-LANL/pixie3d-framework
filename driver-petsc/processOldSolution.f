@@ -57,7 +57,7 @@ c Time level plots (xdraw)
         nrst  = 0
         if (itime.gt.0) tmrst = tmrst - dstep
         call writeRecordFile(urecord,itime,time,dt,u_n)
-cc        write (*,*) itime,time
+cc        if (my_rank == 0) write (*,*) itime,time
       endif
 
 c Output per time step

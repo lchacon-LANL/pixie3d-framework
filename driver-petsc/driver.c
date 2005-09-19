@@ -260,8 +260,8 @@ int MAIN__(int argc, char **argv)
     /* Customize KSP */
 
     ierr = SNESGetKSP (snes, &ksp)                                             	;CHKERRQ(ierr);
-    /*ierr = KSPSetType (ksp,KSPFGMRES)                                          	;CHKERRQ(ierr);*/
-    ierr = KSPSetType (ksp,KSPGMRES)                                          	;CHKERRQ(ierr);
+    ierr = KSPSetType (ksp,KSPFGMRES)                                          	;CHKERRQ(ierr);
+    /*ierr = KSPSetType (ksp,KSPGMRES)                                          	;CHKERRQ(ierr);*/
     ierr = KSPSetTolerances(ksp,tolgm,PETSC_DEFAULT,PETSC_DEFAULT,maxitgm)      ;CHKERRQ(ierr);
     ierr = KSPSetPreconditionerSide(ksp,PC_RIGHT);                             	;CHKERRQ(ierr);
     ierr = KSPSetMonitor(ksp,MyKSPMonitor,(void*)&user,PETSC_NULL)             	;CHKERRQ(ierr);
