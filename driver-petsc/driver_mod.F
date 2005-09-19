@@ -22,7 +22,7 @@ c ######################################################################
 
         integer(4) ::  maxitnwt,maxitgm,iguess,maxksp,method,global
 
-        real(8)    ::  tolgm,rtol,atol
+        real(8)    ::  tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=0d0
 
       end module newtongm
 
