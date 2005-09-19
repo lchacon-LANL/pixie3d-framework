@@ -35,7 +35,7 @@ c ###################################################################
 
       real(8)    :: pdt,check
 
-      real(8),parameter :: mv_eps=1d-8,epsmac=1d-15
+      real(8),parameter :: epsmac=1d-15
 
       integer(4) :: jit=0
 
@@ -55,6 +55,8 @@ c ###################################################################
         real(8)      :: eta0=1d-1
         real(8)      :: atol=0d0
         real(8)      :: rtol=1d-4
+        real(8)      :: stol=0d0
+        real(8)      :: mf_eps=1d-6
         character(2) :: krylov_method='gm'
       end type nk_options
 
@@ -107,6 +109,7 @@ c       * ksmax: dimension of krylov subspace for restarted GMRES(Ksmax)
 c       * gmmax: maximum number of GMRES its. (restart if > ksmax)
 c       * rtol: Newton relative convergence tolerance
 c       * atol: Newton absolute convergence tolerance
+c       * stol: Newton update convergence tolerance
 c       * ntit_max_acc: maximum number of Newton its. to accept
 c                       solution without subcycling time step
 c       * ntit_max_rej: maximum number of Newton its. to reject solution
@@ -128,8 +131,8 @@ c     Local variables
       integer(4) :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
      .             ,ntit_max_rej,global
 
-      real(8)    :: dxavg,check_lim,residuals(neq),ddx(ntot)
-     .             ,eta0,atol,rtol,damp,pdt0
+      real(8)    :: dxnorm,check_lim,residuals(neq),ddx(ntot)
+     .             ,eta0,atol,rtol,stol,damp,pdt0
 
       real(8)    :: f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
 
@@ -151,6 +154,7 @@ c     Initialize
       pdt0         = nk_conf%pdt0
       atol         = nk_conf%atol
       rtol         = nk_conf%rtol
+      stol         = nk_conf%stol
 
       nk_conf%gm_it_out  = 0
       nk_conf%nwt_it_out = 0
@@ -179,6 +183,7 @@ cc       check_lim = 1d1
       pdt = pdt0
 
       if (atol == 0d0) atol = ntot*epsmac !Set absolute tolerance to roundoff
+      if (stol == 0d0) stol = ntot*epsmac !Set update tolerance to roundoff
 
       convergence = .false.
       failure     = .false.
@@ -267,7 +272,7 @@ cc        if (global >= 1) call findDamping (ntot,x,ddx,etak,fk,damp)
 
 c     Update solution (x = x + ddx)
 
-        call updateNewtonSolution(x,ddx,ntot,damp,dxavg)
+        call updateNewtonSolution(x,ddx,ntot,damp,dxnorm)
 
         xk = x   !Save current Newton state
 
@@ -281,7 +286,7 @@ c     Check Newton convergence/failure
 
         check = fkp/f0
 
-        if (out.ge.1) write (*,210)jit,dxavg,fkp,check,damp,pdt,etak,itk
+        if (out.ge.1) write(*,210)jit,dxnorm,fkp,check,damp,pdt,etak,itk
 
         if (out.ge.3) then
           call calculateResidualNorms(neq,ntot,-rk,residuals)
@@ -290,7 +295,7 @@ c     Check Newton convergence/failure
           enddo
         endif
 
-        if (fkp <= flimit .or.dxavg <= atol) then
+        if (fkp <= flimit .or.dxnorm <= stol) then
           convergence = .true.
         elseif (    check > check_lim
 cc     .         .or. damp  < 1d-7
@@ -388,7 +393,7 @@ c     End program
 
 c     updateNewtonSolution
 c     ###############################################################
-      subroutine updateNewtonSolution(x,ddx,ntot,damp,dxavg)
+      subroutine updateNewtonSolution(x,ddx,ntot,damp,dxnorm)
       implicit none         !For safe fortran
 c     ---------------------------------------------------------------
 c     Updates solution in Newton iteration
@@ -397,7 +402,7 @@ c     ---------------------------------------------------------------
 c     Call variables
 
       integer(4) :: ntot
-      real(8)    :: x(ntot),ddx(ntot),damp,dxavg
+      real(8)    :: x(ntot),ddx(ntot),damp,dxnorm
 
 c     Local variables
 
@@ -405,7 +410,7 @@ c     Begin program
 
       x = x + damp*ddx
 
-      dxavg = sqrt(sum(ddx*ddx))/float(ntot)
+      dxnorm = sqrt(sum(ddx*ddx))
 
 c     End program
 
@@ -468,7 +473,7 @@ c     Call variables
 c     Local variables
 
       integer(4) :: idamp
-      real(8)    :: dampm,theta,etak0,dxavg,fkp,fm,df,ddf
+      real(8)    :: dampm,theta,etak0,dxnorm,fkp,fm,df,ddf
       real(8)    :: b(ntot),dummy(ntot)
       real(8)    :: alpha,sigma0,sigma1
 
@@ -484,13 +489,13 @@ c     Begin program
 
       do idamp = 1,100
         dummy = x
-        call updateNewtonSolution(dummy,ddx,ntot,damp,dxavg)
+        call updateNewtonSolution(dummy,ddx,ntot,damp,dxnorm)
         call evaluateNewtonResidual(ntot,dummy,b)
         fkp = sqrt(sum(b*b))
         if (fkp.gt.(1.-alpha*damp)*fk) then
           dampm = sigma1*damp
           dummy = x
-          call updateNewtonSolution(dummy,ddx,ntot,dampm,dxavg)
+          call updateNewtonSolution(dummy,ddx,ntot,dampm,dxnorm)
           call evaluateNewtonResidual(ntot,dummy,b)
           fm = sqrt(sum(b*b))
           if (fm.lt.(1.-alpha*dampm)*fk) then
@@ -520,7 +525,7 @@ cc          etak = 1.- theta*(1.-etak)
 cc        if (fkp.gt.(1.-alpha*(1.-etak))*fk) then
 cc          dampm = .5*damp
 cc          dummy = x
-cc          call updateNewtonSolution(dummy,ddx,ntot,dampm,dxavg)
+cc          call updateNewtonSolution(dummy,ddx,ntot,dampm,dxnorm)
 cc          call evaluateNewtonResidual(ntot,dummy,b)
 cc          fm = sqrt(sum(b*b))
 cc          theta = .5*(1.5*fk + 0.5*fkp - 2.*fm)/(fk + fkp - 2.*fm)
@@ -1156,7 +1161,7 @@ c       Calculate difference parameter
         modx  = sum(xk*xk)
         xdotz = sum(z *xk)
 
-        pert  = mv_eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
+        pert=nk_conf%mf_eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
 
 c       Perturb state variables x + eps z --> dummy
 
