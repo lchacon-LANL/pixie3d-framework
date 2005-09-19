@@ -485,9 +485,6 @@ c     Local variables
 
 c     Begin program
 
-c$$$        ig = i -grid_params%ilo(igx)+1 + grid_params%istartx(igx)
-c$$$        jg = j -grid_params%jlo(igy)+1 + grid_params%istarty(igy)
-c$$$        kg = k -grid_params%klo(igz)+1 + grid_params%istartz(igz)
         ig = i + grid_params%istartx(igx)
         jg = j + grid_params%istarty(igy)
         kg = k + grid_params%istartz(igz)
@@ -2270,9 +2267,9 @@ c     Check MG is an option
 c     Exclude directions based on topological constraints (PER, SP)
 c     Priority: SP, PER
 
-      if (bcond(1) == SP  .or.  bcond(3) == PER) ny = 1
-      if (bcond(1) == PER .and. ny /= 1        ) nx = 1
-      if (bcond(5) == PER .and.(nx/=1.or.ny/=1)) nz = 1
+      if (bcond(1) == SP  .or.  bcond(3) == PER ) ny = 1
+      if (bcond(1) == PER .and. ny /= 1         ) nx = 1
+      if (bcond(5) == PER .and.(nx/=1.and.ny/=1)) nz = 1
 
       !Store processor topology for ASM PC treatment
 cc      asm_dir(1) = (nx == 1) .and. (nx1 /= 1)
