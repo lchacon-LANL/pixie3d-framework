@@ -184,7 +184,8 @@ c Begin program
 
       itwhistler = 0
 
-      jit = -1
+      jit = -1     !This informs nlfunction that we are processing
+                   !  n time level info
 
 c Evaluate nonlinear function at old time for theta scheme
 
