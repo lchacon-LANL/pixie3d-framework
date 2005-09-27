@@ -50,10 +50,6 @@ c Time loop
 
       do
 
-c     Store previous record
-
-cc        u_n = u_np
-
 c diag ***** Redefine perturbations for preconditioner debugging
 cc        write (*,*) 'Redefined perts for PC debugging in 3dplot'
 cc        u_ic = u_n
@@ -76,18 +72,24 @@ c     Update counters
 c     Time level plots (xdraw)
 
         plot = .false.
-        if (nplot.eq.ndplot.or.(time-tmplot).ge.0.999*dplot) then
 
+cc        if (nplot.eq.ndplot.or.(time-tmplot).ge.0.999*dplot) then
+        if (    nplot        == ndplot
+     .     .or.(time-tmplot) >= 0.999*dplot
+     .     .or. time         == 0d0) then
+
+          !Post-process solution for diagnostics
           call postProcessSolution(u_np,igx,igy,igz)
 
           call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
+          !Dump time step plots
           plot  = .true.
           nplot = 0
           if (itime.gt.0) tmplot = time
           call dumpTimeStepPlots
 
-          !Store previous record (only if plotting is done, for diagnostics)
+          !Store previous record (for time derivatives in diagnostics)
           u_n = u_np
 
         endif
@@ -293,7 +295,7 @@ c Initialize graphics
 
       call initializeGraphics(igx,igy,igz,bcond)
 
-      call dumpTimeStepPlots
+cc      call dumpTimeStepPlots
 
 c Initialize diagnostics
 
