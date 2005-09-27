@@ -3124,7 +3124,7 @@ c       NUMERICAL QUANTITIES ***********************************
               enddo
             enddo
 
-          !Evaluate grid quantities
+            !Evaluate grid quantities
             do k = klom,khip
               do j = jlom,jhip
                 do i = ilom,ihip
