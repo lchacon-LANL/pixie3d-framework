@@ -184,6 +184,8 @@ c Begin program
 
       itwhistler = 0
 
+      jit = -1
+
 c Evaluate nonlinear function at old time for theta scheme
 
       call evaluateNonlinearFunction(vn,fold)
