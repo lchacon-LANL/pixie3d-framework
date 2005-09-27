@@ -22,7 +22,7 @@ c ######################################################################
 
         integer(4) ::  maxitnwt,maxitgm,iguess,maxksp,method,global
 
-        real(8)    ::  tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=0d0
+        real(8)    ::  tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
 
       end module newtongm
 
@@ -31,8 +31,8 @@ c module precond_setup
 c ######################################################################
       module precond_setup
 
-        integer(4)    :: nsweep,maxvcyc,precpass
-        real(8)       :: mgtol
+        integer(4)    :: nsweep,maxvcyc,precpass,debug_it
+        real(8)       :: mgtol,omega
 
         character*(10):: precon
 
