@@ -1244,11 +1244,3 @@ c     End
       end function fmedval
 
       end module nk_mod
-
-ccc module newton_gmres
-ccc ###################################################################
-cc      module newton_gmres
-cc
-cc        use nk_mod
-cc
-cc      end module newton_gmres
