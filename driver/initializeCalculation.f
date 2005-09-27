@@ -300,7 +300,7 @@ c Perturb equilibrium
 
         call readRestartFile (nx,ny,nz,itime,time,varrayn,varraynp)
 
-        inewtime = itime
+        inewtime = itime+1
 
         if (nx.ne.nxd.or.ny.ne.nyd.or.nz.ne.nzd) then
            write (*,*) 'Grid meshes do not agree; cannot restart'
