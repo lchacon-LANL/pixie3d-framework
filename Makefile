@@ -63,7 +63,8 @@ distclean: clean
 
 setup: ;
 	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
-		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; done
+		cp $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; done
+#		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; done
 
 lib: common $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 	-ar rs $(LIBNAME) $(OBJMOD) $(OBJS) $(COMMON_OBJS)
