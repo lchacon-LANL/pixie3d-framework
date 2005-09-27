@@ -97,6 +97,9 @@ c Initialize old time solution
 
 c Set unperturbed forcing fields
 
+      jit = -1   !This informs nlfunction that we are processing 
+                 !  n time level info
+
       !This not only evaluates fsrc, but defines BCs on u_n
       call evaluateNonlinearFunction(u_n,fsrc)
 
@@ -568,8 +571,8 @@ cc        call imposeBoundaryConditions(u_graph,1,1,1)
         write (urecord) nyd,1,nyd
         write (urecord) nzd,1,nzd
 
-        call writeRecordFile(urecord,0,0d0,dt,u_graph)
-        call writeRecordFile(urecord,0,0d0,dt,u_np)
+        call writeRecordFile(urecord,0,0d0,dt,u_graph)  !W/O  BCs and perturbations
+        call writeRecordFile(urecord,0,0d0,dt,u_np)     !With BCs and perturbations
 
       else
 
