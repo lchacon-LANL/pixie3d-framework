@@ -27,8 +27,8 @@ c module precond_setup
 c ######################################################################
       module precond_setup
 
-        integer(4)    :: nsweep,maxvcyc,precpass
-        real(8)       :: mgtol
+        integer(4)    :: nsweep,maxvcyc,precpass,debug_it
+        real(8)       :: mgtol,omega
 
         character*(10):: precon
 
