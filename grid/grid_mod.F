@@ -4871,7 +4871,7 @@ c     Begin program
 
           if (xp < lend .and. xp > lstart) then
 
-            n1 = (xp - lmin)/length*ng
+            n1 = max(int((xp - lmin)/length*ng),2)
 
             n2 = ng - n1
 
