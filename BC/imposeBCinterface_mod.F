@@ -1192,7 +1192,7 @@ c     Find BC update
           call periodicBC(array(:,:,:,nvar),ibc)
         case(EQU)
           call dirichletBC(array(:,:,:,nvar),array0(:,:,:,nvar)
-     .                    ,ieq,dim,loc,1)
+     .                    ,ieq,dim,loc,order)
         case(DIR)
           call dirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc,1)
         case(NEU)
@@ -1214,7 +1214,7 @@ cc          call neumannBC(array(:,:,:,nvar),ieq,dim,loc)
         case(PER)
           call periodicBC(array(:,:,:,ivar),ibc)
         case(EQU)
-          call dirichletBC(ivar,array,array0,ieq,dim,loc,1)
+          call dirichletBC(ivar,array,array0,ieq,dim,loc,order)
         case(DIR)
           call dirichletBC(ivar,array,vzeros,ieq,dim,loc,1)
         case(NEU)
@@ -1288,24 +1288,6 @@ c     Begin program
 
       endif
 
-cc      select case (ibc)
-cc      case (1)                  !x0
-cc       array(0     ,:,:)=array(nxbc,:,:)
-cc      case (2)                  !x1                                       
-cc       array(nxbc+1,:,:)=array(1   ,:,:)
-cc      case (3)                  !y0                                       
-cc       array(:,0     ,:)=array(:,nybc,:)
-cc      case (4)                  !y1                                       
-cc       array(:,nybc+1,:)=array(:,1   ,:)
-cc      case (5)                  !z0                                       
-cc       array(:,:,0     )=array(:,:,nzbc)
-cc      case (6)                  !z1                                       
-cc       array(:,:,nzbc+1)=array(:,:,1   )
-cc      case default
-cc       write (*,*) 'Boundary',ibc,' non existent'
-cc       stop
-cc      end select
-
 c     End program
 
       end subroutine periodicBC
@@ -1370,24 +1352,6 @@ c     Begin program
       end select
 
       endif
-
-cc      select case (ibc)
-cc      case (1)                  !x0
-cc       array(0     ,:,:)=array(nxbc,:,:)
-cc      case (2)                  !x1                                       
-cc       array(nxbc+1,:,:)=array(1   ,:,:)
-cc      case (3)                  !y0                                       
-cc       array(:,0     ,:)=array(:,nybc,:)
-cc      case (4)                  !y1                                       
-cc       array(:,nybc+1,:)=array(:,1   ,:)
-cc      case (5)                  !z0                                       
-cc       array(:,:,0     )=array(:,:,nzbc)
-cc      case (6)                  !z1                                       
-cc       array(:,:,nzbc+1)=array(:,:,1   )
-cc      case default
-cc       write (*,*) 'Boundary',ibc,' non existent'
-cc       stop
-cc      end select
 
 c     End program
 
