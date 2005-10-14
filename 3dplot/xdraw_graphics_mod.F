@@ -49,25 +49,6 @@ c     Open XDRAW graphics files
 
         call openXDRAWGraphicsFiles
 
-c     Initialize profile description array
-
-        do igroup=1,ngroups
-cc          do igraph=1,ngraph
-cc            if (graph(igroup)%array_graph(igraph)%descr /= '') then
-cc              prof_desc(igroup,igraph) = 'Prof '
-cc     .             // trim(graph(igroup)%array_graph(igraph)%descr)
-cc            else
-cc              prof_desc(igroup,:) = ''
-cc            endif
-cc          enddo
-          where (graph(igroup)%array_graph(:)%descr /= '')
-              prof_desc(igroup,:) = 'Prof '
-     .                      // graph(igroup)%array_graph(:)%descr
-          elsewhere
-            prof_desc(igroup,:) = ''
-          end where
-        enddo
-
 c     Initialize contour files
 
         do igroup=1,ngroups
@@ -94,9 +75,32 @@ c       Contours
 
 c       Profiles (selects same profiles as contour plots except vector plots)
 
+        prof_desc = ''
+
         do igroup=1,ngroups
+
+          do igraph=1,ngraph
+            if (trim(graph(igroup)%array_graph(igraph)%descr) /='') then
+              prof_desc(igroup,igraph) = 'Prof '
+     .                  // trim(graph(igroup)%array_graph(igraph)%descr)
+            else
+              prof_desc(igroup,igraph) = ''
+            endif
+          enddo
+
+cc          where (graph(igroup)%array_graph(:)%descr) /= '')
+cc            prof_desc(igroup,:) = 'Prof '
+cc     .                      // graph(igroup)%array_graph(:)%descr
+cc          elsewhere
+cc            prof_desc(igroup,:) = ''
+cc          end where
+cc        enddo
+cc
+cc        do igroup=1,ngroups
+
           nplots = count (sel_gr(igroup,:) /= 0)
           prof_label = 'Profiles '//graph(igroup)%descr
+
           call createDrawInGfile(nplots,profilefile(igroup),prof_label
      .          ,trim(prof_conf%label),abs(sel_gr(igroup,:))
      .          ,prof_desc(igroup,:),prof_ivar(igroup,:)
@@ -710,39 +714,43 @@ c     ----------------------------------------------------------------
 
 c     Call variables
 
-        integer     :: nvar,ivariables(ngraph),dvariables(nvar)
-     .                ,logvar(ngraph)
-        character(*):: binf,drawfile,graphlabel,descr(ngraph),ivar
-        logical     :: spline
+        integer      :: nvar,ivariables(ngraph),dvariables(nvar)
+     .                 ,logvar(ngraph)
+        character(*) :: binf,drawfile,graphlabel,ivar
+        character(20):: descr(ngraph)
+        logical      :: spline
 
 c     Local variables
 
-        integer      :: i,j,mfile
+        integer      :: i,j,gfile,lngt
         character(50):: label
         logical      :: flag
 
 c     Begin program
 
-        mfile = 111
+        gfile = 111
 
-        open (unit=mfile,file=drawfile,status='unknown')
+        open (unit=gfile,file=drawfile,status='unknown')
 
-        write (mfile,'(1a,/)') 
+        write (gfile,'(1a,/)') 
      .     'Type (G=Graph, C=Contour, M=TS contour):      G'
-        write (mfile,'(a)') 'filename(s)'
-        write (mfile,'(a,/)') trim(binf)
+        write (gfile,'(a)') 'filename(s)'
+        write (gfile,'(a,/)') trim(binf)
 
-        write (mfile,'(2a,/)') 'graph title: ',trim(graphlabel)
-        write (mfile,'(a)') 'variable names'
-        write (mfile,'(2a)') ' 0       ',trim(ivar)
+        write (gfile,'(2a,/)') 'graph title: ',trim(graphlabel)
+        write (gfile,'(a)') 'variable names'
+        write (gfile,'(2a)') ' 0       ',trim(ivar)
+
         do i=1,size(descr)
-          if (len(trim(descr(i))) == 0) exit
-          write (mfile,'(i2,2a)') i  ,'       ',trim(descr(i))
+          lngt = len(trim(descr(i)))
+          if (lngt == 0) cycle
+          write (gfile,'(i2,2a)') i  ,'       ',trim(descr(i))
         enddo
-        write (mfile,'(/,a)') 'ix       iy        window title'
+        write (gfile,'(/,a)') 'ix       iy        window title'
 
         do i=1,size(descr)
-          if (len(trim(descr(i))) == 0) exit
+          lngt = len(trim(descr(i)))
+          if (lngt == 0) exit
           flag = .false.
           do j = 1,nvar
             if (dvariables(j).eq.i) then
@@ -753,34 +761,34 @@ c     Begin program
           if (flag) then
             if (spline) then
               if(logvar(i) == 1) then
-                write (mfile,'(i2,a,i2,2a)') ivariables(i),'      '
+                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
      .                                ,i,'L&        ',trim(descr(i))
               else
-                write (mfile,'(i2,a,i2,2a)') ivariables(i),'      '
+                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
      .                                ,i,'&        ',trim(descr(i))
               endif
             elseif(logvar(i) == 1) then
-              write (mfile,'(i2,a,i2,2a)')  ivariables(i),'      '
+              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
      .                                ,i,'L        ',trim(descr(i))
             else
-              write (mfile,'(i2,a,i2,2a)')  ivariables(i),'      '
+              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
      .                                ,i,'         ',trim(descr(i))
             endif
           else
             if(logvar(i) == 1) then
-              write (mfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
+              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
      .                                ,i,'L        ',trim(descr(i))
 
             else
-              write (mfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
+              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
      .                                ,i,'         ',trim(descr(i))
             endif
           endif
         enddo
 
-        write (mfile,*)
+        write (gfile,*)
 
-        close (mfile)
+        close (gfile)
 
 c     End program
 
@@ -806,7 +814,7 @@ c     Call variables
 
 c     Local variables
 
-        integer      :: i,j,mfile
+        integer      :: i,j,mfile,lngt
         character(50):: label
         logical      :: flag
 
@@ -833,7 +841,8 @@ c     Begin program
         write (mfile,'(2a,/)') 'y       ',trim(ivary)
         write (mfile,'(a)') 'dependent variable names'
         do i=1,size(descr)
-          if (len(trim(descr(i))) == 0) exit
+          lngt = len(trim(descr(i)))
+          if (lngt == 0) exit
           write (mfile,'(i2,2a)') i  ,'       ',descr(i)
         enddo
         write (mfile,'(/,a)') 'iqty       options     window title'
