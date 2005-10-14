@@ -35,7 +35,8 @@ c ###################################################################
 
       real(8)    :: pdt,check
 
-      real(8),parameter :: epsmac=1d-15
+cc      real(8),parameter    :: epsmac=1d-15
+      real(8) :: epsmac=0d-15,roundoff
 
       integer(4) :: jit=0
 
@@ -63,6 +64,32 @@ c ###################################################################
       type(nk_options),save :: nk_conf
 
       contains
+
+c     findRoundOff
+c     ###############################################################
+      subroutine findRoundOff ()
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Finds machine round-off constant epsmac
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+c     Local variables
+
+      real(8) :: mag,mag2
+
+      mag = 1d0
+      do
+        epsmac = mag
+        mag = mag/2
+        mag2 = 1d0 + mag
+        if (.not.(mag2 > 1d0)) exit
+      enddo
+
+      end subroutine findRoundOff
 
 c     nk
 c     ###############################################################
@@ -140,7 +167,13 @@ c     Local variables
 
 c     Begin program
 
-c     Initialize
+c     Find machine round-off
+
+      if (epsmac == 0d0) call findRoundOff
+
+      roundoff = sqrt(1d0*ntot)*epsmac
+
+c     Initialize variables
 
       etak_meth    = nk_conf%etak_meth
       ksmax        = nk_conf%ksmax
@@ -182,8 +215,8 @@ cc       check_lim = 1d1
 
       pdt = pdt0
 
-      if (atol == 0d0) atol = ntot*epsmac !Set absolute tolerance to roundoff
-      if (stol == 0d0) stol = ntot*epsmac !Set update tolerance to roundoff
+      if (atol == 0d0) atol = roundoff !Set absolute tolerance to roundoff
+      if (stol == 0d0) stol = roundoff !Set update tolerance to roundoff
 
       convergence = .false.
       failure     = .false.
@@ -675,7 +708,7 @@ c     Calculate magnitude of nonlinear residual
 
       eps1=eps*rold
 
-      if (rold .lt. (ntot*epsmac)) then
+      if (rold < roundoff) then
         ierr = -1
         return
       endif
@@ -929,7 +962,7 @@ c     Calculate magnitude of nonlinear residual
 
       eps1=eps*rold
 
-      if (rold .lt. (ntot*epsmac)) then
+      if (rold < roundoff) then
         ierr = -1
         return
       endif
@@ -1150,7 +1183,7 @@ c     Begin program
 
 c     Calculate J.x
 
-      if (sqrt(modz) < epsmac) then  !Failsafe for the case z=0
+      if (sqrt(modz) < roundoff) then  !Failsafe for the case z=0
 
         y = 0d0
 
