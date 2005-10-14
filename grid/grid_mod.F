@@ -4395,7 +4395,7 @@ cc            endif
 
 c     vectorNorm
 c     ################################################################
-      real(8) function vectorNorm(i,j,k,igx,igy,igz,ax,ay,az,covar)
+      function vectorNorm(i,j,k,igx,igy,igz,ax,ay,az,covar)
 
 c     ---------------------------------------------------------------
 c     Finds L2-norm of vector A given its curvilinear components.
@@ -4406,7 +4406,7 @@ c     ---------------------------------------------------------------
 c     Call variables
 
       integer(4) :: i,j,k,igx,igy,igz
-      real(8)    :: ax,ay,az
+      real(8)    :: ax,ay,az,vectorNorm
       logical    :: covar
 
 c     Local variables
