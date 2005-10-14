@@ -2014,8 +2014,8 @@ c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
 c       DIR: Homogeneous dirichlet
 c       NEU: Neumann (homogeneous/inhomogeneous)
 c       SYM: Symmetry (odd,even depend on sign)
-c       DEF: Default (set in application code)
 c       EXT: By extrapolation
+c       DEF: Default (does nothing)
 c     The actual integers chosen indicate a particular order that the BC
 c     scheduler follows to impose the boundary conditions.
 c     -----------------------------------------------------------------
@@ -2032,6 +2032,8 @@ c     -----------------------------------------------------------------
         integer(4) :: bcond(6)
 
         logical    :: asm_dir(3)=.false.
+
+        real(8)    :: SP_flsv=1d-5
         
       contains
 
