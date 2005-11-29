@@ -1183,7 +1183,7 @@ c     Begin program
 
 c     Calculate J.x
 
-      if (sqrt(modz) < roundoff) then  !Failsafe for the case z=0
+      if (sqrt(modz) == 0d0) then  !Failsafe for the case z=0
 
         y = 0d0
 
@@ -1194,7 +1194,8 @@ c       Calculate difference parameter
         modx  = sum(xk*xk)
         xdotz = sum(z *xk)
 
-        pert=nk_conf%mf_eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
+        pert=nk_conf%mf_eps*sqrt(modx)/sqrt(modz)
+cc     .  pert=nk_conf%mf_eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
 
 c       Perturb state variables x + eps z --> dummy
 
