@@ -75,7 +75,7 @@ c     Time level plots (xdraw)
 
 cc        if (nplot.eq.ndplot.or.(time-tmplot).ge.0.999*dplot) then
         if (    nplot        == ndplot
-     .     .or.(time-tmplot) >= 0.999*dplot
+     .     .or.(time-tmplot) >= dplot-0.9*dt
      .     .or. time         == 0d0) then
 
           !Post-process solution for diagnostics
