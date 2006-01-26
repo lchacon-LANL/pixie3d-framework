@@ -116,6 +116,11 @@ c     Check that we are domain adjacent to singular point
 
 c     Element exchange in poloidal direction
 
+      if (mod(nybc,2) /= 0) then
+        call pstop('scalarSingularBC'
+     .            ,'Poloidal dimension not a multiple of 2')
+      endif
+
       do k=1,nzbc
         do j=1,nybc
           jj = mod(j+nybc/2,nybc)
@@ -292,6 +297,11 @@ c     Check that we are domain adjacent to singular point
       endif
 
 c     Element exchange in poloidal direction
+
+      if (mod(nybc,2) /= 0) then
+        call pstop('vectorSingularBC'
+     .            ,'Poloidal dimension not a multiple of 2')
+      endif
 
       do k=1,nzbc
         do j=1,nybc
