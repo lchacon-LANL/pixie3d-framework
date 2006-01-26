@@ -4,15 +4,7 @@ c####################################################################
 
         use grid
 
-        use grid_aliases
-
-        use auxiliaryVariables
-
-        use operators
-
         use icond
-
-        use equilibrium
 
         use constants
 
