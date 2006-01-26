@@ -44,6 +44,7 @@ c######################################################################
           real(8)      :: mg_line_tol
           real(8)      :: mg_line_omega
           logical      :: vertex_based_relax
+          logical      :: galerkin
 
           type(grid_def)  :: mg_grid_def
 
@@ -120,6 +121,10 @@ c       Initializes solver options
           solverOptions%mg_line_z      = .true.    !Whether to do lines in z-direction
 
           solverOptions%vertex_based_relax=.false. !Whether to do vertex-based relax.
+
+          solverOptions%galerkin    =.false.       !Whether to do Galerkin coarsening (true)
+                                                   !  or rediscretization (false)
+
           solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
 
           !Krylov methods options
