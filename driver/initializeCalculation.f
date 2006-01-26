@@ -287,7 +287,7 @@ c Perturb equilibrium
 
         do ieq = 1,neqd
           call perturbEquilibrium(varrayn%array_var(ieq)%array
-     .                           ,abs(varrayn%array_var(ieq)%bconds)
+     .                           ,varrayn%array_var(ieq)%bconds
      .                           ,pert(ieq))
         enddo
 
