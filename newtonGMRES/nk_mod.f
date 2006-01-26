@@ -330,9 +330,7 @@ c     Check Newton convergence/failure
 
         if (fkp <= flimit .or.dxnorm <= stol) then
           convergence = .true.
-        elseif (    check > check_lim
-cc     .         .or. damp  < 1d-7
-     .         .or. jit   == ntit_max_rej ) then
+        elseif (check > check_lim .or. jit == ntit_max_rej) then
           failure = .true.
         endif
 
@@ -1247,13 +1245,69 @@ c     Add pseudo-transient term
       if (pseudo_dt) then
         invpdt = 1d0/pdt
         if (abs(invpdt) < 1d-5) invpdt = 0d0
-        f = (x - xk)*invpdt + f
+        f = (x - xk)*invpdt + f  !This doesn't really work for vol-weighed residuals!!!
 cc        f = (x-xx0)*invpdt + f
+        write (*,*) 'WARNING: psedo-transient term only works for'
+        write (*,*) 'non-vol-weighed residuals'
       endif
 
 c     End program
 
       end subroutine evaluateNewtonResidual
+
+ccc     volumeWeighVec
+ccc     ###############################################################
+cc      subroutine volumeWeighVec(ntot,x)
+cc
+ccc     ---------------------------------------------------------------
+ccc     Calculates nonlinear residuals. 
+ccc     ---------------------------------------------------------------
+cc
+cc      implicit none
+cc
+ccc     Call variables
+cc
+cc      integer  :: ntot
+cc      real(8)  :: x(ntot)
+cc
+ccc     Local variables
+cc
+ccc     Begin program
+cc
+cc      do k = 1,nzd
+cc        do j = 1,nyd
+cc          do i = 1,nxd
+cc
+cc            call getMGmap(i,j,k,1,1,1,ig,jg,kg)
+cc
+cc            ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
+cc
+cc            do ieq=1,neqd
+cc              f(ii+ieq) = (varray%array_var(ieq)%array(i,j,k)
+cc     .                    -   u_n%array_var(ieq)%array(i,j,k))
+cc     .                    *one_over_dt(ieq)
+cc     .                    + (1d0-cnf(ieq))*f   (ii+ieq)
+cc     .                    +      cnf(ieq) *fold(ii+ieq)
+cc     .                    -                fsrc(ii+ieq)
+cc            enddo
+cc
+cc            !Do not include Jacobian here to allow for moving grid cases
+cccc            dvol = grid_params%dxh(ig)
+cccc     .            *grid_params%dyh(jg)
+cccc     .            *grid_params%dzh(kg)
+cccc            f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*dvol
+cc
+cc            if (vol_wgt) 
+cc     .        f(ii+1:ii+neqd) = f(ii+1:ii+neqd)
+cc     .                         *gmetric%grid(1)%dvol(i,j,k)
+cc
+cc          enddo
+cc        enddo
+cc      enddo
+cc
+ccc     End program
+cc
+cc      end subroutine volumeWeighVec
 
 c     fmedval
 c     ###############################################################
