@@ -41,18 +41,27 @@ c Check for autoinitializing parameters
       if (maxitnwt.eq.0) 
      .      maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
 
-      alpha = 1. - cnfactor
+cc      alpha = 1. - cnfactor
 
       dtbase = dt   
 
-      sm_flag= 0
-      if (cnfactor.lt.0d0) then
-        sm_flag= 1
-      else
+      !Time smoothing
+      if (sm_flag == 0) then
         sm_pass= 0
+        if (cnfactor > 1d0 .or. cnfactor < 0d0) then
+          call pstop('initializeCalculation'
+     .              ,'cnfactor out of range')
+        endif
       endif
 
-      cnf_d = 1d0
+cc      sm_flag= 0
+cc      if (cnfactor.lt.0d0) then
+cc        sm_flag= 1
+cc      else
+cc        sm_pass= 0
+cc      endif
+
+cc      cnf_d = 1d0
 
 c Initialize vector dimensions
 
@@ -153,9 +162,17 @@ c Begin program
       call allocateStructures
 
       allocate(fold(ntotd),fsrc(ntotd))
-      allocate(cnf(neqd),one_over_dt(neqd))
+
+      allocate(cnf(neqd),one_over_dt(neqd)
+     .        ,bdfp(neqd),bdfn(neqd),bdfnm(neqd))
 
 cc      allocate(old_f(ntotd,2))
+
+c Initialization
+
+      bdfp  =  1d0
+      bdfn  = -1d0
+      bdfnm =  0d0
 
 c End programs
 
