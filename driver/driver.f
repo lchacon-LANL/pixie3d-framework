@@ -65,7 +65,8 @@ c     Find new time step
 
 c     Assign old time solution
 
-        u_n = u_np       !Overloaded assignment
+        u_nm = u_n   !Overloaded assignment
+        u_n  = u_np  !Overloaded assignment
 
 c     Time update
 
