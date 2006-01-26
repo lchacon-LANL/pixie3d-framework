@@ -59,10 +59,10 @@ c ######################################################################
 
         use generalPurposeFunctions
 
-        integer(4) :: numtime,ndstep,nrstep,sm_pass,sm_flag,inewtime
+        integer(4) :: numtime,ndstep,nrstep,sm_pass,sm_flag=0,inewtime
 
-        real(8)    :: dt,dtbase,cnfactor,cnf_d,alpha,gammat
-        real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0
+        real(8)    :: dt,dtbase,cnfactor,alpha,gammat
+        real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0,dtold
 
         real(8),allocatable,dimension(:)   :: fold,fsrc
         real(8),allocatable,dimension(:,:) :: old_f
@@ -72,13 +72,14 @@ c ######################################################################
         logical    :: timecorr=.false.,restart=.false.,source=.true.
      .               ,predictor=.false.
 
-        real(8)    :: tmrst
+        real(8)    :: tmrst,cnp,cn,cnm
 
         integer(4) :: itime,nrst
 
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
+     .                                     ,bdfp,bdfn,bdfnm
 
-        logical    :: vol_wgt=.true.
+        logical    :: vol_wgt=.true.,bdf2=.false.
 
 #if !defined(petsc)
         type(var_array) :: dn,dnm,dnp
@@ -195,13 +196,43 @@ c     Local variables
 
 c     Begin program
 
+      dtold = dt
+
       call calculate_gammat
 
       call calculate_dt
 
-      if (sm_flag.eq.1) call calculate_cnfactor
+      cnp = 1d0
+      cn  =-1d0
+      cnm = 0d0
+
+      if (sm_flag == 1) then
+
+        call calculate_cnfactor
+
+      elseif (sm_flag == 2) then
+        if (itm == 1 ) then
+
+          cnfactor = 0.5
+
+          bdf2 = .false.
+
+        else
+          cnfactor = 0d0
+
+          bdf2 = .true.
+
+          !All these are affected by factor 1/dt (done in evaluateNLF)
+          cnp = (2*dt+dtold)/(dt+dtold)
+          cn  = -(dt+dtold)/dtold
+          cnm = dt**2/(dtold*(dt+dtold))
+
+        endif
+      endif
 
       alpha = 1. - cnfactor
+
+cc      write (*,*) 'timeStep',cnp,cn,cnm
 
 c     End program
 

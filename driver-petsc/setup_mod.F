@@ -885,7 +885,7 @@ c #####################################################################
 
         use variable_setup
 
-        type (var_array),target :: u_np,u_n,u_graph,u_ic
+        type (var_array),target :: u_np,u_n,u_nm,u_graph,u_ic
 
       contains
 
