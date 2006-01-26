@@ -4854,11 +4854,14 @@ c     Local variables
 
         integer(4) :: n1,n2
         real(8)    :: dh,length,lstart,lend,xp,xi,xil,xir
-        logical    :: pack_l,pack_r
+        logical    :: pack_l,pack_r,fv_l,fv_r
 
 c     Begin program
 
         length = lmax-lmin
+
+        fv_l = .not.(abs(bcs1) == SYM)  !FV discr. at opposite boundary except for SYM BC
+        fv_r = .not.(abs(bcs2) == SYM)  !FV discr. at opposite boundary except for SYM BC
 
         if (dpack%pack) then
 
@@ -4881,13 +4884,13 @@ c     Begin program
 
 cc            call packGrid(ig,n1,lstart,xp,-dxl,xg(1:n1),alpha1,xi)
             call packGrid(ig,n1,lstart,xp-dxl/2,-dxl,xg(1:n1),alpha1
-     .                   ,xil)
+     .                   ,xil,fv_l)
 
             dxr = alpha2*dxr  !Modify initial interval for coarser grids
 
 cc            call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
             call packGrid(ig,n2,xp+dxr/2,lend,dxr,xg(n1+1:ng),alpha2
-     .                   ,xir)
+     .                   ,xir,fv_r)
 
           else
 
@@ -4895,10 +4898,12 @@ cc            call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
 
             if (xp <= lstart) then  !Pack to the left
               pack_l = .true.
-              call packGrid(ig,ng,lstart,lend, dx0,xg(1:ng),alpha1,xi)
+              call packGrid(ig,ng,lstart,lend, dx0,xg(1:ng),alpha1,xi
+     .                     ,fv_r)
             else                    !Pack to the right
               pack_r = .true.
-              call packGrid(ig,ng,lstart,lend,-dx0,xg(1:ng),alpha1,xi)
+              call packGrid(ig,ng,lstart,lend,-dx0,xg(1:ng),alpha1,xi
+     .                     ,fv_l)
             endif
 
             xil = xi
@@ -4976,11 +4981,13 @@ c     End program
 
 c     packGrid
 c     #################################################################
-      subroutine packGrid(ig,nn,lmin,lmax,dx0,xx,alpha,xi)
+      subroutine packGrid(ig,nn,lmin,lmax,dx0,xx,alpha,xi,fv)
 
 c     -----------------------------------------------------------------
 c     Finds packed grid, packing to the right if dx0<0 and to the 
-c     left if dx0>0.
+c     left if dx0>0. If fv=.true., we pack so that the grid in the
+c     unpacked boundary meets the boundary at a face. Otherwise, we
+c     pack so that a grid point meets that boundary.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -4989,6 +4996,7 @@ c     Call variables
 
         integer(4) :: nn,ig
         real(8)    :: lmin,lmax,dx0,xx(nn),alpha,xi
+        logical    :: fv
 
 c     Local variables
 
@@ -4999,7 +5007,7 @@ c     Begin program
 
         rhs = (lmax-lmin)/abs(dx0)
 
-        call find_xi(nn-1,rhs,xi)
+        call find_xi(nn-1,rhs,xi,fv)
 
         if (dx0 > 0d0) then !Pack to the left
 
@@ -5008,7 +5016,7 @@ c     Begin program
             xx(i) = xx(i-1) + dx0*xi**(i-2)
           enddo
             
-        else              !Pack to the right
+        else                !Pack to the right
 
           xx(nn) = lmax
           do i = nn,2,-1
@@ -5029,7 +5037,7 @@ c     End program
 
 c     find_xi
 c     #################################################################
-      subroutine find_xi(nn,rhs,xi)
+      subroutine find_xi(nn,rhs,xi,fv)
 
 c     -----------------------------------------------------------------
 c     Finds geometric factor xi using Newton's method according to the
@@ -5049,6 +5057,7 @@ c     Call variables
 
         integer(4) :: nn
         real(8)    :: rhs,xi
+        logical    :: fv
 
 c     Local variables
 
@@ -5066,8 +5075,13 @@ c     Initial guess
 c     Newton iteration
 
         do i=1,nit
-          res(i) = rhs-0.5*(xi**nn+xi**(nn+1)-2)/(xi-1)
-          ijac = 2*(xi-1)**2/(nn*(xi**(nn+1)-xi**(nn-1))-2*xi**nn+2)
+          if (fv) then  !Do packing in FV fashion at unpacked boundary
+            res(i) = rhs-0.5*(xi**nn+xi**(nn+1)-2)/(xi-1)
+            ijac = 2*(xi-1)**2/(nn*(xi**(nn+1)-xi**(nn-1))-2*xi**nn+2)
+          else          !Position both grid points at both boundaries
+            res(i) = rhs-(xi**nn-1)/(xi-1)
+            ijac = (xi-1)**2/((nn-1)*xi**nn-nn*xi**(nn-1)+1)
+          endif
 
           dxi(i) = res(i)*ijac
           xi = xi + dxi(i)
