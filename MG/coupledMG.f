@@ -565,12 +565,6 @@ c     Begin program
      .                ,iflag+ieq-1,nunit)
         enddo
 
-cc        if (igr == igmax) then
-cc          write (*,*) debug(nx/2,1:ny,1,1)
-cc          write (*,*) debug(nx/2,1:ny,1,2)
-cc          write (*,*) debug(nx/2,1:ny,1,3)
-cc        endif
-
 c     End program
 
         deallocate(debug)
@@ -3548,8 +3542,6 @@ c Read solver configuration
 
       iter   = options%iter
       omega0 = options%omega
-c$$$      omega10= options%omega10
-c$$$      omega01= options%omega01
       tol    = options%tol
       fdiag  = options%fdiag
       vbr    = options%vertex_based_relax
@@ -3826,7 +3818,7 @@ c Local variables
       real(8)    :: omega0,tol
       logical    :: fdiag,fpointers,vbr
 
-      integer(4) :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf,nxl,nyl,nzl
+      integer(4) :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf
       integer(4) :: ii,iii,iib,iiib,iiv,ivg,iblock,jblock,kblock,nblk
       real(8)    :: mag0,mag1,mag,yy(ntot)
 
@@ -3857,8 +3849,8 @@ c Read solver configuration
       omega0 = options%omega
       tol    = options%tol
       fdiag  = options%fdiag
-      ncolors= options%ncolors
       vbr    = options%vertex_based_relax
+      ncolors= options%ncolors
 
 c Initialize auxiliary variables
 
@@ -3866,11 +3858,6 @@ c Initialize auxiliary variables
       nxf = nxv(igrid)
       nyf = nyv(igrid)
       nzf = nzv(igrid)
-
-      !Local grid size (different from global in line smoothing)
-      nxl = MGgrid%nxv(igrid)
-      nyl = MGgrid%nyv(igrid)
-      nzl = MGgrid%nzv(igrid)
 
       if (vbr.or.vbr_mg) then
         nblk = nblock(igrid)
@@ -4212,7 +4199,6 @@ cccRAP        call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
 cc        call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
 cc        call vecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
 cc        mag = sqrt(dot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
-
         mag = sqrt(mag)
 
         if (itr.eq.1) then
