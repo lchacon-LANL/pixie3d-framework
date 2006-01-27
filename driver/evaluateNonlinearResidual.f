@@ -94,7 +94,7 @@ c Deallocate structure
 
 c End program
 
-      end subroutine
+      end subroutine evaluateNonlinearResidual
 
 c evaluateNonlinearFunction
 c####################################################################
