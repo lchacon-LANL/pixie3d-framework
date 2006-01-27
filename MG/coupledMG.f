@@ -456,7 +456,7 @@ c     Call variables
 
         integer(4) :: size
 
-        real(8)    :: mat(size,size),matinv(size,size)
+        real(8)    :: mat(size,size)
 
 c     Local variables
 
@@ -3690,6 +3690,7 @@ c       STANDARD RELAXATION
                 !Multiply by D^-1 (stored in diag)
                 iig = iii + isig - 1
                 dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
+cc                dummy = matmul(diag(:,iig+1:iig+neq),rhs)
 
                 !Update zz
                 do ieq=1,neq
@@ -4577,19 +4578,19 @@ c     Invert diagonal and store in diag1
             diag1(neq,ig) = 1d0/diag1(neq,ig)
           enddo
 
-        case (2)
-
-          do ii = 1,ntotvp(igr)
-            iig = neq*(ii - 1) + isig - 1
-            idet = 1d0/(diag1(1,iig+1)*diag1(2,iig+2)
-     .                 -diag1(2,iig+1)*diag1(1,iig+2))
-            mat(1,1) = diag1(2,iig+2)*idet
-            mat(1,2) =-diag1(2,iig+1)*idet
-            mat(2,1) =-diag1(1,iig+2)*idet
-            mat(2,2) = diag1(1,iig+1)*idet
-
-            diag1(:,iig+1:iig+neq) = mat
-          enddo
+cc        case (2)
+cc
+cc          do ii = 1,ntotvp(igr)
+cc            iig = neq*(ii - 1) + isig - 1
+cc            idet = 1d0/(diag1(1,iig+1)*diag1(2,iig+2)
+cc     .                 -diag1(2,iig+1)*diag1(1,iig+2))
+cc            mat(1,1) = diag1(2,iig+2)*idet
+cc            mat(1,2) =-diag1(2,iig+1)*idet
+cc            mat(2,1) =-diag1(1,iig+2)*idet
+cc            mat(2,2) = diag1(1,iig+1)*idet
+cc
+cc            diag1(:,iig+1:iig+neq) = mat
+cc          enddo
 
         case default
 
@@ -4747,19 +4748,19 @@ c       Invert diagonal and store in diag1
               diag1(neq,ig) = 1d0/diag1(neq,ig)
             enddo
 
-          case (2)
-
-            do ii = 1,ntotvp(igr)
-              iig = neq*(ii - 1) + isig - 1
-              idet = 1d0/(diag1(1,iig+1)*diag1(2,iig+2)
-     .                   -diag1(2,iig+1)*diag1(1,iig+2))
-              mat(1,1) = diag1(2,iig+2)*idet
-              mat(1,2) =-diag1(2,iig+1)*idet
-              mat(2,1) =-diag1(1,iig+2)*idet
-              mat(2,2) = diag1(1,iig+1)*idet
-
-              diag1(:,iig+1:iig+neq) = mat
-            enddo
+cc        case (2)
+cc
+cc          do ii = 1,ntotvp(igr)
+cc            iig = neq*(ii - 1) + isig - 1
+cc            idet = 1d0/(diag1(1,iig+1)*diag1(2,iig+2)
+cc     .                 -diag1(2,iig+1)*diag1(1,iig+2))
+cc            mat(1,1) = diag1(2,iig+2)*idet
+cc            mat(1,2) =-diag1(2,iig+1)*idet
+cc            mat(2,1) =-diag1(1,iig+2)*idet
+cc            mat(2,2) = diag1(1,iig+1)*idet
+cc
+cc            diag1(:,iig+1:iig+neq) = mat
+cc          enddo
 
           case default
 
