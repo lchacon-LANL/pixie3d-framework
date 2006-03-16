@@ -287,6 +287,7 @@ c Initialize graphics
 
       !Store initial condition w/ BCs and initialize postprocessing quantities
       u_ic = u_0
+      u_n  = u_0
 
       call postProcessSolution(u_ic,igx,igy,igz)
 
