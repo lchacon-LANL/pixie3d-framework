@@ -50,6 +50,7 @@ typedef struct {
   int       global;
   int       iguess;
   int       precpass;
+  int       sm_flag;
   int       bcs[6];
 } input_CTX;
 
@@ -82,7 +83,7 @@ extern void FORTRAN_NAME(EVALUATENONLINEARRESIDUAL)
 extern void FORTRAN_NAME(FORMEQUILIBRIUM) (Field*, int*, int*, int*, int*, int*, int*);
 extern void FORTRAN_NAME(FORMINITIALCONDITION) (Field*,int*,int*,int*,int*,int*,int*,PetscScalar*);
 extern void FORTRAN_NAME(PROCESSOLDSOLUTION) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
-extern void FORTRAN_NAME(CORRECTTIMESTEP) (PetscScalar*,PetscScalar*,PetscScalar*,int*,PetscScalar*);
+extern void FORTRAN_NAME(PETSCCORRECTTIMESTEP) (PetscScalar*,PetscScalar*,PetscScalar*,int*,PetscScalar*);
 extern void FORTRAN_NAME(FORTRANDESTROY) ();
 extern void FORTRAN_NAME(READINPUTFILE) (input_CTX*);
 extern void FORTRAN_NAME(SETUPSHELLPC) (Field*, int*, int*, int*, int*, int*, int*);
@@ -94,7 +95,7 @@ extern void FORTRAN_NAME(evaluatenonlinearresidual)
 extern void FORTRAN_NAME(formequilibrium) (Field*, int*, int*, int*, int*, int*, int*);
 extern void FORTRAN_NAME(forminitialcondition) (Field*,int*,int*,int*,int*,int*,int*,PetscScalar*);
 extern void FORTRAN_NAME(processoldsolution) (Field*,int*,int*,int*,int*,int*,int*,int*,int*);
-extern void FORTRAN_NAME(correcttimestep) (PetscScalar*,PetscScalar*,PetscScalar*,int*,PetscScalar*);
+extern void FORTRAN_NAME(petsccorrecttimestep) (PetscScalar*,PetscScalar*,PetscScalar*,int*,PetscScalar*);
 extern void FORTRAN_NAME(fortrandestroy) ();
 extern void FORTRAN_NAME(readinputfile) (input_CTX*);
 extern void FORTRAN_NAME(setupshellpc) (Field*, int*, int*, int*, int*, int*, int*);
@@ -106,6 +107,7 @@ extern void FORTRAN_NAME(applyshellpc) (Field*, Field*, int*, int*, int*, int*, 
 extern int ReadInputNInitialize(input_CTX*, DAPeriodicType*);
 extern int FormFunction        (SNES, Vec, Vec, void*);
 extern int EvaluateFunction    (SNES, Vec, Vec, void*);
+extern int ProcessOldSolution  (SNES, Vec, void*);
 extern int FormEquilibrium     (SNES, Vec, void*);
 extern int FormInitialCondition(SNES, Vec, void*);
 extern int correctTimeStep     (SNES, Vec, void*);
@@ -139,10 +141,12 @@ int MAIN__(int argc, char **argv)
   PetscReal rtol;
   PetscReal tolgm;
   PetscReal time,tmax;
+  PetscLogDouble time1,time2,time3,time4;
   int       maxitnwt;
   int       maxitgm;
   int       method;
- 
+  int       stages[3];
+
   PetscScalar   zero=0.0;
 
   DAPeriodicType     BC=DA_NONPERIODIC;
@@ -152,8 +156,8 @@ int MAIN__(int argc, char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Begin program
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */	
-  ierr = PetscInitialize(&argc, &argv, (char *)0, help);CHKERRQ(ierr);
-  ierr = PetscInitializeFortran();CHKERRQ(ierr);
+  ierr = PetscInitialize(&argc, &argv, (char *)0, help)                         ;CHKERRQ(ierr);
+  ierr = PetscInitializeFortran()                                               ;CHKERRQ(ierr);
 
   MPI_Comm_rank(PETSC_COMM_WORLD, &my_rank);
   MPI_Comm_size(PETSC_COMM_WORLD, &np);
@@ -214,9 +218,19 @@ int MAIN__(int argc, char **argv)
 
   ierr = PetscOptionsGetLogical(PETSC_NULL,"-petsc_PC",&user.petsc_PC,PETSC_NULL);CHKERRQ(ierr);
 
+  /* Set profiling stages */
+
+  ierr = PetscLogStageRegister(&stages[0],"General setup")	                ;CHKERRQ(ierr);
+  ierr = PetscLogStageRegister(&stages[1],"Sol. processing")  ;CHKERRQ(ierr);
+  ierr = PetscLogStageRegister(&stages[2],"SNES solve")                         ;CHKERRQ(ierr);
+
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create DA context 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
+
+  /* Profiling stage 0 */
+
+  ierr = PetscLogStagePush(stages[0])                                           ;CHKERRQ(ierr);
 
   ierr = SNESCreate(PETSC_COMM_WORLD, &snes)                                    ;CHKERRQ(ierr);
 
@@ -265,7 +279,8 @@ int MAIN__(int argc, char **argv)
     ierr = KSPSetTolerances(ksp,tolgm,PETSC_DEFAULT,PETSC_DEFAULT,maxitgm)      ;CHKERRQ(ierr);
     ierr = KSPSetPreconditionerSide(ksp,PC_RIGHT);                             	;CHKERRQ(ierr);
     ierr = KSPSetMonitor(ksp,MyKSPMonitor,(void*)&user,PETSC_NULL)             	;CHKERRQ(ierr);
-    if (user.indata.iguess == 1) ierr = KSPSetInitialGuessKnoll(ksp,PETSC_TRUE)	;CHKERRQ(ierr);
+    /*This does NOT work right!!!*/
+    /*if (user.indata.iguess == 1) ierr = KSPSetInitialGuessKnoll(ksp,PETSC_TRUE)	;CHKERRQ(ierr);*/
 
     if (method == 1) {
       ierr = SNES_KSP_SetConvergenceTestEW(snes)  	                        ;CHKERRQ(ierr);
@@ -315,8 +330,14 @@ int MAIN__(int argc, char **argv)
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Time stepping  
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  
+  ierr = PetscGetTime(&time1)				                 	;CHKERRQ(ierr);
+  ierr = PetscGetCPUTime(&time2)			                 	;CHKERRQ(ierr);
+
   for (steps=1; (steps<=numtime)&&(time<1.00001*tmax); steps++,time+=user.indata.dt) {
+
+    /* Begin profiling second stage */
+    ierr = PetscLogStagePop()                                                   ;CHKERRQ(ierr);
+    ierr = PetscLogStagePush(stages[1])                                         ;CHKERRQ(ierr);
 
     /* Process nonlinear solution */
     ierr = ProcessOldSolution(snes,x,&user)           	    			;CHKERRQ(ierr);
@@ -327,6 +348,10 @@ int MAIN__(int argc, char **argv)
     /* Get initial Newton state info for PC */
     ierr = SNESGetSolution(snes,&user.xk)                                       ;CHKERRQ(ierr);
     ierr = SNESGetJacobian(snes,&user.J,PETSC_NULL,PETSC_NULL,PETSC_NULL)       ;CHKERRQ(ierr);
+
+    /* Begin profiling third stage */
+    ierr = PetscLogStagePop()                                                   ;CHKERRQ(ierr);
+    ierr = PetscLogStagePush(stages[2])                                         ;CHKERRQ(ierr);
     
     /* Solve nonlinear problem */
     ierr = SNESSolve(snes, x)                         	    			;CHKERRQ(ierr);
@@ -335,18 +360,32 @@ int MAIN__(int argc, char **argv)
 
   }
   
+  /* Begin profiling second stage */
+  ierr = PetscLogStagePop()                                                     ;CHKERRQ(ierr);
+  ierr = PetscLogStagePush(stages[1])                                           ;CHKERRQ(ierr);
+
   ierr = ProcessOldSolution(snes,x,&user)                                       ;CHKERRQ(ierr);
+
+  /* CPU time computation */
+
+  ierr = PetscGetTime(&time3)				                 	;CHKERRQ(ierr);
+  ierr = PetscGetCPUTime(&time4)			                 	;CHKERRQ(ierr);
+
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"Elapsed time = %f \n",time3-time1)       ;CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"CPU time     = %f \n",time4-time2)       ;CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Deallocate memory and finish
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-  
+  /* Destroy fortran arrays */
+
 #ifdef absoft
   FORTRAN_NAME(FORTRANDESTROY) ();
 #else
   FORTRAN_NAME(fortrandestroy) ();
 #endif
 
+  /* Destroy PETSc arrays */
   ierr = VecDestroy(x)	      						       	;CHKERRQ(ierr);
   ierr = VecDestroy(r)	      						       	;CHKERRQ(ierr);
   ierr = VecDestroy(user.x0  )						       	;CHKERRQ(ierr);
@@ -356,6 +395,11 @@ int MAIN__(int argc, char **argv)
   ierr = SNESDestroy(snes)    						       	;CHKERRQ(ierr);
   ierr = DADestroy(user.da)   						       	;CHKERRQ(ierr);
 
+  /* Finalize profiling */
+
+  ierr = PetscLogStagePop()                                                     ;CHKERRQ(ierr);
+
+  /* Finalize PETSc */
   PetscFinalize();
   
   PetscFunctionReturn(0);
@@ -751,9 +795,9 @@ int correctTimeStep(SNES snes,Vec X,void *ptr)
    */
 
 #ifdef absoft
-  FORTRAN_NAME(CORRECTTIMESTEP)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr,&user->indata.dt);
+  FORTRAN_NAME(PETSCCORRECTTIMESTEP)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr,&user->indata.dt);
 #else
-  FORTRAN_NAME(correcttimestep)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr,&user->indata.dt);
+  FORTRAN_NAME(petsccorrecttimestep)(&(dn[0]),&(dnh[0]),&(dnp[0]),&user->ierr,&user->indata.dt);
 #endif
 
   /*
