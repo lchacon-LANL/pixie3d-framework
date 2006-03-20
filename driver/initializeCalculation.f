@@ -43,7 +43,7 @@ c Check for autoinitializing parameters
 
 cc      alpha = 1. - cnfactor
 
-      dtbase = dt   
+      dtbase = dt
 
       !Time smoothing
       if (sm_flag == 0) then
@@ -60,8 +60,6 @@ cc        sm_flag= 1
 cc      else
 cc        sm_pass= 0
 cc      endif
-
-cc      cnf_d = 1d0
 
 c Initialize vector dimensions
 
@@ -306,6 +304,11 @@ c Perturb equilibrium
           call perturbEquilibrium(varrayn%array_var(ieq)%array
      .                           ,varrayn%array_var(ieq)%bconds
      .                           ,pert(ieq))
+c diag KAI TM
+cc          call perturbEquilibrium_kaitm(varrayn%array_var(ieq)%array
+cc     .                           ,abs(varrayn%array_var(ieq)%bconds)
+cc     .                           ,pert(ieq),ieq)
+c diag KAI TM
         enddo
 
         time     = 0d0
@@ -460,6 +463,74 @@ c     End program
 
       end subroutine perturbEquilibrium
 
+c     perturbEquilibrium_kaitm
+c     #################################################################
+      subroutine perturbEquilibrium_kaitm(array,bcs,perturb,ieq)
+
+c     -----------------------------------------------------------------
+c     Perturbs equilibrium quantity in array0 with a sinusoidal
+c     perturbation of magnitude perturb, and introduces it in array.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer(4) :: bcs(6),ieq
+      real(8)    :: perturb
+      real(8)    :: array (0:nxdp,0:nydp,0:nzdp)
+
+c     Local variables
+
+      integer(4) :: i,j,k,ig,jg,kg,igx,igy,igz
+      real(8)    :: x1,y1,z1,kk,mm
+      real(8)    :: fx(0:nxdp),fy(0:nydp),fz(0:nzdp) 
+
+      real(8) :: dum,rr(neqd),ii(neqd),pert(neqd)
+
+c     Begin program
+
+      igx = 1
+      igy = 1
+      igz = 1
+
+      mm = grid_params%params(1)
+      kk = grid_params%params(2)
+
+      write (*,*) 'Reading KAI TM perturbations'
+
+      open(unit=111,file='M64_000020.asc',status='old')
+
+      k = 1
+      do i=1,nxd
+        read(111,*) dum,rr(1),rr(8),rr(2:7),ii(1),ii(8),ii(2:7)
+cc        write(*,*) dum,rr(1),rr(8),rr(2:7),ii(1),ii(8),ii(2:7)
+        do j=1,nyd
+          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,y1,z1)
+
+          pert = rr*cos(y1)+ii*sin(y1)
+
+          pert(2) = x1*pert(2)
+          pert(3) = pert(3)+kk*x1/mm*pert(4)
+          pert(4) = x1*pert(4)
+
+          pert(5) = x1*pert(5)
+          pert(6) = pert(6)+kk*x1/mm*pert(7)
+          pert(7) = x1*pert(7)
+
+          array(i,j,k) = array(i,j,k) + pert(ieq)
+        enddo
+cc        write (*,*) x1
+      enddo
+
+      close (111)
+cc      stop
+
+c     End program
+
+      end subroutine perturbEquilibrium_kaitm
+
 c     factor
 c     ####################################################################
       function factor(xmin,xmax,x,bcs,nh) result(ff)
@@ -569,6 +640,7 @@ c Open record file
 
         !Initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
 cc        if (debug) then
+cc          write (*,*) 'Dumping graphs for PC testing'
 cc          u_graph = u_n
 cc        else
 cc        !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
