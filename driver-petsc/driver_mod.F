@@ -72,7 +72,7 @@ c ######################################################################
         logical    :: timecorr=.false.,restart=.false.,source=.true.
      .               ,predictor=.false.
 
-        real(8)    :: tmrst,cnp,cn,cnm
+        real(8)    :: tmrst,cnp,cn,cnm,dt_n
 
         integer(4) :: itime,nrst
 
@@ -83,7 +83,7 @@ c ######################################################################
 
 #if !defined(petsc)
         type(var_array) :: dn,dnm,dnp
-        real(8)    :: l_np,l_n,dt_n,et1,et2
+        real(8)    :: l_np,l_n,et1,et2
 
       contains
 
@@ -190,7 +190,7 @@ c     Call variables
 
       type (var_array) :: varray
 
-      external findExplicitDt
+cc      external findExplicitDt
 
 c     Local variables
 
@@ -198,39 +198,45 @@ c     Begin program
 
       dtold = dt
 
+c     Estimate local growth rate
+
       call calculate_gammat
 
-      call calculate_dt
+c     Find new time step
 
-      cnp = 1d0
-      cn  =-1d0
-      cnm = 0d0
+      call findNewTimeStep(itm,ierr)
 
-      if (sm_flag == 1) then
-
-        call calculate_cnfactor
-
-      elseif (sm_flag == 2) then
-        if (itm == 1 ) then
-
-          cnfactor = 0.5
-
-          bdf2 = .false.
-
-        else
-          cnfactor = 0d0
-
-          bdf2 = .true.
-
-          !All these are affected by factor 1/dt (done in evaluateNLF)
-          cnp = (2*dt+dtold)/(dt+dtold)
-          cn  = -(dt+dtold)/dtold
-          cnm = dt**2/(dtold*(dt+dtold))
-
-        endif
-      endif
-
-      alpha = 1. - cnfactor
+cc      call calculate_dt
+cc
+cc      cnp = 1d0
+cc      cn  =-1d0
+cc      cnm = 0d0
+cc
+cc      if (sm_flag == 1) then
+cc
+cc        call calculate_cnfactor
+cc
+cc      elseif (sm_flag == 2) then
+cc        if (itm == 1 ) then
+cc
+cc          cnfactor = 0.5
+cc
+cc          bdf2 = .false.
+cc
+cc        else
+cc          cnfactor = 0d0
+cc
+cc          bdf2 = .true.
+cc
+cc          !All these are affected by factor 1/dt (done in evaluateNLF)
+cc          cnp = (2*dt+dtold)/(dt+dtold)
+cc          cn  = -(dt+dtold)/dtold
+cc          cnm = dt**2/(dtold*(dt+dtold))
+cc
+cc        endif
+cc      endif
+cc
+cc      alpha = 1. - cnfactor
 
 cc      write (*,*) 'timeStep',cnp,cn,cnm
 
@@ -287,6 +293,218 @@ c     Begin program
 
       end subroutine calculate_gammat
 
+ccc     calculate_cnfactor
+ccc     #######################################################################
+cc      subroutine calculate_cnfactor
+cc
+cc        if (itm.eq.1) then
+cc          cnfactor = .5
+cc        elseif (itm.le.sm_pass+1) then
+cc          cnfactor = .3
+cc        else
+cccc          write (*,*) 'gamma ',gammat,'dt ',dt
+cc          cnfactor = max(.5 - gammat/12.*dt,0d0)
+cc        endif
+cc
+cc      end subroutine calculate_cnfactor
+cc
+ccc     calculate_dt
+ccc     #######################################################################
+cc      subroutine calculate_dt
+cc
+cc        dt_n = dt
+cc
+cc        if (timecorr .or. cnfactor == 1d0) then
+cc          if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor == 1d0)) then
+cc            call findExplicitDt
+cc          else
+cc            call adapt_dt(dtbase)
+cc          endif
+cc        else
+cc          dt = dtbase
+cc        endif
+cc
+cc      end subroutine calculate_dt
+cc
+ccc     adapt_dt
+ccc     #######################################################################
+cc      subroutine adapt_dt(dtbase)
+cc
+cc        real(8) ::    dtbase
+cc        real(8) ::    coef1,coef2
+cc
+cc        coef1 = 0.8             !Time subcycling coefficient
+cc        coef2 = 1.05            !Time recovery   coefficient
+cc
+cc        if (ierr.gt.0) then
+cc          dt = dt*coef1
+cc          if (dt < 1d-3*dtbase) then
+cc            write (*,*) 'Time step too small'
+cc            write (*,*) 'Aborting...'
+cc            stop
+cc          endif
+cc          if (ierr.eq.2) write (*,240)
+cc          write (*,400) dt
+cc        else
+cc          if (itm.le.sm_pass+1) then
+cc            dt = dtbase/2.
+cc          elseif (itm.eq.(sm_pass+2)) then
+cc            dt = dtbase
+cc          else
+cc            dt = min(dtbase,dt*coef2)
+cc          endif
+cc        endif
+cc
+cc 240    format ('    Too many Newton iterations')
+cc 400    format ('    Subcycling time step... New time step: ',1p,e10.4)
+cc
+cc      end subroutine adapt_dt
+
+      end subroutine correctTimeStep
+
+#else
+
+      contains
+
+c     correctTimeStep
+c     ######################################################################
+      subroutine correctTimeStep(dn,dnh,dnp,ierr,dt_to_c)
+
+      use counters
+
+      use parameters
+
+      implicit none
+
+c     Call variables
+
+      integer(4)  :: ierr
+      real(8)     :: dn(neqd),dnh(neqd),dnp(neqd),dt_to_c
+
+c     Local variables
+
+c     Begin program
+
+cc      write (*,*) 'ierr',ierr
+
+      dtold = dt
+
+c     Estimate local growth rate
+
+      if (sm_flag == 1) call calculate_gammat
+
+c     Find new time step
+
+      call findNewTimeStep(itime+1,ierr)
+
+c     Update counters (only if timeStep is successful)
+
+      itime  = itime + 1
+
+      time   = time  + dt
+      tmrst  = tmrst + dt
+      nrst   = nrst  + 1
+
+      dt_to_c = dt
+
+c     End program
+
+      contains
+
+c     calculate_gammat
+c     #######################################################################
+      subroutine calculate_gammat
+
+c     -----------------------------------------------------------------------
+c     Calculation of local growth rate for CN
+c    ------------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+c     Local variables
+
+        integer (4) :: ieq
+
+        real(8)     :: mag(neqd)
+
+c     Begin program
+
+        where (dnp /= dn .and. dnh /= 0d0)
+          mag = dt*dnh/(dnp-dn)
+        elsewhere
+          mag = 1e30
+        end where
+
+        gammat = 1./minval(abs(mag))
+
+      end subroutine calculate_gammat
+
+      end subroutine correctTimeStep
+
+#endif
+
+c     findNewTimeStep
+c     ####################################################################
+      subroutine findNewTimeStep(itm,ierr)
+
+c     --------------------------------------------------------------------
+c     Find new time step
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer(4) ::  ierr,itm
+
+c     Local variables
+
+c     Begin program
+
+      call calculate_dt
+
+      cnp = 1d0
+      cn  =-1d0
+      cnm = 0d0
+
+      if (sm_flag == 1) then
+
+        call calculate_cnfactor
+
+      elseif (sm_flag == 2) then
+        if (itm == 1 ) then
+
+          cnfactor = 0.5
+
+          bdf2 = .false.
+
+        else
+          cnfactor = 0d0
+
+          bdf2 = .true.
+
+          !All these are affected by factor 1/dt (done in evaluateNLF)
+          cnp = (2*dt+dtold)/(dt+dtold)
+          cn  = -(dt+dtold)/dtold
+          cnm = dt**2/(dtold*(dt+dtold))
+
+        endif
+      endif
+
+      alpha = 1. - cnfactor
+
+cc      call calculate_dt
+cc
+cc      if (sm_flag.eq.1) call calculate_cnfactor
+cc
+cc      alpha = 1. - cnfactor
+
+c     End program
+
+      contains
+
 c     calculate_cnfactor
 c     #######################################################################
       subroutine calculate_cnfactor
@@ -308,6 +526,7 @@ c     #######################################################################
 
         dt_n = dt
 
+#if !defined(petsc)
         if (timecorr .or. cnfactor == 1d0) then
           if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor == 1d0)) then
             call findExplicitDt
@@ -317,6 +536,13 @@ c     #######################################################################
         else
           dt = dtbase
         endif
+#else
+        if (timecorr) then
+          call adapt_dt(dtbase)
+        else
+          dt = dtbase
+        endif
+#endif
 
       end subroutine calculate_dt
 
@@ -340,9 +566,9 @@ c     #######################################################################
           if (ierr.eq.2) write (*,240)
           write (*,400) dt
         else
-          if (itm.le.sm_pass+1) then
+          if (sm_flag == 1 .and. itm.le.sm_pass+1) then
             dt = dtbase/2.
-          elseif (itm.eq.(sm_pass+2)) then
+          elseif (itm.eq.(sm_pass+2).or. sm_flag /= 1) then
             dt = dtbase
           else
             dt = min(dtbase,dt*coef2)
@@ -354,7 +580,70 @@ c     #######################################################################
 
       end subroutine adapt_dt
 
-      end subroutine correctTimeStep
-#endif
+ccc     calculate_cnfactor
+ccc     #######################################################################
+cc      subroutine calculate_cnfactor
+cc
+cccc        if (itm.eq.1) then
+cccc          cnfactor = .5
+cccc        elseif (itm.le.sm_pass+1) then
+cc        if (itm.le.sm_pass) then
+cc          cnfactor = .3
+cc        else
+cccc          write (*,*) 'gamma ',gammat,'dt ',dt
+cc          cnfactor = max(.5 - gammat/12.*dt,0d0)
+cc        endif
+cc
+cc      end subroutine calculate_cnfactor
+cc
+ccc     calculate_dt
+ccc     #######################################################################
+cc      subroutine calculate_dt
+cc
+cc        if (timecorr) then
+cc          call adapt_dt(dtbase)
+cc        else
+cc          dt = dtbase
+cc        endif
+cc
+cc      end subroutine calculate_dt
+cc
+ccc     adapt_dt
+ccc     #######################################################################
+cc      subroutine adapt_dt(dtbase)
+cc
+cc        real(8) ::    dtbase
+cc        real(8) ::    coef1,coef2
+cc
+cc        coef1 = 0.8             !Time subcycling coefficient
+cc        coef2 = 1.05            !Time recovery   coefficient
+cc
+cc        if (ierr.gt.0) then
+cc          dt = dt*coef1
+cc          if (dt < 1d-3*dtbase) then
+cc            write (*,*) 'Time step too small'
+cc            write (*,*) 'Aborting...'
+cc            stop
+cc          endif
+cc          if (ierr.eq.2) write (*,240)
+cc          write (*,400) dt
+cc        else
+cccc          if (itm.le.sm_pass+1) then
+cc          if (itm.le.sm_pass) then
+cc            dt = dtbase/2.
+cccc          elseif (itm.eq.(sm_pass+2)) then
+cc          elseif (itm.eq.(sm_pass+1)) then
+cc            dt = dtbase
+cc          else
+cc            dt = min(dtbase,dt*coef2)
+cc          endif
+cc        endif
+cc
+cc 240    format ('    Too many Newton iterations')
+cc 400    format ('    Subcycling time step... New time step:',f7.4)
+cc
+cc      end subroutine adapt_dt
+
+      end subroutine findNewTimeStep
 
       end module timeStepping
