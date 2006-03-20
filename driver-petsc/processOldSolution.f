@@ -41,6 +41,8 @@ c Find local limits
 
 c Unpack petsc array
 
+      u_nm = u_n
+
       do ieq=1,neqd
         u_n%array_var(ieq)
      .       %array(imingcl:imaxgcl,jmingcl:jmaxgcl,kmingcl:kmaxgcl)

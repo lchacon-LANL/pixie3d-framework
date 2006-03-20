@@ -47,15 +47,6 @@ c Check for autoinitializing parameters
 
       dtbase = dt   
 
-      sm_flag= 0
-      if (cnfactor.lt.0d0) then
-        sm_flag= 1
-      else
-        sm_pass= 0
-      endif
-
-      cnf_d = 1d0
-
 c Initialize vector dimensions for global and local problems
 
       ihig = imax
@@ -132,7 +123,8 @@ c Local variables
 c Begin program
 
       call allocateStructures
-      allocate(cnf(neqd),one_over_dt(neqd))
+      allocate(cnf(neqd),one_over_dt(neqd)
+     .        ,bdfp(neqd),bdfn(neqd),bdfnm(neqd))
       allocate(fold(ntotd),fsrc(ntotd))
 
 c End programs
