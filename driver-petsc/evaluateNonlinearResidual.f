@@ -26,10 +26,10 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: i,j,k,il,jl,kl,ieq,ii
+      integer(4) :: i,j,k,il,jl,kl,ieq,ii,ig,jg,kg
      .             ,imingcl,imaxgcl,jmingcl,jmaxgcl,kmingcl,kmaxgcl
 
-      real(8)    :: dudt(neqd),ff(ntotd)
+      real(8)    :: dudt(neqd),ff(ntotd),dvol
 
       type(var_array)   :: varray
 
@@ -65,19 +65,36 @@ c Assign ff (vector) to f (PETSc array)
           do i = imin,imax
             call fromGlobalToLocalLimits(i,j,k,il,jl,kl,1,1,1)
             ii = vecPos(neqd,il,jl,kl,1,1,1)
+
             do ieq=1,neqd
-              f(i,j,k)%var(ieq)= (varray%array_var(ieq)%array(il,jl,kl)
-     .                           -   u_n%array_var(ieq)%array(il,jl,kl))
-     .                           *one_over_dt(ieq)
-     .                           + ((1.-cnf(ieq))*ff  (ii+ieq)
-     .                           +      cnf(ieq) *fold(ii+ieq)
-     .                           -                fsrc(ii+ieq))
+              f(i,j,k)%var(ieq)=
+     .             (bdfp (ieq)*varray%array_var(ieq)%array(il,jl,kl)
+     .             +bdfn (ieq)*u_n   %array_var(ieq)%array(il,jl,kl)
+     .             +bdfnm(ieq)*u_nm  %array_var(ieq)%array(il,jl,kl))
+     .             *one_over_dt(ieq)
+     .             + ((1d0-cnf(ieq))*ff  (ii+ieq)
+     .             +       cnf(ieq) *fold(ii+ieq)
+     .             -                 fsrc(ii+ieq))
             enddo
 
-            if (vol_wgt)
-     .          f(i,j,k)%var(:) = f(i,j,k)%var(:)
+            if (vol_wgt) then
+              if (.not.checkGridDatabase()) then
+              !Do not include Jacobian here to allow for moving grid cases
+
+                call getMGmap(il,jl,kl,1,1,1,ig,jg,kg)
+
+                dvol = grid_params%dxh(ig)
+     .                *grid_params%dyh(jg)
+     .                *grid_params%dzh(kg)
+
+                f(i,j,k)%var(:) = f(i,j,k)%var(:)*dvol
+              else
+
+              !Fixed grid case
+                f(i,j,k)%var(:) = f(i,j,k)%var(:)
      .                           *gmetric%grid(1)%dvol(il,jl,kl)
-cc     .          f(i,j,k)%var(:) = f(i,j,k)%var(:)*volume(il,jl,kl,1,1,1)
+              endif
+            endif
 
           enddo
         enddo
