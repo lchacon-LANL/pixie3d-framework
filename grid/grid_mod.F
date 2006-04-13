@@ -88,6 +88,8 @@ c #####################################################################
 
         integer(4) :: nxgl,nygl,nzgl
 
+        integer(4),parameter :: ngparams = 6
+
         type :: grid_def
           integer(4) :: ngrdx                             !# meshes in X
           integer(4) :: ngrdy                             !# meshes in Y
@@ -128,7 +130,7 @@ cc          integer(4),pointer,dimension(:)  :: ntotv       !Total # of grid nod
           integer(4),pointer,dimension(:)  :: mg_ratio_x  !MG coarsening ratio in X
           integer(4),pointer,dimension(:)  :: mg_ratio_y  !MG coarsening ratio in Y
           integer(4),pointer,dimension(:)  :: mg_ratio_z  !MG coarsening ratio in Z
-          real(8)                          :: params(5)   !Grid configuration parameters
+          real(8)                          :: params(ngparams)   !Grid configuration parameters
         end type grid_def
 
         type (grid_def) :: grid_params
@@ -565,15 +567,21 @@ c #####################################################################
 
         use grid_structures
 
+        use math
+
         implicit none
 
-        real(8)         :: gparams(5)
+        real(8)         :: gparams(ngparams)
 
         character*(3)   :: coords
 
         real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D domain dimensions
 
-        real(8),private :: pi,lambda,cc,ypp,eps,mm,kk,aa,phi,major_r
+        real(8),private :: pi,lambda,cc,xpp,ypp,zpp,eps,mm,kk,aa,phi
+     .                    ,major_r,xi0,yi0,zi0,lambdax,lambday,lambdaz
+     .                    ,aax=0d0,bbx=0d0,xx0
+     .                    ,aay=0d0,bby=0d0,yy0
+     .                    ,aaz=0d0,bbz=0d0,zz0
 
         logical         :: numerical_grid,anal_map
 
@@ -674,7 +682,7 @@ c     Input variables
 c     Local variables
 
         integer(4) :: inewt,ic
-        real(8)    :: xx,yy,zz,jac_mat(3,3),rhs(3),dx(3),rr,rr0
+        real(8)    :: xx,yy,zz,jac_mat(3,3),rhs(3),dx(3),rr,rr0,dd
 
 c     Begin program
 
@@ -684,14 +692,67 @@ c     Begin program
           yy = x2
           zz = x3
         case ('scl')
-          lambda = gparams(1)
-          cc = 0.5/lambda
-          cc = 1./tanh(cc)
-          ypp = (2*x2/ymax-1.)
+          lambdax = gparams(1)
+          xx0     = gparams(2)
+          if (lambdax == 0d0) then
+            xx = x1
+          else
+            if (aax == 0d0 .and. bbx == 0d0) then
+              dd = 0.01*(xmax-xmin)
+              aax = find_a(xmin,xmax,xx0,lambdax)
+              bbx = aax/lambdax
+              xi0 = xmax - bbx*tanh((xmax-xx0)/aax)
+            endif
 
-          xx = x1
-          yy = 0.5+lambda*atanh(ypp/cc)
-          zz = x3
+            if (x1 > xmax) then
+              xx = 2*xmax -(xx0 + aax*atanh((2*xmax-x1-xi0)/bbx))
+            elseif (x1 < xmin) then
+              xx = 2*xmin -(xx0 + aax*atanh((2*xmin-x1-xi0)/bbx))
+            else
+              xx = xx0 + aax*atanh((x1-xi0)/bbx)
+            endif
+cc            write (*,*) x1,xx,aax,bbx,(x1-xi0)/bbx
+          endif
+
+          lambday = gparams(3)
+          yy0     = gparams(4)
+          if (lambday == 0d0) then
+            yy = x2
+          else
+            if (aay == 0d0 .and. bby == 0d0) then
+              aay = find_a(ymin,ymax,yy0,lambday)
+              bby = aay/lambday
+              yi0 = ymax - bby*tanh((ymax-yy0)/aay)
+            endif
+
+            if (x2 > ymax) then
+              yy = 2*ymax -(yy0 + aay*atanh((2*ymax-x2-yi0)/bby))
+            elseif (x2 < ymin) then
+              yy = 2*ymin -(yy0 + aay*atanh((2*ymin-x2-yi0)/bby))
+            else
+              yy = yy0 + aay*atanh((x2-yi0)/bby)
+            endif
+          endif
+
+          lambdaz = gparams(5)
+          zz0     = gparams(6)
+          if (lambdaz == 0d0) then
+            zz = x3
+          else
+            if (aaz == 0d0 .and. bbz == 0d0) then
+              aaz = find_a(zmin,zmax,zz0,lambdaz)
+              bbz = aaz/lambdaz
+              zi0 = zmax - bbz*tanh((zmax-zz0)/aaz)
+            endif
+
+            if (x3 > zmax) then
+              zz = 2*zmax -(zz0 + aaz*atanh((2*zmax-x3-zi0)/bbz))
+            elseif (x3 < zmin) then
+              zz = 2*zmin -(zz0 + aaz*atanh((2*zmin-x3-zi0)/bbz))
+            else
+              zz = zz0 + aaz*atanh((x3-zi0)/bbz)
+            endif
+          endif
         case ('cyl')
           xx = x1*cos(x2)
           yy = x1*sin(x2)
@@ -737,15 +798,78 @@ c     Begin program
 
       contains
 
-c     atanh
+c     find_a
 c     #################################################################
-      real(8) function atanh(x)
+      function find_a(xmin,xmax,x0,cc) result(aa)
 
-        real(8) :: x
+c     Global variables
 
-        atanh = 0.5*(log( (1+x)/(1-x) ) )
+        real(8) :: xmin,xmax,x0,cc,aa
 
-      end function atanh
+c     Local variables
+
+        real(8) :: ll,l0m,l0p,dd,ee,ff,bb
+
+        integer(4),parameter :: nit=20
+        integer(4) :: i
+        real(8)    :: ijac,dxi(nit),res(nit)
+
+c     Begin program
+
+        ll  = xmax-xmin
+        l0m = x0  -xmin
+        l0p = xmax - x0
+
+        dd = cc*ll
+
+        if (cc > 1d0) then
+cc          call pstop('find_a in grid_mod.F',
+cc     .               'Slope has to <= 1')
+          write (*,*) 'Slope has to <= 1'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
+c     Initial guess
+
+        aa = 0.5*ll
+
+c     Newton iteration
+
+        do i=1,nit
+          ff = dd/aa
+
+          res(i) = dd - aa*(tanh(l0m/aa) + tanh(l0p/aa))
+          ijac = 1./(-tanh(l0m/aa)-tanh(l0p/aa)
+     .              +l0m/aa/cosh(l0m/aa)**2
+     .              +l0p/aa/cosh(l0p/aa)**2)
+
+          dxi(i) = -res(i)*ijac
+          aa = abs(aa + dxi(i))  !Want to find positive root
+
+cc          write (*,*) abs(res(i)),dxi(i),ijac,aa
+
+          if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
+        enddo
+
+c     Convergence check
+
+        if (i >= nit) then
+          write (*,*)
+          write (*,*) 'Newton it. in grid-packing routine find_xi'
+     .               ,' did not converge'
+          write (*,*)
+          write (*,*) 'Convergence history:'
+          do i=1,nit
+            write (*,*) 'Newton it.',i,' residual',abs(res(i))
+     .                 ,'update',abs(dxi(i))
+          enddo
+          write (*,*)
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
+      end function find_a
 
       end function x_xi
 
@@ -3098,10 +3222,11 @@ c       ANALYTICAL QUANTITIES **********************************
             enddo
           enddo
 
+cc          write (*,*) 'DIAG -- findGridMetrics'
           !Zero force condition on Christoffel symbols (only on finest grid)
-cc          if (igrid == 1) then
-cc            call gammaZeroForce(igx,igy,igz)
-cc          endif
+          if (igrid == 1) then
+            call gammaZeroForce(igx,igy,igz)
+          endif
 
 c       NUMERICAL QUANTITIES ***********************************
 
@@ -5323,7 +5448,9 @@ c     Begin program
         !Consistency
         select case (coords)
         case ('car')
+          numerical_grid = .false.
         case ('scl')
+          numerical_grid = .true.
         case ('cyl','hel','hl2')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
