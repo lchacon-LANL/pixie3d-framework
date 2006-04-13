@@ -891,6 +891,7 @@ c     Fill corners
 
 c     Periodic boundary synchronizing
 
+cc      write (*,*) 'DIAG -- imposeBConVector'
 cc      bctype=PER
 cc      do dim=1,3
 cc        do loc=0,1
@@ -1295,6 +1296,26 @@ c     Begin program
        write (*,*) 'Boundary',ibc,' non existent'
        stop
       end select
+
+cc      write (*,*) 'DIAG -- periodicBC'
+cc
+cc      select case (ibc)
+cc      case (1)                  !x0
+cc       array(0     ,:,:)=array(nxbc,:,:)
+cc      case (2)                  !x1
+cc       array(nxbc+1,:,:)=array(1   ,:,:)
+cc      case (3)                  !y0
+cc       array(:,0     ,:)=array(:,nybc,:)
+cc      case (4)                  !y1
+cc       array(:,nybc+1,:)=array(:,1   ,:)
+cc      case (5)                  !z0
+cc       array(:,:,0     )=array(:,:,nzbc)
+cc      case (6)                  !z1
+cc       array(:,:,nzbc+1)=array(:,:,1   )
+cc      case default
+cc       write (*,*) 'Boundary',ibc,' non existent'
+cc       stop
+cc      end select
 
       endif
 
