@@ -171,7 +171,7 @@ c Perturb equilibrium
         do ieq = 1,neqd
           call perturbEquilibrium(varrayn%array_var(ieq)%array
      .                           ,abs(varrayn%array_var(ieq)%bconds)
-     .                           ,pert(ieq))
+     .                           ,pert(ieq),ieq)
         enddo
 
         time     = 0d0
@@ -260,120 +260,120 @@ c     End
 
       end subroutine readRestartFile
 
-c     perturbEquilibrium
-c     #################################################################
-      subroutine perturbEquilibrium(array,bcs,perturb)
-
-c     -----------------------------------------------------------------
-c     Perturbs equilibrium quantity in array0 with a sinusoidal
-c     perturbation of magnitude perturb, and introduces it in array.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer(4) :: bcs(6)
-      real(8)    :: perturb
-      real(8)    :: array (ilom:ihip,jlom:jhip,klom:khip)
-
-c     Local variables
-
-      integer*4 :: i,j,k,ig,jg,kg,igx,igy,igz
-      real(8)   :: x1,y1,z1,car(3),jac
-      real(8)   :: fx(ilom:ihip),fy(jlom:jhip),fz(klom:khip) 
-
-c     Begin program
-
-      igx = 1
-      igy = 1
-      igz = 1
-
-      do i = ilom,ihip
-        call getCurvilinearCoordinates(i,jlo,klo,igx,igy,igz,ig,jg,kg
-     .                                ,x1,y1,z1)
-        fx(i) = factor(xmin,xmax,x1,bcs(1:2),nh1)
-      enddo
-
-      do j = jlom,jhip
-        call getCurvilinearCoordinates(ilo,j,klo,igx,igy,igz,ig,jg,kg
-     .                                ,x1,y1,z1)
-        fy(j) = factor(ymin,ymax,y1,bcs(3:4),nh2)
-      enddo
-
-      do k = klom,khip
-        call getCurvilinearCoordinates(ilo,jlo,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,y1,z1)
-        fz(k) = factor(zmin,zmax,z1,bcs(5:6),nh3)
-      enddo
-
-      do k = klom,khip
-        do j = jlom,jhip
-          do i = ilom,ihip
-            array(i,j,k) = array(i,j,k) + perturb*fx(i)*fy(j)*fz(k)
-          enddo
-        enddo
-      enddo
-
-c     End program
-
-      end subroutine perturbEquilibrium
-
-c     factor
-c     ####################################################################
-      function factor(xmin,xmax,x,bcs,nh) result(ff)
-
-        implicit none
-
-        real(8)    :: xmin,xmax,x,period,ff
-        integer(4) :: bcs(2),nh
-
-        logical    :: neumann(2),dirichlet(2),spoint(2)
-
-        spoint    = (bcs == SP )
-        neumann   = (bcs == NEU) .or. (bcs == SYM)
-        dirichlet = (bcs == DIR) .or. (bcs ==-SYM) .or. (bcs == EQU)
-
-        period = pi
-        if (odd) period = 2*pi
-
-        if (bcs(1) == PER) then
-          ff = cos(nh*2*pi*(x-xmin)/(xmax-xmin))
-        elseif (random) then
-          call random_number(ff)
-        elseif (neumann(1) .and. neumann(2)) then
-          ff = cos(period*(x-xmin)/(xmax-xmin))
-        elseif (neumann(1) .and. dirichlet(2)) then
-          if (.not.odd) then
-            period = period/2.
-          else
-            period = 3*period/4.
-          endif
-          ff = cos(period*(x-xmin)/(xmax-xmin))
-        elseif (dirichlet(1) .and. neumann(2)) then
-          if (.not.odd) then
-            period = period/2.
-          else
-            period = 3*period/4.
-          endif
-          ff = sin(period*(x-xmin)/(xmax-xmin))
-        elseif (spoint(1) .and. dirichlet(2)) then
-          ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
-     .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))**(nh+1)
-        elseif (spoint(1) .and. neumann(2)) then
-          if (.not.odd) then
-            period = period/2.
-            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
-          else
-            period = 3*period/4.
-            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
-     .        *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
-          endif
-        else
-          ff = sin(period*(x-xmin)/(xmax-xmin))
-        endif
-
-      end function factor
+ccc     perturbEquilibrium
+ccc     #################################################################
+cc      subroutine perturbEquilibrium(array,bcs,perturb,ieq)
+cc
+ccc     -----------------------------------------------------------------
+ccc     Perturbs equilibrium quantity in array0 with a sinusoidal
+ccc     perturbation of magnitude perturb, and introduces it in array.
+ccc     -----------------------------------------------------------------
+cc
+cc      implicit none
+cc
+ccc     Call variables
+cc
+cc      integer(4) :: bcs(6),ieq
+cc      real(8)    :: perturb
+cc      real(8)    :: array (ilom:ihip,jlom:jhip,klom:khip)
+cc
+ccc     Local variables
+cc
+cc      integer(4) :: i,j,k,ig,jg,kg,igx,igy,igz
+cc      real(8)    :: x1,y1,z1,car(3),jac
+cc      real(8)    :: fx(ilom:ihip),fy(jlom:jhip),fz(klom:khip) 
+cc
+ccc     Begin program
+cc
+cc      igx = 1
+cc      igy = 1
+cc      igz = 1
+cc
+cc      do i = ilom,ihip
+cc        call getCurvilinearCoordinates(i,jlo,klo,igx,igy,igz,ig,jg,kg
+cc     .                                ,x1,y1,z1)
+cc        fx(i) = factor(xmin,xmax,x1,bcs(1:2),nh1)
+cc      enddo
+cc
+cc      do j = jlom,jhip
+cc        call getCurvilinearCoordinates(ilo,j,klo,igx,igy,igz,ig,jg,kg
+cc     .                                ,x1,y1,z1)
+cc        fy(j) = factor(ymin,ymax,y1,bcs(3:4),nh2)
+cc      enddo
+cc
+cc      do k = klom,khip
+cc        call getCurvilinearCoordinates(ilo,jlo,k,igx,igy,igz,ig,jg,kg
+cc     .                                ,x1,y1,z1)
+cc        fz(k) = factor(zmin,zmax,z1,bcs(5:6),nh3)
+cc      enddo
+cc
+cc      do k = klom,khip
+cc        do j = jlom,jhip
+cc          do i = ilom,ihip
+cc            array(i,j,k) = array(i,j,k) + perturb*fx(i)*fy(j)*fz(k)
+cc          enddo
+cc        enddo
+cc      enddo
+cc
+ccc     End program
+cc
+cc      end subroutine perturbEquilibrium
+cc
+ccc     factor
+ccc     ####################################################################
+cc      function factor(xmin,xmax,x,bcs,nh) result(ff)
+cc
+cc        implicit none
+cc
+cc        real(8)    :: xmin,xmax,x,period,ff
+cc        integer(4) :: bcs(2),nh
+cc
+cc        logical    :: neumann(2),dirichlet(2),spoint(2)
+cc
+cc        spoint    = (bcs == SP )
+cc        neumann   = (bcs == NEU) .or. (bcs == SYM)
+cc        dirichlet = (bcs == DIR) .or. (bcs ==-SYM) .or. (bcs == EQU)
+cc
+cc        period = pi
+cc        if (odd) period = 2*pi
+cc
+cc        if (bcs(1) == PER) then
+cc          ff = cos(nh*2*pi*(x-xmin)/(xmax-xmin))
+cc        elseif (random) then
+cc          call random_number(ff)
+cc        elseif (neumann(1) .and. neumann(2)) then
+cc          ff = cos(period*(x-xmin)/(xmax-xmin))
+cc        elseif (neumann(1) .and. dirichlet(2)) then
+cc          if (.not.odd) then
+cc            period = period/2.
+cc          else
+cc            period = 3*period/4.
+cc          endif
+cc          ff = cos(period*(x-xmin)/(xmax-xmin))
+cc        elseif (dirichlet(1) .and. neumann(2)) then
+cc          if (.not.odd) then
+cc            period = period/2.
+cc          else
+cc            period = 3*period/4.
+cc          endif
+cc          ff = sin(period*(x-xmin)/(xmax-xmin))
+cc        elseif (spoint(1) .and. dirichlet(2)) then
+cc          ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+cc     .         *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))**(nh+1)
+cc        elseif (spoint(1) .and. neumann(2)) then
+cc          if (.not.odd) then
+cc            period = period/2.
+cc            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+cc          else
+cc            period = 3*period/4.
+cc            ff = (sin(period*(x-xmin)/(xmax-xmin)))**(nh+2) !To satisfy regularity at r=0 (r^m)
+cc     .        *sign(1d0,sin(period*(x-xmin)/(xmax-xmin)))
+cc          endif
+cc        else
+cc          ff = sin(period*(x-xmin)/(xmax-xmin))
+cc        endif
+cc
+cc      end function factor
 
       end subroutine setInitialCondition
 
