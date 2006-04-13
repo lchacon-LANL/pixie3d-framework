@@ -67,7 +67,7 @@ c Output per time step
       itgmres = gmits
       itnewt  = nwits
 
-      if (my_rank == 0) call output
+      call output
 
 c End program
 
