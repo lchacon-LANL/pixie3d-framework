@@ -2,6 +2,26 @@
 
       contains
 
+c     atanh
+c     #################################################################
+      real(8) function atanh(x)
+
+        real(8) :: x
+
+        atanh = 0.5*(log( (1+x)/(1-x) ) )
+
+      end function atanh
+
+c     acosh
+c     #################################################################
+      real(8) function acosh(x)
+
+        real(8) :: x
+
+        acosh = log(x+sqrt(x**2-1))
+
+      end function acosh
+
 c     bessel
 c     ###################################################################
       SUBROUTINE BESSEL (N,X,BJ,BY)
@@ -73,5 +93,92 @@ c     Generating Y_n(x) starts here
       END DO
 
       END SUBROUTINE BESSEL
-      
+
+c     solve_quadratic
+c     ##########################################################
+      function solve_quadratic(a,b,c) result(root)
+
+c     ----------------------------------------------------------
+c     Solves for maximum of roots of cubic polynomial:
+c        a + b x +c x^2 = 0
+c     ----------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8)   :: root(2),a,b,c
+
+c     Local variables
+
+c     Begin program
+
+      root(1) = (-b + sqrt(b**2-4*a*c))/2./a
+
+      root(2) = (-b - sqrt(b**2-4*a*c))/2./a
+
+c     End program
+
+      end function solve_quadratic
+
+c     solve_cubic
+c     ##########################################################
+      function solve_cubic(a,b,c,d) result(root)
+
+c     ----------------------------------------------------------
+c     Solves for maximum of roots of cubic polynomial:
+c        a + b x +c x^2 + d x^3 = 0
+c     ----------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8)   :: root(3),a,b,c,d
+
+c     Local variables
+
+c     Begin program
+
+      root(1) =
+     -     -c/(3.*d) - (2**0.3333333333333333*(-c**2 + 3*b*d))/
+     -   (3.*d*(-2*c**3 + 9*b*c*d - 27*a*d**2 + 
+     -        Sqrt(4*(-c**2 + 3*b*d)**3 + 
+     -          (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
+     -      0.3333333333333333) + 
+     -  (-2*c**3 + 9*b*c*d - 27*a*d**2 + 
+     -      Sqrt(4*(-c**2 + 3*b*d)**3 + 
+     -        (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
+     -    0.3333333333333333/(3.*2**0.3333333333333333*d)
+
+      root(2) =
+     -     -c/(3.*d) + ((1 + (0,1)*Sqrt(3.))*(-c**2 + 3*b*d))/
+     -   (3.*2**0.6666666666666666*d*
+     -     (-2*c**3 + 9*b*c*d - 27*a*d**2 + 
+     -        Sqrt(4*(-c**2 + 3*b*d)**3 + 
+     -          (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
+     -      0.3333333333333333) - 
+     -  ((1 - (0,1)*Sqrt(3.))*
+     -     (-2*c**3 + 9*b*c*d - 27*a*d**2 + 
+     -        Sqrt(4*(-c**2 + 3*b*d)**3 + 
+     -          (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
+     -      0.3333333333333333)/(6.*2**0.3333333333333333*d)
+
+      root(3) =
+     .     -c/(3.*d) + ((1 - (0,1)*Sqrt(3.))*(-c**2 + 3*b*d))/
+     -   (3.*2**0.6666666666666666*d*
+     -     (-2*c**3 + 9*b*c*d - 27*a*d**2 + 
+     -        Sqrt(4*(-c**2 + 3*b*d)**3 + 
+     -          (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
+     -      0.3333333333333333) - 
+     -  ((1 + (0,1)*Sqrt(3.))*
+     -     (-2*c**3 + 9*b*c*d - 27*a*d**2 + 
+     -        Sqrt(4*(-c**2 + 3*b*d)**3 + 
+     -          (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
+     -      0.3333333333333333)/(6.*2**0.3333333333333333*d)
+
+c     End program
+
+      end function solve_cubic
+
       end module math
