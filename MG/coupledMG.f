@@ -51,7 +51,7 @@ c######################################################################
      .                    ,istartb,ntotb,nxv,nyv,nzv,nblock
      .                    ,mg_ratio_x,mg_ratio_y,mg_ratio_z
 
-        logical :: vbr_mg,galerkin=.false.,volf
+        logical :: vbr_mg,galerkin=.false.,volf,prnt=.true.
 
         type (grid_def) :: MGgrid,MGgrid_sv
 
@@ -423,17 +423,7 @@ c     Begin program
 
         call dgesv(size,icol,mat2,size,ipiv,x,size,info) !LAPACK routine
 
-        if (info /= 0) then
-          if (info < 0) then
-            write (*,*) 'Problem in factorization in argument',-info
-            write (*,*) 'Aborting'
-            stop
-          else
-            write (*,*) 'Matrix is singular'
-            write (*,*) 'Aborting'
-            stop
-          endif
-        endif
+        call LAPACK_error(info)
 
       end subroutine blockSolve
 
@@ -472,7 +462,7 @@ c     Find LU decomposition
 
         call dgetrf(size,size,mat,size,ipiv,info) !LAPACK routine
 
-        call error(info)
+        call LAPACK_error(info)
 
 c     Invert matrix
 
@@ -488,29 +478,43 @@ c     Invert matrix
         call dgetri(size,mat,size,ipiv,work,lwork,info) !LAPACK routine
         deallocate(work)
 
-        call error(info)
+        call LAPACK_error(info)
 
-      contains
+      end subroutine blockInv
 
-      subroutine error(info)
+c     LAPACK_error
+c     #################################################################
+      subroutine LAPACK_error(info)
+
+c     -----------------------------------------------------------------
+c     Error routine for LAPACK calls
+c     -----------------------------------------------------------------
+
+        use math
+
+        implicit none
+
+c     Call variables
 
         integer(4) :: info
 
+c     Local variables
+
+c     Begin program
+
         if (info /= 0) then
           if (info < 0) then
-            write (*,*) 'Problem in factorization in argument',-info
-            write (*,*) 'Aborting'
-            stop
+            messg = 'Problem in factorization in argument '
+     .             //int2char(-info)
+            call pstop('blockSolve',messg)
           else
-            write (*,*) 'Matrix is singular'
-            write (*,*) 'Aborting'
-            stop
+            call pstop('blockSolve','Matrix is singular')
           endif
         endif
 
-      end subroutine error
+c     End program
 
-      end subroutine blockInv
+      end subroutine LAPACK_error
 
 c     MGplot
 c     #################################################################
@@ -684,6 +688,7 @@ c     Local variables
 
       integer(4) :: imin,imax,jmin,jmax,kmin,kmax
      .             ,i,j,k,iii,ieq
+      real(8)    :: ldot
 
 c     Begin program
 
@@ -702,6 +707,14 @@ c     Begin program
           enddo
         enddo
       enddo
+
+#if defined(petsc)
+      if (.not.asm) then
+        ldot = dot
+        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+#endif
 
       end function dot
 
@@ -1407,6 +1420,8 @@ c Local variables
 
 c Begin program
 
+      prnt = (my_rank == 0) .or. asm
+
 c Consistency check
 
       call optionsConsistencyCheck
@@ -1442,29 +1457,26 @@ c Assign options
 c Consistency check
 
       if (crsedpth == 0 .and. vbr_mg) then
-        write (*,*) 'Coarsest level solver not defined'
-        write (*,*) 'Cannot do vertex-based relaxation in MG'
-        write (*,*) 'Aborting...'
-        stop
+        if (my_rank==0) write (*,*) 'Coarsest level solver not defined'
+        call pstop('mg','Cannot do vertex-based relaxation in MG')
       endif
 
 c Set pointers and find ngrid
 
       call allocPointers(neq,fpointers)
 
-      if (fpointers.and.out.ge.2) write (*,*) 'Allocating pointers...'
+      if (fpointers.and.out.ge.2.and.my_rank==0)
+     .     write (*,*) 'Allocating pointers...'
 
 c Check limits
 
       igmax = ngrid - igridmin + 2  !Determines minimum resolution
 
       if (igmax.lt.igrid) then
-        write (*,*) ' Grid chosen is below minimum grid resolution'
-        write (*,*) ' Aborting...'
-        stop
+        call pstop('mg',' Grid chosen is below minimum grid resolution')
       endif
 
-      if (out.ge.2.and.igmax.gt.igrid) write (*,5)
+      if (out.ge.2.and.igmax.gt.igrid.and.prnt) write (*,5)
 
       outc = out
       if (igmax.gt.igrid) outc = out - 2
@@ -1480,18 +1492,18 @@ c Find diagonal for smoothers
       if (fdiag) then
 
         if (allocated(diag)) then !Diagonal is known
-          if (out.ge.2) write (*,*) 'Diagonal already allocated'
+          if(out.ge.2.and.prnt) write(*,*)'Diagonal already allocated'
           fdiag = .false.
         elseif (associated(options%diag)) then !Diagonal provided externally
-          if (out.ge.2) write (*,*) 'Diagonal externally provided'
+          if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
           allocate(diag(neq*nblk,2*ntot*nblk))
           diag = options%diag
         else                      !Form diagonal
-          if (out.ge.2) write (*,*) 'Forming diagonal...'
+          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
           allocate(diag(neq*nblk,2*ntot*nblk))
           call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
      .                     ,ncolors,volf,galerkin)
-          if (out.ge.2) write (*,*) 'Finished!'
+          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         endif
 
       endif
@@ -1522,7 +1534,7 @@ cRAP        call matvec(0,neq,ntot,x,rr,igrid,bcnd)
       endif
 
       if (rr0.lt.1d-16*ntot) then
-        if (out.ge.1) then
+        if (out.ge.1.and.prnt) then
           write (*,*) 'Initial solution seems exact in MG'
 cc          write (*,'(a,1pe10.2,a,e10.2)') '    Residual=',rr0
 cc     .          ,' < limit =',1d-16*ntot
@@ -1539,7 +1551,7 @@ c Start mu-cycle
 
       do ivcyc = 1,vcyc
 
-        if (outc.ge.1.and.igmax.gt.igrid) then
+        if (outc.ge.1.and.igmax.gt.igrid.and.prnt) then
           if (mu == 1) write (*,7) ivcyc
           if (mu == 2) write (*,8) ivcyc
         endif
@@ -1565,9 +1577,9 @@ cRAP        call matvec(0,neq,ntot,xx(istart(igrid)),rr,igrid,bcnd)
 
         mag1 = mag/rr1
 
-        if (out.ge.3) then
+        if (out.ge.3.and.prnt) then
           write (*,10) mag,mag1
-        elseif (out.ge.2) then
+        elseif (out.ge.2.and.prnt) then
           if (mu == 1) write (*,20) mag,mag1,ivcyc
           if (mu == 2) write (*,21) mag,mag1,ivcyc
         endif
@@ -1587,10 +1599,10 @@ c MG convergence info
       mag1 = mag/rr0
 
       if (igmax.gt.igrid) then
-        if (out.eq.1) then
+        if (out.eq.1.and.prnt) then
           if (mu == 1) write (*,20) mag,mag1,min(ivcyc,vcyc)
           if (mu == 2) write (*,21) mag,mag1,min(ivcyc,vcyc)
-        elseif (out.ge.2.and.vcyc.gt.1) then
+        elseif (out.ge.2.and.vcyc.gt.1.and.prnt) then
           write (*,*) 
           write (*,*) 'Final MG convergence info:'
           if (mu == 1) write (*,20) mag,mag1,min(ivcyc,vcyc)
@@ -1626,20 +1638,23 @@ c     -------------------------------------------------------------------
 c       Checks consistency of MG input options.
 c     -------------------------------------------------------------------
 
-        if (options%vertex_based_relax .and. options%mg_line_relax) then
-          write (*,*) 'Invalid setting for MG relaxation: cannot do'
-          write (*,*) 'vertex-based and line-based relaxation',
+        if (     options%vertex_based_relax
+     .      .and.options%mg_line_relax) then
+          if (prnt)
+     .       write (*,*) 'Invalid setting for MG relaxation: cannot do'
+          if (prnt)
+     .       write (*,*) 'vertex-based and line-based relaxation',
      .                ' simultaneously!'
-          write (*,*) 'Aborting...'
-          stop
+          call pstop('optionsConsistencyCheck in mg','Aborting...')
         endif
 
-        if (      options%mg_coarse_solver_depth == 0
-     .      .and. options%vertex_based_relax          ) then
-          write (*,*) 'Coarsest level solver not defined'
-          write (*,*) 'Cannot do vertex-based relaxation in MG'
-          write (*,*) 'Aborting...'
-          stop
+        if (     options%mg_coarse_solver_depth == 0
+     .      .and.options%vertex_based_relax) then
+          if (prnt)
+     .         write (*,*) 'Coarsest level solver not defined'
+          if (prnt)
+     .         write (*,*) 'Cannot do vertex-based relaxation in MG'
+          call pstop('optionsConsistencyCheck','Aborting...')
         endif
           
       end subroutine optionsConsistencyCheck
@@ -1820,7 +1835,7 @@ c     Local variables
 
 c     Begin program
 
-        if (outc.ge.1) write (*,*) 'Grid Level',igr
+        if (outc.ge.1.and.prnt) write (*,*) 'Grid Level',igr
 
         if (.not.line_relax) then
           nn   = ntotv (igr)
@@ -1920,8 +1935,8 @@ cRAP          call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
 
           if (outc > 0) then
             mag0 = sqrt(dot(igr,neq,nn,rr,rr))
-            if (outc > 1) write (*,*)
-            write (*,7) mag0
+            if (outc > 1.and.prnt) write (*,*)
+            if (prnt) write (*,7) mag0
           endif
 
 c         Planes/Lines in X-direction
@@ -1937,7 +1952,7 @@ cc            do iter=1,nsweep
 
             do iter=1,nsweep
 
-              if (outc > 1) then
+              if (outc > 1.and.prnt) then
                 write (*,*)
                 write (*,*) '******** X-relax sweep #',iter,'********'
               endif
@@ -1953,7 +1968,7 @@ cc            do iter=1,nsweep
                 enddo
 
                 !Output info
-                if (outc > 1) then
+                if (outc > 1.and.prnt) then
                   write (*,*)
                   write (*,*) 'PLANE SOLVE: i=',i
      .                   ,'; ny x nz:',nyl(igr),'x',nzl(igr)
@@ -1984,9 +1999,9 @@ cRAP              call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
 
             if (outc > 0) then
               mag = sqrt(dot(igr,neq,nn,rr,rr))
-              if (outc > 1) write (*,5)
-              write (*,10) mag,mag/mag0
-              if (outc > 1) write (*,6)
+              if (outc > 1.and.prnt) write (*,5)
+              if (prnt) write (*,10) mag,mag/mag0
+              if (outc > 1.and.prnt) write (*,6)
               mag0 = mag
             endif
 
@@ -2004,7 +2019,7 @@ c         Planes/Lines in Y-direction
 
             do iter=1,nsweep
 
-              if (outc > 1) then
+              if (outc > 1.and.prnt) then
                 write (*,*)
                 write (*,*) '******** Y-relax sweep #',iter,'********'
               endif
@@ -2020,7 +2035,7 @@ c         Planes/Lines in Y-direction
                 enddo
 
                 !Output info
-                if (outc > 1) then
+                if (outc > 1.and.prnt) then
                   write (*,*)
                   write (*,*) 'PLANE SOLVE: j=',j
      .                   ,'; nx x nz:',nxl(igr),'x',nzl(igr)
@@ -2051,9 +2066,9 @@ cRAP              call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
 
             if (outc > 0) then
               mag = sqrt(dot(igr,neq,nn,rr,rr))
-              if (outc > 1) write (*,5)
-              write (*,20) mag,mag/mag0
-              if (outc > 1) write (*,6)
+              if (outc > 1.and.prnt) write (*,5)
+              if (prnt) write (*,20) mag,mag/mag0
+              if (outc > 1.and.prnt) write (*,6)
               mag0 = mag
             endif
 
@@ -2071,7 +2086,7 @@ c         Planes/Lines in Z-direction
 
             do iter=1,nsweep
 
-              if (outc > 1) then
+              if (outc > 1.and.prnt) then
                 write (*,*)
                 write (*,*) '******** Z-relax sweep #',iter,'********'
               endif
@@ -2087,7 +2102,7 @@ c         Planes/Lines in Z-direction
                 enddo
 
                 !Output info
-                if (outc > 1) then
+                if (outc > 1.and.prnt) then
                   write (*,*)
                   write (*,*) 'PLANE SOLVE: k=',k
      .                   ,'; nx x ny:',nxl(igr),'x',nyl(igr)
@@ -2118,9 +2133,9 @@ cRAP              call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
 
             if (outc > 0) then
               mag = sqrt(dot(igr,neq,nn,rr,rr))
-              if (outc > 1) write (*,5)
-              write (*,30) mag,mag/mag0
-              if (outc > 1) write (*,6)
+              if (outc > 1.and.prnt) write (*,5)
+              if (prnt) write (*,30) mag,mag/mag0
+              if (outc > 1.and.prnt) write (*,6)
             endif
 
             call deallocateGridStructure(line_mg_grid)
@@ -2136,7 +2151,7 @@ c         Deallocate variables
 c       Else smooth 1D problem (for MG line smoother)
         else
 
-          if (outc > 1) then
+          if (outc > 1.and.prnt) then
             write (*,*)
             if (nxl(igr) > 1) then
               write (*,*) '1D LINE SOLVE on j =',mggrid%jline(igr)
@@ -2236,9 +2251,7 @@ c       JB 1D solver
 
         else
 
-          write (*,*) 'Line solver undefined'
-          write (*,*) 'Aborting...'
-          stop
+          call pstop('lineSolver','Line solver undefined')
 
         endif
 
@@ -2866,7 +2879,7 @@ c     Local variables
 
 c     Begin program
 
-        if (outc.ge.1) write (*,*) 'Grid Level',igr
+        if (outc.ge.1.and.prnt) write (*,*) 'Grid Level',igr
 
         nn   = ntotv(igr)
         isig = istart(igr)
@@ -3523,7 +3536,7 @@ c Local variables
 
 c Begin program
 
-      if (out.ge.2) write (*,*)
+      if (out.ge.2.and.prnt) write (*,*)
 
 c Allocate pointers
 
@@ -3534,7 +3547,8 @@ c Allocate pointers
         vbr_mg = .false.
       endif
 
-      if (fpointers.and.out.ge.2) write (*,*) 'Allocating pointers...'
+      if (fpointers.and.out.ge.2.and.prnt)
+     .     write (*,*) 'Allocating pointers...'
 
 c Read solver configuration
 
@@ -3567,18 +3581,18 @@ c Find diagonal for smoothers
       if (fdiag) then
 
         if (allocated(diag)) then !Diagonal is known
-          if (out.ge.2) write (*,*) 'Diagonal already allocated'
+          if(out.ge.2.and.prnt)write (*,*)'Diagonal already allocated'
           fdiag = .false.
         elseif (associated(options%diag)) then !Diagonal provided externally
-          if (out.ge.2) write (*,*) 'Diagonal externally provided'
+          if(out.ge.2.and.prnt)write (*,*)'Diagonal externally provided'
           allocate(diag(neq*nblk,2*ntot*nblk))
           diag = options%diag
         else                      !Form diagonal
-          if (out.ge.2) write (*,*) 'Forming diagonal...'
+          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
           allocate(diag(neq*nblk,2*ntot*nblk))
           call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
      .                     ,ncolors,volf,galerkin)
-          if (out.ge.2) write (*,*) 'Finished!'
+          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         endif
 
       endif
@@ -3712,9 +3726,9 @@ c     Check convergence
         if (itr.eq.1) then
           mag0 = mag
           mag1 = mag
-          if (out.ge.2) write (*,10) itr-1,mag,mag/mag0
+          if (out.ge.2.and.prnt) write (*,10)itr-1,mag,mag/mag0
         else
-          if (out.ge.2) write (*,20) itr-1,mag,mag/mag0,mag/mag1
+          if (out.ge.2.and.prnt) write (*,20)itr-1,mag,mag/mag0,mag/mag1
           mag1 = mag
           if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
         endif
@@ -3737,10 +3751,10 @@ cRAP        call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
         endif
       endif
 
-      if (out.ge.2) then
+      if (out.ge.2.and.prnt) then
         write (*,20) itr,mag,mag/mag0,mag/mag1
         write (*,*)
-      elseif (out.eq.1) then
+      elseif (out.eq.1.and.prnt) then
         write (*,10) itr,mag,mag/mag0
       endif
 
@@ -3768,11 +3782,12 @@ c     ###################################################################
         subroutine optionsConsistencyCheck
 
         if (options%vertex_based_relax .and. options%mg_line_relax) then
-          write (*,*) 'Invalid setting for JB relaxation: cannot do'
-          write (*,*) 'vertex-based and line-based relaxation',
-     .                ' simultaneously!'
-          write (*,*) 'Aborting...'
-          stop
+          if (prnt)
+     .       write (*,*) 'Invalid setting for JB relaxation: cannot do'
+          if (prnt)
+     .       write (*,*) 'vertex-based and line-based relaxation',
+     .                  ' simultaneously!'
+          call pstop('optionsConsistencyCheck in jb','Aborting...')
         endif
           
         end subroutine optionsConsistencyCheck
@@ -3829,7 +3844,7 @@ c Local variables
 
 c Begin program
 
-      if (out.ge.2) write (*,*)
+      if (out.ge.2.and.prnt) write (*,*)
 
 c Set pointers
 
@@ -3840,7 +3855,8 @@ c Set pointers
         vbr_mg = .false.
       endif
 
-      if (fpointers.and.out.ge.2) write (*,*) 'Allocated pointers.'
+      if (fpointers.and.out.ge.2.and.prnt)
+     .     write (*,*) 'Allocated pointers.'
 
 c Read solver configuration
 
@@ -3874,18 +3890,18 @@ c Find diagonal for smoothers
       if (fdiag) then
 
         if (allocated(diag)) then !Diagonal is known
-          if (out.ge.2) write (*,*) 'Diagonal already allocated'
+          if(out.ge.2.and.prnt)write (*,*)'Diagonal already allocated'
           fdiag = .false.
         elseif (associated(options%diag)) then !Diagonal provided externally
-          if (out.ge.2) write (*,*) 'Diagonal externally provided'
+          if(out.ge.2.and.prnt)write (*,*)'Diagonal externally provided'
           allocate(diag(neq*nblk,2*ntot*nblk))
           diag = options%diag
         else                      !Form diagonal
-          if (out.ge.2) write (*,*) 'Forming diagonal...'
+          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
           allocate(diag(neq*nblk,2*ntot*nblk))
           call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
      .                     ,ncolors,volf,galerkin)
-          if (out.ge.2) write (*,*) 'Finished!'
+          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         endif
 
       endif
@@ -4205,9 +4221,9 @@ cc        mag = sqrt(dot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
         if (itr.eq.1) then
           mag0 = mag
           mag1 = mag
-          if (out.ge.2) write (*,10) itr-1,mag,mag/mag0
+          if (out.ge.2.and.prnt) write (*,10)itr-1,mag,mag/mag0
         else
-          if (out.ge.2) write (*,20) itr-1,mag,mag/mag0,mag/mag1
+          if (out.ge.2.and.prnt) write (*,20)itr-1,mag,mag/mag0,mag/mag1
           mag1 = mag
           if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
         endif
@@ -4225,10 +4241,10 @@ cRAP        call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
         mag = sqrt(dot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
       endif
 
-      if (out.ge.2) then
+      if (out.ge.2.and.prnt) then
         write (*,20) itr,mag,mag/mag0,mag/mag1
         write (*,*)
-      elseif (out.eq.1) then
+      elseif (out.eq.1.and.prnt) then
         write (*,10) itr,mag,mag/mag0
       endif
 
@@ -4256,11 +4272,12 @@ c     ###################################################################
         subroutine optionsConsistencyCheck
 
         if (options%vertex_based_relax .and. options%mg_line_relax) then
-          write (*,*) 'Invalid setting for GS relaxation: cannot do'
-          write (*,*) 'vertex-based and line-based relaxation',
-     .                ' simultaneously!'
-          write (*,*) 'Aborting...'
-          stop
+          if (prnt)
+     .       write (*,*) 'Invalid setting for GS relaxation: cannot do'
+          if (prnt)
+     .       write (*,*) 'vertex-based and line-based relaxation',
+     .                  ' simultaneously!'
+          call pstop('optionsConsistencyCheck in gs','Aborting...')
         elseif (options%vertex_based_relax .or. vbr_mg) then
           options%ncolors = 4
         elseif (options%mg_line_relax) then
@@ -4403,9 +4420,8 @@ c Begin program
         nc2 = 2
         nc3 = 2
       case default
-        write (*,*) 'Unsupported number of colors in GS'
-        write (*,*) 'Aborting...'
-        stop
+        call pstop('scheduleColors',
+     .             'Unsupported number of colors in GS')
       end select
 
 c End program
@@ -4526,9 +4542,8 @@ c Consistency check
       nn  = ntotv(igrid)
 
       if (nn /= ntot) then
-        write (*,*) 'Error in input of find_mf_diag_stc'
-        write (*,*) 'Aborting...'
-        stop
+        call pstop('find_mf_diag_std'
+     .            ,'Error in input of find_mf_diag_stc')
       endif
 
 c Form diagonal
@@ -4660,9 +4675,8 @@ c Consistency check
       nn  = ntotv(igrid)
 
       if (nn /= ntot) then
-        write (*,*) 'Error in input of find_mf_diag_colored'
-        write (*,*) 'Aborting...'
-        stop
+        call pstop('find_mf_diag_colored'
+     .            ,'Error in input of find_mf_diag_colored')
       endif
 
 c Form diagonal
@@ -4853,9 +4867,8 @@ c Consistency check
       nn  = ntotv(igrid)
 
       if (nn /= ntot) then
-        write (*,*) 'Error in input of find_mf_diag'
-        write (*,*) 'Aborting...'
-        stop
+        call pstop('find_mf_diag'
+     .            ,'Error in input of find_mf_diag')
       endif
 
 c Form diagonal
@@ -5027,9 +5040,8 @@ c Consistency check
       nn  = ntotv(igr)
 
       if (nn /= ntot) then
-        write (*,*) 'Error in input of find_mf_mat'
-        write (*,*) 'Aborting...'
-        stop
+        call pstop('find_mf_mat'
+     .            ,'Error in input of find_mf_mat')
       endif
 
 c Form diagonal 

@@ -6,5 +6,6 @@ MESSAGE = "Compiling MG modules"
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/grid\
+SUBDIRS = $(COMMONDIR)/math \
+	  $(COMMONDIR)/grid\
 	  $(COMMONDIR)/matrixLightSolver
