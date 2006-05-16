@@ -6,4 +6,5 @@ MESSAGE = "Compiling matrix-light solver modules"
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/grid
+SUBDIRS = $(COMMONDIR)/math \
+	  $(COMMONDIR)/grid
