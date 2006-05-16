@@ -6,7 +6,8 @@ MESSAGE = "Compiling f90 driver"
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/grid \
+SUBDIRS = $(COMMONDIR)/math \
+	  $(COMMONDIR)/grid \
           $(COMMONDIR)/newtonGMRES
 
 # Module order
