@@ -20,6 +20,7 @@ c #####################################################################
      .             ,ilom,ihip,jlom,jhip,klom,khip
      $             ,ilog ,ihig ,jlog ,jhig ,klog ,khig
      .             ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
+     .             ,gcw
 
       integer(4) :: ntotd,ntotdp,ntimemax
 
@@ -28,6 +29,9 @@ c #####################################################################
 c     setVectorDimensions
 c     #################################################################
       subroutine setVectorDimensions
+
+      !Ghost cell width
+        gcw = 1
 
       !Global problem info
         nxdp = nxd+1
@@ -38,12 +42,12 @@ cc        ntotdp  = nxd*nyd*nzd
 cc        ntotd   = neqd*ntotdp
 
         !Define offset quantities (global grid)
-        ihipg = ihig+1
-        ilomg = ilog-1
-        jhipg = jhig+1
-        jlomg = jlog-1
-        khipg = khig+1
-        klomg = klog-1
+        ihipg = ihig+gcw
+        ilomg = ilog-gcw
+        jhipg = jhig+gcw
+        jlomg = jlog-gcw
+        khipg = khig+gcw
+        klomg = klog-gcw
 
       !Local problem info (ihig,ilog,etc. initialized elsewhere)
 
@@ -60,12 +64,12 @@ cc        ntotd   = neqd*ntotdp
         khi  = nzl
 
         !Define offset quantities (local grid)
-        ihip = ihi+1
-        ilom = ilo-1
-        jhip = jhi+1
-        jlom = jlo-1
-        khip = khi+1
-        klom = klo-1
+        ihip = ihi+gcw
+        ilom = ilo-gcw
+        jhip = jhi+gcw
+        jlom = jlo-gcw
+        khip = khi+gcw
+        klom = klo-gcw
 
         nxlp = nxl+1
         nylp = nyl+1
@@ -558,9 +562,11 @@ c     Begin program
         return
 
  100    ierr=-2  !EOF
+        write (*,*) 'readDerivedType: EOF in file unit',unit
         return
 
  200    ierr=-1  !Error, but not EOF
+        write (*,*) 'readDerivedType: Error reading file unit',unit
 
 c     End program
 
@@ -982,39 +988,39 @@ c     End
 
       end function integral
 
-c     int2char
-c     ################################################################
-      function int2char(n) result (chr)
-
-      implicit none
-
-      integer(4)   :: n
-      character(10):: chr
-
-      integer(4)   :: i,exp,k,j
-      character(3) :: c
-
-      if (abs(n) > 0) then
-         exp = int(log(float(n))/log(1d1))
-      else
-         exp = 0
-      endif
-
-      if (n >= 0) then
-        chr=''
-      else
-        chr='-'
-      endif
-
-      k = abs(n)
-      do i=exp,0,-1
-         j = k/10**i
-         c = achar(48+j)
-         chr = trim(chr)//trim(c)
-         if (i > 0 .and. j /= 0) k = mod(k,j*10**i)
-      enddo
-
-      end function int2char
+ccc     int2char
+ccc     ################################################################
+cc      function int2char(n) result (chr)
+cc
+cc      implicit none
+cc
+cc      integer(4)   :: n
+cc      character(10):: chr
+cc
+cc      integer(4)   :: i,exp,k,j
+cc      character(3) :: c
+cc
+cc      if (abs(n) > 0) then
+cc         exp = int(log(float(n))/log(1d1))
+cc      else
+cc         exp = 0
+cc      endif
+cc
+cc      if (n >= 0) then
+cc        chr=''
+cc      else
+cc        chr='-'
+cc      endif
+cc
+cc      k = abs(n)
+cc      do i=exp,0,-1
+cc         j = k/10**i
+cc         c = achar(48+j)
+cc         chr = trim(chr)//trim(c)
+cc         if (i > 0 .and. j /= 0) k = mod(k,j*10**i)
+cc      enddo
+cc
+cc      end function int2char
 
       end module generalPurposeFunctions
 
@@ -1087,7 +1093,7 @@ c ######################################################################
 
         integer(4)     :: ilevel
 
-        integer(4)     :: urecord=100,usave=200,uinput=25
+        integer(4)     :: urecord=10000,usave=20000,uinput=25
         character*(20) :: recordfile='record.bin',recordsave,inputfile
 
         integer(4)     :: nfiles,ifile
@@ -1134,9 +1140,11 @@ c     Begin program
       return
 
  100  ierr=-2  !EOF
+      write (*,*) 'readRecordFile: EOF in file unit',unit
       return
 
  200  ierr=-1  !Error, but not EOF
+      write (*,*) 'readRecordFile: Error reading file unit',unit
 
 c     End
 
