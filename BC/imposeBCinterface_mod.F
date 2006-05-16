@@ -351,8 +351,6 @@ c #####################################################################
 
         integer(4),private :: bctype,dim,loc,ibc,i,j,k
 
-        logical    :: asm = .false.
-
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
         ! important for colored diagonal formation)
@@ -502,7 +500,7 @@ c     Begin program
 
         select case(loc)
         case(0)
-          if (igl > 1) do__nothing = .true.
+          if (igl > 1  ) do__nothing = .true.
         case(1)
           if (igr < nxg) do__nothing = .true.
         end select
@@ -569,11 +567,26 @@ c     -----------------------------------------------------------------
 
       implicit none
 
-      integer(4) :: igx,igy,igz,bcs(:,:),IIBC
+      integer(4) :: igx,igy,igz,bcs(:,:)
+
+      integer(4),optional :: IIBC
 
       integer(4) :: dim,loc,ibc,igmin,igmax,jgmin,jgmax,kgmin,kgmax
 
-      if (np == 1) return
+      logical    :: dn
+
+      if (np == 1) then
+        call setASMflag(.false.)
+        return
+      endif
+
+c     Reset BC grid level
+
+      igxbc = igx
+      igybc = igy
+      igzbc = igx
+
+c     Find grid local limits
 
       igmin = grid_params%ilo(igx)
       igmax = grid_params%ihi(igx)
@@ -582,22 +595,35 @@ c     -----------------------------------------------------------------
       kgmin = grid_params%klo(igz)
       kgmax = grid_params%khi(igz)
 
-      asm = .false.       !This needs to be here for do__nothing!!!
+c     Determine ASM BCs (requires ASM flag set to false)
 
-      do dim=1,3
-        do loc=0,1
-          ibc = (1+loc)+2*(dim-1)
-          if (do__nothing(dim,loc,igmin,igmax,jgmin,jgmax,kgmin,kgmax))
-     .         bcs(ibc,:) = IIBC
-cc     .    then
-cc            bcs(ibc,:) = IIBC
-cc          elseif (bcond(ibc) == PER.and.asm_dir(dim)) then !Take care of PER boundaries in ASM
-cc            bcs(ibc,:) = IIBC
-cc          endif
+      call setASMflag(.false.)
+
+      if (PRESENT(IIBC)) then
+        do dim=1,3
+          do loc=0,1
+            ibc = (1+loc)+2*(dim-1)
+
+            dn=do__nothing(dim,loc,igmin,igmax,jgmin,jgmax,kgmin,kgmax)
+
+cc            if (dn) bcs(ibc,:) = IIBC
+            if (dn) bcs(ibc,:) = IIBC*bcs(ibc,:)/abs(bcs(ibc,:))
+          enddo
         enddo
-      enddo
+cc      else
+cc        do dim=1,3
+cc          do loc=0,1
+cc            ibc = (1+loc)+2*(dim-1)
+cc            if (bcond(ibc) == PER.and.asm_dir(dim)) then !Take care of PER boundaries in ASM
+cc              bcs(ibc,:) = EXT
+cc            endif
+cc          enddo
+cc        enddo
+      endif
 
-      asm = .true.  !PC employs additive Schwartz method
+c     Set ASM flag to true to perform ASM in PC
+
+      call setASMflag(.true.)
 
       end subroutine setASM_PC_BC
 
