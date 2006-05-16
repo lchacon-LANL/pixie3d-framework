@@ -1,7 +1,16 @@
 static char help[] = "Options:
-	-snes_mf : use matrix-free Newton methods (default)\n\
-	-user_precond: use user-defined preconditioner (-snes_mf)\n\
-        -nmax <nmax>: max. iteration # of time steps\n";
+     OUTPUT CONTROL:
+        -ilevel <ilevel>: level of output info
+
+     SOLVER:
+	-snes_mf : use matrix-free Newton methods
+        -aspc_its <its>: number of ASM iterations
+        -id_PC: identity preconditioner
+
+     TIME STEPPING:
+        -nmax <nmax>: max. iteration # of time steps
+        -tmax <tmax>: final time
+";
 
 /*
  *    Concepts: SNES matrix-free/finite-difference Jacobian methods
@@ -64,6 +73,7 @@ typedef struct {
   PetscReal   snes_res0;
   PetscReal   snes_etak;
   int         snes_its;
+  PetscReal   aspc_res0;
   int         aspc_its;
   Vec         x0;
   Vec         xold;
@@ -151,7 +161,7 @@ int MAIN__(int argc, char **argv)
 
   DAPeriodicType     BC=DA_NONPERIODIC;
 
-  PetscTruth         matrix_free,user_precond;
+  PetscTruth         matrix_free;
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Begin program
@@ -169,7 +179,7 @@ int MAIN__(int argc, char **argv)
 
   user.ierr = 0;
 
-  ierr = ReadInputNInitialize(&user.indata, &BC);CHKERRQ(ierr);
+  ierr = ReadInputNInitialize(&user.indata, &BC)                                ;CHKERRQ(ierr);
   
   nxd = user.indata.nxd;
   nyd = user.indata.nyd;
@@ -216,7 +226,7 @@ int MAIN__(int argc, char **argv)
 
   ierr = PetscOptionsGetInt(PETSC_NULL,"-aspc_its",&user.aspc_its,PETSC_NULL)   ;CHKERRQ(ierr);
 
-  ierr = PetscOptionsGetLogical(PETSC_NULL,"-petsc_PC",&user.petsc_PC,PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetLogical(PETSC_NULL,"-id_PC",&user.petsc_PC,PETSC_NULL);CHKERRQ(ierr);
 
   /* Set profiling stages */
 
@@ -505,7 +515,8 @@ int MyKSPMonitor(KSP ksp, int its, double fnorm, void *ctx)
     /* Get KSP info */
     if (its == 0) user->ksp_res0 = fnorm;
     rel_res = fnorm/user->ksp_res0;
-    PetscPrintf(PETSC_COMM_WORLD," KSP its = %d ; res/rold norm = %4.2e \n",its,rel_res);
+    PetscPrintf(PETSC_COMM_WORLD," KSP its = %d ; Res = %4.2e; Ratio = %4.2e \n"\
+              ,its,fnorm,rel_res);
   }
   
   PetscFunctionReturn(0);
@@ -917,11 +928,15 @@ int ApplyASPC(void *ctx,Vec y,Vec z)
   AppCtx  *user = (AppCtx*)ctx;
 
   int	  ierr,k;
-  PetscScalar  mone=-1.,omega=1.,zero=0.;
+  PetscScalar  mone=-1.,omega=1.,zero=0.,mag,mag0=0.,mag_n=0.,ratio=0.;
+  PetscDraw    draw;
+  PetscViewer  viewer;
 
   PetscFunctionBegin;
 
   ierr = VecSet(&zero,z)                                             ;CHKERRQ(ierr);
+
+  if (user->indata.ilevel == 4) PetscPrintf(PETSC_COMM_WORLD,"\n");
 
   for (k=1;k<=user->aspc_its;++k) {
 
@@ -934,13 +949,66 @@ int ApplyASPC(void *ctx,Vec y,Vec z)
       ierr = VecAYPX(&mone   ,y,user->rk)               	     ;CHKERRQ(ierr);
     }
 
+    /* Calculate norm test */
+    if (user->indata.ilevel > 2) {
+      ierr = VecNorm(user->rk,NORM_2,&mag)               	     ;CHKERRQ(ierr);
+
+      if (k == 1) {
+	mag0  = mag;
+      } else {
+	ratio = mag/mag_n;
+      }
+
+      if (user->indata.ilevel > 4) PetscPrintf(PETSC_COMM_WORLD,"\n");
+
+      PetscPrintf(PETSC_COMM_WORLD,"  PC AS iter = %d; Res = %4.2e; Rel.res. = %4.2e; Ratio = %4.2e \n"\
+                 ,k-1,mag,mag/mag0,ratio);
+
+      mag_n = mag;
+    }
+
     /* Calculate update dzk=P^-1(rk) */
     ierr = ApplyPC(user,user->rk,user->dzk)	   		     ;CHKERRQ(ierr);
 
     /* Correct solution: z = z + omega*dzk */
+    /*omega = 0.8;*/
     ierr = VecAXPY(&omega,user->dzk,z)      	   		     ;CHKERRQ(ierr);
 
   }
+
+  /* Calculate norm test */
+  if (user->indata.ilevel > 4) {
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"ApplyASPC: Dumping MATLAB diagnotic files \n");
+    ierr = MatMult(user->J ,z,user->rk)               	             ;CHKERRQ(ierr);
+
+    ierr = VecAYPX(&mone   ,y,user->rk)               	             ;CHKERRQ(ierr);
+
+
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"res.m",&viewer)    ;CHKERRQ(ierr);
+    ierr = PetscViewerSetFormat(viewer,PETSC_VIEWER_ASCII_MATLAB)    ;CHKERRQ(ierr);
+    ierr = VecView(user->rk,viewer)                                  ;CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(viewer)                                ;CHKERRQ(ierr);
+
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"sol.m",&viewer)    ;CHKERRQ(ierr);
+    ierr = PetscViewerSetFormat(viewer,PETSC_VIEWER_ASCII_MATLAB)    ;CHKERRQ(ierr);
+    ierr = VecView(z,viewer)                                         ;CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(viewer)                                ;CHKERRQ(ierr);
+
+    /*ierr = PetscViewerDrawGetDraw(PETSC_VIEWER_DRAW_WORLD,0,&draw)   ;CHKERRQ(ierr);
+    ierr = PetscDrawSetDoubleBuffer(draw)               	     ;CHKERRQ(ierr);
+    ierr = VecView(user->rk,PETSC_VIEWER_DRAW_WORLD)    	     ;CHKERRQ(ierr);*/
+
+    ierr = VecNorm(user->rk,NORM_2,&mag)               	             ;CHKERRQ(ierr);
+
+    ratio = mag/mag_n;
+
+    if (user->indata.ilevel > 4) PetscPrintf(PETSC_COMM_WORLD,"\n");
+
+    PetscPrintf(PETSC_COMM_WORLD,"  PC AS iter = %d; Res = %4.2e; Rel.res. = %4.2e; Ratio = %4.2e \n"\
+               ,k-1,mag,mag/mag0,ratio);
+  }
+
+  if (user->indata.ilevel == 4) PetscPrintf(PETSC_COMM_WORLD,"\n");
 
   PetscFunctionReturn(0);
 
@@ -957,7 +1025,7 @@ int ApplyASPC(void *ctx,Vec y,Vec z)
    y - input vector
 
    Output Parameter:
-   z - preconditioned vector
+   x - preconditioned vector
 
    Current does additive NKSchwartz
 */
@@ -967,6 +1035,9 @@ int ApplyPC(void *ctx,Vec y,Vec x)
 
   Field	  ***xvec,***yvec;
   int	  ierr,xs,ys,zs,xm,ym,zm,ze,ye,xe,mx,my,mz;
+  PetscScalar  mone=-1.;
+
+  PetscViewer  viewer;
 
   PetscFunctionBegin;
 
@@ -1007,6 +1078,24 @@ int ApplyPC(void *ctx,Vec y,Vec x)
   /* Restore vectors */
   ierr = DAVecRestoreArray(user->da, x, (void**)&xvec);CHKERRQ(ierr);
   ierr = DAVecRestoreArray(user->da, y, (void**)&yvec);CHKERRQ(ierr);
+
+  /* Visualize vectors */
+  if (user->indata.ilevel > 4 && user->aspc_its == 0) {
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"ApplyPC: Dumping MATLAB diagnotic files \n");
+    ierr = MatMult(user->J ,x,user->rk)               	             ;CHKERRQ(ierr);
+
+    ierr = VecAYPX(&mone   ,y,user->rk)               	             ;CHKERRQ(ierr);
+
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"res.m",&viewer)    ;CHKERRQ(ierr);
+    ierr = PetscViewerSetFormat(viewer,PETSC_VIEWER_ASCII_MATLAB)    ;CHKERRQ(ierr);
+    ierr = VecView(user->rk,viewer)                                         ;CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(viewer)                                ;CHKERRQ(ierr);
+
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"sol.m",&viewer)    ;CHKERRQ(ierr);
+    ierr = PetscViewerSetFormat(viewer,PETSC_VIEWER_ASCII_MATLAB)    ;CHKERRQ(ierr);
+    ierr = VecView(x,viewer)                                         ;CHKERRQ(ierr);
+    ierr = PetscViewerDestroy(viewer)                                ;CHKERRQ(ierr);
+  }
 
   PetscFunctionReturn(0);
 
