@@ -35,8 +35,6 @@ c Initialize
 
 #if defined(petsc)
       call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
-      call MPI_Comm_rank(PETSC_COMM_WORLD,my_rank,mpierr)
-      call MPI_Comm_size(PETSC_COMM_WORLD,np     ,mpierr)
 #endif
 
       call initializeCalculation(igx,igy,igz)
@@ -240,6 +238,12 @@ c Read user initializations
 
       call readGraphicsInput
 
+c Initialize MPI (parallel version)
+
+#if defined(petsc)
+      call initMPI
+#endif
+
 c Open graphics files (this initializes local limits, among other things)
 
       call openGraphicsFiles
@@ -252,6 +256,12 @@ c Initialize MG and create grid
 
       call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd
      .               ,gpack=g_pack)
+
+c Create fortran DA hierarchy (parallel version)
+
+#if defined(petsc)
+      call createDA
+#endif
 
 c Define application arrays (external)
 
@@ -375,6 +385,7 @@ c Open graphics files
             musave  (ifile) = usave + ifile
             mrecsave(ifile) = mrecfile(ifile)//'_sav'
           endif
+          write (*,*) mrecfile(ifile)
         enddo
 
         nx = 0
