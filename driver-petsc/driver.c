@@ -977,26 +977,27 @@ int ApplyASPC(void *ctx,Vec y,Vec z)
   }
 
   /* Calculate norm test */
-  if (user->indata.ilevel > 4) {
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"ApplyASPC: Dumping MATLAB diagnotic files \n");
+  if (user->indata.ilevel > 2) {
     ierr = MatMult(user->J ,z,user->rk)               	             ;CHKERRQ(ierr);
 
     ierr = VecAYPX(&mone   ,y,user->rk)               	             ;CHKERRQ(ierr);
 
+    if (user->indata.ilevel > 4) {
+      ierr = PetscPrintf(PETSC_COMM_WORLD,"ApplyASPC: Dumping MATLAB diagnotic files \n");
+      ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"res.m",&viewer)    ;CHKERRQ(ierr);
+      ierr = PetscViewerSetFormat(viewer,PETSC_VIEWER_ASCII_MATLAB)    ;CHKERRQ(ierr);
+      ierr = VecView(user->rk,viewer)                                  ;CHKERRQ(ierr);
+      ierr = PetscViewerDestroy(viewer)                                ;CHKERRQ(ierr);
 
-    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"res.m",&viewer)    ;CHKERRQ(ierr);
-    ierr = PetscViewerSetFormat(viewer,PETSC_VIEWER_ASCII_MATLAB)    ;CHKERRQ(ierr);
-    ierr = VecView(user->rk,viewer)                                  ;CHKERRQ(ierr);
-    ierr = PetscViewerDestroy(viewer)                                ;CHKERRQ(ierr);
-
-    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"sol.m",&viewer)    ;CHKERRQ(ierr);
-    ierr = PetscViewerSetFormat(viewer,PETSC_VIEWER_ASCII_MATLAB)    ;CHKERRQ(ierr);
-    ierr = VecView(z,viewer)                                         ;CHKERRQ(ierr);
-    ierr = PetscViewerDestroy(viewer)                                ;CHKERRQ(ierr);
+      ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"sol.m",&viewer)    ;CHKERRQ(ierr);
+      ierr = PetscViewerSetFormat(viewer,PETSC_VIEWER_ASCII_MATLAB)    ;CHKERRQ(ierr);
+      ierr = VecView(z,viewer)                                         ;CHKERRQ(ierr);
+      ierr = PetscViewerDestroy(viewer)                                ;CHKERRQ(ierr);
 
     /*ierr = PetscViewerDrawGetDraw(PETSC_VIEWER_DRAW_WORLD,0,&draw)   ;CHKERRQ(ierr);
     ierr = PetscDrawSetDoubleBuffer(draw)               	     ;CHKERRQ(ierr);
     ierr = VecView(user->rk,PETSC_VIEWER_DRAW_WORLD)    	     ;CHKERRQ(ierr);*/
+    }
 
     ierr = VecNorm(user->rk,NORM_2,&mag)               	             ;CHKERRQ(ierr);
 
