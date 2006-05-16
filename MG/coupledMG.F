@@ -2222,7 +2222,7 @@ c     Begin program
 
 c     Schedule solvers
 
-c       Recursive MG (at least 2D or if 1D MG is wanted)\
+c       Recursive MG (at least 2D or if 1D MG is wanted)
         if  (    (nxl > 1 .and. nyl > 1)
      .       .or.(nxl > 1 .and. nzl > 1)
      .       .or.(nyl > 1 .and. nzl > 1)) then
