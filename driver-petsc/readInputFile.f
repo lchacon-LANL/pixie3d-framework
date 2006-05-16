@@ -64,6 +64,10 @@ c Begin program
 
       call readInput
 
+c Initialize MPI
+
+      call initMPI
+
 c Determine processor allocation
 
       call processorAlloc(nxd,nyd,nzd)
