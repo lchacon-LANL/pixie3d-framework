@@ -36,6 +36,8 @@ c ######################################################################
 
         character*(10):: precon
 
+        logical       :: asm_PC=.false.
+
       end module precond_setup
 
 c module counters
