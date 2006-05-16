@@ -70,10 +70,14 @@ c Allocate constant arrays
       vzeros = 0d0
       ones   = 1d0
 
-c Initialize MG, MPI, fortran DA, and create grid
+c Initialize MG and create grid
 
       call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd
      .               ,gpack=g_pack)
+
+c Create fortran DA hierarchy
+
+      call createDA
 
 c Create nonlinear solver
 
