@@ -33,10 +33,6 @@ c Begin program
 
 c Initialize 
 
-#if defined(petsc)
-      call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
-#endif
-
       call initializeCalculation(igx,igy,igz)
 
 c Initialize counters
@@ -232,16 +228,20 @@ c Local variables
 
 c Begin program
 
-      g_pack%dim(:)%pack = .false.
+c Initialize PETSc (parallel version)
+
+#if defined(petsc)
+      call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
+#endif
 
 c Read user initializations
 
       call readGraphicsInput
 
-c Initialize MPI (parallel version)
+c Initialize MPI parameters (parallel version)
 
 #if defined(petsc)
-      call initMPI
+      call initMPI(nxd,nyd,nzd)
 #endif
 
 c Open graphics files (this initializes local limits, among other things)
@@ -257,10 +257,10 @@ c Initialize MG and create grid
       call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd
      .               ,gpack=g_pack)
 
-c Create fortran DA hierarchy (parallel version)
+c Create fortran PETSc parallel grid hierarchy (parallel version)
 
 #if defined(petsc)
-      call createDA
+      call createPETScGrid
 #endif
 
 c Define application arrays (external)
@@ -363,6 +363,7 @@ c Open graphics files
 
       if (ierr == 0) then
 
+        write (*,*)
         write (*,*) 'Opening multiple graphics files...'
 
         !Find out number of graphics files
@@ -385,8 +386,11 @@ c Open graphics files
             musave  (ifile) = usave + ifile
             mrecsave(ifile) = mrecfile(ifile)//'_sav'
           endif
-          write (*,*) mrecfile(ifile)
+          write (*,*) '  => ',mrecfile(ifile)
         enddo
+
+        write (*,*) 'Finished!'
+        write (*,*)
 
         nx = 0
         ny = 0
