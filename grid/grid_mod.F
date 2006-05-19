@@ -2130,9 +2130,8 @@ c     This module defines the types of BCs possible:
 c     Topological BCs (set topology of computational domain):
 c       PER: Periodic
 c       SP : Singular point (as in cylindrical, toroidal)
-c       SP2: Singular point with second-order variable grid
-c       SP3: Singular point with ghost cell @ -dr/2
-c       SYM: Symmetry (homogeneous Neumann)
+c       SYM: Symmetry (> 0 -> homogeneous Neumann
+c                     ,< 0 -> homogeneous Dirichlet)
 c     Standard BCs:
 c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
 c       DIR: Homogeneous dirichlet
@@ -2155,7 +2154,7 @@ c     -----------------------------------------------------------------
 
         integer(4) :: bcond(6)
 
-        logical    :: asm_dir(3)=.false.,asm=.false.
+        logical    :: asm_dir(3)=.false.,asm=.false.,par_bc=.false.
 
         real(8)    :: SP_flsv=1d-5
         
@@ -2302,12 +2301,11 @@ cc#undef PETSC_AVOID_DECLARATIONS
 
         character(80) :: messg
 
-
       contains
 
 c     initMPI
 c     #####################################################################
-      subroutine initMPI
+      subroutine initMPI(nxg,nyg,nzg)
 
 c     ---------------------------------------------------------------------
 c     Initialize needed MPI constructs
@@ -2316,6 +2314,8 @@ c     ---------------------------------------------------------------------
         implicit none
 
 c     Call variables
+
+        integer(4) :: nxg,nyg,nzg
 
 c     Local variables
 
@@ -2342,6 +2342,10 @@ cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
 cc        call MPI_Finalize(mpierr)
 cc        stop
 c diag ****
+
+c     Allocate processors
+
+        call processorAlloc(nxg,nyg,nzg)
 
       end subroutine initMPI
 
@@ -2594,9 +2598,9 @@ c     Begin program
 
       end function checkBCLim
 
-c     createDA
+c     createPETScGrid
 c     #################################################################
-      subroutine createDA
+      subroutine createPETScGrid
 
         implicit none
 
@@ -2619,7 +2623,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine createDA
+      end subroutine createPETScGrid
 
 c     createFortranDA
 c     #################################################################
