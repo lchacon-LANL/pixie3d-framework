@@ -32,6 +32,8 @@ c ######################################################################
 
         character*(10):: precon
 
+	logical       :: asm_PC
+
       end module precond_setup
 
 c module counters
