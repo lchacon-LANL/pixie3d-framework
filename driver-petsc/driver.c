@@ -144,7 +144,7 @@ int MAIN__(int argc, char **argv)
   int       nyd = 32;         	/* y-direction grid size, i.e., ny */
   int       nzd = 1;          	/* z-direction grid size, i.e., nz */
   int       numtime;
-  int       i, steps=0;
+  int       steps=0;
   int       np,npx,npy,npz;     /* num. of processors used */
   int       my_rank;            /* id of my processor */
   PetscReal atol;
@@ -157,7 +157,7 @@ int MAIN__(int argc, char **argv)
   int       method;
   int       stages[3];
 
-  PetscScalar   zero=0.0;
+  /*PetscScalar   zero=0.0;*/
 
   DAPeriodicType     BC=DA_NONPERIODIC;
 
@@ -421,11 +421,6 @@ int MAIN__(int argc, char **argv)
 int ReadInputNInitialize(input_CTX* data, DAPeriodicType* BC)
 {
 
-  char       dummy[256], dummy_ch, *bc_def = "'def'";
-  int        dummy_int, i, ierr;
-  PetscReal  dummy_float;
-  FILE       *fp;
-
   PetscFunctionBegin;
 
 #ifdef absoft
@@ -505,9 +500,7 @@ int MyKSPMonitor(KSP ksp, int its, double fnorm, void *ctx)
 {
   AppCtx  *user = (AppCtx*)ctx;
 
-  int        ierr;
   PetscReal  rel_res;
-  PetscReal  etak;
 
   PetscFunctionBegin;
 
@@ -529,7 +522,7 @@ int FormEquilibrium(SNES snes,Vec X,void *ptr)
 {
   AppCtx  *user = (AppCtx*)ptr;
   Field	  ***xvec;
-  int	  ierr,i,j,k,xs,ys,zs,xm,ym,zm,ze,ye,xe,mx,my,mz;
+  int	  ierr,xs,ys,zs,xm,ym,zm,ze,ye,xe;
 
   PetscFunctionBegin;
 
@@ -584,7 +577,7 @@ int FormInitialCondition(SNES snes,Vec X,void *ptr)
 {
   AppCtx  *user = (AppCtx*)ptr;
   Field	  ***xvec;
-  int	  ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
+  int	  ierr,xs,ys,zs,xm,ym,zm;
   int     ze,ye,xe;
   int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
   Vec     localX;
@@ -663,8 +656,7 @@ int ProcessOldSolution(SNES snes,Vec X,void *ptr)
 {
   AppCtx        *user = (AppCtx*)ptr;
   Field         ***xvec;
-  PetscScalar   hx, hy, hz, xp, yp;
-  int           ierr,i,j,k,xs,ys,zs,xm,ym,zm,mx,my,mz;
+  int           ierr,xs,ys,zs,xm,ym,zm;
   int           ze,ye,xe;
   int           xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
   Vec           localX;
@@ -827,11 +819,9 @@ int EvaluateFunction(SNES snes,Vec X,Vec F,void* ptr)
 {
   AppCtx  *user = (AppCtx*)ptr;
   
-  int     ierr,i,j,k,l;
-  int     xs,ys,zs,xm,ym,zm,mx,my,mz;
+  int     ierr,xs,ys,zs,xm,ym,zm;
   Field   ***x,***f;
   Vec     localX;
-  double  dt, theta;
   
   int     ye,xe,ze;
   int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
@@ -929,7 +919,6 @@ int ApplyASPC(void *ctx,Vec y,Vec z)
 
   int	  ierr,k;
   PetscScalar  mone=-1.,omega=1.,zero=0.,mag,mag0=0.,mag_n=0.,ratio=0.;
-  PetscDraw    draw;
   PetscViewer  viewer;
 
   PetscFunctionBegin;
@@ -1035,7 +1024,7 @@ int ApplyPC(void *ctx,Vec y,Vec x)
   AppCtx  *user = (AppCtx*)ctx;
 
   Field	  ***xvec,***yvec;
-  int	  ierr,xs,ys,zs,xm,ym,zm,ze,ye,xe,mx,my,mz;
+  int	  ierr,xs,ys,zs,xm,ym,zm,ze,ye,xe;
   PetscScalar  mone=-1.;
 
   PetscViewer  viewer;
@@ -1114,7 +1103,7 @@ int SetupPreconditioner(void *ctx)
   AppCtx  *user = (AppCtx*)ctx;
 
   Field	  ***xvec;
-  int	  ierr,i,j,k,xs,ys,zs,xm,ym,zm,ze,ye,xe,mx,my,mz;
+  int	  ierr,xs,ys,zs,xm,ym,zm,ze,ye,xe;
   int     xs_g,ys_g,zs_g,ze_g,ye_g,xe_g,xm_g,ym_g,zm_g;
   Vec     localX;
 
