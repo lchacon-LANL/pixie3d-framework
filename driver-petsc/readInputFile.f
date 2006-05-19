@@ -66,11 +66,7 @@ c Begin program
 
 c Initialize MPI
 
-      call initMPI
-
-c Determine processor allocation
-
-      call processorAlloc(nxd,nyd,nzd)
+      call initMPI(nxd,nyd,nzd)
 
 c Define structure components
 

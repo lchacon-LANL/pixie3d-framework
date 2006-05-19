@@ -58,7 +58,8 @@ c Initialize vector dimensions for global and local problems
 
       call setVectorDimensions
 
-      write (*,*) 'proc',my_rank,'lim',ilog,ihig,jlog,jhig,klog,khig
+      write (*,*) 'Processor:',my_rank
+     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
 
 c Allocate constant arrays
 
@@ -75,9 +76,9 @@ c Initialize MG and create grid
       call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd
      .               ,gpack=g_pack)
 
-c Create fortran DA hierarchy
+c Create fortran PETSc parallel grid hierarchy
 
-      call createDA
+      call createPETScGrid
 
 c Create nonlinear solver
 
