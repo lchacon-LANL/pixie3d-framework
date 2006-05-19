@@ -23,6 +23,6 @@ c####################################################################
 
         real(8),allocatable,dimension(:,:,:,:) :: v_cov,v_cnv,v0
 
-        logical :: symm=.false.
+        logical :: symm=.false.,bc_debug=.false.
 
       end module BCS_variables
