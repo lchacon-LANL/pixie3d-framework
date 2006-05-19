@@ -1140,7 +1140,7 @@ c     Begin program
       return
 
  100  ierr=-2  !EOF
-      write (*,*) 'readRecordFile: EOF in file unit',unit
+cc      write (*,*) 'readRecordFile: EOF in file unit',unit
       return
 
  200  ierr=-1  !Error, but not EOF
