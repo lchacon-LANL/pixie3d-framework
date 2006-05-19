@@ -86,18 +86,16 @@ c     End program
 
 c     scalarSingularBC
 c     #################################################################
-      subroutine scalarSingularBC(array,order)
+      subroutine scalarSingularBC(array)
 c     -----------------------------------------------------------------
 c     Imposes singular point BC. On input:
 c        * array: contains variable on which singular BC is imposed
-c        * order: order of interpolation towards singular point
 c     -----------------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-      integer(4) :: order
       real(8)    :: array(0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
@@ -476,7 +474,8 @@ c     Begin program
         end select
 
         ibc = (1+loc)+2*(dim-1)
-        if ((.not.do__nothing).and.(bcond(ibc) == PER.and.asm_dir(dim)))
+cc        if ((.not.do__nothing).and.(bcond(ibc) == PER.and.asm_dir(dim)))
+        if ((.not.do__nothing).and.(bcond(ibc) == PER))
      .       do__nothing = .true.  !Do nothing for periodic BCs in parallel
 
 c     End program
@@ -541,6 +540,22 @@ cc      selectFace = .true.
 
       end function selectFace
 
+c     setup_petsc_BC
+c     ######################################################################
+      subroutine setup_petsc_BC
+
+c     -----------------------------------------------------------------
+c     Sets flags to indicate that parallel BCs are NOT to be imposed
+c     on the fortran side (are fully provided by PETSc).
+c     -----------------------------------------------------------------
+
+      implicit none
+
+      par_bc = .false.  !No parallel BC (provided by PETSc)
+      asm    = .false.  !No ASM (no extrapolation to corner, edges)
+
+      end subroutine setup_petsc_BC
+
 c     setASMflag
 c     ######################################################################
       subroutine setASMflag(asm_flag)
@@ -554,6 +569,8 @@ c     -----------------------------------------------------------------
       logical :: asm_flag
 
       asm = asm_flag
+
+      par_bc = .not.asm
 
       end subroutine setASMflag
 
@@ -687,6 +704,14 @@ c     Initialize global limits
         kkmax = grid_params%khi(iigz)
       endif
 
+c     Fill PETSc ghost cells
+
+#if defined(petsc)
+      if ( (np > 1) .and. (.not.asm) .and. par_bc) then
+        call fillPetscGhostCells(array,igxbc)
+      endif
+#endif
+
 c     Impose BCs
 
       do bctype=1,BCLIM             !Enforces a particular order in the BCs (see grid_mod.f)
@@ -781,9 +806,8 @@ c     Begin program
       endif
 
       if (is__vec .and. ncomp < 3) then
-        write (*,*) 'Cannot impose BC on vector; # components < 3'
-        write (*,*) 'Aborting...'
-        stop
+        call pstop('imposeBConVector'
+     .            ,'Cannot impose BC on vector; # components < 3')
       endif
 
       !By default, we assume input is in cnv representation
@@ -831,7 +855,23 @@ c     Initialize global limits
         kkmax = grid_params%khi(iigz)
       endif
 
-c     Find cov components (we assume cnv components are defined)
+c     Fill PETSc ghost cells
+
+#if defined(petsc)
+      if ( (np > 1) .and. (.not.asm) .and. par_bc) then
+        if (is__vec .and. to_cnv) then
+          do ieq=1,ncomp
+            call fillPetscGhostCells(v_cov(:,:,:,ieq),igxbc)
+          enddo
+        else
+          do ieq=1,ncomp
+            call fillPetscGhostCells(v_cnv(:,:,:,ieq),igxbc)
+          enddo
+        endif
+      endif
+#endif
+
+c     Find complete curvilinear representation
 
       if (is__vec) then
 
@@ -1200,10 +1240,7 @@ c     Begin program
       
 c     Determine boundary limits
 
-      if (do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax)) then
-cc        if (bctype == EXT) write (*,*) 'Proc',my_rank,'EXT return'
-        return
-      endif
+      if(do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))return
 
       call findLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                           ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
@@ -1239,12 +1276,12 @@ cc          call neumannBC(array(:,:,:,nvar),ieq,dim,loc)
         case(EXT)
           call fillFaces(array(:,:,:,nvar),dim,loc)
         case(SP)
-          call scalarSingularBC(array(:,:,:,nvar),order)
+          call scalarSingularBC(array(:,:,:,nvar))
         case(IFC)
           call interpolateToFace(array(:,:,:,nvar),ibc)
         case default
-          write (*,*) 'BC',bctype,' not implemented'
-          stop
+          call pstop('fillGhostNodes'
+     .             ,'BC'//int2char(bctype)//' not implemented')
         end select
       else
         select case(bctype)
@@ -1265,8 +1302,8 @@ cc          call neumannBC(ivar,array,ieq,dim,loc,symm=.true.)
         case(IFC)
           call interpolateToFace(array(:,:,:,ivar),ibc)
         case default
-          write (*,*) 'BC',bctype,' not implemented'
-          stop
+          call pstop('fillGhostNodes'
+     .             ,'BC'//int2char(bctype)//' not implemented')
         end select
       endif
 
@@ -1319,8 +1356,8 @@ c     Begin program
        if (.not.asm_dir(3))
      . array(imin:imax,jmin:jmax,nzbc+1)=array(imin:imax,jmin:jmax,1   )
       case default
-       write (*,*) 'Boundary',ibc,' non existent'
-       stop
+       call pstop('periodicBC'
+     .           ,'Boundary '//int2char(ibc)//' non existent')
       end select
 
 cc      write (*,*) 'DIAG -- periodicBC'
@@ -1404,8 +1441,8 @@ c     Begin program
      .      0.5*(array(imin:imax,jmin:jmax,nzbc+1)
      .          +array(imin:imax,jmin:jmax,nzbc  ))
       case default
-       write (*,*) 'Boundary',ibc,' non existent'
-       stop
+       call pstop('interpolateToFace'
+     .           ,'Boundary '//int2char(ibc)//' non existent')
       end select
 
       endif
@@ -1448,14 +1485,17 @@ c     Begin program
 
 c     Determine boundary limits
 
-      if (do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))
-     .     return
+      if(do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))return
 
       call findLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                           ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
+      if (bc_debug) then
 cc      write (*,*) 'Proc',my_rank,iimin,iimax,jjmin,jjmax,kkmin,kkmax
-cc      write (*,*) 'Proc',my_rank,imin,imax,jmin,jmax,kmin,kmax
+        write(*,*) '  fillFaces: Proc',my_rank
+     .            ,'; Boundary: dim =',dim,' loc =',loc
+     .            ,'; Local limits:',imin,imax,jmin,jmax,kmin,kmax
+      endif
 
 c     Select edge
 
@@ -1610,8 +1650,17 @@ c     Begin program
 
 c     Determine boundary limits
 
+      if(do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))return
+
       call findLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                           ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
+
+      if (bc_debug) then
+cc      write (*,*) 'Proc',my_rank,iimin,iimax,jjmin,jjmax,kkmin,kkmax
+        write(*,*) '  fillEdges: Proc',my_rank
+     .            ,'; Boundary: dim =',dim,' loc =',loc
+     .            ,'; Local limits:',imin,imax,jmin,jmax,kmin,kmax
+      endif
 
 c     Select edge
 
@@ -1934,6 +1983,8 @@ c     Begin program
 
 c     Determine boundary limits
 
+      if(do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))return
+
       call findLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                           ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
@@ -1954,6 +2005,11 @@ c     Select corner
         imx   = max(ito,ifrom)
         jmx   = max(jto,jfrom)
         kmx   = max(kto,kfrom)
+
+        if (bc_debug) then
+          write (*,*) '  fillCorners: Proc',my_rank
+     .               ,'; Corner =',ito,jto,kto
+        endif
 
         call extrapolateToCorner(ibc,ito,jto,kto,imn,jmn,kmn
      .          ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
@@ -1976,6 +2032,11 @@ c     Select corner
         jmx   = max(jto,jfrom)
         kmx   = max(kto,kfrom)
 
+        if (bc_debug) then
+          write(*,*) '  fillCorners: Proc',my_rank
+     .              ,'; Corner =',ito,jto,kto
+        endif
+
         call extrapolateToCorner(ibc,ito,jto,kto,imn,jmn,kmn
      .           ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
       endif
@@ -1996,6 +2057,11 @@ c     Select corner
         imx   = max(ito,ifrom)
         jmx   = max(jto,jfrom)
         kmx   = max(kto,kfrom)
+
+        if (bc_debug) then
+          write(*,*) '  fillCorners: Proc',my_rank
+     .              ,'; Corner =',ito,jto,kto
+        endif
 
         call extrapolateToCorner(ibc,ito,jto,kto,imn,jmn,kmn
      .            ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
@@ -2018,6 +2084,11 @@ c     Select corner
         jmx   = max(jto,jfrom)
         kmx   = max(kto,kfrom)
 
+        if (bc_debug) then
+          write(*,*) '  fillCorners: Proc',my_rank
+     .              ,'; Corner =',ito,jto,kto
+        endif
+
         call extrapolateToCorner(ibc,ito,jto,kto,imn,jmn,kmn
      .            ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
       endif
@@ -2038,6 +2109,11 @@ c     Select corner
         imx   = max(ito,ifrom)
         jmx   = max(jto,jfrom)
         kmx   = max(kto,kfrom)
+
+        if (bc_debug) then
+          write(*,*) '  fillCorners: Proc',my_rank
+     .              ,'; Corner =',ito,jto,kto
+        endif
 
         call extrapolateToCorner(ibc,ito,jto,kto,imn,jmn,kmn
      .            ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
@@ -2060,6 +2136,11 @@ c     Select corner
         jmx   = max(jto,jfrom)
         kmx   = max(kto,kfrom)
 
+        if (bc_debug) then
+          write(*,*) '  fillCorners: Proc',my_rank
+     .              ,'; Corner =',ito,jto,kto
+        endif
+
         call extrapolateToCorner(ibc,ito,jto,kto,imn,jmn,kmn
      .            ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
       endif
@@ -2081,6 +2162,11 @@ c     Select corner
         jmx   = max(jto,jfrom)
         kmx   = max(kto,kfrom)
 
+        if (bc_debug) then
+          write(*,*) '  fillCorners: Proc',my_rank
+     .              ,'; Corner =',ito,jto,kto
+        endif
+
         call extrapolateToCorner(ibc,ito,jto,kto,imn,jmn,kmn
      .            ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
       endif
@@ -2101,6 +2187,11 @@ c     Select corner
         imx   = max(ito,ifrom)
         jmx   = max(jto,jfrom)
         kmx   = max(kto,kfrom)
+
+        if (bc_debug) then
+          write(*,*) '  fillCorners: Proc',my_rank
+     .              ,'; Corner =',ito,jto,kto
+        endif
 
         call extrapolateToCorner(ibc,ito,jto,kto,imn,jmn,kmn
      .            ,imx,jmx,kmx,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
@@ -2304,12 +2395,10 @@ c     Identify directions for extrapolation.
       !Check some direction for interpolation exists
 
       if ((.not.flg(1)).and.(.not.flg(2)).and.(.not.flg(3))) then
-        write (*,*) 'Error in extrapolateToCorner:'
         write (*,*) 'Extrapolation directions',flg
         write (*,*) 'Boundaries involved',ibcl
         write (*,*) 'No extrapolation directions left'
-        write (*,*) 'Aborting...'
-        stop
+        call pstop('extrapolateToCorner','')
       endif
 
 c     Initialize accumulators
