@@ -42,7 +42,7 @@ c Local variables
 c External
 
       integer(4) :: system
-      external   :: system
+      external      system
 
 c Begin program
 
@@ -402,7 +402,7 @@ c Local variables
 c External
 
       integer(4) :: system
-      external   :: system
+      external      system
 
 c Begin program
 
