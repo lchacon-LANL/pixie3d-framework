@@ -1823,11 +1823,7 @@ c     Local variables
 
 c     Begin program
 
-#if defined(petsc)
         if (np == 1) call dumpXDRAWplots
-#else
-        call dumpXDRAWplots
-#endif
 
 #if defined(hdf5)
         if (hdf_plot) call writeHDF5file
