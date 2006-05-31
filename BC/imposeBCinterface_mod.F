@@ -301,27 +301,37 @@ c     Element exchange in poloidal direction
      .            ,'Poloidal dimension not a multiple of 2')
       endif
 
-      do k=1,nzbc
-        do j=1,nybc
-          jj = mod(j+nybc/2,nybc)
-          if (jj == 0) jj = nybc
-          if (cov) then
-            select case(ivar)
-            case(1)
-              vec(i-1,j,k) = -vec(i,jj,k)
-            case(2,3)
-              vec(i-1,j,k) =  vec(i,jj,k)
-            end select
-          else
-            select case(ivar)
-            case(1)
-              vec(i-1,j,k) =  vec(i,jj,k)
-            case(2,3)
-              vec(i-1,j,k) = -vec(i,jj,k)
-            end select
-          endif
+      if (coords == 'hl2') then
+        do k=1,nzbc
+          do j=1,nybc
+            jj = mod(j+nybc/2,nybc)
+            if (jj == 0) jj = nybc
+            vec(i-1,j,k) =  vec(i,jj,k)
+          enddo
         enddo
-      enddo
+      else
+        do k=1,nzbc
+          do j=1,nybc
+            jj = mod(j+nybc/2,nybc)
+            if (jj == 0) jj = nybc
+            if (cov) then
+              select case(ivar)
+              case(1)
+                vec(i-1,j,k) = -vec(i,jj,k)
+              case(2,3)
+                vec(i-1,j,k) =  vec(i,jj,k)
+              end select
+            else
+              select case(ivar)
+              case(1)
+                vec(i-1,j,k) =  vec(i,jj,k)
+              case(2,3)
+                vec(i-1,j,k) = -vec(i,jj,k)
+              end select
+            endif
+          enddo
+        enddo
+      endif
 
 c     End program
 
@@ -473,10 +483,11 @@ c     Begin program
           call checkLimits(k1,k2,grid_params%nzgl(igzbc))
         end select
 
+        !Do nothing for periodic BCs in parallel (PETSc does it)
         ibc = (1+loc)+2*(dim-1)
 cc        if ((.not.do__nothing).and.(bcond(ibc) == PER.and.asm_dir(dim)))
-        if ((.not.do__nothing).and.(bcond(ibc) == PER))
-     .       do__nothing = .true.  !Do nothing for periodic BCs in parallel
+        if((.not.do__nothing).and.(bcond(ibc)==PER).and.(np>1))
+     .       do__nothing =.true. 
 
 c     End program
 
@@ -1407,37 +1418,43 @@ c     Local variables
 
 c     Begin program
 
-      if (np == 1 .or. asm) then
+cc      if (np == 1 .or. asm) then
 
       select case (ibc)
       case (1)                  !x0
-       if (.not.asm_dir(1))
-     . array(0     ,jmin:jmax,kmin:kmax)=
+cc       if (.not.asm_dir(1))
+cc     . array(0     ,jmin:jmax,kmin:kmax)=
+       array(0     ,jmin:jmax,kmin:kmax)=
      .      0.5*(array(0,jmin:jmax,kmin:kmax)
      .          +array(1,jmin:jmax,kmin:kmax))
       case (2)                  !x1                                       
-       if (.not.asm_dir(1))
-     . array(nxbc+1,jmin:jmax,kmin:kmax)=
+cc       if (.not.asm_dir(1))
+cc     . array(nxbc+1,jmin:jmax,kmin:kmax)=
+       array(nxbc+1,jmin:jmax,kmin:kmax)=
      .      0.5*(array(nxbc+1,jmin:jmax,kmin:kmax)
      .          +array(nxbc  ,jmin:jmax,kmin:kmax))
       case (3)                  !y0                                       
-       if (.not.asm_dir(2))
-     . array(imin:imax,0     ,kmin:kmax)=
+cc       if (.not.asm_dir(2))
+cc     . array(imin:imax,0     ,kmin:kmax)=
+       array(imin:imax,0     ,kmin:kmax)=
      .      0.5*(array(imin:imax,0,kmin:kmax)
      .          +array(imin:imax,1,kmin:kmax))
       case (4)                  !y1                                       
-       if (.not.asm_dir(2))
-     . array(imin:imax,nybc+1,kmin:kmax)=
+cc       if (.not.asm_dir(2))
+cc     . array(imin:imax,nybc+1,kmin:kmax)=
+       array(imin:imax,nybc+1,kmin:kmax)=
      .      0.5*(array(imin:imax,nybc+1,kmin:kmax)
      .          +array(imin:imax,nybc  ,kmin:kmax))
       case (5)                  !z0                                       
-       if (.not.asm_dir(3))
-     . array(imin:imax,jmin:jmax,0     )=
+cc       if (.not.asm_dir(3))
+cc     . array(imin:imax,jmin:jmax,0     )=
+       array(imin:imax,jmin:jmax,0     )=
      .      0.5*(array(imin:imax,jmin:jmax,0)
      .          +array(imin:imax,jmin:jmax,1))
       case (6)                  !z1                                       
-       if (.not.asm_dir(3))
-     . array(imin:imax,jmin:jmax,nzbc+1)=
+cc       if (.not.asm_dir(3))
+cc     . array(imin:imax,jmin:jmax,nzbc+1)=
+       array(imin:imax,jmin:jmax,nzbc+1)=
      .      0.5*(array(imin:imax,jmin:jmax,nzbc+1)
      .          +array(imin:imax,jmin:jmax,nzbc  ))
       case default
@@ -1445,7 +1462,7 @@ c     Begin program
      .           ,'Boundary '//int2char(ibc)//' non existent')
       end select
 
-      endif
+cc      endif
 
 c     End program
 
