@@ -130,10 +130,15 @@ c Final statistics
       prec_tot = gmres_tot + iguess*newt_tot
 
       write(*,300) 
-      write(*,310) (itime-1),float(newt_tot )/(itime-inewtime)
-     .                      ,float(gmres_tot)/(itime-inewtime)
-     .                      ,float(gmres_tot)/newt_tot
-     .                      ,float(wh_tot)   /prec_tot
+
+      if (itime-inewtime > 0d0) then
+        write(*,310) (itime-1),float(newt_tot )/(itime-inewtime)
+     .                        ,float(gmres_tot)/(itime-inewtime)
+     .                        ,float(gmres_tot)/newt_tot
+     .                        ,float(wh_tot)   /prec_tot
+      else
+        write(*,310) 0,0d0,0d0,0d0,0d0
+      endif
 
 c Formats
 
@@ -202,7 +207,12 @@ c     Initial guess
           call findGuess(vn,vnp)
           x = vnp               !Overloaded assignment
         else
-          x = vn
+          if (bdf2) then
+            call AXPYDerivedType(-cn/cnp,vn,-cnm/cnp,u_nm,vnp)
+            x = vnp
+          else
+            x = vn
+          endif
         endif
         
 c     Newton iteration
