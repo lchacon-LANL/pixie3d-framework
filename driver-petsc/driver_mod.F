@@ -208,40 +208,6 @@ c     Find new time step
 
       call findNewTimeStep(itm,ierr)
 
-cc      call calculate_dt
-cc
-cc      cnp = 1d0
-cc      cn  =-1d0
-cc      cnm = 0d0
-cc
-cc      if (sm_flag == 1) then
-cc
-cc        call calculate_cnfactor
-cc
-cc      elseif (sm_flag == 2) then
-cc        if (itm == 1 ) then
-cc
-cc          cnfactor = 0.5
-cc
-cc          bdf2 = .false.
-cc
-cc        else
-cc          cnfactor = 0d0
-cc
-cc          bdf2 = .true.
-cc
-cc          !All these are affected by factor 1/dt (done in evaluateNLF)
-cc          cnp = (2*dt+dtold)/(dt+dtold)
-cc          cn  = -(dt+dtold)/dtold
-cc          cnm = dt**2/(dtold*(dt+dtold))
-cc
-cc        endif
-cc      endif
-cc
-cc      alpha = 1. - cnfactor
-
-cc      write (*,*) 'timeStep',cnp,cn,cnm
-
 c     End program
 
       contains
@@ -294,73 +260,6 @@ c     Begin program
         gammat = 1./minval(abs(mag))
 
       end subroutine calculate_gammat
-
-ccc     calculate_cnfactor
-ccc     #######################################################################
-cc      subroutine calculate_cnfactor
-cc
-cc        if (itm.eq.1) then
-cc          cnfactor = .5
-cc        elseif (itm.le.sm_pass+1) then
-cc          cnfactor = .3
-cc        else
-cccc          write (*,*) 'gamma ',gammat,'dt ',dt
-cc          cnfactor = max(.5 - gammat/12.*dt,0d0)
-cc        endif
-cc
-cc      end subroutine calculate_cnfactor
-cc
-ccc     calculate_dt
-ccc     #######################################################################
-cc      subroutine calculate_dt
-cc
-cc        dt_n = dt
-cc
-cc        if (timecorr .or. cnfactor == 1d0) then
-cc          if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor == 1d0)) then
-cc            call findExplicitDt
-cc          else
-cc            call adapt_dt(dtbase)
-cc          endif
-cc        else
-cc          dt = dtbase
-cc        endif
-cc
-cc      end subroutine calculate_dt
-cc
-ccc     adapt_dt
-ccc     #######################################################################
-cc      subroutine adapt_dt(dtbase)
-cc
-cc        real(8) ::    dtbase
-cc        real(8) ::    coef1,coef2
-cc
-cc        coef1 = 0.8             !Time subcycling coefficient
-cc        coef2 = 1.05            !Time recovery   coefficient
-cc
-cc        if (ierr.gt.0) then
-cc          dt = dt*coef1
-cc          if (dt < 1d-3*dtbase) then
-cc            write (*,*) 'Time step too small'
-cc            write (*,*) 'Aborting...'
-cc            stop
-cc          endif
-cc          if (ierr.eq.2) write (*,240)
-cc          write (*,400) dt
-cc        else
-cc          if (itm.le.sm_pass+1) then
-cc            dt = dtbase/2.
-cc          elseif (itm.eq.(sm_pass+2)) then
-cc            dt = dtbase
-cc          else
-cc            dt = min(dtbase,dt*coef2)
-cc          endif
-cc        endif
-cc
-cc 240    format ('    Too many Newton iterations')
-cc 400    format ('    Subcycling time step... New time step: ',1p,e10.4)
-cc
-cc      end subroutine adapt_dt
 
       end subroutine correctTimeStep
 
@@ -497,12 +396,6 @@ c     Begin program
 
       alpha = 1. - cnfactor
 
-cc      call calculate_dt
-cc
-cc      if (sm_flag.eq.1) call calculate_cnfactor
-cc
-cc      alpha = 1. - cnfactor
-
 c     End program
 
       contains
@@ -581,70 +474,6 @@ c     #######################################################################
  400    format ('    Subcycling time step... New time step: ',1p,e10.4)
 
       end subroutine adapt_dt
-
-ccc     calculate_cnfactor
-ccc     #######################################################################
-cc      subroutine calculate_cnfactor
-cc
-cccc        if (itm.eq.1) then
-cccc          cnfactor = .5
-cccc        elseif (itm.le.sm_pass+1) then
-cc        if (itm.le.sm_pass) then
-cc          cnfactor = .3
-cc        else
-cccc          write (*,*) 'gamma ',gammat,'dt ',dt
-cc          cnfactor = max(.5 - gammat/12.*dt,0d0)
-cc        endif
-cc
-cc      end subroutine calculate_cnfactor
-cc
-ccc     calculate_dt
-ccc     #######################################################################
-cc      subroutine calculate_dt
-cc
-cc        if (timecorr) then
-cc          call adapt_dt(dtbase)
-cc        else
-cc          dt = dtbase
-cc        endif
-cc
-cc      end subroutine calculate_dt
-cc
-ccc     adapt_dt
-ccc     #######################################################################
-cc      subroutine adapt_dt(dtbase)
-cc
-cc        real(8) ::    dtbase
-cc        real(8) ::    coef1,coef2
-cc
-cc        coef1 = 0.8             !Time subcycling coefficient
-cc        coef2 = 1.05            !Time recovery   coefficient
-cc
-cc        if (ierr.gt.0) then
-cc          dt = dt*coef1
-cc          if (dt < 1d-3*dtbase) then
-cc            write (*,*) 'Time step too small'
-cc            write (*,*) 'Aborting...'
-cc            stop
-cc          endif
-cc          if (ierr.eq.2) write (*,240)
-cc          write (*,400) dt
-cc        else
-cccc          if (itm.le.sm_pass+1) then
-cc          if (itm.le.sm_pass) then
-cc            dt = dtbase/2.
-cccc          elseif (itm.eq.(sm_pass+2)) then
-cc          elseif (itm.eq.(sm_pass+1)) then
-cc            dt = dtbase
-cc          else
-cc            dt = min(dtbase,dt*coef2)
-cc          endif
-cc        endif
-cc
-cc 240    format ('    Too many Newton iterations')
-cc 400    format ('    Subcycling time step... New time step:',f7.4)
-cc
-cc      end subroutine adapt_dt
 
       end subroutine findNewTimeStep
 
