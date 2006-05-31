@@ -306,6 +306,7 @@ c Initialize graphics
 
       call initializeGraphics(igx,igy,igz,bcond)
 
+      !Uncomment this for debugging source (need to uncomment lines in initializeCalculation.f)
 cc      call dumpTimeStepPlots
 
 c Initialize diagnostics
