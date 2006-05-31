@@ -62,6 +62,14 @@ c Begin program
 
       g_pack%dim(:)%pack = .false.
 
+c Set PETSc defaults
+
+      npx = inputdata%npx
+      npy = inputdata%npy
+      npz = inputdata%npz
+
+c Read fortran input file
+
       call readInput
 
 c Initialize MPI
