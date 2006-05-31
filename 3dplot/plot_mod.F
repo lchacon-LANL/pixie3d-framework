@@ -32,7 +32,7 @@ c ######################################################################
 
         character*(10):: precon
 
-	logical       :: asm_PC
+        logical       :: asm_PC
 
       end module precond_setup
 
