@@ -44,40 +44,6 @@ c     End program
 
       end subroutine contour
 
-c     int2char
-c     ################################################################
-      function int2char(n) result (chr)
-
-      implicit none
-
-      integer(4)   :: n
-      character(10):: chr
-
-      integer(4)   :: i,exp,k,j
-      character(3) :: c
-
-      if (abs(n) > 0) then
-         exp = int(log(float(n))/log(1d1))
-      else
-         exp = 0
-      endif
-
-      if (n >= 0) then
-        chr=''
-      else
-        chr='-'
-      endif
-
-      k = abs(n)
-      do i=exp,0,-1
-         j = k/10**i
-         c = achar(48+j)
-         chr = trim(chr)//trim(c)
-         if (i > 0 .and. j /= 0) k = mod(k,j*10**i)
-      enddo
-
-      end function int2char
-
       end module debug_mod
 
 c module grid_structures
@@ -772,8 +738,8 @@ cc            write (*,*) x1,xx,aax,bbx,(x1-xi0)/bbx
           aa = kk/mm
           phi = (x2-aa*x3)
 
-          xx = sqrt(2*x1)*cos(phi)
-          yy = sqrt(2*x1)*sin(phi)
+          xx = sign(sqrt(2*abs(x1)),x1)*cos(phi)
+          yy = sign(sqrt(2*abs(x1)),x1)*sin(phi)
           zz = x3
         case ('tor')
           major_r = gparams(1)
@@ -1035,7 +1001,7 @@ c     Begin program
         case ('hl2')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
-          curv = (/ sqrt(2*x1),x2,x3 /)
+          curv = (/ sign(sqrt(2*abs(x1)),x1),x2,x3 /)
 
           mm = gparams(1)
           kk = gparams(2)
@@ -1204,7 +1170,7 @@ c     Begin program
         case ('hl2')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
-          curv = (/ sqrt(2*x1),x2,x3 /)
+          curv = (/ sign(sqrt(2*abs(x1)),x1),x2,x3 /)
 
           mm = gparams(1)
           kk = gparams(2)
@@ -1453,7 +1419,7 @@ c     Begin program
         case ('hl2')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
-          curv = (/ 2*x1,x2,x3 /)
+          curv = (/ abs(2*x1),x2,x3 /)
 
           mm = gparams(1)
           kk = gparams(2)
@@ -1889,7 +1855,7 @@ c     Begin program
         case ('hl2')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
-          curv = (/ 2*x1,x2,x3 /)
+          curv = (/ abs(2*x1),x2,x3 /)
 
           mm = gparams(1)
           kk = gparams(2)
@@ -2036,7 +2002,7 @@ c     Begin program
         case ('hl2')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
-          curv = (/ 2*x1,x2,x3 /)
+          curv = (/ abs(2*x1),x2,x3 /)
 
           mm = gparams(1)
           kk = gparams(2)
@@ -2328,21 +2294,6 @@ c     Rank and number of processors
         call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
         call MPI_Comm_size(MPI_COMM_WORLD,np     ,mpierr)
 
-c     Singular-point boundary MPI communicator
-
-        if (bcSP()) call createBoundaryComm(1,bcond(1),MPI_COMM_SP)
-
-c diag ****
-cc        write (*,*) 'Proc',my_rank,', SP COMM' ,MPI_COMM_SP
-cc        if (MPI_COMM_SP /= MPI_COMM_NULL) then
-cc          call MPI_Comm_size(MPI_COMM_SP,my_rank,mpierr)
-cc          write (*,*) '# ranks SP_COMM ',my_rank
-cc        endif
-cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cc        call MPI_Finalize(mpierr)
-cc        stop
-c diag ****
-
 c     Allocate processors
 
         call processorAlloc(nxg,nyg,nzg)
@@ -2617,9 +2568,26 @@ c     Local variables
 
 c     Begin program
 
+c     Create PETSc DA hierachy
+
         do igr=1,grid_params%ngrid
           call createFortranDA(igr)
         enddo
+
+c     Singular-point boundary MPI communicator
+
+        if (bcSP()) call createBoundaryComm(1,bcond(1),MPI_COMM_SP)
+
+c diag ****
+cc        write (*,*) 'Proc',my_rank,', SP COMM' ,MPI_COMM_SP
+cc        if (MPI_COMM_SP /= MPI_COMM_NULL) then
+cc          call MPI_Comm_size(MPI_COMM_SP,my_rank,mpierr)
+cc          write (*,*) '# ranks SP_COMM ',my_rank
+cc        endif
+cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cc        call MPI_Finalize(mpierr)
+cc        stop
+c diag ****
 
 c     End program
 
