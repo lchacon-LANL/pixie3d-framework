@@ -451,7 +451,7 @@ cc        !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contain
           u_graph = u_0
 cc        endif
 
-        !Check source
+        !Check source (need to uncomment dumpTimeStepPlots call in 3dplot.F)
 cc        u_graph = fsrc
 cc        u_graph%array_var(1)%array = u_0%array_var(1)%array  !Set rho finite
 cc        call imposeBoundaryConditions(u_graph,1,1,1)
