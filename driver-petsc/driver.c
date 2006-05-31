@@ -10,6 +10,11 @@ static char help[] = "Options:
      TIME STEPPING:
         -nmax <nmax>: max. iteration # of time steps
         -tmax <tmax>: final time
+
+     PARALLEL DA:
+        -npx: processors in X direction
+        -npy: processors in Y direction
+        -npz: processors in Z direction
 ";
 
 /*
@@ -179,8 +184,24 @@ int MAIN__(int argc, char **argv)
 
   user.ierr = 0;
 
+  /* Set PETSc defaults */
+
+  npx = 0;
+  npy = 0;
+  npz = 0;
+
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-npx",&npx,PETSC_NULL)  	        ;CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-npy",&npy,PETSC_NULL)  	        ;CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-npz",&npz,PETSC_NULL)  	        ;CHKERRQ(ierr);
+
+  user.indata.npx = npx;
+  user.indata.npy = npy;
+  user.indata.npz = npz;
+
+  /* Read FORTRAN input file */
+
   ierr = ReadInputNInitialize(&user.indata, &BC)                                ;CHKERRQ(ierr);
-  
+
   nxd = user.indata.nxd;
   nyd = user.indata.nyd;
   nzd = user.indata.nzd;
@@ -972,7 +993,7 @@ int ApplyASPC(void *ctx,Vec y,Vec z)
     ierr = VecAYPX(&mone   ,y,user->rk)               	             ;CHKERRQ(ierr);
 
     if (user->indata.ilevel > 4) {
-      ierr = PetscPrintf(PETSC_COMM_WORLD,"ApplyASPC: Dumping MATLAB diagnotic files \n");
+      ierr = PetscPrintf(PETSC_COMM_WORLD,"   ApplyASPC: Dumping MATLAB diagnostic files \n");
       ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"res.m",&viewer)    ;CHKERRQ(ierr);
       ierr = PetscViewerSetFormat(viewer,PETSC_VIEWER_ASCII_MATLAB)    ;CHKERRQ(ierr);
       ierr = VecView(user->rk,viewer)                                  ;CHKERRQ(ierr);
@@ -1071,7 +1092,7 @@ int ApplyPC(void *ctx,Vec y,Vec x)
 
   /* Visualize vectors */
   if (user->indata.ilevel > 4 && user->aspc_its == 0) {
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"ApplyPC: Dumping MATLAB diagnotic files \n");
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"   ApplyPC: Dumping MATLAB diagnostic files \n");
     ierr = MatMult(user->J ,x,user->rk)               	             ;CHKERRQ(ierr);
 
     ierr = VecAYPX(&mone   ,y,user->rk)               	             ;CHKERRQ(ierr);
