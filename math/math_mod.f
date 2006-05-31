@@ -215,4 +215,26 @@ c     ################################################################
 
       end function int2char
 
+c     fmed
+c     ###############################################################
+      function fmed(p1,p2,p3)
+      implicit none                !For safe fortran
+c     ---------------------------------------------------------------
+c     This function computes intermediate value of p1, p2, p3.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      real(8) :: p1,p2,p3,fmed
+
+c     Local variables
+
+c     Begin program
+
+      fmed = min( max(p1,p2) , max( p3,min(p1,p2) ) )
+
+c     End
+
+      end function fmed
+
       end module math
