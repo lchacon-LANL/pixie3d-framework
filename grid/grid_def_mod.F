@@ -54,35 +54,6 @@ c     Begin program
 
       end function checkAnalMapDatabase
 
-c     checkMapDatabase
-c     #################################################################
-      function checkMapDatabase() result(is_map)
-
-c     -----------------------------------------------------------------
-c     Checks grid database for analytical mappings
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        logical :: is_map
-
-c     Begin program
-
-        select case(coords)
-        case('car','scl','cyl','hel','hl2','tor','sin','vmc')
-
-          is_map = .true.
-
-        case default
-
-          is_map = .false.
-
-        end select
-
-      end function checkMapDatabase
-
 c     map
 c     #################################################################
       function map(i,j,k,igx,igy,igz,ig,jg,kg) result(car)
