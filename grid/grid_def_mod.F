@@ -9,7 +9,7 @@ c #####################################################################
 
         integer(4),parameter :: ngparams = 6
 
-        type :: grid_def
+        type :: grid_mg_def
           integer(4) :: ngrdx                             !# meshes in X
           integer(4) :: ngrdy                             !# meshes in Y
           integer(4) :: ngrdz                             !# meshes in Y
@@ -50,9 +50,9 @@ cc          integer(4),pointer,dimension(:)  :: ntotv       !Total # of grid nod
           integer(4),pointer,dimension(:)  :: mg_ratio_y  !MG coarsening ratio in Y
           integer(4),pointer,dimension(:)  :: mg_ratio_z  !MG coarsening ratio in Z
           real(8)                          :: params(ngparams)   !Grid configuration parameters
-        end type grid_def
+        end type grid_mg_def
 
-        type (grid_def) :: grid_params
+        type (grid_mg_def) :: grid_params
 
         INTERFACE ASSIGNMENT (=)
           module procedure equateGridStructure
@@ -73,7 +73,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         integer(4)     :: nx,ny,nz,ngridx,ngridy,ngridz
-        type(grid_def) :: grid_st
+        type(grid_mg_def) :: grid_st
 
 c     Local variables
 
@@ -201,7 +201,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_def) :: grid_st
+        type(grid_mg_def) :: grid_st
 
 c     Begin program
 
@@ -264,8 +264,8 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_def),intent(IN ) :: grid_st1
-        type(grid_def),intent(OUT) :: grid_st2
+        type(grid_mg_def),intent(IN ) :: grid_st1
+        type(grid_mg_def),intent(OUT) :: grid_st2
 
 c     Local variables
 
@@ -338,7 +338,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_def) :: grid_st
+        type(grid_mg_def) :: grid_st
 
 c     Local variables
 
@@ -493,3 +493,300 @@ c     #################################################################
       end subroutine fromLocalToGlobalLimits
 
       end module grid_structures
+
+c module bc_def
+c #####################################################################
+      module bc_def
+
+c     -----------------------------------------------------------------
+c     This module defines the types of BCs possible:
+c     Topological BCs (set topology of computational domain):
+c       PER: Periodic
+c       SP : Singular point (as in cylindrical, toroidal)
+c       SYM: Symmetry (> 0 -> homogeneous Neumann
+c                     ,< 0 -> homogeneous Dirichlet)
+c     Standard BCs:
+c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
+c       DIR: Homogeneous dirichlet
+c       NEU: Neumann (homogeneous/inhomogeneous)
+c       SYM: Symmetry (odd,even depend on sign)
+c       EXT: By extrapolation
+c       DEF: Default (does nothing)
+c     The actual integers chosen indicate a particular order that the BC
+c     scheduler follows to impose the boundary conditions.
+c     -----------------------------------------------------------------
+
+        use grid_structures
+
+        implicit none
+
+        integer(4) :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM,IFC
+        parameter (DEF=0,PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7,IFC=8)
+
+        integer(4),parameter :: BCLIM=8    !Defines # of BC cases
+
+        integer(4) :: bcond(6)
+
+        logical    :: asm_dir(3)=.false.,asm=.false.,par_bc=.false.
+
+        real(8)    :: SP_flsv=1d-5         !SP failsafe
+        
+      contains
+
+c     bcSP
+c     #################################################################
+      function bcSP(ibc) result(sing_bc)
+
+        integer(4),optional :: ibc
+        logical    :: sing_bc
+
+        integer(4) :: iibc
+
+        if (PRESENT(ibc)) then
+          iibc = ibc
+        else
+          iibc = 1
+        endif
+
+        sing_bc = (bcond(iibc) == SP)
+
+      end function bcSP
+
+c     isSP
+c     #################################################################
+      function isSP(i,j,k,igx,igy,igz) result(sing_point)
+
+        integer(4) :: i,j,k,igx,igy,igz
+        logical    :: sing_point
+
+        sing_point = (i+grid_params%ilo(igx)-1==1).and.bcSP()
+
+      end function isSP
+
+c     isSYM
+c     #################################################################
+      function isSYM(i,igr,dim,loc)
+
+        integer(4) :: i,igr,dim,loc
+        logical    :: isSYM
+
+        integer(4) :: ibc,ilog,itst
+
+        ibc = (1+loc)+2*(dim-1)
+
+        isSYM=.false.
+
+        select case(dim)
+        case(1)
+          ilog = grid_params%ilo(igr)
+          select case(loc)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nxgl(igr)
+          end select
+        case(2)
+          ilog = grid_params%jlo(igr)
+          select case(loc)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nygl(igr)
+          end select
+        case(3)
+          ilog = grid_params%klo(igr)
+          select case(loc)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nzgl(igr)
+          end select
+        end select
+
+        if (i+ilog-1 == itst .and. bcond(ibc) == SYM)  isSYM=.true.
+
+      end function isSYM
+
+c     alt__eom
+c     #################################################################
+      function alt__eom()
+
+        logical :: alt__eom
+
+        alt__eom=.false.
+        if (bcSP()) alt__eom=.true.
+
+      end function alt__eom
+
+      end module bc_def
+
+c module grid_metric_def
+c #####################################################################
+      module grid_metric_def
+
+c ---------------------------------------------------------------------
+c     This module allocates and fills the grid metric structure gmetric.
+c     It contains the following routines: 
+c        * allocateGridMetric
+c        * deallocateGridMetric
+c        * defineGridMetric
+c           -> map
+c           -> topol_bc
+c           -> gammaZeroForce
+c           -> zeroForceCheck
+c ---------------------------------------------------------------------
+
+        use grid_structures
+
+        implicit none
+
+        type :: grid_metrics
+cc          real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
+          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
+          real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
+          real(8),pointer,dimension(:,:,:,:,:,:) :: Gamma !Christoffel symbol at cell centers
+          real(8),pointer,dimension(:,:,:,:,:)   :: cov   !Covariant vectors
+          real(8),pointer,dimension(:,:,:,:,:)   :: cnv   !Contravariant vectors
+        end type grid_metrics
+
+        type :: MG_grid_metrics
+          type(grid_metrics),pointer,dimension(:) :: grid
+        end type MG_grid_metrics
+
+        type(MG_grid_metrics) :: gmetric
+
+      contains
+
+c     allocateGridMetric
+c     #################################################################
+      subroutine allocateGridMetric(gmetric)
+
+        implicit none
+
+c     Call variables
+
+        type(MG_grid_metrics) :: gmetric
+
+c     Local variables
+
+        integer(4)      :: igrid,ilom,ihip,jlom,jhip,klom,khip
+
+c     Begin program
+
+        if (.not.associated(gmetric%grid)) then
+          allocate(gmetric%grid(grid_params%ngrid))
+          do igrid=1,grid_params%ngrid
+            ilom = 0
+            jlom = 0
+            klom = 0
+            ihip = grid_params%nxv(igrid)+1
+            jhip = grid_params%nyv(igrid)+1
+            khip = grid_params%nzv(igrid)+1
+cc            allocate(gmetric%grid(igrid)
+cc     $           %car  (ilom:ihip,jlom:jhip,klom:khip,3))
+            allocate(gmetric%grid(igrid)
+     $           %dvol (ilom:ihip,jlom:jhip,klom:khip))
+            allocate(gmetric%grid(igrid)
+     $           %jac  (ilom:ihip,jlom:jhip,klom:khip))
+            allocate(gmetric%grid(igrid)
+     $           %gsub (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %gsup (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %cov  (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %cnv  (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %Gamma(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
+
+          enddo
+        endif
+
+c     End program
+
+      end subroutine allocateGridMetric
+
+c     deallocateGridMetric
+c     #################################################################
+      subroutine deallocateGridMetric(gmetric)
+
+        implicit none
+
+c     Call variables
+
+        type(MG_grid_metrics) :: gmetric
+
+c     Local variables
+
+        integer(4)      :: igrid,nxp,nyp,nzp
+
+c     Begin program
+
+        if (associated(gmetric%grid)) then
+          do igrid=1,grid_params%ngrid
+cc            deallocate(gmetric%grid(igrid)%car  )
+            deallocate(gmetric%grid(igrid)%dvol )
+            deallocate(gmetric%grid(igrid)%jac  )
+            deallocate(gmetric%grid(igrid)%gsub )
+            deallocate(gmetric%grid(igrid)%gsup )
+            deallocate(gmetric%grid(igrid)%cov  )
+            deallocate(gmetric%grid(igrid)%cnv  )
+            deallocate(gmetric%grid(igrid)%Gamma)
+          enddo
+          deallocate(gmetric%grid)
+        endif
+
+c     End program
+
+      end subroutine deallocateGridMetric
+
+
+c     volume
+c     #################################################################
+      function volume(i,j,k,igx,igy,igz) result(vol)
+
+c     -----------------------------------------------------------------
+c     Calculates Jacobian of curvilinear coordinate system
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer(4) :: i,j,k,igx,igy,igz
+        real(8)    :: vol
+
+c     Local variables
+
+        integer(4) :: ig,jg,kg
+        real(8)    :: x1,x2,x3,dx1,dx2,dx3,jac
+
+c     Begin program
+
+        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+        dx1 = grid_params%dxh(ig)
+        dx2 = grid_params%dyh(jg)
+        dx3 = grid_params%dzh(kg)
+
+        jac = gmetric%grid(igx)%jac(i,j,k)
+        
+        vol = jac*dx1*dx2*dx3
+
+      end function volume
+
+      end module grid_metric_def
+
+c module grid_def
+c ####################################################################
+      module grid_def
+
+        use bc_def
+        use grid_metric_def
+cc        use vector_ops
+
+        character*(3)   :: coords
+
+      end module grid_def
