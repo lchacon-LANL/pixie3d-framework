@@ -1,17 +1,15 @@
 
-c module grid_definition
+c module grid_anal_map
 c #####################################################################
-      module grid_definition
-
-        use grid_structures
+      module grid_anal_map
 
         use math
+
+        use grid_def
 
         implicit none
 
         real(8)         :: gparams(ngparams)
-
-        character*(3)   :: coords
 
         real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D domain dimensions
 
@@ -21,7 +19,7 @@ c #####################################################################
      .                    ,aay=0d0,bby=0d0,yy0
      .                    ,aaz=0d0,bbz=0d0,zz0
 
-        logical         :: numerical_grid,anal_map
+        logical         :: anal_map
 
       contains
 
@@ -1573,4 +1571,4 @@ c     Begin program
 
       end function g_sup
 
-      end module grid_definition
+      end module grid_anal_map
