@@ -1,21 +1,20 @@
-static char help[] = "Options:
-     OUTPUT CONTROL:
-        -ilevel <ilevel>: level of output info
-
-     SOLVER:
-	-snes_mf : use matrix-free Newton methods
-        -aspc_its <its>: number of ASM iterations
-        -id_PC: identity preconditioner
-
-     TIME STEPPING:
-        -nmax <nmax>: max. iteration # of time steps
-        -tmax <tmax>: final time
-
-     PARALLEL DA:
-        -npx: processors in X direction
-        -npy: processors in Y direction
-        -npz: processors in Z direction
-";
+static char help[] = "Options:                           \
+     OUTPUT CONTROL:                                     \
+        -ilevel <ilevel>: level of output info           \
+                                                         \
+     SOLVER:                                             \
+	-snes_mf : use matrix-free Newton methods        \
+        -aspc_its <its>: number of ASM iterations        \
+        -id_PC: identity preconditioner                  \
+                                                         \
+     TIME STEPPING:                                      \
+        -nmax <nmax>: max. iteration # of time steps     \
+        -tmax <tmax>: final time                         \
+                                                         \
+     PARALLEL DA:                                        \
+        -npx: processors in X direction                  \
+        -npy: processors in Y direction                  \
+        -npz: processors in Z direction";
 
 /*
  *    Concepts: SNES matrix-free/finite-difference Jacobian methods
@@ -315,7 +314,7 @@ int MAIN__(int argc, char **argv)
 
     if (method == 1) {
       ierr = SNES_KSP_SetConvergenceTestEW(snes)  	                        ;CHKERRQ(ierr);
-      ierr = SNES_KSP_SetParametersEW(snes,2,tolgm,0.9,0.9,1.5,1.5,0.1)         ;CHKERRQ(ierr);
+      ierr = SNES_KSP_SetParametersEW(snes,3,tolgm,0.9,0.9,1.5,1.5,0.1)         ;CHKERRQ(ierr);
     }
 
     /* Customize PC */
