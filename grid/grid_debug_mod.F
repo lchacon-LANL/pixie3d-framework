@@ -1,5 +1,5 @@
 
-c module debug_mod
+c module grid_debug_mod
 c ######################################################################
       module grid_debug_mod
 
