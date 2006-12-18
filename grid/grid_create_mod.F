@@ -11,7 +11,7 @@ c #####################################################################
 
         integer(4) :: mg_ratio
 
-        real(8),private :: pi
+cc        real(8),private :: pi
 
         type :: dim_pack
           logical    :: pack = .false.
@@ -320,8 +320,8 @@ c     Find grid quantities
             dxh(0        + isig) = dxh(nx(ig) + isig)
             dxh(nx(ig)+1 + isig) = dxh(1      + isig)
           else
-            dxh(0        + isig) = dx(0      + isig)*0.5
-            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5
+            dxh(0        + isig) = dx(0      + isig)*0.5 !Needed for extrapolation
+            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5 !Needed for extrapolation
           endif
 
         enddo
