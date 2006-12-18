@@ -14,12 +14,17 @@ c####################################################################
 
         use oned_int
 
+        use grid_mpi
+
         use grid_operations
+
+        use math
 
         use constants
 
-        integer(4) :: nnvar,imax,imin,jmax,jmin,kmax,kmin
-        integer(4) :: nxbc,nybc,nzbc,igxbc,igybc,igzbc
+cc        integer(4) :: imax,imin,jmax,jmin,kmax,kmin
+
+        integer(4) :: nnvar,nxbc,nybc,nzbc,igxbc,igybc,igzbc
 
         real(8),allocatable,dimension(:,:) :: rhs
 
@@ -384,55 +389,49 @@ c module imposeBCinterface
 c #####################################################################
       module imposeBCinterface
 
-        use BCS_variables
-
         use singularBCinterface
-
-cc        use dirichletBCinterface
-
-cc        use neumannBCinterface
 
         INTERFACE setBC
           module procedure imposeBConScalar,imposeBConVector
         end INTERFACE
 
-        INTERFACE
-          subroutine scalarDirichletBC(array,array0,ieq,dim,loc,order)
-            use BCS_variables
-            integer(4) :: ieq,dim,loc,order
-            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
-     .                   ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
-          end subroutine scalarDirichletBC
-        end INTERFACE
+cc        INTERFACE
+cc          subroutine scalarDirichletBC(array,array0,ieq,dim,loc,order)
+cc            use BCS_variables
+cc            integer(4) :: ieq,dim,loc,order
+cc            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
+cc     .                   ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
+cc          end subroutine scalarDirichletBC
+cc        end INTERFACE
+cc
+cc        INTERFACE
+cc          subroutine vectorDirichletBC(ivar,array,array0,ieq,dim,loc
+cc     .                                ,order)
+cc            use BCS_variables
+cc            integer(4) :: ieq,dim,loc,order,ivar
+cc            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1,*)
+cc     .                   ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1,*)
+cc          end subroutine vectorDirichletBC
+cc        end INTERFACE
+cc
+cc        INTERFACE
+cc          subroutine scalarNeumannBC(array,ieq,dim,loc)
+cc            use BCS_variables
+cc            integer(4) :: ieq,dim,loc
+cc            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
+cc          end subroutine scalarNeumannBC
+cc        end INTERFACE
+cc
+cc        INTERFACE
+cc          subroutine vectorNeumannBC(ivar,array,ieq,dim,loc)
+cc            use BCS_variables
+cc            integer(4) :: ieq,dim,loc,ivar
+cc            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1,*)
+cc          end subroutine vectorNeumannBC
+cc        end INTERFACE
 
-        INTERFACE
-          subroutine vectorDirichletBC(ivar,array,array0,ieq,dim,loc
-     .                                ,order)
-            use BCS_variables
-            integer(4) :: ieq,dim,loc,order,ivar
-            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1,*)
-     .                   ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1,*)
-          end subroutine vectorDirichletBC
-        end INTERFACE
-
-        INTERFACE
-          subroutine scalarNeumannBC(array,ieq,dim,loc)
-            use BCS_variables
-            integer(4) :: ieq,dim,loc
-            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
-          end subroutine scalarNeumannBC
-        end INTERFACE
-
-        INTERFACE
-          subroutine vectorNeumannBC(ivar,array,ieq,dim,loc)
-            use BCS_variables
-            integer(4) :: ieq,dim,loc,ivar
-            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1,*)
-          end subroutine vectorNeumannBC
-        end INTERFACE
-
-        integer(4) :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
-        integer(4) :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
+        integer(4),private :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
+        integer(4)         :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
 
         integer(4),private :: bctype,dim,loc,ibc,i,j,k
 
@@ -574,7 +573,7 @@ c     End program
 
 c     checkLimits
 c     #####################################################################
-      subroutine checkLimits(igl,igr,nxg)
+      subroutine checkLimits(igl,igr,ng)
 
 c     ---------------------------------------------------------------------
 c     Selects LOCAL limits for BC treatment at boundary location determined
@@ -583,15 +582,15 @@ c     ---------------------------------------------------------------------
 
         implicit none
 
-        integer(4) :: igl,igr,nxg
+        integer(4) :: igl,igr,ng
 
 c     Begin program
 
         select case(loc)
         case(0)
-          if (igl > 1  ) do__nothing = .true.
+          if (igl > 1 ) do__nothing = .true.
         case(1)
-          if (igr < nxg) do__nothing = .true.
+          if (igr < ng) do__nothing = .true.
         end select
 
       end subroutine checkLimits
@@ -603,8 +602,8 @@ c     #####################################################################
       function selectFace(ibc)
 
 c     ---------------------------------------------------------------------
-c     Selects LOCAL limits for BC treatment at boundary location determined
-c     by (dim,loc).
+c     Determines whether boundary location determined by ibc(=1-6) is
+c     selected for boundary treatment.
 c     ---------------------------------------------------------------------
 
       implicit none
@@ -618,13 +617,9 @@ c     Begin program
       loc = abs(mod(ibc,2)-2)-1
       dim = 1 + (ibc-1-loc)/2
 
-cc#if defined(petsc)
-cc      selectFace= .not.((bcond(ibc) == PER).or.
-cc     .     do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))
-cc#else
       selectFace= 
      .     .not.do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax)
-cc#endif
+cc     .     .not.do__nothing(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp)
 
 cc      selectFace = .true.
 
@@ -693,7 +688,7 @@ c     Reset BC grid level
       igybc = igy
       igzbc = igx
 
-c     Find grid local limits
+c     Find grid global limits
 
       igmin = grid_params%ilo(igx)
       igmax = grid_params%ihi(igx)
@@ -809,7 +804,8 @@ c     Fill PETSc ghost cells
       !Determine whether we need to fill ghost cells using PETSc
       petsc__bc =      (np > 1)
      .           .and. (    ((.not.asm) .and. par_bc)    !For PC (not ASM)
-     .                  .or.(ieq > neqd             ))   !For auxiliary variables
+cc     .                  .or.(ieq > neqd             ))   !For auxiliary variables
+     .                  .or.(ieq > NVAR             ))   !For auxiliary variables
 
       !Fill ghost cells
       if (petsc__bc) call fillPetscGhostCells(array,igxbc)
@@ -892,6 +888,7 @@ c     Call variables
 
 c     Local variables
 
+      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
       integer(4) :: ivar,ieq,ibc,loc,dim,bctype
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical    :: cov_to_cnv,to_cnv,is__vec,petsc__bc
@@ -968,7 +965,8 @@ c     Fill PETSc ghost cells
       !Determine whether we need to fill ghost cells using PETSc
       petsc__bc =      (np > 1)
      .           .and. (    ((.not.asm) .and. par_bc)    !For PC (not ASM)
-     .                  .or.(fcomp > neqd           ))   !For auxiliary variables
+cc     .                  .or.(fcomp > neqd           ))   !For auxiliary variables
+     .                  .or.(fcomp > NVAR           ))   !For auxiliary variables
 
       !Fill ghost cells
       if (petsc__bc) then
@@ -1141,6 +1139,7 @@ c     Call variables
 
 c     Local variables
 
+      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
       integer(4) :: i,j,k,dim,loc,ig,jg,kg,ivar
       real(8)    :: x1,x2,x3,gsuper(3,3),gsub(3,3)
 
@@ -1156,8 +1155,7 @@ c     Begin program
               cycle
             elseif (bcond(ibc,ivar) < 0) then
 
-              if (do__nothing(dim,loc
-     .                       ,iimin,iimax,jjmin,jjmax,kkmin,kkmax)) exit
+              if (.not.selectFace(ibc)) return
 
 cc              call findBCLoopLimits(dim,loc,iimin,iimax
 cc     .                                     ,jjmin,jjmax
@@ -1343,22 +1341,25 @@ c     Call variables
 
 c     Local variables
 
+      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
       integer(4) :: neq,ibc,i,j,k,ig,jg,kg
       logical    :: cov
 
 c     Begin program
 
-      nnvar = nvar
+      nnvar = nvar   !This transfers info to vectorDirichlet (needed? Check)
 
       if (PRESENT(cnv)) then
         cov = .not.cnv
       else
         cov = .false.
       endif
+
+      ibc = (1+loc)+2*(dim-1)
       
 c     Determine boundary limits
 
-      if(do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))return
+      if (.not.selectFace(ibc)) return
 
 cc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
       call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
@@ -1377,16 +1378,14 @@ c     Allocate rhs
 
 c     Find BC update
 
-      ibc = (1+loc)+2*(dim-1)
-
       if (nvar == 1) then
         select case(bctype)
         case(PER)
-          call periodicBC(array(:,:,:,nvar),ibc)
+          call periodicBC(array(:,:,:,nvar),dim,loc)
         case(EQU)
-          call scalarDirichletBC(array(:,:,:,nvar),array0(:,:,:,nvar)
-cc     .                    ,ieq,dim,loc,1)
-     .                    ,ieq,dim,loc,order)
+          call extrapolateBC(array(:,:,:,nvar),array0(:,:,:,nvar)
+cc     .                      ,dim,loc,1)
+     .                      ,dim,loc,order)
         case(DIR)
           call scalarDirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc,1)
         case(NEU)
@@ -1396,7 +1395,7 @@ cc     .                    ,ieq,dim,loc,1)
         case(SP)
           call scalarSingularBC(array(:,:,:,nvar))
         case(IFC)
-          call interpolateToFace(array(:,:,:,nvar),ibc)
+          call interpolateToFace(array(:,:,:,nvar),dim,loc)
         case default
           call pstop('fillGhostNodes'
      .             ,'BC'//int2char(bctype)//' not implemented')
@@ -1404,7 +1403,7 @@ cc     .                    ,ieq,dim,loc,1)
       else
         select case(bctype)
         case(PER)
-          call periodicBC(array(:,:,:,ivar),ibc)
+          call periodicBC(array(:,:,:,ivar),dim,loc)
         case(EQU)
           call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,order)
 cc          call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,1)
@@ -1417,7 +1416,7 @@ cc          call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,1)
         case(SP)
           call vectorSingularBC(ivar,array(:,:,:,ivar),cov)
         case(IFC)
-          call interpolateToFace(array(:,:,:,ivar),ibc)
+          call interpolateToFace(array(:,:,:,ivar),dim,loc)
         case default
           call pstop('fillGhostNodes'
      .             ,'BC'//int2char(bctype)//' not implemented')
@@ -1432,26 +1431,33 @@ c     End
 
 c     periodicBC
 c     #################################################################
-      subroutine periodicBC(array,ibc)
+      subroutine periodicBC(array,dim,loc)
 c     -----------------------------------------------------------------
 c     Imposes periodic BC. On input:
 c        * array -> 3D array to impose BC's on.
-c        * ibc   -> integer boundary identifier
-c                   (0 -> X1, 1->X2, 2->y1, 3->y2, 4->z1, 5->z2)
+c        * dim -> dimension we are imposing BC on (X,Y,Z)
+c        * loc -> boundary location (0 -> left, 1->right)
 c     -----------------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-      integer(4) :: ibc
+      integer(4) :: dim,loc
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
+      integer(4) :: imax,imin,jmax,jmin,kmax,kmin,ibc
+
 c     Begin program
 
+      ibc = (1+loc)+2*(dim-1)
+
       if (np == 1 .or. asm) then
+
+      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
+     .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
       select case (ibc)
       case (1)                  !x0
@@ -1503,28 +1509,157 @@ c     End program
 
       end subroutine periodicBC
 
+c     extrapolateBC
+c     #######################################################################
+      subroutine extrapolateBC(array,array0,dim,loc,order)
+c     -----------------------------------------------------------------
+c     Fills ghost nodes by extrapolation across relevant boundary.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: order,dim,loc
+        real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
+     .               ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
+
+c     Local variables
+
+        integer(4) :: imax,imin,jmax,jmin,kmax,kmin,ibc
+
+        integer(4) :: i,j,k,ig,jg,kg
+        real(8),pointer,dimension(:) :: xx,yy,zz,dxh,dyh,dzh,dx,dy,dz
+
+c     Begin program
+
+        ibc = (1+loc)+2*(dim-1)
+
+c     Setup grid aliases
+
+        xx => grid_params%xx
+        yy => grid_params%yy
+        zz => grid_params%zz
+
+        dxh => grid_params%dxh
+        dyh => grid_params%dyh
+        dzh => grid_params%dzh
+
+        dx => grid_params%dx
+        dy => grid_params%dy
+        dz => grid_params%dz
+
+c     Extrapolate
+
+        call findBCLoopLimits(dim,loc
+     .                       ,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
+     .                       ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
+
+        do i=imin,imax
+          do j=jmin,jmax
+            do k=kmin,kmax
+
+              call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+
+              select case (ibc)
+              case (1)
+
+                rhs(j,k) = 
+     .             quad_int(xx(ig-1)+dxh(ig-1),xx(ig),xx(ig+1),xx(ig+2)
+     .                     ,array0(i-1,j,k),array(i,j,k)
+     .                     ,array (i+1,j,k),array(i+2,j,k)
+     .                     ,xx(ig-1),order )
+              case (2)
+
+                rhs(j,k) =
+     .              quad_int(xx(ig+1)-dxh(ig+1),xx(ig),xx(ig-1),xx(ig-2)
+     .                      ,array0(i+1,j,k),array(i,j,k)
+     .                      ,array (i-1,j,k),array(i-2,j,k)
+     .                      ,xx(ig+1),order )
+              case (3)
+
+                rhs(i,k) =
+     .              quad_int(yy(jg-1)+dyh(jg-1),yy(jg),yy(jg+1),yy(jg+2)
+     .                      ,array0(i,j-1,k),array(i,j,k)
+     .                      ,array (i,j+1,k),array(i,j+2,k)
+     .                      ,yy(jg-1),order )
+              case (4)
+
+                rhs(i,k) =
+     .              quad_int(yy(jg+1)-dyh(jg+1),yy(jg),yy(jg-1),yy(jg-2)
+     .                      ,array0(i,j+1,k),array(i,j,k)
+     .                      ,array (i,j-1,k),array(i,j-2,k)
+     .                      ,yy(jg+1),order )
+              case (5)
+
+                rhs(i,j) =
+     .              quad_int(zz(kg-1)+dzh(kg-1),zz(kg),zz(kg+1),zz(kg+2)
+     .                      ,array0(i,j,k-1),array(i,j,k)
+     .                      ,array (i,j,k+1),array(i,j,k+2)
+     .                      ,zz(kg-1),order )
+              case (6)
+
+                rhs(i,j) =
+     .              quad_int(zz(kg+1)-dzh(kg+1),zz(kg),zz(kg-1),zz(kg-2)
+     .                      ,array0(i,j,k+1),array(i,j,k)
+     .                      ,array (i,j,k-1),array(i,j,k-2)
+     .                      ,zz(kg+1),order )
+              end select
+            enddo
+          enddo
+        enddo
+
+c       Update BC ghost nodes
+
+        select case (ibc)
+        case (1)                !x0
+         array(0     ,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
+        case (2)               !x1
+         array(nxbc+1,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
+        case (3)                !y0
+         array(imin:imax,0     ,kmin:kmax) = rhs(imin:imax,kmin:kmax)
+        case (4)                !y1
+         array(imin:imax,nybc+1,kmin:kmax) = rhs(imin:imax,kmin:kmax)
+        case (5)                !z0
+         array(imin:imax,jmin:jmax,0     ) = rhs(imin:imax,jmin:jmax)
+        case (6)                !z1
+         array(imin:imax,jmin:jmax,nzbc+1) = rhs(imin:imax,jmin:jmax)
+        case default
+         messg = 'Boundary '//int2char(ibc)//' non existent'
+         call pstop('extrapolate',messg)
+        end select
+
+      end subroutine extrapolateBC
+
 c     interpolateToFace
 c     #################################################################
-      subroutine interpolateToFace(array,ibc)
+      subroutine interpolateToFace(array,dim,loc)
 c     -----------------------------------------------------------------
 c     Interpolates values to face for EQU BC. On input:
 c        * array -> 3D array to impose BC's on.
-c        * ibc   -> integer boundary identifier
-c                   (0 -> X1, 1->X2, 2->y1, 3->y2, 4->z1, 5->z2)
+c        * dim -> dimension we are imposing BC on (X,Y,Z)
+c        * loc -> boundary location (0 -> left, 1->right)
 c     -----------------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-      integer(4) :: ibc
+      integer(4) :: dim,loc
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
+      integer(4) :: imax,imin,jmax,jmin,kmax,kmin,ibc
+
 c     Begin program
 
+      ibc = (1+loc)+2*(dim-1)
+
 cc      if (np == 1 .or. asm) then
+
+      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
+     .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
       select case (ibc)
       case (1)                  !x0
@@ -1596,6 +1731,8 @@ c     Call variables
 
 c     Local variables
 
+      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
+
       integer(4) :: ito,jto,kto,ifrom,jfrom,kfrom
      .             ,imn,imx,jmn,jmx,kmn,kmx,ibc,bcond(6)
 
@@ -1608,7 +1745,7 @@ c     Begin program
 
 c     Determine boundary limits
 
-      if(do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))return
+      if (.not.selectFace(ibc)) return
 
 cc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
       call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
@@ -1765,6 +1902,8 @@ c     Call variables
 
 c     Local variables
 
+      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
+
       integer(4) :: ito,jto,kto,ifrom,jfrom,kfrom
      .             ,imn,imx,jmn,jmx,kmn,kmx,ibc
 
@@ -1774,7 +1913,7 @@ c     Begin program
 
 c     Determine boundary limits
 
-      if(do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))return
+      if (.not.selectFace(ibc)) return
 
 cc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
       call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
@@ -2099,6 +2238,8 @@ c     Call variables
 
 c     Local variables
 
+      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
+
       integer(4) :: ito,jto,kto,ifrom,jfrom,kfrom
      .             ,imn,imx,jmn,jmx,kmn,kmx,ibc
 
@@ -2108,7 +2249,7 @@ c     Begin program
 
 c     Determine boundary limits
 
-      if(do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))return
+      if (.not.selectFace(ibc)) return
 
 cc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
       call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
@@ -2331,7 +2472,7 @@ c     End program
 c     extrapolateToCorner
 c     #################################################################
       subroutine extrapolateToCorner(ibc,ito,jto,kto,imn,jmn,kmn
-     .                              ,imx,jmx,kmx,array,bcond)
+     .                              ,imx,jmx,kmx,array,bcond,array0)
 c     -----------------------------------------------------------------
 c     Routine that extrapolates information to edge or vertex corners.
 c     It is the workhorse of the fillEdge and fillCorner routines.
@@ -2353,6 +2494,7 @@ c     Call variables
 
       integer(4) :: ibc,ito,jto,kto,imn,jmn,kmn,imx,jmx,kmx,bcond(6)
       real(8)    :: array(imn:imx,jmn:jmx,kmn:kmx)
+      real(8),optional,intent(IN) :: array0(imn:imx,jmn:jmx,kmn:kmx)
 
 c     Local variables
 
@@ -2364,13 +2506,15 @@ c     Local variables
       real(8)    :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1)
      .             ,smooth(3)
 
-      logical    :: flg(3),select_bc(3)
+      logical    :: flg(3),select_bc(3),have_equ
 
 c     Extrapolation
 
       real(8),allocatable,dimension(:) :: xx,yy,zz
 
 c     Begin program
+
+      have_equ = PRESENT(array0)
 
 c     Identify directions for extrapolation.
 
@@ -2493,14 +2637,13 @@ c     Identify directions for extrapolation.
       !Treat special boundaries
 
       !Identify special boundaries to interpolate **along**
-      !   1) equilibrium boundary
-      !   2) SP boundary
+      !   1) SP boundary
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
-        select_bc(i) =    (bcond(i_bc) == EQU)
-     .                .or.(bcSP(ibc=i_bc)    )
+        select_bc(i) =    (bcSP(ibc=i_bc)    )
+cc     .                .or.(bcond(i_bc) == EQU)  !Removed 12/13/06
       enddo
 
       call select_along
@@ -2508,12 +2651,14 @@ c     Identify directions for extrapolation.
       !Identify special boundaries to interpolate **across**
       !   1) periodic boundary
       !   2) Symmetry boundary
+      !   3) equilibrium boundary
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
-        select_bc(i) =    (    bcond(i_bc)  == PER)
-     .                .or.(abs(bcond(i_bc)) == SYM)
+        select_bc(i) =    (abs(bcond(i_bc)) == SYM)
+     .                .or.(    bcond(i_bc)  == PER)
+     .                .or.(    bcond(i_bc)  == EQU) !Added 12/13/06
       enddo
 
       call select_across
@@ -2755,120 +2900,6 @@ c     -----------------------------------------------------------------------
 
       end subroutine extrapolateToCorner
 
-c     extrapolate
-c     #######################################################################
-      subroutine extrapolate(array,array0,ibc,order)
-c     -----------------------------------------------------------------
-c     Fills ghost nodes by extrapolation across relevant boundary.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer(4) :: order,ibc
-        real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
-     .               ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
-
-c     Local variables
-
-        integer(4) :: i,j,k,ig,jg,kg
-        real(8),pointer,dimension(:) :: xx,yy,zz,dxh,dyh,dzh,dx,dy,dz
-
-c     Begin program
-
-c     Setup grid aliases
-
-        xx => grid_params%xx
-        yy => grid_params%yy
-        zz => grid_params%zz
-
-        dxh => grid_params%dxh
-        dyh => grid_params%dyh
-        dzh => grid_params%dzh
-
-        dx => grid_params%dx
-        dy => grid_params%dy
-        dz => grid_params%dz
-
-c     Extrapolate
-
-        do i=imin,imax
-          do j=jmin,jmax
-            do k=kmin,kmax
-
-              call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-
-              select case (ibc)
-              case (1)
-
-                rhs(j,k) = 
-     .             quad_int(xx(ig-1)+dxh(ig-1),xx(ig),xx(ig+1),xx(ig+2)
-     .                     ,array0(i-1,j,k),array(i,j,k)
-     .                     ,array (i+1,j,k),array(i+2,j,k)
-     .                     ,xx(ig-1),order )
-              case (2)
-
-                rhs(j,k) =
-     .              quad_int(xx(ig+1)-dxh(ig+1),xx(ig),xx(ig-1),xx(ig-2)
-     .                      ,array0(i+1,j,k),array(i,j,k)
-     .                      ,array (i-1,j,k),array(i-2,j,k)
-     .                      ,xx(ig+1),order )
-              case (3)
-
-                rhs(i,k) =
-     .              quad_int(yy(jg-1)+dyh(jg-1),yy(jg),yy(jg+1),yy(jg+2)
-     .                      ,array0(i,j-1,k),array(i,j,k)
-     .                      ,array (i,j+1,k),array(i,j+2,k)
-     .                      ,yy(jg-1),order )
-              case (4)
-
-                rhs(i,k) =
-     .              quad_int(yy(jg+1)-dyh(jg+1),yy(jg),yy(jg-1),yy(jg-2)
-     .                      ,array0(i,j+1,k),array(i,j,k)
-     .                      ,array (i,j-1,k),array(i,j-2,k)
-     .                      ,yy(jg+1),order )
-              case (5)
-
-                rhs(i,j) =
-     .              quad_int(zz(kg-1)+dzh(kg-1),zz(kg),zz(kg+1),zz(kg+2)
-     .                      ,array0(i,j,k-1),array(i,j,k)
-     .                      ,array (i,j,k+1),array(i,j,k+2)
-     .                      ,zz(kg-1),order )
-              case (6)
-
-                rhs(i,j) =
-     .              quad_int(zz(kg+1)-dzh(kg+1),zz(kg),zz(kg-1),zz(kg-2)
-     .                      ,array0(i,j,k+1),array(i,j,k)
-     .                      ,array (i,j,k-1),array(i,j,k-2)
-     .                      ,zz(kg+1),order )
-              end select
-            enddo
-          enddo
-        enddo
-
-c       Update BC ghost nodes
-
-        select case (ibc)
-        case (1)                !x0
-         array(0     ,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
-        case (2)               !x1
-         array(nxbc+1,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
-        case (3)                !y0
-         array(imin:imax,0     ,kmin:kmax) = rhs(imin:imax,kmin:kmax)
-        case (4)                !y1
-         array(imin:imax,nybc+1,kmin:kmax) = rhs(imin:imax,kmin:kmax)
-        case (5)                !z0
-         array(imin:imax,jmin:jmax,0     ) = rhs(imin:imax,jmin:jmax)
-        case (6)                !z1
-         array(imin:imax,jmin:jmax,nzbc+1) = rhs(imin:imax,jmin:jmax)
-        case default
-         messg = 'Boundary '//int2char(ibc)//' non existent'
-         call pstop('extrapolate',messg)
-        end select
-
-      end subroutine extrapolate
-
 c     quad_int
 c     #################################################################
       real(8) function quad_int(x0,x1,x2,x3,y0,y1,y2,y3,x,order)
@@ -2913,3 +2944,311 @@ c     End program
       end function quad_int
 
       end module imposeBCinterface
+
+c module setMGBC_interface
+c######################################################################
+      module setMGBC_interface
+
+        use grid_mg
+
+        use imposeBCinterface
+
+cc        INTERFACE
+cc          subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,arr_cov
+cc     .                      ,arr0,icomp,is_cnv,is_vec,result_is_vec
+cc     .                      ,iorder)
+cc            integer(4) :: nnx,nny,nnz,neq,bcnd(6,neq),iig,gpos
+cc            real(8)    :: array(0:nnx+1,0:nny+1,0:nnz+1,neq)
+cc            real(8),optional,intent(INOUT) ::
+cc     .                    arr_cov(0:nnx+1,0:nny+1,0:nnz+1,neq)
+cc            real(8),optional,intent(IN) ::
+cc     .                    arr0   (0:nnx+1,0:nny+1,0:nnz+1,neq)
+cc            integer(4),optional,intent(IN) :: icomp,iorder
+cc            logical   ,optional,intent(IN) :: is_cnv,is_vec
+cc     .                                       ,result_is_vec
+cc          end subroutine setMGBC
+cc        END INTERFACE
+
+      contains
+
+c setMGBC
+c####################################################################
+      subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,arr_cov
+     .                  ,arr0,icomp,is_cnv,is_vec,result_is_vec,iorder)
+c--------------------------------------------------------------------
+c     Interfaces BC routines with MG code, for preconditioning.
+c     On input:
+c       *gpos: node number (whole grid if gpos=0)
+c       *neq,nnx,nny,nnz: number of degrees of freedom.
+c       *iig: grid level
+c       *array: array containing values of magnitudes for all grid
+c               points. The magnitudes may be scalars or vector
+c               components (the latter assumed contravariant by default)
+c       *bcnd: array containing BC information
+c
+c     Optional parameters:
+c       *arr_cov: covariant components of vector components.
+c       *arr0: array containing dirichlet BCs (zero by default)
+c       *icomp: integer specifying magnitude of interest (if not
+c               provided, use last used value).
+c       *is_cnv: logical variable indicating whether array
+c                contains covariant or contravariant components
+c                (if not provided, use last used value).
+c       *is_vec: logical variable specifying whether array
+c          represents a curvilinear vector or a set of scalars
+c          (if not provided, use last used value):
+c             -If is_vec=.true., array is taken as curvilinear vector
+c              components (covariant or contravariant, according
+c              to variable is_cnv).
+c             -If is_vec=.false., array is taken as coupled scalars
+c              (also Cartesian vector components).
+c       *result_is_vec: logical variable specifying whether output
+c                       in array should be curvilinear (.true.) or
+c                       not (default=is_vec)
+c       *iorder: order of inter/extrapolation in BC routines (linear
+c                by default).
+c
+c     On output, array is returned in the same representation.
+c
+c     WARNING: if call sequence is modified, the INTERFACE block 
+c           in module mg_internal needs to be updated accordingly.
+c--------------------------------------------------------------------
+
+      implicit none
+
+c Call variables
+
+      integer(4) :: nnx,nny,nnz,neq,bcnd(6,neq),iig,gpos
+
+      real(8)    :: array(0:nnx+1,0:nny+1,0:nnz+1,neq)
+
+      real(8),optional,intent(INOUT) ::
+     .                         arr_cov(0:nnx+1,0:nny+1,0:nnz+1,neq)
+      real(8),optional,intent(IN) ::
+     .                         arr0   (0:nnx+1,0:nny+1,0:nnz+1,neq)
+
+      integer(4),optional,intent(IN) :: icomp,iorder
+
+      logical   ,optional,intent(IN) :: is_cnv,is_vec,result_is_vec
+
+c Local variables
+
+      integer(4) :: i,j,k,stencil_width,order,ieq
+     .             ,imng,imxg,jmng,jmxg,kmng,kmxg
+     .             ,imnl,imxl,jmnl,jmxl,kmnl,kmxl
+
+      integer(4),save :: ivar  !Needed to "remember' ivar from previous calls
+                               !when icomp is not provided.
+
+      logical,save    :: iscnv,isvec !Needed to "remember' these from previous calls
+                                     !when they are not provided.
+
+      logical         :: res_is_vec,fpointers
+
+      real(8)    :: car(3),curv(3)
+
+c Begin program
+
+c Optional arguments
+
+      if (PRESENT(icomp))  ivar  = icomp
+
+      if (PRESENT(is_cnv)) iscnv = is_cnv
+
+      if (PRESENT(is_vec)) isvec = is_vec
+
+      if (PRESENT(result_is_vec)) then
+        res_is_vec = result_is_vec
+      else
+        res_is_vec = isvec
+      endif
+
+      if (PRESENT(iorder)) then
+        order = iorder
+      else
+        order = 2
+      endif
+
+c Consistency check
+
+      if (     grid_params%nxv(iig) /= nnx
+     .    .or. grid_params%nyv(iig) /= nny
+     .    .or. grid_params%nzv(iig) /= nnz) then
+        write (*,*) 'Grid sizes do not agree in setMGBC'
+        write (*,*) 'Aborting...'
+        stop
+      endif
+
+      if (.not.isvec) iscnv=.true.
+
+c Allocate MG pointers (if not allocated earlier)
+
+      call allocPointers(neq,fpointers)
+
+c Find grid node LOCAL position (if gpos > 0, else return local domain limits)
+
+      call limits(gpos,nnx,nny,nnz,iig,imnl,imxl,jmnl,jmxl,kmnl,kmxl)
+
+c Check LOCAL limits (return if not close to local domain boundaries)
+
+      if (     (imnl > 1 .and. imxl < nnx)
+     .    .and.(jmnl > 1 .and. jmxl < nny)
+     .    .and.(kmnl > 1 .and. kmxl < nnz)) return
+
+c Find GLOBAL limits (required for BC routine setBC)
+
+cc      stencil_width = 1
+cc
+cc      imng = max(imnl-stencil_width,1)   + grid_params%ilo(iig)-1
+cc      imxg = min(imxl+stencil_width,nnx) + grid_params%ilo(iig)-1
+cc      jmng = max(jmnl-stencil_width,1)   + grid_params%jlo(iig)-1
+cc      jmxg = min(jmxl+stencil_width,nny) + grid_params%jlo(iig)-1
+cc      kmng = max(kmnl-stencil_width,1)   + grid_params%klo(iig)-1
+cc      kmxg = min(kmxl+stencil_width,nnz) + grid_params%klo(iig)-1
+
+      imng = imnl + grid_params%ilo(iig)-1
+      imxg = imxl + grid_params%ilo(iig)-1
+      jmng = jmnl + grid_params%jlo(iig)-1
+      jmxg = jmxl + grid_params%jlo(iig)-1
+      kmng = kmnl + grid_params%klo(iig)-1
+      kmxg = kmxl + grid_params%klo(iig)-1
+
+c Select operation
+
+      select case (neq)
+      case(1)
+
+        allocate(v0(0:nnx+1,0:nny+1,0:nnz+1,1))
+
+        if (PRESENT(arr0)) then
+          v0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+     .         = arr0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc          v0 = arr0
+        else
+          v0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
+cc          v0 = 0d0
+        endif
+
+        call setBC(ivar,nnx,nny,nnz,array(:,:,:,1),v0(:,:,:,1)
+     .            ,bcnd(:,neq),iig,iig,iig
+     .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
+     .            ,iorder=order)
+
+        deallocate(v0)
+
+      case(3)
+
+        allocate(v_cnv (0:nnx+1,0:nny+1,0:nnz+1,neq)
+     .          ,v_cov (0:nnx+1,0:nny+1,0:nnz+1,neq)
+     .          ,v0    (0:nnx+1,0:nny+1,0:nnz+1,neq))
+
+        v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
+        v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
+cc        v_cnv = 0d0
+cc        v_cov = 0d0
+
+        if (PRESENT(arr0)) then
+          v0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+     .       = arr0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc          v0 = arr0
+        else
+          v0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
+cc          v0 = 0d0
+        endif
+
+        if (.not.isvec) then
+
+          do k = kmnl-1,kmxl+1
+            do j = jmnl-1,jmxl+1
+              do i = imnl-1,imxl+1
+                car = array(i,j,k,:)
+                call transformVectorToCurvilinear
+     .               (i,j,k,iig,iig,iig
+     .               ,car(1),car(2),car(3)
+     .               ,.not.iscnv
+     .               ,array(i,j,k,1),array(i,j,k,2),array(i,j,k,3))
+              enddo
+            enddo
+          enddo
+
+        endif
+
+        if (PRESENT(arr_cov)) then
+cc          v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc     .         = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc          v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc     .         = arr_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+          v_cnv = array
+          v_cov = arr_cov
+        else
+          if (iscnv) then
+cc            v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc     .           = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+            v_cnv = array
+          else
+cc            v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc     .           = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+            v_cov = array
+          endif
+        endif
+
+        call setBC(ivar,neq,nnx,nny,nnz,v_cnv,v_cov,v0,bcnd
+     .            ,iig,iig,iig
+     .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
+     .            ,is_cnv=iscnv,is_vec=.true.,iorder=order)
+
+        if (isvec .or. res_is_vec) then
+
+          if (PRESENT(arr_cov)) then
+            array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+     .           = v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+            arr_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+     .           = v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc            array = v_cnv
+cc            arr_cov = v_cov
+          else
+            if (iscnv) then
+              array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+     .             = v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc              array = v_cnv
+            else
+              array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+     .             = v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc              array = v_cov
+            endif
+          endif
+
+        else
+
+          do k = kmnl-1,kmxl+1
+            do j = jmnl-1,jmxl+1
+              do i = imnl-1,imxl+1
+                curv = v_cnv(i,j,k,:)
+                call transformVectorToCartesian
+     .               (i,j,k,iig,iig,iig
+     .               ,curv(1),curv(2),curv(3)
+     .               ,.false.
+     .               ,array(i,j,k,1),array(i,j,k,2),array(i,j,k,3))
+              enddo
+            enddo
+          enddo
+
+        endif
+
+        deallocate(v_cov,v_cnv,v0)
+
+      case default
+        write (*,*) 'Number of equations not implemented in setMGBC'
+        write (*,*) 'Aborting...'
+        stop
+      end select
+
+c Deallocate MG pointers (if allocated in this routine)
+
+      call deallocPointers(fpointers)
+
+c End
+
+      end subroutine setMGBC
+
+      end module setMGBC_interface
