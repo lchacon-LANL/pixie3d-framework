@@ -440,6 +440,7 @@ c Open record file
 
       if (.not.restart) then
 
+        !Clean up previous record files
         ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
 
         !Initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
