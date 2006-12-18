@@ -11,8 +11,6 @@ c #####################################################################
 
         real(8)         :: gparams(ngparams)
 
-        real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D domain dimensions
-
         real(8),private :: pi,lambda,cc,xpp,ypp,zpp,eps,mm,kk,aa,phi
      .                    ,major_r,xi0,yi0,zi0,lambdax,lambday,lambdaz
      .                    ,aax=0d0,bbx=0d0,xx0
@@ -65,57 +63,30 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
+        integer(4) :: i,j,k,igx,igy,igz
         real(8)    :: car(3)
+        integer(4),optional,intent(OUT) :: ig,jg,kg
 
 c     Local variables
+
+        integer(4) :: ig1,jg1,kg1
 
         real(8)    :: x1,y1,z1
 
 c     External routines
 
 c     Begin program
-
-        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,y1,z1)
+        
+        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig1,jg1,kg1
+     .                                ,x1,y1,z1)
 
         car = x_xi(x1,y1,z1)
 
+        if (PRESENT(ig)) ig = ig1
+        if (PRESENT(jg)) jg = jg1
+        if (PRESENT(kg)) kg = kg1
+
       end function map
-
-c     getCartesianCoordinates
-c     #################################################################
-      subroutine getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,y1,z1)
-
-c     -----------------------------------------------------------------
-c     Inverts curvilinear coordinates to give Cartesian coordinates.
-c     Requires external routine 'map', with call sequence:
-c
-c             map(i,j,k,igx,igy,igz,ig,jg,kg,x1,y1,z1)
-c
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
-        real(8)    :: x1,y1,z1
-
-c     Local variables
-
-        real(8)    :: car(3)
-
-c     Begin program
-
-        car = map(i,j,k,igx,igy,igz,ig,jg,kg)
-
-        x1 = car(1)
-        y1 = car(2)
-        z1 = car(3)
-
-      end subroutine getCartesianCoordinates
 
 c     x_xi
 c     #################################################################
@@ -585,12 +556,13 @@ c     -----------------------------------------------------------------
 c     Input variables
 
         integer(4) :: comp,i,j,k,igx,igy,igz
+        real(8)    :: vec(3)
 
 c     Local variables
 
         integer(4) :: ig,jg,kg
         real(8)    :: car(3),curv(3),jac
-        real(8)    :: x1,x2,x3,vec(3)
+        real(8)    :: x1,x2,x3
 
 c     Begin program
 
