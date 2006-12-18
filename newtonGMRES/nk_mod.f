@@ -454,6 +454,16 @@ c     ###############################################################
 c     ---------------------------------------------------------------
 c     Finds inexact Newton forcing parameter, using two methods:
 c     constant (etak_meth = 0) or power law adaptive strategy.
+c
+c     In call sequence:
+c        * fk,fkm: residual norms at current (k) and previous (k-1)
+c                  nonlinear iteration level
+c        * flimit: nonlinear tolerance
+c        * eta0: initial linear tolerance 
+c        * etakm: linear tolerance at (k-1)
+c        * etak (output): current iteration linear tolerance
+c        * etak_meth: integer that selects method of determining etak
+c                     (=0 -> constant; <>0 -> adaptive)
 c     ---------------------------------------------------------------
 
 c     Call variables
