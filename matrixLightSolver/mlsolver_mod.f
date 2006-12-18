@@ -2,11 +2,11 @@ c module mlsolverSetup
 c######################################################################
       module mlsolverSetup
 
-        use grid
+        use grid_def
 
         implicit none
 
-        type:: solver_options
+        type :: solver_options
           !Global quantities
           integer(4) :: iter
           real(8)    :: tol
@@ -46,7 +46,7 @@ c######################################################################
           logical      :: vertex_based_relax
           logical      :: galerkin
 
-          type(grid_def)  :: mg_grid_def
+          type(grid_mg_def)  :: mg_grid_def
 
           !Output quantities
           integer(4) :: iter_out
