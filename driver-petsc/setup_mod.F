@@ -1,13 +1,3 @@
-c module constants
-c ######################################################################
-      module constants
-
-        real(8) :: pi
-        real(8), allocatable, dimension(:,:,:)   :: zeros,ones
-        real(8), allocatable, dimension(:,:,:,:) :: vzeros
-
-      end module constants
-
 c module parameters
 c #####################################################################
       module parameters
@@ -922,48 +912,15 @@ c     End
 
       end function integral
 
-ccc     int2char
-ccc     ################################################################
-cc      function int2char(n) result (chr)
-cc
-cc      implicit none
-cc
-cc      integer(4)   :: n
-cc      character(10):: chr
-cc
-cc      integer(4)   :: i,exp,k,j
-cc      character(3) :: c
-cc
-cc      if (abs(n) > 0) then
-cc         exp = int(log(float(n))/log(1d1))
-cc      else
-cc         exp = 0
-cc      endif
-cc
-cc      if (n >= 0) then
-cc        chr=''
-cc      else
-cc        chr='-'
-cc      endif
-cc
-cc      k = abs(n)
-cc      do i=exp,0,-1
-cc         j = k/10**i
-cc         c = achar(48+j)
-cc         chr = trim(chr)//trim(c)
-cc         if (i > 0 .and. j /= 0) k = mod(k,j*10**i)
-cc      enddo
-cc
-cc      end function int2char
-
       end module generalPurposeFunctions
 
 c module graphics_variables
 c ######################################################################
       module graphics_variables
 
-        integer(4)     :: ngraph,ngroups
-        parameter        (ngraph=30)
+        use xdraw_io
+
+        integer(4)     :: ngroups
 
         real(8), allocatable, dimension(:) :: xl,yl,zl
 
@@ -994,7 +951,9 @@ c ######################################################################
         integer(4) :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
      .               ,iggx,iggy,iggz,iig,jjg,kkg
 
-        integer(4) :: sel_diag(9),sel_graph(9)
+        integer(4),parameter :: xdraw_cont_lim=16
+        integer(4) :: sel_diag (xdraw_cont_lim)
+     .               ,sel_graph(xdraw_cont_lim)
 
         integer(4) :: ndplot
         real(8)    :: dplot,tmplot
