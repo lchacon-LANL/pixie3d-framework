@@ -233,7 +233,7 @@ c     Begin program
         stop
       endif
 
-      if (my_rank == 0) write (*,*) 'Reading restart file...'
+      if (my_rank == 0) write (*,*) 'Reading restart file(s)...'
 
       call readRecordFile(urecord,itime,time,dt,vn,ierr)
 
@@ -399,11 +399,6 @@ c Local variables
 
       integer(4) :: i,ierr
 
-c External
-
-      integer(4) :: system
-      external      system
-
 c Begin program
 
 c Set data dumping intervals
@@ -429,11 +424,6 @@ cc          dstep = max(dstep,dt)
 c Open record file
 
       if (.not.restart) then
-
-cc        if (my_rank == 0)
-cc     .       ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
-
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
 
         u_graph = u_0    !Needed for BCs
 cc        u_graph = u_n  !For debugging to compare agains PC solution
