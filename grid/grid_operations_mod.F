@@ -11,14 +11,13 @@ c     routines:
 c          * transformVectorToCartesian 
 c          * transformVectorToCurvilinear 
 c          * transformFromCurvToCurv 
-c          * volume
 c          * vectorNorm
 c          * scalarProduct
 c     It is assumed that the grid metric structure gmetric is allocated 
 c     and filled.
 c ---------------------------------------------------------------------
 
-        use grid_metric
+        use grid_def
 
         implicit none
 
