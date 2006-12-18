@@ -78,7 +78,7 @@ c Assign ff (vector) to f (PETSc array)
             enddo
 
             if (vol_wgt) then
-              if (.not.checkGridDatabase()) then
+              if (.not.checkAnalMapDatabase()) then
               !Do not include Jacobian here to allow for moving grid cases
 
                 call getMGmap(il,jl,kl,1,1,1,ig,jg,kg)
