@@ -7,6 +7,7 @@ MESSAGE = "Compiling f90 driver"
 COMMONDIR = ..
 
 SUBDIRS = $(COMMONDIR)/math \
+	  $(COMMONDIR)/interpolation/1d_int \
 	  $(COMMONDIR)/grid \
           $(COMMONDIR)/newtonGMRES
 
