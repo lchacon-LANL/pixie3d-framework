@@ -222,9 +222,12 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: igx,igy,igz,ierr
+      integer(4) :: igx,igy,igz
 
 c Local variables
+
+      integer(4) :: ierr
+      logical    :: petsc_flg
 
 c Begin program
 
@@ -232,6 +235,14 @@ c Initialize PETSc (parallel version)
 
 #if defined(petsc)
       call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
+
+      !Read PETSc runtime options
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
+     .                       ,petsc_flg,ierr)
 #endif
 
 c Read user initializations
