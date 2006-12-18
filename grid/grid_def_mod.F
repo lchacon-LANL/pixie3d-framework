@@ -641,7 +641,7 @@ c ---------------------------------------------------------------------
         implicit none
 
         type :: grid_metrics
-cc          real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
+          real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
           real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
           real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
@@ -684,8 +684,8 @@ c     Begin program
             ihip = grid_params%nxv(igrid)+1
             jhip = grid_params%nyv(igrid)+1
             khip = grid_params%nzv(igrid)+1
-cc            allocate(gmetric%grid(igrid)
-cc     $           %car  (ilom:ihip,jlom:jhip,klom:khip,3))
+            allocate(gmetric%grid(igrid)
+     $           %car  (ilom:ihip,jlom:jhip,klom:khip,3))
             allocate(gmetric%grid(igrid)
      $           %dvol (ilom:ihip,jlom:jhip,klom:khip))
             allocate(gmetric%grid(igrid)
@@ -726,7 +726,7 @@ c     Begin program
 
         if (associated(gmetric%grid)) then
           do igrid=1,grid_params%ngrid
-cc            deallocate(gmetric%grid(igrid)%car  )
+            deallocate(gmetric%grid(igrid)%car  )
             deallocate(gmetric%grid(igrid)%dvol )
             deallocate(gmetric%grid(igrid)%jac  )
             deallocate(gmetric%grid(igrid)%gsub )
@@ -741,7 +741,6 @@ cc            deallocate(gmetric%grid(igrid)%car  )
 c     End program
 
       end subroutine deallocateGridMetric
-
 
 c     volume
 c     #################################################################
@@ -777,6 +776,38 @@ c     Begin program
 
       end function volume
 
+c     getCartesianCoordinates
+c     #################################################################
+      subroutine getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,y1,z1)
+
+c     -----------------------------------------------------------------
+c     Returns Cartesian coordinates.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
+        real(8)    :: x1,y1,z1
+
+c     Local variables
+
+        real(8)    :: car(3)
+
+c     Begin program
+
+        !Find ig,jg,kg
+        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+        !Find coordinates
+        x1 = gmetric%grid(igx)%car(i,j,k,1)
+        y1 = gmetric%grid(igx)%car(i,j,k,2)
+        z1 = gmetric%grid(igx)%car(i,j,k,3)
+
+      end subroutine getCartesianCoordinates
+
       end module grid_metric_def
 
 c module grid_def
@@ -784,8 +815,10 @@ c ####################################################################
       module grid_def
 
         use bc_def
+
         use grid_metric_def
-cc        use vector_ops
+
+        real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D domain dimensions
 
         character*(3)   :: coords
 
