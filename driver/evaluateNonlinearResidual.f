@@ -71,7 +71,7 @@ cc            else
 cc            endif
 
             if (vol_wgt) then
-              if (.not.checkGridDatabase()) then
+              if (.not.checkMapDatabase()) then
               !Do not include Jacobian here to allow for moving grid cases
                 dvol = grid_params%dxh(ig)
      .                *grid_params%dyh(jg)
