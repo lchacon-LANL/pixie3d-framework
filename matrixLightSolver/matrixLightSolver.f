@@ -356,7 +356,7 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: kmax,stp_test,depth1
+      integer(4) :: k_max,stp_test,depth1
       real(8)    :: eps,epsmac,rold,ro,eps1,gam,tt,mag,abstol,dx(ntot)
 
       integer(4) :: i,j,i1,k,k1,ii,jj
@@ -383,12 +383,12 @@ c Extract options
       maxits   = options%iter                       !Maximum number of GMRES its
       stp_test = options%stp_test                   !Stopping test type (0 -> rhs, 1-> residual)
       eps      = options%tol                        !Convergence tolerance
-      kmax     = min(options%krylov_subspace,ntot)  !Maximum krylov subspace
+      k_max    = min(options%krylov_subspace,ntot)  !Maximum krylov subspace
 
 c Allocate work arrays
 
-      allocate(hh(kmax+1,kmax),vv(ntot,kmax+1),zz(ntot,kmax+1))
-      allocate(c(kmax),s(kmax),rs(kmax+1))
+      allocate(hh(k_max+1,k_max),vv(ntot,k_max+1),zz(ntot,k_max+1))
+      allocate(c(k_max),s(k_max),rs(k_max+1))
 
 c Compute initial residual vector
 
@@ -412,7 +412,7 @@ c     For arbitrary initial guess (vv(:,1) = b - Ax)
 
 c Calculate restarting loops
 
-      rstrt = min(maxits/kmax + 1,maxits)
+      rstrt = min(maxits/k_max + 1,maxits)
 
 c Calculate magnitude of initial residual
 
@@ -449,7 +449,7 @@ c      Initialize 1-st term  of rhs of hessenberg system
 
 c      GMRES iteration
 
-        do i = 1,kmax
+        do i = 1,k_max
 
           its = its + 1
           i1  = i + 1
@@ -512,7 +512,7 @@ c        Determine residual norm and test for convergence
           if (iout.ge.2) write(*,10) its,ro,ro/rold
 
           if (    ro .le.(abstol+eps1)
-     .        .or.i  .ge.min(kmax,maxits)
+     .        .or.i  .ge.min(k_max,maxits)
      .        .or.its.ge.maxits          ) exit
 
         enddo
