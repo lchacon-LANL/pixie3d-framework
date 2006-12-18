@@ -454,16 +454,15 @@ c     #######################################################################
         if (ierr.gt.0) then
           dt = dt*coef1
           if (dt < 1d-3*dtbase) then
-            write (*,*) 'Time step too small'
-            write (*,*) 'Aborting...'
-            stop
+            call pstop('adapt_dt','Time step too small')
           endif
           if (ierr.eq.2) write (*,240)
           write (*,400) dt
         else
           if (sm_flag == 1 .and. itm.le.sm_pass+1) then
             dt = dtbase/2.
-          elseif (itm.eq.(sm_pass+2).or. sm_flag /= 1) then
+          elseif (    (itm.eq.(sm_pass+2) .and. sm_flag == 1)
+     .           .or. (itm.eq.2)) then
             dt = dtbase
           else
             dt = min(dtbase,dt*coef2)
