@@ -1,10 +1,12 @@
-c module XDRAW
+c module xdraw_graphics
 c #####################################################################
-      module XDRAW
+      module xdraw_graphics
 
         use iosetup
 
         use graphics_variables
+
+        use xdraw_io
 
         use grid
 
@@ -131,9 +133,9 @@ c     Begin program
 
         allocate(ugraph(ngroups),uprofile(ngroups))
 
-        allocate(prof_desc(ngroups,ngraph),sel_gr(ngroups,9)
+        allocate(prof_desc(ngroups,ngraph)
      .          ,prof_ivar(ngroups,ngraph),prof_log(ngroups,ngraph)
-     .          ,prof_spline(ngroups))
+     .          ,prof_spline(ngroups),sel_gr(ngroups,xdraw_cont_lim))
 
       end subroutine allocateXDRAWvariables
 
@@ -343,41 +345,6 @@ c     End
 
       end subroutine profplot
 
-c     contour
-c     #####################################################################
-      subroutine contour(arr,nx,ny,xmin,xmax,ymin,ymax,iopt,nunit)
-      implicit none               !For safe fortran
-c     ---------------------------------------------------------------------
-c     Contours 2D array in xdraw format. In call:
-c       * arr: 2D array to be plotted
-c       * nx,ny: dimensions of array
-c       * xmin,xmax,ymin,ymax: 2D domain limits
-c       * iopt: whether to initialize xdraw plot (iopt=0) or not.
-c       * nunit: integer file identifier.
-c     ---------------------------------------------------------------------
-
-c     Call variables
-
-      integer(4) :: nx,ny,iopt,nunit
-      real(8)    :: arr(nx,ny),xmin,xmax,ymin,ymax
-
-c     Local variables
-
-      integer(4) :: i,j
-
-c     Begin program
-
-      if(iopt == 0) then
-        write(nunit) nx-1,ny-1,0
-        write(nunit) real(xmin,4),real(xmax,4)
-     .              ,real(ymin,4),real(ymax,4) 
-      endif
-      write(nunit) ((real(arr(i,j),4),i=1,nx),j=1,ny)
-
-c     End program
-
-      end subroutine contour
-
 c     contour_step
 c     #####################################################################
       subroutine contour_step(igroup,nunit,nqty,array_graph,cartsn,iopt)
@@ -400,7 +367,6 @@ c     Local variables
 
         integer(4) :: nsblk,nusblk
         integer(4) :: i,j,k,igr,plt(3)
-        real(8),allocatable,dimension(:,:,:,:) :: car
         logical    :: cut(3)
 
 c     Begin program
@@ -457,7 +423,7 @@ c     Write messg to standard output
 
         write (*,*) messg,iplt
 
-        if (cartsn) then   !Type M2 contours
+        if (cartsn) then   !Type M2 contours (physical space)
 
           if (iopt == 0) then
 
@@ -472,18 +438,21 @@ c         Write initialization headings
             if (imng == imxg) then
               nxgr = jmxg-jmng
               nygr = kmxg-kmng
-              i1 = 2
-              i2 = 3
+              call find_cart_plane(1,i1,i2)
+cc              i1 = 2
+cc              i2 = 3
             elseif (jmng == jmxg) then
               nxgr = imxg-imng
               nygr = kmxg-kmng
-              i1 = 1
-              i2 = 3
+              call find_cart_plane(2,i1,i2)
+cc              i1 = 1
+cc              i2 = 3
             else
               nxgr = imxg-imng
               nygr = jmxg-jmng
-              i1 = 1
-              i2 = 2
+              call find_cart_plane(3,i1,i2)
+cc              i1 = 1
+cc              i2 = 2
             endif
 
 c         Write data
@@ -513,7 +482,7 @@ c         Write data
 
           endif
 
-        else   !Type M contours
+        else   !Type M contours (logical space)
 
           if(iopt == 0) then
 
@@ -558,9 +527,18 @@ c     ################################################################
 
         implicit none
 
+c     Call variables
+
         integer(4) :: imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
 
+c     Local variables
+
         integer(4) :: ii
+
+cc        real(8),allocatable,dimension(:,:,:,:) :: car
+        real(8),pointer,dimension(:,:,:,:) :: car
+
+c     Begin program
 
         allocate (car(imng:imxg,jmng:jmxg,kmng:kmxg,3))
 
@@ -599,6 +577,75 @@ c     ################################################################
         deallocate(car)
 
       end subroutine write_coords
+
+c     find_cart_plane
+c     ################################################################
+      subroutine find_cart_plane(iplane,i1,i2)
+
+c     ----------------------------------------------------------------
+c     Determines cartesian components that correspond to a logical
+c     plane of interest (defined by iplane)
+c     ----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: iplane,i1,i2
+
+c     Local variables
+
+        integer(4) :: ii
+        real(8)    :: max_x,max_y,max_z,min_x,min_y,min_z
+
+        real(8),pointer,dimension(:,:,:,:) :: car
+
+c     Begin program
+
+        car => gmetric%grid(iggx)%car
+
+        if (iplane == 1) then   !We take i=1 as a sample; the result is valid for arbitrary i.
+          max_x = maxval(car(1,:,:,1))
+          max_y = maxval(car(1,:,:,2))
+          max_z = maxval(car(1,:,:,3))
+
+          min_x = minval(car(1,:,:,1))
+          min_y = minval(car(1,:,:,2))
+          min_z = minval(car(1,:,:,3))
+        elseif (iplane == 2) then   !Same for j
+          max_x = maxval(car(:,1,:,1))
+          max_y = maxval(car(:,1,:,2))
+          max_z = maxval(car(:,1,:,3))
+
+          min_x = minval(car(:,1,:,1))
+          min_y = minval(car(:,1,:,2))
+          min_z = minval(car(:,1,:,3))
+        elseif (iplane == 3) then   !Same for k
+          max_x = maxval(car(:,:,1,1))
+          max_y = maxval(car(:,:,1,2))
+          max_z = maxval(car(:,:,1,3))
+                                  
+          min_x = minval(car(:,:,1,1))
+          min_y = minval(car(:,:,1,2))
+          min_z = minval(car(:,:,1,3))
+        endif
+
+        if (max_x == min_x) then
+          i1 = 2
+          i2 = 3
+        endif
+
+        if (max_y == min_y) then
+          i1 = 1
+          i2 = 3
+        endif
+
+        if (max_z == min_z) then
+          i1 = 1
+          i2 = 2
+        endif
+
+      end subroutine find_cart_plane
 
 ccc     twodcut
 ccc     ################################################################
@@ -679,251 +726,286 @@ cc      end subroutine twodcut
 
       end subroutine contour_step
 
-c     createDrawInGfile
-c     ################################################################
-      subroutine createDrawInGfile(nvar,binf,graphlabel,ivar
-     .                       ,dvariables,descr,ivariables,logvar
-     .                       ,drawfile,spline)
+ccc     contour
+ccc     #####################################################################
+cc      subroutine contour(arr,nx,ny,xmin,xmax,ymin,ymax,iopt,nunit)
+cc      implicit none               !For safe fortran
+ccc     ---------------------------------------------------------------------
+ccc     Contours 2D array in xdraw format. In call:
+ccc       * arr: 2D array to be plotted
+ccc       * nx,ny: dimensions of array
+ccc       * xmin,xmax,ymin,ymax: 2D domain limits
+ccc       * iopt: whether to initialize xdraw plot (iopt=0) or not.
+ccc       * nunit: integer file identifier.
+ccc     ---------------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc      integer(4) :: nx,ny,iopt,nunit
+cc      real(8)    :: arr(nx,ny),xmin,xmax,ymin,ymax
+cc
+ccc     Local variables
+cc
+cc      integer(4) :: i,j
+cc
+ccc     Begin program
+cc
+cc      if(iopt == 0) then
+cc        write(nunit) nx-1,ny-1,0
+cc        write(nunit) real(xmin,4),real(xmax,4)
+cc     .              ,real(ymin,4),real(ymax,4) 
+cc      endif
+cc      write(nunit) ((real(arr(i,j),4),i=1,nx),j=1,ny)
+cc
+ccc     End program
+cc
+cc      end subroutine contour
 
-c     ----------------------------------------------------------------
-c     Creates the G-type (x-y curves) draw.in file for xdraw graphics.
-c     On call sequence:
-c       * nvar : number of variables in consideration for plotting
-c       * binf : name of binary file to be read
-c       * graphlabel : character array of arbitrary length
-c       * ivar : independent variable axis name
-c       * dvariables : integer array of size (nvar) identifying the 
-c                      dependent variables (although they can also be 
-c                      independent variables)
-c       * descr      : character array containing dependent variables
-c                      descriptions.
-c       * ivariables : integer array specifying independent variables 
-c                      for all the dependent variables.
-c                      These include any of the dependent
-c                      variable indeces plus 0 (indicating the true
-c                      independent variable).
-c       * logvar     : integer array specifying which dependent
-c                      variables will be plotted in log scale.
-c       * drawfile   : character variable specifying the name of the
-c                      draw.in file.
-c       * spline     : logical variable that specifies whether 
-c                      xdraw should do spline interpolations or not.
-c     ----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer      :: nvar,ivariables(ngraph),dvariables(nvar)
-     .                 ,logvar(ngraph)
-        character(*) :: binf,drawfile,graphlabel,ivar
-        character(20):: descr(ngraph)
-        logical      :: spline
-
-c     Local variables
-
-        integer      :: i,j,gfile,lngt
-        character(50):: label
-        logical      :: flag
-
-c     Begin program
-
-        gfile = 111
-
-        open (unit=gfile,file=drawfile,status='unknown')
-
-        write (gfile,'(1a,/)') 
-     .     'Type (G=Graph, C=Contour, M=TS contour):      G'
-        write (gfile,'(a)') 'filename(s)'
-        write (gfile,'(a,/)') trim(binf)
-
-        write (gfile,'(2a,/)') 'graph title: ',trim(graphlabel)
-        write (gfile,'(a)') 'variable names'
-        write (gfile,'(2a)') ' 0       ',trim(ivar)
-
-        do i=1,size(descr)
-          lngt = len(trim(descr(i)))
-          if (lngt == 0) cycle
-          write (gfile,'(i2,2a)') i  ,'       ',trim(descr(i))
-        enddo
-        write (gfile,'(/,a)') 'ix       iy        window title'
-
-        do i=1,size(descr)
-          lngt = len(trim(descr(i)))
-          if (lngt == 0) exit
-          flag = .false.
-          do j = 1,nvar
-            if (dvariables(j).eq.i) then
-              flag = .true.
-              exit
-            endif
-          enddo
-          if (flag) then
-            if (spline) then
-              if(logvar(i) == 1) then
-                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
-     .                                ,i,'L&        ',trim(descr(i))
-              else
-                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
-     .                                ,i,'&        ',trim(descr(i))
-              endif
-            elseif(logvar(i) == 1) then
-              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
-     .                                ,i,'L        ',trim(descr(i))
-            else
-              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
-     .                                ,i,'         ',trim(descr(i))
-            endif
-          else
-            if(logvar(i) == 1) then
-              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
-     .                                ,i,'L        ',trim(descr(i))
-
-            else
-              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
-     .                                ,i,'         ',trim(descr(i))
-            endif
-          endif
-        enddo
-
-        write (gfile,*)
-
-        close (gfile)
-
-c     End program
-
-      end subroutine createDrawInGfile
-
-c     createDrawInMfile
-c     ################################################################
-      subroutine createDrawInMfile(nvar,binf,cartesian,graphlabel
-     .            ,ivart,ivarx,ivary,variables,descr,options,drawfile)
-
-c     ----------------------------------------------------------------
-c     Creates drawfile for "M-type" xdraw graphics.
-c     ----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer     :: nvar,variables(nvar)
-        character(*):: binf,drawfile,graphlabel,options,descr(ngraph)
-        character(*):: ivart,ivarx,ivary
-        logical     :: cartesian
-
-c     Local variables
-
-        integer      :: i,j,mfile,lngt
-        character(50):: label
-        logical      :: flag
-
-c     Begin program
-
-        mfile = 111
-
-        open (unit=mfile,file=drawfile,status='unknown')
-
-        if (cartesian) then
-          write (mfile,'(1a,/)') 
-     .     'Type (G=Graph, C=Contour, M=TS contour):      M2'
-        else
-          write (mfile,'(1a,/)') 
-     .     'Type (G=Graph, C=Contour, M=TS contour):      M'
-        endif
-        write (mfile,'(a)') 'filename(s)'
-        write (mfile,'(a,/)') trim(binf)
-
-        write (mfile,'(2a,/)') 'comment:      ',graphlabel
-        write (mfile,'(a)') 'independent variable names'
-        write (mfile,'(2a)')   't       ',trim(ivart)
-        write (mfile,'(2a)')   'x       ',trim(ivarx)
-        write (mfile,'(2a,/)') 'y       ',trim(ivary)
-        write (mfile,'(a)') 'dependent variable names'
-        do i=1,size(descr)
-          lngt = len(trim(descr(i)))
-          if (lngt == 0) exit
-          write (mfile,'(i2,2a)') i  ,'       ',descr(i)
-        enddo
-        write (mfile,'(/,a)') 'iqty       options     window title'
-
-        do i=1,size(variables)
-          if (variables(i) > 0) then
-            write (mfile,'(i2,4a)') variables(i)
-     .         ,'         ',options
-     .         ,'         ',trim(descr(variables(i)))
-          elseif (variables(i) == 0) then
-            cycle
-          else
-            variables(i) = - variables(i)
-            label = 'Vector plot (' // trim(descr(variables(i)))
-     .              // ',' // trim(descr(variables(i)+1))//')'
-            write (mfile,'(i2,a,i2,4a)') variables(i),' ',variables(i)+1
-     .         ,'       ',options,'         ',trim(label)
-          endif
-        enddo
-        write (mfile,*)
-
-        close (mfile)
-
-c     End program
-
-      end subroutine createDrawInMfile
-
-c     createDrawInCfile
-c     ################################################################
-      subroutine createDrawInCfile(nvar,binf,graphlabel,ivart,ivarx
-     .                       ,ivary,descr,options,drawfile)
-
-c     ----------------------------------------------------------------
-c     Creates drawfile for "C-type" xdraw graphics.
-c     ----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer     :: nvar
-        character(*):: binf,drawfile,graphlabel,options,descr(nvar)
-        character(*):: ivart,ivarx,ivary
-
-c     Local variables
-
-        integer      :: i,j,cfile
-        character(50):: label
-        logical      :: flag
-
-c     Begin program
-
-        cfile = 111
-
-        open (unit=cfile,file=drawfile,status='unknown')
-
-        write (cfile,'(1a,/)') 
-     .     'Type (G=Graph, C=Contour, M=TS contour):      C'
-        write (cfile,'(a)') 'filename(s)'
-        write (cfile,'(a,/)') trim(binf)
-
-        write (cfile,'(2a,/)') 'comment:      ',graphlabel
-        write (cfile,'(a)') 'variable names'
-        write (cfile,'(a)')    '0        H'
-        write (cfile,'(2a)')   'i0       ',trim(ivart)
-        write (cfile,'(2a)')   'i1       ',trim(ivarx)
-        write (cfile,'(2a,/)') 'i2       ',trim(ivary)
-        write (cfile,'(a)') 'ix      iy      other           title'
-
-        do i=1,nvar
-          write (cfile,'(4a,i1,2a)') 'i2      i1'
-     .         ,'     ',options,' -i0=',nvar-1
-     .         ,'     ',trim(descr(i))
-        enddo
-        write (cfile,*)
-
-        close (cfile)
-
-c     End program
-
-      end subroutine createDrawInCfile
+ccc     createDrawInGfile
+ccc     ################################################################
+cc      subroutine createDrawInGfile(nvar,binf,graphlabel,ivar
+cc     .                       ,dvariables,descr,ivariables,logvar
+cc     .                       ,drawfile,spline)
+cc
+ccc     ----------------------------------------------------------------
+ccc     Creates the G-type (x-y curves) draw.in file for xdraw graphics.
+ccc     On call sequence:
+ccc       * nvar : number of variables in consideration for plotting
+ccc       * binf : name of binary file to be read
+ccc       * graphlabel : character array of arbitrary length
+ccc       * ivar : independent variable axis name
+ccc       * dvariables : integer array of size (nvar) identifying the 
+ccc                      dependent variables (although they can also be 
+ccc                      independent variables)
+ccc       * descr      : character array containing dependent variables
+ccc                      descriptions.
+ccc       * ivariables : integer array specifying independent variables 
+ccc                      for all the dependent variables.
+ccc                      These include any of the dependent
+ccc                      variable indeces plus 0 (indicating the true
+ccc                      independent variable).
+ccc       * logvar     : integer array specifying which dependent
+ccc                      variables will be plotted in log scale.
+ccc       * drawfile   : character variable specifying the name of the
+ccc                      draw.in file.
+ccc       * spline     : logical variable that specifies whether 
+ccc                      xdraw should do spline interpolations or not.
+ccc     ----------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer      :: nvar,ivariables(ngraph),dvariables(nvar)
+cc     .                 ,logvar(ngraph)
+cc        character(*) :: binf,drawfile,graphlabel,ivar
+cc        character(20):: descr(ngraph)
+cc        logical      :: spline
+cc
+ccc     Local variables
+cc
+cc        integer      :: i,j,gfile,lngt
+cc        character(50):: label
+cc        logical      :: flag
+cc
+ccc     Begin program
+cc
+cc        gfile = 111
+cc
+cc        open (unit=gfile,file=drawfile,status='unknown')
+cc
+cc        write (gfile,'(1a,/)') 
+cc     .     'Type (G=Graph, C=Contour, M=TS contour):      G'
+cc        write (gfile,'(a)') 'filename(s)'
+cc        write (gfile,'(a,/)') trim(binf)
+cc
+cc        write (gfile,'(2a,/)') 'graph title: ',trim(graphlabel)
+cc        write (gfile,'(a)') 'variable names'
+cc        write (gfile,'(2a)') ' 0       ',trim(ivar)
+cc
+cc        do i=1,size(descr)
+cc          lngt = len(trim(descr(i)))
+cc          if (lngt == 0) cycle
+cc          write (gfile,'(i2,2a)') i  ,'       ',trim(descr(i))
+cc        enddo
+cc        write (gfile,'(/,a)') 'ix       iy        window title'
+cc
+cc        do i=1,size(descr)
+cc          lngt = len(trim(descr(i)))
+cc          if (lngt == 0) exit
+cc          flag = .false.
+cc          do j = 1,nvar
+cc            if (dvariables(j).eq.i) then
+cc              flag = .true.
+cc              exit
+cc            endif
+cc          enddo
+cc          if (flag) then
+cc            if (spline) then
+cc              if(logvar(i) == 1) then
+cc                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
+cc     .                                ,i,'L&        ',trim(descr(i))
+cc              else
+cc                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
+cc     .                                ,i,'&        ',trim(descr(i))
+cc              endif
+cc            elseif(logvar(i) == 1) then
+cc              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
+cc     .                                ,i,'L        ',trim(descr(i))
+cc            else
+cc              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
+cc     .                                ,i,'         ',trim(descr(i))
+cc            endif
+cc          else
+cc            if(logvar(i) == 1) then
+cc              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
+cc     .                                ,i,'L        ',trim(descr(i))
+cc
+cc            else
+cc              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
+cc     .                                ,i,'         ',trim(descr(i))
+cc            endif
+cc          endif
+cc        enddo
+cc
+cc        write (gfile,*)
+cc
+cc        close (gfile)
+cc
+ccc     End program
+cc
+cc      end subroutine createDrawInGfile
+cc
+ccc     createDrawInMfile
+ccc     ################################################################
+cc      subroutine createDrawInMfile(nvar,binf,cartesian,graphlabel
+cc     .            ,ivart,ivarx,ivary,variables,descr,options,drawfile)
+cc
+ccc     ----------------------------------------------------------------
+ccc     Creates drawfile for "M-type" xdraw graphics.
+ccc     ----------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer     :: nvar,variables(nvar)
+cc        character(*):: binf,drawfile,graphlabel,options,descr(ngraph)
+cc        character(*):: ivart,ivarx,ivary
+cc        logical     :: cartesian
+cc
+ccc     Local variables
+cc
+cc        integer      :: i,j,mfile,lngt
+cc        character(50):: label
+cc        logical      :: flag
+cc
+ccc     Begin program
+cc
+cc        mfile = 111
+cc
+cc        open (unit=mfile,file=drawfile,status='unknown')
+cc
+cc        if (cartesian) then
+cc          write (mfile,'(1a,/)') 
+cc     .     'Type (G=Graph, C=Contour, M=TS contour):      M2'
+cc        else
+cc          write (mfile,'(1a,/)') 
+cc     .     'Type (G=Graph, C=Contour, M=TS contour):      M'
+cc        endif
+cc        write (mfile,'(a)') 'filename(s)'
+cc        write (mfile,'(a,/)') trim(binf)
+cc
+cc        write (mfile,'(2a,/)') 'comment:      ',graphlabel
+cc        write (mfile,'(a)') 'independent variable names'
+cc        write (mfile,'(2a)')   't       ',trim(ivart)
+cc        write (mfile,'(2a)')   'x       ',trim(ivarx)
+cc        write (mfile,'(2a,/)') 'y       ',trim(ivary)
+cc        write (mfile,'(a)') 'dependent variable names'
+cc        do i=1,size(descr)
+cc          lngt = len(trim(descr(i)))
+cc          if (lngt == 0) exit
+cc          write (mfile,'(i2,2a)') i  ,'       ',descr(i)
+cc        enddo
+cc        write (mfile,'(/,a)') 'iqty       options     window title'
+cc
+cc        do i=1,size(variables)
+cc          if (variables(i) > 0) then
+cc            write (mfile,'(i2,4a)') variables(i)
+cc     .         ,'         ',options
+cc     .         ,'         ',trim(descr(variables(i)))
+cc          elseif (variables(i) == 0) then
+cc            cycle
+cc          else
+cc            variables(i) = - variables(i)
+cc            label = 'Vector plot (' // trim(descr(variables(i)))
+cc     .              // ',' // trim(descr(variables(i)+1))//')'
+cc            write (mfile,'(i2,a,i2,4a)') variables(i),' ',variables(i)+1
+cc     .         ,'       ',options,'         ',trim(label)
+cc          endif
+cc        enddo
+cc        write (mfile,*)
+cc
+cc        close (mfile)
+cc
+ccc     End program
+cc
+cc      end subroutine createDrawInMfile
+cc
+ccc     createDrawInCfile
+ccc     ################################################################
+cc      subroutine createDrawInCfile(nvar,binf,graphlabel,ivart,ivarx
+cc     .                       ,ivary,descr,options,drawfile)
+cc
+ccc     ----------------------------------------------------------------
+ccc     Creates drawfile for "C-type" xdraw graphics.
+ccc     ----------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer     :: nvar
+cc        character(*):: binf,drawfile,graphlabel,options,descr(nvar)
+cc        character(*):: ivart,ivarx,ivary
+cc
+ccc     Local variables
+cc
+cc        integer      :: i,j,cfile
+cc        character(50):: label
+cc        logical      :: flag
+cc
+ccc     Begin program
+cc
+cc        cfile = 111
+cc
+cc        open (unit=cfile,file=drawfile,status='unknown')
+cc
+cc        write (cfile,'(1a,/)') 
+cc     .     'Type (G=Graph, C=Contour, M=TS contour):      C'
+cc        write (cfile,'(a)') 'filename(s)'
+cc        write (cfile,'(a,/)') trim(binf)
+cc
+cc        write (cfile,'(2a,/)') 'comment:      ',graphlabel
+cc        write (cfile,'(a)') 'variable names'
+cc        write (cfile,'(a)')    '0        H'
+cc        write (cfile,'(2a)')   'i0       ',trim(ivart)
+cc        write (cfile,'(2a)')   'i1       ',trim(ivarx)
+cc        write (cfile,'(2a,/)') 'i2       ',trim(ivary)
+cc        write (cfile,'(a)') 'ix      iy      other           title'
+cc
+cc        do i=1,nvar
+cc          write (cfile,'(4a,i2,2a)') 'i2      i1'
+cc     .         ,'     ',options,' -i0=',i-1
+cc     .         ,'     ',trim(descr(i))
+cc        enddo
+cc        write (cfile,*)
+cc
+cc        close (cfile)
+cc
+ccc     End program
+cc
+cc      end subroutine createDrawInCfile
 
 c     openXDRAWGraphicsFiles
 c     ##################################################################
@@ -966,911 +1048,4 @@ c     ##################################################################
 
       end subroutine closeXDRAWGraphicsFiles
 
-      end module XDRAW
-
-c module HDF5_graphics
-c ##################################################################
-      module HDF5_graphics
-
-#if defined(hdf5)
-        use HDF5
-#endif
-
-        use graphics_variables
-
-        use variables
-
-        use timeStepping
-
-        use generalPurposeFunctions
-
-        character(20) :: hdf5_fname
-
-#if defined(hdf5)
-        integer(hid_t) :: group_id,subgroup_id
-        integer(hid_t) :: file_id        
-        integer(hid_t) :: dataset_id     
-        integer(hid_t) :: datatype_id     
-        integer(hid_t) :: dataspace_id,node_dataspace_id
-        integer(hid_t) :: attribute_id
-        integer(hid_t) :: dataspace_attr_id
-        integer(hid_t) :: attr_type_id
-
-c       variables for parallel HDF5
-        integer(hid_t) :: plist_id
-        integer(hid_t) :: hs_dataspace_id
-        integer(hid_t) :: p_dataspace_id,p_node_dataspace_id
-
-        integer(4)     :: hdferr,igrp
-
-c       generic HDF5 variables
-        integer(4), parameter :: ARRAY_RANK = 3
-        integer(4), parameter :: ATTR_RANK = 1
-        integer(4), parameter :: VEXP_RANK = 1
-        integer(4), parameter :: strlength = 20
-
-        integer(hsize_t), dimension(ARRAY_RANK) ::
-     .                         array_dim,node_array_dim
-        integer(hsize_t), dimension(ATTR_RANK ) ::
-     .                         attr_dim = (/ARRAY_RANK/)
-        integer(hsize_t), dimension(VEXP_RANK ) ::
-     .                         vexp_dim = (/VEXP_RANK/)
-        integer(4), dimension(7)                :: array_dim_i 
-
-        character(20), dimension(ARRAY_RANK) :: coords_descr
-     .                                            = (/'X','Y','Z'/)
-        character(20)                        :: cell_coords_gname
-     .                                            = 'cell_coords'
-        character(20)                        :: node_coords_gname
-     .                                            = 'node_coords'
-        character(20)                        :: attr_name = 'coords'
-
-        character(strlength), dimension(ARRAY_RANK) :: attr_data
-
-      contains 
-
-c     initializeHDF5file
-c     ##############################################################
-      subroutine initializeHDF5file
-
-      implicit none
-
-c     Call variables
-      
-c     Local variables
-
-      integer(4) :: iattr,slth
-      character(300) :: vexp
-
-c     Begin program
-
-c     Setup plot dump variables
-
-      array_dim      = (/nxd,nyd,nzd/)
-      node_array_dim = (/nxd+1,nyd+1,nzd+1/)
-
-      !Attach location of node positions as attribute
-      do iattr=1,attr_dim(1)
-        attr_data(iattr) = trim('/'//trim(node_coords_gname)//
-     $                     '/'//trim(coords_descr(iattr)))
-      enddo
-
-c     Exit if not in rank=0
-
-cc#if defined(petsc)
-cc      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
-cc      if (my_rank /= 0) return
-cc#endif
-
-      if (.not.isProc(0)) return
-
-c     Initialize FORTRAN interface
-      call h5open_f(hdferr)
-
-c     Create HDF% file
-
-      !Create a new file using default properties.
-      call h5fcreate_f(hdf5_fname, H5F_ACC_TRUNC_F, file_id, hdferr)
-      
-      !Terminate access to the file.
-      call h5fclose_f(file_id, hdferr)
-
-c     Create VISIT expressions
-
-      call selectExpressions
-
-      slth = len(trim(vexp))
-
-      !Open .h5 file using default properties
-      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
-     $               H5P_DEFAULT_F)
-
-      !Create dataspace
-      call h5screate_simple_f(VEXP_RANK,vexp_dim,dataspace_id,hdferr)
-
-      !Create datatype
-      call h5tcopy_f(H5T_NATIVE_CHARACTER,datatype_id,hdferr)
-      call h5tset_size_f(datatype_id,slth,hdferr)
-      call h5tset_strpad_f(datatype_id,H5T_STR_NULLTERM_F,hdferr)
-
-      !Create dataset
-      call h5dcreate_f(file_id,'/visit_expressions',datatype_id
-     .                ,dataspace_id,dataset_id,hdferr,H5P_DEFAULT_F)
-
-      !Write to dataset
-      call h5dwrite_f(dataset_id,datatype_id,trim(vexp),vexp_dim,hdferr)
-
-      !Close dataset
-      call h5dclose_f(dataset_id,hdferr)
-
-      !Close datatype
-      call h5tclose_f(datatype_id,hdferr)
-
-      !Close dataspace
-      call h5sclose_f(dataspace_id,hdferr)
-
-      !Close .h5 file
-      call h5fclose_f(file_id, hdferr)
-
-c     Close fortran interface
-      call h5close_f(hdferr)
-
-c     End program
-
-      contains
-
-c     selectExpressions
-c     #################################################################
-      subroutine selectExpressions
-
-      integer(4)   :: igrp,ivar,ivp,ivm
-      character(20) :: str1,str2,str3
-      logical      :: first
-
-      first = .true.
-      vexp = ''
-
-      do igrp=1,ngroups
-        if (graph(igrp)%cartesian) then
-          do ivar=1,ngraph
-            ivm = max(ivar-1,1)
-            ivp = min(ivar+1,ngraph)
-            str1 = trim(graph(igrp)%array_graph(ivm )%vector_name)
-            str2 = trim(graph(igrp)%array_graph(ivar)%vector_name)
-            str3 = trim(graph(igrp)%array_graph(ivp )%vector_name)
-            if (str2 /='' .and. (first.or.str1 /= str2)) then
-              if (.not.first) then
-                vexp = trim(vexp)//' ;'
-              else
-                first = .false.
-              endif
-              vexp=trim(vexp)//' '//trim(str2)//':{<'
-     .           //trim(graph(igrp)%descr)
-     .           //'/'//trim(graph(igrp)%array_graph(ivar)%descr)
-            elseif (str2 /='' .and. str3 /= str2) then
-              vexp= trim(vexp)//'>,<'//trim(graph(igrp)%descr)//
-     .           '/'//trim(graph(igrp)%array_graph(ivar)%descr)//'>}'
-            elseif (str2 /='') then
-              vexp= trim(vexp)//'>,<'//trim(graph(igrp)%descr)//
-     .           '/'//trim(graph(igrp)%array_graph(ivar)%descr)
-            endif
-          enddo
-        endif
-      enddo
-
-cc      write (*,*) vexp
-
-      end subroutine selectExpressions
-
-      end subroutine initializeHDF5file
-
-c     createGroups
-c     #################################################################
-      subroutine createGroups(step)
-
-      implicit none
-
-c     Call variables
-      
-      integer(4)         :: step
-
-c     Local variables
-
-      integer(4)         :: ieq
-      character*(20)     :: groupname
-
-c     Begin program
-
-cc#if defined(petsc)
-cc      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
-cc      if (my_rank /= 0) return
-cc#endif
-
-      if (.not.isProc(0)) return
-
-      groupname = trim('Timestep_'//int2char(step))
-
-c     Initialize FORTRAN interface
-
-      call h5open_f(hdferr)
-
-c     Open .h5 file using default properties.
-
-      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
-     $               H5P_DEFAULT_F)
-
-c     Create a group for coordinates data
-
-      if (step == 0) then
-        !Cell center positions
-        call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr,0)
-        call h5gclose_f(group_id,hdferr)
-        !Node positions
-        call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr,0)
-        call h5gclose_f(group_id,hdferr)
-      endif
-
-c     Create groups for computation data
-
-      call h5gcreate_f(file_id,groupname,group_id,hdferr, 0)
-
-      do igrp=1,ngroups
-        call h5gcreate_f(group_id,graph(igrp)%descr,subgroup_id,
-     $                  hdferr,0)
-        call h5gclose_f(subgroup_id, hdferr)
-      enddo
-
-      call h5gclose_f(group_id, hdferr)
-
-c     Terminate access to the file.
-      call h5fclose_f(file_id, hdferr)
-
-      call h5close_f(hdferr)
-
-c     End program
-
-      end subroutine createGroups
-
-c     writeHDF5file
-c     ##################################################################
-      subroutine writeHDF5file
-c     ------------------------------------------------------------------
-c     Write the output date using HDF5 HyperSlab Column
-c     ------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-c     Local variables
-
-      integer(4)     :: i,j,k,ieq,icoords
-
-      character*(20) :: timestep
-
-      integer(hsize_t), dimension(ARRAY_RANK) :: count,node_count
-      integer(hsize_t), dimension(ARRAY_RANK) :: offset
-
-      real(8),allocatable,dimension(:,:,:,:) :: cell,node
-
-c     Begin program
-
-c     Create the output file and data groups
-
-      timestep = trim('Timestep_'//int2char(itime))
-
-      call createGroups(itime)
-
-c     Initialize FORTRAN interface
-      call h5open_f(hdferr)
-
-#if defined(petsc)
-c PARALLEL
-c     Set up file access property list with parallel I/O access
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,hdferr)
-      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,
-     $                        hdferr)
-
-c     Open an existing file.
-      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
-     $               access_prp = plist_id)
-      call h5pclose_f(plist_id,hdferr)
-#else
-c SERIAL
-c     Open an existing file.
-      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
-     $               H5P_DEFAULT_F)
-#endif
-
-c     Create the dataspace of actual data and its attributes
-
-      !Cell-centered data
-      call h5screate_simple_f(ARRAY_RANK,array_dim,dataspace_id,hdferr)
-
-      !Node-centered data
-      call h5screate_simple_f(ARRAY_RANK,node_array_dim
-     .                       ,node_dataspace_id,hdferr)
-
-      !Attribute data
-      call h5screate_simple_f(ATTR_RANK,attr_dim,dataspace_attr_id
-     $                       ,hdferr)
-
-#if defined(petsc)
-c PARALLEL
-c     Each process defines dataset in memory and writes it to the hyperslab
-c     in the file.
-
-      offset(1) = ilomg
-      offset(2) = jlomg
-      offset(3) = klomg
-
-      !Cell-centered data
-      count(1) = nxl
-      count(2) = nyl
-      count(3) = nzl
-
-      call h5screate_simple_f(ARRAY_RANK,count,p_dataspace_id,hdferr)
-
-      !Node-centered data
-      node_count(1) = nxl+1
-      node_count(2) = nyl+1
-      node_count(3) = nzl+1
-
-      call h5screate_simple_f(ARRAY_RANK,node_count,p_node_dataspace_id
-     .                       ,hdferr)
-
-c     Create property list for collective dataset write.
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,hdferr)
-      call h5pset_dxpl_mpio_f(plist_id,H5FD_MPIO_COLLECTIVE_F,hdferr)
-#endif
-
-c     Write the coordinate data
-
-      allocate (cell(ilom:ihip,jlom:jhip,klom:khip,3)
-     .         ,node(ilom:ihip,jlom:jhip,klom:khip,3))
-
-      if (itime == 0) then
-
-        !Cell center positions
-        call h5gopen_f(file_id,cell_coords_gname,group_id,hdferr) 
-
-        do k=klom,khip
-          do j=jlom,jhip
-            do i=ilom,ihip
-              call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
-     .          ,iig,jjg,kkg,cell(i,j,k,1),cell(i,j,k,2),cell(i,j,k,3))
-            enddo
-          enddo
-        enddo
-
-        do icoords=1,ARRAY_RANK
-
-#if defined(petsc)
-c PARALLEL
-          call h5dcreate_f(group_id,coords_descr(icoords),
-     $                     H5T_IEEE_F64BE,
-     $                     dataspace_id,dataset_id,hdferr)
-
-c         Select hyperslab in the file.
-          call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
-          call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
-     $                               offset,count,hdferr)    
-
-c         Write data to the dataset
-          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
-     $                 cell(ilo:ihi,jlo:jhi,klo:khi,icoords),
-     $                 array_dim_i,
-     $                 hdferr,file_space_id = hs_dataspace_id,
-     $                 mem_space_id = p_dataspace_id,
-     $                 xfer_prp = plist_id)
-
-          call h5sclose_f(hs_dataspace_id,hdferr)
-#else
-c SERIAL
-          call h5dcreate_f(group_id,coords_descr(icoords),
-     $                     H5T_IEEE_F64BE,
-     $                     dataspace_id,dataset_id,hdferr)
-
-c         Write data to the dataset
-          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
-     $                    cell(ilo:ihi,jlo:jhi,klo:khi,icoords), !must specify index ranges
-     $                    array_dim,hdferr)
-          
-#endif
-          call h5dclose_f(dataset_id,hdferr)
-        enddo
-
-        call h5gclose_f(group_id, hdferr)
-
-        !Node positions
-        call h5gopen_f(file_id,node_coords_gname,group_id,hdferr) 
-
-        call interpolateNodalData
-
-        do icoords=1,ARRAY_RANK
-          call h5dcreate_f(group_id,coords_descr(icoords),
-     $                     H5T_IEEE_F64BE,
-     $                     node_dataspace_id,dataset_id,hdferr)
-
-#if defined(petsc)
-c PARALLEL
-c         Select hyperslab in the file.
-          call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
-          call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
-     $                               offset,node_count,hdferr)    
-
-c         Write data to the dataset
-          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
-     $                 node(ilo:ihip,jlo:jhip,klo:khip,icoords),
-     $                 array_dim_i,
-     $                 hdferr,
-     .                 file_space_id = hs_dataspace_id,
-     $                 mem_space_id = p_node_dataspace_id,
-     $                 xfer_prp = plist_id)
-
-          call h5sclose_f(hs_dataspace_id,hdferr)
-#else
-c SERIAL
-c         Write data to the dataset
-          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
-     $                    node(ilo:ihip,jlo:jhip,klo:khip,icoords),
-     $                    node_array_dim,hdferr)
-#endif
-
-          call h5dclose_f(dataset_id,hdferr)
-        enddo
-
-        call h5gclose_f(group_id, hdferr)
-
-      endif
-
-      deallocate(cell,node)
-
-c     Write the actual data
-
-      call h5gopen_f(file_id,timestep,group_id,hdferr)
-
-      do igrp=1,ngroups
-
-c       Open an existing group of the specified file.
-        call h5gopen_f(group_id,graph(igrp)%descr,subgroup_id,hdferr)
-
-        if (graph(igrp)%cartesian) then
-
-c         Write "Attribute data"
-
-          call h5tcopy_f(H5T_NATIVE_CHARACTER,attr_type_id,hdferr)
-          call h5tset_size_f(attr_type_id,strlength,hdferr)
-
-          call h5acreate_f(subgroup_id,attr_name,attr_type_id,
-     $                     dataspace_attr_id,attribute_id,
-     $                     hdferr)
-
-          call h5awrite_f(attribute_id,attr_type_id,
-     $                    attr_data,
-     $                    attr_dim,hdferr)
-          call h5aclose_f(attribute_id,hdferr)
-
-          call h5tclose_f(attr_type_id,hdferr)
-
-c         Write nodal data
-
-          allocate (cell(ilom:ihip,jlom:jhip,klom:khip,1)
-     .             ,node(ilom:ihip,jlom:jhip,klom:khip,1))
-
-          do ieq=1,nqty(igrp)
-
-c           Create the dataset
-            call h5dcreate_f(subgroup_id
-     $                      ,graph(igrp)%array_graph(ieq)%descr
-     $                      ,H5T_IEEE_F64BE
-     $                      ,node_dataspace_id,dataset_id,hdferr)
-
-c           Interpolate nodal values
-
-            cell(:,:,:,1) = graph(igrp)%array_graph(ieq)%array
-
-cc            write (*,*) cell(:,:,:,1)
-cc            pause
-            call interpolateNodalData
-
-cc            write (*,*) node(:,:,:,1)
-cc            pause
-
-#if defined(petsc)
-c PARALLEL
-c           Select hyperslab in the file.
-            call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
-            call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F
-     $                                ,offset,node_count,hdferr)    
-
-c           Write data to the dataset
-            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
-     $                     ,node(ilo:ihip,jlo:jhip,klo:khip,1)
-     $                     ,array_dim_i
-     $                     ,hdferr
-     $                     ,file_space_id = hs_dataspace_id
-     $                     ,mem_space_id = p_node_dataspace_id
-     $                     ,xfer_prp = plist_id)
-
-c           Release resources
-            call h5sclose_f(hs_dataspace_id,hdferr)
-#else
-c SERIAL
-c           Write data to the dataset
-            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
-     $                     ,node(ilo:ihip,jlo:jhip,klo:khip,1)
-     $                     ,node_array_dim,hdferr)
-#endif
-
-c         Release resources
-
-            call h5dclose_f(dataset_id,hdferr)
-
-          enddo
-
-          deallocate(cell,node)
-
-        else
-
-c         Write cell-centered data
-
-          do ieq=1,nqty(igrp)
-
-c           Create the dataset
-            call h5dcreate_f(subgroup_id
-     $                      ,graph(igrp)%array_graph(ieq)%descr
-     $                      ,H5T_IEEE_F64BE
-     $                      ,dataspace_id,dataset_id,hdferr)
-
-#if defined(petsc)
-c PARALLEL
-c           Select hyperslab in the file.
-            call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
-            call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F
-     $                                ,offset,count,hdferr)    
-
-c           Write data to the dataset
-            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
-     $                     ,graph(igrp)%array_graph(ieq)
-     $                         %array(ilo:ihi,jlo:jhi,klo:khi)
-     $                     ,array_dim_i
-     $                     ,hdferr,file_space_id = hs_dataspace_id
-     $                     ,mem_space_id = p_dataspace_id
-     $                     ,xfer_prp = plist_id)
-
-c           Release resources
-            call h5sclose_f(hs_dataspace_id,hdferr)
-#else
-c SERIAL
-c           Write data to the dataset
-            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
-     $                     ,graph(igrp)%array_graph(ieq)
-     $                                 %array(ilo:ihi,jlo:jhi,klo:khi) !must specify index ranges
-     $                     ,array_dim,hdferr)
-
-#endif
-
-c         Release resources
-
-            call h5dclose_f(dataset_id,hdferr)
-
-          enddo
-
-        endif
-
-        call h5gclose_f(subgroup_id, hdferr)
-
-      enddo
-
-c     Release resources
-
-      call h5gclose_f(group_id, hdferr)
-
-#if defined(petsc)
-c PARALLEL
-      call h5sclose_f(p_dataspace_id,hdferr)
-      call h5sclose_f(p_node_dataspace_id,hdferr)
-      call h5pclose_f(plist_id,hdferr)
-#endif
-
-      call h5sclose_f(dataspace_id,hdferr)
-      call h5sclose_f(node_dataspace_id,hdferr)
-      call h5fclose_f(file_id,hdferr)
-      call h5close_f (hdferr)
-
-c     End program
-
-      contains
-
-c     interpolateNodalData
-c     ####################################################################
-      subroutine interpolateNodalData
-
-c     ---------------------------------------------------------------------
-c     Interpolates cell-centered data to nodal data
-c     ---------------------------------------------------------------------
-
-        implicit none
-
-        do k=klo,khip
-          do j=jlo,jhip
-            do i=ilo,ihip
-              if (i == ilo .and. ilog == 1 .and. bcSP()) then
-                node(i,j,k,:) = 0.25*(cell(i-1,j  ,k  ,:)
-     .                               +cell(i-1,j-1,k  ,:)
-     .                               +cell(i-1,j  ,k-1,:)
-     .                               +cell(i-1,j-1,k-1,:))
-              else
-                node(i,j,k,:) = 0.125
-     .                       *(cell(i  ,j  ,k  ,:)+cell(i-1,j  ,k  ,:)
-     .                        +cell(i  ,j-1,k  ,:)+cell(i-1,j-1,k  ,:)
-     .                        +cell(i  ,j  ,k-1,:)+cell(i-1,j  ,k-1,:)
-     .                        +cell(i  ,j-1,k-1,:)+cell(i-1,j-1,k-1,:))
-              endif
-            enddo
-          enddo
-        enddo
-
-      end subroutine interpolateNodalData
-
-      end subroutine writeHDF5file
-
-#endif
-
-      end module HDF5_graphics
-
-c module graphics
-c ######################################################################
-      module graphics
-
-        use grid
-
-        use graphics_variables
-
-        use XDRAW
-
-        use HDF5_graphics
-
-      contains
-
-c     initializeGraphics
-c     ###############################################################
-      subroutine initializeGraphics (igx,igy,igz,bcs)
-c     ---------------------------------------------------------------
-c     Set graphics files and dumping intervals
-c     ---------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer(4) :: igx,igy,igz,bcs(6)
-
-c     Local variables
-
-        integer(4) :: nx,ny,nz,isx,isy,isz
-
-        integer(4) :: i,nplots
-        
-        character*(30) :: prof_label
-
-c     Begin program
-
-        nx = grid_params%nxv(igx)
-        ny = grid_params%nyv(igy)
-        nz = grid_params%nzv(igz)
-
-        isx = grid_params%istartx(igx)
-        isy = grid_params%istartx(igy)
-        isz = grid_params%istartx(igz)
-
-        iggx = igx
-        iggy = igy
-        iggz = igz
-
-c     Set graphics plotting range
-
-cc        call setGraphicsRange(nx,ny,nz,bcs)
-
-c     Find grid in logical space
-
-        allocate(xl(iming:imaxg),yl(jming:jmaxg),zl(kming:kmaxg))
-
-        xl(:) = grid_params%xx(iming+isx:imaxg+isx)
-        yl(:) = grid_params%yy(jming+isy:jmaxg+isy)
-        zl(:) = grid_params%zz(kming+isz:kmaxg+isz)
-
-c     Define graphics i/o and initialize graph arrays (external)
-
-        call defineGraphics
-
-c     Determine actual number of 3D plots
-
-        do igroup=1,ngroups
-          nqty(igroup) = 0
-          do i = 1,size(graph(igroup)%array_graph)
-            if (len(trim(graph(igroup)%array_graph(i)%descr)) == 0) exit
-            nqty(igroup) = nqty(igroup) + 1
-          enddo
-        enddo
-
-c     Initialize XDRAW
-
-#if defined(petsc)
-        if (np == 1) call initializeXDRAW
-#else
-        call initializeXDRAW
-#endif
-
-c     Initialize HDF5
-
-#if defined(hdf5)
-        if (hdf_plot) call initializeHDF5file
-#endif
-
-c     End program
-
-      end subroutine initializeGraphics
-
-c     finalizeGraphics
-c     ###############################################################
-      subroutine finalizeGraphics 
-
-c     ---------------------------------------------------------------
-c     Close graphics files
-c     ---------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-c     Local variables
-
-c     Begin program
-
-#if defined(petsc)
-        if (np == 1) call closeXDRAWGraphicsFiles
-#else
-        call closeXDRAWGraphicsFiles
-#endif
-
-        call deallocateGraphicsVariables
-
-c     End program
-
-      end subroutine finalizeGraphics
-
-c     setGraphicsRange
-c     #################################################################
-      subroutine setGraphicsRange(nx,ny,nz,bcond)
-
-c     ---------------------------------------------------------------
-c     Find graphics plotting range according to boundary conditions
-c     ---------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer(4) :: nx,ny,nz,bcond(6)
-
-c     Local variables
- 
-c     Begin program
-
-        if (bcond(1) == PER) then
-          iming = 1
-          imaxg = nx+1
-        elseif (bcSP()) then
-cc          iming = 1
-          iming = 0
-          imaxg = nx+1
-        else
-          iming = 0
-          imaxg = nx+1
-        endif
-
-        if (bcond(3) == PER) then
-          jming = 1
-          jmaxg = ny+1
-        else
-          jming = 0
-          jmaxg = ny+1
-        endif
-
-        if (bcond(5) == PER) then
-          kming = 0
-          kmaxg = nz+1
-        else
-          kming = 0
-          kmaxg = nz+1
-        endif
-
-cc          iming = 0
-cc          imaxg = nx+1
-cc          jming = 0
-cc          jmaxg = ny+1
-cc          kming = 0
-cc          kmaxg = nz+1
-
-cc          iming = ilo
-cc          imaxg = ihi
-cc          jming = jlo
-cc          jmaxg = jhi
-cc          kming = klo
-cc          kmaxg = khi
-
-c     End program
-
-      end subroutine setGraphicsRange
-
-c     dumpTimeStepPlots
-c     #################################################################
-      subroutine dumpTimeStepPlots
-
-c     ---------------------------------------------------------------
-c     Dumps time plots
-c     ---------------------------------------------------------------
-
-        use variables
-
-        implicit none
-
-c     Call variables
-
-c     Local variables
-
-c     Begin program
-
-        if (np == 1) call dumpXDRAWplots
-
-#if defined(hdf5)
-        if (hdf_plot) call writeHDF5file
-#endif
-
-c     End program
-
-      end subroutine dumpTimeStepPlots
-
-c     allocateGraphicsVariables
-c     ##################################################################
-      subroutine allocateGraphicsVariables(ngroups)
-
-        implicit none
-
-c     Call variables
-
-        integer(4) :: ngroups
-
-c     Begin program
-
-c     Allocate graph groups
-
-        allocate(graph(ngroups),nqty(ngroups))
-
-c     Allocate XDRAW quantities
-
-        call allocateXDRAWvariables(ngroups)
-
-      end subroutine allocateGraphicsVariables
-
-c     deallocateGraphicsVariables
-c     ##################################################################
-      subroutine deallocateGraphicsVariables
-
-        implicit none
-
-c     Call variables
-
-c     Begin program
-
-        deallocate(graph,nqty)
-
-#if !defined(petsc)
-        call deallocateXDRAWvariables
-#endif
-
-      end subroutine deallocateGraphicsVariables
-
-      end module graphics
+      end module xdraw_graphics
