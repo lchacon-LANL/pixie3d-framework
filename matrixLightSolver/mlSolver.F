@@ -26,6 +26,58 @@ c             dimensions of the problem.
 c    
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
+c module solver_mpi
+c####################################################################
+      module solver_mpi
+
+        use grid_mpi
+
+      contains
+
+c     dot
+c     ###################################################################
+      function dot(ntot,vec1,vec2)
+
+c     -------------------------------------------------------------------
+c     Performs scalar product (vec1,vec2),but restricted on a grid patch
+c     at grid level igr. The grid patch is determined by a call to the
+c     "limits" routine. In call:
+c       * igr: grid level
+c       * neq: number of variables contained in vectors.
+c       * ntot: vector dimension
+c       * vec1: vector, first term of scalar product.
+c       * vec2: vector, second term of scalar product.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer(4) :: ntot
+      real(8)    :: vec1(ntot),vec2(ntot),dot
+
+c     Local variables
+
+      integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+     .             ,i,j,k,iii,ieq
+      real(8)    :: ldot
+
+c     Begin program
+
+      dot = dot_product(vec1,vec2)
+
+#if defined(petsc)
+      if (.not.asm) then
+        ldot = dot
+        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+#endif
+
+      end function dot
+
+      end module solver_mpi
+
 c getSolver
 c####################################################################
       recursive subroutine getSolver(neq,ntot,b,x,matvec,igrid,bcnd
@@ -179,6 +231,8 @@ c--------------------------------------------------------------------
 
       use mlsolverSetup
 
+      use solver_mpi
+
       implicit none     !For safe fortran
 
 c Call variables
@@ -236,13 +290,15 @@ c     For arbitrary initial guess (rr = b - Ax)
 c CG solve
 
       if (stp_test.eq.1) then
-        rr0 = sqrt(sum(rr*rr))
+cc        rr0 = sqrt(sum(rr*rr))
+        rr0 = sqrt(dot(ntot,rr,rr))
       else
-        rr0 = sqrt(sum(b*b))
+cc        rr0 = sqrt(sum(b*b))
+        rr0 = sqrt(dot(ntot,b,b))
       endif
 
       if (rr0.lt.abstol) then
-        if (out .ge. 1) then
+        if (out .ge. 1 .and. my_rank == 0) then
           write (*,*) 'CG residual',rr0
           write (*,*) 'Initial guess seems exact solution in CG' 
         endif
@@ -258,7 +314,8 @@ c     Preconditioner (zz = P rr)
 
 c     CG preparation
 
-      rho1 = sum(rr*zz)
+cc      rho1 = sum(rr*zz)
+      rho1 = dot(ntot,rr,zz)
 
       pp = zz
 
@@ -270,7 +327,8 @@ c     CG step
 
         call matvec(0,neq,ntot,pp,qq,igrid,bcnd)
 
-        alpha = rho0/sum(pp*qq)
+cc        alpha = rho0/sum(pp*qq)
+        alpha = rho0/dot(ntot,pp,qq)
 
         x  = x  + alpha*pp
 
@@ -278,15 +336,17 @@ c     CG step
 
 c     Check convergence
 
-        mag = sqrt(sum(rr*rr))
+cc        mag = sqrt(sum(rr*rr))
+        mag = sqrt(dot(ntot,rr,rr))
         mag1 = mag/rr0
-        if (out.ge.2) write (*,10) iter,mag,mag1
+        if (out.ge.2.and. my_rank == 0) write (*,10) iter,mag,mag1
 cc        if (mag1.lt.tol) exit
 
         if (mag < (abstol + tol*rr0)) then
           if (mag > tol*rr0) then
-            if (out.gt.1) write (*,*) 'Solution in CG is in round-off.'
-            if (out.gt.1) write (*,*) 'Aborting CG...'
+            if (out.gt.1.and. my_rank == 0)
+     .           write (*,*) 'Solution in CG is in round-off.'
+            if (out.gt.1.and. my_rank == 0) write (*,*) 'Aborting CG...'
           endif
           ierr = 0
           exit
@@ -299,7 +359,8 @@ c     Preconditioner (zz = P rr)
 
 c     Prepare next step
 
-        rho1 = sum(rr*zz)
+cc        rho1 = sum(rr*zz)
+        rho1 = dot(ntot,rr,zz)
 
         beta = rho1/rho0
 
@@ -307,8 +368,8 @@ c     Prepare next step
 
       enddo
 
-      if (out.eq.1) write (*,10) iter,mag,mag1
-      if (out.ge.2) write (*,*)
+      if (out.eq.1.and. my_rank == 0) write (*,10) iter,mag,mag1
+      if (out.ge.2.and. my_rank == 0) write (*,*)
 
       options%iter_out = iter 
       options%tol_out  = mag1
@@ -341,6 +402,8 @@ c                definitions
 c--------------------------------------------------------------------
 
       use mlsolverSetup
+
+      use solver_mpi
 
       implicit none       !For safe fortran
       
@@ -417,14 +480,16 @@ c Calculate restarting loops
 c Calculate magnitude of initial residual
 
       if (stp_test.eq.1) then
-        rold = sqrt(sum(vv(:,1)*vv(:,1)))
+cc        rold = sqrt(sum(vv(:,1)*vv(:,1)))
+        rold = sqrt(dot(ntot,vv(:,1),vv(:,1)))
       else
-        rold = sqrt(sum(b*b))
+cc        rold = sqrt(sum(b*b))
+        rold = sqrt(dot(ntot,b,b))
       endif
 
       if (rold.lt.abstol) then
         ierr = -1
-        if (iout .ge. 1)
+        if (iout .ge. 1.and. my_rank == 0)
      .       write (*,*) 'Initial guess seems exact solution in GMRES'
         call killgm
         return
@@ -438,7 +503,8 @@ c Restarted GMRES loop
 
       do irstrt = 1,rstrt
 
-        ro = sqrt(sum(vv(:,1)*vv(:,1)))
+cc        ro = sqrt(sum(vv(:,1)*vv(:,1)))
+        if (stp_test /= 1) ro = sqrt(dot(ntot,vv(:,1),vv(:,1)))
 
         tt = 1.0d0/ro
         vv(:,1) = vv(:,1)*tt
@@ -464,12 +530,14 @@ c        Call preconditioner
 c        Modified gram - schmidt.
 
           do j=1, i
-            tt = sum(vv(:,j)*vv(:,i1))
+cc            tt = sum(vv(:,j)*vv(:,i1))
+            tt = dot(ntot,vv(:,j),vv(:,i1))
             hh(j,i) = tt
             vv(:,i1) = vv(:,i1) - tt*vv(:,j)
           enddo
 
-          tt = sqrt(sum(vv(:,i1)*vv(:,i1)))
+cc          tt = sqrt(sum(vv(:,i1)*vv(:,i1)))
+          tt = sqrt(dot(ntot,vv(:,i1),vv(:,i1)))
           hh(i1,i) = tt
 
           if ( tt .ne. 0.0d0) then
@@ -509,7 +577,7 @@ c        Determine residual norm and test for convergence
           hh(i,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
           ro = abs(rs(i1))
 
-          if (iout.ge.2) write(*,10) its,ro,ro/rold
+          if (iout.ge.2.and. my_rank == 0) write(*,10) its,ro,ro/rold
 
           if (    ro .le.(abstol+eps1)
      .        .or.i  .ge.min(k_max,maxits)
@@ -552,9 +620,10 @@ c      Check convergence and restart outer loop if necessary
 
         if (ro.le.(abstol+eps1)) then
           if (ro > eps1 .and. ro < abstol) then
-            if (iout.gt.1)
-     $           write (*,*) 'Solution in GMRES is in round-off.'
-            if (iout.gt.1) write (*,*) 'Aborting GMRES...'
+            if (iout.gt.1.and. my_rank == 0)
+     .           write (*,*) 'Solution in GMRES is in round-off.'
+            if (iout.gt.1.and. my_rank == 0)
+     .           write (*,*) 'Aborting GMRES...'
           endif
           ierr = 0
           exit
@@ -581,7 +650,7 @@ c      Else compute residual vector and continue
 
 c      Restart outer loop
 
-        if (iout > 1 .and. rstrt > 1) then
+        if (iout > 1 .and. rstrt > 1 .and. my_rank == 0) then
           write (*,*)
           write (*,*) 'Restarting GMRES; restart level #',irstrt+1
           write (*,*) 
@@ -589,8 +658,9 @@ c      Restart outer loop
 
       enddo
 
-      if (iout.eq.1) write (*,20) its,ro,ro/rold,min(rstrt,irstrt)-1
-      if (iout.ge.2) write (*,*)
+      if (iout.eq.1.and. my_rank == 0)
+     .     write (*,20) its,ro,ro/rold,min(rstrt,irstrt)-1
+      if (iout.ge.2.and. my_rank == 0) write (*,*)
 
       options%iter_out = its
       options%tol_out  = ro/rold
@@ -600,9 +670,9 @@ c End program
       call killgm
 
  10   format (' GMRES Iteration:',i4,'; Residual:',1p,1e12.4,
-     .        '; Ratio:',1p,1e12.4)
+     .        '; Ratio:',1e12.4)
  20   format (' GMRES Iteration:',i4,'; Residual:',1p,1e12.4,
-     .        '; Ratio:',1p,1e12.4,'; # restarts:',i2)
+     .        '; Ratio:',1e12.4,'; # restarts:',i2)
 
       contains
 
