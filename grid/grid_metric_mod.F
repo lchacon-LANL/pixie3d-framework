@@ -419,7 +419,7 @@ c     -----------------------------------------------------------------
 c     Find grid metrics at grid level igrid.
 c     -----------------------------------------------------------------
 
-        use grid_debug_mod
+        use grid_debug
 
         implicit none
 
@@ -1966,7 +1966,7 @@ c     Test of numerical calculation vs. analytical calculation of
 c     grid quantities.
 c     -----------------------------------------------------------------
 
-      use grid_debug_mod
+      use grid_debug
 
       implicit none
 
