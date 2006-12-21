@@ -698,6 +698,8 @@ c     Fill known values of dactx%Xg
 
         !Get pointer to vector data
         call DAGetLocalVector(dactx(igr)%da,localX,ierr)
+cc        call fchkerrq(ierr,'DAGetLocalVector')
+
         call VecGetArrayF90  (localX,lx_v,ierr)
 
         !Assignment: array -> lx_v
@@ -711,7 +713,8 @@ c     Fill known values of dactx%Xg
      .                      ,INSERT_VALUES,dactx(igr)%Xg
      $                      ,ierr)
 cc        call DARestoreLocalVector(dactx(igr)%da,localX,ierr)
-  
+
+
 c     Fill ghost cells
 
         !Get pointer to vector data w/ghost cells
@@ -719,9 +722,11 @@ cc        call DAGetLocalVector    (dactx(igr)%da,localX,ierr)
         call DAGlobalToLocalBegin(dactx(igr)%da,dactx(igr)%Xg
      .                           ,INSERT_VALUES,localX
      $                           ,ierr)
+
         call DAGlobalToLocalEnd  (dactx(igr)%da,dactx(igr)%Xg
      .                           ,INSERT_VALUES,localX
      $                           ,ierr)
+
 
         call VecGetArrayF90(localX,lx_v,ierr)
 
@@ -738,6 +743,25 @@ c     Deallocate memory
 c     End program
 
       end subroutine fillPetscGhostCells
+
+c     fchkerrq
+c     #################################################################
+      subroutine fchkerrq(ierr,routine)
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: ierr
+        character(*) :: routine
+
+c     Begin program
+
+        if (ierr /= 0) call pstop(routine,'PETSc error')
+
+c     End program
+
+      end subroutine fchkerrq
 
 c     isProc
 c     #################################################################
