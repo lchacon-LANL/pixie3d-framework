@@ -56,7 +56,7 @@ c Time loop
 
         itime = itime + 1
 
-        if (tmax.gt.0d0.and.time.ge.(tmax-1d-5))  exit
+        if (tmax.gt.0d0.and.time.ge.tmax*0.99999)  exit
         if (numtime.ge.0.and.itime.ge.(numtime+inewtime)) exit
 
 c     Find new time step
