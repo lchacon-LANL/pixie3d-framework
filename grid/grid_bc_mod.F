@@ -440,7 +440,7 @@ cc        end INTERFACE
         ! important for colored diagonal formation)
         integer(4),private :: order=1
 
-        real(8),allocatable,dimension(:,:,:,:) :: v_cov,v_cnv,v0
+        real(8),allocatable,dimension(:,:,:,:) :: v_cov,v_cnv,vv0
 
       contains
 
@@ -771,7 +771,7 @@ c     Initialize BC grid quantities
       nybc = ny
       nzbc = nz
 
-c     Initialize global limits
+c     Initialize GLOBAL limits
 
       if (     PRESENT(i1).and.PRESENT(i2)
      .    .and.PRESENT(j1).and.PRESENT(j2)
@@ -792,11 +792,11 @@ c     Initialize global limits
       endif
 
       iimnm =  max(iimin - 1,1)  
-      iimxp =  min(iimax + 1,nxbc)
+      iimxp =  min(iimax + 1,grid_params%nxgl(iigx))
       jjmnm =  max(jjmin - 1,1)  
-      jjmxp =  min(jjmax + 1,nybc)
+      jjmxp =  min(jjmax + 1,grid_params%nygl(iigy))
       kkmnm =  max(kkmin - 1,1)  
-      kkmxp =  min(kkmax + 1,nzbc)
+      kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz))
 
 c     Fill PETSc ghost cells
 
@@ -804,7 +804,6 @@ c     Fill PETSc ghost cells
       !Determine whether we need to fill ghost cells using PETSc
       petsc__bc =      (np > 1)
      .           .and. (    ((.not.asm) .and. par_bc)    !For PC (not ASM)
-cc     .                  .or.(ieq > neqd             ))   !For auxiliary variables
      .                  .or.(ieq > NVAR             ))   !For auxiliary variables
 
       !Fill ghost cells
@@ -932,7 +931,7 @@ c     Initialize BC grid quantities
       nybc = ny
       nzbc = nz
 
-c     Initialize global limits
+c     Initialize GLOBAL limits
 
       if (     PRESENT(i1).and.PRESENT(i2)
      .    .and.PRESENT(j1).and.PRESENT(j2)
@@ -953,11 +952,11 @@ c     Initialize global limits
       endif
 
       iimnm =  max(iimin - 1,1)  
-      iimxp =  min(iimax + 1,nxbc)
+      iimxp =  min(iimax + 1,grid_params%nxgl(iigx))
       jjmnm =  max(jjmin - 1,1)  
-      jjmxp =  min(jjmax + 1,nybc)
+      jjmxp =  min(jjmax + 1,grid_params%nygl(iigy))
       kkmnm =  max(kkmin - 1,1)  
-      kkmxp =  min(kkmax + 1,nzbc)
+      kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz))
 
 c     Fill PETSc ghost cells
 
@@ -1341,7 +1340,7 @@ c     Call variables
 
 c     Local variables
 
-      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
+cc      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
       integer(4) :: neq,ibc,i,j,k,ig,jg,kg
       logical    :: cov
 
@@ -1361,9 +1360,9 @@ c     Determine boundary limits
 
       if (.not.selectFace(ibc)) return
 
-cc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
-      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
-     .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
+cccc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
+cc      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
+cc     .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
 c     Allocate rhs
 
@@ -1535,6 +1534,8 @@ c     Begin program
 
         ibc = (1+loc)+2*(dim-1)
 
+        rhs = 0d0
+
 c     Setup grid aliases
 
         xx => grid_params%xx
@@ -1554,6 +1555,7 @@ c     Extrapolate
         call findBCLoopLimits(dim,loc
      .                       ,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                       ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
+
 
         do i=imin,imax
           do j=jmin,jmax
@@ -2953,29 +2955,13 @@ c######################################################################
 
         use imposeBCinterface
 
-cc        INTERFACE
-cc          subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,arr_cov
-cc     .                      ,arr0,icomp,is_cnv,is_vec,result_is_vec
-cc     .                      ,iorder)
-cc            integer(4) :: nnx,nny,nnz,neq,bcnd(6,neq),iig,gpos
-cc            real(8)    :: array(0:nnx+1,0:nny+1,0:nnz+1,neq)
-cc            real(8),optional,intent(INOUT) ::
-cc     .                    arr_cov(0:nnx+1,0:nny+1,0:nnz+1,neq)
-cc            real(8),optional,intent(IN) ::
-cc     .                    arr0   (0:nnx+1,0:nny+1,0:nnz+1,neq)
-cc            integer(4),optional,intent(IN) :: icomp,iorder
-cc            logical   ,optional,intent(IN) :: is_cnv,is_vec
-cc     .                                       ,result_is_vec
-cc          end subroutine setMGBC
-cc        END INTERFACE
-
       contains
 
-c setMGBC
-c####################################################################
+c     setMGBC
+c     ###############################################################
       subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,arr_cov
      .                  ,arr0,icomp,is_cnv,is_vec,result_is_vec,iorder)
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
 c     Interfaces BC routines with MG code, for preconditioning.
 c     On input:
 c       *gpos: node number (whole grid if gpos=0)
@@ -3009,14 +2995,11 @@ c       *iorder: order of inter/extrapolation in BC routines (linear
 c                by default).
 c
 c     On output, array is returned in the same representation.
-c
-c     WARNING: if call sequence is modified, the INTERFACE block 
-c           in module mg_internal needs to be updated accordingly.
-c--------------------------------------------------------------------
+c     ---------------------------------------------------------------
 
       implicit none
 
-c Call variables
+c     Call variables
 
       integer(4) :: nnx,nny,nnz,neq,bcnd(6,neq),iig,gpos
 
@@ -3031,7 +3014,7 @@ c Call variables
 
       logical   ,optional,intent(IN) :: is_cnv,is_vec,result_is_vec
 
-c Local variables
+c     Local variables
 
       integer(4) :: i,j,k,stencil_width,order,ieq
      .             ,imng,imxg,jmng,jmxg,kmng,kmxg
@@ -3047,9 +3030,9 @@ c Local variables
 
       real(8)    :: car(3),curv(3)
 
-c Begin program
+c     Begin program
 
-c Optional arguments
+c     Optional arguments
 
       if (PRESENT(icomp))  ivar  = icomp
 
@@ -3069,7 +3052,7 @@ c Optional arguments
         order = 2
       endif
 
-c Consistency check
+c     Consistency check
 
       if (     grid_params%nxv(iig) /= nnx
      .    .or. grid_params%nyv(iig) /= nny
@@ -3081,21 +3064,21 @@ c Consistency check
 
       if (.not.isvec) iscnv=.true.
 
-c Allocate MG pointers (if not allocated earlier)
+c     Allocate MG pointers (if not allocated earlier)
 
       call allocPointers(neq,fpointers)
 
-c Find grid node LOCAL position (if gpos > 0, else return local domain limits)
+c     Find grid node LOCAL position (if gpos > 0, else return local domain limits)
 
       call limits(gpos,nnx,nny,nnz,iig,imnl,imxl,jmnl,jmxl,kmnl,kmxl)
 
-c Check LOCAL limits (return if not close to local domain boundaries)
+c     Check LOCAL limits (return if not close to local domain boundaries)
 
       if (     (imnl > 1 .and. imxl < nnx)
      .    .and.(jmnl > 1 .and. jmxl < nny)
      .    .and.(kmnl > 1 .and. kmxl < nnz)) return
 
-c Find GLOBAL limits (required for BC routine setBC)
+c     Find GLOBAL limits (required for BC routine setBC)
 
 cc      stencil_width = 1
 cc
@@ -3113,34 +3096,53 @@ cc      kmxg = min(kmxl+stencil_width,nnz) + grid_params%klo(iig)-1
       kmng = kmnl + grid_params%klo(iig)-1
       kmxg = kmxl + grid_params%klo(iig)-1
 
-c Select operation
+c     Select operation
 
       select case (neq)
       case(1)
 
-        allocate(v0(0:nnx+1,0:nny+1,0:nnz+1,1))
+        allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,1))
 
         if (PRESENT(arr0)) then
-          v0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-     .         = arr0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc          v0 = arr0
+cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc     .         = arr0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+          vv0 = arr0
         else
-          v0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
-cc          v0 = 0d0
+cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
+          vv0 = 0d0
         endif
 
-        call setBC(ivar,nnx,nny,nnz,array(:,:,:,1),v0(:,:,:,1)
+        call setBC(ivar,nnx,nny,nnz,array(:,:,:,1),vv0(:,:,:,1)
      .            ,bcnd(:,neq),iig,iig,iig
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
      .            ,iorder=order)
 
-        deallocate(v0)
+        deallocate(vv0)
+
+      case(2)
+
+        allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,2))
+
+        if (PRESENT(arr0)) then
+          vv0 = arr0
+        else
+          vv0 = 0d0
+        endif
+
+        do ieq=1,neq
+          call setBC(ivar,nnx,nny,nnz,array(:,:,:,ieq),vv0(:,:,:,ieq)
+     .            ,bcnd(:,ieq),iig,iig,iig
+     .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
+     .            ,iorder=order)
+        enddo
+
+        deallocate(vv0)
 
       case(3)
 
         allocate(v_cnv (0:nnx+1,0:nny+1,0:nnz+1,neq)
      .          ,v_cov (0:nnx+1,0:nny+1,0:nnz+1,neq)
-     .          ,v0    (0:nnx+1,0:nny+1,0:nnz+1,neq))
+     .          ,vv0   (0:nnx+1,0:nny+1,0:nnz+1,neq))
 
         v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
         v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
@@ -3148,12 +3150,12 @@ cc        v_cnv = 0d0
 cc        v_cov = 0d0
 
         if (PRESENT(arr0)) then
-          v0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
      .       = arr0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc          v0 = arr0
+cc          vv0 = arr0
         else
-          v0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
-cc          v0 = 0d0
+          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
+cc          vv0 = 0d0
         endif
 
         if (.not.isvec) then
@@ -3192,7 +3194,7 @@ cc     .           = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
           endif
         endif
 
-        call setBC(ivar,neq,nnx,nny,nnz,v_cnv,v_cov,v0,bcnd
+        call setBC(ivar,neq,nnx,nny,nnz,v_cnv,v_cov,vv0,bcnd
      .            ,iig,iig,iig
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
      .            ,is_cnv=iscnv,is_vec=.true.,iorder=order)
@@ -3235,7 +3237,7 @@ cc              array = v_cov
 
         endif
 
-        deallocate(v_cov,v_cnv,v0)
+        deallocate(v_cov,v_cnv,vv0)
 
       case default
         write (*,*) 'Number of equations not implemented in setMGBC'
@@ -3243,11 +3245,11 @@ cc              array = v_cov
         stop
       end select
 
-c Deallocate MG pointers (if allocated in this routine)
+c     Deallocate MG pointers (if allocated in this routine)
 
       call deallocPointers(fpointers)
 
-c End
+c     End
 
       end subroutine setMGBC
 
