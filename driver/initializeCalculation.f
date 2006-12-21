@@ -445,10 +445,10 @@ c Open record file
 
         !Initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
 cc        if (debug) then
-cc          write (*,*) 'Dumping graphs for PC testing'
+cc          write (*,*) 'DIAG -- Dumping graphs for PC testing'
 cc          u_graph = u_n
 cc        else
-cc        !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
+        !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
           u_graph = u_0
 cc        endif
 
