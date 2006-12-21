@@ -1,20 +1,20 @@
-static char help[] = "Options:                           \
-     OUTPUT CONTROL:                                     \
-        -ilevel <ilevel>: level of output info           \
-                                                         \
-     SOLVER:                                             \
-	-snes_mf : use matrix-free Newton methods        \
-        -aspc_its <its>: number of ASM iterations        \
-        -id_PC: identity preconditioner                  \
-                                                         \
-     TIME STEPPING:                                      \
-        -nmax <nmax>: max. iteration # of time steps     \
-        -tmax <tmax>: final time                         \
-                                                         \
-     PARALLEL DA:                                        \
-        -npx: processors in X direction                  \
-        -npy: processors in Y direction                  \
-        -npz: processors in Z direction";
+static char help[] = "Options:                           \n\
+     OUTPUT CONTROL:                                     \n\
+        -ilevel <ilevel>: level of output info           \n\
+                                                         \n\
+     SOLVER:                                             \n\
+	-snes_mf : use matrix-free Newton methods        \n\
+        -aspc_its <its>: number of ASM iterations        \n\
+        -id_PC: identity preconditioner                  \n\
+                                                         \n\
+     TIME STEPPING:                                      \n\
+        -nmax <nmax>: max. iteration # of time steps     \n\
+        -tmax <tmax>: final time                         \n\
+                                                         \n\
+     PARALLEL DA:                                        \n\
+        -npx: processors in X direction                  \n\
+        -npy: processors in Y direction                  \n\
+        -npz: processors in Z direction                  \n";
 
 /*
  *    Concepts: SNES matrix-free/finite-difference Jacobian methods
@@ -42,29 +42,30 @@ typedef struct {
 
 /* User-defined application context */
 typedef struct {
-  PetscReal tolgm;
-  PetscReal rtol;
-  PetscReal atol;
-  PetscReal damp;
-  PetscReal dt;
-  PetscReal tmax;
-  int       ilevel;
-  int       nxd;
-  int       nyd;
-  int       nzd;
-  int       npx;
-  int       npy;
-  int       npz;
-  int       numtime;
-  int       maxitnwt;
-  int       maxksp;
-  int       maxitgm;
-  int       method;
-  int       global;
-  int       iguess;
-  int       precpass;
-  int       sm_flag;
-  int       bcs[6];
+  PetscReal  tolgm;
+  PetscReal  rtol;
+  PetscReal  atol;
+  PetscReal  damp;
+  PetscReal  dt;
+  PetscReal  tmax;
+  int        ilevel;
+  int        nxd;
+  int        nyd;
+  int        nzd;
+  int        npx;
+  int        npy;
+  int        npz;
+  int        numtime;
+  int        maxitnwt;
+  int        maxksp;
+  int        maxitgm;
+  int        method;
+  int        global;
+  int        iguess;
+  int        precpass;
+  int        sm_flag;
+  int        bcs[6];
+  PetscTruth asm_PC;
 } input_CTX;
 
 typedef struct {
@@ -246,7 +247,9 @@ int MAIN__(int argc, char **argv)
 
   ierr = PetscOptionsGetInt(PETSC_NULL,"-aspc_its",&user.aspc_its,PETSC_NULL)   ;CHKERRQ(ierr);
 
-  ierr = PetscOptionsGetLogical(PETSC_NULL,"-id_PC",&user.petsc_PC,PETSC_NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetLogical(PETSC_NULL,"-id_PC",&user.petsc_PC,PETSC_NULL)  ;CHKERRQ(ierr);
+
+  ierr = PetscOptionsGetLogical(PETSC_NULL,"-asm_PC",&user.indata.asm_PC,PETSC_NULL)   ;CHKERRQ(ierr);
 
   /* Set profiling stages */
 
@@ -322,10 +325,10 @@ int MAIN__(int argc, char **argv)
     ierr = KSPGetPC(ksp,&pc)                                                   	;CHKERRQ(ierr);
     if (!user.petsc_PC) {
       ierr = PCSetType(pc,PCSHELL)                                             	;CHKERRQ(ierr);
-      if (user.aspc_its == 0) { 
-	ierr = PCShellSetApply(pc,ApplyPC  ,(void*)&user)                      	;CHKERRQ(ierr);
-      } else { 
+      if (user.indata.asm_PC) { 
 	ierr = PCShellSetApply(pc,ApplyASPC,(void*)&user)                      	;CHKERRQ(ierr);
+      } else { 
+	ierr = PCShellSetApply(pc,ApplyPC  ,(void*)&user)                      	;CHKERRQ(ierr);
       }
       ierr = PCShellSetName(pc,"Physics-based preconditioner")                 	;CHKERRQ(ierr);
       ierr = PCShellSetSetUp(pc,SetupPreconditioner)                           	;CHKERRQ(ierr);
@@ -1090,7 +1093,7 @@ int ApplyPC(void *ctx,Vec y,Vec x)
   ierr = DAVecRestoreArray(user->da, y, (void**)&yvec);CHKERRQ(ierr);
 
   /* Visualize vectors */
-  if (user->indata.ilevel > 4 && user->aspc_its == 0) {
+  if (user->indata.ilevel > 4 && !user->indata.asm_PC) {
     ierr = PetscPrintf(PETSC_COMM_WORLD,"   ApplyPC: Dumping MATLAB diagnostic files \n");
     ierr = MatMult(user->J ,x,user->rk)               	             ;CHKERRQ(ierr);
 

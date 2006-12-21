@@ -52,6 +52,7 @@ c Call variables
         integer(4) :: precpass
         integer(4) :: sm_flag
         integer(4) :: bcsi(6)
+        logical    :: asm_PC
       end type indata
 
       type(indata) :: inputdata
@@ -94,6 +95,7 @@ c Define structure components
       inputdata%iguess   = iguess
       inputdata%sm_flag  = sm_flag
       inputdata%precpass = precpass
+      inputdata%asm_PC   = asm_PC
 
       where (bcond == PER)
         inputdata%bcsi = 1
