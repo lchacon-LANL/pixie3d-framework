@@ -2,7 +2,7 @@ c module mlsolverSetup
 c######################################################################
       module mlsolverSetup
 
-        use grid_def
+        use grid_mpi
 
         implicit none
 
