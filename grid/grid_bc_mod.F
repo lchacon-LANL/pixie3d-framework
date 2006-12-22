@@ -1749,12 +1749,11 @@ c     Determine boundary limits
 
       if (.not.selectFace(ibc)) return
 
-cc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
-      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
+      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
       if (bc_debug) then
-cc      write (*,*) 'Proc',my_rank,iimin,iimax,jjmin,jjmax,kkmin,kkmax
+cc        write (*,*) 'Proc',my_rank,iimin,iimax,jjmin,jjmax,kkmin,kkmax
         write(*,*) '  fillFaces: Proc',my_rank
      .            ,'; Boundary: dim =',dim,' loc =',loc
      .            ,'; Local limits:',imin,imax,jmin,jmax,kmin,kmax
@@ -1917,12 +1916,11 @@ c     Determine boundary limits
 
       if (.not.selectFace(ibc)) return
 
-cc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
-      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
+      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
       if (bc_debug) then
-cc      write (*,*) 'Proc',my_rank,iimin,iimax,jjmin,jjmax,kkmin,kkmax
+cc        write (*,*) 'Proc',my_rank,iimin,iimax,jjmin,jjmax,kkmin,kkmax
         write(*,*) '  fillEdges: Proc',my_rank
      .            ,'; Boundary: dim =',dim,' loc =',loc
      .            ,'; Local limits:',imin,imax,jmin,jmax,kmin,kmax
@@ -2253,8 +2251,7 @@ c     Determine boundary limits
 
       if (.not.selectFace(ibc)) return
 
-cc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
-      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
+      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
 c     Select corner
