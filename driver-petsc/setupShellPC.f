@@ -1,6 +1,6 @@
 c setupShellPC
 c######################################################################
-      subroutine setupShellPC(array,imin,imax,jmin,jmax,kmin,kmax)
+      subroutine setupShellPC(array,imin,imax,jmin,jmax,kmin,kmax,nl_it)
 
 c----------------------------------------------------------------------
 c     Initializes MG and creates grid
@@ -22,11 +22,13 @@ c----------------------------------------------------------------------
 
       use icond
 
+      use newtongm
+
       implicit none
 
 c Call variables
 
-      integer(4)      :: imin,imax,jmin,jmax,kmin,kmax
+      integer(4)      :: imin,imax,jmin,jmax,kmin,kmax,nl_it
 
       type(petsc_var) :: array(imin:imax,jmin:jmax,kmin:kmax)
 
@@ -51,6 +53,10 @@ c Map petsc array
      .       %array(iminl:imaxl,jminl:jmaxl,kminl:kmaxl)
      .      = array(imin :imax ,jmin :jmax ,kmin :kmax )%var(ieq)
       enddo
+
+c Store nonlinear iteration (for PC preprocessing and diagnostics)
+
+      jit = nl_it + 1
 
 c Call PC fortran setup routine
 
