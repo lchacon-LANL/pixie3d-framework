@@ -26,58 +26,6 @@ c             dimensions of the problem.
 c    
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
-c module solver_mpi
-c####################################################################
-      module solver_mpi
-
-        use grid_mpi
-
-      contains
-
-c     dot
-c     ###################################################################
-      function dot(ntot,vec1,vec2)
-
-c     -------------------------------------------------------------------
-c     Performs scalar product (vec1,vec2),but restricted on a grid patch
-c     at grid level igr. The grid patch is determined by a call to the
-c     "limits" routine. In call:
-c       * igr: grid level
-c       * neq: number of variables contained in vectors.
-c       * ntot: vector dimension
-c       * vec1: vector, first term of scalar product.
-c       * vec2: vector, second term of scalar product.
-c     -------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer(4) :: ntot
-      real(8)    :: vec1(ntot),vec2(ntot),dot
-
-c     Local variables
-
-      integer(4) :: imin,imax,jmin,jmax,kmin,kmax
-     .             ,i,j,k,iii,ieq
-      real(8)    :: ldot
-
-c     Begin program
-
-      dot = dot_product(vec1,vec2)
-
-#if defined(petsc)
-      if (.not.asm) then
-        ldot = dot
-        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
-#endif
-
-      end function dot
-
-      end module solver_mpi
-
 c getSolver
 c####################################################################
       recursive subroutine getSolver(neq,ntot,b,x,matvec,igrid,bcnd
@@ -230,8 +178,6 @@ c                definitions
 c--------------------------------------------------------------------
 
       use mlsolverSetup
-
-      use solver_mpi
 
       implicit none     !For safe fortran
 
@@ -402,8 +348,6 @@ c                definitions
 c--------------------------------------------------------------------
 
       use mlsolverSetup
-
-      use solver_mpi
 
       implicit none       !For safe fortran
       
