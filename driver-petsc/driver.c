@@ -101,7 +101,7 @@ extern void FORTRAN_NAME(PROCESSOLDSOLUTION) (Field*,int*,int*,int*,int*,int*,in
 extern void FORTRAN_NAME(PETSCCORRECTTIMESTEP) (PetscScalar*,PetscScalar*,PetscScalar*,int*,PetscScalar*);
 extern void FORTRAN_NAME(FORTRANDESTROY) ();
 extern void FORTRAN_NAME(READINPUTFILE) (input_CTX*);
-extern void FORTRAN_NAME(SETUPSHELLPC) (Field*, int*, int*, int*, int*, int*, int*);
+extern void FORTRAN_NAME(SETUPSHELLPC) (Field*, int*, int*, int*, int*, int*, int*, int*);
 extern void FORTRAN_NAME(APPLYSHELLPC) (Field*, Field*, int*, int*, int*, int*, int*, int*);
 #else
 extern void FORTRAN_NAME(evaluatenonlinearresidual) 
@@ -113,7 +113,7 @@ extern void FORTRAN_NAME(processoldsolution) (Field*,int*,int*,int*,int*,int*,in
 extern void FORTRAN_NAME(petsccorrecttimestep) (PetscScalar*,PetscScalar*,PetscScalar*,int*,PetscScalar*);
 extern void FORTRAN_NAME(fortrandestroy) ();
 extern void FORTRAN_NAME(readinputfile) (input_CTX*);
-extern void FORTRAN_NAME(setupshellpc) (Field*, int*, int*, int*, int*, int*, int*);
+extern void FORTRAN_NAME(setupshellpc) (Field*, int*, int*, int*, int*, int*, int*, int*);
 extern void FORTRAN_NAME(applyshellpc) (Field*, Field*, int*, int*, int*, int*, int*, int*);
 #endif
 
@@ -512,6 +512,9 @@ int MySNESMonitor(SNES snes, int its, double fnorm, void *ctx)
 
   /* Monitor total number of Krylov iterations*/
   ierr = SNESGetNumberLinearIterations(snes,&user->ksp_its)             ; CHKERRQ(ierr);
+
+  /* Store current nonlinear iteration */
+  user->snes_its = its;
 
   PetscFunctionReturn(0);
 }
@@ -1182,10 +1185,12 @@ int SetupPreconditioner(void *ctx)
 
 #ifdef absoft
   FORTRAN_NAME(SETUPSHELLPC)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-                              ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
+                              ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g
+			      ,&user->snes_its);
 #else
   FORTRAN_NAME(setupshellpc)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
-                              ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g);
+                              ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g
+			      ,&user->snes_its);
 #endif
 
   /* Restore vectors */
