@@ -835,6 +835,42 @@ c     Begin program
 
       end subroutine pstop
 
+c     dot
+c     ###################################################################
+      function dot(ntot,vec1,vec2)
+
+c     -------------------------------------------------------------------
+c     Performs parallel scalar product (vec1,vec2). In call:
+c       * ntot: vector dimension
+c       * vec1: vector, first term of scalar product.
+c       * vec2: vector, second term of scalar product.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer(4) :: ntot
+      real(8)    :: vec1(ntot),vec2(ntot),dot
+
+c     Local variables
+
+      integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+     .             ,i,j,k,iii,ieq
+      real(8)    :: ldot
+
+c     Begin program
+
+      dot = dot_product(vec1,vec2)
+
+      if (.not.asm) then
+        ldot = dot
+        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+
+      end function dot
+
 #else
 
         integer(4)    :: np=1,my_rank=0,npx=0,npy=0,npz=0
@@ -905,6 +941,36 @@ c     Begin program
         stop
 
       end subroutine pstop
+
+c     dot
+c     ###################################################################
+      function dot(ntot,vec1,vec2)
+
+c     -------------------------------------------------------------------
+c     Performs scalar product (vec1,vec2). In call:
+c       * ntot: vector dimension
+c       * vec1: vector, first term of scalar product.
+c       * vec2: vector, second term of scalar product.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer(4) :: ntot
+      real(8)    :: vec1(ntot),vec2(ntot),dot
+
+c     Local variables
+
+      integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+     .             ,i,j,k,iii,ieq
+      real(8)    :: ldot
+
+c     Begin program
+
+      dot = dot_product(vec1,vec2)
+
+      end function dot
 
 #endif
 
