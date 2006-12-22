@@ -18,6 +18,8 @@ c ######################################################################
 
 #if !defined(petsc)
         use nk_mod
+#else
+        integer(4) :: jit=1
 #endif
 
         integer(4) ::  maxitnwt,maxitgm,iguess,maxksp,method,global
@@ -25,7 +27,6 @@ c ######################################################################
         real(8)    ::  tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
 
       end module newtongm
-
 
 c module precond_setup
 c ######################################################################
