@@ -6,7 +6,7 @@ MESSAGE = "Compiling PETSC driver"
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/grid
+SUBDIRS = $(COMMONDIR)/math $(COMMONDIR)/interpolation/1d_int $(COMMONDIR)/grid
 
 # Petsc include
 
