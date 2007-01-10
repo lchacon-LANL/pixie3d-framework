@@ -1609,7 +1609,6 @@ cc          call MGplot(neq,wrk,igr,1,'fine2.bin')
 cc        endif
 c diag ****
 
-
 c     End program
 
       end subroutine mcycle
@@ -3331,7 +3330,7 @@ c Local variables
 
       integer(4) :: i,j,k,iv,jv,kv,if,jf,kf,nxf,nyf,nzf,iiv,ivg,ncolors
       integer(4) :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblk
-      real(8)    :: mag0,mag1,mag,yy(ntot)
+      real(8)    :: mag0=1d0,mag1,mag,lmag,yy(ntot)
 
       real(8),allocatable, dimension(:)  :: dummy,rhs
 
@@ -3524,6 +3523,17 @@ cc          mag = sum(zz*zz)  !For comparison with Matlab
 
 c     Check convergence
 
+#if defined(petsc)
+cc        if (.not.asm .and. out >= 1) then  !Do reduction only for debugging
+        if (.not.asm) then  !Do reduction only for debugging
+          lmag = mag
+          call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
+     .                       ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+cc        else
+cc          mag = mag0                 !Do NOT do reduction in parallel (convergence is set by #its)
+        endif
+#endif
+
         mag = sqrt(mag)
 
         if (itr.eq.1) then
@@ -3639,7 +3649,7 @@ c Local variables
 
       integer(4) :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf
       integer(4) :: ii,iii,iib,iiib,iiv,ivg,iblock,jblock,kblock,nblk
-      real(8)    :: mag0,mag1,mag,yy(ntot)
+      real(8)    :: mag0=1d0,mag1,mag,lmag,yy(ntot)
 
       integer(4) :: ncolors,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
 
@@ -4019,6 +4029,18 @@ cccRAP        call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
 cc        call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
 cc        call MGvecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
 cc        mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
+
+#if defined(petsc)
+cc        if (.not.asm .and. out >= 1) then   !Do reduction only for debugging
+        if (.not.asm) then   !Do reduction only for debugging
+           lmag = mag
+           call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
+     .                       ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+cc        else
+cc          mag = mag0                  !Do NOT do reduction in parallel (convergence is set by #its)
+        endif
+#endif
+
         mag = sqrt(mag)
 
         if (itr.eq.1) then
