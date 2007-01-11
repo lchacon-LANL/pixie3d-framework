@@ -137,12 +137,21 @@ c     Call variables
 
 c     Local variables
 
-      integer(4) :: i,j,k,ig,jg,kg,jj,ilog,ihig
+      integer(4) :: i,j,k,ig,jg,kg,jj,ilog,nyg,jglobal
+
+#if defined(petsc)
+      real(8)    :: garray(nybc*npy,nzbc)
+cc     .             ,local_x(nybc*nzbc)
+cc     .             ,global_x(nybc*nzbc*npy)
+#endif
 
 c     Begin program
 
       ilog = grid_params%ilo(1)
-      ihig = grid_params%ihi(1)
+
+      if (npy < 1) call pstop('scalarSingularBC','npy < 1')
+
+      nyg = nybc*npy
 
 c     Check that we are domain adjacent to singular point
 
@@ -152,18 +161,42 @@ c     Check that we are domain adjacent to singular point
         i = ilog
       endif
 
+c     Parallel Allgather in SP communicator
+
+#if defined(petsc)
+cc      local_x = reshape(array(i,1:nybc,1:nzbc), (/ nybc*nzbc /))
+cc      write (*,*) 'DIAG -- scalarSPBC; proc=',my_rank
+cc     .           ,array(i,1:nybc,1:nzbc)
+cc      call MPI_Allgather(local_x ,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,global_x,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,MPI_COMM_SP,mpierr)
+cc      garray = reshape(global_x, (/ nyg,nzbc /))
+cc      write (*,*) 'DIAG -- scalarSPBC; proc=',my_rank
+cc     .           ,garray
+cc      stop
+      call MPI_Allgather(array(i,1:nybc,1:nzbc)
+     .                         ,nybc*nzbc,MPI_DOUBLE_PRECISION
+     .                  ,garray,nybc*nzbc,MPI_DOUBLE_PRECISION
+     .                  ,MPI_COMM_SP,mpierr)
+#endif
+
 c     Element exchange in poloidal direction
 
-      if (mod(nybc,2) /= 0) then
+      if (mod(nyg,2) /= 0) then
         call pstop('scalarSingularBC'
      .            ,'Poloidal dimension not a multiple of 2')
       endif
 
       do k=1,nzbc
         do j=1,nybc
-          jj = mod(j+nybc/2,nybc)
-          if (jj == 0) jj = nybc
+          jglobal = j + grid_params%jlo(1) - 1
+          jj = mod(jglobal+nyg/2,nyg)
+          if (jj == 0) jj = nyg
+#if defined(petsc)
+          array(i-1,j,k) = garray(jj,k)
+#else
           array(i-1,j,k) = array(i,jj,k)
+#endif
         enddo
       enddo
 
@@ -323,14 +356,23 @@ c     Call variables
 
 c     Local variables
 
-      integer(4) :: i,j,k,jj,ilog,ihig
+      integer(4) :: i,j,k,jj,ilog,nyg,jglobal
+
+#if defined(petsc)
+      real(8)    :: garray(nybc*npy,nzbc)
+cc     .             ,local_x(nybc*nzbc)
+cc     .             ,global_x(nybc*nzbc*npy)
+#endif
 
 c     External
 
 c     Begin program
 
       ilog = grid_params%ilo(1)
-      ihig = grid_params%ihi(1)
+
+      if (npy < 1) call pstop('scalarSingularBC','npy < 1')
+
+      nyg = nybc*npy
 
 c     Check that we are domain adjacent to singular point
 
@@ -340,9 +382,27 @@ c     Check that we are domain adjacent to singular point
         i = ilog
       endif
 
+c     Parallel Allgather in SP communicator
+
+#if defined(petsc)
+cc      local_x = reshape(vec(i,1:nybc,1:nzbc), (/ nybc*nzbc /))
+cc      write (*,*) 'DIAG -- scalarSPBC; proc=',my_rank
+cc     .           ,vec(i,1:nybc,1:nzbc)
+cc      call MPI_Allgather(local_x ,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,global_x,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,MPI_COMM_SP,mpierr)
+cc      garray = reshape(global_x, (/ nyg,nzbc /))
+cc      write (*,*) 'DIAG -- scalarSPBC; proc=',my_rank
+cc     .           ,garray
+      call MPI_Allgather(vec(i,1:nybc,1:nzbc)
+     .                         ,nybc*nzbc,MPI_DOUBLE_PRECISION
+     .                  ,garray,nybc*nzbc,MPI_DOUBLE_PRECISION
+     .                  ,MPI_COMM_SP,mpierr)
+#endif
+
 c     Element exchange in poloidal direction
 
-      if (mod(nybc,2) /= 0) then
+      if (mod(nyg,2) /= 0) then
         call pstop('vectorSingularBC'
      .            ,'Poloidal dimension not a multiple of 2')
       endif
@@ -350,29 +410,53 @@ c     Element exchange in poloidal direction
       if (coords == 'hl2') then
         do k=1,nzbc
           do j=1,nybc
-            jj = mod(j+nybc/2,nybc)
-            if (jj == 0) jj = nybc
+            jglobal = j + grid_params%jlo(1) - 1
+            jj = mod(jglobal+nyg/2,nyg)
+            if (jj == 0) jj = nyg
+
+#if defined(petsc)
+            vec(i-1,j,k) =  garray(jj,k)
+#else
             vec(i-1,j,k) =  vec(i,jj,k)
+#endif
           enddo
         enddo
       else
         do k=1,nzbc
           do j=1,nybc
-            jj = mod(j+nybc/2,nybc)
-            if (jj == 0) jj = nybc
+            jglobal = j + grid_params%jlo(1) - 1
+            jj = mod(jglobal+nyg/2,nyg)
+            if (jj == 0) jj = nyg
+
             if (cov) then
               select case(ivar)
               case(1)
+#if defined(petsc)
+                vec(i-1,j,k) = -garray(jj,k)
+#else
                 vec(i-1,j,k) = -vec(i,jj,k)
+#endif
               case(2,3)
+#if defined(petsc)
+                vec(i-1,j,k) =  garray(jj,k)
+#else
                 vec(i-1,j,k) =  vec(i,jj,k)
+#endif
               end select
             else
               select case(ivar)
               case(1)
+#if defined(petsc)
+                vec(i-1,j,k) =  garray(jj,k)
+#else
                 vec(i-1,j,k) =  vec(i,jj,k)
+#endif
               case(2,3)
+#if defined(petsc)
+                vec(i-1,j,k) = -garray(jj,k)
+#else
                 vec(i-1,j,k) = -vec(i,jj,k)
+#endif
               end select
             endif
           enddo

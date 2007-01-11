@@ -142,7 +142,12 @@ c     Check MG is an option
 
       sum_exp = floor(log(1d0*nprocs)/log(2d0))
 
-      if (sum_exp < 1) return  !Only one processor
+      if (sum_exp < 1) then   !No processors left to allocate
+        if (npx == 0) npx = 1
+        if (npy == 0) npy = 1
+        if (npz == 0) npz = 1
+        return
+      endif
 
       if (2**sum_exp /= nprocs) then
         messg = 'Number of processors unsuitable for MG'
@@ -157,7 +162,7 @@ cc      if (bcond(1) == PER .and. ny /= 1         ) nx = 1
 cc      if (bcond(5) == PER .and.(nx/=1.and.ny/=1)) nz = 1
 
       !Priority: SP
-      if (bcond(1) == SP) ny = 1
+cc      if (bcond(1) == SP) ny = 1
 
 c     Find dimensionality
 
@@ -197,10 +202,12 @@ c     Find processor distribution
       if (npy == 0) npy = 2**exp(2)
       if (npz == 0) npz = 2**exp(3)
 
+c diag ****
 cc      if (my_rank == 0) write (*,*) sum_exp,nd,navg
 cc      if (my_rank == 0) write (*,*) npx,npy,npz
 cc      call PetscEnd(mpierr)
 cc      stop
+c diag ****
 
 c     Store processor topology for ASM PC treatment
 
@@ -212,13 +219,13 @@ c     End program
 
       end subroutine processorAlloc
 
-c     createBoundaryComm
+c     createSPComm
 c     #####################################################################
-      subroutine createBoundaryComm(dim,BC,MPI_COMM)
+      subroutine createSPComm(dim,MPI_COMM)
 
 c     ---------------------------------------------------------------------
 c     Creates MPI communicator for a given boundary condition BC at the
-c     calling processor. If BC=0, if builds a communicator for the neighboring
+c     calling processor. If BC=0, it builds a communicator for the neighboring
 c     domains to a given processor.
 c     ---------------------------------------------------------------------
 
@@ -226,11 +233,11 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: dim,MPI_COMM,BC
+        integer(4) :: dim,MPI_COMM
 
 c     Local variables
 
-        integer(4) :: split_key
+        integer(4) :: split_key,my_sp_rank,np_sp
 
 c     Begin program
 
@@ -238,16 +245,30 @@ c     Find split key
 
         split_key = MPI_UNDEFINED
 
-        call selectRank(dim,BC,split_key)
+        call selectRank(dim,SP,split_key)
 
 c     Create communicator
 
         call MPI_Comm_split(MPI_COMM_WORLD,split_key,my_rank
      .                     ,MPI_COMM,mpierr)
 
+c diag ****
+cccc        write (*,*) 'Proc',my_rank,', SP COMM' ,MPI_COMM_SP
+cc        if (MPI_COMM_SP /= MPI_COMM_NULL) then
+cc          call MPI_Comm_size(MPI_COMM_SP,np_sp,mpierr)
+cc          call MPI_Comm_rank(MPI_COMM_SP,my_sp_rank,mpierr)
+cc          write (*,*) 'SP_COMM ',split_key,'; nproc=',np_sp
+cc     .                ,'; my_sp_rank=',my_sp_rank
+cc     .                ,'; my_rank=',my_rank
+cc        endif
+cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cc        call MPI_Finalize(mpierr)
+cc        stop
+c diag ****
+
 c     End programs
 
-      end subroutine createBoundaryComm
+      end subroutine createSPComm
 
 c     selectRank
 c     #####################################################################
@@ -267,6 +288,8 @@ c     Local variables
 
         real(8)    :: random
         integer(4) :: loc,lrank
+
+        logical    :: cp(0:1)
 
 c     Begin program
 
@@ -291,11 +314,18 @@ c     Set global limits of global domain g_lim(dim,loc)
 c     Select rank
 
         do loc=0,1
-          if (checkBCLim(BC,dim,loc,l_lim,g_lim)) split_key = BC
+          cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
+          if (cp(loc)) split_key = BC
         enddo
 
+        !Group communicators based on location in z direction
+        if (bcond(dim) == SP .and. cp(0)) then
+          split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
+        endif
+
         !Create self-communicator for single-point dimensions
-        if (l_lim(dim,0) == l_lim(dim,1) .and. split_key == BC) then
+        if (      l_lim(dim,0) == l_lim(dim,1)
+     .      .and. cp(0)        == cp(1)       ) then
           call random_seed()
           call random_number(random)
           split_key=split_key+my_rank+1
@@ -305,9 +335,9 @@ c     End program
 
       end subroutine selectRank
 
-c     checkBCLim
+c     checkProc
 c     #####################################################################
-      function checkBCLim(BC,dim,loc,llim,glim) result(include_proc)
+      function checkProc(BC,dim,loc,llim,glim) result(include_proc)
 
 c     ---------------------------------------------------------------------
 c     Checks whether a processor should be included in an MPI_COMM according
@@ -332,7 +362,7 @@ c     Begin program
         include_proc= (llim(dim,loc)==glim(dim,loc))
      .                 .and.bcond(ibc(dim,loc))==BC
 
-      end function checkBCLim
+      end function checkProc
 
 c     createPETScGrid
 c     #################################################################
@@ -361,18 +391,7 @@ c     Create PETSc DA hierachy
 
 c     Singular-point boundary MPI communicator
 
-        if (bcSP()) call createBoundaryComm(1,bcond(1),MPI_COMM_SP)
-
-c diag ****
-cc        write (*,*) 'Proc',my_rank,', SP COMM' ,MPI_COMM_SP
-cc        if (MPI_COMM_SP /= MPI_COMM_NULL) then
-cc          call MPI_Comm_size(MPI_COMM_SP,my_rank,mpierr)
-cc          write (*,*) '# ranks SP_COMM ',my_rank
-cc        endif
-cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cc        call MPI_Finalize(mpierr)
-cc        stop
-c diag ****
+        if (bcSP()) call createSPComm(1,MPI_COMM_SP)
 
 c     End program
 
@@ -873,7 +892,7 @@ c     Begin program
 
 #else
 
-        integer(4)    :: np=1,my_rank=0,npx=0,npy=0,npz=0
+        integer(4)    :: np=1,my_rank=0,npx=1,npy=1,npz=1
         character(80) :: messg
 
       contains
