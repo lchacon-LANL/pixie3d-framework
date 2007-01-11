@@ -231,7 +231,18 @@ c     Define uniform logical LOCAL grid on ALL grid levels
      .                     ,zmin,zmax,bcond(5),bcond(6)
      .                     ,g_pack%dim(3))
 
-c     Initialize check grid output
+c     Store physical dimensions of local domain
+
+        lxmin = grid_params%xg(grid_params%ilo(1))
+        lxmax = grid_params%xg(grid_params%ihi(1))
+
+        lymin = grid_params%yg(grid_params%jlo(1))
+        lymax = grid_params%yg(grid_params%jhi(1))
+
+        lzmin = grid_params%zg(grid_params%klo(1))
+        lzmax = grid_params%zg(grid_params%khi(1))
+
+c     Initialize grid check output
 
         if (check_grid) then
           write (*,*)
