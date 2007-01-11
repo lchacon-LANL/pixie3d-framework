@@ -352,6 +352,8 @@ c     Begin program
         ny = nyv(igr)
         nz = nzv(igr)
 
+c     Dump plots
+
         allocate(debug(0:nx+1,0:ny+1,0:nz+1,neq))
 
         if (iflag == 0) then
@@ -364,7 +366,8 @@ c     Begin program
 
         call mapMGVectorToArray(0,neq,mgv,nx,ny,nz,debug,igr,.true.)
         do ieq=1,neq
-          call contour(debug(1:nx,1:ny,1,ieq),nx,ny,xmin,xmax,ymin,ymax
+          call contour(debug(1:nx,1:ny,1,ieq),nx,ny
+     .                ,lxmin,lxmax,lymin,lymax
      .                ,iflag+ieq-1,nunit)
         enddo
 
@@ -3336,6 +3339,8 @@ c Local variables
 
 c Begin program
 
+      prnt = (my_rank == 0) .or. asm
+
       if (out.ge.2.and.prnt) write (*,*)
 
 c Allocate pointers
@@ -3525,7 +3530,7 @@ c     Check convergence
 
 #if defined(petsc)
 cc        if (.not.asm .and. out >= 1) then  !Do reduction only for debugging
-        if (.not.asm) then  !Do reduction only for debugging
+        if (.not.asm) then
           lmag = mag
           call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
      .                       ,MPI_SUM,MPI_COMM_WORLD,mpierr)
@@ -3656,6 +3661,8 @@ c Local variables
       real(8),allocatable, dimension(:) :: dummy,rhs
 
 c Begin program
+
+      prnt = (my_rank == 0) .or. asm
 
       if (out.ge.2.and.prnt) write (*,*)
 
@@ -4032,7 +4039,7 @@ cc        mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
 
 #if defined(petsc)
 cc        if (.not.asm .and. out >= 1) then   !Do reduction only for debugging
-        if (.not.asm) then   !Do reduction only for debugging
+        if (.not.asm) then
            lmag = mag
            call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
      .                       ,MPI_SUM,MPI_COMM_WORLD,mpierr)
