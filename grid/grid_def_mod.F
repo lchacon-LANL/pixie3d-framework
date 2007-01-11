@@ -818,7 +818,9 @@ c ####################################################################
 
         use grid_metric_def
 
-        real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D domain dimensions
+        real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D global domain dimensions
+
+        real(8)         :: lxmax,lymax,lzmax,lxmin,lymin,lzmin !3D local domain dimensions
 
         character*(3)   :: coords
 
