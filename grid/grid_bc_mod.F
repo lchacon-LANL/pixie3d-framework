@@ -430,8 +430,8 @@ cc            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1,*)
 cc          end subroutine vectorNeumannBC
 cc        end INTERFACE
 
-        integer(4),private :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
-        integer(4)         :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
+        integer(4) :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
+        integer(4) :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
 
         integer(4),private :: bctype,dim,loc,ibc,i,j,k
 
@@ -562,10 +562,10 @@ c     Begin program
         end select
 
         !Do nothing for periodic BCs in parallel (PETSc does it)
-        ibc = (1+loc)+2*(dim-1)
-cc        if ((.not.do__nothing).and.(bcond(ibc) == PER.and.asm_dir(dim)))
-        if((.not.do__nothing).and.(bcond(ibc)==PER).and.(np>1))
-     .       do__nothing =.true. 
+cc        ibc = (1+loc)+2*(dim-1)
+cccc        if ((.not.do__nothing).and.(bcond(ibc) == PER.and.asm_dir(dim)))
+cc        if((.not.do__nothing).and.(bcond(ibc)==PER).and.(np>1))
+cc     .       do__nothing =.true. 
 
 c     End program
 
@@ -707,20 +707,21 @@ c     Determine ASM BCs (requires ASM flag set to false)
             ibc = (1+loc)+2*(dim-1)
 
             dn=do__nothing(dim,loc,igmin,igmax,jgmin,jgmax,kgmin,kgmax)
+     .         .or.((bcond(ibc)==PER).and.asm_dir(dim))  !Deal with interrupted periodic boundaries
 
 cc            if (dn) bcs(ibc,:) = IIBC
             if (dn) bcs(ibc,:) = IIBC*bcs(ibc,:)/abs(bcs(ibc,:))
           enddo
         enddo
-cc      else
-cc        do dim=1,3
-cc          do loc=0,1
-cc            ibc = (1+loc)+2*(dim-1)
-cc            if (bcond(ibc) == PER.and.asm_dir(dim)) then !Take care of PER boundaries in ASM
-cc              bcs(ibc,:) = EXT
-cc            endif
-cc          enddo
-cc        enddo
+      else
+        do dim=1,3
+          do loc=0,1
+            ibc = (1+loc)+2*(dim-1)
+            if (bcond(ibc) == PER.and.asm_dir(dim)) then !Take care of PER boundaries in ASM
+              bcs(ibc,:) = EXT
+            endif
+          enddo
+        enddo
       endif
 
 c     Set ASM flag to true to perform ASM in PC
@@ -964,7 +965,6 @@ c     Fill PETSc ghost cells
       !Determine whether we need to fill ghost cells using PETSc
       petsc__bc =      (np > 1)
      .           .and. (    ((.not.asm) .and. par_bc)    !For PC (not ASM)
-cc     .                  .or.(fcomp > neqd           ))   !For auxiliary variables
      .                  .or.(fcomp > NVAR           ))   !For auxiliary variables
 
       !Fill ghost cells
@@ -1041,7 +1041,7 @@ c     Impose BCs
 
 c     Synchronize covariant and contravariant components => contravariant
 
-      if (cov_to_cnv) call synchronize_cnv(v_cnv,v_cov,bcond)
+      if (cov_to_cnv) call synchronize_cnv(ncomp,v_cnv,v_cov,bcond)
 
 c     Fill edges
 
@@ -1118,7 +1118,7 @@ c     End program
 
 c     synchronize_cnv
 c     #################################################################
-      subroutine synchronize_cnv(v_cnv,v_cov,bcond)
+      subroutine synchronize_cnv(ncomp,v_cnv,v_cov,bcond)
 c     -----------------------------------------------------------------
 c     Finds all contravariant components at boundaries with BC in terms
 c     of covariant components.
@@ -1132,14 +1132,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: bcond(6,3)
-      real(8)    :: v_cnv(0:nxbc+1,0:nybc+1,0:nzbc+1,3)
-     .             ,v_cov(0:nxbc+1,0:nybc+1,0:nzbc+1,3)
+      integer(4) :: ncomp,bcond(6,ncomp)
+      real(8)    :: v_cnv(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
+     .             ,v_cov(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
 
 c     Local variables
 
       integer(4) :: imax,imin,jmax,jmin,kmax,kmin
-      integer(4) :: i,j,k,dim,loc,ig,jg,kg,ivar
+      integer(4) :: i,j,k,dim,loc,ig,jg,kg,ivar,ibc
       real(8)    :: x1,x2,x3,gsuper(3,3),gsub(3,3)
 
 c     Begin program
@@ -1148,21 +1148,17 @@ c     Begin program
         do loc = 0,1
           ibc = (1+loc)+2*(dim-1)
 
-          do ivar = 1,3
+          do ivar = 1,ncomp
 
             if (ivar == dim) then  !Select tangential components
               cycle
             elseif (bcond(ibc,ivar) < 0) then
 
-              if (.not.selectFace(ibc)) return
+              if (.not.selectFace(ibc)) cycle
 
-cc              call findBCLoopLimits(dim,loc,iimin,iimax
-cc     .                                     ,jjmin,jjmax
-cc     .                                     ,kkmin,kkmax
-cc     .                                     ,imin,imax,jmin,jmax,kmin,kmax)
-              call findBCLoopLimits(dim,loc,iimnm,iimxp
-     .                                     ,jjmnm,jjmxp
-     .                                     ,kkmnm,kkmxp
+              call findBCLoopLimits(dim,loc,iimin,iimax
+     .                                     ,jjmin,jjmax
+     .                                     ,kkmin,kkmax
      .                                     ,imin,imax,jmin
      .                                     ,jmax,kmin,kmax)
 
