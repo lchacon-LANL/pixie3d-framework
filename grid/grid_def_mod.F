@@ -5,7 +5,7 @@ c #####################################################################
 
         implicit none
 
-        integer(4) :: nxgl,nygl,nzgl
+cc        integer(4) :: nxgl,nygl,nzgl
 
         integer(4),parameter :: ngparams = 6
 
@@ -14,6 +14,12 @@ c #####################################################################
           integer(4) :: ngrdy                             !# meshes in Y
           integer(4) :: ngrdz                             !# meshes in Y
           integer(4) :: ngrid                             !# meshes for MG
+          integer(4) :: nglx                              !# meshes in X
+          integer(4) :: ngly                              !# meshes in Y
+          integer(4) :: nglz                              !# meshes in Y
+          real(8)    :: lxmin,lxmax                       !Local physical dimensions in X
+          real(8)    :: lymin,lymax                       !Local physical dimensions in Y
+          real(8)    :: lzmin,lzmax                       !Local physical dimensions in Z
           integer(4),pointer,dimension(:)  :: iline       !Restrict ops. to i=iline in MG
           integer(4),pointer,dimension(:)  :: jline       !Restrict ops. to j=jline in MG
           integer(4),pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
@@ -63,7 +69,7 @@ cc          integer(4),pointer,dimension(:)  :: ntotv       !Total # of grid nod
 c     allocateGridStructure
 c     #################################################################
       subroutine allocateGridStructure(nx,ny,nz,ngridx,ngridy,ngridz
-     .                                ,grid_st)
+     .                                ,nglx,ngly,nglz,grid_st)
 c     -----------------------------------------------------------------
 c     Allocates grid structure
 c     -----------------------------------------------------------------
@@ -72,7 +78,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4)     :: nx,ny,nz,ngridx,ngridy,ngridz
+        integer(4)     :: nx,ny,nz,ngridx,ngridy,ngridz,nglx,ngly,nglz
         type(grid_mg_def) :: grid_st
 
 c     Local variables
@@ -88,14 +94,18 @@ c     Begin program
         grid_st%ngrdz = ngridz
         grid_st%ngrid = ngrid
 
+        grid_st%nglx = nglx
+        grid_st%ngly = ngly
+        grid_st%nglz = nglz
+
         nxmg=findMGsize(nx,ngridx,ngrid)
         nymg=findMGsize(ny,ngridy,ngrid)
         nzmg=findMGsize(nz,ngridz,ngrid)
 
         if (.not.associated(grid_st%xx)) then
-          allocate(grid_st%xg(0:nxgl+1))
-          allocate(grid_st%yg(0:nygl+1))
-          allocate(grid_st%zg(0:nzgl+1))
+          allocate(grid_st%xg(0:nglx+1))
+          allocate(grid_st%yg(0:ngly+1))
+          allocate(grid_st%zg(0:nglz+1))
           allocate(grid_st%xx(nxmg+2*ngrid))
           allocate(grid_st%yy(nymg+2*ngrid))
           allocate(grid_st%zz(nzmg+2*ngrid))
@@ -270,6 +280,7 @@ c     Call variables
 c     Local variables
 
         integer(4)     :: ngridx,ngridy,ngridz,nx,ny,nz
+     .                   ,nglx,ngly,nglz
 
 c     Begin program
 
@@ -281,10 +292,23 @@ c     Begin program
         ny = grid_st1%nyv(1)
         nz = grid_st1%nzv(1)
 
-        if (grid_st2%ngrdx /= ngridx) nullify(grid_st2%xx)
+        nglx = grid_st1%nglx
+        ngly = grid_st1%ngly
+        nglz = grid_st1%nglz
+
+        if (    grid_st2%ngrdx /= ngridx
+     .      .or.grid_st2%ngrdy /= ngridy
+     .      .or.grid_st2%ngrdz /= ngridz
+     .      .or.grid_st2%nxv(1)/= nx
+     .      .or.grid_st2%nyv(1)/= ny
+     .      .or.grid_st2%nzv(1)/= nz
+     .      .or.grid_st2%nglx  /= nglx
+     .      .or.grid_st2%ngly  /= ngly
+     .      .or.grid_st2%nglz  /= nglz)
+     .    call deallocateGridStructure(grid_st2)
 
         call allocateGridStructure(nx,ny,nz,ngridx,ngridy,ngridz
-     .                            ,grid_st2)
+     .                            ,nglx,ngly,nglz,grid_st2)
 
         grid_st2%xg         = grid_st1%xg        
         grid_st2%yg         = grid_st1%yg        
@@ -321,6 +345,12 @@ cc        grid_st2%ntotv      = grid_st1%ntotv
         grid_st2%iline      = grid_st1%iline
         grid_st2%jline      = grid_st1%jline
         grid_st2%kline      = grid_st1%kline
+        grid_st2%lxmin      = grid_st1%lxmin
+        grid_st2%lxmax      = grid_st1%lxmax
+        grid_st2%lymin      = grid_st1%lymin
+        grid_st2%lymax      = grid_st1%lymax
+        grid_st2%lzmin      = grid_st1%lzmin
+        grid_st2%lzmax      = grid_st1%lzmax
 
 c     End program
 
@@ -347,6 +377,9 @@ c     Begin program
         write (*,*) 'ngrdx',grid_st%ngrdx
         write (*,*) 'ngrdy',grid_st%ngrdy
         write (*,*) 'ngrdz',grid_st%ngrdz
+        write (*,*) 'nglx',grid_st%nglx
+        write (*,*) 'ngly',grid_st%ngly
+        write (*,*) 'nglz',grid_st%nglz
         write (*,*) 'xg',grid_st%xg
         write (*,*) 'yg',grid_st%yg        
         write (*,*) 'zg',grid_st%zg        
@@ -820,7 +853,7 @@ c ####################################################################
 
         real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D global domain dimensions
 
-        real(8)         :: lxmax,lymax,lzmax,lxmin,lymin,lzmin !3D local domain dimensions
+cc        real(8)         :: lxmax,lymax,lzmax,lxmin,lymin,lzmin !3D local domain dimensions
 
         character*(3)   :: coords
 
