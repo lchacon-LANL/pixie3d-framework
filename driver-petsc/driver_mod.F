@@ -73,7 +73,7 @@ c ######################################################################
         real(8)    :: vx_max,vy_max,vz_max,bx_max,by_max,bz_max
 
         logical    :: timecorr=.false.,restart=.false.,source=.true.
-     .               ,predictor=.false.
+     .               ,predictor=.false.,postprocess=.false.
 
         real(8)    :: tmrst,cnp,cn,cnm,dt_n
 
