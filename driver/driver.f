@@ -242,8 +242,9 @@ c     Newton iteration
 c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
-          vnp = x               !Overloaded assignment
-          if (predictor) call storeTSinfo(vn,vnp)
+          vnp = x                  !Overloaded assignment
+          if (postprocess) call postProcessSol(vnp) !Postprocess solution
+          if (predictor  ) call storeTSinfo(vn,vnp)
         elseif (ierr == 1) then
           vnp = vn
         endif
