@@ -74,7 +74,7 @@ c Allocate constant arrays
 c Initialize MG and create grid
 
       call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd
-     .               ,gpack=g_pack)
+     .               ,g_pack)
 
 c Create nonlinear solver
 
