@@ -18,6 +18,8 @@ c######################################################################
 
         use grid_mg
 
+        use grid_create, ONLY: grid_pack,g_pack,createMGgrid
+
         use mlsolverSetup
 
         real(8), allocatable, dimension(:,:) :: diag
@@ -367,7 +369,8 @@ c     Dump plots
         call mapMGVectorToArray(0,neq,mgv,nx,ny,nz,debug,igr,.true.)
         do ieq=1,neq
           call contour(debug(1:nx,1:ny,1,ieq),nx,ny
-     .                ,lxmin,lxmax,lymin,lymax
+     .                ,MGgrid%lxmin,MGgrid%lxmax
+     .                ,MGgrid%lymin,MGgrid%lymax
      .                ,iflag+ieq-1,nunit)
         enddo
 
@@ -1548,8 +1551,28 @@ c     Initialize solution on coarse grid
 
 c     If on coarsest grid, solve for error, else descend a grid level
 
+#if defined(petsc)
+        if ((np > 1)
+     .      .and. (    MGgrid%ngrdx == igc    !Grid-level based criterion
+     .             .or.MGgrid%ngrdy == igc
+     .             .or.MGgrid%ngrdz == igc)
+cc     .      .and. (    MGgrid%nxgl(igc) >= 32 !Coarse grid size criterion
+cc     .             .or.MGgrid%nygl(igc) >= 32
+cc     .             .or.MGgrid%nzgl(igc) >= 32
+cc     .             .or.MGgrid%nxgl(igc)
+cc     .                *MGgrid%nygl(igc)
+cc     .                *MGgrid%nzgl(igc) >= 1024)
+     .  ) then
+
+          write (*,*) 'DIAG -- mcycle at coarseGridSolve: proc=',my_rank
+
+          call coarseGridSolve(igc)     !Perform parallel coarse grid solve
+
+        elseif (igc.eq.igmax) then
+#else
         if (igc.eq.igmax) then
-          call coarseSolve(igc)
+#endif
+          call coarseSolve(igc)         !Perform coarse grid solve
         else
           do imu = 1,mu
             call mcycle(igc)
@@ -2204,9 +2227,9 @@ c     Call variables
 
 c     Local variables
 
-        integer(4)     :: istart_sv(ngrid)
-     .                   ,istartp_sv(ngrid)
-     .                   ,istartb_sv(ngrid)
+        integer(4)     :: istart_sv (size(istart) )
+     .                   ,istartp_sv(size(istartp))
+     .                   ,istartb_sv(size(istartb))
 
         real(8),allocatable,dimension(:,:) :: old_diag
 
@@ -2330,9 +2353,9 @@ c     Call variables
 
 c     Local variables
 
-        integer(4)     :: istart_sv(ngrid)
-     .                   ,istartp_sv(ngrid)
-     .                   ,istartb_sv(ngrid)
+        integer(4)     :: istart_sv (size(istart) )
+     .                   ,istartp_sv(size(istartp))
+     .                   ,istartb_sv(size(istartb))
 
         real(8),allocatable,dimension(:,:) :: old_diag
 
@@ -2451,9 +2474,9 @@ c     Call variables
 
 c     Local variables
 
-        integer(4)     :: istart_sv(ngrid)
-     .                   ,istartp_sv(ngrid)
-     .                   ,istartb_sv(ngrid)
+        integer(4)     :: istart_sv (size(istart) )
+     .                   ,istartp_sv(size(istartp))
+     .                   ,istartb_sv(size(istartb))
 
         real(8),allocatable,dimension(:,:) :: old_diag
 
@@ -2683,6 +2706,28 @@ c     Begin program
 
         if (outc.ge.1.and.prnt) write (*,*) 'Grid Level',igr
 
+cc#if defined(petsc)
+cccc        if ((np > 1) .and.
+cccc     .      (    MGgrid%ngrdx == igr
+cccc     .       .or.MGgrid%ngrdy == igr
+cccc     .       .or.MGgrid%ngrdz == igr)) then   !Perform coarse grid solve
+cccc
+cccc        else
+cc
+cc          nn   = ntotv(igr)
+cc          isig = istart(igr)
+cc
+cc          if (crsedpth /= 0) then
+cc            depth1 = crsedpth
+cc          else
+cc            depth1 = depth + 1
+cc          endif
+cc
+cc          call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcnd
+cc     .                ,guess2,outc,depth1)
+cc
+cccc        endif
+cc#else
         nn   = ntotv(igr)
         isig = istart(igr)
 
@@ -2694,8 +2739,230 @@ c     Begin program
 
         call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcnd
      .                ,guess2,outc,depth1)
+cc#endif
 
       end subroutine coarseSolve
+
+c     coarseGridSolve
+c     #####################################################################
+      recursive subroutine coarseGridSolve(igr)
+
+c     ---------------------------------------------------------------------
+c     This routine performs a recursive MG solve on parallel coarse grid.
+c     In call:
+c       * igr: grid level
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4)     :: igr
+
+c     Local variables
+
+        integer(4)     :: nn,isig,nx,ny,nz,nc,i,j,k,il,jl,kl
+     .                   ,ii,iig,guess,istart_sv(size(istart))
+     .                   ,ig_cs,ig_sv,isig_cs,isig_sv,nsv,ncs
+
+        real(8),allocatable,dimension(:,:) :: diag_sv
+
+        real(8),allocatable,dimension(:)   :: b_global,x_global
+
+        type (grid_mg_def) :: gparams_sv
+
+        type (solver_options) :: options
+
+        logical               :: fpointers
+
+c     Begin program
+
+        nn   = ntotv(igr)
+        isig = istart(igr)
+
+c     Save parent MG grid configuration (shared with filial MG via mg_internal module)
+
+        !Save pointers
+        MGgrid_sv%ngrdx = 0
+        MGgrid_sv%ngrdy = 0
+        MGgrid_sv%ngrdz = 0
+        MGgrid_sv%ngrid = 0
+        MGgrid_sv  = MGgrid
+
+        call deallocateGridStructure(MGgrid)
+
+        gparams_sv%ngrdx = 0
+        gparams_sv%ngrdy = 0
+        gparams_sv%ngrdz = 0
+        gparams_sv%ngrid = 0
+        gparams_sv  = grid_params
+
+        call deallocateGridStructure(grid_params)
+
+        istart_sv  = istart
+
+        !Save diagonal
+        allocate(diag_sv(size(diag,1),size(diag,2)))
+        diag_sv = diag
+        deallocate(diag)
+
+c     Find coarse global grid dimensions
+
+        nx = MGgrid_sv%nxgl(igr)
+        ny = MGgrid_sv%nygl(igr)
+        nz = MGgrid_sv%nzgl(igr)
+
+        nc = nx*ny*nz*neq
+
+c     Ensure serial treatment of boundary conditions
+
+        !MISSING STUFF HERE
+
+c     Create coarse global grid structure variable to pass to filial MG call
+
+        call createMGgrid(1,nx,1,ny,1,nz,nx,ny,nz
+     .                   ,g_pack,grid_params)
+          
+c     Reallocate MG pointers to coarse grid level igr
+
+        call deallocPointers(.true.)
+        call allocPointers(neq,fpointers)
+
+c     Allocate coarse global quantities
+
+        allocate(b_global(nc),x_global(nc))
+
+        x_global = 0d0
+
+c     Gather rhs b in all processors
+
+#if defined(petsc)
+        call MPI_Allgather(yy(isig),nn,MPI_DOUBLE_PRECISION
+     .                    ,b_global,nn,MPI_DOUBLE_PRECISION
+     .                    ,MPI_COMM_WORLD,mpierr)
+c diag ****
+cc        write (*,*) 'DIAG -- coarseGridSolve: proc=',my_rank
+cc     .             ,'local rhs =',yy(isig:isig+nn-1)
+
+cc        write (*,*) 'DIAG -- coarseGridSolve: proc=',my_rank
+cc     .             ,'global rhs=',b_global
+cc        call pstop('coarseGridSolve','')
+c diag ****
+#endif
+
+ccc     Allocate new diagonal and transfer elements
+cc
+cc        allocate(diag(neq,2*nc))
+cc
+ccc     Gather diag in all processors and all grids
+cc
+cc#if defined(petsc)
+cc        do ig_sv=igr,gparams_sv%ngrid
+cc          ig_cs   = ig_sv - igr + 1
+cc          isig_sv = istart_sv(ig_sv)
+cc          isig_cs = istart(ig_cs)
+cc          nsv     = istart_sv(ig_sv+1)-istart_sv(ig_sv)
+cc          ncs     = istart   (ig_cs+1)-istart   (ig_cs)
+cc
+ccc diag ****
+cc          write (*,*) 'DIAG -- coarseGridSolve: proc=',my_rank
+cc     .               ,'global grid=',ig_sv,'local grid=',ig_cs
+cc     .               ,'size vector transferred=',nsv
+cc     .               ,'size vector received=',ncs
+cc     .               ,'global pointers=',istart_sv
+cc     .               ,'local pointers=',istart
+ccc diag ****
+cc          call MPI_Allgather(diag_sv(:,isig_sv:isig_sv+nsv-1)
+cc     .                              ,neq*nsv,MPI_DOUBLE_PRECISION
+cc     .                      ,diag   (:,isig_cs:isig_cs+ncs-1)
+cc     .                              ,neq*nsv,MPI_DOUBLE_PRECISION
+cc     .                      ,MPI_COMM_WORLD,mpierr)
+cc        enddo
+cc
+ccc diag ****
+cc        write (*,*) 'DIAG -- coarseGridSolve: proc=',my_rank
+cc     .             ,'local diag =',diag_sv(1,isig:isig+nn-1)
+cc
+cccc        write (*,*) 'DIAG -- coarseGridSolve: proc=',my_rank
+cccc     .             ,'global diag=',diag(1,1:nc)
+cc        call pstop('coarseGridSolve','')
+ccc diag ****
+cc#endif
+
+c     Configure recursive plane/line MG solve
+
+        options%tol                         = mgtol
+        options%vcyc                        = vcyc
+        options%igridmin                    = igridmin
+        options%orderres                    = orderres
+        options%orderprol                   = orderprol
+        options%mg_mu                       = mu
+        options%vol_res                     = volf        
+        options%mg_line_relax               = .false.
+        options%mg_coarse_solver_depth      = crsedpth 
+        options%vertex_based_relax          = vbr_mg
+        options%galerkin                    = galerkin
+        options%ncolors                     = ncolors
+        options%mg_grid_def                 = grid_params
+        options%fdiag                       = .true.
+
+c     Call plane/line MG
+
+c diag ****
+        if (my_rank == 0) call writeGridStructure(grid_params)
+        write (*,*) size(b_global),size(x_global),nc,neq
+        call pstop('coarseGridSolve','')
+c diag ****
+
+        guess = 0
+        call mg(neq,nc,b_global,x_global,matvec,options,1,bcnd
+     .         ,guess,outc-1,depth)
+
+c     Scatter x_global
+
+        do k = MGgrid_sv%klo(igr),MGgrid_sv%khi(igr)
+          do j = MGgrid_sv%jlo(igr),MGgrid_sv%jhi(igr)
+            do i = MGgrid_sv%ilo(igr),MGgrid_sv%ihi(igr)
+              call fromGlobalToLocalLimits(i,j,k,il,jl,kl,igr,igr,igr)
+              ii  = vecPos(neq,il,jl,kl,igr,igr,igr) + isig - 1
+              iig = neq*(i-1 + nx*(j-1) + nx*ny*(k-1))
+
+              xx(ii+1:ii+neq) = x_global(iig+1:iig+neq)
+            enddo
+          enddo
+        enddo
+
+c diag ****
+        write (*,*) 'DIAG -- coarseGridSolve: proc=',my_rank
+     .             ,xx(isig:isig+nn)
+        call pstop('coarseGridSolve','')
+c diag ****
+
+c     Recover configuration for parent level MG
+
+        !Recover MG grid def
+        call restoreMGgrid
+
+        !Recover grid_params
+        call deallocateGridStructure(grid_params)
+        grid_params = gparams_sv
+        call deallocateGridStructure(gparams_sv)
+
+        !Recover pointers
+        call deallocPointers(fpointers)
+        call allocPointers(neq,fpointers)
+
+        !Recover diagonal
+        if (.not.options%fdiag) deallocate(diag)
+        allocate(diag(size(diag_sv,1),size(diag_sv,2)))
+        diag = diag_sv
+        deallocate(diag_sv)
+
+c     Deallocate memory
+
+        call deallocateGridStructure(options%mg_grid_def)
+
+      end subroutine coarseGridSolve
 
 c     killmg
 c     ###################################################################
