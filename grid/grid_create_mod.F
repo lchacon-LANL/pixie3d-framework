@@ -7,7 +7,7 @@ c #####################################################################
 
         implicit none
 
-        integer(4),private :: nxx,nyy,nzz
+cc        integer(4),private :: nxx,nyy,nzz
 
         integer(4) :: mg_ratio
 
@@ -38,6 +38,7 @@ c       * imin,imax: global grid limits in X
 c       * jmin,jmax: global grid limits in Y
 c       * kmin,kmax: global grid limits in Z
 c       * nx,ny,nz: global grid size
+c       * gpack: defines grid packing
 c     -----------------------------------------------------------------
 
         implicit none
@@ -45,34 +46,76 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         integer(4) :: imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
-        type(grid_pack),optional :: gpack
+        type(grid_pack) :: gpack
 
 c     Local variables
 
-        integer(4) :: i,n1,n2,n3
+c     Begin program
+
+        pi = acos(-1d0)
+
+        call createMGgrid(imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+     .                   ,gpack,grid_params)
+
+c     Create fortran PETSc parallel grid hierarchy
+
+#if defined(petsc)
+        call createPETScGrid
+#endif
+
+c     Store grid metric parameters in grid metric structure
+
+        if (checkMapDatabase()) call defineGridMetric(gmetric)
+
+c     Perform grid checks
+
+        if (check_grid) call checkGrid
+
+      end subroutine createGrid
+
+c     createMGgrid
+c     #################################################################
+      subroutine createMGgrid(imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+     .                       ,gpack,gdef)
+
+c     -----------------------------------------------------------------
+c     Defines logical grid and finds grid quantities from:
+c       * imin,imax: global grid limits in X
+c       * jmin,jmax: global grid limits in Y
+c       * kmin,kmax: global grid limits in Z
+c       * nx,ny,nz: global grid size
+c       * gdef (type grid_mg_def): variable that stores
+c                                  grid definition.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+        type(grid_pack) :: gpack
+        type(grid_mg_def) :: gdef
+
+c     Local variables
+
+        integer(4) :: i,n1,n2,n3,nxx,nyy,nzz
         integer(4) :: ngrdx,ngrdy,ngrdz
         type(grid_pack) :: g_pack
 
 c     Begin program
 
-        !Check for packing
-        if (PRESENT(gpack)) then
-          g_pack = gpack
-        else
-          g_pack%dim(:)%pack = .false.
-        endif
+        !Save packing configuration
+        g_pack = gpack
 
         !Initialize global quantities
-        nxgl = nx
-        nygl = ny
-        nzgl = nz
+        gdef%nglx = nx
+        gdef%ngly = ny
+        gdef%nglz = nz
 
         !Initialize local quantities
         nxx = imax-imin+1
         nyy = jmax-jmin+1
         nzz = kmax-kmin+1
-
-        pi = acos(-1d0)
 
 c     Find adequate number of grid levels (for MG)
 
@@ -104,143 +147,143 @@ c     Find adequate number of grid levels (for MG)
 c     Allocate grid storage structure
 
         call allocateGridStructure(nxx,nyy,nzz,ngrdx,ngrdy,ngrdz
-     .                            ,grid_params)
+     .                            ,nx,ny,nz,gdef)
 
 c     Initialize MG grid-size arrays
 
-        grid_params%mg_ratio_x = 1
-        grid_params%mg_ratio_y = 1
-        grid_params%mg_ratio_z = 1
+        gdef%mg_ratio_x = 1
+        gdef%mg_ratio_y = 1
+        gdef%mg_ratio_z = 1
 
-        grid_params%nxgl(1) = nx
-        grid_params%nxv (1) = nxx
-        grid_params%ilo (1) = imin
-        grid_params%ihi (1) = imax
+        gdef%nxgl(1) = nx
+        gdef%nxv (1) = nxx
+        gdef%ilo (1) = imin
+        gdef%ihi (1) = imax
         do i = 2,ngrdx
-          grid_params%nxgl(i) = grid_params%nxgl(i-1) / mg_ratio
-          grid_params%nxv (i) = grid_params%nxv (i-1) / mg_ratio
-          grid_params%ilo(i) = grid_params%ilo(i-1)/mg_ratio + 1
-cc          grid_params%ilo (i) = imin
-          grid_params%ihi (i) = grid_params%ilo(i)+grid_params%nxv(i)-1
-          grid_params%mg_ratio_x(i-1) = mg_ratio
+          gdef%nxgl(i) = gdef%nxgl(i-1) / mg_ratio
+          gdef%nxv (i) = gdef%nxv (i-1) / mg_ratio
+          gdef%ilo(i) = gdef%ilo(i-1)/mg_ratio + 1
+cc          gdef%ilo (i) = imin
+          gdef%ihi (i) = gdef%ilo(i)+gdef%nxv(i)-1
+          gdef%mg_ratio_x(i-1) = mg_ratio
         enddo
-        do i = ngrdx+1,grid_params%ngrid
-          grid_params%nxgl(i) = grid_params%nxgl(i-1)
-          grid_params%nxv (i) = grid_params%nxv (i-1)
-          grid_params%ilo (i) = grid_params%ilo (i-1)
-          grid_params%ihi (i) = grid_params%ihi (i-1)
+        do i = ngrdx+1,gdef%ngrid
+          gdef%nxgl(i) = gdef%nxgl(i-1)
+          gdef%nxv (i) = gdef%nxv (i-1)
+          gdef%ilo (i) = gdef%ilo (i-1)
+          gdef%ihi (i) = gdef%ihi (i-1)
         enddo
 
-        grid_params%nygl(1) = ny
-        grid_params%nyv (1) = nyy
-        grid_params%jlo (1) = jmin
-        grid_params%jhi (1) = jmax
+        gdef%nygl(1) = ny
+        gdef%nyv (1) = nyy
+        gdef%jlo (1) = jmin
+        gdef%jhi (1) = jmax
         do i = 2,ngrdy
-          grid_params%nygl(i) = grid_params%nygl(i-1) / mg_ratio
-          grid_params%nyv (i) = grid_params%nyv(i-1) / mg_ratio
-          grid_params%jlo(i) = grid_params%jlo(i-1)/mg_ratio + 1
-cc          grid_params%jlo (i) = jmin
-          grid_params%jhi (i) = grid_params%jlo(i)+grid_params%nyv(i)-1
-          grid_params%mg_ratio_y(i-1) = mg_ratio
+          gdef%nygl(i) = gdef%nygl(i-1) / mg_ratio
+          gdef%nyv (i) = gdef%nyv(i-1) / mg_ratio
+          gdef%jlo(i) = gdef%jlo(i-1)/mg_ratio + 1
+cc          gdef%jlo (i) = jmin
+          gdef%jhi (i) = gdef%jlo(i)+gdef%nyv(i)-1
+          gdef%mg_ratio_y(i-1) = mg_ratio
         enddo
-        do i = ngrdy+1,grid_params%ngrid
-          grid_params%nygl(i) = grid_params%nygl(i-1)
-          grid_params%nyv (i) = grid_params%nyv (i-1)
-          grid_params%jlo (i) = grid_params%jlo (i-1)
-          grid_params%jhi (i) = grid_params%jhi (i-1)
+        do i = ngrdy+1,gdef%ngrid
+          gdef%nygl(i) = gdef%nygl(i-1)
+          gdef%nyv (i) = gdef%nyv (i-1)
+          gdef%jlo (i) = gdef%jlo (i-1)
+          gdef%jhi (i) = gdef%jhi (i-1)
         enddo
 
-        grid_params%nzgl(1) = nz
-        grid_params%nzv (1) = nzz
-        grid_params%klo (1) = kmin
-        grid_params%khi (1) = kmax
+        gdef%nzgl(1) = nz
+        gdef%nzv (1) = nzz
+        gdef%klo (1) = kmin
+        gdef%khi (1) = kmax
         do i = 2,ngrdz
-          grid_params%nzgl(i) = grid_params%nzgl(i-1) / mg_ratio
-          grid_params%nzv (i) = grid_params%nzv (i-1) / mg_ratio
-          grid_params%klo(i) = grid_params%klo(i-1)/mg_ratio + 1
-cc          grid_params%klo (i) = kmin
-          grid_params%khi (i) = grid_params%klo(i)+grid_params%nzv(i)-1
-          grid_params%mg_ratio_z(i-1) = mg_ratio
+          gdef%nzgl(i) = gdef%nzgl(i-1) / mg_ratio
+          gdef%nzv (i) = gdef%nzv (i-1) / mg_ratio
+          gdef%klo(i) = gdef%klo(i-1)/mg_ratio + 1
+cc          gdef%klo (i) = kmin
+          gdef%khi (i) = gdef%klo(i)+gdef%nzv(i)-1
+          gdef%mg_ratio_z(i-1) = mg_ratio
         enddo
-        do i = ngrdz+1,grid_params%ngrid
-          grid_params%nzgl(i) = grid_params%nzgl(i-1)
-          grid_params%nzv (i) = grid_params%nzv (i-1)
-          grid_params%klo (i) = grid_params%klo (i-1)
-          grid_params%khi (i) = grid_params%khi (i-1)
+        do i = ngrdz+1,gdef%ngrid
+          gdef%nzgl(i) = gdef%nzgl(i-1)
+          gdef%nzv (i) = gdef%nzv (i-1)
+          gdef%klo (i) = gdef%klo (i-1)
+          gdef%khi (i) = gdef%khi (i-1)
         enddo
 
 c     Initialize MG pointer arrays
 
-        grid_params%istartx(1) = 1
-        do i = 2,grid_params%ngrid
-          grid_params%istartx(i) = grid_params%istartx(i-1)
-     .                            +(grid_params%nxv(i-1)+2)
+        gdef%istartx(1) = 1
+        do i = 2,gdef%ngrid
+          gdef%istartx(i) = gdef%istartx(i-1)
+     .                            +(gdef%nxv(i-1)+2)
         enddo
 
-        grid_params%istarty(1) = 1
-        do i = 2,grid_params%ngrid
-          grid_params%istarty(i) = grid_params%istarty(i-1)
-     .                            +(grid_params%nyv(i-1)+2)
+        gdef%istarty(1) = 1
+        do i = 2,gdef%ngrid
+          gdef%istarty(i) = gdef%istarty(i-1)
+     .                            +(gdef%nyv(i-1)+2)
         enddo
 
-        grid_params%istartz(1) = 1
-        do i = 2,grid_params%ngrid
-          grid_params%istartz(i) = grid_params%istartz(i-1)
-     .                            +(grid_params%nzv(i-1)+2)
+        gdef%istartz(1) = 1
+        do i = 2,gdef%ngrid
+          gdef%istartz(i) = gdef%istartz(i-1)
+     .                            +(gdef%nzv(i-1)+2)
         enddo
 
-        grid_params%istartp(1) = 1
-        do i = 2,grid_params%ngrid
-          grid_params%istartp(i) = grid_params%istartp(i-1)
-     .                            +grid_params%nxv(i-1)
-     .                            *grid_params%nyv(i-1)
-     .                            *grid_params%nzv(i-1)
+        gdef%istartp(1) = 1
+        do i = 2,gdef%ngrid
+          gdef%istartp(i) = gdef%istartp(i-1)
+     .                            +gdef%nxv(i-1)
+     .                            *gdef%nyv(i-1)
+     .                            *gdef%nzv(i-1)
         enddo
 
 c     Set grid parameters
 
-        grid_params%params = gparams
+        gdef%params = gparams
 
 c     Consistency checks
 
-        call consistencyCheck
+        call consistencyCheck(nxx,nyy,nzz)
 
 c     Define uniform logical LOCAL grid on ALL grid levels
 
-        call createLogicalGrid(grid_params%nxgl,grid_params%mg_ratio_x
-     .                     ,grid_params%xg,grid_params%xx,grid_params%dx
-     .                     ,grid_params%dxh,grid_params%nxv
-     .                     ,grid_params%ngrid,grid_params%istartx
-     .                     ,grid_params%ilo,grid_params%ihi
+        call createLogicalGrid(gdef%nxgl,gdef%mg_ratio_x
+     .                     ,gdef%xg,gdef%xx,gdef%dx
+     .                     ,gdef%dxh,gdef%nxv
+     .                     ,gdef%ngrid,gdef%istartx
+     .                     ,gdef%ilo,gdef%ihi
      .                     ,xmin,xmax,bcond(1),bcond(2)
      .                     ,g_pack%dim(1))
 
-        call createLogicalGrid(grid_params%nygl,grid_params%mg_ratio_y
-     .                     ,grid_params%yg,grid_params%yy,grid_params%dy
-     .                     ,grid_params%dyh,grid_params%nyv
-     .                     ,grid_params%ngrid,grid_params%istarty
-     .                     ,grid_params%jlo,grid_params%jhi
+        call createLogicalGrid(gdef%nygl,gdef%mg_ratio_y
+     .                     ,gdef%yg,gdef%yy,gdef%dy
+     .                     ,gdef%dyh,gdef%nyv
+     .                     ,gdef%ngrid,gdef%istarty
+     .                     ,gdef%jlo,gdef%jhi
      .                     ,ymin,ymax,bcond(3),bcond(4)
      .                     ,g_pack%dim(2))
 
-        call createLogicalGrid(grid_params%nzgl,grid_params%mg_ratio_z
-     .                     ,grid_params%zg,grid_params%zz,grid_params%dz
-     .                     ,grid_params%dzh,grid_params%nzv
-     .                     ,grid_params%ngrid,grid_params%istartz
-     .                     ,grid_params%klo,grid_params%khi
+        call createLogicalGrid(gdef%nzgl,gdef%mg_ratio_z
+     .                     ,gdef%zg,gdef%zz,gdef%dz
+     .                     ,gdef%dzh,gdef%nzv
+     .                     ,gdef%ngrid,gdef%istartz
+     .                     ,gdef%klo,gdef%khi
      .                     ,zmin,zmax,bcond(5),bcond(6)
      .                     ,g_pack%dim(3))
 
 c     Store physical dimensions of local domain
 
-        lxmin = grid_params%xg(grid_params%ilo(1))
-        lxmax = grid_params%xg(grid_params%ihi(1))
+        gdef%lxmin = gdef%xg(gdef%ilo(1))
+        gdef%lxmax = gdef%xg(gdef%ihi(1))
 
-        lymin = grid_params%yg(grid_params%jlo(1))
-        lymax = grid_params%yg(grid_params%jhi(1))
+        gdef%lymin = gdef%yg(gdef%jlo(1))
+        gdef%lymax = gdef%yg(gdef%jhi(1))
 
-        lzmin = grid_params%zg(grid_params%klo(1))
-        lzmax = grid_params%zg(grid_params%khi(1))
+        gdef%lzmin = gdef%zg(gdef%klo(1))
+        gdef%lzmax = gdef%zg(gdef%khi(1))
 
 c     Initialize grid check output
 
@@ -249,26 +292,12 @@ c     Initialize grid check output
           write (*,*) 'Coordinate system: ',coords
           write (*,*)
           write (*,*) 'Number of grid levels:'
-          write (*,*) 'nx: ',grid_params%ngrid
-     .            ,'   ny: ',grid_params%ngrid
-     .            ,'   nz: ',grid_params%ngrid
+          write (*,*) 'nx: ',gdef%ngrid
+     .            ,'   ny: ',gdef%ngrid
+     .            ,'   nz: ',gdef%ngrid
         endif
 
-c     Create fortran PETSc parallel grid hierarchy
-
-#if defined(petsc)
-      call createPETScGrid
-#endif
-
-c     Store grid metric parameters in grid metric structure
-
-        if (checkMapDatabase()) call defineGridMetric(gmetric)
-
-c     Perform grid checks
-
-        if (check_grid) call checkGrid
-
-      end subroutine createGrid
+      end subroutine createMGgrid
 
 c     createLogicalGrid
 c     #################################################################
@@ -655,7 +684,7 @@ c     End program
 
 c     consistencyCheck
 c     #################################################################
-      subroutine consistencyCheck
+      subroutine consistencyCheck(nxx,nyy,nzz)
 
 c     -----------------------------------------------------------------
 c     Checks consistency of grid parameters
@@ -664,6 +693,8 @@ c     -----------------------------------------------------------------
         implicit none
 
 c     Input variables
+
+        integer(4) :: nxx,nyy,nzz
 
 c     Local variables
 
@@ -704,7 +735,7 @@ c     Begin program
             stop
           endif
 
-          major_r = grid_params%params(1)
+          major_r = gparams(1)
 
           if (major_r < xmax) then
             write (*,*) 'Ill-defined toroidal coordinate system'
