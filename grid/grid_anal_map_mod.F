@@ -12,10 +12,10 @@ c #####################################################################
         real(8)         :: gparams(ngparams)
 
         real(8),private :: pi,lambda,cc,xpp,ypp,zpp,eps,mm,kk,aa,phi
-     .                    ,major_r,xi0,yi0,zi0,lambdax,lambday,lambdaz
-     .                    ,aax=0d0,bbx=0d0,xx0
-     .                    ,aay=0d0,bby=0d0,yy0
-     .                    ,aaz=0d0,bbz=0d0,zz0
+     .                    ,major_r,lambdax,lambday,lambdaz
+     .                    ,aax=0d0,bbx=0d0,xx0,xi0
+     .                    ,aay=0d0,bby=0d0,yy0,yi0
+     .                    ,aaz=0d0,bbz=0d0,zz0,zi0
 
         logical         :: anal_map
 
