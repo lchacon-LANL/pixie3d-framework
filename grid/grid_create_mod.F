@@ -721,7 +721,8 @@ c     Begin program
         case ('car')
           numerical_grid = .false.
         case ('scl')
-          numerical_grid = .true.
+          numerical_grid = .true.   !To deal properly with ghost cells in atanh profile
+cc          numerical_grid = .false.
         case ('cyl','hel','hl2')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
@@ -743,23 +744,28 @@ c     Begin program
             write (*,*) 'Aborting'
             stop
           endif
-
         end select
 
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
         if (numerical_grid) then
-          if (nxx == 1) then
-            xmin = 0d0
-            xmax = 1d-3
+          if (nxx == 1 .and. ((xmax-xmin)>1d-3)) then
+            write (*,*)
+            write (*,*) 'Warning: large grid spacing in',
+     .                  ' ignorable direction'
+            write (*,*)
           endif
-          if (nyy == 1) then
-            ymin = 0d0
-            ymax = 1d-3
+          if (nyy == 1 .and. ((ymax-ymin)>1d-3)) then
+            write (*,*)
+            write (*,*) 'Warning: large grid spacing in',
+     .                  ' ignorable direction'
+            write (*,*)
           endif
-          if (nzz == 1) then
-            zmin = 0d0
-            zmax = 1d-3
+          if (nzz == 1 .and. ((zmax-zmin)>1d-3)) then
+            write (*,*)
+            write (*,*) 'Warning: large grid spacing in',
+     .                  ' ignorable direction'
+            write (*,*)
           endif
         endif
 
