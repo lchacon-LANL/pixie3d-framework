@@ -2,8 +2,8 @@ c module xdraw_io
 c ######################################################################
       module xdraw_io
 
-        integer(4)     :: ngraph
-        parameter        (ngraph=30)
+        integer(4)     :: ngraph,xdraw_cont_lim
+        parameter        (ngraph=30,xdraw_cont_lim=16)
 
       contains
 
@@ -210,7 +210,7 @@ c     Begin program
         enddo
         write (mfile,'(/,a)') 'iqty       options     window title'
 
-        lim = i-1
+        lim = min(i-1,xdraw_cont_lim)
         do i=1,lim
           if (variables(i) > 0) then
             write (mfile,'(i2,4a)') variables(i)
