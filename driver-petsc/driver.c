@@ -3,7 +3,8 @@ static char help[] = "Options:                           \n\
         -ilevel <ilevel>: level of output info           \n\
                                                          \n\
      SOLVER:                                             \n\
-	-snes_mf : use matrix-free Newton methods        \n\
+	-snes_mf: use matrix-free (mandatory)            \n\
+        -aspc_its <its>: number of ASM iterations        \n\
         -aspc_its <its>: number of ASM iterations        \n\
         -id_PC: identity preconditioner                  \n\
                                                          \n\
