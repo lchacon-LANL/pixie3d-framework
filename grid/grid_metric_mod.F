@@ -436,6 +436,8 @@ c     Local variables
 cc        real(8),allocatable,dimension(:,:,:,:)   :: xc
         real(8),allocatable,dimension(:,:,:,:,:) :: dr
 
+        logical :: vmec_met=.false.,vmec_mets=.false.
+
 c     Begin program
 
         igx = igrid
@@ -549,12 +551,24 @@ c       NUMERICAL QUANTITIES ***********************************
             elseif (coords == 'vmc') then
 
 cc              if (igrid == 1) then
-              
+
+                vmec_met = .false.
+
+cc                vmec_mets = vmec_met
+                vmec_mets = vmec_met .and. (igrid == 1)
+
                 nxf=ihi-ilo+1
                 nyf=jhi-jlo+1
                 nzf=khi-klo+1
 
-                call vmec_map(igrid,nxf,nyf,nzf,xc) !External
+                call vmec_map(igrid,nxf,nyf,nzf,xc,vmec_mets) !External
+
+                if (vmec_mets) then
+                  call vmec_metrics(igrid,nxf,nyf,nzf         !External
+     .                             ,g_metric%grid(igrid)%jac
+     .                             ,g_metric%grid(igrid)%gsub
+     .                             ,g_metric%grid(igrid)%gsup)
+                endif
 
 cc                do i=1,3
 cc                  call map_bc(igrid,nxf,nyf,nzf,xc(:,:,:,i),iorder=2)
@@ -640,51 +654,62 @@ cc             endif
 cc              call map_bc(igrid,nx,ny,nz,dr(:,:,:,i,j),IBC=DEF,iorder=2)
             enddo
           enddo
-
+          
           !Evaluate grid quantities
           do k = klom,khip
             do j = jlom,jhip
               do i = ilom,ihip
                 r = dr(i,j,k,:,:)
 
-                !Evaluate Jacobian
-                jac = triple_product(r(1,:),r(2,:),r(3,:))
+                !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+                if (.not.vmec_mets) then
+                  jac = triple_product(r(1,:),r(2,:),r(3,:))
+                  g_metric%grid(igrid)%jac(i,j,k) = jac
+                else
+                  jac = g_metric%grid(igrid)%jac(i,j,k)
+                endif
 
                 if (jac == 0d0) then
-                  write (*,*) i,j,k,r
-                  call pstop('findGridMetrics','Negative jacobian')
+                  write (*,*) i,j,k,r,jac
+                  call pstop('findGridMetrics','Zero jacobian')
                   stop
                 endif
 
                 ijac = 1d0/jac
 
-                !Contravariant vectors
+                !Contravariant vectors <<<<<<<<<<<<<<<<<<<
                 cnv(:,:) = r(:,:)*ijac
 
-                !Covariant vectors
+                g_metric%grid(igrid)%cnv(i,j,k,:,:) = cnv
+
+                !Covariant vectors <<<<<<<<<<<<<<<<<<<<<<
                 cov(1,:) = cross_product(r(2,:),r(3,:))
                 cov(2,:) = cross_product(r(3,:),r(1,:))
                 cov(3,:) = cross_product(r(1,:),r(2,:))
 
                 cov = cov*ijac
 
-                !Metric tensors
-                do m=1,3
-                  do l=m,3
-                    gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
-                    gsub(m,l) = gsub(l,m) !Symmetry
-                    gsup(l,m) = jac*dot_product(cov(l,:),cov(m,:))
-                    gsup(m,l) = gsup(l,m) !Symmetry
-                  enddo
-                enddo
+                g_metric%grid(igrid)%cov(i,j,k,:,:) = cov
 
-                !Grid spacings
+                !Metric tensors <<<<<<<<<<<<<<<<<<<<<<<<
+                if (.not.vmec_mets) then
+                  do m=1,3
+                    do l=m,3
+                      gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
+                      gsub(m,l) = gsub(l,m) !Symmetry
+                      gsup(l,m) = jac*dot_product(cov(l,:),cov(m,:))
+                      gsup(m,l) = gsup(l,m) !Symmetry
+                    enddo
+                  enddo
+                  g_metric%grid(igrid)%gsub(i,j,k,:,:) = gsub
+                  g_metric%grid(igrid)%gsup(i,j,k,:,:) = gsup
+                endif
+
+                !Christoffel symbols <<<<<<<<<<<<<<<<<<
                 call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
                 dh(1) = grid_params%dxh(ig)
                 dh(2) = grid_params%dyh(jg)
                 dh(3) = grid_params%dzh(kg)
-
-                !Christoffel symbols
 
                 if (i==ilom) then
                   i0=ilo
@@ -795,14 +820,7 @@ cc              call map_bc(igrid,nx,ny,nz,dr(:,:,:,i,j),IBC=DEF,iorder=2)
                   enddo
                 enddo
 
-                !Store grid quantities
-                g_metric%grid(igrid)%jac  (i,j,k)       = jac
-                g_metric%grid(igrid)%gsub (i,j,k,:,:)   = gsub
-                g_metric%grid(igrid)%gsup (i,j,k,:,:)   = gsup
                 g_metric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
-                g_metric%grid(igrid)%cov  (i,j,k,:,:)   = cov
-                g_metric%grid(igrid)%cnv  (i,j,k,:,:)   = cnv
-
               enddo
             enddo
           enddo
@@ -1977,6 +1995,8 @@ c     -----------------------------------------------------------------
       integer(4),parameter :: nvar=25
       character(30) :: descr(nvar)
 
+      logical :: dump_diff
+
 c     Begin program
 
 c     Output
@@ -1987,7 +2007,9 @@ c     Output
       write (*,*) '**********************************'
       write (*,*)
 
-      if (anal_map) then
+      dump_diff = anal_map.and.(.not.numerical_grid)
+
+      if (dump_diff) then
         write(*,*)'Analytical mapping available; dumping diffs...'
       else
         write(*,*)'Analytical mapping UNavailable; dumping full qtys...'
@@ -2027,7 +2049,7 @@ c     Dump quantities
         do j=0,ny+1
           do i=0,nx+1
             dbg(i,j,1,1) = g_metric%grid(igrid)%jac(i,j,k)
-            if (anal_map) dbg(i,j,1,1) = dbg(i,j,1,1)
+            if (dump_diff) dbg(i,j,1,1) = dbg(i,j,1,1)
      .                    -jacobian(i,j,k,igrid,igrid,igrid)
           enddo
         enddo
@@ -2043,7 +2065,7 @@ c     Dump quantities
               do i=0,nx+1
                 dbg(i,j,1,1) = g_metric%grid(igrid)%gsub(i,j,k,l,m)
      .                        *g_metric%grid(igrid)%jac(i,j,k)
-                if (anal_map) then
+                if (dump_diff) then
                   tensor(:,:,1)  = g_sub(i,j,k,igrid,igrid,igrid)
                   dbg(i,j,1,1) = dbg(i,j,1,1)
      .                        -tensor(l,m,1)
@@ -2066,7 +2088,7 @@ c     Dump quantities
               do i=0,nx+1
                 dbg(i,j,1,1) = g_metric%grid(igrid)%cnv(i,j,k,l,m)
      .                          *g_metric%grid(igrid)%jac(i,j,k)
-                if (anal_map) then
+                if (dump_diff) then
                   vec = contravariantVector(l,i,j,k,igrid,igrid,igrid)
                   dbg(i,j,1,1) = dbg(i,j,1,1)-vec(m)
                 endif
@@ -2089,7 +2111,7 @@ cc              do j=0,ny+1
 cc                do i=0,nx+1
 cc                  dbg(i,j,1,1) = g_metric%grid(igrid)%Gamma(i,j,k,l,m,n)
 cc     .                          *g_metric%grid(igrid)%jac(i,j,k)
-cc                  if (anal_map) then
+cc                  if (dump_diff) then
 cc                    tensor  = christ_2knd(i,j,k,igrid,igrid,igrid)
 cc                    dbg(i,j,1,1) = dbg(i,j,1,1)
 cc     .                          -tensor(l,m,n)
