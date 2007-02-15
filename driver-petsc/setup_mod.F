@@ -951,7 +951,6 @@ c ######################################################################
         integer(4) :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
      .               ,iggx,iggy,iggz,iig,jjg,kkg
 
-        integer(4),parameter :: xdraw_cont_lim=16
         integer(4) :: sel_diag (xdraw_cont_lim)
      .               ,sel_graph(xdraw_cont_lim)
 
@@ -987,11 +986,11 @@ c ######################################################################
         integer(4)     :: ilevel
 
         integer(4)     :: urecord=10000,usave=20000,uinput=25
-        character*(20) :: recordfile='record.bin',recordsave,inputfile
+        character*(50) :: recordfile='record.bin',recordsave,inputfile
 
         integer(4)     :: nfiles,ifile
         integer(4)    ,allocatable,dimension(:) :: murecord,musave
-        character*(20),allocatable,dimension(:) :: mrecfile,mrecsave
+        character*(50),allocatable,dimension(:) :: mrecfile,mrecsave
 
         logical        :: debug,clean=.false.
 
