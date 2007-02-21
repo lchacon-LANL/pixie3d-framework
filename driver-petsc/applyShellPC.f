@@ -61,8 +61,8 @@ c Setup parallel BC flags for PC
       iout = ilevel - 3
 
       if (iout >= 0) then
-        write (*,*) 'Proc ',my_rank,': asm    in applyPC',asm
-        write (*,*) 'Proc ',my_rank,': par_bc in applyPC',par_bc
+        write (*,*) 'Proc ',my_rank,': asm    in applyShellPC',asm
+        write (*,*) 'Proc ',my_rank,': par_bc in applyShellPC',par_bc
       endif
 
 c Call fortran PC routine
