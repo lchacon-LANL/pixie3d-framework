@@ -35,6 +35,7 @@ c Call variables
         real(8)    :: damp
         real(8)    :: dt
         real(8)    :: tmax
+        real(8)    :: mf_eps
         integer(4) :: ilevel
         integer(4) :: nxd
         integer(4) :: nyd
@@ -109,6 +110,7 @@ c Define structure components
       inputdata%damp     = damp   
       inputdata%dt       = dt   
       inputdata%tmax     = tmax
+      inputdata%mf_eps   = mf_eps
 
 c End program
 
