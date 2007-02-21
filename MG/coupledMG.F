@@ -1551,27 +1551,27 @@ c     Initialize solution on coarse grid
 
 c     If on coarsest grid, solve for error, else descend a grid level
 
-#if defined(petsc)
-        if ((np > 1)
-     .      .and. (    MGgrid%ngrdx == igc    !Grid-level based criterion
-     .             .or.MGgrid%ngrdy == igc
-     .             .or.MGgrid%ngrdz == igc)
-cc     .      .and. (    MGgrid%nxgl(igc) >= 32 !Coarse grid size criterion
-cc     .             .or.MGgrid%nygl(igc) >= 32
-cc     .             .or.MGgrid%nzgl(igc) >= 32
-cc     .             .or.MGgrid%nxgl(igc)
-cc     .                *MGgrid%nygl(igc)
-cc     .                *MGgrid%nzgl(igc) >= 1024)
-     .  ) then
-
-          write (*,*) 'DIAG -- mcycle at coarseGridSolve: proc=',my_rank
-
-          call coarseGridSolve(igc)     !Perform parallel coarse grid solve
-
-        elseif (igc.eq.igmax) then
-#else
+cc#if defined(petsc)
+cc        if ((np > 1)
+cc     .      .and. (    MGgrid%ngrdx == igc    !Grid-level based criterion
+cc     .             .or.MGgrid%ngrdy == igc
+cc     .             .or.MGgrid%ngrdz == igc)
+cccc     .      .and. (    MGgrid%nxgl(igc) >= 32 !Coarse grid size criterion
+cccc     .             .or.MGgrid%nygl(igc) >= 32
+cccc     .             .or.MGgrid%nzgl(igc) >= 32
+cccc     .             .or.MGgrid%nxgl(igc)
+cccc     .                *MGgrid%nygl(igc)
+cccc     .                *MGgrid%nzgl(igc) >= 1024)
+cc     .  ) then
+cc
+cc          write (*,*) 'DIAG -- mcycle at coarseGridSolve: proc=',my_rank
+cc
+cc          call coarseGridSolve(igc)     !Perform parallel coarse grid solve
+cc
+cc        elseif (igc.eq.igmax) then
+cc#else
         if (igc.eq.igmax) then
-#endif
+cc#endif
           call coarseSolve(igc)         !Perform coarse grid solve
         else
           do imu = 1,mu
