@@ -39,9 +39,11 @@ c Find local limits
       call fromGlobalToLocalLimits(imaxgc ,jmaxgc ,kmaxgc
      $                            ,imaxgcl,jmaxgcl,kmaxgcl,1,1,1)
 
-c Unpack petsc array
+c Store u_n -> u_nm (for 3 level method)
 
       u_nm = u_n
+
+c Unpack petsc array x -> u_n
 
       do ieq=1,neqd
         u_n%array_var(ieq)
@@ -49,11 +51,17 @@ c Unpack petsc array
      .       = x(imingc:imaxgc,jmingc:jmaxgc,kmingc:kmaxgc)%var(ieq)
       enddo
 
-c Evaluate nonlinear function Fi(Uj) at time level (n+1)
+c Postprocess u_n
+
+      if (postprocess.and.(itime.ge.inewtime)) then
+        call postProcessSol(u_n)
+      endif
+
+c Evaluate nonlinear function Fi(Uj) at time level n
 
       call evaluateNonlinearFunction(u_n,fold)
 
-c Time level plots (xdraw)
+c Time level plots
 
       if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
         nrst  = 0
@@ -68,6 +76,17 @@ c Output per time step
       itnewt  = nwits
 
       call output
+
+c Return u_n in x if postprocessed
+
+      if (postprocess.and.(itime.ge.inewtime)) then
+        do ieq=1,neqd
+          x(imingc:imaxgc,jmingc:jmaxgc,kmingc:kmaxgc)%var(ieq)
+     .        = u_n%array_var(ieq)%array(imingcl:imaxgcl
+     .                                  ,jmingcl:jmaxgcl
+     .                                  ,kmingcl:kmaxgcl)
+        enddo
+      endif
 
 c End program
 
