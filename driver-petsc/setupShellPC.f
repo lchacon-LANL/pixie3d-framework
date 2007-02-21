@@ -58,6 +58,10 @@ c Store nonlinear iteration (for PC preprocessing and diagnostics)
 
       jit = nl_it + 1
 
+c Setup parallel BC flags to indicate PETSc provides BCs for varray
+
+      call setup_petsc_BC
+
 c Call PC fortran setup routine
 
       call setupPreconditioner(varray)

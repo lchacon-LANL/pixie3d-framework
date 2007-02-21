@@ -52,6 +52,10 @@ c Unpack petsc array
      .       = x(imingc:imaxgc,jmingc:jmaxgc,kmingc:kmaxgc)%var(ieq)
       enddo
 
+c Setup parallel BC flags to indicate PETSc provides BCs
+
+      call setup_petsc_BC
+
 c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
       call evaluateNonlinearFunction(varray,ff)

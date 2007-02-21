@@ -22,6 +22,8 @@ c----------------------------------------------------------------------
 
       use icond
 
+      use precond_setup
+
       implicit none
 
 c Call variables
@@ -52,9 +54,18 @@ c Begin program
         enddo
       enddo
 
-c Call PC fortran setup routine
+c Setup parallel BC flags for PC
+
+      call setASMflag(asm_PC.and.(np>1))
 
       iout = ilevel - 3
+
+      if (iout >= 0) then
+        write (*,*) 'Proc ',my_rank,': asm    in applyPC',asm
+        write (*,*) 'Proc ',my_rank,': par_bc in applyPC',par_bc
+      endif
+
+c Call fortran PC routine
 
       call applyPreconditioner(ntotd,y,x,iout)
 
