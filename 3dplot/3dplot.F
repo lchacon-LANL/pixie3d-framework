@@ -186,7 +186,7 @@ c Begin program
 
 c End program
 
- 10   format (/,'  Grid mesh:................',i4,'x',i3,'x',i3
+ 10   format (/,'  Grid mesh:................',i4,'x',i4,'x',i4
      .        /,'  Number of grid levels:....',i4,',',i2,',',i2)
  100  format ('   itime      time')
  110  format (i7,2x,1p,e10.2)
