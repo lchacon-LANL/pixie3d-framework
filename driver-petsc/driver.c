@@ -49,6 +49,7 @@ typedef struct {
   PetscReal  damp;
   PetscReal  dt;
   PetscReal  tmax;
+  PetscReal  mf_eps;
   int        ilevel;
   int        nxd;
   int        nyd;
@@ -178,6 +179,11 @@ int MAIN__(int argc, char **argv)
   MPI_Comm_rank(PETSC_COMM_WORLD, &my_rank);
   MPI_Comm_size(PETSC_COMM_WORLD, &np);
 
+  /* Set profiling stages */
+
+  ierr = PetscLogStageRegister(&stages[0],"General setup")	                ;CHKERRQ(ierr);
+  ierr = PetscLogStageRegister(&stages[1],"Sol. processing")                    ;CHKERRQ(ierr);
+  ierr = PetscLogStageRegister(&stages[2],"SNES solve")                         ;CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Set problem parameters
@@ -252,12 +258,6 @@ int MAIN__(int argc, char **argv)
 
   ierr = PetscOptionsGetLogical(PETSC_NULL,"-asm_PC",&user.indata.asm_PC,PETSC_NULL)   ;CHKERRQ(ierr);
 
-  /* Set profiling stages */
-
-  ierr = PetscLogStageRegister(&stages[0],"General setup")	                ;CHKERRQ(ierr);
-  ierr = PetscLogStageRegister(&stages[1],"Sol. processing")  ;CHKERRQ(ierr);
-  ierr = PetscLogStageRegister(&stages[2],"SNES solve")                         ;CHKERRQ(ierr);
-
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create DA context 
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  */
@@ -309,7 +309,7 @@ int MAIN__(int argc, char **argv)
 
     ierr = SNESGetKSP (snes, &ksp)                                             	;CHKERRQ(ierr);
     ierr = KSPSetType (ksp,KSPFGMRES)                                          	;CHKERRQ(ierr);
-    /*ierr = KSPSetType (ksp,KSPGMRES)                                          	;CHKERRQ(ierr);*/
+    /*ierr = KSPSetType (ksp,KSPGMRES)                                         	;CHKERRQ(ierr);*/
     ierr = KSPSetTolerances(ksp,tolgm,PETSC_DEFAULT,PETSC_DEFAULT,maxitgm)      ;CHKERRQ(ierr);
     ierr = KSPSetPreconditionerSide(ksp,PC_RIGHT);                             	;CHKERRQ(ierr);
     ierr = KSPSetMonitor(ksp,MyKSPMonitor,(void*)&user,PETSC_NULL)             	;CHKERRQ(ierr);
@@ -346,6 +346,9 @@ int MAIN__(int argc, char **argv)
   /* Initialize SNES (needed to get solution and Jacobian later) */
 
   ierr = SNESSetUp(snes,x)                                                      ;CHKERRQ(ierr);
+
+  ierr = SNESGetJacobian(snes,&user.J,PETSC_NULL,PETSC_NULL,PETSC_NULL)         ;CHKERRQ(ierr);
+  ierr = MatSNESMFSetFunctionError(user.J,user.indata.mf_eps)                   ;CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize calculation 
@@ -753,17 +756,18 @@ int ProcessOldSolution(SNES snes,Vec X,void *ptr)
 				   ,&user->ksp_its,&user->snes_its);
 #endif
 
+  /* 
+   * Restore vectors
+   */
+  ierr = DAVecRestoreArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
+  ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
+  ierr = DALocalToGlobal(user->da,localX,INSERT_VALUES,X);CHKERRQ(ierr);
+
   /*
    * Correct time step
    */
 
   ierr = correctTimeStep(snes,X,user);CHKERRQ(ierr);
-
-  /* 
-   * Restore vectors 
-   */
-  ierr = DAVecRestoreArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
-  ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
