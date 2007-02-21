@@ -74,8 +74,8 @@ c Invoke solver
 c Check convergence
 
       if (options%tol_out.gt.options%tol.and.out.ge.2) then
-        write (*,100) solver,options%tol_out,options%tol
-c        stop
+        if (my_rank == 0)
+     .     write (*,100) solver,options%tol_out,options%tol
       endif
 
 c Output information
@@ -84,8 +84,6 @@ c Output information
       solver_def%options%iter_out = options%iter_out
 
       call writeSolverHierarchy(solver_def,depth)
-
-cc      write (*,*) options%iter_out
 
 c End program
 
