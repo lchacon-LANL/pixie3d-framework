@@ -433,7 +433,6 @@ c     Local variables
         integer(4) :: ii,nxf,nyf,nzf,nxc,nyc,nzc,nx,ny,nz
 
         real(8),pointer,dimension(:,:,:,:)   :: xc
-cc        real(8),allocatable,dimension(:,:,:,:)   :: xc
         real(8),allocatable,dimension(:,:,:,:,:) :: dr
 
         logical :: vmec_met=.false.,vmec_mets=.false.
@@ -513,7 +512,6 @@ c       NUMERICAL QUANTITIES ***********************************
               nzf=khi-klo+1
 
               xc = xcr
-
             else
               nxf=size(xcr,1)
               nyf=size(xcr,2)
