@@ -15,3 +15,7 @@ SUBDIRS = $(COMMONDIR)/math \
 
 MODS = setup_mod.F driver_mod.F
 
+#Setup defs.
+
+LNK_FILES = ../driver-petsc/setup_mod.F\
+            ../driver-petsc/driver_mod.F
