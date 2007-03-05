@@ -137,7 +137,7 @@ c     Call variables
 
 c     Local variables
 
-      integer(4) :: i,j,k,ig,jg,kg,jj,ilog,nyg,jglobal
+      integer(4) :: i,j,k,ig,jg,kg,jj,ilog,jlog,nyg,jglobal
 
 #if defined(petsc)
       real(8)    :: garray(nybc*npy,nzbc)
@@ -147,7 +147,8 @@ cc     .             ,global_x(nybc*nzbc*npy)
 
 c     Begin program
 
-      ilog = grid_params%ilo(1)
+      ilog = grid_params%ilo(igxbc)
+      jlog = grid_params%jlo(igybc)
 
       if (npy < 1) call pstop('scalarSingularBC','npy < 1')
 
@@ -189,7 +190,7 @@ c     Element exchange in poloidal direction
 
       do k=1,nzbc
         do j=1,nybc
-          jglobal = j + grid_params%jlo(1) - 1
+          jglobal = j + jlog - 1
           jj = mod(jglobal+nyg/2,nyg)
           if (jj == 0) jj = nyg
 #if defined(petsc)
@@ -356,21 +357,20 @@ c     Call variables
 
 c     Local variables
 
-      integer(4) :: i,j,k,jj,ilog,nyg,jglobal
+      integer(4) :: i,j,k,jj,ilog,jlog,nyg,jglobal
 
 #if defined(petsc)
       real(8)    :: garray(nybc*npy,nzbc)
-cc     .             ,local_x(nybc*nzbc)
-cc     .             ,global_x(nybc*nzbc*npy)
 #endif
 
 c     External
 
 c     Begin program
 
-      ilog = grid_params%ilo(1)
+      ilog = grid_params%ilo(igxbc)
+      jlog = grid_params%jlo(igybc)
 
-      if (npy < 1) call pstop('scalarSingularBC','npy < 1')
+      if (npy < 1) call pstop('vectorSingularBC','npy < 1')
 
       nyg = nybc*npy
 
@@ -410,7 +410,7 @@ c     Element exchange in poloidal direction
       if (coords == 'hl2') then
         do k=1,nzbc
           do j=1,nybc
-            jglobal = j + grid_params%jlo(1) - 1
+            jglobal = j + jlog - 1
             jj = mod(jglobal+nyg/2,nyg)
             if (jj == 0) jj = nyg
 
@@ -424,7 +424,7 @@ c     Element exchange in poloidal direction
       else
         do k=1,nzbc
           do j=1,nybc
-            jglobal = j + grid_params%jlo(1) - 1
+            jglobal = j + jlog - 1
             jj = mod(jglobal+nyg/2,nyg)
             if (jj == 0) jj = nyg
 
@@ -1194,6 +1194,25 @@ c     Find covariant components at ALL boundary ghost cells
           enddo
         enddo
 
+        if (coords == 'vmc') then
+          bctype=SP
+          do dim=1,3
+            do loc=0,1
+              ibc = (1+loc)+2*(dim-1)
+
+              do ivar = 1,ncomp
+                ieq = ivar + fcomp - 1
+
+                if (abs(bcond(ibc,ivar)) == bctype) then
+                  call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cov
+     .                                 ,var0,cnv=.false.)
+                endif
+              enddo
+
+            enddo
+          enddo
+        endif
+
       endif
 
 c     End program
@@ -1406,7 +1425,7 @@ c       * loc    -> location in dimension (0 -> right, 1 -> left)
 c       * bctype -> type of BC (dirichlet, neumann, periodic, etc.)
 c       * array  -> real array with ghost-nodes
 c       * array0 -> auxiliary real array
-c       * cov    -> whether vector components are covariant (optional)
+c       * cnv    -> whether vector components are contravariant (optional)
 c     ---------------------------------------------------------------
 
       implicit none       !For safe fortran
