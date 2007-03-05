@@ -4,8 +4,6 @@ c #####################################################################
 
         use iosetup
 
-        use graphics_variables
-
         use xdraw_io
 
         use grid

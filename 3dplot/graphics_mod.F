@@ -5,8 +5,6 @@ c ######################################################################
 
         use grid
 
-        use graphics_variables
-
         use xdraw_graphics
 
         use HDF5_graphics
