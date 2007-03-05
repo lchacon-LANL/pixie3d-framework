@@ -1,16 +1,82 @@
+
+c module graphics_variables
+c ######################################################################
+      module graphics_variables
+
+        integer(4)     :: ngraph,xdraw_cont_lim,ngroups
+        parameter        (ngraph=30,xdraw_cont_lim=16)
+
+        real(8), allocatable, dimension(:) :: xl,yl,zl
+
+        type :: graph_var_def
+          real(8),pointer,dimension(:,:,:) :: array
+          character(20)                    :: descr
+          character(20)                    :: vector_name=''
+        end type graph_var_def
+
+        type :: graph_group
+          type (graph_var_def),dimension(ngraph) :: array_graph
+          logical                                :: cartesian
+          character(20)                          :: descr
+        end type graph_group
+
+        type (graph_group),pointer,dimension(:) :: graph
+
+        integer(4),allocatable,dimension(:) :: nqty
+
+        logical    :: plot
+
+#if defined(petsc)
+        logical    :: hdf_plot=.true.
+#else
+        logical    :: hdf_plot=.false.
+#endif
+
+        integer(4) :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
+     .               ,iggx,iggy,iggz,iig,jjg,kkg
+
+        integer(4) :: sel_diag (xdraw_cont_lim)
+     .               ,sel_graph(xdraw_cont_lim)
+
+        integer(4) :: ndplot
+        real(8)    :: dplot,tmplot
+
+        integer(4) :: iplot=1,jplot=1,kplot=1
+
+        !Profile conf
+        type :: prof_info
+          integer(4)     :: line = 1
+          character*(3)  :: label = 'x'
+          integer(4)     :: coords(3) = (/1,1,1/)
+        end type prof_info
+
+        type(prof_info),save :: prof_conf
+
+        !Contour conf
+        type :: cont_info
+          integer(4)     :: plane = 3
+          character*(3)  :: label(2) = (/'x','y'/)
+          integer(4)     :: coords(3)= (/1,1,1/)
+        end type cont_info
+
+        type(cont_info),save :: cont_conf
+
+      end module graphics_variables
+
 c module xdraw_io
 c ######################################################################
       module xdraw_io
 
-        integer(4)     :: ngraph,xdraw_cont_lim
-        parameter        (ngraph=30,xdraw_cont_lim=16)
+      use graphics_variables
 
-      contains
+cc      contains
+
+      end module xdraw_io
 
 c     contour
 c     #####################################################################
       subroutine contour(arr,nx,ny,xmin,xmax,ymin,ymax,iopt,nunit)
-      implicit none               !For safe fortran
+
 c     ---------------------------------------------------------------------
 c     Contours 2D array in xdraw format. In call:
 c       * arr: 2D array to be plotted
@@ -19,6 +85,10 @@ c       * xmin,xmax,ymin,ymax: 2D domain limits
 c       * iopt: whether to initialize xdraw plot (iopt=0) or not.
 c       * nunit: integer file identifier.
 c     ---------------------------------------------------------------------
+
+cc      use graphics_variables
+
+      implicit none               !For safe fortran
 
 c     Call variables
 
@@ -72,6 +142,8 @@ c                      draw.in file.
 c       * spline     : logical variable that specifies whether 
 c                      xdraw should do spline interpolations or not.
 c     ----------------------------------------------------------------
+
+        use graphics_variables
 
         implicit none
 
@@ -166,6 +238,8 @@ c     ----------------------------------------------------------------
 c     Creates drawfile for "M-type" xdraw graphics.
 c     ----------------------------------------------------------------
 
+        use graphics_variables
+
         implicit none
 
 c     Call variables
@@ -243,6 +317,8 @@ c     ----------------------------------------------------------------
 c     Creates drawfile for "C-type" xdraw graphics.
 c     ----------------------------------------------------------------
 
+        use graphics_variables
+
         implicit none
 
 c     Call variables
@@ -288,5 +364,3 @@ c     Begin program
 c     End program
 
       end subroutine createDrawInCfile
-
-      end module xdraw_io
