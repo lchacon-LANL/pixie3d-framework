@@ -253,6 +253,8 @@ c Initialize MPI parameters (parallel version)
 
 #if defined(petsc)
       call initMPI(nxd,nyd,nzd)
+
+      call setASMflag(.false.)
 #endif
 
 c Open graphics files (this initializes local limits, among other things)
@@ -267,12 +269,6 @@ c Initialize MG and create grid
 
       call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd
      .               ,gpack=g_pack)
-
-c Create fortran PETSc parallel grid hierarchy (parallel version)
-
-#if defined(petsc)
-      call createPETScGrid
-#endif
 
 c Define application arrays (external)
 
