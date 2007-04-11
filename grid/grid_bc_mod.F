@@ -1204,8 +1204,8 @@ c     Find covariant components at ALL boundary ghost cells
                 ieq = ivar + fcomp - 1
 
                 if (abs(bcond(ibc,ivar)) == bctype) then
-                  call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cov
-     .                                 ,var0,cnv=.false.)
+                  call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
+     .                               ,v_cov,var0,cnv=.false.)
                 endif
               enddo
 
