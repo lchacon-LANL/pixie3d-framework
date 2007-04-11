@@ -22,8 +22,9 @@ c##########################################################################
 c Local variables
 
       integer(4)     :: i,j,k,ig,jg,kg
-      integer(4)     :: ierr,system,nplot,igx,igy,igz
+      integer(4)     :: ierr,gierr,system,nplot,igx,igy,igz
       character*(40) :: command
+      logical        :: exitloop
 
 c Begin program
 
@@ -54,10 +55,21 @@ c     Read next record
 
         call readTimeStep(u_np,ierr)
 
+c     Gather error info
+
+#if defined(petsc)
+        call MPI_Allreduce(ierr,gierr,1,MPI_INTEGER,MPI_SUM
+     .                    ,MPI_COMM_WORLD,mpierr)
+        exitloop = (gierr /= 0)
+#else
+        exitloop = (ierr  /= 0)
+#endif
+        
 c     Check for error
 
-        if (ierr == -1) cycle  !Error, but not EOF
-        if (ierr == -2) exit   !EOF
+cc        if (ierr == -1) cycle  !Error, but not EOF
+cc        if (ierr == -2) exit   !EOF
+        if (exitloop) exit
 
 c     Update counters
 
