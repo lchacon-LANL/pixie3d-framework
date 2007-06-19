@@ -1194,7 +1194,12 @@ c     Find covariant components at ALL boundary ghost cells
           enddo
         enddo
 
+c       Impose BCs on covariant components
+
         if (coords == 'vmc') then
+
+c         Impose SP BCs
+
           bctype=SP
           do dim=1,3
             do loc=0,1
@@ -1211,6 +1216,29 @@ c     Find covariant components at ALL boundary ghost cells
 
             enddo
           enddo
+
+c         Fill edges
+
+          do dim=1,3
+            do loc=0,1
+              do ivar=1,ncomp
+                call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+     .                        ,dim,loc,bcond(:,ivar))
+              enddo
+            enddo
+          enddo
+
+c         Fill corners
+
+          do dim=1,3
+            do loc=0,1
+              do ivar=1,ncomp
+                call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+     .                          ,dim,loc,bcond(:,ivar))
+              enddo
+            enddo
+          enddo
+
         endif
 
       endif
