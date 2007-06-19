@@ -46,7 +46,7 @@ c       generic HDF5 variables
      .                         attr_dim = (/ARRAY_RANK/)
         integer(hsize_t), dimension(VEXP_RANK ) ::
      .                         vexp_dim = (/VEXP_RANK/)
-        integer(4), dimension(7)                :: array_dim_i 
+        integer(hsize_t), dimension(7)       :: array_dim_i 
 
         character(20), dimension(ARRAY_RANK) :: coords_descr
      .                                            = (/'X','Y','Z'/)
