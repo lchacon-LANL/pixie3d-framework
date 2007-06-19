@@ -445,7 +445,6 @@ c Restarted GMRES loop
 
       do irstrt = 1,rstrt
 
-cc        ro = sqrt(sum(vv(:,1)*vv(:,1)))
         if (stp_test /= 1) ro = sqrt(dot(ntot,vv(:,1),vv(:,1)))
 
         tt = 1.0d0/ro
