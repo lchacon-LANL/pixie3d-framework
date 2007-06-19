@@ -261,13 +261,9 @@ c Read user initializations
 
       call readGraphicsInput
 
-c Initialize MPI parameters (parallel version)
+c Initialize MG and create grid
 
-#if defined(petsc)
-      call initMPI(nxd,nyd,nzd)
-
-      call setASMflag(.false.)
-#endif
+      call createGrid(nxd,nyd,nzd,g_pack)
 
 c Open graphics files (this initializes local limits, among other things)
 
@@ -276,11 +272,6 @@ c Open graphics files (this initializes local limits, among other things)
 c Initialize vector dimensions
 
       call setVectorDimensions
-
-c Initialize MG and create grid
-
-      call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd
-     .               ,gpack=g_pack)
 
 c Define application arrays (external)
 
