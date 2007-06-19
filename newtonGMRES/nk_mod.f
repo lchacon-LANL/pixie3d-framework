@@ -31,6 +31,8 @@ c module nk_mod
 c ###################################################################
       module nk_mod
 
+      use grid_mpi
+
       real(8), allocatable, dimension(:):: rk,xx0,xk
 
       real(8)    :: pdt,check
@@ -40,7 +42,7 @@ cc      real(8),parameter    :: epsmac=1d-15
 
       integer(4) :: jit=0
 
-      logical    :: pseudo_dt
+      logical    :: pseudo_dt,prnt
 
       type :: nk_options
         integer(4)   :: etak_meth=0
@@ -167,6 +169,8 @@ c     Local variables
 
 c     Begin program
 
+      prnt = (my_rank == 0)
+
 c     Find machine round-off
 
       if (epsmac == 0d0) call findRoundOff
@@ -193,15 +197,14 @@ c     Initialize variables
       nk_conf%nwt_it_out = 0
 
       if (ntit_max_acc > ntit_max_rej) then
-        write (*,*) 'Error in Newton input: ntit_max_acc > ntit_max_rej'
-        write (*,*) 'Aborting...'
-        stop
+        call pstop('nk'
+     $            ,'Error in Newton input: ntit_max_acc > ntit_max_rej')
       endif
 
       ierr     = 0
       itk      = 0
 
-      if (out.ge.1) write (*,200)
+      if (out.ge.1 .and. prnt) write (*,200)
 
       if (global == 2) then   !Activate pseudo-transient
         pseudo_dt = .true.
@@ -232,7 +235,8 @@ c     Evaluate rhs and norms
 
       call evaluateNewtonResidual(ntot,x,rk)
 
-      f0 = sqrt(sum(rk*rk))
+cPAR      f0 = sqrt(sum(rk*rk))
+      f0 = sqrt(dot(ntot,rk,rk))
 
       !Check if initial guess is exact, and if so exit Newton step
       if (f0.lt.atol) then
@@ -243,13 +247,16 @@ c     Evaluate rhs and norms
 
 c     Initial output
 
-      if (out.ge.1) write (*,210) 0,0d0,f0,1d0,1d0,pdt0,eta0,0
+      if (out.ge.1 .and. prnt)
+     $     write (*,210) 0,0d0,f0,1d0,1d0,pdt0,eta0,0
 
       if (out.ge.3) then
         call calculateResidualNorms(neq,ntot,-rk,residuals)
-        do i = 1,neq
-          write (*,320) i,residuals(i)
-        enddo
+        if (prnt) then
+          do i = 1,neq
+             write (*,320) i,residuals(i)
+          enddo
+        endif
       endif
 
 c     Start Newton iteration
@@ -290,7 +297,7 @@ c     Update counters
 c     Check for error in GMRES
 
         if (ierr.eq.1) then
-          write(*,*) 
+          if (prnt) write(*,*) 
      .          '   Exceeded maximum GMRES iterations (',gmmax,')'
           ierr = 0  !Use GMRES solution for Newton update regardless
         elseif (ierr.eq.-1) then !Got to atol in the Newton residual
@@ -313,19 +320,23 @@ c     Evaluate rhs and norms
 
         call evaluateNewtonResidual(ntot,x,rk)
 
-        fkp = sqrt(sum(rk*rk))
+cPAR        fkp = sqrt(sum(rk*rk))
+        fkp = sqrt(dot(ntot,rk,rk))
 
 c     Check Newton convergence/failure
 
         check = fkp/f0
 
-        if (out.ge.1) write(*,210)jit,dxnorm,fkp,check,damp,pdt,etak,itk
+        if (out.ge.1 .and. prnt)
+     $       write(*,210)jit,dxnorm,fkp,check,damp,pdt,etak,itk
 
         if (out.ge.3) then
           call calculateResidualNorms(neq,ntot,-rk,residuals)
-          do i = 1,neq
-            write (*,320) i,residuals(i)
-          enddo
+          if (prnt) then
+             do i = 1,neq
+                write (*,320) i,residuals(i)
+             enddo
+          endif
         endif
 
         if (fkp <= flimit .or.dxnorm <= stol) then
@@ -358,13 +369,14 @@ c     Check error in Newton convergence
 
       !No convergence: reject solution
       if (failure) then 
-        if (jit == ntit_max_rej) write (*,220) check
-        if (check > check_lim) write (*,230) check,check_lim
-        if (damp  < 1d-4) write (*,*) 'Damping parameter too small'
+        if (jit == ntit_max_rej .and. prnt) write (*,220) check
+        if (check > check_lim .and. prnt) write (*,230) check,check_lim
+        if (damp  < 1d-4 .and. prnt)
+     $       write (*,*) 'Damping parameter too small'
         ierr = 1
       !Accept solution, but warn user
       elseif ((jit-1).ge.ntit_max_acc) then 
-        write (*,240) ntit_max_acc
+        if (prnt) write (*,240) ntit_max_acc
         ierr = 2
       endif
 
@@ -441,7 +453,8 @@ c     Begin program
 
       x = x + damp*ddx
 
-      dxnorm = sqrt(sum(ddx*ddx))
+cc      dxnorm = sqrt(sum(ddx*ddx))
+      dxnorm = sqrt(dot(ntot,ddx,ddx))
 
 c     End program
 
@@ -532,13 +545,15 @@ c     Begin program
         dummy = x
         call updateNewtonSolution(dummy,ddx,ntot,damp,dxnorm)
         call evaluateNewtonResidual(ntot,dummy,b)
-        fkp = sqrt(sum(b*b))
+cPAR        fkp = sqrt(sum(b*b))
+        fkp = sqrt(dot(ntot,b,b))
         if (fkp.gt.(1.-alpha*damp)*fk) then
           dampm = sigma1*damp
           dummy = x
           call updateNewtonSolution(dummy,ddx,ntot,dampm,dxnorm)
           call evaluateNewtonResidual(ntot,dummy,b)
-          fm = sqrt(sum(b*b))
+cPAR          fm = sqrt(sum(b*b))
+          fm = sqrt(dot(ntot,b,b))
           if (fm.lt.(1.-alpha*dampm)*fk) then
             damp = dampm
             exit
@@ -568,7 +583,8 @@ cc          dampm = .5*damp
 cc          dummy = x
 cc          call updateNewtonSolution(dummy,ddx,ntot,dampm,dxnorm)
 cc          call evaluateNewtonResidual(ntot,dummy,b)
-cc          fm = sqrt(sum(b*b))
+cccPAR          fm = sqrt(sum(b*b))
+cc          fm = sqrt(dot(ntot,b,b))
 cc          theta = .5*(1.5*fk + 0.5*fkp - 2.*fm)/(fk + fkp - 2.*fm)
 cc          theta = fmedval(sigma0,sigma1,theta)
 cc          damp = damp*theta
@@ -712,7 +728,8 @@ c     Begin program
 
 c     Calculate magnitude of nonlinear residual
 
-      rold = sqrt(sum(rhs*rhs))
+cPAR      rold = sqrt(sum(rhs*rhs))
+      rold = sqrt(dot(ntot,rhs,rhs))
 
       eps1=eps*rold
 
@@ -739,9 +756,10 @@ c     Restarted FGMRES loop
 
       do irstrt = 1,rstrt
 
-        ro = sqrt(sum(vv(:,1)*vv(:,1)))
+cPAR        ro = sqrt(sum(vv(:,1)*vv(:,1)))
+        ro = sqrt(dot(ntot,vv(:,1),vv(:,1)))
 
-        if (iout .gt. 0 ) then
+        if (iout .gt. 0 .and. prnt) then
           if (its .eq. 0) then
             write (*,199) its, ro, ro/rold
           else
@@ -754,11 +772,11 @@ c     Restarted FGMRES loop
         t = 1d0/ro
         vv(:,1) = vv(:,1)*t
 
-c         Initialize 1-st term  of rhs of hessenberg system
+c       Initialize 1-st term  of rhs of hessenberg system
 
         rs(1) = ro
 
-c         FGMRES iteration
+c       FGMRES iteration
 
         do i = 1,im
 
@@ -772,12 +790,14 @@ c         FGMRES iteration
 c       Modified gram - schmidt.
 
           do j=1,i
-            t = sum(vv(:,j)*vv(:,i1))
+cPAR            t = sum(vv(:,j)*vv(:,i1))
+            t = dot(ntot,vv(:,j),vv(:,i1))
             hh(j,i) = t
             vv(:,i1) = vv(:,i1)-t*vv(:,j)
           enddo
 
-          t = sqrt(sum(vv(:,i1)*vv(:,i1)))
+cPAR          t = sqrt(sum(vv(:,i1)*vv(:,i1)))
+          t = sqrt(dot(ntot,vv(:,i1),vv(:,i1)))
           hh(i1,i) = t
 
           if (t.ne.0d0) then
@@ -817,7 +837,7 @@ c       Determine residual norm and test for convergence
           hh(i,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
           ro = abs(rs(i1))
 
-          if (iout .gt. 0) then
+          if (iout .gt. 0 .and. prnt) then
             write(*, 199) its, ro, ro/rold
           endif
 
@@ -966,7 +986,8 @@ c     Begin program
 
 c     Calculate magnitude of nonlinear residual
 
-      rold = sqrt(sum(rhs*rhs))
+cPAR      rold = sqrt(sum(rhs*rhs))
+      rold = sqrt(dot(ntot,rhs,rhs))
 
       eps1=eps*rold
 
@@ -993,9 +1014,10 @@ c     Restarted FGMRES loop
 
       do irstrt = 1,rstrt
 
-        ro = sqrt(sum(vv(:,1)*vv(:,1)))
+cPAR        ro = sqrt(sum(vv(:,1)*vv(:,1)))
+        ro = sqrt(dot(ntot,vv(:,1),vv(:,1)))
 
-        if (iout .gt. 0 ) then
+        if (iout .gt. 0 .and. prnt) then
           if (its .eq. 0) then
             write (*,199) its, ro, ro/rold
           else
@@ -1026,12 +1048,14 @@ c     FGMRES iteration
 c       Modified gram - schmidt.
 
           do j=1,i
-            t = sum(vv(:,j)*vv(:,i1))
+cPAR            t = sum(vv(:,j)*vv(:,i1))
+            t = dot(ntot,vv(:,j),vv(:,i1))
             hh(j,i) = t
             vv(:,i1) = vv(:,i1)-t*vv(:,j)
           enddo
 
-          t = sqrt(sum(vv(:,i1)*vv(:,i1)))
+cPAR          t = sqrt(sum(vv(:,i1)*vv(:,i1)))
+          t = sqrt(dot(ntot,vv(:,i1),vv(:,i1)))
           hh(i1,i) = t
 
           if (t.ne.0d0) then
@@ -1071,7 +1095,7 @@ c       Determine residual norm and test for convergence
           hh(i,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
           ro = abs(rs(i1))
 
-          if (iout .gt. 0) then
+          if (iout .gt. 0 .and. prnt) then
             write(*, 199) its, ro, ro/rold
           endif
 
@@ -1187,7 +1211,8 @@ c     Local variables
 
 c     Begin program
 
-      modz  = sum(z*z)
+cPAR      modz  = sum(z*z)
+      modz  = dot(nn,z,z)
 
 c     Calculate J.x
 
@@ -1199,8 +1224,10 @@ c     Calculate J.x
 
 c       Calculate difference parameter
 
-        modx  = sum(xk*xk)
-        xdotz = sum(z *xk)
+cPAR        modx  = sum(xk*xk)
+cPAR        xdotz = sum(z *xk)
+        modx  = dot(nn,xk,xk)
+        xdotz = dot(nn,z ,xk)
 
         pert=nk_conf%mf_eps*sqrt(modx)/sqrt(modz)
 cc     .  pert=nk_conf%mf_eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
@@ -1257,8 +1284,10 @@ c     Add pseudo-transient term
         if (abs(invpdt) < 1d-5) invpdt = 0d0
         f = (x - xk)*invpdt + f  !This doesn't really work for vol-weighed residuals!!!
 cc        f = (x-xx0)*invpdt + f
-        write (*,*) 'WARNING: psedo-transient term only works for'
-        write (*,*) 'non-vol-weighed residuals'
+        if (prnt) then
+           write (*,*) 'WARNING: psedo-transient term only works for'
+           write (*,*) 'non-vol-weighed residuals'
+        endif
       endif
 
 c     End program
