@@ -47,6 +47,10 @@ c Check for autoinitializing parameters
 
       dtbase = dt   
 
+c Initialize MG and create grid
+
+      call createGrid(nxd,nyd,nzd,g_pack)
+
 c Initialize vector dimensions for global and local problems
 
       ihig = imax
@@ -70,11 +74,6 @@ c Allocate constant arrays
       zeros  = 0d0
       vzeros = 0d0
       ones   = 1d0
-
-c Initialize MG and create grid
-
-      call createGrid(ilog,ihig,jlog,jhig,klog,khig,nxd,nyd,nzd
-     .               ,g_pack)
 
 c Create nonlinear solver
 
