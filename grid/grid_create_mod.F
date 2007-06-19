@@ -7,16 +7,12 @@ c #####################################################################
 
         implicit none
 
-cc        integer(4),private :: nxx,nyy,nzz
-
         integer(4) :: mg_ratio
 
-cc        real(8),private :: pi
-
         type :: dim_pack
-          logical    :: pack = .false.
-          real(8)    :: xp = 0d0
-          real(8)    :: dx0 = 0d0
+          logical    :: pack
+          real(8)    :: xp
+          real(8)    :: dx0
         end type dim_pack
 
         type :: grid_pack
@@ -25,18 +21,17 @@ cc        real(8),private :: pi
 
         type(grid_pack),save :: g_pack
 
+        private :: initMG,createLogicalGrid
+     $            ,consistencyCheck,checkGrid
+
       contains
 
 c     createGrid
 c     #################################################################
-      subroutine createGrid(imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
-     .                     ,gpack)
+      subroutine createGrid(nx,ny,nz,gpack)
 
 c     -----------------------------------------------------------------
 c     Defines logical grid and finds grid quantities from:
-c       * imin,imax: global grid limits in X
-c       * jmin,jmax: global grid limits in Y
-c       * kmin,kmax: global grid limits in Z
 c       * nx,ny,nz: global grid size
 c       * gpack: defines grid packing
 c     -----------------------------------------------------------------
@@ -45,19 +40,35 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+        integer(4) :: nx,ny,nz
         type(grid_pack) :: gpack
 
 c     Local variables
+
+        integer(4) :: imin,imax,jmin,jmax,kmin,kmax
 
 c     Begin program
 
         pi = acos(-1d0)
 
-        call createMGgrid(imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
-     .                   ,gpack,grid_params)
+c     Initialize MPI and PETSc (parallel version)
 
-c     Create fortran PETSc parallel grid hierarchy
+#if defined(petsc)
+      call initFortranMPI(nx,ny,nz)
+cc#if !defined(petsc_c)
+      call setASMflag(.false.)
+cc#endif
+#endif
+
+c     Initialize MG
+
+        call initMG(nx,ny,nz,grid_params)
+
+c     Create MG grid hierarchy
+
+        call createMGgrid(gpack,grid_params)
+
+c     Create fortran PETSc parallel grid hierarchy (parallel version)
 
 #if defined(petsc)
         call createPETScGrid
@@ -73,49 +84,41 @@ c     Perform grid checks
 
       end subroutine createGrid
 
-c     createMGgrid
+c     initMG
 c     #################################################################
-      subroutine createMGgrid(imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
-     .                       ,gpack,gdef)
+      subroutine initMG(nx,ny,nz,gdef)
 
 c     -----------------------------------------------------------------
-c     Defines logical grid and finds grid quantities from:
-c       * imin,imax: global grid limits in X
-c       * jmin,jmax: global grid limits in Y
-c       * kmin,kmax: global grid limits in Z
+c     Initializes MG quantities and allocates MG strucutures. On input:
 c       * nx,ny,nz: global grid size
-c       * gdef (type grid_mg_def): variable that stores
-c                                  grid definition.
+c       * gdef (type grid_mg_def): variable that stores grid definition.
+c     In parallel, local grid sizes are read from PETSc's DA context.
 c     -----------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer(4) :: imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
-        type(grid_pack) :: gpack
+        integer(4) :: nx,ny,nz
         type(grid_mg_def) :: gdef
 
 c     Local variables
 
         integer(4) :: i,n1,n2,n3,nxx,nyy,nzz
         integer(4) :: ngrdx,ngrdy,ngrdz
-        type(grid_pack) :: g_pack
 
 c     Begin program
 
-        !Save packing configuration
-        g_pack = gpack
-
-        !Initialize global quantities
-        gdef%nglx = nx
-        gdef%ngly = ny
-        gdef%nglz = nz
-
         !Initialize local quantities
-        nxx = imax-imin+1
-        nyy = jmax-jmin+1
-        nzz = kmax-kmin+1
+#if defined(petsc)
+        nxx = dactx(1)%xm
+        nyy = dactx(1)%ym
+        nzz = dactx(1)%zm
+#else
+        nxx = nx
+        nyy = ny
+        nzz = nz
+#endif
 
 c     Find adequate number of grid levels (for MG)
 
@@ -149,21 +152,73 @@ c     Allocate grid storage structure
         call allocateGridStructure(nxx,nyy,nzz,ngrdx,ngrdy,ngrdz
      .                            ,nx,ny,nz,gdef)
 
+      end subroutine initMG
+
+c     createMGgrid
+c     #################################################################
+      subroutine createMGgrid(gpack,gdef)
+
+c     -----------------------------------------------------------------
+c     Defines logical grid and finds grid quantities from:
+c       * gpack (type grid_pack): stores grid packing info
+c       * gdef (type grid_mg_def): stores grid definition.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer(4) :: imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+        type(grid_pack) :: gpack
+        type(grid_mg_def) :: gdef
+
+c     Local variables
+
+        integer(4) :: i,n1,n2,n3,nxx,nyy,nzz
+        integer(4) :: ngrdx,ngrdy,ngrdz
+        type(grid_pack) :: g_pack
+
+c     Begin program
+
+        !Save packing configuration
+        g_pack = gpack
+
+        !Initialize local quantities
+#if defined(petsc)
+        nxx = dactx(1)%xm
+        nyy = dactx(1)%ym
+        nzz = dactx(1)%zm
+#else
+        nxx = gdef%nglx
+        nyy = gdef%ngly
+        nzz = gdef%nglz
+#endif
+
+        !Grid levels
+        ngrdx = gdef%ngrdx
+        ngrdy = gdef%ngrdy
+        ngrdz = gdef%ngrdz
+
 c     Initialize MG grid-size arrays
 
         gdef%mg_ratio_x = 1
         gdef%mg_ratio_y = 1
         gdef%mg_ratio_z = 1
 
-        gdef%nxgl(1) = nx
+        gdef%nxgl(1) = gdef%nglx
+#if defined(petsc)
+        gdef%nxv (1) = dactx(1)%xm
+        gdef%ilo (1) = dactx(1)%xs
+        gdef%ihi (1) = dactx(1)%xe
+#else
         gdef%nxv (1) = nxx
-        gdef%ilo (1) = imin
-        gdef%ihi (1) = imax
+        gdef%ilo (1) = 1
+        gdef%ihi (1) = nxx
+#endif
         do i = 2,ngrdx
           gdef%nxgl(i) = gdef%nxgl(i-1) / mg_ratio
           gdef%nxv (i) = gdef%nxv (i-1) / mg_ratio
-          gdef%ilo(i) = gdef%ilo(i-1)/mg_ratio + 1
-cc          gdef%ilo (i) = imin
+          gdef%ilo (i) = gdef%ilo(i-1)/mg_ratio + 1
           gdef%ihi (i) = gdef%ilo(i)+gdef%nxv(i)-1
           gdef%mg_ratio_x(i-1) = mg_ratio
         enddo
@@ -174,15 +229,20 @@ cc          gdef%ilo (i) = imin
           gdef%ihi (i) = gdef%ihi (i-1)
         enddo
 
-        gdef%nygl(1) = ny
+        gdef%nygl(1) = gdef%ngly
+#if defined(petsc)
+        gdef%nyv (1) = dactx(1)%ym
+        gdef%jlo (1) = dactx(1)%ys
+        gdef%jhi (1) = dactx(1)%ye
+#else
         gdef%nyv (1) = nyy
-        gdef%jlo (1) = jmin
-        gdef%jhi (1) = jmax
+        gdef%jlo (1) = 1
+        gdef%jhi (1) = nyy
+#endif
         do i = 2,ngrdy
           gdef%nygl(i) = gdef%nygl(i-1) / mg_ratio
           gdef%nyv (i) = gdef%nyv(i-1) / mg_ratio
-          gdef%jlo(i) = gdef%jlo(i-1)/mg_ratio + 1
-cc          gdef%jlo (i) = jmin
+          gdef%jlo (i) = gdef%jlo(i-1)/mg_ratio + 1
           gdef%jhi (i) = gdef%jlo(i)+gdef%nyv(i)-1
           gdef%mg_ratio_y(i-1) = mg_ratio
         enddo
@@ -193,15 +253,20 @@ cc          gdef%jlo (i) = jmin
           gdef%jhi (i) = gdef%jhi (i-1)
         enddo
 
-        gdef%nzgl(1) = nz
+        gdef%nzgl(1) = gdef%nglz
+#if defined(petsc)
+        gdef%nzv (1) = dactx(1)%zm
+        gdef%klo (1) = dactx(1)%zs
+        gdef%khi (1) = dactx(1)%ze
+#else
         gdef%nzv (1) = nzz
-        gdef%klo (1) = kmin
-        gdef%khi (1) = kmax
+        gdef%klo (1) = 1
+        gdef%khi (1) = nzz
+#endif
         do i = 2,ngrdz
           gdef%nzgl(i) = gdef%nzgl(i-1) / mg_ratio
           gdef%nzv (i) = gdef%nzv (i-1) / mg_ratio
-          gdef%klo(i) = gdef%klo(i-1)/mg_ratio + 1
-cc          gdef%klo (i) = kmin
+          gdef%klo (i) = gdef%klo(i-1)/mg_ratio + 1
           gdef%khi (i) = gdef%klo(i)+gdef%nzv(i)-1
           gdef%mg_ratio_z(i-1) = mg_ratio
         enddo
@@ -304,6 +369,11 @@ c     #################################################################
       subroutine createLogicalGrid (nglobal,mgr,xg,xx,dx,dxh,nx,ngrid
      .                             ,istart,ilo,ihi,lmin,lmax,bcs1,bcs2
      .                             ,dpack)
+
+c     -----------------------------------------------------------------
+c     Creates logical grid parameters (positions, spacing, etc.) using
+c     BC info. 
+c     -----------------------------------------------------------------
 
         implicit none
 
