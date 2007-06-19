@@ -16,7 +16,7 @@ c module newtongm
 c ######################################################################
       module newtongm
 
-#if !defined(petsc)
+#if !defined(petsc_c)
         use nk_mod
 #else
         integer(4) :: jit=1
@@ -84,7 +84,7 @@ c ######################################################################
 
         logical    :: vol_wgt=.true.,bdf2=.false.
 
-#if !defined(petsc)
+#if !defined(petsc_c)
         type(var_array) :: dn,dnm,dnp
         real(8)    :: l_np,l_n,et1,et2
 
@@ -203,7 +203,7 @@ c     Begin program
 
 c     Estimate local growth rate
 
-      call calculate_gammat
+      if (sm_flag == 1) call calculate_gammat
 
 c     Find new time step
 
@@ -223,7 +223,7 @@ c     Calculation of local growth rate for CN
 
         real(8)     :: dmag1,dmag2,dpert,mag(neqd)
 
-        real(8)     :: array(0:nxdp,0:nydp,0:nzdp)
+        real(8)     :: array(ilom:ihip,jlom:jhip,klom:khip)
 
 c     Begin program
 
@@ -233,7 +233,7 @@ c     Begin program
      .            -u_0   %array_var(ieq)%array )
           array = array*array
 
-          dpert = integral(nxd,nyd,nzd,array,1,1,1,.true.)
+          dpert = integral(nxl,nyl,nzl,array,1,1,1,.true.)
 
           dpert = sqrt(dpert)
 
@@ -241,14 +241,14 @@ c     Begin program
      .            -u_0%array_var(ieq)%array )
           array = array*array
 
-          dmag1 = integral(nxd,nyd,nzd,array,1,1,1,.true.)
+          dmag1 = integral(nxl,nyl,nzl,array,1,1,1,.true.)
 
           array = (varray%array_var(ieq)%array
      .            +u_n   %array_var(ieq)%array
      .         -2.*u_0   %array_var(ieq)%array )
           array = array*array
 
-          dmag2 = integral(nxd,nyd,nzd,array,1,1,1,.true.)
+          dmag2 = integral(nxl,nyl,nzl,array,1,1,1,.true.)
 
           if (dpert/=sqrt(dmag1).and.dmag2 /=0d0) then
             mag(ieq) = .5*dt*sqrt(dmag2)/(dpert-sqrt(dmag1))
