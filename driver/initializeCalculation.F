@@ -26,6 +26,10 @@ c Call variables
 
 c Local variables
 
+      integer(4) :: ierr,system
+
+      logical    :: petsc_flg
+
 c Begin program
 
       g_pack%dim(:)%pack = .false.
@@ -34,6 +38,17 @@ c Read user initializations
 
       call readInput
 
+c Read PETSc runtime options
+
+#if defined(petsc) && !defined(petsc_c)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
+     .                       ,petsc_flg,ierr)
+#endif
+
 c Check for autoinitializing parameters
 
       pi = acos(-1d0)
@@ -41,7 +56,7 @@ c Check for autoinitializing parameters
       if (maxitnwt.eq.0) 
      .      maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
 
-cc      alpha = 1. - cnfactor
+      alpha = 1. - cnfactor
 
       dtbase = dt
 
@@ -54,37 +69,44 @@ cc      alpha = 1. - cnfactor
         endif
       endif
 
-cc      sm_flag= 0
-cc      if (cnfactor.lt.0d0) then
-cc        sm_flag= 1
-cc      else
-cc        sm_pass= 0
-cc      endif
+c Initialize MG and create grid
 
-c Initialize vector dimensions
+      call createGrid(nxd,nyd,nzd,g_pack)
 
-      ihig = nxd
+c Initialize global domain limits
+
+#if defined(petsc)
+      ilog = dactx(1)%xs
+      ihig = dactx(1)%xe
+      jlog = dactx(1)%ys
+      jhig = dactx(1)%ye
+      klog = dactx(1)%zs
+      khig = dactx(1)%ze
+#else
       ilog = 1
-      jhig = nyd
+      ihig = nxd
       jlog = 1
-      khig = nzd
+      jhig = nyd
       klog = 1
+      khig = nzd
+#endif
 
       call setVectorDimensions
 
+#if defined(petsc)
+      write (*,*) 'Processor:',my_rank
+     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
+#endif
+
 c Allocate constant arrays
 
-      allocate(zeros (0:nxdp,0:nydp,0:nzdp))
-      allocate(vzeros(0:nxdp,0:nydp,0:nzdp,3))
-      allocate(ones  (0:nxdp,0:nydp,0:nzdp))
+      allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
+      allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
+      allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
 
       zeros  = 0d0
       vzeros = 0d0
       ones   = 1d0
-
-c Initialize MG and create grid
-
-      call createGrid(1,nxd,1,nyd,1,nzd,nxd,nyd,nzd,g_pack)
 
 c Create nonlinear solver
 
@@ -112,6 +134,26 @@ c Set unperturbed forcing fields
 
       if (.not.source) fsrc = 0d0
 
+c Set output files
+
+#if defined(petsc) 
+      if (.not.restart) then
+        if (my_rank == 0)
+     .     ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+      endif
+
+      urecord = urecord + my_rank
+
+      if (np > 1) then
+        recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
+      endif
+#else
+      if (.not.restart) then
+         ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
+      endif
+#endif
+
 c Set initial condition
 
       call setInitialCondition(u_n,u_np)
@@ -123,9 +165,14 @@ c Initialize record file
 c Check time limits
 
       if (tmax.gt.0d0.and.(tmax-time).le.0d0) then
-        write(*,*)
-        write(*,*) 'Tmax is less or equal than restarting time'
-        write(*,*) 'Aborting'
+        if (my_rank == 0) then
+          write(*,*)
+          write(*,*) 'Tmax is less or equal than restarting time'
+          write(*,*) 'Aborting'
+        endif
+#if defined(petsc)
+        call PetscFinalize(mpierr)
+#endif
         stop
       endif
 
@@ -163,8 +210,6 @@ c Begin program
 
       allocate(cnf(neqd),one_over_dt(neqd)
      .        ,bdfp(neqd),bdfn(neqd),bdfnm(neqd))
-
-cc      allocate(old_f(ntotd,2))
 
 c Initialization
 
@@ -212,7 +257,8 @@ c Begin program
 
 c Set equilibrium u_0 and define BCs on all variables
 
-      allocate(var(0:nxdp,0:nydp,0:nzdp,neqd),label(neqd),bcs(6,neqd))
+      allocate(var(ilom:ihip,jlom:jhip,klom:khip,neqd)
+     $            ,label(neqd),bcs(6,neqd))
 
       !Initialize boundary conditions
       do ieq = 1,neqd
@@ -317,12 +363,6 @@ c Perturb equilibrium
 
         inewtime = itime+1
 
-        if (nx.ne.nxd.or.ny.ne.nyd.or.nz.ne.nzd) then
-           write (*,*) 'Grid meshes do not agree; cannot restart'
-           write (*,*) 'Aborting.'
-           stop
-        endif
-
       endif
 
 c End program
@@ -360,11 +400,24 @@ c     Begin program
 
       open(unit=urecord,file=recordfile,form='unformatted',status='old')
 
+#if defined(petsc) 
+      read (urecord) nx,ilog,ihig
+      read (urecord) ny,jlog,jhig
+      read (urecord) nz,klog,khig
+
+      if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)) then
+#else
       read (urecord) nx
       read (urecord) ny
       read (urecord) nz
 
-      write (*,*) ' Reading restart file...'
+      if (nx /= nxd.or.ny /= nyd.or.nz /= nzd) then
+#endif
+        call pstop('initializeCalculation'
+     $            ,'Grid meshes do not agree; cannot restart')
+      endif
+
+      if (my_rank == 0) write (*,*) 'Reading restart file(s)...'
 
       call readRecordFile(urecord,itime,time,dt,vn,ierr)
 
@@ -383,7 +436,7 @@ c     Begin program
 
       close (urecord)
 
-      write (*,*) ' Done!'
+      if (my_rank == 0) write (*,*) 'Done!'
 
 c     End
 
@@ -439,17 +492,13 @@ c Set data dumping intervals
 c Open record file
 
       if (.not.restart) then
-
-        !Clean up previous record files
-        ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
-
         !Initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
 cc        if (debug) then
 cc          write (*,*) 'DIAG -- Dumping graphs for PC testing'
 cc          u_graph = u_n
 cc        else
         !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
-          u_graph = u_0
+           u_graph = u_0
 cc        endif
 
         !Check source (need to uncomment dumpTimeStepPlots call in 3dplot.F)
@@ -459,14 +508,21 @@ cc        call imposeBoundaryConditions(u_graph,1,1,1)
 
         !Open record file
         open(unit=urecord,file=recordfile
-     .      ,form='unformatted',status='replace')
+     .      ,form='unformatted',status='unknown')
 
+#if defined(petsc)
+        write (urecord) nxl,ilog,ihig
+        write (urecord) nyl,jlog,jhig
+        write (urecord) nzl,klog,khig
+#else
         write (urecord) nxd,1,nxd
         write (urecord) nyd,1,nyd
         write (urecord) nzd,1,nzd
+#endif
 
-        call writeRecordFile(urecord,0,0d0,dt,u_graph)  !W/O  BCs and perturbations
-        call writeRecordFile(urecord,0,0d0,dt,u_np)     !With BCs and perturbations
+cc        call writeRecordFile(urecord,0,0d0,dt,u_n)
+        call writeRecordFile(urecord,0,0d0,dt,u_graph)
+        call writeRecordFile(urecord,0,0d0,dt,u_np)
 
       else
 
@@ -478,4 +534,3 @@ cc        call imposeBoundaryConditions(u_graph,1,1,1)
 c End programs
 
       end subroutine initializeRecordFile
-

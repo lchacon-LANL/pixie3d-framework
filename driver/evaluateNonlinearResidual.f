@@ -40,35 +40,24 @@ c Calculate residuals
 
       call defineTSParameters
 
-      do k = 1,nzd
-        do j = 1,nyd
-          do i = 1,nxd
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
 
             call getMGmap(i,j,k,1,1,1,ig,jg,kg)
 
-            ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
+            ii = vecPos(neqd,i,j,k,1,1,1)
 
-cc            if (.not.bdf2) then
-cc              do ieq=1,neqd
-cc                f(ii+ieq) = (varray%array_var(ieq)%array(i,j,k)
-cc     .                      -   u_n%array_var(ieq)%array(i,j,k))
-cc     .                      *one_over_dt(ieq)
-cc     .                      + (1d0-cnf(ieq))*f   (ii+ieq)
-cc     .                      +      cnf(ieq) *fold(ii+ieq)
-cc     .                      -                fsrc(ii+ieq)
-cc              enddo
-cc            else
-              do ieq=1,neqd
-                f(ii+ieq) =
-     .                (bdfp (ieq)*varray%array_var(ieq)%array(i,j,k)
-     .                +bdfn (ieq)*u_n   %array_var(ieq)%array(i,j,k)
-     .                +bdfnm(ieq)*u_nm  %array_var(ieq)%array(i,j,k))
-     .                *one_over_dt(ieq)
-     .                + ((1d0-cnf(ieq))*f   (ii+ieq)
-     .                +       cnf(ieq) *fold(ii+ieq)
-     .                -                 fsrc(ii+ieq))
-              enddo
-cc            endif
+            do ieq=1,neqd
+              f(ii+ieq) =
+     .              (bdfp (ieq)*varray%array_var(ieq)%array(i,j,k)
+     .              +bdfn (ieq)*u_n   %array_var(ieq)%array(i,j,k)
+     .              +bdfnm(ieq)*u_nm  %array_var(ieq)%array(i,j,k))
+     .              *one_over_dt(ieq)
+     .              + ((1d0-cnf(ieq))*f   (ii+ieq)
+     .              +       cnf(ieq) *fold(ii+ieq)
+     .              -                 fsrc(ii+ieq))
+            enddo
 
             if (vol_wgt) then
               if (.not.checkMapDatabase()) then
@@ -131,16 +120,20 @@ c Interfaces
 
 c Begin program
 
+c Setup parallel BC flags to indicate BCs require communication
+
+      call setASMflag((np==1))
+
 c Prepare auxiliar quantities
 
       call setupNonlinearFunction(varray)
 
 c Store function evaluation
 
-      do k = 1,nzd
-        do j = 1,nyd
-          do i = 1,nxd
-            ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
+      do k = klo,khi
+        do j = jlo,jhi
+          do i = ilo,ihi
+            ii = vecPos(neqd,i,j,k,1,1,1)
             call nonlinearRHS(i,j,k,varray,fi(ii+1:ii+neqd))
           enddo
         enddo

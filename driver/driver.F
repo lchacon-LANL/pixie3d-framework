@@ -28,6 +28,12 @@ c Local variables
 
 c Begin program
 
+c Initialize PETSc and MPI (parallel version)
+
+#if defined(petsc)
+      call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
+#endif
+
 c Initialize calculation
 
       call initializeCalculation
@@ -89,9 +95,11 @@ c     Check for error in time stepping
 
         elseif (ierr.eq.-1) then !Initial guess is exact
 
-          write(*,*)
-          write(*,*) '   Found steady state solution.'
-          write(*,*) '   Aborting...'
+          if (my_rank == 0) then
+            write(*,*)
+            write(*,*) '   Found steady state solution.'
+            write(*,*) '   Aborting...'
+          endif
 
           exit
 
@@ -120,24 +128,26 @@ cc          write (*,*) 'Dumped here'
 
 c Average explicit time step
 
-      if (cnfactor.eq.1d0) then
+      if (cnfactor.eq.1d0 .and. my_rank == 0) then
         dtexp = dtexp/(itime - inewtime)
         write (*,*) 'Average explicit time step: ',dtexp
       endif
 
 c Final statistics
 
-      prec_tot = gmres_tot + iguess*newt_tot
+      if (my_rank == 0) then
+        prec_tot = gmres_tot + iguess*newt_tot
 
-      write(*,300) 
+        write(*,300) 
 
-      if (itime-inewtime > 0d0) then
-        write(*,310) (itime-1),float(newt_tot )/(itime-inewtime)
-     .                        ,float(gmres_tot)/(itime-inewtime)
-     .                        ,float(gmres_tot)/newt_tot
-     .                        ,float(wh_tot)   /prec_tot
-      else
-        write(*,310) 0,0d0,0d0,0d0,0d0
+        if (itime-inewtime > 0) then
+          write(*,310) (itime-1),float(newt_tot )/(itime-inewtime)
+     .                          ,float(gmres_tot)/(itime-inewtime)
+     .                          ,float(gmres_tot)/newt_tot
+     .                          ,float(wh_tot)   /prec_tot
+        else
+          write(*,310) 0,0d0,0d0,0d0,0d0
+        endif
       endif
 
 c Formats
@@ -148,7 +158,7 @@ c Formats
 
 c End program
 
-      close (urecord)
+      call fortranDestroy
 
       end
 
