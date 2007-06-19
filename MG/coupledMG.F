@@ -269,6 +269,7 @@ c     Invert matrix
 
         !Workspace query
         lwork=-1
+cc        lwork=size
         allocate(work(1))
         call dgetri(size,mat,size,ipiv,work,lwork,info) !LAPACK routine
         lwork=floor(work(1))
@@ -2820,8 +2821,7 @@ c     Ensure serial treatment of boundary conditions
 
 c     Create coarse global grid structure variable to pass to filial MG call
 
-        call createMGgrid(1,nx,1,ny,1,nz,nx,ny,nz
-     .                   ,g_pack,grid_params)
+        call createMGgrid(g_pack,grid_params)  !May be wrong interface...
           
 c     Reallocate MG pointers to coarse grid level igr
 
