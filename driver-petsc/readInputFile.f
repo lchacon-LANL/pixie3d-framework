@@ -10,6 +10,8 @@ c----------------------------------------------------------------------
 
       use grid
 
+      use grid_mpi
+
       use variables
 
       use timeStepping
