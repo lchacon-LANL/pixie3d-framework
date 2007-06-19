@@ -4,6 +4,6 @@ MESSAGE = "Compiling f90 NK modules"
 
 #Define subdirectories for common code
 
-COMMONDIR = 
+COMMONDIR =
 
-SUBDIRS = 
+SUBDIRS = ../grid 
