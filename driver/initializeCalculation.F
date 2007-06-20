@@ -502,9 +502,11 @@ cc        else
 cc        endif
 
         !Check source (need to uncomment dumpTimeStepPlots call in 3dplot.F)
-cc        u_graph = fsrc
-cc        u_graph%array_var(1)%array = u_0%array_var(1)%array  !Set rho finite
-cc        call imposeBoundaryConditions(u_graph,1,1,1)
+         if (chk_src) then
+           u_graph = fsrc
+cc           u_graph%array_var(1)%array = u_0%array_var(1)%array !Set rho finite
+cc           call imposeBoundaryConditions(u_graph,1,1,1)
+         endif
 
         !Open record file
         open(unit=urecord,file=recordfile
