@@ -74,6 +74,7 @@ c ######################################################################
 
         logical    :: timecorr=.false.,restart=.false.,source=.true.
      .               ,predictor=.false.,postprocess=.false.
+     .               ,chk_src=.false.
 
         real(8)    :: tmrst,cnp,cn,cnm,dt_n
 
