@@ -836,8 +836,8 @@ c     Begin program
 
         !Find coordinates
         x1 = gmetric%grid(igx)%car(i,j,k,1)
-        y1 = gmetric%grid(igx)%car(i,j,k,2)
-        z1 = gmetric%grid(igx)%car(i,j,k,3)
+        y1 = gmetric%grid(igy)%car(i,j,k,2)
+        z1 = gmetric%grid(igz)%car(i,j,k,3)
 
       end subroutine getCartesianCoordinates
 
