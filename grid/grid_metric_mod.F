@@ -548,11 +548,7 @@ c       NUMERICAL QUANTITIES ***********************************
 #if defined(vmec)
             elseif (coords == 'vmc') then
 
-cc              if (igrid == 1) then
-
-                vmec_met = .false.
-
-cc                vmec_mets = vmec_met
+                vmec_met = .false.   !Whether to use VMEC metric quantities or not
                 vmec_mets = vmec_met .and. (igrid == 1)
 
                 nxf=ihi-ilo+1
@@ -567,63 +563,6 @@ cc                vmec_mets = vmec_met
      .                             ,g_metric%grid(igrid)%gsub
      .                             ,g_metric%grid(igrid)%gsup)
                 endif
-
-cc                do i=1,3
-cc                  call map_bc(igrid,nxf,nyf,nzf,xc(:,:,:,i),iorder=2)
-cc                enddo
-
-c diag ******
-cc                !X-Y scatterplot
-cc                open(unit=110,file='drawgrid.bin',form='unformatted'
-cc     .              ,status='replace')
-cc                do i=0,nxf+1
-cc                  do j=0,nyf+1
-cc                    write(110) real(xc(i,j,1,1)),real(xc(i,j,1,3))
-cc                  enddo
-cc                enddo
-cc                write (110)
-cc                close(110)
-cc                stop
-cc
-cc                !Contour plot
-cc                open(unit=110,file='drawtst.bin',form='unformatted'
-cc     .              ,status='replace')
-cc                do i=1,3
-cc                  call contour(xc(:,:,2,i),nxf+2,nyf+2
-cc     .                        ,0d0,xmax,0d0,ymax,i-1,110)
-cc                enddo
-cc                close(110)
-cc                stop
-cccc                open(unit=1234,file='map.txt',status='unknown')
-cccccc                write (1234,*) xc
-cccc                read  (1234,*) xc
-cccc                close(1234)
-cccc                stop
-c diag ******
-
-cc              !Prepare next coarsening
-cc               allocate(xcr(0:nxf+1,0:nyf+1,0:nzf+1,3))
-cc               xcr = xc
-cc             else
-cc               nxf=size(xcr,1)
-cc               nyf=size(xcr,2)
-cc               nzf=size(xcr,3)
-cc
-cc               nzc=ihi-ilo+1
-cc               nyc=jhi-jlo+1
-cc               nzc=khi-klo+1
-cc
-cc               do ii=1,3
-cc                 call coarsen_map(igrid,nxf,nyf,nzf,xcr(:,:,:,ii)
-cc     .                                 ,nxc,nyc,nzc,xc (:,:,:,ii))
-cc               enddo
-cc
-cc               !Prepare next coarsening
-cc               deallocate(xcr)
-cc               allocate(xcr(0:nxc+1,0:nyc+1,0:nzc+1,3))
-cc
-cc               xcr = xc
-cc             endif
 #endif
             else
               call pstop('findGridMetrics','Mapping not available')
@@ -649,7 +588,6 @@ cc             endif
           do i=1,3
             do j=1,3
               call topol_bc(igrid,nx,ny,nz,dr(:,:,:,i,j))
-cc              call map_bc(igrid,nx,ny,nz,dr(:,:,:,i,j),IBC=DEF,iorder=2)
             enddo
           enddo
           
@@ -657,7 +595,19 @@ cc              call map_bc(igrid,nx,ny,nz,dr(:,:,:,i,j),IBC=DEF,iorder=2)
           do k = klom,khip
             do j = jlom,jhip
               do i = ilom,ihip
-                r = dr(i,j,k,:,:)
+
+cc                if (isSP(i+1,j,k,igx,igy,igz)) then
+cc                  r(1,:) =  dr(i+1,j,k,1,:)
+cc                  r(2,:) = -dr(i+1,j,k,2,:)
+cc                  if (coords == 'hel') then
+cc                    r(3,1:2) = -dr(i+1,j,k,3,1:2)
+cc                    r(3,3  ) =  dr(i+1,j,k,3,3)
+cc                  else
+cc                    r(3,:) =  dr(i+1,j,k,3,:)
+cc                  endif
+cc                else
+                  r = dr(i,j,k,:,:)
+cc                endif
 
                 !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
                 if (.not.vmec_mets) then
@@ -835,9 +785,6 @@ cc              call map_bc(igrid,nx,ny,nz,dr(:,:,:,i,j),IBC=DEF,iorder=2)
           do i=1,3
             do j=1,3
               do k=1,3
-cc                call map_bc(igrid,nx,ny,nz
-cc     .                     ,g_metric%grid(igrid)%Gamma(:,:,:,i,j,k)
-cc     .                     ,IBC=DEF,iorder=2)
                 call topol_bc(igrid,nx,ny,nz
      .                       ,g_metric%grid(igrid)%Gamma(:,:,:,i,j,k))
               enddo
@@ -1875,7 +1822,8 @@ c     Coarsen grid metrics (for MG)
         
 c     Check grid: test of numerical calculation vs. analytical calculation
 
-        if (check_grid .and. numerical_grid) then
+cc        if (check_grid .and. numerical_grid) then
+        if (check_grid) then
           call numericalGridCoeffsCheck
           call graphicsCheck
         endif
@@ -1990,7 +1938,7 @@ c     -----------------------------------------------------------------
       real(8)    :: tensor(3,3,3),vec(3)
       character(30) :: debugfile,drawfile
 
-      integer(4),parameter :: nvar=25
+      integer(4),parameter :: nvar=50
       character(30) :: descr(nvar)
 
       logical :: dump_diff
@@ -2005,12 +1953,13 @@ c     Output
       write (*,*) '**********************************'
       write (*,*)
 
-      dump_diff = anal_map.and.(.not.numerical_grid)
+cc      dump_diff = anal_map.and.(.not.numerical_grid)
+      dump_diff = anal_map.and.numerical_grid
 
       if (dump_diff) then
         write(*,*)'Analytical mapping available; dumping diffs...'
       else
-        write(*,*)'Analytical mapping UNavailable; dumping full qtys...'
+        write(*,*)'Analytical mapping unavailable; dumping full qtys...'
       endif
       write (*,*)
 
@@ -2066,18 +2015,40 @@ c     Dump quantities
                 if (dump_diff) then
                   tensor(:,:,1)  = g_sub(i,j,k,igrid,igrid,igrid)
                   dbg(i,j,1,1) = dbg(i,j,1,1)
-     .                        -tensor(l,m,1)
+     .                    -tensor(l,m,1)
      .                    *jacobian(i,j,k,igrid,igrid,igrid)
                 endif
               enddo
             enddo
-            write (*,*) '   Dumping Gsup component',l,m
+            write (*,*) '   Dumping Gsub component',l,m
             ivar = ivar+1
             descr(ivar)='gsub('//trim(int2char(l))//','
      .                         //trim(int2char(m))//')'
             call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
           enddo
         enddo
+
+cc        do l=1,3
+cc          do m=l,3
+cc            do j=0,ny+1
+cc              do i=0,nx+1
+cc                dbg(i,j,1,1) = g_metric%grid(igrid)%gsup(i,j,k,l,m)
+cc     .                        *g_metric%grid(igrid)%jac(i,j,k)
+cc                if (dump_diff) then
+cc                  tensor(:,:,1)  = g_sub(i,j,k,igrid,igrid,igrid)
+cc                  dbg(i,j,1,1) = dbg(i,j,1,1)
+cc     .                        -tensor(l,m,1)
+cc     .                    *jacobian(i,j,k,igrid,igrid,igrid)
+cc                endif
+cc              enddo
+cc            enddo
+cc            write (*,*) '   Dumping Gsup component',l,m
+cc            ivar = ivar+1
+cc            descr(ivar)='gsup('//trim(int2char(l))//','
+cc     .                         //trim(int2char(m))//')'
+cc            call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
+cc          enddo
+cc        enddo
 
         !Cnv vectors
         do l=1,3
@@ -2088,6 +2059,7 @@ c     Dump quantities
      .                          *g_metric%grid(igrid)%jac(i,j,k)
                 if (dump_diff) then
                   vec = contravariantVector(l,i,j,k,igrid,igrid,igrid)
+     .                 *jacobian(i,j,k,igrid,igrid,igrid)
                   dbg(i,j,1,1) = dbg(i,j,1,1)-vec(m)
                 endif
               enddo
@@ -2101,32 +2073,32 @@ c     Dump quantities
           enddo
         enddo
 
-cc        !Christoffle symbols
-cc        do l=1,3
-cc          do m=1,3
-cc            do n=m,3
-cc              do j=0,ny+1
-cc                do i=0,nx+1
-cc                  dbg(i,j,1,1) = g_metric%grid(igrid)%Gamma(i,j,k,l,m,n)
-cc     .                          *g_metric%grid(igrid)%jac(i,j,k)
-cc                  if (dump_diff) then
-cc                    tensor  = christ_2knd(i,j,k,igrid,igrid,igrid)
-cc                    dbg(i,j,1,1) = dbg(i,j,1,1)
-cc     .                          -tensor(l,m,n)
-cc     .                    *jacobian(i,j,k,igrid,igrid,igrid)
-cc                  endif
-cc                enddo
-cc              enddo
-cc              write (*,*) '   Dumping Gamma component',l,m,n
-cc              ivar = ivar+1
-cc              descr(ivar)='Gamma'//trim(int2char(l))//'('
-cc     .                           //trim(int2char(m))//','
-cc     .                           //trim(int2char(m))//')'
-cc              call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1
-cc     .                    ,110)
-cc            enddo
-cc          enddo
-cc        enddo
+        !Christoffle symbols
+        do l=1,3
+          do m=1,3
+            do n=m,3
+              do j=0,ny+1
+                do i=0,nx+1
+                  dbg(i,j,1,1) = g_metric%grid(igrid)%Gamma(i,j,k,l,m,n)
+     .                          *g_metric%grid(igrid)%jac(i,j,k)
+                  if (dump_diff) then
+                    tensor  = christ_2knd(i,j,k,igrid,igrid,igrid)
+                    dbg(i,j,1,1) = dbg(i,j,1,1)
+     .                    -tensor(l,m,n)
+     .                    *jacobian(i,j,k,igrid,igrid,igrid)
+                  endif
+                enddo
+              enddo
+              write (*,*) '   Dumping Gamma component',l,m,n
+              ivar = ivar+1
+              descr(ivar)='Gamma'//trim(int2char(l))//'('
+     .                           //trim(int2char(m))//','
+     .                           //trim(int2char(n))//')'
+              call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1
+     .                    ,110)
+            enddo
+          enddo
+        enddo
 
         deallocate(dbg)
         close(110)
