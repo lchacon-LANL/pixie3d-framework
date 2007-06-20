@@ -79,7 +79,6 @@ c     Time level plots (xdraw)
 
         plot = .false.
 
-cc        if (nplot.eq.ndplot.or.(time-tmplot).ge.0.999*dplot) then
         if (    nplot        == ndplot
      .     .or.(time-tmplot) >= dplot-0.9*dt
      .     .or. time         == 0d0) then
@@ -316,8 +315,11 @@ c Initialize graphics
 
       call initializeGraphics(igx,igy,igz,bcond)
 
-      !Uncomment this for debugging source (need to uncomment lines in initializeCalculation.f)
-cc      call dumpTimeStepPlots
+      !Dump source for debugging
+      if (chk_src) then
+        itime = -1
+        call dumpTimeStepPlots
+      endif
 
 c Initialize diagnostics
 

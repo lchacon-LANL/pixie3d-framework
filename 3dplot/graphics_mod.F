@@ -83,7 +83,7 @@ c     Initialize XDRAW
 c     Initialize HDF5
 
 #if defined(hdf5)
-        if (hdf_plot) call initializeHDF5file
+        if (hdf_plot) call initializeHDF5
 #endif
 
 c     End program

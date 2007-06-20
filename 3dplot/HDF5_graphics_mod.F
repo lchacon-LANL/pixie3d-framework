@@ -18,6 +18,10 @@ c ##################################################################
         character(20) :: hdf5_fname
 
 #if defined(hdf5)
+
+        integer(4)     :: toffset=0
+
+c       HDF5 ID variables
         integer(hid_t) :: group_id,subgroup_id
         integer(hid_t) :: file_id        
         integer(hid_t) :: dataset_id     
@@ -60,9 +64,9 @@ c       generic HDF5 variables
 
       contains 
 
-c     initializeHDF5file
+c     initializeHDF5
 c     ##############################################################
-      subroutine initializeHDF5file
+      subroutine initializeHDF5
 
       implicit none
 
@@ -87,11 +91,6 @@ c     Setup plot dump variables
       enddo
 
 c     Exit if not in rank=0
-
-cc#if defined(petsc)
-cc      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
-cc      if (my_rank /= 0) return
-cc#endif
 
       if (.not.isProc(0)) return
 
@@ -139,6 +138,14 @@ c     Create VISIT expressions
 
       !Close dataspace
       call h5sclose_f(dataspace_id,hdferr)
+
+      !Create groups for coordinate data
+      !Cell center positions
+      call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr,0)
+      call h5gclose_f(group_id,hdferr)
+      !Node positions
+      call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr,0)
+      call h5gclose_f(group_id,hdferr)
 
       !Close .h5 file
       call h5fclose_f(file_id, hdferr)
@@ -193,33 +200,26 @@ cc      write (*,*) vexp
 
       end subroutine selectExpressions
 
-      end subroutine initializeHDF5file
+      end subroutine initializeHDF5
 
 c     createGroups
 c     #################################################################
-      subroutine createGroups(step)
+      subroutine createGroups(groupname)
 
       implicit none
 
 c     Call variables
       
-      integer(4)         :: step
+cc      integer(4)         :: step
+      character*(20)     :: groupname
 
 c     Local variables
 
       integer(4)         :: ieq
-      character*(20)     :: groupname
 
 c     Begin program
 
-cc#if defined(petsc)
-cc      call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
-cc      if (my_rank /= 0) return
-cc#endif
-
       if (.not.isProc(0)) return
-
-      groupname = trim('Timestep_'//int2char(step))
 
 c     Initialize FORTRAN interface
 
@@ -230,16 +230,16 @@ c     Open .h5 file using default properties.
       call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
      $               H5P_DEFAULT_F)
 
-c     Create a group for coordinates data
-
-      if (step == 0) then
-        !Cell center positions
-        call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr,0)
-        call h5gclose_f(group_id,hdferr)
-        !Node positions
-        call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr,0)
-        call h5gclose_f(group_id,hdferr)
-      endif
+ccc     Create a group for coordinates data
+cc
+cc      if (step == 0) then
+cc        !Cell center positions
+cc        call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr,0)
+cc        call h5gclose_f(group_id,hdferr)
+cc        !Node positions
+cc        call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr,0)
+cc        call h5gclose_f(group_id,hdferr)
+cc      endif
 
 c     Create groups for computation data
 
@@ -288,9 +288,11 @@ c     Begin program
 
 c     Create the output file and data groups
 
-      timestep = trim('Timestep_'//int2char(itime))
+      if (itime == -1) toffset = 1
 
-      call createGroups(itime)
+      timestep = trim('Timestep_'//int2char(itime+toffset))
+
+      call createGroups(timestep)
 
 c     Initialize FORTRAN interface
       call h5open_f(hdferr)
@@ -357,10 +359,10 @@ c     Create property list for collective dataset write.
 
 c     Write the coordinate data
 
-      allocate (cell(ilom:ihip,jlom:jhip,klom:khip,3)
-     .         ,node(ilom:ihip,jlom:jhip,klom:khip,3))
+      if ((itime+toffset) == 0) then
 
-      if (itime == 0) then
+        allocate (cell(ilom:ihip,jlom:jhip,klom:khip,3)
+     .           ,node(ilom:ihip,jlom:jhip,klom:khip,3))
 
         !Cell center positions
         call h5gopen_f(file_id,cell_coords_gname,group_id,hdferr) 
@@ -453,9 +455,9 @@ c         Write data to the dataset
 
         call h5gclose_f(group_id, hdferr)
 
-      endif
+        deallocate(cell,node)
 
-      deallocate(cell,node)
+      endif
 
 c     Write the actual data
 
