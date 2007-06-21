@@ -16,12 +16,12 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: ntot
+      integer    :: ntot
       real(8)    :: x(ntot),f(ntot)
 
 c Local variables
 
-      integer(4) :: i,j,k,ieq,ii,ig,jg,kg
+      integer    :: i,j,k,ieq,ii,ig,jg,kg
       real(8)    :: dvol
 
       type (var_array) :: varray
@@ -107,7 +107,7 @@ c Call variables
 
 c Local variables
 
-      integer(4)       :: i,j,k,ii
+      integer          :: i,j,k,ii
 
 c Interfaces
 

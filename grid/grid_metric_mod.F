@@ -32,10 +32,10 @@ c ---------------------------------------------------------------------
 
 c     PRIVATE VARIABLES
 
-        integer(4),private :: ilo ,ihi ,jlo ,jhi ,klo ,khi
+        integer   ,private :: ilo ,ihi ,jlo ,jhi ,klo ,khi
      .                       ,ilom,ihip,jlom,jhip,klom,khip
 
-        integer(4),private ::
+        integer   ,private ::
      .                i,j,k,igx,igy,igz
      .               ,i0,ip,im,j0,jp,jm,k0,kp,km,l,m,n,p
      .               ,ig,ig0,igm,igp,jg,jg0,jgm,jgp,kg,kg0,kgm,kgp
@@ -104,7 +104,7 @@ c     delta
 c     #################################################################
       function delta(i,j)
 
-        integer(4) :: i,j
+        integer    :: i,j
         real(8)    :: delta
 
         if (i == j) then
@@ -161,12 +161,12 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
+        integer    :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
         real(8)    :: dr(3,3),x(0:nx+1,0:ny+1,0:nz+1,neq)
 
 c     Local variables
 
-        integer(4) :: ip,im,jp,jm,kp,km,ig,jg,kg
+        integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
      .               ,igp,igm,jgp,jgm,kgp,kgm,hel
 
         real(8)    :: carp(neq),carm(neq),dh(3),coeff
@@ -303,7 +303,7 @@ cc        implicit none
 cc
 ccc     Call variables
 cc
-cc        integer(4) :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
+cc        integer    :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
 cc        real(8)    :: x(0:nx+1,0:ny+1,0:nz+1,neq),jac
 cc
 cc        real(8),optional,intent(OUT) :: ggsup(3,3),ggsub(3,3),vol
@@ -312,7 +312,7 @@ cc        real(8),optional,intent(IN)  :: dtensor(3,3)
 cc
 ccc     Local variables
 cc
-cc        integer(4) :: m,l,ig,jg,kg
+cc        integer    :: m,l,ig,jg,kg
 cc        real(8)    :: r(3,3),cnv(3,3),cov(3,3),x1,x2
 cc     .               ,g_sup(3,3),g_sub(3,3),tensor(3,3)
 cc        logical    :: wtnsr
@@ -425,12 +425,12 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: igrid
+        integer    :: igrid
         type(MG_grid_metrics) :: g_metric
 
 c     Local variables
 
-        integer(4) :: ii,nxf,nyf,nzf,nxc,nyc,nzc,nx,ny,nz
+        integer    :: ii,nxf,nyf,nzf,nxc,nyc,nzc,nx,ny,nz
 
         real(8),pointer,dimension(:,:,:,:)   :: xc
         real(8),allocatable,dimension(:,:,:,:,:) :: dr
@@ -819,14 +819,14 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: igc,nxf,nyf,nzf,nxc,nyc,nzc
+        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
         real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
      .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
 cc        logical    :: volf
 
 c     Local variables
 
-        integer(4) :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
+        integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
 
         real(8)    :: volc,ac
 
@@ -886,11 +886,11 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: igx,igy,igz
+        integer    :: igx,igy,igz
 
 c     Local variables
 
-        integer(4) :: i,j,k,ii,ll,kk,mm,jj,ig,jg,kg,igrid
+        integer    :: i,j,k,ii,ll,kk,mm,jj,ig,jg,kg,igrid
         real(8)    :: x1,y1,z1,summ,summ2,dh,jac,jacp,jacm,const,hlf
         real(8)    :: hess(3,3,3),table(3,3,3),gsub(3,3)
      .               ,gsup(3,3),gsupp(3,3),gsupm(3,3),gamma(3,3,3)
@@ -1237,12 +1237,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: i,j,k,igrid
+        integer    :: i,j,k,igrid
         real(8)    :: gold(3,3,3),gnew(3,3,3)
         
 c     Local variables
 
-        integer(4) :: ii,ll,kk,mm,jj,ig,jg,kg
+        integer    :: ii,ll,kk,mm,jj,ig,jg,kg
         real(8)    :: summ,summ2,dh,jac,jacp,jacm,const,hlf
         real(8)    :: hess(3,3,3),gsup(3,3),gsub(3,3)
      $               ,gsupp(3,3),gsupm(3,3)
@@ -1422,12 +1422,12 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: igc
+        integer    :: igc
         type(MG_grid_metrics) :: g_metric
 
 c     Local variables
 
-        integer(4) :: igf,ic,jc,kc,if,jf,kf,icg,jcg,kcg
+        integer    :: igf,ic,jc,kc,if,jf,kf,icg,jcg,kcg
      .               ,nxc,nyc,nzc,nxf,nyf,nzf,l,m
 
 c     Begin program
@@ -1562,14 +1562,14 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: igc,nxf,nyf,nzf,nxc,nyc,nzc
+        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
         real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
      .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
         logical    :: volf
 
 c     Local variables
 
-        integer(4) :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
+        integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
 
         real(8)    :: volc,ac
 
@@ -1633,11 +1633,11 @@ c     Call variables
 
         real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
 
-        integer(4) :: igrid
+        integer    :: igrid
 
 c     Local variables
 
-        integer(4) :: nxl,nyl,nzl,nxg,nyg,nzg,dim
+        integer    :: nxl,nyl,nzl,nxg,nyg,nzg,dim
 
 c     External
 
@@ -1683,20 +1683,20 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: igrid,nxl,nyl,nzl
+        integer    :: igrid,nxl,nyl,nzl
 
         real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
 
-        integer(4),optional,intent(IN) :: IBC,iorder
+        integer   ,optional,intent(IN) :: IBC,iorder
 
 c     Local variables
 
-        integer(4) :: bcnd(6),iibc,order
+        integer    :: bcnd(6),iibc,order
         real(8)    :: array0(0:nxl+1,0:nyl+1,0:nzl+1)
 
 c     Degug
 
-        integer(4) :: i,j,k
+        integer    :: i,j,k
 
 c     External
 
@@ -1773,7 +1773,7 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: igrmin,igrmax,igrid,istat
+        integer    :: igrmin,igrmax,igrid,istat
 
 c     Begin program
 
@@ -1934,11 +1934,11 @@ c     -----------------------------------------------------------------
 
       implicit none
 
-      integer(4) :: nx,ny,nz,i,j,k,l,m,n,igrid,ivar
+      integer    :: nx,ny,nz,i,j,k,l,m,n,igrid,ivar
       real(8)    :: tensor(3,3,3),vec(3)
       character(30) :: debugfile,drawfile
 
-      integer(4),parameter :: nvar=50
+      integer   ,parameter :: nvar=50
       character(30) :: descr(nvar)
 
       logical :: dump_diff

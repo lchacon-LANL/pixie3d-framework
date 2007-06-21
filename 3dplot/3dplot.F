@@ -21,8 +21,8 @@ c##########################################################################
 
 c Local variables
 
-      integer(4)     :: i,j,k,ig,jg,kg
-      integer(4)     :: ierr,gierr,system,nplot,igx,igy,igz
+      integer        :: i,j,k,ig,jg,kg
+      integer        :: ierr,gierr,system,nplot,igx,igy,igz
       character*(40) :: command
       logical        :: exitloop
 
@@ -170,7 +170,7 @@ c Call variables
 
 c Local variables
 
-      integer(4)  :: ngrd(3)
+      integer     :: ngrd(3)
 
 c Begin program
 
@@ -233,11 +233,11 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: igx,igy,igz
+      integer    :: igx,igy,igz
 
 c Local variables
 
-      integer(4) :: ierr
+      integer    :: ierr
       logical    :: petsc_flg
 
 c Begin program
@@ -361,11 +361,11 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: nx,ny,nz,ierr
+      integer    :: nx,ny,nz,ierr
 
 c Externals
 
-      integer(4) :: system
+      integer    :: system
 
 c Begin program
 
@@ -532,7 +532,7 @@ c----------------------------------------------------------------------
 c Call variables
 
       type(var_array) :: varray
-      integer(4)      :: ierr
+      integer         :: ierr
 
 c Local variables
 

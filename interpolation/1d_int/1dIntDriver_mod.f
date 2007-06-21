@@ -20,20 +20,20 @@ c     ******************************************************************
 
 c     Call variables
 
-      integer(4) :: nx,nv,order
+      integer    :: nx,nv,order
       real(8)    :: x(nx),vec(nx),x1(nv),vec1(nv)
-      integer(4),optional :: deriv
+      integer   ,optional :: deriv
 
 c     Local variables
 
       real(8)    ::  dxx,dummy(nv)
-      integer(4) ::  i,j
+      integer    ::  i,j
 
 c     Cubic splines
 
-      integer(4),parameter :: incfd = 1  !Stride to take for input vectors in spline routine
+      integer   ,parameter :: incfd = 1  !Stride to take for input vectors in spline routine
 
-      integer(4) :: ic(2),nwk,ierr,derv
+      integer    :: ic(2),nwk,ierr,derv
       real(8)    :: vc(2),f(incfd,nx),d(incfd,nx)
       real(8), allocatable, dimension(:) :: wk
       logical    :: skip
@@ -151,12 +151,12 @@ c     ------------------------------------------------------------------
 
 c     Variables in call
 
-      integer(4) :: j,n
+      integer    :: j,n
       real(8)    :: x,xx(n)
  
 c     Local variables
 
-      integer(4) :: jl,jm,ju
+      integer    :: jl,jm,ju
 
 c     Begin program
 
@@ -195,12 +195,12 @@ c     ------------------------------------------------------------------
 
 c     Variables in call
 
-      integer(4) :: nx,j,derv
+      integer    :: nx,j,derv
       real(8)    :: x1,x(nx),vec(nx),q_int
  
 c     Local variables
 
-      integer(4) :: jm,jp,jj
+      integer    :: jm,jp,jj
 
 c     Begin program
 
@@ -250,12 +250,12 @@ c     ------------------------------------------------------------------
 
 c     Variables in call
 
-      integer(4) :: nx,j,derv
+      integer    :: nx,j,derv
       real(8)    :: x1,x(nx),vec(nx),l_int
  
 c     Local variables
 
-      integer(4) :: jp,jj
+      integer    :: jp,jj
 
 c     Begin program
 

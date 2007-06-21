@@ -10,7 +10,7 @@ c ######################################################################
 
 c Call variables
 
-      integer(4)  :: ierr
+      integer     :: ierr
       real(8)     :: dn(neqd),dnh(neqd),dnp(neqd),dt_to_c
 
 c Local variables

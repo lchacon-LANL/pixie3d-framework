@@ -24,7 +24,7 @@ c Common variables
 
 c Local variables
 
-      integer(4) :: prec_tot,ierr
+      integer    :: prec_tot,ierr
 
 c Begin program
 

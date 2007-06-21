@@ -39,14 +39,14 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz
+        integer    :: i,j,k,igx,igy,igz
         real(8)    :: c1,c2,c3,cx,cy,cz
         logical    :: covariant
         
 
 c     Local variables
 
-        integer(4) :: ic
+        integer    :: ic
         real(8)    :: T_to_car(3,3),vec(3)
 
 c     Begin program
@@ -81,13 +81,13 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz
+        integer    :: i,j,k,igx,igy,igz
         real(8)    :: c1,c2,c3,cx,cy,cz
         logical    :: covariant
 
 c     Local variables
 
-        integer(4) :: ic
+        integer    :: ic
         real(8)    :: T_to_curv(3,3),vec(3),jac
 
 c     Begin program
@@ -125,15 +125,15 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz
-        integer(4),optional,intent(IN) :: half_elem
+        integer    :: i,j,k,igx,igy,igz
+        integer   ,optional,intent(IN) :: half_elem
 
         real(8)    :: cov1,cov2,cov3,cnv1,cnv2,cnv3
         logical    :: tocnv
 
 c     Local variables
 
-        integer(4) :: he,ip
+        integer    :: he,ip
         real(8)    :: cov(3),cnv(3),tensor(3,3)
 
 c     Begin program
@@ -221,7 +221,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: i,j,k,igx,igy,igz
+      integer    :: i,j,k,igx,igy,igz
       real(8)    :: ax,ay,az,vectorNorm
       logical    :: covar
 
@@ -263,7 +263,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: i,j,k,igx,igy,igz
+      integer    :: i,j,k,igx,igy,igz
       real(8)    :: dot,cov1,cov2,cov3,cnv1,cnv2,cnv3
 
 c     Local variables

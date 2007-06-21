@@ -4,9 +4,9 @@ c######################################################################
 
         use grid_mpi
 
-        integer(4) :: ngrdx,ngrdy,ngrdz,ngrid,igmax
+        integer    :: ngrdx,ngrdy,ngrdz,ngrid,igmax
 
-        integer(4),dimension(:),allocatable ::
+        integer   ,dimension(:),allocatable ::
      .                     istart,ntotv,istartp,ntotvp
      .                    ,istartb,ntotb,nxv,nyv,nzv,nblock
      .                    ,mg_ratio_x,mg_ratio_y,mg_ratio_z
@@ -32,13 +32,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4)          :: neq
+      integer             :: neq
       logical,intent(OUT) :: fpointers
       type(grid_mg_def),optional,intent(IN) :: mg_grid
 
 c     Local variables
 
-      integer(4) :: i
+      integer    :: i
 
 c     Begin program
 
@@ -138,11 +138,11 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: elem,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax,igr
+      integer    :: elem,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax,igr
 
 c     Local variables
 
-      integer(4) :: el1
+      integer    :: el1
 
 c     Begin program
 

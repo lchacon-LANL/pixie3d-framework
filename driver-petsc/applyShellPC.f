@@ -28,14 +28,14 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4)      :: imin,imax,jmin,jmax,kmin,kmax
+      integer         :: imin,imax,jmin,jmax,kmin,kmax
 
       type(petsc_var) :: yarr(imin:imax,jmin:jmax,kmin:kmax)
      .                  ,xarr(imin:imax,jmin:jmax,kmin:kmax)
 
 c Local variables
 
-      integer(4) :: ieq,il,jl,kl,i,j,k,ii,iout
+      integer    :: ieq,il,jl,kl,i,j,k,ii,iout
       real(8)    :: x(ntotd),y(ntotd)
 
 c Begin program

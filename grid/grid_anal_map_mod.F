@@ -63,13 +63,13 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz
+        integer    :: i,j,k,igx,igy,igz
         real(8)    :: car(3)
-        integer(4),optional,intent(OUT) :: ig,jg,kg
+        integer   ,optional,intent(OUT) :: ig,jg,kg
 
 c     Local variables
 
-        integer(4) :: ig1,jg1,kg1
+        integer    :: ig1,jg1,kg1
 
         real(8)    :: x1,y1,z1
 
@@ -104,7 +104,7 @@ c     Input variables
 
 c     Local variables
 
-        integer(4) :: inewt,ic
+        integer    :: inewt,ic
         real(8)    :: xx,yy,zz,jac_mat(3,3),rhs(3),dx(3),rr,rr0,dd
 
 c     Begin program
@@ -233,8 +233,8 @@ c     Local variables
 
         real(8) :: ll,l0m,l0p,dd,ee,ff,bb
 
-        integer(4),parameter :: nit=20
-        integer(4) :: i
+        integer   ,parameter :: nit=20
+        integer    :: i
         real(8)    :: ijac,dxi(nit),res(nit)
 
 c     Begin program
@@ -308,12 +308,12 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz
+        integer    :: i,j,k,igx,igy,igz
         real(8)    :: jac
 
 c     Local variables
 
-        integer(4) :: ig,jg,kg
+        integer    :: ig,jg,kg
         real(8)    :: x1,x2,x3,car(3),curv(3)
 
 c     Begin program
@@ -382,11 +382,11 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: comp,i,j,k,igx,igy,igz
+        integer    :: comp,i,j,k,igx,igy,igz
 
 c     Local variables
 
-        integer(4) :: ig,jg,kg
+        integer    :: ig,jg,kg
         real(8)    :: x1,x2,x3,vec(3)
 
         real(8)    :: car(3),curv(3),jac,r
@@ -555,12 +555,12 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: comp,i,j,k,igx,igy,igz
+        integer    :: comp,i,j,k,igx,igy,igz
         real(8)    :: vec(3)
 
 c     Local variables
 
-        integer(4) :: ig,jg,kg
+        integer    :: ig,jg,kg
         real(8)    :: car(3),curv(3),jac
         real(8)    :: x1,x2,x3
 
@@ -732,11 +732,11 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: l,i,j,k,igx,igy,igz
+        integer    :: l,i,j,k,igx,igy,igz
 
 c     Local variables
 
-        integer(4) :: ig,jg,kg
+        integer    :: ig,jg,kg
         real(8)    :: car(3),curv(3),vec(9)
         real(8)    :: x1,x2,x3,tensor(3,3)
 
@@ -1056,7 +1056,7 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: l,i,j,k,igx,igy,igz
+        integer    :: l,i,j,k,igx,igy,igz
         real(8)    :: tensor(3,3,3)
 
 c     Local variables
@@ -1085,7 +1085,7 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: k
+        integer    :: k
         real(8)    :: x1,x2,x3,tensor(3,3)
 
 c     Local variables
@@ -1262,12 +1262,12 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz
+        integer    :: i,j,k,igx,igy,igz
         real(8)    :: tensor(3,3)
 
 c     Local variables
 
-        integer(4) :: ig,jg,kg
+        integer    :: ig,jg,kg
         real(8)    :: vec(9),jac,car(3),curv(3)
         real(8)    :: x1,x2,x3
 
@@ -1409,12 +1409,12 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz
+        integer    :: i,j,k,igx,igy,igz
         real(8)    :: tensor(3,3)
 
 c     Local variables
 
-        integer(4) :: ig,jg,kg
+        integer    :: ig,jg,kg
         real(8)    :: vec(9),jac,car(3),curv(3)
         real(8)    :: x1,x2,x3
 

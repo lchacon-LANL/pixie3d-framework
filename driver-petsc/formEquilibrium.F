@@ -28,7 +28,7 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4)      :: imin,imax,jmin,jmax,kmin,kmax,ieq
+      integer         :: imin,imax,jmin,jmax,kmin,kmax,ieq
 
       type(petsc_var) :: array(imin:imax,jmin:jmax,kmin:kmax)
 
@@ -155,13 +155,13 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: ieq,igx,igy,igz
+      integer    :: ieq,igx,igy,igz
 
       real(8),allocatable,dimension(:,:,:,:) :: var
 
       character*(20),allocatable,dimension(:):: label
 
-      integer(4),allocatable,dimension(:,:)  :: bcs
+      integer   ,allocatable,dimension(:,:)  :: bcs
 
 c Begin program
 
@@ -207,7 +207,7 @@ c     Call variables
 
 c     Local variables
 
-      integer(4) :: ieq
+      integer    :: ieq
 
 c     Begin program
 

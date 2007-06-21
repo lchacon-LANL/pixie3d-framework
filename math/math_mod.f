@@ -187,10 +187,10 @@ c     ################################################################
 
       implicit none
 
-      integer(4)   :: n
+      integer      :: n
       character(10):: chr
 
-      integer(4)   :: i,exp,k,j
+      integer      :: i,exp,k,j
       character(3) :: c
 
       if (abs(n) > 0) then

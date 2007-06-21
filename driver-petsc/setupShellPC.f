@@ -28,13 +28,13 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4)      :: imin,imax,jmin,jmax,kmin,kmax,nl_it
+      integer         :: imin,imax,jmin,jmax,kmin,kmax,nl_it
 
       type(petsc_var) :: array(imin:imax,jmin:jmax,kmin:kmax)
 
 c Local variables
 
-      integer(4)      :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl,ieq
+      integer         :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl,ieq
       type(var_array) :: varray
 
 c Begin program

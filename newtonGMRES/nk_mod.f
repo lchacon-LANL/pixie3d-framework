@@ -40,19 +40,19 @@ c ###################################################################
 cc      real(8),parameter    :: epsmac=1d-15
       real(8) :: epsmac=0d-15,roundoff
 
-      integer(4) :: jit=0
+      integer    :: jit=0
 
       logical    :: pseudo_dt,prnt
 
       type :: nk_options
-        integer(4)   :: etak_meth=0
-        integer(4)   :: global_meth=0
-        integer(4)   :: ksmax=10
-        integer(4)   :: gmmax=10
-        integer(4)   :: nwt_max_it_acc=5
-        integer(4)   :: nwt_max_it_rej=10
-        integer(4)   :: gm_it_out
-        integer(4)   :: nwt_it_out
+        integer      :: etak_meth=0
+        integer      :: global_meth=0
+        integer      :: ksmax=10
+        integer      :: gmmax=10
+        integer      :: nwt_max_it_acc=5
+        integer      :: nwt_max_it_rej=10
+        integer      :: gm_it_out
+        integer      :: nwt_it_out
         real(8)      :: damp=1d0
         real(8)      :: pdt0=1d30
         real(8)      :: eta0=1d-1
@@ -150,14 +150,14 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ntot,neq,out,iguess,ierr
+      integer    :: ntot,neq,out,iguess,ierr
      .             
 
       real(8)    :: x(ntot)
 
 c     Local variables
 
-      integer(4) :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
+      integer    :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
      .             ,ntit_max_rej,global
 
       real(8)    :: dxnorm,check_lim,residuals(neq),ddx(ntot)
@@ -407,12 +407,12 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: neq,ntot
+      integer    :: neq,ntot
       real(8)    :: b(ntot),ravg(neq)
 
 c     Local variables
 
-      integer(4) :: i,j
+      integer    :: i,j
 
 c     Begin program
 
@@ -444,7 +444,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ntot
+      integer    :: ntot
       real(8)    :: x(ntot),ddx(ntot),damp,dxnorm
 
 c     Local variables
@@ -481,7 +481,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: etak_meth
+      integer    :: etak_meth
       real(8)    :: fk,fkm,flimit,eta0,etak,etakm
 
 c     Local variables
@@ -521,12 +521,12 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ntot
+      integer    :: ntot
       real(8)    :: x(ntot),ddx(ntot),fk,etak,damp
 
 c     Local variables
 
-      integer(4) :: idamp
+      integer    :: idamp
       real(8)    :: dampm,theta,etak0,dxnorm,fkp,fm,df,ddf
       real(8)    :: b(ntot),dummy(ntot)
       real(8)    :: alpha,sigma0,sigma1
@@ -619,12 +619,12 @@ c     ----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: itk,ierr,nn,ksmax,iguess,iout,maxitgm
+      integer    :: itk,ierr,nn,ksmax,iguess,iout,maxitgm
       real(8)    :: b(nn),x(nn),etak
 
 c     Local variables
 
-      integer(4) :: iiout
+      integer    :: iiout
       real(8)    :: eps
 
 c     Begin program
@@ -710,7 +710,7 @@ c     ----------------------------------------------------------------------*
 
 c     Call variables
 
-      integer(4) :: ntot,im,maxits,iout,ierr,its
+      integer    :: ntot,im,maxits,iout,ierr,its
       real(8)    :: rhs(ntot),sol(ntot),eps
 
 c     Local variables
@@ -718,7 +718,7 @@ c     Local variables
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
       real(8)    :: vv(ntot,im+1),zz(ntot,im+1)
       real(8)    :: rold,ro,eps1,gam,t
-      integer(4) :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
+      integer    :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
 
 c     Begin program
 
@@ -968,7 +968,7 @@ c     ----------------------------------------------------------------------*
 
 c     Call variables
 
-      integer(4) :: ntot,im,maxits,iout,ierr,its
+      integer    :: ntot,im,maxits,iout,ierr,its
       real(8)    :: rhs(ntot),sol(ntot),eps
 
 c     Local variables
@@ -976,7 +976,7 @@ c     Local variables
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
       real(8)    :: vv(ntot,im+1)
       real(8)    :: rold,ro,eps1,gam,t
-      integer(4) :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
+      integer    :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
 
 c     Begin program
 
@@ -1201,12 +1201,12 @@ c     -------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: nn
+      integer    :: nn
       real(8)    :: z(nn),y(nn)
 
 c     Local variables
 
-      integer(4) :: i
+      integer    :: i
       real(8)    :: dummy(nn),pert,ipert,modz,modx,xdotz
 
 c     Begin program

@@ -5,30 +5,30 @@ c #####################################################################
 
         implicit none
 
-cc        integer(4) :: nxgl,nygl,nzgl
+cc        integer    :: nxgl,nygl,nzgl
 
-        integer(4),parameter :: ngparams = 6
+        integer   ,parameter :: ngparams = 6
 
         type :: grid_mg_def
-          integer(4) :: ngrdx                             !# meshes in X
-          integer(4) :: ngrdy                             !# meshes in Y
-          integer(4) :: ngrdz                             !# meshes in Y
-          integer(4) :: ngrid                             !# meshes for MG
-          integer(4) :: nglx                              !# meshes in X
-          integer(4) :: ngly                              !# meshes in Y
-          integer(4) :: nglz                              !# meshes in Y
+          integer    :: ngrdx                             !# meshes in X
+          integer    :: ngrdy                             !# meshes in Y
+          integer    :: ngrdz                             !# meshes in Y
+          integer    :: ngrid                             !# meshes for MG
+          integer    :: nglx                              !# meshes in X
+          integer    :: ngly                              !# meshes in Y
+          integer    :: nglz                              !# meshes in Y
           real(8)    :: lxmin,lxmax                       !Local physical dimensions in X
           real(8)    :: lymin,lymax                       !Local physical dimensions in Y
           real(8)    :: lzmin,lzmax                       !Local physical dimensions in Z
-          integer(4),pointer,dimension(:)  :: iline       !Restrict ops. to i=iline in MG
-          integer(4),pointer,dimension(:)  :: jline       !Restrict ops. to j=jline in MG
-          integer(4),pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
-          integer(4),pointer,dimension(:)  :: ilo         !Global lower limit in X
-          integer(4),pointer,dimension(:)  :: jlo         !Global lower limit in Y
-          integer(4),pointer,dimension(:)  :: klo         !Global lower limit in Z
-          integer(4),pointer,dimension(:)  :: ihi         !Global higher limit in X
-          integer(4),pointer,dimension(:)  :: jhi         !Global higher limit in Y
-          integer(4),pointer,dimension(:)  :: khi         !Global higher limit in Z
+          integer   ,pointer,dimension(:)  :: iline       !Restrict ops. to i=iline in MG
+          integer   ,pointer,dimension(:)  :: jline       !Restrict ops. to j=jline in MG
+          integer   ,pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
+          integer   ,pointer,dimension(:)  :: ilo         !Global lower limit in X
+          integer   ,pointer,dimension(:)  :: jlo         !Global lower limit in Y
+          integer   ,pointer,dimension(:)  :: klo         !Global lower limit in Z
+          integer   ,pointer,dimension(:)  :: ihi         !Global higher limit in X
+          integer   ,pointer,dimension(:)  :: jhi         !Global higher limit in Y
+          integer   ,pointer,dimension(:)  :: khi         !Global higher limit in Z
           real(8)   ,pointer,dimension(:)  :: xg          !Global grid nodes in X (top grid)
           real(8)   ,pointer,dimension(:)  :: yg          !Global grid nodes in Y (")
           real(8)   ,pointer,dimension(:)  :: zg          !Global grid nodes in Z (")
@@ -41,20 +41,20 @@ cc        integer(4) :: nxgl,nygl,nzgl
           real(8)   ,pointer,dimension(:)  :: dxh         !Grid spacings in X for half mesh (")
           real(8)   ,pointer,dimension(:)  :: dyh         !Grid spacings in Y for half mesh (")
           real(8)   ,pointer,dimension(:)  :: dzh         !Grid spacings in Z for half mesh (")
-          integer(4),pointer,dimension(:)  :: nxv         !Local # of grid nodes in X  (")
-          integer(4),pointer,dimension(:)  :: nyv         !Local # of grid nodes in Y  (")
-          integer(4),pointer,dimension(:)  :: nzv         !Local # of grid nodes in Z  (")
-          integer(4),pointer,dimension(:)  :: nxgl        !Global # of grid nodes in X  (")
-          integer(4),pointer,dimension(:)  :: nygl        !Global # of grid nodes in Y  (")
-          integer(4),pointer,dimension(:)  :: nzgl        !Global # of grid nodes in Z  (")
-cc          integer(4),pointer,dimension(:)  :: ntotv       !Total # of grid nodes (")
-          integer(4),pointer,dimension(:)  :: istartx     !Pointer for MG vectors in X
-          integer(4),pointer,dimension(:)  :: istarty     !Pointer for MG vectors in Y
-          integer(4),pointer,dimension(:)  :: istartz     !Pointer for MG vectors in Z
-          integer(4),pointer,dimension(:)  :: istartp     !Pointer for global MG vectors
-          integer(4),pointer,dimension(:)  :: mg_ratio_x  !MG coarsening ratio in X
-          integer(4),pointer,dimension(:)  :: mg_ratio_y  !MG coarsening ratio in Y
-          integer(4),pointer,dimension(:)  :: mg_ratio_z  !MG coarsening ratio in Z
+          integer   ,pointer,dimension(:)  :: nxv         !Local # of grid nodes in X  (")
+          integer   ,pointer,dimension(:)  :: nyv         !Local # of grid nodes in Y  (")
+          integer   ,pointer,dimension(:)  :: nzv         !Local # of grid nodes in Z  (")
+          integer   ,pointer,dimension(:)  :: nxgl        !Global # of grid nodes in X  (")
+          integer   ,pointer,dimension(:)  :: nygl        !Global # of grid nodes in Y  (")
+          integer   ,pointer,dimension(:)  :: nzgl        !Global # of grid nodes in Z  (")
+cc          integer   ,pointer,dimension(:)  :: ntotv       !Total # of grid nodes (")
+          integer   ,pointer,dimension(:)  :: istartx     !Pointer for MG vectors in X
+          integer   ,pointer,dimension(:)  :: istarty     !Pointer for MG vectors in Y
+          integer   ,pointer,dimension(:)  :: istartz     !Pointer for MG vectors in Z
+          integer   ,pointer,dimension(:)  :: istartp     !Pointer for global MG vectors
+          integer   ,pointer,dimension(:)  :: mg_ratio_x  !MG coarsening ratio in X
+          integer   ,pointer,dimension(:)  :: mg_ratio_y  !MG coarsening ratio in Y
+          integer   ,pointer,dimension(:)  :: mg_ratio_z  !MG coarsening ratio in Z
           real(8)                          :: params(ngparams)   !Grid configuration parameters
         end type grid_mg_def
 
@@ -78,12 +78,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4)     :: nx,ny,nz,ngridx,ngridy,ngridz,nglx,ngly,nglz
+        integer        :: nx,ny,nz,ngridx,ngridy,ngridz,nglx,ngly,nglz
         type(grid_mg_def) :: grid_st
 
 c     Local variables
 
-        integer(4) :: ngrid,nxmg,nymg,nzmg
+        integer    :: ngrid,nxmg,nymg,nzmg
 
 c     Begin program
 
@@ -191,7 +191,7 @@ c     enough space even if nn=1 in the finest grid. It does NOT include
 c     ghost cells (this requires an additional term of 2*ngrdt).
 c     -----------------------------------------------------------------
 
-        integer(4) :: nn,nnmg,ngrd,ngrdt
+        integer    :: nn,nnmg,ngrd,ngrdt
 
 cc        nnmg = 2*nn + ngrdt - ngrd -1
         nnmg = (2+ngrdt-ngrd)*nn
@@ -279,7 +279,7 @@ c     Call variables
 
 c     Local variables
 
-        integer(4)     :: ngridx,ngridy,ngridz,nx,ny,nz
+        integer        :: ngridx,ngridy,ngridz,nx,ny,nz
      .                   ,nglx,ngly,nglz
 
 c     Begin program
@@ -433,7 +433,7 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
+        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
 
 c     Local variables
 
@@ -458,12 +458,12 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
+        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
         real(8)    :: x1,y1,z1
 
 c     Local variables
 
-        integer(4) :: ii,jj,ny
+        integer    :: ii,jj,ny
 
 c     Begin program
 
@@ -481,9 +481,9 @@ c     #################################################################
 
         implicit none
 
-        integer(4) :: ijk,i,j,k,neq,igx,igy,igz
+        integer    :: ijk,i,j,k,neq,igx,igy,igz
 
-        integer(4) :: nxl,nyl,nzl,ilo,jlo,klo
+        integer    :: nxl,nyl,nzl,ilo,jlo,klo
 
         ilo = 1
         jlo = 1
@@ -503,7 +503,7 @@ c     #################################################################
 
         implicit none
 
-        integer(4) :: ig,jg,kg,il,jl,kl,igx,igy,igz
+        integer    :: ig,jg,kg,il,jl,kl,igx,igy,igz
 
         il = ig - grid_params%ilo(igx) + 1
         jl = jg - grid_params%jlo(igy) + 1
@@ -517,7 +517,7 @@ c     #################################################################
 
         implicit none
 
-        integer(4) :: ig,jg,kg,il,jl,kl,igx,igy,igz
+        integer    :: ig,jg,kg,il,jl,kl,igx,igy,igz
 
         ig = il + grid_params%ilo(igx) - 1
         jg = jl + grid_params%jlo(igy) - 1
@@ -553,12 +553,12 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-        integer(4) :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM,IFC
+        integer    :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM,IFC
         parameter (DEF=0,PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7,IFC=8)
 
-        integer(4),parameter :: BCLIM=8    !Defines # of BC cases
+        integer   ,parameter :: BCLIM=8    !Defines # of BC cases
 
-        integer(4) :: bcond(6)
+        integer    :: bcond(6)
 
         logical    :: asm_dir(3)=.false.,asm=.false.,par_bc=.false.
 
@@ -570,10 +570,10 @@ c     bcSP
 c     #################################################################
       function bcSP(ibc) result(sing_bc)
 
-        integer(4),optional :: ibc
+        integer   ,optional :: ibc
         logical    :: sing_bc
 
-        integer(4) :: iibc
+        integer    :: iibc
 
         if (PRESENT(ibc)) then
           iibc = ibc
@@ -589,7 +589,7 @@ c     isSP
 c     #################################################################
       function isSP(i,j,k,igx,igy,igz) result(sing_point)
 
-        integer(4) :: i,j,k,igx,igy,igz
+        integer    :: i,j,k,igx,igy,igz
         logical    :: sing_point
 
         sing_point = (i+grid_params%ilo(igx)-1==1).and.bcSP()
@@ -600,10 +600,10 @@ c     isSYM
 c     #################################################################
       function isSYM(i,igr,dim,loc)
 
-        integer(4) :: i,igr,dim,loc
+        integer    :: i,igr,dim,loc
         logical    :: isSYM
 
-        integer(4) :: ibc,ilog,itst
+        integer    :: ibc,ilog,itst
 
         ibc = (1+loc)+2*(dim-1)
 
@@ -704,7 +704,7 @@ c     Call variables
 
 c     Local variables
 
-        integer(4)      :: igrid,ilom,ihip,jlom,jhip,klom,khip
+        integer         :: igrid,ilom,ihip,jlom,jhip,klom,khip
 
 c     Begin program
 
@@ -753,7 +753,7 @@ c     Call variables
 
 c     Local variables
 
-        integer(4)      :: igrid,nxp,nyp,nzp
+        integer         :: igrid,nxp,nyp,nzp
 
 c     Begin program
 
@@ -787,12 +787,12 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz
+        integer    :: i,j,k,igx,igy,igz
         real(8)    :: vol
 
 c     Local variables
 
-        integer(4) :: ig,jg,kg
+        integer    :: ig,jg,kg
         real(8)    :: x1,x2,x3,dx1,dx2,dx3,jac
 
 c     Begin program
@@ -822,7 +822,7 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igx,igy,igz,ig,jg,kg
+        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
         real(8)    :: x1,y1,z1
 
 c     Local variables

@@ -14,7 +14,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: ntot
+      integer    :: ntot
       real(8)    :: x(ntot)
 
 c Local variables

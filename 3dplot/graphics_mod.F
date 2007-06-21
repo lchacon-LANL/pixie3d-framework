@@ -22,13 +22,13 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: igx,igy,igz,bcs(6)
+        integer    :: igx,igy,igz,bcs(6)
 
 c     Local variables
 
-        integer(4) :: nx,ny,nz,isx,isy,isz
+        integer    :: nx,ny,nz,isx,isy,isz
 
-        integer(4) :: i,nplots
+        integer    :: i,nplots
         
         character*(30) :: prof_label
 
@@ -130,7 +130,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: nx,ny,nz,bcond(6)
+        integer    :: nx,ny,nz,bcond(6)
 
 c     Local variables
  
@@ -219,7 +219,7 @@ c     ##################################################################
 
 c     Call variables
 
-        integer(4) :: ngroups
+        integer    :: ngroups
 
 c     Begin program
 

@@ -13,32 +13,32 @@ c ######################################################################
 #include "finclude/petscda.h"
 #include "finclude/petscvec.h90"
 
-        integer(4) :: np,inp,my_rank,mpierr,group_world
+        integer    :: np,inp,my_rank,mpierr,group_world
      .               ,group_sp,tag=0,dest=0,root=0
      .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
      .               ,npx=0,npy=0,npz=0
 
-        integer(4) :: l_lim(3,0:1),g_lim(3,0:1),rem_l_lim(3,0:1)
+        integer    :: l_lim(3,0:1),g_lim(3,0:1),rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
 
-        integer(4) :: MPI_COMM_SP,MPI_COMM_POL
-        integer(4),allocatable,dimension(:) :: MPI_COMM_PER
-        integer(4),allocatable,dimension(:) :: MPI_COMM_NBRS
+        integer    :: MPI_COMM_SP,MPI_COMM_POL
+        integer   ,allocatable,dimension(:) :: MPI_COMM_PER
+        integer   ,allocatable,dimension(:) :: MPI_COMM_NBRS
 
         type :: da_ctx
           DA         :: da
           Vec        :: Xg
-          integer(4) :: xs,xe,xm,gxs,gxe,gxm
-          integer(4) :: ys,ye,ym,gys,gye,gym
-          integer(4) :: zs,ze,zm,gzs,gze,gzm
-          integer(4) :: lxs,lxe,lgxs,lgxe
-          integer(4) :: lys,lye,lgys,lgye
-          integer(4) :: lzs,lze,lgzs,lgze
-          integer(4) :: il ,ih ,jl ,jh ,kl ,kh
-          integer(4) :: ilm,ihp,jlm,jhp,klm,khp
-          integer(4) :: mx,my,mz,rank
-          integer(4) :: igx,igy,igz
+          integer    :: xs,xe,xm,gxs,gxe,gxm
+          integer    :: ys,ye,ym,gys,gye,gym
+          integer    :: zs,ze,zm,gzs,gze,gzm
+          integer    :: lxs,lxe,lgxs,lgxe
+          integer    :: lys,lye,lgys,lgye
+          integer    :: lzs,lze,lgzs,lgze
+          integer    :: il ,ih ,jl ,jh ,kl ,kh
+          integer    :: ilm,ihp,jlm,jhp,klm,khp
+          integer    :: mx,my,mz,rank
+          integer    :: igx,igy,igz
         end type da_ctx
 
         type (da_ctx),dimension(20) :: dactx
@@ -64,7 +64,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: nxg,nyg,nzg
+        integer    :: nxg,nyg,nzg
 
 c     Local variables
 
@@ -113,9 +113,9 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: igr
+        integer    :: igr
 
-        integer(4) :: my_sp_rank,np_sp
+        integer    :: my_sp_rank,np_sp
 
 c     Begin program
 
@@ -187,7 +187,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: igr
+        integer    :: igr
         real(8) :: array(dactx(igr)%ilm:dactx(igr)%ihp
      .                  ,dactx(igr)%jlm:dactx(igr)%jhp 
      .                  ,dactx(igr)%klm:dactx(igr)%khp)
@@ -198,7 +198,7 @@ c     Local variables
 
         PetscScalar,pointer :: lx_v(:)
 
-        integer(4) :: ierr
+        integer    :: ierr
 
 c     Begin program
 
@@ -260,7 +260,7 @@ c     #################################################################
 
 c     Call variables
 
-        integer(4) :: proc_id
+        integer    :: proc_id
         logical    :: isProc
 
 c     Local variables
@@ -281,7 +281,7 @@ c     #################################################################
 
 c     Call variables
 
-        integer(4) :: igl,jgl,kgl,igx,igy,igz
+        integer    :: igl,jgl,kgl,igx,igy,igz
         logical    :: inProc
 
 c     Local variables
@@ -337,12 +337,12 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ntot
+      integer    :: ntot
       real(8)    :: vec1(ntot),vec2(ntot),dot
 
 c     Local variables
 
-      integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+      integer    :: imin,imax,jmin,jmax,kmin,kmax
      .             ,i,j,k,iii,ieq
       real(8)    :: ldot
 
@@ -372,7 +372,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: nxg,nyg,nzg
+        integer    :: nxg,nyg,nzg
 
 c     Local variables
 
@@ -402,12 +402,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: igrid
-        integer(4),optional :: nxgl,nygl,nzgl
+        integer    :: igrid
+        integer   ,optional :: nxgl,nygl,nzgl
 
 c     Local variables
 
-        integer(4) :: BC,ierr,nxg,nyg,nzg,igx,igy,igz
+        integer    :: BC,ierr,nxg,nyg,nzg,igx,igy,igz
 
 c     Begin program
 
@@ -540,7 +540,7 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: ierr,igr
+        integer    :: ierr,igr
 
 c     Begin program
 
@@ -568,11 +568,11 @@ c     ----------------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: nx1,ny1,nz1
+      integer    :: nx1,ny1,nz1
 
 c     Local variables
 
-      integer(4) :: nx,ny,nz,sum_exp,nd,navg,exp(3),npt(3),nprocs
+      integer    :: nx,ny,nz,sum_exp,nd,navg,exp(3),npt(3),nprocs
 
 c     Begin program
 
@@ -696,11 +696,11 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: MPI_COMM
+        integer    :: MPI_COMM
 
 c     Local variables
 
-        integer(4) :: split_key,my_sp_rank,np_sp
+        integer    :: split_key,my_sp_rank,np_sp
 
         external   selProc
 
@@ -734,12 +734,12 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: split_key
+        integer    :: split_key
 
 c     Local variables
 
         real(8)    :: random
-        integer(4) :: dim,loc,lrank,BC
+        integer    :: dim,loc,lrank,BC
 
         logical    :: cp(0:1)
 
@@ -803,12 +803,12 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: split_key
+        integer    :: split_key
 
 c     Local variables
 
         real(8)    :: random
-        integer(4) :: dim,loc,lrank
+        integer    :: dim,loc,lrank
 
         logical    :: cp(0:1)
 
@@ -859,11 +859,11 @@ cc        implicit none
 cc
 ccc     Call variables
 cc
-cc        integer(4) :: dim,MPI_COMM
+cc        integer    :: dim,MPI_COMM
 cc
 ccc     Local variables
 cc
-cc        integer(4) :: split_key,my_sp_rank,np_sp
+cc        integer    :: split_key,my_sp_rank,np_sp
 cc
 ccc     Begin program
 cc
@@ -908,12 +908,12 @@ cc          implicit none
 cc
 ccc       Call variables
 cc
-cc          integer(4) :: dim,BC,split_key
+cc          integer    :: dim,BC,split_key
 cc
 ccc       Local variables
 cc
 cc          real(8)    :: random
-cc          integer(4) :: loc,lrank
+cc          integer    :: loc,lrank
 cc
 cc          logical    :: cp(0:1)
 cc
@@ -976,12 +976,12 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: BC,dim,loc,llim(3,0:1),glim(3,0:1)
+        integer    :: BC,dim,loc,llim(3,0:1),glim(3,0:1)
         logical    :: include_proc
 
 c     Local variables
 
-        integer(4) :: ibc
+        integer    :: ibc
 
 c     Begin program
 
@@ -1004,7 +1004,7 @@ cc        implicit none
 cc
 ccc     Call variables
 cc
-cc        integer(4) :: igrid
+cc        integer    :: igrid
 cc
 ccc     Local variables
 cc
@@ -1062,7 +1062,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: igr
+        integer    :: igr
         real(8) :: array(dactx(igr)%ilm:dactx(igr)%ihp
      .                  ,dactx(igr)%jlm:dactx(igr)%jhp 
      .                  ,dactx(igr)%klm:dactx(igr)%khp)
@@ -1142,7 +1142,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: igr
+        integer    :: igr
 
         real(8) :: array(dactx(igr)%ilm:dactx(igr)%ihp
      .                  ,dactx(igr)%jlm:dactx(igr)%jhp 
@@ -1219,7 +1219,7 @@ c     #################################################################
 
 c     Call variables
 
-        integer(4) :: ierr
+        integer    :: ierr
         character(*) :: routine
 
 c     Begin program
@@ -1232,7 +1232,7 @@ c     End program
 
 #else
 
-        integer(4)    :: np=1,my_rank=0,npx=1,npy=1,npz=1
+        integer       :: np=1,my_rank=0,npx=1,npy=1,npz=1
         character(80) :: messg
 
       contains
@@ -1245,7 +1245,7 @@ c     #################################################################
 
 c     Call variables
 
-        integer(4) :: proc_id
+        integer    :: proc_id
         logical    :: isProc
 
 c     Local variables
@@ -1266,7 +1266,7 @@ c     #################################################################
 
 c     Call variables
 
-        integer(4) :: igl,jgl,kgl,igx,igy,igz
+        integer    :: igl,jgl,kgl,igx,igy,igz
         logical    :: inProc
 
 c     Local variables
@@ -1316,12 +1316,12 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ntot
+      integer    :: ntot
       real(8)    :: vec1(ntot),vec2(ntot),dot
 
 c     Local variables
 
-      integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+      integer    :: imin,imax,jmin,jmax,kmin,kmax
      .             ,i,j,k,iii,ieq
       real(8)    :: ldot
 

@@ -18,14 +18,14 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4)  ::  imingc,imaxgc,jmingc,jmaxgc,kmingc,kmaxgc
+      integer     ::  imingc,imaxgc,jmingc,jmaxgc,kmingc,kmaxgc
      .               ,gmits,nwits
 
       type(petsc_var) :: x(imingc:imaxgc,jmingc:jmaxgc,kmingc:kmaxgc)
 
 c Local variables
 
-      integer(4) :: i,j,k,il,jl,kl,ieq,ii
+      integer    :: i,j,k,il,jl,kl,ieq,ii
      .             ,imingcl,imaxgcl,jmingcl,jmaxgcl,kmingcl,kmaxgcl
 
       real(8)    :: mag

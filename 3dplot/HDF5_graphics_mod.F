@@ -19,7 +19,7 @@ c ##################################################################
 
 #if defined(hdf5)
 
-        integer(4)     :: toffset=0
+        integer        :: toffset=0
 
 c       HDF5 ID variables
         integer(hid_t) :: group_id,subgroup_id
@@ -36,13 +36,13 @@ c       variables for parallel HDF5
         integer(hid_t) :: hs_dataspace_id
         integer(hid_t) :: p_dataspace_id,p_node_dataspace_id
 
-        integer(4)     :: hdferr,igrp
+        integer        :: hdferr,igrp
 
 c       generic HDF5 variables
-        integer(4), parameter :: ARRAY_RANK = 3
-        integer(4), parameter :: ATTR_RANK = 1
-        integer(4), parameter :: VEXP_RANK = 1
-        integer(4), parameter :: strlength = 20
+        integer   , parameter :: ARRAY_RANK = 3
+        integer   , parameter :: ATTR_RANK = 1
+        integer   , parameter :: VEXP_RANK = 1
+        integer   , parameter :: strlength = 20
 
         integer(hsize_t), dimension(ARRAY_RANK) ::
      .                         array_dim,node_array_dim
@@ -74,7 +74,7 @@ c     Call variables
       
 c     Local variables
 
-      integer(4) :: iattr,slth
+      integer    :: iattr,slth
       character(300) :: vexp
 
 c     Begin program
@@ -161,7 +161,7 @@ c     selectExpressions
 c     #################################################################
       subroutine selectExpressions
 
-      integer(4)   :: igrp,ivar,ivp,ivm
+      integer      :: igrp,ivar,ivp,ivm
       character(20) :: str1,str2,str3
       logical      :: first
 
@@ -210,12 +210,12 @@ c     #################################################################
 
 c     Call variables
       
-cc      integer(4)         :: step
+cc      integer            :: step
       character*(20)     :: groupname
 
 c     Local variables
 
-      integer(4)         :: ieq
+      integer            :: ieq
 
 c     Begin program
 
@@ -275,7 +275,7 @@ c     Call variables
 
 c     Local variables
 
-      integer(4)     :: i,j,k,ieq,icoords
+      integer        :: i,j,k,ieq,icoords
 
       character*(20) :: timestep
 

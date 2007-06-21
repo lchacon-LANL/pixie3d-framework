@@ -17,7 +17,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4)  ::  imin,imax,jmin,jmax,kmin,kmax
+      integer     ::  imin,imax,jmin,jmax,kmin,kmax
      .               ,imingc,imaxgc,jmingc,jmaxgc,kmingc,kmaxgc
 
       type(petsc_var) :: x(imingc:imaxgc,jmingc:jmaxgc,kmingc:kmaxgc)
@@ -26,7 +26,7 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: i,j,k,il,jl,kl,ieq,ii,ig,jg,kg
+      integer    :: i,j,k,il,jl,kl,ieq,ii,ig,jg,kg
      .             ,imingcl,imaxgcl,jmingcl,jmaxgcl,kmingcl,kmaxgcl
 
       real(8)    :: dudt(neqd),ff(ntotd),dvol
@@ -131,11 +131,11 @@ c Call variables
 
 c Local variables
 
-      integer(4)       :: i,j,k,ii
+      integer          :: i,j,k,ii
 
 c Diag
 
-      integer(4)       :: ieq
+      integer          :: ieq
 
 c Interfaces
 

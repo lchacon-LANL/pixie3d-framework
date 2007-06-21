@@ -14,14 +14,14 @@ c #####################################################################
         character*(20),allocatable,dimension(:) ::
      .                    graphfile,drawgraph,profilefile,drawprof
         character*(20),allocatable,dimension(:,:) :: prof_desc
-        integer(4)    ,allocatable,dimension(:,:) :: prof_ivar,prof_log
+        integer       ,allocatable,dimension(:,:) :: prof_ivar,prof_log
         logical       ,allocatable,dimension(:)   :: prof_spline
 
-        integer(4)     :: udebug
+        integer        :: udebug
 
-        integer(4),allocatable,dimension(:) :: ugraph,uprofile
+        integer   ,allocatable,dimension(:) :: ugraph,uprofile
 
-        integer(4),allocatable,dimension(:,:) :: sel_gr
+        integer   ,allocatable,dimension(:,:) :: sel_gr
 
       contains
 
@@ -39,7 +39,7 @@ c     Call variables
 
 c     Local variables
  
-        integer(4) :: nplots,igraph
+        integer    :: nplots,igraph
 
         character*(30) :: prof_label
 
@@ -120,7 +120,7 @@ c     ##################################################################
 
 c     Call variables
 
-        integer(4) :: ngroups
+        integer    :: ngroups
 
 c     Begin program
 
@@ -199,7 +199,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: nqty,unit,comp
+        integer    :: nqty,unit,comp
 
         logical    :: cartesian,average
 
@@ -207,8 +207,8 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: i,j,k,iimin,iimax,jjmin,jjmax,kkmin,kkmax,igr
-        integer(4) :: l,llmin,llmax,iplt,jplt,kplt
+        integer    :: i,j,k,iimin,iimax,jjmin,jjmax,kkmin,kkmax,igr
+        integer    :: l,llmin,llmax,iplt,jplt,kplt
         real(8 )   :: car(3),coord
         real(8),allocatable,dimension(:,:) :: profiles
 
@@ -355,7 +355,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: nqty,iopt,nunit,igroup
+        integer    :: nqty,iopt,nunit,igroup
 
         logical    :: cartsn
 
@@ -363,8 +363,8 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: nsblk,nusblk
-        integer(4) :: i,j,k,igr,plt(3)
+        integer    :: nsblk,nusblk
+        integer    :: i,j,k,igr,plt(3)
         logical    :: cut(3)
 
 c     Begin program
@@ -404,12 +404,12 @@ c     ################################################################
 
 c     Call variables
 
-        integer(4)   :: iplt,imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
+        integer      :: iplt,imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
         character(*) :: messg
 
 c     Local variables
 
-        integer(4) :: nxgr,nygr,nxgr_old=0
+        integer    :: nxgr,nygr,nxgr_old=0
      .               ,nygr_old=0,zero=0,one=1
      .               ,nt=1,nt_prev=0
 
@@ -527,11 +527,11 @@ c     ################################################################
 
 c     Call variables
 
-        integer(4) :: imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
+        integer    :: imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
 
 c     Local variables
 
-        integer(4) :: ii
+        integer    :: ii
 
 cc        real(8),allocatable,dimension(:,:,:,:) :: car
         real(8),pointer,dimension(:,:,:,:) :: car
@@ -589,11 +589,11 @@ c     ----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: iplane,i1,i2
+        integer    :: iplane,i1,i2
 
 c     Local variables
 
-        integer(4) :: ii
+        integer    :: ii
         real(8)    :: max_x,max_y,max_z,min_x,min_y,min_z
 
         real(8),pointer,dimension(:,:,:,:) :: car
@@ -651,7 +651,7 @@ cc      subroutine twodcut(iplt,imng,imxg,jmng,jmxg,kmng,kmxg,messg)
 cc
 cc        implicit none
 cc
-cc        integer(4)   :: normal,iplt,imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
+cc        integer      :: normal,iplt,imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
 cc        character(*) :: messg
 cc
 cc        write (*,*) messg,iplt
@@ -739,12 +739,12 @@ ccc     ---------------------------------------------------------------------
 cc
 ccc     Call variables
 cc
-cc      integer(4) :: nx,ny,iopt,nunit
+cc      integer    :: nx,ny,iopt,nunit
 cc      real(8)    :: arr(nx,ny),xmin,xmax,ymin,ymax
 cc
 ccc     Local variables
 cc
-cc      integer(4) :: i,j
+cc      integer    :: i,j
 cc
 ccc     Begin program
 cc

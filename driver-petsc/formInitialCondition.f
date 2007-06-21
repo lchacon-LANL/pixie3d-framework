@@ -29,19 +29,19 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4)      :: imin,imax,jmin,jmax,kmin,kmax
+      integer         :: imin,imax,jmin,jmax,kmin,kmax
       real(8)         :: time_to_c
 
       type(petsc_var) :: array(imin:imax,jmin:jmax,kmin:kmax)
 
 c Local variables
 
-      integer(4)      :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl,ieq
+      integer         :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl,ieq
      .                  ,ierr
 
 c External
 
-      integer(4) :: system
+      integer    :: system
       external      system
 
 c Begin program
@@ -160,7 +160,7 @@ c Call variables
 
 c Local variables
 
-      integer(4) ::  ieq,nx,ny,nz
+      integer    ::  ieq,nx,ny,nz
 
 c Begin program
 
@@ -205,14 +205,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4),intent(OUT) :: itime
+      integer   ,intent(OUT) :: itime
       real(8),intent(OUT)    :: time
 
       type (var_array)       :: vn,vnp
 
 c     Local variables
 
-      integer(4)             :: ierr,nx,ny,nz,il,jl,kl,ih,jh,kh
+      integer                :: ierr,nx,ny,nz,il,jl,kl,ih,jh,kh
 
       type (var_array)       :: vmed
 
@@ -273,13 +273,13 @@ cc      implicit none
 cc
 ccc     Call variables
 cc
-cc      integer(4) :: bcs(6),ieq
+cc      integer    :: bcs(6),ieq
 cc      real(8)    :: perturb
 cc      real(8)    :: array (ilom:ihip,jlom:jhip,klom:khip)
 cc
 ccc     Local variables
 cc
-cc      integer(4) :: i,j,k,ig,jg,kg,igx,igy,igz
+cc      integer    :: i,j,k,ig,jg,kg,igx,igy,igz
 cc      real(8)    :: x1,y1,z1,car(3),jac
 cc      real(8)    :: fx(ilom:ihip),fy(jlom:jhip),fz(klom:khip) 
 cc
@@ -326,7 +326,7 @@ cc
 cc        implicit none
 cc
 cc        real(8)    :: xmin,xmax,x,period,ff
-cc        integer(4) :: bcs(2),nh
+cc        integer    :: bcs(2),nh
 cc
 cc        logical    :: neumann(2),dirichlet(2),spoint(2)
 cc
@@ -397,7 +397,7 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: i,ierr
+      integer    :: i,ierr
 
 c Begin program
 

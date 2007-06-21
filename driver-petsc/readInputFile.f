@@ -38,23 +38,23 @@ c Call variables
         real(8)    :: dt
         real(8)    :: tmax
         real(8)    :: mf_eps
-        integer(4) :: ilevel
-        integer(4) :: nxd
-        integer(4) :: nyd
-        integer(4) :: nzd
-        integer(4) :: npx
-        integer(4) :: npy
-        integer(4) :: npz
-        integer(4) :: numtime
-        integer(4) :: maxitnwt
-        integer(4) :: maxksp
-        integer(4) :: maxitgm
-        integer(4) :: method
-        integer(4) :: global
-        integer(4) :: iguess
-        integer(4) :: precpass
-        integer(4) :: sm_flag
-        integer(4) :: bcsi(6)
+        integer    :: ilevel
+        integer    :: nxd
+        integer    :: nyd
+        integer    :: nzd
+        integer    :: npx
+        integer    :: npy
+        integer    :: npz
+        integer    :: numtime
+        integer    :: maxitnwt
+        integer    :: maxksp
+        integer    :: maxitgm
+        integer    :: method
+        integer    :: global
+        integer    :: iguess
+        integer    :: precpass
+        integer    :: sm_flag
+        integer    :: bcsi(6)
         logical    :: asm_PC
       end type indata
 

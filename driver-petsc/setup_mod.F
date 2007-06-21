@@ -2,17 +2,17 @@ c module parameters
 c #####################################################################
       module parameters
 
-      integer(4) :: neqd
+      integer    :: neqd
      .             ,nxd,nyd,nzd,nxdp,nydp,nzdp
      .             ,nxl,nyl,nzl,nxlp,nylp,nzlp
 
-      integer(4) :: ilo ,ihi ,jlo ,jhi ,klo ,khi
+      integer    :: ilo ,ihi ,jlo ,jhi ,klo ,khi
      .             ,ilom,ihip,jlom,jhip,klom,khip
      $             ,ilog ,ihig ,jlog ,jhig ,klog ,khig
      .             ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
      .             ,gcw
 
-      integer(4) :: ntotd,ntotdp,ntimemax
+      integer    :: ntotd,ntotdp,ntimemax
 
       contains
 
@@ -77,7 +77,7 @@ c$$$      function vecPos(neq,i,j,k,igx,igy,igz) result (ijk)
 c$$$
 c$$$        implicit none
 c$$$
-c$$$        integer(4) :: ijk,i,j,k,neq,igx,igy,igz
+c$$$        integer    :: ijk,i,j,k,neq,igx,igy,igz
 c$$$
 c$$$        ijk = neq*(i-ilo + nxl*(j-jlo) + nxl*nyl*(k-klo))
 c$$$      
@@ -89,7 +89,7 @@ c$$$      subroutine fromGlobalToLocalLimits(ig,jg,kg,il,jl,kl,igx,igy,igz)
 c$$$
 c$$$        implicit none
 c$$$
-c$$$        integer(4) :: ig,jg,kg,il,jl,kl,igx,igy,igz
+c$$$        integer    :: ig,jg,kg,il,jl,kl,igx,igy,igz
 c$$$
 c$$$        il = ig - ilog + 1
 c$$$        jl = jg - jlog + 1
@@ -131,7 +131,7 @@ c$$$        type(petsc_array)  :: petscarray
 c$$$
 c$$$c     Local variables
 c$$$
-c$$$        integer(4)         :: ieq
+c$$$        integer            :: ieq
 c$$$
 c$$$c     Begin program
 c$$$
@@ -236,7 +236,7 @@ c$$$        type(petsc_array)             :: petscarray3
 c$$$
 c$$$c     Local variables
 c$$$
-c$$$        integer(4)                    :: ieq
+c$$$        integer                       :: ieq
 c$$$
 c$$$c     Begin program
 c$$$
@@ -270,7 +270,7 @@ c$$$      type (petsc_var),intent(in)  :: petscarray(ilo:ihi,jlo:jhi,klo:khi)
 c$$$
 c$$$c     Local variables
 c$$$
-c$$$      integer(4) :: i,j,k,il,jl,kl,ii,ieq
+c$$$      integer    :: i,j,k,il,jl,kl,ii,ieq
 c$$$
 c$$$c     Begin program
 c$$$
@@ -310,7 +310,7 @@ c$$$      type (petsc_array),intent(out) :: petscarray
 c$$$
 c$$$c     Local variables
 c$$$
-c$$$      integer(4) :: i,j,k,ii,ieq
+c$$$      integer    :: i,j,k,ii,ieq
 c$$$
 c$$$c     Begin program
 c$$$
@@ -444,7 +444,7 @@ c     #################################################################
 c     Call variables
 
         type(var_array)  :: varray
-        integer(4)       :: unit
+        integer          :: unit
         logical          :: frmt
 
 c     Local variables
@@ -492,7 +492,7 @@ c     #################################################################
 c     Call variables
 
         type(var_array)  :: varray
-        integer(4)       :: unit,ierr
+        integer          :: unit,ierr
         logical          :: format
 
 c     Local variables
@@ -577,7 +577,7 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: ieq
+        integer    :: ieq
 
 c     Begin program
 
@@ -677,7 +677,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4)   :: veq,bcs(6)
+        integer      :: veq,bcs(6)
         real(8)      :: array(ilom:ihip,jlom:jhip,klom:khip)
         character(*) :: desc
 
@@ -703,7 +703,7 @@ c     #################################################################
 
 c     Call variables
 
-        integer(4)    :: nx,ny,nz,veq,bcs(6)
+        integer       :: nx,ny,nz,veq,bcs(6)
         real(8)       :: array(ilom:ihip,jlom:jhip,klom:khip)
         character(20) :: desc
 
@@ -739,7 +739,7 @@ c     Call variables
 
 c     Local variables
 
-      integer(4) :: i,j,k,ii,ieq,neq
+      integer    :: i,j,k,ii,ieq,neq
 
 c     Begin program
 
@@ -780,7 +780,7 @@ c     Call variables
 
 c     Local variables
 
-      integer(4) :: i,j,k,ii,ieq,neq
+      integer    :: i,j,k,ii,ieq,neq
 
 c     Begin program
 
@@ -861,13 +861,13 @@ c     ---------------------------------------------------------------
 
 c    Call variables
 
-      integer(4) :: igx,igy,igz,nx,ny,nz
+      integer    :: igx,igy,igz,nx,ny,nz
       real(8)    :: array(0:nx+1,0:ny+1,0:nz+1),integral
       logical    :: avg
 
 c     Local variables
 
-      integer(4) :: i,j,k
+      integer    :: i,j,k
 
       real(8)    :: tvolume,vol,lvolume,lintegral
 
@@ -918,13 +918,13 @@ c module iosetup
 c ######################################################################
       module iosetup
 
-        integer(4)     :: ilevel
+        integer        :: ilevel
 
-        integer(4)     :: urecord=10000,usave=20000,uinput=25
+        integer        :: urecord=10000,usave=20000,uinput=25
         character*(50) :: recordfile='record.bin',recordsave,inputfile
 
-        integer(4)     :: nfiles,ifile
-        integer(4)    ,allocatable,dimension(:) :: murecord,musave
+        integer        :: nfiles,ifile
+        integer       ,allocatable,dimension(:) :: murecord,musave
         character*(50),allocatable,dimension(:) :: mrecfile,mrecsave
 
         logical        :: debug,clean=.false.
@@ -945,7 +945,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ierr,itime,unit
+      integer    :: ierr,itime,unit
       real(8)    :: time,dt
       type (var_array):: varray
 
@@ -991,7 +991,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: itime,unit
+      integer    :: itime,unit
       real(8)    :: time,dt
       type (var_array):: varray
 

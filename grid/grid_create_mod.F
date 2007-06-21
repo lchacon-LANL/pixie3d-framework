@@ -7,7 +7,7 @@ c #####################################################################
 
         implicit none
 
-        integer(4) :: mg_ratio
+        integer    :: mg_ratio
 
         type :: dim_pack
           logical    :: pack
@@ -40,12 +40,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: nx,ny,nz
+        integer    :: nx,ny,nz
         type(grid_pack) :: gpack
 
 c     Local variables
 
-        integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+        integer    :: imin,imax,jmin,jmax,kmin,kmax
 
 c     Begin program
 
@@ -99,13 +99,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: nx,ny,nz
+        integer    :: nx,ny,nz
         type(grid_mg_def) :: gdef
 
 c     Local variables
 
-        integer(4) :: i,n1,n2,n3,nxx,nyy,nzz
-        integer(4) :: ngrdx,ngrdy,ngrdz
+        integer    :: i,n1,n2,n3,nxx,nyy,nzz
+        integer    :: ngrdx,ngrdy,ngrdz
 
 c     Begin program
 
@@ -168,14 +168,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+        integer    :: imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
         type(grid_pack) :: gpack
         type(grid_mg_def) :: gdef
 
 c     Local variables
 
-        integer(4) :: i,n1,n2,n3,nxx,nyy,nzz
-        integer(4) :: ngrdx,ngrdy,ngrdz
+        integer    :: i,n1,n2,n3,nxx,nyy,nzz
+        integer    :: ngrdx,ngrdy,ngrdz
         type(grid_pack) :: g_pack
 
 c     Begin program
@@ -379,7 +379,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: ngrid,nglobal(ngrid),nx(ngrid),istart(ngrid)
+        integer    :: ngrid,nglobal(ngrid),nx(ngrid),istart(ngrid)
      $               ,mgr(ngrid),ilo(ngrid),ihi(ngrid),bcs1,bcs2
         real(8)    :: xg(*),xx(*),dx(*),dxh(*),lmin,lmax
 
@@ -387,7 +387,7 @@ c     Call variables
 
 c     Local variables
         
-        integer(4) :: ig,i,isig,ng
+        integer    :: ig,i,isig,ng
         real(8)    :: dh,length,lmax_loc,lmin_loc,lstart
      .               ,dx0,dxl,dxr,alpha1=1d0,alpha2=1d0
 
@@ -450,7 +450,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: ig,ng
+        integer    :: ig,ng
         real(8)    :: xx(*)
 
 c     Local variables
@@ -487,12 +487,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: ig,ng
+        integer    :: ig,ng
         real(8)    :: xg(0:ng+1)
 
 c     Local variables
 
-        integer(4) :: n1,n2
+        integer    :: n1,n2
         real(8)    :: dh,length,lstart,lend,xp,xi,xil,xir
         logical    :: pack_l,pack_r,fv_l,fv_r
 
@@ -634,13 +634,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: nn,ig
+        integer    :: nn,ig
         real(8)    :: lmin,lmax,dx0,xx(nn),alpha,xi
         logical    :: fv
 
 c     Local variables
 
-        integer(4) :: i
+        integer    :: i
         real(8)    :: rhs
 
 c     Begin program
@@ -695,14 +695,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: nn
+        integer    :: nn
         real(8)    :: rhs,xi
         logical    :: fv
 
 c     Local variables
 
-        integer(4),parameter :: nit=20
-        integer(4) :: i
+        integer   ,parameter :: nit=20
+        integer    :: i
         real(8)    :: ijac,dxi(nit),res(nit)
 
 c     Begin program
@@ -764,7 +764,7 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: nxx,nyy,nzz
+        integer    :: nxx,nyy,nzz
 
 c     Local variables
 
@@ -855,8 +855,8 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: i,j,n1,n2,n3
-        integer(4) :: igx,igy,igz,isig
+        integer    :: i,j,n1,n2,n3
+        integer    :: igx,igy,igz,isig
 
 c     Begin program
 
@@ -901,12 +901,12 @@ c     #################################################################
 c     Call variables
 
         character*(1) :: char
-        integer(4) :: ig,istart(*),nxv(*)
+        integer    :: ig,istart(*),nxv(*)
         real(8)    :: xx(*),dx(*),dxh(*)
 
 c     Local variables
 
-        integer(4) :: i,j,isig
+        integer    :: i,j,isig
 
 c     Begin program
 
@@ -943,11 +943,11 @@ c     #################################################################
 
 c     Call variables
 
-        integer(4) :: igx,igy,igz,nxv(*),nyv(*),nzv(*)
+        integer    :: igx,igy,igz,nxv(*),nyv(*),nzv(*)
 
 c     Local variables
 
-        integer(4) :: i,j,k,i1,j1,k1,ig,jg,kg,ih
+        integer    :: i,j,k,i1,j1,k1,ig,jg,kg,ih
         real(8)    :: x1,y1,z1
         real(8)    :: hess(3,3,3),hess_cnv(3,3,3),table(3,3,3)
 
@@ -1017,11 +1017,11 @@ c     #################################################################
 
 c     Call variables
 
-        integer(4) :: igx,igy,igz,nxv(*),nyv(*),nzv(*)
+        integer    :: igx,igy,igz,nxv(*),nyv(*),nzv(*)
 
 c     Local variables
 
-        integer(4) :: i,j,k,i1,j1,k1,ig,jg,kg,ih
+        integer    :: i,j,k,i1,j1,k1,ig,jg,kg,ih
         real(8)    :: x1,y1,z1,check
         real(8)    :: gup(3,3),gdown(3,3),tensor(3,3)
         logical    :: cartesian

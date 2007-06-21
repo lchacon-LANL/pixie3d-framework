@@ -26,7 +26,7 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: ierr,system
+      integer    :: ierr,system
 
       logical    :: petsc_flg
 
@@ -245,13 +245,13 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: ieq
+      integer    :: ieq
 
       real(8),allocatable,dimension(:,:,:,:) :: var
 
       character*(20),allocatable,dimension(:):: label
 
-      integer(4),allocatable,dimension(:,:)  :: bcs
+      integer   ,allocatable,dimension(:,:)  :: bcs
 
 c Begin program
 
@@ -293,7 +293,7 @@ c     Call variables
 
 c     Local variables
 
-      integer(4) :: ieq
+      integer    :: ieq
 
 c     Begin program
 
@@ -338,7 +338,7 @@ c Call variables
 
 c Local variables
 
-      integer(4) ::  ieq,nx,ny,nz
+      integer    ::  ieq,nx,ny,nz
 
 c Begin program
 
@@ -383,14 +383,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4),intent(OUT) :: nx,ny,nz,itime
+      integer   ,intent(OUT) :: nx,ny,nz,itime
       real(8),intent(OUT)    :: time
 
       type (var_array)       :: vn,vnp
 
 c     Local variables
 
-      integer(4) :: ierr
+      integer    :: ierr
 
       type (var_array)       :: vmed
 
@@ -466,9 +466,9 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: ierr
+      integer    :: ierr
 
-      integer(4) :: system
+      integer    :: system
       external      system
 
 c Begin program

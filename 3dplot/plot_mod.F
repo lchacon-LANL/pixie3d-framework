@@ -16,7 +16,7 @@ c module newtongm
 c ######################################################################
       module newtongm
 
-        integer(4) ::  maxitnwt,maxitgm,iguess,maxksp,method,global
+        integer    ::  maxitnwt,maxitgm,iguess,maxksp,method,global
 
         real(8)    ::  tolgm,rtol,atol,stol,mf_eps
 
@@ -27,7 +27,7 @@ c module precond_setup
 c ######################################################################
       module precond_setup
 
-        integer(4)    :: nsweep,maxvcyc,precpass,debug_it
+        integer       :: nsweep,maxvcyc,precpass,debug_it
         real(8)       :: mgtol,omega
 
         character*(10):: precon
@@ -40,8 +40,8 @@ c module counters
 c ######################################################################
       module counters
 
-        integer(4) :: itnewt,itgmres,itwhistler
-        integer(4) :: gmres_tot,newt_tot,wh_tot
+        integer    :: itnewt,itgmres,itwhistler
+        integer    :: gmres_tot,newt_tot,wh_tot
 
       end module counters
 
@@ -49,7 +49,7 @@ c module timeStepping
 c ######################################################################
       module timeStepping
 
-        integer(4) :: numtime,ndstep,nrstep,sm_pass,sm_flag,inewtime
+        integer    :: numtime,ndstep,nrstep,sm_pass,sm_flag,inewtime
 
         real(8)    :: dt,dtbase,cnfactor,cnf_d,alpha,gammat
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0
@@ -61,6 +61,6 @@ c ######################################################################
 
         real(8)    :: tmrst
 
-        integer(4) :: itime,nrst
+        integer    :: itime,nrst
 
       end module timeStepping

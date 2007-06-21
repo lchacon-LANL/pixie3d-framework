@@ -8,34 +8,34 @@ c######################################################################
 
         type :: solver_options
           !Global quantities
-          integer(4) :: iter
+          integer    :: iter
           real(8)    :: tol
 
           !Stationary iterative methods quantities
           real(8)    :: omega
           real(8)    :: omega10
           real(8)    :: omega01
-          integer(4) :: ncolors
+          integer    :: ncolors
           logical    :: fdiag
           real(8), pointer, dimension(:,:) :: diag
 
           !Krylov methods quantities
-          integer(4) :: stp_test
+          integer    :: stp_test
           logical    :: sym_test
-          integer(4) :: ngrd_tst
+          integer    :: ngrd_tst
           logical    :: vol_res
-          integer(4) :: krylov_subspace
+          integer    :: krylov_subspace
 
           !MG quantities
-          integer(4)   :: igridmin
-          integer(4)   :: vcyc
-          integer(4)   :: orderres
-          integer(4)   :: orderprol
-          integer(4)   :: mg_coarse_solver_depth
-          integer(4)   :: mg_mu
-          integer(4)   :: mg_line_nsweep
-          integer(4)   :: mg_line_vcyc
-          integer(4)   :: mg_line_coarse_solver_depth
+          integer      :: igridmin
+          integer      :: vcyc
+          integer      :: orderres
+          integer      :: orderprol
+          integer      :: mg_coarse_solver_depth
+          integer      :: mg_mu
+          integer      :: mg_line_nsweep
+          integer      :: mg_line_vcyc
+          integer      :: mg_line_coarse_solver_depth
           logical      :: mg_line_relax
           logical      :: mg_line_x
           logical      :: mg_line_y
@@ -49,7 +49,7 @@ c######################################################################
           type(grid_mg_def)  :: mg_grid_def
 
           !Output quantities
-          integer(4) :: iter_out
+          integer    :: iter_out
           real(8)    :: tol_out
         end type solver_options
 
@@ -204,7 +204,7 @@ c     ###################################################################
 c       Reads TOP solver definition from solver hierarchy
 
           type (solver_unit) :: solver_def
-          integer(4)            :: depth
+          integer               :: depth
 
         !Begin
 
@@ -219,7 +219,7 @@ c     ###################################################################
 c       Modifies solver definition at depth 'depth' in solver hierarchy
 
           type (solver_unit) :: solver_def
-          integer(4)            :: depth
+          integer               :: depth
 
         !Begin
 
@@ -233,7 +233,7 @@ c     ###################################################################
 
 c       Gets solver options at depth 'depth'
 
-          integer(4) :: depth
+          integer    :: depth
           type (solver_unit) :: solver_def
 
         !Begin
@@ -250,7 +250,7 @@ cc        subroutine printSolverHierarchy
 c       Reads TOP solver definition from solver hierarchy
 
 cc          type (solver_unit) :: solver_def
-cc          integer(4)            :: depth,idepth
+cc          integer               :: depth,idepth
 
         !Begin
 
@@ -331,7 +331,7 @@ c     ###################################################################
 
 c       Counts number of elements in a queue
 
-          integer(4) :: count
+          integer    :: count
           type (queue_type), intent (in) :: q
           type (node_type), pointer      :: node_ptr
 
@@ -356,7 +356,7 @@ c     ###################################################################
 
 c       Counts number of elements in a queue
 
-          integer(4) :: count
+          integer    :: count
 
         !Begin
 
@@ -393,11 +393,11 @@ c     ###################################################################
 
 c       Deletes front node from queue
 
-          integer(4) :: depth
+          integer    :: depth
           type (queue_type), intent (in out) ::q
           type (solver_unit), intent (out)   ::buffer
 
-          integer(4) :: count
+          integer    :: count
           type (node_type), pointer :: node_ptr
 
         !Begin
@@ -432,11 +432,11 @@ c     ###################################################################
 
 c       Deletes front node from queue
 
-          integer(4) :: depth
+          integer    :: depth
           type (queue_type), intent (in out) ::q
           type (solver_unit), intent (in)   ::buffer
 
-          integer(4) :: count
+          integer    :: count
           type (node_type), pointer :: node_ptr
 
         !Begin

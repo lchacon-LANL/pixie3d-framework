@@ -41,7 +41,7 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer(4) :: i,j,k,igr,ieq,neq,ijkg,nx,ny,nz
+        integer    :: i,j,k,igr,ieq,neq,ijkg,nx,ny,nz
 
 c     Local variables
 
@@ -72,12 +72,12 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: neq,igr,nx,ny,nz
+      integer    :: neq,igr,nx,ny,nz
       real(8)    :: mgvector(*),array(0:nx+1,0:ny+1,0:nz+1,neq)
 
 c     Local variables
 
-      integer(4) :: i,j,k,ii,ieq
+      integer    :: i,j,k,ii,ieq
       logical    :: fpointers
 
 c     Begin program
@@ -126,14 +126,14 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: neq,igr,nx,ny,nz,gpos
+      integer    :: neq,igr,nx,ny,nz,gpos
       real(8)    :: mgvector(*),array(0:nx+1,0:ny+1,0:nz+1,neq)
       logical    :: ismgvec
 
 c     Local variables
 
-      integer(4) :: ieq,i,j,k,ii,offset,igptr
-      integer(4) :: imin ,imax ,jmin ,jmax ,kmin ,kmax
+      integer    :: ieq,i,j,k,ii,offset,igptr
+      integer    :: imin ,imax ,jmin ,jmax ,kmin ,kmax
      .             ,iimin,iimax,jjmin,jjmax,kkmin,kkmax
       logical    :: fpointers
 
@@ -205,13 +205,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: size,icol
+        integer    :: size,icol
 
         real(8)    :: mat(size,size),rhs(size,icol),x(size,icol)
 
 c     Local variables
 
-        integer(4) :: ipiv(size),info
+        integer    :: ipiv(size),info
 
         real(8)    :: mat2(size,size)
 
@@ -245,13 +245,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: size
+        integer    :: size
 
         real(8)    :: mat(size,size)
 
 c     Local variables
 
-        integer(4) :: ipiv(size),info,lwork
+        integer    :: ipiv(size),info,lwork
 
         real(8),allocatable,dimension(:) :: work
 
@@ -298,7 +298,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: info
+        integer    :: info
 
 c     Local variables
 
@@ -335,13 +335,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: iflag,igr,neq
+        integer    :: iflag,igr,neq
         real(8)    :: mgv(*)
         character*(*) :: ofile
 
 c     Local variables
 
-        integer(4) :: nx,ny,nz,ieq,nunit
+        integer    :: nx,ny,nz,ieq,nunit
         real(8),allocatable,dimension(:,:,:,:) :: debug
         logical    :: fpointers
 
@@ -398,12 +398,12 @@ ccc     ---------------------------------------------------------------------
 cc
 ccc     Call variables
 cc
-cc      integer(4) :: nx,ny,iopt,nunit
+cc      integer    :: nx,ny,iopt,nunit
 cc      real(8)    :: arr(nx,ny),xmin,xmax,ymin,ymax
 cc
 ccc     Local variables
 cc
-cc      integer(4) :: i,j
+cc      integer    :: i,j
 cc
 ccc     Begin program
 cc
@@ -440,12 +440,12 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: igr,neq,ntot
+      integer    :: igr,neq,ntot
       real(8)    :: coef1,coef2,vec1(ntot),vec2(ntot)
 
 c     Local variables
 
-      integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+      integer    :: imin,imax,jmin,jmax,kmin,kmax
      .             ,i,j,k,iii,ieq
 
 c     Begin program
@@ -487,12 +487,12 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: igr,neq,ntot
+      integer    :: igr,neq,ntot
       real(8)    :: vec1(ntot),vec2(ntot),dot
 
 c     Local variables
 
-      integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+      integer    :: imin,imax,jmin,jmax,kmin,kmax
      .             ,i,j,k,iii,ieq
       real(8)    :: ldot
 
@@ -536,14 +536,14 @@ cc        implicit none
 cc
 ccc     Call variables
 cc
-cc        integer(4) :: neq,ntot,igr,gpos,bcnd(6,neq)
+cc        integer    :: neq,ntot,igr,gpos,bcnd(6,neq)
 cc        real(8)    :: xl(ntot),yl(ntot)
 cc
 ccc     Local variables
 cc
-cc        integer(4) :: nn,nxl,nyl,nzl
-cc        integer(4) :: imin,imax,jmin,jmax,kmin,kmax
-cc        integer(4) :: i,j,k,il,jl,kl,iii,iil,gloc,ieq
+cc        integer    :: nn,nxl,nyl,nzl
+cc        integer    :: imin,imax,jmin,jmax,kmin,kmax
+cc        integer    :: i,j,k,il,jl,kl,iii,iil,gloc,ieq
 cc
 cc        real(8),allocatable,dimension(:) :: xg,yg
 cc
@@ -658,12 +658,12 @@ c     #################################################################
 
 c     Call variables
 
-        integer(4)      :: neq
+        integer         :: neq
         type(mg_array)  :: mgarray
 
 c     Local variables
 
-        integer(4)      :: igrid,nxp,nyp,nzp
+        integer         :: igrid,nxp,nyp,nzp
 
 c     Begin program
 
@@ -752,14 +752,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4)     :: neq,icmp,bcnd(6,neq),order,igrid
+      integer        :: neq,icmp,bcnd(6,neq),order,igrid
       type(mg_array) :: mgarray
       logical,optional,intent(IN) :: iscnv,isvec,result_is_vec
       type(mg_array),optional,intent(IN) :: equilb
 
 c     Local variables
 
-      integer(4)     :: igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
+      integer        :: igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
 
 c     Begin program
 
@@ -840,7 +840,7 @@ cc      use imposeBCinterface
 
 c     Call variables
 
-      integer(4) :: neq,igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
+      integer    :: neq,igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
      .             ,order,bcnd(6,neq),icmp
       real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1,neq)
      .             ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
@@ -848,7 +848,7 @@ c     Call variables
 
 c     Local variables
 
-      integer(4) :: igridf,igridc,isigf,isigc,i,j,k,ii,ieq
+      integer    :: igridf,igridc,isigf,isigc,i,j,k,ii,ieq
      .             ,nxxf,nyyf,nzzf,nxxc,nyyc,nzzc,ntotc,ntotf
      .             ,bcmod(6,neq)
 
@@ -970,14 +970,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: neq,nx,ny,nz,order,igr0
+      integer    :: neq,nx,ny,nz,order,igr0
       real(8)    :: array(0:nx+1,0:ny+1,0:nz+1,neq)
       real(8)    :: mgvector(*)
       logical    :: volf
 
 c     Local variables
 
-      integer(4) :: ieq,nxf,nyf,nzf,nxc,nyc,nzc,igridc,igridf
+      integer    :: ieq,nxf,nyf,nzf,nxc,nyc,nzc,igridc,igridf
      .             ,isigf,isigc,ntotc,ntotf
       logical    :: fpointers
 
@@ -1045,13 +1045,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: neq,order,igr0,igr1
+      integer    :: neq,order,igr0,igr1
       real(8)    :: mgvector(*)
       logical    :: volf
 
 c     Local variables
 
-      integer(4) :: ieq,nxf,nyf,nzf,nxc,nyc,nzc,igridc,igridf
+      integer    :: ieq,nxf,nyf,nzf,nxc,nyc,nzc,igridc,igridf
      .             ,isigf,isigc,ntotc,ntotf
       logical    :: fpointers
 
@@ -1114,12 +1114,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: neq,order,igr0,igr1,bcnd(6,neq)
+      integer    :: neq,order,igr0,igr1,bcnd(6,neq)
       real(8)    :: mgvector(*)
 
 c     Local variables
 
-      integer(4) :: ieq,nxf,nyf,nzf,nxc,nyc,nzc,igridc,igridf
+      integer    :: ieq,nxf,nyf,nzf,nxc,nyc,nzc,igridc,igridf
      .             ,isigf,isigc,ntotc,ntotf
       logical    :: fpointers
 
@@ -1202,7 +1202,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
+      integer    :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
       real(8)    :: x(ntot),y(ntot)
 
       type (solver_options) :: options
@@ -1211,12 +1211,12 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: iter,igridmin,vcyc,crsedpth,isig,ncolors
-      integer(4) :: orderres,orderprol,alloc_stat
+      integer    :: iter,igridmin,vcyc,crsedpth,isig,ncolors
+      integer    :: orderres,orderprol,alloc_stat
      .             ,line_nsweep,line_crse_depth,line_vcyc
 
-      integer(4) :: guess2,outc,mu
-      integer(4) :: izero,i,j,k,ii,ivcyc,nblk
+      integer    :: guess2,outc,mu
+      integer    :: izero,i,j,k,ii,ivcyc,nblk
 
       real(8)    :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot)
       real(8)    :: rr0,rr1,mag,mag1,mgtol,line_tol,line_omega
@@ -1479,11 +1479,11 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: igr
+        integer    :: igr
 
 c     Local variables
 
-        integer(4) :: igc,isigc,isig,nn,nnc,imu
+        integer    :: igc,isigc,isig,nn,nnc,imu
 
 c     Begin program
 
@@ -1653,11 +1653,11 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: igr
+        integer    :: igr
 
 c     Local variables
 
-        integer(4) :: nn,isig,depth1
+        integer    :: nn,isig,depth1
 
 c     Begin program
 
@@ -1705,13 +1705,13 @@ c     -----------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: igr
+        integer    :: igr
 
 c     Local variables
 
-        integer(4) :: nn,isig,depth1,i,j,k,iii,ig,iter,nsweep
+        integer    :: nn,isig,depth1,i,j,k,iii,ig,iter,nsweep
      .               ,imin,imax,jmin,jmax,kmin,kmax
-        integer(4) :: nxl(ngrid),nyl(ngrid),nzl(ngrid)
+        integer    :: nxl(ngrid),nyl(ngrid),nzl(ngrid)
 
         real(8)    :: mag,mag0,omega
         real(8),allocatable,dimension(:) :: dx,rr
@@ -2031,14 +2031,14 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4)     :: igr,nn,guess
+        integer        :: igr,nn,guess
         real(8)        :: b(nn),x(nn)
         type(grid_mg_def) :: mg_grid
         logical        :: prelax
 
 c     Local variables
 
-        integer(4)     :: nxl,nyl,nzl
+        integer        :: nxl,nyl,nzl
 
 c     Begin program
 
@@ -2104,15 +2104,15 @@ cc        implicit none
 cc
 ccc     Call variables
 cc
-cc        integer(4)     :: igr,nn,guess
+cc        integer        :: igr,nn,guess
 cc        real(8)        :: b(nn),x(nn)
 cc        type(grid_mg_def) :: mg_grid
 cc        logical        :: prelax
 cc
 ccc     Local variables
 cc
-cc        integer(4) :: nxl,nyl,nzl,nnl,depth1
-cc        integer(4) :: imin,imax,jmin,jmax,kmin,kmax
+cc        integer    :: nxl,nyl,nzl,nnl,depth1
+cc        integer    :: imin,imax,jmin,jmax,kmin,kmax
 cc     .               ,i,j,k,iii,il,jl,kl,iil,ieq
 cc
 cc        real(8),allocatable,dimension(:) :: bb,xx
@@ -2221,14 +2221,14 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4)     :: igr,nn,guess
+        integer        :: igr,nn,guess
         real(8)        :: b(nn),x(nn)
         type(grid_mg_def) :: mg_grid
         logical        :: prelax
 
 c     Local variables
 
-        integer(4)     :: istart_sv (size(istart) )
+        integer        :: istart_sv (size(istart) )
      .                   ,istartp_sv(size(istartp))
      .                   ,istartb_sv(size(istartb))
 
@@ -2347,14 +2347,14 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4)     :: igr,nn,guess
+        integer        :: igr,nn,guess
         real(8)        :: b(nn),x(nn)
         type(grid_mg_def) :: mg_grid
         logical        :: prelax
 
 c     Local variables
 
-        integer(4)     :: istart_sv (size(istart) )
+        integer        :: istart_sv (size(istart) )
      .                   ,istartp_sv(size(istartp))
      .                   ,istartb_sv(size(istartb))
 
@@ -2468,14 +2468,14 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4)     :: igr,nn,guess
+        integer        :: igr,nn,guess
         real(8)        :: b(nn),x(nn)
         type(grid_mg_def) :: mg_grid
         logical,optional :: oned_solve
 
 c     Local variables
 
-        integer(4)     :: istart_sv (size(istart) )
+        integer        :: istart_sv (size(istart) )
      .                   ,istartp_sv(size(istartp))
      .                   ,istartb_sv(size(istartb))
 
@@ -2602,11 +2602,11 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4)     :: igr
+        integer        :: igr
 
 c     Local variables
 
-        integer(4)     :: ig
+        integer        :: ig
 
 c     Begin program
 
@@ -2697,11 +2697,11 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: igr
+        integer    :: igr
 
 c     Local variables
 
-        integer(4) :: nn,isig,depth1
+        integer    :: nn,isig,depth1
 
 c     Begin program
 
@@ -2758,11 +2758,11 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer(4)     :: igr
+        integer        :: igr
 
 c     Local variables
 
-        integer(4)     :: nn,isig,nx,ny,nz,nc,i,j,k,il,jl,kl
+        integer        :: nn,isig,nx,ny,nz,nc,i,j,k,il,jl,kl
      .                   ,ii,iig,guess,istart_sv(size(istart))
      .                   ,ig_cs,ig_sv,isig_cs,isig_sv,nsv,ncs
 
@@ -3011,7 +3011,7 @@ cc      use imposeBCinterface
 
 c Call variables
 
-      integer(4) :: neq,ntotc,nxc,nyc,nzc,ntotf,nxf,nyf,nzf,order,igc
+      integer    :: neq,ntotc,nxc,nyc,nzc,ntotf,nxf,nyf,nzf,order,igc
      .             ,bcnd(6,neq)
       real(8)    :: xc(ntotc),xf(ntotf)
 
@@ -3019,7 +3019,7 @@ c Local variables
  
       real(8)    :: xxf(ntotf/neq),arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
 
-      integer(4) :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg
+      integer    :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg
      .             ,ieq,nntotc,nntotf,igf
 
 c Begin program
@@ -3084,14 +3084,14 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: nxc,nyc,nzc,nxf,nyf,nzf,order,igc
+      integer    :: nxc,nyc,nzc,nxf,nyf,nzf,order,igc
       real(8)    :: arrayc(0:nxc+1,0:nyc+1,0:nzc+1),xf(nxf*nyf*nzf)
 
 c Local variables
 
-      integer(4) :: ic,if,jc,jf,kc,kf,igf,iic,iif
+      integer    :: ic,if,jc,jf,kc,kf,igf,iic,iif
      .             ,icg,jcg,kcg,ifg,jfg,kfg
-      integer(4) :: iminc,imaxc,jminc,jmaxc,kminc,kmaxc
+      integer    :: iminc,imaxc,jminc,jmaxc,kminc,kmaxc
      .             ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf
       real(8)    :: mag,vol
 
@@ -3103,7 +3103,7 @@ c Extrapolation
 
       real(8),allocatable,dimension(:) :: xx,yy,zz
 
-      integer(4) :: kx,ky,kz,nx,ny,nz,dim,flg
+      integer    :: kx,ky,kz,nx,ny,nz,dim,flg
       real(8), dimension(:),allocatable:: tx,ty,tz,work
       real(8), dimension(:,:,:),allocatable:: bcoef
 
@@ -3261,7 +3261,7 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: ntotc,nxc,nyc,nzc,ntotf,nxf,nyf,nzf,order,igf,neq
+      integer    :: ntotc,nxc,nyc,nzc,ntotf,nxf,nyf,nzf,order,igf,neq
 
       real(8)    :: xc(ntotc),xf(ntotf)
 
@@ -3271,7 +3271,7 @@ c Local variables
  
       real(8)    :: xxc(ntotc/neq),xxf(ntotf/neq)
 
-      integer(4) :: ic,jc,if,jf,iic,iif,i,ieq,nntotc,nntotf
+      integer    :: ic,jc,if,jf,iic,iif,i,ieq,nntotc,nntotf
 
 c Begin program
 
@@ -3332,7 +3332,7 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: nxc,nyc,nzc,nxf,nyf,nzf,order,igf
+      integer    :: nxc,nyc,nzc,nxf,nyf,nzf,order,igf
 
       real(8)    :: xc(nxc*nyc*nzc),xf(nxf*nyf*nzf)
 
@@ -3340,9 +3340,9 @@ c Call variables
 
 c Local variables
  
-      integer(4) :: ic,if,jc,jf,kc,kf,iif,iic,igc,inbv
+      integer    :: ic,if,jc,jf,kc,kf,iif,iic,igc,inbv
      .             ,icg,jcg,kcg,ifg,jfg,kfg
-      integer(4) :: iminc,imaxc,jminc,jmaxc,kminc,kmaxc
+      integer    :: iminc,imaxc,jminc,jmaxc,kminc,kmaxc
      .             ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf
 
       real(8)    :: volt,vol,arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
@@ -3355,7 +3355,7 @@ c Interpolation
 
       real(8),allocatable,dimension(:) :: xx,yy,zz
 
-      integer(4) ::  kx,ky,kz,nx,ny,nz,dim,flg
+      integer    ::  kx,ky,kz,nx,ny,nz,dim,flg
       real(8), dimension(:),allocatable:: tx,ty,tz,work,q
       real(8), dimension(:,:,:),allocatable:: bcoef
 
@@ -3584,7 +3584,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
+      integer    :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
       real(8)    :: rr(ntot),zz(ntot)
 
       type (solver_options) :: options
@@ -3593,13 +3593,13 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: iter,alloc_stat,isig,itr,nn,ieq,irbg1,nrbg1,igridc
-      integer(4) :: imin,imax,jmin,jmax,kmin,kmax,iming
+      integer    :: iter,alloc_stat,isig,itr,nn,ieq,irbg1,nrbg1,igridc
+      integer    :: imin,imax,jmin,jmax,kmin,kmax,iming
       real(8)    :: omega0,omega10,omega01,tol
       logical    :: fdiag,fpointers,vbr
 
-      integer(4) :: i,j,k,iv,jv,kv,if,jf,kf,nxf,nyf,nzf,iiv,ivg,ncolors
-      integer(4) :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblk
+      integer    :: i,j,k,iv,jv,kv,if,jf,kf,nxf,nyf,nzf,iiv,ivg,ncolors
+      integer    :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblk
       real(8)    :: mag0=1d0,mag1,mag,lmag,yy(ntot)
 
       real(8),allocatable, dimension(:)  :: dummy,rhs
@@ -3903,7 +3903,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
+      integer    :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
       real(8)    :: rr(ntot),zz(ntot)
 
       type (solver_options) :: options
@@ -3912,18 +3912,18 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: iter,alloc_stat,isig,itr,nn,ieq,iig
-      integer(4) :: i,j,k,imin,imax,jmin,jmax,kmin,kmax
-      integer(4) :: i1,j1,k1,i1min,i1max,j1min,j1max,k1min,k1max
+      integer    :: iter,alloc_stat,isig,itr,nn,ieq,iig
+      integer    :: i,j,k,imin,imax,jmin,jmax,kmin,kmax
+      integer    :: i1,j1,k1,i1min,i1max,j1min,j1max,k1min,k1max
 
       real(8)    :: omega0,tol
       logical    :: fdiag,fpointers,vbr
 
-      integer(4) :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf
-      integer(4) :: ii,iii,iib,iiib,iiv,ivg,iblock,jblock,kblock,nblk
+      integer    :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf
+      integer    :: ii,iii,iib,iiib,iiv,ivg,iblock,jblock,kblock,nblk
       real(8)    :: mag0=1d0,mag1,mag,lmag,yy(ntot)
 
-      integer(4) :: ncolors,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
+      integer    :: ncolors,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
 
       real(8),allocatable, dimension(:) :: dummy,rhs
 
@@ -4406,10 +4406,10 @@ c -----------------------------------------------------------------------
 
       implicit none
 
-      integer(4) :: igrid,ncolors,nc1,nc2,nc3
+      integer    :: igrid,ncolors,nc1,nc2,nc3
      .             ,i1min,i1max,j1min,j1max,k1min,k1max
       
-      integer(4) :: nxf,nyf,nzf,nxl,nyl,nzl,nclrs
+      integer    :: nxf,nyf,nzf,nxl,nyl,nzl,nclrs
      .             ,imin,imax,jmin,jmax,kmin,kmax
 
 c Begin program
@@ -4543,9 +4543,9 @@ c -----------------------------------------------------------------------
 
       implicit none
 
-      integer(4) :: igrid,i1,j1,k1,i,j,k
+      integer    :: igrid,i1,j1,k1,i,j,k
 
-      integer(4) :: nxl,nyl,nzl
+      integer    :: nxl,nyl,nzl
 
 c Begin program
 
@@ -4614,7 +4614,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,ntot,bbcnd(6,neq),igrid
+      integer    :: neq,ntot,bbcnd(6,neq),igrid
 
       real(8)    :: diag1(neq,2*ntot)
 
@@ -4624,8 +4624,8 @@ c Local variables
 
       real(8)    :: x1(ntot),dummy(ntot),mat(neq,neq),mat2(neq,neq)
      $             ,idet
-      integer(4) :: ii,jj,nn,ig,iig,isig
-      integer(4) :: igr,ieq,alloc_stat
+      integer    :: ii,jj,nn,ig,iig,isig
+      integer    :: igr,ieq,alloc_stat
       logical    :: fpointers
 
 c Begin program
@@ -4745,7 +4745,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,ntot,bbcnd(6,neq),igrid,ncolors
+      integer    :: neq,ntot,bbcnd(6,neq),igrid,ncolors
 
       real(8)    :: diag1(neq,2*ntot)
 
@@ -4755,12 +4755,12 @@ c Local variables
 
       real(8)    :: x1(ntot),dummy(ntot),mat(neq,neq),mat2(neq,neq)
      .             ,idet
-      integer(4) :: ii,jj,nn,ig,iig,isig
-      integer(4) :: igr,ieq,alloc_stat
+      integer    :: ii,jj,nn,ig,iig,isig
+      integer    :: igr,ieq,alloc_stat
       logical    :: fpointers
 
-      integer(4) :: i,j,k,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
-      integer(4) :: i1,j1,k1,i1min,i1max,j1min,j1max,k1min,k1max
+      integer    :: i,j,k,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
+      integer    :: i1,j1,k1,i1min,i1max,j1min,j1max,k1min,k1max
 
 c Begin program
 
@@ -4968,7 +4968,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,nblk,ntot,bbcnd(6,neq),igrid,ncolors
+      integer    :: neq,nblk,ntot,bbcnd(6,neq),igrid,ncolors
 
       real(8)    :: diag1(neq*nblk,2*ntot*nblk)
 
@@ -4979,13 +4979,13 @@ c Call variables
 c Local variables
 
       real(8)    :: x1(ntot),dummy(ntot),mag(3)
-      integer(4) :: ii,jj,nn,ig,isig,size
-      integer(4) :: iv,jv,kv,if,jf,kf,nxf,nyf,nzf
-      integer(4) :: iii,icolb,irowb,icol,iiv,iig,ivg,irowmin,irowmax
+      integer    :: ii,jj,nn,ig,isig,size
+      integer    :: iv,jv,kv,if,jf,kf,nxf,nyf,nzf
+      integer    :: iii,icolb,irowb,icol,iiv,iig,ivg,irowmin,irowmax
      .             ,iblock ,jblock ,kblock
      .             ,iblock2,jblock2,kblock2,nblkg
 
-      integer(4) :: igr,igc,ieq,alloc_stat
+      integer    :: igr,igc,ieq,alloc_stat
       logical    :: fpointers
 
 c Begin program
@@ -5151,7 +5151,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,ntot,bbcnd(6,neq),igrid
+      integer    :: neq,ntot,bbcnd(6,neq),igrid
 
       real(8)    :: mat(ntot,ntot)
 
@@ -5160,8 +5160,8 @@ c Call variables
 c Local variables
 
       real(8)    :: x1(ntot),dummy(ntot)
-      integer(4) :: ii,jj,nn
-      integer(4) :: igr,ieq,alloc_stat
+      integer    :: ii,jj,nn
+      integer    :: igr,ieq,alloc_stat
       logical    :: fpointers
 
 c Begin program
@@ -5223,7 +5223,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: neq,igrid,bcnd(6,neq)
+      integer    :: neq,igrid,bcnd(6,neq)
 
       external      matvec
 
@@ -5232,7 +5232,7 @@ c     Local variables
       real(8),allocatable,dimension(:)::x1,dummy,dummy2
 
       real(8)    :: dd1,dd2,err
-      integer(4) :: nx,ny,nz,nn,ii,jj,i1,j1,i2,j2,ix1,iy1,ix2,iy2,ieq
+      integer    :: nx,ny,nz,nn,ii,jj,i1,j1,i2,j2,ix1,iy1,ix2,iy2,ieq
 
 c     Begin program
 
@@ -5324,7 +5324,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,ii,ieq,ntot
+      integer    :: neq,ii,ieq,ntot
 
       real(8)    :: x1(ntot),coef
 
@@ -5374,7 +5374,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,ntot,igrid,gpos,bcnd(6,neq)
+      integer    :: neq,ntot,igrid,gpos,bcnd(6,neq)
       real(8)    :: x(ntot),y(ntot),minv,idx,idy,idz,
      .              idxcnv,idycnv,idzcnv,vxx,vyy,vzz
 
@@ -5382,7 +5382,7 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: igr,nxx,nyy,nzz,ntotf,isig
+      integer    :: igr,nxx,nyy,nzz,ntotf,isig
       real(8),allocatable,dimension(:) :: MGx,MGy
 
       logical    :: fpointers

@@ -19,10 +19,10 @@ c ######################################################################
 #if !defined(petsc_c)
         use nk_mod
 #else
-        integer(4) :: jit=1
+        integer    :: jit=1
 #endif
 
-        integer(4) ::  maxitnwt,maxitgm,iguess,maxksp,method,global
+        integer    ::  maxitnwt,maxitgm,iguess,maxksp,method,global
 
         real(8)    ::  tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
 
@@ -32,7 +32,7 @@ c module precond_setup
 c ######################################################################
       module precond_setup
 
-        integer(4)    :: nsweep,maxvcyc,precpass,debug_it
+        integer       :: nsweep,maxvcyc,precpass,debug_it
         real(8)       :: mgtol,omega
 
         character*(10):: precon
@@ -45,8 +45,8 @@ c module counters
 c ######################################################################
       module counters
 
-        integer(4) :: itnewt,itgmres,itwhistler
-        integer(4) :: gmres_tot,newt_tot,wh_tot
+        integer    :: itnewt,itgmres,itwhistler
+        integer    :: gmres_tot,newt_tot,wh_tot
 
       end module counters
 
@@ -62,7 +62,7 @@ c ######################################################################
 
         use generalPurposeFunctions
 
-        integer(4) :: numtime,ndstep,nrstep,sm_pass,sm_flag=0,inewtime
+        integer    :: numtime,ndstep,nrstep,sm_pass,sm_flag=0,inewtime
 
         real(8)    :: dt,dtbase,cnfactor,alpha,gammat
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0,dtold
@@ -78,7 +78,7 @@ c ######################################################################
 
         real(8)    :: tmrst,cnp,cn,cnm,dt_n
 
-        integer(4) :: itime,nrst
+        integer    :: itime,nrst
 
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
      .                                     ,bdfp,bdfn,bdfnm
@@ -190,7 +190,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4)       ::  ierr,itm
+      integer          ::  ierr,itm
 
       type (var_array) :: varray
 
@@ -220,7 +220,7 @@ c     #######################################################################
 
 c     Calculation of local growth rate for CN
 
-        integer (4) :: ieq
+        integer     :: ieq
 
         real(8)     :: dmag1,dmag2,dpert,mag(neqd)
 
@@ -281,7 +281,7 @@ c     ######################################################################
 
 c     Call variables
 
-      integer(4)  :: ierr
+      integer     :: ierr
       real(8)     :: dn(neqd),dnh(neqd),dnp(neqd),dt_to_c
 
 c     Local variables
@@ -328,7 +328,7 @@ c     Call variables
 
 c     Local variables
 
-        integer (4) :: ieq
+        integer     :: ieq
 
         real(8)     :: mag(neqd)
 
@@ -360,7 +360,7 @@ c     --------------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) ::  ierr,itm
+      integer    ::  ierr,itm
 
 c     Local variables
 

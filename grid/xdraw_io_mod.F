@@ -3,7 +3,7 @@ c module graphics_variables
 c ######################################################################
       module graphics_variables
 
-        integer(4)     :: ngraph,xdraw_cont_lim,ngroups
+        integer        :: ngraph,xdraw_cont_lim,ngroups
         parameter        (ngraph=30,xdraw_cont_lim=16)
 
         real(8), allocatable, dimension(:) :: xl,yl,zl
@@ -22,7 +22,7 @@ c ######################################################################
 
         type (graph_group),pointer,dimension(:) :: graph
 
-        integer(4),allocatable,dimension(:) :: nqty
+        integer   ,allocatable,dimension(:) :: nqty
 
         logical    :: plot
 
@@ -32,31 +32,31 @@ c ######################################################################
         logical    :: hdf_plot=.false.
 #endif
 
-        integer(4) :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
+        integer    :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
      .               ,iggx,iggy,iggz,iig,jjg,kkg
 
-        integer(4) :: sel_diag (xdraw_cont_lim)
+        integer    :: sel_diag (xdraw_cont_lim)
      .               ,sel_graph(xdraw_cont_lim)
 
-        integer(4) :: ndplot
+        integer    :: ndplot
         real(8)    :: dplot,tmplot
 
-        integer(4) :: iplot=1,jplot=1,kplot=1
+        integer    :: iplot=1,jplot=1,kplot=1
 
         !Profile conf
         type :: prof_info
-          integer(4)     :: line = 1
+          integer        :: line = 1
           character*(3)  :: label = 'x'
-          integer(4)     :: coords(3) = (/1,1,1/)
+          integer        :: coords(3) = (/1,1,1/)
         end type prof_info
 
         type(prof_info),save :: prof_conf
 
         !Contour conf
         type :: cont_info
-          integer(4)     :: plane = 3
+          integer        :: plane = 3
           character*(3)  :: label(2) = (/'x','y'/)
-          integer(4)     :: coords(3)= (/1,1,1/)
+          integer        :: coords(3)= (/1,1,1/)
         end type cont_info
 
         type(cont_info),save :: cont_conf
@@ -92,12 +92,12 @@ cc      use graphics_variables
 
 c     Call variables
 
-      integer(4) :: nx,ny,iopt,nunit
+      integer    :: nx,ny,iopt,nunit
       real(8)    :: arr(nx,ny),xmin,xmax,ymin,ymax
 
 c     Local variables
 
-      integer(4) :: i,j
+      integer    :: i,j
 
 c     Begin program
 

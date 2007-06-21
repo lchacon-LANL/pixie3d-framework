@@ -22,9 +22,9 @@ c####################################################################
 
         use constants
 
-cc        integer(4) :: imax,imin,jmax,jmin,kmax,kmin
+cc        integer    :: imax,imin,jmax,jmin,kmax,kmin
 
-        integer(4) :: nnvar,nxbc,nybc,nzbc,igxbc,igybc,igzbc
+        integer    :: nnvar,nxbc,nybc,nzbc,igxbc,igybc,igzbc
 
         real(8),allocatable,dimension(:,:) :: rhs
 
@@ -53,12 +53,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: order
+      integer    :: order
       real(8)    :: array(0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
-      integer(4) :: i,j,k,ig,jg,kg,order1,ilog,ihig
+      integer    :: i,j,k,ig,jg,kg,order1,ilog,ihig
       real(8)    :: lavg_q,lavg_vol,avg_q,avg_vol,rho0(1),vol,x0(1)
 
 c     Begin program
@@ -137,7 +137,7 @@ c     Call variables
 
 c     Local variables
 
-      integer(4) :: i,j,k,ig,jg,kg,jj,ilog,jlog,nyg,jglobal
+      integer    :: i,j,k,ig,jg,kg,jj,ilog,jlog,nyg,jglobal
 
 #if defined(petsc)
       real(8)    :: garray(nybc*npy,nzbc)
@@ -217,15 +217,15 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: order
+      integer    :: order
       real(8)    :: vec(0:nxbc+1,0:nybc+1,0:nzbc+1,3)
       logical    :: cov
 
 c     Local variables
 
-      integer(4) :: i,j,k
+      integer    :: i,j,k
 
-      integer(4) :: ic,ig,jg,kg,order1,ilog,ihig
+      integer    :: ic,ig,jg,kg,order1,ilog,ihig
       real(8)    :: vol,lavg_x,lavg_y,lavg_z,lavg_vol
      .                 , avg_x, avg_y, avg_z, avg_vol
       real(8)    :: daxdr(1),daydr(1),dummy1,dummy2
@@ -351,13 +351,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ivar
+      integer    :: ivar
       real(8)    :: vec(0:nxbc+1,0:nybc+1,0:nzbc+1)
       logical    :: cov
 
 c     Local variables
 
-      integer(4) :: i,j,k,jj,ilog,jlog,nyg,jglobal
+      integer    :: i,j,k,jj,ilog,jlog,nyg,jglobal
 
 #if defined(petsc)
       real(8)    :: garray(nybc*npy,nzbc)
@@ -482,7 +482,7 @@ c #####################################################################
 cc        INTERFACE
 cc          subroutine scalarDirichletBC(array,array0,ieq,dim,loc,order)
 cc            use BCS_variables
-cc            integer(4) :: ieq,dim,loc,order
+cc            integer    :: ieq,dim,loc,order
 cc            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
 cc     .                   ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
 cc          end subroutine scalarDirichletBC
@@ -492,7 +492,7 @@ cc        INTERFACE
 cc          subroutine vectorDirichletBC(ivar,array,array0,ieq,dim,loc
 cc     .                                ,order)
 cc            use BCS_variables
-cc            integer(4) :: ieq,dim,loc,order,ivar
+cc            integer    :: ieq,dim,loc,order,ivar
 cc            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1,*)
 cc     .                   ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1,*)
 cc          end subroutine vectorDirichletBC
@@ -501,7 +501,7 @@ cc
 cc        INTERFACE
 cc          subroutine scalarNeumannBC(array,ieq,dim,loc)
 cc            use BCS_variables
-cc            integer(4) :: ieq,dim,loc
+cc            integer    :: ieq,dim,loc
 cc            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
 cc          end subroutine scalarNeumannBC
 cc        end INTERFACE
@@ -509,20 +509,20 @@ cc
 cc        INTERFACE
 cc          subroutine vectorNeumannBC(ivar,array,ieq,dim,loc)
 cc            use BCS_variables
-cc            integer(4) :: ieq,dim,loc,ivar
+cc            integer    :: ieq,dim,loc,ivar
 cc            real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1,*)
 cc          end subroutine vectorNeumannBC
 cc        end INTERFACE
 
-        integer(4) :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
-        integer(4) :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
+        integer    :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
+        integer    :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
 
-        integer(4),private :: bctype,dim,loc,ibc,i,j,k
+        integer   ,private :: bctype,dim,loc,ibc,i,j,k
 
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
         ! important for colored diagonal formation)
-        integer(4),private :: order=1
+        integer   ,private :: order=1
 
         real(8),allocatable,dimension(:,:,:,:) :: v_cov,v_cnv,vv0
 
@@ -540,8 +540,8 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-      integer(4),intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
-      integer(4),intent(OUT):: imn,imx,jmn,jmx,kmn,kmx
+      integer   ,intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
+      integer   ,intent(OUT):: imn,imx,jmn,jmx,kmn,kmx
 
 c     Begin program
 
@@ -594,7 +594,7 @@ c     ---------------------------------------------------------------------
 
         implicit none
 
-        integer(4) :: igl,igr,igmin,nxl,nxg,ill,ilr
+        integer    :: igl,igr,igmin,nxl,nxg,ill,ilr
 
 c     Begin program
 
@@ -627,9 +627,9 @@ c     ---------------------------------------------------------------------
         implicit none
 
         logical    :: do__nothing
-        integer(4),intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
+        integer   ,intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
 
-        integer(4) :: ibc
+        integer    :: ibc
 
 c     Begin program
 
@@ -666,7 +666,7 @@ c     ---------------------------------------------------------------------
 
         implicit none
 
-        integer(4) :: igl,igr,ng
+        integer    :: igl,igr,ng
 
 c     Begin program
 
@@ -694,7 +694,7 @@ c     ---------------------------------------------------------------------
 
       logical    :: selectFace
 
-      integer(4) :: dim,loc,ibc
+      integer    :: dim,loc,ibc
 
 c     Begin program
 
@@ -753,11 +753,11 @@ c     -----------------------------------------------------------------
 
       implicit none
 
-      integer(4) :: igx,igy,igz,bcs(:,:)
+      integer    :: igx,igy,igz,bcs(:,:)
 
-      integer(4),optional :: IIBC
+      integer   ,optional :: IIBC
 
-      integer(4) :: dim,loc,ibc,igmin,igmax,jgmin,jgmax,kgmin,kgmax
+      integer    :: dim,loc,ibc,igmin,igmax,jgmin,jgmax,kgmin,kgmax
 
       logical    :: dn
 
@@ -827,10 +827,10 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ieq,bcond(6),nx,ny,nz,iigx,iigy,iigz
+      integer    :: ieq,bcond(6),nx,ny,nz,iigx,iigy,iigz
       real(8)    :: array (0:nx+1,0:ny+1,0:nz+1)
      .             ,array0(0:nx+1,0:ny+1,0:nz+1)
-      integer(4),optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
+      integer   ,optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
 
 c     Local variables
 
@@ -963,17 +963,17 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ncomp,bcond(6,ncomp),fcomp,nx,ny,nz,iigx,iigy,iigz
+      integer    :: ncomp,bcond(6,ncomp),fcomp,nx,ny,nz,iigx,iigy,iigz
       real(8)    :: v_cnv(0:nx+1,0:ny+1,0:nz+1,ncomp)
      .             ,var0 (0:nx+1,0:ny+1,0:nz+1,ncomp)
      .             ,v_cov(0:nx+1,0:ny+1,0:nz+1,ncomp)
-      integer(4),optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
+      integer   ,optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
       logical   ,optional,intent(IN) :: is_cnv,is_vec
 
 c     Local variables
 
-      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
-      integer(4) :: ivar,ieq,ibc,loc,dim,bctype
+      integer    :: imax,imin,jmax,jmin,kmax,kmin
+      integer    :: ivar,ieq,ibc,loc,dim,bctype
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical    :: cov_to_cnv,to_cnv,is__vec,petsc__bc
 
@@ -1263,14 +1263,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ncomp,bcond(6,ncomp)
+      integer    :: ncomp,bcond(6,ncomp)
       real(8)    :: v_cnv(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
      .             ,v_cov(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
 
 c     Local variables
 
-      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
-      integer(4) :: i,j,k,dim,loc,ig,jg,kg,ivar,ibc
+      integer    :: imax,imin,jmax,jmin,kmax,kmin
+      integer    :: i,j,k,dim,loc,ig,jg,kg,ivar,ibc
       real(8)    :: x1,x2,x3,gsuper(3,3),gsub(3,3)
 
 c     Begin program
@@ -1460,15 +1460,15 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ieq,dim,loc,bctype,nvar,ivar
+      integer    :: ieq,dim,loc,bctype,nvar,ivar
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1,nvar)
      .             ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1,nvar)
       logical,optional :: cnv
 
 c     Local variables
 
-cc      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
-      integer(4) :: neq,ibc,i,j,k,ig,jg,kg
+cc      integer    :: imax,imin,jmax,jmin,kmax,kmin
+      integer    :: neq,ibc,i,j,k,ig,jg,kg
       logical    :: cov
 
 c     Begin program
@@ -1569,12 +1569,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: dim,loc
+      integer    :: dim,loc
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
-      integer(4) :: imax,imin,jmax,jmin,kmax,kmin,ibc
+      integer    :: imax,imin,jmax,jmin,kmax,kmin,ibc
 
 c     Begin program
 
@@ -1646,15 +1646,15 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer(4) :: order,dim,loc
+        integer    :: order,dim,loc
         real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
      .               ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
-        integer(4) :: imax,imin,jmax,jmin,kmax,kmin,ibc
+        integer    :: imax,imin,jmax,jmin,kmax,kmin,ibc
 
-        integer(4) :: i,j,k,ig,jg,kg
+        integer    :: i,j,k,ig,jg,kg
         real(8),pointer,dimension(:) :: xx,yy,zz,dxh,dyh,dzh,dx,dy,dz
 
 c     Begin program
@@ -1774,12 +1774,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: dim,loc
+      integer    :: dim,loc
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
-      integer(4) :: imax,imin,jmax,jmin,kmax,kmin,ibc
+      integer    :: imax,imin,jmax,jmin,kmax,kmin,ibc
 
 c     Begin program
 
@@ -1855,14 +1855,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: dim,loc
+      integer    :: dim,loc
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
-      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
+      integer    :: imax,imin,jmax,jmin,kmax,kmin
 
-      integer(4) :: ito,jto,kto,ifrom,jfrom,kfrom
+      integer    :: ito,jto,kto,ifrom,jfrom,kfrom
      .             ,imn,imx,jmn,jmx,kmn,kmx,ibc,bcond(6)
 
 c     Begin program
@@ -2024,15 +2024,15 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: dim,loc,bcond(6)
+      integer    :: dim,loc,bcond(6)
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
      .             ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
-      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
+      integer    :: imax,imin,jmax,jmin,kmax,kmin
 
-      integer(4) :: ito,jto,kto,ifrom,jfrom,kfrom
+      integer    :: ito,jto,kto,ifrom,jfrom,kfrom
      .             ,imn,imx,jmn,jmx,kmn,kmx,ibc
 
 c     Begin program
@@ -2359,15 +2359,15 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: dim,loc,bcond(6)
+      integer    :: dim,loc,bcond(6)
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
      .             ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
-      integer(4) :: imax,imin,jmax,jmin,kmax,kmin
+      integer    :: imax,imin,jmax,jmin,kmax,kmin
 
-      integer(4) :: ito,jto,kto,ifrom,jfrom,kfrom
+      integer    :: ito,jto,kto,ifrom,jfrom,kfrom
      .             ,imn,imx,jmn,jmx,kmn,kmx,ibc
 
 c     Begin program
@@ -2618,13 +2618,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: ibc,ito,jto,kto,imn,jmn,kmn,imx,jmx,kmx,bcond(6)
+      integer    :: ibc,ito,jto,kto,imn,jmn,kmn,imx,jmx,kmx,bcond(6)
       real(8)    :: array(imn:imx,jmn:jmx,kmn:kmx)
       real(8),optional,intent(IN) :: array0(imn:imx,jmn:jmx,kmn:kmx)
 
 c     Local variables
 
-      integer(4) :: i,j,k,ig,jg,kg,inx,iny,inz
+      integer    :: i,j,k,ig,jg,kg,inx,iny,inz
      .             ,order_int(3),offset
      .             ,imni,imxi,jmni,jmxi,kmni,kmxi,num
      .             ,ibcl(3),i_bc,i1,i2
@@ -3038,7 +3038,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: order
+      integer    :: order
       real(8)    :: x0,x1,x2,x3,y0,y1,y2,y3,x
 
 c     Local variables
@@ -3125,7 +3125,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer(4) :: nnx,nny,nnz,neq,bcnd(6,neq),iig,gpos
+      integer    :: nnx,nny,nnz,neq,bcnd(6,neq),iig,gpos
 
       real(8)    :: array(0:nnx+1,0:nny+1,0:nnz+1,neq)
 
@@ -3134,17 +3134,17 @@ c     Call variables
       real(8),optional,intent(IN) ::
      .                         arr0   (0:nnx+1,0:nny+1,0:nnz+1,neq)
 
-      integer(4),optional,intent(IN) :: icomp,iorder
+      integer   ,optional,intent(IN) :: icomp,iorder
 
       logical   ,optional,intent(IN) :: is_cnv,is_vec,result_is_vec
 
 c     Local variables
 
-      integer(4) :: i,j,k,stencil_width,order,ieq
+      integer    :: i,j,k,stencil_width,order,ieq
      .             ,imng,imxg,jmng,jmxg,kmng,kmxg
      .             ,imnl,imxl,jmnl,jmxl,kmnl,kmxl
 
-      integer(4),save :: ivar  !Needed to "remember' ivar from previous calls
+      integer   ,save :: ivar  !Needed to "remember' ivar from previous calls
                                !when icomp is not provided.
 
       logical,save    :: iscnv,isvec !Needed to "remember' these from previous calls

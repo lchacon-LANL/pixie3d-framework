@@ -40,7 +40,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) ::  neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
+      integer    ::  neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
       real(8)    ::  x(ntot),b(ntot)
 
       external       matvec
@@ -106,7 +106,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) ::  neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
+      integer    ::  neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
       real(8)    ::  x(ntot),b(ntot)
 
       type (solver_options):: options
@@ -181,7 +181,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer(4) :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
+      integer    :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
       real(8)    :: x(ntot),b(ntot)
 
       type (solver_options) :: options
@@ -190,8 +190,8 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: niter,stp_test,depth1,ierr
-      integer(4) :: i,iter,smit,nn,vcycle,precout
+      integer    :: niter,stp_test,depth1,ierr
+      integer    :: i,iter,smit,nn,vcycle,precout
       real(8)    :: alpha,beta,mag,mag1,rr0,rho0,rho1
       real(8)    :: smtol,tol,abstol
       real(8)    :: rr(ntot),zz(ntot),pp(ntot),qq(ntot)
@@ -351,7 +351,7 @@ c--------------------------------------------------------------------
       
 c Call variables
 
-      integer(4) :: neq,ntot,im,iout,ierr,igrid,its,guess,depth
+      integer    :: neq,ntot,im,iout,ierr,igrid,its,guess,depth
      .             ,bcnd(6,neq)
       real(8)    :: b(ntot),x(ntot)
 
@@ -361,11 +361,11 @@ c Call variables
 
 c Local variables
 
-      integer(4) :: k_max,stp_test,depth1
+      integer    :: k_max,stp_test,depth1
       real(8)    :: eps,epsmac,rold,ro,eps1,gam,tt,mag,abstol,dx(ntot)
 
-      integer(4) :: i,j,i1,k,k1,ii,jj
-      integer(4) :: nn,rstrt,irstrt,precout,maxits
+      integer    :: i,j,i1,k,k1,ii,jj
+      integer    :: nn,rstrt,irstrt,precout,maxits
 
       double precision,allocatable,dimension(:)  :: c,s,rs
       double precision,allocatable,dimension(:,:):: hh,vv,zz

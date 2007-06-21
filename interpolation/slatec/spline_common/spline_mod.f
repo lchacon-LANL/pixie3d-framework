@@ -1,6 +1,6 @@
       module slatec_splines
 
-      integer(4) :: kx,ky,kz,nnx,nny,nnz,dim,flg,order
+      integer    :: kx,ky,kz,nnx,nny,nnz,dim,flg,order
 
       real(8),allocatable,dimension(:) :: sx,sy,sz
       real(8), dimension(:),allocatable:: tx,ty,tz,work
