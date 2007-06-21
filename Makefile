@@ -41,7 +41,7 @@ MODDIRS = $(MODPATH) $(patsubst $(COMMONDIR)%,$(ADDMODFLAG)$(COMMONDIR)%,$(SUBDI
 
 PWD = `pwd`
 
-.PHONY: setup target lib message clean distclean common $(SUBDIRS)
+.PHONY: setup setup_lnk target lib message clean distclean common $(SUBDIRS)
 
 target: common message $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 
@@ -63,8 +63,11 @@ distclean: clean
 
 setup: ;
 	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
-		cp $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; done
-#		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; done
+		-rm $$subdir/makefile 2>/dev/null ; \
+		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
+		$(MAKE) -C $$subdir setup_lnk; done
+
+setup_lnk: ;
 	-@for file in $(LNK_FILES) ; do \
 		ln -s $$file 2>/dev/null ; done
 
