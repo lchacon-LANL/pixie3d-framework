@@ -252,7 +252,7 @@ c     Call variables
 c     Local variables
 
         integer      :: i,j,mfile,lngt,lim
-        character(50):: label
+        character(50):: label,opt
         logical      :: flag
 
 c     Begin program
@@ -264,9 +264,11 @@ c     Begin program
         if (cartesian) then
           write (mfile,'(1a,/)') 
      .     'Type (G=Graph, C=Contour, M=TS contour):      M2'
+          opt = options // ' -a'
         else
           write (mfile,'(1a,/)') 
      .     'Type (G=Graph, C=Contour, M=TS contour):      M'
+          opt = options
         endif
         write (mfile,'(a)') 'filename(s)'
         write (mfile,'(a,/)') trim(binf)
@@ -288,7 +290,7 @@ c     Begin program
         do i=1,lim
           if (variables(i) > 0) then
             write (mfile,'(i2,4a)') variables(i)
-     .         ,'         ',options
+     .         ,'         ',trim(opt)
      .         ,'         ',trim(descr(variables(i)))
           elseif (variables(i) == 0) then
             cycle
@@ -297,7 +299,7 @@ c     Begin program
             label = 'Vector plot (' // trim(descr(variables(i)))
      .              // ',' // trim(descr(variables(i)+1))//')'
             write (mfile,'(i2,a,i2,4a)') variables(i),' ',variables(i)+1
-     .         ,'       ',options,'         ',trim(label)
+     .         ,'       ',trim(opt),'         ',trim(label)
           endif
         enddo
         write (mfile,*)
