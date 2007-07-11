@@ -224,8 +224,14 @@ c     Begin program
         jjmin = jming
         jjmax = jmaxg
 
-        kkmax = kming
-        kkmin = kmaxg
+        kkmin = kming
+        kkmax = kmaxg
+
+        if (    (iplt < iimin .or. iplt > iimax)
+     $      .or.(jplt < jjmin .or. jplt > jjmax)
+     $      .or.(kplt < kkmin .or. kplt > kkmax)) then
+           call pstop('profplot','Plotting coordinates out of range')
+        endif
 
         select case (comp)
         case(1)
@@ -313,13 +319,13 @@ c     Dump plots
           if (cartesian) then
             select case(comp)
             case(1)
-              call getCartesianCoordinates(l,1,1,iggx,iggy,iggz
+              call getCartesianCoordinates(l,jplt,kplt,iggx,iggy,iggz
      .                                ,iig,jjg,kkg,car(1),car(2),car(3))
             case(2)
-              call getCartesianCoordinates(1,l,1,iggx,iggy,iggz
+              call getCartesianCoordinates(iplt,l,kplt,iggx,iggy,iggz
      .                                ,iig,jjg,kkg,car(1),car(2),car(3))
             case(3)
-              call getCartesianCoordinates(1,1,l,iggx,iggy,iggz
+              call getCartesianCoordinates(iplt,jplt,l,iggx,iggy,iggz
      .                                ,iig,jjg,kkg,car(1),car(2),car(3))
             end select
             write(unit) real(car(comp)),real(profiles(l,1:nqty))
