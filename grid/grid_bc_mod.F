@@ -183,7 +183,7 @@ cc      stop
 
 c     Element exchange in poloidal direction
 
-      if (mod(nyg,2) /= 0) then
+      if (mod(nyg,2) /= 0 .and. nyg /= 1) then
         call pstop('scalarSingularBC'
      .            ,'Poloidal dimension not a multiple of 2')
       endif
@@ -372,7 +372,7 @@ c     Begin program
 
       if (npy < 1) call pstop('vectorSingularBC','npy < 1')
 
-      nyg = nybc*npy
+      nyg = grid_params%nygl(igybc)
 
 c     Check that we are domain adjacent to singular point
 
@@ -402,7 +402,7 @@ cc     .           ,garray
 
 c     Element exchange in poloidal direction
 
-      if (mod(nyg,2) /= 0) then
+      if (mod(nyg,2) /= 0 .and. nyg /= 1) then
         call pstop('vectorSingularBC'
      .            ,'Poloidal dimension not a multiple of 2')
       endif
@@ -1194,9 +1194,9 @@ c     Find covariant components at ALL boundary ghost cells
           enddo
         enddo
 
-c       Impose BCs on covariant components
+c       Impose BCs on covariant components (if not Cartesian)
 
-        if (coords == 'vmc') then
+        if (coords /= 'car') then
 
 c         Impose SP BCs
 
