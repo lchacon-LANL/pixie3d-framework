@@ -12,7 +12,7 @@ c #####################################################################
         real(8)         :: gparams(ngparams)
 
         real(8),private :: pi,lambda,cc,xpp,ypp,zpp,eps,mm,kk,aa,phi
-     .                    ,major_r,lambdax,lambday,lambdaz
+     .                    ,major_r,lambdax,lambday,lambdaz,bb
      .                    ,aax=0d0,bbx=0d0,xx0,xi0
      .                    ,aay=0d0,bby=0d0,yy0,yi0
      .                    ,aaz=0d0,bbz=0d0,zz0,zi0
@@ -200,10 +200,12 @@ cc            write (*,*) x1,xx,aax,bbx,(x1-xi0)/bbx
           zz = x3
         case ('tor')
           major_r = gparams(1)
+          aa      = gparams(2)
+          bb      = gparams(3)
 
-          xx = (major_r + x1*sin(x2))*cos(x3)
-          yy = (major_r + x1*sin(x2))*sin(x3)
-          zz = x1*cos(x2)
+          xx = (major_r + aa*x1*cos(x2))*cos(-x3)
+          yy = (major_r + aa*x1*cos(x2))*sin(-x3)
+          zz = bb*x1*sin(x2)
         case ('sin')
           pi = acos(-1d0)
           eps = gparams(1)
@@ -348,8 +350,10 @@ c     Begin program
      .                                  ,x1,x2,x3)
 
           major_r = gparams(1)
+          aa      = gparams(2)
+          bb      = gparams(3)
 
-          jac = x1*(major_r + x1*sin(x2))
+          jac = aa*bb*x1*(major_r + aa*x1*cos(x2))
         case ('sin')
           pi = acos(-1d0)
 
@@ -475,6 +479,8 @@ c     Begin program
           end select
         case ('tor')
           major_r = gparams(1)
+          aa      = gparams(2)
+          bb      = gparams(3)
 
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
@@ -482,16 +488,16 @@ c     Begin program
 
           select case (comp)
             case (1)
-              vec = (/ sin(curv(2))*cos(curv(3))
-     .                ,sin(curv(2))*sin(curv(3))
-     .                ,cos(curv(2)) /)
+              vec = (/  cos(curv(2))*cos(curv(3))/aa
+     .                ,-cos(curv(2))*sin(curv(3))/aa
+     .                , sin(curv(2))/bb             /)
             case (2)
-              vec = (/ cos(curv(2))*cos(curv(3))
-     .                ,cos(curv(2))*sin(curv(3))
-     .                ,-sin(curv(2))/)/curv(1)
+              vec = (/-sin(curv(2))*cos(curv(3))/aa
+     .                ,sin(curv(2))*sin(curv(3))/aa
+     .                ,cos(curv(2))/bb             /)/curv(1)
             case (3)
-              vec = (/ -sin(curv(3)),cos(curv(3)),0d0 /)
-     .              /(major_r + curv(1)*sin(curv(2)))
+              vec = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)
+     .              /(major_r + aa*curv(1)*cos(curv(2)))
           end select
         case ('sin')
 
@@ -644,6 +650,8 @@ c     Begin program
           end select
         case ('tor')
           major_r = gparams(1)
+          aa      = gparams(2)
+          bb      = gparams(3)
 
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
@@ -651,17 +659,17 @@ c     Begin program
 
           select case (comp)
             case (1)
-              vec = (/ sin(curv(2))*cos(curv(3))
-     .                ,sin(curv(2))*sin(curv(3))
-     .                ,cos(curv(2)) /)
-     .              /curv(1)/(major_r + curv(1)*sin(curv(2)))
+              vec = (/  cos(curv(2))*cos(curv(3))/bb
+     .                ,-cos(curv(2))*sin(curv(3))/bb
+     .                , sin(curv(2))/aa             /)
+     .              /curv(1)/(major_r + curv(1)*cos(curv(2)))
             case (2)
-              vec = (/ cos(curv(2))*cos(curv(3))
-     .                ,cos(curv(2))*sin(curv(3))
-     .                ,-sin(curv(2))/)
-     .              /(major_r + curv(1)*sin(curv(2)))
+              vec = (/-sin(curv(2))*cos(curv(3))/bb
+     .                ,sin(curv(2))*sin(curv(3))/bb
+     .                ,cos(curv(2))/aa              /)
+     .              /(major_r + curv(1)*cos(curv(2)))
             case (3)
-              vec = (/ -sin(curv(3)),cos(curv(3)),0d0 /)/curv(1)
+              vec = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)/curv(1)/aa/bb
           end select
         case ('sin')
 
@@ -922,42 +930,43 @@ c     Begin program
           curv = (/ x1,x2,x3 /)
 
           major_r = gparams(1)
+          aa      = gparams(2)
+          bb      = gparams(3)
+
           select case (l)
             case (1)
               vec(1) = 0d0
               vec(2) = 0d0
               vec(3) = 0d0
               vec(4) = vec(2)
-              vec(5) = curv(1)
+              vec(5) =-curv(1)
               vec(6) = 0d0
               vec(7) = vec(3)
               vec(8) = vec(6)
-              vec(9) = sin(curv(2))*(major_r + curv(1)*sin(curv(2)))
+              vec(9) =-cos(curv(2))*(major_r+aa*curv(1)*cos(curv(2)))/aa
             case (2)
               vec(1) = 0d0
-              vec(2) = -1./curv(1)
+              vec(2) = 1./curv(1)
               vec(3) = 0d0
               vec(4) = vec(2)
               vec(5) = 0d0
               vec(6) = 0d0
               vec(7) = vec(3)
               vec(8) = vec(6)
-              vec(9) = (major_r + curv(1)*sin(curv(2)))*cos(curv(2))
-     .                 /curv(1)
+              vec(9) = (major_r + aa*curv(1)*cos(curv(2)))*sin(curv(2))
+     .                 /curv(1)/aa
             case (3)
-              vec(1) =  0d0
-              vec(2) =  0d0
-              vec(3) =  -sin(curv(2))/(major_r + curv(1)*Sin(curv(2)))
+              vec(1) = 0d0
+              vec(2) = 0d0
+              vec(3) = aa*cos(curv(2))/(major_r+aa*curv(1)*cos(curv(2)))
               vec(4) = vec(2)
               vec(5) = 0d0
-              vec(6) = -curv(1)*cos(curv(2))
-     .                 /(major_r + curv(1)*Sin(curv(2)))
+              vec(6) = -aa*curv(1)*sin(curv(2))
+     .                 /(major_r + aa*curv(1)*cos(curv(2)))
               vec(7) = vec(3)
               vec(8) = vec(6)
               vec(9) = 0d0
           end select
-
-          vec = -vec
 
         case ('sin')
 
@@ -1327,9 +1336,32 @@ c     Begin program
           curv = (/ x1,x2,x3 /)
 
           major_r = gparams(1)
-          vec = (/ 1d0/curv(1)/(major_r + curv(1)*sin(curv(2))),0d0,0d0
-     .            ,0d0, curv(1)/(major_r + curv(1)*sin(curv(2))), 0d0
-     .            ,0d0, 0d0, (major_r/curv(1) + sin(curv(2))) /)
+          aa      = gparams(2)
+          bb      = gparams(3)
+
+cc          vec = (/ 1d0/curv(1)/(major_r + curv(1)*cos(curv(2))),0d0,0d0
+cc     .            ,0d0, curv(1)/(major_r + curv(1)*cos(curv(2))), 0d0
+cc     .            ,0d0, 0d0, (major_r/curv(1) + cos(curv(2))) /)
+
+          vec(1) = (aa**2 + bb**2 + (aa**2 - bb**2)*Cos(2*x2))/
+     -             (2.*aa*bb*x1*(major_r + aa*x1*Cos(x2)))
+
+          vec(2) = ((-aa**2 + bb**2)*Cos(x2)*Sin(x2))
+     .             /(aa*bb*(major_r + aa*x1*Cos(x2)))
+
+          vec(3) = 0d0
+
+          vec(4) = vec(2)
+
+          vec(5) = (x1*(aa**2 + bb**2 + (-aa**2 + bb**2)*Cos(2*x2)))/
+     -             (2.*aa*bb*(major_r + aa*x1*Cos(x2)))
+
+          vec(6) = 0d0
+
+          vec(7) = vec(3)
+          vec(8) = vec(6)
+          vec(9) = (major_r + aa*x1*Cos(x2))/(aa*bb*x1)
+
         case ('sin')
 
           pi = acos(-1d0)
@@ -1474,9 +1506,35 @@ c     Begin program
           curv = (/ x1,x2,x3 /)
 
           major_r = gparams(1)
-          vec = (/ curv(1)*(major_r + curv(1)*sin(curv(2))), 0d0, 0d0
-     .            ,0d0, (major_r/curv(1) + sin(curv(2))), 0d0
-     .            ,0d0, 0d0, curv(1)/(major_r + curv(1)*sin(curv(2))) /)
+          aa      = gparams(2)
+          bb      = gparams(3)
+
+cc          vec = (/ curv(1)*(major_r + curv(1)*cos(curv(2))), 0d0, 0d0
+cc     .            ,0d0, (major_r/curv(1) + cos(curv(2))), 0d0
+cc     .            ,0d0, 0d0, curv(1)/(major_r + curv(1)*cos(curv(2))) /)
+
+          vec(1) = -(x1*(major_r + aa*x1*Cos(x2))*
+     .             (-aa**2 - bb**2 + (aa**2 - bb**2)*Cos(2*x2)))
+     .             /(2.*aa*bb)
+
+          vec(2) = ((aa**2 - bb**2)*Cos(x2)
+     .             *(major_r + aa*x1*Cos(x2))*Sin(x2))
+     .             /(aa*bb)
+
+          vec(3) = 0d0
+
+          vec(4) = vec(2)
+
+          vec(5) = ((major_r + aa*x1*Cos(x2))
+     .            *(aa**2 + bb**2 + (aa**2 - bb**2)*Cos(2*x2)))
+     .            /(2.*aa*bb*x1)
+
+          vec(6) = 0d0
+
+          vec(7) = vec(3)
+          vec(8) = vec(6)
+          vec(9) = (aa*bb*x1)/(major_r + aa*x1*Cos(x2))
+
         case ('sin')
 
           pi = acos(-1d0)
