@@ -431,6 +431,7 @@ c     Input variables
 c     Local variables
 
         integer    :: ii,nxf,nyf,nzf,nxc,nyc,nzc,nx,ny,nz
+cc        integer    :: jj
 
         real(8),pointer,dimension(:,:,:,:)   :: xc
         real(8),allocatable,dimension(:,:,:,:,:) :: dr
@@ -583,11 +584,21 @@ c       NUMERICAL QUANTITIES ***********************************
             enddo
           enddo
 
-          !Enforce topological constraints on dr
-
+          !Enforce topological constraints on dr (including SP)
           do i=1,3
             do j=1,3
               call topol_bc(igrid,nx,ny,nz,dr(:,:,:,i,j))
+              if (bcSP()) then
+                igxbc = igrid
+                igybc = igrid
+                igzbc = igrid
+
+                nxbc = nx
+                nybc = ny
+                nzbc = nz
+                !dr behaves like a covariant vector
+                call vectorSingularBC(i,dr(:,:,:,i,j),.true.)
+              endif
             enddo
           enddo
           
@@ -595,18 +606,15 @@ c       NUMERICAL QUANTITIES ***********************************
           do k = klom,khip
             do j = jlom,jhip
               do i = ilom,ihip
+                r = dr(i,j,k,:,:)
 
 cc                if (isSP(i+1,j,k,igx,igy,igz)) then
-cc                  r(1,:) =  dr(i+1,j,k,1,:)
-cc                  r(2,:) = -dr(i+1,j,k,2,:)
-cc                  if (coords == 'hel') then
-cc                    r(3,1:2) = -dr(i+1,j,k,3,1:2)
-cc                    r(3,3  ) =  dr(i+1,j,k,3,3)
-cc                  else
-cc                    r(3,:) =  dr(i+1,j,k,3,:)
-cc                  endif
-cc                else
-                  r = dr(i,j,k,:,:)
+cc                  jj = mod(j+ny/2,ny)
+cc                  if (jj == 0) jj = ny
+cc
+cc                  r(1,:) = -dr(i+1,jj,k,1,:)
+cc                  r(2,:) =  dr(i+1,jj,k,2,:)
+cc                  r(3,:) =  dr(i+1,jj,k,3,:)
 cc                endif
 
                 !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -1644,7 +1652,6 @@ c     External
 c     Begin program
 
 #if !defined(petsc)
-
         if (bcond(1) == PER .or. bcond(2) == PER) then
           array(0    ,:,:) = array(nxl,:,:)
           array(nxl+1,:,:) = array(1  ,:,:)
@@ -1659,12 +1666,10 @@ c     Begin program
           array(:,:,0    ) = array(:,:,nzl)
           array(:,:,nzl+1) = array(:,:,1  )
         endif
-
 #else
 cc        if (igrid == 1) then
           call fillPetscGhostCells(array,igrid)
 cc        endif
-
 #endif
 
 c     End program
@@ -1959,7 +1964,11 @@ cc      dump_diff = anal_map.and.(.not.numerical_grid)
       if (dump_diff) then
         write(*,*)'Analytical mapping available; dumping diffs...'
       else
-        write(*,*)'Analytical mapping unavailable; dumping full qtys...'
+        if (anal_map) then
+          write(*,*)'Dumping analytical qtys...'
+        else
+          write(*,*)'Analytical map unavailable; dumping full qtys...'
+        endif
       endif
       write (*,*)
 
@@ -2028,27 +2037,27 @@ c     Dump quantities
           enddo
         enddo
 
-cc        do l=1,3
-cc          do m=l,3
-cc            do j=0,ny+1
-cc              do i=0,nx+1
-cc                dbg(i,j,1,1) = g_metric%grid(igrid)%gsup(i,j,k,l,m)
-cc     .                        *g_metric%grid(igrid)%jac(i,j,k)
-cc                if (dump_diff) then
-cc                  tensor(:,:,1)  = g_sub(i,j,k,igrid,igrid,igrid)
-cc                  dbg(i,j,1,1) = dbg(i,j,1,1)
-cc     .                        -tensor(l,m,1)
-cc     .                    *jacobian(i,j,k,igrid,igrid,igrid)
-cc                endif
-cc              enddo
-cc            enddo
-cc            write (*,*) '   Dumping Gsup component',l,m
-cc            ivar = ivar+1
-cc            descr(ivar)='gsup('//trim(int2char(l))//','
-cc     .                         //trim(int2char(m))//')'
-cc            call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
-cc          enddo
-cc        enddo
+        do l=1,3
+          do m=l,3
+            do j=0,ny+1
+              do i=0,nx+1
+                dbg(i,j,1,1) = g_metric%grid(igrid)%gsup(i,j,k,l,m)
+     .                        *g_metric%grid(igrid)%jac(i,j,k)
+                if (dump_diff) then
+                  tensor(:,:,1)  = g_sup(i,j,k,igrid,igrid,igrid)
+                  dbg(i,j,1,1) = dbg(i,j,1,1)
+     .                        -tensor(l,m,1)
+     .                    *jacobian(i,j,k,igrid,igrid,igrid)
+                endif
+              enddo
+            enddo
+            write (*,*) '   Dumping Gsup component',l,m
+            ivar = ivar+1
+            descr(ivar)='gsup('//trim(int2char(l))//','
+     .                         //trim(int2char(m))//')'
+            call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
+          enddo
+        enddo
 
         !Cnv vectors
         do l=1,3
