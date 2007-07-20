@@ -2,7 +2,7 @@ c module mlsolverSetup
 c######################################################################
       module mlsolverSetup
 
-        use grid_mpi
+        use grid_mg
 
         implicit none
 
@@ -46,7 +46,7 @@ c######################################################################
           logical      :: vertex_based_relax
           logical      :: galerkin
 
-          type(grid_mg_def)  :: mg_grid_def
+          type(grid_mg_def),pointer  :: mg_grid_def
 
           !Output quantities
           integer    :: iter_out
@@ -125,7 +125,9 @@ c       Initializes solver options
           solverOptions%galerkin    =.false.       !Whether to do Galerkin coarsening (true)
                                                    !  or rediscretization (false)
 
-          solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
+cc          solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
+          call equateGridStructure(solverOptions%mg_grid_def
+     .                            ,grid_params)    !Defines default MG grid levels def.
 
           !Krylov methods options
           solverOptions%stp_test = 0               !Stopping criterion (CG, GMRES)

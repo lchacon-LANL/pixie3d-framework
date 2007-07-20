@@ -35,7 +35,16 @@ c Call variables
 c Local variables
 
       integer         :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl,ieq
-      type(var_array) :: varray
+      type(var_array),pointer :: varray
+
+c Interface
+
+      INTERFACE
+        subroutine setupPreconditioner(varray)
+        use variable_setup
+        type(var_array),pointer :: varray
+        end subroutine setupPreconditioner
+      END INTERFACE
 
 c Begin program
 

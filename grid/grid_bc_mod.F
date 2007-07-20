@@ -88,7 +88,7 @@ c       Perform local sum
 
         do j=1,nybc
           call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-          vol = volume(i,j,k,igxbc,igybc,igzbc)
+          vol = gmetric%grid(igxbc)%dvol(i,j,k)
           x0  = grid_params%xx(ig-1)
 
           call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
@@ -272,7 +272,7 @@ c       Perform local sum
 
         do j=1,nybc
           call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-          vol = volume(i,j,k,igxbc,igybc,igzbc)
+          vol = gmetric%grid(igxbc)%dvol(i,j,k)
 
           do ic=1,order1+1
             call transformVectorToCartesian(ic,j,k,igxbc,igybc,igzbc
@@ -885,7 +885,7 @@ c     Initialize GLOBAL limits
 
 c     Fill PETSc ghost cells
 
-#if defined(petsc)
+#if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
       petsc__bc =      (np > 1)
      .           .and. (    ((.not.asm) .and. par_bc)    !For PC (not ASM)
@@ -1045,7 +1045,7 @@ c     Initialize GLOBAL limits
 
 c     Fill PETSc ghost cells
 
-#if defined(petsc)
+#if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
       petsc__bc =      (np > 1)
      .           .and. (    ((.not.asm) .and. par_bc)    !For PC (not ASM)

@@ -154,8 +154,7 @@ int main(int argc, char **argv)
   int       steps=0;
   int       npx,npy,npz;        /* num. of processors used */
   PetscMPIInt  my_rank,np;      /* MPI integers: rank, nproc */
-  PetscReal atol;
-  PetscReal rtol;
+  PetscReal atol,rtol,stol=0.;
   PetscReal tolgm;
   PetscReal time,tmax;
   PetscLogDouble time1,time2,time3,time4;
@@ -300,7 +299,7 @@ int main(int argc, char **argv)
   
   /* Customize SNES */
   
-  ierr = SNESSetTolerances(snes,atol,rtol,PETSC_DEFAULT,maxitnwt,PETSC_DEFAULT)	;CHKERRQ(ierr);
+  ierr = SNESSetTolerances(snes,atol,rtol,stol,maxitnwt,PETSC_DEFAULT)	;CHKERRQ(ierr);
 
   /* Set SNES runtime options */
   
@@ -428,7 +427,7 @@ int main(int argc, char **argv)
   ierr = PetscGetCPUTime(&time4)			                 	;CHKERRQ(ierr);
 
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Elapsed time = %f \n",time3-time1)       ;CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"CPU time     = %f \n",time4-time2)       ;CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD,"CPU time     = %f \n",(time4-time2)*1e4)       ;CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Deallocate memory and finish

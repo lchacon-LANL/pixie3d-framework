@@ -7,6 +7,8 @@ c #####################################################################
 
         use grid_def
 
+        use grid_operations
+
         implicit none
 
         real(8)         :: gparams(ngparams)

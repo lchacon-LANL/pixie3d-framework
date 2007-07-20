@@ -1,53 +1,93 @@
 
-c module grid_structures
+c module grid_def_st
 c #####################################################################
-      module grid_structures
+      module grid_def_st
 
         implicit none
 
-cc        integer    :: nxgl,nygl,nzgl
+        integer   ,parameter :: ngparams = 6,UNDEF_INT=-1234
+        real(8)   ,parameter :: UNDEF_DP=-1234.
 
-        integer   ,parameter :: ngparams = 6
+        type :: dim_pack
+          logical    :: pack
+          real(8)    :: xp
+          real(8)    :: dx0
+        end type dim_pack
+
+        type :: grid_pack
+          type(dim_pack),dimension(3) :: dim
+        end type grid_pack
+
+        type :: grid_metrics
+          real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
+          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
+          real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
+          real(8),pointer,dimension(:,:,:,:,:,:) :: Gamma !Christoffel symbol at cell centers
+          real(8),pointer,dimension(:,:,:,:,:)   :: cov   !Covariant vectors
+          real(8),pointer,dimension(:,:,:,:,:)   :: cnv   !Contravariant vectors
+        end type grid_metrics
+
+        type :: MG_grid_metrics
+          type(grid_metrics),pointer,dimension(:) :: grid
+        end type MG_grid_metrics
 
         type :: grid_mg_def
-          integer    :: ngrdx                             !# meshes in X
-          integer    :: ngrdy                             !# meshes in Y
-          integer    :: ngrdz                             !# meshes in Y
-          integer    :: ngrid                             !# meshes for MG
-          integer    :: nglx                              !# meshes in X
-          integer    :: ngly                              !# meshes in Y
-          integer    :: nglz                              !# meshes in Y
-          real(8)    :: lxmin,lxmax                       !Local physical dimensions in X
-          real(8)    :: lymin,lymax                       !Local physical dimensions in Y
-          real(8)    :: lzmin,lzmax                       !Local physical dimensions in Z
-          integer   ,pointer,dimension(:)  :: iline       !Restrict ops. to i=iline in MG
-          integer   ,pointer,dimension(:)  :: jline       !Restrict ops. to j=jline in MG
-          integer   ,pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
+          integer :: ngrdx                                !Grid levels in X
+          integer :: ngrdy                                !Grid levels in Y
+          integer :: ngrdz                                !Grid levels in Z
+          integer :: ngrid                                !Max grid levels for MG
+
+          integer :: nglx                                 !Global number of mesh points in X
+          integer :: ngly                                 !Global number of mesh points in Y
+          integer :: nglz                                 !Global number of mesh points in Z
+
+          integer :: nlx                                  !Local number of mesh points in X
+          integer :: nly                                  !Local number of mesh points in Y
+          integer :: nlz                                  !Local number of mesh points in Z
+
+          integer :: ilog                                 !Global lower  limit in X
+          integer :: ihig                                 !Global higher limit in X
+          integer :: jlog                                 !Global lower  limit in Y
+          integer :: jhig                                 !Global higher limit in Y
+          integer :: klog                                 !Global lower  limit in Z
+          integer :: khig                                 !Global higher limit in Z
+
+          integer :: gcw                                  !Ghost cell width
+
+          real(8) :: lxmin,lxmax                          !Local patch physical dimensions in X
+          real(8) :: lymin,lymax                          !Local patch physical dimensions in Y
+          real(8) :: lzmin,lzmax                          !Local patch physical dimensions in Z
+
           integer   ,pointer,dimension(:)  :: ilo         !Global lower limit in X
           integer   ,pointer,dimension(:)  :: jlo         !Global lower limit in Y
           integer   ,pointer,dimension(:)  :: klo         !Global lower limit in Z
           integer   ,pointer,dimension(:)  :: ihi         !Global higher limit in X
           integer   ,pointer,dimension(:)  :: jhi         !Global higher limit in Y
           integer   ,pointer,dimension(:)  :: khi         !Global higher limit in Z
-          real(8)   ,pointer,dimension(:)  :: xg          !Global grid nodes in X (top grid)
+
+          real(8)   ,pointer,dimension(:)  :: xg          !Global grid nodes in X (top grid only)
           real(8)   ,pointer,dimension(:)  :: yg          !Global grid nodes in Y (")
           real(8)   ,pointer,dimension(:)  :: zg          !Global grid nodes in Z (")
           real(8)   ,pointer,dimension(:)  :: xx          !Local grid nodes in X (all grids)
           real(8)   ,pointer,dimension(:)  :: yy          !Local grid nodes in Y (")
           real(8)   ,pointer,dimension(:)  :: zz          !Local grid nodes in Z (")
-          real(8)   ,pointer,dimension(:)  :: dx          !Grid spacings in X for integer mesh (")
+
+          real(8)   ,pointer,dimension(:)  :: dx          !Grid spacings in X for integer mesh (all grids)
           real(8)   ,pointer,dimension(:)  :: dy          !Grid spacings in Y for integer mesh (")
           real(8)   ,pointer,dimension(:)  :: dz          !Grid spacings in Z for integer mesh (")
           real(8)   ,pointer,dimension(:)  :: dxh         !Grid spacings in X for half mesh (")
           real(8)   ,pointer,dimension(:)  :: dyh         !Grid spacings in Y for half mesh (")
           real(8)   ,pointer,dimension(:)  :: dzh         !Grid spacings in Z for half mesh (")
-          integer   ,pointer,dimension(:)  :: nxv         !Local # of grid nodes in X  (")
+
+          integer   ,pointer,dimension(:)  :: nxv         !Local # of grid nodes in X  (all grids)
           integer   ,pointer,dimension(:)  :: nyv         !Local # of grid nodes in Y  (")
           integer   ,pointer,dimension(:)  :: nzv         !Local # of grid nodes in Z  (")
           integer   ,pointer,dimension(:)  :: nxgl        !Global # of grid nodes in X  (")
           integer   ,pointer,dimension(:)  :: nygl        !Global # of grid nodes in Y  (")
           integer   ,pointer,dimension(:)  :: nzgl        !Global # of grid nodes in Z  (")
-cc          integer   ,pointer,dimension(:)  :: ntotv       !Total # of grid nodes (")
+
           integer   ,pointer,dimension(:)  :: istartx     !Pointer for MG vectors in X
           integer   ,pointer,dimension(:)  :: istarty     !Pointer for MG vectors in Y
           integer   ,pointer,dimension(:)  :: istartz     !Pointer for MG vectors in Z
@@ -55,20 +95,28 @@ cc          integer   ,pointer,dimension(:)  :: ntotv       !Total # of grid nod
           integer   ,pointer,dimension(:)  :: mg_ratio_x  !MG coarsening ratio in X
           integer   ,pointer,dimension(:)  :: mg_ratio_y  !MG coarsening ratio in Y
           integer   ,pointer,dimension(:)  :: mg_ratio_z  !MG coarsening ratio in Z
+          integer   ,pointer,dimension(:)  :: iline       !Restrict ops. to i=iline in MG
+          integer   ,pointer,dimension(:)  :: jline       !Restrict ops. to j=jline in MG
+          integer   ,pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
+
           real(8)                          :: params(ngparams)   !Grid configuration parameters
+
+          type(MG_grid_metrics),pointer    :: gmetric     !Grid metrics at all levels
+
+          type(grid_pack),pointer          :: g_pack      !Grid packing information
+
         end type grid_mg_def
 
-        type (grid_mg_def) :: grid_params
+        type(grid_mg_def),pointer :: grid_params
 
-        INTERFACE ASSIGNMENT (=)
-          module procedure equateGridStructure
-        END INTERFACE
+        type(MG_grid_metrics),pointer :: gmetric
 
       contains
 
 c     allocateGridStructure
 c     #################################################################
-      subroutine allocateGridStructure(nx,ny,nz,ngridx,ngridy,ngridz
+      subroutine allocateGridStructure(ngridx,ngridy,ngridz
+     .                                ,ilog,ihig,jlog,jhig,klog,khig
      .                                ,nglx,ngly,nglz,grid_st)
 c     -----------------------------------------------------------------
 c     Allocates grid structure
@@ -78,102 +126,136 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer        :: nx,ny,nz,ngridx,ngridy,ngridz,nglx,ngly,nglz
-        type(grid_mg_def) :: grid_st
+        integer :: ngridx,ngridy,ngridz,nglx,ngly,nglz
+     .            ,ilog,ihig,jlog,jhig,klog,khig
+        type(grid_mg_def),pointer :: grid_st
 
 c     Local variables
 
-        integer    :: ngrid,nxmg,nymg,nzmg
+        integer :: nx,ny,nz,ngrid,nxmg,nymg,nzmg
 
 c     Begin program
 
         ngrid = max(ngridx,ngridy,ngridz)
 
-        grid_st%ngrdx = ngridx
-        grid_st%ngrdy = ngridy
-        grid_st%ngrdz = ngridz
-        grid_st%ngrid = ngrid
+        if (.not.associated(grid_st)) then  !Take grid defs from input if existing.
+          allocate(grid_st)
+          nullify(grid_st%xx)
+          nullify(grid_st%gmetric)
 
-        grid_st%nglx = nglx
-        grid_st%ngly = ngly
-        grid_st%nglz = nglz
+          grid_st%ngrdx = ngridx
+          grid_st%ngrdy = ngridy
+          grid_st%ngrdz = ngridz
+          grid_st%ngrid = ngrid
 
-        nxmg=findMGsize(nx,ngridx,ngrid)
-        nymg=findMGsize(ny,ngridy,ngrid)
-        nzmg=findMGsize(nz,ngridz,ngrid)
+          grid_st%nglx = nglx
+          grid_st%ngly = ngly
+          grid_st%nglz = nglz
 
-        if (.not.associated(grid_st%xx)) then
-          allocate(grid_st%xg(0:nglx+1))
-          allocate(grid_st%yg(0:ngly+1))
-          allocate(grid_st%zg(0:nglz+1))
-          allocate(grid_st%xx(nxmg+2*ngrid))
-          allocate(grid_st%yy(nymg+2*ngrid))
-          allocate(grid_st%zz(nzmg+2*ngrid))
-          allocate(grid_st%dx(nxmg+2*ngrid))
-          allocate(grid_st%dy(nymg+2*ngrid))
-          allocate(grid_st%dz(nzmg+2*ngrid))
-          allocate(grid_st%dxh(nxmg+2*ngrid))
-          allocate(grid_st%dyh(nymg+2*ngrid))
-          allocate(grid_st%dzh(nzmg+2*ngrid))
-          allocate(grid_st%nxv(ngrid))
-          allocate(grid_st%nyv(ngrid))
-          allocate(grid_st%nzv(ngrid))
-          allocate(grid_st%nxgl(ngrid))
-          allocate(grid_st%nygl(ngrid))
-          allocate(grid_st%nzgl(ngrid))
-          allocate(grid_st%ilo(ngrid))
-          allocate(grid_st%jlo(ngrid))
-          allocate(grid_st%klo(ngrid))
-          allocate(grid_st%ihi(ngrid))
-          allocate(grid_st%jhi(ngrid))
-          allocate(grid_st%khi(ngrid))
-cc          allocate(grid_st%ntotv(ngrid))
-          allocate(grid_st%istartx(ngrid))
-          allocate(grid_st%istarty(ngrid))
-          allocate(grid_st%istartz(ngrid))
-          allocate(grid_st%istartp(ngrid))
-          allocate(grid_st%mg_ratio_x(ngrid))
-          allocate(grid_st%mg_ratio_y(ngrid))
-          allocate(grid_st%mg_ratio_z(ngrid))
-          allocate(grid_st%iline(ngrid))
-          allocate(grid_st%jline(ngrid))
-          allocate(grid_st%kline(ngrid))
+          grid_st%ilog  = ilog
+          grid_st%ihig  = ihig
+          grid_st%jlog  = jlog
+          grid_st%jhig  = jhig
+          grid_st%klog  = klog
+          grid_st%khig  = khig
         endif
 
-        grid_st%xg = 0.
-        grid_st%yg = 0.
-        grid_st%zg = 0.
-        grid_st%xx = 0.
-        grid_st%yy = 0.
-        grid_st%zz = 0.
-        grid_st%dx = 0.
-        grid_st%dy = 0.
-        grid_st%dz = 0.
-        grid_st%dxh = 0.
-        grid_st%dyh = 0.
-        grid_st%dzh = 0.
-        grid_st%nxv = 0
-        grid_st%nyv = 0
-        grid_st%nzv = 0
-        grid_st%nxgl = 0
-        grid_st%nygl = 0
-        grid_st%nzgl = 0
-        grid_st%ilo = 0
-        grid_st%jlo = 0
-        grid_st%klo = 0
-        grid_st%ihi = 0
-        grid_st%jhi = 0
-        grid_st%khi = 0
-        grid_st%istartx = 0
-        grid_st%istarty = 0
-        grid_st%istartz = 0
-        grid_st%istartp = 0
-        grid_st%mg_ratio_x = 0
-        grid_st%mg_ratio_y = 0
-        grid_st%mg_ratio_z = 0
-        grid_st%iline = 0
-        grid_st%jline = 0
-        grid_st%kline = 0
+        grid_st%nlx  = ihig-ilog+1
+        grid_st%nly  = jhig-jlog+1
+        grid_st%nlz  = khig-klog+1
+
+        grid_st%lxmin = UNDEF_DP
+        grid_st%lxmax = UNDEF_DP
+        grid_st%lymin = UNDEF_DP
+        grid_st%lymax = UNDEF_DP
+        grid_st%lzmin = UNDEF_DP
+        grid_st%lzmax = UNDEF_DP
+
+        nx = grid_st%nlx
+        ny = grid_st%nly
+        nz = grid_st%nlz
+
+        if (.not.associated(grid_st%xx)) then
+          nxmg=findMGsize(nx,grid_st%ngrdx,grid_st%ngrid)
+          nymg=findMGsize(ny,grid_st%ngrdy,grid_st%ngrid)
+          nzmg=findMGsize(nz,grid_st%ngrdz,grid_st%ngrid)
+
+          allocate(grid_st%xg(0:grid_st%nglx+1))
+          allocate(grid_st%yg(0:grid_st%ngly+1))
+          allocate(grid_st%zg(0:grid_st%nglz+1))
+          allocate(grid_st%xx(nxmg+2*grid_st%ngrid))
+          allocate(grid_st%yy(nymg+2*grid_st%ngrid))
+          allocate(grid_st%zz(nzmg+2*grid_st%ngrid))
+          allocate(grid_st%dx(nxmg+2*grid_st%ngrid))
+          allocate(grid_st%dy(nymg+2*grid_st%ngrid))
+          allocate(grid_st%dz(nzmg+2*grid_st%ngrid))
+          allocate(grid_st%dxh(nxmg+2*grid_st%ngrid))
+          allocate(grid_st%dyh(nymg+2*grid_st%ngrid))
+          allocate(grid_st%dzh(nzmg+2*grid_st%ngrid))
+          allocate(grid_st%nxv(grid_st%ngrid))
+          allocate(grid_st%nyv(grid_st%ngrid))
+          allocate(grid_st%nzv(grid_st%ngrid))
+          allocate(grid_st%nxgl(grid_st%ngrid))
+          allocate(grid_st%nygl(grid_st%ngrid))
+          allocate(grid_st%nzgl(grid_st%ngrid))
+          allocate(grid_st%ilo(grid_st%ngrid))
+          allocate(grid_st%jlo(grid_st%ngrid))
+          allocate(grid_st%klo(grid_st%ngrid))
+          allocate(grid_st%ihi(grid_st%ngrid))
+          allocate(grid_st%jhi(grid_st%ngrid))
+          allocate(grid_st%khi(grid_st%ngrid))
+cc          allocate(grid_st%ntotv(grid_st%ngrid))
+          allocate(grid_st%istartx(grid_st%ngrid))
+          allocate(grid_st%istarty(grid_st%ngrid))
+          allocate(grid_st%istartz(grid_st%ngrid))
+          allocate(grid_st%istartp(grid_st%ngrid))
+          allocate(grid_st%mg_ratio_x(grid_st%ngrid))
+          allocate(grid_st%mg_ratio_y(grid_st%ngrid))
+          allocate(grid_st%mg_ratio_z(grid_st%ngrid))
+          allocate(grid_st%iline(grid_st%ngrid))
+          allocate(grid_st%jline(grid_st%ngrid))
+          allocate(grid_st%kline(grid_st%ngrid))
+
+          allocate(grid_st%g_pack)
+
+          !Initialize arrays
+          grid_st%xg = 0.
+          grid_st%yg = 0.
+          grid_st%zg = 0.
+          grid_st%xx = 0.
+          grid_st%yy = 0.
+          grid_st%zz = 0.
+          grid_st%dx = 0.
+          grid_st%dy = 0.
+          grid_st%dz = 0.
+          grid_st%dxh = 0.
+          grid_st%dyh = 0.
+          grid_st%dzh = 0.
+          grid_st%nxv = 0
+          grid_st%nyv = 0
+          grid_st%nzv = 0
+          grid_st%nxgl = 0
+          grid_st%nygl = 0
+          grid_st%nzgl = 0
+          grid_st%ilo = 0
+          grid_st%jlo = 0
+          grid_st%klo = 0
+          grid_st%ihi = 0
+          grid_st%jhi = 0
+          grid_st%khi = 0
+          grid_st%gcw = 1     !(ONLY gcw=1 works right now!)
+          grid_st%istartx = 0
+          grid_st%istarty = 0
+          grid_st%istartz = 0
+          grid_st%istartp = 0
+          grid_st%mg_ratio_x = 0
+          grid_st%mg_ratio_y = 0
+          grid_st%mg_ratio_z = 0
+          grid_st%iline = 0
+          grid_st%jline = 0
+          grid_st%kline = 0
+
+        endif
 
 c     End program
 
@@ -193,7 +275,6 @@ c     -----------------------------------------------------------------
 
         integer    :: nn,nnmg,ngrd,ngrdt
 
-cc        nnmg = 2*nn + ngrdt - ngrd -1
         nnmg = (2+ngrdt-ngrd)*nn
 
       end function findMGsize
@@ -211,14 +292,36 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_mg_def) :: grid_st
+        type(grid_mg_def),pointer :: grid_st
 
 c     Begin program
+
+        call deallocateGridMetric(grid_st%gmetric)
+
+        deallocate(grid_st%g_pack)
 
         grid_st%ngrdx = 0
         grid_st%ngrdy = 0
         grid_st%ngrdz = 0
         grid_st%ngrid = 0
+
+        grid_st%nglx = 0
+        grid_st%ngly = 0
+        grid_st%nglz = 0
+
+        grid_st%ilog = 0
+        grid_st%ihig = 0
+        grid_st%jlog = 0
+        grid_st%jhig = 0
+        grid_st%klog = 0
+        grid_st%khig = 0
+
+        grid_st%lxmin = UNDEF_DP
+        grid_st%lxmax = UNDEF_DP
+        grid_st%lymin = UNDEF_DP
+        grid_st%lymax = UNDEF_DP
+        grid_st%lzmin = UNDEF_DP
+        grid_st%lzmax = UNDEF_DP
 
         if (associated(grid_st%xx)) then
           deallocate(grid_st%xg)
@@ -258,6 +361,8 @@ cc          deallocate(grid_st%ntotv)
           deallocate(grid_st%kline)
         endif
 
+        deallocate(grid_st)
+
 c     End program
 
       end subroutine deallocateGridStructure
@@ -274,13 +379,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_mg_def),intent(IN ) :: grid_st1
-        type(grid_mg_def),intent(OUT) :: grid_st2
+        type(grid_mg_def),pointer :: grid_st1
+        type(grid_mg_def),pointer :: grid_st2
 
 c     Local variables
 
         integer        :: ngridx,ngridy,ngridz,nx,ny,nz
      .                   ,nglx,ngly,nglz
+     .                   ,ilog,ihig,jlog,jhig,klog,khig
 
 c     Begin program
 
@@ -296,19 +402,33 @@ c     Begin program
         ngly = grid_st1%ngly
         nglz = grid_st1%nglz
 
-        if (    grid_st2%ngrdx /= ngridx
-     .      .or.grid_st2%ngrdy /= ngridy
-     .      .or.grid_st2%ngrdz /= ngridz
-     .      .or.grid_st2%nxv(1)/= nx
-     .      .or.grid_st2%nyv(1)/= ny
-     .      .or.grid_st2%nzv(1)/= nz
-     .      .or.grid_st2%nglx  /= nglx
-     .      .or.grid_st2%ngly  /= ngly
-     .      .or.grid_st2%nglz  /= nglz)
-     .    call deallocateGridStructure(grid_st2)
+        ilog = grid_st1%ilog
+        ihig = grid_st1%ihig
+        jlog = grid_st1%jlog
+        jhig = grid_st1%jhig
+        klog = grid_st1%klog
+        khig = grid_st1%khig
 
-        call allocateGridStructure(nx,ny,nz,ngridx,ngridy,ngridz
+        if (associated(grid_st2)) then
+          if (    grid_st2%ngrdx /= ngridx
+     .        .or.grid_st2%ngrdy /= ngridy
+     .        .or.grid_st2%ngrdz /= ngridz
+     .        .or.grid_st2%nxv(1)/= nx
+     .        .or.grid_st2%nyv(1)/= ny
+     .        .or.grid_st2%nzv(1)/= nz
+     .        .or.grid_st2%nglx  /= nglx
+     .        .or.grid_st2%ngly  /= ngly
+     .        .or.grid_st2%nglz  /= nglz)
+     .      call deallocateGridStructure(grid_st2)
+        endif
+
+c       Create basic structure
+
+        call allocateGridStructure(ngridx,ngridy,ngridz
+     .                            ,ilog,ihig,jlog,jhig,klog,khig
      .                            ,nglx,ngly,nglz,grid_st2)
+
+c       Copy values
 
         grid_st2%xg         = grid_st1%xg        
         grid_st2%yg         = grid_st1%yg        
@@ -334,7 +454,7 @@ c     Begin program
         grid_st2%ihi        = grid_st1%ihi
         grid_st2%jhi        = grid_st1%jhi
         grid_st2%khi        = grid_st1%khi
-cc        grid_st2%ntotv      = grid_st1%ntotv     
+        grid_st2%gcw        = grid_st1%gcw
         grid_st2%istartx    = grid_st1%istartx   
         grid_st2%istarty    = grid_st1%istarty   
         grid_st2%istartz    = grid_st1%istartz   
@@ -352,6 +472,15 @@ cc        grid_st2%ntotv      = grid_st1%ntotv
         grid_st2%lzmin      = grid_st1%lzmin
         grid_st2%lzmax      = grid_st1%lzmax
 
+        grid_st2%g_pack     = grid_st1%g_pack
+
+c       Create and copy grid metric
+
+        call allocateGridMetric(grid_st2%gmetric,grid_st1)
+
+        call equateGridMetric(grid_st2%gmetric
+     .                       ,grid_st1%gmetric,grid_st1)
+
 c     End program
 
       end subroutine equateGridStructure
@@ -368,7 +497,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_mg_def) :: grid_st
+        type(grid_mg_def),pointer :: grid_st
 
 c     Local variables
 
@@ -404,6 +533,7 @@ c     Begin program
         write (*,*) 'ihi',grid_st%ihi       
         write (*,*) 'jhi',grid_st%jhi       
         write (*,*) 'khi',grid_st%khi       
+        write (*,*) 'gcw',grid_st%gcw
 cc        write (*,*) 'ntotv',grid_st%ntotv     
         write (*,*) 'istartx',grid_st%istartx   
         write (*,*) 'istarty',grid_st%istarty   
@@ -420,112 +550,132 @@ c     End program
 
       end subroutine writeGridStructure
 
-c     getMGmap
+c     allocateGridMetric
 c     #################################################################
-      subroutine getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-
-c     -----------------------------------------------------------------
-c     Gets MG vector components (ig,jg,kg) for grid quantities
-c     corresponding to node position (i,j,k) in grid levels igx,igy,igz
-c     -----------------------------------------------------------------
+      subroutine allocateGridMetric(gmetric,gparams)
 
         implicit none
 
-c     Input variables
+c     Call variables
 
-        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
+        type(grid_mg_def),pointer :: gparams
+        type(MG_grid_metrics),pointer :: gmetric
 
 c     Local variables
 
+        integer :: igrid,ilom,ihip,jlom,jhip,klom,khip
+
 c     Begin program
 
-        ig = i + grid_params%istartx(igx)
-        jg = j + grid_params%istarty(igy)
-        kg = k + grid_params%istartz(igz)
+        if (.not.associated(gmetric)) then
+          allocate(gmetric)
+          allocate(gmetric%grid(gparams%ngrid))
+          do igrid=1,gparams%ngrid
+            ilom = 0
+            jlom = 0
+            klom = 0
+            ihip = gparams%nxv(igrid)+1
+            jhip = gparams%nyv(igrid)+1
+            khip = gparams%nzv(igrid)+1
+            allocate(gmetric%grid(igrid)
+     $           %car  (ilom:ihip,jlom:jhip,klom:khip,3))
+            allocate(gmetric%grid(igrid)
+     $           %dvol (ilom:ihip,jlom:jhip,klom:khip))
+            allocate(gmetric%grid(igrid)
+     $           %jac  (ilom:ihip,jlom:jhip,klom:khip))
+            allocate(gmetric%grid(igrid)
+     $           %gsub (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %gsup (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %cov  (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %cnv  (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %Gamma(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
 
-      end subroutine getMGmap
+          enddo
+        endif
 
-c     getCurvilinearCoordinates
+c     End program
+
+      end subroutine allocateGridMetric
+
+c     equateGridMetric
 c     #################################################################
-      subroutine getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                    ,x1,y1,z1)
+      subroutine equateGridMetric(gmetric2,gmetric1,gparams)
 
 c     -----------------------------------------------------------------
-c     Finds curvilinear coordinates for position (i,j,k)
+c     Performs gmetric2 = gmetric1
 c     -----------------------------------------------------------------
 
         implicit none
 
-c     Input variables
+c     Call variables
 
-        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
-        real(8)    :: x1,y1,z1
+        type(MG_grid_metrics),pointer :: gmetric2,gmetric1
+        type(grid_mg_def),pointer :: gparams
 
 c     Local variables
 
-        integer    :: ii,jj,ny
+        integer :: igrid,nxp,nyp,nzp
 
 c     Begin program
 
-        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+        if (.not.associated(gmetric2))
+     .       call allocateGridMetric(gmetric2,gparams)
 
-        x1 = grid_params%xx(ig)
-        y1 = grid_params%yy(jg)
-        z1 = grid_params%zz(kg)
+        do igrid=1,gparams%ngrid
+          gmetric2%grid(igrid)%car  = gmetric1%grid(igrid)%car  
+          gmetric2%grid(igrid)%dvol = gmetric1%grid(igrid)%dvol 
+          gmetric2%grid(igrid)%jac  = gmetric1%grid(igrid)%jac  
+          gmetric2%grid(igrid)%gsub = gmetric1%grid(igrid)%gsub 
+          gmetric2%grid(igrid)%gsup = gmetric1%grid(igrid)%gsup 
+          gmetric2%grid(igrid)%cov  = gmetric1%grid(igrid)%cov  
+          gmetric2%grid(igrid)%cnv  = gmetric1%grid(igrid)%cnv  
+          gmetric2%grid(igrid)%Gamma= gmetric1%grid(igrid)%Gamma
+        enddo
 
-      end subroutine getCurvilinearCoordinates
+c     End program
 
-c     vecPos
+      end subroutine equateGridMetric
+
+c     deallocateGridMetric
 c     #################################################################
-      function vecPos(neq,i,j,k,igx,igy,igz) result (ijk)
+      subroutine deallocateGridMetric(gmetric)
 
         implicit none
 
-        integer    :: ijk,i,j,k,neq,igx,igy,igz
+c     Call variables
 
-        integer    :: nxl,nyl,nzl,ilo,jlo,klo
+        type(MG_grid_metrics),pointer :: gmetric
 
-        ilo = 1
-        jlo = 1
-        klo = 1
+c     Local variables
 
-        nxl = grid_params%nxv(igx)
-        nyl = grid_params%nyv(igy)
-        nzl = grid_params%nzv(igz)
+        integer         :: igrid,nxp,nyp,nzp
 
-        ijk = neq*(i-ilo + nxl*(j-jlo) + nxl*nyl*(k-klo))
-      
-      end function vecPos
+c     Begin program
 
-c     fromGlobalToLocalLimits
-c     #################################################################
-      subroutine fromGlobalToLocalLimits(ig,jg,kg,il,jl,kl,igx,igy,igz)
+        if (associated(gmetric)) then
+          do igrid=1,size(gmetric%grid)
+            deallocate(gmetric%grid(igrid)%car)
+            deallocate(gmetric%grid(igrid)%dvol)
+            deallocate(gmetric%grid(igrid)%jac)
+            deallocate(gmetric%grid(igrid)%gsub)
+            deallocate(gmetric%grid(igrid)%gsup)
+            deallocate(gmetric%grid(igrid)%cov)
+            deallocate(gmetric%grid(igrid)%cnv)
+            deallocate(gmetric%grid(igrid)%Gamma)
+          enddo
+          deallocate(gmetric%grid)
+          deallocate(gmetric)
+        endif
 
-        implicit none
+c     End program
 
-        integer    :: ig,jg,kg,il,jl,kl,igx,igy,igz
+      end subroutine deallocateGridMetric
 
-        il = ig - grid_params%ilo(igx) + 1
-        jl = jg - grid_params%jlo(igy) + 1
-        kl = kg - grid_params%klo(igz) + 1
-
-      end subroutine fromGlobalToLocalLimits
-
-c     fromLocalToGlobalLimits
-c     #################################################################
-      subroutine fromLocalToGlobalLimits(il,jl,kl,ig,jg,kg,igx,igy,igz)
-
-        implicit none
-
-        integer    :: ig,jg,kg,il,jl,kl,igx,igy,igz
-
-        ig = il + grid_params%ilo(igx) - 1
-        jg = jl + grid_params%jlo(igy) - 1
-        kg = kl + grid_params%klo(igz) - 1
-
-      end subroutine fromLocalToGlobalLimits
-
-      end module grid_structures
+      end module grid_def_st
 
 c module bc_def
 c #####################################################################
@@ -549,7 +699,7 @@ c     The actual integers chosen indicate a particular order that the BC
 c     scheduler follows to impose the boundary conditions.
 c     -----------------------------------------------------------------
 
-        use grid_structures
+        use grid_def_st
 
         implicit none
 
@@ -585,61 +735,6 @@ c     #################################################################
 
       end function bcSP
 
-c     isSP
-c     #################################################################
-      function isSP(i,j,k,igx,igy,igz) result(sing_point)
-
-        integer    :: i,j,k,igx,igy,igz
-        logical    :: sing_point
-
-        sing_point = (i+grid_params%ilo(igx)-1==1).and.bcSP()
-
-      end function isSP
-
-c     isSYM
-c     #################################################################
-      function isSYM(i,igr,dim,loc)
-
-        integer    :: i,igr,dim,loc
-        logical    :: isSYM
-
-        integer    :: ibc,ilog,itst
-
-        ibc = (1+loc)+2*(dim-1)
-
-        isSYM=.false.
-
-        select case(dim)
-        case(1)
-          ilog = grid_params%ilo(igr)
-          select case(loc)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nxgl(igr)
-          end select
-        case(2)
-          ilog = grid_params%jlo(igr)
-          select case(loc)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nygl(igr)
-          end select
-        case(3)
-          ilog = grid_params%klo(igr)
-          select case(loc)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nzgl(igr)
-          end select
-        end select
-
-        if (i+ilog-1 == itst .and. bcond(ibc) == SYM)  isSYM=.true.
-
-      end function isSYM
-
 c     alt__eom
 c     #################################################################
       function alt__eom()
@@ -653,195 +748,195 @@ c     #################################################################
 
       end module bc_def
 
-c module grid_metric_def
-c #####################################################################
-      module grid_metric_def
-
-c ---------------------------------------------------------------------
-c     This module allocates and fills the grid metric structure gmetric.
-c     It contains the following routines: 
-c        * allocateGridMetric
-c        * deallocateGridMetric
-c        * defineGridMetric
-c           -> map
-c           -> topol_bc
-c           -> gammaZeroForce
-c           -> zeroForceCheck
-c ---------------------------------------------------------------------
-
-        use grid_structures
-
-        implicit none
-
-        type :: grid_metrics
-          real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
-          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
-          real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
-          real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
-          real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
-          real(8),pointer,dimension(:,:,:,:,:,:) :: Gamma !Christoffel symbol at cell centers
-          real(8),pointer,dimension(:,:,:,:,:)   :: cov   !Covariant vectors
-          real(8),pointer,dimension(:,:,:,:,:)   :: cnv   !Contravariant vectors
-        end type grid_metrics
-
-        type :: MG_grid_metrics
-          type(grid_metrics),pointer,dimension(:) :: grid
-        end type MG_grid_metrics
-
-        type(MG_grid_metrics) :: gmetric
-
-      contains
-
-c     allocateGridMetric
-c     #################################################################
-      subroutine allocateGridMetric(gmetric)
-
-        implicit none
-
-c     Call variables
-
-        type(MG_grid_metrics) :: gmetric
-
-c     Local variables
-
-        integer         :: igrid,ilom,ihip,jlom,jhip,klom,khip
-
-c     Begin program
-
-        if (.not.associated(gmetric%grid)) then
-          allocate(gmetric%grid(grid_params%ngrid))
-          do igrid=1,grid_params%ngrid
-            ilom = 0
-            jlom = 0
-            klom = 0
-            ihip = grid_params%nxv(igrid)+1
-            jhip = grid_params%nyv(igrid)+1
-            khip = grid_params%nzv(igrid)+1
-            allocate(gmetric%grid(igrid)
-     $           %car  (ilom:ihip,jlom:jhip,klom:khip,3))
-            allocate(gmetric%grid(igrid)
-     $           %dvol (ilom:ihip,jlom:jhip,klom:khip))
-            allocate(gmetric%grid(igrid)
-     $           %jac  (ilom:ihip,jlom:jhip,klom:khip))
-            allocate(gmetric%grid(igrid)
-     $           %gsub (ilom:ihip,jlom:jhip,klom:khip,3,3))
-            allocate(gmetric%grid(igrid)
-     $           %gsup (ilom:ihip,jlom:jhip,klom:khip,3,3))
-            allocate(gmetric%grid(igrid)
-     $           %cov  (ilom:ihip,jlom:jhip,klom:khip,3,3))
-            allocate(gmetric%grid(igrid)
-     $           %cnv  (ilom:ihip,jlom:jhip,klom:khip,3,3))
-            allocate(gmetric%grid(igrid)
-     $           %Gamma(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
-
-          enddo
-        endif
-
-c     End program
-
-      end subroutine allocateGridMetric
-
-c     deallocateGridMetric
-c     #################################################################
-      subroutine deallocateGridMetric(gmetric)
-
-        implicit none
-
-c     Call variables
-
-        type(MG_grid_metrics) :: gmetric
-
-c     Local variables
-
-        integer         :: igrid,nxp,nyp,nzp
-
-c     Begin program
-
-        if (associated(gmetric%grid)) then
-          do igrid=1,grid_params%ngrid
-            deallocate(gmetric%grid(igrid)%car  )
-            deallocate(gmetric%grid(igrid)%dvol )
-            deallocate(gmetric%grid(igrid)%jac  )
-            deallocate(gmetric%grid(igrid)%gsub )
-            deallocate(gmetric%grid(igrid)%gsup )
-            deallocate(gmetric%grid(igrid)%cov  )
-            deallocate(gmetric%grid(igrid)%cnv  )
-            deallocate(gmetric%grid(igrid)%Gamma)
-          enddo
-          deallocate(gmetric%grid)
-        endif
-
-c     End program
-
-      end subroutine deallocateGridMetric
-
-c     volume
-c     #################################################################
-      function volume(i,j,k,igx,igy,igz) result(vol)
-
-c     -----------------------------------------------------------------
-c     Calculates Jacobian of curvilinear coordinate system
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        integer    :: i,j,k,igx,igy,igz
-        real(8)    :: vol
-
-c     Local variables
-
-        integer    :: ig,jg,kg
-        real(8)    :: x1,x2,x3,dx1,dx2,dx3,jac
-
-c     Begin program
-
-        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-
-        dx1 = grid_params%dxh(ig)
-        dx2 = grid_params%dyh(jg)
-        dx3 = grid_params%dzh(kg)
-
-        jac = gmetric%grid(igx)%jac(i,j,k)
-        
-        vol = jac*dx1*dx2*dx3
-
-      end function volume
-
-c     getCartesianCoordinates
-c     #################################################################
-      subroutine getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,y1,z1)
-
-c     -----------------------------------------------------------------
-c     Returns Cartesian coordinates.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
-        real(8)    :: x1,y1,z1
-
-c     Local variables
-
-        real(8)    :: car(3)
-
-c     Begin program
-
-        !Find ig,jg,kg
-        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-
-        !Find coordinates
-        x1 = gmetric%grid(igx)%car(i,j,k,1)
-        y1 = gmetric%grid(igy)%car(i,j,k,2)
-        z1 = gmetric%grid(igz)%car(i,j,k,3)
-
-      end subroutine getCartesianCoordinates
-
-      end module grid_metric_def
+ccc module grid_metric_def
+ccc #####################################################################
+cc      module grid_metric_def
+cc
+ccc ---------------------------------------------------------------------
+ccc     This module allocates and fills the grid metric structure gmetric.
+ccc     It contains the following routines: 
+ccc        * allocateGridMetric
+ccc        * deallocateGridMetric
+ccc        * defineGridMetric
+ccc           -> map
+ccc           -> topol_bc
+ccc           -> gammaZeroForce
+ccc           -> zeroForceCheck
+ccc ---------------------------------------------------------------------
+cc
+cc        use grid_structures
+cc
+cc        implicit none
+cc
+cc        type :: grid_metrics
+cc          real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
+cc          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
+cc          real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
+cc          real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
+cc          real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
+cc          real(8),pointer,dimension(:,:,:,:,:,:) :: Gamma !Christoffel symbol at cell centers
+cc          real(8),pointer,dimension(:,:,:,:,:)   :: cov   !Covariant vectors
+cc          real(8),pointer,dimension(:,:,:,:,:)   :: cnv   !Contravariant vectors
+cc        end type grid_metrics
+cc
+cc        type :: MG_grid_metrics
+cc          type(grid_metrics),pointer,dimension(:) :: grid
+cc        end type MG_grid_metrics
+cc
+cccc        type(MG_grid_metrics),pointer :: gmetric
+cc
+cc      contains
+cc
+ccc     allocateGridMetric
+ccc     #################################################################
+cc      subroutine allocateGridMetric(gmetric)
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        type(MG_grid_metrics),pointer :: gmetric
+cc
+ccc     Local variables
+cc
+cc        integer :: igrid,ilom,ihip,jlom,jhip,klom,khip
+cc
+ccc     Begin program
+cc
+cc        if (.not.associated(gmetric)) then
+cc          allocate(gmetric)
+cc          allocate(gmetric%grid(grid_params%ngrid))
+cc          do igrid=1,grid_params%ngrid
+cc            ilom = 0
+cc            jlom = 0
+cc            klom = 0
+cc            ihip = grid_params%nxv(igrid)+1
+cc            jhip = grid_params%nyv(igrid)+1
+cc            khip = grid_params%nzv(igrid)+1
+cc            allocate(gmetric%grid(igrid)
+cc     $           %car  (ilom:ihip,jlom:jhip,klom:khip,3))
+cc            allocate(gmetric%grid(igrid)
+cc     $           %dvol (ilom:ihip,jlom:jhip,klom:khip))
+cc            allocate(gmetric%grid(igrid)
+cc     $           %jac  (ilom:ihip,jlom:jhip,klom:khip))
+cc            allocate(gmetric%grid(igrid)
+cc     $           %gsub (ilom:ihip,jlom:jhip,klom:khip,3,3))
+cc            allocate(gmetric%grid(igrid)
+cc     $           %gsup (ilom:ihip,jlom:jhip,klom:khip,3,3))
+cc            allocate(gmetric%grid(igrid)
+cc     $           %cov  (ilom:ihip,jlom:jhip,klom:khip,3,3))
+cc            allocate(gmetric%grid(igrid)
+cc     $           %cnv  (ilom:ihip,jlom:jhip,klom:khip,3,3))
+cc            allocate(gmetric%grid(igrid)
+cc     $           %Gamma(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
+cc
+cc          enddo
+cc        endif
+cc
+ccc     End program
+cc
+cc      end subroutine allocateGridMetric
+cc
+ccc     deallocateGridMetric
+ccc     #################################################################
+cc      subroutine deallocateGridMetric(gmetric)
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        type(MG_grid_metrics),pointer :: gmetric
+cc
+ccc     Local variables
+cc
+cc        integer         :: igrid,nxp,nyp,nzp
+cc
+ccc     Begin program
+cc
+cc        deallocate(gmetric)
+cc
+cccc        if (associated(gmetric%grid)) then
+cccc          do igrid=1,grid_params%ngrid
+cccc            deallocate(gmetric%grid(igrid)%car  )
+cccc            deallocate(gmetric%grid(igrid)%dvol )
+cccc            deallocate(gmetric%grid(igrid)%jac  )
+cccc            deallocate(gmetric%grid(igrid)%gsub )
+cccc            deallocate(gmetric%grid(igrid)%gsup )
+cccc            deallocate(gmetric%grid(igrid)%cov  )
+cccc            deallocate(gmetric%grid(igrid)%cnv  )
+cccc            deallocate(gmetric%grid(igrid)%Gamma)
+cccc          enddo
+cccc          deallocate(gmetric%grid)
+cccc        endif
+cc
+ccc     End program
+cc
+cc      end subroutine deallocateGridMetric
+cc
+ccccc     volume
+ccccc     #################################################################
+cccc      function volume(i,j,k,igx,igy,igz) result(vol)
+cccc
+ccccc     -----------------------------------------------------------------
+ccccc     Calculates Jacobian of curvilinear coordinate system
+ccccc     -----------------------------------------------------------------
+cccc
+cccc        implicit none
+cccc
+ccccc     Input variables
+cccc
+cccc        integer    :: i,j,k,igx,igy,igz
+cccc        real(8)    :: vol
+cccc
+ccccc     Local variables
+cccc
+cccc        integer    :: ig,jg,kg
+cccc        real(8)    :: x1,x2,x3,dx1,dx2,dx3,jac
+cccc
+ccccc     Begin program
+cccc
+cccc        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+cccc
+cccc        dx1 = grid_params%dxh(ig)
+cccc        dx2 = grid_params%dyh(jg)
+cccc        dx3 = grid_params%dzh(kg)
+cccc
+cccc        jac = gmetric%grid(igx)%jac(i,j,k)
+cccc        
+cccc        vol = jac*dx1*dx2*dx3
+cccc
+cccc      end function volume
+cc
+ccccc     getCartesianCoordinates
+ccccc     #################################################################
+cccc      subroutine getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+cccc     .                                  ,x1,y1,z1)
+cccc
+ccccc     -----------------------------------------------------------------
+ccccc     Returns Cartesian coordinates.
+ccccc     -----------------------------------------------------------------
+cccc
+cccc        implicit none
+cccc
+ccccc     Input variables
+cccc
+cccc        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
+cccc        real(8)    :: x1,y1,z1
+cccc
+ccccc     Local variables
+cccc
+cccc        real(8)    :: car(3)
+cccc
+ccccc     Begin program
+cccc
+cccc        !Find coordinates
+cccc        x1 = gmetric%grid(igx)%car(i,j,k,1)
+cccc        y1 = gmetric%grid(igy)%car(i,j,k,2)
+cccc        z1 = gmetric%grid(igz)%car(i,j,k,3)
+cccc
+cccc      end subroutine getCartesianCoordinates
+cc
+cc      end module grid_metric_def
 
 c module grid_def
 c ####################################################################
@@ -849,11 +944,9 @@ c ####################################################################
 
         use bc_def
 
-        use grid_metric_def
+        use grid_def_st
 
         real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D global domain dimensions
-
-cc        real(8)         :: lxmax,lymax,lzmax,lxmin,lymin,lzmin !3D local domain dimensions
 
         character*(3)   :: coords
 

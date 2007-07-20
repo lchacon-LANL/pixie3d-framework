@@ -1,6 +1,6 @@
-c fortrandestroy
+c fortranDestroy
 c ######################################################################
-      subroutine fortrandestroy
+      subroutine fortranDestroy
 
       use variables
 
@@ -14,15 +14,19 @@ c Call variables
 
 c Local variables
 
+      integer :: ierr
+
 c Begin program
 
       call closeRecordFile
 
-      call deallocateDerivedType(u_0)
-      call deallocateDerivedType(u_n)
-      call deallocateDerivedType(u_nm)
-      call deallocateDerivedType(u_np)
-      call deallocateDerivedType(u_graph)
+      deallocate(gv,STAT=ierr)
+
+cc      call deallocateDerivedType(u_0)
+cc      call deallocateDerivedType(u_n)
+cc      call deallocateDerivedType(u_nm)
+cc      call deallocateDerivedType(u_np)
+cc      call deallocateDerivedType(u_graph)
 
 #if defined(petsc)
       call destroyFortranMPI
@@ -30,4 +34,4 @@ c Begin program
 
 c End program
 
-      end subroutine fortrandestroy
+      end subroutine fortranDestroy

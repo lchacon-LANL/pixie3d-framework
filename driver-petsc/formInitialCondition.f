@@ -44,6 +44,24 @@ c External
       integer    :: system
       external      system
 
+c Interfaces
+
+      INTERFACE
+         subroutine setInitialCondition(varrayn,varraynp)
+         use variable_setup
+         type(var_array),pointer :: varrayn,varraynp
+         end subroutine setInitialCondition
+      END INTERFACE
+
+      INTERFACE
+        subroutine evaluateNonlinearFunction(varray,fi)
+        use parameters
+        use variable_setup
+        real(8)          :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluateNonlinearFunction
+      END INTERFACE
+
 c Begin program
 
       call fromGlobalToLocalLimits(imin,jmin,kmin,iminl,jminl,kminl
@@ -63,7 +81,7 @@ c Initialize old time solution
 
       call initializeDerivedType(u_n)
 
-      u_n = u_0   !Overloaded assignment
+      call equateDerivedType(u_n,u_0)
 
 c Set unperturbed forcing fields
 
@@ -124,7 +142,7 @@ c Transfer to Petsc format
      .      = u_np%array_var(ieq)
      .            %array(iminl:imaxl,jminl:jmaxl,kminl:kmaxl)
       enddo
-
+ 
       call deallocateDerivedType(u_np)
 
 c End program
@@ -156,7 +174,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      type (var_array) :: varrayn,varraynp
+      type(var_array),pointer :: varrayn,varraynp
 
 c Local variables
 
@@ -208,13 +226,13 @@ c     Call variables
       integer   ,intent(OUT) :: itime
       real(8),intent(OUT)    :: time
 
-      type (var_array)       :: vn,vnp
+      type(var_array),pointer       :: vn,vnp
 
 c     Local variables
 
       integer                :: ierr,nx,ny,nz,il,jl,kl,ih,jh,kh
 
-      type (var_array)       :: vmed
+      type(var_array),pointer       :: vmed
 
 c     Begin program
 

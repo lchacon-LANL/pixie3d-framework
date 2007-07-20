@@ -24,13 +24,25 @@ c Local variables
       integer    :: i,j,k,ieq,ii,ig,jg,kg
       real(8)    :: dvol
 
-      type (var_array) :: varray
+      type(var_array),pointer :: varray
+
+c Interfaces
+
+      INTERFACE
+        subroutine evaluateNonlinearFunction(varray,fi)
+        use parameters
+        use variable_setup
+        real(8)          :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluateNonlinearFunction
+      END INTERFACE
 
 c Begin program
 
 c Unpack vector x
 
-      varray = x         !Overloaded assignment
+cc      varray = x         !Overloaded assignment
+      call mapVectorToStructure(varray,x)
 
 c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
@@ -97,13 +109,12 @@ c--------------------------------------------------------------------
 
       use variable_setup
 
-
       implicit none
 
 c Call variables
 
       real(8)          :: fi(ntotd)
-      type (var_array) :: varray
+      type(var_array),pointer :: varray
 
 c Local variables
 
@@ -114,8 +125,17 @@ c Interfaces
       INTERFACE
          subroutine setupNonlinearFunction(varray)
            use variable_setup
-           type (var_array),target :: varray
+           type(var_array),pointer :: varray
          end subroutine setupNonlinearFunction
+      END INTERFACE
+
+      INTERFACE
+         subroutine nonlinearRHS(i,j,k,varray,ff)
+           use variable_setup
+           real(8) :: ff(neqd)
+           integer :: i,j,k
+           type(var_array),pointer :: varray
+         end subroutine nonlinearRHS
       END INTERFACE
 
 c Begin program

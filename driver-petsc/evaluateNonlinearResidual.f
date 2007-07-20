@@ -31,7 +31,18 @@ c Local variables
 
       real(8)    :: dudt(neqd),ff(ntotd),dvol
 
-      type(var_array)   :: varray
+      type(var_array),pointer   :: varray
+
+c Interfaces
+
+      INTERFACE
+        subroutine evaluateNonlinearFunction(varray,fi)
+        use parameters
+        use variable_setup
+        real(8)          :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluateNonlinearFunction
+      END INTERFACE
 
 c Begin program
 
@@ -127,7 +138,7 @@ c--------------------------------------------------------------------
 c Call variables
 
       real(8)          :: fi(ntotd)
-      type (var_array) :: varray
+      type(var_array),pointer :: varray
 
 c Local variables
 
@@ -142,7 +153,7 @@ c Interfaces
       INTERFACE
          subroutine setupNonlinearFunction(varray)
            use variable_setup
-           type (var_array),target :: varray
+           type(var_array),pointer :: varray
          end subroutine setupNonlinearFunction
       END INTERFACE
 

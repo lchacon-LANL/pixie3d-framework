@@ -14,36 +14,98 @@ c #####################################################################
 
       integer    :: ntotd,ntotdp,ntimemax
 
+      end module parameters
+
+c module variable_setup
+c #####################################################################
+      module variable_setup
+
+        use parameters
+
+        use grid
+
+        implicit none
+
+#if defined(petsc)
+        !NVAR is defined via C preprocessor flag
+        type :: petsc_var
+          real(8) :: var(NVAR)
+        end type petsc_var
+#endif
+
+        type :: var_def
+          integer :: bconds(6)          !Boundary conditions
+          real(8),pointer,dimension(:,:,:) :: array
+          character(20) :: descr
+        end type var_def
+
+        type :: vec_def
+          integer :: bconds(6,3)        !Boundary conditions
+          real(8),pointer,dimension(:,:,:,:) :: vec
+          character(20) :: descr        !Description
+          logical       :: cnv          !Whether it is contravariant or not
+        end type vec_def
+
+        type :: var_array
+          integer :: nvar               !Number of variables
+          type (var_def),pointer,dimension(:) :: array_var
+        end type var_array
+
+        type :: aux_array
+          integer :: nvar,nvec          !Number of variables, vectors
+          type (vec_def),pointer,dimension(:) :: vec_list
+          type (var_def),pointer,dimension(:) :: var_list
+        end type aux_array
+
+        type :: patch
+          integer  :: nbc_seq
+          integer,pointer,dimension(:,:):: bc_seq
+          type(var_array)  ,pointer     :: u_0
+          type(var_array)  ,pointer     :: u_n
+          type(var_array)  ,pointer     :: u_np
+          type(var_array)  ,pointer     :: u_nm
+          type(var_array)  ,pointer     :: u_graph
+          type(grid_mg_def),pointer     :: gparams
+          type(aux_array)  ,pointer     :: aux
+        end type patch
+
+        type (patch),pointer :: gv
+
+        type(var_array),pointer :: u_0
+
       contains
 
 c     setVectorDimensions
 c     #################################################################
       subroutine setVectorDimensions
 
-      !Ghost cell width
-        gcw = 1
+        !Ghost cell width
+        gcw = gv%gparams%gcw
 
-      !Global problem info
-        nxdp = nxd+1
-        nydp = nyd+1
-        nzdp = nzd+1
-
-cc        ntotdp  = nxd*nyd*nzd
-cc        ntotd   = neqd*ntotdp
+        !Global problem info
+        nxdp = gv%gparams%nglx + gcw
+        nydp = gv%gparams%ngly + gcw
+        nzdp = gv%gparams%nglz + gcw
 
         !Define offset quantities (global grid)
-        ihipg = ihig+gcw
-        ilomg = ilog-gcw
-        jhipg = jhig+gcw
-        jlomg = jlog-gcw
-        khipg = khig+gcw
-        klomg = klog-gcw
+        ihig = gv%gparams%ihig
+        ilog = gv%gparams%ilog
+        jhig = gv%gparams%jhig
+        jlog = gv%gparams%jlog
+        khig = gv%gparams%khig
+        klog = gv%gparams%klog
 
-      !Local problem info (ihig,ilog,etc. initialized elsewhere)
+        ihipg = gv%gparams%ihig + gcw
+        ilomg = gv%gparams%ilog - gcw
+        jhipg = gv%gparams%jhig + gcw
+        jlomg = gv%gparams%jlog - gcw
+        khipg = gv%gparams%khig + gcw
+        klomg = gv%gparams%klog - gcw
 
-        nxl  = ihig-ilog+1
-        nyl  = jhig-jlog+1
-        nzl  = khig-klog+1
+        !Local problem info
+        nxl  = gv%gparams%nlx
+        nyl  = gv%gparams%nly
+        nzl  = gv%gparams%nlz
 
         !Define local limits
         ilo  = 1
@@ -54,328 +116,102 @@ cc        ntotd   = neqd*ntotdp
         khi  = nzl
 
         !Define offset quantities (local grid)
-        ihip = ihi+gcw
-        ilom = ilo-gcw
-        jhip = jhi+gcw
-        jlom = jlo-gcw
-        khip = khi+gcw
-        klom = klo-gcw
+        ihip = ihi + gcw
+        ilom = ilo - gcw
+        jhip = jhi + gcw
+        jlom = jlo - gcw
+        khip = khi + gcw
+        klom = klo - gcw
 
-        nxlp = nxl+1
-        nylp = nyl+1
-        nzlp = nzl+1
+        nxlp = nxl + gcw
+        nylp = nyl + gcw
+        nzlp = nzl + gcw
 
         !Define local vector dimensions
         ntotdp = nxl*nyl*nzl
         ntotd  = neqd*ntotdp
 
+#if defined(petsc)
+        write (*,'(a,i3,a,6i3)') 'Processor:',my_rank
+     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
+#endif
+
       end subroutine setVectorDimensions
 
-c$$$c     vecPos
-c$$$c     #################################################################
-c$$$      function vecPos(neq,i,j,k,igx,igy,igz) result (ijk)
-c$$$
-c$$$        implicit none
-c$$$
-c$$$        integer    :: ijk,i,j,k,neq,igx,igy,igz
-c$$$
-c$$$        ijk = neq*(i-ilo + nxl*(j-jlo) + nxl*nyl*(k-klo))
-c$$$      
-c$$$      end function vecPos
-c$$$
-c$$$c     fromGlobalToLocalLimits
-c$$$c     #################################################################
-c$$$      subroutine fromGlobalToLocalLimits(ig,jg,kg,il,jl,kl,igx,igy,igz)
-c$$$
-c$$$        implicit none
-c$$$
-c$$$        integer    :: ig,jg,kg,il,jl,kl,igx,igy,igz
-c$$$
-c$$$        il = ig - ilog + 1
-c$$$        jl = jg - jlog + 1
-c$$$        kl = kg - klog + 1
-c$$$
-c$$$      end subroutine fromGlobalToLocalLimits
-
-      end module parameters
-
-#if defined(petsc)
-c module petsc_var_def
-c #####################################################################
-      module petsc_var_def
-
-        use parameters
+c     allocateGlobalVar
+c     #################################################################
+      subroutine allocateGlobalVar(gv)
 
         implicit none
 
-        !NVAR is defined via C preprocessor flag
-        type :: petsc_var
-          real(8) :: var(NVAR)
-        end type petsc_var
+c     Call variables
 
-c$$$        type :: petsc_array
-c$$$          type(petsc_var),pointer,dimension(:,:,:) :: array
-c$$$        end type petsc_array
-c$$$
-c$$$      contains
-c$$$
-c$$$c     allocatePetcsType
-c$$$c     #################################################################
-c$$$      subroutine allocatePetscType(petscarray)
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        type(petsc_array)  :: petscarray
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        integer            :: ieq
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        !Error check
-c$$$        if (neqd /= NVAR) then
-c$$$          write (*,*) 'Different number of equations in Petsc and F90'
-c$$$          write (*,*) 'Aborting...'
-c$$$          stop
-c$$$        endif
-c$$$
-c$$$        if (.not.associated(petscarray%array)) then
-c$$$          allocate(petscarray%array(ilom:ihip,jlom:jhip,klom:khip))
-c$$$          do ieq=1,neqd
-c$$$            petscarray%array(:,:,:)%var(ieq) = 0d0
-c$$$          enddo
-c$$$        endif
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine allocatePetscType
-c$$$
-c$$$c     deallocatePetscType
-c$$$c     #################################################################
-c$$$      subroutine deallocatePetscType(petscarray)
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        type(petsc_array)  :: petscarray
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        if (associated(petscarray%array)) deallocate(petscarray%array)
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine deallocatePetscType
-c$$$
-c$$$c     equatePetscType
-c$$$c     #################################################################
-c$$$      subroutine equatePetscType(petscarray2,petscarray1)
-c$$$      implicit none
-c$$$c     -----------------------------------------------------------------
-c$$$c     Performs petscarray2 = petscarray1
-c$$$c     -----------------------------------------------------------------
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        type(petsc_array),intent(in)  :: petscarray1
-c$$$        type(petsc_array),intent(out) :: petscarray2
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        call allocatePetscType(petscarray2)
-c$$$
-c$$$        petscarray2%array = petscarray1%array
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine equatePetscType
-c$$$
-c$$$c     initializePetscType
-c$$$c     #################################################################
-c$$$      subroutine initializePetscType(petscarray)
-c$$$
-c$$$c     -----------------------------------------------------------------
-c$$$c     Initializes fields of petscarray.
-c$$$c     -----------------------------------------------------------------
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        type(petsc_array)  :: petscarray
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        call allocatePetscType(petscarray)
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine initializePetscType
-c$$$
-c$$$c     substractPetscType
-c$$$c     #################################################################
-c$$$      function substractPetscType(petscarray2,petscarray1)
-c$$$     .         result (petscarray3)
-c$$$
-c$$$c     -----------------------------------------------------------------
-c$$$c     Performs petscarray3 = petscarray2 - petscarray1
-c$$$c     -----------------------------------------------------------------
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        type(petsc_array),intent(in)  :: petscarray1,petscarray2
-c$$$        type(petsc_array)             :: petscarray3
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        integer                       :: ieq
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        call allocatePetscType(petscarray3)
-c$$$
-c$$$        do ieq=1,neqd
-c$$$          petscarray3%array(:,:,:)%var(ieq) =
-c$$$     .           petscarray2%array(:,:,:)%var(ieq)
-c$$$     .         - petscarray1%array(:,:,:)%var(ieq)
-c$$$        enddo
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end function substractPetscType
-c$$$
-c$$$c     mapPetscToVector
-c$$$c     #################################################################
-c$$$      subroutine mapPetscToVector(x,petscarray)
-c$$$
-c$$$c     -----------------------------------------------------------------
-c$$$c     Maps petsc array petscarray into vector x (without ghost cells)
-c$$$c     -----------------------------------------------------------------
-c$$$
-c$$$      implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$      real(8),intent(out) :: x(ntotd)
-c$$$
-c$$$      type (petsc_var),intent(in)  :: petscarray(ilo:ihi,jlo:jhi,klo:khi)
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$      integer    :: i,j,k,il,jl,kl,ii,ieq
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$c     Form vector x
-c$$$
-c$$$      do k = klo,khi
-c$$$        do j = jlo,jhi
-c$$$          do i = ilo,ihi
-c$$$            call fromGlobalToLocalLimits(i,j,k,il,jl,kl,1,1,1)
-c$$$            ii = vecPos(neqd,il,jl,kl,1,1,1)
-c$$$            do ieq = 1,neqd
-c$$$              x(ii+ieq) = petscarray(i,j,k)%var(ieq)
-c$$$            enddo
-c$$$          enddo
-c$$$        enddo
-c$$$      enddo
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine mapPetscToVector
-c$$$
-c$$$c     mapVectorToPetsc
-c$$$c     #################################################################
-c$$$      subroutine mapVectorToPetsc(petscarray,x)
-c$$$
-c$$$c     -----------------------------------------------------------------
-c$$$c     Maps vector solution into Petsc arrays.
-c$$$c     -----------------------------------------------------------------
-c$$$
-c$$$      implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$      real(8),intent(in)             :: x(ntotd)
-c$$$
-c$$$      type (petsc_array),intent(out) :: petscarray
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$      integer    :: i,j,k,ii,ieq
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$c     Initialize petscarray
-c$$$
-c$$$      call initializePetscType(petscarray)
-c$$$
-c$$$c     Unpack vector x
-c$$$
-c$$$      do k = klo,khi
-c$$$        do j = jlo,jhi
-c$$$          do i = ilo,ihi
-c$$$            ii = vecPos(neqd,i,j,k)
-c$$$            do ieq = 1,neqd
-c$$$              petscarray%array(i,j,k)%var(ieq) = x(ii+ieq)
-c$$$            enddo
-c$$$          enddo
-c$$$        enddo
-c$$$      enddo
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine mapVectorToPetsc
+        type(patch),pointer  :: gv
 
-      end module petsc_var_def
-#endif
+c     Local variables
 
-c module variable_setup
-c #####################################################################
-      module variable_setup
+        integer          :: ieq
 
-        use parameters
+c     Begin program
 
-        use grid
+        if (.not.associated(gv)) then
+          allocate(gv)
+          nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0,gv%u_graph)
+          nullify(gv%gparams)
+          nullify(gv%aux)
+        endif
 
-#if defined(petsc)
-        use petsc_var_def
-#endif
+c     End program
+
+      end subroutine allocateGlobalVar
+
+c     allocateAuxStruct
+c     #################################################################
+      subroutine allocateAuxStruct(nvar,nvec,aux)
 
         implicit none
 
-        type :: var_def
-          integer :: bconds(6)          !Boundary conditions
-          real(8),pointer,dimension(:,:,:) :: array
-          character(20):: descr
-        end type var_def
+c     Call variables
 
-        type :: var_array
-          integer :: nvar               !Number of variables
-          type (var_def),pointer,dimension(:) :: array_var
-        end type var_array
+        integer(4) :: nvar,nvec
+        type(aux_array),pointer  :: aux
 
-        type (var_array) :: u_0
+c     Local variables
 
-        INTERFACE ASSIGNMENT (=)
-          module procedure equateDerivedType
-     .                    ,mapStructureToVector
-     .                    ,mapVectorToStructure
-        END INTERFACE
+        integer          :: ieq
 
-cc        INTERFACE OPERATOR (-)
-cc          module procedure substractDerivedType
-cc        END INTERFACE
+c     Begin program
 
-      contains
+        if (.not.associated(aux)) then
+          allocate(aux)
+
+          aux%nvar = nvar
+          aux%nvec = nvec
+
+          if (nvar > 0) then
+            allocate(aux%var_list(nvar))
+
+            do ieq=1,nvar
+              allocate(aux%var_list(ieq)
+     $                     %array(ilom:ihip,jlom:jhip,klom:khip))
+              aux%var_list(ieq)%array = 0d0
+            enddo
+          endif
+
+          if (nvec > 0) then
+            allocate(aux%vec_list(nvec))
+
+            do ieq=1,nvec
+              allocate(aux%vec_list(ieq)
+     $                    %vec(ilom:ihip,jlom:jhip,klom:khip,3))
+              aux%vec_list(ieq)%vec = 0d0
+            enddo
+          endif
+        endif
+
+c     End program
+
+      end subroutine allocateAuxStruct
 
 c     allocateDerivedType
 c     #################################################################
@@ -385,7 +221,7 @@ c     #################################################################
 
 c     Call variables
 
-        type(var_array)  :: varray
+        type(var_array),pointer  :: varray
 
 c     Local variables
 
@@ -393,9 +229,11 @@ c     Local variables
 
 c     Begin program
 
-        varray%nvar = neqd
+        if (.not.associated(varray)) then
+          allocate(varray)
 
-        if (.not.associated(varray%array_var)) then
+          varray%nvar = neqd
+
           allocate(varray%array_var(neqd))
           do ieq=1,neqd
             allocate(varray%array_var(ieq)
@@ -416,21 +254,27 @@ c     #################################################################
 
 c     Call variables
 
-        type(var_array)  :: varray
+        type(var_array),pointer  :: varray
 
 c     Local variables
 
-        integer          :: ieq
+        integer          :: ieq,ierr
 
 c     Begin program
 
-        if (associated(varray%array_var)) then
-          do ieq=1,neqd
-            if (associated(varray%array_var(ieq)%array)) then
-              deallocate(varray%array_var(ieq)%array)
-            endif
-          enddo
-          deallocate(varray%array_var)
+cc        deallocate(varray)
+
+        if (associated(varray)) then
+          if (associated(varray%array_var)) then
+            do ieq=1,neqd
+              if (associated(varray%array_var(ieq)%array)) then
+                deallocate(varray%array_var(ieq)%array)
+              endif
+            enddo
+            deallocate(varray%array_var)
+          endif
+          deallocate(varray)
+cc        nullify(varray)
         endif
 
 c     End program
@@ -443,7 +287,7 @@ c     #################################################################
 
 c     Call variables
 
-        type(var_array)  :: varray
+        type(var_array),pointer  :: varray
         integer          :: unit
         logical          :: frmt
 
@@ -491,7 +335,7 @@ c     #################################################################
 
 c     Call variables
 
-        type(var_array)  :: varray
+        type(var_array),pointer  :: varray
         integer          :: unit,ierr
         logical          :: format
 
@@ -572,8 +416,8 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(var_array),intent(in)  :: varray1
-        type(var_array),intent(out) :: varray2
+        type(var_array),pointer :: varray1
+        type(var_array),pointer :: varray2
 
 c     Local variables
 
@@ -581,7 +425,9 @@ c     Local variables
 
 c     Begin program
 
-        if (varray2%nvar /= neqd) nullify(varray2%array_var)
+        if (associated(varray2)) then
+           if (varray2%nvar /= neqd) nullify(varray2)
+        endif
 
         call allocateDerivedType(varray2)
 
@@ -609,7 +455,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(var_array)  :: varray
+        type(var_array),pointer  :: varray
 
 c     Local variables
 
@@ -617,13 +463,17 @@ c     Local variables
 
 c     Begin program
 
+cc        write (*,*) 'DIAG -- initializeDT'
+
         call allocateDerivedType(varray)
 
         varray%nvar = u_0%nvar
         do ieq=1,varray%nvar
+cc          write (*,*) u_0%array_var(ieq)%descr
+cc          write (*,*) u_0%array_var(ieq)%bconds
           varray%array_var(ieq)%bconds = u_0%array_var(ieq)%bconds
           varray%array_var(ieq)%descr  = u_0%array_var(ieq)%descr
-cc          varray%array_var(ieq)%array  = 0d0
+          varray%array_var(ieq)%array  = 0d0
         enddo
 
 c     End program
@@ -640,8 +490,8 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(var_array),intent(OUT) :: varray3
-        type(var_array),intent(IN)  :: varray1,varray2
+        type(var_array),pointer :: varray3
+        type(var_array),pointer :: varray1,varray2
         real(8) :: alpha1,alpha2
 
 c     Local variables
@@ -681,7 +531,7 @@ c     Call variables
         real(8)      :: array(ilom:ihip,jlom:jhip,klom:khip)
         character(*) :: desc
 
-        type (var_array) :: varray
+        type(var_array),pointer :: varray
 
 c     Local variables
 
@@ -707,7 +557,7 @@ c     Call variables
         real(8)       :: array(ilom:ihip,jlom:jhip,klom:khip)
         character(20) :: desc
 
-        type (var_array) :: varray
+        type(var_array),pointer :: varray
 
 c     Local variables
 
@@ -733,9 +583,9 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      real(8),intent(out) :: x(ntotd)
+      real(8),intent(out)      :: x(ntotd)
 
-      type (var_array),intent(in)  :: varray
+      type(var_array),pointer  :: varray
 
 c     Local variables
 
@@ -774,9 +624,9 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      real(8),intent(in)           :: x(ntotd)
+      real(8),intent(in)      :: x(ntotd)
 
-      type (var_array),intent(out) :: varray
+      type(var_array),pointer :: varray
 
 c     Local variables
 
@@ -815,8 +665,16 @@ c #####################################################################
 
         use variable_setup
 
-        type (var_array),target :: u_np,u_n,u_nm,u_graph,u_ic
+        type(var_array),pointer :: u_np,u_n,u_nm,u_graph,u_ic
 
+cc        !Interface to setupNonlinearFunction
+cc        INTERFACE
+cc          subroutine setupNonlinearFunction(varray)
+cc          use variable_setup
+cc          type(var_array),pointer :: varray
+cc          end subroutine setupNonlinearFunction
+cc        END INTERFACE
+  
       contains
 
 c     allocateStructures
@@ -829,11 +687,17 @@ c     Local variables
 
 c     Begin program
 
-cc        call allocateDerivedType(u_np)
-cc        call allocateDerivedType(u_n )
-cc        call allocateDerivedType(u_0)
-cccc        call allocateDerivedType(utmp)
-cc        call allocateDerivedType(u_graph)
+        call allocateDerivedType(gv%u_np)
+        call allocateDerivedType(gv%u_nm)
+        call allocateDerivedType(gv%u_n )
+        call allocateDerivedType(gv%u_0)
+        call allocateDerivedType(gv%u_graph)
+
+        u_0     => gv%u_0
+        u_np    => gv%u_np
+        u_n     => gv%u_n
+        u_nm    => gv%u_nm
+        u_graph => gv%u_graph
 
 c     End program
 
@@ -881,7 +745,7 @@ c     Integrate
       do k = 1,nz
         do j = 1,ny
           do i = 1,nx
-            vol = volume(i,j,k,igx,igy,igz)
+            vol = gmetric%grid(igx)%dvol(i,j,k)
 
             if (isSYM(i,igx,1,0)) vol = 0.5*vol
             if (isSYM(i,igx,1,1)) vol = 0.5*vol
@@ -947,7 +811,7 @@ c     Call variables
 
       integer    :: ierr,itime,unit
       real(8)    :: time,dt
-      type (var_array):: varray
+      type(var_array),pointer:: varray
 
 c     Begin program
 
@@ -993,7 +857,7 @@ c     Call variables
 
       integer    :: itime,unit
       real(8)    :: time,dt
-      type (var_array):: varray
+      type(var_array),pointer:: varray
 
 c     Begin program
 

@@ -23,6 +23,195 @@ c ---------------------------------------------------------------------
 
       contains
 
+c     isSP
+c     #################################################################
+      function isSP(i,j,k,igx,igy,igz) result(sing_point)
+
+        integer    :: i,j,k,igx,igy,igz
+        logical    :: sing_point
+
+        sing_point = (i+grid_params%ilo(igx)-1==1).and.bcSP()
+
+      end function isSP
+
+c     isSYM
+c     #################################################################
+      function isSYM(i,igr,dim,loc)
+
+        integer    :: i,igr,dim,loc
+        logical    :: isSYM
+
+        integer    :: ibc,ilog,itst
+
+        ibc = (1+loc)+2*(dim-1)
+
+        isSYM=.false.
+
+        select case(dim)
+        case(1)
+          ilog = grid_params%ilo(igr)
+          select case(loc)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nxgl(igr)
+          end select
+        case(2)
+          ilog = grid_params%jlo(igr)
+          select case(loc)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nygl(igr)
+          end select
+        case(3)
+          ilog = grid_params%klo(igr)
+          select case(loc)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nzgl(igr)
+          end select
+        end select
+
+        if (i+ilog-1 == itst .and. bcond(ibc) == SYM)  isSYM=.true.
+
+      end function isSYM
+
+c     getMGmap
+c     #################################################################
+      subroutine getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+c     -----------------------------------------------------------------
+c     Gets MG vector components (ig,jg,kg) for grid quantities
+c     corresponding to node position (i,j,k) in grid levels igx,igy,igz
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
+
+c     Local variables
+
+c     Begin program
+
+        ig = i + grid_params%istartx(igx)
+        jg = j + grid_params%istarty(igy)
+        kg = k + grid_params%istartz(igz)
+
+      end subroutine getMGmap
+
+c     getCurvilinearCoordinates
+c     #################################################################
+      subroutine getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                    ,x1,y1,z1)
+
+c     -----------------------------------------------------------------
+c     Finds curvilinear coordinates for position (i,j,k)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
+        real(8)    :: x1,y1,z1
+
+c     Local variables
+
+        integer    :: ii,jj,ny
+
+c     Begin program
+
+        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+        x1 = grid_params%xx(ig)
+        y1 = grid_params%yy(jg)
+        z1 = grid_params%zz(kg)
+
+      end subroutine getCurvilinearCoordinates
+
+c     getCartesianCoordinates
+c     #################################################################
+      subroutine getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                  ,x1,y1,z1)
+
+c     -----------------------------------------------------------------
+c     Returns Cartesian coordinates.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
+        real(8)    :: x1,y1,z1
+
+c     Local variables
+
+        real(8)    :: car(3)
+
+c     Begin program
+
+        !Find coordinates
+        x1 = gmetric%grid(igx)%car(i,j,k,1)
+        y1 = gmetric%grid(igy)%car(i,j,k,2)
+        z1 = gmetric%grid(igz)%car(i,j,k,3)
+
+      end subroutine getCartesianCoordinates
+
+c     vecPos
+c     #################################################################
+      function vecPos(neq,i,j,k,igx,igy,igz) result (ijk)
+
+        implicit none
+
+        integer    :: ijk,i,j,k,neq,igx,igy,igz
+
+        integer    :: nxl,nyl,nzl,ilo,jlo,klo
+
+        ilo = 1
+        jlo = 1
+        klo = 1
+
+        nxl = grid_params%nxv(igx)
+        nyl = grid_params%nyv(igy)
+        nzl = grid_params%nzv(igz)
+
+        ijk = neq*(i-ilo + nxl*(j-jlo) + nxl*nyl*(k-klo))
+      
+      end function vecPos
+
+c     fromGlobalToLocalLimits
+c     #################################################################
+      subroutine fromGlobalToLocalLimits(ig,jg,kg,il,jl,kl,igx,igy,igz)
+
+        implicit none
+
+        integer    :: ig,jg,kg,il,jl,kl,igx,igy,igz
+
+        il = ig - grid_params%ilo(igx) + 1
+        jl = jg - grid_params%jlo(igy) + 1
+        kl = kg - grid_params%klo(igz) + 1
+
+      end subroutine fromGlobalToLocalLimits
+
+c     fromLocalToGlobalLimits
+c     #################################################################
+      subroutine fromLocalToGlobalLimits(il,jl,kl,ig,jg,kg,igx,igy,igz)
+
+        implicit none
+
+        integer    :: ig,jg,kg,il,jl,kl,igx,igy,igz
+
+        ig = il + grid_params%ilo(igx) - 1
+        jg = jl + grid_params%jlo(igy) - 1
+        kg = kl + grid_params%klo(igz) - 1
+
+      end subroutine fromLocalToGlobalLimits
+
 c     transformVectorToCartesian
 c     #################################################################
       subroutine transformVectorToCartesian(i,j,k,igx,igy,igz

@@ -4,6 +4,8 @@ c######################################################################
 
         use grid_mpi
 
+        use grid_operations
+
         integer    :: ngrdx,ngrdy,ngrdz,ngrid,igmax
 
         integer   ,dimension(:),allocatable ::
@@ -11,7 +13,7 @@ c######################################################################
      .                    ,istartb,ntotb,nxv,nyv,nzv,nblock
      .                    ,mg_ratio_x,mg_ratio_y,mg_ratio_z
 
-        type (grid_mg_def) :: MGgrid,MGgrid_sv
+        type(grid_mg_def),pointer :: MGgrid,MGgrid_sv
 
       contains
 
@@ -22,7 +24,7 @@ c     #################################################################
 c     -----------------------------------------------------------------
 c     Initializes pointers for block MG. In call sequence:
 c       * neq (in), integer: number of coupled equations to be solved
-c       * mg_grid (in/out), type(grid_mg_def): contains definition of MG grid
+c       * mg_grid (in/out), type(grid_mg_def),pointer: contains definition of MG grid
 c            level structure.
 c       * fpointers (out), logical: indicates if pointers were allocated
 c            or not.
@@ -34,7 +36,7 @@ c     Call variables
 
       integer             :: neq
       logical,intent(OUT) :: fpointers
-      type(grid_mg_def),optional,intent(IN) :: mg_grid
+      type(grid_mg_def),pointer,optional :: mg_grid
 
 c     Local variables
 
@@ -47,7 +49,9 @@ c     Begin program
       if (PRESENT(mg_grid)) then
         MGgrid=mg_grid
       else
-        if (.not.associated(MGgrid%xx)) MGgrid=grid_params     !Failsafe grid definition
+cc        if (.not.associated(MGgrid%xx)) MGgrid=grid_params     !Failsafe grid definition
+        if (.not.associated(MGgrid))
+     .       call equateGridStructure(MGgrid,grid_params) !Failsafe grid definition
       endif
 
       ngrdx = MGgrid%ngrdx

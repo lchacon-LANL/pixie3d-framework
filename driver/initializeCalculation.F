@@ -30,7 +30,27 @@ c Local variables
 
       logical    :: petsc_flg
 
+c Interfaces
+
+      INTERFACE
+         subroutine setInitialCondition(varrayn,varraynp)
+         use variable_setup
+         type(var_array),pointer :: varrayn,varraynp
+         end subroutine setInitialCondition
+      END INTERFACE
+
+      INTERFACE
+        subroutine evaluateNonlinearFunction(varray,fi)
+        use parameters
+        use variable_setup
+        real(8)          :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluateNonlinearFunction
+      END INTERFACE
+
 c Begin program
+
+c Assign pointers
 
       g_pack%dim(:)%pack = .false.
 
@@ -71,32 +91,11 @@ c Check for autoinitializing parameters
 
 c Initialize MG and create grid
 
-      call createGrid(nxd,nyd,nzd,g_pack)
+      call createGrid(nxd,nyd,nzd,g_pack,gv%gparams)
 
 c Initialize global domain limits
 
-#if defined(petsc)
-      ilog = dactx(1)%xs
-      ihig = dactx(1)%xe
-      jlog = dactx(1)%ys
-      jhig = dactx(1)%ye
-      klog = dactx(1)%zs
-      khig = dactx(1)%ze
-#else
-      ilog = 1
-      ihig = nxd
-      jlog = 1
-      jhig = nyd
-      klog = 1
-      khig = nzd
-#endif
-
       call setVectorDimensions
-
-#if defined(petsc)
-      write (*,*) 'Processor:',my_rank
-     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
-#endif
 
 c Allocate constant arrays
 
@@ -122,7 +121,7 @@ c Create equilibrium u_0
 
 c Initialize old time solution
 
-      u_n = u_0   !Overloaded assignment
+      call equateDerivedType(u_n,u_0)
 
 c Set unperturbed forcing fields
 
@@ -205,6 +204,8 @@ c Local variables
 c Begin program
 
       call allocateStructures
+
+cc      u_0 => global_var%u_0
 
       allocate(fold(ntotd),fsrc(ntotd))
 
@@ -289,7 +290,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      type (var_array) :: varray
+      type(var_array),pointer :: varray
 
 c     Local variables
 
@@ -334,7 +335,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      type (var_array) :: varrayn,varraynp
+      type(var_array),pointer :: varrayn,varraynp
 
 c Local variables
 
@@ -386,13 +387,13 @@ c     Call variables
       integer   ,intent(OUT) :: nx,ny,nz,itime
       real(8),intent(OUT)    :: time
 
-      type (var_array)       :: vn,vnp
+      type(var_array),pointer       :: vn,vnp
 
 c     Local variables
 
       integer    :: ierr
 
-      type (var_array)       :: vmed
+      type(var_array),pointer       :: vmed
 
 c     Begin program
 
@@ -503,7 +504,8 @@ cc        endif
 
         !Check source (need to uncomment dumpTimeStepPlots call in 3dplot.F)
          if (chk_src) then
-           u_graph = fsrc
+cc           u_graph = fsrc
+           call mapVectorToStructure(u_graph,fsrc)
 cc           u_graph%array_var(1)%array = u_0%array_var(1)%array !Set rho finite
 cc           call imposeBoundaryConditions(u_graph,1,1,1)
          endif

@@ -26,8 +26,30 @@ c Local variables
 
       integer    :: prec_tot,ierr
 
+c Interfaces
+
+      INTERFACE
+        subroutine timeStep(vn,vnp,ierr)
+        use variable_setup
+        integer          :: ierr
+        type(var_array),pointer :: vnp,vn
+        end subroutine timeStep
+      END INTERFACE
+
+      INTERFACE
+        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        type(var_array),pointer :: varray
+        end subroutine imposeBoundaryConditions
+      END INTERFACE
+
 c Begin program
 
+c Allocate global variable
+
+      call allocateGlobalVar(gv)
+      
 c Initialize PETSc and MPI (parallel version)
 
 #if defined(petsc)
@@ -67,12 +89,12 @@ c Time loop
 
 c     Find new time step
 
-        call correctTimeStep(u_np,itime,ierr)
+        call correctTimeStep(itime,ierr)
 
 c     Assign old time solution
 
-        u_nm = u_n   !Overloaded assignment
-        u_n  = u_np  !Overloaded assignment
+        call equateDerivedType(u_nm,u_n)
+        call equateDerivedType(u_n ,u_np)
 
 c     Time update
 
@@ -188,11 +210,30 @@ c Call variables
 
       integer          :: ierr
 
-      type (var_array) :: vnp,vn
+      type(var_array),pointer :: vnp,vn
 
 c Local variables
 
       double precision :: x(ntotd)
+
+c Interfaces
+
+      INTERFACE
+        subroutine evaluateNonlinearFunction(varray,fi)
+        use parameters
+        use variable_setup
+        real(8)          :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluateNonlinearFunction
+      END INTERFACE
+
+      INTERFACE
+        subroutine explicit(vn,vnp,iter,iout)
+        use variable_setup
+        integer          :: iter,iout
+        type(var_array),pointer :: vnp,vn
+        end subroutine explicit
+      END INTERFACE
 
 c Begin program
 
@@ -215,13 +256,16 @@ c     Initial guess
 
         if (predictor) then
           call findGuess(vn,vnp)
-          x = vnp               !Overloaded assignment
+cc          x = vnp               !Overloaded assignment
+          call mapStructureToVector(x,vnp)
         else
           if (bdf2) then
             call AXPYDerivedType(-cn/cnp,vn,-cnm/cnp,u_nm,vnp)
-            x = vnp
+cc            x = vnp
+            call mapStructureToVector(x,vnp)
           else
-            x = vn
+cc            x = vn
+            call mapStructureToVector(x,vnp)
           endif
         endif
         
@@ -252,11 +296,13 @@ c     Newton iteration
 c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
-          vnp = x                  !Overloaded assignment
+cc          vnp = x                  !Overloaded assignment
+          call mapVectorToStructure(vnp,x)
           if (postprocess) call postProcessSol(vnp) !Postprocess solution
           if (predictor  ) call storeTSinfo(vn,vnp)
         elseif (ierr == 1) then
           vnp = vn
+          call equateDerivedType(vnp,vn)
         endif
 
       else

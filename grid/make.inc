@@ -12,13 +12,13 @@ SUBDIRS = $(COMMONDIR)/math $(COMMONDIR)/interpolation/1d_int
 
 grid_debug_mod.o: xdraw_io_mod.o
 
-grid_anal_map_mod.o: grid_def_mod.o
-
 grid_operations_mod.o: grid_def_mod.o
+
+grid_anal_map_mod.o: grid_def_mod.o grid_operations_mod.o
 
 grid_mpi_mod.o: grid_def_mod.o
 
-grid_mg_mod.o: grid_mpi_mod.o
+grid_mg_mod.o: grid_mpi_mod.o grid_operations_mod.o
 
 grid_bc_mod.o: grid_mg_mod.o grid_operations_mod.o
 

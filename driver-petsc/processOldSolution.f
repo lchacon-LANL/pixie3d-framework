@@ -30,6 +30,24 @@ c Local variables
 
       real(8)    :: mag
 
+c Interfaces
+
+      INTERFACE
+        subroutine evaluateNonlinearFunction(varray,fi)
+        use parameters
+        use variable_setup
+        real(8)          :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluateNonlinearFunction
+      END INTERFACE
+
+      INTERFACE
+        subroutine postProcessSol(varray)
+        use variable_setup
+        type(var_array),pointer :: varray
+        end subroutine postProcessSol
+      END INTERFACE
+
 c Begin program
 
 c Find local limits
@@ -40,8 +58,8 @@ c Find local limits
      $                            ,imaxgcl,jmaxgcl,kmaxgcl,1,1,1)
 
 c Store u_n -> u_nm (for 3 level method)
-
-      u_nm = u_n
+      
+      call equateDerivedType(u_nm,u_n)
 
 c Unpack petsc array x -> u_n
 

@@ -26,6 +26,33 @@ c Local variables
       character*(40) :: command
       logical        :: exitloop
 
+c Interfaces
+
+      INTERFACE
+        subroutine readTimeStep(varray,ierr)
+        use variable_setup
+        type(var_array),pointer :: varray
+        integer         :: ierr
+        end subroutine readTimeStep
+      END INTERFACE
+
+      INTERFACE
+        subroutine postProcessSolution(varray,iigx,iigy,iigz)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        type(var_array),pointer :: varray
+        end subroutine postProcessSolution
+      END INTERFACE
+
+      INTERFACE
+        subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        logical    :: init
+        type(var_array),pointer :: varray
+        end subroutine evaluateDiagnostics
+      END INTERFACE
+
 c Begin program
 
       igx = 1
@@ -47,7 +74,7 @@ c Time loop
 
 c diag ***** Redefine perturbations for preconditioner debugging
 cc        write (*,*) 'Redefined perts for PC debugging in 3dplot'
-cc        u_ic = u_n
+cc        call equateDerivedType(u_ic,u_n)
 cc        call imposeBoundaryConditions(u_ic,igx,igy,igz)
 c diag *****
 
@@ -95,7 +122,7 @@ c     Time level plots (xdraw)
           call dumpTimeStepPlots
 
           !Store previous record (for time derivatives in diagnostics)
-          u_n = u_np
+          call equateDerivedType(u_n,u_np)
 
         endif
 
@@ -240,7 +267,37 @@ c Local variables
       integer    :: ierr
       logical    :: petsc_flg
 
+c Interfaces
+
+      INTERFACE
+        subroutine readTimeStep(varray,ierr)
+        use variable_setup
+        type(var_array),pointer :: varray
+        integer         :: ierr
+        end subroutine readTimeStep
+      END INTERFACE
+
+      INTERFACE
+        subroutine postProcessSolution(varray,iigx,iigy,iigz)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        type(var_array),pointer :: varray
+        end subroutine postProcessSolution
+      END INTERFACE
+
+      INTERFACE
+        subroutine initializeDiagnostics(varray,iigx,iigy,iigz)
+        use variable_setup
+        integer          :: iigx,iigy,iigz
+        type(var_array),pointer :: varray
+        end subroutine initializeDiagnostics
+      END INTERFACE
+
 c Begin program
+
+c Allocate global variable
+
+      call allocateGlobalVar(gv)
 
 c Initialize PETSc (parallel version)
 
@@ -262,7 +319,7 @@ c Read user initializations
 
 c Initialize MG and create grid
 
-      call createGrid(nxd,nyd,nzd,g_pack)
+      call createGrid(nxd,nyd,nzd,g_pack,gv%gparams)
 
 c Open graphics files (this initializes local limits, among other things)
 
@@ -286,11 +343,7 @@ c Define application arrays (external)
 
 c Allocate records
 
-      call allocateDerivedType(u_ic)
-      call allocateDerivedType(u_0)
-      call allocateDerivedType(u_n)
-      call allocateDerivedType(u_np)
-      call allocateDerivedType(u_graph)
+      call allocateStructures
 
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
@@ -305,13 +358,13 @@ c Initialize graphics
       call setGraphicsRange(nxl,nyl,nzl,bcond)
 
       !Store initial condition w/ BCs and initialize postprocessing quantities
-      u_ic = u_0
-      u_n  = u_0
+      call equateDerivedType(u_ic,u_0)
+      call equateDerivedType(u_n ,u_0)
 
       call postProcessSolution(u_ic,igx,igy,igz)
 
       !Prime u_np and initialize graphics quantities
-      u_np = u_ic
+      call equateDerivedType(u_np,u_ic)
 
       call initializeGraphics(igx,igy,igz,bcond)
 
@@ -323,7 +376,7 @@ c Initialize graphics
 
 c Initialize diagnostics
 
-      u_n = u_np
+      call equateDerivedType(u_n,u_np)
 
       call initializeDiagnostics(u_np,igx,igy,igz)
 
@@ -519,7 +572,7 @@ c----------------------------------------------------------------------
 
       use timeStepping
 
-      use variables
+      use variable_setup
 
       use graphics
 
@@ -531,7 +584,7 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      type(var_array) :: varray
+      type(var_array),pointer :: varray
       integer         :: ierr
 
 c Local variables

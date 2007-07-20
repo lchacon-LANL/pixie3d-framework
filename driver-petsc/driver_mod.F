@@ -86,7 +86,7 @@ c ######################################################################
         logical    :: vol_wgt=.true.,bdf2=.false.
 
 #if !defined(petsc_c)
-        type(var_array) :: dn,dnm,dnp
+        type(var_array),pointer :: dn,dnm,dnp
         real(8)    :: l_np,l_n,et1,et2
 
       contains
@@ -103,7 +103,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      type (var_array) :: vn,vnp
+      type(var_array),pointer :: vn,vnp
 
 c     Local variables
 
@@ -158,7 +158,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      type (var_array) :: vn,vnp
+      type(var_array),pointer :: vn,vnp
 
 c     Local variables
 
@@ -180,7 +180,7 @@ c     End program
 
 c     correctTimeStep
 c     ###############################################################
-      subroutine correctTimeStep(varray,itm,ierr)
+      subroutine correctTimeStep(itm,ierr)
 
 c     ---------------------------------------------------------------
 c     Correct time step
@@ -191,10 +191,6 @@ c     ---------------------------------------------------------------
 c     Call variables
 
       integer          ::  ierr,itm
-
-      type (var_array) :: varray
-
-cc      external findExplicitDt
 
 c     Local variables
 
@@ -230,8 +226,8 @@ c     Begin program
 
         do ieq=1,neqd
 
-          array = (varray%array_var(ieq)%array
-     .            -u_0   %array_var(ieq)%array )
+          array = (u_np%array_var(ieq)%array
+     .            -u_0 %array_var(ieq)%array )
           array = array*array
 
           dpert = integral(nxl,nyl,nzl,array,1,1,1,.true.)
@@ -244,9 +240,9 @@ c     Begin program
 
           dmag1 = integral(nxl,nyl,nzl,array,1,1,1,.true.)
 
-          array = (varray%array_var(ieq)%array
-     .            +u_n   %array_var(ieq)%array
-     .         -2.*u_0   %array_var(ieq)%array )
+          array = (u_np%array_var(ieq)%array
+     .            +u_n %array_var(ieq)%array
+     .         -2.*u_0 %array_var(ieq)%array )
           array = array*array
 
           dmag2 = integral(nxl,nyl,nzl,array,1,1,1,.true.)
@@ -426,7 +422,8 @@ c     #######################################################################
 #if !defined(petsc)
         if (timecorr .or. cnfactor == 1d0) then
           if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor == 1d0)) then
-            call findExplicitDt
+cc            call findExplicitDt
+            dt = dtbase
           else
             call adapt_dt(dtbase)
           endif

@@ -47,23 +47,27 @@ c Check for autoinitializing parameters
 
       dtbase = dt   
 
+c Allocate global variable
+
+      call allocateGlobalVar(gv)
+
 c Initialize MG and create grid
 
-      call createGrid(nxd,nyd,nzd,g_pack)
+      call createGrid(nxd,nyd,nzd,g_pack,gv%gparams)
 
 c Initialize vector dimensions for global and local problems
 
-      ihig = imax
-      ilog = imin
-      jhig = jmax
-      jlog = jmin
-      khig = kmax
-      klog = kmin
+cc      ihig = imax
+cc      ilog = imin
+cc      jhig = jmax
+cc      jlog = jmin
+cc      khig = kmax
+cc      klog = kmin
 
       call setVectorDimensions
 
-      write (*,*) 'Processor:',my_rank
-     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
+cc      write (*,*) 'Processor:',my_rank
+cc     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
 
 c Allocate constant arrays
 
@@ -203,7 +207,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      type (var_array) :: varray
+      type(var_array),pointer :: varray
 
 c     Local variables
 

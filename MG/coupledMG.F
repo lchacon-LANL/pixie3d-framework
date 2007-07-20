@@ -1246,7 +1246,8 @@ c Assign options
       mu              = options%mg_mu
       vbr_mg          = options%vertex_based_relax
       galerkin        = options%galerkin
-      MGgrid          = options%mg_grid_def
+cc      MGgrid          = options%mg_grid_def
+      call equateGridStructure(MGgrid,options%mg_grid_def)
 
       line_relax      = options%mg_line_relax
       line_vcyc       = options%mg_line_vcyc
@@ -1716,7 +1717,7 @@ c     Local variables
         real(8)    :: mag,mag0,omega
         real(8),allocatable,dimension(:) :: dx,rr
 
-        type(grid_mg_def) :: line_mg_grid
+        type(grid_mg_def),pointer :: line_mg_grid
 
         logical        :: fpointers
 
@@ -2033,7 +2034,7 @@ c     Call variables
 
         integer        :: igr,nn,guess
         real(8)        :: b(nn),x(nn)
-        type(grid_mg_def) :: mg_grid
+        type(grid_mg_def),pointer :: mg_grid
         logical        :: prelax
 
 c     Local variables
@@ -2106,7 +2107,7 @@ ccc     Call variables
 cc
 cc        integer        :: igr,nn,guess
 cc        real(8)        :: b(nn),x(nn)
-cc        type(grid_mg_def) :: mg_grid
+cc        type(grid_mg_def),pointer :: mg_grid
 cc        logical        :: prelax
 cc
 ccc     Local variables
@@ -2223,7 +2224,7 @@ c     Call variables
 
         integer        :: igr,nn,guess
         real(8)        :: b(nn),x(nn)
-        type(grid_mg_def) :: mg_grid
+        type(grid_mg_def),pointer :: mg_grid
         logical        :: prelax
 
 c     Local variables
@@ -2265,8 +2266,9 @@ c     'Prime' grid structure variable to pass to filial MG call
         options%mg_grid_def%ngrdz = 0
         options%mg_grid_def%ngrid = 0
 
-        options%mg_grid_def = MGgrid_sv
-          
+cc        options%mg_grid_def = MGgrid_sv
+        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
+
 c     Shift MG pointers to current grid level igr
 
         call transferMGPointers(igr)
@@ -2299,7 +2301,8 @@ c     Configure recursive plane/line GS solve
         options%mg_line_tol                 = line_tol
         options%mg_line_omega               = line_omega
         options%mg_line_coarse_solver_depth = line_crse_depth
-        options%mg_grid_def                 = mg_grid
+cc        options%mg_grid_def                 = mg_grid
+        call equateGridStructure(options%mg_grid_def,mg_grid)
 
         options%vertex_based_relax          = vbr_mg
         options%fdiag                       = fdiag
@@ -2314,7 +2317,8 @@ c     Recover configuration for parent level MG
         istart  = istart_sv
         istartp = istartp_sv
         istartb = istartb_sv
-        MGgrid  = mg_grid
+cc        MGgrid  = mg_grid
+        call equateGridStructure(MGgrid,mg_grid)
 
         !Recover diagonal
         deallocate(diag)
@@ -2349,7 +2353,7 @@ c     Call variables
 
         integer        :: igr,nn,guess
         real(8)        :: b(nn),x(nn)
-        type(grid_mg_def) :: mg_grid
+        type(grid_mg_def),pointer :: mg_grid
         logical        :: prelax
 
 c     Local variables
@@ -2385,8 +2389,9 @@ c     'Prime' grid structure variable to pass to filial MG call
         options%mg_grid_def%ngrdz = 0
         options%mg_grid_def%ngrid = 0
 
-        options%mg_grid_def = MGgrid_sv
-          
+cc        options%mg_grid_def = MGgrid_sv
+        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
+
 c     Shift MG pointers to current grid level igr
 
         call transferMGPointers(igr)
@@ -2418,7 +2423,8 @@ c     Configure recursive plane/line JB solve
         options%mg_line_tol                 = line_tol
         options%mg_line_omega               = line_omega
         options%mg_line_coarse_solver_depth = line_crse_depth
-        options%mg_grid_def                 = mg_grid
+cc        options%mg_grid_def                 = mg_grid
+        call equateGridStructure(options%mg_grid_def,mg_grid)
 
         options%vertex_based_relax          = vbr_mg
         options%fdiag                       = fdiag
@@ -2433,7 +2439,8 @@ c     Recover configuration for parent level MG
         istart  = istart_sv
         istartp = istartp_sv
         istartb = istartb_sv
-        MGgrid  = mg_grid
+cc        MGgrid  = mg_grid
+        call equateGridStructure(MGgrid,mg_grid)
 
         !Recover diagonal
         deallocate(diag)
@@ -2470,7 +2477,7 @@ c     Call variables
 
         integer        :: igr,nn,guess
         real(8)        :: b(nn),x(nn)
-        type(grid_mg_def) :: mg_grid
+        type(grid_mg_def),pointer :: mg_grid
         logical,optional :: oned_solve
 
 c     Local variables
@@ -2518,8 +2525,9 @@ c     'Prime' grid structure variable to pass to filial MG call
         options%mg_grid_def%ngrdz = 0
         options%mg_grid_def%ngrid = 0
 
-        options%mg_grid_def = MGgrid_sv
-          
+cc        options%mg_grid_def = MGgrid_sv
+        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
+
 c     Shift MG pointers to current grid level igr
 
         call transferMGPointers(igr)
@@ -2556,7 +2564,8 @@ c     Configure recursive plane/line MG solve
         options%mg_line_x                   = line_x
         options%mg_line_y                   = line_y
         options%mg_line_z                   = line_z
-        options%mg_grid_def                 = mg_grid
+cc        options%mg_grid_def                 = mg_grid
+        call equateGridStructure(options%mg_grid_def,mg_grid)
 
         options%vertex_based_relax          = vbr_mg
         options%fdiag                       = fdiag
@@ -2571,7 +2580,8 @@ c     Recover configuration for parent level MG
         istart  = istart_sv
         istartp = istartp_sv
         istartb = istartb_sv
-        MGgrid  = mg_grid
+cc        MGgrid  = mg_grid
+        call equateGridStructure(MGgrid,mg_grid)
 cc        MGgrid  = MGgrid_sv
 cc        call deallocateGridStructure(MGgrid_sv)
 
@@ -2641,7 +2651,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_mg_def) :: mg_grid
+        type(grid_mg_def),pointer :: mg_grid
 
 c     Local variables
 
@@ -2652,8 +2662,10 @@ c     Begin program
         MGgrid_sv%ngrdz = 0
         MGgrid_sv%ngrid = 0
 
-        MGgrid_sv  = MGgrid
-        MGgrid     = mg_grid
+cc        MGgrid_sv  = MGgrid
+cc        MGgrid     = mg_grid
+        call equateGridStructure(MGgrid_sv,MGgrid)
+        call equateGridStructure(MGgrid,mg_grid)
 
 c     End program
 
@@ -2677,7 +2689,8 @@ c     Begin program
 
         call deallocateGridStructure(MGgrid)
 
-        MGgrid  = MGgrid_sv
+cc        MGgrid  = MGgrid_sv
+        call equateGridStructure(MGgrid,MGgrid_sv)
 
         call deallocateGridStructure(MGgrid_sv)
 
@@ -2770,7 +2783,7 @@ c     Local variables
 
         real(8),allocatable,dimension(:)   :: b_global,x_global
 
-        type (grid_mg_def) :: gparams_sv
+        type(grid_mg_def),pointer :: gparams_sv
 
         type (solver_options) :: options
 
@@ -2788,7 +2801,8 @@ c     Save parent MG grid configuration (shared with filial MG via mg_internal m
         MGgrid_sv%ngrdy = 0
         MGgrid_sv%ngrdz = 0
         MGgrid_sv%ngrid = 0
-        MGgrid_sv  = MGgrid
+cc        MGgrid_sv  = MGgrid
+        call equateGridStructure(MGgrid_sv,MGgrid)
 
         call deallocateGridStructure(MGgrid)
 
@@ -2796,7 +2810,8 @@ c     Save parent MG grid configuration (shared with filial MG via mg_internal m
         gparams_sv%ngrdy = 0
         gparams_sv%ngrdz = 0
         gparams_sv%ngrid = 0
-        gparams_sv  = grid_params
+cc        gparams_sv  = grid_params
+        call equateGridStructure(gparams_sv,grid_params)
 
         call deallocateGridStructure(grid_params)
 
@@ -2903,7 +2918,9 @@ c     Configure recursive plane/line MG solve
         options%vertex_based_relax          = vbr_mg
         options%galerkin                    = galerkin
         options%ncolors                     = ncolors
-        options%mg_grid_def                 = grid_params
+cc        options%mg_grid_def                 = grid_params
+        call equateGridStructure(options%mg_grid_def,grid_params)
+
         options%fdiag                       = .true.
 
 c     Call plane/line MG
@@ -2945,7 +2962,8 @@ c     Recover configuration for parent level MG
 
         !Recover grid_params
         call deallocateGridStructure(grid_params)
-        grid_params = gparams_sv
+cc        grid_params = gparams_sv
+        call equateGridStructure(grid_params,gparams_sv)
         call deallocateGridStructure(gparams_sv)
 
         !Recover pointers
