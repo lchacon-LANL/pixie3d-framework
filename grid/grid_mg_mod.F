@@ -47,11 +47,13 @@ c     Begin program
       fpointers = .false.
 
       if (PRESENT(mg_grid)) then
-        MGgrid=mg_grid
+        MGgrid=>mg_grid
+cc        call equateGridStructure(MGgrid,mg_grid)
       else
 cc        if (.not.associated(MGgrid%xx)) MGgrid=grid_params     !Failsafe grid definition
-        if (.not.associated(MGgrid))
-     .       call equateGridStructure(MGgrid,grid_params) !Failsafe grid definition
+        if (.not.associated(MGgrid)) MGgrid => grid_params
+cc        if (.not.associated(MGgrid))
+cc     .       call equateGridStructure(MGgrid,grid_params) !Failsafe grid definition
       endif
 
       ngrdx = MGgrid%ngrdx
