@@ -34,6 +34,7 @@ c #####################################################################
         end type MG_grid_metrics
 
         type :: grid_mg_def
+          !SAMRAI needs to define these!
           integer :: ngrdx                                !Grid levels in X
           integer :: ngrdy                                !Grid levels in Y
           integer :: ngrdz                                !Grid levels in Z
@@ -43,22 +44,23 @@ c #####################################################################
           integer :: ngly                                 !Global number of mesh points in Y
           integer :: nglz                                 !Global number of mesh points in Z
 
-          integer :: nlx                                  !Local number of mesh points in X
-          integer :: nly                                  !Local number of mesh points in Y
-          integer :: nlz                                  !Local number of mesh points in Z
-
           integer :: ilog                                 !Global lower  limit in X
           integer :: ihig                                 !Global higher limit in X
           integer :: jlog                                 !Global lower  limit in Y
           integer :: jhig                                 !Global higher limit in Y
           integer :: klog                                 !Global lower  limit in Z
           integer :: khig                                 !Global higher limit in Z
+          !SAMRAI needs to define these!
+
+          integer :: nlx                                  !Local number of mesh points in X
+          integer :: nly                                  !Local number of mesh points in Y
+          integer :: nlz                                  !Local number of mesh points in Z
 
           integer :: gcw                                  !Ghost cell width
 
-          real(8) :: lxmin,lxmax                          !Local patch physical dimensions in X
-          real(8) :: lymin,lymax                          !Local patch physical dimensions in Y
-          real(8) :: lzmin,lzmax                          !Local patch physical dimensions in Z
+          real(8) :: lxmin,lxmax                          !Global physical dimensions in X
+          real(8) :: lymin,lymax                          !Global physical dimensions in Y
+          real(8) :: lzmin,lzmax                          !Global physical dimensions in Z
 
           integer   ,pointer,dimension(:)  :: ilo         !Global lower limit in X
           integer   ,pointer,dimension(:)  :: jlo         !Global lower limit in Y
@@ -160,16 +162,16 @@ c     Begin program
           grid_st%khig  = khig
         endif
 
-        grid_st%nlx  = ihig-ilog+1
-        grid_st%nly  = jhig-jlog+1
-        grid_st%nlz  = khig-klog+1
-
         grid_st%lxmin = UNDEF_DP
         grid_st%lxmax = UNDEF_DP
         grid_st%lymin = UNDEF_DP
         grid_st%lymax = UNDEF_DP
         grid_st%lzmin = UNDEF_DP
         grid_st%lzmax = UNDEF_DP
+
+        grid_st%nlx  = ihig-ilog+1
+        grid_st%nly  = jhig-jlog+1
+        grid_st%nlz  = khig-klog+1
 
         nx = grid_st%nlx
         ny = grid_st%nly
