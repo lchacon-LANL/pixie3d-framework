@@ -25,6 +25,7 @@ c Common variables
 c Local variables
 
       integer    :: prec_tot,ierr
+      real(8)    :: time1,time2,time3,time4
 
 c Interfaces
 
@@ -79,6 +80,11 @@ c Initial output
       call output
 
 c Time loop
+
+#if defined(petsc)
+      call PetscGetTime(time1,ierr)
+      call PetscGetCPUTime(time2,ierr)
+#endif
 
       do
 
@@ -139,7 +145,6 @@ c     Output per time step
 c     Time level data dump
 
         if (nrst.eq.ndstep.or.tmrst.ge.0.99*dstep) then
-cc          write (*,*) 'Dumped here'
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
           call imposeBoundaryConditions(u_np,1,1,1)
@@ -156,6 +161,20 @@ c Average explicit time step
       endif
 
 c Final statistics
+
+#if defined(petsc)
+      call PetscGetTime(time3,ierr)
+      call PetscGetCPUTime(time4,ierr)
+
+      if (my_rank == 0) then
+        write (*,*) 'CPU statistics'
+        write (*,*)
+        write (*,*) 'Elapsed time =', time3-time1
+        write (*,*) 'CPU time     =',(time4-time2)*1d4
+        write (*,*) 'COMM % time  =',(time3-time1-(time4-time2)*1d4)
+     .                              /(time3-time1)*100
+      endif
+#endif
 
       if (my_rank == 0) then
         prec_tot = gmres_tot + iguess*newt_tot
@@ -181,6 +200,10 @@ c Formats
 c End program
 
       call fortranDestroy
+
+#if defined(petsc)
+      call PetscFinalize(mpierr)
+#endif
 
       end
 
@@ -235,6 +258,13 @@ c Interfaces
         end subroutine explicit
       END INTERFACE
 
+      INTERFACE
+        subroutine postProcessSol(v_arr)
+        use variable_setup
+        type(var_array),pointer :: v_arr
+        end subroutine postProcessSol
+      END INTERFACE
+
 c Begin program
 
       ierr = 0
@@ -256,15 +286,12 @@ c     Initial guess
 
         if (predictor) then
           call findGuess(vn,vnp)
-cc          x = vnp               !Overloaded assignment
           call mapStructureToVector(x,vnp)
         else
           if (bdf2) then
             call AXPYDerivedType(-cn/cnp,vn,-cnm/cnp,u_nm,vnp)
-cc            x = vnp
             call mapStructureToVector(x,vnp)
           else
-cc            x = vn
             call mapStructureToVector(x,vnp)
           endif
         endif
@@ -296,7 +323,6 @@ c     Newton iteration
 c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
-cc          vnp = x                  !Overloaded assignment
           call mapVectorToStructure(vnp,x)
           if (postprocess) call postProcessSol(vnp) !Postprocess solution
           if (predictor  ) call storeTSinfo(vn,vnp)
