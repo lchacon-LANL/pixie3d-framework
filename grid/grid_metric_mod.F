@@ -426,14 +426,12 @@ c     -----------------------------------------------------------------
 c     Input variables
 
         integer    :: igrid
-cc        type(MG_grid_metrics),pointer :: g_metric
         type(grid_mg_def),pointer :: gparams
 
 c     Local variables
 
         integer    :: ii,nxf,nyf,nzf,nxc,nyc,nzc,nx,ny,nz
      .               ,ig,jg,kg
-cc        integer    :: jj
 
         real(8),pointer,dimension(:,:,:,:)   :: xc
         real(8),allocatable,dimension(:,:,:,:,:) :: dr
@@ -591,6 +589,7 @@ c       NUMERICAL QUANTITIES ***********************************
             do j=1,3
               call topol_bc(igrid,nx,ny,nz,dr(:,:,:,i,j))
               if (bcSP()) then
+cc                write (*,*) 'DIAG -- fingGridMetrics'
                 igxbc = igrid
                 igybc = igrid
                 igzbc = igrid
@@ -603,21 +602,12 @@ c       NUMERICAL QUANTITIES ***********************************
               endif
             enddo
           enddo
-          
+
           !Evaluate grid quantities
           do k = klom,khip
             do j = jlom,jhip
               do i = ilom,ihip
                 r = dr(i,j,k,:,:)
-
-cc                if (isSP(i+1,j,k,igx,igy,igz)) then
-cc                  jj = mod(j+ny/2,ny)
-cc                  if (jj == 0) jj = ny
-cc
-cc                  r(1,:) = -dr(i+1,jj,k,1,:)
-cc                  r(2,:) =  dr(i+1,jj,k,2,:)
-cc                  r(3,:) =  dr(i+1,jj,k,3,:)
-cc                endif
 
                 !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
                 if (.not.vmec_mets) then
