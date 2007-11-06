@@ -135,11 +135,9 @@ cc        if (bcSP()) call createSPComm(1,MPI_COMM_SP)
         if (bcSP()) call createMPIComm(MPI_COMM_SP,selectRank_SP)
 
 c diag ****
-cccc        write (*,*) 'Proc',my_rank,', SP COMM' ,MPI_COMM_SP
 cc        if (MPI_COMM_SP /= MPI_COMM_NULL) then
 cc          call MPI_Comm_size(MPI_COMM_SP,np_sp,mpierr)
 cc          call MPI_Comm_rank(MPI_COMM_SP,my_sp_rank,mpierr)
-cccc          write (*,*) 'SP_COMM ',split_key,'; nproc=',np_sp
 cc          write (*,*) 'SP_COMM ; nproc=',np_sp
 cc     .                ,'; my_sp_rank=',my_sp_rank
 cc     .                ,'; my_rank=',my_rank
@@ -149,25 +147,23 @@ cc        call MPI_Finalize(mpierr)
 cc        stop
 c diag ****
 
-c     Poloidal MPI communicator (domains that share same toroidal slice)
+c     Poloidal MPI communicator (domains that share same toroidal and radial slices)
 
 #if defined(vmec)
         call createMPIComm(MPI_COMM_POL,selectRank_POL)
 
 c diag ****
-cccc        write (*,*) 'Proc',my_rank,', SP COMM' ,MPI_COMM_SP
-cc        if (MPI_COMM_POL /= MPI_COMM_NULL) then
-cc          call MPI_Comm_size(MPI_COMM_POL,np_sp,mpierr)
-cc          call MPI_Comm_rank(MPI_COMM_POL,my_sp_rank,mpierr)
-cccc          write (*,*) 'TOR_COMM ',split_key,'; nproc=',np_sp
-cc          write (*,*) 'TOR_COMM ; nproc=',np_sp
-cc     .                ,'; my_rank_tor=',my_sp_rank
-cc     .                ,'; my_rank=',my_rank
-cc        endif
-cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cc        call MPI_Finalize(mpierr)
-cc        stop
-ccc diag ****
+c$$$        if (MPI_COMM_POL /= MPI_COMM_NULL) then
+c$$$          call MPI_Comm_size(MPI_COMM_POL,np_sp,mpierr)
+c$$$          call MPI_Comm_rank(MPI_COMM_POL,my_sp_rank,mpierr)
+c$$$          write (*,*) 'POL_COMM ; nproc=',np_sp
+c$$$     .                ,'; my_rank_pol=',my_sp_rank
+c$$$     .                ,'; my_rank=',my_rank
+c$$$        endif
+c$$$        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+c$$$        call MPI_Finalize(mpierr)
+c$$$        stop
+c diag ****
 #endif
 
 c     End program
@@ -652,10 +648,12 @@ c     Find dimensionality
       endif
 
       !Find exponents
-      navg = floor((nx*ny*nz/nprocs)**(1./nd))
+      navg = nint((nx*ny*nz/nprocs)**(1./nd))
 
       npt = (/nx,ny,nz/)
-      exp = floor(log(max(1d0*npt/navg,1d0))/log(2d0))
+      exp = nint(log(max(1d0*npt/navg,1d0))/log(2d0))
+
+cc      write (*,*) 'DIAG -- procAlloc',nx,ny,nz,nprocs,navg,exp
 
       !Consistency check
       if (sum(exp) /= sum_exp) then
@@ -679,6 +677,9 @@ c     Store processor topology for ASM PC treatment
       asm_dir(1) = (npx > 1)
       asm_dir(2) = (npy > 1)
       asm_dir(3) = (npz > 1)
+
+cc      write (*,*) 'DIAG -- processorAlloc',npx,npy,npz
+cc      call pstop('','')
 
 c     End program
 
@@ -780,7 +781,7 @@ c     Select rank
 
         !Create self-communicator for single-point dimensions
         if (      l_lim(dim,0) == l_lim(dim,1)
-     .      .and. cp(0)        == cp(1)       ) then
+     .      .and. cp(0)       .eqv. cp(1)       ) then
           call random_seed()
           call random_number(random)
           split_key=split_key+my_rank+1
@@ -839,8 +840,9 @@ c     Select rank
         split_key = 1
 
         !Group processors based on location in x and z directions
+        !(organize in 2D processor mesh: i + nx*(j-1))
         split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
-     .                        + npx*l_lim(1,1)/g_lim(1,1)
+     .                        + npz*npx*l_lim(1,1)/g_lim(1,1)
 
 c     End program
 
