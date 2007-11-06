@@ -1246,8 +1246,8 @@ c Assign options
       mu              = options%mg_mu
       vbr_mg          = options%vertex_based_relax
       galerkin        = options%galerkin
-cc      MGgrid          = options%mg_grid_def
-      call equateGridStructure(MGgrid,options%mg_grid_def)
+      MGgrid          => options%mg_grid_def
+cc      call equateGridStructure(MGgrid,options%mg_grid_def)  !This requires changes in killmg
 
       line_relax      = options%mg_line_relax
       line_vcyc       = options%mg_line_vcyc
@@ -2990,7 +2990,8 @@ c     ###################################################################
 
         if (fdiag)  deallocate(diag)
         call deallocPointers(fpointers)
-        call deallocateGridStructure(MGgrid)
+cc        call deallocateGridStructure(MGgrid)
+        nullify(MGgrid)
 
       end subroutine killmg
 
