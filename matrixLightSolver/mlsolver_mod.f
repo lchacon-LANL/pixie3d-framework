@@ -126,8 +126,9 @@ c       Initializes solver options
                                                    !  or rediscretization (false)
 
 cc          solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
-          call equateGridStructure(solverOptions%mg_grid_def
-     .                            ,grid_params)    !Defines default MG grid levels def.
+          solverOptions%mg_grid_def => grid_params  !Defines default MG grid levels def.
+cc          call equateGridStructure(solverOptions%mg_grid_def
+cc     .                            ,grid_params)    !Defines default MG grid levels def.
 
           !Krylov methods options
           solverOptions%stp_test = 0               !Stopping criterion (CG, GMRES)
