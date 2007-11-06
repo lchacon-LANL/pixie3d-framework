@@ -132,7 +132,7 @@ c     #################################################################
         ntotd  = neqd*ntotdp
 
 #if defined(petsc)
-        write (*,'(a,i3,a,6i3)') 'Processor:',my_rank
+        write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
      .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
 #endif
 
@@ -173,7 +173,7 @@ c     #################################################################
 
 c     Call variables
 
-        integer(4) :: nvar,nvec
+        integer :: nvar,nvec
         type(aux_array),pointer  :: aux
 
 c     Local variables
