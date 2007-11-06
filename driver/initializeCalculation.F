@@ -125,8 +125,8 @@ c Initialize old time solution
 
 c Set unperturbed forcing fields
 
-      jit = -1   !This informs nlfunction that we are processing 
-                 !  n time level info
+      jit = -2   !This informs nlfunction that we are processing 
+                 !  the source
 
       !This not only evaluates fsrc, but defines BCs on u_n
       call evaluateNonlinearFunction(u_n,fsrc)
@@ -204,8 +204,6 @@ c Local variables
 c Begin program
 
       call allocateStructures
-
-cc      u_0 => global_var%u_0
 
       allocate(fold(ntotd),fsrc(ntotd))
 
@@ -341,26 +339,40 @@ c Local variables
 
       integer    ::  ieq,nx,ny,nz
 
+c Interfaces
+
+      INTERFACE
+        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        type(var_array),pointer :: varray
+        end subroutine imposeBoundaryConditions
+      END INTERFACE
+
 c Begin program
 
 c Perturb equilibrium
 
       if (.not.restart) then
 
+        !Equate to varraynp
+        call equateDerivedType(varraynp,varrayn)
+
         do ieq = 1,neqd
-          call perturbEquilibrium(varrayn%array_var(ieq)%array
-     .                           ,varrayn%array_var(ieq)%bconds
+          call perturbEquilibrium(varraynp%array_var(ieq)%array
+     .                           ,varraynp%array_var(ieq)%bconds
      .                           ,pert(ieq),ieq)
         enddo
 
         time     = 0d0
         inewtime = 1
 
-        varraynp = varrayn
+        !Impose BC on varrayn
+        call imposeBoundaryConditions(varraynp,1,1,1)
 
       else
 
-        call readRestartFile (nx,ny,nz,itime,time,varrayn,varraynp)
+        call readRestartFile(nx,ny,nz,itime,time,varrayn,varraynp)
 
         inewtime = itime+1
 
@@ -401,16 +413,20 @@ c     Begin program
 
       open(unit=urecord,file=recordfile,form='unformatted',status='old')
 
-#if defined(petsc) 
       read (urecord) nx,ilog,ihig
       read (urecord) ny,jlog,jhig
       read (urecord) nz,klog,khig
 
+#if defined(petsc) 
+c$$$      read (urecord) nx,ilog,ihig
+c$$$      read (urecord) ny,jlog,jhig
+c$$$      read (urecord) nz,klog,khig
+
       if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)) then
 #else
-      read (urecord) nx
-      read (urecord) ny
-      read (urecord) nz
+c$$$      read (urecord) nx
+c$$$      read (urecord) ny
+c$$$      read (urecord) nz
 
       if (nx /= nxd.or.ny /= nyd.or.nz /= nzd) then
 #endif
@@ -422,7 +438,7 @@ c     Begin program
 
       call readRecordFile(urecord,itime,time,dt,vn,ierr)
 
-      vnp = vn
+      call equateDerivedType(vnp,vn)
 
       do
         call readRecordFile(urecord,itime,time,dt,vmed,ierr)
@@ -430,8 +446,8 @@ c     Begin program
         if (ierr /= 0) then
           exit
         else
-          vn  = vnp
-          vnp = vmed
+          call equateDerivedType(vn ,vnp)
+          call equateDerivedType(vnp,vmed)
         endif
       enddo
 
@@ -472,6 +488,16 @@ c Local variables
       integer    :: system
       external      system
 
+c Interfaces
+
+      INTERFACE
+        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        type(var_array),pointer :: varray
+        end subroutine imposeBoundaryConditions
+      END INTERFACE
+
 c Begin program
 
 c Set data dumping intervals
@@ -493,39 +519,33 @@ c Set data dumping intervals
 c Open record file
 
       if (.not.restart) then
-        !Initially dump u_n instead of u_0 (w/BCs) for comparison w/ preconditioner solution
-cc        if (debug) then
-cc          write (*,*) 'DIAG -- Dumping graphs for PC testing'
-cc          u_graph = u_n
-cc        else
-        !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
-           u_graph = u_0
-cc        endif
 
-        !Check source (need to uncomment dumpTimeStepPlots call in 3dplot.F)
-         if (chk_src) then
-cc           u_graph = fsrc
-           call mapVectorToStructure(u_graph,fsrc)
-cc           u_graph%array_var(1)%array = u_0%array_var(1)%array !Set rho finite
-cc           call imposeBoundaryConditions(u_graph,1,1,1)
-         endif
+        !Check source/PC debugging
+cc        if (chk_src) then
+cc          call mapVectorToStructure(u_graph,fsrc)
+cc        else
+cccc         if (debug) then
+cccc           write (*,*) 'DIAG -- Dumping graphs for PC testing'
+cccc           u_graph = u_n
+cccc         else
+cc         !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
+cc            call equateDerivedType(u_graph,u_0)
+cccc         endif
+cc        endif
+cc
+cc        !Impose BCs
+cc        call imposeBoundaryConditions(u_graph,1,1,1)
 
         !Open record file
         open(unit=urecord,file=recordfile
      .      ,form='unformatted',status='unknown')
 
-#if defined(petsc)
         write (urecord) nxl,ilog,ihig
         write (urecord) nyl,jlog,jhig
         write (urecord) nzl,klog,khig
-#else
-        write (urecord) nxd,1,nxd
-        write (urecord) nyd,1,nyd
-        write (urecord) nzd,1,nzd
-#endif
 
-cc        call writeRecordFile(urecord,0,0d0,dt,u_n)
-        call writeRecordFile(urecord,0,0d0,dt,u_graph)
+cc        call writeRecordFile(urecord,0,0d0,dt,u_graph)
+        call writeRecordFile(urecord,0,0d0,dt,u_n)
         call writeRecordFile(urecord,0,0d0,dt,u_np)
 
       else
