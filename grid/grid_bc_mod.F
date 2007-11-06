@@ -140,9 +140,8 @@ c     Local variables
       integer    :: i,j,k,ig,jg,kg,jj,ilog,jlog,nyg,jglobal
 
 #if defined(petsc)
-      real(8)    :: garray(nybc*npy,nzbc)
-cc     .             ,local_x(nybc*nzbc)
-cc     .             ,global_x(nybc*nzbc*npy)
+      real(8),allocatable,dimension(:)   :: local_x,global_x
+      real(8),allocatable,dimension(:,:) :: garray
 #endif
 
 c     Begin program
@@ -175,10 +174,23 @@ cc      garray = reshape(global_x, (/ nyg,nzbc /))
 cc      write (*,*) 'DIAG -- scalarSPBC; proc=',my_rank
 cc     .           ,garray
 cc      stop
+
+      allocate(global_x(nyg*nzbc),garray(nyg,nzbc))
       call MPI_Allgather(array(i,1:nybc,1:nzbc)
-     .                         ,nybc*nzbc,MPI_DOUBLE_PRECISION
-     .                  ,garray,nybc*nzbc,MPI_DOUBLE_PRECISION
+     .                           ,nybc*nzbc,MPI_DOUBLE_PRECISION
+     .                  ,global_x,nybc*nzbc,MPI_DOUBLE_PRECISION
      .                  ,MPI_COMM_SP,mpierr)
+      do k=1,npy
+        garray(1+nybc*(k-1):nybc*k,:)
+     .     = reshape(global_x(1+nybc*nzbc*(k-1):nybc*nzbc*k)
+     .              , (/ nybc,nzbc /))
+      enddo
+      deallocate(global_x)
+
+cc      call MPI_Allgather(array(i,1:nybc,1:nzbc)
+cc     .                         ,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,garray,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,MPI_COMM_SP,mpierr)
 #endif
 
 c     Element exchange in poloidal direction
@@ -202,6 +214,10 @@ c     Element exchange in poloidal direction
       enddo
 
 c     End program
+
+#if defined(petsc)
+      deallocate(garray)
+#endif
 
       end subroutine scalarSingularBC
 
@@ -360,7 +376,8 @@ c     Local variables
       integer    :: i,j,k,jj,ilog,jlog,nyg,jglobal
 
 #if defined(petsc)
-      real(8)    :: garray(nybc*npy,nzbc)
+      real(8),allocatable,dimension(:)   :: local_x,global_x
+      real(8),allocatable,dimension(:,:) :: garray
 #endif
 
 c     External
@@ -385,19 +402,36 @@ c     Check that we are domain adjacent to singular point
 c     Parallel Allgather in SP communicator
 
 #if defined(petsc)
+cc      allocate(local_x(nybc*nzbc),global_x(nyg*nzbc),garray(nyg,nzbc))
 cc      local_x = reshape(vec(i,1:nybc,1:nzbc), (/ nybc*nzbc /))
-cc      write (*,*) 'DIAG -- scalarSPBC; proc=',my_rank
-cc     .           ,vec(i,1:nybc,1:nzbc)
-cc      call MPI_Allgather(local_x ,nybc*nzbc,MPI_DOUBLE_PRECISION
-cc     .                  ,global_x,nybc*nzbc,MPI_DOUBLE_PRECISION
-cc     .                  ,MPI_COMM_SP,mpierr)
-cc      garray = reshape(global_x, (/ nyg,nzbc /))
-cc      write (*,*) 'DIAG -- scalarSPBC; proc=',my_rank
-cc     .           ,garray
+      allocate(global_x(nyg*nzbc),garray(nyg,nzbc))
       call MPI_Allgather(vec(i,1:nybc,1:nzbc)
-     .                         ,nybc*nzbc,MPI_DOUBLE_PRECISION
-     .                  ,garray,nybc*nzbc,MPI_DOUBLE_PRECISION
+     .                           ,nybc*nzbc,MPI_DOUBLE_PRECISION
+     .                  ,global_x,nybc*nzbc,MPI_DOUBLE_PRECISION
      .                  ,MPI_COMM_SP,mpierr)
+      do k=1,npy
+        garray(1+nybc*(k-1):nybc*k,:)
+     .     = reshape(global_x(1+nybc*nzbc*(k-1):nybc*nzbc*k)
+     .              , (/ nybc,nzbc /))
+      enddo
+      deallocate(global_x)
+cc      deallocate(local_x,global_x)
+
+cc      allocate(local_x(nybc),global_x(nyg),garray(nyg,nzbc))
+cc      do k=1,nzbc
+cc        local_x = vec(i,1:nybc,k)
+cc        call MPI_Allgather(local_x ,nybc,MPI_DOUBLE_PRECISION
+cc     .                    ,global_x,nybc,MPI_DOUBLE_PRECISION
+cc     .                    ,MPI_COMM_SP,mpierr)
+cc        garray(:,k) = global_x
+cc      enddo
+cc      deallocate(local_x,global_x)
+
+cc      allocate(garray(nyg,nzbc))
+cc      call MPI_Allgather(vec(i,1:nybc,1:nzbc)
+cc     .                         ,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,garray,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,MPI_COMM_SP,mpierr)
 #endif
 
 c     Element exchange in poloidal direction
@@ -464,6 +498,10 @@ c     Element exchange in poloidal direction
       endif
 
 c     End program
+
+#if defined(petsc)
+      deallocate(garray)
+#endif
 
       end subroutine vectorSingularBC
 
@@ -707,6 +745,9 @@ cc     .     .not.do__nothing(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp)
 
 cc      selectFace = .true.
 
+cc      if (.not.selectFace) write (*,*) 'DIAG -- selectFace'
+cc     .                          ,my_rank,dim,loc,ibc, selectFace
+
       end function selectFace
 
 c     setup_petsc_BC
@@ -897,7 +938,7 @@ c     Fill PETSc ghost cells
 
 c     Impose BCs
 
-      do bctype=1,BCLIM             !Enforces a particular order in the BCs (see grid_mod.f)
+      do bctype=1,BCLIM             !Enforces a particular order in the BCs
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1149,7 +1190,7 @@ c     Fill corners
         enddo
       enddo
 
-c     Periodic boundary synchronizing
+c     Periodic boundary synchronizing (need to change periodicBC)
 
 cc      write (*,*) 'DIAG -- imposeBConVector'
 cc      bctype=PER
@@ -1196,50 +1237,50 @@ c     Find covariant components at ALL boundary ghost cells
 
 c       Impose BCs on covariant components (if not Cartesian)
 
-        if (coords /= 'car') then
-
-c         Impose SP BCs
-
-          bctype=SP
-          do dim=1,3
-            do loc=0,1
-              ibc = (1+loc)+2*(dim-1)
-
-              do ivar = 1,ncomp
-                ieq = ivar + fcomp - 1
-
-                if (abs(bcond(ibc,ivar)) == bctype) then
-                  call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
-     .                               ,v_cov,var0,cnv=.false.)
-                endif
-              enddo
-
-            enddo
-          enddo
-
-c         Fill edges
-
-          do dim=1,3
-            do loc=0,1
-              do ivar=1,ncomp
-                call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                        ,dim,loc,bcond(:,ivar))
-              enddo
-            enddo
-          enddo
-
-c         Fill corners
-
-          do dim=1,3
-            do loc=0,1
-              do ivar=1,ncomp
-                call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                          ,dim,loc,bcond(:,ivar))
-              enddo
-            enddo
-          enddo
-
-        endif
+cc        if (coords /= 'car') then
+cc
+ccc         Impose SP BCs
+cc
+cc          bctype=SP
+cc          do dim=1,3
+cc            do loc=0,1
+cc              ibc = (1+loc)+2*(dim-1)
+cc
+cc              do ivar = 1,ncomp
+cc                ieq = ivar + fcomp - 1
+cc
+cc                if (abs(bcond(ibc,ivar)) == bctype) then
+cc                  call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
+cc     .                               ,v_cov,var0,cnv=.false.)
+cc                endif
+cc              enddo
+cc
+cc            enddo
+cc          enddo
+cc
+ccc         Fill edges
+cc
+cc          do dim=1,3
+cc            do loc=0,1
+cc              do ivar=1,ncomp
+cc                call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+cc     .                        ,dim,loc,bcond(:,ivar))
+cc              enddo
+cc            enddo
+cc          enddo
+cc
+ccc         Fill corners
+cc
+cc          do dim=1,3
+cc            do loc=0,1
+cc              do ivar=1,ncomp
+cc                call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+cc     .                          ,dim,loc,bcond(:,ivar))
+cc              enddo
+cc            enddo
+cc          enddo
+cc
+cc        endif
 
       endif
 
@@ -1582,6 +1623,7 @@ c     Begin program
 
       if (np == 1 .or. asm) then
 
+#if 1
       call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
@@ -1609,25 +1651,29 @@ c     Begin program
      .           ,'Boundary '//int2char(ibc)//' non existent')
       end select
 
-cc      write (*,*) 'DIAG -- periodicBC'
-cc
-cc      select case (ibc)
-cc      case (1)                  !x0
-cc       array(0     ,:,:)=array(nxbc,:,:)
-cc      case (2)                  !x1
-cc       array(nxbc+1,:,:)=array(1   ,:,:)
-cc      case (3)                  !y0
-cc       array(:,0     ,:)=array(:,nybc,:)
-cc      case (4)                  !y1
-cc       array(:,nybc+1,:)=array(:,1   ,:)
-cc      case (5)                  !z0
-cc       array(:,:,0     )=array(:,:,nzbc)
-cc      case (6)                  !z1
-cc       array(:,:,nzbc+1)=array(:,:,1   )
-cc      case default
-cc       write (*,*) 'Boundary',ibc,' non existent'
-cc       stop
-cc      end select
+#else
+
+      write (*,*) 'DIAG -- periodicBC'   !Need to change imposeBConVector
+
+      select case (ibc)
+      case (1)                  !x0
+       array(0     ,:,:)=array(nxbc,:,:)
+      case (2)                  !x1
+       array(nxbc+1,:,:)=array(1   ,:,:)
+      case (3)                  !y0
+       array(:,0     ,:)=array(:,nybc,:)
+      case (4)                  !y1
+       array(:,nybc+1,:)=array(:,1   ,:)
+      case (5)                  !z0
+       array(:,:,0     )=array(:,:,nzbc)
+      case (6)                  !z1
+       array(:,:,nzbc+1)=array(:,:,1   )
+      case default
+       write (*,*) 'Boundary',ibc,' non existent'
+       stop
+      end select
+
+#endif
 
       endif
 
@@ -2041,7 +2087,7 @@ c     Begin program
 
 c     Determine boundary limits
 
-      if (.not.selectFace(ibc)) return
+cc      if (.not.selectFace(ibc)) return
 
       call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
@@ -2376,7 +2422,7 @@ c     Begin program
 
 c     Determine boundary limits
 
-      if (.not.selectFace(ibc)) return
+cc      if (.not.selectFace(ibc)) return
 
       call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
