@@ -130,6 +130,10 @@ c     Output per time step
 
         call output(plot)
 
+c     Check for tmax
+
+        if (time.ge.tmax*0.99999)  exit
+
       enddo       !End of time loop
 
 c Close graphics files and create draw*.in files
@@ -138,22 +142,11 @@ c Close graphics files and create draw*.in files
 
       call finalizeDiagnostics
 
-#if !defined(petsc)
-      if (allocated(murecord)) then
-        do ifile=1,nfiles
-          close(murecord(ifile))
-          if (clean) close(musave(ifile))
-        enddo
+      call closeRecordFiles
 
-        deallocate(mrecfile,murecord)
-        if (clean) deallocate(mrecsave,musave)
-      else
-        close(urecord)
-        if (clean) close (usave)
-      endif
-#else
-      close(urecord)
-      if (clean) close (usave)
+      if (clean) call closeCleanFiles
+
+#if defined(petsc)
       call PetscFinalize(mpierr)
 #endif
 
@@ -442,18 +435,28 @@ c Open graphics files
         enddo
 
         allocate(mrecfile(nfiles),murecord(nfiles))
-        if (clean) allocate(mrecsave(nfiles),musave(nfiles))
 
         do ifile=1,nfiles
           murecord(ifile) = urecord+ifile
           mrecfile(ifile) =
      .        trim(recordfile)//'_proc'//trim(int2char(ifile-1))
-          if (clean) then
-            musave  (ifile) = usave + ifile
-            mrecsave(ifile) = mrecfile(ifile)//'_sav'
-          endif
-          write (*,*) '  => ',mrecfile(ifile)
+          write (*,*) '  => ',trim(mrecfile(ifile))
+     $               ,', unit=',murecord(ifile)
         enddo
+
+        if (clean) then
+           write (*,*)
+           write (*,*) 'Creating clean-up graphics files...'
+
+           allocate(mrecsave(nfiles),musave(nfiles))
+
+           do ifile=1,nfiles
+             musave  (ifile) = usave + ifile
+             mrecsave(ifile) = trim(mrecfile(ifile))//'_sav'
+             write (*,*) '  => ',trim(mrecsave(ifile))
+     $                        ,', unit=',musave(ifile)
+          enddo
+        endif
 
         write (*,*) 'Finished!'
         write (*,*)
@@ -463,16 +466,16 @@ c Open graphics files
         nz = 0
         do ifile=1,nfiles
 
-          open(murecord(ifile),file=mrecfile(ifile),form='unformatted'
-     .        ,status='old')
+          open(murecord(ifile),file=trim(mrecfile(ifile))
+     $        ,form='unformatted',status='old')
 
           read (murecord(ifile)) nxl,ilog,ihig
           read (murecord(ifile)) nyl,jlog,jhig
           read (murecord(ifile)) nzl,klog,khig
 
           if (clean) then
-            open(musave(ifile),file=mrecsave(ifile),form='unformatted'
-     .          ,status='unknown')
+            open(musave(ifile),file=trim(mrecsave(ifile))
+     $          ,form='unformatted',status='unknown')
 
             write (musave(ifile)) nxl,ilog,ihig
             write (musave(ifile)) nyl,jlog,jhig
@@ -480,14 +483,6 @@ c Open graphics files
           endif
 
         enddo
-
-        !Consistency check
-cc        if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
-cc          write (*,*) 'Grid size does not agree:',nx,ny,nz
-cc     .                ,'vs.',nxd,nyd,nzd
-cc          write (*,*) 'Aborting opening of multiple files...'
-cc          stop
-cc        endif
 
         !Set global limits (NOT a parallel run)
         ihig = nxd
@@ -515,10 +510,10 @@ cc        endif
 
 #endif
 
-        open(urecord,file=recordfile,form='unformatted'
+        open(urecord,file=trim(recordfile),form='unformatted'
      .      ,status='unknown')
 
-        if (clean) open(usave,file=recordsave,form='unformatted'
+        if (clean) open(usave,file=(recordsave),form='unformatted'
      .      ,status='unknown')
 
 c     Consistency check
@@ -533,22 +528,20 @@ c     Consistency check
           write (usave) nz,klog,khig
         endif
 
+cc        nxl  = grid_params%nlx
+cc        nyl  = grid_params%nly
+cc        nzl  = grid_params%nlz
         nxl  = ihig-ilog+1
         nyl  = jhig-jlog+1
         nzl  = khig-klog+1
 
 #if defined(petsc)
-        if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)
-     .    .and.(my_rank == 0)) then
-          write (*,*) 'Grid meshes do not agree.'
-          write (*,*) 'Aborting...'
-          stop
+        if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)) then
+          call pstop('openGraphicsFiles','Grid meshes do not agree')
         endif
 #else
         if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
-          write (*,*) 'Grid size does not agree'
-          write (*,*) 'Aborting...'
-          stop
+          call pstop('openGraphicsFiles','Grid size does not agree')
         endif
 
       endif
@@ -557,6 +550,114 @@ c     Consistency check
 c End programs
 
       end subroutine openGraphicsFiles
+
+c closeCleanFiles
+c######################################################################
+      subroutine closeCleanFiles
+
+c----------------------------------------------------------------------
+c     Close graphics files
+c----------------------------------------------------------------------
+
+      use parameters
+
+      use constants
+
+      use timeStepping
+
+      use variables
+
+      use graphics
+
+      use iosetup
+
+      use generalPurposeFunctions
+
+      implicit none
+
+c Call variables
+
+c Local variables
+
+c Begin program
+
+      if (my_rank == 0) then
+        write (*,*)
+        write (*,*) 'Closing clean-up files...'
+        write (*,*)
+      endif
+
+#if !defined(petsc)
+      if (allocated(musave)) then
+        do ifile=1,nfiles
+          close(musave(ifile))
+        enddo
+
+        deallocate(mrecsave,musave)
+      else
+        close (usave)
+      endif
+#else
+      close (usave)
+#endif
+        
+c End programs
+
+      end subroutine closeCleanFiles
+
+c closeRecordFiles
+c######################################################################
+      subroutine closeRecordFiles
+
+c----------------------------------------------------------------------
+c     Close graphics files
+c----------------------------------------------------------------------
+
+      use parameters
+
+      use constants
+
+      use timeStepping
+
+      use variables
+
+      use graphics
+
+      use iosetup
+
+      use generalPurposeFunctions
+
+      implicit none
+
+c Call variables
+
+c Local variables
+
+c Begin program
+
+      if (my_rank == 0) then
+        write (*,*)
+        write (*,*) 'Closing record files...'
+        write (*,*)
+      endif
+
+#if !defined(petsc)
+      if (allocated(murecord)) then
+        do ifile=1,nfiles
+          close(murecord(ifile))
+        enddo
+
+        deallocate(mrecfile,murecord)
+      else
+        close(urecord)
+      endif
+#else
+      close(urecord)
+#endif
+
+c End programs
+
+      end subroutine closeRecordFiles
 
 c readTimeStep
 c######################################################################
@@ -585,7 +686,7 @@ c----------------------------------------------------------------------
 c Call variables
 
       type(var_array),pointer :: varray
-      integer         :: ierr
+      integer         :: ierr,system
 
 c Local variables
 
@@ -594,7 +695,6 @@ c Begin program
 #if defined(petsc)
 
       call readRecordFile(urecord,itime,time,dt,varray,ierr)
-
       if (clean) call writeRecordFile(usave,itime,time,dt,varray)
 
 #else
@@ -606,9 +706,12 @@ c Begin program
           if (ierr == -2) cycle !EOF
           if (clean) then
 cc            call writeRecordFile(musave(ifile),itime,time,dt,varray)
-            write (*,*) 'Recycling a parallel run using the serial'
+            write (*,*) 'Recycling a parallel run using the serial code'
             write (*,*) 'does not work yet. Need to fix the serial'
             write (*,*) 'write routine to dump only local domain info'
+            call closeCleanFiles
+            write (*,*) 'Removing clean-up files...'
+            ierr = system('rm *_sav >& /dev/null')
             call pstop('readTimeStep','')
           endif
         enddo
