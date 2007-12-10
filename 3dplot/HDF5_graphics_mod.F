@@ -97,7 +97,7 @@ c     Exit if not in rank=0
 c     Initialize FORTRAN interface
       call h5open_f(hdferr)
 
-c     Create HDF% file
+c     Create HDF5 file
 
       !Create a new file using default properties.
       call h5fcreate_f(hdf5_fname, H5F_ACC_TRUNC_F, file_id, hdferr)
