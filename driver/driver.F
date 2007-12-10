@@ -45,6 +45,13 @@ c Interfaces
         end subroutine imposeBoundaryConditions
       END INTERFACE
 
+      INTERFACE
+        subroutine output(varr)
+        use variable_setup
+        type(var_array),pointer :: varr
+        end subroutine output
+      END INTERFACE
+
 c Begin program
 
 c Allocate global variable
@@ -77,7 +84,7 @@ c Initialize counters
 
 c Initial output
 
-      call output
+      call output(u_np)
 
 c Time loop
 
@@ -140,7 +147,7 @@ c     Update counters (only if timeStep is successful)
 
 c     Output per time step
 
-        call output
+        call output(u_np)
 
 c     Time level data dump
 
