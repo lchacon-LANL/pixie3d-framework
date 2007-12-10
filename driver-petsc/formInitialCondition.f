@@ -180,22 +180,38 @@ c Local variables
 
       integer    ::  ieq,nx,ny,nz
 
+c Interfaces
+
+      INTERFACE
+        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        type(var_array),pointer :: varray
+        end subroutine imposeBoundaryConditions
+      END INTERFACE
+
 c Begin program
 
 c Perturb equilibrium
 
       if (.not.restart) then
 
+        !Equate to varraynp
+        call equateDerivedType(varraynp,varrayn)
+
         do ieq = 1,neqd
-          call perturbEquilibrium(varrayn%array_var(ieq)%array
-     .                           ,abs(varrayn%array_var(ieq)%bconds)
+          call perturbEquilibrium(varraynp%array_var(ieq)%array
+     .                           ,varraynp%array_var(ieq)%bconds
      .                           ,pert(ieq),ieq)
         enddo
 
         time     = 0d0
         inewtime = 1
 
-        varraynp = varrayn
+cc        call equateDerivedType(varraynp,varrayn)
+
+        !Impose BC on varrayn
+        call imposeBoundaryConditions(varraynp,1,1,1)
 
       else
 
@@ -255,7 +271,7 @@ c     Begin program
 
       call readRecordFile(urecord,itime,time,dt,vn,ierr)
 
-      vnp = vn
+      call equateDerivedType(vnp,vn)
 
       do
         call readRecordFile(urecord,itime,time,dt,vmed,ierr)
@@ -263,8 +279,8 @@ c     Begin program
         if (ierr /= 0) then
           exit
         else
-          vn  = vnp
-          vnp = vmed
+          call equateDerivedType(vn ,vnp )
+          call equateDerivedType(vnp,vmed)
         endif
       enddo
 
@@ -443,9 +459,10 @@ c Open record file
 
       if (.not.restart) then
 
-        u_graph = u_0    !Needed for BCs
-cc        u_graph = u_n  !For debugging to compare agains PC solution
-cc        u_graph = fsrc !For debugging source
+cc        call equateDerivedType(u_graph,u_0)
+cc        u_graph = u_0    !Needed for BCs
+cccc        u_graph = u_n  !For debugging to compare agains PC solution
+cccc        u_graph = fsrc !For debugging source
 
         !Open record file
         open(unit=urecord,file=recordfile
@@ -455,8 +472,8 @@ cc        u_graph = fsrc !For debugging source
         write (urecord) nyl,jlog,jhig
         write (urecord) nzl,klog,khig
 
-cc        call writeRecordFile(urecord,0,0d0,dt,u_n)
-        call writeRecordFile(urecord,0,0d0,dt,u_graph)
+        call writeRecordFile(urecord,0,0d0,dt,u_n)
+cc        call writeRecordFile(urecord,0,0d0,dt,u_graph)
         call writeRecordFile(urecord,0,0d0,dt,u_np)
 
       else
