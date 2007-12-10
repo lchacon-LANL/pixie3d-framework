@@ -48,6 +48,13 @@ c Interfaces
         end subroutine postProcessSol
       END INTERFACE
 
+      INTERFACE
+        subroutine output(varr)
+        use variable_setup
+        type(var_array),pointer :: varr
+        end subroutine output
+      END INTERFACE
+
 c Begin program
 
 c Find local limits
@@ -58,7 +65,7 @@ c Find local limits
      $                            ,imaxgcl,jmaxgcl,kmaxgcl,1,1,1)
 
 c Store u_n -> u_nm (for 3 level method)
-      
+
       call equateDerivedType(u_nm,u_n)
 
 c Unpack petsc array x -> u_n
@@ -93,7 +100,7 @@ c Output per time step
       itgmres = gmits
       itnewt  = nwits
 
-      call output
+      call output(u_n)
 
 c Return u_n in x if postprocessed
 
