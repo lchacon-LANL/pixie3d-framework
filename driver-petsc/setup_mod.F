@@ -791,7 +791,7 @@ c ######################################################################
         integer       ,allocatable,dimension(:) :: murecord,musave
         character*(50),allocatable,dimension(:) :: mrecfile,mrecsave
 
-        logical        :: debug,clean=.false.
+        logical        :: debug,clean=.false.,tst_flg=.false.
 
       contains
 
