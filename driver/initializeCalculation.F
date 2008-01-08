@@ -67,6 +67,8 @@ c Read PETSc runtime options
      .                       ,petsc_flg,ierr)
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
      .                       ,petsc_flg,ierr)
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-test',tst_flg
+     .                       ,petsc_flg,ierr)
 #endif
 
 c Check for autoinitializing parameters

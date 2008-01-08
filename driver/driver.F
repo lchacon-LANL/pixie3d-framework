@@ -173,7 +173,7 @@ c Final statistics
       call PetscGetTime(time3,ierr)
       call PetscGetCPUTime(time4,ierr)
 
-      if (my_rank == 0) then
+      if (my_rank == 0 .and. .not.(tst_flg)) then
         write (*,*) 'CPU statistics'
         write (*,*)
         write (*,*) 'Elapsed time =', time3-time1
