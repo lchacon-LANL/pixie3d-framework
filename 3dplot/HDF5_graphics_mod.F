@@ -105,52 +105,59 @@ c     Create HDF5 file
       !Terminate access to the file.
       call h5fclose_f(file_id, hdferr)
 
-c     Create VISIT expressions
+      !Open .h5 file using default properties
+      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr
+     $              ,H5P_DEFAULT_F)
+
+c     Create VISIT expressions (to identify vectors)
 
       call selectExpressions
 
       slth = len(trim(vexp))
 
-      !Open .h5 file using default properties
-      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
-     $               H5P_DEFAULT_F)
+      if (slth > 0) then
 
-      !Create dataspace
-      call h5screate_simple_f(VEXP_RANK,vexp_dim,dataspace_id,hdferr)
+        !Create dataspace
+        call h5screate_simple_f(VEXP_RANK,vexp_dim,dataspace_id,hdferr)
 
-      !Create datatype
-      call h5tcopy_f(H5T_NATIVE_CHARACTER,datatype_id,hdferr)
-      call h5tset_size_f(datatype_id,slth,hdferr)
-      call h5tset_strpad_f(datatype_id,H5T_STR_NULLTERM_F,hdferr)
+        !Create datatype
+        call h5tcopy_f(H5T_NATIVE_CHARACTER,datatype_id,hdferr)
+        call h5tset_size_f(datatype_id,slth,hdferr)
+        call h5tset_strpad_f(datatype_id,H5T_STR_NULLTERM_F,hdferr)
 
-      !Create dataset
-      call h5dcreate_f(file_id,'/visit_expressions',datatype_id
-     .                ,dataspace_id,dataset_id,hdferr,H5P_DEFAULT_F)
+        !Create dataset
+        call h5dcreate_f(file_id,'/visit_expressions',datatype_id
+     .                  ,dataspace_id,dataset_id,hdferr,H5P_DEFAULT_F)
 
-      !Write to dataset
-      call h5dwrite_f(dataset_id,datatype_id,trim(vexp),vexp_dim,hdferr)
+        !Write to dataset
+        call h5dwrite_f(dataset_id,datatype_id,trim(vexp),vexp_dim
+     .                 ,hdferr)
 
-      !Close dataset
-      call h5dclose_f(dataset_id,hdferr)
+        !Close dataset
+        call h5dclose_f(dataset_id,hdferr)
 
-      !Close datatype
-      call h5tclose_f(datatype_id,hdferr)
+        !Close datatype
+        call h5tclose_f(datatype_id,hdferr)
 
-      !Close dataspace
-      call h5sclose_f(dataspace_id,hdferr)
+        !Close dataspace
+        call h5sclose_f(dataspace_id,hdferr)
 
-      !Create groups for coordinate data
+      endif
+
+c     Create groups for coordinate data
+
       !Cell center positions
       call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr,0)
+
       call h5gclose_f(group_id,hdferr)
       !Node positions
       call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr,0)
       call h5gclose_f(group_id,hdferr)
 
-      !Close .h5 file
-      call h5fclose_f(file_id, hdferr)
-
 c     Close fortran interface
+
+      call h5fclose_f(file_id, hdferr)   !Close .h5 file
+
       call h5close_f(hdferr)
 
 c     End program
@@ -161,7 +168,16 @@ c     selectExpressions
 c     #################################################################
       subroutine selectExpressions
 
-      integer      :: igrp,ivar,ivp,ivm
+      implicit none
+
+c     -----------------------------------------------------------------
+c     This routine identifies variables that are vector components,
+c     and creates VISIT expressions that allows visit to recognize
+c     them as vectors.
+c     -----------------------------------------------------------------
+
+      integer(4)   :: igrp,ivar,ivp,ivm
+
       character(20) :: str1,str2,str3
       logical      :: first
 
