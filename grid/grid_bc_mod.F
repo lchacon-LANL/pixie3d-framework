@@ -1729,60 +1729,102 @@ c     Extrapolate
      .                       ,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                       ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
+        if (.not.symm) then
+          
+          do k=kmin,kmax
+            do j=jmin,jmax
+              do i=imin,imax
 
-        do i=imin,imax
-          do j=jmin,jmax
-            do k=kmin,kmax
+                call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+
+                select case (ibc)
+                case (1)
+
+                  rhs(j,k) = 
+     .              quad_int(xx(ig-1)+dxh(ig-1),xx(ig),xx(ig+1),xx(ig+2)
+     .                       ,array0(i-1,j,k),array(i,j,k)
+     .                       ,array (i+1,j,k),array(i+2,j,k)
+     .                       ,xx(ig-1),order )
+                case (2)
+
+                  rhs(j,k) =
+     .              quad_int(xx(ig+1)-dxh(ig+1),xx(ig),xx(ig-1),xx(ig-2)
+     .                        ,array0(i+1,j,k),array(i,j,k)
+     .                        ,array (i-1,j,k),array(i-2,j,k)
+     .                        ,xx(ig+1),order )
+                case (3)
+
+                  rhs(i,k) =
+     .              quad_int(yy(jg-1)+dyh(jg-1),yy(jg),yy(jg+1),yy(jg+2)
+     .                        ,array0(i,j-1,k),array(i,j,k)
+     .                        ,array (i,j+1,k),array(i,j+2,k)
+     .                        ,yy(jg-1),order )
+                case (4)
+
+                  rhs(i,k) =
+     .              quad_int(yy(jg+1)-dyh(jg+1),yy(jg),yy(jg-1),yy(jg-2)
+     .                        ,array0(i,j+1,k),array(i,j,k)
+     .                        ,array (i,j-1,k),array(i,j-2,k)
+     .                        ,yy(jg+1),order )
+                case (5)
+
+                  rhs(i,j) =
+     .              quad_int(zz(kg-1)+dzh(kg-1),zz(kg),zz(kg+1),zz(kg+2)
+     .                        ,array0(i,j,k-1),array(i,j,k)
+     .                        ,array (i,j,k+1),array(i,j,k+2)
+     .                        ,zz(kg-1),order )
+                case (6)
+
+                  rhs(i,j) =
+     .              quad_int(zz(kg+1)-dzh(kg+1),zz(kg),zz(kg-1),zz(kg-2)
+     .                        ,array0(i,j,k+1),array(i,j,k)
+     .                        ,array (i,j,k-1),array(i,j,k-2)
+     .                        ,zz(kg+1),order )
+                end select
+              enddo
+            enddo
+          enddo
+
+        else
+
+          do k=kmin,kmax
+            do j=jmin,jmax
+              do i=imin,imax
 
               call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
 
               select case (ibc)
               case (1)
 
-                rhs(j,k) = 
-     .             quad_int(xx(ig-1)+dxh(ig-1),xx(ig),xx(ig+1),xx(ig+2)
-     .                     ,array0(i-1,j,k),array(i,j,k)
-     .                     ,array (i+1,j,k),array(i+2,j,k)
-     .                     ,xx(ig-1),order )
+                rhs(j,k) = -array(i+1,j,k)
+
               case (2)
 
-                rhs(j,k) =
-     .              quad_int(xx(ig+1)-dxh(ig+1),xx(ig),xx(ig-1),xx(ig-2)
-     .                      ,array0(i+1,j,k),array(i,j,k)
-     .                      ,array (i-1,j,k),array(i-2,j,k)
-     .                      ,xx(ig+1),order )
+                rhs(j,k) = -array(i-1,j,k)
+
               case (3)
 
-                rhs(i,k) =
-     .              quad_int(yy(jg-1)+dyh(jg-1),yy(jg),yy(jg+1),yy(jg+2)
-     .                      ,array0(i,j-1,k),array(i,j,k)
-     .                      ,array (i,j+1,k),array(i,j+2,k)
-     .                      ,yy(jg-1),order )
+                rhs(i,k) = -array(i,j+1,k)
+
               case (4)
 
-                rhs(i,k) =
-     .              quad_int(yy(jg+1)-dyh(jg+1),yy(jg),yy(jg-1),yy(jg-2)
-     .                      ,array0(i,j+1,k),array(i,j,k)
-     .                      ,array (i,j-1,k),array(i,j-2,k)
-     .                      ,yy(jg+1),order )
+                rhs(i,k) = -array(i,j-1,k)
+
               case (5)
 
-                rhs(i,j) =
-     .              quad_int(zz(kg-1)+dzh(kg-1),zz(kg),zz(kg+1),zz(kg+2)
-     .                      ,array0(i,j,k-1),array(i,j,k)
-     .                      ,array (i,j,k+1),array(i,j,k+2)
-     .                      ,zz(kg-1),order )
+                rhs(i,j) = -array(i,j,k+1)
+
               case (6)
 
-                rhs(i,j) =
-     .              quad_int(zz(kg+1)-dzh(kg+1),zz(kg),zz(kg-1),zz(kg-2)
-     .                      ,array0(i,j,k+1),array(i,j,k)
-     .                      ,array (i,j,k-1),array(i,j,k-2)
-     .                      ,zz(kg+1),order )
+                rhs(i,j) = -array(i,j,k-1)
+
               end select
+
+              enddo
             enddo
           enddo
-        enddo
+
+        endif
 
 c       Update BC ghost nodes
 
