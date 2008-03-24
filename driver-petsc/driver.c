@@ -413,6 +413,18 @@ int main(int argc, char **argv)
 
     ierr = SNESGetIterationNumber(snes,&user.snes_its)	    			;CHKERRQ(ierr);
 
+    /* Check Newton convergence (for time stepping) */
+    user.ierr = 0;
+    if (user.snes_its >= user.indata.maxitnwt) {
+      user.ierr = 1;   /* Reject solution */
+      ierr = VecCopy(user.xold,x)                     	    			;CHKERRQ(ierr);
+      steps -= 1;
+      time  -= user.indata.dt; 
+    } else {
+      if ( user.snes_its > user.indata.maxitnwt/2) {
+	user.ierr = 2;   /* Warn user */
+      }
+    }
   }
   
   /* Begin profiling second stage */
@@ -711,75 +723,75 @@ int ProcessOldSolution(SNES snes,Vec X,void *ptr)
 
   PetscFunctionBegin;
 
-  /*
-   * Form old time fluxes
+  /* 
+   * Postprocess solution (if not rejected by SNES)
    */
 
-  /*ierr = EvaluateFunction(snes, X, user->fold, (void*)user);CHKERRQ(ierr);*/
+  if (user->ierr != 1) {
+    /*
+     * Scatter ghost points to local vector,using the 2-step process
+     * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
+     * By placing code between these two statements, computations can be
+     * done while messages are in transition.
+     */
+  
+    ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
+  
+    ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+    ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
+  
+    /*
+     * Get pointers to vector data
+     */
+    ierr = DAVecGetArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
+  
+    /*
+     * Get local grid boundaries
+     */
+    ierr = DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);CHKERRQ(ierr);
+  
+    zs = zs + 1;
+    ys = ys + 1;
+    xs = xs + 1;
+  
+    ze = zs + zm - 1; 
+    ye = ys + ym - 1; 
+    xe = xs + xm - 1;
+  
+    /*
+     * Obtain ghost cell boundaries
+     */
+    ierr = DAGetGhostCorners(user->da,&xs_g,&ys_g,&zs_g,&xm_g,&ym_g,&zm_g);CHKERRQ(ierr);
 
-  /*
-   * Scatter ghost points to local vector,using the 2-step process
-   * DAGlobalToLocalBegin(),DAGlobalToLocalEnd().
-   * By placing code between these two statements, computations can be
-   * done while messages are in transition.
-   */
-  
-  ierr = DAGetLocalVector(user->da,&localX);CHKERRQ(ierr);
-  
-  ierr = DAGlobalToLocalBegin(user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  ierr = DAGlobalToLocalEnd  (user->da,X,INSERT_VALUES,localX);CHKERRQ(ierr);
-  
-  /*
-   * Get pointers to vector data
-   */
-  ierr = DAVecGetArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
-  
-  /*
-   * Get local grid boundaries
-   */
-  ierr = DAGetCorners(user->da, &xs, &ys, &zs, &xm, &ym, &zm);CHKERRQ(ierr);
-  
-  zs = zs + 1;
-  ys = ys + 1;
-  xs = xs + 1;
-  
-  ze = zs + zm - 1; 
-  ye = ys + ym - 1; 
-  xe = xs + xm - 1;
-  
-  /*
-   * Obtain ghost cell boundaries
-   */
-  ierr = DAGetGhostCorners(user->da,&xs_g,&ys_g,&zs_g,&xm_g,&ym_g,&zm_g);CHKERRQ(ierr);
+    zs_g = zs_g + 1;
+    ys_g = ys_g + 1;
+    xs_g = xs_g + 1;
 
-  zs_g = zs_g + 1;
-  ys_g = ys_g + 1;
-  xs_g = xs_g + 1;
+    ze_g = zs_g + zm_g - 1;
+    ye_g = ys_g + ym_g - 1;
+    xe_g = xs_g + xm_g - 1;
 
-  ze_g = zs_g + zm_g - 1;
-  ye_g = ys_g + ym_g - 1;
-  xe_g = xs_g + xm_g - 1;
-
-  /*
-   * Postprocess data
-   */
+    /*
+     * Postprocess data
+     */
 
 #ifdef absoft
-  FORTRAN_NAME(PROCESSOLDSOLUTION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+    FORTRAN_NAME(PROCESSOLDSOLUTION)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
 				   ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
 				   ,&user->ksp_its,&user->snes_its);
 #else
-  FORTRAN_NAME(processoldsolution)(&(xvec[zs_g-1][ys_g-1][xs_g-1])\
+    FORTRAN_NAME(processoldsolution)(&(xvec[zs_g-1][ys_g-1][xs_g-1])	\
 				   ,&xs_g,&xe_g,&ys_g,&ye_g,&zs_g,&ze_g\
 				   ,&user->ksp_its,&user->snes_its);
 #endif
 
-  /* 
-   * Restore vectors
-   */
-  ierr = DAVecRestoreArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
-  ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
-  ierr = DALocalToGlobal(user->da,localX,INSERT_VALUES,X);CHKERRQ(ierr);
+    /* 
+     * Restore vectors
+     */
+    ierr = DAVecRestoreArray(user->da, localX, (void**)&xvec);CHKERRQ(ierr);
+    ierr = DARestoreLocalVector(user->da,&localX);CHKERRQ(ierr);
+    ierr = DALocalToGlobal(user->da,localX,INSERT_VALUES,X);CHKERRQ(ierr);
+  }
 
   /*
    * Correct time step
