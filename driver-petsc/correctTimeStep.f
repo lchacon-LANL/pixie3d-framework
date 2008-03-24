@@ -1,10 +1,8 @@
-c correctTimeStep
+c petsccorrectTimeStep
 c ######################################################################
       subroutine petscCorrectTimeStep(dn,dnh,dnp,ierr,dt_to_c)
 
       use timeStepping
-
-      use counters
 
       implicit none
 
@@ -17,7 +15,7 @@ c Local variables
 
 c Begin program
 
-      call correctTimeStep(dn,dnh,dnp,ierr,dt_to_c)
+      call correctTimeStepPetsc(dn,dnh,dnp,ierr,dt_to_c)
 
 c End program
 

@@ -265,9 +265,9 @@ c     Begin program
 
       contains
 
-c     correctTimeStep
+c     correctTimeStepPetsc
 c     ######################################################################
-      subroutine correctTimeStep(dn,dnh,dnp,ierr,dt_to_c)
+      subroutine correctTimeStepPetsc(dn,dnh,dnp,ierr,dt_to_c)
 
       use counters
 
@@ -340,7 +340,7 @@ c     Begin program
 
       end subroutine calculate_gammat
 
-      end subroutine correctTimeStep
+      end subroutine correctTimeStepPetsc
 
 #endif
 
@@ -455,8 +455,8 @@ c     #######################################################################
           if (dt < 1d-3*dtbase) then
             call pstop('adapt_dt','Time step too small')
           endif
-          if (ierr.eq.2) write (*,240)
-          write (*,400) dt
+          if (my_rank == 0 .and. ierr == 2) write (*,240)
+          if (my_rank == 0) write (*,400) dt
         else
           if (sm_flag == 1 .and. itm.le.sm_pass+1) then
             dt = dtbase/2.
