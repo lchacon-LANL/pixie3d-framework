@@ -547,7 +547,8 @@ cc        call imposeBoundaryConditions(u_graph,1,1,1)
         write (urecord) nzl,klog,khig
 
 cc        call writeRecordFile(urecord,0,0d0,dt,u_graph)
-        call writeRecordFile(urecord,0,0d0,dt,u_n)
+cc        call writeRecordFile(urecord,0,0d0,dt,u_n)
+        call writeRecordFile(urecord,0,0d0,dt,u_0)
         call writeRecordFile(urecord,0,0d0,dt,u_np)
 
       else
