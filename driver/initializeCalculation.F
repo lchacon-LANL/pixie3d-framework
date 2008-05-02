@@ -488,7 +488,9 @@ c Local variables
       integer    :: ierr
 
       integer    :: system
+#if !defined(g95)
       external      system
+#endif
 
 c Interfaces
 
