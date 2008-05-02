@@ -1580,7 +1580,6 @@ c     -----------------------------------------------------------------
 c     Input variables
 
         integer    :: igc
-cc        type(MG_grid_metrics),pointer :: g_metric
         type(grid_mg_def),pointer :: gparams
 
 c     Local variables
@@ -1590,6 +1589,7 @@ c     Local variables
 
 c     Begin program
 
+cc        write (*,*) 'DIAG -- coarsenGridMetrics'
         call findGridMetrics(gparams,igc)
         return
 
@@ -1619,9 +1619,6 @@ c         Coarsen volumes and jacobians (needed for coarsening all else)
      .                ,.false.)
 
           !Calculate jacobian
-cc          do kc = 0,nzc+1
-cc            do jc = 0,nyc+1
-cc              do ic = 0,nxc+1
           do kc = 1,nzc
             do jc = 1,nyc
               do ic = 1,nxc
@@ -1632,16 +1629,12 @@ cc              do ic = 0,nxc+1
      .                                    /(gparams%dxh(icg)
      .                                     *gparams%dyh(jcg)
      .                                     *gparams%dzh(kcg))
-cc                write (*,*) 'Grid=',igc,'i,j,k=',ic,jc,kc
-cc     .               ,' jac=',gparams%gmetric%grid(igc)%jac (ic,jc,kc)
-cc     .               ,' vol=',gparams%gmetric%grid(igc)%dvol(ic,jc,kc)
-cc     .               ,' dxh=',gparams%dxh(icg)
               enddo
             enddo
           enddo
 
           call map_bc(igc,nxc,nyc,nzc,gparams%gmetric%grid(igc)%jac
-     .               ,IBC=EXT,iorder=1)
+     .               ,IBC=EXT)
 
 c         Coarsen everything else (with ghost cells)
 
@@ -1650,8 +1643,12 @@ c         Coarsen everything else (with ghost cells)
             do m=l,3
               call coarsen(igc
      .           ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%gsup(:,:,:,l,m)
+     .                       *gparams%gmetric%grid(igf)%jac
      .           ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%gsup(:,:,:,l,m)
      .           ,.true.)
+              gparams%gmetric%grid(igc)%gsup(:,:,:,l,m) =
+     .             gparams%gmetric%grid(igc)%gsup(:,:,:,l,m)
+     .            /gparams%gmetric%grid(igc)%jac
               gparams%gmetric%grid(igc)%gsup(:,:,:,m,l)
      .             = gparams%gmetric%grid(igc)%gsup(:,:,:,l,m) !Symmetry
             enddo
@@ -1662,8 +1659,12 @@ c         Coarsen everything else (with ghost cells)
             do m=l,3
               call coarsen(igc
      .           ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%gsub(:,:,:,l,m)
+     .                       *gparams%gmetric%grid(igf)%jac
      .           ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%gsub(:,:,:,l,m)
      .           ,.true.)
+              gparams%gmetric%grid(igc)%gsub(:,:,:,l,m) =
+     .             gparams%gmetric%grid(igc)%gsub(:,:,:,l,m)
+     .            /gparams%gmetric%grid(igc)%jac
               gparams%gmetric%grid(igc)%gsub(:,:,:,m,l)
      .             = gparams%gmetric%grid(igc)%gsub(:,:,:,l,m) !Symmetry
             enddo
@@ -1675,8 +1676,12 @@ c         Coarsen everything else (with ghost cells)
               do l=1,3
                 call coarsen(igc
      .         ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%Gamma(:,:,:,l,m,n)
+     .                     *gparams%gmetric%grid(igf)%jac
      .         ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n)
      .         ,.true.)
+                gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n) =
+     .             gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n)
+     .            /gparams%gmetric%grid(igc)%jac
               enddo
               gparams%gmetric%grid(igc)%Gamma(:,:,:,:,n,m)
      .             = gparams%gmetric%grid(igc)%Gamma(:,:,:,:,m,n) !Symmetry
@@ -1688,8 +1693,12 @@ c         Coarsen everything else (with ghost cells)
             do m=1,3
               call coarsen(igc
      .             ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%cov(:,:,:,l,m)
+     .                     *gparams%gmetric%grid(igf)%jac
      .             ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%cov(:,:,:,l,m)
      .             ,.true.)
+              gparams%gmetric%grid(igf)%cov(:,:,:,l,m) =
+     .              gparams%gmetric%grid(igf)%cov(:,:,:,l,m)
+     .             /gparams%gmetric%grid(igf)%jac
             enddo
           enddo
 
@@ -1698,8 +1707,12 @@ c         Coarsen everything else (with ghost cells)
             do m=1,3
               call coarsen(igc
      .             ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%cnv(:,:,:,l,m)
+     .                     *gparams%gmetric%grid(igf)%jac
      .             ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%cnv(:,:,:,l,m)
      .             ,.true.)
+              gparams%gmetric%grid(igf)%cnv(:,:,:,l,m) =
+     .              gparams%gmetric%grid(igf)%cnv(:,:,:,l,m)
+     .             /gparams%gmetric%grid(igf)%jac
             enddo
           enddo
 
@@ -1774,7 +1787,7 @@ c     Begin program
 
 c     Fill ghost cells by 2nd-order extrapolation
 
-        call map_bc(igc,nxc,nyc,nzc,arrayc,IBC=EXT,iorder=1)
+        call map_bc(igc,nxc,nyc,nzc,arrayc,IBC=EXT)
 
       end subroutine coarsen
 
@@ -1874,24 +1887,18 @@ c     Begin program
         if (PRESENT(iorder)) then
           order = iorder
         else
-          order = 1
+          order = 2
         endif
 
         array0 = array
 
 c     Set boundary conditions to IBC
 
-        bcnd = bcond
+        bcnd = iibc
 
-cc        if (iibc == EQU) then
-          where(bcond /= PER) 
-            bcnd = iibc
-          elsewhere
-            bcnd = DEF
-          endwhere
-cc        else
-cc          where(bcond == DEF) bcnd = iibc
-cc        endif
+cc        bcnd = bcond
+cc
+cc        where(bcond /= PER) bcnd = iibc  !Do extrapolation except at periodic BCs
 
 c     Impose BCs
 
@@ -1901,7 +1908,7 @@ c     Impose BCs
 c diag ******
 cc        write (*,*) nxl,nyl,nzl
 cc        write (*,*) 'bcnd',bcnd
-cc        do j=1,nyl
+cc        do j=0,nyl+1
 cc          write (*,*) 'before, j=',j,array0(:,j,1)
 cc          write (*,*) 'after , j=',j,array (:,j,1)
 cc          write (*,*)
@@ -2121,7 +2128,7 @@ c     Output
       write (*,*) '**********************************'
       write (*,*)
 
-cc      dump_diff = anal_map.and.(.not.numerical_grid)
+cc      dump_diff = .false.
       dump_diff = anal_map.and.numerical_grid
 
       if (dump_diff) then
