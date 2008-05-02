@@ -2820,7 +2820,9 @@ c     Identify directions for extrapolation.
           ibcl(3) = 6
         endif
 
-      else !Edge
+      elseif (   (flg(1) .and. flg(2))
+     $       .or.(flg(1) .and. flg(3))
+     $       .or.(flg(2) .and. flg(3))) then !Edge
 
         select case(ibc)
         case (1,2)
@@ -2846,6 +2848,17 @@ c     Identify directions for extrapolation.
           endif
         end select
 
+      else !Face
+
+        select case(ibc)
+        case (1,2)
+          ibcl(1) = ibc
+        case (3,4)
+          ibcl(2) = ibc
+        case (5,6)
+          ibcl(3) = ibc
+        end select
+
       endif
         
       !Treat special boundaries
@@ -2856,7 +2869,7 @@ c     Identify directions for extrapolation.
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
-        select_bc(i) =    (bcSP(ibc=i_bc)    )
+        select_bc(i) =    (bcSP(ibc=i_bc) .and. bcond(i_bc)==SP)
 cc     .                .or.(bcond(i_bc) == EQU)  !Removed 12/13/06
       enddo
 
