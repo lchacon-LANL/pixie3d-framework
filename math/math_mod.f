@@ -99,23 +99,31 @@ c     ##########################################################
       function solve_quadratic(a,b,c) result(root)
 
 c     ----------------------------------------------------------
-c     Solves for maximum of roots of cubic polynomial:
-c        a + b x +c x^2 = 0
+c     Solves for maximum of roots of quadratic polynomial:
+c        a x^2 + b x + c = 0
 c     ----------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-      real(8)   :: root(2),a,b,c
+      complex(16) :: root(2),a,b,c
 
 c     Local variables
 
 c     Begin program
 
-      root(1) = (-b + sqrt(b**2-4*a*c))/2./a
+      if (a == cmplx(0d0,0d0)) then
 
-      root(2) = (-b - sqrt(b**2-4*a*c))/2./a
+        root(1) = -c/b
+        root(2) = 0d0
+
+      else
+
+        root(1) = (-b + sqrt(b**2-4*a*c))/2./a
+        root(2) = (-b - sqrt(b**2-4*a*c))/2./a
+
+      endif
 
 c     End program
 
@@ -126,56 +134,59 @@ c     ##########################################################
       function solve_cubic(a,b,c,d) result(root)
 
 c     ----------------------------------------------------------
-c     Solves for maximum of roots of cubic polynomial:
-c        a + b x +c x^2 + d x^3 = 0
+c     Solves for  roots of cubic polynomial:
+c        a x^3 + b x^2 + c x + d = 0
 c     ----------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-      real(8)   :: root(3),a,b,c,d
+      complex(16)   :: root(3),a,b,c,d
 
 c     Local variables
 
+      complex(16):: S,T,R,Q,Det,a2,a1,a0
+
 c     Begin program
 
-      root(1) =
-     -     -c/(3.*d) - (2**0.3333333333333333*(-c**2 + 3*b*d))/
-     -   (3.*d*(-2*c**3 + 9*b*c*d - 27*a*d**2 + 
-     -        Sqrt(4*(-c**2 + 3*b*d)**3 + 
-     -          (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
-     -      0.3333333333333333) + 
-     -  (-2*c**3 + 9*b*c*d - 27*a*d**2 + 
-     -      Sqrt(4*(-c**2 + 3*b*d)**3 + 
-     -        (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
-     -    0.3333333333333333/(3.*2**0.3333333333333333*d)
+c     Special case of a=0
 
-      root(2) =
-     -     -c/(3.*d) + ((1 + (0,1)*Sqrt(3.))*(-c**2 + 3*b*d))/
-     -   (3.*2**0.6666666666666666*d*
-     -     (-2*c**3 + 9*b*c*d - 27*a*d**2 + 
-     -        Sqrt(4*(-c**2 + 3*b*d)**3 + 
-     -          (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
-     -      0.3333333333333333) - 
-     -  ((1 - (0,1)*Sqrt(3.))*
-     -     (-2*c**3 + 9*b*c*d - 27*a*d**2 + 
-     -        Sqrt(4*(-c**2 + 3*b*d)**3 + 
-     -          (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
-     -      0.3333333333333333)/(6.*2**0.3333333333333333*d)
+      if (a == cmplx(0d0,0d0)) then
+        root(1:2) = solve_quadratic(b,c,d)
+        root(3) = 0d0
+        return
+      endif
 
-      root(3) =
-     .     -c/(3.*d) + ((1 - (0,1)*Sqrt(3.))*(-c**2 + 3*b*d))/
-     -   (3.*2**0.6666666666666666*d*
-     -     (-2*c**3 + 9*b*c*d - 27*a*d**2 + 
-     -        Sqrt(4*(-c**2 + 3*b*d)**3 + 
-     -          (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
-     -      0.3333333333333333) - 
-     -  ((1 + (0,1)*Sqrt(3.))*
-     -     (-2*c**3 + 9*b*c*d - 27*a*d**2 + 
-     -        Sqrt(4*(-c**2 + 3*b*d)**3 + 
-     -          (-2*c**3 + 9*b*c*d - 27*a*d**2)**2))**
-     -      0.3333333333333333)/(6.*2**0.3333333333333333*d)
+c     Define auxiliary quantities
+      
+      a2=b/a
+      a1=c/a
+      a0=d/a
+      Q=(3*a1-a2**2)/9.
+      R=(9*a2*a1-27*a0-2*a2**3)/54.
+      Det=Q**3+R**2
+      S=R+sqrt(Det)
+      T=R-sqrt(Det)
+
+c     Need to make sure that (-8)^(1/3)=-2
+
+      if (aImag(S)==0 .and. Real(S)<0) then
+         S=-(abs(S))**(1/3.)
+      else
+         S=S**(1/3.)
+      endif
+      if (aImag(T)==0 .and. Real(T)<0) then
+         T=-(abs(T))**(1/3.)
+      else
+         T=T**(1/3.)
+      endif
+
+c     Find roots
+
+      root(1)=-a2/3.+(S+T)
+      root(2)=-a2/3.-(S+T-sqrt(3.)*(0.,1.)*(S-T))/2.
+      root(3)=-a2/3.-(S+T+sqrt(3.)*(0.,1.)*(S-T))/2.
 
 c     End program
 
