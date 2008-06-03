@@ -201,40 +201,36 @@ c     Variables in call
 c     Local variables
 
       integer    :: jm,jp,jj
+      real(8)    :: den1,den2,den3
 
 c     Begin program
 
-      if (j == nx) j = nx -1
-      if (j == 1 ) j = 2
+      j = max(2,min(j,nx-1))  !Extrapolation on both sides
 
       jm = j-1
       jj = j
       jp = j+1
 
-      if (derv == 0) then
-        q_int = 
-     .   vec(j) *(x1 -x(jm))*(x1 - x(jp))/(x(jj)-x(jm))/(x(jj)-x(jp))
-     . + vec(jp)*(x1 -x(jm))*(x1 - x(jj))/(x(jp)-x(jm))/(x(jp)-x(jj))
-     . + vec(jm)*(x1 -x(jj))*(x1 - x(jp))/(x(jm)-x(jj))/(x(jm)-x(jp))
-      elseif (derv == 1) then
-        q_int = 
-     .   vec(j) *(x1 -x(jm))/(x(jj)-x(jm))/(x(jj)-x(jp))
-     . + vec(j) *(x1 -x(jp))/(x(jj)-x(jm))/(x(jj)-x(jp))
-     . + vec(jp)*(x1 -x(jm))/(x(jp)-x(jm))/(x(jp)-x(jj))
-     . + vec(jp)*(x1 -x(jj))/(x(jp)-x(jm))/(x(jp)-x(jj))
-     . + vec(jm)*(x1 -x(jj))/(x(jm)-x(jj))/(x(jm)-x(jp))
-     . + vec(jm)*(x1 -x(jp))/(x(jm)-x(jj))/(x(jm)-x(jp))
-      elseif (derv == 2) then
-        q_int = 
-     .   vec(j) /(x(jj)-x(jm))/(x(jj)-x(jp))
-     . + vec(j) /(x(jj)-x(jm))/(x(jj)-x(jp))
-     . + vec(jp)/(x(jp)-x(jm))/(x(jp)-x(jj))
-     . + vec(jp)/(x(jp)-x(jm))/(x(jp)-x(jj))
-     . + vec(jm)/(x(jm)-x(jj))/(x(jm)-x(jp))
-     . + vec(jm)/(x(jm)-x(jj))/(x(jm)-x(jp))
-      else
+      den1 = 1./((x(jj)-x(jm))*(x(jj)-x(jp)))
+      den2 = 1./((x(jp)-x(jm))*(x(jp)-x(jj)))
+      den3 = 1./((x(jm)-x(jj))*(x(jm)-x(jp)))
+
+      select case(derv)
+      case(0)
+        q_int =   vec(j )*den1*(x1 -x(jm))*(x1 - x(jp))
+     .          + vec(jp)*den2*(x1 -x(jm))*(x1 - x(jj))
+     .          + vec(jm)*den3*(x1 -x(jj))*(x1 - x(jp))
+      case(1)
+        q_int =   vec(j )*den1*((x1 -x(jm)) + (x1 -x(jp)))
+     .          + vec(jp)*den2*((x1 -x(jm)) + (x1 -x(jj)))
+     .          + vec(jm)*den3*((x1 -x(jj)) + (x1 -x(jp)))
+      case(2)
+        q_int = 2*( vec(j )*den1
+     .            + vec(jp)*den2
+     .            + vec(jm)*den3)
+      case default
         q_int = 0d0
-      endif
+      end select
 
 c     End
 
