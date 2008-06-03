@@ -1192,23 +1192,25 @@ c     Fill corners
 
 c     Periodic boundary synchronizing (need to change periodicBC)
 
-cc      write (*,*) 'DIAG -- imposeBConVector'
-cc      bctype=PER
-cc      do dim=1,3
-cc        do loc=0,1
-cc          ibc = (1+loc)+2*(dim-1)
-cc
-cc          do ivar = 1,ncomp
-cc            ieq = ivar + fcomp - 1
-cc
-cc            if (abs(bcond(ibc,ivar)) == bctype) then
-cc              call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cnv
-cc     .                               ,var0)
-cc            endif
-cc          enddo
-cc
-cc        enddo
-cc      enddo
+#if 0
+      write (*,*) 'DIAG -- imposeBConVector'
+      bctype=PER
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            ieq = ivar + fcomp - 1
+
+            if (abs(bcond(ibc,ivar)) == bctype) then
+              call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cnv
+     .                               ,var0)
+            endif
+          enddo
+
+        enddo
+      enddo
+#endif
 
 c     Find covariant components at ALL boundary ghost cells
 
