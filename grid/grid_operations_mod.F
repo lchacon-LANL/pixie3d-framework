@@ -330,6 +330,25 @@ c     Local variables
 
 c     Begin program
 
+c     Special case of cartesian coords
+
+        if (coords == 'car') then
+
+          if (tocnv) then
+            cnv1 = cov1
+            cnv2 = cov2
+            cnv3 = cov3
+          else
+            cov1 = cnv1
+            cov2 = cnv2
+            cov3 = cnv3
+          endif
+
+          return
+        endif
+
+c     Optional parameters
+
         if (PRESENT(half_elem)) then
           he = half_elem
         else
@@ -433,69 +452,6 @@ c     Transform vector
           cov2 = tensor(2,1)*cnv1+tensor(2,2)*cnv2+tensor(2,3)*cnv3
           cov3 = tensor(3,1)*cnv1+tensor(3,2)*cnv2+tensor(3,3)*cnv3
         endif
-
-cc        if (tocnv) then
-cc
-cc          select case(he)
-cc          case(1)
-cc            ip = i+1
-cccc            if (isSP(ip,j,k,igx,igy,igz)) then !We are right @ SP ghost cell
-cccc              tensor = gmetric%grid(igx)%gsup(i,j,k,:,:)
-cccc            elseif (isSP(i,j,k,igx,igy,igz)) then !We are right SP
-cccc              tensor = (gmetric%grid(igx)%gsup(ip,j,k,:,:)
-cccc     .                 *gmetric%grid(igx)%jac (ip,j,k)
-cccc     .                 +gmetric%grid(igx)%gsup(i ,j,k,:,:)
-cccc     .                 *gmetric%grid(igx)%jac (i ,j,k))
-cccc     .                 /(gmetric%grid(igx)%jac(ip,j,k)
-cccc     .                  +gmetric%grid(igx)%jac(i ,j,k))
-cccc            else
-cc              tensor = 0.5*(gmetric%grid(igx)%gsup(ip,j,k,:,:)
-cc     .                     +gmetric%grid(igx)%gsup(i ,j,k,:,:))
-cccc            endif
-cc          case(2)
-cc            tensor = 0.5*(gmetric%grid(igx)%gsup(i,j+1,k,:,:)
-cc     .                   +gmetric%grid(igx)%gsup(i,j  ,k,:,:))
-cc          case(3)
-cc            tensor = 0.5*(gmetric%grid(igx)%gsup(i,j,k+1,:,:)
-cc     .                   +gmetric%grid(igx)%gsup(i,j,k  ,:,:))
-cc          case default
-cc            tensor = gmetric%grid(igx)%gsup(i,j,k,:,:)
-cc          end select
-cc
-cc          cnv1 = tensor(1,1)*cov1+tensor(1,2)*cov2+tensor(1,3)*cov3
-cc          cnv2 = tensor(2,1)*cov1+tensor(2,2)*cov2+tensor(2,3)*cov3
-cc          cnv3 = tensor(3,1)*cov1+tensor(3,2)*cov2+tensor(3,3)*cov3
-cc        else
-cc          select case(he)
-cc          case(1)
-cc            ip = i+1
-cccc            if (isSP(ip,j,k,igx,igy,igz)) then !We are right @ SP ghost cell
-cccc              tensor = gmetric%grid(igx)%gsub(i,j,k,:,:)
-cccc            elseif (isSP(i,j,k,igx,igy,igz)) then !We are right SP
-cccc              tensor = (gmetric%grid(igx)%gsub(ip,j,k,:,:)
-cccc     .                 *gmetric%grid(igx)%jac (ip,j,k)
-cccc     .                 +gmetric%grid(igx)%gsub(i ,j,k,:,:)
-cccc     .                 *gmetric%grid(igx)%jac (i ,j,k))
-cccc     .                 /(gmetric%grid(igx)%jac(ip,j,k)
-cccc     .                  +gmetric%grid(igx)%jac(i ,j,k))
-cccc            else
-cc              tensor = 0.5*(gmetric%grid(igx)%gsub(ip,j,k,:,:)
-cc     .                     +gmetric%grid(igx)%gsub(i ,j,k,:,:))
-cccc            endif
-cc          case(2)
-cc            tensor = 0.5*(gmetric%grid(igx)%gsub(i,j+1,k,:,:)
-cc     .                   +gmetric%grid(igx)%gsub(i,j  ,k,:,:))
-cc          case(3)
-cc            tensor = 0.5*(gmetric%grid(igx)%gsub(i,j,k+1,:,:)
-cc     .                   +gmetric%grid(igx)%gsub(i,j,k  ,:,:))
-cc          case default
-cc            tensor = gmetric%grid(igx)%gsub(i,j,k,:,:)
-cc          end select
-cc
-cc          cov1 = tensor(1,1)*cnv1+tensor(1,2)*cnv2+tensor(1,3)*cnv3
-cc          cov2 = tensor(2,1)*cnv1+tensor(2,2)*cnv2+tensor(2,3)*cnv3
-cc          cov3 = tensor(3,1)*cnv1+tensor(3,2)*cnv2+tensor(3,3)*cnv3
-cc        endif
 
       end subroutine transformFromCurvToCurv
 
