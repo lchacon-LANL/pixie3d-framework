@@ -422,8 +422,7 @@ c     #######################################################################
 #if !defined(petsc)
         if (timecorr .or. cnfactor == 1d0) then
           if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor == 1d0)) then
-cc            call findExplicitDt
-            dt = dtbase
+            call findExplicitDt
           else
             call adapt_dt(dtbase)
           endif
