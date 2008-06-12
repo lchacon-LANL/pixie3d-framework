@@ -36,13 +36,13 @@ c Interfaces
         end subroutine readTimeStep
       END INTERFACE
 
-      INTERFACE
-        subroutine postProcessSolution(varray,iigx,iigy,iigz)
-        use variable_setup
-        integer    :: iigx,iigy,iigz
-        type(var_array),pointer :: varray
-        end subroutine postProcessSolution
-      END INTERFACE
+cc      INTERFACE
+cc        subroutine postProcessSolution(varray,iigx,iigy,iigz)
+cc        use variable_setup
+cc        integer    :: iigx,iigy,iigz
+cc        type(var_array),pointer :: varray
+cc        end subroutine postProcessSolution
+cc      END INTERFACE
 
       INTERFACE
         subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
@@ -91,7 +91,7 @@ c     Gather error info
 #else
         exitloop = (ierr  /= 0)
 #endif
-        
+
 c     Check for error
 
 cc        if (ierr == -1) cycle  !Error, but not EOF
@@ -111,8 +111,6 @@ c     Time level plots (xdraw)
      .     .or. time         == 0d0) then
 
           !Post-process solution for diagnostics
-          call postProcessSolution(u_np,igx,igy,igz)
-
           call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
           !Dump time step plots
@@ -132,7 +130,8 @@ c     Output per time step
 
 c     Check for tmax
 
-        if (time.ge.tmax*0.99999)  exit
+        if ((tmax > 0d0 .and. time.ge.tmax*0.99999)
+     .      .or. itime == numtime)  exit
 
       enddo       !End of time loop
 
@@ -270,13 +269,13 @@ c Interfaces
         end subroutine readTimeStep
       END INTERFACE
 
-      INTERFACE
-        subroutine postProcessSolution(varray,iigx,iigy,iigz)
-        use variable_setup
-        integer    :: iigx,iigy,iigz
-        type(var_array),pointer :: varray
-        end subroutine postProcessSolution
-      END INTERFACE
+cc      INTERFACE
+cc        subroutine postProcessSolution(varray,iigx,iigy,iigz)
+cc        use variable_setup
+cc        integer    :: iigx,iigy,iigz
+cc        type(var_array),pointer :: varray
+cc        end subroutine postProcessSolution
+cc      END INTERFACE
 
       INTERFACE
         subroutine initializeDiagnostics(varray,iigx,iigy,iigz)
@@ -345,33 +344,31 @@ c Read equilibrium u_0 (Do NOT postprocess for BC)
       if (ierr /= 0) call pstop('initializeCalculation',
      .                          'Unable to read equilibrium')
 
-c Initialize graphics
+c Set plotting range
 
-      !Set graphics range
       call setGraphicsRange(nxl,nyl,nzl,bcond)
 
-      !Store initial condition w/ BCs and initialize postprocessing quantities
+c Initialize diagnostics and related variables
+
       call equateDerivedType(u_ic,u_0)
       call equateDerivedType(u_n ,u_0)
 
-      call postProcessSolution(u_ic,igx,igy,igz)
+cc      call postProcessSolution(u_ic,igx,igy,igz)
+      call initializeDiagnostics(u_ic,igx,igy,igz)    !External
 
-      !Prime u_np and initialize graphics quantities
       call equateDerivedType(u_np,u_ic)
+      call equateDerivedType(u_n ,u_ic)
+
+c Initialize graphics
 
       call initializeGraphics(igx,igy,igz,bcond)
 
-      !Dump source for debugging
+c Dump source for debugging
+
       if (chk_src) then
         itime = -1
         call dumpTimeStepPlots
       endif
-
-c Initialize diagnostics
-
-      call equateDerivedType(u_n,u_np)
-
-      call initializeDiagnostics(u_np,igx,igy,igz)
 
 c End program
 
