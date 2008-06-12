@@ -97,7 +97,7 @@ c Time loop
 
         itime = itime + 1
 
-        if (tmax.gt.0d0.and.time.ge.tmax*0.99999)  exit
+        if (tmax.gt.0d0.and.time.ge.tmax*(1d0-0.1*dt))  exit
         if (numtime.ge.0.and.itime.ge.(numtime+inewtime)) exit
 
 c     Find new time step
@@ -192,17 +192,17 @@ c Final statistics
           write(*,310) (itime-1),float(newt_tot )/(itime-inewtime)
      .                          ,float(gmres_tot)/(itime-inewtime)
      .                          ,float(gmres_tot)/newt_tot
-     .                          ,float(wh_tot)   /prec_tot
+cc     .                          ,float(wh_tot)   /prec_tot
         else
-          write(*,310) 0,0d0,0d0,0d0,0d0
+          write(*,310) 0,0d0,0d0,0d0
         endif
       endif
 
 c Formats
 
  300  format (/,'Final statistics',/,/,
-     .          ' itime  Newt/ndt  GMRES/ndt  GMRES/Newt  Whst/GMRES')
- 310  format (i5,3x,f7.1,4x,f7.1,4x,f7.1,4x,f7.1)
+     .          ' itime  Newt/ndt  GMRES/ndt  GMRES/Newt')
+ 310  format (i5,3x,f7.1,4x,f7.1,4x,f7.1)
 
 c End program
 
