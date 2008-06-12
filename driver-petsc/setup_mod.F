@@ -434,8 +434,6 @@ c     Begin program
         varray2%nvar = varray1%nvar
         do ieq=1,varray2%nvar
           varray2%array_var(ieq)%bconds = varray1%array_var(ieq)%bconds
-cc          write (*,*) ieq,shape(varray1%array_var(ieq)%array)
-cc          write (*,*) ieq,shape(varray2%array_var(ieq)%array)
           varray2%array_var(ieq)%array  = varray1%array_var(ieq)%array
           varray2%array_var(ieq)%descr  = varray1%array_var(ieq)%descr
         enddo
@@ -463,14 +461,10 @@ c     Local variables
 
 c     Begin program
 
-cc        write (*,*) 'DIAG -- initializeDT'
-
         call allocateDerivedType(varray)
 
         varray%nvar = u_0%nvar
         do ieq=1,varray%nvar
-cc          write (*,*) u_0%array_var(ieq)%descr
-cc          write (*,*) u_0%array_var(ieq)%bconds
           varray%array_var(ieq)%bconds = u_0%array_var(ieq)%bconds
           varray%array_var(ieq)%descr  = u_0%array_var(ieq)%descr
           varray%array_var(ieq)%array  = 0d0
