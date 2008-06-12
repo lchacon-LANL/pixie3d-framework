@@ -485,7 +485,7 @@ c Call variables
 
 c Local variables
 
-      integer    :: ierr
+      integer    :: ierr,ieq
 
       integer    :: system
 #if !defined(g95)
@@ -531,14 +531,21 @@ cc        else
 cccc         if (debug) then
 cccc           write (*,*) 'DIAG -- Dumping graphs for PC testing'
 cccc           u_graph = u_n
-cccc         else
-cc         !Impose BC's on u_graph <- u_0 (do not overwrite u_0, since it contains equil. BCs)
-cc            call equateDerivedType(u_graph,u_0)
 cccc         endif
 cc        endif
-cc
-cc        !Impose BCs
-cc        call imposeBoundaryConditions(u_graph,1,1,1)
+
+        !Impose BC's on u_graph <- u_0
+        !(do not overwrite u_0, since it contains equil. BCs;
+        ! do nothing at EQU boundaries, to preserve EQU BCs)
+        call equateDerivedType(u_graph,u_0)
+
+        !Impose logical BCs
+        do ieq=1,u_graph%nvar
+          where (u_graph%array_var(ieq)%bconds == EQU)
+     .           u_graph%array_var(ieq)%bconds = DEF
+        enddo
+
+        call imposeBoundaryConditions(u_graph,1,1,1)
 
         !Open record file
         open(unit=urecord,file=recordfile
@@ -548,9 +555,9 @@ cc        call imposeBoundaryConditions(u_graph,1,1,1)
         write (urecord) nyl,jlog,jhig
         write (urecord) nzl,klog,khig
 
-cc        call writeRecordFile(urecord,0,0d0,dt,u_graph)
+        call writeRecordFile(urecord,0,0d0,dt,u_graph)
 cc        call writeRecordFile(urecord,0,0d0,dt,u_n)
-        call writeRecordFile(urecord,0,0d0,dt,u_0)
+cc        call writeRecordFile(urecord,0,0d0,dt,u_0)   !Need u_0 so that EQU BCs are imposed correctly
         call writeRecordFile(urecord,0,0d0,dt,u_np)
 
       else
