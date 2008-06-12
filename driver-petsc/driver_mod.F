@@ -419,7 +419,7 @@ c     #######################################################################
 
         dt_n = dt
 
-#if !defined(petsc)
+cc#if !defined(petsc)
         if (timecorr .or. cnfactor == 1d0) then
           if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor == 1d0)) then
             call findExplicitDt
@@ -429,13 +429,13 @@ c     #######################################################################
         else
           dt = dtbase
         endif
-#else
-        if (timecorr) then
-          call adapt_dt(dtbase)
-        else
-          dt = dtbase
-        endif
-#endif
+cc#else
+cc        if (timecorr) then
+cc          call adapt_dt(dtbase)
+cc        else
+cc          dt = dtbase
+cc        endif
+cc#endif
 
       end subroutine calculate_dt
 
