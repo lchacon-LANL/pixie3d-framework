@@ -25,6 +25,7 @@ c######################################################################
         real(8), allocatable, dimension(:,:) :: diag
 
         logical :: vbr_mg,galerkin=.false.,volf,prnt=.true.
+     .            ,mg_debug=.false.
 
       contains
 
@@ -1335,7 +1336,6 @@ c Compute initial residual and check convergence
       if (guess.eq.0) then
         rr0 = sqrt(MGdot(igrid,neq,ntot,y,y))
       else
-cRAP        call matvec(0,neq,ntot,x,rr,igrid,bcnd)
         call MGmatvec(0,neq,ntot,x,rr,igrid,bcnd,matvec)
         call MGvecadd(igrid,neq,ntot,-1d0,rr,1d0,y)
         rr0 = sqrt(MGdot(igrid,neq,ntot,rr,rr))
@@ -1375,7 +1375,6 @@ c     Perform mu-cycle recursively
 
 c     Check MG convergence
 
-cRAP        call matvec(0,neq,ntot,xx(istart(igrid)),rr,igrid,bcnd)
         call MGmatvec(0,neq,ntot,xx(istart(igrid)),rr,igrid,bcnd
      .               ,matvec)
 
@@ -1498,39 +1497,38 @@ c     Begin program
 
 c     Relax error/solution on grid number igr/igrid (find new xx)
 
-c diag ****
-cc        if (igr == igmax-1) then
-cc          write (*,*) 'Plotting here at level',igr
-cc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
-cc          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
-cc          call MGplot(neq,wrk,igr,0,'fine2.bin')
-cc        endif
-c diag ****
+ccc diag ****
+cccc        if (igr == igmax-1) then
+cccc          write (*,*) 'Plotting here at level',igr
+cccc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
+cccc          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+cccc          call MGplot(neq,wrk,igr,0,'fineres.bin')
+cccc        endif
+ccc diag ****
 
         call smooth(igr)
 
-c diag ****
+ccc diag ****
 cc        if (igr == igmax-1) then
-cccc          write (*,*) 'Plotting here at level',igr
-cc          call MGplot(neq,xx ,igr,0,'fine.bin')
+cc          write (*,*) 'Plotting here at level',igr
+cc          call MGplot(neq,xx ,igr,0,'finesol.bin')
 cc        endif
-c diag ****
+ccc diag ****
 
 c     Evaluate residual (ie wrk = yy - A xx = yy - wrk )
 
         wrk(isig:isig+nn-1) = 0d0
 
-cRAP        call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
         call MGmatvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd,matvec)
 
         call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
 
-c diag ****
+ccc diag ****
 cc        if (igr == igmax-1) then
 cc          write (*,*) 'Plotting here at level',igr
-cc          call MGplot(neq,wrk,igr,0,'fine2.bin')
+cc          call MGplot(neq,wrk,igr,0,'fineres.bin')
 cc        endif
-c diag ****
+ccc diag ****
 
 c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
 
@@ -1539,13 +1537,13 @@ c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
      .                ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
      .                ,orderres,igr,volf)
 
-c diag ****
+ccc diag ****
 cc        if (igc == igmax) then
 cc          write (*,*) 'Plotting here at level',igc
 cc          call MGplot(neq,yy,igc,0,'coarse.bin')
 cccc          write (*,*) yy(isigc:isigc+ntotv(igc)-1)
 cc        endif
-c diag ****
+ccc diag ****
 
 c     Initialize solution on coarse grid
 
@@ -1581,16 +1579,16 @@ cc#endif
           enddo
         endif
 
-c diag ****
-cc        if (igc == igmax) then
-cc          write (*,*) 'Plotting here at level',igc
-cc          call MGplot(neq,xx,igc,1,'coarse.bin')
-cc
-cc          call matvec(0,neq,nnc,xx(isigc),wrk(isigc),igc,bcnd)
-cc          call MGvecadd(igc,neq,nnc,-1d0,wrk(isigc),1d0,yy(isigc))
-cc          call MGplot(neq,wrk,igc,1,'coarse.bin')
-cc        endif
-c diag ****
+ccc diag ****
+cccc        if (igc == igmax) then
+cccc          write (*,*) 'Plotting here at level',igc
+cccc          call MGplot(neq,xx,igc,1,'coarse.bin')
+cccc
+cccc          call matvec(0,neq,nnc,xx(isigc),wrk(isigc),igc,bcnd)
+cccc          call MGvecadd(igc,neq,nnc,-1d0,wrk(isigc),1d0,yy(isigc))
+cccc          call MGplot(neq,wrk,igc,1,'coarse.bin')
+cccc        endif
+ccc diag ****
 
 c     Cycle back up to grid igr updating errors (xx)
 c     with fixed R.H.S. (yy)
@@ -1604,38 +1602,33 @@ c     Prolong error (wrk = P * xx_1) to a finer grid
 
 c     Update existing solution on grid igr (i.e. xx_igr): xx_igr = xx_igr + wrk 
 
-c diag ****
-cc        xx(isig:isig+nn-1) = 0d0
-cc        wrk(isig:isig+nn-1) = 0d0
-c diag ****
-
         call MGvecadd(igr,neq,nn,1d0,xx(isig),1d0,wrk(isig))
 
-c diag ****
+ccc diag ****
 cc        if (igr == igmax-1) then
 cc          write (*,*) 'Plotting here at level',igr
-cc          call MGplot(neq,wrk,igr,1,'fine.bin')
-cc          call MGplot(neq,xx ,igr,1,'fine.bin')
+cc          call MGplot(neq,wrk,igr,1,'finesol.bin')
+cc          call MGplot(neq,xx ,igr,1,'finesol.bin')
 cc
 cc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
 cc          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
-cc          call MGplot(neq,wrk,igr,1,'fine2.bin')
+cc          call MGplot(neq,wrk,igr,1,'fineres.bin')
 cc        endif
-c diag ****
+ccc diag ****
 
 c     Relax updated solution on igr (i.e. xx_igr)
 
         call smooth(igr)
 
-c diag ****
+ccc diag ****
 cc        if (igr == igmax-1) then
 cc          write (*,*) 'Plotting here at level',igr
 cc
 cc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
 cc          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
-cc          call MGplot(neq,wrk,igr,1,'fine2.bin')
+cc          call MGplot(neq,wrk,igr,1,'fineres.bin')
 cc        endif
-c diag ****
+ccc diag ****
 
 c     End program
 
@@ -1756,7 +1749,6 @@ c         Initialize quantities
 
 c         Find initial residual
 
-cRAP          call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
           call MGmatvec(0,neq,nn,xx(isig),rr,igr,bcnd,matvec)
           call MGvecadd(igr,neq,nn,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
 
@@ -1773,7 +1765,8 @@ cc            do iter=1,nsweep
           if (nxl(igr) > 1 .and. line_x) then
 
             !Collapse MG grid levels
-            line_mg_grid            = MGgrid !Copy existing grid info
+            call equateGridStructure(line_mg_grid,MGgrid) !Copy existing grid info
+cc            line_mg_grid            = MGgrid !Copy existing grid info
             line_mg_grid%nxv        = 1 !Collapse grid in x-direction
             line_mg_grid%mg_ratio_x = 1 !Collapse grid in x-direction
 
@@ -1818,7 +1811,6 @@ cc            do iter=1,nsweep
               enddo
 
               !Update residual
-cRAP              call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
               call MGmatvec(0,neq,nn,xx(isig),rr,igr,bcnd,matvec)
               call MGvecadd(igr,neq,nn,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
 
@@ -1840,7 +1832,8 @@ c         Planes/Lines in Y-direction
 
           if (nyl(igr) > 1 .and. line_y) then
 
-            line_mg_grid            = MGgrid !Copy existing grid info
+            call equateGridStructure(line_mg_grid,MGgrid) !Copy existing grid info
+cc            line_mg_grid            = MGgrid !Copy existing grid info
             line_mg_grid%nyv        = 1 !Collapse grid in y-direction
             line_mg_grid%mg_ratio_y = 1 !Collapse grid in y-direction
 
@@ -1885,7 +1878,6 @@ c         Planes/Lines in Y-direction
               enddo
 
               !Find residual
-cRAP              call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
               call MGmatvec(0,neq,nn,xx(isig),rr,igr,bcnd,matvec)
               call MGvecadd(igr,neq,nn,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
 
@@ -1907,7 +1899,8 @@ c         Planes/Lines in Z-direction
 
           if (nzl(igr) > 1 .and. line_z) then
 
-            line_mg_grid            = MGgrid !Copy existing grid info
+            call equateGridStructure(line_mg_grid,MGgrid) !Copy existing grid info
+cc            line_mg_grid            = MGgrid !Copy existing grid info
             line_mg_grid%nzv        = 1 !Collapse grid in z-direction
             line_mg_grid%mg_ratio_z = 1 !Collapse grid in z-direction
 
@@ -1952,7 +1945,6 @@ c         Planes/Lines in Z-direction
               enddo
 
               !Find residual
-cRAP              call matvec(0,neq,nn,xx(isig),rr,igr,bcnd)
               call MGmatvec(0,neq,nn,xx(isig),rr,igr,bcnd,matvec)
               call MGvecadd(igr,neq,nn,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
 
@@ -2337,7 +2329,7 @@ c     #####################################################################
       recursive subroutine lineJBsolver(nn,mg_grid,b,x,igr,guess)
 
 c     ---------------------------------------------------------------------
-c     This routine performs a recursive MG solve on selected planes/lines.
+c     This routine performs a recursive JB solve on selected planes/lines.
 c     In call:
 c       * nn: total grid size at grid level igr
 c       * mg_grid: MG grid definition structure that defines local grid patch
@@ -3613,7 +3605,7 @@ c Call variables
 c Local variables
 
       integer    :: iter,alloc_stat,isig,itr,nn,ieq,irbg1,nrbg1,igridc
-      integer    :: imin,imax,jmin,jmax,kmin,kmax,iming
+      integer    :: imin,imax,jmin,jmax,kmin,kmax,iming,itr2
       real(8)    :: omega0,omega10,omega01,tol
       logical    :: fdiag,fpointers,vbr
 
@@ -3702,7 +3694,6 @@ c Jacobi iteration
 
         mag  = 0d0
 
-cRAP        call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
         call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
 
 c       VERTEX-BASED RELAXATION
@@ -3795,7 +3786,6 @@ c       STANDARD RELAXATION
                 !Multiply by D^-1 (stored in diag)
                 iig = iii + isig - 1
                 dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
-cc                dummy = matmul(diag(:,iig+1:iig+neq),rhs)
 
                 !Update zz
                 do ieq=1,neq
@@ -3807,6 +3797,55 @@ cc                dummy = matmul(diag(:,iig+1:iig+neq),rhs)
               enddo
             enddo
           enddo
+
+          !Take care of points around singular point
+          if (isSP(1,1,1,igrid,igrid,igrid)) then
+
+            !plane JB
+            MGgrid%iline(igrid) = 1 !Set i for line smoothing around SP
+cc            MGgrid%kline(igrid) = k !Set k for line smoothing around SP
+
+            call limits(0,nxf,nyf,nzf,igrid
+     .           ,imin,imax,jmin,jmax,kmin,kmax)
+
+            do itr2=1,5 !JB iteration around SP
+
+              call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+
+              do k=kmin,kmax
+                do j=jmin,jmax
+                  do i=imin,imax
+                    !nxf,nyf,nzf are the original grid's even in line relaxation.
+                    ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+
+                    iii = neq*(ii-1)
+
+                    !Find new residual
+                    do ieq = 1,neq
+                      rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+                    enddo
+
+                    !Multiply by D^-1 (stored in diag)
+                    iig = iii + isig - 1
+                    dummy =
+     .                 matmul(transpose(diag(:,iig+1:iig+neq))
+     .                       ,rhs)
+
+                    !Update solution zz
+                    do ieq=1,neq
+                      zz(iii+ieq) = zz(iii+ieq) + 0.7*dummy(ieq)
+                    enddo
+
+                    mag = mag + sum(rhs*rhs)
+                  enddo
+                enddo
+              enddo
+            enddo
+
+            MGgrid%iline(igrid) = 0 !Unset line smoothing
+cc            MGgrid%kline(igrid) = 0 !Set line smoothing around SP
+
+          endif
 
 cc          write (*,*) 'DIAG -- jb'
 cc          mag = sum(zz*zz)  !For comparison with Matlab
@@ -3844,7 +3883,6 @@ c Calculate final residual and output info
       itr = min(itr,iter)
 
       if (out.ge.1) then
-cRAP        call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
         call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
         call MGvecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
         mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
@@ -3931,7 +3969,7 @@ c Call variables
 
 c Local variables
 
-      integer    :: iter,alloc_stat,isig,itr,nn,ieq,iig
+      integer    :: iter,alloc_stat,isig,itr,itr2,nn,ieq,iig
       integer    :: i,j,k,imin,imax,jmin,jmax,kmin,kmax
       integer    :: i1,j1,k1,i1min,i1max,j1min,j1max,k1min,k1max
 
@@ -3940,11 +3978,13 @@ c Local variables
 
       integer    :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf
       integer    :: ii,iii,iib,iiib,iiv,ivg,iblock,jblock,kblock,nblk
-      real(8)    :: mag0=1d0,mag1,mag,lmag,yy(ntot)
+      real(8)    :: mag0=1d0,mag1,magsp,magsp0,mag,lmag,yy(ntot)
 
       integer    :: ncolors,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
 
       real(8),allocatable, dimension(:) :: dummy,rhs
+
+      type(grid_mg_def),pointer :: line_mg_grid
 
 c Begin program
 
@@ -4038,7 +4078,6 @@ c         VERTEX-BASED RELAXATION
               do irbg2 = 1,nrbg2
                 do irbg1 = 1,nrbg1
 
-cRAP                call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
                 call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
 
                 !Vertex sampling
@@ -4125,7 +4164,6 @@ c         STANDARD RELAXATION
               do irbg2 = 1,nrbg2
                 do irbg1 = 1,nrbg1
 
-cRAP                call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
                 call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
 
                 do k1=k1min+mod((    irbg3-1),nrbg3),k1max,nrbg3
@@ -4134,9 +4172,193 @@ cRAP                call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
 
                       call scheduleIndices(igrid,i1,j1,k1,i,j,k)
 
-                      !nxf,nyf,nzf are the original grid's even in line relaxation.
+cc                      if (.not.isSP(i,j,k,igrid,igrid,igrid)) then
+                        !nxf,nyf,nzf are the original grid's even in line relaxation.
+                        iii = neq*(i-1 + nxf*(j-1) + nxf*nyf*(k-1))
 
-                      iii = neq*(i-1 + nxf*(j-1) + nxf*nyf*(k-1))
+                        !Find new residual
+                        do ieq = 1,neq
+                          rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+                        enddo
+
+                        !Multiply by D^-1 (stored in diag)
+                        iig = iii + isig - 1
+                        dummy=matmul(transpose(diag(:,iig+1:iig+neq))
+     .                              ,rhs)
+
+                        !Update zz (except around SP)
+                        do ieq=1,neq
+                          zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
+                        enddo
+
+                        mag = mag + sum(rhs*rhs)
+cc                      endif
+
+                    enddo
+                  enddo
+
+cc                  !Take care of points around singular point
+cc                  if (isSP(1,1,1,igrid,igrid,igrid)) then
+cc
+cc                    !plane JB
+cc                    MGgrid%iline(igrid) = 1 !Set i for line smoothing around SP
+cc                    MGgrid%kline(igrid) = k !Set k for line smoothing around SP
+cc
+cc                    write (*,*) 'k slice',k,k1
+cc
+cc                    call limits(0,nxf,nyf,nzf,igrid
+cc     .                   ,imin,imax,jmin,jmax,kmin,kmax)
+cc
+cc                    do itr2=1,100 !JB iteration around SP
+cc
+cc                      magsp = 0d0
+cc
+cc                      call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+cc
+cc                      do k=kmin,kmax
+cc                        do j=jmin,jmax
+cc                          do i=imin,imax
+cc                            !nxf,nyf,nzf are the original grid's even in line relaxation.
+cc                            ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+cc
+cc                            iii = neq*(ii-1)
+cc
+cc                            !Find new residual
+cc                            do ieq = 1,neq
+cc                              rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+cc                            enddo
+cc
+cc                            !Multiply by D^-1 (stored in diag)
+cc                            iig = iii + isig - 1
+cc                            dummy =
+cc     .                         matmul(transpose(diag(:,iig+1:iig+neq))
+cc     .                               ,rhs)
+cc
+cc                            !Update solution zz
+cc                            do ieq=1,neq
+cc                              zz(iii+ieq) = zz(iii+ieq) + 0.7*dummy(ieq)
+cc                            enddo
+cc
+cc                            magsp = magsp + sum(rhs*rhs)
+cc                          enddo
+cc                        enddo
+cc                      enddo
+cc
+cc                      if (itr2 == 1) then
+cc                        magsp0 = magsp
+cc                      else
+cc                        if (out.ge.2.and.prnt)
+cc     .                   write (*,*) '  SP smoothing in GS, iter=',itr2
+cc     .                              ,' Ratio=',sqrt(magsp/magsp0)
+cc                        if (sqrt(magsp/magsp0) < 0.5) exit
+cc                      endif
+cc                    enddo
+cc
+cc                    mag = mag + magsp
+cc                    if (out.eq.1.and.prnt)
+cc     .                 write (*,*) '  SP smoothing in GS: iter=',itr2
+cc     .                           ,sqrt(magsp/magsp0)
+cc
+cc                    MGgrid%iline(igrid) = 0 !Unset line smoothing
+cc                    MGgrid%kline(igrid) = 0 !Set line smoothing around SP
+cc
+cccc                    call limits(0,nxf,nyf,nzf,igrid
+cccc     .                         ,imin,imax,jmin,jmax,kmin,kmax)
+cccc
+cccc                    i = 1
+cccc
+cccc                    k = k1
+cccc
+cccc                    do j=jmin,jmax
+cccc
+cccc                      !nxf,nyf,nzf are the original grid's even in line relaxation.
+cccc                      ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+cccc
+cccc                      call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd
+cccc     .                             ,matvec)
+cccc
+cccc                      iii = neq*(ii-1)
+cccc
+cccc                      !Find new residual
+cccc                      do ieq = 1,neq
+cccc                        rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+cccc                      enddo
+cccc
+cccc                      !Multiply by D^-1 (stored in diag)
+cccc                      iig = iii + isig - 1
+cccc                      dummy = matmul(transpose(diag(:,iig+1:iig+neq))
+cccc     .                              ,rhs)
+cccc
+cccc                      !Update solution zz
+cccc                      do ieq=1,neq
+cccc                        zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
+cccc                      enddo
+cccc
+cccc                      mag = mag + sum(rhs*rhs)
+cccc
+cccc                    enddo
+cc
+cc                  endif
+
+                enddo
+
+                enddo
+              enddo
+            enddo
+
+c         Take care of points around singular point (using JB)
+
+            if (isSP(1,1,1,igrid,igrid,igrid)) then
+
+cc              call equateGridStructure(line_mg_grid,MGgrid) !Copy existing grid info
+cccc              line_mg_grid            = MGgrid !Copy existing grid info
+cc              line_mg_grid%nxv        = 1 !Collapse grid in x-direction
+cc              line_mg_grid%mg_ratio_x = 1 !Collapse grid in x-direction
+cc
+cc              !Define plane/line for subsequent MG solvers at all grids
+cc              line_mg_grid%iline(igr) = i
+cc              do ig = igr+1,ngrid
+cc                line_mg_grid%iline(ig) = ( line_mg_grid%iline(ig-1)
+cc     .                                    +MGgrid%mg_ratio_x(ig-1)-1 )
+cc     .                                   /MGgrid%mg_ratio_x(ig-1)
+cc              enddo
+cc
+cc              !Restrict grid pointers
+cc              call saveMGgrid(line_mg_grid)
+cc
+cc              !Solve plane/line (find solution update dx)
+cc              call lineSolver(nn,line_mg_grid,yy,zz,igrid,1)
+cc
+cc              !Update solution (x = x + dx)
+cc              call MGvecadd(igr,neq,nn,1d0,xx(isig),omega,dx)
+cc
+cc              !Recover grid pointers
+cc              call restoreMGgrid
+cc
+cc              call deallocateGridStructure(line_mg_grid)
+
+              !plane JB
+              do i1=1,3
+
+                MGgrid%iline(igrid) = i1   !Set line smoothing around SP
+
+                call limits(0,nxf,nyf,nzf,igrid
+     .                     ,imin,imax,jmin,jmax,kmin,kmax)
+
+
+                do itr2=1,20    !JB iteration around SP
+
+                  magsp = 0d0
+
+                  call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+
+                  do k=kmin,kmax
+                    do j=jmin,jmax
+                      do i=imin,imax
+                      !nxf,nyf,nzf are the original grid's even in line relaxation.
+                      ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+
+                      iii = neq*(ii-1)
 
                       !Find new residual
                       do ieq = 1,neq
@@ -4145,22 +4367,76 @@ cRAP                call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
 
                       !Multiply by D^-1 (stored in diag)
                       iig = iii + isig - 1
-                      dummy=matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
+                      dummy = matmul(transpose(diag(:,iig+1:iig+neq))
+     .                              ,rhs)
 
-                      !Update zz
+                      !Update solution zz
                       do ieq=1,neq
-                        zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
+                        zz(iii+ieq) = zz(iii+ieq) + 0.8*dummy(ieq)
                       enddo
 
-                      mag = mag + sum(rhs*rhs)
-
+                      magsp = magsp + sum(rhs*rhs)
+                      enddo
                     enddo
                   enddo
-                enddo
+
+                  if (itr2 == 1) then
+                    magsp0 = magsp
+                  else
+                    if (out.ge.3.and.prnt)
+     .                write (*,*) '  SP smoothing in GS, iter=',itr2
+     .                           ,' Ratio=',sqrt(magsp/magsp0)
+                    if (sqrt(magsp/magsp0) < 0.5) exit
+                  endif
 
                 enddo
+
+                if (out.eq.2.and.prnt)
+     .            write (*,*) '  SP smoothing in GS: line = ',i1
+     .                       ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
+
               enddo
-            enddo
+
+              MGgrid%iline(igrid) = 0 !Unset line smoothing
+
+cc              !GS
+cc              call limits(0,nxf,nyf,nzf,igrid
+cc     .                   ,imin,imax,jmin,jmax,kmin,kmax)
+cc
+cc              i = 1
+cc
+cc              do k=kmin,kmax
+cc               do itr2=1,10
+cc                do j=jmin,jmax
+cc
+cc                  !nxf,nyf,nzf are the original grid's even in line relaxation.
+cc                  ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+cc
+cc                  call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
+cc
+cc                  iii = neq*(ii-1)
+cc
+cc                  !Find new residual
+cc                  do ieq = 1,neq
+cc                    rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+cc                  enddo
+cc
+cc                  !Multiply by D^-1 (stored in diag)
+cc                  iig = iii + isig - 1
+cc                  dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
+cc
+cc                  !Update solution zz
+cc                  do ieq=1,neq
+cc                    zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
+cc                  enddo
+cc
+cc                  mag = mag + sum(rhs*rhs)
+cc
+cc                enddo
+cc               enddo
+cc              enddo
+
+           endif
 
           endif
 
@@ -4192,7 +4468,6 @@ c         VERTEX-BASED RELAXATION
 
                     ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
 
-cRAP                    call matvec(-ii,neq,ntot,zz,yy,igrid,bcnd)
                     call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
 
                     do ieq = 1,neq
@@ -4255,7 +4530,6 @@ c           Forward pass
                   !nxf,nyf,nzf are the original grid's even in line relaxation.
                   ii = i + nxf*(j-1) + nxf*nyf*(k-1)
 
-cRAP                  call matvec(-ii,neq,ntot,zz,yy,igrid,bcnd)
                   call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
 
                   iii = neq*(ii-1)
@@ -4287,7 +4561,6 @@ cc                do i=imax,imin,-1
 cc
 cc                  ii = i + nxf*(j-1) + nxf*nyf*(k-1)
 cc
-cccRAP                  call matvec(-ii,neq,ntot,zz,yy,igrid,bcnd)
 cc                  call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
 cc
 cc                  iii = neq*(ii-1)
@@ -4317,11 +4590,6 @@ cc            enddo
         endif
 
 c     Check convergence
-
-cccRAP        call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
-cc        call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-cc        call MGvecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
-cc        mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
 
 #if defined(petsc)
 cc        if (.not.asm .and. out >= 1) then   !Do reduction only for debugging
@@ -4353,7 +4621,6 @@ c Calculate final residual and output info
       itr = min(itr,iter)
 
       if (out.ge.1) then
-cRAP        call matvec(0,neq,ntot,zz,yy,igrid,bcnd)
         call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
         call MGvecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
         mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
@@ -4689,7 +4956,6 @@ c         Find column vector corresponding to grid node ii and equation ieq
 
             x1(neq*(ii-1) + ieq) = 1d0
 
-cRAP            call matvec(ii,neq,nn,x1,dummy,igr,bbcnd)
             call MGmatvec(ii,neq,nn,x1,dummy,igr,bbcnd,matvec)
 
             x1(neq*(ii-1) + ieq) = 0d0
@@ -4843,7 +5109,6 @@ c       Finds block diagonals for neq equations.
                     enddo
                   enddo
 
-cRAP                  call matvec(0,neq,nn,x1,dummy,igr,bbcnd)
                   call MGmatvec(0,neq,nn,x1,dummy,igr,bbcnd,matvec)
 
                   do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
@@ -4881,7 +5146,7 @@ c       Take care of points around singular point
 
               i = 1    !Concentrate around singular point
 
-              do k=k1min,k1max
+              do k=k1min,k1max  !Need to do 2 colors in k; not yet implemented
                 do j=j1min,j1max
 
                   ii = i +nxv(igr)*(j-1) +nxv(igr)*nyv(igr)*(k-1)
@@ -4890,7 +5155,6 @@ c       Take care of points around singular point
 
                   x1(neq*(ii-1) + ieq) = 1d0
 
-cRAP                call matvec(ii,neq,nn,x1,dummy,igr,bbcnd)
                   call MGmatvec(ii,neq,nn,x1,dummy,igr,bbcnd,matvec)
 
                   x1(neq*(ii-1) + ieq) = 0d0
@@ -5116,7 +5380,6 @@ c       Sample vertices
 
                             !Find matrix components corresponding to column iii and rows
                             !((jj-1)*neq+1) to (jj*neq)
-cRAP                            call matvec(jj,neq,nn,x1,dummy,igr,bbcnd)
                             call MGmatvec(jj,neq,nn,x1,dummy,igr,bbcnd
      .                                   ,matvec)
 
@@ -5210,7 +5473,6 @@ c       Find column vector corresponding to grid node ii and equation ieq
 
           x1(ii) = 1d0
 
-cRAP          call matvec(0,neq,nn,x1,dummy,igr,bbcnd)
           call MGmatvec(0,neq,nn,x1,dummy,igr,bbcnd,matvec)
 
           x1(ii) = 0d0
@@ -5286,7 +5548,6 @@ c       Find column vector ii
 
           call findBaseVector(ii,ieq,neq,nn,x1,1d0)
 
-cRAP          call matvec(0,neq,nn,x1,dummy,igrid,bcnd)
           call MGmatvec(0,neq,nn,x1,dummy,igrid,bcnd,matvec)
 
           call findBaseVector(ii,ieq,neq,nn,x1,0d0)
@@ -5300,7 +5561,6 @@ c       diagonal)
 
 c THIS DOESN'T WORK ANYMORE. NEED TO FIX.
 cc            call matvec(ii,neq,nn,x1,dummy2,igrid,bcnd)
-cRAP            call matvec(0,neq,nn,x1,dummy2,igrid,bcnd)
             call MGmatvec(0,neq,nn,x1,dummy2,igrid,bcnd,matvec)
 
             call findBaseVector(jj,ieq,neq,nn,x1,0d0)
@@ -5359,7 +5619,7 @@ c End program
 
 c MGmatvec
 c####################################################################
-      subroutine MGmatvec(gpos,neq,ntot,x,y,igrid,bcnd,matvec)
+      subroutine MGmatvec(gposc,neq,ntotc,x,y,igc,bcnd,matvec)
 c--------------------------------------------------------------------
 c     This subroutine calculates the matrix vector product defined
 c     symbolically in matvec, in two ways:
@@ -5368,19 +5628,19 @@ c       * Galerkin (preprocessing w/ prolongation, and postprocessing
 c                   w/ restriction).
 c
 c     In call:
-c      * gpos: vector index of position on the numerical grid:
-c            + If gpos = i + nx*(j-1) + ny*nx*(k-1), then only 
+c      * gposc: vector index of position on the numerical grid:
+c            + If gposc = i + nx*(j-1) + ny*nx*(k-1), then only 
 c              surrounding stencil is filled (9-pt stencil in 2D
 c              , 27-pt stencil in 3D).
-c            + If gpos = 0, all the grid is considered.
-c            + If gpos < 0, all grid is mapped, but operations are 
-c              restricted to stencil of abs(gpos) (useful for
+c            + If gposc = 0, all the grid is considered.
+c            + If gposc < 0, all grid is mapped, but operations are 
+c              restricted to stencil of abs(gposc) (useful for
 c              matrix-light GS)
 c      * neq: number of coupled equations
-c      * ntot: total number of unknowns: neq*nx*ny*nz
-c      * x(ntot): input vector
-c      * y(ntot): output vector
-c      * igrid: grid level
+c      * ntotc: total number of unknowns: neq*nx*ny*nz
+c      * x(ntotc): input vector
+c      * y(ntotc): output vector
+c      * igc: grid level
 c      * bcnd: boundary conditions on x vector.
 c      * matvec: external with symbolic matrix-vector code.
 c--------------------------------------------------------------------
@@ -5393,15 +5653,19 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer    :: neq,ntot,igrid,gpos,bcnd(6,neq)
-      real(8)    :: x(ntot),y(ntot),minv,idx,idy,idz,
+      integer    :: neq,ntotc,igc,gposc,bcnd(6,neq)
+      real(8)    :: x(ntotc),y(ntotc),minv,idx,idy,idz,
      .              idxcnv,idycnv,idzcnv,vxx,vyy,vzz
 
       external      matvec
 
 c Local variables
 
-      integer    :: igr,nxx,nyy,nzz,ntotf,isig
+      integer    :: nxf,nyf,nzf,ntotf,igf,gposf,if,jf,kf
+     .             ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf
+      integer    :: nxc,nyc,nzc,isigc,ic,jc,kc
+     .             ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc
+      integer    :: mgrx,mgry,mgrz,ig
       real(8),allocatable,dimension(:) :: MGx,MGy
 
       logical    :: fpointers
@@ -5410,39 +5674,84 @@ c Begin program
 
       call allocPointers(neq,fpointers)
 
-      if (igrid > 1 .and. galerkin) then
+      if (igc > 1 .and. galerkin) then
 
-        isig  = istart(igrid)
+        isigc  = istart(igc)
+
+        nxc = grid_params%nxv(igc)
+        nyc = grid_params%nyv(igc)
+        nzc = grid_params%nzv(igc)
 
 c     Allocate MG vector
 
-        igr = 1
+        igf = 1
 
-        nxx = grid_params%nxv(igr)
-        nyy = grid_params%nyv(igr)
-        nzz = grid_params%nzv(igr)
+        nxf = grid_params%nxv(igf)
+        nyf = grid_params%nyv(igf)
+        nzf = grid_params%nzv(igf)
 
-        ntotf = neq*nxx*nyy*nzz
+        ntotf = neq*nxf*nyf*nzf
 
         allocate(MGx(2*ntotf),MGy(2*ntotf))
 
 c     Prolong vector to finest grid
 
-        MGx(isig:isig+ntot-1) = x
+        MGx(isigc:isigc+ntotc-1) = x
 
-        call prolongMGVector(neq,MGx,igrid,igr,0,bcnd)
+        call prolongMGVector(neq,MGx,igc,igf,0,bcnd)
 
 c     Perform matvec in finest grid
 
-        call matvec(gpos,neq,ntotf,MGx(1:ntotf),MGy(1:ntotf),igr,bcnd)
+        if (gposc == 0) then
+
+          call matvec(0,neq,ntotf,MGx(1:ntotf),MGy(1:ntotf),igf,bcnd)
+
+        else
+
+          !Find coarse cell position (ic,jc,jc)
+          call limits(gposc,nxc,nyc,nzc,igc
+     .               ,ic,imaxc,jc,jmaxc,kc,kmaxc)
+
+          !Define finest grid stencil
+          mgrx = product(mg_ratio_x(igf:igc-1))
+          mgry = product(mg_ratio_y(igf:igc-1))
+          mgrz = product(mg_ratio_z(igf:igc-1))
+
+          iminf = mgrx*(ic-1)+1
+          imaxf = mgrx* ic
+
+          jminf = mgry*(jc-1)+1
+          jmaxf = mgry* jc
+
+          kminf = mgrz*(kc-1)+1
+          kmaxf = mgrz* kc
+
+cc          write (*,*) 'DIAG -- MGmatvec',igf,igc,mgrx,mgry,mgrz
+cc          write (*,*) 'DIAG -- MGmatvec',ic,jc,kc
+cc          write (*,*) 'DIAG -- MGmatvec',iminf,imaxf,jminf,jmaxf
+cc     .                                  ,kminf,kmaxf
+cc          write (*,*)
+
+          !Perform matvec on fine grid stencil
+          do kf = kminf,kmaxf
+            do jf = jminf,jmaxf
+              do if = iminf,imaxf
+                gposf = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+                call matvec(gposf,neq,ntotf,MGx(1:ntotf),MGy(1:ntotf)
+     .                     ,igf,bcnd)
+              enddo
+            enddo
+          enddo
+          
+        endif
 
 c     Restrict residual
 
-        call restrictMGVector(neq,MGy,igr,igrid,0,volf)
+        call restrictMGVector(neq,MGy,igf,igc,0,volf)
 
 c     Map coarse grid residual
 
-        y = MGy(isig:isig+ntot-1)
+        y = MGy(isigc:isigc+ntotc-1)
 
 c     Deallocate MG vectors
 
@@ -5450,7 +5759,7 @@ c     Deallocate MG vectors
 
       else
 
-        call matvec(gpos,neq,ntot,x,y,igrid,bcnd)
+        call matvec(gposc,neq,ntotc,x,y,igc,bcnd)
 
       endif
 
