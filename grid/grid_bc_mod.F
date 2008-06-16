@@ -1530,10 +1530,6 @@ c     Determine boundary limits
 
       if (.not.selectFace(ibc)) return
 
-cccc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
-cc      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
-cc     .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
-
 c     Allocate rhs
 
       select case(dim)
@@ -1553,10 +1549,10 @@ c     Find BC update
           call periodicBC(array(:,:,:,nvar),dim,loc)
         case(EQU)
           call extrapolateBC(array(:,:,:,nvar),array0(:,:,:,nvar)
-cc     .                      ,dim,loc,1)
      .                      ,dim,loc,order)
         case(DIR)
-          call scalarDirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc,1)
+          call scalarDirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc
+     .                          ,order)
         case(NEU)
           call scalarNeumannBC(array(:,:,:,nvar),ieq,dim,loc)
         case(EXT)
@@ -1575,9 +1571,8 @@ cc     .                      ,dim,loc,1)
           call periodicBC(array(:,:,:,ivar),dim,loc)
         case(EQU)
           call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,order)
-cc          call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,1)
         case(DIR)
-          call vectorDirichletBC(ivar,array,vzeros,ieq,dim,loc,1)
+          call vectorDirichletBC(ivar,array,vzeros,ieq,dim,loc,order)
         case(NEU)
           call vectorNeumannBC(ivar,array,ieq,dim,loc)
         case(EXT)
@@ -3365,7 +3360,7 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
 
         deallocate(vv0)
 
-      case(3)
+      case(3,6)
 
         allocate(v_cnv (0:nnx+1,0:nny+1,0:nnz+1,neq)
      .          ,v_cov (0:nnx+1,0:nny+1,0:nnz+1,neq)
@@ -3390,12 +3385,16 @@ cc          vv0 = 0d0
           do k = kmnl-1,kmxl+1
             do j = jmnl-1,jmxl+1
               do i = imnl-1,imxl+1
-                car = array(i,j,k,:)
-                call transformVectorToCurvilinear
+                do ieq=1,neq/3
+                  car = array(i,j,k,1+3*(ieq-1):3*ieq)
+                  call transformVectorToCurvilinear
      .               (i,j,k,iig,iig,iig
      .               ,car(1),car(2),car(3)
      .               ,.not.iscnv
-     .               ,array(i,j,k,1),array(i,j,k,2),array(i,j,k,3))
+     .               ,array(i,j,k,1+3*(ieq-1))
+     .               ,array(i,j,k,2+3*(ieq-1))
+     .               ,array(i,j,k,3+3*(ieq-1)))
+                enddo
               enddo
             enddo
           enddo
@@ -3421,10 +3420,16 @@ cc     .           = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
           endif
         endif
 
-        call setBC(ivar,neq,nnx,nny,nnz,v_cnv,v_cov,vv0,bcnd
+        do ieq=1,neq/3
+          call setBC(ivar,3,nnx,nny,nnz
+     .            ,v_cnv(:,:,:,1+3*(ieq-1):3*ieq)
+     .            ,v_cov(:,:,:,1+3*(ieq-1):3*ieq)
+     .            ,vv0  (:,:,:,1+3*(ieq-1):3*ieq)
+     .            ,bcnd (:    ,1+3*(ieq-1):3*ieq)
      .            ,iig,iig,iig
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
      .            ,is_cnv=iscnv,is_vec=.true.,iorder=order)
+        enddo
 
         if (isvec .or. res_is_vec) then
 
@@ -3452,12 +3457,16 @@ cc              array = v_cov
           do k = kmnl-1,kmxl+1
             do j = jmnl-1,jmxl+1
               do i = imnl-1,imxl+1
-                curv = v_cnv(i,j,k,:)
-                call transformVectorToCartesian
-     .               (i,j,k,iig,iig,iig
-     .               ,curv(1),curv(2),curv(3)
-     .               ,.false.
-     .               ,array(i,j,k,1),array(i,j,k,2),array(i,j,k,3))
+                do ieq=1,neq/3
+                  curv = v_cnv(i,j,k,1+3*(ieq-1):3*ieq)
+                  call transformVectorToCartesian
+     .                 (i,j,k,iig,iig,iig
+     .                 ,curv(1),curv(2),curv(3)
+     .                 ,.false.
+     .                 ,array(i,j,k,1+3*(ieq-1))
+     .                 ,array(i,j,k,2+3*(ieq-1))
+     .                 ,array(i,j,k,3+3*(ieq-1)))
+                enddo
               enddo
             enddo
           enddo
@@ -3467,7 +3476,8 @@ cc              array = v_cov
         deallocate(v_cov,v_cnv,vv0)
 
       case default
-        write (*,*) 'Number of equations not implemented in setMGBC'
+        write (*,*) 'Number of equations',neq
+     .             ,'not implemented in setMGBC'
         write (*,*) 'Aborting...'
         stop
       end select
