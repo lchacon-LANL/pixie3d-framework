@@ -541,11 +541,17 @@ cc        endif
 
         !Impose logical BCs
         do ieq=1,u_graph%nvar
-          where (u_graph%array_var(ieq)%bconds == EQU)
+          where (abs(u_graph%array_var(ieq)%bconds) == EQU)
      .           u_graph%array_var(ieq)%bconds = DEF
         enddo
 
         call imposeBoundaryConditions(u_graph,1,1,1)
+
+        !Recover u_0 BC defs. for u_graph (used in graphics postprocessor)
+        do ieq=1,u_graph%nvar
+          u_graph%array_var(ieq)%bconds =
+     .        u_0%array_var(ieq)%bconds
+        enddo
 
         !Open record file
         open(unit=urecord,file=recordfile
@@ -556,8 +562,6 @@ cc        endif
         write (urecord) nzl,klog,khig
 
         call writeRecordFile(urecord,0,0d0,dt,u_graph)
-cc        call writeRecordFile(urecord,0,0d0,dt,u_n)
-cc        call writeRecordFile(urecord,0,0d0,dt,u_0)   !Need u_0 so that EQU BCs are imposed correctly
         call writeRecordFile(urecord,0,0d0,dt,u_np)
 
       else
