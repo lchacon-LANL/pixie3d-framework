@@ -780,8 +780,8 @@ c     Select rank
         endif
 
         !Create self-communicator for single-point dimensions
-        if (      l_lim(dim,0) == l_lim(dim,1)
-     .      .and. cp(0)       .eqv. cp(1)       ) then
+        if (      (l_lim(dim,0) == l_lim(dim,1))
+     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
           call random_seed()
           call random_number(random)
           split_key=split_key+my_rank+1
