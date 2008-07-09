@@ -387,12 +387,13 @@ c     Begin program
           !All these are affected by factor 1/dt (done in evaluateNLF)
           cnp = (2*dt+dtold)/(dt+dtold)
           cn  = -(dt+dtold)/dtold
-          cnm = dt**2/(dtold*(dt+dtold))
+cc          cnm = dt**2/(dtold*(dt+dtold))
+          cnm = -cnp-cn    !Sum should be zero identically
 
         endif
       endif
 
-      alpha = 1. - cnfactor
+      alpha = 1d0 - cnfactor
 
 c     End program
 
@@ -449,7 +450,7 @@ c     #######################################################################
         coef1 = 0.8             !Time subcycling coefficient
         coef2 = 1.05            !Time recovery   coefficient
 
-        if (ierr.gt.0) then
+        if (ierr > 0) then
           dt = dt*coef1
           if (dt < 1d-3*dtbase) then
             call pstop('adapt_dt','Time step too small')
@@ -457,10 +458,10 @@ c     #######################################################################
           if (my_rank == 0 .and. ierr == 2) write (*,240)
           if (my_rank == 0) write (*,400) dt
         else
-          if (sm_flag == 1 .and. itm.le.sm_pass+1) then
+          if (sm_flag == 1 .and. itm <= sm_pass+1) then
             dt = dtbase/2.
-          elseif (    (itm.eq.(sm_pass+2) .and. sm_flag == 1)
-     .           .or. (itm.eq.2)) then
+          elseif (    (itm == (sm_pass+2) .and. sm_flag == 1)
+     .           .or. (itm == 2)) then
             dt = dtbase
           else
             dt = min(dtbase,dt*coef2)
