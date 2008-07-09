@@ -402,10 +402,12 @@ c     Check that we are domain adjacent to singular point
 c     Parallel Allgather in SP communicator
 
 #if defined(petsc)
+
 cc      allocate(local_x(nybc*nzbc),global_x(nyg*nzbc),garray(nyg,nzbc))
 cc      local_x = reshape(vec(i,1:nybc,1:nzbc), (/ nybc*nzbc /))
       allocate(global_x(nyg*nzbc),garray(nyg,nzbc))
       call MPI_Allgather(vec(i,1:nybc,1:nzbc)
+cc      call MPI_Allgather(local_x
      .                           ,nybc*nzbc,MPI_DOUBLE_PRECISION
      .                  ,global_x,nybc*nzbc,MPI_DOUBLE_PRECISION
      .                  ,MPI_COMM_SP,mpierr)
@@ -416,22 +418,6 @@ cc      local_x = reshape(vec(i,1:nybc,1:nzbc), (/ nybc*nzbc /))
       enddo
       deallocate(global_x)
 cc      deallocate(local_x,global_x)
-
-cc      allocate(local_x(nybc),global_x(nyg),garray(nyg,nzbc))
-cc      do k=1,nzbc
-cc        local_x = vec(i,1:nybc,k)
-cc        call MPI_Allgather(local_x ,nybc,MPI_DOUBLE_PRECISION
-cc     .                    ,global_x,nybc,MPI_DOUBLE_PRECISION
-cc     .                    ,MPI_COMM_SP,mpierr)
-cc        garray(:,k) = global_x
-cc      enddo
-cc      deallocate(local_x,global_x)
-
-cc      allocate(garray(nyg,nzbc))
-cc      call MPI_Allgather(vec(i,1:nybc,1:nzbc)
-cc     .                         ,nybc*nzbc,MPI_DOUBLE_PRECISION
-cc     .                  ,garray,nybc*nzbc,MPI_DOUBLE_PRECISION
-cc     .                  ,MPI_COMM_SP,mpierr)
 #endif
 
 c     Element exchange in poloidal direction
@@ -1016,7 +1002,7 @@ c     Local variables
       integer    :: imax,imin,jmax,jmin,kmax,kmin
       integer    :: ivar,ieq,ibc,loc,dim,bctype
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
-      logical    :: cov_to_cnv,to_cnv,is__vec,petsc__bc
+      logical    :: cov_to_cnv(6),to_cnv,is__vec,petsc__bc
 
 c     Begin program
 
@@ -1137,7 +1123,7 @@ c     Impose BCs
 
       cov_to_cnv = .false.
 
-      do bctype=1,BCLIM            !Enforces a particular order in the BCs (see grid_mod.f)
+      do bctype=1,BCLIM            !Enforces a particular order in the BCs (see grid_def_mod.F)
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1150,7 +1136,7 @@ c     Impose BCs
                 if (bcond(ibc,ivar) < 0 .and. is__vec) then
                   call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
      .                               ,v_cov,var0,cnv=.false.)
-                  cov_to_cnv = .true.
+                  cov_to_cnv(ibc) = .true.
                 else
                   call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
      .                               ,v_cnv,var0)
@@ -1166,7 +1152,7 @@ c     Impose BCs
 
 c     Synchronize covariant and contravariant components => contravariant
 
-      if (cov_to_cnv) call synchronize_cnv(ncomp,v_cnv,v_cov,bcond)
+      call synchronize_cnv(ncomp,v_cnv,v_cov,bcond,cov_to_cnv)
 
 c     Fill edges
 
@@ -1292,7 +1278,7 @@ c     End program
 
 c     synchronize_cnv
 c     #################################################################
-      subroutine synchronize_cnv(ncomp,v_cnv,v_cov,bcond)
+      subroutine synchronize_cnv(ncomp,v_cnv,v_cov,bcond,cov_to_cnv)
 c     -----------------------------------------------------------------
 c     Finds all contravariant components at boundaries with BC in terms
 c     of covariant components.
@@ -1309,6 +1295,7 @@ c     Call variables
       integer    :: ncomp,bcond(6,ncomp)
       real(8)    :: v_cnv(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
      .             ,v_cov(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
+      logical    :: cov_to_cnv(6)
 
 c     Local variables
 
@@ -1321,6 +1308,8 @@ c     Begin program
       do dim = 1,3
         do loc = 0,1
           ibc = (1+loc)+2*(dim-1)
+
+          if (.not.cov_to_cnv(ibc)) cycle
 
           do ivar = 1,ncomp
 
