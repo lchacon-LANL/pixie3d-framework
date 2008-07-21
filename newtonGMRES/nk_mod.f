@@ -151,7 +151,6 @@ c     ---------------------------------------------------------------
 c     Call variables
 
       integer    :: ntot,neq,out,iguess,ierr
-     .             
 
       real(8)    :: x(ntot)
 
@@ -235,7 +234,6 @@ c     Evaluate rhs and norms
 
       call evaluateNewtonResidual(ntot,x,rk)
 
-cPAR      f0 = sqrt(sum(rk*rk))
       f0 = sqrt(dot(ntot,rk,rk))
 
       !Check if initial guess is exact, and if so exit Newton step
@@ -320,7 +318,6 @@ c     Evaluate rhs and norms
 
         call evaluateNewtonResidual(ntot,x,rk)
 
-cPAR        fkp = sqrt(sum(rk*rk))
         fkp = sqrt(dot(ntot,rk,rk))
 
 c     Check Newton convergence/failure
@@ -545,14 +542,14 @@ c     Begin program
         dummy = x
         call updateNewtonSolution(dummy,ddx,ntot,damp,dxnorm)
         call evaluateNewtonResidual(ntot,dummy,b)
-cPAR        fkp = sqrt(sum(b*b))
+
         fkp = sqrt(dot(ntot,b,b))
         if (fkp.gt.(1.-alpha*damp)*fk) then
           dampm = sigma1*damp
           dummy = x
           call updateNewtonSolution(dummy,ddx,ntot,dampm,dxnorm)
           call evaluateNewtonResidual(ntot,dummy,b)
-cPAR          fm = sqrt(sum(b*b))
+
           fm = sqrt(dot(ntot,b,b))
           if (fm.lt.(1.-alpha*dampm)*fk) then
             damp = dampm
@@ -583,7 +580,7 @@ cc          dampm = .5*damp
 cc          dummy = x
 cc          call updateNewtonSolution(dummy,ddx,ntot,dampm,dxnorm)
 cc          call evaluateNewtonResidual(ntot,dummy,b)
-cccPAR          fm = sqrt(sum(b*b))
+cc
 cc          fm = sqrt(dot(ntot,b,b))
 cc          theta = .5*(1.5*fk + 0.5*fkp - 2.*fm)/(fk + fkp - 2.*fm)
 cc          theta = fmedval(sigma0,sigma1,theta)
@@ -728,7 +725,6 @@ c     Begin program
 
 c     Calculate magnitude of nonlinear residual
 
-cPAR      rold = sqrt(sum(rhs*rhs))
       rold = sqrt(dot(ntot,rhs,rhs))
 
       eps1=eps*rold
@@ -756,7 +752,6 @@ c     Restarted FGMRES loop
 
       do irstrt = 1,rstrt
 
-cPAR        ro = sqrt(sum(vv(:,1)*vv(:,1)))
         ro = sqrt(dot(ntot,vv(:,1),vv(:,1)))
 
         if (iout .gt. 0 .and. prnt) then
@@ -790,13 +785,11 @@ c       FGMRES iteration
 c       Modified gram - schmidt.
 
           do j=1,i
-cPAR            t = sum(vv(:,j)*vv(:,i1))
             t = dot(ntot,vv(:,j),vv(:,i1))
             hh(j,i) = t
             vv(:,i1) = vv(:,i1)-t*vv(:,j)
           enddo
 
-cPAR          t = sqrt(sum(vv(:,i1)*vv(:,i1)))
           t = sqrt(dot(ntot,vv(:,i1),vv(:,i1)))
           hh(i1,i) = t
 
@@ -986,7 +979,6 @@ c     Begin program
 
 c     Calculate magnitude of nonlinear residual
 
-cPAR      rold = sqrt(sum(rhs*rhs))
       rold = sqrt(dot(ntot,rhs,rhs))
 
       eps1=eps*rold
@@ -1014,7 +1006,6 @@ c     Restarted FGMRES loop
 
       do irstrt = 1,rstrt
 
-cPAR        ro = sqrt(sum(vv(:,1)*vv(:,1)))
         ro = sqrt(dot(ntot,vv(:,1),vv(:,1)))
 
         if (iout .gt. 0 .and. prnt) then
@@ -1048,13 +1039,11 @@ c     FGMRES iteration
 c       Modified gram - schmidt.
 
           do j=1,i
-cPAR            t = sum(vv(:,j)*vv(:,i1))
             t = dot(ntot,vv(:,j),vv(:,i1))
             hh(j,i) = t
             vv(:,i1) = vv(:,i1)-t*vv(:,j)
           enddo
 
-cPAR          t = sqrt(sum(vv(:,i1)*vv(:,i1)))
           t = sqrt(dot(ntot,vv(:,i1),vv(:,i1)))
           hh(i1,i) = t
 
@@ -1211,7 +1200,6 @@ c     Local variables
 
 c     Begin program
 
-cPAR      modz  = sum(z*z)
       modz  = dot(nn,z,z)
 
 c     Calculate J.x
@@ -1224,8 +1212,6 @@ c     Calculate J.x
 
 c       Calculate difference parameter
 
-cPAR        modx  = sum(xk*xk)
-cPAR        xdotz = sum(z *xk)
         modx  = dot(nn,xk,xk)
         xdotz = dot(nn,z ,xk)
 
