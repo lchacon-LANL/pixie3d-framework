@@ -97,7 +97,8 @@ c Time loop
 
         itime = itime + 1
 
-        if (tmax.gt.0d0.and.time.ge.(tmax-0.1*dt))  exit
+cc        if (tmax.gt.0d0.and.time.ge.(tmax-0.1*dt))  exit
+        if (tmax.gt.0d0.and.time.ge.tmax)  exit
         if (numtime.ge.0.and.itime.ge.(numtime+inewtime)) exit
 
 c     Find new time step
@@ -157,6 +158,8 @@ c     Time level data dump
           call imposeBoundaryConditions(u_np,1,1,1)
           call writeRecordFile(urecord,itime,time,dt,u_np)
         endif
+
+        if (eigen) exit
 
       enddo       !End of time loop
 
@@ -234,6 +237,8 @@ c----------------------------------------------------------------------
 
       use iosetup
 
+      use eigen_mod
+
       implicit none
 
 c Call variables
@@ -285,9 +290,52 @@ c Evaluate nonlinear function at old time for theta scheme
 
       call evaluateNonlinearFunction(vn,fold)
 
+c Eigenvalue solver
+
+      if (eigen) then
+
+        eigen_conf%ksmax = maxksp
+        eigen_conf%armax = maxitgm
+        if (rtol > 0d0) eigen_conf%rtol = rtol
+        if (atol > 0d0) eigen_conf%atol = atol
+        eigen_conf%step  = 1d0
+
+        !Setup matvec in Newton
+        allocate (xk(ntotd),rk(ntotd))
+
+        call mapStructureToVector(xk,u_0)
+        call mapStructureToVector(x ,vnp)
+        call evaluateNewtonResidual(ntotd,xk,rk)
+
+        !Setup initial guess
+        x = x - xk
+
+        !Eigensolve
+#if defined(arpack)
+        call arnoldi_eig(neqd,ntotd,x,ilevel)
+#endif
+        iguess = 1
+        call lehoucq_eig(neqd,ntotd,x,iguess,ilevel)
+
+        if (my_rank == 0) then
+           write (*,*)
+           write (*,*) '**************************************'
+           write (*,'(a,1p,1e10.3,a)') ' ****** Eigenvalue is='
+     $             ,1d0/dt-eigen_conf%eigv,' ******' 
+           write (*,*) '**************************************'
+        endif
+
+        x = x + xk
+
+        !Map eigenvector for plotting
+        call mapVectorToStructure(vnp,x)
+
+        !Free space
+        deallocate(xk,rk)
+
 c Implicit update (Newton)
 
-      if (cnfactor.lt.1d0) then
+      elseif (cnfactor.lt.1d0) then
 
 c     Initial guess
 
