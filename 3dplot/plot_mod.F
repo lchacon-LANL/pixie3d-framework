@@ -57,7 +57,7 @@ c ######################################################################
         real(8)    :: vx_max,vy_max,vz_max,bx_max,by_max,bz_max
 
         logical    :: timecorr,restart,source,predictor,vol_wgt
-     .               ,postprocess,chk_src
+     .               ,postprocess,chk_src,eigen
 
         real(8)    :: tmrst
 
