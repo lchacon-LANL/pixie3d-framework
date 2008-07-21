@@ -83,7 +83,7 @@ c ######################################################################
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
      .                                     ,bdfp,bdfn,bdfnm
 
-        logical    :: vol_wgt=.true.,bdf2=.false.
+        logical    :: vol_wgt=.true.,bdf2=.false.,eigen=.false.
 
 #if !defined(petsc_c)
         type(var_array),pointer :: dn,dnm,dnp
