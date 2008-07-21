@@ -41,7 +41,6 @@ c Begin program
 
 c Unpack vector x
 
-cc      varray = x         !Overloaded assignment
       call mapVectorToStructure(varray,x)
 
 c Evaluate nonlinear function Fi(Uj) at time level (n+1)
