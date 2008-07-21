@@ -107,7 +107,7 @@ c     ----------------------------------------------------------
 
 c     Call variables
 
-      complex(16) :: root(2),a,b,c
+      complex(8) :: root(2),a,b,c
 
 c     Local variables
 
@@ -142,11 +142,11 @@ c     ----------------------------------------------------------
 
 c     Call variables
 
-      complex(16)   :: root(3),a,b,c,d
+      complex(8)   :: root(3),a,b,c,d
 
 c     Local variables
 
-      complex(16):: S,T,R,Q,Det,a2,a1,a0
+      complex(8):: S,T,R,Q,Det,a2,a1,a0
 
 c     Begin program
 
