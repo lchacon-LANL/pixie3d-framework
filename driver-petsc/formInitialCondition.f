@@ -94,7 +94,7 @@ c Set output file
 
       if (.not.restart) then
         if (my_rank == 0)
-     .     ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
+     .     ierr=system('rm -f '//trim(recordfile)//'* > /dev/null')
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
       endif
 
