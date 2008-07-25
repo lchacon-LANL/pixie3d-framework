@@ -415,7 +415,7 @@ c Begin program
 c Open graphics files
 
 #if !defined(petsc)
-      ierr = system('ls '//trim(recordfile)//'_proc* >& /dev/null')
+      ierr = system('ls '//trim(recordfile)//'_proc* > /dev/null')
 
       if (ierr == 0) then
 
@@ -427,8 +427,8 @@ c Open graphics files
         ierr   = 0
         do while (ierr == 0)
           nfiles=nfiles+1
-          ierr = system('ls '//trim(recordfile)//'_proc'
-     .                 //trim(int2char(nfiles))//' >& /dev/null')
+          ierr = system('test -f '//trim(recordfile)//'_proc'
+     .                 //trim(int2char(nfiles)))
         enddo
 
         allocate(mrecfile(nfiles),murecord(nfiles))
@@ -708,7 +708,7 @@ cc            call writeRecordFile(musave(ifile),itime,time,dt,varray)
             write (*,*) 'write routine to dump only local domain info'
             call closeCleanFiles
             write (*,*) 'Removing clean-up files...'
-            ierr = system('rm *_sav >& /dev/null')
+            ierr = system('rm *_sav > /dev/null')
             call pstop('readTimeStep','')
           endif
         enddo
