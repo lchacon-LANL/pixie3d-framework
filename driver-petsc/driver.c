@@ -67,6 +67,7 @@ typedef struct {
   int        sm_flag;
   int        bcs[6];
   PetscTruth asm_PC;
+  PetscTruth tst_flg;
 } input_CTX;
 
 typedef struct {
@@ -167,7 +168,7 @@ int main(int argc, char **argv)
 
   DAPeriodicType     BC=DA_NONPERIODIC;
 
-  PetscTruth         matrix_free;
+  PetscTruth         matrix_free,tst_flg;
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Begin program
@@ -203,6 +204,10 @@ int main(int argc, char **argv)
   user.indata.npx = npx;
   user.indata.npy = npy;
   user.indata.npz = npz;
+
+  ierr = PetscOptionsGetInt(PETSC_NULL,"-test",&tst_flg,PETSC_NULL)  	        ;CHKERRQ(ierr);
+
+  user.indata.tst_flg = tst_flg;
 
   /* Read FORTRAN input file */
 
@@ -438,8 +443,10 @@ int main(int argc, char **argv)
   ierr = PetscGetTime(&time3)				                 	;CHKERRQ(ierr);
   ierr = PetscGetCPUTime(&time4)			                 	;CHKERRQ(ierr);
 
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"Elapsed time = %f \n",time3-time1)       ;CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD,"CPU time     = %f \n",(time4-time2)*1e4)       ;CHKERRQ(ierr);
+  if (!tst_flg) {
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"Elapsed time = %f \n",time3-time1)       ;CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"CPU time     = %f \n",(time4-time2)*1e4)       ;CHKERRQ(ierr);
+  }
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Deallocate memory and finish

@@ -56,6 +56,7 @@ c Call variables
         integer    :: sm_flag
         integer    :: bcsi(6)
         logical    :: asm_PC
+        logical    :: tst_flg
       end type indata
 
       type(indata) :: inputdata
@@ -71,6 +72,8 @@ c Set PETSc defaults
       npx = inputdata%npx
       npy = inputdata%npy
       npz = inputdata%npz
+
+      tst_flg = inputdata%tst_flg
 
 c Read fortran input file
 
