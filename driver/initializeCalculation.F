@@ -99,6 +99,12 @@ c Initialize global domain limits
 
       call setVectorDimensions
 
+#if defined(petsc)
+      if (.not.tst_flg)
+     .   write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
+     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
+#endif
+
 c Allocate constant arrays
 
       allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
@@ -140,7 +146,7 @@ c Set output files
 #if defined(petsc) 
       if (.not.restart) then
         if (my_rank == 0)
-     .     ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
+     .     ierr=system('rm -f '//trim(recordfile)//'* > /dev/null')
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
       endif
 
@@ -151,7 +157,7 @@ c Set output files
       endif
 #else
       if (.not.restart) then
-         ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
+         ierr=system('rm -f '//trim(recordfile)//'* > /dev/null')
       endif
 #endif
 
