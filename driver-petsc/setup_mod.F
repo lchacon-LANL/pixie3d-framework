@@ -131,11 +131,6 @@ c     #################################################################
         ntotdp = nxl*nyl*nzl
         ntotd  = neqd*ntotdp
 
-#if defined(petsc)
-        write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
-     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
-#endif
-
       end subroutine setVectorDimensions
 
 c     allocateGlobalVar
