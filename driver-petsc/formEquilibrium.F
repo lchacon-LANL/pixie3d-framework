@@ -57,17 +57,13 @@ c Initialize MG and create grid
 
 c Initialize vector dimensions for global and local problems
 
-cc      ihig = imax
-cc      ilog = imin
-cc      jhig = jmax
-cc      jlog = jmin
-cc      khig = kmax
-cc      klog = kmin
-
       call setVectorDimensions
 
-cc      write (*,*) 'Processor:',my_rank
-cc     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
+#if defined(petsc)
+      if (.not.tst_flg)
+     .   write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
+     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
+#endif
 
 c Allocate constant arrays
 
