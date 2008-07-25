@@ -97,8 +97,8 @@ c Time loop
 
         itime = itime + 1
 
-cc        if (tmax.gt.0d0.and.time.ge.(tmax-0.1*dt))  exit
-        if (tmax.gt.0d0.and.time.ge.tmax)  exit
+        if (tmax.gt.0d0.and.time.ge.(tmax-1d-5*dt))  exit
+cc        if (tmax.gt.0d0.and.time.gt.tmax)  exit
         if (numtime.ge.0.and.itime.ge.(numtime+inewtime)) exit
 
 c     Find new time step
