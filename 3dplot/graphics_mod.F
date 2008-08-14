@@ -58,9 +58,15 @@ c     Find grid in logical space
         yl(:) = grid_params%yy(jming+isy:jmaxg+isy)
         zl(:) = grid_params%zz(kming+isz:kmaxg+isz)
 
-c     Define graphics i/o and initialize graph arrays (external)
+c     Define graphics i/o and initialize graph arrays
 
-        call defineGraphics
+cc        call defineGraphics
+
+        call setGraphicsGroups             !External
+
+        call allocateGraphicsVariables
+
+        call defineGraphicsGroups          !External
 
 c     Determine actual number of 3D plots
 
@@ -86,6 +92,10 @@ c     Initialize HDF5
         if (hdf_plot) call initializeHDF5
 #endif
 
+c     Define application I/O (external)
+
+      call defineGraphicsIO
+
 c     End program
 
       end subroutine initializeGraphics
@@ -106,11 +116,17 @@ c     Local variables
 
 c     Begin program
 
+c     Finalize XDRAW
+
 #if defined(petsc)
-        if (np == 1) call closeXDRAWGraphicsFiles
+        if (np == 1) call finalizeXDRAW
 #else
-        call closeXDRAWGraphicsFiles
+        call finalizeXDRAW
 #endif
+
+c     Finalize HDF5
+
+c     Deallocate memory
 
         call deallocateGraphicsVariables
 
@@ -213,13 +229,13 @@ c     End program
 
 c     allocateGraphicsVariables
 c     ##################################################################
-      subroutine allocateGraphicsVariables(ngroups)
+      subroutine allocateGraphicsVariables
 
         implicit none
 
 c     Call variables
 
-        integer    :: ngroups
+cc        integer    :: ngroups
 
 c     Begin program
 
@@ -229,7 +245,7 @@ c     Allocate graph groups
 
 c     Allocate XDRAW quantities
 
-        call allocateXDRAWvariables(ngroups)
+        call allocateXDRAWvariables
 
       end subroutine allocateGraphicsVariables
 
@@ -241,13 +257,15 @@ c     ##################################################################
 
 c     Call variables
 
+c     Local variables
+
+        integer :: alloc_stat
+
 c     Begin program
 
         deallocate(graph,nqty)
 
-#if !defined(petsc)
         call deallocateXDRAWvariables
-#endif
 
       end subroutine deallocateGraphicsVariables
 

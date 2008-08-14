@@ -36,14 +36,6 @@ c Interfaces
         end subroutine readTimeStep
       END INTERFACE
 
-cc      INTERFACE
-cc        subroutine postProcessSolution(varray,iigx,iigy,iigz)
-cc        use variable_setup
-cc        integer    :: iigx,iigy,iigz
-cc        type(var_array),pointer :: varray
-cc        end subroutine postProcessSolution
-cc      END INTERFACE
-
       INTERFACE
         subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
         use variable_setup
@@ -144,6 +136,8 @@ c Close graphics files and create draw*.in files
       call closeRecordFiles
 
       if (clean) call closeCleanFiles
+
+      call fortranDestroy
 
 #if defined(petsc)
       call PetscFinalize(mpierr)
@@ -268,14 +262,6 @@ c Interfaces
         integer         :: ierr
         end subroutine readTimeStep
       END INTERFACE
-
-cc      INTERFACE
-cc        subroutine postProcessSolution(varray,iigx,iigy,iigz)
-cc        use variable_setup
-cc        integer    :: iigx,iigy,iigz
-cc        type(var_array),pointer :: varray
-cc        end subroutine postProcessSolution
-cc      END INTERFACE
 
       INTERFACE
         subroutine initializeDiagnostics(varray,iigx,iigy,iigz)

@@ -4,6 +4,8 @@ c #####################################################################
 
         use iosetup
 
+        use graphics_variables
+
         use xdraw_io
 
         use grid
@@ -112,15 +114,41 @@ c     End program
 
       end subroutine initializeXDRAW
 
-c     allocateXDRAWvariables
-c     ##################################################################
-      subroutine allocateXDRAWvariables(ngroups)
+c     finalizeXDRAW
+c     #################################################################
+      subroutine finalizeXDRAW
+
+c     ---------------------------------------------------------------
+c     Finalizes XDRAW graphics
+c     ---------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer    :: ngroups
+c     Local variables
+
+c     Begin program
+
+c     Close XDRAW graphics files
+
+        call closeXDRAWGraphicsFiles
+
+c     Deallocate XDRAW variables
+
+cc        call deallocateXDRAWvariables
+
+c     End program
+
+      end subroutine finalizeXDRAW
+
+c     allocateXDRAWvariables
+c     ##################################################################
+      subroutine allocateXDRAWvariables
+
+        implicit none
+
+c     Call variables
 
 c     Begin program
 
@@ -151,7 +179,7 @@ c     Begin program
 
         deallocate(ugraph,uprofile)
 
-        deallocate(prof_desc,sel_gr,prof_ivar,prof_log,prof_spline)
+        deallocate(prof_desc,prof_ivar,prof_log,prof_spline,sel_gr)
 
       end subroutine deallocateXDRAWvariables
 

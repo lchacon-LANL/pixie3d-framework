@@ -21,6 +21,8 @@ c ##################################################################
 
         integer        :: toffset=0
 
+        integer(hsize_t) :: izero=0
+
 c       HDF5 ID variables
         integer(hid_t) :: group_id,subgroup_id
         integer(hid_t) :: file_id        
@@ -42,7 +44,7 @@ c       generic HDF5 variables
         integer   , parameter :: ARRAY_RANK = 3
         integer   , parameter :: ATTR_RANK = 1
         integer   , parameter :: VEXP_RANK = 1
-        integer   , parameter :: strlength = 20
+        integer(hsize_t), parameter :: strlength = 20
 
         integer(hsize_t), dimension(ARRAY_RANK) ::
      .                         array_dim,node_array_dim
@@ -74,7 +76,7 @@ c     Call variables
       
 c     Local variables
 
-      integer    :: iattr,slth
+      integer(hsize_t)    :: iattr,slth
       character(300) :: vexp
 
 c     Begin program
@@ -147,11 +149,11 @@ c     Create VISIT expressions (to identify vectors)
 c     Create groups for coordinate data
 
       !Cell center positions
-      call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr,0)
+      call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr,izero)
 
       call h5gclose_f(group_id,hdferr)
       !Node positions
-      call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr,0)
+      call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr,izero)
       call h5gclose_f(group_id,hdferr)
 
 c     Close fortran interface
@@ -176,7 +178,7 @@ c     and creates VISIT expressions that allows visit to recognize
 c     them as vectors.
 c     -----------------------------------------------------------------
 
-      integer(4)   :: igrp,ivar,ivp,ivm
+      integer   :: igrp,ivar,ivp,ivm
 
       character(20) :: str1,str2,str3
       logical      :: first
@@ -259,11 +261,11 @@ cc      endif
 
 c     Create groups for computation data
 
-      call h5gcreate_f(file_id,groupname,group_id,hdferr, 0)
+      call h5gcreate_f(file_id,groupname,group_id,hdferr, izero)
 
       do igrp=1,ngroups
         call h5gcreate_f(group_id,graph(igrp)%descr,subgroup_id,
-     $                  hdferr,0)
+     $                  hdferr,izero)
         call h5gclose_f(subgroup_id, hdferr)
       enddo
 
