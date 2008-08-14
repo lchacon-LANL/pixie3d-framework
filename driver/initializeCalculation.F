@@ -228,6 +228,40 @@ c End programs
 
       end subroutine createNonlinearSolver
 
+c destroyNonlinearSolver
+c######################################################################
+      subroutine destroyNonlinearSolver
+
+c----------------------------------------------------------------------
+c     Allocates nonlinear solver arrays
+c----------------------------------------------------------------------
+
+      use parameters
+
+      use constants
+
+      use timeStepping
+
+      use variables
+
+      implicit none
+
+c Call variables
+
+c Local variables
+
+c Begin program
+
+      call deallocateStructures
+
+      deallocate(fold,fsrc)
+
+      deallocate(cnf,one_over_dt,bdfp,bdfn,bdfnm)
+
+c End programs
+
+      end subroutine destroyNonlinearSolver
+
 c createEquilibrium
 c######################################################################
       subroutine createEquilibrium

@@ -6,7 +6,7 @@ c ######################################################################
 
       use iosetup
 
-      use grid_mpi
+      use grid
 
       implicit none
 
@@ -20,17 +20,17 @@ c Begin program
 
       call closeRecordFile
 
+      deallocate(zeros,vzeros,ones)
+
+      call destroyNonlinearSolver
+
+      call destroyNonlinearFunction   !External
+
+      call destroyGrid(gv%gparams)
+
+      deallocate(gv%bc_seq)
+
       deallocate(gv,STAT=ierr)
-
-cc      call deallocateDerivedType(u_0)
-cc      call deallocateDerivedType(u_n)
-cc      call deallocateDerivedType(u_nm)
-cc      call deallocateDerivedType(u_np)
-cc      call deallocateDerivedType(u_graph)
-
-#if defined(petsc)
-      call destroyFortranMPI
-#endif
 
 c End program
 
