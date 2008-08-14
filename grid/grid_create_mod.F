@@ -94,6 +94,39 @@ c     Perform grid checks
 
       end subroutine createGrid
 
+c     destroyGrid
+c     #################################################################
+      subroutine destroyGrid(gparams)
+
+c     -----------------------------------------------------------------
+c     Deallocates grid memory space
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: gparams
+
+c     Local variables
+
+        integer :: imin,imax,jmin,jmax,kmin,kmax
+        integer :: nx,ny,nz
+
+c     Begin program
+
+c     Destroy MG grid hierarchy
+
+        call deallocateGridStructure(gparams)
+
+c     Create fortran PETSc parallel grid hierarchy (parallel version)
+
+#if defined(petsc)
+        call destroyFortranMPI
+#endif
+
+      end subroutine destroyGrid
+
 c     initMG
 c     #################################################################
       subroutine initMG(nx,ny,nz,gdef)
