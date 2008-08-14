@@ -208,6 +208,51 @@ c     End program
 
       end subroutine allocateAuxStruct
 
+c     deallocateAuxStruct
+c     #################################################################
+      subroutine deallocateAuxStruct(aux)
+
+        implicit none
+
+c     Call variables
+
+        type(aux_array),pointer  :: aux
+
+c     Local variables
+
+        integer          :: ieq,nvar,nvec
+
+c     Begin program
+
+        if (associated(aux)) then
+
+          nvar = aux%nvar
+          nvec = aux%nvec
+
+          if (nvar > 0) then
+            do ieq=1,nvar
+              deallocate(aux%var_list(ieq)%array)
+            enddo
+
+            deallocate(aux%var_list)
+          endif
+
+          if (nvec > 0) then
+            do ieq=1,nvec
+              deallocate(aux%vec_list(ieq)%vec)
+            enddo
+
+            deallocate(aux%vec_list)
+          endif
+
+          deallocate(aux)
+
+        endif
+
+c     End program
+
+      end subroutine deallocateAuxStruct
+
 c     allocateDerivedType
 c     #################################################################
       subroutine allocateDerivedType(varray)
@@ -692,6 +737,26 @@ c     End program
 
       end subroutine allocateStructures
 
+c     deallocateStructures
+c     #################################################################
+      subroutine deallocateStructures
+
+c     Call variables
+
+c     Local variables
+
+c     Begin program
+
+        call deallocateDerivedType(gv%u_np)
+        call deallocateDerivedType(gv%u_nm)
+        call deallocateDerivedType(gv%u_n )
+        call deallocateDerivedType(gv%u_0)
+        call deallocateDerivedType(gv%u_graph)
+
+c     End program
+
+      end subroutine deallocateStructures
+
       end module variables
 
 c module generalPurposeFunctions
@@ -879,3 +944,70 @@ c     End
       end subroutine closeRecordFile
 
       end module iosetup
+
+c module graphics_variables
+c ######################################################################
+      module graphics_variables
+
+        use xdraw_io
+
+cc        integer        :: ngraph,xdraw_cont_lim,ngroups
+cc        parameter        (ngraph=30,xdraw_cont_lim=16)
+        integer        :: ngroups
+
+        real(8), allocatable, dimension(:) :: xl,yl,zl
+
+        type :: graph_var_def
+          real(8),pointer,dimension(:,:,:) :: array
+          character(20)                    :: descr
+          character(20)                    :: vector_name=''
+        end type graph_var_def
+
+        type :: graph_group
+          type (graph_var_def),dimension(ngraph) :: array_graph
+          logical                                :: cartesian
+          character(20)                          :: descr
+        end type graph_group
+
+        type (graph_group),pointer,dimension(:) :: graph
+
+        integer   ,allocatable,dimension(:) :: nqty
+
+        logical    :: plot
+
+#if defined(petsc)
+        logical    :: hdf_plot=.true.
+#else
+        logical    :: hdf_plot=.false.
+#endif
+
+        integer    :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
+     .               ,iggx,iggy,iggz,iig,jjg,kkg
+
+        integer    :: sel_diag (xdraw_cont_lim)
+     .               ,sel_graph(xdraw_cont_lim)
+
+        integer    :: ndplot
+        real(8)    :: dplot,tmplot
+
+        integer    :: iplot=1,jplot=1,kplot=1
+
+        !Profile conf
+        type :: prof_info
+          integer        :: line = 1
+          character*(3)  :: label = 'x'
+          integer        :: coords(3) = (/1,1,1/)
+        end type prof_info
+
+        type(prof_info),save :: prof_conf
+
+        !Contour conf
+        type :: cont_info
+          integer        :: plane = 3
+          character*(3)  :: label(2) = (/'x','y'/)
+          integer        :: coords(3)= (/1,1,1/)
+        end type cont_info
+
+        type(cont_info),save :: cont_conf
+
+      end module graphics_variables
