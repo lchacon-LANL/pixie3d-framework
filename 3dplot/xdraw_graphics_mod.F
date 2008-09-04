@@ -6,8 +6,6 @@ c #####################################################################
 
         use graphics_variables
 
-        use xdraw_io
-
         use grid
 
         use variables
@@ -258,7 +256,8 @@ c     Begin program
         if (    (iplt < iimin .or. iplt > iimax)
      $      .or.(jplt < jjmin .or. jplt > jjmax)
      $      .or.(kplt < kkmin .or. kplt > kkmax)) then
-           call pstop('profplot','Plotting coordinates out of range')
+           call pstop('profplot'
+     .               ,'Input plotting coordinates out of range')
         endif
 
         select case (comp)
