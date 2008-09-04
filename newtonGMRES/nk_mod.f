@@ -270,7 +270,7 @@ c     Start Newton iteration
 
 c     Determine inexact Newton constant
 
-        call find_etak (fk,fkm,flimit,eta0,etak,etakm,etak_meth)
+        call find_etak(fk,fkm,flimit,eta0,etak,etakm,etak_meth)
 
 c     Setup preconditioner
 
@@ -310,7 +310,7 @@ cc        if (global >= 1) call findDamping (ntot,x,ddx,etak,fk,damp)
 
 c     Update solution (x = x + ddx)
 
-        call updateNewtonSolution(x,ddx,ntot,damp,dxnorm)
+        call updateNewtonSolution(ntot,x,ddx,damp,dxnorm)
 
         xk = x   !Save current Newton state
 
@@ -433,7 +433,7 @@ c     End program
 
 c     updateNewtonSolution
 c     ###############################################################
-      subroutine updateNewtonSolution(x,ddx,ntot,damp,dxnorm)
+      subroutine updateNewtonSolution(ntot,x,ddx,damp,dxnorm)
       implicit none         !For safe fortran
 c     ---------------------------------------------------------------
 c     Updates solution in Newton iteration
@@ -514,6 +514,16 @@ c     ###############################################################
 c     ---------------------------------------------------------------
 c     If global is true, uses linesearch backtracking to ensure
 c     sufficient reduction in the Newton residual norm.
+c     In call:
+c       - ntot (input): vector dimension
+c       - x (input): current Newton state
+c       - ddx (input): Newton update
+c       - etak (input/output): forcing for inexact Newton
+c       - fk (input): current Newton residual
+c       - damp (output): damping parameter
+c
+c     Taken from C. T. Kelley's "Iterative methods for Linear and
+c     Nonlinear Equations", Sec. 8.3.
 c     ---------------------------------------------------------------
 
 c     Call variables
@@ -530,40 +540,64 @@ c     Local variables
 
 c     Begin program
 
-      damp = 1d0
-      etak0 = etak
+c     Initialize parameters
 
-      sigma0 = 0.1
-      sigma1 = 0.5
+      damp = 1d0    !Damping
+      etak0 = etak  !Inexact Newton forcing
 
-      alpha = 1d-1
+      sigma0 = 0.1  !Lower limit in damping parameter decrease
+      sigma1 = 0.5  !Damping parameter decrease for linesearch backtracking
+
+      alpha = 1d-1  !Residual reduction parameter
+
+c     Start quadratic linesearch backtracking
 
       do idamp = 1,100
-        dummy = x
-        call updateNewtonSolution(dummy,ddx,ntot,damp,dxnorm)
+
+        !Find residual norm |F(xk+dxk)| --> fkp
+        dummy = x + damp*ddx
         call evaluateNewtonResidual(ntot,dummy,b)
-
         fkp = sqrt(dot(ntot,b,b))
-        if (fkp.gt.(1.-alpha*damp)*fk) then
-          dampm = sigma1*damp
-          dummy = x
-          call updateNewtonSolution(dummy,ddx,ntot,dampm,dxnorm)
-          call evaluateNewtonResidual(ntot,dummy,b)
 
+        !Check residual minimation condition
+        if (fkp.lt.(1.-alpha*damp)*fk) then
+
+          exit  !All is well
+
+        else
+          !New damping parameter
+          dampm = sigma1*damp
+
+          !Evaluate residual norm |F(xk+lambda*dxk)| --> fm
+          dummy = x + dampm*ddx
+          call evaluateNewtonResidual(ntot,dummy,b)
           fm = sqrt(dot(ntot,b,b))
-          if (fm.lt.(1.-alpha*dampm)*fk) then
+
+          !Check convergence
+          if (fm.lt.(1.-alpha*dampm)*fk) then   !Good enough
+
             damp = dampm
             exit
-          else
-            ddf = 2/(damp-dampm)*((fkp-fk)/damp-(fm-fk)/dampm)
-            if (ddf > 0) then
+
+          else  !Quadratic minimization in lambda
+
+            !Find out curvature of parabola
+            ddf = 2./(damp-dampm)*((fkp-fk)/damp-(fm-fk)/dampm)
+
+            if (ddf > 0) then !Parabola has a minimum
+
               df = 1./(damp-dampm)*(-dampm/damp*(fkp-fk)
      .                              +damp/dampm*(fm -fk))
               theta = -df/ddf
-              damp = fmedval(sigma0*damp,sigma1*damp,theta)
-            else
+
+              damp = fmedval(sigma0*damp,sigma1*damp,theta)  !Takes middle value
+
+            else  !Try again
+
               damp = dampm
+
             endif
+
           endif
 cc          if (damp < 1d-2) then
 cc            damp = 1d0
@@ -571,26 +605,7 @@ cc            exit
 cc          endif
 cc          write (*,*) 'Residuals',fk,fm,fkp
 cc          write (*,*) 'Damping parameters',dampm,damp
-cc          etak = 1.- theta*(1.-etak)
-        else
-          exit
         endif
-cc        if (fkp.gt.(1.-alpha*(1.-etak))*fk) then
-cc          dampm = .5*damp
-cc          dummy = x
-cc          call updateNewtonSolution(dummy,ddx,ntot,dampm,dxnorm)
-cc          call evaluateNewtonResidual(ntot,dummy,b)
-cc
-cc          fm = sqrt(dot(ntot,b,b))
-cc          theta = .5*(1.5*fk + 0.5*fkp - 2.*fm)/(fk + fkp - 2.*fm)
-cc          theta = fmedval(sigma0,sigma1,theta)
-cc          damp = damp*theta
-cccc          write (*,*) 'New damping parameter',damp
-cc          etak = 1.- theta*(1.-etak)
-cc          if (damp < 1d-2) exit
-cc        else
-cc          exit
-cc        endif
       enddo
 
 c     End program
