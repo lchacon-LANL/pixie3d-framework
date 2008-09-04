@@ -28,7 +28,7 @@ c Begin program
 
       call destroyGrid(gv%gparams)
 
-      deallocate(gv%bc_seq)
+      deallocate(gv%bc_seq,STAT=ierr)
 
       deallocate(gv,STAT=ierr)
 
