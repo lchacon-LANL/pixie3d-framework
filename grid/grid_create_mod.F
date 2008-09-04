@@ -115,15 +115,15 @@ c     Local variables
 
 c     Begin program
 
-c     Destroy MG grid hierarchy
-
-        call deallocateGridStructure(gparams)
-
-c     Create fortran PETSc parallel grid hierarchy (parallel version)
+c     Destroy fortran PETSc parallel grid hierarchy (parallel version)
 
 #if defined(petsc)
         call destroyFortranMPI
 #endif
+
+c     Destroy MG grid hierarchy
+
+        call deallocateGridStructure(gparams)
 
       end subroutine destroyGrid
 
