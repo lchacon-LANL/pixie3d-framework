@@ -1002,7 +1002,7 @@ c     Local variables
       integer    :: imax,imin,jmax,jmin,kmax,kmin
       integer    :: ivar,ieq,ibc,loc,dim,bctype
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
-      logical    :: cov_to_cnv(6),to_cnv,is__vec,petsc__bc
+      logical    :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
 
 c     Begin program
 
@@ -1136,7 +1136,7 @@ c     Impose BCs
                 if (bcond(ibc,ivar) < 0 .and. is__vec) then
                   call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
      .                               ,v_cov,var0,cnv=.false.)
-                  cov_to_cnv(ibc) = .true.
+                  cov_to_cnv(ibc,ivar) = .true.
                 else
                   call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
      .                               ,v_cnv,var0)
@@ -1150,17 +1150,19 @@ c     Impose BCs
         enddo
       enddo
 
-c     Synchronize covariant and contravariant components => contravariant
-
-      call synchronize_cnv(ncomp,v_cnv,v_cov,bcond,cov_to_cnv)
-
 c     Fill edges
 
       do dim=1,3
         do loc=0,1
           do ivar=1,ncomp
-            call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                    ,dim,loc,bcond(:,ivar))
+            ibc = (1+loc)+2*(dim-1)
+            if (bcond(ibc,ivar) < 0) then !Covariant
+              call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+     .                      ,dim,loc,bcond(:,ivar))
+            else                          !Contravariant
+              call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
+     .                      ,dim,loc,bcond(:,ivar))
+            endif
           enddo
         enddo
       enddo
@@ -1170,11 +1172,21 @@ c     Fill corners
       do dim=1,3
         do loc=0,1
           do ivar=1,ncomp
-            call fillCorners(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                      ,dim,loc,bcond(:,ivar))
+            ibc = (1+loc)+2*(dim-1)
+            if (bcond(ibc,ivar) < 0) then !Covariant
+              call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+     .                        ,dim,loc,bcond(:,ivar))
+            else                          !Contravariant
+              call fillCorners(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
+     .                        ,dim,loc,bcond(:,ivar))
+            endif
           enddo
         enddo
       enddo
+
+c     Synchronize covariant and contravariant components => contravariant
+
+      call synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv)
 
 c     Periodic boundary synchronizing (need to change periodicBC)
 
@@ -1200,31 +1212,31 @@ c     Periodic boundary synchronizing (need to change periodicBC)
 
 c     Find covariant components at ALL boundary ghost cells
 
-      if (is__vec) then
-
-        do dim = 1,3
-          do loc = 0,1
-
-          call findBCLoopLimits(dim,loc,iimin-1,iimax+1
-     .                                 ,jjmin-1,jjmax+1
-     .                                 ,kkmin-1,kkmax+1
-     .                                 ,imin,imax,jmin,jmax,kmin,kmax)
-
-          do i=imin,imax
-            do j=jmin,jmax
-              do k=kmin,kmax
-                call transformFromCurvToCurv(i,j,k,igxbc,igybc,igzbc
-     .            ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-     .            ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3),.false.)
-              enddo
-            enddo
-          enddo
-
-          enddo
-        enddo
-
-c       Impose BCs on covariant components (if not Cartesian)
-
+cc      if (is__vec) then
+cc
+cc        do dim = 1,3
+cc          do loc = 0,1
+cc
+cc          call findBCLoopLimits(dim,loc,iimin-1,iimax+1
+cc     .                                 ,jjmin-1,jjmax+1
+cc     .                                 ,kkmin-1,kkmax+1
+cc     .                                 ,imin,imax,jmin,jmax,kmin,kmax)
+cc
+cc          do i=imin,imax
+cc            do j=jmin,jmax
+cc              do k=kmin,kmax
+cc                call transformFromCurvToCurv(i,j,k,igxbc,igybc,igzbc
+cc     .            ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+cc     .            ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3),.false.)
+cc              enddo
+cc            enddo
+cc          enddo
+cc
+cc          enddo
+cc        enddo
+cc
+ccc       Impose BCs on covariant components (if not Cartesian)
+cc
 cc        if (coords /= 'car') then
 cc
 ccc         Impose SP BCs
@@ -1269,23 +1281,23 @@ cc            enddo
 cc          enddo
 cc
 cc        endif
-
-      endif
+cc
+cc      endif
 
 c     End program
 
       end subroutine imposeBConVector
 
-c     synchronize_cnv
+c     synchronize
 c     #################################################################
-      subroutine synchronize_cnv(ncomp,v_cnv,v_cov,bcond,cov_to_cnv)
+      subroutine synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv)
 c     -----------------------------------------------------------------
 c     Finds all contravariant components at boundaries with BC in terms
 c     of covariant components.
 c
 c     On input, tangential covariant components and normal contravariant
 c     components are known at ghost cells. On output, all contravariant
-c     components are known at ghost cells.
+c     and covariant components are known at ghost cells.
 c     -----------------------------------------------------------------
 
       implicit none
@@ -1295,12 +1307,12 @@ c     Call variables
       integer    :: ncomp,bcond(6,ncomp)
       real(8)    :: v_cnv(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
      .             ,v_cov(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
-      logical    :: cov_to_cnv(6)
+      logical    :: cov_to_cnv(6,3)
 
 c     Local variables
 
       integer    :: imax,imin,jmax,jmin,kmax,kmin
-      integer    :: i,j,k,dim,loc,ig,jg,kg,ivar,ibc
+      integer    :: i,j,k,dim,loc,ig,jg,kg,ivar,ibc,ic1,ic2
       real(8)    :: x1,x2,x3,gsuper(3,3),gsub(3,3)
 
 c     Begin program
@@ -1309,164 +1321,266 @@ c     Begin program
         do loc = 0,1
           ibc = (1+loc)+2*(dim-1)
 
-          if (.not.cov_to_cnv(ibc)) cycle
+cc              call findBCLoopLimits(dim,loc,iimin,iimax
+cc     .                                     ,jjmin,jjmax
+cc     .                                     ,kkmin,kkmax
+cc     .                                     ,imin,imax,jmin
+cc     .                                     ,jmax,kmin,kmax)
+          call findBCLoopLimits(dim,loc,iimin-1,iimax+1
+     .                                 ,jjmin-1,jjmax+1
+     .                                 ,kkmin-1,kkmax+1
+     .                                 ,imin,imax,jmin
+     .                                 ,jmax,kmin,kmax)
 
-          do ivar = 1,ncomp
+          if (     (.not.cov_to_cnv(ibc,1))
+     .        .and.(.not.cov_to_cnv(ibc,2))
+     .        .and.(.not.cov_to_cnv(ibc,3))) then           !Find covariant components
 
-            if (ivar == dim) then  !Select tangential components
-              cycle
-            elseif (bcond(ibc,ivar) < 0) then
+            do i=imin,imax
+              do j=jmin,jmax
+                do k=kmin,kmax
+                  call transformFromCurvToCurv(i,j,k
+     .                  ,igxbc,igybc,igzbc
+     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
+     .                  ,.false.)
+                enddo
+              enddo
+            enddo
 
-              if (.not.selectFace(ibc)) cycle
+          else                           !Synchronize
 
-              call findBCLoopLimits(dim,loc,iimin,iimax
-     .                                     ,jjmin,jjmax
-     .                                     ,kkmin,kkmax
-     .                                     ,imin,imax,jmin
-     .                                     ,jmax,kmin,kmax)
+            do ivar = 1,ncomp
 
-              select case (ibc)
-              case (1)
+              if (ivar == dim) then !Select tangential components (assumes normal component
+                                    !   is always contravariant)
+                cycle
 
-                do i=imin,imax
-                  do j=jmin,jmax
-                    do k=kmin,kmax
+              else
 
-                      gsuper = gmetric%grid(igxbc)%gsup(i-1,j,k,:,:)
+                if (.not.selectFace(ibc)) cycle
 
-                      v_cov(i-1,j,k,1) = -(gsuper(1,2)*v_cov(i-1,j,k,2)
-     .                                    +gsuper(1,3)*v_cov(i-1,j,k,3)
-     .                                    -v_cnv(i-1,j,k,1))/gsuper(1,1)
+                ic1 = mod(dim+1,3)
+                if (ic1 == 0) ic1 = 3
 
-                      call transformFromCurvToCurv(i-1,j,k
-     .               ,igxbc,igybc,igzbc
-     .               ,v_cov(i-1,j,k,1),v_cov(i-1,j,k,2),v_cov(i-1,j,k,3)
-     .               ,v_cnv(i-1,j,k,1),v_cnv(i-1,j,k,2),v_cnv(i-1,j,k,3)
-     .               ,.true.)
+                ic2 = mod(dim+2,3)
+                if (ic2 == 0) ic2 = 3
 
+                if ( cov_to_cnv(ibc,ic1).and.cov_to_cnv(ibc,ic2) ) then  !Both are covariant
+
+                  do i=imin,imax
+                    do j=jmin,jmax
+                      do k=kmin,kmax
+
+                        gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
+
+                        v_cov(i,j,k,dim) =
+     .                       -(gsuper(dim,ic1)*v_cov(i,j,k,ic1)
+     .                        +gsuper(dim,ic2)*v_cov(i,j,k,ic2)
+     .                        -v_cnv(i,j,k,dim))/gsuper(dim,dim)
+
+                        call transformFromCurvToCurv(i,j,k
+     .                    ,igxbc,igybc,igzbc
+     .                    ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+     .                    ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
+     .                    ,.true.)
+
+                      enddo
                     enddo
                   enddo
-                enddo
 
-              case (2)
+                elseif (.not.cov_to_cnv(ibc,ic1)) then   !ic1 is contravariant, ic2 is covariant
 
-                do i=imin,imax
-                  do j=jmin,jmax
-                    do k=kmin,kmax
+                  do i=imin,imax
+                    do j=jmin,jmax
+                      do k=kmin,kmax
 
-                      gsuper = gmetric%grid(igxbc)%gsup(i+1,j,k,:,:)
+                        gsub = gmetric%grid(igxbc)%gsub(i,j,k,:,:)
 
-                      v_cov(i+1,j,k,1) = -(gsuper(1,2)*v_cov(i+1,j,k,2)
-     .                                    +gsuper(1,3)*v_cov(i+1,j,k,3)
-     .                                    -v_cnv(i+1,j,k,1))/gsuper(1,1)
+                        v_cnv(i,j,k,ic2) =
+     .                       -(gsub(ic2,ic1)*v_cnv(i,j,k,ic1)
+     .                        +gsub(ic2,dim)*v_cnv(i,j,k,dim)
+     .                        -v_cov(i,j,k,ic2))/gsub(ic2,ic2)
 
-                      call transformFromCurvToCurv(i+1,j,k
-     .               ,igxbc,igybc,igzbc
-     .               ,v_cov(i+1,j,k,1),v_cov(i+1,j,k,2),v_cov(i+1,j,k,3)
-     .               ,v_cnv(i+1,j,k,1),v_cnv(i+1,j,k,2),v_cnv(i+1,j,k,3)
-     .               ,.true.)
+                        call transformFromCurvToCurv(i,j,k
+     .                    ,igxbc,igybc,igzbc
+     .                    ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+     .                    ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
+     .                    ,.false.)
 
+                      enddo
                     enddo
                   enddo
-                enddo
 
-              case (3)
+                elseif (.not.cov_to_cnv(ibc,ic2)) then   !ic2 is contravariant, ic1 is covariant
 
-                do i=imin,imax
-                  do j=jmin,jmax
-                    do k=kmin,kmax
+                  do i=imin,imax
+                    do j=jmin,jmax
+                      do k=kmin,kmax
 
-                      gsuper = gmetric%grid(igxbc)%gsup(i,j-1,k,:,:)
+                        gsub = gmetric%grid(igxbc)%gsub(i,j,k,:,:)
 
-                      v_cov(i,j-1,k,2) = -(gsuper(2,1)*v_cov(i,j-1,k,1)
-     .                                    +gsuper(2,3)*v_cov(i,j-1,k,3)
-     .                                    -v_cnv(i,j-1,k,2))/gsuper(2,2)
+                        v_cnv(i,j,k,ic1) =
+     .                       -(gsub(ic1,ic2)*v_cnv(i,j,k,ic2)
+     .                        +gsub(ic1,dim)*v_cnv(i,j,k,dim)
+     .                        -v_cov(i,j,k,ic1))/gsub(ic1,ic1)
 
-                      call transformFromCurvToCurv(i,j-1,k
-     .               ,igxbc,igybc,igzbc
-     .               ,v_cov(i,j-1,k,1),v_cov(i,j-1,k,2),v_cov(i,j-1,k,3)
-     .               ,v_cnv(i,j-1,k,1),v_cnv(i,j-1,k,2),v_cnv(i,j-1,k,3)
-     .               ,.true.)
+                        call transformFromCurvToCurv(i,j,k
+     .                    ,igxbc,igybc,igzbc
+     .                    ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+     .                    ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
+     .                    ,.false.)
 
+                      enddo
                     enddo
                   enddo
-                enddo
 
-              case (4)
+                endif
 
-                do i=imin,imax
-                  do j=jmin,jmax
-                    do k=kmin,kmax
+cc              select case (ibc)
+cc              case (1)
+cc
+cc                do i=imin,imax
+cc                  do j=jmin,jmax
+cc                    do k=kmin,kmax
+cc
+cc                      gsuper = gmetric%grid(igxbc)%gsup(i-1,j,k,:,:)
+cc
+cc                      v_cov(i,j,k,1) = -(gsuper(1,2)*v_cov(i,j,k,2)
+cc     .                                  +gsuper(1,3)*v_cov(i,j,k,3)
+cc     .                                  -v_cnv(i,j,k,1))/gsuper(1,1)
+cc
+cc                      call transformFromCurvToCurv(i,j,k
+cc     .                  ,igxbc,igybc,igzbc
+cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
+cc     .                  ,.true.)
+cc
+cc                    enddo
+cc                  enddo
+cc                enddo
+cc
+cc              case (2)
+cc
+cc                do i=imin,imax
+cc                  do j=jmin,jmax
+cc                    do k=kmin,kmax
+cc
+cc                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
+cc
+cc                      v_cov(i,j,k,1) = -(gsuper(1,2)*v_cov(i,j,k,2)
+cc     .                                  +gsuper(1,3)*v_cov(i,j,k,3)
+cc     .                                  -v_cnv(i,j,k,1))/gsuper(1,1)
+cc
+cc                      call transformFromCurvToCurv(i,j,k
+cc     .                  ,igxbc,igybc,igzbc
+cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
+cc     .                  ,.true.)
+cc
+cc                    enddo
+cc                  enddo
+cc                enddo
+cc
+cc              case (3)
+cc
+cc                do i=imin,imax
+cc                  do j=jmin,jmax
+cc                    do k=kmin,kmax
+cc
+cc                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
+cc
+cc                      v_cov(i,j,k,2) = -(gsuper(2,1)*v_cov(i,j,k,1)
+cc     .                                  +gsuper(2,3)*v_cov(i,j,k,3)
+cc     .                                  -v_cnv(i,j,k,2))/gsuper(2,2)
+cc
+cc                      call transformFromCurvToCurv(i,j,k
+cc     .                  ,igxbc,igybc,igzbc
+cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
+cc     .                  ,.true.)
+cc
+cc                    enddo
+cc                  enddo
+cc                enddo
+cc
+cc              case (4)
+cc
+cc                do i=imin,imax
+cc                  do j=jmin,jmax
+cc                    do k=kmin,kmax
+cc
+cc                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
+cc
+cc                      v_cov(i,j,k,2) = -(gsuper(2,1)*v_cov(i,j,k,1)
+cc     .                                  +gsuper(2,3)*v_cov(i,j,k,3)
+cc     .                                  -v_cnv(i,j,k,2))/gsuper(2,2)
+cc
+cc                      call transformFromCurvToCurv(i,j,k
+cc     .                  ,igxbc,igybc,igzbc
+cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
+cc     .                  ,.true.)
+cc
+cc                    enddo
+cc                  enddo
+cc                enddo
+cc
+cc              case (5)
+cc
+cc                do i=imin,imax
+cc                  do j=jmin,jmax
+cc                    do k=kmin,kmax
+cc
+cc                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
+cc
+cc                      v_cov(i,j,k,3) = -(gsuper(3,1)*v_cov(i,j,k,1)
+cc     .                                  +gsuper(3,2)*v_cov(i,j,k,2)
+cc     .                                  -v_cnv(i,j,k,3))/gsuper(3,3)
+cc
+cc                      call transformFromCurvToCurv(i,j,k
+cc     .                  ,igxbc,igybc,igzbc
+cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
+cc     .                  ,.true.)
+cc                    enddo
+cc                  enddo
+cc                enddo
+cc
+cc              case (6)
+cc
+cc                do i=imin,imax
+cc                  do j=jmin,jmax
+cc                    do k=kmin,kmax
+cc
+cc                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
+cc
+cc                      v_cov(i,j,k,3) = -(gsuper(3,1)*v_cov(i,j,k,1)
+cc     .                                  +gsuper(3,2)*v_cov(i,j,k,2)
+cc     .                                  -v_cnv(i,j,k,3))/gsuper(3,3)
+cc
+cc                      call transformFromCurvToCurv(i,j,k
+cc     .                  ,igxbc,igybc,igzbc
+cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
+cc     .                  ,.true.)
+cc                    enddo
+cc                  enddo
+cc                enddo
+cc
+cc              end select
 
-                      gsuper = gmetric%grid(igxbc)%gsup(i,j+1,k,:,:)
+             endif
+            enddo
 
-                      v_cov(i,j+1,k,2) = -(gsuper(2,1)*v_cov(i,j+1,k,1)
-     .                                    +gsuper(2,3)*v_cov(i,j+1,k,3)
-     .                                    -v_cnv(i,j+1,k,2))/gsuper(2,2)
-
-                      call transformFromCurvToCurv(i,j+1,k
-     .               ,igxbc,igybc,igzbc
-     .               ,v_cov(i,j+1,k,1),v_cov(i,j+1,k,2),v_cov(i,j+1,k,3)
-     .               ,v_cnv(i,j+1,k,1),v_cnv(i,j+1,k,2),v_cnv(i,j+1,k,3)
-     .               ,.true.)
-
-                    enddo
-                  enddo
-                enddo
-
-              case (5)
-
-                do i=imin,imax
-                  do j=jmin,jmax
-                    do k=kmin,kmax
-
-                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k-1,:,:)
-
-                      v_cov(i,j,k-1,3) = -(gsuper(3,1)*v_cov(i,j,k-1,1)
-     .                                    +gsuper(3,2)*v_cov(i,j,k-1,2)
-     .                                    -v_cnv(i,j,k-1,3))/gsuper(3,3)
-
-                      call transformFromCurvToCurv(i,j,k-1
-     .               ,igxbc,igybc,igzbc
-     .               ,v_cov(i,j,k-1,1),v_cov(i,j,k-1,2),v_cov(i,j,k-1,3)
-     .               ,v_cnv(i,j,k-1,1),v_cnv(i,j,k-1,2),v_cnv(i,j,k-1,3)
-     .               ,.true.)
-                    enddo
-                  enddo
-                enddo
-
-              case (6)
-
-                do i=imin,imax
-                  do j=jmin,jmax
-                    do k=kmin,kmax
-
-                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k+1,:,:)
-
-                      v_cov(i,j,k+1,3) = -(gsuper(3,1)*v_cov(i,j,k+1,1)
-     .                                    +gsuper(3,2)*v_cov(i,j,k+1,2)
-     .                                    -v_cnv(i,j,k+1,3))/gsuper(3,3)
-
-                      call transformFromCurvToCurv(i,j,k+1
-     .               ,igxbc,igybc,igzbc
-     .               ,v_cov(i,j,k+1,1),v_cov(i,j,k+1,2),v_cov(i,j,k+1,3)
-     .               ,v_cnv(i,j,k+1,1),v_cnv(i,j,k+1,2),v_cnv(i,j,k+1,3)
-     .               ,.true.)
-                    enddo
-                  enddo
-                enddo
-
-              end select
-
-            endif
-          enddo
+          endif
 
         enddo
       enddo
 
 c     End program
 
-      end subroutine synchronize_cnv
+      end subroutine synchronize
 
 c     fillGhostNodes
 c     ###############################################################
@@ -1563,7 +1677,7 @@ c     Find BC update
         case(DIR)
           call vectorDirichletBC(ivar,array,vzeros,ieq,dim,loc,order)
         case(NEU)
-          call vectorNeumannBC(ivar,array,ieq,dim,loc)
+          call vectorNeumannBC(ivar,array,array0,ieq,dim,loc)
         case(EXT)
           call fillFaces(array(:,:,:,ivar),dim,loc)
         case(SP)
@@ -3231,13 +3345,13 @@ c     Local variables
      .             ,imng,imxg,jmng,jmxg,kmng,kmxg
      .             ,imnl,imxl,jmnl,jmxl,kmnl,kmxl
 
-      integer   ,save :: ivar  !Needed to "remember' ivar from previous calls
+      integer,save :: ivar  !Needed to "remember' ivar from previous calls
                                !when icomp is not provided.
 
-      logical,save    :: iscnv,isvec !Needed to "remember' these from previous calls
+      logical,save :: iscnv,isvec !Needed to "remember' these from previous calls
                                      !when they are not provided.
 
-      logical         :: res_is_vec,fpointers
+      logical      :: res_is_vec,fpointers
 
       real(8)    :: car(3),curv(3)
 
@@ -3355,18 +3469,18 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
      .          ,v_cov (0:nnx+1,0:nny+1,0:nnz+1,neq)
      .          ,vv0   (0:nnx+1,0:nny+1,0:nnz+1,neq))
 
-        v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
-        v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
-cc        v_cnv = 0d0
-cc        v_cov = 0d0
+cc        v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
+cc        v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
+        v_cnv = 0d0
+        v_cov = 0d0
 
         if (PRESENT(arr0)) then
-          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-     .       = arr0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc          vv0 = arr0
+cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+cc     .       = arr0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
+          vv0 = arr0
         else
-          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
-cc          vv0 = 0d0
+cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
+          vv0 = 0d0
         endif
 
         if (.not.isvec) then
