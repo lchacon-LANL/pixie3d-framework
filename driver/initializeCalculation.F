@@ -574,24 +574,33 @@ cccc           u_graph = u_n
 cccc         endif
 cc        endif
 
-        !Impose BC's on u_graph <- u_0
-        !(do not overwrite u_0, since it contains equil. BCs;
-        ! do nothing at EQU boundaries, to preserve EQU BCs)
-        call equateDerivedType(u_graph,u_0)
+        if (chk_src) then
 
-        !Impose logical BCs
-        do ieq=1,u_graph%nvar
-          where (abs(u_graph%array_var(ieq)%bconds) == EQU)
-     .           u_graph%array_var(ieq)%bconds = DEF
-        enddo
+          !Check source
+          if (my_rank == 0) write (*,*) 'Dumping source...'
+          call mapVectorToStructure(u_graph,fsrc)
 
-        call imposeBoundaryConditions(u_graph,1,1,1)
+        else
+          !Impose BC's on u_graph <- u_0
+          !(do not overwrite u_0, since it contains equil. BCs;
+          ! do nothing at EQU boundaries, to preserve EQU BCs)
+          call equateDerivedType(u_graph,u_0)
 
-        !Recover u_0 BC defs. for u_graph (used in graphics postprocessor)
-        do ieq=1,u_graph%nvar
-          u_graph%array_var(ieq)%bconds =
-     .        u_0%array_var(ieq)%bconds
-        enddo
+          !Impose logical BCs
+          do ieq=1,u_graph%nvar
+            where (abs(u_graph%array_var(ieq)%bconds) == EQU)
+     .             u_graph%array_var(ieq)%bconds = DEF
+          enddo
+
+          call imposeBoundaryConditions(u_graph,1,1,1)
+
+          !Recover u_0 BC defs. for u_graph (used in graphics postprocessor)
+          do ieq=1,u_graph%nvar
+            u_graph%array_var(ieq)%bconds =
+     .          u_0%array_var(ieq)%bconds
+          enddo
+
+        endif
 
         !Open record file
         open(unit=urecord,file=recordfile
