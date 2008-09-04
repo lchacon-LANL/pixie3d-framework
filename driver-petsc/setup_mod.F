@@ -951,8 +951,6 @@ c ######################################################################
 
         use xdraw_io
 
-cc        integer        :: ngraph,xdraw_cont_lim,ngroups
-cc        parameter        (ngraph=30,xdraw_cont_lim=16)
         integer        :: ngroups
 
         real(8), allocatable, dimension(:) :: xl,yl,zl
@@ -960,7 +958,8 @@ cc        parameter        (ngraph=30,xdraw_cont_lim=16)
         type :: graph_var_def
           real(8),pointer,dimension(:,:,:) :: array
           character(20)                    :: descr
-          character(20)                    :: vector_name=''
+cc          character(20)                    :: vector_name=''
+          character(20)                    :: vector_name
         end type graph_var_def
 
         type :: graph_group
@@ -990,12 +989,12 @@ cc        parameter        (ngraph=30,xdraw_cont_lim=16)
         integer    :: ndplot
         real(8)    :: dplot,tmplot
 
-        integer    :: iplot=1,jplot=1,kplot=1
+        integer    :: iplot,jplot,kplot
 
         !Profile conf
         type :: prof_info
           integer        :: line = 1
-          character*(3)  :: label = 'x'
+          character(3)   :: label = 'x'
           integer        :: coords(3) = (/1,1,1/)
         end type prof_info
 
@@ -1004,7 +1003,7 @@ cc        parameter        (ngraph=30,xdraw_cont_lim=16)
         !Contour conf
         type :: cont_info
           integer        :: plane = 3
-          character*(3)  :: label(2) = (/'x','y'/)
+          character(3)   :: label(2) = (/'x','y'/)
           integer        :: coords(3)= (/1,1,1/)
         end type cont_info
 
