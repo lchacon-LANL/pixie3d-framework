@@ -67,8 +67,6 @@ c module xdraw_io
 c ######################################################################
       module xdraw_io
 
-cc      use graphics_variables
-
       integer   :: ngraph,xdraw_cont_lim
       parameter   (ngraph=30,xdraw_cont_lim=16)
 
