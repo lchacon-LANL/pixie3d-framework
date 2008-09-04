@@ -195,7 +195,6 @@ c Final statistics
           write(*,310) (itime-1),float(newt_tot )/(itime-inewtime)
      .                          ,float(gmres_tot)/(itime-inewtime)
      .                          ,float(gmres_tot)/newt_tot
-cc     .                          ,float(wh_tot)   /prec_tot
         else
           write(*,310) 0,0d0,0d0,0d0
         endif
