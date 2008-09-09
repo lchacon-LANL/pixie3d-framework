@@ -62,12 +62,12 @@ c #####################################################################
           real(8) :: lymin,lymax                          !Global physical dimensions in Y
           real(8) :: lzmin,lzmax                          !Global physical dimensions in Z
 
-          integer   ,pointer,dimension(:)  :: ilo         !Global lower limit in X
-          integer   ,pointer,dimension(:)  :: jlo         !Global lower limit in Y
-          integer   ,pointer,dimension(:)  :: klo         !Global lower limit in Z
-          integer   ,pointer,dimension(:)  :: ihi         !Global higher limit in X
-          integer   ,pointer,dimension(:)  :: jhi         !Global higher limit in Y
-          integer   ,pointer,dimension(:)  :: khi         !Global higher limit in Z
+          integer   ,pointer,dimension(:)  :: ilo         !Global lower limit in X in all grids
+          integer   ,pointer,dimension(:)  :: jlo         !Global lower limit in Y in all grids
+          integer   ,pointer,dimension(:)  :: klo         !Global lower limit in Z in all grids
+          integer   ,pointer,dimension(:)  :: ihi         !Global higher limit in X in all grids
+          integer   ,pointer,dimension(:)  :: jhi         !Global higher limit in Y in all grids
+          integer   ,pointer,dimension(:)  :: khi         !Global higher limit in Z in all grids
 
           real(8)   ,pointer,dimension(:)  :: xg          !Global grid nodes in X (top grid only)
           real(8)   ,pointer,dimension(:)  :: yg          !Global grid nodes in Y (")
