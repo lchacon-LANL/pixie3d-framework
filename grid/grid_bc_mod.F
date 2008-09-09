@@ -961,17 +961,19 @@ c     Fill corners
         enddo
       enddo
 
+#if defined(PER_BC_SYNC)
 c     Periodic boundary synchronizing
 
-cc      bctype=PER
-cc      do dim=1,3
-cc        do loc=0,1
-cc          ibc = (1+loc)+2*(dim-1)
-cc          if (bcond(ibc) == bctype) then
-cc            call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
-cc          endif
-cc        enddo
-cc      enddo
+      bctype=PER
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+          if (bcond(ibc) == bctype) then
+            call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
+          endif
+        enddo
+      enddo
+#endif
 
 c     End program
 
@@ -1150,48 +1152,47 @@ c     Impose BCs
         enddo
       enddo
 
-c     Fill edges
-
-      do dim=1,3
-        do loc=0,1
-          do ivar=1,ncomp
-            ibc = (1+loc)+2*(dim-1)
-            if (bcond(ibc,ivar) < 0) then !Covariant
-              call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                      ,dim,loc,bcond(:,ivar))
-            else                          !Contravariant
-              call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                      ,dim,loc,bcond(:,ivar))
-            endif
-          enddo
-        enddo
-      enddo
-
-c     Fill corners
-
-      do dim=1,3
-        do loc=0,1
-          do ivar=1,ncomp
-            ibc = (1+loc)+2*(dim-1)
-            if (bcond(ibc,ivar) < 0) then !Covariant
-              call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                        ,dim,loc,bcond(:,ivar))
-            else                          !Contravariant
-              call fillCorners(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                        ,dim,loc,bcond(:,ivar))
-            endif
-          enddo
-        enddo
-      enddo
-
 c     Synchronize covariant and contravariant components => contravariant
 
       call synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv)
 
-c     Periodic boundary synchronizing (need to change periodicBC)
+c     Fill edges (for both cnv and cov components)
 
-#if 0
-      write (*,*) 'DIAG -- imposeBConVector'
+      do dim=1,3
+        do loc=0,1
+cc          ibc = (1+loc)+2*(dim-1)
+          do ivar=1,ncomp
+cc            if (cov_to_cnv(ibc,ivar)) then !Covariant
+              call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+     .                      ,dim,loc,bcond(:,ivar))
+cc            else                          !Contravariant
+              call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
+     .                      ,dim,loc,bcond(:,ivar))
+cc            endif
+          enddo
+        enddo
+      enddo
+
+c     Fill corners (for both cnv and cov components)
+
+      do dim=1,3
+        do loc=0,1
+cc          ibc = (1+loc)+2*(dim-1)
+          do ivar=1,ncomp
+cc            if (cov_to_cnv(ibc,ivar)) then !Covariant
+              call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+     .                        ,dim,loc,bcond(:,ivar))
+cc            else                          !Contravariant
+              call fillCorners(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
+     .                        ,dim,loc,bcond(:,ivar))
+cc            endif
+          enddo
+        enddo
+      enddo
+
+#if defined(PER_BC_SYNC)    
+c     Periodic boundary synchronizing
+
       bctype=PER
       do dim=1,3
         do loc=0,1
@@ -1200,10 +1201,12 @@ c     Periodic boundary synchronizing (need to change periodicBC)
           do ivar = 1,ncomp
             ieq = ivar + fcomp - 1
 
-            if (abs(bcond(ibc,ivar)) == bctype) then
+cc            if (abs(bcond(ibc,ivar)) == bctype) then
               call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cnv
      .                               ,var0)
-            endif
+cc            endif
+              call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cov
+     .                               ,var0)
           enddo
 
         enddo
@@ -1329,12 +1332,13 @@ cc     .                                     ,jmax,kmin,kmax)
           call findBCLoopLimits(dim,loc,iimin-1,iimax+1
      .                                 ,jjmin-1,jjmax+1
      .                                 ,kkmin-1,kkmax+1
-     .                                 ,imin,imax,jmin
-     .                                 ,jmax,kmin,kmax)
+     .                                 ,imin,imax
+     .                                 ,jmin,jmax
+     .                                 ,kmin,kmax)
 
           if (     (.not.cov_to_cnv(ibc,1))
      .        .and.(.not.cov_to_cnv(ibc,2))
-     .        .and.(.not.cov_to_cnv(ibc,3))) then           !Find covariant components
+     .        .and.(.not.cov_to_cnv(ibc,3))) then  !All contravariant: find covariant
 
             do i=imin,imax
               do j=jmin,jmax
@@ -1723,7 +1727,7 @@ c     Begin program
 
       if (np == 1 .or. asm) then
 
-#if 1
+#if !defined(PER_BC_SYNC)
       call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
@@ -1752,8 +1756,6 @@ c     Begin program
       end select
 
 #else
-
-      write (*,*) 'DIAG -- periodicBC'   !Need to change imposeBConVector
 
       select case (ibc)
       case (1)                  !x0
@@ -2068,7 +2070,6 @@ c     Determine boundary limits
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
       if (bc_debug) then
-cc        write (*,*) 'Proc',my_rank,iimin,iimax,jjmin,jjmax,kkmin,kkmax
         write(*,*) '  fillFaces: Proc',my_rank
      .            ,'; Boundary: dim =',dim,' loc =',loc
      .            ,'; Local limits:',imin,imax,jmin,jmax,kmin,kmax
@@ -2235,7 +2236,6 @@ cc      if (.not.selectFace(ibc)) return
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
       if (bc_debug) then
-cc        write (*,*) 'Proc',my_rank,iimin,iimax,jjmin,jjmax,kkmin,kkmax
         write(*,*) '  fillEdges: Proc',my_rank
      .            ,'; Boundary: dim =',dim,' loc =',loc
      .            ,'; Local limits:',imin,imax,jmin,jmax,kmin,kmax
