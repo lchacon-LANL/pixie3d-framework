@@ -4,7 +4,7 @@ c #####################################################################
 
         use iosetup
 
-        use graphics_variables
+        use graphics_io
 
         use grid
 

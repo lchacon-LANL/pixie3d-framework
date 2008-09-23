@@ -3,7 +3,7 @@ c module HDF5_graphics
 c ##################################################################
       module HDF5_graphics
 
-        use graphics_variables
+        use graphics_io
 
         use variables
 
