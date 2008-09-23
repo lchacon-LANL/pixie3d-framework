@@ -103,7 +103,14 @@ cc        if (tmax.gt.0d0.and.time.gt.tmax)  exit
 
 c     Find new time step
 
-        call correctTimeStep(itime,ierr)
+        if (    cnfactor == 1d0                          !Explicit
+     .     .or.(timecorr.and.ierr.eq.0.and.itime.eq.1)   !First explicit step if timecorr
+     .     ) then
+          call findExplicitDt
+          call correctTimeStep(itime,ierr,dt_exp=dt)
+        else
+          call correctTimeStep(itime,ierr)
+        endif
 
 c     Assign old time solution
 
