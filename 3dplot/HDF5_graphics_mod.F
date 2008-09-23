@@ -3,21 +3,20 @@ c module HDF5_graphics
 c ##################################################################
       module HDF5_graphics
 
-#if defined(hdf5)
-        use HDF5
-#endif
-
         use graphics_variables
 
         use variables
 
-        use timeStepping
+        use ts_setup
 
         use generalPurposeFunctions
 
+#if !defined(hdf5)
+
         character(20) :: hdf5_fname
 
-#if defined(hdf5)
+#else
+        use HDF5
 
         integer        :: toffset=0
 
@@ -63,6 +62,8 @@ c       generic HDF5 variables
         character(20)                        :: attr_name = 'coords'
 
         character(strlength), dimension(ARRAY_RANK) :: attr_data
+
+        character(20) :: hdf5_fname
 
       contains 
 
