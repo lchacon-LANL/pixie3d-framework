@@ -22,7 +22,7 @@ c##########################################################################
 c Local variables
 
       integer        :: i,j,k,ig,jg,kg
-      integer        :: ierr,gierr,system,nplot,igx,igy,igz
+      integer        :: ierr,gierr,nplot,igx,igy,igz
       character*(40) :: command
       logical        :: exitloop
 
@@ -402,10 +402,6 @@ c Local variables
 
       integer    :: nx,ny,nz,ierr
 
-c Externals
-
-      integer    :: system
-
 c Begin program
 
 c Open graphics files
@@ -682,7 +678,7 @@ c----------------------------------------------------------------------
 c Call variables
 
       type(var_array),pointer :: varray
-      integer         :: ierr,system
+      integer         :: ierr
 
 c Local variables
 
