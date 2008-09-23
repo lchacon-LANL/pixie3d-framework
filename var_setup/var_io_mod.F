@@ -3,6 +3,8 @@ c module iosetup
 c ######################################################################
       module iosetup
 
+        use io
+
         use variables
 
         integer        :: ilevel
