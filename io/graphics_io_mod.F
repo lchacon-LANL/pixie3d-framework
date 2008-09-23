@@ -1,6 +1,6 @@
-c module graphics_variables
+c module graphics_io
 c ######################################################################
-      module graphics_variables
+      module graphics_io
 
         use xdraw_io
 
@@ -61,4 +61,4 @@ c ######################################################################
 
         type(cont_info),save :: cont_conf
 
-      end module graphics_variables
+      end module graphics_io
