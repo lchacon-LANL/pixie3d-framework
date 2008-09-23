@@ -453,24 +453,24 @@ c     Begin program
 
       call allocateDerivedType(vmed)
 
-      open(unit=urecord,file=recordfile,form='unformatted',status='old')
+      ierr = system('test -f '//trim(recordfile))
+
+      if (ierr /= 0) then
+        call pstop('readRestartFile'
+     .            ,'Cannot find restart file')
+      endif
+
+      open(unit=urecord,file=trim(recordfile),form='unformatted'
+     .    ,status='old')
 
       read (urecord) nx,ilog,ihig
       read (urecord) ny,jlog,jhig
       read (urecord) nz,klog,khig
 
 #if defined(petsc) 
-c$$$      read (urecord) nx,ilog,ihig
-c$$$      read (urecord) ny,jlog,jhig
-c$$$      read (urecord) nz,klog,khig
-
-      if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)) then
+      if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
 #else
-c$$$      read (urecord) nx
-c$$$      read (urecord) ny
-c$$$      read (urecord) nz
-
-      if (nx /= nxd.or.ny /= nyd.or.nz /= nzd) then
+      if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
 #endif
         call pstop('initializeCalculation'
      $            ,'Grid meshes do not agree; cannot restart')
