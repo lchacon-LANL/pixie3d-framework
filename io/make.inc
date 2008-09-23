@@ -14,4 +14,4 @@ MESSAGE = "Compiling IO modules"
 
 #Define dependencies
 
-graphics_variables_mod.o: xdraw_io_mod.o
+graphics_io_mod.o: xdraw_io_mod.o

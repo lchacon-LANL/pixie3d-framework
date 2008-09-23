@@ -11,4 +11,4 @@ SUBDIRS = $(COMMONDIRS)/io \
 
 #Define dependencies
 
-iosetup_mod.o: setup_mod.o
+var_io_mod.o: var_setup_mod.o
