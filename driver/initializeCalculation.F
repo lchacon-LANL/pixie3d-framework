@@ -26,7 +26,7 @@ c Call variables
 
 c Local variables
 
-      integer    :: ierr,system
+      integer    :: ierr
 
       logical    :: petsc_flg
 
@@ -526,11 +526,6 @@ c Call variables
 c Local variables
 
       integer    :: ierr,ieq
-
-      integer    :: system
-#if !defined(g95)
-      external      system
-#endif
 
 c Interfaces
 
