@@ -3,7 +3,7 @@ c module iosetup
 c ######################################################################
       module iosetup
 
-        use io
+        use io_mod
 
         use variables
 
