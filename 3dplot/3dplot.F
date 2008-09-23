@@ -11,7 +11,7 @@ c##########################################################################
 
       use graphics
 
-      use timeStepping
+      use ts_setup
 
       use grid
 
@@ -86,8 +86,6 @@ c     Gather error info
 
 c     Check for error
 
-cc        if (ierr == -1) cycle  !Error, but not EOF
-cc        if (ierr == -2) exit   !EOF
         if (exitloop) exit
 
 c     Update counters
@@ -169,7 +167,7 @@ c----------------------------------------------------------------------
 c     Writes program output to standard output
 c----------------------------------------------------------------------
 
-      use timeStepping
+      use ts_setup
 
       use parameters
 
@@ -232,7 +230,7 @@ c----------------------------------------------------------------------
 
       use variables
 
-      use timeStepping
+      use ts_setup
 
       use iosetup
 
@@ -386,7 +384,7 @@ c----------------------------------------------------------------------
 
       use constants
 
-      use timeStepping
+      use ts_setup
 
       use variables
 
@@ -413,9 +411,10 @@ c Begin program
 c Open graphics files
 
 #if !defined(petsc)
-      ierr = system('ls '//trim(recordfile)//'_proc* > /dev/null')
+cc      ierr = system('ls '//trim(recordfile)//'_proc* > /dev/null')
+      ierr = system('test -f '//trim(recordfile))  !Check for single file
 
-      if (ierr == 0) then
+      if (ierr /= 0) then    !Parallel run
 
         write (*,*)
         write (*,*) 'Opening multiple graphics files...'
@@ -428,6 +427,11 @@ c Open graphics files
           ierr = system('test -f '//trim(recordfile)//'_proc'
      .                 //trim(int2char(nfiles)))
         enddo
+
+        if (nfiles == 0) then
+          call pstop('openGraphicsfiles'
+     .              ,'Cannot find record files')
+        endif
 
         allocate(mrecfile(nfiles),murecord(nfiles))
 
@@ -523,9 +527,6 @@ c     Consistency check
           write (usave) nz,klog,khig
         endif
 
-cc        nxl  = grid_params%nlx
-cc        nyl  = grid_params%nly
-cc        nzl  = grid_params%nlz
         nxl  = ihig-ilog+1
         nyl  = jhig-jlog+1
         nzl  = khig-klog+1
@@ -558,7 +559,7 @@ c----------------------------------------------------------------------
 
       use constants
 
-      use timeStepping
+      use ts_setup
 
       use variables
 
@@ -612,7 +613,7 @@ c----------------------------------------------------------------------
 
       use constants
 
-      use timeStepping
+      use ts_setup
 
       use variables
 
@@ -666,7 +667,7 @@ c----------------------------------------------------------------------
 
       use constants
 
-      use timeStepping
+      use ts_setup
 
       use variable_setup
 
