@@ -196,8 +196,6 @@ c     Local variables
 
 c     Begin program
 
-      dtold = dt
-
 c     Estimate local growth rate
 
       if (sm_flag == 1) call calculate_gammat
@@ -284,10 +282,6 @@ c     Local variables
 
 c     Begin program
 
-cc      write (*,*) 'ierr',ierr
-
-      dtold = dt
-
 c     Estimate local growth rate
 
       if (sm_flag == 1) call calculate_gammat
@@ -362,6 +356,8 @@ c     Local variables
 
 c     Begin program
 
+      dtold = dt
+
       call calculate_dt
 
       cnp = 1d0
@@ -373,13 +369,17 @@ c     Begin program
         call calculate_cnfactor
 
       elseif (sm_flag == 2) then
-        if (itm == 1 ) then
+        if (     (itm == 1 .and. (.not.timecorr) )
+     .      .or. (itm == 2 .and.       timecorr  )) then   !BE for first time step (for robustness)
 
-          cnfactor = 0.5
+cc          cnfactor = 0.5
+          cnfactor = 0d0
 
           bdf2 = .false.
 
-        else
+        elseif (     (itm > 1 .and. (.not.timecorr) )
+     .          .or. (itm > 2 .and.       timecorr  )) then
+
           cnfactor = 0d0
 
           bdf2 = .true.
@@ -389,6 +389,8 @@ c     Begin program
           cn  = -(dt+dtold)/dtold
 cc          cnm = dt**2/(dtold*(dt+dtold))
           cnm = -cnp-cn    !Sum should be zero identically
+
+cc          write (*,*) dt,dtold,cnp,cn,cnm
 
         endif
       endif
@@ -421,15 +423,24 @@ c     #######################################################################
         dt_n = dt
 
 cc#if !defined(petsc)
-        if (timecorr .or. cnfactor == 1d0) then
-          if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor == 1d0)) then
-            call findExplicitDt
-          else
-            call adapt_dt(dtbase)
-          endif
+        if (    cnfactor == 1d0                        !Explicit
+     .     .or.(timecorr.and.ierr.eq.0.and.itm.eq.1)   !First implicit step if timecorr
+     .     ) then
+          call findExplicitDt
         else
-          dt = dtbase
+          call adapt_dt(dtbase)
+cc          dt = dtbase
         endif
+cc        if (timecorr .or. cnfactor == 1d0) then
+cc          if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor == 1d0)) then
+cc            call findExplicitDt
+cc          else
+cc            call adapt_dt(dtbase)
+cc          endif
+cc        else
+cc          call adapt_dt(dtbase)
+cccc          dt = dtbase
+cc        endif
 cc#else
 cc        if (timecorr) then
 cc          call adapt_dt(dtbase)
@@ -458,13 +469,25 @@ c     #######################################################################
           if (my_rank == 0 .and. ierr == 2) write (*,240)
           if (my_rank == 0) write (*,400) dt
         else
-          if (sm_flag == 1 .and. itm <= sm_pass+1) then
-            dt = dtbase/2.
-          elseif (    (itm == (sm_pass+2) .and. sm_flag == 1)
-     .           .or. (itm == 2)) then
-            dt = dtbase
+          if     (sm_flag == 1) then  !Rannacher time stepping
+            if     (itm <= sm_pass+1) then
+              dt = 0.5*dtbase
+            elseif (itm == sm_pass+2) then
+              dt = dtbase
+            else
+              dt = min(dtbase,dt*coef2)
+            endif
+cc          elseif (sm_flag == 2) then  !BDF2
           else
-            dt = min(dtbase,dt*coef2)
+            if (    (itm == 1.and.(.not.timecorr))
+     .          .or.(itm == 2.and.timecorr       )) then
+cc              dt = 0.1*dtbase
+              dt = dtbase
+            else
+              dt = min(dtbase,dt*coef2)
+            endif
+cc          else                        !Theta scheme
+cc            dt = min(dtbase,dt*coef2)
           endif
         endif
 
