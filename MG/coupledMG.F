@@ -16,6 +16,8 @@ c module mg_internal
 c######################################################################
       module mg_internal
 
+        use grid_debug
+
         use grid_mg
 
         use grid_create, ONLY: grid_pack,g_pack,createMGgrid
