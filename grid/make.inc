@@ -6,11 +6,11 @@ MESSAGE = "Compiling grid modules"
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/math $(COMMONDIR)/interpolation/1d_int
+SUBDIRS = $(COMMONDIR)/math $(COMMONDIR)/io $(COMMONDIR)/interpolation/1d_int
 
 #Define dependencies
 
-grid_debug_mod.o: xdraw_io_mod.o
+#grid_debug_mod.o: xdraw_io_mod.o
 
 grid_operations_mod.o: grid_def_mod.o
 
