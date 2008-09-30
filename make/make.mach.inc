@@ -53,18 +53,18 @@ ifeq ($(HOST),gongora.ornl.gov)
 endif
 
 ifeq ($(HOST),kiwi)
-  FC=gfortran
+  FC=g95
 
-  PETSC_DIR =$(HOME)/lib/petsc-2.3.3
-  PETSC_ARCH = linux_openmpi
+#  PETSC_DIR =$(HOME)/lib/petsc-2.3.3
+#  PETSC_ARCH = linux_openmpi
 
   HDF5 = f
 #   HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
 #   HDF5_LIBS = -L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
 
-  NETCDF=t
-  NETCDF_LIBS = -lnetcdff -lnetcdf
-  NETCDF_INC  = -I/usr/include/netcdf-3
+#  NETCDF=t
+#  NETCDF_LIBS = -lnetcdff -lnetcdf
+#  NETCDF_INC  = -I/usr/include/netcdf-3
 
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 endif
