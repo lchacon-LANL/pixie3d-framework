@@ -16,12 +16,14 @@ ifeq ($(HOST),quevedo.ornl.gov)
      HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
   else
     LIBS := -L/usr/lib64 -llapack -lblas
-    HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
+    HDF5 = f
     ifeq ($(FC),f90)
       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
+      HDF5 = t
     endif
     ifeq ($(FC),gfortran)
       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
+      HDF5 = t
     endif
   endif
   HDF5_LIBS = -L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
