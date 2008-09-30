@@ -1,5 +1,8 @@
 #Define compiler flags
 
+#Defaults
+
+FC  ?= gfortran
 OPT ?= O
 PREPROC ?= -D
 
