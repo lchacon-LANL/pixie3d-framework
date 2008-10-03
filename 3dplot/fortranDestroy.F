@@ -24,11 +24,13 @@ c Begin program
 
       call deallocateStructures
 
+      call deallocateDerivedType(u_ic)
+
       call deallocateApplicationVariables   !External
 
       call destroyGrid(gv%gparams)
 
-cc      deallocate(gv%bc_seq)
+      deallocate(gv%bc_seq,STAT=ierr)
 
       deallocate(gv,STAT=ierr)
 

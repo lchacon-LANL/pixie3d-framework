@@ -116,6 +116,8 @@ c     Local variables
 
 c     Begin program
 
+        deallocate(xl,yl,zl)
+
 c     Finalize XDRAW
 
 #if defined(petsc)
