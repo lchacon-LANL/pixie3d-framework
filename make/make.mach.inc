@@ -4,6 +4,40 @@ HOST?=$(HOSTNAME)
 
 # Machine configuration
 
+ifeq ($(HOST),siesta)
+  ifdef BOPT
+    PETSC_DIR =/usr/local/petsc-2.3.3
+
+#    PETSC_ARCH = linux64_absoft_
+#    HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/parallel
+
+    FC=gfortran
+    PETSC_ARCH = linux64_openmpi
+    HDF5_HOME =/usr/local/hdf5-1.6.7/gfortran/parallel
+
+#    MPI_HOME = /usr
+  else
+    LIBS := -L/usr/lib64 -llapack -lblas
+    HDF5 = f
+    ifeq ($(FC),f90)
+      HDF5_HOME =/usr/local/hdf5-1.6.7/absoft_/serial
+      HDF5 = t
+    endif
+    ifeq ($(FC),gfortran)
+      HDF5_HOME =/usr/local/hdf5-1.6.7/gfortran/serial
+      HDF5 = t
+    endif
+  endif
+  HDF5_LIBS = -L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+
+  NETCDF=t
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf-3
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+endif
+
+
 ifeq ($(HOST),quevedo.ornl.gov)
   ifdef BOPT
     PETSC_DIR =$(HOME)/lib/petsc-2.3.3
@@ -11,9 +45,11 @@ ifeq ($(HOST),quevedo.ornl.gov)
 #    PETSC_ARCH = linux64_absoft_
 #    HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/parallel
 
-     FC=gfortran
-     PETSC_ARCH = linux64_openmpi
-     HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
+    FC=gfortran
+    PETSC_ARCH = linux64_openmpi
+    HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
+
+#    MPI_HOME = /usr
   else
     LIBS := -L/usr/lib64 -llapack -lblas
     HDF5 = f
