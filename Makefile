@@ -2,6 +2,10 @@
 
 -include make.inc
 
+ifndef MODFLAG 
+-include $(COMMONDIR)/make/make.comp.inc
+endif
+
 # GENERAL PURPOSE MAKEFILE
 
 ifndef SRC
@@ -28,10 +32,6 @@ COMMON_OBJS = $(filter %.o, $(patsubst %.f,%.o,$(COMMON_SRC))\
 LIBS :=
 
 prefix = .
-
-ifeq ($(origin FC), default)
-  FC = f90 -w -O2 -cpu:host   #Set to f90 if not user-defined
-endif
 
 #Module search path
 

@@ -1,5 +1,5 @@
 #Define subdirectories for common code
 
-COMMONDIRS =
+COMMONDIR = ../..
 
 SUBDIRS = 

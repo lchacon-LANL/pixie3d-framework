@@ -4,11 +4,11 @@ MESSAGE = "Compiling driver setup modules"
 
 #Define subdirectories for common code
 
-COMMONDIRS = ..
+COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIRS)/io \
-          $(COMMONDIRS)/grid\
-          $(COMMONDIRS)/var_setup
+SUBDIRS = $(COMMONDIR)/io \
+          $(COMMONDIR)/grid\
+          $(COMMONDIR)/var_setup
 
 #Define dependencies
 

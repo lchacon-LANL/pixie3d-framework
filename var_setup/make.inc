@@ -4,10 +4,10 @@ MESSAGE = "Compiling setup modules"
 
 #Define subdirectories for common code
 
-COMMONDIRS = ..
+COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIRS)/io \
-          $(COMMONDIRS)/grid
+SUBDIRS = $(COMMONDIR)/io \
+          $(COMMONDIR)/grid
 
 #Define dependencies
 

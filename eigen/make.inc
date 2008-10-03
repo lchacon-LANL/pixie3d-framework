@@ -4,6 +4,6 @@ MESSAGE = "Compiling f90 eigen modules"
 
 #Define subdirectories for common code
 
-COMMONDIR =
+COMMONDIR = ..
 
-SUBDIRS = ../grid ../newtonGMRES
+SUBDIRS = $(COMMONDIR)/grid $(COMMONDIR)/newtonGMRES

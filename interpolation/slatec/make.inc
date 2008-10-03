@@ -8,10 +8,10 @@ MESSAGE = "Compiling SLATEC interpolation libraries"
 
 #Define subdirectories for common code
 
-COMMONDIRS = .
+COMMONDIR = ../..
 
-SUBDIRS = $(COMMONDIRS)/1d_spline \
-          $(COMMONDIRS)/2d_spline \
-	  $(COMMONDIRS)/3d_spline \
-	  $(COMMONDIRS)/spline_common \
-	  $(COMMONDIRS)/xerror
+SUBDIRS = ./1d_spline \
+          ./2d_spline \
+	  ./3d_spline \
+	  ./spline_common \
+	  ./xerror

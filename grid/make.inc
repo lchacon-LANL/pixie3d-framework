@@ -10,8 +10,6 @@ SUBDIRS = $(COMMONDIR)/math $(COMMONDIR)/io $(COMMONDIR)/interpolation/1d_int
 
 #Define dependencies
 
-#grid_debug_mod.o: xdraw_io_mod.o
-
 grid_operations_mod.o: grid_def_mod.o
 
 grid_anal_map_mod.o: grid_def_mod.o grid_operations_mod.o
