@@ -384,9 +384,10 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz)
+        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
         use variable_setup
         integer    :: iigx,iigy,iigz
+        integer,optional :: obc
         type(var_array),pointer :: varray
         end subroutine imposeBoundaryConditions
       END INTERFACE
@@ -530,9 +531,10 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz)
+        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
         use variable_setup
         integer    :: iigx,iigy,iigz
+        integer,optional :: obc
         type(var_array),pointer :: varray
         end subroutine imposeBoundaryConditions
       END INTERFACE
@@ -581,19 +583,19 @@ cc        endif
           ! do nothing at EQU boundaries, to preserve EQU BCs)
           call equateDerivedType(u_graph,u_0)
 
-          !Impose logical BCs
-          do ieq=1,u_graph%nvar
-            where (abs(u_graph%array_var(ieq)%bconds) == EQU)
-     .             u_graph%array_var(ieq)%bconds = DEF
-          enddo
+cc          !Impose logical BCs
+cc          do ieq=1,u_graph%nvar
+cc            where (abs(u_graph%array_var(ieq)%bconds) == EQU)
+cc     .             u_graph%array_var(ieq)%bconds = DEF
+cc          enddo
 
-          call imposeBoundaryConditions(u_graph,1,1,1)
+          call imposeBoundaryConditions(u_graph,1,1,1,obc=0)
 
           !Recover u_0 BC defs. for u_graph (used in graphics postprocessor)
-          do ieq=1,u_graph%nvar
-            u_graph%array_var(ieq)%bconds =
-     .          u_0%array_var(ieq)%bconds
-          enddo
+cc          do ieq=1,u_graph%nvar
+cc            u_graph%array_var(ieq)%bconds =
+cc     .          u_0%array_var(ieq)%bconds
+cc          enddo
 
         endif
 
