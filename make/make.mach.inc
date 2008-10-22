@@ -17,7 +17,7 @@ ifeq ($(HOST),siesta)
 
 #    MPI_HOME = /usr
   else
-    LIBS := -L/usr/lib64 -llapack -lblas
+    LIBS += -L/usr/lib64 -llapack -lblas
     HDF5 = f
     ifeq ($(FC),f90)
       HDF5_HOME =/usr/local/hdf5-1.6.7/absoft_/serial
@@ -51,7 +51,7 @@ ifeq ($(HOST),quevedo.ornl.gov)
 
 #    MPI_HOME = /usr
   else
-    LIBS := -L/usr/lib64 -llapack -lblas
+    LIBS += -L/usr/lib64 -llapack -lblas
     HDF5 = f
     ifeq ($(FC),f90)
       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
@@ -106,7 +106,7 @@ ifeq ($(HOST),kiwi)
 endif
 
 ifeq ($(HOST),nip.lanl.gov)
-  LIBS := -llapack -lblas -lg2c 
+  LIBS += -llapack -lblas -lg2c 
 endif
 
 ifeq ($(HOST),ra4)
