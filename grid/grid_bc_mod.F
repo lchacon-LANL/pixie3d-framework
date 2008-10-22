@@ -2985,7 +2985,7 @@ cc     .                .or.(bcond(i_bc) == EQU)  !Removed 12/13/06
         if (i_bc == 0) cycle
         select_bc(i) =    (abs(bcond(i_bc)) == SYM)
      .                .or.(    bcond(i_bc)  == PER)
-     .                .or.(    bcond(i_bc)  == EQU) !Added 12/13/06
+     .                .or.(abs(bcond(i_bc)) == EQU) !Added 12/13/06
       enddo
 
       call select_across
