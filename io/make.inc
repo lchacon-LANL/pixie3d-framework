@@ -1,3 +1,7 @@
+#Library name
+
+LIBNAME = libio.a
+
 #Define message
 
 MESSAGE = "Compiling IO modules"
