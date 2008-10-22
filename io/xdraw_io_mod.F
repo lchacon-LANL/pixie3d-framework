@@ -46,20 +46,21 @@ c     End program
 
 c     createDrawInGfile
 c     ################################################################
-      subroutine createDrawInGfile(nvar,binf,graphlabel,ivar
+      subroutine createDrawInGfile(nvar,ntot,binf,graphlabel,ivar
      .                       ,dvariables,descr,ivariables,logvar
-     .                       ,drawfile,spline)
+     .                       ,drawfile,connect,spline)
 
 c     ----------------------------------------------------------------
 c     Creates the G-type (x-y curves) draw.in file for xdraw graphics.
 c     On call sequence:
 c       * nvar : number of variables in consideration for plotting
+c       * ntot : total number of variables
 c       * binf : name of binary file to be read
-c       * graphlabel : character array of arbitrary length
-c       * ivar : independent variable axis name
+c       * graphlabel : character array of arbitrary length specifying
+c                      graph title
+c       * ivar       : independent variable axis name
 c       * dvariables : integer array of size (nvar) identifying the 
-c                      dependent variables (although they can also be 
-c                      independent variables)
+c                      dependent variables
 c       * descr      : character array containing dependent variables
 c                      descriptions.
 c       * ivariables : integer array specifying independent variables 
@@ -71,6 +72,8 @@ c       * logvar     : integer array specifying which dependent
 c                      variables will be plotted in log scale.
 c       * drawfile   : character variable specifying the name of the
 c                      draw.in file.
+c       * connect    : logical variable that specifies whether 
+c                      xdraw should connect points or not.
 c       * spline     : logical variable that specifies whether 
 c                      xdraw should do spline interpolations or not.
 c     ----------------------------------------------------------------
@@ -79,16 +82,17 @@ c     ----------------------------------------------------------------
 
 c     Call variables
 
-        integer      :: nvar,ivariables(ngraph),dvariables(nvar)
-     .                 ,logvar(ngraph)
+        integer      :: nvar,ntot,ivariables(ntot),dvariables(nvar)
+     .                 ,logvar(ntot)
         character(*) :: binf,drawfile,graphlabel,ivar
-        character(20):: descr(ngraph)
-        logical      :: spline
+        character(*) :: descr(ntot)
+        logical      :: spline,connect
 
 c     Local variables
 
         integer      :: i,j,gfile,lngt
         character(50):: label
+        character(2) :: options
         logical      :: flag
 
 c     Begin program
@@ -113,6 +117,10 @@ c     Begin program
         enddo
         write (gfile,'(/,a)') 'ix       iy        window title'
 
+        options = ''
+        if (spline) options = trim(options) // '&'
+        if (.not.connect) options = trim(options) // '.'
+
         do i=1,size(descr)
           lngt = len(trim(descr(i)))
           if (lngt == 0) exit
@@ -124,29 +132,39 @@ c     Begin program
             endif
           enddo
           if (flag) then
-            if (spline) then
-              if(logvar(i) == 1) then
-                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
-     .                                ,i,'L&        ',trim(descr(i))
-              else
-                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
-     .                                ,i,'&        ',trim(descr(i))
-              endif
-            elseif(logvar(i) == 1) then
+cc            if (spline) then
+cc              if(logvar(i) == 1) then
+cc                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
+cc     .                                ,i,'L&        ',trim(descr(i))
+cc              else
+cc                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
+cc     .                                ,i,'&        ',trim(descr(i))
+cc              endif
+cc            elseif(logvar(i) == 1) then
+cc              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
+cc     .                                ,i,'L        ',trim(descr(i))
+cc            else
+cc              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
+cc     .                                ,i,'         ',trim(descr(i))
+cc            endif
+            if(logvar(i) == 1) then
               write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
-     .                                ,i,'L        ',trim(descr(i))
+     .                                ,i,'L'//trim(options)//'   '
+     .                                ,trim(descr(i))
             else
               write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
-     .                                ,i,'         ',trim(descr(i))
+     .                                ,i,trim(options)//'      '
+     .                                ,trim(descr(i))
             endif
           else
             if(logvar(i) == 1) then
               write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
-     .                                ,i,'L        ',trim(descr(i))
-
+     .                                ,i,'L'//trim(options)//'   '
+     .                                ,trim(descr(i))
             else
               write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
-     .                                ,i,'         ',trim(descr(i))
+     .                                ,i,trim(options)//'      '
+     .                                ,trim(descr(i))
             endif
           endif
         enddo
@@ -165,7 +183,23 @@ c     ################################################################
      .            ,ivart,ivarx,ivary,variables,descr,options,drawfile)
 
 c     ----------------------------------------------------------------
-c     Creates drawfile for "M-type" xdraw graphics.
+c     Creates drawfile for "M-type" (dynamic contour) xdraw graphics.
+c     On call sequence:
+c       * nvar       : number of variables to plot
+c       * binf       : name of binary file to be read
+c       * cartesian  : whether we are using logical or physical coord.
+c       * graphlabel : character array of arbitrary length specifying
+c                      graph title
+c       * ivart      : time variable axis name
+c       * ivarx      : X variable axis name
+c       * ivary      : Y variable axis name
+c       * variables  : variable specification (integer; negative
+c                        integer means vector plot, using consecutive
+c                        variable)
+c       * descr      : character array containing dependent variables
+c                      descriptions.
+c       * options    : string with contour options
+c       * drawfile   : string specifying the name of the draw.in file.
 c     ----------------------------------------------------------------
 
         implicit none
@@ -173,7 +207,7 @@ c     ----------------------------------------------------------------
 c     Call variables
 
         integer     :: nvar,variables(nvar)
-        character(*):: binf,drawfile,graphlabel,options,descr(ngraph)
+        character(*):: binf,drawfile,graphlabel,options,descr(:)
         character(*):: ivart,ivarx,ivary
         logical     :: cartesian
 
@@ -244,7 +278,19 @@ c     ################################################################
      .                       ,ivary,descr,options,drawfile)
 
 c     ----------------------------------------------------------------
-c     Creates drawfile for "C-type" xdraw graphics.
+c     Creates drawfile for "C-type" (fixed contour type) xdraw graphics.
+c     On call sequence:
+c       * nvar : number of variables in consideration for plotting
+c       * binf : name of binary file to be read
+c       * graphlabel : character array of arbitrary length specifying
+c                      graph title
+c       * ivart      : time variable axis name
+c       * ivarx      : X variable axis name
+c       * ivary      : Y variable axis name
+c       * descr      : character array containing dependent variables
+c                      descriptions.
+c       * options    : string with contour options
+c       * drawfile   : string specifying the name of the draw.in file.
 c     ----------------------------------------------------------------
 
         implicit none
@@ -281,7 +327,7 @@ c     Begin program
         write (cfile,'(a)') 'ix      iy      other           title'
 
         do i=1,nvar
-          write (cfile,'(4a,i2,2a)') 'i2      i1'
+          write (cfile,'(4a,i1,2a)') 'i2      i1'
      .         ,'     ',options,' -i0=',i-1
      .         ,'     ',trim(descr(i))
         enddo
