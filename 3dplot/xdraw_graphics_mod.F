@@ -101,11 +101,12 @@ cc        do igroup=1,ngroups
           nplots = count (sel_gr(igroup,:) /= 0)
           prof_label = 'Profiles '//graph(igroup)%descr
 
-          call createDrawInGfile(nplots,profilefile(igroup),prof_label
+          call createDrawInGfile
+     .          (nplots,ngraph,profilefile(igroup),prof_label
      .          ,trim(prof_conf%label),abs(sel_gr(igroup,:))
      .          ,prof_desc(igroup,:),prof_ivar(igroup,:)
      .          ,prof_log(igroup,:),drawprof(igroup)
-     .          ,prof_spline(igroup))
+     .          ,prof_spline(igroup),.false.)
         enddo
 
 c     End program
