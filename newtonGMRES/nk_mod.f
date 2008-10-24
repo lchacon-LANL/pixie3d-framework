@@ -405,7 +405,7 @@ c     ---------------------------------------------------------------
 c     Call variables
 
       integer    :: neq,ntot
-      real(8)    :: b(ntot),ravg(neq)
+      real(8)    :: b(ntot),ravg(neq),lravg(neq)
 
 c     Local variables
 
@@ -424,6 +424,14 @@ c     Calculate residuals
       enddo
 
 c     Calculate magnitude of residuals
+
+#if defined(petsc)
+      if (.not.asm) then
+        lravg = ravg
+        call MPI_Allreduce(lravg,ravg,neq,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+#endif
 
       ravg = sqrt(ravg)
 
@@ -450,7 +458,6 @@ c     Begin program
 
       x = x + damp*ddx
 
-cc      dxnorm = sqrt(sum(ddx*ddx))
       dxnorm = sqrt(dot(ntot,ddx,ddx))
 
 c     End program
