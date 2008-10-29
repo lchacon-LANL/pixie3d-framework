@@ -748,6 +748,74 @@ c     #################################################################
 
       end function alt__eom
 
+c     isSP
+c     #################################################################
+      function isSP(i,j,k,igx,igy,igz) result(sing_point)
+
+        integer    :: i,j,k,igx,igy,igz
+        logical    :: sing_point
+
+        sing_point = (i+grid_params%ilo(igx)-1==1).and.bcSP()
+
+      end function isSP
+
+c     isSYM
+c     #################################################################
+      function isSYM(i,igr,dim,loc,ibc)
+
+        integer    :: i,igr
+        logical    :: isSYM
+        integer,optional :: dim,loc,ibc
+
+        integer    :: ibcl,ilog,itst,diml,locl
+
+        if (PRESENT(dim) .and.PRESENT(loc)) then
+          diml = dim
+          locl = loc
+          ibcl = (1+locl)+2*(diml-1)
+        elseif (PRESENT(ibc)) then
+          ibcl = ibc
+          locl = abs(mod(ibcl,2)-2)-1
+          diml = 1 + (ibcl-1-locl)/2
+        else
+          write (*,*) 'Error in isSYM'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
+        isSYM=.false.
+
+        select case(diml)
+        case(1)
+          ilog = grid_params%ilo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nxgl(igr)
+          end select
+        case(2)
+          ilog = grid_params%jlo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nygl(igr)
+          end select
+        case(3)
+          ilog = grid_params%klo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nzgl(igr)
+          end select
+        end select
+
+        if (i+ilog-1 == itst .and. bcond(ibcl) == SYM)  isSYM=.true.
+
+      end function isSYM
+
       end module bc_def
 
 ccc module grid_metric_def
