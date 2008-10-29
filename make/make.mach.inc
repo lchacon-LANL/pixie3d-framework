@@ -48,8 +48,6 @@ ifeq ($(HOST),quevedo.ornl.gov)
     FC=gfortran
     PETSC_ARCH = linux64_openmpi
     HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
-
-#    MPI_HOME = /usr
   else
     LIBS += -L/usr/lib64 -llapack -lblas
     HDF5 = f
