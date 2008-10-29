@@ -206,8 +206,8 @@ c     ----------------------------------------------------------------
 
 c     Call variables
 
-        integer     :: nvar,variables(nvar)
-        character(*):: binf,drawfile,graphlabel,options,descr(:)
+        integer     :: nvar,variables(xdraw_cont_lim)
+        character(*):: binf,drawfile,graphlabel,options,descr(ngraph)
         character(*):: ivart,ivarx,ivary
         logical     :: cartesian
 
