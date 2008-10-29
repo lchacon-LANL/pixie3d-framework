@@ -28,6 +28,7 @@ c ---------------------------------------------------------------------
 
         implicit none
 
+        integer :: funit
         logical :: check_grid,numerical_grid
 
 c     PRIVATE VARIABLES
@@ -1052,11 +1053,11 @@ c     Begin program
         igrid = igx
 
         if (check_grid) then
-          write (*,*)
-          write (*,*) '********************************'
-          write (*,*) 'Checking zero-force condition...'
-          write (*,*) '********************************'
-          write (*,*)
+          write (funit,*)
+          write (funit,*) '********************************'
+          write (funit,*) 'Checking zero-force condition...'
+          write (funit,*) '********************************'
+          write (funit,*)
         endif
 
         do k = klo,khi
@@ -1168,7 +1169,8 @@ cc              endif
 
 c           START CHECKS
 
-            if (check_grid) call zeroForceCheck(i,j,k,igrid,gamma
+            if (check_grid)
+     .         call zeroForceCheck(i,j,k,igrid,gamma
      $                 ,gparams%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:))
 
             enddo
@@ -1407,8 +1409,8 @@ c     Local variables
 
 c     Begin program
 
-        write (*,*)
-        write (*,*) 'Grid:',igrid,'  Grid node:',i,j,k
+        write(funit,*)
+        write(funit,*) 'Grid:',igrid,'  Grid node:',i,j,k
 
         call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
@@ -1422,9 +1424,13 @@ c      Check difference between correction and prediction
         hess = gnew - gold
 
         summ2= sqrt(sum(gold*gold))
-        summ = sqrt(sum(hess*hess))/summ2
+        if (summ2 /= 0d0) then
+          summ = sqrt(sum(hess*hess))/summ2
+        else
+          summ = 0d0
+        endif
 
-        write (*,*) '  Correction size:',summ
+        write(funit,*) '  Correction size:',summ
 
 c      Check cancellation property g^lk(d_il G^j_kj-g_lm g^ij G^m_jk) = 0
 
@@ -1454,7 +1460,8 @@ c      Check cancellation property g^lk(d_il G^j_kj-g_lm g^ij G^m_jk) = 0
             enddo
           enddo
 
-          write(*,*)'  Cancel. of corrector term for Gamma^',ii,':',summ
+          write(funit,'(a,i1,a,e10.3)')
+     .       '  Cancel. of corrector term for Gamma^',ii,':',summ
         enddo
 
 c      Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
@@ -1557,7 +1564,7 @@ cc     $         *hlf*(gsup+gparams%gmetric%grid(igrid)%gsup(i,j,k-1,:,:))
           enddo
 
 cc          write(*,*) '  Zero force cancellation for i=',ii,':',summ,summ2,summ+summ2
-          write (*,*) '  Zero force cancellation for i=',ii,':'
+          write(funit,*) '  Zero force cancellation for i=',ii,':'
      .               ,summ+summ2
         enddo
 
@@ -2021,18 +2028,18 @@ c     -----------------------------------------------------------------
 c     Begin program
 
       if (anal_map) then
-        write (*,*)
-        write (*,*) '*************************************************'
-        write (*,*) 'Checking accuracy of numerical grid quantities...'
-        write (*,*) '*************************************************'
-        write (*,*)
+        write(funit,*)
+        write(funit,*)'***********************************************'
+        write(funit,*)'Checking accuracy of numerical grid quantities.'
+        write(funit,*)'***********************************************'
+        write(funit,*)
       else
-        write (*,*)
-        write (*,*) '*************************************************'
-        write (*,*) 'Cannot check numerical grid quantities:'
-        write (*,*) '   analytical mapping unavailable'
-        write (*,*) '*************************************************'
-        write (*,*)
+        write(funit,*)
+        write(funit,*)'***********************************************'
+        write(funit,*)'Cannot check numerical grid quantities:'
+        write(funit,*)'   analytical mapping unavailable'
+        write(funit,*)'***********************************************'
+        write(funit,*)
         return
       endif
 
@@ -2080,17 +2087,17 @@ c     Begin program
           enddo
         enddo
 
-        write (*,*) 'Grid level:',igrid
+        write(funit,*) 'Grid level:',igrid
           
         mag = sqrt(    mag1 /(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))
-        write (*,*)'   Jacobian tst=',mag
+        write(funit,*)'   Jacobian tst=',mag
         mag = sum(sqrt(mag2)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/9.
-        write (*,*)'   Gsub tst    =',mag
+        write(funit,*)'   Gsub tst    =',mag
         mag = sum(sqrt(mag3)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/9.
-        write (*,*)'   Gsup tst    =',mag
+        write(funit,*)'   Gsup tst    =',mag
         mag = sum(sqrt(mag4)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/27.
-        write (*,*)'   Gamma tst   =',mag
-        write (*,*)
+        write(funit,*)'   Gamma tst   =',mag
+        write(funit,*)
 
       enddo
 
@@ -2122,25 +2129,26 @@ c     Begin program
 
 c     Output
 
-      write (*,*)
-      write (*,*) '**********************************'
-      write (*,*) 'Dumping grid debugging graphics...'
-      write (*,*) '**********************************'
-      write (*,*)
+      write(funit,*)
+      write(funit,*) '**********************************'
+      write(funit,*) 'Dumping grid debugging graphics...'
+      write(funit,*) '**********************************'
+      write(funit,*)
 
 cc      dump_diff = .false.
       dump_diff = anal_map.and.numerical_grid
 
       if (dump_diff) then
-        write(*,*)'Analytical mapping available; dumping diffs...'
+        write(funit,*)'Analytical mapping available; dumping diffs...'
       else
         if (anal_map) then
-          write(*,*)'Dumping analytical qtys...'
+          write(funit,*)'Dumping analytical qtys...'
         else
-          write(*,*)'Analytical map unavailable; dumping full qtys...'
+          write(funit,*)
+     .              'Analytical map unavailable; dumping full qtys...'
         endif
       endif
-      write (*,*)
+      write(funit,*)
 
 c     Dump quantities
 
@@ -2152,11 +2160,11 @@ c     Dump quantities
 
         do k=0,nz+1
 
-        write (*,*)
-        write (*,*) '   ******************************'
-        write (*,*) '   Grid level',igrid,'on slice k=',k
-        write (*,*) '   ******************************'
-        write (*,*)
+        write(funit,*)
+        write(funit,*) '   ******************************'
+        write(funit,*) '   Grid level',igrid,'on slice k=',k
+        write(funit,*) '   ******************************'
+        write(funit,*)
 
         !Open .bin file
         debugfile = 'grid_gl'//trim(int2char(igrid))
@@ -2179,7 +2187,7 @@ c     Dump quantities
      .                    -jacobian(i,j,k,igrid,igrid,igrid)
           enddo
         enddo
-        write (*,*) '   Dumping Jacobian'
+        write(funit,*) '   Dumping Jacobian'
         ivar = 1
         descr(ivar) = 'jac'
         call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,0,110)
@@ -2200,7 +2208,7 @@ c     Dump quantities
                 endif
               enddo
             enddo
-            write (*,*) '   Dumping Gsub component',l,m
+            write(funit,*) '   Dumping Gsub component',l,m
             ivar = ivar+1
             descr(ivar)='gsub('//trim(int2char(l))//','
      .                         //trim(int2char(m))//')'
@@ -2223,7 +2231,7 @@ c     Dump quantities
                 endif
               enddo
             enddo
-            write (*,*) '   Dumping Gsup component',l,m
+            write(funit,*) '   Dumping Gsup component',l,m
             ivar = ivar+1
             descr(ivar)='gsup('//trim(int2char(l))//','
      .                         //trim(int2char(m))//')'
@@ -2246,7 +2254,7 @@ c     Dump quantities
                 endif
               enddo
             enddo
-            write (*,*) '   Dumping Cnv vector',l,' component',m
+            write(funit,*) '   Dumping Cnv vector',l,' component',m
             ivar = ivar+1
             descr(ivar)='Cnv_'//trim(int2char(l))//'('
      .                        //trim(int2char(m))//')'
@@ -2272,7 +2280,7 @@ c     Dump quantities
                   endif
                 enddo
               enddo
-              write (*,*) '   Dumping Gamma component',l,m,n
+              write(funit,*) '   Dumping Gamma component',l,m,n
               ivar = ivar+1
               descr(ivar)='Gamma'//trim(int2char(l))//'('
      .                           //trim(int2char(m))//','
@@ -2294,9 +2302,9 @@ c     Dump quantities
         enddo
       enddo
 
-      write (*,*)
-      write (*,*) 'Done!'
-      write (*,*) 
+      write(funit,*)
+      write(funit,*) 'Done!'
+      write(funit,*) 
 
       end subroutine graphicsCheck
 

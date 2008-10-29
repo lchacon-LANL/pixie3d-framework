@@ -83,12 +83,26 @@ c     Create fortran PETSc parallel grid hierarchy (parallel version)
         call createPETScGrid
 #endif
 
+c     Initialize grid check
+
+        if (check_grid) then
+
+          if (my_rank == 0) then
+            write (*,*)
+            write (*,*) 'Checking grid...'
+          endif
+
+          open(unit=funit,file='grid_p'//trim(int2char(my_rank))//'.txt'
+     .      ,status='unknown')
+
+        endif
+
 c     Store grid metric parameters in grid metric structure
 
         if (checkMapDatabase()) call defineGridMetric(gparams)
         gmetric => gparams%gmetric   !For backward compatibility
 
-c     Perform grid checks
+c     Perform additional grid checks
 
         if (check_grid) call checkGrid(gparams)
 
@@ -414,18 +428,6 @@ c     Store physical dimensions of local domain (if undefined)
 
         if (gdef%lzmin==UNDEF_DP) gdef%lzmin = gdef%zg(gdef%klo(1))
         if (gdef%lzmax==UNDEF_DP) gdef%lzmax = gdef%zg(gdef%khi(1))
-
-c     Initialize grid check output
-
-        if (check_grid) then
-          write (*,*)
-          write (*,*) 'Coordinate system: ',coords
-          write (*,*)
-          write (*,*) 'Number of grid levels:'
-          write (*,*) 'nx: ',gdef%ngrid
-     .            ,'   ny: ',gdef%ngrid
-     .            ,'   nz: ',gdef%ngrid
-        endif
 
       end subroutine createMGgrid
 
@@ -924,9 +926,19 @@ cc        type(MG_grid_metrics),pointer :: gmtrc
 c     Local variables
 
         integer    :: i,j,n1,n2,n3
-        integer    :: igx,igy,igz,isig
+        integer    :: igx,igy,igz,isig,funit
 
 c     Begin program
+
+c     Grid check output
+
+        write (funit,*)
+        write (funit,*) 'Coordinate system: ',coords
+        write (funit,*)
+        write (funit,*) 'Number of grid levels:'
+        write (funit,*) 'nx: ',gparams%ngrid
+     .              ,'   ny: ',gparams%ngrid
+     .              ,'   nz: ',gparams%ngrid
 
 c     Multigrid parameters
 
@@ -943,16 +955,18 @@ c     Multigrid parameters
         call gridInfo('Z',igz,gparams%istartz,gparams%nzv
      .               ,gparams%zz,gparams%dz,gparams%dzh)
 
-        if (checkMapDatabase()) then
-          call metricTensorCheck(1,1,1
+cc        if (checkMapDatabase()) then
+cccc          call metricTensorCheck(1,1,1
 cc          call metricTensorCheck(igx,igy,igz
-     .             ,gparams%nxv,gparams%nyv,gparams%nzv)
-        endif
+cc     .             ,gparams%nxv,gparams%nyv,gparams%nzv)
+cc        endif
 
 cc        if (checkAnalMapDatabase()) then
 cc          call hessianCheck(igx,igy,igz
 cc     .               ,gparams%nxv,gparams%nyv,gparams%nzv)
 cc        endif
+
+        close(funit)
 
         call pstop('checkGrid','End of grid check')
 
@@ -978,20 +992,20 @@ c     Local variables
 
 c     Begin program
 
-        write (*,*)
-        write (*,*) '***************************'
-        write (*,*) 'MG grid in ',char,'-axis'
-        write (*,*) '***************************'
+        write (funit,*)
+        write (funit,*) '***************************'
+        write (funit,*) 'MG grid in ',char,'-axis'
+        write (funit,*) '***************************'
         do i = 1,ig
           isig = istart(i)
-          write (*,*)
-          write (*,*) '************* Grid ',i,' **************'
-          write (*,*)
-          write (*,*) 'Size ',nxv(i)
-          write (*,*) 'MG pointer: ',isig
-          write (*,*) 'Grid nodes'
+          write (funit,*)
+          write (funit,*) '************* Grid ',i,' **************'
+          write (funit,*)
+          write (funit,*) 'Size ',nxv(i)
+          write (funit,*) 'MG pointer: ',isig
+          write (funit,*) 'Grid nodes'
           do j = isig,isig+nxv(i)+1
-            write (*,10) 'node :',j-isig
+            write (funit,10) 'node :',j-isig
      .                  ,'   position: ',xx(j)
      .                  ,'   int dh: ',dx(j)
      .                  ,'   half dh: ',dxh(j)
@@ -1021,11 +1035,11 @@ c     Local variables
 
 c     Begin program
 
-        write (*,*) 
-        write (*,*) '*************************'
-        write (*,*) '     Hessian check'
-        write (*,*) '*************************'
-        write (*,*)
+        write (funit,*) 
+        write (funit,*) '*************************'
+        write (funit,*) '     Hessian check'
+        write (funit,*) '*************************'
+        write (funit,*)
 
         do i = 2,nxv(igx)   !Start at 2 to avoid singular points
           do j = 1,nyv(igy)
@@ -1055,17 +1069,17 @@ c     Begin program
                 enddo
               enddo
 
-              write (*,5) 'Grid point: (',x1,',',y1,',',z1,')'
+              write (funit,5) 'Grid point: (',x1,',',y1,',',z1,')'
  5            format (/,a,f7.3,a,f7.3,a,f7.3,a)
 
-              write (*,*) 
-              write (*,*) 'Hessian relation'
+              write (funit,*) 
+              write (funit,*) 'Hessian relation'
 
               do ih=1,3
-                write (*,*) 
-                write (*,10) table(ih,1,1:3)
-                write (*,10) table(ih,2,1:3)
-                write (*,10) table(ih,3,1:3)
+                write (funit,*) 
+                write (funit,10) table(ih,1,1:3)
+                write (funit,10) table(ih,2,1:3)
+                write (funit,10) table(ih,3,1:3)
  10             format (3f10.3)
               enddo
 
@@ -1100,13 +1114,13 @@ c     Begin program
 
         check = 0d0
 
-        write (*,*) 
-        write (*,*) '*************************'
-        write (*,*) '   Metric Tensor check'
-        write (*,*) '*************************'
-        write (*,*)
-        write (*,*) 'Grid levels:',igx,igy,igz
-        write (*,*)
+        write (funit,*) 
+        write (funit,*) '*************************'
+        write (funit,*) '   Metric Tensor check'
+        write (funit,*) '*************************'
+        write (funit,*)
+        write (funit,*) 'Grid levels:',igx,igy,igz
+        write (funit,*)
 
         do i = 1,nxv(igx)   !Start at 2 to avoid singular points
           do j = 1,nyv(igy)
@@ -1123,43 +1137,43 @@ c     Begin program
 
               tensor = matmul(gup,gdown)
 
-cc              write (*,5) 'Grid point: (',x1,',',y1,',',z1,')'
+cc              write (funit,5) 'Grid point: (',x1,',',y1,',',z1,')'
 cc 5            format (/,a,f7.3,a,f7.3,a,f7.3,a)
-              write (*,5) 'Grid point: (',i,',',j,',',k,')'
+              write (funit,5) 'Grid point: (',i,',',j,',',k,')'
  5            format (/,a,i3,a,i3,a,i3,a)
 
-              write (*,*)
-              write (*,*) 'Gup'
-              write (*,10) gup(1,1:3)
-              write (*,10) gup(2,1:3)
-              write (*,10) gup(3,1:3)
+              write(funit,*)
+              write(funit,*) 'Gup'
+              write(funit,10) gup(1,1:3)
+              write(funit,10) gup(2,1:3)
+              write(funit,10) gup(3,1:3)
 
-              write (*,*)
-              write (*,*) 'Gdown'
-              write (*,10) gdown(1,1:3)
-              write (*,10) gdown(2,1:3)
-              write (*,10) gdown(3,1:3)
+              write(funit,*)
+              write(funit,*) 'Gdown'
+              write(funit,10) gdown(1,1:3)
+              write(funit,10) gdown(2,1:3)
+              write(funit,10) gdown(3,1:3)
 
-              write (*,*)
-              write (*,*) 'Cov: cov1      cov2      cov3'
-              write (*,10) gparams%gmetric%grid(igx)%cov(i,j,k,1:3,1)
-              write (*,10) gparams%gmetric%grid(igx)%cov(i,j,k,1:3,2)
-              write (*,10) gparams%gmetric%grid(igx)%cov(i,j,k,1:3,3)
+              write(funit,*)
+              write(funit,*) 'Cov: cov1      cov2      cov3'
+              write(funit,10) gparams%gmetric%grid(igx)%cov(i,j,k,1:3,1)
+              write(funit,10) gparams%gmetric%grid(igx)%cov(i,j,k,1:3,2)
+              write(funit,10) gparams%gmetric%grid(igx)%cov(i,j,k,1:3,3)
 
-              write (*,*)
-              write (*,*) 'Cnv: cnv1      cnv2      cnv3'
-              write (*,10) gparams%gmetric%grid(igx)%cnv(i,j,k,1:3,1)
-              write (*,10) gparams%gmetric%grid(igx)%cnv(i,j,k,1:3,2)
-              write (*,10) gparams%gmetric%grid(igx)%cnv(i,j,k,1:3,3)
+              write(funit,*)
+              write(funit,*) 'Cnv: cnv1      cnv2      cnv3'
+              write(funit,10) gparams%gmetric%grid(igx)%cnv(i,j,k,1:3,1)
+              write(funit,10) gparams%gmetric%grid(igx)%cnv(i,j,k,1:3,2)
+              write(funit,10) gparams%gmetric%grid(igx)%cnv(i,j,k,1:3,3)
 
-              write (*,*)
-              write (*,*) 'Jac:',gparams%gmetric%grid(igx)%jac(i,j,k)
+              write(funit,*)
+              write(funit,*) 'Jac:',gparams%gmetric%grid(igx)%jac(i,j,k)
 
-              write (*,*) 
-              write (*,*) 'Metric tensor product'
-              write (*,10) tensor(1,1:3)
-              write (*,10) tensor(2,1:3)
-              write (*,10) tensor(3,1:3)
+              write(funit,*) 
+              write(funit,*) 'Metric tensor product'
+              write(funit,10) tensor(1,1:3)
+              write(funit,10) tensor(2,1:3)
+              write(funit,10) tensor(3,1:3)
  10           format (3f10.3)
 
             enddo
