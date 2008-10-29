@@ -17,7 +17,7 @@ c ######################################################################
      .               ,group_sp,tag=0,dest=0,root=0
      .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
-     .               ,npx=0,npy=0,npz=0
+     .               ,npx=0,npy=0,npz=0,debug_par=0
 
         integer    :: l_lim(3,0:1),g_lim(3,0:1),rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
