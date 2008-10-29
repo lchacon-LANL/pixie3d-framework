@@ -34,7 +34,6 @@ c Begin program
 
 c Unpack vector x
 
-cc      varray = x  !This allocates varray; overloaded assignment
       call mapVectorToStructure(varray,x)
 
       call setupPreconditioner(varray)
