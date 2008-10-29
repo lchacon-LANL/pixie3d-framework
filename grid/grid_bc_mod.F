@@ -782,7 +782,7 @@ c     -----------------------------------------------------------------
 
       integer    :: igx,igy,igz,bcs(:,:)
 
-      integer   ,optional :: IIBC
+      integer,optional :: IIBC
 
       integer    :: dim,loc,ibc,igmin,igmax,jgmin,jgmax,kgmin,kgmax
 
@@ -797,7 +797,7 @@ c     Reset BC grid level
 
       igxbc = igx
       igybc = igy
-      igzbc = igx
+      igzbc = igz
 
 c     Find grid global limits
 
@@ -2075,7 +2075,7 @@ c     Determine boundary limits
      .            ,'; Local limits:',imin,imax,jmin,jmax,kmin,kmax
       endif
 
-c     Select edge
+c     Select face
 
       select case (ibc)
       case (1) !On face #1, fill face i=0
@@ -2222,7 +2222,7 @@ c     Local variables
       integer    :: imax,imin,jmax,jmin,kmax,kmin
 
       integer    :: ito,jto,kto,ifrom,jfrom,kfrom
-     .             ,imn,imx,jmn,jmx,kmn,kmx,ibc
+     .             ,imn,imx,jmn,jmx,kmn,kmx,ibc,ord
 
 c     Begin program
 
@@ -2241,6 +2241,8 @@ cc      if (.not.selectFace(ibc)) return
      .            ,'; Local limits:',imin,imax,jmin,jmax,kmin,kmax
       endif
 
+      ord = max(order,1)
+
 c     Select edge
 
       select case (ibc)
@@ -2248,14 +2250,14 @@ c     Select edge
 
         if (imin == 1) then
           ito   = imin-1
-          ifrom = min(imin+order,nxbc)
+          ifrom = min(imin+ord,nxbc)
 
           imn   = min(ito,ifrom)
           imx   = max(ito,ifrom)
 
           if (jmin == 1.and.(selectFace(ibc).or.selectFace(3))) then  !Check faces #1,#3
             jto   = jmin-1
-            jfrom = min(jmin+order,nybc)
+            jfrom = min(jmin+ord,nybc)
 
             jmn   = min(jto,jfrom)
             jmx   = max(jto,jfrom)
@@ -2264,6 +2266,9 @@ c     Select edge
               if ((bcond(1)==EQU.or.bcond(3)==EQU) .and.order == 0) then
                 array(ito,jto,k) = array0(ito,jto,k)
               else
+cc                write (*,*)
+cc                write (*,*) order,ito,ifrom,jto,jfrom,kto,kfrom
+cc                write (*,*) nxbc,nybc
                 call extrapolateToCorner(ibc,ito,jto,k,imn,jmn,k
      .                  ,imx,jmx,k,array(imn:imx,jmn:jmx,k),bcond)
               endif
@@ -2272,7 +2277,7 @@ c     Select edge
 
           if (jmax == nybc.and.(selectFace(ibc).or.selectFace(4))) then  !Check faces #1,#4
             jto   = jmax+1
-            jfrom = max(jmax-order,1)
+            jfrom = max(jmax-ord,1)
 
             jmn   = min(jto,jfrom)
             jmx   = max(jto,jfrom)
@@ -2293,14 +2298,14 @@ c     Select edge
 
         if (imax == nxbc) then
           ito   = imax+1
-          ifrom = max(imax-order,1)
+          ifrom = max(imax-ord,1)
 
           imn   = min(ito,ifrom)
           imx   = max(ito,ifrom)
 
           if (jmin == 1.and.(selectFace(ibc).or.selectFace(3))) then  !Check faces #2,#3
             jto   = jmin-1
-            jfrom = min(jmin+order,nybc)
+            jfrom = min(jmin+ord,nybc)
 
             jmn   = min(jto,jfrom)
             jmx   = max(jto,jfrom)
@@ -2317,7 +2322,7 @@ c     Select edge
 
           if (jmax == nybc.and.(selectFace(ibc).or.selectFace(4))) then  !Check faces #2,#4
             jto   = jmax+1
-            jfrom = max(jmax-order,1)
+            jfrom = max(jmax-ord,1)
 
             jmn   = min(jto,jfrom)
             jmx   = max(jto,jfrom)
@@ -2339,7 +2344,7 @@ c     Select edge
         if (jmin == 1) then
 
           jto   = jmin-1
-          jfrom = min(jmin+order,nybc)
+          jfrom = min(jmin+ord,nybc)
 
           jmn   = min(jto,jfrom)
           jmx   = max(jto,jfrom)
@@ -2347,7 +2352,7 @@ c     Select edge
           if (kmin == 1.and.(selectFace(ibc).or.selectFace(5))) then  !Check faces #3,#5
 
             kto   = kmin-1
-            kfrom = min(kmin+order,nzbc)
+            kfrom = min(kmin+ord,nzbc)
 
             kmn   = min(kto,kfrom)
             kmx   = max(kto,kfrom)
@@ -2365,7 +2370,7 @@ c     Select edge
           if (kmax == nzbc.and.(selectFace(ibc).or.selectFace(6))) then  !Check faces #3,#6
 
             kto   = kmax+1
-            kfrom = max(kmax-order,1)
+            kfrom = max(kmax-ord,1)
 
             kmn   = min(kto,kfrom)
             kmx   = max(kto,kfrom)
@@ -2387,7 +2392,7 @@ c     Select edge
         if (jmax == nybc) then
 
           jto   = jmax+1
-          jfrom = max(jmax-order,1)
+          jfrom = max(jmax-ord,1)
 
           jmn   = min(jto,jfrom)
           jmx   = max(jto,jfrom)
@@ -2395,7 +2400,7 @@ c     Select edge
           if (kmin == 1.and.(selectFace(ibc).or.selectFace(5))) then  !Check faces #4,#5
 
             kto   = kmin-1
-            kfrom = min(kmin+order,nzbc)
+            kfrom = min(kmin+ord,nzbc)
 
             kmn   = min(kto,kfrom)
             kmx   = max(kto,kfrom)
@@ -2413,7 +2418,7 @@ c     Select edge
           if (kmax == nzbc.and.(selectFace(ibc).or.selectFace(6))) then  !Check faces #4,#6
 
             kto   = kmax+1
-            kfrom = max(kmax-order,1)
+            kfrom = max(kmax-ord,1)
 
             kmn   = min(kto,kfrom)
             kmx   = max(kto,kfrom)
@@ -2435,7 +2440,7 @@ c     Select edge
         if (kmin == 1) then
 
           kto   = kmin-1
-          kfrom = min(kmin+order,nzbc)
+          kfrom = min(kmin+ord,nzbc)
 
           kmn   = min(kto,kfrom)
           kmx   = max(kto,kfrom)
@@ -2443,7 +2448,7 @@ c     Select edge
           if (imin == 1.and.(selectFace(ibc).or.selectFace(1))) then  !Check faces #5,#1
 
             ito   = imin-1
-            ifrom = min(imin+order,nxbc)
+            ifrom = min(imin+ord,nxbc)
 
             imn   = min(ito,ifrom)
             imx   = max(ito,ifrom)
@@ -2461,7 +2466,7 @@ c     Select edge
           if (imax == nxbc.and.(selectFace(ibc).or.selectFace(2))) then  !Check faces #5,#2
 
             ito   = imax+1
-            ifrom = max(imax-order,1)
+            ifrom = max(imax-ord,1)
 
             imn   = min(ito,ifrom)
             imx   = max(ito,ifrom)
@@ -2483,7 +2488,7 @@ c     Select edge
         if (kmax == nzbc) then
 
           kto   = kmax+1
-          kfrom = max(kmax-order,1)
+          kfrom = max(kmax-ord,1)
 
           kmn   = min(kto,kfrom)
           kmx   = max(kto,kfrom)
@@ -2491,7 +2496,7 @@ c     Select edge
           if (imin == 1.and.(selectFace(ibc).or.selectFace(1))) then  !Check faces #6,#1
 
             ito   = imin-1
-            ifrom = min(imin+order,nxbc)
+            ifrom = min(imin+ord,nxbc)
 
             imn   = min(ito,ifrom)
             imx   = max(ito,ifrom)
@@ -2509,7 +2514,7 @@ c     Select edge
           if (imax == nxbc.and.(selectFace(ibc).or.selectFace(2))) then  !Check faces #6,#2
 
             ito   = imax+1
-            ifrom = max(imax-order,1)
+            ifrom = max(imax-ord,1)
 
             imn   = min(ito,ifrom)
             imx   = max(ito,ifrom)
@@ -2556,7 +2561,7 @@ c     Local variables
       integer    :: imax,imin,jmax,jmin,kmax,kmin
 
       integer    :: ito,jto,kto,ifrom,jfrom,kfrom
-     .             ,imn,imx,jmn,jmx,kmn,kmx,ibc
+     .             ,imn,imx,jmn,jmx,kmn,kmx,ibc,ord
 
 c     Begin program
 
@@ -2569,13 +2574,15 @@ cc      if (.not.selectFace(ibc)) return
       call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
+      ord = max(order,1)
+
 c     Select corner
 
       if (      imin == 1  .and. jmin == 1  .and. kmin == 1
      .    .and.(selectFace(1).or.selectFace(3).or.selectFace(5)) ) then   !Check concurrent faces
-        ifrom = min(imin+order,nxbc)
-        jfrom = min(jmin+order,nybc)
-        kfrom = min(kmin+order,nzbc)
+        ifrom = min(imin+ord,nxbc)
+        jfrom = min(jmin+ord,nybc)
+        kfrom = min(kmin+ord,nzbc)
         ito   = imin-1
         jto   = jmin-1
         kto   = kmin-1
@@ -2599,9 +2606,9 @@ c     Select corner
       if (     imin == 1  .and. jmax == nybc .and. kmin == 1
      .    .and.(selectFace(1).or.selectFace(4).or.selectFace(5))) then
 
-        ifrom = min(imin+order,nxbc)
-        jfrom = max(jmax-order,1   )
-        kfrom = min(kmin+order,nzbc)
+        ifrom = min(imin+ord,nxbc)
+        jfrom = max(jmax-ord,1   )
+        kfrom = min(kmin+ord,nzbc)
         ito   = imin-1
         jto   = jmax+1
         kto   = kmin-1
@@ -2625,9 +2632,9 @@ c     Select corner
       if (     imax == nxbc .and. jmin == 1  .and. kmin == 1
      .    .and.(selectFace(2).or.selectFace(3).or.selectFace(5))) then
 
-        ifrom = max(imax-order,1   )
-        jfrom = min(jmin+order,nybc)
-        kfrom = min(kmin+order,nzbc)
+        ifrom = max(imax-ord,1   )
+        jfrom = min(jmin+ord,nybc)
+        kfrom = min(kmin+ord,nzbc)
         ito   = imax+1
         jto   = jmin-1
         kto   = kmin-1
@@ -2651,9 +2658,9 @@ c     Select corner
       if (     imax == nxbc .and. jmax == nybc .and. kmin == 1
      .    .and.(selectFace(2).or.selectFace(4).or.selectFace(5))) then
 
-        ifrom = max(imax-order,1   )
-        jfrom = max(jmax-order,1   )
-        kfrom = min(kmin+order,nzbc)
+        ifrom = max(imax-ord,1   )
+        jfrom = max(jmax-ord,1   )
+        kfrom = min(kmin+ord,nzbc)
         ito   = imax+1
         jto   = jmax+1
         kto   = kmin-1
@@ -2677,9 +2684,9 @@ c     Select corner
       if (     imin == 1  .and. jmin == 1  .and. kmax == nzbc
      .    .and.(selectFace(1).or.selectFace(3).or.selectFace(6))) then
 
-        ifrom = min(imin+order,nxbc)
-        jfrom = min(jmin+order,nybc)
-        kfrom = max(kmax-order,1   )
+        ifrom = min(imin+ord,nxbc)
+        jfrom = min(jmin+ord,nybc)
+        kfrom = max(kmax-ord,1   )
         ito   = imin-1
         jto   = jmin-1
         kto   = kmax+1
@@ -2703,9 +2710,9 @@ c     Select corner
       if (     imin == 1  .and. jmax == nybc .and. kmax == nzbc
      .    .and.(selectFace(1).or.selectFace(4).or.selectFace(6))) then
 
-        ifrom = min(imin+order,nxbc)
-        jfrom = max(jmax-order,1   )
-        kfrom = max(kmax-order,1   )
+        ifrom = min(imin+ord,nxbc)
+        jfrom = max(jmax-ord,1   )
+        kfrom = max(kmax-ord,1   )
         ito   = imin-1
         jto   = jmax+1
         kto   = kmax+1
@@ -2729,9 +2736,9 @@ c     Select corner
       if (     imax == nxbc .and. jmin == 1  .and. kmax == nzbc
      .    .and.(selectFace(2).or.selectFace(3).or.selectFace(6))) then
 
-        ifrom = max(imax-order,1   )
-        jfrom = min(jmin+order,nybc)
-        kfrom = max(kmax-order,1   )
+        ifrom = max(imax-ord,1   )
+        jfrom = min(jmin+ord,nybc)
+        kfrom = max(kmax-ord,1   )
         ito   = imax+1
         jto   = jmin-1
         kto   = kmax+1
@@ -2755,9 +2762,9 @@ c     Select corner
       if (     imax == nxbc .and. jmax == nybc .and. kmax == nzbc
      .    .and.(selectFace(2).or.selectFace(4).or.selectFace(6))) then
 
-        ifrom = max(imax-order,1 )
-        jfrom = max(jmax-order,1 )
-        kfrom = max(kmax-order,1 )
+        ifrom = max(imax-ord,1 )
+        jfrom = max(jmax-ord,1 )
+        kfrom = max(kmax-ord,1 )
         ito   = imax+1
         jto   = jmax+1
         kto   = kmax+1
@@ -2821,6 +2828,7 @@ c     Local variables
      .             ,smooth(3)
 
       logical    :: flg(3),select_bc(3),have_equ
+     .             ,face=.false.,edge=.false.,corner=.false.
 
 c     Extrapolation
 
@@ -2886,6 +2894,8 @@ c     Identify directions for extrapolation.
 
       if (flg(1) .and. flg(2) .and. flg(3)) then !Corner
 
+        corner = .true.
+
         if (ito == 0 .and. jto == 0 .and. kto == 0) then
           ibcl(1) = 1
           ibcl(2) = 3
@@ -2924,6 +2934,8 @@ c     Identify directions for extrapolation.
      $       .or.(flg(1) .and. flg(3))
      $       .or.(flg(2) .and. flg(3))) then !Edge
 
+        edge = .true.
+
         select case(ibc)
         case (1,2)
           ibcl(1) = ibc
@@ -2949,6 +2961,8 @@ c     Identify directions for extrapolation.
         end select
 
       else !Face
+
+        face = .true.
 
         select case(ibc)
         case (1,2)
@@ -2983,8 +2997,8 @@ cc     .                .or.(bcond(i_bc) == EQU)  !Removed 12/13/06
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
-        select_bc(i) =    (abs(bcond(i_bc)) == SYM)
-     .                .or.(    bcond(i_bc)  == PER)
+        select_bc(i) =    (    bcond(i_bc)  == PER)
+cc     .                .or.(abs(bcond(i_bc)) == SYM) !Removed 10/24/08 (special case handled below)
      .                .or.(abs(bcond(i_bc)) == EQU) !Added 12/13/06
       enddo
 
@@ -3028,15 +3042,20 @@ c     X extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         xto = grid_params%xx(ig)
 
-        if (abs(bcond(ibcl(1))) == SYM) then  !Exception for symmetry BC
-          if (ito == imn) then
-            valx(1) = sign(1,bcond(1))*array(ito+2,jto,kto)
-          else
-            valx(1) = sign(1,bcond(1))*array(ito-2,jto,kto)
-          endif
+cc        if ((abs(bcond(ibcl(1))) == SYM)
+cc     .      .and. (ito == iimin -1 .or. ito == iimax + 1)) then  !Exception for symmetry BC
+cc          if (ito == imn) then
+cc            valx(1) = sign(1,bcond(ibcl(1)))*array(ito+2,jto,kto)
+cc          else
+cc            valx(1) = sign(1,bcond(ibcl(1)))*array(ito-2,jto,kto)
+cc          endif
+        if (isSYM(ito+1,igxbc,ibc=ibcl(1))) then
+          valx(1) = sign(1,bcond(ibcl(1)))*array(ito+2,jto,kto)
+        elseif (isSYM(ito-1,igxbc,ibc=ibcl(1))) then
+          valx(1) = sign(1,bcond(ibcl(1)))*array(ito-2,jto,kto)
         else
           call IntDriver1d(inx,xx,array(imni:imxi,jto,kto)
-     .                  ,1,xto,valx,order_int(1))
+     .                    ,1,xto,valx,order_int(1))
         endif
 
         num = num + 1
@@ -3065,15 +3084,20 @@ c     Y extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         yto = grid_params%yy(jg)
 
-        if (abs(bcond(ibcl(2))) == SYM) then  !Exception for symmetry BC
-          if (jto == jmn) then
-            valy(1) = sign(1,bcond(1))*array(ito,jto+2,kto)
-          else                                                   
-            valy(1) = sign(1,bcond(1))*array(ito,jto-2,kto)
-          endif
+cc        if ((abs(bcond(ibcl(2)))==SYM)
+cc     .      .and. (jto == jjmin -1 .or. jto == jjmax + 1)) then  !Exception for symmetry BC
+cc          if (jto == jmn) then
+cc            valy(1) = sign(1,bcond(ibcl(2)))*array(ito,jto+2,kto)
+cc          else                                                   
+cc            valy(1) = sign(1,bcond(ibcl(2)))*array(ito,jto-2,kto)
+cc          endif
+        if (isSYM(jto+1,igybc,ibc=ibcl(2))) then
+          valy(1) = sign(1,bcond(ibcl(2)))*array(ito,jto+2,kto)
+        elseif (isSYM(jto-1,igybc,ibc=ibcl(2))) then
+          valy(1) = sign(1,bcond(ibcl(2)))*array(ito,jto-2,kto)
         else
           call IntDriver1d(iny,yy,array(ito,jmni:jmxi,kto)
-     .                  ,1,yto,valy,order_int(2))
+     .                    ,1,yto,valy,order_int(2))
         endif
 
         num = num + 1
@@ -3103,15 +3127,20 @@ c     Z extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         zto = grid_params%zz(kg)
 
-        if (abs(bcond(ibcl(3))) == SYM) then  !Exception for symmetry BC
-          if (kto == kmn) then
-            valz(1) = sign(1,bcond(1))*array(ito,jto,kto+2)
-          else                                                   
-            valz(1) = sign(1,bcond(1))*array(ito,jto,kto-2)
-          endif
+cc        if ((abs(bcond(ibcl(3)))==SYM)
+cc     .      .and. (kto == kkmin -1 .or. kto == kkmax + 1)) then  !Exception for symmetry BC
+cc          if (kto == kmn) then
+cc            valz(1) = sign(1,bcond(ibcl(3)))*array(ito,jto,kto+2)
+cc          else                                                   
+cc            valz(1) = sign(1,bcond(ibcl(3)))*array(ito,jto,kto-2)
+cc          endif
+        if (isSYM(kto+1,igzbc,ibc=ibcl(3))) then
+          valz(1) = sign(1,bcond(ibcl(3)))*array(ito,jto,kto+2)
+        elseif (isSYM(kto-1,igzbc,ibc=ibcl(3))) then
+          valz(1) = sign(1,bcond(ibcl(3)))*array(ito,jto,kto-2)
         else
           call IntDriver1d(inz,zz,array(ito,jto,kmni:kmxi)
-     .                  ,1,zto,valz,order_int(3))
+     .                    ,1,zto,valz,order_int(3))
         endif
 
         num = num + 1
