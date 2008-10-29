@@ -106,7 +106,7 @@ cc        do igroup=1,ngroups
      .          ,trim(prof_conf%label),abs(sel_gr(igroup,:))
      .          ,prof_desc(igroup,:),prof_ivar(igroup,:)
      .          ,prof_log(igroup,:),drawprof(igroup)
-     .          ,prof_spline(igroup),.false.)
+     .          ,.true.,prof_spline(igroup))
         enddo
 
 c     End program
