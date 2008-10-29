@@ -23,61 +23,6 @@ c ---------------------------------------------------------------------
 
       contains
 
-c     isSP
-c     #################################################################
-      function isSP(i,j,k,igx,igy,igz) result(sing_point)
-
-        integer    :: i,j,k,igx,igy,igz
-        logical    :: sing_point
-
-        sing_point = (i+grid_params%ilo(igx)-1==1).and.bcSP()
-
-      end function isSP
-
-c     isSYM
-c     #################################################################
-      function isSYM(i,igr,dim,loc)
-
-        integer    :: i,igr,dim,loc
-        logical    :: isSYM
-
-        integer    :: ibc,ilog,itst
-
-        ibc = (1+loc)+2*(dim-1)
-
-        isSYM=.false.
-
-        select case(dim)
-        case(1)
-          ilog = grid_params%ilo(igr)
-          select case(loc)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nxgl(igr)
-          end select
-        case(2)
-          ilog = grid_params%jlo(igr)
-          select case(loc)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nygl(igr)
-          end select
-        case(3)
-          ilog = grid_params%klo(igr)
-          select case(loc)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nzgl(igr)
-          end select
-        end select
-
-        if (i+ilog-1 == itst .and. bcond(ibc) == SYM)  isSYM=.true.
-
-      end function isSYM
-
 c     getMGmap
 c     #################################################################
       subroutine getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
