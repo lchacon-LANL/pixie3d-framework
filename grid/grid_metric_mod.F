@@ -1812,10 +1812,8 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: nxl,nyl,nzl
+        integer    :: igrid,nxl,nyl,nzl
         real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
-
-        integer    :: igrid
 
 c     Local variables
 
