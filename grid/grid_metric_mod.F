@@ -1812,13 +1812,14 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+        integer    :: nxl,nyl,nzl
         real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
 
         integer    :: igrid
 
 c     Local variables
 
-        integer    :: nxl,nyl,nzl,nxg,nyg,nzg,dim
+        integer    :: nxg,nyg,nzg,dim
 
 c     External
 
