@@ -5,6 +5,7 @@ HOST?=$(HOSTNAME)
 # Machine configuration
 
 ifeq ($(HOST),siesta)
+  VMEC = t
   ifdef BOPT
     PETSC_DIR =/usr/local/petsc-2.3.3
 
@@ -37,8 +38,8 @@ ifeq ($(HOST),siesta)
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 endif
 
-
 ifeq ($(HOST),quevedo.ornl.gov)
+  VMEC = t
   ifdef BOPT
     PETSC_DIR =$(HOME)/lib/petsc-2.3.3
 
