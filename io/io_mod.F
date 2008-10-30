@@ -2,7 +2,7 @@ c module io_mod
 c ########################################################################
       module io_mod
 
-#if defined(absoft_) || defined(absoft)
+#if defined(absoft_) || defined(absoft) || defined(lf95)
         integer    :: system
         external      system
 #endif
