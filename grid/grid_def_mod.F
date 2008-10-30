@@ -759,6 +759,63 @@ c     #################################################################
 
       end function isSP
 
+c     isSP2
+c     #################################################################
+      function isSP2(i,igr,dim,loc,ibc)
+
+        integer    :: i,igr
+        logical    :: isSP2
+        integer,optional :: dim,loc,ibc
+
+        integer    :: ibcl,ilog,itst,diml,locl
+
+        if (PRESENT(dim) .and.PRESENT(loc)) then
+          diml = dim
+          locl = loc
+          ibcl = (1+locl)+2*(diml-1)
+        elseif (PRESENT(ibc)) then
+          ibcl = ibc
+          locl = abs(mod(ibcl,2)-2)-1
+          diml = 1 + (ibcl-1-locl)/2
+        else
+          ibcl = 1
+          locl = abs(mod(ibcl,2)-2)-1
+          diml = 1 + (ibcl-1-locl)/2
+        endif
+
+        isSP2=.false.
+
+        select case(diml)
+        case(1)
+          ilog = grid_params%ilo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nxgl(igr)
+          end select
+        case(2)
+          ilog = grid_params%jlo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nygl(igr)
+          end select
+        case(3)
+          ilog = grid_params%klo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nzgl(igr)
+          end select
+        end select
+
+        if (i+ilog-1 == itst .and. bcSP(ibc=ibcl)) isSP2=.true.
+
+      end function isSP2
+
 c     isSYM
 c     #################################################################
       function isSYM(i,igr,dim,loc,ibc)
@@ -817,196 +874,6 @@ c     #################################################################
       end function isSYM
 
       end module bc_def
-
-ccc module grid_metric_def
-ccc #####################################################################
-cc      module grid_metric_def
-cc
-ccc ---------------------------------------------------------------------
-ccc     This module allocates and fills the grid metric structure gmetric.
-ccc     It contains the following routines: 
-ccc        * allocateGridMetric
-ccc        * deallocateGridMetric
-ccc        * defineGridMetric
-ccc           -> map
-ccc           -> topol_bc
-ccc           -> gammaZeroForce
-ccc           -> zeroForceCheck
-ccc ---------------------------------------------------------------------
-cc
-cc        use grid_structures
-cc
-cc        implicit none
-cc
-cc        type :: grid_metrics
-cc          real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
-cc          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
-cc          real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
-cc          real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
-cc          real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
-cc          real(8),pointer,dimension(:,:,:,:,:,:) :: Gamma !Christoffel symbol at cell centers
-cc          real(8),pointer,dimension(:,:,:,:,:)   :: cov   !Covariant vectors
-cc          real(8),pointer,dimension(:,:,:,:,:)   :: cnv   !Contravariant vectors
-cc        end type grid_metrics
-cc
-cc        type :: MG_grid_metrics
-cc          type(grid_metrics),pointer,dimension(:) :: grid
-cc        end type MG_grid_metrics
-cc
-cccc        type(MG_grid_metrics),pointer :: gmetric
-cc
-cc      contains
-cc
-ccc     allocateGridMetric
-ccc     #################################################################
-cc      subroutine allocateGridMetric(gmetric)
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        type(MG_grid_metrics),pointer :: gmetric
-cc
-ccc     Local variables
-cc
-cc        integer :: igrid,ilom,ihip,jlom,jhip,klom,khip
-cc
-ccc     Begin program
-cc
-cc        if (.not.associated(gmetric)) then
-cc          allocate(gmetric)
-cc          allocate(gmetric%grid(grid_params%ngrid))
-cc          do igrid=1,grid_params%ngrid
-cc            ilom = 0
-cc            jlom = 0
-cc            klom = 0
-cc            ihip = grid_params%nxv(igrid)+1
-cc            jhip = grid_params%nyv(igrid)+1
-cc            khip = grid_params%nzv(igrid)+1
-cc            allocate(gmetric%grid(igrid)
-cc     $           %car  (ilom:ihip,jlom:jhip,klom:khip,3))
-cc            allocate(gmetric%grid(igrid)
-cc     $           %dvol (ilom:ihip,jlom:jhip,klom:khip))
-cc            allocate(gmetric%grid(igrid)
-cc     $           %jac  (ilom:ihip,jlom:jhip,klom:khip))
-cc            allocate(gmetric%grid(igrid)
-cc     $           %gsub (ilom:ihip,jlom:jhip,klom:khip,3,3))
-cc            allocate(gmetric%grid(igrid)
-cc     $           %gsup (ilom:ihip,jlom:jhip,klom:khip,3,3))
-cc            allocate(gmetric%grid(igrid)
-cc     $           %cov  (ilom:ihip,jlom:jhip,klom:khip,3,3))
-cc            allocate(gmetric%grid(igrid)
-cc     $           %cnv  (ilom:ihip,jlom:jhip,klom:khip,3,3))
-cc            allocate(gmetric%grid(igrid)
-cc     $           %Gamma(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
-cc
-cc          enddo
-cc        endif
-cc
-ccc     End program
-cc
-cc      end subroutine allocateGridMetric
-cc
-ccc     deallocateGridMetric
-ccc     #################################################################
-cc      subroutine deallocateGridMetric(gmetric)
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        type(MG_grid_metrics),pointer :: gmetric
-cc
-ccc     Local variables
-cc
-cc        integer         :: igrid,nxp,nyp,nzp
-cc
-ccc     Begin program
-cc
-cc        deallocate(gmetric)
-cc
-cccc        if (associated(gmetric%grid)) then
-cccc          do igrid=1,grid_params%ngrid
-cccc            deallocate(gmetric%grid(igrid)%car  )
-cccc            deallocate(gmetric%grid(igrid)%dvol )
-cccc            deallocate(gmetric%grid(igrid)%jac  )
-cccc            deallocate(gmetric%grid(igrid)%gsub )
-cccc            deallocate(gmetric%grid(igrid)%gsup )
-cccc            deallocate(gmetric%grid(igrid)%cov  )
-cccc            deallocate(gmetric%grid(igrid)%cnv  )
-cccc            deallocate(gmetric%grid(igrid)%Gamma)
-cccc          enddo
-cccc          deallocate(gmetric%grid)
-cccc        endif
-cc
-ccc     End program
-cc
-cc      end subroutine deallocateGridMetric
-cc
-ccccc     volume
-ccccc     #################################################################
-cccc      function volume(i,j,k,igx,igy,igz) result(vol)
-cccc
-ccccc     -----------------------------------------------------------------
-ccccc     Calculates Jacobian of curvilinear coordinate system
-ccccc     -----------------------------------------------------------------
-cccc
-cccc        implicit none
-cccc
-ccccc     Input variables
-cccc
-cccc        integer    :: i,j,k,igx,igy,igz
-cccc        real(8)    :: vol
-cccc
-ccccc     Local variables
-cccc
-cccc        integer    :: ig,jg,kg
-cccc        real(8)    :: x1,x2,x3,dx1,dx2,dx3,jac
-cccc
-ccccc     Begin program
-cccc
-cccc        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-cccc
-cccc        dx1 = grid_params%dxh(ig)
-cccc        dx2 = grid_params%dyh(jg)
-cccc        dx3 = grid_params%dzh(kg)
-cccc
-cccc        jac = gmetric%grid(igx)%jac(i,j,k)
-cccc        
-cccc        vol = jac*dx1*dx2*dx3
-cccc
-cccc      end function volume
-cc
-ccccc     getCartesianCoordinates
-ccccc     #################################################################
-cccc      subroutine getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-cccc     .                                  ,x1,y1,z1)
-cccc
-ccccc     -----------------------------------------------------------------
-ccccc     Returns Cartesian coordinates.
-ccccc     -----------------------------------------------------------------
-cccc
-cccc        implicit none
-cccc
-ccccc     Input variables
-cccc
-cccc        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
-cccc        real(8)    :: x1,y1,z1
-cccc
-ccccc     Local variables
-cccc
-cccc        real(8)    :: car(3)
-cccc
-ccccc     Begin program
-cccc
-cccc        !Find coordinates
-cccc        x1 = gmetric%grid(igx)%car(i,j,k,1)
-cccc        y1 = gmetric%grid(igy)%car(i,j,k,2)
-cccc        z1 = gmetric%grid(igz)%car(i,j,k,3)
-cccc
-cccc      end subroutine getCartesianCoordinates
-cc
-cc      end module grid_metric_def
 
 c module grid_def
 c ####################################################################
