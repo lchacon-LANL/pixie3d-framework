@@ -400,6 +400,221 @@ c     Transform vector
 
       end subroutine transformFromCurvToCurv
 
+c     transformVector
+c     ######################################################################
+      subroutine transformVector(igx,igy,igz
+     .                          ,imin,imax,jmin,jmax,kmin,kmax
+     .                          ,arr1,arr2,arr3,in_repr,out_repr)
+
+c     ----------------------------------------------------------------------
+c     Transforms vectors components in arrays arr1,arr2,arr3 from
+c     Cartesian to curvilinear and viceversa, or from curvilinear to
+c     curvilinear, depending on the value of in_repr (which indicates the
+c     representation of the input vector) and out_repr (which indicates
+c     representation of the input vector). Possible representations are:
+c     'car','cnv',and 'cov'.
+c     ----------------------------------------------------------------------
+
+      implicit none
+
+c     Input variables
+
+        integer    :: imin,imax,jmin,jmax,kmin,kmax
+        integer    :: igx,igy,igz
+        real(8)    :: arr1(imin:imax,jmin:jmax,kmin:kmax)
+     .               ,arr2(imin:imax,jmin:jmax,kmin:kmax)
+     .               ,arr3(imin:imax,jmin:jmax,kmin:kmax)
+
+        character(3) :: in_repr,out_repr
+
+c     Local variables
+
+        integer    :: i,j,k
+        real(8)    :: vec(3)
+
+        logical    :: covariant,cnvariant,cartesian
+
+c     Begin program
+
+        cartesian = (in_repr == 'car')
+        covariant = (in_repr == 'cov')
+        cnvariant = (.not. cartesian .and. .not. covariant)
+
+        select case(out_repr)
+        case('car')
+
+          if (cartesian) return
+
+          do k=kmin,kmax
+            do j=jmin,jmax
+              do i=imin,imax
+
+                call transformVectorToCartesian
+     .               (i,j,k,igx,igy,igz
+     .               ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
+     .               ,covariant
+     .               ,vec(1),vec(2),vec(3))
+
+                arr1(i,j,k) = vec(1)
+                arr2(i,j,k) = vec(2)
+                arr3(i,j,k) = vec(3)
+                
+              enddo
+            enddo
+          enddo
+
+        case('cnv')
+
+          if (cnvariant) return
+
+          if (cartesian) then
+            do k=kmin,kmax
+              do j=jmin,jmax
+                do i=imin,imax
+
+                  call transformVectorToCurvilinear
+     .                 (i,j,k,igx,igy,igz
+     .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
+     .                 ,covariant
+     .                 ,vec(1),vec(2),vec(3))
+
+                  arr1(i,j,k) = vec(1)
+                  arr2(i,j,k) = vec(2)
+                  arr3(i,j,k) = vec(3)
+                  
+                enddo
+              enddo
+            enddo
+          else
+            do k=kmin,kmax
+              do j=jmin,jmax
+                do i=imin,imax
+
+                  call transformFromCurvToCurv
+     .                 (i,j,k,igx,igy,igz
+     .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
+     .                 ,vec(1),vec(2),vec(3)
+     .                 ,covariant,0)
+
+                  arr1(i,j,k) = vec(1)
+                  arr2(i,j,k) = vec(2)
+                  arr3(i,j,k) = vec(3)
+                  
+                enddo
+              enddo
+            enddo
+          endif
+
+        case('cov')
+
+          if (covariant) return
+
+          if (cartesian) then
+            do k=kmin,kmax
+              do j=jmin,jmax
+                do i=imin,imax
+
+                  call transformVectorToCurvilinear
+     .                 (i,j,k,igx,igy,igz
+     .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
+     .                 ,covariant
+     .                 ,vec(1),vec(2),vec(3))
+
+                  arr1(i,j,k) = vec(1)
+                  arr2(i,j,k) = vec(2)
+                  arr3(i,j,k) = vec(3)
+                  
+                enddo
+              enddo
+            enddo
+          else
+            do k=kmin,kmax
+              do j=jmin,jmax
+                do i=imin,imax
+
+                  call transformFromCurvToCurv
+     .                 (i,j,k,igx,igy,igz
+     .                 ,vec(1),vec(2),vec(3)
+     .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
+     .                 ,covariant,0)
+
+                  arr1(i,j,k) = vec(1)
+                  arr2(i,j,k) = vec(2)
+                  arr3(i,j,k) = vec(3)
+                  
+                enddo
+              enddo
+            enddo
+          endif
+
+        end select
+
+cc        if (to_cartsn) then
+cc
+cc          if (cartesian) return
+cc
+cc          do k=kmin,kmax
+cc            do j=jmin,jmax
+cc              do i=imin,imax
+cc
+cc                call transformVectorToCartesian
+cc     .               (i,j,k,igx,igy,igz
+cc     .               ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
+cc     .               ,covariant
+cc     .               ,vec(1),vec(2),vec(3))
+cc
+cc                arr1(i,j,k) = vec(1)
+cc                arr2(i,j,k) = vec(2)
+cc                arr3(i,j,k) = vec(3)
+cc                
+cc              enddo
+cc            enddo
+cc          enddo
+cc
+cc        else
+cc
+cc          if (cartesian) then
+cc            do k=kmin,kmax
+cc              do j=jmin,jmax
+cc                do i=imin,imax
+cc
+cc                  call transformVectorToCurvilinear
+cc     .                 (i,j,k,igx,igy,igz
+cc     .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
+cc     .                 ,covariant
+cc     .                 ,vec(1),vec(2),vec(3))
+cc
+cc                  arr1(i,j,k) = vec(1)
+cc                  arr2(i,j,k) = vec(2)
+cc                  arr3(i,j,k) = vec(3)
+cc                  
+cc                enddo
+cc              enddo
+cc            enddo
+cc          else
+cc            do k=kmin,kmax
+cc              do j=jmin,jmax
+cc                do i=imin,imax
+cc
+cc                  call transformFromCurvToCurv
+cc     .                 (i,j,k,igx,igy,igz
+cc     .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
+cc     .                 ,covariant
+cc     .                 ,vec(1),vec(2),vec(3))
+cc
+cc                  arr1(i,j,k) = vec(1)
+cc                  arr2(i,j,k) = vec(2)
+cc                  arr3(i,j,k) = vec(3)
+cc                  
+cc                enddo
+cc              enddo
+cc            enddo
+cc          endif
+cc
+cc        endif
+
+      end subroutine transformVector
+
 c     vectorNorm
 c     ################################################################
       function vectorNorm(i,j,k,igx,igy,igz,ax,ay,az,covar)
