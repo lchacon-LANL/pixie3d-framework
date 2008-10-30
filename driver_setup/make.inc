@@ -6,7 +6,9 @@ MESSAGE = "Compiling driver setup modules"
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/io \
+SUBDIRS = $(COMMONDIR)/math\
+          $(COMMONDIR)/io \
+          $(COMMONDIR)/interpolation/1d_int\
           $(COMMONDIR)/grid\
           $(COMMONDIR)/var_setup
 
