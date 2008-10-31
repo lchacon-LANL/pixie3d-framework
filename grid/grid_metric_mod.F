@@ -1819,6 +1819,10 @@ c     Local variables
 
         integer    :: nxg,nyg,nzg,dim
 
+#if defined(petsc)
+        type(petsc_da_ctx),pointer :: da_ctx
+#endif
+
 c     External
 
 c     Begin program
@@ -1841,7 +1845,8 @@ c     Begin program
 #else
 #if !defined(samrai)
 cc        if (igrid == 1) then
-          call fillPetscGhostCells(array,igrid)
+          da_ctx => grid_params%dactx(igrid)
+          call fillPetscGhostCells(da_ctx,array)
 cc        endif
 #else
           write(*,*) 'WARNING: metrics in SAMRAI are not being'

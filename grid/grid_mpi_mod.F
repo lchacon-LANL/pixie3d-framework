@@ -4,20 +4,20 @@ c ######################################################################
 
         use grid_def
 
-#if defined(petsc)
-
         implicit none
 
+#if defined(petsc)
+
+#define PETSC_AVOID_DECLARATIONS
 #include "finclude/petsc.h"
 #include "finclude/petscvec.h"
 #include "finclude/petscda.h"
-#include "finclude/petscvec.h90"
+#undef  PETSC_AVOID_DECLARATIONS
 
         integer    :: np,inp,my_rank,mpierr,group_world
      .               ,group_sp,tag=0,dest=0,root=0
      .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
-     .               ,npx=0,npy=0,npz=0,debug_par=0
 
         integer    :: l_lim(3,0:1),g_lim(3,0:1),rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
@@ -26,35 +26,18 @@ c ######################################################################
         integer   ,allocatable,dimension(:) :: MPI_COMM_PER
         integer   ,allocatable,dimension(:) :: MPI_COMM_NBRS
 
-        type :: da_ctx
-          DA         :: da
-          Vec        :: Xg
-          integer    :: xs,xe,xm,gxs,gxe,gxm
-          integer    :: ys,ye,ym,gys,gye,gym
-          integer    :: zs,ze,zm,gzs,gze,gzm
-          integer    :: lxs,lxe,lgxs,lgxe
-          integer    :: lys,lye,lgys,lgye
-          integer    :: lzs,lze,lgzs,lgze
-          integer    :: il ,ih ,jl ,jh ,kl ,kh
-          integer    :: ilm,ihp,jlm,jhp,klm,khp
-          integer    :: mx,my,mz,rank
-          integer    :: igx,igy,igz
-        end type da_ctx
-
-        type (da_ctx),dimension(20) :: dactx
-
         character(80) :: messg
 
-        private :: createMPIComm,selectRank_SP,selectRank_POL
-     .            ,checkProc,processorAlloc
-     $            ,fillLocalVec,emptyLocalVec
-     $            ,createPETScFortranDA,destroyPETScFortranDA
+cc        private :: createMPIComm,selectRank_SP,selectRank_POL
+cc     .            ,checkProc,processorAlloc
+cc     $            ,fillLocalVec,emptyLocalVec
+cc     $            ,createPETScFortranDA,destroyPETScFortranDA
 
       contains
 
 c     initFortranMPI
 c     #####################################################################
-      subroutine initFortranMPI(nxg,nyg,nzg)
+      subroutine initFortranMPI(mpi_comm,nxg,nyg,nzg)
 
 c     ---------------------------------------------------------------------
 c     Initializes MPI variables.
@@ -64,47 +47,26 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: nxg,nyg,nzg
+        integer    :: nxg,nyg,nzg,mpi_comm
 
 c     Local variables
 
 c     Begin program
 
-#if !defined(petsc_c)
-cc        call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
-#endif
-        call initMPI(nxg,nyg,nzg)
+        call initMPI(mpi_comm,np,my_rank)
 
-        call createPETScFortranDA(1,nxgl=nxg,nygl=nyg,nzgl=nzg)
+c     Allocate processors
+
+        call processorAlloc(nxg,nyg,nzg)
 
       end subroutine initFortranMPI
 
-c     destroyFortranMPI
-c     #####################################################################
-      subroutine destroyFortranMPI
-
-c     ---------------------------------------------------------------------
-c     Initializes MPI variables.
-c     ---------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-c     Local variables
-
-c     Begin program
-
-        call destroyPETScFortranDA
-
-      end subroutine destroyFortranMPI
-
-c     createPETScGrid
+c     create_MPI_comms
 c     #################################################################
-      subroutine createPETScGrid
+      subroutine create_MPI_comms
 
 c     -----------------------------------------------------------------
-c     Creates PETSc constructs for boundary communication in fortran.
+c     Creates required MPI communicators
 c     -----------------------------------------------------------------
 
         implicit none
@@ -112,26 +74,13 @@ c     -----------------------------------------------------------------
 c     Call variables
 
 c     Local variables
-
-        integer    :: igr
 
         integer    :: my_sp_rank,np_sp
 
 c     Begin program
 
-c     Create PETSc DA MG hierachy
-
-#if defined(petsc_c)
-        call createPETScFortranDA(1)
-#endif
-
-        do igr=2,grid_params%ngrid
-          call createPETScFortranDA(igr)
-        enddo
-
 c     Singular-point boundary MPI communicator
 
-cc        if (bcSP()) call createSPComm(1,MPI_COMM_SP)
         if (bcSP()) call createMPIComm(MPI_COMM_SP,selectRank_SP)
 
 c diag ****
@@ -168,25 +117,26 @@ c diag ****
 
 c     End program
 
-      end subroutine createPETScGrid
+      end subroutine create_MPI_comms
 
 c     fillPetscGhostCells
 c     #################################################################
-      subroutine fillPetscGhostCells(array,igr)
+      subroutine fillPetscGhostCells(dactx,array)
 
 c     -----------------------------------------------------------------
 c     Performs communication to fill ghost cells in array using PETSc
-c     distributed arrays.
+c     distributed arrays in DA context dactx.
 c     -----------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer    :: igr
-        real(8) :: array(dactx(igr)%ilm:dactx(igr)%ihp
-     .                  ,dactx(igr)%jlm:dactx(igr)%jhp 
-     .                  ,dactx(igr)%klm:dactx(igr)%khp)
+        type(petsc_da_ctx),pointer :: dactx
+
+        real(8) :: array(dactx%ilm:dactx%ihp
+     .                  ,dactx%jlm:dactx%jhp 
+     .                  ,dactx%klm:dactx%khp)
 
 c     Local variables
 
@@ -201,33 +151,33 @@ c     Begin program
 c     Fill known values of dactx%Xg
 
         !Get pointer to vector data
-        call DAGetLocalVector(dactx(igr)%da,localX,ierr)
+        call DAGetLocalVector(dactx%da,localX,ierr)
 cc        call fchkerrq(ierr,'DAGetLocalVector')
 
         call VecGetArrayF90  (localX,lx_v,ierr)
 
         !Assignment: array -> lx_v
-        call fillLocalVec(array,lx_v,igr)
+        call fillLocalVec(dactx,array,lx_v)
 
         !Restore vector
         call VecRestoreArrayF90(localX,lx_v,ierr)
 
         !Insert values into global vector
-        call DALocalToGlobal(dactx(igr)%da,localX
-     .                      ,INSERT_VALUES,dactx(igr)%Xg
+        call DALocalToGlobal(dactx%da,localX
+     .                      ,INSERT_VALUES,dactx%Xg
      $                      ,ierr)
-cc        call DARestoreLocalVector(dactx(igr)%da,localX,ierr)
+cc        call DARestoreLocalVector(dactx%da,localX,ierr)
 
 
 c     Fill ghost cells
 
         !Get pointer to vector data w/ghost cells
-cc        call DAGetLocalVector    (dactx(igr)%da,localX,ierr)
-        call DAGlobalToLocalBegin(dactx(igr)%da,dactx(igr)%Xg
+cc        call DAGetLocalVector    (dactx%da,localX,ierr)
+        call DAGlobalToLocalBegin(dactx%da,dactx%Xg
      .                           ,INSERT_VALUES,localX
      $                           ,ierr)
 
-        call DAGlobalToLocalEnd  (dactx(igr)%da,dactx(igr)%Xg
+        call DAGlobalToLocalEnd  (dactx%da,dactx%Xg
      .                           ,INSERT_VALUES,localX
      $                           ,ierr)
 
@@ -235,14 +185,14 @@ cc        call DAGetLocalVector    (dactx(igr)%da,localX,ierr)
         call VecGetArrayF90(localX,lx_v,ierr)
 
         !Assignment: lx_v -> array
-        call emptyLocalVec(array,lx_v,igr)
+        call emptyLocalVec(dactx,array,lx_v)
 
         !Restore vector
         call VecRestoreArrayF90(localX,lx_v,ierr)
 
 c     Deallocate memory
 
-        call DARestoreLocalVector(dactx(igr)%da,localX,ierr)
+        call DARestoreLocalVector(dactx%da,localX,ierr)
 
 c     End program
 
@@ -268,29 +218,6 @@ c     Begin program
 c     End program
 
       end function isProc
-
-c     inProc
-c     #################################################################
-      function inProc(igl,jgl,kgl,igx,igy,igz)
-
-        implicit none
-
-c     Call variables
-
-        integer    :: igl,jgl,kgl,igx,igy,igz
-        logical    :: inProc
-
-c     Local variables
-
-c     Begin program
-
-        inProc =igl>=grid_params%ilo(igx).and.igl<=grid_params%ihi(igx)
-     .     .and.jgl>=grid_params%jlo(igy).and.jgl<=grid_params%jhi(igy)
-     .     .and.kgl>=grid_params%klo(igz).and.kgl<=grid_params%khi(igz)
-
-c     End program
-
-      end function inProc
 
 c     pstop
 c     ################################################################
@@ -354,11 +281,47 @@ c     Begin program
 
       end function dot
 
+c     psum
+c     ###################################################################
+      function psum(ntot,vec1,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel sum of element of an array using communicator
+c     mpi_comm. On input:
+c       * ntot: array dimension
+c       * vec1: array
+c       * mpi_comm: MPI communicator
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: ntot
+      integer,optional :: mpi_comm
+      real(8)    :: vec1(ntot),psum
+
+c     Local variables
+
+      real(8)    :: lsum
+
+c     Begin program
+
+      psum = sum(vec1)
+
+      if (.not.asm) then
+        lsum = psum
+        call MPI_Allreduce(lsum,psum,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+
+      end function psum
+
 c     ######################## PRIVATE ROUTINES ###########################
 
 c     initMPI
 c     #####################################################################
-      subroutine initMPI(nxg,nyg,nzg)
+      subroutine initMPI(mpi_comm,np,my_rank)
 
 c     ---------------------------------------------------------------------
 c     Initializes MPI variables.
@@ -368,7 +331,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: nxg,nyg,nzg
+        integer :: mpi_comm,np,my_rank
 
 c     Local variables
 
@@ -376,178 +339,202 @@ c     Begin program
 
 c     Rank and number of processors
 
-        call MPI_Comm_rank(MPI_COMM_WORLD,my_rank,mpierr)
-        call MPI_Comm_size(MPI_COMM_WORLD,np     ,mpierr)
-
-c     Allocate processors
-
-        call processorAlloc(nxg,nyg,nzg)
+        call MPI_Comm_rank(mpi_comm,my_rank,mpierr)
+        call MPI_Comm_size(mpi_comm,np     ,mpierr)
 
       end subroutine initMPI
 
-c     createPETScFortranDA
-c     #################################################################
-      subroutine createPETScFortranDA(igrid,nxgl,nygl,nzgl)
+ccc     createPETScFortranDA
+ccc     #################################################################
+cc      subroutine createPETScFortranDA(igrid,nxgl,nygl,nzgl)
+cc
+ccc     -----------------------------------------------------------------
+ccc     Creates PETSc distributed array (DA) for boundary communication
+ccc     in fortran at grid level igrid.
+ccc     -----------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer    :: igrid
+cc        integer   ,optional :: nxgl,nygl,nzgl
+cc
+ccc     Local variables
+cc
+cc        integer    :: BC,ierr,nxg,nyg,nzg,igx,igy,igz
+cc
+ccc     Begin program
+cc
+cc        igx = igrid
+cc        igy = igrid
+cc        igz = igrid
+cc
+cc        if (PRESENT(nxgl)) then
+cc          nxg = nxgl
+cc        else
+cc          nxg = grid_params%nxgl(igx)
+cc        endif
+cc
+cc        if (PRESENT(nygl)) then
+cc          nyg = nygl
+cc        else
+cc          nyg = grid_params%nygl(igy)
+cc        endif
+cc
+cc        if (PRESENT(nzgl)) then
+cc          nzg = nzgl
+cc        else
+cc          nzg = grid_params%nzgl(igz)
+cc        endif
+cc
+cc        if (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)==PER) then
+cc          BC = DA_XYZPERIODIC
+cc        elseif (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)/=PER) then
+cc          BC = DA_XYPERIODIC
+cc        elseif (bcond(1)==PER.and.bcond(3)/=PER.and.bcond(5)==PER) then
+cc          BC = DA_XZPERIODIC
+cc        elseif (bcond(1)/=PER.and.bcond(3)==PER.and.bcond(5)==PER) then
+cc          BC = DA_YZPERIODIC
+cc        elseif (bcond(1)==PER.and.bcond(3)/=PER.and.bcond(5)/=PER) then
+cc          BC = DA_XPERIODIC
+cc        elseif (bcond(1)/=PER.and.bcond(3)==PER.and.bcond(5)/=PER) then
+cc          BC = DA_YPERIODIC
+cc        elseif (bcond(1)/=PER.and.bcond(3)/=PER.and.bcond(5)==PER) then
+cc          BC = DA_ZPERIODIC
+cc        elseif (bcond(1)/=PER.and.bcond(3)/=PER.and.bcond(5)/=PER) then
+cc          BC = DA_NONPERIODIC
+cc        endif
+cc
+cc        if (npx == 0) npx = PETSC_DECIDE
+cc        if (npy == 0) npy = PETSC_DECIDE
+cc        if (npz == 0) npz = PETSC_DECIDE
+cc
+cc        call DACreate3d(PETSC_COMM_WORLD,BC,DA_STENCIL_BOX,nxg,nyg,nzg
+cc     &                 ,npx,npy,npz,1,1
+cc     &                 ,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER
+cc     &                 ,PETSC_NULL_INTEGER,dactx(igrid)%da,ierr)
+cc
+cc        call DACreateGlobalVector(dactx(igrid)%da,dactx(igrid)%Xg,ierr)
+cc
+ccc       Get local grid boundaries in global grid
+cc
+cc        call DAGetCorners(dactx(igrid)%da
+cc     .         ,dactx(igrid)%xs,dactx(igrid)%ys,dactx(igrid)%zs
+cc     .         ,dactx(igrid)%xm,dactx(igrid)%ym,dactx(igrid)%zm,ierr)
+cc        call DAGetGhostCorners(dactx(igrid)%da
+cc     .         ,dactx(igrid)%gxs,dactx(igrid)%gys,dactx(igrid)%gzs
+cc     .         ,dactx(igrid)%gxm,dactx(igrid)%gym,dactx(igrid)%gzm,ierr)
+cc
+cc        dactx(igrid)%xs  = dactx(igrid)%xs+1
+cc        dactx(igrid)%ys  = dactx(igrid)%ys+1
+cc        dactx(igrid)%zs  = dactx(igrid)%zs+1
+cc        dactx(igrid)%gxs = dactx(igrid)%gxs+1
+cc        dactx(igrid)%gys = dactx(igrid)%gys+1
+cc        dactx(igrid)%gzs = dactx(igrid)%gzs+1
+cc
+cc        dactx(igrid)%ye  = dactx(igrid)%ys+dactx(igrid)%ym-1
+cc        dactx(igrid)%xe  = dactx(igrid)%xs+dactx(igrid)%xm-1
+cc        dactx(igrid)%ze  = dactx(igrid)%zs+dactx(igrid)%zm-1
+cc        dactx(igrid)%gye = dactx(igrid)%gys+dactx(igrid)%gym-1
+cc        dactx(igrid)%gxe = dactx(igrid)%gxs+dactx(igrid)%gxm-1
+cc        dactx(igrid)%gze = dactx(igrid)%gzs+dactx(igrid)%gzm-1
+cc
+cc        !With ghost cells (only those that PETSc includes)
+cc        dactx(igrid)%lgxs = dactx(igrid)%gxs - dactx(igrid)%xs + 1
+cc        dactx(igrid)%lgys = dactx(igrid)%gys - dactx(igrid)%ys + 1
+cc        dactx(igrid)%lgzs = dactx(igrid)%gzs - dactx(igrid)%zs + 1
+cc        dactx(igrid)%lgxe = dactx(igrid)%gxe - dactx(igrid)%xs + 1
+cc        dactx(igrid)%lgye = dactx(igrid)%gye - dactx(igrid)%ys + 1
+cc        dactx(igrid)%lgze = dactx(igrid)%gze - dactx(igrid)%zs + 1
+cc
+cc        !Domain limits (without ghost cells)
+cc        dactx(igrid)%lxs = 1
+cc        dactx(igrid)%lys = 1
+cc        dactx(igrid)%lzs = 1
+cc        dactx(igrid)%lxe = dactx(igrid)%xm
+cc        dactx(igrid)%lye = dactx(igrid)%ym
+cc        dactx(igrid)%lze = dactx(igrid)%zm
+cc
+cc        !Array limits (with all ghost cells)
+cc        dactx(igrid)%il = dactx(igrid)%lxs
+cc        dactx(igrid)%jl = dactx(igrid)%lys
+cc        dactx(igrid)%kl = dactx(igrid)%lzs
+cc        dactx(igrid)%ih = dactx(igrid)%lxe
+cc        dactx(igrid)%jh = dactx(igrid)%lye
+cc        dactx(igrid)%kh = dactx(igrid)%lze
+cc
+cc        dactx(igrid)%ilm = dactx(igrid)%il-1
+cc        dactx(igrid)%ihp = dactx(igrid)%ih+1
+cc        dactx(igrid)%jlm = dactx(igrid)%jl-1
+cc        dactx(igrid)%jhp = dactx(igrid)%jh+1
+cc        dactx(igrid)%klm = dactx(igrid)%kl-1
+cc        dactx(igrid)%khp = dactx(igrid)%kh+1
+cc
+ccc     Store grid level
+cc
+cc        dactx(igrid)%igx = igx
+cc        dactx(igrid)%igy = igy
+cc        dactx(igrid)%igz = igz
+cc
+ccc     End program
+cc
+cc      end subroutine createPETScFortranDA
+cc
+ccc     destroyPETScFortranDA
+ccc     #################################################################
+cc      subroutine destroyPETScFortranDA(dactx)
+cc
+ccc     -----------------------------------------------------------------
+ccc     Deallocates PETSc DA
+ccc     -----------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        type(petsc_da_ctx),pointer :: dactx
+cc
+ccc     Local variables
+cc
+cc        integer    :: ierr,igr
+cc
+ccc     Begin program
+cc
+cccc        do igr=1,ngrid
+cccc          call VecDestroy(dactx(igr)%Xg,ierr)
+cccc          call DADestroy (dactx(igr)%da,ierr)
+cccc        enddo
+cc
+cc        call VecDestroy(dactx%Xg,ierr)
+cc        call DADestroy (dactx%da,ierr)
+cc
+ccc     End program
+cc
+cc      end subroutine destroyPETScFortranDA
 
-c     -----------------------------------------------------------------
-c     Creates PETSc distributed array (DA) for boundary communication
-c     in fortran at grid level igrid.
-c     -----------------------------------------------------------------
+c     inProc
+c     #################################################################
+      function inProc(igl,jgl,kgl,igx,igy,igz)
 
         implicit none
 
 c     Call variables
 
-        integer    :: igrid
-        integer   ,optional :: nxgl,nygl,nzgl
+        integer    :: igl,jgl,kgl,igx,igy,igz
+        logical    :: inProc
 
 c     Local variables
 
-        integer    :: BC,ierr,nxg,nyg,nzg,igx,igy,igz
-
 c     Begin program
 
-        igx = igrid
-        igy = igrid
-        igz = igrid
-
-        if (PRESENT(nxgl)) then
-          nxg = nxgl
-        else
-          nxg = grid_params%nxgl(igx)
-        endif
-
-        if (PRESENT(nygl)) then
-          nyg = nygl
-        else
-          nyg = grid_params%nygl(igy)
-        endif
-
-        if (PRESENT(nzgl)) then
-          nzg = nzgl
-        else
-          nzg = grid_params%nzgl(igz)
-        endif
-
-        if (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)==PER) then
-          BC = DA_XYZPERIODIC
-        elseif (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)/=PER) then
-          BC = DA_XYPERIODIC
-        elseif (bcond(1)==PER.and.bcond(3)/=PER.and.bcond(5)==PER) then
-          BC = DA_XZPERIODIC
-        elseif (bcond(1)/=PER.and.bcond(3)==PER.and.bcond(5)==PER) then
-          BC = DA_YZPERIODIC
-        elseif (bcond(1)==PER.and.bcond(3)/=PER.and.bcond(5)/=PER) then
-          BC = DA_XPERIODIC
-        elseif (bcond(1)/=PER.and.bcond(3)==PER.and.bcond(5)/=PER) then
-          BC = DA_YPERIODIC
-        elseif (bcond(1)/=PER.and.bcond(3)/=PER.and.bcond(5)==PER) then
-          BC = DA_ZPERIODIC
-        elseif (bcond(1)/=PER.and.bcond(3)/=PER.and.bcond(5)/=PER) then
-          BC = DA_NONPERIODIC
-        endif
-
-        if (npx == 0) npx = PETSC_DECIDE
-        if (npy == 0) npy = PETSC_DECIDE
-        if (npz == 0) npz = PETSC_DECIDE
-
-        call DACreate3d(PETSC_COMM_WORLD,BC,DA_STENCIL_BOX,nxg,nyg,nzg
-     &                 ,npx,npy,npz,1,1
-     &                 ,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER
-     &                 ,PETSC_NULL_INTEGER,dactx(igrid)%da,ierr)
-
-        call DACreateGlobalVector(dactx(igrid)%da,dactx(igrid)%Xg,ierr)
-
-c       Get local grid boundaries in global grid
-
-        call DAGetCorners(dactx(igrid)%da
-     .         ,dactx(igrid)%xs,dactx(igrid)%ys,dactx(igrid)%zs
-     .         ,dactx(igrid)%xm,dactx(igrid)%ym,dactx(igrid)%zm,ierr)
-        call DAGetGhostCorners(dactx(igrid)%da
-     .         ,dactx(igrid)%gxs,dactx(igrid)%gys,dactx(igrid)%gzs
-     .         ,dactx(igrid)%gxm,dactx(igrid)%gym,dactx(igrid)%gzm,ierr)
-
-        dactx(igrid)%xs  = dactx(igrid)%xs+1
-        dactx(igrid)%ys  = dactx(igrid)%ys+1
-        dactx(igrid)%zs  = dactx(igrid)%zs+1
-        dactx(igrid)%gxs = dactx(igrid)%gxs+1
-        dactx(igrid)%gys = dactx(igrid)%gys+1
-        dactx(igrid)%gzs = dactx(igrid)%gzs+1
-
-        dactx(igrid)%ye  = dactx(igrid)%ys+dactx(igrid)%ym-1
-        dactx(igrid)%xe  = dactx(igrid)%xs+dactx(igrid)%xm-1
-        dactx(igrid)%ze  = dactx(igrid)%zs+dactx(igrid)%zm-1
-        dactx(igrid)%gye = dactx(igrid)%gys+dactx(igrid)%gym-1
-        dactx(igrid)%gxe = dactx(igrid)%gxs+dactx(igrid)%gxm-1
-        dactx(igrid)%gze = dactx(igrid)%gzs+dactx(igrid)%gzm-1
-
-        !With ghost cells (only those that PETSc includes)
-        dactx(igrid)%lgxs = dactx(igrid)%gxs - dactx(igrid)%xs + 1
-        dactx(igrid)%lgys = dactx(igrid)%gys - dactx(igrid)%ys + 1
-        dactx(igrid)%lgzs = dactx(igrid)%gzs - dactx(igrid)%zs + 1
-        dactx(igrid)%lgxe = dactx(igrid)%gxe - dactx(igrid)%xs + 1
-        dactx(igrid)%lgye = dactx(igrid)%gye - dactx(igrid)%ys + 1
-        dactx(igrid)%lgze = dactx(igrid)%gze - dactx(igrid)%zs + 1
-
-        !Domain limits (without ghost cells)
-        dactx(igrid)%lxs = 1
-        dactx(igrid)%lys = 1
-        dactx(igrid)%lzs = 1
-        dactx(igrid)%lxe = dactx(igrid)%xm
-        dactx(igrid)%lye = dactx(igrid)%ym
-        dactx(igrid)%lze = dactx(igrid)%zm
-
-        !Array limits (with all ghost cells)
-        dactx(igrid)%il = dactx(igrid)%lxs
-        dactx(igrid)%jl = dactx(igrid)%lys
-        dactx(igrid)%kl = dactx(igrid)%lzs
-        dactx(igrid)%ih = dactx(igrid)%lxe
-        dactx(igrid)%jh = dactx(igrid)%lye
-        dactx(igrid)%kh = dactx(igrid)%lze
-
-        dactx(igrid)%ilm = dactx(igrid)%il-1
-        dactx(igrid)%ihp = dactx(igrid)%ih+1
-        dactx(igrid)%jlm = dactx(igrid)%jl-1
-        dactx(igrid)%jhp = dactx(igrid)%jh+1
-        dactx(igrid)%klm = dactx(igrid)%kl-1
-        dactx(igrid)%khp = dactx(igrid)%kh+1
-
-c     Store grid level
-
-        dactx(igrid)%igx = igx
-        dactx(igrid)%igy = igy
-        dactx(igrid)%igz = igz
+        inProc =igl>=grid_params%ilo(igx).and.igl<=grid_params%ihi(igx)
+     .     .and.jgl>=grid_params%jlo(igy).and.jgl<=grid_params%jhi(igy)
+     .     .and.kgl>=grid_params%klo(igz).and.kgl<=grid_params%khi(igz)
 
 c     End program
 
-      end subroutine createPETScFortranDA
-
-c     destroyPETScFortranDA
-c     #################################################################
-      subroutine destroyPETScFortranDA
-
-c     -----------------------------------------------------------------
-c     Deallocates PETSc DA
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-c     Local variables
-
-        integer    :: ierr,igr
-
-c     Begin program
-
-        do igr=1,grid_params%ngrid
-          call VecDestroy(dactx(igr)%Xg,ierr)
-          call DADestroy (dactx(igr)%da,ierr)
-        enddo
-
-c     End program
-
-      end subroutine destroyPETScFortranDA
+      end function inProc
 
 c     processorAlloc
 c     ######################################################################
@@ -791,13 +778,63 @@ c     End program
 
       end subroutine selectRank_SP
 
+ccc     selectRank_SP
+ccc     #####################################################################
+cc      subroutine selectRank_SP(split_key)
+cc
+ccc     ---------------------------------------------------------------------
+ccc     Groups processors surrounding singular point
+ccc     (SP boundary condition)
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer    :: split_key
+cc
+ccc     Local variables
+cc
+ccc     Begin program
+cc
+ccc     Set global limits of local domain l_lim(dim,loc)
+cc
+cc        l_lim(1,0) = grid_params%ilo(1)
+cc        l_lim(2,0) = grid_params%jlo(1)
+cc        l_lim(3,0) = grid_params%klo(1)
+cc        l_lim(1,1) = grid_params%ihi(1)
+cc        l_lim(2,1) = grid_params%jhi(1)
+cc        l_lim(3,1) = grid_params%khi(1)
+cc
+ccc     Set global limits of global domain g_lim(dim,loc)
+cc
+cc        g_lim(1,0) = 1
+cc        g_lim(2,0) = 1
+cc        g_lim(3,0) = 1
+cc        g_lim(1,1) = grid_params%nxgl(1)
+cc        g_lim(2,1) = grid_params%nygl(1)
+cc        g_lim(3,1) = grid_params%nzgl(1)
+cc
+ccc     Select rank: group communicators based on:
+ccc        1) SP boundary
+ccc        2) location in z direction
+cc
+cc        if (isSP2(1,1,dim=1,loc=0)) then
+cc          split_key = 1
+cc          split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
+cc        endif
+cc
+ccc     End program
+cc
+cc      end subroutine selectRank_SP
+
 c     selectRank_POL
 c     #####################################################################
       subroutine selectRank_POL(split_key)
 
 c     ---------------------------------------------------------------------
-c     Groups processors surrounding singular point
-c     (SP boundary condition)
+c     Groups processors in poloidal slices (i.e., order them according
+c     to radial and toroidal positions).
 c     ---------------------------------------------------------------------
 
         implicit none
@@ -809,13 +846,11 @@ c     Call variables
 c     Local variables
 
         real(8)    :: random
-        integer    :: dim,loc,lrank
+        integer    :: loc,lrank
 
         logical    :: cp(0:1)
 
 c     Begin program
-
-        dim = 3
 
 c     Set global limits of local domain l_lim(dim,loc)
 
@@ -840,8 +875,9 @@ c     Select rank
         split_key = 1
 
         !Group processors based on location in x and z directions
-        !(organize in 2D processor mesh: i + nx*(j-1))
-        split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
+        !(y direction --poloidal-- is shared; 
+        ! organize in 2D processor mesh: k + nz*(i-1))
+        split_key = split_key +     npz*l_lim(3,1)/g_lim(3,1)
      .                        + npz*npx*l_lim(1,1)/g_lim(1,1)
 
 c     End program
@@ -1054,7 +1090,7 @@ cc      end subroutine setupPETScLocalLimits
 
 c     fillLocalVec
 c     #################################################################
-      subroutine fillLocalVec(array,x,igr)
+      subroutine fillLocalVec(dactx,array,x)
 
 c     -----------------------------------------------------------------
 c     Transfers outer layer of values from array to vector x.
@@ -1064,69 +1100,69 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: igr
-        real(8) :: array(dactx(igr)%ilm:dactx(igr)%ihp
-     .                  ,dactx(igr)%jlm:dactx(igr)%jhp 
-     .                  ,dactx(igr)%klm:dactx(igr)%khp)
-     .            ,x    (dactx(igr)%gxs:dactx(igr)%gxe 
-     .                  ,dactx(igr)%gys:dactx(igr)%gye 
-     .                  ,dactx(igr)%gzs:dactx(igr)%gze)
+        type(petsc_da_ctx),pointer :: dactx
+        real(8) :: array(dactx%ilm:dactx%ihp
+     .                  ,dactx%jlm:dactx%jhp 
+     .                  ,dactx%klm:dactx%khp)
+     .            ,x    (dactx%gxs:dactx%gxe 
+     .                  ,dactx%gys:dactx%gye 
+     .                  ,dactx%gzs:dactx%gze)
 
 c     Local variables
 
 c     Begin program
 
-        x(dactx(igr)%xs
-     .   ,dactx(igr)%ys:dactx(igr)%ye 
-     .   ,dactx(igr)%zs:dactx(igr)%ze)
-     .                       = array(dactx(igr)%il
-     .                              ,dactx(igr)%jl:dactx(igr)%jh 
-     .                              ,dactx(igr)%kl:dactx(igr)%kh)
+        x(dactx%xs
+     .   ,dactx%ys:dactx%ye 
+     .   ,dactx%zs:dactx%ze)
+     .                       = array(dactx%il
+     .                              ,dactx%jl:dactx%jh 
+     .                              ,dactx%kl:dactx%kh)
 
-        if (dactx(igr)%xe > dactx(igr)%xs)
-     .    x(dactx(igr)%xe 
-     .     ,dactx(igr)%ys:dactx(igr)%ye 
-     .     ,dactx(igr)%zs:dactx(igr)%ze) =
-     .                         array(dactx(igr)%ih
-     .                              ,dactx(igr)%jl:dactx(igr)%jh 
-     .                              ,dactx(igr)%kl:dactx(igr)%kh)
+        if (dactx%xe > dactx%xs)
+     .    x(dactx%xe 
+     .     ,dactx%ys:dactx%ye 
+     .     ,dactx%zs:dactx%ze) =
+     .                         array(dactx%ih
+     .                              ,dactx%jl:dactx%jh 
+     .                              ,dactx%kl:dactx%kh)
 
-        x(dactx(igr)%xs:dactx(igr)%xe 
-     .   ,dactx(igr)%ys
-     .   ,dactx(igr)%zs:dactx(igr)%ze) =
-     .                         array(dactx(igr)%il:dactx(igr)%ih
-     .                              ,dactx(igr)%jl
-     .                              ,dactx(igr)%kl:dactx(igr)%kh)
+        x(dactx%xs:dactx%xe 
+     .   ,dactx%ys
+     .   ,dactx%zs:dactx%ze) =
+     .                         array(dactx%il:dactx%ih
+     .                              ,dactx%jl
+     .                              ,dactx%kl:dactx%kh)
 
-        if (dactx(igr)%ye > dactx(igr)%ys)
-     .    x(dactx(igr)%xs:dactx(igr)%xe 
-     .     ,dactx(igr)%ye 
-     .     ,dactx(igr)%zs:dactx(igr)%ze) =
-     .                         array(dactx(igr)%il:dactx(igr)%ih
-     .                              ,dactx(igr)%jh 
-     .                              ,dactx(igr)%kl:dactx(igr)%kh)
+        if (dactx%ye > dactx%ys)
+     .    x(dactx%xs:dactx%xe 
+     .     ,dactx%ye 
+     .     ,dactx%zs:dactx%ze) =
+     .                         array(dactx%il:dactx%ih
+     .                              ,dactx%jh 
+     .                              ,dactx%kl:dactx%kh)
 
-        x(dactx(igr)%xs:dactx(igr)%xe 
-     .   ,dactx(igr)%ys:dactx(igr)%ye 
-     .   ,dactx(igr)%zs              ) =
-     .                         array(dactx(igr)%il:dactx(igr)%ih
-     .                              ,dactx(igr)%jl:dactx(igr)%jh 
-     .                              ,dactx(igr)%kl              )
+        x(dactx%xs:dactx%xe 
+     .   ,dactx%ys:dactx%ye 
+     .   ,dactx%zs              ) =
+     .                         array(dactx%il:dactx%ih
+     .                              ,dactx%jl:dactx%jh 
+     .                              ,dactx%kl              )
 
-        if (dactx(igr)%ze > dactx(igr)%zs)
-     .    x(dactx(igr)%xs:dactx(igr)%xe 
-     .     ,dactx(igr)%ys:dactx(igr)%ye 
-     .     ,dactx(igr)%ze              ) =
-     .                         array(dactx(igr)%il:dactx(igr)%ih
-     .                              ,dactx(igr)%jl:dactx(igr)%jh 
-     .                              ,dactx(igr)%kh              )
+        if (dactx%ze > dactx%zs)
+     .    x(dactx%xs:dactx%xe 
+     .     ,dactx%ys:dactx%ye 
+     .     ,dactx%ze              ) =
+     .                         array(dactx%il:dactx%ih
+     .                              ,dactx%jl:dactx%jh 
+     .                              ,dactx%kh              )
 
-cc        x(dactx(igr)%xs:dactx(igr)%xe 
-cc     .   ,dactx(igr)%ys:dactx(igr)%ye 
-cc     .   ,dactx(igr)%zs:dactx(igr)%ze) =
-cc     .                         array(dactx(igr)%il:dactx(igr)%ih
-cc     .                              ,dactx(igr)%jl:dactx(igr)%jh 
-cc     .                              ,dactx(igr)%kl:dactx(igr)%kh)
+cc        x(dactx%xs:dactx%xe 
+cc     .   ,dactx%ys:dactx%ye 
+cc     .   ,dactx%zs:dactx%ze) =
+cc     .                         array(dactx%il:dactx%ih
+cc     .                              ,dactx%jl:dactx%jh 
+cc     .                              ,dactx%kl:dactx%kh)
 
 c     End program
 
@@ -1134,7 +1170,7 @@ c     End program
 
 c     emptyLocalVec
 c     #################################################################
-      subroutine emptyLocalVec(array,x,igr)
+      subroutine emptyLocalVec(dactx,array,x)
 
 c     -----------------------------------------------------------------
 c     Transfers ghost cells from x to array.
@@ -1144,70 +1180,70 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: igr
-
-        real(8) :: array(dactx(igr)%ilm:dactx(igr)%ihp
-     .                  ,dactx(igr)%jlm:dactx(igr)%jhp 
-     .                  ,dactx(igr)%klm:dactx(igr)%khp)
-     .            ,x    (dactx(igr)%gxs:dactx(igr)%gxe 
-     .                  ,dactx(igr)%gys:dactx(igr)%gye 
-     .                  ,dactx(igr)%gzs:dactx(igr)%gze)
+        type(petsc_da_ctx),pointer :: dactx
+ 
+        real(8) :: array(dactx%ilm:dactx%ihp
+     .                  ,dactx%jlm:dactx%jhp 
+     .                  ,dactx%klm:dactx%khp)
+     .            ,x    (dactx%gxs:dactx%gxe 
+     .                  ,dactx%gys:dactx%gye 
+     .                  ,dactx%gzs:dactx%gze)
 
 c     Local variables
 
 c     Begin program
 
-        array(dactx(igr)%lgxs
-     .       ,dactx(igr)%lgys:dactx(igr)%lgye
-     .       ,dactx(igr)%lgzs:dactx(igr)%lgze) =
-     .                                 x(dactx(igr)%gxs
-     .                                  ,dactx(igr)%gys:dactx(igr)%gye 
-     .                                  ,dactx(igr)%gzs:dactx(igr)%gze)
+        array(dactx%lgxs
+     .       ,dactx%lgys:dactx%lgye
+     .       ,dactx%lgzs:dactx%lgze) =
+     .                                 x(dactx%gxs
+     .                                  ,dactx%gys:dactx%gye 
+     .                                  ,dactx%gzs:dactx%gze)
 
-        if (dactx(igr)%lgxe > dactx(igr)%lgxs) 
-     .    array(dactx(igr)%lgxe
-     .         ,dactx(igr)%lgys:dactx(igr)%lgye
-     .         ,dactx(igr)%lgzs:dactx(igr)%lgze) =
-     .                                 x(dactx(igr)%gxe 
-     .                                  ,dactx(igr)%gys:dactx(igr)%gye 
-     .                                  ,dactx(igr)%gzs:dactx(igr)%gze)
+        if (dactx%lgxe > dactx%lgxs) 
+     .    array(dactx%lgxe
+     .         ,dactx%lgys:dactx%lgye
+     .         ,dactx%lgzs:dactx%lgze) =
+     .                                 x(dactx%gxe 
+     .                                  ,dactx%gys:dactx%gye 
+     .                                  ,dactx%gzs:dactx%gze)
 
-        array(dactx(igr)%lgxs:dactx(igr)%lgxe
-     .       ,dactx(igr)%lgys
-     .       ,dactx(igr)%lgzs:dactx(igr)%lgze) =
-     .                                 x(dactx(igr)%gxs:dactx(igr)%gxe 
-     .                                  ,dactx(igr)%gys
-     .                                  ,dactx(igr)%gzs:dactx(igr)%gze)
+        array(dactx%lgxs:dactx%lgxe
+     .       ,dactx%lgys
+     .       ,dactx%lgzs:dactx%lgze) =
+     .                                 x(dactx%gxs:dactx%gxe 
+     .                                  ,dactx%gys
+     .                                  ,dactx%gzs:dactx%gze)
 
-        if (dactx(igr)%lgye > dactx(igr)%lgys) 
-     .    array(dactx(igr)%lgxs:dactx(igr)%lgxe
-     .         ,dactx(igr)%lgye
-     .         ,dactx(igr)%lgzs:dactx(igr)%lgze) =
-     .                                 x(dactx(igr)%gxs:dactx(igr)%gxe 
-     .                                  ,dactx(igr)%gye 
-     .                                  ,dactx(igr)%gzs:dactx(igr)%gze)
+        if (dactx%lgye > dactx%lgys) 
+     .    array(dactx%lgxs:dactx%lgxe
+     .         ,dactx%lgye
+     .         ,dactx%lgzs:dactx%lgze) =
+     .                                 x(dactx%gxs:dactx%gxe 
+     .                                  ,dactx%gye 
+     .                                  ,dactx%gzs:dactx%gze)
 
-        array(dactx(igr)%lgxs:dactx(igr)%lgxe
-     .       ,dactx(igr)%lgys:dactx(igr)%lgye
-     .       ,dactx(igr)%lgzs                ) =
-     .                                 x(dactx(igr)%gxs:dactx(igr)%gxe 
-     .                                  ,dactx(igr)%gys:dactx(igr)%gye 
-     .                                  ,dactx(igr)%gzs               )
+        array(dactx%lgxs:dactx%lgxe
+     .       ,dactx%lgys:dactx%lgye
+     .       ,dactx%lgzs                ) =
+     .                                 x(dactx%gxs:dactx%gxe 
+     .                                  ,dactx%gys:dactx%gye 
+     .                                  ,dactx%gzs               )
 
-        if (dactx(igr)%lgze > dactx(igr)%lgzs) 
-     .    array(dactx(igr)%lgxs:dactx(igr)%lgxe
-     .         ,dactx(igr)%lgys:dactx(igr)%lgye
-     .         ,dactx(igr)%lgze                ) =
-     .                                 x(dactx(igr)%gxs:dactx(igr)%gxe 
-     .                                  ,dactx(igr)%gys:dactx(igr)%gye 
-     .                                  ,dactx(igr)%gze               )
+        if (dactx%lgze > dactx%lgzs) 
+     .    array(dactx%lgxs:dactx%lgxe
+     .         ,dactx%lgys:dactx%lgye
+     .         ,dactx%lgze                ) =
+     .                                 x(dactx%gxs:dactx%gxe 
+     .                                  ,dactx%gys:dactx%gye 
+     .                                  ,dactx%gze               )
 
-cc        array(dactx(igr)%lgxs:dactx(igr)%lgxe
-cc     .       ,dactx(igr)%lgys:dactx(igr)%lgye
-cc     .       ,dactx(igr)%lgzs:dactx(igr)%lgze) =
-cc     .                                 x(dactx(igr)%gxs:dactx(igr)%gxe 
-cc     .                                  ,dactx(igr)%gys:dactx(igr)%gye 
-cc     .                                  ,dactx(igr)%gzs:dactx(igr)%gze)
+cc        array(dactx%lgxs:dactx%lgxe
+cc     .       ,dactx%lgys:dactx%lgye
+cc     .       ,dactx%lgzs:dactx%lgze) =
+cc     .                                 x(dactx%gxs:dactx%gxe 
+cc     .                                  ,dactx%gys:dactx%gye 
+cc     .                                  ,dactx%gzs:dactx%gze)
 
 c     End program                     
 
@@ -1234,7 +1270,7 @@ c     End program
 
 #else
 
-        integer       :: np=1,my_rank=0,npx=1,npy=1,npz=1
+        integer       :: np=1,my_rank=0
         character(80) :: messg
 
       contains

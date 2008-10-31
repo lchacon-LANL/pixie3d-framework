@@ -3,6 +3,8 @@ c module grid_def_st
 c #####################################################################
       module grid_def_st
 
+        use grid_petsc
+
         implicit none
 
         integer   ,parameter :: ngparams = 6,UNDEF_INT=-1234
@@ -107,6 +109,11 @@ c #####################################################################
 
           type(grid_pack),pointer          :: g_pack      !Grid packing information
 
+#if defined(petsc)
+          type(petsc_da_ctx),pointer,dimension(:)::dactx  !PETSc DA context
+          integer :: mpi_comm,np,rank                     !MPI info
+#endif
+
         end type grid_mg_def
 
         type(grid_mg_def),pointer :: grid_params
@@ -118,8 +125,7 @@ c #####################################################################
 c     allocateGridStructure
 c     #################################################################
       subroutine allocateGridStructure(ngridx,ngridy,ngridz
-     .                                ,ilog,ihig,jlog,jhig,klog,khig
-     .                                ,nglx,ngly,nglz,grid_st)
+     .                                ,nglx,ngly,nglz,grid_st,mpi_comm)
 c     -----------------------------------------------------------------
 c     Allocates grid structure
 c     -----------------------------------------------------------------
@@ -129,18 +135,19 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         integer :: ngridx,ngridy,ngridz,nglx,ngly,nglz
-     .            ,ilog,ihig,jlog,jhig,klog,khig
         type(grid_mg_def),pointer :: grid_st
+        integer,optional :: mpi_comm
 
 c     Local variables
 
         integer :: nx,ny,nz,ngrid,nxmg,nymg,nzmg
+     .            ,ilog,ihig,jlog,jhig,klog,khig,mpierr
 
 c     Begin program
 
         ngrid = max(ngridx,ngridy,ngridz)
 
-        if (.not.associated(grid_st)) then  !Take grid defs from input if existing.
+        if (.not.associated(grid_st)) then
           allocate(grid_st)
           nullify(grid_st%xx)
           nullify(grid_st%gmetric)
@@ -154,12 +161,34 @@ c     Begin program
           grid_st%ngly = ngly
           grid_st%nglz = nglz
 
-          grid_st%ilog  = ilog
-          grid_st%ihig  = ihig
-          grid_st%jlog  = jlog
-          grid_st%jhig  = jhig
-          grid_st%klog  = klog
-          grid_st%khig  = khig
+#if defined(petsc)
+          if (PRESENT(mpi_comm)) then
+            grid_st%mpi_comm = mpi_comm
+          else
+            grid_st%mpi_comm = MPI_COMM_WORLD
+          endif
+
+          call MPI_Comm_rank(grid_st%mpi_comm,grid_st%rank,mpierr)
+          call MPI_Comm_size(grid_st%mpi_comm,grid_st%np  ,mpierr)
+
+          allocate(grid_st%dactx(grid_st%ngrid))
+
+          call createPETScGrid(grid_st,1)
+
+          grid_st%ilog  = grid_st%dactx(1)%xs
+          grid_st%ihig  = grid_st%dactx(1)%xe
+          grid_st%jlog  = grid_st%dactx(1)%ys
+          grid_st%jhig  = grid_st%dactx(1)%ye
+          grid_st%klog  = grid_st%dactx(1)%zs
+          grid_st%khig  = grid_st%dactx(1)%ze
+#else
+          grid_st%ilog  = 1
+          grid_st%ihig  = nglx
+          grid_st%jlog  = 1
+          grid_st%jhig  = ngly
+          grid_st%klog  = 1
+          grid_st%khig  = nglz
+#endif
         endif
 
         grid_st%lxmin = UNDEF_DP
@@ -169,9 +198,16 @@ c     Begin program
         grid_st%lzmin = UNDEF_DP
         grid_st%lzmax = UNDEF_DP
 
-        grid_st%nlx  = ihig-ilog+1
-        grid_st%nly  = jhig-jlog+1
-        grid_st%nlz  = khig-klog+1
+        ilog = grid_st%ilog
+        ihig = grid_st%ihig
+        jlog = grid_st%jlog
+        jhig = grid_st%jhig
+        klog = grid_st%klog
+        khig = grid_st%khig
+
+        grid_st%nlx = ihig-ilog+1
+        grid_st%nly = jhig-jlog+1
+        grid_st%nlz = khig-klog+1
 
         nx = grid_st%nlx
         ny = grid_st%nly
@@ -296,11 +332,28 @@ c     Call variables
 
         type(grid_mg_def),pointer :: grid_st
 
+c     Local variables
+
+        integer :: igr
+
+#if defined(petsc)
+        type(petsc_da_ctx),pointer :: da_ctx
+#endif
+
 c     Begin program
 
         call deallocateGridMetric(grid_st%gmetric)
 
         deallocate(grid_st%g_pack)
+
+#if defined(petsc)
+        do igr=1,grid_st%ngrid
+          da_ctx => grid_st%dactx(igr)
+          call destroyPETScFortranDA(da_ctx)
+        enddo
+
+        deallocate(grid_st%dactx)
+#endif
 
         grid_st%ngrdx = 0
         grid_st%ngrdy = 0
@@ -362,7 +415,7 @@ cc          deallocate(grid_st%ntotv)
           deallocate(grid_st%jline)
           deallocate(grid_st%kline)
         endif
-
+        
         deallocate(grid_st)
 
 c     End program
@@ -391,6 +444,9 @@ c     Local variables
      .                   ,ilog,ihig,jlog,jhig,klog,khig
 
 c     Begin program
+
+        write (*,*) 'Routine equateGridSt should not be used'
+        stop
 
         ngridx = grid_st1%ngrdx
         ngridy = grid_st1%ngrdy
@@ -427,7 +483,6 @@ c     Begin program
 c       Create basic structure
 
         call allocateGridStructure(ngridx,ngridy,ngridz
-     .                            ,ilog,ihig,jlog,jhig,klog,khig
      .                            ,nglx,ngly,nglz,grid_st2)
 
 c       Copy values
@@ -677,203 +732,83 @@ c     End program
 
       end subroutine deallocateGridMetric
 
-      end module grid_def_st
+#if defined(petsc)
 
-c module bc_def
-c #####################################################################
-      module bc_def
+c     createPETScGrid
+c     #################################################################
+      subroutine createPETScGrid(gparams,igr)
 
 c     -----------------------------------------------------------------
-c     This module defines the types of BCs possible:
-c     Topological BCs (set topology of computational domain):
-c       PER: Periodic
-c       SP : Singular point (as in cylindrical, toroidal)
-c       SYM: Symmetry (> 0 -> homogeneous Neumann
-c                     ,< 0 -> homogeneous Dirichlet)
-c     Standard BCs:
-c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
-c       DIR: Homogeneous dirichlet
-c       NEU: Neumann (homogeneous/inhomogeneous)
-c       SYM: Symmetry (odd,even depend on sign)
-c       EXT: By extrapolation
-c       DEF: Default (does nothing)
-c     The actual integers chosen indicate a particular order that the BC
-c     scheduler follows to impose the boundary conditions.
+c     Creates PETSc constructs for boundary communication in fortran.
 c     -----------------------------------------------------------------
-
-        use grid_def_st
 
         implicit none
 
-        integer    :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM,IFC
-        parameter (DEF=0,PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7,IFC=8)
+c     Call variables
 
-        integer   ,parameter :: BCLIM=8    !Defines # of BC cases
+        integer :: igr
+        type(grid_mg_def),pointer :: gparams
 
-        integer    :: bcond(6)
+c     Local variables
 
-        logical    :: asm_dir(3)=.false.,asm=.false.,par_bc=.false.
+        integer    :: nxgl,nygl,nzgl,igrid,mpi_comm
+        type(petsc_da_ctx),pointer :: da_ctx
 
-        real(8)    :: SP_flsv=1d-5         !SP failsafe
-        
-      contains
+c     Begin program
 
-c     bcSP
-c     #################################################################
-      function bcSP(ibc) result(sing_bc)
+        mpi_comm = gparams%mpi_comm
 
-        integer   ,optional :: ibc
-        logical    :: sing_bc
+c     Create PETSc DA MG hierachy
 
-        integer    :: iibc
-
-        if (PRESENT(ibc)) then
-          iibc = ibc
-        else
-          iibc = 1
-        endif
-
-        sing_bc = (bcond(iibc) == SP)
-
-      end function bcSP
-
-c     alt__eom
-c     #################################################################
-      function alt__eom()
-
-        logical :: alt__eom
-
-        alt__eom=.false.
-        if (bcSP()) alt__eom=.true.
-
-      end function alt__eom
-
-c     isSP
-c     #################################################################
-      function isSP(i,j,k,igx,igy,igz) result(sing_point)
-
-        integer    :: i,j,k,igx,igy,igz
-        logical    :: sing_point
-
-        sing_point = (i+grid_params%ilo(igx)-1==1).and.bcSP()
-
-      end function isSP
-
-c     isSP2
-c     #################################################################
-      function isSP2(i,igr,dim,loc,ibc)
-
-        integer    :: i,igr
-        logical    :: isSP2
-        integer,optional :: dim,loc,ibc
-
-        integer    :: ibcl,ilog,itst,diml,locl
-
-        if (PRESENT(dim) .and.PRESENT(loc)) then
-          diml = dim
-          locl = loc
-          ibcl = (1+locl)+2*(diml-1)
-        elseif (PRESENT(ibc)) then
-          ibcl = ibc
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
-        else
-          ibcl = 1
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
-        endif
-
-        isSP2=.false.
-
-        select case(diml)
+        select case(igr)
         case(1)
-          ilog = grid_params%ilo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nxgl(igr)
-          end select
-        case(2)
-          ilog = grid_params%jlo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nygl(igr)
-          end select
-        case(3)
-          ilog = grid_params%klo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nzgl(igr)
-          end select
+
+          nxgl = gparams%nglx
+          nygl = gparams%ngly
+          nzgl = gparams%nglz
+
+          da_ctx => gparams%dactx(igr)
+
+          da_ctx%MPI_COMM_DA = mpi_comm
+
+          call createPETScFortranDA(igr,nxgl,nygl,nzgl,da_ctx)
+
+        case(0)
+
+          do igrid=2,gparams%ngrid
+
+            nxgl = gparams%nxgl(igrid)
+            nygl = gparams%nygl(igrid)
+            nzgl = gparams%nzgl(igrid)
+
+            da_ctx => gparams%dactx(igrid)
+
+            da_ctx%MPI_COMM_DA = mpi_comm
+
+            call createPETScFortranDA(igrid,nxgl,nygl,nzgl,da_ctx)
+
+          enddo
+
+        case default
+
+          nxgl = gparams%nxgl(igr)
+          nygl = gparams%nygl(igr)
+          nzgl = gparams%nzgl(igr)
+
+          da_ctx => gparams%dactx(igr)
+
+          da_ctx%MPI_COMM_DA = mpi_comm
+
+          call createPETScFortranDA(igr,nxgl,nygl,nzgl,da_ctx)
+
         end select
 
-        if (i+ilog-1 == itst .and. bcSP(ibc=ibcl)) isSP2=.true.
+c     End program
 
-      end function isSP2
+      end subroutine createPETScGrid
+#endif
 
-c     isSYM
-c     #################################################################
-      function isSYM(i,igr,dim,loc,ibc)
-
-        integer    :: i,igr
-        logical    :: isSYM
-        integer,optional :: dim,loc,ibc
-
-        integer    :: ibcl,ilog,itst,diml,locl
-
-        if (PRESENT(dim) .and.PRESENT(loc)) then
-          diml = dim
-          locl = loc
-          ibcl = (1+locl)+2*(diml-1)
-        elseif (PRESENT(ibc)) then
-          ibcl = ibc
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
-        else
-          write (*,*) 'Error in isSYM'
-          write (*,*) 'Aborting...'
-          stop
-        endif
-
-        isSYM=.false.
-
-        select case(diml)
-        case(1)
-          ilog = grid_params%ilo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nxgl(igr)
-          end select
-        case(2)
-          ilog = grid_params%jlo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nygl(igr)
-          end select
-        case(3)
-          ilog = grid_params%klo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nzgl(igr)
-          end select
-        end select
-
-        if (i+ilog-1 == itst .and. bcond(ibcl) == SYM)  isSYM=.true.
-
-      end function isSYM
-
-      end module bc_def
+      end module grid_def_st
 
 c module grid_def
 c ####################################################################

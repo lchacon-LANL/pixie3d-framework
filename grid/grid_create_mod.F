@@ -9,19 +9,9 @@ c #####################################################################
 
         integer    :: mg_ratio
 
-cc        type :: dim_pack
-cc          logical    :: pack
-cc          real(8)    :: xp
-cc          real(8)    :: dx0
-cc        end type dim_pack
-cc
-cc        type :: grid_pack
-cc          type(dim_pack),dimension(3) :: dim
-cc        end type grid_pack
-
         type(grid_pack) :: g_pack
 
-        private :: initMG,createLogicalGrid
+        private :: initGridSt,createLogicalGrid
      $            ,consistencyCheck,checkGrid
 
       contains
@@ -47,7 +37,7 @@ c     Call variables
 c     Local variables
 
         integer :: imin,imax,jmin,jmax,kmin,kmax
-        integer :: nx,ny,nz
+        integer :: nx,ny,nz,mpi_comm
 
 c     Begin program
 
@@ -59,28 +49,41 @@ c     Initialize global quantities (from gparams, if existing)
           nx = gparams%nglx
           ny = gparams%ngly
           nz = gparams%nglz
+#if defined(petsc)
+          mpi_comm = gparams%mpi_comm
+        else
+          mpi_comm = MPI_COMM_WORLD
+#endif
         endif
 
 c     Initialize MPI and PETSc (parallel version)
 
 #if defined(petsc)
-        call initFortranMPI(nx,ny,nz)
+        call initFortranMPI(mpi_comm,nx,ny,nz)
         call setASMflag(.false.)
 #endif
 
-c     Initialize MG
+c     Initialize grid structure
 
-        call initMG(nx,ny,nz,gparams)
+#if defined(petsc)
+        call initGridSt(nx,ny,nz,gparams,mpi_comm=mpi_comm)
+#else
+        call initGridSt(nx,ny,nz,gparams)
+#endif
 
 c     Create MG grid hierarchy
 
         call createMGgrid(gpack,gparams)
         grid_params => gparams    !For backward compatibility
 
+#if defined(petsc)
 c     Create fortran PETSc parallel grid hierarchy (parallel version)
 
-#if defined(petsc)
-        call createPETScGrid
+        call createPETScGrid(gparams,0)
+
+c     Create MPI communicators
+
+        call create_MPI_comms
 #endif
 
 c     Initialize grid check
@@ -129,21 +132,15 @@ c     Local variables
 
 c     Begin program
 
-c     Destroy fortran PETSc parallel grid hierarchy (parallel version)
-
-#if defined(petsc)
-        call destroyFortranMPI
-#endif
-
 c     Destroy MG grid hierarchy
 
         call deallocateGridStructure(gparams)
 
       end subroutine destroyGrid
 
-c     initMG
+c     initGridSt
 c     #################################################################
-      subroutine initMG(nx,ny,nz,gdef)
+      subroutine initGridSt(nxg,nyg,nzg,gdef,mpi_comm)
 
 c     -----------------------------------------------------------------
 c     Initializes MG quantities and allocates MG strucutures. On input:
@@ -156,46 +153,26 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: nx,ny,nz
+        integer    :: nxg,nyg,nzg
         type(grid_mg_def),pointer :: gdef
+        integer,optional :: mpi_comm
 
 c     Local variables
 
         integer    :: i,n1,n2,n3,nxx,nyy,nzz
-     .               ,ilog,ihig,jlog,jhig,klog,khig
         integer    :: ngrdx,ngrdy,ngrdz
 
 c     Begin program
 
-        !Initialize local quantities
-        if (associated(gdef)) then
-          ilog = gdef%ilog
-          ihig = gdef%ihig
-          jlog = gdef%jlog
-          jhig = gdef%jhig
-          klog = gdef%klog
-          khig = gdef%khig
-        else
-#if defined(petsc)
-          ilog = dactx(1)%xs
-          ihig = dactx(1)%xe
-          jlog = dactx(1)%ys
-          jhig = dactx(1)%ye
-          klog = dactx(1)%zs
-          khig = dactx(1)%ze
-#else
-          ilog = 1
-          ihig = nx
-          jlog = 1
-          jhig = ny
-          klog = 1
-          khig = nz
-#endif
+c     Estimate local domain sizes
+
+        if (npx == 0 .and. npy == 0 .and. npz == 0) then
+          call pstop('initGridSt','Undefined processor alloc.')
         endif
 
-        nxx = ihig-ilog+1
-        nyy = jhig-jlog+1
-        nzz = khig-klog+1
+        nxx = nxg/npx
+        nyy = nyg/npy
+        nzz = nzg/npz
 
 c     Find adequate number of grid levels (for MG)
 
@@ -226,11 +203,14 @@ c     Find adequate number of grid levels (for MG)
 
 c     Allocate grid storage structure
 
+#if defined(petsc)
         call allocateGridStructure(ngrdx,ngrdy,ngrdz
-     .                            ,ilog,ihig,jlog,jhig,klog,khig
-     .                            ,nx,ny,nz,gdef)
-
-      end subroutine initMG
+     .                            ,nxg,nyg,nzg,gdef,mpi_comm=mpi_comm)
+#else
+        call allocateGridStructure(ngrdx,ngrdy,ngrdz
+     .                            ,nxg,nyg,nzg,gdef)
+#endif
+      end subroutine initGridSt
 
 c     createMGgrid
 c     #################################################################

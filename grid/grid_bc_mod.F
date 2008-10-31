@@ -1,3 +1,153 @@
+c module bc_ops
+c #####################################################################
+      module bc_ops
+
+c     -----------------------------------------------------------------
+c     This module defines various BC-related operators
+c     -----------------------------------------------------------------
+
+        use grid_def
+
+      contains
+
+c     alt__eom
+c     #################################################################
+      function alt__eom()
+
+        logical :: alt__eom
+
+        alt__eom=.false.
+        if (bcSP()) alt__eom=.true.
+
+      end function alt__eom
+
+c     isSP
+c     #################################################################
+      function isSP(i,j,k,igx,igy,igz) result(sing_point)
+
+        integer    :: i,j,k,igx,igy,igz
+        logical    :: sing_point
+
+        sing_point = (i+grid_params%ilo(igx)-1==1).and.bcSP()
+
+      end function isSP
+
+c     isSP2
+c     #################################################################
+      function isSP2(i,igr,dim,loc,ibc)
+
+        integer    :: i,igr
+        logical    :: isSP2
+        integer,optional :: dim,loc,ibc
+
+        integer    :: ibcl,ilog,itst,diml,locl
+
+        if (PRESENT(dim) .and.PRESENT(loc)) then
+          diml = dim
+          locl = loc
+          ibcl = (1+locl)+2*(diml-1)
+        elseif (PRESENT(ibc)) then
+          ibcl = ibc
+          locl = abs(mod(ibcl,2)-2)-1
+          diml = 1 + (ibcl-1-locl)/2
+        else
+          ibcl = 1
+          locl = abs(mod(ibcl,2)-2)-1
+          diml = 1 + (ibcl-1-locl)/2
+        endif
+
+        isSP2=.false.
+
+        select case(diml)
+        case(1)
+          ilog = grid_params%ilo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nxgl(igr)
+          end select
+        case(2)
+          ilog = grid_params%jlo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nygl(igr)
+          end select
+        case(3)
+          ilog = grid_params%klo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nzgl(igr)
+          end select
+        end select
+
+        if (i+ilog-1 == itst .and. bcSP(ibc=ibcl)) isSP2=.true.
+
+      end function isSP2
+
+c     isSYM
+c     #################################################################
+      function isSYM(i,igr,dim,loc,ibc)
+
+        integer    :: i,igr
+        logical    :: isSYM
+        integer,optional :: dim,loc,ibc
+
+        integer    :: ibcl,ilog,itst,diml,locl
+
+        if (PRESENT(dim) .and.PRESENT(loc)) then
+          diml = dim
+          locl = loc
+          ibcl = (1+locl)+2*(diml-1)
+        elseif (PRESENT(ibc)) then
+          ibcl = ibc
+          locl = abs(mod(ibcl,2)-2)-1
+          diml = 1 + (ibcl-1-locl)/2
+        else
+          write (*,*) 'Error in isSYM'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
+        isSYM=.false.
+
+        select case(diml)
+        case(1)
+          ilog = grid_params%ilo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nxgl(igr)
+          end select
+        case(2)
+          ilog = grid_params%jlo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nygl(igr)
+          end select
+        case(3)
+          ilog = grid_params%klo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nzgl(igr)
+          end select
+        end select
+
+        if (i+ilog-1 == itst .and. bcond(ibcl) == SYM)  isSYM=.true.
+
+      end function isSYM
+
+      end module bc_ops
+
 c module constants
 c ######################################################################
       module constants
@@ -21,6 +171,8 @@ c####################################################################
         use math
 
         use constants
+
+        use bc_ops
 
 cc        integer    :: imax,imin,jmax,jmin,kmax,kmin
 
@@ -201,7 +353,8 @@ c     Element exchange in poloidal direction
       endif
 
       do k=1,nzbc
-        do j=1,nybc
+cc        do j=1,nybc
+        do j=0,nybc+1
           jglobal = j + jlog - 1
           jj = mod(jglobal+nyg/2,nyg)
           if (jj == 0) jj = nyg
@@ -443,7 +596,8 @@ c     Element exchange in poloidal direction
         enddo
       else
         do k=1,nzbc
-          do j=1,nybc
+          do j=0,nybc+1
+cc          do j=1,nybc
             jglobal = j + jlog - 1
             jj = mod(jglobal+nyg/2,nyg)
             if (jj == 0) jj = nyg
@@ -654,11 +808,21 @@ c     ---------------------------------------------------------------------
         integer   ,intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
 
         integer    :: ibc
+        logical    :: sing_face
 
 c     Begin program
 
         do__nothing = .false.
+
         if (asm) return      !Return if additive Schwartz method is used (PC)
+
+cc        ibc = (1+loc)+2*(dim-1)
+cc        sing_face = (bcSP(ibc=ibc) .and. bcond(ibc)==SP)
+cc
+cc        if (sing_face) then
+cc          do__nothing = .true.
+cc          return             !Return if singular BC
+cc        endif
 
         select case(dim)
         case(1)
@@ -863,6 +1027,10 @@ c     Local variables
 
       logical :: petsc__bc
 
+#if defined(petsc)
+      type(petsc_da_ctx),pointer :: da_ctx
+#endif
+
 c     Begin program
 
 c     Initialize interpolation order
@@ -919,7 +1087,10 @@ c     Fill PETSc ghost cells
      .                  .or.(ieq > NVAR             ))   !For auxiliary variables
 
       !Fill ghost cells
-      if (petsc__bc) call fillPetscGhostCells(array,igxbc)
+      if (petsc__bc) then
+        da_ctx => grid_params%dactx(igxbc)
+        call fillPetscGhostCells(da_ctx,array)
+      endif
 #endif
 
 c     Impose BCs
@@ -1006,6 +1177,10 @@ c     Local variables
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical    :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
 
+#if defined(petsc)
+      type(petsc_da_ctx),pointer :: da_ctx
+#endif
+
 c     Begin program
 
       !By default, we assume input are vector components
@@ -1082,13 +1257,14 @@ c     Fill PETSc ghost cells
 
       !Fill ghost cells
       if (petsc__bc) then
+        da_ctx => grid_params%dactx(igxbc)
         if (is__vec .and. to_cnv) then
           do ieq=1,ncomp
-            call fillPetscGhostCells(v_cov(:,:,:,ieq),igxbc)
+            call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
           enddo
         else
           do ieq=1,ncomp
-            call fillPetscGhostCells(v_cnv(:,:,:,ieq),igxbc)
+            call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
           enddo
         endif
       endif
@@ -3314,7 +3490,8 @@ c######################################################################
 c     setMGBC
 c     ###############################################################
       subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,arr_cov
-     .                  ,arr0,icomp,is_cnv,is_vec,result_is_vec,iorder)
+     .                  ,arr0,icomp,is_cnv,is_vec,result_is_vec,out_cnv
+     .                  ,iorder)
 c     ---------------------------------------------------------------
 c     Interfaces BC routines with MG code, for preconditioning.
 c     On input:
@@ -3345,10 +3522,14 @@ c              (also Cartesian vector components).
 c       *result_is_vec: logical variable specifying whether output
 c                       in array should be curvilinear (.true.) or
 c                       not (default=is_vec)
-c       *iorder: order of inter/extrapolation in BC routines (linear
+c       *out_cnv (intent OUT): specifies representation of output
+c                              vector (needed when is_cnv is inherited
+c                              from a previous call).
+c       *iorder: order of inter/extrapolation in BC routines (quadratic
 c                by default).
 c
-c     On output, array is returned in the same representation.
+c     On output, array is returned either in the same curvilinear
+c     representation or in Cartesian, if specified by "result_is_vec".
 c     ---------------------------------------------------------------
 
       implicit none
@@ -3367,6 +3548,7 @@ c     Call variables
       integer   ,optional,intent(IN) :: icomp,iorder
 
       logical   ,optional,intent(IN) :: is_cnv,is_vec,result_is_vec
+      logical   ,optional,intent(OUT):: out_cnv
 
 c     Local variables
 
@@ -3405,6 +3587,8 @@ c     Optional arguments
       else
         order = 2
       endif
+
+      if (PRESENT(out_cnv)) out_cnv=iscnv
 
 c     Consistency check
 
@@ -3563,7 +3747,8 @@ cc     .           = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
      .            ,is_cnv=iscnv,is_vec=.true.,iorder=order)
         enddo
 
-        if (isvec .or. res_is_vec) then
+cc        if (isvec .or. res_is_vec) then
+        if (res_is_vec) then  !Overrule isvec when res_is_vec is specified
 
           if (PRESENT(arr_cov)) then
             array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
