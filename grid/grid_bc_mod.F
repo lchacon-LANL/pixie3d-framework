@@ -10,17 +10,6 @@ c     -----------------------------------------------------------------
 
       contains
 
-c     alt__eom
-c     #################################################################
-      function alt__eom()
-
-        logical :: alt__eom
-
-        alt__eom=.false.
-        if (bcSP()) alt__eom=.true.
-
-      end function alt__eom
-
 c     isSP
 c     #################################################################
       function isSP(i,j,k,igx,igy,igz) result(sing_point)
