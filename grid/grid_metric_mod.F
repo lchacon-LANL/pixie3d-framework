@@ -53,6 +53,17 @@ c     PRIVATE VARIABLES
 
       contains
 
+c     alt__eom
+c     #################################################################
+      function alt__eom()
+
+        logical :: alt__eom
+
+        alt__eom=.false.
+        if (bcSP()) alt__eom=.true.
+
+      end function alt__eom
+
 c     cross_product
 c     #################################################################
       function cross_product(vec1,vec2) result(vec3)
@@ -815,7 +826,6 @@ cc              gparams%gmetric%grid(igrid)%dvol(i,j,k)=volume(i,j,k,igx,igy,igz
 c     End program
 
       contains
-
 
 c     find_dr
 c     #####################################################################
