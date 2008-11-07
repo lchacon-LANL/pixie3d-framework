@@ -33,6 +33,8 @@ c ###################################################################
 
       use grid_mpi
 
+      use math
+
       real(8), allocatable, dimension(:):: rk,xx0,xk
 
       real(8)    :: pdt,check
@@ -61,6 +63,7 @@ cc      real(8),parameter    :: epsmac=1d-15
         real(8)      :: stol=0d0
         real(8)      :: mf_eps=1d-6
         character(2) :: krylov_method='gm'
+        logical      :: vol_wgt
       end type nk_options
 
       type(nk_options),save :: nk_conf
@@ -207,18 +210,18 @@ c     Initialize variables
 
       if (global == 2) then   !Activate pseudo-transient
         pseudo_dt = .true.
-        check_lim = 1d30
+        call pstop('nk','Pseudo-t option not working')
       else
         pseudo_dt = .false.
-        pdt0      = 1d30
-        check_lim = 1d30
-cc       check_lim = 1d1
+cc        pdt0      = 1d30
       endif
+
+      check_lim = 1d30
 
       pdt = pdt0
 
-      if (atol == 0d0) atol = roundoff !Set absolute tolerance to roundoff
-      if (stol == 0d0) stol = roundoff !Set update tolerance to roundoff
+      if (atol == 0d0) atol = 100*roundoff !Set absolute tolerance to roundoff
+      if (stol == 0d0) stol = 100*roundoff !Set update tolerance to roundoff
 
       convergence = .false.
       failure     = .false.
@@ -305,8 +308,8 @@ c     Check for error in GMRES
 
 c     Globalization procedure: damping coefficient
 
-cc        if (global >= 1) call findDamping (ntot,x,ddx,etak,fk,damp)
-        if (global == 1) call findDamping (ntot,x,ddx,etak,fk,damp)
+        if (global >= 1) call findDamping (ntot,x,ddx,etak,fk,damp)
+cc        if (global == 1) call findDamping (ntot,x,ddx,etak,fk,damp)
 
 c     Update solution (x = x + ddx)
 
@@ -353,12 +356,14 @@ c     Store magnitude of residual
 
 c     Change pseudo-transient time step
 
-        if (pseudo_dt) then
-cc          pdt = min(pdt/check,1d30)
-          pdt = min(pdt0/sqrt(check),1d30)
-cc          if (check < 1d-3) pdt = min(pdt0*jit,1d0)
-cc          pdt = min(pdt0/check**2,1d30)
-        endif
+cc        if (pseudo_dt) then
+cccc          pdt = min(pdt/check,1d30)
+cc          pdt = min(pdt0/sqrt(check),1d30)
+cc          call evaluateNewtonResidual(ntot,x,rk)
+cc
+cccc          if (check < 1d-3) pdt = min(pdt0*jit,1d0)
+cccc          pdt = min(pdt0/check**2,1d30)
+cc        endif
 
       enddo       !End of Newton loop
 
@@ -597,7 +602,7 @@ c     Start quadratic linesearch backtracking
      .                              +damp/dampm*(fm -fk))
               theta = -df/ddf
 
-              damp = fmedval(sigma0*damp,sigma1*damp,theta)  !Takes middle value
+              damp = fmed(sigma0*damp,sigma1*damp,theta)  !Takes middle value
 
             else  !Try again
 
@@ -833,7 +838,7 @@ c       Perform previous transformations on i-th column of h
             enddo
           endif
 
-          gam = sqrt(hh(i,i)**2 + hh(i1,i)**2)
+          gam = sqrt(hh(i,i)*hh(i,i) + hh(i1,i)*hh(i1,i))
 
 c       If gamma is zero then any small value will do
 c       Will affect only residual estimate
@@ -844,12 +849,15 @@ c       Get next plane rotation
 
           c(i)   = hh(i ,i)/gam
           s(i)   = hh(i1,i)/gam
-          rs(i1) = -s(i)*rs(i)
-          rs(i)  =  c(i)*rs(i)
+
+          hh(i,i)= c(i)*hh(i,i) + s(i)*hh(i1,i)
+          hh(i1,i) = 0d0
 
 c       Determine residual norm and test for convergence
 
-          hh(i,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
+          rs(i1) = -s(i)*rs(i)
+          rs(i)  =  c(i)*rs(i)
+
           ro = abs(rs(i1))
 
           if (iout .gt. 0 .and. prnt) then
@@ -1237,8 +1245,12 @@ c       Calculate difference parameter
         modx  = dot(nn,xk,xk)
         xdotz = dot(nn,z ,xk)
 
-        pert=nk_conf%mf_eps*sqrt(modx)/sqrt(modz)
-cc     .  pert=nk_conf%mf_eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
+        if (modx == 0d0) then
+          pert = nk_conf%mf_eps/sqrt(modz)
+        else
+          pert=nk_conf%mf_eps*sqrt(modx)/sqrt(modz)
+        endif
+cc        pert=nk_conf%mf_eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
 
 c       Perturb state variables x + eps z --> dummy
 
@@ -1287,16 +1299,16 @@ c     Evaluate nonlinear residual
 
 c     Add pseudo-transient term
 
-      if (pseudo_dt) then
-        invpdt = 1d0/pdt
-        if (abs(invpdt) < 1d-5) invpdt = 0d0
-        f = (x - xk)*invpdt + f  !This doesn't really work for vol-weighed residuals!!!
-cc        f = (x-xx0)*invpdt + f
-        if (prnt) then
-           write (*,*) 'WARNING: psedo-transient term only works for'
-           write (*,*) 'non-vol-weighed residuals'
-        endif
-      endif
+cc      if (pseudo_dt) then
+cc        invpdt = 1d0/pdt
+cc        if (abs(invpdt) < 1d-5) invpdt = 0d0
+cc        f = (x - xk )*invpdt + f  !This doesn't really work for vol-weighed residuals!!!
+cccc        f = (x - xx0)*invpdt + f
+cc        if (nk_conf%vol_wgt) then
+cc          write (*,*) 'WARNING: psedo-transient term only works for'//
+cc     .               ' non-vol-weighed residuals'
+cc        endif
+cc      endif
 
 c     End program
 
@@ -1355,27 +1367,27 @@ cc
 ccc     End program
 cc
 cc      end subroutine volumeWeighVec
-
-c     fmedval
-c     ###############################################################
-      real(8) function fmedval(p1,p2,p3)
-      implicit none                !For safe fortran
-c     ---------------------------------------------------------------
-c     This function computes intermediate value of p1, p2, p3.
-c     ---------------------------------------------------------------
-
-c     Call variables
-
-      real(8) :: p1,p2,p3
-
-c     Local variables
-
-c     Begin program
-
-      fmedval = min( max(p1,p2) , max( p3,min(p1,p2) ) )
-
-c     End
-
-      end function fmedval
+cc
+ccc     fmedval
+ccc     ###############################################################
+cc      real(8) function fmedval(p1,p2,p3)
+cc      implicit none                !For safe fortran
+ccc     ---------------------------------------------------------------
+ccc     This function computes intermediate value of p1, p2, p3.
+ccc     ---------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc      real(8) :: p1,p2,p3
+cc
+ccc     Local variables
+cc
+ccc     Begin program
+cc
+cc      fmedval = min( max(p1,p2) , max( p3,min(p1,p2) ) )
+cc
+ccc     End
+cc
+cc      end function fmedval
 
       end module nk_mod
