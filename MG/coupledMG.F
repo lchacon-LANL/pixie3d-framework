@@ -20,6 +20,8 @@ c######################################################################
 
         use grid_mg
 
+        use bc_ops
+
         use grid_create, ONLY: grid_pack,g_pack,createMGgrid
 
         use mlsolverSetup
@@ -1221,8 +1223,8 @@ c Local variables
       integer    :: guess2,outc,mu
       integer    :: izero,i,j,k,ii,ivcyc,nblk
 
-      real(8)    :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot)
-      real(8)    :: rr0,rr1,mag,mag1,mgtol,line_tol,line_omega
+      real(8)    :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot),x0(ntot)
+      real(8)    :: rr0,rr1,mag,mag1,mag2,mgtol,line_tol,line_omega
 
       logical    :: fdiag,line_relax,fpointers,line_x,line_y,line_z
 
@@ -1366,6 +1368,8 @@ c Start mu-cycle
           if (mu == 2) write (*,8) ivcyc
         endif
 
+        x0 = xx(istart(igrid):istart(igrid)+ntot-1)  !Save initial solution
+
 c     Perform mu-cycle recursively
 
         if (igrid.eq.igmax) then
@@ -1386,11 +1390,14 @@ c     Check MG convergence
 
         mag1 = mag/rr1
 
+        x0 = xx(istart(igrid):istart(igrid)+ntot-1)-x0
+        mag2 = sqrt(MGdot(igrid,neq,ntot,x0,x0)/ntot)
+
         if (out.ge.3.and.prnt) then
           write (*,10) mag,mag1
         elseif (out.ge.2.and.prnt) then
-          if (mu == 1) write (*,20) mag,mag1,ivcyc
-          if (mu == 2) write (*,21) mag,mag1,ivcyc
+          if (mu == 1) write (*,20) mag,mag1,mag2,ivcyc
+          if (mu == 2) write (*,21) mag,mag1,mag2,ivcyc
         endif
 
         rr1 = mag
@@ -1409,13 +1416,13 @@ c MG convergence info
 
       if (igmax.gt.igrid) then
         if (out.eq.1.and.prnt) then
-          if (mu == 1) write (*,20) mag,mag1,min(ivcyc,vcyc)
-          if (mu == 2) write (*,21) mag,mag1,min(ivcyc,vcyc)
+          if (mu == 1) write (*,20) mag,mag1,mag2,min(ivcyc,vcyc)
+          if (mu == 2) write (*,21) mag,mag1,mag2,min(ivcyc,vcyc)
         elseif (out.ge.2.and.vcyc.gt.1.and.prnt) then
           write (*,*) 
           write (*,*) 'Final MG convergence info:'
-          if (mu == 1) write (*,20) mag,mag1,min(ivcyc,vcyc)
-          if (mu == 2) write (*,21) mag,mag1,min(ivcyc,vcyc)
+          if (mu == 1) write (*,20) mag,mag1,mag2,min(ivcyc,vcyc)
+          if (mu == 2) write (*,21) mag,mag1,mag2,min(ivcyc,vcyc)
           write (*,*)
         endif
       endif
@@ -1433,9 +1440,13 @@ c End program
  8    format (/,' MG W-cycle #:',i3)
  10   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4)
  20   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
-     .          '; V-cycle #:',i3)
+     .          '; MG update:',1e12.4,'; V-cycle #:',i3)
  21   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
-     .          '; W-cycle #:',i3)
+     .          '; MG update:',1e12.4,'; W-cycle #:',i3)
+cc 20   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
+cc     .          '; V-cycle #:',i3)
+cc 21   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
+cc     .          '; W-cycle #:',i3)
 
       contains
 
