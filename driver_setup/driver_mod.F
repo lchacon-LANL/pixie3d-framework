@@ -22,18 +22,18 @@ c ######################################################################
 
       end module nk_setup
 
-c module precond_setup
-c ######################################################################
-      module precond_setup
-
-        integer       :: nsweep,maxvcyc,precpass,debug_it
-        real(8)       :: mgtol,omega
-
-        character*(10):: precon
-
-        logical       :: asm_PC=.false.
-
-      end module precond_setup
+ccc module precond_setup
+ccc ######################################################################
+cc      module precond_setup
+cc
+cc        integer       :: nsweep,maxvcyc,precpass,debug_it
+cc        real(8)       :: mgtol,omega
+cc
+cc        character(10) :: precon
+cc
+cc        logical       :: asm_PC=.false.
+cc
+cc      end module precond_setup
 
 c module counters
 c ######################################################################
