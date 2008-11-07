@@ -377,6 +377,8 @@ c     Newton iteration
 
         nk_conf%krylov_method='fg'
 
+        nk_conf%vol_wgt = vol_wgt
+
         call nk(neqd,ntotd,x,iguess,ilevel,ierr)
 
         itgmres = nk_conf%gm_it_out
