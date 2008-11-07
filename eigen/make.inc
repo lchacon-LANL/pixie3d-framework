@@ -6,4 +6,4 @@ MESSAGE = "Compiling f90 eigen modules"
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/grid $(COMMONDIR)/newtonGMRES
+SUBDIRS =$(COMMONDIR)/math $(COMMONDIR)/grid $(COMMONDIR)/newtonGMRES
