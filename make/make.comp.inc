@@ -25,7 +25,8 @@ endif
 # Flags for Lahey lf95
 ifeq ($(FC),lf95)
   OPTIMIZATION = --nap --nchk --fast --npca --nsav --ntrace
-  DEBUG        = -g --chk ase --warn --f95 --trace
+  DEBUG        = -g --chk aseu --warn --f95 --trace
+#  DEBUG        = -g --chkglobal --warn --f95 --trace
   PROFILE      =
   STATIC       = 
   MODFLAG      = -M
