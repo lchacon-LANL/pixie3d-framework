@@ -393,7 +393,7 @@ c     End program
  220  format ('    Max newton its. exceeded; rel. residual: ',1p,1e10.2)
  230  format ('    Relative residual =',f7.2,' >',f7.2)
  240  format ('    Newton converged in too many iterations (>',i2,')')
- 320  format ('Residual  eqn. ',i2,': ',1pe9.2)
+ 320  format (' Residual  eqn. ',i2,': ',1pe9.2)
 
       end subroutine nk
 
