@@ -571,7 +571,8 @@ c     Element exchange in poloidal direction
 
       if (coords == 'hl2') then
         do k=1,nzbc
-          do j=1,nybc
+          do j=0,nybc+1
+cc          do j=1,nybc
             jglobal = j + jlog - 1
             jj = mod(jglobal+nyg/2,nyg)
             if (jj == 0) jj = nyg
@@ -1317,7 +1318,7 @@ c     Impose BCs
         enddo
       enddo
 
-c     Synchronize covariant and contravariant components => contravariant
+c     Synchronize covariant and contravariant components
 
       call synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv)
 
@@ -1325,15 +1326,11 @@ c     Fill edges (for both cnv and cov components)
 
       do dim=1,3
         do loc=0,1
-cc          ibc = (1+loc)+2*(dim-1)
           do ivar=1,ncomp
-cc            if (cov_to_cnv(ibc,ivar)) then !Covariant
-              call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                      ,dim,loc,bcond(:,ivar))
-cc            else                          !Contravariant
-              call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                      ,dim,loc,bcond(:,ivar))
-cc            endif
+            call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+     .                    ,dim,loc,bcond(:,ivar))
+            call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
+     .                    ,dim,loc,bcond(:,ivar))
           enddo
         enddo
       enddo
@@ -1342,15 +1339,11 @@ c     Fill corners (for both cnv and cov components)
 
       do dim=1,3
         do loc=0,1
-cc          ibc = (1+loc)+2*(dim-1)
           do ivar=1,ncomp
-cc            if (cov_to_cnv(ibc,ivar)) then !Covariant
-              call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                        ,dim,loc,bcond(:,ivar))
-cc            else                          !Contravariant
-              call fillCorners(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                        ,dim,loc,bcond(:,ivar))
-cc            endif
+            call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+     .                      ,dim,loc,bcond(:,ivar))
+            call fillCorners(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
+     .                      ,dim,loc,bcond(:,ivar))
           enddo
         enddo
       enddo
@@ -1361,17 +1354,13 @@ c     Periodic boundary synchronizing
       bctype=PER
       do dim=1,3
         do loc=0,1
-          ibc = (1+loc)+2*(dim-1)
-
           do ivar = 1,ncomp
             ieq = ivar + fcomp - 1
 
-cc            if (abs(bcond(ibc,ivar)) == bctype) then
-              call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cnv
-     .                               ,var0)
-cc            endif
-              call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cov
-     .                               ,var0)
+            call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cnv
+     .                         ,var0)
+            call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cov
+     .                         ,var0)
           enddo
 
         enddo
@@ -1489,11 +1478,6 @@ c     Begin program
         do loc = 0,1
           ibc = (1+loc)+2*(dim-1)
 
-cc              call findBCLoopLimits(dim,loc,iimin,iimax
-cc     .                                     ,jjmin,jjmax
-cc     .                                     ,kkmin,kkmax
-cc     .                                     ,imin,imax,jmin
-cc     .                                     ,jmax,kmin,kmax)
           call findBCLoopLimits(dim,loc,iimin-1,iimax+1
      .                                 ,jjmin-1,jjmax+1
      .                                 ,kkmin-1,kkmax+1
@@ -1517,12 +1501,12 @@ cc     .                                     ,jmax,kmin,kmax)
               enddo
             enddo
 
-          else                           !Synchronize
+          else   !Synchronize (assumes normal component is contravariant)
 
             do ivar = 1,ncomp
 
-              if (ivar == dim) then !Select tangential components (assumes normal component
-                                    !   is always contravariant)
+              if (ivar == dim) then !Do nothing for normal component
+
                 cycle
 
               else
@@ -2125,67 +2109,159 @@ c        * dim -> dimension we are imposing BC on (X,Y,Z)
 c        * loc -> boundary location (0 -> left, 1->right)
 c     -----------------------------------------------------------------
 
-      implicit none
+        implicit none
 
 c     Call variables
 
-      integer    :: dim,loc
-      real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
+        integer    :: dim,loc
+        real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
-      integer    :: imax,imin,jmax,jmin,kmax,kmin,ibc
+        integer    :: imax,imin,jmax,jmin,kmax,kmin,ibc
+
+        integer    :: i,j,k,ig,jg,kg
+        real(8),pointer,dimension(:) :: xx,yy,zz,dxh,dyh,dzh,dx,dy,dz
 
 c     Begin program
 
-      ibc = (1+loc)+2*(dim-1)
+        ibc = (1+loc)+2*(dim-1)
 
-cc      if (np == 1 .or. asm) then
+        rhs = 0d0
 
-      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
-     .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
+c     Setup grid aliases
 
-      select case (ibc)
-      case (1)                  !x0
-cc       if (.not.asm_dir(1))
-cc     . array(0     ,jmin:jmax,kmin:kmax)=
-       array(0     ,jmin:jmax,kmin:kmax)=
-     .      0.5*(array(0,jmin:jmax,kmin:kmax)
-     .          +array(1,jmin:jmax,kmin:kmax))
-      case (2)                  !x1                                       
-cc       if (.not.asm_dir(1))
-cc     . array(nxbc+1,jmin:jmax,kmin:kmax)=
-       array(nxbc+1,jmin:jmax,kmin:kmax)=
-     .      0.5*(array(nxbc+1,jmin:jmax,kmin:kmax)
-     .          +array(nxbc  ,jmin:jmax,kmin:kmax))
-      case (3)                  !y0                                       
-cc       if (.not.asm_dir(2))
-cc     . array(imin:imax,0     ,kmin:kmax)=
-       array(imin:imax,0     ,kmin:kmax)=
-     .      0.5*(array(imin:imax,0,kmin:kmax)
-     .          +array(imin:imax,1,kmin:kmax))
-      case (4)                  !y1                                       
-cc       if (.not.asm_dir(2))
-cc     . array(imin:imax,nybc+1,kmin:kmax)=
-       array(imin:imax,nybc+1,kmin:kmax)=
-     .      0.5*(array(imin:imax,nybc+1,kmin:kmax)
-     .          +array(imin:imax,nybc  ,kmin:kmax))
-      case (5)                  !z0                                       
-cc       if (.not.asm_dir(3))
-cc     . array(imin:imax,jmin:jmax,0     )=
-       array(imin:imax,jmin:jmax,0     )=
-     .      0.5*(array(imin:imax,jmin:jmax,0)
-     .          +array(imin:imax,jmin:jmax,1))
-      case (6)                  !z1                                       
-cc       if (.not.asm_dir(3))
-cc     . array(imin:imax,jmin:jmax,nzbc+1)=
-       array(imin:imax,jmin:jmax,nzbc+1)=
-     .      0.5*(array(imin:imax,jmin:jmax,nzbc+1)
-     .          +array(imin:imax,jmin:jmax,nzbc  ))
-      case default
-       call pstop('interpolateToFace'
-     .           ,'Boundary '//int2char(ibc)//' non existent')
-      end select
+        xx => grid_params%xx
+        yy => grid_params%yy
+        zz => grid_params%zz
+
+        dxh => grid_params%dxh
+        dyh => grid_params%dyh
+        dzh => grid_params%dzh
+
+        dx => grid_params%dx
+        dy => grid_params%dy
+        dz => grid_params%dz
+
+c     Extrapolate
+
+        call findBCLoopLimits(dim,loc
+     .                       ,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
+     .                       ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
+
+        do k=kmin,kmax
+          do j=jmin,jmax
+            do i=imin,imax
+
+              call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+
+              select case (ibc)
+              case (1)
+                rhs(j,k) = 
+     .            quad_int(xx(ig-1),xx(ig),xx(ig+1),xx(ig+2)
+     .                      ,array(i-1,j,k),array(i,j,k)
+     .                      ,array(i+1,j,k),array(i+2,j,k)
+     .                      ,xx(ig-1)+dxh(ig-1),order )
+              case (2)
+                rhs(j,k) =
+     .            quad_int(xx(ig+1),xx(ig),xx(ig-1),xx(ig-2)
+     .                      ,array(i+1,j,k),array(i,j,k)
+     .                      ,array(i-1,j,k),array(i-2,j,k)
+     .                      ,xx(ig+1)-dxh(ig+1),order )
+              case (3)
+
+                rhs(i,k) =
+     .            quad_int(yy(jg-1),yy(jg),yy(jg+1),yy(jg+2)
+     .                      ,array(i,j-1,k),array(i,j,k)
+     .                      ,array(i,j+1,k),array(i,j+2,k)
+     .                      ,yy(jg-1)+dyh(jg-1),order )
+              case (4)
+
+                rhs(i,k) =
+     .            quad_int(yy(jg+1),yy(jg),yy(jg-1),yy(jg-2)
+     .                      ,array(i,j+1,k),array(i,j,k)
+     .                      ,array(i,j-1,k),array(i,j-2,k)
+     .                      ,yy(jg+1)-dyh(jg+1),order )
+              case (5)
+
+                rhs(i,j) =
+     .            quad_int(zz(kg-1),zz(kg),zz(kg+1),zz(kg+2)
+     .                      ,array(i,j,k-1),array(i,j,k)
+     .                      ,array(i,j,k+1),array(i,j,k+2)
+     .                      ,zz(kg-1)+dzh(kg-1),order )
+              case (6)
+
+                rhs(i,j) =
+     .            quad_int(zz(kg+1),zz(kg),zz(kg-1),zz(kg-2)
+     .                      ,array(i,j,k+1),array(i,j,k)
+     .                      ,array(i,j,k-1),array(i,j,k-2)
+     .                      ,zz(kg+1)-dzh(kg+1),order )
+              end select
+            enddo
+          enddo
+        enddo
+
+c       Update BC ghost nodes
+
+        select case (ibc)
+        case (1)                !x0
+         array(0     ,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
+        case (2)               !x1
+         array(nxbc+1,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
+        case (3)                !y0
+         array(imin:imax,0     ,kmin:kmax) = rhs(imin:imax,kmin:kmax)
+        case (4)                !y1
+         array(imin:imax,nybc+1,kmin:kmax) = rhs(imin:imax,kmin:kmax)
+        case (5)                !z0
+         array(imin:imax,jmin:jmax,0     ) = rhs(imin:imax,jmin:jmax)
+        case (6)                !z1
+         array(imin:imax,jmin:jmax,nzbc+1) = rhs(imin:imax,jmin:jmax)
+        case default
+         messg = 'Boundary '//int2char(ibc)//' non existent'
+         call pstop('extrapolate',messg)
+        end select
+
+cc      select case (ibc)
+cc      case (1)                  !x0
+cccc       if (.not.asm_dir(1))
+cccc     . array(0     ,jmin:jmax,kmin:kmax)=
+cc       array(0     ,jmin:jmax,kmin:kmax)=
+cc     .      0.5*(array(0,jmin:jmax,kmin:kmax)
+cc     .          +array(1,jmin:jmax,kmin:kmax))
+cc      case (2)                  !x1                                       
+cccc       if (.not.asm_dir(1))
+cccc     . array(nxbc+1,jmin:jmax,kmin:kmax)=
+cc       array(nxbc+1,jmin:jmax,kmin:kmax)=
+cc     .      0.5*(array(nxbc+1,jmin:jmax,kmin:kmax)
+cc     .          +array(nxbc  ,jmin:jmax,kmin:kmax))
+cc      case (3)                  !y0                                       
+cccc       if (.not.asm_dir(2))
+cccc     . array(imin:imax,0     ,kmin:kmax)=
+cc       array(imin:imax,0     ,kmin:kmax)=
+cc     .      0.5*(array(imin:imax,0,kmin:kmax)
+cc     .          +array(imin:imax,1,kmin:kmax))
+cc      case (4)                  !y1                                       
+cccc       if (.not.asm_dir(2))
+cccc     . array(imin:imax,nybc+1,kmin:kmax)=
+cc       array(imin:imax,nybc+1,kmin:kmax)=
+cc     .      0.5*(array(imin:imax,nybc+1,kmin:kmax)
+cc     .          +array(imin:imax,nybc  ,kmin:kmax))
+cc      case (5)                  !z0                                       
+cccc       if (.not.asm_dir(3))
+cccc     . array(imin:imax,jmin:jmax,0     )=
+cc       array(imin:imax,jmin:jmax,0     )=
+cc     .      0.5*(array(imin:imax,jmin:jmax,0)
+cc     .          +array(imin:imax,jmin:jmax,1))
+cc      case (6)                  !z1                                       
+cccc       if (.not.asm_dir(3))
+cccc     . array(imin:imax,jmin:jmax,nzbc+1)=
+cc       array(imin:imax,jmin:jmax,nzbc+1)=
+cc     .      0.5*(array(imin:imax,jmin:jmax,nzbc+1)
+cc     .          +array(imin:imax,jmin:jmax,nzbc  ))
+cc      case default
+cc       call pstop('interpolateToFace'
+cc     .           ,'Boundary '//int2char(ibc)//' non existent')
+cc      end select
 
 cc      endif
 
@@ -3054,6 +3130,7 @@ c     Identify directions for extrapolation.
 
       !Select boundaries involved 
       ![ibc = (1+loc)+2*(dim-1), with dim=1,2,3, and loc=0(left),1(right)]
+      !Directions 1,2,3 are defined as normal to faces.
 
       ibcl = 0
 
@@ -3144,12 +3221,14 @@ c     Identify directions for extrapolation.
 
       !Identify special boundaries to interpolate **along**
       !   1) SP boundary
+      !   2) Interpolate-to-face boundary
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
-        select_bc(i) =    (bcSP(ibc=i_bc) .and. bcond(i_bc)==SP)
-cc     .                .or.(bcond(i_bc) == EQU)  !Removed 12/13/06
+        select_bc(i) =    (bcSP(ibc=i_bc) .and. abs(bcond(i_bc))==SP)
+     .                .or.(abs(bcond(i_bc)) == IFC)
+     .                .or.(abs(bcond(i_bc)) == EQU) !Removed 12/13/06, added back 11/10/08
       enddo
 
       call select_along
@@ -3163,8 +3242,8 @@ cc     .                .or.(bcond(i_bc) == EQU)  !Removed 12/13/06
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
         select_bc(i) =    (    bcond(i_bc)  == PER)
-cc     .                .or.(abs(bcond(i_bc)) == SYM) !Removed 10/24/08 (special case handled below)
-     .                .or.(abs(bcond(i_bc)) == EQU) !Added 12/13/06
+     .                .or.(abs(bcond(i_bc)) == SYM)
+cc     .                .or.(abs(bcond(i_bc)) == EQU) !Removed 11/10/08 (was interfering with parallelization)
       enddo
 
       call select_across
@@ -3207,13 +3286,6 @@ c     X extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         xto = grid_params%xx(ig)
 
-cc        if ((abs(bcond(ibcl(1))) == SYM)
-cc     .      .and. (ito == iimin -1 .or. ito == iimax + 1)) then  !Exception for symmetry BC
-cc          if (ito == imn) then
-cc            valx(1) = sign(1,bcond(ibcl(1)))*array(ito+2,jto,kto)
-cc          else
-cc            valx(1) = sign(1,bcond(ibcl(1)))*array(ito-2,jto,kto)
-cc          endif
         if (isSYM(ito+1,igxbc,ibc=ibcl(1))) then
           valx(1) = sign(1,bcond(ibcl(1)))*array(ito+2,jto,kto)
         elseif (isSYM(ito-1,igxbc,ibc=ibcl(1))) then
@@ -3249,13 +3321,6 @@ c     Y extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         yto = grid_params%yy(jg)
 
-cc        if ((abs(bcond(ibcl(2)))==SYM)
-cc     .      .and. (jto == jjmin -1 .or. jto == jjmax + 1)) then  !Exception for symmetry BC
-cc          if (jto == jmn) then
-cc            valy(1) = sign(1,bcond(ibcl(2)))*array(ito,jto+2,kto)
-cc          else                                                   
-cc            valy(1) = sign(1,bcond(ibcl(2)))*array(ito,jto-2,kto)
-cc          endif
         if (isSYM(jto+1,igybc,ibc=ibcl(2))) then
           valy(1) = sign(1,bcond(ibcl(2)))*array(ito,jto+2,kto)
         elseif (isSYM(jto-1,igybc,ibc=ibcl(2))) then
@@ -3292,13 +3357,6 @@ c     Z extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         zto = grid_params%zz(kg)
 
-cc        if ((abs(bcond(ibcl(3)))==SYM)
-cc     .      .and. (kto == kkmin -1 .or. kto == kkmax + 1)) then  !Exception for symmetry BC
-cc          if (kto == kmn) then
-cc            valz(1) = sign(1,bcond(ibcl(3)))*array(ito,jto,kto+2)
-cc          else                                                   
-cc            valz(1) = sign(1,bcond(ibcl(3)))*array(ito,jto,kto-2)
-cc          endif
         if (isSYM(kto+1,igzbc,ibc=ibcl(3))) then
           valz(1) = sign(1,bcond(ibcl(3)))*array(ito,jto,kto+2)
         elseif (isSYM(kto-1,igzbc,ibc=ibcl(3))) then
