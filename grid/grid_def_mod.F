@@ -7,7 +7,7 @@ c #####################################################################
 
         implicit none
 
-        integer   ,parameter :: ngparams = 6,UNDEF_INT=-1234
+        integer   ,parameter :: ngparams = 10,UNDEF_INT=-1234
         real(8)   ,parameter :: UNDEF_DP=-1234.
 
         type :: dim_pack
