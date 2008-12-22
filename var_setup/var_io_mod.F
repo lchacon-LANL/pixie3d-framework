@@ -88,6 +88,10 @@ c     Begin program
 
       call writeDerivedType(varray,unit,.false.)
 
+#if !defined(absoft_) && !defined(absoft)
+      call flush(unit)
+#endif
+
 c     End
 
       end subroutine writeRecordFile
