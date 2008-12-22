@@ -22,7 +22,7 @@ c ######################################################################
         integer    :: l_lim(3,0:1),g_lim(3,0:1),rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
 
-        integer    :: MPI_COMM_SP,MPI_COMM_POL
+        integer    :: MPI_COMM_SP,MPI_COMM_POL,MPI_COMM_RAD
         integer   ,allocatable,dimension(:) :: MPI_COMM_PER
         integer   ,allocatable,dimension(:) :: MPI_COMM_NBRS
 
@@ -83,39 +83,61 @@ c     Singular-point boundary MPI communicator
 
         if (bcSP()) call createMPIComm(MPI_COMM_SP,selectRank_SP)
 
-c diag ****
-cc        if (MPI_COMM_SP /= MPI_COMM_NULL) then
-cc          call MPI_Comm_size(MPI_COMM_SP,np_sp,mpierr)
-cc          call MPI_Comm_rank(MPI_COMM_SP,my_sp_rank,mpierr)
-cc          write (*,*) 'SP_COMM ; nproc=',np_sp
-cc     .                ,'; my_sp_rank=',my_sp_rank
-cc     .                ,'; my_rank=',my_rank
-cc        endif
-cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cc        call MPI_Finalize(mpierr)
-cc        stop
-c diag ****
+cc        call check_MPI_COMM(MPI_COMM_SP,'MPI_COMM_SP')
 
 c     Poloidal MPI communicator (domains that share same toroidal and radial slices)
 
-#if defined(vmec)
-        call createMPIComm(MPI_COMM_POL,selectRank_POL)
+        if (bcSP()) call createMPIComm(MPI_COMM_POL,selectRank_POL)
 
-c diag ****
-c$$$        if (MPI_COMM_POL /= MPI_COMM_NULL) then
-c$$$          call MPI_Comm_size(MPI_COMM_POL,np_sp,mpierr)
-c$$$          call MPI_Comm_rank(MPI_COMM_POL,my_sp_rank,mpierr)
-c$$$          write (*,*) 'POL_COMM ; nproc=',np_sp
-c$$$     .                ,'; my_rank_pol=',my_sp_rank
-c$$$     .                ,'; my_rank=',my_rank
-c$$$        endif
-c$$$        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-c$$$        call MPI_Finalize(mpierr)
-c$$$        stop
-c diag ****
-#endif
+cc        call check_MPI_COMM(MPI_COMM_POL,'MPI_COMM_POL')
+
+c     Radial MPI communicator
+
+        if (bcSP()) call createMPIComm(MPI_COMM_RAD,selectRank_RAD)
+
+cc        call check_MPI_COMM(MPI_COMM_RAD,'MPI_COMM_RAD')
 
 c     End program
+
+      contains
+
+c     check_MPI_COMM
+c     ###################################################################
+      subroutine check_MPI_COMM(mpi_comm,mpi_comm_id)
+
+c     -------------------------------------------------------------------
+c     Checks MPI communicator
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: mpi_comm
+      character(*) :: mpi_comm_id
+
+c     Local variables
+
+      integer :: np_l,my_rank_l
+
+c     Begin program
+
+      if (mpi_comm /= MPI_COMM_NULL) then
+        call MPI_Comm_size(MPI_COMM,np_l     ,mpierr)
+        call MPI_Comm_rank(MPI_COMM,my_rank_l,mpierr)
+        write (*,*) trim(mpi_comm_id)//'=',MPI_COMM
+     .                ,'; nproc_local=',np_l
+     .                ,'; my_rank_local=',my_rank_l
+     .                ,'; my_rank_global=',my_rank
+      endif
+
+cc      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cc      call MPI_Finalize(mpierr)
+cc      stop
+
+c     End program
+
+      end subroutine check_MPI_COMM
 
       end subroutine create_MPI_comms
 
@@ -883,6 +905,62 @@ c     Select rank
 c     End program
 
       end subroutine selectRank_POL
+
+c     selectRank_RAD
+c     #####################################################################
+      subroutine selectRank_RAD(split_key)
+
+c     ---------------------------------------------------------------------
+c     Groups processors in poloidal slices (i.e., order them according
+c     to radial and toroidal positions).
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: split_key
+
+c     Local variables
+
+        real(8)    :: random
+        integer    :: loc,lrank
+
+        logical    :: cp(0:1)
+
+c     Begin program
+
+c     Set global limits of local domain l_lim(dim,loc)
+
+        l_lim(1,0) = grid_params%ilo(1)
+        l_lim(2,0) = grid_params%jlo(1)
+        l_lim(3,0) = grid_params%klo(1)
+        l_lim(1,1) = grid_params%ihi(1)
+        l_lim(2,1) = grid_params%jhi(1)
+        l_lim(3,1) = grid_params%khi(1)
+
+c     Set global limits of global domain g_lim(dim,loc)
+
+        g_lim(1,0) = 1
+        g_lim(2,0) = 1
+        g_lim(3,0) = 1
+        g_lim(1,1) = grid_params%nxgl(1)
+        g_lim(2,1) = grid_params%nygl(1)
+        g_lim(3,1) = grid_params%nzgl(1)
+
+c     Select rank
+
+        split_key = 1
+
+        !Group processors based on location in y and z directions
+        !(x direction --radial-- is shared; 
+        ! organize in 2D processor mesh: k + nz*(j-1))
+        split_key = split_key +     npz*l_lim(3,1)/g_lim(3,1)
+     .                        + npz*npy*l_lim(2,1)/g_lim(2,1)
+
+c     End program
+
+      end subroutine selectRank_RAD
 
 ccc     createSPComm
 ccc     #####################################################################
