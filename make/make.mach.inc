@@ -115,8 +115,8 @@ ifeq ($(HOST),ra4)
 endif
 
 ifeq ($(HOST),ra22)
+  PETSC_ARCH = linux_openmpi
   PETSC_DIR =/ricercatori/ft/petsc-2.3.3
-#  MPI_HOME  =/ricercatori/ft/mpich2-1.0.5/gcc-pgf90
   HDF5_HOME =
   CPPFLAGS += $(PREPROC)RFX
   FC        = pgf95
