@@ -160,7 +160,11 @@ c     Output per time step
 
 c     Time level data dump
 
+#if defined(RFX)
+        if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
+#else
         if (nrst.eq.ndstep.or.tmrst.ge.0.99*dstep) then
+#endif
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
           call imposeBoundaryConditions(u_np,1,1,1)
