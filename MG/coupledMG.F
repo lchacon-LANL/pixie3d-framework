@@ -1396,8 +1396,8 @@ c     Check MG convergence
         if (out.ge.3.and.prnt) then
           write (*,10) mag,mag1
         elseif (out.ge.2.and.prnt) then
-          if (mu == 1) write (*,20) mag,mag1,mag2,ivcyc
-          if (mu == 2) write (*,21) mag,mag1,mag2,ivcyc
+          if (mu == 1) write (*,20) mag,mag2,mag1,ivcyc
+          if (mu == 2) write (*,21) mag,mag2,mag1,ivcyc
         endif
 
         rr1 = mag
@@ -1416,13 +1416,13 @@ c MG convergence info
 
       if (igmax.gt.igrid) then
         if (out.eq.1.and.prnt) then
-          if (mu == 1) write (*,20) mag,mag1,mag2,min(ivcyc,vcyc)
-          if (mu == 2) write (*,21) mag,mag1,mag2,min(ivcyc,vcyc)
+          if (mu == 1) write (*,20) mag,mag2,mag1,min(ivcyc,vcyc)
+          if (mu == 2) write (*,21) mag,mag2,mag1,min(ivcyc,vcyc)
         elseif (out.ge.2.and.vcyc.gt.1.and.prnt) then
           write (*,*) 
           write (*,*) 'Final MG convergence info:'
-          if (mu == 1) write (*,20) mag,mag1,mag2,min(ivcyc,vcyc)
-          if (mu == 2) write (*,21) mag,mag1,mag2,min(ivcyc,vcyc)
+          if (mu == 1) write (*,20) mag,mag2,mag1,min(ivcyc,vcyc)
+          if (mu == 2) write (*,21) mag,mag2,mag1,min(ivcyc,vcyc)
           write (*,*)
         endif
       endif
@@ -1439,10 +1439,10 @@ c End program
  7    format (/,' MG V-cycle #:',i3)
  8    format (/,' MG W-cycle #:',i3)
  10   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4)
- 20   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
-     .          '; MG update:',1e12.4,'; V-cycle #:',i3)
- 21   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
-     .          '; MG update:',1e12.4,'; W-cycle #:',i3)
+ 20   format (  ' MG residual:',1p,1e12.4,'; MG update:',1e12.4,
+     .          '; MG ratio:',1e12.4,'; V-cycle #:',i3)
+ 21   format (  ' MG residual:',1p,1e12.4,'; MG update:',1e12.4,
+     .          '; MG ratio:',1e12.4,'; W-cycle #:',i3)
 cc 20   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
 cc     .          '; V-cycle #:',i3)
 cc 21   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
