@@ -3029,7 +3029,6 @@ c----------------------------------------------------------------------
       use mg_internal
 
       use setMGBC_interface
-cc      use imposeBCinterface
 
       implicit none            ! For safe Fortran
 
@@ -3041,10 +3040,15 @@ c Call variables
 
 c Local variables
  
-      real(8)    :: xxf(ntotf/neq),arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
+      real(8)    :: xxf(ntotf/neq,neq),car(3)
+     .             ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
+
+      real(8),allocatable :: arrayf(:,:,:,:),sp_sum(:,:),lp_sum(:,:)
 
       integer    :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg
      .             ,ieq,nntotc,nntotf,igf
+
+      logical    :: cartesian,isvec,iscnv
 
 c Begin program
 
@@ -3057,27 +3061,164 @@ c Unpack vector into array
 
 c Impose boundary conditions (external)
 
-      if (order > 0) call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
-     .                           ,iorder=min(order,3))
+cc      cartesian = (isSP2(1,igc) .and. neq > 1 .and. igc < 3)  !Cartesian components for prolongation
+      cartesian = (isSP2(1,igc) .and. neq > 1)  !Cartesian variables for prolongation
 
-c Prolong arrays
+      if (order > 0 .or. cartesian) then
+        call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+     .              ,iorder=min(order,3)
+     .              ,result_is_vec=(.not.cartesian)
+     .              ,out_isvec=isvec,out_iscnv=iscnv)  !<= These define whether quantities are
+                                                       !   vectors or scalars.
+      endif
+
+      if (cartesian) then
+        !Average Cartesian component around singular point
+cc        write (*,*) 'After BC, before avg'
+cc        write (*,*) arrayc(1,:,1,1)
+cc        write (*,*) arrayc(1,:,1,2)
+cc        write (*,*) arrayc(1,:,1,3)
+
+        allocate(sp_sum(0:nzc+1,neq))
+
+        do ieq=1,neq
+          do k=0,nzc+1
+            sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,ieq))
+     .                    /grid_params%nygl(igc)
+          enddo
+        enddo
+
+cc        sp_sum = sum(arrayc(1,1:nyc,:,:),1)
+cc     .          /grid_params%nygl(igc)
+
+#if defined(petsc)
+        allocate(lsp_sum(0:nzc+1,neq))
+        lsp_sum = sp_sum
+        call MPI_Allreduce(lsp_sum,sp_sum,neq*(nzc+2)
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+        deallocate(lsp_sum)
+#endif
+
+        do ieq=1,neq
+          do k=0,nzc+1
+            arrayc(1,:,k,ieq) = sp_sum(k,ieq)
+            arrayc(0,:,k,ieq) = sp_sum(k,ieq)
+          enddo
+        enddo
+
+        deallocate(sp_sum)
+cc        write (*,*) 'After BC, after avg'
+cc        write (*,*) arrayc(1,:,1,1)
+cc        write (*,*) arrayc(1,:,1,2)
+cc        write (*,*) arrayc(1,:,1,3)
+cc        stop
+      endif
+
+c Prolong arrays (use scalar prolongation)
+
+      xxf = 0d0
 
       do ieq=1,neq
 
-c     Use scalar prolongation (arrayc -> xxf)
-
-        xxf = 0d0
-
-        call prolong(xxf              ,nxf,nyf,nzf
+        call prolong(xxf   (:    ,ieq),nxf,nyf,nzf
      .              ,arrayc(:,:,:,ieq),nxc,nyc,nzc
      .              ,order,igc)
 
-c     Repack prolonged vector
+cc        !Repack prolonged vector
+cc        do i=1,nntotf
+cc          xf(neq*(i-1)+ieq)=xxf(i)
+cc        enddo
 
-        do i=1,nntotf
-          xf(neq*(i-1)+ieq)=xxf(i)
+      enddo
+
+c Transform back to curvilinear (if isvec=.true.)
+
+      if (isvec) then
+
+        igf = igc - 1
+
+cc        allocate(arrayf(0:nxf+1,0:nyf+1,0:nzf+1,neq))
+cc
+cc        call mapMGVectorToArray(0,neq,xf,nxf,nyf,nzf,arrayf,igf,.false.)
+cc
+cc        !Average Cartesian component around singular point
+cc        write (*,*) 'Fine grid, cartesian'
+cc        write (*,*) arrayf(1,:,1,1)
+cc        write (*,*) arrayf(1,:,1,2)
+cc        write (*,*) arrayf(1,:,1,3)
+
+cc        do ieq=1,neq
+cc          do k=0,nzf+1
+cc            arrayf(1,:,k,ieq) = sum(arrayf(1,1:nyf,k,ieq))/nyf
+cc            arrayf(0,:,k,ieq) = sum(arrayf(0,1:nyf,k,ieq))/nyf
+cc          enddo
+cc        enddo
+
+cc        write (*,*) 'After BC, after avg'
+cc        write (*,*) arrayc(1,:,1,1)
+cc        write (*,*) arrayc(1,:,1,2)
+cc        write (*,*) arrayc(1,:,1,3)
+cc        stop
+cc
+cc        write (*,*) iscnv
+
+        do k = 1,nzf
+          do j = 1,nyf
+            do i = 1,nxf
+              do ieq=1,neq/3
+                iif = vecPos(1,i,j,k,igf,igf,igf)+1
+
+                car = xxf(iif,:)
+
+                call transformVectorToCurvilinear
+     .             (i,j,k,igf,igf,igf
+     .             ,car(1),car(2),car(3)
+     .             ,.not.iscnv
+     .             ,xxf(iif,1),xxf(iif,2),xxf(iif,3))
+              enddo
+            enddo
+          enddo
         enddo
 
+cc        call mapMGVectorToArray(0,neq,xf,nxf,nyf,nzf,arrayf,igf,.false.)
+cc
+cc        !Average Cartesian component around singular point
+cc        write (*,*) 'Fine grid, curvilinear'
+cc        write (*,*) arrayf(1,:,1,1)
+cc        write (*,*) arrayf(1,:,1,2)
+cc        write (*,*) arrayf(1,:,1,3)
+
+cc        call setMGBC(0,neq,nxf,nyf,nzf,igf,arrayf,bcnd
+cccc     .              ,iorder=min(order,3),is_vec=.false.
+cc     .              ,iorder=min(order,3)
+cc     .              ,result_is_vec=.true.)
+cc
+cc        write (*,*) 'Fine grid, after BC'
+cc        write (*,*) arrayf(1,:,1,1)
+cc        write (*,*) arrayf(1,:,1,2)
+cc        write (*,*) arrayf(1,:,1,3)
+cc        stop
+
+cc        write (*,*) 'After'
+cc        do ieq=1,neq
+cc          do k=1,nzf
+cc            write (*,*) arrayf(1,:,k,ieq)
+cc          enddo
+cc        enddo
+cc
+cc        call mapArrayToMGVector(neq,nxf,nyf,nzf,arrayf,xf,1)
+cc
+cc        deallocate(arrayf)
+
+      endif
+
+c     Repack prolonged vector
+
+      do ieq=1,neq
+        do i=1,nntotf
+          xf(neq*(i-1)+ieq)=xxf(i,ieq)
+        enddo
       enddo
 
 c End program
@@ -3623,8 +3764,8 @@ c Local variables
       logical    :: fdiag,fpointers,vbr
 
       integer    :: i,j,k,iv,jv,kv,if,jf,kf,nxf,nyf,nzf,iiv,ivg,ncolors
-      integer    :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblk
-      real(8)    :: mag0=1d0,mag1,mag,lmag,yy(ntot)
+      integer    :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblk,i1
+      real(8)    :: mag0=1d0,mag1,mag,lmag,yy(ntot),magsp,magsp0
 
       real(8),allocatable, dimension(:)  :: dummy,rhs
 
@@ -3813,55 +3954,73 @@ c       STANDARD RELAXATION
 
           !Take care of points around singular point
           if (isSP(1,1,1,igrid,igrid,igrid)) then
+#if defined(petsc)
+            call pstop('jb','Does not work in parallel')
+#endif
+            do i1=3,1,-1
 
-            !plane JB
-            MGgrid%iline(igrid) = 1 !Set i for line smoothing around SP
-cc            MGgrid%kline(igrid) = k !Set k for line smoothing around SP
+              !plane JB
+              MGgrid%iline(igrid) = i1 !Set i for line smoothing around SP
 
-            call limits(0,nxf,nyf,nzf,igrid
-     .           ,imin,imax,jmin,jmax,kmin,kmax)
+              call limits(0,nxf,nyf,nzf,igrid
+     .             ,imin,imax,jmin,jmax,kmin,kmax)
 
-            do itr2=1,5 !JB iteration around SP
+              do itr2=1,5 !JB iteration around SP
 
-              call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+                magsp = 0d0
 
-              do k=kmin,kmax
-                do j=jmin,jmax
-                  do i=imin,imax
-                    !nxf,nyf,nzf are the original grid's even in line relaxation.
-                    ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+                call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
 
-                    iii = neq*(ii-1)
+                do k=kmin,kmax
+                  do j=jmin,jmax
+                    do i=imin,imax
+                      !nxf,nyf,nzf are the original grid's even in line relaxation.
+                      ii = i + nxf*(j-1) + nxf*nyf*(k-1)
 
-                    !Find new residual
-                    do ieq = 1,neq
-                      rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+                      iii = neq*(ii-1)
+
+                      !Find new residual
+                      do ieq = 1,neq
+                        rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+                      enddo
+
+                      !Multiply by D^-1 (stored in diag)
+                      iig = iii + isig - 1
+                      dummy =
+     .                   matmul(transpose(diag(:,iig+1:iig+neq))
+     .                         ,rhs)
+
+                      !Update solution zz
+                      do ieq=1,neq
+                        zz(iii+ieq) = zz(iii+ieq) + 0.8*dummy(ieq)
+                      enddo
+
+                      magsp = magsp + sum(rhs*rhs)
                     enddo
-
-                    !Multiply by D^-1 (stored in diag)
-                    iig = iii + isig - 1
-                    dummy =
-     .                 matmul(transpose(diag(:,iig+1:iig+neq))
-     .                       ,rhs)
-
-                    !Update solution zz
-                    do ieq=1,neq
-                      zz(iii+ieq) = zz(iii+ieq) + 0.7*dummy(ieq)
-                    enddo
-
-                    mag = mag + sum(rhs*rhs)
                   enddo
                 enddo
+
+                if (itr2 == 1) then
+                  magsp0 = magsp
+                else
+                  if (out.ge.3.and.prnt)
+     .              write (*,*) '  SP smoothing in JB, iter=',itr2
+     .                             ,' Ratio=',sqrt(magsp/magsp0)
+                  if (sqrt(magsp/magsp0) < 0.5) exit
+                endif
+
               enddo
+
+              if (out.eq.2.and.prnt)
+     .           write (*,*) '  SP smoothing in GS: line = ',i1
+     .                       ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
+
             enddo
 
             MGgrid%iline(igrid) = 0 !Unset line smoothing
-cc            MGgrid%kline(igrid) = 0 !Set line smoothing around SP
 
           endif
 
-cc          write (*,*) 'DIAG -- jb'
-cc          mag = sum(zz*zz)  !For comparison with Matlab
         endif
 
 c     Check convergence
@@ -4210,246 +4369,11 @@ cc                      endif
                     enddo
                   enddo
 
-cc                  !Take care of points around singular point
-cc                  if (isSP(1,1,1,igrid,igrid,igrid)) then
-cc
-cc                    !plane JB
-cc                    MGgrid%iline(igrid) = 1 !Set i for line smoothing around SP
-cc                    MGgrid%kline(igrid) = k !Set k for line smoothing around SP
-cc
-cc                    write (*,*) 'k slice',k,k1
-cc
-cc                    call limits(0,nxf,nyf,nzf,igrid
-cc     .                   ,imin,imax,jmin,jmax,kmin,kmax)
-cc
-cc                    do itr2=1,100 !JB iteration around SP
-cc
-cc                      magsp = 0d0
-cc
-cc                      call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-cc
-cc                      do k=kmin,kmax
-cc                        do j=jmin,jmax
-cc                          do i=imin,imax
-cc                            !nxf,nyf,nzf are the original grid's even in line relaxation.
-cc                            ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-cc
-cc                            iii = neq*(ii-1)
-cc
-cc                            !Find new residual
-cc                            do ieq = 1,neq
-cc                              rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-cc                            enddo
-cc
-cc                            !Multiply by D^-1 (stored in diag)
-cc                            iig = iii + isig - 1
-cc                            dummy =
-cc     .                         matmul(transpose(diag(:,iig+1:iig+neq))
-cc     .                               ,rhs)
-cc
-cc                            !Update solution zz
-cc                            do ieq=1,neq
-cc                              zz(iii+ieq) = zz(iii+ieq) + 0.7*dummy(ieq)
-cc                            enddo
-cc
-cc                            magsp = magsp + sum(rhs*rhs)
-cc                          enddo
-cc                        enddo
-cc                      enddo
-cc
-cc                      if (itr2 == 1) then
-cc                        magsp0 = magsp
-cc                      else
-cc                        if (out.ge.2.and.prnt)
-cc     .                   write (*,*) '  SP smoothing in GS, iter=',itr2
-cc     .                              ,' Ratio=',sqrt(magsp/magsp0)
-cc                        if (sqrt(magsp/magsp0) < 0.5) exit
-cc                      endif
-cc                    enddo
-cc
-cc                    mag = mag + magsp
-cc                    if (out.eq.1.and.prnt)
-cc     .                 write (*,*) '  SP smoothing in GS: iter=',itr2
-cc     .                           ,sqrt(magsp/magsp0)
-cc
-cc                    MGgrid%iline(igrid) = 0 !Unset line smoothing
-cc                    MGgrid%kline(igrid) = 0 !Set line smoothing around SP
-cc
-cccc                    call limits(0,nxf,nyf,nzf,igrid
-cccc     .                         ,imin,imax,jmin,jmax,kmin,kmax)
-cccc
-cccc                    i = 1
-cccc
-cccc                    k = k1
-cccc
-cccc                    do j=jmin,jmax
-cccc
-cccc                      !nxf,nyf,nzf are the original grid's even in line relaxation.
-cccc                      ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-cccc
-cccc                      call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd
-cccc     .                             ,matvec)
-cccc
-cccc                      iii = neq*(ii-1)
-cccc
-cccc                      !Find new residual
-cccc                      do ieq = 1,neq
-cccc                        rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-cccc                      enddo
-cccc
-cccc                      !Multiply by D^-1 (stored in diag)
-cccc                      iig = iii + isig - 1
-cccc                      dummy = matmul(transpose(diag(:,iig+1:iig+neq))
-cccc     .                              ,rhs)
-cccc
-cccc                      !Update solution zz
-cccc                      do ieq=1,neq
-cccc                        zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
-cccc                      enddo
-cccc
-cccc                      mag = mag + sum(rhs*rhs)
-cccc
-cccc                    enddo
-cc
-cc                  endif
-
                 enddo
 
                 enddo
               enddo
             enddo
-
-c         Take care of points around singular point (using JB)
-
-            if (isSP(1,1,1,igrid,igrid,igrid)) then
-
-cc              call equateGridStructure(line_mg_grid,MGgrid) !Copy existing grid info
-cccc              line_mg_grid            = MGgrid !Copy existing grid info
-cc              line_mg_grid%nxv        = 1 !Collapse grid in x-direction
-cc              line_mg_grid%mg_ratio_x = 1 !Collapse grid in x-direction
-cc
-cc              !Define plane/line for subsequent MG solvers at all grids
-cc              line_mg_grid%iline(igr) = i
-cc              do ig = igr+1,ngrid
-cc                line_mg_grid%iline(ig) = ( line_mg_grid%iline(ig-1)
-cc     .                                    +MGgrid%mg_ratio_x(ig-1)-1 )
-cc     .                                   /MGgrid%mg_ratio_x(ig-1)
-cc              enddo
-cc
-cc              !Restrict grid pointers
-cc              call saveMGgrid(line_mg_grid)
-cc
-cc              !Solve plane/line (find solution update dx)
-cc              call lineSolver(nn,line_mg_grid,yy,zz,igrid,1)
-cc
-cc              !Update solution (x = x + dx)
-cc              call MGvecadd(igr,neq,nn,1d0,xx(isig),omega,dx)
-cc
-cc              !Recover grid pointers
-cc              call restoreMGgrid
-cc
-cc              call deallocateGridStructure(line_mg_grid)
-
-              !plane JB
-              do i1=1,3
-
-                MGgrid%iline(igrid) = i1   !Set line smoothing around SP
-
-                call limits(0,nxf,nyf,nzf,igrid
-     .                     ,imin,imax,jmin,jmax,kmin,kmax)
-
-
-                do itr2=1,20    !JB iteration around SP
-
-                  magsp = 0d0
-
-                  call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-
-                  do k=kmin,kmax
-                    do j=jmin,jmax
-                      do i=imin,imax
-                      !nxf,nyf,nzf are the original grid's even in line relaxation.
-                      ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-
-                      iii = neq*(ii-1)
-
-                      !Find new residual
-                      do ieq = 1,neq
-                        rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-                      enddo
-
-                      !Multiply by D^-1 (stored in diag)
-                      iig = iii + isig - 1
-                      dummy = matmul(transpose(diag(:,iig+1:iig+neq))
-     .                              ,rhs)
-
-                      !Update solution zz
-                      do ieq=1,neq
-                        zz(iii+ieq) = zz(iii+ieq) + 0.8*dummy(ieq)
-                      enddo
-
-                      magsp = magsp + sum(rhs*rhs)
-                      enddo
-                    enddo
-                  enddo
-
-                  if (itr2 == 1) then
-                    magsp0 = magsp
-                  else
-                    if (out.ge.3.and.prnt)
-     .                write (*,*) '  SP smoothing in GS, iter=',itr2
-     .                           ,' Ratio=',sqrt(magsp/magsp0)
-                    if (sqrt(magsp/magsp0) < 0.5) exit
-                  endif
-
-                enddo
-
-                if (out.eq.2.and.prnt)
-     .            write (*,*) '  SP smoothing in GS: line = ',i1
-     .                       ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
-
-              enddo
-
-              MGgrid%iline(igrid) = 0 !Unset line smoothing
-
-cc              !GS
-cc              call limits(0,nxf,nyf,nzf,igrid
-cc     .                   ,imin,imax,jmin,jmax,kmin,kmax)
-cc
-cc              i = 1
-cc
-cc              do k=kmin,kmax
-cc               do itr2=1,10
-cc                do j=jmin,jmax
-cc
-cc                  !nxf,nyf,nzf are the original grid's even in line relaxation.
-cc                  ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-cc
-cc                  call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
-cc
-cc                  iii = neq*(ii-1)
-cc
-cc                  !Find new residual
-cc                  do ieq = 1,neq
-cc                    rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-cc                  enddo
-cc
-cc                  !Multiply by D^-1 (stored in diag)
-cc                  iig = iii + isig - 1
-cc                  dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
-cc
-cc                  !Update solution zz
-cc                  do ieq=1,neq
-cc                    zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
-cc                  enddo
-cc
-cc                  mag = mag + sum(rhs*rhs)
-cc
-cc                enddo
-cc               enddo
-cc              enddo
-
-           endif
 
           endif
 
@@ -4599,6 +4523,117 @@ cc              enddo
 cc            enddo
 
           endif
+
+        endif
+
+c       Take care of points around singular point (using JB)
+
+        if (isSP(1,1,1,igrid,igrid,igrid)) then
+#if defined(petsc)
+          call pstop('gs','Does not work in parallel')
+#endif
+          do i1=3,1,-1
+
+            MGgrid%iline(igrid) = i1   !Set line smoothing around SP
+
+            call limits(0,nxf,nyf,nzf,igrid
+     .                 ,imin,imax,jmin,jmax,kmin,kmax)
+
+cc            write (*,*) imin,imax,jmin,jmax,kmin,kmax
+
+            do itr2=1,5    !JB iteration around SP
+
+              magsp = 0d0
+
+              call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+
+              do k=kmin,kmax
+                do j=jmin,jmax
+                  do i=imin,imax
+                    !nxf,nyf,nzf are the original grid's even in line relaxation.
+                    ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+
+                    iii = neq*(ii-1)
+
+                    !Find new residual
+                    do ieq = 1,neq
+                      rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+                    enddo
+
+                    !Multiply by D^-1 (stored in diag)
+                    iig = iii + isig - 1
+                    dummy = matmul(transpose(diag(:,iig+1:iig+neq))
+     .                            ,rhs)
+
+                    !Update solution zz
+                    do ieq=1,neq
+                      zz(iii+ieq) = zz(iii+ieq) + 0.7*dummy(ieq)
+                    enddo
+
+                    magsp = magsp + sum(rhs*rhs)
+                  enddo
+                enddo
+              enddo
+
+              if (itr2 == 1) then
+                magsp0 = magsp
+              else
+                if (out.ge.3.and.prnt)
+     .               write (*,*) '  SP smoothing in GS: line = ',i1
+     .                   ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
+                if (   sqrt(magsp/magsp0) < 0.5
+     .             .or.sqrt(magsp/magsp0) > 1d0) exit
+              endif
+
+            enddo
+
+            if (out.ge.3.and.prnt) write (*,*)
+
+            if (out.eq.2.and.prnt)
+     .        write (*,*) '  SP smoothing in GS: line = ',i1
+     .                   ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
+
+cc            if (magsp/magsp0 > 1d0) stop
+          enddo
+
+          MGgrid%iline(igrid) = 0 !Unset line smoothing
+
+cc        !GS
+cc        call limits(0,nxf,nyf,nzf,igrid
+cc     .             ,imin,imax,jmin,jmax,kmin,kmax)
+cc
+cc        i = 1
+cc
+cc        do k=kmin,kmax
+cc         do itr2=1,10
+cc          do j=jmin,jmax
+cc
+cc            !nxf,nyf,nzf are the original grid's even in line relaxation.
+cc            ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+cc
+cc            call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
+cc
+cc            iii = neq*(ii-1)
+cc
+cc            !Find new residual
+cc            do ieq = 1,neq
+cc              rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+cc            enddo
+cc
+cc            !Multiply by D^-1 (stored in diag)
+cc            iig = iii + isig - 1
+cc            dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
+cc
+cc            !Update solution zz
+cc            do ieq=1,neq
+cc              zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
+cc            enddo
+cc
+cc            mag = mag + sum(rhs*rhs)
+cc
+cc          enddo
+cc         enddo
+cc        enddo
 
         endif
 
@@ -5052,8 +5087,8 @@ c Call variables
 c Local variables
 
       real(8)    :: x1(ntot),dummy(ntot),mat(neq,neq),mat2(neq,neq)
-     .             ,idet
-      integer    :: ii,jj,nn,ig,iig,isig
+     .             ,idet,coeff
+      integer    :: ii,jj,nn,ig,iig,isig,bbcnd2(6,neq)
       integer    :: igr,ieq,alloc_stat
       logical    :: fpointers
 
@@ -5098,6 +5133,9 @@ c       Form diagonal terms for smoother
           x1   (1:nn) = 0d0
           dummy(1:nn) = 0d0
 
+          bbcnd2 = bbcnd
+          where (bbcnd == SP) bbcnd2 = DEF !Avoid SP bc's for forming diagonal (they're nonlocal)
+
 c       Finds block diagonals for neq equations.
 
           call scheduleColors(igr,ncolors,nrbg1,nrbg2,nrbg3
@@ -5122,7 +5160,7 @@ c       Finds block diagonals for neq equations.
                     enddo
                   enddo
 
-                  call MGmatvec(0,neq,nn,x1,dummy,igr,bbcnd,matvec)
+                  call MGmatvec(0,neq,nn,x1,dummy,igr,bbcnd2,matvec)
 
                   do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
                     do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2
@@ -5150,40 +5188,63 @@ c       Finds block diagonals for neq equations.
 
 c       Take care of points around singular point
 
-          if (isSP(1,1,1,igr,igr,igr)) then
-
-            call limits(0,nxv(igr),nyv(igr),nzv(igr),igr
-     .                 ,i1min,i1max,j1min,j1max,k1min,k1max)
-
-            do ieq = 1,neq
-
-              i = 1    !Concentrate around singular point
-
-              do k=k1min,k1max  !Need to do 2 colors in k; not yet implemented
-                do j=j1min,j1max
-
-                  ii = i +nxv(igr)*(j-1) +nxv(igr)*nyv(igr)*(k-1)
-
-                  !Perform matvec
-
-                  x1(neq*(ii-1) + ieq) = 1d0
-
-                  call MGmatvec(ii,neq,nn,x1,dummy,igr,bbcnd,matvec)
-
-                  x1(neq*(ii-1) + ieq) = 0d0
-
-                  !Fill diagonal
-
-                  jj  = (ii-1)*neq + isig - 1
-
-                  diag1(ieq,jj+1:jj+neq) = dummy((ii-1)*neq+1:ii*neq)
-
-                enddo
-              enddo
-
-            enddo
-
-          endif
+cccc          if (isSP(1,1,1,igr,igr,igr)) then
+cc          if (bcSP()) then
+cc
+cc#if defined(petsc)
+cccc            call pstop('find_mf_diag_colored'
+cccc     .                ,'Does not work in parallel')
+cc#endif
+cc
+cc            !Concentrate around singular point
+cc            i = 1
+cc            coeff = 0d0
+cc            if (isSP2(i,igr)) coeff = 1d0
+cc
+cccc            MGgrid%iline(igr) = i !Set line smoothing around SP
+cccc
+cccc            call scheduleColors(igr,ncolors,nrbg1,nrbg2,nrbg3
+cccc     .                         ,i1min,i1max,j1min,j1max,k1min,k1max)
+cc
+cccc            call limits(0,nxv(igr),nyv(igr),nzv(igr),igr
+cccc     .                 ,i1min,i1max,j1min,j1max,k1min,k1max)
+cc
+cc            do ieq = 1,neq
+cc
+cc              do k=k1min,k1max  !Need to do 2 colors in k; not yet implemented
+cc                do j=j1min,j1max
+cc
+cccc              do irbg3 = 1,nrbg3
+cccc                do irbg2 = 1,nrbg2
+cccc                  do irbg1 = 1,nrbg1
+cccc
+cccc                  do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
+cccc                    do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2
+cccc                      do i1=i1min+mod(j1+k1+irbg1-1,nrbg1),i1max,nrbg1
+cc
+cc                  ii = i +nxv(igr)*(j-1) +nxv(igr)*nyv(igr)*(k-1)
+cc
+cc                  !Perform matvec
+cc
+cc                  x1(neq*(ii-1) + ieq) = coeff
+cc
+cc                  call MGmatvec(ii,neq,nn,x1,dummy,igr,bbcnd,matvec)
+cc
+cc                  x1(neq*(ii-1) + ieq) = 0d0
+cc
+cc                  !Fill diagonal
+cc
+cc                  jj  = (ii-1)*neq + isig - 1
+cc
+cc                  if (coeff == 1d0)
+cc     .               diag1(ieq,jj+1:jj+neq) = dummy((ii-1)*neq+1:ii*neq)
+cc
+cc                enddo
+cc              enddo
+cc
+cc            enddo
+cc
+cc          endif
 
 c       Invert diagonal and store in diag1
 
