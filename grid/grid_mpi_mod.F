@@ -326,15 +326,22 @@ c     Call variables
 c     Local variables
 
       real(8)    :: lsum
+      integer    :: mpic
 
 c     Begin program
+
+      if (PRESENT(mpic)) then
+        mpic = mpi_comm
+      else
+        mpic = MPI_COMM_WORLD
+      endif
 
       psum = sum(vec1)
 
       if (.not.asm) then
         lsum = psum
         call MPI_Allreduce(lsum,psum,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+     .                    ,MPI_SUM,mpic,mpierr)
       endif
 
       end function psum
