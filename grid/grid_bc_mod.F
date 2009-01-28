@@ -3537,8 +3537,8 @@ c######################################################################
 c     setMGBC
 c     ###############################################################
       subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,arr_cov
-     .                  ,arr0,icomp,is_cnv,is_vec,result_is_vec,out_cnv
-     .                  ,iorder)
+     .                  ,arr0,icomp,is_cnv,is_vec,result_is_vec
+     .                  ,out_iscnv,out_isvec,iorder)
 c     ---------------------------------------------------------------
 c     Interfaces BC routines with MG code, for preconditioning.
 c     On input:
@@ -3569,9 +3569,12 @@ c              (also Cartesian vector components).
 c       *result_is_vec: logical variable specifying whether output
 c                       in array should be curvilinear (.true.) or
 c                       not (default=is_vec)
-c       *out_cnv (intent OUT): specifies representation of output
-c                              vector (needed when is_cnv is inherited
-c                              from a previous call).
+c       *out_isvec (intent OUT): specifies whether input is curvilinear
+c                                vector (needed when is_vec is inherited
+c                                from a previous call).
+c       *out_iscnv (intent OUT): specifies representation of output
+c                                vector (needed when is_cnv is inherited
+c                                from a previous call).
 c       *iorder: order of inter/extrapolation in BC routines (quadratic
 c                by default).
 c
@@ -3595,7 +3598,7 @@ c     Call variables
       integer   ,optional,intent(IN) :: icomp,iorder
 
       logical   ,optional,intent(IN) :: is_cnv,is_vec,result_is_vec
-      logical   ,optional,intent(OUT):: out_cnv
+      logical   ,optional,intent(OUT):: out_iscnv,out_isvec
 
 c     Local variables
 
@@ -3635,7 +3638,8 @@ c     Optional arguments
         order = 2
       endif
 
-      if (PRESENT(out_cnv)) out_cnv=iscnv
+      if (PRESENT(out_iscnv)) out_iscnv=iscnv
+      if (PRESENT(out_isvec)) out_isvec=isvec
 
 c     Consistency check
 
