@@ -36,12 +36,7 @@ c #####################################################################
         end type MG_grid_metrics
 
         type :: grid_mg_def
-          !SAMRAI needs to define these!
-          integer :: ngrdx                                !Grid levels in X
-          integer :: ngrdy                                !Grid levels in Y
-          integer :: ngrdz                                !Grid levels in Z
-          integer :: ngrid                                !Max grid levels for MG
-
+          !External grid manager (e.g. SAMRAI) needs to define these!
           integer :: nglx                                 !Global number of mesh points in X
           integer :: ngly                                 !Global number of mesh points in Y
           integer :: nglz                                 !Global number of mesh points in Z
@@ -52,17 +47,24 @@ c #####################################################################
           integer :: jhig                                 !Global higher limit in Y
           integer :: klog                                 !Global lower  limit in Z
           integer :: khig                                 !Global higher limit in Z
-          !SAMRAI needs to define these!
+
+          real(8) :: gxmin,gxmax                          !Physical dim. of global domain in X
+          real(8) :: gymin,gymax                          !Physical dim. of global domain in Y
+          real(8) :: gzmin,gzmax                          !Physical dim. of global domain in Z
+
+          integer :: mpi_comm,np,rank                     !MPI info
+          !External grid manager (e.g. SAMRAI) needs to define these!
+
+          integer :: ngrdx                                !Grid levels in X
+          integer :: ngrdy                                !Grid levels in Y
+          integer :: ngrdz                                !Grid levels in Z
+          integer :: ngrid                                !Max grid levels for MG
 
           integer :: nlx                                  !Local number of mesh points in X
           integer :: nly                                  !Local number of mesh points in Y
           integer :: nlz                                  !Local number of mesh points in Z
 
           integer :: gcw                                  !Ghost cell width
-
-          real(8) :: lxmin,lxmax                          !Global physical dimensions in X
-          real(8) :: lymin,lymax                          !Global physical dimensions in Y
-          real(8) :: lzmin,lzmax                          !Global physical dimensions in Z
 
           integer   ,pointer,dimension(:)  :: ilo         !Global lower limit in X in all grids
           integer   ,pointer,dimension(:)  :: jlo         !Global lower limit in Y in all grids
@@ -111,7 +113,6 @@ c #####################################################################
 
 #if defined(petsc)
           type(petsc_da_ctx),pointer,dimension(:)::dactx  !PETSc DA context
-          integer :: mpi_comm,np,rank                     !MPI info
 #endif
 
         end type grid_mg_def
@@ -152,14 +153,16 @@ c     Begin program
           nullify(grid_st%xx)
           nullify(grid_st%gmetric)
 
-          grid_st%ngrdx = ngridx
-          grid_st%ngrdy = ngridy
-          grid_st%ngrdz = ngridz
-          grid_st%ngrid = ngrid
-
           grid_st%nglx = nglx
           grid_st%ngly = ngly
           grid_st%nglz = nglz
+
+          grid_st%gxmin = UNDEF_DP    !Indicates it is provided by input file
+          grid_st%gxmax = UNDEF_DP
+          grid_st%gymin = UNDEF_DP
+          grid_st%gymax = UNDEF_DP
+          grid_st%gzmin = UNDEF_DP
+          grid_st%gzmax = UNDEF_DP
 
 #if defined(petsc)
           if (PRESENT(mpi_comm)) then
@@ -188,15 +191,16 @@ c     Begin program
           grid_st%jhig  = ngly
           grid_st%klog  = 1
           grid_st%khig  = nglz
+
+          grid_st%np    = 1
+          grid_st%rank  = 0
 #endif
         endif
 
-        grid_st%lxmin = UNDEF_DP
-        grid_st%lxmax = UNDEF_DP
-        grid_st%lymin = UNDEF_DP
-        grid_st%lymax = UNDEF_DP
-        grid_st%lzmin = UNDEF_DP
-        grid_st%lzmax = UNDEF_DP
+        grid_st%ngrdx = ngridx
+        grid_st%ngrdy = ngridy
+        grid_st%ngrdz = ngridz
+        grid_st%ngrid = ngrid
 
         ilog = grid_st%ilog
         ihig = grid_st%ihig
@@ -371,12 +375,12 @@ c     Begin program
         grid_st%klog = 0
         grid_st%khig = 0
 
-        grid_st%lxmin = UNDEF_DP
-        grid_st%lxmax = UNDEF_DP
-        grid_st%lymin = UNDEF_DP
-        grid_st%lymax = UNDEF_DP
-        grid_st%lzmin = UNDEF_DP
-        grid_st%lzmax = UNDEF_DP
+        grid_st%gxmin = UNDEF_DP
+        grid_st%gxmax = UNDEF_DP
+        grid_st%gymin = UNDEF_DP
+        grid_st%gymax = UNDEF_DP
+        grid_st%gzmin = UNDEF_DP
+        grid_st%gzmax = UNDEF_DP
 
         if (associated(grid_st%xx)) then
           deallocate(grid_st%xg)
@@ -522,12 +526,12 @@ c       Copy values
         grid_st2%iline      = grid_st1%iline
         grid_st2%jline      = grid_st1%jline
         grid_st2%kline      = grid_st1%kline
-        grid_st2%lxmin      = grid_st1%lxmin
-        grid_st2%lxmax      = grid_st1%lxmax
-        grid_st2%lymin      = grid_st1%lymin
-        grid_st2%lymax      = grid_st1%lymax
-        grid_st2%lzmin      = grid_st1%lzmin
-        grid_st2%lzmax      = grid_st1%lzmax
+        grid_st2%gxmin      = grid_st1%gxmin
+        grid_st2%gxmax      = grid_st1%gxmax
+        grid_st2%gymin      = grid_st1%gymin
+        grid_st2%gymax      = grid_st1%gymax
+        grid_st2%gzmin      = grid_st1%gzmin
+        grid_st2%gzmax      = grid_st1%gzmax
 
         grid_st2%g_pack     = grid_st1%g_pack
 

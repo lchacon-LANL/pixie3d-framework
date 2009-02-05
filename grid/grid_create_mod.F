@@ -233,7 +233,7 @@ c     Call variables
 c     Local variables
 
         integer :: i
-        real(8) :: lxmin,lxmax,lymin,lymax,lzmin,lzmax
+        real(8) :: gxmin,gxmax,gymin,gymax,gzmin,gzmax
 
 c     Begin program
 
@@ -338,40 +338,40 @@ c     Consistency checks
 
 c     Define uniform logical LOCAL grid on ALL grid levels
 
-        if (gdef%lxmin == UNDEF_DP) then
-          lxmin = xmin
+        if (gdef%gxmin == UNDEF_DP) then
+          gxmin = xmin
         else
-          lxmin = gdef%lxmin
+          gxmin = gdef%gxmin
         endif
 
-        if (gdef%lxmax == UNDEF_DP) then
-          lxmax = xmax
+        if (gdef%gxmax == UNDEF_DP) then
+          gxmax = xmax
         else
-          lxmax = gdef%lxmax
+          gxmax = gdef%gxmax
         endif
 
-        if (gdef%lymin == UNDEF_DP) then
-          lymin = ymin
+        if (gdef%gymin == UNDEF_DP) then
+          gymin = ymin
         else
-          lymin = gdef%lymin
+          gymin = gdef%gymin
         endif
 
-        if (gdef%lymax == UNDEF_DP) then
-          lymax = ymax
+        if (gdef%gymax == UNDEF_DP) then
+          gymax = ymax
         else
-          lymax = gdef%lymax
+          gymax = gdef%gymax
         endif
 
-        if (gdef%lzmin == UNDEF_DP) then
-          lzmin = zmin
+        if (gdef%gzmin == UNDEF_DP) then
+          gzmin = zmin
         else
-          lzmin = gdef%lzmin
+          gzmin = gdef%gzmin
         endif
 
-        if (gdef%lzmax == UNDEF_DP) then
-          lzmax = zmax
+        if (gdef%gzmax == UNDEF_DP) then
+          gzmax = zmax
         else
-          lzmax = gdef%lzmax
+          gzmax = gdef%gzmax
         endif
 
         call createLogicalGrid(gdef%nxgl,gdef%mg_ratio_x
@@ -379,7 +379,7 @@ c     Define uniform logical LOCAL grid on ALL grid levels
      .                     ,gdef%dxh,gdef%nxv
      .                     ,gdef%ngrid,gdef%istartx
      .                     ,gdef%ilo,gdef%ihi
-     .                     ,lxmin,lxmax,bcond(1),bcond(2)
+     .                     ,gxmin,gxmax,bcond(1),bcond(2)
      .                     ,gdef%g_pack%dim(1))
 
         call createLogicalGrid(gdef%nygl,gdef%mg_ratio_y
@@ -387,7 +387,7 @@ c     Define uniform logical LOCAL grid on ALL grid levels
      .                     ,gdef%dyh,gdef%nyv
      .                     ,gdef%ngrid,gdef%istarty
      .                     ,gdef%jlo,gdef%jhi
-     .                     ,lymin,lymax,bcond(3),bcond(4)
+     .                     ,gymin,gymax,bcond(3),bcond(4)
      .                     ,gdef%g_pack%dim(2))
 
         call createLogicalGrid(gdef%nzgl,gdef%mg_ratio_z
@@ -395,19 +395,28 @@ c     Define uniform logical LOCAL grid on ALL grid levels
      .                     ,gdef%dzh,gdef%nzv
      .                     ,gdef%ngrid,gdef%istartz
      .                     ,gdef%klo,gdef%khi
-     .                     ,lzmin,lzmax,bcond(5),bcond(6)
+     .                     ,gzmin,gzmax,bcond(5),bcond(6)
      .                     ,gdef%g_pack%dim(3))
 
-c     Store physical dimensions of local domain (if undefined)
+c     Store global physical dimensions of local domain (redefines gxmax,gxmin, etc)
 
-        if (gdef%lxmin==UNDEF_DP) gdef%lxmin = gdef%xg(gdef%ilo(1))
-        if (gdef%lxmax==UNDEF_DP) gdef%lxmax = gdef%xg(gdef%ihi(1))
+cc        if (gdef%gxmin==UNDEF_DP) gdef%gxmin = gdef%xg(gdef%ilo(1))
+cc        if (gdef%gxmax==UNDEF_DP) gdef%gxmax = gdef%xg(gdef%ihi(1))
+cc
+cc        if (gdef%gymin==UNDEF_DP) gdef%gymin = gdef%yg(gdef%jlo(1))
+cc        if (gdef%gymax==UNDEF_DP) gdef%gymax = gdef%yg(gdef%jhi(1))
+cc
+cc        if (gdef%gzmin==UNDEF_DP) gdef%gzmin = gdef%zg(gdef%klo(1))
+cc        if (gdef%gzmax==UNDEF_DP) gdef%gzmax = gdef%zg(gdef%khi(1))
 
-        if (gdef%lymin==UNDEF_DP) gdef%lymin = gdef%yg(gdef%jlo(1))
-        if (gdef%lymax==UNDEF_DP) gdef%lymax = gdef%yg(gdef%jhi(1))
+        gdef%gxmin = gdef%xg(gdef%ilo(1))
+        gdef%gxmax = gdef%xg(gdef%ihi(1))
 
-        if (gdef%lzmin==UNDEF_DP) gdef%lzmin = gdef%zg(gdef%klo(1))
-        if (gdef%lzmax==UNDEF_DP) gdef%lzmax = gdef%zg(gdef%khi(1))
+        gdef%gymin = gdef%yg(gdef%jlo(1))
+        gdef%gymax = gdef%yg(gdef%jhi(1))
+
+        gdef%gzmin = gdef%zg(gdef%klo(1))
+        gdef%gzmax = gdef%zg(gdef%khi(1))
 
       end subroutine createMGgrid
 
