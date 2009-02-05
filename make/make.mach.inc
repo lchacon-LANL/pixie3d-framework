@@ -73,6 +73,8 @@ endif
 ifeq ($(HOST),gongora.ornl.gov)
   FC=gfortran
 
+  LIBS += -L/usr/lib -llapack -lblas
+
   PETSC_DIR =$(HOME)/lib/petsc-2.3.3
   PETSC_ARCH = linux_openmpi
 
