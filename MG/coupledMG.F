@@ -375,8 +375,8 @@ c     Dump plots
         call mapMGVectorToArray(0,neq,mgv,nx,ny,nz,debug,igr,.true.)
         do ieq=1,neq
           call contour(debug(1:nx,1:ny,1,ieq),nx,ny
-     .                ,MGgrid%lxmin,MGgrid%lxmax
-     .                ,MGgrid%lymin,MGgrid%lymax
+     .                ,MGgrid%gxmin,MGgrid%gxmax
+     .                ,MGgrid%gymin,MGgrid%gymax
      .                ,iflag+ieq-1,nunit)
         enddo
 
@@ -3043,7 +3043,7 @@ c Local variables
       real(8)    :: xxf(ntotf/neq,neq),car(3)
      .             ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
 
-      real(8),allocatable :: arrayf(:,:,:,:),sp_sum(:,:),lp_sum(:,:)
+      real(8),allocatable :: arrayf(:,:,:,:),sp_sum(:,:),lsp_sum(:,:)
 
       integer    :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg
      .             ,ieq,nntotc,nntotf,igf
@@ -3083,8 +3083,11 @@ cc        write (*,*) arrayc(1,:,1,3)
 
         do ieq=1,neq
           do k=0,nzc+1
-            sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,ieq))
-     .                    /grid_params%nygl(igc)
+cc            sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,ieq))
+cc     .                    /grid_params%nygl(igc)
+            sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,ieq)
+     .                        *gmetric%grid(igc)%dvol(1,1:nyc,k))
+     .                    /sum(gmetric%grid(igc)%dvol(1,1:nyc,k))
           enddo
         enddo
 
@@ -3955,7 +3958,7 @@ c       STANDARD RELAXATION
           !Take care of points around singular point
           if (isSP(1,1,1,igrid,igrid,igrid)) then
 #if defined(petsc)
-            call pstop('jb','Does not work in parallel')
+            if (np > 1) call pstop('jb','Does not work in parallel')
 #endif
             do i1=3,1,-1
 
@@ -4530,7 +4533,7 @@ c       Take care of points around singular point (using JB)
 
         if (isSP(1,1,1,igrid,igrid,igrid)) then
 #if defined(petsc)
-          call pstop('gs','Does not work in parallel')
+          if (np > 1) call pstop('gs','Does not work in parallel')
 #endif
           do i1=3,1,-1
 
