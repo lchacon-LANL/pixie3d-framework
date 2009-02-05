@@ -44,7 +44,7 @@ cc      real(8),parameter    :: epsmac=1d-15
 
       integer    :: jit=0
 
-      logical    :: pseudo_dt,prnt
+      logical    :: pseudo_dt,prnt,is_residual=.true.
 
       type :: nk_options
         integer      :: etak_meth=0
@@ -1226,7 +1226,7 @@ c     Call variables
 c     Local variables
 
       integer    :: i
-      real(8)    :: dummy(nn),pert,ipert,modz,modx,xdotz
+      real(8)    :: dummy(nn),yk(nn),pert,ipert,modz,modx,xdotz
 
 c     Begin program
 
@@ -1258,13 +1258,17 @@ c       Perturb state variables x + eps z --> dummy
 
 c       Nonlinear function evaluation --> y
 
+cc        is_residual = .false.
+cc        call evaluateNewtonResidual(nn,xk   ,yk)
         call evaluateNewtonResidual(nn,dummy,y)
+cc        is_residual = .true.
 
 c       Compute the product J.x using the matrix-free approx
 
         ipert = 1d0/pert
 
         y = (y-rk)*ipert
+cc        y = (y-yk)*ipert
 
       endif
 
