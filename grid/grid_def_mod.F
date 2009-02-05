@@ -174,7 +174,7 @@ c     Begin program
           call MPI_Comm_rank(grid_st%mpi_comm,grid_st%rank,mpierr)
           call MPI_Comm_size(grid_st%mpi_comm,grid_st%np  ,mpierr)
 
-          allocate(grid_st%dactx(grid_st%ngrid))
+          allocate(grid_st%dactx(ngrid))
 
           call createPETScGrid(grid_st,1)
 

@@ -330,7 +330,7 @@ c     Local variables
 
 c     Begin program
 
-      if (PRESENT(mpic)) then
+      if (PRESENT(mpi_comm)) then
         mpic = mpi_comm
       else
         mpic = MPI_COMM_WORLD
