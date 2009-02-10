@@ -48,7 +48,7 @@ c     createDrawInGfile
 c     ################################################################
       subroutine createDrawInGfile(nvar,ntot,binf,graphlabel,ivar
      .                       ,dvariables,descr,ivariables,logvar
-     .                       ,drawfile,connect,spline)
+     .                       ,drawfile,connect,spline,title)
 
 c     ----------------------------------------------------------------
 c     Creates the G-type (x-y curves) draw.in file for xdraw graphics.
@@ -87,6 +87,7 @@ c     Call variables
         character(*) :: binf,drawfile,graphlabel,ivar
         character(*) :: descr(ntot)
         logical      :: spline,connect
+        character(*),optional :: title(ntot)
 
 c     Local variables
 
@@ -121,6 +122,10 @@ c     Begin program
         if (spline) options = trim(options) // '&'
         if (.not.connect) options = trim(options) // '.'
 
+        if (PRESENT(title)) then
+          descr = title
+        endif
+
         do i=1,size(descr)
           lngt = len(trim(descr(i)))
           if (lngt == 0) exit
@@ -132,21 +137,6 @@ c     Begin program
             endif
           enddo
           if (flag) then
-cc            if (spline) then
-cc              if(logvar(i) == 1) then
-cc                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
-cc     .                                ,i,'L&        ',trim(descr(i))
-cc              else
-cc                write (gfile,'(i2,a,i2,2a)') ivariables(i),'      '
-cc     .                                ,i,'&        ',trim(descr(i))
-cc              endif
-cc            elseif(logvar(i) == 1) then
-cc              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
-cc     .                                ,i,'L        ',trim(descr(i))
-cc            else
-cc              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
-cc     .                                ,i,'         ',trim(descr(i))
-cc            endif
             if(logvar(i) == 1) then
               write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
      .                                ,i,'L'//trim(options)//'   '
