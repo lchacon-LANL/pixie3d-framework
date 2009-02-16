@@ -154,148 +154,163 @@ c     Begin program
         endif
 
       end function checkMapDatabase
-cc
-ccc     find_dr
-ccc     #####################################################################
-cc      function find_dr(i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq,x)
-cc     .         result(dr)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     This routine finds dx/d_xi tensor at the point (i,j,k)
-ccc     from the position vector x. It can do this for:
-ccc        * Cell centers: (hex,hey,hez)=(0,0,0)
-ccc        * Faces, e.g. (hex,hey,hez)=(1,0,0) for i+1/2 face.
-ccc        * Corners, e.g. (hex,hey,hez)=(1,1,1) for i+1/2,j+1/2,k+1/2 corner.
-ccc     on an arbitrary grid level.
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer    :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
-cc        real(8)    :: dr(3,3),x(0:nx+1,0:ny+1,0:nz+1,neq)
-cc
-ccc     Local variables
-cc
-cc        integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
-cc     .               ,igp,igm,jgp,jgm,kgp,kgm,hel
-cc
-cc        real(8)    :: carp(neq),carm(neq),dh(3),coeff
-cc
-ccc     Begin program
-cc
-cc        dr = 1d0*reshape((/ 1,0,0
-cc     .                     ,0,1,0
-cc     .                     ,0,0,1 /)
-cc     .                   ,(/ 3,3 /))
-cc
-cc        ip=min(i+1,nx+1)
-cc        im=max(i-1,0)
-cc        jp=min(j+1,ny+1)
-cc        jm=max(j-1,0)
-cc        kp=min(k+1,nz+1)
-cc        km=max(k-1,0)
-cc
-cc        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-cc
-ccc     Exceptions
-cc
-cc        if (hex == 1) im = i
-cc        if (hey == 1) jm = j
-cc        if (hez == 1) km = k
-cc
-cc        !X
-cc        igp = ig+(ip-i)
-cc        igm = ig-(i-im)
-cc
-cc        dh(1)= (gparams%xx(igp)-gparams%xx(igm))
-cc
-cc        carp = x(ip,j,k,:)
-cc        carm = x(im,j,k,:)
-cc        coeff = 1d0
-cc
-cc        if (hey == 1) then
-cc          carp = carp + x(ip,jp,k,:)
-cc          carm = carm + x(im,jp,k,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hez == 1) then
-cc          carp = carp + x(ip,j,kp,:)
-cc          carm = carm + x(im,j,kp,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hey == 1 .and. hez == 1) then
-cc          carp = carp + x(ip,jp,kp,:)
-cc          carm = carm + x(im,jp,kp,:)
-cc          coeff = 0.25
-cc        endif
-cc
-cc        dr(1,1:neq) = coeff*(carp-carm)/dh(1)
-cc
-cc        !Y
-cc        jgp = jg+(jp-j)
-cc        jgm = jg-(j-jm)
-cc
-cc        dh(2)= (gparams%yy(jgp)-gparams%yy(jgm))
-cc
-cc        carp = x(i,jp,k,:)
-cc        carm = x(i,jm,k,:)
-cc        coeff = 1d0
-cc
-cc        if (hex == 1) then
-cc          carp = carp + x(ip,jp,k,:)
-cc          carm = carm + x(ip,jm,k,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hez == 1) then
-cc          carp = carp + x(i,jp,kp,:)
-cc          carm = carm + x(i,jm,kp,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hex == 1 .and. hez == 1) then
-cc          carp = carp + x(ip,jp,kp,:)
-cc          carm = carm + x(ip,jm,kp,:)
-cc          coeff = 0.25
-cc        endif
-cc
-cc        dr(2,1:neq) = coeff*(carp-carm)/dh(2)
-cc
-cc        !Z
-cc        kgp = kg+(kp-k)
-cc        kgm = kg-(k-km)
-cc
-cc        dh(3)= (gparams%zz(kgp)-gparams%zz(kgm))
-cc
-cc        carp = x(i,j,kp,:)
-cc        carm = x(i,j,km,:)
-cc        coeff = 1d0
-cc
-cc        if (hex == 1) then
-cc          carp = carp + x(ip,j,kp,:)
-cc          carm = carm + x(ip,j,km,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hey == 1) then
-cc          carp = carp + x(i,jp,kp,:)
-cc          carm = carm + x(i,jp,km,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hex == 1 .and. hey == 1) then
-cc          carp = carp + x(ip,jp,kp,:)
-cc          carm = carm + x(ip,jp,km,:)
-cc          coeff = 0.25
-cc        endif
-cc
-cc        dr(3,1:neq) = coeff*(carp-carm)/dh(3)
-cc
-cc      end function find_dr
+
+c     find_dr
+c     #####################################################################
+      function find_dr(i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
+     .                ,gparams,x)
+     .         result(dr)
+
+c     ---------------------------------------------------------------------
+c     This routine finds dx/d_xi tensor at the point (i,j,k)
+c     from the position vector x. It can do this for:
+c        * Cell centers: (hex,hey,hez)=(0,0,0)
+c        * Faces, e.g. (hex,hey,hez)=(1,0,0) for i+1/2 face.
+c        * Corners, e.g. (hex,hey,hez)=(1,1,1) for i+1/2,j+1/2,k+1/2 corner.
+c     on an arbitrary grid level.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
+        real(8)    :: dr(3,3),x(0:nx+1,0:ny+1,0:nz+1,neq)
+
+        type(grid_mg_def),pointer :: gparams
+
+c     Local variables
+
+        integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
+     .               ,igp,igm,jgp,jgm,kgp,kgm,hel
+
+        real(8)    :: carp(neq),carm(neq),dh(3),coeff
+
+c     Begin program
+
+        dr = 1d0*reshape((/ 1,0,0
+     .                     ,0,1,0
+     .                     ,0,0,1 /)
+     .                   ,(/ 3,3 /))
+
+        ip=min(i+1,nx+1)
+        im=max(i-1,0)
+        jp=min(j+1,ny+1)
+        jm=max(j-1,0)
+        kp=min(k+1,nz+1)
+        km=max(k-1,0)
+
+        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+c     Exceptions
+
+        if (hex == 1) im = i
+        if (hey == 1) jm = j
+        if (hez == 1) km = k
+
+        !X
+        if (nx == 1) then
+          dr(1,1:neq) = (/ 1d0, 0d0, 0d0 /)
+        else
+          igp = ig+(ip-i)
+          igm = ig-(i-im)
+
+          dh(1)= (gparams%xx(igp)-gparams%xx(igm))
+
+          carp = x(ip,j,k,:)
+          carm = x(im,j,k,:)
+          coeff = 1d0
+
+          if (hey == 1) then
+            carp = carp + x(ip,jp,k,:)
+            carm = carm + x(im,jp,k,:)
+            coeff = 0.5
+          endif
+
+          if (hez == 1) then
+            carp = carp + x(ip,j,kp,:)
+            carm = carm + x(im,j,kp,:)
+            coeff = 0.5
+          endif
+
+          if (hey == 1 .and. hez == 1) then
+            carp = carp + x(ip,jp,kp,:)
+            carm = carm + x(im,jp,kp,:)
+            coeff = 0.25
+          endif
+
+          dr(1,1:neq) = coeff*(carp-carm)/dh(1)
+        endif
+
+        !Y
+        if (ny == 1) then
+          dr(2,1:neq) = (/ 0d0, 1d0, 0d0 /)
+        else
+          jgp = jg+(jp-j)
+          jgm = jg-(j-jm)
+
+          dh(2)= (gparams%yy(jgp)-gparams%yy(jgm))
+
+          carp = x(i,jp,k,:)
+          carm = x(i,jm,k,:)
+          coeff = 1d0
+
+          if (hex == 1) then
+            carp = carp + x(ip,jp,k,:)
+            carm = carm + x(ip,jm,k,:)
+            coeff = 0.5
+          endif
+
+          if (hez == 1) then
+            carp = carp + x(i,jp,kp,:)
+            carm = carm + x(i,jm,kp,:)
+            coeff = 0.5
+          endif
+
+          if (hex == 1 .and. hez == 1) then
+            carp = carp + x(ip,jp,kp,:)
+            carm = carm + x(ip,jm,kp,:)
+            coeff = 0.25
+          endif
+
+          dr(2,1:neq) = coeff*(carp-carm)/dh(2)
+        endif
+
+        !Z
+        if (nz == 1) then
+          dr(3,1:neq) = (/ 0d0, 0d0, 1d0 /)
+        else
+          kgp = kg+(kp-k)
+          kgm = kg-(k-km)
+
+          dh(3)= (gparams%zz(kgp)-gparams%zz(kgm))
+
+          carp = x(i,j,kp,:)
+          carm = x(i,j,km,:)
+          coeff = 1d0
+
+          if (hex == 1) then
+            carp = carp + x(ip,j,kp,:)
+            carm = carm + x(ip,j,km,:)
+            coeff = 0.5
+          endif
+
+          if (hey == 1) then
+            carp = carp + x(i,jp,kp,:)
+            carm = carm + x(i,jp,km,:)
+            coeff = 0.5
+          endif
+
+          if (hex == 1 .and. hey == 1) then
+            carp = carp + x(ip,jp,kp,:)
+            carm = carm + x(ip,jp,km,:)
+            coeff = 0.25
+          endif
+
+          dr(3,1:neq) = coeff*(carp-carm)/dh(3)
+        endif
+
+      end function find_dr
 
 ccc     find_gmetric
 ccc     #####################################################################
@@ -526,11 +541,11 @@ c       NUMERICAL QUANTITIES ***********************************
 
               xc = xcr
             else
-              nxf=size(xcr,1)
-              nyf=size(xcr,2)
-              nzf=size(xcr,3)
+              nxf=size(xcr,1)-2
+              nyf=size(xcr,2)-2
+              nzf=size(xcr,3)-2
 
-              nzc=ihi-ilo+1
+              nxc=ihi-ilo+1
               nyc=jhi-jlo+1
               nzc=khi-klo+1
 
@@ -591,7 +606,8 @@ c       NUMERICAL QUANTITIES ***********************************
             do j = jlom,jhip
               do i = ilom,ihip
                 dr(i,j,k,:,:)
-     .               = find_dr(i,j,k,igx,igy,igz,0,0,0,nx,ny,nz,3,xc)
+     .               = find_dr(i,j,k,igx,igy,igz,0,0,0,nx,ny,nz,3
+     .                        ,gparams,xc)
               enddo
             enddo
           enddo
@@ -630,7 +646,12 @@ cc                write (*,*) 'DIAG -- fingGridMetrics'
                 endif
 
                 if (jac == 0d0) then
-                  write (*,*) i,j,k,r,jac
+                  write (*,*) 'Grid level',igrid
+                  write (*,*) 'Grid position=',i,j,k
+                  write (*,*) 'dr/dxi_1=',r(1,:)
+                  write (*,*) 'dr/dxi_2=',r(2,:)
+                  write (*,*) 'dr/dxi_3=',r(3,:)
+                  write (*,*) 'Jacobian=',jac
                   call pstop('findGridMetrics','Zero jacobian')
                   stop
                 endif
@@ -827,147 +848,147 @@ c     End program
 
       contains
 
-c     find_dr
-c     #####################################################################
-      function find_dr(i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq,x)
-     .         result(dr)
-
-c     ---------------------------------------------------------------------
-c     This routine finds dx/d_xi tensor at the point (i,j,k)
-c     from the position vector x. It can do this for:
-c        * Cell centers: (hex,hey,hez)=(0,0,0)
-c        * Faces, e.g. (hex,hey,hez)=(1,0,0) for i+1/2 face.
-c        * Corners, e.g. (hex,hey,hez)=(1,1,1) for i+1/2,j+1/2,k+1/2 corner.
-c     on an arbitrary grid level.
-c     ---------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer    :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
-        real(8)    :: dr(3,3),x(0:nx+1,0:ny+1,0:nz+1,neq)
-
-c     Local variables
-
-        integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
-     .               ,igp,igm,jgp,jgm,kgp,kgm,hel
-
-        real(8)    :: carp(neq),carm(neq),dh(3),coeff
-
-c     Begin program
-
-        dr = 1d0*reshape((/ 1,0,0
-     .                     ,0,1,0
-     .                     ,0,0,1 /)
-     .                   ,(/ 3,3 /))
-
-        ip=min(i+1,nx+1)
-        im=max(i-1,0)
-        jp=min(j+1,ny+1)
-        jm=max(j-1,0)
-        kp=min(k+1,nz+1)
-        km=max(k-1,0)
-
-        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-
-c     Exceptions
-
-        if (hex == 1) im = i
-        if (hey == 1) jm = j
-        if (hez == 1) km = k
-
-        !X
-        igp = ig+(ip-i)
-        igm = ig-(i-im)
-
-        dh(1)= (gparams%xx(igp)-gparams%xx(igm))
-
-        carp = x(ip,j,k,:)
-        carm = x(im,j,k,:)
-        coeff = 1d0
-
-        if (hey == 1) then
-          carp = carp + x(ip,jp,k,:)
-          carm = carm + x(im,jp,k,:)
-          coeff = 0.5
-        endif
-
-        if (hez == 1) then
-          carp = carp + x(ip,j,kp,:)
-          carm = carm + x(im,j,kp,:)
-          coeff = 0.5
-        endif
-
-        if (hey == 1 .and. hez == 1) then
-          carp = carp + x(ip,jp,kp,:)
-          carm = carm + x(im,jp,kp,:)
-          coeff = 0.25
-        endif
-
-        dr(1,1:neq) = coeff*(carp-carm)/dh(1)
-
-        !Y
-        jgp = jg+(jp-j)
-        jgm = jg-(j-jm)
-
-        dh(2)= (gparams%yy(jgp)-gparams%yy(jgm))
-
-        carp = x(i,jp,k,:)
-        carm = x(i,jm,k,:)
-        coeff = 1d0
-
-        if (hex == 1) then
-          carp = carp + x(ip,jp,k,:)
-          carm = carm + x(ip,jm,k,:)
-          coeff = 0.5
-        endif
-
-        if (hez == 1) then
-          carp = carp + x(i,jp,kp,:)
-          carm = carm + x(i,jm,kp,:)
-          coeff = 0.5
-        endif
-
-        if (hex == 1 .and. hez == 1) then
-          carp = carp + x(ip,jp,kp,:)
-          carm = carm + x(ip,jm,kp,:)
-          coeff = 0.25
-        endif
-
-        dr(2,1:neq) = coeff*(carp-carm)/dh(2)
-
-        !Z
-        kgp = kg+(kp-k)
-        kgm = kg-(k-km)
-
-        dh(3)= (gparams%zz(kgp)-gparams%zz(kgm))
-
-        carp = x(i,j,kp,:)
-        carm = x(i,j,km,:)
-        coeff = 1d0
-
-        if (hex == 1) then
-          carp = carp + x(ip,j,kp,:)
-          carm = carm + x(ip,j,km,:)
-          coeff = 0.5
-        endif
-
-        if (hey == 1) then
-          carp = carp + x(i,jp,kp,:)
-          carm = carm + x(i,jp,km,:)
-          coeff = 0.5
-        endif
-
-        if (hex == 1 .and. hey == 1) then
-          carp = carp + x(ip,jp,kp,:)
-          carm = carm + x(ip,jp,km,:)
-          coeff = 0.25
-        endif
-
-        dr(3,1:neq) = coeff*(carp-carm)/dh(3)
-
-      end function find_dr
+ccc     find_dr
+ccc     #####################################################################
+cc      function find_dr(i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq,x)
+cc     .         result(dr)
+cc
+ccc     ---------------------------------------------------------------------
+ccc     This routine finds dx/d_xi tensor at the point (i,j,k)
+ccc     from the position vector x. It can do this for:
+ccc        * Cell centers: (hex,hey,hez)=(0,0,0)
+ccc        * Faces, e.g. (hex,hey,hez)=(1,0,0) for i+1/2 face.
+ccc        * Corners, e.g. (hex,hey,hez)=(1,1,1) for i+1/2,j+1/2,k+1/2 corner.
+ccc     on an arbitrary grid level.
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer    :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
+cc        real(8)    :: dr(3,3),x(0:nx+1,0:ny+1,0:nz+1,neq)
+cc
+ccc     Local variables
+cc
+cc        integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
+cc     .               ,igp,igm,jgp,jgm,kgp,kgm,hel
+cc
+cc        real(8)    :: carp(neq),carm(neq),dh(3),coeff
+cc
+ccc     Begin program
+cc
+cc        dr = 1d0*reshape((/ 1,0,0
+cc     .                     ,0,1,0
+cc     .                     ,0,0,1 /)
+cc     .                   ,(/ 3,3 /))
+cc
+cc        ip=min(i+1,nx+1)
+cc        im=max(i-1,0)
+cc        jp=min(j+1,ny+1)
+cc        jm=max(j-1,0)
+cc        kp=min(k+1,nz+1)
+cc        km=max(k-1,0)
+cc
+cc        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+cc
+ccc     Exceptions
+cc
+cc        if (hex == 1) im = i
+cc        if (hey == 1) jm = j
+cc        if (hez == 1) km = k
+cc
+cc        !X
+cc        igp = ig+(ip-i)
+cc        igm = ig-(i-im)
+cc
+cc        dh(1)= (gparams%xx(igp)-gparams%xx(igm))
+cc
+cc        carp = x(ip,j,k,:)
+cc        carm = x(im,j,k,:)
+cc        coeff = 1d0
+cc
+cc        if (hey == 1) then
+cc          carp = carp + x(ip,jp,k,:)
+cc          carm = carm + x(im,jp,k,:)
+cc          coeff = 0.5
+cc        endif
+cc
+cc        if (hez == 1) then
+cc          carp = carp + x(ip,j,kp,:)
+cc          carm = carm + x(im,j,kp,:)
+cc          coeff = 0.5
+cc        endif
+cc
+cc        if (hey == 1 .and. hez == 1) then
+cc          carp = carp + x(ip,jp,kp,:)
+cc          carm = carm + x(im,jp,kp,:)
+cc          coeff = 0.25
+cc        endif
+cc
+cc        dr(1,1:neq) = coeff*(carp-carm)/dh(1)
+cc
+cc        !Y
+cc        jgp = jg+(jp-j)
+cc        jgm = jg-(j-jm)
+cc
+cc        dh(2)= (gparams%yy(jgp)-gparams%yy(jgm))
+cc
+cc        carp = x(i,jp,k,:)
+cc        carm = x(i,jm,k,:)
+cc        coeff = 1d0
+cc
+cc        if (hex == 1) then
+cc          carp = carp + x(ip,jp,k,:)
+cc          carm = carm + x(ip,jm,k,:)
+cc          coeff = 0.5
+cc        endif
+cc
+cc        if (hez == 1) then
+cc          carp = carp + x(i,jp,kp,:)
+cc          carm = carm + x(i,jm,kp,:)
+cc          coeff = 0.5
+cc        endif
+cc
+cc        if (hex == 1 .and. hez == 1) then
+cc          carp = carp + x(ip,jp,kp,:)
+cc          carm = carm + x(ip,jm,kp,:)
+cc          coeff = 0.25
+cc        endif
+cc
+cc        dr(2,1:neq) = coeff*(carp-carm)/dh(2)
+cc
+cc        !Z
+cc        kgp = kg+(kp-k)
+cc        kgm = kg-(k-km)
+cc
+cc        dh(3)= (gparams%zz(kgp)-gparams%zz(kgm))
+cc
+cc        carp = x(i,j,kp,:)
+cc        carm = x(i,j,km,:)
+cc        coeff = 1d0
+cc
+cc        if (hex == 1) then
+cc          carp = carp + x(ip,j,kp,:)
+cc          carm = carm + x(ip,j,km,:)
+cc          coeff = 0.5
+cc        endif
+cc
+cc        if (hey == 1) then
+cc          carp = carp + x(i,jp,kp,:)
+cc          carm = carm + x(i,jp,km,:)
+cc          coeff = 0.5
+cc        endif
+cc
+cc        if (hex == 1 .and. hey == 1) then
+cc          carp = carp + x(ip,jp,kp,:)
+cc          carm = carm + x(ip,jp,km,:)
+cc          coeff = 0.25
+cc        endif
+cc
+cc        dr(3,1:neq) = coeff*(carp-carm)/dh(3)
+cc
+cc      end function find_dr
 
 c     coarsen_map
 c     #################################################################
@@ -984,7 +1005,6 @@ c     Input variables
         integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
         real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
      .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
-cc        logical    :: volf
 
 c     Local variables
 
@@ -1873,7 +1893,7 @@ c     #################################################################
       subroutine map_bc(igrid,nxl,nyl,nzl,array,IBC,iorder)
 
 c     -----------------------------------------------------------------
-c     Enforce topological constraints on array
+c     Impose BCs on map x(xi), component by component.
 c     -----------------------------------------------------------------
 
         implicit  none
@@ -1980,9 +2000,12 @@ c     Allocate arrays
         call allocateGridMetric(gparams%gmetric,gparams)
 
         if (map_present) then
-          allocate(xcr(1:gparams%nxv(1)
-     .                ,1:gparams%nyv(1)
-     .                ,1:gparams%nzv(1),3))
+cc          allocate(xcr(1:gparams%nxv(1)
+cc     .                ,1:gparams%nyv(1)
+cc     .                ,1:gparams%nzv(1),3))
+          allocate(xcr(0:gparams%nxv(1)+1
+     .                ,0:gparams%nyv(1)+1
+     .                ,0:gparams%nzv(1)+1,3))
           xcr = xcar
         endif
 
