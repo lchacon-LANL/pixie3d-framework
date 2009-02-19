@@ -299,7 +299,7 @@ c Begin program
 
 c Evaluate nonlinear function at old time for theta scheme
 
-      call evaluateNonlinearFunction(vn,fold)
+      call evaluateNonlinearFunction(vnp,fold)
 
 c Eigenvalue solver
 
@@ -395,7 +395,7 @@ c     Map Newton solution to vnp (if no error)
           if (postprocess) call postProcessSol(vnp) !Postprocess solution
           if (predictor  ) call storeTSinfo(vn,vnp)
         elseif (ierr == 1) then
-          vnp = vn
+cc          vnp = vn
           call equateDerivedType(vnp,vn)
         endif
 
