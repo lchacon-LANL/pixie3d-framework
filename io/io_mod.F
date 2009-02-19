@@ -1,10 +1,10 @@
 c module io_mod
 c ########################################################################
-      module io_mod
+      module io
 
 #if !defined(gfortran)
         integer    :: system
         external      system
 #endif
 
-      end module io_mod
+      end module io
