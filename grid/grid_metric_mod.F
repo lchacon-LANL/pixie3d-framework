@@ -49,7 +49,7 @@ c     PRIVATE VARIABLES
 
         logical,private    :: map_present
 
-        private :: topol_bc,map_bc,findGridmetrics,coarsenGridMetrics
+        private :: topol_bc,findGridmetrics,coarsenGridMetrics
 
       contains
 
@@ -312,6 +312,155 @@ c     Exceptions
 
       end function find_dr
 
+c     coarsen_map
+c     #################################################################
+      subroutine coarsen_map(igc,gparams,nxf,nyf,nzf,xf,nxc,nyc,nzc,xc)
+
+c     -----------------------------------------------------------------
+c     Coarsen fine map xf(xi) to coarse map xc(xi). This is done
+c     dimension by dimension, using first-order extrapolation.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
+        real(8)    :: xf(0:nxf+1,0:nyf+1,0:nzf+1,3)
+     .               ,xc(0:nxc+1,0:nyc+1,0:nzc+1,3)
+
+        type(grid_mg_def),pointer :: gparams
+
+c     Local variables
+
+        integer    :: ii,igf
+
+c     Begin program
+
+        do ii=1,3
+          call crse_array(igc,nxf,nyf,nzf,xf(:,:,:,ii)
+     .                       ,nxc,nyc,nzc,xc(:,:,:,ii))
+        enddo
+
+      contains
+
+c     crse_array
+c     #################################################################
+      subroutine crse_array(igc,nxf,nyf,nzf,arrayf,nxc,nyc,nzc,arrayc)
+
+c     -----------------------------------------------------------------
+c     Coarsen arrayf to arrayc at grid level igc.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
+        real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
+     .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
+
+c     Local variables
+
+        integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
+
+        real(8)    :: volc,ac
+
+c     Begin program
+
+        igf = igc - 1
+
+        mgx = gparams%mg_ratio_x(igf)
+        mgy = gparams%mg_ratio_y(igf)
+        mgz = gparams%mg_ratio_z(igf)
+
+        do kc = 1,nzc
+          do jc = 1,nyc
+            do ic = 1,nxc
+
+              volc   = 0d0
+              ac     = 0d0
+
+              do kf = mgz*(kc-1)+1,mgz*kc
+                do jf = mgy*(jc-1)+1,mgy*jc
+                  do if = mgx*(ic-1)+1,mgx*ic
+                    ac   = ac   + arrayf(if,jf,kf)
+                    volc = volc + 1d0
+                  enddo
+                enddo
+              enddo
+
+              arrayc(ic,jc,kc) = ac/volc
+            enddo
+          enddo
+        enddo
+
+c     Fill ghost cells by 1st-order extrapolation
+
+        call map_bc(igc,nxc,nyc,nzc,arrayc,IBC=EXT,iorder=1)
+
+      end subroutine crse_array
+
+c     map_bc
+c     #################################################################
+      subroutine map_bc(igrid,nxl,nyl,nzl,array,IBC,iorder)
+
+c     -----------------------------------------------------------------
+c     Impose BCs on map x(xi), component by component.
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+        integer    :: igrid,nxl,nyl,nzl
+
+        real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
+
+        integer   ,optional,intent(IN) :: IBC,iorder
+
+c     Local variables
+
+        integer    :: bcnd(6),iibc,order
+        real(8)    :: array0(0:nxl+1,0:nyl+1,0:nzl+1)
+
+c     Debug
+
+        integer    :: i,j,k
+
+c     External
+
+c     Begin program
+
+        if (PRESENT(IBC)) then
+          iibc = IBC
+        else
+          iibc = EQU
+        endif
+
+        if (PRESENT(iorder)) then
+          order = iorder
+        else
+          order = 2
+        endif
+
+        array0 = array
+
+c     Set boundary conditions to IBC
+
+        bcnd = iibc
+
+c     Impose BCs
+
+        call setMGBC(0,1,nxl,nyl,nzl,igrid,array,bcnd
+     .              ,arr0=array0,iorder=order)
+
+c     End program
+
+      end subroutine map_bc
+
+      end subroutine coarsen_map
+
 ccc     find_gmetric
 ccc     #####################################################################
 cc      subroutine find_gmetric(i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
@@ -549,10 +698,8 @@ c       NUMERICAL QUANTITIES ***********************************
               nyc=jhi-jlo+1
               nzc=khi-klo+1
 
-              do ii=1,3
-                call coarsen_map(igrid,nxf,nyf,nzf,xcr(:,:,:,ii)
-     .                                ,nxc,nyc,nzc,xc (:,:,:,ii))
-              enddo
+              call coarsen_map(igrid,gparams,nxf,nyf,nzf,xcr
+     .                                      ,nxc,nyc,nzc,xc )
 
               !Prepare next coarsening
               deallocate(xcr)
@@ -990,70 +1137,70 @@ cc        dr(3,1:neq) = coeff*(carp-carm)/dh(3)
 cc
 cc      end function find_dr
 
-c     coarsen_map
-c     #################################################################
-      subroutine coarsen_map(igc,nxf,nyf,nzf,arrayf,nxc,nyc,nzc,arrayc)
-
-c     -----------------------------------------------------------------
-c     Coarsen arrayf to arrayc at grid level igc.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
-        real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
-     .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
-
-c     Local variables
-
-        integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
-
-        real(8)    :: volc,ac
-
-c     Begin program
-
-        igf = igc - 1
-
-        mgx = gparams%mg_ratio_x(igf)
-        mgy = gparams%mg_ratio_y(igf)
-        mgz = gparams%mg_ratio_z(igf)
-
-        do kc = 1,nzc
-          do jc = 1,nyc
-            do ic = 1,nxc
-
-              volc   = 0d0
-              ac     = 0d0
-
-              do kf = mgz*(kc-1)+1,mgz*kc
-                do jf = mgy*(jc-1)+1,mgy*jc
-                  do if = mgx*(ic-1)+1,mgx*ic
-
-cc                    if (volf) then
-cc                      ac   = ac   + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
-cc     .                             *arrayf(if,jf,kf)
-cc                      volc = volc + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
-cc                    else
-                      ac   = ac   + arrayf(if,jf,kf)
-                      volc = volc + 1d0
-cc                    endif
-
-                  enddo
-                enddo
-              enddo
-
-              arrayc(ic,jc,kc) = ac/volc
-            enddo
-          enddo
-        enddo
-
-c     Fill ghost cells by 2nd-order extrapolation
-
-        call map_bc(igc,nxc,nyc,nzc,arrayc,IBC=EXT,iorder=1)
-
-      end subroutine coarsen_map
+ccc     coarsen_map
+ccc     #################################################################
+cc      subroutine coarsen_map(igc,nxf,nyf,nzf,arrayf,nxc,nyc,nzc,arrayc)
+cc
+ccc     -----------------------------------------------------------------
+ccc     Coarsen arrayf to arrayc at grid level igc.
+ccc     -----------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Input variables
+cc
+cc        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
+cc        real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
+cc     .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
+cc
+ccc     Local variables
+cc
+cc        integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
+cc
+cc        real(8)    :: volc,ac
+cc
+ccc     Begin program
+cc
+cc        igf = igc - 1
+cc
+cc        mgx = gparams%mg_ratio_x(igf)
+cc        mgy = gparams%mg_ratio_y(igf)
+cc        mgz = gparams%mg_ratio_z(igf)
+cc
+cc        do kc = 1,nzc
+cc          do jc = 1,nyc
+cc            do ic = 1,nxc
+cc
+cc              volc   = 0d0
+cc              ac     = 0d0
+cc
+cc              do kf = mgz*(kc-1)+1,mgz*kc
+cc                do jf = mgy*(jc-1)+1,mgy*jc
+cc                  do if = mgx*(ic-1)+1,mgx*ic
+cc
+cccc                    if (volf) then
+cccc                      ac   = ac   + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
+cccc     .                             *arrayf(if,jf,kf)
+cccc                      volc = volc + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
+cccc                    else
+cc                      ac   = ac   + arrayf(if,jf,kf)
+cc                      volc = volc + 1d0
+cccc                    endif
+cc
+cc                  enddo
+cc                enddo
+cc              enddo
+cc
+cc              arrayc(ic,jc,kc) = ac/volc
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+ccc     Fill ghost cells by 1st-order extrapolation
+cc
+cc        call map_bc(igc,nxc,nyc,nzc,arrayc,IBC=EXT,iorder=1)
+cc
+cc      end subroutine coarsen_map
 
 c     gammaZeroForce
 c     #################################################################
@@ -1626,207 +1773,209 @@ c     Local variables
 
 c     Begin program
 
-cc        write (*,*) 'DIAG -- coarsenGridMetrics'
         call findGridMetrics(gparams,igc)
-        return
 
-        !From analytical mapping
-        if (.not.numerical_grid) then
-
-          call findGridMetrics(gparams,igc)
-
-        !From numerical mapping
-        else
-
-          igf = igc - 1
-
-          nxf = gparams%nxv(igf)
-          nyf = gparams%nyv(igf)
-          nzf = gparams%nzv(igf)
-
-          nxc = gparams%nxv(igc)
-          nyc = gparams%nyv(igc)
-          nzc = gparams%nzv(igc)
-
-c         Coarsen volumes and jacobians (needed for coarsening all else)
-
-          !Coarsen cell volumes (with ghost cells)
-          call coarsen(igc,nxf,nyf,nzf,gparams%gmetric%grid(igf)%dvol
-     .                    ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%dvol
-     .                ,.false.)
-
-          !Calculate jacobian
-          do kc = 1,nzc
-            do jc = 1,nyc
-              do ic = 1,nxc
-                call getMGmap(ic,jc,kc,igc,igc,igc,icg,jcg,kcg)
-
-                gparams%gmetric%grid(igc)%jac(ic,jc,kc) =
-     .                      gparams%gmetric%grid(igc)%dvol(ic,jc,kc)
-     .                                    /(gparams%dxh(icg)
-     .                                     *gparams%dyh(jcg)
-     .                                     *gparams%dzh(kcg))
-              enddo
-            enddo
-          enddo
-
-          call map_bc(igc,nxc,nyc,nzc,gparams%gmetric%grid(igc)%jac
-     .               ,IBC=EXT)
-
-c         Coarsen everything else (with ghost cells)
-
-          !Gsup
-          do l=1,3
-            do m=l,3
-              call coarsen(igc
-     .           ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%gsup(:,:,:,l,m)
-     .                       *gparams%gmetric%grid(igf)%jac
-     .           ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%gsup(:,:,:,l,m)
-     .           ,.true.)
-              gparams%gmetric%grid(igc)%gsup(:,:,:,l,m) =
-     .             gparams%gmetric%grid(igc)%gsup(:,:,:,l,m)
-     .            /gparams%gmetric%grid(igc)%jac
-              gparams%gmetric%grid(igc)%gsup(:,:,:,m,l)
-     .             = gparams%gmetric%grid(igc)%gsup(:,:,:,l,m) !Symmetry
-            enddo
-          enddo
-
-          !Gsub
-          do l=1,3
-            do m=l,3
-              call coarsen(igc
-     .           ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%gsub(:,:,:,l,m)
-     .                       *gparams%gmetric%grid(igf)%jac
-     .           ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%gsub(:,:,:,l,m)
-     .           ,.true.)
-              gparams%gmetric%grid(igc)%gsub(:,:,:,l,m) =
-     .             gparams%gmetric%grid(igc)%gsub(:,:,:,l,m)
-     .            /gparams%gmetric%grid(igc)%jac
-              gparams%gmetric%grid(igc)%gsub(:,:,:,m,l)
-     .             = gparams%gmetric%grid(igc)%gsub(:,:,:,l,m) !Symmetry
-            enddo
-          enddo
-
-          !Gamma
-          do m=1,3
-            do n=m,3
-              do l=1,3
-                call coarsen(igc
-     .         ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%Gamma(:,:,:,l,m,n)
-     .                     *gparams%gmetric%grid(igf)%jac
-     .         ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n)
-     .         ,.true.)
-                gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n) =
-     .             gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n)
-     .            /gparams%gmetric%grid(igc)%jac
-              enddo
-              gparams%gmetric%grid(igc)%Gamma(:,:,:,:,n,m)
-     .             = gparams%gmetric%grid(igc)%Gamma(:,:,:,:,m,n) !Symmetry
-            enddo
-          enddo
-
-          !Cov
-          do l=1,3
-            do m=1,3
-              call coarsen(igc
-     .             ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%cov(:,:,:,l,m)
-     .                     *gparams%gmetric%grid(igf)%jac
-     .             ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%cov(:,:,:,l,m)
-     .             ,.true.)
-              gparams%gmetric%grid(igf)%cov(:,:,:,l,m) =
-     .              gparams%gmetric%grid(igf)%cov(:,:,:,l,m)
-     .             /gparams%gmetric%grid(igf)%jac
-            enddo
-          enddo
-
-          !Cnv
-          do l=1,3
-            do m=1,3
-              call coarsen(igc
-     .             ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%cnv(:,:,:,l,m)
-     .                     *gparams%gmetric%grid(igf)%jac
-     .             ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%cnv(:,:,:,l,m)
-     .             ,.true.)
-              gparams%gmetric%grid(igf)%cnv(:,:,:,l,m) =
-     .              gparams%gmetric%grid(igf)%cnv(:,:,:,l,m)
-     .             /gparams%gmetric%grid(igf)%jac
-            enddo
-          enddo
-
-        endif
-
-c     End program
-
-      contains
-
-c     coarsen
-c     #################################################################
-      subroutine coarsen(igc,nxf,nyf,nzf,arrayf,nxc,nyc,nzc,arrayc,volf)
-
-c     -----------------------------------------------------------------
-c     Coarsen arrayf to arrayc at grid level igc.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
-        real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
-     .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
-        logical    :: volf
-
-c     Local variables
-
-        integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
-
-        real(8)    :: volc,ac
-
-c     Begin program
-
-        igf = igc - 1
-
-        mgx = gparams%mg_ratio_x(igf)
-        mgy = gparams%mg_ratio_y(igf)
-        mgz = gparams%mg_ratio_z(igf)
-
-        do kc = 1,nzc
-          do jc = 1,nyc
-            do ic = 1,nxc
-
-              volc   = 0d0
-              ac     = 0d0
-
-              do kf = mgz*(kc-1)+1,mgz*kc
-                do jf = mgy*(jc-1)+1,mgy*jc
-                  do if = mgx*(ic-1)+1,mgx*ic
-
-                    if (volf) then
-                      ac   = ac
-     .                     + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
-     .                      *arrayf(if,jf,kf)
-                      volc = volc
-     .                     + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
-                    else
-                      ac   = ac   + arrayf(if,jf,kf)
-                    endif
-
-                  enddo
-                enddo
-              enddo
-
-              if (volf) ac = ac/volc
-
-              arrayc(ic,jc,kc) = ac
-            enddo
-          enddo
-        enddo
-
-c     Fill ghost cells by 2nd-order extrapolation
-
-        call map_bc(igc,nxc,nyc,nzc,arrayc,IBC=EXT)
-
-      end subroutine coarsen
+cc        return
+cc
+cc        write (*,*) 'DIAG -- coarsenGridMetrics'
+cc
+cc        !From analytical mapping
+cc        if (.not.numerical_grid) then
+cc
+cc          call findGridMetrics(gparams,igc)
+cc
+cc        !From numerical mapping
+cc        else
+cc
+cc          igf = igc - 1
+cc
+cc          nxf = gparams%nxv(igf)
+cc          nyf = gparams%nyv(igf)
+cc          nzf = gparams%nzv(igf)
+cc
+cc          nxc = gparams%nxv(igc)
+cc          nyc = gparams%nyv(igc)
+cc          nzc = gparams%nzv(igc)
+cc
+ccc         Coarsen volumes and jacobians (needed for coarsening all else)
+cc
+cc          !Coarsen cell volumes (with ghost cells)
+cc          call coarsen(igc,nxf,nyf,nzf,gparams%gmetric%grid(igf)%dvol
+cc     .                    ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%dvol
+cc     .                ,.false.)
+cc
+cc          !Calculate jacobian
+cc          do kc = 1,nzc
+cc            do jc = 1,nyc
+cc              do ic = 1,nxc
+cc                call getMGmap(ic,jc,kc,igc,igc,igc,icg,jcg,kcg)
+cc
+cc                gparams%gmetric%grid(igc)%jac(ic,jc,kc) =
+cc     .                      gparams%gmetric%grid(igc)%dvol(ic,jc,kc)
+cc     .                                    /(gparams%dxh(icg)
+cc     .                                     *gparams%dyh(jcg)
+cc     .                                     *gparams%dzh(kcg))
+cc              enddo
+cc            enddo
+cc          enddo
+cc
+cc          call map_bc(igc,nxc,nyc,nzc,gparams%gmetric%grid(igc)%jac
+cc     .               ,IBC=EXT)
+cc
+ccc         Coarsen everything else (with ghost cells)
+cc
+cc          !Gsup
+cc          do l=1,3
+cc            do m=l,3
+cc              call coarsen(igc
+cc     .           ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%gsup(:,:,:,l,m)
+cc     .                       *gparams%gmetric%grid(igf)%jac
+cc     .           ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%gsup(:,:,:,l,m)
+cc     .           ,.true.)
+cc              gparams%gmetric%grid(igc)%gsup(:,:,:,l,m) =
+cc     .             gparams%gmetric%grid(igc)%gsup(:,:,:,l,m)
+cc     .            /gparams%gmetric%grid(igc)%jac
+cc              gparams%gmetric%grid(igc)%gsup(:,:,:,m,l)
+cc     .             = gparams%gmetric%grid(igc)%gsup(:,:,:,l,m) !Symmetry
+cc            enddo
+cc          enddo
+cc
+cc          !Gsub
+cc          do l=1,3
+cc            do m=l,3
+cc              call coarsen(igc
+cc     .           ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%gsub(:,:,:,l,m)
+cc     .                       *gparams%gmetric%grid(igf)%jac
+cc     .           ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%gsub(:,:,:,l,m)
+cc     .           ,.true.)
+cc              gparams%gmetric%grid(igc)%gsub(:,:,:,l,m) =
+cc     .             gparams%gmetric%grid(igc)%gsub(:,:,:,l,m)
+cc     .            /gparams%gmetric%grid(igc)%jac
+cc              gparams%gmetric%grid(igc)%gsub(:,:,:,m,l)
+cc     .             = gparams%gmetric%grid(igc)%gsub(:,:,:,l,m) !Symmetry
+cc            enddo
+cc          enddo
+cc
+cc          !Gamma
+cc          do m=1,3
+cc            do n=m,3
+cc              do l=1,3
+cc                call coarsen(igc
+cc     .         ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%Gamma(:,:,:,l,m,n)
+cc     .                     *gparams%gmetric%grid(igf)%jac
+cc     .         ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n)
+cc     .         ,.true.)
+cc                gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n) =
+cc     .             gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n)
+cc     .            /gparams%gmetric%grid(igc)%jac
+cc              enddo
+cc              gparams%gmetric%grid(igc)%Gamma(:,:,:,:,n,m)
+cc     .             = gparams%gmetric%grid(igc)%Gamma(:,:,:,:,m,n) !Symmetry
+cc            enddo
+cc          enddo
+cc
+cc          !Cov
+cc          do l=1,3
+cc            do m=1,3
+cc              call coarsen(igc
+cc     .             ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%cov(:,:,:,l,m)
+cc     .                     *gparams%gmetric%grid(igf)%jac
+cc     .             ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%cov(:,:,:,l,m)
+cc     .             ,.true.)
+cc              gparams%gmetric%grid(igf)%cov(:,:,:,l,m) =
+cc     .              gparams%gmetric%grid(igf)%cov(:,:,:,l,m)
+cc     .             /gparams%gmetric%grid(igf)%jac
+cc            enddo
+cc          enddo
+cc
+cc          !Cnv
+cc          do l=1,3
+cc            do m=1,3
+cc              call coarsen(igc
+cc     .             ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%cnv(:,:,:,l,m)
+cc     .                     *gparams%gmetric%grid(igf)%jac
+cc     .             ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%cnv(:,:,:,l,m)
+cc     .             ,.true.)
+cc              gparams%gmetric%grid(igf)%cnv(:,:,:,l,m) =
+cc     .              gparams%gmetric%grid(igf)%cnv(:,:,:,l,m)
+cc     .             /gparams%gmetric%grid(igf)%jac
+cc            enddo
+cc          enddo
+cc
+cc        endif
+cc
+ccc     End program
+cc
+cc      contains
+cc
+ccc     coarsen
+ccc     #################################################################
+cc      subroutine coarsen(igc,nxf,nyf,nzf,arrayf,nxc,nyc,nzc,arrayc,volf)
+cc
+ccc     -----------------------------------------------------------------
+ccc     Coarsen arrayf to arrayc at grid level igc.
+ccc     -----------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Input variables
+cc
+cc        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
+cc        real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
+cc     .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
+cc        logical    :: volf
+cc
+ccc     Local variables
+cc
+cc        integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
+cc
+cc        real(8)    :: volc,ac
+cc
+ccc     Begin program
+cc
+cc        igf = igc - 1
+cc
+cc        mgx = gparams%mg_ratio_x(igf)
+cc        mgy = gparams%mg_ratio_y(igf)
+cc        mgz = gparams%mg_ratio_z(igf)
+cc
+cc        do kc = 1,nzc
+cc          do jc = 1,nyc
+cc            do ic = 1,nxc
+cc
+cc              volc   = 0d0
+cc              ac     = 0d0
+cc
+cc              do kf = mgz*(kc-1)+1,mgz*kc
+cc                do jf = mgy*(jc-1)+1,mgy*jc
+cc                  do if = mgx*(ic-1)+1,mgx*ic
+cc
+cc                    if (volf) then
+cc                      ac   = ac
+cc     .                     + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
+cc     .                      *arrayf(if,jf,kf)
+cc                      volc = volc
+cc     .                     + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
+cc                    else
+cc                      ac   = ac   + arrayf(if,jf,kf)
+cc                    endif
+cc
+cc                  enddo
+cc                enddo
+cc              enddo
+cc
+cc              if (volf) ac = ac/volc
+cc
+cc              arrayc(ic,jc,kc) = ac
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+ccc     Fill ghost cells by 2nd-order extrapolation
+cc
+cc        call map_bc(igc,nxc,nyc,nzc,arrayc,IBC=EXT)
+cc
+cc      end subroutine coarsen
 
       end subroutine coarsenGridMetrics
 
@@ -1888,78 +2037,78 @@ c     End program
 
       end subroutine topol_bc
 
-c     map_bc
-c     #################################################################
-      subroutine map_bc(igrid,nxl,nyl,nzl,array,IBC,iorder)
-
-c     -----------------------------------------------------------------
-c     Impose BCs on map x(xi), component by component.
-c     -----------------------------------------------------------------
-
-        implicit  none
-
-c     Call variables
-
-        integer    :: igrid,nxl,nyl,nzl
-
-        real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
-
-        integer   ,optional,intent(IN) :: IBC,iorder
-
-c     Local variables
-
-        integer    :: bcnd(6),iibc,order
-        real(8)    :: array0(0:nxl+1,0:nyl+1,0:nzl+1)
-
-c     Degug
-
-        integer    :: i,j,k
-
-c     External
-
-c     Begin program
-
-        if (PRESENT(IBC)) then
-          iibc = IBC
-        else
-          iibc = EQU
-        endif
-
-        if (PRESENT(iorder)) then
-          order = iorder
-        else
-          order = 2
-        endif
-
-        array0 = array
-
-c     Set boundary conditions to IBC
-
-        bcnd = iibc
-
-cc        bcnd = bcond
+ccc     map_bc
+ccc     #################################################################
+cc      subroutine map_bc(igrid,nxl,nyl,nzl,array,IBC,iorder)
 cc
-cc        where(bcond /= PER) bcnd = iibc  !Do extrapolation except at periodic BCs
-
-c     Impose BCs
-
-        call setMGBC(0,1,nxl,nyl,nzl,igrid,array,bcnd
-     .              ,arr0=array0,iorder=order)
-
-c diag ******
-cc        write (*,*) nxl,nyl,nzl
-cc        write (*,*) 'bcnd',bcnd
-cc        do j=0,nyl+1
-cc          write (*,*) 'before, j=',j,array0(:,j,1)
-cc          write (*,*) 'after , j=',j,array (:,j,1)
-cc          write (*,*)
-cc        enddo
-cc        write (*,*) '==============================='
-c diag ******
-
-c     End program
-
-      end subroutine map_bc
+ccc     -----------------------------------------------------------------
+ccc     Impose BCs on map x(xi), component by component.
+ccc     -----------------------------------------------------------------
+cc
+cc        implicit  none
+cc
+ccc     Call variables
+cc
+cc        integer    :: igrid,nxl,nyl,nzl
+cc
+cc        real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
+cc
+cc        integer   ,optional,intent(IN) :: IBC,iorder
+cc
+ccc     Local variables
+cc
+cc        integer    :: bcnd(6),iibc,order
+cc        real(8)    :: array0(0:nxl+1,0:nyl+1,0:nzl+1)
+cc
+ccc     Degug
+cc
+cc        integer    :: i,j,k
+cc
+ccc     External
+cc
+ccc     Begin program
+cc
+cc        if (PRESENT(IBC)) then
+cc          iibc = IBC
+cc        else
+cc          iibc = EQU
+cc        endif
+cc
+cc        if (PRESENT(iorder)) then
+cc          order = iorder
+cc        else
+cc          order = 2
+cc        endif
+cc
+cc        array0 = array
+cc
+ccc     Set boundary conditions to IBC
+cc
+cc        bcnd = iibc
+cc
+cccc        bcnd = bcond
+cccc
+cccc        where(bcond /= PER) bcnd = iibc  !Do extrapolation except at periodic BCs
+cc
+ccc     Impose BCs
+cc
+cc        call setMGBC(0,1,nxl,nyl,nzl,igrid,array,bcnd
+cc     .              ,arr0=array0,iorder=order)
+cc
+ccc diag ******
+cccc        write (*,*) nxl,nyl,nzl
+cccc        write (*,*) 'bcnd',bcnd
+cccc        do j=0,nyl+1
+cccc          write (*,*) 'before, j=',j,array0(:,j,1)
+cccc          write (*,*) 'after , j=',j,array (:,j,1)
+cccc          write (*,*)
+cccc        enddo
+cccc        write (*,*) '==============================='
+ccc diag ******
+cc
+ccc     End program
+cc
+cc      end subroutine map_bc
 
 c     defineGridMetric
 c     #################################################################
