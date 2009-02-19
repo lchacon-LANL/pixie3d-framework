@@ -740,7 +740,7 @@ c     Call variables
 c     Local variables
 
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
-      real(8)    :: vv(ntot,im+1),zz(ntot,im+1)
+      real(8)    :: vv(ntot,im+1),zz(ntot,im+1),dsol(ntot)
       real(8)    :: rold,ro,eps1,gam,t
       integer    :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
 
@@ -778,6 +778,8 @@ c     Calculate number of restarting loops
 c     Restarted FGMRES loop
 
       do irstrt = 1,rstrt
+
+        rs = 0d0
 
         ro = sqrt(dot(ntot,vv(:,1),vv(:,1)))
 
@@ -885,20 +887,27 @@ c     Now compute solution. First solve upper triangular system
 c     Form linear combination of zz=P*vv to get solution
 
         t = rs(1)
-        rhs(:) = zz(:,1)*t
+        dsol(:) = zz(:,1)*t
 
         do j=2, i
           t = rs(j)
-          rhs(:) = rhs(:) + t*zz(:,j)
+          dsol(:) = dsol(:) + t*zz(:,j)
         enddo
 
 c     Call preconditioner
 
-        vv(:,im+1) = rhs(:)
+        vv(:,im+1) = dsol(:)
 
 c     Update solution
 
-        sol(:) = sol(:) + vv(:,im+1)
+        sol(:) = sol(:) + dsol(:)
+
+c diag *****
+cc        call matrixFreeMatVec(ntot,sol,dum)
+cc        write (*,*) 'Residual=',sqrt(sum((dum-rhs)**2))
+cc        write (*,*) 'Solution update=',sqrt(sum(sol**2))
+cc        write (*,*) 'Solution coeffs=',rs
+c diag *****
 
 c     Check convergence and restart outer loop if necessary
 
@@ -997,7 +1006,7 @@ c     Call variables
 c     Local variables
 
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
-      real(8)    :: vv(ntot,im+1)
+      real(8)    :: vv(ntot,im+1),dsol(ntot)
       real(8)    :: rold,ro,eps1,gam,t
       integer    :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
 
@@ -1139,16 +1148,16 @@ c     Now compute solution. First solve upper triangular system
 c     Form linear combination of zz=P*vv to get solution
 
         t = rs(1)
-        rhs(:) = vv(:,1)*t
+        dsol(:) = vv(:,1)*t
 
         do j=2, i
           t = rs(j)
-          rhs(:) = rhs(:) + t*vv(:,j)
+          dsol(:) = dsol(:) + t*vv(:,j)
         enddo
 
 c     Call preconditioner
 
-       call applyPreconditioner(ntot,rhs,vv(1,im+1),precout)
+       call applyPreconditioner(ntot,dsol,vv(1,im+1),precout)
 
 c     Update solution
 
@@ -1226,7 +1235,8 @@ c     Call variables
 c     Local variables
 
       integer    :: i
-      real(8)    :: dummy(nn),yk(nn),pert,ipert,modz,modx,xdotz
+      real(8)    :: dummy(nn),pert,ipert,modz,modx,xdotz
+cc      real(8)    :: yk(nn)
 
 c     Begin program
 
@@ -1263,12 +1273,19 @@ cc        call evaluateNewtonResidual(nn,xk   ,yk)
         call evaluateNewtonResidual(nn,dummy,y)
 cc        is_residual = .true.
 
+c       Second order formula
+
+cc        dummy = xk - pert*z
+cc        call evaluateNewtonResidual(nn,dummy,yk)
+
 c       Compute the product J.x using the matrix-free approx
 
         ipert = 1d0/pert
 
         y = (y-rk)*ipert
-cc        y = (y-yk)*ipert
+
+        !Second order formula
+cc        y = 0.5*(y-yk)*ipert
 
       endif
 
