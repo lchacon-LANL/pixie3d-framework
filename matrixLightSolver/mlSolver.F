@@ -510,12 +510,15 @@ c        Get next plane rotation
 
           c(i)   = hh(i ,i)/gam
           s(i)   = hh(i1,i)/gam
-          rs(i1) = -s(i)*rs(i)
-          rs(i)  =  c(i)*rs(i)
+
+          hh(i,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
+          hh(i1,i)= 0d0
 
 c        Determine residual norm and test for convergence
 
-          hh(i,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
+          rs(i1) = -s(i)*rs(i)
+          rs(i)  =  c(i)*rs(i)
+
           ro = abs(rs(i1))
 
           if (iout.ge.2.and. my_rank == 0) write(*,10) its,ro,ro/rold
@@ -552,6 +555,10 @@ c      Form linear combination of z(*,i)'s to get solution
             dx(k) = dx(k)+tt*zz(k,j)
           enddo
         enddo
+
+c      Store last krylov vector
+
+        vv(:,k_max+1) = dx(:)
 
 c      Form solution
 
