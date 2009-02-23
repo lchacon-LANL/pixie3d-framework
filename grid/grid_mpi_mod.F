@@ -664,12 +664,13 @@ c     Find dimensionality
       endif
 
       !Find exponents
-      navg = nint((nx*ny*nz/nprocs)**(1./nd))
+cc      navg = nint((nx*ny*nz/nprocs)**(1./nd))
+      navg = int((nx*ny*nz/nprocs)**(1./nd))
 
       npt = (/nx,ny,nz/)
-      exp = nint(log(max(1d0*npt/navg,1d0))/log(2d0))
+      exp = nint(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
 
-cc      write (*,*) 'DIAG -- procAlloc',nx,ny,nz,nprocs,navg,exp
+cc      write (*,*) 'DIAG -- procAlloc',nx,ny,nz,nprocs,navg,exp,sum_exp
 
       !Consistency check
       if (sum(exp) /= sum_exp) then
