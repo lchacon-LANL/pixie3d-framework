@@ -40,6 +40,8 @@ c     bcSP
 c     #################################################################
       function bcSP(ibc) result(sing_bc)
 
+        implicit none
+
         integer   ,optional :: ibc
         logical    :: sing_bc
 
