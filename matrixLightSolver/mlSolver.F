@@ -559,6 +559,13 @@ c      Form solution
 
 c      Check convergence and restart outer loop if necessary
 
+c diag ******
+cc        call matvec(0,neq,ntot,x,dx,igrid,bcnd)
+cc        dx = b - dx
+cc        ro = sqrt(dot(ntot,dx,dx))
+cc        write (*,*) 'DIAG -- gm; Real residual=',ro
+c diag ******
+
         if (ro.le.(abstol+eps1)) then
           if (ro > eps1 .and. ro < abstol) then
             if (iout.gt.1.and. my_rank == 0)
