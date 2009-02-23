@@ -10,9 +10,73 @@ c     -----------------------------------------------------------------
 
       contains
 
+c     isBdry
+c     #################################################################
+      function isBdry(i,igr,ibc)
+
+c     -----------------------------------------------------------------
+c     Detects whether we are at a boundary or not
+c     -----------------------------------------------------------------
+
+        implicit none
+
+        integer    :: i,igr,ibc
+        logical    :: isBdry
+
+        integer    :: ilog,itst,diml,locl
+
+        locl = abs(mod(ibc,2)-2)-1
+        diml = 1 + (ibc-1-locl)/2
+
+        select case(diml)
+        case(1)
+          ilog = grid_params%ilo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nxgl(igr)
+          end select
+        case(2)
+          ilog = grid_params%jlo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nygl(igr)
+          end select
+        case(3)
+          ilog = grid_params%klo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = grid_params%nzgl(igr)
+          end select
+        end select
+
+        isBdry = (i+ilog-1 == itst)
+
+      end function isBdry
+
+c     isBC
+c     #################################################################
+      function isBC(i,igr,ibc,BC)
+
+        implicit none
+
+        integer    :: i,igr,ibc,BC
+        logical    :: isBC
+
+        isBC = (isBdry(i,igr,ibc) .and. bcond(ibc) == BC)
+
+      end function isBC
+
 c     isSP
 c     #################################################################
       function isSP(i,j,k,igx,igy,igz) result(sing_point)
+
+        implicit none
 
         integer    :: i,j,k,igx,igy,igz
         logical    :: sing_point
@@ -24,6 +88,8 @@ c     #################################################################
 c     isSP2
 c     #################################################################
       function isSP2(i,igr,dim,loc,ibc)
+
+        implicit none
 
         integer    :: i,igr
         logical    :: isSP2
@@ -45,42 +111,15 @@ c     #################################################################
           diml = 1 + (ibcl-1-locl)/2
         endif
 
-        isSP2=.false.
-
-        select case(diml)
-        case(1)
-          ilog = grid_params%ilo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nxgl(igr)
-          end select
-        case(2)
-          ilog = grid_params%jlo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nygl(igr)
-          end select
-        case(3)
-          ilog = grid_params%klo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nzgl(igr)
-          end select
-        end select
-
-        if (i+ilog-1 == itst .and. bcSP(ibc=ibcl)) isSP2=.true.
+        isSP2 = isBC(i,igr,ibcl,SP)
 
       end function isSP2
 
 c     isSYM
 c     #################################################################
       function isSYM(i,igr,dim,loc,ibc)
+
+        implicit none
 
         integer    :: i,igr
         logical    :: isSYM
@@ -102,36 +141,7 @@ c     #################################################################
           stop
         endif
 
-        isSYM=.false.
-
-        select case(diml)
-        case(1)
-          ilog = grid_params%ilo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nxgl(igr)
-          end select
-        case(2)
-          ilog = grid_params%jlo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nygl(igr)
-          end select
-        case(3)
-          ilog = grid_params%klo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = grid_params%nzgl(igr)
-          end select
-        end select
-
-        if (i+ilog-1 == itst .and. bcond(ibcl) == SYM)  isSYM=.true.
+        isSYM = isBC(i,igr,ibcl,SYM)
 
       end function isSYM
 

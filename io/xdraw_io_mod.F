@@ -271,7 +271,7 @@ c     ----------------------------------------------------------------
 c     Creates drawfile for "C-type" (fixed contour type) xdraw graphics.
 c     On call sequence:
 c       * nvar : number of variables in consideration for plotting
-c       * binf : name of binary file to be read
+c       * binf : name of binary file to be read by XDRAW
 c       * graphlabel : character array of arbitrary length specifying
 c                      graph title
 c       * ivart      : time variable axis name
