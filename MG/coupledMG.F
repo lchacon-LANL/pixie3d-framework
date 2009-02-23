@@ -1496,7 +1496,8 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: igc,isigc,isig,nn,nnc,imu
+        integer    :: igc,isigc,isig,nn,nnc,imu,iplot
+        character(50) :: dbg_desc(3)
 
 c     Begin program
 
@@ -1507,6 +1508,36 @@ c     Begin program
 
         isig  = istart(igr)
         isigc = istart(igc)
+
+c     Setup debugging plots
+
+        if (mg_debug) then
+
+          dbg_desc(1) = 'F-sol after pre-smoothing'
+          dbg_desc(2) = 'F-sol correction'
+          dbg_desc(3) = 'F-sol after V-cycle'
+
+          call createDrawInCfile(3,'finesol.bin','Fine grid Sol'
+     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
+     .          ,'drawfsol.in')
+
+          dbg_desc(1) = 'F-res after pre-smoothing'
+          dbg_desc(2) = 'F-res after coarse updt'
+          dbg_desc(3) = 'F-res after post-smoothing'
+
+          call createDrawInCfile(3,'fineres.bin','Fine grid Res'
+     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
+     .          ,'drawfres.in')
+
+          dbg_desc(1) = 'C-res after pre-smoothing'
+          dbg_desc(2) = 'C-sol after coarse solve'
+          dbg_desc(3) = 'C-res after coarse solve'
+
+          call createDrawInCfile(3,'coarse.bin','Coarse grid'
+     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
+     .          ,'drawcrse.in')
+
+        endif
 
 c     Relax error/solution on grid number igr/igrid (find new xx)
 
@@ -1521,12 +1552,11 @@ ccc diag ****
 
         call smooth(igr)
 
-ccc diag ****
-cc        if (igr == igmax-1) then
-cc          write (*,*) 'Plotting here at level',igr
-cc          call MGplot(neq,xx ,igr,0,'finesol.bin')
-cc        endif
-ccc diag ****
+        !Debugging plots
+        if (igr == igmax-1.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igr
+          call MGplot(neq,xx ,igr,0,'finesol.bin')
+        endif
 
 c     Evaluate residual (ie wrk = yy - A xx = yy - wrk )
 
@@ -1536,12 +1566,11 @@ c     Evaluate residual (ie wrk = yy - A xx = yy - wrk )
 
         call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
 
-ccc diag ****
-cc        if (igr == igmax-1) then
-cc          write (*,*) 'Plotting here at level',igr
-cc          call MGplot(neq,wrk,igr,0,'fineres.bin')
-cc        endif
-ccc diag ****
+        !Debuging plots
+        if (igr == igmax-1.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igr
+          call MGplot(neq,wrk,igr,0,'fineres.bin')
+        endif
 
 c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
 
@@ -1550,13 +1579,11 @@ c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
      .                ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
      .                ,orderres,igr,volf)
 
-ccc diag ****
-cc        if (igc == igmax) then
-cc          write (*,*) 'Plotting here at level',igc
-cc          call MGplot(neq,yy,igc,0,'coarse.bin')
-cccc          write (*,*) yy(isigc:isigc+ntotv(igc)-1)
-cc        endif
-ccc diag ****
+        !Debugging plots
+        if (igc == igmax.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igc
+          call MGplot(neq,yy,igc,0,'coarse.bin')
+        endif
 
 c     Initialize solution on coarse grid
 
@@ -1592,16 +1619,15 @@ cc#endif
           enddo
         endif
 
-ccc diag ****
-cccc        if (igc == igmax) then
-cccc          write (*,*) 'Plotting here at level',igc
-cccc          call MGplot(neq,xx,igc,1,'coarse.bin')
-cccc
-cccc          call matvec(0,neq,nnc,xx(isigc),wrk(isigc),igc,bcnd)
-cccc          call MGvecadd(igc,neq,nnc,-1d0,wrk(isigc),1d0,yy(isigc))
-cccc          call MGplot(neq,wrk,igc,1,'coarse.bin')
-cccc        endif
-ccc diag ****
+        !Debugging plots
+        if (igc == igmax.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igc
+          call MGplot(neq,xx,igc,1,'coarse.bin')
+
+          call matvec(0,neq,nnc,xx(isigc),wrk(isigc),igc,bcnd)
+          call MGvecadd(igc,neq,nnc,-1d0,wrk(isigc),1d0,yy(isigc))
+          call MGplot(neq,wrk,igc,1,'coarse.bin')
+        endif
 
 c     Cycle back up to grid igr updating errors (xx)
 c     with fixed R.H.S. (yy)
@@ -1617,31 +1643,29 @@ c     Update existing solution on grid igr (i.e. xx_igr): xx_igr = xx_igr + wrk
 
         call MGvecadd(igr,neq,nn,1d0,xx(isig),1d0,wrk(isig))
 
-ccc diag ****
-cc        if (igr == igmax-1) then
-cc          write (*,*) 'Plotting here at level',igr
-cc          call MGplot(neq,wrk,igr,1,'finesol.bin')
-cc          call MGplot(neq,xx ,igr,1,'finesol.bin')
-cc
-cc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
-cc          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
-cc          call MGplot(neq,wrk,igr,1,'fineres.bin')
-cc        endif
-ccc diag ****
+        !Debugging plots
+        if (igr == igmax-1.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igr
+          call MGplot(neq,wrk,igr,1,'finesol.bin')
+          call MGplot(neq,xx ,igr,1,'finesol.bin')
+
+          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
+          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+          call MGplot(neq,wrk,igr,1,'fineres.bin')
+        endif
 
 c     Relax updated solution on igr (i.e. xx_igr)
 
         call smooth(igr)
 
-ccc diag ****
-cc        if (igr == igmax-1) then
-cc          write (*,*) 'Plotting here at level',igr
-cc
-cc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
-cc          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
-cc          call MGplot(neq,wrk,igr,1,'fineres.bin')
-cc        endif
-ccc diag ****
+        !Debugging plots
+        if (igr == igmax-1.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igr
+
+          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
+          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+          call MGplot(neq,wrk,igr,1,'fineres.bin')
+        endif
 
 c     End program
 
