@@ -68,7 +68,7 @@ c                      for all the dependent variables.
 c                      These include any of the dependent
 c                      variable indeces plus 0 (indicating the true
 c                      independent variable).
-c       * logvar     : integer array specifying which dependent
+c       * logvar     : integer array specifying which (in)dependent
 c                      variables will be plotted in log scale.
 c       * drawfile   : character variable specifying the name of the
 c                      draw.in file.
@@ -83,7 +83,7 @@ c     ----------------------------------------------------------------
 c     Call variables
 
         integer      :: nvar,ntot,ivariables(ntot),dvariables(nvar)
-     .                 ,logvar(ntot)
+     .                 ,logvar(0:ntot)
         character(*) :: binf,drawfile,graphlabel,ivar
         character(*) :: descr(ntot)
         logical      :: spline,connect
@@ -94,6 +94,7 @@ c     Local variables
         integer      :: i,j,gfile,lngt
         character(50):: label
         character(2) :: options
+        character(6) :: str
         logical      :: flag
 
 c     Begin program
@@ -126,6 +127,12 @@ c     Begin program
           descr = title
         endif
 
+        if (logvar(0) == 1) then
+          str = 'L     '
+        else
+          str = '      '
+        endif
+
         do i=1,size(descr)
           lngt = len(trim(descr(i)))
           if (lngt == 0) exit
@@ -138,21 +145,21 @@ c     Begin program
           enddo
           if (flag) then
             if(logvar(i) == 1) then
-              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
+              write (gfile,'(i2,a,i2,2a)')  ivariables(i),str
      .                                ,i,'L'//trim(options)//'   '
      .                                ,trim(descr(i))
             else
-              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
+              write (gfile,'(i2,a,i2,2a)')  ivariables(i),str
      .                                ,i,trim(options)//'      '
      .                                ,trim(descr(i))
             endif
           else
             if(logvar(i) == 1) then
-              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
+              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),str
      .                                ,i,'L'//trim(options)//'   '
      .                                ,trim(descr(i))
             else
-              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
+              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),str
      .                                ,i,trim(options)//'      '
      .                                ,trim(descr(i))
             endif
