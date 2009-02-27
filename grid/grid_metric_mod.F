@@ -338,15 +338,16 @@ c     Local variables
 c     Begin program
 
         do ii=1,3
-          call crse_array(igc,nxf,nyf,nzf,xf(:,:,:,ii)
-     .                       ,nxc,nyc,nzc,xc(:,:,:,ii))
+          call crse_array(ii,igc,nxf,nyf,nzf,xf(:,:,:,ii)
+     .                          ,nxc,nyc,nzc,xc(:,:,:,ii))
         enddo
 
       contains
 
 c     crse_array
 c     #################################################################
-      subroutine crse_array(igc,nxf,nyf,nzf,arrayf,nxc,nyc,nzc,arrayc)
+      subroutine crse_array(dim,igc,nxf,nyf,nzf,arrayf
+     .                             ,nxc,nyc,nzc,arrayc)
 
 c     -----------------------------------------------------------------
 c     Coarsen arrayf to arrayc at grid level igc.
@@ -356,13 +357,15 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
+        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc,dim
         real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
      .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
 
 c     Local variables
 
         integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
+     .               ,i_off,j_off,k_off
+        real(8)    :: array0(0:nxc+1,0:nyc+1,0:nzc+1)
 
         real(8)    :: volc,ac
 
@@ -373,6 +376,8 @@ c     Begin program
         mgx = gparams%mg_ratio_x(igf)
         mgy = gparams%mg_ratio_y(igf)
         mgz = gparams%mg_ratio_z(igf)
+
+        array0 = 0d0
 
         do kc = 1,nzc
           do jc = 1,nyc
@@ -391,19 +396,71 @@ c     Begin program
               enddo
 
               arrayc(ic,jc,kc) = ac/volc
+
+              i_off = 0
+              j_off = 0
+              k_off = 0
+
+              ac = 0d0
+
+              select case(dim)
+              case (1)
+                if (ic == 1  .and.nxc /= 1) i_off =-1
+                if (ic == nxc.and.nxc /= 1) i_off = 1
+
+                if (i_off /= 0) then
+                  do kf = mgz*(kc-1)+1,mgz*kc
+                    do jf = mgy*(jc-1)+1,mgy*jc
+                      do if = mgx*(ic-1)+1,mgx*ic
+                        ac = ac + arrayf(if+i_off,jf+j_off,kf+k_off)
+                      enddo
+                    enddo
+                  enddo
+                endif
+              case (2)
+                if (jc == 1  .and.nyc /= 1) j_off =-1
+                if (jc == nyc.and.nyc /= 1) j_off = 1
+
+                if (j_off /= 0) then
+                  do kf = mgz*(kc-1)+1,mgz*kc
+                    do jf = mgy*(jc-1)+1,mgy*jc
+                      do if = mgx*(ic-1)+1,mgx*ic
+                        ac = ac + arrayf(if+i_off,jf+j_off,kf+k_off)
+                      enddo
+                    enddo
+                  enddo
+                endif
+              case (3)
+                if (kc == 1  .and.nzc /= 1) k_off =-1
+                if (kc == nzc.and.nzc /= 1) k_off = 1
+
+                if (k_off /= 0) then
+                  do kf = mgz*(kc-1)+1,mgz*kc
+                    do jf = mgy*(jc-1)+1,mgy*jc
+                      do if = mgx*(ic-1)+1,mgx*ic
+                        ac = ac + arrayf(if+i_off,jf+j_off,kf+k_off)
+                      enddo
+                    enddo
+                  enddo
+                endif
+              end select
+
+              array0(ic+i_off,jc+j_off,kc+k_off) = ac/volc
             enddo
           enddo
         enddo
 
 c     Fill ghost cells by 1st-order extrapolation
 
-        call map_bc(igc,nxc,nyc,nzc,arrayc,IBC=EXT,iorder=1)
+        call map_bc(dim,igc,nxc,nyc,nzc,arrayc,array0,iorder=1)
 
       end subroutine crse_array
 
+      end subroutine coarsen_map
+
 c     map_bc
 c     #################################################################
-      subroutine map_bc(igrid,nxl,nyl,nzl,array,IBC,iorder)
+      subroutine map_bc(dim,igrid,nxl,nyl,nzl,array,array0,iorder)
 
 c     -----------------------------------------------------------------
 c     Impose BCs on map x(xi), component by component.
@@ -413,16 +470,16 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: igrid,nxl,nyl,nzl
+        integer    :: dim,igrid,nxl,nyl,nzl
 
-        real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
+        real(8)    :: array (0:nxl+1,0:nyl+1,0:nzl+1)
+     .               ,array0(0:nxl+1,0:nyl+1,0:nzl+1)
 
-        integer   ,optional,intent(IN) :: IBC,iorder
+        integer   ,optional,intent(IN) :: iorder
 
 c     Local variables
 
         integer    :: bcnd(6),iibc,order
-        real(8)    :: array0(0:nxl+1,0:nyl+1,0:nzl+1)
 
 c     Debug
 
@@ -432,23 +489,49 @@ c     External
 
 c     Begin program
 
-        if (PRESENT(IBC)) then
-          iibc = IBC
-        else
-          iibc = EQU
-        endif
-
         if (PRESENT(iorder)) then
           order = iorder
         else
           order = 2
         endif
 
-        array0 = array
+c     Setup boundary conditions (topological conditions are meaningless for maps!)
 
-c     Set boundary conditions to IBC
+cc        bcnd = bcond   !Capture topological constraints
+cc        where(bcnd == DEF) bcnd = EXT !Default to extrapolation
 
-        bcnd = iibc
+        bcnd = EXT
+
+        !Force boundaries along dimension
+        select case(dim)
+        case(1)
+cc          where(bcond(1:2) == DEF) bcnd(1:2) = EQU
+          if (nxl > 1) then
+cc            where(bcnd(1:2) == EXT) bcnd(1:2) = EQU
+            bcnd(1:2) = EQU
+          else
+cc            where(bcnd(1:2) == EXT) bcnd(1:2) = PER
+            bcnd(1:2) = PER
+          endif
+        case(2)
+cc          where(bcond(3:4) == DEF) bcnd(3:4) = EQU
+          if (nyl > 1) then
+cc            where(bcnd(3:4) == EXT) bcnd(3:4) = EQU
+            bcnd(3:4) = EQU
+          else
+cc            where(bcnd(3:4) == EXT) bcnd(3:4) = PER
+            bcnd(3:4) = PER
+          endif
+        case(3)
+cc          where(bcond(5:6) == DEF) bcnd(5:6) = EQU
+          if (nzl > 1) then
+cc            where(bcnd(5:6) == EXT) bcnd(5:6) = EQU
+            bcnd(5:6) = EQU
+          else
+cc            where(bcnd(5:6) == EXT) bcnd(5:6) = PER
+            bcnd(5:6) = PER
+          endif
+        end select
 
 c     Impose BCs
 
@@ -458,8 +541,6 @@ c     Impose BCs
 c     End program
 
       end subroutine map_bc
-
-      end subroutine coarsen_map
 
 ccc     find_gmetric
 ccc     #####################################################################
@@ -792,15 +873,14 @@ cc                write (*,*) 'DIAG -- fingGridMetrics'
                   jac = gparams%gmetric%grid(igrid)%jac(i,j,k)
                 endif
 
-                if (jac == 0d0) then
+                if (jac <= 0d0) then
                   write (*,*) 'Grid level',igrid
                   write (*,*) 'Grid position=',i,j,k
                   write (*,*) 'dr/dxi_1=',r(1,:)
                   write (*,*) 'dr/dxi_2=',r(2,:)
                   write (*,*) 'dr/dxi_3=',r(3,:)
                   write (*,*) 'Jacobian=',jac
-                  call pstop('findGridMetrics','Zero jacobian')
-                  stop
+                  call pstop('findGridMetrics','Negative jacobian')
                 endif
 
                 ijac = 1d0/jac
