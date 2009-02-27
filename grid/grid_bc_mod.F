@@ -2002,42 +2002,54 @@ c     Extrapolate
                 case (1)
 
                   rhs(j,k) = 
-     .              quad_int(xx(ig-1)+dxh(ig-1),xx(ig),xx(ig+1),xx(ig+2)
+cc     .              quad_int(xx(ig-1)+dxh(ig-1),xx(ig)
+     .              quad_int(0.5*(xx(ig-1)+xx(ig)),xx(ig)
+     .                       ,xx(ig+1),xx(ig+2)
      .                       ,array0(i-1,j,k),array(i,j,k)
      .                       ,array (i+1,j,k),array(i+2,j,k)
      .                       ,xx(ig-1),order )
                 case (2)
 
                   rhs(j,k) =
-     .              quad_int(xx(ig+1)-dxh(ig+1),xx(ig),xx(ig-1),xx(ig-2)
+cc     .              quad_int(xx(ig+1)-dxh(ig+1),xx(ig)
+     .              quad_int(0.5*(xx(ig+1)+xx(ig)),xx(ig)
+     .                        ,xx(ig-1),xx(ig-2)
      .                        ,array0(i+1,j,k),array(i,j,k)
      .                        ,array (i-1,j,k),array(i-2,j,k)
      .                        ,xx(ig+1),order )
                 case (3)
 
                   rhs(i,k) =
-     .              quad_int(yy(jg-1)+dyh(jg-1),yy(jg),yy(jg+1),yy(jg+2)
+cc     .              quad_int(yy(jg-1)+dyh(jg-1),yy(jg)
+     .              quad_int(0.5*(yy(jg-1)+yy(jg)),yy(jg)
+     .                        ,yy(jg+1),yy(jg+2)
      .                        ,array0(i,j-1,k),array(i,j,k)
      .                        ,array (i,j+1,k),array(i,j+2,k)
      .                        ,yy(jg-1),order )
                 case (4)
 
                   rhs(i,k) =
-     .              quad_int(yy(jg+1)-dyh(jg+1),yy(jg),yy(jg-1),yy(jg-2)
+cc     .              quad_int(yy(jg+1)-dyh(jg+1),yy(jg)
+     .              quad_int(0.5*(yy(jg+1)+yy(jg)),yy(jg)
+     .                        ,yy(jg-1),yy(jg-2)
      .                        ,array0(i,j+1,k),array(i,j,k)
      .                        ,array (i,j-1,k),array(i,j-2,k)
      .                        ,yy(jg+1),order )
                 case (5)
 
                   rhs(i,j) =
-     .              quad_int(zz(kg-1)+dzh(kg-1),zz(kg),zz(kg+1),zz(kg+2)
+cc     .              quad_int(zz(kg-1)+dzh(kg-1),zz(kg)
+     .              quad_int(0.5*(zz(kg-1)+zz(kg)),zz(kg)
+     .                        ,zz(kg+1),zz(kg+2)
      .                        ,array0(i,j,k-1),array(i,j,k)
      .                        ,array (i,j,k+1),array(i,j,k+2)
      .                        ,zz(kg-1),order )
                 case (6)
 
                   rhs(i,j) =
-     .              quad_int(zz(kg+1)-dzh(kg+1),zz(kg),zz(kg-1),zz(kg-2)
+cc     .              quad_int(zz(kg+1)-dzh(kg+1),zz(kg)
+     .              quad_int(0.5*(zz(kg+1)+zz(kg)),zz(kg)
+     .                        ,zz(kg-1),zz(kg-2)
      .                        ,array0(i,j,k+1),array(i,j,k)
      .                        ,array (i,j,k-1),array(i,j,k-2)
      .                        ,zz(kg+1),order )
