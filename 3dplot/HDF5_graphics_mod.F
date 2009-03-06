@@ -45,7 +45,7 @@ c       generic HDF5 variables
         integer   , parameter :: ARRAY_RANK = 3
         integer   , parameter :: ATTR_RANK = 1
         integer   , parameter :: VEXP_RANK = 1
-        integer(size_t), parameter :: strlength = 30
+        integer(size_t), parameter :: strlength = 20
 
         integer(hsize_t), dimension(ARRAY_RANK) ::
      .                         array_dim,node_array_dim
@@ -58,8 +58,10 @@ c       generic HDF5 variables
         character(strlength), dimension(ARRAY_RANK) :: coords_descr
      .                                            = (/'X','Y','Z'/)
         character(strlength)                   :: cell_coords_gname
+cc     .                                            = 'cell_coords'
      .                                            = 'cells'
         character(strlength)                   :: node_coords_gname
+cc     .                                            = 'node_coords'
      .                                            = 'nodes'
         character(strlength)                   :: attr_name = 'coords'
 
