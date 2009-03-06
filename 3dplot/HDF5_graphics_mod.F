@@ -58,10 +58,10 @@ c       generic HDF5 variables
         character(strlength), dimension(ARRAY_RANK) :: coords_descr
      .                                            = (/'X','Y','Z'/)
         character(strlength)                   :: cell_coords_gname
-cc     .                                            = 'cell_coords'
+cc     .                                            = 'cell_coords'  !Old visit interface
      .                                            = 'cells'
         character(strlength)                   :: node_coords_gname
-cc     .                                            = 'node_coords'
+cc     .                                            = 'node_coords'  !Old visit interface
      .                                            = 'nodes'
         character(strlength)                   :: attr_name = 'coords'
 
