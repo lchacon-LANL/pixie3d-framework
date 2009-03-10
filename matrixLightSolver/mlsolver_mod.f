@@ -222,7 +222,7 @@ c     ###################################################################
 c       Modifies solver definition at depth 'depth' in solver hierarchy
 
           type (solver_unit) :: solver_def
-          integer               :: depth
+          integer :: depth
 
         !Begin
 
@@ -236,7 +236,7 @@ c     ###################################################################
 
 c       Gets solver options at depth 'depth'
 
-          integer    :: depth
+          integer :: depth
           type (solver_unit) :: solver_def
 
         !Begin
