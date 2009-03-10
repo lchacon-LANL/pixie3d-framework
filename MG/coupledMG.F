@@ -26,8 +26,6 @@ c######################################################################
 
         use mlsolverSetup
 
-        real(8), allocatable, dimension(:,:) :: diag
-
         logical :: vbr_mg,galerkin=.false.,volf,prnt=.true.
      .            ,mg_debug=.false.
 
@@ -1226,6 +1224,8 @@ c Local variables
       real(8)    :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot),x0(ntot)
       real(8)    :: rr0,rr1,mag,mag1,mag2,mgtol,line_tol,line_omega
 
+      real(8), pointer, dimension(:,:) :: diag
+
       logical    :: fdiag,line_relax,fpointers,line_x,line_y,line_z
 
       character(2) :: line_solve
@@ -1253,6 +1253,7 @@ c Assign options
       galerkin        = options%galerkin
       MGgrid          => options%mg_grid_def
 cc      call equateGridStructure(MGgrid,options%mg_grid_def)  !This requires changes in killmg
+      diag            => options%diag
 
       line_relax      = options%mg_line_relax
       line_vcyc       = options%mg_line_vcyc
@@ -1302,23 +1303,35 @@ c Find diagonal for smoothers
         nblk = 1
       endif
 
-      if (fdiag) then
+cc      if (fdiag) then
+cc
+cc        if (allocated(diag)) then !Diagonal is known
+cc          if(out.ge.2.and.prnt) write(*,*)'Diagonal already allocated'
+cc          fdiag = .false.
+cc        elseif (associated(options%diag)) then !Diagonal provided externally
+cc          if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
+cc          allocate(diag(neq*nblk,2*ntot*nblk))
+cc          diag = options%diag
+cc        else                      !Form diagonal
+cc          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
+cc          allocate(diag(neq*nblk,2*ntot*nblk))
+cc          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+cc     .                     ,ncolors,volf,galerkin)
+cc          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
+cc        endif
+cc
+cc      endif
 
-        if (allocated(diag)) then !Diagonal is known
-          if(out.ge.2.and.prnt) write(*,*)'Diagonal already allocated'
-          fdiag = .false.
-        elseif (associated(options%diag)) then !Diagonal provided externally
-          if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          diag = options%diag
-        else                      !Form diagonal
-          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                     ,ncolors,volf,galerkin)
-          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
-        endif
-
+      if (associated(diag)) then !Diagonal provided externally
+        if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
+        fdiag = .false.
+      else                      !Form diagonal
+        if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
+        allocate(diag(neq*nblk,2*ntot*nblk))
+        call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+     .                   ,ncolors,volf,galerkin)
+        if (out.ge.2.and.prnt) write (*,*) 'Finished!'
+        fdiag = .true.
       endif
 
 c Initialize local solution vector (xx) and local r.h.s. (yy)
@@ -1488,6 +1501,8 @@ c       Performs MG M-cycle (V-cycle, m=1, W-cycle, m=2) recursively
 c       starting at grid igr.
 c     -------------------------------------------------------------------
 
+        use math
+
         implicit none
 
 c     Call variables
@@ -1497,7 +1512,9 @@ c     Call variables
 c     Local variables
 
         integer    :: igc,isigc,isig,nn,nnc,imu,iplot
-        character(50) :: dbg_desc(3)
+        character(50) :: dbg_desc(4*neq)
+
+cc        external     matvec
 
 c     Begin program
 
@@ -1513,27 +1530,44 @@ c     Setup debugging plots
 
         if (mg_debug) then
 
-          dbg_desc(1) = 'F-sol after pre-smoothing'
-          dbg_desc(2) = 'F-sol correction'
-          dbg_desc(3) = 'F-sol after V-cycle'
+          do iplot=1,neq
+            dbg_desc(iplot)       = 'F-sol_'//trim(int2char(iplot))
+     .                              //' after pre-smoothing'
+            dbg_desc(iplot+neq)   = 'F-sol_'//trim(int2char(iplot))
+     .                              //' correction'
+            dbg_desc(iplot+2*neq) = 'F-sol_'//trim(int2char(iplot))
+     .                              //' after V-cycle'
+          enddo
 
-          call createDrawInCfile(3,'finesol.bin','Fine grid Sol'
+          call createDrawInCfile(3*neq,'finesol.bin','Fine grid Sol'
      .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
      .          ,'drawfsol.in')
 
-          dbg_desc(1) = 'F-res after pre-smoothing'
-          dbg_desc(2) = 'F-res after coarse updt'
-          dbg_desc(3) = 'F-res after post-smoothing'
+          do iplot=1,neq
+            dbg_desc(iplot)       = 'F-res_'//trim(int2char(iplot))
+     .                              //' before pre-smoothing'
+            dbg_desc(iplot+neq)   = 'F-res_'//trim(int2char(iplot))
+     .                              //' after pre-smoothing'
+            dbg_desc(iplot+2*neq) = 'F-res_'//trim(int2char(iplot))
+     .                              //' after coarse updt'
+            dbg_desc(iplot+3*neq) = 'F-res_'//trim(int2char(iplot))
+     .                              //' after post-smoothing'
+          enddo
 
-          call createDrawInCfile(3,'fineres.bin','Fine grid Res'
+          call createDrawInCfile(4*neq,'fineres.bin','Fine grid Res'
      .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
      .          ,'drawfres.in')
 
-          dbg_desc(1) = 'C-res after pre-smoothing'
-          dbg_desc(2) = 'C-sol after coarse solve'
-          dbg_desc(3) = 'C-res after coarse solve'
+          do iplot=1,neq
+            dbg_desc(iplot)       = 'C-res_'//trim(int2char(iplot))
+     .                              //' after restriction'
+            dbg_desc(iplot+neq)   = 'C-sol_'//trim(int2char(iplot))
+     .                              //' after coarse solve'
+            dbg_desc(iplot+2*neq) = 'C-res_'//trim(int2char(iplot))
+     .                              //' after coarse solve'
+          enddo
 
-          call createDrawInCfile(3,'coarse.bin','Coarse grid'
+          call createDrawInCfile(3*neq,'coarse.bin','Coarse grid'
      .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
      .          ,'drawcrse.in')
 
@@ -1541,14 +1575,12 @@ c     Setup debugging plots
 
 c     Relax error/solution on grid number igr/igrid (find new xx)
 
-ccc diag ****
-cccc        if (igr == igmax-1) then
-cccc          write (*,*) 'Plotting here at level',igr
-cccc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
-cccc          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
-cccc          call MGplot(neq,wrk,igr,0,'fineres.bin')
-cccc        endif
-ccc diag ****
+        if (igr == igmax-1.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igr
+          call MGmatvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd,matvec)
+          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+          call MGplot(neq,wrk,igr,0,'fineres.bin')
+        endif
 
         call smooth(igr)
 
@@ -1569,7 +1601,7 @@ c     Evaluate residual (ie wrk = yy - A xx = yy - wrk )
         !Debuging plots
         if (igr == igmax-1.and.mg_debug) then
           write (*,*) 'Plotting here at level',igr
-          call MGplot(neq,wrk,igr,0,'fineres.bin')
+          call MGplot(neq,wrk,igr,1,'fineres.bin')
         endif
 
 c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
@@ -1624,7 +1656,7 @@ cc#endif
           write (*,*) 'Plotting here at level',igc
           call MGplot(neq,xx,igc,1,'coarse.bin')
 
-          call matvec(0,neq,nnc,xx(isigc),wrk(isigc),igc,bcnd)
+          call MGmatvec(0,neq,nnc,xx(isigc),wrk(isigc),igc,bcnd,matvec)
           call MGvecadd(igc,neq,nnc,-1d0,wrk(isigc),1d0,yy(isigc))
           call MGplot(neq,wrk,igc,1,'coarse.bin')
         endif
@@ -1649,7 +1681,7 @@ c     Update existing solution on grid igr (i.e. xx_igr): xx_igr = xx_igr + wrk
           call MGplot(neq,wrk,igr,1,'finesol.bin')
           call MGplot(neq,xx ,igr,1,'finesol.bin')
 
-          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
+          call MGmatvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd,matvec)
           call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
           call MGplot(neq,wrk,igr,1,'fineres.bin')
         endif
@@ -1662,7 +1694,7 @@ c     Relax updated solution on igr (i.e. xx_igr)
         if (igr == igmax-1.and.mg_debug) then
           write (*,*) 'Plotting here at level',igr
 
-          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
+          call MGmatvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd,matvec)
           call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
           call MGplot(neq,wrk,igr,1,'fineres.bin')
         endif
@@ -1764,10 +1796,12 @@ c     Begin program
 
         omega  = line_omega
 
-        line_mg_grid%ngrdx = 0
-        line_mg_grid%ngrdy = 0
-        line_mg_grid%ngrdz = 0
-        line_mg_grid%ngrid = 0
+cc        line_mg_grid%ngrdx = 0
+cc        line_mg_grid%ngrdy = 0
+cc        line_mg_grid%ngrdz = 0
+cc        line_mg_grid%ngrid = 0
+
+        nullify(line_mg_grid)
 
 c     Schedule planes/lines
 
@@ -1797,7 +1831,7 @@ c         Find initial residual
 
 c         Planes/Lines in X-direction
 
-cc            do iter=1,nsweep
+cc          do iter=1,nsweep
 
           if (nxl(igr) > 1 .and. line_x) then
 
@@ -2391,7 +2425,7 @@ c     Local variables
      .                   ,istartp_sv(size(istartp))
      .                   ,istartb_sv(size(istartb))
 
-        real(8),allocatable,dimension(:,:) :: old_diag
+        real(8),allocatable,dimension(:,:),target :: new_diag
 
         type (solver_options) :: options
 
@@ -2407,19 +2441,21 @@ c     Save parent MG grid configuration (shared with filial MG via mg_internal m
         istartb_sv = istartb
 
         !Save diagonal
-        allocate(old_diag(size(diag,1),size(diag,2)))
-        old_diag = diag
-        deallocate(diag)
+cc        allocate(old_diag(size(diag,1),size(diag,2)))
+cc        old_diag = diag
+cc        deallocate(diag)
 
 c     'Prime' grid structure variable to pass to filial MG call
 
-        options%mg_grid_def%ngrdx = 0
-        options%mg_grid_def%ngrdy = 0
-        options%mg_grid_def%ngrdz = 0
-        options%mg_grid_def%ngrid = 0
+cc        options%mg_grid_def%ngrdx = 0
+cc        options%mg_grid_def%ngrdy = 0
+cc        options%mg_grid_def%ngrdz = 0
+cc        options%mg_grid_def%ngrid = 0
+cc
+cccc        options%mg_grid_def = MGgrid_sv
+cc        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
 
-cc        options%mg_grid_def = MGgrid_sv
-        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
+        nullify(options%mg_grid_def)
 
 c     Shift MG pointers to current grid level igr
 
@@ -2427,15 +2463,15 @@ c     Shift MG pointers to current grid level igr
 
 c     Allocate new diagonal and transfer elements
 
-        allocate(diag(size(old_diag,1)
-     .               ,size(old_diag,2)-istart_sv(igr)+1))
+        allocate(new_diag(size(diag,1)
+     .                   ,size(diag,2)-istart_sv(igr)+1))
 
-        diag = old_diag(:,istart_sv(igr):size(old_diag,2))
+        new_diag = diag(:,istart_sv(igr):size(diag,2))
 
 c     Configure recursive plane/line JB solve
 
-        options%iter                        = 100
-        options%omega                       = 1d0           
+        options%iter                        = 2
+        options%omega                       = 0.7
 
         options%tol                         = line_tol
         options%vcyc                        = line_vcyc
@@ -2452,11 +2488,12 @@ c     Configure recursive plane/line JB solve
         options%mg_line_tol                 = line_tol
         options%mg_line_omega               = line_omega
         options%mg_line_coarse_solver_depth = line_crse_depth
-cc        options%mg_grid_def                 = mg_grid
-        call equateGridStructure(options%mg_grid_def,mg_grid)
+        options%mg_grid_def                 => mg_grid
+cc        call equateGridStructure(options%mg_grid_def,mg_grid)
 
         options%vertex_based_relax          = vbr_mg
-        options%fdiag                       = fdiag
+cc        options%fdiag                       = fdiag
+        options%diag                        => new_diag
 
 c     Call plane/line JB
 
@@ -2469,17 +2506,22 @@ c     Recover configuration for parent level MG
         istartp = istartp_sv
         istartb = istartb_sv
 cc        MGgrid  = mg_grid
-        call equateGridStructure(MGgrid,mg_grid)
+cc        call equateGridStructure(MGgrid,mg_grid)
 
         !Recover diagonal
-        deallocate(diag)
-        allocate(diag(size(old_diag,1),size(old_diag,2)))
-        diag = old_diag
-        deallocate(old_diag)
+cc        deallocate(diag)
+cc        allocate(diag(size(old_diag,1),size(old_diag,2)))
+cc        diag = old_diag
+cc        deallocate(old_diag)
 
 c     Deallocate memory
 
-        call deallocateGridStructure(options%mg_grid_def)
+        nullify(options%mg_grid_def)
+        nullify(options%diag)
+
+        deallocate(new_diag)
+
+cc        call deallocateGridStructure(options%mg_grid_def)
 
       end subroutine lineJBsolver
 
@@ -2531,13 +2573,7 @@ c     Begin program
 
 c     Save parent MG grid configuration (shared with filial MG via mg_internal module)
 
-cc        MGgrid_sv%ngrdx = 0
-cc        MGgrid_sv%ngrdy = 0
-cc        MGgrid_sv%ngrdz = 0
-cc        MGgrid_sv%ngrid = 0
-cc
-cc        !Save pointers
-cc        MGgrid_sv  = MGgrid
+        !Save MG pointers
         istart_sv  = istart
         istartp_sv = istartp
         istartb_sv = istartb
@@ -2549,13 +2585,13 @@ cc        MGgrid_sv  = MGgrid
 
 c     'Prime' grid structure variable to pass to filial MG call
 
-        options%mg_grid_def%ngrdx = 0
-        options%mg_grid_def%ngrdy = 0
-        options%mg_grid_def%ngrdz = 0
-        options%mg_grid_def%ngrid = 0
+cc        options%mg_grid_def%ngrdx = 0
+cc        options%mg_grid_def%ngrdy = 0
+cc        options%mg_grid_def%ngrdz = 0
+cc        options%mg_grid_def%ngrid = 0
+        nullify(options%mg_grid_def)
 
-cc        options%mg_grid_def = MGgrid_sv
-        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
+cc        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
 
 c     Shift MG pointers to current grid level igr
 
@@ -2593,11 +2629,12 @@ c     Configure recursive plane/line MG solve
         options%mg_line_x                   = line_x
         options%mg_line_y                   = line_y
         options%mg_line_z                   = line_z
-cc        options%mg_grid_def                 = mg_grid
-        call equateGridStructure(options%mg_grid_def,mg_grid)
+        options%mg_grid_def                 => mg_grid
+cc        call equateGridStructure(options%mg_grid_def,mg_grid)
 
         options%vertex_based_relax          = vbr_mg
         options%fdiag                       = fdiag
+cc        options%diag                        => new_diag
 
 c     Call plane/line MG
 
@@ -2686,15 +2723,15 @@ c     Local variables
 
 c     Begin program
 
-        MGgrid_sv%ngrdx = 0
-        MGgrid_sv%ngrdy = 0
-        MGgrid_sv%ngrdz = 0
-        MGgrid_sv%ngrid = 0
+cc        MGgrid_sv%ngrdx = 0
+cc        MGgrid_sv%ngrdy = 0
+cc        MGgrid_sv%ngrdz = 0
+cc        MGgrid_sv%ngrid = 0
 
-cc        MGgrid_sv  = MGgrid
-cc        MGgrid     = mg_grid
-        call equateGridStructure(MGgrid_sv,MGgrid)
-        call equateGridStructure(MGgrid,mg_grid)
+        MGgrid_sv  => MGgrid
+        MGgrid     => mg_grid
+cc        call equateGridStructure(MGgrid_sv,MGgrid)
+cc        call equateGridStructure(MGgrid,mg_grid)
 
 c     End program
 
@@ -2716,12 +2753,12 @@ c     Local variables
 
 c     Begin program
 
-        call deallocateGridStructure(MGgrid)
+cc        call deallocateGridStructure(MGgrid)
+cc        call equateGridStructure(MGgrid,MGgrid_sv)
+cc        call deallocateGridStructure(MGgrid_sv)
 
-cc        MGgrid  = MGgrid_sv
-        call equateGridStructure(MGgrid,MGgrid_sv)
-
-        call deallocateGridStructure(MGgrid_sv)
+        MGgrid  => MGgrid_sv
+        nullify(MGgrid_sv)
 
 c     End program
 
@@ -3017,7 +3054,12 @@ c     ###################################################################
 
         implicit none
 
-        if (fdiag)  deallocate(diag)
+        if (fdiag) then
+          deallocate(diag)
+        else
+          nullify(diag)
+        endif
+
         call deallocPointers(fpointers)
 cc        call deallocateGridStructure(MGgrid)
         nullify(MGgrid)
@@ -3794,6 +3836,8 @@ c Local variables
       integer    :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblk,i1
       real(8)    :: mag0=1d0,mag1,mag,lmag,yy(ntot),magsp,magsp0
 
+      real(8), pointer, dimension(:,:) :: diag
+
       real(8),allocatable, dimension(:)  :: dummy,rhs
 
 c Begin program
@@ -3824,6 +3868,7 @@ c Read solver configuration
       fdiag  = options%fdiag
       vbr    = options%vertex_based_relax
       ncolors= options%ncolors
+      diag   => options%diag
 
 c Initialize auxiliary variables
 
@@ -3842,23 +3887,35 @@ c Initialize auxiliary variables
 
 c Find diagonal for smoothers
 
-      if (fdiag) then
+cc      if (fdiag) then
+cc
+cc        if (allocated(diag)) then !Diagonal is known
+cc          if(out.ge.2.and.prnt)write (*,*)'Diagonal already allocated'
+cc          fdiag = .false.
+cc        elseif (associated(options%diag)) then !Diagonal provided externally
+cc          if(out.ge.2.and.prnt)write (*,*)'Diagonal externally provided'
+cc          allocate(diag(neq*nblk,2*ntot*nblk))
+cc          diag = options%diag
+cc        else                      !Form diagonal
+cc          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
+cc          allocate(diag(neq*nblk,2*ntot*nblk))
+cc          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+cc     .                     ,ncolors,volf,galerkin)
+cc          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
+cc        endif
+cc
+cc      endif
 
-        if (allocated(diag)) then !Diagonal is known
-          if(out.ge.2.and.prnt)write (*,*)'Diagonal already allocated'
-          fdiag = .false.
-        elseif (associated(options%diag)) then !Diagonal provided externally
-          if(out.ge.2.and.prnt)write (*,*)'Diagonal externally provided'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          diag = options%diag
-        else                      !Form diagonal
-          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                     ,ncolors,volf,galerkin)
-          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
-        endif
-
+      if (associated(diag)) then !Diagonal provided externally
+        if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
+        fdiag = .false.
+      else                      !Form diagonal
+        if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
+        allocate(diag(neq*nblk,2*ntot*nblk))
+        call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+     .                   ,ncolors,volf,galerkin)
+        if (out.ge.2.and.prnt) write (*,*) 'Finished!'
+        fdiag = .true.
       endif
 
 c Preparation for iteration
@@ -4106,7 +4163,12 @@ c End program
 
       deallocate (dummy,rhs)
 
-      if (fdiag)  deallocate(diag)
+      if (fdiag) then
+        deallocate(diag)
+      else
+        nullify(diag)
+      endif
+
       call deallocPointers(fpointers)
 
       return
@@ -4181,6 +4243,8 @@ c Local variables
 
       integer    :: ncolors,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
 
+      real(8), pointer, dimension(:,:) :: diag
+
       real(8),allocatable, dimension(:) :: dummy,rhs
 
       type(grid_mg_def),pointer :: line_mg_grid
@@ -4213,6 +4277,7 @@ c Read solver configuration
       fdiag  = options%fdiag
       vbr    = options%vertex_based_relax
       ncolors= options%ncolors
+      diag   => options%diag
 
 c Initialize auxiliary variables
 
@@ -4232,23 +4297,35 @@ c Initialize auxiliary variables
 
 c Find diagonal for smoothers
 
-      if (fdiag) then
+cc      if (fdiag) then
+cc
+cc        if (allocated(diag)) then !Diagonal is known
+cc          if(out.ge.2.and.prnt)write (*,*)'Diagonal already allocated'
+cc          fdiag = .false.
+cc        elseif (associated(options%diag)) then !Diagonal provided externally
+cc          if(out.ge.2.and.prnt)write (*,*)'Diagonal externally provided'
+cc          allocate(diag(neq*nblk,2*ntot*nblk))
+cc          diag = options%diag
+cc        else                      !Form diagonal
+cc          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
+cc          allocate(diag(neq*nblk,2*ntot*nblk))
+cc          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+cc     .                     ,ncolors,volf,galerkin)
+cc          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
+cc        endif
+cc
+cc      endif
 
-        if (allocated(diag)) then !Diagonal is known
-          if(out.ge.2.and.prnt)write (*,*)'Diagonal already allocated'
-          fdiag = .false.
-        elseif (associated(options%diag)) then !Diagonal provided externally
-          if(out.ge.2.and.prnt)write (*,*)'Diagonal externally provided'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          diag = options%diag
-        else                      !Form diagonal
-          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                     ,ncolors,volf,galerkin)
-          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
-        endif
-
+      if (associated(diag)) then !Diagonal provided externally
+        if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
+        fdiag = .false.
+      else                      !Form diagonal
+        if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
+        allocate(diag(neq*nblk,2*ntot*nblk))
+        call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+     .                   ,ncolors,volf,galerkin)
+        if (out.ge.2.and.prnt) write (*,*) 'Finished!'
+        fdiag = .true.
       endif
 
 c Preparation for iteration
@@ -4555,6 +4632,7 @@ cc            enddo
 
 c       Take care of points around singular point (using JB)
 
+#if 1
         if (isSP(1,1,1,igrid,igrid,igrid)) then
 #if defined(petsc)
           if (np > 1) call pstop('gs','Does not work in parallel')
@@ -4663,6 +4741,7 @@ cc         enddo
 cc        enddo
 
         endif
+#endif
 
 c     Check convergence
 
@@ -4715,7 +4794,12 @@ c End program
 
       deallocate (dummy,rhs)
 
-      if (fdiag)  deallocate(diag)
+      if (fdiag) then
+        deallocate(diag)
+      else
+        nullify(diag)
+      endif
+
       call deallocPointers(fpointers)
 
       return
