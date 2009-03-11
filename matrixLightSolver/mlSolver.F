@@ -362,17 +362,24 @@ c Call variables
 c Local variables
 
       integer    :: k_max,stp_test,depth1
-      real(8)    :: eps,epsmac,rold,ro,eps1,gam,tt,mag,abstol,dx(ntot)
+      real(8)    :: eps,rold,ro,eps1,gam,tt,mag,abstol,dx(ntot)
+     .             ,smx_est,smn_est,smx_new,smn_new,snmx,snmn,csmx,csmn
 
       integer    :: i,j,i1,k,k1,ii,jj
       integer    :: nn,rstrt,irstrt,precout,maxits
 
-      double precision,allocatable,dimension(:)  :: c,s,rs
+      double precision,allocatable,dimension(:)  :: c,s,rs,xsvmn,xsvmx
       double precision,allocatable,dimension(:,:):: hh,vv,zz
 
-      data epsmac /1d-20/
+      real(8)    :: epsmac=0d0
+
+cc      data epsmac /1d-20/
+
+      logical    :: sing_mat
 
 c Begin program
+
+      if (epsmac == 0d0) epsmac = find_mach_eps()
 
       its = 0
       nn = ntot
@@ -389,11 +396,13 @@ c Extract options
       stp_test = options%stp_test                   !Stopping test type (0 -> rhs, 1-> residual)
       eps      = options%tol                        !Convergence tolerance
       k_max    = min(options%krylov_subspace,ntot)  !Maximum krylov subspace
+      sing_mat = options%singular_matrix            !Tell GMRES is dealing with a singular matrix
 
 c Allocate work arrays
 
       allocate(hh(k_max+1,k_max),vv(ntot,k_max+1),zz(ntot,k_max+1))
-      allocate(c(k_max),s(k_max),rs(k_max+1))
+      allocate(c(k_max),s(k_max),rs(k_max+1)
+     .        ,xsvmn(k_max+1),xsvmx(k_max+1))
 
 c Compute initial residual vector
 
@@ -514,6 +523,52 @@ c        Get next plane rotation
           hh(i,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
           hh(i1,i)= 0d0
 
+c        Estimate condition number of hh
+
+          if (sing_mat) then
+            if (i > 1) then
+              !Max Sing. value
+              call dlaic1(1,i-1,xsvmx(1:i-1),smx_est,hh(1:i-1,i),hh(i,i)
+     .                   ,smx_new,snmx,csmx)
+
+              !Min Sing. value
+              call dlaic1(2,i-1,xsvmn(1:i-1),smn_est,hh(1:i-1,i),hh(i,i)
+     .                   ,smn_new,snmn,csmn)
+
+cc              write (*,*) 'Mat column=',hh(i,1:i-1)
+cc              write (*,*) 'Gamma=',hh(i,i)
+cc              write (*,*) 'Max sv ',xsvmx(1:i-1)
+cc     .                   ,'norm=',sqrt(sum(xsvmx(1:i-1)**2))
+cc     .                   ,'sine=',snmx,'cos=',csmx
+cc              write (*,*) 
+cc              write (*,*) 'Min sv ',xsvmn(1:i-1)
+cc     .                   ,'norm=',sqrt(sum(xsvmn(1:i-1)**2))
+cc     .                   ,'sine=',snmn,'cos=',csmn
+cc              write (*,*) 
+
+              !Condition number
+              write (*,*) 'Max. sing. val. =',smx_new
+              write (*,*) 'Min. sing. val. =',smn_new
+              if (smn_new /= 0d0) then
+                write (*,*) 'Condition number=',smx_new/smn_new
+              endif
+
+              !Update quantities
+              smx_est = smx_new
+              smn_est = smn_new
+
+              xsvmx(1:i-1) = snmx*xsvmx(1:i-1)
+              xsvmx(i)     = csmx
+              xsvmn(1:i-1) = snmn*xsvmn(1:i-1)
+              xsvmn(i)     = csmn
+            else
+              smx_est = hh(1,1)  !Initial SV is single element
+              smn_est = hh(1,1)  !Initial SV is single element
+              xsvmx(1) = 1d0
+              xsvmn(1) = 1d0
+            endif
+          endif
+
 c        Determine residual norm and test for convergence
 
           rs(i1) = -s(i)*rs(i)
@@ -522,6 +577,8 @@ c        Determine residual norm and test for convergence
           ro = abs(rs(i1))
 
           if (iout.ge.2.and. my_rank == 0) write(*,10) its,ro,ro/rold
+
+          if (sing_mat) write (*,*) 'Kmin=',sqrt(ro/rold/epsmac)
 
           if (    ro .le.(abstol+eps1)
      .        .or.i  .ge.min(k_max,maxits)
@@ -571,6 +628,7 @@ cc        call matvec(0,neq,ntot,x,dx,igrid,bcnd)
 cc        dx = b - dx
 cc        ro = sqrt(dot(ntot,dx,dx))
 cc        write (*,*) 'DIAG -- gm; Real residual=',ro
+cc        exit
 c diag ******
 
         if (ro.le.(abstol+eps1)) then
