@@ -629,6 +629,276 @@ cc        deallocate(xg)
 cc
 cc      end subroutine lmtvc 
 
+c     scheduleColors
+c     ###################################################################
+      subroutine scheduleColors(igrid,ncolors,nc1,nc2,nc3
+     .                         ,i1min,i1max,j1min,j1max,k1min,k1max
+     .                         ,oned_stencil)
+
+c     -------------------------------------------------------------------
+c     This routine schedules colors according to grid dimensions. In
+c     call sequence:
+c         * igrid(input): grid level
+c         * ncolors (input/output): maximum number of colors
+c         * nc1,nc2,nc3 (output): number of colors in each grid dimension
+c         * i1min,i1max,j1min,j1max,k1min,k1max(output): local grid limits
+c              to perform relaxation on.
+c         * oned_stencil (input, optional): stencil length in each dimension 
+c              (to determine maximum number of colors)
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: igrid,ncolors,nc1,nc2,nc3
+     .             ,i1min,i1max,j1min,j1max,k1min,k1max
+
+      integer,optional :: oned_stencil
+
+c     Local variables
+      
+      integer    :: nxf,nyf,nzf,nxl,nyl,nzl,nclrs
+     .             ,imin,imax,jmin,jmax,kmin,kmax,stncl,dd
+
+c     Begin program
+
+      if (PRESENT(oned_stencil)) then
+        stncl = oned_stencil
+      else
+        stncl = 3
+      endif
+
+cc      nclrs = ncolors
+      nclrs = stncl/2+1
+
+      !Global grid size
+      nxf = nxv(igrid)
+      nyf = nyv(igrid)
+      nzf = nzv(igrid)
+
+      !Local grid size (different from global in line smoothing)
+      nxl = MGgrid%nxv(igrid)
+      nyl = MGgrid%nyv(igrid)
+      nzl = MGgrid%nzv(igrid)
+
+      call limits(0,nxf,nyf,nzf,igrid,imin,imax,jmin,jmax,kmin,kmax)
+
+      if (nxl > 1 .and. nyl > 1 .and. nzl > 1) then
+
+        dd = 3
+        nclrs = nclrs**dd
+
+        i1min = imin
+        i1max = imax
+        j1min = jmin
+        j1max = jmax
+        k1min = kmin
+        k1max = kmax
+
+      elseif (nxl > 1 .and. nyl > 1 .and. nzl == 1) then
+
+cc        if (nclrs > 4) nclrs = 4
+        dd = 2
+        nclrs = nclrs**dd
+
+        i1min = imin
+        i1max = imax
+        j1min = jmin
+        j1max = jmax
+        k1min = kmin
+        k1max = kmax
+
+      elseif (nxl > 1 .and. nyl == 1 .and. nzl > 1) then
+
+cc        if (nclrs > 4) nclrs = 4
+        dd = 2
+        nclrs = nclrs**dd
+
+        i1min = kmin
+        i1max = kmax
+        j1min = imin
+        j1max = imax
+        k1min = jmin
+        k1max = jmax
+
+      elseif (nxl == 1 .and. nyl > 1 .and. nzl > 1) then
+
+cc        if (nclrs > 4) nclrs = 4
+        dd = 2
+        nclrs = nclrs**dd
+
+        i1min = jmin
+        i1max = jmax
+        j1min = kmin
+        j1max = kmax
+        k1min = imin
+        k1max = imax
+
+      elseif (nxl > 1 .and. nyl == 1 .and. nzl == 1) then
+
+cc        if (nclrs > 2) nclrs = 2
+        dd = 1
+
+        i1min = imin
+        i1max = imax
+        j1min = jmin
+        j1max = jmax
+        k1min = kmin
+        k1max = kmax
+
+      elseif (nxl == 1 .and. nyl > 1 .and. nzl == 1) then
+
+cc        if (nclrs > 2) nclrs = 2
+        dd = 1
+
+        i1min = jmin
+        i1max = jmax
+        j1min = kmin
+        j1max = kmax
+        k1min = imin
+        k1max = imax
+
+      elseif (nxl == 1 .and. nyl == 1 .and. nzl > 1) then
+
+cc        if (nclrs > 2) nclrs = 2
+        dd = 1
+
+        i1min = kmin
+        i1max = kmax
+        j1min = imin
+        j1max = imax
+        k1min = jmin
+        k1max = jmax
+
+      endif
+
+cc      nclrs = min(ncolors,nclrs)
+      nclrs = ncolors  !Trust input
+
+      nc1 = max(2,nint((1d0*nclrs)**(1d0/dd)))
+      dd  = max(dd - 1,1)
+      nc2 = max(1,nint((1d0*nclrs/nc1)**(1d0/dd)))
+cc      dd  = max(dd - 1,1)
+      nc3 = nclrs/nc1/nc2
+
+cc      write (*,*) 'DIAG -- scheduleColors',ncolors,nc1,nc2,nc3
+
+      if (nc1*nc2*nc3 /= nclrs) then
+        if (my_rank == 0) then
+          write (*,*) 'Input ncolors=',ncolors
+          write (*,*) 'Dimensions = ',dd
+          write (*,*) 'Colors in direction 1=',nc1
+          write (*,*) 'Colors in direction 2=',nc2
+          write (*,*) 'Colors in direction 3=',nc3
+          write (*,*) 'Total number of colors=',nclrs
+        endif
+        call pstop('scheduleColors',
+     .             'Unsupported number of colors')
+      endif
+
+cc      select case(nclrs)
+cc      case(2)
+cc        nc1 = 2
+cc        nc2 = 1
+cc        nc3 = 1
+cc      case(3)
+cc        nc1 = 3
+cc        nc2 = 1
+cc        nc3 = 1
+cc      case(4)
+cc        nc1 = 2
+cc        nc2 = 2
+cc        nc3 = 1
+cc      case(8)
+cc        nc1 = 2
+cc        nc2 = 2
+cc        nc3 = 2
+cc      case(9)
+cc        nc1 = 3
+cc        nc2 = 3
+cc        nc3 = 1
+cc      case(27)
+cc      case default
+cc        call pstop('scheduleColors',
+cc     .             'Unsupported number of colors')
+cc      end select
+
+c     End program
+
+      end subroutine scheduleColors
+
+c     scheduleIndices
+c     ###################################################################
+      subroutine scheduleIndices(igrid,i1,j1,k1,i,j,k)
+
+c     -------------------------------------------------------------------
+c     This routine schedules colored indices according to grid dimensions
+c     and to the orderings in scheduleColors. In call:
+c        * igrid: grid level
+c        * i1,j1,k1: logical colored indices
+c        * i,j,k: actual grid indices
+c     -------------------------------------------------------------------
+
+      implicit none
+
+      integer    :: igrid,i1,j1,k1,i,j,k
+
+      integer    :: nxl,nyl,nzl
+
+c     Begin program
+
+      !Local grid size
+      nxl = MGgrid%nxv(igrid)
+      nyl = MGgrid%nyv(igrid)
+      nzl = MGgrid%nzv(igrid)
+
+      if (nxl > 1 .and. nyl > 1 .and. nzl > 1) then
+
+        i = i1
+        j = j1
+        k = k1
+
+      elseif (nxl > 1 .and. nyl > 1 .and. nzl == 1) then
+
+        i = i1
+        j = j1
+        k = k1
+
+      elseif (nxl > 1 .and. nyl == 1 .and. nzl > 1) then
+
+        i = j1
+        j = k1
+        k = i1
+
+      elseif (nxl == 1 .and. nyl > 1 .and. nzl > 1) then
+
+        i = k1
+        j = i1
+        k = j1
+
+      elseif (nxl > 1 .and. nyl == 1 .and. nzl == 1) then
+
+        i = i1
+        j = j1
+        k = k1
+
+      elseif (nxl == 1 .and. nyl > 1 .and. nzl == 1) then
+
+        i = k1
+        j = i1
+        k = j1
+
+      elseif (nxl == 1 .and. nyl == 1 .and. nzl > 1) then
+
+        i = j1
+        j = k1
+        k = i1
+
+      endif
+
+      end subroutine scheduleIndices
+
       end module mg_internal
 
 c module mgarraySetup
@@ -4747,219 +5017,6 @@ c     ###################################################################
         end subroutine optionsConsistencyCheck
 
       end subroutine gs
-
-c scheduleColors
-c #######################################################################
-      subroutine scheduleColors(igrid,ncolors,nc1,nc2,nc3
-     .                         ,i1min,i1max,j1min,j1max,k1min,k1max)
-
-c -----------------------------------------------------------------------
-c     This routine schedules colors according to grid dimensions. In
-c     call sequence:
-c         * igrid: grid level (input)
-c         * ncolors: maximum number of colors (input)
-c         * nc1,nc2,nc3: number of colors in each grid dimension (output)
-c         * i1min,i1max,j1min,j1max,k1min,k1max: local grid limits
-c              to perform relaxation on (output)
-c -----------------------------------------------------------------------
-
-      use mg_internal
-
-      implicit none
-
-      integer    :: igrid,ncolors,nc1,nc2,nc3
-     .             ,i1min,i1max,j1min,j1max,k1min,k1max
-      
-      integer    :: nxf,nyf,nzf,nxl,nyl,nzl,nclrs
-     .             ,imin,imax,jmin,jmax,kmin,kmax
-
-c Begin program
-
-      nclrs = ncolors
-
-      !Global grid size
-      nxf = nxv(igrid)
-      nyf = nyv(igrid)
-      nzf = nzv(igrid)
-
-      !Local grid size (different from global in line smoothing)
-      nxl = MGgrid%nxv(igrid)
-      nyl = MGgrid%nyv(igrid)
-      nzl = MGgrid%nzv(igrid)
-
-      call limits(0,nxf,nyf,nzf,igrid,imin,imax,jmin,jmax,kmin,kmax)
-
-      if (nxl > 1 .and. nyl > 1 .and. nzl > 1) then
-
-        i1min = imin
-        i1max = imax
-        j1min = jmin
-        j1max = jmax
-        k1min = kmin
-        k1max = kmax
-
-      elseif (nxl > 1 .and. nyl > 1 .and. nzl == 1) then
-
-        if (nclrs > 4) nclrs = 4
-
-        i1min = imin
-        i1max = imax
-        j1min = jmin
-        j1max = jmax
-        k1min = kmin
-        k1max = kmax
-
-      elseif (nxl > 1 .and. nyl == 1 .and. nzl > 1) then
-
-        if (nclrs > 4) nclrs = 4
-
-        i1min = kmin
-        i1max = kmax
-        j1min = imin
-        j1max = imax
-        k1min = jmin
-        k1max = jmax
-
-      elseif (nxl == 1 .and. nyl > 1 .and. nzl > 1) then
-
-        if (nclrs > 4) nclrs = 4
-
-        i1min = jmin
-        i1max = jmax
-        j1min = kmin
-        j1max = kmax
-        k1min = imin
-        k1max = imax
-
-      elseif (nxl > 1 .and. nyl == 1 .and. nzl == 1) then
-
-        if (nclrs > 2) nclrs = 2
-
-        i1min = imin
-        i1max = imax
-        j1min = jmin
-        j1max = jmax
-        k1min = kmin
-        k1max = kmax
-
-      elseif (nxl == 1 .and. nyl > 1 .and. nzl == 1) then
-
-        if (nclrs > 2) nclrs = 2
-
-        i1min = jmin
-        i1max = jmax
-        j1min = kmin
-        j1max = kmax
-        k1min = imin
-        k1max = imax
-
-      elseif (nxl == 1 .and. nyl == 1 .and. nzl > 1) then
-
-        if (nclrs > 2) nclrs = 2
-
-        i1min = kmin
-        i1max = kmax
-        j1min = imin
-        j1max = imax
-        k1min = jmin
-        k1max = jmax
-
-      endif
-
-      select case(nclrs)
-      case(2)
-        nc1 = 2
-        nc2 = 1
-        nc3 = 1
-      case(4)
-        nc1 = 2
-        nc2 = 2
-        nc3 = 1
-      case(8)
-        nc1 = 2
-        nc2 = 2
-        nc3 = 2
-      case default
-        call pstop('scheduleColors',
-     .             'Unsupported number of colors in GS')
-      end select
-
-c End program
-
-      end subroutine scheduleColors
-
-c scheduleIndices
-c #######################################################################
-      subroutine scheduleIndices(igrid,i1,j1,k1,i,j,k)
-
-c -----------------------------------------------------------------------
-c     This routine schedules colored indices according to grid dimensions
-c     and to the orderings in scheduleColors. In call:
-c        * igrid: grid level
-c        * i1,j1,k1: logical colored indices
-c        * i,j,k: actual grid indices
-c -----------------------------------------------------------------------
-
-      use mg_internal
-
-      implicit none
-
-      integer    :: igrid,i1,j1,k1,i,j,k
-
-      integer    :: nxl,nyl,nzl
-
-c Begin program
-
-      !Local grid size
-      nxl = MGgrid%nxv(igrid)
-      nyl = MGgrid%nyv(igrid)
-      nzl = MGgrid%nzv(igrid)
-
-      if (nxl > 1 .and. nyl > 1 .and. nzl > 1) then
-
-        i = i1
-        j = j1
-        k = k1
-
-      elseif (nxl > 1 .and. nyl > 1 .and. nzl == 1) then
-
-        i = i1
-        j = j1
-        k = k1
-
-      elseif (nxl > 1 .and. nyl == 1 .and. nzl > 1) then
-
-        i = j1
-        j = k1
-        k = i1
-
-      elseif (nxl == 1 .and. nyl > 1 .and. nzl > 1) then
-
-        i = k1
-        j = i1
-        k = j1
-
-      elseif (nxl > 1 .and. nyl == 1 .and. nzl == 1) then
-
-        i = i1
-        j = j1
-        k = k1
-
-      elseif (nxl == 1 .and. nyl > 1 .and. nzl == 1) then
-
-        i = k1
-        j = i1
-        k = j1
-
-      elseif (nxl == 1 .and. nyl == 1 .and. nzl > 1) then
-
-        i = j1
-        j = k1
-        k = i1
-
-      endif
-
-      end subroutine scheduleIndices
 
 c find_mf_diag_std
 c####################################################################
