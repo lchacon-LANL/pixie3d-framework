@@ -76,23 +76,25 @@ c       * connect    : logical variable that specifies whether
 c                      xdraw should connect points or not.
 c       * spline     : logical variable that specifies whether 
 c                      xdraw should do spline interpolations or not.
+c       * title (optional): character array containing title of
+c                      xdraw windows (if not present, descr is used)
 c     ----------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer      :: nvar,ntot,ivariables(ntot),dvariables(nvar)
-     .                 ,logvar(ntot)
+        integer,intent(in) ::nvar,ntot,ivariables(ntot),dvariables(nvar)
+     .                      ,logvar(ntot)
         character(*) :: binf,drawfile,graphlabel,ivar
-        character(*) :: descr(ntot)
+        character(*),intent(in) :: descr(ntot)
         logical      :: spline,connect
         character(*),optional :: title(ntot)
 
 c     Local variables
 
         integer      :: i,j,gfile,lngt
-        character(50):: label
+        character(50):: label,dscr(ntot)
         character(2) :: options
         logical      :: flag
 
@@ -123,11 +125,13 @@ c     Begin program
         if (.not.connect) options = trim(options) // '.'
 
         if (PRESENT(title)) then
-          descr = title
+          dscr = title
+        else
+          dscr = descr
         endif
 
-        do i=1,size(descr)
-          lngt = len(trim(descr(i)))
+        do i=1,size(dscr)
+          lngt = len(trim(dscr(i)))
           if (lngt == 0) exit
           flag = .false.
           do j = 1,nvar
@@ -140,21 +144,21 @@ c     Begin program
             if(logvar(i) == 1) then
               write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
      .                                ,i,'L'//trim(options)//'   '
-     .                                ,trim(descr(i))
+     .                                ,trim(dscr(i))
             else
               write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
      .                                ,i,trim(options)//'      '
-     .                                ,trim(descr(i))
+     .                                ,trim(dscr(i))
             endif
           else
             if(logvar(i) == 1) then
               write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
      .                                ,i,'L'//trim(options)//'   '
-     .                                ,trim(descr(i))
+     .                                ,trim(dscr(i))
             else
               write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
      .                                ,i,trim(options)//'      '
-     .                                ,trim(descr(i))
+     .                                ,trim(dscr(i))
             endif
           endif
         enddo
