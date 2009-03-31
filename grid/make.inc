@@ -2,6 +2,10 @@
 
 MESSAGE = "Compiling grid modules"
 
+#Library name
+
+LIBNAME = libgrid.a
+
 #Define subdirectories for common code
 
 COMMONDIR = ..
