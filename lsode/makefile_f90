@@ -1,0 +1,39 @@
+# This is the makefile for LSODE on Linux computers.
+
+FFLAGS = -B100 -O
+F90 = f90 $(FFLAGS)
+
+.f.o: 
+	$(F90) -c $*.f
+
+OBJS = \
+	daxpy.o \
+	dcfode.o \
+	dcopy.o \
+	ddot.o \
+	dewset.o \
+	dgbfa.o \
+	dgbsl.o \
+	dgefa.o \
+	dgesl.o \
+	dintdy.o \
+	dprepj.o \
+	dscal.o \
+	dsolsy.o \
+	dsrcom.o \
+	dstode.o \
+	dumach.o \
+	dvnorm.o \
+	idamax.o \
+	iumach.o \
+	ixsav.o \
+	lsode.o \
+	xerrwd.o \
+	xsetf.o \
+	xsetun.o
+
+liblsode: $(OBJS)
+	ar -r liblsode_f90.a *.o
+
+clean:
+	rm *.o *.a 2> /dev/null
