@@ -8,13 +8,13 @@ c ######################################################################
         use spline_field
 
         !Time stepping
-        integer :: ninit,nunit1
+        integer :: ninit
         real(8) :: tmax,smax
 
         !ODE solver
         integer :: niter
         real(8) :: terror,dtime
-        logical :: solen,picard,sing_point=.false.
+        logical :: solen,picard,sing_point=.false.,one_step=.false.
 
         !Surface of section
         integer :: ssorder
@@ -52,21 +52,21 @@ c     ----------------------------------------------------------------------
 
 c     Begin program
 
-        x=x0
-        y=y0
-        z=z0
+        x    = x0
+        y    = y0
+        z    = z0
 
-        xold=x0
-        yold=y0
-        zold=z0
+        xold = x0
+        yold = y0
+        zold = z0
 
-        time =0d0
-        told =0d0
-        tprev=0d0
+        time = 0d0
+        told = 0d0
+        tprev= 0d0
 
-        ss    = 0d0  !Initialize arc-length along line
-        sold  = 0d0
-        sprev = 0d0
+        ss   = 0d0  !Initialize arc-length along line
+        sold = 0d0
+        sprev= 0d0
 
         npointx=0
         npointy=0
@@ -78,7 +78,7 @@ c     Begin program
 
 c     orbit_find
 c     ######################################################################
-      subroutine orbit_find(iout,x0,y0,z0,fwd,do_check_ss,ts,temp_int)
+      subroutine orbit_find(iout,x0,y0,z0,fwd,do_check_ss,line_int)
 
 c     ----------------------------------------------------------------------
 c     Integrates orbit up to specified limit in arc length or pseudotime.
@@ -94,20 +94,20 @@ c     Call variables
 
         logical,optional :: do_check_ss
 
-        real(8), optional :: ts
-
+        !Interface for generic line integral routine (optional)
         INTERFACE
-          function temp_int(x,y,z,ss,ex_loop)
-          real(8), optional :: temp_int
-          real(8) :: x,y,z,ss
+          function line_int(fwd,xo,x,yo,y,zo,z,so,ss)
+          logical, optional :: line_int
+          logical :: fwd
+          real(8) :: xo,x,yo,y,zo,z,so,ss
           logical :: ex_loop
-          end function temp_int
+          end function line_int
         END INTERFACE
 
 c     Local variables
 
         real(8) :: temp_s,xh,yh,zh,sh
-        logical :: chk_ss,temp
+        logical :: chk_ss,integral
 
 c     Begin program
 
@@ -119,13 +119,11 @@ c     Begin program
           chk_ss = .true.
         endif
 
-        temp = PRESENT(temp_int)
+        integral = PRESENT(line_int)
 
 c     Initialize orbit
 
         call orbit_init(x0,y0,z0)
-
-        if (temp.and.fwd) temp_s = 0d0
 
 c     Orbit integral
 
@@ -153,24 +151,10 @@ c     Orbit integral
 
           call orbit_error(iterror)
 
-          !Temperature integration
-          if (temp) then
-            xh = 0.5*(x +xold)
-            yh = 0.5*(y +yold)
-            zh = 0.5*(z +zold)
-            sh = 0.5*(ss+sold)
-            temp_s = temp_s+temp_int(xh,yh,zh,sh,exit_loop)*(ss-sold)
+          !Line-orbit integration
+          if (integral) then
+            exit_loop = line_int(fwd,xold,x,yold,y,zold,z,sold,ss)
 
-c diag ****  Cos*Cos temperature test, T(s) diagnostic
-cc            if (fwd) then
-cc              write(nunit1) real(ss)
-cc     .             ,real(cos(y-acos(-1d0))*cos(z-acos(-1d0)))
-cc            else
-cc              write(nunit1) real(-ss)
-cc     .             ,real(cos(y-acos(-1d0))*cos(z-acos(-1d0)))
-cc            endif
-cccc            write (*,*) (ss-sold),temp_s
-c diag ****
             if (exit_loop) then
               write (*,*)
               exit
@@ -180,18 +164,9 @@ c diag ****
           !Check for intersection with surface of section
           if (iterror /= 2 .and. itime > 2 .and. chk_ss) then
             if (smax /= 0d0) then
-              call ss_check(svold,sold,ss  ,tss)
-
-c diag ****  GREEN's function test
-cc              if (temp) then
-cc                temp_s = temp_int(xh,yh,zh,tss)
-cc                write(nunit1) real(yss),real(temp_s)
-cccc                write(*,*) yss,temp_s
-cc              endif
-c diag ****
-
+              call ss_check(svold,sold,ss  ,xss,yss,zss,tss)
             else
-              call ss_check(tvold,told,time,tss)
+              call ss_check(tvold,told,time,xss,yss,zss,tss)
             endif
           endif
 
@@ -216,15 +191,7 @@ c       Write orbit separator in XDRAW file
           if (lyss) write(nunity)
           if (lzss) write(nunitz)
           if (rzss) write(nunitrz)
-
-c diag *****  GREEN's function test
-cc          if (lzss) write(nunit1)
-c diag *****
         endif
-
-c       Output temperature
-
-        if (PRESENT(ts)) ts = temp_s
 
       end subroutine orbit_find
 
@@ -772,8 +739,9 @@ c     ###################################################################
       !Find vector field at midpoint
       call evalCurlA(xh,yh,zh,vx,vy,vz,flag=flag)
 
+      !Evaluate residual
       res(1) = x1 - x0 -cc*dt*vx
-      res(2) = y1 - y0 -cc*dt*vy          !Leave out y eq if A_x=0 gauge.
+      res(2) = y1 - y0 -cc*dt*vy
       res(3) = z1 - z0 -cc*dt*vz
 
       end function formResidual
@@ -1025,7 +993,7 @@ c     Begin program
 
 c     ss_check
 c     #################################################################
-      subroutine ss_check(tv,to,tt,tss)
+      subroutine ss_check(tv,to,tt,xss,yss,zss,tss)
 
 c     -----------------------------------------------------------------
 c     Checks whether orbit intersects specified surfaces of section
@@ -1036,7 +1004,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         real(8),intent(IN) :: tv,to,tt
-        real(8),intent(OUT):: tss
+        real(8),intent(OUT):: xss,yss,zss,tss
 
 c     Local variables
 
@@ -1055,41 +1023,46 @@ c     Begin program
 
         !Check for intersection with X surface of section
         if((x-xss0)*(xold-xss0) <= 0.0.and.lxss) then
+          xss = xss0
           call sursec(yvold,zvold,xvold,tv
      .               ,yold ,zold ,xold ,to
      .               ,y    ,z    ,x    ,tt
-     .               ,xss0,npointx,yss,zss,tss,iwhich)
+     .               ,xss,npointx,yss,zss,tss,iwhich)
 
-          call chk_pos(xss0,yss,zss) !this resets logical coords
+          call chk_pos(xss,yss,zss) !this resets logical coords
 
           write(nunitx) real(yss),real(zss)
         endif
 
         !Check for intersection with Y surface of section
         if((y-yss0)*(yold-yss0) <= 0.0.and.lyss) then
+          yss = yss0
+
           call sursec(zvold,xvold,yvold,tv
      .               ,zold ,xold ,yold ,to
      .               ,z    ,x    ,y    ,tt
-     .               ,yss0,npointy,zss,xss,tss,iwhich)
+     .               ,yss,npointy,zss,xss,tss,iwhich)
 
-          call chk_pos(xss,yss0,zss) !this resets logical coords
+          call chk_pos(xss,yss,zss) !this resets logical coords
 
           write(nunity) real(xss),real(zss)
         endif
 
         !Check for intersection with Z surface of section
         if((z-zss0)*(zold-zss0) <= 0.0.and.lzss) then
+          zss = zss0
+
           call sursec(xvold,yvold,zvold,tv
      .               ,xold ,yold ,zold ,to
      .               ,x    ,y    ,z    ,tt
-     .               ,zss0,npointz,xss,yss,tss,iwhich)
+     .               ,zss,npointz,xss,yss,tss,iwhich)
 
           if (rzss) then   !Find R-Z plane positions
-            call evalX(xss,yss,zss0,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
+            call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
             rr = sqrt(xcar**2+ycar**2)
             write(nunitrz) real(rr),real(zcar)
           else
-            call chk_pos(xss,yss,zss0) !this resets logical coords
+            call chk_pos(xss,yss,zss) !this resets logical coords
           endif
 
           write(nunitz) real(xss),real(yss)
