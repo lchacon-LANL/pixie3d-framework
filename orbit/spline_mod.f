@@ -213,14 +213,14 @@ c     Begin program
 
 c     Get vector potential
 
-      call getA_on_mesh(nx,ny,nz,xs,ys,zs,bx,by,bz,ax,ay,az,a_gauge)
+      call getA_on_mesh(nx,ny,nz,xs,ys,zs,bx,by,bz,ax,ay,az,ag)
 
       write (*,*) 'Got vector potential.'
       write (*,*)
 
 c     Spline vector potential
 
-      select case(a_gauge)
+      select case(ag)
       case(1) !Ax=0
         !ay
         allocate(acoefy(nx,ny,nz),stat=alloc_stat)
@@ -242,7 +242,6 @@ c     Spline vector potential
      .           ,az,nx,ny,kx,ky,kz,tx,ty,tz,acoefz,work,flg)
 
       end subroutine splineA
-
 
 c     getA_on_mesh
 c     ###############################################################
