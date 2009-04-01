@@ -8,7 +8,7 @@ c ######################################################################
         use spline_field
 
         !Time stepping
-        integer :: ninit
+        integer :: ninitx,ninity,ninitz
         real(8) :: tmax,smax
 
         !ODE solver
@@ -937,6 +937,8 @@ cc        trace = 'trc_'//trim(file)
      .                       ,drawin,.false.,.false.)
           nunitx=27
           open(unit=nunitx,file=trim(ssx),form='unformatted')
+
+          ninitx = 1
         endif
 
         if (lyss) then
@@ -946,6 +948,8 @@ cc        trace = 'trc_'//trim(file)
      .                       ,drawin,.false.,.false.)
           nunity=28
           open(unit=nunity,file=trim(ssy),form='unformatted')
+
+          ninity = 1
         endif
 
         if (lzss) then
@@ -955,6 +959,8 @@ cc        trace = 'trc_'//trim(file)
      .                       ,drawin,.false.,.false.)
           nunitz=29
           open(unit=nunitz,file=trim(ssz),form='unformatted')
+
+          ninitz = 1
         endif
 
         if (rzss) then
