@@ -35,13 +35,6 @@ c #####################################################################
           type(grid_metrics),pointer,dimension(:) :: grid
         end type MG_grid_metrics
 
-        type :: mg_ctx
-          integer,pointer,dimension(:) ::
-     .                     istart,ntotv,istartp,ntotvp
-     .                    ,istartb,ntotb,nxv,nyv,nzv,nblock
-     .                    ,mg_ratio_x,mg_ratio_y,mg_ratio_z
-        end type mg_ctx
-
         type :: grid_mg_def
           !External grid manager (e.g. SAMRAI) needs to define these!
           integer :: nglx                                 !Global number of mesh points in X
@@ -121,8 +114,6 @@ c #####################################################################
 #if defined(petsc)
           type(petsc_da_ctx),pointer,dimension(:)::dactx  !PETSc DA context
 #endif
-
-          type(mg_ctx),pointer             :: mg_ctx      !MG solver context
 
         end type grid_mg_def
 
