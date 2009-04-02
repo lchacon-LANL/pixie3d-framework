@@ -7,18 +7,19 @@ c ######################################################################
 
         use spline_field
 
-        !Time stepping
-        integer :: ninitx,ninity,ninitz
-        real(8) :: tmax,smax
-
         !ODE solver
-        integer :: niter
-        real(8) :: terror,dtime
-        logical :: solen,picard,sing_point=.false.,one_step=.false.
+        type :: ode_solver
+          integer :: niter  !Number of nonlinear iterations
+          integer :: order  !Order of integration (1,2)
+          real(8) :: tol    !Convergence tolerance
+          real(8) :: dtime  !Time step
+          real(8) :: tmax   !Maximum time
+          real(8) :: smax   !Maximum arc length
+          logical :: solen  !Whether use solenoidal version or LSODE
+          logical :: picard !Whether to use picard or Newton
+        end type ode_solver
 
-        !Surface of section
-        integer :: ssorder
-        logical :: lxss,lyss,lzss,rzss
+        logical :: sing_point=.false.
 
         !Private variables
         integer,private :: ilevel,itime,iterror
@@ -26,8 +27,8 @@ c ######################################################################
         integer,private :: nunitx,nunity,nunitz,nunitrz
         integer,private :: npointx,npointy,npointz
 
-        real(8),private :: tvold,told,tprev,time
-     .                    ,svold,sold,sprev,ss
+        real(8),private :: tvold,told,tprev,time,tmax
+     .                    ,svold,sold,sprev,ss  ,smax
         real(8),private :: x,y,z,xcar,ycar,zcar,xss0,yss0,zss0
      .                    ,xvold,yvold,zvold,xold,yold,zold
         real(8),private :: xss,yss,zss,tss
@@ -35,6 +36,7 @@ c ######################################################################
         character(50),private :: ssx,ssy,ssz,ssrz
 
         logical,private :: exit_loop,cartesian=.false.,cross=.false.
+        logical,private :: lssx,lssy,lssz,rzss
 
       contains
 
@@ -78,10 +80,22 @@ c     Begin program
 
 c     orbit_find
 c     ######################################################################
-      subroutine orbit_find(iout,x0,y0,z0,fwd,do_check_ss,line_int)
+      subroutine orbit_find(iout,x0,y0,z0,fwd,ode_conf,line_int
+     .                     ,ss_check,ss_order)
 
 c     ----------------------------------------------------------------------
-c     Integrates orbit up to specified limit in arc length or pseudotime.
+c     Integrates orbit up to specified limit in arc length or pseudotime
+c     (specified in module). On input:
+c       * iout: level of diagnostic output
+c       * x0,y0,z0: starting point of orbit
+c       * fwd: whether to go forward or backward
+c       * ode_conf: configuration of ODE integrator
+c     Optional input:
+c       * ode_conf: configuration of ODE integrator
+c       * line_int: external routine to perform line integrals
+c       * ss_check: check for surface of section (default: not when
+c                   performing integrals along line)
+c       * ss_order: order of interpolation for SS (default: 1)
 c     ----------------------------------------------------------------------
 
         implicit none
@@ -92,12 +106,18 @@ c     Call variables
         real(8),intent(IN) :: x0,y0,z0
         logical :: fwd
 
-        logical,optional :: do_check_ss
+        type(ode_solver) :: ode_conf
+
+        integer,optional :: ss_order
+        logical,optional :: ss_check
+
+        optional :: line_int
 
         !Interface for generic line integral routine (optional)
         INTERFACE
           function line_int(fwd,xo,x,yo,y,zo,z,so,ss)
-          logical, optional :: line_int
+          logical :: line_int
+cc          logical, optional :: line_int
           logical :: fwd
           real(8) :: xo,x,yo,y,zo,z,so,ss
           logical :: ex_loop
@@ -106,6 +126,7 @@ c     Call variables
 
 c     Local variables
 
+        integer :: ssorder
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral
 
@@ -113,13 +134,22 @@ c     Begin program
 
         ilevel = iout
 
-        if (PRESENT(do_check_ss)) then
-          chk_ss = do_check_ss
+        integral = PRESENT(line_int)
+
+        if (PRESENT(ss_check)) then
+          chk_ss = ss_check
         else
-          chk_ss = .true.
+          chk_ss = .not.integral    !Do not perform SS check when integrating
         endif
 
-        integral = PRESENT(line_int)
+        if (PRESENT(ss_order)) then
+          ssorder = ss_order
+        else
+          ssorder = 1
+        endif
+
+        tmax = ode_conf%tmax
+        smax = ode_conf%smax
 
 c     Initialize orbit
 
@@ -147,7 +177,8 @@ c     Orbit integral
           zold  = z
 
           !Find new LOGICAL positions, new time, new arc length
-          call orbit_step(x,y,z,time,ss,iterror,forward=fwd)
+          call orbit_step(ode_conf,x,y,z,time,ss,iterror
+     .                   ,forward=fwd)
 
           call orbit_error(iterror)
 
@@ -156,7 +187,7 @@ c     Orbit integral
             exit_loop = line_int(fwd,xold,x,yold,y,zold,z,sold,ss)
 
             if (exit_loop) then
-              write (*,*)
+              if (.not.fwd) write (*,*)
               exit
             endif
           endif
@@ -164,9 +195,9 @@ c     Orbit integral
           !Check for intersection with surface of section
           if (iterror /= 2 .and. itime > 2 .and. chk_ss) then
             if (smax /= 0d0) then
-              call ss_check(svold,sold,ss  ,xss,yss,zss,tss)
+              call sschk(ssorder,svold,sold,ss  ,xss,yss,zss,tss)
             else
-              call ss_check(tvold,told,time,xss,yss,zss,tss)
+              call sschk(ssorder,tvold,told,time,xss,yss,zss,tss)
             endif
           endif
 
@@ -180,16 +211,19 @@ c     Orbit integral
             call orbit_progress(time,tprev,tmax,fwd,exit_loop)
           endif
 
-          if (exit_loop) exit
+          if (exit_loop) then
+            write (*,*)
+            exit
+          endif
 
         enddo
 
 c       Write orbit separator in XDRAW file
 
         if (chk_ss) then
-          if (lxss) write(nunitx)
-          if (lyss) write(nunity)
-          if (lzss) write(nunitz)
+          if (lssx) write(nunitx)
+          if (lssy) write(nunity)
+          if (lssz) write(nunitz)
           if (rzss) write(nunitrz)
         endif
 
@@ -197,7 +231,7 @@ c       Write orbit separator in XDRAW file
 
 c     orbit_step
 c     ##################################################################
-      subroutine orbit_step(x,y,z,time,ss,ierror,forward,sec_ord,picard)
+      subroutine orbit_step(ode_conf,x,y,z,time,ss,ierror,forward)
 
 c     ------------------------------------------------------------------
 c     Crank-Nicolson (Picard/Newton) leapfrog, symmetrized (or not).
@@ -207,18 +241,20 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
+      type(ode_solver) :: ode_conf
+
       integer :: ierror
       real(8) :: x,y,z,time,ss
 
-      logical,optional :: forward,sec_ord,picard
+      logical,optional :: forward
 
 c     Local Variables
 
       real(8) :: x0,y0,z0,x1,y1,z1,half,jach,dt=10.
-      real(8) :: vx,vy,vz,error(niter)
+      real(8) :: vx,vy,vz,error(ode_conf%niter),tol,dtime
       real(8) :: xh,yh,zh,xnew,ynew,znew,xc,yc,zc,ds,cc
-      integer :: iter,iterr
-      logical :: restart,cartesian,nt,fwd,so
+      integer :: iter,iterr,order,niter
+      logical :: restart,cartesian,nt,fwd,sln
 
       real(8) :: rmin=1d-3
 
@@ -234,22 +270,20 @@ c     Local Variables
 
 c     Begin program
 
+c     ODE configuration
+
+      dtime  = ode_conf%dtime
+
+      niter = ode_conf%niter
+      tol   = ode_conf%tol
+      order = ode_conf%order
+      sln   = ode_conf%solen
+      nt    = .not.ode_conf%picard
+
       if (PRESENT(forward)) then
         fwd = forward
       else
         fwd = .true.
-      endif
-
-      if(PRESENT(sec_ord)) then
-        so = sec_ord
-      else
-        so = .false.
-      endif
-
-      if (PRESENT(picard)) then
-        nt = .not.picard
-      else
-        nt = .false.
       endif
 
       ierror = 0    !Initialize domain bounds error flag
@@ -351,33 +385,33 @@ cc            call updt_measures(half,time,ds,ss)
 
 c     Solenoidal time integration
 
-      if (solen) then
+      if (sln) then
 
         dt = min(dtime,1.2*dt)
 
         !Second order splitting
- 1      if (so) then
+ 1      if (order==2) then
 
           half = 0.5*dt
 
 c         Begin first half-step split
 
-          call simp_step(nt,half,x,y,z,1,iterr,error)
+          call simp_step(nt,niter,tol,half,x,y,z,1,iterr,error)
 
 c         Begin whole step split
 
-          call simp_step(nt,dt  ,x,y,z,2,iterr,error)
+          call simp_step(nt,niter,tol,dt  ,x,y,z,2,iterr,error)
 
 c         Begin second half-step split
 
-          call simp_step(nt,half,x,y,z,1,iterr,error)
+          call simp_step(nt,niter,tol,half,x,y,z,1,iterr,error)
 
         !First-order integration (30% cheaper!)
         else
 
-          call simp_step(nt,dt,x,y,z,1,iterr,error)
+          call simp_step(nt,niter,tol,dt,x,y,z,1,iterr,error)
 
-          call simp_step(nt,dt,x,y,z,2,iterr,error)
+          call simp_step(nt,niter,tol,dt,x,y,z,2,iterr,error)
 
         endif
 
@@ -404,7 +438,7 @@ c       Check for errors
                 write (*,*) 'Error history=',error
               else
                 write(*,*) 'Initial error=',error(1)
-                write(*,*) 'Final error  =',error(niter),'> tol=',terror
+                write(*,*) 'Final error  =',error(niter),'> tol=',tol
               endif
             elseif (iterr == 4) then
               write (*,*) 'Negative Jacobian'
@@ -502,7 +536,7 @@ c       Standard time integration
 
         ITOL = 2      !Whether atol is array or not (2 => true)
         RTOL = 1.D-8  !Relative tolerance
-        ATOL = terror !Absolute tolerance
+        ATOL = tol    !Absolute tolerance
         ITASK = 2     !Mode of operation: take one step and return
 cc        ITASK = 1     !Mode of operation: take one step and return
 
@@ -596,7 +630,7 @@ c     #########################################################################
 
 c     simp_step
 c     ####################################################################
-      subroutine simp_step(newton,dt,x,y,z,flag,iterr,error)
+      subroutine simp_step(newton,niter,tol,dt,x,y,z,flag,iterr,error)
 
 c     --------------------------------------------------------------------
 c     Performs orbit integration step in a 3D simplectic manner (i.e.,
@@ -609,8 +643,8 @@ c     --------------------------------------------------------------------
 
 c     Call variables
 
-      integer :: flag,iterr
-      real(8) :: x,y,z,dt,error(niter)
+      integer :: flag,iterr,niter
+      real(8) :: x,y,z,dt,error(niter),tol
       logical :: newton
 
 c     Local variables
@@ -650,7 +684,7 @@ cc         error(iter) = sqrt(sum(res**2))
 cc
 cc         if (ilevel > 1) write (*,*) 'simp_step -- error=',error(iter)
 cc
-cc         if (error(iter) < terror) exit
+cc         if (error(iter) < tol) exit
 
          !Find update
          if (newton) then
@@ -671,7 +705,7 @@ cc           dx = matmul(JJ,res)
 
          if (ilevel > 1) write (*,*) 'simp_step -- error=',error(iter)
 
-         if (error(iter) < terror) exit
+         if (error(iter) < tol) exit
 
          !Update solution
          x = x + dx(1,1)
@@ -706,7 +740,7 @@ cc           x = xnew
 cc           y = ynew
 cc           z = znew
 cc
-cc           if (error(iter) < terror) exit
+cc           if (error(iter) < tol) exit
 cc        enddo
 cc
 cc      endif
@@ -788,26 +822,47 @@ c     -----------------------------------------------------------------
         real(8) :: time,tprev,tmax
         logical :: fwd,exit_loop
 
-        exit_loop = .false.
+cc        exit_loop = .false.
+cc
+cc        if (abs(time) > tmax) then
+cc          if (ilevel == 0) then
+cc            if (cartesian) then
+cc              write (*,FMT="(a1)") 'C'
+cc              cartesian = .false.
+cc            elseif (cross) then
+cc              write (*,FMT="(a1)") 'X'
+cc              cross = .false.
+cc            else
+cc              if (fwd) then
+cc                write (*,FMT="(a1)") '+'
+cc              else
+cc                write (*,FMT="(a1)") '-'
+cc              endif
+cc            endif
+cc          endif
+cc          exit_loop = .true.
+cc        elseif (ilevel == 0) then
+cc          if (abs(time-tprev) > 0.1*tmax) then
+cc            if (cartesian) then
+cc              write (*,FMT="(a1)",ADVANCE="NO") 'C'
+cc              cartesian = .false.
+cc            elseif (cross) then
+cc              write (*,FMT="(a1)",ADVANCE="NO") 'X'
+cc              cross = .false.
+cc            else
+cc              if (fwd) then
+cc                write (*,FMT="(a1)",ADVANCE="NO") '+'
+cc              else
+cc                write (*,FMT="(a1)",ADVANCE="NO") '-'
+cc              endif
+cc            endif
+cc            tprev = time
+cc          endif
+cc        endif
 
-        if (abs(time) > tmax) then
-          if (ilevel == 0) then
-            if (cartesian) then
-              write (*,FMT="(a1)") 'C'
-              cartesian = .false.
-            elseif (cross) then
-              write (*,FMT="(a1)") 'X'
-              cross = .false.
-            else
-              if (fwd) then
-                write (*,FMT="(a1)") '+'
-              else
-                write (*,FMT="(a1)") '-'
-              endif
-            endif
-          endif
-          exit_loop = .true.
-        elseif (ilevel == 0) then
+        exit_loop = (abs(time) > tmax)
+
+        if (ilevel == 0) then
           if (abs(time-tprev) > 0.1*tmax) then
             if (cartesian) then
               write (*,FMT="(a1)",ADVANCE="NO") 'C'
@@ -865,7 +920,7 @@ c     -----------------------------------------------------------------
 
 c     ss_init
 c     #################################################################
-      subroutine ss_init(xsurf,ysurf,zsurf)
+      subroutine ss_init(lxss,xsurf,lyss,ysurf,lzss,zsurf)
 
 c     -----------------------------------------------------------------
 c     Sets up XDRAW surface of section output files
@@ -874,10 +929,15 @@ c     -----------------------------------------------------------------
         implicit none
 
         real(8) :: xsurf,ysurf,zsurf
+        logical :: lxss,lyss,lzss
 
 c     Begin program
 
         write (*,*)
+
+        lssx = lxss
+        lssy = lyss
+        lssz = lzss
 
 c     Set position of SS
 
@@ -887,10 +947,10 @@ c     Set position of SS
 
 c     Consistency check
 
-        if (.not.lxss .and. (.not.lyss) .and. (.not.lzss)) then
+        if ((.not.lssx) .and. (.not.lssy) .and. (.not.lssz)) then
           write (*,*) 'No Surface of section selected. Aborting.'
           stop
-        elseif (lxss .and. lyss .and. lzss) then
+        elseif (lssx .and. lssy .and. lssz) then
           write (*,*) 'Cannot select all 3 surfaces of section!!'
           stop
         endif
@@ -930,37 +990,31 @@ cc        trace = 'trc_'//trim(file)
         ssz = 'ssz'//trim(file)
         ssrz= 'ssrz'//trim(file)
 
-        if (lxss) then
+        if (lssx) then
           drawin = 'draw'//ssx(1:len_trim(ssx)-4)//'.in'
           call createDrawInGfile(1,1,trim(ssx),'X surface of section'
      .                       ,'y',(/1/),(/'z'/),(/0/),(/0/)
      .                       ,drawin,.false.,.false.)
           nunitx=27
           open(unit=nunitx,file=trim(ssx),form='unformatted')
-
-          ninitx = 1
         endif
 
-        if (lyss) then
+        if (lssy) then
           drawin = 'draw'//ssy(1:len_trim(ssy)-4)//'.in'
           call createDrawInGfile(1,1,trim(ssy),'Y surface of section'
      .                       ,'x',(/1/),(/'z'/),(/0/),(/0/)
      .                       ,drawin,.false.,.false.)
           nunity=28
           open(unit=nunity,file=trim(ssy),form='unformatted')
-
-          ninity = 1
         endif
 
-        if (lzss) then
+        if (lssz) then
           drawin = 'draw'//ssz(1:len_trim(ssz)-4)//'.in'
           call createDrawInGfile(1,1,trim(ssz),'Z surface of section'
      .                       ,'x',(/1/),(/'y'/),(/0/),(/0/)
      .                       ,drawin,.false.,.false.)
           nunitz=29
           open(unit=nunitz,file=trim(ssz),form='unformatted')
-
-          ninitz = 1
         endif
 
         if (rzss) then
@@ -990,16 +1044,16 @@ c     Local variables
 
 c     Begin program
 
-        if (lxss) close(nunitx)
-        if (lyss) close(nunity)
-        if (lzss) close(nunitz)
+        if (lssx) close(nunitx)
+        if (lssy) close(nunity)
+        if (lssz) close(nunitz)
         if (rzss) close(nunitrz)
 
       end subroutine ss_io_end
 
-c     ss_check
+c     sschk
 c     #################################################################
-      subroutine ss_check(tv,to,tt,xss,yss,zss,tss)
+      subroutine sschk(order,tv,to,tt,xss,yss,zss,tss)
 
 c     -----------------------------------------------------------------
 c     Checks whether orbit intersects specified surfaces of section
@@ -1009,6 +1063,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+        integer,intent(IN) :: order
         real(8),intent(IN) :: tv,to,tt
         real(8),intent(OUT):: xss,yss,zss,tss
 
@@ -1019,7 +1074,7 @@ c     Local variables
 
 c     Begin program
 
-        iwhich = ssorder
+        iwhich = order
 
         if (to > tv) then
           if(   abs(xold-xvold)/(to-tv)
@@ -1028,7 +1083,7 @@ c     Begin program
         endif
 
         !Check for intersection with X surface of section
-        if((x-xss0)*(xold-xss0) <= 0.0.and.lxss) then
+        if((x-xss0)*(xold-xss0) <= 0.0.and.lssx) then
           xss = xss0
           call sursec(yvold,zvold,xvold,tv
      .               ,yold ,zold ,xold ,to
@@ -1041,7 +1096,7 @@ c     Begin program
         endif
 
         !Check for intersection with Y surface of section
-        if((y-yss0)*(yold-yss0) <= 0.0.and.lyss) then
+        if((y-yss0)*(yold-yss0) <= 0.0.and.lssy) then
           yss = yss0
 
           call sursec(zvold,xvold,yvold,tv
@@ -1055,7 +1110,7 @@ c     Begin program
         endif
 
         !Check for intersection with Z surface of section
-        if((z-zss0)*(zold-zss0) <= 0.0.and.lzss) then
+        if((z-zss0)*(zold-zss0) <= 0.0.and.lssz) then
           zss = zss0
 
           call sursec(xvold,yvold,zvold,tv
@@ -1074,7 +1129,7 @@ c     Begin program
           write(nunitz) real(xss),real(yss)
         endif
 
-      end subroutine ss_check
+      end subroutine sschk
 
 c     sursec
 c     ##################################################################
