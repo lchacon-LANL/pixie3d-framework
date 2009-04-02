@@ -404,7 +404,7 @@ c     Local variables
 c     Begin program
 
         nsblk  = 1              ! Number of structured blocks
-        nusblk = 0              ! Number of unestructured blocks
+        nusblk = 0              ! Number of unstructured blocks
 
 c     Select 2D cuts
 
