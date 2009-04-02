@@ -148,7 +148,8 @@ c     Destroy MG grid hierarchy
 
 c     initGridSt
 c     #################################################################
-      subroutine initGridSt(nxg,nyg,nzg,gdef,mpi_comm)
+      subroutine initGridSt(nxg,nyg,nzg,gdef,mpi_comm
+     .                     ,coarsen_in_x,coarsen_in_y,coarsen_in_z)
 
 c     -----------------------------------------------------------------
 c     Initializes MG quantities and allocates MG strucutures. On input:
@@ -164,13 +165,34 @@ c     Call variables
         integer    :: nxg,nyg,nzg
         type(grid_mg_def),pointer :: gdef
         integer,optional :: mpi_comm
+        logical,optional :: coarsen_in_x,coarsen_in_y,coarsen_in_z
 
 c     Local variables
 
         integer    :: i,n1,n2,n3,nxx,nyy,nzz
         integer    :: ngrdx,ngrdy,ngrdz
+        logical    :: cx,cy,cz
 
 c     Begin program
+
+        if (PRESENT(coarsen_in_x)) then
+          cx = coarsen_in_x
+        else
+          cx = .true.
+cc          cx = .not.bcSP()
+        endif
+
+        if (PRESENT(coarsen_in_y)) then
+          cy = coarsen_in_y
+        else
+          cy = .true.
+        endif
+
+        if (PRESENT(coarsen_in_z)) then
+          cz = coarsen_in_z
+        else
+          cz = .true.
+        endif
 
 c     Estimate local domain sizes
 
@@ -188,38 +210,44 @@ c     Find adequate number of grid levels (for MG)
         n2 = int(dlog(1d0*nyy)/dlog(1d0*mg_ratio)+0.001)
         n3 = int(dlog(1d0*nzz)/dlog(1d0*mg_ratio)+0.001)
 
-        ngrdx = max(n1-1,1)
-        do i = ngrdx,1,-1
-          n1 = nxx/mg_ratio**(i-1)
-          if (n1*mg_ratio**(i-1).eq.nxx) exit
-        enddo
-        ngrdx = i
+        if (cx) then
+          ngrdx = max(n1-1,1)
+          do i = ngrdx,1,-1
+            n1 = nxx/mg_ratio**(i-1)
+            if (n1*mg_ratio**(i-1).eq.nxx) exit
+          enddo
+          ngrdx = i
+        else
+          ngrdx = 1
+        endif
 
-cc        if (bcSP()) ngrdx = 1  !Do not coarsen radial direction in SP geometries
+        if (cy) then
+          ngrdy = max(n2-1,1)
+          do i = ngrdy,1,-1
+            n2 = nyy/mg_ratio**(i-1)
+            if (n2*mg_ratio**(i-1).eq.nyy) exit
+          enddo
+          ngrdy = i
+        else
+          ngrdy = 1
+        endif
 
-        ngrdy = max(n2-1,1)
-        do i = ngrdy,1,-1
-          n2 = nyy/mg_ratio**(i-1)
-          if (n2*mg_ratio**(i-1).eq.nyy) exit
-        enddo
-        ngrdy = i
-
-        ngrdz = max(n3-1,1)
-        do i = ngrdz,1,-1
-          n3 = nzz/mg_ratio**(i-1)
-          if (n3*mg_ratio**(i-1).eq.nzz) exit
-        enddo
-        ngrdz = i
+        if (cz) then
+          ngrdz = max(n3-1,1)
+          do i = ngrdz,1,-1
+            n3 = nzz/mg_ratio**(i-1)
+            if (n3*mg_ratio**(i-1).eq.nzz) exit
+          enddo
+          ngrdz = i
+        else
+          ngrdz = 1
+        endif
 
 c     Allocate grid storage structure
 
-#if defined(petsc)
         call allocateGridStructure(ngrdx,ngrdy,ngrdz
      .                            ,nxg,nyg,nzg,gdef,mpi_comm=mpi_comm)
-#else
-        call allocateGridStructure(ngrdx,ngrdy,ngrdz
-     .                            ,nxg,nyg,nzg,gdef)
-#endif
+
       end subroutine initGridSt
 
 c     createMGgrid
