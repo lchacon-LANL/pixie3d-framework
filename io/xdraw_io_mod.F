@@ -137,6 +137,8 @@ c     Begin program
           str = '      '
         endif
 
+        do i=1,size(dscr)
+          lngt = len(trim(dscr(i)))
           if (lngt == 0) exit
           flag = .false.
           do j = 1,nvar

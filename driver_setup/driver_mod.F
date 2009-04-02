@@ -383,6 +383,7 @@ c     Begin program
 
 cc          cnfactor = 0.5
           cnfactor = 0d0
+          dt = 0.1*dt
 
           bdf2 = .false.
 
@@ -392,6 +393,8 @@ cc          cnfactor = 0.5
           cnfactor = 0d0
 
           bdf2 = .true.
+
+          dt = dtbase
 
           !All these are affected by factor 1/dt (done in evaluateNLF)
           cnp = (2*dt+dtold)/(dt+dtold)
