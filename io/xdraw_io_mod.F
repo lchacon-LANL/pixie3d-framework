@@ -319,12 +319,12 @@ c     Begin program
         write (cfile,'(a)') 'variable names'
         write (cfile,'(a)')    '0        H'
         write (cfile,'(2a)')   'i0       ',trim(ivart)
-        write (cfile,'(2a)')   'i1       ',trim(ivarx)
-        write (cfile,'(2a,/)') 'i2       ',trim(ivary)
+        write (cfile,'(2a)')   'i1       ',trim(ivary)
+        write (cfile,'(2a,/)') 'i2       ',trim(ivarx)
         write (cfile,'(a)') 'ix      iy      other           title'
 
         do i=1,nvar
-          write (cfile,'(4a,i1,2a)') 'i2      i1'
+          write (cfile,'(4a,i2,2a)') 'i2      i1'
      .         ,'     ',options,' -i0=',i-1
      .         ,'     ',trim(descr(i))
         enddo
