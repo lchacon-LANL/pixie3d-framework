@@ -26,10 +26,9 @@ c######################################################################
 
         use mlsolverSetup
 
-        real(8), allocatable, dimension(:,:) :: diag
+        integer, parameter :: BOX=1,STAR=2
 
         logical :: vbr_mg,galerkin=.false.,volf,prnt=.true.
-     .            ,mg_debug=.false.
 
       contains
 
@@ -356,9 +355,9 @@ c     Begin program
 
         nunit = 110
 
-        nx = nxv(igr)
-        ny = nyv(igr)
-        nz = nzv(igr)
+        nx = grid_params%nxv(igr)
+        ny = grid_params%nyv(igr)
+        nz = grid_params%nzv(igr)
 
 c     Dump plots
 
@@ -375,8 +374,8 @@ c     Dump plots
         call mapMGVectorToArray(0,neq,mgv,nx,ny,nz,debug,igr,.true.)
         do ieq=1,neq
           call contour(debug(1:nx,1:ny,1,ieq),nx,ny
-     .                ,MGgrid%gxmin,MGgrid%gxmax
-     .                ,MGgrid%gymin,MGgrid%gymax
+     .                ,grid_params%gxmin,grid_params%gxmax
+     .                ,grid_params%gymin,grid_params%gymax
      .                ,iflag+ieq-1,nunit)
         enddo
 
@@ -451,20 +450,24 @@ c     Call variables
 c     Local variables
 
       integer    :: imin,imax,jmin,jmax,kmin,kmax
-     .             ,i,j,k,iii,ieq
+     .             ,i,j,k,iii,ieq,nnx,nny,nnz
 
 c     Begin program
 
-      call limits(0,nxv(igr),nyv(igr),nzv(igr),igr
-     .               ,imin,imax,jmin,jmax,kmin,kmax)
+      nnx = grid_params%nxv(igr)
+      nny = grid_params%nyv(igr)
+      nnz = grid_params%nzv(igr)
+
+      call limits(0,nnx,nny,nnz,igr,imin,imax,jmin,jmax,kmin,kmax)
+
+cc      write (*,*) 'DIAG -- MGvecadd',nnx,nny,nnz
+cc     .      ,imin,imax,jmin,jmax,kmin,kmax
 
       do k=kmin,kmax
         do j=jmin,jmax
           do i=imin,imax
             do ieq=1,neq
-              iii=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1,ieq,neq)
-cc              iii = neq*(i-1 + nxv(igr)*(j-1)
-cc     .                       + nxv(igr)*nyv(igr)*(k-1)) + ieq
+              iii=getMGvcomp(i,j,k,nnx,nny,nnz,1,ieq,neq)
               vec1(iii) = coef1*vec1(iii) + coef2*vec2(iii)
             enddo
           enddo
@@ -498,13 +501,19 @@ c     Call variables
 c     Local variables
 
       integer    :: imin,imax,jmin,jmax,kmin,kmax
-     .             ,i,j,k,iii,ieq
+     .             ,i,j,k,iii,ieq,nnx,nny,nnz
       real(8)    :: ldot
 
 c     Begin program
 
-      call limits(0,nxv(igr),nyv(igr),nzv(igr),igr
-     .               ,imin,imax,jmin,jmax,kmin,kmax)
+      nnx = grid_params%nxv(igr)
+      nny = grid_params%nyv(igr)
+      nnz = grid_params%nzv(igr)
+
+      call limits(0,nnx,nny,nnz,igr,imin,imax,jmin,jmax,kmin,kmax)
+
+cc      write (*,*) 'DIAG -- MGdot',nnx,nny,nnz
+cc     .         ,imin,imax,jmin,jmax,kmin,kmax
 
       dot = 0d0
 
@@ -512,7 +521,7 @@ c     Begin program
         do j=jmin,jmax
           do i=imin,imax
             do ieq=1,neq
-              iii=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1,ieq,neq)
+              iii=getMGvcomp(i,j,k,nnx,nny,nnz,1,ieq,neq)
               dot = dot + vec1(iii)*vec2(iii)
             enddo
           enddo
@@ -628,6 +637,485 @@ cc
 cc        deallocate(xg)
 cc
 cc      end subroutine lmtvc 
+
+c     scheduleColors
+c     ###################################################################
+      subroutine scheduleColors(igrid,ncolors,nc1,nc2,nc3
+     .                         ,i1min,i1max,j1min,j1max,k1min,k1max
+     .                         ,stencil_width,stencil_type
+     .                         ,zebra_dir)
+
+c     -------------------------------------------------------------------
+c     This routine schedules colors according to grid dimensions. In
+c     call sequence:
+c         * igrid(input): grid level
+c         * ncolors (input/output): number of colors
+c         * nc1,nc2,nc3 (output): number of colors in each grid dimension
+c         * i1min,i1max,j1min,j1max,k1min,k1max(output): local grid limits
+c              on which to perform colored relaxation.
+c         * stencil_width (input, integer, optional): stencil width in each
+c              dimension (default = 3)
+c         * stencil_type (input, char, optional): stencil type (BOX=1, STAR=2;
+c              default = box)
+c         * zebra_dir (input, integer, optional): indicates direction of
+c              zebra (line) relaxation.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: igrid,ncolors,nc1,nc2,nc3
+     .             ,i1min,i1max,j1min,j1max,k1min,k1max
+
+      integer,optional :: stencil_width,stencil_type,zebra_dir
+
+c     Local variables
+      
+      integer    :: nxf,nyf,nzf,nxl,nyl,nzl,nclrs
+     .             ,imin,imax,jmin,jmax,kmin,kmax
+     .             ,stncl_wdt,stncl_tpe,dd,ddd,zb_dir
+
+c     Begin program
+
+      if (PRESENT(stencil_width)) then
+        stncl_wdt = stencil_width
+      else
+        stncl_wdt = 3
+      endif
+
+      if (PRESENT(stencil_type)) then
+        stncl_tpe = stencil_type
+      else
+        stncl_tpe = BOX
+      endif
+
+      if (PRESENT(zebra_dir)) then
+        zb_dir = zebra_dir
+      else
+        zb_dir = 0
+      endif
+
+      nclrs = stncl_wdt/2+1
+
+      !Global grid size
+      nxf = nxv(igrid)
+      nyf = nyv(igrid)
+      nzf = nzv(igrid)
+
+      !Local grid size (different from global in line smoothing)
+cc      nxl = MGgrid%nxv(igrid)
+cc      nyl = MGgrid%nyv(igrid)
+cc      nzl = MGgrid%nzv(igrid)
+      nxl = mg_ctx_temp%nxv(igrid)
+      nyl = mg_ctx_temp%nyv(igrid)
+      nzl = mg_ctx_temp%nzv(igrid)
+
+      !Find grid limits
+      call limits(0,nxf,nyf,nzf,igrid,imin,imax,jmin,jmax,kmin,kmax)
+
+      if (nxl > 1 .and. nyl > 1 .and. nzl > 1) then
+
+        dd = 3
+        if (zb_dir /= 0) dd = dd-1
+
+        select case(zb_dir)
+        case(2)
+          i1min = jmin
+          i1max = jmax
+          j1min = kmin
+          j1max = kmax
+          k1min = imin
+          k1max = imax
+        case(3)
+          i1min = kmin
+          i1max = kmax
+          j1min = imin
+          j1max = imax
+          k1min = jmin
+          k1max = jmax
+        case default
+          i1min = imin
+          i1max = imax
+          j1min = jmin
+          j1max = jmax
+          k1min = kmin
+          k1max = kmax
+        end select
+
+      elseif (nxl > 1 .and. nyl > 1 .and. nzl == 1) then
+
+        dd = 2
+        if (zb_dir /= 0) dd = dd-1
+
+        select case(zb_dir)
+        case(2)
+          i1min = jmin
+          i1max = jmax
+          j1min = imin
+          j1max = imax
+          k1min = kmin
+          k1max = kmax
+        case(3)
+          nc1 = 0
+          nc2 = 0
+          nc3 = 0
+          return
+        case default
+          i1min = imin
+          i1max = imax
+          j1min = jmin
+          j1max = jmax
+          k1min = kmin
+          k1max = kmax
+        end select
+
+      elseif (nxl > 1 .and. nyl == 1 .and. nzl > 1) then
+
+        dd = 2
+        if (zb_dir /= 0) dd = dd-1
+
+        select case(zb_dir)
+        case(1)
+          i1min = imin
+          i1max = imax
+          j1min = kmin
+          j1max = kmax
+          k1min = jmin
+          k1max = jmax
+        case(2)
+          nc1 = 0
+          nc2 = 0
+          nc3 = 0
+          return
+        case default
+          i1min = kmin
+          i1max = kmax
+          j1min = imin
+          j1max = imax
+          k1min = jmin
+          k1max = jmax
+        end select
+
+      elseif (nxl == 1 .and. nyl > 1 .and. nzl > 1) then
+
+        dd = 2
+        if (zb_dir /= 0) dd = dd-1
+
+        select case(zb_dir)
+        case(1)
+          nc1 = 0
+          nc2 = 0
+          nc3 = 0
+          return
+        case(3)
+          i1min = kmin
+          i1max = kmax
+          j1min = jmin
+          j1max = jmax
+          k1min = imin
+          k1max = imax
+        case default
+          i1min = jmin
+          i1max = jmax
+          j1min = kmin
+          j1max = kmax
+          k1min = imin
+          k1max = imax
+        end select
+
+      elseif (nxl > 1 .and. nyl == 1 .and. nzl == 1) then
+
+        dd = 1
+
+        select case(zb_dir)
+        case(2,3)
+          nc1 = 0
+          nc2 = 0
+          nc3 = 0
+          return
+        case default
+          i1min = imin
+          i1max = imax
+          j1min = jmin
+          j1max = jmax
+          k1min = kmin
+          k1max = kmax
+        end select
+
+      elseif (nxl == 1 .and. nyl > 1 .and. nzl == 1) then
+
+        dd = 1
+
+        select case(zb_dir)
+        case(1,3)
+          nc1 = 0
+          nc2 = 0
+          nc3 = 0
+          return
+        case default
+          i1min = jmin
+          i1max = jmax
+          j1min = kmin
+          j1max = kmax
+          k1min = imin
+          k1max = imax
+        end select
+
+      elseif (nxl == 1 .and. nyl == 1 .and. nzl > 1) then
+
+        dd = 1
+
+        select case(zb_dir)
+        case(1,2)
+          nc1 = 0
+          nc2 = 0
+          nc3 = 0
+          return
+        case default
+          i1min = kmin
+          i1max = kmax
+          j1min = imin
+          j1max = imax
+          k1min = jmin
+          k1max = jmax
+        end select
+
+      endif
+
+      nclrs = nclrs**dd
+
+      !Account for special case of 2 colors in 3-pt star stencil
+      if (  (ncolors == 2 .or. stncl_tpe == STAR)
+     .     .and. stncl_wdt == 3 .and. zb_dir == 0) nclrs = 2
+cc      nclrs = min(ncolors,nclrs)
+cc      nclrs = ncolors  !Trust input
+
+cc      write (*,*) dd
+cc      pause
+
+      !Allocate colors per dimension (in this order: nc1, nc2, nc3)
+
+cc      select case(zb_dir)
+cc      case(1)
+cc        nc1 = 1
+cc        ddd = max(dd,1)
+cc        nc2 = max(1,nint((1d0*nclrs/nc1)**(1d0/ddd)))
+cc        nc3 = nclrs/nc1/nc2
+cc      case(2)
+cc        nc2 = 1
+cc        ddd = max(dd,1)
+cc        nc1 = max(1,nint((1d0*nclrs/nc1)**(1d0/ddd)))
+cc        nc3 = nclrs/nc1/nc2
+cc      case(3)
+cc        nc3 = 1
+cc        ddd = max(dd,1)
+cc        nc1 = max(1,nint((1d0*nclrs/nc1)**(1d0/ddd)))
+cc        nc2 = nclrs/nc1/nc2
+cc      case default
+cc        nc1 = max(2,nint((1d0*nclrs)**(1d0/dd)))
+cc        ddd = max(dd - 1,1)
+cc        nc2 = max(1,nint((1d0*nclrs/nc1)**(1d0/ddd)))
+cc        nc3 = nclrs/nc1/nc2
+cc      end select
+
+      if (zb_dir /= 0) then
+        nc1 = 1
+        ddd = max(dd,1)
+        nc2 = max(1,nint((1d0*nclrs/nc1)**(1d0/ddd)))
+        nc3 = nclrs/nc1/nc2
+      else
+        nc1 = max(2,nint((1d0*nclrs)**(1d0/dd)))
+        ddd = max(dd - 1,1)
+        nc2 = max(1,nint((1d0*nclrs/nc1)**(1d0/ddd)))
+        nc3 = nclrs/nc1/nc2
+      endif
+
+      if (nc1*nc2*nc3 /= nclrs) then
+        if (my_rank == 0) then
+          write (*,*) 'Input ncolors=',ncolors
+          write (*,*) 'Dimensions = ',dd
+          write (*,*) 'Colors in direction 1=',nc1
+          write (*,*) 'Colors in direction 2=',nc2
+          write (*,*) 'Colors in direction 3=',nc3
+          write (*,*) 'Total number of colors=',nclrs
+        endif
+        call pstop('scheduleColors',
+     .             'Unsupported number of colors')
+      endif
+
+      !Save number of colors
+      ncolors = nclrs
+
+cc      select case(nclrs)
+cc      case(2)
+cc        nc1 = 2
+cc        nc2 = 1
+cc        nc3 = 1
+cc      case(3)
+cc        nc1 = 3
+cc        nc2 = 1
+cc        nc3 = 1
+cc      case(4)
+cc        nc1 = 2
+cc        nc2 = 2
+cc        nc3 = 1
+cc      case(8)
+cc        nc1 = 2
+cc        nc2 = 2
+cc        nc3 = 2
+cc      case(9)
+cc        nc1 = 3
+cc        nc2 = 3
+cc        nc3 = 1
+cc      case(27)
+cc      case default
+cc        call pstop('scheduleColors',
+cc     .             'Unsupported number of colors')
+cc      end select
+
+c     End program
+
+      end subroutine scheduleColors
+
+c     scheduleIndices
+c     ###################################################################
+      subroutine scheduleIndices(igrid,i1,j1,k1,i,j,k,zebra_dir)
+
+c     -------------------------------------------------------------------
+c     This routine schedules colored indices according to grid dimensions
+c     and to the orderings in scheduleColors. In call:
+c        * igrid: grid level
+c        * i1,j1,k1: logical colored indices
+c        * i,j,k: actual grid indices
+c     -------------------------------------------------------------------
+
+      implicit none
+
+      integer    :: igrid,i1,j1,k1,i,j,k
+      integer,optional :: zebra_dir
+
+      integer    :: nxl,nyl,nzl,zb_dir
+
+c     Begin program
+
+      if (PRESENT(zebra_dir)) then
+        zb_dir = zebra_dir
+      else
+        zb_dir = 0
+      endif
+
+      !Local grid size
+cc      nxl = MGgrid%nxv(igrid)
+cc      nyl = MGgrid%nyv(igrid)
+cc      nzl = MGgrid%nzv(igrid)
+      nxl = mg_ctx_temp%nxv(igrid)
+      nyl = mg_ctx_temp%nyv(igrid)
+      nzl = mg_ctx_temp%nzv(igrid)
+
+      !Collapse grid to do zebra relaxation
+cc      if (zb_dir == 1) nxl = 1
+cc      if (zb_dir == 2) nyl = 1
+cc      if (zb_dir == 3) nzl = 1
+
+      if (nxl > 1 .and. nyl > 1 .and. nzl > 1) then
+
+        select case(zb_dir)
+        case(2)
+          i = j1
+          j = k1
+          k = i1
+        case(3)
+          i = k1
+          j = i1
+          k = j1
+        case default
+          i = i1
+          j = j1
+          k = k1
+        end select
+
+      elseif (nxl > 1 .and. nyl > 1 .and. nzl == 1) then
+
+        select case(zb_dir)
+        case(2)
+          i = j1
+          j = i1
+          k = k1
+        case(3)
+          call pstop('scheduleIndices','Wrong zebra direction')
+        case default
+          i = i1
+          j = j1
+          k = k1
+        end select
+
+      elseif (nxl > 1 .and. nyl == 1 .and. nzl > 1) then
+
+        select case(zb_dir)
+        case(1)
+          i = i1
+          j = k1
+          k = j1
+        case(2)
+          call pstop('scheduleIndices','Wrong zebra direction')
+        case default
+          i = j1
+          j = k1
+          k = i1
+        end select
+
+      elseif (nxl == 1 .and. nyl > 1 .and. nzl > 1) then
+
+        select case(zb_dir)
+        case(1)
+          call pstop('scheduleIndices','Wrong zebra direction')
+        case(3)
+          i = k1
+          j = j1
+          k = i1
+        case default
+          i = k1
+          j = i1
+          k = j1
+        end select
+
+      elseif (nxl > 1 .and. nyl == 1 .and. nzl == 1) then
+
+        select case(zb_dir)
+        case(2,3)
+          call pstop('scheduleIndices','Wrong zebra direction')
+        case default
+          i = i1
+          j = j1
+          k = k1
+        end select
+
+      elseif (nxl == 1 .and. nyl > 1 .and. nzl == 1) then
+
+        select case(zb_dir)
+        case(1,3)
+          call pstop('scheduleIndices','Wrong zebra direction')
+        case default
+          i = k1
+          j = i1
+          k = j1
+        end select
+
+      elseif (nxl == 1 .and. nyl == 1 .and. nzl > 1) then
+
+        select case(zb_dir)
+        case(1,2)
+          call pstop('scheduleIndices','Wrong zebra direction')
+        case default
+          i = j1
+          j = k1
+          k = i1
+        end select
+
+      endif
+
+      end subroutine scheduleIndices
 
       end module mg_internal
 
@@ -1226,9 +1714,14 @@ c Local variables
       real(8)    :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot),x0(ntot)
       real(8)    :: rr0,rr1,mag,mag1,mag2,mgtol,line_tol,line_omega
 
+      real(8), pointer, dimension(:,:) :: diag
+
       logical    :: fdiag,line_relax,fpointers,line_x,line_y,line_z
+     .             ,mg_debug
 
       character(2) :: line_solve
+
+      type(mg_ctx),pointer :: mgctx
 
 c Begin program
 
@@ -1240,7 +1733,7 @@ c Consistency check
 
 c Assign options
 
-      igridmin        = options%igridmin
+      igridmin        = options%mg_gmin
       vcyc            = options%vcyc
       mgtol           = options%tol
       orderres        = options%orderres
@@ -1249,10 +1742,11 @@ c Assign options
       volf            = options%vol_res
       crsedpth        = options%mg_coarse_solver_depth
       mu              = options%mg_mu
-      vbr_mg          = options%vertex_based_relax
-      galerkin        = options%galerkin
+      vbr_mg          = options%mg_vertex_relax
+      galerkin        = options%mg_galerkin
       MGgrid          => options%mg_grid_def
-cc      call equateGridStructure(MGgrid,options%mg_grid_def)  !This requires changes in killmg
+      diag            => options%diag
+      mgctx           => options%mgctx
 
       line_relax      = options%mg_line_relax
       line_vcyc       = options%mg_line_vcyc
@@ -1267,16 +1761,11 @@ cc      call equateGridStructure(MGgrid,options%mg_grid_def)  !This requires cha
 
       ncolors         = options%ncolors
 
-c Consistency check
-
-      if (crsedpth == 0 .and. vbr_mg) then
-        if (my_rank==0) write (*,*) 'Coarsest level solver not defined'
-        call pstop('mg','Cannot do vertex-based relaxation in MG')
-      endif
+      mg_debug        = options%mg_debug
 
 c Set pointers and find ngrid
 
-      call allocPointers(neq,fpointers)
+      call allocPointers(neq,fpointers,mgctx=mgctx)
 
       if (fpointers.and.out.ge.2.and.my_rank==0)
      .     write (*,*) 'Allocating pointers...'
@@ -1302,23 +1791,35 @@ c Find diagonal for smoothers
         nblk = 1
       endif
 
-      if (fdiag) then
+cc      if (fdiag) then
+cc
+cc        if (allocated(diag)) then !Diagonal is known
+cc          if(out.ge.2.and.prnt) write(*,*)'Diagonal already allocated'
+cc          fdiag = .false.
+cc        elseif (associated(options%diag)) then !Diagonal provided externally
+cc          if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
+cc          allocate(diag(neq*nblk,2*ntot*nblk))
+cc          diag = options%diag
+cc        else                      !Form diagonal
+cc          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
+cc          allocate(diag(neq*nblk,2*ntot*nblk))
+cc          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+cc     .                     ,ncolors,volf,galerkin)
+cc          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
+cc        endif
+cc
+cc      endif
 
-        if (allocated(diag)) then !Diagonal is known
-          if(out.ge.2.and.prnt) write(*,*)'Diagonal already allocated'
-          fdiag = .false.
-        elseif (associated(options%diag)) then !Diagonal provided externally
-          if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          diag = options%diag
-        else                      !Form diagonal
-          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                     ,ncolors,volf,galerkin)
-          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
-        endif
-
+      if (associated(diag)) then !Diagonal provided externally
+        if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
+        fdiag = .false.
+      else                      !Form diagonal
+        if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
+        allocate(diag(neq*nblk,2*ntot*nblk))
+        call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+     .                   ,ncolors,volf,galerkin)
+        if (out.ge.2.and.prnt) write (*,*) 'Finished!'
+        fdiag = .true.
       endif
 
 c Initialize local solution vector (xx) and local r.h.s. (yy)
@@ -1458,7 +1959,7 @@ c     -------------------------------------------------------------------
 c       Checks consistency of MG input options.
 c     -------------------------------------------------------------------
 
-        if (     options%vertex_based_relax
+        if (     options%mg_vertex_relax
      .      .and.options%mg_line_relax) then
           if (prnt)
      .       write (*,*) 'Invalid setting for MG relaxation: cannot do'
@@ -1469,7 +1970,7 @@ c     -------------------------------------------------------------------
         endif
 
         if (     options%mg_coarse_solver_depth == 0
-     .      .and.options%vertex_based_relax) then
+     .      .and.options%mg_vertex_relax) then
           if (prnt)
      .         write (*,*) 'Coarsest level solver not defined'
           if (prnt)
@@ -1488,6 +1989,8 @@ c       Performs MG M-cycle (V-cycle, m=1, W-cycle, m=2) recursively
 c       starting at grid igr.
 c     -------------------------------------------------------------------
 
+        use math
+
         implicit none
 
 c     Call variables
@@ -1496,7 +1999,10 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: igc,isigc,isig,nn,nnc,imu
+        integer    :: igc,isigc,isig,nn,nnc,imu,iplot
+        character(50) :: dbg_desc(4*neq)
+
+cc        external     matvec
 
 c     Begin program
 
@@ -1508,25 +2014,69 @@ c     Begin program
         isig  = istart(igr)
         isigc = istart(igc)
 
+c     Setup debugging plots
+
+        if (mg_debug) then
+
+          do iplot=1,neq
+            dbg_desc(iplot)       = 'F-sol_'//trim(int2char(iplot))
+     .                              //' after pre-smoothing'
+            dbg_desc(iplot+neq)   = 'F-sol_'//trim(int2char(iplot))
+     .                              //' correction'
+            dbg_desc(iplot+2*neq) = 'F-sol_'//trim(int2char(iplot))
+     .                              //' after V-cycle'
+          enddo
+
+          call createDrawInCfile(3*neq,'finesol.bin','Fine grid Sol'
+     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
+     .          ,'drawfsol.in')
+
+          do iplot=1,neq
+            dbg_desc(iplot)       = 'F-res_'//trim(int2char(iplot))
+     .                              //' before pre-smoothing'
+            dbg_desc(iplot+neq)   = 'F-res_'//trim(int2char(iplot))
+     .                              //' after pre-smoothing'
+            dbg_desc(iplot+2*neq) = 'F-res_'//trim(int2char(iplot))
+     .                              //' after coarse updt'
+            dbg_desc(iplot+3*neq) = 'F-res_'//trim(int2char(iplot))
+     .                              //' after post-smoothing'
+          enddo
+
+          call createDrawInCfile(4*neq,'fineres.bin','Fine grid Res'
+     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
+     .          ,'drawfres.in')
+
+          do iplot=1,neq
+            dbg_desc(iplot)       = 'C-res_'//trim(int2char(iplot))
+     .                              //' after restriction'
+            dbg_desc(iplot+neq)   = 'C-sol_'//trim(int2char(iplot))
+     .                              //' after coarse solve'
+            dbg_desc(iplot+2*neq) = 'C-res_'//trim(int2char(iplot))
+     .                              //' after coarse solve'
+          enddo
+
+          call createDrawInCfile(3*neq,'coarse.bin','Coarse grid'
+     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
+     .          ,'drawcrse.in')
+
+        endif
+
 c     Relax error/solution on grid number igr/igrid (find new xx)
 
-ccc diag ****
-cccc        if (igr == igmax-1) then
-cccc          write (*,*) 'Plotting here at level',igr
-cccc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
-cccc          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
-cccc          call MGplot(neq,wrk,igr,0,'fineres.bin')
-cccc        endif
-ccc diag ****
+        if (igr == igmax-1.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igr
+          call MGmatvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd,matvec)
+          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+          call MGplot(neq,wrk,igr,0,'fineres.bin')
+        endif
 
         call smooth(igr)
 
-ccc diag ****
-cc        if (igr == igmax-1) then
-cc          write (*,*) 'Plotting here at level',igr
-cc          call MGplot(neq,xx ,igr,0,'finesol.bin')
-cc        endif
-ccc diag ****
+        !Debugging plots
+        if (igr == igmax-1.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igr
+          call MGplot(neq,xx ,igr,0,'finesol.bin')
+        endif
 
 c     Evaluate residual (ie wrk = yy - A xx = yy - wrk )
 
@@ -1536,12 +2086,11 @@ c     Evaluate residual (ie wrk = yy - A xx = yy - wrk )
 
         call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
 
-ccc diag ****
-cc        if (igr == igmax-1) then
-cc          write (*,*) 'Plotting here at level',igr
-cc          call MGplot(neq,wrk,igr,0,'fineres.bin')
-cc        endif
-ccc diag ****
+        !Debuging plots
+        if (igr == igmax-1.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igr
+          call MGplot(neq,wrk,igr,1,'fineres.bin')
+        endif
 
 c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
 
@@ -1550,13 +2099,11 @@ c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
      .                ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
      .                ,orderres,igr,volf)
 
-ccc diag ****
-cc        if (igc == igmax) then
-cc          write (*,*) 'Plotting here at level',igc
-cc          call MGplot(neq,yy,igc,0,'coarse.bin')
-cccc          write (*,*) yy(isigc:isigc+ntotv(igc)-1)
-cc        endif
-ccc diag ****
+        !Debugging plots
+        if (igc == igmax.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igc
+          call MGplot(neq,yy,igc,0,'coarse.bin')
+        endif
 
 c     Initialize solution on coarse grid
 
@@ -1592,16 +2139,15 @@ cc#endif
           enddo
         endif
 
-ccc diag ****
-cccc        if (igc == igmax) then
-cccc          write (*,*) 'Plotting here at level',igc
-cccc          call MGplot(neq,xx,igc,1,'coarse.bin')
-cccc
-cccc          call matvec(0,neq,nnc,xx(isigc),wrk(isigc),igc,bcnd)
-cccc          call MGvecadd(igc,neq,nnc,-1d0,wrk(isigc),1d0,yy(isigc))
-cccc          call MGplot(neq,wrk,igc,1,'coarse.bin')
-cccc        endif
-ccc diag ****
+        !Debugging plots
+        if (igc == igmax.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igc
+          call MGplot(neq,xx,igc,1,'coarse.bin')
+
+          call MGmatvec(0,neq,nnc,xx(isigc),wrk(isigc),igc,bcnd,matvec)
+          call MGvecadd(igc,neq,nnc,-1d0,wrk(isigc),1d0,yy(isigc))
+          call MGplot(neq,wrk,igc,1,'coarse.bin')
+        endif
 
 c     Cycle back up to grid igr updating errors (xx)
 c     with fixed R.H.S. (yy)
@@ -1617,31 +2163,29 @@ c     Update existing solution on grid igr (i.e. xx_igr): xx_igr = xx_igr + wrk
 
         call MGvecadd(igr,neq,nn,1d0,xx(isig),1d0,wrk(isig))
 
-ccc diag ****
-cc        if (igr == igmax-1) then
-cc          write (*,*) 'Plotting here at level',igr
-cc          call MGplot(neq,wrk,igr,1,'finesol.bin')
-cc          call MGplot(neq,xx ,igr,1,'finesol.bin')
-cc
-cc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
-cc          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
-cc          call MGplot(neq,wrk,igr,1,'fineres.bin')
-cc        endif
-ccc diag ****
+        !Debugging plots
+        if (igr == igmax-1.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igr
+          call MGplot(neq,wrk,igr,1,'finesol.bin')
+          call MGplot(neq,xx ,igr,1,'finesol.bin')
+
+          call MGmatvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd,matvec)
+          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+          call MGplot(neq,wrk,igr,1,'fineres.bin')
+        endif
 
 c     Relax updated solution on igr (i.e. xx_igr)
 
         call smooth(igr)
 
-ccc diag ****
-cc        if (igr == igmax-1) then
-cc          write (*,*) 'Plotting here at level',igr
-cc
-cc          call matvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd)
-cc          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
-cc          call MGplot(neq,wrk,igr,1,'fineres.bin')
-cc        endif
-ccc diag ****
+        !Debugging plots
+        if (igr == igmax-1.and.mg_debug) then
+          write (*,*) 'Plotting here at level',igr
+
+          call MGmatvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd,matvec)
+          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+          call MGplot(neq,wrk,igr,1,'fineres.bin')
+        endif
 
 c     End program
 
@@ -1665,6 +2209,7 @@ c     Call variables
 c     Local variables
 
         integer    :: nn,isig,depth1
+        type (solver_unit) :: solver
 
 c     Begin program
 
@@ -1676,6 +2221,13 @@ c     Begin program
 
           depth1 = depth + 1
 
+          !Inherit relevant previous solver info
+          call readSolverHierarchy (solver,depth1)
+          solver%options%diag => diag
+          solver%options%mgctx=> mgctx
+          call writeSolverHierarchy(solver,depth1)
+
+          !Call solver
           call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcnd
      .                    ,guess2,outc,depth1)
         else
@@ -1691,21 +2243,24 @@ c     #####################################################################
       recursive subroutine linesmooth(igr)
 
 c     ---------------------------------------------------------------------
-c     This routine performs plane/line smoothing instead of point smoothing.
-c     This is done recursively, by calling 2D MG for planes and 1D MG for
-c     lines. When reducing the dimensionality of MG, vectors remain of the
-c     same length as in the original grid, and only matvec and smoothing 
-c     operations use a decreased dimensionality. This allows one to employ
-c     the SAME matvec and smoothing routines as for the original grid, with
-c     minor modifications that restrict operations to the proper plane/line.
-c
-c     As vector dimensions are the same when going from 3d MG to 2D MG and
-c     1D MG, MG pointers are not reallocated (and are consistent with the
-c     original grid, defined in grid_params). However, the grid definition
-c     contained in MGgrid is "collapsed", and this is the way MG knows it
-c     should operate on a restricted subspace of mesh points. Therefore,
-c     node positioning on the grid follows grid_params (i.e., nxv,nyv,nzv,etc)
-c     whereas matvec and smoothing operations follow MGgrid.
+c     This routine performs plane/line smoothing instead of point
+c     smoothing.  This is done recursively, by calling 2D MG for planes
+c     and 1D MG for lines. When reducing the dimensionality of MG,
+c     vectors remain of the same length as in the original grid, and
+c     only matvec and smoothing operations use a decreased
+c     dimensionality. This allows one to employ the SAME matvec and
+c     smoothing routines as for the original grid, with minor
+c     modifications that restrict operations to the proper plane/line.
+c     
+c     As vector dimensions are the same when going from 3d MG to 2D MG
+c     and 1D MG, MG pointers are not reallocated (and are consistent
+c     with the original grid, defined in grid_params, and stored in
+c     mg_ctx_temp).  However, the grid definition
+c     (nxv,nyv,nzv,iline,jline,kline) contained in mg_ctx_temp is
+c     "collapsed", and this is the way MG knows it should operate on a
+c     restricted subspace of mesh points. Therefore, node positioning on
+c     the grid follows grid_params, whereas matvec and smoothing
+c     operations follow mg_ctx_temp.
 c     -----------------------------------------------------------------------
 
         implicit none
@@ -1718,12 +2273,14 @@ c     Local variables
 
         integer    :: nn,isig,depth1,i,j,k,iii,ig,iter,nsweep
      .               ,imin,imax,jmin,jmax,kmin,kmax
-        integer    :: nxl(ngrid),nyl(ngrid),nzl(ngrid)
+        integer    :: nxl,nyl,nzl
 
         real(8)    :: mag,mag0,omega
         real(8),allocatable,dimension(:) :: dx,rr
 
         type(grid_mg_def),pointer :: line_mg_grid
+
+        type(mg_ctx),pointer :: line_mg_ctx,mg_ctx_sv
 
         logical        :: fpointers
 
@@ -1732,25 +2289,26 @@ c     Begin program
         nn   = ntotv (igr)
         isig = istart(igr)
 
-        nxl = MGgrid%nxv
-        nyl = MGgrid%nyv
-        nzl = MGgrid%nzv
+cc        nxl = MGgrid%nxv
+cc        nyl = MGgrid%nyv
+cc        nzl = MGgrid%nzv
+        nxl = mg_ctx_temp%nxv(igr)
+        nyl = mg_ctx_temp%nyv(igr)
+        nzl = mg_ctx_temp%nzv(igr)
 
         nsweep = line_nsweep
 
         omega  = line_omega
 
-        line_mg_grid%ngrdx = 0
-        line_mg_grid%ngrdy = 0
-        line_mg_grid%ngrdz = 0
-        line_mg_grid%ngrid = 0
+        nullify(line_mg_grid)
+        nullify(line_mg_ctx)
 
 c     Schedule planes/lines
 
-c       Check if at least 2D problem
-        if (    (nxl(igr) > 1 .and. nyl(igr) > 1)
-     .      .or.(nxl(igr) > 1 .and. nzl(igr) > 1)
-     .      .or.(nyl(igr) > 1 .and. nzl(igr) > 1) ) then
+c       Check if at least 2D problem (based on existing configuration)
+        if (    (nxl > 1 .and. nyl > 1)
+     .      .or.(nxl > 1 .and. nzl > 1)
+     .      .or.(nyl > 1 .and. nzl > 1) ) then
 
 c         Initialize quantities
 
@@ -1773,15 +2331,13 @@ c         Find initial residual
 
 c         Planes/Lines in X-direction
 
-cc            do iter=1,nsweep
+          call allocMGPointers(neq,fpointers,line_mg_ctx)
 
-          if (nxl(igr) > 1 .and. line_x) then
+          if (nxl > 1 .and. line_x) then
 
             !Collapse MG grid levels
-            call equateGridStructure(line_mg_grid,MGgrid) !Copy existing grid info
-cc            line_mg_grid            = MGgrid !Copy existing grid info
-            line_mg_grid%nxv        = 1 !Collapse grid in x-direction
-            line_mg_grid%mg_ratio_x = 1 !Collapse grid in x-direction
+            line_mg_ctx%nxv = 1         !Collapse grid in x-direction
+            line_mg_ctx%mg_ratio_x = 1  !Collapse grid in x-direction
 
             do iter=1,nsweep
 
@@ -1790,36 +2346,40 @@ cc            line_mg_grid            = MGgrid !Copy existing grid info
                 write (*,*) '******** X-relax sweep #',iter,'********'
               endif
 
-              do i=1,nxl(igr)
+              do i=1,nxl
 
                 !Define plane/line for subsequent MG solvers at all grids
-                line_mg_grid%iline(igr) = i
-                do ig = igr+1,ngrid
-                  line_mg_grid%iline(ig) = ( line_mg_grid%iline(ig-1)
-     .                                      +MGgrid%mg_ratio_x(ig-1)-1 )
-     .                                     /MGgrid%mg_ratio_x(ig-1)
+                line_mg_ctx%iline(igr) = i
+                do ig = igr+1,line_mg_ctx%ngrid
+                  line_mg_ctx%iline(ig) = ( line_mg_ctx%iline(ig-1)
+     .                                 +mg_ctx_temp%mg_ratio_x(ig-1)-1 )
+     .                                 /mg_ctx_temp%mg_ratio_x(ig-1)
                 enddo
+
+cc                write (*,*) 'DIAG -- linesmooth'
+cc     .                     ,line_mg_ctx%iline(igr:line_mg_ctx%ngrid)
 
                 !Output info
                 if (outc > 1.and.prnt) then
                   write (*,*)
-                  write (*,*) 'PLANE SOLVE: i=',i
-     .                   ,'; ny x nz:',nyl(igr),'x',nzl(igr)
+                  write (*,'(a,i4,a,i4,a,i4)')
+     .                 'PLANE SOLVE: i=',i,'; ny x nz:',nyl,'x',nzl
                 endif
 
                 dx = 0d0
 
-                !Restrict grid pointers
-                call saveMGgrid(line_mg_grid)
+                !Save parent MG pointers
+                mg_ctx_sv => mg_ctx_temp
 
                 !Solve plane/line (find solution update dx)
-                call lineSolver(nn,line_mg_grid,rr,dx,igr,0)
+                call lineSolver(nn,line_mg_ctx,rr,dx,igr,0)
 
                 !Update solution (x = x + dx)
                 call MGvecadd(igr,neq,nn,1d0,xx(isig),omega,dx)
 
                 !Recover grid pointers
-                call restoreMGgrid
+                mg_ctx_temp => mg_ctx_sv
+                nullify(mg_ctx_sv)
 
               enddo
 
@@ -1837,18 +2397,24 @@ cc            line_mg_grid            = MGgrid !Copy existing grid info
               mag0 = mag
             endif
 
-            call deallocateGridStructure(line_mg_grid)
+            !Recover configuration
+            line_mg_ctx%iline = 0
+            line_mg_ctx%nxv = mg_ctx_temp%nxv
+            line_mg_ctx%mg_ratio_x = mg_ctx_temp%mg_ratio_x
 
           endif
 
-c         Planes/Lines in Y-direction
+c         Planes/Lines in y-direction
 
-          if (nyl(igr) > 1 .and. line_y) then
+          if (nyl > 1 .and. line_y) then
 
-            call equateGridStructure(line_mg_grid,MGgrid) !Copy existing grid info
-cc            line_mg_grid            = MGgrid !Copy existing grid info
-            line_mg_grid%nyv        = 1 !Collapse grid in y-direction
-            line_mg_grid%mg_ratio_y = 1 !Collapse grid in y-direction
+cc            !Update residual
+cc            call MGmatvec(0,neq,nn,xx(isig),rr,igr,bcnd,matvec)
+cc            call MGvecadd(igr,neq,nn,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
+
+            !Collapse MG grid levels
+            line_mg_ctx%nyv = 1         !Collapse grid in y-direction
+            line_mg_ctx%mg_ratio_y = 1  !Collapse grid in y-direction
 
             do iter=1,nsweep
 
@@ -1857,40 +2423,44 @@ cc            line_mg_grid            = MGgrid !Copy existing grid info
                 write (*,*) '******** Y-relax sweep #',iter,'********'
               endif
 
-              do j=1,nyl(igr)
+              do j=1,nyl
 
-                !Defines plane/line for subsequent MG solvers at all grids
-                line_mg_grid%jline(igr) = j
-                do ig = igr+1,ngrid
-                  line_mg_grid%jline(ig) = ( line_mg_grid%jline(ig-1)
-     .                                      +MGgrid%mg_ratio_y(ig-1)-1 )
-     .                                     /MGgrid%mg_ratio_y(ig-1)
+                !Define plane/line for subsequent MG solvers at all grids
+                line_mg_ctx%jline(igr) = j
+                do ig = igr+1,line_mg_ctx%ngrid
+                  line_mg_ctx%jline(ig) = ( line_mg_ctx%jline(ig-1)
+     .                                 +mg_ctx_temp%mg_ratio_y(ig-1)-1 )
+     .                                 /mg_ctx_temp%mg_ratio_y(ig-1)
                 enddo
+
+cc                write (*,*) 'DIAG -- linesmooth'
+cc     .                     ,line_mg_ctx%jline(igr:line_mg_ctx%ngrid)
 
                 !Output info
                 if (outc > 1.and.prnt) then
                   write (*,*)
-                  write (*,*) 'PLANE SOLVE: j=',j
-     .                   ,'; nx x nz:',nxl(igr),'x',nzl(igr)
+                  write (*,'(a,i4,a,i4,a,i4)')
+     .                 'PLANE SOLVE: j=',j,'; nx x nz:',nxl,'x',nzl
                 endif
 
                 dx = 0d0
 
-                !Restrict grid pointers
-                call saveMGgrid(line_mg_grid)
+                !Save parent MG pointers
+                mg_ctx_sv => mg_ctx_temp
 
-                !Solve plane/line (find solution update)
-                call lineSolver(nn,line_mg_grid,rr,dx,igr,0)
+                !Solve plane/line (find solution update dx)
+                call lineSolver(nn,line_mg_ctx,rr,dx,igr,0)
 
-                !Update solution
+                !Update solution (x = x + dx)
                 call MGvecadd(igr,neq,nn,1d0,xx(isig),omega,dx)
 
                 !Recover grid pointers
-                call restoreMGgrid
+                mg_ctx_temp => mg_ctx_sv
+                nullify(mg_ctx_sv)
 
               enddo
 
-              !Find residual
+              !Update residual
               call MGmatvec(0,neq,nn,xx(isig),rr,igr,bcnd,matvec)
               call MGvecadd(igr,neq,nn,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
 
@@ -1904,18 +2474,20 @@ cc            line_mg_grid            = MGgrid !Copy existing grid info
               mag0 = mag
             endif
 
-            call deallocateGridStructure(line_mg_grid)
+            !Recover configuration
+            line_mg_ctx%jline = 0
+            line_mg_ctx%nyv = mg_ctx_temp%nyv
+            line_mg_ctx%mg_ratio_y = mg_ctx_temp%mg_ratio_y
 
           endif
 
-c         Planes/Lines in Z-direction
+c         Planes/Lines in z-direction
 
-          if (nzl(igr) > 1 .and. line_z) then
+          if (nzl > 1 .and. line_z) then
 
-            call equateGridStructure(line_mg_grid,MGgrid) !Copy existing grid info
-cc            line_mg_grid            = MGgrid !Copy existing grid info
-            line_mg_grid%nzv        = 1 !Collapse grid in z-direction
-            line_mg_grid%mg_ratio_z = 1 !Collapse grid in z-direction
+            !Collapse MG grid levels
+            line_mg_ctx%nzv = 1         !Collapse grid in z-direction
+            line_mg_ctx%mg_ratio_z = 1  !Collapse grid in z-direction
 
             do iter=1,nsweep
 
@@ -1924,40 +2496,44 @@ cc            line_mg_grid            = MGgrid !Copy existing grid info
                 write (*,*) '******** Z-relax sweep #',iter,'********'
               endif
 
-              do k=1,nzl(igr)
+              do k=1,nzl
 
-                !Defines plane/line for subsequent MG solvers at all grids
-                line_mg_grid%kline(igr) = k
-                do ig = igr+1,ngrid
-                  line_mg_grid%kline(ig) = ( line_mg_grid%kline(ig-1)
-     .                                      +MGgrid%mg_ratio_z(ig-1)-1 )
-     .                                     /MGgrid%mg_ratio_z(ig-1)
+                !Define plane/line for subsequent MG solvers at all grids
+                line_mg_ctx%kline(igr) = k
+                do ig = igr+1,line_mg_ctx%ngrid
+                  line_mg_ctx%kline(ig) = ( line_mg_ctx%kline(ig-1)
+     .                                 +mg_ctx_temp%mg_ratio_z(ig-1)-1 )
+     .                                 /mg_ctx_temp%mg_ratio_z(ig-1)
                 enddo
+
+cc                write (*,*) 'DIAG -- linesmooth'
+cc     .                     ,line_mg_ctx%kline(igr:line_mg_ctx%ngrid)
 
                 !Output info
                 if (outc > 1.and.prnt) then
                   write (*,*)
-                  write (*,*) 'PLANE SOLVE: k=',k
-     .                   ,'; nx x ny:',nxl(igr),'x',nyl(igr)
+                  write (*,'(a,i4,a,i4,a,i4)')
+     .                 'PLANE SOLVE: k=',k,'; nx x ny:',nxl,'x',nyl
                 endif
 
                 dx = 0d0
 
-                !Restrict grid pointers
-                call saveMGgrid(line_mg_grid)
+                !Save parent MG pointers
+                mg_ctx_sv => mg_ctx_temp
 
-                !Solve plane/line (find solution update)
-                call lineSolver(nn,line_mg_grid,rr,dx,igr,0)
+                !Solve plane/line (find solution update dx)
+                call lineSolver(nn,line_mg_ctx,rr,dx,igr,0)
 
-                !Update solution
+                !Update solution (x = x + dx)
                 call MGvecadd(igr,neq,nn,1d0,xx(isig),omega,dx)
 
                 !Recover grid pointers
-                call restoreMGgrid
+                mg_ctx_temp => mg_ctx_sv
+                nullify(mg_ctx_sv)
 
               enddo
 
-              !Find residual
+              !Update residual
               call MGmatvec(0,neq,nn,xx(isig),rr,igr,bcnd,matvec)
               call MGvecadd(igr,neq,nn,-1d0,rr,1d0,yy(isig)) !rr = yy(isig:isig+nn-1)-rr
 
@@ -1968,15 +2544,19 @@ cc            line_mg_grid            = MGgrid !Copy existing grid info
               if (outc > 1.and.prnt) write (*,5)
               if (prnt) write (*,30) mag,mag/mag0
               if (outc > 1.and.prnt) write (*,6)
+              mag0 = mag
             endif
 
-            call deallocateGridStructure(line_mg_grid)
+            !Recover configuration
+            line_mg_ctx%kline = 0
+            line_mg_ctx%nzv = mg_ctx_temp%nzv
+            line_mg_ctx%mg_ratio_z = mg_ctx_temp%mg_ratio_z
 
           endif
 
-cc            enddo
-
 c         Deallocate variables
+
+          call deallocMGPointers(fpointers,line_mg_ctx)
 
           deallocate(rr,dx)
 
@@ -1985,15 +2565,15 @@ c       Else smooth 1D problem (for MG line smoother)
 
           if (outc > 1.and.prnt) then
             write (*,*)
-            if (nxl(igr) > 1) then
-              write (*,*) '1D LINE SOLVE on j =',mggrid%jline(igr)
-     .               ,', k =',mggrid%kline(igr),' **** i = 1 :',nxl(igr)
-            elseif (nyl(igr) > 1) then
-              write (*,*) '1D LINE SOLVE on i =',mggrid%iline(igr)
-     .               ,', k =',mggrid%kline(igr),' **** j = 1 :',nyl(igr)
+            if (nxl > 1) then
+              write (*,*) '1D LINE SOLVE on j =',mg_ctx_temp%jline(igr)
+     .               ,', k =',mg_ctx_temp%kline(igr),' **** i = 1 :',nxl
+            elseif (nyl > 1) then
+              write (*,*) '1D LINE SOLVE on i =',mg_ctx_temp%iline(igr)
+     .               ,', k =',mg_ctx_temp%kline(igr),' **** j = 1 :',nyl
             else
-              write (*,*) '1D LINE SOLVE on i =',mggrid%iline(igr)
-     .               ,', j =',mggrid%jline(igr),' **** k = 1 :',nzl(igr)
+              write (*,*) '1D LINE SOLVE on i =',mg_ctx_temp%iline(igr)
+     .               ,', j =',mg_ctx_temp%jline(igr),' **** k = 1 :',nzl
             endif
           endif
 
@@ -2039,7 +2619,8 @@ c     Call variables
 
         integer        :: igr,nn,guess
         real(8)        :: b(nn),x(nn)
-        type(grid_mg_def),pointer :: mg_grid
+cc        type(grid_mg_def),pointer :: mg_grid
+        type(mg_ctx),pointer :: mg_grid
         logical        :: prelax
 
 c     Local variables
@@ -2054,38 +2635,38 @@ c     Begin program
 
 c     Schedule solvers
 
-c       Recursive MG (at least 2D or if 1D MG is wanted)
-        if  (    (nxl > 1 .and. nyl > 1)
-     .       .or.(nxl > 1 .and. nzl > 1)
-     .       .or.(nyl > 1 .and. nzl > 1)) then
-
-          call lineMGsolver(nn,mg_grid,b,x,igr,guess)
-
-c       GMRES 1D solver (matvec HARDWIRED to v_mtvc for now)
-cc        elseif (line_solve == "gm") then
+ccc       Recursive MG (at least 2D or if 1D MG is wanted)
+cc        if  (    (nxl > 1 .and. nyl > 1)
+cc     .       .or.(nxl > 1 .and. nzl > 1)
+cc     .       .or.(nyl > 1 .and. nzl > 1)) then
 cc
-cc          call lineGMsolver(nn,mg_grid,b,x,igr,guess)
-
-c       MG 1D solver
-        elseif (line_solve == "mg") then
-
-          call lineMGsolver(nn,mg_grid,b,x,igr,guess,oned_solve=.true.)
-
-c       GS 1D solver
-        elseif (line_solve == "gs") then
-
-          call lineGSsolver(nn,mg_grid,b,x,igr,guess)
-
-c       JB 1D solver
-        elseif (line_solve == "jb") then
+cc          call lineMGsolver(nn,mg_grid,b,x,igr,guess)
+cc
+ccc       GMRES 1D solver (matvec HARDWIRED to v_mtvc for now)
+cccc        elseif (line_solve == "gm") then
+cccc
+cccc          call lineGMsolver(nn,mg_grid,b,x,igr,guess)
+cc
+ccc       MG 1D solver
+cc        elseif (line_solve == "mg") then
+cc
+cc          call lineMGsolver(nn,mg_grid,b,x,igr,guess,oned_solve=.true.)
+cc
+ccc       GS 1D solver
+cc        elseif (line_solve == "gs") then
+cc
+cc          call lineGSsolver(nn,mg_grid,b,x,igr,guess)
+cc
+ccc       JB 1D solver
+cc        elseif (line_solve == "jb") then
 
           call lineJBsolver(nn,mg_grid,b,x,igr,guess)
 
-        else
-
-          call pstop('lineSolver','Line solver undefined')
-
-        endif
+cc        else
+cc
+cc          call pstop('lineSolver','Line solver undefined')
+cc
+cc        endif
 
 c     End program
 
@@ -2208,134 +2789,135 @@ cc        deallocate(bb,xx)
 cc
 cc      end subroutine lineGMsolver
 
-c     lineGSsolver
-c     #####################################################################
-      recursive subroutine lineGSsolver(nn,mg_grid,b,x,igr,guess)
-
-c     ---------------------------------------------------------------------
-c     This routine performs a recursive MG solve on selected planes/lines.
-c     In call:
-c       * nn: total grid size at grid level igr
-c       * mg_grid: MG grid definition structure that defines local grid patch
-c       * b: rhs vector
-c       * x: solution vector
-c       * igr: grid level
-c       * guess: whether initial guess is provided (guess=1) or not (guess=0).
-c     ---------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer        :: igr,nn,guess
-        real(8)        :: b(nn),x(nn)
-        type(grid_mg_def),pointer :: mg_grid
-        logical        :: prelax
-
-c     Local variables
-
-        integer        :: istart_sv (size(istart) )
-     .                   ,istartp_sv(size(istartp))
-     .                   ,istartb_sv(size(istartb))
-
-        real(8),allocatable,dimension(:,:) :: old_diag
-
-        type (solver_options) :: options
-
-        logical               :: fpointers
-
-c     Begin program
-
-c     Save parent MG grid configuration (shared with filial MG via mg_internal module)
-
-cc        MGgrid_sv%ngrdx = 0
-cc        MGgrid_sv%ngrdy = 0
-cc        MGgrid_sv%ngrdz = 0
-cc        MGgrid_sv%ngrid = 0
+ccc     lineGSsolver
+ccc     #####################################################################
+cc      recursive subroutine lineGSsolver(nn,mg_grid,b,x,igr,guess)
 cc
-cc        !Save pointers
-cc        MGgrid_sv  = MGgrid
-        istart_sv  = istart
-        istartp_sv = istartp
-        istartb_sv = istartb
-
-        !Save diagonal
-        allocate(old_diag(size(diag,1),size(diag,2)))
-        old_diag = diag
-        deallocate(diag)
-
-c     'Prime' grid structure variable to pass to filial MG call
-
-        options%mg_grid_def%ngrdx = 0
-        options%mg_grid_def%ngrdy = 0
-        options%mg_grid_def%ngrdz = 0
-        options%mg_grid_def%ngrid = 0
-
-cc        options%mg_grid_def = MGgrid_sv
-        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
-
-c     Shift MG pointers to current grid level igr
-
-        call transferMGPointers(igr)
-
-c     Allocate new diagonal and transfer elements
-
-        allocate(diag(size(old_diag,1)
-     .               ,size(old_diag,2)-istart_sv(igr)+1))
-
-        diag = old_diag(:,istart_sv(igr):size(old_diag,2))
-
-c     Configure recursive plane/line GS solve
-
-        options%iter                        = 100
-        options%ncolors                     = 4
-        options%omega                       = 1.0           
-
-        options%tol                         = line_tol
-        options%vcyc                        = line_vcyc
-        options%igridmin                    = igridmin
-        options%orderres                    = orderres
-        options%orderprol                   = orderprol
-        options%mg_mu                       = mu
-        options%vol_res                     = volf        
-
-        options%mg_coarse_solver_depth      = line_crse_depth
-        options%mg_line_relax               = .false.
-        options%mg_line_nsweep              = line_nsweep
-        options%mg_line_vcyc                = line_vcyc
-        options%mg_line_tol                 = line_tol
-        options%mg_line_omega               = line_omega
-        options%mg_line_coarse_solver_depth = line_crse_depth
-cc        options%mg_grid_def                 = mg_grid
-        call equateGridStructure(options%mg_grid_def,mg_grid)
-
-        options%vertex_based_relax          = vbr_mg
-        options%fdiag                       = fdiag
-
-c     Call plane/line GS
-
-        call gs(neq,nn,b,x,matvec,options,igr,bcnd,guess,outc-1,depth)
-
-c     Recover configuration for parent level MG
-
-        !Recover pointers
-        istart  = istart_sv
-        istartp = istartp_sv
-        istartb = istartb_sv
-cc        MGgrid  = mg_grid
-        call equateGridStructure(MGgrid,mg_grid)
-
-        !Recover diagonal
-        deallocate(diag)
-        allocate(diag(size(old_diag,1),size(old_diag,2)))
-        diag = old_diag
-        deallocate(old_diag)
-
-c     Deallocate memory
-
-        call deallocateGridStructure(options%mg_grid_def)
-
-      end subroutine lineGSsolver
+ccc     ---------------------------------------------------------------------
+ccc     This routine performs a recursive MG solve on selected planes/lines.
+ccc     In call:
+ccc       * nn: total grid size at grid level igr
+ccc       * mg_grid: MG grid definition structure that defines local grid patch
+ccc       * b: rhs vector
+ccc       * x: solution vector
+ccc       * igr: grid level
+ccc       * guess: whether initial guess is provided (guess=1) or not (guess=0).
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer        :: igr,nn,guess
+cc        real(8)        :: b(nn),x(nn)
+cccc        type(grid_mg_def),pointer :: mg_grid
+cc        type(mg_ctx),pointer :: mg_grid
+cc        logical        :: prelax
+cc
+ccc     Local variables
+cc
+cc        integer        :: istart_sv (size(istart) )
+cc     .                   ,istartp_sv(size(istartp))
+cc     .                   ,istartb_sv(size(istartb))
+cc
+cc        real(8),allocatable,dimension(:,:) :: old_diag
+cc
+cc        type (solver_options) :: options
+cc
+cc        logical               :: fpointers
+cc
+ccc     Begin program
+cc
+ccc     Save parent MG grid configuration (shared with filial MG via mg_internal module)
+cc
+cccc        MGgrid_sv%ngrdx = 0
+cccc        MGgrid_sv%ngrdy = 0
+cccc        MGgrid_sv%ngrdz = 0
+cccc        MGgrid_sv%ngrid = 0
+cccc
+cccc        !Save pointers
+cccc        MGgrid_sv  = MGgrid
+cc        istart_sv  = istart
+cc        istartp_sv = istartp
+cc        istartb_sv = istartb
+cc
+cc        !Save diagonal
+cc        allocate(old_diag(size(diag,1),size(diag,2)))
+cc        old_diag = diag
+cc        deallocate(diag)
+cc
+ccc     'Prime' grid structure variable to pass to filial MG call
+cc
+cc        options%mg_grid_def%ngrdx = 0
+cc        options%mg_grid_def%ngrdy = 0
+cc        options%mg_grid_def%ngrdz = 0
+cc        options%mg_grid_def%ngrid = 0
+cc
+cccc        options%mg_grid_def = MGgrid_sv
+cc        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
+cc
+ccc     Shift MG pointers to current grid level igr
+cc
+cc        call transferMGPointers(igr)
+cc
+ccc     Allocate new diagonal and transfer elements
+cc
+cc        allocate(diag(size(old_diag,1)
+cc     .               ,size(old_diag,2)-istart_sv(igr)+1))
+cc
+cc        diag = old_diag(:,istart_sv(igr):size(old_diag,2))
+cc
+ccc     Configure recursive plane/line GS solve
+cc
+cc        options%iter                        = 100
+cc        options%ncolors                     = 4
+cc        options%omega                       = 1.0           
+cc
+cc        options%tol                         = line_tol
+cc        options%vcyc                        = line_vcyc
+cc        options%mg_gmin                     = igridmin
+cc        options%orderres                    = orderres
+cc        options%orderprol                   = orderprol
+cc        options%mg_mu                       = mu
+cc        options%vol_res                     = volf        
+cc
+cc        options%mg_coarse_solver_depth      = line_crse_depth
+cc        options%mg_line_relax               = .false.
+cc        options%mg_line_nsweep              = line_nsweep
+cc        options%mg_line_vcyc                = line_vcyc
+cc        options%mg_line_tol                 = line_tol
+cc        options%mg_line_omega               = line_omega
+cc        options%mg_line_coarse_solver_depth = line_crse_depth
+cccc        options%mg_grid_def                 = mg_grid
+cc        call equateGridStructure(options%mg_grid_def,mg_grid)
+cc
+cc        options%vertex_based_relax          = vbr_mg
+cc        options%fdiag                       = fdiag
+cc
+ccc     Call plane/line GS
+cc
+cc        call gs(neq,nn,b,x,matvec,options,igr,bcnd,guess,outc-1,depth)
+cc
+ccc     Recover configuration for parent level MG
+cc
+cc        !Recover pointers
+cc        istart  = istart_sv
+cc        istartp = istartp_sv
+cc        istartb = istartb_sv
+cccc        MGgrid  = mg_grid
+cc        call equateGridStructure(MGgrid,mg_grid)
+cc
+cc        !Recover diagonal
+cc        deallocate(diag)
+cc        allocate(diag(size(old_diag,1),size(old_diag,2)))
+cc        diag = old_diag
+cc        deallocate(old_diag)
+cc
+ccc     Deallocate memory
+cc
+cc        call deallocateGridStructure(options%mg_grid_def)
+cc
+cc      end subroutine lineGSsolver
 
 c     lineJBsolver
 c     #####################################################################
@@ -2358,64 +2940,25 @@ c     Call variables
 
         integer        :: igr,nn,guess
         real(8)        :: b(nn),x(nn)
-        type(grid_mg_def),pointer :: mg_grid
+        type(mg_ctx),pointer :: mg_grid
         logical        :: prelax
 
 c     Local variables
 
-        integer        :: istart_sv (size(istart) )
-     .                   ,istartp_sv(size(istartp))
-     .                   ,istartb_sv(size(istartb))
-
-        real(8),allocatable,dimension(:,:) :: old_diag
-
         type (solver_options) :: options
-
-        logical               :: fpointers
 
 c     Begin program
 
-c     Save parent MG grid configuration (shared with filial MG via mg_internal module)
-
-        !Save pointers
-        istart_sv  = istart
-        istartp_sv = istartp
-        istartb_sv = istartb
-
-        !Save diagonal
-        allocate(old_diag(size(diag,1),size(diag,2)))
-        old_diag = diag
-        deallocate(diag)
-
-c     'Prime' grid structure variable to pass to filial MG call
-
-        options%mg_grid_def%ngrdx = 0
-        options%mg_grid_def%ngrdy = 0
-        options%mg_grid_def%ngrdz = 0
-        options%mg_grid_def%ngrid = 0
-
-cc        options%mg_grid_def = MGgrid_sv
-        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
-
-c     Shift MG pointers to current grid level igr
-
-        call transferMGPointers(igr)
-
-c     Allocate new diagonal and transfer elements
-
-        allocate(diag(size(old_diag,1)
-     .               ,size(old_diag,2)-istart_sv(igr)+1))
-
-        diag = old_diag(:,istart_sv(igr):size(old_diag,2))
+        nullify(options%mg_grid_def)
 
 c     Configure recursive plane/line JB solve
 
-        options%iter                        = 100
-        options%omega                       = 1d0           
+        options%iter                        = 2
+        options%omega                       = 0.7
 
         options%tol                         = line_tol
         options%vcyc                        = line_vcyc
-        options%igridmin                    = igridmin
+        options%mg_gmin                     = igridmin
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
@@ -2428,179 +2971,160 @@ c     Configure recursive plane/line JB solve
         options%mg_line_tol                 = line_tol
         options%mg_line_omega               = line_omega
         options%mg_line_coarse_solver_depth = line_crse_depth
-cc        options%mg_grid_def                 = mg_grid
-        call equateGridStructure(options%mg_grid_def,mg_grid)
 
-        options%vertex_based_relax          = vbr_mg
-        options%fdiag                       = fdiag
+        options%mg_vertex_relax             = vbr_mg
+
+        options%mgctx                       => mg_grid
+        options%diag                        => diag
 
 c     Call plane/line JB
 
         call jb(neq,nn,b,x,matvec,options,igr,bcnd,guess,outc-1,depth)
 
-c     Recover configuration for parent level MG
-
-        !Recover pointers
-        istart  = istart_sv
-        istartp = istartp_sv
-        istartb = istartb_sv
-cc        MGgrid  = mg_grid
-        call equateGridStructure(MGgrid,mg_grid)
-
-        !Recover diagonal
-        deallocate(diag)
-        allocate(diag(size(old_diag,1),size(old_diag,2)))
-        diag = old_diag
-        deallocate(old_diag)
-
 c     Deallocate memory
 
-        call deallocateGridStructure(options%mg_grid_def)
+        nullify(options%mg_grid_def,options%mgctx)
+        nullify(options%diag)
 
       end subroutine lineJBsolver
 
-c     lineMGsolver
-c     #####################################################################
-      recursive subroutine lineMGsolver(nn,mg_grid,b,x,igr,guess
-     .                                 ,oned_solve)
-
-c     ---------------------------------------------------------------------
-c     This routine performs a recursive MG solve on selected planes/lines.
-c     In call:
-c       * nn: total grid size at grid level igr
-c       * mg_grid: MG grid definition structure that defines local grid patch
-c       * b: rhs vector
-c       * x: solution vector
-c       * igr: grid level
-c       * guess: whether initial guess is provided (guess=1) or not (guess=0).
-c       * 1d_solve (optional):whether we are doing 1D MG.
-c     ---------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer        :: igr,nn,guess
-        real(8)        :: b(nn),x(nn)
-        type(grid_mg_def),pointer :: mg_grid
-        logical,optional :: oned_solve
-
-c     Local variables
-
-        integer        :: istart_sv (size(istart) )
-     .                   ,istartp_sv(size(istartp))
-     .                   ,istartb_sv(size(istartb))
-
-        real(8),allocatable,dimension(:,:) :: old_diag
-
-        type (solver_options) :: options
-
-        logical               :: fpointers,oned_slv
-
-c     Begin program
-
-        if (PRESENT(oned_solve)) then
-          oned_slv = oned_solve
-        else
-          oned_slv = .false.
-        endif
-
-c     Save parent MG grid configuration (shared with filial MG via mg_internal module)
-
-cc        MGgrid_sv%ngrdx = 0
-cc        MGgrid_sv%ngrdy = 0
-cc        MGgrid_sv%ngrdz = 0
-cc        MGgrid_sv%ngrid = 0
+ccc     lineMGsolver
+ccc     #####################################################################
+cc      recursive subroutine lineMGsolver(nn,mg_grid,b,x,igr,guess
+cc     .                                 ,oned_solve)
 cc
-cc        !Save pointers
-cc        MGgrid_sv  = MGgrid
-        istart_sv  = istart
-        istartp_sv = istartp
-        istartb_sv = istartb
-
-        !Save diagonal
-        allocate(old_diag(size(diag,1),size(diag,2)))
-        old_diag = diag
-        deallocate(diag)
-
-c     'Prime' grid structure variable to pass to filial MG call
-
-        options%mg_grid_def%ngrdx = 0
-        options%mg_grid_def%ngrdy = 0
-        options%mg_grid_def%ngrdz = 0
-        options%mg_grid_def%ngrid = 0
-
-cc        options%mg_grid_def = MGgrid_sv
-        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
-
-c     Shift MG pointers to current grid level igr
-
-        call transferMGPointers(igr)
-
-c     Allocate new diagonal and transfer elements
-
-        allocate(diag(size(old_diag,1)
-     .               ,size(old_diag,2)-istart_sv(igr)+1))
-
-        diag = old_diag(:,istart_sv(igr):size(old_diag,2))
-
-c     Configure recursive plane/line MG solve
-
-        options%tol                         = line_tol
-        options%vcyc                        = line_vcyc
-        options%igridmin                    = igridmin
-        if (oned_slv) then
-          options%orderres                  = 0
-          options%orderprol                 = 0
-        else
-          options%orderres                  = orderres
-          options%orderprol                 = orderprol
-        endif
-        options%mg_mu                       = mu
-        options%vol_res                     = volf        
-
-        options%mg_coarse_solver_depth      = line_crse_depth
-        options%mg_line_relax               = .true.
-        options%mg_line_nsweep              = line_nsweep
-        options%mg_line_vcyc                = line_vcyc
-        options%mg_line_tol                 = line_tol
-        options%mg_line_omega               = line_omega
-        options%mg_line_coarse_solver_depth = line_crse_depth
-        options%mg_line_x                   = line_x
-        options%mg_line_y                   = line_y
-        options%mg_line_z                   = line_z
-cc        options%mg_grid_def                 = mg_grid
-        call equateGridStructure(options%mg_grid_def,mg_grid)
-
-        options%vertex_based_relax          = vbr_mg
-        options%fdiag                       = fdiag
-
-c     Call plane/line MG
-
-        call mg(neq,nn,b,x,matvec,options,igr,bcnd,guess,outc-1,depth)
-
-c     Recover configuration for parent level MG
-
-        !Recover pointers
-        istart  = istart_sv
-        istartp = istartp_sv
-        istartb = istartb_sv
-cc        MGgrid  = mg_grid
-        call equateGridStructure(MGgrid,mg_grid)
-cc        MGgrid  = MGgrid_sv
-cc        call deallocateGridStructure(MGgrid_sv)
-
-        !Recover diagonal
-        deallocate(diag)
-        allocate(diag(size(old_diag,1),size(old_diag,2)))
-        diag = old_diag
-        deallocate(old_diag)
-
-c     Deallocate memory
-
-        call deallocateGridStructure(options%mg_grid_def)
-
-      end subroutine lineMGsolver
+ccc     ---------------------------------------------------------------------
+ccc     This routine performs a recursive MG solve on selected planes/lines.
+ccc     In call:
+ccc       * nn: total grid size at grid level igr
+ccc       * mg_grid: MG grid definition structure that defines local grid patch
+ccc       * b: rhs vector
+ccc       * x: solution vector
+ccc       * igr: grid level
+ccc       * guess: whether initial guess is provided (guess=1) or not (guess=0).
+ccc       * 1d_solve (optional):whether we are doing 1D MG.
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer        :: igr,nn,guess
+cc        real(8)        :: b(nn),x(nn)
+cc        type(grid_mg_def),pointer :: mg_grid
+cc        logical,optional :: oned_solve
+cc
+ccc     Local variables
+cc
+cc        integer        :: istart_sv (size(istart) )
+cc     .                   ,istartp_sv(size(istartp))
+cc     .                   ,istartb_sv(size(istartb))
+cc
+cc        real(8),allocatable,dimension(:,:) :: old_diag
+cc
+cc        type (solver_options) :: options
+cc
+cc        logical               :: fpointers,oned_slv
+cc
+ccc     Begin program
+cc
+cc        if (PRESENT(oned_solve)) then
+cc          oned_slv = oned_solve
+cc        else
+cc          oned_slv = .false.
+cc        endif
+cc
+ccc     Save parent MG grid configuration (shared with filial MG via mg_internal module)
+cc
+cc        !Save MG pointers
+cc        istart_sv  = istart
+cc        istartp_sv = istartp
+cc        istartb_sv = istartb
+cc
+cc        !Save diagonal
+cc        allocate(old_diag(size(diag,1),size(diag,2)))
+cc        old_diag = diag
+cc        deallocate(diag)
+cc
+ccc     'Prime' grid structure variable to pass to filial MG call
+cc
+cccc        options%mg_grid_def%ngrdx = 0
+cccc        options%mg_grid_def%ngrdy = 0
+cccc        options%mg_grid_def%ngrdz = 0
+cccc        options%mg_grid_def%ngrid = 0
+cc        nullify(options%mg_grid_def)
+cc
+cccc        call equateGridStructure(options%mg_grid_def,MGgrid_sv)
+cc
+ccc     Shift MG pointers to current grid level igr
+cc
+cc        call transferMGPointers(igr)
+cc
+ccc     Allocate new diagonal and transfer elements
+cc
+cc        allocate(diag(size(old_diag,1)
+cc     .               ,size(old_diag,2)-istart_sv(igr)+1))
+cc
+cc        diag = old_diag(:,istart_sv(igr):size(old_diag,2))
+cc
+ccc     Configure recursive plane/line MG solve
+cc
+cc        options%tol                         = line_tol
+cc        options%vcyc                        = line_vcyc
+cc        options%mg_gmin                     = igridmin
+cc        if (oned_slv) then
+cc          options%orderres                  = 0
+cc          options%orderprol                 = 0
+cc        else
+cc          options%orderres                  = orderres
+cc          options%orderprol                 = orderprol
+cc        endif
+cc        options%mg_mu                       = mu
+cc        options%vol_res                     = volf        
+cc
+cc        options%mg_coarse_solver_depth      = line_crse_depth
+cc        options%mg_line_relax               = .true.
+cc        options%mg_line_nsweep              = line_nsweep
+cc        options%mg_line_vcyc                = line_vcyc
+cc        options%mg_line_tol                 = line_tol
+cc        options%mg_line_omega               = line_omega
+cc        options%mg_line_coarse_solver_depth = line_crse_depth
+cc        options%mg_line_x                   = line_x
+cc        options%mg_line_y                   = line_y
+cc        options%mg_line_z                   = line_z
+cc        options%mg_grid_def                 => mg_grid
+cccc        call equateGridStructure(options%mg_grid_def,mg_grid)
+cc
+cc        options%vertex_based_relax          = vbr_mg
+cc        options%fdiag                       = fdiag
+cccc        options%diag                        => new_diag
+cc
+ccc     Call plane/line MG
+cc
+cc        call mg(neq,nn,b,x,matvec,options,igr,bcnd,guess,outc-1,depth)
+cc
+ccc     Recover configuration for parent level MG
+cc
+cc        !Recover pointers
+cc        istart  = istart_sv
+cc        istartp = istartp_sv
+cc        istartb = istartb_sv
+cccc        MGgrid  = mg_grid
+cc        call equateGridStructure(MGgrid,mg_grid)
+cccc        MGgrid  = MGgrid_sv
+cccc        call deallocateGridStructure(MGgrid_sv)
+cc
+cc        !Recover diagonal
+cc        deallocate(diag)
+cc        allocate(diag(size(old_diag,1),size(old_diag,2)))
+cc        diag = old_diag
+cc        deallocate(old_diag)
+cc
+ccc     Deallocate memory
+cc
+cc        call deallocateGridStructure(options%mg_grid_def)
+cc
+cc      end subroutine lineMGsolver
 
 c     transferMGPointers
 c     #################################################################
@@ -2662,15 +3186,8 @@ c     Local variables
 
 c     Begin program
 
-        MGgrid_sv%ngrdx = 0
-        MGgrid_sv%ngrdy = 0
-        MGgrid_sv%ngrdz = 0
-        MGgrid_sv%ngrid = 0
-
-cc        MGgrid_sv  = MGgrid
-cc        MGgrid     = mg_grid
-        call equateGridStructure(MGgrid_sv,MGgrid)
-        call equateGridStructure(MGgrid,mg_grid)
+        MGgrid_sv  => MGgrid
+        MGgrid     => mg_grid
 
 c     End program
 
@@ -2692,12 +3209,8 @@ c     Local variables
 
 c     Begin program
 
-        call deallocateGridStructure(MGgrid)
-
-cc        MGgrid  = MGgrid_sv
-        call equateGridStructure(MGgrid,MGgrid_sv)
-
-        call deallocateGridStructure(MGgrid_sv)
+        MGgrid  => MGgrid_sv
+        nullify(MGgrid_sv)
 
 c     End program
 
@@ -2913,15 +3426,15 @@ c     Configure recursive plane/line MG solve
 
         options%tol                         = mgtol
         options%vcyc                        = vcyc
-        options%igridmin                    = igridmin
+        options%mg_gmin                     = igridmin
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
         options%vol_res                     = volf        
         options%mg_line_relax               = .false.
         options%mg_coarse_solver_depth      = crsedpth 
-        options%vertex_based_relax          = vbr_mg
-        options%galerkin                    = galerkin
+        options%mg_vertex_relax             = vbr_mg
+        options%mg_galerkin                 = galerkin
         options%ncolors                     = ncolors
 cc        options%mg_grid_def                 = grid_params
         call equateGridStructure(options%mg_grid_def,grid_params)
@@ -2993,7 +3506,12 @@ c     ###################################################################
 
         implicit none
 
-        if (fdiag)  deallocate(diag)
+        if (fdiag) then
+          deallocate(diag)
+        else
+          nullify(diag)
+        endif
+
         call deallocPointers(fpointers)
 cc        call deallocateGridStructure(MGgrid)
         nullify(MGgrid)
@@ -3043,7 +3561,8 @@ c Local variables
       real(8)    :: xxf(ntotf/neq,neq),car(3)
      .             ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
 
-      real(8),allocatable :: arrayf(:,:,:,:),sp_sum(:,:),lsp_sum(:,:)
+      real(8),allocatable :: arrayf(:,:,:,:),sp_sum(:,:)
+     .                      ,dv_sum(:,:),l_sum(:,:)
 
       integer    :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg
      .             ,ieq,nntotc,nntotf,igf
@@ -3061,8 +3580,7 @@ c Unpack vector into array
 
 c Impose boundary conditions (external)
 
-cc      cartesian = (isSP2(1,igc) .and. neq > 1 .and. igc < 3)  !Cartesian components for prolongation
-      cartesian = (isSP2(1,igc) .and. neq > 1)  !Cartesian variables for prolongation
+      cartesian = (bcSP() .and. neq > 1)  !Cartesian variables for prolongation
 
       if (order > 0 .or. cartesian) then
         call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
@@ -3072,50 +3590,47 @@ cc      cartesian = (isSP2(1,igc) .and. neq > 1 .and. igc < 3)  !Cartesian compo
                                                        !   vectors or scalars.
       endif
 
-      if (cartesian) then
-        !Average Cartesian component around singular point
-cc        write (*,*) 'After BC, before avg'
-cc        write (*,*) arrayc(1,:,1,1)
-cc        write (*,*) arrayc(1,:,1,2)
-cc        write (*,*) arrayc(1,:,1,3)
+c Perform average along azimuthal direction
 
-        allocate(sp_sum(0:nzc+1,neq))
+cc      write (*,*) 'DIAG -- cprolong, nproc=',my_rank,cartesian
+
+      cartesian = (isSP2(1,igc) .and. neq > 1)  !Cartesian variables for prolongation
+
+      if (cartesian) then
+
+        allocate(sp_sum(0:nzc+1,neq),dv_sum(0:nzc+1,neq))
 
         do ieq=1,neq
           do k=0,nzc+1
-cc            sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,ieq))
-cc     .                    /grid_params%nygl(igc)
             sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,ieq)
      .                        *gmetric%grid(igc)%dvol(1,1:nyc,k))
-     .                    /sum(gmetric%grid(igc)%dvol(1,1:nyc,k))
+            dv_sum(k,ieq)= sum(gmetric%grid(igc)%dvol(1,1:nyc,k))
           enddo
         enddo
 
-cc        sp_sum = sum(arrayc(1,1:nyc,:,:),1)
-cc     .          /grid_params%nygl(igc)
-
 #if defined(petsc)
-        allocate(lsp_sum(0:nzc+1,neq))
-        lsp_sum = sp_sum
-        call MPI_Allreduce(lsp_sum,sp_sum,neq*(nzc+2)
+        allocate(l_sum(0:nzc+1,neq))
+        l_sum = sp_sum
+        call MPI_Allreduce(l_sum,sp_sum,neq*(nzc+2)
      .                    ,MPI_DOUBLE_PRECISION
      .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-        deallocate(lsp_sum)
+
+        l_sum = dv_sum
+        call MPI_Allreduce(l_sum,dv_sum,neq*(nzc+2)
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+
+        deallocate(l_sum)
 #endif
 
         do ieq=1,neq
           do k=0,nzc+1
-            arrayc(1,:,k,ieq) = sp_sum(k,ieq)
-            arrayc(0,:,k,ieq) = sp_sum(k,ieq)
+            arrayc(1,:,k,ieq) = sp_sum(k,ieq)/dv_sum(k,ieq)
+            arrayc(0,:,k,ieq) = sp_sum(k,ieq)/dv_sum(k,ieq)
           enddo
         enddo
 
-        deallocate(sp_sum)
-cc        write (*,*) 'After BC, after avg'
-cc        write (*,*) arrayc(1,:,1,1)
-cc        write (*,*) arrayc(1,:,1,2)
-cc        write (*,*) arrayc(1,:,1,3)
-cc        stop
+        deallocate(sp_sum,dv_sum)
       endif
 
 c Prolong arrays (use scalar prolongation)
@@ -3141,31 +3656,6 @@ c Transform back to curvilinear (if isvec=.true.)
 
         igf = igc - 1
 
-cc        allocate(arrayf(0:nxf+1,0:nyf+1,0:nzf+1,neq))
-cc
-cc        call mapMGVectorToArray(0,neq,xf,nxf,nyf,nzf,arrayf,igf,.false.)
-cc
-cc        !Average Cartesian component around singular point
-cc        write (*,*) 'Fine grid, cartesian'
-cc        write (*,*) arrayf(1,:,1,1)
-cc        write (*,*) arrayf(1,:,1,2)
-cc        write (*,*) arrayf(1,:,1,3)
-
-cc        do ieq=1,neq
-cc          do k=0,nzf+1
-cc            arrayf(1,:,k,ieq) = sum(arrayf(1,1:nyf,k,ieq))/nyf
-cc            arrayf(0,:,k,ieq) = sum(arrayf(0,1:nyf,k,ieq))/nyf
-cc          enddo
-cc        enddo
-
-cc        write (*,*) 'After BC, after avg'
-cc        write (*,*) arrayc(1,:,1,1)
-cc        write (*,*) arrayc(1,:,1,2)
-cc        write (*,*) arrayc(1,:,1,3)
-cc        stop
-cc
-cc        write (*,*) iscnv
-
         do k = 1,nzf
           do j = 1,nyf
             do i = 1,nxf
@@ -3184,39 +3674,9 @@ cc        write (*,*) iscnv
           enddo
         enddo
 
-cc        call mapMGVectorToArray(0,neq,xf,nxf,nyf,nzf,arrayf,igf,.false.)
-cc
-cc        !Average Cartesian component around singular point
-cc        write (*,*) 'Fine grid, curvilinear'
-cc        write (*,*) arrayf(1,:,1,1)
-cc        write (*,*) arrayf(1,:,1,2)
-cc        write (*,*) arrayf(1,:,1,3)
-
-cc        call setMGBC(0,neq,nxf,nyf,nzf,igf,arrayf,bcnd
-cccc     .              ,iorder=min(order,3),is_vec=.false.
-cc     .              ,iorder=min(order,3)
-cc     .              ,result_is_vec=.true.)
-cc
-cc        write (*,*) 'Fine grid, after BC'
-cc        write (*,*) arrayf(1,:,1,1)
-cc        write (*,*) arrayf(1,:,1,2)
-cc        write (*,*) arrayf(1,:,1,3)
-cc        stop
-
-cc        write (*,*) 'After'
-cc        do ieq=1,neq
-cc          do k=1,nzf
-cc            write (*,*) arrayf(1,:,k,ieq)
-cc          enddo
-cc        enddo
-cc
-cc        call mapArrayToMGVector(neq,nxf,nyf,nzf,arrayf,xf,1)
-cc
-cc        deallocate(arrayf)
-
       endif
 
-c     Repack prolonged vector
+c Repack prolonged vector
 
       do ieq=1,neq
         do i=1,nntotf
@@ -3320,9 +3780,9 @@ c     Setup dimension vectors
      .          ,zz(1:kmaxc-kminc+3))
 
         call getMGmap(iminc,jminc,kminc,igc,igc,igc,icg,jcg,kcg)
-        xx = MGgrid%xx(icg-1:icg+imaxc-iminc+1)
-        yy = MGgrid%yy(jcg-1:jcg+jmaxc-jminc+1)
-        zz = MGgrid%zz(kcg-1:kcg+kmaxc-kminc+1)
+        xx = grid_params%xx(icg-1:icg+imaxc-iminc+1)
+        yy = grid_params%yy(jcg-1:jcg+jmaxc-jminc+1)
+        zz = grid_params%zz(kcg-1:kcg+kmaxc-kminc+1)
 
 c     Prepare 3d spline interpolation
 
@@ -3357,9 +3817,9 @@ c     Interpolate
               iif = if + nxf*(jf-1) + nxf*nyf*(kf-1)
 
               call getMGmap(if,jf,kf,igf,igf,igf,ifg,jfg,kfg)
-              xxf = MGgrid%xx(ifg)
-              yyf = MGgrid%yy(jfg)
-              zzf = MGgrid%zz(kfg)
+              xxf = grid_params%xx(ifg)
+              yyf = grid_params%yy(jfg)
+              zzf = grid_params%zz(kfg)
 
               xf(iif) = db3val(xxf,yyf,zzf,0,0,0,tx,ty,tz,nx,ny,nz
      .                        ,kx,ky,kz,bcoef,work)
@@ -3590,9 +4050,9 @@ c     Map vectors into arrays
 
         call getMGmap(iminf,jminf,kminf,igf,igf,igf,ifg,jfg,kfg)
 
-        xx = MGgrid%xx(ifg:ifg+imaxf-iminf)
-        yy = MGgrid%yy(jfg:jfg+jmaxf-jminf)
-        zz = MGgrid%zz(kfg:kfg+kmaxf-kminf)
+        xx = grid_params%xx(ifg:ifg+imaxf-iminf)
+        yy = grid_params%yy(jfg:jfg+jmaxf-jminf)
+        zz = grid_params%zz(kfg:kfg+kmaxf-kminf)
 
         call mapMGVectorToArray(0,1,xf,nxf,nyf,nzf,arrayf,igf,.false.)
 
@@ -3608,9 +4068,9 @@ c     Renormalize without volume fractions
                 arrayf(if,jf,kf) = arrayf(if,jf,kf)
      .                            /gmetric%grid(igf)%dvol(if,jf,kf)
 cc     .                            /volume(if,jf,kf,igf,igf,igf)
-cc     .                            /(MGgrid%dxh(ifg)
-cc     .                             *MGgrid%dyh(jfg)
-cc     .                             *MGgrid%dzh(kfg))
+cc     .                            /(grid_params%dxh(ifg)
+cc     .                             *grid_params%dyh(jfg)
+cc     .                             *grid_params%dzh(kfg))
 
               enddo
             enddo
@@ -3684,9 +4144,9 @@ c     Calculate interpolation
               iic = ic + nxc*(jc-1) + nxc*nyc*(kc-1)
 
               call getMGmap(ic,jc,kc,igc,igc,igc,icg,jcg,kcg)
-              xxc = MGgrid%xx(icg)
-              yyc = MGgrid%yy(jcg)
-              zzc = MGgrid%zz(kcg)
+              xxc = grid_params%xx(icg)
+              yyc = grid_params%yy(jcg)
+              zzc = grid_params%zz(kcg)
 
               if (nx == 1 .and. ny == 1) then
                 xc(iic) = dbvalu(tz,bcoef(1,1,:),nz,kz,0,zzc,inbv,work)
@@ -3710,9 +4170,9 @@ c     Calculate interpolation
 
 cc              if (volw) xc(iic) = xc(iic)*volume(ic,jc,kc,igc,igc,igc)
               if (volw) xc(iic)=xc(iic)*gmetric%grid(igc)%dvol(ic,jc,kc)
-cc              if (volw) xc(iic)=xc(iic)*MGgrid%dxh(icg)
-cc     .                                 *MGgrid%dyh(jcg)
-cc     .                                 *MGgrid%dzh(kcg)
+cc              if (volw) xc(iic)=xc(iic)*grid_params%dxh(icg)
+cc     .                                 *grid_params%dyh(jcg)
+cc     .                                 *grid_params%dzh(kcg)
 
             enddo
           enddo
@@ -3772,23 +4232,15 @@ c Local variables
 
       real(8),allocatable, dimension(:)  :: dummy,rhs
 
+      real(8), pointer, dimension(:,:) :: diag
+
+      type(mg_ctx),pointer :: mgctx
+
 c Begin program
 
       prnt = (my_rank == 0) .or. asm
 
       if (out.ge.2.and.prnt) write (*,*)
-
-c Allocate pointers
-
-      call allocPointers(neq,fpointers)
-
-      if (fpointers) then          !JB is NOT called from MG
-        igmax = igrid
-        vbr_mg = .false.
-      endif
-
-      if (fpointers.and.out.ge.2.and.prnt)
-     .     write (*,*) 'Allocating pointers...'
 
 c Read solver configuration
 
@@ -3798,14 +4250,33 @@ c Read solver configuration
       omega0 = options%omega
       tol    = options%tol
       fdiag  = options%fdiag
-      vbr    = options%vertex_based_relax
+      vbr    = options%mg_vertex_relax
       ncolors= options%ncolors
+      diag   => options%diag
+      mgctx  => options%mgctx
+
+c Allocate pointers
+
+      call allocPointers(neq,fpointers,mgctx=mgctx)
+
+      if (fpointers) then          !JB is NOT called from MG
+        igmax = igrid
+        vbr_mg = .false.
+      endif
+
+      if (fpointers.and.out.ge.2.and.prnt)
+     .     write (*,*) 'Allocating pointers...'
 
 c Initialize auxiliary variables
 
-      nxf = nxv(igrid)
-      nyf = nyv(igrid)
-      nzf = nzv(igrid)
+      !Global dimensions
+cc      nxf = nxv(igrid)
+cc      nyf = nyv(igrid)
+cc      nzf = nzv(igrid)
+
+      nxf = grid_params%nxv(igrid)
+      nyf = grid_params%nyv(igrid)
+      nzf = grid_params%nzv(igrid)
 
       if (vbr.or.vbr_mg) then
         nblk = nblock(igrid)
@@ -3818,23 +4289,16 @@ c Initialize auxiliary variables
 
 c Find diagonal for smoothers
 
-      if (fdiag) then
-
-        if (allocated(diag)) then !Diagonal is known
-          if(out.ge.2.and.prnt)write (*,*)'Diagonal already allocated'
-          fdiag = .false.
-        elseif (associated(options%diag)) then !Diagonal provided externally
-          if(out.ge.2.and.prnt)write (*,*)'Diagonal externally provided'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          diag = options%diag
-        else                      !Form diagonal
-          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                     ,ncolors,volf,galerkin)
-          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
-        endif
-
+      if (associated(diag)) then !Diagonal provided externally
+        if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
+        fdiag = .false.
+      else                      !Form diagonal
+        if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
+        allocate(diag(neq*nblk,2*ntot*nblk))
+        call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+     .                   ,ncolors,volf,galerkin)
+        if (out.ge.2.and.prnt) write (*,*) 'Finished!'
+        fdiag = .true.
       endif
 
 c Preparation for iteration
@@ -3955,74 +4419,74 @@ c       STANDARD RELAXATION
             enddo
           enddo
 
-          !Take care of points around singular point
-          if (isSP(1,1,1,igrid,igrid,igrid)) then
-#if defined(petsc)
-            if (np > 1) call pstop('jb','Does not work in parallel')
-#endif
-            do i1=3,1,-1
-
-              !plane JB
-              MGgrid%iline(igrid) = i1 !Set i for line smoothing around SP
-
-              call limits(0,nxf,nyf,nzf,igrid
-     .             ,imin,imax,jmin,jmax,kmin,kmax)
-
-              do itr2=1,5 !JB iteration around SP
-
-                magsp = 0d0
-
-                call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-
-                do k=kmin,kmax
-                  do j=jmin,jmax
-                    do i=imin,imax
-                      !nxf,nyf,nzf are the original grid's even in line relaxation.
-                      ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-
-                      iii = neq*(ii-1)
-
-                      !Find new residual
-                      do ieq = 1,neq
-                        rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-                      enddo
-
-                      !Multiply by D^-1 (stored in diag)
-                      iig = iii + isig - 1
-                      dummy =
-     .                   matmul(transpose(diag(:,iig+1:iig+neq))
-     .                         ,rhs)
-
-                      !Update solution zz
-                      do ieq=1,neq
-                        zz(iii+ieq) = zz(iii+ieq) + 0.8*dummy(ieq)
-                      enddo
-
-                      magsp = magsp + sum(rhs*rhs)
-                    enddo
-                  enddo
-                enddo
-
-                if (itr2 == 1) then
-                  magsp0 = magsp
-                else
-                  if (out.ge.3.and.prnt)
-     .              write (*,*) '  SP smoothing in JB, iter=',itr2
-     .                             ,' Ratio=',sqrt(magsp/magsp0)
-                  if (sqrt(magsp/magsp0) < 0.5) exit
-                endif
-
-              enddo
-
-              if (out.eq.2.and.prnt)
-     .           write (*,*) '  SP smoothing in GS: line = ',i1
-     .                       ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
-
-            enddo
-
-            MGgrid%iline(igrid) = 0 !Unset line smoothing
-
-          endif
+cc          !Take care of points around singular point
+cc          if (isSP(1,1,1,igrid,igrid,igrid)) then
+cc#if defined(petsc)
+cc            if (np > 1) call pstop('jb','Does not work in parallel')
+cc#endif
+cc            do i1=3,1,-1
+cc
+cc              !plane JB
+cc              mg_ctx_temp%iline(igrid) = i1 !Set i for line smoothing around SP
+cc
+cc              call limits(0,nxf,nyf,nzf,igrid
+cc     .             ,imin,imax,jmin,jmax,kmin,kmax)
+cc
+cc              do itr2=1,5 !JB iteration around SP
+cc
+cc                magsp = 0d0
+cc
+cc                call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+cc
+cc                do k=kmin,kmax
+cc                  do j=jmin,jmax
+cc                    do i=imin,imax
+cc                      !nxf,nyf,nzf are the original grid's even in line relaxation.
+cc                      ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+cc
+cc                      iii = neq*(ii-1)
+cc
+cc                      !Find new residual
+cc                      do ieq = 1,neq
+cc                        rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+cc                      enddo
+cc
+cc                      !Multiply by D^-1 (stored in diag)
+cc                      iig = iii + isig - 1
+cc                      dummy =
+cc     .                   matmul(transpose(diag(:,iig+1:iig+neq))
+cc     .                         ,rhs)
+cc
+cc                      !Update solution zz
+cc                      do ieq=1,neq
+cc                        zz(iii+ieq) = zz(iii+ieq) + 0.8*dummy(ieq)
+cc                      enddo
+cc
+cc                      magsp = magsp + sum(rhs*rhs)
+cc                    enddo
+cc                  enddo
+cc                enddo
+cc
+cc                if (itr2 == 1) then
+cc                  magsp0 = magsp
+cc                else
+cc                  if (out.ge.3.and.prnt)
+cc     .              write (*,*) '  SP smoothing in JB, iter=',itr2
+cc     .                             ,' Ratio=',sqrt(magsp/magsp0)
+cc                  if (sqrt(magsp/magsp0) < 0.5) exit
+cc                endif
+cc
+cc              enddo
+cc
+cc              if (out.eq.2.and.prnt)
+cc     .           write (*,*) '  SP smoothing in GS: line = ',i1
+cc     .                       ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
+cc
+cc            enddo
+cc
+cc            mg_ctx_temp%iline(igrid) = 0 !Unset line smoothing
+cc
+cc          endif
 
         endif
 
@@ -4044,6 +4508,11 @@ cc          mag = mag0                 !Do NOT do reduction in parallel (converg
         if (itr.eq.1) then
           mag0 = mag
           mag1 = mag
+          if (mag.lt.1d-20*nn) then
+            mag0 = 1d0
+            mag1 = 1d0
+            exit
+          endif
           if (out.ge.2.and.prnt) write (*,10)itr-1,mag,mag/mag0
         else
           if (out.ge.2.and.prnt) write (*,20)itr-1,mag,mag/mag0,mag/mag1
@@ -4082,7 +4551,12 @@ c End program
 
       deallocate (dummy,rhs)
 
-      if (fdiag)  deallocate(diag)
+      if (fdiag) then
+        deallocate(diag)
+      else
+        nullify(diag)
+      endif
+
       call deallocPointers(fpointers)
 
       return
@@ -4098,7 +4572,7 @@ c     optionsConsistencyCheck
 c     ###################################################################
         subroutine optionsConsistencyCheck
 
-        if (options%vertex_based_relax .and. options%mg_line_relax) then
+        if (options%mg_vertex_relax .and. options%mg_line_relax) then
           if (prnt)
      .       write (*,*) 'Invalid setting for JB relaxation: cannot do'
           if (prnt)
@@ -4145,11 +4619,12 @@ c Call variables
 c Local variables
 
       integer    :: iter,alloc_stat,isig,itr,itr2,nn,ieq,iig
+     .             ,zebra_dir,minzd,maxzd,zebra_it,zd,zit
       integer    :: i,j,k,imin,imax,jmin,jmax,kmin,kmax
       integer    :: i1,j1,k1,i1min,i1max,j1min,j1max,k1min,k1max
 
-      real(8)    :: omega0,tol
-      logical    :: fdiag,fpointers,vbr
+      real(8)    :: omega0,tol,zebra_omg
+      logical    :: fdiag,fpointers,vbr,zebra
 
       integer    :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf
       integer    :: ii,iii,iib,iiib,iiv,ivg,iblock,jblock,kblock,nblk
@@ -4157,27 +4632,19 @@ c Local variables
 
       integer    :: ncolors,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
 
+      real(8), pointer, dimension(:,:) :: diag
+
       real(8),allocatable, dimension(:) :: dummy,rhs
 
-      type(grid_mg_def),pointer :: line_mg_grid
+cc      type(grid_mg_def),pointer :: line_mg_grid
+
+      type(mg_ctx),pointer :: mgctx
 
 c Begin program
 
       prnt = (my_rank == 0) .or. asm
 
       if (out.ge.2.and.prnt) write (*,*)
-
-c Set pointers
-
-      call allocPointers(neq,fpointers)
-
-      if (fpointers) then          !GS is NOT called from MG
-        igmax = igrid
-        vbr_mg = .false.
-      endif
-
-      if (fpointers.and.out.ge.2.and.prnt)
-     .     write (*,*) 'Allocated pointers.'
 
 c Read solver configuration
 
@@ -4187,15 +4654,38 @@ c Read solver configuration
       omega0 = options%omega
       tol    = options%tol
       fdiag  = options%fdiag
-      vbr    = options%vertex_based_relax
+      vbr    = options%mg_vertex_relax
+
+      zebra     = options%mg_zebra_relax
+      zebra_dir = options%mg_zebra_prefd
+      zebra_it  = options%mg_zebra_it
+      zebra_omg = options%mg_zebra_omega
+
       ncolors= options%ncolors
+      diag   => options%diag
+      mgctx  => options%mgctx
+
+c Set pointers
+
+      call allocPointers(neq,fpointers,mgctx=mgctx)
+
+      if (fpointers) then          !GS is NOT called from MG
+        igmax = igrid
+        vbr_mg = .false.
+      endif
+
+      if (fpointers.and.out.ge.2.and.prnt)
+     .     write (*,*) 'Allocated pointers.'
 
 c Initialize auxiliary variables
 
       !Global grid size
-      nxf = nxv(igrid)
-      nyf = nyv(igrid)
-      nzf = nzv(igrid)
+cc      nxf = nxv(igrid)
+cc      nyf = nyv(igrid)
+cc      nzf = nzv(igrid)
+      nxf = grid_params%nxv(igrid)
+      nyf = grid_params%nyv(igrid)
+      nzf = grid_params%nzv(igrid)
 
       if (vbr.or.vbr_mg) then
         nblk = nblock(igrid)
@@ -4208,23 +4698,16 @@ c Initialize auxiliary variables
 
 c Find diagonal for smoothers
 
-      if (fdiag) then
-
-        if (allocated(diag)) then !Diagonal is known
-          if(out.ge.2.and.prnt)write (*,*)'Diagonal already allocated'
-          fdiag = .false.
-        elseif (associated(options%diag)) then !Diagonal provided externally
-          if(out.ge.2.and.prnt)write (*,*)'Diagonal externally provided'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          diag = options%diag
-        else                      !Form diagonal
-          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
-          allocate(diag(neq*nblk,2*ntot*nblk))
-          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                     ,ncolors,volf,galerkin)
-          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
-        endif
-
+      if (associated(diag)) then !Diagonal provided externally
+        if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
+        fdiag = .false.
+      else                      !Form diagonal
+        if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
+        allocate(diag(neq*nblk,2*ntot*nblk))
+        call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
+     .                   ,ncolors,volf,galerkin)
+        if (out.ge.2.and.prnt) write (*,*) 'Finished!'
+        fdiag = .true.
       endif
 
 c Preparation for iteration
@@ -4248,6 +4731,10 @@ c       ----------
 
 c         VERTEX-BASED RELAXATION
           if (vbr) then
+
+            if (out.ge.2.and.prnt) then
+              write (*,*) 'Vertex GS'
+            endif
 
             do irbg3 = 1,nrbg3
               do irbg2 = 1,nrbg2
@@ -4329,11 +4816,123 @@ c         VERTEX-BASED RELAXATION
               enddo
             enddo
 
+c         ZEBRA LINE RELAXATION
+          elseif (zebra) then
+
+            if (zebra_dir == 0) then
+              minzd = 1
+              maxzd = 3
+            else
+              minzd = zebra_dir
+              maxzd = zebra_dir
+            endif
+
+            do zd=minzd,maxzd  !Cycle in zebra directions
+
+              call scheduleColors(igrid,ncolors,nrbg1,nrbg2,nrbg3
+     .                         ,i1min,i1max,j1min,j1max,k1min,k1max
+     .                         ,zebra_dir=zd)
+
+              if (out.ge.2.and.prnt) then
+                if (nrbg1/=0 .and. nrbg2/=0 .and. nrbg3/=0) then
+                  write (*,*) 'Zebra GS, line = ',zd
+                else
+                  write (*,*) 'Skipping GS zebra line = ',zd
+                endif
+              endif
+
+              if (out.ge.3.and.prnt) then
+                if (nrbg1/=0 .and. nrbg2/=0 .and. nrbg3/=0) then
+                  write (*,*) '  colors=',nrbg1,nrbg2,nrbg3
+                  write (*,*) '  ilimits=',i1min,i1max
+                  write (*,*) '  jlimits=',j1min,j1max
+                  write (*,*) '  klimits=',k1min,k1max
+                endif
+              endif
+
+              if (     (minzd==maxzd)
+     .            .and.(nrbg1==0.and.nrbg2==0.and.nrbg3==0)) then
+                write (*,*) 'zebra dir=',zd,' range=',minzd,maxzd
+                write (*,*) 'colors=',nrbg1,nrbg2,nrbg3
+                write (*,*) 'ilimits=',i1min,i1max
+                write (*,*) 'jlimits=',j1min,j1max
+                write (*,*) 'klimits=',k1min,k1max
+                call pstop('gs','No zebra GS relaxation is possible!')
+              endif
+
+              do irbg3 = 1,nrbg3
+               do irbg2 = 1,nrbg2
+                 do irbg1 = 1,nrbg1
+
+                  do zit=1,zebra_it
+
+                    call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+
+                    do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
+                     do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2
+                      do i1=i1min+mod(j1+k1+irbg1-1,nrbg1),i1max,nrbg1
+
+                        call scheduleIndices(igrid,i1,j1,k1,i,j,k
+     .                                      ,zebra_dir=zd)
+
+cc                        write (*,*) 'DIAG -- zebra GS: it= ',zebra_it
+cc     .                             ,', grid pos=',i,j,k
+cc
+cc                        ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+cc                        
+cc                        call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd
+cc     .                               ,matvec)
+
+cc                        if (zd==2 .and. isSP2(i,igrid,dim=1)) cycle
+
+                        !nxf,nyf,nzf are the original grid's even in line relaxation.
+                        iii = neq*(i-1 + nxf*(j-1) + nxf*nyf*(k-1))
+
+                        !Find new residual
+                        do ieq = 1,neq
+                          rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+                        enddo
+
+                        !Multiply by D^-1 (stored in diag)
+                        iig = iii + isig - 1
+                        dummy=matmul(transpose(diag(:,iig+1:iig+neq))
+     .                              ,rhs)
+
+                        !Update zz
+                        do ieq=1,neq
+                          zz(iii+ieq) = zz(iii+ieq)+zebra_omg*dummy(ieq)
+                        enddo
+
+                        if (zit == zebra_it) mag = mag + sum(rhs*rhs)
+
+                      enddo
+                     enddo
+                    enddo
+
+                  enddo
+
+                 enddo
+               enddo
+              enddo
+
+            enddo
+
 c         STANDARD RELAXATION
           else
 
             call scheduleColors(igrid,ncolors,nrbg1,nrbg2,nrbg3
      .                         ,i1min,i1max,j1min,j1max,k1min,k1max)
+
+            if (out.ge.2.and.prnt) then
+              write (*,*) 'Colored GS'
+            endif
+
+            if (out.ge.3.and.prnt) then
+              write (*,*) '  colors=',nrbg1,nrbg2,nrbg3
+              write (*,*) '  ilimits=',i1min,i1max
+              write (*,*) '  jlimits=',j1min,j1max
+              write (*,*) '  klimits=',k1min,k1max
+            endif
 
             do irbg3 = 1,nrbg3
               do irbg2 = 1,nrbg2
@@ -4529,116 +5128,118 @@ cc            enddo
 
         endif
 
-c       Take care of points around singular point (using JB)
-
-        if (isSP(1,1,1,igrid,igrid,igrid)) then
-#if defined(petsc)
-          if (np > 1) call pstop('gs','Does not work in parallel')
-#endif
-          do i1=3,1,-1
-
-            MGgrid%iline(igrid) = i1   !Set line smoothing around SP
-
-            call limits(0,nxf,nyf,nzf,igrid
-     .                 ,imin,imax,jmin,jmax,kmin,kmax)
-
-cc            write (*,*) imin,imax,jmin,jmax,kmin,kmax
-
-            do itr2=1,5    !JB iteration around SP
-
-              magsp = 0d0
-
-              call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-
-              do k=kmin,kmax
-                do j=jmin,jmax
-                  do i=imin,imax
-                    !nxf,nyf,nzf are the original grid's even in line relaxation.
-                    ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-
-                    iii = neq*(ii-1)
-
-                    !Find new residual
-                    do ieq = 1,neq
-                      rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-                    enddo
-
-                    !Multiply by D^-1 (stored in diag)
-                    iig = iii + isig - 1
-                    dummy = matmul(transpose(diag(:,iig+1:iig+neq))
-     .                            ,rhs)
-
-                    !Update solution zz
-                    do ieq=1,neq
-                      zz(iii+ieq) = zz(iii+ieq) + 0.7*dummy(ieq)
-                    enddo
-
-                    magsp = magsp + sum(rhs*rhs)
-                  enddo
-                enddo
-              enddo
-
-              if (itr2 == 1) then
-                magsp0 = magsp
-              else
-                if (out.ge.3.and.prnt)
-     .               write (*,*) '  SP smoothing in GS: line = ',i1
-     .                   ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
-                if (   sqrt(magsp/magsp0) < 0.5
-     .             .or.sqrt(magsp/magsp0) > 1d0) exit
-              endif
-
-            enddo
-
-            if (out.ge.3.and.prnt) write (*,*)
-
-            if (out.eq.2.and.prnt)
-     .        write (*,*) '  SP smoothing in GS: line = ',i1
-     .                   ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
-
-cc            if (magsp/magsp0 > 1d0) stop
-          enddo
-
-          MGgrid%iline(igrid) = 0 !Unset line smoothing
-
-cc        !GS
-cc        call limits(0,nxf,nyf,nzf,igrid
-cc     .             ,imin,imax,jmin,jmax,kmin,kmax)
+cc#if 0
+ccc       Take care of points around singular point (using JB)
 cc
-cc        i = 1
+cc        if (isSP(1,1,1,igrid,igrid,igrid)) then
+cc#if defined(petsc)
+cc          if (np > 1) call pstop('gs','Does not work in parallel')
+cc#endif
+cc          do i1=3,1,-1
 cc
-cc        do k=kmin,kmax
-cc         do itr2=1,10
-cc          do j=jmin,jmax
+cc            mg_ctx_temp%iline(igrid) = i1   !Set line smoothing around SP
 cc
-cc            !nxf,nyf,nzf are the original grid's even in line relaxation.
-cc            ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+cc            call limits(0,nxf,nyf,nzf,igrid
+cc     .                 ,imin,imax,jmin,jmax,kmin,kmax)
 cc
-cc            call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
+cccc            write (*,*) imin,imax,jmin,jmax,kmin,kmax
 cc
-cc            iii = neq*(ii-1)
+cc            do itr2=1,5    !JB iteration around SP
 cc
-cc            !Find new residual
-cc            do ieq = 1,neq
-cc              rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+cc              magsp = 0d0
+cc
+cc              call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+cc
+cc              do k=kmin,kmax
+cc                do j=jmin,jmax
+cc                  do i=imin,imax
+cc                    !nxf,nyf,nzf are the original grid's even in line relaxation.
+cc                    ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+cc
+cc                    iii = neq*(ii-1)
+cc
+cc                    !Find new residual
+cc                    do ieq = 1,neq
+cc                      rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+cc                    enddo
+cc
+cc                    !Multiply by D^-1 (stored in diag)
+cc                    iig = iii + isig - 1
+cc                    dummy = matmul(transpose(diag(:,iig+1:iig+neq))
+cc     .                            ,rhs)
+cc
+cc                    !Update solution zz
+cc                    do ieq=1,neq
+cc                      zz(iii+ieq) = zz(iii+ieq) + 0.7*dummy(ieq)
+cc                    enddo
+cc
+cc                    magsp = magsp + sum(rhs*rhs)
+cc                  enddo
+cc                enddo
+cc              enddo
+cc
+cc              if (itr2 == 1) then
+cc                magsp0 = magsp
+cc              else
+cc                if (out.ge.3.and.prnt)
+cc     .               write (*,*) '  SP smoothing in GS: line = ',i1
+cc     .                   ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
+cc                if (   sqrt(magsp/magsp0) < 0.5
+cc     .             .or.sqrt(magsp/magsp0) > 1d0) exit
+cc              endif
+cc
 cc            enddo
 cc
-cc            !Multiply by D^-1 (stored in diag)
-cc            iig = iii + isig - 1
-cc            dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
+cc            if (out.ge.3.and.prnt) write (*,*)
 cc
-cc            !Update solution zz
-cc            do ieq=1,neq
-cc              zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
-cc            enddo
+cc            if (out.eq.2.and.prnt)
+cc     .        write (*,*) '  SP smoothing in GS: line = ',i1
+cc     .                   ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
 cc
-cc            mag = mag + sum(rhs*rhs)
-cc
+cccc            if (magsp/magsp0 > 1d0) stop
 cc          enddo
-cc         enddo
-cc        enddo
-
-        endif
+cc
+cc          mg_ctx_temp%iline(igrid) = 0 !Unset line smoothing
+cc
+cccc        !GS
+cccc        call limits(0,nxf,nyf,nzf,igrid
+cccc     .             ,imin,imax,jmin,jmax,kmin,kmax)
+cccc
+cccc        i = 1
+cccc
+cccc        do k=kmin,kmax
+cccc         do itr2=1,10
+cccc          do j=jmin,jmax
+cccc
+cccc            !nxf,nyf,nzf are the original grid's even in line relaxation.
+cccc            ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+cccc
+cccc            call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
+cccc
+cccc            iii = neq*(ii-1)
+cccc
+cccc            !Find new residual
+cccc            do ieq = 1,neq
+cccc              rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+cccc            enddo
+cccc
+cccc            !Multiply by D^-1 (stored in diag)
+cccc            iig = iii + isig - 1
+cccc            dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
+cccc
+cccc            !Update solution zz
+cccc            do ieq=1,neq
+cccc              zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
+cccc            enddo
+cccc
+cccc            mag = mag + sum(rhs*rhs)
+cccc
+cccc          enddo
+cccc         enddo
+cccc        enddo
+cc
+cc        endif
+cc#endif
 
 c     Check convergence
 
@@ -4658,6 +5259,11 @@ cc          mag = mag0                  !Do NOT do reduction in parallel (conver
         if (itr.eq.1) then
           mag0 = mag
           mag1 = mag
+          if (mag.lt.1d-20*nn) then
+            mag0 = 1d0
+            mag1 = 1d0
+            exit
+          endif
           if (out.ge.2.and.prnt) write (*,10)itr-1,mag,mag/mag0
         else
           if (out.ge.2.and.prnt) write (*,20)itr-1,mag,mag/mag0,mag/mag1
@@ -4691,7 +5297,12 @@ c End program
 
       deallocate (dummy,rhs)
 
-      if (fdiag)  deallocate(diag)
+      if (fdiag) then
+        deallocate(diag)
+      else
+        nullify(diag)
+      endif
+
       call deallocPointers(fpointers)
 
       return
@@ -4707,235 +5318,21 @@ c     optionsConsistencyCheck
 c     ###################################################################
         subroutine optionsConsistencyCheck
 
-        if (options%vertex_based_relax .and. options%mg_line_relax) then
-          if (prnt)
-     .       write (*,*) 'Invalid setting for GS relaxation: cannot do'
-          if (prnt)
-     .       write (*,*) 'vertex-based and line-based relaxation',
-     .                  ' simultaneously!'
+        if ( (options%mg_vertex_relax.and.options%mg_zebra_relax))then
+          if (prnt) write (*,*) 'Invalid relaxation choice for GS'
           call pstop('optionsConsistencyCheck in gs','Aborting...')
-        elseif (options%vertex_based_relax .or. vbr_mg) then
+        elseif (options%mg_vertex_relax .or. vbr_mg) then
           options%ncolors = 4
         elseif (options%mg_line_relax) then
           options%ncolors = 1
+cc        elseif (options%mg_zebra_relax) then
+cc          options%omega = 0.7   !Do damped JB along lines
+cccc          options%omega = 1.
         endif
           
         end subroutine optionsConsistencyCheck
 
       end subroutine gs
-
-c scheduleColors
-c #######################################################################
-      subroutine scheduleColors(igrid,ncolors,nc1,nc2,nc3
-     .                         ,i1min,i1max,j1min,j1max,k1min,k1max)
-
-c -----------------------------------------------------------------------
-c     This routine schedules colors according to grid dimensions. In
-c     call sequence:
-c         * igrid: grid level (input)
-c         * ncolors: maximum number of colors (input)
-c         * nc1,nc2,nc3: number of colors in each grid dimension (output)
-c         * i1min,i1max,j1min,j1max,k1min,k1max: local grid limits
-c              to perform relaxation on (output)
-c -----------------------------------------------------------------------
-
-      use mg_internal
-
-      implicit none
-
-      integer    :: igrid,ncolors,nc1,nc2,nc3
-     .             ,i1min,i1max,j1min,j1max,k1min,k1max
-      
-      integer    :: nxf,nyf,nzf,nxl,nyl,nzl,nclrs
-     .             ,imin,imax,jmin,jmax,kmin,kmax
-
-c Begin program
-
-      nclrs = ncolors
-
-      !Global grid size
-      nxf = nxv(igrid)
-      nyf = nyv(igrid)
-      nzf = nzv(igrid)
-
-      !Local grid size (different from global in line smoothing)
-      nxl = MGgrid%nxv(igrid)
-      nyl = MGgrid%nyv(igrid)
-      nzl = MGgrid%nzv(igrid)
-
-      call limits(0,nxf,nyf,nzf,igrid,imin,imax,jmin,jmax,kmin,kmax)
-
-      if (nxl > 1 .and. nyl > 1 .and. nzl > 1) then
-
-        i1min = imin
-        i1max = imax
-        j1min = jmin
-        j1max = jmax
-        k1min = kmin
-        k1max = kmax
-
-      elseif (nxl > 1 .and. nyl > 1 .and. nzl == 1) then
-
-        if (nclrs > 4) nclrs = 4
-
-        i1min = imin
-        i1max = imax
-        j1min = jmin
-        j1max = jmax
-        k1min = kmin
-        k1max = kmax
-
-      elseif (nxl > 1 .and. nyl == 1 .and. nzl > 1) then
-
-        if (nclrs > 4) nclrs = 4
-
-        i1min = kmin
-        i1max = kmax
-        j1min = imin
-        j1max = imax
-        k1min = jmin
-        k1max = jmax
-
-      elseif (nxl == 1 .and. nyl > 1 .and. nzl > 1) then
-
-        if (nclrs > 4) nclrs = 4
-
-        i1min = jmin
-        i1max = jmax
-        j1min = kmin
-        j1max = kmax
-        k1min = imin
-        k1max = imax
-
-      elseif (nxl > 1 .and. nyl == 1 .and. nzl == 1) then
-
-        if (nclrs > 2) nclrs = 2
-
-        i1min = imin
-        i1max = imax
-        j1min = jmin
-        j1max = jmax
-        k1min = kmin
-        k1max = kmax
-
-      elseif (nxl == 1 .and. nyl > 1 .and. nzl == 1) then
-
-        if (nclrs > 2) nclrs = 2
-
-        i1min = jmin
-        i1max = jmax
-        j1min = kmin
-        j1max = kmax
-        k1min = imin
-        k1max = imax
-
-      elseif (nxl == 1 .and. nyl == 1 .and. nzl > 1) then
-
-        if (nclrs > 2) nclrs = 2
-
-        i1min = kmin
-        i1max = kmax
-        j1min = imin
-        j1max = imax
-        k1min = jmin
-        k1max = jmax
-
-      endif
-
-      select case(nclrs)
-      case(2)
-        nc1 = 2
-        nc2 = 1
-        nc3 = 1
-      case(4)
-        nc1 = 2
-        nc2 = 2
-        nc3 = 1
-      case(8)
-        nc1 = 2
-        nc2 = 2
-        nc3 = 2
-      case default
-        call pstop('scheduleColors',
-     .             'Unsupported number of colors in GS')
-      end select
-
-c End program
-
-      end subroutine scheduleColors
-
-c scheduleIndices
-c #######################################################################
-      subroutine scheduleIndices(igrid,i1,j1,k1,i,j,k)
-
-c -----------------------------------------------------------------------
-c     This routine schedules colored indices according to grid dimensions
-c     and to the orderings in scheduleColors. In call:
-c        * igrid: grid level
-c        * i1,j1,k1: logical colored indices
-c        * i,j,k: actual grid indices
-c -----------------------------------------------------------------------
-
-      use mg_internal
-
-      implicit none
-
-      integer    :: igrid,i1,j1,k1,i,j,k
-
-      integer    :: nxl,nyl,nzl
-
-c Begin program
-
-      !Local grid size
-      nxl = MGgrid%nxv(igrid)
-      nyl = MGgrid%nyv(igrid)
-      nzl = MGgrid%nzv(igrid)
-
-      if (nxl > 1 .and. nyl > 1 .and. nzl > 1) then
-
-        i = i1
-        j = j1
-        k = k1
-
-      elseif (nxl > 1 .and. nyl > 1 .and. nzl == 1) then
-
-        i = i1
-        j = j1
-        k = k1
-
-      elseif (nxl > 1 .and. nyl == 1 .and. nzl > 1) then
-
-        i = j1
-        j = k1
-        k = i1
-
-      elseif (nxl == 1 .and. nyl > 1 .and. nzl > 1) then
-
-        i = k1
-        j = i1
-        k = j1
-
-      elseif (nxl > 1 .and. nyl == 1 .and. nzl == 1) then
-
-        i = i1
-        j = j1
-        k = k1
-
-      elseif (nxl == 1 .and. nyl > 1 .and. nzl == 1) then
-
-        i = k1
-        j = i1
-        k = j1
-
-      elseif (nxl == 1 .and. nyl == 1 .and. nzl > 1) then
-
-        i = j1
-        j = k1
-        k = i1
-
-      endif
-
-      end subroutine scheduleIndices
 
 c find_mf_diag_std
 c####################################################################
@@ -5755,6 +6152,9 @@ c Begin program
 
         isigc  = istart(igc)
 
+cc        nxc = mg_ctx_temp%nxv(igc)
+cc        nyc = mg_ctx_temp%nyv(igc)
+cc        nzc = mg_ctx_temp%nzv(igc)
         nxc = grid_params%nxv(igc)
         nyc = grid_params%nyv(igc)
         nzc = grid_params%nzv(igc)
@@ -5763,6 +6163,9 @@ c     Allocate MG vector
 
         igf = 1
 
+cc        nxf = mg_ctx_temp%nxv(igf)
+cc        nyf = mg_ctx_temp%nyv(igf)
+cc        nzf = mg_ctx_temp%nzv(igf)
         nxf = grid_params%nxv(igf)
         nyf = grid_params%nyv(igf)
         nzf = grid_params%nzv(igf)
@@ -5845,3 +6248,498 @@ c     Deallocate MG vectors
 c     End program
 
       end subroutine MGmatvec
+
+c     module mg_solver
+c     ##################################################################
+      module mg_solver
+
+        use mg_internal
+
+      contains
+
+c     cSolver
+c     ##################################################################
+      subroutine cSolver(neq,ntotp,b,x,bcnd,igrid,out,guess,matvec
+     .                  ,vol_wgt
+     .                  ,dg,cvrg_tst,tol
+     .                  ,gm_driver
+     .                  ,mg_order_res
+     .                  ,mg_order_prol
+     .                  ,mg_vcyc
+     .                  ,mg_cycle
+     .                  ,mg_coarse_grid_size
+     .                  ,mg_gm_coarse_solve
+     .                  ,mg_smooth
+     .                  ,mg_galerkin
+     .                  ,mg_debug
+     .                  ,sm_ncolors
+     .                  ,sm_omega
+     .                  ,sm_line_relax
+     .                  ,sm_zebra_relax
+     .                  ,sm_it
+     .                  )
+c     ---------------------------------------------------------------
+c     This subroutine solves a coupled system of neq equations. 
+c     In call sequence:
+c       * neq: number of coupled equations
+c       * ntotp: number of mesh points
+c       * b: rhs
+c       * x: solution
+c       * bcnd: boundary condition defs.
+c       * igrid: MG grid level (igrid=1 is finest level)
+c       * out: level of output information
+c       * guess: whether a non-trivial initial guess is provided
+c               (iguess=1) or not (iguess=0)
+c       * matvec (external): matrix-vector product definition.
+c       * vol_wgt: whether residuals are volume-weighed or not.
+c
+c     Optional variables:
+c       * dg: matrix neq*neq diagonal block (for stationary its).
+c       * cvrg_tst: whether we want to perform a convergence test
+c       * tol: convergence tolerance
+c       * gm_driver: whether we want GMRES as a driver
+c
+c       * mg_order_res: restriction order
+c       * mg_order_prol: restriction order
+c       * mg_smooth: determines smoothing (jb,gs,gm; default jb)
+c       * mg_vcyc: maximum number of MG V-cycles (default 1)
+c       * mg_cycle: number of mu_cycles in MG (default 1)
+c       * mg_galerkin: whether to do Galerkin coarsening of operator
+c                  (true) or rediscretization (default: false)
+c       * mg_coarse_grid_size: minimum coarse mesh (roughly mg_ratio^mg_cgs per
+c                 direction).
+c       * mg_debug: turn on debugging in MG
+c
+c       * sm_it: smoother iterations
+c       * sm_omega: damping for JB smoother
+c       * sm_ncolors: number of colors in grid (for GS).
+c       * sm_line_relax: whether we want line relaxation
+c       * sm_zebra_relax: whether we want zebra GS relaxation
+c     ---------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: neq,ntotp,igrid,bcnd(6,neq),out,guess
+        real(8)    :: x(ntotp,neq),b(ntotp,neq)
+        logical    :: vol_wgt
+
+        real(8)   ,optional,intent(IN) :: dg(neq,2*neq*ntotp)
+     .                                   ,sm_omega
+     .                                   ,tol
+        integer   ,optional,intent(IN) :: mg_order_res
+     .                                   ,mg_order_prol
+     .                                   ,mg_vcyc,mg_cycle
+     .                                   ,mg_coarse_grid_size
+     .                                   ,sm_it
+     .                                   ,sm_ncolors
+        logical   ,optional,intent(IN) :: sm_line_relax
+     .                                   ,sm_zebra_relax
+     .                                   ,mg_gm_coarse_solve
+     .                                   ,mg_galerkin
+     .                                   ,mg_debug
+     .                                   ,gm_driver
+     .                                   ,cvrg_tst
+
+        character(2),optional :: mg_smooth
+
+        external   matvec
+
+c     Local variables
+
+        integer    :: ntot,iorder_res,iorder_prol,vcyc,mu_cyc,nclrs,smit
+     .               ,mgmin,i,ieq
+        real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,rtol
+        real(8), target :: ddg(neq,2*neq*ntotp)
+        logical    :: gm_crse_solve,cvrg_test,lrelax,zrelax
+     .               ,gm_drvr,glkin
+
+        character(2) :: smth
+
+c     Begin program
+
+c     Process optional arguments
+
+        if (PRESENT(dg)) ddg = dg
+
+        !Solver options <<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        if (PRESENT(gm_driver)) then
+          gm_drvr = gm_driver
+        else
+          gm_drvr = .false.
+        endif
+
+        if (PRESENT(cvrg_tst)) then
+          cvrg_test = cvrg_tst
+        else
+          cvrg_test = .false.
+        endif
+
+        if(PRESENT(tol)) then
+          rtol = tol
+        else
+          rtol = 1d-1
+        endif
+
+        !Multigrid options <<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        if(PRESENT(mg_order_res)) then
+          iorder_res = mg_order_res
+        else
+          iorder_res = 2
+        endif
+
+        if(PRESENT(mg_order_prol)) then
+          iorder_prol = mg_order_prol
+        else
+          iorder_prol = 2
+        endif
+
+        if(PRESENT(mg_vcyc)) then
+          vcyc = mg_vcyc
+        else
+          vcyc = 1
+        endif
+
+        if(PRESENT(mg_cycle)) then
+          mu_cyc = mg_cycle
+        else
+          mu_cyc = 1
+        endif
+
+        if(PRESENT(mg_smooth)) then
+          smth = mg_smooth
+        else
+          smth = 'jb'
+        endif
+
+        if(PRESENT(mg_galerkin)) then
+          glkin = mg_galerkin
+        else
+          glkin = .false.
+        endif
+
+        if (PRESENT(mg_coarse_grid_size)) then
+          mgmin = mg_coarse_grid_size
+        else
+          mgmin = 2
+        endif
+
+        if (PRESENT(mg_gm_coarse_solve)) then
+          gm_crse_solve = mg_gm_coarse_solve
+        else
+          gm_crse_solve = .false.
+        endif
+
+        !Smoother options <<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        if (PRESENT(sm_line_relax)) then
+          lrelax = sm_line_relax
+        else
+          lrelax = .false.
+        endif
+
+        if (PRESENT(sm_zebra_relax)) then
+          zrelax = sm_zebra_relax
+        else
+          zrelax = .false.
+        endif
+
+        if (zrelax) smth = 'gs'
+
+        if(PRESENT(sm_it)) then
+          smit = sm_it
+        else
+          smit = 3
+        endif
+
+        if(PRESENT(sm_omega)) then
+          omg = sm_omega
+        else
+          omg = 0.7
+        endif
+
+        if (PRESENT(sm_ncolors)) then
+          nclrs = sm_ncolors
+        else
+          nclrs = 8
+        endif
+
+c     Gather variables for coupled solve
+
+        if (.not.cvrg_test) then
+
+          do i=1,ntotp
+            do ieq=1,neq
+              xi(neq*(i-1)+ieq) = x(i,ieq)
+              bi(neq*(i-1)+ieq) = b(i,ieq)
+            enddo
+          enddo
+
+        else
+
+          bi = 0d0
+
+          call random_number(xi)
+cc          xi = 1d0
+cc          write (*,*) 'DIAG -- cSolver: initial guess'
+
+          guess = 1
+
+          write (*,*) 'DIAG -- cSolver: JB/GS solve'
+
+c         Initialize solver
+
+          call solverInit
+
+c         Setup solver
+
+          call solverOptionsInit
+
+          solverOptions%iter    = smit
+          solverOptions%tol     = rtol
+
+          if (PRESENT(dg)) solverOptions%diag => ddg
+
+          select case (smth)
+          case('gs')
+            solverOptions%omega   = 1d0
+            solverOptions%ncolors = nclrs
+            solverOptions%mg_zebra_relax = zrelax
+            solverOptions%mg_zebra_prefd = 0
+cc            if(bcSP()) solverOptions%mg_zebra_prefd = 1
+            solverOptions%mg_zebra_it    = 1
+            solverOptions%mg_zebra_omega = 1d0
+            call assembleSolverHierarchy('gs')
+          case('gm')
+            solverOptions%stp_test = 1 
+            solverOptions%krylov_subspace = solverOptions%iter 
+            call assembleSolverHierarchy('gm')
+            call assembleSolverHierarchy('id')
+          case default !JB
+            solverOptions%omega   = omg
+            call assembleSolverHierarchy('jb')
+          end select
+
+c         Invoke solver
+
+          ntot=neq*ntotp
+          call getSolver(neq,ntot,bi,xi,matvec,igrid,bcnd,guess,out,1)
+
+c         Kill solver
+
+          call solverKill
+
+c         Scatter solution
+
+          do i = 1,ntotp
+            do ieq=1,neq
+              x(i,ieq) = xi(neq*(i-1)+ieq)
+            enddo
+          enddo
+
+          return
+        endif
+
+c     Solve coupled MG
+
+c       Initialize solver
+
+        call solverInit
+
+c       Check whether GMRES is driving solve
+
+        if (gm_drvr.and.vcyc > 1) then
+          call solverOptionsInit
+
+          solverOptions%iter    = vcyc
+          solverOptions%tol     = rtol
+
+          solverOptions%stp_test = 1 
+          solverOptions%krylov_subspace = solverOptions%iter 
+          call assembleSolverHierarchy('gm')
+        endif
+
+c       MG solver options
+
+        call solverOptionsInit
+
+        solverOptions%tol      = rtol
+
+        if (gm_drvr .and. vcyc > 1) then
+          solverOptions%vcyc     = 1
+        else
+          solverOptions%vcyc     = vcyc
+        endif
+        solverOptions%mg_gmin  = mgmin
+        solverOptions%orderres = iorder_res
+        solverOptions%orderprol= iorder_prol
+        solverOptions%mg_mu    = mu_cyc
+        solverOptions%vol_res  = vol_wgt
+        solverOptions%mg_galerkin = glkin
+
+        if (PRESENT(mg_debug)) solverOptions%mg_debug = mg_debug
+
+        if (PRESENT(dg)) solverOptions%diag => ddg
+
+        solverOptions%ncolors  = nclrs
+
+        !Coarse solve
+        if (gm_crse_solve) then
+        !With GMRES as coarse solver (defined below)
+          if (         (gm_drvr  .and. smth/='gm')
+     .       .or.((.not.gm_drvr) .and. smth=='gm') ) then
+            solverOptions%mg_coarse_solver_depth = 4
+          elseif (gm_drvr .and. smth=='gm') then
+            solverOptions%mg_coarse_solver_depth = 5
+          else
+            solverOptions%mg_coarse_solver_depth = 3
+          endif
+        else
+          solverOptions%mg_coarse_solver_depth = 0 !Use smoother as coarse solver
+cc          write (*,*) 'DIAG -- cSolver'
+cc          solverOptions%mg_coarse_solver_depth = 5
+        endif
+
+        !Vertex relaxation
+cc        solverOptions%vertex_based_relax = .true.
+
+        !Plane/line relaxation
+        if (lrelax) then
+cc          solverOptions%mg_gmin         = mgmin
+cc          solverOptions%orderres        = ores
+cc          solverOptions%orderprol       = oprol
+cc          solverOptions%mg_mu           = mu_cyc
+          solverOptions%mg_line_relax   = .true.
+          solverOptions%mg_line_nsweep  = 2
+          solverOptions%mg_line_vcyc    = 100
+          solverOptions%mg_line_tol     = 1d-1
+          solverOptions%mg_line_omega   = 1d0
+          solverOptions%mg_line_x       = .true.
+          solverOptions%mg_line_y       = .true.
+          solverOptions%mg_line_z       = .false.
+          solverOptions%mg_line_solve   = "jb"
+          solverOptions%mg_line_coarse_solver_depth = 0
+cc        elseif (bcSP()) then
+cc          solverOptions%mg_gmin         = mgmin
+cc          solverOptions%orderres        = 0
+cc          solverOptions%orderprol       = 2
+cc          solverOptions%mg_mu           = 1    
+cc          solverOptions%mg_line_relax   = .true.
+cc          solverOptions%mg_line_nsweep  = 2
+cc          solverOptions%mg_line_vcyc    = 1
+cc          solverOptions%mg_line_tol     = 1d-1
+cc          solverOptions%mg_line_omega   = 0.7
+cc          solverOptions%mg_line_x       = .true.
+cc          solverOptions%mg_line_y       = .false.
+cc          solverOptions%mg_line_z       = .false.
+cc          solverOptions%mg_line_solve   = "jb"
+
+cc          solverOptions%mg_gmin         = 3
+cc          solverOptions%orderres        = 0
+cc          solverOptions%orderprol       = 2
+cc          solverOptions%mg_mu           = 1    
+cc          solverOptions%mg_line_relax   = .true.
+cc          solverOptions%mg_line_nsweep  = 2
+cc          solverOptions%mg_line_vcyc    = 1
+cc          solverOptions%mg_line_tol     = 1d-1
+cc          solverOptions%mg_line_omega   = 1d0
+cc          solverOptions%mg_line_x       = .true.
+cc          solverOptions%mg_line_y       = .false.
+cc          solverOptions%mg_line_z       = .false.
+cc          solverOptions%mg_line_solve   = "jb"
+cc          solverOptions%mg_line_coarse_solver_depth = 0
+        endif
+
+        call assembleSolverHierarchy('mg')
+
+c       MG smoother
+
+        call solverOptionsInit
+
+        solverOptions%iter    = smit
+        solverOptions%tol     = rtol
+
+        if (lrelax) then
+          solverOptions%iter  = 2
+        endif
+
+        select case (smth)
+        case('gs')
+          solverOptions%omega   = 1d0
+          solverOptions%ncolors = nclrs
+          solverOptions%mg_zebra_relax = zrelax
+          solverOptions%mg_zebra_prefd = 0
+cc          if(bcSP()) solverOptions%mg_zebra_prefd = 1
+          solverOptions%mg_zebra_it    = 1
+          solverOptions%mg_zebra_omega = 0.8
+
+          solverOptions%iter = smit/solverOptions%mg_zebra_it+1
+
+          call assembleSolverHierarchy('gs')
+        case('gm')
+          solverOptions%stp_test        = 1 
+          solverOptions%krylov_subspace = solverOptions%iter 
+          call assembleSolverHierarchy('gm')
+
+          call assembleSolverHierarchy('id')
+        case default !JB
+          solverOptions%omega   = omg
+          call assembleSolverHierarchy('jb')
+        end select
+
+c       MG coarsest grid solve
+
+        call solverOptionsInit
+
+        solverOptions%tol             = 1d-5
+        solverOptions%krylov_subspace = 100
+        solverOptions%iter            = 100
+        solverOptions%stp_test        = 1 
+        solverOptions%omega           = 1d0
+
+        call assembleSolverHierarchy('gm')
+        call assembleSolverHierarchy('id') !GMRES preconditioner
+
+c       Coarsest grid solve for inner line/plane MG
+
+        call solverOptionsInit
+
+cc        if (PRESENT(dg)) solverOptions%diag => ddg
+
+        solverOptions%omega   = 1d0
+        solverOptions%iter    = 100
+        solverOptions%tol     = 1d-4
+        solverOptions%ncolors = nclrs
+
+cc        call assembleSolverHierarchy('jb')
+        call assembleSolverHierarchy('gs')
+
+c       Invoke solver
+
+        ntot=neq*ntotp
+        call getSolver(neq,ntot,bi,xi,matvec,igrid,bcnd,guess,out,1)
+
+c       Get output data
+
+cc      call getSolverOptions(1)
+
+c       Kill solver
+
+        call solverKill
+
+c     Scatter solution for output
+
+        do i = 1,ntotp
+          do ieq=1,neq
+            x(i,ieq) = xi(neq*(i-1)+ieq)
+          enddo
+        enddo
+
+c     End program
+
+      end subroutine cSolver
+
+      end module mg_solver
