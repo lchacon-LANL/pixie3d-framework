@@ -68,7 +68,7 @@ c                      for all the dependent variables.
 c                      These include any of the dependent
 c                      variable indeces plus 0 (indicating the true
 c                      independent variable).
-c       * logvar     : integer array specifying which dependent
+c       * logvar     : integer array specifying which (in)dependent
 c                      variables will be plotted in log scale.
 c       * drawfile   : character variable specifying the name of the
 c                      draw.in file.
@@ -85,7 +85,7 @@ c     ----------------------------------------------------------------
 c     Call variables
 
         integer,intent(in) ::nvar,ntot,ivariables(ntot),dvariables(nvar)
-     .                      ,logvar(ntot)
+     .                 ,logvar(0:ntot)
         character(*) :: binf,drawfile,graphlabel,ivar
         character(*),intent(in) :: descr(ntot)
         logical      :: spline,connect
@@ -96,6 +96,7 @@ c     Local variables
         integer      :: i,j,gfile,lngt
         character(50):: label,dscr(ntot)
         character(2) :: options
+        character(6) :: str
         logical      :: flag
 
 c     Begin program
@@ -130,8 +131,12 @@ c     Begin program
           dscr = descr
         endif
 
-        do i=1,size(dscr)
-          lngt = len(trim(dscr(i)))
+        if (logvar(0) == 1) then
+          str = 'L     '
+        else
+          str = '      '
+        endif
+
           if (lngt == 0) exit
           flag = .false.
           do j = 1,nvar
@@ -142,21 +147,21 @@ c     Begin program
           enddo
           if (flag) then
             if(logvar(i) == 1) then
-              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
+              write (gfile,'(i2,a,i2,2a)')  ivariables(i),str
      .                                ,i,'L'//trim(options)//'   '
      .                                ,trim(dscr(i))
             else
-              write (gfile,'(i2,a,i2,2a)')  ivariables(i),'      '
+              write (gfile,'(i2,a,i2,2a)')  ivariables(i),str
      .                                ,i,trim(options)//'      '
      .                                ,trim(dscr(i))
             endif
           else
             if(logvar(i) == 1) then
-              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
+              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),str
      .                                ,i,'L'//trim(options)//'   '
      .                                ,trim(dscr(i))
             else
-              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),'      '
+              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),str
      .                                ,i,trim(options)//'      '
      .                                ,trim(dscr(i))
             endif
@@ -275,7 +280,7 @@ c     ----------------------------------------------------------------
 c     Creates drawfile for "C-type" (fixed contour type) xdraw graphics.
 c     On call sequence:
 c       * nvar : number of variables in consideration for plotting
-c       * binf : name of binary file to be read
+c       * binf : name of binary file to be read by XDRAW
 c       * graphlabel : character array of arbitrary length specifying
 c                      graph title
 c       * ivart      : time variable axis name

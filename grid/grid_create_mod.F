@@ -102,8 +102,12 @@ c     Initialize grid check
 
 c     Store grid metric parameters in grid metric structure
 
-        if (checkMapDatabase()) call defineGridMetric(gparams)
-        gmetric => gparams%gmetric   !For backward compatibility
+        if (checkMapDatabase()) then
+          call defineGridMetric(gparams)
+          gmetric => gparams%gmetric !For backward compatibility
+        else
+          nullify(gmetric)
+        endif
 
 c     Perform additional grid checks
 

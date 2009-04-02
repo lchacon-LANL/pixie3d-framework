@@ -25,6 +25,7 @@ c######################################################################
           integer    :: ngrd_tst
           logical    :: vol_res
           integer    :: krylov_subspace
+          logical    :: singular_matrix
 
           !MG quantities
           integer      :: igridmin
@@ -73,6 +74,34 @@ c######################################################################
         type (solver_options) :: solverOptions
 
       contains
+
+c     find_mach_eps
+c     ###############################################################
+      function find_mach_eps() result(epsmac)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Finds machine round-off constant epsmac
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      real(8) :: epsmac
+
+c     Local variables
+
+      real(8) :: mag,mag2
+
+      mag = 1d0
+      do
+        epsmac = mag
+        mag = mag/2
+        mag2 = 1d0 + mag
+        if (.not.(mag2 > 1d0)) exit
+      enddo
+
+      end function find_mach_eps
 
 c     solverOptionsInit
 c     ###################################################################
@@ -135,6 +164,8 @@ cc     .                            ,grid_params)    !Defines default MG grid le
                                                    !If one, use initial residual; 
                                                    !  else, use rhs.
           solverOptions%krylov_subspace = 15       !Krylov subspace dimension (GMRES)
+
+          solverOptions%singular_matrix = .false.  !Matrices are regular by default
 
           !Output
           solverOptions%iter_out = 0               !Number of iterations (output)

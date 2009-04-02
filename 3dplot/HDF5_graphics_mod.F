@@ -18,9 +18,11 @@ c ##################################################################
 #else
         use HDF5
 
-        integer        :: toffset=0
+        integer :: toffset=0
 
-        integer(hsize_t) :: izero=0
+        integer(size_t) :: izero=0
+
+        logical :: moving_mesh = .false.
 
 c       HDF5 ID variables
         integer(hid_t) :: group_id,subgroup_id
@@ -43,7 +45,7 @@ c       generic HDF5 variables
         integer   , parameter :: ARRAY_RANK = 3
         integer   , parameter :: ATTR_RANK = 1
         integer   , parameter :: VEXP_RANK = 1
-        integer(hsize_t), parameter :: strlength = 20
+        integer(size_t), parameter :: strlength = 20
 
         integer(hsize_t), dimension(ARRAY_RANK) ::
      .                         array_dim,node_array_dim
@@ -53,13 +55,15 @@ c       generic HDF5 variables
      .                         vexp_dim = (/VEXP_RANK/)
         integer(hsize_t), dimension(7)       :: array_dim_i 
 
-        character(20), dimension(ARRAY_RANK) :: coords_descr
+        character(strlength), dimension(ARRAY_RANK) :: coords_descr
      .                                            = (/'X','Y','Z'/)
-        character(20)                        :: cell_coords_gname
-     .                                            = 'cell_coords'
-        character(20)                        :: node_coords_gname
-     .                                            = 'node_coords'
-        character(20)                        :: attr_name = 'coords'
+        character(strlength)                   :: cell_coords_gname
+cc     .                                            = 'cell_coords'  !Old visit interface
+     .                                            = 'cells'
+        character(strlength)                   :: node_coords_gname
+cc     .                                            = 'node_coords'  !Old visit interface
+     .                                            = 'nodes'
+        character(strlength)                   :: attr_name = 'coords'
 
         character(strlength), dimension(ARRAY_RANK) :: attr_data
 
@@ -77,7 +81,8 @@ c     Call variables
       
 c     Local variables
 
-      integer(hsize_t)    :: iattr,slth
+      integer(hid_t) :: iattr
+      integer(size_t):: slth
       character(300) :: vexp
 
 c     Begin program
@@ -87,7 +92,8 @@ c     Setup plot dump variables
       array_dim      = (/nxd,nyd,nzd/)
       node_array_dim = (/nxd+1,nyd+1,nzd+1/)
 
-      !Attach location of node positions as attribute
+c     Attach location of node positions as attribute (relative path to timestep)
+
       do iattr=1,attr_dim(1)
         attr_data(iattr) = trim('/'//trim(node_coords_gname)//
      $                     '/'//trim(coords_descr(iattr)))
@@ -97,7 +103,13 @@ c     Exit if not in rank=0
 
       if (.not.isProc(0)) return
 
+c     Check whether we are dealing with moving mesh
+
+cc      moving_mesh = .not.checkMapDatabase()
+      moving_mesh = .true.
+
 c     Initialize FORTRAN interface
+
       call h5open_f(hdferr)
 
 c     Create HDF5 file
@@ -149,13 +161,17 @@ c     Create VISIT expressions (to identify vectors)
 
 c     Create groups for coordinate data
 
-      !Cell center positions
-      call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr,izero)
+      if (.not.moving_mesh) then
+        !Cell center positions
+        call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr
+     .                  ,izero)
+        call h5gclose_f(group_id,hdferr)
 
-      call h5gclose_f(group_id,hdferr)
-      !Node positions
-      call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr,izero)
-      call h5gclose_f(group_id,hdferr)
+        !Node positions
+        call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr
+     .                  ,izero)
+        call h5gclose_f(group_id,hdferr)
+      endif
 
 c     Close fortran interface
 
@@ -181,7 +197,7 @@ c     -----------------------------------------------------------------
 
       integer   :: igrp,ivar,ivp,ivm
 
-      character(20) :: str1,str2,str3
+      character(strlength) :: str1,str2,str3
       logical      :: first
 
       first = .true.
@@ -230,7 +246,7 @@ c     #################################################################
 c     Call variables
       
 cc      integer            :: step
-      character*(20)     :: groupname
+      character*(strlength)     :: groupname
 
 c     Local variables
 
@@ -249,17 +265,6 @@ c     Open .h5 file using default properties.
       call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
      $               H5P_DEFAULT_F)
 
-ccc     Create a group for coordinates data
-cc
-cc      if (step == 0) then
-cc        !Cell center positions
-cc        call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr,0)
-cc        call h5gclose_f(group_id,hdferr)
-cc        !Node positions
-cc        call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr,0)
-cc        call h5gclose_f(group_id,hdferr)
-cc      endif
-
 c     Create groups for computation data
 
       call h5gcreate_f(file_id,groupname,group_id,hdferr, izero)
@@ -270,9 +275,24 @@ c     Create groups for computation data
         call h5gclose_f(subgroup_id, hdferr)
       enddo
 
+c     Create a group for coordinates data
+
+      if (moving_mesh) then
+        !Cell center positions
+        call h5gcreate_f(group_id,cell_coords_gname,subgroup_id,hdferr
+     .                  ,izero)
+        call h5gclose_f(subgroup_id,hdferr)
+
+        !Node positions
+        call h5gcreate_f(group_id,node_coords_gname,subgroup_id,hdferr
+     .                  ,izero)
+        call h5gclose_f(subgroup_id,hdferr)
+      endif
+
+c     Terminate access to the file
+
       call h5gclose_f(group_id, hdferr)
 
-c     Terminate access to the file.
       call h5fclose_f(file_id, hdferr)
 
       call h5close_f(hdferr)
@@ -295,8 +315,9 @@ c     Call variables
 c     Local variables
 
       integer        :: i,j,k,ieq,icoords
+      integer(hid_t) :: iattr
 
-      character*(20) :: timestep
+      character*(strlength) :: timestep
 
       integer(hsize_t), dimension(ARRAY_RANK) :: count,node_count
       integer(hsize_t), dimension(ARRAY_RANK) :: offset
@@ -376,15 +397,25 @@ c     Create property list for collective dataset write.
       call h5pset_dxpl_mpio_f(plist_id,H5FD_MPIO_COLLECTIVE_F,hdferr)
 #endif
 
-c     Write the coordinate data
+c     Open time step (added 2/23/09)
 
-      if ((itime+toffset) == 0) then
+      if (moving_mesh) then
+        call h5gopen_f(file_id,timestep,group_id,hdferr)
+      endif
+
+      if (moving_mesh .or. (itime + toffset == 0)) then
+
+c       Write the coordinate data
 
         allocate (cell(ilom:ihip,jlom:jhip,klom:khip,3)
      .           ,node(ilom:ihip,jlom:jhip,klom:khip,3))
 
         !Cell center positions
-        call h5gopen_f(file_id,cell_coords_gname,group_id,hdferr) 
+        if (moving_mesh) then
+          call h5gopen_f(group_id,cell_coords_gname,subgroup_id,hdferr) 
+        else
+          call h5gopen_f(file_id ,cell_coords_gname,   group_id,hdferr) 
+        endif
 
         do k=klom,khip
           do j=jlom,jhip
@@ -399,50 +430,77 @@ c     Write the coordinate data
 
 #if defined(petsc)
 c PARALLEL
-          call h5dcreate_f(group_id,coords_descr(icoords),
-     $                     H5T_IEEE_F64BE,
-     $                     dataspace_id,dataset_id,hdferr)
+          if (moving_mesh) then
+            call h5dcreate_f(subgroup_id,coords_descr(icoords),
+     $                       H5T_IEEE_F64BE,
+     $                       dataspace_id,dataset_id,hdferr)
+          else
+            call h5dcreate_f(   group_id,coords_descr(icoords),
+     $                       H5T_IEEE_F64BE,
+     $                       dataspace_id,dataset_id,hdferr)
+          endif
 
 c         Select hyperslab in the file.
           call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
           call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
-     $                               offset,count,hdferr)    
+     $                                 offset,count,hdferr)    
 
 c         Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
-     $                 cell(ilo:ihi,jlo:jhi,klo:khi,icoords),
-     $                 array_dim_i,
-     $                 hdferr,file_space_id = hs_dataspace_id,
-     $                 mem_space_id = p_dataspace_id,
-     $                 xfer_prp = plist_id)
+     $                   cell(ilo:ihi,jlo:jhi,klo:khi,icoords),
+     $                   array_dim_i,
+     $                   hdferr,file_space_id = hs_dataspace_id,
+     $                   mem_space_id = p_dataspace_id,
+     $                   xfer_prp = plist_id)
 
           call h5sclose_f(hs_dataspace_id,hdferr)
 #else
 c SERIAL
-          call h5dcreate_f(group_id,coords_descr(icoords),
-     $                     H5T_IEEE_F64BE,
-     $                     dataspace_id,dataset_id,hdferr)
+          if (moving_mesh) then
+            call h5dcreate_f(subgroup_id,coords_descr(icoords),
+     $                       H5T_IEEE_F64BE,
+     $                       dataspace_id,dataset_id,hdferr)
+          else
+            call h5dcreate_f(   group_id,coords_descr(icoords),
+     $                       H5T_IEEE_F64BE,
+     $                       dataspace_id,dataset_id,hdferr)
+          endif
 
 c         Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
      $                    cell(ilo:ihi,jlo:jhi,klo:khi,icoords), !must specify index ranges
      $                    array_dim,hdferr)
-          
+            
 #endif
           call h5dclose_f(dataset_id,hdferr)
         enddo
 
-        call h5gclose_f(group_id, hdferr)
+        if (moving_mesh) then
+          call h5gclose_f(subgroup_id, hdferr)
+        else
+          call h5gclose_f(   group_id, hdferr)
+        endif
 
         !Node positions
-        call h5gopen_f(file_id,node_coords_gname,group_id,hdferr) 
+        if (moving_mesh) then
+          call h5gopen_f(group_id,node_coords_gname,subgroup_id,hdferr) 
+        else
+          call h5gopen_f(file_id ,node_coords_gname,   group_id,hdferr) 
+        endif
 
         call interpolateNodalData
 
         do icoords=1,ARRAY_RANK
-          call h5dcreate_f(group_id,coords_descr(icoords),
-     $                     H5T_IEEE_F64BE,
-     $                     node_dataspace_id,dataset_id,hdferr)
+
+          if (moving_mesh) then
+            call h5dcreate_f(subgroup_id,coords_descr(icoords),
+     $                       H5T_IEEE_F64BE,
+     $                       node_dataspace_id,dataset_id,hdferr)
+          else
+            call h5dcreate_f(   group_id,coords_descr(icoords),
+     $                       H5T_IEEE_F64BE,
+     $                       node_dataspace_id,dataset_id,hdferr)
+          endif
 
 #if defined(petsc)
 c PARALLEL
@@ -472,7 +530,11 @@ c         Write data to the dataset
           call h5dclose_f(dataset_id,hdferr)
         enddo
 
-        call h5gclose_f(group_id, hdferr)
+        if (moving_mesh) then
+          call h5gclose_f(subgroup_id, hdferr)
+        else
+          call h5gclose_f(   group_id, hdferr)
+        endif
 
         deallocate(cell,node)
 
@@ -480,7 +542,9 @@ c         Write data to the dataset
 
 c     Write the actual data
 
-      call h5gopen_f(file_id,timestep,group_id,hdferr)
+      if (.not.moving_mesh) then
+        call h5gopen_f(file_id,timestep,group_id,hdferr)
+      endif
 
       do igrp=1,ngroups
 
@@ -490,6 +554,15 @@ c       Open an existing group of the specified file.
         if (graph(igrp)%cartesian) then
 
 c         Write "Attribute data"
+
+cc          if ((itime+toffset) /= 0) then
+cc          !Attach location of node positions as attribute (added 2/23/09)
+cc            do iattr=1,attr_dim(1)
+cc              attr_data(iattr) = trim('/'//trim(timestep)//
+cc     .                              '/'//trim(node_coords_gname)//
+cc     .                              '/'//trim(coords_descr(iattr)))
+cc            enddo
+cc          endif
 
           call h5tcopy_f(H5T_NATIVE_CHARACTER,attr_type_id,hdferr)
           call h5tset_size_f(attr_type_id,strlength,hdferr)
@@ -522,12 +595,7 @@ c           Interpolate nodal values
 
             cell(:,:,:,1) = graph(igrp)%array_graph(ieq)%array
 
-cc            write (*,*) cell(:,:,:,1)
-cc            pause
             call interpolateNodalData
-
-cc            write (*,*) node(:,:,:,1)
-cc            pause
 
 #if defined(petsc)
 c PARALLEL

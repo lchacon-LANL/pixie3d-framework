@@ -78,9 +78,9 @@ ifeq ($(HOST),gongora.ornl.gov)
   PETSC_DIR =$(HOME)/lib/petsc-2.3.3
   PETSC_ARCH = linux_openmpi
 
-  HDF5 = f
-#   HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
-#   HDF5_LIBS = -L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+  HDF5 = t
+  HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
+  HDF5_LIBS = -L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
 
   NETCDF=t
   NETCDF_LIBS = -lnetcdff -lnetcdf
