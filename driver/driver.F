@@ -380,6 +380,7 @@ c     Newton iteration
         if (mf_eps> 0d0) nk_conf%mf_eps = mf_eps
 
         nk_conf%krylov_method='fg'
+cc        nk_conf%krylov_method='gm'
 
         nk_conf%vol_wgt = vol_wgt
 

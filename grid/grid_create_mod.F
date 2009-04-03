@@ -102,8 +102,12 @@ c     Initialize grid check
 
 c     Store grid metric parameters in grid metric structure
 
-        if (checkMapDatabase()) call defineGridMetric(gparams)
-        gmetric => gparams%gmetric   !For backward compatibility
+        if (checkMapDatabase()) then
+          call defineGridMetric(gparams)
+          gmetric => gparams%gmetric !For backward compatibility
+        else
+          nullify(gmetric)
+        endif
 
 c     Perform additional grid checks
 
@@ -132,6 +136,10 @@ c     Local variables
 
 c     Begin program
 
+c     Destroy metrics storage
+
+        call deallocateGridMetric(gparams%gmetric)
+
 c     Destroy MG grid hierarchy
 
         call deallocateGridStructure(gparams)
@@ -140,7 +148,8 @@ c     Destroy MG grid hierarchy
 
 c     initGridSt
 c     #################################################################
-      subroutine initGridSt(nxg,nyg,nzg,gdef,mpi_comm)
+      subroutine initGridSt(nxg,nyg,nzg,gdef,mpi_comm
+     .                     ,coarsen_in_x,coarsen_in_y,coarsen_in_z)
 
 c     -----------------------------------------------------------------
 c     Initializes MG quantities and allocates MG strucutures. On input:
@@ -156,13 +165,34 @@ c     Call variables
         integer    :: nxg,nyg,nzg
         type(grid_mg_def),pointer :: gdef
         integer,optional :: mpi_comm
+        logical,optional :: coarsen_in_x,coarsen_in_y,coarsen_in_z
 
 c     Local variables
 
         integer    :: i,n1,n2,n3,nxx,nyy,nzz
         integer    :: ngrdx,ngrdy,ngrdz
+        logical    :: cx,cy,cz
 
 c     Begin program
+
+        if (PRESENT(coarsen_in_x)) then
+          cx = coarsen_in_x
+        else
+          cx = .true.
+cc          cx = .not.bcSP()
+        endif
+
+        if (PRESENT(coarsen_in_y)) then
+          cy = coarsen_in_y
+        else
+          cy = .true.
+        endif
+
+        if (PRESENT(coarsen_in_z)) then
+          cz = coarsen_in_z
+        else
+          cz = .true.
+        endif
 
 c     Estimate local domain sizes
 
@@ -180,36 +210,44 @@ c     Find adequate number of grid levels (for MG)
         n2 = int(dlog(1d0*nyy)/dlog(1d0*mg_ratio)+0.001)
         n3 = int(dlog(1d0*nzz)/dlog(1d0*mg_ratio)+0.001)
 
-        ngrdx = max(n1-1,1)
-        do i = ngrdx,1,-1
-          n1 = nxx/mg_ratio**(i-1)
-          if (n1*mg_ratio**(i-1).eq.nxx) exit
-        enddo
-        ngrdx = i
+        if (cx) then
+          ngrdx = max(n1-1,1)
+          do i = ngrdx,1,-1
+            n1 = nxx/mg_ratio**(i-1)
+            if (n1*mg_ratio**(i-1).eq.nxx) exit
+          enddo
+          ngrdx = i
+        else
+          ngrdx = 1
+        endif
 
-        ngrdy = max(n2-1,1)
-        do i = ngrdy,1,-1
-          n2 = nyy/mg_ratio**(i-1)
-          if (n2*mg_ratio**(i-1).eq.nyy) exit
-        enddo
-        ngrdy = i
+        if (cy) then
+          ngrdy = max(n2-1,1)
+          do i = ngrdy,1,-1
+            n2 = nyy/mg_ratio**(i-1)
+            if (n2*mg_ratio**(i-1).eq.nyy) exit
+          enddo
+          ngrdy = i
+        else
+          ngrdy = 1
+        endif
 
-        ngrdz = max(n3-1,1)
-        do i = ngrdz,1,-1
-          n3 = nzz/mg_ratio**(i-1)
-          if (n3*mg_ratio**(i-1).eq.nzz) exit
-        enddo
-        ngrdz = i
+        if (cz) then
+          ngrdz = max(n3-1,1)
+          do i = ngrdz,1,-1
+            n3 = nzz/mg_ratio**(i-1)
+            if (n3*mg_ratio**(i-1).eq.nzz) exit
+          enddo
+          ngrdz = i
+        else
+          ngrdz = 1
+        endif
 
 c     Allocate grid storage structure
 
-#if defined(petsc)
         call allocateGridStructure(ngrdx,ngrdy,ngrdz
      .                            ,nxg,nyg,nzg,gdef,mpi_comm=mpi_comm)
-#else
-        call allocateGridStructure(ngrdx,ngrdy,ngrdz
-     .                            ,nxg,nyg,nzg,gdef)
-#endif
+
       end subroutine initGridSt
 
 c     createMGgrid
@@ -242,62 +280,102 @@ c     Begin program
 
 c     Initialize MG grid-size arrays
 
+        !Select refinement ratio (mg_ratio is input from module)
         gdef%mg_ratio_x = 1
-        gdef%mg_ratio_y = 1
-        gdef%mg_ratio_z = 1
+        gdef%mg_ratio_x(1:gdef%ngrdx-1) = mg_ratio
 
+        gdef%mg_ratio_y = 1
+        gdef%mg_ratio_y(1:gdef%ngrdy-1) = mg_ratio
+
+        gdef%mg_ratio_z = 1
+        gdef%mg_ratio_z(1:gdef%ngrdz-1) = mg_ratio
+
+        !Create MG coarse grids
         gdef%nxgl(1) = gdef%nglx
         gdef%nxv (1) = gdef%nlx
         gdef%ilo (1) = gdef%ilog
         gdef%ihi (1) = gdef%ihig
-        do i = 2,gdef%ngrdx
-          gdef%nxgl(i) = gdef%nxgl(i-1) / mg_ratio
-          gdef%nxv (i) = gdef%nxv (i-1) / mg_ratio
-          gdef%ilo (i) = gdef%ilo(i-1)/mg_ratio + 1
-          gdef%ihi (i) = gdef%ilo(i)+gdef%nxv(i)-1
-          gdef%mg_ratio_x(i-1) = mg_ratio
-        enddo
-        do i = gdef%ngrdx+1,gdef%ngrid
-          gdef%nxgl(i) = gdef%nxgl(i-1)
-          gdef%nxv (i) = gdef%nxv (i-1)
-          gdef%ilo (i) = gdef%ilo (i-1)
-          gdef%ihi (i) = gdef%ihi (i-1)
+cc        do i = 2,gdef%ngrdx
+cc          gdef%nxgl(i) = gdef%nxgl(i-1) / mg_ratio
+cc          gdef%nxv (i) = gdef%nxv (i-1) / mg_ratio
+cc          gdef%ilo (i) = gdef%ilo(i-1)/mg_ratio + 1
+cc          gdef%ihi (i) = gdef%ilo(i)+gdef%nxv(i)-1
+cc          gdef%mg_ratio_x(i-1) = mg_ratio
+cc        enddo
+cc        do i = gdef%ngrdx+1,gdef%ngrid
+cc          gdef%nxgl(i) = gdef%nxgl(i-1)
+cc          gdef%nxv (i) = gdef%nxv (i-1)
+cc          gdef%ilo (i) = gdef%ilo (i-1)
+cc          gdef%ihi (i) = gdef%ihi (i-1)
+cc        enddo
+        do i = 2,gdef%ngrid
+          gdef%nxgl(i) = gdef%nxgl(i-1)/gdef%mg_ratio_x(i-1)
+          gdef%nxv (i) = gdef%nxv (i-1)/gdef%mg_ratio_x(i-1)
+          if (gdef%mg_ratio_x(i-1) /= 1) then
+            gdef%ilo (i) = gdef%ilo (i-1)/gdef%mg_ratio_x(i-1)+1
+            gdef%ihi (i) = gdef%ilo(i)+gdef%nxv(i)-1
+          else
+            gdef%ilo (i) = gdef%ilo (i-1)
+            gdef%ihi (i) = gdef%ihi (i-1)
+          endif
         enddo
 
         gdef%nygl(1) = gdef%ngly
         gdef%nyv (1) = gdef%nly
         gdef%jlo (1) = gdef%jlog
         gdef%jhi (1) = gdef%jhig
-        do i = 2,gdef%ngrdy
-          gdef%nygl(i) = gdef%nygl(i-1) / mg_ratio
-          gdef%nyv (i) = gdef%nyv(i-1) / mg_ratio
-          gdef%jlo (i) = gdef%jlo(i-1)/mg_ratio + 1
-          gdef%jhi (i) = gdef%jlo(i)+gdef%nyv(i)-1
-          gdef%mg_ratio_y(i-1) = mg_ratio
-        enddo
-        do i = gdef%ngrdy+1,gdef%ngrid
-          gdef%nygl(i) = gdef%nygl(i-1)
-          gdef%nyv (i) = gdef%nyv (i-1)
-          gdef%jlo (i) = gdef%jlo (i-1)
-          gdef%jhi (i) = gdef%jhi (i-1)
+cc        do i = 2,gdef%ngrdy
+cc          gdef%nygl(i) = gdef%nygl(i-1) / mg_ratio
+cc          gdef%nyv (i) = gdef%nyv(i-1) / mg_ratio
+cc          gdef%jlo (i) = gdef%jlo(i-1)/mg_ratio + 1
+cc          gdef%jhi (i) = gdef%jlo(i)+gdef%nyv(i)-1
+cc          gdef%mg_ratio_y(i-1) = mg_ratio
+cc        enddo
+cc        do i = gdef%ngrdy+1,gdef%ngrid
+cc          gdef%nygl(i) = gdef%nygl(i-1)
+cc          gdef%nyv (i) = gdef%nyv (i-1)
+cc          gdef%jlo (i) = gdef%jlo (i-1)
+cc          gdef%jhi (i) = gdef%jhi (i-1)
+cc        enddo
+        do i = 2,gdef%ngrid
+          gdef%nygl(i) = gdef%nygl(i-1)/gdef%mg_ratio_y(i-1)
+          gdef%nyv (i) = gdef%nyv (i-1)/gdef%mg_ratio_y(i-1)
+          if (gdef%mg_ratio_y(i-1) /= 1) then
+            gdef%jlo (i) = gdef%jlo (i-1)/gdef%mg_ratio_y(i-1)+1
+            gdef%jhi (i) = gdef%jlo(i)+gdef%nyv(i)-1
+          else
+            gdef%jlo (i) = gdef%jlo (i-1)
+            gdef%jhi (i) = gdef%jhi (i-1)
+          endif
         enddo
 
         gdef%nzgl(1) = gdef%nglz
         gdef%nzv (1) = gdef%nlz
         gdef%klo (1) = gdef%klog
         gdef%khi (1) = gdef%khig
-        do i = 2,gdef%ngrdz
-          gdef%nzgl(i) = gdef%nzgl(i-1) / mg_ratio
-          gdef%nzv (i) = gdef%nzv (i-1) / mg_ratio
-          gdef%klo (i) = gdef%klo(i-1)/mg_ratio + 1
-          gdef%khi (i) = gdef%klo(i)+gdef%nzv(i)-1
-          gdef%mg_ratio_z(i-1) = mg_ratio
-        enddo
-        do i = gdef%ngrdz+1,gdef%ngrid
-          gdef%nzgl(i) = gdef%nzgl(i-1)
-          gdef%nzv (i) = gdef%nzv (i-1)
-          gdef%klo (i) = gdef%klo (i-1)
-          gdef%khi (i) = gdef%khi (i-1)
+cc        do i = 2,gdef%ngrdz
+cc          gdef%nzgl(i) = gdef%nzgl(i-1) / mg_ratio
+cc          gdef%nzv (i) = gdef%nzv (i-1) / mg_ratio
+cc          gdef%klo (i) = gdef%klo(i-1)/mg_ratio + 1
+cc          gdef%khi (i) = gdef%klo(i)+gdef%nzv(i)-1
+cc          gdef%mg_ratio_z(i-1) = mg_ratio
+cc        enddo
+cc        do i = gdef%ngrdz+1,gdef%ngrid
+cc          gdef%nzgl(i) = gdef%nzgl(i-1)
+cc          gdef%nzv (i) = gdef%nzv (i-1)
+cc          gdef%klo (i) = gdef%klo (i-1)
+cc          gdef%khi (i) = gdef%khi (i-1)
+cc        enddo
+        do i = 2,gdef%ngrid
+          gdef%nzgl(i) = gdef%nzgl(i-1)/gdef%mg_ratio_z(i-1)
+          gdef%nzv (i) = gdef%nzv (i-1)/gdef%mg_ratio_z(i-1)
+          if (gdef%mg_ratio_z(i-1) /= 1) then
+            gdef%klo (i) = gdef%klo (i-1)/gdef%mg_ratio_z(i-1)+1
+            gdef%khi (i) = gdef%klo(i)+gdef%nzv(i)-1
+          else
+            gdef%klo (i) = gdef%klo (i-1)
+            gdef%khi (i) = gdef%khi (i-1)
+          endif
         enddo
 
 c     Initialize MG pointer arrays
@@ -467,6 +545,15 @@ c     Find grid quantities
 
           ng   = nglobal(ig)
 
+          !Exception for polar coordinates
+cc          if ((ig > 1) .and. (.not.dpack%pack) .and. (bcs1 == SP)) then
+cc            dpack%pack = .true.
+cc            dx0 = (lmax-lmin)/nglobal(1)
+cc            dxl = dx0
+cc            dxr = dx0
+cc            dpack%xp = lmin + dx0
+cc          endif
+
           !Find grid spacing
           call findLocalGrid(ig,xx(isig),ng)
 
@@ -519,6 +606,10 @@ c     Find global grid
 
         call findGlobalGrid(ig,xxg,ng)
 
+cc        write (*,*) xxg
+cc        write (*,*)
+cc        pause
+
 c     Assign global grid
 
         if (ig == 1) xg(1:ng+2) = xxg(0:ng+1)
@@ -554,7 +645,7 @@ c     Local variables
 
 c     Begin program
 
-        length = lmax-lmin
+        length = lmax-lmin   !Global length, based on global limits
 
         fv_l = .not.(abs(bcs1) == SYM)  !FV discr. at opposite boundary except for SYM BC
         fv_r = .not.(abs(bcs2) == SYM)  !FV discr. at opposite boundary except for SYM BC
@@ -572,21 +663,36 @@ c     Begin program
 
           if (xp < lend .and. xp > lstart) then
 
-            n1 = max(int((xp - lmin)/length*ng),2)
+            n1 = max(int((xp - lmin)/length*ng),1)
 
             n2 = ng - n1
 
             dxl = alpha1*dxl  !Modify initial interval for coarser grids
 
-cc            call packGrid(ig,n1,lstart,xp,-dxl,xg(1:n1),alpha1,xi)
-            call packGrid(ig,n1,lstart,xp-dxl/2,-dxl,xg(1:n1),alpha1
-     .                   ,xil,fv_l)
+            if (n1 > 1) then
+cc              call packGrid(ig,n1,lstart,xp,-dxl,xg(1:n1),alpha1,xi)
+              call packGrid(ig,n1,lstart,xp-0.5*dxl,-dxl,xg(1:n1),alpha1
+     .                     ,xil,fv_l)
+            else
+              xg(1) = xp-0.5*dxl
+              xil = 1d0
+            endif
 
             dxr = alpha2*dxr  !Modify initial interval for coarser grids
 
-cc            call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
-            call packGrid(ig,n2,xp+dxr/2,lend,dxr,xg(n1+1:ng),alpha2
-     .                   ,xir,fv_r)
+            if (n2 > 1) then
+cc              call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
+              call packGrid(ig,n2,xp+0.5*dxr,lend,dxr,xg(n1+1:ng),alpha2
+     .                     ,xir,fv_r)
+            else
+              xg(ng) = xp+0.5*dxr
+              xir = 1d0
+            endif
+
+            if (abs(bcs1) == SP) then
+              dxl = alpha2*dxl
+              dpack%xp = lmin + dxl
+            endif
 
           else
 
@@ -612,6 +718,8 @@ cc            call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
             xg(0) = xg(1) - (xg(ng)-xg(ng-1))
           elseif (abs(bcs1) == SYM) then
             xg(0) = xg(1) - (xg(2 )-xg(1   ))
+          elseif (abs(bcs1) == SP) then
+            xg(0) =-xg(1)
           else
             if (pack_l) then
               xg(0) = xg(1) - (xg(2 )-xg(1   ))
@@ -663,11 +771,8 @@ cc            call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
           do i = 2,ng+1
             xg(i) = xg(i-1) + dh
           enddo
-cc          if (bcSP()) then
-cc            xg(0) = xg(1) - dh + 1d-10
-cc          else
-            xg(0) = xg(1) - dh
-cc          endif
+
+          xg(0) = xg(1) - dh
 
         endif
 
@@ -721,7 +826,7 @@ c     Begin program
 
         endif
 
-        if (mgr(ig) > 1 ) then
+        if (mgr(ig) > 1 .and. xi > 1d0) then
           alpha = (xi**mgr(ig)-1)/(xi-1)
         else
           alpha = 1
@@ -767,6 +872,8 @@ c     Initial guess
 
         xi = 2*(rhs-nn)/nn**2
         xi = exp(log(1+xi*rhs)/nn)
+
+        if (xi == 1d0) return
 
 c     Newton iteration
 

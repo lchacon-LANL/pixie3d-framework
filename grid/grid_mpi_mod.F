@@ -618,6 +618,7 @@ c     Eliminate specified directions
 
       if (nx == 1 .and. ny == 1 .and. nz == 1) then
         if (nprocs == 1) then  !Compatible specification of procs. per direction
+          npx = max(npx,1) ; npy = max(npy,1) ; npz = max(npz,1)
           return
         else
           messg = 'np /= npx*npy*npz ... Aborting'
@@ -664,12 +665,13 @@ c     Find dimensionality
       endif
 
       !Find exponents
-      navg = nint((nx*ny*nz/nprocs)**(1./nd))
+cc      navg = nint((nx*ny*nz/nprocs)**(1./nd))
+      navg = int((nx*ny*nz/nprocs)**(1./nd))
 
       npt = (/nx,ny,nz/)
-      exp = nint(log(max(1d0*npt/navg,1d0))/log(2d0))
+      exp = nint(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
 
-cc      write (*,*) 'DIAG -- procAlloc',nx,ny,nz,nprocs,navg,exp
+cc      write (*,*) 'DIAG -- procAlloc',nx,ny,nz,nprocs,navg,exp,sum_exp
 
       !Consistency check
       if (sum(exp) /= sum_exp) then
@@ -693,9 +695,6 @@ c     Store processor topology for ASM PC treatment
       asm_dir(1) = (npx > 1)
       asm_dir(2) = (npy > 1)
       asm_dir(3) = (npz > 1)
-
-cc      write (*,*) 'DIAG -- processorAlloc',npx,npy,npz
-cc      call pstop('','')
 
 c     End program
 

@@ -205,11 +205,7 @@ c     Estimate local growth rate
 
 c     Find new time step
 
-      if (PRESENT(dt_exp)) then
-        call findNewTimeStep(itm,ierr,dt_exp=dt_exp)
-      else
-        call findNewTimeStep(itm,ierr)
-      endif
+      call findNewTimeStep(itm,ierr,dt_exp=dt_exp)
 
 c     End program
 
@@ -383,6 +379,7 @@ c     Begin program
 
 cc          cnfactor = 0.5
           cnfactor = 0d0
+          dt = 0.1*dt
 
           bdf2 = .false.
 
@@ -392,6 +389,8 @@ cc          cnfactor = 0.5
           cnfactor = 0d0
 
           bdf2 = .true.
+
+          dt = dtbase
 
           !All these are affected by factor 1/dt (done in evaluateNLF)
           cnp = (2*dt+dtold)/(dt+dtold)
@@ -428,6 +427,7 @@ c     #######################################################################
 cccc#if !defined(petsc)
         if (PRESENT(dt_exp)) then
           dt = dt_exp
+          sm_flag = 0
         else
           call adapt_dt(dtbase)
 cc          dt = dtbase
@@ -457,10 +457,8 @@ c     #######################################################################
       subroutine adapt_dt(dtbase)
 
         real(8) ::    dtbase
-        real(8) ::    coef1,coef2
-
-        coef1 = 0.8             !Time subcycling coefficient
-        coef2 = 1.05            !Time recovery   coefficient
+        real(8) ::    coef1=0.8   !Time subcycling coefficient
+     .               ,coef2=1.05  !Time recovery   coefficient
 
         if (ierr > 0) then
           dt = dt*coef1

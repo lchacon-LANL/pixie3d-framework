@@ -25,28 +25,41 @@ c######################################################################
           integer    :: ngrd_tst
           logical    :: vol_res
           integer    :: krylov_subspace
+          logical    :: singular_matrix
 
           !MG quantities
-          integer      :: igridmin
+          integer      :: mg_gmin
           integer      :: vcyc
           integer      :: orderres
           integer      :: orderprol
           integer      :: mg_coarse_solver_depth
           integer      :: mg_mu
+
+          logical      :: mg_line_relax
           integer      :: mg_line_nsweep
           integer      :: mg_line_vcyc
           integer      :: mg_line_coarse_solver_depth
-          logical      :: mg_line_relax
           logical      :: mg_line_x
           logical      :: mg_line_y
           logical      :: mg_line_z
           character(2) :: mg_line_solve
           real(8)      :: mg_line_tol
           real(8)      :: mg_line_omega
-          logical      :: vertex_based_relax
-          logical      :: galerkin
+
+          logical      :: mg_vertex_relax
+
+          logical      :: mg_zebra_relax
+          integer      :: mg_zebra_prefd
+          integer      :: mg_zebra_it
+          real(8)      :: mg_zebra_omega
+
+          logical      :: mg_galerkin
+          logical      :: mg_debug
+
 
           type(grid_mg_def),pointer  :: mg_grid_def
+
+          type(mg_ctx),pointer :: mgctx
 
           !Output quantities
           integer    :: iter_out
@@ -74,6 +87,34 @@ c######################################################################
 
       contains
 
+c     find_mach_eps
+c     ###############################################################
+      function find_mach_eps() result(epsmac)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Finds machine round-off constant epsmac
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      real(8) :: epsmac
+
+c     Local variables
+
+      real(8) :: mag,mag2
+
+      mag = 1d0
+      do
+        epsmac = mag
+        mag = mag/2
+        mag2 = 1d0 + mag
+        if (.not.(mag2 > 1d0)) exit
+      enddo
+
+      end function find_mach_eps
+
 c     solverOptionsInit
 c     ###################################################################
         subroutine solverOptionsInit
@@ -91,7 +132,7 @@ c       Initializes solver options
 
           !MG and smoother options
           solverOptions%vcyc     = 1               !Number of V-cycles (MG)
-          solverOptions%igridmin = 2               !Minimum grid level considered (MG)
+          solverOptions%mg_gmin  = 2               !Minimum grid level considered (MG)
           solverOptions%orderres = 0               !Interpolation order in restriction (MG)
           solverOptions%orderprol= 0               !Interpolation order in prolongation (MG)
           solverOptions%fdiag    = .true.          !Whether to form matrix diagonal
@@ -120,10 +161,16 @@ c       Initializes solver options
           solverOptions%mg_line_y      = .true.    !Whether to do lines in y-direction
           solverOptions%mg_line_z      = .true.    !Whether to do lines in z-direction
 
-          solverOptions%vertex_based_relax=.false. !Whether to do vertex-based relax.
+          solverOptions%mg_vertex_relax= .false.   !Whether to do vertex-based relax.
 
-          solverOptions%galerkin    =.false.       !Whether to do Galerkin coarsening (true)
+          solverOptions%mg_zebra_relax = .false.   !Whether to do zebra relax.
+          solverOptions%mg_zebra_prefd = 0         !Whether there is a preferred zebra direction
+          solverOptions%mg_zebra_it    = 1         !Number of smoothing passes per zebra line
+          solverOptions%mg_zebra_omega = 1d0       !Relaxation constant per zebra line
+
+          solverOptions%mg_galerkin    =.false.    !Whether to do Galerkin coarsening (true)
                                                    !  or rediscretization (false)
+          solverOptions%mg_debug       =.false.    !Whether to turn on MG graphic debugging
 
 cc          solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
           solverOptions%mg_grid_def => grid_params  !Defines default MG grid levels def.
@@ -135,6 +182,8 @@ cc     .                            ,grid_params)    !Defines default MG grid le
                                                    !If one, use initial residual; 
                                                    !  else, use rhs.
           solverOptions%krylov_subspace = 15       !Krylov subspace dimension (GMRES)
+
+          solverOptions%singular_matrix = .false.  !Matrices are regular by default
 
           !Output
           solverOptions%iter_out = 0               !Number of iterations (output)
@@ -222,7 +271,7 @@ c     ###################################################################
 c       Modifies solver definition at depth 'depth' in solver hierarchy
 
           type (solver_unit) :: solver_def
-          integer               :: depth
+          integer :: depth
 
         !Begin
 
@@ -236,7 +285,7 @@ c     ###################################################################
 
 c       Gets solver options at depth 'depth'
 
-          integer    :: depth
+          integer :: depth
           type (solver_unit) :: solver_def
 
         !Begin

@@ -671,7 +671,7 @@ c     Call the preconditioned GMRES(k) algorithm
       if (nk_conf%krylov_method=='fg') then
         call fgmres(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
       else
-        call gmres(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
+        call  gmres(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
       endif
 
 c     End program
@@ -740,9 +740,12 @@ c     Call variables
 c     Local variables
 
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
-      real(8)    :: vv(ntot,im+1),zz(ntot,im+1),dsol(ntot)
-      real(8)    :: rold,ro,eps1,gam,t
+      real(8)    :: vv(ntot,im+1),zz(ntot,im+1),dsol(ntot),dum(ntot)
+      real(8)    :: rold,ro,eps1,gam,t,xsvmx(im+1),xsvmn(im+1)
+     .             ,smx_est,smn_est,smx_new,smn_new,snmx,snmn,csmx,csmn
       integer    :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
+
+      logical    :: sing_mat=.false.
 
 c     Begin program
 
@@ -855,6 +858,54 @@ c       Get next plane rotation
           hh(i,i)= c(i)*hh(i,i) + s(i)*hh(i1,i)
           hh(i1,i) = 0d0
 
+c       Estimate condition number of hh
+
+          if (sing_mat) then
+            if (i > 1) then
+              !Max Sing. value
+              call dlaic1(1,i-1,xsvmx(1:i-1),smx_est,hh(1:i-1,i),hh(i,i)
+     .                   ,smx_new,snmx,csmx)
+
+              !Min Sing. value
+              call dlaic1(2,i-1,xsvmn(1:i-1),smn_est,hh(1:i-1,i),hh(i,i)
+     .                   ,smn_new,snmn,csmn)
+
+cc              write (*,*) 'Mat column=',hh(i,1:i-1)
+cc              write (*,*) 'Gamma=',hh(i,i)
+cc              write (*,*) 'Max sv ',xsvmx(1:i-1)
+cc     .                   ,'norm=',sqrt(sum(xsvmx(1:i-1)**2))
+cc     .                   ,'sine=',snmx,'cos=',csmx
+cc              write (*,*) 
+cc              write (*,*) 'Min sv ',xsvmn(1:i-1)
+cc     .                   ,'norm=',sqrt(sum(xsvmn(1:i-1)**2))
+cc     .                   ,'sine=',snmn,'cos=',csmn
+cc              write (*,*) 
+
+              !Condition number
+              write (*,*)
+              write (*,*) 'FGMRES diag: Max. sing. val. =',smx_new
+              write (*,*) 'FGMRES diag: Min. sing. val. =',smn_new
+              if (smn_new /= 0d0) then
+                write (*,*) 'FGMRES diag: Condition number='
+     .                      ,smx_new/smn_new
+              endif
+
+              !Update quantities
+              smx_est = smx_new
+              smn_est = smn_new
+
+              xsvmx(1:i-1) = snmx*xsvmx(1:i-1)
+              xsvmx(i)     = csmx
+              xsvmn(1:i-1) = snmn*xsvmn(1:i-1)
+              xsvmn(i)     = csmn
+            else
+              smx_est = hh(1,1)  !Initial SV is single element
+              smn_est = hh(1,1)  !Initial SV is single element
+              xsvmx(1) = 1d0
+              xsvmn(1) = 1d0
+            endif
+          endif
+
 c       Determine residual norm and test for convergence
 
           rs(i1) = -s(i)*rs(i)
@@ -903,10 +954,14 @@ c     Update solution
         sol(:) = sol(:) + dsol(:)
 
 c diag *****
-cc        call matrixFreeMatVec(ntot,sol,dum)
-cc        write (*,*) 'Residual=',sqrt(sum((dum-rhs)**2))
-cc        write (*,*) 'Solution update=',sqrt(sum(sol**2))
-cc        write (*,*) 'Solution coeffs=',rs
+        if (sing_mat) then
+          write (*,*)
+          call matrixFreeMatVec(ntot,sol,dum)
+          write (*,*) 'FGMRES diag: Residual=',sqrt(sum((dum-rhs)**2))
+          write (*,*) 'FGMRES diag: Sol. update=',sqrt(sum(sol**2))
+cc          write (*,*) 'Solution coeffs=',rs
+          pause
+        endif
 c diag *****
 
 c     Check convergence and restart outer loop if necessary
@@ -1007,8 +1062,11 @@ c     Local variables
 
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
       real(8)    :: vv(ntot,im+1),dsol(ntot)
-      real(8)    :: rold,ro,eps1,gam,t
+      real(8)    :: rold,ro,eps1,gam,t,xsvmx(im+1),xsvmn(im+1)
+     .             ,smx_est,smn_est,smx_new,smn_new,snmx,snmn,csmx,csmn
       integer    :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
+
+      logical    :: sing_mat=.false.
 
 c     Begin program
 
@@ -1115,12 +1173,60 @@ c       Get next plane rotation
 
           c(i)   = hh(i ,i)/gam
           s(i)   = hh(i1,i)/gam
-          rs(i1) = -s(i)*rs(i)
-          rs(i)  =  c(i)*rs(i)
+
+          hh(i,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
+          hh(i1,i) = 0d0
+
+c       Estimate condition number of hh
+
+          if (sing_mat) then
+            if (i > 1) then
+              !Max Sing. value
+              call dlaic1(1,i-1,xsvmx(1:i-1),smx_est,hh(1:i-1,i),hh(i,i)
+     .                   ,smx_new,snmx,csmx)
+
+              !Min Sing. value
+              call dlaic1(2,i-1,xsvmn(1:i-1),smn_est,hh(1:i-1,i),hh(i,i)
+     .                   ,smn_new,snmn,csmn)
+
+cc              write (*,*) 'Mat column=',hh(i,1:i-1)
+cc              write (*,*) 'Gamma=',hh(i,i)
+cc              write (*,*) 'Max sv ',xsvmx(1:i-1)
+cc     .                   ,'norm=',sqrt(sum(xsvmx(1:i-1)**2))
+cc     .                   ,'sine=',snmx,'cos=',csmx
+cc              write (*,*) 
+cc              write (*,*) 'Min sv ',xsvmn(1:i-1)
+cc     .                   ,'norm=',sqrt(sum(xsvmn(1:i-1)**2))
+cc     .                   ,'sine=',snmn,'cos=',csmn
+cc              write (*,*) 
+
+              !Condition number
+              write (*,*) 'Max. sing. val. =',smx_new
+              write (*,*) 'Min. sing. val. =',smn_new
+              if (smn_new /= 0d0) then
+                write (*,*) 'Condition number=',smx_new/smn_new
+              endif
+
+              !Update quantities
+              smx_est = smx_new
+              smn_est = smn_new
+
+              xsvmx(1:i-1) = snmx*xsvmx(1:i-1)
+              xsvmx(i)     = csmx
+              xsvmn(1:i-1) = snmn*xsvmn(1:i-1)
+              xsvmn(i)     = csmn
+            else
+              smx_est = hh(1,1)  !Initial SV is single element
+              smn_est = hh(1,1)  !Initial SV is single element
+              xsvmx(1) = 1d0
+              xsvmn(1) = 1d0
+            endif
+          endif
 
 c       Determine residual norm and test for convergence
 
-          hh(i,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
+          rs(i1) = -s(i)*rs(i)
+          rs(i)  =  c(i)*rs(i)
           ro = abs(rs(i1))
 
           if (iout .gt. 0 .and. prnt) then
