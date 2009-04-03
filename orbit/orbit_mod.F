@@ -19,10 +19,25 @@ c ######################################################################
           logical :: picard !Whether to use picard or Newton
         end type ode_solver
 
+        !Splines
+        type :: splines
+          integer :: order  !Order of splines
+          integer :: a_gauge!Gauge for vector potential (1,2)
+        end type splines
+
+        !Orbit config
+        type :: orbit_def
+          type(ode_solver) :: ode_conf
+          type(splines)    :: spline_conf
+        end type orbit_def
+
         logical :: sing_point=.false.
 
         !Private variables
-        integer,private :: ilevel,itime,iterror
+
+        type(ode_solver),private :: ode_conf
+
+        integer,private :: ilevel,itime,iterror,ssorder
 
         integer,private :: nunitx,nunity,nunitz,nunitrz
         integer,private :: npointx,npointy,npointz
@@ -38,50 +53,62 @@ c ######################################################################
         logical,private :: exit_loop,cartesian=.false.,cross=.false.
         logical,private :: lssx,lssy,lssz,rzss
 
+cc        INTERFACE orbit_setup
+cc          module procedure orbit_setup_file
+cc        end INTERFACE
+
       contains
 
-c     orbit_init
+c     orbit_setup
 c     ######################################################################
-      subroutine orbit_init(x0,y0,z0)
+      subroutine orbit_setup(nx,ny,nz,xx,yy,zz
+     .                      ,bx,by,bz,bxcar,bycar,bzcar
+     .                      ,jac,xmap,orb_conf)
 
 c     ----------------------------------------------------------------------
-c     Initializes orbit integrator
+c     Sets up orbit splines for orbit integrator.
 c     ----------------------------------------------------------------------
 
         implicit none
 
-        real(8) :: x0,y0,z0
+c     Call variables
+
+        integer :: nx,ny,nz
+        real(8) :: xx(nx),yy(ny),zz(nz)
+        real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
+     .            ,ax(nx,ny,nz),ay(nx,ny,nz),az(nx,ny,nz)
+        real(8) :: bxcar(nx,ny,nz),bycar(nx,ny,nz),bzcar(nx,ny,nz)
+        real(8) :: xmap(nx,ny,nz,3),jac(nx,ny,nz)
+
+        type(orbit_def) :: orb_conf
 
 c     Begin program
 
-        x    = x0
-        y    = y0
-        z    = z0
+        ode_conf = orb_conf%ode_conf
 
-        xold = x0
-        yold = y0
-        zold = z0
+c     Do splines
 
-        time = 0d0
-        told = 0d0
-        tprev= 0d0
+        call setupSplines(nx,ny,nz,xx,yy,zz,orb_conf%spline_conf%order)
 
-        ss   = 0d0  !Initialize arc-length along line
-        sold = 0d0
-        sprev= 0d0
+        if (ode_conf%solen) then
+          call splineA(bx,by,bz,orb_conf%spline_conf%a_gauge)
+        else
+          call splineB(bx,by,bz)
+        endif
 
-        npointx=0
-        npointy=0
-        npointz=0
+        call splineBcar(bxcar,bycar,bzcar)
 
-        itime = 0
+        call splineJ(jac )
+        call splineX(xmap)
 
-      end subroutine orbit_init
+        write (*,*) 'Set up splines.'
+        write (*,*)
+
+      end subroutine orbit_setup
 
 c     orbit_find
 c     ######################################################################
-      subroutine orbit_find(iout,x0,y0,z0,fwd,ode_conf,line_int
-     .                     ,ss_check,ss_order)
+      subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,ss_order)
 
 c     ----------------------------------------------------------------------
 c     Integrates orbit up to specified limit in arc length or pseudotime
@@ -89,9 +116,7 @@ c     (specified in module). On input:
 c       * iout: level of diagnostic output
 c       * x0,y0,z0: starting point of orbit
 c       * fwd: whether to go forward or backward
-c       * ode_conf: configuration of ODE integrator
 c     Optional input:
-c       * ode_conf: configuration of ODE integrator
 c       * line_int: external routine to perform line integrals
 c       * ss_check: check for surface of section (default: not when
 c                   performing integrals along line)
@@ -106,10 +131,7 @@ c     Call variables
         real(8),intent(IN) :: x0,y0,z0
         logical :: fwd
 
-        type(ode_solver) :: ode_conf
-
         integer,optional :: ss_order
-        logical,optional :: ss_check
 
         optional :: line_int
 
@@ -126,7 +148,6 @@ cc          logical, optional :: line_int
 
 c     Local variables
 
-        integer :: ssorder
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral
 
@@ -136,17 +157,7 @@ c     Begin program
 
         integral = PRESENT(line_int)
 
-        if (PRESENT(ss_check)) then
-          chk_ss = ss_check
-        else
-          chk_ss = .not.integral    !Do not perform SS check when integrating
-        endif
-
-        if (PRESENT(ss_order)) then
-          ssorder = ss_order
-        else
-          ssorder = 1
-        endif
+        chk_ss = .not.integral
 
         tmax = ode_conf%tmax
         smax = ode_conf%smax
@@ -177,8 +188,7 @@ c     Orbit integral
           zold  = z
 
           !Find new LOGICAL positions, new time, new arc length
-          call orbit_step(ode_conf,x,y,z,time,ss,iterror
-     .                   ,forward=fwd)
+          call orbit_step(x,y,z,time,ss,iterror,forward=fwd)
 
           call orbit_error(iterror)
 
@@ -229,9 +239,47 @@ c       Write orbit separator in XDRAW file
 
       end subroutine orbit_find
 
+c     orbit_init
+c     ######################################################################
+      subroutine orbit_init(x0,y0,z0)
+
+c     ----------------------------------------------------------------------
+c     Initializes orbit integrator
+c     ----------------------------------------------------------------------
+
+        implicit none
+
+        real(8) :: x0,y0,z0
+
+c     Begin program
+
+        x    = x0
+        y    = y0
+        z    = z0
+
+        xold = x0
+        yold = y0
+        zold = z0
+
+        time = 0d0
+        told = 0d0
+        tprev= 0d0
+
+        ss   = 0d0  !Initialize arc-length along line
+        sold = 0d0
+        sprev= 0d0
+
+        npointx=0
+        npointy=0
+        npointz=0
+
+        itime = 0
+
+      end subroutine orbit_init
+
 c     orbit_step
 c     ##################################################################
-      subroutine orbit_step(ode_conf,x,y,z,time,ss,ierror,forward)
+      subroutine orbit_step(x,y,z,time,ss,ierror,forward)
 
 c     ------------------------------------------------------------------
 c     Crank-Nicolson (Picard/Newton) leapfrog, symmetrized (or not).
@@ -241,7 +289,7 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-      type(ode_solver) :: ode_conf
+cc      type(ode_solver) :: ode_conf
 
       integer :: ierror
       real(8) :: x,y,z,time,ss
@@ -920,20 +968,25 @@ c     -----------------------------------------------------------------
 
 c     ss_init
 c     #################################################################
-      subroutine ss_init(lxss,xsurf,lyss,ysurf,lzss,zsurf)
+      subroutine ss_init(ss_order,lxss,xsurf,lyss,ysurf,lzss,zsurf)
 
 c     -----------------------------------------------------------------
-c     Sets up XDRAW surface of section output files
+c     Initializes surface of section (SS) internal variables
 c     -----------------------------------------------------------------
 
         implicit none
 
+        integer :: ss_order
         real(8) :: xsurf,ysurf,zsurf
         logical :: lxss,lyss,lzss
 
 c     Begin program
 
         write (*,*)
+
+c     Initialize private variables
+
+        ssorder = ss_order
 
         lssx = lxss
         lssy = lyss
