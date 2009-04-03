@@ -15,7 +15,7 @@ c #####################################################################
         real(8),private,dimension(:),allocatable    :: tx,ty,tz,work
      .                                                ,xs,ys,zs
 
-        real(8),private,dimension(:,:,:),allocatable:: jcoef
+        real(8),private,dimension(:,:,:),allocatable:: ax,ay,az,jcoef
      .                                        ,acoefx,acoefy,acoefz
      .                                        ,bcoefx,bcoefy,bcoefz
      .                                        ,xcoefx,xcoefy,xcoefz
@@ -123,7 +123,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer :: nnx,nny,nnz,order
-      real(8)    :: xx(nnx),yy(nny),zz(nnz)
+      real(8) :: xx(nnx),yy(nny),zz(nnz)
 
 c     Local variables
 
@@ -138,6 +138,8 @@ c     Initialize private variables
         nz = nnz
 
         allocate(xs(nx),ys(ny),zs(nz))
+
+        allocate(ax(nx,ny,nz),ay(nx,ny,nz),az(nx,ny,nz))
 
 c     Initialize spline domain arrays
 
@@ -189,7 +191,7 @@ c     End program
 
 c     splineA
 c     #################################################################
-      subroutine splineA(bx,by,bz,ax,ay,az,a_gauge)
+      subroutine splineA(bx,by,bz,a_gauge)
 c     -----------------------------------------------------------------
 c     This routine splines up vector components (ax,ay,az) on a uniform
 c     grid of size (nx,ny,nz) with positions xs,ys,zs.
@@ -201,7 +203,6 @@ c     Call variables
 
       integer    :: a_gauge
       real(8)    :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
-     .             ,ax(nx,ny,nz),ay(nx,ny,nz),az(nx,ny,nz)
 
 c     Local variables
 
@@ -1368,6 +1369,7 @@ c     -----------------------------------------------------------------
 
 c     Begin program
 
+      deallocate(ax,ay,az)
       deallocate(work,tx,ty,tz,xs,ys,zs,stat=alloc_stat)
       deallocate(acoefx,acoefy,acoefz,stat=alloc_stat)
       deallocate(jcoef,xcoefx,xcoefy,xcoefz,stat=alloc_stat)
