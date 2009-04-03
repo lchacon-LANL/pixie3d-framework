@@ -3636,7 +3636,7 @@ c     Local variables
 
       logical      :: res_is_vec,fpointers
 
-      real(8)    :: car(3),curv(3)
+      real(8)      :: car(3),curv(3)
 
 c     Begin program
 

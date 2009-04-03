@@ -225,27 +225,36 @@ c     Begin program
           allocate(grid_st%xg(0:grid_st%nglx+1))
           allocate(grid_st%yg(0:grid_st%ngly+1))
           allocate(grid_st%zg(0:grid_st%nglz+1))
-          allocate(grid_st%xx(nxmg+2*grid_st%ngrid))
-          allocate(grid_st%yy(nymg+2*grid_st%ngrid))
-          allocate(grid_st%zz(nzmg+2*grid_st%ngrid))
-          allocate(grid_st%dx(nxmg+2*grid_st%ngrid))
-          allocate(grid_st%dy(nymg+2*grid_st%ngrid))
-          allocate(grid_st%dz(nzmg+2*grid_st%ngrid))
-          allocate(grid_st%dxh(nxmg+2*grid_st%ngrid))
-          allocate(grid_st%dyh(nymg+2*grid_st%ngrid))
-          allocate(grid_st%dzh(nzmg+2*grid_st%ngrid))
-          allocate(grid_st%nxv(grid_st%ngrid))
-          allocate(grid_st%nyv(grid_st%ngrid))
-          allocate(grid_st%nzv(grid_st%ngrid))
+cc          allocate(grid_st%xx(nxmg+2*grid_st%ngrid))
+cc          allocate(grid_st%yy(nymg+2*grid_st%ngrid))
+cc          allocate(grid_st%zz(nzmg+2*grid_st%ngrid))
+cc          allocate(grid_st%dx(nxmg+2*grid_st%ngrid))
+cc          allocate(grid_st%dy(nymg+2*grid_st%ngrid))
+cc          allocate(grid_st%dz(nzmg+2*grid_st%ngrid))
+cc          allocate(grid_st%dxh(nxmg+2*grid_st%ngrid))
+cc          allocate(grid_st%dyh(nymg+2*grid_st%ngrid))
+cc          allocate(grid_st%dzh(nzmg+2*grid_st%ngrid))
+          allocate(grid_st%xx (nxmg))
+          allocate(grid_st%yy (nymg))
+          allocate(grid_st%zz (nzmg))
+          allocate(grid_st%dx (nxmg))
+          allocate(grid_st%dy (nymg))
+          allocate(grid_st%dz (nzmg))
+          allocate(grid_st%dxh(nxmg))
+          allocate(grid_st%dyh(nymg))
+          allocate(grid_st%dzh(nzmg))
+          allocate(grid_st%nxv (grid_st%ngrid))
+          allocate(grid_st%nyv (grid_st%ngrid))
+          allocate(grid_st%nzv (grid_st%ngrid))
           allocate(grid_st%nxgl(grid_st%ngrid))
           allocate(grid_st%nygl(grid_st%ngrid))
           allocate(grid_st%nzgl(grid_st%ngrid))
-          allocate(grid_st%ilo(grid_st%ngrid))
-          allocate(grid_st%jlo(grid_st%ngrid))
-          allocate(grid_st%klo(grid_st%ngrid))
-          allocate(grid_st%ihi(grid_st%ngrid))
-          allocate(grid_st%jhi(grid_st%ngrid))
-          allocate(grid_st%khi(grid_st%ngrid))
+          allocate(grid_st%ilo (grid_st%ngrid))
+          allocate(grid_st%jlo (grid_st%ngrid))
+          allocate(grid_st%klo (grid_st%ngrid))
+          allocate(grid_st%ihi (grid_st%ngrid))
+          allocate(grid_st%jhi (grid_st%ngrid))
+          allocate(grid_st%khi (grid_st%ngrid))
 cc          allocate(grid_st%ntotv(grid_st%ngrid))
           allocate(grid_st%istartx(grid_st%ngrid))
           allocate(grid_st%istarty(grid_st%ngrid))
@@ -311,13 +320,14 @@ c     -----------------------------------------------------------------
 c     Finds size for MG vectors, taking into account total grid levels
 c     ngrdt, grid levels in the relevant direction ngrd, and the 
 c     number of mesh points in the finest grid nn. The formula ensures
-c     enough space even if nn=1 in the finest grid. It does NOT include
-c     ghost cells (this requires an additional term of 2*ngrdt).
+c     enough space even if nn=1 in the finest grid. It includes
+c     ghost cells (which requires an additional term of 2*ngrdt).
 c     -----------------------------------------------------------------
 
         integer    :: nn,nnmg,ngrd,ngrdt
 
-        nnmg = (2+ngrdt-ngrd)*nn
+cc        nnmg = (2+ngrdt-ngrd)*nn
+        nnmg = (2+ngrdt-ngrd)*nn+2*ngrdt
 
       end function findMGsize
 
@@ -346,9 +356,19 @@ c     Local variables
 
 c     Begin program
 
-        call deallocateGridMetric(grid_st%gmetric)
+c     Nullify gmetric
+
+       !Should not deallocate gmetric, since it is not
+       !allocated in allocateGridStructure
+        if (associated(grid_st%gmetric)) nullify(grid_st%gmetric)
+
+cc        call deallocateGridMetric(grid_st%gmetric)
+
+c     Deallocate grid packing info
 
         deallocate(grid_st%g_pack)
+
+c     Deallocate PETSC DA context
 
 #if defined(petsc)
         do igr=1,grid_st%ngrid
@@ -358,6 +378,8 @@ c     Begin program
 
         deallocate(grid_st%dactx)
 #endif
+
+c     Deallocate MG storage variables
 
         grid_st%ngrdx = 0
         grid_st%ngrdy = 0
@@ -431,7 +453,9 @@ c     #################################################################
       subroutine equateGridStructure(grid_st2,grid_st1)
 
 c     -----------------------------------------------------------------
-c     Performs grid_st2 = grid_st1
+c     Performs grid_st2 = grid_st1, where MG storage arrays are 
+c     strictly copied, PETSC DA are regenerated, and grid metrics
+c     are simply pointed to.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -449,8 +473,8 @@ c     Local variables
 
 c     Begin program
 
-        write (*,*) 'Routine equateGridSt should not be used'
-        stop
+cc        write (*,*) 'Routine equateGridSt should not be used'
+cc        stop
 
         ngridx = grid_st1%ngrdx
         ngridy = grid_st1%ngrdy
@@ -486,8 +510,13 @@ c     Begin program
 
 c       Create basic structure
 
+#if defined(petsc) 
         call allocateGridStructure(ngridx,ngridy,ngridz
      .                            ,nglx,ngly,nglz,grid_st2)
+#else
+        call allocateGridStructure(ngridx,ngridy,ngridz
+     .                            ,nglx,ngly,nglz,grid_st2)
+#endif
 
 c       Copy values
 
@@ -535,12 +564,16 @@ c       Copy values
 
         grid_st2%g_pack     = grid_st1%g_pack
 
-c       Create and copy grid metric
+ccc       Create and copy grid metric
+cc
+cc        call allocateGridMetric(grid_st2%gmetric,grid_st1)
+cc
+cc        call equateGridMetric(grid_st2%gmetric
+cc     .                       ,grid_st1%gmetric,grid_st1)
 
-        call allocateGridMetric(grid_st2%gmetric,grid_st1)
+c       Point to grid_st1 gmetric (which is *not* going to be modified)
 
-        call equateGridMetric(grid_st2%gmetric
-     .                       ,grid_st1%gmetric,grid_st1)
+        grid_st2%gmetric => grid_st1%gmetric
 
 c     End program
 

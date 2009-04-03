@@ -618,6 +618,7 @@ c     Eliminate specified directions
 
       if (nx == 1 .and. ny == 1 .and. nz == 1) then
         if (nprocs == 1) then  !Compatible specification of procs. per direction
+          npx = max(npx,1) ; npy = max(npy,1) ; npz = max(npz,1)
           return
         else
           messg = 'np /= npx*npy*npz ... Aborting'
@@ -694,9 +695,6 @@ c     Store processor topology for ASM PC treatment
       asm_dir(1) = (npx > 1)
       asm_dir(2) = (npy > 1)
       asm_dir(3) = (npz > 1)
-
-cc      write (*,*) 'DIAG -- processorAlloc',npx,npy,npz
-cc      call pstop('','')
 
 c     End program
 
