@@ -7,6 +7,8 @@ c ######################################################################
 
         use spline_field
 
+        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+
         !ODE solver
         type :: ode_solver
           integer :: niter  !Number of nonlinear iterations
@@ -166,6 +168,18 @@ c     Initialize orbit
 
         call orbit_init(x0,y0,z0)
 
+c     Daniele,23/03/2009: dump the initial point of the orbit
+
+        if(lssx) then
+          write(nunitx) real(y0),real(z0)
+        endif
+        if(lssy) then
+          write(nunity) real(x0),real(z0)
+        endif
+        if(lssz) then
+          write(nunitz) real(x0),real(y0)
+        endif
+
 c     Orbit integral
 
         do
@@ -190,7 +204,7 @@ c     Orbit integral
           !Find new LOGICAL positions, new time, new arc length
           call orbit_step(x,y,z,time,ss,iterror,forward=fwd)
 
-          call orbit_error(iterror)
+          exit_loop = orbit_error(iterror)
 
           !Line-orbit integration
           if (integral) then
@@ -911,7 +925,7 @@ cc        endif
         exit_loop = (abs(time) > tmax)
 
         if (ilevel == 0) then
-          if (abs(time-tprev) > 0.1*tmax) then
+          if (abs(time-tprev) > 0.1*tmax .or. exit_loop) then
             if (cartesian) then
               write (*,FMT="(a1)",ADVANCE="NO") 'C'
               cartesian = .false.
@@ -933,7 +947,7 @@ cc        endif
 
 c     orbit_error
 c     #####################################################################
-      subroutine orbit_error(iterror)
+      function orbit_error(iterror) result(exitloop)
 
 c     -----------------------------------------------------------------
 c     Checks error in time integration
@@ -942,6 +956,9 @@ c     -----------------------------------------------------------------
         implicit none
 
         integer :: iterror
+        logical :: exitloop
+
+        exitloop = .false.
 
         select case(iterror)
         case(0)    !No error
@@ -952,19 +969,19 @@ c     -----------------------------------------------------------------
           cartesian = .true.
         case(1)
           write (*,*) 'Time step too small. Skipping orbit'
-          stop
+          exitloop = .true.
         case(5)
           write (*,*) 'Negative Jacobian in Cartesian integration'
           stop
         case(6)
           write (*,*) 'Error in Cartesian integration around SP'
-          stop
+          exitloop = .true.
         case default
           write (*,*) 'Error in orbit_step routine=',iterror
           stop
         end select
 
-      end subroutine orbit_error
+      end function orbit_error
 
 c     ss_init
 c     #################################################################
@@ -1129,15 +1146,33 @@ c     Begin program
 
         iwhich = order
 
+c     Lower order of interpolation for SS if derivatives are too different
+
         if (to > tv) then
-          if(   abs(xold-xvold)/(to-tv)
-     .       >5*abs(x    -xold)/(tt-to))
-     .      iwhich = 1      !Lower order of interpolation for SS
+          if(    (   abs(xold-xvold)/(to-tv)
+     .            >5*abs(x    -xold)/(tt-to))
+     .       .or.(   abs(yold-yvold)/(to-tv)
+     .            >5*abs(y    -yold)/(tt-to))
+     .       .or.(   abs(zold-zvold)/(to-tv)
+     .            >5*abs(z    -zold)/(tt-to)) ) iwhich = 1
         endif
 
-        !Check for intersection with X surface of section
-        if((x-xss0)*(xold-xss0) <= 0.0.and.lssx) then
+c     Check for intersection with X surface of section
+
+        !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
+        if ((x-xss0)*(xold-xss0) <= 0.0) then
           xss = xss0
+        elseif ((x-xmax)*(xold-xmax) <= 0.0
+     .         .and. bcond(1)==PER
+     .         .and. xss0==xmin) then
+          xss = xmax
+        elseif ((x-xmin)*(xold-xmin) <= 0.0
+     .         .and. bcond(1)==PER
+     .         .and. xss0==xmax) then
+          xss = xmin
+        endif
+
+        if (lssx) then
           call sursec(yvold,zvold,xvold,tv
      .               ,yold ,zold ,xold ,to
      .               ,y    ,z    ,x    ,tt
@@ -1148,10 +1183,22 @@ c     Begin program
           write(nunitx) real(yss),real(zss)
         endif
 
-        !Check for intersection with Y surface of section
-        if((y-yss0)*(yold-yss0) <= 0.0.and.lssy) then
-          yss = yss0
+c     Check for intersection with Y surface of section
 
+        !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
+        if((y-yss0)*(yold-yss0) <= 0.0) then
+          yss = yss0
+        elseif ((y-ymax)*(yold-ymax) <= 0.0
+     .         .and. bcond(3)==PER
+     .         .and. yss0==ymin) then
+          yss = ymax
+        elseif ((y-ymin)*(yold-ymin) <= 0.0
+     .         .and. bcond(3)==PER
+     .         .and. yss0==ymax) then
+          yss = ymin
+        endif
+
+        if(lssy) then
           call sursec(zvold,xvold,yvold,tv
      .               ,zold ,xold ,yold ,to
      .               ,z    ,x    ,y    ,tt
@@ -1162,10 +1209,22 @@ c     Begin program
           write(nunity) real(xss),real(zss)
         endif
 
-        !Check for intersection with Z surface of section
-        if((z-zss0)*(zold-zss0) <= 0.0.and.lssz) then
-          zss = zss0
+c     Check for intersection with Z surface of section
 
+        !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
+        if((z-zss0)*(zold-zss0) <= 0.0) then
+          zss = zss0
+        elseif ((z-zmax)*(zold-zmax) <= 0.0
+     .         .and. bcond(5)==PER
+     .         .and. zss0==zmin) then
+          zss = zmax
+        elseif ((z-zmin)*(zold-zmin) <= 0.0
+     .         .and. bcond(5)==PER
+     .         .and. zss0==zmax) then
+          zss = zmin
+        endif
+
+        if(lssz) then
           call sursec(xvold,yvold,zvold,tv
      .               ,xold ,yold ,zold ,to
      .               ,x    ,y    ,z    ,tt
