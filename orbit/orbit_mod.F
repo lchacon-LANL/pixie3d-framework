@@ -1159,20 +1159,22 @@ c     Lower order of interpolation for SS if derivatives are too different
 
 c     Check for intersection with X surface of section
 
-        !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
-        if ((x-xss0)*(xold-xss0) <= 0.0) then
-          xss = xss0
-        elseif ((x-xmax)*(xold-xmax) <= 0.0
-     .         .and. bcond(1)==PER
-     .         .and. xss0==xmin) then
-          xss = xmax
-        elseif ((x-xmin)*(xold-xmin) <= 0.0
-     .         .and. bcond(1)==PER
-     .         .and. xss0==xmax) then
-          xss = xmin
-        endif
-
         if (lssx) then
+          !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
+          if ((x-xss0)*(xold-xss0) <= 0.0) then
+            xss = xss0
+          elseif ((x-xmax)*(xold-xmax) <= 0.0
+     .           .and. bcond(1)==PER
+     .           .and. xss0==xmin) then
+            xss = xmax
+          elseif ((x-xmin)*(xold-xmin) <= 0.0
+     .           .and. bcond(1)==PER
+     .           .and. xss0==xmax) then
+            xss = xmin
+          else
+            goto 2
+          endif
+
           call sursec(yvold,zvold,xvold,tv
      .               ,yold ,zold ,xold ,to
      .               ,y    ,z    ,x    ,tt
@@ -1185,20 +1187,22 @@ c     Check for intersection with X surface of section
 
 c     Check for intersection with Y surface of section
 
-        !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
-        if((y-yss0)*(yold-yss0) <= 0.0) then
-          yss = yss0
-        elseif ((y-ymax)*(yold-ymax) <= 0.0
-     .         .and. bcond(3)==PER
-     .         .and. yss0==ymin) then
-          yss = ymax
-        elseif ((y-ymin)*(yold-ymin) <= 0.0
-     .         .and. bcond(3)==PER
-     .         .and. yss0==ymax) then
-          yss = ymin
-        endif
+ 2      if (lssy) then
+          !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
+          if((y-yss0)*(yold-yss0) <= 0.0) then
+            yss = yss0
+          elseif ((y-ymax)*(yold-ymax) <= 0.0
+     .           .and. bcond(3)==PER
+     .           .and. yss0==ymin) then
+            yss = ymax
+          elseif ((y-ymin)*(yold-ymin) <= 0.0
+     .           .and. bcond(3)==PER
+     .           .and. yss0==ymax) then
+            yss = ymin
+          else
+            goto 3
+          endif
 
-        if(lssy) then
           call sursec(zvold,xvold,yvold,tv
      .               ,zold ,xold ,yold ,to
      .               ,z    ,x    ,y    ,tt
@@ -1211,20 +1215,22 @@ c     Check for intersection with Y surface of section
 
 c     Check for intersection with Z surface of section
 
-        !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
-        if((z-zss0)*(zold-zss0) <= 0.0) then
-          zss = zss0
-        elseif ((z-zmax)*(zold-zmax) <= 0.0
-     .         .and. bcond(5)==PER
-     .         .and. zss0==zmin) then
-          zss = zmax
-        elseif ((z-zmin)*(zold-zmin) <= 0.0
-     .         .and. bcond(5)==PER
-     .         .and. zss0==zmax) then
-          zss = zmin
-        endif
+ 3      if (lssz) then
+          !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
+          if((z-zss0)*(zold-zss0) <= 0.0) then
+            zss = zss0
+          elseif ((z-zmax)*(zold-zmax) <= 0.0
+     .           .and. bcond(5)==PER
+     .           .and. zss0==zmin) then
+            zss = zmax
+          elseif ((z-zmin)*(zold-zmin) <= 0.0
+     .           .and. bcond(5)==PER
+     .           .and. zss0==zmax) then
+            zss = zmin
+          else
+            return
+          endif
 
-        if(lssz) then
           call sursec(xvold,yvold,zvold,tv
      .               ,xold ,yold ,zold ,to
      .               ,x    ,y    ,z    ,tt
