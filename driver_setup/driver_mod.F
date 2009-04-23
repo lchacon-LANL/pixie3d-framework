@@ -4,7 +4,7 @@ c ######################################################################
 
         implicit none
 
-        integer :: nh1,nh2,nh3
+        integer :: nh1,nh2,nh3,npw1=1,npw2=1,npw3=1
 
         logical :: odd,random
 
@@ -21,19 +21,6 @@ c ######################################################################
         real(8)    ::  tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
 
       end module nk_setup
-
-ccc module precond_setup
-ccc ######################################################################
-cc      module precond_setup
-cc
-cc        integer       :: nsweep,maxvcyc,precpass,debug_it
-cc        real(8)       :: mgtol,omega
-cc
-cc        character(10) :: precon
-cc
-cc        logical       :: asm_PC=.false.
-cc
-cc      end module precond_setup
 
 c module counters
 c ######################################################################
