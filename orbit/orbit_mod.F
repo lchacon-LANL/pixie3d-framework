@@ -7,7 +7,7 @@ c ######################################################################
 
         use spline_field
 
-        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+        use grid, ONLY: my_rank,pstop
 
         !ODE solver
         type :: ode_solver
@@ -35,11 +35,14 @@ c ######################################################################
 
         logical :: sing_point=.false.
 
+        integer :: iiout
+
         !Private variables
 
+        type(orbit_def),private  :: orb_default
         type(ode_solver),private :: ode_conf
 
-        integer,private :: ilevel,itime,iterror,ssorder
+        integer,private :: itime,iterror,ssorder
 
         integer,private :: nunitx,nunity,nunitz,nunitrz
         integer,private :: npointx,npointy,npointz
@@ -50,16 +53,42 @@ c ######################################################################
      .                    ,xvold,yvold,zvold,xold,yold,zold
         real(8),private :: xss,yss,zss,tss
 
+        real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax
+
         character(50),private :: ssx,ssy,ssz,ssrz
 
         logical,private :: exit_loop,cartesian=.false.,cross=.false.
-        logical,private :: lssx,lssy,lssz,rzss
+        logical,private :: lssx,lssy,lssz,rzss,ss_io=.false.
 
 cc        INTERFACE orbit_setup
-cc          module procedure orbit_setup_file
+cc          module procedure orbit_setup_file, orbit_setup_gmetric
 cc        end INTERFACE
 
       contains
+
+c     orbit_conf_def
+c     ######################################################################
+      subroutine orbit_conf_def
+
+c     ----------------------------------------------------------------------
+c     Default configuration for orbit integrator
+c     ----------------------------------------------------------------------
+
+      !ODE solver
+      orb_default%ode_conf%tmax   = 0d0
+      orb_default%ode_conf%smax   = 20000.
+      orb_default%ode_conf%dtime  = 0.01
+      orb_default%ode_conf%niter  = 20
+      orb_default%ode_conf%tol    = 1d-8
+      orb_default%ode_conf%order  = 1
+      orb_default%ode_conf%solen  = .true.
+      orb_default%ode_conf%picard = .true.
+
+      !Splines
+      orb_default%spline_conf%order = 2
+      orb_default%spline_conf%a_gauge = 2
+
+      end subroutine orbit_conf_def
 
 c     orbit_setup
 c     ######################################################################
@@ -78,22 +107,54 @@ c     Call variables
         integer :: nx,ny,nz
         real(8) :: xx(nx),yy(ny),zz(nz)
         real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
-     .            ,ax(nx,ny,nz),ay(nx,ny,nz),az(nx,ny,nz)
         real(8) :: bxcar(nx,ny,nz),bycar(nx,ny,nz),bzcar(nx,ny,nz)
         real(8) :: xmap(nx,ny,nz,3),jac(nx,ny,nz)
 
-        type(orbit_def) :: orb_conf
+        type(orbit_def),optional :: orb_conf
 
 c     Begin program
 
-        ode_conf = orb_conf%ode_conf
+        if (PRESENT(orb_conf)) then
+          orb_default = orb_conf
+        else
+          call orbit_conf_def
+        endif
+
+        ode_conf = orb_default%ode_conf
+
+c     Setup domain limits
+
+        if (bcond(1) == PER) then
+          xmin = xx(2)
+          xmax = xx(nx)
+        else
+          xmin = xx(1)
+          xmax = xx(nx)
+        endif
+
+        if (bcond(3) == PER) then
+          ymin = yy(2)
+          ymax = yy(ny)
+        else
+          ymin = yy(1)
+          ymax = yy(ny)
+        endif
+
+        if (bcond(5) == PER) then
+          zmin = zz(2)
+          zmax = zz(nz)
+        else
+          zmin = zz(1)
+          zmax = zz(nz)
+        endif
 
 c     Do splines
 
-        call setupSplines(nx,ny,nz,xx,yy,zz,orb_conf%spline_conf%order)
+        call setupSplines(nx,ny,nz,xx,yy,zz
+     .                   ,orb_default%spline_conf%order)
 
         if (ode_conf%solen) then
-          call splineA(bx,by,bz,orb_conf%spline_conf%a_gauge)
+          call splineA(bx,by,bz,orb_default%spline_conf%a_gauge)
         else
           call splineB(bx,by,bz)
         endif
@@ -103,10 +164,132 @@ c     Do splines
         call splineJ(jac )
         call splineX(xmap)
 
-        write (*,*) 'Set up splines.'
-        write (*,*)
-
       end subroutine orbit_setup
+
+ccc     orbit_setup_gmetric
+ccc     ######################################################################
+cc      subroutine orbit_setup_gmetric(igrid,nx,ny,nz,bx,by,bz,orb_conf)
+cc
+ccc     ----------------------------------------------------------------------
+ccc     Sets up orbit splines for orbit integrator.
+ccc     ----------------------------------------------------------------------
+cc
+cc        use grid
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer :: igrid,nx,ny,nz
+cc        real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
+cc
+cc        type(orbit_def),optional :: orb_conf
+cc
+ccc     Local variables
+cc
+cc        integer :: igx,igy,igz,ig,jg,kg
+cc        real(8) :: xx(nx),yy(ny),zz(nz)
+cc        real(8) :: bxcar(nx,ny,nz),bycar(nx,ny,nz),bzcar(nx,ny,nz)
+cc
+ccc     Begin program
+cc
+cc        igx = igrid
+cc        igy = igrid
+cc        igz = igrid
+cc
+cc        if (     (nx /= grid_params%nxv(igx)+2)
+cc     .      .or. (ny /= grid_params%nyv(igy)+2)
+cc     .      .or. (nz /= grid_params%nzv(igz)+2)) then
+cc          call pstop('orbit_setup','Inconsistent grid level')
+cc        endif
+cc
+cc        call getMGmap(1,1,1,igx,igy,igz,ig,jg,kg)
+cc
+cc        xx = grid_params%xx(ig:ig+nx-1)
+cc        yy = grid_params%yy(jg:jg+ny-1)
+cc        zz = grid_params%zz(kg:kg+nz-1)
+cc
+ccc     Setup domain limits
+cc
+cc        if (bcond(1) == PER) then
+cc          xmin = xx(2)
+cc          xmax = xx(nx)
+cc        else
+cc          xmin = xx(1)
+cc          xmax = xx(nx)
+cc        endif
+cc
+cc        if (bcond(3) == PER) then
+cc          ymin = yy(2)
+cc          ymax = yy(ny)
+cc        else
+cc          ymin = yy(1)
+cc          ymax = yy(ny)
+cc        endif
+cc
+cc        if (bcond(5) == PER) then
+cc          zmin = zz(2)
+cc          zmax = zz(nz)
+cc        else
+cc          zmin = zz(1)
+cc          zmax = zz(nz)
+cc        endif
+cc
+cc        bxcar = bx
+cc        bycar = by
+cc        bzcar = bz
+cc        call transformVector(igx,igy,igz
+cc     .                      ,0,nx-1,0,ny-1,0,nz-1
+cc     .                      ,bxcar,bycar,bzcar,'cnv','car')
+cc
+cc
+cc        !ODE configuration
+cc        if (PRESENT(orb_conf)) then
+cc          orb_default = orb_conf
+cc        else
+cc          call orbit_conf_def
+cc        endif
+cc
+cc        ode_conf = orb_default%ode_conf
+cc
+ccc     Do splines
+cc
+cc        call setupSplines(nx,ny,nz,xx,yy,zz
+cc     .                   ,orb_default%spline_conf%order)
+cc
+cc        if (ode_conf%solen) then
+cc          call splineA(bx,by,bz,orb_default%spline_conf%a_gauge)
+cc        else
+cc          call splineB(bx,by,bz)
+cc        endif
+cc
+cc        call splineBcar(bxcar,bycar,bzcar)
+cc
+cc        call splineJ(gmetric%grid(igrid)%jac)
+cc        call splineX(gmetric%grid(igrid)%car)
+cc
+cc        if (my_rank == 0) then
+cc          write (*,*) 'Orbit_setup: Set up splines.'
+cc          write (*,*)
+cc        endif
+cc
+cc      end subroutine orbit_setup_gmetric
+
+c     orbit_destroy
+c     ######################################################################
+      subroutine orbit_destroy
+
+c     ----------------------------------------------------------------------
+c     Frees up memory from orbit integration
+c     ----------------------------------------------------------------------
+
+c     Call variables
+
+c     Begin program
+
+        call killSplines
+
+      end subroutine orbit_destroy
 
 c     orbit_find
 c     ######################################################################
@@ -155,14 +338,34 @@ c     Local variables
 
 c     Begin program
 
-        ilevel = iout
+        iiout = iout
 
         integral = PRESENT(line_int)
 
-        chk_ss = .not.integral
+        chk_ss = (.not.integral).and.ss_io  !Do SS only if not integrating and if IO has been set up
 
         tmax = ode_conf%tmax
         smax = ode_conf%smax
+
+c     Check ranges
+
+        if((x0.le.xmin.or.x0.ge.xmax)
+     .     .and.(bcond(1)/=PER))then
+          write(*,*) 'x0(init)=',x0,' out of range:',xmin,xmax
+          return
+        endif
+
+        if((y0.le.ymin.or.y0.ge.ymax)
+     .     .and.(bcond(3)/=PER))then
+          write(*,*) 'y0(init)=',y0,' out of range:',ymin,ymax
+          return
+        endif
+
+        if((z0.le.zmin.or.z0.ge.zmax)
+     .     .and.(bcond(5)/=PER))then
+          write(*,*) 'z0(init)=',z0,' out of range:',zmin,zmax
+          return
+        endif
 
 c     Initialize orbit
 
@@ -170,14 +373,18 @@ c     Initialize orbit
 
 c     Daniele,23/03/2009: dump the initial point of the orbit
 
-        if(lssx) then
-          write(nunitx) real(y0),real(z0)
-        endif
-        if(lssy) then
-          write(nunity) real(x0),real(z0)
-        endif
-        if(lssz) then
-          write(nunitz) real(x0),real(y0)
+        if (chk_ss) then
+
+          if(lssx) then
+            write(nunitx) real(y0),real(z0)
+          endif
+          if(lssy) then
+            write(nunity) real(x0),real(z0)
+          endif
+          if(lssz) then
+            write(nunitz) real(x0),real(y0)
+          endif
+
         endif
 
 c     Orbit integral
@@ -211,7 +418,7 @@ c     Orbit integral
             exit_loop = line_int(fwd,xold,x,yold,y,zold,z,sold,ss)
 
             if (exit_loop) then
-              if (.not.fwd) write (*,*)
+              if (.not.fwd .and. iiout >=0) write (*,*)
               exit
             endif
           endif
@@ -219,9 +426,13 @@ c     Orbit integral
           !Check for intersection with surface of section
           if (iterror /= 2 .and. itime > 2 .and. chk_ss) then
             if (smax /= 0d0) then
-              call sschk(ssorder,svold,sold,ss  ,xss,yss,zss,tss)
+              call sschk(ssorder,svold,sold,ss
+     .                  ,xvold,xold,x,yvold,yold,y
+     .                  ,zvold,zold,z,xss,yss,zss,tss)
             else
-              call sschk(ssorder,tvold,told,time,xss,yss,zss,tss)
+              call sschk(ssorder,tvold,told,time
+     .                  ,xvold,xold,x,yvold,yold,y
+     .                  ,zvold,zold,z,xss,yss,zss,tss)
             endif
           endif
 
@@ -236,7 +447,7 @@ c     Orbit integral
           endif
 
           if (exit_loop) then
-            write (*,*)
+            if (iiout >=0) write (*,*)
             exit
           endif
 
@@ -288,6 +499,16 @@ c     Begin program
         npointz=0
 
         itime = 0
+
+        if (iiout == 0) then
+          write (*,FMT="(a,3f9.4,a)",ADVANCE="NO")
+     .         ' Orbit (x,y,z)=',x0,y0,z0,', Progress= '
+        elseif (iiout > 0) then
+          write (*,*) '**********************************************'
+          write (*,FMT="(a,3f9.4)") ' Orbit (x,y,z)=',x0,y0,z0
+          write (*,*) '**********************************************'
+          write (*,*)
+        endif
 
       end subroutine orbit_init
 
@@ -376,7 +597,7 @@ cc      endif
 
       if (cartesian) then
 
-        if (ilevel > 0) then
+        if (iiout > 2) then
           write (*,*)
           write (*,*) 'Performing Cartesian integration'
           write (*,*) 'time step -- initial xi=',x,y,z
@@ -411,7 +632,7 @@ cc      endif
             zc=zc+cc*half*vz
 
             !Find logical coordinates
-            call evalXi(xc,yc,zc,x,y,z,ierror)
+            call evalXi(iiout,xc,yc,zc,x,y,z,ierror)
 
             if (ierror /= 0) then
               ierror = 6
@@ -432,7 +653,7 @@ cc            call updt_measures(half,time,ds,ss)
 
           enddo
 
-          if (ilevel > 0) then
+          if (iiout > 2) then
             write (*,*)
             write (*,*) 'time step -- final xi=',x,y,z
             write (*,*) 'End Cartesian integration'
@@ -490,13 +711,13 @@ c       Check for errors
 
         if (iterr /= 0) then
 
-          if (ilevel > 1) then
+          if (iiout > 1) then
 
             if (iterr < 4) then
               write (*,*) 'Step',iterr
      .                ,' in CN did not converge to prescribed accuracy'
 
-              if (ilevel > 2) then
+              if (iiout > 2) then
                 write (*,*) 'Error history=',error
               else
                 write(*,*) 'Initial error=',error(1)
@@ -523,7 +744,7 @@ c       Check for errors
             return
           endif
 
-          if (ilevel>0) write(*,*)'Trying smaller time step:',dt,'...'
+          if (iiout>1) write(*,*)'Trying smaller time step:',dt,'...'
 
           restart = .true.
 
@@ -537,7 +758,7 @@ c       Check for errors
 
           ierror = -1
 
-          if (ilevel > 0) then
+          if (iiout > 1) then
             write (*,*) 'CN succeeded! Proceeding.'
             write (*,*)
           endif
@@ -557,7 +778,7 @@ c       Standard time integration
           write (*,*) sing_point
           stop
 
-          if (ilevel > 0) then
+          if (iiout > 1) then
             write (*,*)
             write (*,*) 'Performing Cartesian integration'
             write (*,*) 'time step -- initial xi=',x,y,z
@@ -620,14 +841,14 @@ cc        if (time > 0d0) ISTATE = 2
 
         if (sing_point) then
           !Find logical coordinates
-          call evalXi(YY(1),YY(2),YY(3),x,y,z,ierror)
+          call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,ierror)
 
           if (ierror /= 0) then
             ierror = 6
             return
           endif
 
-          if (ilevel > 0 .and. x > rmin) then
+          if (iiout > 1 .and. x > rmin) then
             write (*,*)
             write (*,*) 'time step -- final xi=',x,y,z
             write (*,*) 'End Cartesian integration'
@@ -645,7 +866,7 @@ cc          call chk_pos(x,y,z)
 
         endif
 
-        if (ilevel>=1) write(*,'(a,e10.3,a,e10.3,a,e10.3
+        if (iiout > 0) write(*,'(a,e10.3,a,e10.3,a,e10.3
      .                            ,a,f10.3,a,1p3e12.3)')
      .                       ' dt=',YY(4)-time
      .                      ,' ;  Time=',time
@@ -680,13 +901,15 @@ c     #########################################################################
       ds = dt*sqrt(vx**2+vy**2+vz**2)
       ss = ss + ds
 
-      if (ilevel>=1) write(*,'(a,e10.3,a,e10.3,a,e10.3
-     .                            ,a,f10.3,a,1p3e12.3)')
-     .                       ' dt=',dt
-     .                      ,' ;  Time=',time
-     .                      ,' ;  ds=',ds
-     .                      ,' ;  Arc length=',ss
-     .                      ,' ;  Position=',x,y,z
+      if (iiout > 0) then
+        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,f7.3,a,1p3e12.3)')
+     .         ' dt=',dt
+     .        ,' ;  Time=',time
+     .        ,' ;  ds=',ds
+     .        ,' ;  Arc length=',ss
+     .        ,' ;  Position=',x,y,z
+        write (*,*)
+      endif
 
       end subroutine updt_measures
 
@@ -725,7 +948,7 @@ c     Begin program
       y0=y
       z0=z
 
-      if (ilevel > 1) write (*,*) 'simp_step -- x0=',x0,y0,z0
+      if (iiout > 0) write (*,*) 'simp_step ',flag,' -- X0=',x0,y0,z0
 
 cc      if (newton) then
 cc        !Form Jacobian
@@ -733,20 +956,13 @@ cc        JJ = formJacobian(size,flag,dt,x0,y0,z0)
 cc        call blockSolve(size,JJ,icol,res,dx,ret_inv=.true.)
 cc      endif
 
-        !Iterations for first v1 half-step split
+      !Iterations for first v1 half-step split
       do iter=1,niter
 
          !Form residual
          res(:,1) = -formResidual(flag,dt,x0,y0,z0,x,y,z)
 
-         if (ilevel > 1) write (*,*) 'simp_step -- res=',res
-
-cc         !Check convergence
-cc         error(iter) = sqrt(sum(res**2))
-cc
-cc         if (ilevel > 1) write (*,*) 'simp_step -- error=',error(iter)
-cc
-cc         if (error(iter) < tol) exit
+         if (iiout > 2) write (*,*) 'simp_step ',flag,' -- res=',res
 
          !Find update
          if (newton) then
@@ -760,12 +976,13 @@ cc           dx = matmul(JJ,res)
            dx = res
          endif
 
-         if (ilevel > 1) write (*,*) 'simp_step -- dx=',dx
+         if (iiout > 2) write (*,*) 'simp_step ',flag,' -- dx=',dx
 
          !Check convergence
          error(iter) = sqrt(sum(dx**2))
 
-         if (ilevel > 1) write (*,*) 'simp_step -- error=',error(iter)
+         if (iiout > 2) write (*,*) 'simp_step ',flag,' -- error='
+     .                               ,error(iter)
 
          if (error(iter) < tol) exit
 
@@ -774,40 +991,17 @@ cc           dx = matmul(JJ,res)
          y = y + dx(2,1)
          z = z + dx(3,1)
 
-         if (ilevel > 1) write (*,*) 'simp_step -- pos=',x,y,z
+         if (iiout > 2) write (*,*) 'simp_step ',flag,' -- X =',x,y,z
 
       enddo
 
-cc      else
-cc
-cc        do iter=1,niter
-cc           !Find mid point (logical)
-cc           xh = 0.5*(x0+x)
-cc           yh = 0.5*(y0+y)
-cc           zh = 0.5*(z0+z)
-cc
-cc           !Find vector field at midpoint
-cc           call evalCurlA(xh,yh,zh,vx,vy,vz,flag=flag)
-cc
-cc           !Find new position
-cc           xnew=x0+cc*dt*vx
-cc           ynew=y0+cc*dt*vy         !Leave out y eq if A_x=0 gauge.
-cc           znew=z0+cc*dt*vz
-cc
-cc           !Check error
-cc           error(iter) = sqrt((xnew-x)**2+(ynew-y)**2+(znew-z)**2)
-cc
-cc           !Update current position
-cc           x = xnew
-cc           y = ynew
-cc           z = znew
-cc
-cc           if (error(iter) < tol) exit
-cc        enddo
-cc
-cc      endif
+      if (iiout > 0) then
+        write (*,*) 'simp_step ',flag,' -- X =',x,y,z
+     .             ,'; error=',error(min(iter,niter))
+cc        pause
+      endif
 
-      if (ilevel > 0) write (*,*) 'simp_step -- error history'
+      if (iiout > 2) write (*,*) 'simp_step ',flag,' -- error history'
      .                            ,error(1:min(iter,niter))
 
       if (iter > niter) iterr = flag
@@ -887,7 +1081,7 @@ c     -----------------------------------------------------------------
 cc        exit_loop = .false.
 cc
 cc        if (abs(time) > tmax) then
-cc          if (ilevel == 0) then
+cc          if (iiout == 0) then
 cc            if (cartesian) then
 cc              write (*,FMT="(a1)") 'C'
 cc              cartesian = .false.
@@ -903,7 +1097,7 @@ cc              endif
 cc            endif
 cc          endif
 cc          exit_loop = .true.
-cc        elseif (ilevel == 0) then
+cc        elseif (iiout == 0) then
 cc          if (abs(time-tprev) > 0.1*tmax) then
 cc            if (cartesian) then
 cc              write (*,FMT="(a1)",ADVANCE="NO") 'C'
@@ -924,7 +1118,7 @@ cc        endif
 
         exit_loop = (abs(time) > tmax)
 
-        if (ilevel == 0) then
+        if (iiout == 0) then
           if (abs(time-tprev) > 0.1*tmax .or. exit_loop) then
             if (cartesian) then
               write (*,FMT="(a1)",ADVANCE="NO") 'C'
@@ -999,7 +1193,7 @@ c     -----------------------------------------------------------------
 
 c     Begin program
 
-        write (*,*)
+        if (my_rank == 0 .and. iiout >= 0) write (*,*)
 
 c     Initialize private variables
 
@@ -1018,11 +1212,11 @@ c     Set position of SS
 c     Consistency check
 
         if ((.not.lssx) .and. (.not.lssy) .and. (.not.lssz)) then
-          write (*,*) 'No Surface of section selected. Aborting.'
-          stop
+          call pstop('ss_init'
+     .              ,'No Surface of section selected. Aborting.')
         elseif (lssx .and. lssy .and. lssz) then
-          write (*,*) 'Cannot select all 3 surfaces of section!!'
-          stop
+          call pstop('ss_init'
+     .              ,'Cannot select all 3 surfaces of section!!')
         endif
 
       end subroutine ss_init
@@ -1047,6 +1241,8 @@ c     Local variables
         character(50) :: drawin
 
 c     Begin program
+
+        ss_io = .true.   !Turn on SS XDRAW IO
 
         if (PRESENT(rz_ss)) then
           rzss = rz_ss
@@ -1123,7 +1319,8 @@ c     Begin program
 
 c     sschk
 c     #################################################################
-      subroutine sschk(order,tv,to,tt,xss,yss,zss,tss)
+      subroutine sschk(order,tv,to,tt,xvold,xold,x,yvold,yold,y
+     .                ,zvold,zold,z,xss,yss,zss,tss)
 
 c     -----------------------------------------------------------------
 c     Checks whether orbit intersects specified surfaces of section
@@ -1135,6 +1332,9 @@ c     Call variables
 
         integer,intent(IN) :: order
         real(8),intent(IN) :: tv,to,tt
+     .                       ,xvold,xold,x
+     .                       ,yvold,yold,y
+     .                       ,zvold,zold,z
         real(8),intent(OUT):: xss,yss,zss,tss
 
 c     Local variables
@@ -1182,7 +1382,7 @@ c     Check for intersection with X surface of section
 
           call chk_pos(xss,yss,zss) !this resets logical coords
 
-          write(nunitx) real(yss),real(zss)
+          if (ss_io) write(nunitx) real(yss),real(zss)
         endif
 
 c     Check for intersection with Y surface of section
@@ -1210,7 +1410,7 @@ c     Check for intersection with Y surface of section
 
           call chk_pos(xss,yss,zss) !this resets logical coords
 
-          write(nunity) real(xss),real(zss)
+          if (ss_io) write(nunity) real(xss),real(zss)
         endif
 
 c     Check for intersection with Z surface of section
@@ -1236,7 +1436,7 @@ c     Check for intersection with Z surface of section
      .               ,x    ,y    ,z    ,tt
      .               ,zss,npointz,xss,yss,tss,iwhich)
 
-          if (rzss) then   !Find R-Z plane positions
+          if (rzss.and.ss_io) then   !Find R-Z plane positions
             call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
             rr = sqrt(xcar**2+ycar**2)
             write(nunitrz) real(rr),real(zcar)
@@ -1244,7 +1444,7 @@ c     Check for intersection with Z surface of section
             call chk_pos(xss,yss,zss) !this resets logical coords
           endif
 
-          write(nunitz) real(xss),real(yss)
+          if (ss_io) write(nunitz) real(xss),real(yss)
         endif
 
       end subroutine sschk
@@ -1350,7 +1550,7 @@ c -------------------------------------------------------------------------
 c     Driver routine for LSODE integration: ydot = ff(y,t)
 c -------------------------------------------------------------------------
 
-      use orbit, ONLY: spt => sing_point
+      use orbit, ONLY: spt => sing_point,iiout
       use spline_field
 
       implicit none
@@ -1370,7 +1570,7 @@ c Begin program
       !Find vector field
       if (spt) then
         !Find logical coords
-        call evalXi(y(1),y(2),y(3),x1,y1,z1,ierror)
+        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,ierror)
         if (ierror /= 0) then
           write (*,*) 'Could not find logical coords in ff'
           stop
