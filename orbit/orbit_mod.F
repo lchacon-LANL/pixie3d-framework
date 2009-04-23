@@ -418,7 +418,8 @@ c     Orbit integral
             exit_loop = line_int(fwd,xold,x,yold,y,zold,z,sold,ss)
 
             if (exit_loop) then
-              if (.not.fwd .and. iiout >=0) write (*,*)
+cc              if (.not.fwd .and. iiout >=0) write (*,*)
+              if (iiout >=0) write (*,*)
               exit
             endif
           endif
