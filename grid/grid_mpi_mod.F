@@ -669,7 +669,8 @@ cc      navg = nint((nx*ny*nz/nprocs)**(1./nd))
       navg = int((nx*ny*nz/nprocs)**(1./nd))
 
       npt = (/nx,ny,nz/)
-      exp = nint(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
+cc      exp = nint(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
+      exp = int(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
 
 cc      write (*,*) 'DIAG -- procAlloc',nx,ny,nz,nprocs,navg,exp,sum_exp
 
