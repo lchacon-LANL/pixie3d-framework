@@ -2,6 +2,10 @@ c module spline_field
 c #####################################################################
       module spline_field
 
+        use xdraw_io
+
+        use grid, ONLY:pstop
+
         use bc_def
 
         real(8)  :: db3val
@@ -216,9 +220,6 @@ c     Get vector potential
 
       call getA_on_mesh(nx,ny,nz,xs,ys,zs,bx,by,bz,ax,ay,az,ag)
 
-      write (*,*) 'Got vector potential.'
-      write (*,*)
-
 c     Spline vector potential
 
       select case(ag)
@@ -285,6 +286,11 @@ c     Begin program
       b(:,:,:,2) = by
       b(:,:,:,3) = bz
 
+      !Account for collapsed dimensions
+      if (nxl == 1) gauge = 2
+      if (nyl == 1) gauge = 3
+      if (nzl == 1) gauge = 1
+
 c     Accommodate different gauges
 
       select case(gauge)
@@ -292,7 +298,6 @@ c     Accommodate different gauges
 
 c       Gauge
 
-cc        a = 0d0
         a(:,:,:,1)=0d0
 
 c       Quadrant-based code (SP ready, parallel-ready)
@@ -321,7 +326,6 @@ c       Quadrant-based code (SP ready, parallel-ready)
 
 c       Gauge
 
-cc        a = 0d0
         a(:,:,:,2)=0d0
 
 c       Quadrant-based code
@@ -347,15 +351,33 @@ c       Quadrant-based code
      .               ,a(0:nxl+1,nyl/2:nyl+1,nzl/2:nzl+1,1:3))
 
       case default
-        write (*,*) 'Gauge not implemented'
-        stop
+        call pstop('getA','Gauge not implemented for ny=1')
       end select
+
+c     Take care of collapsed dimensions (no motion along those)
+
+      if (nxl == 1) a(:,:,:,2:3) = 0d0
+
+      if (nyl == 1) then
+        a(:,:,:,1) = 0d0
+        a(:,:,:,3) = 0d0
+      endif
+
+      if (nzl == 1) a(:,:,:,1:2) = 0d0
 
 c     Transform A components to Ay=0 gauge
 
       ax = a(:,:,:,1)
       ay = a(:,:,:,2)
       az = a(:,:,:,3)
+
+cc      open(unit=110,file='debug.bin',form='unformatted'
+cc     .    ,status='replace')
+cc      call contour(ax(:,:,3),nx,ny,0d0,xmax,0d0,ymax,0,110)
+cc      call contour(ay(:,:,3),nx,ny,0d0,xmax,0d0,ymax,1,110)
+cc      call contour(az(:,:,3),nx,ny,0d0,xmax,0d0,ymax,1,110)
+cc      close(110)
+cc      stop
 
 c     End program
 
@@ -991,7 +1013,7 @@ c     evalB
 c     #################################################################
       subroutine evalB(x1,x2,x3,bx,by,bz)
 c     -----------------------------------------------------------------
-c     This evaluates vector potential components at logical position
+c     This evaluates magnetic field components at logical position
 c     (x1,x2,x3).
 c     -----------------------------------------------------------------
 
@@ -1119,7 +1141,7 @@ c     Begin program
 
 c     evalXi
 c     #################################################################
-      subroutine evalXi(x,y,z,x1,x2,x3,ierror)
+      subroutine evalXi(ilevel,x,y,z,x1,x2,x3,ierror)
 c     -----------------------------------------------------------------
 c     This evaluates logical position (x1,x2,x3) at Cartesian position
 c     (x,y,z). Requires Newton inversion of map x(xi). On input,
@@ -1130,7 +1152,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer :: ierror
+      integer :: ilevel,ierror
       real(8) :: x,y,z,x1,x2,x3
 
 c     Local variables
@@ -1143,7 +1165,7 @@ c     Local variables
 
 c     Begin program
 
-cc      if (ilevel > 0) write (*,*) 'evalXi -- xi=',x1,x2,x3
+      if (ilevel > 1) write (*,*) 'evalXi -- xi=',x1,x2,x3
 
       do iter=1,maxit
 
@@ -1152,7 +1174,7 @@ cc      if (ilevel > 0) write (*,*) 'evalXi -- xi=',x1,x2,x3
 
         error(iter) = sqrt(sum(res**2))
 
-cc        if (ilevel > 0) write (*,*) 'evalXi -- error=',error(iter)
+        if (ilevel > 1) write (*,*) 'evalXi -- error=',error(iter)
 
         if (error(iter) < 1d-10) exit
 
@@ -1162,7 +1184,7 @@ cc        if (ilevel > 0) write (*,*) 'evalXi -- error=',error(iter)
         !Find update dxi = JJ^-1(res)
         call blockSolve(size,JJ,icol,res,dxi)
 
-cc        if (ilevel > 0) write (*,*) 'evalXi -- dxi=',dxi
+        if (ilevel > 1) write (*,*) 'evalXi -- dxi=',dxi
 
         !Update solution
         x1 = x1 + dxi(1,1)
@@ -1176,15 +1198,15 @@ cc        if (ilevel > 0) write (*,*) 'evalXi -- dxi=',dxi
 
         call chk_pos(x1,x2,x3)
 
-cc        if (ilevel > 0) write (*,*) 'evalXi -- xi=',x1,x2,x3
+        if (ilevel > 1) write (*,*) 'evalXi -- xi=',x1,x2,x3
 
       enddo
 
       if (iter > maxit) then
         ierror = 1
-        write (*,*) 'No convergence in Newton'
-        write (*,*) 'Convergence history: ',error
-        return
+        call pstop('evalXi','No convergence in Newton')
+cc        write (*,*) 'Convergence history: ',error
+cc        return
       endif
 
       contains
@@ -1205,6 +1227,10 @@ c     ###################################################################
 
       res(3) = z - db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,xcoefz,work)
+
+      if (bcond(1) == PER) res(1) = mod(res(1),xmax-xmin)
+      if (bcond(3) == PER) res(2) = mod(res(2),ymax-ymin)
+      if (bcond(5) == PER) res(3) = mod(res(3),zmax-zmin)
 
       end function formResidual
 
