@@ -7,7 +7,7 @@ c ######################################################################
 
         use spline_field
 
-        use grid, ONLY: my_rank,pstop
+        use grid, ONLY: my_rank,pstop,messg
 
         !ODE solver
         type :: ode_solver
@@ -58,6 +58,7 @@ c ######################################################################
         character(50),private :: ssx,ssy,ssz,ssrz
 
         logical,private :: exit_loop,cartesian=.false.,cross=.false.
+     .                    ,cartesian_flag=.false.
         logical,private :: lssx,lssy,lssz,rzss,ss_io=.false.
 
 cc        INTERFACE orbit_setup
@@ -538,9 +539,9 @@ c     Local Variables
       real(8) :: vx,vy,vz,error(ode_conf%niter),tol,dtime
       real(8) :: xh,yh,zh,xnew,ynew,znew,xc,yc,zc,ds,cc
       integer :: iter,iterr,order,niter
-      logical :: restart,cartesian,nt,fwd,sln
+      logical :: restart,nt,fwd,sln
 
-      real(8) :: rmin=1d-3
+      real(8) :: rmin=1d-4
 
       save dt
 
@@ -548,7 +549,7 @@ c     Local Variables
       INTEGER :: IOPT, IOUT, ISTATE, ITASK, ITOL, IWORK(20), LIW, LRW,
      .           MF, NEQ, NEQD(1)
       PARAMETER  (NEQ=5,LRW = 20 + 16*NEQ,LIW = 20)
-      REAL(8) :: ATOL(NEQ),RTOL(1),RWORK(20 + 16*NEQ),T,TOUT,YY(NEQ)
+      REAL(8) :: ATOL(NEQ),RTOL(1),RWORK(LRW),T,TOUT,YY(NEQ)
 
       EXTERNAL :: FF
 
@@ -556,7 +557,7 @@ c     Begin program
 
 c     ODE configuration
 
-      dtime  = ode_conf%dtime
+      dtime = ode_conf%dtime
 
       niter = ode_conf%niter
       tol   = ode_conf%tol
@@ -596,76 +597,79 @@ cccc        sing_point = (vx < 0d0)      !Perform SP integration only if vx < 0
 cc
 cc      endif
 
-      if (cartesian) then
-
-        if (iiout > 2) then
-          write (*,*)
-          write (*,*) 'Performing Cartesian integration'
-          write (*,*) 'time step -- initial xi=',x,y,z
-          write (*,*)
-        endif
-
-        !Estimate time step
-        jach = evalJ(x,y,z,ierror)
-
-        if (ierror /= 0) then
-          ierror = 5
-          return
-        endif
-
-        call evalCurlA(x,y,z,vx,vy,vz) 
-
-        if (cc*vx < 0d0) then    !Perform integration only if cc*vx < 0
-          half = 2*abs(rmin*jach/vx)
-
-          !Start time cycle
-          do
-
-            !Find Cartesian coordinates
-            call evalX(x,y,z,xc,yc,zc)
-
-            !Find Cartesian vector components
-            call evalBcar(x,y,z,vx,vy,vz)
-
-            !Update cartesian coordinates (Forward Euler, single step)
-            xc=xc+cc*half*vx
-            yc=yc+cc*half*vy
-            zc=zc+cc*half*vz
-
-            !Find logical coordinates
-            call evalXi(iiout,xc,yc,zc,x,y,z,ierror)
-
-            if (ierror /= 0) then
-              ierror = 6
-              return
-            endif
-
-cc            call updt_measures(half,time,ds,ss)
-
-            !Update time step
-            time=time+half  !Include Jacobian factor to advance time
-
-            !Update arc length
-            ds = half*sqrt(vx**2+vy**2+vz**2)
-            ss = ss + ds
-
-            !Check we are out of inner circle or radius rmin
-            if (x > rmin) exit
-
-          enddo
-
-          if (iiout > 2) then
-            write (*,*)
-            write (*,*) 'time step -- final xi=',x,y,z
-            write (*,*) 'End Cartesian integration'
-            write (*,*)
-          endif
-
-          ierror = -2
-
-          return
-        endif
-      endif
+cc      if (cartesian) then
+cc
+cc        if (iiout > 2) then
+cc          write (*,*)
+cc          write (*,*) 'Performing Cartesian integration'
+cc          write (*,*) 'time step -- initial xi=',x,y,z
+cc          write (*,*)
+cc        endif
+cc
+cc        !Estimate time step
+cc        jach = evalJ(x,y,z,ierror)
+cc
+cc        if (ierror /= 0) then
+cc          ierror = 5
+cc          return
+cc        endif
+cc
+cc        call evalCurlA(x,y,z,vx,vy,vz) 
+cc
+cc        if (cc*vx < 0d0) then    !Perform integration only if cc*vx < 0
+cccc          half = 2*abs(rmin*jach/vx)
+cc          half = 0.1*abs(rmin*jach/vx)
+cc
+cc          !Start time cycle
+cc          do
+cc
+cc            !Find Cartesian coordinates
+cc            call evalX(x,y,z,xc,yc,zc)
+cc
+cc            !Find Cartesian vector components
+cc            call evalBcar(x,y,z,vx,vy,vz)
+cc
+cc            !Update cartesian coordinates (Forward Euler, single step)
+cc            xc=xc+cc*half*vx
+cc            yc=yc+cc*half*vy
+cc            zc=zc+cc*half*vz
+cc
+cc            !Find logical coordinates
+cc            call evalXi(iiout,xc,yc,zc,x,y,z,ierror)
+cc
+cc            if (ierror /= 0) then
+cc              ierror = 6
+cc              return
+cc            endif
+cc
+cccc            call updt_measures(half,time,ds,ss)
+cc
+cc            !Update time step
+cc            time=time+half  !Include Jacobian factor to advance time
+cc
+cc            !Update arc length
+cc            ds = half*sqrt(vx**2+vy**2+vz**2)
+cc            ss = ss + ds
+cc
+cc             if (iiout > 2) write (*,*) 'Cartesian step, dt=',half
+cc
+cc            !Check we are out of inner circle or radius rmin
+cc            if (x > rmin) exit
+cc
+cc          enddo
+cc
+cc          if (iiout > 2) then
+cc            write (*,*)
+cc            write (*,*) 'time step -- final xi=',x,y,z
+cc            write (*,*) 'End Cartesian integration'
+cc            write (*,*)
+cc          endif
+cc
+cc          ierror = -2
+cc
+cc          return
+cc        endif
+cc      endif
 
 c     Solenoidal time integration
 
@@ -673,8 +677,42 @@ c     Solenoidal time integration
 
         dt = min(dtime,1.2*dt)
 
+        !Cartesian step (near SP)
+ 1      if (cartesian) then
+
+cc          !Estimate time step
+cc          jach = evalJ(x,y,z,ierror)
+cc
+cc          if (ierror /= 0) then
+cc            ierror = 5
+cc            return
+cc          endif
+cc
+cc          call evalCurlA(x,y,z,vx,vy,vz) 
+cc
+cc          dt = min(dtime,0.1*abs(rmin*jach/vx))
+cc
+cc          if (iiout > 2) then
+cc            write (*,*)
+cc            write (*,*) 'Performing Cartesian integration'
+cc            write (*,*) 'time step -- initial xi=',x,y,z
+cc            write (*,*)
+cc            write (*,*) 'Cartesian step, dt=',dt
+cc          endif
+
+          call simp_step(nt,niter,tol,dt,x,y,z,0,iterr,error)
+
+cc          if (iiout > 2) then
+cc            write (*,*)
+cc            write (*,*) 'time step -- final xi=',x,y,z
+cc            write (*,*) 'End Cartesian integration'
+cc            write (*,*)
+cc          endif
+
+          if (iterr == 0) iterr = -2  !Notify of Cartesian step
+
         !Second order splitting
- 1      if (order==2) then
+        elseif (order==2) then
 
           half = 0.5*dt
 
@@ -701,36 +739,38 @@ c         Begin second half-step split
 
 c       Find jacobian at mid-point (for time/arc-length integral)
 
-        xh = 0.5*(xold+x)
-        yh = 0.5*(yold+y)
-        zh = 0.5*(zold+z)
-        jach = evalJ(xh,yh,zh,ierror)
+        if (cartesian) then
+          jach = 1d0
+        else
+          xh = 0.5*(xold+x)
+          yh = 0.5*(yold+y)
+          zh = 0.5*(zold+z)
+          jach = evalJ(xh,yh,zh,ierror)
 
-        if (ierror /= 0) iterr = 4
+          if (ierror /= 0) iterr = 4
+        endif
 
 c       Check for errors
 
-        if (iterr /= 0) then
+        ierror = iterr
 
-          if (iiout > 1) then
+        if (iterr /= 0 .and. iterr /= -2) then
 
-            if (iterr < 4) then
+          if (iterr < 4 .and. iterr > 0) then
+            if (iiout == 1) then
               write (*,*) 'Step',iterr
      .                ,' in CN did not converge to prescribed accuracy'
-
-              if (iiout > 2) then
-                write (*,*) 'Error history=',error
-              else
-                write(*,*) 'Initial error=',error(1)
-                write(*,*) 'Final error  =',error(niter),'> tol=',tol
-              endif
-            elseif (iterr == 4) then
-              write (*,*) 'Negative Jacobian'
-            else
-              ierror = iterr
-              return
+            elseif (iiout == 2) then
+              write(*,*) 'Initial error=',error(1)
+              write(*,*) 'Final error  =',error(niter),'> tol=',tol
+            elseif (iiout > 2) then
+              write (*,*) 'Error history=',error
             endif
-
+          elseif (iterr == 4) then
+            if (iiout > 1) write (*,*) 'Negative Jacobian'
+          else
+            write (messg,*) 'Unknown error ',iterr
+            call pstop('orbit_step',messg)
           endif
 
           !Return to initial conditions and try again with smaller time step
@@ -949,7 +989,7 @@ c     Begin program
       y0=y
       z0=z
 
-      if (iiout > 0) write (*,*) 'simp_step ',flag,' -- X0=',x0,y0,z0
+      if (iiout > 1) write (*,*) 'simp_step ',flag,' -- X0=',x0,y0,z0
 
 cc      if (newton) then
 cc        !Form Jacobian
@@ -996,7 +1036,7 @@ cc           dx = matmul(JJ,res)
 
       enddo
 
-      if (iiout > 0) then
+      if (iiout > 1) then
         write (*,*) 'simp_step ',flag,' -- X =',x,y,z
      .             ,'; error=',error(min(iter,niter))
 cc        pause
@@ -1020,7 +1060,9 @@ c     ###################################################################
       integer :: flag
       real(8) :: dt,x0,y0,z0,x1,y1,z1,res(3)
 
-      real(8) :: xh,yh,zh,vx,vy,vz
+      real(8) :: cdt,xh,yh,zh,vx,vy,vz,xc0,yc0,zc0,x11,y11,z11
+
+      cdt = cc*dt
 
       !Find mid point
       xh = 0.5*(x1+x0)
@@ -1028,12 +1070,38 @@ c     ###################################################################
       zh = 0.5*(z1+z0)
 
       !Find vector field at midpoint
-      call evalCurlA(xh,yh,zh,vx,vy,vz,flag=flag)
+cc      call evalCurlA(xh,yh,zh,vx,vy,vz,flag=flag)
+      call getB(xh,yh,zh,vx,vy,vz,.true.,cartesian,flag=flag)
 
       !Evaluate residual
-      res(1) = x1 - x0 -cc*dt*vx
-      res(2) = y1 - y0 -cc*dt*vy
-      res(3) = z1 - z0 -cc*dt*vz
+      if (cartesian) then
+
+        !Find Cartesian coordinates
+        call evalX(x0,y0,z0,xc0,yc0,zc0)
+
+        !Update Cartesian coordinates
+        xc0 = xc0 +cdt*vx
+        yc0 = yc0 +cdt*vy
+        zc0 = zc0 +cdt*vz
+
+        !Find logical coordinates
+        x11 = x0 ; y11 = y0 ; z11 = z0
+        call evalXi(iiout,xc0,yc0,zc0,x11,y11,z11,ierror)
+cc        call evalXi(2,xc0,yc0,zc0,x11,y11,z11,ierror)  !diag
+
+        if (ierror /= 0) then
+          call pstop('formResidual','Could not find logical coords')
+        endif
+
+        res(1) = x1 - x11
+        res(2) = y1 - y11
+        res(3) = z1 - z11
+
+      else
+        res(1) = x1 - x0 -cdt*vx
+        res(2) = y1 - y0 -cdt*vy
+        res(3) = z1 - z0 -cdt*vz
+      endif
 
       end function formResidual
 
@@ -1121,9 +1189,9 @@ cc        endif
 
         if (iiout == 0) then
           if (abs(time-tprev) > 0.1*tmax .or. exit_loop) then
-            if (cartesian) then
+            if (cartesian_flag) then
               write (*,FMT="(a1)",ADVANCE="NO") 'C'
-              cartesian = .false.
+              cartesian_flag = .false.
             elseif (cross) then
               write (*,FMT="(a1)",ADVANCE="NO") 'X'
               cross = .false.
@@ -1161,7 +1229,7 @@ c     -----------------------------------------------------------------
         case(-1)   !Time step cut performed (not fatal)
           cross = .true.
         case(-2)   !Cartesian integration performed (not fatal)
-          cartesian = .true.
+          cartesian_flag = .true.   
         case(1)
           write (*,*) 'Time step too small. Skipping orbit'
           exitloop = .true.
@@ -1350,12 +1418,16 @@ c     Begin program
 c     Lower order of interpolation for SS if derivatives are too different
 
         if (to > tv) then
-          if(    (   abs(xold-xvold)/(to-tv)
-     .            >5*abs(x    -xold)/(tt-to))
-     .       .or.(   abs(yold-yvold)/(to-tv)
-     .            >5*abs(y    -yold)/(tt-to))
-     .       .or.(   abs(zold-zvold)/(to-tv)
-     .            >5*abs(z    -zold)/(tt-to)) ) iwhich = 1
+          if (tt > to) then
+            if(    (   abs(xold-xvold)/(to-tv)
+     .              >5*abs(x    -xold)/(tt-to))
+     .         .or.(   abs(yold-yvold)/(to-tv)
+     .              >5*abs(y    -yold)/(tt-to))
+     .         .or.(   abs(zold-zvold)/(to-tv)
+     .              >5*abs(z    -zold)/(tt-to)) ) iwhich = 1
+          else
+            iwhich = 1
+          endif
         endif
 
 c     Check for intersection with X surface of section
@@ -1441,6 +1513,7 @@ c     Check for intersection with Z surface of section
             call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
             rr = sqrt(xcar**2+ycar**2)
             write(nunitrz) real(rr),real(zcar)
+cc            write(*,*) real(rr),real(zcar)   !diag
           else
             call chk_pos(xss,yss,zss) !this resets logical coords
           endif

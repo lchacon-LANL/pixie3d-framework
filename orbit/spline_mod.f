@@ -52,7 +52,7 @@ c     Begin program
 
       ierror = 0
 
-      if(x.gt.xmax) then
+      if (x > xmax) then
         if (bcond(2) == PER) then   !Periodic BC
           x = xmin + mod(x,(xmax-xmin))
         else
@@ -60,7 +60,12 @@ c     Begin program
         endif
       endif
 
-      if(x.lt.xmin) then
+      if (x < 0d0 .and. bcond(1) == SP) then !Singular point BC
+        x =-x
+        y = y + acos(-1d0)
+      endif
+
+      if (x < xmin) then
         if (bcond(1) == PER) then   !Periodic BC
           x = xmax - mod(xmin-x,xmax-xmin)
         else
@@ -68,7 +73,7 @@ c     Begin program
         endif
       endif
 
-      if(y.gt.ymax) then
+      if (y > ymax) then
         if (bcond(4) == PER) then   !Periodic BC
           y = ymin + mod(y,(ymax-ymin))
         else
@@ -76,16 +81,15 @@ c     Begin program
         endif
       endif
 
-      if(y.lt.ymin) then
+      if (y < ymin) then
         if (bcond(3) == PER) then   !Periodic BC
-cc          y = ymax - (ymin-y)
           y = ymax - mod(ymin-y,ymax-ymin)
         else
           ierror = 1
         endif
       endif
 
-      if(z.gt.zmax) then
+      if (z > zmax) then
         if (bcond(6) == PER) then   !Periodic BC
           z = zmin + mod(z,(zmax-zmin))
         else
@@ -93,7 +97,7 @@ cc          y = ymax - (ymin-y)
         endif
       endif
 
-      if(z.lt.zmin) then
+      if (z < zmin) then
         if (bcond(5) == PER) then   !Periodic BC
           z = zmax - mod(zmin-z,zmax-zmin)
         else
@@ -102,9 +106,15 @@ cc          y = ymax - (ymin-y)
       endif
 
       if (ierror /= 0) then
+        write (*,*)
         write (*,*) 'OOPS; out of domain!'
-        write (*,*) 'Domain limits=',xmin,xmax,ymin,ymax,zmin,zmax
+        write (*,*)
         write (*,*) 'Current position',x,y,z
+        write (*,*)
+        write (*,*) 'X domain limits=',xmin,xmax
+        write (*,*) 'Y domain limits=',ymin,ymax
+        write (*,*) 'Z domain limits=',zmin,zmax
+cc        write (*,*) x/0d0
 cc        write (*,*) 'Old     position',xold,yold,zold
         stop
       endif
@@ -617,7 +627,7 @@ cc        cp= 0.4166666666667
 cc
 cc        do k=2,nz
 cc          dz = (zz(k)-zz(k-1))
-cc          if(k.eq.2) then
+cc          if (k.eq.2) then
 cccc            ax(:,1,k)=ax(:,1,k-1)+ dz*(tm*by(:,1,k-1)+t0*by(:,1,k))
 cc            ax(:,1,k)=ax(:,1,k-1)+ dz*(cp*by(:,1,k-1)
 cc     .                                +c0*by(:,1,k  )
@@ -906,8 +916,6 @@ c     Begin program
         iidz = 0
       endif
 
-      call chk_pos(x1,x2,x3)
-
       if (PRESENT(flag)) then
         flg = flag
       else
@@ -915,6 +923,8 @@ c     Begin program
       endif
 
 c     Calculate derivatives
+
+      call chk_pos(x1,x2,x3)
 
       select case(ag)
       case(1) !Ax=0
@@ -953,7 +963,7 @@ c     Calculate derivatives
      .               ,kx,ky,kz,acoefz,work)
         case default
 
-          write (*,*) 'Flag not implemented in evalCurlA'
+          write (*,*) 'Flag ',flg,' not implemented in evalCurlA'
           stop
 
         end select
@@ -1071,7 +1081,7 @@ c     Begin program
 
 c     getB
 c     ##################################################################
-      subroutine getB(x1,x2,x3,b1,b2,b3,solen,car)
+      subroutine getB(x1,x2,x3,b1,b2,b3,solen,car,flag)
 
 c     ------------------------------------------------------------------
 c     Finds magnetic field components on specified location in LOGICAL
@@ -1084,6 +1094,7 @@ c     Call variables
 
       real(8) :: x1,x2,x3,b1,b2,b3
       logical :: solen,car
+      integer,optional :: flag
 
 c     Local variables
 
@@ -1098,7 +1109,7 @@ c     Begin program
 
       else
         if (solen) then
-          call evalCurlA(x1,x2,x3,b1,b2,b3)
+          call evalCurlA(x1,x2,x3,b1,b2,b3,flag=flag)
         else
           call evalB    (x1,x2,x3,b1,b2,b3)
         endif
@@ -1165,7 +1176,11 @@ c     Local variables
 
 c     Begin program
 
-      if (ilevel > 1) write (*,*) 'evalXi -- xi=',x1,x2,x3
+      if (ilevel > 1) then
+        write (*,*)
+        write (*,*) 'evalXi -- x =',x,y,z
+        write (*,*) 'evalXi -- xi=',x1,x2,x3
+      endif
 
       do iter=1,maxit
 
@@ -1190,11 +1205,6 @@ c     Begin program
         x1 = x1 + dxi(1,1)
         x2 = x2 + dxi(2,1)
         x3 = x3 + dxi(3,1)
-
-        if (x1 < 0d0) then  !Apply regularity
-          x1 = -x1
-          x2 = x2 + acos(-1d0)
-        endif
 
         call chk_pos(x1,x2,x3)
 
