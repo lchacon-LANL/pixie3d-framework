@@ -4,7 +4,7 @@ c #####################################################################
 
         use xdraw_io
 
-        use grid, ONLY:pstop
+        use grid, ONLY:pstop,my_rank
 
         use bc_def
 
@@ -1169,12 +1169,17 @@ c     Call variables
 c     Local variables
 
       integer,parameter :: maxit=100,size=3,icol=1
+      real(8),parameter :: tol=1d-10
 
       integer :: iter
       real(8) :: JJ(size,size),res(size,icol)
      .          ,dxi(size,icol),error(maxit)
 
+      logical :: prnt
+
 c     Begin program
+
+      prnt = (my_rank == 0).and.(ilevel > 1)
 
       if (ilevel > 1) then
         write (*,*)
@@ -1187,11 +1192,13 @@ c     Begin program
         !Form residual and check convergence
         res(:,1) = formResidual(x1,x2,x3)
 
+        if (prnt) write (*,*) 'evalXi -- res=',res
+
         error(iter) = sqrt(sum(res**2))
 
-        if (ilevel > 1) write (*,*) 'evalXi -- error=',error(iter)
+        if (prnt) write (*,*) 'evalXi -- error=',error(iter)
 
-        if (error(iter) < 1d-10) exit
+        if (error(iter) < tol) exit
 
         !Form Jacobian
         JJ = formJacobian(x1,x2,x3)
@@ -1199,7 +1206,14 @@ c     Begin program
         !Find update dxi = JJ^-1(res)
         call blockSolve(size,JJ,icol,res,dxi)
 
-        if (ilevel > 1) write (*,*) 'evalXi -- dxi=',dxi
+        if (prnt) write (*,*) 'evalXi -- dxi=',dxi
+
+        !Check convergence
+cc        error(iter) = sqrt(sum(dxi**2))
+cc
+cc        if (prnt) write (*,*) 'evalXi -- error=',error(iter)
+cc
+cc        if (error(iter) < tol) exit
 
         !Update solution
         x1 = x1 + dxi(1,1)
@@ -1208,15 +1222,22 @@ c     Begin program
 
         call chk_pos(x1,x2,x3)
 
-        if (ilevel > 1) write (*,*) 'evalXi -- xi=',x1,x2,x3
+        if (prnt) write (*,*) 'evalXi -- xi=',x1,x2,x3
 
       enddo
 
       if (iter > maxit) then
         ierror = 1
-        call pstop('evalXi','No convergence in Newton')
-cc        write (*,*) 'Convergence history: ',error
-cc        return
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) 'evalXi -- x =',x,y,z
+          write (*,*) 'evalXi -- xi=',x1,x2,x3
+          write (*,*) 'evalXi -- domain=',xmin,xmax,ymin,ymax,zmin,zmax
+          write (*,*) 'evalXi -- Convergence history: ',error
+        endif
+cc        call pstop('evalXi','No convergence in Newton')
+      else
+        ierror = 0
       endif
 
       contains
@@ -1238,9 +1259,9 @@ c     ###################################################################
       res(3) = z - db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,xcoefz,work)
 
-      if (bcond(1) == PER) res(1) = mod(res(1),xmax-xmin)
-      if (bcond(3) == PER) res(2) = mod(res(2),ymax-ymin)
-      if (bcond(5) == PER) res(3) = mod(res(3),zmax-zmin)
+      if (bcond(1) == PER) res(1) = mod(res(1),xmax-xmin-0.1*tol)
+      if (bcond(3) == PER) res(2) = mod(res(2),ymax-ymin-0.1*tol)
+      if (bcond(5) == PER) res(3) = mod(res(3),zmax-zmin-0.1*tol)
 
       end function formResidual
 
