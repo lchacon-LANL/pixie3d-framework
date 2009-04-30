@@ -587,84 +587,9 @@ c     Check for SP
 
       cartesian = (bcond(1)==SP).and.(x<rmin)
 
-      sing_point = cartesian
+      if (cartesian .and. (.not.sing_point) ) ISTATE=1 !Restart LSODE for cartesian step
 
-cc      if (cartesian) then
-cc
-cc        if (iiout > 2) then
-cc          write (*,*)
-cc          write (*,*) 'Performing Cartesian integration'
-cc          write (*,*) 'time step -- initial xi=',x,y,z
-cc          write (*,*)
-cc        endif
-cc
-cc        !Estimate time step
-cc        jach = evalJ(x,y,z,ierror)
-cc
-cc        if (ierror /= 0) then
-cc          ierror = 5
-cc          return
-cc        endif
-cc
-cc        call evalCurlA(x,y,z,vx,vy,vz) 
-cc
-cc        if (cc*vx < 0d0) then    !Perform integration only if cc*vx < 0
-cccc          half = 2*abs(rmin*jach/vx)
-cccc          half = 0.1*abs(rmin*jach/vx)
-cc          half = 0.1*min(dt,rmin*jach/vx)
-cc
-cc          !Start time cycle
-cc          do
-cc
-cc            !Find Cartesian coordinates
-cc            call evalX(x,y,z,xc,yc,zc)
-cc
-cc            !Find Cartesian vector components
-cc            call evalBcar(x,y,z,vx,vy,vz)
-cc
-cc            !Update cartesian coordinates (Forward Euler, single step)
-cc            xc=xc+cc*half*vx
-cc            yc=yc+cc*half*vy
-cc            zc=zc+cc*half*vz
-cc
-cc            !Find logical coordinates
-cc            call evalXi(iiout,xc,yc,zc,x,y,z,ierror)
-cc
-cc            write (*,*) 'Cartesian step, dt=',half,'Position =',x,y,z
-cc
-cc            if (ierror /= 0) then
-cc              ierror = 6
-cc              return
-cc            endif
-cc
-cccc            call updt_measures(half,time,ds,ss)
-cc
-cc            !Update time step
-cc            time=time+half  !Include Jacobian factor to advance time
-cc
-cc            !Update arc length
-cc            ds = half*sqrt(vx**2+vy**2+vz**2)
-cc            ss = ss + ds
-cc
-cc             if (iiout > 2) write (*,*) 'Cartesian step, dt=',half
-cc
-cc            !Check we are out of inner circle or radius rmin
-cc            if (x > rmin) exit
-cc
-cc          enddo
-cc
-cc          if (iiout > 2) then
-cc            write (*,*)
-cc            write (*,*) 'time step -- final xi=',x,y,z
-cc            write (*,*) 'End Cartesian integration'
-cc            write (*,*)
-cc          endif
-cc
-cc          ierror = -2
-cc
-cc          return
-cc        endif
-cc      endif
+      sing_point = cartesian
 
 c     Solenoidal time integration
 
@@ -784,7 +709,6 @@ c       Advance time and arc length
 c       Standard time integration
 
         if (cartesian) then
-
           !Find Cartesian coordinates
           call evalX(x,y,z,xc,yc,zc)
 
@@ -795,23 +719,21 @@ c       Standard time integration
           YY(5) = ss
 
           !Estimate time step
-          jach = evalJ(x,y,z,ierror)
+cc          jach = evalJ(x,y,z,ierror)
+cc
+cc          if (ierror /= 0) then
+cc            ierror = 5
+cc            return
+cc          endif
 
-          if (ierror /= 0) then
-            ierror = 5
-            return
-          endif
-
-cc          TOUT = cc*0.1*abs(rmin*jach/vx) !Output time value (ignored after first call, since ITASK=2)
-          TOUT = cc*0.1*dt !Output time value (ignored after first call, since ITASK=2)
-
+          TOUT = 0.1*cc*dtime !Output time value (ignored after first call, since ITASK=2)
         else
           YY(1) = x
           YY(2) = y
           YY(3) = z
           YY(4) = time
           YY(5) = ss
-          TOUT  = cc*dtime             !Output time value (ignored after first call, since ITASK=2)
+          TOUT  = cc*dtime    !Output time value (ignored after first call, since ITASK=2)
         endif
 
         NEQD = NEQ
@@ -819,14 +741,13 @@ cc          TOUT = cc*0.1*abs(rmin*jach/vx) !Output time value (ignored after fi
         T    = 0d0    !Independent variable
 
         ITOL = 2      !Whether atol is array or not (2 => true)
-        RTOL = 1.D-8  !Relative tolerance
+        RTOL = 1d-8   !Relative tolerance
         ATOL = tol    !Absolute tolerance
         ITASK = 2     !Mode of operation: take one step and return
 cc        ITASK = 1     !Mode of operation: take one step and return
 
-        ISTATE = min(ISTATE+1,2)    !Whether it is first call (1) or subsequent call (2)
-cc        if (time > 0d0) ISTATE = 2
-cc        if (ss > 0d0) ISTATE = 2
+        !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
+        if (time == 0d0) ISTATE = 1
 
         IOPT = 0      !Whether optional inputs are needed
 
@@ -840,8 +761,8 @@ cc        if (ss > 0d0) ISTATE = 2
           stop
         endif
 
+        !Find logical coordinates
         if (cartesian) then
-          !Find logical coordinates
           x = xold ; y = yold ; z = zold
           call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,ierror)
 
@@ -852,16 +773,14 @@ cc        if (ss > 0d0) ISTATE = 2
 
           if (x > rmin) then
             ierror = -2
-            ISTATE = 0   !Instruct LSODE to start anew for next Cartesian step
+            ISTATE = 1   !Instruct LSODE to start anew for next time step
           endif
-
         else
           x = YY(1)
           y = YY(2)
           z = YY(3)
 
-cc          call chk_pos(x,y,z)
-
+          call chk_pos(x,y,z)
         endif
 
         if (iiout > 0) write(*,'(a,e10.3,a,e10.3,a,e10.3
