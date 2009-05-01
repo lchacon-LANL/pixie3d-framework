@@ -33,8 +33,10 @@ c ######################################################################
           type(splines)    :: spline_conf
         end type orbit_def
 
+        !LSODE public variables
+        integer :: odeflag
         real(8) :: xold,yold,zold
-        logical :: sing_point=.false.
+        logical :: sing_point=.false.,sln,odepack=.false.
 
         integer :: iiout
 
@@ -420,7 +422,6 @@ c     Orbit integral
             exit_loop = line_int(fwd,xold,x,yold,y,zold,z,sold,ss)
 
             if (exit_loop) then
-cc              if (.not.fwd .and. iiout >=0) write (*,*)
               if (iiout >=0) write (*,*)
               exit
             endif
@@ -538,21 +539,11 @@ c     Local Variables
       real(8) :: vx,vy,vz,error(ode_conf%niter),tol,dtime
       real(8) :: xh,yh,zh,xnew,ynew,znew,xc,yc,zc,ds,cc
       integer :: iter,iterr,order,niter
-      logical :: restart,nt,fwd,sln
+      logical :: restart,nt,fwd
 
       real(8) :: rmin=1d-3
 
       save dt
-
-      !LSODE setup
-      INTEGER :: IOPT, IOUT, ISTATE=0, ITASK, ITOL, IWORK(20), LIW, LRW,
-     .           MF, NEQ, NEQD(1)
-      PARAMETER  (NEQ=5,LRW = 20 + 16*NEQ,LIW = 20)
-      REAL(8) :: ATOL(NEQ),RTOL(1),RWORK(LRW),T,TOUT,YY(NEQ)
-
-      EXTERNAL :: FF
-
-      save ISTATE
 
 c     Begin program
 
@@ -587,14 +578,49 @@ c     Check for SP
 
       cartesian = (bcond(1)==SP).and.(x<rmin)
 
-      if (cartesian .and. (.not.sing_point) ) ISTATE=1 !Restart LSODE for cartesian step
+c     Time integration
 
-      sing_point = cartesian
+      if (sln .and. (.not.cartesian)) then  !Solenoidal
 
-c     Solenoidal time integration
+        if (odepack) then
+          call lsode_step(tol,x,y,z,1,iterr)
+          call lsode_step(tol,x,y,z,2,iterr)
+        else
+          call cn_solver
+        endif
 
-cc      if (sln) then
-      if (sln .and. (.not.cartesian)) then
+      else                                  !LSODE (non-solenoidal)
+
+        call lsode_step(tol,x,y,z,0,iterr)
+
+      endif
+
+c     Output
+
+      if (iiout > 0) then
+        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,1p3e12.3)')
+     .         ' Time=',time
+     .        ,' ;  dt=',dt
+     .        ,' ;  Arc length=',ss
+     .        ,' ;  ds=',ds
+     .        ,' ;  Position=',x,y,z
+      endif
+
+c     End program
+
+      contains
+
+c     cn_solver
+c     #########################################################################
+      subroutine cn_solver
+
+c     ------------------------------------------------------------------------
+c     Performs home-grown Crank-Nicolson integration
+c     ------------------------------------------------------------------------
+
+        implicit none
+
+c     Begin program
 
         dt = min(dtime,1.2*dt)
 
@@ -704,101 +730,7 @@ c       Advance time and arc length
 
         call updt_measures(xh,yh,zh,jach*dt,time,ds,ss)
 
-      else
-
-c       Standard time integration
-
-        if (cartesian) then
-          !Find Cartesian coordinates
-          call evalX(x,y,z,xc,yc,zc)
-
-          YY(1) = xc
-          YY(2) = yc
-          YY(3) = zc
-          YY(4) = time
-          YY(5) = ss
-
-          !Estimate time step
-cc          jach = evalJ(x,y,z,ierror)
-cc
-cc          if (ierror /= 0) then
-cc            ierror = 5
-cc            return
-cc          endif
-
-          TOUT = 0.1*cc*dtime !Output time value (ignored after first call, since ITASK=2)
-        else
-          YY(1) = x
-          YY(2) = y
-          YY(3) = z
-          YY(4) = time
-          YY(5) = ss
-          TOUT  = cc*dtime    !Output time value (ignored after first call, since ITASK=2)
-        endif
-
-        NEQD = NEQ
-
-        T    = 0d0    !Independent variable
-
-        ITOL = 2      !Whether atol is array or not (2 => true)
-        RTOL = 1d-8   !Relative tolerance
-        ATOL = tol    !Absolute tolerance
-        ITASK = 2     !Mode of operation: take one step and return
-cc        ITASK = 1     !Mode of operation: take one step and return
-
-        !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
-        if (time == 0d0) ISTATE = 1
-
-        IOPT = 0      !Whether optional inputs are needed
-
-        MF = 10       !Specifies non-stiff problem: implicit Adams method
-
-        CALL LSODE (ff, NEQD, YY, T, TOUT, ITOL, RTOL, ATOL, ITASK,
-     .              ISTATE, IOPT, RWORK, LRW, IWORK, LIW, FF, MF)
-
-        if (ISTATE /= 2) then
-          write (*,*) 'Problems in LSODE: ISTATE=', ISTATE
-          stop
-        endif
-
-        !Find logical coordinates
-        if (cartesian) then
-          x = xold ; y = yold ; z = zold
-          call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,ierror)
-
-          if (ierror /= 0) then
-            ierror = 6
-            return
-          endif
-
-          if (x > rmin) then
-            ierror = -2
-            ISTATE = 1   !Instruct LSODE to start anew for next time step
-          endif
-        else
-          x = YY(1)
-          y = YY(2)
-          z = YY(3)
-
-          call chk_pos(x,y,z)
-        endif
-
-        if (iiout > 0) write(*,'(a,e10.3,a,e10.3,a,e10.3
-     .                            ,a,f10.3,a,1p3e12.3)')
-     .                       ' dt=',YY(4)-time
-     .                      ,' ;  Time=',time
-     .                      ,' ;  ds=',YY(5)-ss
-     .                      ,' ;  Arc length=',ss
-     .                      ,' ;  Position=',x,y,z
-
-        time = cc*YY(4)
-        ss   = cc*YY(5)
-
-      endif
-
-c     End program
-
-      contains
+      end subroutine cn_solver
 
 c     updt_measures
 c     #########################################################################
@@ -818,16 +750,134 @@ c     #########################################################################
       ds = dt*sqrt(vx**2+vy**2+vz**2)
       ss = ss + ds
 
-      if (iiout > 0) then
-        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,f7.3,a,1p3e12.3)')
-     .         ' dt=',dt
-     .        ,' ;  Time=',time
-     .        ,' ;  ds=',ds
-     .        ,' ;  Arc length=',ss
-     .        ,' ;  Position=',x,y,z
+      end subroutine updt_measures
+
+c     lsode_step
+c     ####################################################################
+      subroutine lsode_step(tol,x,y,z,flag,iterr)
+
+c     --------------------------------------------------------------------
+c     Performs orbit integration step in a 3D simplectic manner (i.e.,
+c     using only one component of vector potential at a time; see Finn &
+c     Chacon, PoP 2005). Currently employs a Picard iteration for
+c     nonlinear convergence. This should be improved to use Newton.
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: flag,iterr
+      real(8) :: x,y,z,tol
+
+c     Local variables
+
+      real(8) :: xc,yc,zc
+
+      !LSODE setup
+      INTEGER :: IOPT, IOUT, ISTATE=0, ITASK, ITOL, IWORK(20), LIW, LRW,
+     .           MF, NEQ, NEQD(1)
+      PARAMETER  (NEQ=5,LRW = 20 + 16*NEQ,LIW = 20)
+      REAL(8) :: ATOL(NEQ),RTOL(1),RWORK(LRW),T,TOUT,YY(NEQ)
+
+      EXTERNAL :: FF
+
+      save ISTATE
+
+c     Begin program
+
+      if (cartesian .and. (.not.sing_point) ) ISTATE=1 !Restart LSODE for cartesian step
+
+      sing_point = cartesian
+
+c     Initial conditions
+
+      if (cartesian) then
+        !Find Cartesian coordinates
+        call evalX(x,y,z,xc,yc,zc)
+
+        YY(1) = xc
+        YY(2) = yc
+        YY(3) = zc
+        YY(4) = time
+        YY(5) = ss
+
+        TOUT = 0.1*cc*dtime !Output time value (ignored after first call, since ITASK=2)
+      else
+        YY(1) = x
+        YY(2) = y
+        YY(3) = z
+        YY(4) = time
+        YY(5) = ss
+        TOUT  = cc*dtime    !Output time value (ignored after first call, since ITASK=2)
       endif
 
-      end subroutine updt_measures
+c     LSODE configuration and call
+
+      NEQD = NEQ
+
+      T    = 0d0    !Independent variable
+
+      ITOL = 2      !Whether atol is array or not (2 => true)
+      RTOL = 1d-8   !Relative tolerance
+      ATOL = tol    !Absolute tolerance
+      ITASK = 2     !Mode of operation: take one step and return
+
+      !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
+      if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
+cc      if ((time == 0d0)) ISTATE = 1
+cc      if (.not.cartesian) ISTATE=1
+
+      IOPT = 0      !Whether optional inputs are needed
+
+      MF = 10       !Specifies non-stiff problem: implicit Adams method
+
+      odeflag = flag   !Whether we use split step (1,2) or full step (0)
+
+      CALL LSODE (ff, NEQD, YY, T, TOUT, ITOL, RTOL, ATOL, ITASK,
+     .            ISTATE, IOPT, RWORK, LRW, IWORK, LIW, FF, MF)
+
+      if (ISTATE /= 2) then
+        write (*,*) 'Problems in LSODE: ISTATE=', ISTATE
+        stop
+      endif
+
+c     Postprocessing to find logical coordinates
+
+      if (cartesian) then
+        x = xold ; y = yold ; z = zold
+        call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,ierror)
+
+        if (ierror /= 0) then
+          ierror = 6
+          return
+        endif
+
+        if (x > rmin) then
+          ierror = -2
+          ISTATE = 1   !Instruct LSODE to start anew for next time step
+        endif
+      else
+        x = YY(1)
+        y = YY(2)
+        z = YY(3)
+
+        call chk_pos(x,y,z)
+      endif
+
+c     Advance time and arc length
+
+      if (flag == 0 .or. flag == 2) then
+        ds   = YY(5)-ss
+        dt   = YY(4)-time
+
+        time = cc*YY(4)
+        ss   = cc*YY(5)
+      endif
+
+c     End program
+
+      end subroutine lsode_step
 
 c     simp_step
 c     ####################################################################
@@ -1459,7 +1509,7 @@ c -------------------------------------------------------------------------
 c     Driver routine for LSODE integration: ydot = ff(y,t)
 c -------------------------------------------------------------------------
 
-      use orbit, ONLY: spt => sing_point,iiout,xold,yold,zold
+      use orbit, ONLY: spt=>sing_point,sln,odeflag,iiout,xold,yold,zold
       use spline_field
 
       implicit none
@@ -1492,7 +1542,7 @@ c Begin program
       endif
 
       !Get vector field (Cartesian if spt is .true.)
-      call getB(x1,y1,z1,vx,vy,vz,.false.,spt)
+      call getB(x1,y1,z1,vx,vy,vz,sln,spt,flag=odeflag)
 
       ydot(1) = vx
       ydot(2) = vy
