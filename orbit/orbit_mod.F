@@ -9,30 +9,6 @@ c ######################################################################
 
         use grid, ONLY: my_rank,pstop,messg
 
-        !ODE solver
-        type :: ode_solver
-          integer :: niter  !Number of nonlinear iterations
-          integer :: order  !Order of integration (1,2)
-          real(8) :: tol    !Convergence tolerance
-          real(8) :: dtime  !Time step
-          real(8) :: tmax   !Maximum time
-          real(8) :: smax   !Maximum arc length
-          logical :: solen  !Whether use solenoidal version or LSODE
-          logical :: picard !Whether to use picard or Newton
-        end type ode_solver
-
-        !Splines
-        type :: splines
-          integer :: order  !Order of splines
-          integer :: a_gauge!Gauge for vector potential (1,2)
-        end type splines
-
-        !Orbit config
-        type :: orbit_def
-          type(ode_solver) :: ode_conf
-          type(splines)    :: spline_conf
-        end type orbit_def
-
         !LSODE public variables
         integer :: odeflag
         real(8) :: xold,yold,zold
@@ -41,11 +17,32 @@ c ######################################################################
         integer :: iiout
 
         !Private variables
+        type,private :: ode_solver
+          integer :: niter  !Number of nonlinear iterations
+          integer :: order  !Order of integration (1,2)
+          real(8) :: atol   !Absolute convergence tolerance
+          real(8) :: rtol   !Relative convergence tolerance
+          real(8) :: dtime  !Time step
+          real(8) :: tmax   !Maximum time
+          real(8) :: smax   !Maximum arc length
+          logical :: solen  !Whether use solenoidal version or LSODE
+          logical :: picard !Whether to use picard or Newton
+        end type ode_solver
+
+        type,private :: splines
+          integer :: order  !Order of splines
+          integer :: a_gauge!Gauge for vector potential (1,2)
+        end type splines
+
+        type,private :: orbit_def
+          type(ode_solver) :: ode_conf
+          type(splines)    :: spline_conf
+        end type orbit_def
 
         type(orbit_def),private  :: orb_default
         type(ode_solver),private :: ode_conf
 
-        integer,private :: itime,iterror,ssorder,nxo,nyo,nzo
+        integer,private :: itime,iterror,ssorder
 
         integer,private :: nunitx,nunity,nunitz,nunitrz
         integer,private :: npointx,npointy,npointz
@@ -79,18 +76,20 @@ c     Default configuration for orbit integrator
 c     ----------------------------------------------------------------------
 
       !ODE solver
-      orb_default%ode_conf%tmax   = 0d0
-      orb_default%ode_conf%smax   = 20000.
-      orb_default%ode_conf%dtime  = 0.01
-      orb_default%ode_conf%niter  = 20
-      orb_default%ode_conf%tol    = 1d-8
-      orb_default%ode_conf%order  = 1
-      orb_default%ode_conf%solen  = .true.
-      orb_default%ode_conf%picard = .true.
+      orb_default%ode_conf%tmax   = 0d0    !Maximum orbit pseudotime
+      orb_default%ode_conf%smax   = 20000. !Maximum orbit arc length
+      orb_default%ode_conf%dtime  = 0.01   !Maximum time step
+
+      orb_default%ode_conf%solen  = .true. !Whether to use solenoidal ODE int.
+      orb_default%ode_conf%order  = 1      !Order of integration in solenoidal int. (1,2)
+      orb_default%ode_conf%picard = .true. !Whether to use functional iteration
+      orb_default%ode_conf%niter  = 20     !Number of nonlinear iterations
+      orb_default%ode_conf%rtol   = 0d-8   !Relative tolerance
+      orb_default%ode_conf%atol   = 1d-8   !Absolute tolerance
 
       !Splines
-      orb_default%spline_conf%order = 2
-      orb_default%spline_conf%a_gauge = 2
+      orb_default%spline_conf%order = 2    !Spline interpolation order
+      orb_default%spline_conf%a_gauge = 2  !Gauge for vector potential
 
       end subroutine orbit_conf_def
 
@@ -99,7 +98,7 @@ c     ######################################################################
       subroutine orbit_setup(nx,ny,nz,xx,yy,zz
      .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap
      .                      ,tmax,smax,dtime
-     .                      ,niter,tol,order,solen,picard
+     .                      ,niter,atol,rtol,order,solen,picard
      .                      ,spline_order,gauge,B_input_is_A)
 
 c     ----------------------------------------------------------------------
@@ -118,7 +117,7 @@ c     Call variables
 
 cc        type(orbit_def),optional :: orb_conf
         !Optional parameters
-        real(8),optional :: tmax,smax,dtime,tol
+        real(8),optional :: tmax,smax,dtime,atol,rtol
         integer,optional :: niter,order,spline_order,gauge
         logical,optional :: solen,picard,B_input_is_A
 
@@ -142,8 +141,12 @@ c     Begin program
           orb_default%ode_conf%niter = niter
         endif
 
-        if (PRESENT(tol)) then
-          orb_default%ode_conf%tol = tol
+        if (PRESENT(atol)) then
+          orb_default%ode_conf%atol = atol
+        endif
+
+        if (PRESENT(rtol)) then
+          orb_default%ode_conf%rtol = rtol
         endif
 
         if (PRESENT(order)) then
@@ -170,9 +173,9 @@ c     Begin program
 
 c     Setup domain limits
 
-        nxo = nx
-        nyo = ny
-        nzo = nz
+cc        nxo = nx
+cc        nyo = ny
+cc        nzo = nz
 
         if (bcond(1) == PER) then
           xmin = xx(2)
@@ -582,15 +585,15 @@ c     Call variables
 
 c     Local Variables
 
-      real(8) :: x0,y0,z0,x1,y1,z1,half,jach=1d0,dt=10.
-      real(8) :: vx,vy,vz,error(ode_conf%niter),tol,dtime
+      real(8) :: x0,y0,z0,x1,y1,z1,half,jach,dt=10.
+      real(8) :: vx,vy,vz,error(ode_conf%niter),atol,rtol,dtime
       real(8) :: xh,yh,zh,xnew,ynew,znew,xc,yc,zc,ds,cc
       integer :: iter,order,niter
       logical :: restart,nt,fwd
 
-      real(8) :: rmin
+      real(8) :: rmin=1d-3
 
-      save dt,jach
+      save dt
 
 c     Begin program
 
@@ -599,7 +602,8 @@ c     ODE configuration
       dtime = ode_conf%dtime
 
       niter = ode_conf%niter
-      tol   = ode_conf%tol
+      rtol  = ode_conf%rtol
+      atol  = ode_conf%atol
       order = ode_conf%order
       sln   = ode_conf%solen
       nt    = .not.ode_conf%picard
@@ -610,7 +614,7 @@ c     ODE configuration
         fwd = .true.
       endif
 
-      ierror = 0        !Initialize domain bounds error flag
+      ierror = 0    !Initialize domain bounds error flag
 
       restart = .false. !Initialize restarting status flag
 
@@ -622,28 +626,17 @@ c     ODE configuration
 
 c     Check for SP
 
-cc      rmin = 0.25*(xmax-xmin)/nxo
-      rmin = 1e-3
-cc      write (*,*) 'Cartesian radius =',rmin
-
       if (.not.cartesian) cartesian = (bcond(1)==SP).and.(x<rmin)
 
 c     Time integration
 
       if (sln .and. (.not.cartesian)) then  !Solenoidal
 
-cc        write (*,*) 'Solenoidal'
-cc        if (odepack) then
-cc          call lsode_step(tol,x,y,z,1)
-cc          call lsode_step(tol,x,y,z,2)
-cc        else
-          call cn_solver
-cc        endif
+        call cn_solver(atol,rtol,x,y,z,ierror)
 
-      else                                  !LSODE (high-order, non-solenoidal)
+      else                                  !LSODE (non-solenoidal)
 
-cc        write (*,*) 'LSODE'
-        call lsode_step(tol,x,y,z,0)
+        call lsode_step(atol,rtol,x,y,z,0,ierror)
 
       endif
 
@@ -658,15 +651,13 @@ c     Output
      .        ,' ;  Position=',x,y,z
       endif
 
-cc      if (x > rmin .and. cartesian) dt = dt/jach
-
 c     End program
 
       contains
 
 c     lsode_step
 c     ####################################################################
-      subroutine lsode_step(tol,x,y,z,flag)
+      subroutine lsode_step(aatol,rrtol,x,y,z,flag,iterr)
 
 c     --------------------------------------------------------------------
 c     Performs orbit integration step using LSODE (arbitrary order < 12th,
@@ -677,8 +668,8 @@ c     --------------------------------------------------------------------
 
 c     Call variables
 
-      integer :: flag
-      real(8) :: x,y,z,tol
+      integer :: flag,iterr
+      real(8) :: x,y,z,aatol,rrtol
 
 c     Local variables
 
@@ -696,7 +687,7 @@ c     Local variables
 
 c     Begin program
 
-      if (cartesian .and. (.not.sing_point) ) ISTATE=1 !Restart LSODE for cartesian step
+      if (cartesian .and. (.not.sing_point)) ISTATE=1 !Restart LSODE for cartesian step
 
       sing_point = cartesian
 
@@ -729,14 +720,12 @@ c     LSODE configuration and call
       T    = 0d0    !Independent variable
 
       ITOL = 2      !Whether atol is array or not (2 => true)
-      RTOL = tol    !Relative tolerance
-      ATOL = 1d-15  !Absolute tolerance
+      RTOL = rrtol  !Relative tolerance
+      ATOL = aatol  !Absolute tolerance
       ITASK = 2     !Mode of operation: take one step and return
 
       !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
       if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
-cc      if ((time == 0d0)) ISTATE = 1
-cc      if (.not.cartesian) ISTATE=1
 
       IOPT = 0      !Whether optional inputs are needed
 cc      IOPT = 1      !Whether optional inputs are needed
@@ -767,11 +756,10 @@ c     Postprocessing to find logical coordinates
 
         if (x > rmin) then
           ierror = -2
-cc          ISTATE = 1   !Instruct LSODE to start anew for next time step
-cc          iiout = 3  ! diag: Increase output
+          ISTATE = 1   !Instruct LSODE to start anew for next time step
           cartesian = .false.
           sing_point= .false.
-        endif
+         endif
       else
         x = YY(1)
         y = YY(2)
@@ -796,7 +784,7 @@ c     End program
 
 c     cn_solver
 c     #########################################################################
-      subroutine cn_solver
+      subroutine cn_solver(atol,rtol,x,y,z,ierror)
 
 c     ------------------------------------------------------------------------
 c     Performs home-grown Crank-Nicolson integration
@@ -804,18 +792,25 @@ c     ------------------------------------------------------------------------
 
         implicit none
 
+c     Call variables
+
+        integer(4) :: ierror
+        real(8) :: atol,rtol,x,y,z
+
+c     Local variables
+
         integer :: iterr
 
 c     Begin program
 
         dt = min(dtime,1.2*dt)
 
- 1      iterr  = 0              !Initialize time stepping error flag
+ 1      iterr = 0
 
         !Cartesian step (near SP)
         if (cartesian) then
 
-          call simp_step(nt,niter,tol,cc*dt,x,y,z,0,iterr,error)
+          call simp_step(nt,niter,atol,rtol,cc*dt,x,y,z,0,iterr,error)
 
           if (iterr == 0) iterr = -2  !Notify of Cartesian step
 
@@ -826,23 +821,36 @@ c     Begin program
 
 c         Begin first half-step split
 
-          call simp_step(nt,niter,tol,cc*half,x,y,z,1,iterr,error)
+          call simp_step(nt,niter,atol,rtol,cc*half,x,y,z,1,iterr,error)
 
 c         Begin whole step split
 
-          call simp_step(nt,niter,tol,cc*dt  ,x,y,z,2,iterr,error)
+          call simp_step(nt,niter,atol,rtol,cc*dt  ,x,y,z,2,iterr,error)
 
 c         Begin second half-step split
 
-          call simp_step(nt,niter,tol,cc*half,x,y,z,1,iterr,error)
+          call simp_step(nt,niter,atol,rtol,cc*half,x,y,z,1,iterr,error)
 
         !First-order integration (30% cheaper!)
         else
 
-          call simp_step(nt,niter,tol,cc*dt,x,y,z,1,iterr,error)
+          call simp_step(nt,niter,atol,rtol,cc*dt,x,y,z,1,iterr,error)
 
-          call simp_step(nt,niter,tol,cc*dt,x,y,z,2,iterr,error)
+          call simp_step(nt,niter,atol,rtol,cc*dt,x,y,z,2,iterr,error)
 
+        endif
+
+c       Find jacobian at mid-point (for time/arc-length integral)
+
+        if (cartesian) then
+          jach = 1d0
+        else
+          xh = 0.5*(xold+x)
+          yh = 0.5*(yold+y)
+          zh = 0.5*(zold+z)
+          jach = evalJ(xh,yh,zh,iterr)
+
+          if (iterr /= 0) iterr = 4
         endif
 
 c       Check for errors
@@ -857,10 +865,12 @@ c       Check for errors
      .                ,' in CN did not converge to prescribed accuracy'
             elseif (iiout == 2) then
               write(*,*) 'Initial error=',error(1)
-              write(*,*) 'Final error  =',error(niter),'> tol=',tol
+              write(*,*) 'Final error  =',error(niter),'> tol=',atol
             elseif (iiout > 2) then
               write (*,*) 'Error history=',error
             endif
+          elseif (iterr == 4) then
+            call pstop('cn_solver','Negative Jacobian')
           else
             write (messg,*) 'Unknown error ',iterr
             call pstop('orbit_step',messg)
@@ -896,22 +906,6 @@ c       Check for errors
 
 c       Advance time and arc length
 
-        if (cartesian) then
-          jach = 1d0
-        else
-          xh = 0.5*(xold+x)
-          yh = 0.5*(yold+y)
-          zh = 0.5*(zold+z)
-          jach = evalJ(xh,yh,zh,ierror)
-
-          if (ierror /= 0) jach = evalJ(x,y,z,ierror)
-
-          if (ierror /= 0) then
-            call pstop('cn_solver','Negative Jacobian')
-          endif
-
-        endif
-
         call updt_measures(xh,yh,zh,jach*dt,time,ds,ss)
 
       end subroutine cn_solver
@@ -938,12 +932,13 @@ c     #########################################################################
 
 c     simp_step
 c     ####################################################################
-      subroutine simp_step(newton,niter,rtol,dt,x,y,z,flag,iterr,error)
+      subroutine simp_step(newton,niter,atol,rtol,dt,x,y,z,flag,iterr
+     .                    ,error)
 
 c     --------------------------------------------------------------------
 c     Performs orbit integration step in a 3D simplectic manner (i.e.,
 c     using only one component of vector potential at a time; see Finn &
-c     Chacon, PoP 2005). Currently allows both a Picard and a Newton
+c     Chacon, PoP 2005).  Currently allows both a Picard and a Newton
 c     iteration for nonlinear convergence.
 c     --------------------------------------------------------------------
 
@@ -952,7 +947,7 @@ c     --------------------------------------------------------------------
 c     Call variables
 
       integer :: flag,iterr,niter
-      real(8) :: x,y,z,dt,error(niter),rtol
+      real(8) :: x,y,z,dt,error(niter),rtol,atol
       logical :: newton
 
 c     Local variables
@@ -986,7 +981,7 @@ cc      endif
          !Form residual
          res(:,1) = -formResidual(flag,dt,x0,y0,z0,x,y,z)
 
-         if (iter == 1) tol = 1d-15 + rtol*sqrt(sum(res**2))
+         if (iter == 1) tol = atol + rtol*sqrt(sum(res**2))
 
          !Find update
          if (newton) then
@@ -1015,7 +1010,6 @@ cc           dx = matmul(JJ,res)
 
          !Check convergence
          error(iter) = sqrt(sum(dx**2))
-cc         error(iter) = sqrt(sum(dx**2))/(jach*dt)  !diag
 
          if (iiout > 2) write (*,*) 'simp_step ',flag,' -- error='
      .                               ,error(iter)
@@ -1081,11 +1075,6 @@ c     ###################################################################
         res(1) = x1 - x0 -dt*vx
         res(2) = y1 - y0 -dt*vy
         res(3) = z1 - z0 -dt*vz
-
-cc        if (iiout > 2) then
-cc          write (*,*)'simp_step ',flag,' -- Vel =',vx,vy,vz !diag
-cc          write (*,*)'simp_step ',flag,' -- Xh  =',xh,yh,zh !diag
-cc        endif
       endif
 
       end function formResidual
@@ -1360,9 +1349,15 @@ c     Local variables
 
 c     Begin program
 
-        iwhich = order
+c     Check proximity (for periodic boundaries)
+
+        if (    (abs(nint(x/xold)) /= 1) .and. (bcond(1) == PER)
+     .      .or.(abs(nint(y/yold)) /= 1) .and. (bcond(3) == PER)
+     .      .or.(abs(nint(z/zold)) /= 1) .and. (bcond(5) == PER)) return
 
 c     Lower order of interpolation for SS if derivatives are too different
+
+        iwhich = order
 
         if (to > tv) then
           if (tt > to) then
@@ -1460,7 +1455,7 @@ c     Check for intersection with Z surface of section
             call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
             rr = sqrt(xcar**2+ycar**2)
             write(nunitrz) real(rr),real(zcar)
-cc            write(*,*) real(rr),real(zcar)   !diag
+cc            write(*,*) 'diag',z,zold,real(rr),real(zcar)   !diag
           else
             call chk_pos(xss,yss,zss) !this resets logical coords
           endif
