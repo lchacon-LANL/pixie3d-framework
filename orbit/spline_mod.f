@@ -366,25 +366,25 @@ cccc     .                 ,b(0:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3)
 cccc     .                 ,a(0:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3))
 cc
 cc        else
-          !Lower-left quadrant
-          call line_int(nxl/2-1,1,nyl/2-1,1
-     .                 ,b(0:nxl/2,0:nyl/2,0:nzl+1,1:3)
-     .                 ,a(0:nxl/2,0:nyl/2,0:nzl+1,1:3))
+        !Lower-left quadrant
+        call line_int(nxl/2-1,1,nyl/2-1,1
+     .               ,b(0:nxl/2,0:nyl/2,0:nzl+1,1:3)
+     .               ,a(0:nxl/2,0:nyl/2,0:nzl+1,1:3))
 
-          !Lower-right quadrant
-          call line_int(nxl/2+1,nxl,nyl/2-1,1
-     .                 ,b(nxl/2:nxl+1,0:nyl/2,0:nzl+1,1:3)
-     .                 ,a(nxl/2:nxl+1,0:nyl/2,0:nzl+1,1:3))
+        !Lower-right quadrant
+        call line_int(nxl/2+1,nxl,nyl/2-1,1
+     .               ,b(nxl/2:nxl+1,0:nyl/2,0:nzl+1,1:3)
+     .               ,a(nxl/2:nxl+1,0:nyl/2,0:nzl+1,1:3))
 
-          !Upper-left quadrant
-          call line_int(nxl/2-1,1,nyl/2+1,nyl
-     .                 ,b(0:nxl/2,nyl/2:nyl+1,0:nzl+1,1:3)
-     .                 ,a(0:nxl/2,nyl/2:nyl+1,0:nzl+1,1:3))
+        !Upper-left quadrant
+        call line_int(nxl/2-1,1,nyl/2+1,nyl
+     .               ,b(0:nxl/2,nyl/2:nyl+1,0:nzl+1,1:3)
+     .               ,a(0:nxl/2,nyl/2:nyl+1,0:nzl+1,1:3))
 
-          !Upper-right quadrant
-          call line_int(nxl/2+1,nxl,nyl/2+1,nyl
-     .                 ,b(nxl/2:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3)
-     .                 ,a(nxl/2:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3))
+        !Upper-right quadrant
+        call line_int(nxl/2+1,nxl,nyl/2+1,nyl
+     .               ,b(nxl/2:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3)
+     .               ,a(nxl/2:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3))
 cc        endif
 
       case(2) !A2=0 code <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -419,7 +419,6 @@ c       Quadrant-based code
         call pstop('getA','Gauge not implemented for ny=1')
       end select
 
-
 c     Take care of collapsed dimensions (no motion along those)
 
       if (nxl == 1) a(:,:,:,2:3) = 0d0
@@ -433,43 +432,43 @@ c     Take care of collapsed dimensions (no motion along those)
 
 c     Impose topological BCs
 
-      if (bcond(3) == PER) then
-        a(:,0    ,:,1)=a(:,nyl,:,1)
-        a(:,nyl+1,:,1)=a(:,1  ,:,1)
-        a(:,0    ,:,2)=a(:,nyl,:,2)
-        a(:,nyl+1,:,2)=a(:,1  ,:,2)
-        a(:,0    ,:,3)=a(:,nyl,:,3)
-        a(:,nyl+1,:,3)=a(:,1  ,:,3)
-      endif
-
-      if (bcond(5) == PER) then
-        a(:,:,0    ,1)=a(:,:,nzl,1)
-        a(:,:,nzl+1,1)=a(:,:,1  ,1)
-        a(:,:,0    ,2)=a(:,:,nzl,2)
-        a(:,:,nzl+1,2)=a(:,:,1  ,2)
-        a(:,:,0    ,3)=a(:,:,nzl,3)
-        a(:,:,nzl+1,3)=a(:,:,1  ,3)
-      endif
-
-      if (bcond(1) == PER) then
-        a(0    ,:,:,1)=a(nxl,:,:,1)
-        a(nxl+1,:,:,1)=a(1  ,:,:,1)
-        a(0    ,:,:,2)=a(nxl,:,:,2)
-        a(nxl+1,:,:,2)=a(1  ,:,:,2)
-        a(0    ,:,:,3)=a(nxl,:,:,3)
-        a(nxl+1,:,:,3)=a(1  ,:,:,3)
-      elseif (bcond(1) == SP) then  !Cov components
-        do k=0,nzl+1
-          do j=0,nyl+1
-            jj = mod(j+nyl/2,nyl)
-            if (jj == 0) jj = nyl
-
-            a(0,j,k,1) =-a(1,jj,k,1)
-            a(0,j,k,2) = a(1,jj,k,2)
-            a(0,j,k,3) = a(1,jj,k,3)
-          enddo
-        enddo
-      endif
+cc      if (bcond(3) == PER) then
+cc        a(:,0    ,:,1)=a(:,nyl,:,1)
+cc        a(:,nyl+1,:,1)=a(:,1  ,:,1)
+cc        a(:,0    ,:,2)=a(:,nyl,:,2)
+cc        a(:,nyl+1,:,2)=a(:,1  ,:,2)
+cc        a(:,0    ,:,3)=a(:,nyl,:,3)
+cc        a(:,nyl+1,:,3)=a(:,1  ,:,3)
+cc      endif
+cc
+cc      if (bcond(5) == PER) then
+cc        a(:,:,0    ,1)=a(:,:,nzl,1)
+cc        a(:,:,nzl+1,1)=a(:,:,1  ,1)
+cc        a(:,:,0    ,2)=a(:,:,nzl,2)
+cc        a(:,:,nzl+1,2)=a(:,:,1  ,2)
+cc        a(:,:,0    ,3)=a(:,:,nzl,3)
+cc        a(:,:,nzl+1,3)=a(:,:,1  ,3)
+cc      endif
+cc
+cc      if (bcond(1) == PER) then
+cc        a(0    ,:,:,1)=a(nxl,:,:,1)
+cc        a(nxl+1,:,:,1)=a(1  ,:,:,1)
+cc        a(0    ,:,:,2)=a(nxl,:,:,2)
+cc        a(nxl+1,:,:,2)=a(1  ,:,:,2)
+cc        a(0    ,:,:,3)=a(nxl,:,:,3)
+cc        a(nxl+1,:,:,3)=a(1  ,:,:,3)
+cc      elseif (bcond(1) == SP) then  !Cov components
+cc        do k=0,nzl+1
+cc          do j=0,nyl+1
+cc            jj = mod(j+nyl/2,nyl)
+cc            if (jj == 0) jj = nyl
+cc
+cc            a(0,j,k,1) =-a(1,jj,k,1)
+cc            a(0,j,k,2) = a(1,jj,k,2)
+cc            a(0,j,k,3) = a(1,jj,k,3)
+cc          enddo
+cc        enddo
+cc      endif
 
 c     Return A components
 
