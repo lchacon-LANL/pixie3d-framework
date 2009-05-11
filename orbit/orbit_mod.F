@@ -36,7 +36,7 @@ c ######################################################################
         !LSODE public variables
         integer :: odeflag
         real(8) :: xold,yold,zold
-        logical :: sing_point=.false.,sln,odepack=.false.
+        logical :: sing_point=.false.,sln
 
         integer :: iiout
 
@@ -45,7 +45,7 @@ c ######################################################################
         type(orbit_def),private  :: orb_default
         type(ode_solver),private :: ode_conf
 
-        integer,private :: itime,iterror,ssorder
+        integer,private :: itime,iterror,ssorder,nxo,nyo,nzo
 
         integer,private :: nunitx,nunity,nunitz,nunitrz
         integer,private :: npointx,npointy,npointz
@@ -97,8 +97,10 @@ c     ----------------------------------------------------------------------
 c     orbit_setup
 c     ######################################################################
       subroutine orbit_setup(nx,ny,nz,xx,yy,zz
-     .                      ,bx,by,bz,bxcar,bycar,bzcar
-     .                      ,jac,xmap,orb_conf)
+     .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap
+     .                      ,tmax,smax,dtime
+     .                      ,niter,tol,order,solen,picard
+     .                      ,spline_order,gauge,B_input_is_A)
 
 c     ----------------------------------------------------------------------
 c     Sets up orbit splines for orbit integrator.
@@ -114,19 +116,63 @@ c     Call variables
         real(8) :: bxcar(nx,ny,nz),bycar(nx,ny,nz),bzcar(nx,ny,nz)
         real(8) :: xmap(nx,ny,nz,3),jac(nx,ny,nz)
 
-        type(orbit_def),optional :: orb_conf
+cc        type(orbit_def),optional :: orb_conf
+        !Optional parameters
+        real(8),optional :: tmax,smax,dtime,tol
+        integer,optional :: niter,order,spline_order,gauge
+        logical,optional :: solen,picard,B_input_is_A
 
 c     Begin program
 
-        if (PRESENT(orb_conf)) then
-          orb_default = orb_conf
-        else
-          call orbit_conf_def
+        call orbit_conf_def
+
+        if (PRESENT(tmax)) then
+          orb_default%ode_conf%tmax = tmax
+        endif
+
+        if (PRESENT(smax)) then
+          orb_default%ode_conf%smax = smax
+        endif
+
+        if (PRESENT(dtime)) then
+          orb_default%ode_conf%dtime = dtime
+        endif
+
+        if (PRESENT(niter)) then
+          orb_default%ode_conf%niter = niter
+        endif
+
+        if (PRESENT(tol)) then
+          orb_default%ode_conf%tol = tol
+        endif
+
+        if (PRESENT(order)) then
+          orb_default%ode_conf%order = order
+        endif
+
+        if (PRESENT(solen)) then
+          orb_default%ode_conf%solen = solen
+        endif
+
+        if (PRESENT(picard)) then
+          orb_default%ode_conf%picard = picard
+        endif
+
+        if (PRESENT(spline_order)) then
+          orb_default%spline_conf%order = spline_order
+        endif
+
+        if (PRESENT(gauge)) then
+          orb_default%spline_conf%a_gauge = gauge
         endif
 
         ode_conf = orb_default%ode_conf
 
 c     Setup domain limits
+
+        nxo = nx
+        nyo = ny
+        nzo = nz
 
         if (bcond(1) == PER) then
           xmin = xx(2)
@@ -158,7 +204,8 @@ c     Do splines
      .                   ,orb_default%spline_conf%order)
 
         if (ode_conf%solen) then
-          call splineA(bx,by,bz,orb_default%spline_conf%a_gauge)
+          call splineA(bx,by,bz,orb_default%spline_conf%a_gauge
+     .                ,input_is_A=B_input_is_A)
         else
           call splineB(bx,by,bz)
         endif
@@ -535,15 +582,15 @@ c     Call variables
 
 c     Local Variables
 
-      real(8) :: x0,y0,z0,x1,y1,z1,half,jach,dt=10.
+      real(8) :: x0,y0,z0,x1,y1,z1,half,jach=1d0,dt=10.
       real(8) :: vx,vy,vz,error(ode_conf%niter),tol,dtime
       real(8) :: xh,yh,zh,xnew,ynew,znew,xc,yc,zc,ds,cc
-      integer :: iter,iterr,order,niter
+      integer :: iter,order,niter
       logical :: restart,nt,fwd
 
-      real(8) :: rmin=1d-3
+      real(8) :: rmin
 
-      save dt
+      save dt,jach
 
 c     Begin program
 
@@ -563,8 +610,7 @@ c     ODE configuration
         fwd = .true.
       endif
 
-      ierror = 0    !Initialize domain bounds error flag
-      iterr  = 0    !Initialize time stepping error flag
+      ierror = 0        !Initialize domain bounds error flag
 
       restart = .false. !Initialize restarting status flag
 
@@ -576,22 +622,28 @@ c     ODE configuration
 
 c     Check for SP
 
-      cartesian = (bcond(1)==SP).and.(x<rmin)
+cc      rmin = 0.25*(xmax-xmin)/nxo
+      rmin = 1e-3
+cc      write (*,*) 'Cartesian radius =',rmin
+
+      if (.not.cartesian) cartesian = (bcond(1)==SP).and.(x<rmin)
 
 c     Time integration
 
       if (sln .and. (.not.cartesian)) then  !Solenoidal
 
-        if (odepack) then
-          call lsode_step(tol,x,y,z,1,iterr)
-          call lsode_step(tol,x,y,z,2,iterr)
-        else
+cc        write (*,*) 'Solenoidal'
+cc        if (odepack) then
+cc          call lsode_step(tol,x,y,z,1)
+cc          call lsode_step(tol,x,y,z,2)
+cc        else
           call cn_solver
-        endif
+cc        endif
 
-      else                                  !LSODE (non-solenoidal)
+      else                                  !LSODE (high-order, non-solenoidal)
 
-        call lsode_step(tol,x,y,z,0,iterr)
+cc        write (*,*) 'LSODE'
+        call lsode_step(tol,x,y,z,0)
 
       endif
 
@@ -606,168 +658,26 @@ c     Output
      .        ,' ;  Position=',x,y,z
       endif
 
+cc      if (x > rmin .and. cartesian) dt = dt/jach
+
 c     End program
 
       contains
 
-c     cn_solver
-c     #########################################################################
-      subroutine cn_solver
-
-c     ------------------------------------------------------------------------
-c     Performs home-grown Crank-Nicolson integration
-c     ------------------------------------------------------------------------
-
-        implicit none
-
-c     Begin program
-
-        dt = min(dtime,1.2*dt)
-
-        !Cartesian step (near SP)
- 1      if (cartesian) then
-
-          call simp_step(nt,niter,tol,dt,x,y,z,0,iterr,error)
-
-          if (iterr == 0) iterr = -2  !Notify of Cartesian step
-
-        !Second order splitting
-        elseif (order==2) then
-
-          half = 0.5*dt
-
-c         Begin first half-step split
-
-          call simp_step(nt,niter,tol,half,x,y,z,1,iterr,error)
-
-c         Begin whole step split
-
-          call simp_step(nt,niter,tol,dt  ,x,y,z,2,iterr,error)
-
-c         Begin second half-step split
-
-          call simp_step(nt,niter,tol,half,x,y,z,1,iterr,error)
-
-        !First-order integration (30% cheaper!)
-        else
-
-          call simp_step(nt,niter,tol,dt,x,y,z,1,iterr,error)
-
-          call simp_step(nt,niter,tol,dt,x,y,z,2,iterr,error)
-
-        endif
-
-c       Find jacobian at mid-point (for time/arc-length integral)
-
-        if (cartesian) then
-          jach = 1d0
-        else
-          xh = 0.5*(xold+x)
-          yh = 0.5*(yold+y)
-          zh = 0.5*(zold+z)
-          jach = evalJ(xh,yh,zh,ierror)
-
-          if (ierror /= 0) iterr = 4
-        endif
-
-c       Check for errors
-
-        ierror = iterr
-
-        if (iterr /= 0 .and. iterr /= -2) then
-
-          if (iterr < 4 .and. iterr > 0) then
-            if (iiout == 1) then
-              write (*,*) 'Step',iterr
-     .                ,' in CN did not converge to prescribed accuracy'
-            elseif (iiout == 2) then
-              write(*,*) 'Initial error=',error(1)
-              write(*,*) 'Final error  =',error(niter),'> tol=',tol
-            elseif (iiout > 2) then
-              write (*,*) 'Error history=',error
-            endif
-          elseif (iterr == 4) then
-            if (iiout > 1) write (*,*) 'Negative Jacobian'
-          else
-            write (messg,*) 'Unknown error ',iterr
-            call pstop('orbit_step',messg)
-          endif
-
-          !Return to initial conditions and try again with smaller time step
-          x = xold
-          y = yold
-          z = zold
-
-          dt = 0.8*dt
-
-          if (dt < 1d-8) then
-            ierror = 1
-            return
-          endif
-
-          if (iiout>1) write(*,*)'Trying smaller time step:',dt,'...'
-
-          restart = .true.
-
-          iterr = 0
-
-          go to 1
-
-        elseif (restart) then
-
-          restart = .false.
-
-          ierror = -1
-
-          if (iiout > 1) then
-            write (*,*) 'CN succeeded! Proceeding.'
-            write (*,*)
-          endif
-
-        endif
-
-c       Advance time and arc length
-
-        call updt_measures(xh,yh,zh,jach*dt,time,ds,ss)
-
-      end subroutine cn_solver
-
-c     updt_measures
-c     #########################################################################
-      subroutine updt_measures(x,y,z,dt,time,ds,ss)
-
-      real(8),intent(IN) :: x,y,z,dt
-      real(8),intent(OUT):: time,ss,ds
-
-      real(8) :: vx,vy,vz
-
-      !Update time step
-      time=time+dt  !Include Jacobian factor to advance time
-
-      !Update arc length
-      call evalBcar(x,y,z,vx,vy,vz)
-
-      ds = dt*sqrt(vx**2+vy**2+vz**2)
-      ss = ss + ds
-
-      end subroutine updt_measures
-
 c     lsode_step
 c     ####################################################################
-      subroutine lsode_step(tol,x,y,z,flag,iterr)
+      subroutine lsode_step(tol,x,y,z,flag)
 
 c     --------------------------------------------------------------------
-c     Performs orbit integration step in a 3D simplectic manner (i.e.,
-c     using only one component of vector potential at a time; see Finn &
-c     Chacon, PoP 2005). Currently employs a Picard iteration for
-c     nonlinear convergence. This should be improved to use Newton.
+c     Performs orbit integration step using LSODE (arbitrary order < 12th,
+c     implicit Adams-Moulton, adaptive time stepping).
 c     --------------------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-      integer :: flag,iterr
+      integer :: flag
       real(8) :: x,y,z,tol
 
 c     Local variables
@@ -819,8 +729,8 @@ c     LSODE configuration and call
       T    = 0d0    !Independent variable
 
       ITOL = 2      !Whether atol is array or not (2 => true)
-      RTOL = 1d-8   !Relative tolerance
-      ATOL = tol    !Absolute tolerance
+      RTOL = tol    !Relative tolerance
+      ATOL = 1d-15  !Absolute tolerance
       ITASK = 2     !Mode of operation: take one step and return
 
       !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
@@ -829,8 +739,10 @@ cc      if ((time == 0d0)) ISTATE = 1
 cc      if (.not.cartesian) ISTATE=1
 
       IOPT = 0      !Whether optional inputs are needed
+cc      IOPT = 1      !Whether optional inputs are needed
+cc      RWORK(6) = dtime !Maximum time step allowed (optional input)
 
-      MF = 10       !Specifies non-stiff problem: implicit Adams method
+      MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
 
       odeflag = flag   !Whether we use split step (1,2) or full step (0)
 
@@ -855,7 +767,10 @@ c     Postprocessing to find logical coordinates
 
         if (x > rmin) then
           ierror = -2
-          ISTATE = 1   !Instruct LSODE to start anew for next time step
+cc          ISTATE = 1   !Instruct LSODE to start anew for next time step
+cc          iiout = 3  ! diag: Increase output
+          cartesian = .false.
+          sing_point= .false.
         endif
       else
         x = YY(1)
@@ -879,15 +794,157 @@ c     End program
 
       end subroutine lsode_step
 
+c     cn_solver
+c     #########################################################################
+      subroutine cn_solver
+
+c     ------------------------------------------------------------------------
+c     Performs home-grown Crank-Nicolson integration
+c     ------------------------------------------------------------------------
+
+        implicit none
+
+        integer :: iterr
+
+c     Begin program
+
+        dt = min(dtime,1.2*dt)
+
+ 1      iterr  = 0              !Initialize time stepping error flag
+
+        !Cartesian step (near SP)
+        if (cartesian) then
+
+          call simp_step(nt,niter,tol,cc*dt,x,y,z,0,iterr,error)
+
+          if (iterr == 0) iterr = -2  !Notify of Cartesian step
+
+        !Second order splitting
+        elseif (order==2) then
+
+          half = 0.5*dt
+
+c         Begin first half-step split
+
+          call simp_step(nt,niter,tol,cc*half,x,y,z,1,iterr,error)
+
+c         Begin whole step split
+
+          call simp_step(nt,niter,tol,cc*dt  ,x,y,z,2,iterr,error)
+
+c         Begin second half-step split
+
+          call simp_step(nt,niter,tol,cc*half,x,y,z,1,iterr,error)
+
+        !First-order integration (30% cheaper!)
+        else
+
+          call simp_step(nt,niter,tol,cc*dt,x,y,z,1,iterr,error)
+
+          call simp_step(nt,niter,tol,cc*dt,x,y,z,2,iterr,error)
+
+        endif
+
+c       Check for errors
+
+        ierror = iterr
+
+        if (iterr /= 0 .and. iterr /= -2) then
+
+          if (iterr < 4 .and. iterr > 0) then
+            if (iiout == 1) then
+              write (*,*) 'Step',iterr
+     .                ,' in CN did not converge to prescribed accuracy'
+            elseif (iiout == 2) then
+              write(*,*) 'Initial error=',error(1)
+              write(*,*) 'Final error  =',error(niter),'> tol=',tol
+            elseif (iiout > 2) then
+              write (*,*) 'Error history=',error
+            endif
+          else
+            write (messg,*) 'Unknown error ',iterr
+            call pstop('orbit_step',messg)
+          endif
+
+          !Return to initial conditions and try again with smaller time step
+          x = xold
+          y = yold
+          z = zold
+
+          dt = 0.8*dt
+
+          if (dt < 1d-8) call pstop('cn_solver','Time step too small')
+
+          if (iiout > 1) write(*,*)'Trying smaller time step:',dt,'...'
+
+          restart = .true.
+
+          go to 1
+
+        elseif (restart) then
+
+          restart = .false.
+
+          ierror = -1
+
+          if (iiout > 1) then
+            write (*,*) 'CN succeeded! Proceeding.'
+            write (*,*)
+          endif
+
+        endif
+
+c       Advance time and arc length
+
+        if (cartesian) then
+          jach = 1d0
+        else
+          xh = 0.5*(xold+x)
+          yh = 0.5*(yold+y)
+          zh = 0.5*(zold+z)
+          jach = evalJ(xh,yh,zh,ierror)
+
+          if (ierror /= 0) jach = evalJ(x,y,z,ierror)
+
+          if (ierror /= 0) then
+            call pstop('cn_solver','Negative Jacobian')
+          endif
+
+        endif
+
+        call updt_measures(xh,yh,zh,jach*dt,time,ds,ss)
+
+      end subroutine cn_solver
+
+c     updt_measures
+c     #########################################################################
+      subroutine updt_measures(x,y,z,dt,time,ds,ss)
+
+      real(8),intent(IN) :: x,y,z,dt
+      real(8),intent(OUT):: time,ss,ds
+
+      real(8) :: vx,vy,vz
+
+      !Update time step
+      time=time+dt  !Include Jacobian factor to advance time
+
+      !Update arc length
+      call evalBcar(x,y,z,vx,vy,vz)
+
+      ds = dt*sqrt(vx**2+vy**2+vz**2)
+      ss = ss + ds
+
+      end subroutine updt_measures
+
 c     simp_step
 c     ####################################################################
-      subroutine simp_step(newton,niter,tol,dt,x,y,z,flag,iterr,error)
+      subroutine simp_step(newton,niter,rtol,dt,x,y,z,flag,iterr,error)
 
 c     --------------------------------------------------------------------
 c     Performs orbit integration step in a 3D simplectic manner (i.e.,
 c     using only one component of vector potential at a time; see Finn &
-c     Chacon, PoP 2005). Currently employs a Picard iteration for
-c     nonlinear convergence. This should be improved to use Newton.
+c     Chacon, PoP 2005). Currently allows both a Picard and a Newton
+c     iteration for nonlinear convergence.
 c     --------------------------------------------------------------------
 
       implicit none
@@ -895,7 +952,7 @@ c     --------------------------------------------------------------------
 c     Call variables
 
       integer :: flag,iterr,niter
-      real(8) :: x,y,z,dt,error(niter),tol
+      real(8) :: x,y,z,dt,error(niter),rtol
       logical :: newton
 
 c     Local variables
@@ -904,11 +961,12 @@ c     Local variables
 
       integer,parameter :: size=3,icol=1
 
+      real(8) :: tol
       real(8) :: JJ(size,size),res(size,icol),dx(size,icol)
 
 c     Begin program
 
-      if (iterr /= 0) return
+      if (iterr /= 0 .or. (istep /= 0 .and. flag /= istep)) return
 
       x0=x
       y0=y
@@ -928,29 +986,25 @@ cc      endif
          !Form residual
          res(:,1) = -formResidual(flag,dt,x0,y0,z0,x,y,z)
 
-         if (iiout > 2) write (*,*) 'simp_step ',flag,' -- res=',res
+         if (iter == 1) tol = 1d-15 + rtol*sqrt(sum(res**2))
 
          !Find update
          if (newton) then
+
+           if (iiout > 2) write (*,*) 'simp_step ',flag,' -- res=',res
+
            xh = 0.5*(x+x0)
            yh = 0.5*(y+y0)
            zh = 0.5*(z+z0)
            JJ = formJacobian(size,flag,dt,xh,yh,zh)
            call blockSolve(size,JJ,icol,res,dx)
 cc           dx = matmul(JJ,res)
+
          else
            dx = res
          endif
 
          if (iiout > 2) write (*,*) 'simp_step ',flag,' -- dx=',dx
-
-         !Check convergence
-         error(iter) = sqrt(sum(dx**2))
-
-         if (iiout > 2) write (*,*) 'simp_step ',flag,' -- error='
-     .                               ,error(iter)
-
-         if (error(iter) < tol) exit
 
          !Update solution
          x = x + dx(1,1)
@@ -959,16 +1013,21 @@ cc           dx = matmul(JJ,res)
 
          if (iiout > 2) write (*,*) 'simp_step ',flag,' -- X =',x,y,z
 
+         !Check convergence
+         error(iter) = sqrt(sum(dx**2))
+cc         error(iter) = sqrt(sum(dx**2))/(jach*dt)  !diag
+
+         if (iiout > 2) write (*,*) 'simp_step ',flag,' -- error='
+     .                               ,error(iter)
+
+         if (error(iter) < tol) exit
+
       enddo
 
-      if (iiout > 1) then
+      if (iiout == 2) then
         write (*,*) 'simp_step ',flag,' -- X =',x,y,z
-     .             ,'; error=',error(min(iter,niter))
-cc        pause
+     .             ,'; error history=',error(1:min(iter,niter))
       endif
-
-      if (iiout > 2) write (*,*) 'simp_step ',flag,' -- error history'
-     .                            ,error(1:min(iter,niter))
 
       if (iter > niter) iterr = flag
 
@@ -985,9 +1044,7 @@ c     ###################################################################
       integer :: flag
       real(8) :: dt,x0,y0,z0,x1,y1,z1,res(3)
 
-      real(8) :: cdt,xh,yh,zh,vx,vy,vz,xc0,yc0,zc0,x11,y11,z11
-
-      cdt = cc*dt
+      real(8) :: xh,yh,zh,vx,vy,vz,xc0,yc0,zc0,x11,y11,z11
 
       !Find mid point
       xh = 0.5*(x1+x0)
@@ -1004,9 +1061,9 @@ c     ###################################################################
         call evalX(x0,y0,z0,xc0,yc0,zc0)
 
         !Update Cartesian coordinates
-        xc0 = xc0 +cdt*vx
-        yc0 = yc0 +cdt*vy
-        zc0 = zc0 +cdt*vz
+        xc0 = xc0 +dt*vx
+        yc0 = yc0 +dt*vy
+        zc0 = zc0 +dt*vz
 
         !Find logical coordinates
         x11 = x0 ; y11 = y0 ; z11 = z0
@@ -1021,9 +1078,14 @@ c     ###################################################################
         res(3) = z1 - z11
 
       else
-        res(1) = x1 - x0 -cdt*vx
-        res(2) = y1 - y0 -cdt*vy
-        res(3) = z1 - z0 -cdt*vz
+        res(1) = x1 - x0 -dt*vx
+        res(2) = y1 - y0 -dt*vy
+        res(3) = z1 - z0 -dt*vz
+
+cc        if (iiout > 2) then
+cc          write (*,*)'simp_step ',flag,' -- Vel =',vx,vy,vz !diag
+cc          write (*,*)'simp_step ',flag,' -- Xh  =',xh,yh,zh !diag
+cc        endif
       endif
 
       end function formResidual
@@ -1046,7 +1108,7 @@ c     ###################################################################
       call evalCurlA(x1,y1,z1,JJ(1,3),JJ(2,3),JJ(3,3),flag=flag
      .              ,idx=0,idy=0,idz=1)
 
-      JJ =-0.5*cc*dt*JJ
+      JJ =-0.5*dt*JJ
 
       JJ(1,1) = JJ(1,1) + 1d0
       JJ(2,2) = JJ(2,2) + 1d0

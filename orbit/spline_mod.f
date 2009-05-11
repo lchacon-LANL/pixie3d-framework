@@ -11,6 +11,8 @@ c #####################################################################
         real(8)  :: db3val
         external :: db3val
 
+        integer :: istep=0
+
         !Private variables
         integer,private :: kx,ky,kz,nx,ny,nz,dim,flg,ag
 
@@ -19,7 +21,7 @@ c #####################################################################
         real(8),private,dimension(:),allocatable    :: tx,ty,tz,work
      .                                                ,xs,ys,zs
 
-        real(8),private,dimension(:,:,:),allocatable:: ax,ay,az,jcoef
+        real(8),private,dimension(:,:,:),allocatable:: jcoef
      .                                        ,acoefx,acoefy,acoefz
      .                                        ,bcoefx,bcoefy,bcoefz
      .                                        ,xcoefx,xcoefy,xcoefz
@@ -153,8 +155,6 @@ c     Initialize private variables
 
         allocate(xs(nx),ys(ny),zs(nz))
 
-        allocate(ax(nx,ny,nz),ay(nx,ny,nz),az(nx,ny,nz))
-
 c     Initialize spline domain arrays
 
         xs = xx
@@ -205,7 +205,7 @@ c     End program
 
 c     splineA
 c     #################################################################
-      subroutine splineA(bx,by,bz,a_gauge)
+      subroutine splineA(bx,by,bz,a_gauge,input_is_A)
 c     -----------------------------------------------------------------
 c     This routine splines up vector components (ax,ay,az) on a uniform
 c     grid of size (nx,ny,nz) with positions xs,ys,zs.
@@ -217,18 +217,50 @@ c     Call variables
 
       integer    :: a_gauge
       real(8)    :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
+      logical,optional :: input_is_A
 
 c     Local variables
 
       integer :: alloc_stat,i
+      logical :: inputA
+
+      real(8) :: ax(nx,ny,nz),ay(nx,ny,nz),az(nx,ny,nz)
+     .          ,sumax,sumay,sumaz
 
 c     Begin program
+
+      if (PRESENT(input_is_A)) then
+        inputA = input_is_A
+      else
+        inputA = .false.
+      endif
 
       ag = a_gauge
 
 c     Get vector potential
 
-      call getA_on_mesh(nx,ny,nz,xs,ys,zs,bx,by,bz,ax,ay,az,ag)
+      if (inputA) then
+        ax = bx
+        ay = by
+        az = bz
+      else
+        call getA_on_mesh(nx,ny,nz,xs,ys,zs,bx,by,bz,ax,ay,az,ag)
+      endif
+
+c     Determine integration steps
+
+      sumax = sum(ax**2)
+      sumay = sum(ay**2)
+      sumaz = sum(az**2)
+
+      select case(ag)
+      case(1)
+        if (sumay == 0d0) istep=2
+        if (sumaz == 0d0) istep=1
+      case(2)
+        if (sumax == 0d0) istep=2
+        if (sumaz == 0d0) istep=1
+      end select
 
 c     Spline vector potential
 
@@ -252,6 +284,8 @@ c     Spline vector potential
 
       call db3ink(xs,nx,ys,ny,zs,nz
      .           ,az,nx,ny,kx,ky,kz,tx,ty,tz,acoefz,work,flg)
+
+c     End program
 
       end subroutine splineA
 
@@ -281,10 +315,12 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: i,j,k,ii,ig,jg,kg,ivar,nxl,nyl,nzl
+      integer    :: i,j,k,ii,jj,ig,jg,kg,ivar,nxl,nyl,nzl
       real(8)    :: cm,c0,cp,dxx,dyy,dzz,dvol,cov(3)
       real(8)    :: a(0:nx-1,0:ny-1,0:nz-1,3)
      .             ,b(0:nx-1,0:ny-1,0:nz-1,3)
+
+      logical    :: spoint
 
 c     Begin program
 
@@ -301,6 +337,8 @@ c     Begin program
       if (nyl == 1) gauge = 3
       if (nzl == 1) gauge = 1
 
+      spoint = bcSP()
+
 c     Accommodate different gauges
 
       select case(gauge)
@@ -312,25 +350,42 @@ c       Gauge
 
 c       Quadrant-based code (SP ready, parallel-ready)
 
-        !Lower-left quadrant
-        call line_int(nxl/2-1,1,nyl/2-1,1
-     .               ,b(0:nxl/2,0:nyl/2,0:nzl+1,1:3)
-     .               ,a(0:nxl/2,0:nyl/2,0:nzl+1,1:3))
+cc        if (spoint) then        !Separate quadrants only in theta
+cc
+cccc          write (*,*) 'here'
+cc          call line_int(1,nxl,1,nyl,b,a)
+cc
+cccc          !Lower-right quadrant
+cccc          call line_int(1,nxl,nyl/2-1,1
+cccc     .                 ,b(0:nxl+1,0:nyl/2,0:nzl+1,1:3)
+cccc     .                 ,a(0:nxl+1,0:nyl/2,0:nzl+1,1:3))
+cccc
+cccc          !Upper-right quadrant
+cccc          call line_int(1,nxl,nyl/2+1,nyl
+cccc     .                 ,b(0:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3)
+cccc     .                 ,a(0:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3))
+cc
+cc        else
+          !Lower-left quadrant
+          call line_int(nxl/2-1,1,nyl/2-1,1
+     .                 ,b(0:nxl/2,0:nyl/2,0:nzl+1,1:3)
+     .                 ,a(0:nxl/2,0:nyl/2,0:nzl+1,1:3))
 
-        !Lower-right quadrant
-        call line_int(nxl/2+1,nxl,nyl/2-1,1
-     .               ,b(nxl/2:nxl+1,0:nyl/2,0:nzl+1,1:3)
-     .               ,a(nxl/2:nxl+1,0:nyl/2,0:nzl+1,1:3))
+          !Lower-right quadrant
+          call line_int(nxl/2+1,nxl,nyl/2-1,1
+     .                 ,b(nxl/2:nxl+1,0:nyl/2,0:nzl+1,1:3)
+     .                 ,a(nxl/2:nxl+1,0:nyl/2,0:nzl+1,1:3))
 
-        !Upper-left quadrant
-        call line_int(nxl/2-1,1,nyl/2+1,nyl
-     .               ,b(0:nxl/2,nyl/2:nyl+1,0:nzl+1,1:3)
-     .               ,a(0:nxl/2,nyl/2:nyl+1,0:nzl+1,1:3))
+          !Upper-left quadrant
+          call line_int(nxl/2-1,1,nyl/2+1,nyl
+     .                 ,b(0:nxl/2,nyl/2:nyl+1,0:nzl+1,1:3)
+     .                 ,a(0:nxl/2,nyl/2:nyl+1,0:nzl+1,1:3))
 
-        !Upper-right quadrant
-        call line_int(nxl/2+1,nxl,nyl/2+1,nyl
-     .               ,b(nxl/2:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3)
-     .               ,a(nxl/2:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3))
+          !Upper-right quadrant
+          call line_int(nxl/2+1,nxl,nyl/2+1,nyl
+     .                 ,b(nxl/2:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3)
+     .                 ,a(nxl/2:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3))
+cc        endif
 
       case(2) !A2=0 code <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -364,6 +419,7 @@ c       Quadrant-based code
         call pstop('getA','Gauge not implemented for ny=1')
       end select
 
+
 c     Take care of collapsed dimensions (no motion along those)
 
       if (nxl == 1) a(:,:,:,2:3) = 0d0
@@ -375,19 +431,64 @@ c     Take care of collapsed dimensions (no motion along those)
 
       if (nzl == 1) a(:,:,:,1:2) = 0d0
 
-c     Transform A components to Ay=0 gauge
+c     Impose topological BCs
+
+      if (bcond(3) == PER) then
+        a(:,0    ,:,1)=a(:,nyl,:,1)
+        a(:,nyl+1,:,1)=a(:,1  ,:,1)
+        a(:,0    ,:,2)=a(:,nyl,:,2)
+        a(:,nyl+1,:,2)=a(:,1  ,:,2)
+        a(:,0    ,:,3)=a(:,nyl,:,3)
+        a(:,nyl+1,:,3)=a(:,1  ,:,3)
+      endif
+
+      if (bcond(5) == PER) then
+        a(:,:,0    ,1)=a(:,:,nzl,1)
+        a(:,:,nzl+1,1)=a(:,:,1  ,1)
+        a(:,:,0    ,2)=a(:,:,nzl,2)
+        a(:,:,nzl+1,2)=a(:,:,1  ,2)
+        a(:,:,0    ,3)=a(:,:,nzl,3)
+        a(:,:,nzl+1,3)=a(:,:,1  ,3)
+      endif
+
+      if (bcond(1) == PER) then
+        a(0    ,:,:,1)=a(nxl,:,:,1)
+        a(nxl+1,:,:,1)=a(1  ,:,:,1)
+        a(0    ,:,:,2)=a(nxl,:,:,2)
+        a(nxl+1,:,:,2)=a(1  ,:,:,2)
+        a(0    ,:,:,3)=a(nxl,:,:,3)
+        a(nxl+1,:,:,3)=a(1  ,:,:,3)
+      elseif (bcond(1) == SP) then  !Cov components
+        do k=0,nzl+1
+          do j=0,nyl+1
+            jj = mod(j+nyl/2,nyl)
+            if (jj == 0) jj = nyl
+
+            a(0,j,k,1) =-a(1,jj,k,1)
+            a(0,j,k,2) = a(1,jj,k,2)
+            a(0,j,k,3) = a(1,jj,k,3)
+          enddo
+        enddo
+      endif
+
+c     Return A components
 
       ax = a(:,:,:,1)
       ay = a(:,:,:,2)
       az = a(:,:,:,3)
 
-cc      open(unit=110,file='debug.bin',form='unformatted'
+c diag *****
+cc      open(unit=110,file='vecpot.bin',form='unformatted'
 cc     .    ,status='replace')
-cc      call contour(ax(:,:,3),nx,ny,0d0,xmax,0d0,ymax,0,110)
-cc      call contour(ay(:,:,3),nx,ny,0d0,xmax,0d0,ymax,1,110)
-cc      call contour(az(:,:,3),nx,ny,0d0,xmax,0d0,ymax,1,110)
+cc      call contour(ax(1:nxl+1,1:nyl+1,2)
+cc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,0,110)
+cc      call contour(ay(1:nxl+1,1:nyl+1,2)
+cc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,1,110)
+cc      call contour(az(1:nxl+1,1:nyl+1,2)
+cc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,1,110)
 cc      close(110)
 cc      stop
+c diag *****
 
 c     End program
 
@@ -1426,7 +1527,6 @@ c     -----------------------------------------------------------------
 
 c     Begin program
 
-      deallocate(ax,ay,az)
       deallocate(work,tx,ty,tz,xs,ys,zs,stat=alloc_stat)
       deallocate(acoefx,acoefy,acoefz,stat=alloc_stat)
       deallocate(jcoef,xcoefx,xcoefy,xcoefz,stat=alloc_stat)
