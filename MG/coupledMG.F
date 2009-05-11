@@ -6263,6 +6263,7 @@ c     ##################################################################
      .                  ,vol_wgt
      .                  ,dg,cvrg_tst,tol
      .                  ,gm_driver
+     .                  ,gm_it
      .                  ,mg_order_res
      .                  ,mg_order_prol
      .                  ,mg_vcyc
@@ -6298,6 +6299,7 @@ c       * dg: matrix neq*neq diagonal block (for stationary its).
 c       * cvrg_tst: whether we want to perform a convergence test
 c       * tol: convergence tolerance
 c       * gm_driver: whether we want GMRES as a driver
+c       * gm_it: # of GMRES iterations
 c
 c       * mg_order_res: restriction order
 c       * mg_order_prol: restriction order
@@ -6334,6 +6336,7 @@ c     Call variables
      .                                   ,mg_coarse_grid_size
      .                                   ,sm_it
      .                                   ,sm_ncolors
+     .                                   ,gm_it
         logical   ,optional,intent(IN) :: sm_line_relax
      .                                   ,sm_zebra_relax
      .                                   ,mg_gm_coarse_solve
@@ -6349,7 +6352,7 @@ c     Call variables
 c     Local variables
 
         integer    :: ntot,iorder_res,iorder_prol,vcyc,mu_cyc,nclrs,smit
-     .               ,mgmin,i,ieq
+     .               ,mgmin,i,ieq,gmit
         real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,rtol
         real(8), target :: ddg(neq,2*neq*ntotp)
         logical    :: gm_crse_solve,cvrg_test,lrelax,zrelax
@@ -6369,6 +6372,12 @@ c     Process optional arguments
           gm_drvr = gm_driver
         else
           gm_drvr = .false.
+        endif
+
+        if(PRESENT(gm_it)) then
+          gmit = gm_it
+        else
+          gmit = 10
         endif
 
         if (PRESENT(cvrg_tst)) then
@@ -6551,10 +6560,10 @@ c       Initialize solver
 
 c       Check whether GMRES is driving solve
 
-        if (gm_drvr.and.vcyc > 1) then
+        if (gm_drvr) then
           call solverOptionsInit
 
-          solverOptions%iter    = vcyc
+          solverOptions%iter    = gmit
           solverOptions%tol     = rtol
 
           solverOptions%stp_test = 1 
@@ -6568,10 +6577,10 @@ c       MG solver options
 
         solverOptions%tol      = rtol
 
-        if (gm_drvr .and. vcyc > 1) then
-          solverOptions%vcyc     = 1
+        if (gm_drvr) then
+          solverOptions%vcyc   = 1
         else
-          solverOptions%vcyc     = vcyc
+          solverOptions%vcyc   = vcyc
         endif
         solverOptions%mg_gmin  = mgmin
         solverOptions%orderres = iorder_res
