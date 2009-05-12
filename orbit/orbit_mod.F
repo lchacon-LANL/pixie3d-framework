@@ -586,7 +586,7 @@ c     Local Variables
       integer :: iter,order,niter
       logical :: restart,nt,fwd
 
-      real(8) :: rmin=1d-3
+      real(8) :: rmin=1d-4
 
       save dt
 
@@ -1188,7 +1188,7 @@ c     -----------------------------------------------------------------
 
 c     Begin program
 
-        if (my_rank == 0 .and. iiout >= 0) write (*,*)
+cc        if (my_rank == 0 .and. iiout >= 0) write (*,*)
 
 c     Initialize private variables
 
@@ -1365,9 +1365,10 @@ c     Check for intersection with X surface of section
      .               ,y    ,z    ,x    ,tt
      .               ,xss,npointx,yss,zss,tss,iwhich)
 
-          call chk_pos(xss,yss,zss) !this resets logical coords
-
-          if (ss_io) write(nunitx) real(yss),real(zss)
+          if (ss_io) then
+            call chk_pos(xss,yss,zss) !this resets logical coords
+            write(nunitx) real(yss),real(zss)
+          endif
         endif
 
 c     Check for intersection with Y surface of section
@@ -1380,9 +1381,10 @@ c     Check for intersection with Y surface of section
      .               ,z    ,x    ,y    ,tt
      .               ,yss,npointy,zss,xss,tss,iwhich)
 
-          call chk_pos(xss,yss,zss) !this resets logical coords
-
-          if (ss_io) write(nunity) real(xss),real(zss)
+          if (ss_io) then
+            call chk_pos(xss,yss,zss) !this resets logical coords
+            write(nunity) real(xss),real(zss)
+          endif
         endif
 
 c     Check for intersection with Z surface of section
@@ -1400,14 +1402,14 @@ c     Check for intersection with Z surface of section
             rr = sqrt(xcar**2+ycar**2)
             write(nunitrz) real(rr),real(zcar)
 cc            write(*,*) 'diag',z,zold,real(rr),real(zcar)   !diag
-          else
+          elseif (ss_io) then
             call chk_pos(xss,yss,zss) !this resets logical coords
           endif
 
           if (ss_io) write(nunitz) real(xss),real(yss)
         endif
 
-      contains
+      end subroutine sschk
 
 c     chk_ss_pos
 c     ##################################################################
@@ -1437,8 +1439,10 @@ c     Begin program
         pp = min(pp,int((x2-xmin)/(xmax-xmin)))
         
         x00 = x0
-        if (x0 == xmin .and. pp > 0) x00 = xmax
-        if (x0 == xmax .and. pp < 0) x00 = xmin
+        if (x0 == xmin .and. pp >= 0) x00 = xmax
+        if (x0 == xmax .and. pp <  0) x00 = xmin
+cc        if (x0 == xmin .and. pp <  0) x00 = xmin-(xmax-xmin)
+        if (pp == 0 .and. (x2-xmin)<0d0) x00 =x0-(xmax-xmin)
         x11 = x1 - pp*(xmax-xmin)
         x22 = x2 - pp*(xmax-xmin)
       else
@@ -1448,28 +1452,13 @@ c     Begin program
         pp = 0
       endif
 
-      found = ((x11-x00)*(x22-x00) <= 0d0)
-      if (found) xss = x00+pp*(xmax-xmin)
+      found =    ((x11-x00)*(x22-x00) <= 0d0)
+     .       .or.((x11-x0 )*(x22-x0 ) <= 0d0)
 
-cc      if (found) write (*,*) 'chk_ss_pos',x0,x11,x22,x1,x2
-cc
-cc          if ((x-xss0)*(xold-xss0) <= 0.0) then
-cc            xss = xss0
-cc          elseif ((x-xmax)*(xold-xmax) <= 0.0
-cc     .           .and. bcond(1)==PER
-cc     .           .and. xss0==xmin) then
-cc            xss = xmax
-cc          elseif ((x-xmin)*(xold-xmin) <= 0.0
-cc     .           .and. bcond(1)==PER
-cc     .           .and. xss0==xmax) then
-cc            xss = xmin
-cc          else
-cc            goto 2
-cc          endif
+      if ((x11-x00)*(x22-x00) <= 0d0) xss = x00+pp*(xmax-xmin)
+      if ((x11-x0 )*(x22-x0 ) <= 0d0) xss = x0 +pp*(xmax-xmin)
 
       end function chk_ss_pos
-
-      end subroutine sschk
 
 c     sursec
 c     ##################################################################
