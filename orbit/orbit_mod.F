@@ -10,7 +10,6 @@ c ######################################################################
         use grid, ONLY: my_rank,pstop,messg
 
         !LSODE public variables
-        integer :: odeflag
         real(8) :: xold,yold,zold
         logical :: sing_point=.false.,sln
 
@@ -172,10 +171,6 @@ c     Begin program
         ode_conf = orb_default%ode_conf
 
 c     Setup domain limits
-
-cc        nxo = nx
-cc        nyo = ny
-cc        nzo = nz
 
         if (bcond(1) == PER) then
           xmin = xx(2)
@@ -491,7 +486,7 @@ c     Orbit integral
           endif
 
           !Reset logical coords according to BCs
-          call chk_pos(x,y,z)
+cc          call chk_pos(x,y,z)
 
           !Show progress/terminate
           if (smax /= 0d0) then
@@ -636,7 +631,7 @@ c     Time integration
 
       else                                  !LSODE (non-solenoidal)
 
-        call lsode_step(atol,rtol,x,y,z,0,ierror)
+        call lsode_step(atol,rtol,x,y,z,ierror)
 
       endif
 
@@ -657,7 +652,7 @@ c     End program
 
 c     lsode_step
 c     ####################################################################
-      subroutine lsode_step(aatol,rrtol,x,y,z,flag,iterr)
+      subroutine lsode_step(aatol,rrtol,x,y,z,iterr)
 
 c     --------------------------------------------------------------------
 c     Performs orbit integration step using LSODE (arbitrary order < 12th,
@@ -668,7 +663,7 @@ c     --------------------------------------------------------------------
 
 c     Call variables
 
-      integer :: flag,iterr
+      integer :: iterr
       real(8) :: x,y,z,aatol,rrtol
 
 c     Local variables
@@ -733,8 +728,6 @@ cc      RWORK(6) = dtime !Maximum time step allowed (optional input)
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
 
-      odeflag = flag   !Whether we use split step (1,2) or full step (0)
-
       CALL LSODE (ff, NEQD, YY, T, TOUT, ITOL, RTOL, ATOL, ITASK,
      .            ISTATE, IOPT, RWORK, LRW, IWORK, LIW, FF, MF)
 
@@ -759,24 +752,21 @@ c     Postprocessing to find logical coordinates
           ISTATE = 1   !Instruct LSODE to start anew for next time step
           cartesian = .false.
           sing_point= .false.
-         endif
+        endif
       else
         x = YY(1)
         y = YY(2)
         z = YY(3)
-
-        call chk_pos(x,y,z)
+cc        call chk_pos(x,y,z)
       endif
 
 c     Advance time and arc length
 
-      if (flag == 0 .or. flag == 2) then
-        ds   = YY(5)-ss
-        dt   = YY(4)-time
+      ds   = YY(5)-ss
+      dt   = YY(4)-time
 
-        time = cc*YY(4)
-        ss   = cc*YY(5)
-      endif
+      time = cc*YY(4)
+      ss   = cc*YY(5)
 
 c     End program
 
@@ -1255,7 +1245,6 @@ c     Begin program
           rzss = .false.
         endif
 
-cc        trace = 'trc_'//trim(file)
         ssx = 'ssx'//trim(file)
         ssy = 'ssy'//trim(file)
         ssz = 'ssz'//trim(file)
@@ -1349,12 +1338,6 @@ c     Local variables
 
 c     Begin program
 
-c     Check proximity (for periodic boundaries)
-
-        if (    (abs(nint(x/xold)) /= 1) .and. (bcond(1) == PER)
-     .      .or.(abs(nint(y/yold)) /= 1) .and. (bcond(3) == PER)
-     .      .or.(abs(nint(z/zold)) /= 1) .and. (bcond(5) == PER)) return
-
 c     Lower order of interpolation for SS if derivatives are too different
 
         iwhich = order
@@ -1374,21 +1357,8 @@ c     Lower order of interpolation for SS if derivatives are too different
 
 c     Check for intersection with X surface of section
 
-        if (lssx) then
-          !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
-          if ((x-xss0)*(xold-xss0) <= 0.0) then
-            xss = xss0
-          elseif ((x-xmax)*(xold-xmax) <= 0.0
-     .           .and. bcond(1)==PER
-     .           .and. xss0==xmin) then
-            xss = xmax
-          elseif ((x-xmin)*(xold-xmin) <= 0.0
-     .           .and. bcond(1)==PER
-     .           .and. xss0==xmax) then
-            xss = xmin
-          else
-            goto 2
-          endif
+        if (lssx
+     .      .and.chk_ss_pos(xss0,xold,x,bcond(1),xmin,xmax,xss)) then
 
           call sursec(yvold,zvold,xvold,tv
      .               ,yold ,zold ,xold ,to
@@ -1402,21 +1372,8 @@ c     Check for intersection with X surface of section
 
 c     Check for intersection with Y surface of section
 
- 2      if (lssy) then
-          !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
-          if((y-yss0)*(yold-yss0) <= 0.0) then
-            yss = yss0
-          elseif ((y-ymax)*(yold-ymax) <= 0.0
-     .           .and. bcond(3)==PER
-     .           .and. yss0==ymin) then
-            yss = ymax
-          elseif ((y-ymin)*(yold-ymin) <= 0.0
-     .           .and. bcond(3)==PER
-     .           .and. yss0==ymax) then
-            yss = ymin
-          else
-            goto 3
-          endif
+        if (lssy
+     .      .and.chk_ss_pos(yss0,yold,y,bcond(3),ymin,ymax,yss)) then
 
           call sursec(zvold,xvold,yvold,tv
      .               ,zold ,xold ,yold ,to
@@ -1430,21 +1387,8 @@ c     Check for intersection with Y surface of section
 
 c     Check for intersection with Z surface of section
 
- 3      if (lssz) then
-          !Check for periodic BCs (suggested by Daniele Bonfiglio, 4/8/09)
-          if((z-zss0)*(zold-zss0) <= 0.0) then
-            zss = zss0
-          elseif ((z-zmax)*(zold-zmax) <= 0.0
-     .           .and. bcond(5)==PER
-     .           .and. zss0==zmin) then
-            zss = zmax
-          elseif ((z-zmin)*(zold-zmin) <= 0.0
-     .           .and. bcond(5)==PER
-     .           .and. zss0==zmax) then
-            zss = zmin
-          else
-            return
-          endif
+        if (lssz
+     .      .and.chk_ss_pos(zss0,zold,z,bcond(5),zmin,zmax,zss)) then
 
           call sursec(xvold,yvold,zvold,tv
      .               ,xold ,yold ,zold ,to
@@ -1462,6 +1406,68 @@ cc            write(*,*) 'diag',z,zold,real(rr),real(zcar)   !diag
 
           if (ss_io) write(nunitz) real(xss),real(yss)
         endif
+
+      contains
+
+c     chk_ss_pos
+c     ##################################################################
+      function chk_ss_pos(x0,x1,x2,bc,xmin,xmax,xss) result(found)
+
+c     ------------------------------------------------------------------
+c     Determines whether surface of section at x0 is between x1 and x2
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: found
+      integer :: bc
+      real(8) :: x0,x1,x2,xmin,xmax,xss
+
+c     Local variables
+
+      integer :: pp
+      real(8) :: x11,x22,x00
+
+c     Begin program
+
+      if (bc == PER) then
+        pp =        int((x1-xmin)/(xmax-xmin))
+        pp = min(pp,int((x2-xmin)/(xmax-xmin)))
+        
+        x00 = x0
+        if (x0 == xmin .and. pp > 0) x00 = xmax
+        if (x0 == xmax .and. pp < 0) x00 = xmin
+        x11 = x1 - pp*(xmax-xmin)
+        x22 = x2 - pp*(xmax-xmin)
+      else
+        x00 = x0
+        x11 = x1
+        x22 = x2
+        pp = 0
+      endif
+
+      found = ((x11-x00)*(x22-x00) <= 0d0)
+      if (found) xss = x00+pp*(xmax-xmin)
+
+cc      if (found) write (*,*) 'chk_ss_pos',x0,x11,x22,x1,x2
+cc
+cc          if ((x-xss0)*(xold-xss0) <= 0.0) then
+cc            xss = xss0
+cc          elseif ((x-xmax)*(xold-xmax) <= 0.0
+cc     .           .and. bcond(1)==PER
+cc     .           .and. xss0==xmin) then
+cc            xss = xmax
+cc          elseif ((x-xmin)*(xold-xmin) <= 0.0
+cc     .           .and. bcond(1)==PER
+cc     .           .and. xss0==xmax) then
+cc            xss = xmin
+cc          else
+cc            goto 2
+cc          endif
+
+      end function chk_ss_pos
 
       end subroutine sschk
 
@@ -1566,7 +1572,7 @@ c -------------------------------------------------------------------------
 c     Driver routine for LSODE integration: ydot = ff(y,t)
 c -------------------------------------------------------------------------
 
-      use orbit, ONLY: spt=>sing_point,sln,odeflag,iiout,xold,yold,zold
+      use orbit, ONLY: spt=>sing_point,sln,iiout,xold,yold,zold
       use spline_field
 
       implicit none
@@ -1599,7 +1605,7 @@ c Begin program
       endif
 
       !Get vector field (Cartesian if spt is .true.)
-      call getB(x1,y1,z1,vx,vy,vz,sln,spt,flag=odeflag)
+      call getB(x1,y1,z1,vx,vy,vz,sln,spt)
 
       ydot(1) = vx
       ydot(2) = vy

@@ -34,7 +34,7 @@ c #####################################################################
 
 c     chk_pos
 c     ##################################################################
-      subroutine chk_pos(x,y,z)
+      subroutine chk_pos(x,y,z,no_per_bc)
 
 c     ------------------------------------------------------------------
 c     Check we are still within LOGICAL domain
@@ -45,18 +45,26 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       real(8) :: x,y,z
+      logical,optional :: no_per_bc
 
 c     Local Variables
 
       integer :: ierror
+      logical :: per_bc
 
 c     Begin program
+
+      if (PRESENT(no_per_bc)) then
+        per_bc = .not.no_per_bc
+      else
+        per_bc = .true.
+      endif
 
       ierror = 0
 
       if (x > xmax) then
         if (bcond(2) == PER) then   !Periodic BC
-          x = xmin + mod(x,(xmax-xmin))
+          if (per_bc) x = xmin + mod(x,(xmax-xmin))
         else
           ierror = 1
         endif
@@ -69,7 +77,7 @@ c     Begin program
 
       if (x < xmin) then
         if (bcond(1) == PER) then   !Periodic BC
-          x = xmax - mod(xmin-x,xmax-xmin)
+          if (per_bc) x = xmax - mod(xmin-x,xmax-xmin)
         else
           ierror = 1
         endif
@@ -77,7 +85,7 @@ c     Begin program
 
       if (y > ymax) then
         if (bcond(4) == PER) then   !Periodic BC
-          y = ymin + mod(y,(ymax-ymin))
+          if (per_bc) y = ymin + mod(y,(ymax-ymin))
         else
           ierror = 1
         endif
@@ -85,7 +93,7 @@ c     Begin program
 
       if (y < ymin) then
         if (bcond(3) == PER) then   !Periodic BC
-          y = ymax - mod(ymin-y,ymax-ymin)
+          if (per_bc) y = ymax - mod(ymin-y,ymax-ymin)
         else
           ierror = 1
         endif
@@ -93,7 +101,7 @@ c     Begin program
 
       if (z > zmax) then
         if (bcond(6) == PER) then   !Periodic BC
-          z = zmin + mod(z,(zmax-zmin))
+          if (per_bc) z = zmin + mod(z,(zmax-zmin))
         else
           ierror = 1
         endif
@@ -101,7 +109,7 @@ c     Begin program
 
       if (z < zmin) then
         if (bcond(5) == PER) then   !Periodic BC
-          z = zmax - mod(zmin-z,zmax-zmin)
+          if (per_bc) z = zmax - mod(zmin-z,zmax-zmin)
         else
           ierror = 1
         endif
@@ -1320,7 +1328,8 @@ cc        if (error(iter) < tol) exit
         x2 = x2 + dxi(2,1)
         x3 = x3 + dxi(3,1)
 
-        call chk_pos(x1,x2,x3)
+        !Singular point BC
+        call chk_pos(x1,x2,x3,no_per_bc=.true.)
 
         if (prnt) write (*,*) 'evalXi -- xi=',x1,x2,x3
 
@@ -1350,13 +1359,21 @@ c     ###################################################################
 
       real(8) :: x1,x2,x3,res(3)
 
-      res(1) = x - db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
+      real(8) :: x11,x22,x33
+
+      x11 = x1
+      x22 = x2
+      x33 = x3
+
+      call chk_pos(x11,x22,x33)
+
+      res(1) = x - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,xcoefx,work)
 
-      res(2) = y - db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
+      res(2) = y - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,xcoefy,work)
 
-      res(3) = z - db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
+      res(3) = z - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,xcoefz,work)
 
       if (bcond(1) == PER) res(1) = mod(res(1),xmax-xmin-0.1*tol)
@@ -1373,25 +1390,33 @@ c     ###################################################################
 
       real(8) :: x1,x2,x3,JJ(3,3)
 
-      JJ(1,1) = db3val(x1,x2,x3,1,0,0,tx,ty,tz,nx,ny,nz
+      real(8) :: x11,x22,x33
+
+      x11 = x1
+      x22 = x2
+      x33 = x3
+
+      call chk_pos(x11,x22,x33)
+
+      JJ(1,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
      .                ,kx,ky,kz,xcoefx,work)
-      JJ(1,2) = db3val(x1,x2,x3,0,1,0,tx,ty,tz,nx,ny,nz
+      JJ(1,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
      .                ,kx,ky,kz,xcoefx,work)
-      JJ(1,3) = db3val(x1,x2,x3,0,0,1,tx,ty,tz,nx,ny,nz
+      JJ(1,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
      .                ,kx,ky,kz,xcoefx,work)
 
-      JJ(2,1) = db3val(x1,x2,x3,1,0,0,tx,ty,tz,nx,ny,nz
+      JJ(2,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
      .                ,kx,ky,kz,xcoefy,work)
-      JJ(2,2) = db3val(x1,x2,x3,0,1,0,tx,ty,tz,nx,ny,nz
+      JJ(2,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
      .                ,kx,ky,kz,xcoefy,work)
-      JJ(2,3) = db3val(x1,x2,x3,0,0,1,tx,ty,tz,nx,ny,nz
+      JJ(2,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
      .                ,kx,ky,kz,xcoefy,work)
 
-      JJ(3,1) = db3val(x1,x2,x3,1,0,0,tx,ty,tz,nx,ny,nz
+      JJ(3,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
      .                ,kx,ky,kz,xcoefz,work)
-      JJ(3,2) = db3val(x1,x2,x3,0,1,0,tx,ty,tz,nx,ny,nz
+      JJ(3,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
      .                ,kx,ky,kz,xcoefz,work)
-      JJ(3,3) = db3val(x1,x2,x3,0,0,1,tx,ty,tz,nx,ny,nz
+      JJ(3,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
      .                ,kx,ky,kz,xcoefz,work)
 
       end function formJacobian
