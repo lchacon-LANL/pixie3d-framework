@@ -350,52 +350,86 @@ c     Begin program
       dtold = dt
       dt_n  = dt
 
-      call calculate_dt
-
-      cnp = 1d0
-      cn  =-1d0
-      cnm = 0d0
-
-      if (sm_flag == 1) then
-
-        call calculate_cnfactor
-
-      elseif (sm_flag == 2) then
-        if (     (itm == 1 .and. (.not.timecorr) )
-     .      .or. (itm == 2 .and.       timecorr  )) then   !BE for first time step (for robustness)
-
-cc          cnfactor = 0.5
-          cnfactor = 0d0
-          dt = 0.1*dt
-
-          bdf2 = .false.
-
-        elseif (     (itm > 1 .and. (.not.timecorr) )
-     .          .or. (itm > 2 .and.       timecorr  )) then
-
-          cnfactor = 0d0
-
-          bdf2 = .true.
-
-          dt = dtbase
-
-          !All these are affected by factor 1/dt (done in evaluateNLF)
-          cnp = (2*dt+dtold)/(dt+dtold)
-          cn  = -(dt+dtold)/dtold
-          cnm = -cnp-cn    !Sum should be zero identically
-
-        endif
+      if (PRESENT(dt_exp)) then
+        dt = dt_exp
+      else
+        call adapt_dt
       endif
 
-      alpha = 1d0 - cnfactor
+      call calculate_cnfactor
 
 c     End program
 
       contains
 
+c     adapt_dt
+c     #######################################################################
+      subroutine adapt_dt
+
+        real(8) ::    coef1=0.8   !Time subcycling coefficient
+     .               ,coef2=1.05  !Time recovery   coefficient
+
+        if (ierr > 0) then   !Error in time stepping
+
+          dt = dt*coef1
+          if (dt < 1d-3*dtbase) then
+            call pstop('adapt_dt','Time step too small')
+          endif
+          if (my_rank == 0 .and. ierr == 2) write (*,240)
+          if (my_rank == 0) write (*,400) dt
+
+        else                 !No error in time stepping
+
+          select case (sm_flag)
+          case(1)  !Rannacher time stepping
+
+            if (   (itm <= sm_pass+1.and.(.not.timecorr))
+     .         .or.(itm <= sm_pass+2.and.      timecorr )) then
+              dt = 0.5*dtbase
+            elseif ((itm == sm_pass+2.and.(.not.timecorr))
+     .          .or.(itm == sm_pass+3.and.      timecorr )) then
+              dt = dtbase
+            else
+              dt = min(dtbase,dt*coef2)
+            endif
+
+          case(2)  !BDF time stepping
+            if     (    (itm == 1 .and.(.not.timecorr))
+     .              .or.(itm == 2 .and.      timecorr )) then
+              dt = 0.1*dtbase
+            elseif (    (itm == 2 .and.(.not.timecorr))
+     .              .or.(itm == 3 .and.      timecorr )) then
+cc              dt = min(dtbase,2*dt)
+              dt = dtbase
+            else
+              dt = min(dtbase,dt*coef2)
+            endif
+
+          case default   !Default time stepping
+            if (    (itm == 1.and.(.not.timecorr))
+     .          .or.(itm == 2.and.      timecorr )) then
+              dt = dtbase
+            else
+              dt = min(dtbase,dt*coef2)
+            endif
+          end select
+
+        endif
+
+ 240    format ('    Too many Newton iterations')
+ 400    format ('    Subcycling time step... New time step: ',1p,e10.4)
+
+      end subroutine adapt_dt
+
 c     calculate_cnfactor
 c     #######################################################################
       subroutine calculate_cnfactor
+
+      cnp = 1d0
+      cn  =-1d0
+      cnm = 0d0
+
+      if (sm_flag == 1) then      !Rannacher
 
         if (itm.eq.1) then
           cnfactor = .5
@@ -405,78 +439,25 @@ c     #######################################################################
           cnfactor = max(.5 - gammat/12.*dt,0d0)
         endif
 
+      elseif (sm_flag == 2) then  !BDF2
+
+        cnfactor = 0d0
+
+        bdf2 = (itm > 1 .and. (.not.timecorr) )
+     .    .or. (itm > 2 .and.       timecorr  )
+
+        if (bdf2) then
+          !All these are affected by factor 1/dt (done in evaluateNLF)
+          cnp = (2*dt+dtold)/(dt+dtold)
+          cn  = -(dt+dtold)/dtold
+          cnm = -cnp-cn    !Sum should be zero identically
+        endif
+
+      endif
+
+      alpha = 1d0 - cnfactor
+
       end subroutine calculate_cnfactor
-
-c     calculate_dt
-c     #######################################################################
-      subroutine calculate_dt
-
-cccc#if !defined(petsc)
-        if (PRESENT(dt_exp)) then
-          dt = dt_exp
-          sm_flag = 0
-        else
-          call adapt_dt(dtbase)
-cc          dt = dtbase
-        endif
-cccc        if (timecorr .or. cnfactor == 1d0) then
-cccc          if (ierr.eq.0 .and. (itm.eq.1 .or. cnfactor == 1d0)) then
-cccc            call findExplicitDt
-cccc          else
-cccc            call adapt_dt(dtbase)
-cccc          endif
-cccc        else
-cccc          call adapt_dt(dtbase)
-cccccc          dt = dtbase
-cccc        endif
-cccc#else
-cccc        if (timecorr) then
-cccc          call adapt_dt(dtbase)
-cccc        else
-cccc          dt = dtbase
-cccc        endif
-cccc#endif
-
-      end subroutine calculate_dt
-
-c     adapt_dt
-c     #######################################################################
-      subroutine adapt_dt(dtbase)
-
-        real(8) ::    dtbase
-        real(8) ::    coef1=0.8   !Time subcycling coefficient
-     .               ,coef2=1.05  !Time recovery   coefficient
-
-        if (ierr > 0) then
-          dt = dt*coef1
-          if (dt < 1d-3*dtbase) then
-            call pstop('adapt_dt','Time step too small')
-          endif
-          if (my_rank == 0 .and. ierr == 2) write (*,240)
-          if (my_rank == 0) write (*,400) dt
-        else
-          if     (sm_flag == 1) then  !Rannacher time stepping
-            if     (itm <= sm_pass+1) then
-              dt = 0.5*dtbase
-            elseif (itm == sm_pass+2) then
-              dt = dtbase
-            else
-              dt = min(dtbase,dt*coef2)
-            endif
-          else
-            if (    (itm == 1.and.(.not.timecorr))
-     .          .or.(itm == 2.and.timecorr       )) then
-              dt = dtbase
-            else
-              dt = min(dtbase,dt*coef2)
-            endif
-          endif
-        endif
-
- 240    format ('    Too many Newton iterations')
- 400    format ('    Subcycling time step... New time step: ',1p,e10.4)
-
-      end subroutine adapt_dt
 
       end subroutine findNewTimeStep
 
