@@ -99,14 +99,14 @@ c     Attach location of node positions as attribute (relative path to timestep)
      $                     '/'//trim(coords_descr(iattr)))
       enddo
 
-c     Exit if not in rank=0
-
-      if (.not.isProc(0)) return
-
 c     Check whether we are dealing with moving mesh
 
 cc      moving_mesh = .not.checkMapDatabase()
       moving_mesh = .true.
+
+c     Exit if not in rank=0
+
+      if (.not.isProc(0)) return
 
 c     Initialize FORTRAN interface
 
