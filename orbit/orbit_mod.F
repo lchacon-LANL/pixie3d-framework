@@ -52,7 +52,7 @@ c ######################################################################
      .                    ,xvold,yvold,zvold
         real(8),private :: xss,yss,zss,tss
 
-        real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax
+        real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax,rmin
 
         character(50),private :: ssx,ssy,ssz,ssrz
 
@@ -98,7 +98,7 @@ c     ######################################################################
      .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap
      .                      ,tmax,smax,dtime
      .                      ,niter,atol,rtol,order,solen,picard
-     .                      ,spline_order,gauge,B_input_is_A)
+     .                      ,spline_order,gauge,B_input_is_A,r_min)
 
 c     ----------------------------------------------------------------------
 c     Sets up orbit splines for orbit integrator.
@@ -116,7 +116,7 @@ c     Call variables
 
 cc        type(orbit_def),optional :: orb_conf
         !Optional parameters
-        real(8),optional :: tmax,smax,dtime,atol,rtol
+        real(8),optional :: tmax,smax,dtime,atol,rtol,r_min
         integer,optional :: niter,order,spline_order,gauge
         logical,optional :: solen,picard,B_input_is_A
 
@@ -166,6 +166,12 @@ c     Begin program
 
         if (PRESENT(gauge)) then
           orb_default%spline_conf%a_gauge = gauge
+        endif
+
+        if (PRESENT(r_min)) then
+          rmin = r_min
+        else
+          rmin = 1d-3
         endif
 
         ode_conf = orb_default%ode_conf
@@ -585,8 +591,6 @@ c     Local Variables
       real(8) :: xh,yh,zh,xnew,ynew,znew,xc,yc,zc,ds,cc
       integer :: iter,order,niter
       logical :: restart,nt,fwd
-
-      real(8) :: rmin=1d-4
 
       save dt
 
