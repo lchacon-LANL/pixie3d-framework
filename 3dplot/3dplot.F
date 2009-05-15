@@ -523,9 +523,9 @@ c     Consistency check
           write (usave) nz,klog,khig
         endif
 
-        nxl  = ihig-ilog+1
-        nyl  = jhig-jlog+1
-        nzl  = khig-klog+1
+cc        nxl  = ihig-ilog+1
+cc        nyl  = jhig-jlog+1
+cc        nzl  = khig-klog+1
 
 #if defined(petsc)
         if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)) then
