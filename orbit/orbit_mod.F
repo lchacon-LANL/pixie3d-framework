@@ -1420,7 +1420,8 @@ c     ##################################################################
       function chk_ss_pos(x0,x1,x2,bc,xmin,xmax,xss) result(found)
 
 c     ------------------------------------------------------------------
-c     Determines whether surface of section at x0 is between x1 and x2
+c     Determines whether surface of section at x0 is between x1 and x2.
+c     It automatically accounts for periodic BCs.
 c     ------------------------------------------------------------------
 
       implicit none
