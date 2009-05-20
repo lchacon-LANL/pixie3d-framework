@@ -157,20 +157,17 @@ ifeq ($(HOST),bassi)
 endif
 
 ifeq ($(HOST),franklin)
-  FC = ftn
-#  MPI_HOME  = $(MPICH_DIR)
+  FC = pgf95
   HDF5_HOME = $(HDF5_PAR_DIR)
-  HDF5_LIBS:= $(HDF5)
+#  HDF5_LIBS:= $(HDF5)
   override HDF5 = t
+  BOPT = t
+endif
 
-  OPTIMIZATION = -fastsse -Mipa=fast
-  DEBUG        = -g -Mbounds -Mchkptr -Ktrap=fp
-  PROFILE      = -pg
-  STATIC       =
-  MODFLAG      = -module 
-  ADDMODFLAG   = -module 
-  VERBOSE      = -v
-  CPPFLAGS    += $(PREPROC)pgf90
-
+ifeq ($(HOST),smokeylogin1)
+  FC = pgf95
+#  HDF5_HOME = $(HDF5_PAR_DIR)
+  HDF5_LIBS = $(HDF5_FLIB)
+  HDF5 = t
   BOPT = t
 endif
