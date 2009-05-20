@@ -10,7 +10,7 @@ LIBNAME = liborbit.a
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/math $(COMMONDIR)/io $(COMMONDIR)/interpolation/slatec  $(COMMONDIR)/grid $(COMMONDIR)/lsode 
+SUBDIRS = $(COMMONDIR)/math $(COMMONDIR)/io $(COMMONDIR)/interpolation/1d_int $(COMMONDIR)/interpolation/slatec  $(COMMONDIR)/grid $(COMMONDIR)/lsode 
 
 #Define dependencies
 
