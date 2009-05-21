@@ -8,13 +8,9 @@ endif
 
 # GENERAL PURPOSE MAKEFILE
 
-ifndef SRC
-SRC  := $(wildcard *.[F,f,c])
-endif
+SRC  ?= $(wildcard *.[F,f,c])
 
-ifndef MODS
-MODS := $(wildcard *_mod.[F,f])
-endif
+MODS ?= $(wildcard *_mod.[F,f])
 
 OBJS  := $(filter %.o,$(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))\
                       $(patsubst %.c,%.o,$(filter-out $(MODS),$(SRC)))\
@@ -55,7 +51,7 @@ $(SUBDIRS):
 	$(MAKE) -e -C $@ target
 
 clean: ;
-	-rm -f *.o *.mod
+	-rm -f *.o *.mod *.a
 
 distclean: clean
 	-@for subdir in $(SUBDIRS) ; do \
@@ -72,7 +68,12 @@ setup_lnk: ;
 		ln -s $$file 2>/dev/null ; done
 
 lib: common $(OBJMOD) $(OBJS) $(COMMON_OBJS)
-	-ar rs $(LIBNAME) $(OBJMOD) $(OBJS) $(COMMON_OBJS)
+ifdef LIBNAME
+	-ar rs $(LIBNAME) $(OBJMOD) $(OBJS) 
+endif
+ifdef LIBNAME_COM
+	-ar rs $(LIBNAME_COM) $(OBJMOD) $(OBJS) $(COMMON_OBJS)
+endif
 
 #Define dependencies
 
