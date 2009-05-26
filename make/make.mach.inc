@@ -122,6 +122,7 @@ ifeq ($(HOST),ra22)
   HDF5_HOME =
   CPPFLAGS += $(PREPROC)RFX
   FC        = pgf95
+  LIBS     += -llapack -lblas
 endif
 
 ifeq ($(HOST),cayenne1)
