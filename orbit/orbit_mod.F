@@ -464,7 +464,7 @@ c     Orbit integral
           zold  = z
 
           !Find new LOGICAL positions, new time, new arc length
-          call orbit_step(x,y,z,time,ss,iterror,forward=fwd)
+          call orbit_step(x,y,z,iterror,forward=fwd)
 
           exit_loop = orbit_error(iterror)
 
@@ -541,7 +541,7 @@ c     Begin program
         yold = y0
         zold = z0
 
-        time = 0d0
+        time = 0d0  !Initialize pseudo-time along line
         told = 0d0
         tprev= 0d0
 
@@ -569,7 +569,7 @@ c     Begin program
 
 c     orbit_step
 c     ##################################################################
-      subroutine orbit_step(x,y,z,time,ss,ierror,forward)
+      subroutine orbit_step(x,y,z,ierror,forward)
 
 c     ------------------------------------------------------------------
 c     Crank-Nicolson (Picard/Newton) leapfrog, symmetrized (or not).
@@ -580,7 +580,7 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       integer :: ierror
-      real(8) :: x,y,z,time,ss
+      real(8) :: x,y,z
 
       logical,optional :: forward
 
@@ -900,16 +900,15 @@ c       Check for errors
 
 c       Advance time and arc length
 
-        call updt_measures(xh,yh,zh,jach*dt,time,ds,ss)
+        call updt_measures(xh,yh,zh,jach*dt)
 
       end subroutine cn_solver
 
 c     updt_measures
 c     #########################################################################
-      subroutine updt_measures(x,y,z,dt,time,ds,ss)
+      subroutine updt_measures(x,y,z,dt)
 
       real(8),intent(IN) :: x,y,z,dt
-      real(8),intent(OUT):: time,ss,ds
 
       real(8) :: vx,vy,vz
 
