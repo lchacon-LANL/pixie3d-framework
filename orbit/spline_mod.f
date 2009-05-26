@@ -347,6 +347,8 @@ c     Begin program
 
       spoint = bcSP()
 
+      a=0d0
+
 c     Accommodate different gauges
 
       select case(gauge)
@@ -354,7 +356,7 @@ c     Accommodate different gauges
 
 c       Gauge
 
-        a(:,:,:,1)=0d0
+cc        a(:,:,:,1)=0d0
 
 c       Quadrant-based code (SP ready, parallel-ready)
 
@@ -399,7 +401,7 @@ cc        endif
 
 c       Gauge
 
-        a(:,:,:,2)=0d0
+cc        a(:,:,:,2)=0d0
 
 c       Quadrant-based code
 
