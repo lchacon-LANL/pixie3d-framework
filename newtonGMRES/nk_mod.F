@@ -954,14 +954,14 @@ c     Update solution
         sol(:) = sol(:) + dsol(:)
 
 c diag *****
-        if (sing_mat) then
-          write (*,*)
-          call matrixFreeMatVec(ntot,sol,dum)
-          write (*,*) 'FGMRES diag: Residual=',sqrt(sum((dum-rhs)**2))
-          write (*,*) 'FGMRES diag: Sol. update=',sqrt(sum(sol**2))
-cc          write (*,*) 'Solution coeffs=',rs
-          pause
-        endif
+cc        if (sing_mat) then
+cc          write (*,*)
+cc          call matrixFreeMatVec(ntot,sol,dum)
+cc          write (*,*) 'FGMRES diag: Residual=',sqrt(sum((dum-rhs)**2))
+cc          write (*,*) 'FGMRES diag: Sol. update=',sqrt(sum(sol**2))
+cccc          write (*,*) 'Solution coeffs=',rs
+cc          pause
+cc        endif
 c diag *****
 
 c     Check convergence and restart outer loop if necessary
