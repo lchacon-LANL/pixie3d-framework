@@ -2,8 +2,7 @@ c module xdraw_io
 c ######################################################################
       module xdraw_io
 
-      integer   :: ngraph,xdraw_cont_lim
-      parameter   (ngraph=30,xdraw_cont_lim=16)
+      use graphics_io
 
       contains
 
@@ -12,7 +11,7 @@ c     #####################################################################
       subroutine contour(arr,nx,ny,xmin,xmax,ymin,ymax,iopt,nunit)
 
 c     ---------------------------------------------------------------------
-c     Contours 2D array in xdraw format. In call:
+c     Contours 2D array in xdraw format "C". In call:
 c       * arr: 2D array to be plotted
 c       * nx,ny: dimensions of array
 c       * xmin,xmax,ymin,ymax: 2D domain limits
@@ -43,6 +42,416 @@ c     Begin program
 c     End program
 
       end subroutine contour
+
+c     C_contour
+c     #####################################################################
+      subroutine C_contour(array,xmn,xmx,ymn,ymx,zmn,zmx,iopt,nunit)
+
+c     ---------------------------------------------------------------------
+c     Dumps graph arrays in array_graph in C format, but with arbitrary
+c     cuts specified in cont_conf. On input:
+c       * array: array to be plotted
+c       * xmn,xmx,ymn,ymx,zmn,zmx: domain dimensions
+c       * iopt:   = 0 --> Initialize file
+c                 > 0 --> Append data
+c       * nunit: file unit identification
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: iopt,nunit
+
+        real(8) :: xmn,xmx,ymn,ymx,zmn,zmx
+        real(8),dimension(:,:,:) :: array
+
+c     Local variables
+
+        integer    :: i,j,k,imn,imx,jmn,jmx,kmn,kmx,plt(3)
+        logical    :: cut(3)
+
+c     Begin program
+
+c     Select 2D cuts
+
+        plt = cont_conf%coords
+
+        cut = .false.
+        cut(cont_conf%plane) = .true.
+
+        imn = 1
+        imx = size(array,1)
+
+        jmn = 1
+        jmx = size(array,2)
+
+        kmn = 1
+        kmx = size(array,3)
+
+c     Perform 2d cuts
+
+        if (cut(1)) then
+          call twodcut(plt(1),plt(1),plt(1),jmn,jmx,kmn,kmx
+     .                ,'X-slice contour at i=')
+        elseif (cut(2)) then
+          call twodcut(plt(2),imn,imx,plt(2),plt(2),kmn,kmx
+     .                ,'Y-slice contour at j=')
+        else
+          call twodcut(plt(3),imn,imx,jmn,jmx,plt(3),plt(3)
+     .                ,'Z-slice contour at k=')
+        endif
+
+c     End program
+
+      contains
+
+c     twodcut
+c     ################################################################
+      subroutine twodcut(iplt,imng,imxg,jmng,jmxg,kmng,kmxg,messg)
+
+        implicit none
+
+c     Call variables
+
+        integer      :: iplt,imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
+        character(*) :: messg
+
+c     Local variables
+
+        integer    :: nxgr,nygr,nxgr_old=0
+     .               ,nygr_old=0,zero=0,one=1
+     .               ,nt=1,nt_prev=0
+
+        logical    :: flag
+
+c     Begin program
+
+cc        write (*,*) messg,iplt
+
+        if (iopt == 0) then
+
+cc          write(nunit) (imxg-imng),(jmxg-jmng),(kmxg-kmng)
+          if (imng == imxg) then
+            write(nunit) (jmxg-jmng),(kmxg-kmng),0
+            write(nunit) real(ymn,4),real(ymx,4)
+     .                  ,real(zmn,4),real(zmx,4) 
+          elseif (jmng == jmxg) then
+            write(nunit) (imxg-imng),(kmxg-kmng),0
+            write(nunit) real(xmn,4),real(xmx,4)
+     .                  ,real(zmn,4),real(zmx,4) 
+          else
+            write(nunit) (imxg-imng),(jmxg-jmng),0
+            write(nunit) real(xmn,4),real(xmx,4)
+     .                  ,real(ymn,4),real(ymx,4) 
+          endif
+
+        endif
+
+        write(nunit) (((real(array(i,j,k),4),i=imng,imxg)
+     .                                      ,j=jmng,jmxg)
+     .                                      ,k=kmng,kmxg)
+
+      end subroutine twodcut
+
+      end subroutine C_contour
+
+c     M_contour
+c     #####################################################################
+      subroutine M_contour(nunit,nqty,array_graph,iopt,car)
+
+c     ---------------------------------------------------------------------
+c     Dumps graph arrays in array_graph in M and M2 xdraw format. It does
+c     M2 plots (i.e, with coordinates) if car is present, M otherwise.
+c     On input:
+c       * nunit: file unit identification
+c       * nqty: number of quantities to be plotted (contained in array_graph)
+c       * array_graph: array of graphics variables of dimension nqty
+c       * iopt:   = 0 --> Initialize file
+c             (M) > 0 --> Append time stepping data
+c             (M2)= 1 --> Append data
+c             (M2)= 2 --> Finalize file
+c       * car (optional): cartesian coordinates (for M2)
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: nqty,iopt,nunit!,igroup
+
+        type (graph_var_def),dimension(nqty) :: array_graph
+
+        real(8),optional,target,dimension(:,:,:,:) :: car
+
+c     Local variables
+
+        integer    :: nsblk,nusblk
+        integer    :: i,j,k,igr,plt(3)
+        logical    :: cut(3),M2
+
+c     Begin program
+
+        nsblk  = 1              ! Number of structured blocks
+        nusblk = 0              ! Number of unstructured blocks
+
+        M2 = PRESENT(car)
+          
+c     Select 2D cuts
+
+        plt = cont_conf%coords
+
+        cut = .false.
+        cut(cont_conf%plane) = .true.
+
+c     Perform 2d cuts
+
+        if (cut(1)) then
+          call twodcut(plt(1),plt(1),plt(1),jming,jmaxg,kming,kmaxg
+     .                ,'X-slice contour at i=')
+        elseif (cut(2)) then
+          call twodcut(plt(2),iming,imaxg,plt(2),plt(2),kming,kmaxg
+     .                ,'Y-slice contour at j=')
+        else
+          call twodcut(plt(3),iming,imaxg,jming,jmaxg,plt(3),plt(3)
+     .                ,'Z-slice contour at k=')
+        endif
+
+c     End program
+
+      contains
+
+c     twodcut
+c     ################################################################
+      subroutine twodcut(iplt,imng,imxg,jmng,jmxg,kmng,kmxg,messg)
+
+        implicit none
+
+c     Call variables
+
+        integer      :: iplt,imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
+        character(*) :: messg
+
+c     Local variables
+
+        integer    :: nxgr,nygr,nxgr_old=0
+     .               ,nygr_old=0,zero=0,one=1
+     .               ,nt=1,nt_prev=0
+
+        logical    :: flag
+
+c     Begin program
+
+c     Write messg to standard output
+
+        write (*,*) messg,iplt
+
+        if (M2) then   !Type M2 contours (physical space)
+
+          select case(iopt)
+          case(0)   !Write initialization headings
+
+            write(nunit) nsblk,nusblk,nqty
+
+            flag = .true.
+
+          case(1)   !Write data
+
+            if (imng == imxg) then
+              nxgr = jmxg-jmng
+              nygr = kmxg-kmng
+              call find_cart_plane(1,i1,i2)
+            elseif (jmng == jmxg) then
+              nxgr = imxg-imng
+              nygr = kmxg-kmng
+              call find_cart_plane(2,i1,i2)
+            else
+              nxgr = imxg-imng
+              nygr = jmxg-jmng
+              call find_cart_plane(3,i1,i2)
+            endif
+
+            if (flag) then
+              write(nunit) zero,nxgr,nygr,nt,zero,zero,zero
+              flag = .false.
+            else
+              write(nunit) zero,nxgr,nygr,nt,nxgr_old,nygr_old,nt_prev
+            endif
+
+            call write_coords(imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2)
+
+            write(nunit) one
+            do igr=1,nqty
+              write(nunit) (((real(array_graph(igr)%array(i,j,k),4)
+     .                    ,i=imng,imxg),j=jmng,jmxg),k=kmng,kmxg)
+            enddo
+
+            nxgr_old = nxgr
+            nygr_old = nygr
+            nt_prev  = nt
+
+          case(2)  !Finalize
+
+            write(nunit) zero,zero,zero,zero,nxgr_old,nygr_old,nt_prev
+
+          case default
+
+            write(*,*) 'Wrong value of iopt in M_contour, iopt=',iopt
+            stop
+
+          end select
+
+        else   !Type M contours (logical space)
+
+          select case(iopt)
+          case(0)  !Write initialization headings
+
+            write(nunit) nsblk,nusblk,nqty
+
+            if (imng == imxg) then
+              write(nunit) (jmxg-jmng),(kmxg-kmng)
+              i1 = 2
+              i2 = 3
+            elseif (jmng == jmxg) then
+              write(nunit) (imxg-imng),(kmxg-kmng)
+              i1 = 1
+              i2 = 3
+            else
+              write(nunit) (imxg-imng),(jmxg-jmng)
+              i1 = 1
+              i2 = 2
+            endif
+
+            call write_coords(imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2)
+
+          case(1)   !Write data
+
+            do igr=1,nqty
+              write(nunit) (((real(array_graph(igr)%array(i,j,k),4)
+     .                    ,i=imng,imxg),j=jmng,jmxg),k=kmng,kmxg)
+            enddo
+
+          case default
+
+            write(*,*) 'Wrong value of iopt in M_contour, iopt=',iopt
+            stop
+
+          end select
+
+        endif
+
+      end subroutine twodcut
+
+c     write_coords
+c     ################################################################
+      subroutine write_coords(imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2)
+
+        implicit none
+
+c     Call variables
+
+        integer    :: imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
+
+c     Local variables
+
+        integer    :: ii
+
+        real(8),pointer,dimension(:,:,:,:) :: lcar
+
+c     Begin program
+
+        if (M2) then      !Write cartesian coordinates
+
+          lcar => car
+
+          write(nunit) (((real(lcar(i+1,j+1,k+1,i1),4),i=imng,imxg)
+     .                                                ,j=jmng,jmxg)
+     .                                                ,k=kmng,kmxg)
+     .                ,(((real(lcar(i+1,j+1,k+1,i2),4),i=imng,imxg)
+     .                                                ,j=jmng,jmxg)
+     .                                                ,k=kmng,kmxg)
+
+          nullify(lcar)
+
+        else             !Write logical coordinates
+
+          write(nunit) (((real(xi(i,j,k,i1),4),i=imng,imxg)
+     .                                        ,j=jmng,jmxg)
+     .                                        ,k=kmng,kmxg)
+     .                ,(((real(xi(i,j,k,i2),4),i=imng,imxg)
+     .                                        ,j=jmng,jmxg)
+     .                                        ,k=kmng,kmxg)
+
+        endif
+
+      end subroutine write_coords
+
+c     find_cart_plane
+c     ################################################################
+      subroutine find_cart_plane(iplane,i1,i2)
+
+c     ----------------------------------------------------------------
+c     Determines cartesian components that correspond to a logical
+c     plane of interest (defined by iplane)
+c     ----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: iplane,i1,i2
+
+c     Local variables
+
+        integer    :: ii
+        real(8)    :: max_x,max_y,max_z,min_x,min_y,min_z
+
+c     Begin program
+
+        if (iplane == 1) then   !We take i=1 as a sample; the result is valid for arbitrary i.
+          max_x = maxval(car(1,:,:,1))
+          max_y = maxval(car(1,:,:,2))
+          max_z = maxval(car(1,:,:,3))
+
+          min_x = minval(car(1,:,:,1))
+          min_y = minval(car(1,:,:,2))
+          min_z = minval(car(1,:,:,3))
+        elseif (iplane == 2) then   !Same for j
+          max_x = maxval(car(:,1,:,1))
+          max_y = maxval(car(:,1,:,2))
+          max_z = maxval(car(:,1,:,3))
+
+          min_x = minval(car(:,1,:,1))
+          min_y = minval(car(:,1,:,2))
+          min_z = minval(car(:,1,:,3))
+        elseif (iplane == 3) then   !Same for k
+          max_x = maxval(car(:,:,1,1))
+          max_y = maxval(car(:,:,1,2))
+          max_z = maxval(car(:,:,1,3))
+                                  
+          min_x = minval(car(:,:,1,1))
+          min_y = minval(car(:,:,1,2))
+          min_z = minval(car(:,:,1,3))
+        endif
+
+        if (max_x == min_x) then
+          i1 = 2
+          i2 = 3
+        endif
+
+        if (max_y == min_y) then
+          i1 = 1
+          i2 = 3
+        endif
+
+        if (max_z == min_z) then
+          i1 = 1
+          i2 = 2
+        endif
+
+      end subroutine find_cart_plane
+
+      end subroutine M_contour
 
 c     createDrawInGfile
 c     ################################################################
