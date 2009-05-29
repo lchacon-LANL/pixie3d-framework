@@ -16,8 +16,6 @@ c module mg_internal
 c######################################################################
       module mg_internal
 
-        use grid_debug
-
         use grid_mg
 
         use bc_ops
@@ -335,6 +333,8 @@ c       * iflag: whether to initialize output file (iflag=0) or not.
 c       * ofile: output file.
 c     -----------------------------------------------------------------
 
+        use grid_debug
+
         implicit none
 
 c     Call variables
@@ -373,9 +373,14 @@ c     Dump plots
 
         call mapMGVectorToArray(0,neq,mgv,nx,ny,nz,debug,igr,.true.)
         do ieq=1,neq
-          call contour(debug(1:nx,1:ny,1,ieq),nx,ny
+cc          call contour(debug(1:nx,1:ny,1,ieq),nx,ny
+cc     .                ,grid_params%gxmin,grid_params%gxmax
+cc     .                ,grid_params%gymin,grid_params%gymax
+cc     .                ,iflag+ieq-1,nunit)
+          call C_contour(debug(1:nx,1:ny,1:nz,ieq)
      .                ,grid_params%gxmin,grid_params%gxmax
      .                ,grid_params%gymin,grid_params%gymax
+     .                ,grid_params%gzmin,grid_params%gzmax
      .                ,iflag+ieq-1,nunit)
         enddo
 
@@ -934,7 +939,8 @@ cc      end select
       if (nc1*nc2*nc3 /= nclrs) then
         if (my_rank == 0) then
           write (*,*) 'Input ncolors=',ncolors
-          write (*,*) 'Dimensions = ',dd
+          write (*,*) 'Grid=',igrid
+          write (*,*) 'Dimensions =',dd
           write (*,*) 'Colors in direction 1=',nc1
           write (*,*) 'Colors in direction 2=',nc2
           write (*,*) 'Colors in direction 3=',nc3
@@ -1013,22 +1019,19 @@ cc      nzl = MGgrid%nzv(igrid)
       nyl = mg_ctx_temp%nyv(igrid)
       nzl = mg_ctx_temp%nzv(igrid)
 
-      !Collapse grid to do zebra relaxation
-cc      if (zb_dir == 1) nxl = 1
-cc      if (zb_dir == 2) nyl = 1
-cc      if (zb_dir == 3) nzl = 1
+c     Swap indices
 
       if (nxl > 1 .and. nyl > 1 .and. nzl > 1) then
 
         select case(zb_dir)
         case(2)
-          i = j1
-          j = k1
-          k = i1
-        case(3)
           i = k1
           j = i1
           k = j1
+        case(3)
+          i = j1
+          j = k1
+          k = i1
         case default
           i = i1
           j = j1
@@ -1990,6 +1993,8 @@ c       starting at grid igr.
 c     -------------------------------------------------------------------
 
         use math
+
+        use grid_debug, ONLY:createDrawInCfile
 
         implicit none
 
@@ -4017,7 +4022,6 @@ c Agglomeration
                     iif = if + nxf*(jf-1) + nxf*nyf*(kf-1)
 
                     if (.not.volw) then
-cc                      vol = volume(if,jf,kf,igf,igf,igf)
                       vol = gmetric%grid(igf)%dvol(if,jf,kf)
                       xc(iic) = xc(iic) + xf(iif)*vol
                       volt = volt + vol
@@ -4862,7 +4866,7 @@ c         ZEBRA LINE RELAXATION
 
               do irbg3 = 1,nrbg3
                do irbg2 = 1,nrbg2
-                 do irbg1 = 1,nrbg1
+                do irbg1 = 1,nrbg1
 
                   do zit=1,zebra_it
 
@@ -4876,6 +4880,7 @@ c         ZEBRA LINE RELAXATION
      .                                      ,zebra_dir=zd)
 
 cc                        write (*,*) 'DIAG -- zebra GS: it= ',zebra_it
+cc     .                             ,', dir=',zd
 cc     .                             ,', grid pos=',i,j,k
 cc
 cc                        ii = i + nxf*(j-1) + nxf*nyf*(k-1)
@@ -6685,7 +6690,7 @@ cc          if(bcSP()) solverOptions%mg_zebra_prefd = 1
           solverOptions%mg_zebra_it    = 1
           solverOptions%mg_zebra_omega = 0.8
 
-          solverOptions%iter = smit/solverOptions%mg_zebra_it+1
+          solverOptions%iter = smit/solverOptions%mg_zebra_it + 1
 
           call assembleSolverHierarchy('gs')
         case('gm')
