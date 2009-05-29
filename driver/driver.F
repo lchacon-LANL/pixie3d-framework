@@ -24,7 +24,7 @@ c Common variables
 
 c Local variables
 
-      integer    :: prec_tot,ierr
+      integer    :: prec_tot,ierr,prof_stage(3)
       real(8)    :: time1,time2,time3,time4
 
 c Interfaces
@@ -53,6 +53,13 @@ c Interfaces
         end subroutine output
       END INTERFACE
 
+      INTERFACE
+        subroutine postProcessSol(v_arr)
+        use variable_setup
+        type(var_array),pointer :: v_arr
+        end subroutine postProcessSol
+      END INTERFACE
+
 c Begin program
 
 c Allocate global variable
@@ -62,10 +69,20 @@ c Allocate global variable
 c Initialize PETSc and MPI (parallel version)
 
 #if defined(petsc)
-      call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
+      call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
+
+      !Set profiling stages
+      call PetscLogStageRegister(prof_stage(1),'Initial setup',ierr)
+      call PetscLogStageRegister(prof_stage(2),'Nonlinear solve',ierr)
+      call PetscLogStageRegister(prof_stage(3),'Sol. processing',ierr)
 #endif
 
 c Initialize calculation
+
+#if defined(petsc)
+      !Profiling stage 1
+      call PetscLogStagePush(prof_stage(1),ierr)
+#endif
 
       call initializeCalculation
 
@@ -92,6 +109,10 @@ c Time loop
 #if defined(petsc)
       call PetscGetTime(time1,ierr)
       call PetscGetCPUTime(time2,ierr)
+
+      !Begin profiling third stage
+      call PetscLogStagePop(ierr)
+      call PetscLogStagePush(prof_stage(3),ierr)
 #endif
 
       do
@@ -120,13 +141,27 @@ c     Assign old time solution
 
 c     Time update
 
+#if defined(petsc)
+        !Begin profiling second stage
+        call PetscLogStagePop(ierr)
+        call PetscLogStagePush(prof_stage(2),ierr)
+#endif
+
         time   = time  + dt
 
         call timeStep(u_n,u_np,ierr)
 
 c     Check for error in time stepping
 
-        if (ierr.eq.1) then     !Restart time step
+#if defined(petsc)
+        !Begin profiling third stage
+        call PetscLogStagePop(ierr)
+        call PetscLogStagePush(prof_stage(3),ierr)
+#endif
+
+        if (ierr == 1) then     !Restart time step
+
+          call equateDerivedType(u_np,u_n)
 
           itime = itime - 1
           time  = time - dt
@@ -137,7 +172,7 @@ c     Check for error in time stepping
             exit
           endif
 
-        elseif (ierr.eq.-1) then !Initial guess is exact
+        elseif (ierr == -1) then !Initial guess is exact
 
           if (my_rank == 0) then
             write(*,*)
@@ -148,7 +183,11 @@ c     Check for error in time stepping
           exit
 
         endif
- 
+
+c     Postprocess solution
+
+        if (postprocess) call postProcessSol(u_np)
+
 c     Update counters (only if timeStep is successful)
 
         tmrst  = tmrst + dt
@@ -223,7 +262,10 @@ c End program
       call fortranDestroy
 
 #if defined(petsc)
-      call PetscFinalize(mpierr)
+      !Finalize profiling
+      call PetscLogStagePop(ierr)
+
+      call PetscFinalize(ierr)
 #endif
 
       end
@@ -279,13 +321,6 @@ c Interfaces
         integer          :: iter,iout
         type(var_array),pointer :: vnp,vn
         end subroutine explicit
-      END INTERFACE
-
-      INTERFACE
-        subroutine postProcessSol(v_arr)
-        use variable_setup
-        type(var_array),pointer :: v_arr
-        end subroutine postProcessSol
       END INTERFACE
 
 c Begin program
@@ -393,11 +428,10 @@ c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
           call mapVectorToStructure(vnp,x)
-          if (postprocess) call postProcessSol(vnp) !Postprocess solution
+cc          if (postprocess) call postProcessSol(vnp) !Postprocess solution
           if (predictor  ) call storeTSinfo(vn,vnp)
-        elseif (ierr == 1) then
-cc          vnp = vn
-          call equateDerivedType(vnp,vn)
+cc        elseif (ierr == 1) then
+cc          call equateDerivedType(vnp,vn)
         endif
 
       else
