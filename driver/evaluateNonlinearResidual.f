@@ -122,17 +122,18 @@ c Local variables
 c Interfaces
 
       INTERFACE
-         subroutine setupNonlinearFunction(varray)
+         subroutine setupNonlinearFunction(igx,igy,igz,varray)
            use variable_setup
+           integer :: igx,igy,igz
            type(var_array),pointer :: varray
          end subroutine setupNonlinearFunction
       END INTERFACE
 
       INTERFACE
-         subroutine nonlinearRHS(i,j,k,varray,ff)
+         subroutine nonlinearRHS(i,j,k,igx,igy,igz,varray,ff)
            use variable_setup
            real(8) :: ff(neqd)
-           integer :: i,j,k
+           integer :: i,j,k,igx,igy,igz
            type(var_array),pointer :: varray
          end subroutine nonlinearRHS
       END INTERFACE
@@ -145,7 +146,7 @@ c Setup parallel BC flags to indicate BCs require communication
 
 c Prepare auxiliar quantities
 
-      call setupNonlinearFunction(varray)
+      call setupNonlinearFunction(1,1,1,varray)
 
 c Store function evaluation
 
@@ -153,7 +154,7 @@ c Store function evaluation
         do j = jlo,jhi
           do i = ilo,ihi
             ii = vecPos(neqd,i,j,k,1,1,1)
-            call nonlinearRHS(i,j,k,varray,fi(ii+1:ii+neqd))
+            call nonlinearRHS(i,j,k,1,1,1,varray,fi(ii+1:ii+neqd))
           enddo
         enddo
       enddo
