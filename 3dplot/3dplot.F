@@ -400,7 +400,8 @@ c Call variables
 
 c Local variables
 
-      integer    :: nx,ny,nz,ierr
+      integer :: nx,ny,nz,ierr
+      logical :: check,lchck
 
 c Begin program
 
@@ -523,12 +524,20 @@ c     Consistency check
           write (usave) nz,klog,khig
         endif
 
-cc        nxl  = ihig-ilog+1
-cc        nyl  = jhig-jlog+1
-cc        nzl  = khig-klog+1
+        nxl  = ihig-ilog+1
+        nyl  = jhig-jlog+1
+        nzl  = khig-klog+1
 
 #if defined(petsc)
-        if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)) then
+        check =(     nxl /= gv%gparams%nlx
+     .          .or. nyl /= gv%gparams%nly
+     .          .or. nzl /= gv%gparams%nlz )
+        lchck = check
+
+        call MPI_Allreduce(lchck,check,1
+     .                  ,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,mpierr)
+
+        if (check) then
           call pstop('openGraphicsFiles','Grid meshes do not agree')
         endif
 #else
