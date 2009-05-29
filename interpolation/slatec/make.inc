@@ -1,6 +1,6 @@
 #Define library name
 
-LIBNAME = libslatec.a
+LIBNAME_COM = libslatec.a
 
 #Define message
 
