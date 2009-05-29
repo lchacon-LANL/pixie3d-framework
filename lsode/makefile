@@ -6,31 +6,7 @@ FC = f90
 .f.o: 
 	$(FC) $(FFLAGS) -c $*.f
 
-OBJS = \
-	daxpy.o \
-	dcfode.o \
-	dcopy.o \
-	ddot.o \
-	dewset.o \
-	dgbfa.o \
-	dgbsl.o \
-	dgefa.o \
-	dgesl.o \
-	dintdy.o \
-	dprepj.o \
-	dscal.o \
-	dsolsy.o \
-	dsrcom.o \
-	dstode.o \
-	dumach.o \
-	dvnorm.o \
-	idamax.o \
-	iumach.o \
-	ixsav.o \
-	lsode.o \
-	xerrwd.o \
-	xsetf.o \
-	xsetun.o
+OBJS := $(patsubst %.f,%.o,$(wildcard *.f))
 
 target: lib
 
