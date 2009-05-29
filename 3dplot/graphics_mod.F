@@ -28,7 +28,7 @@ c     Local variables
 
         integer    :: nx,ny,nz,isx,isy,isz
 
-        integer    :: i,nplots
+        integer    :: i,j,k,nplots
         
         character*(30) :: prof_label
 
@@ -52,15 +52,24 @@ cc        call setGraphicsRange(nx,ny,nz,bcs)
 
 c     Find grid in logical space
 
-        allocate(xl(iming:imaxg),yl(jming:jmaxg),zl(kming:kmaxg))
+        allocate(xl(iming:imaxg),yl(jming:jmaxg),zl(kming:kmaxg)
+     .          ,xi(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
 
         xl(:) = grid_params%xx(iming+isx:imaxg+isx)
         yl(:) = grid_params%yy(jming+isy:jmaxg+isy)
         zl(:) = grid_params%zz(kming+isz:kmaxg+isz)
 
-c     Define graphics i/o and initialize graph arrays
+        do k=kming,kmaxg
+          do j=jming,jmaxg
+            do i=iming,imaxg
+              xi(i,j,k,1) = xl(i)
+              xi(i,j,k,2) = yl(j)
+              xi(i,j,k,3) = zl(k)
+            enddo
+          enddo
+        enddo
 
-cc        call defineGraphics
+c     Define graphics i/o and initialize graph arrays
 
         call setGraphicsGroups             !External
 
@@ -116,7 +125,7 @@ c     Local variables
 
 c     Begin program
 
-        deallocate(xl,yl,zl)
+        deallocate(xl,yl,zl,xi)
 
 c     Finalize XDRAW
 
