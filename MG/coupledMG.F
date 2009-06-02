@@ -951,7 +951,7 @@ cc      end select
       endif
 
       !Save number of colors
-      ncolors = nclrs
+cc      ncolors = nclrs
 
 cc      select case(nclrs)
 cc      case(2)
