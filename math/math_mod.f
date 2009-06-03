@@ -1,5 +1,13 @@
       module math
 
+      INTERFACE  solve_quadratic
+        module procedure solve_quadratic_real,solve_quadratic_cmplx
+      END INTERFACE
+
+      INTERFACE  solve_cubic
+        module procedure solve_cubic_real,solve_cubic_cmplx
+      END INTERFACE
+
       contains
 
 c     atanh
@@ -94,9 +102,45 @@ c     Generating Y_n(x) starts here
 
       END SUBROUTINE BESSEL
 
-c     solve_quadratic
+c     solve_quadratic_real
 c     ##########################################################
-      function solve_quadratic(a,b,c) result(root)
+      function solve_quadratic_real(a,b,c) result(root)
+
+c     ----------------------------------------------------------
+c     Solves for maximum of roots of quadratic polynomial:
+c        a x^2 + b x + c = 0
+c     ----------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8)    :: a,b,c
+      complex(8) :: root(2)
+
+c     Local variables
+
+c     Begin program
+
+      if (a == 0d0) then
+
+        root(1) = -c/b
+        root(2) = 0d0
+
+      else
+
+        root(1) = (-b + sqrt(b**2-4*a*c))/2./a
+        root(2) = (-b - sqrt(b**2-4*a*c))/2./a
+
+      endif
+
+c     End program
+
+      end function solve_quadratic_real
+
+c     solve_quadratic_cmplx
+c     ##########################################################
+      function solve_quadratic_cmplx(a,b,c) result(root)
 
 c     ----------------------------------------------------------
 c     Solves for maximum of roots of quadratic polynomial:
@@ -127,11 +171,11 @@ c     Begin program
 
 c     End program
 
-      end function solve_quadratic
+      end function solve_quadratic_cmplx
 
-c     solve_cubic
+c     solve_cubic_real
 c     ##########################################################
-      function solve_cubic(a,b,c,d) result(root)
+      function solve_cubic_real(a,b,c,d) result(root)
 
 c     ----------------------------------------------------------
 c     Solves for  roots of cubic polynomial:
@@ -142,11 +186,94 @@ c     ----------------------------------------------------------
 
 c     Call variables
 
-      complex(8)   :: root(3),a,b,c,d
+      real(8)    :: a,b,c,d
+      complex(8) :: root(3)
 
 c     Local variables
 
-      complex(8):: S,T,R,Q,Det,a2,a1,a0
+      integer :: iroot,inewt
+      complex(8) :: S,T,R,Q,Det,a2,a1,a0,res,res0,x,dx
+
+c     Begin program
+
+c     Special case of a=0
+
+      if (a == 0d0) then
+        root(1:2) = solve_quadratic(b,c,d)
+        root(3) = 0d0
+        return
+      endif
+
+c     Define auxiliary quantities
+      
+      a2=b/a
+      a1=c/a
+      a0=d/a
+      Q=(3*a1-a2**2)/9.
+      R=(9*a2*a1-27*a0-2*a2**3)/54.
+      Det=Q**3+R**2
+      S=R+sqrt(Det)
+      T=R-sqrt(Det)
+
+c     Need to make sure that (-8)^(1/3)=-2
+
+      if (aImag(S)==0 .and. Real(S)<0) then
+         S=-(abs(S))**(1/3.)
+      else
+         S=S**(1/3.)
+      endif
+      if (aImag(T)==0 .and. Real(T)<0) then
+         T=-(abs(T))**(1/3.)
+      else
+         T=T**(1/3.)
+      endif
+
+c     Find roots
+
+      root(1)=-a2/3.+(S+T)
+      root(2)=-a2/3.-(S+T-sqrt(3.)*(0.,1.)*(S-T))/2.
+      root(3)=-a2/3.-(S+T+sqrt(3.)*(0.,1.)*(S-T))/2.
+
+c     Converge with Newton for accuracy
+
+      do iroot=1,3
+        x = root(iroot)
+        res0 = a*x**3 + b*x**2 + c*x + d
+        res = res0
+        do inewt=1,10
+          dx = -res/(3*a*x**2 + 2*b*x + c)
+          x = x + dx
+cc          write (*,*) 'Residual root',iroot,'=',res
+cc          write (*,*) 'Update root',iroot,'=',dx
+          if (abs(res/res0) < 1d-8) exit
+          res = a*x**3 + b*x**2 + c*x + d
+        enddo
+        root(iroot) = x
+      enddo
+
+c     End program
+
+      end function solve_cubic_real
+
+c     solve_cubic_cmplx
+c     ##########################################################
+      function solve_cubic_cmplx(a,b,c,d) result(root)
+
+c     ----------------------------------------------------------
+c     Solves for  roots of cubic polynomial:
+c        a x^3 + b x^2 + c x + d = 0
+c     ----------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      complex(8) :: root(3),a,b,c,d
+
+c     Local variables
+
+      integer :: iroot,inewt
+      complex(8) :: S,T,R,Q,Det,a2,a1,a0,res,res0,x,dx
 
 c     Begin program
 
@@ -188,9 +315,26 @@ c     Find roots
       root(2)=-a2/3.-(S+T-sqrt(3.)*(0.,1.)*(S-T))/2.
       root(3)=-a2/3.-(S+T+sqrt(3.)*(0.,1.)*(S-T))/2.
 
+c     Converge with Newton for accuracy
+
+      do iroot=1,3
+        x = root(iroot)
+        res0 = a*x**3 + b*x**2 + c*x + d
+        res = res0
+        do inewt=1,10
+          dx = -res/(3*a*x**2 + 2*b*x + c)
+          x = x + dx
+          write (*,*) 'Residual root',iroot,'=',res
+          write (*,*) 'Update root',iroot,'=',dx
+          if (abs(res/res0) < 1d-8) exit
+          res = a*x**3 + b*x**2 + c*x + d
+        enddo
+        root(iroot) = x
+      enddo
+
 c     End program
 
-      end function solve_cubic
+      end function solve_cubic_cmplx
 
 c     int2char
 c     ################################################################
