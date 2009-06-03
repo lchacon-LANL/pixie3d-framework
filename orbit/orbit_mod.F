@@ -1256,7 +1256,7 @@ c     Begin program
         if (lssx) then
           drawin = 'draw'//ssx(1:len_trim(ssx)-4)//'.in'
           call createDrawInGfile(1,1,trim(ssx),'X surface of section'
-     .                       ,'y',(/1/),(/'z'/),(/0/),(/0/)
+     .                       ,'y',(/1/),(/'z'/),(/0/),(/0,0/)
      .                       ,drawin,.false.,.false.)
           nunitx=27
           open(unit=nunitx,file=trim(ssx),form='unformatted')
@@ -1265,7 +1265,7 @@ c     Begin program
         if (lssy) then
           drawin = 'draw'//ssy(1:len_trim(ssy)-4)//'.in'
           call createDrawInGfile(1,1,trim(ssy),'Y surface of section'
-     .                       ,'x',(/1/),(/'z'/),(/0/),(/0/)
+     .                       ,'x',(/1/),(/'z'/),(/0/),(/0,0/)
      .                       ,drawin,.false.,.false.)
           nunity=28
           open(unit=nunity,file=trim(ssy),form='unformatted')
@@ -1274,7 +1274,7 @@ c     Begin program
         if (lssz) then
           drawin = 'draw'//ssz(1:len_trim(ssz)-4)//'.in'
           call createDrawInGfile(1,1,trim(ssz),'Z surface of section'
-     .                       ,'x',(/1/),(/'y'/),(/0/),(/0/)
+     .                       ,'x',(/1/),(/'y'/),(/0/),(/0,0/)
      .                       ,drawin,.false.,.false.)
           nunitz=29
           open(unit=nunitz,file=trim(ssz),form='unformatted')
@@ -1283,7 +1283,7 @@ c     Begin program
         if (rzss) then
           drawin = 'draw'//ssrz(1:len_trim(ssrz)-4)//'.in'
           call createDrawInGfile(1,1,trim(ssrz),'RZ surface of section'
-     .                       ,'r',(/1/),(/'z'/),(/0/),(/0/)
+     .                       ,'r',(/1/),(/'z'/),(/0/),(/0,0/)
      .                       ,drawin,.false.,.false.)
           nunitrz=30
           open(unit=nunitrz,file=trim(ssrz),form='unformatted')
