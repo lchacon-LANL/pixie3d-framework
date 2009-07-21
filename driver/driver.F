@@ -72,9 +72,9 @@ c Initialize PETSc and MPI (parallel version)
       call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
 
       !Set profiling stages
-      call PetscLogStageRegister(prof_stage(1),'Initial setup',ierr)
-      call PetscLogStageRegister(prof_stage(2),'Nonlinear solve',ierr)
-      call PetscLogStageRegister(prof_stage(3),'Sol. processing',ierr)
+      call PetscLogStageRegister('Initial setup'  ,prof_stage(1),ierr)
+      call PetscLogStageRegister('Nonlinear solve',prof_stage(2),ierr)
+      call PetscLogStageRegister('Sol. processing',prof_stage(3),ierr)  
 #endif
 
 c Initialize calculation
@@ -344,7 +344,7 @@ c Eigenvalue solver
         eigen_conf%armax = maxitgm
         if (rtol > 0d0) eigen_conf%rtol = rtol
         if (atol > 0d0) eigen_conf%atol = atol
-        eigen_conf%step  = 1d0
+        eigen_conf%step  = eigstep
 
         !Setup matvec in Newton
         allocate (xk(ntotd),rk(ntotd))
