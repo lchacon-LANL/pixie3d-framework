@@ -648,13 +648,13 @@ c     Call variables
 
 c     Local variables
 
-      real(8)    :: axr(ntot),axi(ntot),dum(ntot),xn(ntot),mageig
+      real(8)    :: ax(ntot),dum(ntot),xn(ntot),mageig
      $             ,thetan,norm2,theta,h,mag0,magp,magr,magdp
-     $             ,half=5d-1
+     $             ,half=5d-1,magpAp
       integer    :: itr,itrsi,eigsub
       parameter (eigsub = 1)
 
-      real(8) :: pr(ntot,eigsub),pi(ntot,eigsub)
+cc      real(8) :: pr(ntot,eigsub),pi(ntot,eigsub)
 
 c     Begin program
 
@@ -663,6 +663,10 @@ c     Begin program
 c     Initialize iteration vector
 
       if (iguess == 0) call random_number(x)
+
+cc      return
+cc      write (*,*) iguess
+cc      stop
 
 c     Normalize iteration vector
 
@@ -675,12 +679,6 @@ c     Setup preconditioner
       jit = 1  !For internal setupPC logic
       call setupPC(ntot,xk)
 
-c     Initialize complex eigenvector matrix
-
-      pr = 0d0; pi = 0d0
-
-      pr(:,1) = x
-
 c     Start iteration
 
       itr = 0
@@ -688,23 +686,25 @@ c     Start iteration
 
       do
         !Find matvec
-        call matrixFreeMatVec(ntot,x,axr)
-c$$$        do ieig=1,eigsub
-c$$$          call matrixFreeMatVec(ntot,pr(:,ieig),axr)
-c$$$          call matrixFreeMatVec(ntot,pi(:,ieig),axi)
-c$$$        enddo
+        call matrixFreeMatVec(ntot,x,ax)
 
         !Find |x|
         norm2 = dot(ntot,x,x)
-        magp  = sqrt(norm2)
 
-        !Form Raleigh quotient
+        !Form Rayleigh quotient
         thetan = theta
-        theta  = dot(ntot,x,axr)/norm2
+        magpAp = dot(ntot,x,ax)
+        theta  = magpAp/norm2
         mageig = abs(theta-thetan)
 
-        !Form eigenvalue residual
-        dum = theta*x - axr
+        !Form eigenvalue residual (normalized to keep in manifold)
+cc        dum = (theta*x - ax)
+        dum = (theta*x - ax)/sqrt(magpAp)
+
+        !Renormalize p=x
+cc        x = x/sqrt(magpAp)
+cc        magp = sqrt(norm2/magpAp)
+        magp  = sqrt(norm2)
 
         !Find norm of residual
         magr = sqrt(dot(ntot,dum,dum)/ntot)
@@ -761,11 +761,11 @@ c$$$
 c$$$        x = 2*x-xn !Find x(n+1)
 
         !---> Preconditioned
-        call applyPreconditioner(ntot,dum,axr,out-1)
+        call applyPreconditioner(ntot,dum,ax,out-1)
 
-        magdp = sqrt(dot(ntot,axr,axr)/ntot)
+cc        magdp = sqrt(dot(ntot,ax,ax)/ntot)
 
-        x = x + axr
+        x = x + h*ax
 
       enddo
 
