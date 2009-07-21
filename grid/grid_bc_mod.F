@@ -1364,13 +1364,17 @@ c     Periodic boundary synchronizing
       bctype=PER
       do dim=1,3
         do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
           do ivar = 1,ncomp
             ieq = ivar + fcomp - 1
 
-            call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cnv
+            if (abs(bcond(ibc,ivar)) == bctype) then
+              call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cnv
      .                         ,var0)
-            call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cov
-     .                         ,var0)
+              call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cov
+     .                         ,var0,cnv=.false.)
+            endif
           enddo
 
         enddo
