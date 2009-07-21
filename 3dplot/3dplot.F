@@ -271,6 +271,15 @@ c Interfaces
         end subroutine initializeDiagnostics
       END INTERFACE
 
+      INTERFACE
+        subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        logical    :: init
+        type(var_array),pointer :: varray
+        end subroutine evaluateDiagnostics
+      END INTERFACE
+
 c Begin program
 
 c Allocate global variable
@@ -362,6 +371,7 @@ c Dump source for debugging
       if (chk_src) then
         itime = -1   !For HDF5 file
         call equateDerivedType(u_np,u_src)
+        call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
         call dumpTimeStepPlots
         call deallocateDerivedType(u_src)
       endif
