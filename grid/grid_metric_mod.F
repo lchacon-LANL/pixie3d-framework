@@ -873,14 +873,14 @@ cc                write (*,*) 'DIAG -- fingGridMetrics'
                   jac = gparams%gmetric%grid(igrid)%jac(i,j,k)
                 endif
 
-                if (jac <= 0d0) then
+                if (jac <= 0d0 .and. (.not.isSP2(i+1,igrid,ibc=1))) then
                   write (*,*) 'Grid level',igrid
                   write (*,*) 'Grid position=',i,j,k
                   write (*,*) 'dr/dxi_1=',r(1,:)
                   write (*,*) 'dr/dxi_2=',r(2,:)
                   write (*,*) 'dr/dxi_3=',r(3,:)
                   write (*,*) 'Jacobian=',jac
-                  call pstop('findGridMetrics','Negative jacobian')
+                  call pstop('findGridMetrics','Inverted jacobian')
                 endif
 
                 ijac = 1d0/jac
