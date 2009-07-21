@@ -8,11 +8,9 @@ c ######################################################################
 
 #if defined(petsc)
 
-#define PETSC_AVOID_DECLARATIONS
-#include "finclude/petsc.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscda.h"
-#undef  PETSC_AVOID_DECLARATIONS
+#include "finclude/petscdef.h"
+#include "finclude/petscvecdef.h"
+#include "finclude/petscdadef.h"
 
         integer    :: np,inp,my_rank,mpierr,group_world
      .               ,group_sp,tag=0,dest=0,root=0
