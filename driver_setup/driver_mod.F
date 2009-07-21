@@ -39,6 +39,7 @@ c ######################################################################
 
         real(8)    :: dt,dtbase,cnfactor,alpha,gammat
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0,dtold
+     .               ,eigstep
 
         real(8),allocatable,dimension(:)   :: fold,fsrc
         real(8),allocatable,dimension(:,:) :: old_f
