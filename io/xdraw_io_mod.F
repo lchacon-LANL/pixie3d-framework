@@ -362,7 +362,7 @@ c     Begin program
 
         if (M2) then      !Write cartesian coordinates
 
-          lcar => car
+          lcar => car     !lcar starts at i=j=k=1, not 0!!
 
           write(nunit) (((real(lcar(i+1,j+1,k+1,i1),4),i=imng,imxg)
      .                                                ,j=jmng,jmxg)
@@ -408,31 +408,36 @@ c     Local variables
 
 c     Begin program
 
-        if (iplane == 1) then   !We take i=1 as a sample; the result is valid for arbitrary i.
-          max_x = maxval(car(1,:,:,1))
-          max_y = maxval(car(1,:,:,2))
-          max_z = maxval(car(1,:,:,3))
+        ii = 2 !This needs to be 2 because car starts at 1; BROKEN logic; needs fixing
 
-          min_x = minval(car(1,:,:,1))
-          min_y = minval(car(1,:,:,2))
-          min_z = minval(car(1,:,:,3))
+        if (iplane == 1) then   
+          max_x = maxval(car(ii,:,:,1))
+          max_y = maxval(car(ii,:,:,2))
+          max_z = maxval(car(ii,:,:,3))
+
+          min_x = minval(car(ii,:,:,1))
+          min_y = minval(car(ii,:,:,2))
+          min_z = minval(car(ii,:,:,3))
         elseif (iplane == 2) then   !Same for j
-          max_x = maxval(car(:,1,:,1))
-          max_y = maxval(car(:,1,:,2))
-          max_z = maxval(car(:,1,:,3))
+          max_x = maxval(car(:,ii,:,1))
+          max_y = maxval(car(:,ii,:,2))
+          max_z = maxval(car(:,ii,:,3))
 
-          min_x = minval(car(:,1,:,1))
-          min_y = minval(car(:,1,:,2))
-          min_z = minval(car(:,1,:,3))
+          min_x = minval(car(:,ii,:,1))
+          min_y = minval(car(:,ii,:,2))
+          min_z = minval(car(:,ii,:,3))
         elseif (iplane == 3) then   !Same for k
-          max_x = maxval(car(:,:,1,1))
-          max_y = maxval(car(:,:,1,2))
-          max_z = maxval(car(:,:,1,3))
-                                  
-          min_x = minval(car(:,:,1,1))
-          min_y = minval(car(:,:,1,2))
-          min_z = minval(car(:,:,1,3))
+          max_x = maxval(car(:,:,ii,1))
+          max_y = maxval(car(:,:,ii,2))
+          max_z = maxval(car(:,:,ii,3))
+
+          min_x = minval(car(:,:,ii,1))
+          min_y = minval(car(:,:,ii,2))
+          min_z = minval(car(:,:,ii,3))
         endif
+
+        i1 = 0
+        i2 = 0
 
         if (max_x == min_x) then
           i1 = 2
@@ -447,6 +452,12 @@ c     Begin program
         if (max_z == min_z) then
           i1 = 1
           i2 = 2
+        endif
+
+        if (i1 == 0 .or. i2 == 0) then
+          write(*,*) 'Could not find cartesian plane in find_cart_plane'
+          write(*,*) 'Aborting...'
+          stop
         endif
 
       end subroutine find_cart_plane
