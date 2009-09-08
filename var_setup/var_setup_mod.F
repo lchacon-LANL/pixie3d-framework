@@ -220,7 +220,7 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq,nvar,nvec
+        integer :: ieq,nvar,nvec
 
 c     Begin program
 
