@@ -26,6 +26,8 @@ c Begin program
 
       call destroyNonlinearFunction   !External
 
+      call deallocateAuxStruct(gv%aux)
+
       call destroyGrid(gv%gparams)
 
       deallocate(gv%bc_seq,STAT=ierr)
