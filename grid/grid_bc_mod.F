@@ -3795,20 +3795,12 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
         endif
 
         if (PRESENT(arr_cov)) then
-cc          v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc     .         = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc          v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc     .         = arr_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
           v_cnv = array
           v_cov = arr_cov
         else
           if (iscnv) then
-cc            v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc     .           = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
             v_cnv = array
           else
-cc            v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc     .           = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
             v_cov = array
           endif
         endif
