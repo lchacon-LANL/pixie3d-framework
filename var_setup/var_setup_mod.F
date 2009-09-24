@@ -190,6 +190,7 @@ c     Begin program
               allocate(aux%var_list(ieq)
      $                     %array(ilom:ihip,jlom:jhip,klom:khip))
               aux%var_list(ieq)%array = 0d0
+              aux%var_list(ieq)%bconds = bcond
             enddo
           endif
 
@@ -200,6 +201,9 @@ c     Begin program
               allocate(aux%vec_list(ieq)
      $                    %vec(ilom:ihip,jlom:jhip,klom:khip,3))
               aux%vec_list(ieq)%vec = 0d0
+              aux%vec_list(ieq)%bconds(:,1) = bcond
+              aux%vec_list(ieq)%bconds(:,2) = bcond
+              aux%vec_list(ieq)%bconds(:,3) = bcond
             enddo
           endif
         endif
