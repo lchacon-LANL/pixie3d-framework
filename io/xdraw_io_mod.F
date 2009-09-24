@@ -521,6 +521,13 @@ c     Local variables
 
 c     Begin program
 
+        if (nvar > ntot) then
+          write (*,*) 'Error in createDrawInGfile'
+          write (*,*) 'More plotting variables than available'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
         gfile = 111
 
         open (unit=gfile,file=drawfile,status='unknown')
