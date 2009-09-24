@@ -41,7 +41,9 @@ c ######################################################################
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0,dtold
      .               ,eigstep
 
+#if !defined(samrai)
         real(8),allocatable,dimension(:)   :: fold,fsrc
+#endif
         real(8),allocatable,dimension(:,:) :: old_f
 
         real(8)    :: vx_max,vy_max,vz_max,bx_max,by_max,bz_max
