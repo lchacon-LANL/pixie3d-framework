@@ -107,6 +107,7 @@ c Initialize global domain limits
 
 c Allocate constant arrays
 
+#if !defined(samrai)
       allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
       allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
       allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
@@ -114,6 +115,7 @@ c Allocate constant arrays
       zeros  = 0d0
       vzeros = 0d0
       ones   = 1d0
+#endif
 
 c Create nonlinear solver
 
