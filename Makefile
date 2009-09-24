@@ -14,6 +14,7 @@ MODS ?= $(wildcard *_mod.[F,f])
 
 OBJS  := $(filter %.o,$(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))\
                       $(patsubst %.c,%.o,$(filter-out $(MODS),$(SRC)))\
+                      $(patsubst %.C,%.o,$(filter-out $(MODS),$(SRC)))\
                       $(patsubst %.F,%.o,$(filter-out $(MODS),$(SRC))))
 
 OBJMOD :=  $(patsubst %.f,%.o,$(patsubst %.F,%.f,$(MODS)))
@@ -23,6 +24,7 @@ COMMON_MODS = $(foreach dir,$(SUBDIRS),$(wildcard $(dir)/*_mod.[f,F]))
 COMMON_SRC  = $(foreach dir,$(SUBDIRS),$(filter-out $(dir)/test.f,$(wildcard $(dir)/*.[f,F,c])))
 COMMON_OBJS = $(filter %.o, $(patsubst %.f,%.o,$(COMMON_SRC))\
                             $(patsubst %.c,%.o,$(COMMON_SRC))\
+                            $(patsubst %.C,%.o,$(COMMON_SRC))\
                             $(patsubst %.F,%.o,$(COMMON_SRC)))
 
 LIBS :=
