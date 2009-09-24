@@ -11,19 +11,25 @@ c #####################################################################
         real(8)   ,parameter :: UNDEF_DP=-1234.
 
         type :: dim_pack
+#if defined(samrai)
           sequence
+#endif
           logical    :: pack
           real(8)    :: xp
           real(8)    :: dx0
         end type dim_pack
 
         type :: grid_pack
+#if defined(samrai)
           sequence
+#endif
           type(dim_pack),dimension(3) :: dim
         end type grid_pack
 
         type :: grid_metrics
+#if defined(samrai)
           sequence
+#endif
           real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
           real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
           real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
@@ -35,14 +41,16 @@ c #####################################################################
         end type grid_metrics
 
         type :: MG_grid_metrics
-          sequence
+#if defined(samrai)
+          sequence 
+#endif
           type(grid_metrics),pointer,dimension(:) :: grid
         end type MG_grid_metrics
 
         type :: grid_mg_def
-          sequence 
 #if defined(samrai)
-          This has changed from earlier PIXIE3D version!!!
+          sequence 
+          Variables below have changed from earlier PIXIE3D version!!!
 #endif
           !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
           integer :: nglx                                 !Global number of mesh points in X
