@@ -56,7 +56,7 @@ ifeq ($(HOST),gongora.ornl.gov)
 
   LIBS += -L/usr/lib -llapack -lblas
 
-  PETSC_DIR =$(HOME)/lib/petsc-2.3.3
+  PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
   PETSC_ARCH = linux_openmpi
 
   HDF5 = t
