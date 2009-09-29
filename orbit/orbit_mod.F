@@ -86,6 +86,7 @@ c     ----------------------------------------------------------------------
       orb_default%ode_conf%niter  = 20     !Number of nonlinear iterations
       orb_default%ode_conf%rtol   = 0d-8   !Relative tolerance
       orb_default%ode_conf%atol   = 1d-8   !Absolute tolerance
+c3-eq      orb_default%ode_conf%lsode_neq = 3   !Number of LSODE equations
       orb_default%ode_conf%lsode_neq = 5   !Number of LSODE equations
 
       !Splines
@@ -386,7 +387,6 @@ c     Call variables
         INTERFACE
           function line_int(fwd,xo,x,yo,y,zo,z,so,ss)
           logical :: line_int
-cc          logical, optional :: line_int
           logical :: fwd
           real(8) :: xo,x,yo,y,zo,z,so,ss
           logical :: ex_loop
@@ -572,6 +572,8 @@ c     Begin program
 
         itime = 0
 
+        exit_loop = .false.
+
         if (iiout == 0) then
           write (*,FMT="(a,3f9.4,a)",ADVANCE="NO")
      .         ' Orbit (x,y,z)=',x0,y0,z0,', Progress= '
@@ -703,12 +705,12 @@ c     Local variables
       real(8) :: xh,yh,zh,jach
 
       !LSODE setup
-      INTEGER :: IOPT, IOUT, ISTATE=0, ITASK, ITOL, IWORK(20), LIW, LRW,
-     .           MF, NEQ, NEQD(1)
-CC      PARAMETER  (NEQ=6,LRW = 20 + 16*NEQ,LIW = 20)
-CC      REAL(8) :: ATOL(NEQ),RTOL(1),RWORK(LRW),T,TOUT,YY(NEQ)
-      REAL(8) :: RTOL(1),T,TOUT
-      REAL(8),ALLOCATABLE,DIMENSION(:) :: ATOL,RWORK,YY
+      INTEGER :: LIW, LRW, NEQ
+      PARAMETER  (NEQ=10,LIW = 20,LRW = LIW + 16*NEQ)
+
+      INTEGER :: IOPT, IOUT, ISTATE=0, ITASK, ITOL, IWORK(LIW)
+     .          ,MF, NEQD(1)
+      REAL(8) :: ATOL(NEQ),RTOL(1),RWORK(LRW),T,TOUT,YY(NEQ)
 
       save ISTATE
 
@@ -717,7 +719,7 @@ CC      REAL(8) :: ATOL(NEQ),RTOL(1),RWORK(LRW),T,TOUT,YY(NEQ)
 c     Interfaces
 
       INTERFACE
-        subroutine ff(neq,t,y,ydot,xx1)
+        subroutine ff(neq,t,y,ydot)
         integer :: neq
         real(8) :: t,y(neq),ydot(neq)
         end subroutine ff
@@ -730,11 +732,7 @@ c     Begin program
 
       sing_point = cartesian
 
-      NEQ = ode_conf%lsode_neq
-      LIW = 20
-      LRW = LIW + 16*NEQ
-
-      allocate(ATOL(NEQ),RWORK(LRW),YY(NEQ))
+      NEQD = ode_conf%lsode_neq    !Number of equations
 
 c     Initial conditions
 
@@ -747,7 +745,8 @@ c     Initial conditions
         YY(3) = zc
         YY(4) = time
         YY(5) = ss
-        if (NEQ > 5) YY(6:NEQ)=lsode_out(1:NEQ-5)
+        if (NEQD(1) > 5) YY(6:NEQD(1))=lsode_out(1:NEQD(1)-5)
+c3-eq        if (NEQD(1) > 3) YY(4:NEQD(1))=lsode_out(1:NEQD(1)-3)
 
         TOUT = 0.1*cc*dtime !Output time value (ignored after first call, since ITASK=2)
       else
@@ -756,20 +755,21 @@ c     Initial conditions
         YY(3) = z
         YY(4) = time
         YY(5) = ss
-        if (NEQ > 5) YY(6:NEQ)=lsode_out(1:NEQ-5)
+        if (NEQD(1) > 5) YY(6:NEQD(1))=lsode_out(1:NEQD(1)-5)
+c3-eq        if (NEQD(1) > 3) YY(4:NEQD(1))=lsode_out(1:NEQD(1)-3)
 
         TOUT  = cc*dtime    !Output time value (ignored after first call, since ITASK=2)
       endif
 
 c     LSODE configuration and call
 
-      NEQD = NEQ    !Number of equations
-
-      T    = 0d0    !Independent variable
+c3-eq      T    = time   !Independent variable
+      T    = 0d0   !Independent variable
 
       ITOL = 2      !Whether atol is array or not (2 => true)
       RTOL = rrtol  !Relative tolerance
       ATOL = aatol  !Absolute tolerance
+
       ITASK = 2     !Mode of operation: take one step and return
 
       !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
@@ -786,7 +786,7 @@ cc      RWORK(6) = dtime !Maximum time step allowed (optional input)
      .              ISTATE,IOPT,RWORK,LRW,IWORK,LIW,lsode_f, MF)
       else
         CALL LSODE (ff     ,NEQD,YY,T,TOUT,ITOL,RTOL,ATOL,ITASK,
-     .              ISTATE,IOPT,RWORK,LRW,IWORK,LIW,ff,MF)
+     .              ISTATE,IOPT,RWORK,LRW,IWORK,LIW,ff      ,MF)
       endif
 
       if (ISTATE /= 2) then
@@ -798,15 +798,15 @@ c     Postprocessing to find logical coordinates
 
       if (cartesian) then
         x = xold ; y = yold ; z = zold
-        call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,ierror)
+        call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,iterr)
 
-        if (ierror /= 0) then
-          ierror = 6
+        if (iterr /= 0) then
+          iterr = 6
           return
         endif
 
         if (x > rmin) then
-          ierror = -2
+          iterr = -2
           ISTATE = 1   !Instruct LSODE to start anew for next time step
           cartesian = .false.
           sing_point= .false.
@@ -825,9 +825,15 @@ c     Advance time and arc length
       time = cc*YY(4)
       ss   = cc*YY(5)
 
-      if (NEQ > 5) lsode_out(1:NEQ-5)=cc*YY(6:NEQ)
+      if (NEQD(1) > 5) lsode_out(1:NEQD(1)-5)=cc*YY(6:NEQD(1))
 
-      deallocate(ATOL,RWORK,YY)
+c3-eq      dt   = (abs(T)-time)   !For output
+c3-eq      ds   = (abs(T)-time)   !For output
+c3-eq
+c3-eq      time = abs(T)
+c3-eq      ss   = abs(T)
+c3-eq
+c3-eq      if (NEQD(1) > 3) lsode_out(1:NEQD(1)-3)=cc*YY(4:NEQD(1))
 
 c     End program
 
@@ -1160,6 +1166,80 @@ c     ###################################################################
 
       end subroutine orbit_step
 
+c3-eqc     lsode_orbit_f
+c3-eqc     #####################################################################
+c3-eq      subroutine lsode_orbit_f(neq,t,y,ydot,xx1,yy1,zz1)
+c3-eq
+c3-eqc     ---------------------------------------------------------------------
+c3-eqc     Driver routine for LSODE integration: ydot = lsode_orbit_f(y,t)
+c3-eqc     ---------------------------------------------------------------------
+c3-eq
+c3-eq      implicit none
+c3-eq
+c3-eqc     Call variables
+c3-eq
+c3-eq      integer :: neq
+c3-eq      real(8) :: t,y(neq),ydot(neq)
+c3-eq      real(8),optional :: xx1,yy1,zz1
+c3-eq
+c3-eqc     Local variables
+c3-eq
+c3-eq      integer :: ierror
+c3-eq      real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,coeff
+c3-eq
+c3-eqc     Begin program
+c3-eq
+c3-eq      if (neq /= 3) then
+c3-eq        write (*,*) 'Wrong number of Eqs. in lsode_orbit_f:',neq
+c3-eq        stop
+c3-eq      endif
+c3-eq
+c3-eq      !Find logical coordinates
+c3-eq      if (sing_point) then
+c3-eq        x1 = xold ; y1 = yold ; z1 = zold
+c3-eq        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,ierror)
+c3-eq        if (ierror /= 0) then
+c3-eq          write (*,*) ierror
+c3-eq          write (*,*) 'Could not find logical coords in lsode_orbit_f'
+c3-eq          stop
+c3-eq        endif
+c3-eq      else
+c3-eq        x1 = y(1)
+c3-eq        y1 = y(2)
+c3-eq        z1 = y(3)
+c3-eq      endif
+c3-eq
+c3-eq      !Get vector field (Cartesian if sing_point is .true.)
+c3-eq      call getB(x1,y1,z1,vx,vy,vz,sln,sing_point)
+c3-eq
+c3-eq      ydot(1) = vx
+c3-eq      ydot(2) = vy
+c3-eq      ydot(3) = vz
+c3-eq
+c3-eq      !Time and arc-length ODEs
+c3-eq      if (.not.sing_point) then
+c3-eq        coeff = evalJ(x1,y1,z1,ierror)
+c3-eq        if (ierror /= 0) then
+c3-eq          write (*,*) 'Negative Jacobian in lsode_orbit_f'
+c3-eq          stop
+c3-eq        endif
+c3-eq
+c3-eq        call evalBcar(x1,y1,z1,vx,vy,vz)
+c3-eq        coeff = coeff*sqrt(vx**2+vy**2+vz**2)
+c3-eq      else
+c3-eq        coeff = sqrt(vx**2+vy**2+vz**2)
+c3-eq      endif
+c3-eq
+c3-eq      ydot = ydot/coeff
+c3-eq
+c3-eq      if (PRESENT(xx1)) xx1 = x1
+c3-eq      if (PRESENT(yy1)) yy1 = y1
+c3-eq      if (PRESENT(zz1)) zz1 = z1
+c3-eq
+c3-eqc     End program
+c3-eq
+c3-eq      end subroutine lsode_orbit_f
+
 c     lsode_orbit_f
 c     #####################################################################
       subroutine lsode_orbit_f(neq,t,y,ydot,xx1,yy1,zz1)
@@ -1184,7 +1264,7 @@ c     Local variables
 c     Begin program
 
       if (neq /= 5) then
-        write (*,*) 'Wrong number of Eqs. for LSODE'
+        write (*,*) 'Wrong number of Eqs. for lsode_orbit',neq
         stop
       endif
 
@@ -1342,10 +1422,11 @@ c     Set position of SS
 
 c     Consistency check
 
-        if ((.not.lssx) .and. (.not.lssy) .and. (.not.lssz)) then
-          call pstop('ss_init'
-     .              ,'No Surface of section selected. Aborting.')
-        elseif (lssx .and. lssy .and. lssz) then
+cc        if ((.not.lssx) .and. (.not.lssy) .and. (.not.lssz)) then
+cc          call pstop('ss_init'
+cc     .              ,'No Surface of section selected. Aborting.')
+cc        elseif (lssx .and. lssy .and. lssz) then
+        if (lssx .and. lssy .and. lssz) then
           call pstop('ss_init'
      .              ,'Cannot select all 3 surfaces of section!!')
         endif
