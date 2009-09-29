@@ -11,16 +11,25 @@ c #####################################################################
         real(8)   ,parameter :: UNDEF_DP=-1234.
 
         type :: dim_pack
+#if defined(samrai)
+          sequence
+#endif
           logical    :: pack
           real(8)    :: xp
           real(8)    :: dx0
         end type dim_pack
 
         type :: grid_pack
+#if defined(samrai)
+          sequence
+#endif
           type(dim_pack),dimension(3) :: dim
         end type grid_pack
 
         type :: grid_metrics
+#if defined(samrai)
+          sequence
+#endif
           real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
           real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
           real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
@@ -32,11 +41,18 @@ c #####################################################################
         end type grid_metrics
 
         type :: MG_grid_metrics
+#if defined(samrai)
+          sequence 
+#endif
           type(grid_metrics),pointer,dimension(:) :: grid
         end type MG_grid_metrics
 
         type :: grid_mg_def
-          !External grid manager (e.g. SAMRAI) needs to define these!
+#if defined(samrai)
+          sequence 
+          Variables below have changed from earlier PIXIE3D version!!!
+#endif
+          !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
           integer :: nglx                                 !Global number of mesh points in X
           integer :: ngly                                 !Global number of mesh points in Y
           integer :: nglz                                 !Global number of mesh points in Z
@@ -53,7 +69,10 @@ c #####################################################################
           real(8) :: gzmin,gzmax                          !Physical dim. of global domain in Z
 
           integer :: mpi_comm,np,rank                     !MPI info
-          !External grid manager (e.g. SAMRAI) needs to define these!
+
+          integer :: aligner                              !Ghost cell width
+          integer :: gcw                                  !Ghost cell width
+          !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
 
           integer :: ngrdx                                !Grid levels in X
           integer :: ngrdy                                !Grid levels in Y
@@ -63,8 +82,6 @@ c #####################################################################
           integer :: nlx                                  !Local number of mesh points in X
           integer :: nly                                  !Local number of mesh points in Y
           integer :: nlz                                  !Local number of mesh points in Z
-
-          integer :: gcw                                  !Ghost cell width
 
           integer   ,pointer,dimension(:)  :: ilo         !Global lower limit in X in all grids
           integer   ,pointer,dimension(:)  :: jlo         !Global lower limit in Y in all grids
@@ -111,7 +128,7 @@ c #####################################################################
 
           type(grid_pack),pointer          :: g_pack      !Grid packing information
 
-#if defined(petsc)
+#if defined(petsc) && !defined(samrai)
           type(petsc_da_ctx),pointer,dimension(:)::dactx  !PETSc DA context
 #endif
 
@@ -164,7 +181,7 @@ c     Begin program
           grid_st%gzmin = UNDEF_DP
           grid_st%gzmax = UNDEF_DP
 
-#if defined(petsc)
+#if defined(petsc) && !defined(samrai)
           if (PRESENT(mpi_comm)) then
             grid_st%mpi_comm = mpi_comm
           else
@@ -350,7 +367,7 @@ c     Local variables
 
         integer :: igr
 
-#if defined(petsc)
+#if defined(petsc) && !defined(samrai)
         type(petsc_da_ctx),pointer :: da_ctx
 #endif
 
@@ -370,7 +387,7 @@ c     Deallocate grid packing info
 
 c     Deallocate PETSC DA context
 
-#if defined(petsc)
+#if defined(petsc)  && !defined(samrai)
         do igr=1,grid_st%ngrid
           da_ctx => grid_st%dactx(igr)
           call destroyPETScFortranDA(da_ctx)
@@ -769,7 +786,7 @@ c     End program
 
       end subroutine deallocateGridMetric
 
-#if defined(petsc)
+#if defined(petsc) && !defined(samrai)
 
 c     createPETScGrid
 c     #################################################################

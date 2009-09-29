@@ -152,8 +152,8 @@ c ######################################################################
       module constants
 
         real(8) :: pi
-        real(8), allocatable, dimension(:,:,:)   :: zeros,ones
-        real(8), allocatable, dimension(:,:,:,:) :: vzeros
+        real(8), pointer, dimension(:,:,:)   :: zeros,ones
+        real(8), pointer, dimension(:,:,:,:) :: vzeros
 
       end module constants
 
@@ -191,86 +191,86 @@ c####################################################################
 
       contains
 
-c     scalarSingularBC2
-c     #################################################################
-      subroutine scalarSingularBC2(array,order)
-c     -----------------------------------------------------------------
-c     Imposes singular point BC. On input:
-c        * array: contains variable on which singular BC is imposed
-c        * order: order of interpolation towards singular point
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer    :: order
-      real(8)    :: array(0:nxbc+1,0:nybc+1,0:nzbc+1)
-
-c     Local variables
-
-      integer    :: i,j,k,ig,jg,kg,order1,ilog,ihig
-      real(8)    :: lavg_q,lavg_vol,avg_q,avg_vol,rho0(1),vol,x0(1)
-
-c     Begin program
-
-      ilog = grid_params%ilo(1)
-      ihig = grid_params%ihi(1)
-
-c     Check that we are domain adjacent to singular point
-
-      if (ilog /= 1) then
-        return
-      else
-        i = ilog
-      endif
-
-c     Set interpolation order
-
-      order1 = min(order,ihig-ilog)
-
-c     Find scalar value at singular point by averaging neighboring cells
-
-      do k=1,nzbc
-
-c       Perform local sum
-        lavg_q   = 0d0
-        lavg_vol = 0d0
-
-        do j=1,nybc
-          call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-          vol = gmetric%grid(igxbc)%dvol(i,j,k)
-          x0  = grid_params%xx(ig-1)
-
-          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
-     .                    ,array(i:i+order1+1,j,k)
-     .                    ,1,x0,rho0,order1)
-
-          lavg_q   = lavg_q   + vol*rho0(1)
-          lavg_vol = lavg_vol + vol
-        enddo
-
-c       Perform global sum (and broadcast it to all processors)
-
-#if defined(petsc)
-        call MPI_Allreduce(lavg_q  ,avg_q  ,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-        call MPI_Allreduce(lavg_vol,avg_vol,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-#else
-        avg_q   = lavg_q
-        avg_vol = lavg_vol
-#endif
-
-c       Perform average
-
-        array(0,:,k) = avg_q/avg_vol
-
-      enddo
-
-c     End program
-
-      end subroutine scalarSingularBC2
+ccc     scalarSingularBC2
+ccc     #################################################################
+cc      subroutine scalarSingularBC2(array,order)
+ccc     -----------------------------------------------------------------
+ccc     Imposes singular point BC. On input:
+ccc        * array: contains variable on which singular BC is imposed
+ccc        * order: order of interpolation towards singular point
+ccc     -----------------------------------------------------------------
+cc
+cc      implicit none
+cc
+ccc     Call variables
+cc
+cc      integer    :: order
+cc      real(8)    :: array(0:nxbc+1,0:nybc+1,0:nzbc+1)
+cc
+ccc     Local variables
+cc
+cc      integer    :: i,j,k,ig,jg,kg,order1,ilog,ihig
+cc      real(8)    :: lavg_q,lavg_vol,avg_q,avg_vol,rho0(1),vol,x0(1)
+cc
+ccc     Begin program
+cc
+cc      ilog = grid_params%ilo(1)
+cc      ihig = grid_params%ihi(1)
+cc
+ccc     Check that we are domain adjacent to singular point
+cc
+cc      if (ilog /= 1) then
+cc        return
+cc      else
+cc        i = ilog
+cc      endif
+cc
+ccc     Set interpolation order
+cc
+cc      order1 = min(order,ihig-ilog)
+cc
+ccc     Find scalar value at singular point by averaging neighboring cells
+cc
+cc      do k=1,nzbc
+cc
+ccc       Perform local sum
+cc        lavg_q   = 0d0
+cc        lavg_vol = 0d0
+cc
+cc        do j=1,nybc
+cc          call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+cc          vol = gmetric%grid(igxbc)%dvol(i,j,k)
+cc          x0  = grid_params%xx(ig-1)
+cc
+cc          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
+cc     .                    ,array(i:i+order1+1,j,k)
+cc     .                    ,1,x0,rho0,order1)
+cc
+cc          lavg_q   = lavg_q   + vol*rho0(1)
+cc          lavg_vol = lavg_vol + vol
+cc        enddo
+cc
+ccc       Perform global sum (and broadcast it to all processors)
+cc
+cc#if defined(petsc)
+cc        call MPI_Allreduce(lavg_q  ,avg_q  ,1,MPI_DOUBLE_PRECISION
+cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+cc        call MPI_Allreduce(lavg_vol,avg_vol,1,MPI_DOUBLE_PRECISION
+cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+cc#else
+cc        avg_q   = lavg_q
+cc        avg_vol = lavg_vol
+cc#endif
+cc
+ccc       Perform average
+cc
+cc        array(0,:,k) = avg_q/avg_vol
+cc
+cc      enddo
+cc
+ccc     End program
+cc
+cc      end subroutine scalarSingularBC2
 
 c     scalarSingularBC
 c     #################################################################
@@ -373,139 +373,139 @@ c     End program
 
       end subroutine scalarSingularBC
 
-c     vectorSingularBC2
-c     #################################################################
-      subroutine vectorSingularBC2(vec,cov,order)
-c     -----------------------------------------------------------------
-c     Averages vector components around singular point and calculates
-c     curvilinear components at singular point.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer    :: order
-      real(8)    :: vec(0:nxbc+1,0:nybc+1,0:nzbc+1,3)
-      logical    :: cov
-
-c     Local variables
-
-      integer    :: i,j,k
-
-      integer    :: ic,ig,jg,kg,order1,ilog,ihig
-      real(8)    :: vol,lavg_x,lavg_y,lavg_z,lavg_vol
-     .                 , avg_x, avg_y, avg_z, avg_vol
-      real(8)    :: daxdr(1),daydr(1),dummy1,dummy2
-      real(8),allocatable,dimension(:) :: ax0,ay0,az0,cx,cy,cz,xx
-
-c     External
-
-c     Begin program
-
-      ilog = grid_params%ilo(1)
-      ihig = grid_params%ihi(1)
-
-c     Check that we are domain adjacent to singular point
-
-      if (ilog /= 1) then
-        return
-      else
-        i = ilog
-      endif
-
-c     Set interpolation order
-
-      order1 = min(order,ihig-ilog)
-
-c     Allocate quantities for interpolation
-
-      allocate(ax0(nzbc),ay0(nzbc),az0(nzbc))
-      allocate(cx(0:order1+1),cy(0:order1+1),cz(0:order1+1)
-     .        ,xx(0:order1+1))
-
-      call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-
-      xx(0:order1+1) = grid_params%xx(ig-1:ig+order1)
-
-c     Find average cartesian coordinates
-
-      do k=1,nzbc
-
-c       Perform local sum
-        lavg_x   = 0d0
-        lavg_y   = 0d0
-        lavg_z   = 0d0
-        lavg_vol = 0d0
-
-        do j=1,nybc
-          call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-          vol = gmetric%grid(igxbc)%dvol(i,j,k)
-
-          do ic=1,order1+1
-            call transformVectorToCartesian(ic,j,k,igxbc,igybc,igzbc
-     .           ,vec(ic,j,k,1),vec(ic,j,k,2),vec(ic,j,k,3),cov
-     .           ,cx(ic),cy(ic),cz(ic))
-          enddo
-
-          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
-     .                    ,cx(1:order1+1),1,grid_params%xx(ig-1:ig-1)
-     .                    ,cx(0),order1)
-          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
-     .                    ,cy(1:order1+1),1,grid_params%xx(ig-1:ig-1)
-     .                    ,cy(0),order1)
-          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
-     .                    ,cz(1:order1+1),1,grid_params%xx(ig-1:ig-1)
-     .                    ,cz(0),order1)
-
-          lavg_x   = lavg_x   + vol*cx(0)
-          lavg_y   = lavg_y   + vol*cy(0)
-          lavg_z   = lavg_z   + vol*cz(0)
-          lavg_vol = lavg_vol + vol
-
-        enddo
-
-c       Perform global sum (and broadcast it to all processors)
-
-#if defined(petsc)
-        call MPI_Allreduce(lavg_x  ,avg_x  ,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-        call MPI_Allreduce(lavg_y  ,avg_y  ,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-        call MPI_Allreduce(lavg_z  ,avg_z  ,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-        call MPI_Allreduce(lavg_vol,avg_vol,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-#else
-        avg_x   = lavg_x
-        avg_y   = lavg_y
-        avg_z   = lavg_z
-        avg_vol = lavg_vol
-#endif
-
-c       Perform average
-
-        ax0(k) = avg_x/avg_vol
-        ay0(k) = avg_y/avg_vol
-        az0(k) = avg_z/avg_vol
-
-      enddo
-
-      i = ilog-1
-      do k=1,nzbc
-        do j=0,nybc+1           !This also fills ghost cells
-          call transformVectorToCurvilinear(i,j,k,igxbc,igybc,igzbc
-     .                 ,ax0(k),ay0(k),az0(k),cov
-     .                 ,vec(i,j,k,1),vec(i,j,k,2),vec(i,j,k,3))
-        enddo
-      enddo
-
-      deallocate(ax0,ay0,az0)
-      deallocate(cx,cy,cz,xx)
-
-c     End program
-
-      end subroutine vectorSingularBC2
+ccc     vectorSingularBC2
+ccc     #################################################################
+cc      subroutine vectorSingularBC2(vec,cov,order)
+ccc     -----------------------------------------------------------------
+ccc     Averages vector components around singular point and calculates
+ccc     curvilinear components at singular point.
+ccc     -----------------------------------------------------------------
+cc
+cc      implicit none
+cc
+ccc     Call variables
+cc
+cc      integer    :: order
+cc      real(8)    :: vec(0:nxbc+1,0:nybc+1,0:nzbc+1,3)
+cc      logical    :: cov
+cc
+ccc     Local variables
+cc
+cc      integer    :: i,j,k
+cc
+cc      integer    :: ic,ig,jg,kg,order1,ilog,ihig
+cc      real(8)    :: vol,lavg_x,lavg_y,lavg_z,lavg_vol
+cc     .                 , avg_x, avg_y, avg_z, avg_vol
+cc      real(8)    :: daxdr(1),daydr(1),dummy1,dummy2
+cc      real(8),allocatable,dimension(:) :: ax0,ay0,az0,cx,cy,cz,xx
+cc
+ccc     External
+cc
+ccc     Begin program
+cc
+cc      ilog = grid_params%ilo(1)
+cc      ihig = grid_params%ihi(1)
+cc
+ccc     Check that we are domain adjacent to singular point
+cc
+cc      if (ilog /= 1) then
+cc        return
+cc      else
+cc        i = ilog
+cc      endif
+cc
+ccc     Set interpolation order
+cc
+cc      order1 = min(order,ihig-ilog)
+cc
+ccc     Allocate quantities for interpolation
+cc
+cc      allocate(ax0(nzbc),ay0(nzbc),az0(nzbc))
+cc      allocate(cx(0:order1+1),cy(0:order1+1),cz(0:order1+1)
+cc     .        ,xx(0:order1+1))
+cc
+cc      call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+cc
+cc      xx(0:order1+1) = grid_params%xx(ig-1:ig+order1)
+cc
+ccc     Find average cartesian coordinates
+cc
+cc      do k=1,nzbc
+cc
+ccc       Perform local sum
+cc        lavg_x   = 0d0
+cc        lavg_y   = 0d0
+cc        lavg_z   = 0d0
+cc        lavg_vol = 0d0
+cc
+cc        do j=1,nybc
+cc          call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+cc          vol = gmetric%grid(igxbc)%dvol(i,j,k)
+cc
+cc          do ic=1,order1+1
+cc            call transformVectorToCartesian(ic,j,k,igxbc,igybc,igzbc
+cc     .           ,vec(ic,j,k,1),vec(ic,j,k,2),vec(ic,j,k,3),cov
+cc     .           ,cx(ic),cy(ic),cz(ic))
+cc          enddo
+cc
+cc          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
+cc     .                    ,cx(1:order1+1),1,grid_params%xx(ig-1:ig-1)
+cc     .                    ,cx(0),order1)
+cc          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
+cc     .                    ,cy(1:order1+1),1,grid_params%xx(ig-1:ig-1)
+cc     .                    ,cy(0),order1)
+cc          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
+cc     .                    ,cz(1:order1+1),1,grid_params%xx(ig-1:ig-1)
+cc     .                    ,cz(0),order1)
+cc
+cc          lavg_x   = lavg_x   + vol*cx(0)
+cc          lavg_y   = lavg_y   + vol*cy(0)
+cc          lavg_z   = lavg_z   + vol*cz(0)
+cc          lavg_vol = lavg_vol + vol
+cc
+cc        enddo
+cc
+ccc       Perform global sum (and broadcast it to all processors)
+cc
+cc#if defined(petsc)
+cc        call MPI_Allreduce(lavg_x  ,avg_x  ,1,MPI_DOUBLE_PRECISION
+cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+cc        call MPI_Allreduce(lavg_y  ,avg_y  ,1,MPI_DOUBLE_PRECISION
+cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+cc        call MPI_Allreduce(lavg_z  ,avg_z  ,1,MPI_DOUBLE_PRECISION
+cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+cc        call MPI_Allreduce(lavg_vol,avg_vol,1,MPI_DOUBLE_PRECISION
+cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+cc#else
+cc        avg_x   = lavg_x
+cc        avg_y   = lavg_y
+cc        avg_z   = lavg_z
+cc        avg_vol = lavg_vol
+cc#endif
+cc
+ccc       Perform average
+cc
+cc        ax0(k) = avg_x/avg_vol
+cc        ay0(k) = avg_y/avg_vol
+cc        az0(k) = avg_z/avg_vol
+cc
+cc      enddo
+cc
+cc      i = ilog-1
+cc      do k=1,nzbc
+cc        do j=0,nybc+1           !This also fills ghost cells
+cc          call transformVectorToCurvilinear(i,j,k,igxbc,igybc,igzbc
+cc     .                 ,ax0(k),ay0(k),az0(k),cov
+cc     .                 ,vec(i,j,k,1),vec(i,j,k,2),vec(i,j,k,3))
+cc        enddo
+cc      enddo
+cc
+cc      deallocate(ax0,ay0,az0)
+cc      deallocate(cx,cy,cz,xx)
+cc
+ccc     End program
+cc
+cc      end subroutine vectorSingularBC2
 
 c     vectorSingularBC
 c     #################################################################
@@ -1071,12 +1071,21 @@ c     Initialize GLOBAL limits
         kkmax = grid_params%khi(iigz)
       endif
 
+#if defined(samrai)
+      iimnm =  iimin 
+      iimxp =  iimax
+      jjmnm =  jjmin
+      jjmxp =  jjmax
+      kkmnm =  kkmin
+      kkmxp =  kkmax
+#else
       iimnm =  max(iimin - 1,1)  
       iimxp =  min(iimax + 1,grid_params%nxgl(iigx))
       jjmnm =  max(jjmin - 1,1)  
       jjmxp =  min(jjmax + 1,grid_params%nygl(iigy))
       kkmnm =  max(kkmin - 1,1)  
       kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz))
+#endif
 
 c     Fill PETSc ghost cells
 
@@ -1240,12 +1249,21 @@ c     Initialize GLOBAL limits
         kkmax = grid_params%khi(iigz)
       endif
 
+#if defined(samrai)
+      iimnm =  iimin 
+      iimxp =  iimax
+      jjmnm =  jjmin
+      jjmxp =  jjmax
+      kkmnm =  kkmin
+      kkmxp =  kkmax
+#else
       iimnm =  max(iimin - 1,1)  
       iimxp =  min(iimax + 1,grid_params%nxgl(iigx))
       jjmnm =  max(jjmin - 1,1)  
       jjmxp =  min(jjmax + 1,grid_params%nygl(iigy))
       kkmnm =  max(kkmin - 1,1)  
       kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz))
+#endif
 
 c     Fill PETSc ghost cells
 
@@ -1886,6 +1904,7 @@ c     Local variables
 
 c     Begin program
 
+#if !defined(samrai)
       ibc = (1+loc)+2*(dim-1)
 
       if (np == 1 .or. asm) then
@@ -1941,6 +1960,8 @@ c     Begin program
 #endif
 
       endif
+
+#endif
 
 c     End program
 
@@ -3795,20 +3816,12 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
         endif
 
         if (PRESENT(arr_cov)) then
-cc          v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc     .         = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc          v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc     .         = arr_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
           v_cnv = array
           v_cov = arr_cov
         else
           if (iscnv) then
-cc            v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc     .           = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
             v_cnv = array
           else
-cc            v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
-cc     .           = array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:)
             v_cov = array
           endif
         endif

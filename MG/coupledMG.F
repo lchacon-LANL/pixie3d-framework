@@ -3585,7 +3585,7 @@ c Unpack vector into array
 
 c Impose boundary conditions (external)
 
-      cartesian = (bcSP() .and. neq > 1)  !Cartesian variables for prolongation
+      cartesian = (bcSP() .and. neq > 1)  !Return Cartesian variables for prolongation
 
       if (order > 0 .or. cartesian) then
         call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
@@ -3595,13 +3595,11 @@ c Impose boundary conditions (external)
                                                        !   vectors or scalars.
       endif
 
-c Perform average along azimuthal direction
+c Perform average along azimuthal direction for SP configurations
 
 cc      write (*,*) 'DIAG -- cprolong, nproc=',my_rank,cartesian
 
-      cartesian = (isSP2(1,igc) .and. neq > 1)  !Cartesian variables for prolongation
-
-      if (cartesian) then
+      if (isSP2(1,igc) .and. neq > 1) then
 
         allocate(sp_sum(0:nzc+1,neq),dv_sum(0:nzc+1,neq))
 
@@ -3655,9 +3653,9 @@ cc        enddo
 
       enddo
 
-c Transform back to curvilinear (if isvec=.true.)
+c Transform back to curvilinear (if isvec=.true. and cartesian=.true.)
 
-      if (isvec) then
+      if (isvec .and. cartesian) then
 
         igf = igc - 1
 
@@ -3667,13 +3665,15 @@ c Transform back to curvilinear (if isvec=.true.)
               do ieq=1,neq/3
                 iif = vecPos(1,i,j,k,igf,igf,igf)+1
 
-                car = xxf(iif,:)
+                car = xxf(iif,(ieq-1)*3+1:ieq*3)
 
                 call transformVectorToCurvilinear
      .             (i,j,k,igf,igf,igf
      .             ,car(1),car(2),car(3)
      .             ,.not.iscnv
-     .             ,xxf(iif,1),xxf(iif,2),xxf(iif,3))
+     .             ,xxf(iif,(ieq-1)*3+1)
+     .             ,xxf(iif,(ieq-1)*3+2)
+     .             ,xxf(iif,(ieq-1)*3+3))
               enddo
             enddo
           enddo
@@ -6483,16 +6483,14 @@ c     Process optional arguments
 
 c     Gather variables for coupled solve
 
-        if (.not.cvrg_test) then
-
-          do i=1,ntotp
-            do ieq=1,neq
-              xi(neq*(i-1)+ieq) = x(i,ieq)
-              bi(neq*(i-1)+ieq) = b(i,ieq)
-            enddo
+        do i=1,ntotp
+          do ieq=1,neq
+            xi(neq*(i-1)+ieq) = x(i,ieq)
+            bi(neq*(i-1)+ieq) = b(i,ieq)
           enddo
+        enddo
 
-        else
+        if (cvrg_test) then
 
           bi = 0d0
 

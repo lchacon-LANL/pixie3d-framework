@@ -1,0 +1,196 @@
+subroutine f_create_var_array(patch_obj,NVAR)
+
+ use grid_module
+! use parameters
+ 
+ integer :: patch_obj, NVAR
+ type(var_array), pointer :: grid_data
+ allocate(grid_data)
+ grid_data%nvar = NVAR
+ allocate(grid_data%array_var(1:NVAR))
+ call pflow_loc(patch_obj, grid_data)
+
+end subroutine f_create_var_array
+
+
+
+subroutine f_create_aux_array(patch_obj,NVAR,NVEC)
+
+ use grid_module
+! use parameters
+ 
+ integer :: patch_obj, NVAR, NVEC
+ type(aux_array), pointer :: grid_data
+ allocate(grid_data)
+ grid_data%nvar = NVAR
+ grid_data%nvec = NVEC
+ allocate(grid_data%var_list(1:NVAR))
+ allocate(grid_data%vec_list(1:NVEC))
+ call pflow_loc(patch_obj, grid_data)
+
+end subroutine f_create_aux_array
+
+
+
+subroutine f_create_grid_mg_def(patch_obj,nglx,ngly,nglz,ilog,jlog,klog,ihig,jhig,khig,gcw)
+
+ use grid_module
+! use parameters
+ 
+ integer :: patch_obj, nglx, ngly, nglz
+ integer :: ilog, jlog, klog, ihig, jhig, khig, gcw
+ type(grid_mg_def), pointer :: grid_data
+ allocate(grid_data)
+ grid_data%ngrdx = 1
+ grid_data%ngrdy = 1
+ grid_data%ngrdz = 1
+ grid_data%ngrid = 1
+ grid_data%nglx  = nglx
+ grid_data%ngly  = ngly
+ grid_data%nglz  = nglz
+ grid_data%nlx   = ihig-ilog+1
+ grid_data%nly   = jhig-jlog+1
+ grid_data%nlz   = khig-klog+1
+ grid_data%ilog  = ilog
+ grid_data%ihig  = ihig
+ grid_data%jlog  = jlog
+ grid_data%jhig  = jhig
+ grid_data%klog  = klog
+ grid_data%khig  = khig
+ grid_data%gcw   = 1
+ call pflow_loc(patch_obj, grid_data)
+
+end subroutine f_create_grid_mg_def
+
+
+
+subroutine f_create_patch_data(patch_obj,u_0,u_n,aux,gparams)
+
+ use grid_module
+ use grid_mgmt_module
+! use parameters
+ 
+ integer :: patch_obj
+ type(var_array),INTENT(INOUT) :: u_0, u_n
+ type(aux_array),INTENT(INOUT) :: aux
+ type(grid_mg_def),INTENT(INOUT) :: gparams
+ type(patch), pointer :: grid_data
+ allocate(grid_data)
+ nullify(grid_data%u_np)
+ nullify(grid_data%u_n)
+ nullify(grid_data%u_nm)
+ nullify(grid_data%u_0)
+ nullify(grid_data%u_graph)
+ nullify(grid_data%gparams)
+ nullify(grid_data%aux)
+ nullify(grid_data%bc_seq)
+ call setup_patch(grid_data,u_0,u_n,aux,gparams)
+ call pflow_loc(patch_obj, grid_data)
+
+end subroutine f_create_patch_data
+
+
+
+subroutine fill_var_array(fgrid,i,c_array,xs,ys,zs,xe,ye,ze)
+
+ use grid_module
+ use grid_mgmt_module
+
+ type(var_array),INTENT(INOUT) :: fgrid
+ integer,INTENT(IN)       :: i,xs,ys,zs,xe,ye,ze
+ REAL*8, INTENT(IN)       :: c_array(xs:xe,ys:ye,zs:ze)
+
+ call setup_var_array(fgrid,i,c_array,xs,ys,zs,xe,ye,ze)
+
+end subroutine fill_var_array
+
+
+
+subroutine fill_aux_array_var(fgrid,i,c_array,xs,ys,zs,xe,ye,ze)
+
+ use grid_module
+ use grid_mgmt_module
+
+ type(aux_array),INTENT(INOUT) :: fgrid
+ integer,INTENT(IN)       :: i,xs,ys,zs,xe,ye,ze
+ REAL*8, INTENT(IN)       :: c_array(xs:xe,ys:ye,zs:ze)
+
+ call setup_aux_var(fgrid,i,c_array,xs,ys,zs,xe,ye,ze)
+
+end subroutine fill_aux_array_var
+
+
+
+subroutine fill_aux_array_vec(fgrid,i,c_array,xs,ys,zs,xe,ye,ze)
+
+ use grid_module
+ use grid_mgmt_module
+
+ type(aux_array),INTENT(INOUT) :: fgrid
+ integer,INTENT(IN)       :: i,xs,ys,zs,xe,ye,ze
+ REAL*8, INTENT(IN)       :: c_array(xs:xe,ys:ye,zs:ze,1:3)
+
+ call setup_aux_vec(fgrid,i,c_array,xs,ys,zs,xe,ye,ze)
+
+end subroutine fill_aux_array_vec
+
+
+
+subroutine f_delete_patch_data(fgrid)
+
+ use grid_module
+ use parameters
+
+ type(patch), target :: fgrid
+ type(patch), pointer :: grid_data
+
+ grid_data => fgrid;
+! deallocate(grid_data%u_0%array_var(1:grid_data%u_0%nvar)) 
+! deallocate(grid_data%u_n%array_var(1:grid_data%u_n%nvar)) 
+ deallocate(grid_data%u_0)
+ deallocate(grid_data%u_n) 
+! deallocate(grid_data%aux%var_list(1:grid_data%aux%nvar)) 
+! deallocate(grid_data%aux%vec_list(1:grid_data%aux%nvec)) 
+ deallocate(grid_data%aux)
+ deallocate(grid_data%gparams)
+ deallocate(grid_data)
+
+end subroutine f_delete_patch_data
+
+
+subroutine f_delete_var_array(fgrid)
+
+ use grid_module
+ use parameters
+
+ type(var_array), target :: fgrid
+ type(var_array), pointer :: grid_data
+
+ grid_data => fgrid;
+! deallocate(grid_data%array_var(1:grid_data%nvar)) 
+ deallocate(grid_data)
+
+end subroutine f_delete_var_array
+
+
+!subroutine f_apply_pixie3d_bc(i, fgrid)
+!
+!  use grid_module
+!  use grid_mgmt_module
+!
+!  implicit none
+!
+!  integer :: i
+!  type(patch), target :: fgrid
+!  type(patch), pointer :: gv
+!  gv => fgrid;
+!
+!  if (gv%bc_seq(i+1,1)>0) then  !Process dep. variable
+!     call applyDepVarBC(gv%bc_seq(i+1,:),gv%u_n,gv%aux,1,1,1)
+!  else                          !Process aux. variable
+!     call applyAuxVarBC(gv%bc_seq(i+1,:),gv%u_n,gv%aux,1,1,1)
+!  endif
+!
+!end subroutine f_apply_pixie3d_bc
+
+

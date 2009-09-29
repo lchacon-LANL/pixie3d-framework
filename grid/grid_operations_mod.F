@@ -687,4 +687,31 @@ c     End
 
       end function scalarProduct
 
+c     tensorScalarProduct
+c     ################################################################
+      function tensorScalarProduct(i,j,k,igx,igy,igz,tnsr1,tnsr2)
+     .         result (dot)
+
+c     ---------------------------------------------------------------
+c     Finds tensor scalar product of two tensors, one covariant
+c     and the other contravariant.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: i,j,k,igx,igy,igz
+      real(8)    :: dot,tnsr1(3,3),tnsr2(3,3)
+
+c     Local variables
+
+c     Begin program
+
+      dot = sum(tnsr1*tnsr2)/gmetric%grid(igx)%jac(i,j,k)**2
+
+c     End 
+
+      end function tensorScalarProduct
+
       end module grid_operations
