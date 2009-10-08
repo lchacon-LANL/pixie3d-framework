@@ -455,6 +455,7 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           endif
           if(lssz) then
             write(nunitz) real(x0),real(y0)
+cc            write(nunitz) real(0.5*x0**2),real(y0) !In flux
           endif
 
         endif
@@ -512,8 +513,10 @@ cc          call chk_pos(x,y,z)
           !Show progress/terminate
           if (smax /= 0d0) then
             call orbit_progress(ss  ,sprev,smax,fwd,exit_loop)
-          else
+          elseif (tmax /= 0d0) then
             call orbit_progress(time,tprev,tmax,fwd,exit_loop)
+          else
+            exit_loop = .false.
           endif
 
           if (exit_loop) then
@@ -767,8 +770,11 @@ c3-eq      T    = time   !Independent variable
       T    = 0d0   !Independent variable
 
       ITOL = 2      !Whether atol is array or not (2 => true)
-      RTOL = rrtol  !Relative tolerance
-      ATOL = aatol  !Absolute tolerance
+
+      if (ISTATE /= 3) then
+        RTOL = rrtol            !Relative tolerance
+        ATOL = aatol            !Absolute tolerance
+      endif
 
       ITASK = 2     !Mode of operation: take one step and return
 
@@ -789,10 +795,19 @@ cc      RWORK(6) = dtime !Maximum time step allowed (optional input)
      .              ISTATE,IOPT,RWORK,LRW,IWORK,LIW,ff      ,MF)
       endif
 
-      if (ISTATE /= 2) then
+      select case(ISTATE)
+      case(2)       !Uneventful
+        continue
+      case(-2)      !Rescale tolerances
+        ISTATE = 3
+        RTOL=RTOL*RWORK(14)
+        ATOL=ATOL*RWORK(14)
+      case default  !Exit LSODE
         write (*,*) 'Problems in LSODE: ISTATE=', ISTATE
+        write (*,*) 'See lsode.f for instructions'
+        write (*,*) 'Aborting...'
         stop
-      endif
+      end select
 
 c     Postprocessing to find logical coordinates
 
@@ -1582,10 +1597,8 @@ c     Check for intersection with X surface of section
      .               ,y    ,z    ,x    ,tt
      .               ,xss,npointx,yss,zss,tss,iwhich)
 
-          if (ss_io) then
-            call chk_pos(xss,yss,zss) !this resets logical coords
-            write(nunitx) real(yss),real(zss)
-          endif
+          call chk_pos(xss,yss,zss) !this resets logical coords
+          write(nunitx) real(yss),real(zss)
         endif
 
 c     Check for intersection with Y surface of section
@@ -1598,10 +1611,8 @@ c     Check for intersection with Y surface of section
      .               ,z    ,x    ,y    ,tt
      .               ,yss,npointy,zss,xss,tss,iwhich)
 
-          if (ss_io) then
-            call chk_pos(xss,yss,zss) !this resets logical coords
-            write(nunity) real(xss),real(zss)
-          endif
+          call chk_pos(xss,yss,zss) !this resets logical coords
+          write(nunity) real(xss),real(zss)
         endif
 
 c     Check for intersection with Z surface of section
@@ -1614,16 +1625,17 @@ c     Check for intersection with Z surface of section
      .               ,x    ,y    ,z    ,tt
      .               ,zss,npointz,xss,yss,tss,iwhich)
 
-          if (rzss.and.ss_io) then   !Find R-Z plane positions
+          if (rzss) then   !Find R-Z plane positions
             call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
             rr = sqrt(xcar**2+ycar**2)
             write(nunitrz) real(rr),real(zcar)
 cc            write(*,*) 'diag',z,zold,real(rr),real(zcar)   !diag
-          elseif (ss_io) then
+          else
             call chk_pos(xss,yss,zss) !this resets logical coords
           endif
 
-          if (ss_io) write(nunitz) real(xss),real(yss)
+          write(nunitz) real(xss),real(yss) !In radius
+cc          write(nunitz) real(0.5*xss**2),real(yss) !In flux
         endif
 
       end subroutine sschk
