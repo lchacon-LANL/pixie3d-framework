@@ -1,1 +1,0 @@
-/home/lchacon/programs/MHD/3d/pixie3d-hg/common/Makefile
