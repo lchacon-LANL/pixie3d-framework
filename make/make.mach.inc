@@ -1,8 +1,18 @@
-# Default
+# Buildtype configuration
 
-HOST?=$(HOSTNAME)
+BUILDTYPE?=$(shell echo "`uname -m`-`uname -s`")
+
+ifeq "$(BUILDTYPE)" "i386-Darwin"
+    FC=gfortran
+    HDF5_HOME =${HDF_HOME}
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/lib
+    HDF5_INC  =-I$(HDF5_HOME)/include
+endif
 
 # Machine configuration
+
+HOST?=$(HOSTNAME)
 
 ifeq ($(HOST),quevedo.ornl.gov)
   ifdef BOPT
@@ -170,3 +180,4 @@ ifeq ($(findstring jaguar,$(HOST)),jaguar)
   PETSC_DIR ?= /opt/petsc/2.3.3/real/${PE_ENV}/${XTPE_COMPILE_TARGET}
   PETSC_ARCH ?= cray-xt
 endif
+

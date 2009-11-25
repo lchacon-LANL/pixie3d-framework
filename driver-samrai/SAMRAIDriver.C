@@ -32,7 +32,7 @@ using namespace std;
 #include "tbox/InputManager.h"
 #include "IntVector.h"
 #include "LoadBalancer.h"
-#include "tbox/MPI.h"
+#include "tbox/SAMRAI_MPI.h"
 #include "Patch.h"
 #include "PatchGeometry.h"
 #include "tbox/PIO.h"
@@ -48,8 +48,7 @@ using namespace std;
 #include "pixie3dApplication.h"
 #include "pixie3dApplicationParameters.h"
 #include "TimeIntegratorParameters.h"
-#include "ForwardEulerTimeIntegrator.h"
-//#include "ExplicitPCTimeIntegrator.h"
+#include "TimeIntegratorFactory.h"
 #include "VisItDataWriter.h"
 #include <sstream>
 #include <string>
@@ -62,7 +61,7 @@ extern "C"{
  */
 #include "BogusTagAndInitStrategy.h"
 #include "SAMRAIDriver.h"
-/*#include "pims_local_struct.h"*/
+
 /*
  * Ghost cell width for variables that need them.
  */
@@ -71,14 +70,14 @@ extern "C"{
 
 int main( int argc, char *argv[] ) 
 {
-   double max_error = 0.0;
-   double l2_error = 0.0;
    string input_file;
    string log_file;
-   
+   int plot_interval=0;
+   string write_path;
+
    tbox::Pointer<hier::PatchHierarchy<NDIM> > hierarchy;
 
-   tbox::MPI::init(&argc, &argv);
+   tbox::SAMRAI_MPI::init(&argc, &argv);
    tbox::SAMRAIManager::startup();
    int ierr = PetscInitializeNoArguments();
    PetscInitializeFortran();
@@ -97,7 +96,6 @@ int main( int argc, char *argv[] )
    tbox::Pointer<tbox::Database> input_db = new tbox::InputDatabase("input_db");
    tbox::InputManager::getManager()->parseInputFile(input_file, input_db);
    tbox::Pointer< tbox::Database > main_db = input_db->getDatabase("Main");
-   string write_path;
    double dt_save;
    if ( main_db->keyExists("output_path") ) {
       write_path = main_db->getString("output_path");
@@ -120,7 +118,7 @@ int main( int argc, char *argv[] )
     */
    BogusTagAndInitStrategy* test_object = new BogusTagAndInitStrategy();
 
-   // Create dummy variable to allow larger goast cell widths
+   // Create dummy variable to allow larger ghost cell widths
    hier::IntVector<NDIM> ghost = hier::IntVector<NDIM>::IntVector(2);
    ghost(2) = 1;
    tbox::Pointer< pdat::CellVariable<NDIM,double> > var = new pdat::CellVariable<NDIM,double>( "tmp", 1 );
@@ -140,91 +138,106 @@ int main( int argc, char *argv[] )
    // Initialize x0
    application->setInitialConditions(0.0);
 
-   // Create time integrator
-   algs::TimeIntegratorParameters* integration_parameters = new algs::TimeIntegratorParameters();
-   tbox::Pointer< tbox::Database > integrator_db = input_db->getDatabase("PredictorCorrector");
-   integration_parameters->d_db = integrator_db;
-   integration_parameters->dt_method = 1;
-   integration_parameters->d_ic_vector = application->get_x();
-   integration_parameters->d_application_strategy = application;
-   integration_parameters->d_integrator_name = "PredectorCorrector";
-   algs::ForwardEulerTimeIntegrator* integrator = new algs::ForwardEulerTimeIntegrator(integration_parameters);
+   // initialize a time integrator parameters object
+   tbox::Pointer<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");
+   SAMRSolvers::TimeIntegratorParameters *timeIntegratorParameters = new SAMRSolvers::TimeIntegratorParameters(ti_db);
+   timeIntegratorParameters->d_operator = application;
+   timeIntegratorParameters->d_ic_vector = application->get_x();
+
+   // create a time integrator
+   SAMRSolvers::TimeIntegratorFactory *tiFactory = new SAMRSolvers::TimeIntegratorFactory();
+   std::auto_ptr<SAMRSolvers::TimeIntegrator> timeIntegrator = tiFactory->createTimeIntegrator(timeIntegratorParameters);
 
    // Create x(t)
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > x_t;
-   x_t = integrator->getCurrentSolution();
+   x_t = timeIntegrator->getCurrentSolution();
 
    // Initialize the writer
-   appu::VisItDataWriter<NDIM>* d_visit_writer;
-   d_visit_writer = new appu::VisItDataWriter<NDIM>("test",write_path);
-   string var_name;
-   stringstream stream;
-   for (int i=0; i<NVAR; i++) {
-      stream << "x(" << i << ")"; 
-      var_name = stream.str();
-      stream.str("");
-      switch (i) {
-         case 0:
-            var_name += " - Rho";  break;
-         case 1:
-            var_name += " - P^1";  break;
-         case 2:
-            var_name += " - P^2";  break;
-         case 3:
-            var_name += " - P^3";  break;
-         case 4:
-            var_name += " - B^1";  break;
-         case 5:
-            var_name += " - B^2";  break;
-         case 6:
-            var_name += " - B^3";  break;
-         case 7:
-            var_name += " - Temp"; break;
-      }
-      const int x_id = x_t->getComponentDescriptorIndex(i);
-      d_visit_writer->registerPlotQuantity(var_name,"SCALAR",x_id);
-   }
+   appu::VisItDataWriter<NDIM>* visit_writer;
    
+   tbox::Pointer<tbox::Database> plot_db = input_db->getDatabase("Plotting");
+
+   if (plot_db->keyExists("plot_interval")) 
+     {
+       plot_interval = plot_db->getInteger("plot_interval");
+       visit_writer = new appu::VisItDataWriter<NDIM>("pixie3d visualizer", write_path);       
+       string var_name;
+       stringstream stream;
+       for (int i=0; i<NVAR; i++) 
+	 {
+	   stream << "x(" << i << ")"; 
+	   var_name = stream.str();
+	   stream.str("");
+	   switch (i) {
+	   case 0:
+	     var_name += " - Rho";  break;
+	   case 1:
+	     var_name += " - P^1";  break;
+	   case 2:
+	     var_name += " - P^2";  break;
+	   case 3:
+	     var_name += " - P^3";  break;
+	   case 4:
+	     var_name += " - B^1";  break;
+	   case 5:
+	     var_name += " - B^2";  break;
+	   case 6:
+	     var_name += " - B^3";  break;
+	   case 7:
+	     var_name += " - Temp"; break;
+	   }
+	   
+	   const int x_id = x_t->getComponentDescriptorIndex(i);
+	   visit_writer->registerPlotQuantity(var_name,"SCALAR",x_id);
+	 }
+     }
 
    // Write the data
-   d_visit_writer->writePlotData(hierarchy,0,0);
+   visit_writer->writePlotData(hierarchy,0,0);
 
    // Loop through time
-   double dt = integrator->getCurrentDt();
-   double time = integrator->getCurrentTime();
-   tbox::pout << "dt = " << dt << "\n";
-   int i = 1;
-   int retval;
-   double last_save = 0.0;
-   char buffer [50];
-   while ( time < integrator->getFinalTime() ) {
-      // Advance the solution
-      if (i==1)
-         integrator->advanceSolution(dt,true);
-      else
-         integrator->advanceSolution(dt,false);
-      // Get the current solution and time
-      x_t = integrator->getCurrentSolution();
-      time = integrator->getCurrentTime();
-      // Update the timestep
-      dt = integrator->getNextDt(true,retval);
-      // Write data
-      if ( i%5==0 ) {
-         sprintf(buffer,"t = %8.4f, dt = %8.6f\n",time,dt);
-         tbox::pout << buffer;
-      }
-      if ( time >= last_save+dt_save ) {
-         d_visit_writer->writePlotData(hierarchy,i,time);
-         last_save += dt_save;
-      }
-      i++;
-   }
+   bool first_step = true;
+   double dt = 1.0;
+
+   double current_time = 0.0;
+   double final_time = timeIntegrator->getFinalTime();
+   
+   int iteration_num = 0;
+
+   while (current_time < final_time)
+     {       
+       iteration_num++;
+       current_time = timeIntegrator->getCurrentTime();
+       timeIntegrator->advanceSolution(dt, first_step);
+       bool solnAcceptable = timeIntegrator->checkNewSolution();
+
+       if(solnAcceptable)
+	 {
+	   first_step = false;
+	   timeIntegrator->updateSolution();
+	   current_time = timeIntegrator->getCurrentTime();
+	   tbox::pout << "Advanced solution to time : " << current_time << std::endl;
+
+	   if ( (plot_interval > 0) && ((iteration_num % plot_interval) == 0) ) 
+	     {
+	       visit_writer->writePlotData(hierarchy, iteration_num, current_time);
+	     }
+
+	 }
+       else
+	 {
+	   tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
+	 }
+
+       dt = timeIntegrator->getNextDt(solnAcceptable);
+       tbox::pout << "Estimating next time step : " << dt << std::endl;
+     }
 
    // That's all, folks!
    delete application;
    PetscFinalize();
    tbox::SAMRAIManager::shutdown();
-   tbox::MPI::finalize();
+   tbox::SAMRAI_MPI::finalize();
 
    return(0);
 }

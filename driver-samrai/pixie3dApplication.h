@@ -1,5 +1,5 @@
 //
-// $Id: pixie3dApplication.h 2457 2006-04-18 14:21:27Z pernice $
+// $Id: pixie3dApplication.h 2457 2006-04-18 14:21:27Z philib $
 // $Revision: 2457 $
 // $Date: 2006-04-18 08:21:27 -0600 (Tue, 18 Apr 2006) $
 //
@@ -10,8 +10,8 @@
 //               problems that satisfy the TestProblemStrategy interface.
 //
 
-#ifndef included_pixie3d_application
-#define included_pixie3d_application
+#ifndef included_pixie3dApplication
+#define included_pixie3dApplication
 
 #include <string>
 #include <vector>
@@ -31,14 +31,10 @@
 #include "FaceData.h"
 #include "LevelContainer.h"
 
-#include "ApplicationStrategy.h"
-//#include "TagAndInitDataServer.h"
+#include "DiscreteOperator.h"
 #include "pixie3dApplicationParameters.h"
-// #include "pixie3dProblemStrategy.h"
 
-#ifndef LACKS_NAMESPACE
 using namespace SAMRAI;
-#endif
 
 /* User-defined application context */
 #include "petscsnes.h"
@@ -79,8 +75,7 @@ typedef struct {
  * problem for pixie3d.
  */
 
-// **** Remove xfer::RefinePatchStrategy<NDIM> ****
-class pixie3dApplication : public ApplicationStrategy
+class pixie3dApplication : public SAMRSolvers::DiscreteOperator
 {
 public:
    // Constructor that takes a parameter list.  Calls initialize.
@@ -114,43 +109,17 @@ public:
    tbox::Array< tbox::Pointer< hier::Variable<NDIM> > > getVariables();
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > get_x() { return(d_x); }
 
-   // Create the RefineSchedules needed to transfer data to a new level.
-   tbox::Array< tbox::Pointer< xfer::RefineSchedule<NDIM> > > setupRegridRefineSchedules( 
-      const tbox::Pointer< hier::BasePatchHierarchy<NDIM> > hierarchy, 
-      const int level_number,  
-      const tbox::Pointer< hier::BasePatchLevel<NDIM> > old_level );
-
-   // Mark locations where additional refinement is desired.
-   void tagCells( const tbox::Pointer< hier::PatchHierarchy<NDIM> > hierarchy,
-                          const int level_number,
-                          const double error_data_time,
-                          const bool initial_time,
-                          const int tag_index,
-                          const bool uses_richardson_extrapolation_too );
-
-   // Update data structures that change when the grid hierarchy changes.
-   void resetHierarchyConfiguration( const tbox::Pointer< hier::PatchHierarchy<NDIM> > hierarchy,
-                                             const int coarsest_level,
-                                             const int finest_level );
+   // Evaluate IVP forcing term.
+   void apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  f,
+	       tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  x,
+	       tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  r,
+               double a = -1.0, double b=1.0 );
 
    // Evaluate IVP forcing term.
-   int evaluateFunction( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  x,
-                         tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  f );
-
-   // Evaluate solution.
-   void evaluateSolution( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  y );
-
-   // Get next timestep
-   double getNextDt();
-
-   // Set boundary conditions.
-   //void setPhysicalBoundaryConditions( hier::Patch<NDIM>& patch, const double time, const hier::IntVector<NDIM>& ghost_width_to_fill);
+   void apply( const int*, const int*, const int*, const int*, const int*, const int*, double a = -1.0, double b=1.0 );
 
    // Print identifying string.
-   void printObjectName( ostream& os );
-
-   // Allocate data 
-   void allocateVectorData(SAMRAI::tbox::Pointer<SAMRAI::solv::SAMRAIVectorReal<NDIM,double> > x, double time, bool flag=true ); 
+   void printObjectName( std::ostream& os );
 
 private:
    
@@ -168,7 +137,7 @@ private:
    void synchronizeVariables(void);
 
    // Name of application
-   string d_object_name;
+   std::string d_object_name;
 
    // Hierarchy
    tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
@@ -210,13 +179,13 @@ private:
    // Refinement operator
    //tbox::Pointer<xfer::RefineOperator<NDIM> > x_refine_op;
 
-   string d_refine_op_str;
+   std::string d_refine_op_str;
    xfer::RefineAlgorithm<NDIM> d_refine_algorithm;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refine_schedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_level_schedules;
    xfer::RefinePatchStrategy<NDIM> *d_refine_strategy; 
 
-   string d_coarsen_op_str;
+   std::string d_coarsen_op_str;
    xfer::CoarsenAlgorithm<NDIM> d_cell_coarsen_alg;
    tbox::Array< tbox::Pointer<xfer::CoarsenSchedule<NDIM> > > d_cell_coarsen_schedules;
 

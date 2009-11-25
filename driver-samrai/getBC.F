@@ -21,7 +21,7 @@ c      integer         :: imin,imax,jmin,jmax,kmin,kmax,ieq
       integer :: nbc_seq, bc_seq
       type(patch), TARGET :: patch_var
       nbc_seq = patch_var%nbc_seq
-      call pflow_loc(bc_seq,patch_var%bc_seq)
+      call setup_f90c_ptrlinks(bc_seq,patch_var%bc_seq)
 
 
 c End program

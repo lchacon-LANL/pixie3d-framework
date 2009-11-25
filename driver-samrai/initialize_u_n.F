@@ -38,8 +38,8 @@ c Local variables
 
 c External
 
-      integer    :: system
-      external      system
+c      integer    :: system
+c      external      system
 
 c Interfaces
 
