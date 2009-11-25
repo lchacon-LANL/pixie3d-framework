@@ -24,9 +24,9 @@ c----------------------------------------------------------------------
 
       use generalpurposefunctions
 
-      use auxiliaryVariables
+c      use auxiliaryVariables
 
-      use grid_aliases
+c      use grid_aliases
 
       implicit none
 
@@ -56,14 +56,14 @@ c Interfaces
          end subroutine setInitialCondition
       END INTERFACE
 
-      INTERFACE
-        subroutine evaluateNonlinearFunction(varray,fi)
-        use parameters
-        use variable_setup
-        real(8)          :: fi(n_elem)
-        type(var_array),pointer :: varray
-        end subroutine evaluateNonlinearFunction
-      END INTERFACE
+c      INTERFACE
+c        subroutine evaluateNonlinearFunction(varray,fi)
+c        use parameters
+c        use variable_setup
+c        real(8)          :: fi(n_elem)
+c        type(var_array),pointer :: varray
+c        end subroutine evaluateNonlinearFunction
+c      END INTERFACE
 
 c Initialize gv
 
@@ -127,7 +127,7 @@ c Set output file
       if (.not.restart) then
         if (my_rank == 0)
      .     ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+c        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
       endif
 
       urecord = urecord + my_rank
@@ -152,7 +152,7 @@ c Check time limits
           write(*,*) 'Tmax is less or equal than restarting time'
           write(*,*) 'Aborting'
         endif
-        call PetscFinalize(mpierr)
+c        call PetscFinalize(mpierr)
         stop
       endif
 

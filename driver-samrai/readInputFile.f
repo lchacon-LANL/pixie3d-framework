@@ -10,13 +10,13 @@ c----------------------------------------------------------------------
 
       use grid
 
-      use grid_mpi
+cc      use grid_mpi
 
       use variables
 
       use timeStepping
 
-      use newtongm
+c      use newtongm
 
       use constants
 
@@ -24,7 +24,7 @@ c----------------------------------------------------------------------
 
       use icond
 
-      use precond_setup
+c      use precond_setup
 
       implicit none
 
@@ -78,7 +78,7 @@ c Read fortran input file
 
 c Initialize MPI
 
-      call initMPI(nxd,nyd,nzd)
+cc      call initMPI(nxd,nyd,nzd)
 
 c Define structure components
 
@@ -90,15 +90,15 @@ c Define structure components
       inputdata%npy      = npy
       inputdata%npz      = npz
       inputdata%numtime  = numtime
-      inputdata%maxitnwt = maxitnwt
-      inputdata%maxksp   = maxksp 
-      inputdata%maxitgm  = maxitgm
-      inputdata%method   = method 
-      inputdata%global   = global 
-      inputdata%iguess   = iguess
+c      inputdata%maxitnwt = maxitnwt
+c      inputdata%maxksp   = maxksp 
+c      inputdata%maxitgm  = maxitgm
+c      inputdata%method   = method 
+c      inputdata%global   = global 
+c      inputdata%iguess   = iguess
       inputdata%sm_flag  = sm_flag
-      inputdata%precpass = precpass
-      inputdata%asm_PC   = asm_PC
+c      inputdata%precpass = precpass
+c      inputdata%asm_PC   = asm_PC
 
       where (bcond == PER)
         inputdata%bcsi = 1
@@ -106,13 +106,13 @@ c Define structure components
         inputdata%bcsi = 0
       end where
 
-      inputdata%tolgm    = tolgm  
-      inputdata%rtol     = rtol   
-      inputdata%atol     = atol   
+c      inputdata%tolgm    = tolgm  
+c      inputdata%rtol     = rtol   
+c      inputdata%atol     = atol   
       inputdata%damp     = damp   
       inputdata%dt       = dt   
       inputdata%tmax     = tmax
-      inputdata%mf_eps   = mf_eps
+c      inputdata%mf_eps   = mf_eps
 
 c End program
 

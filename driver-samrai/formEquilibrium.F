@@ -26,7 +26,7 @@ c----------------------------------------------------------------------
 
       use generalPurposeFunctions
 
-      use auxiliaryVariables
+c      use auxiliaryVariables
 
       implicit none
 
