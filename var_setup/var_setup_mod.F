@@ -35,38 +35,38 @@ c #####################################################################
 
         type :: var_def
           integer :: bconds(6)          !Boundary conditions
-          real(8),pointer,dimension(:,:,:) :: array
+          real(8),pointer,dimension(:,:,:) :: array ! contains values at grid points
           character(20) :: descr
         end type var_def
 
         type :: vec_def
-          integer :: bconds(6,3)        !Boundary conditions
-          real(8),pointer,dimension(:,:,:,:) :: vec
+          integer :: bconds(6,3)        !Boundary conditions, 3 refers to the 3 components
+          real(8),pointer,dimension(:,:,:,:) :: vec ! vector (i,j,k,d), d being the component
           character(20) :: descr        !Description
           logical       :: cnv          !Whether it is contravariant or not
         end type vec_def
 
         type :: var_array
           integer :: nvar               !Number of variables
-          type (var_def),pointer,dimension(:) :: array_var
+          type (var_def),pointer,dimension(:) :: array_var ! array of variables
         end type var_array
 
         type :: aux_array
           integer :: nvar,nvec          !Number of variables, vectors
-          type (vec_def),pointer,dimension(:) :: vec_list
-          type (var_def),pointer,dimension(:) :: var_list
+          type (vec_def),pointer,dimension(:) :: vec_list   ! vector auxillary components
+          type (var_def),pointer,dimension(:) :: var_list   ! scalar auxillary components
         end type aux_array
 
         type :: patch
-          integer  :: nbc_seq
-          integer,pointer,dimension(:,:):: bc_seq
-          type(var_array)  ,pointer     :: u_0
-          type(var_array)  ,pointer     :: u_n
-          type(var_array)  ,pointer     :: u_np
-          type(var_array)  ,pointer     :: u_nm
-          type(var_array)  ,pointer     :: u_graph
-          type(grid_mg_def),pointer     :: gparams
-          type(aux_array)  ,pointer     :: aux
+          integer  :: nbc_seq                         ! ???
+          integer,pointer,dimension(:,:):: bc_seq     ! array showing sequence in which to set bc's 
+          type(var_array)  ,pointer     :: u_0        ! equilibrium data
+          type(var_array)  ,pointer     :: u_n        ! data at time n
+          type(var_array)  ,pointer     :: u_np       ! data at n+1
+          type(var_array)  ,pointer     :: u_nm       ! data at n-1
+          type(var_array)  ,pointer     :: u_graph    ! auxilliary for plotting, all u variables same number of components
+          type(grid_mg_def),pointer     :: gparams    ! contains all grid info
+          type(aux_array)  ,pointer     :: aux        ! auxillary variables
         end type patch
 
         type (patch),pointer :: gv
