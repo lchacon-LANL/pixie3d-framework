@@ -10,21 +10,15 @@ c----------------------------------------------------------------------
 
       use grid
 
-cc      use grid_mpi
-
       use variables
 
       use timeStepping
-
-c      use newtongm
 
       use constants
 
       use iosetup
 
       use icond
-
-c      use precond_setup
 
       implicit none
 
@@ -38,6 +32,9 @@ c Call variables
         real(8)    :: dt
         real(8)    :: tmax
         real(8)    :: mf_eps
+        integer    :: nvar
+        integer    :: nauxs
+        integer    :: nauxv
         integer    :: ilevel
         integer    :: nxd
         integer    :: nyd
@@ -72,7 +69,7 @@ c Set PETSc defaults
       npy = inputdata%npy
       npz = inputdata%npz
 
-c Read fortran input file
+c Read fortran input file (defines also neqd, NAUXS, NAUXV)
 
       call readInput
 
@@ -81,6 +78,10 @@ c Initialize MPI
 cc      call initMPI(nxd,nyd,nzd)
 
 c Define structure components
+
+      inputdata%nvar     = neqd
+      inputdata%nauxs    = NAUXS
+      inputdata%nauxv    = NAUXV
 
       inputdata%ilevel   = ilevel
       inputdata%nxd      = nxd
