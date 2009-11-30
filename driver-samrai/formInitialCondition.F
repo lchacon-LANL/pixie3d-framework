@@ -39,13 +39,7 @@ c Call variables
 
 c Local variables
 
-      integer         :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl,ieq
-     .                  ,ierr
-
-c External
-
-cc      integer    :: system
-cc      external      system
+      integer :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl,ieq,ierr
 
 c Interfaces
 
@@ -126,7 +120,7 @@ c Set output file
 
       if (.not.restart) then
         if (my_rank == 0)
-     .     ierr=system('rm -f '//trim(recordfile)//'* >& /dev/null')
+     .     ierr=shellcmd('rm -f '//trim(recordfile)//'* >& /dev/null')
 c        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
       endif
 
