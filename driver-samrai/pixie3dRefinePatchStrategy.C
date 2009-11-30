@@ -148,7 +148,8 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
 
       // we assume the domain is a single box
       if(d_grid_geometry->getDomainIsSingleBox()) {
-         hier::Box<NDIM> physicalBox = physicalDomain(0);
+
+	hier::Box<NDIM> physicalBox = physicalDomain[0];
          const int nx = physicalBox.numberCells(0);
          const int ny = physicalBox.numberCells(1);
          const int nz = physicalBox.numberCells(2);
@@ -170,9 +171,9 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
 *                                                                      *
 ***********************************************************************/
 void
-pixie3dRefinePatchStrategy::setPixie3dDataIDs(bool copy, int *u,
+pixie3dRefinePatchStrategy::setPixie3dDataIDs(bool copy, 
 					      int nvar, int nauxs, int nauxv,
-					      int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp )
+					      int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp )
 {
   d_nvar = nvar;
   d_nauxs = nauxs;
@@ -245,7 +246,7 @@ pixie3dRefinePatchStrategy::checkPhysicalBoundary( hier::Patch<NDIM>& patch)
    const hier::IntVector< NDIM > ratio = patch.getPatchGeometry()->getRatio();
    hier::BoxArray<NDIM> physicalDomain = d_grid_geometry->getPhysicalDomain();
    physicalDomain.refine(ratio);
-   hier::Box<NDIM> physicalBox = physicalDomain(0);
+   hier::Box<NDIM> physicalBox = physicalDomain[0];
    for (int i=0; i<NDIM; i++) {
       if (patchGeom->getTouchesRegularBoundary(i,0)) {
          const int patch_lower = box.lower(i);

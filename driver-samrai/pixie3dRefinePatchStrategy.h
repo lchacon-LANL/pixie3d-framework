@@ -109,7 +109,7 @@ public:
 
    void setPixie3dHierarchyData(void **hierarchy_data){d_level_container_array = hierarchy_data; }
 
-   void setPixie3dDataIDs(bool copy, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp );
+   void setPixie3dDataIDs(bool copy, int nvar, int nauxs, int nauxv, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp );
 
    bool checkPhysicalBoundary( hier::Patch<NDIM>& patch);
 

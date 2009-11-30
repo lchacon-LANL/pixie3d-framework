@@ -16,19 +16,28 @@ c ########################################################################
 c     shellcmd
 c     ####################################################################
       function shellcmd(command) result (ierr)
-
+#if defined(samrai)
+      use iso_c_binding
+      interface
+         integer(c_int) function system(sysin) bind(c)
+         use iso_c_binding
+         character(kind=c_char), dimension(*) :: sysin
+         end function system
+         end interface
+#endif
+      
 c     Call variables
-
-        integer :: ierr
-        character(*) :: command
-
+         
+         integer :: ierr
+         character(*) :: command
+       
 c     Local variables
-
+#if !defined(samrai)
 #if !defined(gfortran)
         integer    :: system
         external      system
 #endif
-
+#endif
 c     Begin program
 
         ierr = system(trim(command))
