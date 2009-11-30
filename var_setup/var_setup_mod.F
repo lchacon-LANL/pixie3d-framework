@@ -25,10 +25,12 @@ c #####################################################################
         use grid
 
         implicit none
-
+        
+#if !defined(samrai)        
         integer :: NAUXS=0,NAUXV=0  !Number of auxiliary scalars, vectors
                                     !(defined by application)
-
+#endif
+        
 #if defined(petsc)
         !NVAR is defined via C preprocessor flag
         type :: petsc_var

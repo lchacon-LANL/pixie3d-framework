@@ -164,8 +164,8 @@ private:
    void **level_container_array;
 
    int nbc_seq, *bc_seq;
-   int u0_id[NVAR], u_id[NVAR], auxs_id[NAUXS], auxv_id[NAUXV];
-   int f_id[NVAR], u_tmp_id[NVAR], auxs_tmp_id[NAUXS], auxv_tmp_id[NAUXV];
+   int *u0_id, *u_id, *auxs_id, *auxv_id;
+   int *f_id, *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
 
    // Misc. variables   
    hier::ComponentSelector d_application_data;

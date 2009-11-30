@@ -114,11 +114,15 @@ public:
    bool checkPhysicalBoundary( hier::Patch<NDIM>& patch);
 
 private:
-
+   
+   int d_nvar;
+   int d_nauxs;
+   int d_nauxv;
+   
    int d_data_id;
    bool copy_data;
-   int u_id[NVAR], auxs_id[NAUXS], auxv_id[NAUXV];
-   int u_tmp_id[NVAR], auxs_tmp_id[NAUXS], auxv_tmp_id[NAUXV];
+   int *u_id, *auxs_id, *auxv_id;
+   int *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
 
 
    tbox::Pointer< hier::GridGeometry<NDIM > > d_grid_geometry;

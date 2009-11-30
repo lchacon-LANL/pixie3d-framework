@@ -202,7 +202,23 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
       FORTRAN_NAME(readinputfile) (&data);
    #endif
    time = 0.0;
+   
+   assert(data.nvar>0);
+   assert(data.nauxs>=0);
+   assert(data.nauxv>=0);
 
+   u0_id       = new int[data.nvar];
+   u_id        = new int[data.nvar];
+   u_tmp_id    = new int[data.nvar];
+   
+   auxs_id     = new int[data.nauxs];
+   auxv_id     = new int[data.nauxv];
+   
+   auxs_tmp_id = new int[data.nauxs];
+   auxv_tmp_id = new int[data.nauxv];
+
+   f_id = new int[data.nvar];
+   
    // Check for consistency between domain sizes
    tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry = d_hierarchy->getGridGeometry();
    const double *dx = grid_geometry->getDx();
@@ -243,7 +259,7 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
    d_initial = new solv::SAMRAIVectorReal<NDIM,double>("x",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
    d_equilibrium = new solv::SAMRAIVectorReal<NDIM,double>("x",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
    std::stringstream stream;
-   for (int i=0; i<NVAR; i++) {
+   for (int i=0; i<data.nvar; i++) {
       stream << "x(" << i << ")"; 
       var_name = stream.str();
       stream.str("");
@@ -274,7 +290,7 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
    d_aux_vector = new solv::SAMRAIVectorReal<NDIM,double>("auxv",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
    d_aux_scalar_tmp = new solv::SAMRAIVectorReal<NDIM,double>("auxs",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
    d_aux_vector_tmp = new solv::SAMRAIVectorReal<NDIM,double>("auxv",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-   for (int i=0; i<NAUXS; i++) {
+   for (int i=0; i<data.nauxs; i++) {
       stream << "auxs(" << i << ")"; 
       var_name = stream.str();
       stream.str("");
@@ -284,7 +300,7 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
       var_id = var_db->registerVariableAndContext(var, context_xt, ghost2);
       d_aux_scalar_tmp->addComponent( var, var_id );
    }
-   for (int i=0; i<NAUXV; i++) {
+   for (int i=0; i<data.nauxv; i++) {
       stream << "auxv(" << i << ")"; 
       var_name = stream.str();
       stream.str("");
@@ -302,31 +318,58 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
    d_aux_vector_tmp->allocateVectorData();
    d_aux_scalar_tmp->setToScalar( -1.0 );
    d_aux_vector_tmp->setToScalar( -1.0 );
+   
    // Allocate data for f_src
    d_f_src = new pdat::CellVariable<NDIM,double>( "fsrc", NVAR );
    f_src_id = var_db ->registerVariableAndContext(d_f_src, context_f, ghost0);
-   for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++) {
+   for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++)
+     {
        tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);       
        level->allocatePatchData(f_src_id);
-   }
+     }
+   
    // Create patch variables
    int nx, ny, nz;
-   for (int i=0; i<NVAR; i++)
-      u0_id[i] = d_initial->getComponentDescriptorIndex(i);
-   for (int i=0; i<NVAR; i++)
-      u_id[i]  = d_x->getComponentDescriptorIndex(i);
-   for (int i=0; i<NVAR; i++)
-      u_tmp_id[i]  = d_x_tmp->getComponentDescriptorIndex(i);
-   for (int i=0; i<NAUXS; i++)
-      auxs_id[i] = d_aux_scalar->getComponentDescriptorIndex(i);
-   for (int i=0; i<NAUXV; i++)
-      auxv_id[i] = d_aux_vector->getComponentDescriptorIndex(i);
-   for (int i=0; i<NAUXS; i++)
-      auxs_tmp_id[i] = d_aux_scalar_tmp->getComponentDescriptorIndex(i);
-   for (int i=0; i<NAUXV; i++)
-      auxv_tmp_id[i] = d_aux_vector_tmp->getComponentDescriptorIndex(i);
-   for (int i=0; i<NVAR; i++)
-      f_id[i] = d_f->getComponentDescriptorIndex(i);
+   for (int i=0; i<data.nvar; i++)
+     {
+       u0_id[i] = d_initial->getComponentDescriptorIndex(i);
+     }
+   
+   for (int i=0; i<data.nvar; i++)
+     {
+       u_id[i]  = d_x->getComponentDescriptorIndex(i);
+     }
+   
+   for (int i=0; i<data.nvar; i++)
+     {
+       u_tmp_id[i]  = d_x_tmp->getComponentDescriptorIndex(i);
+     }
+   
+   for (int i=0; i<data.nauxs; i++)
+     {
+       auxs_id[i] = d_aux_scalar->getComponentDescriptorIndex(i);
+     }
+   
+   for (int i=0; i<data.nauxv; i++)
+     {
+       auxv_id[i] = d_aux_vector->getComponentDescriptorIndex(i);
+     }
+   
+   for (int i=0; i<data.nauxs; i++)
+     {
+       auxs_tmp_id[i] = d_aux_scalar_tmp->getComponentDescriptorIndex(i);
+     }
+   
+   for (int i=0; i<data.nauxv; i++)
+     {
+       auxv_tmp_id[i] = d_aux_vector_tmp->getComponentDescriptorIndex(i);
+     }
+   
+   for (int i=0; i<data.nvar; i++)
+     {
+       f_id[i] = d_f->getComponentDescriptorIndex(i);
+     }
+   
    LevelContainer *level_container;
    level_container_array = new void *[d_hierarchy->getNumberOfLevels()];
    hier::IntVector<NDIM> gcwc;
@@ -342,7 +385,13 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
       // Create each patch object
       for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++) {
          tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p());
-         level_container->CreatePatch(p(),patch,NVAR,u0_id,u_id,NAUXS,auxs_id,NAUXV,auxv_id);
+         level_container->CreatePatch(p(),
+				      patch,
+				      data.nvar,
+				      u0_id,
+				      u_id,
+				      data.nauxs, auxs_id,
+				      data.nauxv,auxv_id);
       }
    }
 
@@ -694,19 +743,19 @@ void  pixie3dApplication::refineVariables(void)
          for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++) {
             tbox::Pointer<hier::Patch<NDIM> > patch = level->getPatch(p());
             // Copy u         
-            for (int i=0; i<NVAR; i++) {
+            for (int i=0; i<data.nvar; i++) {
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(u_id[i]);
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(u_tmp_id[i]);
                tmp2->copy(*tmp1);
             }
             // Copy auxillary scalars
-            for (int i=0; i<NAUXS; i++) {
+            for (int i=0; i<data.nauxs; i++) {
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(auxs_id[i]);
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(auxs_tmp_id[i]);
                tmp2->copy(*tmp1);
             }
             // Copy auxillary vectors
-            for (int i=0; i<NAUXV; i++) {
+            for (int i=0; i<data.nauxv; i++) {
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(auxv_id[i]);
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(auxv_tmp_id[i]);
                tmp2->copy(*tmp1);
@@ -745,19 +794,19 @@ void  pixie3dApplication::refineVariables(void)
          for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++) {
             tbox::Pointer<hier::Patch<NDIM> > patch = level->getPatch(p());
             // Copy u         
-            for (int i=0; i<NVAR; i++) {
+            for (int i=0; i<data.nvar; i++) {
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(u_tmp_id[i]);
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(u_id[i]);
                tmp2->copy(*tmp1);
             }
             // Copy auxillary scalars
-            for (int i=0; i<NAUXS; i++) {
+            for (int i=0; i<data.nauxs; i++) {
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(auxs_tmp_id[i]);
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(auxs_id[i]);
                tmp2->copy(*tmp1);
             }
             // Copy auxillary vectors
-            for (int i=0; i<NAUXV; i++) {
+            for (int i=0; i<data.nauxv; i++) {
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(auxv_tmp_id[i]);
                tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(auxv_id[i]);
                tmp2->copy(*tmp1);
@@ -821,10 +870,10 @@ pixie3dApplication::generateTransferSchedules(void)
    ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setGridGeometry(grid_geometry);
    ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPixie3dHierarchyData(level_container_array);
    if ( GHOST == 1 ) {
-      ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPixie3dDataIDs(0,
+     ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPixie3dDataIDs(0, data.nvar, data.nauxs, data.nauxv,
          u_id, u_tmp_id, auxs_id, auxs_tmp_id, auxv_id, auxv_tmp_id );
    } else {
-      ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPixie3dDataIDs(1,
+      ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPixie3dDataIDs(1, data.nvar, data.nauxs, data.nauxv,
          u_id, u_tmp_id, auxs_id, auxs_tmp_id, auxv_id, auxv_tmp_id );
    }
 
@@ -833,8 +882,8 @@ pixie3dApplication::generateTransferSchedules(void)
    int data_id;
    
    // u_n
-   if ( NVAR > 0 ) {
-      for(int i=0; i<NVAR; i++) {
+   if ( data.nvar > 0 ) {
+      for(int i=0; i<data.nvar; i++) {
          if ( GHOST == 1 ) {
             var0 = d_x->getComponentVariable(i);
             data_id = d_x->getComponentDescriptorIndex(i);
@@ -848,8 +897,8 @@ pixie3dApplication::generateTransferSchedules(void)
    }
 
    // auxilliary scalars
-   if ( NAUXS > 0 ) {
-      for(int i=0; i<NAUXS; i++) {
+   if ( data.nauxs > 0 ) {
+      for(int i=0; i<data.nauxs; i++) {
          if ( GHOST == 1 ) {
             var0 = d_aux_scalar->getComponentVariable(i);
             data_id = d_aux_scalar->getComponentDescriptorIndex(i);
@@ -864,9 +913,9 @@ pixie3dApplication::generateTransferSchedules(void)
    }
    
    // auxilliary vectors
-   if ( NAUXV > 0 ) {
+   if ( data.nauxv > 0 ) {
       var0 = d_aux_vector->getComponentVariable(0);
-      for (int i=0; i<NAUXV; i++) {
+      for (int i=0; i<data.nauxv; i++) {
          if ( GHOST == 1 ) {
             var0 = d_aux_vector->getComponentVariable(i);
             data_id = d_aux_vector->getComponentDescriptorIndex(i);

@@ -3,11 +3,13 @@
 BUILDTYPE?=$(shell echo "`uname -m`-`uname -s`")
 
 ifeq "$(BUILDTYPE)" "i386-Darwin"
-    FC=gfortran
+  FC=gfortran
+  ifdef SAMR
     HDF5_HOME =${HDF_HOME}
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include
+  endif
 endif
 
 # Machine configuration
