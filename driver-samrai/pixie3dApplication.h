@@ -47,6 +47,9 @@ typedef struct {
   PetscReal  dt;
   PetscReal  tmax;
   PetscReal  mf_eps;
+  int        nvar;
+  int        nauxs;
+  int        nauxv;
   int        ilevel;
   int        nxd;
   int        nyd;
