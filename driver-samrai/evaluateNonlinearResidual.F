@@ -157,8 +157,8 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      real(8)          :: fi(ntotd)
       type (var_array),pointer :: varray
+      real(8)          :: fi(ntotd)
 
 c Local variables
 

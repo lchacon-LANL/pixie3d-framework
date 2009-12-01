@@ -50,7 +50,49 @@ c      use grid_mgmt, only: setup_patch
       type(grid_mg_def), pointer :: grid_data
 
       allocate(grid_data)
+      nullify(grid_data%ilo)
+      nullify(grid_data%jlo)
+      nullify(grid_data%klo)
+      nullify(grid_data%ihi)
+      nullify(grid_data%jhi)
+      nullify(grid_data%khi)
 
+      nullify(grid_data%xg)
+      nullify(grid_data%yg)
+      nullify(grid_data%zg)
+      nullify(grid_data%xx)
+      nullify(grid_data%yy)
+      nullify(grid_data%zz)
+
+      nullify(grid_data%dx)
+      nullify(grid_data%dy)
+      nullify(grid_data%dz)
+      nullify(grid_data%dxh)
+      nullify(grid_data%dyh)
+      nullify(grid_data%dzh)
+
+      nullify(grid_data%nxv)
+      nullify(grid_data%nyv)
+      nullify(grid_data%nzv)
+      nullify(grid_data%nxgl)
+      nullify(grid_data%nygl)
+      nullify(grid_data%nzgl)
+
+      nullify(grid_data%istartx)
+      nullify(grid_data%istarty)
+      nullify(grid_data%istartz)
+      nullify(grid_data%istartp)
+
+      nullify(grid_data%mg_ratio_x)
+      nullify(grid_data%mg_ratio_y)
+      nullify(grid_data%mg_ratio_z)
+      nullify(grid_data%iline)
+      nullify(grid_data%jline)
+      nullify(grid_data%kline)
+
+      nullify(grid_data%gmetric)
+      nullify(grid_data%g_pack)
+      
       grid_data%ngrdx = 1
       grid_data%ngrdy = 1
       grid_data%ngrdz = 1

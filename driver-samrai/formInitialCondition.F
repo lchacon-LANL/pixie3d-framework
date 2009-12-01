@@ -50,22 +50,27 @@ c Interfaces
          end subroutine setInitialCondition
       END INTERFACE
 
-c      INTERFACE
-c        subroutine evaluateNonlinearFunction(varray,fi)
-c        use parameters
-c        use variable_setup
-c        real(8)          :: fi(n_elem)
-c        type(var_array),pointer :: varray
-c        end subroutine evaluateNonlinearFunction
-c      END INTERFACE
+      INTERFACE
+        subroutine evaluateNonlinearFunction(varray,fi)
+        use parameters
+        use variable_setup
+        type(var_array),pointer :: varray
+        real(8)          :: fi(:)
+        end subroutine evaluateNonlinearFunction
+      END INTERFACE
 
 c Initialize gv
 
       gv => patch_var
-      grid_params => gv%gparams
-      gmetric => gv%gparams%gmetric
-      u_n => gv%u_n
-      u_0 => gv%u_0
+      grid_params => patch_var%gparams
+      gmetric => patch_var%gparams%gmetric
+      u_n => patch_var%u_n
+      u_0 => patch_var%u_0
+
+c      grid_params => gv%gparams
+c      gmetric => gv%gparams%gmetric
+c      u_n => gv%u_n
+c      u_0 => gv%u_0
       call setVectorDimensions
 
       time_to_c = 0.0
