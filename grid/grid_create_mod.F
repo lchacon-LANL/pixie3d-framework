@@ -194,59 +194,127 @@ cc          cx = .not.bcSP()
           cz = .true.
         endif
 
-c     Estimate local domain sizes
-
-        if (npx == 0 .and. npy == 0 .and. npz == 0) then
-          call pstop('initGridSt','Undefined processor alloc.')
-        endif
-
-        nxx = nxg/npx
-        nyy = nyg/npy
-        nzz = nzg/npz
-
 c     Find adequate number of grid levels (for MG)
 
-        n1 = int(dlog(1d0*nxx)/dlog(1d0*mg_ratio)+0.001)
-        n2 = int(dlog(1d0*nyy)/dlog(1d0*mg_ratio)+0.001)
-        n3 = int(dlog(1d0*nzz)/dlog(1d0*mg_ratio)+0.001)
-
         if (cx) then
-          ngrdx = max(n1-1,1)
-          do i = ngrdx,1,-1
-            n1 = nxx/mg_ratio**(i-1)
-            if (n1*mg_ratio**(i-1).eq.nxx) exit
-          enddo
-          ngrdx = i
+          if (npx == 0)
+     .         call pstop('initGridSt','Undefined proc. alloc. in X')
+
+          nxx = nxg/npx
+          ngrdx = MG_levels(nxx,mg_ratio)
         else
           ngrdx = 1
         endif
 
         if (cy) then
-          ngrdy = max(n2-1,1)
-          do i = ngrdy,1,-1
-            n2 = nyy/mg_ratio**(i-1)
-            if (n2*mg_ratio**(i-1).eq.nyy) exit
-          enddo
-          ngrdy = i
+          if (npy == 0)
+     .         call pstop('initGridSt','Undefined proc. alloc. in Y')
+
+          nyy = nyg/npy
+          ngrdy = MG_levels(nyy,mg_ratio)
         else
           ngrdy = 1
         endif
 
         if (cz) then
-          ngrdz = max(n3-1,1)
-          do i = ngrdz,1,-1
-            n3 = nzz/mg_ratio**(i-1)
-            if (n3*mg_ratio**(i-1).eq.nzz) exit
-          enddo
-          ngrdz = i
+          if (npz == 0)
+     .         call pstop('initGridSt','Undefined proc. alloc. in Z')
+
+          nzz = nzg/npz
+          ngrdz = MG_levels(nzz,mg_ratio)
         else
           ngrdz = 1
         endif
+
+ccc     Estimate local domain sizes
+cc
+cc        if (npx == 0 .and. npy == 0 .and. npz == 0) then
+cc          call pstop('initGridSt','Undefined processor alloc.')
+cc        endif
+cc
+cc        nxx = nxg/npx
+cc        nyy = nyg/npy
+cc        nzz = nzg/npz
+cc
+ccc     Find adequate number of grid levels (for MG)
+cc
+cc        n1 = int(dlog(1d0*nxx)/dlog(1d0*mg_ratio)+0.001)
+cc        n2 = int(dlog(1d0*nyy)/dlog(1d0*mg_ratio)+0.001)
+cc        n3 = int(dlog(1d0*nzz)/dlog(1d0*mg_ratio)+0.001)
+cc
+cc        if (cx) then
+cc          ngrdx = max(n1-1,1)
+cc          do i = ngrdx,1,-1
+cc            n1 = nxx/mg_ratio**(i-1)
+cc            if (n1*mg_ratio**(i-1).eq.nxx) exit
+cc          enddo
+cc          ngrdx = i
+cc        else
+cc          ngrdx = 1
+cc        endif
+cc
+cc        if (cy) then
+cc          ngrdy = max(n2-1,1)
+cc          do i = ngrdy,1,-1
+cc            n2 = nyy/mg_ratio**(i-1)
+cc            if (n2*mg_ratio**(i-1).eq.nyy) exit
+cc          enddo
+cc          ngrdy = i
+cc        else
+cc          ngrdy = 1
+cc        endif
+cc
+cc        if (cz) then
+cc          ngrdz = max(n3-1,1)
+cc          do i = ngrdz,1,-1
+cc            n3 = nzz/mg_ratio**(i-1)
+cc            if (n3*mg_ratio**(i-1).eq.nzz) exit
+cc          enddo
+cc          ngrdz = i
+cc        else
+cc          ngrdz = 1
+cc        endif
 
 c     Allocate grid storage structure
 
         call allocateGridStructure(ngrdx,ngrdy,ngrdz
      .                            ,nxg,nyg,nzg,gdef,mpi_comm=mpi_comm)
+
+      contains
+
+c     MG_levels
+c     #################################################################
+      function MG_levels(nx,mgr) result(ngrd)
+
+c     -----------------------------------------------------------------
+c     Determines available MG levels based on fine grid resolution nx
+c     and MG ratio mgr
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: nx,mgr,ngrd
+
+c     Local variables
+
+      integer :: nl,i
+
+c     Begin program
+
+      nl = int(dlog(1d0*nx)/dlog(1d0*mgr)+0.001)
+
+      ngrd = max(nl-1,1)
+
+      do i = ngrd,1,-1
+        nl = nx/mgr**(i-1)
+        if (nl*mgr**(i-1) == nx) exit
+      enddo
+
+      ngrd = i
+
+      end function MG_levels
 
       end subroutine initGridSt
 
