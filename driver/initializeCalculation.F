@@ -99,7 +99,7 @@ c Initialize global domain limits
 
       call setVectorDimensions
 
-#if defined(petsc) && !defined(samrai)
+#if defined(petsc)
       if (.not.tst_flg)
      .   write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
      .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
@@ -107,7 +107,6 @@ c Initialize global domain limits
 
 c Allocate constant arrays
 
-#if !defined(samrai)
       allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
       allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
       allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
@@ -115,7 +114,6 @@ c Allocate constant arrays
       zeros  = 0d0
       vzeros = 0d0
       ones   = 1d0
-#endif
 
 c Create nonlinear solver
 

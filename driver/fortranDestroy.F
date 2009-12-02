@@ -24,9 +24,7 @@ c Begin program
 
       call destroyNonlinearSolver
 
-#if !defined(samrai)
       call destroyNonlinearFunction   !External
-#endif
 
       call destroyGrid(gv%gparams)
 
