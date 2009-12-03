@@ -296,13 +296,13 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer          :: ierr
+      integer :: ierr
 
       type(var_array),pointer :: vnp,vn
 
 c Local variables
 
-      double precision :: x(ntotd)
+      real(8) :: x(ntotd)
 
 c Interfaces
 
@@ -396,8 +396,8 @@ c     Initial guess
             call mapStructureToVector(x,vnp)
           endif
         endif
-        
-c     Newton iteration
+
+c     Newton-Krylov iteration
 
         nk_conf%etak_meth      = method
         nk_conf%ksmax          = maxksp
@@ -416,6 +416,7 @@ c     Newton iteration
 
         nk_conf%krylov_method='fg'
 cc        nk_conf%krylov_method='gm'
+        nk_conf%fpa=fpa
 
         nk_conf%vol_wgt = vol_wgt
 
@@ -423,6 +424,8 @@ cc        nk_conf%krylov_method='gm'
 
         itgmres = nk_conf%gm_it_out
         itnewt  = nk_conf%nwt_it_out
+
+cc        jit = itnewt
 
 c     Map Newton solution to vnp (if no error)
 
