@@ -35,6 +35,8 @@ c ###################################################################
 
       use math
 
+      use fixed_point_accelerator
+
       real(8), allocatable, dimension(:):: rk,xx0,xk
 
       real(8)    :: pdt,check
@@ -63,7 +65,9 @@ cc      real(8),parameter    :: epsmac=1d-15
         real(8)      :: stol=0d0
         real(8)      :: mf_eps=1d-6
         character(2) :: krylov_method='gm'
-        logical      :: vol_wgt
+        logical      :: vol_wgt=.true.
+        logical      :: fpa=.false.
+        type (fpa_state) :: fpas
       end type nk_options
 
       type(nk_options),save :: nk_conf
@@ -203,6 +207,11 @@ c     Initialize variables
      $            ,'Error in Newton input: ntit_max_acc > ntit_max_rej')
       endif
 
+      if (nk_conf%fpa) then
+        ntit_max_rej =  ntit_max_rej*2
+        ntit_max_acc =  ntit_max_rej/2
+      endif
+
       ierr     = 0
       itk      = 0
 
@@ -269,6 +278,8 @@ c     Start Newton iteration
       etakm = eta0
       etak  = eta0
 
+      if (nk_conf%fpa) call fpa_create(nk_conf%fpas,rk,maxv=5) !Hardwire maxv to 5
+
       do jit = 1,ntit_max_rej
 
 c     Determine inexact Newton constant
@@ -283,8 +294,15 @@ c     Jacobian-free solve
 
         iout = out - 1
 
-        call gmresDriver(ntot,-rk,ddx,itk,etak,ksmax,gmmax
+        if (nk_conf%fpa) then
+          call applyPreconditioner(ntot,rk,ddx,iout)
+
+          call fpa_correction(nk_conf%fpas,ddx,dp=dot2)
+          ddx = -ddx
+        else
+          call gmresDriver(ntot,-rk,ddx,itk,etak,ksmax,gmmax
      .                  ,iguess,iout,ierr)
+        endif
 
 c     Kill preconditioner
 
@@ -297,13 +315,15 @@ c     Update counters
 
 c     Check for error in GMRES
 
-        if (ierr.eq.1) then
-          if (prnt) write(*,*) 
-     .          '   Exceeded maximum GMRES iterations (',gmmax,')'
-          ierr = 0  !Use GMRES solution for Newton update regardless
-        elseif (ierr.eq.-1) then !Got to atol in the Newton residual
-          ierr = 0
-          exit !Do not continue Newton iteration
+        if (.not.(nk_conf%fpa)) then
+          if (ierr.eq.1) then
+            if (prnt) write(*,*) 
+     .            '   Exceeded maximum GMRES iterations (',gmmax,')'
+            ierr = 0  !Use GMRES solution for Newton update regardless
+          elseif (ierr.eq.-1) then !Got to atol in the Newton residual
+            ierr = 0
+            exit !Do not continue Newton iteration
+          endif
         endif
 
 c     Globalization procedure: damping coefficient
@@ -366,6 +386,8 @@ cccc          pdt = min(pdt0/check**2,1d30)
 cc        endif
 
       enddo       !End of Newton loop
+
+      if (nk_conf%fpa) call fpa_destroy(nk_conf%fpas)
 
 c     Check error in Newton convergence
 
