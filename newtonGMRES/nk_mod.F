@@ -37,7 +37,8 @@ c ###################################################################
 
       use fixed_point_accelerator
 
-      real(8), allocatable, dimension(:):: rk,xx0,xk
+cc      real(8), allocatable, dimension(:):: rk,xk
+cc      real(8), allocatable, dimension(:):: xx0
 
       real(8)    :: pdt,check
 
@@ -68,6 +69,7 @@ cc      real(8),parameter    :: epsmac=1d-15
         logical      :: vol_wgt=.true.
         logical      :: fpa=.false.
         type (fpa_state) :: fpas
+        real(8),pointer,dimension(:) :: xk,rk
       end type nk_options
 
       type(nk_options),save :: nk_conf
@@ -239,19 +241,21 @@ cc        pdt0      = 1d30
 
 c     Evaluate rhs and norms
 
-      allocate (xx0(ntot),xk(ntot),rk(ntot))
+cc      allocate (xx0(ntot),xk(ntot),rk(ntot))
+      allocate (nk_conf%xk(ntot),nk_conf%rk(ntot))
 
-      xx0 = x    !Save initial guess
-      xk  = x    !Save previous Newton state
+cc      xx0 = x    !Save initial guess
+      nk_conf%xk = x    !Save previous Newton state
 
-      call evaluateNewtonResidual(ntot,x,rk)
+      call evaluateNewtonResidual(ntot,x,nk_conf%rk)
 
-      f0 = sqrt(dot(ntot,rk,rk))
+      f0 = sqrt(dot(ntot,nk_conf%rk,nk_conf%rk))
 
       !Check if initial guess is exact, and if so exit Newton step
       if (f0.lt.atol) then
         ierr = -1
-        deallocate(xx0,xk,rk)
+cc        deallocate(xx0)
+        deallocate(nk_conf%xk,nk_conf%rk)
         return
       endif
 
@@ -261,7 +265,7 @@ c     Initial output
      $     write (*,210) 0,0d0,f0,1d0,1d0,pdt0,eta0,0
 
       if (out.ge.3) then
-        call calculateResidualNorms(neq,ntot,-rk,residuals)
+        call calculateResidualNorms(neq,ntot,-nk_conf%rk,residuals)
         if (prnt) then
           do i = 1,neq
              write (*,320) i,residuals(i)
@@ -278,7 +282,7 @@ c     Start Newton iteration
       etakm = eta0
       etak  = eta0
 
-      if (nk_conf%fpa) call fpa_create(nk_conf%fpas,rk,maxv=5) !Hardwire maxv to 5
+      if (nk_conf%fpa) call fpa_create(nk_conf%fpas,nk_conf%rk,maxv=5) !Hardwire maxv to 5
 
       do jit = 1,ntit_max_rej
 
@@ -295,12 +299,12 @@ c     Jacobian-free solve
         iout = out - 1
 
         if (nk_conf%fpa) then
-          call applyPreconditioner(ntot,rk,ddx,iout)
+          call applyPreconditioner(ntot,nk_conf%rk,ddx,iout)
 
           call fpa_correction(nk_conf%fpas,ddx,dp=dot2)
           ddx = -ddx
         else
-          call gmresDriver(ntot,-rk,ddx,itk,etak,ksmax,gmmax
+          call gmresDriver(ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
      .                  ,iguess,iout,ierr)
         endif
 
@@ -335,13 +339,13 @@ c     Update solution (x = x + ddx)
 
         call updateNewtonSolution(ntot,x,ddx,damp,dxnorm)
 
-        xk = x   !Save current Newton state
+        nk_conf%xk = x   !Save current Newton state
 
 c     Evaluate rhs and norms
 
-        call evaluateNewtonResidual(ntot,x,rk)
+        call evaluateNewtonResidual(ntot,x,nk_conf%rk)
 
-        fkp = sqrt(dot(ntot,rk,rk))
+        fkp = sqrt(dot(ntot,nk_conf%rk,nk_conf%rk))
 
 c     Check Newton convergence/failure
 
@@ -351,7 +355,7 @@ c     Check Newton convergence/failure
      $       write(*,210)jit,dxnorm,fkp,check,damp,pdt,etak,itk
 
         if (out.ge.3) then
-          call calculateResidualNorms(neq,ntot,-rk,residuals)
+          call calculateResidualNorms(neq,ntot,-nk_conf%rk,residuals)
           if (prnt) then
              do i = 1,neq
                 write (*,320) i,residuals(i)
@@ -406,7 +410,8 @@ c     Check error in Newton convergence
 
 c     End program
 
-      deallocate (rk,xx0,xk)
+      deallocate (nk_conf%rk,nk_conf%xk)
+cc      deallocate (xx0)
 
  200  format 
      .   (/,' New_it   Av_updt    Abs_res   Rel_res     Damping'
@@ -1364,7 +1369,6 @@ c     Local variables
 
       integer    :: i
       real(8)    :: dummy(nn),pert,ipert,modz,modx,xdotz
-cc      real(8)    :: yk(nn)
 
 c     Begin program
 
@@ -1380,19 +1384,19 @@ c     Calculate J.x
 
 c       Calculate difference parameter
 
-        modx  = dot(nn,xk,xk)
-        xdotz = dot(nn,z ,xk)
+        modx  = dot(nn,nk_conf%xk,nk_conf%xk)
+        xdotz = dot(nn,z         ,nk_conf%xk)
 
         if (modx == 0d0) then
           pert = nk_conf%mf_eps/sqrt(modz)
         else
-          pert=nk_conf%mf_eps*sqrt(modx)/sqrt(modz)
+          pert = nk_conf%mf_eps*sqrt(modx)/sqrt(modz)
         endif
 cc        pert=nk_conf%mf_eps*(sqrt(modz)+abs(xdotz))/modz*sign(1d0,xdotz)
 
 c       Perturb state variables x + eps z --> dummy
 
-        dummy = xk + pert*z
+        dummy = nk_conf%xk + pert*z
 
 c       Nonlinear function evaluation --> y
 
@@ -1410,7 +1414,7 @@ c       Compute the product J.x using the matrix-free approx
 
         ipert = 1d0/pert
 
-        y = (y-rk)*ipert
+        y = (y-nk_conf%rk)*ipert
 
         !Second order formula
 cc        y = 0.5*(y-yk)*ipert
