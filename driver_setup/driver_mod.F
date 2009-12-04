@@ -41,7 +41,7 @@ c ######################################################################
 
         real(8)    :: dt,dtbase,cnfactor,alpha,gammat
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0,dtold
-     .               ,eigstep
+     .               ,eig_dt
 
 #if !defined(samrai)
         real(8),allocatable,dimension(:)   :: fold,fsrc
