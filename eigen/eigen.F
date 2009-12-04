@@ -2,25 +2,15 @@ c module eigen_mod
 c ###################################################################
       module eigen_mod
 
-      use nk_mod
-
       type :: eigen_options
-        integer      :: ksmax=10
-        integer      :: armax=10
-c$$$        integer      :: nwt_max_it_acc=5
-c$$$        integer      :: nwt_max_it_rej=10
-c$$$        integer      :: gm_it_out
-c$$$        integer      :: nwt_it_out
-c$$$        real(8)      :: damp=1d0
-c$$$        real(8)      :: pdt0=1d30
-c$$$        real(8)      :: eta0=1d-1
-        real(8)      :: rtol=1d-4
-        real(8)      :: atol=1d-4
-        real(8)      :: step=1d0
-        real(8)      :: eigv
-c$$$        real(8)      :: stol=0d0
-c$$$        real(8)      :: mf_eps=1d-6
-c$$$        character(2) :: krylov_method='gm'
+        integer :: my_rank=0
+        integer :: ksmax=10
+        integer :: armax=10
+        real(8) :: rtol=1d-4
+        real(8) :: atol=1d-4
+        real(8) :: step=1d0
+        real(8) :: eigv
+        integer :: iter_out
       end type eigen_options
 
       type(eigen_options),save :: eigen_conf
@@ -30,10 +20,10 @@ c$$$        character(2) :: krylov_method='gm'
 #if defined(arpack)
 c     arnoldi_eig
 c     ###############################################################
-      subroutine arnoldi_eig(neq,ntot,x,out)
+      subroutine arnoldi_eig(neq,ntot,x,out,matvec)
 c     ---------------------------------------------------------------
 c     Performs Arnoldi iteration to find largest real eigenvalue of
-c     Jacobian. Uses "matrixFreeMatVec" for matrix-vector products
+c     Jacobian. Uses "matvec" for matrix-vector products
 c     (provided by user). 
 c
 c     Call parameters:
@@ -150,6 +140,15 @@ c     Call variables
       integer    :: ntot,neq,out
 
       real(8)    :: x(ntot)
+
+      external   :: matvec
+
+      INTERFACE
+        subroutine matvec(n,x,y)
+        integer :: n
+        real(8),dimension(n) :: x,y
+        end subroutine
+      END INTERFACE
 
 c---------------------------------------------------------------------------
 c$$$c
@@ -412,8 +411,8 @@ c           | product to workd(ipntr(2)).               |
 c           %-------------------------------------------%
 c
 cc            call av (nx, workd(ipntr(1)), workd(ipntr(2)))
-            call matrixFreeMatVec(n,workd(ipntr(1):ipntr(1)+n-1)
-     $                             ,workd(ipntr(2):ipntr(2)+n-1))
+            call matvec(n,workd(ipntr(1):ipntr(1)+n-1)
+     $                   ,workd(ipntr(2):ipntr(2)+n-1))
 c$$$            workd(ipntr(2):ipntr(2)+n-1) =
 c$$$     $           -workd(ipntr(2):ipntr(2)+n-1)
 c
@@ -523,7 +522,7 @@ c                 | Ritz value is real |
 c                 %--------------------%
 c
 cc                  call av(nx, v(1,j), ax)
-                  call matrixFreeMatVec(n,v(1:n,j),ax)
+                  call matvec(n,v(1:n,j),ax)
 cc                  v(1:n,j) = -v(1:n,j)
 
                   call daxpy(n, -d(j,1), v(1,j), 1, ax, 1)
@@ -540,14 +539,14 @@ c                 | pair is computed.      |
 c                 %------------------------%
 c
 cc                  call av(nx, v(1,j), ax)
-                  call matrixFreeMatVec(n,v(1:n,j),ax)
+                  call matvec(n,v(1:n,j),ax)
 cc                  v(1:n,j) = -v(1:n,j)
 
                   call daxpy(n, -d(j,1), v(1,j), 1, ax, 1)
                   call daxpy(n, d(j,2), v(1,j+1), 1, ax, 1)
                   d(j,3) = dnrm2(n, ax, 1)
 cc                  call av(nx, v(1,j+1), ax)
-                  call matrixFreeMatVec(n,v(1:n,j+1),ax)
+                  call matvec(n,v(1:n,j+1),ax)
 cc                  v(1:n,j) = -v(1:n,j+1)
 
                   call daxpy(n, -d(j,2), v(1,j), 1, ax, 1)
@@ -621,14 +620,12 @@ c
 
 c     lehoucq_eig
 c     ###############################################################
-      subroutine lehoucq_eig(neq,ntot,x,iguess,out)
+      subroutine lehoucq_eig(ntot,x,iguess,out,matvec,applyPC,dot)
 c     ---------------------------------------------------------------
 c     Performs Lehoucq's iteration to find largest real eigenvalue of
-c     Jacobian. Uses "matrixFreeMatVec" for matrix-vector products
-c     (provided by user). 
+c     Jacobian
 c
 c     Call parameters:
-c       * neq: number of equations.
 c       * ntot: dimension of vector of unknowns.
 c       * x: on input, initial guess; on output, eigenvector.
 c       * iguess: whether x contains initial guess (iguess = 1).
@@ -636,15 +633,48 @@ c       * out: level of output:
 c              out = 0 --> No output
 c              out > 0 --> Preconditioner output (controlled
 c                          in preconditioner routine).
+c       * matvec: matrix-vector multiply routine (provided by user,
+c                with interface matvec(n,x,y) to give y=A*x).
+c       * applyPC: preconditioner application routine, with
+c                interface applyPC(n,x,y,out-1) to give y=PC(x), and
+c                out indicating debugging output level.
+c       * dot: optional dot-product routine, with interface dot(x,y).
+
 c     ---------------------------------------------------------------
 
       implicit none   !For safe fortran
 
 c     Call variables
 
-      integer    :: ntot,neq,out,iguess
+      integer    :: ntot,out,iguess
 
       real(8)    :: x(ntot)
+
+      external   :: matvec
+
+      INTERFACE
+        subroutine matvec(n,x,y)
+        integer :: n
+        real(8),dimension(n) :: x,y
+        end subroutine
+      END INTERFACE
+
+      external   :: setPC,applyPC
+
+      INTERFACE
+        subroutine applyPC(n,x,y,out)
+        integer :: n,out
+        real(8),dimension(n) :: x,y
+        end subroutine
+      END INTERFACE
+
+      real(8), optional :: dot
+
+      INTERFACE
+        function dot(x,y)
+        real(8) :: dot,x(:),y(:)
+        end function
+      END INTERFACE
 
 c     Local variables
 
@@ -654,9 +684,13 @@ c     Local variables
       integer    :: itr,itrsi,eigsub
       parameter (eigsub = 1)
 
+      logical :: ext_dot
+
 cc      real(8) :: pr(ntot,eigsub),pi(ntot,eigsub)
 
 c     Begin program
+
+      ext_dot = PRESENT(dot)
 
       h = eigen_conf%step
 
@@ -664,20 +698,15 @@ c     Initialize iteration vector
 
       if (iguess == 0) call random_number(x)
 
-cc      return
-cc      write (*,*) iguess
-cc      stop
-
 c     Normalize iteration vector
 
-      norm2 = dot(ntot,x,x)
+      if (ext_dot) then
+        norm2 = dot(x,x)
+      else
+        norm2 = dot_product(x,x)
+      endif
 
       x = x/sqrt(norm2)
-
-c     Setup preconditioner
-
-      jit = 1  !For internal setupPC logic
-      call setupPC(ntot,xk)
 
 c     Start iteration
 
@@ -686,33 +715,42 @@ c     Start iteration
 
       do
         !Find matvec
-        call matrixFreeMatVec(ntot,x,ax)
+        call matvec(ntot,x,ax)
 
         !Find |x|
-        norm2 = dot(ntot,x,x)
+        if (ext_dot) then
+          norm2 = dot(x,x)
+        else
+          norm2 = dot_product(x,x)
+        endif
 
         !Form Rayleigh quotient
         thetan = theta
-        magpAp = dot(ntot,x,ax)
+        if (ext_dot) then
+          magpAp = dot(x,ax)
+        else
+          magpAp = dot_product(x,ax)
+        endif
         theta  = magpAp/norm2
         mageig = abs(theta-thetan)
 
         !Form eigenvalue residual (normalized to keep in manifold)
-cc        dum = (theta*x - ax)
         dum = (theta*x - ax)/sqrt(magpAp)
 
         !Renormalize p=x
-cc        x = x/sqrt(magpAp)
-cc        magp = sqrt(norm2/magpAp)
         magp  = sqrt(norm2)
 
         !Find norm of residual
-        magr = sqrt(dot(ntot,dum,dum)/ntot)
+        if (ext_dot) then
+          magr = sqrt(dot(dum,dum)/ntot)
+        else
+          magr = sqrt(dot_product(dum,dum)/ntot)
+        endif
 
         !Diagnostics
         if (itr == 0) mag0 = magr
 
-        if (my_rank == 0) then
+        if (eigen_conf%my_rank == 0) then
            write(*,'(a,i5,1p,a,e10.3,a,e10.3,a,e10.3,a,e10.3)')
      $                 'It=',itr,', eig=',theta
      $                ,', |p|=',magp,', |d_eig|=',mageig
@@ -751,7 +789,7 @@ c$$$          magr  = dot(ntot,x,x)
 c$$$          theta = dot(ntot,x,ax)/magr
 c$$$
 c$$$          !Find matvec
-c$$$cc          call matrixFreeMatVec(ntot,x,ax)
+c$$$cc          call matvec(ntot,x,ax)
 c$$$cc          write (*,*) 'h =',h,' theta=',theta
 c$$$        enddo
 c$$$
@@ -760,18 +798,18 @@ c$$$        write (*,*) 'SI its:',itrsi,'; residual =',magr
 c$$$
 c$$$        x = 2*x-xn !Find x(n+1)
 
-        !---> Preconditioned
-        call applyPreconditioner(ntot,dum,ax,out-1)
-
-cc        magdp = sqrt(dot(ntot,ax,ax)/ntot)
+        !---> Preconditioner
+        call applyPC(ntot,dum,ax,out-1)
 
         x = x + h*ax
 
       enddo
 
-c     Store eigenvalues
+c     Store eigenvalues and other info
 
       eigen_conf%eigv = theta
+
+      eigen_conf%iter_out = itr
 
 c     End program
 
