@@ -323,6 +323,13 @@ c Interfaces
         end subroutine explicit
       END INTERFACE
 
+      INTERFACE
+        subroutine applyPreconditioner(n,x,y,out)
+        integer :: n,out
+        real(8),dimension(n) :: x,y
+        end subroutine
+      END INTERFACE
+
 c Begin program
 
       ierr = 0
@@ -340,29 +347,39 @@ c Eigenvalue solver
 
       if (eigen) then
 
-        eigen_conf%ksmax = maxksp
-        eigen_conf%armax = maxitgm
-        if (rtol > 0d0) eigen_conf%rtol = rtol
-        if (atol > 0d0) eigen_conf%atol = atol
-        eigen_conf%step  = eigstep
+        !Setup matrix-free vectors (xk, rk)
+        allocate(nk_conf%xk(ntotd),nk_conf%rk(ntotd))
 
-        !Setup matvec in Newton
-        allocate (xk(ntotd),rk(ntotd))
+        call mapStructureToVector(nk_conf%xk,u_0)
+        call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
 
-        call mapStructureToVector(xk,u_0)
+        !Setup preconditioner
+        jit = 1 !For internal setupPC logic
+        call setupPC(ntotd,nk_conf%xk)
+
+        !Setup initial guess for eigenfunction
         call mapStructureToVector(x ,vnp)
-        call evaluateNewtonResidual(ntotd,xk,rk)
-
-        !Setup initial guess
-        x = x - xk
+        x = x - nk_conf%xk
 
         !Eigensolve
-#if defined(arpack)
-        call arnoldi_eig(neqd,ntotd,x,ilevel)
-#endif
-        iguess = 1
-        call lehoucq_eig(neqd,ntotd,x,iguess,ilevel)
+cc#if defined(arpack)
+cc        call arnoldi_eig(neqd,ntotd,x,ilevel)
+cc#endif
+        eigen_conf%my_rank = my_rank
 
+        eigen_conf%ksmax   = maxksp
+        eigen_conf%armax   = maxitgm
+        if (rtol > 0d0) eigen_conf%rtol = rtol
+        if (atol > 0d0) eigen_conf%atol = atol
+        eigen_conf%step    = eig_dt
+
+        iguess = 1
+        call lehoucq_eig(ntotd,x,iguess,ilevel
+     .                  ,matrixFreeMatVec
+     .                  ,applyPreconditioner
+     .                  ,dot=dot2)
+
+        !Output
         if (my_rank == 0) then
            write (*,*)
            write (*,*) '**************************************'
@@ -371,14 +388,15 @@ c Eigenvalue solver
            write (*,*) '**************************************'
         endif
 
-        x = x + xk
+        itgmres = eigen_conf%iter_out
 
         !Map eigenvector for plotting
+        x = x + nk_conf%xk
         call mapVectorToStructure(vnp,x)
 
-        !Free space
-        deallocate(xk,rk)
-
+        !Free memory
+        deallocate(nk_conf%xk,nk_conf%rk)
+ 
 c Implicit update (Newton)
 
       elseif (cnfactor.lt.1d0) then
