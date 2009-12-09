@@ -37,17 +37,13 @@ c ###################################################################
 
       use fixed_point_accelerator
 
-cc      real(8), allocatable, dimension(:):: rk,xk
-cc      real(8), allocatable, dimension(:):: xx0
+      real(8) :: pdt,check
 
-      real(8)    :: pdt,check
-
-cc      real(8),parameter    :: epsmac=1d-15
       real(8) :: epsmac=0d-15,roundoff
 
-      integer    :: jit=0
+      integer :: jit=0
 
-      logical    :: pseudo_dt,prnt,is_residual=.true.
+      logical :: pseudo_dt,prnt,is_residual=.true.
 
       type :: nk_options
         integer      :: etak_meth=0
@@ -68,7 +64,9 @@ cc      real(8),parameter    :: epsmac=1d-15
         character(2) :: krylov_method='gm'
         logical      :: vol_wgt=.true.
         logical      :: fpa=.false.
+#if defined(FPA)
         type (fpa_state) :: fpas
+#endif
         real(8),pointer,dimension(:) :: xk,rk
       end type nk_options
 
@@ -209,10 +207,12 @@ c     Initialize variables
      $            ,'Error in Newton input: ntit_max_acc > ntit_max_rej')
       endif
 
+#if defined(FPA)
       if (nk_conf%fpa) then
         ntit_max_rej =  ntit_max_rej*2
         ntit_max_acc =  ntit_max_rej/2
       endif
+#endif
 
       ierr     = 0
       itk      = 0
@@ -282,8 +282,9 @@ c     Start Newton iteration
       etakm = eta0
       etak  = eta0
 
+#if defined(FPA)
       if (nk_conf%fpa) call fpa_create(nk_conf%fpas,nk_conf%rk,maxv=5) !Hardwire maxv to 5
-
+#endif
       do jit = 1,ntit_max_rej
 
 c     Determine inexact Newton constant
@@ -298,15 +299,19 @@ c     Jacobian-free solve
 
         iout = out - 1
 
+#if defined(FPA)
         if (nk_conf%fpa) then
           call applyPreconditioner(ntot,nk_conf%rk,ddx,iout)
 
           call fpa_correction(nk_conf%fpas,ddx,dp=dot2)
           ddx = -ddx
         else
+#endif
           call gmresDriver(ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
      .                  ,iguess,iout,ierr)
+#if defined(FPA)
         endif
+#endif
 
 c     Kill preconditioner
 
@@ -319,7 +324,9 @@ c     Update counters
 
 c     Check for error in GMRES
 
+#if defined(FPA)
         if (.not.(nk_conf%fpa)) then
+#endif
           if (ierr.eq.1) then
             if (prnt) write(*,*) 
      .            '   Exceeded maximum GMRES iterations (',gmmax,')'
@@ -328,7 +335,9 @@ c     Check for error in GMRES
             ierr = 0
             exit !Do not continue Newton iteration
           endif
+#if defined(FPA)
         endif
+#endif
 
 c     Globalization procedure: damping coefficient
 
@@ -391,7 +400,9 @@ cc        endif
 
       enddo       !End of Newton loop
 
+#if defined(FPA)
       if (nk_conf%fpa) call fpa_destroy(nk_conf%fpas)
+#endif
 
 c     Check error in Newton convergence
 
