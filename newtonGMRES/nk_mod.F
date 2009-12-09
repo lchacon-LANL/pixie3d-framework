@@ -35,7 +35,9 @@ c ###################################################################
 
       use math
 
+#if defined(FPA)
       use fixed_point_accelerator
+#endif
 
       real(8) :: pdt,check
 
