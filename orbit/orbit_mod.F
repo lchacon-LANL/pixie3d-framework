@@ -9,6 +9,11 @@ c ######################################################################
 
         use grid, ONLY: my_rank,pstop,messg
 
+        !Diagnostics
+        integer,private :: nunitd=12345
+
+        logical :: flux = .false.
+
         !LSODE public variables
         real(8) :: xold,yold,zold,lsode_out(10)
         logical :: sing_point=.false.,sln,exit_loop
@@ -42,6 +47,12 @@ c ######################################################################
         type(orbit_def),private  :: orb_default
         type(ode_solver),private :: ode_conf
 
+        !B field diagnostics
+        integer :: icross,ncross=100000,nbins=100,inx,nnx,nny
+        real(8),allocatable,dimension(:,:) :: fpos,qdif
+        logical :: bdiag=.false.
+
+        !Private variables
         integer,private :: itime,iterror,ssorder
 
         integer,private :: nunitx,nunity,nunitz,nunitrz
@@ -50,7 +61,7 @@ c ######################################################################
         real(8),private :: tvold,told,tprev,time,tmax
      .                    ,svold,sold,sprev,ss  ,smax
         real(8),private :: x,y,z,xcar,ycar,zcar,xss0,yss0,zss0
-     .                    ,xvold,yvold,zvold
+     .                    ,xvold,yvold,zvold,x00,y00,z00
         real(8),private :: xss,yss,zss,tss
 
         real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax,rmin
@@ -226,6 +237,15 @@ c     Do splines
         call splineJ(jac )
         call splineX(xmap)
 
+c     Setup diag B diagnostic arrays
+
+        if (bdiag) then
+          allocate(fpos(-nbins/2:nbins/2,ncross))
+          fpos = 0d0
+          allocate(qdif(nnx,ncross))
+          qdif = 0d0
+        endif
+
       end subroutine orbit_setup
 
 ccc     orbit_setup_gmetric
@@ -345,11 +365,70 @@ c     ----------------------------------------------------------------------
 c     Frees up memory from orbit integration
 c     ----------------------------------------------------------------------
 
+        implicit none
+
 c     Call variables
+
+c     Local variables
+
+        integer :: slice
+        real(8) :: rr
+
+        real(8),allocatable,dimension(:) ::  mean,sigma,vol,diff
 
 c     Begin program
 
         call killSplines
+
+c     Finalize B diagnostics
+
+        if (bdiag) then
+          open(unit=50,file='b_stat.txt',status='unknown')
+
+          allocate(mean(icross),sigma(icross),vol(icross),diff(icross))
+
+          mean  = 0d0
+          sigma = 0d0
+          vol   = 0d0
+
+          do slice=-nbins/2,nbins/2
+            rr = (1.*slice)/(nbins+1)
+            vol   = vol   +       fpos(slice,1:icross)
+            mean  = mean  + rr   *fpos(slice,1:icross)
+            sigma = sigma + rr**2*fpos(slice,1:icross)
+          enddo
+
+          mean  = mean/vol
+          sigma = sqrt(sigma/vol - mean**2)
+
+          do slice = 1,icross
+            diff(slice) = sigma(slice)**2/(zss0+(slice-1)*(zmax-zmin))
+          enddo
+
+          do slice=-nbins/2,nbins/2
+            write(50,*) (1.*slice)/(nbins+1),fpos(slice,1:icross)/vol
+          enddo
+
+          write (*,*) 'Mean =',mean
+          write (*,*) 'Sigma=',sigma
+          write (*,*) 'Diff PDF =',diff
+
+          do slice = 1,icross
+            diff(slice) = sum(qdif(:,slice))/size(qdif,1)/nny
+          enddo
+
+          write (*,*) 'Diff MC =',diff
+
+          close(50)
+
+          open(unit=50,file='b_dif.txt',status='unknown')
+          do slice=1,size(qdif,1)
+            write(50,*) slice,qdif(slice,1:icross)/nny
+          enddo
+          close(50)
+
+          deallocate(mean,sigma,vol,diff,fpos,qdif)
+        endif
 
       end subroutine orbit_destroy
 
@@ -380,6 +459,7 @@ c     Call variables
         logical :: fwd
 
         integer,optional :: ss_order
+cc        real(8),optional :: xss,yss,zss,tss
 
         optional :: line_int
 
@@ -414,7 +494,8 @@ c     Begin program
 
         integral = PRESENT(line_int)
 
-        chk_ss = (.not.integral).and.ss_io  !Do SS only if not integrating and if IO has been set up
+cc        chk_ss = (.not.integral).and.ss_io  !Do SS only if not integrating and if IO has been set up
+        chk_ss = ss_io  !Do SS only if IO has been set up
 
         tmax = ode_conf%tmax
         smax = ode_conf%smax
@@ -447,15 +528,38 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 
         if (chk_ss) then
 
-          if(lssx) then
+          if (bdiag) icross = 0  !Initialize for B diagnostics
+
+          if(lssx .and. x0 == xss0) then
             write(nunitx) real(y0),real(z0)
           endif
-          if(lssy) then
-            write(nunity) real(x0),real(z0)
+
+c delta-diag
+cc          if (lssx) then
+cc            write(nunitd,FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0  !Initial (Psi,theta) of orbit
+cc          endif
+c delta-diag
+
+          if(lssy .and. y0 == yss0) then
+            if (flux) then
+              write(nunity) real(0.5*x0**2),real(z0)
+            else
+              write(nunity) real(x0),real(z0)
+            endif
           endif
-          if(lssz) then
-            write(nunitz) real(x0),real(y0)
-cc            write(nunitz) real(0.5*x0**2),real(y0) !In flux
+
+          if(lssz .and. z0 == zss0) then
+            if (flux) then
+              write(nunitz) real(0.5*x0**2),real(y0) !In flux
+            else
+              write(nunitz) real(x0),real(y0)        !In radius
+            endif
+
+            !Initialize B diagnostics
+            if (bdiag) then
+              icross = icross + 1
+              fpos(0,icross) = fpos(0,icross) + 1
+            endif
           endif
 
         endif
@@ -500,15 +604,24 @@ c     Orbit integral
               call sschk(ssorder,svold,sold,ss
      .                  ,xvold,xold,x,yvold,yold,y
      .                  ,zvold,zold,z,xss,yss,zss,tss)
+
+c delta-diag
+cc              if (lssx .and. tss /= 0d0) then
+cc                if (fwd) then
+cc                  write(nunitd,FMT="(e14.5)",ADVANCE="NO")  tss
+cc                else
+cc                  write(nunitd,FMT="(e14.5)",ADVANCE="NO") -tss
+cc                endif
+cc              endif
+cccc          write(*,FMT="(e10.3)") tss
+c delta-diag
+
             else
               call sschk(ssorder,tvold,told,time
      .                  ,xvold,xold,x,yvold,yold,y
      .                  ,zvold,zold,z,xss,yss,zss,tss)
             endif
           endif
-
-          !Reset logical coords according to BCs
-cc          call chk_pos(x,y,z)
 
           !Show progress/terminate
           if (smax /= 0d0) then
@@ -533,6 +646,13 @@ c       Write orbit separator in XDRAW file
           if (lssy) write(nunity)
           if (lssz) write(nunitz)
           if (rzss) write(nunitrz)
+
+c delta-diag
+cc          if (lssx) then
+cc            write(nunitd,*) !Carriage return
+cc          endif
+c delta-diag
+
         endif
 
       end subroutine orbit_find
@@ -550,6 +670,10 @@ c     ----------------------------------------------------------------------
         real(8) :: x0,y0,z0
 
 c     Begin program
+
+        x00  = x0
+        y00  = y0
+        z00  = z0
 
         x    = x0
         y    = y0
@@ -674,12 +798,13 @@ c     Time integration
 c     Output
 
       if (iiout > 0) then
-        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,1p3e12.3)')
+        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,1p3e12.3,a,l)')
      .         ' Time=',time
      .        ,' ;  dt=',dt
      .        ,' ;  Arc length=',ss
      .        ,' ;  ds=',ds
      .        ,' ;  Position=',x,y,z
+     .        ,' ;  Forward=',fwd
       endif
 
 c     End program
@@ -781,9 +906,15 @@ c3-eq      T    = time   !Independent variable
       !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
       if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
 
-      IOPT = 0         !Whether optional inputs are needed
-cc      IOPT = 1         !Whether optional inputs are needed
-cc      RWORK(6) = dtime !Maximum time step allowed (optional input)
+      !Optional inputs
+cc      if (chk_ss) then
+cc        IOPT = 1                !Optional inputs are needed
+cc        RWORK(6) = minval( (/(xmax-xmin)/30.
+cc     .                      ,(ymax-ymin)/30.
+cc     .                      ,(zmax-zmin)/30. /) !Maximum time step allowed (optional input)
+cc      else
+        IOPT = 0                !Optional inputs not needed
+cc      endif
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
 
@@ -820,7 +951,7 @@ c     Postprocessing to find logical coordinates
           return
         endif
 
-        if (x > rmin) then
+        if (x >= rmin) then
           iterr = -2
           ISTATE = 1   !Instruct LSODE to start anew for next time step
           cartesian = .false.
@@ -1489,6 +1620,11 @@ c     Begin program
      .                       ,drawin,.false.,.false.)
           nunitx=27
           open(unit=nunitx,file=trim(ssx),form='unformatted')
+
+c delta-diag
+cc          nunitd=1234
+cc          open(unit=nunitd,file='delta-test.txt')
+c delta-diag
         endif
 
         if (lssy) then
@@ -1566,9 +1702,11 @@ c     Call variables
 c     Local variables
 
         real(8) :: rr
-        integer :: iwhich
+        integer :: iwhich,bin
 
 c     Begin program
+
+        xss = 0d0 ; yss = 0d0 ; zss = 0d0 ; tss = 0d0
 
 c     Lower order of interpolation for SS if derivatives are too different
 
@@ -1599,6 +1737,8 @@ c     Check for intersection with X surface of section
 
           call chk_pos(xss,yss,zss) !this resets logical coords
           write(nunitx) real(yss),real(zss)
+cc          write(*,*) real(yss),real(zss)
+
         endif
 
 c     Check for intersection with Y surface of section
@@ -1612,7 +1752,12 @@ c     Check for intersection with Y surface of section
      .               ,yss,npointy,zss,xss,tss,iwhich)
 
           call chk_pos(xss,yss,zss) !this resets logical coords
-          write(nunity) real(xss),real(zss)
+
+          if (flux) then
+            write(nunity) real(0.5*xss**2),real(zss)
+          else
+            write(nunity) real(xss),real(zss)
+          endif
         endif
 
 c     Check for intersection with Z surface of section
@@ -1634,8 +1779,33 @@ cc            write(*,*) 'diag',z,zold,real(rr),real(zcar)   !diag
             call chk_pos(xss,yss,zss) !this resets logical coords
           endif
 
-          write(nunitz) real(xss),real(yss) !In radius
-cc          write(nunitz) real(0.5*xss**2),real(yss) !In flux
+          if (flux) then
+            write(nunitz) real(0.5*xss**2),real(yss) !In flux
+          else
+            write(nunitz) real(xss),real(yss)        !In radius
+          endif
+
+          !Accumulate B diagnostics
+          if (bdiag) then
+            icross = icross + 1
+            if (icross > ncross) then
+              write (*,*) 'Exceeded max number of Poincare crossings'
+            else
+              write (*,*)
+              write (*,*) 'B diag: Poincare crossing ',icross
+
+              !PDF diagnostic
+              bin = sign(1d0,xss-x00)
+     .             *floor(0.5*abs(x00**2-xss**2)*nbins+0.5)
+              fpos(bin,icross) = fpos(bin,icross)+1
+
+              !Add quasilinear diffusion diagnostic
+              qdif(inx,icross) = qdif(inx,icross)
+     .                         + (0.5*(xss**2-x00**2))**2/tss
+
+            endif
+          endif
+
         endif
 
       end subroutine sschk
@@ -1665,28 +1835,45 @@ c     Local variables
 c     Begin program
 
       if (bc == PER) then
-        pp =        int((x1-xmin)/(xmax-xmin))
-        pp = min(pp,int((x2-xmin)/(xmax-xmin)))
-        
-        x00 = x0
-        if (x0 == xmin .and. pp >= 0) x00 = xmax
-        if (x0 == xmax .and. pp <  0) x00 = xmin
-cc        if (x0 == xmin .and. pp <  0) x00 = xmin-(xmax-xmin)
-        if (pp == 0 .and. (x2-xmin)<0d0) x00 =x0-(xmax-xmin)
+
+c       Shift so that both x1, x2 are positive
+
+        pp =        floor((x1-xmin)/(xmax-xmin))
+        pp = min(pp,floor((x2-xmin)/(xmax-xmin)))
+
         x11 = x1 - pp*(xmax-xmin)
         x22 = x2 - pp*(xmax-xmin)
-      else
+
+c       Redefine SS position
+
         x00 = x0
-        x11 = x1
-        x22 = x2
-        pp = 0
+
+        if (x0 == xmin) x00 = xmax
+
+        !If x0 is close to domain limit, switch to most convenient one
+        if (   (pp <  0 .and.(x11-x0 >xmax-xmin))
+     .     .or.(pp >= 0 .and.(x22-x0 >xmax-xmin))) x00 =x0+(xmax-xmin)
+
+c       Check for SS
+
+        found = ((x11-x00)*(x22-x00) <= 0d0)
+
+c       Shift SS position for sursec routine
+
+        if (found) xss = x00+pp*(xmax-xmin)
+
+      else
+
+c       Check for SS
+
+        found = ((x1-x0)*(x2-x0) <= 0d0)
+
+cc        write (*,*) x0,x1,x2
+        if (found) then
+          xss = x0
+        endif
+
       endif
-
-      found =    ((x11-x00)*(x22-x00) <= 0d0)
-     .       .or.((x11-x0 )*(x22-x0 ) <= 0d0)
-
-      if ((x11-x00)*(x22-x00) <= 0d0) xss = x00+pp*(xmax-xmin)
-      if ((x11-x0 )*(x22-x0 ) <= 0d0) xss = x0 +pp*(xmax-xmin)
 
       end function chk_ss_pos
 
