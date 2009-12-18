@@ -25,7 +25,10 @@ c #####################################################################
         use grid
 
         implicit none
-
+        
+        integer :: NAUXS=0,NAUXV=0  !Number of auxiliary scalars, vectors
+                                    !(defined by application)
+        
 #if defined(petsc)
         !NVAR is defined via C preprocessor flag
         type :: petsc_var
@@ -35,38 +38,38 @@ c #####################################################################
 
         type :: var_def
           integer :: bconds(6)          !Boundary conditions
-          real(8),pointer,dimension(:,:,:) :: array
+          real(8),pointer,dimension(:,:,:) :: array ! contains values at grid points
           character(20) :: descr
         end type var_def
 
         type :: vec_def
-          integer :: bconds(6,3)        !Boundary conditions
-          real(8),pointer,dimension(:,:,:,:) :: vec
+          integer :: bconds(6,3)        !Boundary conditions, 3 refers to the 3 components
+          real(8),pointer,dimension(:,:,:,:) :: vec ! vector (i,j,k,d), d being the component
           character(20) :: descr        !Description
           logical       :: cnv          !Whether it is contravariant or not
         end type vec_def
 
         type :: var_array
           integer :: nvar               !Number of variables
-          type (var_def),pointer,dimension(:) :: array_var
+          type (var_def),pointer,dimension(:) :: array_var ! array of variables
         end type var_array
 
         type :: aux_array
           integer :: nvar,nvec          !Number of variables, vectors
-          type (vec_def),pointer,dimension(:) :: vec_list
-          type (var_def),pointer,dimension(:) :: var_list
+          type (vec_def),pointer,dimension(:) :: vec_list   ! vector auxillary components
+          type (var_def),pointer,dimension(:) :: var_list   ! scalar auxillary components
         end type aux_array
 
         type :: patch
-          integer  :: nbc_seq
-          integer,pointer,dimension(:,:):: bc_seq
-          type(var_array)  ,pointer     :: u_0
-          type(var_array)  ,pointer     :: u_n
-          type(var_array)  ,pointer     :: u_np
-          type(var_array)  ,pointer     :: u_nm
-          type(var_array)  ,pointer     :: u_graph
-          type(grid_mg_def),pointer     :: gparams
-          type(aux_array)  ,pointer     :: aux
+          integer  :: nbc_seq                         ! ???
+          integer,pointer,dimension(:,:):: bc_seq     ! array showing sequence in which to set bc's 
+          type(var_array)  ,pointer     :: u_0        ! equilibrium data
+          type(var_array)  ,pointer     :: u_n        ! data at time n
+          type(var_array)  ,pointer     :: u_np       ! data at n+1
+          type(var_array)  ,pointer     :: u_nm       ! data at n-1
+          type(var_array)  ,pointer     :: u_graph    ! auxilliary for plotting, all u variables same number of components
+          type(grid_mg_def),pointer     :: gparams    ! contains all grid info
+          type(aux_array)  ,pointer     :: aux        ! auxillary variables
         end type patch
 
         type (patch),pointer :: gv
@@ -827,181 +830,3 @@ c     End
       end function integral
 
       end module generalPurposeFunctions
-
-ccc module iosetup
-ccc ######################################################################
-cc      module iosetup
-cc
-cc        integer        :: ilevel
-cc
-cc        integer        :: urecord=10000,usave=20000,uinput=25
-cc        character*(50) :: recordfile='record.bin',recordsave,inputfile
-cc
-cc        integer        :: nfiles,ifile
-cc        integer       ,allocatable,dimension(:) :: murecord,musave
-cc        character*(50),allocatable,dimension(:) :: mrecfile,mrecsave
-cc
-cc        logical        :: debug,clean=.false.,tst_flg=.false.
-cc
-cc      contains
-cc
-ccc     readRecordFile
-ccc     #################################################################
-cc      subroutine readRecordFile(unit,itime,time,dt,varray,ierr)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Reads record file
-ccc     -----------------------------------------------------------------
-cc
-cc      use variables
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer    :: ierr,itime,unit
-cc      real(8)    :: time,dt
-cc      type(var_array),pointer:: varray
-cc
-ccc     Begin program
-cc
-cc      ierr = 0
-cc
-cc      read (unit,iostat=ierr,end=100) time
-cc      if (ierr /= 0) goto 200
-cc
-cc      read (unit,iostat=ierr,end=100) itime
-cc      if (ierr /= 0) goto 200
-cc
-cc      read (unit,iostat=ierr,end=100) dt
-cc      if (ierr /= 0) goto 200
-cc
-cc      call readDerivedType(varray,unit,.false.,ierr)
-cc
-cc      return
-cc
-cc 100  ierr=-2  !EOF
-cccc      write (*,*) 'readRecordFile: EOF in file unit',unit
-cc      return
-cc
-cc 200  ierr=-1  !Error, but not EOF
-cc      write (*,*) 'readRecordFile: Error reading file unit',unit
-cc
-ccc     End
-cc
-cc      end subroutine readRecordFile
-cc
-ccc     writeRecordFile
-ccc     #################################################################
-cc      subroutine writeRecordFile(unit,itime,time,dt,varray)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Writes record file
-ccc     -----------------------------------------------------------------
-cc
-cc      use variables
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer    :: itime,unit
-cc      real(8)    :: time,dt
-cc      type(var_array),pointer:: varray
-cc
-ccc     Begin program
-cc
-cc      write (unit) time
-cc      write (unit) itime
-cc      write (unit) dt
-cc
-cc      call writeDerivedType(varray,unit,.false.)
-cc
-ccc     End
-cc
-cc      end subroutine writeRecordFile
-cc
-ccc     closeRecordFile
-ccc     #################################################################
-cc      subroutine closeRecordFile
-cc
-ccc     -----------------------------------------------------------------
-ccc     Closes record file
-ccc     -----------------------------------------------------------------
-cc
-cc      implicit none
-cc
-ccc     Begin program
-cc
-cc      close(urecord)
-cc
-ccc     End
-cc
-cc      end subroutine closeRecordFile
-cc
-cc      end module iosetup
-
-ccc module graphics_variables
-ccc ######################################################################
-cc      module graphics_variables
-cc
-cc        use xdraw_io
-cc
-cc        integer        :: ngroups
-cc
-cc        real(8), allocatable, dimension(:) :: xl,yl,zl
-cc
-cc        type :: graph_var_def
-cc          real(8),pointer,dimension(:,:,:) :: array
-cc          character(20)                    :: descr
-cc          character(20)                    :: vector_name=''
-cc        end type graph_var_def
-cc
-cc        type :: graph_group
-cc          type (graph_var_def),dimension(ngraph) :: array_graph
-cc          logical                                :: cartesian
-cc          character(20)                          :: descr
-cc        end type graph_group
-cc
-cc        type (graph_group),pointer,dimension(:) :: graph
-cc
-cc        integer   ,allocatable,dimension(:) :: nqty
-cc
-cc        logical    :: plot
-cc
-cc#if defined(petsc)
-cc        logical    :: hdf_plot=.true.
-cc#else
-cc        logical    :: hdf_plot=.false.
-cc#endif
-cc
-cc        integer    :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
-cc     .               ,iggx,iggy,iggz,iig,jjg,kkg
-cc
-cc        integer    :: sel_diag (xdraw_cont_lim)
-cc     .               ,sel_graph(xdraw_cont_lim)
-cc
-cc        integer    :: ndplot
-cc        real(8)    :: dplot,tmplot
-cc
-cc        integer    :: iplot,jplot,kplot
-cc
-cc        !Profile conf
-cc        type :: prof_info
-cc          integer        :: line = 1
-cc          character(3)   :: label = 'x'
-cc          integer        :: coords(3) = (/1,1,1/)
-cc        end type prof_info
-cc
-cc        type(prof_info),save :: prof_conf
-cc
-cc        !Contour conf
-cc        type :: cont_info
-cc          integer        :: plane = 3
-cc          character(3)   :: label(2) = (/'x','y'/)
-cc          integer        :: coords(3)= (/1,1,1/)
-cc        end type cont_info
-cc
-cc        type(cont_info),save :: cont_conf
-cc
-cc      end module graphics_variables

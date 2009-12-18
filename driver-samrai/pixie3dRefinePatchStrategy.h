@@ -109,16 +109,20 @@ public:
 
    void setPixie3dHierarchyData(void **hierarchy_data){d_level_container_array = hierarchy_data; }
 
-   void setPixie3dDataIDs(bool copy, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp );
+   void setPixie3dDataIDs(bool copy, int nvar, int nauxs, int nauxv, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp );
 
    bool checkPhysicalBoundary( hier::Patch<NDIM>& patch);
 
 private:
-
+   
+   int d_nvar;
+   int d_nauxs;
+   int d_nauxv;
+   
    int d_data_id;
    bool copy_data;
-   int u_id[NVAR], auxs_id[NAUXS], auxv_id[NAUXV];
-   int u_tmp_id[NVAR], auxs_tmp_id[NAUXS], auxv_tmp_id[NAUXV];
+   int *u_id, *auxs_id, *auxv_id;
+   int *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
 
 
    tbox::Pointer< hier::GridGeometry<NDIM > > d_grid_geometry;

@@ -20,7 +20,7 @@ c Begin program
       call deallocateDerivedType(u_n)
       call deallocateDerivedType(u_graph)
 
-      call destroyFortranMPI
+cc      call destroyFortranMPI
 
 c End program
 

@@ -276,6 +276,40 @@ c     Begin program
 
       end subroutine pstop
 
+c     dot2
+c     ###################################################################
+      function dot2(vec1,vec2)
+
+c     -------------------------------------------------------------------
+c     Performs parallel scalar product (vec1,vec2). In call:
+c       * vec1: vector, first term of scalar product.
+c       * vec2: vector, second term of scalar product.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: ntot
+      real(8)    :: dot2
+      real(8),INTENT(IN) :: vec1(:),vec2(:)
+
+c     Local variables
+
+      real(8)    :: ldot
+
+c     Begin program
+
+      dot2 = dot_product(vec1,vec2)
+
+      if (.not.asm) then
+        ldot = dot2
+        call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+
+      end function dot2
+
 c     dot
 c     ###################################################################
       function dot(ntot,vec1,vec2)
@@ -1543,6 +1577,31 @@ c     Begin program
 
       end subroutine pstop
 
+c     dot2
+c     ###################################################################
+      function dot2(vec1,vec2)
+
+c     -------------------------------------------------------------------
+c     Performs parallel scalar product (vec1,vec2). In call:
+c       * vec1: vector, first term of scalar product.
+c       * vec2: vector, second term of scalar product.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: dot2
+      real(8), INTENT(IN) :: vec1(:),vec2(:)
+
+c     Local variables
+
+c     Begin program
+
+      dot2 = dot_product(vec1,vec2)
+
+      end function dot2
+
 c     dot
 c     ###################################################################
       function dot(ntot,vec1,vec2)
@@ -1562,10 +1621,6 @@ c     Call variables
       real(8)    :: vec1(ntot),vec2(ntot),dot
 
 c     Local variables
-
-      integer    :: imin,imax,jmin,jmax,kmin,kmax
-     .             ,i,j,k,iii,ieq
-      real(8)    :: ldot
 
 c     Begin program
 

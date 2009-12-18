@@ -4,6 +4,6 @@ c ######################################################################
 
         use nk_setup
 
-        use nk_mod
+        integer    :: jit=1
 
       end module newtongm

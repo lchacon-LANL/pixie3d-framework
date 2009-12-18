@@ -99,7 +99,7 @@ c Initialize global domain limits
 
       call setVectorDimensions
 
-#if defined(petsc) && !defined(samrai)
+#if defined(petsc)
       if (.not.tst_flg)
      .   write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
      .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
@@ -107,7 +107,6 @@ c Initialize global domain limits
 
 c Allocate constant arrays
 
-#if !defined(samrai)
       allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
       allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
       allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
@@ -115,7 +114,6 @@ c Allocate constant arrays
       zeros  = 0d0
       vzeros = 0d0
       ones   = 1d0
-#endif
 
 c Create nonlinear solver
 
@@ -146,8 +144,8 @@ c Set output files
 
 #if defined(petsc) 
       if (.not.restart) then
-        if (my_rank == 0)
-     .     ierr=system('rm -f '//trim(recordfile)//'* > /dev/null')
+        if (my_rank == 0) call rm_file(recordfile)
+cc     .     ierr=system('rm -f '//trim(recordfile)//'* > /dev/null')
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
       endif
 
@@ -158,7 +156,8 @@ c Set output files
       endif
 #else
       if (.not.restart) then
-         ierr=system('rm -f '//trim(recordfile)//'* > /dev/null')
+         call rm_file(recordfile)
+cc         ierr=system('rm -f '//trim(recordfile)//'* > /dev/null')
       endif
 #endif
 
@@ -455,9 +454,10 @@ c     Begin program
 
       call allocateDerivedType(vmed)
 
-      ierr = system('test -f '//trim(recordfile))
+cc      ierr = system('test -f '//trim(recordfile))
 
-      if (ierr /= 0) then
+cc      if (ierr /= 0) then
+      if (.not.is_file(recordfile)) then
         call pstop('readRestartFile'
      .            ,'Cannot find restart file')
       endif
@@ -478,7 +478,7 @@ c     Begin program
      $            ,'Grid meshes do not agree; cannot restart')
       endif
 
-      if (my_rank == 0) write (*,*) 'Reading restart file(s)...'
+      if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
 
       call readRecordFile(urecord,itime,time,dt,vn,ierr)
 
@@ -497,7 +497,7 @@ c     Begin program
 
       close (urecord)
 
-      if (my_rank == 0) write (*,*) 'Done!'
+      if (my_rank == 0) write (*,*) ' Done!'
 
 c     End
 
