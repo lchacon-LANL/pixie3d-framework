@@ -374,10 +374,16 @@ cc#endif
         eigen_conf%step    = eig_dt
 
         iguess = 1
-        call lehoucq_eig(ntotd,x,iguess,ilevel
+        call lehoucq_eig(ntotd,x,iguess,ilevel,ierr
      .                  ,matrixFreeMatVec
      .                  ,applyPreconditioner
      .                  ,dot=dot2)
+
+        select case(ierr)
+        case(1)
+          call pstop('lehoucq_eig'
+     .              ,'Matrix not positive definite')
+        end select
 
         !Output
         if (my_rank == 0) then
