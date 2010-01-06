@@ -9,9 +9,9 @@ c        * ntot is the problem size
 c        * x    is the newton state vector (input)
 c        * res  is the nonlinear residual (output)
 c
-c == subroutine setupPreconditioner(ntot,x)
+c == subroutine setupPC(ntot,xk)
 c
-c      Initializes preconditioner
+c      Initializes preconditioner based on current Newton iterate
 c
 c == subroutine applyPreconditioner(ntot,rhs,sol,iout)
 c
@@ -21,7 +21,7 @@ c        * rhs is the independent term (input)
 c        * sol is the solution (output)
 c        * iout, if > 0, indicates output level (input)
 c
-c == subroutine killPreconditioner
+c == subroutine killPC
 c
 c      Deallocates dynamic storage space used in preconditioner
 c
@@ -317,7 +317,7 @@ c     Jacobian-free solve
 
 c     Kill preconditioner
 
-        call killPreconditioner
+        call killPC
 
 c     Update counters
 
