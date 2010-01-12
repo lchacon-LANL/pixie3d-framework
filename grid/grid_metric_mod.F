@@ -44,8 +44,6 @@ cc        real(8),private :: car0(3),carp(3),carm(3),jac,ijac
 cc     .               ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
 cc     .               ,gamma(3,3,3),gamm1(3,3,3),mag,dhp,dhm,dhh
 
-        real(8),pointer,dimension(:,:,:,:),private :: xcr
-
         logical,private    :: map_present
 
         private :: topol_bc,findGridmetrics
@@ -595,6 +593,15 @@ c       ANALYTICAL QUANTITIES **********************************
                   gparams%gmetric%grid(igrid)%cnv(i,j,k,l,:)
      .                    = contravariantVector(l,i,j,k,igx,igy,igz)
                 enddo
+
+                !Cell volume
+                call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+                gparams%gmetric%grid(igrid)%dvol(i,j,k)=
+     .                           gparams%gmetric%grid(igrid)%jac(i,j,k)
+     .                          *gparams%dxh(ig)
+     .                          *gparams%dyh(jg)
+     .                          *gparams%dzh(kg)
               enddo
             enddo
           enddo
@@ -610,7 +617,6 @@ c       NUMERICAL QUANTITIES ***********************************
 
           numerical_grid = .true.
 
-          xc => gparams%gmetric%grid(igrid)%car
           allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
 
           call findMap
@@ -642,67 +648,67 @@ c     Call variables
 
 c     Local variables
 
+        real(8),pointer,dimension(:,:,:,:) :: xf
+
 c     Begin program
 
-      if (map_present) then
+        xc => gparams%gmetric%grid(igrid)%car
 
-        if (igrid == 1) then
-          nxf=ihi-ilo+1
-          nyf=jhi-jlo+1
-          nzf=khi-klo+1
+        if (map_present) then
+
+          if (igrid > 1) then  !Coarsen map if at coarse grid level
+            xf => gparams%gmetric%grid(igrid-1)%car
+
+            nxf=size(xf,1)-2
+            nyf=size(xf,2)-2
+            nzf=size(xf,3)-2
+
+            nxc=size(xc,1)-2
+            nyc=size(xc,2)-2
+            nzc=size(xc,3)-2
+
+            call coarsen_map(igrid,gparams,nxf,nyf,nzf,xf
+     .                                    ,nxc,nyc,nzc,xc)
+
+            nullify(xf)
+          endif
+
         else
-          xcr => gparams%gmetric%grid(igrid-1)%car
-cc          xc  => gparams%gmetric%grid(igrid  )%car  !Already done outside in findGridMetrics
 
-          nxf=size(xcr,1)-2
-          nyf=size(xcr,2)-2
-          nzf=size(xcr,3)-2
+          if (checkAnalMapDatabase()) then
 
-          nxc=ihi-ilo+1
-          nyc=jhi-jlo+1
-          nzc=khi-klo+1
-
-          call coarsen_map(igrid,gparams,nxf,nyf,nzf,xcr
-     .                                  ,nxc,nyc,nzc,xc )
-
-          nullify(xcr)
-        endif
-
-      else
-
-        if (checkAnalMapDatabase()) then
-
-          do k = klom,khip
-            do j = jlom,jhip
-              do i = ilom,ihip
-                xc(i,j,k,:) = map(i,j,k,igx,igy,igz)
+            do k = klom,khip
+              do j = jlom,jhip
+                do i = ilom,ihip
+                  xc(i,j,k,:) = map(i,j,k,igx,igy,igz)
+                enddo
               enddo
             enddo
-          enddo
 
 #if defined(vmec)
-        elseif (coords == 'vmc') then
+          elseif (coords == 'vmc') then
 
-          vmec_met = .false.   !Whether to use VMEC metric quantities or not
-          vmec_mets = vmec_met .and. (igrid == 1)
+            vmec_met = .false.   !Whether to use VMEC metric quantities or not
+            vmec_mets = vmec_met .and. (igrid == 1)
 
-          nxf=ihi-ilo+1
-          nyf=jhi-jlo+1
-          nzf=khi-klo+1
+            nxf=ihi-ilo+1
+            nyf=jhi-jlo+1
+            nzf=khi-klo+1
 
-          call vmec_map(igrid,nxf,nyf,nzf,xc,vmec_mets) !External
+            call vmec_map(igrid,nxf,nyf,nzf,xc,vmec_mets) !External
 
-          if (vmec_mets) then
-            call vmec_metrics(igrid,nxf,nyf,nzf         !External
-     .                       ,gparams%gmetric%grid(igrid)%jac
-     .                       ,gparams%gmetric%grid(igrid)%gsub
-     .                       ,gparams%gmetric%grid(igrid)%gsup)
-          endif
+            if (vmec_mets) then
+              call vmec_metrics(igrid,nxf,nyf,nzf         !External
+     .                         ,gparams%gmetric%grid(igrid)%jac
+     .                         ,gparams%gmetric%grid(igrid)%gsub
+     .                         ,gparams%gmetric%grid(igrid)%gsup)
+            endif
 #endif
-        else
-          call pstop('findMap','Map not available')
+          else
+            call pstop('findMap','Map not available')
+          endif
+
         endif
-      endif
 
 c     End program
 
