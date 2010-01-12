@@ -16,9 +16,11 @@ c module nk_setup
 c ######################################################################
       module nk_setup
 
-        integer    ::  maxitnwt,maxitgm,iguess,maxksp,method,global
+        integer ::  maxitnwt,maxitgm,iguess,maxksp,method,global
 
-        real(8)    ::  tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
+        real(8) ::  tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
+
+        logical ::  fpa=.false.
 
       end module nk_setup
 
@@ -39,7 +41,7 @@ c ######################################################################
 
         real(8)    :: dt,dtbase,cnfactor,alpha,gammat
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0,dtold
-     .               ,eigstep
+     .               ,eig_dt
 
 #if !defined(samrai)
         real(8),allocatable,dimension(:)   :: fold,fsrc

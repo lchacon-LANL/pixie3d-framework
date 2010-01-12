@@ -8,24 +8,27 @@ endif
 
 # GENERAL PURPOSE MAKEFILE
 
-SRC  ?= $(wildcard *.[F,f,c])
+SRC  ?= $(wildcard *.[F,c,f] *.f90 *.F90)
 
-MODS ?= $(wildcard *_mod.[F,f])
+MODS ?= $(wildcard *_mod.[F,f] *_mod.f90 *_mod.F90)
 
-OBJS  := $(filter %.o,$(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))\
-                      $(patsubst %.c,%.o,$(filter-out $(MODS),$(SRC)))\
-                      $(patsubst %.C,%.o,$(filter-out $(MODS),$(SRC)))\
-                      $(patsubst %.F,%.o,$(filter-out $(MODS),$(SRC))))
+OBJS   := $(filter %.o, $(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))\
+                        $(patsubst %.c,%.o,$(filter-out $(MODS),$(SRC)))\
+                        $(patsubst %.C,%.o,$(filter-out $(MODS),$(SRC)))\
+                        $(patsubst %.F,%.o,$(filter-out $(MODS),$(SRC)))\
+                        $(patsubst %.f90,%.o,$(filter-out $(MODS),$(SRC)))\
+                        $(patsubst %.F90,%.o,$(filter-out $(MODS),$(SRC))))
 
-OBJMOD :=  $(patsubst %.f,%.o,$(patsubst %.F,%.f,$(MODS)))
+OBJMOD := $(patsubst %.f,%.o,$(patsubst %.F,%.f,$(patsubst %.f90,%.f,$(patsubst %.F90,%.f,$(MODS)))))
 
-
-COMMON_MODS = $(foreach dir,$(SUBDIRS),$(wildcard $(dir)/*_mod.[f,F]))
-COMMON_SRC  = $(foreach dir,$(SUBDIRS),$(filter-out $(dir)/test.f,$(wildcard $(dir)/*.[f,F,c])))
+COMMON_MODS = $(foreach dir,$(SUBDIRS),$(wildcard $(dir)/*_mod.[f,F] $(dir)/*_mod.f90 $(dir)/*_mod.F90))
+COMMON_SRC  = $(foreach dir,$(SUBDIRS),$(filter-out $(dir)/test.f,$(wildcard $(dir)/*.[f,F,c,C] $(dir)/*.f90 $(dir)/*.F90)))
 COMMON_OBJS = $(filter %.o, $(patsubst %.f,%.o,$(COMMON_SRC))\
                             $(patsubst %.c,%.o,$(COMMON_SRC))\
                             $(patsubst %.C,%.o,$(COMMON_SRC))\
-                            $(patsubst %.F,%.o,$(COMMON_SRC)))
+                            $(patsubst %.F,%.o,$(COMMON_SRC))\
+                            $(patsubst %.f90,%.o,$(COMMON_SRC))\
+                            $(patsubst %.F90,%.o,$(COMMON_SRC)))
 
 LIBS :=
 
@@ -91,6 +94,14 @@ $(OBJS) : $(MODS) $(COMMOM_MODS)
 	@echo 'Compiling' $@
 	$(FC) -c $(MODDIRS) $(FFLAGS) $(CPPFLAGS) $<
 
-#%.o : %.c
-#	@echo 'Compiling' $@
-#	$(CC) -c $(CFLAGS) $(CPPFLAGS) $<
+%.o : %.f90
+	@echo 'Compiling' $@
+	$(FC) -c $(MODDIRS) $(FFLAGS) $<
+
+%.o : %.F90
+	@echo 'Compiling' $@
+	$(FC) -c $(MODDIRS) $(FFLAGS) $(CPPFLAGS) $<
+
+%.o : %.c
+	@echo 'Compiling' $@
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $<
