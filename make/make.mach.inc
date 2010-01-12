@@ -9,6 +9,8 @@ ifeq "$(BUILDTYPE)" "i386-Darwin"
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include
+    PETSC_DIR = /opt/petsc-3.0.0-p9-gcc-4.4.1-debug
+    PETSC_ARCH = darwin9.8.0-c-debug
   endif
 endif
 
