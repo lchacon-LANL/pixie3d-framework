@@ -92,7 +92,7 @@ extern void FORTRAN_NAME(INITIALIZE_U_N) (void*);
 extern void FORTRAN_NAME(FORMINITIALCONDITION) (void*, int*, double*);
 extern void FORTRAN_NAME(EVALUATENONLINEARRESIDUAL) (void*, int*, double*, void*);
 #else
-extern void FORTRAN_NAME(getbc)(void*, int*, int**);
+  extern void FORTRAN_NAME(getbc)(void*, int*, int**, int*);
 extern void FORTRAN_NAME(fortrandestroy) ();
 extern void FORTRAN_NAME(readinputfile) (input_CTX*);
 extern void FORTRAN_NAME(formequilibrium) (void*);
@@ -159,10 +159,12 @@ pixie3dApplication::~pixie3dApplication()
    //#endif
    // Delete the level containers
    LevelContainer *level_container;
-   for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
-      level_container = (LevelContainer *) level_container_array[ln];
-      delete level_container;
-   }
+   for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
+     {
+       level_container = (LevelContainer *) level_container_array[ln];
+       delete level_container;
+     }
+   
    delete [] level_container_array;
 }
 
@@ -221,9 +223,6 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
    
    // Check for consistency between domain sizes
    tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry = d_hierarchy->getGridGeometry();
-   const double *dx = grid_geometry->getDx();
-   const double *xlower = grid_geometry->getXLower();
-   const double *xupper = grid_geometry->getXUpper();
 
    const SAMRAI::hier::BoxArray<NDIM> &physicalDomain = grid_geometry->getPhysicalDomain() ;
 
@@ -270,11 +269,12 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
    tbox::Pointer< pdat::CellVariable<NDIM,double> > var;
    int var_id;
    std::string var_name;
-   d_x = new solv::SAMRAIVectorReal<NDIM,double>("x",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-   d_f = new solv::SAMRAIVectorReal<NDIM,double>("x",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-   d_x_tmp = new solv::SAMRAIVectorReal<NDIM,double>("x",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-   d_initial = new solv::SAMRAIVectorReal<NDIM,double>("x",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-   d_equilibrium = new solv::SAMRAIVectorReal<NDIM,double>("x",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
+   d_x = new solv::SAMRAIVectorReal<NDIM,double>("xVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
+   d_f = new solv::SAMRAIVectorReal<NDIM,double>("fVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
+   d_x_tmp = new solv::SAMRAIVectorReal<NDIM,double>("xTmpVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
+   d_initial = new solv::SAMRAIVectorReal<NDIM,double>("xInitialVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
+   d_equilibrium = new solv::SAMRAIVectorReal<NDIM,double>("xEquilibriumVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
+
    std::stringstream stream;
    for (int i=0; i<data.nvar; i++)
      {
@@ -293,12 +293,15 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
        var_id = var_db->registerVariableAndContext(var, context_eq, ghost1);
       d_equilibrium->addComponent( var, var_id );
      }
-   
+
+   // allocate data for all variables on all levels
    d_x->allocateVectorData();
    d_f->allocateVectorData();
    d_x_tmp->allocateVectorData();
    d_initial->allocateVectorData();
    d_equilibrium->allocateVectorData();
+
+   // set to negative values
    d_x->setToScalar( -1.0 );
    d_f->setToScalar( -1.0 );
    d_initial->setToScalar( -1.0 );
@@ -337,10 +340,13 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
    
    d_aux_scalar->allocateVectorData();
    d_aux_vector->allocateVectorData();
+   
    d_aux_scalar->setToScalar( -1.0 );
    d_aux_vector->setToScalar( -1.0 );
+
    d_aux_scalar_tmp->allocateVectorData();
    d_aux_vector_tmp->allocateVectorData();
+
    d_aux_scalar_tmp->setToScalar( -1.0 );
    d_aux_vector_tmp->setToScalar( -1.0 );
    
@@ -476,6 +482,7 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 
    // Get BC_seq
    // Loop through hierarchy
+   int it=0;
    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
      {
        tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
@@ -486,9 +493,9 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 	 {
 	   // Get BC_seq
 #ifdef absoft
-	   FORTRAN_NAME(GETBC)(level_container->getPtr(p()),&nbc_seq,&bc_seq);
+	   FORTRAN_NAME(GETBC)(level_container->getPtr(p()),&nbc_seq,&bc_seq, &it);
 #else
-	   FORTRAN_NAME(getbc)(level_container->getPtr(p()),&nbc_seq,&bc_seq);
+	   FORTRAN_NAME(getbc)(level_container->getPtr(p()),&nbc_seq,&bc_seq, &it);
 #endif
 	 }
      }
@@ -667,23 +674,6 @@ pixie3dApplication::printObjectName( std::ostream& os )
   os << d_object_name;
 }
 
-
-/************************************************************************
-*                                                                       *
-* Set solution ghost cell values along physical boundaries.             *
-*                                                                       *
-************************************************************************/
-/*void
-pixie3dApplication::setPhysicalBoundaryConditions(hier::Patch<NDIM>& patch, const double time, const hier::IntVector<NDIM>& ghost_width_to_fill)
-{
-   const tbox::Pointer< geom::CartesianPatchGeometry<NDIM> > patch_geometry = patch.getPatchGeometry();
-   const tbox::Array<hier::BoundaryBox<NDIM> > corners = patch_geometry->getNodeBoundary();
-   for (int k=0; k<corners.getSize(); k++) { 
-      d_test_problem->evaluateSolution( corners[k].getBox(), patch, time, d_laplace_operator->getBCIndex() );
-   }
-}*/
-
-
 /***********************************************************************
 * Print the data for variables on a patch hierarchy. This function is  *
 * just to ensure that I am accessing the data correctly.               *
@@ -777,35 +767,10 @@ void  pixie3dApplication::refineVariables(void)
    // Copy the data from the single ghost cell width variables to the multiple ghost cell width variables
    if ( GHOST != 1 )
      {
-       for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
-         tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
-         for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++) {
-	   tbox::Pointer<hier::Patch<NDIM> > patch = level->getPatch(p());
-	   // Copy u         
-	   for (int i=0; i<data.nvar; i++)
-	     {
-	       tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(u_id[i]);
-	       tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(u_tmp_id[i]);
-	       tmp2->copy(*tmp1);
-	     }
-	   
-	   // Copy auxillary scalars
-	   for (int i=0; i<data.nauxs; i++)
-	     {
-               tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(auxs_id[i]);
-               tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(auxs_tmp_id[i]);
-               tmp2->copy(*tmp1);
-	     }
-	   
-	   // Copy auxillary vectors
-	   for (int i=0; i<data.nauxv; i++)
-	     {
-	       tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(auxv_id[i]);
-	       tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(auxv_tmp_id[i]);
-	       tmp2->copy(*tmp1);
-	     }
-         }
-       }
+       // copy the vectors componentwise
+       d_x_tmp->copyVector(d_x, false);
+       d_aux_scalar_tmp->copyVector(d_aux_scalar, false);
+       d_aux_vector_tmp->copyVector(d_aux_vector, false);
      }
    
    // Fill ghost cells
@@ -834,36 +799,10 @@ void  pixie3dApplication::refineVariables(void)
    // Copy the data from the multiple ghost cell width variables to the single ghost cell width variables
    if ( GHOST != 1 )
      {
-       for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
-	 {
-	   tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
-	   for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
-	     {
-	       tbox::Pointer<hier::Patch<NDIM> > patch = level->getPatch(p());
-	       // Copy u         
-	       for (int i=0; i<data.nvar; i++)
-		 {
-		   tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(u_tmp_id[i]);
-		   tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(u_id[i]);
-		   tmp2->copy(*tmp1);
-		 }
-	       
-	       // Copy auxillary scalars
-	       for (int i=0; i<data.nauxs; i++)
-		 {
-		   tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(auxs_tmp_id[i]);
-		   tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(auxs_id[i]);
-		   tmp2->copy(*tmp1);
-		 }
-	       // Copy auxillary vectors
-	       for (int i=0; i<data.nauxv; i++)
-		 {
-		   tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch->getPatchData(auxv_tmp_id[i]);
-		   tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch->getPatchData(auxv_id[i]);
-		   tmp2->copy(*tmp1);
-		 }
-	     }
-	 }
+       // copy the vectors componentwise
+       d_x->copyVector(d_x_tmp, false);
+       d_aux_scalar->copyVector(d_aux_scalar_tmp, false);
+       d_aux_vector->copyVector(d_aux_vector_tmp, false);
      }  
 }
 
@@ -956,7 +895,7 @@ pixie3dApplication::generateTransferSchedules(void)
 	       data_id = d_x_tmp->getComponentDescriptorIndex(i);
 	     }
 	   d_refine_algorithm.registerRefine( data_id, data_id, data_id,
-            grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
+					 grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
 	 }
      }
 

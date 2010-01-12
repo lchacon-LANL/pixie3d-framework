@@ -1,6 +1,6 @@
 c getBC
 c######################################################################
-      subroutine getBC(patch_var,nbc_seq,bc_seq)
+      subroutine getBC(patch_var,nbc_seq,bc_seq, it)
 
 c----------------------------------------------------------------------
 c     Initializes BC pointers
@@ -16,7 +16,7 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer :: nbc_seq, bc_seq
+      integer :: nbc_seq, bc_seq, it
       type(patch), TARGET :: patch_var
 
 c Begin program
