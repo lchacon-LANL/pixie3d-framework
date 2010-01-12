@@ -38,6 +38,16 @@ c #####################################################################
           real(8),pointer,dimension(:,:,:,:,:,:) :: Gamma !Christoffel symbol at cell centers
           real(8),pointer,dimension(:,:,:,:,:)   :: cov   !Covariant vectors
           real(8),pointer,dimension(:,:,:,:,:)   :: cnv   !Contravariant vectors
+
+#if !defined(samrai)
+          !Need to add this on SAMRAI interface; when this is done, we need to remove
+          !special cases below as well.
+          real(8),pointer,dimension(:,:,:)       :: jac_v !Jacobian factor at grid vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsub_v!Covariant metric tensor at vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsup_v!Contravariant metric tensor at vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: cov_v !Covariant vectors at vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: cnv_v !Contravariant vectors at vertices
+#endif
         end type grid_metrics
 
         type :: MG_grid_metrics
@@ -706,6 +716,18 @@ c     Begin program
             allocate(gmetric%grid(igrid)
      $           %Gamma(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
 
+#if !defined(samrai)
+            allocate(gmetric%grid(igrid)
+     $           %jac_v (ilom:ihip,jlom:jhip,klom:khip))
+            allocate(gmetric%grid(igrid)
+     $           %gsub_v(ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %gsup_v(ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %cov_v (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %cnv_v (ilom:ihip,jlom:jhip,klom:khip,3,3))
+#endif
           enddo
         endif
 
@@ -746,6 +768,14 @@ c     Begin program
           gmetric2%grid(igrid)%cov  = gmetric1%grid(igrid)%cov  
           gmetric2%grid(igrid)%cnv  = gmetric1%grid(igrid)%cnv  
           gmetric2%grid(igrid)%Gamma= gmetric1%grid(igrid)%Gamma
+
+#if !defined(samrai)
+          gmetric2%grid(igrid)%jac  = gmetric1%grid(igrid)%jac  
+          gmetric2%grid(igrid)%gsub = gmetric1%grid(igrid)%gsub 
+          gmetric2%grid(igrid)%gsup = gmetric1%grid(igrid)%gsup 
+          gmetric2%grid(igrid)%cov  = gmetric1%grid(igrid)%cov  
+          gmetric2%grid(igrid)%cnv  = gmetric1%grid(igrid)%cnv  
+#endif
         enddo
 
 c     End program
@@ -778,6 +808,13 @@ c     Begin program
             deallocate(gmetric%grid(igrid)%cov)
             deallocate(gmetric%grid(igrid)%cnv)
             deallocate(gmetric%grid(igrid)%Gamma)
+#if !defined(samrai)
+            deallocate(gmetric%grid(igrid)%jac_v)
+            deallocate(gmetric%grid(igrid)%gsub_v)
+            deallocate(gmetric%grid(igrid)%gsup_v)
+            deallocate(gmetric%grid(igrid)%cov_v)
+            deallocate(gmetric%grid(igrid)%cnv_v)
+#endif
           enddo
           deallocate(gmetric%grid)
           deallocate(gmetric)

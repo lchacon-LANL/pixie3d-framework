@@ -620,7 +620,7 @@ c
 
 c     lehoucq_eig
 c     ###############################################################
-      subroutine lehoucq_eig(ntot,x,iguess,out,matvec,applyPC,dot)
+      subroutine lehoucq_eig(ntot,x,iguess,out,ierr,matvec,applyPC,dot)
 c     ---------------------------------------------------------------
 c     Performs Lehoucq's iteration to find largest real eigenvalue of
 c     Jacobian
@@ -633,6 +633,9 @@ c       * out: level of output:
 c              out = 0 --> No output
 c              out > 0 --> Preconditioner output (controlled
 c                          in preconditioner routine).
+c       * ierr: on output, indicates error level:
+c              ierr = 0 --> no error
+c              ierr = 1 --> matrix not positive definite
 c       * matvec: matrix-vector multiply routine (provided by user,
 c                with interface matvec(n,x,y) to give y=A*x).
 c       * applyPC: preconditioner application routine, with
@@ -646,7 +649,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: ntot,out,iguess
+      integer    :: ntot,out,iguess,ierr
 
       real(8)    :: x(ntot)
 
@@ -689,6 +692,8 @@ c     Local variables
 cc      real(8) :: pr(ntot,eigsub),pi(ntot,eigsub)
 
 c     Begin program
+
+      ierr = 0
 
       ext_dot = PRESENT(dot)
 
@@ -733,6 +738,11 @@ c     Start iteration
         endif
         theta  = magpAp/norm2
         mageig = abs(theta-thetan)
+
+        if (magpAp < 0d0) then
+          ierr = 1
+          return
+        endif
 
         !Form eigenvalue residual (normalized to keep in manifold)
         dum = (theta*x - ax)/sqrt(magpAp)

@@ -44,4 +44,47 @@ c     Begin program
 
       end function shellcmd
 
+c     is_file
+c     ####################################################################
+      function is_file(file)
+
+c     Call variables
+
+      logical :: is_file
+      character(*) :: file
+
+c     Local variables
+
+      integer :: ierr
+
+c     Begin program
+
+      ierr = shellcmd('test -f '//trim(file))
+
+      is_file = (ierr == 0)
+
+c     End program
+
+      end function is_file
+
+c     rm_file
+c     ####################################################################
+      subroutine rm_file(file)
+
+c     Call variables
+
+      character(*) :: file
+
+c     Local variables
+
+      integer :: ierr
+
+c     Begin program
+
+      ierr = shellcmd('rm -f '//trim(file)//'* > /dev/null')
+
+c     End program
+
+      end subroutine rm_file
+
       end module io

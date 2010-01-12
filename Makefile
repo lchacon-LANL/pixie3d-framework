@@ -42,7 +42,7 @@ MODDIRS = $(MODPATH) $(patsubst $(COMMONDIR)%,$(ADDMODFLAG)$(COMMONDIR)%,$(SUBDI
 
 PWD = `pwd`
 
-.PHONY: setup setup_lnk target lib message clean distclean common $(SUBDIRS)
+.PHONY: setup setup_lnk target lib message clean distclean common contrib contrib_clean $(SUBDIRS)
 
 target: common message $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 
@@ -52,17 +52,39 @@ message: ;
 
 common: $(SUBDIRS)
 
+contrib: ;
+	$(MAKE) -e -C contrib/lsode lib
+ifdef ARPACK
+	$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack lib
+ifdef BOPT
+	$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack plib
+endif
+endif
+ifdef FPA
+	$(MAKE) -e -C contrib/fpa/src lib
+endif
+
 $(SUBDIRS):
 	$(MAKE) -e -C $@ target
 
 clean: ;
 	-rm -f *.o *.mod *.a
 
+contrib_clean: ;
+	$(MAKE) -e -C contrib/lsode clean
+ifdef ARPACK
+	$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack clean
+endif
+ifdef FPA
+	$(MAKE) -e -C contrib/fpa/src clean
+endif
+
 distclean: clean
 	-@for subdir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$subdir clean;  done
 
 setup: ;
+	-tar xzf common_contrib.tgz
 	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
 		-rm $$subdir/makefile 2>/dev/null ; \
 		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \

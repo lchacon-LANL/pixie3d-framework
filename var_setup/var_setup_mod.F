@@ -67,7 +67,7 @@ c #####################################################################
           type(var_array)  ,pointer     :: u_n        ! data at time n
           type(var_array)  ,pointer     :: u_np       ! data at n+1
           type(var_array)  ,pointer     :: u_nm       ! data at n-1
-          type(var_array)  ,pointer     :: u_graph    ! auxilliary for plotting, all u variables same number of components
+          type(var_array)  ,pointer     :: u_graph    ! auxiliary for plotting, all u variables same number of components
           type(grid_mg_def),pointer     :: gparams    ! contains all grid info
           type(aux_array)  ,pointer     :: aux        ! auxillary variables
         end type patch
@@ -262,17 +262,18 @@ c     End program
 
 c     allocateDerivedType
 c     #################################################################
-      subroutine allocateDerivedType(varray)
+      subroutine allocateDerivedType(varray,igx,igy,igz)
 
         implicit none
 
 c     Call variables
 
         type(var_array),pointer  :: varray
+        integer, optional :: igx,igy,igz
 
 c     Local variables
 
-        integer          :: ieq
+        integer          :: ieq,imn,imx,jmn,jmx,kmn,kmx
 
 c     Begin program
 
@@ -281,10 +282,35 @@ c     Begin program
 
           varray%nvar = neqd
 
-          allocate(varray%array_var(neqd))
-          do ieq=1,neqd
+          if (PRESENT(igx)) then
+            imn = 1-gcw
+            imx = gv%gparams%nxv(igx)+gcw
+          else
+            imn = ilom
+            imx = ihip
+          endif
+
+          if (PRESENT(igy)) then
+            jmn = 1-gcw
+            jmx = gv%gparams%nyv(igy)+gcw
+          else
+            jmn = jlom
+            jmx = jhip
+          endif
+
+          if (PRESENT(igz)) then
+            kmn = 1-gcw
+            kmx = gv%gparams%nzv(igz)+gcw
+          else
+            kmn = klom
+            kmx = khip
+          endif
+
+          allocate(varray%array_var(varray%nvar))
+          do ieq=1,varray%nvar
             allocate(varray%array_var(ieq)
-     $                     %array(ilom:ihip,jlom:jhip,klom:khip))
+     $                     %array(imn:imx,jmn:jmx,kmn:kmx))
+cc     $                     %array(ilom:ihip,jlom:jhip,klom:khip))
             varray%array_var(ieq)%array = 0d0
           enddo
         endif
@@ -491,7 +517,7 @@ c     End program
 
 c     initializeDerivedType
 c     #################################################################
-      subroutine initializeDerivedType(varray)
+      subroutine initializeDerivedType(varray,igx,igy,igz)
 
 c     -----------------------------------------------------------------
 c     Initializes fields of varray2 using a template (u_0) except for
@@ -501,6 +527,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         type(var_array),pointer  :: varray
+        integer, optional :: igx,igy,igz
 
 c     Local variables
 
@@ -508,7 +535,7 @@ c     Local variables
 
 c     Begin program
 
-        call allocateDerivedType(varray)
+        call allocateDerivedType(varray,igx=igx,igy=igy,igz=igz)
 
         varray%nvar = u_0%nvar
         do ieq=1,varray%nvar
@@ -614,7 +641,7 @@ c     End program
 
 c     mapStructureToVector
 c     #################################################################
-      subroutine mapStructureToVector(x,varray)
+      subroutine mapStructureToVector(x,varray,igx,igy,igz)
 
 c     -----------------------------------------------------------------
 c     Maps structure into vector (without ghost cells)
@@ -624,24 +651,29 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      real(8),intent(out)      :: x(ntotd)
+      real(8),intent(out)      :: x(:)
+      integer, optional :: igx,igy,igz
 
       type(var_array),pointer  :: varray
 
 c     Local variables
 
-      integer    :: i,j,k,ii,ieq,neq
+      integer :: i,j,k,ii,ieq,neq,iigx=1,iigy=1,iigz=1
 
 c     Begin program
+
+      if (PRESENT(igx)) iigx=igx
+      if (PRESENT(igy)) iigy=igy
+      if (PRESENT(igz)) iigz=igz
 
 c     Unpack vector x
 
       neq = varray%nvar
 
-      do k = klo,khi
-        do j = jlo,jhi
-          do i = ilo,ihi
-            ii = vecPos(neq,i,j,k,1,1,1)
+      do k = 1,gv%gparams%nzv(iigz)
+        do j = 1,gv%gparams%nyv(iigy)
+          do i = 1,gv%gparams%nxv(iigx)
+            ii = vecPos(neq,i,j,k,iigx,iigy,iigz)
             do ieq=1,neq
               x(ii+ieq) = varray%array_var(ieq)%array(i,j,k)
             enddo
@@ -655,7 +687,7 @@ c     End program
 
 c     mapVectorToStructure
 c     #################################################################
-      subroutine mapVectorToStructure(varray,x)
+      subroutine mapVectorToStructure(varray,x,igx,igy,igz)
 
 c     -----------------------------------------------------------------
 c     Maps vector solution into structure.
@@ -665,15 +697,21 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      real(8),intent(in)      :: x(ntotd)
+cc      real(8),intent(in)      :: x(ntotd)
+      real(8),dimension(:),intent(in) :: x(:)
+      integer, optional :: igx,igy,igz
 
       type(var_array),pointer :: varray
 
 c     Local variables
 
-      integer    :: i,j,k,ii,ieq,neq
+      integer    :: i,j,k,ii,ieq,neq,iigx=1,iigy=1,iigz=1
 
 c     Begin program
+
+      if (PRESENT(igx)) iigx=igx
+      if (PRESENT(igy)) iigy=igy
+      if (PRESENT(igz)) iigz=igz
 
 c     Initialize varray
 
@@ -683,10 +721,10 @@ c     Unpack vector x
 
       neq = varray%nvar
 
-      do k = klo,khi
-        do j = jlo,jhi
-          do i = ilo,ihi
-            ii = vecPos(neq,i,j,k,1,1,1)
+      do k = 1,gv%gparams%nzv(iigz)
+        do j = 1,gv%gparams%nyv(iigy)
+          do i = 1,gv%gparams%nxv(iigx)
+            ii = vecPos(neq,i,j,k,iigx,iigy,iigz)
             do ieq=1,neq
               varray%array_var(ieq)%array(i,j,k) = x(ii+ieq)
             enddo
@@ -830,181 +868,3 @@ c     End
       end function integral
 
       end module generalPurposeFunctions
-
-ccc module iosetup
-ccc ######################################################################
-cc      module iosetup
-cc
-cc        integer        :: ilevel
-cc
-cc        integer        :: urecord=10000,usave=20000,uinput=25
-cc        character*(50) :: recordfile='record.bin',recordsave,inputfile
-cc
-cc        integer        :: nfiles,ifile
-cc        integer       ,allocatable,dimension(:) :: murecord,musave
-cc        character*(50),allocatable,dimension(:) :: mrecfile,mrecsave
-cc
-cc        logical        :: debug,clean=.false.,tst_flg=.false.
-cc
-cc      contains
-cc
-ccc     readRecordFile
-ccc     #################################################################
-cc      subroutine readRecordFile(unit,itime,time,dt,varray,ierr)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Reads record file
-ccc     -----------------------------------------------------------------
-cc
-cc      use variables
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer    :: ierr,itime,unit
-cc      real(8)    :: time,dt
-cc      type(var_array),pointer:: varray
-cc
-ccc     Begin program
-cc
-cc      ierr = 0
-cc
-cc      read (unit,iostat=ierr,end=100) time
-cc      if (ierr /= 0) goto 200
-cc
-cc      read (unit,iostat=ierr,end=100) itime
-cc      if (ierr /= 0) goto 200
-cc
-cc      read (unit,iostat=ierr,end=100) dt
-cc      if (ierr /= 0) goto 200
-cc
-cc      call readDerivedType(varray,unit,.false.,ierr)
-cc
-cc      return
-cc
-cc 100  ierr=-2  !EOF
-cccc      write (*,*) 'readRecordFile: EOF in file unit',unit
-cc      return
-cc
-cc 200  ierr=-1  !Error, but not EOF
-cc      write (*,*) 'readRecordFile: Error reading file unit',unit
-cc
-ccc     End
-cc
-cc      end subroutine readRecordFile
-cc
-ccc     writeRecordFile
-ccc     #################################################################
-cc      subroutine writeRecordFile(unit,itime,time,dt,varray)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Writes record file
-ccc     -----------------------------------------------------------------
-cc
-cc      use variables
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer    :: itime,unit
-cc      real(8)    :: time,dt
-cc      type(var_array),pointer:: varray
-cc
-ccc     Begin program
-cc
-cc      write (unit) time
-cc      write (unit) itime
-cc      write (unit) dt
-cc
-cc      call writeDerivedType(varray,unit,.false.)
-cc
-ccc     End
-cc
-cc      end subroutine writeRecordFile
-cc
-ccc     closeRecordFile
-ccc     #################################################################
-cc      subroutine closeRecordFile
-cc
-ccc     -----------------------------------------------------------------
-ccc     Closes record file
-ccc     -----------------------------------------------------------------
-cc
-cc      implicit none
-cc
-ccc     Begin program
-cc
-cc      close(urecord)
-cc
-ccc     End
-cc
-cc      end subroutine closeRecordFile
-cc
-cc      end module iosetup
-
-ccc module graphics_variables
-ccc ######################################################################
-cc      module graphics_variables
-cc
-cc        use xdraw_io
-cc
-cc        integer        :: ngroups
-cc
-cc        real(8), allocatable, dimension(:) :: xl,yl,zl
-cc
-cc        type :: graph_var_def
-cc          real(8),pointer,dimension(:,:,:) :: array
-cc          character(20)                    :: descr
-cc          character(20)                    :: vector_name=''
-cc        end type graph_var_def
-cc
-cc        type :: graph_group
-cc          type (graph_var_def),dimension(ngraph) :: array_graph
-cc          logical                                :: cartesian
-cc          character(20)                          :: descr
-cc        end type graph_group
-cc
-cc        type (graph_group),pointer,dimension(:) :: graph
-cc
-cc        integer   ,allocatable,dimension(:) :: nqty
-cc
-cc        logical    :: plot
-cc
-cc#if defined(petsc)
-cc        logical    :: hdf_plot=.true.
-cc#else
-cc        logical    :: hdf_plot=.false.
-cc#endif
-cc
-cc        integer    :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
-cc     .               ,iggx,iggy,iggz,iig,jjg,kkg
-cc
-cc        integer    :: sel_diag (xdraw_cont_lim)
-cc     .               ,sel_graph(xdraw_cont_lim)
-cc
-cc        integer    :: ndplot
-cc        real(8)    :: dplot,tmplot
-cc
-cc        integer    :: iplot,jplot,kplot
-cc
-cc        !Profile conf
-cc        type :: prof_info
-cc          integer        :: line = 1
-cc          character(3)   :: label = 'x'
-cc          integer        :: coords(3) = (/1,1,1/)
-cc        end type prof_info
-cc
-cc        type(prof_info),save :: prof_conf
-cc
-cc        !Contour conf
-cc        type :: cont_info
-cc          integer        :: plane = 3
-cc          character(3)   :: label(2) = (/'x','y'/)
-cc          integer        :: coords(3)= (/1,1,1/)
-cc        end type cont_info
-cc
-cc        type(cont_info),save :: cont_conf
-cc
-cc      end module graphics_variables

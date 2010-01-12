@@ -15,7 +15,11 @@ c     #################################################################
       function isBdry(i,igr,ibc)
 
 c     -----------------------------------------------------------------
-c     Detects whether we are at a boundary or not
+c     Detects whether we are at a boundary or not. Boundary is identified
+c     by ibc, with the following convention:
+c        * ibc = 1, 2 (xmin,xmax)
+c        * ibc = 3, 4 (ymin,ymax)
+c        * ibc = 5, 6 (zmin,zmax)
 c     -----------------------------------------------------------------
 
         implicit none
