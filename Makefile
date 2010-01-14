@@ -63,7 +63,6 @@ distclean: clean
 		$(MAKE) -C $$subdir clean;  done
 
 setup: contrib_setup
-	-tar xzf common_contrib.tgz
 	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
 		-rm $$subdir/makefile 2>/dev/null ; \
 		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
@@ -105,6 +104,7 @@ ifdef FPA
 endif
 
 contrib_setup: ;
+	-tar xzf common_contrib.tgz
 	$(MAKE) -e -C contrib/slatec setup
 
 #Define dependencies
