@@ -32,7 +32,7 @@ ifeq ($(HOST),quevedo.ornl.gov)
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include
   else
-    LIBS = -L/usr/lib64 -llapack -lblas
+    LIBS += -L/usr/lib64 -llapack -lblas
     HDF5 = f
     ifeq ($(FC),f90)
       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
