@@ -201,12 +201,12 @@ pixie3dRefinePatchStrategy::setPixie3dDataIDs(bool copy,
   
   if(auxv_id==NULL)
     {
-      auxv_id = new int[d_nauxs];
+      auxv_id = new int[d_nauxv];
     }
   
   if(auxv_tmp_id==NULL)
     {
-      auxv_tmp_id = new int[d_nauxs];
+      auxv_tmp_id = new int[d_nauxv];
     }
   
   copy_data = copy;

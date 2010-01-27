@@ -105,6 +105,9 @@ public:
    // Return ComponentSelector of data to time stamp on a new level.
    hier::ComponentSelector getDataToTimeStamp();
 
+   // return the number of dependent variables
+   int getNumberOfDependentVariables(void);
+   
    // Set data values on new level.
    void setValuesOnNewLevel( tbox::Pointer< hier::PatchLevel<NDIM> > level );
 
@@ -163,7 +166,7 @@ private:
    tbox::Array< tbox::Pointer< hier::Variable<NDIM> > > d_variable_list;
    void **level_container_array;
 
-   int nbc_seq, *bc_seq;
+   int d_NumberOfBoundaryConditions, *d_BoundaryConditionSequence;
    int *u0_id, *u_id, *auxs_id, *auxv_id;
    int *f_id, *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
 

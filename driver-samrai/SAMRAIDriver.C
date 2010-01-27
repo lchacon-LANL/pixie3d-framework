@@ -163,7 +163,7 @@ int main( int argc, char *argv[] )
        visit_writer = new appu::VisItDataWriter<NDIM>("pixie3d visualizer", write_path);       
        string var_name;
        stringstream stream;
-       for (int i=0; i<NVAR; i++) 
+       for (int i=0; i<application->getNumberOfDependentVariables(); i++) 
 	 {
 	   stream << "x(" << i << ")"; 
 	   var_name = stream.str();

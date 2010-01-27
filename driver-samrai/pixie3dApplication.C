@@ -480,7 +480,7 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 	 }
      }
 
-   // Get BC_seq
+   // Get d_BoundaryConditionSequence
    // Loop through hierarchy
    int it=0;
    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
@@ -491,18 +491,18 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
        // Loop through the different patches
        for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
 	 {
-	   // Get BC_seq
+	   // Get d_BoundaryConditionSequence
 #ifdef absoft
-	   FORTRAN_NAME(GETBC)(level_container->getPtr(p()),&nbc_seq,&bc_seq, &it);
+	   FORTRAN_NAME(GETBC)(level_container->getPtr(p()),&d_NumberOfBoundaryConditions,&d_BoundaryConditionSequence, &it);
 #else
-	   FORTRAN_NAME(getbc)(level_container->getPtr(p()),&nbc_seq,&bc_seq, &it);
+	   FORTRAN_NAME(getbc)(level_container->getPtr(p()),&d_NumberOfBoundaryConditions,&d_BoundaryConditionSequence, &it);
 #endif
 	 }
      }
    
-   for (int i=0; i<nbc_seq; i++)
+   for (int i=0; i<d_NumberOfBoundaryConditions; i++)
      {
-       tbox::pout << "BC(" << i+1 << ",:) = " << bc_seq[i] << ", " << bc_seq[i+nbc_seq] << "\n";
+       tbox::pout << "BC(" << i+1 << ",:) = " << d_BoundaryConditionSequence[i] << ", " << d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions] << "\n";
      }
    
    // Apply boundary conditions
@@ -777,7 +777,7 @@ void  pixie3dApplication::refineVariables(void)
    // moving from coarser to finer levels fill boundary conditions
    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
      {
-       for( int i=0; i<nbc_seq; i++)
+       for( int i=0; i<d_NumberOfBoundaryConditions; i++)
 	 {
 	   ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(i);            
 	   d_refine_schedules[ln]->fillData(0.0);
@@ -962,3 +962,10 @@ pixie3dApplication::generateTransferSchedules(void)
      }   
 }
 
+int
+pixie3dApplication::getNumberOfDependentVariables()
+{
+  //  assert(data!=NULL);
+  return data.nvar;
+}
+  

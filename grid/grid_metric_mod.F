@@ -623,8 +623,9 @@ c       NUMERICAL QUANTITIES ***********************************
 
           call findCellMetrics
 
+#if !defined(samrai)
           call findVertexMetrics
-
+#endif
           deallocate(dr)
           nullify(xc)
 
@@ -983,6 +984,7 @@ c     End program
 
       end subroutine findCellMetrics
 
+#if !defined(samrai)
 c     findVertexMetrics
 c     #################################################################
       subroutine findVertexMetrics
@@ -1109,7 +1111,8 @@ cc        enddo
 c     End program
 
       end subroutine findVertexMetrics
-
+#endif
+      
 c     gammaZeroForce
 c     #################################################################
       subroutine gammaZeroForce(igx,igy,igz)
