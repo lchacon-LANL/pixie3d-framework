@@ -181,6 +181,9 @@ c Interfaces
       INTERFACE
          subroutine nonlinearRHS(i,j,k,igx,igy,igz,varray,ff)
            use variable_setup
+           use timeStepping
+           implicit none
+           
            real(8) :: ff(neqd)
            integer :: i,j,k,igx,igy,igz
            type(var_array),pointer :: varray

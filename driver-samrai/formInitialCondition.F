@@ -54,8 +54,10 @@ c Interfaces
         subroutine evaluateNonlinearFunction(varray,fi)
         use parameters
         use variable_setup
+        use grid
+        implicit none
         type(var_array),pointer :: varray
-        real(8)          :: fi(:)
+        real(8)          :: fi(ntotd)
         end subroutine evaluateNonlinearFunction
       END INTERFACE
 
