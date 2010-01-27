@@ -45,6 +45,8 @@ cc      allocate(patch_var%aux_spec)
       gv => patch_var
       grid_params => gv%gparams
       gmetric => gv%gparams%gmetric
+      u_0 => gv%u_0
+
       call setVectorDimensions
 
 c Check for autoinitializing parameters

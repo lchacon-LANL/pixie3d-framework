@@ -175,7 +175,7 @@ c        patch_var%u_n%array_var(ieq)%array
 c     .      = patch_var%u_np%array_var(ieq)%array
 c      enddo
 
-c      call deallocateDerivedType(u_np)
+      call deallocateDerivedType(u_np)
 
 c End program
 
@@ -227,7 +227,7 @@ c Perturb equilibrium
         time     = 0d0
         inewtime = 1
 
-        varraynp = varrayn
+        call equateDerivedType(varraynp,varrayn)
 
       else
 

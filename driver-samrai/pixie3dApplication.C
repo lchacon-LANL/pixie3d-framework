@@ -660,7 +660,7 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
   
   // Copy r
   r->copyVector(d_f);
-  
+  r->scale(-1.0, r);
 }
 
 /***********************************************************************
