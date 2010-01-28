@@ -40,15 +40,15 @@ c Local variables
 
 c Interfaces
 
-c      INTERFACE
-c         subroutine evaluateNonlinearFunction(varray,fi)
-c           use parameters
-c           use variable_setup
-c           use grid
-c           real(8) :: fi(n_elem)
-c           type (var_array),pointer :: varray
-c         end subroutine evaluateNonlinearFunction
-c      END INTERFACE
+      INTERFACE
+         subroutine evaluateNonlinearFunction(varray,fi)
+           use parameters
+           use variable_setup
+           use grid
+           real(8) :: fi(ntotd)
+           type (var_array),pointer :: varray
+         end subroutine evaluateNonlinearFunction
+      END INTERFACE
 
 c Begin program
 
@@ -79,7 +79,8 @@ cc      jmin = patch_var%gparams%jlog
 cc      jmax = patch_var%gparams%jhig
 cc      kmin = patch_var%gparams%klog
 cc      kmax = patch_var%gparams%khig
-cc      varray => patch_var%u_n
+
+      varray => patch_var%u_n
 cc
 ccc Set pointers for data
 cc      pcnv => gv%aux_spec%pcnv
@@ -116,8 +117,10 @@ c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
 c Assign ff (vector) to f (PETSc array)
 
+#if !defined(samrai)
       call defineTSParameters
-
+#endif
+      
       do k = kmin,kmax
         do j = jmin,jmax
           do i = imin,imax

@@ -22,7 +22,7 @@
 // this to 1 otherwise set it to 0.  Note: the refine operator must
 // support a stencil width of 0 in the z-direction if this is set
 #ifndef IS2D
-   #define IS2D 1
+#define IS2D 2
 #endif
 
 
@@ -224,6 +224,9 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
    // Check for consistency between domain sizes
    tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry = d_hierarchy->getGridGeometry();
 
+   const double *lowerCoordinates = grid_geometry->getXLower();
+   const double *upperCoordinates = grid_geometry->getXUpper();
+   
    const SAMRAI::hier::BoxArray<NDIM> &physicalDomain = grid_geometry->getPhysicalDomain() ;
 
    assert(grid_geometry->getDomainIsSingleBox());
@@ -418,12 +421,14 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
        for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++) {
          tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p());
          level_container->CreatePatch(p(),
-				      patch,
-				      data.nvar,
-				      u0_id,
-				      u_id,
-				      data.nauxs, auxs_id,
-				      data.nauxv,auxv_id);
+				patch,
+				lowerCoordinates,      
+				upperCoordinates,      
+				data.nvar,
+			               u0_id,
+				 u_id,
+				 data.nauxs, auxs_id,
+				 data.nauxv,auxv_id);
        }
      }
 
@@ -618,9 +623,9 @@ pixie3dApplication::apply(const int *f_id,
  *                                                                      *
  ***********************************************************************/
 void
-pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  f,
-			   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  x,
-			   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  r,
+pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  &f,
+			   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  &x,
+			   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  &r,
 			   double a, double b)
 {
   // Copy x

@@ -116,9 +116,9 @@ public:
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > get_x() { return(d_x); }
 
    // Evaluate IVP forcing term.
-   void apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  f,
-	       tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  x,
-	       tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  r,
+   void apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  &f,
+	       tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  &x,
+	       tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  &r,
                double a = -1.0, double b=1.0 );
 
    // Evaluate IVP forcing term.
