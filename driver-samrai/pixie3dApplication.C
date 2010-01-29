@@ -14,7 +14,8 @@
 // Maximum ghost cell width
 // If it does not equal 1 there will be extra copies during the refinement
 #ifndef GHOST
-   #define GHOST 2
+//   #define GHOST 2
+   #define GHOST 1
 #endif
 
 // This forces the ghost cell width to be 1 in the z-direction
@@ -109,19 +110,7 @@ extern void FORTRAN_NAME(evaluatenonlinearresidual) (void*, int*, double*, void*
 ***********************************************************************/
 pixie3dApplication::pixie3dApplication()
 {
-   /*d_number_solution_components = 0;
 
-   d_hierarchy.setNull();
-   d_solution.setNull();
-   d_application_ctx.setNull();
-
-   d_initial_conditions_id  = -1;
-   d_test_problem_source_id = -1;
-   d_laplacian_result_id    = -1;
-
-   d_data_server = (TagAndInitDataServer*) NULL;
-   d_laplace_operator = (LaplaceOperator*) NULL;
-   d_test_problem = (TestProblemStrategy*) NULL;*/
 }
 
 
@@ -136,8 +125,8 @@ pixie3dApplication::pixie3dApplication( const pixie3dApplicationParameters* para
    d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
 
    //d_refine_op_str  = "CONSTANT_REFINE";
-   //d_refine_op_str  = "LINEAR_REFINE";   
-   d_refine_op_str  = "CELL_DOUBLE_CUBIC_REFINE";
+   d_refine_op_str  = "LINEAR_REFINE";   
+   //   d_refine_op_str  = "CELL_DOUBLE_CUBIC_REFINE";
 
    d_RefineSchedulesGenerated=false;
 
@@ -186,14 +175,6 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
    d_hierarchy = parameters->d_hierarchy;
 
    tbox::pout << "Initializing\n";
-
-   // Get input file name (not needed, it loads pixie3d.in from operating directory)
-   /*string input_file;
-   if ( parameters->d_db->keyExists("input_file") ) {
-      input_file = parameters->d_db->getString("input_file");
-   } else {
-      TBOX_ERROR( " Key data 'file' missing in input " );
-   }*/
    
    // Load input file
    data.npx = 0;
@@ -267,18 +248,15 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
       ghost2(2) = 1;
    hier::VariableDatabase<NDIM>* var_db = hier::VariableDatabase<NDIM>::getDatabase();
    tbox::Pointer<hier::VariableContext> context_x = var_db->getContext("pixie3d-x");
-   tbox::Pointer<hier::VariableContext> context_f = var_db->getContext("pixie3d-f");
    tbox::Pointer<hier::VariableContext> context_xt = var_db->getContext("pixie3d-x_tmp");
    tbox::Pointer<hier::VariableContext> context_in = var_db->getContext("pixie3d-initial");
-   tbox::Pointer<hier::VariableContext> context_eq = var_db->getContext("pixie3d-equilibrium");
+   tbox::Pointer<hier::VariableContext> context_f = var_db->getContext("pixie3d-source");
    tbox::Pointer< pdat::CellVariable<NDIM,double> > var;
    int var_id;
    std::string var_name;
    d_x = new solv::SAMRAIVectorReal<NDIM,double>("xVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-   d_f = new solv::SAMRAIVectorReal<NDIM,double>("fVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
    d_x_tmp = new solv::SAMRAIVectorReal<NDIM,double>("xTmpVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
    d_initial = new solv::SAMRAIVectorReal<NDIM,double>("xInitialVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-   d_equilibrium = new solv::SAMRAIVectorReal<NDIM,double>("xEquilibriumVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
 
    std::stringstream stream;
    for (int i=0; i<data.nvar; i++)
@@ -289,28 +267,20 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
        var = new pdat::CellVariable<NDIM,double>( var_name, 1 );
        var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
        d_x->addComponent( var, var_id );
-       var_id = var_db->registerVariableAndContext(var, context_f, ghost1);
-       d_f->addComponent( var, var_id );
        var_id = var_db->registerVariableAndContext(var, context_xt, ghost2);
        d_x_tmp->addComponent( var, var_id );
        var_id = var_db->registerVariableAndContext(var, context_in, ghost1);
        d_initial->addComponent( var, var_id );
-       var_id = var_db->registerVariableAndContext(var, context_eq, ghost1);
-      d_equilibrium->addComponent( var, var_id );
      }
 
    // allocate data for all variables on all levels
    d_x->allocateVectorData();
-   d_f->allocateVectorData();
    d_x_tmp->allocateVectorData();
    d_initial->allocateVectorData();
-   d_equilibrium->allocateVectorData();
 
    // set to negative values
    d_x->setToScalar( -1.0 );
-   d_f->setToScalar( -1.0 );
    d_initial->setToScalar( -1.0 );
-   d_equilibrium->setToScalar( -1.0 );
 
    // Allocate data for auxillary variables
    tbox::Pointer<hier::VariableContext> context_aux = var_db->getContext("pixie3d-aux");
@@ -399,11 +369,6 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
    for (int i=0; i<data.nauxv; i++)
      {
        auxv_tmp_id[i] = d_aux_vector_tmp->getComponentDescriptorIndex(i);
-     }
-   
-   for (int i=0; i<data.nvar; i++)
-     {
-       f_id[i] = d_f->getComponentDescriptorIndex(i);
      }
    
    LevelContainer *level_container;
@@ -612,6 +577,11 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
   // Apply boundary conditions
   synchronizeVariables();
   
+  for (int i=0; i<data.nvar; i++)
+    {
+      f_id[i] = r->getComponentDescriptorIndex(i);
+    }
+	
   // Call EvaluateFunction
   // Loop through hierarchy
   for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) 
@@ -639,8 +609,6 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
       }
     }
   
-  // Copy r
-  r->copyVector(d_f);
   r->scale(-1.0,r);
 }
 

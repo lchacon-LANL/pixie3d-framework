@@ -153,11 +153,10 @@ private:
    // Data Variables
    PetscReal time;
    double d_initial_time;
-   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_equilibrium;
+
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_initial;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x_tmp;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x;
-   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_f;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_scalar;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_vector;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_scalar_tmp;
