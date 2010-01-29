@@ -23,7 +23,7 @@
 // this to 1 otherwise set it to 0.  Note: the refine operator must
 // support a stencil width of 0 in the z-direction if this is set
 #ifndef IS2D
-#define IS2D 2
+#define IS2D 1
 #endif
 
 
