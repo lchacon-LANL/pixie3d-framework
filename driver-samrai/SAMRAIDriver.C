@@ -204,6 +204,10 @@ int main( int argc, char *argv[] )
    
    int iteration_num = 0;
 
+   // this changes the set of applied boundary conditions
+   // check with Luis if this is in the right place
+   application->setBoundarySchedules(false);
+   
    while (current_time < final_time)
      {       
        iteration_num++;

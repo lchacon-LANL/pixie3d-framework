@@ -139,6 +139,8 @@ pixie3dApplication::pixie3dApplication( const pixie3dApplicationParameters* para
    //d_refine_op_str  = "LINEAR_REFINE";   
    d_refine_op_str  = "CELL_DOUBLE_CUBIC_REFINE";
 
+   d_RefineSchedulesGenerated=false;
+
    initialize( parameters );
 }
 
@@ -431,9 +433,6 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
 				 data.nauxv,auxv_id);
        }
      }
-
-   // Setup transfer schedule
-   generateTransferSchedules();
    
 }
 
@@ -485,30 +484,7 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 	 }
      }
 
-   // Get d_BoundaryConditionSequence
-   // Loop through hierarchy
-   int it=0;
-   for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
-     {
-       tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
-       // Get the Level container
-       LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
-       // Loop through the different patches
-       for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
-	 {
-	   // Get d_BoundaryConditionSequence
-#ifdef absoft
-	   FORTRAN_NAME(GETBC)(level_container->getPtr(p()),&d_NumberOfBoundaryConditions,&d_BoundaryConditionSequence, &it);
-#else
-	   FORTRAN_NAME(getbc)(level_container->getPtr(p()),&d_NumberOfBoundaryConditions,&d_BoundaryConditionSequence, &it);
-#endif
-	 }
-     }
-   
-   for (int i=0; i<d_NumberOfBoundaryConditions; i++)
-     {
-       tbox::pout << "BC(" << i+1 << ",:) = " << d_BoundaryConditionSequence[i] << ", " << d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions] << "\n";
-     }
+   setBoundarySchedules(true);
    
    // Apply boundary conditions
    synchronizeVariables();
@@ -665,6 +641,7 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
   
   // Copy r
   r->copyVector(d_f);
+  r->scale(-1.0,r);
 }
 
 /***********************************************************************
@@ -785,10 +762,11 @@ void  pixie3dApplication::refineVariables(void)
      {
        for( int i=0; i<d_NumberOfBoundaryConditions; i++)
 	 {
-	   int cId = d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions];
+	   int cId = d_BoundaryConditionSequence[i];
+	   int varType = d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions];
 	   int idx = abs(cId)-1;
 
-	   if(d_BoundaryConditionSequence[i]==0)
+	   if(varType==0)
 	     {
 	       xfer::RefineAlgorithm<NDIM> refineScalarAlgorithm;
 
@@ -810,7 +788,7 @@ void  pixie3dApplication::refineVariables(void)
 	       refineScalarAlgorithm.registerRefine( data_id, data_id, data_id,
 						     grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
 	       refineScalarAlgorithm.resetSchedule(d_refineScalarSchedules[ln]);
-	       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(cId);            
+	       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(i);            
 	       d_refineScalarSchedules[ln]->fillData(0.0);
 
 	       // call applybc for interior patches
@@ -831,7 +809,7 @@ void  pixie3dApplication::refineVariables(void)
 	     }
 	   
 	   // next do the registerRefine for a vector of components
-	   if((d_BoundaryConditionSequence[i]==1)&&(cId>0))
+	   if((varType==1)&&(cId>0))
 	     {
 	       xfer::RefineAlgorithm<NDIM> refineVectorComponentAlgorithm;
 	       // a vector will be composed of NDIM scalar components for the dependent variables
@@ -852,7 +830,7 @@ void  pixie3dApplication::refineVariables(void)
 								    grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
 		 }
 	       refineVectorComponentAlgorithm.resetSchedule(d_refineVectorComponentSchedules[ln]);
-	       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(cId);            
+	       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(i);            
 	       d_refineVectorComponentSchedules[ln]->fillData(0.0);
 
 	       // call applybc for interior patches
@@ -869,7 +847,7 @@ void  pixie3dApplication::refineVariables(void)
 	     }
 	   
 	   // next do the registerRefine for an auxillary vector
-	   if((d_BoundaryConditionSequence[i]==1)&&(cId<0))
+	   if((varType==1)&&(cId<0))
 	     {
 	       xfer::RefineAlgorithm<NDIM> refineVectorAlgorithm;
 	       if ( GHOST == 1 )
@@ -886,7 +864,7 @@ void  pixie3dApplication::refineVariables(void)
 	       refineVectorAlgorithm.registerRefine( data_id, data_id, data_id,
 						     grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
 	       refineVectorAlgorithm.resetSchedule(d_refineVectorSchedules[ln]);
-	       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(cId);            
+	       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(i);            
 	       d_refineVectorSchedules[ln]->fillData(0.0);
 
 	       // call applybc for interior patches
@@ -918,12 +896,51 @@ void  pixie3dApplication::refineVariables(void)
      }  
 }
 
+void
+pixie3dApplication::setBoundarySchedules(bool bIsInitialTime)
+{
+
+  int it=(bIsInitialTime)?0:1;
+  
+  // Get d_BoundaryConditionSequence
+  // we need to call this before the call to refine as the bc schedules have to be set correctly
+  
+   // Loop through hierarchy
+   for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
+     {
+       tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
+       // Get the Level container
+       LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
+       // Loop through the different patches
+       for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
+	 {
+	   // Get d_BoundaryConditionSequence
+#ifdef absoft
+	   FORTRAN_NAME(GETBC)(level_container->getPtr(p()),&d_NumberOfBoundaryConditions,&d_BoundaryConditionSequence, &it);
+#else
+	   FORTRAN_NAME(getbc)(level_container->getPtr(p()),&d_NumberOfBoundaryConditions,&d_BoundaryConditionSequence, &it);
+#endif
+	 }
+     }
+   
+   for (int i=0; i<d_NumberOfBoundaryConditions; i++)
+     {
+       tbox::pout << "BC(" << i+1 << ",:) = " << d_BoundaryConditionSequence[i] << ", " << d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions] << "\n";
+     }
+   
+}
 
 /***********************************************************************
 * Apply the coarse and refine operators                                *
 ***********************************************************************/
 void pixie3dApplication::synchronizeVariables(void)
 {
+  if(!d_RefineSchedulesGenerated)
+    {
+      generateTransferSchedules();
+      d_RefineSchedulesGenerated=true;
+    }
+  
    coarsenVariables();
    refineVariables();
 }
@@ -1000,10 +1017,11 @@ pixie3dApplication::generateTransferSchedules(void)
 
    for(int i=0; i<d_NumberOfBoundaryConditions; i++)
      {
-       int cId = d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions];
+       int cId = d_BoundaryConditionSequence[i];
+       int varType = d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions];
        int idx = abs(cId)-1;
        // first do the registerRefine for a scalar
-       if(bScalarAlgorithmNotFound && (d_BoundaryConditionSequence[i]==0))
+       if(bScalarAlgorithmNotFound && (varType==0))
 	 {
 	   
 	   bScalarAlgorithmNotFound=false;
@@ -1029,7 +1047,7 @@ pixie3dApplication::generateTransferSchedules(void)
 	 }
        
        // next do the registerRefine for a vector of components
-       if(bVectorComponentAlgorithmNotFound && (d_BoundaryConditionSequence[i]==1)&&(cId>0))
+       if(bVectorComponentAlgorithmNotFound && (varType==1)&&(cId>0))
 	 {
 	   
 	   bVectorComponentAlgorithmNotFound=false;
@@ -1055,7 +1073,7 @@ pixie3dApplication::generateTransferSchedules(void)
 	 }
        
        // next do the registerRefine for a vector
-       if(bVectorAlgorithmNotFound && (d_BoundaryConditionSequence[i]==1)&&(cId<0))
+       if(bVectorAlgorithmNotFound && (varType==1)&&(cId<0))
 	 {
 	   
 	   bVectorAlgorithmNotFound=false;

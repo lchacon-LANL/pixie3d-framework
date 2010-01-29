@@ -127,6 +127,8 @@ public:
    // Print identifying string.
    void printObjectName( std::ostream& os );
 
+   void setBoundarySchedules(bool bIsInitialTime);
+   
 private:
    
    void printVector( const tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > vector);
@@ -147,7 +149,7 @@ private:
 
    // Hierarchy
    tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
-
+   
    // Data Variables
    PetscReal time;
    double d_initial_time;
@@ -163,6 +165,9 @@ private:
    tbox::Pointer< pdat::CellVariable<NDIM,double> > d_f_src;
    int f_src_id;
    int d_number_solution_components;
+
+   bool d_RefineSchedulesGenerated;
+   
    tbox::Array< tbox::Pointer< hier::Variable<NDIM> > > d_variable_list;
    void **level_container_array;
 
