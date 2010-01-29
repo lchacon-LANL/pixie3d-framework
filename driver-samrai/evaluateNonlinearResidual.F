@@ -2,7 +2,7 @@ c evaluateNonlinearResidual
 c####################################################################
       subroutine evaluateNonlinearResidual(patch_var,n_elem,fsrc,f)
 c--------------------------------------------------------------------
-c     Calculates Fi(Uj) in equations of the form: dt Ui + Fi(Uj) = 0
+c     Calculates Fi(Uj) in equations of the form: dt Ui = Fi(Uj)
 c--------------------------------------------------------------------
 
       use parameters

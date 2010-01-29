@@ -186,9 +186,15 @@ private:
    //tbox::Pointer<xfer::RefineOperator<NDIM> > x_refine_op;
 
    std::string d_refine_op_str;
-   xfer::RefineAlgorithm<NDIM> d_refine_algorithm;
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refine_schedules;
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_level_schedules;
+   xfer::RefineAlgorithm<NDIM> d_refineScalarAlgorithm;
+   xfer::RefineAlgorithm<NDIM> d_refineVectorComponentAlgorithm;
+   xfer::RefineAlgorithm<NDIM> d_refineVectorAlgorithm;
+
+   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_levelSchedules;
+   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineScalarSchedules;
+   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorComponentSchedules;
+   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorSchedules;
+
    xfer::RefinePatchStrategy<NDIM> *d_refine_strategy; 
 
    std::string d_coarsen_op_str;
