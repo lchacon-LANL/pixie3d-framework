@@ -786,6 +786,7 @@ void  pixie3dApplication::refineVariables(void)
        for( int i=0; i<d_NumberOfBoundaryConditions; i++)
 	 {
 	   int cId = d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions];
+	   int idx = abs(cId)-1;
 
 	   if(d_BoundaryConditionSequence[i]==0)
 	     {
@@ -794,15 +795,15 @@ void  pixie3dApplication::refineVariables(void)
 	       if ( GHOST == 1 )
 		 {
 	       
-		   var0 = (cId>0)? d_x->getComponentVariable(cId) : d_aux_scalar->getComponentVariable(-cId);
-		   data_id = (cId>0) ? d_x->getComponentDescriptorIndex(cId):d_aux_scalar->getComponentDescriptorIndex(-cId) ;
+		   var0 = (cId>0)? d_x->getComponentVariable(idx) : d_aux_scalar->getComponentVariable(idx);
+		   data_id = (cId>0) ? d_x->getComponentDescriptorIndex(idx):d_aux_scalar->getComponentDescriptorIndex(idx) ;
 		   
 		 }
 	       else
 		 {
 		   
-		   var0 = (cId>0)? d_x_tmp->getComponentVariable(cId) : d_aux_scalar_tmp->getComponentVariable(-cId);
-		   data_id = (cId>0) ? d_x_tmp->getComponentDescriptorIndex(cId):d_aux_scalar_tmp->getComponentDescriptorIndex(-cId) ;
+		   var0 = (cId>0)? d_x_tmp->getComponentVariable(idx) : d_aux_scalar_tmp->getComponentVariable(idx);
+		   data_id = (cId>0) ? d_x_tmp->getComponentDescriptorIndex(idx):d_aux_scalar_tmp->getComponentDescriptorIndex(idx) ;
 		   
 		 }
 	       
@@ -838,13 +839,13 @@ void  pixie3dApplication::refineVariables(void)
 		 {
 		   if ( GHOST == 1 )
 		     {
-		       var0 = d_x->getComponentVariable(cId+j);
-		       data_id = d_x->getComponentDescriptorIndex(cId+j);
+		       var0 = d_x->getComponentVariable(idx+j);
+		       data_id = d_x->getComponentDescriptorIndex(idx+j);
 		     }
 		   else
 		     {
-		       var0 = d_x_tmp->getComponentVariable(cId+j);
-		       data_id = d_x_tmp->getComponentDescriptorIndex(cId+j);
+		       var0 = d_x_tmp->getComponentVariable(idx+j);
+		       data_id = d_x_tmp->getComponentDescriptorIndex(idx+j);
 		     }
 		   
 		   refineVectorComponentAlgorithm.registerRefine( data_id, data_id, data_id,
@@ -873,13 +874,13 @@ void  pixie3dApplication::refineVariables(void)
 	       xfer::RefineAlgorithm<NDIM> refineVectorAlgorithm;
 	       if ( GHOST == 1 )
 		 {
-		   var0 = d_aux_vector->getComponentVariable(-cId);
-		   data_id = d_aux_vector->getComponentDescriptorIndex(-cId);
+		   var0 = d_aux_vector->getComponentVariable(idx);
+		   data_id = d_aux_vector->getComponentDescriptorIndex(idx);
 		 }
 	       else
 		 {
-		   var0 = d_aux_vector_tmp->getComponentVariable(-cId);
-		   data_id = d_aux_vector_tmp->getComponentDescriptorIndex(-cId);
+		   var0 = d_aux_vector_tmp->getComponentVariable(idx);
+		   data_id = d_aux_vector_tmp->getComponentDescriptorIndex(idx);
 		 }
 	       
 	       refineVectorAlgorithm.registerRefine( data_id, data_id, data_id,
@@ -1000,7 +1001,7 @@ pixie3dApplication::generateTransferSchedules(void)
    for(int i=0; i<d_NumberOfBoundaryConditions; i++)
      {
        int cId = d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions];
-       
+       int idx = abs(cId)-1;
        // first do the registerRefine for a scalar
        if(bScalarAlgorithmNotFound && (d_BoundaryConditionSequence[i]==0))
 	 {
@@ -1010,15 +1011,15 @@ pixie3dApplication::generateTransferSchedules(void)
 	   if ( GHOST == 1 )
 	     {
 	       
-	       var0 = (cId>0)? d_x->getComponentVariable(cId) : d_aux_scalar->getComponentVariable(-cId);
-	       data_id = (cId>0) ? d_x->getComponentDescriptorIndex(cId):d_aux_scalar->getComponentDescriptorIndex(-cId) ;
+	       var0 = (cId>0)? d_x->getComponentVariable(idx) : d_aux_scalar->getComponentVariable(idx);
+	       data_id = (cId>0) ? d_x->getComponentDescriptorIndex(idx):d_aux_scalar->getComponentDescriptorIndex(idx) ;
 	       
 	     }
 	   else
 	     {
 	       
-	       var0 = (cId>0)? d_x_tmp->getComponentVariable(cId) : d_aux_scalar_tmp->getComponentVariable(-cId);
-	       data_id = (cId>0) ? d_x_tmp->getComponentDescriptorIndex(cId):d_aux_scalar_tmp->getComponentDescriptorIndex(-cId) ;
+	       var0 = (cId>0)? d_x_tmp->getComponentVariable(idx) : d_aux_scalar_tmp->getComponentVariable(idx);
+	       data_id = (cId>0) ? d_x_tmp->getComponentDescriptorIndex(idx):d_aux_scalar_tmp->getComponentDescriptorIndex(idx) ;
 	       
 	     }
 
@@ -1038,13 +1039,13 @@ pixie3dApplication::generateTransferSchedules(void)
 	     {
 	       if ( GHOST == 1 )
 		 {
-		   var0 = d_x->getComponentVariable(cId+j);
-		   data_id = d_x->getComponentDescriptorIndex(cId+j);
+		   var0 = d_x->getComponentVariable(idx+j);
+		   data_id = d_x->getComponentDescriptorIndex(idx+j);
 		 }
 	       else
 		 {
-		   var0 = d_x_tmp->getComponentVariable(cId+j);
-		   data_id = d_x_tmp->getComponentDescriptorIndex(cId+j);
+		   var0 = d_x_tmp->getComponentVariable(idx+j);
+		   data_id = d_x_tmp->getComponentDescriptorIndex(idx+j);
 		 }
 	       
 	       levelAlgorithm.registerRefine( data_id, data_id, data_id, NULL);
@@ -1061,13 +1062,13 @@ pixie3dApplication::generateTransferSchedules(void)
 	   
 	   if ( GHOST == 1 )
 	     {
-	       var0 = d_aux_vector->getComponentVariable(-cId);
-	       data_id = d_aux_vector->getComponentDescriptorIndex(-cId);
+	       var0 = d_aux_vector->getComponentVariable(idx);
+	       data_id = d_aux_vector->getComponentDescriptorIndex(idx);
 	     }
 	   else
 	     {
-	       var0 = d_aux_vector_tmp->getComponentVariable(-cId);
-	       data_id = d_aux_vector_tmp->getComponentDescriptorIndex(-cId);
+	       var0 = d_aux_vector_tmp->getComponentVariable(idx);
+	       data_id = d_aux_vector_tmp->getComponentDescriptorIndex(idx);
 	     }
 	   
 	   levelAlgorithm.registerRefine( data_id, data_id, data_id, NULL);
