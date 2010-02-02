@@ -80,13 +80,7 @@ public:
    void postprocessRefine( hier::Patch<NDIM>& fine,
                            const hier::Patch<NDIM>& coarse,
                            const hier::Box<NDIM>& fine_box,
-                           const hier::IntVector<NDIM>& ratio ) 
-   {
-      (void) fine;
-      (void) coarse;
-      (void) fine_box;
-      (void) ratio;
-   } 
+                           const hier::IntVector<NDIM>& ratio ) ;
 
    /**
     * Return maximum stencil width needed for user-defined 

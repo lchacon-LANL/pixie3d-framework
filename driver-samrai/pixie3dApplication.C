@@ -88,6 +88,7 @@ extern "C" {
 extern void FORTRAN_NAME(GETBE)(void*, int*, int**);
 extern void FORTRAN_NAME(FORTRANDESTROY) ();
 extern void FORTRAN_NAME(READINPUTFILE) (input_CTX*);
+extern void FORTRAN_NAME(CREATEGRIDSTRUCTURES) (void*);
 extern void FORTRAN_NAME(FORMEQUILIBRIUM) (void*);
 extern void FORTRAN_NAME(INITIALIZE_U_N) (void*);
 extern void FORTRAN_NAME(FORMINITIALCONDITION) (void*, int*, double*);
@@ -96,6 +97,7 @@ extern void FORTRAN_NAME(EVALUATENONLINEARRESIDUAL) (void*, int*, double*, void*
   extern void FORTRAN_NAME(getbc)(void*, int*, int**, int*);
 extern void FORTRAN_NAME(fortrandestroy) ();
 extern void FORTRAN_NAME(readinputfile) (input_CTX*);
+extern void FORTRAN_NAME(creategridstructures) (void*);
 extern void FORTRAN_NAME(formequilibrium) (void*);
 extern void FORTRAN_NAME(initialize_u_n) (void*);
 extern void FORTRAN_NAME(forminitialcondition) (void*, int*, double*);
@@ -279,8 +281,8 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
    d_initial->allocateVectorData();
 
    // set to negative values
-   d_x->setToScalar( -1.0 );
-   d_initial->setToScalar( -1.0 );
+   d_x->setToScalar( -1.0, false );
+   d_initial->setToScalar( -1.0, false );
 
    // Allocate data for auxillary variables
    tbox::Pointer<hier::VariableContext> context_aux = var_db->getContext("pixie3d-aux");
@@ -316,14 +318,14 @@ pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
    d_aux_scalar->allocateVectorData();
    d_aux_vector->allocateVectorData();
    
-   d_aux_scalar->setToScalar( -1.0 );
-   d_aux_vector->setToScalar( -1.0 );
+   d_aux_scalar->setToScalar( 0.0, false );
+   d_aux_vector->setToScalar( 0.0, false );
 
    d_aux_scalar_tmp->allocateVectorData();
    d_aux_vector_tmp->allocateVectorData();
 
-   d_aux_scalar_tmp->setToScalar( -1.0 );
-   d_aux_vector_tmp->setToScalar( -1.0 );
+   d_aux_scalar_tmp->setToScalar( 0.0, false );
+   d_aux_vector_tmp->setToScalar( 0.0, false );
    
    // Allocate data for f_src
    d_f_src = new pdat::CellVariable<NDIM,double>( "fsrc", data.nvar );
@@ -411,6 +413,32 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 {
    d_initial_time = initial_time;
 
+  
+   // create the necessary grid structures and allocate variables
+   // Loop through hierarchy
+   for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
+     {
+       tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
+       // Get the Level container
+       LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
+       // Loop through the different patches
+       for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
+	 {
+	   // Form Equilibium
+#ifdef absoft
+	   FORTRAN_NAME(CREATEGRIDSTRUCTURES)(level_container->getPtr(p()));
+#else
+	   FORTRAN_NAME(creategridstructures)(level_container->getPtr(p()));
+#endif
+	 }
+     }
+
+   //set the boundary schedules before forming an equilibrium
+   setBoundarySchedules(true);
+   
+   // Apply boundary conditions
+   synchronizeVariables();
+   
    // Form equilibrium
    // Loop through hierarchy
    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
@@ -449,11 +477,6 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 	 }
      }
 
-   setBoundarySchedules(true);
-   
-   // Apply boundary conditions
-   synchronizeVariables();
-   
    // Form initial conditions
    // Loop through hierarchy
    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
@@ -608,8 +631,6 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
 	delete varray;
       }
     }
-  
-  r->scale(-1.0,r);
 }
 
 /***********************************************************************
@@ -730,10 +751,33 @@ void  pixie3dApplication::refineVariables(void)
      {
        for( int i=0; i<d_NumberOfBoundaryConditions; i++)
 	 {
+	   ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(i);            
+
 	   int cId = d_BoundaryConditionSequence[i];
 	   int varType = d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions];
 	   int idx = abs(cId)-1;
+	   
+	   // call applybc for interior patches
+	   // we are forced to do this on the coarsest level for individual patches because if a patch touches
+	   // no physical boundary conditions then the apply bc might not be called for it
+	   // which might result in some boundaries not being set correctly
+	   // on finer levels this detail is taken care of (need to confirm)
+	   // by the postprocessRefine call
 
+	   if(ln==0) 
+	     {
+	       tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
+	       for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
+		 {
+		   tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p());
+		   bool touches_boundary = ((pixie3dRefinePatchStrategy*) d_refine_strategy)->checkPhysicalBoundary(*patch);
+		   if ( !touches_boundary )
+		     {
+		       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPhysicalBoundaryConditions(*patch,0.0,hier::IntVector<NDIM>::IntVector(1));
+		     }
+		 }
+	     }
+	   
 	   if(varType==0)
 	     {
 	       xfer::RefineAlgorithm<NDIM> refineScalarAlgorithm;
@@ -756,24 +800,7 @@ void  pixie3dApplication::refineVariables(void)
 	       refineScalarAlgorithm.registerRefine( data_id, data_id, data_id,
 						     grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
 	       refineScalarAlgorithm.resetSchedule(d_refineScalarSchedules[ln]);
-	       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(i);            
 	       d_refineScalarSchedules[ln]->fillData(0.0);
-
-	       // call applybc for interior patches
-	       // we are forced to do this on the level for individual patches because if a patch touches
-	       // no physical boundary conditions then the apply bc might not be called for it
-	       // which might result in some boundaries not being set correctly
-	       tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
-	       for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
-		 {
-		   tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p());
-		   bool touches_boundary = ((pixie3dRefinePatchStrategy*) d_refine_strategy)->checkPhysicalBoundary(*patch);
-		   if ( !touches_boundary )
-		     {
-		       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPhysicalBoundaryConditions(*patch,0.0,hier::IntVector<NDIM>::IntVector(1));
-		     }
-		 }
-	       
 	     }
 	   
 	   // next do the registerRefine for a vector of components
@@ -798,20 +825,8 @@ void  pixie3dApplication::refineVariables(void)
 								    grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
 		 }
 	       refineVectorComponentAlgorithm.resetSchedule(d_refineVectorComponentSchedules[ln]);
-	       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(i);            
 	       d_refineVectorComponentSchedules[ln]->fillData(0.0);
 
-	       // call applybc for interior patches
-	       tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
-	       for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
-		 {
-		   tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p());
-		   bool touches_boundary = ((pixie3dRefinePatchStrategy*) d_refine_strategy)->checkPhysicalBoundary(*patch);
-		   if ( !touches_boundary )
-		     {
-		       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPhysicalBoundaryConditions(*patch,0.0,hier::IntVector<NDIM>::IntVector(1));
-		     }
-		 }
 	     }
 	   
 	   // next do the registerRefine for an auxillary vector
@@ -832,26 +847,9 @@ void  pixie3dApplication::refineVariables(void)
 	       refineVectorAlgorithm.registerRefine( data_id, data_id, data_id,
 						     grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
 	       refineVectorAlgorithm.resetSchedule(d_refineVectorSchedules[ln]);
-	       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(i);            
 	       d_refineVectorSchedules[ln]->fillData(0.0);
-
-	       // call applybc for interior patches
-	       tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
-	       for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
-		 {
-		   tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p());
-		   bool touches_boundary = ((pixie3dRefinePatchStrategy*) d_refine_strategy)->checkPhysicalBoundary(*patch);
-		   if ( !touches_boundary )
-		     {
-		       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPhysicalBoundaryConditions(*patch,0.0,hier::IntVector<NDIM>::IntVector(1));
-		     }
-		 }
 	     }
-       
 	 }
-
-       // the call to level schedules is necessary to make sure the patches not having physical boundaries have correctly set ghost cells
-       d_levelSchedules[ln]->fillData(0.0);
      }
 
    // Copy the data from the multiple ghost cell width variables to the single ghost cell width variables
@@ -972,8 +970,6 @@ pixie3dApplication::generateTransferSchedules(void)
 									    u_id, u_tmp_id, auxs_id, auxs_tmp_id, auxv_id, auxv_tmp_id );
      }
 
-   xfer::RefineAlgorithm<NDIM> levelAlgorithm;
-
    // do registerRefine for a scalar refine algorithm
    tbox::Pointer< hier::Variable<NDIM> > var0;
    int data_id;
@@ -1009,7 +1005,6 @@ pixie3dApplication::generateTransferSchedules(void)
 	       
 	     }
 
-	   levelAlgorithm.registerRefine( data_id, data_id, data_id, NULL);
 	   d_refineScalarAlgorithm.registerRefine( data_id, data_id, data_id,
 						   grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
 	 }
@@ -1034,7 +1029,6 @@ pixie3dApplication::generateTransferSchedules(void)
 		   data_id = d_x_tmp->getComponentDescriptorIndex(idx+j);
 		 }
 	       
-	       levelAlgorithm.registerRefine( data_id, data_id, data_id, NULL);
 	       d_refineVectorComponentAlgorithm.registerRefine( data_id, data_id, data_id,
 								grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
 	     }
@@ -1057,7 +1051,6 @@ pixie3dApplication::generateTransferSchedules(void)
 	       data_id = d_aux_vector_tmp->getComponentDescriptorIndex(idx);
 	     }
 	   
-	   levelAlgorithm.registerRefine( data_id, data_id, data_id, NULL);
 	   d_refineVectorAlgorithm.registerRefine( data_id, data_id, data_id,
 						   grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
 	 }
@@ -1070,13 +1063,11 @@ pixie3dApplication::generateTransferSchedules(void)
    d_refineVectorComponentSchedules.resizeArray(hierarchy_size);
    d_refineVectorSchedules.resizeArray(hierarchy_size);
 
-   d_levelSchedules.resizeArray(hierarchy_size);
    d_cell_coarsen_schedules.resizeArray(hierarchy_size);
    
    for (int ln=0; ln<hierarchy_size; ln++)
      {
        tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
-       d_levelSchedules[ln]                               = levelAlgorithm.createSchedule(level);
        d_refineScalarSchedules[ln]                   = d_refineScalarAlgorithm.createSchedule( level, ln-1, d_hierarchy, (xfer::RefinePatchStrategy<NDIM>*)d_refine_strategy );
        d_refineVectorComponentSchedules[ln] = d_refineVectorComponentAlgorithm.createSchedule( level, ln-1, d_hierarchy, (xfer::RefinePatchStrategy<NDIM>*)d_refine_strategy );
        d_refineVectorSchedules[ln]                   = d_refineVectorAlgorithm.createSchedule( level, ln-1, d_hierarchy, (xfer::RefinePatchStrategy<NDIM>*)d_refine_strategy );

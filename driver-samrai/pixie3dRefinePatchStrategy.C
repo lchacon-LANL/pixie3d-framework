@@ -164,10 +164,99 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
 
 }
 
+void
+pixie3dRefinePatchStrategy::postprocessRefine( hier::Patch<NDIM>& patch,
+					       const hier::Patch<NDIM>& coarse,
+					       const hier::Box<NDIM>& fine_box,
+					       const hier::IntVector<NDIM>& ratio )
+{
+  bool touches_boundary = this->checkPhysicalBoundary(patch);
+  if ( !touches_boundary )
+    {
+      assert(d_nvar>=0);
+      assert(d_nauxs>=0);
+      assert(d_nauxv>=0);
+      
+      if (patch.inHierarchy())
+	{
+	  // Patch is in the hierarchy, all is well
+	  const int ln = patch.getPatchLevelNumber();
+	  const int pn = patch.getPatchNumber();
+	  
+	  LevelContainer *level_container = (LevelContainer *) d_level_container_array[ln];
+	  assert(level_container!=NULL);
+	  
+	  void *pixie3d_data = level_container->getPtr(pn);
+	  assert(pixie3d_data!=NULL);
+	  
+	  // Copy the data from the temporary patch to the pixie patch
+	  if ( copy_data )
+	    {
+	      // Copy u         
+	      for (int i=0; i<d_nvar; i++)
+		{
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch.getPatchData(u_tmp_id[i]);
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch.getPatchData(u_id[i]);
+		  tmp2->copy(*tmp1);
+		}
+	      // Copy auxillary scalars
+	      for (int i=0; i<d_nauxs; i++)
+		{
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch.getPatchData(auxs_tmp_id[i]);
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch.getPatchData(auxs_id[i]);
+		  tmp2->copy(*tmp1);
+		}
+	      // Copy auxillary vectors
+	      for (int i=0; i<d_nauxv; i++)
+		{
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch.getPatchData(auxv_tmp_id[i]);
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch.getPatchData(auxv_id[i]);
+		  tmp2->copy(*tmp1);
+		}
+	    }
+	  
+#ifdef absoft
+	  FORTRAN_NAME(APPLYBC)(&d_data_id, pixie3d_data);
+#else
+	  FORTRAN_NAME(applybc)(&d_data_id, pixie3d_data);
+#endif
+	  
+	  // Copy the data from the pixie patch to the temporary patch
+	  if ( copy_data )
+	    {
+	      // Copy u         
+	      for (int i=0; i<d_nvar; i++)
+		{
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch.getPatchData(u_id[i]);
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch.getPatchData(u_tmp_id[i]);
+		  tmp2->copy(*tmp1);
+		}
+	      // Copy auxillary scalars
+	      for (int i=0; i<d_nauxs; i++)
+		{
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch.getPatchData(auxs_id[i]);
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch.getPatchData(auxs_tmp_id[i]);
+		  tmp2->copy(*tmp1);
+		}
+	      // Copy auxillary vectors
+	      for (int i=0; i<d_nauxv; i++)
+		{
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp1 = patch.getPatchData(auxv_id[i]);
+		  tbox::Pointer< pdat::CellData<NDIM,double> > tmp2 = patch.getPatchData(auxv_tmp_id[i]);
+		  tmp2->copy(*tmp1);
+		}
+	    }
+	}
+      else
+	{
+	  abort();
+	}
+    }
+}
 
 /***********************************************************************
 *                                                                      *
-* Set the id's for the variables (used for coping the data.            *
+* Set the id's for the variables (used for copying the data.            *
 *                                                                      *
 ***********************************************************************/
 void

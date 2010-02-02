@@ -180,21 +180,11 @@ private:
    tbox::Pointer<hier::VariableContext> d_application_ctx;
    input_CTX data;
 
-   // Coarsen operator   
-   //tbox::Pointer<xfer::CoarsenOperator<NDIM> > x_coarsen_op;
-
-   // Boundary conditions
-   //xfer::RefinePatchStrategy<NDIM>* bcfill;
-
-   // Refinement operator
-   //tbox::Pointer<xfer::RefineOperator<NDIM> > x_refine_op;
-
    std::string d_refine_op_str;
    xfer::RefineAlgorithm<NDIM> d_refineScalarAlgorithm;
    xfer::RefineAlgorithm<NDIM> d_refineVectorComponentAlgorithm;
    xfer::RefineAlgorithm<NDIM> d_refineVectorAlgorithm;
 
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_levelSchedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineScalarSchedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorComponentSchedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorSchedules;
