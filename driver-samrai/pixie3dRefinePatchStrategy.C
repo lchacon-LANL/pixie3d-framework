@@ -25,9 +25,9 @@ extern "C"{
 #include "fortran.h"
 extern "C" {
 #ifdef absoft
-extern void FORTRAN_NAME(APPLYBC) (int*, void*);
+  extern void FORTRAN_NAME(APPLYBC) (int*, void*, int*);
 #else
-extern void FORTRAN_NAME(applybc) (int*, void*);
+  extern void FORTRAN_NAME(applybc) (int*, void*, int*);
 #endif
 }
 namespace SAMRAI{
@@ -41,7 +41,7 @@ namespace SAMRAI{
 pixie3dRefinePatchStrategy::pixie3dRefinePatchStrategy(void)
 {
   d_data_id = -1;
-  
+  d_iTime=0;
   u_id = NULL;
   u_tmp_id = NULL;
   auxs_id = NULL;
@@ -114,9 +114,9 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
 
       // f_apply_pixie3d_bc_(&d_data_id, pixie3d_data);
       #ifdef absoft
-         FORTRAN_NAME(APPLYBC)(&d_data_id, pixie3d_data);
+      FORTRAN_NAME(APPLYBC)(&d_data_id, pixie3d_data, &d_iTime);
       #else
-         FORTRAN_NAME(applybc)(&d_data_id, pixie3d_data);
+         FORTRAN_NAME(applybc)(&d_data_id, pixie3d_data, &d_iTime);
       #endif
 
       // Copy the data from the pixie patch to the temporary patch
@@ -216,9 +216,9 @@ pixie3dRefinePatchStrategy::postprocessRefine( hier::Patch<NDIM>& patch,
 	    }
 	  
 #ifdef absoft
-	  FORTRAN_NAME(APPLYBC)(&d_data_id, pixie3d_data);
+	  FORTRAN_NAME(APPLYBC)(&d_data_id, pixie3d_data, &d_iTime);
 #else
-	  FORTRAN_NAME(applybc)(&d_data_id, pixie3d_data);
+	  FORTRAN_NAME(applybc)(&d_data_id, pixie3d_data, &d_iTime);
 #endif
 	  
 	  // Copy the data from the pixie patch to the temporary patch

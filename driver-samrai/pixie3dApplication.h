@@ -82,13 +82,13 @@ class pixie3dApplication : public SAMRSolvers::DiscreteOperator
 {
 public:
    // Constructor that takes a parameter list.  Calls initialize.
-   pixie3dApplication( const pixie3dApplicationParameters* parameters );
+  pixie3dApplication( pixie3dApplicationParameters* parameters );
 
    // Destructor.
    ~pixie3dApplication();
 
    // Initialize application using specified parameters.
-   void initialize( const pixie3dApplicationParameters* parameters );
+   void initialize( pixie3dApplicationParameters* parameters );
    
    // Set initial conditions on all levels
    void setInitialConditions( const double initial_time );

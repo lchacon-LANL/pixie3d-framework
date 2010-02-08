@@ -59,35 +59,13 @@ c Begin program
 
       varray => patch_var%u_n
 
-c Find local limits
-
-c      call fromGlobalToLocalLimits(imingc ,jmingc ,kmingc
-c     $                            ,imingcl,jmingcl,kmingcl,1,1,1)
-c      call fromGlobalToLocalLimits(imaxgc ,jmaxgc ,kmaxgc
-c     $                            ,imaxgcl,jmaxgcl,kmaxgcl,1,1,1)
-
 c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
       call evaluateNonlinearFunction(varray,ff)
 
-c Assign ff (vector) to f (PETSc array)
-      
-c      do k = kmin,kmax
-c        do j = jmin,jmax
-c          do i = imin,imax
-c            call fromGlobalToLocalLimits(i,j,k,il,jl,kl,1,1,1)
-c            ii = vecPos(neqd,il,jl,kl,1,1,1)
-c            do ieq=1,neqd
-c              f%array_var(ieq)%array(i,j,k)=fsrc(ii+ieq)-ff(ii+ieq)
-c            enddo
-c          enddo
-c        enddo
-c      enddo
-
-
-      do k = klo,khi
-        do j = jlo,jhi
-          do i = ilo,ihi
+      do k = klog,khig
+        do j = jlog,jhig
+          do i = ilog,ihig
             call fromGlobalToLocalLimits(i,j,k,il,jl,kl,1,1,1)
             ii = vecPos(neqd,il,jl,kl,1,1,1)
             do ieq=1,neqd
@@ -157,13 +135,7 @@ c Interfaces
 
 c Begin program
 
-c Setup parallel BC flags to indicate PETSc provides BCs
-
-#if defined(petsc_c)
-      call setup_petsc_BC
-#endif
-
-c Prepare auxiliar quantities
+c     Prepare auxiliar quantities
 
       call setupNonlinearFunction(1,1,1,varray)
 

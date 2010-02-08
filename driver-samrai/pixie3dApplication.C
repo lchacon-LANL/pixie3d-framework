@@ -121,7 +121,7 @@ pixie3dApplication::pixie3dApplication()
 * Construct from parameter list.  Calls initialize.                    *
 *                                                                      *
 ***********************************************************************/
-pixie3dApplication::pixie3dApplication( const pixie3dApplicationParameters* parameters )
+pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameters ): DiscreteOperator(parameters)
 {
    //d_coarsen_op_str = "CONSERVATIVE_COARSEN";
    d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
@@ -168,7 +168,7 @@ pixie3dApplication::~pixie3dApplication()
 *                                                                      *
 ***********************************************************************/
 void
-pixie3dApplication::initialize( const pixie3dApplicationParameters* parameters )
+pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert( parameters != (pixie3dApplicationParameters*) NULL );
@@ -435,7 +435,6 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 
    //set the boundary schedules before forming an equilibrium
    setBoundarySchedules(true);
-   
    // Apply boundary conditions
    synchronizeVariables();
    
@@ -600,6 +599,14 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
   // Apply boundary conditions
   synchronizeVariables();
   
+  if(d_debug_print_info_level>5)
+    {
+      tbox::pout << "*****************************************" << std::endl; 
+      tbox::pout << "pixie3dApplication::apply() d_x vector after synchronizeVariables(): " << std::endl; 
+      d_x->print(tbox::pout, false);
+      tbox::pout << "*****************************************" << std::endl; 
+    }
+
   for (int i=0; i<data.nvar; i++)
     {
       f_id[i] = r->getComponentDescriptorIndex(i);
@@ -867,7 +874,9 @@ pixie3dApplication::setBoundarySchedules(bool bIsInitialTime)
 {
 
   int it=(bIsInitialTime)?0:1;
-  
+
+  ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPixie3DTime(it);
+
   // Get d_BoundaryConditionSequence
   // we need to call this before the call to refine as the bc schedules have to be set correctly
   
