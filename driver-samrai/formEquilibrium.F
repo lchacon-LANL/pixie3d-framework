@@ -125,7 +125,9 @@ c Begin program
       gmetric => gv%gparams%gmetric
       u_0 => gv%u_0
 
-c Create equilibrium u_0
+      call setVectorDimensions
+
+c    Create equilibrium u_0
 
       call createEquilibrium
 

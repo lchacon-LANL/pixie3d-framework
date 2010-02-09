@@ -118,9 +118,11 @@ int main( int argc, char *argv[] )
     */
    BogusTagAndInitStrategy* test_object = new BogusTagAndInitStrategy();
 
+   tbox::Pointer<tbox::Database> griddingDb = input_db->getDatabase("GriddingAlgorithm");
+   tbox::Pointer<tbox::Database> ratioDb = griddingDb->getDatabase("ratio_to_coarser");
    // Create dummy variable to allow larger ghost cell widths
-   hier::IntVector<NDIM> ghost = hier::IntVector<NDIM>::IntVector(2);
-   ghost(2) = 1;
+   hier::IntVector<NDIM> ghost = hier::IntVector<NDIM>::IntVector(ratioDb->getIntegerArray("level_1"));
+   //   ghost(2) = 1;
    tbox::Pointer< pdat::CellVariable<NDIM,double> > var = new pdat::CellVariable<NDIM,double>( "tmp", 1 );
    hier::VariableDatabase<NDIM>* var_db = hier::VariableDatabase<NDIM>::getDatabase();
    tbox::Pointer<hier::VariableContext> d_application_ctx = var_db->getContext("APPLICATION_SCRATCH");
