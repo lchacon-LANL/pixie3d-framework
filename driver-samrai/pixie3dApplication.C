@@ -127,8 +127,8 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
    d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
 
    //d_refine_op_str  = "CONSTANT_REFINE";
-   d_refine_op_str  = "LINEAR_REFINE";   
-   //   d_refine_op_str  = "CELL_DOUBLE_CUBIC_REFINE";
+   //   d_refine_op_str  = "LINEAR_REFINE";   
+   d_refine_op_str  = "CELL_DOUBLE_CUBIC_REFINE";
 
    d_RefineSchedulesGenerated=false;
 
@@ -242,18 +242,37 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
    
    // Check processors?
 
-   // Allocate data for u, u_0
-   hier::IntVector<NDIM> ghost0 = hier::IntVector<NDIM>::IntVector(0);
-   hier::IntVector<NDIM> ghost1 = hier::IntVector<NDIM>::IntVector(1);
-   hier::IntVector<NDIM> ghost2 = hier::IntVector<NDIM>::IntVector(GHOST);
-   if ( IS2D == 1 )
-      ghost2(2) = 1;
+   // first allocate a weight or control volume variable
+
+   /*
+    * hier::Variable<NDIM> to weight solution vector entries on a composite grid.
+    */
+
    hier::VariableDatabase<NDIM>* var_db = hier::VariableDatabase<NDIM>::getDatabase();
    tbox::Pointer<hier::VariableContext> context_x = var_db->getContext("pixie3d-x");
    tbox::Pointer<hier::VariableContext> context_xt = var_db->getContext("pixie3d-x_tmp");
    tbox::Pointer<hier::VariableContext> context_in = var_db->getContext("pixie3d-initial");
    tbox::Pointer<hier::VariableContext> context_f = var_db->getContext("pixie3d-source");
    tbox::Pointer< pdat::CellVariable<NDIM,double> > var;
+   hier::IntVector<NDIM> ghost0 = hier::IntVector<NDIM>::IntVector(0);
+   hier::IntVector<NDIM> ghost1 = hier::IntVector<NDIM>::IntVector(1);
+   hier::IntVector<NDIM> ghost2 = hier::IntVector<NDIM>::IntVector(GHOST);
+   
+   var = new pdat::CellVariable<NDIM,double>("weight", 1);
+   const int weight_id = var_db->registerVariableAndContext(var, context_xt, ghost0);
+
+   for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++)
+     {
+       tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);       
+       level->allocatePatchData(weight_id);
+     }
+
+   AMRUtilities::setVectorWeights(d_hierarchy, weight_id);
+
+   // Allocate data for u, u_0
+
+   if ( IS2D == 1 )
+      ghost2(2) = 1;
    int var_id;
    std::string var_name;
    d_x = new solv::SAMRAIVectorReal<NDIM,double>("xVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
@@ -268,11 +287,11 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
        stream.str("");
        var = new pdat::CellVariable<NDIM,double>( var_name, 1 );
        var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
-       d_x->addComponent( var, var_id );
+       d_x->addComponent( var, var_id, weight_id );
        var_id = var_db->registerVariableAndContext(var, context_xt, ghost2);
-       d_x_tmp->addComponent( var, var_id );
+       d_x_tmp->addComponent( var, var_id, weight_id );
        var_id = var_db->registerVariableAndContext(var, context_in, ghost1);
-       d_initial->addComponent( var, var_id );
+       d_initial->addComponent( var, var_id, weight_id );
      }
 
    // allocate data for all variables on all levels
@@ -298,9 +317,9 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
        stream.str("");
        var = new pdat::CellVariable<NDIM,double>( var_name, 1 );
        var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
-       d_aux_scalar->addComponent( var, var_id );
+       d_aux_scalar->addComponent( var, var_id, weight_id );
        var_id = var_db->registerVariableAndContext(var, context_xt, ghost2);
-       d_aux_scalar_tmp->addComponent( var, var_id );
+       d_aux_scalar_tmp->addComponent( var, var_id, weight_id );
      }
    
    for (int i=0; i<data.nauxv; i++)
@@ -310,9 +329,9 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
        stream.str("");
        var = new pdat::CellVariable<NDIM,double>( var_name, NDIM );
        var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
-       d_aux_vector->addComponent( var, var_id );
+       d_aux_vector->addComponent( var, var_id, weight_id );
        var_id = var_db->registerVariableAndContext(var, context_xt, ghost2);
-       d_aux_vector_tmp->addComponent( var, var_id );
+       d_aux_vector_tmp->addComponent( var, var_id, weight_id );
      }
    
    d_aux_scalar->allocateVectorData();
