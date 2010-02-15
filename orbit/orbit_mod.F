@@ -1514,20 +1514,42 @@ c     Call variables
 
 c     Local variables
 
-      integer :: pp
+      integer :: pp,p1,p2
       real(8) :: x11,x22,x00
 
 c     Begin program
 
       if (bc == PER) then
-        pp =        int((x1-xmin)/(xmax-xmin))
-        pp = min(pp,int((x2-xmin)/(xmax-xmin)))
-        
+        p1 = floor((x1-xmin)/(xmax-xmin))
+        p2 = floor((x2-xmin)/(xmax-xmin))
+
         x00 = x0
-        if (x0 == xmin .and. pp >= 0) x00 = xmax
-        if (x0 == xmax .and. pp <  0) x00 = xmin
-cc        if (x0 == xmin .and. pp <  0) x00 = xmin-(xmax-xmin)
-        if (pp == 0 .and. (x2-xmin)<0d0) x00 =x0-(xmax-xmin)
+
+        if (p1 == p2) then
+          pp = p1
+          if (pp >= 0) x00 = x0 +(xmax-xmin)
+          if (pp <  0) x00 = x0 -(xmax-xmin)
+        else
+          if     (p2 > p1.and.p1 >= 0) then  !x2 > x1, and cross xmax periodic boundary
+            pp = min(p1,p2)
+            x00 = x0 +(xmax-xmin)
+          elseif (p2 > p1.and.p1 <  0) then  !x2 > x1, and cross xmin periodic boundary
+            pp = max(p1,p2)
+            x00 = x0 -(xmax-xmin)
+          elseif (p2 < p1.and.p1 >= 0) then  !x1 > x2, and cross xmin periodic boundary
+            pp = max(p1,p2)
+            x00 = x0 -(xmax-xmin)
+          elseif (p2 < p1.and.p1 <  0) then  !x1 < x2, and cross xmax periodic boundary
+            pp = min(p1,p2)
+            x00 = x0 +(xmax-xmin)
+          endif
+        endif
+
+cc        x00 = x0
+cc        if (x0 == xmin .and. pp >= 0) x00 = xmax
+cc        if (x0 == xmax .and. pp <  0) x00 = xmin
+cccc        if (x0 == xmin .and. pp <  0) x00 = xmin-(xmax-xmin)
+cc        if (pp == 0 .and. (x2-xmin)<0d0) x00 =x0-(xmax-xmin)
         x11 = x1 - pp*(xmax-xmin)
         x22 = x2 - pp*(xmax-xmin)
       else
