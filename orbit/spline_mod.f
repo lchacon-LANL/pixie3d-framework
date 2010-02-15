@@ -56,9 +56,9 @@ c     Begin program
 
         nn = size(x)
 
-        if (bc == PER) then
-          xmin = x(1)
-          xmax = x(nn-1)
+        if (bc == PER) then  !Ghost cell is at x(1)
+          xmin = x(2)
+          xmax = x(nn)
         else
           xmin = x(1)
           xmax = x(nn)
