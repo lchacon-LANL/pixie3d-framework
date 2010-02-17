@@ -38,15 +38,6 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
-        use variable_setup
-        integer    :: iigx,iigy,iigz
-        integer,optional :: obc
-        type(var_array),pointer :: varray
-        end subroutine imposeBoundaryConditions
-      END INTERFACE
-
-      INTERFACE
         subroutine output(varr)
         use variable_setup
         type(var_array),pointer :: varr
@@ -206,7 +197,6 @@ c     Time level data dump
 #endif
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
-          call imposeBoundaryConditions(u_np,1,1,1)
           call writeRecordFile(urecord,itime,time,dt,u_np)
         endif
 
@@ -328,6 +318,15 @@ c Interfaces
         integer :: n,out
         real(8),dimension(n) :: x,y
         end subroutine
+      END INTERFACE
+
+      INTERFACE
+        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        integer,optional :: obc
+        type(var_array),pointer :: varray
+        end subroutine imposeBoundaryConditions
       END INTERFACE
 
 c Begin program
@@ -455,10 +454,8 @@ c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
           call mapVectorToStructure(vnp,x)
-cc          if (postprocess) call postProcessSol(vnp) !Postprocess solution
+          call imposeBoundaryConditions(vnp,1,1,1)
           if (predictor  ) call storeTSinfo(vn,vnp)
-cc        elseif (ierr == 1) then
-cc          call equateDerivedType(vnp,vn)
         endif
 
       else
