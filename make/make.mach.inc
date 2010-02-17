@@ -127,7 +127,7 @@ endif
 ifeq ($(HOST),ra22)
   PETSC_ARCH = linux_openmpi
   PETSC_DIR =/ricercatori/ft/petsc-2.3.3
-  HDF5_HOME =
+  override HDF5 = f
   CPPFLAGS += $(PREPROC)RFX
   FC        = pgf95
   LIBS     += -llapack -lblas
