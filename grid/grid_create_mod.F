@@ -738,7 +738,6 @@ c     Begin program
             dxl = alpha1*dxl  !Modify initial interval for coarser grids
 
             if (n1 > 1) then
-cc              call packGrid(ig,n1,lstart,xp,-dxl,xg(1:n1),alpha1,xi)
               call packGrid(ig,n1,lstart,xp-0.5*dxl,-dxl,xg(1:n1),alpha1
      .                     ,xil,fv_l)
             else
@@ -749,7 +748,6 @@ cc              call packGrid(ig,n1,lstart,xp,-dxl,xg(1:n1),alpha1,xi)
             dxr = alpha2*dxr  !Modify initial interval for coarser grids
 
             if (n2 > 1) then
-cc              call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
               call packGrid(ig,n2,xp+0.5*dxr,lend,dxr,xg(n1+1:ng),alpha2
      .                     ,xir,fv_r)
             else
@@ -766,14 +764,24 @@ cc              call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
 
             dx0 = alpha1*dx0  !Modify initial interval for coarser grids
 
-            if (xp <= lstart) then  !Pack to the left
-              pack_l = .true.
-              call packGrid(ig,ng,lstart,lend, dx0,xg(1:ng),alpha1,xi
-     .                     ,fv_r)
-            else                    !Pack to the right
+            if (xp == lstart) then  !Pack to the right
               pack_r = .true.
-              call packGrid(ig,ng,lstart,lend,-dx0,xg(1:ng),alpha1,xi
-     .                     ,fv_l)
+              if (fv_l) then  !Ensure left boundary is finite-volume type
+                call packGrid(ig,ng,lstart+0.5*dx0,lend,dx0,xg(1:ng)
+     .                       ,alpha1,xi,fv_r)
+              else
+                call packGrid(ig,ng,lstart        ,lend,dx0,xg(1:ng)
+     .                       ,alpha1,xi,fv_r)
+              endif
+            else                    !Pack to the left
+              pack_l = .true.
+              if (fv_r) then  !Ensure right boundary is finite-volume type
+                call packGrid(ig,ng,lstart,lend-0.5*dx0,-dx0,xg(1:ng)
+     .                       ,alpha1,xi,fv_l)
+              else
+                call packGrid(ig,ng,lstart,lend        ,-dx0,xg(1:ng)
+     .                       ,alpha1,xi,fv_l)
+              endif
             endif
 
             xil = xi
@@ -789,7 +797,7 @@ cc              call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
           elseif (abs(bcs1) == SP) then
             xg(0) =-xg(1)
           else
-            if (pack_l) then
+            if (pack_r) then
               xg(0) = xg(1) - (xg(2 )-xg(1   ))
             else
               xg(0) = xg(1) - (xg(2 )-xg(1   ))*xil
@@ -802,7 +810,7 @@ cc              call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
           elseif (abs(bcs2) == SYM) then
             xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))
           else
-            if (pack_r) then
+            if (pack_l) then
               xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))
             else
               xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))*xir
@@ -894,7 +902,7 @@ c     Begin program
 
         endif
 
-        if (mgr(ig) > 1 .and. xi > 1d0) then
+        if (mgr(ig) > 1 .and. xi /= 1d0) then
           alpha = (xi**mgr(ig)-1)/(xi-1)
         else
           alpha = 1
