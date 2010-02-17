@@ -38,7 +38,7 @@ prefix = .
 
 MODDIRS = $(MODPATH) $(patsubst $(COMMONDIR)%,$(ADDMODFLAG)$(COMMONDIR)%,$(SUBDIRS))
 
-#Define targets
+#Define main targets
 
 PWD = `pwd`
 
@@ -55,12 +55,16 @@ common: $(SUBDIRS)
 $(SUBDIRS):
 	$(MAKE) -e -C $@ target
 
+#Cleaning targets
+
 clean: ;
 	-rm -f *.o *.mod *.a
 
 distclean: clean
 	-@for subdir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$subdir clean;  done
+
+#Main setup targets
 
 setup: contrib_setup
 	-tar xzf common_contrib.tgz
@@ -73,6 +77,8 @@ setup_lnk: ;
 	-@for file in $(LNK_FILES) ; do \
 		ln -s $$file 2>/dev/null ; done
 
+#Library setup
+
 lib: common $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 ifdef LIBNAME
 	-ar rs $(LIBNAME) $(OBJMOD) $(OBJS) 
@@ -80,6 +86,8 @@ endif
 ifdef LIBNAME_COM
 	-ar rs $(LIBNAME_COM) $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 endif
+
+#Contributed software setup
 
 contrib: ;
 	$(MAKE) -e -C contrib/lsode lib
