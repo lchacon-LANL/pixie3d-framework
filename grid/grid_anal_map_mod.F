@@ -1291,8 +1291,8 @@ c     Begin program
      .            ,0d0, 0d0, 1d0 /)
         case ('scl')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
-          curv = (/ x1,x2,x3 /)
+     .                                  ,curv(1),curv(2),curv(3))
+cc          curv = (/ x1,x2,x3 /)
 
           lambda = gparams(1)
           cc = 0.5/lambda
@@ -1305,22 +1305,20 @@ c     Begin program
         case ('cyl')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
-          curv = (/ x1,x2,x3 /)
 
-          vec = (/ 1d0/curv(1), 0d0     , 0d0
-     .            ,0d0        , curv(1) , 0d0
-     .            ,0d0        , 0d0     , 1d0/curv(1) /)
+          vec = (/ 1d0/x1, 0d0  , 0d0
+     .            ,0d0   , x1   , 0d0
+     .            ,0d0   , 0d0  , 1d0/x1 /)
         case ('hel')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
-          curv = (/ x1,x2,x3 /)
 
           mm = gparams(1)
           kk = gparams(2)
           aa = kk/mm
-          vec = (/ 1./curv(1),0d0, 0d0
-     .            ,0d0, curv(1) ,-aa*curv(1)
-     .            ,0d0,-aa*curv(1), 1./curv(1) + aa**2*curv(1) /)
+          vec = (/ 1./x1, 0d0  ,      0d0
+     .            ,0d0  ,  x1  ,    -aa*x1
+     .            ,0d0  ,-aa*x1, 1./x1 + aa**2*x1 /)
         case ('hl2')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
@@ -1335,12 +1333,12 @@ c     Begin program
         case ('tor')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
      .                                  ,x1,x2,x3)
-          curv = (/ x1,x2,x3 /)
 
           major_r = gparams(1)
           aa      = gparams(2)
           bb      = gparams(3)
 
+cc          curv = (/ x1,x2,x3 /)
 cc          vec = (/ 1d0/curv(1)/(major_r + curv(1)*cos(curv(2))),0d0,0d0
 cc     .            ,0d0, curv(1)/(major_r + curv(1)*cos(curv(2))), 0d0
 cc     .            ,0d0, 0d0, (major_r/curv(1) + cos(curv(2))) /)
