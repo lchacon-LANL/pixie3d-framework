@@ -886,18 +886,20 @@ c     Begin program
 
         call find_xi(nn-1,rhs,xi,fv)
 
-        if (dx0 > 0d0) then !Pack to the left
+        if (dx0 > 0d0) then !Pack to the right
 
           xx(1) = lmin
           do i = 2,nn
-            xx(i) = xx(i-1) + dx0*xi**(i-2)
+cold            xx(i) = xx(i-1) + dx0*xi**(i-2)
+            xx(i) = xx(i-1) + dx0*xi**(i-1)
           enddo
             
-        else                !Pack to the right
+        else                !Pack to the left
 
           xx(nn) = lmax
           do i = nn,2,-1
-            xx(i-1) = xx(i) - abs(dx0)*xi**(nn-i)
+cold            xx(i-1) = xx(i) - abs(dx0)*xi**(nn-i)
+            xx(i-1) = xx(i) - abs(dx0)*xi**(nn-i+1)
           enddo
 
         endif
@@ -905,7 +907,7 @@ c     Begin program
         if (mgr(ig) > 1 .and. xi /= 1d0) then
           alpha = (xi**mgr(ig)-1)/(xi-1)
         else
-          alpha = 1
+          alpha = 1d0
         endif
 
 c     End program
@@ -919,7 +921,10 @@ c     #################################################################
 c     -----------------------------------------------------------------
 c     Finds geometric factor xi using Newton's method according to the
 c     formula:
-c              (xi^nn-1)/(xi-1) = rhs
+c              xi*(xi^nn-1)/(xi-1) = rhs
+c     This formula is derived by summing up geometric series starting
+c     at xi*dx0.
+c
 c     The Newton iteration is initialized by using xi=1+eps, and
 c     expanding in eps to second order in the formula above to find:
 c              eps_0 ~ 2*(rhs-nn)/nn^2
@@ -955,11 +960,15 @@ c     Newton iteration
 
         do i=1,nit
           if (fv) then  !Do packing in FV fashion at unpacked boundary
-            res(i) = rhs-0.5*(xi**nn+xi**(nn+1)-2)/(xi-1)
-            ijac = 2*(xi-1)**2/(nn*(xi**(nn+1)-xi**(nn-1))-2*xi**nn+2)
+cold            res(i) = rhs-0.5*(xi**nn+xi**(nn+1)-2)/(xi-1)
+cold            ijac = 2*(xi-1)**2/(nn*(xi**(nn+1)-xi**(nn-1))-2*xi**nn+2)
+            res(i) = rhs-0.5*(xi**(nn+1)+xi**(nn+2)-2*xi)/(xi-1)
+            ijac=2*(xi-1)**2/((nn+1)*(xi**(nn+1)-xi**nn)-2*xi**(nn+1)+2)
           else          !Position both grid points at both boundaries
-            res(i) = rhs-(xi**nn-1)/(xi-1)
-            ijac = (xi-1)**2/((nn-1)*xi**nn-nn*xi**(nn-1)+1)
+cold            res(i) = rhs-(xi**nn-1)/(xi-1)
+cold            ijac = (xi-1)**2/((nn-1)*xi**nn-nn*xi**(nn-1)+1)
+            res(i) = rhs-xi*(xi**nn-1)/(xi-1)
+            ijac = (xi-1)**2/(nn*xi**(nn+1)-(nn+1)*xi**nn+1)
           endif
 
           dxi(i) = res(i)*ijac
