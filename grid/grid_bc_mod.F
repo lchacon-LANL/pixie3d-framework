@@ -2272,50 +2272,6 @@ c       Update BC ghost nodes
          call pstop('extrapolate',messg)
         end select
 
-cc      select case (ibc)
-cc      case (1)                  !x0
-cccc       if (.not.asm_dir(1))
-cccc     . array(0     ,jmin:jmax,kmin:kmax)=
-cc       array(0     ,jmin:jmax,kmin:kmax)=
-cc     .      0.5*(array(0,jmin:jmax,kmin:kmax)
-cc     .          +array(1,jmin:jmax,kmin:kmax))
-cc      case (2)                  !x1                                       
-cccc       if (.not.asm_dir(1))
-cccc     . array(nxbc+1,jmin:jmax,kmin:kmax)=
-cc       array(nxbc+1,jmin:jmax,kmin:kmax)=
-cc     .      0.5*(array(nxbc+1,jmin:jmax,kmin:kmax)
-cc     .          +array(nxbc  ,jmin:jmax,kmin:kmax))
-cc      case (3)                  !y0                                       
-cccc       if (.not.asm_dir(2))
-cccc     . array(imin:imax,0     ,kmin:kmax)=
-cc       array(imin:imax,0     ,kmin:kmax)=
-cc     .      0.5*(array(imin:imax,0,kmin:kmax)
-cc     .          +array(imin:imax,1,kmin:kmax))
-cc      case (4)                  !y1                                       
-cccc       if (.not.asm_dir(2))
-cccc     . array(imin:imax,nybc+1,kmin:kmax)=
-cc       array(imin:imax,nybc+1,kmin:kmax)=
-cc     .      0.5*(array(imin:imax,nybc+1,kmin:kmax)
-cc     .          +array(imin:imax,nybc  ,kmin:kmax))
-cc      case (5)                  !z0                                       
-cccc       if (.not.asm_dir(3))
-cccc     . array(imin:imax,jmin:jmax,0     )=
-cc       array(imin:imax,jmin:jmax,0     )=
-cc     .      0.5*(array(imin:imax,jmin:jmax,0)
-cc     .          +array(imin:imax,jmin:jmax,1))
-cc      case (6)                  !z1                                       
-cccc       if (.not.asm_dir(3))
-cccc     . array(imin:imax,jmin:jmax,nzbc+1)=
-cc       array(imin:imax,jmin:jmax,nzbc+1)=
-cc     .      0.5*(array(imin:imax,jmin:jmax,nzbc+1)
-cc     .          +array(imin:imax,jmin:jmax,nzbc  ))
-cc      case default
-cc       call pstop('interpolateToFace'
-cc     .           ,'Boundary '//int2char(ibc)//' non existent')
-cc      end select
-
-cc      endif
-
 c     End program
 
       end subroutine interpolateToFace
@@ -3139,6 +3095,7 @@ c     Identify directions for extrapolation.
       flg = .true.
 
       !Order in each direction
+      !Directions 1,2,3 are defined as normal to faces.
       order_int(1) = min(order,max(inx-1,0))
       order_int(2) = min(order,max(iny-1,0))
       order_int(3) = min(order,max(inz-1,0))
@@ -3173,13 +3130,13 @@ c     Identify directions for extrapolation.
         smooth = abs(smooth)
       endif
 
-      !Do not interpolate **along** direction if
-      !   1) not enough points,
+      !Do not interpolate **along** direction if not enough points,
+      !Directions 1,2,3 are defined as normal to faces.
       if (inx == 0) flg(1) = .false.
       if (iny == 0) flg(2) = .false.
       if (inz == 0) flg(3) = .false.
 
-      !Select boundaries involved 
+      !Select boundaries involved for extrapolation
       ![ibc = (1+loc)+2*(dim-1), with dim=1,2,3, and loc=0(left),1(right)]
       !Directions 1,2,3 are defined as normal to faces.
 
@@ -3273,6 +3230,7 @@ c     Identify directions for extrapolation.
       !Identify special boundaries to interpolate **along**
       !   1) SP boundary
       !   2) Interpolate-to-face boundary
+      !   3) equilibrium boundary
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
@@ -3287,7 +3245,6 @@ c     Identify directions for extrapolation.
       !Identify special boundaries to interpolate **across**
       !   1) periodic boundary
       !   2) Symmetry boundary
-      !   3) equilibrium boundary
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
