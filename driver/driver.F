@@ -16,7 +16,7 @@ c ******************************************************************
 
       use grid
 
-      use icond
+cc      use icond
 
 c Common variables
 
@@ -24,7 +24,7 @@ c Common variables
 
 c Local variables
 
-      integer    :: prec_tot,ierr,prof_stage(3)
+      integer    :: prec_tot,ierr,perr,prof_stage(3)
       real(8)    :: time1,time2,time3,time4
 
 c Interfaces
@@ -63,16 +63,16 @@ c Initialize PETSc and MPI (parallel version)
       call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
 
       !Set profiling stages
-      call PetscLogStageRegister('Initial setup'  ,prof_stage(1),ierr)
-      call PetscLogStageRegister('Nonlinear solve',prof_stage(2),ierr)
-      call PetscLogStageRegister('Sol. processing',prof_stage(3),ierr)  
+      call PetscLogStageRegister('Initial setup'  ,prof_stage(1),perr)
+      call PetscLogStageRegister('Nonlinear solve',prof_stage(2),perr)
+      call PetscLogStageRegister('Sol. processing',prof_stage(3),perr)  
 #endif
 
 c Initialize calculation
 
 #if defined(petsc)
       !Profiling stage 1
-      call PetscLogStagePush(prof_stage(1),ierr)
+      call PetscLogStagePush(prof_stage(1),perr)
 #endif
 
       call initializeCalculation
@@ -98,12 +98,12 @@ c Initial output
 c Time loop
 
 #if defined(petsc)
-      call PetscGetTime(time1,ierr)
-      call PetscGetCPUTime(time2,ierr)
+      call PetscGetTime(time1,perr)
+      call PetscGetCPUTime(time2,perr)
 
       !Begin profiling third stage
-      call PetscLogStagePop(ierr)
-      call PetscLogStagePush(prof_stage(3),ierr)
+      call PetscLogStagePop(perr)
+      call PetscLogStagePush(prof_stage(3),perr)
 #endif
 
       do
@@ -134,8 +134,8 @@ c     Time update
 
 #if defined(petsc)
         !Begin profiling second stage
-        call PetscLogStagePop(ierr)
-        call PetscLogStagePush(prof_stage(2),ierr)
+        call PetscLogStagePop(perr)
+        call PetscLogStagePush(prof_stage(2),perr)
 #endif
 
         time   = time  + dt
@@ -146,8 +146,8 @@ c     Check for error in time stepping
 
 #if defined(petsc)
         !Begin profiling third stage
-        call PetscLogStagePop(ierr)
-        call PetscLogStagePush(prof_stage(3),ierr)
+        call PetscLogStagePop(perr)
+        call PetscLogStagePush(prof_stage(3),perr)
 #endif
 
         if (ierr == 1) then     !Restart time step
@@ -214,8 +214,8 @@ c Average explicit time step
 c Final statistics
 
 #if defined(petsc)
-      call PetscGetTime(time3,ierr)
-      call PetscGetCPUTime(time4,ierr)
+      call PetscGetTime(time3,perr)
+      call PetscGetCPUTime(time4,perr)
 
       if (my_rank == 0 .and. .not.(tst_flg)) then
         write (*,*) 'CPU statistics'
@@ -253,9 +253,9 @@ c End program
 
 #if defined(petsc)
       !Finalize profiling
-      call PetscLogStagePop(ierr)
+      call PetscLogStagePop(perr)
 
-      call PetscFinalize(ierr)
+      call PetscFinalize(perr)
 #endif
 
       end
@@ -455,7 +455,7 @@ c     Map Newton solution to vnp (if no error)
         if (ierr.eq.0.or.ierr.eq.2) then
           call mapVectorToStructure(vnp,x)
           call imposeBoundaryConditions(vnp,1,1,1)
-          if (predictor  ) call storeTSinfo(vn,vnp)
+          if (predictor) call storeTSinfo(vn,vnp)
         endif
 
       else
