@@ -1,17 +1,3 @@
-c module icond
-c ######################################################################
-      module icond
-
-        implicit none
-
-        integer :: nh1,nh2,nh3,npw1=1,npw2=1,npw3=1
-
-        logical :: odd,random
-
-        real(8),dimension(10) :: pert
-
-      end module icond
-
 c module nk_setup
 c ######################################################################
       module nk_setup
