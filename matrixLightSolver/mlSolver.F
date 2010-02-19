@@ -193,7 +193,7 @@ c Local variables
       integer    :: niter,stp_test,depth1,ierr
       integer    :: i,iter,smit,nn,vcycle,precout
       real(8)    :: alpha,beta,mag,mag1,rr0,rho0,rho1
-      real(8)    :: tol,rtol,atol,stol
+      real(8)    :: rtol,atol,stol
       real(8)    :: rr(ntot),zz(ntot),pp(ntot),qq(ntot)
 
 c Begin program
@@ -208,7 +208,7 @@ c Extract options
 
       niter    = options%iter      !Maximum number of iterations
       stp_test = options%stp_test  !Stopping test type (0 -> rhs, 1-> residual)
-      tol      = options%tol       !Relative convergence tolerance
+      rtol     = options%tol       !Relative convergence tolerance
       atol     = options%atol      !Absolute convergence tolerance
       stol     = options%stol      !Update convergence tolerance (not used)
 
@@ -279,8 +279,8 @@ c     Check convergence
         mag1 = mag/rr0
         if (out.ge.2.and. my_rank == 0) write (*,10) iter,mag,mag1
 
-        if (mag < (atol + tol*rr0) .or. iter == niter) then
-          if (mag > tol*rr0 .and. mag < atol) then
+        if (mag < (atol + rtol*rr0) .or. iter == niter) then
+          if (mag > rtol*rr0 .and. mag < atol) then
             if (out.gt.1.and. my_rank == 0)
      .           write (*,*) 'Solution in CG is in round-off.'
             if (out.gt.1.and. my_rank == 0) write (*,*) 'Aborting CG...'
@@ -436,7 +436,7 @@ c Calculate magnitude of initial residual
         rold = sqrt(dot2(b,b))
       endif
 
-      if (rold < tol) then
+      if (rold < atol) then
         ierr = -1
         if (iout >= 1.and. my_rank == 0)
      .       write (*,*) 'Initial guess seems exact solution in GMRES'
