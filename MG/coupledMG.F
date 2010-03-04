@@ -392,43 +392,6 @@ c     End program
 
       end subroutine MGplot
 
-ccc     contour
-ccc     #####################################################################
-cc      subroutine contour(arr,nx,ny,xmin,xmax,ymin,ymax,iopt,nunit)
-cc      implicit none               !For safe fortran
-ccc     ---------------------------------------------------------------------
-ccc     Contours 2D array in xdraw format. In call:
-ccc       * arr: 2D array to be plotted
-ccc       * nx,ny: dimensions of array
-ccc       * xmin,xmax,ymin,ymax: 2D domain limits
-ccc       * iopt: whether to initialize xdraw plot (iopt=0) or not.
-ccc       * nunit: integer file identifier.
-ccc     ---------------------------------------------------------------------
-cc
-ccc     Call variables
-cc
-cc      integer    :: nx,ny,iopt,nunit
-cc      real(8)    :: arr(nx,ny),xmin,xmax,ymin,ymax
-cc
-ccc     Local variables
-cc
-cc      integer    :: i,j
-cc
-ccc     Begin program
-cc
-cc      if(iopt == 0) then
-cc        write(nunit) nx-1,ny-1,0
-cc        write(nunit) real(xmin,4),real(xmax,4)
-cc     .              ,real(ymin,4),real(ymax,4) 
-cc      endif
-cc      write(nunit) ((real(arr(i,j),4),i=1,nx),j=1,ny)
-cccc      write (*,*) ((real(arr(i,j),4),i=1,nx),j=1,ny)
-cccc      write (*,*)
-cc
-ccc     End program
-cc
-cc      end subroutine contour
-
 c     MGvecadd
 c     ###################################################################
       subroutine MGvecadd(igr,neq,ntot,coef1,vec1,coef2,vec2)
@@ -542,106 +505,6 @@ cc     .         ,imin,imax,jmin,jmax,kmin,kmax
 #endif
 
       end function MGdot
-
-ccc     lmtvc
-ccc     ###############################################################
-cc      subroutine lmtvc(gpos,neq,ntot,xl,yl,igr,bcnd)
-ccc     ---------------------------------------------------------------
-ccc     This subroutine is a proxy matvec routine to perform local
-ccc     matvec on global grid for GMRES routine
-ccc     ---------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer    :: neq,ntot,igr,gpos,bcnd(6,neq)
-cc        real(8)    :: xl(ntot),yl(ntot)
-cc
-ccc     Local variables
-cc
-cc        integer    :: nn,nxl,nyl,nzl
-cc        integer    :: imin,imax,jmin,jmax,kmin,kmax
-cc        integer    :: i,j,k,il,jl,kl,iii,iil,gloc,ieq
-cc
-cc        real(8),allocatable,dimension(:) :: xg,yg
-cc
-cc        external v_mtvc
-cc
-ccc     Begin program
-cc
-ccc     Global parameters
-cc
-cc        nn = ntotv(igr)
-cc
-cc        allocate(xg(nn),yg(nn))
-cc
-cc        xg = 0d0
-cc        yg = 0d0
-cc
-ccc     Local parameters
-cc
-cc        nxl = MGgrid%nxv(igr)
-cc        nyl = MGgrid%nyv(igr)
-cc        nzl = MGgrid%nzv(igr)
-cc
-ccc     Map local vector to global vector
-cc
-cc        !Use global grid limits for this
-cc        call limits(0,nxv(igr),nyv(igr),nzv(igr),igr
-cc     .             ,imin,imax,jmin,jmax,kmin,kmax)
-cc
-cc        do k=kmin,kmax
-cc          do j=jmin,jmax
-cc            do i=imin,imax
-cc              do ieq=1,neq
-cc                !Global vector location
-cc                iii=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1
-cc     .                        ,ieq,neq)
-cc                !Local indices
-cc                il = i - imin + 1
-cc                jl = j - jmin + 1
-cc                kl = k - kmin + 1
-cc                iil=getMGvcomp(il,jl,kl,nxl,nyl,nzl,1,ieq,neq)
-cc
-cc                xg(iii) = xl(iil)
-cc              enddo
-cc            enddo
-cc          enddo
-cc        enddo
-cc
-ccc     Perform mat-vec and map directly to local grid
-cc
-cc        do k=kmin,kmax
-cc          do j=jmin,jmax
-cc            do i=imin,imax
-cc              do ieq=1,neq
-cc                !Global vector and node locations
-cc                gloc=getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1,1,1)
-cc                iii =getMGvcomp(i,j,k,nxv(igr),nyv(igr),nzv(igr),1
-cc     .                         ,ieq,neq)
-cc                !Local indices
-cc                il = i - imin + 1
-cc                jl = j - jmin + 1
-cc                kl = k - kmin + 1
-cc                iil=getMGvcomp(il,jl,kl,nxl,nyl,nzl,1,ieq,neq)
-cc
-cc                !Perform stencil-wise matvec
-cccc                call matvec(gloc,neq,nn,xg,yg,igr,bcnd)
-ccc THIS IS HARDWIRED FOR NOW!!!!!!!!!!
-cc                call v_mtvc(gloc,neq,nn,xg,yg,igr,bcnd)
-cc
-cc                yl(iil) = yg(iii)
-cc              enddo
-cc            enddo
-cc          enddo
-cc        enddo
-cc
-ccc     End program
-cc
-cc        deallocate(xg)
-cc
-cc      end subroutine lmtvc 
 
 c     scheduleColors
 c     ###################################################################
@@ -1953,10 +1816,6 @@ c End program
      .          '; MG ratio:',1e12.4,'; V-cycle #:',i3)
  21   format (  ' MG residual:',1p,1e12.4,'; MG update:',1e12.4,
      .          '; MG ratio:',1e12.4,'; W-cycle #:',i3)
-cc 20   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
-cc     .          '; V-cycle #:',i3)
-cc 21   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4,
-cc     .          '; W-cycle #:',i3)
 
       contains
 
@@ -3603,8 +3462,6 @@ c Impose boundary conditions (external)
 
 c Perform average along azimuthal direction for SP configurations
 
-cc      write (*,*) 'DIAG -- cprolong, nproc=',my_rank,cartesian
-
       if (isSP2(1,igc) .and. isvec) then
 
         allocate(sp_sum(0:nzc+1,neq),dv_sum(0:nzc+1,neq))
@@ -4178,11 +4035,7 @@ c     Calculate interpolation
      .                        ,kx,ky,kz,bcoef,work)
               endif
 
-cc              if (volw) xc(iic) = xc(iic)*volume(ic,jc,kc,igc,igc,igc)
               if (volw) xc(iic)=xc(iic)*gmetric%grid(igc)%dvol(ic,jc,kc)
-cc              if (volw) xc(iic)=xc(iic)*grid_params%dxh(icg)
-cc     .                                 *grid_params%dyh(jcg)
-cc     .                                 *grid_params%dzh(kcg)
 
             enddo
           enddo
