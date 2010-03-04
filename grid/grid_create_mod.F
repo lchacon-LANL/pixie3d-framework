@@ -674,6 +674,7 @@ c     Find global grid
 
         call findGlobalGrid(ig,xxg,ng)
 
+cc        write (*,*) 'Grid level=',ig
 cc        write (*,*) xxg
 cc        write (*,*)
 cc        pause
@@ -731,7 +732,7 @@ c     Begin program
 
           if (xp < lend .and. xp > lstart) then
 
-            n1 = max(int((xp - lmin)/length*ng),1)
+            n1 = max(int((xp - lstart)/length*ng),1)
 
             n2 = ng - n1
 
@@ -757,7 +758,7 @@ c     Begin program
 
             if (abs(bcs1) == SP) then
               dxl = alpha2*dxl
-              dpack%xp = lmin + dxl
+              dpack%xp = lstart + dxl
             endif
 
           else
@@ -888,7 +889,7 @@ c     Begin program
 
         if (dx0 > 0d0) then !Pack to the right
 
-          xx(1) = lmin
+          xx(1) = (1d0+sign(1d-12,lmin))*lmin  !To avoid round-off issues at edges
           do i = 2,nn
 cold            xx(i) = xx(i-1) + dx0*xi**(i-2)
             xx(i) = xx(i-1) + dx0*xi**(i-1)
@@ -896,7 +897,7 @@ cold            xx(i) = xx(i-1) + dx0*xi**(i-2)
             
         else                !Pack to the left
 
-          xx(nn) = lmax
+          xx(nn) = (1d0-sign(1d-12,lmax))*lmax  !To avoid round-off issues at edges
           do i = nn,2,-1
 cold            xx(i-1) = xx(i) - abs(dx0)*xi**(nn-i)
             xx(i-1) = xx(i) - abs(dx0)*xi**(nn-i+1)
@@ -974,7 +975,7 @@ cold            ijac = (xi-1)**2/((nn-1)*xi**nn-nn*xi**(nn-1)+1)
           dxi(i) = res(i)*ijac
           xi = xi + dxi(i)
 
-          if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
+          if (abs(res(i)) < 1d-12 .or. (abs(dxi(i)) < 1d-15) ) exit
         enddo
 
 c     Convergence check
@@ -1190,7 +1191,7 @@ c     Begin program
      .                  ,'   position: ',xx(j)
      .                  ,'   int dh: ',dx(j)
      .                  ,'   half dh: ',dxh(j)
- 10         format (a,i3,a,f6.3,a,f6.3,a,f6.3)
+ 10         format (a,i3,a,f10.3,a,f10.3,a,f10.3)
           enddo
         enddo
 
