@@ -38,11 +38,11 @@ prefix = .
 
 MODDIRS = $(MODPATH) $(patsubst $(COMMONDIR)%,$(ADDMODFLAG)$(COMMONDIR)%,$(SUBDIRS))
 
-#Define targets
+#Define main targets
 
 PWD = `pwd`
 
-.PHONY: setup setup_lnk target lib message clean distclean common $(SUBDIRS)
+.PHONY: setup setup_lnk target lib message clean distclean common contrib contrib_clean $(SUBDIRS)
 
 target: common message $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 
@@ -55,6 +55,8 @@ common: $(SUBDIRS)
 $(SUBDIRS):
 	$(MAKE) -e -C $@ target
 
+#Cleaning targets
+
 clean: ;
 	-rm -f *.o *.mod *.a
 
@@ -62,7 +64,9 @@ distclean: clean
 	-@for subdir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$subdir clean;  done
 
-setup: ;
+#Main setup targets
+
+setup: contrib_setup
 	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
 		-rm $$subdir/makefile 2>/dev/null ; \
 		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
@@ -72,6 +76,8 @@ setup_lnk: ;
 	-@for file in $(LNK_FILES) ; do \
 		ln -s $$file 2>/dev/null ; done
 
+#Library setup
+
 lib: common $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 ifdef LIBNAME
 	-ar rs $(LIBNAME) $(OBJMOD) $(OBJS) 
@@ -79,6 +85,35 @@ endif
 ifdef LIBNAME_COM
 	-ar rs $(LIBNAME_COM) $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 endif
+
+#Contributed software setup
+
+contrib: ;
+	$(MAKE) -e -C contrib/lsode lib
+	$(MAKE) -e -C contrib/slatec lib
+ifdef ARPACK
+	$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack lib
+ifdef BOPT
+	$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack plib
+endif
+endif
+ifdef FPA
+	$(MAKE) -e -C contrib/fpa/src lib
+endif
+
+contrib_clean: ;
+	$(MAKE) -e -C contrib/lsode clean
+	$(MAKE) -e -C contrib/slatec distclean
+ifdef ARPACK
+	$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack clean
+endif
+ifdef FPA
+	$(MAKE) -e -C contrib/fpa/src distclean
+endif
+
+contrib_setup: ;
+	-tar xzf common_contrib.tgz
+	$(MAKE) -e -C contrib/slatec setup
 
 #Define dependencies
 

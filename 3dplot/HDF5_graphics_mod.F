@@ -49,8 +49,8 @@ c       generic HDF5 variables
 
         integer(hsize_t), dimension(ARRAY_RANK) ::
      .                         array_dim,node_array_dim
-        integer(hsize_t), dimension(ATTR_RANK ) ::
-     .                         attr_dim = (/ARRAY_RANK/)
+cc        integer(hsize_t), dimension(ATTR_RANK ) ::
+cc     .                         attr_dim = (/ARRAY_RANK/)
         integer(hsize_t), dimension(VEXP_RANK ) ::
      .                         vexp_dim = (/VEXP_RANK/)
         integer(hsize_t), dimension(7)       :: array_dim_i 
@@ -63,9 +63,9 @@ cc     .                                            = 'cell_coords'  !Old visit 
         character(strlength)                   :: node_coords_gname
 cc     .                                            = 'node_coords'  !Old visit interface
      .                                            = 'nodes'
-        character(strlength)                   :: attr_name = 'coords'
+cc        character(strlength)                   :: attr_name
 
-        character(strlength), dimension(ARRAY_RANK) :: attr_data
+        character(strlength), dimension(ARRAY_RANK) :: coord_loc
 
         character(20) :: hdf5_fname
 
@@ -94,8 +94,8 @@ c     Setup plot dump variables
 
 c     Attach location of node positions as attribute (relative path to timestep)
 
-      do iattr=1,attr_dim(1)
-        attr_data(iattr) = trim('/'//trim(node_coords_gname)//
+      do iattr=1,ARRAY_RANK
+        coord_loc(iattr) = trim('/'//trim(node_coords_gname)//
      $                     '/'//trim(coords_descr(iattr)))
       enddo
 
@@ -239,7 +239,7 @@ cc      write (*,*) vexp
 
 c     createGroups
 c     #################################################################
-      subroutine createGroups(groupname)
+      subroutine createGroups(groupname,time)
 
       implicit none
 
@@ -247,10 +247,13 @@ c     Call variables
       
 cc      integer            :: step
       character*(strlength)     :: groupname
+      real(8) :: time
 
 c     Local variables
 
-      integer            :: ieq
+      integer :: ieq
+      integer(hsize_t) :: attr_dim(1)
+      character(strlength) :: attr_name
 
 c     Begin program
 
@@ -289,6 +292,37 @@ c     Create a group for coordinates data
         call h5gclose_f(subgroup_id,hdferr)
       endif
 
+c     Write attribute data
+
+      attr_name = 'Time'
+      attr_dim  = (/ 1 /)
+
+      !Create dataspace
+      call h5screate_simple_f(ATTR_RANK,attr_dim,dataspace_attr_id
+     $                       ,hdferr)
+
+      !Create datatype
+      call h5tcopy_f(H5T_NATIVE_DOUBLE,attr_type_id,hdferr)
+cc      call h5tset_size_f(attr_type_id,strlength,hdferr)
+
+      !Create attribute
+      call h5acreate_f(group_id,attr_name,attr_type_id
+     $                ,dataspace_attr_id,attribute_id
+     $                ,hdferr)
+
+      !Write attribute
+      call h5awrite_f(attribute_id,attr_type_id
+     $               ,time,attr_dim,hdferr)
+
+      !Close attribute
+      call h5aclose_f(attribute_id,hdferr)
+
+      !Close datatype
+      call h5tclose_f(attr_type_id,hdferr)
+
+      !Close dataspace
+      call h5sclose_f(dataspace_attr_id,hdferr)
+
 c     Terminate access to the file
 
       call h5gclose_f(group_id, hdferr)
@@ -317,10 +351,12 @@ c     Local variables
       integer        :: i,j,k,ieq,icoords
       integer(hid_t) :: iattr
 
-      character*(strlength) :: timestep
+      character(strlength) :: timestep
+      character(strlength) :: attr_name
 
       integer(hsize_t), dimension(ARRAY_RANK) :: count,node_count
       integer(hsize_t), dimension(ARRAY_RANK) :: offset
+      integer(hsize_t), dimension(ATTR_RANK)  :: attr_dim
 
       real(8),allocatable,dimension(:,:,:,:) :: cell,node
 
@@ -332,10 +368,13 @@ c     Create the output file and data groups
 
       timestep = trim('Timestep_'//int2char(itime+toffset))
 
-      call createGroups(timestep)
+      call createGroups(timestep,time)
 
 c     Initialize FORTRAN interface
+
       call h5open_f(hdferr)
+
+c     Open HDF5 file
 
 #if defined(petsc)
 c PARALLEL
@@ -365,6 +404,7 @@ c     Create the dataspace of actual data and its attributes
      .                       ,node_dataspace_id,hdferr)
 
       !Attribute data
+      attr_dim  = (/ 3 /)
       call h5screate_simple_f(ATTR_RANK,attr_dim,dataspace_attr_id
      $                       ,hdferr)
 
@@ -397,15 +437,50 @@ c     Create property list for collective dataset write.
       call h5pset_dxpl_mpio_f(plist_id,H5FD_MPIO_COLLECTIVE_F,hdferr)
 #endif
 
-c     Open time step (added 2/23/09)
+c     Write the coordinate data
+
+      call dump_coordinate_data
+
+c     Write simulation data
+
+      call dump_simulation_data
+
+c     Release resources
+
+      call h5gclose_f(group_id, hdferr)
+
+#if defined(petsc)
+c PARALLEL
+      call h5sclose_f(p_dataspace_id,hdferr)
+      call h5sclose_f(p_node_dataspace_id,hdferr)
+      call h5pclose_f(plist_id,hdferr)
+#endif
+
+      call h5sclose_f(dataspace_id,hdferr)
+      call h5sclose_f(dataspace_attr_id,hdferr)
+      call h5sclose_f(node_dataspace_id,hdferr)
+      call h5fclose_f(file_id,hdferr)
+      call h5close_f (hdferr)
+
+c     End program
+
+      contains
+
+c     dump_coordinate_data
+c     ####################################################################
+      subroutine dump_coordinate_data
+
+c     ---------------------------------------------------------------------
+c     Dumps coordinates to HDF5 file
+c     ---------------------------------------------------------------------
+
+      implicit none
 
       if (moving_mesh) then
         call h5gopen_f(file_id,timestep,group_id,hdferr)
       endif
 
       if (moving_mesh .or. (itime + toffset == 0)) then
-
-c       Write the coordinate data
 
         allocate (cell(ilom:ihip,jlom:jhip,klom:khip,3)
      .           ,node(ilom:ihip,jlom:jhip,klom:khip,3))
@@ -540,7 +615,17 @@ c         Write data to the dataset
 
       endif
 
-c     Write the actual data
+      end subroutine dump_coordinate_data
+
+c     dump_simulation_data
+c     ####################################################################
+      subroutine dump_simulation_data
+
+c     ---------------------------------------------------------------------
+c     Dumps simulation data to HDF5 file
+c     ---------------------------------------------------------------------
+
+      implicit none
 
       if (.not.moving_mesh) then
         call h5gopen_f(file_id,timestep,group_id,hdferr)
@@ -553,27 +638,18 @@ c       Open an existing group of the specified file.
 
         if (graph(igrp)%cartesian) then
 
-c         Write "Attribute data"
-
-cc          if ((itime+toffset) /= 0) then
-cc          !Attach location of node positions as attribute (added 2/23/09)
-cc            do iattr=1,attr_dim(1)
-cc              attr_data(iattr) = trim('/'//trim(timestep)//
-cc     .                              '/'//trim(node_coords_gname)//
-cc     .                              '/'//trim(coords_descr(iattr)))
-cc            enddo
-cc          endif
+c         Write "Attribute data": coordinates location
 
           call h5tcopy_f(H5T_NATIVE_CHARACTER,attr_type_id,hdferr)
           call h5tset_size_f(attr_type_id,strlength,hdferr)
 
+          attr_name = 'coords'
           call h5acreate_f(subgroup_id,attr_name,attr_type_id,
      $                     dataspace_attr_id,attribute_id,
      $                     hdferr)
 
           call h5awrite_f(attribute_id,attr_type_id,
-     $                    attr_data,
-     $                    attr_dim,hdferr)
+     $                    coord_loc,attr_dim,hdferr)
           call h5aclose_f(attribute_id,hdferr)
 
           call h5tclose_f(attr_type_id,hdferr)
@@ -683,25 +759,7 @@ c         Release resources
 
       enddo
 
-c     Release resources
-
-      call h5gclose_f(group_id, hdferr)
-
-#if defined(petsc)
-c PARALLEL
-      call h5sclose_f(p_dataspace_id,hdferr)
-      call h5sclose_f(p_node_dataspace_id,hdferr)
-      call h5pclose_f(plist_id,hdferr)
-#endif
-
-      call h5sclose_f(dataspace_id,hdferr)
-      call h5sclose_f(node_dataspace_id,hdferr)
-      call h5fclose_f(file_id,hdferr)
-      call h5close_f (hdferr)
-
-c     End program
-
-      contains
+      end subroutine dump_simulation_data
 
 c     interpolateNodalData
 c     ####################################################################

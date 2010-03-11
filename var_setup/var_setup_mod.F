@@ -67,7 +67,7 @@ c #####################################################################
           type(var_array)  ,pointer     :: u_n        ! data at time n
           type(var_array)  ,pointer     :: u_np       ! data at n+1
           type(var_array)  ,pointer     :: u_nm       ! data at n-1
-          type(var_array)  ,pointer     :: u_graph    ! auxilliary for plotting, all u variables same number of components
+          type(var_array)  ,pointer     :: u_graph    ! auxiliary for plotting, all u variables same number of components
           type(grid_mg_def),pointer     :: gparams    ! contains all grid info
           type(aux_array)  ,pointer     :: aux        ! auxillary variables
         end type patch
@@ -262,17 +262,18 @@ c     End program
 
 c     allocateDerivedType
 c     #################################################################
-      subroutine allocateDerivedType(varray)
+      subroutine allocateDerivedType(varray,igx,igy,igz)
 
         implicit none
 
 c     Call variables
 
         type(var_array),pointer  :: varray
+        integer, optional :: igx,igy,igz
 
 c     Local variables
 
-        integer          :: ieq
+        integer          :: ieq,imn,imx,jmn,jmx,kmn,kmx
 
 c     Begin program
 
@@ -281,10 +282,35 @@ c     Begin program
 
           varray%nvar = neqd
 
-          allocate(varray%array_var(neqd))
-          do ieq=1,neqd
+          if (PRESENT(igx)) then
+            imn = 1-gcw
+            imx = gv%gparams%nxv(igx)+gcw
+          else
+            imn = ilom
+            imx = ihip
+          endif
+
+          if (PRESENT(igy)) then
+            jmn = 1-gcw
+            jmx = gv%gparams%nyv(igy)+gcw
+          else
+            jmn = jlom
+            jmx = jhip
+          endif
+
+          if (PRESENT(igz)) then
+            kmn = 1-gcw
+            kmx = gv%gparams%nzv(igz)+gcw
+          else
+            kmn = klom
+            kmx = khip
+          endif
+
+          allocate(varray%array_var(varray%nvar))
+          do ieq=1,varray%nvar
             allocate(varray%array_var(ieq)
-     $                     %array(ilom:ihip,jlom:jhip,klom:khip))
+     $                     %array(imn:imx,jmn:jmx,kmn:kmx))
+cc     $                     %array(ilom:ihip,jlom:jhip,klom:khip))
             varray%array_var(ieq)%array = 0d0
           enddo
         endif
@@ -491,7 +517,7 @@ c     End program
 
 c     initializeDerivedType
 c     #################################################################
-      subroutine initializeDerivedType(varray)
+      subroutine initializeDerivedType(varray,igx,igy,igz)
 
 c     -----------------------------------------------------------------
 c     Initializes fields of varray2 using a template (u_0) except for
@@ -501,6 +527,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         type(var_array),pointer  :: varray
+        integer, optional :: igx,igy,igz
 
 c     Local variables
 
@@ -508,7 +535,7 @@ c     Local variables
 
 c     Begin program
 
-        call allocateDerivedType(varray)
+        call allocateDerivedType(varray,igx=igx,igy=igy,igz=igz)
 
         varray%nvar = u_0%nvar
         do ieq=1,varray%nvar
@@ -614,7 +641,7 @@ c     End program
 
 c     mapStructureToVector
 c     #################################################################
-      subroutine mapStructureToVector(x,varray)
+      subroutine mapStructureToVector(x,varray,igx,igy,igz)
 
 c     -----------------------------------------------------------------
 c     Maps structure into vector (without ghost cells)
@@ -624,24 +651,29 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      real(8),intent(out)      :: x(ntotd)
+      real(8),intent(out)      :: x(:)
+      integer, optional :: igx,igy,igz
 
       type(var_array),pointer  :: varray
 
 c     Local variables
 
-      integer    :: i,j,k,ii,ieq,neq
+      integer :: i,j,k,ii,ieq,neq,iigx=1,iigy=1,iigz=1
 
 c     Begin program
+
+      if (PRESENT(igx)) iigx=igx
+      if (PRESENT(igy)) iigy=igy
+      if (PRESENT(igz)) iigz=igz
 
 c     Unpack vector x
 
       neq = varray%nvar
 
-      do k = klo,khi
-        do j = jlo,jhi
-          do i = ilo,ihi
-            ii = vecPos(neq,i,j,k,1,1,1)
+      do k = 1,gv%gparams%nzv(iigz)
+        do j = 1,gv%gparams%nyv(iigy)
+          do i = 1,gv%gparams%nxv(iigx)
+            ii = vecPos(neq,i,j,k,iigx,iigy,iigz)
             do ieq=1,neq
               x(ii+ieq) = varray%array_var(ieq)%array(i,j,k)
             enddo
@@ -655,7 +687,7 @@ c     End program
 
 c     mapVectorToStructure
 c     #################################################################
-      subroutine mapVectorToStructure(varray,x)
+      subroutine mapVectorToStructure(varray,x,igx,igy,igz)
 
 c     -----------------------------------------------------------------
 c     Maps vector solution into structure.
@@ -665,15 +697,21 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      real(8),intent(in)      :: x(ntotd)
+cc      real(8),intent(in)      :: x(ntotd)
+      real(8),dimension(:),intent(in) :: x(:)
+      integer, optional :: igx,igy,igz
 
       type(var_array),pointer :: varray
 
 c     Local variables
 
-      integer    :: i,j,k,ii,ieq,neq
+      integer    :: i,j,k,ii,ieq,neq,iigx=1,iigy=1,iigz=1
 
 c     Begin program
+
+      if (PRESENT(igx)) iigx=igx
+      if (PRESENT(igy)) iigy=igy
+      if (PRESENT(igz)) iigz=igz
 
 c     Initialize varray
 
@@ -683,10 +721,10 @@ c     Unpack vector x
 
       neq = varray%nvar
 
-      do k = klo,khi
-        do j = jlo,jhi
-          do i = ilo,ihi
-            ii = vecPos(neq,i,j,k,1,1,1)
+      do k = 1,gv%gparams%nzv(iigz)
+        do j = 1,gv%gparams%nyv(iigy)
+          do i = 1,gv%gparams%nxv(iigx)
+            ii = vecPos(neq,i,j,k,iigx,iigy,iigz)
             do ieq=1,neq
               varray%array_var(ieq)%array(i,j,k) = x(ii+ieq)
             enddo
