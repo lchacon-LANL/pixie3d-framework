@@ -91,6 +91,8 @@ c Check for autoinitializing parameters
         endif
       endif
 
+      itime = 0
+
 c Initialize MG and create grid
 
       call createGrid(nxd,nyd,nzd,g_pack,gv%gparams)
