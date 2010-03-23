@@ -42,7 +42,7 @@ c ######################################################################
 
         real(8)    :: tmrst,cnp,cn,cnm,dt_n
 
-        integer    :: itime,nrst
+        integer    :: itime=0,nrst
 
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
      .                                     ,bdfp,bdfn,bdfnm
