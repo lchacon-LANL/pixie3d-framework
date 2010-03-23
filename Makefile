@@ -69,8 +69,8 @@ distclean: clean
 setup: contrib_setup
 	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
 		-rm $$subdir/makefile 2>/dev/null ; \
-		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
 		$(MAKE) -C $$subdir setup_lnk; done
+		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
 
 setup_lnk: ;
 	-@for file in $(LNK_FILES) ; do \
