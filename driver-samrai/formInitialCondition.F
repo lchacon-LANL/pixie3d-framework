@@ -20,8 +20,6 @@ c----------------------------------------------------------------------
 
       use iosetup
 
-      use icond
-
       use generalpurposefunctions
 
 c      use auxiliaryVariables
@@ -147,8 +145,6 @@ c     Set initial conditions for initial value calculation. Variables
 c     are stored in u_np
 c--------------------------------------------------------------------
 
-      use icond
-
       use grid
 
       use variable_setup
@@ -178,7 +174,7 @@ c Perturb equilibrium
         do ieq = 1,neqd
           call perturbEquilibrium(varrayn%array_var(ieq)%array
      .                           ,abs(varrayn%array_var(ieq)%bconds)
-     .                           ,pert(ieq),ieq)
+     .                           ,ieq)
         enddo
 
         time     = 0d0

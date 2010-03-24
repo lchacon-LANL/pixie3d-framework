@@ -22,8 +22,6 @@ c----------------------------------------------------------------------
 
       use iosetup
 
-      use icond
-
       use generalPurposeFunctions
 
       implicit none
@@ -107,8 +105,6 @@ c----------------------------------------------------------------------
       use constants
 
       use iosetup
-
-      use icond
 
       use generalPurposeFunctions
 

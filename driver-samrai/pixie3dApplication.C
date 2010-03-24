@@ -894,11 +894,9 @@ void  pixie3dApplication::refineVariables(void)
 	       refineVectorAlgorithm.resetSchedule(d_refineVectorSchedules[ln]);
 	       d_refineVectorSchedules[ln]->fillData(0.0);
 	     }
+
 	   
-	   if(((d_bIsInitialTime)&&(i==2))||((!d_bIsInitialTime)&&(i==1)))
-	     {
-	       d_levelSchedules[ln]->fillData(0.0);
-	     }
+	   //	   d_levelSchedules[ln]->fillData(0.0);
 	 }
      }
 
@@ -1117,8 +1115,17 @@ pixie3dApplication::generateTransferSchedules(void)
    d_refineVectorSchedules.resizeArray(hierarchy_size);
 
    // test code
-   d_levelAlgorithm.registerRefine(auxv_id[1], auxv_id[1], auxv_id[1], NULL);
-
+//    for (int i=0; i<data.nauxs; i++)
+//      {
+//        d_levelAlgorithm.registerRefine(auxs_id[i], auxs_id[i], auxs_id[i], NULL);
+//      }
+   
+//    for (int i=0; i<data.nauxv; i++)
+//      //   for (int i=1; i<2; i++)
+//      {
+//        d_levelAlgorithm.registerRefine(auxv_id[i], auxv_id[i], auxv_id[i], NULL);
+//      }
+   
    d_levelSchedules.resizeArray(hierarchy_size);
    
    d_cell_coarsen_schedules.resizeArray(hierarchy_size);

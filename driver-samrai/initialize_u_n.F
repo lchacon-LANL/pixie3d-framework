@@ -20,8 +20,6 @@ c----------------------------------------------------------------------
 
       use iosetup
 
-      use icond
-
       use generalpurposefunctions
 
       implicit none
