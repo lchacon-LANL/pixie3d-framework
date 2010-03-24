@@ -17,7 +17,7 @@
 #include "tbox/Database.h"
 #include "PatchHierarchy.h"
 
-#include "ApplicationParameters.h"
+#include "DiscreteOperatorParameters.h"
 
 #ifndef LACKS_NAMESPACE
 using namespace SAMRAI;
@@ -28,7 +28,7 @@ using namespace SAMRAI;
  * Class pixie3dApplicationParameters provides a uniform mechanism to pass
  * initialization parameters when constructing a pixie3dApplication.
  */
-class pixie3dApplicationParameters : public ApplicationParameters
+class pixie3dApplicationParameters : public SAMRSolvers::DiscreteOperatorParameters
 {
 public:
    
@@ -44,9 +44,6 @@ public:
 
    // Computational grid where problem is solved.
    tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
-
-   // Database
-   tbox::Pointer< tbox::Database > d_db;
 
 };
 #endif
