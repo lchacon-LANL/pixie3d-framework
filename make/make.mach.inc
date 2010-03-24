@@ -34,7 +34,7 @@ ifeq ($(HOST),quevedo.ornl.gov)
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include
   else
-    LIBS = -L/usr/lib64 -llapack -lblas
+    LIBS += -L/usr/lib64 -llapack -lblas
     HDF5 = f
     ifeq ($(FC),f90)
       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
@@ -129,7 +129,7 @@ endif
 ifeq ($(HOST),ra22)
   PETSC_ARCH = linux_openmpi
   PETSC_DIR =/ricercatori/ft/petsc-2.3.3
-  HDF5_HOME =
+  override HDF5 = f
   CPPFLAGS += $(PREPROC)RFX
   FC        = pgf95
   LIBS     += -llapack -lblas

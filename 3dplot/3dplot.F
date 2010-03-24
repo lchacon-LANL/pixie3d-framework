@@ -418,8 +418,7 @@ c Begin program
 c Open graphics files
 
 #if !defined(petsc)
-cc      ierr = system('ls '//trim(recordfile)//'_proc* > /dev/null')
-      ierr = system('test -f '//trim(recordfile))  !Check for single file
+      ierr = shellcmd('test -f '//trim(recordfile))  !Check for single file
 
       if (ierr /= 0) then    !Parallel run
 
@@ -431,7 +430,7 @@ cc      ierr = system('ls '//trim(recordfile)//'_proc* > /dev/null')
         ierr   = 0
         do while (ierr == 0)
           nfiles=nfiles+1
-          ierr = system('test -f '//trim(recordfile)//'_proc'
+          ierr = shellcmd('test -f '//trim(recordfile)//'_proc'
      .                 //trim(int2char(nfiles)))
         enddo
 
@@ -722,7 +721,7 @@ cc            call writeRecordFile(musave(ifile),itime,time,dt,varray)
             write (*,*) 'write routine to dump only local domain info'
             call closeCleanFiles
             write (*,*) 'Removing clean-up files...'
-            ierr = system('rm *_sav > /dev/null')
+            ierr = shellcmd('rm *_sav > /dev/null')
             call pstop('readTimeStep','')
           endif
         enddo

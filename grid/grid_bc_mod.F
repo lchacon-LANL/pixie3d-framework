@@ -2272,50 +2272,6 @@ c       Update BC ghost nodes
          call pstop('extrapolate',messg)
         end select
 
-cc      select case (ibc)
-cc      case (1)                  !x0
-cccc       if (.not.asm_dir(1))
-cccc     . array(0     ,jmin:jmax,kmin:kmax)=
-cc       array(0     ,jmin:jmax,kmin:kmax)=
-cc     .      0.5*(array(0,jmin:jmax,kmin:kmax)
-cc     .          +array(1,jmin:jmax,kmin:kmax))
-cc      case (2)                  !x1                                       
-cccc       if (.not.asm_dir(1))
-cccc     . array(nxbc+1,jmin:jmax,kmin:kmax)=
-cc       array(nxbc+1,jmin:jmax,kmin:kmax)=
-cc     .      0.5*(array(nxbc+1,jmin:jmax,kmin:kmax)
-cc     .          +array(nxbc  ,jmin:jmax,kmin:kmax))
-cc      case (3)                  !y0                                       
-cccc       if (.not.asm_dir(2))
-cccc     . array(imin:imax,0     ,kmin:kmax)=
-cc       array(imin:imax,0     ,kmin:kmax)=
-cc     .      0.5*(array(imin:imax,0,kmin:kmax)
-cc     .          +array(imin:imax,1,kmin:kmax))
-cc      case (4)                  !y1                                       
-cccc       if (.not.asm_dir(2))
-cccc     . array(imin:imax,nybc+1,kmin:kmax)=
-cc       array(imin:imax,nybc+1,kmin:kmax)=
-cc     .      0.5*(array(imin:imax,nybc+1,kmin:kmax)
-cc     .          +array(imin:imax,nybc  ,kmin:kmax))
-cc      case (5)                  !z0                                       
-cccc       if (.not.asm_dir(3))
-cccc     . array(imin:imax,jmin:jmax,0     )=
-cc       array(imin:imax,jmin:jmax,0     )=
-cc     .      0.5*(array(imin:imax,jmin:jmax,0)
-cc     .          +array(imin:imax,jmin:jmax,1))
-cc      case (6)                  !z1                                       
-cccc       if (.not.asm_dir(3))
-cccc     . array(imin:imax,jmin:jmax,nzbc+1)=
-cc       array(imin:imax,jmin:jmax,nzbc+1)=
-cc     .      0.5*(array(imin:imax,jmin:jmax,nzbc+1)
-cc     .          +array(imin:imax,jmin:jmax,nzbc  ))
-cc      case default
-cc       call pstop('interpolateToFace'
-cc     .           ,'Boundary '//int2char(ibc)//' non existent')
-cc      end select
-
-cc      endif
-
 c     End program
 
       end subroutine interpolateToFace
@@ -3139,6 +3095,7 @@ c     Identify directions for extrapolation.
       flg = .true.
 
       !Order in each direction
+      !Directions 1,2,3 are defined as normal to faces.
       order_int(1) = min(order,max(inx-1,0))
       order_int(2) = min(order,max(iny-1,0))
       order_int(3) = min(order,max(inz-1,0))
@@ -3173,13 +3130,13 @@ c     Identify directions for extrapolation.
         smooth = abs(smooth)
       endif
 
-      !Do not interpolate **along** direction if
-      !   1) not enough points,
+      !Do not interpolate **along** direction if not enough points,
+      !Directions 1,2,3 are defined as normal to faces.
       if (inx == 0) flg(1) = .false.
       if (iny == 0) flg(2) = .false.
       if (inz == 0) flg(3) = .false.
 
-      !Select boundaries involved 
+      !Select boundaries involved for extrapolation
       ![ibc = (1+loc)+2*(dim-1), with dim=1,2,3, and loc=0(left),1(right)]
       !Directions 1,2,3 are defined as normal to faces.
 
@@ -3273,6 +3230,7 @@ c     Identify directions for extrapolation.
       !Identify special boundaries to interpolate **along**
       !   1) SP boundary
       !   2) Interpolate-to-face boundary
+      !   3) equilibrium boundary
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
@@ -3287,7 +3245,6 @@ c     Identify directions for extrapolation.
       !Identify special boundaries to interpolate **across**
       !   1) periodic boundary
       !   2) Symmetry boundary
-      !   3) equilibrium boundary
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
@@ -3653,7 +3610,7 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: i,j,k,stencil_width,order,ieq
+      integer    :: i,j,k,stencil_width,order,ieq,neql
      .             ,imng,imxg,jmng,jmxg,kmng,kmxg
      .             ,imnl,imxl,jmnl,jmxl,kmnl,kmxl
 
@@ -3668,6 +3625,8 @@ c     Local variables
       real(8)      :: car(3),curv(3)
 
 c     Begin program
+
+      neql = neq !To avoid problems if neq is hardwired
 
 c     Optional arguments
 
@@ -3706,7 +3665,7 @@ c     Consistency check
 
 c     Allocate MG pointers (if not allocated earlier)
 
-      call allocPointers(neq,fpointers)
+      call allocPointers(neql,fpointers)
 
 c     Find grid node LOCAL position (if gpos > 0, else return local domain limits)
 
@@ -3738,7 +3697,7 @@ cc      kmxg = min(kmxl+stencil_width,nnz) + grid_params%klo(iig)-1
 
 c     Select operation
 
-      select case (neq)
+      select case (neql)
       case(1)
 
         allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,1))
@@ -3753,7 +3712,7 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
         endif
 
         call setBC(ivar,nnx,nny,nnz,array(:,:,:,1),vv0(:,:,:,1)
-     .            ,bcnd(:,neq),iig,iig,iig
+     .            ,bcnd(:,neql),iig,iig,iig
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
      .            ,iorder=order)
 
@@ -3769,7 +3728,7 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
           vv0 = 0d0
         endif
 
-        do ieq=1,neq
+        do ieq=1,neql
           call setBC(ivar,nnx,nny,nnz,array(:,:,:,ieq),vv0(:,:,:,ieq)
      .            ,bcnd(:,ieq),iig,iig,iig
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
@@ -3780,9 +3739,9 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
 
       case(3,6)
 
-        allocate(v_cnv (0:nnx+1,0:nny+1,0:nnz+1,neq)
-     .          ,v_cov (0:nnx+1,0:nny+1,0:nnz+1,neq)
-     .          ,vv0   (0:nnx+1,0:nny+1,0:nnz+1,neq))
+        allocate(v_cnv (0:nnx+1,0:nny+1,0:nnz+1,neql)
+     .          ,v_cov (0:nnx+1,0:nny+1,0:nnz+1,neql)
+     .          ,vv0   (0:nnx+1,0:nny+1,0:nnz+1,neql))
 
 cc        v_cnv(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
 cc        v_cov(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
@@ -3803,7 +3762,7 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
           do k = kmnl-1,kmxl+1
             do j = jmnl-1,jmxl+1
               do i = imnl-1,imxl+1
-                do ieq=1,neq/3
+                do ieq=1,neql/3
                   car = array(i,j,k,1+3*(ieq-1):3*ieq)
                   call transformVectorToCurvilinear
      .               (i,j,k,iig,iig,iig
@@ -3830,7 +3789,7 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
           endif
         endif
 
-        do ieq=1,neq/3
+        do ieq=1,neql/3
           call setBC(ivar,3,nnx,nny,nnz
      .            ,v_cnv(:,:,:,1+3*(ieq-1):3*ieq)
      .            ,v_cov(:,:,:,1+3*(ieq-1):3*ieq)
@@ -3868,7 +3827,7 @@ cc              array = v_cov
           do k = kmnl-1,kmxl+1
             do j = jmnl-1,jmxl+1
               do i = imnl-1,imxl+1
-                do ieq=1,neq/3
+                do ieq=1,neql/3
                   curv = v_cnv(i,j,k,1+3*(ieq-1):3*ieq)
                   call transformVectorToCartesian
      .                 (i,j,k,iig,iig,iig
@@ -3887,7 +3846,7 @@ cc              array = v_cov
         deallocate(v_cov,v_cnv,vv0)
 
       case default
-        write (*,*) 'Number of equations',neq
+        write (*,*) 'Number of equations',neql
      .             ,'not implemented in setMGBC'
         write (*,*) 'Aborting...'
         stop

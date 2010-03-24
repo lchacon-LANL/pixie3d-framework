@@ -812,11 +812,13 @@ c     Compute initial residual vector
 
 c     Calculate number of restarting loops
 
-      if (maxits > 0) then
-        rstrt = maxits/im + 1
-      else
-        rstrt = 0
-      endif
+      rstrt = min(maxits/im + 1,maxits)
+
+cc      if (maxits > 0) then
+cc        rstrt = maxits/im + 1
+cc      else
+cc        rstrt = 0
+cc      endif
 
 c     Restarted FGMRES loop
 
@@ -857,12 +859,12 @@ c       FGMRES iteration
 c       Modified gram - schmidt.
 
           do j=1,i
-            t = dot(ntot,vv(:,j),vv(:,i1))
+            t = dot2(vv(:,j),vv(:,i1))
             hh(j,i) = t
             vv(:,i1) = vv(:,i1)-t*vv(:,j)
           enddo
 
-          t = sqrt(dot(ntot,vv(:,i1),vv(:,i1)))
+          t = sqrt(dot2(vv(:,i1),vv(:,i1)))
           hh(i1,i) = t
 
           if (t.ne.0d0) then
@@ -991,7 +993,7 @@ c     Call preconditioner
 
 c     Update solution
 
-        sol(:) = sol(:) + dsol(:)
+        sol = sol + dsol
 
 c diag *****
 cc        if (sing_mat) then

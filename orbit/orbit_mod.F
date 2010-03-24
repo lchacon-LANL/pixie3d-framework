@@ -17,15 +17,16 @@ c ######################################################################
 
         !Private variables
         type,private :: ode_solver
-          integer :: niter  !Number of nonlinear iterations
-          integer :: order  !Order of integration (1,2)
-          real(8) :: atol   !Absolute convergence tolerance
-          real(8) :: rtol   !Relative convergence tolerance
-          real(8) :: dtime  !Time step
-          real(8) :: tmax   !Maximum time
-          real(8) :: smax   !Maximum arc length
-          logical :: solen  !Whether use solenoidal version or LSODE
-          logical :: picard !Whether to use picard or Newton
+          integer :: niter     !Number of nonlinear iterations
+          integer :: order     !Order of integration (1,2)
+          real(8) :: atol      !Absolute convergence tolerance
+          real(8) :: rtol      !Relative convergence tolerance
+          real(8) :: dtime     !Time step
+          real(8) :: tmax      !Maximum time
+          real(8) :: smax      !Maximum arc length
+          logical :: solen     !Whether use solenoidal version or LSODE
+          logical :: picard    !Whether to use picard or Newton
+          logical :: lsode_dt_lim  !Whether to limit lsode time step
           integer :: lsode_neq !Number of equations for LSODE
         end type ode_solver
 
@@ -51,19 +52,15 @@ c ######################################################################
      .                    ,svold,sold,sprev,ss  ,smax
         real(8),private :: x,y,z,xcar,ycar,zcar,xss0,yss0,zss0
      .                    ,xvold,yvold,zvold
-        real(8),private :: xss,yss,zss,tss
+        real(8),private :: xss,yss,zss,tss,rmin
 
-        real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax,rmin
+        real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax
 
         character(50),private :: ssx,ssy,ssz,ssrz
 
         logical,private :: cartesian=.false.,cross=.false.
      .                    ,cartesian_flag=.false.
         logical,private :: lssx,lssy,lssz,rzss,ss_io=.false.
-
-cc        INTERFACE orbit_setup
-cc          module procedure orbit_setup_file, orbit_setup_gmetric
-cc        end INTERFACE
 
       contains
 
@@ -88,6 +85,7 @@ c     ----------------------------------------------------------------------
       orb_default%ode_conf%atol   = 1d-8   !Absolute tolerance
 c3-eq      orb_default%ode_conf%lsode_neq = 3   !Number of LSODE equations
       orb_default%ode_conf%lsode_neq = 5   !Number of LSODE equations
+      orb_default%ode_conf%lsode_dt_lim = .false. !Do not limit LSODE time step
 
       !Splines
       orb_default%spline_conf%order = 2    !Spline interpolation order
@@ -102,7 +100,7 @@ c     ######################################################################
      .                      ,tmax,smax,dtime
      .                      ,niter,atol,rtol,order,solen,picard
      .                      ,spline_order,gauge,B_input_is_A,r_min
-     .                      ,lsode_neq)
+     .                      ,lsode_neq,lsode_dt_lim)
 
 c     ----------------------------------------------------------------------
 c     Sets up orbit integrator.
@@ -121,7 +119,7 @@ c     Call variables
         !Optional parameters
         real(8),optional :: tmax,smax,dtime,atol,rtol,r_min
         integer,optional :: niter,order,spline_order,gauge,lsode_neq
-        logical,optional :: solen,picard,B_input_is_A
+        logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
 
 c     Begin program
 
@@ -167,6 +165,11 @@ c     Begin program
           orb_default%ode_conf%lsode_neq = lsode_neq
         endif
 
+        if (PRESENT(lsode_dt_lim)) then
+          orb_default%ode_conf%lsode_dt_lim = lsode_dt_lim
+          
+        endif
+
         if (PRESENT(spline_order)) then
           orb_default%spline_conf%order = spline_order
         endif
@@ -183,36 +186,11 @@ c     Begin program
 
         ode_conf = orb_default%ode_conf
 
-c     Setup domain limits
-
-        if (bcond(1) == PER) then
-          xmin = xx(2)
-          xmax = xx(nx)
-        else
-          xmin = xx(1)
-          xmax = xx(nx)
-        endif
-
-        if (bcond(3) == PER) then
-          ymin = yy(2)
-          ymax = yy(ny)
-        else
-          ymin = yy(1)
-          ymax = yy(ny)
-        endif
-
-        if (bcond(5) == PER) then
-          zmin = zz(2)
-          zmax = zz(nz)
-        else
-          zmin = zz(1)
-          zmax = zz(nz)
-        endif
-
 c     Do splines
 
         call setupSplines(nx,ny,nz,xx,yy,zz
-     .                   ,orb_default%spline_conf%order)
+     .                   ,orb_default%spline_conf%order
+     .                   ,xmin,xmax,ymin,ymax,zmin,zmax)
 
         if (ode_conf%solen) then
           call splineA(bx,by,bz,orb_default%spline_conf%a_gauge
@@ -227,115 +205,6 @@ c     Do splines
         call splineX(xmap)
 
       end subroutine orbit_setup
-
-ccc     orbit_setup_gmetric
-ccc     ######################################################################
-cc      subroutine orbit_setup_gmetric(igrid,nx,ny,nz,bx,by,bz,orb_conf)
-cc
-ccc     ----------------------------------------------------------------------
-ccc     Sets up orbit splines for orbit integrator.
-ccc     ----------------------------------------------------------------------
-cc
-cc        use grid
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer :: igrid,nx,ny,nz
-cc        real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
-cc
-cc        type(orbit_def),optional :: orb_conf
-cc
-ccc     Local variables
-cc
-cc        integer :: igx,igy,igz,ig,jg,kg
-cc        real(8) :: xx(nx),yy(ny),zz(nz)
-cc        real(8) :: bxcar(nx,ny,nz),bycar(nx,ny,nz),bzcar(nx,ny,nz)
-cc
-ccc     Begin program
-cc
-cc        igx = igrid
-cc        igy = igrid
-cc        igz = igrid
-cc
-cc        if (     (nx /= grid_params%nxv(igx)+2)
-cc     .      .or. (ny /= grid_params%nyv(igy)+2)
-cc     .      .or. (nz /= grid_params%nzv(igz)+2)) then
-cc          call pstop('orbit_setup','Inconsistent grid level')
-cc        endif
-cc
-cc        call getMGmap(1,1,1,igx,igy,igz,ig,jg,kg)
-cc
-cc        xx = grid_params%xx(ig:ig+nx-1)
-cc        yy = grid_params%yy(jg:jg+ny-1)
-cc        zz = grid_params%zz(kg:kg+nz-1)
-cc
-ccc     Setup domain limits
-cc
-cc        if (bcond(1) == PER) then
-cc          xmin = xx(2)
-cc          xmax = xx(nx)
-cc        else
-cc          xmin = xx(1)
-cc          xmax = xx(nx)
-cc        endif
-cc
-cc        if (bcond(3) == PER) then
-cc          ymin = yy(2)
-cc          ymax = yy(ny)
-cc        else
-cc          ymin = yy(1)
-cc          ymax = yy(ny)
-cc        endif
-cc
-cc        if (bcond(5) == PER) then
-cc          zmin = zz(2)
-cc          zmax = zz(nz)
-cc        else
-cc          zmin = zz(1)
-cc          zmax = zz(nz)
-cc        endif
-cc
-cc        bxcar = bx
-cc        bycar = by
-cc        bzcar = bz
-cc        call transformVector(igx,igy,igz
-cc     .                      ,0,nx-1,0,ny-1,0,nz-1
-cc     .                      ,bxcar,bycar,bzcar,'cnv','car')
-cc
-cc
-cc        !ODE configuration
-cc        if (PRESENT(orb_conf)) then
-cc          orb_default = orb_conf
-cc        else
-cc          call orbit_conf_def
-cc        endif
-cc
-cc        ode_conf = orb_default%ode_conf
-cc
-ccc     Do splines
-cc
-cc        call setupSplines(nx,ny,nz,xx,yy,zz
-cc     .                   ,orb_default%spline_conf%order)
-cc
-cc        if (ode_conf%solen) then
-cc          call splineA(bx,by,bz,orb_default%spline_conf%a_gauge)
-cc        else
-cc          call splineB(bx,by,bz)
-cc        endif
-cc
-cc        call splineBcar(bxcar,bycar,bzcar)
-cc
-cc        call splineJ(gmetric%grid(igrid)%jac)
-cc        call splineX(gmetric%grid(igrid)%car)
-cc
-cc        if (my_rank == 0) then
-cc          write (*,*) 'Orbit_setup: Set up splines.'
-cc          write (*,*)
-cc        endif
-cc
-cc      end subroutine orbit_setup_gmetric
 
 c     orbit_destroy
 c     ######################################################################
@@ -506,9 +375,6 @@ c     Orbit integral
             endif
           endif
 
-          !Reset logical coords according to BCs
-cc          call chk_pos(x,y,z)
-
           !Show progress/terminate
           if (smax /= 0d0) then
             call orbit_progress(ss  ,sprev,smax,fwd,exit_loop)
@@ -660,7 +526,7 @@ c     Time integration
 
       if (sln .and. (.not.cartesian)) then  !Solenoidal
 
-        call cn_solver(atol,rtol,x,y,z,ierror)
+        call vp_solver(atol,rtol,x,y,z,ierror)
 
       else                                  !LSODE (non-solenoidal)
 
@@ -775,9 +641,13 @@ c3-eq      T    = time   !Independent variable
       !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
       if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
 
-      IOPT = 0         !Whether optional inputs are needed
-cc      IOPT = 1         !Whether optional inputs are needed
-cc      RWORK(6) = dtime !Maximum time step allowed (optional input)
+      if (ode_conf%lsode_dt_lim) then
+cc        write (*,*) 'LSODE -- limiting time step'
+        IOPT = 1                !Whether optional inputs are needed
+        RWORK(6) = dtime        !Maximum time step allowed (optional input)
+      else
+        IOPT = 0                !Whether optional inputs are needed
+      endif
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
 
@@ -790,7 +660,7 @@ cc      RWORK(6) = dtime !Maximum time step allowed (optional input)
       endif
 
       if (ISTATE /= 2) then
-        write (*,*) 'Problems in LSODE: ISTATE=', ISTATE
+        write (*,*) 'LSODE -- Problems in LSODE: ISTATE=', ISTATE
         stop
       endif
 
@@ -839,9 +709,9 @@ c     End program
 
       end subroutine lsode_step
 
-c     cn_solver
+c     vp_solver
 c     #########################################################################
-      subroutine cn_solver(atol,rtol,x,y,z,ierror)
+      subroutine vp_solver(atol,rtol,x,y,z,ierror)
 
 c     ------------------------------------------------------------------------
 c     Performs home-grown Crank-Nicolson integration
@@ -867,7 +737,7 @@ c     Begin program
         !Cartesian step (near SP)
         if (cartesian) then
 
-          call simp_step(nt,niter,atol,rtol,cc*dt,x,y,z,0,iterr,error)
+          call vp_step(nt,niter,atol,rtol,cc*dt,x,y,z,0,iterr,error)
 
           if (iterr == 0) iterr = -2  !Notify of Cartesian step
 
@@ -878,22 +748,22 @@ c     Begin program
 
 c         Begin first half-step split
 
-          call simp_step(nt,niter,atol,rtol,cc*half,x,y,z,1,iterr,error)
+          call vp_step(nt,niter,atol,rtol,cc*half,x,y,z,1,iterr,error)
 
 c         Begin whole step split
 
-          call simp_step(nt,niter,atol,rtol,cc*dt  ,x,y,z,2,iterr,error)
+          call vp_step(nt,niter,atol,rtol,cc*dt  ,x,y,z,2,iterr,error)
 
 c         Begin second half-step split
 
-          call simp_step(nt,niter,atol,rtol,cc*half,x,y,z,1,iterr,error)
+          call vp_step(nt,niter,atol,rtol,cc*half,x,y,z,1,iterr,error)
 
         !First-order integration (30% cheaper!)
         else
 
-          call simp_step(nt,niter,atol,rtol,cc*dt,x,y,z,1,iterr,error)
+          call vp_step(nt,niter,atol,rtol,cc*dt,x,y,z,1,iterr,error)
 
-          call simp_step(nt,niter,atol,rtol,cc*dt,x,y,z,2,iterr,error)
+          call vp_step(nt,niter,atol,rtol,cc*dt,x,y,z,2,iterr,error)
 
         endif
 
@@ -918,16 +788,16 @@ c       Check for errors
 
           if (iterr < 4 .and. iterr > 0) then
             if (iiout == 1) then
-              write (*,*) 'Step',iterr
+              write (*,*) 'VP -- Step',iterr
      .                ,' in CN did not converge to prescribed accuracy'
             elseif (iiout == 2) then
-              write(*,*) 'Initial error=',error(1)
-              write(*,*) 'Final error  =',error(niter),'> tol=',atol
+              write(*,*)'VP --Initial error=',error(1)
+              write(*,*)'VP --Final error  =',error(niter),'> tol=',atol
             elseif (iiout > 2) then
-              write (*,*) 'Error history=',error
+              write (*,*)'VP --Error history=',error
             endif
           elseif (iterr == 4) then
-            call pstop('cn_solver','Negative Jacobian')
+            call pstop('vp_solver','Negative Jacobian')
           else
             write (messg,*) 'Unknown error ',iterr
             call pstop('orbit_step',messg)
@@ -940,9 +810,10 @@ c       Check for errors
 
           dt = 0.8*dt
 
-          if (dt < 1d-8) call pstop('cn_solver','Time step too small')
+          if (dt < 1d-8) call pstop('vp_solver','Time step too small')
 
-          if (iiout > 1) write(*,*)'Trying smaller time step:',dt,'...'
+          if (iiout > 1)
+     .         write(*,*)'VP -- Trying smaller time step:',dt,'...'
 
           restart = .true.
 
@@ -955,7 +826,7 @@ c       Check for errors
           ierror = -1
 
           if (iiout > 1) then
-            write (*,*) 'CN succeeded! Proceeding.'
+            write (*,*) 'VP -- CN succeeded! Proceeding.'
             write (*,*)
           endif
 
@@ -965,7 +836,7 @@ c       Advance time and arc length
 
         call updt_measures(xh,yh,zh,jach*dt)
 
-      end subroutine cn_solver
+      end subroutine vp_solver
 
 c     updt_measures
 c     #########################################################################
@@ -986,10 +857,10 @@ c     #########################################################################
 
       end subroutine updt_measures
 
-c     simp_step
+c     vp_step
 c     ####################################################################
-      subroutine simp_step(newton,niter,atol,rtol,dt,x,y,z,flag,iterr
-     .                    ,error)
+      subroutine vp_step(newton,niter,atol,rtol,dt,x,y,z,flag,iterr
+     .                  ,error)
 
 c     --------------------------------------------------------------------
 c     Performs orbit integration step in a 3D simplectic manner (i.e.,
@@ -1023,7 +894,7 @@ c     Begin program
       y0=y
       z0=z
 
-      if (iiout > 1) write (*,*) 'simp_step ',flag,' -- X0=',x0,y0,z0
+      if (iiout > 1) write (*,*) 'vp_step ',flag,' -- X0=',x0,y0,z0
 
 cc      if (newton) then
 cc        !Form Jacobian
@@ -1042,7 +913,7 @@ cc      endif
          !Find update
          if (newton) then
 
-           if (iiout > 2) write (*,*) 'simp_step ',flag,' -- res=',res
+           if (iiout > 2) write (*,*) 'vp_step ',flag,' -- res=',res
 
            xh = 0.5*(x+x0)
            yh = 0.5*(y+y0)
@@ -1055,19 +926,19 @@ cc           dx = matmul(JJ,res)
            dx = res
          endif
 
-         if (iiout > 2) write (*,*) 'simp_step ',flag,' -- dx=',dx
+         if (iiout > 2) write (*,*) 'vp_step ',flag,' -- dx=',dx
 
          !Update solution
          x = x + dx(1,1)
          y = y + dx(2,1)
          z = z + dx(3,1)
 
-         if (iiout > 2) write (*,*) 'simp_step ',flag,' -- X =',x,y,z
+         if (iiout > 2) write (*,*) 'vp_step ',flag,' -- X =',x,y,z
 
          !Check convergence
          error(iter) = sqrt(sum(dx**2))
 
-         if (iiout > 2) write (*,*) 'simp_step ',flag,' -- error='
+         if (iiout > 2) write (*,*) 'vp_step ',flag,' -- error='
      .                               ,error(iter)
 
          if (error(iter) < tol) exit
@@ -1078,7 +949,7 @@ cc           dx = matmul(JJ,res)
       enddo
 
       if (iiout == 2) then
-        write (*,*) 'simp_step ',flag,' -- X =',x,y,z
+        write (*,*) 'vp_step ',flag,' -- X =',x,y,z
      .             ,'; error history=',error(1:min(iter,niter))
       endif
 
@@ -1086,7 +957,7 @@ cc           dx = matmul(JJ,res)
 
 c     End program
 
-      end subroutine simp_step
+      end subroutine vp_step
 
 c     formResidual
 c     ###################################################################
@@ -1355,7 +1226,7 @@ c     #####################################################################
       function orbit_error(iterror) result(exitloop)
 
 c     -----------------------------------------------------------------
-c     Checks error in time integration
+c     Checks error in ODE integration
 c     -----------------------------------------------------------------
 
         implicit none
@@ -1422,10 +1293,6 @@ c     Set position of SS
 
 c     Consistency check
 
-cc        if ((.not.lssx) .and. (.not.lssy) .and. (.not.lssz)) then
-cc          call pstop('ss_init'
-cc     .              ,'No Surface of section selected. Aborting.')
-cc        elseif (lssx .and. lssy .and. lssz) then
         if (lssx .and. lssy .and. lssz) then
           call pstop('ss_init'
      .              ,'Cannot select all 3 surfaces of section!!')
@@ -1438,7 +1305,7 @@ c     #################################################################
       subroutine ss_io_init(file,rz_ss)
 
 c     -----------------------------------------------------------------
-c     Sets up XDRAW surface of section output files
+c     Sets up XDRAW IO for surfaces of section
 c     -----------------------------------------------------------------
 
         implicit none
@@ -1647,20 +1514,42 @@ c     Call variables
 
 c     Local variables
 
-      integer :: pp
+      integer :: pp,p1,p2
       real(8) :: x11,x22,x00
 
 c     Begin program
 
       if (bc == PER) then
-        pp =        int((x1-xmin)/(xmax-xmin))
-        pp = min(pp,int((x2-xmin)/(xmax-xmin)))
-        
+        p1 = floor((x1-xmin)/(xmax-xmin))
+        p2 = floor((x2-xmin)/(xmax-xmin))
+
         x00 = x0
-        if (x0 == xmin .and. pp >= 0) x00 = xmax
-        if (x0 == xmax .and. pp <  0) x00 = xmin
-cc        if (x0 == xmin .and. pp <  0) x00 = xmin-(xmax-xmin)
-        if (pp == 0 .and. (x2-xmin)<0d0) x00 =x0-(xmax-xmin)
+
+        if (p1 == p2) then
+          pp = p1
+          if (pp >= 0) x00 = x0 +(xmax-xmin)
+          if (pp <  0) x00 = x0 -(xmax-xmin)
+        else
+          if     (p2 > p1.and.p1 >= 0) then  !x2 > x1, and cross xmax periodic boundary
+            pp = min(p1,p2)
+            x00 = x0 +(xmax-xmin)
+          elseif (p2 > p1.and.p1 <  0) then  !x2 > x1, and cross xmin periodic boundary
+            pp = max(p1,p2)
+            x00 = x0 -(xmax-xmin)
+          elseif (p2 < p1.and.p1 >= 0) then  !x1 > x2, and cross xmin periodic boundary
+            pp = max(p1,p2)
+            x00 = x0 -(xmax-xmin)
+          elseif (p2 < p1.and.p1 <  0) then  !x1 < x2, and cross xmax periodic boundary
+            pp = min(p1,p2)
+            x00 = x0 +(xmax-xmin)
+          endif
+        endif
+
+cc        x00 = x0
+cc        if (x0 == xmin .and. pp >= 0) x00 = xmax
+cc        if (x0 == xmax .and. pp <  0) x00 = xmin
+cccc        if (x0 == xmin .and. pp <  0) x00 = xmin-(xmax-xmin)
+cc        if (pp == 0 .and. (x2-xmin)<0d0) x00 =x0-(xmax-xmin)
         x11 = x1 - pp*(xmax-xmin)
         x22 = x2 - pp*(xmax-xmin)
       else
@@ -1776,7 +1665,7 @@ c #########################################################################
       subroutine ff(neq,t,y,ydot)
 
 c -------------------------------------------------------------------------
-c     Driver routine for LSODE integration: ydot = ff(y,t)
+c     Interface driver routine for LSODE integration: ydot = ff(y,t)
 c -------------------------------------------------------------------------
 
       use orbit

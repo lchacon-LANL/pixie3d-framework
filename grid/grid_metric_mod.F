@@ -206,9 +206,9 @@ c     Exceptions
         if (hez == 1) km = k
 
         !X
-        if (nx == 1) then
-          dr(1,:) = (/ 1d0, 0d0, 0d0 /)
-        else
+cc        if (nx == 1) then
+cc          dr(1,:) = (/ 1d0, 0d0, 0d0 /)
+cc        else
           igp = ig+(ip-i)
           igm = ig-(i-im)
 
@@ -237,12 +237,12 @@ c     Exceptions
           endif
 
           dr(1,:) = coeff*(carp-carm)/dh(1)
-        endif
+cc        endif
 
         !Y
-        if (ny == 1) then
-          dr(2,:) = (/ 0d0, 1d0, 0d0 /)
-        else
+cc        if (ny == 1) then
+cc          dr(2,:) = (/ 0d0, 1d0, 0d0 /)
+cc        else
           jgp = jg+(jp-j)
           jgm = jg-(j-jm)
 
@@ -271,12 +271,12 @@ c     Exceptions
           endif
 
           dr(2,:) = coeff*(carp-carm)/dh(2)
-        endif
+cc        endif
 
         !Z
-        if (nz == 1) then
-          dr(3,:) = (/ 0d0, 0d0, 1d0 /)
-        else
+cc        if (nz == 1) then
+cc          dr(3,:) = (/ 0d0, 0d0, 1d0 /)
+cc        else
           kgp = kg+(kp-k)
           kgm = kg-(k-km)
 
@@ -305,7 +305,7 @@ c     Exceptions
           endif
 
           dr(3,:) = coeff*(carp-carm)/dh(3)
-        endif
+cc        endif
 
       end function find_dr
 
@@ -1072,9 +1072,11 @@ cc        enddo
                 write (*,*) 'dr/dxi_3=',dr(i,j,k,3,:)
                 write (*,*) 'Jacobian=',jac
                 call pstop('findVertexMetrics','Inverted jacobian')
+              elseif (isSP2(i+1,igrid,ibc=1)) then
+                ijac = 0d0
+              else
+                ijac = 1d0/jac
               endif
-
-              ijac = 1d0/jac
 
               !Contravariant vectors <<<<<<<<<<<<<<<<<<<
               cnv(:,:) = r(:,:)*ijac
@@ -1866,13 +1868,13 @@ c     Begin program
 
         write(funit,*) 'Grid level:',igrid
           
-        mag = sqrt(    mag1 /(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))
+        mag = sqrt(    mag1/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))
         write(funit,*)'   Jacobian tst=',mag
-        mag = sum(sqrt(mag2)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/9.
+        mag = sum(sqrt(mag2/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1)))/9.
         write(funit,*)'   Gsub tst    =',mag
-        mag = sum(sqrt(mag3)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/9.
+        mag = sum(sqrt(mag3/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1)))/9.
         write(funit,*)'   Gsup tst    =',mag
-        mag = sum(sqrt(mag4)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/27.
+        mag = sum(sqrt(mag4/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1)))/27.
         write(funit,*)'   Gamma tst   =',mag
         write(funit,*)
 

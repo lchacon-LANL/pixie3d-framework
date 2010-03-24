@@ -16,7 +16,7 @@ c #####################################################################
         !Private variables
         integer,private :: kx,ky,kz,nx,ny,nz,dim,flg,ag
 
-        real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax
+        real(8),private :: xsmin,xsmax,ysmin,ysmax,zsmin,zsmax
 
         real(8),private,dimension(:),allocatable    :: tx,ty,tz,work
      .                                                ,xs,ys,zs
@@ -32,12 +32,50 @@ c #####################################################################
 
       contains
 
+c     domain_limits
+c     ##################################################################
+      subroutine sp_domain_limits(x,bc,xmin,xmax)
+
+c     ------------------------------------------------------------------
+c     Set domain limits according to dimension vector x and boundary
+c     condition bc.
+c     ------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: bc
+        real(8) :: x(:),xmin,xmax
+
+c     Local Variables
+
+        integer :: nn
+
+c     Begin program
+
+        nn = size(x)
+
+        if (bc == PER) then  !Ghost cell is at x(1)
+          xmin = x(2)
+          xmax = x(nn)
+        else
+          xmin = x(1)
+          xmax = x(nn)
+        endif
+
+c     End program
+
+      end subroutine sp_domain_limits
+
 c     chk_pos
 c     ##################################################################
       subroutine chk_pos(x,y,z,no_per_bc)
 
 c     ------------------------------------------------------------------
-c     Check we are still within LOGICAL domain
+c     Check whether we are within LOGICAL domain, and if not:
+c       * If periodic, return position within first period
+c       * Otherwise, terminate with error.
 c     ------------------------------------------------------------------
 
       implicit none
@@ -62,9 +100,9 @@ c     Begin program
 
       ierror = 0
 
-      if (x > xmax) then
+      if (x > xsmax) then
         if (bcond(2) == PER) then   !Periodic BC
-          if (per_bc) x = xmin + mod(x,(xmax-xmin))
+          if (per_bc) x = xsmin + mod(x-xsmin,(xsmax-xsmin))
         else
           ierror = 1
         endif
@@ -75,41 +113,41 @@ c     Begin program
         y = y + acos(-1d0)
       endif
 
-      if (x < xmin) then
+      if (x < xsmin) then
         if (bcond(1) == PER) then   !Periodic BC
-          if (per_bc) x = xmax - mod(xmin-x,xmax-xmin)
+          if (per_bc) x = xsmax - mod(xsmin-x,xsmax-xsmin)
         else
           ierror = 1
         endif
       endif
 
-      if (y > ymax) then
+      if (y > ysmax) then
         if (bcond(4) == PER) then   !Periodic BC
-          if (per_bc) y = ymin + mod(y,(ymax-ymin))
+          if (per_bc) y = ysmin + mod(y-ysmin,(ysmax-ysmin))
         else
           ierror = 1
         endif
       endif
 
-      if (y < ymin) then
+      if (y < ysmin) then
         if (bcond(3) == PER) then   !Periodic BC
-          if (per_bc) y = ymax - mod(ymin-y,ymax-ymin)
+          if (per_bc) y = ysmax - mod(ysmin-y,ysmax-ysmin)
         else
           ierror = 1
         endif
       endif
 
-      if (z > zmax) then
+      if (z > zsmax) then
         if (bcond(6) == PER) then   !Periodic BC
-          if (per_bc) z = zmin + mod(z,(zmax-zmin))
+          if (per_bc) z = zsmin + mod(z-zsmin,(zsmax-zsmin))
         else
           ierror = 1
         endif
       endif
 
-      if (z < zmin) then
+      if (z < zsmin) then
         if (bcond(5) == PER) then   !Periodic BC
-          if (per_bc) z = zmax - mod(zmin-z,zmax-zmin)
+          if (per_bc) z = zsmax - mod(zsmin-z,zsmax-zsmin)
         else
           ierror = 1
         endif
@@ -121,11 +159,9 @@ c     Begin program
         write (*,*)
         write (*,*) 'Current position',x,y,z
         write (*,*)
-        write (*,*) 'X domain limits=',xmin,xmax
-        write (*,*) 'Y domain limits=',ymin,ymax
-        write (*,*) 'Z domain limits=',zmin,zmax
-cc        write (*,*) x/0d0
-cc        write (*,*) 'Old     position',xold,yold,zold
+        write (*,*) 'X domain limits=',xsmin,xsmax
+        write (*,*) 'Y domain limits=',ysmin,ysmax
+        write (*,*) 'Z domain limits=',zsmin,zsmax
         stop
       endif
 
@@ -135,11 +171,11 @@ c     End program
 
 c     setupSplines
 c     #################################################################
-      subroutine setupSplines(nnx,nny,nnz,xx,yy,zz,order)
+      subroutine setupSplines(nnx,nny,nnz,xx,yy,zz,order
+     .                       ,xmin,xmax,ymin,ymax,zmin,zmax)
 c     -----------------------------------------------------------------
-c     This routine splines up vector components (ax,ay,az) on a uniform
-c     grid of size (nx,ny,nz) with positions xx,yy,zz. The spline order
-c     is set in variable 'order'.
+c     This routine sets up 3D splines, including allocation of memory
+c     space.
 c     -----------------------------------------------------------------
 
       implicit none            ! For safe Fortran
@@ -148,6 +184,7 @@ c     Call variables
 
       integer :: nnx,nny,nnz,order
       real(8) :: xx(nnx),yy(nny),zz(nnz)
+      real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
 
 c     Local variables
 
@@ -169,29 +206,42 @@ c     Initialize spline domain arrays
         ys = yy
         zs = zz
 
-        if (bcond(1) == PER) then
-          xmin = xs(2)
-          xmax = xs(nx)
-        else
-          xmin = xs(1)
-          xmax = xs(nx)
-        endif
+        call sp_domain_limits(xs,bcond(1),xsmin,xsmax)
+        call sp_domain_limits(ys,bcond(3),ysmin,ysmax)
+        call sp_domain_limits(zs,bcond(5),zsmin,zsmax)
 
-        if (bcond(3) == PER) then
-          ymin = ys(2)
-          ymax = ys(ny)
-        else
-          ymin = ys(1)
-          ymax = ys(ny)
-        endif
+        xmin = xsmin
+        xmax = xsmax
+                 
+        ymin = ysmin
+        ymax = ysmax
+                 
+        zmin = zsmin
+        zmax = zsmax
 
-        if (bcond(5) == PER) then
-          zmin = zs(2)
-          zmax = zs(nz)
-        else
-          zmin = zs(1)
-          zmax = zs(nz)
-        endif
+cc        if (bcond(1) == PER) then
+cc          xmin = xs(2)
+cc          xmax = xs(nx)
+cc        else
+cc          xmin = xs(1)
+cc          xmax = xs(nx)
+cc        endif
+cc
+cc        if (bcond(3) == PER) then
+cc          ymin = ys(2)
+cc          ymax = ys(ny)
+cc        else
+cc          ymin = ys(1)
+cc          ymax = ys(ny)
+cc        endif
+cc
+cc        if (bcond(5) == PER) then
+cc          zmin = zs(2)
+cc          zmax = zs(nz)
+cc        else
+cc          zmin = zs(1)
+cc          zmax = zs(nz)
+cc        endif
 
 c     Prepare 3d spline interpolation
 
@@ -215,8 +265,8 @@ c     splineA
 c     #################################################################
       subroutine splineA(bx,by,bz,a_gauge,input_is_A)
 c     -----------------------------------------------------------------
-c     This routine splines up vector components (ax,ay,az) on a uniform
-c     grid of size (nx,ny,nz) with positions xs,ys,zs.
+c     This routine splines up vector components (ax,ay,az) on a mesh
+c     of size (nx,ny,nz) with positions xs,ys,zs.
 c     -----------------------------------------------------------------
 
       implicit none            ! For safe Fortran
@@ -303,13 +353,8 @@ c     ###############################################################
 
 c     ---------------------------------------------------------------
 c     Finds COVARIANT vector potential "a" from CONTRAVARIANT vector
-c     field components "b". Employs gauge A_2 = 0d0. In SP systems,
-c     it integrates at faces in r, and then averages to nodes.
-c     
-c     Integrals done by Numerical Recipes p. 128, 4.1.12 -- actually
-c     one bit better -- extrapolates quadratically to f(-1) and uses
-c     the internal formula, rather than using midpoint for the first
-c     point. Thus even the first point has third order accuracy.
+c     field components "b". Employs either gauge A_1=0 or A_2=0d0,
+c     as specified in gauge.
 c     ---------------------------------------------------------------
 
       implicit none
@@ -354,54 +399,34 @@ c     Accommodate different gauges
       select case(gauge)
       case(1) !A1=0 code <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-c       Gauge
+        if (spoint) then
+          !Start at x=0 to enforce regularity conditions in A
+          call line_int_xz(1,nxl,1,nzl
+     .                 ,b(0:nxl+1,0:nyl+1,0:nzl+1,1:3)
+     .                 ,a(0:nxl+1,0:nyl+1,0:nzl+1,1:3))
+        else
+          !Lower-left quadrant
+          call line_int_xz(nxl/2-1,1,nzl/2-1,1
+     .                 ,b(0:nxl/2,0:nyl+1,0:nzl/2,1:3)
+     .                 ,a(0:nxl/2,0:nyl+1,0:nzl/2,1:3))
 
-cc        a(:,:,:,1)=0d0
+          !Lower-right quadrant
+          call line_int_xz(nxl/2+1,nxl,nzl/2-1,1
+     .                 ,b(nxl/2:nxl+1,0:nyl+1,0:nzl/2,1:3)
+     .                 ,a(nxl/2:nxl+1,0:nyl+1,0:nzl/2,1:3))
 
-c       Quadrant-based code (SP ready, parallel-ready)
+          !Upper-left quadrant
+          call line_int_xz(nxl/2-1,1,nzl/2+1,nzl
+     .                 ,b(0:nxl/2,0:nyl+1,nzl/2:nzl+1,1:3)
+     .                 ,a(0:nxl/2,0:nyl+1,nzl/2:nzl+1,1:3))
 
-cc        if (spoint) then        !Separate quadrants only in theta
-cc
-cccc          write (*,*) 'here'
-cc          call line_int(1,nxl,1,nyl,b,a)
-cc
-cccc          !Lower-right quadrant
-cccc          call line_int(1,nxl,nyl/2-1,1
-cccc     .                 ,b(0:nxl+1,0:nyl/2,0:nzl+1,1:3)
-cccc     .                 ,a(0:nxl+1,0:nyl/2,0:nzl+1,1:3))
-cccc
-cccc          !Upper-right quadrant
-cccc          call line_int(1,nxl,nyl/2+1,nyl
-cccc     .                 ,b(0:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3)
-cccc     .                 ,a(0:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3))
-cc
-cc        else
-        !Lower-left quadrant
-        call line_int(nxl/2-1,1,nyl/2-1,1
-     .               ,b(0:nxl/2,0:nyl/2,0:nzl+1,1:3)
-     .               ,a(0:nxl/2,0:nyl/2,0:nzl+1,1:3))
-
-        !Lower-right quadrant
-        call line_int(nxl/2+1,nxl,nyl/2-1,1
-     .               ,b(nxl/2:nxl+1,0:nyl/2,0:nzl+1,1:3)
-     .               ,a(nxl/2:nxl+1,0:nyl/2,0:nzl+1,1:3))
-
-        !Upper-left quadrant
-        call line_int(nxl/2-1,1,nyl/2+1,nyl
-     .               ,b(0:nxl/2,nyl/2:nyl+1,0:nzl+1,1:3)
-     .               ,a(0:nxl/2,nyl/2:nyl+1,0:nzl+1,1:3))
-
-        !Upper-right quadrant
-        call line_int(nxl/2+1,nxl,nyl/2+1,nyl
-     .               ,b(nxl/2:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3)
-     .               ,a(nxl/2:nxl+1,nyl/2:nyl+1,0:nzl+1,1:3))
-cc        endif
+          !Upper-right quadrant
+          call line_int_xz(nxl/2+1,nxl,nzl/2+1,nzl
+     .                 ,b(nxl/2:nxl+1,0:nyl+1,nzl/2:nzl+1,1:3)
+     .                 ,a(nxl/2:nxl+1,0:nyl+1,nzl/2:nzl+1,1:3))
+        endif
 
       case(2) !A2=0 code <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-c       Gauge
-
-cc        a(:,:,:,2)=0d0
 
 c       Quadrant-based code
 
@@ -429,6 +454,27 @@ c       Quadrant-based code
         call pstop('getA','Gauge not implemented for ny=1')
       end select
 
+c diag ****
+cc      write (*,*) 'DIAG -- getA_on_mesh',nx,ny,nz
+cc      open(unit=110,file='vecpot.bin',form='unformatted'
+cc     .      ,status='replace')
+cc      call contour(a(1:nxl+1,2,1:nzl+1,1)
+cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,0,110)
+cc      call contour(a(1:nxl+1,2,1:nzl+1,2)
+cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,1,110)
+cc      call contour(a(1:nxl+1,2,1:nzl+1,3)
+cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,1,110)
+cc
+cccc      call contour(a(1:nxl+1,1:nyl+1,1,1)
+cccc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,0,110)
+cccc      call contour(a(1:nxl+1,1:nyl+1,1,2)
+cccc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,1,110)
+cccc      call contour(a(1:nxl+1,1:nyl+1,1,3)
+cccc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,1,110)
+cc      close(110)
+cccc      stop
+c diag ****
+
 c     Take care of collapsed dimensions (no motion along those)
 
       if (nxl == 1) a(:,:,:,2:3) = 0d0
@@ -440,173 +486,191 @@ c     Take care of collapsed dimensions (no motion along those)
 
       if (nzl == 1) a(:,:,:,1:2) = 0d0
 
-c     Impose topological BCs
-
-cc      if (bcond(3) == PER) then
-cc        a(:,0    ,:,1)=a(:,nyl,:,1)
-cc        a(:,nyl+1,:,1)=a(:,1  ,:,1)
-cc        a(:,0    ,:,2)=a(:,nyl,:,2)
-cc        a(:,nyl+1,:,2)=a(:,1  ,:,2)
-cc        a(:,0    ,:,3)=a(:,nyl,:,3)
-cc        a(:,nyl+1,:,3)=a(:,1  ,:,3)
-cc      endif
-cc
-cc      if (bcond(5) == PER) then
-cc        a(:,:,0    ,1)=a(:,:,nzl,1)
-cc        a(:,:,nzl+1,1)=a(:,:,1  ,1)
-cc        a(:,:,0    ,2)=a(:,:,nzl,2)
-cc        a(:,:,nzl+1,2)=a(:,:,1  ,2)
-cc        a(:,:,0    ,3)=a(:,:,nzl,3)
-cc        a(:,:,nzl+1,3)=a(:,:,1  ,3)
-cc      endif
-cc
-cc      if (bcond(1) == PER) then
-cc        a(0    ,:,:,1)=a(nxl,:,:,1)
-cc        a(nxl+1,:,:,1)=a(1  ,:,:,1)
-cc        a(0    ,:,:,2)=a(nxl,:,:,2)
-cc        a(nxl+1,:,:,2)=a(1  ,:,:,2)
-cc        a(0    ,:,:,3)=a(nxl,:,:,3)
-cc        a(nxl+1,:,:,3)=a(1  ,:,:,3)
-cc      elseif (bcond(1) == SP) then  !Cov components
-cc        do k=0,nzl+1
-cc          do j=0,nyl+1
-cc            jj = mod(j+nyl/2,nyl)
-cc            if (jj == 0) jj = nyl
-cc
-cc            a(0,j,k,1) =-a(1,jj,k,1)
-cc            a(0,j,k,2) = a(1,jj,k,2)
-cc            a(0,j,k,3) = a(1,jj,k,3)
-cc          enddo
-cc        enddo
-cc      endif
-
 c     Return A components
 
       ax = a(:,:,:,1)
       ay = a(:,:,:,2)
       az = a(:,:,:,3)
 
-c diag *****
-cc      open(unit=110,file='vecpot.bin',form='unformatted'
-cc     .    ,status='replace')
-cc      call contour(ax(1:nxl+1,1:nyl+1,2)
-cc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,0,110)
-cc      call contour(ay(1:nxl+1,1:nyl+1,2)
-cc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,1,110)
-cc      call contour(az(1:nxl+1,1:nyl+1,2)
-cc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,1,110)
-cc      close(110)
-cc      stop
-c diag *****
-
 c     End program
 
       contains
 
-c     line_int
+ccc     line_int
+ccc     #############################################################
+cc      subroutine line_int(ilo,ihi,jlo,jhi,bb,aa)
+cc
+cc      implicit none
+cc
+ccc     -------------------------------------------------------------
+ccc     Performs line integral to find vector potential from magnetic
+ccc     field from starting point (ilo,jlo) in any given quadrant
+ccc     defined by [ilo,ihi]x[jlo,jhi]. We do NOT assume ilo<ihi or
+ccc     jlo<jhi.
+ccc     -------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc        integer :: ilo,ihi,jlo,jhi
+cc        real(8) :: bb(min(ilo,ihi)-1:max(ilo,ihi)+1
+cc     .               ,min(jlo,jhi)-1:max(jlo,jhi)+1,0:nzl+1,1:3)
+cc        real(8) :: aa(min(ilo,ihi)-1:max(ilo,ihi)+1
+cc     .               ,min(jlo,jhi)-1:max(jlo,jhi)+1,0:nzl+1,1:3)
+cc
+ccc     Local variables
+cc
+cc        integer :: i,im,ip,imin,imax,istep
+cc     .            ,j,jm,jp,jmin,jmax,jstep
+cc
+ccc     Begin program
+cc
+cc        istep = -1
+cc        if (ilo < ihi) istep = 1
+cc
+cc        jstep = -1
+cc        if (jlo < jhi) jstep = 1
+cc
+cc        a(ilo-istep,jlo-jstep,:,3)=0d0
+cc
+cc        i = ilo-istep
+cc
+cc        jmin = jlo-min(jstep,0)
+cc        jmax = jhi+max(jstep,0)
+cc
+cc        do j=jmin,jmax,jstep
+cc          jm = j-max(jstep,0)
+cc          jp = j+min(jstep,0)
+cc
+cc          dyy = yy(jp)-yy(jm)
+cc
+cccc          if (spoint) then  !r=0 face
+cccc            aa(i,j,:,3)=aa(i,j-1,:,3) + dyy*2.5d-1*(bb(i  ,j-1,:,1)
+cccc     .                                             +bb(i  ,j  ,:,1)
+cccc     .                                             +bb(i+1,j-1,:,1)
+cccc     .                                             +bb(i+1,j  ,:,1))
+cccc          else
+cc            aa(i,jp,:,3)=aa(i,jm,:,3) + dyy*5d-1*(bb(i,jm,:,1)
+cc     .                                           +bb(i,jp,:,1))
+cccc          endif
+cc        enddo
+cc
+cc        aa(ilo-istep,:,:,2)=0d0
+cc
+cc        imin = ilo-min(istep,0)
+cc        imax = ihi+max(istep,0)
+cc
+cc        do i=imin,imax,istep
+cc
+cc          im = i-max(istep,0)
+cc          ip = i+min(istep,0)
+cc
+cccc          if (.not.glbl) call getMGmap(i,1,1,igx,igy,igz,ig,jg,kg)
+cccc
+cccc          if (spoint) then
+cccc            if (.not.glbl) then
+cccc              dxx = grid_params%dxh(ig-1)
+cccc            else
+cccccc              dxx = 0.5*(grid_params%xg(i+1)-grid_params%xg(i-1))
+cccc              dxx = grid_params%xg(i)-grid_params%xg(i-1)
+cccc            endif
+cccc
+cccc            a(i,:,:,3) = a(i-1,:,:,3) - dxx*b(i,:,:,2)
+cccc
+cccc            if (isSP(i,1,1,igx,igy,igz)) then
+cccc              a(i,:,:,2) = a(i-1,:,:,2) + 5d-1*dxx*b(i,:,:,3)  !Factor of 1/2 due to geometry
+cccc            else
+cccc              a(i,:,:,2) = a(i-1,:,:,2) +      dxx*b(i,:,:,3)
+cccc            endif
+cccc
+cccc          else
+cc
+cc            dxx = xx(ip)-xx(im)
+cc
+cc            aa(ip,:,:,3) = aa(im,:,:,3) - dxx*5d-1*(bb(im,:,:,2)
+cc     .                                             +bb(ip,:,:,2))
+cc            aa(ip,:,:,2) = aa(im,:,:,2) + dxx*5d-1*(bb(im,:,:,3)
+cc     .                                             +bb(ip,:,:,3))
+cc
+cccc          endif
+cc        enddo
+cc
+cc      !Average from radial faces to nodes in SP coordinate systems
+cccc        if (spoint) aa(1:nx+1,:,:,2:3) = 0.5*(aa(1:nx+1,:,:,2:3)
+cccc     .                                       +aa(0:nx  ,:,:,2:3))
+cc
+cc      end subroutine line_int
+
+c     line_int_xz
 c     #############################################################
-      subroutine line_int(ilo,ihi,jlo,jhi,bb,aa)
+      subroutine line_int_xz(ilo,ihi,klo,khi,bb,aa)
 
 c     -------------------------------------------------------------
 c     Performs line integral to find vector potential from magnetic
-c     field from starting point (ilo,jlo) in any given quadrant
-c     defined by [ilo,ihi]x[jlo,jhi]. We do NOT assume ilo<ihi or
+c     field. Vector potential assumes gauge A_1 = 0. integration is
+c     performed from starting point (ilo,jlo) in any given quadrant
+c     defined by [ilo,ihi]x[klo,khi]. We do NOT assume ilo<ihi or
 c     jlo<jhi.
 c     -------------------------------------------------------------
 
+      implicit none
+
 c     Call variables
 
-        integer :: ilo,ihi,jlo,jhi
-        real(8) :: bb(min(ilo,ihi)-1:max(ilo,ihi)+1
-     .               ,min(jlo,jhi)-1:max(jlo,jhi)+1,0:nzl+1,1:3)
-        real(8) :: aa(min(ilo,ihi)-1:max(ilo,ihi)+1
-     .               ,min(jlo,jhi)-1:max(jlo,jhi)+1,0:nzl+1,1:3)
+        integer :: ilo,ihi,klo,khi
+        real(8) :: bb(min(ilo,ihi)-1:max(ilo,ihi)+1,0:nyl+1
+     .               ,min(klo,khi)-1:max(klo,khi)+1,1:3)
+        real(8) :: aa(min(ilo,ihi)-1:max(ilo,ihi)+1,0:nyl+1
+     .               ,min(klo,khi)-1:max(klo,khi)+1,1:3)
 
 c     Local variables
 
         integer :: i,im,ip,imin,imax,istep
-     .            ,j,jm,jp,jmin,jmax,jstep
+     .            ,k,km,kp,kmin,kmax,kstep
 
 c     Begin program
 
         istep = -1
         if (ilo < ihi) istep = 1
 
-        jstep = -1
-        if (jlo < jhi) jstep = 1
-
-        a(ilo-istep,jlo-jstep,:,3)=0d0
-
-        i = ilo-istep
-
-        jmin = jlo-min(jstep,0)
-        jmax = jhi+max(jstep,0)
-
-        do j=jmin,jmax,jstep
-          jm = j-max(jstep,0)
-          jp = j+min(jstep,0)
-
-          dyy = yy(jp)-yy(jm)
-
-cc          if (spoint) then  !r=0 face
-cc            aa(i,j,:,3)=aa(i,j-1,:,3) + dyy*2.5d-1*(bb(i  ,j-1,:,1)
-cc     .                                             +bb(i  ,j  ,:,1)
-cc     .                                             +bb(i+1,j-1,:,1)
-cc     .                                             +bb(i+1,j  ,:,1))
-cc          else
-            aa(i,jp,:,3)=aa(i,jm,:,3) + dyy*5d-1*(bb(i,jm,:,1)
-     .                                           +bb(i,jp,:,1))
-cc          endif
-        enddo
-
-        aa(ilo-istep,:,:,2)=0d0
+        kstep = -1
+        if (klo < khi) kstep = 1
 
         imin = ilo-min(istep,0)
         imax = ihi+max(istep,0)
 
-        do i=imin,imax,istep
+        kmin = klo-min(kstep,0)
+        kmax = khi+max(kstep,0)
 
+        i = imin
+
+        do k=kmin,kmax,kstep
+          km = k-max(kstep,0)
+          kp = k+min(kstep,0)
+
+          dzz = zz(kp)-zz(km)
+
+          aa(i,:,kp,2)=aa(i,:,km,2) - dzz*5d-1*(bb(i,:,km,1)
+     .                                         +bb(i,:,kp,1))
+        enddo
+
+        do i=imin,imax,istep
           im = i-max(istep,0)
           ip = i+min(istep,0)
 
-cc          if (.not.glbl) call getMGmap(i,1,1,igx,igy,igz,ig,jg,kg)
-cc
-cc          if (spoint) then
-cc            if (.not.glbl) then
-cc              dxx = grid_params%dxh(ig-1)
-cc            else
-cccc              dxx = 0.5*(grid_params%xg(i+1)-grid_params%xg(i-1))
-cc              dxx = grid_params%xg(i)-grid_params%xg(i-1)
-cc            endif
-cc
-cc            a(i,:,:,3) = a(i-1,:,:,3) - dxx*b(i,:,:,2)
-cc
-cc            if (isSP(i,1,1,igx,igy,igz)) then
-cc              a(i,:,:,2) = a(i-1,:,:,2) + 5d-1*dxx*b(i,:,:,3)  !Factor of 1/2 due to geometry
-cc            else
-cc              a(i,:,:,2) = a(i-1,:,:,2) +      dxx*b(i,:,:,3)
-cc            endif
-cc
-cc          else
+          dxx = xx(ip)-xx(im)
 
-            dxx = xx(ip)-xx(im)
-
-            aa(ip,:,:,3) = aa(im,:,:,3) - dxx*5d-1*(bb(im,:,:,2)
-     .                                             +bb(ip,:,:,2))
-            aa(ip,:,:,2) = aa(im,:,:,2) + dxx*5d-1*(bb(im,:,:,3)
-     .                                             +bb(ip,:,:,3))
-
-cc          endif
+          aa(ip,:,:,3) = aa(im,:,:,3) - dxx*5d-1*(bb(im,:,:,2)
+     .                                           +bb(ip,:,:,2))
+          aa(ip,:,:,2) = aa(im,:,:,2) + dxx*5d-1*(bb(im,:,:,3)
+     .                                           +bb(ip,:,:,3))
         enddo
 
-      !Average from radial faces to nodes in SP coordinate systems
-cc        if (spoint) aa(1:nx+1,:,:,2:3) = 0.5*(aa(1:nx+1,:,:,2:3)
-cc     .                                       +aa(0:nx  ,:,:,2:3))
-
-      end subroutine line_int
+      end subroutine line_int_xz
 
 c     #############################################################
       subroutine line_int_yz(jlo,jhi,klo,khi,bb,aa)
+
+      implicit none
 
 c     -------------------------------------------------------------
 c     Performs line integral to find vector potential from magnetic
@@ -636,12 +700,13 @@ c     Begin program
         kstep = -1
         if (klo < khi) kstep = 1
 
-        a(:,jlo-jstep,klo-kstep,3)=0d0
-
-        j = jlo-jstep
+        jmin = jlo-min(jstep,0)
+        jmax = jhi+max(jstep,0)
 
         kmin = klo-min(kstep,0)
         kmax = khi+max(kstep,0)
+
+        j = jmin
 
         do k=kmin,kmax,kstep
           km = k-max(kstep,0)
@@ -652,11 +717,6 @@ c     Begin program
           aa(:,j,kp,1)=aa(:,j,km,1) + dzz*5d-1*(bb(:,j,km,2)
      .                                         +bb(:,j,kp,2))
         enddo
-
-        aa(:,jlo-jstep,:,2)=0d0
-
-        jmin = jlo-min(jstep,0)
-        jmax = jhi+max(jstep,0)
 
         do j=jmin,jmax,jstep
 
@@ -675,119 +735,12 @@ c     Begin program
 
       end subroutine getA_on_mesh
 
-
-ccc getA_on_mesh
-ccc#######################################################################
-cc      subroutine getA_on_mesh(nx,ny,nz,xx,yy,zz,bx,by,bz,ax,az,order)
-cc
-cc      implicit none
-cc
-ccc-----------------------------------------------------------------------
-ccc     Variable-order inverse-curl operation, performed by choosing 
-ccc     gauge Ay=0d0 and integrating resulting line integrals. The
-ccc     order of integration is determined by order:
-ccc       * order = 2: Integrals done by trapezoidal rule.
-ccc       * order = 3: Integrals done by Numerical Recipes p. 128, 4.1.12 
-ccc                    -- actually one bit better -- extrapolates quadratically
-ccc                    to f(-1) and uses the internal formula, rather than
-ccc                    using midpoint for the first point. Thus even the
-ccc                    first point has third order accuracy.
-ccc-----------------------------------------------------------------------
-cc
-ccc     Call variables
-cc
-cc      integer :: nx,ny,nz,order
-cc      real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
-cc      real(8) :: ax(nx,ny,nz),az(nx,ny,nz)
-cc      real(8) :: xx(nx),yy(ny),zz(nz)
-cc
-ccc     Local variables
-cc
-cc      integer :: i,j,k
-cc      real(8) :: tm,t0,cm,c0,cp,halfx,halfy,halfz
-cc      real(8) :: dx,dy,dz
-cc
-ccc     Begin program
-cc
-cc      ax(1,:,1) = 0d0
-cc
-cc      select case(order)
-cc      case(1,2)
-cc
-cc        do k=2,nz
-cc          halfz = 0.5*(zz(k)-zz(k-1))
-cc          ax(:,1,k)=ax(:,1,k-1)+halfz*(by(:,1,k-1)+by(:,1,k))
-cc        enddo
-cc
-cc        az(:,1,:) = 0d0
-cc
-cc        do j=2,ny
-cc          halfy = 0.5*(yy(j)-yy(j-1))
-cc          ax(:,j,:)=ax(:,j-1,:)-halfy*(bz(:,j-1,:)+bz(:,j,:))
-cc          az(:,j,:)=az(:,j-1,:)+halfy*(bx(:,j-1,:)+bx(:,j,:))
-cc        enddo
-cc
-cc      case(3)
-cc
-cc        tm=0.5
-cc        t0=0.5
-cc        cm=-0.0833333333333
-cc        c0= 0.6666666666667
-cc        cp= 0.4166666666667
-cc
-cc        do k=2,nz
-cc          dz = (zz(k)-zz(k-1))
-cc          if (k.eq.2) then
-cccc            ax(:,1,k)=ax(:,1,k-1)+ dz*(tm*by(:,1,k-1)+t0*by(:,1,k))
-cc            ax(:,1,k)=ax(:,1,k-1)+ dz*(cp*by(:,1,k-1)
-cc     .                                +c0*by(:,1,k  )
-cc     .                                +cm*by(:,1,k+1))
-cc          else
-cc            ax(:,1,k)=ax(:,1,k-1)+ dz*(cm*by(:,1,k-2)
-cc     .                                +c0*by(:,1,k-1)
-cc     .                                +cp*by(:,1,k  ))
-cc          endif
-cc        enddo
-cc
-cc        az(:,1,:) = 0d0
-cc
-cc        do j=2,ny
-cc          dy = (yy(j)-yy(j-1))
-cc          if (j == 2) then
-cccc            ax(:,j,:)=ax(:,j-1,:)-dy*(tm*bz(:,j-1,:)+t0*bz(:,j,:))
-cccc            az(:,j,:)=az(:,j-1,:)+dy*(tm*bx(:,j-1,:)+t0*bx(:,j,:))
-cc            ax(:,j,:)=ax(:,j-1,:)- dy*(cp*bz(:,j-1,:)
-cc     .                                +c0*bz(:,j  ,:)
-cc     .                                +cm*bz(:,j+1,:))
-cc            az(:,j,:)=az(:,j-1,:)+ dy*(cp*bx(:,j-1,:)
-cc     .                                +c0*bx(:,j  ,:)
-cc     .                                +cm*bx(:,j+1,:))
-cc          else
-cc            ax(:,j,:)=ax(:,j-1,:)- dy*(cm*bz(:,j-2,:)
-cc     .                                +c0*bz(:,j-1,:)
-cc     .                                +cp*bz(:,j  ,:))
-cc            az(:,j,:)=az(:,j-1,:)+ dy*(cm*bx(:,j-2,:)
-cc     .                                +c0*bx(:,j-1,:)
-cc     .                                +cp*bx(:,j  ,:))
-cc
-cc          endif
-cc        enddo
-cc
-cc      case default
-cc
-cc        write (*,*) 'Order not implemented yet in getA'
-cc        stop
-cc
-cc      end select
-cc
-cc      end subroutine getA_on_mesh
-
 c     splineB
 c     #################################################################
       subroutine splineB(bx,by,bz)
 c     -----------------------------------------------------------------
-c     This routine splines up vector components (ax,ay,az) on a uniform
-c     grid of size (nx,ny,nz) with positions xs,ys,zs.
+c     This routine splines up vector components (bx,by,abz) on a mesh
+c     of size (nx,ny,nz) with positions given in xs,ys,zs.
 c     -----------------------------------------------------------------
 
       implicit none            ! For safe Fortran
@@ -797,48 +750,9 @@ c     Call variables
 c     Local variables
 
       integer :: alloc_stat,i,j,k
-cc      real(8) :: b1(nx,ny,nz),b2(nx,ny,nz),bx1,by1,bz1
       real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
 
 c     Begin program
-
-cc      !B2 magnetic field
-cc      do k=1,nz
-cc        do j=1,ny
-cc          do i=1,nx
-cc            call evalCurlA(xs(i),ys(j),zs(k),bx1,by1,bz1,flag=1)
-cc            b1(i,j,k)=bx1
-cc            b2(i,j,k)=bz1
-cc          enddo
-cc        enddo
-cc      enddo
-cc
-cc      allocate(b2coefx(nx,ny,nz),stat=alloc_stat)
-cc      call db3ink(xs,nx,ys,ny,zs,nz
-cc     .           ,b1,nx,ny,kx,ky,kz,tx,ty,tz,b2coefx,work,flg)
-cc
-cc      allocate(b2coefz(nx,ny,nz),stat=alloc_stat)
-cc      call db3ink(xs,nx,ys,ny,zs,nz
-cc     .           ,b2,nx,ny,kx,ky,kz,tx,ty,tz,b2coefz,work,flg)
-cc
-cc      !B3 magnetic field
-cc      do k=1,nz
-cc        do j=1,ny
-cc          do i=1,nx
-cc            call evalCurlA(xs(i),ys(j),zs(k),bx1,by1,bz1,flag=2)
-cc            b1(i,j,k)=bx1
-cc            b2(i,j,k)=by1
-cc          enddo
-cc        enddo
-cc      enddo
-cc
-cc      allocate(b3coefx(nx,ny,nz),stat=alloc_stat)
-cc      call db3ink(xs,nx,ys,ny,zs,nz
-cc     .           ,b1,nx,ny,kx,ky,kz,tx,ty,tz,b3coefx,work,flg)
-cc
-cc      allocate(b3coefy(nx,ny,nz),stat=alloc_stat)
-cc      call db3ink(xs,nx,ys,ny,zs,nz
-cc     .           ,b2,nx,ny,kx,ky,kz,tx,ty,tz,b3coefy,work,flg)
 
       allocate(bcoefx(nx,ny,nz),stat=alloc_stat)
       call db3ink(xs,nx,ys,ny,zs,nz
@@ -893,8 +807,8 @@ c     splineJ
 c     #################################################################
       subroutine splineJ(jac)
 c     -----------------------------------------------------------------
-c     This routine splines up the jacobian on a uniform
-c     grid of size (nx,ny,nz) with positions xs,ys,zs.
+c     This routine splines up the jacobian on a mesh
+c     of size (nx,ny,nz) with positions xs,ys,zs.
 c     -----------------------------------------------------------------
 
       implicit none            ! For safe Fortran
@@ -920,7 +834,7 @@ c     splineX
 c     #################################################################
       subroutine splineX(xcar)
 c     -----------------------------------------------------------------
-c     This routine splines up the Cartesian map on a uniform
+c     This routine splines up the Cartesian map on a
 c     grid of size (nx,ny,nz) with positions xs,ys,zs.
 c     -----------------------------------------------------------------
 
@@ -991,7 +905,17 @@ c     evalCurlA
 c     #################################################################
       subroutine evalCurlA(x1,x2,x3,bx,by,bz,flag,idx,idy,idz)
 c     -----------------------------------------------------------------
-c     This evaluates curl(A) at logical position (x1,x2,x3).
+c     This evaluates B=curl(A) at logical position (x1,x2,x3). Other
+c     variables are:
+c       * flag: indicates whether two vector potential components
+c               are nonzero (0), or two are zero (1,2). Which are
+c               zero depends on flag and the gauge chosen (passed to
+c               this routine in variable "ag" from module). This
+c               capability is needed for the VP integrator.
+c       * idx,idy,idz: derivative index in x,y,z respectively, in
+c               addition to what is needed to evaluate the curl. This
+c               is needed to evaluate the Jacobian matrix of the implicit
+c               orbit equations.
 c     -----------------------------------------------------------------
 
       implicit none            ! For safe Fortran
@@ -1194,8 +1118,11 @@ c     ##################################################################
       subroutine getB(x1,x2,x3,b1,b2,b3,solen,car,flag)
 
 c     ------------------------------------------------------------------
-c     Finds magnetic field components on specified location in LOGICAL
-c     space (x1,x2,x3)
+c     Wrapper routine to find magnetic field components on specified
+c     location in LOGICAL space (x1,x2,x3) using various options:
+c      * solen: using curl(A). If so, variable flag indicates which
+c               components of A are nonzero (see evalCurlA)>
+c      * car: cartesian components
 c     ------------------------------------------------------------------
 
       implicit none
@@ -1343,7 +1270,8 @@ cc        if (error(iter) < tol) exit
           write (*,*)
           write (*,*) 'evalXi -- x =',x,y,z
           write (*,*) 'evalXi -- xi=',x1,x2,x3
-          write (*,*) 'evalXi -- domain=',xmin,xmax,ymin,ymax,zmin,zmax
+          write (*,*) 'evalXi -- domain=',xsmin,xsmax,ysmin,ysmax
+     .                                   ,zsmin,zsmax
           write (*,*) 'evalXi -- Convergence history: ',error
         endif
 cc        call pstop('evalXi','No convergence in Newton')
@@ -1378,9 +1306,9 @@ c     ###################################################################
       res(3) = z - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,xcoefz,work)
 
-      if (bcond(1) == PER) res(1) = mod(res(1),xmax-xmin-0.1*tol)
-      if (bcond(3) == PER) res(2) = mod(res(2),ymax-ymin-0.1*tol)
-      if (bcond(5) == PER) res(3) = mod(res(3),zmax-zmin-0.1*tol)
+      if (bcond(1) == PER) res(1) = mod(res(1),xsmax-xsmin-0.1*tol)
+      if (bcond(3) == PER) res(2) = mod(res(2),ysmax-ysmin-0.1*tol)
+      if (bcond(5) == PER) res(3) = mod(res(3),zsmax-zsmin-0.1*tol)
 
       end function formResidual
 
@@ -1544,7 +1472,7 @@ c     killSplines
 c     #################################################################
       subroutine killSplines
 c     -----------------------------------------------------------------
-c     This evaluates curl(A) at (x,y,z).
+c     This deallocates memory space for spline routines.
 c     -----------------------------------------------------------------
 
       implicit none            ! For safe Fortran

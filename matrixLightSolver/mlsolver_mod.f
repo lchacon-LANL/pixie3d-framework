@@ -9,7 +9,7 @@ c######################################################################
         type :: solver_options
           !Global quantities
           integer    :: iter
-          real(8)    :: tol
+          real(8)    :: tol,atol,stol
 
           !Stationary iterative methods quantities
           real(8)    :: omega
@@ -128,7 +128,9 @@ c       Initializes solver options
 
           !Generic options
           solverOptions%iter  = 10                 !Number of iterations
-          solverOptions%tol   = 1d-5               !Convergence tolerance
+          solverOptions%tol   = 0d-5               !Relative convergence tolerance
+          solverOptions%atol  = 0d-5               !Absolute convergence tolerance
+          solverOptions%stol  = 0d-5               !Update convergence tolerance
 
           !MG and smoother options
           solverOptions%vcyc     = 1               !Number of V-cycles (MG)

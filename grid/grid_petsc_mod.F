@@ -9,12 +9,14 @@ c       PER: Periodic
 c       SP : Singular point (as in cylindrical, toroidal)
 c       SYM: Symmetry (> 0 -> homogeneous Neumann
 c                     ,< 0 -> homogeneous Dirichlet)
+c
 c     Standard BCs:
 c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
 c       DIR: Homogeneous dirichlet
 c       NEU: Neumann (homogeneous/inhomogeneous)
 c       SYM: Symmetry (odd,even depend on sign)
 c       EXT: By extrapolation
+c       IFC: Interpolate to face (and store in ghost cell)
 c       DEF: Default (does nothing)
 c     The actual integers chosen indicate a particular order that the BC
 c     scheduler follows to impose the boundary conditions.
@@ -22,12 +24,12 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-        integer    :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM,IFC
+        integer :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM,IFC
         parameter (DEF=0,PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7,IFC=8)
 
-        integer   ,parameter :: BCLIM=8    !Defines # of BC cases
+        integer,parameter :: BCLIM=8 !Defines # of BC cases (excludes DEF)
 
-        logical    :: asm_dir(3)=.false.,asm=.false.,par_bc=.false.
+        logical :: asm_dir(3)=.false.,asm=.false.,par_bc=.false.
 
 
         integer :: bcond(6)      !Contains topological BC configuration
