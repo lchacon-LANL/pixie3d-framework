@@ -19,6 +19,9 @@
 
 #include "DiscreteOperatorParameters.h"
 
+#include "VisItDataWriter.h"
+
+
 #ifndef LACKS_NAMESPACE
 using namespace SAMRAI;
 #endif
@@ -45,5 +48,6 @@ public:
    // Computational grid where problem is solved.
    tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
 
+   SAMRAI::appu::VisItDataWriter<NDIM>* d_VizWriter;
 };
 #endif

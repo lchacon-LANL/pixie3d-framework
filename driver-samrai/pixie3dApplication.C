@@ -132,6 +132,8 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
 
    d_RefineSchedulesGenerated=false;
 
+   d_VizWriter = parameters->d_VizWriter;
+   
    initialize( parameters );
 }
 
@@ -176,6 +178,14 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
    d_object_name = "pixie3d";
    d_hierarchy = parameters->d_hierarchy;
 
+#ifdef vecpot
+
+#else
+   std::string depVarLabels[8] = {"Rho", "P1", "P2", "P3",  "B1", "B2", "B3", "Tmp"};
+   std:: string auxScalarLabels[4] = {"nu", "zeros", "ones", "vzeros"};
+   //   auxScalarLabels[4] = {"nu", "zeros", "ones", "vzeros"};   
+#endif   
+   
    tbox::pout << "Initializing\n";
    
    // Load input file
@@ -288,10 +298,13 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
        var = new pdat::CellVariable<NDIM,double>( var_name, 1 );
        var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
        d_x->addComponent( var, var_id, weight_id );
+       d_VizWriter->registerPlotQuantity(var_name, "SCALAR", var_id);
+
        var_id = var_db->registerVariableAndContext(var, context_xt, ghost2);
        d_x_tmp->addComponent( var, var_id, weight_id );
        var_id = var_db->registerVariableAndContext(var, context_in, ghost1);
        d_initial->addComponent( var, var_id, weight_id );
+       d_VizWriter->registerPlotQuantity("initial "+var_name, "SCALAR", var_id);
      }
 
    // allocate data for all variables on all levels
@@ -300,8 +313,8 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
    d_initial->allocateVectorData();
 
    // set to negative values
-   d_x->setToScalar( -1.0, false );
-   d_initial->setToScalar( -1.0, false );
+   //   d_x->setToScalar( -1.0, false );
+   //   d_initial->setToScalar( -1.0, false );
 
    // Allocate data for auxillary variables
    tbox::Pointer<hier::VariableContext> context_aux = var_db->getContext("pixie3d-aux");
@@ -318,6 +331,8 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
        var = new pdat::CellVariable<NDIM,double>( var_name, 1 );
        var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
        d_aux_scalar->addComponent( var, var_id, weight_id );
+       d_VizWriter->registerPlotQuantity(var_name, "SCALAR", var_id);
+
        var_id = var_db->registerVariableAndContext(var, context_xt, ghost2);
        d_aux_scalar_tmp->addComponent( var, var_id, weight_id );
      }
@@ -330,6 +345,8 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
        var = new pdat::CellVariable<NDIM,double>( var_name, NDIM );
        var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
        d_aux_vector->addComponent( var, var_id, weight_id );
+       d_VizWriter->registerPlotQuantity(var_name, "VECTOR", var_id);
+
        var_id = var_db->registerVariableAndContext(var, context_xt, ghost2);
        d_aux_vector_tmp->addComponent( var, var_id, weight_id );
      }
@@ -337,18 +354,19 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
    d_aux_scalar->allocateVectorData();
    d_aux_vector->allocateVectorData();
    
-   d_aux_scalar->setToScalar( 0.0, false );
-   d_aux_vector->setToScalar( 0.0, false );
+   //   d_aux_scalar->setToScalar( 0.0, false );
+   //   d_aux_vector->setToScalar( 0.0, false );
 
    d_aux_scalar_tmp->allocateVectorData();
    d_aux_vector_tmp->allocateVectorData();
 
-   d_aux_scalar_tmp->setToScalar( 0.0, false );
-   d_aux_vector_tmp->setToScalar( 0.0, false );
+   //   d_aux_scalar_tmp->setToScalar( 0.0, false );
+   //   d_aux_vector_tmp->setToScalar( 0.0, false );
    
    // Allocate data for f_src
    d_f_src = new pdat::CellVariable<NDIM,double>( "fsrc", data.nvar );
    f_src_id = var_db ->registerVariableAndContext(d_f_src, context_f, ghost0);
+
    for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++)
      {
        tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);       
@@ -452,11 +470,6 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 	 }
      }
 
-   //set the boundary schedules before forming an equilibrium
-   setBoundarySchedules(true);
-   // Apply boundary conditions
-   synchronizeVariables();
-   
    // Form equilibrium
    // Loop through hierarchy
    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
@@ -495,6 +508,11 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 	 }
      }
 
+   //set the boundary schedules before forming an equilibrium
+   setBoundarySchedules(true);
+   // Apply boundary conditions
+   synchronizeVariables();
+   
    // Form initial conditions
    // Loop through hierarchy
    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
@@ -517,6 +535,7 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 #endif
 	 }
      }
+
 }
 
 
@@ -875,6 +894,11 @@ void  pixie3dApplication::refineVariables(void)
 	       refineVectorAlgorithm.resetSchedule(d_refineVectorSchedules[ln]);
 	       d_refineVectorSchedules[ln]->fillData(0.0);
 	     }
+	   
+	   if(((d_bIsInitialTime)&&(i==2))||((!d_bIsInitialTime)&&(i==1)))
+	     {
+	       d_levelSchedules[ln]->fillData(0.0);
+	     }
 	 }
      }
 
@@ -891,7 +915,8 @@ void  pixie3dApplication::refineVariables(void)
 void
 pixie3dApplication::setBoundarySchedules(bool bIsInitialTime)
 {
-
+  d_bIsInitialTime = bIsInitialTime;
+  
   int it=(bIsInitialTime)?0:1;
 
   ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPixie3DTime(it);
@@ -1091,6 +1116,11 @@ pixie3dApplication::generateTransferSchedules(void)
    d_refineVectorComponentSchedules.resizeArray(hierarchy_size);
    d_refineVectorSchedules.resizeArray(hierarchy_size);
 
+   // test code
+   d_levelAlgorithm.registerRefine(auxv_id[1], auxv_id[1], auxv_id[1], NULL);
+
+   d_levelSchedules.resizeArray(hierarchy_size);
+   
    d_cell_coarsen_schedules.resizeArray(hierarchy_size);
    
    for (int ln=0; ln<hierarchy_size; ln++)
@@ -1100,6 +1130,8 @@ pixie3dApplication::generateTransferSchedules(void)
        d_refineVectorComponentSchedules[ln] = d_refineVectorComponentAlgorithm.createSchedule( level, ln-1, d_hierarchy, (xfer::RefinePatchStrategy<NDIM>*)d_refine_strategy );
        d_refineVectorSchedules[ln]                   = d_refineVectorAlgorithm.createSchedule( level, ln-1, d_hierarchy, (xfer::RefinePatchStrategy<NDIM>*)d_refine_strategy );
 
+       d_levelSchedules[ln] = d_levelAlgorithm.createSchedule(level);
+       
        if(ln<hierarchy_size-1)
 	 {
 	   tbox::Pointer<hier::PatchLevel<NDIM> > flevel = d_hierarchy->getPatchLevel(ln+1);         

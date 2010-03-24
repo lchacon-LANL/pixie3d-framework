@@ -31,6 +31,8 @@
 #include "FaceData.h"
 #include "LevelContainer.h"
 
+#include "VisItDataWriter.h"
+
 #include "DiscreteOperator.h"
 #include "pixie3dApplicationParameters.h"
 
@@ -128,7 +130,8 @@ public:
    void printObjectName( std::ostream& os );
 
    void setBoundarySchedules(bool bIsInitialTime);
-   
+
+   void registerVizWriter( SAMRAI::appu::VisItDataWriter<NDIM>* visit_writer){d_VizWriter = visit_writer;}
 private:
    
    void printVector( const tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > vector);
@@ -184,10 +187,12 @@ private:
    xfer::RefineAlgorithm<NDIM> d_refineScalarAlgorithm;
    xfer::RefineAlgorithm<NDIM> d_refineVectorComponentAlgorithm;
    xfer::RefineAlgorithm<NDIM> d_refineVectorAlgorithm;
+   xfer::RefineAlgorithm<NDIM> d_levelAlgorithm;
 
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineScalarSchedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorComponentSchedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorSchedules;
+   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_levelSchedules;
 
    xfer::RefinePatchStrategy<NDIM> *d_refine_strategy; 
 
@@ -195,5 +200,7 @@ private:
    xfer::CoarsenAlgorithm<NDIM> d_cell_coarsen_alg;
    tbox::Array< tbox::Pointer<xfer::CoarsenSchedule<NDIM> > > d_cell_coarsen_schedules;
 
+   SAMRAI::appu::VisItDataWriter<NDIM>* d_VizWriter;
+   bool d_bIsInitialTime;
 };
 #endif

@@ -131,10 +131,16 @@ int main( int argc, char *argv[] )
    // Create the AMR hierarchy and initialize it
    initializeAMRHierarchy(input_db,test_object,hierarchy);
  
+   // Initialize the writer
+   appu::VisItDataWriter<NDIM>* visit_writer;
+   visit_writer = new appu::VisItDataWriter<NDIM>("pixie3d visualizer", write_path);       
+
    // Create the application
    pixie3dApplicationParameters* application_parameters = new pixie3dApplicationParameters();
    application_parameters->d_hierarchy = hierarchy;
    application_parameters->d_db = input_db->getDatabase("pixie3d");
+   application_parameters->d_VizWriter = visit_writer;
+   
    pixie3dApplication* application  = new pixie3dApplication( application_parameters );
    
    // Initialize x0
@@ -145,7 +151,8 @@ int main( int argc, char *argv[] )
    SAMRSolvers::TimeIntegratorParameters *timeIntegratorParameters = new SAMRSolvers::TimeIntegratorParameters(ti_db);
    timeIntegratorParameters->d_operator = application;
    timeIntegratorParameters->d_ic_vector = application->get_x();
-
+   timeIntegratorParameters->d_vizWriter = visit_writer;
+   
    // create a time integrator
    SAMRSolvers::TimeIntegratorFactory *tiFactory = new SAMRSolvers::TimeIntegratorFactory();
    std::auto_ptr<SAMRSolvers::TimeIntegrator> timeIntegrator = tiFactory->createTimeIntegrator(timeIntegratorParameters);
@@ -154,15 +161,12 @@ int main( int argc, char *argv[] )
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > x_t;
    x_t = timeIntegrator->getCurrentSolution();
 
-   // Initialize the writer
-   appu::VisItDataWriter<NDIM>* visit_writer;
-   
    tbox::Pointer<tbox::Database> plot_db = input_db->getDatabase("Plotting");
 
    if (plot_db->keyExists("plot_interval")) 
      {
        plot_interval = plot_db->getInteger("plot_interval");
-       visit_writer = new appu::VisItDataWriter<NDIM>("pixie3d visualizer", write_path);       
+#if 0       
        string var_name;
        stringstream stream;
        for (int i=0; i<application->getNumberOfDependentVariables(); i++) 
@@ -192,6 +196,7 @@ int main( int argc, char *argv[] )
 	   const int x_id = x_t->getComponentDescriptorIndex(i);
 	   visit_writer->registerPlotQuantity(var_name,"SCALAR",x_id);
 	 }
+#endif       
      }
 
    // Write the data
