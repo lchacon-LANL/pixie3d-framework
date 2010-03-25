@@ -22,8 +22,8 @@ c Call variables
 c Begin program
 
       gv => patch_var
-cc      grid_params => gv%gparams
-cc      gmetric => gv%gparams%gmetric
+      grid_params => gv%gparams
+      gmetric => gv%gparams%gmetric
 cc      u_n => gv%u_n
 cc      u_0 => gv%u_0
 cc      call setVectorDimensions

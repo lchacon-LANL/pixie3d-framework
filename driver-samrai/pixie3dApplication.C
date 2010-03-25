@@ -104,6 +104,7 @@ extern void FORTRAN_NAME(evaluatenonlinearresidual) (void*, int*, double*, void*
 #endif
 }
 
+namespace SAMRAI{
 /***********************************************************************
 *                                                                      *
 * Constructor sets some bad values.                                    *
@@ -120,7 +121,7 @@ pixie3dApplication::pixie3dApplication()
 * Construct from parameter list.  Calls initialize.                    *
 *                                                                      *
 ***********************************************************************/
-pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameters ): DiscreteOperator(parameters)
+pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameters ): SAMRSolvers::DiscreteOperator(parameters)
 {
    //d_coarsen_op_str = "CONSERVATIVE_COARSEN";
    d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
@@ -198,7 +199,6 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
    #else
       FORTRAN_NAME(readinputfile) (data);
    #endif
-   time = 0.0;
    
    assert(data->nvar>0);
    assert(data->nauxs>=0);
@@ -463,9 +463,6 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 ***********************************************************************/
 void pixie3dApplication::setInitialConditions( const double initial_time )
 {
-   d_initial_time = initial_time;
-
-  
    // create the necessary grid structures and allocate variables
    // Loop through hierarchy
    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
@@ -556,17 +553,6 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 
 /***********************************************************************
 *                                                                      *
-* Evaluate initial conditions on a single level                        *
-*                                                                      *
-***********************************************************************/
-void pixie3dApplication::setInitialConditions( const double initial_time, tbox::Pointer< hier::PatchLevel<NDIM> > level )
-{
-   d_initial_time = initial_time;
-}
-
-
-/***********************************************************************
-*                                                                      *
 * Register vector for setting initial conditions.                      *
 *                                                                      *
 ***********************************************************************/
@@ -575,31 +561,6 @@ pixie3dApplication::setInitialConditions( tbox::Pointer< solv::SAMRAIVectorReal<
 {
 }
 
-
-/***********************************************************************
-*                                                                      *
-* Provide descriptor indices managed here to be allocated.             *
-*                                                                      *
-***********************************************************************/
-hier::ComponentSelector 
-pixie3dApplication::getDataToAllocate()
-{
-   return( d_application_data );
-}
-
-
-/***********************************************************************
-*                                                                      *
-* Provide descriptor indices managed here to be timestamped.           *
-*                                                                      *
-***********************************************************************/
-hier::ComponentSelector 
-pixie3dApplication::getDataToTimeStamp()
-{
-   return( d_application_data );
-}
-
-
 /***********************************************************************
 *                                                                      *
 * Empty implementation.                                                *
@@ -607,18 +568,6 @@ pixie3dApplication::getDataToTimeStamp()
 ***********************************************************************/
 void pixie3dApplication::setValuesOnNewLevel( tbox::Pointer< hier::PatchLevel<NDIM> > level )
 {
-}
-
-
-/***********************************************************************
-*                                                                      *
-* Provide list of variables used by this test problem.                 *
-*                                                                      *
-***********************************************************************/
-tbox::Array< tbox::Pointer< hier::Variable<NDIM> > >
-pixie3dApplication::getVariables()
-{
-   return(d_variable_list);
 }
 
 void
@@ -1167,4 +1116,5 @@ pixie3dApplication::getNumberOfDependentVariables()
   //  assert(data!=NULL);
   return data->nvar;
 }
-  
+
+}

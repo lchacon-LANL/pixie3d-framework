@@ -39,8 +39,6 @@
 #include "pixie3dApplicationParameters.h"
 #include "pixie3dRefinePatchStrategy.h"
 
-using namespace SAMRAI;
-
 extern "C"{
 /* User-defined application context */
 //#include "petscsnes.h"
@@ -78,6 +76,9 @@ typedef struct {
 
 }
 
+namespace SAMRAI{
+
+
 /** \class pixie3dApplication
  *
  * This is a concrete class that provides an interface between
@@ -100,17 +101,8 @@ public:
    // Set initial conditions on all levels
    void setInitialConditions( const double initial_time );
 
-   // Set initial conditions on new level.
-   void setInitialConditions( const double initial_time, tbox::Pointer< hier::PatchLevel<NDIM> > level );
-
    // Register location to write initial conditions.
    void setInitialConditions( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > ic );
-
-   // Return ComponentSelector of data to allocate on a new level.
-   hier::ComponentSelector getDataToAllocate();
-
-   // Return ComponentSelector of data to time stamp on a new level.
-   hier::ComponentSelector getDataToTimeStamp();
 
    // return the number of dependent variables
    int getNumberOfDependentVariables(void);
@@ -118,8 +110,6 @@ public:
    // Set data values on new level.
    void setValuesOnNewLevel( tbox::Pointer< hier::PatchLevel<NDIM> > level );
 
-   // Return a list of variables used by this application.
-   tbox::Array< tbox::Pointer< hier::Variable<NDIM> > > getVariables();
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > get_x() { return(d_x); }
 
    // Evaluate IVP forcing term.
@@ -158,10 +148,6 @@ private:
    // Hierarchy
    tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
    
-   // Data Variables
-   double time;
-   double d_initial_time;
-
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_initial;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x_tmp;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x;
@@ -171,21 +157,11 @@ private:
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_vector_tmp;
    tbox::Pointer< pdat::CellVariable<NDIM,double> > d_f_src;
    int f_src_id;
-   int d_number_solution_components;
 
    bool d_RefineSchedulesGenerated;
-   
-   tbox::Array< tbox::Pointer< hier::Variable<NDIM> > > d_variable_list;
-   void **level_container_array;
 
-   int d_NumberOfBoundaryConditions, *d_BoundaryConditionSequence;
    int *u0_id, *u_id, *auxs_id, *auxv_id;
    int *f_id, *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
-
-   // Misc. variables   
-   hier::ComponentSelector d_application_data;
-   tbox::Array< tbox::Pointer< xfer::RefineSchedule<NDIM> > > d_regrid_refine_scheds;
-   tbox::Pointer<hier::VariableContext> d_application_ctx;
 
    bool d_bIsInitialTime;
 
@@ -214,5 +190,10 @@ private:
 
    input_CTX *data;
 
+   void **level_container_array;
+
+   int d_NumberOfBoundaryConditions, *d_BoundaryConditionSequence;
+
 };
+}
 #endif

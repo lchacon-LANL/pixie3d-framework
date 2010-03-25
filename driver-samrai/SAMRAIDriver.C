@@ -136,12 +136,11 @@ int main( int argc, char *argv[] )
    visit_writer = new appu::VisItDataWriter<NDIM>("pixie3d visualizer", write_path);       
 
    // Create the application
-   pixie3dApplicationParameters* application_parameters = new pixie3dApplicationParameters();
+   SAMRAI::pixie3dApplicationParameters* application_parameters = new SAMRAI::pixie3dApplicationParameters( input_db->getDatabase("pixie3d"));
    application_parameters->d_hierarchy = hierarchy;
-   application_parameters->d_db = input_db->getDatabase("pixie3d");
    application_parameters->d_VizWriter = visit_writer;
    
-   pixie3dApplication* application  = new pixie3dApplication( application_parameters );
+   SAMRAI::pixie3dApplication* application  = new SAMRAI::pixie3dApplication( application_parameters );
    
    // Initialize x0
    application->setInitialConditions(0.0);
