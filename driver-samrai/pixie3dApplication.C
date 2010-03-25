@@ -47,7 +47,6 @@
 #include "CoarsenAlgorithm.h"
 #include "CartesianGridGeometry.h"
 #include "pixie3dRefinePatchStrategy.h"
-
 #include "fortran.h"
 #include "math.h"
 #include <iostream>
@@ -187,34 +186,35 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 #endif   
    
    tbox::pout << "Initializing\n";
+   data = new  input_CTX;
    
    // Load input file
-   data.npx = 0;
-   data.npy = 0;
-   data.npz = 0;
+   data->npx = 0;
+   data->npy = 0;
+   data->npz = 0;
    //readInputFile_(&data);
    #ifdef absoft
-      FORTRAN_NAME(READINPUTFILE) (&data);
+      FORTRAN_NAME(READINPUTFILE) (data);
    #else
-      FORTRAN_NAME(readinputfile) (&data);
+      FORTRAN_NAME(readinputfile) (data);
    #endif
    time = 0.0;
    
-   assert(data.nvar>0);
-   assert(data.nauxs>=0);
-   assert(data.nauxv>=0);
+   assert(data->nvar>0);
+   assert(data->nauxs>=0);
+   assert(data->nauxv>=0);
 
-   u0_id       = new int[data.nvar];
-   u_id        = new int[data.nvar];
-   u_tmp_id    = new int[data.nvar];
+   u0_id       = new int[data->nvar];
+   u_id        = new int[data->nvar];
+   u_tmp_id    = new int[data->nvar];
    
-   auxs_id     = new int[data.nauxs];
-   auxv_id     = new int[data.nauxv];
+   auxs_id     = new int[data->nauxs];
+   auxv_id     = new int[data->nauxv];
    
-   auxs_tmp_id = new int[data.nauxs];
-   auxv_tmp_id = new int[data.nauxv];
+   auxs_tmp_id = new int[data->nauxs];
+   auxv_tmp_id = new int[data->nauxv];
 
-   f_id = new int[data.nvar];
+   f_id = new int[data->nvar];
    
    // Check for consistency between domain sizes
    tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry = d_hierarchy->getGridGeometry();
@@ -233,17 +233,17 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
        nbox[i] = physicalDomain[0].numberCells(i);
      }
    
-   if ( data.nxd != nbox[0] )
+   if ( data->nxd != nbox[0] )
      {
        TBOX_ERROR("The domain size does not match pixie3d in x-direction");
      }
    
-   if ( data.nyd != nbox[1] )
+   if ( data->nyd != nbox[1] )
      {
        TBOX_ERROR("The domain size does not match pixie3d in y-direction");
      }
    
-   if ( data.nzd != nbox[2] )
+   if ( data->nzd != nbox[2] )
      {
        TBOX_ERROR("The domain size does not match pixie3d in z-direction");
      }
@@ -290,7 +290,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
    d_initial = new solv::SAMRAIVectorReal<NDIM,double>("xInitialVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
 
    std::stringstream stream;
-   for (int i=0; i<data.nvar; i++)
+   for (int i=0; i<data->nvar; i++)
      {
        stream << "x(" << i << ")"; 
        var_name = stream.str();
@@ -323,7 +323,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
    d_aux_scalar_tmp = new solv::SAMRAIVectorReal<NDIM,double>("auxs",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
    d_aux_vector_tmp = new solv::SAMRAIVectorReal<NDIM,double>("auxv",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
    
-   for (int i=0; i<data.nauxs; i++)
+   for (int i=0; i<data->nauxs; i++)
      {
        stream << "auxs(" << i << ")"; 
        var_name = stream.str();
@@ -337,7 +337,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
        d_aux_scalar_tmp->addComponent( var, var_id, weight_id );
      }
    
-   for (int i=0; i<data.nauxv; i++)
+   for (int i=0; i<data->nauxv; i++)
      {
        stream << "auxv(" << i << ")"; 
        var_name = stream.str();
@@ -364,7 +364,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
    //   d_aux_vector_tmp->setToScalar( 0.0, false );
    
    // Allocate data for f_src
-   d_f_src = new pdat::CellVariable<NDIM,double>( "fsrc", data.nvar );
+   d_f_src = new pdat::CellVariable<NDIM,double>( "fsrc", data->nvar );
    f_src_id = var_db ->registerVariableAndContext(d_f_src, context_f, ghost0);
 
    for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++)
@@ -375,37 +375,37 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
    
    // Create patch variables
    int nx, ny, nz;
-   for (int i=0; i<data.nvar; i++)
+   for (int i=0; i<data->nvar; i++)
      {
        u0_id[i] = d_initial->getComponentDescriptorIndex(i);
      }
    
-   for (int i=0; i<data.nvar; i++)
+   for (int i=0; i<data->nvar; i++)
      {
        u_id[i]  = d_x->getComponentDescriptorIndex(i);
      }
    
-   for (int i=0; i<data.nvar; i++)
+   for (int i=0; i<data->nvar; i++)
      {
        u_tmp_id[i]  = d_x_tmp->getComponentDescriptorIndex(i);
      }
    
-   for (int i=0; i<data.nauxs; i++)
+   for (int i=0; i<data->nauxs; i++)
      {
        auxs_id[i] = d_aux_scalar->getComponentDescriptorIndex(i);
      }
    
-   for (int i=0; i<data.nauxv; i++)
+   for (int i=0; i<data->nauxv; i++)
      {
        auxv_id[i] = d_aux_vector->getComponentDescriptorIndex(i);
      }
    
-   for (int i=0; i<data.nauxs; i++)
+   for (int i=0; i<data->nauxs; i++)
      {
        auxs_tmp_id[i] = d_aux_scalar_tmp->getComponentDescriptorIndex(i);
      }
    
-   for (int i=0; i<data.nauxv; i++)
+   for (int i=0; i<data->nauxv; i++)
      {
        auxv_tmp_id[i] = d_aux_vector_tmp->getComponentDescriptorIndex(i);
      }
@@ -430,12 +430,27 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 				patch,
 				lowerCoordinates,      
 				upperCoordinates,      
-				data.nvar,
+				data->nvar,
 			               u0_id,
 				 u_id,
-				 data.nauxs, auxs_id,
-				 data.nauxv,auxv_id);
+				 data->nauxs, auxs_id,
+				 data->nauxv,auxv_id);
        }
+     }
+
+   // Setup pixie3dRefinePatchStrategy
+   d_refine_strategy = new pixie3dRefinePatchStrategy();
+   (d_refine_strategy)->setGridGeometry(grid_geometry);
+   (d_refine_strategy)->setPixie3dHierarchyData(level_container_array);
+   if ( GHOST == 1 )
+     {
+     (d_refine_strategy)->setPixie3dDataIDs(0, data->nvar, data->nauxs, data->nauxv,
+									  u_id, u_tmp_id, auxs_id, auxs_tmp_id, auxv_id, auxv_tmp_id );
+     }
+   else
+     {
+       (d_refine_strategy)->setPixie3dDataIDs(1, data->nvar, data->nauxs, data->nauxv,
+									    u_id, u_tmp_id, auxs_id, auxs_tmp_id, auxv_id, auxv_tmp_id );
      }
    
 }
@@ -645,7 +660,7 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
       tbox::pout << "*****************************************" << std::endl; 
     }
 
-  for (int i=0; i<data.nvar; i++)
+  for (int i=0; i<data->nvar; i++)
     {
       f_id[i] = r->getComponentDescriptorIndex(i);
     }
@@ -665,7 +680,7 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
 	double *fsrc = tmp->getPointer();
 	int n_elem = patch->getBox().size()*tmp->getDepth();
 	// Create varray on fortran side
-	varrayContainer *varray = new varrayContainer(patch,data.nvar,f_id);
+	varrayContainer *varray = new varrayContainer(patch,data->nvar,f_id);
 	// Create f
 #ifdef absoft
 	FORTRAN_NAME(EVALUATENONLINEARRESIDUAL)(level_container->getPtr(p()),&n_elem,fsrc,varray->getPtr());
@@ -796,7 +811,7 @@ void  pixie3dApplication::refineVariables(void)
      {
        for( int i=0; i<d_NumberOfBoundaryConditions; i++)
 	 {
-	   ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setRefineStrategyDataId(i);            
+	   (d_refine_strategy)->setRefineStrategyDataId(i);            
 
 	   int cId = d_BoundaryConditionSequence[i];
 	   int varType = d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions];
@@ -815,10 +830,10 @@ void  pixie3dApplication::refineVariables(void)
 	       for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
 		 {
 		   tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p());
-		   bool touches_boundary = ((pixie3dRefinePatchStrategy*) d_refine_strategy)->checkPhysicalBoundary(*patch);
+		   bool touches_boundary = (d_refine_strategy)->checkPhysicalBoundary(*patch);
 		   if ( !touches_boundary )
 		     {
-		       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPhysicalBoundaryConditions(*patch,0.0,hier::IntVector<NDIM>::IntVector(1));
+		       (d_refine_strategy)->setPhysicalBoundaryConditions(*patch,0.0,hier::IntVector<NDIM>::IntVector(1));
 		     }
 		 }
 	     }
@@ -878,6 +893,7 @@ void  pixie3dApplication::refineVariables(void)
 	   if((varType==1)&&(cId<0))
 	     {
 	       xfer::RefineAlgorithm<NDIM> refineVectorAlgorithm;
+	       //	       xfer::SiblingGhostAlgorithm<NDIM> siblingGhostVectorAlgorithm;
 	       if ( GHOST == 1 )
 		 {
 		   var0 = d_aux_vector->getComponentVariable(idx);
@@ -891,12 +907,19 @@ void  pixie3dApplication::refineVariables(void)
 	       
 	       refineVectorAlgorithm.registerRefine( data_id, data_id, data_id,
 						     grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
+
 	       refineVectorAlgorithm.resetSchedule(d_refineVectorSchedules[ln]);
 	       d_refineVectorSchedules[ln]->fillData(0.0);
+	       
+	       //	       siblingGhostVectorAlgorithm.registerSiblingGhost( data_id, data_id, data_id );
+	       //	       siblingGhostVectorAlgorithm.resetSchedule(d_siblingGhostVectorSchedules[ln]);
+	       //	       d_siblingGhostVectorSchedules[ln]->fillData(0.0);
+	       
+
 	     }
 
 	   
-	   //	   d_levelSchedules[ln]->fillData(0.0);
+	   // 	   d_levelSchedules[ln]->fillData(0.0);
 	 }
      }
 
@@ -917,7 +940,7 @@ pixie3dApplication::setBoundarySchedules(bool bIsInitialTime)
   
   int it=(bIsInitialTime)?0:1;
 
-  ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPixie3DTime(it);
+  (d_refine_strategy)->setPixie3DTime(it);
 
   // Get d_BoundaryConditionSequence
   // we need to call this before the call to refine as the bc schedules have to be set correctly
@@ -1006,21 +1029,6 @@ pixie3dApplication::generateTransferSchedules(void)
        grid_geometry->addSpatialCoarsenOperator ( coarsen_op ) ;      
      } 
 
-   // Setup pixie3dRefinePatchStrategy
-   d_refine_strategy = (xfer::RefinePatchStrategy<NDIM>*)new pixie3dRefinePatchStrategy();
-   ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setGridGeometry(grid_geometry);
-   ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPixie3dHierarchyData(level_container_array);
-   if ( GHOST == 1 )
-     {
-     ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPixie3dDataIDs(0, data.nvar, data.nauxs, data.nauxv,
-									  u_id, u_tmp_id, auxs_id, auxs_tmp_id, auxv_id, auxv_tmp_id );
-     }
-   else
-     {
-       ((pixie3dRefinePatchStrategy*) d_refine_strategy)->setPixie3dDataIDs(1, data.nvar, data.nauxs, data.nauxv,
-									    u_id, u_tmp_id, auxs_id, auxs_tmp_id, auxv_id, auxv_tmp_id );
-     }
-
    // do registerRefine for a scalar refine algorithm
    tbox::Pointer< hier::Variable<NDIM> > var0;
    int data_id;
@@ -1104,6 +1112,7 @@ pixie3dApplication::generateTransferSchedules(void)
 	   
 	   d_refineVectorAlgorithm.registerRefine( data_id, data_id, data_id,
 						   grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
+	   //	   d_siblingGhostVectorAlgorithm.registerSiblingGhost( data_id, data_id, data_id );
 	 }
        
      }
@@ -1115,18 +1124,21 @@ pixie3dApplication::generateTransferSchedules(void)
    d_refineVectorSchedules.resizeArray(hierarchy_size);
 
    // test code
-//    for (int i=0; i<data.nauxs; i++)
+//    for (int i=0; i<data->nauxs; i++)
 //      {
 //        d_levelAlgorithm.registerRefine(auxs_id[i], auxs_id[i], auxs_id[i], NULL);
 //      }
    
-//    for (int i=0; i<data.nauxv; i++)
-//      //   for (int i=1; i<2; i++)
-//      {
-//        d_levelAlgorithm.registerRefine(auxv_id[i], auxv_id[i], auxv_id[i], NULL);
-//      }
+//   for (int i=14; i<data->nauxv; i++)
+//   for (int i=14; i<14; i++)
+//     for (int i=2; i<4; i++)
+//     {
+//       d_levelAlgorithm.registerRefine(auxv_id[i], auxv_id[i], auxv_id[i], NULL);
+//     }
    
    d_levelSchedules.resizeArray(hierarchy_size);
+
+   //   d_siblingGhostVectorSchedules.resizeArray(hierarchy_size);
    
    d_cell_coarsen_schedules.resizeArray(hierarchy_size);
    
@@ -1138,6 +1150,8 @@ pixie3dApplication::generateTransferSchedules(void)
        d_refineVectorSchedules[ln]                   = d_refineVectorAlgorithm.createSchedule( level, ln-1, d_hierarchy, (xfer::RefinePatchStrategy<NDIM>*)d_refine_strategy );
 
        d_levelSchedules[ln] = d_levelAlgorithm.createSchedule(level);
+
+       //       d_siblingGhostVectorSchedules[ln] = d_siblingGhostVectorAlgorithm.createSchedule(level);
        
        if(ln<hierarchy_size-1)
 	 {
@@ -1151,6 +1165,6 @@ int
 pixie3dApplication::getNumberOfDependentVariables()
 {
   //  assert(data!=NULL);
-  return data.nvar;
+  return data->nvar;
 }
   

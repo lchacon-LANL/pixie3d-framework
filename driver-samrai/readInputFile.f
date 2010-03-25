@@ -23,6 +23,7 @@ c----------------------------------------------------------------------
 c Call variables
 
       type :: indata
+          sequence
         real(8)    :: tolgm
         real(8)    :: rtol
         real(8)    :: atol

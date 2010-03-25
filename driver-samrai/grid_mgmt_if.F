@@ -20,7 +20,6 @@ c######################################################################
       
       end subroutine f_create_var_array
 
-
 c f_create_aux_array
 c######################################################################
       subroutine f_create_aux_array(c_aux_array_ptr,nvar,nvec)

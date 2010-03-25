@@ -10,7 +10,6 @@
 
 #ifndef included_pixie3dRefinePatchStrategy
 #define included_pixie3dRefinePatchStrategy
-#endif
 
 #include "SAMRAI_config.h"
 
@@ -129,3 +128,4 @@ private:
 
 };
 }
+#endif

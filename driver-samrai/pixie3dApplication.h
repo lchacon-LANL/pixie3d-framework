@@ -25,6 +25,8 @@
 #include "RefinePatchStrategy.h"
 #include "RefineAlgorithm.h"
 #include "RefineSchedule.h"
+//#include "SiblingGhostAlgorithm.h"
+//#include "SiblingGhostSchedule.h"
 #include "CoarsenAlgorithm.h"
 #include "CoarsenSchedule.h"
 #include "VariableContext.h"
@@ -35,20 +37,22 @@
 
 #include "DiscreteOperator.h"
 #include "pixie3dApplicationParameters.h"
+#include "pixie3dRefinePatchStrategy.h"
 
 using namespace SAMRAI;
 
+extern "C"{
 /* User-defined application context */
-#include "petscsnes.h"
-#include "petscda.h"
+//#include "petscsnes.h"
+//#include "petscda.h"
 typedef struct {
-  PetscReal  tolgm;
-  PetscReal  rtol;
-  PetscReal  atol;
-  PetscReal  damp;
-  PetscReal  dt;
-  PetscReal  tmax;
-  PetscReal  mf_eps;
+  double  tolgm;
+  double  rtol;
+  double  atol;
+  double  damp;
+  double  dt;
+  double  tmax;
+  double  mf_eps;
   int        nvar;
   int        nauxs;
   int        nauxv;
@@ -69,9 +73,10 @@ typedef struct {
   int        precpass;
   int        sm_flag;
   int        bcs[6];
-  PetscTruth asm_PC;
+  int asm_PC;
 } input_CTX;
 
+}
 
 /** \class pixie3dApplication
  *
@@ -154,7 +159,7 @@ private:
    tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
    
    // Data Variables
-   PetscReal time;
+   double time;
    double d_initial_time;
 
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_initial;
@@ -181,7 +186,10 @@ private:
    hier::ComponentSelector d_application_data;
    tbox::Array< tbox::Pointer< xfer::RefineSchedule<NDIM> > > d_regrid_refine_scheds;
    tbox::Pointer<hier::VariableContext> d_application_ctx;
-   input_CTX data;
+
+   bool d_bIsInitialTime;
+
+   pixie3dRefinePatchStrategy* d_refine_strategy; 
 
    std::string d_refine_op_str;
    xfer::RefineAlgorithm<NDIM> d_refineScalarAlgorithm;
@@ -189,18 +197,22 @@ private:
    xfer::RefineAlgorithm<NDIM> d_refineVectorAlgorithm;
    xfer::RefineAlgorithm<NDIM> d_levelAlgorithm;
 
+   //   xfer::SiblingGhostAlgorithm<NDIM> d_siblingGhostVectorAlgorithm;
+
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineScalarSchedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorComponentSchedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorSchedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_levelSchedules;
 
-   xfer::RefinePatchStrategy<NDIM> *d_refine_strategy; 
+   //   tbox::Array< tbox::Pointer<xfer::SiblingGhostSchedule<NDIM> > > d_siblingGhostVectorSchedules;
 
    std::string d_coarsen_op_str;
    xfer::CoarsenAlgorithm<NDIM> d_cell_coarsen_alg;
    tbox::Array< tbox::Pointer<xfer::CoarsenSchedule<NDIM> > > d_cell_coarsen_schedules;
 
    SAMRAI::appu::VisItDataWriter<NDIM>* d_VizWriter;
-   bool d_bIsInitialTime;
+
+   input_CTX *data;
+
 };
 #endif
