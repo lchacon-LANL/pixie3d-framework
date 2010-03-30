@@ -858,8 +858,27 @@ void  pixie3dApplication::refineVariables(void)
 						     grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
 
 	       refineVectorAlgorithm.resetSchedule(d_refineVectorSchedules[ln]);
+
+	       tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
+	       for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
+		 { 
+		   tbox::pout<< "Data " << data_id <<  " prior to interpolation on level " << ln << std::endl;
+		   
+		   tbox::Pointer<hier::Patch<NDIM> > patch = level->getPatch(p());
+		   tbox::Pointer< pdat::CellData<NDIM,double> > tmp = patch->getPatchData(data_id);
+		   tmp->print(tmp->getGhostBox(), tbox::pout);		   
+		 }
+
 	       d_refineVectorSchedules[ln]->fillData(0.0);
 	       
+	       for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++)
+		 { 
+		   tbox::pout<< "Data " << data_id << " after interpolation on level " << ln << std::endl;
+		   
+		   tbox::Pointer<hier::Patch<NDIM> > patch = level->getPatch(p());
+		   tbox::Pointer< pdat::CellData<NDIM,double> > tmp = patch->getPatchData(data_id);
+		   tmp->print(tmp->getGhostBox(), tbox::pout);		   
+		 }
 	       //	       siblingGhostVectorAlgorithm.registerSiblingGhost( data_id, data_id, data_id );
 	       //	       siblingGhostVectorAlgorithm.resetSchedule(d_siblingGhostVectorSchedules[ln]);
 	       //	       d_siblingGhostVectorSchedules[ln]->fillData(0.0);
@@ -1090,8 +1109,14 @@ pixie3dApplication::generateTransferSchedules(void)
    //   d_siblingGhostVectorSchedules.resizeArray(hierarchy_size);
    
    d_cell_coarsen_schedules.resizeArray(hierarchy_size);
-   
-   for (int ln=0; ln<hierarchy_size; ln++)
+
+   int ln=0;
+   tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
+   d_refineScalarSchedules[ln]                   = d_refineScalarAlgorithm.createSchedule( level, (xfer::RefinePatchStrategy<NDIM>*)d_refine_strategy );
+   d_refineVectorComponentSchedules[ln] = d_refineVectorComponentAlgorithm.createSchedule( level, (xfer::RefinePatchStrategy<NDIM>*)d_refine_strategy );
+   d_refineVectorSchedules[ln]                   = d_refineVectorAlgorithm.createSchedule( level, (xfer::RefinePatchStrategy<NDIM>*)d_refine_strategy );
+
+   for (ln=1; ln<hierarchy_size; ln++)
      {
        tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
        d_refineScalarSchedules[ln]                   = d_refineScalarAlgorithm.createSchedule( level, ln-1, d_hierarchy, (xfer::RefinePatchStrategy<NDIM>*)d_refine_strategy );
