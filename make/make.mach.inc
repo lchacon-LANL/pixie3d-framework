@@ -127,8 +127,8 @@ ifeq ($(HOST),siesta)
 endif
 
 ifeq ($(HOST),ra22)
-  PETSC_ARCH = linux_openmpi
-  PETSC_DIR =/ricercatori/ft/petsc-2.3.3
+  PETSC_ARCH = linux64_openmpi
+  PETSC_DIR =/ricercatori/ft/petsc-3.0.0-p7
   override HDF5 = f
   CPPFLAGS += $(PREPROC)RFX
   FC        = pgf95
