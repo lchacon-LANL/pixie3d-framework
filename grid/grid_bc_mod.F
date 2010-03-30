@@ -3489,8 +3489,7 @@ c     -----------------------------------------------------------------------
 
 c     quad_int
 c     #################################################################
-      real(8) function quad_int(x0,x1,x2,x3,y0,y1,y2,y3,x,order)
-     .        result(y)
+      function quad_int(x0,x1,x2,x3,y0,y1,y2,y3,x,order) result(y)
 c     -----------------------------------------------------------------
 c     Interpolation (extrapolation) routine, up to cubic order.
 c     -----------------------------------------------------------------
@@ -3500,7 +3499,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer    :: order
-      real(8)    :: x0,x1,x2,x3,y0,y1,y2,y3,x
+      real(8)    :: x0,x1,x2,x3,y0,y1,y2,y3,x,y
 
 c     Local variables
 
