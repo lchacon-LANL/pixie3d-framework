@@ -185,3 +185,7 @@ ifeq ($(findstring jaguar,$(HOST)),jaguar)
   PETSC_ARCH ?= cray-xt
 endif
 
+ifeq ($(HOST),chenshp.ornl.gov)
+    LIBS += -L/usr/lib64/atlas -llapack -lblas
+    HDF5=f
+endif
