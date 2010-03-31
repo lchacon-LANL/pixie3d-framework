@@ -135,7 +135,7 @@ c######################################################################
       subroutine f_create_patch_data(c_patch_ptr,u_0,u_n,aux,gparams)
 
       use grid_def_st, only: grid_mg_def
-      use variable_setup, only: var_array, aux_array, patch
+      use variable_setup, only: var_array, aux_array, bcgrp, patch
  
       integer*8 :: c_patch_ptr
       type(var_array),INTENT(INOUT) :: u_0, u_n
@@ -156,14 +156,14 @@ c######################################################################
       END INTERFACE
 
       allocate(patch_data)
-      nullify(patch_data%u_np)
-      nullify(patch_data%u_n)
-      nullify(patch_data%u_nm)
+      nullify(patch_data%bc_grp)
       nullify(patch_data%u_0)
+      nullify(patch_data%u_n)
+      nullify(patch_data%u_np)
+      nullify(patch_data%u_nm)
       nullify(patch_data%u_graph)
       nullify(patch_data%gparams)
       nullify(patch_data%aux)
-      nullify(patch_data%bc_seq)
 
       call setup_patch(patch_data,u_0,u_n,aux,gparams)
       call setup_f90c_ptrlinks(c_patch_ptr, patch_data)
@@ -322,5 +322,3 @@ c######################################################################
       fpatch%gparams => gparams
 
       end subroutine setup_patch
-
-

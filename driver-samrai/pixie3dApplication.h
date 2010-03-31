@@ -1,5 +1,5 @@
 //
-// $Id: pixie3dApplication.h 2457 2006-04-18 14:21:27Z philib $
+// $Id: pixie3dApplication.h 2457 2006-04-18 14:21:27Z philipb $
 // $Revision: 2457 $
 // $Date: 2006-04-18 08:21:27 -0600 (Tue, 18 Apr 2006) $
 //
@@ -74,6 +74,16 @@ typedef struct {
   int asm_PC;
 } input_CTX;
 
+typedef struct{
+  int nbc_seq;
+  int *bc_seq;
+} bcgrp;
+
+typedef struct{
+  int nbc_grp;
+  bcgrp *bc_grps;
+} bcgrpArray;
+  
 }
 
 namespace SAMRAI{
