@@ -29,10 +29,12 @@ c Begin program
       call destroyGrid(gv%gparams)
 
 cc      deallocate(gv%bc_seq,STAT=ierr)
-      do igr=1,size(gv%bc_grp)
-        deallocate(gv%bc_grp(igr)%bc_seq,STAT=ierr)
-      enddo
-      deallocate(gv%bc_grp,STAT=ierr)
+      if (associated(gv%bc_grp)) then
+        do igr=1,size(gv%bc_grp)
+          deallocate(gv%bc_grp(igr)%bc_seq,STAT=ierr)
+        enddo
+        deallocate(gv%bc_grp,STAT=ierr)
+      endif
 
       deallocate(gv,STAT=ierr)
 
