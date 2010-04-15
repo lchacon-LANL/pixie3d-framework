@@ -10,7 +10,7 @@ c ######################################################################
         use grid, ONLY: my_rank,pstop,messg
 
         !Diagnostics
-        integer,private :: nunitd=12345
+        integer,private :: nunitd(4)
 
         logical :: flux = .false.
 
@@ -357,14 +357,20 @@ c     Local variables
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral
 
+c     Delta diag
+
+        real(8) :: vr,vth,vz,vnorm,vrp,vrm
+
 c     Begin program
 
         iiout = iout
 
         integral = PRESENT(line_int)
 
-cc        chk_ss = (.not.integral).and.ss_io  !Do SS only if not integrating and if IO has been set up
-        chk_ss = ss_io  !Do SS only if IO has been set up
+        chk_ss = (.not.integral).and.ss_io  !Do SS only if not integrating and if IO has been set up
+c delta-diag
+cc        chk_ss = ss_io  !Do SS only if IO has been set up
+c delta-diag
 
         tmax = ode_conf%tmax
         smax = ode_conf%smax
@@ -405,7 +411,13 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 
 c delta-diag
 cc          if (lssx) then
-cc            write(nunitd,FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0  !Initial (Psi,theta) of orbit
+cc            if (fwd) then
+cc              write(nunitd(1),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
+cc              write(nunitd(2),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
+cc            else
+cc              write(nunitd(3),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
+cc              write(nunitd(4),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
+cc            endif
 cc          endif
 c delta-diag
 
@@ -470,6 +482,7 @@ c     Orbit integral
           !Check for intersection with surface of section
           if (iterror /= 2 .and. itime > 2 .and. chk_ss) then
             if (smax /= 0d0) then
+
               call sschk(ssorder,svold,sold,ss
      .                  ,xvold,xold,x,yvold,yold,y
      .                  ,zvold,zold,z,xss,yss,zss,tss)
@@ -477,12 +490,45 @@ c     Orbit integral
 c delta-diag
 cc              if (lssx .and. tss /= 0d0) then
 cc                if (fwd) then
-cc                  write(nunitd,FMT="(e14.5)",ADVANCE="NO")  tss
+cc                  write(nunitd(1),FMT="(e14.5)",ADVANCE="NO")  tss
 cc                else
-cc                  write(nunitd,FMT="(e14.5)",ADVANCE="NO") -tss
+cc                  write(nunitd(3),FMT="(e14.5)",ADVANCE="NO") -tss
 cc                endif
+cc
+cc                call get_anal_B(xss,yss,zss,vr,vth,vz,vnorm,.false.)
+cc                if (vnorm > 0d0) vr=vr/vnorm
+cc
+cc                if (fwd) then
+cc                 write(nunitd(2),FMT="(e14.5)",ADVANCE="NO") vr
+cc                else
+cc                 write(nunitd(4),FMT="(e14.5)",ADVANCE="NO") vr
+cc                endif
+cc
+ccc               diag*********
+cc                call get_anal_B(x   ,y   ,z   ,vrp,vth,vz,vnorm,.false.)
+cc                if (vnorm > 0d0) vrp = vrp/vnorm
+cc
+cc                call get_anal_B(xold,yold,zold,vrm,vth,vz,vnorm,.false.)
+cc                if (vnorm > 0d0) vrm = vrm/vnorm
+cc
+cc                write(*,*)
+cc                if (0.5*(vrp+vrm-2*vr)/vr > 0.1) then
+cc                  write(*,'(a,1p,e10.3,a,e10.3,a,e10.3,a,e10.3,a)')
+cc     .                     'DIAG -- intersection @ xs=',xss
+cc     .                    ,'; xnew-xold=',0.5*(x**2-xold**2)
+cc     .                    ,'; snew-sold=',ss-sold
+cc     .                    ,'; rel. error br=',(vrp-vrm)/vr
+cc     .                    ,'   WARNING!!'
+cc                else
+cc                  write(*,'(a,1p,e10.3,a,e10.3,a,e10.3,a,e10.3)')
+cc     .                     'DIAG -- intersection @ xs=',xss
+cc     .                    ,'; xnew-xold=',0.5*(x**2-xold**2)
+cc     .                    ,'; snew-sold=',ss-sold
+cc     .                    ,'; rel. error br=',0.5*(vrp+vrm-2*vr)/vr
+cc                endif
+ccc               diag*********
+cc
 cc              endif
-cccc          write(*,FMT="(e10.3)") tss
 c delta-diag
 
             else
@@ -518,7 +564,13 @@ c       Write orbit separator in XDRAW file
 
 c delta-diag
 cc          if (lssx) then
-cc            write(nunitd,*) !Carriage return
+cc            if (fwd) then
+cc              write(nunitd(1),*) !Carriage return
+cc              write(nunitd(2),*) !Carriage return
+cc            else
+cc              write(nunitd(3),*) !Carriage return
+cc              write(nunitd(4),*) !Carriage return
+cc            endif
 cc          endif
 c delta-diag
 
@@ -1485,8 +1537,14 @@ c     Begin program
           open(unit=nunitx,file=trim(ssx),form='unformatted')
 
 c delta-diag
-cc          nunitd=1234
-cc          open(unit=nunitd,file='delta-test.txt')
+cc          nunitd(1) = 12345
+cc          nunitd(2) = 12346
+cc          nunitd(3) = 12347
+cc          nunitd(4) = 12348
+cc          open(unit=nunitd(1),file='s+.txt')
+cc          open(unit=nunitd(2),file='br+.txt')
+cc          open(unit=nunitd(3),file='s-.txt')
+cc          open(unit=nunitd(4),file='br-.txt')
 c delta-diag
         endif
 
@@ -1586,6 +1644,8 @@ c     Lower order of interpolation for SS if derivatives are too different
           else
             iwhich = 1
           endif
+        else
+          iwhich = 1
         endif
 
 c     Check for intersection with X surface of section
