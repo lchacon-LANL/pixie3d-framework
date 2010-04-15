@@ -42,7 +42,7 @@ c ######################################################################
 
         real(8)    :: tmrst,cnp,cn,cnm,dt_n
 
-        integer    :: itime,nrst
+        integer    :: itime=0,nrst
 
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
      .                                     ,bdfp,bdfn,bdfnm
@@ -345,9 +345,11 @@ c     Begin program
         dt = dt_exp
       else
         call adapt_dt
+
+        call calculate_cnfactor
       endif
 
-      call calculate_cnfactor
+      alpha = 1d0 - cnfactor
 
 c     End program
 
@@ -445,8 +447,6 @@ c     #######################################################################
         endif
 
       endif
-
-      alpha = 1d0 - cnfactor
 
       end subroutine calculate_cnfactor
 

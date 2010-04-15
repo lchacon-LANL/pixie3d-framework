@@ -4,12 +4,14 @@ BUILDTYPE?=$(shell echo "`uname -m`-`uname -s`")
 
 ifeq "$(BUILDTYPE)" "i386-Darwin"
   FC=gfortran
-  ifdef SAMR
+#  ifdef SAMR
     HDF5_HOME =${HDF_HOME}
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include
-  endif
+    PETSC_DIR = /opt/petsc-3.0.0-p9-gcc-4.4.1-debug
+    PETSC_ARCH = darwin9.8.0-c-debug
+#  endif
 endif
 
 # Machine configuration
@@ -125,8 +127,8 @@ ifeq ($(HOST),siesta)
 endif
 
 ifeq ($(HOST),ra22)
-  PETSC_ARCH = linux_openmpi
-  PETSC_DIR =/ricercatori/ft/petsc-2.3.3
+  PETSC_ARCH = linux64_openmpi
+  PETSC_DIR =/ricercatori/ft/petsc-3.0.0-p7
   override HDF5 = f
   CPPFLAGS += $(PREPROC)RFX
   FC        = pgf95
@@ -183,3 +185,7 @@ ifeq ($(findstring jaguar,$(HOST)),jaguar)
   PETSC_ARCH ?= cray-xt
 endif
 
+ifeq ($(HOST),chenshp.ornl.gov)
+    LIBS += -L/usr/lib64/atlas -llapack -lblas
+    HDF5=f
+endif

@@ -7,10 +7,15 @@ c######################################################################
 
       integer*8 :: c_var_array_ptr
       integer :: nvar
+      integer :: i
       type(var_array), pointer :: var_array_data
       allocate(var_array_data)
       var_array_data%nvar = nvar
       allocate(var_array_data%array_var(1:nvar))
+      do i=1,nvar
+           nullify(var_array_data%array_var(i)%array)         
+      enddo
+
       call setup_f90c_ptrlinks(c_var_array_ptr, var_array_data)
       
       end subroutine f_create_var_array
@@ -37,20 +42,63 @@ c######################################################################
 
 c f_create_grid_mg_def
 c######################################################################
-      subroutine f_create_grid_mg_def(c_grid_mg_def_ptr,nglx,ngly,nglz
-     .      ,ilog,jlog,klog,ihig,jhig,khig,gcw)
+      subroutine f_create_grid_mg_def(c_grid_mg_def_ptr, cmin, cmax,
+     & nglx, ngly,nglz,ilog,jlog,klog,ihig,jhig,khig,gcw)
 
       use grid_def_st, only: grid_mg_def
       use variable_setup, only: var_array, aux_array, patch
 c      use grid_mgmt, only: setup_patch
  
       integer*8 :: c_grid_mg_def_ptr
+      double precision ::cmin(3), cmax(3)
       integer :: nglx, ngly, nglz
       integer :: ilog, jlog, klog, ihig, jhig, khig, gcw
       type(grid_mg_def), pointer :: grid_data
 
       allocate(grid_data)
+      nullify(grid_data%ilo)
+      nullify(grid_data%jlo)
+      nullify(grid_data%klo)
+      nullify(grid_data%ihi)
+      nullify(grid_data%jhi)
+      nullify(grid_data%khi)
 
+      nullify(grid_data%xg)
+      nullify(grid_data%yg)
+      nullify(grid_data%zg)
+      nullify(grid_data%xx)
+      nullify(grid_data%yy)
+      nullify(grid_data%zz)
+
+      nullify(grid_data%dx)
+      nullify(grid_data%dy)
+      nullify(grid_data%dz)
+      nullify(grid_data%dxh)
+      nullify(grid_data%dyh)
+      nullify(grid_data%dzh)
+
+      nullify(grid_data%nxv)
+      nullify(grid_data%nyv)
+      nullify(grid_data%nzv)
+      nullify(grid_data%nxgl)
+      nullify(grid_data%nygl)
+      nullify(grid_data%nzgl)
+
+      nullify(grid_data%istartx)
+      nullify(grid_data%istarty)
+      nullify(grid_data%istartz)
+      nullify(grid_data%istartp)
+
+      nullify(grid_data%mg_ratio_x)
+      nullify(grid_data%mg_ratio_y)
+      nullify(grid_data%mg_ratio_z)
+      nullify(grid_data%iline)
+      nullify(grid_data%jline)
+      nullify(grid_data%kline)
+
+      nullify(grid_data%gmetric)
+      nullify(grid_data%g_pack)
+      
       grid_data%ngrdx = 1
       grid_data%ngrdy = 1
       grid_data%ngrdz = 1
@@ -67,8 +115,17 @@ c      use grid_mgmt, only: setup_patch
       grid_data%jhig  = jhig
       grid_data%klog  = klog
       grid_data%khig  = khig
-      grid_data%gcw   = 1
 
+      grid_data%gxmin = cmin(1)
+      grid_data%gymin = cmin(2)
+      grid_data%gzmin = cmin(3)
+      grid_data%gxmax = cmax(1)
+      grid_data%gymax = cmax(2)
+      grid_data%gzmax = cmax(3)
+
+      grid_data%gcw   = 1
+      grid_data%aligner   = 1
+      
       call setup_f90c_ptrlinks(c_grid_mg_def_ptr, grid_data)
 
       end subroutine f_create_grid_mg_def
