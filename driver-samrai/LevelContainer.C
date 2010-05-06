@@ -4,7 +4,7 @@
 extern "C"{
    void f_create_var_array_(void **p_data, int&);
    void f_create_aux_array_(void **p_data, int&, int&);
-   void f_create_grid_mg_def_(void **p_data, int &, int &, int &, int &, int &, int &, int &, int &, int &, int &);
+  void f_create_grid_mg_def_(void **p_data, const double *, const double *, int &, int &, int &, int &, int &, int &, int &, int &, int &, int &);
    void f_create_patch_data_(void **p_data, void *, void *, void *, void *);
    void f_delete_patch_data_(void *p_data);
    void fill_var_array_(void *p_data, int &, double *, int &, int &, int &, int &, int &, int &);
@@ -41,6 +41,8 @@ LevelContainer::LevelContainer(int n, int nx, int ny, int nz)
 
 
 void LevelContainer::CreatePatch(int patch_id, tbox::Pointer< hier::Patch<NDIM> > patch,
+			          const double *lowerCoordinates,
+			          const double *upperCoordinates,
       int n_var, int *u0_id, int *u_id, int n_auxs, int *auxs_id, int n_auxv, int *auxv_id)
 {
    int gcw = 1;
@@ -123,11 +125,16 @@ void LevelContainer::CreatePatch(int patch_id, tbox::Pointer< hier::Patch<NDIM> 
      }
 
    // create the patch object
-   CreatePatchFortran(patch_id,xs,ys,zs,xe,ye,ze,gcw,n_var,u0_ptr,u_ptr,n_auxs,auxs_ptr,n_auxv,auxv_ptr);
+   CreatePatchFortran(patch_id,
+		      lowerCoordinates, upperCoordinates,
+		      xs,ys,zs,xe,ye,ze,gcw,n_var,u0_ptr,u_ptr,n_auxs,auxs_ptr,n_auxv,auxv_ptr);
 }
 
 
-void LevelContainer::CreatePatchFortran( int patch, int xs, int ys, int zs, int xe, int ye, int ze, int gcw, 
+void LevelContainer::CreatePatchFortran( int patch,
+					const double *lowerCoordinates,
+					const double *upperCoordinates,
+					 int xs, int ys, int zs, int xe, int ye, int ze, int gcw, 
    int n_var, double **u0_ptr, double **u_ptr, int n_auxs, double **auxs_ptr, int n_auxv, double **auxv_ptr)
 {
    int xsg, ysg, zsg, xeg, yeg, zeg;
@@ -169,7 +176,7 @@ void LevelContainer::CreatePatchFortran( int patch, int xs, int ys, int zs, int 
      }
 
    // Create grid_mg_def for the patch information
-   f_create_grid_mg_def_(&gparams[patch],nglx,ngly,nglz,xs,ys,zs,xe,ye,ze,gcw);
+   f_create_grid_mg_def_(&gparams[patch],lowerCoordinates, upperCoordinates, nglx,ngly,nglz,xs,ys,zs,xe,ye,ze,gcw);
 
    // Create the patch object
    f_create_patch_data_(&data[patch],u0[patch],u[patch],aux[patch],gparams[patch]);

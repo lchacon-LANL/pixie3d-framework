@@ -18,8 +18,6 @@ c----------------------------------------------------------------------
 
       use iosetup
 
-      use icond
-
       implicit none
 
 c Call variables

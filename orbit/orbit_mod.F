@@ -9,6 +9,11 @@ c ######################################################################
 
         use grid, ONLY: my_rank,pstop,messg
 
+        !Diagnostics
+        integer,private :: nunitd(4)
+
+        logical :: flux = .false.
+
         !LSODE public variables
         real(8) :: xold,yold,zold,lsode_out(10)
         logical :: sing_point=.false.,sln,exit_loop
@@ -43,6 +48,12 @@ c ######################################################################
         type(orbit_def),private  :: orb_default
         type(ode_solver),private :: ode_conf
 
+        !B field diagnostics
+        integer :: icross,ncross=100000,nbins=100,inx,nnx,nny
+        real(8),allocatable,dimension(:,:) :: fpos,qdif
+        logical :: bdiag=.false.
+
+        !Private variables
         integer,private :: itime,iterror,ssorder
 
         integer,private :: nunitx,nunity,nunitz,nunitrz
@@ -51,7 +62,7 @@ c ######################################################################
         real(8),private :: tvold,told,tprev,time,tmax
      .                    ,svold,sold,sprev,ss  ,smax
         real(8),private :: x,y,z,xcar,ycar,zcar,xss0,yss0,zss0
-     .                    ,xvold,yvold,zvold
+     .                    ,xvold,yvold,zvold,x00,y00,z00
         real(8),private :: xss,yss,zss,tss,rmin
 
         real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax
@@ -204,6 +215,15 @@ c     Do splines
         call splineJ(jac )
         call splineX(xmap)
 
+c     Setup diag B diagnostic arrays
+
+        if (bdiag) then
+          allocate(fpos(-nbins/2:nbins/2,ncross))
+          fpos = 0d0
+          allocate(qdif(nnx,ncross))
+          qdif = 0d0
+        endif
+
       end subroutine orbit_setup
 
 c     orbit_destroy
@@ -214,11 +234,70 @@ c     ----------------------------------------------------------------------
 c     Frees up memory from orbit integration
 c     ----------------------------------------------------------------------
 
+        implicit none
+
 c     Call variables
+
+c     Local variables
+
+        integer :: slice
+        real(8) :: rr
+
+        real(8),allocatable,dimension(:) ::  mean,sigma,vol,diff
 
 c     Begin program
 
         call killSplines
+
+c     Finalize B diagnostics
+
+        if (bdiag) then
+          open(unit=50,file='b_stat.txt',status='unknown')
+
+          allocate(mean(icross),sigma(icross),vol(icross),diff(icross))
+
+          mean  = 0d0
+          sigma = 0d0
+          vol   = 0d0
+
+          do slice=-nbins/2,nbins/2
+            rr = (1.*slice)/(nbins+1)
+            vol   = vol   +       fpos(slice,1:icross)
+            mean  = mean  + rr   *fpos(slice,1:icross)
+            sigma = sigma + rr**2*fpos(slice,1:icross)
+          enddo
+
+          mean  = mean/vol
+          sigma = sqrt(sigma/vol - mean**2)
+
+          do slice = 1,icross
+            diff(slice) = sigma(slice)**2/(zss0+(slice-1)*(zmax-zmin))
+          enddo
+
+          do slice=-nbins/2,nbins/2
+            write(50,*) (1.*slice)/(nbins+1),fpos(slice,1:icross)/vol
+          enddo
+
+          write (*,*) 'Mean =',mean
+          write (*,*) 'Sigma=',sigma
+          write (*,*) 'Diff PDF =',diff
+
+          do slice = 1,icross
+            diff(slice) = sum(qdif(:,slice))/size(qdif,1)/nny
+          enddo
+
+          write (*,*) 'Diff MC =',diff
+
+          close(50)
+
+          open(unit=50,file='b_dif.txt',status='unknown')
+          do slice=1,size(qdif,1)
+            write(50,*) slice,qdif(slice,1:icross)/nny
+          enddo
+          close(50)
+
+          deallocate(mean,sigma,vol,diff,fpos,qdif)
+        endif
 
       end subroutine orbit_destroy
 
@@ -249,6 +328,7 @@ c     Call variables
         logical :: fwd
 
         integer,optional :: ss_order
+cc        real(8),optional :: xss,yss,zss,tss
 
         optional :: line_int
 
@@ -277,6 +357,10 @@ c     Local variables
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral
 
+c     Delta diag
+
+        real(8) :: vr,vth,vz,vnorm,vrp,vrm
+
 c     Begin program
 
         iiout = iout
@@ -284,6 +368,9 @@ c     Begin program
         integral = PRESENT(line_int)
 
         chk_ss = (.not.integral).and.ss_io  !Do SS only if not integrating and if IO has been set up
+c delta-diag
+cc        chk_ss = ss_io  !Do SS only if IO has been set up
+c delta-diag
 
         tmax = ode_conf%tmax
         smax = ode_conf%smax
@@ -316,14 +403,44 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 
         if (chk_ss) then
 
-          if(lssx) then
+          if (bdiag) icross = 0  !Initialize for B diagnostics
+
+          if(lssx .and. x0 == xss0) then
             write(nunitx) real(y0),real(z0)
           endif
-          if(lssy) then
-            write(nunity) real(x0),real(z0)
+
+c delta-diag
+cc          if (lssx) then
+cc            if (fwd) then
+cc              write(nunitd(1),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
+cc              write(nunitd(2),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
+cc            else
+cc              write(nunitd(3),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
+cc              write(nunitd(4),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
+cc            endif
+cc          endif
+c delta-diag
+
+          if(lssy .and. y0 == yss0) then
+            if (flux) then
+              write(nunity) real(0.5*x0**2),real(z0)
+            else
+              write(nunity) real(x0),real(z0)
+            endif
           endif
-          if(lssz) then
-            write(nunitz) real(x0),real(y0)
+
+          if(lssz .and. z0 == zss0) then
+            if (flux) then
+              write(nunitz) real(0.5*x0**2),real(y0) !In flux
+            else
+              write(nunitz) real(x0),real(y0)        !In radius
+            endif
+
+            !Initialize B diagnostics
+            if (bdiag) then
+              icross = icross + 1
+              fpos(0,icross) = fpos(0,icross) + 1
+            endif
           endif
 
         endif
@@ -365,9 +482,55 @@ c     Orbit integral
           !Check for intersection with surface of section
           if (iterror /= 2 .and. itime > 2 .and. chk_ss) then
             if (smax /= 0d0) then
+
               call sschk(ssorder,svold,sold,ss
      .                  ,xvold,xold,x,yvold,yold,y
      .                  ,zvold,zold,z,xss,yss,zss,tss)
+
+c delta-diag
+cc              if (lssx .and. tss /= 0d0) then
+cc                if (fwd) then
+cc                  write(nunitd(1),FMT="(e14.5)",ADVANCE="NO")  tss
+cc                else
+cc                  write(nunitd(3),FMT="(e14.5)",ADVANCE="NO") -tss
+cc                endif
+cc
+cc                call get_anal_B(xss,yss,zss,vr,vth,vz,vnorm,.false.)
+cc                if (vnorm > 0d0) vr=vr/vnorm
+cc
+cc                if (fwd) then
+cc                 write(nunitd(2),FMT="(e14.5)",ADVANCE="NO") vr
+cc                else
+cc                 write(nunitd(4),FMT="(e14.5)",ADVANCE="NO") vr
+cc                endif
+cc
+ccc               diag*********
+cc                call get_anal_B(x   ,y   ,z   ,vrp,vth,vz,vnorm,.false.)
+cc                if (vnorm > 0d0) vrp = vrp/vnorm
+cc
+cc                call get_anal_B(xold,yold,zold,vrm,vth,vz,vnorm,.false.)
+cc                if (vnorm > 0d0) vrm = vrm/vnorm
+cc
+cc                write(*,*)
+cc                if (0.5*(vrp+vrm-2*vr)/vr > 0.1) then
+cc                  write(*,'(a,1p,e10.3,a,e10.3,a,e10.3,a,e10.3,a)')
+cc     .                     'DIAG -- intersection @ xs=',xss
+cc     .                    ,'; xnew-xold=',0.5*(x**2-xold**2)
+cc     .                    ,'; snew-sold=',ss-sold
+cc     .                    ,'; rel. error br=',(vrp-vrm)/vr
+cc     .                    ,'   WARNING!!'
+cc                else
+cc                  write(*,'(a,1p,e10.3,a,e10.3,a,e10.3,a,e10.3)')
+cc     .                     'DIAG -- intersection @ xs=',xss
+cc     .                    ,'; xnew-xold=',0.5*(x**2-xold**2)
+cc     .                    ,'; snew-sold=',ss-sold
+cc     .                    ,'; rel. error br=',0.5*(vrp+vrm-2*vr)/vr
+cc                endif
+ccc               diag*********
+cc
+cc              endif
+c delta-diag
+
             else
               call sschk(ssorder,tvold,told,time
      .                  ,xvold,xold,x,yvold,yold,y
@@ -378,8 +541,10 @@ c     Orbit integral
           !Show progress/terminate
           if (smax /= 0d0) then
             call orbit_progress(ss  ,sprev,smax,fwd,exit_loop)
-          else
+          elseif (tmax /= 0d0) then
             call orbit_progress(time,tprev,tmax,fwd,exit_loop)
+          else
+            exit_loop = .false.
           endif
 
           if (exit_loop) then
@@ -396,6 +561,19 @@ c       Write orbit separator in XDRAW file
           if (lssy) write(nunity)
           if (lssz) write(nunitz)
           if (rzss) write(nunitrz)
+
+c delta-diag
+cc          if (lssx) then
+cc            if (fwd) then
+cc              write(nunitd(1),*) !Carriage return
+cc              write(nunitd(2),*) !Carriage return
+cc            else
+cc              write(nunitd(3),*) !Carriage return
+cc              write(nunitd(4),*) !Carriage return
+cc            endif
+cc          endif
+c delta-diag
+
         endif
 
       end subroutine orbit_find
@@ -413,6 +591,10 @@ c     ----------------------------------------------------------------------
         real(8) :: x0,y0,z0
 
 c     Begin program
+
+        x00  = x0
+        y00  = y0
+        z00  = z0
 
         x    = x0
         y    = y0
@@ -537,12 +719,13 @@ c     Time integration
 c     Output
 
       if (iiout > 0) then
-        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,1p3e12.3)')
+        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,1p3e12.3,a,l)')
      .         ' Time=',time
      .        ,' ;  dt=',dt
      .        ,' ;  Arc length=',ss
      .        ,' ;  ds=',ds
      .        ,' ;  Position=',x,y,z
+     .        ,' ;  Forward=',fwd
       endif
 
 c     End program
@@ -633,8 +816,11 @@ c3-eq      T    = time   !Independent variable
       T    = 0d0   !Independent variable
 
       ITOL = 2      !Whether atol is array or not (2 => true)
-      RTOL = rrtol  !Relative tolerance
-      ATOL = aatol  !Absolute tolerance
+
+      if (ISTATE /= 3) then
+        RTOL = rrtol            !Relative tolerance
+        ATOL = aatol            !Absolute tolerance
+      endif
 
       ITASK = 2     !Mode of operation: take one step and return
 
@@ -659,10 +845,18 @@ cc        write (*,*) 'LSODE -- limiting time step'
      .              ISTATE,IOPT,RWORK,LRW,IWORK,LIW,ff      ,MF)
       endif
 
-      if (ISTATE /= 2) then
-        write (*,*) 'LSODE -- Problems in LSODE: ISTATE=', ISTATE
+      select case(ISTATE)
+      case(2)       !Uneventful
+        continue
+      case(-2)      !Rescale tolerances
+        ISTATE = 3
+        RTOL=RTOL*RWORK(14)
+        ATOL=ATOL*RWORK(14)
+      case default  !Exit LSODE
+        write (*,*) 'See lsode.f for instructions'
+        write (*,*) 'Aborting...'
         stop
-      endif
+      end select
 
 c     Postprocessing to find logical coordinates
 
@@ -675,7 +869,7 @@ c     Postprocessing to find logical coordinates
           return
         endif
 
-        if (x > rmin) then
+        if (x >= rmin) then
           iterr = -2
           ISTATE = 1   !Instruct LSODE to start anew for next time step
           cartesian = .false.
@@ -1341,6 +1535,17 @@ c     Begin program
      .                       ,drawin,.false.,.false.)
           nunitx=27
           open(unit=nunitx,file=trim(ssx),form='unformatted')
+
+c delta-diag
+cc          nunitd(1) = 12345
+cc          nunitd(2) = 12346
+cc          nunitd(3) = 12347
+cc          nunitd(4) = 12348
+cc          open(unit=nunitd(1),file='s+.txt')
+cc          open(unit=nunitd(2),file='br+.txt')
+cc          open(unit=nunitd(3),file='s-.txt')
+cc          open(unit=nunitd(4),file='br-.txt')
+c delta-diag
         endif
 
         if (lssy) then
@@ -1418,9 +1623,11 @@ c     Call variables
 c     Local variables
 
         real(8) :: rr
-        integer :: iwhich
+        integer :: iwhich,bin
 
 c     Begin program
+
+        xss = 0d0 ; yss = 0d0 ; zss = 0d0 ; tss = 0d0
 
 c     Lower order of interpolation for SS if derivatives are too different
 
@@ -1437,6 +1644,8 @@ c     Lower order of interpolation for SS if derivatives are too different
           else
             iwhich = 1
           endif
+        else
+          iwhich = 1
         endif
 
 c     Check for intersection with X surface of section
@@ -1467,7 +1676,12 @@ c     Check for intersection with Y surface of section
 
           if (ss_io) then
             call chk_pos(xss,yss,zss) !this resets logical coords
-            write(nunity) real(xss),real(zss)
+            
+            if (flux) then
+              write(nunity) real(0.5*xss**2),real(zss)
+            else
+              write(nunity) real(xss),real(zss)
+            endif
           endif
         endif
 
@@ -1490,7 +1704,35 @@ cc            write(*,*) 'diag',z,zold,real(rr),real(zcar)   !diag
             call chk_pos(xss,yss,zss) !this resets logical coords
           endif
 
-          if (ss_io) write(nunitz) real(xss),real(yss)
+          if (ss_io) then
+            if (flux) then
+              write(nunitz) real(0.5*xss**2),real(yss) !In flux
+            else
+              write(nunitz) real(xss),real(yss)        !In radius
+            endif
+          endif
+
+          !Accumulate B diagnostics
+          if (bdiag) then
+            icross = icross + 1
+            if (icross > ncross) then
+              write (*,*) 'Exceeded max number of Poincare crossings'
+            else
+              write (*,*)
+              write (*,*) 'B diag: Poincare crossing ',icross
+
+              !PDF diagnostic
+              bin = sign(1d0,xss-x00)
+     .             *floor(0.5*abs(x00**2-xss**2)*nbins+0.5)
+              fpos(bin,icross) = fpos(bin,icross)+1
+
+              !Add quasilinear diffusion diagnostic
+              qdif(inx,icross) = qdif(inx,icross)
+     .                         + (0.5*(xss**2-x00**2))**2/tss
+
+            endif
+          endif
+
         endif
 
       end subroutine sschk

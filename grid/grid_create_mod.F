@@ -68,9 +68,17 @@ c     Initialize grid structure
 #if defined(petsc)
         call initGridSt(nx,ny,nz,gparams,mpi_comm=mpi_comm)
 #else
+
+#if defined(samrai)
+        call initGridSt(nx,ny,nz,gparams,
+     $   mpi_comm=mpi_comm,
+     $   coarsen_in_x=.false.,
+     $   coarsen_in_y=.false.,
+     $   coarsen_in_z=.false.)
+#else
         call initGridSt(nx,ny,nz,gparams)
 #endif
-
+#endif
 c     Create MG grid hierarchy
 
         call createMGgrid(gpack,gparams)

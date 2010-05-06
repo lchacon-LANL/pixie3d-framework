@@ -60,9 +60,18 @@ c #####################################################################
           type (var_def),pointer,dimension(:) :: var_list   ! scalar auxillary components
         end type aux_array
 
-        type :: patch
+        type :: bcgrp
           integer  :: nbc_seq                         ! ???
           integer,pointer,dimension(:,:):: bc_seq     ! array showing sequence in which to set bc's 
+        end type bcgrp
+
+        type :: patch
+cc          integer  :: nbc_seq                         ! number of variables in bc sequence
+cc          integer,pointer,dimension(:,:):: bc_seq     ! array showing sequence in which to set bc's 
+
+          integer  :: nbc_grp                         ! number of BC bundled groups
+          type(bcgrp),pointer,dimension(:):: bc_grp   ! array of bundled variables for BC treatment
+
           type(var_array)  ,pointer     :: u_0        ! equilibrium data
           type(var_array)  ,pointer     :: u_n        ! data at time n
           type(var_array)  ,pointer     :: u_np       ! data at n+1

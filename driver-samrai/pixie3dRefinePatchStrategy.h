@@ -80,13 +80,7 @@ public:
    void postprocessRefine( hier::Patch<NDIM>& fine,
                            const hier::Patch<NDIM>& coarse,
                            const hier::Box<NDIM>& fine_box,
-                           const hier::IntVector<NDIM>& ratio ) 
-   {
-      (void) fine;
-      (void) coarse;
-      (void) fine_box;
-      (void) ratio;
-   } 
+                           const hier::IntVector<NDIM>& ratio ) ;
 
    /**
     * Return maximum stencil width needed for user-defined 
@@ -113,6 +107,7 @@ public:
 
    bool checkPhysicalBoundary( hier::Patch<NDIM>& patch);
 
+   void setPixie3DTime(int itime){d_iTime=itime;}
 private:
    
    int d_nvar;
@@ -120,6 +115,9 @@ private:
    int d_nauxv;
    
    int d_data_id;
+
+   int d_iTime;
+   
    bool copy_data;
    int *u_id, *auxs_id, *auxv_id;
    int *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;

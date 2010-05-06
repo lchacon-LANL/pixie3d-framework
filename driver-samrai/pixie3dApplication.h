@@ -31,6 +31,8 @@
 #include "FaceData.h"
 #include "LevelContainer.h"
 
+#include "VisItDataWriter.h"
+
 #include "DiscreteOperator.h"
 #include "pixie3dApplicationParameters.h"
 
@@ -82,13 +84,13 @@ class pixie3dApplication : public SAMRSolvers::DiscreteOperator
 {
 public:
    // Constructor that takes a parameter list.  Calls initialize.
-   pixie3dApplication( const pixie3dApplicationParameters* parameters );
+  pixie3dApplication( pixie3dApplicationParameters* parameters );
 
    // Destructor.
    ~pixie3dApplication();
 
    // Initialize application using specified parameters.
-   void initialize( const pixie3dApplicationParameters* parameters );
+   void initialize( pixie3dApplicationParameters* parameters );
    
    // Set initial conditions on all levels
    void setInitialConditions( const double initial_time );
@@ -105,6 +107,9 @@ public:
    // Return ComponentSelector of data to time stamp on a new level.
    hier::ComponentSelector getDataToTimeStamp();
 
+   // return the number of dependent variables
+   int getNumberOfDependentVariables(void);
+   
    // Set data values on new level.
    void setValuesOnNewLevel( tbox::Pointer< hier::PatchLevel<NDIM> > level );
 
@@ -113,9 +118,9 @@ public:
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > get_x() { return(d_x); }
 
    // Evaluate IVP forcing term.
-   void apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  f,
-	       tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  x,
-	       tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  r,
+   void apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  &f,
+	       tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  &x,
+	       tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  &r,
                double a = -1.0, double b=1.0 );
 
    // Evaluate IVP forcing term.
@@ -124,6 +129,9 @@ public:
    // Print identifying string.
    void printObjectName( std::ostream& os );
 
+   void setBoundarySchedules(bool bIsInitialTime);
+
+   void registerVizWriter( SAMRAI::appu::VisItDataWriter<NDIM>* visit_writer){d_VizWriter = visit_writer;}
 private:
    
    void printVector( const tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > vector);
@@ -144,15 +152,14 @@ private:
 
    // Hierarchy
    tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
-
+   
    // Data Variables
    PetscReal time;
    double d_initial_time;
-   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_equilibrium;
+
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_initial;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x_tmp;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x;
-   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_f;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_scalar;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_vector;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_scalar_tmp;
@@ -160,10 +167,13 @@ private:
    tbox::Pointer< pdat::CellVariable<NDIM,double> > d_f_src;
    int f_src_id;
    int d_number_solution_components;
+
+   bool d_RefineSchedulesGenerated;
+   
    tbox::Array< tbox::Pointer< hier::Variable<NDIM> > > d_variable_list;
    void **level_container_array;
 
-   int nbc_seq, *bc_seq;
+   int d_NumberOfBoundaryConditions, *d_BoundaryConditionSequence;
    int *u0_id, *u_id, *auxs_id, *auxv_id;
    int *f_id, *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
 
@@ -173,24 +183,24 @@ private:
    tbox::Pointer<hier::VariableContext> d_application_ctx;
    input_CTX data;
 
-   // Coarsen operator   
-   //tbox::Pointer<xfer::CoarsenOperator<NDIM> > x_coarsen_op;
-
-   // Boundary conditions
-   //xfer::RefinePatchStrategy<NDIM>* bcfill;
-
-   // Refinement operator
-   //tbox::Pointer<xfer::RefineOperator<NDIM> > x_refine_op;
-
    std::string d_refine_op_str;
-   xfer::RefineAlgorithm<NDIM> d_refine_algorithm;
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refine_schedules;
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_level_schedules;
+   xfer::RefineAlgorithm<NDIM> d_refineScalarAlgorithm;
+   xfer::RefineAlgorithm<NDIM> d_refineVectorComponentAlgorithm;
+   xfer::RefineAlgorithm<NDIM> d_refineVectorAlgorithm;
+   xfer::RefineAlgorithm<NDIM> d_levelAlgorithm;
+
+   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineScalarSchedules;
+   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorComponentSchedules;
+   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorSchedules;
+   tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_levelSchedules;
+
    xfer::RefinePatchStrategy<NDIM> *d_refine_strategy; 
 
    std::string d_coarsen_op_str;
    xfer::CoarsenAlgorithm<NDIM> d_cell_coarsen_alg;
    tbox::Array< tbox::Pointer<xfer::CoarsenSchedule<NDIM> > > d_cell_coarsen_schedules;
 
+   SAMRAI::appu::VisItDataWriter<NDIM>* d_VizWriter;
+   bool d_bIsInitialTime;
 };
 #endif
