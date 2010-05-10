@@ -40,7 +40,7 @@ c ######################################################################
      .               ,predictor=.false.,postprocess=.false.
      .               ,chk_src=.false.
 
-        real(8)    :: tmrst,cnp,cn,cnm,dt_n
+        real(8)    :: tmrst,cnp=1d0,cn=-1d0,cnm=0d0,dt_n
 
         integer    :: itime=0,nrst
 
@@ -417,10 +417,6 @@ cc              dt = min(dtbase,2*dt)
 c     calculate_cnfactor
 c     #######################################################################
       subroutine calculate_cnfactor
-
-      cnp = 1d0
-      cn  =-1d0
-      cnm = 0d0
 
       if (sm_flag == 1) then      !Rannacher
 
