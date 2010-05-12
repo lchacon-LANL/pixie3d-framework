@@ -143,12 +143,12 @@ c     Begin program
         is_map = checkAnalMapDatabase()
 
         !Check external contributed maps
-        if (.not.is_map) then
-          select case(coords)
-          case('vmc')
-            is_map = .true.
-          end select
-        endif
+cc        if (.not.is_map) then
+cc          select case(coords)
+cc          case('vmc')
+cc            is_map = .true.
+cc          end select
+cc        endif
 
       end function checkMapDatabase
 
@@ -523,7 +523,7 @@ c     End program
 
 c     findGridMetrics
 c     #################################################################
-      subroutine findGridMetrics(gparams,igrid)
+      subroutine findGridMetrics(gparams,igrid,coarsen)
 
 c     -----------------------------------------------------------------
 c     Find grid metrics at grid level igrid.
@@ -535,8 +535,10 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: igrid
+        integer :: igrid
         type(grid_mg_def),pointer :: gparams
+
+        logical :: coarsen
 
 c     Local variables
 
@@ -657,7 +659,7 @@ c     Begin program
 
         if (map_present) then
 
-          if (igrid > 1) then  !Coarsen map if at coarse grid level
+          if (igrid > 1 .and. coarsen) then  !Coarsen map if at coarse grid level
             xf => gparams%gmetric%grid(igrid-1)%car
 
             nxf=size(xf,1)-2
@@ -686,25 +688,26 @@ c     Begin program
               enddo
             enddo
 
-#if defined(vmec)
-          elseif (coords == 'vmc') then
-
-            vmec_met = .false.   !Whether to use VMEC metric quantities or not
-            vmec_mets = vmec_met .and. (igrid == 1)
-
-            nxf=ihi-ilo+1
-            nyf=jhi-jlo+1
-            nzf=khi-klo+1
-
-            call vmec_map(igrid,nxf,nyf,nzf,xc,vmec_mets) !External
-
-            if (vmec_mets) then
-              call vmec_metrics(igrid,nxf,nyf,nzf         !External
-     .                         ,gparams%gmetric%grid(igrid)%jac
-     .                         ,gparams%gmetric%grid(igrid)%gsub
-     .                         ,gparams%gmetric%grid(igrid)%gsup)
-            endif
-#endif
+cc#if defined(vmec)
+cc          elseif (coords == 'vmc') then
+cc
+cc            vmec_met = .false.   !Whether to use VMEC metric quantities or not
+cc            vmec_mets = vmec_met .and. (igrid == 1)
+cc
+cc            nxf=ihi-ilo+1
+cc            nyf=jhi-jlo+1
+cc            nzf=khi-klo+1
+cc
+cc            call vmec_map(igrid,nxf,nyf,nzf,xc,vmec_mets) !External
+cc
+cc            if (vmec_mets) then
+cc              call vmec_metrics(igrid,nxf,nyf,nzf         !External
+cc     .                         ,gparams%gmetric%grid(igrid)%jac
+cc     .                         ,gparams%gmetric%grid(igrid)%gsub
+cc     .                         ,gparams%gmetric%grid(igrid)%gsup)
+cc            endif
+cc#endif
+          
           else
             call pstop('findMap','Map not available')
           endif
@@ -792,12 +795,12 @@ c     Enforce topological constraints on dr (including SP)
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-              if (.not.vmec_mets) then
+cc              if (.not.vmec_mets) then
                 jac = triple_product(r(1,:),r(2,:),r(3,:))
                 gparams%gmetric%grid(igrid)%jac(i,j,k) = jac
-              else
-                jac = gparams%gmetric%grid(igrid)%jac(i,j,k)
-              endif
+cc              else
+cc                jac = gparams%gmetric%grid(igrid)%jac(i,j,k)
+cc              endif
 
               if (jac <= 0d0 .and. (.not.isSP2(i+1,igrid,ibc=1))) then
                 write (*,*) 'Grid level',igrid
@@ -826,7 +829,7 @@ c     Enforce topological constraints on dr (including SP)
               gparams%gmetric%grid(igrid)%cov(i,j,k,:,:) = cov
 
               !Metric tensors <<<<<<<<<<<<<<<<<<<<<<<<
-              if (.not.vmec_mets) then
+cc              if (.not.vmec_mets) then
                 do m=1,3
                   do l=m,3
                     gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
@@ -837,7 +840,7 @@ c     Enforce topological constraints on dr (including SP)
                 enddo
                 gparams%gmetric%grid(igrid)%gsub(i,j,k,:,:) = gsub
                 gparams%gmetric%grid(igrid)%gsup(i,j,k,:,:) = gsup
-              endif
+cc              endif
 
               !Cell volume <<<<<<<<<<<<<<<<<<
               call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
@@ -1093,7 +1096,7 @@ cc        enddo
               gparams%gmetric%grid(igrid)%cov_v(i,j,k,:,:) = cov
 
               !Metric tensors <<<<<<<<<<<<<<<<<<<<<<<<
-              if (.not.vmec_mets) then
+cc              if (.not.vmec_mets) then
                 do m=1,3
                   do l=m,3
                     gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
@@ -1104,7 +1107,7 @@ cc        enddo
                 enddo
                 gparams%gmetric%grid(igrid)%gsub_v(i,j,k,:,:) = gsub
                 gparams%gmetric%grid(igrid)%gsup_v(i,j,k,:,:) = gsup
-              endif
+cc              endif
 
             enddo
           enddo
@@ -1777,7 +1780,7 @@ c     Allocate arrays
 c     Find grid metrics
 
         do igrid=igrmin,igrmax
-          call findGridMetrics(gparams,igrid)
+          call findGridMetrics(gparams,igrid,.not.PRESENT(igr))
         enddo
         
 c     Check grid: test of numerical calculation vs. analytical calculation
