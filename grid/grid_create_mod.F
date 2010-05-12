@@ -972,7 +972,7 @@ c     Newton iteration
 cold            res(i) = rhs-0.5*(xi**nn+xi**(nn+1)-2)/(xi-1)
 cold            ijac = 2*(xi-1)**2/(nn*(xi**(nn+1)-xi**(nn-1))-2*xi**nn+2)
             res(i) = rhs-0.5*(xi**(nn+1)+xi**(nn+2)-2*xi)/(xi-1)
-            ijac=2*(xi-1)**2/((nn+1)*(xi**(nn+1)-xi**nn)-2*xi**(nn+1)+2)
+            ijac=2*(xi-1)**2/((nn+1)*(xi**(nn+2)-xi**nn)-2*xi**(nn+1)+2)
           else          !Position both grid points at both boundaries
 cold            res(i) = rhs-(xi**nn-1)/(xi-1)
 cold            ijac = (xi-1)**2/((nn-1)*xi**nn-nn*xi**(nn-1)+1)
