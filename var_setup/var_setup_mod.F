@@ -28,13 +28,6 @@ c #####################################################################
         
         integer :: NAUXS=0,NAUXV=0  !Number of auxiliary scalars, vectors
                                     !(defined by application)
-        
-#if defined(petsc)
-        !NVAR is defined via C preprocessor flag
-        type :: petsc_var
-          real(8) :: var(NVAR)
-        end type petsc_var
-#endif
 
         type :: var_def
           integer :: bconds(6)          !Boundary conditions
@@ -61,14 +54,11 @@ c #####################################################################
         end type aux_array
 
         type :: bcgrp
-          integer  :: nbc_seq                         ! ???
+          integer  :: nbc_seq                         ! number of variables in bc sequence
           integer,pointer,dimension(:,:):: bc_seq     ! array showing sequence in which to set bc's 
         end type bcgrp
 
         type :: patch
-cc          integer  :: nbc_seq                         ! number of variables in bc sequence
-cc          integer,pointer,dimension(:,:):: bc_seq     ! array showing sequence in which to set bc's 
-
           integer  :: nbc_grp                         ! number of BC bundled groups
           type(bcgrp),pointer,dimension(:):: bc_grp   ! array of bundled variables for BC treatment
 
@@ -362,131 +352,6 @@ cc        nullify(varray)
 c     End program
 
       end subroutine deallocateDerivedType
-
-c     writeDerivedType
-c     #################################################################
-      subroutine writeDerivedType(varray,unit,frmt)
-
-c     Call variables
-
-        type(var_array),pointer  :: varray
-        integer          :: unit
-        logical          :: frmt
-
-c     Local variables
-
-        integer          :: ieq
-
-c     Begin program
-
-        if (frmt) then
-#if defined(petsc)
-          write (unit,*) ilomg,ihipg,jlomg,jhipg,klomg,khipg
-#else
-          write (unit,*) ilom,ihip,jlom,jhip,klom,khip
-#endif
-          write (unit,*) varray%nvar
-          do ieq=1,varray%nvar
-            write(unit,*) varray%array_var(ieq)
-     .                          %array(ilom:ihip,jlom:jhip,klom:khip)
-            write(unit,*) varray%array_var(ieq)%bconds
-            write(unit,*) varray%array_var(ieq)%descr
-          enddo
-        else
-#if defined(petsc)
-          write (unit) ilomg,ihipg,jlomg,jhipg,klomg,khipg
-#else
-          write (unit) ilom,ihip,jlom,jhip,klom,khip
-#endif
-          write (unit) varray%nvar
-          do ieq=1,varray%nvar
-            write(unit) varray%array_var(ieq)
-     .                        %array(ilom:ihip,jlom:jhip,klom:khip)
-            write(unit) varray%array_var(ieq)%bconds
-            write(unit) varray%array_var(ieq)%descr
-          enddo
-        endif
-
-c     End program
-
-      end subroutine writeDerivedType
-
-c     readDerivedType
-c     #################################################################
-      subroutine readDerivedType(varray,unit,format,ierr)
-
-c     Call variables
-
-        type(var_array),pointer  :: varray
-        integer          :: unit,ierr
-        logical          :: format
-
-c     Local variables
-
-        integer          :: ieq,ilom,ihip,jlom,jhip,klom,khip
-
-c     Begin program
-
-        ierr = 0
-
-        if (format) then
-#if defined(petsc)
-          read (unit,*,iostat=ierr,end=100)
-     .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
-#else
-          read (unit,*,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
-#endif
-          read (unit,*,iostat=ierr,end=100)varray%nvar
-          if (ierr /= 0) goto 200
-          do ieq=1,varray%nvar
-            read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)
-     .                 %array(ilom:ihip,jlom:jhip,klom:khip)
-            if (ierr /= 0) goto 200
-            read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)%bconds
-            if (ierr /= 0) goto 200
-            read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)%descr
-            if (ierr /= 0) goto 200
-          enddo
-        else
-#if defined(petsc)
-          read (unit,iostat=ierr,end=100)
-     .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
-#else
-          read (unit,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
-#endif
-          read (unit,iostat=ierr,end=100) varray%nvar
-          if (ierr /= 0) goto 200
-          do ieq=1,varray%nvar
-            read(unit,iostat=ierr,end=100) varray%array_var(ieq)
-     .                 %array(ilom:ihip,jlom:jhip,klom:khip)
-            if (ierr /= 0) goto 200
-            read(unit,iostat=ierr,end=100) varray%array_var(ieq)%bconds
-            if (ierr /= 0) goto 200
-            read(unit,iostat=ierr,end=100) varray%array_var(ieq)%descr
-            if (ierr /= 0) goto 200
-          enddo
-        endif
-
-        return
-
- 100    ierr=-2  !EOF
-        write (*,*) 'readDerivedType: EOF in file unit',unit
-        return
-
- 200    ierr=-1  !Error, but not EOF
-        write (*,*) 'readDerivedType: Error reading file unit',unit
-
-c     End program
-
-      end subroutine readDerivedType
 
 c     equateDerivedType
 c     #################################################################
