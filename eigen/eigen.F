@@ -653,7 +653,7 @@ c     Call variables
 
       real(8)    :: x(ntot)
 
-      external   :: matvec
+cc      external   :: matvec
 
       INTERFACE
         subroutine matvec(n,x,y)
@@ -662,7 +662,7 @@ c     Call variables
         end subroutine
       END INTERFACE
 
-      external   :: setPC,applyPC
+cc      external   :: setPC,applyPC
 
       INTERFACE
         subroutine applyPC(n,x,y,out)
@@ -671,7 +671,7 @@ c     Call variables
         end subroutine
       END INTERFACE
 
-      real(8), optional :: dot
+      optional :: dot
 
       INTERFACE
         function dot(x,y)
