@@ -18,7 +18,7 @@ c Local variables
 
 c Begin program
 
-      call closeRecordFile
+      close(urecord)
 
       deallocate(zeros,vzeros,ones)
 
