@@ -1280,7 +1280,8 @@ c       Restrict vector
 
         call crestrict(neq,vecc,ntotc,nxxc,nyyc,nzzc
      .                    ,vecf,ntotf,nxxf,nyyf,nzzf
-     .                ,order,igridf,volf)
+cc     .                ,order,igridf,volf)
+     .                ,0,igridf,volf)
 
       enddo
 
@@ -6133,7 +6134,7 @@ c     cSolver
 c     ##################################################################
       subroutine cSolver(neq,ntotp,b,x,bcnd,igrid,out,guess,matvec
      .                  ,vol_wgt
-     .                  ,dg,cvrg_tst,tol
+     .                  ,dg,cvrg_tst,tol,iters
      .                  ,gm_driver
      .                  ,gm_sing_matrix
      .                  ,cg_driver
@@ -6172,6 +6173,7 @@ c     Optional variables:
 c       * dg: matrix neq*neq diagonal block (for stationary its).
 c       * cvrg_tst: whether we want to perform a convergence test
 c       * tol: relative convergence tolerance
+c       * iters (output): number of iterations
 c       * gm_driver: whether we want GMRES as a driver
 c       * gm_sing_mat: whether GMRES is dealing with a singular matrix or not
 c       * cg_driver: whether we want CG    as a driver
@@ -6200,28 +6202,29 @@ c     ---------------------------------------------------------------
 c     Call variables
 
         integer,intent(IN) :: neq,ntotp,igrid,bcnd(6,neq),out,guess
-        real(8)    :: x(ntotp,neq),b(ntotp,neq)
-        logical    :: vol_wgt
+        real(8) :: x(ntotp,neq),b(ntotp,neq)
+        logical :: vol_wgt
 
-        real(8)   ,optional,intent(IN) :: dg(neq,2*neq*ntotp)
-     .                                   ,sm_omega
-     .                                   ,tol
-        integer   ,optional,intent(IN) :: mg_order_res
-     .                                   ,mg_order_prol
-     .                                   ,mg_vcyc,mg_cycle
-     .                                   ,mg_coarse_grid_size
-     .                                   ,sm_it
-     .                                   ,sm_ncolors
-     .                                   ,ks_it
-        logical   ,optional,intent(IN) :: sm_line_relax
-     .                                   ,sm_zebra_relax
-     .                                   ,mg_gm_coarse_solve
-     .                                   ,mg_galerkin
-     .                                   ,mg_debug
-     .                                   ,gm_driver
-     .                                   ,gm_sing_matrix
-     .                                   ,cg_driver
-     .                                   ,cvrg_tst
+        real(8),optional,intent(IN) :: dg(neq,2*neq*ntotp)
+     .                                ,sm_omega
+     .                                ,tol
+        integer,optional,intent(IN) :: mg_order_res
+     .                                ,mg_order_prol
+     .                                ,mg_vcyc,mg_cycle
+     .                                ,mg_coarse_grid_size
+     .                                ,sm_it
+     .                                ,sm_ncolors
+     .                                ,ks_it
+        logical,optional,intent(IN) :: sm_line_relax
+     .                                ,sm_zebra_relax
+     .                                ,mg_gm_coarse_solve
+     .                                ,mg_galerkin
+     .                                ,mg_debug
+     .                                ,gm_driver
+     .                                ,gm_sing_matrix
+     .                                ,cg_driver
+     .                                ,cvrg_tst
+        integer,optional,intent(OUT) :: iters
 
         character(2),optional :: mg_smooth
 
@@ -6604,13 +6607,15 @@ c       Invoke solver
 
 c       Get output data
 
-cc      call getSolverOptions(1)
+        call getSolverOptions(1)
+
+        if(PRESENT(iters)) iters = solverOptions%iter_out
 
 c       Kill solver
 
         call solverKill
 
-c     Scatter solution for output
+c       Scatter solution for output
 
         do i = 1,ntotp
           do ieq=1,neq
