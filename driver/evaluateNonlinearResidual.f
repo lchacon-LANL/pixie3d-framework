@@ -142,7 +142,7 @@ c Begin program
 
 c Setup parallel BC flags to indicate BCs require communication
 
-      call setASMflag((np==1))
+      call setup_petsc_BC
 
 c Prepare auxiliar quantities
 
