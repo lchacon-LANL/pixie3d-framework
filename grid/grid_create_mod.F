@@ -60,7 +60,7 @@ c     Initialize MPI and PETSc (parallel version)
 
 #if defined(petsc)
         call initFortranMPI(mpi_comm,nx,ny,nz)
-        call setASMflag(.false.)
+        call setup_petsc_BC
 #endif
 
 c     Initialize grid structure
@@ -1110,7 +1110,6 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-cc        type(MG_grid_metrics),pointer :: gmtrc
         type(grid_mg_def),pointer :: gparams
 
 c     Local variables
@@ -1144,17 +1143,6 @@ c     Multigrid parameters
 
         call gridInfo('Z',igz,gparams%istartz,gparams%nzv
      .               ,gparams%zz,gparams%dz,gparams%dzh)
-
-cc        if (checkMapDatabase()) then
-cccc          call metricTensorCheck(1,1,1
-cc          call metricTensorCheck(igx,igy,igz
-cc     .             ,gparams%nxv,gparams%nyv,gparams%nzv)
-cc        endif
-
-cc        if (checkAnalMapDatabase()) then
-cc          call hessianCheck(igx,igy,igz
-cc     .               ,gparams%nxv,gparams%nyv,gparams%nzv)
-cc        endif
 
         close(funit)
 
