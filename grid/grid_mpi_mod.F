@@ -644,19 +644,16 @@ c     Eliminate specified directions
       if (npx /= 0) then
         nprocs = nprocs/npx
         nx = 1
-cc        asm_dir(1) = (npx > 1)
       endif
 
       if (npy /= 0) then
         nprocs = nprocs/npy
         ny = 1
-cc        asm_dir(2) = (npy > 1)
       endif
 
       if (npz /= 0) then
         nprocs = nprocs/npz
         nz = 1
-cc        asm_dir(3) = (npz > 1)
       endif
 
       if (nx == 1 .and. ny == 1 .and. nz == 1) then
@@ -733,12 +730,6 @@ c     Find processor distribution
       if (npx == 0) npx = 2**exp(1)
       if (npy == 0) npy = 2**exp(2)
       if (npz == 0) npz = 2**exp(3)
-
-c     Store processor topology for ASM PC treatment
-
-cc      asm_dir(1) = (npx > 1)
-cc      asm_dir(2) = (npy > 1)
-cc      asm_dir(3) = (npz > 1)
 
 c     End program
 
