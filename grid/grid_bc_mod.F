@@ -1640,7 +1640,7 @@ c     Local variables
 
         integer    :: imax,imin,jmax,jmin,kmax,kmin,ibc
 
-        integer    :: i,j,k,ig,jg,kg
+        integer    :: i,j,k,ig,jg,kg,one=1,two=2
         real(8),pointer,dimension(:) :: xx,yy,zz,dxh,dyh,dzh,dx,dy,dz
 
 c     Begin program
@@ -1648,6 +1648,8 @@ c     Begin program
         ibc = (1+loc)+2*(dim-1)
 
         rhs = 0d0
+
+        if (order == 1) two = one  !To prevent stepping over domain
 
 c     Setup grid aliases
 
@@ -1681,57 +1683,57 @@ c     Extrapolate
                 case (1)
 
                   rhs(j,k) = 
-cc     .              quad_int(xx(ig-1)+dxh(ig-1),xx(ig)
-     .              quad_int(0.5*(xx(ig-1)+xx(ig)),xx(ig)
-     .                       ,xx(ig+1),xx(ig+2)
-     .                       ,array0(i-1,j,k),array(i,j,k)
-     .                       ,array (i+1,j,k),array(i+2,j,k)
-     .                       ,xx(ig-1),order )
+
+     .              quad_int(0.5*(xx(ig-one)+xx(ig)),xx(ig)
+     .                       ,xx(ig+one),xx(ig+two)
+     .                       ,array0(i-one,j,k),array(i    ,j,k)
+     .                       ,array (i+one,j,k),array(i+two,j,k)
+     .                       ,xx(ig-one),order )
                 case (2)
 
                   rhs(j,k) =
-cc     .              quad_int(xx(ig+1)-dxh(ig+1),xx(ig)
-     .              quad_int(0.5*(xx(ig+1)+xx(ig)),xx(ig)
-     .                        ,xx(ig-1),xx(ig-2)
-     .                        ,array0(i+1,j,k),array(i,j,k)
-     .                        ,array (i-1,j,k),array(i-2,j,k)
-     .                        ,xx(ig+1),order )
+
+     .              quad_int(0.5*(xx(ig+one)+xx(ig)),xx(ig)
+     .                        ,xx(ig-one),xx(ig-two)
+     .                        ,array0(i+one,j,k),array(i,j    ,k)
+     .                        ,array (i-one,j,k),array(i-two,j,k)
+     .                        ,xx(ig+one),order )
                 case (3)
 
                   rhs(i,k) =
-cc     .              quad_int(yy(jg-1)+dyh(jg-1),yy(jg)
-     .              quad_int(0.5*(yy(jg-1)+yy(jg)),yy(jg)
-     .                        ,yy(jg+1),yy(jg+2)
-     .                        ,array0(i,j-1,k),array(i,j,k)
-     .                        ,array (i,j+1,k),array(i,j+2,k)
-     .                        ,yy(jg-1),order )
+
+     .              quad_int(0.5*(yy(jg-one)+yy(jg)),yy(jg)
+     .                        ,yy(jg+one),yy(jg+two)
+     .                        ,array0(i,j-one,k),array(i,j    ,k)
+     .                        ,array (i,j+one,k),array(i,j+two,k)
+     .                        ,yy(jg-one),order )
                 case (4)
 
                   rhs(i,k) =
-cc     .              quad_int(yy(jg+1)-dyh(jg+1),yy(jg)
-     .              quad_int(0.5*(yy(jg+1)+yy(jg)),yy(jg)
-     .                        ,yy(jg-1),yy(jg-2)
-     .                        ,array0(i,j+1,k),array(i,j,k)
-     .                        ,array (i,j-1,k),array(i,j-2,k)
-     .                        ,yy(jg+1),order )
+
+     .              quad_int(0.5*(yy(jg+one)+yy(jg)),yy(jg)
+     .                        ,yy(jg-one),yy(jg-two)
+     .                        ,array0(i,j+one,k),array(i,j    ,k)
+     .                        ,array (i,j-one,k),array(i,j-two,k)
+     .                        ,yy(jg+one),order )
                 case (5)
 
                   rhs(i,j) =
-cc     .              quad_int(zz(kg-1)+dzh(kg-1),zz(kg)
-     .              quad_int(0.5*(zz(kg-1)+zz(kg)),zz(kg)
-     .                        ,zz(kg+1),zz(kg+2)
-     .                        ,array0(i,j,k-1),array(i,j,k)
-     .                        ,array (i,j,k+1),array(i,j,k+2)
-     .                        ,zz(kg-1),order )
+
+     .              quad_int(0.5*(zz(kg-one)+zz(kg)),zz(kg)
+     .                        ,zz(kg+one),zz(kg+one)
+     .                        ,array0(i,j,k-one),array(i,j,k    )
+     .                        ,array (i,j,k+one),array(i,j,k+two)
+     .                        ,zz(kg-one),order )
                 case (6)
 
                   rhs(i,j) =
-cc     .              quad_int(zz(kg+1)-dzh(kg+1),zz(kg)
-     .              quad_int(0.5*(zz(kg+1)+zz(kg)),zz(kg)
-     .                        ,zz(kg-1),zz(kg-2)
-     .                        ,array0(i,j,k+1),array(i,j,k)
-     .                        ,array (i,j,k-1),array(i,j,k-2)
-     .                        ,zz(kg+1),order )
+
+     .              quad_int(0.5*(zz(kg+one)+zz(kg)),zz(kg)
+     .                        ,zz(kg-one),zz(kg-two)
+     .                        ,array0(i,j,k+one),array(i,j,k    )
+     .                        ,array (i,j,k-one),array(i,j,k-two)
+     .                        ,zz(kg+one),order )
                 end select
               enddo
             enddo
