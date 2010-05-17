@@ -374,18 +374,112 @@ c     Begin program
         mgy = gparams%mg_ratio_y(igf)
         mgz = gparams%mg_ratio_z(igf)
 
-        x0_j = 0d0
+cc        x0_j = 0d0
 
-        do kc = 1,nzc
-          do jc = 1,nyc
-            do ic = 1,nxc
+cc        do kc = 1,nzc
+cc          do jc = 1,nyc
+cc            do ic = 1,nxc
+cc
+cc              !Fill inner domain
+cc              volc   = 0d0
+cc              ac     = 0d0
+cc
+cc              do kf = mgz*(kc-1)+1,mgz*kc
+cc                do jf = mgy*(jc-1)+1,mgy*jc
+cc                  do if = mgx*(ic-1)+1,mgx*ic
+cc                    ac   = ac   + xf_j(if,jf,kf)
+cc                    volc = volc + 1d0
+cc                  enddo
+cc                enddo
+cc              enddo
+cc
+cc              xc_j(ic,jc,kc) = ac/volc
+cc
+cc              !Fill face values for extrapolation to ghost cells
+cc              i_off = 0
+cc              j_off = 0
+cc              k_off = 0
+cc
+cc              ac   = 0d0
+cc
+cc              select case(dim)
+cc              case (1)
+cccc                if (ic == 1  .and.nxc /= 1) i_off =-1
+cccc                if (ic == nxc.and.nxc /= 1) i_off = 1
+cc                if (ic == 1  ) i_off =-1
+cc                if (ic == nxc) i_off = 1
+cc
+cc                if (i_off /= 0) then
+cc                  do kf = mgz*(kc-1)+1,mgz*kc
+cc                    do jf = mgy*(jc-1)+1,mgy*jc
+cc                      do if = mgx*(ic-1)+1,mgx*ic
+cc                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
+cc                      enddo
+cc                    enddo
+cc                  enddo
+cc                endif
+cc              case (2)
+cccc                if (jc == 1  .and.nyc /= 1) j_off =-1
+cccc                if (jc == nyc.and.nyc /= 1) j_off = 1
+cc                if (jc == 1  ) j_off =-1
+cc                if (jc == nyc) j_off = 1
+cc
+cc                if (j_off /= 0) then
+cc                  do kf = mgz*(kc-1)+1,mgz*kc
+cc                    do jf = mgy*(jc-1)+1,mgy*jc
+cc                      do if = mgx*(ic-1)+1,mgx*ic
+cc                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
+cc                      enddo
+cc                    enddo
+cc                  enddo
+cc                endif
+cc              case (3)
+cccc                if (kc == 1  .and.nzc /= 1) k_off =-1
+cccc                if (kc == nzc.and.nzc /= 1) k_off = 1
+cc                if (kc == 1  ) k_off =-1
+cc                if (kc == nzc) k_off = 1
+cc
+cc                if (k_off /= 0) then
+cc                  write (*,*) k_off
+cc                  do kf = mgz*(kc-1)+1,mgz*kc
+cc                    do jf = mgy*(jc-1)+1,mgy*jc
+cc                      do if = mgx*(ic-1)+1,mgx*ic
+cc                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
+cc                      enddo
+cc                    enddo
+cc                  enddo
+cc                endif
+cc              end select
+cc
+cc              x0_j(ic+i_off,jc+j_off,kc+k_off) = ac/volc
+cc            enddo
+cc          enddo
+cc        enddo
 
+        do kc = 0,nzc+1
+          do jc = 0,nyc+1
+            do ic = 0,nxc+1
+
+              i_off = 0
+              j_off = 0
+              k_off = 0
+
+              if (ic == 0    ) i_off = 1
+              if (ic == nxc+1) i_off =-1
+
+              if (jc == 0    ) j_off = 1
+              if (jc == nyc+1) j_off =-1
+
+              if (kc == 0    ) k_off = 1
+              if (kc == nzc+1) k_off =-1
+
+              !Fill inner domain
               volc   = 0d0
               ac     = 0d0
 
-              do kf = mgz*(kc-1)+1,mgz*kc
-                do jf = mgy*(jc-1)+1,mgy*jc
-                  do if = mgx*(ic-1)+1,mgx*ic
+              do kf=mgz*((kc+k_off)-1)+1-k_off,mgz*(kc+k_off)-k_off
+                do jf=mgy*((jc+j_off)-1)+1-j_off,mgy*(jc+j_off)-j_off
+                  do if=mgx*((ic+i_off)-1)+1-i_off,mgx*(ic+i_off)-i_off
                     ac   = ac   + xf_j(if,jf,kf)
                     volc = volc + 1d0
                   enddo
@@ -394,58 +488,11 @@ c     Begin program
 
               xc_j(ic,jc,kc) = ac/volc
 
-              i_off = 0
-              j_off = 0
-              k_off = 0
-
-              ac = 0d0
-
-              select case(dim)
-              case (1)
-                if (ic == 1  .and.nxc /= 1) i_off =-1
-                if (ic == nxc.and.nxc /= 1) i_off = 1
-
-                if (i_off /= 0) then
-                  do kf = mgz*(kc-1)+1,mgz*kc
-                    do jf = mgy*(jc-1)+1,mgy*jc
-                      do if = mgx*(ic-1)+1,mgx*ic
-                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
-                      enddo
-                    enddo
-                  enddo
-                endif
-              case (2)
-                if (jc == 1  .and.nyc /= 1) j_off =-1
-                if (jc == nyc.and.nyc /= 1) j_off = 1
-
-                if (j_off /= 0) then
-                  do kf = mgz*(kc-1)+1,mgz*kc
-                    do jf = mgy*(jc-1)+1,mgy*jc
-                      do if = mgx*(ic-1)+1,mgx*ic
-                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
-                      enddo
-                    enddo
-                  enddo
-                endif
-              case (3)
-                if (kc == 1  .and.nzc /= 1) k_off =-1
-                if (kc == nzc.and.nzc /= 1) k_off = 1
-
-                if (k_off /= 0) then
-                  do kf = mgz*(kc-1)+1,mgz*kc
-                    do jf = mgy*(jc-1)+1,mgy*jc
-                      do if = mgx*(ic-1)+1,mgx*ic
-                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
-                      enddo
-                    enddo
-                  enddo
-                endif
-              end select
-
-              x0_j(ic+i_off,jc+j_off,kc+k_off) = ac/volc
             enddo
           enddo
         enddo
+
+        x0_j = xc_j
 
 c     Fill ghost cells
 
@@ -493,23 +540,23 @@ c     Setup boundary conditions (topological conditions are meaningless for maps
         !Force boundaries along dimension
         select case(dim)
         case(1)
-          if (nxl > 1) then
+cc          if (nxl > 1) then
             bcnd(1:2) = EQU
-          else
-            bcnd(1:2) = PER
-          endif
+cc          else
+cc            bcnd(1:2) = PER
+cc          endif
         case(2)
-          if (nyl > 1) then
+cc          if (nyl > 1) then
             bcnd(3:4) = EQU
-          else
-            bcnd(3:4) = PER
-          endif
+cc          else
+cc            bcnd(3:4) = PER
+cc          endif
         case(3)
-          if (nzl > 1) then
+cc          if (nzl > 1) then
             bcnd(5:6) = EQU
-          else
-            bcnd(5:6) = PER
-          endif
+cc          else
+cc            bcnd(5:6) = PER
+cc          endif
         end select
 
 c     Impose BCs
