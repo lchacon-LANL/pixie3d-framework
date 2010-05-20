@@ -29,9 +29,9 @@ c ######################################################################
         logical    :: plot
 
 #if defined(petsc)
-        logical    :: hdf_plot=.true.
+        logical    :: hdf_plot=.true.,xdraw_plot=.true.
 #else
-        logical    :: hdf_plot=.false.
+        logical    :: hdf_plot=.false.,xdraw_plot=.true.
 #endif
 
         integer    :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
