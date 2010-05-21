@@ -85,7 +85,7 @@ c     ----------------------------------------------------------------------
 
       !ODE solver
       orb_default%ode_conf%tmax   = 0d0    !Maximum orbit pseudotime
-      orb_default%ode_conf%smax   = 20000. !Maximum orbit arc length
+      orb_default%ode_conf%smax   = 0d0    !Maximum orbit arc length
       orb_default%ode_conf%dtime  = 0.01   !Maximum time step
 
       orb_default%ode_conf%solen  = .true. !Whether to use solenoidal ODE int.
@@ -134,7 +134,7 @@ c     Call variables
 
 c     Begin program
 
-        call orbit_conf_def
+        call orbit_conf_def   !Defaults are defined here.
 
         if (PRESENT(tmax)) then
           orb_default%ode_conf%tmax = tmax
@@ -338,7 +338,6 @@ cc        real(8),optional :: xss,yss,zss,tss
           logical :: line_int
           logical :: fwd
           real(8) :: xo,x,yo,y,zo,z,so,ss
-          logical :: ex_loop
           end function line_int
         END INTERFACE
 
