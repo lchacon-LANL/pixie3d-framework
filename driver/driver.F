@@ -450,8 +450,6 @@ cc        nk_conf%krylov_method='gm'
         itgmres = nk_conf%gm_it_out
         itnewt  = nk_conf%nwt_it_out
 
-cc        jit = itnewt
-
 c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
