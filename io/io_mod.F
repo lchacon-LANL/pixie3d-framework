@@ -179,6 +179,7 @@ c     Allocate arrays and open files
 #else
       munit(1) = base_unit+myrank
       file = trim(base_fname)//'_proc'//trim(int2char(myrank))
+      write (*,*) '  => ',trim(file),', unit=',munit(1)
 
       open(munit(1),file=trim(file)
      $        ,form='unformatted',status='old')
