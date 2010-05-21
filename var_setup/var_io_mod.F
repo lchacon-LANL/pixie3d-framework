@@ -229,7 +229,7 @@ c     Consistency check
         endif
       endif
 #endif
-        
+
 c     End program
 
       end subroutine openRecordFiles
