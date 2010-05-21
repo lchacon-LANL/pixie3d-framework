@@ -9,7 +9,7 @@ c        * ntot is the problem size
 c        * x    is the newton state vector (input)
 c        * res  is the nonlinear residual (output)
 c
-c == subroutine setupPC(ntot,xk)
+c == subroutine setupPC(ntot,xk,nwt_it)
 c
 c      Initializes preconditioner based on current Newton iterate
 c
@@ -43,7 +43,7 @@ c ###################################################################
 
       real(8) :: epsmac=0d-15,roundoff
 
-      integer :: jit=0
+      integer,private :: jit=0
 
       logical :: pseudo_dt,prnt,is_residual=.true.
 
@@ -295,7 +295,7 @@ c     Determine inexact Newton constant
 
 c     Setup preconditioner
 
-        call setupPC(ntot,x)
+        call setupPC(ntot,x,jit)
 
 c     Jacobian-free solve
 
@@ -310,7 +310,7 @@ c     Jacobian-free solve
         else
 #endif
           call gmresDriver(ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
-     .                  ,iguess,iout,ierr)
+     .                    ,iguess,iout,ierr)
 #if defined(FPA)
         endif
 #endif

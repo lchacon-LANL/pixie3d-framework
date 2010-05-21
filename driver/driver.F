@@ -335,12 +335,15 @@ c Begin program
 
       itwhistler = 0
 
-      jit = -1     !This informs nlfunction that we are processing
-                   !  n time level info
-
 c Evaluate nonlinear function at old time for theta scheme
 
+cc      jit = -1
+      old_time_eval = .true.     !This informs nlfunction that we are processing
+                                 !  n time level info
+
       call evaluateNonlinearFunction(vnp,fold)
+
+      old_time_eval = .false.
 
 c Eigenvalue solver
 
@@ -353,8 +356,7 @@ c Eigenvalue solver
         call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
 
         !Setup preconditioner
-        jit = 1 !For internal setupPC logic
-        call setupPC(ntotd,nk_conf%xk)
+        call setupPC(ntotd,nk_conf%xk,1)
 
         !Setup initial guess for eigenfunction
         call mapStructureToVector(x ,vnp)

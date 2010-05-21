@@ -38,7 +38,7 @@ c ######################################################################
 
         logical    :: timecorr=.false.,restart=.false.,source=.true.
      .               ,predictor=.false.,postprocess=.false.
-     .               ,chk_src=.false.
+     .               ,chk_src=.false.,source_eval,old_time_eval
 
         real(8)    :: tmrst,cnp,cn,cnm,dt_n
 
@@ -381,6 +381,9 @@ c     #######################################################################
               dt = 0.5*dtbase
             elseif ((itm == sm_pass+2.and.(.not.timecorr))
      .          .or.(itm == sm_pass+3.and.      timecorr )) then
+              dt = dtbase-dt
+            elseif ((itm == sm_pass+3.and.(.not.timecorr))
+     .          .or.(itm == sm_pass+4.and.      timecorr )) then
               dt = dtbase
             else
               dt = min(dtbase,dt*coef2)
@@ -392,7 +395,9 @@ c     #######################################################################
               dt = 0.1*dtbase
             elseif (    (itm == 2 .and.(.not.timecorr))
      .              .or.(itm == 3 .and.      timecorr )) then
-cc              dt = min(dtbase,2*dt)
+              dt = dtbase - dt
+            elseif (    (itm == 3 .and.(.not.timecorr))
+     .              .or.(itm == 4 .and.      timecorr )) then
               dt = dtbase
             else
               dt = min(dtbase,dt*coef2)
@@ -402,6 +407,9 @@ cc              dt = min(dtbase,2*dt)
             if (    (itm == 1.and.(.not.timecorr))
      .          .or.(itm == 2.and.      timecorr )) then
               dt = dtbase
+            elseif ((itm == 2.and.(.not.timecorr))
+     .          .or.(itm == 3.and.      timecorr )) then
+              dt = dtbase-dt
             else
               dt = min(dtbase,dt*coef2)
             endif

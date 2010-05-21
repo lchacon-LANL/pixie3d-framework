@@ -135,12 +135,15 @@ c Initialize old time solution
 
 c Set unperturbed forcing fields
 
-      jit = -2   !This informs nlfunction that we are processing the source
-
+cc      jit = -2 
+      source_eval = .true.   !This informs nlfunction that we are processing the source
+      
       !This not only evaluates fsrc, but defines BCs on u_n
       call evaluateNonlinearFunction(u_n,fsrc)
 
       if (.not.source) fsrc = 0d0
+
+      source_eval = .false.
 
 c Set output files
 
