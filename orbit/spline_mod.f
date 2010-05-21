@@ -29,6 +29,7 @@ c #####################################################################
      .                                        ,b3coefx,b3coefy
      .                                        ,bxcarcoef,bycarcoef
      .                                        ,bzcarcoef
+     .                                        ,fldcoef
 
       contains
 
@@ -1468,6 +1469,59 @@ c     Begin program
 
       end function evalJ
 
+c     splineFld
+c     #################################################################
+      subroutine splineFld(fld)
+c     -----------------------------------------------------------------
+c     This routine splines up a user-input field on a mesh
+c     of size (nx,ny,nz) with positions xs,ys,zs.
+c     -----------------------------------------------------------------
+
+      implicit none            ! For safe Fortran
+
+c     Call variables
+
+      real(8) :: fld(nx,ny,nz)
+
+c     Local variables
+
+      integer :: alloc_stat,i
+
+c     Begin program
+
+      allocate(fldcoef(nx,ny,nz),stat=alloc_stat)
+
+      call db3ink(xs,nx,ys,ny,zs,nz
+     .           ,fld,nx,ny,kx,ky,kz,tx,ty,tz,fldcoef,work,flg)
+
+      end subroutine splineFld
+
+c     evalFld
+c     #################################################################
+      function evalFld(x1,x2,x3,ierror) result(ff)
+c     -----------------------------------------------------------------
+c     This evaluates a user-input positive-definite field at logical
+c     position (x1,x2,x3).
+c     -----------------------------------------------------------------
+
+      implicit none            ! For safe Fortran
+
+c     Call variables
+
+      integer :: ierror
+      real(8) :: x1,x2,x3,ff
+
+c     Local variables
+
+c     Begin program
+
+      call chk_pos(x1,x2,x3)
+
+      ff = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
+     .            ,kx,ky,kz,fldcoef,work)
+
+      end function evalFld
+
 c     killSplines
 c     #################################################################
       subroutine killSplines
@@ -1486,6 +1540,7 @@ c     Begin program
       deallocate(jcoef,xcoefx,xcoefy,xcoefz,stat=alloc_stat)
       deallocate(b2coefx,b2coefz,b3coefx,b3coefy,stat=alloc_stat)
       deallocate(bcoefx,bcoefy,bcoefz,stat=alloc_stat)
+      deallocate(fldcoef,stat=alloc_stat)
 
 c     End programs
 
