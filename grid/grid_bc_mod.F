@@ -72,7 +72,7 @@ c     #################################################################
         integer    :: i,igr,ibc,BC
         logical    :: isBC
 
-        isBC = (isBdry(i,igr,ibc) .and. bcond(ibc) == BC)
+        isBC = (isBdry(i,igr,ibc) .and. abs(bcond(ibc)) == BC)
 
       end function isBC
 
@@ -107,12 +107,12 @@ c     #################################################################
           ibcl = (1+locl)+2*(diml-1)
         elseif (PRESENT(ibc)) then
           ibcl = ibc
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
+cc          locl = abs(mod(ibcl,2)-2)-1
+cc          diml = 1 + (ibcl-1-locl)/2
         else
           ibcl = 1
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
+cc          locl = abs(mod(ibcl,2)-2)-1
+cc          diml = 1 + (ibcl-1-locl)/2
         endif
 
         isSP2 = isBC(i,igr,ibcl,SP)
@@ -151,16 +151,6 @@ c     #################################################################
 
       end module bc_ops
 
-c module constants
-c ######################################################################
-      module constants
-
-        real(8) :: pi
-        real(8), pointer, dimension(:,:,:)   :: zeros,ones
-        real(8), pointer, dimension(:,:,:,:) :: vzeros
-
-      end module constants
-
 c module BCS_variables
 c####################################################################
       module BCS_variables
@@ -173,17 +163,18 @@ c####################################################################
 
         use math
 
-        use constants
-
         use bc_ops
-
-cc        integer    :: imax,imin,jmax,jmin,kmax,kmin
 
         integer    :: nnvar,nxbc,nybc,nzbc,igxbc,igybc,igzbc
 
         real(8),allocatable,dimension(:,:) :: rhs
 
         logical :: symm=.false.,bc_debug=.false.
+
+        integer,parameter :: VECTOR=1,SCALAR=0,AUX=-1
+
+        real(8), pointer, dimension(:,:,:)   :: zeros,ones
+        real(8), pointer, dimension(:,:,:,:) :: vzeros
 
       end module BCS_variables
 
@@ -194,87 +185,6 @@ c####################################################################
         use BCS_variables
 
       contains
-
-ccc     scalarSingularBC2
-ccc     #################################################################
-cc      subroutine scalarSingularBC2(array,order)
-ccc     -----------------------------------------------------------------
-ccc     Imposes singular point BC. On input:
-ccc        * array: contains variable on which singular BC is imposed
-ccc        * order: order of interpolation towards singular point
-ccc     -----------------------------------------------------------------
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer    :: order
-cc      real(8)    :: array(0:nxbc+1,0:nybc+1,0:nzbc+1)
-cc
-ccc     Local variables
-cc
-cc      integer    :: i,j,k,ig,jg,kg,order1,ilog,ihig
-cc      real(8)    :: lavg_q,lavg_vol,avg_q,avg_vol,rho0(1),vol,x0(1)
-cc
-ccc     Begin program
-cc
-cc      ilog = grid_params%ilo(1)
-cc      ihig = grid_params%ihi(1)
-cc
-ccc     Check that we are domain adjacent to singular point
-cc
-cc      if (ilog /= 1) then
-cc        return
-cc      else
-cc        i = ilog
-cc      endif
-cc
-ccc     Set interpolation order
-cc
-cc      order1 = min(order,ihig-ilog)
-cc
-ccc     Find scalar value at singular point by averaging neighboring cells
-cc
-cc      do k=1,nzbc
-cc
-ccc       Perform local sum
-cc        lavg_q   = 0d0
-cc        lavg_vol = 0d0
-cc
-cc        do j=1,nybc
-cc          call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-cc          vol = gmetric%grid(igxbc)%dvol(i,j,k)
-cc          x0  = grid_params%xx(ig-1)
-cc
-cc          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
-cc     .                    ,array(i:i+order1+1,j,k)
-cc     .                    ,1,x0,rho0,order1)
-cc
-cc          lavg_q   = lavg_q   + vol*rho0(1)
-cc          lavg_vol = lavg_vol + vol
-cc        enddo
-cc
-ccc       Perform global sum (and broadcast it to all processors)
-cc
-cc#if defined(petsc)
-cc        call MPI_Allreduce(lavg_q  ,avg_q  ,1,MPI_DOUBLE_PRECISION
-cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-cc        call MPI_Allreduce(lavg_vol,avg_vol,1,MPI_DOUBLE_PRECISION
-cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-cc#else
-cc        avg_q   = lavg_q
-cc        avg_vol = lavg_vol
-cc#endif
-cc
-ccc       Perform average
-cc
-cc        array(0,:,k) = avg_q/avg_vol
-cc
-cc      enddo
-cc
-ccc     End program
-cc
-cc      end subroutine scalarSingularBC2
 
 c     scalarSingularBC
 c     #################################################################
@@ -319,33 +229,41 @@ c     Check that we are domain adjacent to singular point
 c     Parallel Allgather in SP communicator
 
 #if defined(petsc)
-cc      local_x = reshape(array(i,1:nybc,1:nzbc), (/ nybc*nzbc /))
-cc      write (*,*) 'DIAG -- scalarSPBC; proc=',my_rank
-cc     .           ,array(i,1:nybc,1:nzbc)
-cc      call MPI_Allgather(local_x ,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc      allocate(global_x((nyg+2*npy)*nzbc),garray(0:nyg+1,nzbc))
+cc      call MPI_Allgather(array(i,0:nybc+1,nzbc)
+cc     .                           ,(nybc+2)*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,global_x,(nybc+2)*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,MPI_COMM_SP,mpierr)
+cc      do k=1,npy
+cc        garray(nybc*(k-1):nybc*k+1,:)
+cc     .     = reshape(global_x(1+(nybc+2)*nzbc*(k-1)
+cc     .                         :(nybc+2)*nzbc* k)
+cc     .              , (/ nybc+2,nzbc /))
+cc      enddo
+cc      deallocate(global_x)
+
+cc      allocate(global_x(nyg*nzbc),garray(nyg,nzbc))
+cc      call MPI_Allgather(array(i,1:nybc,1:nzbc)
+cc     .                           ,nybc*nzbc,MPI_DOUBLE_PRECISION
 cc     .                  ,global_x,nybc*nzbc,MPI_DOUBLE_PRECISION
 cc     .                  ,MPI_COMM_SP,mpierr)
-cc      garray = reshape(global_x, (/ nyg,nzbc /))
-cc      write (*,*) 'DIAG -- scalarSPBC; proc=',my_rank
-cc     .           ,garray
-cc      stop
-
-      allocate(global_x(nyg*nzbc),garray(nyg,nzbc))
-      call MPI_Allgather(array(i,1:nybc,1:nzbc)
-     .                           ,nybc*nzbc,MPI_DOUBLE_PRECISION
-     .                  ,global_x,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc      do k=1,npy
+cc        garray(1+nybc*(k-1):nybc*k,:)
+cc     .     = reshape(global_x(1+nybc*nzbc*(k-1):nybc*nzbc*k)
+cc     .              , (/ nybc,nzbc /))
+cc      enddo
+cc      deallocate(global_x)
+      allocate(global_x(nyg*(nzbc+2)),garray(nyg,0:nzbc+1))
+      call MPI_Allgather(array(i,1:nybc,0:nzbc+1)
+     .                           ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
+     .                  ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
      .                  ,MPI_COMM_SP,mpierr)
       do k=1,npy
         garray(1+nybc*(k-1):nybc*k,:)
-     .     = reshape(global_x(1+nybc*nzbc*(k-1):nybc*nzbc*k)
-     .              , (/ nybc,nzbc /))
+     .     = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
+     .              , (/ nybc,nzbc+2 /))
       enddo
       deallocate(global_x)
-
-cc      call MPI_Allgather(array(i,1:nybc,1:nzbc)
-cc     .                         ,nybc*nzbc,MPI_DOUBLE_PRECISION
-cc     .                  ,garray,nybc*nzbc,MPI_DOUBLE_PRECISION
-cc     .                  ,MPI_COMM_SP,mpierr)
 #endif
 
 c     Element exchange in poloidal direction
@@ -355,8 +273,7 @@ c     Element exchange in poloidal direction
      .            ,'Poloidal dimension not a multiple of 2')
       endif
 
-      do k=1,nzbc
-cc        do j=1,nybc
+      do k=0,nzbc+1
         do j=0,nybc+1
           jglobal = j + jlog - 1
           jj = mod(jglobal+nyg/2,nyg)
@@ -376,140 +293,6 @@ c     End program
 #endif
 
       end subroutine scalarSingularBC
-
-ccc     vectorSingularBC2
-ccc     #################################################################
-cc      subroutine vectorSingularBC2(vec,cov,order)
-ccc     -----------------------------------------------------------------
-ccc     Averages vector components around singular point and calculates
-ccc     curvilinear components at singular point.
-ccc     -----------------------------------------------------------------
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer    :: order
-cc      real(8)    :: vec(0:nxbc+1,0:nybc+1,0:nzbc+1,3)
-cc      logical    :: cov
-cc
-ccc     Local variables
-cc
-cc      integer    :: i,j,k
-cc
-cc      integer    :: ic,ig,jg,kg,order1,ilog,ihig
-cc      real(8)    :: vol,lavg_x,lavg_y,lavg_z,lavg_vol
-cc     .                 , avg_x, avg_y, avg_z, avg_vol
-cc      real(8)    :: daxdr(1),daydr(1),dummy1,dummy2
-cc      real(8),allocatable,dimension(:) :: ax0,ay0,az0,cx,cy,cz,xx
-cc
-ccc     External
-cc
-ccc     Begin program
-cc
-cc      ilog = grid_params%ilo(1)
-cc      ihig = grid_params%ihi(1)
-cc
-ccc     Check that we are domain adjacent to singular point
-cc
-cc      if (ilog /= 1) then
-cc        return
-cc      else
-cc        i = ilog
-cc      endif
-cc
-ccc     Set interpolation order
-cc
-cc      order1 = min(order,ihig-ilog)
-cc
-ccc     Allocate quantities for interpolation
-cc
-cc      allocate(ax0(nzbc),ay0(nzbc),az0(nzbc))
-cc      allocate(cx(0:order1+1),cy(0:order1+1),cz(0:order1+1)
-cc     .        ,xx(0:order1+1))
-cc
-cc      call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-cc
-cc      xx(0:order1+1) = grid_params%xx(ig-1:ig+order1)
-cc
-ccc     Find average cartesian coordinates
-cc
-cc      do k=1,nzbc
-cc
-ccc       Perform local sum
-cc        lavg_x   = 0d0
-cc        lavg_y   = 0d0
-cc        lavg_z   = 0d0
-cc        lavg_vol = 0d0
-cc
-cc        do j=1,nybc
-cc          call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-cc          vol = gmetric%grid(igxbc)%dvol(i,j,k)
-cc
-cc          do ic=1,order1+1
-cc            call transformVectorToCartesian(ic,j,k,igxbc,igybc,igzbc
-cc     .           ,vec(ic,j,k,1),vec(ic,j,k,2),vec(ic,j,k,3),cov
-cc     .           ,cx(ic),cy(ic),cz(ic))
-cc          enddo
-cc
-cc          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
-cc     .                    ,cx(1:order1+1),1,grid_params%xx(ig-1:ig-1)
-cc     .                    ,cx(0),order1)
-cc          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
-cc     .                    ,cy(1:order1+1),1,grid_params%xx(ig-1:ig-1)
-cc     .                    ,cy(0),order1)
-cc          call IntDriver1d(order1+1,grid_params%xx(ig:ig+order1)
-cc     .                    ,cz(1:order1+1),1,grid_params%xx(ig-1:ig-1)
-cc     .                    ,cz(0),order1)
-cc
-cc          lavg_x   = lavg_x   + vol*cx(0)
-cc          lavg_y   = lavg_y   + vol*cy(0)
-cc          lavg_z   = lavg_z   + vol*cz(0)
-cc          lavg_vol = lavg_vol + vol
-cc
-cc        enddo
-cc
-ccc       Perform global sum (and broadcast it to all processors)
-cc
-cc#if defined(petsc)
-cc        call MPI_Allreduce(lavg_x  ,avg_x  ,1,MPI_DOUBLE_PRECISION
-cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-cc        call MPI_Allreduce(lavg_y  ,avg_y  ,1,MPI_DOUBLE_PRECISION
-cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-cc        call MPI_Allreduce(lavg_z  ,avg_z  ,1,MPI_DOUBLE_PRECISION
-cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-cc        call MPI_Allreduce(lavg_vol,avg_vol,1,MPI_DOUBLE_PRECISION
-cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
-cc#else
-cc        avg_x   = lavg_x
-cc        avg_y   = lavg_y
-cc        avg_z   = lavg_z
-cc        avg_vol = lavg_vol
-cc#endif
-cc
-ccc       Perform average
-cc
-cc        ax0(k) = avg_x/avg_vol
-cc        ay0(k) = avg_y/avg_vol
-cc        az0(k) = avg_z/avg_vol
-cc
-cc      enddo
-cc
-cc      i = ilog-1
-cc      do k=1,nzbc
-cc        do j=0,nybc+1           !This also fills ghost cells
-cc          call transformVectorToCurvilinear(i,j,k,igxbc,igybc,igzbc
-cc     .                 ,ax0(k),ay0(k),az0(k),cov
-cc     .                 ,vec(i,j,k,1),vec(i,j,k,2),vec(i,j,k,3))
-cc        enddo
-cc      enddo
-cc
-cc      deallocate(ax0,ay0,az0)
-cc      deallocate(cx,cy,cz,xx)
-cc
-ccc     End program
-cc
-cc      end subroutine vectorSingularBC2
 
 c     vectorSingularBC
 c     #################################################################
@@ -558,22 +341,29 @@ c     Check that we are domain adjacent to singular point
 c     Parallel Allgather in SP communicator
 
 #if defined(petsc)
+cc      allocate(global_x(nyg*nzbc),garray(nyg,nzbc))
+cc      call MPI_Allgather(vec(i,1:nybc,1:nzbc)
+cc     .                           ,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,global_x,nybc*nzbc,MPI_DOUBLE_PRECISION
+cc     .                  ,MPI_COMM_SP,mpierr)
+cc      do k=1,npy
+cc        garray(1+nybc*(k-1):nybc*k,:)
+cc     .     = reshape(global_x(1+nybc*nzbc*(k-1):nybc*nzbc*k)
+cc     .              , (/ nybc,nzbc /))
+cc      enddo
+cc      deallocate(global_x)
 
-cc      allocate(local_x(nybc*nzbc),global_x(nyg*nzbc),garray(nyg,nzbc))
-cc      local_x = reshape(vec(i,1:nybc,1:nzbc), (/ nybc*nzbc /))
-      allocate(global_x(nyg*nzbc),garray(nyg,nzbc))
-      call MPI_Allgather(vec(i,1:nybc,1:nzbc)
-cc      call MPI_Allgather(local_x
-     .                           ,nybc*nzbc,MPI_DOUBLE_PRECISION
-     .                  ,global_x,nybc*nzbc,MPI_DOUBLE_PRECISION
+      allocate(global_x(nyg*(nzbc+2)),garray(nyg,0:nzbc+1))
+      call MPI_Allgather(vec(i,1:nybc,0:nzbc+1)
+     .                           ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
+     .                  ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
      .                  ,MPI_COMM_SP,mpierr)
       do k=1,npy
         garray(1+nybc*(k-1):nybc*k,:)
-     .     = reshape(global_x(1+nybc*nzbc*(k-1):nybc*nzbc*k)
-     .              , (/ nybc,nzbc /))
+     .     = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
+     .              , (/ nybc,nzbc+2 /))
       enddo
       deallocate(global_x)
-cc      deallocate(local_x,global_x)
 #endif
 
 c     Element exchange in poloidal direction
@@ -584,9 +374,8 @@ c     Element exchange in poloidal direction
       endif
 
       if (coords == 'hl2') then
-        do k=1,nzbc
+        do k=0,nzbc+1
           do j=0,nybc+1
-cc          do j=1,nybc
             jglobal = j + jlog - 1
             jj = mod(jglobal+nyg/2,nyg)
             if (jj == 0) jj = nyg
@@ -599,9 +388,8 @@ cc          do j=1,nybc
           enddo
         enddo
       else
-        do k=1,nzbc
+        do k=0,nzbc+1
           do j=0,nybc+1
-cc          do j=1,nybc
             jglobal = j + jlog - 1
             jj = mod(jglobal+nyg/2,nyg)
             if (jj == 0) jj = nyg
@@ -708,6 +496,8 @@ cc        end INTERFACE
 
         real(8),allocatable,dimension(:,:,:,:) :: v_cov,v_cnv,vv0
 
+        private :: setASMflags
+
       contains
 
 c     findBCLoopLimits
@@ -780,15 +570,11 @@ c     ---------------------------------------------------------------------
 
 c     Begin program
 
-cc        do_nothing = .false.
-
         select case(loc)
         case(0)
-cc          if (igl > 1) do_nothing = .true.
           ill = min(igl - igmin + 1,1)
           ilr = ill
         case(1)
-cc          if (igr < nxg) do_nothing = .true.
           ill = max(igr - igmin + 1,nxl)
           ilr = ill
         end select
@@ -799,7 +585,7 @@ cc          if (igr < nxg) do_nothing = .true.
 
 c     do__nothing
 c     #####################################################################
-      function do__nothing(dim,loc,i1,i2,j1,j2,k1,k2)
+      function do__nothing(dim,loc,i1,i2,j1,j2,k1,k2,asm_bc)
 
 c     ---------------------------------------------------------------------
 c     Selects whether to fill or not ghost cells of a given local domain
@@ -808,25 +594,28 @@ c     ---------------------------------------------------------------------
 
         implicit none
 
-        logical    :: do__nothing
-        integer   ,intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
+c     Call variables
 
-        integer    :: ibc
-        logical    :: sing_face
+        logical :: do__nothing
+        integer,intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
+        logical,optional :: asm_bc
+
+c     Local variables
+
+        integer :: ibc
+        logical :: sing_face,asmbc
 
 c     Begin program
 
         do__nothing = .false.
 
-        if (asm) return      !Return if additive Schwartz method is used (PC)
+        if (PRESENT(asm_bc)) then
+          asmbc = asm_bc
+        else
+          asmbc = asm   !Setup externally
+        endif
 
-cc        ibc = (1+loc)+2*(dim-1)
-cc        sing_face = (bcSP(ibc=ibc) .and. bcond(ibc)==SP)
-cc
-cc        if (sing_face) then
-cc          do__nothing = .true.
-cc          return             !Return if singular BC
-cc        endif
+        if (asmbc) return      !Return if additive Schwartz method is used (PC)
 
         select case(dim)
         case(1)
@@ -836,12 +625,6 @@ cc        endif
         case(3)
           call checkLimits(k1,k2,grid_params%nzgl(igzbc))
         end select
-
-        !Do nothing for periodic BCs in parallel (PETSc does it)
-cc        ibc = (1+loc)+2*(dim-1)
-cccc        if ((.not.do__nothing).and.(bcond(ibc) == PER.and.asm_dir(dim)))
-cc        if((.not.do__nothing).and.(bcond(ibc)==PER).and.(np>1))
-cc     .       do__nothing =.true. 
 
 c     End program
 
@@ -895,34 +678,12 @@ c     Begin program
 
       selectFace= 
      .     .not.do__nothing(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax)
-cc     .     .not.do__nothing(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp)
-
-cc      selectFace = .true.
-
-cc      if (.not.selectFace) write (*,*) 'DIAG -- selectFace'
-cc     .                          ,my_rank,dim,loc,ibc, selectFace
 
       end function selectFace
 
-c     setup_petsc_BC
+c     setASMflags
 c     ######################################################################
-      subroutine setup_petsc_BC
-
-c     -----------------------------------------------------------------
-c     Sets flags to indicate that parallel BCs are NOT to be imposed
-c     on the fortran side (are fully provided by PETSc).
-c     -----------------------------------------------------------------
-
-      implicit none
-
-      par_bc = .false.  !No parallel BC (provided by PETSc)
-      asm    = .false.  !No ASM (no extrapolation to corner, edges)
-
-      end subroutine setup_petsc_BC
-
-c     setASMflag
-c     ######################################################################
-      subroutine setASMflag(asm_flag)
+      subroutine setASMflags(asm_flag)
 
 c     -----------------------------------------------------------------
 c     Sets flag to indicate Additive Schwartz method.
@@ -934,13 +695,27 @@ c     -----------------------------------------------------------------
 
       asm = asm_flag
 
-      par_bc = .not.asm
+      asm_dir(1) = asm.and.(npx > 1)
+      asm_dir(2) = asm.and.(npy > 1)
+      asm_dir(3) = asm.and.(npz > 1)
 
-      end subroutine setASMflag
+      end subroutine setASMflags
+
+c     setup_petsc_BC
+c     ######################################################################
+      subroutine setup_petsc_BC
+
+c     -----------------------------------------------------------------
+c     Sets flags to indicate that BCs are fully provided by PETSc.
+c     -----------------------------------------------------------------
+
+      call setASMflags(.false.)
+
+      end subroutine setup_petsc_BC
 
 c     setASM_PC_BC
 c     ######################################################################
-      subroutine setASM_PC_BC(igx,igy,igz,bcs,IIBC)
+      subroutine setASM_PC_BC(igx,igy,igz,bcs,pc_asm,IIBC)
 
 c     -----------------------------------------------------------------
 c     Sets boundary conditions for Additive Schwartz method PC.
@@ -948,17 +723,29 @@ c     -----------------------------------------------------------------
 
       implicit none
 
-      integer    :: igx,igy,igz,bcs(:,:)
+c     Call variables
+
+      integer :: igx,igy,igz,bcs(:,:)
 
       integer,optional :: IIBC
 
-      integer    :: dim,loc,ibc,igmin,igmax,jgmin,jgmax,kgmin,kgmax
+      logical :: pc_asm
 
-      logical    :: dn
+c     Local variables
 
-      if (np == 1) then
-        call setASMflag(.false.)
+      integer :: dim,loc,ibc,igmin,igmax,jgmin,jgmax,kgmin,kgmax
+
+      logical :: dn
+
+c     Begin program
+
+c     Reset Additive-Schwarz-Method flags
+
+      if ((np == 1) .or. (.not.pc_asm)) then
+        call setASMflags(.false.)
         return
+      else
+        call setASMflags(.true.)
       endif
 
 c     Reset BC grid level
@@ -967,7 +754,7 @@ c     Reset BC grid level
       igybc = igy
       igzbc = igz
 
-c     Find grid global limits
+c     Find global limits of local domain
 
       igmin = grid_params%ilo(igx)
       igmax = grid_params%ihi(igx)
@@ -976,19 +763,18 @@ c     Find grid global limits
       kgmin = grid_params%klo(igz)
       kgmax = grid_params%khi(igz)
 
-c     Determine ASM BCs (requires ASM flag set to false)
-
-      call setASMflag(.false.)
+c     Determine ASM BCs 
 
       if (PRESENT(IIBC)) then
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
 
-            dn=do__nothing(dim,loc,igmin,igmax,jgmin,jgmax,kgmin,kgmax)
-     .         .or.((bcond(ibc)==PER).and.asm_dir(dim))  !Deal with interrupted periodic boundaries
+            dn=do__nothing(dim,loc,igmin,igmax,jgmin,jgmax,kgmin,kgmax
+     .                    ,asm_bc=.false.)
+cc     .         .or.((bcond(ibc)==PER).and.asm_dir(dim))  !Deal with interrupted periodic boundaries
+     .         .or.(bcond(ibc)==PER)  !Deal with interrupted periodic boundaries
 
-cc            if (dn) bcs(ibc,:) = IIBC
             if (dn) bcs(ibc,:) = IIBC*bcs(ibc,:)/abs(bcs(ibc,:))
           enddo
         enddo
@@ -996,16 +782,13 @@ cc            if (dn) bcs(ibc,:) = IIBC
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
-            if (bcond(ibc) == PER.and.asm_dir(dim)) then !Take care of PER boundaries in ASM
+cc            if (bcond(ibc) == PER.and.asm_dir(dim)) then !Take care of PER boundaries in ASM
+            if (bcond(ibc) == PER) then !Take care of PER boundaries in ASM
               bcs(ibc,:) = EXT
             endif
           enddo
         enddo
       endif
-
-c     Set ASM flag to true to perform ASM in PC
-
-      call setASMflag(.true.)
 
       end subroutine setASM_PC_BC
 
@@ -1095,9 +878,7 @@ c     Fill PETSc ghost cells
 
 #if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc =      (np > 1)
-     .           .and. (    ((.not.asm) .and. par_bc)    !For PC (not ASM)
-     .                  .or.(ieq > NVAR             ))   !For auxiliary variables
+      petsc__bc =  (np > 1)  .and. (.not.asm)
 
       !Fill ghost cells
       if (petsc__bc) then
@@ -1273,9 +1054,7 @@ c     Fill PETSc ghost cells
 
 #if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc =      (np > 1)
-     .           .and. (    ((.not.asm) .and. par_bc)    !For PC (not ASM)
-     .                  .or.(fcomp > NVAR           ))   !For auxiliary variables
+      petsc__bc = (np > 1).and.(.not.asm)
 
       !Fill ghost cells
       if (petsc__bc) then
@@ -1626,139 +1405,6 @@ c     Begin program
 
                 endif
 
-cc              select case (ibc)
-cc              case (1)
-cc
-cc                do i=imin,imax
-cc                  do j=jmin,jmax
-cc                    do k=kmin,kmax
-cc
-cc                      gsuper = gmetric%grid(igxbc)%gsup(i-1,j,k,:,:)
-cc
-cc                      v_cov(i,j,k,1) = -(gsuper(1,2)*v_cov(i,j,k,2)
-cc     .                                  +gsuper(1,3)*v_cov(i,j,k,3)
-cc     .                                  -v_cnv(i,j,k,1))/gsuper(1,1)
-cc
-cc                      call transformFromCurvToCurv(i,j,k
-cc     .                  ,igxbc,igybc,igzbc
-cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
-cc     .                  ,.true.)
-cc
-cc                    enddo
-cc                  enddo
-cc                enddo
-cc
-cc              case (2)
-cc
-cc                do i=imin,imax
-cc                  do j=jmin,jmax
-cc                    do k=kmin,kmax
-cc
-cc                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
-cc
-cc                      v_cov(i,j,k,1) = -(gsuper(1,2)*v_cov(i,j,k,2)
-cc     .                                  +gsuper(1,3)*v_cov(i,j,k,3)
-cc     .                                  -v_cnv(i,j,k,1))/gsuper(1,1)
-cc
-cc                      call transformFromCurvToCurv(i,j,k
-cc     .                  ,igxbc,igybc,igzbc
-cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
-cc     .                  ,.true.)
-cc
-cc                    enddo
-cc                  enddo
-cc                enddo
-cc
-cc              case (3)
-cc
-cc                do i=imin,imax
-cc                  do j=jmin,jmax
-cc                    do k=kmin,kmax
-cc
-cc                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
-cc
-cc                      v_cov(i,j,k,2) = -(gsuper(2,1)*v_cov(i,j,k,1)
-cc     .                                  +gsuper(2,3)*v_cov(i,j,k,3)
-cc     .                                  -v_cnv(i,j,k,2))/gsuper(2,2)
-cc
-cc                      call transformFromCurvToCurv(i,j,k
-cc     .                  ,igxbc,igybc,igzbc
-cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
-cc     .                  ,.true.)
-cc
-cc                    enddo
-cc                  enddo
-cc                enddo
-cc
-cc              case (4)
-cc
-cc                do i=imin,imax
-cc                  do j=jmin,jmax
-cc                    do k=kmin,kmax
-cc
-cc                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
-cc
-cc                      v_cov(i,j,k,2) = -(gsuper(2,1)*v_cov(i,j,k,1)
-cc     .                                  +gsuper(2,3)*v_cov(i,j,k,3)
-cc     .                                  -v_cnv(i,j,k,2))/gsuper(2,2)
-cc
-cc                      call transformFromCurvToCurv(i,j,k
-cc     .                  ,igxbc,igybc,igzbc
-cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
-cc     .                  ,.true.)
-cc
-cc                    enddo
-cc                  enddo
-cc                enddo
-cc
-cc              case (5)
-cc
-cc                do i=imin,imax
-cc                  do j=jmin,jmax
-cc                    do k=kmin,kmax
-cc
-cc                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
-cc
-cc                      v_cov(i,j,k,3) = -(gsuper(3,1)*v_cov(i,j,k,1)
-cc     .                                  +gsuper(3,2)*v_cov(i,j,k,2)
-cc     .                                  -v_cnv(i,j,k,3))/gsuper(3,3)
-cc
-cc                      call transformFromCurvToCurv(i,j,k
-cc     .                  ,igxbc,igybc,igzbc
-cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
-cc     .                  ,.true.)
-cc                    enddo
-cc                  enddo
-cc                enddo
-cc
-cc              case (6)
-cc
-cc                do i=imin,imax
-cc                  do j=jmin,jmax
-cc                    do k=kmin,kmax
-cc
-cc                      gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
-cc
-cc                      v_cov(i,j,k,3) = -(gsuper(3,1)*v_cov(i,j,k,1)
-cc     .                                  +gsuper(3,2)*v_cov(i,j,k,2)
-cc     .                                  -v_cnv(i,j,k,3))/gsuper(3,3)
-cc
-cc                      call transformFromCurvToCurv(i,j,k
-cc     .                  ,igxbc,igybc,igzbc
-cc     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-cc     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
-cc     .                  ,.true.)
-cc                    enddo
-cc                  enddo
-cc                enddo
-cc
-cc              end select
-
              endif
             enddo
 
@@ -1911,9 +1557,13 @@ c     Begin program
 #if !defined(samrai)
       ibc = (1+loc)+2*(dim-1)
 
-      if (np == 1 .or. asm) then
+      if (np == 1) then
+cc      if (np == 1 .or. asm) then  !Do periodic BCs for ASM when possible
 
 #if !defined(PER_BC_SYNC)
+
+cc      write (*,*) 'DIAG -- periodicBC'
+
       call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
@@ -1990,7 +1640,7 @@ c     Local variables
 
         integer    :: imax,imin,jmax,jmin,kmax,kmin,ibc
 
-        integer    :: i,j,k,ig,jg,kg
+        integer    :: i,j,k,ig,jg,kg,one=1,two=2
         real(8),pointer,dimension(:) :: xx,yy,zz,dxh,dyh,dzh,dx,dy,dz
 
 c     Begin program
@@ -1998,6 +1648,8 @@ c     Begin program
         ibc = (1+loc)+2*(dim-1)
 
         rhs = 0d0
+
+        if (order == 1) two = one  !To prevent stepping over domain
 
 c     Setup grid aliases
 
@@ -2031,57 +1683,57 @@ c     Extrapolate
                 case (1)
 
                   rhs(j,k) = 
-cc     .              quad_int(xx(ig-1)+dxh(ig-1),xx(ig)
-     .              quad_int(0.5*(xx(ig-1)+xx(ig)),xx(ig)
-     .                       ,xx(ig+1),xx(ig+2)
-     .                       ,array0(i-1,j,k),array(i,j,k)
-     .                       ,array (i+1,j,k),array(i+2,j,k)
-     .                       ,xx(ig-1),order )
+
+     .              quad_int(0.5*(xx(ig-one)+xx(ig)),xx(ig)
+     .                       ,xx(ig+one),xx(ig+two)
+     .                       ,array0(i-one,j,k),array(i    ,j,k)
+     .                       ,array (i+one,j,k),array(i+two,j,k)
+     .                       ,xx(ig-one),order )
                 case (2)
 
                   rhs(j,k) =
-cc     .              quad_int(xx(ig+1)-dxh(ig+1),xx(ig)
-     .              quad_int(0.5*(xx(ig+1)+xx(ig)),xx(ig)
-     .                        ,xx(ig-1),xx(ig-2)
-     .                        ,array0(i+1,j,k),array(i,j,k)
-     .                        ,array (i-1,j,k),array(i-2,j,k)
-     .                        ,xx(ig+1),order )
+
+     .              quad_int(0.5*(xx(ig+one)+xx(ig)),xx(ig)
+     .                        ,xx(ig-one),xx(ig-two)
+     .                        ,array0(i+one,j,k),array(i,j    ,k)
+     .                        ,array (i-one,j,k),array(i-two,j,k)
+     .                        ,xx(ig+one),order )
                 case (3)
 
                   rhs(i,k) =
-cc     .              quad_int(yy(jg-1)+dyh(jg-1),yy(jg)
-     .              quad_int(0.5*(yy(jg-1)+yy(jg)),yy(jg)
-     .                        ,yy(jg+1),yy(jg+2)
-     .                        ,array0(i,j-1,k),array(i,j,k)
-     .                        ,array (i,j+1,k),array(i,j+2,k)
-     .                        ,yy(jg-1),order )
+
+     .              quad_int(0.5*(yy(jg-one)+yy(jg)),yy(jg)
+     .                        ,yy(jg+one),yy(jg+two)
+     .                        ,array0(i,j-one,k),array(i,j    ,k)
+     .                        ,array (i,j+one,k),array(i,j+two,k)
+     .                        ,yy(jg-one),order )
                 case (4)
 
                   rhs(i,k) =
-cc     .              quad_int(yy(jg+1)-dyh(jg+1),yy(jg)
-     .              quad_int(0.5*(yy(jg+1)+yy(jg)),yy(jg)
-     .                        ,yy(jg-1),yy(jg-2)
-     .                        ,array0(i,j+1,k),array(i,j,k)
-     .                        ,array (i,j-1,k),array(i,j-2,k)
-     .                        ,yy(jg+1),order )
+
+     .              quad_int(0.5*(yy(jg+one)+yy(jg)),yy(jg)
+     .                        ,yy(jg-one),yy(jg-two)
+     .                        ,array0(i,j+one,k),array(i,j    ,k)
+     .                        ,array (i,j-one,k),array(i,j-two,k)
+     .                        ,yy(jg+one),order )
                 case (5)
 
                   rhs(i,j) =
-cc     .              quad_int(zz(kg-1)+dzh(kg-1),zz(kg)
-     .              quad_int(0.5*(zz(kg-1)+zz(kg)),zz(kg)
-     .                        ,zz(kg+1),zz(kg+2)
-     .                        ,array0(i,j,k-1),array(i,j,k)
-     .                        ,array (i,j,k+1),array(i,j,k+2)
-     .                        ,zz(kg-1),order )
+
+     .              quad_int(0.5*(zz(kg-one)+zz(kg)),zz(kg)
+     .                        ,zz(kg+one),zz(kg+one)
+     .                        ,array0(i,j,k-one),array(i,j,k    )
+     .                        ,array (i,j,k+one),array(i,j,k+two)
+     .                        ,zz(kg-one),order )
                 case (6)
 
                   rhs(i,j) =
-cc     .              quad_int(zz(kg+1)-dzh(kg+1),zz(kg)
-     .              quad_int(0.5*(zz(kg+1)+zz(kg)),zz(kg)
-     .                        ,zz(kg-1),zz(kg-2)
-     .                        ,array0(i,j,k+1),array(i,j,k)
-     .                        ,array (i,j,k-1),array(i,j,k-2)
-     .                        ,zz(kg+1),order )
+
+     .              quad_int(0.5*(zz(kg+one)+zz(kg)),zz(kg)
+     .                        ,zz(kg-one),zz(kg-two)
+     .                        ,array0(i,j,k+one),array(i,j,k    )
+     .                        ,array (i,j,k-one),array(i,j,k-two)
+     .                        ,zz(kg+one),order )
                 end select
               enddo
             enddo
@@ -3086,6 +2738,10 @@ c     Begin program
 
       have_equ = PRESENT(array0)
 
+c     Do nothing for SP boundary face, edge, and corners
+
+      if (isSP2(ito+1,1,ibc=ibc)) return
+
 c     Identify directions for extrapolation.
 
       inx = imx-imn
@@ -3230,28 +2886,28 @@ c     Identify directions for extrapolation.
       !Identify special boundaries to interpolate **along**
       !   1) SP boundary
       !   2) Interpolate-to-face boundary
-      !   3) equilibrium boundary
+      !   3) Equilibrium boundary (Removed 12/13/06, added back 11/10/08)
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
-        select_bc(i) =    (bcSP(ibc=i_bc) .and. abs(bcond(i_bc))==SP)
+        select_bc(i) =    (abs(bcond(i_bc)) == SP )
      .                .or.(abs(bcond(i_bc)) == IFC)
-     .                .or.(abs(bcond(i_bc)) == EQU) !Removed 12/13/06, added back 11/10/08
+     .                .or.(abs(bcond(i_bc)) == EQU)
       enddo
 
       call select_along
 
       !Identify special boundaries to interpolate **across**
-      !   1) periodic boundary
+      !   1) Periodic boundary
       !   2) Symmetry boundary
+      !   3) Equilibrium boundary (Removed 11/10/08; was interfering with parallelization)
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc == 0) cycle
-        select_bc(i) =    (    bcond(i_bc)  == PER)
-     .                .or.(abs(bcond(i_bc)) == SYM)
-cc     .                .or.(abs(bcond(i_bc)) == EQU) !Removed 11/10/08 (was interfering with parallelization)
+        select_bc(i) =     (    bcond(i_bc)  == PER)
+     .                .or. (abs(bcond(i_bc)) == SYM)
       enddo
 
       call select_across
@@ -3260,9 +2916,11 @@ cc     .                .or.(abs(bcond(i_bc)) == EQU) !Removed 11/10/08 (was int
 
       if ((.not.flg(1)).and.(.not.flg(2)).and.(.not.flg(3))) then
         write (*,*) 'Extrapolation directions',flg
+        write (*,*) 'Boundary type: Face=',face,' Edge=',edge
+     .             ,' Corner=',corner
         write (*,*) 'Boundaries involved',ibcl
-        write (*,*) 'No extrapolation directions left'
-        call pstop('extrapolateToCorner','')
+        call pstop('extrapolateToCorner'
+     .            ,'No extrapolation directions left')
       endif
 
 c     Initialize accumulators

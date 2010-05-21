@@ -16,8 +16,6 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-      use constants
-
       use iosetup
 
       implicit none
@@ -147,24 +145,16 @@ cc      jit = -2
 
 c Set output files
 
-#if defined(petsc) 
       if (.not.restart) then
         if (my_rank == 0) call rm_file(recordfile)
-cc     .     ierr=system('rm -f '//trim(recordfile)//'* > /dev/null')
+#if defined(petsc) 
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-      endif
-
-      urecord = urecord + my_rank
-
-      if (np > 1) then
-        recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
-      endif
-#else
-      if (.not.restart) then
-         call rm_file(recordfile)
-cc         ierr=system('rm -f '//trim(recordfile)//'* > /dev/null')
-      endif
 #endif
+      endif
+
+cc      urecord = urecord + my_rank
+
+cc      recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
 
 c Set initial condition
 
@@ -201,8 +191,6 @@ c     Allocates nonlinear solver arrays
 c----------------------------------------------------------------------
 
       use parameters
-
-      use constants
 
       use timeStepping
 
@@ -243,8 +231,6 @@ c----------------------------------------------------------------------
 
       use parameters
 
-      use constants
-
       use timeStepping
 
       use variables
@@ -276,8 +262,6 @@ c     Creates equilibrium according to user input.
 c----------------------------------------------------------------------
 
       use parameters
-
-      use constants
 
       use timeStepping
 
@@ -370,8 +354,6 @@ c--------------------------------------------------------------------
 
       use timeStepping
 
-      use constants
-
       use iosetup
 
       implicit none
@@ -411,6 +393,7 @@ c Perturb equilibrium
         enddo
 
         time     = 0d0
+        itime    = 1   !Needed for BC logic
         inewtime = 1
 
         !Impose BC on varrayn
@@ -457,16 +440,9 @@ c     Begin program
 
       call allocateDerivedType(vmed)
 
-cc      ierr = system('test -f '//trim(recordfile))
-
-cc      if (ierr /= 0) then
-      if (.not.is_file(recordfile)) then
-        call pstop('readRestartFile'
-     .            ,'Cannot find restart file')
-      endif
-
-      open(unit=urecord,file=trim(recordfile),form='unformatted'
-     .    ,status='old')
+      call openBinFile(urecord,recordfile,status='old')
+cc      open(unit=urecord,file=trim(recordfile),form='unformatted'
+cc     .    ,status='old')
 
       read (urecord) nx,ilog,ihig
       read (urecord) ny,jlog,jhig
@@ -483,12 +459,12 @@ cc      if (ierr /= 0) then
 
       if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
 
-      call readRecordFile(urecord,itime,time,dt,vn,ierr)
+      ierr = readRecordFile(urecord,itime,time,dt,vn)
 
       call equateDerivedType(vnp,vn)
 
       do
-        call readRecordFile(urecord,itime,time,dt,vmed,ierr)
+        ierr = readRecordFile(urecord,itime,time,dt,vmed)
 
         if (ierr /= 0) then
           exit
@@ -498,7 +474,7 @@ cc      if (ierr /= 0) then
         endif
       enddo
 
-      close (urecord)
+      close(urecord)
 
       if (my_rank == 0) write (*,*) ' Done!'
 
@@ -604,8 +580,9 @@ cc          enddo
         endif
 
         !Open record file
-        open(unit=urecord,file=recordfile
-     .      ,form='unformatted',status='unknown')
+        call openBinFile(urecord,recordfile,status='unknown')
+cc        open(unit=urecord,file=recordfile
+cc     .      ,form='unformatted',status='unknown')
 
         write (urecord) nxl,ilog,ihig
         write (urecord) nyl,jlog,jhig
@@ -616,8 +593,11 @@ cc          enddo
 
       else
 
-        open(unit=urecord,file=recordfile
-     .      ,form='unformatted',status='old',position='append')
+        call openBinFile(urecord,recordfile,status='old'
+     .                  ,position='append'
+     .                  ,check=.true.)
+cc        open(unit=urecord,file=recordfile
+cc     .      ,form='unformatted',status='old',position='append')
           
       endif
 

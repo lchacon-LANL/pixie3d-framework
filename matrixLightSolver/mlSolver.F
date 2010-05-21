@@ -551,7 +551,7 @@ c        Estimate condition number of hh for SINGULAR MATRICES
                   write(*,*)' >>> GMRES SINGULAR MAT: Condition number='
      .                      ,kappa
                 endif
-                write(*,*)' >>> GMRES SINGULAR MAT: Max. cond. number='
+                write(*,*)' >>> GMRES SINGULAR MAT: Cond. number limit='
      .                     ,kappa_max
               endif
 

@@ -8,6 +8,8 @@
         module procedure solve_cubic_real,solve_cubic_cmplx
       END INTERFACE
 
+      real(8) :: pi
+
       contains
 
 c     atanh

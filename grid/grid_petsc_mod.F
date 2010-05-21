@@ -24,17 +24,23 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-        integer :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM,IFC
-        parameter (DEF=0,PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7,IFC=8)
+        integer,parameter :: DEF=0   !Default (do nothing)
+     .                      ,PER=1   !Periodic
+     .                      ,EQU=2   !Equilibrium (inhomogeneous Dirichlet)
+     .                      ,EXT=3   !Extrapolation
+     .                      ,NEU=4   !Neumann or Robin
+     .                      ,SYM=5   !Symmetry (even > 0, odd < 0)
+     .                      ,DIR=6   !Homogeneous Dirichlet
+     .                      ,SP =7   !Polar singular point
+     .                      ,IFC=8   !Interpolate-to-face
 
         integer,parameter :: BCLIM=8 !Defines # of BC cases (excludes DEF)
 
-        logical :: asm_dir(3)=.false.,asm=.false.,par_bc=.false.
+        logical :: asm_dir(3)=.false.,asm=.false.!,par_bc=.false.
 
+        integer :: bcond(6)          !Contains topological BC configuration
 
-        integer :: bcond(6)      !Contains topological BC configuration
-
-        real(8)    :: SP_flsv=1d-5         !SP failsafe
+        real(8) :: SP_flsv=1d-5      !SP failsafe
 
       contains
 
@@ -55,7 +61,7 @@ c     #################################################################
           iibc = 1
         endif
 
-        sing_bc = (bcond(iibc) == SP)
+        sing_bc = (abs(bcond(iibc)) == SP)
 
       end function bcSP
 

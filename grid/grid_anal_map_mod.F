@@ -13,7 +13,7 @@ c #####################################################################
 
         real(8)         :: gparams(ngparams)
 
-        real(8),private :: pi,lambda,cc,xpp,ypp,zpp,eps,mm,kk,aa,phi
+        real(8),private :: lambda,cc,xpp,ypp,zpp,eps,mm,kk,aa,phi
      .                    ,major_r,lambdax,lambday,lambdaz,bb
      .                    ,aax=0d0,bbx=0d0,xx0,xi0
      .                    ,aay=0d0,bby=0d0,yy0,yi0
