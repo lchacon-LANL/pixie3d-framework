@@ -407,9 +407,9 @@ c     #######################################################################
             if (    (itm == 1.and.(.not.timecorr))
      .          .or.(itm == 2.and.      timecorr )) then
               dt = dtbase
-            elseif ((itm == 2.and.(.not.timecorr))
-     .          .or.(itm == 3.and.      timecorr )) then
-              dt = dtbase-dt
+cc            elseif ((itm == 2.and.(.not.timecorr))
+cc     .          .or.(itm == 3.and.      timecorr )) then
+cc              dt = dtbase-dt
             else
               dt = min(dtbase,dt*coef2)
             endif
