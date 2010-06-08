@@ -37,20 +37,6 @@ c     Begin program
       ny = grid_params%nygl(igy)
       nz = grid_params%nzgl(igz)
 
-cc      idhx = 0d0
-cc      idhy = 0d0
-cc      idhz = 0d0
-cc
-cc      if (vrtx) then
-cc        if (nx > 1) idhx = 1./grid_params%dx(ig)
-cc        if (ny > 1) idhy = 1./grid_params%dy(jg)
-cc        if (nz > 1) idhz = 1./grid_params%dz(kg)
-cc      else
-cc        if (nx > 1) idhx = 1./grid_params%dxh(ig)
-cc        if (ny > 1) idhy = 1./grid_params%dyh(jg)
-cc        if (nz > 1) idhz = 1./grid_params%dzh(kg)
-cc      endif
-
       if (vrtx) then
         idhx = 1./grid_params%dx(ig)
         idhy = 1./grid_params%dy(jg)
@@ -208,7 +194,7 @@ c     End program
 
 c     div_vrtx
 c     ##################################################################
-      function div_vrtx(i,j,k,igx,igy,igz,vx,vy,vz,vrtx) result(div)
+      function div_vrtx(i,j,k,igx,igy,igz,v,vrtx) result(div)
 
 c     ------------------------------------------------------------------
 c     Calculates div of cnv vector defined at nearest neighbors.
@@ -221,7 +207,7 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       integer :: i,j,k,igx,igy,igz
-      real(8) :: vx(2,2,2),vy(2,2,2),vz(2,2,2),div
+      real(8) :: v(2,2,2,3),div
       logical :: vrtx
 
 c     Local variables
@@ -256,39 +242,31 @@ c     Begin program
       k0 = 1
 
       !X component
-      fp = 0.25*(vx(ip,j0,k0)+vx(ip,jp,k0)
-     .          +vx(ip,j0,kp)+vx(ip,jp,kp))
-      fm = 0.25*(vx(i0,j0,k0)+vx(i0,jp,k0)
-     .          +vx(i0,j0,kp)+vx(i0,jp,kp))
+      fp = 0.25*(v(ip,j0,k0,1)+v(ip,jp,k0,1)
+     .          +v(ip,j0,kp,1)+v(ip,jp,kp,1))
+      fm = 0.25*(v(i0,j0,k0,1)+v(i0,jp,k0,1)
+     .          +v(i0,j0,kp,1)+v(i0,jp,kp,1))
 
       div = (fp-fm)/dhx
 
       !Y component
-      fp = 0.25*(vy(i0,jp,k0)+vy(ip,jp,k0)
-     .          +vy(i0,jp,kp)+vy(ip,jp,kp))
-      fm = 0.25*(vy(i0,j0,k0)+vy(ip,j0,k0)
-     .          +vy(i0,j0,kp)+vy(ip,j0,kp))
+      fp = 0.25*(v(i0,jp,k0,2)+v(ip,jp,k0,2)
+     .          +v(i0,jp,kp,2)+v(ip,jp,kp,2))
+      fm = 0.25*(v(i0,j0,k0,2)+v(ip,j0,k0,2)
+     .          +v(i0,j0,kp,2)+v(ip,j0,kp,2))
 
       div = div + (fp-fm)/dhy
 
       !Z component
-      fp = 0.25*(vz(ip,j0,kp)+vz(i0,j0,kp)
-     .          +vz(ip,jp,kp)+vz(i0,jp,kp))
-      fm = 0.25*(vz(ip,j0,k0)+vz(i0,j0,k0)
-     .          +vz(ip,jp,k0)+vz(i0,jp,k0))
+      fp = 0.25*(v(ip,j0,kp,3)+v(i0,j0,kp,3)
+     .          +v(ip,jp,kp,3)+v(i0,jp,kp,3))
+      fm = 0.25*(v(ip,j0,k0,3)+v(i0,j0,k0,3)
+     .          +v(ip,jp,k0,3)+v(i0,jp,k0,3))
 
       div = div + (fp-fm)/dhz
 
       !Jacobian factor
       if (vrtx) then
-cc        jac = 0.125*(gmetric%grid(igx)%jac(i  ,j  ,k  )
-cc     .              +gmetric%grid(igx)%jac(i+1,j  ,k  )
-cc     .              +gmetric%grid(igx)%jac(i  ,j+1,k  )
-cc     .              +gmetric%grid(igx)%jac(i+1,j+1,k  ) 
-cc     .              +gmetric%grid(igx)%jac(i  ,j  ,k+1)
-cc     .              +gmetric%grid(igx)%jac(i+1,j  ,k+1)
-cc     .              +gmetric%grid(igx)%jac(i  ,j+1,k+1)
-cc     .              +gmetric%grid(igx)%jac(i+1,j+1,k+1))
         jac = gmetric%grid(igx)%jac_v(i,j,k)
       else
         jac = gmetric%grid(igx)%jac(i,j,k)
@@ -344,9 +322,7 @@ c     Divergence at vertices
             kk = k+kl-2
 
             div(il,jl,kl) = div_vrtx(ii,jj,kk,igx,igy,igz
-     .                         ,aa(ii:ii+1,jj:jj+1,kk:kk+1,1)
-     .                         ,aa(ii:ii+1,jj:jj+1,kk:kk+1,2)
-     .                         ,aa(ii:ii+1,jj:jj+1,kk:kk+1,3)
+     .                         ,aa(ii:ii+1,jj:jj+1,kk:kk+1,:)
      .                         ,.true.)
           enddo
         enddo
@@ -364,7 +340,7 @@ c     End program
 
 c     lap_vrtx
 c     ###############################################################
-      function lap_vrtx(i,j,k,nx,ny,nz,igx,igy,igz,aa,vol)
+      function lap_vrtx(i,j,k,nx,ny,nz,igx,igy,igz,aa,vol,enf_bc)
      .         result(lap)
 
 c     ---------------------------------------------------------------
@@ -381,20 +357,29 @@ c     Call variables
 
       real(8)    :: aa(0:nx+1,0:ny+1,0:nz+1),lap
 
-      logical,optional,intent(IN) :: vol
+      logical,optional,intent(IN) :: vol,enf_bc
 
 c     Local variables
 
       integer    :: il,jl,kl,ii,jj,kk
 
-      real(8)    :: cov(3),grad(2,2,2,3)
+      real(8)    :: cov(3),cnv(2,2,2,3)
 
-      logical    :: vol_wgt
+      logical    :: vol_wgt,enfbc
 
 c     Begin program
 
-      vol_wgt = .false.
-      if (PRESENT(vol)) vol_wgt = vol
+      if (PRESENT(vol)) then
+        vol_wgt = vol
+      else
+        vol_wgt = .false.
+      endif
+
+      if (PRESENT(enf_bc)) then
+        enfbc = enf_bc
+      else
+        enfbc = .false.
+      endif
 
 c     Gradient at vertices
 
@@ -410,19 +395,26 @@ c     Gradient at vertices
      .                     ,.true.)
 
             !Transform to contravariant at vertex
-            grad(il,jl,kl,:) =
-     .           matmul(gmetric%grid(igx)%gsup_v(i,j,k,:,:),cov)
+            cnv(il,jl,kl,:) =
+     .           matmul(gmetric%grid(igx)%gsup_v(ii,jj,kk,:,:),cov)
           enddo
         enddo
       enddo
 
+      if (enfbc) then
+        if (isBdry(i,igx,1).and.(bcond(1) /= PER)) cnv(1,:,:,1)=0d0
+        if (isBdry(i,igx,2).and.(bcond(2) /= PER)) cnv(2,:,:,1)=0d0
+
+        if (isBdry(j,igy,3).and.(bcond(3) /= PER)) cnv(:,1,:,2)=0d0
+        if (isBdry(j,igy,4).and.(bcond(4) /= PER)) cnv(:,2,:,2)=0d0
+
+        if (isBdry(k,igz,5).and.(bcond(5) /= PER)) cnv(:,:,1,3)=0d0
+        if (isBdry(k,igz,6).and.(bcond(6) /= PER)) cnv(:,:,2,3)=0d0
+      endif
+
 c     Divergence at cell centers
 
-      lap = div_vrtx(ii,jj,kk,igx,igy,igz
-     .              ,grad(:,:,:,1)
-     .              ,grad(:,:,:,2)
-     .              ,grad(:,:,:,3)
-     .              ,.false.)
+      lap = div_vrtx(i,j,k,igx,igy,igz,cnv,.false.)
 
       if (vol_wgt) lap=lap*gmetric%grid(igx)%dvol(i,j,k)
 
