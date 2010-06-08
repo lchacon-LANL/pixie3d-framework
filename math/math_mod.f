@@ -10,7 +10,28 @@
 
       real(8) :: pi
 
+cc      INTERFACE determ
+cc        procedure determ3
+cc      END INTERFACE
+
       contains
+
+c     determ
+c     #################################################################
+      function determ(tensor)
+
+      real(8) :: tensor(3,3)
+
+      real(8) :: determ
+
+      determ = tensor(1,1)*tensor(2,2)*tensor(3,3)
+     .        +tensor(3,2)*tensor(2,1)*tensor(1,3)
+     .        +tensor(1,2)*tensor(2,3)*tensor(3,1)
+     .        -tensor(1,3)*tensor(2,2)*tensor(3,1)
+     .        -tensor(1,1)*tensor(2,3)*tensor(3,2)
+     .        -tensor(3,3)*tensor(1,2)*tensor(2,1)
+
+      end function determ
 
 c     atanh
 c     #################################################################
