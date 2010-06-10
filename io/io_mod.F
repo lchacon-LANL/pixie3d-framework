@@ -138,7 +138,7 @@ c     Find graphics files
 
 #if !defined(petsc)
         write (*,*)
-        write (*,*) 'Opening multiple graphics files...'
+        write (*,*) 'Opening '//trim(base_fname)//' files...'
 
         !Find out number of graphics files
         nfiles = -1
