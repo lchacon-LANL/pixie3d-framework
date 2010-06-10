@@ -466,6 +466,8 @@ c Explicit update
 
         call explicit(vn,vnp,itgmres,ilevel)
 
+        call imposeBoundaryConditions(vnp,1,1,1)
+
         itnewt = 1
 
       endif
