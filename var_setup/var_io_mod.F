@@ -399,8 +399,6 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq
-
 c     Begin program
 
         if (frmt) then
@@ -429,13 +427,13 @@ c     #################################################################
 
 c     Call variables
 
-        real(8),dimension(:,:,:,:) :: vec
-        integer          :: unit,ierr
-        logical          :: format
+        real(8),dimension(0:,0:,0:,:) :: vec
+        integer :: unit,ierr
+        logical :: format
 
 c     Local variables
 
-        integer          :: ieq,ilom,ihip,jlom,jhip,klom,khip
+        integer :: ieq,ilom,ihip,jlom,jhip,klom,khip
 
 c     Begin program
 
@@ -452,7 +450,8 @@ c     Begin program
 #else
           read (unit,*,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
 #endif
-          read (unit,*,iostat=ierr,end=100) vec
+          read (unit,*,iostat=ierr,end=100)
+     .         vec(ilom:ihip,jlom:jhip,klom:khip,:)
           if (ierr /= 0) goto 200
         else
 #if defined(petsc)
@@ -465,18 +464,22 @@ c     Begin program
 #else
           read (unit,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
 #endif
-          read (unit,iostat=ierr,end=100) vec
+          read (unit,iostat=ierr,end=100)
+     .         vec(ilom:ihip,jlom:jhip,klom:khip,:)
           if (ierr /= 0) goto 200
         endif
 
         return
 
  100    ierr=-2  !EOF
-        write (*,*) 'readDerivedType: EOF in file unit',unit
-        return
+        write (messg,*) 'readVector: EOF in file unit',unit
+        call pstop('readVector',messg)
+cc        return
 
  200    ierr=-1  !Error, but not EOF
-        write (*,*) 'readDerivedType: Error reading file unit',unit
+        write (messg,*) 'Error reading file unit',unit
+        call pstop('readVector',messg)
+cc        return
 
 c     End program
 
