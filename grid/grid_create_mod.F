@@ -110,7 +110,7 @@ c     Initialize grid check
 
 c     Store grid metric parameters in grid metric structure
 
-        if (checkMapDatabase()) then
+        if (checkAnalMapDatabase()) then
           call defineGridMetric(gparams)
           gmetric => gparams%gmetric !For backward compatibility
         else

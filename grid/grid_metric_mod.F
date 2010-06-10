@@ -140,15 +140,7 @@ c     Input variables
 
 c     Begin program
 
-        is_map = checkAnalMapDatabase()
-
-        !Check external contributed maps
-cc        if (.not.is_map) then
-cc          select case(coords)
-cc          case('vmc')
-cc            is_map = .true.
-cc          end select
-cc        endif
+        is_map = checkAnalMapDatabase().or.(coords=='ext')
 
       end function checkMapDatabase
 
