@@ -23,31 +23,30 @@ c module ts_setup
 c ######################################################################
       module ts_setup
 
-        integer    :: numtime,ndstep,nrstep,sm_pass,sm_flag=0,inewtime
+        integer    :: numtime,ndstep,nrstep,inewtime,nrst
 
-        real(8)    :: dt,dtbase,cnfactor,alpha,gammat
+        real(8)    :: tmrst,dt,dtbase,cnfactor,alpha,gammat,dt_n
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0,dtold
      .               ,eig_dt
+
+        real(8),allocatable,dimension(:) :: cnf,one_over_dt
+     .                                     ,bdfp,bdfn,bdfnm
 
 #if !defined(samrai)
         real(8),allocatable,dimension(:)   :: fold,fsrc
 #endif
         real(8),allocatable,dimension(:,:) :: old_f
 
-        real(8)    :: vx_max,vy_max,vz_max,bx_max,by_max,bz_max
+        !Initialized variables
+        integer    :: itime=0,sm_pass=2,sm_flag=0
 
         logical    :: timecorr=.false.,restart=.false.,source=.true.
      .               ,predictor=.false.,postprocess=.false.
-     .               ,chk_src=.false.,source_eval,old_time_eval
+     .               ,chk_src=.false.,source_eval=.false.
+     .               ,old_time_eval=.false.,vol_wgt=.true.
+     .               ,bdf2=.false.,eigen=.false.
 
-        real(8)    :: tmrst,cnp=1d0,cn=-1d0,cnm=0d0,dt_n
-
-        integer    :: itime=0,nrst
-
-        real(8),allocatable,dimension(:) :: cnf,one_over_dt
-     .                                     ,bdfp,bdfn,bdfnm
-
-        logical    :: vol_wgt=.true.,bdf2=.false.,eigen=.false.
+        real(8)    :: cnp=1d0,cn=-1d0,cnm=0d0
 
       end module ts_setup
 
@@ -376,40 +375,40 @@ c     #######################################################################
           select case (sm_flag)
           case(1)  !Rannacher time stepping
 
-            if (   (itm <= sm_pass+1.and.(.not.timecorr))
-     .         .or.(itm <= sm_pass+2.and.      timecorr )) then
+            if (   (itm <= sm_pass  .and.(.not.timecorr))
+     .         .or.(itm <= sm_pass+1.and.      timecorr )) then
               dt = 0.5*dtbase
-            elseif ((itm == sm_pass+2.and.(.not.timecorr))
-     .          .or.(itm == sm_pass+3.and.      timecorr )) then
-              dt = dtbase-dt
-            elseif ((itm == sm_pass+3.and.(.not.timecorr))
-     .          .or.(itm == sm_pass+4.and.      timecorr )) then
+            elseif ((itm == sm_pass+1.and.(.not.timecorr))
+     .          .or.(itm == sm_pass+2.and.      timecorr )) then
               dt = dtbase
             else
               dt = min(dtbase,dt*coef2)
             endif
 
           case(2)  !BDF time stepping
-            if     (    (itm == 1 .and.(.not.timecorr))
-     .              .or.(itm == 2 .and.      timecorr )) then
-              dt = 0.1*dtbase
-            elseif (    (itm == 2 .and.(.not.timecorr))
-     .              .or.(itm == 3 .and.      timecorr )) then
-              dt = dtbase - dt
-            elseif (    (itm == 3 .and.(.not.timecorr))
-     .              .or.(itm == 4 .and.      timecorr )) then
-              dt = dtbase
+
+            if (timecorr) then
+              if (itm == 2) then
+                dt = dtbase/coef2**15  !Quite BDF2 start to ramp up in a few time steps
+              else
+                dt = min(dtbase,dt*coef2)
+              endif
             else
-              dt = min(dtbase,dt*coef2)
+              if  (itm == 1) then
+                dt = 0.1*dtbase
+              elseif (itm == 2) then
+                dt = dtbase - dt
+              elseif (itm == 3) then
+                dt = dtbase
+              else
+                dt = min(dtbase,dt*coef2)
+              endif
             endif
 
           case default   !Default time stepping
             if (    (itm == 1.and.(.not.timecorr))
      .          .or.(itm == 2.and.      timecorr )) then
               dt = dtbase
-cc            elseif ((itm == 2.and.(.not.timecorr))
-cc     .          .or.(itm == 3.and.      timecorr )) then
-cc              dt = dtbase-dt
             else
               dt = min(dtbase,dt*coef2)
             endif
