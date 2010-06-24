@@ -801,7 +801,7 @@ cc            if (bcond(ibc) == PER.and.asm_dir(dim)) then !Take care of PER bou
 
 c     imposeBConScalar
 c     #################################################################
-      subroutine imposeBConScalar(ieq,nx,ny,nz,array,array0,bcond
+      subroutine imposeBConScalar(ieq,nx,ny,nz,array,array0,bcnd
      .                           ,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
      .                           ,iorder)
 c     -----------------------------------------------------------------
@@ -812,7 +812,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: ieq,bcond(6),nx,ny,nz,iigx,iigy,iigz
+      integer    :: ieq,bcnd(6),nx,ny,nz,iigx,iigy,iigz
       real(8)    :: array (0:nx+1,0:ny+1,0:nz+1)
      .             ,array0(0:nx+1,0:ny+1,0:nz+1)
       integer   ,optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
@@ -901,18 +901,22 @@ c     Impose BCs
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
-            if (abs(bcond(ibc)) == bctype) then
-              if (bcond(ibc) < 0 .and. bctype == SYM) then
-                symm = .true.
-                call FillGhostNodes(ieq,1,1,dim,loc,DIR,array,array0)
-                symm = .false.
-              elseif (bcond(ibc) > 0 .and. bctype == SYM) then
-                symm = .true.
-                call FillGhostNodes(ieq,1,1,dim,loc,NEU,array,array0)
-                symm = .false.
-              else
-                call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
-              endif
+            if (abs(bcnd(ibc)) == bctype) then
+cc              if (bcnd(ibc) < 0 .and. bctype == SYM) then
+cc                symm = .true.
+cc                call FillGhostNodes(ieq,1,1,dim,loc,DIR,array,array0)
+cc                symm = .false.
+cc              elseif (bcnd(ibc) > 0 .and. bctype == SYM) then
+cc                symm = .true.
+cc                call FillGhostNodes(ieq,1,1,dim,loc,NEU,array,array0)
+cc                symm = .false.
+cc              else
+cc                call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
+cc              endif
+
+              symm = (bcond(ibc) == SYM)
+              call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
+              symm = .false.
             endif
           enddo
         enddo
@@ -922,20 +926,20 @@ c     Fill edges
 
 cc      do dim=1,3
 cc        do loc=0,1
-cc          call fillEdges(array,array0,dim,loc,bcond)
+cc          call fillEdges(array,array0,dim,loc,bcnd)
 cc        enddo
 cc      enddo
 
-      call fillEdges(array,array0,bcond)
+      call fillEdges(array,array0,bcnd)
 
 c     Fill corners
 
 cc      do dim=1,3
 cc        do loc=0,1
-cc          call fillCorners(array,array0,dim,loc,bcond)
+cc          call fillCorners(array,array0,dim,loc,bcnd)
 cc        enddo
 cc      enddo
-      call fillCorners(array,array0,bcond)
+      call fillCorners(array,array0,bcnd)
 
 #if defined(PER_BC_SYNC)
 c     Periodic boundary synchronizing
@@ -944,7 +948,7 @@ c     Periodic boundary synchronizing
       do dim=1,3
         do loc=0,1
           ibc = (1+loc)+2*(dim-1)
-          if (bcond(ibc) == bctype) then
+          if (bcnd(ibc) == bctype) then
             call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
           endif
         enddo
@@ -958,7 +962,7 @@ c     End program
 c     imposeBConVector
 c     #################################################################
       subroutine imposeBConVector(fcomp,ncomp,nx,ny,nz,v_cnv,v_cov,var0
-     .                          ,bcond,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
+     .                          ,bcnd,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
      .                          ,iorder,is_cnv,is_vec)
 c     -----------------------------------------------------------------
 c     Imposes BC on vector field
@@ -968,7 +972,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: ncomp,bcond(6,ncomp),fcomp,nx,ny,nz,iigx,iigy,iigz
+      integer    :: ncomp,bcnd(6,ncomp),fcomp,nx,ny,nz,iigx,iigy,iigz
       real(8)    :: v_cnv(0:nx+1,0:ny+1,0:nz+1,ncomp)
      .             ,var0 (0:nx+1,0:ny+1,0:nz+1,ncomp)
      .             ,v_cov(0:nx+1,0:ny+1,0:nz+1,ncomp)
@@ -1121,9 +1125,11 @@ c     Impose BCs
             do ivar = 1,ncomp
               ieq = ivar + fcomp - 1
 
-              if (abs(bcond(ibc,ivar)) == bctype) then
+              if (abs(bcnd(ibc,ivar)) == bctype) then
 
-                if (bcond(ibc,ivar) < 0 .and. is__vec) then
+                symm = (bcond(ibc) == SYM)
+
+                if (bcnd(ibc,ivar) < 0 .and. is__vec) then
                   call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
      .                               ,v_cov,var0,cnv=.false.)
                   cov_to_cnv(ibc,ivar) = .true.
@@ -1131,6 +1137,8 @@ c     Impose BCs
                   call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
      .                               ,v_cnv,var0)
                 endif
+
+                symm = .false.
 
              endif
 
@@ -1142,7 +1150,7 @@ c     Impose BCs
 
 c     Synchronize covariant and contravariant components
 
-      call synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv)
+      call synchronize(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv)
 
 c     Fill edges (for both cnv and cov components)
 
@@ -1150,18 +1158,18 @@ cc      do dim=1,3
 cc        do loc=0,1
 cc          do ivar=1,ncomp
 cc            call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-cc     .                    ,dim,loc,bcond(:,ivar))
+cc     .                    ,dim,loc,bcnd(:,ivar))
 cc            call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-cc     .                    ,dim,loc,bcond(:,ivar))
+cc     .                    ,dim,loc,bcnd(:,ivar))
 cc          enddo
 cc        enddo
 cc      enddo
 
       do ivar=1,ncomp
         call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcond(:,ivar))
+     .                ,bcnd(:,ivar))
         call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcond(:,ivar))
+     .                ,bcnd(:,ivar))
       enddo
 
 c     Fill corners (for both cnv and cov components)
@@ -1170,18 +1178,18 @@ cc      do dim=1,3
 cc        do loc=0,1
 cc          do ivar=1,ncomp
 cc            call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-cc     .                      ,dim,loc,bcond(:,ivar))
+cc     .                      ,dim,loc,bcnd(:,ivar))
 cc            call fillCorners(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-cc     .                      ,dim,loc,bcond(:,ivar))
+cc     .                      ,dim,loc,bcnd(:,ivar))
 cc          enddo
 cc        enddo
 cc      enddo
 
       do ivar=1,ncomp
         call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                  ,bcond(:,ivar))
+     .                  ,bcnd(:,ivar))
         call fillCorners(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                  ,bcond(:,ivar))
+     .                  ,bcnd(:,ivar))
       enddo
 
 #if defined(PER_BC_SYNC)    
@@ -1195,7 +1203,7 @@ c     Periodic boundary synchronizing
           do ivar = 1,ncomp
             ieq = ivar + fcomp - 1
 
-            if (abs(bcond(ibc,ivar)) == bctype) then
+            if (abs(bcnd(ibc,ivar)) == bctype) then
               call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cnv
      .                         ,var0)
               call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cov
@@ -1246,7 +1254,7 @@ cc
 cc              do ivar = 1,ncomp
 cc                ieq = ivar + fcomp - 1
 cc
-cc                if (abs(bcond(ibc,ivar)) == bctype) then
+cc                if (abs(bcnd(ibc,ivar)) == bctype) then
 cc                  call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
 cc     .                               ,v_cov,var0,cnv=.false.)
 cc                endif
@@ -1261,7 +1269,7 @@ cc          do dim=1,3
 cc            do loc=0,1
 cc              do ivar=1,ncomp
 cc                call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-cc     .                        ,dim,loc,bcond(:,ivar))
+cc     .                        ,dim,loc,bcnd(:,ivar))
 cc              enddo
 cc            enddo
 cc          enddo
@@ -1272,7 +1280,7 @@ cc          do dim=1,3
 cc            do loc=0,1
 cc              do ivar=1,ncomp
 cc                call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-cc     .                          ,dim,loc,bcond(:,ivar))
+cc     .                          ,dim,loc,bcnd(:,ivar))
 cc              enddo
 cc            enddo
 cc          enddo
@@ -1526,7 +1534,7 @@ c     Find BC update
           call interpolateToFace(array(:,:,:,nvar),dim,loc)
         case default
           call pstop('fillGhostNodes'
-     .             ,'BC'//int2char(bctype)//' not implemented')
+     .             ,'BC '//trim(int2char(bctype))//' not implemented')
         end select
       else
         select case(bctype)
@@ -1546,7 +1554,7 @@ c     Find BC update
           call interpolateToFace(array(:,:,:,ivar),dim,loc)
         case default
           call pstop('fillGhostNodes'
-     .             ,'BC'//int2char(bctype)//' not implemented')
+     .             ,'BC '//trim(int2char(bctype))//' not implemented')
         end select
       endif
 

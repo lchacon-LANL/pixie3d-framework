@@ -14,7 +14,8 @@ c     Standard BCs:
 c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
 c       DIR: Homogeneous dirichlet
 c       NEU: Neumann (homogeneous/inhomogeneous)
-c       SYM: Symmetry (odd,even depend on sign)
+c       SYM: Symmetry at cell centers
+c       FSYM: Symmetry at faces
 c       EXT: By extrapolation
 c       IFC: Interpolate to face (and store in ghost cell)
 c       DEF: Default (does nothing)
@@ -29,12 +30,13 @@ c     -----------------------------------------------------------------
      .                      ,EQU=2   !Equilibrium (inhomogeneous Dirichlet)
      .                      ,EXT=3   !Extrapolation
      .                      ,NEU=4   !Neumann or Robin
-     .                      ,SYM=5   !Symmetry (even > 0, odd < 0)
-     .                      ,DIR=6   !Homogeneous Dirichlet
-     .                      ,SP =7   !Polar singular point
-     .                      ,IFC=8   !Interpolate-to-face
+     .                      ,DIR=5   !Homogeneous Dirichlet
+     .                      ,SP =6   !Polar singular point
+     .                      ,IFC=7   !Interpolate-to-face
+     .                      ,SYM=8   !Symmetry (even > 0, odd < 0)
+     .                      ,FSYM=9  !Symmetry (at faces)
 
-        integer,parameter :: BCLIM=8 !Defines # of BC cases (excludes DEF)
+        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,CSYM)
 
         logical :: asm_dir(3)=.false.,asm=.false.!,par_bc=.false.
 
