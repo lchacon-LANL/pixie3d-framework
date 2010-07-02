@@ -670,75 +670,76 @@ c     End program
 
       end module variables
 
-c module generalPurposeFunctions
-c ######################################################################
-      module generalPurposeFunctions
-
-        use grid
-
-      contains
-
-c     integral
-c     ################################################################
-      function integral(nx,ny,nz,array,igx,igy,igz,avg)
-
-c     ---------------------------------------------------------------
-c     Integrates array(i,j,k) on domain (nx)x(ny)x(nz).
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c    Call variables
-
-      integer    :: igx,igy,igz,nx,ny,nz
-      real(8)    :: array(0:nx+1,0:ny+1,0:nz+1),integral
-      logical    :: avg
-
-c     Local variables
-
-      integer    :: i,j,k
-
-      real(8)    :: tvolume,vol,lvolume,lintegral
-
-c     Begin program
-
-c     Integrate
-
-      lintegral = 0d0
-      lvolume   = 0d0
-
-      do k = 1,nz
-        do j = 1,ny
-          do i = 1,nx
-            vol = gmetric%grid(igx)%dvol(i,j,k)
-
-            if (isSYM(i,igx,1,0)) vol = 0.5*vol
-            if (isSYM(i,igx,1,1)) vol = 0.5*vol
-            if (isSYM(j,igy,2,0)) vol = 0.5*vol
-            if (isSYM(j,igy,2,1)) vol = 0.5*vol
-            if (isSYM(k,igz,3,0)) vol = 0.5*vol
-            if (isSYM(k,igz,3,1)) vol = 0.5*vol
-
-            lintegral = lintegral + array(i,j,k)*vol
-            lvolume = lvolume + vol
-          enddo
-        enddo
-      enddo
-
-#if defined(petsc)
-      call MPI_Allreduce(lintegral,integral,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      call MPI_Allreduce(lvolume  ,tvolume ,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      integral = lintegral
-      tvolume  = lvolume
-#endif
-
-      if (avg) integral = integral/tvolume
-
-c     End 
-
-      end function integral
-
-      end module generalPurposeFunctions
+ccc module generalPurposeFunctions
+ccc ######################################################################
+cc      module generalPurposeFunctions
+cc
+cc        use grid
+cc
+cc      contains
+cc
+ccc     integral
+ccc     ################################################################
+cc      function integral(nx,ny,nz,array,igx,igy,igz,avg)
+cc
+ccc     ---------------------------------------------------------------
+ccc     Integrates array(i,j,k) on domain (nx)x(ny)x(nz).
+ccc     ---------------------------------------------------------------
+cc
+cc      implicit none
+cc
+ccc    Call variables
+cc
+cc      integer :: igx,igy,igz,nx,ny,nz
+cc      real(8) :: array(0:nx+1,0:ny+1,0:nz+1),integral
+cc      logical :: avg
+cc
+ccc     Local variables
+cc
+cc      integer :: i,j,k
+cc
+cc      real(8) :: tvolume,vol,lvolume,lintegral
+cc
+ccc     Begin program
+cc
+ccc     Integrate
+cc
+cc      lintegral = 0d0
+cc      lvolume   = 0d0
+cc
+cc      do k = 1,nz
+cc        do j = 1,ny
+cc          do i = 1,nx
+cc            vol = gmetric%grid(igx)%dvol(i,j,k)
+cc
+cc            if (isSYM(i,igx,1,0)) vol = 0.5*vol
+cc            if (isSYM(i,igx,1,1)) vol = 0.5*vol
+cc            if (isSYM(j,igy,2,0)) vol = 0.5*vol
+cc            if (isSYM(j,igy,2,1)) vol = 0.5*vol
+cc            if (isSYM(k,igz,3,0)) vol = 0.5*vol
+cc            if (isSYM(k,igz,3,1)) vol = 0.5*vol
+cc
+cc            lintegral = lintegral + array(i,j,k)*vol
+cc            lvolume = lvolume + vol
+cc          enddo
+cc        enddo
+cc      enddo
+cc
+cc#if defined(petsc)
+cc      call MPI_Allreduce(lintegral,integral,1,MPI_DOUBLE_PRECISION
+cc     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+cc      if (avg)
+cc     .call MPI_Allreduce(lvolume  ,tvolume ,1,MPI_DOUBLE_PRECISION
+cc     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+cc#else
+cc      integral = lintegral
+cc      tvolume  = lvolume
+cc#endif
+cc
+cc      if (avg) integral = integral/tvolume
+cc
+ccc     End 
+cc
+cc      end function integral
+cc
+cc      end module generalPurposeFunctions
