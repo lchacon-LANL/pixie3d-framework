@@ -236,8 +236,6 @@ c----------------------------------------------------------------------
 
       use graphics
 
-      use generalPurposeFunctions
-
       implicit none
 
 c Call variables
@@ -396,8 +394,6 @@ c----------------------------------------------------------------------
       use graphics
 
       use iosetup
-
-      use generalPurposeFunctions
 
       implicit none
 

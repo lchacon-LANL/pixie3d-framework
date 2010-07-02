@@ -9,8 +9,6 @@ c ##################################################################
 
         use ts_setup
 
-        use generalPurposeFunctions
-
 #if !defined(hdf5)
 
         character(20) :: hdf5_fname
