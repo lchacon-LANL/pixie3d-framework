@@ -23,11 +23,13 @@ ifeq ($(HOST),quevedo.ornl.gov)
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
     FC=gfortran
-    ifeq ($(OPT),O)
+    ifeq ($(BOPT),O)
       PETSC_ARCH = linux64_openmpi
     else
       PETSC_ARCH = linux64_openmpi_g
     endif
+
+    HDF5 = t
 
     HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
@@ -37,29 +39,31 @@ ifeq ($(HOST),quevedo.ornl.gov)
     LIBS += -L/usr/lib64 -llapack -lblas
     HDF5 = f
     ifeq ($(FC),f90)
+      HDF5 = t
+
       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(HDF5_HOME)/lib
       HDF5_INC  =-I$(HDF5_HOME)/include
-      HDF5 = t
     endif
     ifeq ($(FC),gfortran)
+      HDF5 = t
+
       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(HDF5_HOME)/lib
       HDF5_INC  =-I$(HDF5_HOME)/include
 
-#      HDF5_HOME =/usr/lib64
-#      HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
-#      HDF5_MOD  =/usr/lib64/gfortran/modules
-#      HDF5_INC  =-I/usr/include
-      HDF5 = t
+//       HDF5_HOME =/usr/lib64
+//       HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+//       HDF5_MOD  =/usr/lib64/gfortran/modules
+//       HDF5_INC  =-I/usr/include
     endif
   endif
 
-  NETCDF=t
+  NETCDF=f
   NETCDF_LIBS = -lnetcdff -lnetcdf
-  NETCDF_INC  = -I/usr/include/netcdf
+  NETCDF_INC  = -I/usr/include
 
   VMEC = t
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
@@ -92,7 +96,7 @@ ifeq ($(HOST),siesta)
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
     FC=gfortran
-    ifeq ($(OPT),O)
+    ifeq ($(BOPT),O)
       PETSC_ARCH = linux64_openmpi
     else
       PETSC_ARCH = linux64_openmpi_g
