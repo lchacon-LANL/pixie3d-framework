@@ -378,7 +378,7 @@ cc#endif
         call lehoucq_eig(ntotd,x,iguess,ilevel,ierr
      .                  ,matrixFreeMatVec
      .                  ,applyPreconditioner
-     .                  ,dot=dot2)
+     .                  ,ldot=dot2)
 
         select case(ierr)
         case(1)
@@ -427,7 +427,7 @@ c     Newton-Krylov iteration
         nk_conf%etak_meth      = method
         nk_conf%ksmax          = maxksp
         nk_conf%gmmax          = maxitgm
-        nk_conf%nwt_max_it_acc = maxitnwt/2
+        nk_conf%nwt_max_it_acc = 0.7*maxitnwt
         nk_conf%nwt_max_it_rej = maxitnwt
         nk_conf%global_meth    = global
 
