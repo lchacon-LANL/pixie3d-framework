@@ -24,7 +24,7 @@ c Local variables
       integer    :: i,j,k,ieq,ii,ig,jg,kg
       real(8)    :: dvol
 
-      type(var_array),pointer :: varray
+      type(var_array),pointer :: varray => null()
 
 c Interfaces
 
