@@ -60,8 +60,6 @@ c ######################################################################
 
         use iosetup
 
-        use generalPurposeFunctions
-
         use ts_setup
 
 #if !defined(petsc_c)
@@ -388,12 +386,27 @@ c     #######################################################################
           case(2)  !BDF time stepping
 
             if (timecorr) then
-              if (itm == 2) then
-                dt = dtbase/coef2**15  !Quite BDF2 start to ramp up in a few time steps
+              if  (itm == 2) then
+                dt = 0.1*dtbase
+              elseif (itm == 3) then
+                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
+cc                dt = dtbase - dt
+cc              elseif (itm == 4) then
+cc                dt = dtbase
               else
                 dt = min(dtbase,dt*coef2)
               endif
+cc              if (itm == 2) then
+cc                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
+cc              else
+cc                dt = min(dtbase,dt*coef2)
+cc              endif
             else
+cc              if (itm == 1) then
+cc                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
+cc              else
+cc                dt = min(dtbase,dt*coef2)
+cc              endif
               if  (itm == 1) then
                 dt = 0.1*dtbase
               elseif (itm == 2) then
@@ -437,8 +450,6 @@ c     #######################################################################
 
       elseif (sm_flag == 2) then  !BDF2
 
-        cnfactor = 0d0
-
         bdf2 = (itm > 1 .and. (.not.timecorr) )
      .    .or. (itm > 2 .and.       timecorr  )
 
@@ -447,6 +458,10 @@ c     #######################################################################
           cnp = (2*dt+dtold)/(dt+dtold)
           cn  = -(dt+dtold)/dtold
           cnm = -cnp-cn    !Sum should be zero identically
+
+          cnfactor = 0d0
+        else
+          cnfactor = 0.5
         endif
 
       endif
