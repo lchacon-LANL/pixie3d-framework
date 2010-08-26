@@ -620,7 +620,7 @@ c
 
 c     lehoucq_eig
 c     ###############################################################
-      subroutine lehoucq_eig(ntot,x,iguess,out,ierr,matvec,applyPC,dot)
+      subroutine lehoucq_eig(ntot,x,iguess,out,ierr,matvec,applyPC,ldot)
 c     ---------------------------------------------------------------
 c     Performs Lehoucq's iteration to find largest real eigenvalue of
 c     Jacobian
@@ -641,7 +641,7 @@ c                with interface matvec(n,x,y) to give y=A*x).
 c       * applyPC: preconditioner application routine, with
 c                interface applyPC(n,x,y,out-1) to give y=PC(x), and
 c                out indicating debugging output level.
-c       * dot: optional dot-product routine, with interface dot(x,y).
+c       * ldot: optional dot-product routine, with interface ldot(x,y).
 
 c     ---------------------------------------------------------------
 
@@ -671,11 +671,11 @@ cc      external   :: setPC,applyPC
         end subroutine
       END INTERFACE
 
-      optional :: dot
+      optional :: ldot
 
       INTERFACE
-        function dot(x,y)
-        real(8) :: dot,x(:),y(:)
+        function ldot(x,y)
+        real(8) :: ldot,x(:),y(:)
         end function
       END INTERFACE
 
@@ -695,7 +695,7 @@ c     Begin program
 
       ierr = 0
 
-      ext_dot = PRESENT(dot)
+      ext_dot = PRESENT(ldot)
 
       h = eigen_conf%step
 
@@ -706,7 +706,7 @@ c     Initialize iteration vector
 c     Normalize iteration vector
 
       if (ext_dot) then
-        norm2 = dot(x,x)
+        norm2 = ldot(x,x)
       else
         norm2 = dot_product(x,x)
       endif
@@ -724,7 +724,7 @@ c     Start iteration
 
         !Find |x|
         if (ext_dot) then
-          norm2 = dot(x,x)
+          norm2 = ldot(x,x)
         else
           norm2 = dot_product(x,x)
         endif
@@ -732,7 +732,7 @@ c     Start iteration
         !Form Rayleigh quotient
         thetan = theta
         if (ext_dot) then
-          magpAp = dot(x,ax)
+          magpAp = ldot(x,ax)
         else
           magpAp = dot_product(x,ax)
         endif
@@ -752,7 +752,7 @@ c     Start iteration
 
         !Find norm of residual
         if (ext_dot) then
-          magr = sqrt(dot(dum,dum)/ntot)
+          magr = sqrt(ldot(dum,dum)/ntot)
         else
           magr = sqrt(dot_product(dum,dum)/ntot)
         endif
