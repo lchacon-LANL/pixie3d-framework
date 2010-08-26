@@ -6592,7 +6592,7 @@ c     Local variables
 
       integer :: i,j,k
 
-      real(8) :: volume,dvol,ldum(2)
+      real(8) :: volume,dvol,send_buf(2),rec_buf(2)
 
       logical :: avg
 
@@ -6625,9 +6625,11 @@ c     Integrate
       enddo
 
 #if defined(petsc)
-      ldum = (/ integral, volume /)
-      call MPI_Allreduce(ldum,(/integral,volume/),2,MPI_DOUBLE_PRECISION
+      send_buf = (/ integral, volume /)
+      call MPI_Allreduce(send_buf,rec_buf,2,MPI_DOUBLE_PRECISION
      .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      integral = rec_buf(1)
+      volume = rec_buf(2)
 #endif
 
       if (avg) integral = integral/volume
