@@ -1115,7 +1115,7 @@ c     Call variables
 c     Local variables
 
         integer    :: i,j,n1,n2,n3
-        integer    :: igx,igy,igz,isig,funit
+        integer    :: igx,igy,igz,isig
 
 c     Begin program
 
