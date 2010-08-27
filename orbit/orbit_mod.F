@@ -14,13 +14,27 @@ c ######################################################################
 
         logical :: flux = .false.
 
+        !B field diagnostics
+        integer :: icross,ncross=100000,nbins=100,inx,nnx,nny
+        real(8),allocatable,dimension(:,:) :: fpos,qdif
+        logical :: bdiag=.false.
+
         !LSODE public variables
         real(8) :: xold,yold,zold,lsode_out(10)
         logical :: sing_point=.false.,sln,exit_loop
 
         integer :: iiout
 
-        !Private variables
+        !LSODE private variables
+        INTEGER,private :: LIW, LRW, NEQ
+        PARAMETER  (NEQ=10,LIW = 20,LRW = LIW + 16*NEQ)
+
+        INTEGER,private :: IOPT,IOUT,ISTATE=0,ITASK,ITOL,IWORK(LIW)
+     .                    ,MF,NEQD(1)
+        REAL(8),private :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW),T,TOUT
+     .                    ,YY(NEQ)
+
+        !ORBIT private variables
         type,private :: ode_solver
           integer :: niter     !Number of nonlinear iterations
           integer :: order     !Order of integration (1,2)
@@ -48,12 +62,6 @@ c ######################################################################
         type(orbit_def),private  :: orb_default
         type(ode_solver),private :: ode_conf
 
-        !B field diagnostics
-        integer :: icross,ncross=100000,nbins=100,inx,nnx,nny
-        real(8),allocatable,dimension(:,:) :: fpos,qdif
-        logical :: bdiag=.false.
-
-        !Private variables
         integer,private :: itime,iterror,ssorder
 
         integer,private :: nunitx,nunity,nunitz,nunitrz
@@ -752,15 +760,15 @@ c     Local variables
       real(8) :: xc,yc,zc
       real(8) :: xh,yh,zh,jach
 
-      !LSODE setup
-      INTEGER :: LIW, LRW, NEQ
-      PARAMETER  (NEQ=10,LIW = 20,LRW = LIW + 16*NEQ)
-
-      INTEGER :: IOPT, IOUT, ISTATE=0, ITASK, ITOL, IWORK(LIW)
-     .          ,MF, NEQD(1)
-      REAL(8) :: ATOL(NEQ),RTOL(1),RWORK(LRW),T,TOUT,YY(NEQ)
-
-      save ISTATE
+cc      !LSODE setup
+cc      INTEGER :: LIW, LRW, NEQ
+cc      PARAMETER  (NEQ=10,LIW = 20,LRW = LIW + 16*NEQ)
+cc
+cc      INTEGER :: IOPT, IOUT, ISTATE=0, ITASK, ITOL, IWORK(LIW)
+cc     .          ,MF, NEQD(1)
+cc      REAL(8) :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW),T,TOUT,YY(NEQ)
+cc
+cc      save ISTATE
 
       logical  :: external_f
 
@@ -814,11 +822,11 @@ c     LSODE configuration and call
 c3-eq      T    = time   !Independent variable
       T    = 0d0   !Independent variable
 
-      ITOL = 2      !Whether atol is array or not (2 => true)
+      ITOL = 1      !Whether atol is array or not (2 => true)
 
       if (ISTATE /= 3) then
-        RTOL = rrtol            !Relative tolerance
-        ATOL = aatol            !Absolute tolerance
+        LS_RTOL = rrtol            !Relative tolerance
+        LS_ATOL = aatol            !Absolute tolerance
       endif
 
       ITASK = 2     !Mode of operation: take one step and return
@@ -836,12 +844,26 @@ cc        write (*,*) 'LSODE -- limiting time step'
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
 
+cc      write (*,*)'Number of equations',NEQD
+cc      write (*,*)'Input state=',YY(1:NEQD(1))
+cc      write (*,*)'Current time=',T
+cc      write (*,*)'Next time=',TOUT
+cc      write (*,*)'Tolerances=',ITOL,LS_RTOL,LS_ATOL
+cc      write (*,*)'LSODE task=',ITASK
+cc      write (*,*)'LSODE state=',ISTATE
+cc      write (*,*)'Optional inputs required?',IOPT
+cc      write (*,*)'Real work array size=',size(RWORK),' declared=',LRW
+cc      write (*,*)'Integer work array size=',size(IWORK),' declared=',LIW
+cc      write (*,*)'LSODE method=',MF
+
       if (external_f) then
-        CALL LSODE (lsode_f,NEQD,YY,T,TOUT,ITOL,RTOL,ATOL,ITASK,
-     .              ISTATE,IOPT,RWORK,LRW,IWORK,LIW,lsode_f, MF)
+        CALL LSODE (lsode_f,NEQD(1),YY(1:NEQD(1)),T,TOUT
+     .             ,ITOL,LS_RTOL,LS_ATOL
+     .             ,ITASK,ISTATE,IOPT,RWORK,LRW,IWORK,LIW,lsode_f, MF)
       else
-        CALL LSODE (ff     ,NEQD,YY,T,TOUT,ITOL,RTOL,ATOL,ITASK,
-     .              ISTATE,IOPT,RWORK,LRW,IWORK,LIW,ff      ,MF)
+        CALL LSODE (ff     ,NEQD(1),YY(1:NEQD(1)),T,TOUT
+     .             ,ITOL,LS_RTOL,LS_ATOL
+     .             ,ITASK,ISTATE,IOPT,RWORK,LRW,IWORK,LIW,ff      ,MF)
       endif
 
       select case(ISTATE)
@@ -852,6 +874,7 @@ cc        write (*,*) 'LSODE -- limiting time step'
         RTOL=RTOL*RWORK(14)
         ATOL=ATOL*RWORK(14)
       case default  !Exit LSODE
+        write (*,*) 'Error code ISTATE=',ISTATE
         write (*,*) 'See lsode.f for instructions'
         write (*,*) 'Aborting...'
         stop
@@ -1358,6 +1381,8 @@ c     Begin program
       if (.not.sing_point) then
         ydot(4) = evalJ(x1,y1,z1,ierror)
         if (ierror /= 0) then
+          write (*,*) 'Position=',x1,y1,z1
+          write (*,*) 'Jacobian=',ydot(4)
           write (*,*) 'Negative Jacobian in lsode_orbit_f'
           stop
         endif
