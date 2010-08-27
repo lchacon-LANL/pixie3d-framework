@@ -31,14 +31,14 @@ c     -----------------------------------------------------------------
      .                      ,EXT=3   !Extrapolation
      .                      ,NEU=4   !Neumann or Robin
      .                      ,DIR=5   !Homogeneous Dirichlet
-     .                      ,SP =6   !Polar singular point
-     .                      ,IFC=7   !Interpolate-to-face
+     .                      ,IFC=6   !Interpolate-to-face
+     .                      ,SP =7   !Polar singular point (do not change: NEMATO depends on it)
      .                      ,SYM=8   !Symmetry (even > 0, odd < 0)
-     .                      ,FSYM=9  !Symmetry (at faces)
+     .                      ,FSYM=9  !Symmetry (at faces; even > 0, odd < 0)
 
-        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,CSYM)
+        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,FSYM)
 
-        logical :: asm_dir(3)=.false.,asm=.false.!,par_bc=.false.
+        logical :: asm_dir(3)=.false.,asm=.false.
 
         integer :: bcond(6)          !Contains topological BC configuration
 
