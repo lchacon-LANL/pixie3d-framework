@@ -101,7 +101,8 @@ c ########################################################################
 
 c     openFiles
 c     #################################################################
-      function openFiles(myrank,base_unit,base_fname,munit) result(ierr)
+      function openFiles(myrank,np,base_unit,base_fname,munit)
+     .         result(ierr)
 
 c     -----------------------------------------------------------------
 c     Opens files with basename "base_fname" and base unit "base_unit",
@@ -113,9 +114,9 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer :: myrank,base_unit,ierr
+      integer :: myrank,np,base_unit,ierr
       character*(*),INTENT(IN) :: base_fname
-      integer,pointer,dimension(:),INTENT(OUT) :: munit
+      integer,pointer,dimension(:) :: munit
 
 c     Local variables
 
@@ -136,7 +137,6 @@ c     Find graphics files
 
       else
 
-#if !defined(petsc)
         write (*,*)
         write (*,*) 'Opening '//trim(base_fname)//' files...'
 
@@ -148,42 +148,41 @@ c     Find graphics files
           ierr = shellcmd('test -f '//trim(base_fname)//'_proc'
      .                 //trim(int2char(nfiles)))
         enddo
-#else
-        nfiles = 1
-#endif
 
       endif
 
 c     Check for errors
 
+      ierr = 0
+
       if (nfiles == 0) then
         ierr = 1
         return
-      else
-        ierr = 0
+      elseif (nfiles == np) then
+        nfiles = 1  !One file per processor
       endif
 
 c     Allocate arrays and open files
 
       allocate(munit(nfiles))
 
-#if !defined(petsc)
-      do ifile=1,nfiles
-        munit(ifile) = base_unit+ifile
-        file = trim(base_fname)//'_proc'//trim(int2char(ifile-1))
-        write (*,*) '  => ',trim(file),', unit=',munit(ifile)
+      if (nfiles == 1) then
+        munit(1) = base_unit+myrank
+        file = trim(base_fname)//'_proc'//trim(int2char(myrank))
+        write (*,*) '  => ',trim(file),', unit=',munit(1)
 
-        open(munit(ifile),file=trim(file)
-     $        ,form='unformatted',status='old')
-      enddo
-#else
-      munit(1) = base_unit+myrank
-      file = trim(base_fname)//'_proc'//trim(int2char(myrank))
-      write (*,*) '  => ',trim(file),', unit=',munit(1)
+        open(munit(1),file=trim(file)
+     $      ,form='unformatted',status='old')
+      else
+        do ifile=1,nfiles
+          munit(ifile) = base_unit+ifile
+          file = trim(base_fname)//'_proc'//trim(int2char(ifile-1))
+          write (*,*) '  => ',trim(file),', unit=',munit(ifile)
 
-      open(munit(1),file=trim(file)
+          open(munit(ifile),file=trim(file)
      $        ,form='unformatted',status='old')
-#endif
+        enddo
+      endif
 
       if (myrank == 0) then
         write (*,*) 'Finished!'
@@ -206,7 +205,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer,pointer,dimension(:),INTENT(IN) :: munit
+      integer,pointer,dimension(:) :: munit
 
 c     Local variables
 
