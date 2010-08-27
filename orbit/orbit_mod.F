@@ -718,7 +718,7 @@ c     Time integration
 c     Output
 
       if (iiout > 0) then
-        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,1p3e12.3,a,l)')
+        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,3es12.3,a,l3)')
      .         ' Time=',time
      .        ,' ;  dt=',dt
      .        ,' ;  Arc length=',ss
