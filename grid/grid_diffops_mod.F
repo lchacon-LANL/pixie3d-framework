@@ -1621,7 +1621,7 @@ c ######################################################################
         use grid_create
 
         INTERFACE laplacian
-          module procedure lap_diff,lap_ndiff
+          module procedure lap_diff,lap_ndiff,lap_tnsr
         end INTERFACE
 
       contains
@@ -2100,6 +2100,187 @@ cc        endif
 c     End program
 
       end function lap_ndiff
+
+c     lap_tnsr
+c     ###############################################################
+      function lap_tnsr(i,j,k,nx,ny,nz,igx,igy,igz,tnsr,arr,vol)
+     .         result (laplacian)
+c     ---------------------------------------------------------------
+c     Calculates div(tensor*grad(arr)) at cell centers in general
+c     non-orthog. coordinates, preserving the SPD property. Tensor
+c     "tnsr" must be SPD. Only six components of "tnsr" are stored,
+c     in a lexicographic way. Convention:
+c
+c                 ( 1  2  3 )
+c                 ( -  4  5 )
+c                 ( -  -  6 )
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+
+      real(8)        :: arr (0:nx+1,0:ny+1,0:nz+1),laplacian
+      real(8),target :: tnsr(0:nx+1,0:ny+1,0:nz+1,6)
+
+      logical,optional,intent(IN) :: vol
+
+c     Local variables
+
+      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg,igrid
+
+      real(8)    :: d_xx_ip,d_xx_im,d_yy_jp,d_yy_jm,d_zz_kp,d_zz_km
+     .             ,d_xy_ipjp,d_xy_ipjm,d_xy_imjp,d_xy_imjm
+     .             ,d_xz_ipkp,d_xz_ipkm,d_xz_imkp,d_xz_imkm
+     .             ,d_yz_jpkp,d_yz_jpkm,d_yz_jmkp,d_yz_jmkm
+
+      logical    :: vol_wgt
+
+c     Begin program
+
+      if (PRESENT(vol)) then
+        vol_wgt = vol
+      else
+        vol_wgt = .true.
+      endif
+
+      igrid = igx
+
+      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+      ip = i+1
+      im = i-1
+      jp = j+1
+      jm = j-1
+      kp = k+1
+      km = k-1
+
+      if (i == 0 .or. j == 0 .or. k == 0 ) then
+        write (*,*) 'Error in laplace; i,j,k=0'
+      elseif (i == nx+1 .or. j == ny+1 .or. k == nz+1) then
+        write (*,*) 'Error in laplace; i,j,k=nmax+1'
+      endif
+
+      d_xx_ip = 0.5*(tnsr(i ,j,k,1)
+     .              +tnsr(ip,j,k,1))
+      d_xx_im = 0.5*(tnsr(i ,j,k,1)
+     .              +tnsr(im,j,k,1))
+
+      d_yy_jp = 0.5*(tnsr(i,j ,k,4)
+     .              +tnsr(i,jp,k,4))
+      d_yy_jm = 0.5*(tnsr(i,j ,k,4)
+     .              +tnsr(i,jm,k,4))
+
+      d_zz_kp = 0.5*(tnsr(i,j,k ,6)
+     .              +tnsr(i,j,kp,6))
+      d_zz_km = 0.5*(tnsr(i,j,k ,6)
+     .              +tnsr(i,j,km,6))
+
+      d_xy_ipjp = 0.25*(tnsr(i ,j ,k,2)
+     .                 +tnsr(ip,j ,k,2)
+     .                 +tnsr(i ,jp,k,2)
+     .                 +tnsr(ip,jp,k,2))
+      d_xy_ipjm = 0.25*(tnsr(i ,j ,k,2)
+     .                 +tnsr(ip,j ,k,2)
+     .                 +tnsr(i ,jm,k,2)
+     .                 +tnsr(ip,jm,k,2))
+      d_xy_imjp = 0.25*(tnsr(i ,j ,k,2)
+     .                 +tnsr(im,j ,k,2)
+     .                 +tnsr(i ,jp,k,2)
+     .                 +tnsr(im,jp,k,2))
+      d_xy_imjm = 0.25*(tnsr(i ,j ,k,2)
+     .                 +tnsr(im,j ,k,2)
+     .                 +tnsr(i ,jm,k,2)
+     .                 +tnsr(im,jm,k,2))
+
+      d_xz_ipkp = 0.25*(tnsr(i ,j,k ,3)
+     .                 +tnsr(ip,j,k ,3)
+     .                 +tnsr(i ,j,kp,3)
+     .                 +tnsr(ip,j,kp,3))
+      d_xz_ipkm = 0.25*(tnsr(i ,j,k ,3)
+     .                 +tnsr(ip,j,k ,3)
+     .                 +tnsr(i ,j,km,3)
+     .                 +tnsr(ip,j,km,3))
+      d_xz_imkp = 0.25*(tnsr(i ,j,k ,3)
+     .                 +tnsr(im,j,k ,3)
+     .                 +tnsr(i ,j,kp,3)
+     .                 +tnsr(im,j,kp,3))
+      d_xz_imkm = 0.25*(tnsr(i ,j,k ,3)
+     .                 +tnsr(im,j,k ,3)
+     .                 +tnsr(i ,j,km,3)
+     .                 +tnsr(im,j,km,3))
+
+      d_yz_jpkp = 0.25*(tnsr(i,j ,k ,5)
+     .                 +tnsr(i,jp,k ,5)
+     .                 +tnsr(i,j ,kp,5)
+     .                 +tnsr(i,jp,kp,5))
+      d_yz_jpkm = 0.25*(tnsr(i,j ,k ,5)
+     .                 +tnsr(i,jp,k ,5)
+     .                 +tnsr(i,j ,km,5)
+     .                 +tnsr(i,jp,km,5))
+      d_yz_jmkp = 0.25*(tnsr(i,j ,k ,5)
+     .                 +tnsr(i,jm,k ,5)
+     .                 +tnsr(i,j ,kp,5)
+     .                 +tnsr(i,jm,kp,5))
+      d_yz_jmkm = 0.25*(tnsr(i,j ,k ,5)
+     .                 +tnsr(i,jm,k ,5)
+     .                 +tnsr(i,j ,km,5)
+     .                 +tnsr(i,jm,km,5))
+
+        laplacian = 
+     .     grid_params%dyh(jg)*grid_params%dzh(kg)
+     .       *( d_xx_ip*(arr(ip,j,k)-arr(i,j,k))/grid_params%dx(ig)
+     .         +d_xx_im*(arr(im,j,k)-arr(i,j,k))/grid_params%dx(ig-1) )
+     .    +grid_params%dxh(ig)*grid_params%dzh(kg)
+     .       *( d_yy_jp*(arr(i,jp,k)-arr(i,j,k))/grid_params%dy(jg)
+     .         +d_yy_jm*(arr(i,jm,k)-arr(i,j,k))/grid_params%dy(jg-1) )
+     .    +grid_params%dxh(ig)*grid_params%dyh(jg)
+     .       *( d_zz_kp*(arr(i,j,kp)-arr(i,j,k))/grid_params%dz(kg)
+     .         +d_zz_km*(arr(i,j,km)-arr(i,j,k))/grid_params%dz(kg-1) )
+     .    +0.5*( grid_params%dzh(kg)
+     .                  *( d_xy_ipjp*(arr(ip,jp,k)-arr(i,j,k))
+     .                    +d_xy_imjm*(arr(im,jm,k)-arr(i,j,k))
+     .                    -d_xy_ipjm*(arr(ip,jm,k)-arr(i,j,k))
+     .                    -d_xy_imjp*(arr(im,jp,k)-arr(i,j,k)) )
+     .          +grid_params%dyh(jg)
+     .                  *( d_xz_ipkp*(arr(ip,j,kp)-arr(i,j,k))
+     .                    +d_xz_imkm*(arr(im,j,km)-arr(i,j,k))
+     .                    -d_xz_ipkm*(arr(ip,j,km)-arr(i,j,k))
+     .                    -d_xz_imkp*(arr(im,j,kp)-arr(i,j,k)) )
+     .          +grid_params%dxh(ig)
+     .                  *( d_yz_jpkp*(arr(i,jp,kp)-arr(i,j,k))
+     .                    +d_yz_jmkm*(arr(i,jm,km)-arr(i,j,k))
+     .                    -d_yz_jpkm*(arr(i,jp,km)-arr(i,j,k))
+     .                    -d_yz_jmkp*(arr(i,jm,kp)-arr(i,j,k)) ) )
+
+cc      laplacian = 
+cc     .   dyh(jg)*dzh(kg)*( d_xx_ip*(arr(ip,j,k)-arr(i,j,k))/dx(ig)
+cc     .                    +d_xx_im*(arr(im,j,k)-arr(i,j,k))/dx(ig-1) )
+cc     .  +dxh(ig)*dzh(kg)*( d_yy_jp*(arr(i,jp,k)-arr(i,j,k))/dy(jg)
+cc     .                    +d_yy_jm*(arr(i,jm,k)-arr(i,j,k))/dy(jg-1) )
+cc     .  +dxh(ig)*dyh(jg)*( d_zz_kp*(arr(i,j,kp)-arr(i,j,k))/dz(kg)
+cc     .                    +d_zz_km*(arr(i,j,km)-arr(i,j,k))/dz(kg-1) )
+cc     .  +0.5*( dzh(kg)*( d_xy_ipjp*(arr(ip,jp,k)-arr(i,j,k))
+cc     .                  +d_xy_imjm*(arr(im,jm,k)-arr(i,j,k))
+cc     .                  -d_xy_ipjm*(arr(ip,jm,k)-arr(i,j,k))
+cc     .                  -d_xy_imjp*(arr(im,jp,k)-arr(i,j,k)) )
+cc     .        +dyh(jg)*( d_xz_ipkp*(arr(ip,j,kp)-arr(i,j,k))
+cc     .                  +d_xz_imkm*(arr(im,j,km)-arr(i,j,k))
+cc     .                  -d_xz_ipkm*(arr(ip,j,km)-arr(i,j,k))
+cc     .                  -d_xz_imkp*(arr(im,j,kp)-arr(i,j,k)) )
+cc     .        +dxh(ig)*( d_yz_jpkp*(arr(i,jp,kp)-arr(i,j,k))
+cc     .                  +d_yz_jmkm*(arr(i,jm,km)-arr(i,j,k))
+cc     .                  -d_yz_jpkm*(arr(i,jp,km)-arr(i,j,k))
+cc     .                  -d_yz_jmkp*(arr(i,jm,kp)-arr(i,j,k)) ) )
+
+      if (.not.vol_wgt) laplacian=laplacian
+     .                           /gmetric%grid(igx)%dvol(i,j,k)
+
+c     End program
+
+      end function lap_tnsr
 
       end module grid_nabla2_ops
 
