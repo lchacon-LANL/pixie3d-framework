@@ -23,6 +23,8 @@ c module ts_setup
 c ######################################################################
       module ts_setup
 
+        use iosetup
+
         integer    :: numtime,ndstep,nrstep,inewtime,nrst
 
         real(8)    :: tmrst,dt,dtbase,cnfactor,alpha,gammat,dt_n
@@ -47,6 +49,43 @@ c ######################################################################
      .               ,bdf2=.false.,eigen=.false.
 
         real(8)    :: cnp=1d0,cn=-1d0,cnm=0d0
+
+      contains
+
+c     readTimeStep
+c     #################################################################
+      subroutine readTimeStep(varray,ierr)
+
+c     -----------------------------------------------------------------
+c     Reads time step info from single or multiple files.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(var_array),pointer :: varray
+      integer :: ierr
+
+c     Local variables
+
+      integer :: ifile
+
+c     Begin program
+
+      if (associated(murecord)) then
+        do ifile=1,size(murecord)
+          ierr = readRecordFile(murecord(ifile),itime,time,dt,varray)
+          if (ierr == -1) cycle !Error, but not EOF
+          if (ierr == -2) cycle !EOF
+        enddo
+      else
+        ierr = readRecordFile(urecord,itime,time,dt,varray)
+      endif
+
+c     End program
+
+      end subroutine readTimeStep
 
       end module ts_setup
 
