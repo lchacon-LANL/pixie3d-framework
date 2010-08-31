@@ -76,7 +76,7 @@ ifeq ($(FC),gfortran)
   ADDMODFLAG   = -I
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)gfortran
-  FFLAGS      += 
+  FFLAGS      += #$(STATIC) 
 endif
 
 # Flags for Portland Group f90
