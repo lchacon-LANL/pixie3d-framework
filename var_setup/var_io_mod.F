@@ -169,7 +169,7 @@ c     Call variables
 
       integer :: base_unit,ilg,ihg,jlg,jhg,klg,khg
       character(*),INTENT(IN) :: base_fname
-      integer,pointer,dimension(:),INTENT(OUT) :: munit
+      integer,pointer,dimension(:) :: munit
 
 c     Local variables
 
