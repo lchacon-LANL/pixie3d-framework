@@ -17,6 +17,8 @@ c##########################################################################
 
       use iosetup
 
+      use acc_tests
+
       implicit none
 
 c Local variables
@@ -27,14 +29,6 @@ c Local variables
       logical        :: exitloop
 
 c Interfaces
-
-      INTERFACE
-        subroutine readTimeStep(varray,ierr)
-        use variable_setup
-        type(var_array),pointer :: varray
-        integer         :: ierr
-        end subroutine readTimeStep
-      END INTERFACE
 
       INTERFACE
         subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
@@ -125,6 +119,21 @@ c     Check for tmax
 
       enddo       !End of time loop
 
+c Numerical accuracy tests
+
+      if (temp_acc) call acc_test_time
+      if (spat_acc) call acc_test_space
+
+c Move files to 'plot' directory
+
+cc      ierr=system('[ -d plots ] || mkdir plots')
+cc      ierr=system('mv draw*in plots')
+
+c Remove backup copy
+
+cc      command='rm '//trim(recordfile)//'.bak'
+cc      ierr=system(trim(command))
+
 c Close graphics files and create draw*.in files
 
       call finalizeGraphics
@@ -140,20 +149,6 @@ cc      if (clean) call closeCleanFiles
 #if defined(petsc)
       call PetscFinalize(mpierr)
 #endif
-
-c Second order test
-
-cc      call order_tst
-
-c Move files to 'plot' directory
-
-cc      ierr=system('[ -d plots ] || mkdir plots')
-cc      ierr=system('mv draw*in plots')
-
-c Remove backup copy
-
-cc      command='rm '//trim(recordfile)//'.bak'
-cc      ierr=system(trim(command))
 
 c End program
 
@@ -250,14 +245,6 @@ c Local variables
       type(var_array),pointer :: u_src
 
 c Interfaces
-
-      INTERFACE
-        subroutine readTimeStep(varray,ierr)
-        use variable_setup
-        type(var_array),pointer :: varray
-        integer         :: ierr
-        end subroutine readTimeStep
-      END INTERFACE
 
       INTERFACE
         subroutine initializeDiagnostics(varray,iigx,iigy,iigz)
@@ -376,59 +363,3 @@ c Dump source for debugging
 c End program
 
       end subroutine initializeCalculation
-
-c readTimeStep
-c######################################################################
-      subroutine readTimeStep(varray,ierr)
-
-c----------------------------------------------------------------------
-c     Reads time step info from single or multiple files.
-c----------------------------------------------------------------------
-
-      use parameters
-
-      use ts_setup
-
-      use variable_setup
-
-      use graphics
-
-      use iosetup
-
-      implicit none
-
-c Call variables
-
-      type(var_array),pointer :: varray
-      integer         :: ierr
-
-c Local variables
-
-      integer :: ifile
-
-c Begin program
-
-      if (associated(murecord)) then
-        do ifile=1,size(murecord)
-          ierr = readRecordFile(murecord(ifile),itime,time,dt,varray)
-          if (ierr == -1) cycle !Error, but not EOF
-          if (ierr == -2) cycle !EOF
-cc          if (clean) then
-cccc            call writeRecordFile(musave(ifile),itime,time,dt,varray)
-cc            write (*,*) 'Recycling a parallel run using the serial code'
-cc            write (*,*) 'does not work yet. Need to fix the serial'
-cc            write (*,*) 'write routine to dump only local domain info'
-cc            call closeCleanFiles
-cc            write (*,*) 'Removing clean-up files...'
-cc            ierr = shellcmd('rm *_sav > /dev/null')
-cc            call pstop('readTimeStep','')
-cc          endif
-        enddo
-      else
-        ierr = readRecordFile(urecord,itime,time,dt,varray)
-cc        if (clean) call writeRecordFile(usave,itime,time,dt,varray)
-      endif
-
-c End program
-
-      end subroutine readTimeStep

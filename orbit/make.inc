@@ -14,7 +14,6 @@ SUBDIRS = $(COMMONDIR)/math\
           $(COMMONDIR)/io\
           $(COMMONDIR)/grid\
           $(COMMONDIR)/interpolation/1d_int\
-#          $(COMMONDIR)/interpolation/slatec
 
 #Define dependencies
 

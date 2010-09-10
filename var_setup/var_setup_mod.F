@@ -71,9 +71,9 @@ c #####################################################################
           type(aux_array)  ,pointer     :: aux        ! auxillary variables
         end type patch
 
-        type (patch),pointer :: gv
+        type (patch),pointer :: gv => null()
 
-        type(var_array),pointer :: u_0
+        type(var_array),pointer :: u_0 => null()
 
       contains
 
@@ -153,6 +153,7 @@ c     Begin program
 
         if (.not.associated(gv)) then
           allocate(gv)
+          nullify(bc_grp)
           nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0,gv%u_graph)
           nullify(gv%gparams)
           nullify(gv%aux)
@@ -618,7 +619,11 @@ c #####################################################################
 
         use variable_setup
 
-        type(var_array),pointer :: u_np,u_n,u_nm,u_graph,u_ic
+        type(var_array),pointer :: u_np => null()
+     .                            ,u_n  => null()
+     .                            ,u_nm => null()
+     .                            ,u_ic => null()
+     .                            ,u_graph => null()
   
       contains
 

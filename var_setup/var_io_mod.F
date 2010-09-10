@@ -146,7 +146,7 @@ c     Begin program
 
       call writeDerivedType(varray,unit,.false.)
 
-#if !defined(absoft_) && !defined(absoft)
+#if !defined(absoft_) && !defined(absoft) && !defined(lf95)
       call flush(unit)
 #endif
 
@@ -173,7 +173,9 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nx,ny,nz,ierr,ifile
+      integer :: ierr,ifl,nf,send_buf(3),rec_buf(3)
+      integer,allocatable,dimension(:) :: nx,ny,nz,ilg_,ihg_
+     .                                   ,jlg_,jhg_,klg_,khg_
 
       logical :: check,lchck
 
@@ -181,7 +183,7 @@ c     Begin program
 
 c     Open graphics files
 
-      ierr = openFiles(my_rank,base_unit,base_fname,munit)
+      ierr = openFiles(my_rank,np,base_unit,base_fname,munit)
 
       if (ierr /= 0) then
           call pstop('openRecordfiles'
@@ -190,43 +192,86 @@ c     Open graphics files
 
 c     Read init info
 
-      do ifile=1,size(munit)
-        read (munit(ifile)) nx,ilg,ihg
-        read (munit(ifile)) ny,jlg,jhg
-        read (munit(ifile)) nz,klg,khg
+      nf = size(munit)
+
+      allocate(nx(nf),ny(nf),nz(nf)
+     .        ,ilg_(nf),ihg_(nf)
+     .        ,jlg_(nf),jhg_(nf)
+     .        ,klg_(nf),khg_(nf))
+
+      do ifl=1,nf
+        read (munit(ifl)) nx(ifl),ilg_(ifl),ihg_(ifl)
+        read (munit(ifl)) ny(ifl),jlg_(ifl),jhg_(ifl)
+        read (munit(ifl)) nz(ifl),klg_(ifl),khg_(ifl)
       enddo
 
 c     Consistency check
 
 #if defined(petsc)
+      if (nf /= 1) then
+          call pstop('openRecordfiles'
+     .              ,'Cannot open multiple record files in parallel')
+      endif
+
+      ihg = ihg_(1)
+      ilg = ilg_(1)
+      jhg = jhg_(1)
+      jlg = jlg_(1)
+      khg = khg_(1)
+      klg = klg_(1)
+
       nxl = ihg-ilg+1
       nyl = jhg-jlg+1
       nzl = khg-klg+1
 
-      check =(     nxl /= gv%gparams%nlx
-     .        .or. nyl /= gv%gparams%nly
-     .        .or. nzl /= gv%gparams%nlz )
-      lchck = check
+      if (associated(gv%gparams)) then
+        check =(     nxl /= gv%gparams%nlx
+     .          .or. nyl /= gv%gparams%nly
+     .          .or. nzl /= gv%gparams%nlz )
 
-      call MPI_Allreduce(lchck,check,1
+        lchck = check
+
+        call MPI_Allreduce(lchck,check,1
      .                ,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,mpierr)
 
-      if (check) then
-        call pstop('openRecordFiles','Grid meshes do not agree')
+        if (check) then
+          call pstop('openRecordFiles','Grid meshes do not agree')
+        endif
+      else
+        send_buf = (/ nxl,nyl,nzl /)
+        call MPI_Allreduce(send_buf,rec_buf,3
+     .                ,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,mpierr)
+
+        nxd = rec_buf(1)
+        nyd = rec_buf(2)
+        nzd = rec_buf(3)
       endif
 #else
       !Set global limits (NOT a parallel run)
-      ihg = nxd
-      ilg = 1
-      jhg = nyd
-      jlg = 1
-      khg = nzd
-      klg = 1
+      if (associated(gv%gparams)) then
+        ihg = nxd
+        ilg = 1
+        jhg = nyd
+        jlg = 1
+        khg = nzd
+        klg = 1
 
-      if (size(munit) == 1) then
-        if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
-          call pstop('openRecordFiles','Grid size does not agree')
+        if (nf == 1) then
+          if (nx(1) /= nxd .or. ny(1) /= nyd .or. nz(1) /= nzd) then
+            call pstop('openRecordFiles','Grid size does not agree')
+          endif
         endif
+      else
+        nxd = maxval(ihg_)-minval(ilg_)+1
+        nyd = maxval(jhg_)-minval(jlg_)+1
+        nzd = maxval(khg_)-minval(klg_)+1
+
+        ihg = nxd
+        ilg = 1
+        jhg = nyd
+        jlg = 1
+        khg = nzd
+        klg = 1
       endif
 #endif
 
