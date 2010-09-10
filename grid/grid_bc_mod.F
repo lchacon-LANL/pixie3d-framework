@@ -1296,7 +1296,7 @@ c     Find complete curvilinear representation
 
       if (is__vec) then
 
-#if defined(petsc)
+#if defined(petsc) || defined(samrai)
        call fromGlobalToLocalLimits(iimin,jjmin,kkmin,ilmin,jlmin,klmin
      $                             ,igxbc,igybc,igzbc)
        call fromGlobalToLocalLimits(iimax,jjmax,kkmax,ilmax,jlmax,klmax

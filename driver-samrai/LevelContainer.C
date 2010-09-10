@@ -4,7 +4,7 @@
 extern "C"{
    void f_create_var_array_(void **p_data, int&);
    void f_create_aux_array_(void **p_data, int&, int&);
-  void f_create_grid_mg_def_(void **p_data, const double *, const double *, int &, int &, int &, int &, int &, int &, int &, int &, int &, int &);
+   void f_create_grid_mg_def_(void **p_data, const double *, const double *, int &, int &, int &, int &, int &, int &, int &, int &, int &, int &);
    void f_create_patch_data_(void **p_data, void *, void *, void *, void *);
    void f_delete_patch_data_(void *p_data);
    void fill_var_array_(void *p_data, int &, double *, int &, int &, int &, int &, int &, int &);
