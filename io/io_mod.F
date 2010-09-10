@@ -115,7 +115,7 @@ c     Call variables
 
       integer :: myrank,base_unit,ierr
       character*(*),INTENT(IN) :: base_fname
-      integer,pointer,dimension(:),INTENT(OUT) :: munit
+      integer,pointer,dimension(:) :: munit
 
 c     Local variables
 
@@ -206,7 +206,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer,pointer,dimension(:),INTENT(IN) :: munit
+      integer,pointer,dimension(:) :: munit
 
 c     Local variables
 
