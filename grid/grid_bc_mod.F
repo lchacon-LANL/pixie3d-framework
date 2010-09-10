@@ -575,8 +575,10 @@ c     Begin program
         select case(loc)
         case(0)
           ill = min(igl - igmin + 1,1)
+cc          ill = max(igl - igmin + 1,1)
           ilr = ill
         case(1)
+cc          ill = min(igr - igmin + 1,nxl)
           ill = max(igr - igmin + 1,nxl)
           ilr = ill
         end select
@@ -833,7 +835,7 @@ c     Initialize interpolation order
       if (PRESENT(iorder)) then
         order = iorder
       else
-        order = 2
+        order = 1
       endif
 
 c     Initialize BC grid quantities
@@ -880,6 +882,12 @@ c     Initialize GLOBAL limits
       jjmxp =  min(jjmax + 1,grid_params%nygl(iigy))
       kkmnm =  max(kkmin - 1,1)  
       kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz))
+cc      iimnm =  max(iimin - 1,0)  
+cc      iimxp =  min(iimax + 1,grid_params%nxgl(iigx)+1)
+cc      jjmnm =  max(jjmin - 1,0)  
+cc      jjmxp =  min(jjmax + 1,grid_params%nygl(iigy)+1)
+cc      kkmnm =  max(kkmin - 1,0)  
+cc      kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz)+1)
 #endif
 
 c     Fill PETSc ghost cells
@@ -902,18 +910,6 @@ c     Impose BCs
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
             if (abs(bcnd(ibc)) == bctype) then
-cc              if (bcnd(ibc) < 0 .and. bctype == SYM) then
-cc                symm = .true.
-cc                call FillGhostNodes(ieq,1,1,dim,loc,DIR,array,array0)
-cc                symm = .false.
-cc              elseif (bcnd(ibc) > 0 .and. bctype == SYM) then
-cc                symm = .true.
-cc                call FillGhostNodes(ieq,1,1,dim,loc,NEU,array,array0)
-cc                symm = .false.
-cc              else
-cc                call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
-cc              endif
-
               symm = (bcond(ibc) == SYM)
               call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
               symm = .false.
@@ -924,21 +920,10 @@ cc              endif
 
 c     Fill edges
 
-cc      do dim=1,3
-cc        do loc=0,1
-cc          call fillEdges(array,array0,dim,loc,bcnd)
-cc        enddo
-cc      enddo
-
       call fillEdges(array,array0,bcnd)
 
 c     Fill corners
 
-cc      do dim=1,3
-cc        do loc=0,1
-cc          call fillCorners(array,array0,dim,loc,bcnd)
-cc        enddo
-cc      enddo
       call fillCorners(array,array0,bcnd)
 
 #if defined(PER_BC_SYNC)
@@ -1016,7 +1001,7 @@ c     Initialize interpolation order
       if (PRESENT(iorder)) then
         order = iorder
       else
-        order = 2
+        order = 1
       endif
 
 c     Initialize BC grid quantities
@@ -1063,6 +1048,12 @@ c     Initialize GLOBAL limits
       jjmxp =  min(jjmax + 1,grid_params%nygl(iigy))
       kkmnm =  max(kkmin - 1,1)  
       kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz))
+cc      iimnm =  max(iimin - 1,0)  
+cc      iimxp =  min(iimax + 1,grid_params%nxgl(iigx)+1)
+cc      jjmnm =  max(jjmin - 1,0)  
+cc      jjmxp =  min(jjmax + 1,grid_params%nygl(iigy)+1)
+cc      kkmnm =  max(kkmin - 1,0)  
+cc      kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz)+1)
 #endif
 
 c     Fill PETSc ghost cells
@@ -1154,17 +1145,6 @@ c     Synchronize covariant and contravariant components
 
 c     Fill edges (for both cnv and cov components)
 
-cc      do dim=1,3
-cc        do loc=0,1
-cc          do ivar=1,ncomp
-cc            call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-cc     .                    ,dim,loc,bcnd(:,ivar))
-cc            call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-cc     .                    ,dim,loc,bcnd(:,ivar))
-cc          enddo
-cc        enddo
-cc      enddo
-
       do ivar=1,ncomp
         call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
      .                ,bcnd(:,ivar))
@@ -1173,17 +1153,6 @@ cc      enddo
       enddo
 
 c     Fill corners (for both cnv and cov components)
-
-cc      do dim=1,3
-cc        do loc=0,1
-cc          do ivar=1,ncomp
-cc            call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-cc     .                      ,dim,loc,bcnd(:,ivar))
-cc            call fillCorners(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-cc     .                      ,dim,loc,bcnd(:,ivar))
-cc          enddo
-cc        enddo
-cc      enddo
 
       do ivar=1,ncomp
         call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
@@ -1531,7 +1500,7 @@ c     Find BC update
         case(SP)
           call scalarSingularBC(array(:,:,:,nvar))
         case(IFC)
-          call interpolateToFace(array(:,:,:,nvar),dim,loc)
+          call interpolateToFace(array(:,:,:,nvar),dim,loc,order)
         case default
           call pstop('fillGhostNodes'
      .             ,'BC '//trim(int2char(bctype))//' not implemented')
@@ -1551,7 +1520,7 @@ c     Find BC update
         case(SP)
           call vectorSingularBC(ivar,array(:,:,:,ivar),cov)
         case(IFC)
-          call interpolateToFace(array(:,:,:,ivar),dim,loc)
+          call interpolateToFace(array(:,:,:,ivar),dim,loc,order)
         case default
           call pstop('fillGhostNodes'
      .             ,'BC '//trim(int2char(bctype))//' not implemented')
@@ -1653,7 +1622,7 @@ c     End program
       end subroutine periodicBC
 
 c     extrapolateBC
-c     #######################################################################
+c     #################################################################
       subroutine extrapolateBC(array,array0,dim,loc,order)
 c     -----------------------------------------------------------------
 c     Fills ghost nodes by extrapolation across relevant boundary.
@@ -1663,15 +1632,16 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: order,dim,loc
-        real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
-     .               ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
+        integer :: order,dim,loc
+        real(8) :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
+     .            ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
-        integer    :: imax,imin,jmax,jmin,kmax,kmin,ibc
+        integer :: imax,imin,jmax,jmin,kmax,kmin,ibc
+     .            ,order_int(3)
 
-        integer    :: i,j,k,ig,jg,kg,one=1,two=2
+        integer :: i,j,k,ig,jg,kg,one=1,two=2,thr=3
         real(8),pointer,dimension(:) :: xx,yy,zz,dxh,dyh,dzh,dx,dy,dz
 
 c     Begin program
@@ -1680,7 +1650,9 @@ c     Begin program
 
         rhs = 0d0
 
-        if (order == 1) two = one  !To prevent stepping over domain
+        order_int(1) = min(order,nxbc)
+        order_int(2) = min(order,nybc)
+        order_int(3) = min(order,nzbc)
 
 c     Setup grid aliases
 
@@ -1703,7 +1675,75 @@ c     Extrapolate
      .                       ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
         if (.not.symm) then
-          
+
+cc          !Safeguards to prevent stepping out of domain
+cc          if (order_int(dim) <= 1) then
+cc            two = one
+cc            thr = one
+cc          elseif (order_int(dim) == 2) then
+cc            two = 2
+cc            thr = two
+cc          else
+cc            one = 1; two = 2 ; thr = 3
+cc          endif
+cc
+cc          do k=kmin,kmax
+cc            do j=jmin,jmax
+cc              do i=imin,imax
+cc
+cc                call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+cc
+cc                select case (ibc)
+cc                case (1)
+cc                  rhs(j,k) = 
+cc     .              quad_int(0.5*(xx(ig+one)+xx(ig)),xx(ig+one)
+cc     .                      ,xx(ig+two),xx(ig+thr)
+cc     .                      ,array0(i    ,j,k),array(i+one,j,k)
+cc     .                      ,array (i+two,j,k),array(i+thr,j,k)
+cc     .                      ,xx(ig),order_int(dim) )
+cc                case (2)
+cc                  rhs(j,k) =
+cc     .              quad_int(0.5*(xx(ig-one)+xx(ig)),xx(ig-one)
+cc     .                      ,xx(ig-two),xx(ig-thr)
+cc     .                      ,array0(i    ,j,k),array(i-one,j,k)
+cc     .                      ,array (i-two,j,k),array(i-thr,j,k)
+cc     .                      ,xx(ig),order_int(dim) )
+cc                case (3)
+cc                  rhs(i,k) =
+cc     .              quad_int(0.5*(yy(jg+one)+yy(jg)),yy(jg+one)
+cc     .                      ,yy(jg+two),yy(jg+thr)
+cc     .                      ,array0(i,j    ,k),array(i,j+one,k)
+cc     .                      ,array (i,j+two,k),array(i,j+thr,k)
+cc     .                      ,yy(jg),order_int(dim) )
+cc                case (4)
+cc                  rhs(i,k) =
+cc     .              quad_int(0.5*(yy(jg-one)+yy(jg)),yy(jg-one)
+cc     .                      ,yy(jg-two),yy(jg-thr)
+cc     .                      ,array0(i,j    ,k),array(i,j-one,k)
+cc     .                      ,array (i,j-two,k),array(i,j-thr,k)
+cc     .                      ,yy(jg),order_int(dim) )
+cc                case (5)
+cc                  rhs(i,j) =
+cc     .              quad_int(0.5*(zz(kg+one)+zz(kg)),zz(kg+one)
+cc     .                      ,zz(kg+two),zz(kg+thr)
+cc     .                      ,array0(i,j,k    ),array(i,j,k+one)
+cc     .                      ,array (i,j,k+two),array(i,j,k+thr)
+cc     .                      ,zz(kg),order_int(dim) )
+cc                case (6)
+cc                  rhs(i,j) =
+cc     .              quad_int(0.5*(zz(kg-one)+zz(kg)),zz(kg-one)
+cc     .                      ,zz(kg-two),zz(kg-thr)
+cc     .                      ,array0(i,j,k    ),array(i,j,k-one)
+cc     .                      ,array (i,j,k-two),array(i,j,k-thr)
+cc     .                      ,zz(kg),order_int(dim) )
+cc                end select
+
+          if (order == 1) then
+            two = one           !To prevent stepping over domain
+          else
+            two = 2
+          endif
+
           do k=kmin,kmax
             do j=jmin,jmax
               do i=imin,imax
@@ -1714,7 +1754,6 @@ c     Extrapolate
                 case (1)
 
                   rhs(j,k) = 
-
      .              quad_int(0.5*(xx(ig-one)+xx(ig)),xx(ig)
      .                       ,xx(ig+one),xx(ig+two)
      .                       ,array0(i-one,j,k),array(i    ,j,k)
@@ -1723,7 +1762,6 @@ c     Extrapolate
                 case (2)
 
                   rhs(j,k) =
-
      .              quad_int(0.5*(xx(ig+one)+xx(ig)),xx(ig)
      .                        ,xx(ig-one),xx(ig-two)
      .                        ,array0(i+one,j,k),array(i,j    ,k)
@@ -1732,7 +1770,6 @@ c     Extrapolate
                 case (3)
 
                   rhs(i,k) =
-
      .              quad_int(0.5*(yy(jg-one)+yy(jg)),yy(jg)
      .                        ,yy(jg+one),yy(jg+two)
      .                        ,array0(i,j-one,k),array(i,j    ,k)
@@ -1741,7 +1778,6 @@ c     Extrapolate
                 case (4)
 
                   rhs(i,k) =
-
      .              quad_int(0.5*(yy(jg+one)+yy(jg)),yy(jg)
      .                        ,yy(jg-one),yy(jg-two)
      .                        ,array0(i,j+one,k),array(i,j    ,k)
@@ -1750,7 +1786,6 @@ c     Extrapolate
                 case (5)
 
                   rhs(i,j) =
-
      .              quad_int(0.5*(zz(kg-one)+zz(kg)),zz(kg)
      .                        ,zz(kg+one),zz(kg+one)
      .                        ,array0(i,j,k-one),array(i,j,k    )
@@ -1759,7 +1794,6 @@ c     Extrapolate
                 case (6)
 
                   rhs(i,j) =
-
      .              quad_int(0.5*(zz(kg+one)+zz(kg)),zz(kg)
      .                        ,zz(kg-one),zz(kg-two)
      .                        ,array0(i,j,k+one),array(i,j,k    )
@@ -1776,34 +1810,37 @@ c     Extrapolate
             do j=jmin,jmax
               do i=imin,imax
 
-              call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+                call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
 
-              select case (ibc)
-              case (1)
+                select case (ibc)
+                case (1)
+                  rhs(j,k) = -array(i+1,j,k)
+                case (2)
+                  rhs(j,k) = -array(i-1,j,k)
+                case (3)
+                  rhs(i,k) = -array(i,j+1,k)
+                case (4)
+                  rhs(i,k) = -array(i,j-1,k)
+                case (5)
+                  rhs(i,j) = -array(i,j,k+1)
+                case (6)
+                  rhs(i,j) = -array(i,j,k-1)
+                end select
 
-                rhs(j,k) = -array(i+1,j,k)
-
-              case (2)
-
-                rhs(j,k) = -array(i-1,j,k)
-
-              case (3)
-
-                rhs(i,k) = -array(i,j+1,k)
-
-              case (4)
-
-                rhs(i,k) = -array(i,j-1,k)
-
-              case (5)
-
-                rhs(i,j) = -array(i,j,k+1)
-
-              case (6)
-
-                rhs(i,j) = -array(i,j,k-1)
-
-              end select
+cc                select case (ibc)
+cc                case (1)
+cc                  rhs(j,k) = -array(i+two,j,k)
+cc                case (2)
+cc                  rhs(j,k) = -array(i-two,j,k)
+cc                case (3)
+cc                  rhs(i,k) = -array(i,j+two,k)
+cc                case (4)
+cc                  rhs(i,k) = -array(i,j-two,k)
+cc                case (5)
+cc                  rhs(i,j) = -array(i,j,k+two)
+cc                case (6)
+cc                  rhs(i,j) = -array(i,j,k-two)
+cc                end select
 
               enddo
             enddo
@@ -1815,27 +1852,27 @@ c       Update BC ghost nodes
 
         select case (ibc)
         case (1)                !x0
-         array(0     ,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
+          array(0     ,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
         case (2)               !x1
-         array(nxbc+1,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
+          array(nxbc+1,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
         case (3)                !y0
-         array(imin:imax,0     ,kmin:kmax) = rhs(imin:imax,kmin:kmax)
+          array(imin:imax,0     ,kmin:kmax) = rhs(imin:imax,kmin:kmax)
         case (4)                !y1
-         array(imin:imax,nybc+1,kmin:kmax) = rhs(imin:imax,kmin:kmax)
+          array(imin:imax,nybc+1,kmin:kmax) = rhs(imin:imax,kmin:kmax)
         case (5)                !z0
-         array(imin:imax,jmin:jmax,0     ) = rhs(imin:imax,jmin:jmax)
+          array(imin:imax,jmin:jmax,0     ) = rhs(imin:imax,jmin:jmax)
         case (6)                !z1
-         array(imin:imax,jmin:jmax,nzbc+1) = rhs(imin:imax,jmin:jmax)
+          array(imin:imax,jmin:jmax,nzbc+1) = rhs(imin:imax,jmin:jmax)
         case default
-         messg = 'Boundary '//int2char(ibc)//' non existent'
-         call pstop('extrapolate',messg)
+          messg = 'Boundary '//int2char(ibc)//' non existent'
+          call pstop('extrapolate',messg)
         end select
 
       end subroutine extrapolateBC
 
 c     interpolateToFace
 c     #################################################################
-      subroutine interpolateToFace(array,dim,loc)
+      subroutine interpolateToFace(array,dim,loc,order)
 c     -----------------------------------------------------------------
 c     Interpolates values to face for EQU BC. On input:
 c        * array -> 3D array to impose BC's on.
@@ -1847,14 +1884,15 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: dim,loc
-        real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
+        integer :: dim,loc,order
+        real(8) :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
-        integer    :: imax,imin,jmax,jmin,kmax,kmin,ibc
+        integer :: imax,imin,jmax,jmin,kmax,kmin,ibc
+     .            ,order_int(3)
 
-        integer    :: i,j,k,ig,jg,kg
+        integer :: i,j,k,ig,jg,kg,one=1,two=2,thr=3
         real(8),pointer,dimension(:) :: xx,yy,zz,dxh,dyh,dzh,dx,dy,dz
 
 c     Begin program
@@ -1862,6 +1900,10 @@ c     Begin program
         ibc = (1+loc)+2*(dim-1)
 
         rhs = 0d0
+
+        order_int(1) = min(order,nxbc)
+        order_int(2) = min(order,nybc)
+        order_int(3) = min(order,nzbc)
 
 c     Setup grid aliases
 
@@ -1882,6 +1924,68 @@ c     Extrapolate
         call findBCLoopLimits(dim,loc
      .                       ,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                       ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
+
+cc        !Safeguards to prevent stepping out of domain
+cc        if (order_int(dim) <= 1) then
+cc          two = one
+cc          thr = one
+cc        elseif (order_int(dim) == 2) then
+cc          two = 2
+cc          thr = two
+cc        else
+cc          one = 1; two = 2 ; thr = 3
+cc        endif
+cc
+cc        do k=kmin,kmax
+cc          do j=jmin,jmax
+cc            do i=imin,imax
+cc
+cc              call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
+cc
+cc              select case (ibc)
+cc              case (1)
+cc                rhs(j,k) = 
+cc     .              quad_int(xx(ig    ),xx(ig+one)
+cc     .                      ,xx(ig+two),xx(ig+thr)
+cc     .                      ,array(i    ,j,k),array(i+one,j,k)
+cc     .                      ,array(i+two,j,k),array(i+thr,j,k)
+cc     .                      ,xx(ig)+dxh(ig),order )
+cc              case (2)
+cc                rhs(j,k) =
+cc     .              quad_int(xx(ig    ),xx(ig-one)
+cc     .                      ,xx(ig-two),xx(ig-thr)
+cc     .                      ,array(i    ,j,k),array(i-one,j,k)
+cc     .                      ,array(i-two,j,k),array(i-thr,j,k)
+cc     .                      ,xx(ig)-dxh(ig),order )
+cc              case (3)
+cc                rhs(i,k) =
+cc     .              quad_int(yy(jg    ),yy(jg+one)
+cc     .                      ,yy(jg+two),yy(jg+thr)
+cc     .                      ,array(i,j    ,k),array(i,j+one,k)
+cc     .                      ,array(i,j+two,k),array(i,j+thr,k)
+cc     .                      ,yy(jg)+dyh(jg),order )
+cc              case (4)
+cc                rhs(i,k) =
+cc     .              quad_int(yy(jg    ),yy(jg-one)
+cc     .                      ,yy(jg-two),yy(jg-thr)
+cc     .                      ,array(i,j    ,k),array(i,j-one,k)
+cc     .                      ,array(i,j-two,k),array(i,j-thr,k)
+cc     .                      ,yy(jg)-dyh(jg),order )
+cc              case (5)
+cc                rhs(i,j) =
+cc     .              quad_int(zz(kg    ),zz(kg+one)
+cc     .                      ,zz(kg+two),zz(kg+thr)
+cc     .                      ,array(i,j,k    ),array(i,j,k+one)
+cc     .                      ,array(i,j,k+two),array(i,j,k+thr)
+cc     .                      ,zz(kg)+dzh(kg),order )
+cc              case (6)
+cc                rhs(i,j) =
+cc     .              quad_int(zz(kg    ),zz(kg-one)
+cc     .                      ,zz(kg-two),zz(kg-thr)
+cc     .                      ,array(i,j,k    ),array(i,j,k-one)
+cc     .                      ,array(i,j,k-two),array(i,j,k-thr)
+cc     .                      ,zz(kg)-dzh(kg),order )
+cc              end select
 
         do k=kmin,kmax
           do j=jmin,jmax
@@ -2001,6 +2105,7 @@ c     Determine boundary limits
       if (.not.selectFace(ibc)) return
 
       call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
+cc      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
       if (bc_debug) then
