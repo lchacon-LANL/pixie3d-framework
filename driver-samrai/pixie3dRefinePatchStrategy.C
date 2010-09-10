@@ -325,6 +325,7 @@ pixie3dRefinePatchStrategy::setPixie3dDataIDs(bool copy,
 /***********************************************************************
 *                                                                      *
 * Check if patch touches physical boundaries.                          *
+* For temporary patches looks like SAMRAI has a bug
 *                                                                      *
 ***********************************************************************/
 bool 

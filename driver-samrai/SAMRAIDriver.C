@@ -165,37 +165,7 @@ int main( int argc, char *argv[] )
    if (plot_db->keyExists("plot_interval")) 
      {
        plot_interval = plot_db->getInteger("plot_interval");
-#if 0       
-       string var_name;
-       stringstream stream;
-       for (int i=0; i<application->getNumberOfDependentVariables(); i++) 
-	 {
-	   stream << "x(" << i << ")"; 
-	   var_name = stream.str();
-	   stream.str("");
-	   switch (i) {
-	   case 0:
-	     var_name += " - Rho";  break;
-	   case 1:
-	     var_name += " - P^1";  break;
-	   case 2:
-	     var_name += " - P^2";  break;
-	   case 3:
-	     var_name += " - P^3";  break;
-	   case 4:
-	     var_name += " - B^1";  break;
-	   case 5:
-	     var_name += " - B^2";  break;
-	   case 6:
-	     var_name += " - B^3";  break;
-	   case 7:
-	     var_name += " - Temp"; break;
-	   }
-	   
-	   const int x_id = x_t->getComponentDescriptorIndex(i);
-	   visit_writer->registerPlotQuantity(var_name,"SCALAR",x_id);
-	 }
-#endif       
+
      }
 
    // Write the data
