@@ -15,11 +15,9 @@ SUBDIRS = $(COMMONDIR)/math\
 
 #Define dependencies
 
-#xdraw_graphics_mod.o: setup_mod.o
-
-#HDF5_graphics_mod.o: setup_mod.o plot_mod.o
-
 graphics_mod.o: xdraw_graphics_mod.o HDF5_graphics_mod.o
+
+3dplot.o: acc_test_mod.o
 
 #Setup defs.
 

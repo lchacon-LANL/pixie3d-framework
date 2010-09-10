@@ -60,7 +60,7 @@ c     Initialize MPI and PETSc (parallel version)
 
 #if defined(petsc)
         call initFortranMPI(mpi_comm,nx,ny,nz)
-        call setASMflag(.false.)
+        call setup_petsc_BC
 #endif
 
 c     Initialize grid structure
@@ -110,7 +110,7 @@ c     Initialize grid check
 
 c     Store grid metric parameters in grid metric structure
 
-        if (checkMapDatabase()) then
+        if (checkAnalMapDatabase()) then
           call defineGridMetric(gparams)
           gmetric => gparams%gmetric !For backward compatibility
         else
@@ -972,7 +972,7 @@ c     Newton iteration
 cold            res(i) = rhs-0.5*(xi**nn+xi**(nn+1)-2)/(xi-1)
 cold            ijac = 2*(xi-1)**2/(nn*(xi**(nn+1)-xi**(nn-1))-2*xi**nn+2)
             res(i) = rhs-0.5*(xi**(nn+1)+xi**(nn+2)-2*xi)/(xi-1)
-            ijac=2*(xi-1)**2/((nn+1)*(xi**(nn+1)-xi**nn)-2*xi**(nn+1)+2)
+            ijac=2*(xi-1)**2/((nn+1)*(xi**(nn+2)-xi**nn)-2*xi**(nn+1)+2)
           else          !Position both grid points at both boundaries
 cold            res(i) = rhs-(xi**nn-1)/(xi-1)
 cold            ijac = (xi-1)**2/((nn-1)*xi**nn-nn*xi**(nn-1)+1)
@@ -1110,13 +1110,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-cc        type(MG_grid_metrics),pointer :: gmtrc
         type(grid_mg_def),pointer :: gparams
 
 c     Local variables
 
         integer    :: i,j,n1,n2,n3
-        integer    :: igx,igy,igz,isig,funit
+        integer    :: igx,igy,igz,isig
 
 c     Begin program
 
@@ -1144,17 +1143,6 @@ c     Multigrid parameters
 
         call gridInfo('Z',igz,gparams%istartz,gparams%nzv
      .               ,gparams%zz,gparams%dz,gparams%dzh)
-
-cc        if (checkMapDatabase()) then
-cccc          call metricTensorCheck(1,1,1
-cc          call metricTensorCheck(igx,igy,igz
-cc     .             ,gparams%nxv,gparams%nyv,gparams%nzv)
-cc        endif
-
-cc        if (checkAnalMapDatabase()) then
-cc          call hessianCheck(igx,igy,igz
-cc     .               ,gparams%nxv,gparams%nyv,gparams%nzv)
-cc        endif
 
         close(funit)
 

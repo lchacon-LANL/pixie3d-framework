@@ -10,7 +10,7 @@ MESSAGE = "Compiling IO modules"
 
 COMMONDIR = ..
 
-SUBDIRS = 
+SUBDIRS = $(COMMONDIR)/math 
 
 #Define dependencies
 

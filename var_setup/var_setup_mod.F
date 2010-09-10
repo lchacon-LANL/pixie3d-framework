@@ -28,13 +28,6 @@ c #####################################################################
         
         integer :: NAUXS=0,NAUXV=0  !Number of auxiliary scalars, vectors
                                     !(defined by application)
-        
-#if defined(petsc)
-        !NVAR is defined via C preprocessor flag
-        type :: petsc_var
-          real(8) :: var(NVAR)
-        end type petsc_var
-#endif
 
         type :: var_def
           integer :: bconds(6)          !Boundary conditions
@@ -61,14 +54,11 @@ c #####################################################################
         end type aux_array
 
         type :: bcgrp
-          integer  :: nbc_seq                         ! ???
+          integer  :: nbc_seq                         ! number of variables in bc sequence
           integer,pointer,dimension(:,:):: bc_seq     ! array showing sequence in which to set bc's 
         end type bcgrp
 
         type :: patch
-cc          integer  :: nbc_seq                         ! number of variables in bc sequence
-cc          integer,pointer,dimension(:,:):: bc_seq     ! array showing sequence in which to set bc's 
-
           integer  :: nbc_grp                         ! number of BC bundled groups
           type(bcgrp),pointer,dimension(:):: bc_grp   ! array of bundled variables for BC treatment
 
@@ -81,9 +71,9 @@ cc          integer,pointer,dimension(:,:):: bc_seq     ! array showing sequence
           type(aux_array)  ,pointer     :: aux        ! auxillary variables
         end type patch
 
-        type (patch),pointer :: gv
+        type (patch),pointer :: gv => null()
 
-        type(var_array),pointer :: u_0
+        type(var_array),pointer :: u_0 => null()
 
       contains
 
@@ -163,6 +153,7 @@ c     Begin program
 
         if (.not.associated(gv)) then
           allocate(gv)
+          nullify(bc_grp)
           nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0,gv%u_graph)
           nullify(gv%gparams)
           nullify(gv%aux)
@@ -362,131 +353,6 @@ cc        nullify(varray)
 c     End program
 
       end subroutine deallocateDerivedType
-
-c     writeDerivedType
-c     #################################################################
-      subroutine writeDerivedType(varray,unit,frmt)
-
-c     Call variables
-
-        type(var_array),pointer  :: varray
-        integer          :: unit
-        logical          :: frmt
-
-c     Local variables
-
-        integer          :: ieq
-
-c     Begin program
-
-        if (frmt) then
-#if defined(petsc)
-          write (unit,*) ilomg,ihipg,jlomg,jhipg,klomg,khipg
-#else
-          write (unit,*) ilom,ihip,jlom,jhip,klom,khip
-#endif
-          write (unit,*) varray%nvar
-          do ieq=1,varray%nvar
-            write(unit,*) varray%array_var(ieq)
-     .                          %array(ilom:ihip,jlom:jhip,klom:khip)
-            write(unit,*) varray%array_var(ieq)%bconds
-            write(unit,*) varray%array_var(ieq)%descr
-          enddo
-        else
-#if defined(petsc)
-          write (unit) ilomg,ihipg,jlomg,jhipg,klomg,khipg
-#else
-          write (unit) ilom,ihip,jlom,jhip,klom,khip
-#endif
-          write (unit) varray%nvar
-          do ieq=1,varray%nvar
-            write(unit) varray%array_var(ieq)
-     .                        %array(ilom:ihip,jlom:jhip,klom:khip)
-            write(unit) varray%array_var(ieq)%bconds
-            write(unit) varray%array_var(ieq)%descr
-          enddo
-        endif
-
-c     End program
-
-      end subroutine writeDerivedType
-
-c     readDerivedType
-c     #################################################################
-      subroutine readDerivedType(varray,unit,format,ierr)
-
-c     Call variables
-
-        type(var_array),pointer  :: varray
-        integer          :: unit,ierr
-        logical          :: format
-
-c     Local variables
-
-        integer          :: ieq,ilom,ihip,jlom,jhip,klom,khip
-
-c     Begin program
-
-        ierr = 0
-
-        if (format) then
-#if defined(petsc)
-          read (unit,*,iostat=ierr,end=100)
-     .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
-#else
-          read (unit,*,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
-#endif
-          read (unit,*,iostat=ierr,end=100)varray%nvar
-          if (ierr /= 0) goto 200
-          do ieq=1,varray%nvar
-            read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)
-     .                 %array(ilom:ihip,jlom:jhip,klom:khip)
-            if (ierr /= 0) goto 200
-            read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)%bconds
-            if (ierr /= 0) goto 200
-            read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)%descr
-            if (ierr /= 0) goto 200
-          enddo
-        else
-#if defined(petsc)
-          read (unit,iostat=ierr,end=100)
-     .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
-#else
-          read (unit,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
-#endif
-          read (unit,iostat=ierr,end=100) varray%nvar
-          if (ierr /= 0) goto 200
-          do ieq=1,varray%nvar
-            read(unit,iostat=ierr,end=100) varray%array_var(ieq)
-     .                 %array(ilom:ihip,jlom:jhip,klom:khip)
-            if (ierr /= 0) goto 200
-            read(unit,iostat=ierr,end=100) varray%array_var(ieq)%bconds
-            if (ierr /= 0) goto 200
-            read(unit,iostat=ierr,end=100) varray%array_var(ieq)%descr
-            if (ierr /= 0) goto 200
-          enddo
-        endif
-
-        return
-
- 100    ierr=-2  !EOF
-        write (*,*) 'readDerivedType: EOF in file unit',unit
-        return
-
- 200    ierr=-1  !Error, but not EOF
-        write (*,*) 'readDerivedType: Error reading file unit',unit
-
-c     End program
-
-      end subroutine readDerivedType
 
 c     equateDerivedType
 c     #################################################################
@@ -753,7 +619,11 @@ c #####################################################################
 
         use variable_setup
 
-        type(var_array),pointer :: u_np,u_n,u_nm,u_graph,u_ic
+        type(var_array),pointer :: u_np => null()
+     .                            ,u_n  => null()
+     .                            ,u_nm => null()
+     .                            ,u_ic => null()
+     .                            ,u_graph => null()
   
       contains
 
@@ -805,75 +675,76 @@ c     End program
 
       end module variables
 
-c module generalPurposeFunctions
-c ######################################################################
-      module generalPurposeFunctions
-
-        use grid
-
-      contains
-
-c     integral
-c     ################################################################
-      function integral(nx,ny,nz,array,igx,igy,igz,avg)
-
-c     ---------------------------------------------------------------
-c     Integrates array(i,j,k) on domain (nx)x(ny)x(nz).
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c    Call variables
-
-      integer    :: igx,igy,igz,nx,ny,nz
-      real(8)    :: array(0:nx+1,0:ny+1,0:nz+1),integral
-      logical    :: avg
-
-c     Local variables
-
-      integer    :: i,j,k
-
-      real(8)    :: tvolume,vol,lvolume,lintegral
-
-c     Begin program
-
-c     Integrate
-
-      lintegral = 0d0
-      lvolume   = 0d0
-
-      do k = 1,nz
-        do j = 1,ny
-          do i = 1,nx
-            vol = gmetric%grid(igx)%dvol(i,j,k)
-
-            if (isSYM(i,igx,1,0)) vol = 0.5*vol
-            if (isSYM(i,igx,1,1)) vol = 0.5*vol
-            if (isSYM(j,igy,2,0)) vol = 0.5*vol
-            if (isSYM(j,igy,2,1)) vol = 0.5*vol
-            if (isSYM(k,igz,3,0)) vol = 0.5*vol
-            if (isSYM(k,igz,3,1)) vol = 0.5*vol
-
-            lintegral = lintegral + array(i,j,k)*vol
-            lvolume = lvolume + vol
-          enddo
-        enddo
-      enddo
-
-#if defined(petsc)
-      call MPI_Allreduce(lintegral,integral,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      call MPI_Allreduce(lvolume  ,tvolume ,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      integral = lintegral
-      tvolume  = lvolume
-#endif
-
-      if (avg) integral = integral/tvolume
-
-c     End 
-
-      end function integral
-
-      end module generalPurposeFunctions
+ccc module generalPurposeFunctions
+ccc ######################################################################
+cc      module generalPurposeFunctions
+cc
+cc        use grid
+cc
+cc      contains
+cc
+ccc     integral
+ccc     ################################################################
+cc      function integral(nx,ny,nz,array,igx,igy,igz,avg)
+cc
+ccc     ---------------------------------------------------------------
+ccc     Integrates array(i,j,k) on domain (nx)x(ny)x(nz).
+ccc     ---------------------------------------------------------------
+cc
+cc      implicit none
+cc
+ccc    Call variables
+cc
+cc      integer :: igx,igy,igz,nx,ny,nz
+cc      real(8) :: array(0:nx+1,0:ny+1,0:nz+1),integral
+cc      logical :: avg
+cc
+ccc     Local variables
+cc
+cc      integer :: i,j,k
+cc
+cc      real(8) :: tvolume,vol,lvolume,lintegral
+cc
+ccc     Begin program
+cc
+ccc     Integrate
+cc
+cc      lintegral = 0d0
+cc      lvolume   = 0d0
+cc
+cc      do k = 1,nz
+cc        do j = 1,ny
+cc          do i = 1,nx
+cc            vol = gmetric%grid(igx)%dvol(i,j,k)
+cc
+cc            if (isSYM(i,igx,1,0)) vol = 0.5*vol
+cc            if (isSYM(i,igx,1,1)) vol = 0.5*vol
+cc            if (isSYM(j,igy,2,0)) vol = 0.5*vol
+cc            if (isSYM(j,igy,2,1)) vol = 0.5*vol
+cc            if (isSYM(k,igz,3,0)) vol = 0.5*vol
+cc            if (isSYM(k,igz,3,1)) vol = 0.5*vol
+cc
+cc            lintegral = lintegral + array(i,j,k)*vol
+cc            lvolume = lvolume + vol
+cc          enddo
+cc        enddo
+cc      enddo
+cc
+cc#if defined(petsc)
+cc      call MPI_Allreduce(lintegral,integral,1,MPI_DOUBLE_PRECISION
+cc     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+cc      if (avg)
+cc     .call MPI_Allreduce(lvolume  ,tvolume ,1,MPI_DOUBLE_PRECISION
+cc     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+cc#else
+cc      integral = lintegral
+cc      tvolume  = lvolume
+cc#endif
+cc
+cc      if (avg) integral = integral/tvolume
+cc
+ccc     End 
+cc
+cc      end function integral
+cc
+cc      end module generalPurposeFunctions

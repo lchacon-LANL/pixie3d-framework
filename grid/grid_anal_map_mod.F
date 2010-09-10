@@ -13,7 +13,7 @@ c #####################################################################
 
         real(8)         :: gparams(ngparams)
 
-        real(8),private :: pi,lambda,cc,xpp,ypp,zpp,eps,mm,kk,aa,phi
+        real(8),private :: lambda,cc,xpp,ypp,zpp,eps,mm,kk,aa,phi
      .                    ,major_r,lambdax,lambday,lambdaz,bb
      .                    ,aax=0d0,bbx=0d0,xx0,xi0
      .                    ,aay=0d0,bby=0d0,yy0,yi0
@@ -252,7 +252,7 @@ c     Begin program
         if (cc > 1d0) then
 cc          call pstop('find_a in grid_mod.F',
 cc     .               'Slope has to <= 1')
-          write (*,*) 'Slope has to <= 1'
+          write (*,*) 'find_a in grid_anal_map_mod.F: Slope has to <= 1'
           write (*,*) 'Aborting...'
           stop
         endif
@@ -283,7 +283,7 @@ c     Convergence check
 
         if (i >= nit) then
           write (*,*)
-          write (*,*) 'Newton it. in grid-packing routine find_xi'
+          write (*,*) 'Newton it. in grid-packing routine find_a'
      .               ,' did not converge'
           write (*,*)
           write (*,*) 'Convergence history:'

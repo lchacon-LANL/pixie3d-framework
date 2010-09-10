@@ -93,13 +93,13 @@ c     Perform 2d cuts
 
         if (cut(1)) then
           call twodcut(plt(1),plt(1),plt(1),jmn,jmx,kmn,kmx
-     .                ,'X-slice contour at i=')
+     .                ,'XDRAW X-slice contour at i=')
         elseif (cut(2)) then
           call twodcut(plt(2),imn,imx,plt(2),plt(2),kmn,kmx
-     .                ,'Y-slice contour at j=')
+     .                ,'XDRAW Y-slice contour at j=')
         else
           call twodcut(plt(3),imn,imx,jmn,jmx,plt(3),plt(3)
-     .                ,'Z-slice contour at k=')
+     .                ,'XDRAW Z-slice contour at k=')
         endif
 
 c     End program
@@ -208,13 +208,13 @@ c     Perform 2d cuts
 
         if (cut(1)) then
           call twodcut(plt(1),plt(1),plt(1),jming,jmaxg,kming,kmaxg
-     .                ,'X-slice contour at i=')
+     .                ,'XDRAW X-slice contour at i=')
         elseif (cut(2)) then
           call twodcut(plt(2),iming,imaxg,plt(2),plt(2),kming,kmaxg
-     .                ,'Y-slice contour at j=')
+     .                ,'XDRAW Y-slice contour at j=')
         else
           call twodcut(plt(3),iming,imaxg,jming,jmaxg,plt(3),plt(3)
-     .                ,'Z-slice contour at k=')
+     .                ,'XDRAW Z-slice contour at k=')
         endif
 
 c     End program
@@ -296,7 +296,8 @@ c     Write messg to standard output
 
           case default
 
-            write(*,*) 'Wrong value of iopt in M_contour, iopt=',iopt
+            write(*,*) 'Wrong value of iopt in XDRAW M_contour, iopt='
+     .                ,iopt
             stop
 
           end select
@@ -333,7 +334,8 @@ c     Write messg to standard output
 
           case default
 
-            write(*,*) 'Wrong value of iopt in M_contour, iopt=',iopt
+            write(*,*) 'Wrong value of iopt in XDRAW M_contour, iopt='
+     .                 ,iopt
             stop
 
           end select
@@ -456,7 +458,7 @@ c     Begin program
 
         if (i1 == 0 .or. i2 == 0) then
           write(*,*) 'Could not find cartesian plane in find_cart_plane'
-          write(*,*) 'Aborting...'
+          write(*,*) 'Aborting XDRAW ...'
           stop
         endif
 

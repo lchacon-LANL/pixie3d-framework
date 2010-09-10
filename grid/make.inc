@@ -30,4 +30,6 @@ grid_metric_mod.o: grid_bc_mod.o grid_anal_map_mod.o grid_debug_mod.o
 
 grid_create_mod.o: grid_metric_mod.o
 
-grid_mod.o: grid_create_mod.o grid_operations_mod.o
+grid_diffops_mod.o: grid_create_mod.o
+
+grid_mod.o: grid_create_mod.o grid_operations_mod.o grid_diffops_mod.o

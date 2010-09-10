@@ -335,12 +335,15 @@ c Begin program
 
       itwhistler = 0
 
-      jit = -1     !This informs nlfunction that we are processing
-                   !  n time level info
-
 c Evaluate nonlinear function at old time for theta scheme
 
+cc      jit = -1
+      old_time_eval = .true.     !This informs nlfunction that we are processing
+                                 !  n time level info
+
       call evaluateNonlinearFunction(vnp,fold)
+
+      old_time_eval = .false.
 
 c Eigenvalue solver
 
@@ -353,8 +356,7 @@ c Eigenvalue solver
         call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
 
         !Setup preconditioner
-        jit = 1 !For internal setupPC logic
-        call setupPC(ntotd,nk_conf%xk)
+        call setupPC(ntotd,nk_conf%xk,1)
 
         !Setup initial guess for eigenfunction
         call mapStructureToVector(x ,vnp)
@@ -376,7 +378,7 @@ cc#endif
         call lehoucq_eig(ntotd,x,iguess,ilevel,ierr
      .                  ,matrixFreeMatVec
      .                  ,applyPreconditioner
-     .                  ,dot=dot2)
+     .                  ,ldot=dot2)
 
         select case(ierr)
         case(1)
@@ -425,7 +427,7 @@ c     Newton-Krylov iteration
         nk_conf%etak_meth      = method
         nk_conf%ksmax          = maxksp
         nk_conf%gmmax          = maxitgm
-        nk_conf%nwt_max_it_acc = maxitnwt/2
+        nk_conf%nwt_max_it_acc = 0.7*maxitnwt
         nk_conf%nwt_max_it_rej = maxitnwt
         nk_conf%global_meth    = global
 
@@ -448,8 +450,6 @@ cc        nk_conf%krylov_method='gm'
         itgmres = nk_conf%gm_it_out
         itnewt  = nk_conf%nwt_it_out
 
-cc        jit = itnewt
-
 c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
@@ -465,6 +465,8 @@ c Explicit update
         itgmres = maxitgm
 
         call explicit(vn,vnp,itgmres,ilevel)
+
+        call imposeBoundaryConditions(vnp,1,1,1)
 
         itnewt = 1
 

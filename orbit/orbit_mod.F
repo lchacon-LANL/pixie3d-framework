@@ -9,13 +9,32 @@ c ######################################################################
 
         use grid, ONLY: my_rank,pstop,messg
 
+        !Diagnostics
+        integer,private :: nunitd(4)
+        logical,private :: flux = .false.
+
+        !B field diagnostics private variables
+        logical,private :: bdiag=.false.
+        integer,private :: inx,nnx,nny
+        integer,private :: icross,ncross=100000,nbins=100
+        real(8),private,allocatable,dimension(:,:) :: fpos,qdif
+
         !LSODE public variables
         real(8) :: xold,yold,zold,lsode_out(10)
         logical :: sing_point=.false.,sln,exit_loop
 
         integer :: iiout
 
-        !Private variables
+        !LSODE private variables
+        INTEGER,private :: LIW, LRW, NEQ
+        PARAMETER  (NEQ=10,LIW = 20,LRW = LIW + 16*NEQ)
+
+        INTEGER,private :: IOPT,IOUT,ISTATE=0,ITASK,ITOL
+     .                    ,IWORK(LIW),MF,NEQD(1)
+        REAL(8),private :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW)
+     .                    ,T,TOUT,YY(NEQ)
+
+        !ORBIT private variables
         type,private :: ode_solver
           integer :: niter     !Number of nonlinear iterations
           integer :: order     !Order of integration (1,2)
@@ -51,7 +70,7 @@ c ######################################################################
         real(8),private :: tvold,told,tprev,time,tmax
      .                    ,svold,sold,sprev,ss  ,smax
         real(8),private :: x,y,z,xcar,ycar,zcar,xss0,yss0,zss0
-     .                    ,xvold,yvold,zvold
+     .                    ,xvold,yvold,zvold,x00,y00,z00
         real(8),private :: xss,yss,zss,tss,rmin
 
         real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax
@@ -64,6 +83,233 @@ c ######################################################################
 
       contains
 
+c     B_diag_setup
+c     #################################################################
+      subroutine B_diag_setup(b_diag,ninitx,ninity,ninitz)
+
+c     ----------------------------------------------------------------------
+c     Set up B diagnostics: set size of non-periodic direction (nnx)
+c     and remaining periodic direction (nny).
+c     ----------------------------------------------------------------------
+
+      implicit none
+
+      logical :: b_diag
+      integer :: ninitx,ninity,ninitz
+
+c     Begin program
+
+      bdiag = b_diag
+      if (.not.bdiag) return
+
+      if ( (lssx.and.lssy).or.(lssx.and.lssz).or.(lssy.and.lssz)) then
+        write (*,*)
+     .       'Cannot do B diagnostics for more than one Surf-section'
+        stop
+      endif
+
+c     Initialize array sizes and update orbit crossings counter
+
+      if (lssx) then
+        nnx = ninity
+        nny = ninitz
+      endif
+
+      if (lssy) then
+        nnx = ninitx
+        nny = ninitz
+      endif
+
+      if (lssz) then
+        nnx = ninitx
+        nny = ninity
+      endif
+
+c     Setup diag B diagnostic arrays
+
+      allocate(fpos(-nbins/2:nbins/2,ncross))
+      fpos = 0d0
+
+      allocate(qdif(nnx,ncross))
+      qdif = 0d0
+
+c     End program
+
+      end subroutine B_diag_setup
+
+c     B_diag_init
+c     #################################################################
+      subroutine B_diag_init(initx,inity,initz,x0,y0,z0)
+
+c     ----------------------------------------------------------------------
+c     Initialize counters for B diagnostic at the beginning of each orbit.
+c     Counter is a binning index in non-periodic direction (i.e., radius in
+c     polar coordinates).
+c     ----------------------------------------------------------------------
+
+      implicit none
+
+      integer :: initx,inity,initz
+      real(8) :: x0,y0,z0
+
+c     Begin program
+
+      if (.not.bdiag) return
+
+      !Initialize orbit-crossings counter
+      icross = 0
+
+      if (lssx) then
+        inx = inity             !Only makes sense if Y is not periodic...
+
+        if (x0 == xss0) then
+          icross = icross + 1
+          fpos(0,icross) = fpos(0,icross) + 1
+        endif
+      endif
+
+      if (lssy) then
+        inx = initx
+
+        if (y0 == yss0) then
+          icross = icross + 1
+          fpos(0,icross) = fpos(0,icross) + 1
+        endif
+      endif
+
+      if (lssz) then
+        inx = initx
+
+        if (z0 == zss0) then
+          icross = icross + 1
+          fpos(0,icross) = fpos(0,icross) + 1
+        endif
+      endif
+
+c     End program
+
+      end subroutine B_diag_init
+
+c     B_diag_update
+c     #################################################################
+      subroutine B_diag_update(xs,x0,ts)
+
+c     ----------------------------------------------------------------------
+c     Accumulates B diagnostics counters.
+c     ----------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: xs,x0,ts
+
+c     Local variables
+
+      integer :: bin
+
+c     Begin program
+
+      if (.not.bdiag) return
+
+      icross = icross + 1
+
+      if (icross > ncross) then
+        write (*,*) 'Exceeded max number of Poincare crossings'
+      else
+        write (*,*)
+        write (*,*) 'B diag: Poincare crossing ',icross
+
+        !PDF diagnostic
+        bin = sign(1d0,xs-x0)
+     .       *floor(0.5*abs(x0**2-xs**2)*nbins+0.5)
+        fpos(bin,icross) = fpos(bin,icross)+1
+
+        !Add quasilinear diffusion diagnostic
+        qdif(inx,icross) = qdif(inx,icross)
+     .                   + (0.5*(xs**2-x0**2))**2/ts
+      endif
+
+c     End program
+
+      end subroutine B_diag_update
+
+c     B_diag_finalize
+c     #################################################################
+      subroutine B_diag_finalize
+
+c     -----------------------------------------------------------------
+c     Finalizes B diagnostics, including calculation of statistics
+c     and dumping of data to file "b_stat.txt".
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Local variables
+
+        integer :: slice
+        real(8) :: rr
+
+        real(8),allocatable,dimension(:) ::  mean,sigma,vol,diff
+
+c     Begin program
+
+        if (.not.bdiag) return
+
+        open(unit=50,file='b_stat.txt',status='unknown')
+
+        allocate(mean(icross),sigma(icross),vol(icross),diff(icross))
+
+        mean  = 0d0
+        sigma = 0d0
+        vol   = 0d0
+
+        do slice=-nbins/2,nbins/2
+          rr = (1.*slice)/(nbins+1)
+          vol   = vol   +       fpos(slice,1:icross)
+          mean  = mean  + rr   *fpos(slice,1:icross)
+          sigma = sigma + rr**2*fpos(slice,1:icross)
+        enddo
+
+        mean  = mean/vol
+        sigma = sqrt(sigma/vol - mean**2)
+
+        do slice = 1,icross
+          diff(slice) = sigma(slice)**2/(zss0+(slice-1)*(zmax-zmin))
+        enddo
+
+        do slice=-nbins/2,nbins/2
+          write(50,*) (1.*slice)/(nbins+1),fpos(slice,1:icross)/vol
+        enddo
+
+        write (*,*)
+        write (*,*) 'Mean =',mean
+        write (*,*)
+        write (*,*) 'Sigma=',sigma
+        write (*,*)
+        write (*,*) 'Diff PDF =',diff
+
+        do slice = 1,icross
+          diff(slice) = sum(qdif(:,slice))/size(qdif,1)/nny
+        enddo
+
+        write (*,*)
+        write (*,*) 'Diff MC =',diff
+
+        close(50)
+
+        open(unit=50,file='b_dif.txt',status='unknown')
+        do slice=1,size(qdif,1)
+          write(50,*) slice,qdif(slice,1:icross)/nny
+        enddo
+        close(50)
+
+        deallocate(mean,sigma,vol,diff,fpos,qdif)
+
+c     End program
+
+      end subroutine B_diag_finalize
+
 c     orbit_conf_def
 c     ######################################################################
       subroutine orbit_conf_def
@@ -74,7 +320,7 @@ c     ----------------------------------------------------------------------
 
       !ODE solver
       orb_default%ode_conf%tmax   = 0d0    !Maximum orbit pseudotime
-      orb_default%ode_conf%smax   = 20000. !Maximum orbit arc length
+      orb_default%ode_conf%smax   = 0d0    !Maximum orbit arc length
       orb_default%ode_conf%dtime  = 0.01   !Maximum time step
 
       orb_default%ode_conf%solen  = .true. !Whether to use solenoidal ODE int.
@@ -123,7 +369,7 @@ c     Call variables
 
 c     Begin program
 
-        call orbit_conf_def
+        call orbit_conf_def   !Defaults are defined here.
 
         if (PRESENT(tmax)) then
           orb_default%ode_conf%tmax = tmax
@@ -214,11 +460,19 @@ c     ----------------------------------------------------------------------
 c     Frees up memory from orbit integration
 c     ----------------------------------------------------------------------
 
+        implicit none
+
 c     Call variables
+
+c     Local variables
 
 c     Begin program
 
         call killSplines
+
+c     Finalize B diagnostics
+
+        call B_diag_finalize
 
       end subroutine orbit_destroy
 
@@ -258,7 +512,6 @@ c     Call variables
           logical :: line_int
           logical :: fwd
           real(8) :: xo,x,yo,y,zo,z,so,ss
-          logical :: ex_loop
           end function line_int
         END INTERFACE
 
@@ -316,14 +569,25 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 
         if (chk_ss) then
 
-          if(lssx) then
+          if(lssx .and. x0 == xss0) then
             write(nunitx) real(y0),real(z0)
           endif
-          if(lssy) then
-            write(nunity) real(x0),real(z0)
+
+          if(lssy .and. y0 == yss0) then
+            if (flux) then
+              write(nunity) real(0.5*x0**2),real(z0)
+            else
+              write(nunity) real(x0),real(z0)
+            endif
           endif
-          if(lssz) then
-            write(nunitz) real(x0),real(y0)
+
+          if(lssz .and. z0 == zss0) then
+            if (flux) then
+              write(nunitz) real(0.5*x0**2),real(y0) !In flux
+            else
+              write(nunitz) real(x0),real(y0)        !In radius
+            endif
+
           endif
 
         endif
@@ -378,8 +642,10 @@ c     Orbit integral
           !Show progress/terminate
           if (smax /= 0d0) then
             call orbit_progress(ss  ,sprev,smax,fwd,exit_loop)
-          else
+          elseif (tmax /= 0d0) then
             call orbit_progress(time,tprev,tmax,fwd,exit_loop)
+          else
+            exit_loop = .false.
           endif
 
           if (exit_loop) then
@@ -413,6 +679,10 @@ c     ----------------------------------------------------------------------
         real(8) :: x0,y0,z0
 
 c     Begin program
+
+        x00  = x0
+        y00  = y0
+        z00  = z0
 
         x    = x0
         y    = y0
@@ -537,12 +807,13 @@ c     Time integration
 c     Output
 
       if (iiout > 0) then
-        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,1p3e12.3)')
+        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,3es12.3,a,l3)')
      .         ' Time=',time
      .        ,' ;  dt=',dt
      .        ,' ;  Arc length=',ss
      .        ,' ;  ds=',ds
      .        ,' ;  Position=',x,y,z
+     .        ,' ;  Forward=',fwd
       endif
 
 c     End program
@@ -569,16 +840,6 @@ c     Local variables
 
       real(8) :: xc,yc,zc
       real(8) :: xh,yh,zh,jach
-
-      !LSODE setup
-      INTEGER :: LIW, LRW, NEQ
-      PARAMETER  (NEQ=10,LIW = 20,LRW = LIW + 16*NEQ)
-
-      INTEGER :: IOPT, IOUT, ISTATE=0, ITASK, ITOL, IWORK(LIW)
-     .          ,MF, NEQD(1)
-      REAL(8) :: ATOL(NEQ),RTOL(1),RWORK(LRW),T,TOUT,YY(NEQ)
-
-      save ISTATE
 
       logical  :: external_f
 
@@ -632,9 +893,12 @@ c     LSODE configuration and call
 c3-eq      T    = time   !Independent variable
       T    = 0d0   !Independent variable
 
-      ITOL = 2      !Whether atol is array or not (2 => true)
-      RTOL = rrtol  !Relative tolerance
-      ATOL = aatol  !Absolute tolerance
+      ITOL = 1      !Whether atol is array or not (2 => true)
+
+      if (ISTATE /= 3) then
+        LS_RTOL = rrtol            !Relative tolerance
+        LS_ATOL = aatol            !Absolute tolerance
+      endif
 
       ITASK = 2     !Mode of operation: take one step and return
 
@@ -651,18 +915,41 @@ cc        write (*,*) 'LSODE -- limiting time step'
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
 
+cc      write (*,*)'Number of equations',NEQD
+cc      write (*,*)'Input state=',YY(1:NEQD(1))
+cc      write (*,*)'Current time=',T
+cc      write (*,*)'Next time=',TOUT
+cc      write (*,*)'Tolerances=',ITOL,LS_RTOL,LS_ATOL
+cc      write (*,*)'LSODE task=',ITASK
+cc      write (*,*)'LSODE state=',ISTATE
+cc      write (*,*)'Optional inputs required?',IOPT
+cc      write (*,*)'Real work array size=',size(RWORK),' declared=',LRW
+cc      write (*,*)'Integer work array size=',size(IWORK),' declared=',LIW
+cc      write (*,*)'LSODE method=',MF
+
       if (external_f) then
-        CALL LSODE (lsode_f,NEQD,YY,T,TOUT,ITOL,RTOL,ATOL,ITASK,
-     .              ISTATE,IOPT,RWORK,LRW,IWORK,LIW,lsode_f, MF)
+        CALL LSODE (lsode_f,NEQD(1),YY(1:NEQD(1)),T,TOUT
+     .             ,ITOL,LS_RTOL,LS_ATOL
+     .             ,ITASK,ISTATE,IOPT,RWORK,LRW,IWORK,LIW,lsode_f, MF)
       else
-        CALL LSODE (ff     ,NEQD,YY,T,TOUT,ITOL,RTOL,ATOL,ITASK,
-     .              ISTATE,IOPT,RWORK,LRW,IWORK,LIW,ff      ,MF)
+        CALL LSODE (ff     ,NEQD(1),YY(1:NEQD(1)),T,TOUT
+     .             ,ITOL,LS_RTOL,LS_ATOL
+     .             ,ITASK,ISTATE,IOPT,RWORK,LRW,IWORK,LIW,ff      ,MF)
       endif
 
-      if (ISTATE /= 2) then
-        write (*,*) 'LSODE -- Problems in LSODE: ISTATE=', ISTATE
+      select case(ISTATE)
+      case(2)       !Uneventful
+        continue
+      case(-2)      !Rescale tolerances
+        ISTATE = 3
+        RTOL=RTOL*RWORK(14)
+        ATOL=ATOL*RWORK(14)
+      case default  !Exit LSODE
+        write (*,*) 'Error code ISTATE=',ISTATE
+        write (*,*) 'See lsode.f for instructions'
+        write (*,*) 'Aborting...'
         stop
-      endif
+      end select
 
 c     Postprocessing to find logical coordinates
 
@@ -675,7 +962,7 @@ c     Postprocessing to find logical coordinates
           return
         endif
 
-        if (x > rmin) then
+        if (x >= rmin) then
           iterr = -2
           ISTATE = 1   !Instruct LSODE to start anew for next time step
           cartesian = .false.
@@ -1165,6 +1452,8 @@ c     Begin program
       if (.not.sing_point) then
         ydot(4) = evalJ(x1,y1,z1,ierror)
         if (ierror /= 0) then
+          write (*,*) 'Position=',x1,y1,z1
+          write (*,*) 'Jacobian=',ydot(4)
           write (*,*) 'Negative Jacobian in lsode_orbit_f'
           stop
         endif
@@ -1261,7 +1550,7 @@ c     -----------------------------------------------------------------
 
 c     ss_init
 c     #################################################################
-      subroutine ss_init(ss_order,lxss,xsurf,lyss,ysurf,lzss,zsurf)
+      subroutine ss_init(ss_order,rflx,lxss,xsurf,lyss,ysurf,lzss,zsurf)
 
 c     -----------------------------------------------------------------
 c     Initializes surface of section (SS) internal variables
@@ -1271,7 +1560,7 @@ c     -----------------------------------------------------------------
 
         integer :: ss_order
         real(8) :: xsurf,ysurf,zsurf
-        logical :: lxss,lyss,lzss
+        logical :: lxss,lyss,lzss,rflx
 
 c     Begin program
 
@@ -1284,6 +1573,8 @@ c     Initialize private variables
         lssx = lxss
         lssy = lyss
         lssz = lzss
+
+        flux = rflx
 
 c     Set position of SS
 
@@ -1341,6 +1632,7 @@ c     Begin program
      .                       ,drawin,.false.,.false.)
           nunitx=27
           open(unit=nunitx,file=trim(ssx),form='unformatted')
+
         endif
 
         if (lssy) then
@@ -1422,6 +1714,8 @@ c     Local variables
 
 c     Begin program
 
+        xss = 0d0 ; yss = 0d0 ; zss = 0d0 ; tss = 0d0
+
 c     Lower order of interpolation for SS if derivatives are too different
 
         iwhich = order
@@ -1437,6 +1731,8 @@ c     Lower order of interpolation for SS if derivatives are too different
           else
             iwhich = 1
           endif
+        else
+          iwhich = 1
         endif
 
 c     Check for intersection with X surface of section
@@ -1453,6 +1749,9 @@ c     Check for intersection with X surface of section
             call chk_pos(xss,yss,zss) !this resets logical coords
             write(nunitx) real(yss),real(zss)
           endif
+
+          !Accumulate B diagnostics
+          call B_diag_update(yss,y00,tss)
         endif
 
 c     Check for intersection with Y surface of section
@@ -1467,8 +1766,16 @@ c     Check for intersection with Y surface of section
 
           if (ss_io) then
             call chk_pos(xss,yss,zss) !this resets logical coords
-            write(nunity) real(xss),real(zss)
+            
+            if (flux) then
+              write(nunity) real(0.5*xss**2),real(zss)
+            else
+              write(nunity) real(xss),real(zss)
+            endif
           endif
+
+          !Accumulate B diagnostics
+          call B_diag_update(xss,x00,tss)
         endif
 
 c     Check for intersection with Z surface of section
@@ -1485,12 +1792,20 @@ c     Check for intersection with Z surface of section
             call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
             rr = sqrt(xcar**2+ycar**2)
             write(nunitrz) real(rr),real(zcar)
-cc            write(*,*) 'diag',z,zold,real(rr),real(zcar)   !diag
           elseif (ss_io) then
             call chk_pos(xss,yss,zss) !this resets logical coords
           endif
 
-          if (ss_io) write(nunitz) real(xss),real(yss)
+          if (ss_io) then
+            if (flux) then
+              write(nunitz) real(0.5*xss**2),real(yss) !In flux
+            else
+              write(nunitz) real(xss),real(yss)        !In radius
+            endif
+          endif
+
+          !Accumulate B diagnostics
+          call B_diag_update(xss,x00,tss)
         endif
 
       end subroutine sschk
@@ -1545,11 +1860,6 @@ c     Begin program
           endif
         endif
 
-cc        x00 = x0
-cc        if (x0 == xmin .and. pp >= 0) x00 = xmax
-cc        if (x0 == xmax .and. pp <  0) x00 = xmin
-cccc        if (x0 == xmin .and. pp <  0) x00 = xmin-(xmax-xmin)
-cc        if (pp == 0 .and. (x2-xmin)<0d0) x00 =x0-(xmax-xmin)
         x11 = x1 - pp*(xmax-xmin)
         x22 = x2 - pp*(xmax-xmin)
       else
