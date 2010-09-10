@@ -1550,7 +1550,7 @@ c     -----------------------------------------------------------------
 
 c     ss_init
 c     #################################################################
-      subroutine ss_init(ss_order,rflx,lxss,xsurf,lyss,ysurf,lzss,zsurf)
+      subroutine ss_init(ss_order,lxss,xsurf,lyss,ysurf,lzss,zsurf,rflx)
 
 c     -----------------------------------------------------------------
 c     Initializes surface of section (SS) internal variables
@@ -1560,7 +1560,8 @@ c     -----------------------------------------------------------------
 
         integer :: ss_order
         real(8) :: xsurf,ysurf,zsurf
-        logical :: lxss,lyss,lzss,rflx
+        logical :: lxss,lyss,lzss
+        logical,optional :: rflx
 
 c     Begin program
 
@@ -1574,7 +1575,11 @@ c     Initialize private variables
         lssy = lyss
         lssz = lzss
 
-        flux = rflx
+        if (PRESENT(rflx)) then
+          flux = rflx
+        else
+          flux = .false.
+        endif
 
 c     Set position of SS
 
