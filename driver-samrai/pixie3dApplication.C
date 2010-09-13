@@ -148,22 +148,30 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
 ***********************************************************************/
 pixie3dApplication::~pixie3dApplication()
 {
-   // Delete all fortran variables
-   tbox::pout << "Call fortrandestroy\n";
-   //#ifdef absoft
-   //  FORTRAN_NAME(FORTRANDESTROY) ();
-   //#else
-   //  FORTRAN_NAME(fortrandestroy) ();
-   //#endif
-   // Delete the level containers
-   LevelContainer *level_container;
-   for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
-     {
-       level_container = (LevelContainer *) level_container_array[ln];
-       delete level_container;
-     }
-   
-   delete [] level_container_array;
+    // Delete all fortran variables
+    tbox::pout << "Call fortrandestroy\n";
+    //#ifdef absoft
+    //  FORTRAN_NAME(FORTRANDESTROY) ();
+    //#else
+    //  FORTRAN_NAME(fortrandestroy) ();
+    //#endif
+    // Delete the level containers
+    LevelContainer *level_container;
+    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+        level_container = (LevelContainer *) level_container_array[ln];
+        // Need to delete the grid (created by the call to creategridstructures)
+        delete level_container;
+    }
+    delete [] level_container_array;
+    // Delete misc variables
+    delete data;
+    delete [] u0_id;
+    delete [] u_id;
+    delete [] u_tmp_id;
+    delete [] auxs_id;
+    delete [] auxv_id;
+    delete [] auxs_tmp_id;
+    delete [] auxv_tmp_id;
 }
 
 
@@ -191,7 +199,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 #endif   
    
    tbox::pout << "Initializing\n";
-   data = new  input_CTX;
+   data = new input_CTX;
    
    // Load input file
    data->npx = 0;
@@ -440,7 +448,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 				lowerCoordinates,      
 				upperCoordinates,      
 				data->nvar,
-			               u0_id,
+                 u0_id,
 				 u_id,
 				 data->nauxs, auxs_id,
 				 data->nauxv,auxv_id);
@@ -749,153 +757,110 @@ void pixie3dApplication::coarsenVariables(void)
 ***********************************************************************/
 void  pixie3dApplication::refineVariables(void)
 {
-  tbox::Pointer< hier::Variable<NDIM> > var0;
-  int data_id;
-   tbox::Pointer< geom::CartesianGridGeometry <NDIM> > grid_geometry = d_hierarchy->getGridGeometry();
-   tbox::Pointer< hier::Variable< NDIM > > var;
+    tbox::Pointer< hier::Variable<NDIM> > var0;
+    int data_id;
+    tbox::Pointer< geom::CartesianGridGeometry <NDIM> > grid_geometry = d_hierarchy->getGridGeometry();
+    tbox::Pointer< hier::Variable< NDIM > > var;
    
-   // Copy the data from the single ghost cell width variables to the multiple ghost cell width variables
-   if ( GHOST != 1 )
-     {
-       // copy the vectors componentwise
-       d_x_tmp->copyVector(d_x, false);
-       d_aux_scalar_tmp->copyVector(d_aux_scalar, false);
-       d_aux_vector_tmp->copyVector(d_aux_vector, false);
-     }
+    // Copy the data from the single ghost cell width variables to the multiple ghost cell width variables
+    if ( GHOST != 1 ) {
+        // copy the vectors componentwise
+        d_x_tmp->copyVector(d_x, false);
+        d_aux_scalar_tmp->copyVector(d_aux_scalar, false);
+        d_aux_vector_tmp->copyVector(d_aux_vector, false);
+    }
    
-   // Fill ghost cells
-   // moving from coarser to finer levels fill boundary conditions
-   for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ )
-     {
-       
-       tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
-       hier::PatchLevel<NDIM>::Iterator p(level);
-       // Get the Level container
-       LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
-
-       tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p());
-
-       int numberOfBoundarySequenceGroups = -1;
-
-       void *pixiePatchData = level_container->getPtr(p());
-       assert(pixiePatchData!=NULL);
-       
-       FORTRAN_NAME(getnumberofbcgroups)(pixiePatchData, &numberOfBoundarySequenceGroups);
-
-       assert(numberOfBoundarySequenceGroups>0);
-
-       // process the boundary sequence groups in order
-       for( int iSeq=1; iSeq<=numberOfBoundarySequenceGroups; iSeq++)
-	 {
-
-	   // initialize the aux variable on all patches on the level before interpolating
-	   // coarse values up and sync-ing periodic/sibling boundaries
-	   for (hier::PatchLevel<NDIM>::Iterator ip(level); ip; ip++)
-	     {
-	       FORTRAN_NAME(initializeauxvar)(level_container->getPtr(ip()), &iSeq);
-	     }
-	   
-	   (d_refine_strategy)->setRefineStrategyDataId(iSeq);            
-
+    // Fill ghost cells
+    // moving from coarser to finer levels fill boundary conditions
+    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+        tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
+        hier::PatchLevel<NDIM>::Iterator p(level);
+        // Get the Level container
+        LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
+        tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p());
+        int numberOfBoundarySequenceGroups = -1;
+        void *pixiePatchData = level_container->getPtr(p());
+        assert(pixiePatchData!=NULL);
+        FORTRAN_NAME(getnumberofbcgroups)(pixiePatchData, &numberOfBoundarySequenceGroups);
+        assert(numberOfBoundarySequenceGroups>0);
+        // process the boundary sequence groups in order
+        for( int iSeq=1; iSeq<=numberOfBoundarySequenceGroups; iSeq++) {
+            // initialize the aux variable on all patches on the level before interpolating
+            // coarse values up and sync-ing periodic/sibling boundaries
+            for (hier::PatchLevel<NDIM>::Iterator ip(level); ip; ip++) {
+                FORTRAN_NAME(initializeauxvar)(level_container->getPtr(ip()), &iSeq);
+	        }
+            (d_refine_strategy)->setRefineStrategyDataId(iSeq);            
 #ifdef absoft
-	   FORTRAN_NAME(GETBC)(pixiePatchData, &iSeq, &d_NumberOfBoundaryConditions,&d_BoundaryConditionSequence);
+	        FORTRAN_NAME(GETBC)(pixiePatchData, &iSeq, &d_NumberOfBoundaryConditions,&d_BoundaryConditionSequence);
 #else
-	   FORTRAN_NAME(getbc)(pixiePatchData, &iSeq, &d_NumberOfBoundaryConditions,&d_BoundaryConditionSequence);
+	        FORTRAN_NAME(getbc)(pixiePatchData, &iSeq, &d_NumberOfBoundaryConditions,&d_BoundaryConditionSequence);
 #endif
-
-	   xfer::RefineAlgorithm<NDIM> refineVariableAlgorithm;
-
-	   for( int i=0; i<d_NumberOfBoundaryConditions; i++)
-	     {
-	       
-	       int cId = d_BoundaryConditionSequence[i];
-	       int varType = d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions];
-	       int idx = abs(cId)-1;
-	       
-	       // call applybc for interior patches
-	       // we are forced to do this on the coarsest level for individual patches because if a patch touches
-	       // no physical boundary conditions then the apply bc might not be called for it
-	       // which might result in some boundaries not being set correctly
-	       // on finer levels this detail is taken care of (need to confirm)
-	       // by the postprocessRefine call
-	       
-	       if(varType==0)
-		 {
-		   if ( GHOST == 1 )
-		     {
-		       
-		       var0 = (cId>0)? d_x->getComponentVariable(idx) : d_aux_scalar->getComponentVariable(idx);
-		       data_id = (cId>0) ? d_x->getComponentDescriptorIndex(idx):d_aux_scalar->getComponentDescriptorIndex(idx) ;
-		       
-		     }
-		   else
-		     {
-		       
-		       var0 = (cId>0)? d_x_tmp->getComponentVariable(idx) : d_aux_scalar_tmp->getComponentVariable(idx);
-		       data_id = (cId>0) ? d_x_tmp->getComponentDescriptorIndex(idx):d_aux_scalar_tmp->getComponentDescriptorIndex(idx) ;
-		       
-		     }
-		   
-		   refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
+	        xfer::RefineAlgorithm<NDIM> refineVariableAlgorithm;
+            for( int i=0; i<d_NumberOfBoundaryConditions; i++) {
+                int cId = d_BoundaryConditionSequence[i];
+                int varType = d_BoundaryConditionSequence[i+d_NumberOfBoundaryConditions];
+                int idx = abs(cId)-1;
+       	        // call applybc for interior patches
+       	        // we are forced to do this on the coarsest level for individual patches because if a patch touches
+                // no physical boundary conditions then the apply bc might not be called for it
+                // which might result in some boundaries not being set correctly
+                // on finer levels this detail is taken care of (need to confirm)
+                // by the postprocessRefine call
+	            if(varType==0) {
+                    if ( GHOST == 1 ) {
+                        var0 = (cId>0)? d_x->getComponentVariable(idx) : d_aux_scalar->getComponentVariable(idx);
+                        data_id = (cId>0) ? d_x->getComponentDescriptorIndex(idx):d_aux_scalar->getComponentDescriptorIndex(idx) ;
+                    } else {
+                        var0 = (cId>0)? d_x_tmp->getComponentVariable(idx) : d_aux_scalar_tmp->getComponentVariable(idx);
+                        data_id = (cId>0) ? d_x_tmp->getComponentDescriptorIndex(idx):d_aux_scalar_tmp->getComponentDescriptorIndex(idx) ;
+                    }
+                    refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
 							   grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
-		 }
-	       
-	       // next do the registerRefine for a vector of components
-	       if((varType==1)&&(cId>0))
-		 {
-		   // a vector will be composed of NDIM scalar components for the dependent variables
-		   for(int j=0; j<NDIM; j++)
-		     {
-		       if ( GHOST == 1 )
-			 {
-			   var0 = d_x->getComponentVariable(idx+j);
-			   data_id = d_x->getComponentDescriptorIndex(idx+j);
-			 }
-		       else
-			 {
-			   var0 = d_x_tmp->getComponentVariable(idx+j);
-			   data_id = d_x_tmp->getComponentDescriptorIndex(idx+j);
-			 }
-		       
-		       refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
+                }
+                // next do the registerRefine for a vector of components
+	            if((varType==1)&&(cId>0)) {
+                    // a vector will be composed of NDIM scalar components for the dependent variables
+                    for(int j=0; j<NDIM; j++) {
+                        if ( GHOST == 1 ) {
+                            var0 = d_x->getComponentVariable(idx+j);
+                            data_id = d_x->getComponentDescriptorIndex(idx+j);
+                        } else {
+                            var0 = d_x_tmp->getComponentVariable(idx+j);
+                            data_id = d_x_tmp->getComponentDescriptorIndex(idx+j);
+                        }
+                        refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
 						           grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
-		     }
-		 }
-	       
-	       // next do the registerRefine for an auxillary vector
-	       if((varType==1)&&(cId<0))
-		 {
-		   if ( GHOST == 1 )
-		     {
-		       var0 = d_aux_vector->getComponentVariable(idx);
-		       data_id = d_aux_vector->getComponentDescriptorIndex(idx);
-		     }
-		   else
-		     {
-		       var0 = d_aux_vector_tmp->getComponentVariable(idx);
-		       data_id = d_aux_vector_tmp->getComponentDescriptorIndex(idx);
-		     }
-		   
-		   refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
+                    }
+                }
+                // next do the registerRefine for an auxillary vector
+                if((varType==1)&&(cId<0)) {
+                    if ( GHOST == 1 ) {
+                        var0 = d_aux_vector->getComponentVariable(idx);
+                        data_id = d_aux_vector->getComponentDescriptorIndex(idx);
+                    } else {
+                        var0 = d_aux_vector_tmp->getComponentVariable(idx);
+                        data_id = d_aux_vector_tmp->getComponentDescriptorIndex(idx);
+                    }
+                    refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
 						        grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
-		   
-		 }
-	     }
-	       
-	   refineVariableAlgorithm.createSchedule(level, ln-1, d_hierarchy, d_refine_strategy)->fillData(0.0);
-
-	 }
-     }
+                }
+            }
+            tbox::Pointer< xfer::RefineSchedule<NDIM> > schedule = refineVariableAlgorithm.createSchedule(
+                                level, ln-1, d_hierarchy, d_refine_strategy);
+            schedule->fillData(0.0);
+        }
+    }
    
-   // Copy the data from the multiple ghost cell width variables to the single ghost cell width variables
-   if ( GHOST != 1 )
-     {
-       // copy the vectors componentwise
-       d_x->copyVector(d_x_tmp, false);
-       d_aux_scalar->copyVector(d_aux_scalar_tmp, false);
-       d_aux_vector->copyVector(d_aux_vector_tmp, false);
+     // Copy the data from the multiple ghost cell width variables to the single ghost cell width variables
+     if ( GHOST != 1 ) {
+         // copy the vectors componentwise
+         d_x->copyVector(d_x_tmp, false);
+         d_aux_scalar->copyVector(d_aux_scalar_tmp, false);
+         d_aux_vector->copyVector(d_aux_vector_tmp, false);
      }  
 }
+
 
 void
 pixie3dApplication::setBoundarySchedules(bool bIsInitialTime)
