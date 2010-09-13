@@ -14,11 +14,9 @@ c Local variables
 
 c Begin program
 
-      call closeRecordFile
+cc      call close(urecord)
 
-      call deallocateDerivedType(u_0)
-      call deallocateDerivedType(u_n)
-      call deallocateDerivedType(u_graph)
+      call deallocateStructures
 
 cc      call destroyFortranMPI
 

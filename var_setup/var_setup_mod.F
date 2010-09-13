@@ -638,16 +638,19 @@ c     Local variables
 c     Begin program
 
         call allocateDerivedType(gv%u_np)
-        call allocateDerivedType(gv%u_nm)
         call allocateDerivedType(gv%u_n )
         call allocateDerivedType(gv%u_0)
-        call allocateDerivedType(gv%u_graph)
 
         u_0     => gv%u_0
         u_np    => gv%u_np
         u_n     => gv%u_n
+
+#if !defined(samrai)
+        call allocateDerivedType(gv%u_nm)
+        call allocateDerivedType(gv%u_graph)
         u_nm    => gv%u_nm
         u_graph => gv%u_graph
+#endif
 
 c     End program
 
@@ -664,10 +667,13 @@ c     Local variables
 c     Begin program
 
         call deallocateDerivedType(gv%u_np)
-        call deallocateDerivedType(gv%u_nm)
         call deallocateDerivedType(gv%u_n )
         call deallocateDerivedType(gv%u_0)
+
+#if !defined(samrai)
+        call deallocateDerivedType(gv%u_nm)
         call deallocateDerivedType(gv%u_graph)
+#endif
 
 c     End program
 

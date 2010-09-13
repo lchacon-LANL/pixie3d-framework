@@ -64,13 +64,13 @@ c Initialize vector dimensions for global and local problems
 
       call setVectorDimensions
 
-      allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
-      allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
-      allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
-
-      zeros  = 0d0
-      vzeros = 0d0
-      ones   = 1d0
+cc      allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
+cc      allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
+cc      allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
+cc
+cc      zeros  = 0d0
+cc      vzeros = 0d0
+cc      ones   = 1d0
 
 c Create nonlinear solver
 
