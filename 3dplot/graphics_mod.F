@@ -245,7 +245,6 @@ c     Begin program
         if (adios_plot) call writeADIOSPlotfile
 #endif
 
-
 c     End program
 
       end subroutine dumpTimeStepPlots
