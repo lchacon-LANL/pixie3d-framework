@@ -34,6 +34,12 @@ c ######################################################################
         logical    :: hdf_plot=.false.
 #endif
 
+#if defined(adios)
+        logical    :: adios_plot=.true.
+#else
+        logical    :: adios_plot=.false.
+#endif
+
         integer    :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
      .               ,iggx,iggy,iggz,iig,jjg,kkg
 
