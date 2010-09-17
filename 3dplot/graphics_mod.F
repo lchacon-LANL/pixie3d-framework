@@ -9,6 +9,10 @@ c ######################################################################
 
         use HDF5_graphics
 
+#if defined(adios)
+        use ADIOS_graphics
+#endif
+
       contains
 
 c     initializeGraphics
@@ -100,6 +104,10 @@ c     Initialize HDF5
 #if defined(hdf5)
         if (hdf_plot) call initializeHDF5
 #endif
+#if defined(adios)
+        if (adios_plot) call initializeADIOSPlot
+#endif
+
 
 c     Define application I/O (external)
 
@@ -233,6 +241,10 @@ c     Begin program
 #if defined(hdf5)
         if (hdf_plot) call writeHDF5file
 #endif
+#if defined(adios)
+        if (adios_plot) call writeADIOSPlotfile
+#endif
+
 
 c     End program
 
