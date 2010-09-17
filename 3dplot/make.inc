@@ -19,7 +19,7 @@ SUBDIRS = $(COMMONDIR)/math\
 
 #HDF5_graphics_mod.o: setup_mod.o plot_mod.o
 
-graphics_mod.o: xdraw_graphics_mod.o HDF5_graphics_mod.o
+graphics_mod.o: xdraw_graphics_mod.o HDF5_graphics_mod.o ADIOS_graphics_mod.o
 
 #Setup defs.
 
