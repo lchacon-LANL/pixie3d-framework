@@ -606,7 +606,9 @@ cc          enddo
         write (urecord) nyl,jlog,jhig
         write (urecord) nzl,klog,khig
 
+ccnorb        write (*,*) 'writeRecordFile <-initCalc with u_graph: ',0
         call writeRecordFile(urecord,0,0d0,dt,u_graph)
+ccnorb        write (*,*) 'writeRecordFile <-initCalc with u_np: ',0
         call writeRecordFile(urecord,0,0d0,dt,u_np)
 
       else
