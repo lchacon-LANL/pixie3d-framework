@@ -16,6 +16,32 @@ c #####################################################################
 
       end module parameters
 
+#if defined(adios)
+c module adios
+c #####################################################################
+      module adios_vars
+
+      !!! ADIOS variables
+      character*(10) :: adiosfile='record.bp'
+      ! ADIOS needs a variable containing the MPI_WORLD_COMM communicator
+      integer        :: adios_world_comm
+      ! number of opens -> first create, then append file
+      integer        :: adios_open_num=0
+
+      !!! variables for reading 
+      integer*8 :: adios_fh, adios_gh   ! file handler and group handler
+      integer   :: adios_varcount       ! number of variables in file (~32)
+      integer   :: adios_attrcount      ! number of attributes in file (~16)
+      character(30), dimension(50) :: adios_varlist  ! list of all vars 
+      character(30), dimension(50) :: adios_attrlist  ! list of all attributes 
+      integer   :: adios_nvar           ! number of /var/ variables in file (~8)
+      character(30), dimension(50) :: adios_varnames  ! list of /var/ vars 
+      integer   :: adios_tstart, adios_tend, adios_ntsteps ! timesteps available
+      integer   :: adios_tread              ! 0 ... ntsteps-1
+
+      end module adios_vars
+#endif
+
 c module variable_setup
 c #####################################################################
       module variable_setup
@@ -23,6 +49,10 @@ c #####################################################################
         use parameters
 
         use grid
+
+#if defined(adios)
+        use adios_vars
+#endif
 
         implicit none
 
@@ -130,6 +160,10 @@ c     #################################################################
         !Define local vector dimensions
         ntotdp = nxl*nyl*nzl
         ntotd  = neqd*ntotdp
+
+ccnorb        write (*,"(a,i1,a,i4,i4,i4,i4,i4,i4)") "rank=",my_rank,
+ccnorb     .      " setVectorDimensions global indices: ",
+ccnorb     .      ilomg,ihipg,jlomg,jhipg,klomg,khipg
 
       end subroutine setVectorDimensions
 
@@ -368,6 +402,291 @@ c     Begin program
 c     End program
 
       end subroutine writeDerivedType
+
+#if defined(adios)
+c     writeDerivedTypeAdios
+c     #################################################################
+      subroutine writeDerivedTypeAdios(handle, varray, addl_write)
+
+c     Call variables
+
+        integer*8                :: handle
+        type(var_array),pointer  :: varray
+        logical                  :: addl_write
+
+c     Local variables
+
+        integer          :: ieq, err, 
+     .                      xoffset, yoffset, zoffset,
+     .                      xsize, ysize, zsize
+
+        integer          :: xloghost, xhighost
+        integer          :: yloghost, yhighost
+        integer          :: zloghost, zhighost
+        integer,dimension(6*varray%nvar) :: bconds  ! all boundary conditions as one array
+        character(20)    :: vvar      ! /var/v<idx> 
+        character(20)    :: vname     ! /name/v<idx> 
+
+c     Begin program
+
+c   global size of the output array = nxd+2 x nyd+2 x nzd+2 with ghost cells on the faces
+
+c   ihipg = nxd+1    -> x=1 face
+c   ihipg = nxd+1    -> x=1 face
+c   j... -> y face
+c   k... -> z face
+c
+c   global position of an internal processor in the 3D mesh
+c     from  ilog = ilomg+1  to ihig = ihipg-1
+c     from  jlog = jlomg+1  to jhig = jhipg-1
+c     from  klog = klomg+1  to khig = khipg-1
+c   global position for boundary proc
+c     if (ilomg == 0) ilog = ilomg
+c     if (ihipg == nxd+1) ihig = ihipg
+c
+c   local sizes: ilom:ihip   but ilom+1:ihip-1 for internal processor
+c   local indices start from 0 for ghost cell
+
+c     Offsets to include ghosts
+c     1. internal processes: no ghost cells written out
+        xloghost = 1
+        yloghost = 1
+        zloghost = 1
+        xhighost = -1
+        yhighost = -1
+        zhighost = -1
+      
+c     2. processes that has some face 
+c       x=0 face
+        if (ilomg == 0) xloghost = 0
+
+c       x=1 face
+        if (ihipg == nxd+1) xhighost = 0
+
+c       y=0 face
+        if (jlomg == 0) yloghost = 0
+
+c       y=1 face
+        if (jhipg == nyd+1) yhighost = 0
+
+c       z=0 face
+        if (klomg == 0) zloghost = 0
+
+c       z=1 face
+        if (khipg == nzd+1) zhighost = 0
+
+c       calculate offsets in the global array
+        xoffset = ilomg + xloghost  
+        yoffset = jlomg + yloghost  
+        zoffset = klomg + zloghost  
+
+
+c       write auxiliary variables (adios writer needs it),
+c          will not be accessible from file (everybody writes these vars)
+        call adios_write (handle, "nvar", varray%nvar, err)
+        call adios_write (handle, "nxd+2", nxd+2, err)
+        call adios_write (handle, "nyd+2", nyd+2, err)
+        call adios_write (handle, "nzd+2", nzd+2, err)
+        call adios_write (handle, "xoffset", ilomg+xloghost, err)
+        call adios_write (handle, "yoffset", jlomg+yloghost, err)
+        call adios_write (handle, "zoffset", klomg+zloghost, err)
+        call adios_write (handle, "xsize", 
+     .                    ihip+xhighost-ilom-xloghost+1, err)
+        call adios_write (handle, "ysize", 
+     .                    jhip+yhighost-jlom-yloghost+1, err)
+        call adios_write (handle, "zsize", 
+     .                    khip+zhighost-klom-zloghost+1, err)
+        if (addl_write) then
+            call adios_write (handle, "namelen", 
+     .                        len(varray%array_var(1)%descr), err)
+        endif
+
+c DEBUG
+        print "('r',i1,' offset=(',i3,',',i3,',',i3,')')", my_rank,
+     .         ilomg+xloghost, jlomg+yloghost, klomg+zloghost
+        print "('r',i1,' size=(',i3,',',i3,',',i3,')')", my_rank,
+     .         ihip+xhighost-ilom-xloghost+1, 
+     .         jhip+yhighost-jlom-yloghost+1,
+     .         khip+zhighost-klom-zloghost+1
+        print "('r',i1,' i=',i3,':',i3,',',i3,':',i3,',',i3,':',i3,'')",
+     .         my_rank,
+     .         ilom+xloghost, ihip+xhighost,
+     .         jlom+yloghost, jhip+yhighost,
+     .         klom+zloghost, khip+zhighost
+
+        do ieq=1,varray%nvar
+            write (vvar,  '("/var/v",i0)')  ieq
+            ! write /var/v<ieq>
+            call adios_write (handle, vvar,
+     .          varray%array_var(ieq)%array(
+     .               ilom+xloghost:ihip+xhighost,
+     .               jlom+yloghost:jhip+yhighost,
+     .               klom+zloghost:khip+zhighost), 
+     .          err)
+
+            if (addl_write) then
+                ! write /name/v<ieq>
+                write (vname, '("/name/v",i0)') ieq
+                call adios_write (handle, vname,
+     .              varray%array_var(ieq)%descr, err)
+c     .              trim(varray%array_var(ieq)%descr)//char(0),
+c     .              err)
+            endif
+        enddo
+
+c     write all boundary conditions into one array buffer
+        if (addl_write) then
+            do ieq=1,varray%nvar
+                bconds( (ieq-1)*6+1:ieq*6 ) = 
+     .                  varray%array_var(ieq)%bconds(:)
+            enddo
+            call adios_write (handle, "nvar*6", varray%nvar*6, err)
+            call adios_write (handle, "bconds", bconds, err)
+        endif
+
+c     End program
+
+      end subroutine writeDerivedTypeAdios
+
+c     readDerivedTypeAdios
+c     #################################################################
+      subroutine readDerivedTypeAdios(gh,varray,step,firstread,ierr)
+
+c     Call variables
+        integer*8                :: gh  ! adios group handler (to read data)
+        type(var_array),pointer  :: varray
+        integer                  :: step
+        logical                  :: firstread
+        integer, intent(out)     :: ierr
+
+c     Local variables
+
+        integer          :: ieq,ilom,ihip,jlom,jhip,klom,khip
+        integer*8, dimension(4) :: start, readcount ! dimensions are 64bit in adios
+        integer*8        :: zero, nlen ! 64bit start/count for reading the description
+        integer          ::  vrank, vtype, vtimed, err  ! adios_inq_var() outputs
+        integer*8, dimension(10) :: dims ! adios_inq_var() output
+        integer,dimension(6*adios_nvar) :: bconds  ! all boundary conditions as one array
+        character(20)    :: vvar      ! /var/v<idx> 
+        character(20)    :: vname     ! /name/v<idx> 
+        character(len(varray%array_var(1)%descr))    :: desc      ! name of variable read from file
+        integer*8        :: n,m ! bytes to read and actually read
+
+        integer          :: iloghost, ihighost
+        integer          :: jloghost, jhighost
+        integer          :: kloghost, khighost
+
+c     Begin program
+
+        ierr = 0
+
+c     Set offsets to include ghosts
+c     1. internal processes: no ghost cells will be read in
+        iloghost = 0 ! gcw
+        jloghost = 0 ! gcw
+        kloghost = 0 ! gcw
+        ihighost = 0 ! gcw
+        jhighost = 0 ! gcw
+        khighost = 0 ! gcw
+      
+c     2. processes that has some face have ghost cells 
+c       x=0 face
+        if (ilomg == 0) iloghost = 0
+
+c       x=1 face
+        if (ihipg == nxd+1) ihighost = 0
+
+c       y=0 face
+        if (jlomg == 0) jloghost = 0
+
+c       y=1 face
+        if (jhipg == nyd+1) jhighost = 0
+
+c       z=0 face
+        if (klomg == 0) kloghost = 0
+
+c       z=1 face
+        if (khipg == nzd+1) khighost = 0
+
+
+c        write (*,"(a,i1,a,i4,i4,i4,i4,i4,i4)") "rank=",my_rank,
+c     .      " global indices again: ",
+c     .      ilomg,ihipg,jlomg,jhipg,klomg,khipg
+
+          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
+     .                                ,1,1,1)
+          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
+     .                                ,1,1,1)
+
+          write (*,"(a,i0,a,i4,i4,i4,i4,i4,i4)") "rank=",my_rank,
+     .      " read: local indices: ",
+     .      ilom,ihip,jlom,jhip,klom,khip
+
+          start = (/ilomg+iloghost,jlomg+jloghost,klomg+kloghost,step/)
+          readcount = (/ ihip-ihighost - ilom-iloghost + 1,
+     .                   jhip-jhighost - jlom-jloghost + 1,
+     .                   khip-khighost - klom-kloghost + 1,
+     .                   1 /)
+          n = readcount(1)*readcount(2)*readcount(3)*8
+          write (*,"(a,i0,a,i0,a,4i4,a,4i4)") "rank=",my_rank,
+     .      " read vars n=",n," start= ", start," count= ",readcount
+
+          do ieq=1,adios_nvar
+
+              if (firstread) then
+                  zero = 0
+                  nlen = len(varray%array_var(1)%descr)
+                  ! read in name of Nth variable
+                  write (vname, '("/name/v",i0)') ieq
+                  !write (*,"(a,a,a,i0)") "read ",trim(vname),
+c     .               ": len=", nlen
+                  call adios_read_var (gh, vname, zero, nlen, desc, m)
+                  varray%array_var(ieq)%descr = desc
+                  write (*,"(a,a,a,a,a,i0)") "read ",trim(vname),
+     .               ": [",trim(desc),"] m=",m
+              endif
+
+              ! read in data of Nth variable
+              write (vvar,  '("/var/v",i0)')  ieq
+              call adios_read_var (gh, vvar, 
+     .                         start, readcount,
+     .                         varray%array_var(ieq)
+     .                            %array(ilom+iloghost:ihip+ihighost,
+     .                                   jlom+jloghost:jhip+jhighost,
+     .                                   klom+kloghost:khip+khighost),
+     .                         m)
+              n = readcount(1)*readcount(2)*readcount(3)*readcount(4)*8
+              if (.not. m .eq. n) then
+                  write (*,"(a,a,a,i0,a,i0)") 
+     .                 "ERROR: could not read ", trim(vvar),
+     .                 ". Read ",m," bytes instead of ", n
+                  ierr = -1
+              endif
+              write (*,"(a,a,a,i0)"), "read ",
+     .              trim(vvar),"  bytes=", m
+          enddo
+
+          if (firstread) then
+              nlen = adios_nvar*6
+              n = adios_nvar*6*4
+              call adios_read_var (gh, "bconds", zero, nlen, 
+     .                              bconds, m)
+              if (m < n) then
+                  write (*,"(a,i0,a,i0)") 
+     .                 "ERROR: could not read bconds. Read ",
+     .                 m," bytes instead of ",n
+                  ierr = -1
+              endif
+              do ieq=1,adios_nvar
+                varray%array_var(ieq)%bconds(:) = 
+     .               bconds( (ieq-1)*6+1:ieq*6 ) 
+              enddo
+          endif
+
+c     End program
+
+      end subroutine readDerivedTypeAdios
+#endif  
 
 c     readDerivedType
 c     #################################################################
