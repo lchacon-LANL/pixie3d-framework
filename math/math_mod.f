@@ -8,7 +8,30 @@
         module procedure solve_cubic_real,solve_cubic_cmplx
       END INTERFACE
 
+      real(8) :: pi
+
+      INTERFACE determ
+        module procedure determ3
+      END INTERFACE
+
       contains
+
+c     determ3
+c     #################################################################
+      function determ3(tensor)
+
+      real(8) :: tensor(3,3)
+
+      real(8) :: determ
+
+      determ = tensor(1,1)*tensor(2,2)*tensor(3,3)
+     .        +tensor(3,2)*tensor(2,1)*tensor(1,3)
+     .        +tensor(1,2)*tensor(2,3)*tensor(3,1)
+     .        -tensor(1,3)*tensor(2,2)*tensor(3,1)
+     .        -tensor(1,1)*tensor(2,3)*tensor(3,2)
+     .        -tensor(3,3)*tensor(1,2)*tensor(2,1)
+
+      end function determ3
 
 c     atanh
 c     #################################################################

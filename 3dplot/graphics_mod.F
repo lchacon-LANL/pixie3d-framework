@@ -92,9 +92,9 @@ c     Determine actual number of 3D plots
 c     Initialize XDRAW
 
 #if defined(petsc)
-        if (np == 1) call initializeXDRAW
+        if (np == 1 .and. xdraw_plot) call initializeXDRAW
 #else
-        call initializeXDRAW
+        if (xdraw_plot) call initializeXDRAW
 #endif
 
 c     Initialize HDF5
@@ -136,9 +136,9 @@ c     Begin program
 c     Finalize XDRAW
 
 #if defined(petsc)
-        if (np == 1) call finalizeXDRAW
+        if (np == 1.and.xdraw_plot) call finalizeXDRAW
 #else
-        call finalizeXDRAW
+        if (xdraw_plot) call finalizeXDRAW
 #endif
 
 c     Finalize HDF5
@@ -234,7 +234,7 @@ c     Local variables
 
 c     Begin program
 
-        if (np == 1) call dumpXDRAWplots
+        if (np == 1 .and. xdraw_plot) call dumpXDRAWplots
 
 #if defined(hdf5)
         if (hdf_plot) call writeHDF5file

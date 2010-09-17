@@ -29,9 +29,9 @@ c ######################################################################
         logical    :: plot
 
 #if defined(petsc)
-        logical    :: hdf_plot=.true.
+        logical    :: hdf_plot=.true.,xdraw_plot=.true.
 #else
-        logical    :: hdf_plot=.false.
+        logical    :: hdf_plot=.false.,xdraw_plot=.true.
 #endif
 
 #if defined(adios)
@@ -54,7 +54,7 @@ c ######################################################################
         !Profile conf
         type :: prof_info
           integer        :: line = 1
-          character(3)   :: label = 'x'
+          character(3)   :: label = 'x  '
           integer        :: coords(3) = (/1,1,1/)
         end type prof_info
 
@@ -63,7 +63,7 @@ c ######################################################################
         !Contour conf
         type :: cont_info
           integer        :: plane = 3
-          character(3)   :: label(2) = (/'x','y'/)
+          character(3)   :: label(2) = (/'x  ','y  '/)
           integer        :: coords(3)= (/1,1,1/)
         end type cont_info
 

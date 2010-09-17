@@ -1,24 +1,12 @@
-c module icond
-c ######################################################################
-      module icond
-
-        implicit none
-
-        integer :: nh1,nh2,nh3,npw1=1,npw2=1,npw3=1
-
-        logical :: odd,random
-
-        real(8),dimension(10) :: pert
-
-      end module icond
-
 c module nk_setup
 c ######################################################################
       module nk_setup
 
-        integer    ::  maxitnwt,maxitgm,iguess,maxksp,method,global
+        integer ::  maxitnwt,maxitgm,iguess,maxksp,method,global
 
-        real(8)    ::  tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
+        real(8) ::  tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
+
+        logical ::  fpa=.false.
 
       end module nk_setup
 
@@ -35,29 +23,69 @@ c module ts_setup
 c ######################################################################
       module ts_setup
 
-        integer    :: numtime,ndstep,nrstep,sm_pass,sm_flag=0,inewtime
+        use iosetup
 
-        real(8)    :: dt,dtbase,cnfactor,alpha,gammat
+        integer    :: numtime,ndstep,nrstep,inewtime,nrst
+
+        real(8)    :: tmrst,dt,dtbase,cnfactor,alpha,gammat,dt_n
         real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0,dtold
-     .               ,eigstep
-
-        real(8),allocatable,dimension(:)   :: fold,fsrc
-        real(8),allocatable,dimension(:,:) :: old_f
-
-        real(8)    :: vx_max,vy_max,vz_max,bx_max,by_max,bz_max
-
-        logical    :: timecorr=.false.,restart=.false.,source=.true.
-     .               ,predictor=.false.,postprocess=.false.
-     .               ,chk_src=.false.
-
-        real(8)    :: tmrst,cnp,cn,cnm,dt_n
-
-        integer    :: itime,nrst
+     .               ,eig_dt
 
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
      .                                     ,bdfp,bdfn,bdfnm
 
-        logical    :: vol_wgt=.true.,bdf2=.false.,eigen=.false.
+#if !defined(samrai)
+        real(8),allocatable,dimension(:)   :: fold,fsrc
+#endif
+        real(8),allocatable,dimension(:,:) :: old_f
+
+        !Initialized variables
+        integer    :: itime=0,sm_pass=2,sm_flag=0
+
+        logical    :: timecorr=.false.,restart=.false.,source=.true.
+     .               ,predictor=.false.,postprocess=.false.
+     .               ,chk_src=.false.,source_eval=.false.
+     .               ,old_time_eval=.false.,vol_wgt=.true.
+     .               ,bdf2=.false.,eigen=.false.
+
+        real(8)    :: cnp=1d0,cn=-1d0,cnm=0d0
+
+      contains
+
+c     readTimeStep
+c     #################################################################
+      subroutine readTimeStep(varray,ierr)
+
+c     -----------------------------------------------------------------
+c     Reads time step info from single or multiple files.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(var_array),pointer :: varray
+      integer :: ierr
+
+c     Local variables
+
+      integer :: ifile
+
+c     Begin program
+
+      if (associated(murecord)) then
+        do ifile=1,size(murecord)
+          ierr = readRecordFile(murecord(ifile),itime,time,dt,varray)
+          if (ierr == -1) cycle !Error, but not EOF
+          if (ierr == -2) cycle !EOF
+        enddo
+      else
+        ierr = readRecordFile(urecord,itime,time,dt,varray)
+      endif
+
+c     End program
+
+      end subroutine readTimeStep
 
       end module ts_setup
 
@@ -70,8 +98,6 @@ c ######################################################################
         use variables
 
         use iosetup
-
-        use generalPurposeFunctions
 
         use ts_setup
 
@@ -219,7 +245,7 @@ c     Begin program
      .            -u_0 %array_var(ieq)%array )
           array = array*array
 
-          dpert = integral(nxl,nyl,nzl,array,1,1,1,.true.)
+          dpert = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
 
           dpert = sqrt(dpert)
 
@@ -227,14 +253,14 @@ c     Begin program
      .            -u_0%array_var(ieq)%array )
           array = array*array
 
-          dmag1 = integral(nxl,nyl,nzl,array,1,1,1,.true.)
+          dmag1 = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
 
           array = (u_np%array_var(ieq)%array
      .            +u_n %array_var(ieq)%array
      .         -2.*u_0 %array_var(ieq)%array )
           array = array*array
 
-          dmag2 = integral(nxl,nyl,nzl,array,1,1,1,.true.)
+          dmag2 = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
 
           if (dpert/=sqrt(dmag1).and.dmag2 /=0d0) then
             mag(ieq) = .5*dt*sqrt(dmag2)/(dpert-sqrt(dmag1))
@@ -355,9 +381,11 @@ c     Begin program
         dt = dt_exp
       else
         call adapt_dt
+
+        call calculate_cnfactor
       endif
 
-      call calculate_cnfactor
+      alpha = 1d0 - cnfactor
 
 c     End program
 
@@ -384,26 +412,49 @@ c     #######################################################################
           select case (sm_flag)
           case(1)  !Rannacher time stepping
 
-            if (   (itm <= sm_pass+1.and.(.not.timecorr))
-     .         .or.(itm <= sm_pass+2.and.      timecorr )) then
+            if (   (itm <= sm_pass  .and.(.not.timecorr))
+     .         .or.(itm <= sm_pass+1.and.      timecorr )) then
               dt = 0.5*dtbase
-            elseif ((itm == sm_pass+2.and.(.not.timecorr))
-     .          .or.(itm == sm_pass+3.and.      timecorr )) then
+            elseif ((itm == sm_pass+1.and.(.not.timecorr))
+     .          .or.(itm == sm_pass+2.and.      timecorr )) then
               dt = dtbase
             else
               dt = min(dtbase,dt*coef2)
             endif
 
           case(2)  !BDF time stepping
-            if     (    (itm == 1 .and.(.not.timecorr))
-     .              .or.(itm == 2 .and.      timecorr )) then
-              dt = 0.1*dtbase
-            elseif (    (itm == 2 .and.(.not.timecorr))
-     .              .or.(itm == 3 .and.      timecorr )) then
-cc              dt = min(dtbase,2*dt)
-              dt = dtbase
+
+            if (timecorr) then
+              if  (itm == 2) then
+                dt = 0.1*dtbase
+              elseif (itm == 3) then
+                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
+cc                dt = dtbase - dt
+cc              elseif (itm == 4) then
+cc                dt = dtbase
+              else
+                dt = min(dtbase,dt*coef2)
+              endif
+cc              if (itm == 2) then
+cc                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
+cc              else
+cc                dt = min(dtbase,dt*coef2)
+cc              endif
             else
-              dt = min(dtbase,dt*coef2)
+cc              if (itm == 1) then
+cc                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
+cc              else
+cc                dt = min(dtbase,dt*coef2)
+cc              endif
+              if  (itm == 1) then
+                dt = 0.1*dtbase
+              elseif (itm == 2) then
+                dt = dtbase - dt
+              elseif (itm == 3) then
+                dt = dtbase
+              else
+                dt = min(dtbase,dt*coef2)
+              endif
             endif
 
           case default   !Default time stepping
@@ -426,10 +477,6 @@ c     calculate_cnfactor
 c     #######################################################################
       subroutine calculate_cnfactor
 
-      cnp = 1d0
-      cn  =-1d0
-      cnm = 0d0
-
       if (sm_flag == 1) then      !Rannacher
 
         if (itm.eq.1) then
@@ -442,8 +489,6 @@ c     #######################################################################
 
       elseif (sm_flag == 2) then  !BDF2
 
-        cnfactor = 0d0
-
         bdf2 = (itm > 1 .and. (.not.timecorr) )
      .    .or. (itm > 2 .and.       timecorr  )
 
@@ -452,11 +497,13 @@ c     #######################################################################
           cnp = (2*dt+dtold)/(dt+dtold)
           cn  = -(dt+dtold)/dtold
           cnm = -cnp-cn    !Sum should be zero identically
+
+          cnfactor = 0d0
+        else
+          cnfactor = 0.5
         endif
 
       endif
-
-      alpha = 1d0 - cnfactor
 
       end subroutine calculate_cnfactor
 

@@ -229,27 +229,6 @@ c     End program
 
       end subroutine fillPetscGhostCells
 
-c     isProc
-c     #################################################################
-      function isProc(proc_id)
-
-        implicit none
-
-c     Call variables
-
-        integer    :: proc_id
-        logical    :: isProc
-
-c     Local variables
-
-c     Begin program
-
-        isProc = (my_rank == proc_id)
-
-c     End program
-
-      end function isProc
-
 c     pstop
 c     ################################################################
       subroutine pstop(routine,message)
@@ -275,6 +254,40 @@ c     Begin program
         stop
 
       end subroutine pstop
+
+c     dot2
+c     ###################################################################
+      function dot2(vec1,vec2)
+
+c     -------------------------------------------------------------------
+c     Performs parallel scalar product (vec1,vec2). In call:
+c       * vec1: vector, first term of scalar product.
+c       * vec2: vector, second term of scalar product.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: ntot
+      real(8)    :: dot2
+      real(8),INTENT(IN) :: vec1(:),vec2(:)
+
+c     Local variables
+
+      real(8)    :: ldot
+
+c     Begin program
+
+      dot2 = dot_product(vec1,vec2)
+
+      if (.not.asm) then
+        ldot = dot2
+        call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+
+      end function dot2
 
 c     dot
 c     ###################################################################
@@ -354,8 +367,6 @@ c     Begin program
       endif
 
       end function psum
-
-c     ######################## PRIVATE ROUTINES ###########################
 
 c     initMPI
 c     #####################################################################
@@ -551,29 +562,6 @@ ccc     End program
 cc
 cc      end subroutine destroyPETScFortranDA
 
-c     inProc
-c     #################################################################
-      function inProc(igl,jgl,kgl,igx,igy,igz)
-
-        implicit none
-
-c     Call variables
-
-        integer    :: igl,jgl,kgl,igx,igy,igz
-        logical    :: inProc
-
-c     Local variables
-
-c     Begin program
-
-        inProc =igl>=grid_params%ilo(igx).and.igl<=grid_params%ihi(igx)
-     .     .and.jgl>=grid_params%jlo(igy).and.jgl<=grid_params%jhi(igy)
-     .     .and.kgl>=grid_params%klo(igz).and.kgl<=grid_params%khi(igz)
-
-c     End program
-
-      end function inProc
-
 c     processorAlloc
 c     ######################################################################
       subroutine processorAlloc(nx1,ny1,nz1)
@@ -610,19 +598,16 @@ c     Eliminate specified directions
       if (npx /= 0) then
         nprocs = nprocs/npx
         nx = 1
-        asm_dir(1) = (npx > 1)
       endif
 
       if (npy /= 0) then
         nprocs = nprocs/npy
         ny = 1
-        asm_dir(2) = (npy > 1)
       endif
 
       if (npz /= 0) then
         nprocs = nprocs/npz
         nz = 1
-        asm_dir(3) = (npz > 1)
       endif
 
       if (nx == 1 .and. ny == 1 .and. nz == 1) then
@@ -699,12 +684,6 @@ c     Find processor distribution
       if (npx == 0) npx = 2**exp(1)
       if (npy == 0) npy = 2**exp(2)
       if (npz == 0) npz = 2**exp(3)
-
-c     Store processor topology for ASM PC treatment
-
-      asm_dir(1) = (npx > 1)
-      asm_dir(2) = (npy > 1)
-      asm_dir(3) = (npz > 1)
 
 c     End program
 
@@ -1479,48 +1458,6 @@ c     End program
 
       contains
 
-c     isProc
-c     #################################################################
-      function isProc(proc_id)
-
-        implicit none
-
-c     Call variables
-
-        integer    :: proc_id
-        logical    :: isProc
-
-c     Local variables
-
-c     Begin program
-
-      isProc = .true.
-
-c     End program
-
-      end function isProc
-
-c     inProc
-c     #################################################################
-      function inProc(igl,jgl,kgl,igx,igy,igz)
-
-        implicit none
-
-c     Call variables
-
-        integer    :: igl,jgl,kgl,igx,igy,igz
-        logical    :: inProc
-
-c     Local variables
-
-c     Begin program
-
-        inProc = .true.
-
-c     End program
-
-      end function inProc
-
 c     pstop
 c     ################################################################
       subroutine pstop(routine,message)
@@ -1543,6 +1480,31 @@ c     Begin program
 
       end subroutine pstop
 
+c     dot2
+c     ###################################################################
+      function dot2(vec1,vec2)
+
+c     -------------------------------------------------------------------
+c     Performs parallel scalar product (vec1,vec2). In call:
+c       * vec1: vector, first term of scalar product.
+c       * vec2: vector, second term of scalar product.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: dot2
+      real(8), INTENT(IN) :: vec1(:),vec2(:)
+
+c     Local variables
+
+c     Begin program
+
+      dot2 = dot_product(vec1,vec2)
+
+      end function dot2
+
 c     dot
 c     ###################################################################
       function dot(ntot,vec1,vec2)
@@ -1563,10 +1525,6 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: imin,imax,jmin,jmax,kmin,kmax
-     .             ,i,j,k,iii,ieq
-      real(8)    :: ldot
-
 c     Begin program
 
       dot = dot_product(vec1,vec2)
@@ -1574,6 +1532,50 @@ c     Begin program
       end function dot
 
 #endif
+
+c     isProc
+c     #################################################################
+      function isProc(proc_id)
+
+        implicit none
+
+c     Call variables
+
+        integer    :: proc_id
+        logical    :: isProc
+
+c     Local variables
+
+c     Begin program
+
+        isProc = (my_rank == proc_id)
+
+c     End program
+
+      end function isProc
+
+c     inProc
+c     #################################################################
+      function inProc(igl,jgl,kgl,igx,igy,igz)
+
+        implicit none
+
+c     Call variables
+
+        integer    :: igl,jgl,kgl,igx,igy,igz
+        logical    :: inProc
+
+c     Local variables
+
+c     Begin program
+
+        inProc =igl>=grid_params%ilo(igx).and.igl<=grid_params%ihi(igx)
+     .     .and.jgl>=grid_params%jlo(igy).and.jgl<=grid_params%jhi(igy)
+     .     .and.kgl>=grid_params%klo(igz).and.kgl<=grid_params%khi(igz)
+
+c     End program
+
+      end function inProc
 
       end module grid_mpi
 

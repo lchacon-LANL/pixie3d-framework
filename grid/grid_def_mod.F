@@ -11,16 +11,25 @@ c #####################################################################
         real(8)   ,parameter :: UNDEF_DP=-1234.
 
         type :: dim_pack
+#if defined(samrai)
+          sequence
+#endif
           logical    :: pack
           real(8)    :: xp
           real(8)    :: dx0
         end type dim_pack
 
         type :: grid_pack
+#if defined(samrai)
+          sequence
+#endif
           type(dim_pack),dimension(3) :: dim
         end type grid_pack
 
         type :: grid_metrics
+#if defined(samrai)
+          sequence
+#endif
           real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
           real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
           real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
@@ -29,42 +38,60 @@ c #####################################################################
           real(8),pointer,dimension(:,:,:,:,:,:) :: Gamma !Christoffel symbol at cell centers
           real(8),pointer,dimension(:,:,:,:,:)   :: cov   !Covariant vectors
           real(8),pointer,dimension(:,:,:,:,:)   :: cnv   !Contravariant vectors
+
+#if !defined(samrai)
+          !Need to add this on SAMRAI interface; when this is done, we need to remove
+          !special cases below as well.
+          real(8),pointer,dimension(:,:,:)       :: jac_v !Jacobian factor at grid vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsub_v!Covariant metric tensor at vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsup_v!Contravariant metric tensor at vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: cov_v !Covariant vectors at vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: cnv_v !Contravariant vectors at vertices
+#endif
         end type grid_metrics
 
         type :: MG_grid_metrics
+#if defined(samrai)
+          sequence 
+#endif
           type(grid_metrics),pointer,dimension(:) :: grid
         end type MG_grid_metrics
 
         type :: grid_mg_def
-          !External grid manager (e.g. SAMRAI) needs to define these!
-          integer :: nglx                                 !Global number of mesh points in X
-          integer :: ngly                                 !Global number of mesh points in Y
-          integer :: nglz                                 !Global number of mesh points in Z
+#if defined(samrai)
+          sequence 
+!!          Variables below have changed from earlier PIXIE3D version!!!
+#endif
+          !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
+          integer :: nglx                                 !Global number of mesh points in X, over global domain, not local patch
+          integer :: ngly                                 !Global number of mesh points in Y, over global domain, not local patch
+          integer :: nglz                                 !Global number of mesh points in Z, over global domain, not local patch
 
-          integer :: ilog                                 !Global lower  limit in X
-          integer :: ihig                                 !Global higher limit in X
-          integer :: jlog                                 !Global lower  limit in Y
-          integer :: jhig                                 !Global higher limit in Y
-          integer :: klog                                 !Global lower  limit in Z
-          integer :: khig                                 !Global higher limit in Z
+          integer :: ilog                                 !Global lower  limit in X, patch indices relative to global index space, no ghosts
+          integer :: ihig                                 !Global higher limit in X, patch indices relative to global index space
+          integer :: jlog                                 !Global lower  limit in Y, patch indices relative to global index space
+          integer :: jhig                                 !Global higher limit in Y, patch indices relative to global index space
+          integer :: klog                                 !Global lower  limit in Z, patch indices relative to global index space
+          integer :: khig                                 !Global higher limit in Z, patch indices relative to global index space
 
           real(8) :: gxmin,gxmax                          !Physical dim. of global domain in X
           real(8) :: gymin,gymax                          !Physical dim. of global domain in Y
           real(8) :: gzmin,gzmax                          !Physical dim. of global domain in Z
 
           integer :: mpi_comm,np,rank                     !MPI info
-          !External grid manager (e.g. SAMRAI) needs to define these!
 
-          integer :: ngrdx                                !Grid levels in X
-          integer :: ngrdy                                !Grid levels in Y
-          integer :: ngrdz                                !Grid levels in Z
+          integer :: aligner                              !Ghost cell width
+          integer :: gcw                                  !Ghost cell width
+          !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
+
+          integer :: ngrdx                                !Grid levels in X, MG specific
+          integer :: ngrdy                                !Grid levels in Y, MG specific
+          integer :: ngrdz                                !Grid levels in Z, MG specific
           integer :: ngrid                                !Max grid levels for MG
 
           integer :: nlx                                  !Local number of mesh points in X
           integer :: nly                                  !Local number of mesh points in Y
           integer :: nlz                                  !Local number of mesh points in Z
-
-          integer :: gcw                                  !Ghost cell width
 
           integer   ,pointer,dimension(:)  :: ilo         !Global lower limit in X in all grids
           integer   ,pointer,dimension(:)  :: jlo         !Global lower limit in Y in all grids
@@ -73,7 +100,8 @@ c #####################################################################
           integer   ,pointer,dimension(:)  :: jhi         !Global higher limit in Y in all grids
           integer   ,pointer,dimension(:)  :: khi         !Global higher limit in Z in all grids
 
-          real(8)   ,pointer,dimension(:)  :: xg          !Global grid nodes in X (top grid only)
+          ! can the following set of variables be de-allocated ???
+          real(8)   ,pointer,dimension(:)  :: xg          !Global grid nodes in X (top grid only), x co-ordinates of global domain useful for a packed tensor grid
           real(8)   ,pointer,dimension(:)  :: yg          !Global grid nodes in Y (")
           real(8)   ,pointer,dimension(:)  :: zg          !Global grid nodes in Z (")
           real(8)   ,pointer,dimension(:)  :: xx          !Local grid nodes in X (all grids)
@@ -87,7 +115,7 @@ c #####################################################################
           real(8)   ,pointer,dimension(:)  :: dyh         !Grid spacings in Y for half mesh (")
           real(8)   ,pointer,dimension(:)  :: dzh         !Grid spacings in Z for half mesh (")
 
-          integer   ,pointer,dimension(:)  :: nxv         !Local # of grid nodes in X  (all grids)
+          integer   ,pointer,dimension(:)  :: nxv         !Local # of grid nodes in X  (all MG grids)
           integer   ,pointer,dimension(:)  :: nyv         !Local # of grid nodes in Y  (")
           integer   ,pointer,dimension(:)  :: nzv         !Local # of grid nodes in Z  (")
           integer   ,pointer,dimension(:)  :: nxgl        !Global # of grid nodes in X  (")
@@ -111,7 +139,7 @@ c #####################################################################
 
           type(grid_pack),pointer          :: g_pack      !Grid packing information
 
-#if defined(petsc)
+#if defined(petsc) && !defined(samrai)
           type(petsc_da_ctx),pointer,dimension(:)::dactx  !PETSc DA context
 #endif
 
@@ -164,7 +192,7 @@ c     Begin program
           grid_st%gzmin = UNDEF_DP
           grid_st%gzmax = UNDEF_DP
 
-#if defined(petsc)
+#if defined(petsc) && !defined(samrai)
           if (PRESENT(mpi_comm)) then
             grid_st%mpi_comm = mpi_comm
           else
@@ -350,7 +378,7 @@ c     Local variables
 
         integer :: igr
 
-#if defined(petsc)
+#if defined(petsc) && !defined(samrai)
         type(petsc_da_ctx),pointer :: da_ctx
 #endif
 
@@ -370,7 +398,7 @@ c     Deallocate grid packing info
 
 c     Deallocate PETSC DA context
 
-#if defined(petsc)
+#if defined(petsc)  && !defined(samrai)
         do igr=1,grid_st%ngrid
           da_ctx => grid_st%dactx(igr)
           call destroyPETScFortranDA(da_ctx)
@@ -688,6 +716,18 @@ c     Begin program
             allocate(gmetric%grid(igrid)
      $           %Gamma(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
 
+#if !defined(samrai)
+            allocate(gmetric%grid(igrid)
+     $           %jac_v (ilom:ihip,jlom:jhip,klom:khip))
+            allocate(gmetric%grid(igrid)
+     $           %gsub_v(ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %gsup_v(ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %cov_v (ilom:ihip,jlom:jhip,klom:khip,3,3))
+            allocate(gmetric%grid(igrid)
+     $           %cnv_v (ilom:ihip,jlom:jhip,klom:khip,3,3))
+#endif
           enddo
         endif
 
@@ -728,6 +768,14 @@ c     Begin program
           gmetric2%grid(igrid)%cov  = gmetric1%grid(igrid)%cov  
           gmetric2%grid(igrid)%cnv  = gmetric1%grid(igrid)%cnv  
           gmetric2%grid(igrid)%Gamma= gmetric1%grid(igrid)%Gamma
+
+#if !defined(samrai)
+          gmetric2%grid(igrid)%jac  = gmetric1%grid(igrid)%jac  
+          gmetric2%grid(igrid)%gsub = gmetric1%grid(igrid)%gsub 
+          gmetric2%grid(igrid)%gsup = gmetric1%grid(igrid)%gsup 
+          gmetric2%grid(igrid)%cov  = gmetric1%grid(igrid)%cov  
+          gmetric2%grid(igrid)%cnv  = gmetric1%grid(igrid)%cnv  
+#endif
         enddo
 
 c     End program
@@ -760,6 +808,13 @@ c     Begin program
             deallocate(gmetric%grid(igrid)%cov)
             deallocate(gmetric%grid(igrid)%cnv)
             deallocate(gmetric%grid(igrid)%Gamma)
+#if !defined(samrai)
+            deallocate(gmetric%grid(igrid)%jac_v)
+            deallocate(gmetric%grid(igrid)%gsub_v)
+            deallocate(gmetric%grid(igrid)%gsup_v)
+            deallocate(gmetric%grid(igrid)%cov_v)
+            deallocate(gmetric%grid(igrid)%cnv_v)
+#endif
           enddo
           deallocate(gmetric%grid)
           deallocate(gmetric)
@@ -769,7 +824,7 @@ c     End program
 
       end subroutine deallocateGridMetric
 
-#if defined(petsc)
+#if defined(petsc) && !defined(samrai)
 
 c     createPETScGrid
 c     #################################################################

@@ -16,8 +16,6 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-      use constants
-
       use iosetup
 
       implicit none
@@ -91,6 +89,8 @@ c Check for autoinitializing parameters
         endif
       endif
 
+      itime = 0
+
 c Initialize MG and create grid
 
       call createGrid(nxd,nyd,nzd,g_pack,gv%gparams)
@@ -133,32 +133,28 @@ c Initialize old time solution
 
 c Set unperturbed forcing fields
 
-      jit = -2   !This informs nlfunction that we are processing the source
-
+cc      jit = -2 
+      source_eval = .true.   !This informs nlfunction that we are processing the source
+      
       !This not only evaluates fsrc, but defines BCs on u_n
       call evaluateNonlinearFunction(u_n,fsrc)
 
       if (.not.source) fsrc = 0d0
 
+      source_eval = .false.
+
 c Set output files
 
+      if (.not.restart) then
+        if (my_rank == 0) call rm_file(recordfile)
 #if defined(petsc) 
-      if (.not.restart) then
-        if (my_rank == 0)
-     .     ierr=system('rm -f '//trim(recordfile)//'* > /dev/null')
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-      endif
-
-      urecord = urecord + my_rank
-
-      if (np > 1) then
-        recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
-      endif
-#else
-      if (.not.restart) then
-         ierr=system('rm -f '//trim(recordfile)//'* > /dev/null')
-      endif
 #endif
+      endif
+
+cc      urecord = urecord + my_rank
+
+cc      recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
 
 c Set initial condition
 
@@ -195,8 +191,6 @@ c     Allocates nonlinear solver arrays
 c----------------------------------------------------------------------
 
       use parameters
-
-      use constants
 
       use timeStepping
 
@@ -237,8 +231,6 @@ c----------------------------------------------------------------------
 
       use parameters
 
-      use constants
-
       use timeStepping
 
       use variables
@@ -270,8 +262,6 @@ c     Creates equilibrium according to user input.
 c----------------------------------------------------------------------
 
       use parameters
-
-      use constants
 
       use timeStepping
 
@@ -358,15 +348,11 @@ c     Set initial conditions for initial value calculation. Variables
 c     are stored in u_np
 c--------------------------------------------------------------------
 
-      use icond
-
       use grid
 
       use variable_setup
 
       use timeStepping
-
-      use constants
 
       use iosetup
 
@@ -403,10 +389,11 @@ c Perturb equilibrium
         do ieq = 1,neqd
           call perturbEquilibrium(varraynp%array_var(ieq)%array
      .                           ,varraynp%array_var(ieq)%bconds
-     .                           ,pert(ieq),ieq)
+     .                           ,ieq)
         enddo
 
         time     = 0d0
+        itime    = 1   !Needed for BC logic
         inewtime = 1
 
         !Impose BC on varrayn
@@ -453,15 +440,9 @@ c     Begin program
 
       call allocateDerivedType(vmed)
 
-      ierr = system('test -f '//trim(recordfile))
-
-      if (ierr /= 0) then
-        call pstop('readRestartFile'
-     .            ,'Cannot find restart file')
-      endif
-
-      open(unit=urecord,file=trim(recordfile),form='unformatted'
-     .    ,status='old')
+      call openBinFile(urecord,recordfile,status='old')
+cc      open(unit=urecord,file=trim(recordfile),form='unformatted'
+cc     .    ,status='old')
 
       read (urecord) nx,ilog,ihig
       read (urecord) ny,jlog,jhig
@@ -476,14 +457,14 @@ c     Begin program
      $            ,'Grid meshes do not agree; cannot restart')
       endif
 
-      if (my_rank == 0) write (*,*) 'Reading restart file(s)...'
+      if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
 
-      call readRecordFile(urecord,itime,time,dt,vn,ierr)
+      ierr = readRecordFile(urecord,itime,time,dt,vn)
 
       call equateDerivedType(vnp,vn)
 
       do
-        call readRecordFile(urecord,itime,time,dt,vmed,ierr)
+        ierr = readRecordFile(urecord,itime,time,dt,vmed)
 
         if (ierr /= 0) then
           exit
@@ -493,9 +474,9 @@ c     Begin program
         endif
       enddo
 
-      close (urecord)
+      close(urecord)
 
-      if (my_rank == 0) write (*,*) 'Done!'
+      if (my_rank == 0) write (*,*) ' Done!'
 
 c     End
 
@@ -599,8 +580,9 @@ cc          enddo
         endif
 
         !Open record file
-        open(unit=urecord,file=recordfile
-     .      ,form='unformatted',status='unknown')
+        call openBinFile(urecord,recordfile,status='unknown')
+cc        open(unit=urecord,file=recordfile
+cc     .      ,form='unformatted',status='unknown')
 
         write (urecord) nxl,ilog,ihig
         write (urecord) nyl,jlog,jhig
@@ -613,8 +595,11 @@ ccnorb        write (*,*) 'writeRecordFile <-initCalc with u_np: ',0
 
       else
 
-        open(unit=urecord,file=recordfile
-     .      ,form='unformatted',status='old',position='append')
+        call openBinFile(urecord,recordfile,status='old'
+     .                  ,position='append'
+     .                  ,check=.true.)
+cc        open(unit=urecord,file=recordfile
+cc     .      ,form='unformatted',status='old',position='append')
           
       endif
 

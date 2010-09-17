@@ -24,7 +24,7 @@ c Local variables
       integer    :: i,j,k,ieq,ii,ig,jg,kg
       real(8)    :: dvol
 
-      type(var_array),pointer :: varray
+      type(var_array),pointer :: varray => null()
 
 c Interfaces
 
@@ -142,7 +142,7 @@ c Begin program
 
 c Setup parallel BC flags to indicate BCs require communication
 
-      call setASMflag((np==1))
+      call setup_petsc_BC
 
 c Prepare auxiliar quantities
 

@@ -193,7 +193,7 @@ c Local variables
       integer    :: niter,stp_test,depth1,ierr
       integer    :: i,iter,smit,nn,vcycle,precout
       real(8)    :: alpha,beta,mag,mag1,rr0,rho0,rho1
-      real(8)    :: smtol,tol,abstol
+      real(8)    :: rtol,atol,stol
       real(8)    :: rr(ntot),zz(ntot),pp(ntot),qq(ntot)
 
 c Begin program
@@ -204,13 +204,15 @@ c Begin program
 
       depth1 = depth + 1
 
-      abstol = 1d-16*nn
-
 c Extract options
 
       niter    = options%iter      !Maximum number of iterations
       stp_test = options%stp_test  !Stopping test type (0 -> rhs, 1-> residual)
-      tol      = options%tol       !Convergence tolerance
+      rtol     = options%tol       !Relative convergence tolerance
+      atol     = options%atol      !Absolute convergence tolerance
+      stol     = options%stol      !Update convergence tolerance (not used)
+
+      if (atol == 0d0) atol = find_mach_eps()*sqrt(1.*nn)
 
 c Compute initial residual
 
@@ -234,14 +236,12 @@ c     For arbitrary initial guess (rr = b - Ax)
 c CG solve
 
       if (stp_test.eq.1) then
-cc        rr0 = sqrt(sum(rr*rr))
-        rr0 = sqrt(dot(ntot,rr,rr))
+        rr0 = sqrt(dot2(rr,rr))
       else
-cc        rr0 = sqrt(sum(b*b))
-        rr0 = sqrt(dot(ntot,b,b))
+        rr0 = sqrt(dot2(b,b))
       endif
 
-      if (rr0.lt.abstol) then
+      if (rr0.lt.atol) then
         if (out .ge. 1 .and. my_rank == 0) then
           write (*,*) 'CG residual',rr0
           write (*,*) 'Initial guess seems exact solution in CG' 
@@ -249,17 +249,13 @@ cc        rr0 = sqrt(sum(b*b))
         return
       endif
 
-cc      iter = 0
-cc      if (out.ge.2) write (*,10) iter,rr0,rr0/rr0
-
 c     Preconditioner (zz = P rr)
 
       call getSolver(neq,ntot,rr,zz,matvec,igrid,bcnd,0,precout,depth1)
 
 c     CG preparation
 
-cc      rho1 = sum(rr*zz)
-      rho1 = dot(ntot,rr,zz)
+      rho1 = dot2(rr,zz)
 
       pp = zz
 
@@ -271,8 +267,7 @@ c     CG step
 
         call matvec(0,neq,ntot,pp,qq,igrid,bcnd)
 
-cc        alpha = rho0/sum(pp*qq)
-        alpha = rho0/dot(ntot,pp,qq)
+        alpha = rho0/dot2(pp,qq)
 
         x  = x  + alpha*pp
 
@@ -280,14 +275,12 @@ cc        alpha = rho0/sum(pp*qq)
 
 c     Check convergence
 
-cc        mag = sqrt(sum(rr*rr))
-        mag = sqrt(dot(ntot,rr,rr))
+        mag = sqrt(dot2(rr,rr))
         mag1 = mag/rr0
         if (out.ge.2.and. my_rank == 0) write (*,10) iter,mag,mag1
-cc        if (mag1.lt.tol) exit
 
-        if (mag < (abstol + tol*rr0)) then
-          if (mag > tol*rr0) then
+        if (mag < (atol + rtol*rr0) .or. iter == niter) then
+          if (mag > rtol*rr0 .and. mag < atol) then
             if (out.gt.1.and. my_rank == 0)
      .           write (*,*) 'Solution in CG is in round-off.'
             if (out.gt.1.and. my_rank == 0) write (*,*) 'Aborting CG...'
@@ -303,8 +296,7 @@ c     Preconditioner (zz = P rr)
 
 c     Prepare next step
 
-cc        rho1 = sum(rr*zz)
-        rho1 = dot(ntot,rr,zz)
+        rho1 = dot2(rr,zz)
 
         beta = rho1/rho0
 
@@ -320,8 +312,6 @@ cc        rho1 = sum(rr*zz)
 
 c End program
 
-      return
-
  10   format (' CG Iteration:',i4,'; Residual:',1p,1e12.4,
      .        '; Ratio:',1p,1e12.4)
 
@@ -332,8 +322,10 @@ c#######################################################################
       recursive subroutine gm(neq,ntot,b,x,matvec,options,igrid,bcnd
      .                       ,guess,iout,depth)
 c--------------------------------------------------------------------
-c     Matrix-free Preconditioned Conjugate Gradient routine to solve
-c     Ax = b. Call variables:
+c     Matrix-free Preconditioned Flexible restarted GMRES routine.
+c     Has capability of dealing with singular matrices.
+c
+c     Call variables:
 c       * ntot: grid dimension
 c       * b,x: rhs, solution vectors
 c       * matvec: matrix-free matvec product (external)
@@ -362,24 +354,23 @@ c Call variables
 c Local variables
 
       integer    :: k_max,stp_test,depth1
-      real(8)    :: eps,rold,ro,eps1,gam,tt,mag,abstol,dx(ntot)
+      real(8)    :: eps,rold,ro,eps1,gam,tt,mag,dx(ntot)
      .             ,smx_est,smn_est,smx_new,smn_new,snmx,snmn,csmx,csmn
+     .             ,tol,atol,rtol,stol
 
       integer    :: i,j,i1,k,k1,ii,jj
       integer    :: nn,rstrt,irstrt,precout,maxits
 
-      double precision,allocatable,dimension(:)  :: c,s,rs,xsvmn,xsvmx
-      double precision,allocatable,dimension(:,:):: hh,vv,zz
+      real(8),allocatable,dimension(:)  :: c,s,rs,xsvmn,xsvmx
+      real(8),allocatable,dimension(:,:):: hh,vv,zz
 
-      real(8)    :: epsmac=0d0
+      real(8)    :: kappa,kappa_max,epsmac
 
-cc      data epsmac /1d-20/
-
-      logical    :: sing_mat
+      logical    :: sing_mat,sing_mat_stop,roundoff_stop
 
 c Begin program
 
-      if (epsmac == 0d0) epsmac = find_mach_eps()
+      epsmac = find_mach_eps()
 
       its = 0
       nn = ntot
@@ -388,15 +379,24 @@ c Begin program
 
       depth1 = depth + 1
 
-      abstol = epsmac*nn
+      sing_mat_stop = .false.
+      roundoff_stop = .false.
 
 c Extract options
 
       maxits   = options%iter                       !Maximum number of GMRES its
       stp_test = options%stp_test                   !Stopping test type (0 -> rhs, 1-> residual)
-      eps      = options%tol                        !Convergence tolerance
+      rtol     = options%tol                        !Relative convergence tolerance
+      atol     = options%atol                       !Absolute convergence tolerance
+      stol     = options%stol                       !Update convergence tolerance (not used)
       k_max    = min(options%krylov_subspace,ntot)  !Maximum krylov subspace
       sing_mat = options%singular_matrix            !Tell GMRES is dealing with a singular matrix
+
+      if (sing_mat .and. iout >= 1.and. my_rank == 0)
+     .  write (*,*)
+     .     '>>> GMRES SINGULAR MAT: processing singular matrix'
+
+      if (atol == 0d0) atol = epsmac*sqrt(1.*nn)
 
 c Allocate work arrays
 
@@ -430,31 +430,31 @@ c Calculate restarting loops
 
 c Calculate magnitude of initial residual
 
-      if (stp_test.eq.1) then
-cc        rold = sqrt(sum(vv(:,1)*vv(:,1)))
-        rold = sqrt(dot(ntot,vv(:,1),vv(:,1)))
+      if (stp_test == 1) then
+        rold = sqrt(dot2(vv(:,1),vv(:,1)))
       else
-cc        rold = sqrt(sum(b*b))
-        rold = sqrt(dot(ntot,b,b))
+        rold = sqrt(dot2(b,b))
       endif
 
-      if (rold.lt.abstol) then
+      if (rold < atol) then
         ierr = -1
-        if (iout .ge. 1.and. my_rank == 0)
+        if (iout >= 1.and. my_rank == 0)
      .       write (*,*) 'Initial guess seems exact solution in GMRES'
         call killgm
         return
       endif
 
-      eps1=eps*rold
+      rtol = rtol*rold
 
-      ro = rold
+      tol  = atol + rtol
+
+      ro   = rold
 
 c Restarted GMRES loop
 
       do irstrt = 1,rstrt
 
-        if (stp_test /= 1) ro = sqrt(dot(ntot,vv(:,1),vv(:,1)))
+        if (stp_test /= 1) ro = sqrt(dot2(vv(:,1),vv(:,1)))
 
         tt = 1.0d0/ro
         vv(:,1) = vv(:,1)*tt
@@ -480,14 +480,12 @@ c        Call preconditioner
 c        Modified gram - schmidt.
 
           do j=1, i
-cc            tt = sum(vv(:,j)*vv(:,i1))
-            tt = dot(ntot,vv(:,j),vv(:,i1))
+            tt = dot2(vv(:,j),vv(:,i1))
             hh(j,i) = tt
             vv(:,i1) = vv(:,i1) - tt*vv(:,j)
           enddo
 
-cc          tt = sqrt(sum(vv(:,i1)*vv(:,i1)))
-          tt = sqrt(dot(ntot,vv(:,i1),vv(:,i1)))
+          tt = sqrt(dot2(vv(:,i1),vv(:,i1)))
           hh(i1,i) = tt
 
           if ( tt .ne. 0.0d0) then
@@ -508,7 +506,7 @@ c        Perform previous transformations on i-th column of h
             enddo
           endif
 
-          gam = sqrt(hh(i,i)**2 + hh(i1,i)**2)
+          gam = sqrt(hh(i,i)*hh(i,i) + hh(i1,i)*hh(i1,i))
 
 c        If gamma is zero then any small value will do
 c        Will affect only residual estimate
@@ -523,7 +521,7 @@ c        Get next plane rotation
           hh(i,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
           hh(i1,i)= 0d0
 
-c        Estimate condition number of hh
+c        Estimate condition number of hh for SINGULAR MATRICES
 
           if (sing_mat) then
             if (i > 1) then
@@ -535,22 +533,26 @@ c        Estimate condition number of hh
               call dlaic1(2,i-1,xsvmn(1:i-1),smn_est,hh(1:i-1,i),hh(i,i)
      .                   ,smn_new,snmn,csmn)
 
-cc              write (*,*) 'Mat column=',hh(i,1:i-1)
-cc              write (*,*) 'Gamma=',hh(i,i)
-cc              write (*,*) 'Max sv ',xsvmx(1:i-1)
-cc     .                   ,'norm=',sqrt(sum(xsvmx(1:i-1)**2))
-cc     .                   ,'sine=',snmx,'cos=',csmx
-cc              write (*,*) 
-cc              write (*,*) 'Min sv ',xsvmn(1:i-1)
-cc     .                   ,'norm=',sqrt(sum(xsvmn(1:i-1)**2))
-cc     .                   ,'sine=',snmn,'cos=',csmn
-cc              write (*,*) 
-
               !Condition number
-              write (*,*) 'Max. sing. val. =',smx_new
-              write (*,*) 'Min. sing. val. =',smn_new
               if (smn_new /= 0d0) then
-                write (*,*) 'Condition number=',smx_new/smn_new
+                kappa = smx_new/smn_new
+              else
+                kappa = 0d0
+              endif
+
+              kappa_max = sqrt(ro/rold/epsmac)
+
+              if (iout.ge.2.and. my_rank == 0) then
+                write(*,*)' >>> GMRES SINGULAR MAT: Max. sing. val. ='
+     .                    ,smx_new
+                write(*,*)' >>> GMRES SINGULAR MAT: Min. sing. val. ='
+     .                    ,smn_new
+                if (smn_new /= 0d0) then
+                  write(*,*)' >>> GMRES SINGULAR MAT: Condition number='
+     .                      ,kappa
+                endif
+                write(*,*)' >>> GMRES SINGULAR MAT: Cond. number limit='
+     .                     ,kappa_max
               endif
 
               !Update quantities
@@ -561,12 +563,15 @@ cc              write (*,*)
               xsvmx(i)     = csmx
               xsvmn(1:i-1) = snmn*xsvmn(1:i-1)
               xsvmn(i)     = csmn
+
+              sing_mat_stop = (kappa > kappa_max)
             else
               smx_est = hh(1,1)  !Initial SV is single element
               smn_est = hh(1,1)  !Initial SV is single element
               xsvmx(1) = 1d0
               xsvmn(1) = 1d0
             endif
+
           endif
 
 c        Determine residual norm and test for convergence
@@ -578,11 +583,10 @@ c        Determine residual norm and test for convergence
 
           if (iout.ge.2.and. my_rank == 0) write(*,10) its,ro,ro/rold
 
-          if (sing_mat) write (*,*) 'Kmin=',sqrt(ro/rold/epsmac)
-
-          if (    ro .le.(abstol+eps1)
-     .        .or.i  .ge.min(k_max,maxits)
-     .        .or.its.ge.maxits          ) exit
+          if (    ro  <= tol
+     .        .or.i   >= min(k_max,maxits)
+     .        .or.its >= maxits
+     .        .or.sing_mat_stop ) exit
 
         enddo
 
@@ -602,15 +606,11 @@ c      Now compute solution. First solve upper triangular system
 c      Form linear combination of z(*,i)'s to get solution
 
         tt = rs(1)
-        do k=1, nn
-          dx(k) = zz(k,1)*tt
-        enddo
+        dx = zz(:,1)*tt
 
         do j=2, i
           tt = rs(j)
-          do k=1, nn
-            dx(k) = dx(k)+tt*zz(k,j)
-          enddo
+          dx = dx + tt*zz(:,j)
         enddo
 
 c      Store last krylov vector
@@ -623,20 +623,12 @@ c      Form solution
 
 c      Check convergence and restart outer loop if necessary
 
-c diag ******
-cc        call matvec(0,neq,ntot,x,dx,igrid,bcnd)
-cc        dx = b - dx
-cc        ro = sqrt(dot(ntot,dx,dx))
-cc        write (*,*) 'DIAG -- gm; Real residual=',ro
-cc        exit
-c diag ******
-
-        if (ro.le.(abstol+eps1)) then
-          if (ro > eps1 .and. ro < abstol) then
+        if (ro <= tol) then
+          if (ro > rtol .and. ro < atol) then
+            roundoff_stop = .true.
+            if (iout > 1) write (*,*)
             if (iout.gt.1.and. my_rank == 0)
-     .           write (*,*) 'Solution in GMRES is in round-off.'
-            if (iout.gt.1.and. my_rank == 0)
-     .           write (*,*) 'Aborting GMRES...'
+     .        write(*,*)'GMRES solution is in round-off. Terminating.'
           endif
           ierr = 0
           exit
@@ -644,6 +636,16 @@ c diag ******
 
         if (its.ge.maxits) then
           ierr = 1
+          exit
+        endif
+
+        if (sing_mat_stop) then
+          ierr = 2
+          if (my_rank == 0) then
+            if (iout > 1) write (*,*)
+            write (*,*)
+     .           '>>> GMRES SINGULAR MAT: found least-squares solution'
+          endif
           exit
         endif
 
@@ -676,7 +678,23 @@ c      Restart outer loop
       if (iout.ge.2.and. my_rank == 0) write (*,*)
 
       options%iter_out = its
-      options%tol_out  = ro/rold
+
+      if (sing_mat_stop) then
+        options%tol_out  = kappa_max/kappa*tol
+      elseif (roundoff_stop) then
+        options%tol_out  = 0d0
+      else
+        options%tol_out  = ro/rold
+      endif
+
+c diag ******
+cc        if (sing_mat) then
+cc          call matvec(0,neq,ntot,x,dx,igrid,bcnd)
+cc          dx = b - dx
+cc          ro = sqrt(dot2(dx,dx))
+cc          write (*,*) 'DIAG -- gm; Real residual=',ro
+cc        endif
+c diag ******
 
 c End program
 

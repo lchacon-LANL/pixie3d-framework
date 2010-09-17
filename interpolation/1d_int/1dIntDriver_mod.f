@@ -2,6 +2,8 @@ c module oned_int
 c ######################################################################
       module oned_int
 
+      private :: l_int,q_int
+
       contains
 
 c     IntDriver1d

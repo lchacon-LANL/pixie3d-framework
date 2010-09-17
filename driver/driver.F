@@ -16,19 +16,13 @@ c ******************************************************************
 
       use grid
 
-      use icond
-    
-#if defined(adios)
-      use adios_vars
-#endif
-
 c Common variables
 
       implicit none
 
 c Local variables
 
-      integer    :: prec_tot,ierr,prof_stage(3),adios_err
+      integer    :: prec_tot,ierr,perr,prof_stage(3),adios_err
       real(8)    :: time1,time2,time3,time4
 
 c Interfaces
@@ -39,15 +33,6 @@ c Interfaces
         integer          :: ierr
         type(var_array),pointer :: vnp,vn
         end subroutine timeStep
-      END INTERFACE
-
-      INTERFACE
-        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
-        use variable_setup
-        integer    :: iigx,iigy,iigz
-        integer,optional :: obc
-        type(var_array),pointer :: varray
-        end subroutine imposeBoundaryConditions
       END INTERFACE
 
       INTERFACE
@@ -76,9 +61,9 @@ c Initialize PETSc and MPI (parallel version)
       call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
 
       !Set profiling stages
-      call PetscLogStageRegister('Initial setup'  ,prof_stage(1),ierr)
-      call PetscLogStageRegister('Nonlinear solve',prof_stage(2),ierr)
-      call PetscLogStageRegister('Sol. processing',prof_stage(3),ierr)  
+      call PetscLogStageRegister('Initial setup'  ,prof_stage(1),perr)
+      call PetscLogStageRegister('Nonlinear solve',prof_stage(2),perr)
+      call PetscLogStageRegister('Sol. processing',prof_stage(3),perr)  
 #endif
 
 c Initialize ADIOS for componentized I/O
@@ -95,7 +80,7 @@ c Initialize calculation
 
 #if defined(petsc)
       !Profiling stage 1
-      call PetscLogStagePush(prof_stage(1),ierr)
+      call PetscLogStagePush(prof_stage(1),perr)
 #endif
 
       call initializeCalculation
@@ -121,12 +106,12 @@ c Initial output
 c Time loop
 
 #if defined(petsc)
-      call PetscGetTime(time1,ierr)
-      call PetscGetCPUTime(time2,ierr)
+      call PetscGetTime(time1,perr)
+      call PetscGetCPUTime(time2,perr)
 
       !Begin profiling third stage
-      call PetscLogStagePop(ierr)
-      call PetscLogStagePush(prof_stage(3),ierr)
+      call PetscLogStagePop(perr)
+      call PetscLogStagePush(prof_stage(3),perr)
 #endif
 
       do
@@ -157,8 +142,8 @@ c     Time update
 
 #if defined(petsc)
         !Begin profiling second stage
-        call PetscLogStagePop(ierr)
-        call PetscLogStagePush(prof_stage(2),ierr)
+        call PetscLogStagePop(perr)
+        call PetscLogStagePush(prof_stage(2),perr)
 #endif
 
         time   = time  + dt
@@ -169,8 +154,8 @@ c     Check for error in time stepping
 
 #if defined(petsc)
         !Begin profiling third stage
-        call PetscLogStagePop(ierr)
-        call PetscLogStagePush(prof_stage(3),ierr)
+        call PetscLogStagePop(perr)
+        call PetscLogStagePush(prof_stage(3),perr)
 #endif
 
         if (ierr == 1) then     !Restart time step
@@ -220,7 +205,6 @@ c     Time level data dump
 #endif
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
-          call imposeBoundaryConditions(u_np,1,1,1)
 ccnorb          write (*,*) 'call writeRecordFile: ',itime,time
           call writeRecordFile(urecord,itime,time,dt,u_np)
 ccnorb          write (*,*) 'return from  writeRecordFile ',itime
@@ -240,8 +224,8 @@ c Average explicit time step
 c Final statistics
 
 #if defined(petsc)
-      call PetscGetTime(time3,ierr)
-      call PetscGetCPUTime(time4,ierr)
+      call PetscGetTime(time3,perr)
+      call PetscGetCPUTime(time4,perr)
 
       if (my_rank == 0 .and. .not.(tst_flg)) then
         write (*,*) 'CPU statistics'
@@ -283,9 +267,9 @@ c End program
 
 #if defined(petsc)
       !Finalize profiling
-      call PetscLogStagePop(ierr)
+      call PetscLogStagePop(perr)
 
-      call PetscFinalize(ierr)
+      call PetscFinalize(perr)
 #endif
 
       end
@@ -316,13 +300,13 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer          :: ierr
+      integer :: ierr
 
       type(var_array),pointer :: vnp,vn
 
 c Local variables
 
-      double precision :: x(ntotd)
+      real(8) :: x(ntotd)
 
 c Interfaces
 
@@ -343,46 +327,80 @@ c Interfaces
         end subroutine explicit
       END INTERFACE
 
+      INTERFACE
+        subroutine applyPreconditioner(n,x,y,out)
+        integer :: n,out
+        real(8),dimension(n) :: x,y
+        end subroutine
+      END INTERFACE
+
+      INTERFACE
+        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        integer,optional :: obc
+        type(var_array),pointer :: varray
+        end subroutine imposeBoundaryConditions
+      END INTERFACE
+
 c Begin program
 
       ierr = 0
 
       itwhistler = 0
 
-      jit = -1     !This informs nlfunction that we are processing
-                   !  n time level info
-
 c Evaluate nonlinear function at old time for theta scheme
 
+cc      jit = -1
+      old_time_eval = .true.     !This informs nlfunction that we are processing
+                                 !  n time level info
+
       call evaluateNonlinearFunction(vnp,fold)
+
+      old_time_eval = .false.
 
 c Eigenvalue solver
 
       if (eigen) then
 
-        eigen_conf%ksmax = maxksp
-        eigen_conf%armax = maxitgm
-        if (rtol > 0d0) eigen_conf%rtol = rtol
-        if (atol > 0d0) eigen_conf%atol = atol
-        eigen_conf%step  = eigstep
+        !Setup matrix-free vectors (xk, rk)
+        allocate(nk_conf%xk(ntotd),nk_conf%rk(ntotd))
 
-        !Setup matvec in Newton
-        allocate (xk(ntotd),rk(ntotd))
+        call mapStructureToVector(nk_conf%xk,u_0)
+        call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
 
-        call mapStructureToVector(xk,u_0)
+        !Setup preconditioner
+        call setupPC(ntotd,nk_conf%xk,1)
+
+        !Setup initial guess for eigenfunction
         call mapStructureToVector(x ,vnp)
-        call evaluateNewtonResidual(ntotd,xk,rk)
-
-        !Setup initial guess
-        x = x - xk
+        x = x - nk_conf%xk
 
         !Eigensolve
-#if defined(arpack)
-        call arnoldi_eig(neqd,ntotd,x,ilevel)
-#endif
-        iguess = 1
-        call lehoucq_eig(neqd,ntotd,x,iguess,ilevel)
+cc#if defined(arpack)
+cc        call arnoldi_eig(neqd,ntotd,x,ilevel)
+cc#endif
+        eigen_conf%my_rank = my_rank
 
+        eigen_conf%ksmax   = maxksp
+        eigen_conf%armax   = maxitgm
+        if (rtol > 0d0) eigen_conf%rtol = rtol
+        if (atol > 0d0) eigen_conf%atol = atol
+        eigen_conf%step    = eig_dt
+
+        iguess = 1
+        call lehoucq_eig(ntotd,x,iguess,ilevel,ierr
+     .                  ,matrixFreeMatVec
+     .                  ,applyPreconditioner
+     .                  ,ldot=dot2)
+
+        select case(ierr)
+        case(1)
+          call pstop('lehoucq_eig'
+     .              ,'Matrix not positive definite')
+        end select
+
+        !Output
         if (my_rank == 0) then
            write (*,*)
            write (*,*) '**************************************'
@@ -391,14 +409,15 @@ c Eigenvalue solver
            write (*,*) '**************************************'
         endif
 
-        x = x + xk
+        itgmres = eigen_conf%iter_out
 
         !Map eigenvector for plotting
+        x = x + nk_conf%xk
         call mapVectorToStructure(vnp,x)
 
-        !Free space
-        deallocate(xk,rk)
-
+        !Free memory
+        deallocate(nk_conf%xk,nk_conf%rk)
+ 
 c Implicit update (Newton)
 
       elseif (cnfactor.lt.1d0) then
@@ -416,13 +435,13 @@ c     Initial guess
             call mapStructureToVector(x,vnp)
           endif
         endif
-        
-c     Newton iteration
+
+c     Newton-Krylov iteration
 
         nk_conf%etak_meth      = method
         nk_conf%ksmax          = maxksp
         nk_conf%gmmax          = maxitgm
-        nk_conf%nwt_max_it_acc = maxitnwt/2
+        nk_conf%nwt_max_it_acc = 0.7*maxitnwt
         nk_conf%nwt_max_it_rej = maxitnwt
         nk_conf%global_meth    = global
 
@@ -436,6 +455,7 @@ c     Newton iteration
 
         nk_conf%krylov_method='fg'
 cc        nk_conf%krylov_method='gm'
+        nk_conf%fpa=fpa
 
         nk_conf%vol_wgt = vol_wgt
 
@@ -448,10 +468,8 @@ c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
           call mapVectorToStructure(vnp,x)
-cc          if (postprocess) call postProcessSol(vnp) !Postprocess solution
-          if (predictor  ) call storeTSinfo(vn,vnp)
-cc        elseif (ierr == 1) then
-cc          call equateDerivedType(vnp,vn)
+          call imposeBoundaryConditions(vnp,1,1,1)
+          if (predictor) call storeTSinfo(vn,vnp)
         endif
 
       else
@@ -461,6 +479,8 @@ c Explicit update
         itgmres = maxitgm
 
         call explicit(vn,vnp,itgmres,ilevel)
+
+        call imposeBoundaryConditions(vnp,1,1,1)
 
         itnewt = 1
 

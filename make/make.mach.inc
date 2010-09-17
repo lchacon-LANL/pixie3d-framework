@@ -1,35 +1,54 @@
-# Default
+# Buildtype configuration
 
-HOST?=$(HOSTNAME)
+BUILDTYPE?=$(shell echo "`uname -m`-`uname -s`")
+
+ifeq "$(BUILDTYPE)" "i386-Darwin"
+  FC=gfortran
+#  ifdef SAMR
+    HDF5_HOME =${HDF_HOME}
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/lib
+    HDF5_INC  =-I$(HDF5_HOME)/include
+    PETSC_DIR = /opt/petsc-3.0.0-p9-gcc-4.4.1-debug
+    PETSC_ARCH = darwin9.8.0-c-debug
+#  endif
+endif
 
 # Machine configuration
+
+HOST?=$(HOSTNAME)
 
 ifeq ($(HOST),quevedo.ornl.gov)
   ifdef BOPT
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
     FC=gfortran
-    ifeq ($(OPT),O)
+    ifeq ($(BOPT),O)
       PETSC_ARCH = linux64_openmpi
     else
       PETSC_ARCH = linux64_openmpi_g
     endif
+
+    HDF5 = t
 
     HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include
   else
-    LIBS = -L/usr/lib64 -llapack -lblas
+    LIBS += -L/usr/lib64 -llapack -lblas
     HDF5 = f
     ifeq ($(FC),f90)
+      HDF5 = t
+
       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(HDF5_HOME)/lib
       HDF5_INC  =-I$(HDF5_HOME)/include
-      HDF5 = t
     endif
     ifeq ($(FC),gfortran)
+      HDF5 = t
+
       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(HDF5_HOME)/lib
@@ -39,7 +58,6 @@ ifeq ($(HOST),quevedo.ornl.gov)
 //       HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
 //       HDF5_MOD  =/usr/lib64/gfortran/modules
 //       HDF5_INC  =-I/usr/include
-      HDF5 = t
     endif
   endif
 
@@ -50,7 +68,7 @@ ifeq ($(HOST),quevedo.ornl.gov)
 
   NETCDF=f
   NETCDF_LIBS = -lnetcdff -lnetcdf
-  NETCDF_INC  = -I/usr/include/netcdf
+  NETCDF_INC  = -I/usr/include
 
   VMEC = t
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
@@ -61,7 +79,7 @@ ifeq ($(HOST),gongora.ornl.gov)
 
   LIBS += -L/usr/lib -llapack -lblas
 
-  PETSC_DIR =$(HOME)/lib/petsc-2.3.3
+  PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
   PETSC_ARCH = linux_openmpi
 
   HDF5 = t
@@ -79,30 +97,32 @@ ifeq ($(HOST),gongora.ornl.gov)
 endif
 
 ifeq ($(HOST),siesta)
-  VMEC = t
   ifdef BOPT
-    PETSC_DIR =/usr/local/petsc-2.3.3
-
-#    PETSC_ARCH = linux64_absoft_
-#    HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/parallel
+    PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
     FC=gfortran
-    PETSC_ARCH = linux64_openmpi
-    HDF5_HOME =/usr/local/hdf5-1.6.7/gfortran/parallel
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_openmpi
+    else
+      PETSC_ARCH = linux64_openmpi_g
+    endif
 
-#    MPI_HOME = /usr
+    HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/lib
+    HDF5_INC  =-I$(HDF5_HOME)/include
   else
     LIBS += -L/usr/lib64 -llapack -lblas
     HDF5 = f
     ifeq ($(FC),f90)
-      HDF5_HOME =/usr/local/hdf5-1.6.7/absoft_/serial
+      HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(HDF5_HOME)/lib
       HDF5_INC  =-I$(HDF5_HOME)/include
       HDF5 = t
     endif
     ifeq ($(FC),gfortran)
-      HDF5_HOME =/usr/local/hdf5-1.6.7/gfortran/serial
+      HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(HDF5_HOME)/lib
       HDF5_INC  =-I$(HDF5_HOME)/include
@@ -110,17 +130,19 @@ ifeq ($(HOST),siesta)
     endif
   endif
 
+  VMEC = t
+
   NETCDF=t
   NETCDF_LIBS = -lnetcdff -lnetcdf
-  NETCDF_INC  = -I/usr/include/netcdf-3
+  NETCDF_INC  = -I/usr/include/netcdf
 
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 endif
 
 ifeq ($(HOST),ra22)
-  PETSC_ARCH = linux_openmpi
-  PETSC_DIR =/ricercatori/ft/petsc-2.3.3
-  HDF5_HOME =
+  PETSC_ARCH = linux64_openmpi
+  PETSC_DIR =/ricercatori/ft/petsc-3.0.0-p7
+  override HDF5 = f
   CPPFLAGS += $(PREPROC)RFX
   FC        = pgf95
   LIBS     += -llapack -lblas
@@ -248,4 +270,9 @@ ifeq ($(findstring ewok,$(HOST)),ewok)
   DEBUG = -g -Mbounds -Mchkptr
   BOPT = t
   MACHINE = ewok
+endif
+
+ifeq ($(HOST),chenshp.ornl.gov)
+    LIBS += -L/usr/lib64/atlas -llapack -lblas
+    HDF5=f
 endif

@@ -17,6 +17,8 @@ c##########################################################################
 
       use iosetup
 
+      use acc_tests
+
       implicit none
 
 c Local variables
@@ -27,14 +29,6 @@ c Local variables
       logical        :: exitloop
 
 c Interfaces
-
-      INTERFACE
-        subroutine readTimeStep(varray,ierr)
-        use variable_setup
-        type(var_array),pointer :: varray
-        integer         :: ierr
-        end subroutine readTimeStep
-      END INTERFACE
 
       INTERFACE
         subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
@@ -127,29 +121,10 @@ c     Check for tmax
 
       enddo       !End of time loop
 
-c Close graphics files and create draw*.in files
+c Numerical accuracy tests
 
-      call finalizeGraphics
-
-      call finalizeDiagnostics
-
-      call closeRecordFiles
-
-      if (clean) call closeCleanFiles
-
-      call fortranDestroy
-
-#if defined(adios)
-      call adios_finalize(my_rank, ierr)
-#endif
-
-#if defined(petsc)
-      call PetscFinalize(mpierr)
-#endif
-
-c Second order test
-
-cc      call order_tst
+      if (temp_acc) call acc_test_time
+      if (spat_acc) call acc_test_space
 
 c Move files to 'plot' directory
 
@@ -160,6 +135,25 @@ c Remove backup copy
 
 cc      command='rm '//trim(recordfile)//'.bak'
 cc      ierr=system(trim(command))
+
+c Close graphics files and create draw*.in files
+
+      call finalizeGraphics
+
+      call finalizeDiagnostics
+
+#if defined(adios)
+      call closeRecordFileAdiosForRead(adios_err)
+      call adios_finalize(my_rank,adios_err)
+#else
+      call closeRecordFiles
+#endif
+
+      call fortranDestroy
+
+#if defined(petsc)
+      call PetscFinalize(mpierr)
+#endif
 
 c End program
 
@@ -242,10 +236,6 @@ c----------------------------------------------------------------------
 
       use graphics
 
-      use constants
-
-      use generalPurposeFunctions
-
       implicit none
 
 c Call variables
@@ -260,14 +250,6 @@ c Local variables
       type(var_array),pointer :: u_src
 
 c Interfaces
-
-      INTERFACE
-        subroutine readTimeStep(varray,ierr)
-        use variable_setup
-        type(var_array),pointer :: varray
-        integer         :: ierr
-        end subroutine readTimeStep
-      END INTERFACE
 
       INTERFACE
         subroutine initializeDiagnostics(varray,iigx,iigy,iigz)
@@ -307,9 +289,9 @@ c Initialize PETSc (parallel version)
 #endif
 
 #if defined(adios)
-      call adios_init_noxml (ierr)
+      call adios_init_noxml (adios_err)
       ! allocate 100MB buffer for ADIOS
-      call adios_allocate_buffer (100, ierr)
+      call adios_allocate_buffer (100,adios_err)
 #endif
 
 c Read user initializations
@@ -322,7 +304,14 @@ c Initialize MG and create grid
 
 c Open graphics files (this initializes local limits, among other things)
 
-      call openGraphicsFiles
+#if defined(adios)
+      call openRecordFileAdiosForRead(adios_err)
+      write (*,*) ilog,ihig,jlog,jhig,klog,khig
+      stop
+#else
+      call openRecordFiles(urecord,recordfile,murecord
+     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+#endif
 
 c Initialize vector dimensions
 
@@ -395,386 +384,3 @@ ccnorb        write (*,'("%%%% Done dumpTimeStepPlots Graphics")')
 c End program
 
       end subroutine initializeCalculation
-
-c openGraphicsFiles
-c######################################################################
-      subroutine openGraphicsFiles
-
-c----------------------------------------------------------------------
-c     In parallel runs, it merges all output files 'record_proc*.bin'
-c     to a serial file 'record.bin', and then opens it for postprocessing.
-c     Finally, it reads equilibrium information and stores it in u_0.
-c----------------------------------------------------------------------
-
-      use parameters
-
-      use constants
-
-      use ts_setup
-
-      use variables
-
-      use graphics
-
-      use iosetup
-
-      use generalPurposeFunctions
- 
-#if defined(adios)
-       use adios_vars
-#endif
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-      integer :: nx,ny,nz,ierr,adios_err
-      logical :: check,lchck
-
-c Begin program
-
-c Open graphics files
-
-#if !defined(petsc)
-cc      ierr = system('ls '//trim(recordfile)//'_proc* > /dev/null')
-      ierr = system('test -f '//trim(recordfile))  !Check for single file
-
-      if (ierr /= 0) then    !Parallel run
-
-        write (*,*)
-        write (*,*) 'Opening multiple graphics files...'
-
-        !Find out number of graphics files
-        nfiles = -1
-        ierr   = 0
-        do while (ierr == 0)
-          nfiles=nfiles+1
-          ierr = system('test -f '//trim(recordfile)//'_proc'
-     .                 //trim(int2char(nfiles)))
-        enddo
-
-        if (nfiles == 0) then
-          call pstop('openGraphicsfiles'
-     .              ,'Cannot find record files')
-        endif
-
-        allocate(mrecfile(nfiles),murecord(nfiles))
-
-        do ifile=1,nfiles
-          murecord(ifile) = urecord+ifile
-          mrecfile(ifile) =
-     .        trim(recordfile)//'_proc'//trim(int2char(ifile-1))
-          write (*,*) '  => ',trim(mrecfile(ifile))
-     $               ,', unit=',murecord(ifile)
-        enddo
-
-        if (clean) then
-           write (*,*)
-           write (*,*) 'Creating clean-up graphics files...'
-
-           allocate(mrecsave(nfiles),musave(nfiles))
-
-           do ifile=1,nfiles
-             musave  (ifile) = usave + ifile
-             mrecsave(ifile) = trim(mrecfile(ifile))//'_sav'
-             write (*,*) '  => ',trim(mrecsave(ifile))
-     $                        ,', unit=',musave(ifile)
-          enddo
-        endif
-
-        write (*,*) 'Finished!'
-        write (*,*)
-
-        nx = 0
-        ny = 0
-        nz = 0
-        do ifile=1,nfiles
-
-          open(murecord(ifile),file=trim(mrecfile(ifile))
-     $        ,form='unformatted',status='old')
-
-          read (murecord(ifile)) nxl,ilog,ihig
-          read (murecord(ifile)) nyl,jlog,jhig
-          read (murecord(ifile)) nzl,klog,khig
-
-          if (clean) then
-            open(musave(ifile),file=trim(mrecsave(ifile))
-     $          ,form='unformatted',status='unknown')
-
-            write (musave(ifile)) nxl,ilog,ihig
-            write (musave(ifile)) nyl,jlog,jhig
-            write (musave(ifile)) nzl,klog,khig
-          endif
-
-        enddo
-
-        !Set global limits (NOT a parallel run)
-        ihig = nxd
-        ilog = 1
-        jhig = nyd
-        jlog = 1
-        khig = nzd
-        klog = 1
-
-      else
-
-        if (clean) recordsave = trim(recordfile)//'_sav'
-
-#else
-
-        urecord = urecord + my_rank
-
-        if (np > 1)
-     .     recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
-
-ccnorb        write (*,*) 'rank='//trim(int2char(my_rank))//
-ccnorb     .              ': recordfile = '//trim(recordfile)
-        if (clean) then
-          usave = usave + my_rank
-          recordsave = trim(recordfile)//'_sav'
-        endif
-
-#endif
-
-#if defined(adios)
-        call openRecordFileAdiosForRead(adios_err)
-#else
-
-        open(urecord,file=trim(recordfile),form='unformatted'
-     .      ,status='unknown')
-
-        if (clean) open(usave,file=(recordsave),form='unformatted'
-     .      ,status='unknown')
-
-c     Consistency check
-
-        read (urecord) nx,ilog,ihig
-        read (urecord) ny,jlog,jhig
-        read (urecord) nz,klog,khig
-
-        if (clean) then
-          write (usave) nx,ilog,ihig
-          write (usave) ny,jlog,jhig
-          write (usave) nz,klog,khig
-        endif
-
-        nxl  = ihig-ilog+1
-        nyl  = jhig-jlog+1
-        nzl  = khig-klog+1
-
-#if defined(petsc)
-        check =(     nxl /= gv%gparams%nlx
-     .          .or. nyl /= gv%gparams%nly
-     .          .or. nzl /= gv%gparams%nlz )
-        lchck = check
-
-        call MPI_Allreduce(lchck,check,1
-     .                  ,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,mpierr)
-
-        if (check) then
-          call pstop('openGraphicsFiles','Grid meshes do not agree')
-        endif
-#else
-        if (nx /= nxd .or. ny /= nyd .or. nz /= nzd) then
-          call pstop('openGraphicsFiles','Grid size does not agree')
-        endif
-
-      endif
-#endif
-
-#endif
-
-c End programs
-
-      end subroutine openGraphicsFiles
-
-c closeCleanFiles
-c######################################################################
-      subroutine closeCleanFiles
-
-c----------------------------------------------------------------------
-c     Close graphics files
-c----------------------------------------------------------------------
-
-      use parameters
-
-      use constants
-
-      use ts_setup
-
-      use variables
-
-      use graphics
-
-      use iosetup
-
-      use generalPurposeFunctions
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-c Begin program
-
-      if (my_rank == 0) then
-        write (*,*)
-        write (*,*) 'Closing clean-up files...'
-        write (*,*)
-      endif
-
-#if !defined(petsc)
-      if (allocated(musave)) then
-        do ifile=1,nfiles
-          close(musave(ifile))
-        enddo
-
-        deallocate(mrecsave,musave)
-      else
-        close (usave)
-      endif
-#else
-      close (usave)
-#endif
-        
-c End programs
-
-      end subroutine closeCleanFiles
-
-c closeRecordFiles
-c######################################################################
-      subroutine closeRecordFiles
-
-c----------------------------------------------------------------------
-c     Close graphics files
-c----------------------------------------------------------------------
-
-      use parameters
-
-      use constants
-
-      use ts_setup
-
-      use variables
-
-      use graphics
-
-      use iosetup
-
-      use generalPurposeFunctions
-
-#if defined(adios)
-      use adios_vars
-#endif
-
-      implicit none
-
-c Call variables
-
-      integer :: adios_err
-
-c Local variables
-
-c Begin program
-
-      if (my_rank == 0) then
-        write (*,*)
-        write (*,*) 'Closing record files...'
-        write (*,*)
-      endif
-
-#if !defined(petsc)
-      if (allocated(murecord)) then
-        do ifile=1,nfiles
-          close(murecord(ifile))
-        enddo
-
-        deallocate(mrecfile,murecord)
-      else
-        close(urecord)
-      endif
-#else
-#  if defined(adios)
-      call closeRecordFileAdiosForRead(adios_err)
-#  else
-      close(urecord)
-#  endif
-#endif
-
-c End programs
-
-      end subroutine closeRecordFiles
-
-c readTimeStep
-c######################################################################
-      subroutine readTimeStep(varray,ierr)
-
-c----------------------------------------------------------------------
-c     Reads time step info from single or multiple files.
-c----------------------------------------------------------------------
-
-      use parameters
-
-      use constants
-
-      use ts_setup
-
-      use variable_setup
-
-      use graphics
-
-      use iosetup
-
-      use generalPurposeFunctions
-
-      implicit none
-
-c Call variables
-
-      type(var_array),pointer :: varray
-      integer         :: ierr
-
-c Local variables
-
-c Begin program
-
-#if defined(petsc)
-
-      call readRecordFile(urecord,itime,time,dt,varray,ierr)
-      write (0,'("rank=",i0,a,i0)') 
-     .       my_rank,"done readRecordFile itime=",itime
-#  if !defined(adios)
-      if (clean) call writeRecordFile(usave,itime,time,dt,varray)
-#  endif
-
-#else
-
-      if (allocated(murecord)) then
-        do ifile=1,nfiles
-          call readRecordFile(murecord(ifile),itime,time,dt,varray,ierr)
-          if (ierr == -1) cycle !Error, but not EOF
-          if (ierr == -2) cycle !EOF
-          if (clean) then
-cc            call writeRecordFile(musave(ifile),itime,time,dt,varray)
-            write (*,*) 'Recycling a parallel run using the serial code'
-            write (*,*) 'does not work yet. Need to fix the serial'
-            write (*,*) 'write routine to dump only local domain info'
-            call closeCleanFiles
-            write (*,*) 'Removing clean-up files...'
-            ierr = system('rm *_sav > /dev/null')
-            call pstop('readTimeStep','')
-          endif
-        enddo
-      else
-        call readRecordFile(urecord,itime,time,dt,varray,ierr)
-        if (clean) call writeRecordFile(usave,itime,time,dt,varray)
-      endif
-
-#endif
-
-c End program
-
-      end subroutine readTimeStep

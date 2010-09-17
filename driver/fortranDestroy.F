@@ -14,11 +14,11 @@ c Call variables
 
 c Local variables
 
-      integer :: ierr
+      integer :: ierr,igr
 
 c Begin program
 
-      call closeRecordFile
+      close(urecord)
 
       deallocate(zeros,vzeros,ones)
 
@@ -28,7 +28,13 @@ c Begin program
 
       call destroyGrid(gv%gparams)
 
-      deallocate(gv%bc_seq,STAT=ierr)
+cc      deallocate(gv%bc_seq,STAT=ierr)
+      if (associated(gv%bc_grp)) then
+        do igr=1,size(gv%bc_grp)
+          deallocate(gv%bc_grp(igr)%bc_seq,STAT=ierr)
+        enddo
+        deallocate(gv%bc_grp,STAT=ierr)
+      endif
 
       deallocate(gv,STAT=ierr)
 

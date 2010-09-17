@@ -93,13 +93,13 @@ c     Perform 2d cuts
 
         if (cut(1)) then
           call twodcut(plt(1),plt(1),plt(1),jmn,jmx,kmn,kmx
-     .                ,'X-slice contour at i=')
+     .                ,'XDRAW X-slice contour at i=')
         elseif (cut(2)) then
           call twodcut(plt(2),imn,imx,plt(2),plt(2),kmn,kmx
-     .                ,'Y-slice contour at j=')
+     .                ,'XDRAW Y-slice contour at j=')
         else
           call twodcut(plt(3),imn,imx,jmn,jmx,plt(3),plt(3)
-     .                ,'Z-slice contour at k=')
+     .                ,'XDRAW Z-slice contour at k=')
         endif
 
 c     End program
@@ -208,13 +208,13 @@ c     Perform 2d cuts
 
         if (cut(1)) then
           call twodcut(plt(1),plt(1),plt(1),jming,jmaxg,kming,kmaxg
-     .                ,'X-slice contour at i=')
+     .                ,'XDRAW X-slice contour at i=')
         elseif (cut(2)) then
           call twodcut(plt(2),iming,imaxg,plt(2),plt(2),kming,kmaxg
-     .                ,'Y-slice contour at j=')
+     .                ,'XDRAW Y-slice contour at j=')
         else
           call twodcut(plt(3),iming,imaxg,jming,jmaxg,plt(3),plt(3)
-     .                ,'Z-slice contour at k=')
+     .                ,'XDRAW Z-slice contour at k=')
         endif
 
 c     End program
@@ -296,7 +296,8 @@ c     Write messg to standard output
 
           case default
 
-            write(*,*) 'Wrong value of iopt in M_contour, iopt=',iopt
+            write(*,*) 'Wrong value of iopt in XDRAW M_contour, iopt='
+     .                ,iopt
             stop
 
           end select
@@ -333,7 +334,8 @@ c     Write messg to standard output
 
           case default
 
-            write(*,*) 'Wrong value of iopt in M_contour, iopt=',iopt
+            write(*,*) 'Wrong value of iopt in XDRAW M_contour, iopt='
+     .                 ,iopt
             stop
 
           end select
@@ -456,7 +458,7 @@ c     Begin program
 
         if (i1 == 0 .or. i2 == 0) then
           write(*,*) 'Could not find cartesian plane in find_cart_plane'
-          write(*,*) 'Aborting...'
+          write(*,*) 'Aborting XDRAW ...'
           stop
         endif
 
@@ -466,29 +468,29 @@ c     Begin program
 
 c     createDrawInGfile
 c     ################################################################
-      subroutine createDrawInGfile(nvar,ntot,binf,graphlabel,ivar
-     .                       ,dvariables,descr,ivariables,logvar
+      subroutine createDrawInGfile(nvar,ntot,binfile,graphlabel
+     .                       ,ivar_name,dvar,dvar_name,ivar,logplot
      .                       ,drawfile,connect,spline,title)
 
 c     ----------------------------------------------------------------
 c     Creates the G-type (x-y curves) draw.in file for xdraw graphics.
 c     On call sequence:
-c       * nvar : number of variables in consideration for plotting
-c       * ntot : total number of variables
-c       * binf : name of binary file to be read
+c       * nvar       : number of variables in consideration for plotting
+c       * ntot       : total number of variables
+c       * binfile    : name of binary file to be read (string)
 c       * graphlabel : character array of arbitrary length specifying
 c                      graph title
-c       * ivar       : independent variable axis name
-c       * dvariables : integer array of size (nvar) identifying the 
+c       * ivar_name  : name of independent variable (string)
+c       * dvar       : integer array of size (nvar) identifying the 
 c                      dependent variables
-c       * descr      : character array containing dependent variables
+c       * dvar_name  : character array containing dependent variables
 c                      descriptions.
-c       * ivariables : integer array specifying independent variables 
+c       * ivar       : integer array specifying independent variables 
 c                      for all the dependent variables.
 c                      These include any of the dependent
 c                      variable indeces plus 0 (indicating the true
 c                      independent variable).
-c       * logvar     : integer array specifying which (in)dependent
+c       * logplot    : integer array specifying which (in)dependent
 c                      variables will be plotted in log scale.
 c       * drawfile   : character variable specifying the name of the
 c                      draw.in file.
@@ -497,17 +499,17 @@ c                      xdraw should connect points or not.
 c       * spline     : logical variable that specifies whether 
 c                      xdraw should do spline interpolations or not.
 c       * title (optional): character array containing title of
-c                      xdraw windows (if not present, descr is used)
+c                      xdraw windows (if not present, dvar_name is used)
 c     ----------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer,intent(in) ::nvar,ntot,ivariables(ntot),dvariables(nvar)
-     .                 ,logvar(0:ntot)
-        character(*) :: binf,drawfile,graphlabel,ivar
-        character(*),intent(in) :: descr(ntot)
+        integer,intent(in) :: nvar,ntot,ivar(ntot),dvar(nvar)
+     .                       ,logplot(0:ntot)
+        character(*),intent(in) :: binfile,drawfile,graphlabel,ivar_name
+        character(*),intent(in) :: dvar_name(ntot)
         logical      :: spline,connect
         character(*),optional :: title(ntot)
 
@@ -521,6 +523,13 @@ c     Local variables
 
 c     Begin program
 
+        if (nvar > ntot) then
+          write (*,*) 'Error in createDrawInGfile'
+          write (*,*) 'More plotting variables than available'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
         gfile = 111
 
         open (unit=gfile,file=drawfile,status='unknown')
@@ -528,16 +537,16 @@ c     Begin program
         write (gfile,'(1a,/)') 
      .     'Type (G=Graph, C=Contour, M=TS contour):      G'
         write (gfile,'(a)') 'filename(s)'
-        write (gfile,'(a,/)') trim(binf)
+        write (gfile,'(a,/)') trim(binfile)
 
         write (gfile,'(2a,/)') 'graph title: ',trim(graphlabel)
         write (gfile,'(a)') 'variable names'
-        write (gfile,'(2a)') ' 0       ',trim(ivar)
+        write (gfile,'(2a)') ' 0       ',trim(ivar_name)
 
-        do i=1,size(descr)
-          lngt = len(trim(descr(i)))
+        do i=1,size(dvar_name)
+          lngt = len(trim(dvar_name(i)))
           if (lngt == 0) cycle
-          write (gfile,'(i2,2a)') i  ,'       ',trim(descr(i))
+          write (gfile,'(i2,2a)') i  ,'       ',trim(dvar_name(i))
         enddo
         write (gfile,'(/,a)') 'ix       iy        window title'
 
@@ -548,10 +557,10 @@ c     Begin program
         if (PRESENT(title)) then
           dscr = title
         else
-          dscr = descr
+          dscr = dvar_name
         endif
 
-        if (logvar(0) == 1) then
+        if (logplot(0) == 1) then
           str = 'L     '
         else
           str = '      '
@@ -562,28 +571,28 @@ c     Begin program
           if (lngt == 0) exit
           flag = .false.
           do j = 1,nvar
-            if (dvariables(j).eq.i) then
+            if (dvar(j).eq.i) then
               flag = .true.
               exit
             endif
           enddo
           if (flag) then
-            if(logvar(i) == 1) then
-              write (gfile,'(i2,a,i2,2a)')  ivariables(i),str
+            if(logplot(i) == 1) then
+              write (gfile,'(i2,a,i2,2a)')  ivar(i),str
      .                                ,i,'L'//trim(options)//'   '
      .                                ,trim(dscr(i))
             else
-              write (gfile,'(i2,a,i2,2a)')  ivariables(i),str
+              write (gfile,'(i2,a,i2,2a)')  ivar(i),str
      .                                ,i,trim(options)//'      '
      .                                ,trim(dscr(i))
             endif
           else
-            if(logvar(i) == 1) then
-              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),str
+            if(logplot(i) == 1) then
+              write (gfile,'(a,i2,a,i2,2a)') ';',ivar(i),str
      .                                ,i,'L'//trim(options)//'   '
      .                                ,trim(dscr(i))
             else
-              write (gfile,'(a,i2,a,i2,2a)') ';',ivariables(i),str
+              write (gfile,'(a,i2,a,i2,2a)') ';',ivar(i),str
      .                                ,i,trim(options)//'      '
      .                                ,trim(dscr(i))
             endif

@@ -40,16 +40,13 @@ c     PRIVATE VARIABLES
      .                i,j,k,igx,igy,igz
      .               ,i0,ip,im,j0,jp,jm,k0,kp,km,l,m,n,p
      .               ,ig,ig0,igm,igp,jg,jg0,jgm,jgp,kg,kg0,kgm,kgp
-        real(8),private ::
-     .                r(3,3),car0(3),carp(3),carm(3),dh(3),jac,ijac
-     .               ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
-     .               ,gamma(3,3,3),gamm1(3,3,3),mag,dhp,dhm,dhh
-
-        real(8),allocatable,dimension(:,:,:,:),private :: xcr
+cc        real(8),private :: car0(3),carp(3),carm(3),jac,ijac
+cc     .               ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
+cc     .               ,gamma(3,3,3),gamm1(3,3,3),mag,dhp,dhm,dhh
 
         logical,private    :: map_present
 
-        private :: topol_bc,findGridmetrics,coarsenGridMetrics
+        private :: topol_bc,findGridmetrics
 
       contains
 
@@ -143,21 +140,13 @@ c     Input variables
 
 c     Begin program
 
-        is_map = checkAnalMapDatabase()
-
-        !Check external contributed maps
-        if (.not.is_map) then
-          select case(coords)
-          case('vmc')
-            is_map = .true.
-          end select
-        endif
+        is_map = checkAnalMapDatabase().or.(coords=='ext')
 
       end function checkMapDatabase
 
 c     find_dr
 c     #####################################################################
-      function find_dr(i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
+      function find_dr(i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz
      .                ,gparams,x)
      .         result(dr)
 
@@ -174,8 +163,8 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
-        real(8)    :: dr(3,3),x(0:nx+1,0:ny+1,0:nz+1,neq)
+        integer    :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz
+        real(8)    :: dr(3,3),x(0:nx+1,0:ny+1,0:nz+1,3)
 
         type(grid_mg_def),pointer :: gparams
 
@@ -184,7 +173,7 @@ c     Local variables
         integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
      .               ,igp,igm,jgp,jgm,kgp,kgm,hel
 
-        real(8)    :: carp(neq),carm(neq),dh(3),coeff
+        real(8)    :: carp(3),carm(3),dh(3),coeff
 
 c     Begin program
 
@@ -209,9 +198,9 @@ c     Exceptions
         if (hez == 1) km = k
 
         !X
-        if (nx == 1) then
-          dr(1,1:neq) = (/ 1d0, 0d0, 0d0 /)
-        else
+cc        if (nx == 1) then
+cc          dr(1,:) = (/ 1d0, 0d0, 0d0 /)
+cc        else
           igp = ig+(ip-i)
           igm = ig-(i-im)
 
@@ -239,13 +228,13 @@ c     Exceptions
             coeff = 0.25
           endif
 
-          dr(1,1:neq) = coeff*(carp-carm)/dh(1)
-        endif
+          dr(1,:) = coeff*(carp-carm)/dh(1)
+cc        endif
 
         !Y
-        if (ny == 1) then
-          dr(2,1:neq) = (/ 0d0, 1d0, 0d0 /)
-        else
+cc        if (ny == 1) then
+cc          dr(2,:) = (/ 0d0, 1d0, 0d0 /)
+cc        else
           jgp = jg+(jp-j)
           jgm = jg-(j-jm)
 
@@ -273,13 +262,13 @@ c     Exceptions
             coeff = 0.25
           endif
 
-          dr(2,1:neq) = coeff*(carp-carm)/dh(2)
-        endif
+          dr(2,:) = coeff*(carp-carm)/dh(2)
+cc        endif
 
         !Z
-        if (nz == 1) then
-          dr(3,1:neq) = (/ 0d0, 0d0, 1d0 /)
-        else
+cc        if (nz == 1) then
+cc          dr(3,:) = (/ 0d0, 0d0, 1d0 /)
+cc        else
           kgp = kg+(kp-k)
           kgm = kg-(k-km)
 
@@ -307,8 +296,8 @@ c     Exceptions
             coeff = 0.25
           endif
 
-          dr(3,1:neq) = coeff*(carp-carm)/dh(3)
-        endif
+          dr(3,:) = coeff*(carp-carm)/dh(3)
+cc        endif
 
       end function find_dr
 
@@ -338,19 +327,19 @@ c     Local variables
 c     Begin program
 
         do ii=1,3
-          call crse_array(ii,igc,nxf,nyf,nzf,xf(:,:,:,ii)
-     .                          ,nxc,nyc,nzc,xc(:,:,:,ii))
+          call crse_map_comp(ii,igc,nxf,nyf,nzf,xf(:,:,:,ii)
+     .                             ,nxc,nyc,nzc,xc(:,:,:,ii))
         enddo
 
       contains
 
-c     crse_array
+c     crse_map_comp
 c     #################################################################
-      subroutine crse_array(dim,igc,nxf,nyf,nzf,arrayf
-     .                             ,nxc,nyc,nzc,arrayc)
+      subroutine crse_map_comp(dim,igc,nxf,nyf,nzf,xf_j
+     .                                ,nxc,nyc,nzc,xc_j)
 
 c     -----------------------------------------------------------------
-c     Coarsen arrayf to arrayc at grid level igc.
+c     Coarsen xf_j to xc_j at grid level igc.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -358,14 +347,14 @@ c     -----------------------------------------------------------------
 c     Input variables
 
         integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc,dim
-        real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
-     .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
+        real(8)    :: xf_j(0:nxf+1,0:nyf+1,0:nzf+1)
+     .               ,xc_j(0:nxc+1,0:nyc+1,0:nzc+1)
 
 c     Local variables
 
         integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
      .               ,i_off,j_off,k_off
-        real(8)    :: array0(0:nxc+1,0:nyc+1,0:nzc+1)
+        real(8)    :: x0_j(0:nxc+1,0:nyc+1,0:nzc+1)
 
         real(8)    :: volc,ac
 
@@ -377,93 +366,140 @@ c     Begin program
         mgy = gparams%mg_ratio_y(igf)
         mgz = gparams%mg_ratio_z(igf)
 
-        array0 = 0d0
+cc        x0_j = 0d0
 
-        do kc = 1,nzc
-          do jc = 1,nyc
-            do ic = 1,nxc
+cc        do kc = 1,nzc
+cc          do jc = 1,nyc
+cc            do ic = 1,nxc
+cc
+cc              !Fill inner domain
+cc              volc   = 0d0
+cc              ac     = 0d0
+cc
+cc              do kf = mgz*(kc-1)+1,mgz*kc
+cc                do jf = mgy*(jc-1)+1,mgy*jc
+cc                  do if = mgx*(ic-1)+1,mgx*ic
+cc                    ac   = ac   + xf_j(if,jf,kf)
+cc                    volc = volc + 1d0
+cc                  enddo
+cc                enddo
+cc              enddo
+cc
+cc              xc_j(ic,jc,kc) = ac/volc
+cc
+cc              !Fill face values for extrapolation to ghost cells
+cc              i_off = 0
+cc              j_off = 0
+cc              k_off = 0
+cc
+cc              ac   = 0d0
+cc
+cc              select case(dim)
+cc              case (1)
+cccc                if (ic == 1  .and.nxc /= 1) i_off =-1
+cccc                if (ic == nxc.and.nxc /= 1) i_off = 1
+cc                if (ic == 1  ) i_off =-1
+cc                if (ic == nxc) i_off = 1
+cc
+cc                if (i_off /= 0) then
+cc                  do kf = mgz*(kc-1)+1,mgz*kc
+cc                    do jf = mgy*(jc-1)+1,mgy*jc
+cc                      do if = mgx*(ic-1)+1,mgx*ic
+cc                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
+cc                      enddo
+cc                    enddo
+cc                  enddo
+cc                endif
+cc              case (2)
+cccc                if (jc == 1  .and.nyc /= 1) j_off =-1
+cccc                if (jc == nyc.and.nyc /= 1) j_off = 1
+cc                if (jc == 1  ) j_off =-1
+cc                if (jc == nyc) j_off = 1
+cc
+cc                if (j_off /= 0) then
+cc                  do kf = mgz*(kc-1)+1,mgz*kc
+cc                    do jf = mgy*(jc-1)+1,mgy*jc
+cc                      do if = mgx*(ic-1)+1,mgx*ic
+cc                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
+cc                      enddo
+cc                    enddo
+cc                  enddo
+cc                endif
+cc              case (3)
+cccc                if (kc == 1  .and.nzc /= 1) k_off =-1
+cccc                if (kc == nzc.and.nzc /= 1) k_off = 1
+cc                if (kc == 1  ) k_off =-1
+cc                if (kc == nzc) k_off = 1
+cc
+cc                if (k_off /= 0) then
+cc                  write (*,*) k_off
+cc                  do kf = mgz*(kc-1)+1,mgz*kc
+cc                    do jf = mgy*(jc-1)+1,mgy*jc
+cc                      do if = mgx*(ic-1)+1,mgx*ic
+cc                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
+cc                      enddo
+cc                    enddo
+cc                  enddo
+cc                endif
+cc              end select
+cc
+cc              x0_j(ic+i_off,jc+j_off,kc+k_off) = ac/volc
+cc            enddo
+cc          enddo
+cc        enddo
 
-              volc   = 0d0
-              ac     = 0d0
-
-              do kf = mgz*(kc-1)+1,mgz*kc
-                do jf = mgy*(jc-1)+1,mgy*jc
-                  do if = mgx*(ic-1)+1,mgx*ic
-                    ac   = ac   + arrayf(if,jf,kf)
-                    volc = volc + 1d0
-                  enddo
-                enddo
-              enddo
-
-              arrayc(ic,jc,kc) = ac/volc
+        do kc = 0,nzc+1
+          do jc = 0,nyc+1
+            do ic = 0,nxc+1
 
               i_off = 0
               j_off = 0
               k_off = 0
 
-              ac = 0d0
+              if (ic == 0    ) i_off = 1
+              if (ic == nxc+1) i_off =-1
 
-              select case(dim)
-              case (1)
-                if (ic == 1  .and.nxc /= 1) i_off =-1
-                if (ic == nxc.and.nxc /= 1) i_off = 1
+              if (jc == 0    ) j_off = 1
+              if (jc == nyc+1) j_off =-1
 
-                if (i_off /= 0) then
-                  do kf = mgz*(kc-1)+1,mgz*kc
-                    do jf = mgy*(jc-1)+1,mgy*jc
-                      do if = mgx*(ic-1)+1,mgx*ic
-                        ac = ac + arrayf(if+i_off,jf+j_off,kf+k_off)
-                      enddo
-                    enddo
+              if (kc == 0    ) k_off = 1
+              if (kc == nzc+1) k_off =-1
+
+              !Fill inner domain
+              volc   = 0d0
+              ac     = 0d0
+
+              do kf=mgz*((kc+k_off)-1)+1-k_off,mgz*(kc+k_off)-k_off
+                do jf=mgy*((jc+j_off)-1)+1-j_off,mgy*(jc+j_off)-j_off
+                  do if=mgx*((ic+i_off)-1)+1-i_off,mgx*(ic+i_off)-i_off
+                    ac   = ac   + xf_j(if,jf,kf)
+                    volc = volc + 1d0
                   enddo
-                endif
-              case (2)
-                if (jc == 1  .and.nyc /= 1) j_off =-1
-                if (jc == nyc.and.nyc /= 1) j_off = 1
+                enddo
+              enddo
 
-                if (j_off /= 0) then
-                  do kf = mgz*(kc-1)+1,mgz*kc
-                    do jf = mgy*(jc-1)+1,mgy*jc
-                      do if = mgx*(ic-1)+1,mgx*ic
-                        ac = ac + arrayf(if+i_off,jf+j_off,kf+k_off)
-                      enddo
-                    enddo
-                  enddo
-                endif
-              case (3)
-                if (kc == 1  .and.nzc /= 1) k_off =-1
-                if (kc == nzc.and.nzc /= 1) k_off = 1
+              xc_j(ic,jc,kc) = ac/volc
 
-                if (k_off /= 0) then
-                  do kf = mgz*(kc-1)+1,mgz*kc
-                    do jf = mgy*(jc-1)+1,mgy*jc
-                      do if = mgx*(ic-1)+1,mgx*ic
-                        ac = ac + arrayf(if+i_off,jf+j_off,kf+k_off)
-                      enddo
-                    enddo
-                  enddo
-                endif
-              end select
-
-              array0(ic+i_off,jc+j_off,kc+k_off) = ac/volc
             enddo
           enddo
         enddo
 
-c     Fill ghost cells by 1st-order extrapolation
+        x0_j = xc_j
 
-        call map_bc(dim,igc,nxc,nyc,nzc,arrayc,array0,iorder=1)
+c     Fill ghost cells
 
-      end subroutine crse_array
+        call map_bc(dim,igc,nxc,nyc,nzc,xc_j,x0_j)
+
+      end subroutine crse_map_comp
 
       end subroutine coarsen_map
 
 c     map_bc
 c     #################################################################
-      subroutine map_bc(dim,igrid,nxl,nyl,nzl,array,array0,iorder)
+      subroutine map_bc(dim,igrid,nxl,nyl,nzl,x_j,x0_j,iorder)
 
 c     -----------------------------------------------------------------
-c     Impose BCs on map x(xi), component by component.
+c     Impose BCs on map component x_j using boundary of x0_j.
 c     -----------------------------------------------------------------
 
         implicit  none
@@ -472,8 +508,8 @@ c     Call variables
 
         integer    :: dim,igrid,nxl,nyl,nzl
 
-        real(8)    :: array (0:nxl+1,0:nyl+1,0:nzl+1)
-     .               ,array0(0:nxl+1,0:nyl+1,0:nzl+1)
+        real(8)    :: x_j (0:nxl+1,0:nyl+1,0:nzl+1)
+     .               ,x0_j(0:nxl+1,0:nyl+1,0:nzl+1)
 
         integer   ,optional,intent(IN) :: iorder
 
@@ -481,196 +517,52 @@ c     Local variables
 
         integer    :: bcnd(6),iibc,order
 
-c     Debug
-
-        integer    :: i,j,k
-
-c     External
-
 c     Begin program
 
         if (PRESENT(iorder)) then
           order = iorder
         else
-          order = 2
+          order = 1    !Default to first order for predictable results at boundaries
         endif
 
 c     Setup boundary conditions (topological conditions are meaningless for maps!)
-
-cc        bcnd = bcond   !Capture topological constraints
-cc        where(bcnd == DEF) bcnd = EXT !Default to extrapolation
 
         bcnd = EXT
 
         !Force boundaries along dimension
         select case(dim)
         case(1)
-cc          where(bcond(1:2) == DEF) bcnd(1:2) = EQU
-          if (nxl > 1) then
-cc            where(bcnd(1:2) == EXT) bcnd(1:2) = EQU
+cc          if (nxl > 1) then
             bcnd(1:2) = EQU
-          else
-cc            where(bcnd(1:2) == EXT) bcnd(1:2) = PER
-            bcnd(1:2) = PER
-          endif
+cc          else
+cc            bcnd(1:2) = PER
+cc          endif
         case(2)
-cc          where(bcond(3:4) == DEF) bcnd(3:4) = EQU
-          if (nyl > 1) then
-cc            where(bcnd(3:4) == EXT) bcnd(3:4) = EQU
+cc          if (nyl > 1) then
             bcnd(3:4) = EQU
-          else
-cc            where(bcnd(3:4) == EXT) bcnd(3:4) = PER
-            bcnd(3:4) = PER
-          endif
+cc          else
+cc            bcnd(3:4) = PER
+cc          endif
         case(3)
-cc          where(bcond(5:6) == DEF) bcnd(5:6) = EQU
-          if (nzl > 1) then
-cc            where(bcnd(5:6) == EXT) bcnd(5:6) = EQU
+cc          if (nzl > 1) then
             bcnd(5:6) = EQU
-          else
-cc            where(bcnd(5:6) == EXT) bcnd(5:6) = PER
-            bcnd(5:6) = PER
-          endif
+cc          else
+cc            bcnd(5:6) = PER
+cc          endif
         end select
 
 c     Impose BCs
 
-        call setMGBC(0,1,nxl,nyl,nzl,igrid,array,bcnd
-     .              ,arr0=array0,iorder=order)
+        call setMGBC(0,1,nxl,nyl,nzl,igrid,x_j,bcnd
+     .              ,arr0=x0_j,iorder=order)
 
 c     End program
 
       end subroutine map_bc
 
-ccc     find_gmetric
-ccc     #####################################################################
-cc      subroutine find_gmetric(i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
-cc     .                       ,x,jac,vol,ccov,ccnv,ggsup,ggsub,dtensor)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     This routine finds relevant metric quantities at the point (i,j,k)
-ccc     from the position vector x. It can do this for:
-ccc        * Cell centers: (hex,hey,hez)=(0,0,0)
-ccc        * Faces, e.g. (hex,hey,hez)=(1,0,0) for i+1/2 face.
-ccc        * Corners, e.g. (hex,hey,hez)=(1,1,1) for i+1/2,j+1/2,k+1/2 corner.
-ccc     on an arbitrary grid level.
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer    :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
-cc        real(8)    :: x(0:nx+1,0:ny+1,0:nz+1,neq),jac
-cc
-cc        real(8),optional,intent(OUT) :: ggsup(3,3),ggsub(3,3),vol
-cc     .                                 ,ccov(3,3),ccnv(3,3)
-cc        real(8),optional,intent(IN)  :: dtensor(3,3)
-cc
-ccc     Local variables
-cc
-cc        integer    :: m,l,ig,jg,kg
-cc        real(8)    :: r(3,3),cnv(3,3),cov(3,3),x1,x2
-cc     .               ,g_sup(3,3),g_sub(3,3),tensor(3,3)
-cc        logical    :: wtnsr
-cc
-ccc     Begin program
-cc
-cc        !Set tensor
-cc        if (PRESENT(dtensor)) then
-cc          wtnsr = .true.
-cc        else
-cc          wtnsr = .false.
-cc        endif
-cc
-cc        if (wtnsr) tensor = dtensor
-cc
-cc        !Find dx/dxi
-cc        r = find_dr(i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq,x)
-cc
-cc        !Evaluate Jacobian
-cc        jac = triple_product(r(1,:),r(2,:),r(3,:))
-cc
-cc        !Volume
-cc        if (PRESENT(vol)) then
-cc          call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-cc
-cc          vol = jac*gparams%dxh(ig)
-cc     .             *gparams%dyh(jg)
-cc     .             *gparams%dzh(kg)
-cc        endif
-cc
-cc        !Vectors
-cc        if (PRESENT(ggsup).or.PRESENT(ccov)) then
-cc          !Covariant vectors
-cc          cov(1,:) = cross_product(r(2,:),r(3,:))
-cc          cov(2,:) = cross_product(r(3,:),r(1,:))
-cc          cov(3,:) = cross_product(r(1,:),r(2,:))
-cc
-cc          cov = cov/jac
-cc
-cc          if (PRESENT(ccov)) ccov = cov
-cc        endif
-cc
-cc        if (PRESENT(ggsub).or.PRESENT(ccnv)) then
-cc          !Contravariant vectors
-cc          cnv(:,:) = r(:,:)/jac
-cc
-cc          if (PRESENT(ccov)) ccnv = cnv
-cc        endif
-cc
-cc        !Metric tensors
-cc        if (PRESENT(ggsup)) then
-cc
-cc          if (wtnsr) then
-cc            do m=1,3
-cc              do l=m,3
-cc                g_sup(l,m) = jac
-cc     .                *dot_product(cov(l,:),matmul(tensor,cov(m,:)))
-cc                g_sup(m,l) = g_sup(l,m) !Symmetry
-cc              enddo
-cc            enddo
-cc          else
-cc            do m=1,3
-cc              do l=m,3
-cc                g_sup(l,m) = jac*dot_product(cov(l,:),cov(m,:))
-cc                g_sup(m,l) = g_sup(l,m) !Symmetry
-cc              enddo
-cc            enddo
-cc          endif
-cc
-cc          ggsup = g_sup
-cc
-cc        endif
-cc
-cc        if (PRESENT(ggsub)) then
-cc
-cc          if (wtnsr) then
-cc            do m=1,3
-cc              do l=m,3
-cc                g_sub(l,m) = jac*dot_product(cnv(l,:)
-cc     .                                    ,matmul(tensor,cnv(m,:)))
-cc                g_sub(m,l) = g_sub(l,m) !Symmetry
-cc              enddo
-cc            enddo
-cc          else
-cc            do m=1,3
-cc              do l=m,3
-cc                g_sub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
-cc                g_sub(m,l) = g_sub(l,m) !Symmetry
-cc              enddo
-cc            enddo
-cc          endif
-cc
-cc          ggsub = g_sub
-cc
-cc        endif
-cc
-cc      end subroutine find_gmetric
-
 c     findGridMetrics
 c     #################################################################
-      subroutine findGridMetrics(gparams,igrid)
+      subroutine findGridMetrics(gparams,igrid,coarsen)
 
 c     -----------------------------------------------------------------
 c     Find grid metrics at grid level igrid.
@@ -682,8 +574,10 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: igrid
+        integer :: igrid
         type(grid_mg_def),pointer :: gparams
+
+        logical :: coarsen
 
 c     Local variables
 
@@ -740,11 +634,19 @@ c       ANALYTICAL QUANTITIES **********************************
                   gparams%gmetric%grid(igrid)%cnv(i,j,k,l,:)
      .                    = contravariantVector(l,i,j,k,igx,igy,igz)
                 enddo
+
+                !Cell volume
+                call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+                gparams%gmetric%grid(igrid)%dvol(i,j,k)=
+     .                           gparams%gmetric%grid(igrid)%jac(i,j,k)
+     .                          *gparams%dxh(ig)
+     .                          *gparams%dyh(jg)
+     .                          *gparams%dzh(kg)
               enddo
             enddo
           enddo
 
-cc          write (*,*) 'DIAG -- findGridMetrics'
           !Zero force condition on Christoffel symbols (only on finest grid)
           if (igrid == 1) then
             call gammaZeroForce(igx,igy,igz)
@@ -754,534 +656,507 @@ c       NUMERICAL QUANTITIES ***********************************
 
         else
 
-          !Rename map
-          xc => gparams%gmetric%grid(igrid)%car
-
           numerical_grid = .true.
 
           allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
 
-          !Find cartesian map
-          if (map_present) then
+          call findMap
 
-            if (igrid == 1) then
-              nxf=ihi-ilo+1
-              nyf=jhi-jlo+1
-              nzf=khi-klo+1
+          call findCellMetrics
 
-              xc = xcr
-            else
-              nxf=size(xcr,1)-2
-              nyf=size(xcr,2)-2
-              nzf=size(xcr,3)-2
-
-              nxc=ihi-ilo+1
-              nyc=jhi-jlo+1
-              nzc=khi-klo+1
-
-              call coarsen_map(igrid,gparams,nxf,nyf,nzf,xcr
-     .                                      ,nxc,nyc,nzc,xc )
-
-              !Prepare next coarsening
-              deallocate(xcr)
-              allocate(xcr(0:nxc+1,0:nyc+1,0:nzc+1,3))
-
-              xcr = xc
-            endif
-
-          else
-
-            if (checkAnalMapDatabase()) then
-
-              do k = klom,khip
-                do j = jlom,jhip
-                  do i = ilom,ihip
-                    xc(i,j,k,:) = map(i,j,k,igx,igy,igz)
-                  enddo
-                enddo
-              enddo
-
-#if defined(vmec)
-            elseif (coords == 'vmc') then
-
-                vmec_met = .false.   !Whether to use VMEC metric quantities or not
-                vmec_mets = vmec_met .and. (igrid == 1)
-
-                nxf=ihi-ilo+1
-                nyf=jhi-jlo+1
-                nzf=khi-klo+1
-
-                call vmec_map(igrid,nxf,nyf,nzf,xc,vmec_mets) !External
-
-                if (vmec_mets) then
-                  call vmec_metrics(igrid,nxf,nyf,nzf         !External
-     .                             ,gparams%gmetric%grid(igrid)%jac
-     .                             ,gparams%gmetric%grid(igrid)%gsub
-     .                             ,gparams%gmetric%grid(igrid)%gsup)
-                endif
+#if !defined(samrai)
+          call findVertexMetrics
 #endif
-            else
-              call pstop('findGridMetrics','Mapping not available')
-            endif
-          endif
-
-          nx = ihi-ilo+1
-          ny = jhi-jlo+1
-          nz = khi-klo+1
-
-          !Evaluate dr=dx/dxi vectors
-          do k = klom,khip
-            do j = jlom,jhip
-              do i = ilom,ihip
-                dr(i,j,k,:,:)
-     .               = find_dr(i,j,k,igx,igy,igz,0,0,0,nx,ny,nz,3
-     .                        ,gparams,xc)
-              enddo
-            enddo
-          enddo
-
-          !Enforce topological constraints on dr (including SP)
-          do i=1,3
-            do j=1,3
-              call topol_bc(igrid,nx,ny,nz,dr(:,:,:,i,j))
-              if (bcSP()) then
-cc                write (*,*) 'DIAG -- fingGridMetrics'
-                igxbc = igrid
-                igybc = igrid
-                igzbc = igrid
-
-                nxbc = nx
-                nybc = ny
-                nzbc = nz
-                !dr behaves like a covariant vector
-                call vectorSingularBC(i,dr(:,:,:,i,j),.true.)
-              endif
-            enddo
-          enddo
-
-          !Evaluate grid quantities
-          do k = klom,khip
-            do j = jlom,jhip
-              do i = ilom,ihip
-                r = dr(i,j,k,:,:)
-
-                !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-                if (.not.vmec_mets) then
-                  jac = triple_product(r(1,:),r(2,:),r(3,:))
-                  gparams%gmetric%grid(igrid)%jac(i,j,k) = jac
-                else
-                  jac = gparams%gmetric%grid(igrid)%jac(i,j,k)
-                endif
-
-                if (jac <= 0d0 .and. (.not.isSP2(i+1,igrid,ibc=1))) then
-                  write (*,*) 'Grid level',igrid
-                  write (*,*) 'Grid position=',i,j,k
-                  write (*,*) 'dr/dxi_1=',r(1,:)
-                  write (*,*) 'dr/dxi_2=',r(2,:)
-                  write (*,*) 'dr/dxi_3=',r(3,:)
-                  write (*,*) 'Jacobian=',jac
-                  call pstop('findGridMetrics','Inverted jacobian')
-                endif
-
-                ijac = 1d0/jac
-
-                !Contravariant vectors <<<<<<<<<<<<<<<<<<<
-                cnv(:,:) = r(:,:)*ijac
-
-                gparams%gmetric%grid(igrid)%cnv(i,j,k,:,:) = cnv
-
-                !Covariant vectors <<<<<<<<<<<<<<<<<<<<<<
-                cov(1,:) = cross_product(r(2,:),r(3,:))
-                cov(2,:) = cross_product(r(3,:),r(1,:))
-                cov(3,:) = cross_product(r(1,:),r(2,:))
-
-                cov = cov*ijac
-
-                gparams%gmetric%grid(igrid)%cov(i,j,k,:,:) = cov
-
-                !Metric tensors <<<<<<<<<<<<<<<<<<<<<<<<
-                if (.not.vmec_mets) then
-                  do m=1,3
-                    do l=m,3
-                      gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
-                      gsub(m,l) = gsub(l,m) !Symmetry
-                      gsup(l,m) = jac*dot_product(cov(l,:),cov(m,:))
-                      gsup(m,l) = gsup(l,m) !Symmetry
-                    enddo
-                  enddo
-                  gparams%gmetric%grid(igrid)%gsub(i,j,k,:,:) = gsub
-                  gparams%gmetric%grid(igrid)%gsup(i,j,k,:,:) = gsup
-                endif
-
-                !Christoffel symbols <<<<<<<<<<<<<<<<<<
-                call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-                dh(1) = gparams%dxh(ig)
-                dh(2) = gparams%dyh(jg)
-                dh(3) = gparams%dzh(kg)
-
-                if (i==ilom) then
-                  i0=ilo
-                elseif (i==ihip) then
-                  i0=ihi
-                else
-                  i0=i
-                endif
-
-                if (j==jlom) then
-                  j0=jlo
-                elseif (j==jhip) then
-                  j0=jhi
-                else
-                  j0=j
-                endif
-
-                if (k==klom) then
-                  k0=klo
-                elseif (k==khip) then
-                  k0=khi
-                else
-                  k0=k
-                endif
-
-                ip=i0+1
-                im=i0-1
-                jp=j0+1
-                jm=j0-1
-                kp=k0+1
-                km=k0-1
-
-                do l=1,3
-                  do m=1,3
-                    do n=m,3
-                      if (m == n) then
-                        select case(m)
-                        case(1)
-                          call getMGmap(i0,j0,k0,igx,igy,igz,ig0,jg,kg)
-                          call getMGmap(ip,j0,k0,igx,igy,igz,igp,jg,kg)
-                          call getMGmap(im,j0,k0,igx,igy,igz,igm,jg,kg)
-                          car0 = xc(i0,j0,k0,:)
-                          carp = xc(ip,j0,k0,:)
-                          carm = xc(im,j0,k0,:)
-                          dhp = (gparams%xx(igp)
-     .                          -gparams%xx(ig0))
-                          dhm = (gparams%xx(ig0)
-     .                          -gparams%xx(igm))
-                        case(2)
-                          call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg0,kg)
-                          call getMGmap(i0,jp,k0,igx,igy,igz,ig,jgp,kg)
-                          call getMGmap(i0,jm,k0,igx,igy,igz,ig,jgm,kg)
-                          car0 = xc(i0,j0,k0,:)
-                          carp = xc(i0,jp,k0,:)
-                          carm = xc(i0,jm,k0,:)
-                          dhp = (gparams%yy(jgp)
-     .                          -gparams%yy(jg0))
-                          dhm = (gparams%yy(jg0)
-     .                          -gparams%yy(jgm))
-                        case(3)
-                          call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg,kg0)
-                          call getMGmap(i0,j0,kp,igx,igy,igz,ig,jg,kgp)
-                          call getMGmap(i0,j0,km,igx,igy,igz,ig,jg,kgm)
-                          car0 = xc(i0,j0,k0,:)
-                          carp = xc(i0,j0,kp,:)
-                          carm = xc(i0,j0,km,:)
-                          dhp = (gparams%zz(kgp)
-     .                          -gparams%zz(kg0))
-                          dhm = (gparams%zz(kg0)
-     .                          -gparams%zz(kgm))
-                        end select
-                        carp = (carp-car0)/dhp
-                        carm = (car0-carm)/dhm
-                        dhh  = 0.5*(dhp+dhm)
-                      else
-                        select case(m)
-                        case(1)
-                         call getMGmap(i0,j0,k0,igx,igy,igz,ig0,jg,kg)
-                         call getMGmap(im,j0,k0,igx,igy,igz,igm,jg,kg)
-                         call getMGmap(ip,j0,k0,igx,igy,igz,igp,jg,kg)
-                         carp= 0.5*(dr(ip,j0,k0,n,:)+dr(i0,j0,k0,n,:))
-                         carm= 0.5*(dr(im,j0,k0,n,:)+dr(i0,j0,k0,n,:))
-                         dhh = 0.5*(gparams%xx(igp)
-     .                             -gparams%xx(igm))
-                        case(2)
-                         call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg0,kg)
-                         call getMGmap(i0,jm,k0,igx,igy,igz,ig,jgm,kg)
-                         call getMGmap(i0,jp,k0,igx,igy,igz,ig,jgp,kg)
-                         carp= 0.5*(dr(i0,jp,k0,n,:)+dr(i0,j0,k0,n,:))
-                         carm= 0.5*(dr(i0,jm,k0,n,:)+dr(i0,j0,k0,n,:))
-                         dhh = 0.5*(gparams%yy(jgp)
-     .                             -gparams%yy(jgm))
-                        case(3)
-                         call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg,kg0)
-                         call getMGmap(i0,j0,km,igx,igy,igz,ig,jg,kgm)
-                         call getMGmap(i0,j0,kp,igx,igy,igz,ig,jg,kgp)
-                         carp= 0.5*(dr(i0,j0,kp,n,:)+dr(i0,j0,k0,n,:))
-                         carm= 0.5*(dr(i0,j0,km,n,:)+dr(i0,j0,k0,n,:))
-                         dhh = 0.5*(gparams%zz(kgp)
-     .                             -gparams%zz(kgm))
-                        end select
-                      endif
-                      vec = (carp-carm)/dhh
-
-                      gamma(l,m,n) = dot_product(vec,cov(l,:))
-                      gamma(l,n,m) = gamma(l,m,n) !Symmetry
-                    enddo
-                  enddo
-                enddo
-
-                gparams%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
-              enddo
-            enddo
-          enddo
-
           deallocate(dr)
           nullify(xc)
 
-          !Zero-force condition on Christoffle symbols 
-          if (igrid == 1) then
-            call gammaZeroForce(igx,igy,igz)
+        endif
+
+c     End program
+
+      contains
+
+c     findMap
+c     #################################################################
+      subroutine findMap
+
+c     -----------------------------------------------------------------
+c     Finds Cartesian map.
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+c     Local variables
+
+        real(8),pointer,dimension(:,:,:,:) :: xf
+
+c     Begin program
+
+        xc => gparams%gmetric%grid(igrid)%car
+
+        if (map_present) then
+
+          if (igrid > 1 .and. coarsen) then  !Coarsen map if at coarse grid level
+            xf => gparams%gmetric%grid(igrid-1)%car
+
+            nxf=size(xf,1)-2
+            nyf=size(xf,2)-2
+            nzf=size(xf,3)-2
+
+            nxc=size(xc,1)-2
+            nyc=size(xc,2)-2
+            nzc=size(xc,3)-2
+
+            call coarsen_map(igrid,gparams,nxf,nyf,nzf,xf
+     .                                    ,nxc,nyc,nzc,xc)
+
+            nullify(xf)
           endif
 
-          !Enforce topological constraints on Christoffel symbols
-          do i=1,3
-            do j=1,3
-              do k=1,3
-                call topol_bc(igrid,nx,ny,nz
-     .             ,gparams%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k))
+        else
+
+          if (checkAnalMapDatabase()) then
+
+            do k = klom,khip
+              do j = jlom,jhip
+                do i = ilom,ihip
+                  xc(i,j,k,:) = map(i,j,k,igx,igy,igz)
+                enddo
               enddo
             enddo
-          enddo
+
+cc#if defined(vmec)
+cc          elseif (coords == 'vmc') then
+cc
+cc            vmec_met = .false.   !Whether to use VMEC metric quantities or not
+cc            vmec_mets = vmec_met .and. (igrid == 1)
+cc
+cc            nxf=ihi-ilo+1
+cc            nyf=jhi-jlo+1
+cc            nzf=khi-klo+1
+cc
+cc            call vmec_map(igrid,nxf,nyf,nzf,xc,vmec_mets) !External
+cc
+cc            if (vmec_mets) then
+cc              call vmec_metrics(igrid,nxf,nyf,nzf         !External
+cc     .                         ,gparams%gmetric%grid(igrid)%jac
+cc     .                         ,gparams%gmetric%grid(igrid)%gsub
+cc     .                         ,gparams%gmetric%grid(igrid)%gsup)
+cc            endif
+cc#endif
+          
+          else
+            call pstop('findMap','Map not available')
+          endif
 
         endif
 
-c       Store cell volume
+c     End program
 
-        do k = klom,khip
-          do j = jlom,jhip
-            do i = ilom,ihip
+      end subroutine findMap
 
-              call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+c     findCellMetrics
+c     #################################################################
+      subroutine findCellMetrics
+
+c     -----------------------------------------------------------------
+c     Finds metrics at cell centers.
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+c     Local variables
+
+        integer :: he,imin,imax,jmin,jmax,kmin,kmax
+
+        real(8) :: r(3,3),car0(3),carp(3),carm(3),jac,ijac
+     .            ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
+     .            ,gamma(3,3,3),mag,dhh,dhm,dhp
+
+c     Begin program
+
+        imin = ilom
+        imax = ihip
+
+        jmin = jlom
+        jmax = jhip
+
+        kmin = klom
+        kmax = khip
+
+        he = 0
+
+c     Local grid size
+
+        nx = ihi-ilo+1
+        ny = jhi-jlo+1
+        nz = khi-klo+1
+
+c     Evaluate dr=dx/dxi vectors
+
+        do k = kmin,kmax
+          do j = jmin,jmax
+            do i = imin,imax
+              dr(i,j,k,:,:)
+     .             = find_dr(i,j,k,igx,igy,igz,he,he,he,nx,ny,nz
+     .                      ,gparams,xc)
+            enddo
+          enddo
+        enddo
+
+c     Enforce topological constraints on dr (including SP)
+
+        do i=1,3
+          do j=1,3
+            call topol_bc(igrid,nx,ny,nz,dr(:,:,:,i,j))
+            if (bcSP()) then
+              igxbc = igrid
+              igybc = igrid
+              igzbc = igrid
+
+              nxbc = nx
+              nybc = ny
+              nzbc = nz
+              !dr behaves like a covariant vector
+              call vectorSingularBC(i,dr(:,:,:,i,j),.true.)
+            endif
+          enddo
+        enddo
+
+        !Evaluate grid quantities
+        do k = kmin,kmax
+          do j = jmin,jmax
+            do i = imin,imax
+              r = dr(i,j,k,:,:)
+
+              !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+cc              if (.not.vmec_mets) then
+                jac = triple_product(r(1,:),r(2,:),r(3,:))
+                gparams%gmetric%grid(igrid)%jac(i,j,k) = jac
+cc              else
+cc                jac = gparams%gmetric%grid(igrid)%jac(i,j,k)
+cc              endif
+
+              if (jac <= 0d0 .and. (.not.isSP2(i+1,igrid,ibc=1))) then
+                write (*,*) 'Grid level',igrid
+                write (*,*) 'Grid position=',i,j,k
+                write (*,*) 'dr/dxi_1=',r(1,:)
+                write (*,*) 'dr/dxi_2=',r(2,:)
+                write (*,*) 'dr/dxi_3=',r(3,:)
+                write (*,*) 'Jacobian=',jac
+                call pstop('findCellMetrics','Inverted jacobian')
+              endif
+
+              ijac = 1d0/jac
+
+              !Contravariant vectors <<<<<<<<<<<<<<<<<<<
+              cnv(:,:) = r(:,:)*ijac
+
+              gparams%gmetric%grid(igrid)%cnv(i,j,k,:,:) = cnv
+
+              !Covariant vectors <<<<<<<<<<<<<<<<<<<<<<
+              cov(1,:) = cross_product(r(2,:),r(3,:))
+              cov(2,:) = cross_product(r(3,:),r(1,:))
+              cov(3,:) = cross_product(r(1,:),r(2,:))
+
+              cov = cov*ijac
+
+              gparams%gmetric%grid(igrid)%cov(i,j,k,:,:) = cov
+
+              !Metric tensors <<<<<<<<<<<<<<<<<<<<<<<<
+cc              if (.not.vmec_mets) then
+                do m=1,3
+                  do l=m,3
+                    gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
+                    gsub(m,l) = gsub(l,m) !Symmetry
+                    gsup(l,m) = jac*dot_product(cov(l,:),cov(m,:))
+                    gsup(m,l) = gsup(l,m) !Symmetry
+                  enddo
+                enddo
+                gparams%gmetric%grid(igrid)%gsub(i,j,k,:,:) = gsub
+                gparams%gmetric%grid(igrid)%gsup(i,j,k,:,:) = gsup
+cc              endif
+
+              !Cell volume <<<<<<<<<<<<<<<<<<
+              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
               gparams%gmetric%grid(igrid)%dvol(i,j,k)=
      .                           gparams%gmetric%grid(igrid)%jac(i,j,k)
      .                          *gparams%dxh(ig)
      .                          *gparams%dyh(jg)
      .                          *gparams%dzh(kg)
-cc              gparams%gmetric%grid(igrid)%dvol(i,j,k)=volume(i,j,k,igx,igy,igz)
+
+              !Christoffel symbols <<<<<<<<<<<<<<<<<<
+              if (i==imin) then
+                i0=ilo
+              elseif (i==imax) then
+                i0=ihi
+              else
+                i0=i
+              endif
+
+              if (j==jmin) then
+                j0=jlo
+              elseif (j==jmax) then
+                j0=jhi
+              else
+                j0=j
+              endif
+
+              if (k==kmin) then
+                k0=klo
+              elseif (k==kmax) then
+                k0=khi
+              else
+                k0=k
+              endif
+
+              ip=i0+1
+              im=i0-1
+              jp=j0+1
+              jm=j0-1
+              kp=k0+1
+              km=k0-1
+
+              do l=1,3
+                do m=1,3
+                  do n=m,3
+                    if (m == n) then
+                      select case(m)
+                      case(1)
+                        call getMGmap(i0,j0,k0,igx,igy,igz,ig0,jg,kg)
+                        call getMGmap(ip,j0,k0,igx,igy,igz,igp,jg,kg)
+                        call getMGmap(im,j0,k0,igx,igy,igz,igm,jg,kg)
+                        car0 = xc(i0,j0,k0,:)
+                        carp = xc(ip,j0,k0,:)
+                        carm = xc(im,j0,k0,:)
+                        dhp = (gparams%xx(igp)
+     .                        -gparams%xx(ig0))
+                        dhm = (gparams%xx(ig0)
+     .                        -gparams%xx(igm))
+                      case(2)
+                        call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg0,kg)
+                        call getMGmap(i0,jp,k0,igx,igy,igz,ig,jgp,kg)
+                        call getMGmap(i0,jm,k0,igx,igy,igz,ig,jgm,kg)
+                        car0 = xc(i0,j0,k0,:)
+                        carp = xc(i0,jp,k0,:)
+                        carm = xc(i0,jm,k0,:)
+                        dhp = (gparams%yy(jgp)
+     .                        -gparams%yy(jg0))
+                        dhm = (gparams%yy(jg0)
+     .                        -gparams%yy(jgm))
+                      case(3)
+                        call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg,kg0)
+                        call getMGmap(i0,j0,kp,igx,igy,igz,ig,jg,kgp)
+                        call getMGmap(i0,j0,km,igx,igy,igz,ig,jg,kgm)
+                        car0 = xc(i0,j0,k0,:)
+                        carp = xc(i0,j0,kp,:)
+                        carm = xc(i0,j0,km,:)
+                        dhp = (gparams%zz(kgp)
+     .                        -gparams%zz(kg0))
+                        dhm = (gparams%zz(kg0)
+     .                        -gparams%zz(kgm))
+                      end select
+                      carp = (carp-car0)/dhp
+                      carm = (car0-carm)/dhm
+                      dhh  = 0.5*(dhp+dhm)
+                    else
+                      select case(m)
+                      case(1)
+                       call getMGmap(i0,j0,k0,igx,igy,igz,ig0,jg,kg)
+                       call getMGmap(im,j0,k0,igx,igy,igz,igm,jg,kg)
+                       call getMGmap(ip,j0,k0,igx,igy,igz,igp,jg,kg)
+                       carp= 0.5*(dr(ip,j0,k0,n,:)+dr(i0,j0,k0,n,:))
+                       carm= 0.5*(dr(im,j0,k0,n,:)+dr(i0,j0,k0,n,:))
+                       dhh = 0.5*(gparams%xx(igp)
+     .                           -gparams%xx(igm))
+                      case(2)
+                       call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg0,kg)
+                       call getMGmap(i0,jm,k0,igx,igy,igz,ig,jgm,kg)
+                       call getMGmap(i0,jp,k0,igx,igy,igz,ig,jgp,kg)
+                       carp= 0.5*(dr(i0,jp,k0,n,:)+dr(i0,j0,k0,n,:))
+                       carm= 0.5*(dr(i0,jm,k0,n,:)+dr(i0,j0,k0,n,:))
+                       dhh = 0.5*(gparams%yy(jgp)
+     .                           -gparams%yy(jgm))
+                      case(3)
+                       call getMGmap(i0,j0,k0,igx,igy,igz,ig,jg,kg0)
+                       call getMGmap(i0,j0,km,igx,igy,igz,ig,jg,kgm)
+                       call getMGmap(i0,j0,kp,igx,igy,igz,ig,jg,kgp)
+                       carp= 0.5*(dr(i0,j0,kp,n,:)+dr(i0,j0,k0,n,:))
+                       carm= 0.5*(dr(i0,j0,km,n,:)+dr(i0,j0,k0,n,:))
+                       dhh = 0.5*(gparams%zz(kgp)
+     .                           -gparams%zz(kgm))
+                      end select
+                    endif
+                    vec = (carp-carm)/dhh
+
+                    gamma(l,m,n) = dot_product(vec,cov(l,:))
+                    gamma(l,n,m) = gamma(l,m,n) !Symmetry
+                  enddo
+                enddo
+              enddo
+
+              gparams%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
+
+
+            enddo
+          enddo
+        enddo
+
+        !Zero-force condition on Christoffle symbols 
+        if (igrid == 1) then
+          call gammaZeroForce(igx,igy,igz)
+        endif
+
+        !Enforce topological constraints on Christoffel symbols
+        do i=1,3
+          do j=1,3
+            do k=1,3
+              call topol_bc(igrid,nx,ny,nz
+     .           ,gparams%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k))
             enddo
           enddo
         enddo
 
 c     End program
 
-      contains
+      end subroutine findCellMetrics
 
-ccc     find_dr
-ccc     #####################################################################
-cc      function find_dr(i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq,x)
-cc     .         result(dr)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     This routine finds dx/d_xi tensor at the point (i,j,k)
-ccc     from the position vector x. It can do this for:
-ccc        * Cell centers: (hex,hey,hez)=(0,0,0)
-ccc        * Faces, e.g. (hex,hey,hez)=(1,0,0) for i+1/2 face.
-ccc        * Corners, e.g. (hex,hey,hez)=(1,1,1) for i+1/2,j+1/2,k+1/2 corner.
-ccc     on an arbitrary grid level.
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer    :: i,j,k,igx,igy,igz,hex,hey,hez,nx,ny,nz,neq
-cc        real(8)    :: dr(3,3),x(0:nx+1,0:ny+1,0:nz+1,neq)
-cc
-ccc     Local variables
-cc
-cc        integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
-cc     .               ,igp,igm,jgp,jgm,kgp,kgm,hel
-cc
-cc        real(8)    :: carp(neq),carm(neq),dh(3),coeff
-cc
-ccc     Begin program
-cc
-cc        dr = 1d0*reshape((/ 1,0,0
-cc     .                     ,0,1,0
-cc     .                     ,0,0,1 /)
-cc     .                   ,(/ 3,3 /))
-cc
-cc        ip=min(i+1,nx+1)
-cc        im=max(i-1,0)
-cc        jp=min(j+1,ny+1)
-cc        jm=max(j-1,0)
-cc        kp=min(k+1,nz+1)
-cc        km=max(k-1,0)
-cc
-cc        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-cc
-ccc     Exceptions
-cc
-cc        if (hex == 1) im = i
-cc        if (hey == 1) jm = j
-cc        if (hez == 1) km = k
-cc
-cc        !X
-cc        igp = ig+(ip-i)
-cc        igm = ig-(i-im)
-cc
-cc        dh(1)= (gparams%xx(igp)-gparams%xx(igm))
-cc
-cc        carp = x(ip,j,k,:)
-cc        carm = x(im,j,k,:)
-cc        coeff = 1d0
-cc
-cc        if (hey == 1) then
-cc          carp = carp + x(ip,jp,k,:)
-cc          carm = carm + x(im,jp,k,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hez == 1) then
-cc          carp = carp + x(ip,j,kp,:)
-cc          carm = carm + x(im,j,kp,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hey == 1 .and. hez == 1) then
-cc          carp = carp + x(ip,jp,kp,:)
-cc          carm = carm + x(im,jp,kp,:)
-cc          coeff = 0.25
-cc        endif
-cc
-cc        dr(1,1:neq) = coeff*(carp-carm)/dh(1)
-cc
-cc        !Y
-cc        jgp = jg+(jp-j)
-cc        jgm = jg-(j-jm)
-cc
-cc        dh(2)= (gparams%yy(jgp)-gparams%yy(jgm))
-cc
-cc        carp = x(i,jp,k,:)
-cc        carm = x(i,jm,k,:)
-cc        coeff = 1d0
-cc
-cc        if (hex == 1) then
-cc          carp = carp + x(ip,jp,k,:)
-cc          carm = carm + x(ip,jm,k,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hez == 1) then
-cc          carp = carp + x(i,jp,kp,:)
-cc          carm = carm + x(i,jm,kp,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hex == 1 .and. hez == 1) then
-cc          carp = carp + x(ip,jp,kp,:)
-cc          carm = carm + x(ip,jm,kp,:)
-cc          coeff = 0.25
-cc        endif
-cc
-cc        dr(2,1:neq) = coeff*(carp-carm)/dh(2)
-cc
-cc        !Z
-cc        kgp = kg+(kp-k)
-cc        kgm = kg-(k-km)
-cc
-cc        dh(3)= (gparams%zz(kgp)-gparams%zz(kgm))
-cc
-cc        carp = x(i,j,kp,:)
-cc        carm = x(i,j,km,:)
-cc        coeff = 1d0
-cc
-cc        if (hex == 1) then
-cc          carp = carp + x(ip,j,kp,:)
-cc          carm = carm + x(ip,j,km,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hey == 1) then
-cc          carp = carp + x(i,jp,kp,:)
-cc          carm = carm + x(i,jp,km,:)
-cc          coeff = 0.5
-cc        endif
-cc
-cc        if (hex == 1 .and. hey == 1) then
-cc          carp = carp + x(ip,jp,kp,:)
-cc          carm = carm + x(ip,jp,km,:)
-cc          coeff = 0.25
-cc        endif
-cc
-cc        dr(3,1:neq) = coeff*(carp-carm)/dh(3)
-cc
-cc      end function find_dr
+#if !defined(samrai)
+c     findVertexMetrics
+c     #################################################################
+      subroutine findVertexMetrics
 
-ccc     coarsen_map
-ccc     #################################################################
-cc      subroutine coarsen_map(igc,nxf,nyf,nzf,arrayf,nxc,nyc,nzc,arrayc)
+c     -----------------------------------------------------------------
+c     Finds metrics at vertices (i+1/2,j+1/2,k+1/2) (stored at (i,j,k))
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+c     Local variables
+
+        integer :: he,imin,imax,jmin,jmax,kmin,kmax
+
+        real(8) :: r(3,3),cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),jac,ijac
+
+c     Begin program
+
+        imin = ilom
+        imax = ihi
+
+        jmin = jlom
+        jmax = jhi
+
+        kmin = klom
+        kmax = khi
+
+        he = 1
+
+c     Local grid size
+
+        nx = ihi-ilo+1
+        ny = jhi-jlo+1
+        nz = khi-klo+1
+
+c     Evaluate dr=dx/dxi vectors at vertices
+
+        do k = kmin,kmax
+          do j = jmin,jmax
+            do i = imin,imax
+              dr(i,j,k,:,:)
+     .             = find_dr(i,j,k,igx,igy,igz,he,he,he,nx,ny,nz
+     .                      ,gparams,xc)
+            enddo
+          enddo
+        enddo
+
+ccc     Enforce topological constraints on dr (including SP)
 cc
-ccc     -----------------------------------------------------------------
-ccc     Coarsen arrayf to arrayc at grid level igc.
-ccc     -----------------------------------------------------------------
+cc        do i=1,3
+cc          do j=1,3
+cc            call topol_bc(igrid,nx,ny,nz,dr(:,:,:,i,j))
+cc            if (bcSP()) then
+cc              igxbc = igrid
+cc              igybc = igrid
+cc              igzbc = igrid
 cc
-cc        implicit none
-cc
-ccc     Input variables
-cc
-cc        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
-cc        real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
-cc     .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
-cc
-ccc     Local variables
-cc
-cc        integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
-cc
-cc        real(8)    :: volc,ac
-cc
-ccc     Begin program
-cc
-cc        igf = igc - 1
-cc
-cc        mgx = gparams%mg_ratio_x(igf)
-cc        mgy = gparams%mg_ratio_y(igf)
-cc        mgz = gparams%mg_ratio_z(igf)
-cc
-cc        do kc = 1,nzc
-cc          do jc = 1,nyc
-cc            do ic = 1,nxc
-cc
-cc              volc   = 0d0
-cc              ac     = 0d0
-cc
-cc              do kf = mgz*(kc-1)+1,mgz*kc
-cc                do jf = mgy*(jc-1)+1,mgy*jc
-cc                  do if = mgx*(ic-1)+1,mgx*ic
-cc
-cccc                    if (volf) then
-cccc                      ac   = ac   + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
-cccc     .                             *arrayf(if,jf,kf)
-cccc                      volc = volc + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
-cccc                    else
-cc                      ac   = ac   + arrayf(if,jf,kf)
-cc                      volc = volc + 1d0
-cccc                    endif
-cc
-cc                  enddo
-cc                enddo
-cc              enddo
-cc
-cc              arrayc(ic,jc,kc) = ac/volc
-cc            enddo
+cc              nxbc = nx
+cc              nybc = ny
+cc              nzbc = nz
+cc              !dr behaves like a covariant vector
+cc              call vectorSingularBC(i,dr(:,:,:,i,j),.true.)
+cc            endif
 cc          enddo
 cc        enddo
-cc
-ccc     Fill ghost cells by 1st-order extrapolation
-cc
-cc        call map_bc(igc,nxc,nyc,nzc,arrayc,IBC=EXT,iorder=1)
-cc
-cc      end subroutine coarsen_map
 
+        !Evaluate grid quantities
+        do k = kmin,kmax
+          do j = jmin,jmax
+            do i = imin,imax
+              r = dr(i,j,k,:,:)
+
+              !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+              jac = triple_product(r(1,:),r(2,:),r(3,:))
+              gparams%gmetric%grid(igrid)%jac_v(i,j,k) = jac
+
+              if (jac <= 0d0 .and. (.not.isSP2(i+1,igrid,ibc=1))) then
+                write (*,*) 'Negative Jacobian in half mesh'
+                write (*,*) 'Grid level',igrid
+                write (*,*) 'Grid position=',i,j,k
+                write (*,*) 'dr/dxi_1=',dr(i,j,k,1,:)
+                write (*,*) 'dr/dxi_2=',dr(i,j,k,2,:)
+                write (*,*) 'dr/dxi_3=',dr(i,j,k,3,:)
+                write (*,*) 'Jacobian=',jac
+                call pstop('findVertexMetrics','Inverted jacobian')
+              elseif (isSP2(i+1,igrid,ibc=1)) then
+                ijac = 0d0
+              else
+                ijac = 1d0/jac
+              endif
+
+              !Contravariant vectors <<<<<<<<<<<<<<<<<<<
+              cnv(:,:) = r(:,:)*ijac
+
+              gparams%gmetric%grid(igrid)%cnv_v(i,j,k,:,:) = cnv
+
+              !Covariant vectors <<<<<<<<<<<<<<<<<<<<<<
+              cov(1,:) = cross_product(r(2,:),r(3,:))
+              cov(2,:) = cross_product(r(3,:),r(1,:))
+              cov(3,:) = cross_product(r(1,:),r(2,:))
+
+              cov = cov*ijac
+
+              gparams%gmetric%grid(igrid)%cov_v(i,j,k,:,:) = cov
+
+              !Metric tensors <<<<<<<<<<<<<<<<<<<<<<<<
+cc              if (.not.vmec_mets) then
+                do m=1,3
+                  do l=m,3
+                    gsub(l,m) = jac*dot_product(cnv(l,:),cnv(m,:))
+                    gsub(m,l) = gsub(l,m) !Symmetry
+                    gsup(l,m) = jac*dot_product(cov(l,:),cov(m,:))
+                    gsup(m,l) = gsup(l,m) !Symmetry
+                  enddo
+                enddo
+                gparams%gmetric%grid(igrid)%gsub_v(i,j,k,:,:) = gsub
+                gparams%gmetric%grid(igrid)%gsup_v(i,j,k,:,:) = gsup
+cc              endif
+
+            enddo
+          enddo
+        enddo
+
+c     End program
+
+      end subroutine findVertexMetrics
+#endif
+      
 c     gammaZeroForce
 c     #################################################################
       subroutine gammaZeroForce(igx,igy,igz)
@@ -1831,234 +1706,6 @@ c     End program
 
       end subroutine findGridMetrics
 
-c     coarsenGridMetrics
-c     #################################################################
-      subroutine coarsenGridMetrics(gparams,igc)
-
-c     -----------------------------------------------------------------
-c     Coasens grid metrics to grid level igrid.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        integer    :: igc
-        type(grid_mg_def),pointer :: gparams
-
-c     Local variables
-
-        integer    :: igf,ic,jc,kc,if,jf,kf,icg,jcg,kcg
-     .               ,nxc,nyc,nzc,nxf,nyf,nzf,l,m
-
-c     Begin program
-
-        call findGridMetrics(gparams,igc)
-
-cc        return
-cc
-cc        write (*,*) 'DIAG -- coarsenGridMetrics'
-cc
-cc        !From analytical mapping
-cc        if (.not.numerical_grid) then
-cc
-cc          call findGridMetrics(gparams,igc)
-cc
-cc        !From numerical mapping
-cc        else
-cc
-cc          igf = igc - 1
-cc
-cc          nxf = gparams%nxv(igf)
-cc          nyf = gparams%nyv(igf)
-cc          nzf = gparams%nzv(igf)
-cc
-cc          nxc = gparams%nxv(igc)
-cc          nyc = gparams%nyv(igc)
-cc          nzc = gparams%nzv(igc)
-cc
-ccc         Coarsen volumes and jacobians (needed for coarsening all else)
-cc
-cc          !Coarsen cell volumes (with ghost cells)
-cc          call coarsen(igc,nxf,nyf,nzf,gparams%gmetric%grid(igf)%dvol
-cc     .                    ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%dvol
-cc     .                ,.false.)
-cc
-cc          !Calculate jacobian
-cc          do kc = 1,nzc
-cc            do jc = 1,nyc
-cc              do ic = 1,nxc
-cc                call getMGmap(ic,jc,kc,igc,igc,igc,icg,jcg,kcg)
-cc
-cc                gparams%gmetric%grid(igc)%jac(ic,jc,kc) =
-cc     .                      gparams%gmetric%grid(igc)%dvol(ic,jc,kc)
-cc     .                                    /(gparams%dxh(icg)
-cc     .                                     *gparams%dyh(jcg)
-cc     .                                     *gparams%dzh(kcg))
-cc              enddo
-cc            enddo
-cc          enddo
-cc
-cc          call map_bc(igc,nxc,nyc,nzc,gparams%gmetric%grid(igc)%jac
-cc     .               ,IBC=EXT)
-cc
-ccc         Coarsen everything else (with ghost cells)
-cc
-cc          !Gsup
-cc          do l=1,3
-cc            do m=l,3
-cc              call coarsen(igc
-cc     .           ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%gsup(:,:,:,l,m)
-cc     .                       *gparams%gmetric%grid(igf)%jac
-cc     .           ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%gsup(:,:,:,l,m)
-cc     .           ,.true.)
-cc              gparams%gmetric%grid(igc)%gsup(:,:,:,l,m) =
-cc     .             gparams%gmetric%grid(igc)%gsup(:,:,:,l,m)
-cc     .            /gparams%gmetric%grid(igc)%jac
-cc              gparams%gmetric%grid(igc)%gsup(:,:,:,m,l)
-cc     .             = gparams%gmetric%grid(igc)%gsup(:,:,:,l,m) !Symmetry
-cc            enddo
-cc          enddo
-cc
-cc          !Gsub
-cc          do l=1,3
-cc            do m=l,3
-cc              call coarsen(igc
-cc     .           ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%gsub(:,:,:,l,m)
-cc     .                       *gparams%gmetric%grid(igf)%jac
-cc     .           ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%gsub(:,:,:,l,m)
-cc     .           ,.true.)
-cc              gparams%gmetric%grid(igc)%gsub(:,:,:,l,m) =
-cc     .             gparams%gmetric%grid(igc)%gsub(:,:,:,l,m)
-cc     .            /gparams%gmetric%grid(igc)%jac
-cc              gparams%gmetric%grid(igc)%gsub(:,:,:,m,l)
-cc     .             = gparams%gmetric%grid(igc)%gsub(:,:,:,l,m) !Symmetry
-cc            enddo
-cc          enddo
-cc
-cc          !Gamma
-cc          do m=1,3
-cc            do n=m,3
-cc              do l=1,3
-cc                call coarsen(igc
-cc     .         ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%Gamma(:,:,:,l,m,n)
-cc     .                     *gparams%gmetric%grid(igf)%jac
-cc     .         ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n)
-cc     .         ,.true.)
-cc                gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n) =
-cc     .             gparams%gmetric%grid(igc)%Gamma(:,:,:,l,m,n)
-cc     .            /gparams%gmetric%grid(igc)%jac
-cc              enddo
-cc              gparams%gmetric%grid(igc)%Gamma(:,:,:,:,n,m)
-cc     .             = gparams%gmetric%grid(igc)%Gamma(:,:,:,:,m,n) !Symmetry
-cc            enddo
-cc          enddo
-cc
-cc          !Cov
-cc          do l=1,3
-cc            do m=1,3
-cc              call coarsen(igc
-cc     .             ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%cov(:,:,:,l,m)
-cc     .                     *gparams%gmetric%grid(igf)%jac
-cc     .             ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%cov(:,:,:,l,m)
-cc     .             ,.true.)
-cc              gparams%gmetric%grid(igf)%cov(:,:,:,l,m) =
-cc     .              gparams%gmetric%grid(igf)%cov(:,:,:,l,m)
-cc     .             /gparams%gmetric%grid(igf)%jac
-cc            enddo
-cc          enddo
-cc
-cc          !Cnv
-cc          do l=1,3
-cc            do m=1,3
-cc              call coarsen(igc
-cc     .             ,nxf,nyf,nzf,gparams%gmetric%grid(igf)%cnv(:,:,:,l,m)
-cc     .                     *gparams%gmetric%grid(igf)%jac
-cc     .             ,nxc,nyc,nzc,gparams%gmetric%grid(igc)%cnv(:,:,:,l,m)
-cc     .             ,.true.)
-cc              gparams%gmetric%grid(igf)%cnv(:,:,:,l,m) =
-cc     .              gparams%gmetric%grid(igf)%cnv(:,:,:,l,m)
-cc     .             /gparams%gmetric%grid(igf)%jac
-cc            enddo
-cc          enddo
-cc
-cc        endif
-cc
-ccc     End program
-cc
-cc      contains
-cc
-ccc     coarsen
-ccc     #################################################################
-cc      subroutine coarsen(igc,nxf,nyf,nzf,arrayf,nxc,nyc,nzc,arrayc,volf)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Coarsen arrayf to arrayc at grid level igc.
-ccc     -----------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Input variables
-cc
-cc        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
-cc        real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
-cc     .               ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
-cc        logical    :: volf
-cc
-ccc     Local variables
-cc
-cc        integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
-cc
-cc        real(8)    :: volc,ac
-cc
-ccc     Begin program
-cc
-cc        igf = igc - 1
-cc
-cc        mgx = gparams%mg_ratio_x(igf)
-cc        mgy = gparams%mg_ratio_y(igf)
-cc        mgz = gparams%mg_ratio_z(igf)
-cc
-cc        do kc = 1,nzc
-cc          do jc = 1,nyc
-cc            do ic = 1,nxc
-cc
-cc              volc   = 0d0
-cc              ac     = 0d0
-cc
-cc              do kf = mgz*(kc-1)+1,mgz*kc
-cc                do jf = mgy*(jc-1)+1,mgy*jc
-cc                  do if = mgx*(ic-1)+1,mgx*ic
-cc
-cc                    if (volf) then
-cc                      ac   = ac
-cc     .                     + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
-cc     .                      *arrayf(if,jf,kf)
-cc                      volc = volc
-cc     .                     + gparams%gmetric%grid(igf)%dvol(if,jf,kf)
-cc                    else
-cc                      ac   = ac   + arrayf(if,jf,kf)
-cc                    endif
-cc
-cc                  enddo
-cc                enddo
-cc              enddo
-cc
-cc              if (volf) ac = ac/volc
-cc
-cc              arrayc(ic,jc,kc) = ac
-cc            enddo
-cc          enddo
-cc        enddo
-cc
-ccc     Fill ghost cells by 2nd-order extrapolation
-cc
-cc        call map_bc(igc,nxc,nyc,nzc,arrayc,IBC=EXT)
-cc
-cc      end subroutine coarsen
-
-      end subroutine coarsenGridMetrics
-
 c     topol_bc
 c     #################################################################
       subroutine topol_bc(igrid,nxl,nyl,nzl,array)
@@ -2117,82 +1764,9 @@ c     End program
 
       end subroutine topol_bc
 
-ccc     map_bc
-ccc     #################################################################
-cc      subroutine map_bc(igrid,nxl,nyl,nzl,array,IBC,iorder)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Impose BCs on map x(xi), component by component.
-ccc     -----------------------------------------------------------------
-cc
-cc        implicit  none
-cc
-ccc     Call variables
-cc
-cc        integer    :: igrid,nxl,nyl,nzl
-cc
-cc        real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
-cc
-cc        integer   ,optional,intent(IN) :: IBC,iorder
-cc
-ccc     Local variables
-cc
-cc        integer    :: bcnd(6),iibc,order
-cc        real(8)    :: array0(0:nxl+1,0:nyl+1,0:nzl+1)
-cc
-ccc     Degug
-cc
-cc        integer    :: i,j,k
-cc
-ccc     External
-cc
-ccc     Begin program
-cc
-cc        if (PRESENT(IBC)) then
-cc          iibc = IBC
-cc        else
-cc          iibc = EQU
-cc        endif
-cc
-cc        if (PRESENT(iorder)) then
-cc          order = iorder
-cc        else
-cc          order = 2
-cc        endif
-cc
-cc        array0 = array
-cc
-ccc     Set boundary conditions to IBC
-cc
-cc        bcnd = iibc
-cc
-cccc        bcnd = bcond
-cccc
-cccc        where(bcond /= PER) bcnd = iibc  !Do extrapolation except at periodic BCs
-cc
-ccc     Impose BCs
-cc
-cc        call setMGBC(0,1,nxl,nyl,nzl,igrid,array,bcnd
-cc     .              ,arr0=array0,iorder=order)
-cc
-ccc diag ******
-cccc        write (*,*) nxl,nyl,nzl
-cccc        write (*,*) 'bcnd',bcnd
-cccc        do j=0,nyl+1
-cccc          write (*,*) 'before, j=',j,array0(:,j,1)
-cccc          write (*,*) 'after , j=',j,array (:,j,1)
-cccc          write (*,*)
-cccc        enddo
-cccc        write (*,*) '==============================='
-ccc diag ******
-cc
-ccc     End program
-cc
-cc      end subroutine map_bc
-
 c     defineGridMetric
 c     #################################################################
-      subroutine defineGridMetric(gparams,xcar)
+      subroutine defineGridMetric(gparams,xcar,igr)
 
 c     -----------------------------------------------------------------
 c     This routine calculates all grid metric quantities required for
@@ -2209,8 +1783,8 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         type(grid_mg_def),pointer :: gparams
-cc        type(MG_grid_metrics),pointer :: g_metric
         real(8),optional,intent(IN) :: xcar(:,:,:,:)
+        integer,optional :: igr
 
 c     Local variables
 
@@ -2224,57 +1798,38 @@ c     Checks
 
         anal_map = checkAnalMapDatabase().and.(.not.map_present)
 
+c     Define grid levels
+
+        if (PRESENT(igr)) then
+          igrmin = igr
+          igrmax = igr
+        else
+          igrmin = 1
+          igrmax = gparams%ngrid
+        endif
+
 c     Allocate arrays
 
         call allocateGridMetric(gparams%gmetric,gparams)
 
         if (map_present) then
-cc          allocate(xcr(1:gparams%nxv(1)
-cc     .                ,1:gparams%nyv(1)
-cc     .                ,1:gparams%nzv(1),3))
-          allocate(xcr(0:gparams%nxv(1)+1
-     .                ,0:gparams%nyv(1)+1
-     .                ,0:gparams%nzv(1)+1,3))
-          xcr = xcar
+          gparams%gmetric%grid(igrmin)%car = xcar
         endif
 
-c     Define grid levels
+c     Find grid metrics
 
-cc        if (PRESENT(igr)) then
-cc          igrmin = igr
-cc          igrmax = igr
-cc        else
-          igrmin = 1
-          igrmax = gparams%ngrid
-cc        endif
-cc
-ccc     Find grid metrics
-cc
-cc        do igrid=igrmin,igrmax
-cc          call findGridMetrics(igrid)
-cc        enddo
-
-c     Find grid metrics in fine grid
-
-        call findGridMetrics(gparams,igrmin)
-
-c     Coarsen grid metrics (for MG)
-
-        do igrid=igrmin+1,igrmax
-          call coarsenGridMetrics(gparams,igrid)
+        do igrid=igrmin,igrmax
+          call findGridMetrics(gparams,igrid,.not.PRESENT(igr))
         enddo
         
 c     Check grid: test of numerical calculation vs. analytical calculation
 
-cc        if (check_grid .and. numerical_grid) then
-        if (check_grid) then
+        if (check_grid.and.(.not.PRESENT(igr))) then
           call numericalGridCoeffsCheck
           call graphicsCheck
         endif
 
 c     End program
-
-        deallocate(xcr,stat=istat)
 
       contains
 
@@ -2355,13 +1910,13 @@ c     Begin program
 
         write(funit,*) 'Grid level:',igrid
           
-        mag = sqrt(    mag1 /(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))
+        mag = sqrt(    mag1/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))
         write(funit,*)'   Jacobian tst=',mag
-        mag = sum(sqrt(mag2)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/9.
+        mag = sum(sqrt(mag2/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1)))/9.
         write(funit,*)'   Gsub tst    =',mag
-        mag = sum(sqrt(mag3)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/9.
+        mag = sum(sqrt(mag3/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1)))/9.
         write(funit,*)'   Gsup tst    =',mag
-        mag = sum(sqrt(mag4)/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))/27.
+        mag = sum(sqrt(mag4/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1)))/27.
         write(funit,*)'   Gamma tst   =',mag
         write(funit,*)
 

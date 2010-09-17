@@ -9,12 +9,15 @@ c       PER: Periodic
 c       SP : Singular point (as in cylindrical, toroidal)
 c       SYM: Symmetry (> 0 -> homogeneous Neumann
 c                     ,< 0 -> homogeneous Dirichlet)
+c
 c     Standard BCs:
 c       EQU: Inhomogeneous dirichlet (generally imposed by equilibrium)
 c       DIR: Homogeneous dirichlet
 c       NEU: Neumann (homogeneous/inhomogeneous)
-c       SYM: Symmetry (odd,even depend on sign)
+c       SYM: Symmetry at cell centers
+c       FSYM: Symmetry at faces
 c       EXT: By extrapolation
+c       IFC: Interpolate to face (and store in ghost cell)
 c       DEF: Default (does nothing)
 c     The actual integers chosen indicate a particular order that the BC
 c     scheduler follows to impose the boundary conditions.
@@ -22,17 +25,24 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-        integer    :: PER,DIR,NEU,SP,EQU,DEF,EXT,SYM,IFC
-        parameter (DEF=0,PER=1,EQU=2,EXT=3,NEU=4,SYM=5,DIR=6,SP=7,IFC=8)
+        integer,parameter :: DEF=0   !Default (do nothing)
+     .                      ,PER=1   !Periodic
+     .                      ,EQU=2   !Equilibrium (inhomogeneous Dirichlet)
+     .                      ,EXT=3   !Extrapolation
+     .                      ,NEU=4   !Neumann or Robin
+     .                      ,DIR=5   !Homogeneous Dirichlet
+     .                      ,IFC=6   !Interpolate-to-face
+     .                      ,SP =7   !Polar singular point (do not change: NEMATO depends on it)
+     .                      ,SYM=8   !Symmetry (even > 0, odd < 0)
+     .                      ,FSYM=9  !Symmetry (at faces; even > 0, odd < 0)
 
-        integer   ,parameter :: BCLIM=8    !Defines # of BC cases
+        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,FSYM)
 
-        logical    :: asm_dir(3)=.false.,asm=.false.,par_bc=.false.
+        logical :: asm_dir(3)=.false.,asm=.false.
 
+        integer :: bcond(6)          !Contains topological BC configuration
 
-        integer :: bcond(6)      !Contains topological BC configuration
-
-        real(8)    :: SP_flsv=1d-5         !SP failsafe
+        real(8) :: SP_flsv=1d-5      !SP failsafe
 
       contains
 
@@ -53,7 +63,7 @@ c     #################################################################
           iibc = 1
         endif
 
-        sing_bc = (bcond(iibc) == SP)
+        sing_bc = (abs(bcond(iibc)) == SP)
 
       end function bcSP
 

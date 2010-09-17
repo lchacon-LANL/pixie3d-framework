@@ -60,7 +60,7 @@ c     Initialize MPI and PETSc (parallel version)
 
 #if defined(petsc)
         call initFortranMPI(mpi_comm,nx,ny,nz)
-        call setASMflag(.false.)
+        call setup_petsc_BC
 #endif
 
 c     Initialize grid structure
@@ -68,9 +68,17 @@ c     Initialize grid structure
 #if defined(petsc)
         call initGridSt(nx,ny,nz,gparams,mpi_comm=mpi_comm)
 #else
+
+#if defined(samrai)
+        call initGridSt(nx,ny,nz,gparams,
+     $   mpi_comm=mpi_comm,
+     $   coarsen_in_x=.false.,
+     $   coarsen_in_y=.false.,
+     $   coarsen_in_z=.false.)
+#else
         call initGridSt(nx,ny,nz,gparams)
 #endif
-
+#endif
 c     Create MG grid hierarchy
 
         call createMGgrid(gpack,gparams)
@@ -102,7 +110,7 @@ c     Initialize grid check
 
 c     Store grid metric parameters in grid metric structure
 
-        if (checkMapDatabase()) then
+        if (checkAnalMapDatabase()) then
           call defineGridMetric(gparams)
           gmetric => gparams%gmetric !For backward compatibility
         else
@@ -194,59 +202,127 @@ cc          cx = .not.bcSP()
           cz = .true.
         endif
 
-c     Estimate local domain sizes
-
-        if (npx == 0 .and. npy == 0 .and. npz == 0) then
-          call pstop('initGridSt','Undefined processor alloc.')
-        endif
-
-        nxx = nxg/npx
-        nyy = nyg/npy
-        nzz = nzg/npz
-
 c     Find adequate number of grid levels (for MG)
 
-        n1 = int(dlog(1d0*nxx)/dlog(1d0*mg_ratio)+0.001)
-        n2 = int(dlog(1d0*nyy)/dlog(1d0*mg_ratio)+0.001)
-        n3 = int(dlog(1d0*nzz)/dlog(1d0*mg_ratio)+0.001)
-
         if (cx) then
-          ngrdx = max(n1-1,1)
-          do i = ngrdx,1,-1
-            n1 = nxx/mg_ratio**(i-1)
-            if (n1*mg_ratio**(i-1).eq.nxx) exit
-          enddo
-          ngrdx = i
+          if (npx == 0)
+     .         call pstop('initGridSt','Undefined proc. alloc. in X')
+
+          nxx = nxg/npx
+          ngrdx = MG_levels(nxx,mg_ratio)
         else
           ngrdx = 1
         endif
 
         if (cy) then
-          ngrdy = max(n2-1,1)
-          do i = ngrdy,1,-1
-            n2 = nyy/mg_ratio**(i-1)
-            if (n2*mg_ratio**(i-1).eq.nyy) exit
-          enddo
-          ngrdy = i
+          if (npy == 0)
+     .         call pstop('initGridSt','Undefined proc. alloc. in Y')
+
+          nyy = nyg/npy
+          ngrdy = MG_levels(nyy,mg_ratio)
         else
           ngrdy = 1
         endif
 
         if (cz) then
-          ngrdz = max(n3-1,1)
-          do i = ngrdz,1,-1
-            n3 = nzz/mg_ratio**(i-1)
-            if (n3*mg_ratio**(i-1).eq.nzz) exit
-          enddo
-          ngrdz = i
+          if (npz == 0)
+     .         call pstop('initGridSt','Undefined proc. alloc. in Z')
+
+          nzz = nzg/npz
+          ngrdz = MG_levels(nzz,mg_ratio)
         else
           ngrdz = 1
         endif
+
+ccc     Estimate local domain sizes
+cc
+cc        if (npx == 0 .and. npy == 0 .and. npz == 0) then
+cc          call pstop('initGridSt','Undefined processor alloc.')
+cc        endif
+cc
+cc        nxx = nxg/npx
+cc        nyy = nyg/npy
+cc        nzz = nzg/npz
+cc
+ccc     Find adequate number of grid levels (for MG)
+cc
+cc        n1 = int(dlog(1d0*nxx)/dlog(1d0*mg_ratio)+0.001)
+cc        n2 = int(dlog(1d0*nyy)/dlog(1d0*mg_ratio)+0.001)
+cc        n3 = int(dlog(1d0*nzz)/dlog(1d0*mg_ratio)+0.001)
+cc
+cc        if (cx) then
+cc          ngrdx = max(n1-1,1)
+cc          do i = ngrdx,1,-1
+cc            n1 = nxx/mg_ratio**(i-1)
+cc            if (n1*mg_ratio**(i-1).eq.nxx) exit
+cc          enddo
+cc          ngrdx = i
+cc        else
+cc          ngrdx = 1
+cc        endif
+cc
+cc        if (cy) then
+cc          ngrdy = max(n2-1,1)
+cc          do i = ngrdy,1,-1
+cc            n2 = nyy/mg_ratio**(i-1)
+cc            if (n2*mg_ratio**(i-1).eq.nyy) exit
+cc          enddo
+cc          ngrdy = i
+cc        else
+cc          ngrdy = 1
+cc        endif
+cc
+cc        if (cz) then
+cc          ngrdz = max(n3-1,1)
+cc          do i = ngrdz,1,-1
+cc            n3 = nzz/mg_ratio**(i-1)
+cc            if (n3*mg_ratio**(i-1).eq.nzz) exit
+cc          enddo
+cc          ngrdz = i
+cc        else
+cc          ngrdz = 1
+cc        endif
 
 c     Allocate grid storage structure
 
         call allocateGridStructure(ngrdx,ngrdy,ngrdz
      .                            ,nxg,nyg,nzg,gdef,mpi_comm=mpi_comm)
+
+      contains
+
+c     MG_levels
+c     #################################################################
+      function MG_levels(nx,mgr) result(ngrd)
+
+c     -----------------------------------------------------------------
+c     Determines available MG levels based on fine grid resolution nx
+c     and MG ratio mgr
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: nx,mgr,ngrd
+
+c     Local variables
+
+      integer :: nl,i
+
+c     Begin program
+
+      nl = int(dlog(1d0*nx)/dlog(1d0*mgr)+0.001)
+
+      ngrd = max(nl-1,1)
+
+      do i = ngrd,1,-1
+        nl = nx/mgr**(i-1)
+        if (nl*mgr**(i-1) == nx) exit
+      enddo
+
+      ngrd = i
+
+      end function MG_levels
 
       end subroutine initGridSt
 
@@ -606,6 +682,7 @@ c     Find global grid
 
         call findGlobalGrid(ig,xxg,ng)
 
+cc        write (*,*) 'Grid level=',ig
 cc        write (*,*) xxg
 cc        write (*,*)
 cc        pause
@@ -663,14 +740,13 @@ c     Begin program
 
           if (xp < lend .and. xp > lstart) then
 
-            n1 = max(int((xp - lmin)/length*ng),1)
+            n1 = max(int((xp - lstart)/length*ng),1)
 
             n2 = ng - n1
 
             dxl = alpha1*dxl  !Modify initial interval for coarser grids
 
             if (n1 > 1) then
-cc              call packGrid(ig,n1,lstart,xp,-dxl,xg(1:n1),alpha1,xi)
               call packGrid(ig,n1,lstart,xp-0.5*dxl,-dxl,xg(1:n1),alpha1
      .                     ,xil,fv_l)
             else
@@ -681,7 +757,6 @@ cc              call packGrid(ig,n1,lstart,xp,-dxl,xg(1:n1),alpha1,xi)
             dxr = alpha2*dxr  !Modify initial interval for coarser grids
 
             if (n2 > 1) then
-cc              call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
               call packGrid(ig,n2,xp+0.5*dxr,lend,dxr,xg(n1+1:ng),alpha2
      .                     ,xir,fv_r)
             else
@@ -691,21 +766,31 @@ cc              call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
 
             if (abs(bcs1) == SP) then
               dxl = alpha2*dxl
-              dpack%xp = lmin + dxl
+              dpack%xp = lstart + dxl
             endif
 
           else
 
             dx0 = alpha1*dx0  !Modify initial interval for coarser grids
 
-            if (xp <= lstart) then  !Pack to the left
-              pack_l = .true.
-              call packGrid(ig,ng,lstart,lend, dx0,xg(1:ng),alpha1,xi
-     .                     ,fv_r)
-            else                    !Pack to the right
+            if (xp == lstart) then  !Pack to the right
               pack_r = .true.
-              call packGrid(ig,ng,lstart,lend,-dx0,xg(1:ng),alpha1,xi
-     .                     ,fv_l)
+              if (fv_l) then  !Ensure left boundary is finite-volume type
+                call packGrid(ig,ng,lstart+0.5*dx0,lend,dx0,xg(1:ng)
+     .                       ,alpha1,xi,fv_r)
+              else
+                call packGrid(ig,ng,lstart        ,lend,dx0,xg(1:ng)
+     .                       ,alpha1,xi,fv_r)
+              endif
+            else                    !Pack to the left
+              pack_l = .true.
+              if (fv_r) then  !Ensure right boundary is finite-volume type
+                call packGrid(ig,ng,lstart,lend-0.5*dx0,-dx0,xg(1:ng)
+     .                       ,alpha1,xi,fv_l)
+              else
+                call packGrid(ig,ng,lstart,lend        ,-dx0,xg(1:ng)
+     .                       ,alpha1,xi,fv_l)
+              endif
             endif
 
             xil = xi
@@ -721,7 +806,7 @@ cc              call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
           elseif (abs(bcs1) == SP) then
             xg(0) =-xg(1)
           else
-            if (pack_l) then
+            if (pack_r) then
               xg(0) = xg(1) - (xg(2 )-xg(1   ))
             else
               xg(0) = xg(1) - (xg(2 )-xg(1   ))*xil
@@ -734,7 +819,7 @@ cc              call packGrid(ig,n2,xp+dxr,lend,dxr,xg(n1+1:ng),alpha2,xi)
           elseif (abs(bcs2) == SYM) then
             xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))
           else
-            if (pack_r) then
+            if (pack_l) then
               xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))
             else
               xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))*xir
@@ -810,26 +895,28 @@ c     Begin program
 
         call find_xi(nn-1,rhs,xi,fv)
 
-        if (dx0 > 0d0) then !Pack to the left
+        if (dx0 > 0d0) then !Pack to the right
 
-          xx(1) = lmin
+          xx(1) = (1d0+sign(1d-12,lmin))*lmin  !To avoid round-off issues at edges
           do i = 2,nn
-            xx(i) = xx(i-1) + dx0*xi**(i-2)
+cold            xx(i) = xx(i-1) + dx0*xi**(i-2)
+            xx(i) = xx(i-1) + dx0*xi**(i-1)
           enddo
             
-        else                !Pack to the right
+        else                !Pack to the left
 
-          xx(nn) = lmax
+          xx(nn) = (1d0-sign(1d-12,lmax))*lmax  !To avoid round-off issues at edges
           do i = nn,2,-1
-            xx(i-1) = xx(i) - abs(dx0)*xi**(nn-i)
+cold            xx(i-1) = xx(i) - abs(dx0)*xi**(nn-i)
+            xx(i-1) = xx(i) - abs(dx0)*xi**(nn-i+1)
           enddo
 
         endif
 
-        if (mgr(ig) > 1 .and. xi > 1d0) then
+        if (mgr(ig) > 1 .and. xi /= 1d0) then
           alpha = (xi**mgr(ig)-1)/(xi-1)
         else
-          alpha = 1
+          alpha = 1d0
         endif
 
 c     End program
@@ -843,7 +930,10 @@ c     #################################################################
 c     -----------------------------------------------------------------
 c     Finds geometric factor xi using Newton's method according to the
 c     formula:
-c              (xi^nn-1)/(xi-1) = rhs
+c              xi*(xi^nn-1)/(xi-1) = rhs
+c     This formula is derived by summing up geometric series starting
+c     at xi*dx0.
+c
 c     The Newton iteration is initialized by using xi=1+eps, and
 c     expanding in eps to second order in the formula above to find:
 c              eps_0 ~ 2*(rhs-nn)/nn^2
@@ -879,17 +969,21 @@ c     Newton iteration
 
         do i=1,nit
           if (fv) then  !Do packing in FV fashion at unpacked boundary
-            res(i) = rhs-0.5*(xi**nn+xi**(nn+1)-2)/(xi-1)
-            ijac = 2*(xi-1)**2/(nn*(xi**(nn+1)-xi**(nn-1))-2*xi**nn+2)
+cold            res(i) = rhs-0.5*(xi**nn+xi**(nn+1)-2)/(xi-1)
+cold            ijac = 2*(xi-1)**2/(nn*(xi**(nn+1)-xi**(nn-1))-2*xi**nn+2)
+            res(i) = rhs-0.5*(xi**(nn+1)+xi**(nn+2)-2*xi)/(xi-1)
+            ijac=2*(xi-1)**2/((nn+1)*(xi**(nn+2)-xi**nn)-2*xi**(nn+1)+2)
           else          !Position both grid points at both boundaries
-            res(i) = rhs-(xi**nn-1)/(xi-1)
-            ijac = (xi-1)**2/((nn-1)*xi**nn-nn*xi**(nn-1)+1)
+cold            res(i) = rhs-(xi**nn-1)/(xi-1)
+cold            ijac = (xi-1)**2/((nn-1)*xi**nn-nn*xi**(nn-1)+1)
+            res(i) = rhs-xi*(xi**nn-1)/(xi-1)
+            ijac = (xi-1)**2/(nn*xi**(nn+1)-(nn+1)*xi**nn+1)
           endif
 
           dxi(i) = res(i)*ijac
           xi = xi + dxi(i)
 
-          if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
+          if (abs(res(i)) < 1d-12 .or. (abs(dxi(i)) < 1d-15) ) exit
         enddo
 
 c     Convergence check
@@ -1016,13 +1110,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-cc        type(MG_grid_metrics),pointer :: gmtrc
         type(grid_mg_def),pointer :: gparams
 
 c     Local variables
 
         integer    :: i,j,n1,n2,n3
-        integer    :: igx,igy,igz,isig,funit
+        integer    :: igx,igy,igz,isig
 
 c     Begin program
 
@@ -1050,17 +1143,6 @@ c     Multigrid parameters
 
         call gridInfo('Z',igz,gparams%istartz,gparams%nzv
      .               ,gparams%zz,gparams%dz,gparams%dzh)
-
-cc        if (checkMapDatabase()) then
-cccc          call metricTensorCheck(1,1,1
-cc          call metricTensorCheck(igx,igy,igz
-cc     .             ,gparams%nxv,gparams%nyv,gparams%nzv)
-cc        endif
-
-cc        if (checkAnalMapDatabase()) then
-cc          call hessianCheck(igx,igy,igz
-cc     .               ,gparams%nxv,gparams%nyv,gparams%nzv)
-cc        endif
 
         close(funit)
 
@@ -1105,7 +1187,7 @@ c     Begin program
      .                  ,'   position: ',xx(j)
      .                  ,'   int dh: ',dx(j)
      .                  ,'   half dh: ',dxh(j)
- 10         format (a,i3,a,f6.3,a,f6.3,a,f6.3)
+ 10         format (a,i3,a,f10.3,a,f10.3,a,f10.3)
           enddo
         enddo
 
