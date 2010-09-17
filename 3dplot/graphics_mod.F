@@ -9,9 +9,7 @@ c ######################################################################
 
         use HDF5_graphics
 
-#if defined(adios)
         use ADIOS_graphics
-#endif
 
       contains
 
