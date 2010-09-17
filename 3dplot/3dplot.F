@@ -53,7 +53,9 @@ c Begin program
 
 c Initialize 
 
+ccnorb      write (*,'("%%%% Initialize Calculation")') 
       call initializeCalculation(igx,igy,igz)
+ccnorb      write (*,'("%%%% Done Initialize Calculation")') 
 
 c Initialize counters
 
@@ -136,6 +138,10 @@ c Close graphics files and create draw*.in files
       if (clean) call closeCleanFiles
 
       call fortranDestroy
+
+#if defined(adios)
+      call adios_finalize(my_rank, ierr)
+#endif
 
 #if defined(petsc)
       call PetscFinalize(mpierr)
@@ -300,6 +306,12 @@ c Initialize PETSc (parallel version)
      .                       ,petsc_flg,ierr)
 #endif
 
+#if defined(adios)
+      call adios_init_noxml (ierr)
+      ! allocate 100MB buffer for ADIOS
+      call adios_allocate_buffer (100, ierr)
+#endif
+
 c Read user initializations
 
       call readGraphicsInput
@@ -364,7 +376,9 @@ c Initialize diagnostics and related variables
 
 c Initialize graphics
 
+ccnorb      write (*,'("%%%% Initialize Graphics")') 
       call initializeGraphics(igx,igy,igz,bcond)
+ccnorb      write (*,'("%%%% Done Initialize Graphics")') 
 
 c Dump source for debugging
 
@@ -372,7 +386,9 @@ c Dump source for debugging
         itime = -1   !For HDF5 file
         call equateDerivedType(u_np,u_src)
         call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
+ccnorb        write (*,'("%%%% dumpTimeStepPlots Graphics")') 
         call dumpTimeStepPlots
+ccnorb        write (*,'("%%%% Done dumpTimeStepPlots Graphics")') 
         call deallocateDerivedType(u_src)
       endif
 
@@ -403,6 +419,10 @@ c----------------------------------------------------------------------
       use iosetup
 
       use generalPurposeFunctions
+ 
+#if defined(adios)
+       use adios_vars
+#endif
 
       implicit none
 
@@ -410,7 +430,7 @@ c Call variables
 
 c Local variables
 
-      integer :: nx,ny,nz,ierr
+      integer :: nx,ny,nz,ierr,adios_err
       logical :: check,lchck
 
 c Begin program
@@ -509,12 +529,18 @@ cc      ierr = system('ls '//trim(recordfile)//'_proc* > /dev/null')
         if (np > 1)
      .     recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
 
+ccnorb        write (*,*) 'rank='//trim(int2char(my_rank))//
+ccnorb     .              ': recordfile = '//trim(recordfile)
         if (clean) then
           usave = usave + my_rank
           recordsave = trim(recordfile)//'_sav'
         endif
 
 #endif
+
+#if defined(adios)
+        call openRecordFileAdiosForRead(adios_err)
+#else
 
         open(urecord,file=trim(recordfile),form='unformatted'
      .      ,status='unknown')
@@ -557,7 +583,9 @@ c     Consistency check
 
       endif
 #endif
-        
+
+#endif
+
 c End programs
 
       end subroutine openGraphicsFiles
@@ -638,9 +666,15 @@ c----------------------------------------------------------------------
 
       use generalPurposeFunctions
 
+#if defined(adios)
+      use adios_vars
+#endif
+
       implicit none
 
 c Call variables
+
+      integer :: adios_err
 
 c Local variables
 
@@ -663,7 +697,11 @@ c Begin program
         close(urecord)
       endif
 #else
+#  if defined(adios)
+      call closeRecordFileAdiosForRead(adios_err)
+#  else
       close(urecord)
+#  endif
 #endif
 
 c End programs
@@ -706,7 +744,11 @@ c Begin program
 #if defined(petsc)
 
       call readRecordFile(urecord,itime,time,dt,varray,ierr)
+      write (0,'("rank=",i0,a,i0)') 
+     .       my_rank,"done readRecordFile itime=",itime
+#  if !defined(adios)
       if (clean) call writeRecordFile(usave,itime,time,dt,varray)
+#  endif
 
 #else
 
