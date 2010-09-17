@@ -155,18 +155,92 @@ ifeq ($(findstring smoky,$(HOST)),smoky)
 endif
 
 ifeq ($(findstring jaguar,$(HOST)),jaguar)
-  ifeq ($(PE_ENV),GNU) 
-    FC = gfortran
-  endif
-  ifeq ($(PE_ENV),PGI)
-    FC = pgf95
-  endif
+#  ifeq ($(PE_ENV),GNU) 
+#    FC = gfortran
+#  endif
+#  ifeq ($(PE_ENV),PGI)
+#    FC = pgf95
+#  endif
 
+#  HDF5 = t
+##  HDF5_HOME = $(HDF5_PAR_DIR)
+#  HDF5_LIBS = $(HDF5_FLIB)
+
+#  BOPT = t
+#  PETSC_DIR ?= /opt/petsc/2.3.3/real/${PE_ENV}/${XTPE_COMPILE_TARGET}
+#  PETSC_ARCH ?= cray-xt
+
+  FC = pgf95
+  #FC = ddtmem-ftn
+  HDF5_HOME = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+  #HDF5_LIBS = $(HDF5_FLIB)
+  HDF5_LIBS = -L/sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par/lib -lhdf5_fortran -lhdf5 -L/sw/xt5/szip/2.1/sles10.1_pgi7.2.3/lib -lsz -lz
+  #HDF5_HOME = /sw/xt5/hdf5/1.6.8/cnl2.2_pgi9.0.4
+  #HDF5_LIBS = -L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -L/sw/xt5/szip/2.1/sles10.1_pgi7.2.3/lib -lsz -lz
+  #HDF5_HOME = /opt/cray/hdf5-parallel/1.8.3.1/hdf5-parallel-pgi
+  #HDF5_LIBS = -L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -L/sw/xt5/szip/2.1/sles10.1_pgi8.0.3/lib -lsz -lz
+  HDF5_MOD  = $(HDF5_HOME)/lib
   HDF5 = t
-#  HDF5_HOME = $(HDF5_PAR_DIR)
-  HDF5_LIBS = $(HDF5_FLIB)
 
+  #ADIOS_HOME = $(ADIOS_DIR)
+  #ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_LIB) $(ADIOSREAD_LIB)
+  ADIOS_HOME = /ccs/proj/e2e/pnorbert/ADIOS/jaguar.noxml
+  #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladios -ladios_phdf5 -ladiosread -lmxml
+  ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+  ADIOS = t
+
+  OPTIMIZATION = -O2 -Mbounds
+  DEBUG = -g -Mbounds -Mchkptr
+  #DEBUG = -g -Wl,-z,muldefs -L/sw/xt5/ddt/2.5.1-12323/sles10.1_binary/lib/64 -ldmalloc
   BOPT = t
-  PETSC_DIR ?= /opt/petsc/2.3.3/real/${PE_ENV}/${XTPE_COMPILE_TARGET}
-  PETSC_ARCH ?= cray-xt
+  MACHINE = jaguar
+endif
+
+ifeq ($(findstring chester,$(HOST)),chester)
+  # SAME AS JAGUAR
+  FC = pgf95
+  HDF5_HOME = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+  #HDF5_LIBS = $(HDF5_FLIB)
+  HDF5_LIBS = -L/sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par/lib -lhdf5_fortran -lhdf5 -L/sw/xt5/szip/2.1/sles10.1_pgi7.2.3/lib -lsz -lz
+  #HDF5_HOME = /sw/xt5/hdf5/1.6.8/cnl2.2_pgi9.0.4
+  #HDF5_LIBS = -L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -L/sw/xt5/szip/2.1/sles10.1_pgi7.2.3/lib -lsz -lz
+  #HDF5_HOME = /opt/cray/hdf5-parallel/1.8.3.1/hdf5-parallel-pgi
+  #HDF5_LIBS = -L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -L/sw/xt5/szip/2.1/sles10.1_pgi8.0.3/lib -lsz -lz
+  HDF5_MOD  = $(HDF5_HOME)/lib
+  HDF5 = t
+
+  #ADIOS_HOME = $(ADIOS_DIR)
+  #ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) $(ADIOSREAD_FLIB)
+  ADIOS_HOME = /ccs/proj/e2e/pnorbert/ADIOS/jaguar.noxml
+  #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladios -ladios_phdf5 -ladiosread -lmxml
+  ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+  ADIOS = t
+
+  OPTIMIZATION = -O2 -Mbounds
+  DEBUG = -g -Mbounds -Mchkptr
+  BOPT = t
+  MACHINE = jaguar
+endif
+
+ifeq ($(findstring ewok,$(HOST)),ewok)
+  FC = pgf95
+  HDF5_DIR ?= /sw/ewok/hdf5/1.6.7/sl5.2_pgi7.2.4_ompi1.2.8
+  HDF5_FLIB ?= -module . -module /sw/ewok/hdf5/1.6.7/sl5.2_pgi7.2.4_ompi1.2.8/lib -I/sw/ewok/hdf5/1.6.7/sl5.2_pgi7.2.4_ompi1.2.8/include -L/sw/ewok/hdf5/1.6.7/sl5.2_pgi7.2.4_ompi1.2.8/lib -lhdf5_fortran -lhdf5 -L/sw/ewok/szip/2.1/sl5.2_pgi7.2.4/lib -lsz -lz
+  #HDF5_DIR ?= /sw/ewok/hdf5/1.8.2/sl5.2_pgi7.2.4_par
+  #HDF5_FLIB ?= -module . -module /sw/ewok/hdf5/1.8.2/sl5.2_pgi7.2.4_par/lib -I/sw/ewok/hdf5/1.8.2/sl5.2_pgi7.2.4_par/include -L/sw/ewok/hdf5/1.8.2/sl5.2_pgi7.2.4_par/lib -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -L/sw/ewok/szip/2.1/sl5.2_pgi7.2.4/lib -lsz -lz -lm
+  HDF5_HOME = $(HDF5_DIR)
+  HDF5_LIBS = $(HDF5_FLIB)
+  HDF5_MOD  = $(HDF5_HOME)/lib
+  HDF5 = t
+
+  #ADIOS_HOME = $(ADIOS_DIR)
+  ADIOS_HOME = /ccs/proj/e2e/pnorbert/ADIOS/ewok.noxml
+  #ADIOS_LIBS = $(ADIOS_LIB) 
+  ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+  ADIOS = t
+
+  OPTIMIZATION = -O2 -Mbounds
+  DEBUG = -g -Mbounds -Mchkptr
+  BOPT = t
+  MACHINE = ewok
 endif
