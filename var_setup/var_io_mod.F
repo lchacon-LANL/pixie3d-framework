@@ -95,9 +95,20 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: ierr,itime(1),tmp(1),unit
+#if defined(adios)
+      integer    :: ierr,itime(1),unit
       real(8)    :: time(1),dt(1)
+#else
+      integer    :: ierr,itime,unit
+      real(8)    :: time,dt
+#endif
       type(var_array),pointer:: varray
+
+c     Local variables
+
+      integer    :: tmp(1)
+
+c     Begin program
 
 #if defined(adios)
       integer*8       :: start(1), readcount(1)  ! dimensions are 64bit in adios
