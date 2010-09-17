@@ -17,6 +17,10 @@ c ******************************************************************
       use grid
 
       use icond
+    
+#if defined(adios)
+      use adios_vars
+#endif
 
 c Common variables
 
@@ -24,7 +28,7 @@ c Common variables
 
 c Local variables
 
-      integer    :: prec_tot,ierr,prof_stage(3)
+      integer    :: prec_tot,ierr,prof_stage(3),adios_err
       real(8)    :: time1,time2,time3,time4
 
 c Interfaces
@@ -75,6 +79,16 @@ c Initialize PETSc and MPI (parallel version)
       call PetscLogStageRegister('Initial setup'  ,prof_stage(1),ierr)
       call PetscLogStageRegister('Nonlinear solve',prof_stage(2),ierr)
       call PetscLogStageRegister('Sol. processing',prof_stage(3),ierr)  
+#endif
+
+c Initialize ADIOS for componentized I/O
+
+#if defined(adios)
+ccnorb      write (*,*) 'call adios_init() '
+ccnorb      adios_world_comm = MPI_COMM_WORLD
+      call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
+      call adios_init("config.xml", adios_err)
+ccnorb      write (*,*) 'returned from adios_init() '
 #endif
 
 c Initialize calculation
@@ -207,7 +221,9 @@ c     Time level data dump
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
           call imposeBoundaryConditions(u_np,1,1,1)
+ccnorb          write (*,*) 'call writeRecordFile: ',itime,time
           call writeRecordFile(urecord,itime,time,dt,u_np)
+ccnorb          write (*,*) 'return from  writeRecordFile ',itime
         endif
 
         if (eigen) exit
@@ -260,6 +276,10 @@ c Formats
 c End program
 
       call fortranDestroy
+
+#if defined(adios)
+      call adios_finalize(my_rank, adios_err)
+#endif
 
 #if defined(petsc)
       !Finalize profiling
