@@ -434,11 +434,11 @@ c     Local variables
 
       integer    :: ierr
 
-      type(var_array),pointer       :: vmed
+      type(var_array),pointer       :: vmed => null()
 
 c     Begin program
 
-      call allocateDerivedType(vmed)
+c     Open restart files and check mesh sizes
 
       call openBinFile(urecord,recordfile,status='old')
 cc      open(unit=urecord,file=trim(recordfile),form='unformatted'
@@ -457,6 +457,12 @@ cc     .    ,status='old')
      $            ,'Grid meshes do not agree; cannot restart')
       endif
 
+c     Allocate intermediate variable
+
+      call allocateDerivedType(vmed)
+
+c     Read files
+
       if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
 
       ierr = readRecordFile(urecord,itime,time,dt,vn)
@@ -474,11 +480,11 @@ cc     .    ,status='old')
         endif
       enddo
 
-      close(urecord)
-
       if (my_rank == 0) write (*,*) ' Done!'
 
 c     End
+
+      close(urecord)
 
       call deallocateDerivedType(vmed)
 
