@@ -17,8 +17,10 @@ endif
 # Machine configuration
 
 HOST?=$(HOSTNAME)
+MACHINE ?=HaveNoIdea
 
 ifeq ($(HOST),quevedo.ornl.gov)
+  MACHINE=quevedo
   ifdef BOPT
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
@@ -35,6 +37,13 @@ ifeq ($(HOST),quevedo.ornl.gov)
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include
+
+    ADIOS = f
+
+    ADIOS_HOME = $(HOME)/lib/adios-1.2.1
+    #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladios -ladios_phdf5 -ladiosread -lmxml
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+
   else
     LIBS += -L/usr/lib64 -llapack -lblas
     HDF5 = f
@@ -45,6 +54,7 @@ ifeq ($(HOST),quevedo.ornl.gov)
       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(HDF5_HOME)/lib
       HDF5_INC  =-I$(HDF5_HOME)/include
+
     endif
     ifeq ($(FC),gfortran)
       HDF5 = t
@@ -58,13 +68,10 @@ ifeq ($(HOST),quevedo.ornl.gov)
 //       HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
 //       HDF5_MOD  =/usr/lib64/gfortran/modules
 //       HDF5_INC  =-I/usr/include
+
+      ADIOS = f
     endif
   endif
-
-  ADIOS = f
-  ADIOS_HOME = $(HOME)/lib/adios-1.2.1
-  #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladios -ladios_phdf5 -ladiosread -lmxml
-  ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
 
   NETCDF=f
   NETCDF_LIBS = -lnetcdff -lnetcdf
@@ -75,6 +82,8 @@ ifeq ($(HOST),quevedo.ornl.gov)
 endif
 
 ifeq ($(HOST),gongora.ornl.gov)
+  MACHINE=gongora
+
   FC=gfortran
 
   LIBS += -L/usr/lib -llapack -lblas
@@ -97,6 +106,8 @@ ifeq ($(HOST),gongora.ornl.gov)
 endif
 
 ifeq ($(HOST),siesta)
+  MACHINE=siesta
+
   ifdef BOPT
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
@@ -140,6 +151,7 @@ ifeq ($(HOST),siesta)
 endif
 
 ifeq ($(HOST),ra22)
+  MACHINE=ra22
   PETSC_ARCH = linux64_openmpi
   PETSC_DIR =/ricercatori/ft/petsc-3.0.0-p7
   override HDF5 = f
@@ -148,24 +160,9 @@ ifeq ($(HOST),ra22)
   LIBS     += -llapack -lblas
 endif
 
-ifeq ($(HOST),bassi)
-  OPTIMIZATION = -O3 -qstrict -qarch=pwr3 -qtune=pwr3
-  DEBUG        = -g
-  PROFILE      = -P
-  STATIC       = -s
-  MODFLAG      = -I
-  ADDMODFLAG   = -I
-  VERBOSE      = -v
-#  FFLAGS       = -qmaxmem=-1 -bmaxstack:0x22000000 -qsave -blpdata -qsmallstack -qfixed=72
-  FFLAGS       = -qfixed=72
-
-  PREPROC      = -WF,-D
-  CPPFLAGS    += $(PREPROC)xlf
-
-  BOPT = t
-endif
-
 ifeq ($(HOST),franklin)
+  MACHINE=franklin
+
   FC = pgf95
   HDF5_HOME = $(HDF5_PAR_DIR)
 #  HDF5_LIBS:= $(HDF5)
@@ -174,6 +171,8 @@ ifeq ($(HOST),franklin)
 endif
 
 ifeq ($(findstring smoky,$(HOST)),smoky)
+  MACHINE=smoky
+
   FC = pgf95
 #  HDF5_HOME = $(HDF5_PAR_DIR)
   HDF5_LIBS = $(HDF5_FLIB)
@@ -273,6 +272,8 @@ ifeq ($(findstring ewok,$(HOST)),ewok)
 endif
 
 ifeq ($(HOST),chenshp.ornl.gov)
+    MACHINE=chenshp
+
     LIBS += -L/usr/lib64/atlas -llapack -lblas
     HDF5=f
 endif

@@ -102,10 +102,12 @@ c     Initialize HDF5
 #if defined(hdf5)
         if (hdf_plot) call initializeHDF5
 #endif
+
+c     Initialize ADIOS
+
 #if defined(adios)
         if (adios_plot) call initializeADIOSPlot
 #endif
-
 
 c     Define application I/O (external)
 
@@ -254,8 +256,6 @@ c     ##################################################################
         implicit none
 
 c     Call variables
-
-cc        integer    :: ngroups
 
 c     Begin program
 

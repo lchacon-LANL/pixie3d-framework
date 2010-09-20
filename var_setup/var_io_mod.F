@@ -19,8 +19,6 @@ c ######################################################################
         logical :: debug,clean=.false.,tst_flg=.false.
 
 #if defined(adios)
-cc        use adios_vars
-
         !!! ADIOS variables
         character*(10) :: adiosfile='record.bp'
         ! ADIOS needs a variable containing the MPI_WORLD_COMM communicator
@@ -40,8 +38,12 @@ cc        use adios_vars
         integer   :: adios_tread          ! 0 ... ntsteps-1
         integer   :: adios_err            ! error handler
 
+        logical,private   :: adios_debug=.false.
+#endif
+
       contains
 
+#if defined(adios)
 c     openRecordFileAdiosForRead(ierr)
 c     #################################################################
       subroutine openRecordFileAdiosForRead(ierr)
@@ -77,14 +79,16 @@ c     #################################################################
         
         adios_tread = 0  ! next time read first timestep
 
-        ! debug
-        write (*,"(a,i0,a,a)"), "rank=",my_rank,": opened ", adiosfile
-        if (my_rank == 0) then
-            write (*,"(a, i5)") "Number of vars: ", adios_varcount
+        write (*,"(a,i0,a,a)"), " Proc=",my_rank,": opened ", adiosfile
+
+        if (adios_debug) then
+          if (my_rank == 0) then
+            write (*,"(a, i5)") " Number of vars: ", adios_varcount
             write (*,*), "Variables:"
             do i=1,adios_varcount
-                write (*,"(i5, a, a)") i,")  ", trim(adios_varlist(i))
+              write (*,"(i5, a, a)") i,")  ", trim(adios_varlist(i))
             enddo
+          endif
         endif
 
       end subroutine openRecordFileAdiosForRead
@@ -93,9 +97,12 @@ c     closeRecordFileAdiosForRead(ierr)
 c     #################################################################
       subroutine closeRecordFileAdiosForRead(ierr)
         integer, intent(out) :: ierr
+
         call adios_gclose(adios_gh, ierr)
         call adios_fclose(adios_fh, ierr)
-        write (*,*), "Closed ", adiosfile
+
+        if (adios_debug) write (*,*), "Closed ", adiosfile
+
       end subroutine closeRecordFileAdiosForRead
 
 c     writeDerivedTypeAdios
@@ -195,18 +202,20 @@ c          will not be accessible from file (everybody writes these vars)
      .                        len(varray%array_var(1)%descr), err)
         endif
 
-c DEBUG
-        print "('r',i1,' offset=(',i3,',',i3,',',i3,')')", my_rank,
-     .         ilomg+xloghost, jlomg+yloghost, klomg+zloghost
-        print "('r',i1,' size=(',i3,',',i3,',',i3,')')", my_rank,
-     .         ihip+xhighost-ilom-xloghost+1, 
-     .         jhip+yhighost-jlom-yloghost+1,
-     .         khip+zhighost-klom-zloghost+1
-        print "('r',i1,' i=',i3,':',i3,',',i3,':',i3,',',i3,':',i3,'')",
-     .         my_rank,
-     .         ilom+xloghost, ihip+xhighost,
-     .         jlom+yloghost, jhip+yhighost,
-     .         klom+zloghost, khip+zhighost
+        if (adios_debug) then
+          print"('r',i1,' offset=(',i3,',',i3,',',i3,')')", my_rank,
+     .           ilomg+xloghost, jlomg+yloghost, klomg+zloghost
+          print"('r',i1,' size=(',i3,',',i3,',',i3,')')", my_rank,
+     .           ihip+xhighost-ilom-xloghost+1, 
+     .           jhip+yhighost-jlom-yloghost+1,
+     .           khip+zhighost-klom-zloghost+1
+          print"('r',i1,' i=',i3,':',i3,',',i3
+     .          ,':',i3,',',i3,':',i3,'')",
+     .           my_rank,
+     .           ilom+xloghost, ihip+xhighost,
+     .           jlom+yloghost, jhip+yhighost,
+     .           klom+zloghost, khip+zhighost
+        endif
 
         do ieq=1,varray%nvar
             write (vvar,  '("/var/v",i0)')  ieq
@@ -223,8 +232,6 @@ c DEBUG
                 write (vname, '("/name/v",i0)') ieq
                 call adios_write (handle, vname,
      .              varray%array_var(ieq)%descr, err)
-c     .              trim(varray%array_var(ieq)%descr)//char(0),
-c     .              err)
             endif
         enddo
 
@@ -312,9 +319,9 @@ c     .      ilomg,ihipg,jlomg,jhipg,klomg,khipg
           call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
      .                                ,1,1,1)
 
-          write (*,"(a,i0,a,i4,i4,i4,i4,i4,i4)") "rank=",my_rank,
-     .      " read: local indices: ",
-     .      ilom,ihip,jlom,jhip,klom,khip
+          if (adios_debug)
+     .      write (*,"(a,i0,a,i4,i4,i4,i4,i4,i4)") "rank=",my_rank,
+     .      " read: local indices: ",ilom,ihip,jlom,jhip,klom,khip
 
           start = (/ilomg+iloghost,jlomg+jloghost,klomg+kloghost,step/)
           readcount = (/ ihip-ihighost - ilom-iloghost + 1,
@@ -322,67 +329,66 @@ c     .      ilomg,ihipg,jlomg,jhipg,klomg,khipg
      .                   khip-khighost - klom-kloghost + 1,
      .                   1 /)
           n = readcount(1)*readcount(2)*readcount(3)*8
-          write (*,"(a,i0,a,i0,a,4i4,a,4i4)") "rank=",my_rank,
+          if (adios_debug)
+     .      write (*,"(a,i0,a,i0,a,4i4,a,4i4)") "rank=",my_rank,
      .      " read vars n=",n," start= ", start," count= ",readcount
 
           do ieq=1,adios_nvar
+            if (firstread) then
+                zero = 0
+                nlen = len(varray%array_var(1)%descr)
+                ! read in name of Nth variable
+                write (vname, '("/name/v",i0)') ieq
+                !write (*,"(a,a,a,i0)") "read ",trim(vname),": len=", nlen
+                call adios_read_var (gh, vname, zero, nlen, desc, m)
+                varray%array_var(ieq)%descr = desc
+                if (adios_debug)
+     .            write (*,"(a,a,a,a,a,i0)") "read ",trim(vname),
+     .             ": [",trim(desc),"] m=",m
+            endif
 
-              if (firstread) then
-                  zero = 0
-                  nlen = len(varray%array_var(1)%descr)
-                  ! read in name of Nth variable
-                  write (vname, '("/name/v",i0)') ieq
-                  !write (*,"(a,a,a,i0)") "read ",trim(vname),
-c     .               ": len=", nlen
-                  call adios_read_var (gh, vname, zero, nlen, desc, m)
-                  varray%array_var(ieq)%descr = desc
-                  write (*,"(a,a,a,a,a,i0)") "read ",trim(vname),
-     .               ": [",trim(desc),"] m=",m
-              endif
+            ! read in data of Nth variable
+            write (vvar,  '("/var/v",i0)')  ieq
+            call adios_read_var (gh, vvar, 
+     .                       start, readcount,
+     .                       varray%array_var(ieq)
+     .                          %array(ilom+iloghost:ihip+ihighost,
+     .                                 jlom+jloghost:jhip+jhighost,
+     .                                 klom+kloghost:khip+khighost),
+     .                       m)
+            n = readcount(1)*readcount(2)*readcount(3)*readcount(4)*8
+            if (.not. m .eq. n) then
+                write (*,"(a,a,a,i0,a,i0)") 
+     .               "ERROR: could not read ", trim(vvar),
+     .               ". Read ",m," bytes instead of ", n
+                ierr = -1
+            endif
 
-              ! read in data of Nth variable
-              write (vvar,  '("/var/v",i0)')  ieq
-              call adios_read_var (gh, vvar, 
-     .                         start, readcount,
-     .                         varray%array_var(ieq)
-     .                            %array(ilom+iloghost:ihip+ihighost,
-     .                                   jlom+jloghost:jhip+jhighost,
-     .                                   klom+kloghost:khip+khighost),
-     .                         m)
-              n = readcount(1)*readcount(2)*readcount(3)*readcount(4)*8
-              if (.not. m .eq. n) then
-                  write (*,"(a,a,a,i0,a,i0)") 
-     .                 "ERROR: could not read ", trim(vvar),
-     .                 ". Read ",m," bytes instead of ", n
-                  ierr = -1
-              endif
-              write (*,"(a,a,a,i0)"), "read ",
-     .              trim(vvar),"  bytes=", m
+            if (adios_debug)
+     .        write (*,"(a,a,a,i0)"), "read ",trim(vvar),"  bytes=",m
           enddo
 
           if (firstread) then
-              nlen = adios_nvar*6
-              n = adios_nvar*6*4
-              call adios_read_var (gh, "bconds", zero, nlen, 
-     .                              bconds, m)
-              if (m < n) then
-                  write (*,"(a,i0,a,i0)") 
-     .                 "ERROR: could not read bconds. Read ",
-     .                 m," bytes instead of ",n
-                  ierr = -1
-              endif
-              do ieq=1,adios_nvar
-                varray%array_var(ieq)%bconds(:) = 
-     .               bconds( (ieq-1)*6+1:ieq*6 ) 
-              enddo
+            nlen = adios_nvar*6
+            n = adios_nvar*6*4
+            call adios_read_var (gh, "bconds", zero, nlen, 
+     .                            bconds, m)
+            if (m < n) then
+                write (*,"(a,i0,a,i0)") 
+     .               "ERROR: could not read bconds. Read ",
+     .               m," bytes instead of ",n
+                ierr = -1
+            endif
+            do ieq=1,adios_nvar
+              varray%array_var(ieq)%bconds(:) = 
+     .             bconds( (ieq-1)*6+1:ieq*6 ) 
+            enddo
           endif
 
 c     End program
 
       end subroutine readDerivedTypeAdios
 
-#else
-      contains
 #endif 
 
 c     openBinFile
@@ -455,45 +461,51 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-#if defined(adios)
-      integer    :: ierr,itime(1),unit
-      real(8)    :: time(1),dt(1)
-#else
       integer    :: ierr,itime,unit
       real(8)    :: time,dt
-#endif
+
       type(var_array),pointer:: varray
 
 c     Local variables
 
       integer    :: tmp(1)
 
-c     Begin program
-
 #if defined(adios)
+      !ADIOS variables
       integer*8       :: start(1), readcount(1)  ! dimensions are 64bit in adios
       integer*8       :: m ! actually read bytes
       logical, save   :: firstread = .true.
+#endif
+
+c     Begin program
+
       ierr = 0
+
+#if defined(adios)
       !firstread = (adios_tread == 0)
-      write (*,"(a,i0,a,i2)"), "rank=",my_rank,
+      if (adios_debug)
+     .  write (*,"(a,i0,a,i2)"), "rank=",my_rank,
      .       " adios read time=", adios_tread
       if (adios_tread < adios_ntsteps) then
           ! read 1 item from the 1D arrays, from position adios_tread
           start = adios_tread 
           readcount = 1
-          write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
+          if (adios_debug)
+     .      write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
      .           ": read in time. start=",start,"count=",readcount
           call adios_read_var (adios_gh, "time", 
      .                     start, readcount, time, m)
           start = adios_tread 
-          write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
+          if (adios_debug)
+     .      write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
      .           ": read in itime. start=",start,"count=",readcount
           call adios_read_var (adios_gh, "itime", 
      .                     start, readcount, itime, m)
           start = adios_tread 
-          write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
+          if (adios_debug)
+     .      write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
      .           ": read in dt. start=",start,"count=",readcount
+
           call adios_read_var (adios_gh, "dt",  
      .                     start, readcount, dt, m)
 
@@ -504,14 +516,16 @@ c     Begin program
                 varray%nvar = tmp(1)
                 ! consistency check
                 if (adios_nvar.ne.varray%nvar) then
-
                     write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
      .                     " ERROR: adios_nvar=",adios_nvar,
      .                     " != varray%nvar=",varray%nvar
                 endif
           endif
-          write (*,"(a,i0,a,i2,a,f6.2,a,i2)"), "rank=",my_rank,
+
+          if (adios_debug)
+     .      write (*,"(a,i0,a,i2,a,f6.2,a,i2)"), "rank=",my_rank,
      .         ": read itime=",itime," time=",time," nvar=",varray%nvar
+
           call readDerivedTypeAdios(adios_gh,varray,adios_tread,
      .           firstread,ierr)
 
@@ -521,13 +535,9 @@ c     Begin program
       endif
 
       firstread = .false.
-      write (*,*), "Adios read returns ierr",ierr
+      if (adios_debug) write (*,*), "Adios read returns ierr",ierr
 
 #else
-c     Begin program
-
-      ierr = 0
-
       read (unit,iostat=ierr,end=100) time
       if (ierr /= 0) goto 200
 
@@ -569,6 +579,8 @@ c     Call variables
       real(8)    :: time,dt
       type(var_array),pointer:: varray
 
+c     Local variables
+
 #if defined(adios)
 c     ADIOS variables
       integer*8    :: handle, totalsize, groupsize
@@ -576,14 +588,15 @@ c     ADIOS variables
       character(2) :: mode='a'//char(0)
       logical      :: addl_write  ! true: write names and bconds
 
+      integer      :: xsize, ysize, zsize
+      integer      :: xloghost, xhighost
+      integer      :: yloghost, yhighost
+      integer      :: zloghost, zhighost
+#endif
 
-c     for calculating group size
-      integer          :: xsize, ysize, zsize
-      integer          :: xloghost, xhighost
-      integer          :: yloghost, yhighost
-      integer          :: zloghost, zhighost
+c     Begin program
 
-
+#if defined(adios)
 c     Offsets to include ghosts
 c     1. internal processes: no ghost cells written out
         xloghost = 1
@@ -648,7 +661,7 @@ c      write (*,"('rank= ',i0,' ihip=',i0,' ilom=',i0,' jhip=',
 c     . i0,' jlom=',i0,' khip=',i0,' klom=',i0)") my_rank, ihip, ilom, 
 c     . jhip, jlom, khip, klom
 
-      call adios_open (handle, "record", adiosfile, mode,
+      call adios_open (handle, 'record', adiosfile, mode,
      .                 adios_world_comm, err)
 
 c      print *, "ADIOS: adios_group_size =", groupsize
@@ -669,7 +682,6 @@ c      print *, "ADIOS: close", time
       call adios_close (handle, err)
 
 #else
-
       write (unit) time
       write (unit) itime
       write (unit) dt
@@ -719,6 +731,14 @@ c     Open graphics files
       if (ierr /= 0) then
           call pstop('openRecordfiles'
      .              ,'Cannot find record files')
+      else
+#if defined(petsc)
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
+        if (my_rank == 0) then
+          write (*,*) 'Finished!'
+          write (*,*)
+        endif
       endif
 
 c     Read init info
@@ -741,7 +761,7 @@ c     Consistency check
 #if defined(petsc)
       if (nf /= 1) then
           call pstop('openRecordfiles'
-     .              ,'Cannot open multiple record files in parallel')
+     .          ,'Cannot deal with multiple record files in parallel')
       endif
 
       ihg = ihg_(1)

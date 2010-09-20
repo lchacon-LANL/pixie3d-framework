@@ -22,7 +22,7 @@ c Common variables
 
 c Local variables
 
-      integer    :: prec_tot,ierr,perr,prof_stage(3),adios_err
+      integer    :: prec_tot,ierr,perr,prof_stage(3)
       real(8)    :: time1,time2,time3,time4
 
 c Interfaces
@@ -68,12 +68,9 @@ c Initialize PETSc and MPI (parallel version)
 
 c Initialize ADIOS for componentized I/O
 
-#if defined(adios)
-ccnorb      write (*,*) 'call adios_init() '
-ccnorb      adios_world_comm = MPI_COMM_WORLD
+#if defined(adios) && defined(petsc)
       call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
-      call adios_init("config.xml", adios_err)
-ccnorb      write (*,*) 'returned from adios_init() '
+      call adios_init('config.xml', adios_err)
 #endif
 
 c Initialize calculation
@@ -261,15 +258,17 @@ c End program
 
       call fortranDestroy
 
-#if defined(adios)
+      !Destroy ADIOS
+#if defined(adios) && defined(petsc)
       call adios_finalize(my_rank, adios_err)
 #endif
 
 #if defined(petsc)
-      !Finalize profiling
+      !Finalize PETSc profiling
       call PetscLogStagePop(perr)
 
-      call PetscFinalize(perr)
+      !Destroy PETSc
+      call PetscFinalize(ierr)
 #endif
 
       end

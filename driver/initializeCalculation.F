@@ -411,6 +411,7 @@ c End program
 
       contains
 
+#if !defined(adios)
 c     readRestartFile
 c     #################################################################
       subroutine readRestartFile(nx,ny,nz,itime,time,vn,vnp)
@@ -428,21 +429,19 @@ c     Call variables
       integer   ,intent(OUT) :: nx,ny,nz,itime
       real(8),intent(OUT)    :: time
 
-      type(var_array),pointer       :: vn,vnp
+      type(var_array),pointer :: vn,vnp
 
 c     Local variables
 
       integer    :: ierr
 
-      type(var_array),pointer       :: vmed
+      type(var_array),pointer :: vmed => null()
 
 c     Begin program
 
       call allocateDerivedType(vmed)
 
       call openBinFile(urecord,recordfile,status='old')
-cc      open(unit=urecord,file=trim(recordfile),form='unformatted'
-cc     .    ,status='old')
 
       read (urecord) nx,ilog,ihig
       read (urecord) ny,jlog,jhig
@@ -483,6 +482,77 @@ c     End
       call deallocateDerivedType(vmed)
 
       end subroutine readRestartFile
+
+#else
+
+c     readRestartFile
+c     #################################################################
+      subroutine readRestartFile(nx,ny,nz,itime,time,vn,vnp)
+
+c     -----------------------------------------------------------------
+c     Reads restart file
+c     -----------------------------------------------------------------
+
+      use variables
+
+      implicit none
+
+c     Call variables
+
+      integer   ,intent(OUT) :: nx,ny,nz,itime
+      real(8),intent(OUT)    :: time
+
+      type(var_array),pointer :: vn,vnp
+
+c     Local variables
+
+      integer    :: ierr
+
+      type(var_array),pointer :: vmed => null()
+
+c     Begin program
+
+      call allocateDerivedType(vmed)
+
+      call adios_init_noxml (adios_err)
+
+      ! allocate 100MB buffer for ADIOS
+      call adios_allocate_buffer (100,adios_err)
+
+      if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
+
+      call openRecordFileAdiosForRead(adios_err)
+
+      if (adios_err /= 0) then
+        call pstop('readRestartFile'
+     $            ,'Error reading ADIOS restart file')
+      endif
+
+      ierr = readRecordFile(urecord,itime,time,dt,vn)
+
+      call equateDerivedType(vnp,vn)
+
+      do
+        ierr = readRecordFile(urecord,itime,time,dt,vmed)
+
+        if (ierr /= 0) then
+          exit
+        else
+          call equateDerivedType(vn ,vnp)
+          call equateDerivedType(vnp,vmed)
+        endif
+      enddo
+
+      call closeRecordFileAdiosForRead(adios_err)
+
+      if (my_rank == 0) write (*,*) ' Done!'
+
+c     End
+
+      call deallocateDerivedType(vmed)
+
+      end subroutine readRestartFile
+#endif
 
       end subroutine setInitialCondition
 
@@ -563,44 +633,30 @@ cc        endif
           ! do nothing at EQU boundaries, to preserve EQU BCs)
           call equateDerivedType(u_graph,u_0)
 
-cc          !Impose logical BCs
-cc          do ieq=1,u_graph%nvar
-cc            where (abs(u_graph%array_var(ieq)%bconds) == EQU)
-cc     .             u_graph%array_var(ieq)%bconds = DEF
-cc          enddo
-
           call imposeBoundaryConditions(u_graph,1,1,1,obc=0)
-
-          !Recover u_0 BC defs. for u_graph (used in graphics postprocessor)
-cc          do ieq=1,u_graph%nvar
-cc            u_graph%array_var(ieq)%bconds =
-cc     .          u_0%array_var(ieq)%bconds
-cc          enddo
-
         endif
 
-        !Open record file
+#if !defined(adios)
+        !Initialize record file
         call openBinFile(urecord,recordfile,status='unknown')
-cc        open(unit=urecord,file=recordfile
-cc     .      ,form='unformatted',status='unknown')
 
         write (urecord) nxl,ilog,ihig
         write (urecord) nyl,jlog,jhig
         write (urecord) nzl,klog,khig
+#endif
 
-ccnorb        write (*,*) 'writeRecordFile <-initCalc with u_graph: ',0
         call writeRecordFile(urecord,0,0d0,dt,u_graph)
-ccnorb        write (*,*) 'writeRecordFile <-initCalc with u_np: ',0
         call writeRecordFile(urecord,0,0d0,dt,u_np)
 
       else
 
+#if defined(adios)
+        adios_open_num = 1  !Set ADIOS file to append
+#else
         call openBinFile(urecord,recordfile,status='old'
      .                  ,position='append'
      .                  ,check=.true.)
-cc        open(unit=urecord,file=recordfile
-cc     .      ,form='unformatted',status='old',position='append')
-          
+#endif
       endif
 
 c End programs

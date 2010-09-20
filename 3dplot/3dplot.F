@@ -47,9 +47,7 @@ c Begin program
 
 c Initialize 
 
-ccnorb      write (*,'("%%%% Initialize Calculation")') 
       call initializeCalculation(igx,igy,igz)
-ccnorb      write (*,'("%%%% Done Initialize Calculation")') 
 
 c Initialize counters
 
@@ -126,17 +124,7 @@ c Numerical accuracy tests
       if (temp_acc) call acc_test_time
       if (spat_acc) call acc_test_space
 
-c Move files to 'plot' directory
-
-cc      ierr=system('[ -d plots ] || mkdir plots')
-cc      ierr=system('mv draw*in plots')
-
-c Remove backup copy
-
-cc      command='rm '//trim(recordfile)//'.bak'
-cc      ierr=system(trim(command))
-
-c Close graphics files and create draw*.in files
+c Finalize graphics
 
       call finalizeGraphics
 
@@ -288,7 +276,9 @@ c Initialize PETSc (parallel version)
      .                       ,petsc_flg,ierr)
 #endif
 
-#if defined(adios)
+c Initialize ADIOS
+
+#if defined(adios) && defined(petsc)
       call adios_init_noxml (adios_err)
       ! allocate 100MB buffer for ADIOS
       call adios_allocate_buffer (100,adios_err)
@@ -306,8 +296,6 @@ c Open graphics files (this initializes local limits, among other things)
 
 #if defined(adios)
       call openRecordFileAdiosForRead(adios_err)
-      write (*,*) ilog,ihig,jlog,jhig,klog,khig
-      stop
 #else
       call openRecordFiles(urecord,recordfile,murecord
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
@@ -365,9 +353,7 @@ c Initialize diagnostics and related variables
 
 c Initialize graphics
 
-ccnorb      write (*,'("%%%% Initialize Graphics")') 
       call initializeGraphics(igx,igy,igz,bcond)
-ccnorb      write (*,'("%%%% Done Initialize Graphics")') 
 
 c Dump source for debugging
 
@@ -375,9 +361,9 @@ c Dump source for debugging
         itime = -1   !For HDF5 file
         call equateDerivedType(u_np,u_src)
         call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
-ccnorb        write (*,'("%%%% dumpTimeStepPlots Graphics")') 
+
         call dumpTimeStepPlots
-ccnorb        write (*,'("%%%% Done dumpTimeStepPlots Graphics")') 
+
         call deallocateDerivedType(u_src)
       endif
 

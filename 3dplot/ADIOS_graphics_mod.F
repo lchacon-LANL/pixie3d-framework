@@ -9,8 +9,6 @@ c ##################################################################
 
         use ts_setup
 
-        use generalPurposeFunctions
-
 #if !defined(adios)
         ! almost empty mod definition to be able to compile and link
         character(20) :: adios_fname  ! set in ./plot/defineGraphics.F
@@ -31,6 +29,8 @@ c       generic constants
 c       ADIOS function call variables
         integer        :: num_open  ! first create, then append file
         character(20)  :: adios_fname ! set in ./plot/defineGraphics.F
+
+        logical,private   :: adios_debug=.false.
 
 c       ADIOS no-xml definition variables
         integer*8      :: grp
@@ -71,7 +71,7 @@ c     Local variables
 
 c     Begin program
 
-      write (*,'("%%%% initializeADIOSPlot")') 
+      if (adios_debug) write (*,'("%%%% initializeADIOSPlot")') 
 
 c     Setup plot dump variables
 
@@ -90,9 +90,11 @@ cc      moving_mesh = .not.checkMapDatabase()
       moving_mesh = .true.
 
 c     Define adios group and transport method
-      write (*,'("%%%%     declare adios group ",a)') grp_name 
+      if (adios_debug)
+     .   write (*,'("%%%%     declare adios group ",a)') grp_name 
       call adios_declare_group (grp,grp_name,"iter", ierr);
-      write (*,'("%%%%     select method MPI")')  
+      if (adios_debug) write (*,'("%%%%     select method MPI")')
+
       !call adios_select_method (grp, "MPI", "", "");
       call adios_select_method (grp, "MPI", "","",ierr);
 
@@ -102,14 +104,13 @@ c     Exit if not in rank=0
       if (.not.isProc(0)) return
 
 c     Create VISIT expressions (to identify vectors)
-      write (*,'("%%%%     selectExpressions")')  
+      if (adios_debug) write (*,'("%%%%     selectExpressions")')  
       call selectExpressions
 
-      write (*,'("%%%% Done initializeADIOSPlot")') 
+      if (adios_debug) write (*,'("%%%% Done initializeADIOSPlot")') 
 
 c     End program
       end subroutine initializeADIOSPlot
-
 
 c     selectExpressions
 c     #################################################################
@@ -163,7 +164,6 @@ cc      write (*,*) vexp
 
       end subroutine selectExpressions
 
-
 c     writeADIOSPlotfile
 c     ##################################################################
       subroutine writeADIOSPlotfile
@@ -197,7 +197,7 @@ cc      character*128  :: local_count_str
 
 c     Begin program
 
-      write (*,'("%%%% writeADIOSPlot")') 
+      if (adios_debug) write (*,'("%%%% writeADIOSPlot")') 
 
 c     Create the output file and data groups
 
@@ -240,7 +240,8 @@ c     Calculate/approx. the size of data we will going to write out
           if (isProc(0)) then
               call adios_define_attribute (grp, "name","/schema",
      .                                 adios_string,"Pixie","",ierr)
-              write (*,'("rank",i3,"%%%%    wrote attribute schema")') 
+              if (adios_debug)
+     .          write (*,'("rank",i3,"%%%%    wrote attribute schema")') 
      .             my_rank
 
               ! time array
@@ -268,10 +269,10 @@ c     Calculate/approx. the size of data we will going to write out
       write (cell_ldim_str, '(i0,",",i0,",",i0)') nxl, nyl, nzl
       write (node_ldim_str, '(i0,",",i0,",",i0)') nxl+1,nyl+1,nzl+1
 
-      write (*,'("rank",i3,"%% offset=",a," cell=",a," node=",a)') 
+      if (adios_debug)
+     .  write (*,'("rank",i3,"%% offset=",a," cell=",a," node=",a)') 
      .       my_rank, trim(offset_str), trim(cell_ldim_str), 
      .       trim(node_ldim_str)
-
 
       ! Define coordinate variables and calculate size
       if (moving_mesh .or. num_open == 0) then
@@ -316,7 +317,10 @@ c     Calculate/approx. the size of data we will going to write out
      .                 trim(basepath)//"/"//trim(attr_name),
      .                 adios_string,attr_data(iattr),"",ierr)
               enddo
-              write (*,'("%%%%     defined coordinate attributes")') 
+
+              if (adios_debug)
+     .          write (*,'("%%%%     defined coordinate attributes")') 
+
               ! Define nodal data variables    
               do ieq=1,nqty(igrp)
                   call adios_define_var (grp, 
@@ -345,7 +349,8 @@ c     Calculate/approx. the size of data we will going to write out
 
       ! Tell ADIOS about the size of all data in this process
       call adios_group_size (handle, groupsize, totalsize, ierr)
-      write (*,'("rank",i3," %%%%  groupsize=",i0,"  totalsize=",i0)') 
+      if (adios_debug)
+     .  write (*,'("rank",i3," %%%%  groupsize=",i0,"  totalsize=",i0)') 
      .    my_rank, groupsize, totalsize
 
 
@@ -358,7 +363,8 @@ c       (they are buffered and I/O starts at adios_close())
               if (slth > 0) then
                   ! Write VisIt expressions from proc 0
                   call adios_write(handle,"visit_expressions",vexp,ierr)
-                  write (*,'("rank",i3,"%%%%    wrote vexp l=",i0)') 
+                  if (adios_debug)
+     .              write (*,'("rank",i3,"%%%%    wrote vexp l=",i0)') 
      .                    my_rank, slth
               endif
           endif
@@ -375,7 +381,8 @@ c       (they are buffered and I/O starts at adios_close())
           call adios_write(handle,"time",time,ierr)
           call adios_write(handle,"itime",itime+toffset,ierr)
       endif
-      write (*,'("rank",i3,"%%%%     wrote dimensions")') my_rank
+      if (adios_debug)
+     .  write (*,'("rank",i3,"%%%%     wrote dimensions")') my_rank
 
 
       ! First writing or always if the mesh is changing
@@ -411,7 +418,8 @@ c         Write the coordinate data
      .                trim(path)//"/"//coords_descr(icoords),
      .                cell(ilo:ihi,jlo:jhi,klo:khi,icoords),ierr)
           enddo
-          write (*,'("rank",i3,"%%%%     wrote cell positions")') 
+          if (adios_debug)
+     .      write (*,'("rank",i3,"%%%%     wrote cell positions")') 
      .         my_rank
 
           ! Node positions
@@ -423,7 +431,8 @@ c         Write the coordinate data
      .            trim(path)//"/"//coords_descr(icoords),
      .            node(ilo:ihip,jlo:jhip,klo:khip,icoords), ierr)
           enddo
-          write (*,'("rank",i3,"%%%%     wrote node positions")') 
+          if (adios_debug)
+     .      write (*,'("rank",i3,"%%%%     wrote node positions")') 
      .          my_rank
 
           deallocate(cell,node)
@@ -455,7 +464,8 @@ c             Write nodal data
      .                      graph(igrp)%array_graph(ieq)%descr,
      .                  node(ilo:ihip,jlo:jhip,klo:khip,1), ierr)
               enddo
-              write (*,'("%%%%     wrote nodal data")') 
+              if (adios_debug)
+     .            write (*,'("%%%%     wrote nodal data")') 
 
               deallocate(cell,node)
 
@@ -469,7 +479,8 @@ c             Write cell-centered data
      .                  graph(igrp)%array_graph(ieq)
      .                     %array(ilo:ihi,jlo:jhi,klo:khi), ierr)
               enddo
-              write (*,'("%%%%     wrote cell data")') 
+              if (adios_debug)
+     .            write (*,'("%%%%     wrote cell data")') 
 
           endif
 
@@ -480,7 +491,7 @@ c     Release resources
       call adios_close(handle, ierr)
       num_open = num_open+1
 
-      write (*,'("%%%% Done writeADIOSPlot")') 
+      if (adios_debug) write (*,'("%%%% Done writeADIOSPlot")') 
 
 c     End program
 
