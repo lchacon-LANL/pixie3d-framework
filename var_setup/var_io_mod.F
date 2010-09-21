@@ -275,6 +275,11 @@ c     Consistency check
       endif
 #endif
 
+      deallocate(nx,ny,nz
+     .          ,ilg_,ihg_
+     .          ,jlg_,jhg_
+     .          ,klg_,khg_)
+ 
 c     End program
 
       end subroutine openRecordFiles
