@@ -1075,7 +1075,7 @@ cc          numerical_grid = .false.
 
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
-        if (numerical_grid) then
+        if (numerical_grid .and. my_rank == 0) then
           if (nxx == 1 .and. ((xmax-xmin)>1d-3)) then
             write (*,*)
             write (*,*) 'Warning: large grid spacing in',
