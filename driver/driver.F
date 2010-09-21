@@ -110,7 +110,7 @@ c Time loop
 
         itime = itime + 1
 
-        if (tmax.gt.0d0.and.time.ge.(tmax-1d-5*dt))  exit
+        if (tmax.gt.0d0.and.time.ge.(tmax-1d-9*dt))  exit
 cc        if (tmax.gt.0d0.and.time.gt.tmax)  exit
         if (numtime.ge.0.and.itime.ge.(numtime+inewtime)) exit
 
@@ -193,7 +193,7 @@ c     Time level data dump
 #if defined(RFX)
         if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
 #else
-        if (nrst.eq.ndstep.or.tmrst.ge.0.99*dstep) then
+        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep) then
 #endif
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
