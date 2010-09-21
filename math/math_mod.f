@@ -10,15 +10,15 @@
 
       real(8) :: pi
 
-cc      INTERFACE determ
-cc        procedure determ3
-cc      END INTERFACE
+      INTERFACE determ
+        module procedure determ3
+      END INTERFACE
 
       contains
 
-c     determ
+c     determ3
 c     #################################################################
-      function determ(tensor)
+      function determ3(tensor)
 
       real(8) :: tensor(3,3)
 
@@ -31,7 +31,7 @@ c     #################################################################
      .        -tensor(1,1)*tensor(2,3)*tensor(3,2)
      .        -tensor(3,3)*tensor(1,2)*tensor(2,1)
 
-      end function determ
+      end function determ3
 
 c     atanh
 c     #################################################################

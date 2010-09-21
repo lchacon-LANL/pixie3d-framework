@@ -16,8 +16,6 @@ c ******************************************************************
 
       use grid
 
-cc      use icond
-
 c Common variables
 
       implicit none
@@ -66,6 +64,13 @@ c Initialize PETSc and MPI (parallel version)
       call PetscLogStageRegister('Initial setup'  ,prof_stage(1),perr)
       call PetscLogStageRegister('Nonlinear solve',prof_stage(2),perr)
       call PetscLogStageRegister('Sol. processing',prof_stage(3),perr)  
+#endif
+
+c Initialize ADIOS for componentized I/O
+
+#if defined(adios) && defined(petsc)
+      call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
+      call adios_init('adios_config.xml', adios_err)
 #endif
 
 c Initialize calculation
@@ -197,7 +202,9 @@ c     Time level data dump
 #endif
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
+ccnorb          write (*,*) 'call writeRecordFile: ',itime,time
           call writeRecordFile(urecord,itime,time,dt,u_np)
+ccnorb          write (*,*) 'return from  writeRecordFile ',itime
         endif
 
         if (eigen) exit
@@ -251,11 +258,17 @@ c End program
 
       call fortranDestroy
 
+      !Destroy ADIOS
+#if defined(adios) && defined(petsc)
+      call adios_finalize(my_rank, adios_err)
+#endif
+
 #if defined(petsc)
-      !Finalize profiling
+      !Finalize PETSc profiling
       call PetscLogStagePop(perr)
 
-      call PetscFinalize(perr)
+      !Destroy PETSc
+      call PetscFinalize(ierr)
 #endif
 
       end

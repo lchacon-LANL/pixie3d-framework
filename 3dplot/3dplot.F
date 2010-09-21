@@ -124,25 +124,18 @@ c Numerical accuracy tests
       if (temp_acc) call acc_test_time
       if (spat_acc) call acc_test_space
 
-c Move files to 'plot' directory
-
-cc      ierr=system('[ -d plots ] || mkdir plots')
-cc      ierr=system('mv draw*in plots')
-
-c Remove backup copy
-
-cc      command='rm '//trim(recordfile)//'.bak'
-cc      ierr=system(trim(command))
-
-c Close graphics files and create draw*.in files
+c Finalize graphics
 
       call finalizeGraphics
 
       call finalizeDiagnostics
 
+#if defined(adios)
+      call closeRecordFileAdiosForRead(adios_err)
+      call adios_finalize(my_rank,adios_err)
+#else
       call closeRecordFiles
-
-cc      if (clean) call closeCleanFiles
+#endif
 
       call fortranDestroy
 
@@ -283,6 +276,14 @@ c Initialize PETSc (parallel version)
      .                       ,petsc_flg,ierr)
 #endif
 
+c Initialize ADIOS
+
+#if defined(adios) && defined(petsc)
+      call adios_init_noxml (adios_err)
+      ! allocate 100MB buffer for ADIOS
+      call adios_allocate_buffer (100,adios_err)
+#endif
+
 c Read user initializations
 
       call readGraphicsInput
@@ -293,8 +294,12 @@ c Initialize MG and create grid
 
 c Open graphics files (this initializes local limits, among other things)
 
+#if defined(adios)
+      call openRecordFileAdiosForRead(adios_err)
+#else
       call openRecordFiles(urecord,recordfile,murecord
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
+#endif
 
 c Initialize vector dimensions
 
@@ -356,7 +361,9 @@ c Dump source for debugging
         itime = -1   !For HDF5 file
         call equateDerivedType(u_np,u_src)
         call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
+
         call dumpTimeStepPlots
+
         call deallocateDerivedType(u_src)
       endif
 

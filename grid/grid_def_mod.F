@@ -389,12 +389,7 @@ c     Nullify gmetric
        !Should not deallocate gmetric, since it is not
        !allocated in allocateGridStructure
         if (associated(grid_st%gmetric)) nullify(grid_st%gmetric)
-
 cc        call deallocateGridMetric(grid_st%gmetric)
-
-c     Deallocate grid packing info
-
-        deallocate(grid_st%g_pack)
 
 c     Deallocate PETSC DA context
 
@@ -468,6 +463,8 @@ cc          deallocate(grid_st%ntotv)
           deallocate(grid_st%iline)
           deallocate(grid_st%jline)
           deallocate(grid_st%kline)
+
+          deallocate(grid_st%g_pack)
         endif
         
         deallocate(grid_st)

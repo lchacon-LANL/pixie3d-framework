@@ -11,13 +11,13 @@ c ######################################################################
 
         !Diagnostics
         integer,private :: nunitd(4)
+        logical,private :: flux = .false.
 
-        logical :: flux = .false.
-
-        !B field diagnostics
-        integer :: icross,ncross=100000,nbins=100,inx,nnx,nny
-        real(8),allocatable,dimension(:,:) :: fpos,qdif
-        logical :: bdiag=.false.
+        !B field diagnostics private variables
+        logical,private :: bdiag=.false.
+        integer,private :: inx,nnx,nny
+        integer,private :: icross,ncross=100000,nbins=100
+        real(8),private,allocatable,dimension(:,:) :: fpos,qdif
 
         !LSODE public variables
         real(8) :: xold,yold,zold,lsode_out(10)
@@ -29,10 +29,10 @@ c ######################################################################
         INTEGER,private :: LIW, LRW, NEQ
         PARAMETER  (NEQ=10,LIW = 20,LRW = LIW + 16*NEQ)
 
-        INTEGER,private :: IOPT,IOUT,ISTATE=0,ITASK,ITOL,IWORK(LIW)
-     .                    ,MF,NEQD(1)
-        REAL(8),private :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW),T,TOUT
-     .                    ,YY(NEQ)
+        INTEGER,private :: IOPT,IOUT,ISTATE=0,ITASK,ITOL
+     .                    ,IWORK(LIW),MF,NEQD(1)
+        REAL(8),private :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW)
+     .                    ,T,TOUT,YY(NEQ)
 
         !ORBIT private variables
         type,private :: ode_solver
@@ -82,6 +82,233 @@ c ######################################################################
         logical,private :: lssx,lssy,lssz,rzss,ss_io=.false.
 
       contains
+
+c     B_diag_setup
+c     #################################################################
+      subroutine B_diag_setup(b_diag,ninitx,ninity,ninitz)
+
+c     ----------------------------------------------------------------------
+c     Set up B diagnostics: set size of non-periodic direction (nnx)
+c     and remaining periodic direction (nny).
+c     ----------------------------------------------------------------------
+
+      implicit none
+
+      logical :: b_diag
+      integer :: ninitx,ninity,ninitz
+
+c     Begin program
+
+      bdiag = b_diag
+      if (.not.bdiag) return
+
+      if ( (lssx.and.lssy).or.(lssx.and.lssz).or.(lssy.and.lssz)) then
+        write (*,*)
+     .       'Cannot do B diagnostics for more than one Surf-section'
+        stop
+      endif
+
+c     Initialize array sizes and update orbit crossings counter
+
+      if (lssx) then
+        nnx = ninity
+        nny = ninitz
+      endif
+
+      if (lssy) then
+        nnx = ninitx
+        nny = ninitz
+      endif
+
+      if (lssz) then
+        nnx = ninitx
+        nny = ninity
+      endif
+
+c     Setup diag B diagnostic arrays
+
+      allocate(fpos(-nbins/2:nbins/2,ncross))
+      fpos = 0d0
+
+      allocate(qdif(nnx,ncross))
+      qdif = 0d0
+
+c     End program
+
+      end subroutine B_diag_setup
+
+c     B_diag_init
+c     #################################################################
+      subroutine B_diag_init(initx,inity,initz,x0,y0,z0)
+
+c     ----------------------------------------------------------------------
+c     Initialize counters for B diagnostic at the beginning of each orbit.
+c     Counter is a binning index in non-periodic direction (i.e., radius in
+c     polar coordinates).
+c     ----------------------------------------------------------------------
+
+      implicit none
+
+      integer :: initx,inity,initz
+      real(8) :: x0,y0,z0
+
+c     Begin program
+
+      if (.not.bdiag) return
+
+      !Initialize orbit-crossings counter
+      icross = 0
+
+      if (lssx) then
+        inx = inity             !Only makes sense if Y is not periodic...
+
+        if (x0 == xss0) then
+          icross = icross + 1
+          fpos(0,icross) = fpos(0,icross) + 1
+        endif
+      endif
+
+      if (lssy) then
+        inx = initx
+
+        if (y0 == yss0) then
+          icross = icross + 1
+          fpos(0,icross) = fpos(0,icross) + 1
+        endif
+      endif
+
+      if (lssz) then
+        inx = initx
+
+        if (z0 == zss0) then
+          icross = icross + 1
+          fpos(0,icross) = fpos(0,icross) + 1
+        endif
+      endif
+
+c     End program
+
+      end subroutine B_diag_init
+
+c     B_diag_update
+c     #################################################################
+      subroutine B_diag_update(xs,x0,ts)
+
+c     ----------------------------------------------------------------------
+c     Accumulates B diagnostics counters.
+c     ----------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: xs,x0,ts
+
+c     Local variables
+
+      integer :: bin
+
+c     Begin program
+
+      if (.not.bdiag) return
+
+      icross = icross + 1
+
+      if (icross > ncross) then
+        write (*,*) 'Exceeded max number of Poincare crossings'
+      else
+        write (*,*)
+        write (*,*) 'B diag: Poincare crossing ',icross
+
+        !PDF diagnostic
+        bin = sign(1d0,xs-x0)
+     .       *floor(0.5*abs(x0**2-xs**2)*nbins+0.5)
+        fpos(bin,icross) = fpos(bin,icross)+1
+
+        !Add quasilinear diffusion diagnostic
+        qdif(inx,icross) = qdif(inx,icross)
+     .                   + (0.5*(xs**2-x0**2))**2/ts
+      endif
+
+c     End program
+
+      end subroutine B_diag_update
+
+c     B_diag_finalize
+c     #################################################################
+      subroutine B_diag_finalize
+
+c     -----------------------------------------------------------------
+c     Finalizes B diagnostics, including calculation of statistics
+c     and dumping of data to file "b_stat.txt".
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Local variables
+
+        integer :: slice
+        real(8) :: rr
+
+        real(8),allocatable,dimension(:) ::  mean,sigma,vol,diff
+
+c     Begin program
+
+        if (.not.bdiag) return
+
+        open(unit=50,file='b_stat.txt',status='unknown')
+
+        allocate(mean(icross),sigma(icross),vol(icross),diff(icross))
+
+        mean  = 0d0
+        sigma = 0d0
+        vol   = 0d0
+
+        do slice=-nbins/2,nbins/2
+          rr = (1.*slice)/(nbins+1)
+          vol   = vol   +       fpos(slice,1:icross)
+          mean  = mean  + rr   *fpos(slice,1:icross)
+          sigma = sigma + rr**2*fpos(slice,1:icross)
+        enddo
+
+        mean  = mean/vol
+        sigma = sqrt(sigma/vol - mean**2)
+
+        do slice = 1,icross
+          diff(slice) = sigma(slice)**2/(zss0+(slice-1)*(zmax-zmin))
+        enddo
+
+        do slice=-nbins/2,nbins/2
+          write(50,*) (1.*slice)/(nbins+1),fpos(slice,1:icross)/vol
+        enddo
+
+        write (*,*)
+        write (*,*) 'Mean =',mean
+        write (*,*)
+        write (*,*) 'Sigma=',sigma
+        write (*,*)
+        write (*,*) 'Diff PDF =',diff
+
+        do slice = 1,icross
+          diff(slice) = sum(qdif(:,slice))/size(qdif,1)/nny
+        enddo
+
+        write (*,*)
+        write (*,*) 'Diff MC =',diff
+
+        close(50)
+
+        open(unit=50,file='b_dif.txt',status='unknown')
+        do slice=1,size(qdif,1)
+          write(50,*) slice,qdif(slice,1:icross)/nny
+        enddo
+        close(50)
+
+        deallocate(mean,sigma,vol,diff,fpos,qdif)
+
+c     End program
+
+      end subroutine B_diag_finalize
 
 c     orbit_conf_def
 c     ######################################################################
@@ -223,15 +450,6 @@ c     Do splines
         call splineJ(jac )
         call splineX(xmap)
 
-c     Setup diag B diagnostic arrays
-
-        if (bdiag) then
-          allocate(fpos(-nbins/2:nbins/2,ncross))
-          fpos = 0d0
-          allocate(qdif(nnx,ncross))
-          qdif = 0d0
-        endif
-
       end subroutine orbit_setup
 
 c     orbit_destroy
@@ -248,64 +466,13 @@ c     Call variables
 
 c     Local variables
 
-        integer :: slice
-        real(8) :: rr
-
-        real(8),allocatable,dimension(:) ::  mean,sigma,vol,diff
-
 c     Begin program
 
         call killSplines
 
 c     Finalize B diagnostics
 
-        if (bdiag) then
-          open(unit=50,file='b_stat.txt',status='unknown')
-
-          allocate(mean(icross),sigma(icross),vol(icross),diff(icross))
-
-          mean  = 0d0
-          sigma = 0d0
-          vol   = 0d0
-
-          do slice=-nbins/2,nbins/2
-            rr = (1.*slice)/(nbins+1)
-            vol   = vol   +       fpos(slice,1:icross)
-            mean  = mean  + rr   *fpos(slice,1:icross)
-            sigma = sigma + rr**2*fpos(slice,1:icross)
-          enddo
-
-          mean  = mean/vol
-          sigma = sqrt(sigma/vol - mean**2)
-
-          do slice = 1,icross
-            diff(slice) = sigma(slice)**2/(zss0+(slice-1)*(zmax-zmin))
-          enddo
-
-          do slice=-nbins/2,nbins/2
-            write(50,*) (1.*slice)/(nbins+1),fpos(slice,1:icross)/vol
-          enddo
-
-          write (*,*) 'Mean =',mean
-          write (*,*) 'Sigma=',sigma
-          write (*,*) 'Diff PDF =',diff
-
-          do slice = 1,icross
-            diff(slice) = sum(qdif(:,slice))/size(qdif,1)/nny
-          enddo
-
-          write (*,*) 'Diff MC =',diff
-
-          close(50)
-
-          open(unit=50,file='b_dif.txt',status='unknown')
-          do slice=1,size(qdif,1)
-            write(50,*) slice,qdif(slice,1:icross)/nny
-          enddo
-          close(50)
-
-          deallocate(mean,sigma,vol,diff,fpos,qdif)
-        endif
+        call B_diag_finalize
 
       end subroutine orbit_destroy
 
@@ -336,7 +503,6 @@ c     Call variables
         logical :: fwd
 
         integer,optional :: ss_order
-cc        real(8),optional :: xss,yss,zss,tss
 
         optional :: line_int
 
@@ -364,10 +530,6 @@ c     Local variables
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral
 
-c     Delta diag
-
-        real(8) :: vr,vth,vz,vnorm,vrp,vrm
-
 c     Begin program
 
         iiout = iout
@@ -375,9 +537,6 @@ c     Begin program
         integral = PRESENT(line_int)
 
         chk_ss = (.not.integral).and.ss_io  !Do SS only if not integrating and if IO has been set up
-c delta-diag
-cc        chk_ss = ss_io  !Do SS only if IO has been set up
-c delta-diag
 
         tmax = ode_conf%tmax
         smax = ode_conf%smax
@@ -410,23 +569,9 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 
         if (chk_ss) then
 
-          if (bdiag) icross = 0  !Initialize for B diagnostics
-
           if(lssx .and. x0 == xss0) then
             write(nunitx) real(y0),real(z0)
           endif
-
-c delta-diag
-cc          if (lssx) then
-cc            if (fwd) then
-cc              write(nunitd(1),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
-cc              write(nunitd(2),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
-cc            else
-cc              write(nunitd(3),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
-cc              write(nunitd(4),FMT="(2e14.5)",ADVANCE="NO") 0.5*x0**2,y0 !Initial (Psi,theta) of orbit
-cc            endif
-cc          endif
-c delta-diag
 
           if(lssy .and. y0 == yss0) then
             if (flux) then
@@ -443,11 +588,6 @@ c delta-diag
               write(nunitz) real(x0),real(y0)        !In radius
             endif
 
-            !Initialize B diagnostics
-            if (bdiag) then
-              icross = icross + 1
-              fpos(0,icross) = fpos(0,icross) + 1
-            endif
           endif
 
         endif
@@ -489,55 +629,9 @@ c     Orbit integral
           !Check for intersection with surface of section
           if (iterror /= 2 .and. itime > 2 .and. chk_ss) then
             if (smax /= 0d0) then
-
               call sschk(ssorder,svold,sold,ss
      .                  ,xvold,xold,x,yvold,yold,y
      .                  ,zvold,zold,z,xss,yss,zss,tss)
-
-c delta-diag
-cc              if (lssx .and. tss /= 0d0) then
-cc                if (fwd) then
-cc                  write(nunitd(1),FMT="(e14.5)",ADVANCE="NO")  tss
-cc                else
-cc                  write(nunitd(3),FMT="(e14.5)",ADVANCE="NO") -tss
-cc                endif
-cc
-cc                call get_anal_B(xss,yss,zss,vr,vth,vz,vnorm,.false.)
-cc                if (vnorm > 0d0) vr=vr/vnorm
-cc
-cc                if (fwd) then
-cc                 write(nunitd(2),FMT="(e14.5)",ADVANCE="NO") vr
-cc                else
-cc                 write(nunitd(4),FMT="(e14.5)",ADVANCE="NO") vr
-cc                endif
-cc
-ccc               diag*********
-cc                call get_anal_B(x   ,y   ,z   ,vrp,vth,vz,vnorm,.false.)
-cc                if (vnorm > 0d0) vrp = vrp/vnorm
-cc
-cc                call get_anal_B(xold,yold,zold,vrm,vth,vz,vnorm,.false.)
-cc                if (vnorm > 0d0) vrm = vrm/vnorm
-cc
-cc                write(*,*)
-cc                if (0.5*(vrp+vrm-2*vr)/vr > 0.1) then
-cc                  write(*,'(a,1p,e10.3,a,e10.3,a,e10.3,a,e10.3,a)')
-cc     .                     'DIAG -- intersection @ xs=',xss
-cc     .                    ,'; xnew-xold=',0.5*(x**2-xold**2)
-cc     .                    ,'; snew-sold=',ss-sold
-cc     .                    ,'; rel. error br=',(vrp-vrm)/vr
-cc     .                    ,'   WARNING!!'
-cc                else
-cc                  write(*,'(a,1p,e10.3,a,e10.3,a,e10.3,a,e10.3)')
-cc     .                     'DIAG -- intersection @ xs=',xss
-cc     .                    ,'; xnew-xold=',0.5*(x**2-xold**2)
-cc     .                    ,'; snew-sold=',ss-sold
-cc     .                    ,'; rel. error br=',0.5*(vrp+vrm-2*vr)/vr
-cc                endif
-ccc               diag*********
-cc
-cc              endif
-c delta-diag
-
             else
               call sschk(ssorder,tvold,told,time
      .                  ,xvold,xold,x,yvold,yold,y
@@ -568,19 +662,6 @@ c       Write orbit separator in XDRAW file
           if (lssy) write(nunity)
           if (lssz) write(nunitz)
           if (rzss) write(nunitrz)
-
-c delta-diag
-cc          if (lssx) then
-cc            if (fwd) then
-cc              write(nunitd(1),*) !Carriage return
-cc              write(nunitd(2),*) !Carriage return
-cc            else
-cc              write(nunitd(3),*) !Carriage return
-cc              write(nunitd(4),*) !Carriage return
-cc            endif
-cc          endif
-c delta-diag
-
         endif
 
       end subroutine orbit_find
@@ -759,16 +840,6 @@ c     Local variables
 
       real(8) :: xc,yc,zc
       real(8) :: xh,yh,zh,jach
-
-cc      !LSODE setup
-cc      INTEGER :: LIW, LRW, NEQ
-cc      PARAMETER  (NEQ=10,LIW = 20,LRW = LIW + 16*NEQ)
-cc
-cc      INTEGER :: IOPT, IOUT, ISTATE=0, ITASK, ITOL, IWORK(LIW)
-cc     .          ,MF, NEQD(1)
-cc      REAL(8) :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW),T,TOUT,YY(NEQ)
-cc
-cc      save ISTATE
 
       logical  :: external_f
 
@@ -1479,7 +1550,7 @@ c     -----------------------------------------------------------------
 
 c     ss_init
 c     #################################################################
-      subroutine ss_init(ss_order,lxss,xsurf,lyss,ysurf,lzss,zsurf)
+      subroutine ss_init(ss_order,lxss,xsurf,lyss,ysurf,lzss,zsurf,rflx)
 
 c     -----------------------------------------------------------------
 c     Initializes surface of section (SS) internal variables
@@ -1490,6 +1561,7 @@ c     -----------------------------------------------------------------
         integer :: ss_order
         real(8) :: xsurf,ysurf,zsurf
         logical :: lxss,lyss,lzss
+        logical,optional :: rflx
 
 c     Begin program
 
@@ -1502,6 +1574,12 @@ c     Initialize private variables
         lssx = lxss
         lssy = lyss
         lssz = lzss
+
+        if (PRESENT(rflx)) then
+          flux = rflx
+        else
+          flux = .false.
+        endif
 
 c     Set position of SS
 
@@ -1560,16 +1638,6 @@ c     Begin program
           nunitx=27
           open(unit=nunitx,file=trim(ssx),form='unformatted')
 
-c delta-diag
-cc          nunitd(1) = 12345
-cc          nunitd(2) = 12346
-cc          nunitd(3) = 12347
-cc          nunitd(4) = 12348
-cc          open(unit=nunitd(1),file='s+.txt')
-cc          open(unit=nunitd(2),file='br+.txt')
-cc          open(unit=nunitd(3),file='s-.txt')
-cc          open(unit=nunitd(4),file='br-.txt')
-c delta-diag
         endif
 
         if (lssy) then
@@ -1647,7 +1715,7 @@ c     Call variables
 c     Local variables
 
         real(8) :: rr
-        integer :: iwhich,bin
+        integer :: iwhich
 
 c     Begin program
 
@@ -1686,6 +1754,9 @@ c     Check for intersection with X surface of section
             call chk_pos(xss,yss,zss) !this resets logical coords
             write(nunitx) real(yss),real(zss)
           endif
+
+          !Accumulate B diagnostics
+          call B_diag_update(yss,y00,tss)
         endif
 
 c     Check for intersection with Y surface of section
@@ -1707,6 +1778,9 @@ c     Check for intersection with Y surface of section
               write(nunity) real(xss),real(zss)
             endif
           endif
+
+          !Accumulate B diagnostics
+          call B_diag_update(xss,x00,tss)
         endif
 
 c     Check for intersection with Z surface of section
@@ -1723,7 +1797,6 @@ c     Check for intersection with Z surface of section
             call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
             rr = sqrt(xcar**2+ycar**2)
             write(nunitrz) real(rr),real(zcar)
-cc            write(*,*) 'diag',z,zold,real(rr),real(zcar)   !diag
           elseif (ss_io) then
             call chk_pos(xss,yss,zss) !this resets logical coords
           endif
@@ -1737,26 +1810,7 @@ cc            write(*,*) 'diag',z,zold,real(rr),real(zcar)   !diag
           endif
 
           !Accumulate B diagnostics
-          if (bdiag) then
-            icross = icross + 1
-            if (icross > ncross) then
-              write (*,*) 'Exceeded max number of Poincare crossings'
-            else
-              write (*,*)
-              write (*,*) 'B diag: Poincare crossing ',icross
-
-              !PDF diagnostic
-              bin = sign(1d0,xss-x00)
-     .             *floor(0.5*abs(x00**2-xss**2)*nbins+0.5)
-              fpos(bin,icross) = fpos(bin,icross)+1
-
-              !Add quasilinear diffusion diagnostic
-              qdif(inx,icross) = qdif(inx,icross)
-     .                         + (0.5*(xss**2-x00**2))**2/tss
-
-            endif
-          endif
-
+          call B_diag_update(xss,x00,tss)
         endif
 
       end subroutine sschk
@@ -1811,11 +1865,6 @@ c     Begin program
           endif
         endif
 
-cc        x00 = x0
-cc        if (x0 == xmin .and. pp >= 0) x00 = xmax
-cc        if (x0 == xmax .and. pp <  0) x00 = xmin
-cccc        if (x0 == xmin .and. pp <  0) x00 = xmin-(xmax-xmin)
-cc        if (pp == 0 .and. (x2-xmin)<0d0) x00 =x0-(xmax-xmin)
         x11 = x1 - pp*(xmax-xmin)
         x22 = x2 - pp*(xmax-xmin)
       else

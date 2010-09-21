@@ -137,8 +137,10 @@ c     Find graphics files
 
       else
 
-        write (*,*)
-        write (*,*) 'Opening '//trim(base_fname)//' files...'
+        if (myrank == 0) then
+          write (*,*)
+          write (*,*) 'Opening '//trim(base_fname)//' files...'
+        endif
 
         !Find out number of graphics files
         nfiles = -1
@@ -182,11 +184,6 @@ c     Allocate arrays and open files
           open(munit(ifile),file=trim(file)
      $        ,form='unformatted',status='old')
         enddo
-      endif
-
-      if (myrank == 0) then
-        write (*,*) 'Finished!'
-        write (*,*)
       endif
 
 c End programs
