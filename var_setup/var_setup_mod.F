@@ -153,7 +153,7 @@ c     Begin program
 
         if (.not.associated(gv)) then
           allocate(gv)
-          nullify(bc_grp)
+          nullify(gv%bc_grp)
           nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0,gv%u_graph)
           nullify(gv%gparams)
           nullify(gv%aux)
