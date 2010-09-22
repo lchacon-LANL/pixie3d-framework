@@ -76,7 +76,7 @@ c     End program
 
       end function is_file
 
-c     rm_file
+c     rm_files
 c     ####################################################################
       subroutine rm_files(file)
 
