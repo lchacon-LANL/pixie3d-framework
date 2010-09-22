@@ -38,10 +38,9 @@ ifeq ($(HOST),quevedo.ornl.gov)
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include
 
-    ADIOS = f
+    ADIOS = t
 
     ADIOS_HOME = $(HOME)/lib/adios-1.2.1
-    #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladios -ladios_phdf5 -ladiosread -lmxml
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
 
   else
