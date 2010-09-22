@@ -133,7 +133,6 @@ c Initialize old time solution
 
 c Set unperturbed forcing fields
 
-cc      jit = -2 
       source_eval = .true.   !This informs nlfunction that we are processing the source
       
       !This not only evaluates fsrc, but defines BCs on u_n
@@ -142,19 +141,6 @@ cc      jit = -2
       if (.not.source) fsrc = 0d0
 
       source_eval = .false.
-
-c Set output files
-
-      if (.not.restart) then
-        if (my_rank == 0) call rm_file(recordfile)
-#if defined(petsc) 
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-#endif
-      endif
-
-cc      urecord = urecord + my_rank
-
-cc      recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
 
 c Set initial condition
 
@@ -172,9 +158,8 @@ c Check time limits
           write(*,*) 'Tmax is less or equal than restarting time'
           write(*,*) 'Aborting'
         endif
-#if defined(petsc)
-        call PetscFinalize(mpierr)
-#endif
+
+        call fortranDestroy
         stop
       endif
 
@@ -643,6 +628,12 @@ cc        endif
         endif
 
 #if !defined(adios)
+        if (my_rank == 0) call rm_files(recordfile)  !Remove all files if POSIX
+
+#if defined(petsc) 
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
+
         !Initialize record file
         call openBinFile(urecord,recordfile,status='unknown')
 
