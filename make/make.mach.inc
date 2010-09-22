@@ -21,6 +21,9 @@ MACHINE ?=HaveNoIdea
 
 ifeq ($(HOST),quevedo.ornl.gov)
   MACHINE=quevedo
+
+  FC = gfortran
+
   ifdef BOPT
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
@@ -107,6 +110,8 @@ endif
 ifeq ($(HOST),siesta)
   MACHINE=siesta
 
+  FC=gfortran
+
   ifdef BOPT
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
@@ -151,11 +156,15 @@ endif
 
 ifeq ($(HOST),ra22)
   MACHINE=ra22
+
+  FC        = pgf95
+
   PETSC_ARCH = linux64_openmpi
   PETSC_DIR =/ricercatori/ft/petsc-3.0.0-p7
+
   override HDF5 = f
+
   CPPFLAGS += $(PREPROC)RFX
-  FC        = pgf95
   LIBS     += -llapack -lblas
 endif
 
