@@ -258,19 +258,6 @@ c End program
 
       call fortranDestroy
 
-      !Destroy ADIOS
-#if defined(adios) && defined(petsc)
-      call adios_finalize(my_rank, adios_err)
-#endif
-
-#if defined(petsc)
-      !Finalize PETSc profiling
-      call PetscLogStagePop(perr)
-
-      !Destroy PETSc
-      call PetscFinalize(ierr)
-#endif
-
       end
 
 c timeStep
@@ -350,7 +337,6 @@ c Begin program
 
 c Evaluate nonlinear function at old time for theta scheme
 
-cc      jit = -1
       old_time_eval = .true.     !This informs nlfunction that we are processing
                                  !  n time level info
 

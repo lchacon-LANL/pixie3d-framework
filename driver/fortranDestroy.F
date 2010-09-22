@@ -18,7 +18,7 @@ c Local variables
 
 c Begin program
 
-      close(urecord)
+c Free memory
 
       deallocate(zeros,vzeros,ones)
 
@@ -28,7 +28,6 @@ c Begin program
 
       call destroyGrid(gv%gparams)
 
-cc      deallocate(gv%bc_seq,STAT=ierr)
       if (associated(gv%bc_grp)) then
         do igr=1,size(gv%bc_grp)
           deallocate(gv%bc_grp(igr)%bc_seq,STAT=ierr)
@@ -37,6 +36,22 @@ cc      deallocate(gv%bc_seq,STAT=ierr)
       endif
 
       deallocate(gv,STAT=ierr)
+
+c Close record files
+
+#if !defined(adios)
+      close(urecord)
+#else
+      call adios_finalize(my_rank, adios_err)
+#endif
+
+c Destroy PETSc
+
+#if defined(petsc)
+      call PetscLogStagePop(ierr)
+
+      call PetscFinalize(ierr)
+#endif
 
 c End program
 
