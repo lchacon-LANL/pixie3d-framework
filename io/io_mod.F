@@ -16,6 +16,11 @@ c ########################################################################
 c     shellcmd
 c     ####################################################################
       function shellcmd(command) result (ierr)
+
+c     --------------------------------------------------------------------
+c     Runs shell command from fortran.
+c     --------------------------------------------------------------------
+
 #if defined(samrai)
       use iso_c_binding
       interface
@@ -32,12 +37,12 @@ c     Call variables
          character(*) :: command
        
 c     Local variables
-#if !defined(samrai)
-#if !defined(gfortran)
+
+#if !defined(samrai) && !defined(gfortran)
         integer    :: system
         external      system
 #endif
-#endif
+
 c     Begin program
 
         ierr = system(trim(command))
@@ -47,6 +52,10 @@ c     Begin program
 c     is_file
 c     ####################################################################
       function is_file(file)
+
+c     --------------------------------------------------------------------
+c     Checks whether "file" exists.
+c     --------------------------------------------------------------------
 
 c     Call variables
 
@@ -69,7 +78,11 @@ c     End program
 
 c     rm_file
 c     ####################################################################
-      subroutine rm_file(file)
+      subroutine rm_files(file)
+
+c     --------------------------------------------------------------------
+c     Removes all files starting with "file".
+c     --------------------------------------------------------------------
 
 c     Call variables
 
@@ -85,7 +98,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine rm_file
+      end subroutine rm_files
 
       end module io
 
@@ -143,12 +156,18 @@ c     Find graphics files
         endif
 
         !Find out number of graphics files
-        nfiles = -1
-        ierr   = 0
-        do while (ierr == 0)
+cc        nfiles = -1
+cc        ierr   = 0
+cc        do while (ierr == 0)
+cc          nfiles=nfiles+1
+cc          ierr = shellcmd('test -f '//trim(base_fname)//'_proc'
+cc     .                 //trim(int2char(nfiles)))
+cc        enddo
+
+        nfiles = 0
+        do while (is_file(trim(base_fname)//'_proc'
+     .                  //trim(int2char(nfiles))))
           nfiles=nfiles+1
-          ierr = shellcmd('test -f '//trim(base_fname)//'_proc'
-     .                 //trim(int2char(nfiles)))
         enddo
 
       endif
