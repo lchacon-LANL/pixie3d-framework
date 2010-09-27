@@ -14,7 +14,7 @@ c----------------------------------------------------------------------
 
       use timeStepping
 
-      use constants
+c      use constants
 
       use iosetup
 

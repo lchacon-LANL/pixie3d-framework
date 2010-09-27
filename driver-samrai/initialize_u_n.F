@@ -16,11 +16,11 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-      use constants
+c      use constants
 
       use iosetup
 
-      use generalpurposefunctions
+c      use generalpurposefunctions
 
       implicit none
 

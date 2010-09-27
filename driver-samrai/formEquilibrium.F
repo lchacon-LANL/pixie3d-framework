@@ -18,11 +18,11 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-      use constants
+c      use constants
 
       use iosetup
 
-      use generalPurposeFunctions
+c      use generalPurposeFunctions
 
       implicit none
 
@@ -102,11 +102,11 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-      use constants
+c      use constants
 
       use iosetup
 
-      use generalPurposeFunctions
+c      use generalPurposeFunctions
 
       implicit none
 
@@ -141,7 +141,7 @@ c----------------------------------------------------------------------
 
       use parameters
 
-      use constants
+c      use constants
 
       use timeStepping
 
@@ -171,7 +171,7 @@ c----------------------------------------------------------------------
 
       use parameters
 
-      use constants
+c      use constants
 
       use timeStepping
 

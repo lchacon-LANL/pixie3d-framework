@@ -16,11 +16,11 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-      use constants
+c      use constants
 
       use iosetup
 
-      use generalpurposefunctions
+c      use generalpurposefunctions
 
 c      use auxiliaryVariables
 
@@ -151,7 +151,7 @@ c--------------------------------------------------------------------
 
       use timeStepping
 
-      use constants
+c      use constants
 
       use iosetup
 
@@ -238,12 +238,12 @@ c     Begin program
 
       if (my_rank == 0) write (*,*) 'Reading restart file(s)...'
 
-      call readRecordFile(urecord,itime,time,dt,vn,ierr)
+      ierr = readRecordFile(urecord,itime,time,dt,vn)
 
       vnp = vn
 
       do
-        call readRecordFile(urecord,itime,time,dt,vmed,ierr)
+        ierr = readRecordFile(urecord,itime,time,dt,vmed)
 
         if (ierr /= 0) then
           exit
@@ -313,7 +313,8 @@ c Open record file
 
       if (.not.restart) then
 
-        u_graph = u_0    !Needed for BCs
+        call equateDerivedType(u_graph,u_0)
+cc        u_graph = u_0    !Needed for BCs
 cc        u_graph = u_n  !For debugging to compare agains PC solution
 cc        u_graph = fsrc !For debugging source
 

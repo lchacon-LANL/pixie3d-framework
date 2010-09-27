@@ -11,7 +11,7 @@ c ######################################################################
 c Call variables
 
 c Local variables
-
+      integer    :: igr,ierr
 c Begin program
 
       call deallocateStructures

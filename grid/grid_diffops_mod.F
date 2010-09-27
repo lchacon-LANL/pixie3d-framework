@@ -192,6 +192,7 @@ c     End program
 
       end function curl_vrtx
 
+#if !defined(samrai)
 c     div_vrtx
 c     ##################################################################
       function div_vrtx(i,j,k,igx,igy,igz,v,vrtx) result(div)
@@ -277,7 +278,9 @@ c     Begin program
 c     End program
 
       end function div_vrtx
+#endif
 
+#if !defined(samrai)
 c     graddiv_vrtx
 c     ###############################################################
       function graddiv_vrtx(i,j,k,nx,ny,nz,igx,igy,igz,aa,vol)
@@ -337,7 +340,9 @@ c     Gradient at cell centers
 c     End program
 
       end function graddiv_vrtx
+#endif
 
+#if !defined(samrai)
 c     lap_vrtx
 c     ###############################################################
       function lap_vrtx(i,j,k,nx,ny,nz,igx,igy,igz,aa,vol,enf_bc)
@@ -421,6 +426,7 @@ c     Divergence at cell centers
 c     End program
 
       end function lap_vrtx
+#endif 
 
 c     curlcurl_vrtx_ndiff
 c     ###############################################################
@@ -6820,3 +6826,4 @@ c     End
       end function integral
 
       end module grid_diff_ops
+
