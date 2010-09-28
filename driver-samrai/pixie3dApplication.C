@@ -85,7 +85,6 @@ extern "C"{
 extern "C" {
 #ifdef absoft
 extern void FORTRAN_NAME(GETBC)(void*, int*, int**);
-extern void FORTRAN_NAME(FORTRANDESTROY) ();
 extern void FORTRAN_NAME(READINPUTFILE) (input_CTX*);
 extern void FORTRAN_NAME(CREATEGRIDSTRUCTURES) (void*);
 extern void FORTRAN_NAME(FORMEQUILIBRIUM) (void*);
@@ -93,7 +92,6 @@ extern void FORTRAN_NAME(INITIALIZE_U_N) (void*);
 extern void FORTRAN_NAME(FORMINITIALCONDITION) (void*, int*, double*);
 extern void FORTRAN_NAME(EVALUATENONLINEARRESIDUAL) (void*, int*, double*, void*);
 #else
-extern void FORTRAN_NAME(fortrandestroy) ();
 extern void FORTRAN_NAME(readinputfile) (input_CTX*);
 extern void FORTRAN_NAME(creategridstructures) (void*);
 extern void FORTRAN_NAME(formequilibrium) (void*);
@@ -149,12 +147,7 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
 pixie3dApplication::~pixie3dApplication()
 {
     // Delete all fortran variables
-    tbox::pout << "Call fortrandestroy\n";
-    //#ifdef absoft
-    //  FORTRAN_NAME(FORTRANDESTROY) ();
-    //#else
-    //  FORTRAN_NAME(fortrandestroy) ();
-    //#endif
+    tbox::pout << "Deleting application\n";
     // Delete the level containers
     LevelContainer *level_container;
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
@@ -172,6 +165,15 @@ pixie3dApplication::~pixie3dApplication()
     delete [] auxv_id;
     delete [] auxs_tmp_id;
     delete [] auxv_tmp_id;
+    delete [] f_id;
+    delete d_refine_strategy;
+    d_initial->freeVectorComponents();
+    d_x_tmp->freeVectorComponents();
+    d_x->freeVectorComponents();
+    d_aux_scalar->freeVectorComponents();
+    d_aux_vector->freeVectorComponents();;
+    d_aux_scalar_tmp->freeVectorComponents();
+    d_aux_vector_tmp->freeVectorComponents();
 }
 
 
@@ -849,6 +851,7 @@ void  pixie3dApplication::refineVariables(void)
             tbox::Pointer< xfer::RefineSchedule<NDIM> > schedule = refineVariableAlgorithm.createSchedule(
                                 level, ln-1, d_hierarchy, d_refine_strategy);
             schedule->fillData(0.0);
+            schedule.setNull();
         }
     }
    

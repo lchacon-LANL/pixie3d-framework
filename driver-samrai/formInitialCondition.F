@@ -96,9 +96,9 @@ c Set initial condition
 
       call setInitialCondition(u_n,u_np)
 
-c Initialize record file
-
-      call initializeRecordFile
+cc Initialize record file
+c
+c      call initializeRecordFile
 
 c Check time limits
 

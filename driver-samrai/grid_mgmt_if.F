@@ -226,17 +226,31 @@ c######################################################################
 
       use grid_def_st, only: grid_mg_def
       use variable_setup, only: var_array, aux_array, patch
+ 
       use parameters
+      use variables
 
+      use iosetup
       type(patch), target :: fpatch
       type(patch), pointer :: patch_data
 
       patch_data => fpatch;
+
+c      call destroyGrid(gv%gparams)
+      call deallocateGridMetric(patch_data%gparams%gmetric)
+      call deallocateGridStructure(gv%gparams)
+
+      deallocate(patch_data%u_0%array_var)
+      deallocate(patch_data%u_n%array_var)
+
       deallocate(patch_data%u_0)
       deallocate(patch_data%u_n) 
+
+      deallocate(patch_data%aux%var_list)
+      deallocate(patch_data%aux%vec_list)
       deallocate(patch_data%aux)
-      deallocate(patch_data%gparams)
-      deallocate(patch_data)
+c      deallocate(patch_data%gparams)
+c      deallocate(patch_data)
 
       end subroutine f_delete_patch_data
 
@@ -251,6 +265,7 @@ c######################################################################
       type(var_array), pointer :: array_data
 
       array_data => farray;
+      deallocate(array_data%array_var)
       deallocate(array_data)
 
       end subroutine f_delete_var_array

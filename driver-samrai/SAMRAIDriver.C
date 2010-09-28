@@ -68,7 +68,6 @@ extern "C"{
 
 #define GHOST_CELL_WIDTH (1)
 
-#define USE_MARK
 
 int main( int argc, char *argv[] ) 
 {
@@ -130,29 +129,25 @@ int main( int argc, char *argv[] )
 
    // Create the AMR hierarchy and initialize it
    tbox::Pointer<hier::PatchHierarchy<NDIM> > hierarchy;
-   #ifdef USE_MARK
-      // Get some of the databases
-      tbox::Pointer< tbox::Database > grid_db = input_db->getDatabase("CartesianGeometry");
-      tbox::Pointer< tbox::Database >  tag_db = input_db->getDatabase("StandardTagAndInitialize");
-      tbox::Pointer< tbox::Database > load_db = input_db->getDatabase("LoadBalancer");
-      tbox::Pointer< tbox::Database > grid_alg_db = input_db->getDatabase("GriddingAlgorithm");
-      // Create the hierarchy
-      tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry =
-         new geom::CartesianGridGeometry<NDIM>("CartesianGeometry",grid_db);
-      hierarchy = new hier::PatchHierarchy<NDIM>("PatchHierarchy", grid_geometry);
-      // Create the gridding algorithum
-      tbox::Pointer<mesh::StandardTagAndInitialize<NDIM> > error_detector =
-         new mesh::StandardTagAndInitialize<NDIM>( "CellTaggingMethod", test_object, tag_db );
-      tbox::Pointer<mesh::BergerRigoutsos<NDIM> > box_generator = new mesh::BergerRigoutsos<NDIM>();
-      tbox::Pointer<mesh::LoadBalancer<NDIM> > load_balancer =
-         new mesh::LoadBalancer<NDIM>("UniformLoadBalance",load_db);
-      tbox::Pointer<mesh::GriddingAlgorithm<NDIM> > gridding_algorithm =
-         new mesh::GriddingAlgorithm<NDIM>("GriddingAlgorithm", grid_alg_db, error_detector, box_generator, load_balancer);
-      // Create the coarsest level
-      gridding_algorithm->makeCoarsestLevel(hierarchy, -1);
-  #else
-      initializeAMRHierarchy(input_db,test_object,hierarchy);
-  #endif
+   // Get some of the databases
+   tbox::Pointer< tbox::Database > grid_db = input_db->getDatabase("CartesianGeometry");
+   tbox::Pointer< tbox::Database >  tag_db = input_db->getDatabase("StandardTagAndInitialize");
+   tbox::Pointer< tbox::Database > load_db = input_db->getDatabase("LoadBalancer");
+   tbox::Pointer< tbox::Database > grid_alg_db = input_db->getDatabase("GriddingAlgorithm");
+   // Create the hierarchy
+   tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry =
+      new geom::CartesianGridGeometry<NDIM>("CartesianGeometry",grid_db);
+   hierarchy = new hier::PatchHierarchy<NDIM>("PatchHierarchy", grid_geometry);
+   // Create the gridding algorithum
+   tbox::Pointer<mesh::StandardTagAndInitialize<NDIM> > error_detector =
+      new mesh::StandardTagAndInitialize<NDIM>( "CellTaggingMethod", test_object, tag_db );
+   tbox::Pointer<mesh::BergerRigoutsos<NDIM> > box_generator = new mesh::BergerRigoutsos<NDIM>();
+   tbox::Pointer<mesh::LoadBalancer<NDIM> > load_balancer =
+      new mesh::LoadBalancer<NDIM>("UniformLoadBalance",load_db);
+   tbox::Pointer<mesh::GriddingAlgorithm<NDIM> > gridding_algorithm =
+      new mesh::GriddingAlgorithm<NDIM>("GriddingAlgorithm", grid_alg_db, error_detector, box_generator, load_balancer);
+   // Create the coarsest level
+   gridding_algorithm->makeCoarsestLevel(hierarchy, -1);
  
    // Initialize the writer
    appu::VisItDataWriter<NDIM>* visit_writer;
@@ -160,7 +155,8 @@ int main( int argc, char *argv[] )
 
 
    // Create the application
-   SAMRAI::pixie3dApplicationParameters* application_parameters = new SAMRAI::pixie3dApplicationParameters( input_db->getDatabase("pixie3d"));
+   tbox::Pointer< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
+   SAMRAI::pixie3dApplicationParameters* application_parameters = new SAMRAI::pixie3dApplicationParameters(pixie3d_db);
    application_parameters->d_hierarchy = hierarchy;
    application_parameters->d_VizWriter = visit_writer;
    
@@ -249,23 +245,21 @@ int main( int argc, char *argv[] )
    // Delete the writer
    delete visit_writer;
    // Delete the hierarchy
-   #ifdef USE_MARK
-      //delete box_generator;
-      //delete gridding_algorithm;
-   #endif
+   var.setNull();
    hierarchy.setNull();
-   delete grid_geometry;
+   load_balancer.setNull();
+   gridding_algorithm.setNull();
+   grid_geometry.setNull();
    // Delete the application object
    delete test_object;
    // Delete the input database
    main_db.setNull();
    input_db.setNull();
-   #ifdef USE_MARK
-      grid_db.setNull();
-      tag_db.setNull();
-      load_db.setNull();
-      grid_alg_db.setNull();
-   #endif
+   pixie3d_db.setNull();
+   grid_db.setNull();
+   tag_db.setNull();
+   load_db.setNull();
+   grid_alg_db.setNull();
    tbox::InputManager::freeManager();
    delete input_db;
    tbox::pout << "Input database deleted\n";
