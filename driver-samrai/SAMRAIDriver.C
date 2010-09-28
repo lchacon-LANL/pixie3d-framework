@@ -235,7 +235,8 @@ int main( int argc, char *argv[] )
      }
 
 
-
+   // Barrier to make sure all processors have finished
+   tbox::SAMRAI_MPI::barrier();
    // Delete the time integrator
    delete tiFactory;
    delete timeIntegratorParameters;

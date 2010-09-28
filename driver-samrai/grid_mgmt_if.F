@@ -238,7 +238,7 @@ c######################################################################
 
 c      call destroyGrid(gv%gparams)
       call deallocateGridMetric(patch_data%gparams%gmetric)
-      call deallocateGridStructure(gv%gparams)
+      call deallocateGridStructure(patch_data%gparams)
 
       deallocate(patch_data%u_0%array_var)
       deallocate(patch_data%u_n%array_var)
