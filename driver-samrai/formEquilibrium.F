@@ -45,12 +45,12 @@ c Check for autoinitializing parameters
 
       pi = acos(-1d0)
 
-      if (maxitnwt.eq.0) 
-     .      maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
-
-      alpha = 1. - cnfactor
-
-      dtbase = dt   
+cc      if (maxitnwt.eq.0) 
+cc     .      maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
+cc
+cc      alpha = 1. - cnfactor
+cc
+cc      dtbase = dt   
 
 c Allocate global variable
 
@@ -74,14 +74,14 @@ cc      ones   = 1d0
 
 c Create nonlinear solver
 
-      call createNonlinearSolver
+      call allocateStructures
 
 c Create nonlinear function
 
-      call createNonlinearFunction
+cc      call createNonlinearFunction
 
       end subroutine createGridStructures
-      
+
 c     formEquilibrium
 c######################################################################
       subroutine formEquilibrium(patch_var)
@@ -130,36 +130,6 @@ c    Create equilibrium u_0
 c End program
  
       end subroutine formEquilibrium
-
-c createNonlinearSolver
-c######################################################################
-      subroutine createNonlinearSolver
-
-c----------------------------------------------------------------------
-c     Allocates nonlinear solver arrays
-c----------------------------------------------------------------------
-
-      use parameters
-
-c      use constants
-
-      use timeStepping
-
-      use variables
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-c Begin program
-
-      call allocateStructures
-
-c End programs
-
-      end subroutine createNonlinearSolver
 
 c createEquilibrium
 c######################################################################

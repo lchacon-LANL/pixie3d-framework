@@ -58,7 +58,6 @@ c Initialize old time solution
 
       call equateDerivedType(gv%u_n,gv%u_0)
 
-
 c End program
 
       end subroutine initialize_u_n
