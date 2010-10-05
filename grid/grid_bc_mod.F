@@ -67,6 +67,11 @@ c     isBC
 c     #################################################################
       function isBC(i,igr,ibc,BC)
 
+c     -----------------------------------------------------------------
+c     Checks whether point i at grid level igr, boundary location
+c     ibc=(1,6) (see isBdry for definition) is at boundary type BC.
+c     -----------------------------------------------------------------
+
         implicit none
 
         integer    :: i,igr,ibc,BC
@@ -92,6 +97,11 @@ c     #################################################################
 c     isSP2
 c     #################################################################
       function isSP2(i,igr,dim,loc,ibc)
+
+c     -----------------------------------------------------------------
+c     Checks whether point at grid level igr, dimension dim(=1,2,3)
+c     and location loc(=0,1) is at SP boundary
+c     -----------------------------------------------------------------
 
         implicit none
 
@@ -123,6 +133,11 @@ c     #################################################################
 c     isSYM
 c     #################################################################
       function isSYM(i,igr,dim,loc,ibc)
+
+c     -----------------------------------------------------------------
+c     Checks whether point at grid level igr, dimension dim(=1,2,3)
+c     and location loc(=0,1) is at SYM boundary
+c     -----------------------------------------------------------------
 
         implicit none
 
@@ -707,6 +722,11 @@ c     -----------------------------------------------------------------
       asm_dir(1) = asm.and.(npx > 1)
       asm_dir(2) = asm.and.(npy > 1)
       asm_dir(3) = asm.and.(npz > 1)
+
+      if (bc_debug) then
+        write (*,*) 'Proc ',my_rank,': asm    =',asm
+        write (*,*) 'Proc ',my_rank,': asm_dir=',asm_dir
+      endif
 
       end subroutine setASMflags
 
@@ -3982,7 +4002,7 @@ c     Call variables
       real(8),optional,intent(IN) ::
      .                         arr0   (0:nnx+1,0:nny+1,0:nnz+1,neq)
 
-      integer   ,optional,intent(IN) :: icomp,iorder
+      integer   ,optional,intent(IN) :: icomp(max(neq,3)/3),iorder
 
       logical   ,optional,intent(IN) :: is_cnv,is_vec,result_is_vec
       logical   ,optional,intent(OUT):: out_iscnv,out_isvec
@@ -3993,7 +4013,7 @@ c     Local variables
      .             ,imng,imxg,jmng,jmxg,kmng,kmxg
      .             ,imnl,imxl,jmnl,jmxl,kmnl,kmxl
 
-      integer,save :: ivar  !Needed to "remember' ivar from previous calls
+      integer,save :: ivar(2)  !Needed to "remember' ivar from previous calls
                                !when icomp is not provided.
 
       logical,save :: iscnv,isvec !Needed to "remember' these from previous calls
@@ -4009,7 +4029,7 @@ c     Begin program
 
 c     Optional arguments
 
-      if (PRESENT(icomp))  ivar  = icomp
+      if (PRESENT(icomp))  ivar(1:size(icomp))  = icomp
 
       if (PRESENT(is_cnv)) iscnv = is_cnv
 
@@ -4090,7 +4110,7 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
           vv0 = 0d0
         endif
 
-        call setBC(ivar,nnx,nny,nnz,array(:,:,:,1),vv0(:,:,:,1)
+        call setBC(ivar(1),nnx,nny,nnz,array(:,:,:,1),vv0(:,:,:,1)
      .            ,bcnd(:,neql),iig,iig,iig
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
      .            ,iorder=order)
@@ -4108,7 +4128,7 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
         endif
 
         do ieq=1,neql
-          call setBC(ivar,nnx,nny,nnz,array(:,:,:,ieq),vv0(:,:,:,ieq)
+          call setBC(ivar(1),nnx,nny,nnz,array(:,:,:,ieq),vv0(:,:,:,ieq)
      .            ,bcnd(:,ieq),iig,iig,iig
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
      .            ,iorder=order)
@@ -4169,7 +4189,7 @@ cc          vv0(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,:) = 0d0
         endif
 
         do ieq=1,neql/3
-          call setBC(ivar,3,nnx,nny,nnz
+          call setBC(ivar(ieq),3,nnx,nny,nnz
      .            ,v_cnv(:,:,:,1+3*(ieq-1):3*ieq)
      .            ,v_cov(:,:,:,1+3*(ieq-1):3*ieq)
      .            ,vv0  (:,:,:,1+3*(ieq-1):3*ieq)

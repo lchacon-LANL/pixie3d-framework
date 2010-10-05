@@ -16,6 +16,11 @@ c ########################################################################
 c     shellcmd
 c     ####################################################################
       function shellcmd(command) result (ierr)
+
+c     --------------------------------------------------------------------
+c     Runs shell command from fortran.
+c     --------------------------------------------------------------------
+
 #if defined(samrai)
       use iso_c_binding
       interface
@@ -32,12 +37,12 @@ c     Call variables
          character(*) :: command
        
 c     Local variables
-#if !defined(samrai)
-#if !defined(gfortran)
+
+#if !defined(samrai) && !defined(gfortran)
         integer    :: system
         external      system
 #endif
-#endif
+
 c     Begin program
 
         ierr = system(trim(command))
@@ -47,6 +52,10 @@ c     Begin program
 c     is_file
 c     ####################################################################
       function is_file(file)
+
+c     --------------------------------------------------------------------
+c     Checks whether "file" exists.
+c     --------------------------------------------------------------------
 
 c     Call variables
 
@@ -67,25 +76,37 @@ c     End program
 
       end function is_file
 
-c     rm_file
+c     rm_files
 c     ####################################################################
-      subroutine rm_file(file)
+      function rm_files(file) result(ierr)
+
+c     --------------------------------------------------------------------
+c     Removes all files starting with "file".
+c     --------------------------------------------------------------------
 
 c     Call variables
 
       character(*) :: file
 
+      integer :: ierr
+
 c     Local variables
 
-      integer :: ierr
+      character(200) :: command
 
 c     Begin program
 
-      ierr = shellcmd('rm -f '//trim(file)//'* > /dev/null')
+      command = 'rm -f '//trim(file)//'* > /dev/null'
+      ierr = shellcmd(trim(command))
+
+      if (ierr /= 0) then
+        write (*,*) 'IO error in rm_files=',ierr
+        write (*,*) 'Command: ',trim(command)
+      endif
 
 c     End program
 
-      end subroutine rm_file
+      end function rm_files
 
       end module io
 
@@ -137,16 +158,24 @@ c     Find graphics files
 
       else
 
-        write (*,*)
-        write (*,*) 'Opening '//trim(base_fname)//' files...'
+        if (myrank == 0) then
+          write (*,*)
+          write (*,*) 'Opening '//trim(base_fname)//' files...'
+        endif
 
         !Find out number of graphics files
-        nfiles = -1
-        ierr   = 0
-        do while (ierr == 0)
+cc        nfiles = -1
+cc        ierr   = 0
+cc        do while (ierr == 0)
+cc          nfiles=nfiles+1
+cc          ierr = shellcmd('test -f '//trim(base_fname)//'_proc'
+cc     .                 //trim(int2char(nfiles)))
+cc        enddo
+
+        nfiles = 0
+        do while (is_file(trim(base_fname)//'_proc'
+     .                  //trim(int2char(nfiles))))
           nfiles=nfiles+1
-          ierr = shellcmd('test -f '//trim(base_fname)//'_proc'
-     .                 //trim(int2char(nfiles)))
         enddo
 
       endif
@@ -182,11 +211,6 @@ c     Allocate arrays and open files
           open(munit(ifile),file=trim(file)
      $        ,form='unformatted',status='old')
         enddo
-      endif
-
-      if (myrank == 0) then
-        write (*,*) 'Finished!'
-        write (*,*)
       endif
 
 c End programs

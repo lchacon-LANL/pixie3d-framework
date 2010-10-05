@@ -85,10 +85,12 @@ c     Read reference grid info
       call allocateDerivedType(vref)
 
       do
-        ierr = readRecordFile(urecord,itime,tref,dt,vref)
-
+        call readTimeStep(vref,ierr)
+cc        ierr = readRecordFile(urecord,itime,tref,dt,vref)
         if (ierr /= 0) exit
       enddo
+
+      tref = time
 
       call closeRecordFiles
 
@@ -148,10 +150,12 @@ c Initialize current grid info and read current grid solution
       call allocateDerivedType(vsol)
 
       do
-        ierr = readRecordFile(urecord,itime,tsol,dt,vsol)
-
+        call readTimeStep(vsol,ierr)
+cc        ierr = readRecordFile(urecord,itime,tsol,dt,vsol)
         if (ierr /= 0) exit
       enddo
+
+      tsol = time
 
       call closeRecordFiles
 
@@ -250,6 +254,8 @@ c     Begin program
 
       call closeRecordFiles
 
+      time = 0d0
+
 c     Read reference field
 
       write (*,*)
@@ -261,9 +267,17 @@ c     Read reference field
       call allocateDerivedType(vref)
 
       do
-        ierr = readRecordFile(urecord,itime,tref,dt,vref)
+        call readTimeStep(vref,ierr)
         if (ierr /= 0) exit
       enddo
+
+      nx = ihig-ilog+1
+      ny = jhig-jlog+1
+      nz = khig-klog+1
+
+      write (*,*) 'Grid size =',nx,ny,nz
+      write (*,*) 'Final time=',time
+      write (*,*)
 
       call closeRecordFiles
 
@@ -278,9 +292,17 @@ c     Read current solution
       call allocateDerivedType(vsol)
 
       do
-        call readTimeStep(u_np,ierr)
+        call readTimeStep(vsol,ierr)
         if (ierr /= 0) exit
       enddo
+
+      nx = ihig-ilog+1
+      ny = jhig-jlog+1
+      nz = khig-klog+1
+
+      write (*,*) 'Grid size =',nx,ny,nz
+      write (*,*) 'Final time=',time
+      write (*,*)
 
       call closeRecordFiles
 
@@ -292,10 +314,6 @@ c     Calculate difference
      .            ,'Reference and solution are not at same time')
       endif
 
-      nx = ihig-ilog+1
-      ny = jhig-jlog+1
-      nz = khig-klog+1
-
       write (*,*) '>>>>> Temporal errors...'
       write (*,*)
 
@@ -303,8 +321,8 @@ c     Calculate difference
         aref => vref%array_var(ivar)%array
         asol => vsol%array_var(ivar)%array
 
-        asol = (asol-aref)**2
-        mag = integral(igx,igy,igz,nx,ny,nz,asol,average=.true.)
+        mag = integral(igx,igy,igz,nx,ny,nz,(asol-aref)**2
+     .                ,average=.true.)
         mag = sqrt(mag)
 
         write (*,10) ' L2-norm time error, component:',ivar,'=',mag

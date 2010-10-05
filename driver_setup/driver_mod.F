@@ -489,6 +489,8 @@ c     #######################################################################
 
       elseif (sm_flag == 2) then  !BDF2
 
+        cnfactor = 0d0
+
         bdf2 = (itm > 1 .and. (.not.timecorr) )
      .    .or. (itm > 2 .and.       timecorr  )
 
@@ -497,10 +499,6 @@ c     #######################################################################
           cnp = (2*dt+dtold)/(dt+dtold)
           cn  = -(dt+dtold)/dtold
           cnm = -cnp-cn    !Sum should be zero identically
-
-          cnfactor = 0d0
-        else
-          cnfactor = 0.5
         endif
 
       endif

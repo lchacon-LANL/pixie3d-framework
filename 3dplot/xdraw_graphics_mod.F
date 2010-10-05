@@ -211,10 +211,6 @@ c     Begin program
      .                 ,graph(igroup)%array_graph
      .                 ,graph(igroup)%cartesian,prof_conf%line,.false.)
 
-cc          call M_contour(igroup,ugraph(igroup),nqty(igroup)
-cc          call M_contour(ugraph(igroup),nqty(igroup)
-cc     .                     ,graph(igroup)%array_graph(1:nqty(igroup))
-cc     .                     ,graph(igroup)%cartesian,1)
           if (graph(igroup)%cartesian) then
             call M_contour(ugraph(igroup),nqty(igroup)
      .                     ,graph(igroup)%array_graph(1:nqty(igroup))

@@ -33,7 +33,7 @@ ifeq ($(FC),lf95)
   ADDMODFLAG   = -I
   VERBOSE      = --verbose
   CPPFLAGS    += $(PREPROC)lf95 
-  FFLAGS      += --quiet
+  FFLAGS      += --quiet --li
 
   ifdef BOPT
     FFLAGS    += --ml cdecl

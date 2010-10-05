@@ -16,8 +16,6 @@ c ******************************************************************
 
       use grid
 
-cc      use icond
-
 c Common variables
 
       implicit none
@@ -68,6 +66,13 @@ c Initialize PETSc and MPI (parallel version)
       call PetscLogStageRegister('Sol. processing',prof_stage(3),perr)  
 #endif
 
+c Initialize ADIOS for componentized I/O
+
+#if defined(adios) && defined(petsc)
+      call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
+      call adios_init('adios_config.xml', adios_err)
+#endif
+
 c Initialize calculation
 
 #if defined(petsc)
@@ -110,7 +115,7 @@ c Time loop
 
         itime = itime + 1
 
-        if (tmax.gt.0d0.and.time.ge.(tmax-1d-5*dt))  exit
+        if (tmax.gt.0d0.and.time.ge.(tmax-1d-9*dt))  exit
 cc        if (tmax.gt.0d0.and.time.gt.tmax)  exit
         if (numtime.ge.0.and.itime.ge.(numtime+inewtime)) exit
 
@@ -193,11 +198,13 @@ c     Time level data dump
 #if defined(RFX)
         if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
 #else
-        if (nrst.eq.ndstep.or.tmrst.ge.0.99*dstep) then
+        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep) then
 #endif
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
+ccnorb          write (*,*) 'call writeRecordFile: ',itime,time
           call writeRecordFile(urecord,itime,time,dt,u_np)
+ccnorb          write (*,*) 'return from  writeRecordFile ',itime
         endif
 
         if (eigen) exit
@@ -250,13 +257,6 @@ c Formats
 c End program
 
       call fortranDestroy
-
-#if defined(petsc)
-      !Finalize profiling
-      call PetscLogStagePop(perr)
-
-      call PetscFinalize(perr)
-#endif
 
       end
 
@@ -337,7 +337,6 @@ c Begin program
 
 c Evaluate nonlinear function at old time for theta scheme
 
-cc      jit = -1
       old_time_eval = .true.     !This informs nlfunction that we are processing
                                  !  n time level info
 
