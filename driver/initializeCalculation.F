@@ -138,6 +138,9 @@ c Set unperturbed forcing fields
       !This not only evaluates fsrc, but defines BCs on u_n
       call evaluateNonlinearFunction(u_n,fsrc)
 
+      !Dump source
+      if (chk_src) call dump_src
+
       if (.not.source) fsrc = 0d0
 
       source_eval = .false.
@@ -164,6 +167,63 @@ c Check time limits
       endif
 
 c End program
+
+      contains
+
+c     dump_src
+c     ###############################################################
+      subroutine dump_src
+
+        use grid_debug,ONLY:C_contour,cont_conf,dbg,createDrawInCfile
+
+        integer :: ieq,nx,ny,nz,nunit
+
+        character(10) :: srcf
+        character(4)  :: dbg_desc(neqd)
+        character(3)  :: xlabel,ylabel
+
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) '>>>>>>>>>>>>>>>>>'
+          write (*,*) 'Dumping source...'
+          write (*,*) '>>>>>>>>>>>>>>>>>'
+        endif
+
+        nx = grid_params%nxv(1)
+        ny = grid_params%nyv(1)
+        nz = grid_params%nzv(1)
+
+        xlabel=cont_conf%label(1)
+        ylabel=cont_conf%label(2)
+
+        do ieq=1,neqd
+          dbg_desc(ieq) = 'dgb'//trim(int2char(ieq))
+        enddo
+
+        srcf='src_p'//trim(int2char(my_rank))//'.bin'
+
+        call createDrawInCfile(neqd,trim(srcf),'Source'
+     .        ,'t',trim(xlabel),trim(ylabel),dbg_desc,'-c -X0 -L57'
+     .        ,'drawsrc_p'//trim(int2char(my_rank))//'.in')
+
+        call mapVectorToStructure(u_graph,fsrc)
+
+        nunit = 110
+
+        open(nunit,file=trim(srcf),form='unformatted'
+     .        ,status='replace')
+
+        do ieq=1,neqd
+          call C_contour(u_graph%array_var(ieq)%array(1:nx,1:ny,1:nz)
+     .                ,grid_params%gxmin,grid_params%gxmax
+     .                ,grid_params%gymin,grid_params%gymax
+     .                ,grid_params%gzmin,grid_params%gzmax
+     .                ,ieq-1,nunit)
+        enddo
+
+        close (nunit)
+
+      end subroutine dump_src
 
       end subroutine initializeCalculation
 
@@ -602,7 +662,7 @@ c Open record file
 
       if (.not.restart) then
 
-        !Check source/PC debugging
+        !PC debugging
 cc        if (chk_src) then
 cc          call mapVectorToStructure(u_graph,fsrc)
 cc        else
@@ -612,36 +672,19 @@ cccc           u_graph = u_n
 cccc         endif
 cc        endif
 
-        if (chk_src) then
+        !Impose BC's on u_graph <- u_0
+        !(do not overwrite u_0, since it contains equil. BCs;
+        ! do nothing at EQU boundaries, to preserve EQU BCs)
+        call equateDerivedType(u_graph,u_0)
 
-          !Check source
-          if (my_rank == 0) write (*,*) 'Dumping source...'
-          call mapVectorToStructure(u_graph,fsrc)
+        call imposeBoundaryConditions(u_graph,1,1,1,obc=0)
 
-        else
-          !Impose BC's on u_graph <- u_0
-          !(do not overwrite u_0, since it contains equil. BCs;
-          ! do nothing at EQU boundaries, to preserve EQU BCs)
-          call equateDerivedType(u_graph,u_0)
-
-          call imposeBoundaryConditions(u_graph,1,1,1,obc=0)
-        endif
-
+        !Initialize POSIX files
 #if !defined(adios)
-        if (my_rank == 0) call rm_files(recordfile)  !Remove all files if POSIX
-
-#if defined(petsc) 
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+        call init_POSIX
 #endif
 
-        !Initialize record file
-        call openBinFile(urecord,recordfile,status='unknown')
-
-        write (urecord) nxl,ilog,ihig
-        write (urecord) nyl,jlog,jhig
-        write (urecord) nzl,klog,khig
-#endif
-
+        !Dump initial data
         call writeRecordFile(urecord,0,0d0,dt,u_graph)
         call writeRecordFile(urecord,0,0d0,dt,u_np)
 
@@ -657,5 +700,26 @@ cc        endif
       endif
 
 c End programs
+
+      contains
+
+c     init_POSIX
+c     ##############################################################
+      subroutine init_POSIX
+
+        if (my_rank == 0) ierr = rm_files(recordfile)
+
+#if defined(petsc) 
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
+
+        !Initialize record file
+        call openBinFile(urecord,recordfile,status='unknown')
+
+        write (urecord) nxl,ilog,ihig
+        write (urecord) nyl,jlog,jhig
+        write (urecord) nzl,klog,khig
+
+      end subroutine init_POSIX
 
       end subroutine initializeRecordFile
