@@ -83,7 +83,7 @@ ifeq ($(HOST),quevedo.ornl.gov)
 
       HDF5_HOME =/usr/lib64
       HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  =(HDF5_HOME)/gfortran/modules
+      HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
       HDF5_INC  =-I/usr/include
 
       ADIOS = f
