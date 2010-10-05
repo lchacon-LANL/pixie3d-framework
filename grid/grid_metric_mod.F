@@ -496,7 +496,7 @@ c     Fill ghost cells
 
 c     map_bc
 c     #################################################################
-      subroutine map_bc(dim,igrid,nxl,nyl,nzl,x_j,x0_j,iorder)
+      subroutine map_bc(dim,igrid,nxl,nyl,nzl,x_j,x0_j,iorder,bconds)
 
 c     -----------------------------------------------------------------
 c     Impose BCs on map component x_j using boundary of x0_j.
@@ -506,16 +506,17 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: dim,igrid,nxl,nyl,nzl
+        integer :: dim,igrid,nxl,nyl,nzl
 
-        real(8)    :: x_j (0:nxl+1,0:nyl+1,0:nzl+1)
-     .               ,x0_j(0:nxl+1,0:nyl+1,0:nzl+1)
+        real(8) :: x_j (0:nxl+1,0:nyl+1,0:nzl+1)
+     .            ,x0_j(0:nxl+1,0:nyl+1,0:nzl+1)
 
-        integer   ,optional,intent(IN) :: iorder
+        integer,optional,intent(IN) :: iorder
+        integer,optional :: bconds(2)
 
 c     Local variables
 
-        integer    :: bcnd(6),iibc,order
+        integer :: bcnd(6),iibc,order
 
 c     Begin program
 
@@ -527,29 +528,49 @@ c     Begin program
 
 c     Setup boundary conditions (topological conditions are meaningless for maps!)
 
-        bcnd = EXT
+        where (bcond == DEF)
+          bcnd = EXT
+        elsewhere
+          bcnd = DEF
+        end where
 
-        !Force boundaries along dimension
-        select case(dim)
-        case(1)
-cc          if (nxl > 1) then
-            bcnd(1:2) = EQU
-cc          else
-cc            bcnd(1:2) = PER
-cc          endif
-        case(2)
-cc          if (nyl > 1) then
-            bcnd(3:4) = EQU
-cc          else
-cc            bcnd(3:4) = PER
-cc          endif
-        case(3)
-cc          if (nzl > 1) then
-            bcnd(5:6) = EQU
-cc          else
-cc            bcnd(5:6) = PER
-cc          endif
-        end select
+        if (PRESENT(bconds)) then
+          bcnd = DEF
+
+          select case(dim)
+          case(1)
+            bcnd(1:2) = bconds
+          case(2)
+            bcnd(3:4) = bconds
+          case(3)
+            bcnd(5:6) = bconds
+          end select
+
+        else
+          bcnd = EXT
+
+          !Force boundaries along dimension
+          select case(dim)
+          case(1)
+cc            if (nxl > 1) then
+              bcnd(1:2) = EQU
+cc            else
+cc              bcnd(1:2) = PER
+cc            endif
+          case(2)
+cc            if (nyl > 1) then
+              bcnd(3:4) = EQU
+cc            else
+cc              bcnd(3:4) = PER
+cc            endif
+          case(3)
+cc            if (nzl > 1) then
+              bcnd(5:6) = EQU
+cc            else
+cc              bcnd(5:6) = PER
+cc            endif
+          end select
+        endif
 
 c     Impose BCs
 
@@ -1115,6 +1136,7 @@ cc        enddo
                 write (*,*) 'Jacobian=',jac
                 call pstop('findVertexMetrics','Inverted jacobian')
               elseif (isSP2(i+1,igrid,ibc=1)) then
+cc              if (isSP2(i+1,igrid,ibc=1)) then
                 ijac = 0d0
               else
                 ijac = 1d0/jac
