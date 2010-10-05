@@ -781,18 +781,17 @@ c     ---------------------------------------------------------------------
         do k=klo,khip
           do j=jlo,jhip
             do i=ilo,ihip
-              if (i == ilo .and. ilog == 1 .and. bcSP()) then
-                node(i,j,k,:) = 0.25*(cell(i-1,j  ,k  ,:)
-     .                               +cell(i-1,j-1,k  ,:)
-     .                               +cell(i-1,j  ,k-1,:)
-     .                               +cell(i-1,j-1,k-1,:))
-              else
+cc              if (isSP2(i,1,ibc=1)) then
+cc                node(i,j,k,:)=
+cc     .             0.5*(sum(cell(i,jlo:jhi,k-1,:),dim=1)/(jhi-jlo+1)
+cc     .                 +sum(cell(i,jlo:jhi,k  ,:),dim=1)/(jhi-jlo+1))
+cc              else
                 node(i,j,k,:) = 0.125
      .                       *(cell(i  ,j  ,k  ,:)+cell(i-1,j  ,k  ,:)
      .                        +cell(i  ,j-1,k  ,:)+cell(i-1,j-1,k  ,:)
      .                        +cell(i  ,j  ,k-1,:)+cell(i-1,j  ,k-1,:)
      .                        +cell(i  ,j-1,k-1,:)+cell(i-1,j-1,k-1,:))
-              endif
+cc              endif
             enddo
           enddo
         enddo
