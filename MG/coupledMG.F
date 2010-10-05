@@ -1293,15 +1293,15 @@ c     Map vector to array
         if (have_equl) then
           call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
      .                ,arr0=equl%grid(igc)%array
-     .                ,icomp=icmp,is_cnv=is__cnv,is_vec=is__vec
+     .                ,icomp=(/icmp/),is_cnv=is__cnv,is_vec=is__vec
      .                ,result_is_vec=res_is_vec,iorder=order)
         else
           bcmod = bcnd
           where (bcnd == EQU)
             bcmod = EXT
           end where
-          call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod,icomp=icmp
-     .              ,is_cnv=is__cnv,is_vec=is__vec
+          call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
+     .              ,icomp=(/icmp/),is_cnv=is__cnv,is_vec=is__vec
      .              ,result_is_vec=res_is_vec,iorder=order)
 cc     .              ,is_cnv=is__cnv)
         endif
