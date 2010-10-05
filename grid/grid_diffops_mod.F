@@ -867,11 +867,11 @@ c ######################################################################
         end INTERFACE
 
         INTERFACE curl
-          module procedure curl_ijk,curl2_ijk,curl_mesh
+          module procedure curl_ijk,curl_mesh
         end INTERFACE
 
         INTERFACE div
-          module procedure div_ijk,div2_ijk,div_mesh
+          module procedure div_ijk,div_mesh
         end INTERFACE
 
       contains
@@ -941,14 +941,12 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ip,im,jp,jm,kp,km,ig,jg,kg,igrid
+      integer :: ip,im,jp,jm,kp,km,ig,jg,kg
       real(8) :: dhx,dhy,dhz,dx1,dx2,dy1,dy2,dz1,dz2
       real(8) :: daxdz,dazdx,daydx,daxdy,dazdy,daydz
       real(8) :: jac0,jacp,jacm,ll,al,ar,gx,gy,gz
 
 c     Begin program
-
-      igrid = igx
 
       ip = i+1
       im = i-1
@@ -1077,9 +1075,6 @@ c     Local variables
 
 c     Begin program
 
-cc      do k=1,nz
-cc        do j=1,ny
-cc          do i=1,nx
       do k=0,nz+1
         do j=0,ny+1
           do i=0,nx+1
@@ -1134,48 +1129,48 @@ c     End program
 
       end function curl_ijk
 
-c     curl2_ijk
-c     ###############################################################
-      function curl2_ijk(i,j,k,nx,ny,nz,igx,igy,igz,ax,ay,az,he)
-     .         result(cnv)
-
-c     ---------------------------------------------------------------
-c     Calculates curl(A) in general non-orthogonal
-c     coordinates, preserving the SPD property. The vector A is
-c     covariant, and returns the contravariant component "comp".
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      real(8)    :: cnv(3)
-
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-
-      real(8)    :: ax(0:nx+1,0:ny+1,0:nz+1)
-     .             ,ay(0:nx+1,0:ny+1,0:nz+1)
-     .             ,az(0:nx+1,0:ny+1,0:nz+1)
-
-      integer,optional :: he
-
-c     Local variables
-
-      real(8) :: gv(3,3)
-
-c     Begin program
-
-      gv(:,1) = grad(i,j,k,nx,ny,nz,igx,igy,igz,ax,he=he)
-      gv(:,2) = grad(i,j,k,nx,ny,nz,igx,igy,igz,ay,he=he)
-      gv(:,3) = grad(i,j,k,nx,ny,nz,igx,igy,igz,az,he=he)
-
-      cnv(1) = gv(2,3)-gv(3,2)
-      cnv(2) = gv(3,1)-gv(1,3)
-      cnv(3) = gv(1,2)-gv(2,1)
-
-c     End program
-
-      end function curl2_ijk
+ccc     curl2_ijk
+ccc     ###############################################################
+cc      function curl2_ijk(i,j,k,nx,ny,nz,igx,igy,igz,ax,ay,az,he)
+cc     .         result(cnv)
+cc
+ccc     ---------------------------------------------------------------
+ccc     Calculates curl(A) in general non-orthogonal
+ccc     coordinates, preserving the SPD property. The vector A is
+ccc     covariant, and returns the contravariant component "comp".
+ccc     ---------------------------------------------------------------
+cc
+cc      implicit none           !For safe fortran
+cc
+ccc     Call variables
+cc
+cc      real(8)    :: cnv(3)
+cc
+cc      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+cc
+cc      real(8)    :: ax(0:nx+1,0:ny+1,0:nz+1)
+cc     .             ,ay(0:nx+1,0:ny+1,0:nz+1)
+cc     .             ,az(0:nx+1,0:ny+1,0:nz+1)
+cc
+cc      integer,optional :: he
+cc
+ccc     Local variables
+cc
+cc      real(8) :: gv(3,3)
+cc
+ccc     Begin program
+cc
+cc      gv(:,1) = grad(i,j,k,nx,ny,nz,igx,igy,igz,ax,he=he)
+cc      gv(:,2) = grad(i,j,k,nx,ny,nz,igx,igy,igz,ay,he=he)
+cc      gv(:,3) = grad(i,j,k,nx,ny,nz,igx,igy,igz,az,he=he)
+cc
+cc      cnv(1) = gv(2,3)-gv(3,2)
+cc      cnv(2) = gv(3,1)-gv(1,3)
+cc      cnv(3) = gv(1,2)-gv(2,1)
+cc
+ccc     End program
+cc
+cc      end function curl2_ijk
 
 c     curl_mesh
 c     ###############################################################
@@ -1202,11 +1197,6 @@ c     Local variables
 
 c     Begin program
 
-cc      cnv = 0d0
-cc
-cc      do k=1,nz
-cc        do j=1,ny
-cc          do i=1,nx
       do k=0,nz+1
         do j=0,ny+1
           do i=0,nx+1
@@ -1218,235 +1208,6 @@ cc          do i=1,nx
 c     End program
 
       end function curl_mesh
-
-ccc     curl
-ccc     ###############################################################
-cc      function curl(i,j,k,nx,ny,nz,igx,igy,igz,ax,ay,az,he) result(crl)
-cc
-ccc     ---------------------------------------------------------------
-ccc     Calculates curl(A) at cell centers in general non-orthogonal
-ccc     coordinates. The vector components (ax,ay,az) are covariant.
-ccc     ---------------------------------------------------------------
-cc
-cc      implicit none           !For safe fortran
-cc
-ccc     Call variables
-cc
-cc      real(8)    :: crl(3)
-cc
-cc      integer    :: i,j,k,comp,nx,ny,nz,igx,igy,igz
-cc      integer   , optional :: he
-cc
-cc      real(8)    :: ax(0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,ay(0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,az(0:nx+1,0:ny+1,0:nz+1)
-cc
-ccc     Local variables
-cc
-cc      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg,igrid,half_elem
-cc      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
-cc     .             ,idhx,idhy,idhz
-cc      real(8)    :: dS1,dS2,dS3,x0,y0,z0,jac,dx1,dx2,ll
-cc     .             ,xip,yip,zip,jacp,xh,yh,zh,jach
-cc
-ccc     Begin program
-cc
-cc      if (PRESENT(he)) then
-cc        half_elem = he
-cc      else
-cc        half_elem = 0
-cc      endif
-cc
-cc      igrid = igx
-cc
-cc      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-cc
-cc      idhx = 1d0/grid_params%dxh(ig)
-cc      idhy = 1d0/grid_params%dyh(jg)
-cc      idhz = 1d0/grid_params%dzh(kg)
-cc
-cc      ip = i+1
-cc      im = i-1
-cc      jp = j+1
-cc      jm = j-1
-cc      kp = k+1
-cc      km = k-1
-cc
-cc      select case(half_elem)
-cc      case (1)
-cc        idhx = 1./grid_params%dx(ig)
-cc
-cc        !X comp
-cc
-cc        flxjp = 0.25*(az(i ,jp,k)+az(i ,j,k)
-cc     .               +az(ip,jp,k)+az(ip,j,k))
-cc        flxjm = 0.25*(az(i ,jm,k)+az(i ,j,k)
-cc     .               +az(ip,jm,k)+az(ip,j,k))
-cc
-cc        flxkp =-0.25*(ay(i ,j,kp)+ay(i ,j,k)
-cc     .               +ay(ip,j,kp)+ay(ip,j,k))
-cc        flxkm =-0.25*(ay(i ,j,km)+ay(i ,j,k)
-cc     .               +ay(ip,j,km)+ay(ip,j,k))
-cc
-cc        crl(1) = (flxjp-flxjm)*idhy
-cc     .          +(flxkp-flxkm)*idhz
-cc
-cc        !Y comp
-cc
-cc        flxip =-az(ip,j,k)
-cc        flxim =-az(i ,j,k)
-cc
-cc        flxkp = 0.25*(ax(i ,j,kp)+ax(i ,j,k)
-cc     .               +ax(ip,j,kp)+ax(ip,j,k))
-cc        flxkm = 0.25*(ax(i ,j,km)+ax(i ,j,k)
-cc     .               +ax(ip,j,km)+ax(ip,j,k))
-cc
-cc        crl(2) = (flxip-flxim)*idhx
-cc     .          +(flxkp-flxkm)*idhz
-cc
-cc        !Z comp
-cc
-cc        flxip = ay(ip,j,k)
-cc        flxim = ay(i ,j,k)
-cc
-cc        flxjp =-0.25*(ax(i ,jp,k)+ax(i ,j,k)
-cc     .               +ax(ip,jp,k)+ax(ip,j,k))
-cc        flxjm =-0.25*(ax(i ,jm,k)+ax(i ,j,k)
-cc     .               +ax(ip,jm,k)+ax(ip,j,k))
-cc
-cc        crl(3) = (flxip-flxim)*idhx
-cc     .          +(flxjp-flxjm)*idhy
-cc
-cc      case (2)
-cc
-cc        idhy = 1./grid_params%dy(jg)
-cc
-cc        !X comp
-cc
-cc        flxjp = az(i,jp,k)
-cc        flxjm = az(i,j ,k)
-cc
-cc        flxkp =-0.25*(ay(i,j ,kp)+ay(i,j ,k)
-cc     .               +ay(i,jp,kp)+ay(i,jp,k))
-cc        flxkm =-0.25*(ay(i,j ,km)+ay(i,j ,k)
-cc     .               +ay(i,jp,km)+ay(i,jp,k))
-cc
-cc        crl(1) = (flxjp-flxjm)*idhy
-cc     .          +(flxkp-flxkm)*idhz
-cc
-cc        !Y comp
-cc
-cc        flxip =-0.25*(az(ip,j ,k)+az(i,j ,k)
-cc     .               +az(ip,jp,k)+az(i,jp,k))
-cc        flxim =-0.25*(az(im,j ,k)+az(i,j ,k)
-cc     .               +az(im,jp,k)+az(i,jp,k))
-cc
-cc        flxkp = 0.25*(ax(i,j ,kp)+ax(i,j ,k)
-cc     .               +ax(i,jp,kp)+ax(i,jp,k))
-cc        flxkm = 0.25*(ax(i,j ,km)+ax(i,j ,k)
-cc     .               +ax(i,jp,km)+ax(i,jp,k))
-cc
-cc        crl(2) = (flxip-flxim)*idhx
-cc     .          +(flxkp-flxkm)*idhz
-cc
-cc        !Z comp
-cc
-cc        flxip = 0.25*(ay(ip,j ,k)+ay(i,j ,k)
-cc     .               +ay(ip,jp,k)+ay(i,jp,k))
-cc        flxim = 0.25*(ay(im,j ,k)+ay(i,j ,k)
-cc     .               +ay(im,jp,k)+ay(i,jp,k))
-cc
-cc        flxjp =-ax(i,jp,k)
-cc        flxjm =-ax(i,j ,k)
-cc
-cc        crl(3) = (flxip-flxim)*idhx
-cc     .          +(flxjp-flxjm)*idhy
-cc
-cc      case (3)
-cc
-cc        idhz = 1./grid_params%dz(kg)
-cc
-cc        !X comp
-cc
-cc        flxjp = 0.25*(az(i,jp,k )+az(i,j,k )
-cc     .               +az(i,jp,kp)+az(i,j,kp))
-cc        flxjm = 0.25*(az(i,jm,k )+az(i,j,k )
-cc     .               +az(i,jm,kp)+az(i,j,kp))
-cc
-cc        flxkp =-ay(i,j,kp)
-cc        flxkm =-ay(i,j,k )
-cc
-cc        crl(1) = (flxjp-flxjm)*idhy
-cc     .          +(flxkp-flxkm)*idhz
-cc
-cc        !Y comp
-cc
-cc        flxip =-0.25*(az(ip,j,k )+az(i,j,k )
-cc     .               +az(ip,j,kp)+az(i,j,kp))
-cc        flxim =-0.25*(az(im,j,k )+az(i,j,k )
-cc     .               +az(im,j,kp)+az(i,j,kp))
-cc
-cc        flxkp = ax(i,j,kp)
-cc        flxkm = ax(i,j,k )
-cc
-cc        crl(2) = (flxip-flxim)*idhx
-cc     .          +(flxkp-flxkm)*idhz
-cc
-cc        !Z comp
-cc
-cc        flxip = 0.25*(ay(ip,j,k )+ay(i,j,k )
-cc     .               +ay(ip,j,kp)+ay(i,j,kp))
-cc        flxim = 0.25*(ay(im,j,k )+ay(i,j,k )
-cc     .               +ay(im,j,kp)+ay(i,j,kp))
-cc
-cc        flxjp =-0.25*(ax(i,jp,k )+ax(i,j,k )
-cc     .               +ax(i,jp,kp)+ax(i,j,kp))
-cc        flxjm =-0.25*(ax(i,jm,k )+ax(i,j,k )
-cc     .               +ax(i,jm,kp)+ax(i,j,kp))
-cc
-cc        crl(3) = (flxip-flxim)*idhx
-cc     .          +(flxjp-flxjm)*idhy
-cc
-cc      case default
-cc
-cc        !X comp
-cc
-cc        flxjp = 0.5*(az(i,jp,k)+az(i,j,k))
-cc        flxjm = 0.5*(az(i,jm,k)+az(i,j,k))
-cc
-cc        flxkp =-0.5*(ay(i,j,kp)+ay(i,j,k))
-cc        flxkm =-0.5*(ay(i,j,km)+ay(i,j,k))
-cc
-cc        crl(1) = (flxjp-flxjm)*idhy
-cc     .          +(flxkp-flxkm)*idhz
-cc
-cc        !Y comp
-cc
-cc        flxip =-0.5*(az(ip,j,k)+az(i,j,k))
-cc        flxim =-0.5*(az(im,j,k)+az(i,j,k))
-cc
-cc        flxkp = 0.5*(ax(i,j,kp)+ax(i,j,k))
-cc        flxkm = 0.5*(ax(i,j,km)+ax(i,j,k))
-cc
-cc        crl(2) = (flxip-flxim)*idhx
-cc     .          +(flxkp-flxkm)*idhz
-cc
-cc        !Z comp
-cc
-cc        flxip = 0.5*(ay(ip,j,k)+ay(i,j,k))
-cc        flxim = 0.5*(ay(im,j,k)+ay(i,j,k))
-cc
-cc        flxjp =-0.5*(ax(i,jp,k)+ax(i,j,k))
-cc        flxjm =-0.5*(ax(i,jm,k)+ax(i,j,k))
-cc
-cc        crl(3) = (flxip-flxim)*idhx
-cc     .          +(flxjp-flxjm)*idhy
-cc
-cc      end select
-cc
-ccc     End program
-cc
-cc      end function curl
 
 c     div_ijk
 c     ###############################################################
@@ -1460,49 +1221,16 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-      real(8)    :: cnv(0:nx+1,0:ny+1,0:nz+1,3),div
-      integer   ,optional :: he
-      logical,optional    :: sp
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+      real(8) :: cnv(0:nx+1,0:ny+1,0:nz+1,3),div
+      integer,optional :: he
+      logical,optional :: sp
 
 c     Local variables
 
-c     Begin program
-
-      div = div2_ijk(i,j,k,nx,ny,nz,igx,igy,igz
-     .             ,cnv(:,:,:,1)
-     .             ,cnv(:,:,:,2)
-     .             ,cnv(:,:,:,3)
-     .             ,he=he,sp=sp)
-
-c     End 
-
-      end function div_ijk
-
-c     div2_ijk
-c     ###############################################################
-      function div2_ijk(i,j,k,nx,ny,nz,igx,igy,igz,ax,ay,az,he,sp)
-     .         result(div)
-      implicit none
-c     ---------------------------------------------------------------
-c     Calculates divergence of vector field at cell centers in
-c     general non-orthogonal geometry.
-c     ---------------------------------------------------------------
-
-c     Call variables
-
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-      real(8)    :: ax(0:nx+1,0:ny+1,0:nz+1)
-     .             ,ay(0:nx+1,0:ny+1,0:nz+1)
-     .             ,az(0:nx+1,0:ny+1,0:nz+1),div
-      integer   ,optional :: he
-      logical,optional    :: sp
-
-c     Local variables
-
-      integer    :: ig,jg,kg,igrid,half_elem,ip,im,jp,jm,kp,km
-      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jacp,jacm,jac0,jach
-      logical    :: spoint
+      integer :: ig,jg,kg,igrid,half_elem,ip,im,jp,jm,kp,km
+      real(8) :: dxx,dyy,dzz,x0,y0,z0,jacp,jacm,jac0,jach
+      logical :: spoint
 
 c     Begin program
 
@@ -1557,21 +1285,115 @@ c     Begin program
         jacp = gmetric%grid(igrid)%jac(i+1,j,k)
         jach = 0.5*(jacp+jac0)   !Only good for cylindrical-like geom.
 
-        div = ((ax(i+1,j  ,k  )/jacp
-     .         +ax(i  ,j  ,k  )/jac0)*jach     )/dxx
-     .        +(ay(i  ,j+1,k  )-ay(i  ,j-1,k  ))/dyy
-     .        +(az(i  ,j  ,k+1)-az(i  ,j  ,k-1))/dzz
+        div = ((cnv(i+1,j  ,k  ,1)/jacp
+     .         +cnv(i  ,j  ,k  ,1)/jac0)*jach        )/dxx
+     .        +(cnv(i  ,j+1,k  ,2)-cnv(i  ,j-1,k  ,2))/dyy
+     .        +(cnv(i  ,j  ,k+1,3)-cnv(i  ,j  ,k-1,3))/dzz
       else
-        div =  (ax(ip,j ,k )-ax(im,j ,k ))/dxx
-     .        +(ay(i ,jp,k )-ay(i ,jm,k ))/dyy
-     .        +(az(i ,j ,kp)-az(i ,j ,km))/dzz
+        div =  (cnv(ip,j ,k ,1)-cnv(im,j ,k ,1))/dxx
+     .        +(cnv(i ,jp,k ,2)-cnv(i ,jm,k ,2))/dyy
+     .        +(cnv(i ,j ,kp,3)-cnv(i ,j ,km,3))/dzz
       endif
 
       div = div/jac0
       
 c     End 
 
-      end function div2_ijk
+      end function div_ijk
+
+ccc     div2_ijk
+ccc     ###############################################################
+cc      function div2_ijk(i,j,k,nx,ny,nz,igx,igy,igz,ax,ay,az,he,sp)
+cc     .         result(div)
+cc      implicit none
+ccc     ---------------------------------------------------------------
+ccc     Calculates divergence of vector field at cell centers in
+ccc     general non-orthogonal geometry.
+ccc     ---------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+cc      real(8)    :: ax(0:nx+1,0:ny+1,0:nz+1)
+cc     .             ,ay(0:nx+1,0:ny+1,0:nz+1)
+cc     .             ,az(0:nx+1,0:ny+1,0:nz+1),div
+cc      integer   ,optional :: he
+cc      logical,optional    :: sp
+cc
+ccc     Local variables
+cc
+cc      integer    :: ig,jg,kg,igrid,half_elem,ip,im,jp,jm,kp,km
+cc      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jacp,jacm,jac0,jach
+cc      logical    :: spoint
+cc
+ccc     Begin program
+cc
+cc      if (PRESENT(he)) then
+cc        half_elem = he
+cc      else
+cc        half_elem = 0
+cc      endif
+cc
+cc      if (PRESENT(sp)) then
+cc        spoint = sp
+cc      else
+cc        spoint = .false.
+cc      endif
+cc
+cc      igrid = igx
+cc
+cc      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+cc
+cc      ip = i+1
+cc      im = i-1
+cc      jp = j+1
+cc      jm = j-1
+cc      kp = k+1
+cc      km = k-1
+cc
+cc      dxx = 2*grid_params%dxh(ig)
+cc      dyy = 2*grid_params%dyh(jg)
+cc      dzz = 2*grid_params%dzh(kg)
+cc
+cc      jac0 = gmetric%grid(igrid)%jac(i,j,k)
+cc
+cc      select case(half_elem)
+cc      case(1)
+cc        im = i
+cc        dxx = grid_params%dx(ig)
+cc        jac0 = 0.5*(gmetric%grid(igrid)%jac(ip,j,k)
+cc     .             +gmetric%grid(igrid)%jac(i ,j,k))
+cc      case(2)
+cc        jm = j
+cc        dyy = grid_params%dy(jg)
+cc        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,jp,k)
+cc     .             +gmetric%grid(igrid)%jac(i,j ,k))
+cc      case(3)
+cc        km = k
+cc        dzz = grid_params%dz(kg)
+cc        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,j,kp)
+cc     .             +gmetric%grid(igrid)%jac(i,j,k ))
+cc      end select
+cc
+cc      if (isSP(i,j,k,igx,igy,igz).and.half_elem == 0.and.spoint) then
+cc        jacp = gmetric%grid(igrid)%jac(i+1,j,k)
+cc        jach = 0.5*(jacp+jac0)   !Only good for cylindrical-like geom.
+cc
+cc        div = ((ax(i+1,j  ,k  )/jacp
+cc     .         +ax(i  ,j  ,k  )/jac0)*jach     )/dxx
+cc     .        +(ay(i  ,j+1,k  )-ay(i  ,j-1,k  ))/dyy
+cc     .        +(az(i  ,j  ,k+1)-az(i  ,j  ,k-1))/dzz
+cc      else
+cc        div =  (ax(ip,j ,k )-ax(im,j ,k ))/dxx
+cc     .        +(ay(i ,jp,k )-ay(i ,jm,k ))/dyy
+cc     .        +(az(i ,j ,kp)-az(i ,j ,km))/dzz
+cc      endif
+cc
+cc      div = div/jac0
+cc      
+ccc     End 
+cc
+cc      end function div2_ijk
 
 c     div_mesh
 c     ###############################################################
@@ -1598,7 +1420,7 @@ c     Local variables
 
 c     Begin program
 
-      cnv = 0d0
+      scl = 0d0
 
       do k=1,nz
         do j=1,ny
@@ -4731,205 +4553,205 @@ ccc     End
 cc
 cc      end function advec
 cc
-ccc     c_advec
-ccc     ###############################################################
-cc      function c_advec(i,j,k,nx,ny,nz,igx,igy,igz,v1,v2,v3,phi
-cc     .                ,sp,upwind,vol)
-cc      implicit none
-ccc     ---------------------------------------------------------------
-ccc     Calculates divergence of vector field (v.phi) at cell centers in
-ccc     general non-orthogonal geometry.
-ccc     ---------------------------------------------------------------
-cc
-ccc     Call variables
-cc
-cc      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-cc      real(8)    :: phi(0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,v1 (0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,v2 (0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,v3 (0:nx+1,0:ny+1,0:nz+1),c_advec
-cc
-cc      logical,optional :: sp,vol,upwind
-cc
-ccc     Local variables
-cc
-cc      integer    :: ig,jg,kg,igrid,half_elem,ip,im,jp,jm,kp,km,su
-cc      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jacip,jacim,jac,jach
-cc      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
-cc      logical    :: vw,spoint,upw
-cc
-ccc     Begin program
-cc
-cc      if (PRESENT(vol)) then
-cc        vw = vol
-cc      else
-cc        vw = .true.
-cc      endif
-cc
-cc      if (PRESENT(upwind)) then
-cc        upw = upwind
-cc      else
-cc        upw = .false.
-cc      endif
-cc
-cc      if (PRESENT(sp)) then
-cc        spoint = sp
-cc      else
-cc        spoint = .false.
-cc      endif
-cc
-cc      igrid = igx
-cc
-cc      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-cc
-cc      ip = i+1
-cc      im = i-1
-cc      jp = j+1
-cc      jm = j-1
-cc      kp = k+1
-cc      km = k-1
-cc
-cc      dxx = dxh(ig)
-cc      dyy = dyh(jg)
-cc      dzz = dzh(kg)
-cc
-cc      jac   = gmetric%grid(igrid)%jac(i,j,k)
-cc
-cc      if (spoint) then
-cc        jacip = gmetric%grid(igrid)%jac(ip,j,k)
-cc        jacim = gmetric%grid(igrid)%jac(im,j,k)
-cc      else
-cc        jacip = jac
-cc        jacim = jac
-cc      endif
-cc
-cc      if (upw) then
-cc        !X flux
-cc        if (     i+grid_params%ilo(igx)-1 < grid_params%nxgl(igx)
-cc     .      .or. bcond(2) == PER) then
-cc          jach = 0.5*(jac+jacip)
-cc          flxip = 0.25*jach
-cc     .      *( (    (v1(i,j,k)/jac+v1(ip,j,k)/jacip)
-cc     .          +abs(v1(i,j,k)/jac+v1(ip,j,k)/jacip) ) *phi(i ,j,k)
-cc     .        +(    (v1(i,j,k)/jac+v1(ip,j,k)/jacip)          
-cc     .          -abs(v1(i,j,k)/jac+v1(ip,j,k)/jacip) ) *phi(ip,j,k) )
-cc        else
-cc          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
-cc        endif
-cc
-cc        if (     i+grid_params%ilo(igx)-1 > 1
-cc     .      .or. spoint
-cc     .      .or. bcond(1) == PER) then
-cc          jach = 0.5*(jac+jacim)
-cc          flxim = 0.25*jach
-cc     .       *( (    (v1(i,j,k)/jac+v1(im,j,k)/jacim)          
-cc     .           +abs(v1(i,j,k)/jac+v1(im,j,k)/jacim) ) *phi(im,j,k)
-cc     .         +(    (v1(i,j,k)/jac+v1(im,j,k)/jacim)          
-cc     .           -abs(v1(i,j,k)/jac+v1(im,j,k)/jacim) ) *phi(i ,j,k) )
-cc        else
-cc          flxim = 0.5*(v1(im,j,k)*phi(i,j,k) + v1(i,j,k)*phi(im,j,k))
-cc        endif
-cc
-cc        if (     j+grid_params%jlo(igy)-1 < grid_params%nygl(igy)
-cc     .      .or. bcond(4) == PER) then
-cc          flxjp = 0.25*(
-cc     .         (    (v2(i,j,k)+v2(i,jp,k))
-cc     .          +abs(v2(i,j,k)+v2(i,jp,k)) )*phi(i,j ,k)
-cc     .        +(    (v2(i,j,k)+v2(i,jp,k))          
-cc     .          -abs(v2(i,j,k)+v2(i,jp,k)) )*phi(i,jp,k))
-cc        else
-cc          flxjp = 0.5*(v2(i,jp,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jp,k))
-cc        endif
-cc
-cc        if (     j+grid_params%jlo(igy)-1 > 1
-cc     .      .or. bcond(3) == PER) then
-cc          flxjm = 0.25*(
-cc     .         (    (v2(i,j,k)+v2(i,jm,k))
-cc     .          +abs(v2(i,j,k)+v2(i,jm,k)) )*phi(i,jm,k)
-cc     .        +(    (v2(i,j,k)+v2(i,jm,k))          
-cc     .          -abs(v2(i,j,k)+v2(i,jm,k)) )*phi(i,j ,k))
-cc        else
-cc          flxjm = 0.5*(v2(i,jm,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jm,k))
-cc        endif
-cc
-cc        if (     k+grid_params%klo(igz)-1 < grid_params%nzgl(igz)
-cc     .      .or. bcond(6) == PER) then
-cc          flxkp = 0.25*(
-cc     .         (    (v3(i,j,k)+v3(i,j,kp))
-cc     .          +abs(v3(i,j,k)+v3(i,j,kp)) )*phi(i,j,k )
-cc     .        +(    (v3(i,j,k)+v3(i,j,kp))             
-cc     .          -abs(v3(i,j,k)+v3(i,j,kp)) )*phi(i,j,kp))
-cc        else
-cc          flxkp = 0.5*(v3(i,j,kp)*phi(i,j,k) + v3(i,j,k)*phi(i,j,kp))
-cc        endif
-cc
-cc        if (     k+grid_params%klo(igz)-1 > 1
-cc     .      .or. bcond(5) == PER) then
-cc          flxkm = 0.25*(
-cc     .         (    (v3(i,j,k)+v3(i,j,km))
-cc     .          +abs(v3(i,j,k)+v3(i,j,km)) )*phi(i,j,km)
-cc     .        +(    (v3(i,j,k)+v3(i,j,km))             
-cc     .          -abs(v3(i,j,k)+v3(i,j,km)) )*phi(i,j,k ))
-cc        else
-cc          flxkm = 0.5*(v3(i,j,km)*phi(i,j,k) + v3(i,j,k)*phi(i,j,km))
-cc        endif
-cc
-cc      else
-cc        !X flux
-cc        if (i+grid_params%ilo(igx)-1 < grid_params%nxgl(igx)) then
+c     c_advec
+c     ###############################################################
+      function c_advec(i,j,k,nx,ny,nz,igx,igy,igz,v1,v2,v3,phi
+     .                ,sp,upwind,vol)
+      implicit none
+c     ---------------------------------------------------------------
+c     Calculates divergence of vector field (v.phi) at cell centers in
+c     general non-orthogonal geometry.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+      real(8)    :: phi(0:nx+1,0:ny+1,0:nz+1)
+     .             ,v1 (0:nx+1,0:ny+1,0:nz+1)
+     .             ,v2 (0:nx+1,0:ny+1,0:nz+1)
+     .             ,v3 (0:nx+1,0:ny+1,0:nz+1),c_advec
+
+      logical,optional :: sp,vol,upwind
+
+c     Local variables
+
+      integer    :: ig,jg,kg,igrid,half_elem,ip,im,jp,jm,kp,km,su
+      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jacip,jacim,jac,jach
+      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+      logical    :: vw,spoint,upw
+
+c     Begin program
+
+      if (PRESENT(vol)) then
+        vw = vol
+      else
+        vw = .true.
+      endif
+
+      if (PRESENT(upwind)) then
+        upw = upwind
+      else
+        upw = .false.
+      endif
+
+      if (PRESENT(sp)) then
+        spoint = sp
+      else
+        spoint = .false.
+      endif
+
+      igrid = igx
+
+      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+      ip = i+1
+      im = i-1
+      jp = j+1
+      jm = j-1
+      kp = k+1
+      km = k-1
+
+      dxx = grid_params%dxh(ig)
+      dyy = grid_params%dyh(jg)
+      dzz = grid_params%dzh(kg)
+
+      jac   = gmetric%grid(igrid)%jac(i,j,k)
+
+      if (spoint) then
+        jacip = gmetric%grid(igrid)%jac(ip,j,k)
+        jacim = gmetric%grid(igrid)%jac(im,j,k)
+      else
+        jacip = jac
+        jacim = jac
+      endif
+
+      if (upw) then
+        !X flux
+        if (     i+grid_params%ilo(igx)-1 < grid_params%nxgl(igx)
+     .      .or. bcond(2) == PER) then
+          jach = 0.5*(jac+jacip)
+          flxip = 0.25*jach
+     .      *( (    (v1(i,j,k)/jac+v1(ip,j,k)/jacip)
+     .          +abs(v1(i,j,k)/jac+v1(ip,j,k)/jacip) ) *phi(i ,j,k)
+     .        +(    (v1(i,j,k)/jac+v1(ip,j,k)/jacip)          
+     .          -abs(v1(i,j,k)/jac+v1(ip,j,k)/jacip) ) *phi(ip,j,k) )
+        else
+          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
+        endif
+
+        if (     i+grid_params%ilo(igx)-1 > 1
+     .      .or. spoint
+     .      .or. bcond(1) == PER) then
+          jach = 0.5*(jac+jacim)
+          flxim = 0.25*jach
+     .       *( (    (v1(i,j,k)/jac+v1(im,j,k)/jacim)          
+     .           +abs(v1(i,j,k)/jac+v1(im,j,k)/jacim) ) *phi(im,j,k)
+     .         +(    (v1(i,j,k)/jac+v1(im,j,k)/jacim)          
+     .           -abs(v1(i,j,k)/jac+v1(im,j,k)/jacim) ) *phi(i ,j,k) )
+        else
+          flxim = 0.5*(v1(im,j,k)*phi(i,j,k) + v1(i,j,k)*phi(im,j,k))
+        endif
+
+        if (     j+grid_params%jlo(igy)-1 < grid_params%nygl(igy)
+     .      .or. bcond(4) == PER) then
+          flxjp = 0.25*(
+     .         (    (v2(i,j,k)+v2(i,jp,k))
+     .          +abs(v2(i,j,k)+v2(i,jp,k)) )*phi(i,j ,k)
+     .        +(    (v2(i,j,k)+v2(i,jp,k))          
+     .          -abs(v2(i,j,k)+v2(i,jp,k)) )*phi(i,jp,k))
+        else
+          flxjp = 0.5*(v2(i,jp,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jp,k))
+        endif
+
+        if (     j+grid_params%jlo(igy)-1 > 1
+     .      .or. bcond(3) == PER) then
+          flxjm = 0.25*(
+     .         (    (v2(i,j,k)+v2(i,jm,k))
+     .          +abs(v2(i,j,k)+v2(i,jm,k)) )*phi(i,jm,k)
+     .        +(    (v2(i,j,k)+v2(i,jm,k))          
+     .          -abs(v2(i,j,k)+v2(i,jm,k)) )*phi(i,j ,k))
+        else
+          flxjm = 0.5*(v2(i,jm,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jm,k))
+        endif
+
+        if (     k+grid_params%klo(igz)-1 < grid_params%nzgl(igz)
+     .      .or. bcond(6) == PER) then
+          flxkp = 0.25*(
+     .         (    (v3(i,j,k)+v3(i,j,kp))
+     .          +abs(v3(i,j,k)+v3(i,j,kp)) )*phi(i,j,k )
+     .        +(    (v3(i,j,k)+v3(i,j,kp))             
+     .          -abs(v3(i,j,k)+v3(i,j,kp)) )*phi(i,j,kp))
+        else
+          flxkp = 0.5*(v3(i,j,kp)*phi(i,j,k) + v3(i,j,k)*phi(i,j,kp))
+        endif
+
+        if (     k+grid_params%klo(igz)-1 > 1
+     .      .or. bcond(5) == PER) then
+          flxkm = 0.25*(
+     .         (    (v3(i,j,k)+v3(i,j,km))
+     .          +abs(v3(i,j,k)+v3(i,j,km)) )*phi(i,j,km)
+     .        +(    (v3(i,j,k)+v3(i,j,km))             
+     .          -abs(v3(i,j,k)+v3(i,j,km)) )*phi(i,j,k ))
+        else
+          flxkm = 0.5*(v3(i,j,km)*phi(i,j,k) + v3(i,j,k)*phi(i,j,km))
+        endif
+
+      else
+        !X flux
+        if (i+grid_params%ilo(igx)-1 < grid_params%nxgl(igx)) then
+          jach = 0.5*(jac+jacip)
+          flxip = 0.5*(v1(ip,j,k)*phi(i ,j,k)/jacip
+     .               + v1(i ,j,k)*phi(ip,j,k)/jac  )*jach
+
+          jach = 0.5*(jac+jacim)
+          if (isSP(i,j,k,igx,igy,igz)) jach = 0d0
+          flxim = 0.5*(v1(im,j,k)*phi(i ,j,k)/jacim
+     .               + v1(i ,j,k)*phi(im,j,k)/jac  )*jach
+        elseif (i+grid_params%ilo(igx)-1 == grid_params%nxgl(igx)) then
+          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
+
+          jach = 0.5*(jac+jacim)
+          flxim = 0.5*(v1(im,j,k)*phi(i ,j,k)/jacim
+     .               + v1(i ,j,k)*phi(im,j,k)/jac  )*jach
+        endif
+
+cc        if (i+grid_params%ilo(igx)-1 == 1) then
 cc          jach = 0.5*(jac+jacip)
 cc          flxip = 0.5*(v1(ip,j,k)*phi(i ,j,k)/jacip
 cc     .               + v1(i ,j,k)*phi(ip,j,k)/jac  )*jach
-cc
 cc          jach = 0.5*(jac+jacim)
-cc          if (isSP(i,j,k,igx,igy,igz)) jach = 0d0
 cc          flxim = 0.5*(v1(im,j,k)*phi(i ,j,k)/jacim
 cc     .               + v1(i ,j,k)*phi(im,j,k)/jac  )*jach
-cc        elseif (i+grid_params%ilo(igx)-1 == grid_params%nxgl(igx)) then
+cc        elseif (i+grid_params%ilo(igx)-1 == 2) then
 cc          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
 cc
 cc          jach = 0.5*(jac+jacim)
 cc          flxim = 0.5*(v1(im,j,k)*phi(i ,j,k)/jacim
 cc     .               + v1(i ,j,k)*phi(im,j,k)/jac  )*jach
+cc        else
+cc          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
+cc          flxim = 0.5*(v1(im,j,k)*phi(i,j,k) + v1(i,j,k)*phi(im,j,k))
 cc        endif
-cc
-cccc        if (i+grid_params%ilo(igx)-1 == 1) then
-cccc          jach = 0.5*(jac+jacip)
-cccc          flxip = 0.5*(v1(ip,j,k)*phi(i ,j,k)/jacip
-cccc     .               + v1(i ,j,k)*phi(ip,j,k)/jac  )*jach
-cccc          jach = 0.5*(jac+jacim)
-cccc          flxim = 0.5*(v1(im,j,k)*phi(i ,j,k)/jacim
-cccc     .               + v1(i ,j,k)*phi(im,j,k)/jac  )*jach
-cccc        elseif (i+grid_params%ilo(igx)-1 == 2) then
-cccc          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
-cccc
-cccc          jach = 0.5*(jac+jacim)
-cccc          flxim = 0.5*(v1(im,j,k)*phi(i ,j,k)/jacim
-cccc     .               + v1(i ,j,k)*phi(im,j,k)/jac  )*jach
-cccc        else
-cccc          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
-cccc          flxim = 0.5*(v1(im,j,k)*phi(i,j,k) + v1(i,j,k)*phi(im,j,k))
-cccc        endif
-cc
-cc        !Y flux
-cc        flxjp = 0.5*(v2(i,jp,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jp,k))
-cc        flxjm = 0.5*(v2(i,jm,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jm,k))
-cc
-cc        !Z flux
-cc        flxkp = 0.5*(v3(i,j,kp)*phi(i,j,k) + v3(i,j,k)*phi(i,j,kp))
-cc        flxkm = 0.5*(v3(i,j,km)*phi(i,j,k) + v3(i,j,k)*phi(i,j,km))
-cc
-cc      endif
-cc
-cc      c_advec =( (flxip - flxim)/dxx
-cc     .         + (flxjp - flxjm)/dyy
-cc     .         + (flxkp - flxkm)/dzz )/jac
-cc      
-cc      if (vw) c_advec = c_advec*gmetric%grid(igx)%dvol(i,j,k)
-cc
-ccc     End 
-cc
-cc      end function c_advec
+
+        !Y flux
+        flxjp = 0.5*(v2(i,jp,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jp,k))
+        flxjm = 0.5*(v2(i,jm,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jm,k))
+
+        !Z flux
+        flxkp = 0.5*(v3(i,j,kp)*phi(i,j,k) + v3(i,j,k)*phi(i,j,kp))
+        flxkm = 0.5*(v3(i,j,km)*phi(i,j,k) + v3(i,j,k)*phi(i,j,km))
+
+      endif
+
+      c_advec =( (flxip - flxim)/dxx
+     .         + (flxjp - flxjm)/dyy
+     .         + (flxkp - flxkm)/dzz )/jac
+      
+      if (vw) c_advec = c_advec*gmetric%grid(igx)%dvol(i,j,k)
+
+c     End 
+
+      end function c_advec
 
 c     flx_advec
 c     ###############################################################
