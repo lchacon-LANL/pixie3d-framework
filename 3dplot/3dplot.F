@@ -235,8 +235,6 @@ c Local variables
       integer    :: ierr
       logical    :: petsc_flg
 
-      type(var_array),pointer :: u_src
-
 c Interfaces
 
       INTERFACE
@@ -321,16 +319,7 @@ c Allocate records
 
       call allocateStructures
 
-      if (chk_src) call allocateDerivedType(u_src)
-
-c Read source and equilibrium u_0 (Do NOT postprocess for BC)
-
-      if (chk_src) then
-        call readTimeStep(u_src,ierr)
-
-        if (ierr /= 0) call pstop('initializeCalculation',
-     .                            'Unable to read source')
-      endif
+c Read equilibrium u_0 (Do NOT postprocess for BC)
 
       call readTimeStep(u_0,ierr)
 
@@ -354,18 +343,6 @@ c Initialize diagnostics and related variables
 c Initialize graphics
 
       call initializeGraphics(igx,igy,igz,bcond)
-
-c Dump source for debugging
-
-      if (chk_src) then
-        itime = -1   !For HDF5 file
-        call equateDerivedType(u_np,u_src)
-        call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
-
-        call dumpTimeStepPlots
-
-        call deallocateDerivedType(u_src)
-      endif
 
 c End program
 
