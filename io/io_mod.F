@@ -78,7 +78,7 @@ c     End program
 
 c     rm_files
 c     ####################################################################
-      subroutine rm_files(file)
+      function rm_files(file) result(ierr)
 
 c     --------------------------------------------------------------------
 c     Removes all files starting with "file".
@@ -88,17 +88,25 @@ c     Call variables
 
       character(*) :: file
 
+      integer :: ierr
+
 c     Local variables
 
-      integer :: ierr
+      character(200) :: command
 
 c     Begin program
 
-      ierr = shellcmd('rm -f '//trim(file)//'* > /dev/null')
+      command = 'rm -f '//trim(file)//'* > /dev/null'
+      ierr = shellcmd(trim(command))
+
+      if (ierr /= 0) then
+        write (*,*) 'IO error in rm_files=',ierr
+        write (*,*) 'Command: ',trim(command)
+      endif
 
 c     End program
 
-      end subroutine rm_files
+      end function rm_files
 
       end module io
 
