@@ -61,15 +61,15 @@ ifeq ($(HOST),quevedo.ornl.gov)
     ifeq ($(FC),gfortran)
       HDF5 = t
 
-      HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
-      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(HDF5_HOME)/lib
-      HDF5_INC  =-I$(HDF5_HOME)/include
+//       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
+//       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+//       HDF5_MOD  = $(HDF5_HOME)/lib
+//       HDF5_INC  =-I$(HDF5_HOME)/include
 
-//       HDF5_HOME =/usr/lib64
-//       HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
-//       HDF5_MOD  =/usr/lib64/gfortran/modules
-//       HDF5_INC  =-I/usr/include
+      HDF5_HOME =/usr/lib64
+      HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  =(HDF5_HOME)/gfortran/modules
+      HDF5_INC  =-I/usr/include
 
       ADIOS = f
     endif
