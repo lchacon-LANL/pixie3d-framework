@@ -195,6 +195,9 @@ cc      character*128  :: local_count_str
 
       real(8),allocatable,dimension(:,:,:,:) :: cell,node
 
+c     Variables for temporary fix of ADIOS' bug
+      integer :: nx_temp,ny_temp,nz_temp
+
 c     Begin program
 
       if (adios_debug) write (*,'("%%%% writeADIOSPlot")') 
@@ -265,9 +268,23 @@ c     Calculate/approx. the size of data we will going to write out
           basepath = ""
       endif
 
-      write (offset_str, '(i0,",",i0,",",i0)') ilomg, jlomg, klomg
-      write (cell_ldim_str, '(i0,",",i0,",",i0)') nxl, nyl, nzl
-      write (node_ldim_str, '(i0,",",i0,",",i0)') nxl+1,nyl+1,nzl+1
+      write (offset_str   , '(i0,",",i0,",",i0)') ilomg,jlomg,klomg
+      write (cell_ldim_str, '(i0,",",i0,",",i0)') nxl  ,nyl  ,nzl
+cc      write (node_ldim_str, '(i0,",",i0,",",i0)') nxl+1,nyl+1,nzl+1
+c Temporary fix to ADIOS' bug (L. Chacon, 10/6/10)
+      nx_temp = nxl
+      if (isBdry(nxl,1,2)) nx_temp = nxl + 1
+      ny_temp = nyl
+      if (isBdry(nyl,1,4)) ny_temp = nyl + 1
+      nz_temp = nzl
+      if (isBdry(nzl,1,6)) nz_temp = nzl + 1
+
+      write (node_ldim_str, '(i0,",",i0,",",i0)')nx_temp,ny_temp,nz_temp
+
+      write (*,*) nx_temp,ihip-ilo+1
+      write (*,*) ny_temp,jhip-jlo+1
+      write (*,*) nz_temp,khip-klo+1
+c End of temporary fix
 
       if (adios_debug)
      .  write (*,'("rank",i3,"%% offset=",a," cell=",a," node=",a)') 
@@ -298,7 +315,10 @@ c     Calculate/approx. the size of data we will going to write out
      .               offset_str, ierr)
           enddo
           groupsize = groupsize 
-     .      + (ihip-ilo+1) * (jhip-jlo+1) * (khip-klo+1) *ARRAY_RANK*8 ! node coords
+cc     .      + (ihip-ilo+1) * (jhip-jlo+1) * (khip-klo+1) *ARRAY_RANK*8 ! node coords
+c Temporary fix to ADIOS' bug (L. Chacon 10/6/10)
+     .      + nx_temp * ny_temp * nz_temp *ARRAY_RANK*8 ! node coords
+c End of temporary fix
       endif
 
       ! Define data variables and calculate size
@@ -331,7 +351,10 @@ c     Calculate/approx. the size of data we will going to write out
               enddo
 
               groupsize = groupsize +
-     .          nqty(igrp)*(ihip-ilo+1)*(jhip-jlo+1)*(khip-klo+1)*8 ! node data
+cc     .          nqty(igrp)*(ihip-ilo+1)*(jhip-jlo+1)*(khip-klo+1)*8 ! node data
+c Temporary fix to ADIOS' bug (L. Chacon 10/6/10)
+     .          nqty(igrp)*nx_temp*ny_temp*nz_temp*8 ! node data
+c End of temporary fix
           else
               ! Define cell data variables
               do ieq=1,nqty(igrp)
@@ -429,7 +452,10 @@ c         Write the coordinate data
           do icoords=1,ARRAY_RANK
               call adios_write(handle, 
      .            trim(path)//"/"//coords_descr(icoords),
-     .            node(ilo:ihip,jlo:jhip,klo:khip,icoords), ierr)
+cc     .            node(ilo:ihip,jlo:jhip,klo:khip,icoords), ierr)
+c Temporary fix to ADIOS' bug (L. Chacon 10/6/10)
+     .           node(ilo:nx_temp,jlo:ny_temp,klo:nz_temp,icoords),ierr)
+c End of temporary fix
           enddo
           if (adios_debug)
      .      write (*,'("rank",i3,"%%%%     wrote node positions")') 
@@ -462,7 +488,11 @@ c             Write nodal data
                   call adios_write(handle, 
      .                  trim(basepath)//"/"//
      .                      graph(igrp)%array_graph(ieq)%descr,
-     .                  node(ilo:ihip,jlo:jhip,klo:khip,1), ierr)
+cc     .                  node(ilo:ihip,jlo:jhip,klo:khip,1), ierr)
+c Temporary fix to ADIOS' bug (L. Chacon 10/6/10)
+     .           node(ilo:nx_temp,jlo:ny_temp,klo:nz_temp,icoords),ierr)
+c End of temporary fix
+
               enddo
               if (adios_debug)
      .            write (*,'("%%%%     wrote nodal data")') 
