@@ -2128,8 +2128,12 @@ c ######################################################################
           module procedure veclap_cov_diff,veclap_cov_ndiff
         end INTERFACE
 
-        real(8),pointer,dimension(:,:,:,:) :: vec,vec1,vec2
-        real(8),pointer,dimension(:,:,:)   :: coef,sc1,sc2
+        real(8),pointer,dimension(:,:,:,:) :: vec => null()
+     .                                       ,vec1=> null()
+     .                                       ,vec2=> null()
+        real(8),pointer,dimension(:,:,:)   :: coef=> null()
+     .                                       ,sc1 => null()
+     .                                       ,sc2 => null()
 
       contains
 
