@@ -233,6 +233,7 @@ c######################################################################
       use iosetup
       type(patch), target :: fpatch
       type(patch), pointer :: patch_data
+      integer igr
 
       patch_data => fpatch;
 
@@ -247,6 +248,12 @@ c      call deallocateGridStructure(patch_data%gparams)
       deallocate(patch_data%aux%var_list)
       deallocate(patch_data%aux%vec_list)
       deallocate(patch_data%aux)
+
+         do igr=1,size(patch_data%bc_grp)
+           deallocate(patch_data%bc_grp(igr)%bc_seq)
+         enddo
+         deallocate(patch_data%bc_grp)
+     
 c      deallocate(patch_data%gparams)
       deallocate(patch_data)
 
