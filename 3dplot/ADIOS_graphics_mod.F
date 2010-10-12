@@ -281,9 +281,9 @@ c Temporary fix to ADIOS' bug (L. Chacon, 10/6/10)
 
       write (node_ldim_str, '(i0,",",i0,",",i0)')nx_temp,ny_temp,nz_temp
 
-      write (*,*) nx_temp,ihip-ilo+1
-      write (*,*) ny_temp,jhip-jlo+1
-      write (*,*) nz_temp,khip-klo+1
+cc      write (*,*) isBdry(nxl,1,2),nx_temp,ihip-ilo+1
+cc      write (*,*) isBdry(nyl,1,4),ny_temp,jhip-jlo+1
+cc      write (*,*) isBdry(nzl,1,6),nz_temp,khip-klo+1
 c End of temporary fix
 
       if (adios_debug)
@@ -377,8 +377,7 @@ c End of temporary fix
      .    my_rank, groupsize, totalsize
 
 
-c     Write the variables 
-c       (they are buffered and I/O starts at adios_close())
+c     Write the variables (they are buffered and I/O starts at adios_close())
 
       if (num_open == 0) then
           ! First writing
@@ -490,7 +489,7 @@ c             Write nodal data
      .                      graph(igrp)%array_graph(ieq)%descr,
 cc     .                  node(ilo:ihip,jlo:jhip,klo:khip,1), ierr)
 c Temporary fix to ADIOS' bug (L. Chacon 10/6/10)
-     .           node(ilo:nx_temp,jlo:ny_temp,klo:nz_temp,icoords),ierr)
+     .           node(ilo:nx_temp,jlo:ny_temp,klo:nz_temp,1),ierr)
 c End of temporary fix
 
               enddo
