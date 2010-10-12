@@ -420,7 +420,7 @@ c     Begin program
         do ieq=1,varray%nvar
           varray%array_var(ieq)%bconds = u_0%array_var(ieq)%bconds
           varray%array_var(ieq)%descr  = u_0%array_var(ieq)%descr
-          varray%array_var(ieq)%array  = 0d0
+c          varray%array_var(ieq)%array  = 0d0
         enddo
 
 c     End program
