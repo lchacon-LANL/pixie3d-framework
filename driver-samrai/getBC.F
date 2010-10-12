@@ -1,14 +1,15 @@
-c     getNumberOfBCGroups
+c getNumberOfBCGroups
+c ######################################################################
       subroutine getNumberOfBCGroups(patch_var, nbcgrps)
-      use variable_setup
+cc      use variable_setup
       implicit none
 
       type(patch), TARGET :: patch_var
       integer :: nbcgrps
 
-      gv => patch_var
-      grid_params => gv%gparams
-      gmetric => gv%gparams%gmetric
+cc      gv => patch_var
+cc      grid_params => gv%gparams
+cc      gmetric => gv%gparams%gmetric
       
 c     Setup SAMRAI f90 pointers
       
@@ -16,39 +17,40 @@ c     Setup SAMRAI f90 pointers
 
       end subroutine getNumberOfBCGroups
 
-c     setupVariableInitializationSequence
-      subroutine setupVariableInitializationSequence(patch_var, it)
-      use parameters
-      
-      use variable_setup
-      
-      use grid
+cc  L. Chacon, 10/12/2010: I have commented out the routine below and added this
+cc                         on the application side in applyBoundaryConditions.F.
+ccc setupVariableInitializationSequence
+ccc ######################################################################
+cc      subroutine setupVariableInitializationSequence(patch_var, it)
+cc      use parameters
+cc      
+cc      use variable_setup
+cc      
+cc      use grid
+cc
+cc      implicit none
+cc      
+ccc     Call variables
+cc      
+cc      type(patch), TARGET :: patch_var
+cc      integer :: it
+cc
+cccc      gv => patch_var
+cccc      grid_params => gv%gparams
+cccc      gmetric => gv%gparams%gmetric
+cc
+cc      call setup_app_BC(patch_var,it)     !"it" indicates time level, with it=0 indicating
+cc                                          !equilibrium setup. It needs to come via routine call.
+cc
+cc      end subroutine setupVariableInitializationSequence
 
-      implicit none
-      
-c     Call variables
-      
-      type(patch), TARGET :: patch_var
-      integer :: it
-
-      gv => patch_var
-      grid_params => gv%gparams
-      gmetric => gv%gparams%gmetric
-
-      call setup_app_BC(it)     !Bobby, "it" indicates time level, with it=0 indicating
-                             !equilibrium setup. It needs to come via routine call.
-                             !Left it undefined so that it breaks at compilation time so
-                                !that you fix it on your end.
-
-      end subroutine setupVariableInitializationSequence
-
-c     getBC
-c######################################################################
+c getBC
+c ######################################################################
       subroutine getBC(patch_var, igrp, nbc_seq,bc_seq)
 
-c----------------------------------------------------------------------
+c ----------------------------------------------------------------------
 c     Initializes BC pointers
-c----------------------------------------------------------------------
+c ----------------------------------------------------------------------
 
       use parameters
 
@@ -65,9 +67,9 @@ c Call variables
 
 c Begin program
 
-      gv => patch_var
-      grid_params => gv%gparams
-      gmetric => gv%gparams%gmetric
+cc      gv => patch_var
+cc      grid_params => gv%gparams
+cc      gmetric => gv%gparams%gmetric
 cc      u_n => gv%u_n
 cc      u_0 => gv%u_0
 cc      call setVectorDimensions
