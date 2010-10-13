@@ -1,7 +1,7 @@
 c getNumberOfBCGroups
 c ######################################################################
       subroutine getNumberOfBCGroups(patch_var, nbcgrps)
-cc      use variable_setup
+      use variable_setup
       implicit none
 
       type(patch), TARGET :: patch_var
