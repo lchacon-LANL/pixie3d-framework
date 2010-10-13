@@ -539,6 +539,9 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 	 }
      }
 
+   // Copy the data from u0 to u 
+   d_x->copyVector(d_initial,false);
+
    //set the boundary schedules before forming an equilibrium
    setBoundarySchedules(true);
    // Apply boundary conditions
