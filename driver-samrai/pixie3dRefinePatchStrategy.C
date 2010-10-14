@@ -15,7 +15,9 @@
 #include "CellData.h"
 #include "tbox/Pointer.h"
 #include "LevelContainer.h"
+#include "PatchContainer.h"
 #include "GridGeometry.h"
+#include "CartesianGridGeometry.h"
 
 extern "C"{
 #include <assert.h>
@@ -42,6 +44,7 @@ pixie3dRefinePatchStrategy::pixie3dRefinePatchStrategy(void)
 {
   d_data_id = -1;
   d_iTime=0;
+  u0_id = NULL;
   u_id = NULL;
   u_tmp_id = NULL;
   auxs_id = NULL;
@@ -57,6 +60,7 @@ pixie3dRefinePatchStrategy::pixie3dRefinePatchStrategy(void)
 ***********************************************************************/
 pixie3dRefinePatchStrategy::~pixie3dRefinePatchStrategy()
 {
+  delete [] u0_id;
   delete [] u_id;
   delete [] u_tmp_id;
   delete [] auxs_id;
@@ -86,8 +90,10 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
 
       LevelContainer *level_container = (LevelContainer *) d_level_container_array[ln];
       assert(level_container!=NULL);
-      
       void *pixie3d_data = level_container->getPtr(pn);
+      //assert(pixie3d_data!=NULL);
+      tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
+      tbox::Pointer< hier::Patch<NDIM> > patch_ptr = tbox::Pointer<hier::Patch<NDIM> >( &patch, false );
       assert(pixie3d_data!=NULL);
 
       // Copy the data from the temporary patch to the pixie patch
@@ -147,9 +153,8 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
       physicalDomain.refine(ratio);
 
       // we assume the domain is a single box
-      if(d_grid_geometry->getDomainIsSingleBox()) {
-
-	hier::Box<NDIM> physicalBox = physicalDomain[0];
+      if( d_grid_geometry->getDomainIsSingleBox() ) {
+	     hier::Box<NDIM> physicalBox = physicalDomain[0];
          const int nx = physicalBox.numberCells(0);
          const int ny = physicalBox.numberCells(1);
          const int nz = physicalBox.numberCells(2);
@@ -185,7 +190,6 @@ pixie3dRefinePatchStrategy::postprocessRefine( hier::Patch<NDIM>& patch,
 	  
 	  LevelContainer *level_container = (LevelContainer *) d_level_container_array[ln];
 	  assert(level_container!=NULL);
-	  
 	  void *pixie3d_data = level_container->getPtr(pn);
 	  assert(pixie3d_data!=NULL);
 	  
@@ -262,63 +266,51 @@ pixie3dRefinePatchStrategy::postprocessRefine( hier::Patch<NDIM>& patch,
 void
 pixie3dRefinePatchStrategy::setPixie3dDataIDs(bool copy, 
 					      int nvar, int nauxs, int nauxv,
-					      int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp )
+					      int *u0, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp )
 {
-  d_nvar = nvar;
-  d_nauxs = nauxs;
-  d_nauxv = nauxv;
+    // Copy some basic information
+    d_nvar = nvar;
+    d_nauxs = nauxs;
+    d_nauxv = nauxv;
+    copy_data = copy;
 
-  if(u_id==NULL)
-    {
-      u_id = new int[d_nvar];
-    }
-  
-  if(u_tmp_id==NULL)
-    {
-      u_tmp_id = new int[d_nvar];
-    }
+    // Deallocate existing arrays if they exist
+    if ( u0_id != NULL )
+        delete [] u0_id;
+    if ( u_id != NULL )
+        delete [] u_id;
+    if ( u_tmp_id!=NULL )
+        delete [] u_tmp_id;
+    if ( auxs_id!=NULL )
+        delete [] auxs_id;
+    if ( auxs_tmp_id!=NULL )
+        delete [] auxs_tmp_id;
+    if ( auxv_id!=NULL )
+        delete [] auxv_id;
+    if ( auxv_tmp_id!=NULL )
+        delete [] auxv_tmp_id;
 
-  if(auxs_id==NULL)
-    {
-      auxs_id = new int[d_nauxs];
-    }
-  
-  if(auxs_tmp_id==NULL)
-    {
-      auxs_tmp_id = new int[d_nauxs];
-    }
-  
-  if(auxv_id==NULL)
-    {
-      auxv_id = new int[d_nauxv];
-    }
-  
-  if(auxv_tmp_id==NULL)
-    {
-      auxv_tmp_id = new int[d_nauxv];
-    }
-  
-  copy_data = copy;
-  if ( copy )
-    {
-      for (int i=0; i<d_nvar; i++)
-	{
-	  u_id[i] = u[i];
-	  u_tmp_id[i] = u_tmp[i];  
+    // Allocate and fill id arrays
+    u0_id = new int[d_nvar];
+    u_id = new int[d_nvar];
+    u_tmp_id = new int[d_nvar];
+    auxs_id = new int[d_nauxs];
+    auxs_tmp_id = new int[d_nauxs];
+    auxv_id = new int[d_nauxv];
+    auxv_tmp_id = new int[d_nauxv];
+    for (int i=0; i<d_nvar; i++) {
+        u0_id[i] = u0[i];
+        u_id[i] = u[i];
+        u_tmp_id[i] = u_tmp[i];  
 	}
-      
-      for (int i=0; i<d_nauxs; i++)
-	{
-	  auxs_id[i] = auxs[i];
-	  auxs_tmp_id[i] = auxs_tmp[i];
+    for (int i=0; i<d_nauxs; i++) {
+        auxs_id[i] = auxs[i];
+        auxs_tmp_id[i] = auxs_tmp[i];
 	}
-      
-      for (int i=0; i<d_nauxv; i++)
-	{
-	  auxv_id[i] = auxv[i];
-	  auxv_tmp_id[i] = auxv_tmp[i];
+    for (int i=0; i<d_nauxv; i++) {
+        auxv_id[i] = auxv[i];
+        auxv_tmp_id[i] = auxv_tmp[i];
 	}
-    }
 }
 
 

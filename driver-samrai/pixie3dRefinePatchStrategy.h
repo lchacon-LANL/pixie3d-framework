@@ -18,6 +18,7 @@
 #include "Patch.h"
 #include "RefinePatchStrategy.h"
 #include "GridGeometry.h"
+#include "PatchHierarchy.h"
 
 /*
 *************************************************************************
@@ -98,11 +99,12 @@ public:
    void setRefineStrategyDataId( const int var_id ){ d_data_id = var_id;}
 
    
+   void setHierarchy(tbox::Pointer< hier::PatchHierarchy<NDIM> > hierarchy){d_hierarchy=hierarchy;}
    void setGridGeometry(tbox::Pointer< hier::GridGeometry<NDIM > > grid_geometry){d_grid_geometry=grid_geometry;}
 
    void setPixie3dHierarchyData(void **hierarchy_data){d_level_container_array = hierarchy_data; }
 
-   void setPixie3dDataIDs(bool copy, int nvar, int nauxs, int nauxv, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp );
+   void setPixie3dDataIDs(bool copy, int nvar, int nauxs, int nauxv, int *u0, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp );
 
    bool checkPhysicalBoundary( hier::Patch<NDIM>& patch);
 
@@ -118,10 +120,10 @@ private:
    int d_iTime;
    
    bool copy_data;
-   int *u_id, *auxs_id, *auxv_id;
+   int *u0_id, *u_id, *auxs_id, *auxv_id;
    int *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
 
-
+   tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
    tbox::Pointer< hier::GridGeometry<NDIM > > d_grid_geometry;
 
    void **d_level_container_array;

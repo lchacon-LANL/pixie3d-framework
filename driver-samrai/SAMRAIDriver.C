@@ -159,12 +159,43 @@ int main( int argc, char *argv[] )
    SAMRAI::pixie3dApplicationParameters* application_parameters = new SAMRAI::pixie3dApplicationParameters(pixie3d_db);
    application_parameters->d_hierarchy = hierarchy;
    application_parameters->d_VizWriter = visit_writer;
-   
    SAMRAI::pixie3dApplication* application  = new SAMRAI::pixie3dApplication( application_parameters );
    
 
    // Initialize x0
-   application->setInitialConditions(0.0);
+   double t0 = 0.0;
+   application->setInitialConditions(t0);
+
+   // Set up tag buffers that are passed to the gridding algorithm
+   // for buffering tagged cells before new levels are created.
+   int N_levels_max = gridding_algorithm->getMaxLevels();
+   tbox::Array<int> tag_buffer(N_levels_max);
+   for (int ln = 0; ln < gridding_algorithm->getMaxLevels(); ln++)
+      tag_buffer[ln] = 1;
+   if (main_db->keyExists("tag_buffer")) {
+      tbox::Array<int> input_tags = main_db->getIntegerArray("tag_buffer");
+      if (input_tags.getSize() > 0) {
+         for (int ln = 0; ln<N_levels_max; ln++) {
+            if (input_tags.getSize() > ln) {
+               tag_buffer[ln] = ((input_tags[ln] > 0) ? input_tags[ln] : 0);
+            } else {
+               tag_buffer[ln] = ((input_tags[input_tags.getSize()-1] > 0)
+                                ? input_tags[input_tags.getSize()-1] : 0);
+            }
+         }
+      }
+   }
+   // Use the gridding algorithm to initialize the hierarchy.
+   bool initial_time = true;
+   for ( int ln=0; gridding_algorithm->levelCanBeRefined(ln); ln++ ) {
+      gridding_algorithm->makeFinerLevel(hierarchy, t0, initial_time, tag_buffer[ln]);
+      application->setInitialConditions(t0);
+   } 
+   // Perform a regrid to make sure the tagging is all set correctly
+   error_detector->turnOnGradientDetector();
+   error_detector->turnOffRefineBoxes();
+   gridding_algorithm->regridAllFinerLevels(hierarchy, 0, t0, tag_buffer);
+   application->setInitialConditions(initial_time);
 
    // initialize a time integrator parameters object
    tbox::Pointer<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");

@@ -32,12 +32,16 @@
 #include "VariableContext.h"
 #include "FaceData.h"
 #include "LevelContainer.h"
+#include "PatchContainer.h"
 
 #include "VisItDataWriter.h"
 
 #include "DiscreteOperator.h"
 #include "pixie3dApplicationParameters.h"
 #include "pixie3dRefinePatchStrategy.h"
+
+//#include "pixie3dData.h"
+
 
 extern "C"{
 /* User-defined application context */
