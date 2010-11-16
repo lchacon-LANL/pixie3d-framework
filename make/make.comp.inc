@@ -69,7 +69,7 @@ endif
 # Flags for gfortran
 ifeq ($(FC),gfortran)
   OPTIMIZATION = -O3 -march=native
-  DEBUG        = -ggdb -fbounds-check -fbacktrace -ffpe-trap=invalid,zero
+  DEBUG        = -ggdb -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv
   PROFILE      = -pg
   STATIC       = -fno-automatic
   MODFLAG      = -I
