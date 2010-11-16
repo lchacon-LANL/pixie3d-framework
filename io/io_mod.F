@@ -68,6 +68,8 @@ c     Local variables
 
 c     Begin program
 
+cc      INQUIRE(FILE=trim(file),exist=is_file)
+
       ierr = shellcmd('test -f '//trim(file))
 
       is_file = (ierr == 0)
