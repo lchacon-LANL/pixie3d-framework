@@ -17,13 +17,20 @@ c ######################################################################
      .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
 
-        integer    :: l_lim(3,0:1),g_lim(3,0:1),rem_l_lim(3,0:1)
+        integer    :: l_lim(3,0:1)
+     .               ,g_lim(3,0:1)
+     .               ,rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
 
-        integer    :: MPI_COMM_SP,MPI_COMM_POL,MPI_COMM_RAD
-     .               ,MPI_COMM_X,MPI_COMM_Y,MPI_COMM_Z
-     .               ,MPI_COMM_YZ
-        integer   ,allocatable,dimension(:) :: MPI_COMM_PER
+        integer    :: MPI_COMM_SP    =MPI_COMM_NULL
+     .               ,MPI_COMM_POL   =MPI_COMM_NULL
+     .               ,MPI_COMM_RAD   =MPI_COMM_NULL
+     .               ,MPI_COMM_X     =MPI_COMM_NULL
+     .               ,MPI_COMM_Y     =MPI_COMM_NULL
+     .               ,MPI_COMM_Z     =MPI_COMM_NULL
+     .               ,MPI_COMM_YZ    =MPI_COMM_NULL
+     .               ,MPI_COMM_PER(3)=MPI_COMM_NULL
+cc        integer   ,allocatable,dimension(:) :: MPI_COMM_PER
         integer   ,allocatable,dimension(:) :: MPI_COMM_NBRS
 
         character(80) :: messg
@@ -107,6 +114,23 @@ c     YZ MPI communicator (domains that share same X slices)
 
 cc        call check_MPI_COMM(MPI_COMM_YZ,'MPI_COMM_YZ')
 
+c     Periodic BCs communicators
+
+        if (bcond(1) == PER) then
+          call createMPIComm(MPI_COMM_PER(1),selectRank_PER_X)
+        endif
+cc        call check_MPI_COMM(MPI_COMM_PER(1),'MPI_COMM_PERx')
+
+        if (bcond(3) == PER) then
+          call createMPIComm(MPI_COMM_PER(2),selectRank_PER_Y)
+        endif
+cc          call check_MPI_COMM(MPI_COMM_PER(2),'MPI_COMM_PERy')
+
+        if (bcond(5) == PER) then
+          call createMPIComm(MPI_COMM_PER(3),selectRank_PER_Z)
+        endif
+cc          call check_MPI_COMM(MPI_COMM_PER(3),'MPI_COMM_PERz')
+
 c     End program
 
       contains
@@ -141,9 +165,9 @@ c     Begin program
      .                ,'; my_rank_global=',my_rank
       endif
 
-cc      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cc      call MPI_Finalize(mpierr)
-cc      stop
+      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+      call MPI_Finalize(mpierr)
+      stop
 
 c     End program
 
@@ -703,11 +727,11 @@ c     Call variables
 
         integer    :: MPI_COMM
 
+        external   selProc
+
 c     Local variables
 
         integer    :: split_key,my_sp_rank,np_sp
-
-        external   selProc
 
 c     Begin program
 
@@ -739,18 +763,17 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: split_key
+        integer :: split_key
 
 c     Local variables
 
-        real(8)    :: random
-        integer    :: dim,loc,lrank,BC
+        integer :: dim,loc,lrank,BC
 
-        logical    :: cp(0:1)
+        logical :: cp(0:1)
 
 c     Begin program
 
-        BC  = SP
+        BC = SP
         dim = 1
 
 c     Set global limits of local domain l_lim(dim,loc)
@@ -779,15 +802,13 @@ c     Select rank
         enddo
 
         !Group communicators based on location in z direction
-        if (bcond(dim) == SP .and. cp(0)) then
+        if (bcond(dim) == BC .and. cp(0)) then
           split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
         endif
 
         !Create self-communicator for single-point dimensions
         if (      (l_lim(dim,0) == l_lim(dim,1))
      .      .and. (cp(0)       .eqv. cp(1)     )  ) then
-          call random_seed()
-          call random_number(random)
           split_key=split_key+my_rank+1
         endif
 
@@ -795,24 +816,29 @@ c     End program
 
       end subroutine selectRank_SP
 
-ccc     selectRank_SP
+ccc     selectRank_PER
 ccc     #####################################################################
-cc      subroutine selectRank_SP(split_key)
+cc      subroutine selectRank_PER(split_key)
 cc
 ccc     ---------------------------------------------------------------------
-ccc     Groups processors surrounding singular point
-ccc     (SP boundary condition)
+ccc     Groups processors for periodic BC transfer along dimension dim.
 ccc     ---------------------------------------------------------------------
 cc
 cc        implicit none
 cc
 ccc     Call variables
 cc
-cc        integer    :: split_key
+cc        integer :: split_key(3)
 cc
 ccc     Local variables
 cc
+cc        integer :: dim,loc,lrank,BC
+cc
+cc        logical :: cp(0:1)
+cc
 ccc     Begin program
+cc
+cc        BC = PER
 cc
 ccc     Set global limits of local domain l_lim(dim,loc)
 cc
@@ -832,42 +858,62 @@ cc        g_lim(1,1) = grid_params%nxgl(1)
 cc        g_lim(2,1) = grid_params%nygl(1)
 cc        g_lim(3,1) = grid_params%nzgl(1)
 cc
-ccc     Select rank: group communicators based on:
-ccc        1) SP boundary
-ccc        2) location in z direction
+ccc     Select rank
 cc
-cc        if (isSP2(1,1,dim=1,loc=0)) then
-cc          split_key = 1
-cc          split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
-cc        endif
+cc        do dim=1,3
+cc          !Check whether proc is at boundary of appropriate type
+cc          do loc=0,1
+cc            cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
+cc            if (cp(loc)) split_key(dim) = BC
+cc          enddo
+cc
+cc          !Group communicators based on location in face
+cc          if (bcond(dim) == BC .and. cp(0)) then
+cc            select case(dim)
+cc            case (1)
+cc              call selectRank_X(split_key(dim))
+cc            case (2)
+cc              call selectRank_Y(split_key(dim))
+cc            case (3)
+cc              call selectRank_Z(split_key(dim))
+cc            end select
+cc          endif
+cc
+cc          !Create self-communicator for single-point dimensions
+cc          if (      (l_lim(dim,0) == l_lim(dim,1))
+cc     .        .and. (cp(0)       .eqv. cp(1)     )  ) then
+cc            split_key(dim)=split_key(dim)+my_rank+1
+cc          endif
+cc        enddo
 cc
 ccc     End program
 cc
-cc      end subroutine selectRank_SP
+cc      end subroutine selectRank_PER
 
-c     selectRank_X
+c     selectRank_PER_X
 c     #####################################################################
-      subroutine selectRank_X(split_key)
+      subroutine selectRank_PER_X(split_key)
 
 c     ---------------------------------------------------------------------
-c     Groups processors in slices in X direction (i.e., order them according
-c     to Y and Z positions).
+c     Groups processors for periodic BC transfer along dimension dim.
 c     ---------------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer    :: split_key
+        integer :: split_key
 
 c     Local variables
 
-        real(8)    :: random
-        integer    :: loc,lrank
+        integer :: dim,loc,lrank,BC
 
-        logical    :: cp(0:1)
+        logical :: cp(0:1)
 
 c     Begin program
+
+        BC = PER
+        dim = 1
 
 c     Set global limits of local domain l_lim(dim,loc)
 
@@ -889,7 +935,205 @@ c     Set global limits of global domain g_lim(dim,loc)
 
 c     Select rank
 
-        split_key = 1
+        !Check whether proc is at boundary of appropriate type
+        do loc=0,1
+          cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
+          if (cp(loc)) split_key = BC
+        enddo
+
+        !Group communicators based on location in face
+        if (split_key /= MPI_UNDEFINED) then
+          call selectRank_X(split_key)
+        endif
+
+        !Create self-communicator for single-point dimensions
+        if (      (l_lim(dim,0) == l_lim(dim,1))
+     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
+          split_key=split_key+my_rank+1
+        endif
+
+c     End program
+
+      end subroutine selectRank_PER_X
+
+c     selectRank_PER_Y
+c     #####################################################################
+      subroutine selectRank_PER_Y(split_key)
+
+c     ---------------------------------------------------------------------
+c     Groups processors for periodic BC transfer along dimension dim.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: split_key
+
+c     Local variables
+
+        integer :: dim,loc,lrank,BC
+
+        logical :: cp(0:1)
+
+c     Begin program
+
+        BC = PER
+        dim = 2
+
+c     Set global limits of local domain l_lim(dim,loc)
+
+        l_lim(1,0) = grid_params%ilo(1)
+        l_lim(2,0) = grid_params%jlo(1)
+        l_lim(3,0) = grid_params%klo(1)
+        l_lim(1,1) = grid_params%ihi(1)
+        l_lim(2,1) = grid_params%jhi(1)
+        l_lim(3,1) = grid_params%khi(1)
+
+c     Set global limits of global domain g_lim(dim,loc)
+
+        g_lim(1,0) = 1
+        g_lim(2,0) = 1
+        g_lim(3,0) = 1
+        g_lim(1,1) = grid_params%nxgl(1)
+        g_lim(2,1) = grid_params%nygl(1)
+        g_lim(3,1) = grid_params%nzgl(1)
+
+c     Select rank
+
+        !Check whether proc is at boundary of appropriate type
+        do loc=0,1
+          cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
+          if (cp(loc)) split_key = BC
+        enddo
+
+        !Group communicators based on location in face
+        if (split_key /= MPI_UNDEFINED) then
+          call selectRank_Y(split_key)
+        endif
+
+        !Create self-communicator for single-point dimensions
+        if (      (l_lim(dim,0) == l_lim(dim,1))
+     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
+          split_key=split_key+my_rank+1
+        endif
+
+c     End program
+
+      end subroutine selectRank_PER_Y
+
+c     selectRank_PER_Z
+c     #####################################################################
+      subroutine selectRank_PER_Z(split_key)
+
+c     ---------------------------------------------------------------------
+c     Groups processors for periodic BC transfer along dimension dim.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: split_key
+
+c     Local variables
+
+        integer :: dim,loc,lrank,BC
+
+        logical :: cp(0:1)
+
+c     Begin program
+
+        BC = PER
+        dim = 3
+
+c     Set global limits of local domain l_lim(dim,loc)
+
+        l_lim(1,0) = grid_params%ilo(1)
+        l_lim(2,0) = grid_params%jlo(1)
+        l_lim(3,0) = grid_params%klo(1)
+        l_lim(1,1) = grid_params%ihi(1)
+        l_lim(2,1) = grid_params%jhi(1)
+        l_lim(3,1) = grid_params%khi(1)
+
+c     Set global limits of global domain g_lim(dim,loc)
+
+        g_lim(1,0) = 1
+        g_lim(2,0) = 1
+        g_lim(3,0) = 1
+        g_lim(1,1) = grid_params%nxgl(1)
+        g_lim(2,1) = grid_params%nygl(1)
+        g_lim(3,1) = grid_params%nzgl(1)
+
+c     Select rank
+
+        !Check whether proc is at boundary of appropriate type
+        do loc=0,1
+          cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
+          if (cp(loc)) split_key = BC
+        enddo
+
+        !Group communicators based on location in face
+        if (split_key /= MPI_UNDEFINED) then
+          call selectRank_Z(split_key)
+        endif
+
+        !Create self-communicator for single-point dimensions
+        if (      (l_lim(dim,0) == l_lim(dim,1))
+     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
+          split_key=split_key+my_rank+1
+        endif
+
+c     End program
+
+      end subroutine selectRank_PER_Z
+
+c     selectRank_X
+c     #####################################################################
+      subroutine selectRank_X(split_key)
+
+c     ---------------------------------------------------------------------
+c     Groups processors in slices in X direction (i.e., order them according
+c     to Y and Z positions).
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: split_key
+
+c     Local variables
+
+        integer    :: loc,lrank
+
+        logical    :: cp(0:1)
+
+c     Begin program
+
+        if (split_key == MPI_UNDEFINED) then
+          split_key = 1
+        endif
+
+c     Set global limits of local domain l_lim(dim,loc)
+
+        l_lim(1,0) = grid_params%ilo(1)
+        l_lim(2,0) = grid_params%jlo(1)
+        l_lim(3,0) = grid_params%klo(1)
+        l_lim(1,1) = grid_params%ihi(1)
+        l_lim(2,1) = grid_params%jhi(1)
+        l_lim(3,1) = grid_params%khi(1)
+
+c     Set global limits of global domain g_lim(dim,loc)
+
+        g_lim(1,0) = 1
+        g_lim(2,0) = 1
+        g_lim(3,0) = 1
+        g_lim(1,1) = grid_params%nxgl(1)
+        g_lim(2,1) = grid_params%nygl(1)
+        g_lim(3,1) = grid_params%nzgl(1)
+
+c     Select rank
 
         !Group processors based on location in y and z directions
         !(x direction is shared; 
@@ -918,12 +1162,15 @@ c     Call variables
 
 c     Local variables
 
-        real(8)    :: random
         integer    :: loc,lrank
 
         logical    :: cp(0:1)
 
 c     Begin program
+
+        if (split_key == MPI_UNDEFINED) then
+          split_key = 1
+        endif
 
 c     Set global limits of local domain l_lim(dim,loc)
 
@@ -944,8 +1191,6 @@ c     Set global limits of global domain g_lim(dim,loc)
         g_lim(3,1) = grid_params%nzgl(1)
 
 c     Select rank
-
-        split_key = 1
 
         !Group processors based on location in x and z directions
         !(y direction is shared; 
@@ -974,12 +1219,15 @@ c     Call variables
 
 c     Local variables
 
-        real(8)    :: random
         integer    :: loc,lrank
 
         logical    :: cp(0:1)
 
 c     Begin program
+
+        if (split_key == MPI_UNDEFINED) then
+          split_key = 1
+        endif
 
 c     Set global limits of local domain l_lim(dim,loc)
 
@@ -1000,8 +1248,6 @@ c     Set global limits of global domain g_lim(dim,loc)
         g_lim(3,1) = grid_params%nzgl(1)
 
 c     Select rank
-
-        split_key = 1
 
         !Group processors based on location in x and y directions
         !(z direction is shared; 
@@ -1029,12 +1275,15 @@ c     Call variables
 
 c     Local variables
 
-        real(8)    :: random
         integer    :: loc,lrank
 
         logical    :: cp(0:1)
 
 c     Begin program
+
+        if (split_key == MPI_UNDEFINED) then
+          split_key = 1
+        endif
 
 c     Set global limits of local domain l_lim(dim,loc)
 
@@ -1056,8 +1305,6 @@ c     Set global limits of global domain g_lim(dim,loc)
 
 c     Select rank
 
-        split_key = 1
-
         !Group processors based on location in x direction
         !(y and z directions are shared; 
         ! organize in 1D processor mesh: i
@@ -1066,123 +1313,6 @@ c     Select rank
 c     End program
 
       end subroutine selectRank_YZ
-
-ccc     createSPComm
-ccc     #####################################################################
-cc      subroutine createSPComm(dim,MPI_COMM)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     Creates MPI communicator for domains surrounding singular point
-ccc     (SP boundary condition)
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer    :: dim,MPI_COMM
-cc
-ccc     Local variables
-cc
-cc        integer    :: split_key,my_sp_rank,np_sp
-cc
-ccc     Begin program
-cc
-ccc     Find split key
-cc
-cc        split_key = MPI_UNDEFINED
-cc
-cc        call selectRank(dim,SP,split_key)
-cc
-ccc     Create communicator
-cc
-cc        call MPI_Comm_split(MPI_COMM_WORLD,split_key,my_rank
-cc     .                     ,MPI_COMM,mpierr)
-cc
-ccc diag ****
-cccccc        write (*,*) 'Proc',my_rank,', SP COMM' ,MPI_COMM_SP
-cccc        if (MPI_COMM_SP /= MPI_COMM_NULL) then
-cccc          call MPI_Comm_size(MPI_COMM_SP,np_sp,mpierr)
-cccc          call MPI_Comm_rank(MPI_COMM_SP,my_sp_rank,mpierr)
-cccc          write (*,*) 'SP_COMM ',split_key,'; nproc=',np_sp
-cccc     .                ,'; my_sp_rank=',my_sp_rank
-cccc     .                ,'; my_rank=',my_rank
-cccc        endif
-cccc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-cccc        call MPI_Finalize(mpierr)
-cccc        stop
-ccc diag ****
-cc
-ccc     End program
-cc
-cc        contains
-cc
-ccc       selectRank
-ccc       #####################################################################
-cc        subroutine selectRank(dim,BC,split_key)
-cc
-ccc       ---------------------------------------------------------------------
-ccc       Groups processors within groups based on split_key.
-ccc       ---------------------------------------------------------------------
-cc
-cc          implicit none
-cc
-ccc       Call variables
-cc
-cc          integer    :: dim,BC,split_key
-cc
-ccc       Local variables
-cc
-cc          real(8)    :: random
-cc          integer    :: loc,lrank
-cc
-cc          logical    :: cp(0:1)
-cc
-ccc       Begin program
-cc
-ccc       Set global limits of local domain l_lim(dim,loc)
-cc
-cc          l_lim(1,0) = grid_params%ilo(1)
-cc          l_lim(2,0) = grid_params%jlo(1)
-cc          l_lim(3,0) = grid_params%klo(1)
-cc          l_lim(1,1) = grid_params%ihi(1)
-cc          l_lim(2,1) = grid_params%jhi(1)
-cc          l_lim(3,1) = grid_params%khi(1)
-cc
-ccc       Set global limits of global domain g_lim(dim,loc)
-cc
-cc          g_lim(1,0) = 1
-cc          g_lim(2,0) = 1
-cc          g_lim(3,0) = 1
-cc          g_lim(1,1) = grid_params%nxgl(1)
-cc          g_lim(2,1) = grid_params%nygl(1)
-cc          g_lim(3,1) = grid_params%nzgl(1)
-cc
-ccc       Select rank
-cc
-cc          do loc=0,1
-cc            cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
-cc            if (cp(loc)) split_key = BC
-cc          enddo
-cc
-cc          !Group communicators based on location in z direction
-cc          if (bcond(dim) == SP .and. cp(0)) then
-cc            split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
-cc          endif
-cc
-cc          !Create self-communicator for single-point dimensions
-cc          if (      l_lim(dim,0) == l_lim(dim,1)
-cc     .        .and. cp(0)        == cp(1)       ) then
-cc            call random_seed()
-cc            call random_number(random)
-cc            split_key=split_key+my_rank+1
-cc          endif
-cc
-ccc       End program
-cc
-cc        end subroutine selectRank
-cc
-cc      end subroutine createSPComm
 
 c     checkProc
 c     #####################################################################
