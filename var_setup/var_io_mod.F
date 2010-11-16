@@ -861,6 +861,8 @@ c     writeDerivedType
 c     #################################################################
       subroutine writeDerivedType(varray,unit,frmt)
 
+        implicit none
+
 c     Call variables
 
         type(var_array),pointer  :: varray
@@ -908,6 +910,8 @@ c     End program
 c     readDerivedType
 c     #################################################################
       subroutine readDerivedType(varray,unit,format,ierr)
+
+        implicit none
 
 c     Call variables
 
@@ -982,9 +986,11 @@ c     End program
 
       end subroutine readDerivedType
 
-c     dumpVector
+c     dumpVectorToFile
 c     #################################################################
-      subroutine dumpVector(unit,vec,frmt)
+      subroutine dumpVectorToFile(unit,vec,frmt)
+
+        implicit none
 
 c     Call variables
 
@@ -997,28 +1003,31 @@ c     Local variables
 c     Begin program
 
         if (frmt) then
-#if defined(petsc)
+cc#if defined(petsc)
           write (unit,*) ilomg,ihipg,jlomg,jhipg,klomg,khipg
-#else
-          write (unit,*) ilom,ihip,jlom,jhip,klom,khip
-#endif
+cc#else
+cc          write (unit,*) ilom,ihip,jlom,jhip,klom,khip
+cc#endif
           write (unit,*) vec
         else
-#if defined(petsc)
+cc#if defined(petsc)
           write (unit) ilomg,ihipg,jlomg,jhipg,klomg,khipg
-#else
-          write (unit) ilom,ihip,jlom,jhip,klom,khip
-#endif
+cc          write (*,*) ilomg,ihipg,jlomg,jhipg,klomg,khipg
+cc#else
+cc          write (unit) ilom,ihip,jlom,jhip,klom,khip
+cc#endif
           write (unit) vec
         endif
 
 c     End program
 
-      end subroutine dumpVector
+      end subroutine dumpVectorToFile
 
-c     readVector
+c     readVectorFromFiles
 c     #################################################################
-      function readVector(unit,vec,format) result(ierr)
+      function readVectorFromFiles(unit,vec,format) result(ierr)
+
+        implicit none
 
 c     Call variables
 
@@ -1029,36 +1038,37 @@ c     Call variables
 c     Local variables
 
         integer :: ieq,ilom,ihip,jlom,jhip,klom,khip
+cc     .            ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
 
 c     Begin program
 
         ierr = 0
 
         if (format) then
-#if defined(petsc)
-          read (unit,*,iostat=ierr,end=100)
-     .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
-#else
+cc#if defined(petsc)
+cc          read (unit,*,iostat=ierr,end=100)
+cc     .           ilomg,ihipg,jlomg,jhipg,klomg,khipg
+cc          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
+cc     .                                ,1,1,1)
+cc          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
+cc     .                                ,1,1,1)
+cc#else
           read (unit,*,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
-#endif
+cc#endif
           read (unit,*,iostat=ierr,end=100)
      .         vec(ilom:ihip,jlom:jhip,klom:khip,:)
           if (ierr /= 0) goto 200
         else
-#if defined(petsc)
-          read (unit,iostat=ierr,end=100)
-     .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
-#else
+cc#if defined(petsc)
+cc          read (unit,iostat=ierr,end=100)
+cc     .         ilomg,ihipg,jlomg,jhipg,klomg,khipg
+cc          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
+cc     .                                ,1,1,1)
+cc          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
+cc     .                                ,1,1,1)
+cc#else
           read (unit,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
-#endif
+cc#endif
           read (unit,iostat=ierr,end=100)
      .         vec(ilom:ihip,jlom:jhip,klom:khip,:)
           if (ierr /= 0) goto 200
@@ -1069,15 +1079,13 @@ c     Begin program
  100    ierr=-2  !EOF
         write (messg,*) 'readVector: EOF in file unit',unit
         call pstop('readVector',messg)
-cc        return
 
  200    ierr=-1  !Error, but not EOF
         write (messg,*) 'Error reading file unit',unit
         call pstop('readVector',messg)
-cc        return
 
 c     End program
 
-      end function readVector
+      end function readVectorFromFiles
 
       end module iosetup
