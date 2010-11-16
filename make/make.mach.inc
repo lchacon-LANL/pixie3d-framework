@@ -24,8 +24,11 @@ MACHINE ?=HaveNoIdea
 
 ifeq ($(HOST),lap0086227)
     FC=gfortran
+    OPT=g
 #    HDF5_HOME =/usr
-    HDF5_HOME =$(HDF5)
+#    HDF5_HOME =$(HDF5)
+#    HDF5_HOME =/packages/hdf5-1.8.3/hdf5
+    HDF5_HOME =/usr
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include

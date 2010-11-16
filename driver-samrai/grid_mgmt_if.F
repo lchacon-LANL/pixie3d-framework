@@ -233,24 +233,29 @@ c######################################################################
       use iosetup
       type(patch), target :: fpatch
       type(patch), pointer :: patch_data
+      integer igr
 
       patch_data => fpatch;
 
-c      call destroyGrid(gv%gparams)
-      call deallocateGridMetric(patch_data%gparams%gmetric)
-      call deallocateGridStructure(patch_data%gparams)
+      call destroyGrid(patch_data%gparams)
+c      call deallocateGridMetric(patch_data%gparams%gmetric)
+c      call deallocateGridStructure(patch_data%gparams)
 
       deallocate(patch_data%u_0%array_var)
       deallocate(patch_data%u_n%array_var)
-
       deallocate(patch_data%u_0)
       deallocate(patch_data%u_n) 
-
       deallocate(patch_data%aux%var_list)
       deallocate(patch_data%aux%vec_list)
       deallocate(patch_data%aux)
+
+         do igr=1,size(patch_data%bc_grp)
+           deallocate(patch_data%bc_grp(igr)%bc_seq)
+         enddo
+         deallocate(patch_data%bc_grp)
+     
 c      deallocate(patch_data%gparams)
-c      deallocate(patch_data)
+      deallocate(patch_data)
 
       end subroutine f_delete_patch_data
 

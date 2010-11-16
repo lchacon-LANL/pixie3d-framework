@@ -56,7 +56,7 @@ c Initialize old time solution
 
       call initializeDerivedType(gv%u_n)
 
-      call equateDerivedType(gv%u_n,gv%u_0)
+c      call equateDerivedType(gv%u_n,gv%u_0)
 
 c End program
 
