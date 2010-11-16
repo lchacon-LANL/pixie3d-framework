@@ -26,7 +26,7 @@ c     -----------------------------------------------------------------
         implicit none
 
         integer,parameter :: DEF=0   !Default (do nothing)
-     .                      ,PER=1   !Periodic
+     .                      ,PER=1   !Periodic  (do not change: NEMATO depends on it)
      .                      ,EQU=2   !Equilibrium (inhomogeneous Dirichlet)
      .                      ,EXT=3   !Extrapolation
      .                      ,NEU=4   !Neumann or Robin
@@ -42,7 +42,7 @@ c     -----------------------------------------------------------------
 
         integer :: bcond(6)          !Contains topological BC configuration
 
-        real(8) :: SP_flsv=1d-5      !SP failsafe
+        real(8) :: SP_flsv=1d-5      !Singular point failsafe
 
       contains
 
