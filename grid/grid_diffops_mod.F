@@ -278,9 +278,7 @@ c     Begin program
 c     End program
 
       end function div_vrtx
-#endif
 
-#if !defined(samrai)
 c     graddiv_vrtx
 c     ###############################################################
       function graddiv_vrtx(i,j,k,nx,ny,nz,igx,igy,igz,aa,vol)
@@ -340,9 +338,7 @@ c     Gradient at cell centers
 c     End program
 
       end function graddiv_vrtx
-#endif
 
-#if !defined(samrai)
 c     lap_vrtx
 c     ###############################################################
       function lap_vrtx(i,j,k,nx,ny,nz,igx,igy,igz,aa,vol,enf_bc)
@@ -564,7 +560,6 @@ c     Curl at cell center
 c     End program
 
       end function curlcurl_vrtx_diff
-
 
 ccc     div_vrtx
 ccc     ##################################################################
@@ -884,8 +879,8 @@ c ######################################################################
 
 c     grad_ijk
 c     ###############################################################
-      function grad_ijk(i,j,k,nx,ny,nz,igx,igy,igz,arr,he)
-     .         result(cov)
+      function grad_ijk(i,j,k,nx,ny,nz,igx,igy,igz,arr,he,hex,hey,hez
+     .                 ,order) result(cov)
 
 c     ---------------------------------------------------------------
 c     Calculates grad(A) in general non-orthogonal coordinates.
@@ -896,63 +891,36 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
 
-      real(8)    :: arr(0:nx+1,0:ny+1,0:nz+1),cov(3)
+      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1),cov(3)
 
-      integer,optional :: he
+      integer,optional :: he,hex,hey,hez,order
 
 c     Local variables
 
-      integer :: he1,he2,he3
+      integer :: ip,im,jp,jm,kp,km,ig,jg,kg,hx,hy,hz
+      real(8) :: dhx,dhy,dhz,dx1,dx2,dy1,dy2,dz1,dz2
+      real(8) :: gx,gy,gz
 
 c     Begin program
+
+      hx = 0; hy = 0; hz = 0
 
       if (PRESENT(he)) then
         select case(he)
         case(1)
-          he1 = 1; he2 = 0; he3 = 0
+          hx = 1
         case(2)
-          he1 = 0; he2 = 1; he3 = 0
+          hy = 1
         case(3)
-          he1 = 0; he2 = 0; he3 = 1
+          hz = 1
         end select
       else
-        he1 = 0; he2 = 0; he3 = 0
+        if (PRESENT(hex)) hx = hex
+        if (PRESENT(hey)) hy = hey
+        if (PRESENT(hez)) hz = hez
       endif
-
-      cov = grad2_ijk(i,j,k,nx,ny,nz,igx,igy,igz,arr
-     .               ,he1,he2,he3)
-
-c     End program
-
-      end function grad_ijk
-
-c     grad2_ijk
-c     ###############################################################
-      function grad2_ijk(i,j,k,nx,ny,nz,igx,igy,igz,arr,hex,hey,hez)
-     .         result(cov)
-
-c     ---------------------------------------------------------------
-c     Calculates grad(A)) in general non-orthogonal coordinates.
-c     The vector grad(A) is covariant.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      integer :: i,j,k,nx,ny,nz,igx,igy,igz,hex,hey,hez
-      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1),cov(3)
-
-c     Local variables
-
-      integer :: ip,im,jp,jm,kp,km,ig,jg,kg
-      real(8) :: dhx,dhy,dhz,dx1,dx2,dy1,dy2,dz1,dz2
-      real(8) :: daxdz,dazdx,daydx,daxdy,dazdy,daydz
-      real(8) :: jac0,jacp,jacm,ll,al,ar,gx,gy,gz
-
-c     Begin program
 
       ip = i+1
       im = i-1
@@ -963,102 +931,148 @@ c     Begin program
 
       call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
-      dhx = 2.*grid_params%dxh(ig)
-      dhy = 2.*grid_params%dyh(jg)
-      dhz = 2.*grid_params%dzh(kg)
+c     Central-difference formulas
 
-c     Exceptions
+cc      dhx = 2.*grid_params%dxh(ig)
+cc      dhy = 2.*grid_params%dyh(jg)
+cc      dhz = 2.*grid_params%dzh(kg)
+cccc      dhx = grid_params%dx(ig-1)+grid_params%dx(ig)
+cccc      dhy = grid_params%dy(jg-1)+grid_params%dy(jg)
+cccc      dhz = grid_params%dz(kg-1)+grid_params%dz(kg)
+cc
+ccc     Exceptions
+cc
+cc      if (hx == 1) then
+cc        im = i
+cc        dhx = grid_params%dx(ig)
+cc      elseif (hx == -1) then
+cc        ip = i
+cc        dhx = grid_params%dx(ig-1)
+cc      endif
+cc
+cc      if (hy == 1) then
+cc        jm = j
+cc        dhy = grid_params%dy(jg)
+cc      elseif (hy == -1) then
+cc        jp = j
+cc        dhy = grid_params%dy(jg-1)
+cc      endif
+cc
+cc      if (hz == 1) then
+cc        km = k
+cc        dhz = grid_params%dz(kg)
+cc      elseif (hz == -1) then
+cc        kp = k
+cc        dhz = grid_params%dz(kg-1)
+cc      endif
+cc
+cc      gx = (arr(ip,j,k)-arr(im,j,k))/dhx
+cc      gy = (arr(i,jp,k)-arr(i,jm,k))/dhy
+cc      gz = (arr(i,j,kp)-arr(i,j,km))/dhz
+cc
+cc      cov = (/ gx,gy,gz /)
 
-      if (hex == 1) then
-        im = i
-        dhx = grid_params%dx(ig)
-      elseif (hex == -1) then
-        ip = i
-        dhx = grid_params%dx(ig-1)
-      endif
-
-      if (hey == 1) then
-        jm = j
-        dhy = grid_params%dy(jg)
-      elseif (hey == -1) then
-        jp = j
-        dhy = grid_params%dy(jg-1)
-      endif
-
-      if (hez == 1) then
-        km = k
-        dhz = grid_params%dz(kg)
-      elseif (hez == -1) then
-        kp = k
-        dhz = grid_params%dz(kg-1)
-      endif
+c     2nd order formulas
 
       !X comp
-      if (i==0.and.hex==0) then
-        dx1=grid_params%dx(ig)
-        dx2=grid_params%dx(ig+1)
-        gx = (-arr(i+2,j,k)*dx1/dx2/(dx1+dx2)
-     .        +arr(i+1,j,k)*(dx1+dx2)/dx1/dx2
-     .        -arr(i  ,j,k)*(1./dx1+1./(dx1+dx2)))
-c1st        gx = (arr(ip,j,k)-arr(i,j,k))/dx1
-      elseif (i==nx+1.and.hex==0) then
-        dx1=grid_params%dx(ig-1)
-        dx2=grid_params%dx(ig-2)
-        gx = -(-arr(i-2,j,k)*dx1/dx2/(dx1+dx2)
-     .         +arr(i-1,j,k)*(dx1+dx2)/dx1/dx2
-     .         -arr(i  ,j,k)*(1./dx1+1./(dx1+dx2)))
-c1st        gx = (arr(i,j,k)-arr(im,j,k))/dx1
-      else
-        gx = (arr(ip,j,k)-arr(im,j,k))/dhx
-      endif
+      select case(hx)
+      case(0)
+        if (i==0) then
+          dx1=grid_params%dx(ig)
+          dx2=grid_params%dx(ig+1)
+          gx = (-arr(i+2,j,k)*dx1/dx2/(dx1+dx2)
+     .          +arr(i+1,j,k)*(dx1+dx2)/dx1/dx2
+     .          -arr(i  ,j,k)*(1./dx1+1./(dx1+dx2)))
+        elseif (i==nx+1) then
+          dx1=grid_params%dx(ig-1)
+          dx2=grid_params%dx(ig-2)
+          gx = -(-arr(i-2,j,k)*dx1/dx2/(dx1+dx2)
+     .           +arr(i-1,j,k)*(dx1+dx2)/dx1/dx2
+     .           -arr(i  ,j,k)*(1./dx1+1./(dx1+dx2)))
+        else
+          dx1=grid_params%dx(ig-1)
+          dx2=grid_params%dx(ig)
+
+cc          gx = ( arr(i+1,j,k)*dx1/dx2/(dx1+dx2)
+cc     .          +arr(i  ,j,k)*(dx2-dx1)/dx2/dx1
+cc     .          -arr(i-1,j,k)*dx2/dx1/(dx1+dx2))
+          gx = (arr(i+1,j,k)-arr(i-1,j,k))/(dx1+dx2)
+        endif
+      case(1)
+        gx = (arr(i+1,j,k)-arr(i  ,j,k))/grid_params%dx(ig  )
+      case(-1)
+        gx = (arr(i  ,j,k)-arr(i-1,j,k))/grid_params%dx(ig-1)
+      end select
 
       !Y comp
-      if (j==0.and.hey==0) then
-        dy1=grid_params%dy(jg)
-        dy2=grid_params%dy(jg+1)
-        gy = (-arr(i,j+2,k)*dy1/dy2/(dy1+dy2)
-     .        +arr(i,j+1,k)*(dy1+dy2)/dy1/dy2
-     .        -arr(i,j  ,k)*(1./dy1+1./(dy1+dy2)))
-c1st        gy = (arr(i,jp,k)-arr(i,j,k))/dy1
-      elseif (j==ny+1.and.hey==0) then
-        dy1=grid_params%dy(jg-1)
-        dy2=grid_params%dy(jg-2)
-        gy = -(-arr(i,j-2,k)*dy1/dy2/(dy1+dy2)
-     .         +arr(i,j-1,k)*(dy1+dy2)/dy1/dy2
-     .         -arr(i,j  ,k)*(1./dy1+1./(dy1+dy2)))
-c1st        gy = (arr(i,j,k)-arr(i,jm,k))/dy1
-      else
-        gy = (arr(i,jp,k)-arr(i,jm,k))/dhy
-      endif
+      select case (hy)
+      case(0)
+        if (j==0) then
+          dy1=grid_params%dy(jg)
+          dy2=grid_params%dy(jg+1)
+          gy = (-arr(i,j+2,k)*dy1/dy2/(dy1+dy2)
+     .          +arr(i,j+1,k)*(dy1+dy2)/dy1/dy2
+     .          -arr(i,j  ,k)*(1./dy1+1./(dy1+dy2)))
+        elseif (j==ny+1) then
+          dy1=grid_params%dy(jg-1)
+          dy2=grid_params%dy(jg-2)
+          gy = -(-arr(i,j-2,k)*dy1/dy2/(dy1+dy2)
+     .           +arr(i,j-1,k)*(dy1+dy2)/dy1/dy2
+     .           -arr(i,j  ,k)*(1./dy1+1./(dy1+dy2)))
+        else
+          dy1=grid_params%dy(jg-1)
+          dy2=grid_params%dy(jg)
+
+cc          gy = ( arr(i,j+1,k)*dy1/dy2/(dy1+dy2)
+cc     .          +arr(i,j  ,k)*(dy2-dy1)/dy2/dy1
+cc     .          -arr(i,j-1,k)*dy2/dy1/(dy1+dy2))
+          gy = (arr(i,j+1,k)-arr(i,j-1,k))/(dy1+dy2)
+        endif
+      case(1)
+        gy = (arr(i,j+1,k)-arr(i,j  ,k))/grid_params%dy(jg  )
+      case(-1)
+        gy = (arr(i,j  ,k)-arr(i,j-1,k))/grid_params%dy(jg-1)
+      end select
 
       !Z comp
-      if (k==0.and.hez==0) then
-        dz1=grid_params%dz(kg)
-        dz2=grid_params%dz(kg+1)
-        gz = (-arr(i,j,k+2)*dz1/dz2/(dz1+dz2)
-     .        +arr(i,j,k+1)*(dz1+dz2)/dz1/dz2
-     .        -arr(i,j,k  )*(1./dz1+1./(dz1+dz2)))
-c1st        gz = (arr(i,j,kp)-arr(i,j,k))/dz1
-      elseif (k==nz+1.and.hez==0) then
-        dz1=grid_params%dz(kg-1)
-        dz2=grid_params%dz(kg-2)
-        gz = -(-arr(i,j,k-2)*dz1/dz2/(dz1+dz2)
-     .         +arr(i,j,k-1)*(dz1+dz2)/dz1/dz2
-     .         -arr(i,j,k  )*(1./dz1+1./(dz1+dz2)))
-c1st        gz = (arr(i,j,k)-arr(i,j,km))/dz1
-      else
-        gz = (arr(i,j,kp)-arr(i,j,km))/dhz
-      endif
+      select case(hz)
+      case(0)
+        if (k==0) then
+          dz1=grid_params%dz(kg)
+          dz2=grid_params%dz(kg+1)
+          gz = (-arr(i,j,k+2)*dz1/dz2/(dz1+dz2)
+     .          +arr(i,j,k+1)*(dz1+dz2)/dz1/dz2
+     .          -arr(i,j,k  )*(1./dz1+1./(dz1+dz2)))
+        elseif (k==nz+1) then
+          dz1=grid_params%dz(kg-1)
+          dz2=grid_params%dz(kg-2)
+          gz = -(-arr(i,j,k-2)*dz1/dz2/(dz1+dz2)
+     .           +arr(i,j,k-1)*(dz1+dz2)/dz1/dz2
+     .           -arr(i,j,k  )*(1./dz1+1./(dz1+dz2)))
+        else
+          dz1=grid_params%dz(kg-1)
+          dz2=grid_params%dz(kg)
+
+cc          gz = ( arr(i,j,k+1)*dz1/dz2/(dz1+dz2)
+cc     .          +arr(i,j,k  )*(dz2-dz1)/dz2/dz1
+cc     .          -arr(i,j,k-1)*dz2/dz1/(dz1+dz2))
+          gz = (arr(i,j,k+1)-arr(i,j,k-1))/(dz1+dz2)
+        endif
+      case(1)
+        gz = (arr(i,j,k+1)-arr(i,j,k  ))/grid_params%dz(kg  )
+      case(-1)
+        gz = (arr(i,j,k  )-arr(i,j,k-1))/grid_params%dz(kg-1)
+      end select
 
       cov = (/ gx,gy,gz /)
 
 c     End program
 
-      end function grad2_ijk
+      end function grad_ijk
 
 c     grad_mesh
 c     ###############################################################
-      function grad_mesh(nx,ny,nz,igx,igy,igz,arr) result(cov)
+      function grad_mesh(igrid,arr) result(cov)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -1070,21 +1084,25 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer :: nx,ny,nz,igx,igy,igz
+      integer :: igrid
 
-      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1)
-     .          ,cov(0:nx+1,0:ny+1,0:nz+1,3)
+      real(8) :: arr(0:,0:,0:)
+     .          ,cov(0:size(arr,1)-1,0:size(arr,2)-1,0:size(arr,3)-1,3)
 
 c     Local variables
 
-      integer :: i,j,k
+      integer :: nx,ny,nz,i,j,k
 
 c     Begin program
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
 
       do k=0,nz+1
         do j=0,ny+1
           do i=0,nx+1
-            cov(i,j,k,:) = grad_ijk(i,j,k,nx,ny,nz,igx,igy,igz,arr)
+            cov(i,j,k,:)=grad_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,arr)
           enddo
         enddo
       enddo
@@ -1135,52 +1153,9 @@ c     End program
 
       end function curl_ijk
 
-ccc     curl2_ijk
-ccc     ###############################################################
-cc      function curl2_ijk(i,j,k,nx,ny,nz,igx,igy,igz,ax,ay,az,he)
-cc     .         result(cnv)
-cc
-ccc     ---------------------------------------------------------------
-ccc     Calculates curl(A) in general non-orthogonal
-ccc     coordinates, preserving the SPD property. The vector A is
-ccc     covariant, and returns the contravariant component "comp".
-ccc     ---------------------------------------------------------------
-cc
-cc      implicit none           !For safe fortran
-cc
-ccc     Call variables
-cc
-cc      real(8)    :: cnv(3)
-cc
-cc      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-cc
-cc      real(8)    :: ax(0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,ay(0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,az(0:nx+1,0:ny+1,0:nz+1)
-cc
-cc      integer,optional :: he
-cc
-ccc     Local variables
-cc
-cc      real(8) :: gv(3,3)
-cc
-ccc     Begin program
-cc
-cc      gv(:,1) = grad(i,j,k,nx,ny,nz,igx,igy,igz,ax,he=he)
-cc      gv(:,2) = grad(i,j,k,nx,ny,nz,igx,igy,igz,ay,he=he)
-cc      gv(:,3) = grad(i,j,k,nx,ny,nz,igx,igy,igz,az,he=he)
-cc
-cc      cnv(1) = gv(2,3)-gv(3,2)
-cc      cnv(2) = gv(3,1)-gv(1,3)
-cc      cnv(3) = gv(1,2)-gv(2,1)
-cc
-ccc     End program
-cc
-cc      end function curl2_ijk
-
 c     curl_mesh
 c     ###############################################################
-      function curl_mesh(nx,ny,nz,igx,igy,igz,cov) result(cnv)
+      function curl_mesh(igrid,cov) result(cnv)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -1192,21 +1167,25 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer :: nx,ny,nz,igx,igy,igz
+      integer :: igrid
 
-      real(8) :: cov(0:nx+1,0:ny+1,0:nz+1,3)
-     .          ,cnv(0:nx+1,0:ny+1,0:nz+1,3)
+      real(8) :: cov(0:,0:,0:,:)
+     .          ,cnv(0:size(cov,1)-1,0:size(cov,2)-1,0:size(cov,3)-1,3)
 
 c     Local variables
 
-      integer :: i,j,k
+      integer :: nx,ny,nz,i,j,k
 
 c     Begin program
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
 
       do k=0,nz+1
         do j=0,ny+1
           do i=0,nx+1
-            cnv(i,j,k,:) = curl_ijk(i,j,k,nx,ny,nz,igx,igy,igz,cov)
+            cnv(i,j,k,:)=curl_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,cov)
           enddo
         enddo
       enddo
@@ -1307,103 +1286,9 @@ c     End
 
       end function div_ijk
 
-ccc     div2_ijk
-ccc     ###############################################################
-cc      function div2_ijk(i,j,k,nx,ny,nz,igx,igy,igz,ax,ay,az,he,sp)
-cc     .         result(div)
-cc      implicit none
-ccc     ---------------------------------------------------------------
-ccc     Calculates divergence of vector field at cell centers in
-ccc     general non-orthogonal geometry.
-ccc     ---------------------------------------------------------------
-cc
-ccc     Call variables
-cc
-cc      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-cc      real(8)    :: ax(0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,ay(0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,az(0:nx+1,0:ny+1,0:nz+1),div
-cc      integer   ,optional :: he
-cc      logical,optional    :: sp
-cc
-ccc     Local variables
-cc
-cc      integer    :: ig,jg,kg,igrid,half_elem,ip,im,jp,jm,kp,km
-cc      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jacp,jacm,jac0,jach
-cc      logical    :: spoint
-cc
-ccc     Begin program
-cc
-cc      if (PRESENT(he)) then
-cc        half_elem = he
-cc      else
-cc        half_elem = 0
-cc      endif
-cc
-cc      if (PRESENT(sp)) then
-cc        spoint = sp
-cc      else
-cc        spoint = .false.
-cc      endif
-cc
-cc      igrid = igx
-cc
-cc      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-cc
-cc      ip = i+1
-cc      im = i-1
-cc      jp = j+1
-cc      jm = j-1
-cc      kp = k+1
-cc      km = k-1
-cc
-cc      dxx = 2*grid_params%dxh(ig)
-cc      dyy = 2*grid_params%dyh(jg)
-cc      dzz = 2*grid_params%dzh(kg)
-cc
-cc      jac0 = gmetric%grid(igrid)%jac(i,j,k)
-cc
-cc      select case(half_elem)
-cc      case(1)
-cc        im = i
-cc        dxx = grid_params%dx(ig)
-cc        jac0 = 0.5*(gmetric%grid(igrid)%jac(ip,j,k)
-cc     .             +gmetric%grid(igrid)%jac(i ,j,k))
-cc      case(2)
-cc        jm = j
-cc        dyy = grid_params%dy(jg)
-cc        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,jp,k)
-cc     .             +gmetric%grid(igrid)%jac(i,j ,k))
-cc      case(3)
-cc        km = k
-cc        dzz = grid_params%dz(kg)
-cc        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,j,kp)
-cc     .             +gmetric%grid(igrid)%jac(i,j,k ))
-cc      end select
-cc
-cc      if (isSP(i,j,k,igx,igy,igz).and.half_elem == 0.and.spoint) then
-cc        jacp = gmetric%grid(igrid)%jac(i+1,j,k)
-cc        jach = 0.5*(jacp+jac0)   !Only good for cylindrical-like geom.
-cc
-cc        div = ((ax(i+1,j  ,k  )/jacp
-cc     .         +ax(i  ,j  ,k  )/jac0)*jach     )/dxx
-cc     .        +(ay(i  ,j+1,k  )-ay(i  ,j-1,k  ))/dyy
-cc     .        +(az(i  ,j  ,k+1)-az(i  ,j  ,k-1))/dzz
-cc      else
-cc        div =  (ax(ip,j ,k )-ax(im,j ,k ))/dxx
-cc     .        +(ay(i ,jp,k )-ay(i ,jm,k ))/dyy
-cc     .        +(az(i ,j ,kp)-az(i ,j ,km))/dzz
-cc      endif
-cc
-cc      div = div/jac0
-cc      
-ccc     End 
-cc
-cc      end function div2_ijk
-
 c     div_mesh
 c     ###############################################################
-      function div_mesh(nx,ny,nz,igx,igy,igz,cnv) result(scl)
+      function div_mesh(igrid,cnv) result(scl)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -1415,23 +1300,27 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer :: nx,ny,nz,igx,igy,igz
+      integer :: igrid
 
-      real(8) :: scl(0:nx+1,0:ny+1,0:nz+1)
-     .          ,cnv(0:nx+1,0:ny+1,0:nz+1,3)
+      real(8) :: cnv(0:,0:,0:,:)
+     .          ,scl(0:size(cnv,1)-1,0:size(cnv,2)-1,0:size(cnv,3)-1)
 
 c     Local variables
 
-      integer :: i,j,k
+      integer :: nx,ny,nz,i,j,k
 
 c     Begin program
 
       scl = 0d0
 
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
+
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            scl(i,j,k) = div_ijk(i,j,k,nx,ny,nz,igx,igy,igz,cnv)
+            scl(i,j,k) = div_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,cnv)
           enddo
         enddo
       enddo
@@ -4408,7 +4297,7 @@ c     Local variables
 c     Begin program
 
       cnv=-veclaplacian(i,j,k,nx,ny,nz,igx,igy,igz,a,vol=vol)
-     .    +gradDiv     (i,j,k,nx,ny,nz,igx,igy,igz,a,vol=vol,cnv=.true.)
+cc     .    +gradDiv(i,j,k,nx,ny,nz,igx,igy,igz,a,vol=vol,cnv=.true.)
 
 c     End program
 
