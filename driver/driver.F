@@ -157,7 +157,8 @@ c     Check for error in time stepping
 
         if (ierr == 1) then     !Restart time step
 
-          call equateDerivedType(u_np,u_n)
+          call equateDerivedType(u_np,u_n )
+          call equateDerivedType(u_n ,u_nm)
 
           itime = itime - 1
           time  = time - dt
@@ -202,9 +203,7 @@ c     Time level data dump
 #endif
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
-ccnorb          write (*,*) 'call writeRecordFile: ',itime,time
           call writeRecordFile(urecord,itime,time,dt,u_np)
-ccnorb          write (*,*) 'return from  writeRecordFile ',itime
         endif
 
         if (eigen) exit
@@ -213,7 +212,7 @@ ccnorb          write (*,*) 'return from  writeRecordFile ',itime
 
 c Average explicit time step
 
-      if (cnfactor.eq.1d0 .and. my_rank == 0) then
+      if (cnfactor.eq.1d0.and.my_rank == 0.and.(itime > inewtime)) then
         dtexp = dtexp/(itime - inewtime)
         write (*,*) 'Average explicit time step: ',dtexp
       endif
