@@ -133,10 +133,6 @@ c     #################################################################
         ntotdp = nxl*nyl*nzl
         ntotd  = neqd*ntotdp
 
-ccnorb        write (*,"(a,i1,a,i4,i4,i4,i4,i4,i4)") "rank=",my_rank,
-ccnorb     .      " setVectorDimensions global indices: ",
-ccnorb     .      ilomg,ihipg,jlomg,jhipg,klomg,khipg
-
       end subroutine setVectorDimensions
 
 c     allocateGlobalVar
@@ -180,7 +176,7 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq
+        integer :: ieq
 
 c     Begin program
 
@@ -197,7 +193,8 @@ c     Begin program
               allocate(aux%var_list(ieq)
      $                     %array(ilom:ihip,jlom:jhip,klom:khip))
               aux%var_list(ieq)%array = 0d0
-              aux%var_list(ieq)%bconds = bcond
+              aux%var_list(ieq)%bconds= bcond
+              aux%var_list(ieq)%descr = 'unset'
             enddo
           endif
 
@@ -211,6 +208,7 @@ c     Begin program
               aux%vec_list(ieq)%bconds(:,1) = bcond
               aux%vec_list(ieq)%bconds(:,2) = bcond
               aux%vec_list(ieq)%bconds(:,3) = bcond
+              aux%vec_list(ieq)%descr       = 'unset'
             enddo
           endif
         endif
@@ -314,8 +312,8 @@ c     Begin program
           do ieq=1,varray%nvar
             allocate(varray%array_var(ieq)
      $                     %array(imn:imx,jmn:jmx,kmn:kmx))
-cc     $                     %array(ilom:ihip,jlom:jhip,klom:khip))
             varray%array_var(ieq)%array = 0d0
+            varray%array_var(ieq)%descr = 'unset'
           enddo
         endif
 
@@ -339,8 +337,6 @@ c     Local variables
 
 c     Begin program
 
-cc        deallocate(varray)
-
         if (associated(varray)) then
           if (associated(varray%array_var)) then
             do ieq=1,neqd
@@ -351,7 +347,6 @@ cc        deallocate(varray)
             deallocate(varray%array_var)
           endif
           deallocate(varray)
-cc        nullify(varray)
         endif
 
 c     End program
