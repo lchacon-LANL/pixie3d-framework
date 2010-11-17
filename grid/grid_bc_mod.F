@@ -1571,9 +1571,9 @@ cc#else
 
 cc#endif
 
-#endif
-
       endif
+
+#endif
 
 c     End program
 
