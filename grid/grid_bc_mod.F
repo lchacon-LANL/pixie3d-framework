@@ -181,7 +181,7 @@ c####################################################################
 
         use bc_ops
 
-        integer    :: nxbc,nybc,nzbc,igxbc,igybc,igzbc
+        integer :: nxbc,nybc,nzbc,igxbc,igybc,igzbc
 
         logical :: symm=.false.,bc_debug=.false.
 
@@ -1514,6 +1514,7 @@ c     Local variables
 
 c     Begin program
 
+#if !defined(samrai)
       if (np == 1) then
 
         ibc = (1+loc)+2*(dim-1)
@@ -1569,6 +1570,8 @@ cc#else
          end select
 
 cc#endif
+
+#endif
 
       endif
 
@@ -1717,7 +1720,7 @@ c     Extrapolate
 
           case default
 
-            call pstop('periodicBC'
+            call pstop('extrapolateBC'
      .            ,'Boundary '//int2char(ibc)//' non existent')
 
           end select
@@ -1744,7 +1747,7 @@ c     Extrapolate
             k = kmax
             array(:,:,k) = -array(:,:,k-two)
           case default
-            call pstop('periodicBC'
+            call pstop('extrapolateBC'
      .            ,'Boundary '//int2char(ibc)//' non existent')
           end select
 
