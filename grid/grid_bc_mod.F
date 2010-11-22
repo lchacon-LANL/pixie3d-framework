@@ -10,6 +10,32 @@ c     -----------------------------------------------------------------
 
       contains
 
+c     bcSYM
+c     #################################################################
+      function bcSYM(ibc) result(sym_bc)
+
+c     -----------------------------------------------------------------
+c     Detects whether boundary is of SYM or FSYM type. Boundary is
+c     identified by ibc, with the following convention:
+c        * ibc = 1, 2 (xmin,xmax)
+c        * ibc = 3, 4 (ymin,ymax)
+c        * ibc = 5, 6 (zmin,zmax)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+        integer :: ibc
+        logical :: sym_bc
+
+        if (ibc < 1 .or. ibc > 6) then
+          sym_bc = .false.
+        else
+          sym_bc =    (abs(bcond(ibc)) ==  SYM)
+     .            .or.(abs(bcond(ibc)) == FSYM)
+        endif
+
+      end function bcSYM
+
 c     isBdry
 c     #################################################################
       function isBdry(i,igr,ibc)
@@ -69,7 +95,7 @@ c     #################################################################
 
 c     -----------------------------------------------------------------
 c     Checks whether point i at grid level igr, boundary location
-c     ibc=(1,6) (see isBdry for definition) is at boundary type BC.
+c     ibc=(1,6) (see isBdry for definition) is of boundary type BC.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -100,7 +126,7 @@ c     #################################################################
 
 c     -----------------------------------------------------------------
 c     Checks whether point at grid level igr, dimension dim(=1,2,3)
-c     and location loc(=0,1) is at SP boundary
+c     and location loc(=0,1) is at SP boundary.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -1161,6 +1187,8 @@ c     Impose BCs
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
 
+cc            if (bcond(ibc) == FSYM) cycle
+
             do ivar = 1,ncomp
               ieq = ivar + fcomp - 1
 
@@ -1179,17 +1207,57 @@ c     Impose BCs
 
                 symm = .false.
 
-             endif
+              endif
 
             enddo
+
+            ! Synchronize covariant and contravariant components
+            call synchronize(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv
+     .                      ,dim=dim,loc=loc)
 
           enddo
         enddo
       enddo
 
+c     Symmetry boundary synchronizing
+
+cc      do bctype=1,BCLIM             !Enforces a particular order in the BCs
+cc        do dim=1,3
+cc          do loc=0,1
+cc            ibc = (1+loc)+2*(dim-1)
+cc
+cc            if (bcond(ibc) == FSYM) then
+cc
+cc              do ivar = 1,ncomp
+cc                ieq = ivar + fcomp - 1
+cc
+cc                if (abs(bcnd(ibc,ivar)) == bctype) then
+cc
+cc                  if (bcnd(ibc,ivar) < 0 .and. is__vec) then
+cc                    call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
+cc     .                                   ,v_cov,var0,cnv=.false.)
+cc                    cov_to_cnv(ibc,ivar) = .true.
+cc                  else
+cc                    call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
+cc     .                                   ,v_cnv,var0)
+cc                  endif
+cc
+cc                endif
+cc              enddo
+cc
+cc              ! Synchronize covariant and contravariant components
+cc              call synchronize(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv
+cc     .                        ,dim=dim,loc=loc)
+cc
+cc            endif
+cc
+cc          enddo
+cc        enddo
+cc      enddo
+
 c     Synchronize covariant and contravariant components
 
-      call synchronize(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv)
+cc      call synchronize(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv)
 
 c     Fill edges (for both cnv and cov components)
 
@@ -1238,7 +1306,7 @@ c     End program
 
 c     synchronize
 c     #################################################################
-      subroutine synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv)
+      subroutine synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv,dim,loc)
 c     -----------------------------------------------------------------
 c     Finds all contravariant components at boundaries with BC in terms
 c     of covariant components.
@@ -1256,25 +1324,43 @@ c     Call variables
       real(8)    :: v_cnv(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
      .             ,v_cov(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
       logical    :: cov_to_cnv(6,3)
+      integer,optional :: dim,loc
 
 c     Local variables
 
       integer    :: imax,imin,jmax,jmin,kmax,kmin
-      integer    :: i,j,k,dim,loc,ig,jg,kg,ivar,ibc,ic1,ic2
+      integer    :: i,j,k,ig,jg,kg,ivar,ibc,ic1,ic2
+     .             ,ld,hd,ll,hl,id,il
       real(8)    :: x1,x2,x3,gsuper(3,3),gsub(3,3)
 
 c     Begin program
 
-      do dim = 1,3
-        do loc = 0,1
-          ibc = (1+loc)+2*(dim-1)
+      if (PRESENT(dim)) then
+        ld = dim
+        hd = dim
+      else
+        ld = 1
+        hd = 3
+      endif
 
-          call findBCLoopLimits(dim,loc,iimnm,iimxp
-     .                                 ,jjmnm,jjmxp
-     .                                 ,kkmnm,kkmxp
-     .                                 ,imin,imax
-     .                                 ,jmin,jmax
-     .                                 ,kmin,kmax)
+      if (PRESENT(loc)) then
+        ll = loc
+        hl = loc
+      else
+        ll = 0
+        hl = 1
+      endif
+
+      do id = ld,hd
+        do il = ll,hl
+          ibc = (1+il)+2*(id-1)
+
+          call findBCLoopLimits(id,il,iimnm,iimxp
+     .                               ,jjmnm,jjmxp
+     .                               ,kkmnm,kkmxp
+     .                               ,imin,imax
+     .                               ,jmin,jmax
+     .                               ,kmin,kmax)
 
           if (     (.not.cov_to_cnv(ibc,1))
      .        .and.(.not.cov_to_cnv(ibc,2))
@@ -1296,7 +1382,7 @@ c     Begin program
 
             do ivar = 1,ncomp
 
-              if (ivar == dim) then !Do nothing for normal component
+              if (ivar == id) then !Do nothing for normal component
 
                 cycle
 
@@ -1304,10 +1390,10 @@ c     Begin program
 
                 if (.not.selectFace(ibc)) cycle
 
-                ic1 = mod(dim+1,3)
+                ic1 = mod(id+1,3)
                 if (ic1 == 0) ic1 = 3
 
-                ic2 = mod(dim+2,3)
+                ic2 = mod(id+2,3)
                 if (ic2 == 0) ic2 = 3
 
                 if ( cov_to_cnv(ibc,ic1).and.cov_to_cnv(ibc,ic2) ) then  !Both are covariant
@@ -1318,10 +1404,10 @@ c     Begin program
 
                         gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
 
-                        v_cov(i,j,k,dim) =
-     .                       -(gsuper(dim,ic1)*v_cov(i,j,k,ic1)
-     .                        +gsuper(dim,ic2)*v_cov(i,j,k,ic2)
-     .                        -v_cnv(i,j,k,dim))/gsuper(dim,dim)
+                        v_cov(i,j,k,id) =
+     .                       -(gsuper(id,ic1)*v_cov(i,j,k,ic1)
+     .                        +gsuper(id,ic2)*v_cov(i,j,k,ic2)
+     .                        -v_cnv(i,j,k,id))/gsuper(id,id)
 
                         call transformFromCurvToCurv(i,j,k
      .                    ,igxbc,igybc,igzbc
@@ -1343,7 +1429,7 @@ c     Begin program
 
                         v_cnv(i,j,k,ic2) =
      .                       -(gsub(ic2,ic1)*v_cnv(i,j,k,ic1)
-     .                        +gsub(ic2,dim)*v_cnv(i,j,k,dim)
+     .                        +gsub(ic2,id)*v_cnv(i,j,k,id)
      .                        -v_cov(i,j,k,ic2))/gsub(ic2,ic2)
 
                         call transformFromCurvToCurv(i,j,k
@@ -1366,7 +1452,7 @@ c     Begin program
 
                         v_cnv(i,j,k,ic1) =
      .                       -(gsub(ic1,ic2)*v_cnv(i,j,k,ic2)
-     .                        +gsub(ic1,dim)*v_cnv(i,j,k,dim)
+     .                        +gsub(ic1,id)*v_cnv(i,j,k,id)
      .                        -v_cov(i,j,k,ic1))/gsub(ic1,ic1)
 
                         call transformFromCurvToCurv(i,j,k
@@ -3082,22 +3168,18 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: ibcl(3),ito,jto,kto,imn,jmn,kmn,imx,jmx,kmx,bcond(6)
-      real(8)    :: array(imn:imx,jmn:jmx,kmn:kmx)
+      integer :: ibcl(3),ito,jto,kto,imn,jmn,kmn,imx,jmx,kmx,bcond(6)
+      real(8) :: array(imn:imx,jmn:jmx,kmn:kmx)
       real(8),optional,intent(IN) :: array0(imn:imx,jmn:jmx,kmn:kmx)
 
 c     Local variables
 
-      integer    :: i,j,k,ig,jg,kg,inx,iny,inz
-     .             ,order_int(3),offset
-     .             ,imni,imxi,jmni,jmxi,kmni,kmxi,num
-     .             ,i_bc,i1,i2
+      integer :: i,j,k,ig,jg,kg,inx,iny,inz,order_int(3),offset
+     .          ,imni,imxi,jmni,jmxi,kmni,kmxi,num,i_bc,i1,i2
 
-      real(8)    :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1)
-     .             ,smooth(3)
+      real(8) :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1),smooth(3)
 
-      logical    :: flg(3),select_bc(3),have_equ
-     .             ,face,edge,corner
+      logical :: flg(3),select_bc(3),have_equ,face,edge,corner
 
 c     Extrapolation
 
@@ -3105,11 +3187,7 @@ c     Extrapolation
 
 c     Begin program
 
-c     Do nothing for SP boundary face, edge, and corners
-
-      if (     isSP2(ito+1,1,ibc=ibcl(1))
-     .    .or. isSP2(ito+1,1,ibc=ibcl(2))
-     .    .or. isSP2(ito+1,1,ibc=ibcl(3))) return
+cc      return
 
 c     Initialize variables
 
@@ -3118,6 +3196,23 @@ c     Initialize variables
       face   = (count(ibcl /= 0) == 1)
       edge   = (count(ibcl /= 0) == 2)
       corner = (count(ibcl /= 0) == 3)
+
+c     Do nothing for SP boundary face, edge, and corners
+
+cc      if (     isSP2(ito+1,1,ibc=ibcl(1))
+cc     .    .or. isSP2(ito+1,1,ibc=ibcl(2))
+cc     .    .or. isSP2(ito+1,1,ibc=ibcl(3))) return
+      if (.not.face
+     .    .and.(     bcSP(ibc=ibcl(1))
+     .          .or. bcSP(ibc=ibcl(2))
+     .          .or. bcSP(ibc=ibcl(3)))) return
+
+c     Do nothing for SYM or FSYM boundaries
+
+      if (.not.face
+     .    .and.(    bcSYM(ibcl(1))
+     .         .or. bcSYM(ibcl(2))
+     .         .or. bcSYM(ibcl(3)))) return
 
 c     Identify directions for extrapolation.
 
