@@ -47,7 +47,7 @@ c ###################################################################
 
       logical :: pseudo_dt,prnt,is_residual=.true.
 
-      type :: nk_options
+      type :: nk_options  !Explanation below
         integer      :: etak_meth=0
         integer      :: global_meth=0
         integer      :: ksmax=10
@@ -137,10 +137,10 @@ c           parameter. Currently:
 c               etak_meth = 0 --> constant
 c               etak_meth > 0 --> power law adaptive strategy
 c       * damp  : damping parameter for Newton update
-c       * global: determines the globalization procedure:
-c               global = 0 --> no globalization
-c               global = 1 --> linesearch backtracking 
-c               global = 2 --> pseudo-transient
+c       * global_meth: determines the globalization procedure:
+c               global_meth = 0 --> no globalization
+c               global_meth = 1 --> linesearch backtracking 
+c               global_meth = 2 --> pseudo-transient
 c       * pdt0: initial time step for pseudo-transient
 c       * eta0: initial inexact Newton parameter (GMRES convergence tolerance)
 c       * ksmax: dimension of krylov subspace for restarted GMRES(Ksmax)
@@ -159,21 +159,21 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: ntot,neq,out,iguess,ierr
+      integer :: ntot,neq,out,iguess,ierr
 
-      real(8)    :: x(ntot)
+      real(8) :: x(ntot)
 
 c     Local variables
 
-      integer    :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
-     .             ,ntit_max_rej,global
+      integer :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
+     .          ,ntit_max_rej,global
 
-      real(8)    :: dxnorm,check_lim,residuals(neq),ddx(ntot)
-     .             ,eta0,atol,rtol,stol,damp,pdt0
+      real(8) :: dxnorm,check_lim,residuals(neq),ddx(ntot)
+     .          ,eta0,atol,rtol,stol,damp,pdt0
 
-      real(8)    :: f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
+      real(8) :: f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
 
-      logical    :: convergence,failure
+      logical :: convergence,failure
 
 c     Begin program
 
