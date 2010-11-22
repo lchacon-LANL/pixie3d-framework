@@ -581,8 +581,10 @@ c     Input variables
 
       integer    :: igrid
       real(8)    :: vec1(0:,0:,0:,:)
-      real(8)    :: vec2(0:size(vec1,1)-1,0:size(vec1,2)-1
-     .                  ,0:size(vec1,3)-1,size(vec1,4))
+      real(8)    :: vec2(0:size(vec1,1)-1
+     .                  ,0:size(vec1,2)-1
+     .                  ,0:size(vec1,3)-1
+     .                  ,size(vec1,4))
 
       logical    :: tocnv
 
