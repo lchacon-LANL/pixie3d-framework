@@ -1185,6 +1185,9 @@ c     Begin program
       do k=0,nz+1
         do j=0,ny+1
           do i=0,nx+1
+cc      do k=1,nz
+cc        do j=1,ny
+cc          do i=1,nx
             cnv(i,j,k,:)=curl_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,cov)
           enddo
         enddo
@@ -1196,9 +1199,11 @@ c     End program
 
 c     div_ijk
 c     ###############################################################
-      function div_ijk(i,j,k,nx,ny,nz,igx,igy,igz,cnv,he,sp)
+      function div_ijk(i,j,k,nx,ny,nz,igx,igy,igz,cnv,he,hex,hey,hez,sp)
      .         result(div)
+
       implicit none
+
 c     ---------------------------------------------------------------
 c     Calculates divergence of vector field at cell centers in
 c     general non-orthogonal geometry.
@@ -1208,21 +1213,36 @@ c     Call variables
 
       integer :: i,j,k,nx,ny,nz,igx,igy,igz
       real(8) :: cnv(0:nx+1,0:ny+1,0:nz+1,3),div
-      integer,optional :: he
+      integer,optional :: he,hex,hey,hez
       logical,optional :: sp
 
 c     Local variables
 
-      integer :: ig,jg,kg,igrid,half_elem,ip,im,jp,jm,kp,km
+      integer :: ig,jg,kg,igrid,ip,im,jp,jm,kp,km,hx,hy,hz,half_elem
       real(8) :: dxx,dyy,dzz,x0,y0,z0,jacp,jacm,jac0,jach
       logical :: spoint
 
 c     Begin program
 
+      hx = 0; hy = 0; hz = 0
+
       if (PRESENT(he)) then
         half_elem = he
+
+        select case(he)
+        case(1)
+          hx = 1
+        case(2)
+          hy = 1
+        case(3)
+          hz = 1
+        end select
       else
         half_elem = 0
+
+        if (PRESENT(hex)) hx = hex
+        if (PRESENT(hey)) hy = hey
+        if (PRESENT(hez)) hz = hez
       endif
 
       if (PRESENT(sp)) then
@@ -1246,27 +1266,31 @@ c     Begin program
       dyy = 2*grid_params%dyh(jg)
       dzz = 2*grid_params%dzh(kg)
 
-      jac0 = gmetric%grid(igrid)%jac(i,j,k)
-
-      select case(half_elem)
-      case(1)
+      if (hx == 1) then
         im = i
         dxx = grid_params%dx(ig)
-        jac0 = 0.5*(gmetric%grid(igrid)%jac(ip,j,k)
-     .             +gmetric%grid(igrid)%jac(i ,j,k))
-      case(2)
+      elseif (hx == -1) then
+        ip = i
+        dxx = grid_params%dx(ig-1)
+      endif
+
+      if (hy == 1) then
         jm = j
         dyy = grid_params%dy(jg)
-        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,jp,k)
-     .             +gmetric%grid(igrid)%jac(i,j ,k))
-      case(3)
+      elseif (hy == -1) then
+        jp = j
+        dyy = grid_params%dy(jg-1)
+      endif
+
+      if (hz == 1) then
         km = k
         dzz = grid_params%dz(kg)
-        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,j,kp)
-     .             +gmetric%grid(igrid)%jac(i,j,k ))
-      end select
+      elseif (hz == -1) then
+        kp = k
+        dzz = grid_params%dz(kg-1)
+      endif
 
-      if (isSP(i,j,k,igx,igy,igz).and.half_elem == 0.and.spoint) then
+      if (isSP2(i,igx).and.half_elem == 0.and.spoint) then
         jacp = gmetric%grid(igrid)%jac(i+1,j,k)
         jach = 0.5*(jacp+jac0)   !Only good for cylindrical-like geom.
 
@@ -1279,6 +1303,28 @@ c     Begin program
      .        +(cnv(i ,jp,k ,2)-cnv(i ,jm,k ,2))/dyy
      .        +(cnv(i ,j ,kp,3)-cnv(i ,j ,km,3))/dzz
       endif
+
+c     Affect calculation by inverse jacobian
+
+      select case(half_elem)
+      case(1)
+cc        im = i
+cc        dxx = grid_params%dx(ig)
+        jac0 = 0.5*(gmetric%grid(igrid)%jac(ip,j,k)
+     .             +gmetric%grid(igrid)%jac(i ,j,k))
+      case(2)
+cc        jm = j
+cc        dyy = grid_params%dy(jg)
+        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,jp,k)
+     .             +gmetric%grid(igrid)%jac(i,j ,k))
+      case(3)
+cc        km = k
+cc        dzz = grid_params%dz(kg)
+        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,j,kp)
+     .             +gmetric%grid(igrid)%jac(i,j,k ))
+      case default
+        jac0 = gmetric%grid(igrid)%jac(i,j,k)
+      end select
 
       div = div/jac0
       
