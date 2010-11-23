@@ -1355,9 +1355,7 @@ c     Begin program
         do il = ll,hl
           ibc = (1+il)+2*(id-1)
 
-cc          call findBCLoopLimits(id,il,iimnm,iimxp
-cc     .                               ,jjmnm,jjmxp
-cc     .                               ,kkmnm,kkmxp
+          !Do NOT change: SAMRAI depends on it
           call findBCLoopLimits(id,il,iimin-1,iimax+1
      .                               ,jjmin-1,jjmax+1
      .                               ,kkmin-1,kkmax+1
@@ -1717,8 +1715,11 @@ c     Setup grid aliases
 
 c     Extrapolate
 
-        call findBCLoopLimits(dim,loc
-     .                       ,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
+        !Do not touch this: SAMRAI depends on it
+        call findBCLoopLimits(dim,loc,iimin-1,iimax+1
+     .                               ,jjmin-1,jjmax+1
+     .                               ,kkmin-1,kkmax+1
+cc      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                       ,imin ,imax ,jmin ,jmax ,kmin ,kmax )
 
         if (.not.symm) then
@@ -2016,8 +2017,11 @@ c     Setup grid aliases
 
 c     Extrapolate
 
-        call findBCLoopLimits(dim,loc
-     .                       ,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
+        !Do NOT change: SAMRAI depends on it
+        call findBCLoopLimits(dim,loc,iimin-1,iimax+1
+     .                               ,jjmin-1,jjmax+1
+     .                               ,kkmin-1,kkmax+1
+cc      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                       ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
         select case (ibc)
@@ -2215,7 +2219,11 @@ c     Determine boundary limits
 
       if (.not.selectFace(ibc)) return
 
-      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
+      !Do NOT change: SAMRAI depends on it
+      call findBCLoopLimits(dim,loc,iimin-1,iimax+1
+     .                             ,jjmin-1,jjmax+1
+     .                             ,kkmin-1,kkmax+1
+cc      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
       if (bc_debug) then
