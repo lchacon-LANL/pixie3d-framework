@@ -1355,9 +1355,12 @@ c     Begin program
         do il = ll,hl
           ibc = (1+il)+2*(id-1)
 
-          call findBCLoopLimits(id,il,iimnm,iimxp
-     .                               ,jjmnm,jjmxp
-     .                               ,kkmnm,kkmxp
+cc          call findBCLoopLimits(id,il,iimnm,iimxp
+cc     .                               ,jjmnm,jjmxp
+cc     .                               ,kkmnm,kkmxp
+          call findBCLoopLimits(id,il,iimin-1,iimax+1
+     .                               ,jjmin-1,jjmax+1
+     .                               ,kkmin-1,kkmax+2
      .                               ,imin,imax
      .                               ,jmin,jmax
      .                               ,kmin,kmax)
