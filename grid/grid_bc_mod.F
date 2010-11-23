@@ -41,8 +41,8 @@ c     #################################################################
       function isBdry(i,igr,ibc)
 
 c     -----------------------------------------------------------------
-c     Detects whether we are at a boundary or not. Boundary is identified
-c     by ibc, with the following convention:
+c     Detects whether we are at a PHYSICAL boundary or not. Boundary is
+c     identified by ibc, with the following convention:
 c        * ibc = 1, 2 (xmin,xmax)
 c        * ibc = 3, 4 (ymin,ymax)
 c        * ibc = 5, 6 (zmin,zmax)
@@ -1715,11 +1715,10 @@ c     Setup grid aliases
 
 c     Extrapolate
 
-        !Do not touch this: SAMRAI depends on it
+        !Do not change: SAMRAI depends on it
         call findBCLoopLimits(dim,loc,iimin-1,iimax+1
      .                               ,jjmin-1,jjmax+1
      .                               ,kkmin-1,kkmax+1
-cc      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                       ,imin ,imax ,jmin ,jmax ,kmin ,kmax )
 
         if (.not.symm) then
@@ -2021,7 +2020,6 @@ c     Extrapolate
         call findBCLoopLimits(dim,loc,iimin-1,iimax+1
      .                               ,jjmin-1,jjmax+1
      .                               ,kkmin-1,kkmax+1
-cc      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                       ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
         select case (ibc)
@@ -2223,7 +2221,6 @@ c     Determine boundary limits
       call findBCLoopLimits(dim,loc,iimin-1,iimax+1
      .                             ,jjmin-1,jjmax+1
      .                             ,kkmin-1,kkmax+1
-cc      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
       if (bc_debug) then
