@@ -4,7 +4,7 @@
 % patch run.
 
 file1 = '/projects/pixie3d/bin/debugFile1';
-file2 = '/projects/pixie3d/bin/debugFile2';
+file2 = '/projects/pixie3d/bin/debugFile9';
 
 data1 = loadDebugData(file1);
 data2 = loadDebugData(file2);
@@ -30,25 +30,29 @@ for i = 1:length(data1)
         error(i,j) = max(abs(diff(:)));
     end
 end
-
-
-
-i = 5;
-j = 23;
-d1 = zeros([data1(i).nbox+data1(i).var(j).gcw,data1(i).var(j).depth]);
-for k = 1:size(data1(i).var(j).data,2)
-    i1 = data1(i).var(j).ifirst{1,k}(1)+1:data1(i).var(j).ilast{1,k}(1)+1+2*data1(i).var(j).gcw(1);
-    i2 = data1(i).var(j).ifirst{1,k}(2)+1:data1(i).var(j).ilast{1,k}(2)+1+2*data1(i).var(j).gcw(2);
-    i3 = data1(i).var(j).ifirst{1,k}(3)+1:data1(i).var(j).ilast{1,k}(3)+1+2*data1(i).var(j).gcw(3);
-    d1(i1,i2,i3,:) = data1(i).var(j).data{1,k};
+if max(max(error))==0
+    fprintf(1,'No errors detected\n');
+else
+    fprintf(1,'Errors detected\n');
 end
-d2 = zeros([data2(i).nbox+data2(i).var(j).gcw,data2(i).var(j).depth]);
-for k = 1:size(data2(i).var(j).data,2)
-    i1 = data2(i).var(j).ifirst{1,k}(1)+1:data2(i).var(j).ilast{1,k}(1)+1+2*data2(i).var(j).gcw(1);
-    i2 = data2(i).var(j).ifirst{1,k}(2)+1:data2(i).var(j).ilast{1,k}(2)+1+2*data2(i).var(j).gcw(2);
-    i3 = data2(i).var(j).ifirst{1,k}(3)+1:data2(i).var(j).ilast{1,k}(3)+1+2*data2(i).var(j).gcw(3);
-    d2(i1,i2,i3,:) = data2(i).var(j).data{1,k};
-end
-diff = d1-d2;
-imagesc(diff(:,:,2,2)'),colorbar
+
+
+% i = 5;
+% j = 23;
+% d1 = zeros([data1(i).nbox+data1(i).var(j).gcw,data1(i).var(j).depth]);
+% for k = 1:size(data1(i).var(j).data,2)
+%     i1 = data1(i).var(j).ifirst{1,k}(1)+1:data1(i).var(j).ilast{1,k}(1)+1+2*data1(i).var(j).gcw(1);
+%     i2 = data1(i).var(j).ifirst{1,k}(2)+1:data1(i).var(j).ilast{1,k}(2)+1+2*data1(i).var(j).gcw(2);
+%     i3 = data1(i).var(j).ifirst{1,k}(3)+1:data1(i).var(j).ilast{1,k}(3)+1+2*data1(i).var(j).gcw(3);
+%     d1(i1,i2,i3,:) = data1(i).var(j).data{1,k};
+% end
+% d2 = zeros([data2(i).nbox+data2(i).var(j).gcw,data2(i).var(j).depth]);
+% for k = 1:size(data2(i).var(j).data,2)
+%     i1 = data2(i).var(j).ifirst{1,k}(1)+1:data2(i).var(j).ilast{1,k}(1)+1+2*data2(i).var(j).gcw(1);
+%     i2 = data2(i).var(j).ifirst{1,k}(2)+1:data2(i).var(j).ilast{1,k}(2)+1+2*data2(i).var(j).gcw(2);
+%     i3 = data2(i).var(j).ifirst{1,k}(3)+1:data2(i).var(j).ilast{1,k}(3)+1+2*data2(i).var(j).gcw(3);
+%     d2(i1,i2,i3,:) = data2(i).var(j).data{1,k};
+% end
+% diff = d1-d2;
+% imagesc(diff(:,:,2,2)'),colorbar
 

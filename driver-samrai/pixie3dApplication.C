@@ -1064,31 +1064,52 @@ void pixie3dApplication::writeCellData( FILE *fp, int var_id ) {
     int rank = tbox::SAMRAI_MPI::getRank();
     if ( rank==0 && fp==NULL )
         TBOX_ERROR( "File pointer is NULL" );
+    // Get the ghost cell width and depth of the variable
+    hier::IntVector<NDIM> gcw = hier::IntVector<NDIM>(0);
+    int depth = 0;
+    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+        tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
+        for (hier::PatchLevel<NDIM>::Iterator p(level); p; p++) {
+            tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p());
+            tbox::Pointer< pdat::CellData<NDIM,double> > pdat = patch->getPatchData(var_id);
+            gcw = pdat->getGhostCellWidth();
+            depth = pdat->getDepth();
+            break;
+        }
+        if ( depth!=0 )
+            break;
+    }
+    if ( depth==0 && rank==0 ) {
+        // No local patches and rank 0
+        TBOX_ERROR( "Error saving data" );
+    }
+    // Loop through the patches and levels, saving the data
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
         tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
         const hier::IntVector<NDIM> ratio = level->getRatio();
         if ( rank==0 )
             fprintf(fp,"level = %i, ratio = (%i,%i,%i), n_patch = %i\n",ln,ratio(0),ratio(1),ratio(2),level->getNumberOfPatches());
         for (int p=0; p<level->getNumberOfPatches(); p++) {
-        	tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p);
-            hier::Index<NDIM> ifirst = patch->getBox().lower();
-            hier::Index<NDIM> ilast  = patch->getBox().upper();
-            tbox::Pointer< pdat::CellData<NDIM,double> > pdat = patch->getPatchData(var_id);
-            hier::IntVector<NDIM> gcw = pdat->getGhostCellWidth();
-            int depth = pdat->getDepth();
+            hier::Box<NDIM> box = level->getBoxForPatch(p);
+            hier::Index<NDIM> ifirst = box.lower();
+            hier::Index<NDIM> ilast  = box.upper();
             int N = (ilast(0)-ifirst(0)+1+2*gcw(0))*(ilast(1)-ifirst(1)+1+2*gcw(1))*(ilast(2)-ifirst(2)+1+2*gcw(2))*depth;
+            int size = N*sizeof(double)/sizeof(int);    // The number of int's needed to send the data
             if ( rank==0 ) {
                 // Rank 0 is writing the data
                 fprintf(fp,"patch_num = %i, ifirst = (%i,%i,%i), ilast = (%i,%i,%i), gcw = (%i,%i,%i), depth = %i\n",
                     p,ifirst(0),ifirst(1),ifirst(2),ilast(0),ilast(1),ilast(2),gcw(0),gcw(1),gcw(2),depth);
                 if ( level->getMappingForPatch(p)==0 ) {
                     // The patch is on processor 0, write the data directly
+                	tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p);
+                    tbox::Pointer< pdat::CellData<NDIM,double> > pdat = patch->getPatchData(var_id);
                     double *data = pdat->getPointer();
                     fwrite(data,sizeof(double),N,fp);
                 } else {
                     // The patch is on another processor, we need to communicate it, then save
                     double *data = new double[N];
-                    tbox::SAMRAI_MPI::recvBytes(data,N*sizeof(double));
+                    int proc = level->getMappingForPatch(p);
+                    tbox::SAMRAI_MPI::recv((int*)data,size,proc,false,p);
                     fwrite(data,sizeof(double),N,fp);
                     delete [] data;
                 }
@@ -1097,11 +1118,14 @@ void pixie3dApplication::writeCellData( FILE *fp, int var_id ) {
                 // All other ranks send the data to processor 0
                 if ( level->getMappingForPatch(p)==rank ) {
                     // The patch is on current processor, send the data to processor 0
+                	tbox::Pointer< hier::Patch<NDIM> > patch = level->getPatch(p);
+                    tbox::Pointer< pdat::CellData<NDIM,double> > pdat = patch->getPatchData(var_id);
                     double *data = pdat->getPointer();
-                    tbox::SAMRAI_MPI::sendBytes(data,N*sizeof(double),0);
+                    tbox::SAMRAI_MPI::send((int*)data,size,0,false,p);
                 }
             }
         }
+        tbox::SAMRAI_MPI::barrier();
     }
 }
 
@@ -1143,7 +1167,8 @@ void pixie3dApplication::writeDebugData( FILE *fp, const int it, const double ti
             fprintf(fp,"var_name = %s\n",auxVectorLabels[i].c_str());
         writeCellData(fp,auxv_id[i]);
     }
-    fprintf(fp,"\n");
+    if ( fp != NULL )
+        fprintf(fp,"\n");
 }
 
 
