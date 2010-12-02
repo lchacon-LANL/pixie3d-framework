@@ -78,6 +78,18 @@ ifeq ($(FC),gfortran)
   CPPFLAGS    += $(PREPROC)gfortran
   FFLAGS      += #$(STATIC) 
 endif
+ifeq ($(FC),vtf77)
+  OPTIMIZATION = -O3 -march=native
+  DEBUG        = -ggdb -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv
+  PROFILE      = -pg
+  STATIC       = -fno-automatic
+  MODFLAG      = -I
+  ADDMODFLAG   = -I
+  VERBOSE      = -v
+  CPPFLAGS    += $(PREPROC)gfortran
+  FFLAGS      += #$(STATIC)
+endif
+
 
 # Flags for Portland Group f90
 ifeq ($(FC),pgf95)

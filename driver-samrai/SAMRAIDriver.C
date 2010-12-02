@@ -78,6 +78,8 @@ int main( int argc, char *argv[] )
    
     tbox::SAMRAI_MPI::init(&argc, &argv);
     tbox::SAMRAIManager::startup();
+    int rank = tbox::SAMRAI_MPI::getRank();
+    int N_procs = tbox::SAMRAI_MPI::getNodes();
     int ierr = PetscInitializeNoArguments();
     PetscInitializeFortran();
 
@@ -105,17 +107,17 @@ int main( int argc, char *argv[] )
         dt_save = main_db->getDouble("dt_save");
     else
         dt_save = 1.0;
+    int save_debug = 0;
+    if ( main_db->keyExists("save_debug") ) 
+        save_debug = main_db->getInteger("save_debug");
+    string debug_name;
+    if ( main_db->keyExists("debug_name") )
+        debug_name = main_db->getString("debug_name");
+    else
+        debug_name = "debugFile";
 
-    /*
-     * Create an application object.  Some TagAndInitStrategy must be
-     * provided in order to build an object that specifies cells that
-     * need refinement.  Here an empty object is provided, since a
-     * prescribed set of refinement regions are read in from the input
-     * file; it would be a useful exercise to fill in the
-     * applyGradientDetector method and to generate custom refinement
-     * regions.
-     */
-    BogusTagAndInitStrategy* test_object = new BogusTagAndInitStrategy();
+    // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
+    SAMRAI::pixie3dApplication* application  = new SAMRAI::pixie3dApplication( );
 
     tbox::Pointer<tbox::Database> griddingDb = input_db->getDatabase("GriddingAlgorithm");
     tbox::Pointer<tbox::Database> ratioDb = griddingDb->getDatabase("ratio_to_coarser");
@@ -140,7 +142,7 @@ int main( int argc, char *argv[] )
     hierarchy = new hier::PatchHierarchy<NDIM>("PatchHierarchy", grid_geometry);
     // Create the gridding algorithum
     tbox::Pointer<mesh::StandardTagAndInitialize<NDIM> > error_detector =
-        new mesh::StandardTagAndInitialize<NDIM>( "CellTaggingMethod", test_object, tag_db );
+        new mesh::StandardTagAndInitialize<NDIM>( "CellTaggingMethod", application, tag_db );
     tbox::Pointer<mesh::BergerRigoutsos<NDIM> > box_generator = new mesh::BergerRigoutsos<NDIM>();
     tbox::Pointer<mesh::LoadBalancer<NDIM> > load_balancer =
         new mesh::LoadBalancer<NDIM>("UniformLoadBalance",load_db);
@@ -155,12 +157,12 @@ int main( int argc, char *argv[] )
     visit_writer = new appu::VisItDataWriter<NDIM>("pixie3d visualizer", write_path);
 
 
-    // Create the application
+    // Initialize the application
     tbox::Pointer< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
     SAMRAI::pixie3dApplicationParameters* application_parameters = new SAMRAI::pixie3dApplicationParameters(pixie3d_db);
     application_parameters->d_hierarchy = hierarchy;
     application_parameters->d_VizWriter = visit_writer;
-    SAMRAI::pixie3dApplication* application  = new SAMRAI::pixie3dApplication( application_parameters );
+    application->initialize( application_parameters );
    
 
     // Initialize x0
@@ -220,13 +222,12 @@ int main( int argc, char *argv[] )
     }
 
     // Write the data
-    bool write_debug_file = false;
     visit_writer->writePlotData(hierarchy,0,0);
     FILE *debug_file = NULL;
-    if ( write_debug_file ) {
+    if ( save_debug>0 ) {
         if ( tbox::SAMRAI_MPI::getRank()==0 )
-            debug_file = fopen( "debugFile" , "wb" );
-        application->writeDebugData(debug_file,0,0);
+            debug_file = fopen( debug_name.c_str() , "wb" );
+        application->writeDebugData(debug_file,0,0,save_debug);
     }
 
     // Loop through time
@@ -251,8 +252,8 @@ int main( int argc, char *argv[] )
 
             if ( (plot_interval > 0) && ((iteration_num % plot_interval) == 0) )  {
                 visit_writer->writePlotData(hierarchy, iteration_num, current_time);
-                if ( write_debug_file )
-                    application->writeDebugData(debug_file,iteration_num,current_time);
+                if ( save_debug>0 )
+                    application->writeDebugData(debug_file,iteration_num,current_time,save_debug);
             }
         } else {
             tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
@@ -281,8 +282,6 @@ int main( int argc, char *argv[] )
     load_balancer.setNull();
     gridding_algorithm.setNull();
     grid_geometry.setNull();
-    // Delete the application object
-    delete test_object;
     // Delete the input database
     main_db.setNull();
     input_db.setNull();

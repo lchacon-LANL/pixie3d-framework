@@ -4,7 +4,7 @@
 % patch run.
 
 file1 = '/projects/pixie3d/bin/debugFile1';
-file2 = '/projects/pixie3d/bin/debugFile9';
+file2 = '/projects/pixie3d/bin/debugFile4';
 
 data1 = loadDebugData(file1);
 data2 = loadDebugData(file2);

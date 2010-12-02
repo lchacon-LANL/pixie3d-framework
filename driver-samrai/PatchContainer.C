@@ -3,6 +3,9 @@
 #include "CartesianGridGeometry.h"
 #include "CartesianPatchGeometry.h"
 
+extern "C" {
+#include "assert.h"
+}
 
 extern "C"{
    void f_create_var_array_(void **p_data, int&);
@@ -68,6 +71,9 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
     for (int i=0; i<n_var; i++)  {
         // Get the pointers to u_0
         tmp = patch->getPatchData(u0_id[i]);
+        #ifdef DEBUG_CHECK_ASSERTIONS
+            assert(!tmp.isNull());
+        #endif
         u0_ptr[i] = tmp->getPointer();
         // Check ghost cell width
         gcwc = tmp->getGhostCellWidth();
@@ -77,6 +83,9 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
 	    }
         // Get the pointers to u_n
         tmp = patch->getPatchData(u_id[i]);
+        #ifdef DEBUG_CHECK_ASSERTIONS
+            assert(!tmp.isNull());
+        #endif
         u_ptr[i] = tmp->getPointer();
         // Check ghost cell width
         gcwc = tmp->getGhostCellWidth();
@@ -86,14 +95,17 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
 	    }
     }
 
-   // Get the pointers to the auxillary variables
-   for (int i=0; i<n_auxs; i++) {
-       // Get the pointers to scalar variables
-       tmp = patch->getPatchData(auxs_id[i]);
-       auxs_ptr[i] = tmp->getPointer();
-       // Check ghost cell width
-       gcwc = tmp->getGhostCellWidth();
-       for (int j=0; j<NDIM; j++) {
+    // Get the pointers to the auxillary variables
+    for (int i=0; i<n_auxs; i++) {
+        // Get the pointers to scalar variables
+        tmp = patch->getPatchData(auxs_id[i]);
+        #ifdef DEBUG_CHECK_ASSERTIONS
+            assert(!tmp.isNull());
+        #endif
+        auxs_ptr[i] = tmp->getPointer();
+        // Check ghost cell width
+        gcwc = tmp->getGhostCellWidth();
+        for (int j=0; j<NDIM; j++) {
             if ( gcw!=gcwc(j) ) 
                 TBOX_ERROR("Ghost Cell width must be 1"); 
         }
@@ -101,6 +113,9 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
     for (int i=0; i<n_auxv; i++) {
         // Get the pointers to vector variables
         tmp = patch->getPatchData(auxv_id[i]);
+        #ifdef DEBUG_CHECK_ASSERTIONS
+            assert(!tmp.isNull());
+        #endif
         auxv_ptr[i] = tmp->getPointer();
         // Check ghost cell width
         gcwc = tmp->getGhostCellWidth();

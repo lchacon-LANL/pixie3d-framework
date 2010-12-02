@@ -6,16 +6,11 @@ c ######################################################################
 
       type(patch), TARGET :: patch_var
       integer :: nbcgrps
-
-cc      gv => patch_var
-cc      grid_params => gv%gparams
-cc      gmetric => gv%gparams%gmetric
-      
-c     Setup SAMRAI f90 pointers
       
       nbcgrps = patch_var%nbc_grp
 
       end subroutine getNumberOfBCGroups
+
 
 cc  L. Chacon, 10/12/2010: I have commented out the routine below and added this
 cc                         on the application side in applyBoundaryConditions.F.
