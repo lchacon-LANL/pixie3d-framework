@@ -124,7 +124,7 @@ public:
    // Set data values on new level.
    void setValuesOnNewLevel( tbox::Pointer< hier::PatchLevel<NDIM> > level );
 
-   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > get_x() { return(d_x); }
+   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > get_ic() { return(d_x_ic); }
 
    // Evaluate IVP forcing term.
    void apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  &f,
@@ -141,6 +141,10 @@ public:
    void setBoundarySchedules(bool bIsInitialTime);
 
    void registerVizWriter( SAMRAI::appu::VisItDataWriter<NDIM>* visit_writer){d_VizWriter = visit_writer;}
+
+   // Write the primary and auxillary variables (including chost cells to binary file that can be read by MATLAB)
+   void writeDebugData( FILE *fp, const int it, const double time );
+
 private:
    
    void printVector( const tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > vector);
@@ -156,6 +160,8 @@ private:
 
    void synchronizeVariables(void);
 
+   void writeCellData( FILE *fp, int var_id );
+
    // Name of application
    std::string d_object_name;
 
@@ -165,6 +171,8 @@ private:
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_initial;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x_tmp;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x;
+   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x_r;
+   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x_ic;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_scalar;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_vector;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_scalar_tmp;
@@ -202,11 +210,16 @@ private:
 
    SAMRAI::appu::VisItDataWriter<NDIM>* d_VizWriter;
 
-   input_CTX *data;
+   input_CTX *input_data;
 
-   void **level_container_array;
+   LevelContainer **level_container_array;
 
    int d_NumberOfBoundaryConditions, *d_BoundaryConditionSequence;
+
+   // The names of the primary and auxillary variables
+   std::string *depVarLabels;
+   std::string *auxScalarLabels;
+   std::string *auxVectorLabels;
 
 };
 }

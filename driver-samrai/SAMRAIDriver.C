@@ -71,237 +71,237 @@ extern "C"{
 
 int main( int argc, char *argv[] ) 
 {
-   string input_file;
-   string log_file;
-   int plot_interval=0;
-   string write_path;
+    string input_file;
+    string log_file;
+    int plot_interval=0;
+    string write_path;
    
-   tbox::SAMRAI_MPI::init(&argc, &argv);
-   tbox::SAMRAIManager::startup();
-   int ierr = PetscInitializeNoArguments();
-   PetscInitializeFortran();
+    tbox::SAMRAI_MPI::init(&argc, &argv);
+    tbox::SAMRAIManager::startup();
+    int ierr = PetscInitializeNoArguments();
+    PetscInitializeFortran();
 
-   /*
-    * Process command line arguments and dump to log file.
-    */
-   processCommandLine(argc, argv, input_file, log_file);
+    /*
+     * Process command line arguments and dump to log file.
+     */
+    processCommandLine(argc, argv, input_file, log_file);
 
-   tbox::PIO::logOnlyNodeZero(log_file);
+    tbox::PIO::logOnlyNodeZero(log_file);
 
-   /*
-    * Create input database and parse all data in input file.  This
-    * parsing allows us to subsequently extract individual sections.
-    */
-   tbox::Pointer<tbox::Database> input_db = new tbox::InputDatabase("input_db");
-   tbox::InputManager::getManager()->parseInputFile(input_file, input_db);
-   tbox::Pointer< tbox::Database > main_db = input_db->getDatabase("Main");
-   double dt_save;
-   if ( main_db->keyExists("output_path") ) {
-      write_path = main_db->getString("output_path");
-   } else {
-      write_path = "output";
-   }
-   if ( main_db->keyExists("dt_save") )
-      dt_save = main_db->getDouble("dt_save");
-   else
-      dt_save = 1.0;
+    /*
+     * Create input database and parse all data in input file.  This
+     * parsing allows us to subsequently extract individual sections.
+     */
+    tbox::Pointer<tbox::Database> input_db = new tbox::InputDatabase("input_db");
+    tbox::InputManager::getManager()->parseInputFile(input_file, input_db);
+    tbox::Pointer< tbox::Database > main_db = input_db->getDatabase("Main");
+    double dt_save;
+    if ( main_db->keyExists("output_path") ) {
+        write_path = main_db->getString("output_path");
+    } else {
+        write_path = "output";
+    }
+    if ( main_db->keyExists("dt_save") )
+        dt_save = main_db->getDouble("dt_save");
+    else
+        dt_save = 1.0;
 
-   /*
-    * Create an application object.  Some TagAndInitStrategy must be
-    * provided in order to build an object that specifies cells that
-    * need refinement.  Here an empty object is provided, since a
-    * prescribed set of refinement regions are read in from the input
-    * file; it would be a useful exercise to fill in the
-    * applyGradientDetector method and to generate custom refinement
-    * regions.
-    */
-   BogusTagAndInitStrategy* test_object = new BogusTagAndInitStrategy();
+    /*
+     * Create an application object.  Some TagAndInitStrategy must be
+     * provided in order to build an object that specifies cells that
+     * need refinement.  Here an empty object is provided, since a
+     * prescribed set of refinement regions are read in from the input
+     * file; it would be a useful exercise to fill in the
+     * applyGradientDetector method and to generate custom refinement
+     * regions.
+     */
+    BogusTagAndInitStrategy* test_object = new BogusTagAndInitStrategy();
 
-   tbox::Pointer<tbox::Database> griddingDb = input_db->getDatabase("GriddingAlgorithm");
-   tbox::Pointer<tbox::Database> ratioDb = griddingDb->getDatabase("ratio_to_coarser");
-   // Create dummy variable to allow larger ghost cell widths
-   hier::IntVector<NDIM> ghost = hier::IntVector<NDIM>::IntVector(ratioDb->getIntegerArray("level_1"));
-   //   ghost(2) = 1;
-   tbox::Pointer< pdat::CellVariable<NDIM,double> > var = new pdat::CellVariable<NDIM,double>( "tmp", 1 );
-   hier::VariableDatabase<NDIM>* var_db = hier::VariableDatabase<NDIM>::getDatabase();
-   tbox::Pointer<hier::VariableContext> d_application_ctx = var_db->getContext("APPLICATION_SCRATCH");
-   int var_id = var_db->registerVariableAndContext(var, d_application_ctx, ghost );
+    tbox::Pointer<tbox::Database> griddingDb = input_db->getDatabase("GriddingAlgorithm");
+    tbox::Pointer<tbox::Database> ratioDb = griddingDb->getDatabase("ratio_to_coarser");
+    // Create dummy variable to allow larger ghost cell widths
+    hier::IntVector<NDIM> ghost = hier::IntVector<NDIM>::IntVector(ratioDb->getIntegerArray("level_1"));
+    //   ghost(2) = 1;
+    tbox::Pointer< pdat::CellVariable<NDIM,double> > var = new pdat::CellVariable<NDIM,double>( "tmp", 1 );
+    hier::VariableDatabase<NDIM>* var_db = hier::VariableDatabase<NDIM>::getDatabase();
+    tbox::Pointer<hier::VariableContext> d_application_ctx = var_db->getContext("APPLICATION_SCRATCH");
+    int var_id = var_db->registerVariableAndContext(var, d_application_ctx, ghost );
 
-   // Create the AMR hierarchy and initialize it
-   tbox::Pointer<hier::PatchHierarchy<NDIM> > hierarchy;
-   // Get some of the databases
-   tbox::Pointer< tbox::Database > grid_db = input_db->getDatabase("CartesianGeometry");
-   tbox::Pointer< tbox::Database >  tag_db = input_db->getDatabase("StandardTagAndInitialize");
-   tbox::Pointer< tbox::Database > load_db = input_db->getDatabase("LoadBalancer");
-   tbox::Pointer< tbox::Database > grid_alg_db = input_db->getDatabase("GriddingAlgorithm");
-   // Create the hierarchy
-   tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry =
-      new geom::CartesianGridGeometry<NDIM>("CartesianGeometry",grid_db);
-   hierarchy = new hier::PatchHierarchy<NDIM>("PatchHierarchy", grid_geometry);
-   // Create the gridding algorithum
-   tbox::Pointer<mesh::StandardTagAndInitialize<NDIM> > error_detector =
-      new mesh::StandardTagAndInitialize<NDIM>( "CellTaggingMethod", test_object, tag_db );
-   tbox::Pointer<mesh::BergerRigoutsos<NDIM> > box_generator = new mesh::BergerRigoutsos<NDIM>();
-   tbox::Pointer<mesh::LoadBalancer<NDIM> > load_balancer =
-      new mesh::LoadBalancer<NDIM>("UniformLoadBalance",load_db);
-   tbox::Pointer<mesh::GriddingAlgorithm<NDIM> > gridding_algorithm =
-      new mesh::GriddingAlgorithm<NDIM>("GriddingAlgorithm", grid_alg_db, error_detector, box_generator, load_balancer);
-   // Create the coarsest level
-   gridding_algorithm->makeCoarsestLevel(hierarchy, -1);
+    // Create the AMR hierarchy and initialize it
+    tbox::Pointer<hier::PatchHierarchy<NDIM> > hierarchy;
+    // Get some of the databases
+    tbox::Pointer< tbox::Database > grid_db = input_db->getDatabase("CartesianGeometry");
+    tbox::Pointer< tbox::Database >  tag_db = input_db->getDatabase("StandardTagAndInitialize");
+    tbox::Pointer< tbox::Database > load_db = input_db->getDatabase("LoadBalancer");
+    tbox::Pointer< tbox::Database > grid_alg_db = input_db->getDatabase("GriddingAlgorithm");
+    // Create the hierarchy
+    tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry =
+        new geom::CartesianGridGeometry<NDIM>("CartesianGeometry",grid_db);
+    hierarchy = new hier::PatchHierarchy<NDIM>("PatchHierarchy", grid_geometry);
+    // Create the gridding algorithum
+    tbox::Pointer<mesh::StandardTagAndInitialize<NDIM> > error_detector =
+        new mesh::StandardTagAndInitialize<NDIM>( "CellTaggingMethod", test_object, tag_db );
+    tbox::Pointer<mesh::BergerRigoutsos<NDIM> > box_generator = new mesh::BergerRigoutsos<NDIM>();
+    tbox::Pointer<mesh::LoadBalancer<NDIM> > load_balancer =
+        new mesh::LoadBalancer<NDIM>("UniformLoadBalance",load_db);
+    tbox::Pointer<mesh::GriddingAlgorithm<NDIM> > gridding_algorithm =
+        new mesh::GriddingAlgorithm<NDIM>("GriddingAlgorithm", grid_alg_db, error_detector, box_generator, load_balancer);
+    // Create the coarsest level
+    gridding_algorithm->makeCoarsestLevel(hierarchy, -1);
  
-   // Initialize the writer
-   appu::VisItDataWriter<NDIM>* visit_writer;
-   visit_writer = new appu::VisItDataWriter<NDIM>("pixie3d visualizer", write_path);
+   
+    // Initialize the writer
+    appu::VisItDataWriter<NDIM>* visit_writer;
+    visit_writer = new appu::VisItDataWriter<NDIM>("pixie3d visualizer", write_path);
 
 
-   // Create the application
-   tbox::Pointer< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
-   SAMRAI::pixie3dApplicationParameters* application_parameters = new SAMRAI::pixie3dApplicationParameters(pixie3d_db);
-   application_parameters->d_hierarchy = hierarchy;
-   application_parameters->d_VizWriter = visit_writer;
-   SAMRAI::pixie3dApplication* application  = new SAMRAI::pixie3dApplication( application_parameters );
+    // Create the application
+    tbox::Pointer< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
+    SAMRAI::pixie3dApplicationParameters* application_parameters = new SAMRAI::pixie3dApplicationParameters(pixie3d_db);
+    application_parameters->d_hierarchy = hierarchy;
+    application_parameters->d_VizWriter = visit_writer;
+    SAMRAI::pixie3dApplication* application  = new SAMRAI::pixie3dApplication( application_parameters );
    
 
-   // Initialize x0
-   double t0 = 0.0;
-   application->setInitialConditions(t0);
+    // Initialize x0
+    double t0 = 0.0;
+    application->setInitialConditions(t0);
 
-   // Set up tag buffers that are passed to the gridding algorithm
-   // for buffering tagged cells before new levels are created.
-   int N_levels_max = gridding_algorithm->getMaxLevels();
-   tbox::Array<int> tag_buffer(N_levels_max);
-   for (int ln = 0; ln < gridding_algorithm->getMaxLevels(); ln++)
-      tag_buffer[ln] = 1;
-   if (main_db->keyExists("tag_buffer")) {
-      tbox::Array<int> input_tags = main_db->getIntegerArray("tag_buffer");
-      if (input_tags.getSize() > 0) {
-         for (int ln = 0; ln<N_levels_max; ln++) {
-            if (input_tags.getSize() > ln) {
-               tag_buffer[ln] = ((input_tags[ln] > 0) ? input_tags[ln] : 0);
-            } else {
-               tag_buffer[ln] = ((input_tags[input_tags.getSize()-1] > 0)
+    // Set up tag buffers that are passed to the gridding algorithm
+    // for buffering tagged cells before new levels are created.
+    int N_levels_max = gridding_algorithm->getMaxLevels();
+    tbox::Array<int> tag_buffer(N_levels_max);
+    for (int ln = 0; ln < gridding_algorithm->getMaxLevels(); ln++)
+        tag_buffer[ln] = 1;
+    if (main_db->keyExists("tag_buffer")) {
+        tbox::Array<int> input_tags = main_db->getIntegerArray("tag_buffer");
+        if (input_tags.getSize() > 0) {
+            for (int ln = 0; ln<N_levels_max; ln++) {
+                if (input_tags.getSize() > ln) {
+                    tag_buffer[ln] = ((input_tags[ln] > 0) ? input_tags[ln] : 0);
+                } else {
+                    tag_buffer[ln] = ((input_tags[input_tags.getSize()-1] > 0)
                                 ? input_tags[input_tags.getSize()-1] : 0);
+                }
             }
-         }
-      }
-   }
-   // Use the gridding algorithm to initialize the hierarchy.
-   bool initial_time = true;
-   for ( int ln=0; gridding_algorithm->levelCanBeRefined(ln); ln++ ) {
-      gridding_algorithm->makeFinerLevel(hierarchy, t0, initial_time, tag_buffer[ln]);
-      application->setInitialConditions(t0);
-   } 
-   // Perform a regrid to make sure the tagging is all set correctly
-   error_detector->turnOnGradientDetector();
-   error_detector->turnOffRefineBoxes();
-   gridding_algorithm->regridAllFinerLevels(hierarchy, 0, t0, tag_buffer);
-   application->setInitialConditions(initial_time);
+        }
+    }
+    // Use the gridding algorithm to initialize the hierarchy.
+    bool initial_time = true;
+    for ( int ln=0; gridding_algorithm->levelCanBeRefined(ln); ln++ ) {
+        gridding_algorithm->makeFinerLevel(hierarchy, t0, initial_time, tag_buffer[ln]);
+        application->setInitialConditions(t0);
+    }
+    // Perform a regrid to make sure the tagging is all set correctly
+    error_detector->turnOnGradientDetector();
+    error_detector->turnOffRefineBoxes();
+    gridding_algorithm->regridAllFinerLevels(hierarchy, 0, t0, tag_buffer);
+    application->setInitialConditions(initial_time);
 
-   // initialize a time integrator parameters object
-   tbox::Pointer<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");
-   SAMRSolvers::TimeIntegratorParameters *timeIntegratorParameters = new SAMRSolvers::TimeIntegratorParameters(ti_db);
-   timeIntegratorParameters->d_operator = application;
-   timeIntegratorParameters->d_ic_vector = application->get_x();
-   timeIntegratorParameters->d_vizWriter = visit_writer;
+    // initialize a time integrator parameters object
+    tbox::Pointer<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");
+    SAMRSolvers::TimeIntegratorParameters *timeIntegratorParameters = new SAMRSolvers::TimeIntegratorParameters(ti_db);
+    timeIntegratorParameters->d_operator = application;
+    timeIntegratorParameters->d_ic_vector = application->get_ic();
+    timeIntegratorParameters->d_vizWriter = visit_writer;
    
-   // create a time integrator
-   SAMRSolvers::TimeIntegratorFactory *tiFactory = new SAMRSolvers::TimeIntegratorFactory();
-   std::auto_ptr<SAMRSolvers::TimeIntegrator> timeIntegrator = tiFactory->createTimeIntegrator(timeIntegratorParameters);
+    // create a time integrator
+    SAMRSolvers::TimeIntegratorFactory *tiFactory = new SAMRSolvers::TimeIntegratorFactory();
+    std::auto_ptr<SAMRSolvers::TimeIntegrator> timeIntegrator = tiFactory->createTimeIntegrator(timeIntegratorParameters);
 
-   // Create x(t)
-   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > x_t;
-   x_t = timeIntegrator->getCurrentSolution();
+    // Create x(t)
+    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > x_t;
+    x_t = timeIntegrator->getCurrentSolution();
 
-   tbox::Pointer<tbox::Database> plot_db = input_db->getDatabase("Plotting");
+    tbox::Pointer<tbox::Database> plot_db = input_db->getDatabase("Plotting");
 
-   if (plot_db->keyExists("plot_interval")) 
-     {
-       plot_interval = plot_db->getInteger("plot_interval");
+    if (plot_db->keyExists("plot_interval")) {
+        plot_interval = plot_db->getInteger("plot_interval");
+    }
 
-     }
+    // Write the data
+    bool write_debug_file = false;
+    visit_writer->writePlotData(hierarchy,0,0);
+    FILE *debug_file = NULL;
+    if ( write_debug_file ) {
+        if ( tbox::SAMRAI_MPI::getRank()==0 )
+            debug_file = fopen( "debugFile" , "wb" );
+        application->writeDebugData(debug_file,0,0);
+    }
 
-   // Write the data
-   visit_writer->writePlotData(hierarchy,0,0);
+    // Loop through time
+    bool first_step = true;
+    double dt = 1.0;
 
-   // Loop through time
-   bool first_step = true;
-   double dt = 1.0;
-
-   double current_time = 0.0;
-   double final_time = timeIntegrator->getFinalTime();
+    double current_time = 0.0;
+    double final_time = timeIntegrator->getFinalTime();
    
-   int iteration_num = 0;
+    int iteration_num = 0;
+    while (current_time < final_time) {
+        iteration_num++;
+        current_time = timeIntegrator->getCurrentTime();
+        timeIntegrator->advanceSolution(dt, first_step);
+        bool solnAcceptable = timeIntegrator->checkNewSolution();
 
-   // this changes the set of applied boundary conditions
-   // check with Luis if this is in the right place
-   application->setBoundarySchedules(false);
-   
-   while (current_time < final_time)
-     {       
-       iteration_num++;
-       current_time = timeIntegrator->getCurrentTime();
-       timeIntegrator->advanceSolution(dt, first_step);
-       bool solnAcceptable = timeIntegrator->checkNewSolution();
+        if(solnAcceptable) {
+            first_step = false;
+            timeIntegrator->updateSolution();
+            current_time = timeIntegrator->getCurrentTime();
+            tbox::pout << "Advanced solution to time : " << current_time << std::endl;
 
-       if(solnAcceptable)
-	 {
-	   first_step = false;
-	   timeIntegrator->updateSolution();
-	   current_time = timeIntegrator->getCurrentTime();
-	   tbox::pout << "Advanced solution to time : " << current_time << std::endl;
+            if ( (plot_interval > 0) && ((iteration_num % plot_interval) == 0) )  {
+                visit_writer->writePlotData(hierarchy, iteration_num, current_time);
+                if ( write_debug_file )
+                    application->writeDebugData(debug_file,iteration_num,current_time);
+            }
+        } else {
+            tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
+        }
 
-	   if ( (plot_interval > 0) && ((iteration_num % plot_interval) == 0) ) 
-	     {
-	       visit_writer->writePlotData(hierarchy, iteration_num, current_time);
-	     }
+        dt = timeIntegrator->getNextDt(solnAcceptable);
+        tbox::pout << "Estimating next time step : " << dt << std::endl;
+    }
 
-	 }
-       else
-	 {
-	   tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
-	 }
+    if ( debug_file != NULL )
+        fclose(debug_file);
 
-       dt = timeIntegrator->getNextDt(solnAcceptable);
-       tbox::pout << "Estimating next time step : " << dt << std::endl;
-     }
-
-
-   // Barrier to make sure all processors have finished
-   tbox::SAMRAI_MPI::barrier();
-   // Delete the time integrator
-   delete tiFactory;
-   delete timeIntegratorParameters;
-   // Delete the application
-   delete application;
-   delete application_parameters;
-   // Delete the writer
-   delete visit_writer;
-   // Delete the hierarchy
-   var.setNull();
-   hierarchy.setNull();
-   load_balancer.setNull();
-   gridding_algorithm.setNull();
-   grid_geometry.setNull();
-   // Delete the application object
-   delete test_object;
-   // Delete the input database
-   main_db.setNull();
-   input_db.setNull();
-   pixie3d_db.setNull();
-   grid_db.setNull();
-   tag_db.setNull();
-   load_db.setNull();
-   grid_alg_db.setNull();
-   tbox::InputManager::freeManager();
-   delete input_db;
-   tbox::pout << "Input database deleted\n";
-   // Finalize PETsc, MPI, and SAMRAI
-   tbox::SAMRAI_MPI::barrier();
-   PetscFinalize();
-   tbox::SAMRAIManager::shutdown();
-   tbox::SAMRAI_MPI::finalize();
-   return(0);
+    // Barrier to make sure all processors have finished
+    tbox::SAMRAI_MPI::barrier();
+    // Delete the time integrator
+    delete tiFactory;
+    delete timeIntegratorParameters;
+    // Delete the application
+    delete application;
+    delete application_parameters;
+    // Delete the writer
+    delete visit_writer;
+    // Delete the hierarchy
+    var.setNull();
+    hierarchy.setNull();
+    load_balancer.setNull();
+    gridding_algorithm.setNull();
+    grid_geometry.setNull();
+    // Delete the application object
+    delete test_object;
+    // Delete the input database
+    main_db.setNull();
+    input_db.setNull();
+    pixie3d_db.setNull();
+    grid_db.setNull();
+    tag_db.setNull();
+    load_db.setNull();
+    grid_alg_db.setNull();
+    tbox::InputManager::freeManager();
+    delete input_db;
+    tbox::pout << "Input database deleted\n";
+    // Finalize PETsc, MPI, and SAMRAI
+    tbox::SAMRAI_MPI::barrier();
+    PetscFinalize();
+    tbox::SAMRAIManager::shutdown();
+    tbox::SAMRAI_MPI::finalize();
+    return(0);
 }
+
 
 /*
 ************************************************************************
