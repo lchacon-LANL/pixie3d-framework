@@ -4343,7 +4343,7 @@ c     Local variables
 c     Begin program
 
       cnv=-veclaplacian(i,j,k,nx,ny,nz,igx,igy,igz,a,vol=vol)
-cc     .    +gradDiv(i,j,k,nx,ny,nz,igx,igy,igz,a,vol=vol,cnv=.true.)
+     .    +gradDiv(i,j,k,nx,ny,nz,igx,igy,igz,a,vol=vol,cnv=.true.)
 
 c     End program
 
@@ -4360,6 +4360,10 @@ c ######################################################################
         use grid_tensor_ops
 
         integer,private :: adv_meth
+
+        INTERFACE inter
+          module procedure in2face_scl,in2face_vec
+        end INTERFACE
 
       contains
 
@@ -4863,20 +4867,12 @@ c     Find velocities at faces from ZIP fluxes
 
 c     Find advected quantity at faces
 
-        if (i == nx) then
-          if (method > 2 .and. method <= 6) then
-            qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
-     .               ,grid_params%xx(igp ),arr(ip ,j,k)
-     .               ,grid_params%xx(ig  ),arr(i  ,j,k)
-     .               ,grid_params%xx(igm ),arr(im ,j,k)
-     .               ,vxp,1)
-          else
-            qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
-     .               ,grid_params%xx(igp ),arr(ip ,j,k)
-     .               ,grid_params%xx(ig  ),arr(i  ,j,k)
-     .               ,grid_params%xx(igm ),arr(im ,j,k)
-     .               ,vxp,method)
-          endif
+        if ((i == nx).and.(method > 2 .and. method <= 6)) then
+          qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
+     .             ,grid_params%xx(igp ),arr(ip ,j,k)
+     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
+     .             ,grid_params%xx(igm ),arr(im ,j,k)
+     .             ,vxp,1)
         else
           qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
      .             ,grid_params%xx(igp ),arr(ip ,j,k)
@@ -4885,20 +4881,12 @@ c     Find advected quantity at faces
      .             ,vxp,method)
         endif
 
-        if (i == 1) then
-          if (method > 2 .and. method <= 6) then
-            qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
-     .               ,grid_params%xx(ig  ),arr(i  ,j,k)
-     .               ,grid_params%xx(igm ),arr(im ,j,k)
-     .               ,grid_params%xx(igmm),arr(imm,j,k)
-     .               ,vxm,1)
-          else
-            qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
-     .               ,grid_params%xx(ig  ),arr(i  ,j,k)
-     .               ,grid_params%xx(igm ),arr(im ,j,k)
-     .               ,grid_params%xx(igmm),arr(imm,j,k)
-     .               ,vxm,method)
-          endif
+        if ((i == 1).and.(method > 2 .and. method <= 6)) then
+          qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
+     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
+     .             ,grid_params%xx(igm ),arr(im ,j,k)
+     .             ,grid_params%xx(igmm),arr(imm,j,k)
+     .             ,vxm,1)
         else
           qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
      .             ,grid_params%xx(ig  ),arr(i  ,j,k)
@@ -4907,20 +4895,12 @@ c     Find advected quantity at faces
      .             ,vxm,method)
         endif
 
-        if (j == ny) then
-          if (method > 2 .and. method <= 6) then
-            qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
-     .               ,grid_params%yy(jgp ),arr(i,jp ,k)
-     .               ,grid_params%yy(jg  ),arr(i,j  ,k)
-     .               ,grid_params%yy(jgm ),arr(i,jm ,k)
-     .               ,vyp,1)
-          else
-            qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
-     .               ,grid_params%yy(jgp ),arr(i,jp ,k)
-     .               ,grid_params%yy(jg  ),arr(i,j  ,k)
-     .               ,grid_params%yy(jgm ),arr(i,jm ,k)
-     .               ,vyp,method)
-          endif
+        if ((j == ny).and.(method > 2 .and. method <= 6)) then
+          qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
+     .             ,grid_params%yy(jgp ),arr(i,jp ,k)
+     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
+     .             ,grid_params%yy(jgm ),arr(i,jm ,k)
+     .             ,vyp,1)
         else
           qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
      .             ,grid_params%yy(jgp ),arr(i,jp ,k)
@@ -4929,20 +4909,12 @@ c     Find advected quantity at faces
      .             ,vyp,method)
         endif
 
-        if (j == 1) then
-          if (method > 2 .and. method <= 6) then
-            qjm=inter(grid_params%yy(jgp ),arr(i,jp ,k)
-     .               ,grid_params%yy(jg  ),arr(i,j  ,k)
-     .               ,grid_params%yy(jgm ),arr(i,jm ,k)
-     .               ,grid_params%yy(jgmm),arr(i,jmm,k)
-     .               ,vym,1)
-          else
-            qjm=inter(grid_params%yy(jgp ),arr(i,jp ,k)
-     .               ,grid_params%yy(jg  ),arr(i,j  ,k)
-     .               ,grid_params%yy(jgm ),arr(i,jm ,k)
-     .               ,grid_params%yy(jgmm),arr(i,jmm,k)
-     .               ,vym,method)
-          endif
+        if ((j == 1).and.(method > 2 .and. method <= 6)) then
+          qjm=inter(grid_params%yy(jgp ),arr(i,jp ,k)
+     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
+     .             ,grid_params%yy(jgm ),arr(i,jm ,k)
+     .             ,grid_params%yy(jgmm),arr(i,jmm,k)
+     .             ,vym,1)
         else
           qjm=inter(grid_params%yy(jgp ),arr(i,jp,k )
      .             ,grid_params%yy(jg  ),arr(i,j  ,k)
@@ -4951,20 +4923,12 @@ c     Find advected quantity at faces
      .             ,vym,method)
         endif
 
-        if (k == nz) then
-          if (method > 2 .and. method <= 6) then
-            qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
-     .               ,grid_params%zz(kgp ),arr(i,j,kp )
-     .               ,grid_params%zz(kg  ),arr(i,j,k  )
-     .               ,grid_params%zz(kgm ),arr(i,j,km )
-     .               ,vzp,1)
-          else
-            qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
-     .               ,grid_params%zz(kgp ),arr(i,j,kp )
-     .               ,grid_params%zz(kg  ),arr(i,j,k  )
-     .               ,grid_params%zz(kgm ),arr(i,j,km )
-     .               ,vzp,method)
-          endif
+        if ((k == nz).and.(method > 2 .and. method <= 6)) then
+          qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
+     .             ,grid_params%zz(kgp ),arr(i,j,kp )
+     .             ,grid_params%zz(kg  ),arr(i,j,k  )
+     .             ,grid_params%zz(kgm ),arr(i,j,km )
+     .             ,vzp,1)
         else
           qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
      .             ,grid_params%zz(kgp ),arr(i,j,kp )
@@ -4973,20 +4937,12 @@ c     Find advected quantity at faces
      .             ,vzp,method)
         endif
 
-        if (k == 1) then
-          if (method > 2 .and. method <= 6) then
-            qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
-     .               ,grid_params%zz(kg  ),arr(i,j,k  )
-     .               ,grid_params%zz(kgm ),arr(i,j,km )
-     .               ,grid_params%zz(kgmm),arr(i,j,kmm)
-     .               ,vzm,1)
-          else
-            qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
-     .               ,grid_params%zz(kg  ),arr(i,j,k  )
-     .               ,grid_params%zz(kgm ),arr(i,j,km )
-     .               ,grid_params%zz(kgmm),arr(i,j,kmm)
-     .               ,vzm,method)
-          endif
+        if ((k == 1).and.(method > 2 .and. method <= 6)) then
+          qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
+     .             ,grid_params%zz(kg  ),arr(i,j,k  )
+     .             ,grid_params%zz(kgm ),arr(i,j,km )
+     .             ,grid_params%zz(kgmm),arr(i,j,kmm)
+     .             ,vzm,1)
         else
           qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
      .             ,grid_params%zz(kg  ),arr(i,j,k  )
@@ -5177,8 +5133,8 @@ c     Flux limiting
 
           call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
-          ipp = min(ip+1,nx+1)
-          im  = max(i -1,0   )
+          ipp  = min(ip+1,nx+1)
+          im   = max(i -1,0   )
 
           igp  = ig + (ip  - i)
           igm  = ig + (im  - i)
@@ -5186,31 +5142,24 @@ c     Flux limiting
 
           do icomp=1,3
             !Find velocities at faces from fluxes
-cc            if (     t1(icomp)/=0d0
-cc     .          .and.vec2(i,j,k,icomp)*vec2(ip,j,k,icomp)>0d0) then
-            if (vec2(i,j,k,icomp)*vec2(ip,j,k,icomp)>0d0) then
-              vxp = 2d0*t1(icomp)/(vec2(i,j,k,icomp)+vec2(ip,j,k,icomp))
-            else
+cccc            if (     t1(icomp)/=0d0
+cccc     .          .and.vec2(i,j,k,icomp)*vec2(ip,j,k,icomp)>0d0) then
+cc            if (vec2(i,j,k,icomp)*vec2(ip,j,k,icomp)>0d0) then
+cc              vxp = 2d0*t1(icomp)/(vec2(i,j,k,icomp)+vec2(ip,j,k,icomp))
+cc            else
               vxp = 0.5*(vec1(ip,j,k,1)*ijacp+vec1(i,j,k,1)*ijac0)*jac
-            endif
+cc            endif
 
-            !Limit flux based on velocity
-            if (i == nx .or. i == 0) then
+            if (    (i == nx .or. i == 0)
+     .         .and.(adv_meth > 2 .and. adv_meth <= 6)) then
               !Revert extended support methods to upwinding at processor boundaries
-              if (adv_meth > 2 .and. adv_meth <= 6) then
-                qp=inter(grid_params%xx(igpp),vec2(ipp,j,k,icomp)
-     .                  ,grid_params%xx(igp ),vec2(ip ,j,k,icomp)
-     .                  ,grid_params%xx(ig  ),vec2(i  ,j,k,icomp)
-     .                  ,grid_params%xx(igm ),vec2(im ,j,k,icomp)
-     .                  ,vxp,1)
-              else
-                qp=inter(grid_params%xx(igpp),vec2(ipp,j,k,icomp)
-     .                  ,grid_params%xx(igp ),vec2(ip ,j,k,icomp)
-     .                  ,grid_params%xx(ig  ),vec2(i  ,j,k,icomp)
-     .                  ,grid_params%xx(igm ),vec2(im ,j,k,icomp)
-     .                  ,vxp,adv_meth)
-              endif
+              qp=inter(grid_params%xx(igpp),vec2(ipp,j,k,icomp)
+     .                ,grid_params%xx(igp ),vec2(ip ,j,k,icomp)
+     .                ,grid_params%xx(ig  ),vec2(i  ,j,k,icomp)
+     .                ,grid_params%xx(igm ),vec2(im ,j,k,icomp)
+     .                ,vxp,1)
             else
+              !Limit flux based on velocity
               qp=inter(grid_params%xx(igpp),vec2(ipp,j,k,icomp)
      .                ,grid_params%xx(igp ),vec2(ip ,j,k,icomp)
      .                ,grid_params%xx(ig  ),vec2(i  ,j,k,icomp)
@@ -5218,7 +5167,9 @@ cc     .          .and.vec2(i,j,k,icomp)*vec2(ip,j,k,icomp)>0d0) then
      .                ,vxp,adv_meth)
             endif
 
-            !Recover flux
+            !Recover flux (use ZIP flux if possible)
+cc            if (vec2(i,j,k,icomp)*vec2(ip,j,k,icomp)>0d0)
+cc     .        vxp = 2d0*t1(icomp)/(vec2(i,j,k,icomp)+vec2(ip,j,k,icomp))
             t1(icomp) = vxp*qp
           enddo
 
@@ -5265,14 +5216,14 @@ c     -------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8)    :: t21,t22,t23
-        logical    :: alt_eom
+        integer :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+        real(8) :: t21,t22,t23
+        logical :: alt_eom
 
 c     Local variables
 
-        integer    :: ig,jg,kg,jp,jm,jpp,jgpp,jgp,jgm,icomp
-        real(8)    :: vyp,qp,jac,ijac,t2(3)
+        integer :: ig,jg,kg,jp,jm,jpp,jgpp,jgp,jgm,icomp
+        real(8) :: vyp,qp,jac,ijac,t2(3)
 
 c     Begin program
 
@@ -5284,12 +5235,10 @@ c     Begin program
 
 c     Advective fluxes
 
-        do icomp=1,3
-          t2(icomp) = 0.25*( vec2(i,jp,k,2)*vec1(i,j ,k,icomp)
-     .                      +vec2(i,j ,k,2)*vec1(i,jp,k,icomp)
-     .                      +vec1(i,j ,k,2)*vec2(i,jp,k,icomp)
-     .                      +vec1(i,jp,k,2)*vec2(i,j ,k,icomp))
-        enddo
+        t2 = 0.25*( vec2(i,jp,k,2)*vec1(i,j ,k,:)
+     .             +vec2(i,j ,k,2)*vec1(i,jp,k,:)
+     .             +vec1(i,j ,k,2)*vec2(i,jp,k,:)
+     .             +vec1(i,jp,k,2)*vec2(i,j ,k,:))
 
 c     Flux limiting
 
@@ -5306,31 +5255,24 @@ c     Flux limiting
 
           do icomp=1,3
             !Find velocities at faces from fluxes
-cc            if (     t2(icomp)/=0d0
-cc     .          .and.vec2(i,j,k,icomp)*vec2(i,jp,k,icomp)>0d0) then
-            if (vec2(i,j,k,icomp)*vec2(i,jp,k,icomp)>0d0) then
-              vyp = 2d0*t2(icomp)/(vec2(i,j,k,icomp)+vec2(i,jp,k,icomp))
-            else
+cccc            if (     t2(icomp)/=0d0
+cccc     .          .and.vec2(i,j,k,icomp)*vec2(i,jp,k,icomp)>0d0) then
+cc            if (vec2(i,j,k,icomp)*vec2(i,jp,k,icomp)>0d0) then
+cc              vyp = 2d0*t2(icomp)/(vec2(i,j,k,icomp)+vec2(i,jp,k,icomp))
+cc            else
               vyp = 0.5*(vec1(i,jp,k,2)+vec1(i,j,k,2))
-            endif
+cc            endif
 
-            !Limit flux based on velocity
-            if (j == ny .or. j == 0) then
+            if (     (j == ny .or. j == 0)
+     .         .and. (adv_meth > 2 .and. adv_meth <= 6)) then
               !Revert extended support methods to upwinding at processor boundaries
-              if (adv_meth > 2 .and. adv_meth <= 6) then
-                qp=inter(grid_params%yy(jgpp),vec2(i,jpp,k,icomp)
-     .                  ,grid_params%yy(jgp ),vec2(i,jp ,k,icomp)
-     .                  ,grid_params%yy(jg  ),vec2(i,j  ,k,icomp)
-     .                  ,grid_params%yy(jgm ),vec2(i,jm ,k,icomp)
-     .                  ,vyp,1)
-              else
-                qp=inter(grid_params%yy(jgpp),vec2(i,jpp,k,icomp)
-     .                  ,grid_params%yy(jgp ),vec2(i,jp ,k,icomp)
-     .                  ,grid_params%yy(jg  ),vec2(i,j  ,k,icomp)
-     .                  ,grid_params%yy(jgm ),vec2(i,jm ,k,icomp)
-     .                  ,vyp,adv_meth)
-              endif
+              qp=inter(grid_params%yy(jgpp),vec2(i,jpp,k,icomp)
+     .                ,grid_params%yy(jgp ),vec2(i,jp ,k,icomp)
+     .                ,grid_params%yy(jg  ),vec2(i,j  ,k,icomp)
+     .                ,grid_params%yy(jgm ),vec2(i,jm ,k,icomp)
+     .                ,vyp,1)
             else
+              !Limit flux based on velocity
               qp=inter(grid_params%yy(jgpp),vec2(i,jpp,k,icomp)
      .                ,grid_params%yy(jgp ),vec2(i,jp ,k,icomp)
      .                ,grid_params%yy(jg  ),vec2(i,j  ,k,icomp)
@@ -5338,7 +5280,9 @@ cc     .          .and.vec2(i,j,k,icomp)*vec2(i,jp,k,icomp)>0d0) then
      .                ,vyp,adv_meth)
             endif
 
-            !Recover flux
+            !Recover flux (use ZIP flux if possible)
+cc            if (vec2(i,j,k,icomp)*vec2(i,jp,k,icomp)>0d0)
+cc     .        vyp = 2d0*t2(icomp)/(vec2(i,j,k,icomp)+vec2(i,jp,k,icomp))
             t2(icomp) = vyp*qp
           enddo
 
@@ -5385,14 +5329,14 @@ c     -------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8)    :: t31,t32,t33
-        logical    :: alt_eom
+        integer :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+        real(8) :: t31,t32,t33
+        logical :: alt_eom
 
 c     Local variables
 
-        integer    :: ig,jg,kg,kp,km,kpp,kgpp,kgp,kgm,icomp
-        real(8)    :: vzp,qp,jac,ijac,t3(3)
+        integer :: ig,jg,kg,kp,km,kpp,kgpp,kgp,kgm,icomp
+        real(8) :: vzp,qp,jac,ijac,t3(3)
 
 c     Begin program
 
@@ -5404,12 +5348,10 @@ c     Begin program
 
 c     Advective fluxes
 
-        do icomp=1,3
-          t3(icomp) = 0.25*( vec2(i,j,kp,3)*vec1(i,j,k ,icomp)
-     .                      +vec2(i,j,k ,3)*vec1(i,j,kp,icomp)
-     .                      +vec1(i,j,k ,3)*vec2(i,j,kp,icomp)
-     .                      +vec1(i,j,kp,3)*vec2(i,j,k ,icomp))
-        enddo
+        t3 = 0.25*( vec2(i,j,kp,3)*vec1(i,j,k ,:)
+     .             +vec2(i,j,k ,3)*vec1(i,j,kp,:)
+     .             +vec1(i,j,k ,3)*vec2(i,j,kp,:)
+     .             +vec1(i,j,kp,3)*vec2(i,j,k ,:))
 
 c     Flux limiting
 
@@ -5426,31 +5368,24 @@ c     Flux limiting
 
           do icomp=1,3
             !Find velocities at faces from fluxes
-cc            if (     t3(icomp)/=0d0
-cc     .          .and.vec2(i,j,k,icomp)*vec2(i,j,kp,icomp)>0d0) then
-            if (vec2(i,j,k,icomp)*vec2(i,j,kp,icomp)>0d0) then
-              vzp = 2d0*t3(icomp)/(vec2(i,j,k,icomp)+vec2(i,j,kp,icomp))
-            else
+cccc            if (     t3(icomp)/=0d0
+cccc     .          .and.vec2(i,j,k,icomp)*vec2(i,j,kp,icomp)>0d0) then
+cc            if (vec2(i,j,k,icomp)*vec2(i,j,kp,icomp)>0d0) then
+cc              vzp = 2d0*t3(icomp)/(vec2(i,j,k,icomp)+vec2(i,j,kp,icomp))
+cc            else
               vzp = 0.5*(vec1(i,j,kp,3)+vec1(i,j,k,3))
-            endif
+cc            endif
 
-            !Limit flux based on velocity
-            if (k == nz .or. k == 0) then
+            if (     (k == nz .or. k == 0)
+     .          .and.(adv_meth > 2 .and. adv_meth <= 6)) then
               !Revert extended support methods to upwinding at processor boundaries
-              if (adv_meth > 2 .and. adv_meth <= 6) then
-                qp=inter(grid_params%zz(kgpp),vec2(i,j,kpp,icomp)
-     .                  ,grid_params%zz(kgp ),vec2(i,j,kp ,icomp)
-     .                  ,grid_params%zz(kg  ),vec2(i,j,k  ,icomp)
-     .                  ,grid_params%zz(kgm ),vec2(i,j,km ,icomp)
-     .                  ,vzp,1)
-              else
-                qp=inter(grid_params%zz(kgpp),vec2(i,j,kpp,icomp)
-     .                  ,grid_params%zz(kgp ),vec2(i,j,kp ,icomp)
-     .                  ,grid_params%zz(kg  ),vec2(i,j,k  ,icomp)
-     .                  ,grid_params%zz(kgm ),vec2(i,j,km ,icomp)
-     .                  ,vzp,adv_meth)
-              endif
+              qp=inter(grid_params%zz(kgpp),vec2(i,j,kpp,icomp)
+     .                ,grid_params%zz(kgp ),vec2(i,j,kp ,icomp)
+     .                ,grid_params%zz(kg  ),vec2(i,j,k  ,icomp)
+     .                ,grid_params%zz(kgm ),vec2(i,j,km ,icomp)
+     .                ,vzp,1)
             else                                        
+              !Limit flux based on velocity
               qp=inter(grid_params%zz(kgpp),vec2(i,j,kpp,icomp)
      .                ,grid_params%zz(kgp ),vec2(i,j,kp ,icomp)
      .                ,grid_params%zz(kg  ),vec2(i,j,k  ,icomp)
@@ -5458,7 +5393,9 @@ cc     .          .and.vec2(i,j,k,icomp)*vec2(i,j,kp,icomp)>0d0) then
      .                ,vzp,adv_meth)
             endif
 
-            !Recover flux
+            !Recover flux (use ZIP flux if possible)
+cc             if (vec2(i,j,k,icomp)*vec2(i,j,kp,icomp)>0d0)
+cc     .        vzp = 2d0*t3(icomp)/(vec2(i,j,k,icomp)+vec2(i,j,kp,icomp))
             t3(icomp) = vzp*qp
           enddo
 
@@ -5725,9 +5662,10 @@ ccc     End program
 cc
 cc      end subroutine tnsr_advc_z
 
-c     inter
+c     in2face_scl
 c     ###############################################################
-      function inter(x4,q4,x3,q3,x2,q2,x1,q1,vel,advect)
+      function in2face_scl(x4,q4,x3,q3,x2,q2,x1,q1,vel,advect)
+     .         result(inter)
 
 c     ---------------------------------------------------------------
 c     This function computes the advection interpolation at control
@@ -5897,7 +5835,219 @@ cc        endif
 
 c     End
 
-      end function inter
+      end function in2face_scl
+
+c     in2face_vec
+c     ###############################################################
+      function in2face_vec(x4,q4,x3,q3,x2,q2,x1,q1,vel,advect)
+     .         result(inter)
+
+c     ---------------------------------------------------------------
+c     This function computes the advection interpolation at control
+c     volume face. Options:
+c       * advect = 1 => First-order upwind
+c       * advect = 2 => Centered
+c       * advect = 3 => High-order upwind (QUICK)
+c       * advect = 4 => Monotone high-order upwind (SMART)
+c       * advect = 5 => SMART with smooth transition
+c       * advect = 6 => Centered, high-order
+c       * advect = 7 => Gamma (modification of SMART; not operational)
+c
+c     Convention:
+c
+c       ---x-----x--o--x-----x---->
+c          q1    q2 ^  q3    q4
+c                   ^
+c           Location of face
+c     ---------------------------------------------------------------
+
+      use oned_int
+
+      implicit none                !For safe fortran
+
+c     Call variables
+
+      real(8) :: x4,x3,x2,x1,q4(:),q3(:),q2(:),q1(:),vel
+      real(8) :: inter(size(q1))
+      integer :: advect
+
+c     Local variables
+
+      real(8) :: qt1(size(q1)),qt2(size(q1))
+     .          ,qt3(size(q1)),qt4(size(q1))
+     .          ,slp1,slp2,a(size(q1)),b(size(q1)),c(size(q1))
+     .          ,xp1,xp2,curv(size(q1))
+
+c     Begin program
+
+      select case(advect)
+      case(1)
+
+c     Upwind
+
+        if (vel.gt.0d0) then
+          inter = q2
+        else
+          inter = q3
+        endif
+
+      case(2)
+
+c     Centered
+
+        inter = 0.5*(q3+q2)
+
+      case(3)
+
+c     QUICK [Leonard, Comput. Meth. Appl. Mech. Eng. 19, p. 59 (1979)]
+
+        if (vel.gt.0d0) then
+          curv = ((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/0.5/(x3-x1)
+        else
+          curv = ((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/0.5/(x4-x2)
+        endif
+
+        inter = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+
+      case(4)
+
+c     SMART [Gaskell and Lau, Int. J. Num. Meth. Fluids 8, p 617-641 (1988)]
+
+        slp1 = 1.5
+        slp2 = .5
+        if (vel.gt.0d0) then
+          curv = ((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/0.5/(x3-x1)
+          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+          qt2 = slp1*q2 + (1.-slp1)*q1
+          qt3 = slp2*q2 + (1.-slp2)*q3
+          qt4 = fmed(q2,qt2,qt3)
+          inter = fmed(q2,qt4,qt1)
+        else
+          curv = ((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/0.5/(x4-x2)
+          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+          qt2 = slp1*q3 + (1.-slp1)*q4
+          qt3 = slp2*q3 + (1.-slp2)*q2
+          qt4 = fmed(q3,qt2,qt3)
+          inter = fmed(q3,qt4,qt1)
+        endif
+
+      case(5)
+
+c     Smooth SMART
+
+        xp1 = .3
+        xp2 = .5
+        if (vel.gt.0d0) then
+          qt1  = (q2-q1)/(q3-q1)
+cc          if (qt1.lt.xp1.and.qt1.ge.0.) then
+cc            a = .25/xp1**3*(xp1-3.)
+cc            b = 1./xp1**2*(9./8.-xp1/2.)
+cc            qt2 = qt1*(a*qt1**2 + b*qt1 + 1.)
+cc            inter = q1 + qt2*(q3-q1)
+cc          elseif (qt1.ge.xp2.and.qt1.lt.1.) then
+cc            a = (xp2/4.-.5)/(xp2-1.)**3
+cc            b = 1./8./(xp2-1.)**3*(-4.*xp2**2+7.*xp2+1)
+cc            c = 1. - (-.5*xp2**2-3./8+9./8*xp2)/(xp2-1.)**3
+cc            qt2 = (qt1 - 1.)*(a*qt1**2 + b*qt1 + c) + 1.
+cc            inter = q1 + qt2*(q3-q1)
+cc          elseif (qt1.ge.xp1.and.qt1.lt.xp2) then
+cc            inter = 3.*q3/8. + 3.*q2/4.- q1/8.
+cc          else
+cc            inter = q2
+cc          endif
+          where (qt1.lt.xp1.and.qt1.ge.0.)
+            a = .25/xp1**3*(xp1-3.)
+            b = 1./xp1**2*(9./8.-xp1/2.)
+            qt2 = qt1*(a*qt1**2 + b*qt1 + 1.)
+            inter = q1 + qt2*(q3-q1)
+          elsewhere (qt1.ge.xp2.and.qt1.lt.1.)
+            a = (xp2/4.-.5)/(xp2-1.)**3
+            b = 1./8./(xp2-1.)**3*(-4.*xp2**2+7.*xp2+1)
+            c = 1. - (-.5*xp2**2-3./8+9./8*xp2)/(xp2-1.)**3
+            qt2 = (qt1 - 1.)*(a*qt1**2 + b*qt1 + c) + 1.
+            inter = q1 + qt2*(q3-q1)
+          elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
+            inter = 3.*q3/8. + 3.*q2/4.- q1/8.
+          elsewhere
+            inter = q2
+          end where
+        else
+          qt1  = (q3-q4)/(q2-q4)
+cc          if (qt1.lt.xp1.and.qt1.ge.0.) then
+cc            a = .25/xp1**3*(xp1-3.)
+cc            b = 1./xp1**2*(9./8.-xp1/2.)
+cc            c = 1.
+cc            qt2 = qt1*(a*qt1**2 + b*qt1 + c)
+cc            inter = q4 + qt2*(q2-q4)
+cc          elseif (qt1.ge.xp2.and.qt1.lt.1.) then
+cc            a = (xp2/4.-.5)/(xp2-1.)**3
+cc            b = 1./8./(xp2-1.)**3*(-4.*xp2**2+7.*xp2+1)
+cc            c = 1. - (-.5*xp2**2-3./8+9./8*xp2)/(xp2-1.)**3
+cc            qt2 = (qt1 - 1.)*(a*qt1**2 + b*qt1 + c) + 1.
+cc            inter = q4 + qt2*(q2-q4)
+cc          elseif (qt1.ge.xp1.and.qt1.lt.xp2) then
+cc            inter = 3.*q2/8. + 3.*q3/4.- q4/8.
+cc          else
+cc            inter = q3
+cc          endif
+          where (qt1.lt.xp1.and.qt1.ge.0.)
+            a = .25/xp1**3*(xp1-3.)
+            b = 1./xp1**2*(9./8.-xp1/2.)
+            c = 1.
+            qt2 = qt1*(a*qt1**2 + b*qt1 + c)
+            inter = q4 + qt2*(q2-q4)
+          elsewhere (qt1.ge.xp2.and.qt1.lt.1.)
+            a = (xp2/4.-.5)/(xp2-1.)**3
+            b = 1./8./(xp2-1.)**3*(-4.*xp2**2+7.*xp2+1)
+            c = 1. - (-.5*xp2**2-3./8+9./8*xp2)/(xp2-1.)**3
+            qt2 = (qt1 - 1.)*(a*qt1**2 + b*qt1 + c) + 1.
+            inter = q4 + qt2*(q2-q4)
+          elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
+            inter = 3.*q2/8. + 3.*q3/4.- q4/8.
+          elsewhere
+            inter = q3
+          end where
+        endif
+
+      case(6)
+
+c     Centered high-order
+
+        inter = (-q1 + 9.*q2 + 9.*q3 - q4)/16.
+
+cc      case(7)
+cc
+ccc     Gamma [Jasak, Weller, and Gosman, Int. J. Numer. Meth. Fluids, 32, p431 (1999)]
+cc
+cc        slp1 = 1.5
+cc        slp2 = .5
+cc        if (vel.gt.0d0) then
+cc          curv = ((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/0.5/(x3-x1)
+cc          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+cccc          qt1 = 3.*q3/8. + 3.*q2/4.- q1/8.
+cc          qt2 = slp1*q2 + (1.-slp1)*q1
+cc          qt3 = slp2*q2 + (1.-slp2)*q3
+cc          qt4 = fmed(q2,qt2,qt3)
+cc          inter = fmed(q2,qt4,qt1)
+cc        else
+cc          curv = ((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/0.5/(x4-x2)
+cc          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+cccc          qt1 = 3.*q2/8. + 3.*q3/4.- q4/8.
+cc          qt2 = slp1*q3 + (1.-slp1)*q4
+cc          qt3 = slp2*q3 + (1.-slp2)*q2
+cc          qt4 = fmed(q3,qt2,qt3)
+cc          inter = fmed(q3,qt4,qt1)
+cc        endif
+
+      case default
+
+        call pstop('inter','Advection scheme not available')
+
+      end select
+
+c     End
+
+      end function in2face_vec
 
 ccc     EOM_advc
 ccc     #####################################################################
