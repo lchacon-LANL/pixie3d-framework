@@ -14,6 +14,10 @@
         module procedure determ3
       END INTERFACE
 
+      INTERFACE fmed
+        module procedure fmed_scl,fmed_vec
+      END INTERFACE
+
       contains
 
 c     determ3
@@ -478,9 +482,9 @@ c     ################################################################
 
       end function int2char
 
-c     fmed
+c     fmed_scl
 c     ###############################################################
-      function fmed(p1,p2,p3)
+      function fmed_scl(p1,p2,p3) result(fmed)
       implicit none                !For safe fortran
 c     ---------------------------------------------------------------
 c     This function computes intermediate value of p1, p2, p3.
@@ -498,6 +502,28 @@ c     Begin program
 
 c     End
 
-      end function fmed
+      end function fmed_scl
+
+c     fmed_vec
+c     ###############################################################
+      function fmed_vec(p1,p2,p3) result(fmed)
+      implicit none                !For safe fortran
+c     ---------------------------------------------------------------
+c     This function computes intermediate value of p1, p2, p3.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      real(8) :: p1(:),p2(:),p3(:),fmed(size(p1))
+
+c     Local variables
+
+c     Begin program
+
+      fmed = min( max(p1,p2) , max( p3,min(p1,p2) ) )
+
+c     End
+
+      end function fmed_vec
 
       end module math
