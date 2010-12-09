@@ -39,6 +39,9 @@
 #include "DiscreteOperator.h"
 #include "pixie3dApplicationParameters.h"
 #include "pixie3dRefinePatchStrategy.h"
+#include "SiblingGhostAlgorithm.h"
+
+#include "StandardTagAndInitStrategy.h"
 
 //#include "pixie3dData.h"
 
@@ -100,11 +103,17 @@ namespace SAMRAI{
  * problem for pixie3d.
  */
 
-class pixie3dApplication : public SAMRSolvers::DiscreteOperator
+class pixie3dApplication : 
+   public SAMRSolvers::DiscreteOperator,
+   public mesh::StandardTagAndInitStrategy<NDIM>
 {
 public:
+
+   // Empty constructor.
+   pixie3dApplication();
+
    // Constructor that takes a parameter list.  Calls initialize.
-  pixie3dApplication( pixie3dApplicationParameters* parameters );
+   pixie3dApplication( pixie3dApplicationParameters* parameters );
 
    // Destructor.
    ~pixie3dApplication();
@@ -142,15 +151,56 @@ public:
 
    void registerVizWriter( SAMRAI::appu::VisItDataWriter<NDIM>* visit_writer){d_VizWriter = visit_writer;}
 
-   // Write the primary and auxillary variables (including chost cells to binary file that can be read by MATLAB)
-   void writeDebugData( FILE *fp, const int it, const double time );
+   /*
+    * Write the primary and auxillary variables to a binary file.
+    * type = 1:  Write each patch with ghost cells for all levels in double precision
+    * type = 2:  Write the coarse level without ghost cells as a single patch in double precision
+    */
+   void writeDebugData( FILE *fp, const int it, const double time, int type=1 );
+
+
+/***********************************************************************
+* Functions inherited from mesh::StandardTagAndInitStrategy<NDIM>      *
+***********************************************************************/
+
+   /*
+    * Initialize data on a new level after it is inserted into an AMR
+    * patch hierarchy by the gridding algorithm. The level number
+    * indicates that of the new level.
+    *
+    * In this aspect of regridding operations, data that represents
+    * the state of the solution must be interpolated from one grid
+    * configuration to the next.
+    *
+    * When assertion checking is enabled, passing in a null pointer
+    * for either the hierarchy or the level will result in an
+    * unrecoverable exception.
+    *
+    * Function overloaded from mesh::StandardTagAndInitStrategy<NDIM>.
+    *
+    */
+   void initializeLevelData( const tbox::Pointer<hier::BasePatchHierarchy<NDIM> > hierarchy,
+                             const int level_number,
+                             const double time,
+                             const bool can_be_refined,
+                             const bool initial_time,
+                             const tbox::Pointer<hier::BasePatchLevel<NDIM> > old_level=NULL,
+                             const bool allocate_data=true );
+
+   /**
+    * Reset cached information that depends on the hierarchy configuration.  
+    *
+    * Function overloaded from mesh::StandardTagAndInitStrategy<NDIM>.
+    */
+   void resetHierarchyConfiguration(
+           const tbox::Pointer<hier::BasePatchHierarchy<NDIM> > hierarchy,
+           const int coarsest_level,
+           const int finest_level );
+
 
 private:
    
    void printVector( const tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > vector);
-
-   // Empty constructor.
-   pixie3dApplication();
 
    void generateTransferSchedules( void );
 
@@ -161,6 +211,7 @@ private:
    void synchronizeVariables(void);
 
    void writeCellData( FILE *fp, int var_id );
+   void writeGlobalCellData( FILE *fp, int var_id );
 
    // Name of application
    std::string d_object_name;
@@ -190,10 +241,6 @@ private:
    pixie3dRefinePatchStrategy* d_refine_strategy; 
 
    std::string d_refine_op_str;
-   xfer::RefineAlgorithm<NDIM> d_refineScalarAlgorithm;
-   xfer::RefineAlgorithm<NDIM> d_refineVectorComponentAlgorithm;
-   xfer::RefineAlgorithm<NDIM> d_refineVectorAlgorithm;
-   xfer::RefineAlgorithm<NDIM> d_levelAlgorithm;
 
    //   xfer::SiblingGhostAlgorithm<NDIM> d_siblingGhostVectorAlgorithm;
 
@@ -212,9 +259,15 @@ private:
 
    input_CTX *input_data;
 
-   LevelContainer **level_container_array;
+   // Level container info
+   static const int MAX_LEVELS = 20;
+   LevelContainer *level_container_array[MAX_LEVELS];
 
-   int d_NumberOfBoundaryConditions, *d_BoundaryConditionSequence;
+   // Data for applying the boundary conditions and the coarsen/refine schedules
+   int d_NumberOfBoundarySequenceGroups, *d_NumberOfBoundaryConditions, **d_BoundaryConditionSequence;
+   tbox::Pointer< xfer::RefineSchedule<NDIM> > *refineSchedule[MAX_LEVELS];
+   tbox::Pointer< xfer::SiblingGhostSchedule<NDIM> > *siblingSchedule[MAX_LEVELS];
+   tbox::Pointer<xfer::CoarsenSchedule<NDIM> > coarsenSchedule[MAX_LEVELS];
 
    // The names of the primary and auxillary variables
    std::string *depVarLabels;

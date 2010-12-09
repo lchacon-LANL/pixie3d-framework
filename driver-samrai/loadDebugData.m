@@ -47,34 +47,52 @@ while 1
         data(i).var(j).var_name = tline(12:length(tline));
         tline = fgetl(fid);
         index = find(tline=='=');
-        for k = 1:data(i).N_levels
-            level = str2num(tline(index(1)+1:index(2)-9)); %#ok<ST2NM>
-            data(i).ratio{i} = str2num(tline(index(2)+3:index(3)-12)); %#ok<ST2NM>
-            n_patch = str2num(tline(index(3)+1:length(tline))); %#ok<ST2NM>
-            for m = 1:n_patch
-                t0 = ftell(fid);
-                tline = fgetl(fid);
-                fseek(fid,t0+length(tline)+1,'bof');
-                index = find(tline=='=');
-                patch_num = str2num(tline(index(1)+1:index(2)-10)); %#ok<ST2NM>
-                ifirst = str2num(tline(index(2)+3:index(3)-10)); %#ok<ST2NM>
-                ilast = str2num(tline(index(3)+3:index(4)-8)); %#ok<ST2NM>
-                gcw = str2num(tline(index(4)+3:index(5)-10)); %#ok<ST2NM>
-                depth = str2num(tline(index(5)+1:length(tline))); %#ok<ST2NM>
-                N = prod(ilast-ifirst+1+2*gcw)*depth;
-                data_read = fread(fid,N,'double');
-                tline = fgetl(fid);
-                if ~isempty(tline)
-                    fseek(fid,-length(tline),'cof');
+        if data(i).N_levels > 0
+            % Reading in debug type 1
+            for k = 1:data(i).N_levels
+                level = str2num(tline(index(1)+1:index(2)-9)); %#ok<ST2NM>
+                data(i).ratio{i} = str2num(tline(index(2)+3:index(3)-12)); %#ok<ST2NM>
+                n_patch = str2num(tline(index(3)+1:length(tline))); %#ok<ST2NM>
+                for m = 1:n_patch
+                    t0 = ftell(fid);
+                    tline = fgetl(fid);
+                    fseek(fid,t0+length(tline)+1,'bof');
+                    index = find(tline=='=');
+                    patch_num = str2num(tline(index(1)+1:index(2)-10)); %#ok<ST2NM>
+                    ifirst = str2num(tline(index(2)+3:index(3)-10)); %#ok<ST2NM>
+                    ilast = str2num(tline(index(3)+3:index(4)-8)); %#ok<ST2NM>
+                    gcw = str2num(tline(index(4)+3:index(5)-10)); %#ok<ST2NM>
+                    depth = str2num(tline(index(5)+1:length(tline))); %#ok<ST2NM>
+                    N = prod(ilast-ifirst+1+2*gcw)*depth;
+                    data_read = fread(fid,N,'double');
+                    tline = fgetl(fid);
+                    if ~isempty(tline)
+                        fseek(fid,-length(tline),'cof');
+                    end
+                    data_read = reshape(data_read,[ilast-ifirst+1+2*gcw,depth]);
+                    data(i).var(j).gcw = gcw;
+                    data(i).var(j).depth = depth;
+                    data(i).var(j).ifirst{level+1,patch_num+1} = ifirst;
+                    data(i).var(j).ilast{level+1,patch_num+1} = ilast;
+                    data(i).var(j).data{level+1,patch_num+1} = data_read;
                 end
-                data_read = reshape(data_read,[ilast-ifirst+1+2*gcw,depth]);
-                data(i).var(j).gcw = gcw;
-                data(i).var(j).depth = depth;
-                data(i).var(j).ifirst{level+1,patch_num+1} = ifirst;
-                data(i).var(j).ilast{level+1,patch_num+1} = ilast;
-                data(i).var(j).data{level+1,patch_num+1} = data_read;
             end
+        else
+            % Reading in debug type 2
+            data(i).var(j).gcw = [0 0 0];
+            depth = str2num(tline(index+1:length(tline))); %#ok<ST2NM>
+            N = prod(data(i).nbox)*depth;
+            data_read = fread(fid,N,'double');
+            data_read = reshape(data_read,[data(i).nbox,depth]);
+            data(i).var(j).ifirst{1} = [1 1 1];
+            data(i).var(j).ilast{1} = data(i).nbox;
+            data(i).var(j).depth = depth;
+            data(i).var(j).data{1} = data_read;
+            tline = fgetl(fid); %#ok<NASGU>
         end
+    end
+    if data(i).N_levels == -1
+        data(i).N_levels = 1;
     end
     i = i+1;
 end
