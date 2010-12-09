@@ -13,7 +13,7 @@ extern "C"{
    void formequilibrium_(void *p_data);
    void initialize_u_n_(void *p_data);
    void forminitialcondition_(void *p_data);
-   void setupvariableinitializationsequence_(void *p_data, int*);
+   void setupvarinitseq_(void *p_data, int*);
    void f_delete_patch_data_(void *p_data);
    void fill_var_array_(void *p_data, int &, double *, int &, int &, int &, int &, int &, int &);
    void fill_aux_array_var_(void *p_data, int &, double *, int &, int &, int &, int &, int &, int &);
@@ -170,7 +170,7 @@ void PatchContainer::CreatePatchFortran( const double *lowerCoordinates,const do
     // Initilize the fortran data
     formequilibrium_(data);
     int it = 0;     // it = 0 for equilibrium setup, 1 for normal
-    setupvariableinitializationsequence_(data,&it);
+    setupvarinitseq_(data,&it);
 
     // Initialize u_n
     initialize_u_n_(data);

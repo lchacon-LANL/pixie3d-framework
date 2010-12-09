@@ -100,7 +100,7 @@ extern void FORTRAN_NAME(formequilibrium) (void*);
 extern void FORTRAN_NAME(initialize_u_n) (void*);
 extern void FORTRAN_NAME(forminitialcondition) (void*, int*, double*);
 extern void FORTRAN_NAME(evaluatenonlinearresidual) (void*, int*, double*, void*);
-extern void FORTRAN_NAME(setupvariableinitializationsequence)(void *, int*);
+extern void FORTRAN_NAME(setupvarinitseq)(void *, int*);
 extern void FORTRAN_NAME(getnumberofbcgroups)(void*, int*);
 extern void FORTRAN_NAME(getbc)(void*, int*, int*, int**);
 extern void FORTRAN_NAME(initializeauxvar)(void *, int*);
@@ -952,7 +952,7 @@ pixie3dApplication::setBoundarySchedules(bool bIsInitialTime)
                 #ifdef absoft
                     FORTRAN_NAME()(level_container->getPtr(p()),&d_NumberOfBoundaryConditions,&d_BoundaryConditionSequence, &it);
                 #else
-                    FORTRAN_NAME(setupvariableinitializationsequence)(level_container->getPtr(p()),&it);
+                    FORTRAN_NAME(setupvarinitseq)(level_container->getPtr(p()),&it);
                 #endif   
             #endif
         }
