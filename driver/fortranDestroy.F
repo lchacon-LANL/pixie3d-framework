@@ -20,8 +20,6 @@ c Begin program
 
 c Free memory
 
-      deallocate(zeros,vzeros,ones)
-
       call destroyNonlinearSolver
 
       call destroyNonlinearFunction   !External
