@@ -213,8 +213,8 @@ c####################################################################
 
         integer,parameter :: VECTOR=1,SCALAR=0,AUX=-1
 
-        real(8), pointer, dimension(:,:,:)   :: zeros,ones
-        real(8), pointer, dimension(:,:,:,:) :: vzeros
+        real(8),pointer,private,dimension(:,:,:)   :: zeros
+        real(8),pointer,private,dimension(:,:,:,:) :: vzeros
 
       end module BCS_variables
 
@@ -774,6 +774,48 @@ cc            if (bcond(ibc) == PER.and.asm_dir(dim)) then !Take care of PER bou
       endif
 
       end subroutine setASM_PC_BC
+
+c     vector_symm_bc
+c     ###################################################################
+      subroutine vector_symm_bc(vbcs,normal_parity)
+
+      implicit none
+
+c     -------------------------------------------------------------------
+c     Processes symmetry BCs for vectors based on parity of normal
+c     component.
+c     -------------------------------------------------------------------
+
+c     Call variables
+
+      integer :: vbcs(6,3),normal_parity
+
+c     Local variables
+
+      integer :: diml,locl,ibcl
+
+c     Begin program
+
+      do ibcl = 1,6
+
+        locl = abs(mod(ibcl,2)-2)-1
+        diml = 1 + (ibcl-1-locl)/2
+
+        if (vbcs(ibcl,diml) == FSYM) then
+          if (normal_parity == 1) then
+            vbcs(ibcl,:)    = DIR !Tangential components
+            vbcs(ibcl,diml) = NEU !Normal component
+          else
+            vbcs(ibcl,:)    = NEU !Tangential components
+            vbcs(ibcl,diml) = DIR !Normal component
+          endif
+        endif
+
+      enddo
+
+c     End program
+
+      end subroutine vector_symm_bc
 
 c     imposeBConScalar
 c     #################################################################
@@ -1538,8 +1580,9 @@ c     Find BC update
           call extrapolateBC(array(:,:,:,nvar),array0(:,:,:,nvar)
      .                      ,dim,loc,order)
         case(DIR)
-          call scalarDirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc
-     .                          ,order)
+cc          call scalarDirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc
+          call scalarDirichletBC(array(:,:,:,nvar),array0(:,:,:,nvar)
+     .                          ,ieq,dim,loc,order)
         case(NEU)
           call scalarNeumannBC(array(:,:,:,nvar),ieq,dim,loc)
         case(EXT)
@@ -1559,7 +1602,8 @@ c     Find BC update
         case(EQU)
           call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,order)
         case(DIR)
-          call vectorDirichletBC(ivar,array,vzeros,ieq,dim,loc,order)
+cc          call vectorDirichletBC(ivar,array,vzeros,ieq,dim,loc,order)
+          call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,order)
         case(NEU)
           call vectorNeumannBC(ivar,array,array0,ieq,dim,loc)
         case(EXT)
@@ -3865,7 +3909,8 @@ c     Select operation
         if (PRESENT(arr0)) then
           vv0 => arr0
         else
-          vv0 => vzeros
+          allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,neq))
+          vv0 = 0d0
         endif
 
         call setBC(ivar(1),nnx,nny,nnz,array(:,:,:,1),vv0(:,:,:,1)
@@ -3873,12 +3918,15 @@ c     Select operation
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
      .            ,iorder=order)
 
+        if (.not.PRESENT(arr0)) deallocate(vv0)
+
       case(2)
 
         if (PRESENT(arr0)) then
           vv0 => arr0
         else
-          vv0 => vzeros
+          allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,neq))
+          vv0 = 0d0
         endif
 
         do ieq=1,neql
@@ -3887,6 +3935,8 @@ c     Select operation
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
      .            ,iorder=order)
         enddo
+
+        if (.not.PRESENT(arr0)) deallocate(vv0)
 
       case(3,6)
 
@@ -3908,12 +3958,8 @@ c     Select operation
         if (PRESENT(arr0)) then
           vv0 => arr0
         else
-          if (neql == 3) then
-            vv0 => vzeros
-          else
-            allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,neql))
-            vv0 = 0d0
-          endif
+          allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,neql))
+          vv0 = 0d0
         endif
 
         if (.not.isvec) then
@@ -3955,7 +4001,7 @@ c     Select operation
      .            ,is_cnv=iscnv,is_vec=.true.,iorder=order)
         enddo
 
-        if (.not.PRESENT(arr0).and.(neql == 6)) deallocate(vv0)
+        if (.not.PRESENT(arr0)) deallocate(vv0)
 
         if (.not.PRESENT(arr_cov)) then
           if (iscnv) then
