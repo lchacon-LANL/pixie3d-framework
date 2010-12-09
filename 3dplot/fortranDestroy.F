@@ -20,8 +20,6 @@ c Local variables
 
 c Begin program
 
-      deallocate(zeros,vzeros,ones)
-
       call deallocateStructures
 
       call deallocateDerivedType(u_ic)
