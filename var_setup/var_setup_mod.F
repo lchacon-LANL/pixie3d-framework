@@ -33,6 +33,24 @@ c #####################################################################
           integer :: bconds(6)          !Boundary conditions
           real(8),pointer,dimension(:,:,:) :: array ! contains values at grid points
           character(20) :: descr
+          integer,pointer,dimension(:,:):: bc_dep_list ! Array indicating inter-variable dependencies;
+                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                                       ! First dimension cycles over number of deps.
+                                                       ! Second dimension provides information about coupling:
+                                                       !  + First component identifies variable; its sign indicates
+                                                       !      auxiliary (<0) or dependent (>0) variable.
+                                                       !  + Second component indicates scalar (0) or vector (1)
+                                                       !  + Third component indicates trivial (0) or non-trivial (1)
+          integer,pointer,dimension(:,:):: dom_dep_list! Array indicating inter-variable dependencies;
+                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                                       ! First dimension cycles over number of deps.
+                                                       ! Second dimension provides information about coupling:
+                                                       !  + First component identifies variable; its sign indicates
+                                                       !      auxiliary (<0) or dependent (>0) variable.
+                                                       !  + Second component indicates scalar (0) or vector (1)
+                                                       !  + Third component indicates trivial (0) or non-trivial (1)
+          logical :: time_0             !Whether this is a time=0 variable
+          logical :: time_n             !Whether this is a previous time step variable
         end type var_def
 
         type :: vec_def
@@ -40,6 +58,24 @@ c #####################################################################
           real(8),pointer,dimension(:,:,:,:) :: vec ! vector (i,j,k,d), d being the component
           character(20) :: descr        !Description
           logical       :: cnv          !Whether it is contravariant or not
+          integer,pointer,dimension(:,:):: bc_dep_list ! Array indicating inter-variable dependencies;
+                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                                       ! First dimension cycles over number of deps.
+                                                       ! Second dimension provides information about coupling:
+                                                       !  + First component identifies variable; its sign indicates
+                                                       !      auxiliary (<0) or dependent (>0) variable.
+                                                       !  + Second component indicates scalar (0) or vector (1)
+                                                       !  + Third component indicates trivial (0) or non-trivial (1)
+          integer,pointer,dimension(:,:):: dom_dep_list! Array indicating inter-variable dependencies;
+                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                                       ! First dimension cycles over number of deps.
+                                                       ! Second dimension provides information about coupling:
+                                                       !  + First component identifies variable; its sign indicates
+                                                       !      auxiliary (<0) or dependent (>0) variable.
+                                                       !  + Second component indicates scalar (0) or vector (1)
+                                                       !  + Third component indicates trivial (0) or non-trivial (1)
+          logical :: time_0             !Whether this is a time=0 variable
+          logical :: time_n             !Whether this is a previous time step variable
         end type vec_def
 
         type :: var_array
@@ -165,20 +201,22 @@ c     End program
 
 c     allocateAuxStruct
 c     #################################################################
-      subroutine allocateAuxStruct(nvar,nvec,aux)
+      subroutine allocateAuxStruct(aux)
 
         implicit none
 
 c     Call variables
 
-        integer :: nvar,nvec
         type(aux_array),pointer  :: aux
 
 c     Local variables
 
-        integer :: ieq
+        integer :: ieq,nvar,nvec
 
 c     Begin program
+
+        nvar = NAUXS
+        nvec = NAUXV
 
         if (.not.associated(aux)) then
           allocate(aux)
@@ -195,6 +233,11 @@ c     Begin program
               aux%var_list(ieq)%array = 0d0
               aux%var_list(ieq)%bconds= bcond
               aux%var_list(ieq)%descr = 'unset'
+
+              allocate(aux%var_list(ieq)%bc_dep_list(nvar+nvec+neqd,3))
+              aux%var_list(ieq)%bc_dep_list = 0
+              allocate(aux%var_list(ieq)%dom_dep_list(nvar+nvec+neqd,3))
+              aux%var_list(ieq)%dom_dep_list = 0
             enddo
           endif
 
@@ -209,6 +252,11 @@ c     Begin program
               aux%vec_list(ieq)%bconds(:,2) = bcond
               aux%vec_list(ieq)%bconds(:,3) = bcond
               aux%vec_list(ieq)%descr       = 'unset'
+
+              allocate(aux%vec_list(ieq)%bc_dep_list(nvar+nvec+neqd,3))
+              aux%vec_list(ieq)%bc_dep_list = 0
+              allocate(aux%vec_list(ieq)%dom_dep_list(nvar+nvec+neqd,3))
+              aux%vec_list(ieq)%dom_dep_list = 0
             enddo
           endif
         endif
@@ -241,6 +289,8 @@ c     Begin program
           if (nvar > 0) then
             do ieq=1,nvar
               deallocate(aux%var_list(ieq)%array)
+              deallocate(aux%var_list(ieq)%bc_dep_list)
+              deallocate(aux%var_list(ieq)%dom_dep_list)
             enddo
 
             deallocate(aux%var_list)
@@ -249,6 +299,8 @@ c     Begin program
           if (nvec > 0) then
             do ieq=1,nvec
               deallocate(aux%vec_list(ieq)%vec)
+              deallocate(aux%vec_list(ieq)%bc_dep_list)
+              deallocate(aux%vec_list(ieq)%dom_dep_list)
             enddo
 
             deallocate(aux%vec_list)
@@ -275,7 +327,7 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq,imn,imx,jmn,jmx,kmn,kmx
+        integer :: ieq,imn,imx,jmn,jmx,kmn,kmx
 
 c     Begin program
 
@@ -313,8 +365,16 @@ c     Begin program
             allocate(varray%array_var(ieq)
      $                     %array(imn:imx,jmn:jmx,kmn:kmx))
             varray%array_var(ieq)%array = 0d0
+            varray%array_var(ieq)%bconds= bcond
             varray%array_var(ieq)%descr = 'unset'
-          enddo
+
+            allocate(varray%array_var(ieq)
+     .                     %bc_dep_list(NAUXS+NAUXV+neqd,3))
+            varray%array_var(ieq)%bc_dep_list = 0
+            allocate(varray%array_var(ieq)
+     .                     %dom_dep_list(NAUXS+NAUXV+neqd,3))
+            varray%array_var(ieq)%dom_dep_list = 0
+           enddo
         endif
 
 c     End program
@@ -333,20 +393,34 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq,ierr
+        integer          :: ieq,ierr,istat
 
 c     Begin program
 
+cc        if (associated(varray)) then
+cc          if (associated(varray%array_var)) then
+cc            do ieq=1,neqd
+cc              if (associated(varray%array_var(ieq)%array)) then
+cc                deallocate(varray%array_var(ieq)%array)
+cc              endif
+cc            enddo
+cc            deallocate(varray%array_var)
+cc          endif
+cc          if (associated(varray%var_deps%dep_seq))
+cc     .       deallocate(varray%var_deps%dep_seq)
+cc          deallocate(varray)
+cc        endif
+
         if (associated(varray)) then
-          if (associated(varray%array_var)) then
-            do ieq=1,neqd
-              if (associated(varray%array_var(ieq)%array)) then
-                deallocate(varray%array_var(ieq)%array)
-              endif
-            enddo
-            deallocate(varray%array_var)
-          endif
-          deallocate(varray)
+          do ieq=1,neqd
+            deallocate(varray%array_var(ieq)%array,stat=istat)
+            deallocate(varray%array_var(ieq)%bc_dep_list,stat=istat)
+            deallocate(varray%array_var(ieq)%dom_dep_list,stat=istat)
+          enddo
+
+          deallocate(varray%array_var,stat=istat)
+
+          deallocate(varray,stat=istat)
         endif
 
 c     End program
@@ -380,9 +454,14 @@ c     Begin program
 
         varray2%nvar = varray1%nvar
         do ieq=1,varray2%nvar
-          varray2%array_var(ieq)%bconds = varray1%array_var(ieq)%bconds
-          varray2%array_var(ieq)%array  = varray1%array_var(ieq)%array
-          varray2%array_var(ieq)%descr  = varray1%array_var(ieq)%descr
+          varray2%array_var(ieq)%bconds =varray1%array_var(ieq)%bconds
+          varray2%array_var(ieq)%array  =varray1%array_var(ieq)%array
+          varray2%array_var(ieq)%descr  =varray1%array_var(ieq)%descr
+
+          varray2%array_var(ieq)%bc_dep_list
+     .                              =varray1%array_var(ieq)%bc_dep_list
+          varray2%array_var(ieq)%dom_dep_list
+     .                              =varray1%array_var(ieq)%dom_dep_list
         enddo
 
 c     End program
@@ -415,7 +494,10 @@ c     Begin program
         do ieq=1,varray%nvar
           varray%array_var(ieq)%bconds = u_0%array_var(ieq)%bconds
           varray%array_var(ieq)%descr  = u_0%array_var(ieq)%descr
-c          varray%array_var(ieq)%array  = 0d0
+          varray%array_var(ieq)%bc_dep_list
+     .                                 = u_0%array_var(ieq)%bc_dep_list
+          varray%array_var(ieq)%dom_dep_list
+     .                                 = u_0%array_var(ieq)%dom_dep_list
         enddo
 
 c     End program
@@ -446,11 +528,16 @@ c     Begin program
 
         varray3%nvar = varray2%nvar
         do ieq=1,varray3%nvar
-          varray3%array_var(ieq)%bconds = varray2%array_var(ieq)%bconds
+          varray3%array_var(ieq)%bconds =varray2%array_var(ieq)%bconds
           varray3%array_var(ieq)%array  =
      .          alpha2*varray2%array_var(ieq)%array
      .         +alpha1*varray1%array_var(ieq)%array
-          varray3%array_var(ieq)%descr  = varray2%array_var(ieq)%descr
+          varray3%array_var(ieq)%descr  =varray2%array_var(ieq)%descr
+
+          varray3%array_var(ieq)%bc_dep_list
+     .                              =varray2%array_var(ieq)%bc_dep_list
+          varray3%array_var(ieq)%dom_dep_list
+     .                              =varray2%array_var(ieq)%dom_dep_list
         enddo
 
 c     End program
