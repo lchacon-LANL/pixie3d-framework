@@ -112,6 +112,14 @@ c      use generalPurposeFunctions
 
       type(patch), TARGET :: patch_var
 
+      INTERFACE
+         subroutine setEquilibrium(igx,igy,igz,varray)
+         use variable_setup
+         integer :: igx,igy,igz
+         type(var_array),pointer :: varray
+         end subroutine setEquilibrium
+      END INTERFACE
+
 c Local variables
 
 c Begin program
@@ -125,102 +133,8 @@ c Begin program
 
 c    Create equilibrium u_0
 
-      call createEquilibrium
+      call setEquilibrium(1,1,1,u_0)  !External
 
 c End program
  
       end subroutine formEquilibrium
-
-c createEquilibrium
-c######################################################################
-      subroutine createEquilibrium
-
-c----------------------------------------------------------------------
-c     Creates equilibrium according to user input.
-c----------------------------------------------------------------------
-
-      use parameters
-
-c      use constants
-
-      use timeStepping
-
-      use variable_setup
-
-      use grid
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-      integer    :: ieq,igx,igy,igz
-
-      real(8),allocatable,dimension(:,:,:,:) :: var
-
-      character*(20),allocatable,dimension(:):: label
-
-      integer   ,allocatable,dimension(:,:)  :: bcs
-
-c Begin program
-
-      igx = 1
-      igy = 1
-      igz = 1
-
-c Set equilibrium u_0 and define BCs on all variables
-
-      allocate(var(ilom:ihip,jlom:jhip,klom:khip,neqd)
-     $            ,label(neqd),bcs(6,neqd))
-
-      !Initialize boundary conditions
-      do ieq = 1,neqd
-        bcs(:,ieq) = bcond
-      enddo
-
-      var = 0d0
-
-      call setEquilibrium(igx,igy,igz,var,bcs,label)
-
-      call packVariables(u_0)
-
-      deallocate(var,label,bcs)
-
-c End programs
-
-      contains
-
-c     packVariables
-c     #################################################################
-      subroutine packVariables(varray)
-
-c     -----------------------------------------------------------------
-c     Packs arrays into variable structure 
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type(var_array),pointer :: varray
-
-c     Local variables
-
-      integer    :: ieq
-
-c     Begin program
-
-      varray%nvar = neqd
-
-      do ieq = 1,neqd
-        call varPack (var(:,:,:,ieq),bcs(:,ieq),label(ieq)
-     .               ,ieq,varray)
-      enddo
-
-c     End program
-
-      end subroutine PackVariables
-
-      end subroutine createEquilibrium
-
