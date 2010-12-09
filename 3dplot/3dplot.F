@@ -61,7 +61,7 @@ c Time loop
 c diag ***** Redefine perturbations for preconditioner debugging
 cc        write (*,*) 'Redefined perts for PC debugging in 3dplot'
 cc        call equateDerivedType(u_ic,u_n)
-cc        call imposeBoundaryConditions(u_ic,igx,igy,igz)
+cc        call applyBC(u_ic,igx,igy,igz)
 c diag *****
 
 c     Read next record
@@ -306,14 +306,6 @@ c Initialize vector dimensions
 c Define application arrays (external)
 
       call allocateApplicationVariables     !External
-
-      allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
-      allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
-      allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
-
-      zeros  = 0d0
-      vzeros = 0d0
-      ones   = 1d0
 
 c Allocate records
 
