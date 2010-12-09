@@ -5208,8 +5208,7 @@ c                  systems or not.
 c       * t21,t22,t23: tensor components.
 c       * flag: whether evaluation is a cell center i,j,k (flag=0)
 c               or at cell face i+1/2,j,k (flag /= 0)
-c     This routine has (rho,vx,vy,vz,bx,by,bz,tmp) passed via module
-c     head.
+c     This routine assumes vec1->v (velocity), vec2->p (momentum).
 c     -------------------------------------------------------------
 
         implicit none
@@ -5321,8 +5320,7 @@ c                  systems or not.
 c       * t31,t32,t33: tensor components.
 c       * flag: whether evaluation is a cell center i,j,k (flag=0)
 c               or at cell face i+1/2,j,k (flag /= 0)
-c     This routine has (rho,vx,vy,vz,bx,by,bz,tmp) passed via module
-c     head.
+c     This routine assumes vec1->v (velocity), vec2->p (momentum).
 c     -------------------------------------------------------------
 
         implicit none
