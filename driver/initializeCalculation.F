@@ -46,6 +46,14 @@ c Interfaces
         end subroutine evaluateNonlinearFunction
       END INTERFACE
 
+      INTERFACE
+         subroutine setEquilibrium(igx,igy,igz,varray)
+         use variable_setup
+         integer :: igx,igy,igz
+         type(var_array),pointer :: varray
+         end subroutine setEquilibrium
+      END INTERFACE
+
 c Begin program
 
 c Assign pointers
@@ -105,16 +113,6 @@ c Initialize global domain limits
      .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
 #endif
 
-c Allocate constant arrays
-
-      allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
-      allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
-      allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
-
-      zeros  = 0d0
-      vzeros = 0d0
-      ones   = 1d0
-
 c Create nonlinear solver
 
       call createNonlinearSolver
@@ -125,7 +123,7 @@ c Create nonlinear function
 
 c Create equilibrium u_0
 
-      call createEquilibrium
+      call setEquilibrium(1,1,1,u_0)  !External
 
 c Initialize old time solution
 
@@ -298,92 +296,6 @@ c End programs
 
       end subroutine destroyNonlinearSolver
 
-c createEquilibrium
-c######################################################################
-      subroutine createEquilibrium
-
-c----------------------------------------------------------------------
-c     Creates equilibrium according to user input.
-c----------------------------------------------------------------------
-
-      use parameters
-
-      use timeStepping
-
-      use variable_setup
-
-      use grid
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-      integer    :: ieq
-
-      real(8),allocatable,dimension(:,:,:,:) :: var
-
-      character*(20),allocatable,dimension(:):: label
-
-      integer   ,allocatable,dimension(:,:)  :: bcs
-
-c Begin program
-
-c Set equilibrium u_0 and define BCs on all variables
-
-      allocate(var(ilom:ihip,jlom:jhip,klom:khip,neqd)
-     $            ,label(neqd),bcs(6,neqd))
-
-      !Initialize boundary conditions
-      do ieq = 1,neqd
-        bcs(:,ieq) = bcond
-      enddo
-
-      var = 0d0
-
-      call setEquilibrium(1,1,1,var,bcs,label)
-
-      call packVariables(u_0)
-
-      deallocate(var,label,bcs)
-
-c End programs
-
-      contains
-
-c     packVariables
-c     #################################################################
-      subroutine packVariables(varray)
-
-c     -----------------------------------------------------------------
-c     Packs arrays into variable structure 
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type(var_array),pointer :: varray
-
-c     Local variables
-
-      integer    :: ieq
-
-c     Begin program
-
-      varray%nvar = neqd
-
-      do ieq = 1,neqd
-        call VarPack (var(:,:,:,ieq),bcs(:,ieq),label(ieq),ieq,varray)
-      enddo
-
-c     End program
-
-      end subroutine PackVariables
-
-      end subroutine createEquilibrium
-
 c setInitialCondition
 c####################################################################
       subroutine setInitialCondition(varrayn,varraynp)
@@ -414,12 +326,12 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
+        subroutine applyBC (varray,iigx,iigy,iigz,obc)
         use variable_setup
         integer    :: iigx,iigy,iigz
         integer,optional :: obc
         type(var_array),pointer :: varray
-        end subroutine imposeBoundaryConditions
+        end subroutine applyBC
       END INTERFACE
 
 c Begin program
@@ -442,7 +354,7 @@ c Perturb equilibrium
         inewtime = 1
 
         !Impose BC on varrayn
-        call imposeBoundaryConditions(varraynp,1,1,1)
+        call applyBC(varraynp,1,1,1)
 
       else
 
@@ -632,12 +544,12 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
+        subroutine applyBC (varray,iigx,iigy,iigz,obc)
         use variable_setup
         integer    :: iigx,iigy,iigz
         integer,optional :: obc
         type(var_array),pointer :: varray
-        end subroutine imposeBoundaryConditions
+        end subroutine applyBC
       END INTERFACE
 
 c Begin program
@@ -677,7 +589,7 @@ cc        endif
         ! do nothing at EQU boundaries, to preserve EQU BCs)
         call equateDerivedType(u_graph,u_0)
 
-        call imposeBoundaryConditions(u_graph,1,1,1,obc=0)
+        call applyBC(u_graph,1,1,1,obc=0)
 
         !Initialize POSIX files
 #if !defined(adios)

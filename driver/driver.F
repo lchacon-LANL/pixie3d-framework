@@ -320,12 +320,12 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
+        subroutine applyBC (varray,iigx,iigy,iigz,obc)
         use variable_setup
         integer    :: iigx,iigy,iigz
         integer,optional :: obc
         type(var_array),pointer :: varray
-        end subroutine imposeBoundaryConditions
+        end subroutine applyBC
       END INTERFACE
 
 c Begin program
@@ -452,7 +452,7 @@ c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
           call mapVectorToStructure(vnp,x)
-          call imposeBoundaryConditions(vnp,1,1,1)
+          call applyBC(vnp,1,1,1)
           if (predictor) call storeTSinfo(vn,vnp)
         endif
 
@@ -464,7 +464,7 @@ c Explicit update
 
         call explicit(vn,vnp,itgmres,ilevel)
 
-        call imposeBoundaryConditions(vnp,1,1,1)
+        call applyBC(vnp,1,1,1)
 
         itnewt = 1
 
