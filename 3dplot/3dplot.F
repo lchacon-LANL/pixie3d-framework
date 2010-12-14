@@ -303,10 +303,6 @@ c Initialize vector dimensions
 
       call setVectorDimensions
 
-c Define application arrays (external)
-
-      call allocateApplicationVariables     !External
-
 c Allocate records
 
       call allocateStructures
@@ -317,6 +313,10 @@ c Read equilibrium u_0 (Do NOT postprocess for BC)
 
       if (ierr /= 0) call pstop('initializeCalculation',
      .                          'Unable to read equilibrium')
+
+c Define application arrays (external)
+
+      call allocateApplicationVariables     !External
 
 c Set plotting range
 
