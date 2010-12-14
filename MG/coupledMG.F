@@ -3451,6 +3451,8 @@ c Unpack vector into array
 
 c Impose boundary conditions (external)
 
+      isvec = (neq > 1)                   !Initialize isvec (may be modified by setMGBC)
+
       cartesian = (bcSP() .and. neq > 1)  !Return Cartesian variables for prolongation
 
       if (order > 0 .or. cartesian) then
