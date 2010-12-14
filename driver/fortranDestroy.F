@@ -8,6 +8,8 @@ c ######################################################################
 
       use grid
 
+      use ts_setup
+
       implicit none
 
 c Call variables
@@ -20,20 +22,13 @@ c Begin program
 
 c Free memory
 
-      call destroyNonlinearSolver
+      call deallocateStructures
+
+      call destroyTS
 
       call destroyNonlinearFunction   !External
 
-      call destroyGrid(gv%gparams)
-
-      if (associated(gv%bc_grp)) then
-        do igr=1,size(gv%bc_grp)
-          deallocate(gv%bc_grp(igr)%bc_seq,STAT=ierr)
-        enddo
-        deallocate(gv%bc_grp,STAT=ierr)
-      endif
-
-      deallocate(gv,STAT=ierr)
+      call deallocateGlobalVar(gv)
 
 c Close record files
 
