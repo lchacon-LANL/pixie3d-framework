@@ -619,6 +619,68 @@ c     End program
 
       end function XformVector_mesh
 
+c     XformVector_BC
+c     ###################################################################
+      subroutine XformVector_BC(igrid,vec1,vec2,tocnv)
+
+      implicit none
+
+c     -------------------------------------------------------------------
+c     Routine to transfer ghost cell values form vec1 to vec2
+c     -------------------------------------------------------------------
+
+c     Input variables
+
+      integer :: igrid
+      real(8) :: vec1(0:,0:,0:,:)
+      real(8) :: vec2(0:,0:,0:,:)
+      logical :: tocnv
+
+c     Local variables
+
+      integer :: nxp,nyp,nzp,i,j,k
+      real(8),pointer,dimension(:,:,:,:,:) :: tensor
+
+c     Begin program
+
+      nxp = size(vec1,1)-1
+      nyp = size(vec1,2)-1
+      nzp = size(vec1,3)-1
+
+      if (tocnv) then
+        tensor => gmetric%grid(igrid)%gsup
+      else
+        tensor => gmetric%grid(igrid)%gsub
+      endif
+
+      !X boundaries
+      do k = 0,nzp
+        do j= 0,nyp
+          vec2(0  ,j,k,:) = matmul(tensor(0  ,j,k,:,:),vec1(0  ,j,k,:))
+          vec2(nxp,j,k,:) = matmul(tensor(nxp,j,k,:,:),vec1(nxp,j,k,:))
+        enddo
+      enddo
+
+      !Y boundaries
+      do k= 0,nzp
+        do i=0,nxp
+          vec2(i,0  ,k,:) = matmul(tensor(i,0  ,k,:,:),vec1(i,0  ,k,:))
+          vec2(i,nyp,k,:) = matmul(tensor(i,nyp,k,:,:),vec1(i,nyp,k,:))
+        enddo
+      enddo
+
+      !Z boundaries
+      do j= 0,nyp
+        do i= 0,nxp
+          vec2(i,j,0  ,:) = matmul(tensor(i,j,0  ,:,:),vec1(i,j,0  ,:))
+          vec2(i,j,nzp,:) = matmul(tensor(i,j,nzp,:,:),vec1(i,j,nzp,:))
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine XformVector_BC
+
 c     vectorNorm_ijk
 c     ################################################################
       function vectorNorm_ijk(i,j,k,igx,igy,igz,ax,ay,az,covar)
