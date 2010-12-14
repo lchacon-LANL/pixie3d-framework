@@ -113,13 +113,17 @@ c Initialize global domain limits
      .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
 #endif
 
+c Allocate structures
+
+      call allocateStructures
+
 c Create nonlinear solver
 
-      call createNonlinearSolver
+      call createTS
 
 c Create nonlinear function
 
-      call createNonlinearFunction
+      call createNonlinearFunction    !External
 
 c Create equilibrium u_0
 
@@ -224,77 +228,6 @@ c     ###############################################################
       end subroutine dump_src
 
       end subroutine initializeCalculation
-
-c createNonlinearSolver
-c######################################################################
-      subroutine createNonlinearSolver
-
-c----------------------------------------------------------------------
-c     Allocates nonlinear solver arrays
-c----------------------------------------------------------------------
-
-      use parameters
-
-      use timeStepping
-
-      use variables
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-c Begin program
-
-      call allocateStructures
-
-      allocate(fold(ntotd),fsrc(ntotd))
-
-      allocate(cnf(neqd),one_over_dt(neqd)
-     .        ,bdfp(neqd),bdfn(neqd),bdfnm(neqd))
-
-c Initialization
-
-      bdfp  =  1d0
-      bdfn  = -1d0
-      bdfnm =  0d0
-
-c End programs
-
-      end subroutine createNonlinearSolver
-
-c destroyNonlinearSolver
-c######################################################################
-      subroutine destroyNonlinearSolver
-
-c----------------------------------------------------------------------
-c     Allocates nonlinear solver arrays
-c----------------------------------------------------------------------
-
-      use parameters
-
-      use timeStepping
-
-      use variables
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-c Begin program
-
-      call deallocateStructures
-
-      deallocate(fold,fsrc)
-
-      deallocate(cnf,one_over_dt,bdfp,bdfn,bdfnm)
-
-c End programs
-
-      end subroutine destroyNonlinearSolver
 
 c setInitialCondition
 c####################################################################
