@@ -234,11 +234,10 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: nxgr,nygr,nxgr_old=0
-     .               ,nygr_old=0,zero=0,one=1
-     .               ,nt=1,nt_prev=0
+        integer :: nxgr,nygr,nxgr_old=0,nygr_old=0,zero=0,one=1
+     .            ,nt=1,nt_prev=0
 
-        logical    :: flag
+        logical,save :: flag
 
 c     Begin program
 
