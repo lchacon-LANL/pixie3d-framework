@@ -199,6 +199,39 @@ c     End program
 
       end subroutine allocateGlobalVar
 
+c     deallocateGlobalVar
+c     #################################################################
+      subroutine deallocateGlobalVar(gv)
+
+        implicit none
+
+c     Call variables
+
+        type(patch),pointer  :: gv
+
+c     Local variables
+
+        integer :: ierr,igr
+
+c     Begin program
+
+        call deallocateAuxStruct(gv%aux)
+
+        call destroyGrid(gv%gparams)
+
+        if (associated(gv%bc_grp)) then
+          do igr=1,size(gv%bc_grp)
+            deallocate(gv%bc_grp(igr)%bc_seq,STAT=ierr)
+          enddo
+          deallocate(gv%bc_grp,STAT=ierr)
+        endif
+
+        deallocate(gv,STAT=ierr)
+
+c     End program
+
+      end subroutine deallocateGlobalVar
+
 c     allocateAuxStruct
 c     #################################################################
       subroutine allocateAuxStruct(aux)
