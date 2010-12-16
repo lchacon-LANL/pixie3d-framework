@@ -1193,30 +1193,34 @@ c     Fill PETSc ghost cells
       endif
 #endif
 
-c     Find complete curvilinear representation
+c     Find complete curvilinear representation at boundaries
 
       if (is__vec) then
-
-#if defined(petsc) || defined(samrai)
-       call fromGlobalToLocalLimits(iimin,jjmin,kkmin,ilmin,jlmin,klmin
-     $                             ,igxbc,igybc,igzbc)
-       call fromGlobalToLocalLimits(iimax,jjmax,kkmax,ilmax,jlmax,klmax
-     $                             ,igxbc,igybc,igzbc)
-
-       do k=klmin-1,klmax+1
-         do j=jlmin-1,jlmax+1
-           do i=ilmin-1,ilmax+1
-#else
-       do k=kkmin-1,kkmax+1
-         do j=jjmin-1,jjmax+1
-           do i=iimin-1,iimax+1
-#endif
-              call transformFromCurvToCurv(i,j,k,igxbc,igybc,igzbc
-     .            ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-     .            ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3),to_cnv)
-           enddo
-         enddo
-       enddo
+        if (to_cnv) then
+          call XformVector_BC(igxbc,v_cov,v_cnv,to_cnv)
+        else
+          call XformVector_BC(igxbc,v_cnv,v_cov,to_cnv)
+        endif
+cc#if defined(petsc) || defined(samrai)
+cc        call fromGlobalToLocalLimits(iimin,jjmin,kkmin,ilmin,jlmin,klmin
+cc     $                             ,igxbc,igybc,igzbc)
+cc        call fromGlobalToLocalLimits(iimax,jjmax,kkmax,ilmax,jlmax,klmax
+cc     $                             ,igxbc,igybc,igzbc)
+cc
+cc        do k=klmin-1,klmax+1
+cc          do j=jlmin-1,jlmax+1
+cc            do i=ilmin-1,ilmax+1
+cc#else
+cc        do k=kkmin-1,kkmax+1
+cc          do j=jjmin-1,jjmax+1
+cc            do i=iimin-1,iimax+1
+cc#endif
+cc              call transformFromCurvToCurv(i,j,k,igxbc,igybc,igzbc
+cc     .            ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
+cc     .            ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3),to_cnv)
+cc            enddo
+cc          enddo
+cc        enddo
 
       endif
 
@@ -1228,8 +1232,6 @@ c     Impose BCs
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
-
-cc            if (bcond(ibc) == FSYM) cycle
 
             do ivar = 1,ncomp
               ieq = ivar + fcomp - 1
@@ -1260,46 +1262,6 @@ cc            if (bcond(ibc) == FSYM) cycle
           enddo
         enddo
       enddo
-
-c     Symmetry boundary synchronizing
-
-cc      do bctype=1,BCLIM             !Enforces a particular order in the BCs
-cc        do dim=1,3
-cc          do loc=0,1
-cc            ibc = (1+loc)+2*(dim-1)
-cc
-cc            if (bcond(ibc) == FSYM) then
-cc
-cc              do ivar = 1,ncomp
-cc                ieq = ivar + fcomp - 1
-cc
-cc                if (abs(bcnd(ibc,ivar)) == bctype) then
-cc
-cc                  if (bcnd(ibc,ivar) < 0 .and. is__vec) then
-cc                    call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
-cc     .                                   ,v_cov,var0,cnv=.false.)
-cc                    cov_to_cnv(ibc,ivar) = .true.
-cc                  else
-cc                    call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
-cc     .                                   ,v_cnv,var0)
-cc                  endif
-cc
-cc                endif
-cc              enddo
-cc
-cc              ! Synchronize covariant and contravariant components
-cc              call synchronize(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv
-cc     .                        ,dim=dim,loc=loc)
-cc
-cc            endif
-cc
-cc          enddo
-cc        enddo
-cc      enddo
-
-c     Synchronize covariant and contravariant components
-
-cc      call synchronize(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv)
 
 c     Fill edges (for both cnv and cov components)
 
@@ -1556,6 +1518,8 @@ c     Local variables
       integer    :: neq,ibc,i,j,k,ig,jg,kg
       logical    :: cov
 
+      real(8),allocatable,dimension(:,:,:,:) :: zeros
+
 c     Begin program
 
       if (PRESENT(cnv)) then
@@ -1580,9 +1544,13 @@ c     Find BC update
           call extrapolateBC(array(:,:,:,nvar),array0(:,:,:,nvar)
      .                      ,dim,loc,order)
         case(DIR)
-cc          call scalarDirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc
-          call scalarDirichletBC(array(:,:,:,nvar),array0(:,:,:,nvar)
+          allocate(zeros(0:nxbc+1,0:nybc+1,0:nzbc+1,nvar))
+          zeros = 0d0
+          call scalarDirichletBC(array(:,:,:,nvar)
+     .                          ,zeros(:,:,:,nvar)
+cc     .                          ,array0(:,:,:,nvar)
      .                          ,ieq,dim,loc,order)
+          deallocate(zeros)
         case(NEU)
           call scalarNeumannBC(array(:,:,:,nvar),ieq,dim,loc)
         case(EXT)
@@ -1602,8 +1570,11 @@ cc          call scalarDirichletBC(array(:,:,:,nvar),zeros,ieq,dim,loc
         case(EQU)
           call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,order)
         case(DIR)
-cc          call vectorDirichletBC(ivar,array,vzeros,ieq,dim,loc,order)
-          call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,order)
+          allocate(zeros(0:nxbc+1,0:nybc+1,0:nzbc+1,nvar))
+          zeros = 0d0
+          call vectorDirichletBC(ivar,array,zeros,ieq,dim,loc,order)
+cc          call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,order)
+          deallocate(zeros)
         case(NEU)
           call vectorNeumannBC(ivar,array,array0,ieq,dim,loc)
         case(EXT)
@@ -3239,8 +3210,6 @@ c     Extrapolation
 
 c     Begin program
 
-cc      return
-
 c     Initialize variables
 
       have_equ = PRESENT(array0)
@@ -3251,9 +3220,6 @@ c     Initialize variables
 
 c     Do nothing for SP boundary face, edge, and corners
 
-cc      if (     isSP2(ito+1,1,ibc=ibcl(1))
-cc     .    .or. isSP2(ito+1,1,ibc=ibcl(2))
-cc     .    .or. isSP2(ito+1,1,ibc=ibcl(3))) return
       if (.not.face
      .    .and.(     bcSP(ibc=ibcl(1))
      .          .or. bcSP(ibc=ibcl(2))
@@ -3398,10 +3364,6 @@ c     X extrapolation
           valx(1) = sign(1,bcond(ibcl(1)))*array(ito+2,jto,kto)
         elseif (isSYM(ito-1,igxbc,ibc=ibcl(1))) then
           valx(1) = sign(1,bcond(ibcl(1)))*array(ito-2,jto,kto)
-cc        elseif (isBC(ito+1,igxbc,ibcl(1)),FSYM) then
-cc          valx(1) = sign(1,bcond(ibcl(1)))*array(ito+1,jto,kto)
-cc        elseif (isBC(ito-1,igxbc,ibcl(1)),FSYM) then
-cc          valx(1) = sign(1,bcond(ibcl(1)))*array(ito-1,jto,kto)
         else
           call IntDriver1d(inx,xx,array(imni:imxi,jto,kto)
      .                    ,1,xto,valx,order_int(1))
@@ -3982,12 +3944,26 @@ c     Select operation
           if (iscnv) then
             v_cnv => array
             allocate(v_cov(0:nnx+1,0:nny+1,0:nnz+1,neql))
-            v_cov = 0d0
+cc            v_cov = 0d0
           else
             v_cov => array
             allocate(v_cnv(0:nnx+1,0:nny+1,0:nnz+1,neql))
-            v_cnv = 0d0
+cc            v_cnv = 0d0
           endif
+        endif
+
+        if (iscnv) then
+          do ieq=1,neql/3
+            v_cov(:,:,:,1+3*(ieq-1):3*ieq)
+     .           = XformVector(iig,v_cnv(:,:,:,1+3*(ieq-1):3*ieq)
+     .                        ,.not.iscnv)
+          enddo
+        else
+          do ieq=1,neql/3
+            v_cnv(:,:,:,1+3*(ieq-1):3*ieq)
+     .           = XformVector(iig,v_cov(:,:,:,1+3*(ieq-1):3*ieq)
+     .                        ,.not.iscnv)
+          enddo
         endif
 
         do ieq=1,neql/3
