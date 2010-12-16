@@ -6,12 +6,11 @@ c ######################################################################
 
       type(patch), TARGET :: patch_var
       integer :: nbcgrps
-
-c     Setup SAMRAI f90 pointers
       
       nbcgrps = patch_var%nbc_grp
 
       end subroutine getNumberOfBCGroups
+
 
 c getBC
 c ######################################################################
