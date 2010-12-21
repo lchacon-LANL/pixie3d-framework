@@ -35,7 +35,7 @@ c Close record files
 #if !defined(adios)
       close(urecord)
 #else
-      call adios_finalize(my_rank, adios_err)
+      call ADIOS_finalize(my_rank, adios_err)
 #endif
 
 c Destroy PETSc
