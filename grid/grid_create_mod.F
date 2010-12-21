@@ -70,11 +70,11 @@ c     Initialize grid structure
 #else
 
 #if defined(samrai)
-        call initGridSt(nx,ny,nz,gparams,
-     $   mpi_comm=mpi_comm,
-     $   coarsen_in_x=.false.,
-     $   coarsen_in_y=.false.,
-     $   coarsen_in_z=.false.)
+        call initGridSt(nx,ny,nz,gparams
+     $                 ,mpi_comm=mpi_comm
+     $                 ,coarsen_in_x=.false.
+     $                 ,coarsen_in_y=.false.
+     $                 ,coarsen_in_z=.false.)
 #else
         call initGridSt(nx,ny,nz,gparams)
 #endif
@@ -603,11 +603,7 @@ c     Local variables
 
 c     Begin program
 
-c     Find local domain limits lmin_loc,lmax_loc
-
         ig = 1  !Finest grid level
-
-c     Find local length
 
         dx0 = dpack%dx0
         dxl = dpack%dx0
