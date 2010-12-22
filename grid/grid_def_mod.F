@@ -5,26 +5,28 @@ c #####################################################################
 
         use grid_petsc
 
+        use grid_packing
+
         implicit none
 
         integer   ,parameter :: ngparams = 10,UNDEF_INT=-1234
         real(8)   ,parameter :: UNDEF_DP=-1234.
 
-        type :: dim_pack
-#if defined(samrai)
-          sequence
-#endif
-          logical    :: pack
-          real(8)    :: xp
-          real(8)    :: dx0
-        end type dim_pack
-
-        type :: grid_pack
-#if defined(samrai)
-          sequence
-#endif
-          type(dim_pack),dimension(3) :: dim
-        end type grid_pack
+cc        type :: dim_pack
+cc#if defined(samrai)
+cc          sequence
+cc#endif
+cc          logical    :: pack
+cc          real(8)    :: xp
+cc          real(8)    :: dx0
+cc        end type dim_pack
+cc
+cc        type :: grid_pack
+cc#if defined(samrai)
+cc          sequence
+cc#endif
+cc          type(dim_pack),dimension(3) :: dim
+cc        end type grid_pack
 
         type :: grid_metrics
 #if defined(samrai)
