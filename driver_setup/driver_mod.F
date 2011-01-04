@@ -52,6 +52,7 @@ c ######################################################################
 
       contains
 
+#if !defined(samrai)
 c     createTS
 c     #################################################################
       subroutine createTS
@@ -106,6 +107,7 @@ c     Begin program
 c     End program
 
       end subroutine destroyTS
+#endif
 
 c     readTimeStep
 c     #################################################################
