@@ -45,11 +45,11 @@ while 1
     for j = 1:data(i).N_vars
         tline = fgetl(fid);
         data(i).var(j).var_name = tline(12:length(tline));
-        tline = fgetl(fid);
-        index = find(tline=='=');
         if data(i).N_levels > 0
             % Reading in debug type 1
             for k = 1:data(i).N_levels
+                tline = fgetl(fid);
+                index = find(tline=='=');
                 level = str2num(tline(index(1)+1:index(2)-9)); %#ok<ST2NM>
                 data(i).ratio{i} = str2num(tline(index(2)+3:index(3)-12)); %#ok<ST2NM>
                 n_patch = str2num(tline(index(3)+1:length(tline))); %#ok<ST2NM>
@@ -79,6 +79,8 @@ while 1
             end
         else
             % Reading in debug type 2
+            tline = fgetl(fid);
+            index = find(tline=='=');
             data(i).var(j).gcw = [0 0 0];
             depth = str2num(tline(index+1:length(tline))); %#ok<ST2NM>
             N = prod(data(i).nbox)*depth;
@@ -89,6 +91,9 @@ while 1
             data(i).var(j).depth = depth;
             data(i).var(j).data{1} = data_read;
             tline = fgetl(fid); %#ok<NASGU>
+            if ~isempty(tline)
+                fseek(fid,-length(tline),'cof');
+            end
         end
     end
     if data(i).N_levels == -1

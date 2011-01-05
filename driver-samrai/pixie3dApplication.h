@@ -251,9 +251,6 @@ private:
 
    //   tbox::Array< tbox::Pointer<xfer::SiblingGhostSchedule<NDIM> > > d_siblingGhostVectorSchedules;
 
-   std::string d_coarsen_op_str;
-   xfer::CoarsenAlgorithm<NDIM> d_cell_coarsen_alg;
-   tbox::Array< tbox::Pointer<xfer::CoarsenSchedule<NDIM> > > d_cell_coarsen_schedules;
 
    SAMRAI::appu::VisItDataWriter<NDIM>* d_VizWriter;
 
@@ -264,6 +261,7 @@ private:
    LevelContainer *level_container_array[MAX_LEVELS];
 
    // Data for applying the boundary conditions and the coarsen/refine schedules
+   std::string d_coarsen_op_str;
    int d_NumberOfBoundarySequenceGroups, *d_NumberOfBoundaryConditions, **d_BoundaryConditionSequence;
    tbox::Pointer< xfer::RefineSchedule<NDIM> > *refineSchedule[MAX_LEVELS];
    tbox::Pointer< xfer::SiblingGhostSchedule<NDIM> > *siblingSchedule[MAX_LEVELS];

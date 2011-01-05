@@ -226,8 +226,8 @@ pixie3dApplication::~pixie3dApplication()
 void
 pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 {
-   // d_coarsen_op_str = "CONSERVATIVE_COARSEN";
-   d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
+   d_coarsen_op_str = "CONSERVATIVE_COARSEN";
+   //d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
    d_refine_op_str  = "CONSTANT_REFINE";
    // d_refine_op_str  = "LINEAR_REFINE";   
    //d_refine_op_str  = "CELL_DOUBLE_CUBIC_REFINE";
@@ -281,13 +281,14 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     for (int i=0; i<NDIM; i++)
         nbox[i] = physicalDomain[0].numberCells(i);
    
-    if ( input_data->nxd != nbox[0] )
+/*    if ( input_data->nxd != nbox[0] )
         TBOX_ERROR("The domain size does not match pixie3d in x-direction");
     if ( input_data->nyd != nbox[1] )
         TBOX_ERROR("The domain size does not match pixie3d in y-direction");
     if ( input_data->nzd != nbox[2] )
         TBOX_ERROR("The domain size does not match pixie3d in z-direction");
-   
+*/   
+
     // Check for consistency between periodic dimensions
    
     // Check processors?
@@ -520,13 +521,14 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 ***********************************************************************/
 void pixie3dApplication::setInitialConditions( const double initial_time )
 {
-    // We have already set u0 and created the patch container object when we created the level container
+    // We have already set u0 we created the level container on the resetHierarchyConfiguration
 
     // Copy the data from u0 to u 
     d_x->copyVector(d_initial,false);
 
     //set the boundary schedules before forming an equilibrium
     setBoundarySchedules(true);
+
     // Apply boundary conditions
     synchronizeVariables();
    
@@ -553,11 +555,6 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
 
     // Copy the data from u to u_ic
     d_x_ic->copyVector(d_x,false);
-
-    //tbox::pout << "max(d_x) (initial) = " << d_x->max(true) << ", " << d_x->max(false) <<std::endl; 
-    //tbox::pout << "max(d_aux_scalar) (initial) = " << d_aux_scalar->max(true) << ", " << d_aux_scalar->max(false) <<std::endl; 
-    //tbox::pout << "max(d_aux_vector) (initial) = " << d_aux_vector->max(true) << ", " << d_aux_vector->max(false) <<std::endl; 
-
 
 }
 
@@ -746,11 +743,9 @@ void pixie3dApplication::printVector( const tbox::Pointer< solv::SAMRAIVectorRea
 ***********************************************************************/
 void pixie3dApplication::coarsenVariables(void)
 {
-   for ( int ln=d_hierarchy->getFinestLevelNumber()-1; ln>=0; ln-- ) 
-   {
-      d_cell_coarsen_schedules[ln]->coarsenData();
-   }
-
+    //for ( int ln=d_hierarchy->getFinestLevelNumber()-1; ln>=0; ln-- ) {
+    //    coarsenSchedule[ln]->coarsenData();
+    //}
 }
 
 
@@ -931,27 +926,7 @@ pixie3dApplication::generateTransferSchedules(void)
        coarsen_op = new CartesianCellDoubleCubicCoarsen();
        grid_geometry->addSpatialCoarsenOperator ( coarsen_op ) ;      
      } 
-
-   // do registerRefine for a scalar refine algorithm
-   tbox::Pointer< hier::Variable<NDIM> > var0;
-
-   const int hierarchy_size = d_hierarchy->getNumberOfLevels();
-   
-   d_cell_coarsen_schedules.resizeArray(hierarchy_size-1);
-
-   int ln=0;
-   tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
-
-   for (ln=0; ln<hierarchy_size-1; ln++)
-     {
-       tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
-       
-       if(ln<hierarchy_size-1)
-	 {
-	   tbox::Pointer<hier::PatchLevel<NDIM> > flevel = d_hierarchy->getPatchLevel(ln+1);         
-	   d_cell_coarsen_schedules[ln]=d_cell_coarsen_alg.createSchedule(level,flevel);
-	 }
-     }   
+ 
 }
 
 int pixie3dApplication::getNumberOfDependentVariables()
@@ -1228,7 +1203,7 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::BasePatc
         const tbox::Pointer<hier::PatchLevel<NDIM> > old_level2 = old_level;
         for (int i=0; i<d_problem_data.getSize(); i++) {
             if ( old_level2->checkAllocated(i) )
-                d_problem_data = true;
+                d_problem_data.setFlag(i);
         }
     } else { 
         // Use the coarsest level to determine which components need to be allocated
@@ -1238,7 +1213,7 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::BasePatc
         #endif
         for (int i=0; i<d_problem_data.getSize(); i++) {
             if ( coarse_level->checkAllocated(i) )
-                d_problem_data = true;
+                d_problem_data.setFlag(i);
         }
     }
 
@@ -1408,7 +1383,27 @@ void pixie3dApplication::resetHierarchyConfiguration(
         }
     }
     // Create the coarsenSchedule
-
+    for ( int ln=0; ln<d_hierarchy->getFinestLevelNumber(); ln++ ) {
+        xfer::CoarsenAlgorithm<NDIM> coarsenAlgorithm;
+        for (int i=0; i<input_data->nvar; i++) {
+            var0 = d_x->getComponentVariable(i);
+            coarsenAlgorithm.registerCoarsen( u_id[i], u_id[i],
+                grid_geometry->lookupCoarsenOperator(var0,d_coarsen_op_str) );
+        }
+        for (int i=0; i<input_data->nauxs; i++) {
+            var0 = d_aux_scalar->getComponentVariable(i);
+            coarsenAlgorithm.registerCoarsen( auxs_id[i], auxs_id[i],
+                grid_geometry->lookupCoarsenOperator(var0,d_coarsen_op_str) );
+        }
+        for (int i=0; i<input_data->nauxv; i++) {
+            var0 = d_aux_vector->getComponentVariable(i);
+            coarsenAlgorithm.registerCoarsen( auxv_id[i], auxv_id[i],
+                grid_geometry->lookupCoarsenOperator(var0,d_coarsen_op_str) );
+        }
+  	    tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);    
+  	    tbox::Pointer<hier::PatchLevel<NDIM> > flevel = d_hierarchy->getPatchLevel(ln+1);    
+        coarsenSchedule[ln] = coarsenAlgorithm.createSchedule(level,flevel);
+    }
 }
 
 

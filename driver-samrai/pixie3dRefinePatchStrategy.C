@@ -148,9 +148,22 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
       }
    } else if( checkPhysicalBoundary(patch) ) {
       // Patch is not in the hierarchy and touches the boundary (this is not finished)
+      if ( copy_data ) {
+         // This is not finished
+         TBOX_ERROR("Not Programmed Yet");
+      }
+
+
+      // Create a single PatchContainer
+      TBOX_ERROR("Not Programmed Yet");
+      //PatchContainer( tbox::Pointer< hier::PatchHierarchy<NDIM> > hierarchy, tbox::Pointer< hier::Patch<NDIM> > &patch, 
+      //  int n_var, int *u0_id, int *u_id, int n_auxs, int *auxs_id, int n_auxv, int *auxv_id );  
+
+
       const hier::IntVector< NDIM > ratio = patch.getPatchGeometry()->getRatio();
       hier::BoxArray<NDIM> physicalDomain = d_grid_geometry->getPhysicalDomain();
       physicalDomain.refine(ratio);
+      
 
       // we assume the domain is a single box
       if( d_grid_geometry->getDomainIsSingleBox() ) {

@@ -32,6 +32,8 @@ c Call variables
 
 c Local variables
 
+      integer ieq
+
 c Begin program
 
       gv => patch_var

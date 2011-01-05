@@ -30,6 +30,7 @@ extern "C"{
 LevelContainer::LevelContainer()
 {
    data = NULL;
+   patch_ptr = NULL;
 }
 
 LevelContainer::LevelContainer(int n, tbox::Pointer< hier::PatchHierarchy<NDIM> > hierarchy,
@@ -94,13 +95,15 @@ LevelContainer::~LevelContainer()
             if ( data[i] != NULL )
                 delete data[i];
         }
+        delete [] data;
+        delete [] patch_ptr;
+        data = NULL;
     }
     // Delete the internal variables
     delete [] u0_id;
     delete [] u_id;
     delete [] auxs_id;
     delete [] auxv_id;
-    delete [] patch_ptr;
     N = 0;
 }
 
