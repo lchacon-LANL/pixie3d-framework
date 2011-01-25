@@ -79,11 +79,17 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
                                                            const double time,
                                                            const hier::IntVector<NDIM>& ghost_width_to_fill)
 {
-  assert(d_nvar>=0);
-  assert(d_nauxs>=0);
-  assert(d_nauxv>=0);
+   assert(d_nvar>=0);
+   assert(d_nauxs>=0);
+   assert(d_nauxv>=0);
+   if ( ghost_width_to_fill==hier::IntVector<NDIM>(0) ) {
+      // We don't need to fill the ghost cells, retrun
+      // This will happen with temporary patches
+      return;
+   }
   
    if (patch.inHierarchy()) {
+
       // Patch is in the hierarchy, all is well
       const int ln = patch.getPatchLevelNumber();
       const int pn = patch.getPatchNumber();
@@ -146,11 +152,14 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
             tmp2->copy(*tmp1);
          }
       }
+
    } else if( checkPhysicalBoundary(patch) ) {
+
       // Patch is not in the hierarchy and touches the boundary (this is not finished)
       if ( copy_data ) {
          // This is not finished
          TBOX_ERROR("Not Programmed Yet");
+
       }
 
 
