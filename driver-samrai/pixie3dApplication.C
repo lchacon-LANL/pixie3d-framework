@@ -229,7 +229,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
    d_coarsen_op_str = "CONSERVATIVE_COARSEN";
    //d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
    d_refine_op_str  = "CONSTANT_REFINE";
-   // d_refine_op_str  = "LINEAR_REFINE";   
+   //d_refine_op_str  = "LINEAR_REFINE";   
    //d_refine_op_str  = "CELL_DOUBLE_CUBIC_REFINE";
    d_RefineSchedulesGenerated=false;
 
@@ -794,6 +794,7 @@ void  pixie3dApplication::refineVariables(void)
     // moving from coarser to finer levels fill boundary conditions
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
         level = d_hierarchy->getPatchLevel(ln);
+        level_container = (LevelContainer *) level_container_array[ln];
         // process the boundary sequence groups in order
         for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
             int iSeq2 = iSeq+1;     // The Fortran code starts indexing at 1
@@ -802,6 +803,7 @@ void  pixie3dApplication::refineVariables(void)
             for (hier::PatchLevel<NDIM>::Iterator ip(level); ip; ip++) {
                 tbox::Pointer< hier::Patch<NDIM> > patch_ip = level->getPatch(ip());
                 pixiePatchData = level_container->getPtr(ip());
+                assert(pixiePatchData!=NULL);
                 FORTRAN_NAME(initializeauxvar)(pixiePatchData, &iSeq2);
 	        }
             (d_refine_strategy)->setRefineStrategyDataId(iSeq2);
