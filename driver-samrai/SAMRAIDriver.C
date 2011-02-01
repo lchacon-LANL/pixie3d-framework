@@ -173,8 +173,12 @@ int main( int argc, char *argv[] )
     // for buffering tagged cells before new levels are created.
     int N_levels_max = gridding_algorithm->getMaxLevels();
     tbox::Array<int> tag_buffer(N_levels_max);
-    for (int ln = 0; ln < gridding_algorithm->getMaxLevels(); ln++)
-        tag_buffer[ln] = 1;
+    for (int ln = 0; ln < gridding_algorithm->getMaxLevels(); ln++) {
+        if ( error_detector->refineUserBoxInputOnly() )
+            tag_buffer[ln] = 0;     // Only user-defined refinement box are used, no tag buffer is necessary
+        else
+            tag_buffer[ln] = 2;     // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
+    }
     if (main_db->keyExists("tag_buffer")) {
         tbox::Array<int> input_tags = main_db->getIntegerArray("tag_buffer");
         if (input_tags.getSize() > 0) {
@@ -188,6 +192,7 @@ int main( int argc, char *argv[] )
             }
         }
     }
+
     // Use the gridding algorithm to initialize the hierarchy.
     bool initial_time = true;
     for ( int ln=0; gridding_algorithm->levelCanBeRefined(ln); ln++ ) {
@@ -251,7 +256,7 @@ int main( int argc, char *argv[] )
             tbox::pout << "Advanced solution to time : " << current_time << std::endl;
 
             if ( (plot_interval > 0) && ((iteration_num % plot_interval) == 0) )  {
-                //visit_writer->writePlotData(hierarchy, iteration_num, current_time);
+                visit_writer->writePlotData(hierarchy, iteration_num, current_time);
                 if ( save_debug>0 )
                     application->writeDebugData(debug_file,iteration_num,current_time,save_debug);
             }
