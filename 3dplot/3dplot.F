@@ -320,7 +320,7 @@ c Define application arrays (external)
 
 c Set plotting range
 
-      call setGraphicsRange(nxl,nyl,nzl,bcond)
+      call setGraphicsRange(igx,igy,igz)
 
 c Initialize diagnostics and related variables
 
