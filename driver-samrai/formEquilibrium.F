@@ -133,7 +133,7 @@ c Begin program
 
       call setVectorDimensions
 
-c    Create equilibrium u_0
+c Create equilibrium u_0
 
       call setEquilibrium(1,1,1,u_0)  !External
 
