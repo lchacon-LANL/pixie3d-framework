@@ -887,6 +887,8 @@ c     Begin program
      .                          %array(ilom:ihip,jlom:jhip,klom:khip)
             write(unit,*) varray%array_var(ieq)%bconds
             write(unit,*) varray%array_var(ieq)%descr
+            write(unit,*) varray%array_var(ieq)%bc_dep_list
+            write(unit,*) varray%array_var(ieq)%dom_dep_list
           enddo
         else
 #if defined(petsc)
@@ -900,6 +902,8 @@ c     Begin program
      .                        %array(ilom:ihip,jlom:jhip,klom:khip)
             write(unit) varray%array_var(ieq)%bconds
             write(unit) varray%array_var(ieq)%descr
+            write(unit) varray%array_var(ieq)%bc_dep_list
+            write(unit) varray%array_var(ieq)%dom_dep_list
           enddo
         endif
 
@@ -948,6 +952,12 @@ c     Begin program
             if (ierr /= 0) goto 200
             read(unit,*,iostat=ierr,end=100)varray%array_var(ieq)%descr
             if (ierr /= 0) goto 200
+            read(unit,*,iostat=ierr,end=100)
+     .           varray%array_var(ieq)%bc_dep_list
+            if (ierr /= 0) goto 200
+            read(unit,*,iostat=ierr,end=100)
+     .           varray%array_var(ieq)%dom_dep_list
+            if (ierr /= 0) goto 200
           enddo
         else
 #if defined(petsc)
@@ -969,6 +979,12 @@ c     Begin program
             read(unit,iostat=ierr,end=100) varray%array_var(ieq)%bconds
             if (ierr /= 0) goto 200
             read(unit,iostat=ierr,end=100) varray%array_var(ieq)%descr
+            if (ierr /= 0) goto 200
+            read(unit,iostat=ierr,end=100)
+     .           varray%array_var(ieq)%bc_dep_list
+            if (ierr /= 0) goto 200
+            read(unit,iostat=ierr,end=100)
+     .           varray%array_var(ieq)%dom_dep_list
             if (ierr /= 0) goto 200
           enddo
         endif
