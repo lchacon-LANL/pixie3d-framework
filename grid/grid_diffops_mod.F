@@ -192,7 +192,6 @@ c     End program
 
       end function curl_vrtx
 
-#if !defined(samrai)
 c     div_vrtx
 c     ##################################################################
       function div_vrtx(i,j,k,igx,igy,igz,v,vrtx) result(div)
@@ -422,7 +421,6 @@ c     Divergence at cell centers
 c     End program
 
       end function lap_vrtx
-#endif 
 
 c     curlcurl_vrtx_ndiff
 c     ###############################################################
@@ -879,8 +877,8 @@ c ######################################################################
 
 c     grad_ijk
 c     ###############################################################
-      function grad_ijk(i,j,k,nx,ny,nz,igx,igy,igz,arr,he,hex,hey,hez
-     .                 ,order) result(cov)
+      function grad_ijk(i,j,k,nx,ny,nz,igx,igy,igz,arr,he,order)
+     .         result(cov)
 
 c     ---------------------------------------------------------------
 c     Calculates grad(A) in general non-orthogonal coordinates.
@@ -895,7 +893,7 @@ c     Call variables
 
       real(8) :: arr(0:nx+1,0:ny+1,0:nz+1),cov(3)
 
-      integer,optional :: he,hex,hey,hez,order
+      integer,optional :: he,order!,hex,hey,hez
 
 c     Local variables
 
@@ -916,10 +914,10 @@ c     Begin program
         case(3)
           hz = 1
         end select
-      else
-        if (PRESENT(hex)) hx = hex
-        if (PRESENT(hey)) hy = hey
-        if (PRESENT(hez)) hz = hez
+cc      else
+cc        if (PRESENT(hex)) hx = hex
+cc        if (PRESENT(hey)) hy = hey
+cc        if (PRESENT(hez)) hz = hez
       endif
 
       ip = i+1
