@@ -775,9 +775,9 @@ cc            if (bcond(ibc) == PER.and.asm_dir(dim)) then !Take care of PER bou
 
       end subroutine setASM_PC_BC
 
-c     vector_symm_bc
+c     set_vec_symm_bc
 c     ###################################################################
-      subroutine vector_symm_bc(vbcs,normal_parity)
+      subroutine set_vec_symm_bc(vbcs,normal_parity)
 
       implicit none
 
@@ -803,10 +803,10 @@ c     Begin program
 
         if (vbcs(ibcl,diml) == FSYM) then
           if (normal_parity == 1) then
-            vbcs(ibcl,:)    = DIR !Tangential components
+            vbcs(ibcl,:)    =-DIR !Tangential components
             vbcs(ibcl,diml) = NEU !Normal component
           else
-            vbcs(ibcl,:)    = NEU !Tangential components
+            vbcs(ibcl,:)    =-NEU !Tangential components
             vbcs(ibcl,diml) = DIR !Normal component
           endif
         endif
@@ -815,7 +815,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine vector_symm_bc
+      end subroutine set_vec_symm_bc
 
 c     imposeBConScalar
 c     #################################################################
@@ -1702,7 +1702,7 @@ c     Local variables
      .            ,order_int(3)
 
         integer :: i,j,k,ig,jg,kg,one,two,thr
-        real(8),pointer,dimension(:) :: xx,yy,zz,dxh,dyh,dzh,dx,dy,dz
+        real(8),pointer,dimension(:) :: xx,yy,zz
 
 c     Begin program
 
@@ -1719,14 +1719,6 @@ c     Setup grid aliases
         xx => grid_params%xx
         yy => grid_params%yy
         zz => grid_params%zz
-
-        dxh => grid_params%dxh
-        dyh => grid_params%dyh
-        dzh => grid_params%dzh
-
-        dx => grid_params%dx
-        dy => grid_params%dy
-        dz => grid_params%dz
 
 c     Extrapolate
 
@@ -1995,7 +1987,7 @@ c     Local variables
      .            ,order_int(3)
 
         integer :: i,j,k,ig,jg,kg,one,two,thr
-        real(8),pointer,dimension(:) :: xx,yy,zz,dxh,dyh,dzh,dx,dy,dz
+        real(8),pointer,dimension(:) :: xx,yy,zz
 
 c     Begin program
 
@@ -2021,14 +2013,6 @@ c     Setup grid aliases
         yy => grid_params%yy
         zz => grid_params%zz
 
-        dxh => grid_params%dxh
-        dyh => grid_params%dyh
-        dzh => grid_params%dzh
-
-        dx => grid_params%dx
-        dy => grid_params%dy
-        dz => grid_params%dz
-
 c     Extrapolate
 
         !Do NOT change: SAMRAI depends on it
@@ -2048,7 +2032,8 @@ c     Extrapolate
      .                      ,xx(ig+two),xx(ig+thr)
      .                      ,array(i    ,:,:),array(i+one,:,:)
      .                      ,array(i+two,:,:),array(i+thr,:,:)
-     .                      ,xx(ig)+dxh(ig),order )
+cc     .                      ,xx(ig)+dxh(ig),order )
+     .                      ,0.5*(xx(ig)+xx(ig+one)),order )
 
         case (2)
 
@@ -2061,7 +2046,8 @@ c     Extrapolate
      .                      ,xx(ig-two),xx(ig-thr)
      .                      ,array(i    ,:,:),array(i-one,:,:)
      .                      ,array(i-two,:,:),array(i-thr,:,:)
-     .                      ,xx(ig)-dxh(ig),order )
+cc     .                      ,xx(ig)-dxh(ig),order )
+     .                      ,0.5*(xx(ig)+xx(ig-one)),order )
 
         case (3)
 
@@ -2073,7 +2059,8 @@ c     Extrapolate
      .                      ,yy(jg+two),yy(jg+thr)
      .                      ,array(:,j    ,:),array(:,j+one,:)
      .                      ,array(:,j+two,:),array(:,j+thr,:)
-     .                      ,yy(jg)+dyh(jg),order )
+cc     .                      ,yy(jg)+dyh(jg),order )
+     .                      ,0.5*(yy(jg)+yy(jg+one)),order )
 
         case (4)
 
@@ -2085,7 +2072,8 @@ c     Extrapolate
      .                      ,yy(jg-two),yy(jg-thr)
      .                      ,array(:,j    ,:),array(:,j-one,:)
      .                      ,array(:,j-two,:),array(:,j-thr,:)
-     .                      ,yy(jg)-dyh(jg),order )
+cc     .                      ,yy(jg)-dyh(jg),order )
+     .                      ,0.5*(yy(jg)+yy(jg-one)),order )
 
         case (5)
 
@@ -2097,7 +2085,8 @@ c     Extrapolate
      .                      ,zz(kg+two),zz(kg+thr)
      .                      ,array(:,:,k    ),array(:,:,k+one)
      .                      ,array(:,:,k+two),array(:,:,k+thr)
-     .                      ,zz(kg)+dzh(kg),order )
+cc     .                      ,zz(kg)+dzh(kg),order )
+     .                      ,0.5*(zz(kg)+zz(kg+one)),order )
 
         case (6)
 
@@ -2109,83 +2098,10 @@ c     Extrapolate
      .                      ,zz(kg-two),zz(kg-thr)
      .                      ,array(:,:,k    ),array(:,:,k-one)
      .                      ,array(:,:,k-two),array(:,:,k-thr)
-     .                      ,zz(kg)-dzh(kg),order )
+cc     .                      ,zz(kg)-dzh(kg),order )
+     .                      ,0.5*(zz(kg)+zz(kg-one)),order )
 
         end select
-
-cc        rhs = 0d0
-cc
-cc        do k=kmin,kmax
-cc          do j=jmin,jmax
-cc            do i=imin,imax
-cc
-cc              call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-cc
-cc              select case (ibc)
-cc              case (1)
-cc                rhs(j,k) = 
-cc     .            quad_int(xx(ig-1),xx(ig),xx(ig+1),xx(ig+2)
-cc     .                      ,array(i-1,j,k),array(i,j,k)
-cc     .                      ,array(i+1,j,k),array(i+2,j,k)
-cc     .                      ,xx(ig-1)+dxh(ig-1),order )
-cc              case (2)
-cc                rhs(j,k) =
-cc     .            quad_int(xx(ig+1),xx(ig),xx(ig-1),xx(ig-2)
-cc     .                      ,array(i+1,j,k),array(i,j,k)
-cc     .                      ,array(i-1,j,k),array(i-2,j,k)
-cc     .                      ,xx(ig+1)-dxh(ig+1),order )
-cc              case (3)
-cc
-cc                rhs(i,k) =
-cc     .            quad_int(yy(jg-1),yy(jg),yy(jg+1),yy(jg+2)
-cc     .                      ,array(i,j-1,k),array(i,j,k)
-cc     .                      ,array(i,j+1,k),array(i,j+2,k)
-cc     .                      ,yy(jg-1)+dyh(jg-1),order )
-cc              case (4)
-cc
-cc                rhs(i,k) =
-cc     .            quad_int(yy(jg+1),yy(jg),yy(jg-1),yy(jg-2)
-cc     .                      ,array(i,j+1,k),array(i,j,k)
-cc     .                      ,array(i,j-1,k),array(i,j-2,k)
-cc     .                      ,yy(jg+1)-dyh(jg+1),order )
-cc              case (5)
-cc
-cc                rhs(i,j) =
-cc     .            quad_int(zz(kg-1),zz(kg),zz(kg+1),zz(kg+2)
-cc     .                      ,array(i,j,k-1),array(i,j,k)
-cc     .                      ,array(i,j,k+1),array(i,j,k+2)
-cc     .                      ,zz(kg-1)+dzh(kg-1),order )
-cc              case (6)
-cc
-cc                rhs(i,j) =
-cc     .            quad_int(zz(kg+1),zz(kg),zz(kg-1),zz(kg-2)
-cc     .                      ,array(i,j,k+1),array(i,j,k)
-cc     .                      ,array(i,j,k-1),array(i,j,k-2)
-cc     .                      ,zz(kg+1)-dzh(kg+1),order )
-cc              end select
-cc            enddo
-cc          enddo
-cc        enddo
-cc
-ccc       Update BC ghost nodes
-cc
-cc        select case (ibc)
-cc        case (1)                !x0
-cc          array(0     ,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
-cc        case (2)               !x1
-cc          array(nxbc+1,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
-cc        case (3)                !y0
-cc          array(imin:imax,0     ,kmin:kmax) = rhs(imin:imax,kmin:kmax)
-cc        case (4)                !y1
-cc          array(imin:imax,nybc+1,kmin:kmax) = rhs(imin:imax,kmin:kmax)
-cc        case (5)                !z0
-cc          array(imin:imax,jmin:jmax,0     ) = rhs(imin:imax,jmin:jmax)
-cc        case (6)                !z1
-cc          array(imin:imax,jmin:jmax,nzbc+1) = rhs(imin:imax,jmin:jmax)
-cc        case default
-cc          messg = 'Boundary '//int2char(ibc)//' non existent'
-cc          call pstop('extrapolate',messg)
-cc        end select
 
 c     End program
 
