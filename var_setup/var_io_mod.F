@@ -265,7 +265,7 @@ c     Local variables
         integer          :: ieq,ilom,ihip,jlom,jhip,klom,khip
         integer*8, dimension(4) :: start, readcount ! dimensions are 64bit in adios
         integer*8        :: zero, nlen ! 64bit start/count for reading the description
-        integer          ::  vrank, vtype, vtimed, err  ! adios_inq_var() outputs
+        integer          :: vrank, vtype, vtimed, err  ! adios_inq_var() outputs
         integer*8, dimension(10) :: dims ! adios_inq_var() output
         integer,dimension(6*adios_nvar) :: bconds  ! all boundary conditions as one array
         character(20)    :: vvar      ! /var/v<idx> 
