@@ -3,8 +3,8 @@
 % to compare a single level single patch run with a single level multiple
 % patch run.
 
-file1 = '/projects/pixie3d/bin/debugFile1';
-file2 = '/projects/pixie3d/bin/debugFile4';
+file1 = '/projects/pixie3d/bin/debugFile';
+file2 = '/projects/tmp/pixie3d/bin/debugFile';
 
 data1 = loadDebugData(file1);
 data2 = loadDebugData(file2);
