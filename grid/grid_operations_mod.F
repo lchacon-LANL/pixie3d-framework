@@ -181,6 +181,34 @@ c     #################################################################
 
       end subroutine fromLocalToGlobalLimits
 
+c     localIndex
+c     #################################################################
+      function localIndex(igrid,gindex) result(lindex)
+
+        implicit none
+
+        integer  :: igrid,lindex(3),gindex(3)
+
+        lindex(1) = gindex(1) - grid_params%ilo(igrid) + 1
+        lindex(2) = gindex(2) - grid_params%jlo(igrid) + 1
+        lindex(3) = gindex(3) - grid_params%klo(igrid) + 1
+
+      end function localIndex
+
+c     globalIndex
+c     #################################################################
+      function globalIndex(igrid,lindex) result(gindex)
+
+        implicit none
+
+        integer  :: igrid,lindex(3),gindex(3)
+
+        gindex(1) = lindex(1) + grid_params%ilo(igrid) - 1
+        gindex(2) = lindex(2) + grid_params%jlo(igrid) - 1
+        gindex(3) = lindex(3) + grid_params%klo(igrid) - 1
+
+      end function globalIndex
+
 c     XformToCar_ijk
 c     #################################################################
       function XformToCar_ijk(i,j,k,igrid,curv,covariant) result(car)
