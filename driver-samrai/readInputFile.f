@@ -60,7 +60,7 @@ c Local variables
 
 c Begin program
 
-      g_pack%dim(:)%pack = .false.
+      g_pack%pack = .false.
 
 c Set PETSc defaults
 
