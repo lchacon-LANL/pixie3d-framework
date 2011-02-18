@@ -22,6 +22,10 @@ HOST?=$(HOSTNAME)
 
 MACHINE ?=HaveNoIdea
 
+###############################
+# lap0086227 (Mark Berrill's) #
+###############################
+
 ifeq ($(HOST),lap0086227)
     FC=gfortran
 #    FC=vtf77
@@ -37,6 +41,10 @@ ifeq ($(HOST),lap0086227)
     # PETSC_ARCH = ${PETSC_ARCH}
     LIBS += -L${PETSC_DIR}/${PETSC_ARCH}/lib -lflapack -lfblas
 endif
+
+###########
+# quevedo #
+###########
 
 ifeq ($(HOST),quevedo.ornl.gov)
   MACHINE=quevedo
@@ -113,6 +121,10 @@ ifeq ($(HOST),quevedo.ornl.gov)
 
 endif
 
+###########
+# gongora #
+###########
+
 ifeq ($(HOST),gongora.ornl.gov)
   MACHINE=gongora
 
@@ -137,6 +149,10 @@ ifeq ($(HOST),gongora.ornl.gov)
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 endif
 
+##########
+# siesta #
+##########
+
 ifeq ($(HOST),siesta)
   MACHINE=siesta
 
@@ -151,6 +167,8 @@ ifeq ($(HOST),siesta)
     else
       PETSC_ARCH = linux64_openmpi_g
     endif
+
+    HDF5 = t
 
     HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
@@ -184,6 +202,63 @@ ifeq ($(HOST),siesta)
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 endif
 
+########
+# swim #
+########
+
+ifeq ($(HOST),swim.ornl.gov)
+  MACHINE=swim
+
+  FC=gfortran
+
+  ifdef BOPT
+    PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
+
+    FC=gfortran
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_openmpi
+    else
+      PETSC_ARCH = linux64_openmpi_g
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME = /usr/lib64/openmpi
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = /usr/include/openmpi-x86_64
+    HDF5_INC  =-I/usr/include/openmpi-x86_64
+
+    ADIOS = t
+
+    ADIOS_HOME = $(HOME)/lib/adios-1.2.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+
+  else
+    LIBS += -L/usr/lib64 -llapack -lblas
+    HDF5 = f
+
+    HDF5_HOME =/usr/lib64
+    HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
+    HDF5_INC  =-I/usr/include
+    HDF5 = t
+
+    ADIOS = f
+  endif
+
+  VMEC = t
+
+  NETCDF=t
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+endif
+
+##############
+# ra22 (RFX) #
+##############
+
 ifeq ($(HOST),ra22)
   MACHINE=ra22
 
@@ -198,6 +273,10 @@ ifeq ($(HOST),ra22)
   LIBS     += -llapack -lblas
 endif
 
+############
+# franklin #
+############
+
 ifeq ($(HOST),franklin)
   MACHINE=franklin
 
@@ -208,6 +287,10 @@ ifeq ($(HOST),franklin)
   BOPT = t
 endif
 
+#########
+# smoky #
+#########
+
 ifeq ($(findstring smoky,$(HOST)),smoky)
   MACHINE=smoky
 
@@ -217,6 +300,10 @@ ifeq ($(findstring smoky,$(HOST)),smoky)
   HDF5 = t
   BOPT = t
 endif
+
+##########
+# jaguar #
+##########
 
 ifeq ($(findstring jaguar,$(HOST)),jaguar)
   FC = pgf95
@@ -237,6 +324,10 @@ ifeq ($(findstring jaguar,$(HOST)),jaguar)
   MACHINE = jaguar
 endif
 
+###########
+# chester #
+###########
+
 ifeq ($(findstring chester,$(HOST)),chester)
   # SAME AS JAGUAR
   FC = pgf95
@@ -256,6 +347,10 @@ ifeq ($(findstring chester,$(HOST)),chester)
 
   MACHINE = chester
 endif
+
+########
+# ewok #
+########
 
 ifeq ($(findstring ewok,$(HOST)),ewok)
   FC = pgf95
@@ -279,6 +374,10 @@ ifeq ($(findstring ewok,$(HOST)),ewok)
   BOPT = t
   MACHINE = ewok
 endif
+
+###########################
+# chenhp (Guangye Chen's) #
+###########################
 
 ifeq ($(HOST),chenshp.ornl.gov)
     MACHINE=chenshp

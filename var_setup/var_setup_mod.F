@@ -98,18 +98,16 @@ c #####################################################################
           integer  :: nbc_grp                         ! number of BC bundled groups
           type(bcgrp),pointer,dimension(:):: bc_grp   ! array of bundled variables for BC treatment
 
-          type(var_array)  ,pointer     :: u_0        ! equilibrium data
-          type(var_array)  ,pointer     :: u_n        ! data at time n
-          type(var_array)  ,pointer     :: u_np       ! data at n+1
-          type(var_array)  ,pointer     :: u_nm       ! data at n-1
-          type(var_array)  ,pointer     :: u_graph    ! auxiliary for plotting, all u variables same number of components
-          type(grid_mg_def),pointer     :: gparams    ! contains all grid info
-          type(aux_array)  ,pointer     :: aux        ! auxillary variables
+          type(var_array)  ,pointer :: u_0        ! equilibrium data
+          type(var_array)  ,pointer :: u_n        ! data at time n
+          type(var_array)  ,pointer :: u_np       ! data at n+1
+          type(var_array)  ,pointer :: u_nm       ! data at n-1
+
+          type(aux_array)  ,pointer :: aux        ! auxiliary variables
+          type(grid_mg_def),pointer :: gparams    ! contains all grid info
         end type patch
 
         type (patch),pointer :: gv => null()
-
-        type(var_array),pointer :: u_0 => null()
 
       contains
 
@@ -190,7 +188,7 @@ c     Begin program
         if (.not.associated(gv)) then
           allocate(gv)
           nullify(gv%bc_grp)
-          nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0,gv%u_graph)
+          nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0)
           nullify(gv%gparams)
           nullify(gv%aux)
         endif
@@ -430,20 +428,6 @@ c     Local variables
 
 c     Begin program
 
-cc        if (associated(varray)) then
-cc          if (associated(varray%array_var)) then
-cc            do ieq=1,neqd
-cc              if (associated(varray%array_var(ieq)%array)) then
-cc                deallocate(varray%array_var(ieq)%array)
-cc              endif
-cc            enddo
-cc            deallocate(varray%array_var)
-cc          endif
-cc          if (associated(varray%var_deps%dep_seq))
-cc     .       deallocate(varray%var_deps%dep_seq)
-cc          deallocate(varray)
-cc        endif
-
         if (associated(varray)) then
           do ieq=1,neqd
             deallocate(varray%array_var(ieq)%array,stat=istat)
@@ -523,14 +507,14 @@ c     Begin program
 
         call allocateDerivedType(varray,igx=igx,igy=igy,igz=igz)
 
-        varray%nvar = u_0%nvar
+        varray%nvar = gv%u_0%nvar
         do ieq=1,varray%nvar
-          varray%array_var(ieq)%bconds = u_0%array_var(ieq)%bconds
-          varray%array_var(ieq)%descr  = u_0%array_var(ieq)%descr
+          varray%array_var(ieq)%bconds = gv%u_0%array_var(ieq)%bconds
+          varray%array_var(ieq)%descr  = gv%u_0%array_var(ieq)%descr
           varray%array_var(ieq)%bc_dep_list
-     .                                 = u_0%array_var(ieq)%bc_dep_list
+     .                              = gv%u_0%array_var(ieq)%bc_dep_list
           varray%array_var(ieq)%dom_dep_list
-     .                                 = u_0%array_var(ieq)%dom_dep_list
+     .                              = gv%u_0%array_var(ieq)%dom_dep_list
         enddo
 
 c     End program
@@ -577,61 +561,61 @@ c     End program
 
       end subroutine AXPYDerivedType
 
-c     varPack
-c     #################################################################
-      subroutine varPack(array,bcs,desc,veq,varray)
-
-c     -----------------------------------------------------------------
-c     Fills structure fields of varray with pertinent data corresponding
-c     to variable veq: boundary conditions, bcs; variable description,
-c     desc; numerical data, array).
-c     -----------------------------------------------------------------
-
-c     Call variables
-
-        integer      :: veq,bcs(6)
-        real(8)      :: array(ilom:ihip,jlom:jhip,klom:khip)
-        character(*) :: desc
-
-        type(var_array),pointer :: varray
-
-c     Local variables
-
-        call allocateDerivedType(varray)
-
-c     Begin program
-
-        varray%array_var(veq)%bconds = bcs
-        varray%array_var(veq)%array  = array
-        varray%array_var(veq)%descr  = desc
-
-c     End program
-
-      end subroutine varPack
-
-c     varUnPack
-c     #################################################################
-      subroutine varUnPack(varray,veq,array,bcs,desc)
-
-c     Call variables
-
-        integer       :: nx,ny,nz,veq,bcs(6)
-        real(8)       :: array(ilom:ihip,jlom:jhip,klom:khip)
-        character(20) :: desc
-
-        type(var_array),pointer :: varray
-
-c     Local variables
-
-c     Begin program
-
-        bcs   = varray%array_var(veq)%bconds
-        array = varray%array_var(veq)%array
-        desc  = trim(varray%array_var(veq)%descr)
-
-c     End program
-
-      end subroutine varUnPack
+ccc     varPack
+ccc     #################################################################
+cc      subroutine varPack(array,bcs,desc,veq,varray)
+cc
+ccc     -----------------------------------------------------------------
+ccc     Fills structure fields of varray with pertinent data corresponding
+ccc     to variable veq: boundary conditions, bcs; variable description,
+ccc     desc; numerical data, array).
+ccc     -----------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc        integer      :: veq,bcs(6)
+cc        real(8)      :: array(ilom:ihip,jlom:jhip,klom:khip)
+cc        character(*) :: desc
+cc
+cc        type(var_array),pointer :: varray
+cc
+ccc     Local variables
+cc
+cc        call allocateDerivedType(varray)
+cc
+ccc     Begin program
+cc
+cc        varray%array_var(veq)%bconds = bcs
+cc        varray%array_var(veq)%array  = array
+cc        varray%array_var(veq)%descr  = desc
+cc
+ccc     End program
+cc
+cc      end subroutine varPack
+cc
+ccc     varUnPack
+ccc     #################################################################
+cc      subroutine varUnPack(varray,veq,array,bcs,desc)
+cc
+ccc     Call variables
+cc
+cc        integer       :: nx,ny,nz,veq,bcs(6)
+cc        real(8)       :: array(ilom:ihip,jlom:jhip,klom:khip)
+cc        character(20) :: desc
+cc
+cc        type(var_array),pointer :: varray
+cc
+ccc     Local variables
+cc
+ccc     Begin program
+cc
+cc        bcs   = varray%array_var(veq)%bconds
+cc        array = varray%array_var(veq)%array
+cc        desc  = trim(varray%array_var(veq)%descr)
+cc
+ccc     End program
+cc
+cc      end subroutine varUnPack
 
 c     mapStructureToVector
 c     #################################################################
@@ -742,8 +726,9 @@ c #####################################################################
      .                            ,u_n  => null()
      .                            ,u_nm => null()
      .                            ,u_ic => null()
-     .                            ,u_graph => null()
-  
+     .                            ,u_0  => null()
+
+        type(var_array),pointer :: u_graph
       contains
 
 c     allocateStructures
@@ -765,11 +750,10 @@ c     Begin program
 #if !defined(samrai)
         call allocateDerivedType(gv%u_np)
         call allocateDerivedType(gv%u_nm)
-        call allocateDerivedType(gv%u_graph)
+        call allocateDerivedType(u_graph)
 
         u_np    => gv%u_np
         u_nm    => gv%u_nm
-        u_graph => gv%u_graph
 #endif
 
 c     End program
@@ -792,7 +776,7 @@ c     Begin program
 #if !defined(samrai)
         call deallocateDerivedType(gv%u_np)
         call deallocateDerivedType(gv%u_nm)
-        call deallocateDerivedType(gv%u_graph)
+        call deallocateDerivedType(u_graph)
 #endif
 
 c     End program

@@ -351,13 +351,12 @@ c     Begin program
 
 c     psum
 c     ###################################################################
-      function psum(ntot,vec1,mpi_comm)
+      function psum(vec1,mpi_comm)
 
 c     -------------------------------------------------------------------
-c     Performs parallel sum of element of an array using communicator
+c     Performs parallel sum of element of a 1d-array using communicator
 c     mpi_comm. On input:
-c       * ntot: array dimension
-c       * vec1: array
+c       * vec1: vector
 c       * mpi_comm: MPI communicator
 c     -------------------------------------------------------------------
 
@@ -365,9 +364,8 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: ntot
       integer,optional :: mpi_comm
-      real(8)    :: vec1(ntot),psum
+      real(8)    :: vec1(:),psum
 
 c     Local variables
 

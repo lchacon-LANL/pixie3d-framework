@@ -56,10 +56,6 @@ c Interfaces
 
 c Begin program
 
-c Assign pointers
-
-      g_pack%dim(:)%pack = .false.
-
 c Read user initializations
 
       call readInput

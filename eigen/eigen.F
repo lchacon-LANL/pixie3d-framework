@@ -671,7 +671,8 @@ c     Call variables
 
       INTERFACE
         function ldot(x,y)
-        real(8) :: ldot,x(:),y(:)
+        real(8) :: ldot
+        real(8),INTENT(IN):: x(:),y(:)
         end function
       END INTERFACE
 

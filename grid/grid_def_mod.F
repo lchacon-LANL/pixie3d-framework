@@ -12,22 +12,6 @@ c #####################################################################
         integer   ,parameter :: ngparams = 10,UNDEF_INT=-1234
         real(8)   ,parameter :: UNDEF_DP=-1234.
 
-cc        type :: dim_pack
-cc#if defined(samrai)
-cc          sequence
-cc#endif
-cc          logical    :: pack
-cc          real(8)    :: xp
-cc          real(8)    :: dx0
-cc        end type dim_pack
-cc
-cc        type :: grid_pack
-cc#if defined(samrai)
-cc          sequence
-cc#endif
-cc          type(dim_pack),dimension(3) :: dim
-cc        end type grid_pack
-
         type :: grid_metrics
 #if defined(samrai)
           sequence
@@ -41,15 +25,11 @@ cc        end type grid_pack
           real(8),pointer,dimension(:,:,:,:,:)   :: cov   !Covariant vectors
           real(8),pointer,dimension(:,:,:,:,:)   :: cnv   !Contravariant vectors
 
-#if !defined(samrai)
-          !Need to add this on SAMRAI interface; when this is done, we need to remove additional
-          !directives related to these arrays below.
           real(8),pointer,dimension(:,:,:)       :: jac_v !Jacobian factor at grid vertices
           real(8),pointer,dimension(:,:,:,:,:)   :: gsub_v!Covariant metric tensor at vertices
           real(8),pointer,dimension(:,:,:,:,:)   :: gsup_v!Contravariant metric tensor at vertices
           real(8),pointer,dimension(:,:,:,:,:)   :: cov_v !Covariant vectors at vertices
           real(8),pointer,dimension(:,:,:,:,:)   :: cnv_v !Contravariant vectors at vertices
-#endif
         end type grid_metrics
 
         type :: MG_grid_metrics
@@ -139,7 +119,7 @@ cc        end type grid_pack
 
           type(MG_grid_metrics),pointer    :: gmetric     !Grid metrics at all levels
 
-          type(grid_pack),pointer          :: g_pack      !Grid packing information
+          type(grid_pack),dimension(3)     :: g_pack      !Grid packing information
 
 #if defined(petsc) && !defined(samrai)
           type(petsc_da_ctx),pointer,dimension(:)::dactx  !PETSc DA context
@@ -297,7 +277,7 @@ cc          allocate(grid_st%ntotv(grid_st%ngrid))
           allocate(grid_st%jline(grid_st%ngrid))
           allocate(grid_st%kline(grid_st%ngrid))
 
-          allocate(grid_st%g_pack)
+cc          allocate(grid_st%g_pack)
 
           !Initialize arrays
           grid_st%xg = 0.
@@ -336,6 +316,9 @@ cc          allocate(grid_st%ntotv(grid_st%ngrid))
           grid_st%jline = 0
           grid_st%kline = 0
 
+          grid_st%g_pack(1)%pack = .false.
+          grid_st%g_pack(2)%pack = .false.
+          grid_st%g_pack(3)%pack = .false.
         endif
 
 c     End program
@@ -466,7 +449,7 @@ cc          deallocate(grid_st%ntotv)
           deallocate(grid_st%jline)
           deallocate(grid_st%kline)
 
-          deallocate(grid_st%g_pack)
+cc          deallocate(grid_st%g_pack)
         endif
         
         deallocate(grid_st)
@@ -715,7 +698,6 @@ c     Begin program
             allocate(gmetric%grid(igrid)
      $           %Gamma(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
 
-#if !defined(samrai)
             allocate(gmetric%grid(igrid)
      $           %jac_v (ilom:ihip,jlom:jhip,klom:khip))
             allocate(gmetric%grid(igrid)
@@ -726,7 +708,7 @@ c     Begin program
      $           %cov_v (ilom:ihip,jlom:jhip,klom:khip,3,3))
             allocate(gmetric%grid(igrid)
      $           %cnv_v (ilom:ihip,jlom:jhip,klom:khip,3,3))
-#endif
+
           enddo
         endif
 
@@ -768,13 +750,11 @@ c     Begin program
           gmetric2%grid(igrid)%cnv  = gmetric1%grid(igrid)%cnv  
           gmetric2%grid(igrid)%Gamma= gmetric1%grid(igrid)%Gamma
 
-#if !defined(samrai)
           gmetric2%grid(igrid)%jac_v  = gmetric1%grid(igrid)%jac_v
           gmetric2%grid(igrid)%gsub_v = gmetric1%grid(igrid)%gsub_v 
           gmetric2%grid(igrid)%gsup_v = gmetric1%grid(igrid)%gsup_v 
           gmetric2%grid(igrid)%cov_v  = gmetric1%grid(igrid)%cov_v  
           gmetric2%grid(igrid)%cnv_v  = gmetric1%grid(igrid)%cnv_v  
-#endif
         enddo
 
 c     End program
@@ -807,13 +787,12 @@ c     Begin program
             deallocate(gmetric%grid(igrid)%cov)
             deallocate(gmetric%grid(igrid)%cnv)
             deallocate(gmetric%grid(igrid)%Gamma)
-#if !defined(samrai)
+
             deallocate(gmetric%grid(igrid)%jac_v)
             deallocate(gmetric%grid(igrid)%gsub_v)
             deallocate(gmetric%grid(igrid)%gsup_v)
             deallocate(gmetric%grid(igrid)%cov_v)
             deallocate(gmetric%grid(igrid)%cnv_v)
-#endif
           enddo
           deallocate(gmetric%grid)
           deallocate(gmetric)
@@ -909,8 +888,8 @@ c ####################################################################
 
         use grid_def_st
 
-        real(8)         :: xmax,ymax,zmax,xmin,ymin,zmin  !3D global domain dimensions
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin  !3D global domain dimensions
 
-        character*(3)   :: coords
+        character*(3) :: coords
 
       end module grid_def

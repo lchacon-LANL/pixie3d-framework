@@ -184,7 +184,6 @@ c######################################################################
       nullify(patch_data%u_n)
       nullify(patch_data%u_np)
       nullify(patch_data%u_nm)
-      nullify(patch_data%u_graph)
       nullify(patch_data%gparams)
       nullify(patch_data%aux)
 

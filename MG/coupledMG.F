@@ -3225,7 +3225,7 @@ c     Ensure serial treatment of boundary conditions
 
 c     Create coarse global grid structure variable to pass to filial MG call
 
-        call createMGgrid(g_pack,grid_params)  !May be wrong interface...
+        call createMGgrid(grid_params)  !May be wrong interface...
           
 c     Reallocate MG pointers to coarse grid level igr
 
@@ -3536,7 +3536,7 @@ c Transform back to curvilinear (if isvec=.true. and cartesian=.true.)
                 call transformVectorToCurvilinear
      .             (i,j,k,igf,igf,igf
      .             ,car(1),car(2),car(3)
-     .             ,.not.iscnv
+     .             ,iscnv
      .             ,xxf(iif,(ieq-1)*3+1)
      .             ,xxf(iif,(ieq-1)*3+2)
      .             ,xxf(iif,(ieq-1)*3+3))

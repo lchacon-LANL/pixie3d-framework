@@ -2,23 +2,16 @@
 
         use grid_petsc
 
-        type :: dim_pack
-#if defined(samrai)
-          sequence
-#endif
-          logical    :: pack
-          real(8)    :: xp
-          real(8)    :: dx0
-        end type dim_pack
-
         type :: grid_pack
 #if defined(samrai)
           sequence
 #endif
-          type(dim_pack),dimension(3) :: dim
+          logical    :: pack = .false.
+          real(8)    :: xp
+          real(8)    :: dx0
         end type grid_pack
 
-        type(grid_pack) :: g_pack
+        type(grid_pack),dimension(3),save :: g_pack
 
       contains
 
@@ -41,7 +34,8 @@ c     Call variables
 
         real(8) :: xg(0:),lmin,lmax
 
-        type(dim_pack) :: dpack
+        type(grid_pack) :: dpack
+cc        type(dim_pack) :: dpack
 
 c     Local variables
 
@@ -310,7 +304,7 @@ c     Call variables
 
 c     Local variables
 
-        integer   ,parameter :: nit=20
+        integer   ,parameter :: nit=30
         integer    :: i
         real(8)    :: ijac,dxi(nit),res(nit)
 

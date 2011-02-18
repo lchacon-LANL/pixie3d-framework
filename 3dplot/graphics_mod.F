@@ -155,7 +155,7 @@ c     End program
 
 c     setGraphicsRange
 c     #################################################################
-      subroutine setGraphicsRange(nx,ny,nz,bcond)
+      subroutine setGraphicsRange(igx,igy,igz)
 
 c     ---------------------------------------------------------------
 c     Find graphics plotting range according to boundary conditions
@@ -165,17 +165,22 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: nx,ny,nz,bcond(6)
+        integer :: igx,igy,igz
 
 c     Local variables
  
+        integer :: nx,ny,nz
+
 c     Begin program
+
+        nx = grid_params%nxv(igx)
+        ny = grid_params%nyv(igy)
+        nz = grid_params%nzv(igz)
 
         if (bcond(1) == PER) then
           iming = 1
           imaxg = nx+1
         elseif (bcSP()) then
-cc          iming = 1
           iming = 0
           imaxg = nx+1
         else
@@ -185,7 +190,6 @@ cc          iming = 1
 
         if (bcond(3) == PER) then
           jming = 1
-cc          jming = 0
           jmaxg = ny+1
         else
           jming = 0
@@ -193,26 +197,26 @@ cc          jming = 0
         endif
 
         if (bcond(5) == PER) then
-          kming = 0
+          kming = 1
           kmaxg = nz+1
         else
           kming = 0
           kmaxg = nz+1
         endif
 
-cc          iming = 0
-cc          imaxg = nx+1
-cc          jming = 0
-cc          jmaxg = ny+1
-cc          kming = 0
-cc          kmaxg = nz+1
+cc        iming = 0
+cc        imaxg = nx+1
+cc        jming = 0
+cc        jmaxg = ny+1
+cc        kming = 0
+cc        kmaxg = nz+1
 
-cc          iming = ilo
-cc          imaxg = ihi
-cc          jming = jlo
-cc          jmaxg = jhi
-cc          kming = klo
-cc          kmaxg = khi
+cc        iming = ilo
+cc        imaxg = ihi
+cc        jming = jlo
+cc        jmaxg = jhi
+cc        kming = klo
+cc        kmaxg = khi
 
 c     End program
 
