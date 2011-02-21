@@ -914,10 +914,6 @@ c     Begin program
         case(3)
           hz = 1
         end select
-cc      else
-cc        if (PRESENT(hex)) hx = hex
-cc        if (PRESENT(hey)) hy = hey
-cc        if (PRESENT(hez)) hz = hez
       endif
 
       ip = i+1
@@ -969,6 +965,8 @@ cc      gy = (arr(i,jp,k)-arr(i,jm,k))/dhy
 cc      gz = (arr(i,j,kp)-arr(i,j,km))/dhz
 cc
 cc      cov = (/ gx,gy,gz /)
+cc
+cc      return
 
 c     2nd order formulas
 
@@ -991,10 +989,10 @@ c     2nd order formulas
           dx1=grid_params%dx(ig-1)
           dx2=grid_params%dx(ig)
 
-          gx = ( arr(i+1,j,k)*dx1/dx2/(dx1+dx2)
-     .          +arr(i  ,j,k)*(dx2-dx1)/dx2/dx1
-     .          -arr(i-1,j,k)*dx2/dx1/(dx1+dx2))
-cc          gx = (arr(i+1,j,k)-arr(i-1,j,k))/(dx1+dx2)
+cc          gx = ( arr(i+1,j,k)*dx1/dx2/(dx1+dx2)
+cc     .          +arr(i  ,j,k)*(dx2-dx1)/dx2/dx1
+cc     .          -arr(i-1,j,k)*dx2/dx1/(dx1+dx2))
+          gx = (arr(i+1,j,k)-arr(i-1,j,k))/(dx1+dx2)
         endif
       case(1)
         gx = (arr(i+1,j,k)-arr(i  ,j,k))/grid_params%dx(ig  )
@@ -1021,10 +1019,10 @@ cc          gx = (arr(i+1,j,k)-arr(i-1,j,k))/(dx1+dx2)
           dy1=grid_params%dy(jg-1)
           dy2=grid_params%dy(jg)
 
-          gy = ( arr(i,j+1,k)*dy1/dy2/(dy1+dy2)
-     .          +arr(i,j  ,k)*(dy2-dy1)/dy2/dy1
-     .          -arr(i,j-1,k)*dy2/dy1/(dy1+dy2))
-cc          gy = (arr(i,j+1,k)-arr(i,j-1,k))/(dy1+dy2)
+cc          gy = ( arr(i,j+1,k)*dy1/dy2/(dy1+dy2)
+cc     .          +arr(i,j  ,k)*(dy2-dy1)/dy2/dy1
+cc     .          -arr(i,j-1,k)*dy2/dy1/(dy1+dy2))
+          gy = (arr(i,j+1,k)-arr(i,j-1,k))/(dy1+dy2)
         endif
       case(1)
         gy = (arr(i,j+1,k)-arr(i,j  ,k))/grid_params%dy(jg  )
@@ -1051,10 +1049,10 @@ cc          gy = (arr(i,j+1,k)-arr(i,j-1,k))/(dy1+dy2)
           dz1=grid_params%dz(kg-1)
           dz2=grid_params%dz(kg)
 
-          gz = ( arr(i,j,k+1)*dz1/dz2/(dz1+dz2)
-     .          +arr(i,j,k  )*(dz2-dz1)/dz2/dz1
-     .          -arr(i,j,k-1)*dz2/dz1/(dz1+dz2))
-cc          gz = (arr(i,j,k+1)-arr(i,j,k-1))/(dz1+dz2)
+cc          gz = ( arr(i,j,k+1)*dz1/dz2/(dz1+dz2)
+cc     .          +arr(i,j,k  )*(dz2-dz1)/dz2/dz1
+cc     .          -arr(i,j,k-1)*dz2/dz1/(dz1+dz2))
+          gz = (arr(i,j,k+1)-arr(i,j,k-1))/(dz1+dz2)
         endif
       case(1)
         gz = (arr(i,j,k+1)-arr(i,j,k  ))/grid_params%dz(kg  )
@@ -1139,7 +1137,7 @@ c     Local variables
 c     Begin program
 
       do icomp=1,3
-        gv(:,icomp) = grad(i,j,k,nx,ny,nz,igx,igy,igz
+        gv(:,icomp) = grad_ijk(i,j,k,nx,ny,nz,igx,igy,igz
      .                    ,a(:,:,:,icomp),he=he)
       enddo
 
