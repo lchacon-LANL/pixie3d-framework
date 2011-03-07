@@ -80,18 +80,9 @@ typedef struct {
   int        bcs[6];
   int asm_PC;
 } input_CTX;
-
-typedef struct{
-  int nbc_seq;
-  int *bc_seq;
-} bcgrp;
-
-typedef struct{
-  int nbc_grp;
-  bcgrp *bc_grps;
-} bcgrpArray;
-  
 }
+
+
 
 namespace SAMRAI{
 
@@ -146,8 +137,6 @@ public:
 
    // Print identifying string.
    void printObjectName( std::ostream& os );
-
-   void setBoundarySchedules(bool bIsInitialTime);
 
    void registerVizWriter( SAMRAI::appu::VisItDataWriter<NDIM>* visit_writer){d_VizWriter = visit_writer;}
 
@@ -262,7 +251,8 @@ private:
 
    // Data for applying the boundary conditions and the coarsen/refine schedules
    std::string d_coarsen_op_str;
-   int d_NumberOfBoundarySequenceGroups, *d_NumberOfBoundaryConditions, **d_BoundaryConditionSequence;
+   int d_NumberOfBoundarySequenceGroups;
+   pixie3dRefinePatchStrategy::bcgrp_struct *d_BoundarySequenceGroups;
    tbox::Pointer< xfer::RefineSchedule<NDIM> > *refineSchedule[MAX_LEVELS];
    tbox::Pointer< xfer::SiblingGhostSchedule<NDIM> > *siblingSchedule[MAX_LEVELS];
    tbox::Pointer<xfer::CoarsenSchedule<NDIM> > coarsenSchedule[MAX_LEVELS];

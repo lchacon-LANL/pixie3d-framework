@@ -27,8 +27,8 @@ MACHINE ?=HaveNoIdea
 ###############################
 
 ifeq ($(HOST),lap0086227)
-#    FC=gfortran
-    FC=vtf77
+    FC=gfortran
+#    FC=vtf77
     OPT=g
 #    HDF5_HOME =/usr
 #    HDF5_HOME =$(HDF5)
