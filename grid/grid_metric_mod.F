@@ -1221,6 +1221,7 @@ c     Evaluate dr=dx/dxi vectors
           do j = jmin,jmax
             do i = imin,imax
               dr(i,j,k,:,:) = find_dr(i,j,k,igrid,gparams,xc)
+cc              dr(i,j,k,:,:) = find_dr(i,j,k,igrid,0,0,0,gparams,xc)
             enddo
           enddo
         enddo
