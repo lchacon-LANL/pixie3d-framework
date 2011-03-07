@@ -518,10 +518,11 @@ cc        endif
         ! do nothing at EQU boundaries, to preserve EQU BCs)
         call equateDerivedType(u_graph,u_0)
 
-        call applyBC(u_graph,1,1,1,obc=0)
+cc        call applyBC(u_graph,1,1,1,obc=0)
+        call applyBC(u_graph,1,1,1)
 
-        !Initialize POSIX files
 #if !defined(adios)
+        !Initialize POSIX files
         call init_POSIX
 #endif
 
