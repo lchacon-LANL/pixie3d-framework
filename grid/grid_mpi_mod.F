@@ -618,17 +618,17 @@ c     Begin program
 c     Eliminate specified directions
 
       if (npx /= 0) then
-        nprocs = nprocs/npx
+        nprocs = max(nprocs/npx,1)
         nx = 1
       endif
 
       if (npy /= 0) then
-        nprocs = nprocs/npy
+        nprocs = max(nprocs/npy,1)
         ny = 1
       endif
 
       if (npz /= 0) then
-        nprocs = nprocs/npz
+        nprocs = max(nprocs/npz,1)
         nz = 1
       endif
 
