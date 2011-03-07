@@ -31,7 +31,7 @@ c     -----------------------------------------------------------------
           sym_bc = .false.
         else
           sym_bc =    (abs(bcond(ibc)) ==  SYM)
-     .            .or.(abs(bcond(ibc)) == FSYM)
+cc     .            .or.(abs(bcond(ibc)) == FSYM)
         endif
 
       end function bcSYM
@@ -934,7 +934,7 @@ c     Fill edges
 
 c     Fill corners
 
-      call fillCorners(array,array0,bcnd)
+      call fillCorners(array,bcnd)
 
 c     Periodic boundary synchronizing
 
@@ -1255,13 +1255,13 @@ c     Impose BCs
 
             enddo
 
-            ! Synchronize covariant and contravariant components
-            call synchronize(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv
-     .                      ,dim=dim,loc=loc)
-
           enddo
         enddo
       enddo
+
+c     Synchronize covariant and contravariant components
+
+      call synchronize(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv)
 
 c     Fill edges (for both cnv and cov components)
 
@@ -1275,10 +1275,8 @@ c     Fill edges (for both cnv and cov components)
 c     Fill corners (for both cnv and cov components)
 
       do ivar=1,ncomp
-        call fillCorners(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                  ,bcnd(:,ivar))
-        call fillCorners(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                  ,bcnd(:,ivar))
+        call fillCorners(v_cov(:,:,:,ivar),bcnd(:,ivar))
+        call fillCorners(v_cnv(:,:,:,ivar),bcnd(:,ivar))
       enddo
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
@@ -1371,9 +1369,9 @@ c     Begin program
      .        .and.(.not.cov_to_cnv(ibc,2))
      .        .and.(.not.cov_to_cnv(ibc,3))) then  !All contravariant: find covariant
 
-            do i=imin,imax
+            do k=kmin,kmax
               do j=jmin,jmax
-                do k=kmin,kmax
+                do i=imin,imax
                   call transformFromCurvToCurv(i,j,k
      .                  ,igxbc,igybc,igzbc
      .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
@@ -1403,9 +1401,9 @@ c     Begin program
 
                 if ( cov_to_cnv(ibc,ic1).and.cov_to_cnv(ibc,ic2) ) then  !Both are covariant
 
-                  do i=imin,imax
+                  do k=kmin,kmax
                     do j=jmin,jmax
-                      do k=kmin,kmax
+                      do i=imin,imax
 
                         gsuper = gmetric%grid(igxbc)%gsup(i,j,k,:,:)
 
@@ -1426,9 +1424,9 @@ c     Begin program
 
                 elseif (.not.cov_to_cnv(ibc,ic1)) then   !ic1 is contravariant, ic2 is covariant
 
-                  do i=imin,imax
+                  do k=kmin,kmax
                     do j=jmin,jmax
-                      do k=kmin,kmax
+                      do i=imin,imax
 
                         gsub = gmetric%grid(igxbc)%gsub(i,j,k,:,:)
 
@@ -1449,9 +1447,9 @@ c     Begin program
 
                 elseif (.not.cov_to_cnv(ibc,ic2)) then   !ic2 is contravariant, ic1 is covariant
 
-                  do i=imin,imax
+                  do k=kmin,kmax
                     do j=jmin,jmax
-                      do k=kmin,kmax
+                      do i=imin,imax
 
                         gsub = gmetric%grid(igxbc)%gsub(i,j,k,:,:)
 
@@ -2242,8 +2240,8 @@ c     Select face
 
         ibcl(3) = 5
 
-        do i=imin,imax
-          do j=jmin,jmax
+        do j=jmin,jmax
+          do i=imin,imax
             call extrapolateToCorner(ibcl,i,j,kto,i,j,kmn
      .                ,i,j,kmx,array(i:i,j:j,kmn:kmx),bcond)
           enddo
@@ -2259,8 +2257,8 @@ c     Select face
 
         ibcl(3) = 6
 
-        do i=imin,imax
-          do j=jmin,jmax
+        do j=jmin,jmax
+          do i=imin,imax
             call extrapolateToCorner(ibcl,i,j,kto,i,j,kmn
      .                ,i,j,kmx,array(i:i,j:j,kmn:kmx),bcond)
           enddo
@@ -2970,7 +2968,7 @@ c     End program
 
 c     fillCorners
 c     #################################################################
-      subroutine fillCorners(array,array0,bcond)
+      subroutine fillCorners(array,bcond)
 c     -----------------------------------------------------------------
 c     Imposes ghost cells in corners (8 in 3D). On input:
 c        * array -> 3D array to impose BC's on.
@@ -2985,7 +2983,6 @@ c     Call variables
 
       integer    :: bcond(6)
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
-     .             ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
 
