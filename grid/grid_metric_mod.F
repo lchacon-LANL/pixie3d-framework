@@ -1217,14 +1217,23 @@ c     Evaluate dr=dx/dxi vectors
 
         dr = 0d0
 
-        do k = kmin,kmax
-          do j = jmin,jmax
-            do i = imin,imax
-              dr(i,j,k,:,:) = find_dr(i,j,k,igrid,gparams,xc)
-cc              dr(i,j,k,:,:) = find_dr(i,j,k,igrid,0,0,0,gparams,xc)
+        if (igrid == 1) then  !Second order for finest grid
+          do k = kmin,kmax
+            do j = jmin,jmax
+              do i = imin,imax
+                dr(i,j,k,:,:) = find_dr(i,j,k,igrid,gparams,xc)
+              enddo
             enddo
           enddo
-        enddo
+        else                  !First order in coarser grids (to avoid negative jacobians)
+          do k = kmin,kmax
+            do j = jmin,jmax
+              do i = imin,imax
+                dr(i,j,k,:,:) = find_dr(i,j,k,igrid,0,0,0,gparams,xc)
+              enddo
+            enddo
+          enddo
+        endif
 
 c     Enforce topological constraints on dr (including SP)
 
@@ -1255,14 +1264,15 @@ c     Enforce topological constraints on dr (including SP)
               jac = triple_product(r(:,1),r(:,2),r(:,3))
               gparams%gmetric%grid(igrid)%jac(i,j,k) = jac
 
-              if (jac <= 0d0 .and. (.not.isSP2(i+1,igrid,ibc=1))) then
+              if (jac <= 0d0 .and.(.not.isSP2(i+1,igrid,ibc=1))) then
                 write (*,*) 'Grid level',igrid
                 write (*,*) 'Grid position=',i,j,k
                 write (*,*) 'dr/dxi_1=',r(:,1)
                 write (*,*) 'dr/dxi_2=',r(:,2)
                 write (*,*) 'dr/dxi_3=',r(:,3)
                 write (*,*) 'Jacobian=',jac
-                call pstop('findCellMetrics','Inverted jacobian')
+                if (.not.check_grid)
+     .             call pstop('findCellMetrics','Inverted jacobian')
               endif
 
               ijac = 1d0/jac
@@ -1505,7 +1515,8 @@ c     Evaluate dr=dx/dxi vectors at vertices
                 write (*,*) 'dr/dxi_2=',dr(i,j,k,:,2)
                 write (*,*) 'dr/dxi_3=',dr(i,j,k,:,3)
                 write (*,*) 'Jacobian=',jac
-                call pstop('findVertexMetrics','Inverted jacobian')
+                if (.not.check_grid)
+     .             call pstop('findVertexMetrics','Inverted jacobian')
               elseif (isSP2(i+1,igrid,ibc=1)) then
 cc              if (isSP2(i+1,igrid,ibc=1)) then
                 ijac = 0d0
