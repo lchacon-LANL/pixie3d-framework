@@ -385,3 +385,24 @@ ifeq ($(HOST),chenshp.ornl.gov)
     LIBS += -L/usr/lib64/atlas -llapack -lblas
     HDF5=f
 endif
+
+#dlg-hp overrides 
+
+ifeq ($(HOSTNAME),dlg-hp.ornl.gov)
+    MACHINE=dlghp
+	PETSC_DIR ?=/home/dg6/code/petsc/petsc-3.1-p7
+	HDF5_HOME ?= /usr/lib64/openmpi/lib 
+	FC =gfortran
+    LIBS += -L ~/code/goto_blas/GotoBLAS2 ~/code/lapack/lapack-3.1.1/lapack_LINUX.a -lgoto2
+    HDF5=f
+endif
+
+ifeq ($(PIC_CUDA),t) 
+	NVCC = nvcc	
+	gpu_arch = -arch sm_13
+	NVCCFLAGS= --ptxas-options=-v -O2 #-g -G #
+	CUDA_OPT = -L/usr/local/cuda/lib64 /usr/local/cuda/lib64/libcudart.so.3.2.16  -lcuda -I/usr/local/cuda/include/ 
+	CUDA_INCLUDE = -I/home/gcc/NVIDIA_GPU_Computing_SDK/C/common/inc
+endif
+
+
