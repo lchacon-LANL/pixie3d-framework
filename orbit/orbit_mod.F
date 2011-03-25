@@ -1613,6 +1613,7 @@ c     Call variables
 
 c     Local variables
 
+        integer :: cpos
         character(50) :: drawin
 
 c     Begin program
@@ -1625,13 +1626,16 @@ c     Begin program
           rzss = .false.
         endif
 
+cc        cpos = len_trim(ssx)-4
+        cpos = index(trim(file),'.bin') - 1
+
         ssx = 'ssx'//trim(file)
         ssy = 'ssy'//trim(file)
         ssz = 'ssz'//trim(file)
         ssrz= 'ssrz'//trim(file)
 
         if (lssx) then
-          drawin = 'draw'//ssx(1:len_trim(ssx)-4)//'.in'
+          drawin = 'draw'//ssx(1:cpos+3)//'.in'
           call createDrawInGfile(1,1,trim(ssx),'X surface of section'
      .                       ,'y',(/1/),(/'z'/),(/0/),(/0,0/)
      .                       ,drawin,.false.,.false.)
@@ -1641,7 +1645,7 @@ c     Begin program
         endif
 
         if (lssy) then
-          drawin = 'draw'//ssy(1:len_trim(ssy)-4)//'.in'
+          drawin = 'draw'//ssy(1:cpos+3)//'.in'
           call createDrawInGfile(1,1,trim(ssy),'Y surface of section'
      .                       ,'x',(/1/),(/'z'/),(/0/),(/0,0/)
      .                       ,drawin,.false.,.false.)
@@ -1650,7 +1654,7 @@ c     Begin program
         endif
 
         if (lssz) then
-          drawin = 'draw'//ssz(1:len_trim(ssz)-4)//'.in'
+          drawin = 'draw'//ssz(1:cpos+3)//'.in'
           call createDrawInGfile(1,1,trim(ssz),'Z surface of section'
      .                       ,'x',(/1/),(/'y'/),(/0/),(/0,0/)
      .                       ,drawin,.false.,.false.)
@@ -1659,7 +1663,7 @@ c     Begin program
         endif
 
         if (rzss) then
-          drawin = 'draw'//ssrz(1:len_trim(ssrz)-4)//'.in'
+          drawin = 'draw'//ssrz(1:cpos+4)//'.in'
           call createDrawInGfile(1,1,trim(ssrz),'RZ surface of section'
      .                       ,'r',(/1/),(/'z'/),(/0/),(/0,0/)
      .                       ,drawin,.false.,.false.)
@@ -1785,7 +1789,7 @@ c     Check for intersection with Y surface of section
 
 c     Check for intersection with Z surface of section
 
-        if (lssz
+        if ((lssz.or.rzss)
      .      .and.chk_ss_pos(zss0,zold,z,bcond(5),zmin,zmax,zss)) then
 
           call sursec(xvold,yvold,zvold,tv
@@ -1793,19 +1797,21 @@ c     Check for intersection with Z surface of section
      .               ,x    ,y    ,z    ,tt
      .               ,zss,npointz,xss,yss,tss,iwhich)
 
-          if (rzss.and.ss_io) then   !Find R-Z plane positions
-            call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
-            rr = sqrt(xcar**2+ycar**2)
-            write(nunitrz) real(rr),real(zcar)
-          elseif (ss_io) then
-            call chk_pos(xss,yss,zss) !this resets logical coords
-          endif
-
           if (ss_io) then
-            if (flux) then
-              write(nunitz) real(0.5*xss**2),real(yss) !In flux
-            else
-              write(nunitz) real(xss),real(yss)        !In radius
+            if (rzss) then   !Find R-Z plane positions
+              call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
+              rr = sqrt(xcar**2+ycar**2)
+              write(nunitrz) real(rr),real(zcar)
+            endif
+
+            if (lssz) then
+              call chk_pos(xss,yss,zss) !this resets logical coords
+
+              if (flux) then
+                write(nunitz) real(0.5*xss**2),real(yss) !In flux
+              else
+                write(nunitz) real(xss)       ,real(yss) !In radius
+              endif
             endif
           endif
 
