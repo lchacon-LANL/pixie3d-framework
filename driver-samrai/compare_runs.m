@@ -3,8 +3,8 @@
 % to compare a single level single patch run with a single level multiple
 % patch run.
 
-file1 = '/projects/pixie3d/bin/debugFile';
-file2 = '/projects/tmp/pixie3d/bin/debugFile';
+file1 = '/projects/pixie3d/bin/debugFile.tmp';
+file2 = '/projects/pixie3d/bin/debugFile';
 
 data1 = loadDebugData(file1);
 data2 = loadDebugData(file2);
@@ -28,6 +28,11 @@ for i = 1:length(data1)
         end
         diff = d1-d2;
         error(i,j) = max(abs(diff(:)));
+        if error(i,j)>0
+            imagesc(diff(:,:,2,1))
+            1;
+        end
+        1;
     end
 end
 if max(max(error))==0

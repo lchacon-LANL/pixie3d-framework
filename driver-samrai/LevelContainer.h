@@ -22,7 +22,7 @@ public:
     LevelContainer( const int n, tbox::Pointer< hier::PatchHierarchy<NDIM> > hierarchy,
         int n_var, int *u0_id, int *u_id, int n_auxs, int *auxs_id, int n_auxv, int *auxv_id);
     ~LevelContainer();
-    void CreatePatch(int patch_id, tbox::Pointer< hier::Patch<NDIM> > patch );
+    void CreatePatch(int patch_id, tbox::Pointer< hier::Patch<NDIM> > &patch );
     void *getPtr(int patch);
     void *getPtr2(int patch);
 
