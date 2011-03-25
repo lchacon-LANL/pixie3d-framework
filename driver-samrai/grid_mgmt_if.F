@@ -2,8 +2,8 @@ c f_create_var_array
 c######################################################################
       subroutine f_create_var_array(c_var_array_ptr,nvar)
 
-      use variable_setup, only: var_array
-      implicit none
+      use variable_setup, only: var_array,bcond
+      use variable_setup, only: NAUXS,NAUXV,neqd
 
       integer*8 :: c_var_array_ptr
       integer :: nvar
@@ -14,18 +14,24 @@ c######################################################################
       allocate(var_array_data%array_var(1:nvar))
       do i=1,nvar
            nullify(var_array_data%array_var(i)%array)         
+           var_array_data%array_var(i)%bconds(:) = bcond        
+           allocate(var_array_data%array_var(i)%
+     &          bc_dep_list(NAUXS+NAUXV+neqd,3))
+           var_array_data%array_var(i)%bc_dep_list = 0
+           allocate(var_array_data%array_var(i)%
+     &          dom_dep_list(NAUXS+NAUXV+neqd,3))
+           var_array_data%array_var(i)%dom_dep_list = 0
       enddo
-
       call setup_f90c_ptrlinks(c_var_array_ptr, var_array_data)
       
       end subroutine f_create_var_array
-
 
 c f_create_aux_array
 c######################################################################
       subroutine f_create_aux_array(c_aux_array_ptr,nvar,nvec)
 
       use variable_setup, only: aux_array
+      use variable_setup, only: NAUXS,NAUXV,neqd
  
       integer*8 :: c_aux_array_ptr
       integer :: nvar, nvec
@@ -35,6 +41,22 @@ c######################################################################
       aux_array_data%nvec = nvec
       allocate(aux_array_data%var_list(1:nvar))
       allocate(aux_array_data%vec_list(1:nvec))
+      do ieq=1,aux_array_data%nvar
+           allocate(aux_array_data%var_list(ieq)%
+     &          bc_dep_list(NAUXS+NAUXV+neqd,3))
+           aux_array_data%var_list(ieq)%bc_dep_list = 0
+           allocate(aux_array_data%var_list(ieq)%
+     &          dom_dep_list(NAUXS+NAUXV+neqd,3))
+           aux_array_data%var_list(ieq)%dom_dep_list = 0
+      enddo
+      do ieq=1,aux_array_data%nvec
+           allocate(aux_array_data%vec_list(ieq)%
+     &          bc_dep_list(NAUXS+NAUXV+neqd,3))
+           aux_array_data%vec_list(ieq)%bc_dep_list = 0
+           allocate(aux_array_data%vec_list(ieq)%
+     &          dom_dep_list(NAUXS+NAUXV+neqd,3))
+           aux_array_data%vec_list(ieq)%dom_dep_list = 0
+      enddo
       call setup_f90c_ptrlinks(c_aux_array_ptr, aux_array_data)
 
       end subroutine f_create_aux_array
@@ -136,7 +158,7 @@ c######################################################################
       subroutine f_create_patch_data(c_patch_ptr,u_0,u_n,aux,gparams)
 
       use grid_def_st, only: grid_mg_def
-      use variable_setup, only: var_array, aux_array, patch
+      use variable_setup, only: var_array, aux_array, bcgrp, patch
  
       integer*8 :: c_patch_ptr
       type(var_array),INTENT(INOUT) :: u_0, u_n
@@ -157,14 +179,13 @@ c######################################################################
       END INTERFACE
 
       allocate(patch_data)
-      nullify(patch_data%u_np)
-      nullify(patch_data%u_n)
-      nullify(patch_data%u_nm)
+      nullify(patch_data%bc_grp)
       nullify(patch_data%u_0)
-      nullify(patch_data%u_graph)
+      nullify(patch_data%u_n)
+      nullify(patch_data%u_np)
+      nullify(patch_data%u_nm)
       nullify(patch_data%gparams)
       nullify(patch_data%aux)
-      nullify(patch_data%bc_seq)
 
       call setup_patch(patch_data,u_0,u_n,aux,gparams)
       call setup_f90c_ptrlinks(c_patch_ptr, patch_data)
@@ -221,27 +242,6 @@ c      use grid_mgmt
       end subroutine fill_aux_array_vec
 
 
-c f_delete_patch_data
-c######################################################################
-      subroutine f_delete_patch_data(fpatch)
-
-      use grid_def_st, only: grid_mg_def
-      use variable_setup, only: var_array, aux_array, patch
-      use parameters
-
-      type(patch), target :: fpatch
-      type(patch), pointer :: patch_data
-
-      patch_data => fpatch;
-      deallocate(patch_data%u_0)
-      deallocate(patch_data%u_n) 
-      deallocate(patch_data%aux)
-      deallocate(patch_data%gparams)
-      deallocate(patch_data)
-
-      end subroutine f_delete_patch_data
-
-
 c f_delete_var_array
 c######################################################################
       subroutine f_delete_var_array(farray)
@@ -252,9 +252,61 @@ c######################################################################
       type(var_array), pointer :: array_data
 
       array_data => farray;
+      do i=1,array_data%nvar
+           deallocate(array_data%array_var(i)%bc_dep_list)
+           deallocate(array_data%array_var(i)%dom_dep_list)
+      enddo
+      deallocate(array_data%array_var)
       deallocate(array_data)
 
       end subroutine f_delete_var_array
+
+
+c f_delete_patch_data
+c######################################################################
+      subroutine f_delete_patch_data(fpatch)
+
+      use grid_def_st, only: grid_mg_def
+      use variable_setup, only: var_array, aux_array, patch
+ 
+      use parameters
+      use variables
+
+      use iosetup
+      type(patch), target :: fpatch
+      type(patch), pointer :: patch_data
+      integer igr, i
+
+      patch_data => fpatch;
+
+      call destroyGrid(patch_data%gparams)
+c      call deallocateGridMetric(patch_data%gparams%gmetric)
+c      call deallocateGridStructure(patch_data%gparams)
+
+      call f_delete_var_array(patch_data%u_0)
+      call f_delete_var_array(patch_data%u_n)
+
+      do i=1,patch_data%aux%nvar
+           deallocate(patch_data%aux%var_list(i)%bc_dep_list)
+           deallocate(patch_data%aux%var_list(i)%dom_dep_list)
+      enddo
+      do i=1,patch_data%aux%nvec
+           deallocate(patch_data%aux%vec_list(i)%bc_dep_list)
+           deallocate(patch_data%aux%vec_list(i)%dom_dep_list)
+      enddo
+      do igr=1,size(patch_data%bc_grp)
+           deallocate(patch_data%bc_grp(igr)%bc_seq)
+      enddo
+      deallocate(patch_data%aux%var_list)
+      deallocate(patch_data%aux%vec_list)
+      deallocate(patch_data%aux)
+
+      deallocate(patch_data%bc_grp)
+     
+c      deallocate(patch_data%gparams)
+      deallocate(patch_data)
+
+      end subroutine f_delete_patch_data
 
 
 c setup_var_array
@@ -323,5 +375,3 @@ c######################################################################
       fpatch%gparams => gparams
 
       end subroutine setup_patch
-
-

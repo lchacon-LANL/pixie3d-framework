@@ -1293,15 +1293,15 @@ c     Map vector to array
         if (have_equl) then
           call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
      .                ,arr0=equl%grid(igc)%array
-     .                ,icomp=icmp,is_cnv=is__cnv,is_vec=is__vec
+     .                ,icomp=(/icmp/),is_cnv=is__cnv,is_vec=is__vec
      .                ,result_is_vec=res_is_vec,iorder=order)
         else
           bcmod = bcnd
           where (bcnd == EQU)
             bcmod = EXT
           end where
-          call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod,icomp=icmp
-     .              ,is_cnv=is__cnv,is_vec=is__vec
+          call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
+     .              ,icomp=(/icmp/),is_cnv=is__cnv,is_vec=is__vec
      .              ,result_is_vec=res_is_vec,iorder=order)
 cc     .              ,is_cnv=is__cnv)
         endif
@@ -3225,7 +3225,7 @@ c     Ensure serial treatment of boundary conditions
 
 c     Create coarse global grid structure variable to pass to filial MG call
 
-        call createMGgrid(g_pack,grid_params)  !May be wrong interface...
+        call createMGgrid(grid_params)  !May be wrong interface...
           
 c     Reallocate MG pointers to coarse grid level igr
 
@@ -3451,6 +3451,8 @@ c Unpack vector into array
 
 c Impose boundary conditions (external)
 
+      isvec = (neq > 1)                   !Initialize isvec (may be modified by setMGBC)
+
       cartesian = (bcSP() .and. neq > 1)  !Return Cartesian variables for prolongation
 
       if (order > 0 .or. cartesian) then
@@ -3534,7 +3536,7 @@ c Transform back to curvilinear (if isvec=.true. and cartesian=.true.)
                 call transformVectorToCurvilinear
      .             (i,j,k,igf,igf,igf
      .             ,car(1),car(2),car(3)
-     .             ,.not.iscnv
+     .             ,iscnv
      .             ,xxf(iif,(ieq-1)*3+1)
      .             ,xxf(iif,(ieq-1)*3+2)
      .             ,xxf(iif,(ieq-1)*3+3))

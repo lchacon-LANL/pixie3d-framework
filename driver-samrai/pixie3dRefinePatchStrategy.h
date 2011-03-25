@@ -10,7 +10,6 @@
 
 #ifndef included_pixie3dRefinePatchStrategy
 #define included_pixie3dRefinePatchStrategy
-#endif
 
 #include "SAMRAI_config.h"
 
@@ -19,113 +18,113 @@
 #include "Patch.h"
 #include "RefinePatchStrategy.h"
 #include "GridGeometry.h"
+#include "PatchHierarchy.h"
 
-/*
-*************************************************************************
-*                                                                       *
-* External declarations for FORTRAN 77 routines                         *
-*                                                                       *
-*************************************************************************
-*/
+
 
 namespace SAMRAI{
 
 class pixie3dRefinePatchStrategy : public xfer::RefinePatchStrategy<NDIM>
 {
 public:
-   /**
-    * Constructor.
-    */
-   pixie3dRefinePatchStrategy(void);
 
-   /**
-    * Virtual destructor.
-    */
-   virtual ~pixie3dRefinePatchStrategy();
 
-   /**
-    * Set solution ghost cell values along physical boundaries.
-    *
-    * Function is overloaded from xfer_RefinePatchStrategyX.
-    */
-   void setPhysicalBoundaryConditions( hier::Patch<NDIM>& patch,
-                                       const double time,
-                                       const hier::IntVector<NDIM>& ghost_width_to_fill );
+    // Constructor.
+    pixie3dRefinePatchStrategy(void);
 
-   /**
-    * Function for applying user-defined data processing prior
-    * to refinement.  
-    *
-    * Function is overloaded from xfer\_RefinePatchStrategyX.  An empty
-    * implementation is provided here.
-    */
-   void preprocessRefine( hier::Patch<NDIM>& fine,
-                          const hier::Patch<NDIM>& coarse,
-                          const hier::Box<NDIM>& fine_box,
-                          const hier::IntVector<NDIM>& ratio )
-   {
-      (void) fine;
-      (void) coarse;
-      (void) fine_box;
-      (void) ratio;
-   } 
+    // Virtual destructor.
+    virtual ~pixie3dRefinePatchStrategy();
 
-   /**
-    * Function for applying user-defined data processing after
-    * refinement.  
-    * 
-    * Function is overloaded from xfer\_RefinePatchStrategyX.  An empty
-    * implementation is provided here.
-    */
-   void postprocessRefine( hier::Patch<NDIM>& fine,
+
+    // Set solution ghost cell values along physical boundaries.
+    // Function is overloaded from xfer_RefinePatchStrategyX.
+    void setPhysicalBoundaryConditions( hier::Patch<NDIM>& patch,
+                                        const double time,
+                                        const hier::IntVector<NDIM>& ghost_width_to_fill );
+
+
+    /* Function for applying user-defined data processing prior to refinement.  
+     * This function is called after setPhysicalBoundaryConditions.
+     * Function is overloaded from xfer_RefinePatchStrategyX.  
+     */
+    void preprocessRefine( hier::Patch<NDIM>& fine,
                            const hier::Patch<NDIM>& coarse,
                            const hier::Box<NDIM>& fine_box,
-                           const hier::IntVector<NDIM>& ratio ) ;
+                           const hier::IntVector<NDIM>& ratio );
 
-   /**
-    * Return maximum stencil width needed for user-defined 
-    * data interpolation operations.  Default is to return 
-    * zero, assuming no user-defined operations provided.
-    */
-   hier::IntVector<NDIM> getRefineOpStencilWidth( void ) const 
-     {
-       return(hier::IntVector<NDIM>(0));
-     }
 
-   /**
-    * Set descriptor index of data locations where boundary conditions
-    * must be set.
-    */
-   void setRefineStrategyDataId( const int var_id ){ d_data_id = var_id;}
+    // Function for applying user-defined data processing after refinement.  
+    // Function is overloaded from xfer\_RefinePatchStrategyX. 
+    void postprocessRefine( hier::Patch<NDIM>& fine,
+                           const hier::Patch<NDIM>& coarse,
+                           const hier::Box<NDIM>& fine_box,
+                           const hier::IntVector<NDIM>& ratio );
 
-   
-   void setGridGeometry(tbox::Pointer< hier::GridGeometry<NDIM > > grid_geometry){d_grid_geometry=grid_geometry;}
 
-   void setPixie3dHierarchyData(void **hierarchy_data){d_level_container_array = hierarchy_data; }
+    /* Return maximum stencil width needed for user-defined 
+     * data interpolation operations.  Default is to return 
+     * zero, assuming no user-defined operations provided.
+     */
+    hier::IntVector<NDIM> getRefineOpStencilWidth( void ) const  { return(hier::IntVector<NDIM>(0)); }
 
-   void setPixie3dDataIDs(bool copy, int nvar, int nauxs, int nauxv, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp );
 
-   bool checkPhysicalBoundary( hier::Patch<NDIM>& patch);
+    // Set the hierarchy
+    void setHierarchy(tbox::Pointer< hier::PatchHierarchy<NDIM> > hierarchy) { d_hierarchy=hierarchy; }
 
-   void setPixie3DTime(int itime){d_iTime=itime;}
+    // Set the grid geometry
+    void setGridGeometry(tbox::Pointer< hier::GridGeometry<NDIM > > grid_geometry) { d_grid_geometry=grid_geometry; }
+
+    // Set the level contanier data
+    void setPixie3dHierarchyData(void **hierarchy_data) { d_level_container_array = hierarchy_data; }
+
+    // Set the ids of the data
+    void setPixie3dDataIDs(bool copy, int nvar, int nauxs, int nauxv, int *u0, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp );
+
+    // Check the physical boundaries
+    bool checkPhysicalBoundary( hier::Patch<NDIM>& patch);
+
+    // Structures used to hold a single boundary condition group
+    struct bcgrp_struct {
+        int nbc_seq;        // Number of members of the current sequence
+        int *bc_seq;        // The sequence ids (>0: primary variables, <0: auxillary variable)
+        int *vector;        // Is the variable a vector (1) or scalar (0)
+        int *fillBC;        // Do we need to fill BC (1), or are only the interiors needed (0)
+        bcgrp_struct();
+        bcgrp_struct(const int);
+        bcgrp_struct(const bcgrp_struct&);
+        bcgrp_struct& operator=(const bcgrp_struct&);
+        ~bcgrp_struct();
+    };
+
+    // Function to set the boundary condition group that we are processing
+    void setRefineStrategySequence( const bcgrp_struct bc_grp ) { d_bc_grp = bc_grp; }
+
+
 private:
    
-   int d_nvar;
-   int d_nauxs;
-   int d_nauxv;
+    // Private function to copy data on a patch from one variable to another
+    void copy_data_patch( hier::Patch<NDIM>& patch, int src_id, int dst_id );
+    
+    // Information about the hierarchy
+    tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
+    tbox::Pointer< hier::GridGeometry<NDIM > > d_grid_geometry;
+
+    // The number of variables and their ids
+    int d_nvar;
+    int d_nauxs;
+    int d_nauxv;
+    bool copy_data;
+    int *u0_id, *u_id, *auxs_id, *auxv_id;
+    int *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
    
-   int d_data_id;
+    // The level contanier array
+    void **d_level_container_array;
 
-   int d_iTime;
-   
-   bool copy_data;
-   int *u_id, *auxs_id, *auxv_id;
-   int *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
-
-
-   tbox::Pointer< hier::GridGeometry<NDIM > > d_grid_geometry;
-
-   void **d_level_container_array;
+    // The boundry condition group
+    bcgrp_struct d_bc_grp;
 
 };
+
 }
+#endif
+

@@ -14,7 +14,7 @@ c----------------------------------------------------------------------
 
       use timeStepping
 
-      use constants
+c      use constants
 
       use iosetup
 
@@ -23,6 +23,7 @@ c----------------------------------------------------------------------
 c Call variables
 
       type :: indata
+          sequence
         real(8)    :: tolgm
         real(8)    :: rtol
         real(8)    :: atol
@@ -59,7 +60,7 @@ c Local variables
 
 c Begin program
 
-      g_pack%dim(:)%pack = .false.
+      g_pack%pack = .false.
 
 c Set PETSc defaults
 

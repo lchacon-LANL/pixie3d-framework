@@ -25,7 +25,7 @@ endif
 # Flags for Lahey lf95
 ifeq ($(FC),lf95)
   OPTIMIZATION = --nap --nchk --fast --npca --nsav --ntrace
-  DEBUG        = -g --chk aseu --warn --f95 --trace
+  DEBUG        = -g --chk aseu --warn --f95 --trace --trap
 #  DEBUG        = -g --chkglobal --warn --f95 --trace
   PROFILE      =
   STATIC       = 
@@ -33,7 +33,7 @@ ifeq ($(FC),lf95)
   ADDMODFLAG   = -I
   VERBOSE      = --verbose
   CPPFLAGS    += $(PREPROC)lf95 
-  FFLAGS      += --quiet
+  FFLAGS      += --quiet --li
 
   ifdef BOPT
     FFLAGS    += --ml cdecl
@@ -69,7 +69,7 @@ endif
 # Flags for gfortran
 ifeq ($(FC),gfortran)
   OPTIMIZATION = -O3 -march=native
-  DEBUG        = -ggdb -fbounds-check -fbacktrace -ffpe-trap=invalid,zero
+  DEBUG        = -ggdb -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv
   PROFILE      = -pg
   STATIC       = -fno-automatic
   MODFLAG      = -I
@@ -78,6 +78,18 @@ ifeq ($(FC),gfortran)
   CPPFLAGS    += $(PREPROC)gfortran
   FFLAGS      += #$(STATIC) 
 endif
+ifeq ($(FC),vtf77)
+  OPTIMIZATION = -O3 -march=native
+  DEBUG        = -ggdb -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv
+  PROFILE      = -pg
+  STATIC       = -fno-automatic
+  MODFLAG      = -I
+  ADDMODFLAG   = -I
+  VERBOSE      = -v
+  CPPFLAGS    += $(PREPROC)gfortran
+  FFLAGS      += #$(STATIC)
+endif
+
 
 # Flags for Portland Group f90
 ifeq ($(FC),pgf95)

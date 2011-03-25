@@ -234,11 +234,10 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: nxgr,nygr,nxgr_old=0
-     .               ,nygr_old=0,zero=0,one=1
-     .               ,nt=1,nt_prev=0
+        integer :: nxgr,nygr,nxgr_old=0,nygr_old=0,zero=0,one=1
+     .            ,nt=1,nt_prev=0
 
-        logical    :: flag
+        logical,save :: flag
 
 c     Begin program
 
@@ -401,16 +400,16 @@ c     ----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: iplane,i1,i2
+        integer :: iplane,i1,i2
 
 c     Local variables
 
-        integer    :: ii
-        real(8)    :: max_x,max_y,max_z,min_x,min_y,min_z
+        integer :: ii
+        real(8) :: max_x,max_y,max_z,min_x,min_y,min_z
 
 c     Begin program
 
-        ii = 2 !This needs to be 2 because car starts at 1; BROKEN logic; needs fixing
+        ii = 2 !This needs to be "2" because car starts at 1; BROKEN logic; needs fixing
 
         if (iplane == 1) then   
           max_x = maxval(car(ii,:,:,1))
@@ -441,23 +440,26 @@ c     Begin program
         i1 = 0
         i2 = 0
 
-        if (max_x == min_x) then
+        if (max_x-min_x<1d-15) then
           i1 = 2
           i2 = 3
         endif
 
-        if (max_y == min_y) then
+        if (max_y-min_y<1d-15) then
           i1 = 1
           i2 = 3
         endif
 
-        if (max_z == min_z) then
+        if (max_z-min_z<1d-15) then
           i1 = 1
           i2 = 2
         endif
 
         if (i1 == 0 .or. i2 == 0) then
           write(*,*) 'Could not find cartesian plane in find_cart_plane'
+          write(*,*) 'Min X, Max X=',min_x,max_x
+          write(*,*) 'Min Y, Max Y=',min_y,max_y
+          write(*,*) 'Min Z, Max Z=',min_z,max_z
           write(*,*) 'Aborting XDRAW ...'
           stop
         endif

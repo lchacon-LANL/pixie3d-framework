@@ -33,6 +33,24 @@ c #####################################################################
           integer :: bconds(6)          !Boundary conditions
           real(8),pointer,dimension(:,:,:) :: array ! contains values at grid points
           character(20) :: descr
+          integer,pointer,dimension(:,:):: bc_dep_list ! Array indicating inter-variable dependencies;
+                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                                       ! First dimension cycles over number of deps.
+                                                       ! Second dimension provides information about coupling:
+                                                       !  + First component identifies variable; its sign indicates
+                                                       !      auxiliary (<0) or dependent (>0) variable.
+                                                       !  + Second component indicates scalar (0) or vector (1)
+                                                       !  + Third component indicates trivial (0) or non-trivial (1)
+          integer,pointer,dimension(:,:):: dom_dep_list! Array indicating inter-variable dependencies;
+                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                                       ! First dimension cycles over number of deps.
+                                                       ! Second dimension provides information about coupling:
+                                                       !  + First component identifies variable; its sign indicates
+                                                       !      auxiliary (<0) or dependent (>0) variable.
+                                                       !  + Second component indicates scalar (0) or vector (1)
+                                                       !  + Third component indicates trivial (0) or non-trivial (1)
+          logical :: time_0             !Whether this is a time=0 variable
+          logical :: time_n             !Whether this is a previous time step variable
         end type var_def
 
         type :: vec_def
@@ -40,6 +58,24 @@ c #####################################################################
           real(8),pointer,dimension(:,:,:,:) :: vec ! vector (i,j,k,d), d being the component
           character(20) :: descr        !Description
           logical       :: cnv          !Whether it is contravariant or not
+          integer,pointer,dimension(:,:):: bc_dep_list ! Array indicating inter-variable dependencies;
+                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                                       ! First dimension cycles over number of deps.
+                                                       ! Second dimension provides information about coupling:
+                                                       !  + First component identifies variable; its sign indicates
+                                                       !      auxiliary (<0) or dependent (>0) variable.
+                                                       !  + Second component indicates scalar (0) or vector (1)
+                                                       !  + Third component indicates trivial (0) or non-trivial (1)
+          integer,pointer,dimension(:,:):: dom_dep_list! Array indicating inter-variable dependencies;
+                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                                       ! First dimension cycles over number of deps.
+                                                       ! Second dimension provides information about coupling:
+                                                       !  + First component identifies variable; its sign indicates
+                                                       !      auxiliary (<0) or dependent (>0) variable.
+                                                       !  + Second component indicates scalar (0) or vector (1)
+                                                       !  + Third component indicates trivial (0) or non-trivial (1)
+          logical :: time_0             !Whether this is a time=0 variable
+          logical :: time_n             !Whether this is a previous time step variable
         end type vec_def
 
         type :: var_array
@@ -62,18 +98,16 @@ c #####################################################################
           integer  :: nbc_grp                         ! number of BC bundled groups
           type(bcgrp),pointer,dimension(:):: bc_grp   ! array of bundled variables for BC treatment
 
-          type(var_array)  ,pointer     :: u_0        ! equilibrium data
-          type(var_array)  ,pointer     :: u_n        ! data at time n
-          type(var_array)  ,pointer     :: u_np       ! data at n+1
-          type(var_array)  ,pointer     :: u_nm       ! data at n-1
-          type(var_array)  ,pointer     :: u_graph    ! auxiliary for plotting, all u variables same number of components
-          type(grid_mg_def),pointer     :: gparams    ! contains all grid info
-          type(aux_array)  ,pointer     :: aux        ! auxillary variables
+          type(var_array)  ,pointer :: u_0        ! equilibrium data
+          type(var_array)  ,pointer :: u_n        ! data at time n
+          type(var_array)  ,pointer :: u_np       ! data at n+1
+          type(var_array)  ,pointer :: u_nm       ! data at n-1
+
+          type(aux_array)  ,pointer :: aux        ! auxiliary variables
+          type(grid_mg_def),pointer :: gparams    ! contains all grid info
         end type patch
 
         type (patch),pointer :: gv => null()
-
-        type(var_array),pointer :: u_0 => null()
 
       contains
 
@@ -153,8 +187,8 @@ c     Begin program
 
         if (.not.associated(gv)) then
           allocate(gv)
-          nullify(bc_grp)
-          nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0,gv%u_graph)
+          nullify(gv%bc_grp)
+          nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0)
           nullify(gv%gparams)
           nullify(gv%aux)
         endif
@@ -163,22 +197,57 @@ c     End program
 
       end subroutine allocateGlobalVar
 
-c     allocateAuxStruct
+c     deallocateGlobalVar
 c     #################################################################
-      subroutine allocateAuxStruct(nvar,nvec,aux)
+      subroutine deallocateGlobalVar(gv)
 
         implicit none
 
 c     Call variables
 
-        integer :: nvar,nvec
+        type(patch),pointer  :: gv
+
+c     Local variables
+
+        integer :: ierr,igr
+
+c     Begin program
+
+        call deallocateAuxStruct(gv%aux)
+
+        call destroyGrid(gv%gparams)
+
+        if (associated(gv%bc_grp)) then
+          do igr=1,size(gv%bc_grp)
+            deallocate(gv%bc_grp(igr)%bc_seq,STAT=ierr)
+          enddo
+          deallocate(gv%bc_grp,STAT=ierr)
+        endif
+
+        deallocate(gv,STAT=ierr)
+
+c     End program
+
+      end subroutine deallocateGlobalVar
+
+c     allocateAuxStruct
+c     #################################################################
+      subroutine allocateAuxStruct(aux)
+
+        implicit none
+
+c     Call variables
+
         type(aux_array),pointer  :: aux
 
 c     Local variables
 
-        integer          :: ieq
+        integer :: ieq,nvar,nvec
 
 c     Begin program
+
+        nvar = NAUXS
+        nvec = NAUXV
 
         if (.not.associated(aux)) then
           allocate(aux)
@@ -193,7 +262,13 @@ c     Begin program
               allocate(aux%var_list(ieq)
      $                     %array(ilom:ihip,jlom:jhip,klom:khip))
               aux%var_list(ieq)%array = 0d0
-              aux%var_list(ieq)%bconds = bcond
+              aux%var_list(ieq)%bconds= bcond
+              aux%var_list(ieq)%descr = 'unset'
+
+              allocate(aux%var_list(ieq)%bc_dep_list(nvar+nvec+neqd,3))
+              aux%var_list(ieq)%bc_dep_list = 0
+              allocate(aux%var_list(ieq)%dom_dep_list(nvar+nvec+neqd,3))
+              aux%var_list(ieq)%dom_dep_list = 0
             enddo
           endif
 
@@ -207,6 +282,12 @@ c     Begin program
               aux%vec_list(ieq)%bconds(:,1) = bcond
               aux%vec_list(ieq)%bconds(:,2) = bcond
               aux%vec_list(ieq)%bconds(:,3) = bcond
+              aux%vec_list(ieq)%descr       = 'unset'
+
+              allocate(aux%vec_list(ieq)%bc_dep_list(nvar+nvec+neqd,3))
+              aux%vec_list(ieq)%bc_dep_list = 0
+              allocate(aux%vec_list(ieq)%dom_dep_list(nvar+nvec+neqd,3))
+              aux%vec_list(ieq)%dom_dep_list = 0
             enddo
           endif
         endif
@@ -239,6 +320,8 @@ c     Begin program
           if (nvar > 0) then
             do ieq=1,nvar
               deallocate(aux%var_list(ieq)%array)
+              deallocate(aux%var_list(ieq)%bc_dep_list)
+              deallocate(aux%var_list(ieq)%dom_dep_list)
             enddo
 
             deallocate(aux%var_list)
@@ -247,6 +330,8 @@ c     Begin program
           if (nvec > 0) then
             do ieq=1,nvec
               deallocate(aux%vec_list(ieq)%vec)
+              deallocate(aux%vec_list(ieq)%bc_dep_list)
+              deallocate(aux%vec_list(ieq)%dom_dep_list)
             enddo
 
             deallocate(aux%vec_list)
@@ -273,7 +358,7 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq,imn,imx,jmn,jmx,kmn,kmx
+        integer :: ieq,imn,imx,jmn,jmx,kmn,kmx
 
 c     Begin program
 
@@ -310,9 +395,17 @@ c     Begin program
           do ieq=1,varray%nvar
             allocate(varray%array_var(ieq)
      $                     %array(imn:imx,jmn:jmx,kmn:kmx))
-cc     $                     %array(ilom:ihip,jlom:jhip,klom:khip))
             varray%array_var(ieq)%array = 0d0
-          enddo
+            varray%array_var(ieq)%bconds= bcond
+            varray%array_var(ieq)%descr = 'unset'
+
+            allocate(varray%array_var(ieq)
+     .                     %bc_dep_list(NAUXS+NAUXV+neqd,3))
+            varray%array_var(ieq)%bc_dep_list = 0
+            allocate(varray%array_var(ieq)
+     .                     %dom_dep_list(NAUXS+NAUXV+neqd,3))
+            varray%array_var(ieq)%dom_dep_list = 0
+           enddo
         endif
 
 c     End program
@@ -331,23 +424,20 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq,ierr
+        integer          :: ieq,ierr,istat
 
 c     Begin program
 
-cc        deallocate(varray)
-
         if (associated(varray)) then
-          if (associated(varray%array_var)) then
-            do ieq=1,neqd
-              if (associated(varray%array_var(ieq)%array)) then
-                deallocate(varray%array_var(ieq)%array)
-              endif
-            enddo
-            deallocate(varray%array_var)
-          endif
-          deallocate(varray)
-cc        nullify(varray)
+          do ieq=1,neqd
+            deallocate(varray%array_var(ieq)%array,stat=istat)
+            deallocate(varray%array_var(ieq)%bc_dep_list,stat=istat)
+            deallocate(varray%array_var(ieq)%dom_dep_list,stat=istat)
+          enddo
+
+          deallocate(varray%array_var,stat=istat)
+
+          deallocate(varray,stat=istat)
         endif
 
 c     End program
@@ -381,9 +471,14 @@ c     Begin program
 
         varray2%nvar = varray1%nvar
         do ieq=1,varray2%nvar
-          varray2%array_var(ieq)%bconds = varray1%array_var(ieq)%bconds
-          varray2%array_var(ieq)%array  = varray1%array_var(ieq)%array
-          varray2%array_var(ieq)%descr  = varray1%array_var(ieq)%descr
+          varray2%array_var(ieq)%bconds =varray1%array_var(ieq)%bconds
+          varray2%array_var(ieq)%array  =varray1%array_var(ieq)%array
+          varray2%array_var(ieq)%descr  =varray1%array_var(ieq)%descr
+
+          varray2%array_var(ieq)%bc_dep_list
+     .                              =varray1%array_var(ieq)%bc_dep_list
+          varray2%array_var(ieq)%dom_dep_list
+     .                              =varray1%array_var(ieq)%dom_dep_list
         enddo
 
 c     End program
@@ -412,11 +507,14 @@ c     Begin program
 
         call allocateDerivedType(varray,igx=igx,igy=igy,igz=igz)
 
-        varray%nvar = u_0%nvar
+        varray%nvar = gv%u_0%nvar
         do ieq=1,varray%nvar
-          varray%array_var(ieq)%bconds = u_0%array_var(ieq)%bconds
-          varray%array_var(ieq)%descr  = u_0%array_var(ieq)%descr
-          varray%array_var(ieq)%array  = 0d0
+          varray%array_var(ieq)%bconds = gv%u_0%array_var(ieq)%bconds
+          varray%array_var(ieq)%descr  = gv%u_0%array_var(ieq)%descr
+          varray%array_var(ieq)%bc_dep_list
+     .                              = gv%u_0%array_var(ieq)%bc_dep_list
+          varray%array_var(ieq)%dom_dep_list
+     .                              = gv%u_0%array_var(ieq)%dom_dep_list
         enddo
 
 c     End program
@@ -447,72 +545,77 @@ c     Begin program
 
         varray3%nvar = varray2%nvar
         do ieq=1,varray3%nvar
-          varray3%array_var(ieq)%bconds = varray2%array_var(ieq)%bconds
+          varray3%array_var(ieq)%bconds =varray2%array_var(ieq)%bconds
           varray3%array_var(ieq)%array  =
      .          alpha2*varray2%array_var(ieq)%array
      .         +alpha1*varray1%array_var(ieq)%array
-          varray3%array_var(ieq)%descr  = varray2%array_var(ieq)%descr
+          varray3%array_var(ieq)%descr  =varray2%array_var(ieq)%descr
+
+          varray3%array_var(ieq)%bc_dep_list
+     .                              =varray2%array_var(ieq)%bc_dep_list
+          varray3%array_var(ieq)%dom_dep_list
+     .                              =varray2%array_var(ieq)%dom_dep_list
         enddo
 
 c     End program
 
       end subroutine AXPYDerivedType
 
-c     varPack
-c     #################################################################
-      subroutine varPack(array,bcs,desc,veq,varray)
-
-c     -----------------------------------------------------------------
-c     Fills structure fields of varray with pertinent data corresponding
-c     to variable veq: boundary conditions, bcs; variable description,
-c     desc; numerical data, array).
-c     -----------------------------------------------------------------
-
-c     Call variables
-
-        integer      :: veq,bcs(6)
-        real(8)      :: array(ilom:ihip,jlom:jhip,klom:khip)
-        character(*) :: desc
-
-        type(var_array),pointer :: varray
-
-c     Local variables
-
-        call allocateDerivedType(varray)
-
-c     Begin program
-
-        varray%array_var(veq)%bconds = bcs
-        varray%array_var(veq)%array  = array
-        varray%array_var(veq)%descr  = desc
-
-c     End program
-
-      end subroutine varPack
-
-c     varUnPack
-c     #################################################################
-      subroutine varUnPack(varray,veq,array,bcs,desc)
-
-c     Call variables
-
-        integer       :: nx,ny,nz,veq,bcs(6)
-        real(8)       :: array(ilom:ihip,jlom:jhip,klom:khip)
-        character(20) :: desc
-
-        type(var_array),pointer :: varray
-
-c     Local variables
-
-c     Begin program
-
-        bcs   = varray%array_var(veq)%bconds
-        array = varray%array_var(veq)%array
-        desc  = trim(varray%array_var(veq)%descr)
-
-c     End program
-
-      end subroutine varUnPack
+ccc     varPack
+ccc     #################################################################
+cc      subroutine varPack(array,bcs,desc,veq,varray)
+cc
+ccc     -----------------------------------------------------------------
+ccc     Fills structure fields of varray with pertinent data corresponding
+ccc     to variable veq: boundary conditions, bcs; variable description,
+ccc     desc; numerical data, array).
+ccc     -----------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc        integer      :: veq,bcs(6)
+cc        real(8)      :: array(ilom:ihip,jlom:jhip,klom:khip)
+cc        character(*) :: desc
+cc
+cc        type(var_array),pointer :: varray
+cc
+ccc     Local variables
+cc
+cc        call allocateDerivedType(varray)
+cc
+ccc     Begin program
+cc
+cc        varray%array_var(veq)%bconds = bcs
+cc        varray%array_var(veq)%array  = array
+cc        varray%array_var(veq)%descr  = desc
+cc
+ccc     End program
+cc
+cc      end subroutine varPack
+cc
+ccc     varUnPack
+ccc     #################################################################
+cc      subroutine varUnPack(varray,veq,array,bcs,desc)
+cc
+ccc     Call variables
+cc
+cc        integer       :: nx,ny,nz,veq,bcs(6)
+cc        real(8)       :: array(ilom:ihip,jlom:jhip,klom:khip)
+cc        character(20) :: desc
+cc
+cc        type(var_array),pointer :: varray
+cc
+ccc     Local variables
+cc
+ccc     Begin program
+cc
+cc        bcs   = varray%array_var(veq)%bconds
+cc        array = varray%array_var(veq)%array
+cc        desc  = trim(varray%array_var(veq)%descr)
+cc
+ccc     End program
+cc
+cc      end subroutine varUnPack
 
 c     mapStructureToVector
 c     #################################################################
@@ -623,8 +726,9 @@ c #####################################################################
      .                            ,u_n  => null()
      .                            ,u_nm => null()
      .                            ,u_ic => null()
-     .                            ,u_graph => null()
-  
+     .                            ,u_0  => null()
+
+        type(var_array),pointer :: u_graph
       contains
 
 c     allocateStructures
@@ -637,17 +741,20 @@ c     Local variables
 
 c     Begin program
 
-        call allocateDerivedType(gv%u_np)
-        call allocateDerivedType(gv%u_nm)
         call allocateDerivedType(gv%u_n )
         call allocateDerivedType(gv%u_0)
-        call allocateDerivedType(gv%u_graph)
 
         u_0     => gv%u_0
-        u_np    => gv%u_np
         u_n     => gv%u_n
+
+#if !defined(samrai)
+        call allocateDerivedType(gv%u_np)
+        call allocateDerivedType(gv%u_nm)
+        call allocateDerivedType(u_graph)
+
+        u_np    => gv%u_np
         u_nm    => gv%u_nm
-        u_graph => gv%u_graph
+#endif
 
 c     End program
 
@@ -663,88 +770,17 @@ c     Local variables
 
 c     Begin program
 
-        call deallocateDerivedType(gv%u_np)
-        call deallocateDerivedType(gv%u_nm)
         call deallocateDerivedType(gv%u_n )
         call deallocateDerivedType(gv%u_0)
-        call deallocateDerivedType(gv%u_graph)
+
+#if !defined(samrai)
+        call deallocateDerivedType(gv%u_np)
+        call deallocateDerivedType(gv%u_nm)
+        call deallocateDerivedType(u_graph)
+#endif
 
 c     End program
 
       end subroutine deallocateStructures
 
       end module variables
-
-ccc module generalPurposeFunctions
-ccc ######################################################################
-cc      module generalPurposeFunctions
-cc
-cc        use grid
-cc
-cc      contains
-cc
-ccc     integral
-ccc     ################################################################
-cc      function integral(nx,ny,nz,array,igx,igy,igz,avg)
-cc
-ccc     ---------------------------------------------------------------
-ccc     Integrates array(i,j,k) on domain (nx)x(ny)x(nz).
-ccc     ---------------------------------------------------------------
-cc
-cc      implicit none
-cc
-ccc    Call variables
-cc
-cc      integer :: igx,igy,igz,nx,ny,nz
-cc      real(8) :: array(0:nx+1,0:ny+1,0:nz+1),integral
-cc      logical :: avg
-cc
-ccc     Local variables
-cc
-cc      integer :: i,j,k
-cc
-cc      real(8) :: tvolume,vol,lvolume,lintegral
-cc
-ccc     Begin program
-cc
-ccc     Integrate
-cc
-cc      lintegral = 0d0
-cc      lvolume   = 0d0
-cc
-cc      do k = 1,nz
-cc        do j = 1,ny
-cc          do i = 1,nx
-cc            vol = gmetric%grid(igx)%dvol(i,j,k)
-cc
-cc            if (isSYM(i,igx,1,0)) vol = 0.5*vol
-cc            if (isSYM(i,igx,1,1)) vol = 0.5*vol
-cc            if (isSYM(j,igy,2,0)) vol = 0.5*vol
-cc            if (isSYM(j,igy,2,1)) vol = 0.5*vol
-cc            if (isSYM(k,igz,3,0)) vol = 0.5*vol
-cc            if (isSYM(k,igz,3,1)) vol = 0.5*vol
-cc
-cc            lintegral = lintegral + array(i,j,k)*vol
-cc            lvolume = lvolume + vol
-cc          enddo
-cc        enddo
-cc      enddo
-cc
-cc#if defined(petsc)
-cc      call MPI_Allreduce(lintegral,integral,1,MPI_DOUBLE_PRECISION
-cc     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-cc      if (avg)
-cc     .call MPI_Allreduce(lvolume  ,tvolume ,1,MPI_DOUBLE_PRECISION
-cc     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-cc#else
-cc      integral = lintegral
-cc      tvolume  = lvolume
-cc#endif
-cc
-cc      if (avg) integral = integral/tvolume
-cc
-ccc     End 
-cc
-cc      end function integral
-cc
-cc      end module generalPurposeFunctions

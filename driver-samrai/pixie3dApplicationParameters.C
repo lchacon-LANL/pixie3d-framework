@@ -11,13 +11,16 @@
 
 #include "pixie3dApplicationParameters.h"
 
+namespace SAMRAI{
+  
 pixie3dApplicationParameters::pixie3dApplicationParameters()
 {
    d_hierarchy.setNull();
 }
 
-pixie3dApplicationParameters::pixie3dApplicationParameters(const tbox::Pointer<tbox::Database> &database) 
+pixie3dApplicationParameters::pixie3dApplicationParameters(tbox::Pointer<tbox::Database> database)
 {
+    d_db = database;
    d_hierarchy.setNull();
 }
 
@@ -25,4 +28,4 @@ pixie3dApplicationParameters::~pixie3dApplicationParameters()
 {
 }
 
-
+}

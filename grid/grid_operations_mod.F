@@ -21,6 +21,30 @@ c ---------------------------------------------------------------------
 
         implicit none
 
+        INTERFACE crossProduct
+          module procedure crossProduct_ijk,crossProduct_mesh
+        end INTERFACE
+
+        INTERFACE vectorNorm
+          module procedure vectorNorm_ijk,vectorNorm_mesh
+        end INTERFACE
+
+        INTERFACE scalarProduct
+          module procedure scalarProduct_ijk,scalarProduct_mesh
+        end INTERFACE
+
+        INTERFACE XformToCar
+          module procedure XformToCar_ijk,XformToCar_mesh
+        end INTERFACE
+
+        INTERFACE XformVector
+          module procedure XformVector_mesh,XformVector_mesh2
+        end INTERFACE
+
+cc        private :: transformVectorToCartesian
+cc     .            ,transformVectorToCurvilinear
+cc     .            ,transformFromCurvToCurv
+
       contains
 
 c     getMGmap
@@ -157,11 +181,37 @@ c     #################################################################
 
       end subroutine fromLocalToGlobalLimits
 
-c     transformVectorToCartesian
+c     localIndex
 c     #################################################################
-      subroutine transformVectorToCartesian(i,j,k,igx,igy,igz
-     .                                     ,c1,c2,c3,covariant
-     .                                     ,cx,cy,cz)
+      function localIndex(igrid,gindex) result(lindex)
+
+        implicit none
+
+        integer  :: igrid,lindex(3),gindex(3)
+
+        lindex(1) = gindex(1) - grid_params%ilo(igrid) + 1
+        lindex(2) = gindex(2) - grid_params%jlo(igrid) + 1
+        lindex(3) = gindex(3) - grid_params%klo(igrid) + 1
+
+      end function localIndex
+
+c     globalIndex
+c     #################################################################
+      function globalIndex(igrid,lindex) result(gindex)
+
+        implicit none
+
+        integer  :: igrid,lindex(3),gindex(3)
+
+        gindex(1) = lindex(1) + grid_params%ilo(igrid) - 1
+        gindex(2) = lindex(2) + grid_params%jlo(igrid) - 1
+        gindex(3) = lindex(3) + grid_params%klo(igrid) - 1
+
+      end function globalIndex
+
+c     XformToCar_ijk
+c     #################################################################
+      function XformToCar_ijk(i,j,k,igrid,curv,covariant) result(car)
 
 c     -----------------------------------------------------------------
 c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
@@ -173,41 +223,73 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: i,j,k,igx,igy,igz
-        real(8)    :: c1,c2,c3,cx,cy,cz
+        integer    :: i,j,k,igrid
+        real(8)    :: curv(3),car(3)
         logical    :: covariant
-        
 
 c     Local variables
 
-        integer    :: ic
-        real(8)    :: T_to_car(3,3),vec(3)
+c     Begin program
+
+        if (covariant) then
+          car = matmul(curv,gmetric%grid(igrid)%cov(i,j,k,:,:))
+        else
+          car = matmul(curv,gmetric%grid(igrid)%cnv(i,j,k,:,:))
+        endif
+
+      end function XformToCar_ijk
+
+c     XformToCar_mesh
+c     #################################################################
+      function XformToCar_mesh(igrid,curv,covariant) result(car)
+
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector to Cartesian 
+c     over the whole mesh. Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: curv(:,:,:,:)
+     .            ,car(0:size(curv,1)-1
+     .                ,0:size(curv,2)-1
+     .                ,0:size(curv,3)-1,size(curv,4))
+        logical :: covariant
+
+c     Local variables
+
+        integer :: nxl,nyl,nzl
 
 c     Begin program
 
-        vec = (/ c1,c2,c3 /)
+        nxl = grid_params%nxv(igrid)
+        nyl = grid_params%nyv(igrid)
+        nzl = grid_params%nzv(igrid)
 
-        if (covariant) then
-          cx = dot_product(vec,gmetric%grid(igx)%cov(i,j,k,:,1))
-          cy = dot_product(vec,gmetric%grid(igx)%cov(i,j,k,:,2))
-          cz = dot_product(vec,gmetric%grid(igx)%cov(i,j,k,:,3))
-        else
-          cx = dot_product(vec,gmetric%grid(igx)%cnv(i,j,k,:,1))
-          cy = dot_product(vec,gmetric%grid(igx)%cnv(i,j,k,:,2))
-          cz = dot_product(vec,gmetric%grid(igx)%cnv(i,j,k,:,3))
-        endif
+        do k=0,nzl+1
+          do j=0,nyl+1
+            do i=0,nxl+1
+              car(i,j,k,:) = XformToCar_ijk(i,j,k,igrid,curv(i,j,k,:)
+     .                                     ,covariant)
+            enddo
+          enddo
+        enddo
 
-      end subroutine transformVectorToCartesian
+      end function XformToCar_mesh
 
 c     transformVectorToCurvilinear
 c     #################################################################
       subroutine transformVectorToCurvilinear(i,j,k,igx,igy,igz
-     .                                       ,cx,cy,cz,covariant
+     .                                       ,cx,cy,cz,tocnv
      .                                       ,c1,c2,c3)
 
 c     -----------------------------------------------------------------
 c     Transforms a Cartesian vector (cx,cy,cz) to curvilinear (c1,c2,c3)
-c     (covariant if covariant=.true., contravariant otherwise)
+c     (contravariant if tocnv=.true., contravariant otherwise)
 c     at grid coordinates (i,j,k). 
 c     -----------------------------------------------------------------
 
@@ -217,7 +299,7 @@ c     Input variables
 
         integer    :: i,j,k,igx,igy,igz
         real(8)    :: c1,c2,c3,cx,cy,cz
-        logical    :: covariant
+        logical    :: tocnv
 
 c     Local variables
 
@@ -230,7 +312,7 @@ c     Begin program
 
         vec = (/ cx,cy,cz /)
 
-        if (covariant) then
+        if (.not.tocnv) then
 
           c1 = jac*dot_product(vec,gmetric%grid(igx)%cnv(i,j,k,1,:))
           c2 = jac*dot_product(vec,gmetric%grid(igx)%cnv(i,j,k,2,:))
@@ -438,7 +520,7 @@ c     Begin program
 
         cartesian = (in_repr == 'car')
         covariant = (in_repr == 'cov')
-        cnvariant = (.not. cartesian .and. .not. covariant)
+        cnvariant = (.not. cartesian) .and. (.not. covariant)
 
         select case(out_repr)
         case('car')
@@ -449,11 +531,9 @@ c     Begin program
             do j=jmin,jmax
               do i=imin,imax
 
-                call transformVectorToCartesian
-     .               (i,j,k,igx,igy,igz
-     .               ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
-     .               ,covariant
-     .               ,vec(1),vec(2),vec(3))
+                vec = XformToCar(i,j,k,igx
+     .               ,(/arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)/)
+     .               ,covariant)
 
                 arr1(i,j,k) = vec(1)
                 arr2(i,j,k) = vec(2)
@@ -475,7 +555,7 @@ c     Begin program
                   call transformVectorToCurvilinear
      .                 (i,j,k,igx,igy,igz
      .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
-     .                 ,covariant
+     .                 ,.true.
      .                 ,vec(1),vec(2),vec(3))
 
                   arr1(i,j,k) = vec(1)
@@ -494,7 +574,7 @@ c     Begin program
      .                 (i,j,k,igx,igy,igz
      .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
      .                 ,vec(1),vec(2),vec(3)
-     .                 ,covariant,0)
+     .                 ,.true.,0)
 
                   arr1(i,j,k) = vec(1)
                   arr2(i,j,k) = vec(2)
@@ -517,7 +597,7 @@ c     Begin program
                   call transformVectorToCurvilinear
      .                 (i,j,k,igx,igy,igz
      .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
-     .                 ,covariant
+     .                 ,.false.
      .                 ,vec(1),vec(2),vec(3))
 
                   arr1(i,j,k) = vec(1)
@@ -536,7 +616,7 @@ c     Begin program
      .                 (i,j,k,igx,igy,igz
      .                 ,vec(1),vec(2),vec(3)
      .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
-     .                 ,covariant,0)
+     .                 ,.false.,0)
 
                   arr1(i,j,k) = vec(1)
                   arr2(i,j,k) = vec(2)
@@ -549,75 +629,170 @@ c     Begin program
 
         end select
 
-cc        if (to_cartsn) then
-cc
-cc          if (cartesian) return
-cc
-cc          do k=kmin,kmax
-cc            do j=jmin,jmax
-cc              do i=imin,imax
-cc
-cc                call transformVectorToCartesian
-cc     .               (i,j,k,igx,igy,igz
-cc     .               ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
-cc     .               ,covariant
-cc     .               ,vec(1),vec(2),vec(3))
-cc
-cc                arr1(i,j,k) = vec(1)
-cc                arr2(i,j,k) = vec(2)
-cc                arr3(i,j,k) = vec(3)
-cc                
-cc              enddo
-cc            enddo
-cc          enddo
-cc
-cc        else
-cc
-cc          if (cartesian) then
-cc            do k=kmin,kmax
-cc              do j=jmin,jmax
-cc                do i=imin,imax
-cc
-cc                  call transformVectorToCurvilinear
-cc     .                 (i,j,k,igx,igy,igz
-cc     .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
-cc     .                 ,covariant
-cc     .                 ,vec(1),vec(2),vec(3))
-cc
-cc                  arr1(i,j,k) = vec(1)
-cc                  arr2(i,j,k) = vec(2)
-cc                  arr3(i,j,k) = vec(3)
-cc                  
-cc                enddo
-cc              enddo
-cc            enddo
-cc          else
-cc            do k=kmin,kmax
-cc              do j=jmin,jmax
-cc                do i=imin,imax
-cc
-cc                  call transformFromCurvToCurv
-cc     .                 (i,j,k,igx,igy,igz
-cc     .                 ,arr1(i,j,k),arr2(i,j,k),arr3(i,j,k)
-cc     .                 ,covariant
-cc     .                 ,vec(1),vec(2),vec(3))
-cc
-cc                  arr1(i,j,k) = vec(1)
-cc                  arr2(i,j,k) = vec(2)
-cc                  arr3(i,j,k) = vec(3)
-cc                  
-cc                enddo
-cc              enddo
-cc            enddo
-cc          endif
-cc
-cc        endif
-
       end subroutine transformVector
 
-c     vectorNorm
+c     XformVector_mesh2
+c     #################################################################
+      subroutine XformVector_mesh2(igrid,vec,in_repr,out_repr)
+
+c     -----------------------------------------------------------------
+c     Transforms vector vec from Cartesian to curvilinear and viceversa,
+c     or from curvilinear to curvilinear, depending on the value of
+c     in_repr (which indicates the representation of the input vector)
+c     and out_repr (which indicates representation of the input
+c     vector). Possible representations are: 'car','cnv',and 'cov'.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: igrid
+        real(8) :: vec(:,:,:,:)
+        character(3) :: in_repr,out_repr
+
+c     Local variables
+
+        integer :: imin,imax,jmin,jmax,kmin,kmax
+
+c     Begin program
+
+        imin = 0
+        imax = grid_params%nxv(igrid)+1
+
+        jmin = 0
+        jmax = grid_params%nyv(igrid)+1
+
+        kmin = 0
+        kmax = grid_params%nzv(igrid)+1
+
+        call  transformVector(igrid,igrid,igrid
+     .                       ,imin,imax,jmin,jmax,kmin,kmax
+     .                       ,vec(:,:,:,1)
+     .                       ,vec(:,:,:,2)
+     .                       ,vec(:,:,:,3),in_repr,out_repr)
+
+c     End program
+
+      end subroutine XformVector_mesh2
+
+c     XformVector_mesh
+c     #################################################################
+      function XformVector_mesh(igrid,vec1,tocnv) result(vec2)
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector from covariant to contravariant 
+c     (tocnv=.true.) or viceversa at cell centers on all mesh.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Input variables
+
+      integer    :: igrid
+      real(8)    :: vec1(0:,0:,0:,:)
+      real(8)    :: vec2(0:size(vec1,1)-1
+     .                  ,0:size(vec1,2)-1
+     .                  ,0:size(vec1,3)-1
+     .                  ,size(vec1,4))
+
+      logical    :: tocnv
+
+c     Local variables
+
+      integer    :: i,j,k,nxl,nyl,nzl
+      real(8),pointer,dimension(:,:,:,:,:) :: tensor
+
+c     Begin program
+
+      nxl = grid_params%nxv(igrid)
+      nyl = grid_params%nyv(igrid)
+      nzl = grid_params%nzv(igrid)
+
+      if (tocnv) then
+        tensor => gmetric%grid(igrid)%gsup
+      else
+        tensor => gmetric%grid(igrid)%gsub
+      endif
+
+      do k=0,nzl+1
+        do j=0,nyl+1
+          do i=0,nxl+1
+            vec2(i,j,k,:) = matmul(tensor(i,j,k,:,:),vec1(i,j,k,:))
+          enddo
+        enddo
+      enddo
+
+      nullify(tensor)
+
+c     End program
+
+      end function XformVector_mesh
+
+c     XformVector_BC
+c     ###################################################################
+      subroutine XformVector_BC(igrid,vec1,vec2,tocnv)
+
+      implicit none
+
+c     -------------------------------------------------------------------
+c     Routine to transfer ghost cell values form vec1 to vec2
+c     -------------------------------------------------------------------
+
+c     Input variables
+
+      integer :: igrid
+      real(8) :: vec1(0:,0:,0:,:)
+      real(8) :: vec2(0:,0:,0:,:)
+      logical :: tocnv
+
+c     Local variables
+
+      integer :: nxp,nyp,nzp,i,j,k
+      real(8),pointer,dimension(:,:,:,:,:) :: tensor
+
+c     Begin program
+
+      nxp = size(vec1,1)-1
+      nyp = size(vec1,2)-1
+      nzp = size(vec1,3)-1
+
+      if (tocnv) then
+        tensor => gmetric%grid(igrid)%gsup
+      else
+        tensor => gmetric%grid(igrid)%gsub
+      endif
+
+      !X boundaries
+      do k = 0,nzp
+        do j= 0,nyp
+          vec2(0  ,j,k,:) = matmul(tensor(0  ,j,k,:,:),vec1(0  ,j,k,:))
+          vec2(nxp,j,k,:) = matmul(tensor(nxp,j,k,:,:),vec1(nxp,j,k,:))
+        enddo
+      enddo
+
+      !Y boundaries
+      do k= 0,nzp
+        do i=0,nxp
+          vec2(i,0  ,k,:) = matmul(tensor(i,0  ,k,:,:),vec1(i,0  ,k,:))
+          vec2(i,nyp,k,:) = matmul(tensor(i,nyp,k,:,:),vec1(i,nyp,k,:))
+        enddo
+      enddo
+
+      !Z boundaries
+      do j= 0,nyp
+        do i= 0,nxp
+          vec2(i,j,0  ,:) = matmul(tensor(i,j,0  ,:,:),vec1(i,j,0  ,:))
+          vec2(i,j,nzp,:) = matmul(tensor(i,j,nzp,:,:),vec1(i,j,nzp,:))
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine XformVector_BC
+
+c     vectorNorm_ijk
 c     ################################################################
-      function vectorNorm(i,j,k,igx,igy,igz,ax,ay,az,covar)
+      function vectorNorm_ijk(i,j,k,igrid,vec,covar) result(norm)
 
 c     ---------------------------------------------------------------
 c     Finds L2-norm of vector A given its curvilinear components.
@@ -627,38 +802,71 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: i,j,k,igx,igy,igz
-      real(8)    :: ax,ay,az,vectorNorm
+      integer    :: i,j,k,igrid
+      real(8)    :: vec(3),norm
       logical    :: covar
 
 c     Local variables
 
-      real(8)    :: tensor(3,3),cnv(3),cov(3),jac
+      real(8)    :: tensor(3,3)
 
 c     Begin program
 
-      jac = gmetric%grid(igx)%jac(i,j,k)
-
       if (covar) then
-        tensor = gmetric%grid(igx)%gsup(i,j,k,:,:)
-        cov = (/ ax,ay,az /)
-        cnv = matmul(tensor,cov)
+        tensor = gmetric%grid(igrid)%gsup(i,j,k,:,:)
       else
-        tensor = gmetric%grid(igx)%gsub(i,j,k,:,:)
-        cnv = (/ ax,ay,az /)
-        cov = matmul(tensor,cnv)
+        tensor = gmetric%grid(igrid)%gsub(i,j,k,:,:)
       endif
 
-      vectorNorm = dot_product(cov,cnv)/jac
+      norm = dot_product(vec,matmul(tensor,vec))
+     .      /gmetric%grid(igrid)%jac(i,j,k)
 
 c     End 
 
-      end function vectorNorm
+      end function vectorNorm_ijk
 
-c     scalarProduct
+c     vectorNorm_mesh
 c     ################################################################
-      function scalarProduct(i,j,k,igx,igy,igz,cov1,cov2,cov3
-     .                       ,cnv1,cnv2,cnv3) result (dot)
+      function vectorNorm_mesh(igrid,vec,covar) result(norm)
+
+c     ---------------------------------------------------------------
+c     Finds L2-norm of vector A given its curvilinear components.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igrid
+      real(8) :: vec(0:,0:,0:,:)
+     .          ,norm(0:size(vec,1)-1,0:size(vec,2)-1,0:size(vec,3)-1)
+      logical :: covar
+
+c     Local variables
+
+      integer :: i,j,k,nxl,nyl,nzl
+
+c     Begin program
+
+      nxl = grid_params%nxv(igrid)
+      nyl = grid_params%nyv(igrid)
+      nzl = grid_params%nzv(igrid)
+
+      do k=0,nzl+1
+        do j=0,nyl+1
+          do i=0,nxl+1
+            norm(i,j,k) = vectorNorm_ijk(i,j,k,igrid,vec(i,j,k,:),covar)
+          enddo
+        enddo
+      enddo
+
+c     End 
+
+      end function vectorNorm_mesh
+
+c     scalarProduct_ijk
+c     ################################################################
+      function scalarProduct_ijk(i,j,k,igrid,cov,cnv) result (dot)
 
 c     ---------------------------------------------------------------
 c     Finds scalar product of two vectors, one covariant and the
@@ -669,27 +877,51 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: i,j,k,igx,igy,igz
-      real(8)    :: dot,cov1,cov2,cov3,cnv1,cnv2,cnv3
+      integer :: i,j,k,igrid
+      real(8) :: dot,cnv(3),cov(3)
 
 c     Local variables
 
-      real(8)    :: cnv(3),cov(3)
-
 c     Begin program
 
-      cnv = (/ cnv1,cnv2,cnv3 /)
-      cov = (/ cov1,cov2,cov3 /)
-
-      dot = dot_product(cov,cnv)/gmetric%grid(igx)%jac(i,j,k)
+      dot = dot_product(cov,cnv)/gmetric%grid(igrid)%jac(i,j,k)
 
 c     End 
 
-      end function scalarProduct
+      end function scalarProduct_ijk
+
+c     scalarProduct_mesh
+c     ################################################################
+      function scalarProduct_mesh(igrid,vec1,vec2) result (sp)
+
+c     ---------------------------------------------------------------
+c     Finds scalar product of two vectors, one covariant and the
+c     other contravariant.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igrid
+      real(8) :: vec1(:,:,:,:),vec2(:,:,:,:)
+      real(8) :: sp(size(vec1,1),size(vec1,2),size(vec1,3))
+
+c     Local variables
+
+c     Begin program
+
+      sp = (vec1(:,:,:,1)*vec2(:,:,:,1)
+     .     +vec1(:,:,:,2)*vec2(:,:,:,2)
+     .     +vec1(:,:,:,3)*vec2(:,:,:,3))/gmetric%grid(igrid)%jac
+
+c     End 
+
+      end function scalarProduct_mesh
 
 c     tensorScalarProduct
 c     ################################################################
-      function tensorScalarProduct(i,j,k,igx,igy,igz,tnsr1,tnsr2)
+      function tensorScalarProduct(i,j,k,igrid,tnsr1,tnsr2)
      .         result (dot)
 
 c     ---------------------------------------------------------------
@@ -701,17 +933,111 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: i,j,k,igx,igy,igz
+      integer    :: i,j,k,igrid
       real(8)    :: dot,tnsr1(3,3),tnsr2(3,3)
 
 c     Local variables
 
 c     Begin program
 
-      dot = sum(tnsr1*tnsr2)/gmetric%grid(igx)%jac(i,j,k)**2
+      dot = sum(tnsr1*tnsr2)/gmetric%grid(igrid)%jac(i,j,k)**2
 
 c     End 
 
       end function tensorScalarProduct
+
+c     crossProduct_ijk
+c     ################################################################
+      function crossProduct_ijk(i,j,k,igrid,vec1,vec2,cnv_in)
+     .         result (vec3)
+
+c     ---------------------------------------------------------------
+c     Finds cross product of two vectors, either both covariant
+c     (cnv_in=.false.) or both contravariant (cnv_in=.true.) Result
+c     is covariant if cnv_in=.true., and contravariant otherwise.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: i,j,k,igrid
+      real(8)    :: vec1(3),vec2(3),vec3(3)
+      logical    :: cnv_in
+
+c     Local variables
+
+c     Begin program
+
+      if (cnv_in) then  !Result is covariant
+        vec3(1) = (vec1(2)*vec2(3)
+     .            -vec1(3)*vec2(2))
+     .            /gmetric%grid(igrid)%jac(i,j,k)
+        vec3(2) = (vec1(3)*vec2(1)
+     .            -vec1(1)*vec2(3))
+     .            /gmetric%grid(igrid)%jac(i,j,k)
+        vec3(3) = (vec1(1)*vec2(2)
+     .            -vec1(2)*vec2(1))
+     .            /gmetric%grid(igrid)%jac(i,j,k)
+      else           !Result is contravariant
+        vec3(1) = (vec1(2)*vec2(3)
+     .            -vec1(3)*vec2(2))
+        vec3(2) = (vec1(3)*vec2(1)
+     .            -vec1(1)*vec2(3))
+        vec3(3) = (vec1(1)*vec2(2)
+     .            -vec1(2)*vec2(1))
+      endif
+
+c     End 
+
+      end function crossProduct_ijk
+
+c     crossProduct_mesh
+c     ################################################################
+      function crossProduct_mesh(igrid,vec1,vec2,cnv_in)
+     .         result (vec3)
+
+c     ---------------------------------------------------------------
+c     Finds cross product of two vectors, either both covariant
+c     (cnv_in=.false.) or both contravariant (cnv_in=.true.) Result
+c     is covariant if cnv_in=.true., and contravariant otherwise.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: igrid
+      real(8)    :: vec1(:,:,:,:),vec2(:,:,:,:)
+      real(8)    :: vec3(size(vec1,1),size(vec1,2)
+     .                  ,size(vec1,3),size(vec1,4))
+      logical    :: cnv_in
+
+c     Local variables
+
+c     Begin program
+
+      if (cnv_in) then  !Result is covariant
+        vec3(:,:,:,1) = (vec1(:,:,:,2)*vec2(:,:,:,3)
+     .                  -vec1(:,:,:,3)*vec2(:,:,:,2))
+     .                  /gmetric%grid(igrid)%jac
+        vec3(:,:,:,2) = (vec1(:,:,:,3)*vec2(:,:,:,1)
+     .                  -vec1(:,:,:,1)*vec2(:,:,:,3))
+     .                  /gmetric%grid(igrid)%jac
+        vec3(:,:,:,3) = (vec1(:,:,:,1)*vec2(:,:,:,2)
+     .                  -vec1(:,:,:,2)*vec2(:,:,:,1))
+     .                  /gmetric%grid(igrid)%jac
+      else           !Result is contravariant
+        vec3(:,:,:,1) = (vec1(:,:,:,2)*vec2(:,:,:,3)
+     .                  -vec1(:,:,:,3)*vec2(:,:,:,2))
+        vec3(:,:,:,2) = (vec1(:,:,:,3)*vec2(:,:,:,1)
+     .                  -vec1(:,:,:,1)*vec2(:,:,:,3))
+        vec3(:,:,:,3) = (vec1(:,:,:,1)*vec2(:,:,:,2)
+     .                  -vec1(:,:,:,2)*vec2(:,:,:,1))
+      endif
+
+c     End 
+
+      end function crossProduct_mesh
 
       end module grid_operations

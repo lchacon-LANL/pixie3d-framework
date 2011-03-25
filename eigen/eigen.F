@@ -653,16 +653,12 @@ c     Call variables
 
       real(8)    :: x(ntot)
 
-cc      external   :: matvec
-
       INTERFACE
         subroutine matvec(n,x,y)
         integer :: n
         real(8),dimension(n) :: x,y
         end subroutine
       END INTERFACE
-
-cc      external   :: setPC,applyPC
 
       INTERFACE
         subroutine applyPC(n,x,y,out)
@@ -675,7 +671,8 @@ cc      external   :: setPC,applyPC
 
       INTERFACE
         function ldot(x,y)
-        real(8) :: ldot,x(:),y(:)
+        real(8) :: ldot
+        real(8),INTENT(IN):: x(:),y(:)
         end function
       END INTERFACE
 

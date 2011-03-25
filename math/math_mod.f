@@ -10,15 +10,19 @@
 
       real(8) :: pi
 
-cc      INTERFACE determ
-cc        procedure determ3
-cc      END INTERFACE
+      INTERFACE determ
+        module procedure determ3
+      END INTERFACE
+
+      INTERFACE fmed
+        module procedure fmed_scl,fmed_vec
+      END INTERFACE
 
       contains
 
-c     determ
+c     determ3
 c     #################################################################
-      function determ(tensor)
+      function determ3(tensor)
 
       real(8) :: tensor(3,3)
 
@@ -31,7 +35,7 @@ c     #################################################################
      .        -tensor(1,1)*tensor(2,3)*tensor(3,2)
      .        -tensor(3,3)*tensor(1,2)*tensor(2,1)
 
-      end function determ
+      end function determ3
 
 c     atanh
 c     #################################################################
@@ -215,7 +219,8 @@ c     Call variables
 c     Local variables
 
       integer :: iroot,inewt
-      complex(8) :: S,T,R,Q,Det,a2,a1,a0,res,res0,x,dx
+      complex(8) :: S,T,R,Q,Det,a2,a1,a0
+     .             ,res,res0,x,dx
 
 c     Begin program
 
@@ -232,49 +237,74 @@ c     Define auxiliary quantities
       a2=b/a
       a1=c/a
       a0=d/a
-      Q=(3*a1-a2**2)/9.
-      R=(9*a2*a1-27*a0-2*a2**3)/54.
-      Det=Q**3+R**2
-      S=R+sqrt(Det)
-      T=R-sqrt(Det)
-
-c     Need to make sure that (-8)^(1/3)=-2
-
-      if (aImag(S)==0 .and. Real(S)<0) then
-         S=-(abs(S))**(1/3.)
-      else
-         S=S**(1/3.)
-      endif
-      if (aImag(T)==0 .and. Real(T)<0) then
-         T=-(abs(T))**(1/3.)
-      else
-         T=T**(1/3.)
-      endif
+      Q=(3d0*a1-a2**2)/9d0
+      R=(9d0*a2*a1-27d0*a0-2d0*a2**3)/54d0
+      Det=exp(2d0*log(R)-3d0*log(Q))
+      Det=exp(0.5d0*(3d0*log(Q)+log(1+Det)))
+      S=(R+Det)**(1d0/3d0)
+      T=(R-Det)**(1d0/3d0)
+cc      S=S**(1d0/3d0)
+cc      T=T**(1d0/3d0)
 
 c     Find roots
 
-      root(1)=-a2/3.+(S+T)
-      root(2)=-a2/3.-(S+T-sqrt(3.)*(0.,1.)*(S-T))/2.
-      root(3)=-a2/3.-(S+T+sqrt(3.)*(0.,1.)*(S-T))/2.
+      root(1)=-a2/3d0+(S+T)
+      root(2)=-a2/3d0-(S+T-sqrt(3d0)*(0d0,1d0)*(S-T))/2d0
+      root(3)=-a2/3d0-(S+T+sqrt(3d0)*(0d0,1d0)*(S-T))/2d0
 
 c     Converge with Newton for accuracy
 
       do iroot=1,3
         x = root(iroot)
-        res0 = a*x**3 + b*x**2 + c*x + d
+
+        res0 = poly(x,a,b,c,d,0)
         res = res0
-        do inewt=1,10
-          dx = -res/(3*a*x**2 + 2*b*x + c)
+
+cc        write (*,*) 'Residual root',iroot,'=',res/res0
+
+        do inewt=1,100
+          dx = -res/poly(x,a,b,c,d,1)
+
+          !Globalization
+          do while (abs(poly(x+dx,a,b,c,d,0)) > abs(res)) 
+            dx = 0.5*dx
+cc            write (*,*) 'Update root=',dx
+          enddo
+
           x = x + dx
-cc          write (*,*) 'Residual root',iroot,'=',res
-cc          write (*,*) 'Update root',iroot,'=',dx
-          if (abs(res/res0) < 1d-8) exit
-          res = a*x**3 + b*x**2 + c*x + d
+
+          res = poly(x,a,b,c,d,0)
+
+cc          write (*,*) 'Residual root',iroot,'=',res/res0
+cc          write (*,*) 'Update root  ',iroot,'=',dx/x
+
+          if (abs(res/res0) < 1d-8 .or. abs(dx/x) < 1d-10) exit
         enddo
         root(iroot) = x
+cc        write (*,*)
       enddo
 
+cc      write (*,*) 'Solution roots=',root
+cc      write (*,*)
+
 c     End program
+
+      contains
+
+      function poly(x,a,b,c,d,order)
+
+      integer    :: order
+      real(8)    :: a,b,c,d
+      complex(8) :: x,poly
+
+      select case(order)
+      case(0)
+        poly = a*x**3 + b*x**2 + c*x + d
+      case(1)
+        poly = 3*a*x**2 + 2*b*x + c
+      end select
+      
+      end function poly
 
       end function solve_cubic_real
 
@@ -309,53 +339,112 @@ c     Special case of a=0
       endif
 
 c     Define auxiliary quantities
-      
+
       a2=b/a
       a1=c/a
       a0=d/a
-      Q=(3*a1-a2**2)/9.
-      R=(9*a2*a1-27*a0-2*a2**3)/54.
-      Det=Q**3+R**2
-      S=R+sqrt(Det)
-      T=R-sqrt(Det)
+      Q=(3d0*a1-a2**2)/9d0
+      R=(9d0*a2*a1-27d0*a0-2d0*a2**3)/54d0
+      Det=exp(2d0*log(R)-3d0*log(Q))
+      Det=exp(0.5d0*(3d0*log(Q)+log(1+Det)))
+      S=(R+Det)**(1d0/3d0)
+      T=(R-Det)**(1d0/3d0)
 
-c     Need to make sure that (-8)^(1/3)=-2
-
-      if (aImag(S)==0 .and. Real(S)<0) then
-         S=-(abs(S))**(1/3.)
-      else
-         S=S**(1/3.)
-      endif
-      if (aImag(T)==0 .and. Real(T)<0) then
-         T=-(abs(T))**(1/3.)
-      else
-         T=T**(1/3.)
-      endif
+cc      a2=b/a
+cc      a1=c/a
+cc      a0=d/a
+cc      Q=(3*a1-a2**2)/9d0
+cc      R=(9*a2*a1-27*a0-2*a2**3)/54d0
+cc      Det=Q**3+R**2
+cc      S=R+sqrt(Det)
+cc      T=R-sqrt(Det)
+cc
+ccc     Need to make sure that (-8)^(1/3)=-2
+cc
+cc      if (aImag(S)==0 .and. Real(S)<0) then
+cc         S=-(abs(S))**(1d0/3d0)
+cc      else
+cc         S=S**(1d0/3d0)
+cc      endif
+cc      if (aImag(T)==0 .and. Real(T)<0) then
+cc         T=-(abs(T))**(1d0/3d0)
+cc      else
+cc         T=T**(1d0/3d0)
+cc      endif
 
 c     Find roots
 
-      root(1)=-a2/3.+(S+T)
-      root(2)=-a2/3.-(S+T-sqrt(3.)*(0.,1.)*(S-T))/2.
-      root(3)=-a2/3.-(S+T+sqrt(3.)*(0.,1.)*(S-T))/2.
+      root(1)=-a2/3d0+(S+T)
+      root(2)=-a2/3d0-(S+T-sqrt(3d0)*(0d0,1d0)*(S-T))/2d0
+      root(3)=-a2/3d0-(S+T+sqrt(3d0)*(0d0,1d0)*(S-T))/2d0
 
 c     Converge with Newton for accuracy
 
+cc      do iroot=1,3
+cc        x = root(iroot)
+cc        res0 = a*x**3 + b*x**2 + c*x + d
+cc        res = res0
+cc        do inewt=1,10
+cc          dx = -res/(3*a*x**2 + 2*b*x + c)
+cc          x = x + dx
+cc          write (*,*) 'Residual root',iroot,'=',res/res0
+cc          write (*,*) 'Update root',iroot,'=',dx/x
+cc          if (abs(res/res0) < 1d-8 .or. abs(dx/x) < 1d-10) exit
+cc          res = a*x**3 + b*x**2 + c*x + d
+cc        enddo
+cc        root(iroot) = x
+cc      enddo
+
       do iroot=1,3
         x = root(iroot)
-        res0 = a*x**3 + b*x**2 + c*x + d
+
+        res0 = poly(x,a,b,c,d,0)
         res = res0
-        do inewt=1,10
-          dx = -res/(3*a*x**2 + 2*b*x + c)
+
+cc        write (*,*) 'Residual root',iroot,'=',res/res0
+
+        do inewt=1,100
+          dx = -res/poly(x,a,b,c,d,1)
+
+          !Globalization
+          do while (abs(poly(x+dx,a,b,c,d,0)) > abs(res)) 
+            dx = 0.5*dx
+cc            write (*,*) 'Update root=',dx
+          enddo
+
           x = x + dx
-          write (*,*) 'Residual root',iroot,'=',res
-          write (*,*) 'Update root',iroot,'=',dx
-          if (abs(res/res0) < 1d-8) exit
-          res = a*x**3 + b*x**2 + c*x + d
+
+          res = poly(x,a,b,c,d,0)
+
+cc          write (*,*) 'Residual root',iroot,'=',res/res0
+cc          write (*,*) 'Update root  ',iroot,'=',dx/x
+
+          if (abs(res/res0) < 1d-8 .or. abs(dx/x) < 1d-10) exit
         enddo
         root(iroot) = x
+cc        write (*,*)
       enddo
 
+cc      write (*,*)
+
 c     End program
+
+      contains
+
+      function poly(x,a,b,c,d,order)
+
+      integer    :: order
+      complex(8) :: a,b,c,d
+      complex(8) :: x,poly
+
+      select case(order)
+      case(0)
+        poly = a*x**3 + b*x**2 + c*x + d
+      case(1)
+        poly = 3*a*x**2 + 2*b*x + c
+      end select
+      
+      end function poly
 
       end function solve_cubic_cmplx
 
@@ -393,9 +482,9 @@ c     ################################################################
 
       end function int2char
 
-c     fmed
+c     fmed_scl
 c     ###############################################################
-      function fmed(p1,p2,p3)
+      function fmed_scl(p1,p2,p3) result(fmed)
       implicit none                !For safe fortran
 c     ---------------------------------------------------------------
 c     This function computes intermediate value of p1, p2, p3.
@@ -413,6 +502,28 @@ c     Begin program
 
 c     End
 
-      end function fmed
+      end function fmed_scl
+
+c     fmed_vec
+c     ###############################################################
+      function fmed_vec(p1,p2,p3) result(fmed)
+      implicit none                !For safe fortran
+c     ---------------------------------------------------------------
+c     This function computes intermediate value of p1, p2, p3.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      real(8) :: p1(:),p2(:),p3(:),fmed(size(p1))
+
+c     Local variables
+
+c     Begin program
+
+      fmed = min( max(p1,p2) , max( p3,min(p1,p2) ) )
+
+c     End
+
+      end function fmed_vec
 
       end module math

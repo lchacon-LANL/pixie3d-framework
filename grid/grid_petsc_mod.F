@@ -26,7 +26,7 @@ c     -----------------------------------------------------------------
         implicit none
 
         integer,parameter :: DEF=0   !Default (do nothing)
-     .                      ,PER=1   !Periodic
+     .                      ,PER=1   !Periodic  (do not change: NEMATO depends on it)
      .                      ,EQU=2   !Equilibrium (inhomogeneous Dirichlet)
      .                      ,EXT=3   !Extrapolation
      .                      ,NEU=4   !Neumann or Robin
@@ -42,7 +42,7 @@ c     -----------------------------------------------------------------
 
         integer :: bcond(6)          !Contains topological BC configuration
 
-        real(8) :: SP_flsv=1d-5      !SP failsafe
+        real(8) :: SP_flsv=1d-5      !Singular point failsafe
 
       contains
 
@@ -50,12 +50,19 @@ c     bcSP
 c     #################################################################
       function bcSP(ibc) result(sing_bc)
 
+c     -----------------------------------------------------------------
+c     Detects whether boundary is of SP type. Boundary is identified
+c     by ibc, with the following convention:
+c        * ibc = 1, 2 (xmin,xmax)
+c        * ibc = 3, 4 (ymin,ymax)
+c        * ibc = 5, 6 (zmin,zmax)
+c     -----------------------------------------------------------------
+
         implicit none
 
-        integer   ,optional :: ibc
-        logical    :: sing_bc
-
-        integer    :: iibc
+        integer,optional :: ibc
+        logical :: sing_bc
+        integer :: iibc
 
         if (PRESENT(ibc)) then
           iibc = ibc
@@ -63,7 +70,11 @@ c     #################################################################
           iibc = 1
         endif
 
-        sing_bc = (abs(bcond(iibc)) == SP)
+        if (iibc < 1 .or. iibc > 6) then
+          sing_bc = .false.
+        else
+          sing_bc = (abs(bcond(iibc)) == SP)
+        endif
 
       end function bcSP
 

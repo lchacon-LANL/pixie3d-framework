@@ -46,11 +46,15 @@ c Interfaces
         end subroutine evaluateNonlinearFunction
       END INTERFACE
 
+      INTERFACE
+         subroutine setEquilibrium(igx,igy,igz,varray)
+         use variable_setup
+         integer :: igx,igy,igz
+         type(var_array),pointer :: varray
+         end subroutine setEquilibrium
+      END INTERFACE
+
 c Begin program
-
-c Assign pointers
-
-      g_pack%dim(:)%pack = .false.
 
 c Read user initializations
 
@@ -105,27 +109,21 @@ c Initialize global domain limits
      .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
 #endif
 
-c Allocate constant arrays
+c Allocate structures
 
-      allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
-      allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
-      allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
-
-      zeros  = 0d0
-      vzeros = 0d0
-      ones   = 1d0
+      call allocateStructures
 
 c Create nonlinear solver
 
-      call createNonlinearSolver
+      call createTS
 
 c Create nonlinear function
 
-      call createNonlinearFunction
+      call createNonlinearFunction    !External
 
 c Create equilibrium u_0
 
-      call createEquilibrium
+      call setEquilibrium(1,1,1,u_0)  !External
 
 c Initialize old time solution
 
@@ -133,28 +131,17 @@ c Initialize old time solution
 
 c Set unperturbed forcing fields
 
-cc      jit = -2 
       source_eval = .true.   !This informs nlfunction that we are processing the source
       
       !This not only evaluates fsrc, but defines BCs on u_n
       call evaluateNonlinearFunction(u_n,fsrc)
 
+      !Dump source
+      if (chk_src) call dump_src
+
       if (.not.source) fsrc = 0d0
 
       source_eval = .false.
-
-c Set output files
-
-      if (.not.restart) then
-        if (my_rank == 0) call rm_file(recordfile)
-#if defined(petsc) 
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-#endif
-      endif
-
-cc      urecord = urecord + my_rank
-
-cc      recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
 
 c Set initial condition
 
@@ -172,172 +159,71 @@ c Check time limits
           write(*,*) 'Tmax is less or equal than restarting time'
           write(*,*) 'Aborting'
         endif
-#if defined(petsc)
-        call PetscFinalize(mpierr)
-#endif
+
+        call fortranDestroy
         stop
       endif
 
 c End program
 
-      end subroutine initializeCalculation
-
-c createNonlinearSolver
-c######################################################################
-      subroutine createNonlinearSolver
-
-c----------------------------------------------------------------------
-c     Allocates nonlinear solver arrays
-c----------------------------------------------------------------------
-
-      use parameters
-
-      use timeStepping
-
-      use variables
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-c Begin program
-
-      call allocateStructures
-
-      allocate(fold(ntotd),fsrc(ntotd))
-
-      allocate(cnf(neqd),one_over_dt(neqd)
-     .        ,bdfp(neqd),bdfn(neqd),bdfnm(neqd))
-
-c Initialization
-
-      bdfp  =  1d0
-      bdfn  = -1d0
-      bdfnm =  0d0
-
-c End programs
-
-      end subroutine createNonlinearSolver
-
-c destroyNonlinearSolver
-c######################################################################
-      subroutine destroyNonlinearSolver
-
-c----------------------------------------------------------------------
-c     Allocates nonlinear solver arrays
-c----------------------------------------------------------------------
-
-      use parameters
-
-      use timeStepping
-
-      use variables
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-c Begin program
-
-      call deallocateStructures
-
-      deallocate(fold,fsrc)
-
-      deallocate(cnf,one_over_dt,bdfp,bdfn,bdfnm)
-
-c End programs
-
-      end subroutine destroyNonlinearSolver
-
-c createEquilibrium
-c######################################################################
-      subroutine createEquilibrium
-
-c----------------------------------------------------------------------
-c     Creates equilibrium according to user input.
-c----------------------------------------------------------------------
-
-      use parameters
-
-      use timeStepping
-
-      use variable_setup
-
-      use grid
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-      integer    :: ieq
-
-      real(8),allocatable,dimension(:,:,:,:) :: var
-
-      character*(20),allocatable,dimension(:):: label
-
-      integer   ,allocatable,dimension(:,:)  :: bcs
-
-c Begin program
-
-c Set equilibrium u_0 and define BCs on all variables
-
-      allocate(var(ilom:ihip,jlom:jhip,klom:khip,neqd)
-     $            ,label(neqd),bcs(6,neqd))
-
-      !Initialize boundary conditions
-      do ieq = 1,neqd
-        bcs(:,ieq) = bcond
-      enddo
-
-      var = 0d0
-
-      call setEquilibrium(1,1,1,var,bcs,label)
-
-      call packVariables(u_0)
-
-      deallocate(var,label,bcs)
-
-c End programs
-
       contains
 
-c     packVariables
-c     #################################################################
-      subroutine packVariables(varray)
+c     dump_src
+c     ###############################################################
+      subroutine dump_src
 
-c     -----------------------------------------------------------------
-c     Packs arrays into variable structure 
-c     -----------------------------------------------------------------
+        use grid_debug,ONLY:C_contour,cont_conf,dbg,createDrawInCfile
 
-      implicit none
+        integer :: ieq,nx,ny,nz,nunit
 
-c     Call variables
+        character(10) :: srcf
+        character(4)  :: dbg_desc(neqd)
+        character(3)  :: xlabel,ylabel
 
-      type(var_array),pointer :: varray
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) '>>>>>>>>>>>>>>>>>'
+          write (*,*) 'Dumping source...'
+          write (*,*) '>>>>>>>>>>>>>>>>>'
+        endif
 
-c     Local variables
+        nx = grid_params%nxv(1)
+        ny = grid_params%nyv(1)
+        nz = grid_params%nzv(1)
 
-      integer    :: ieq
+        xlabel=cont_conf%label(1)
+        ylabel=cont_conf%label(2)
 
-c     Begin program
+        do ieq=1,neqd
+          dbg_desc(ieq) = 'dgb'//trim(int2char(ieq))
+        enddo
 
-      varray%nvar = neqd
+        srcf='src_p'//trim(int2char(my_rank))//'.bin'
 
-      do ieq = 1,neqd
-        call VarPack (var(:,:,:,ieq),bcs(:,ieq),label(ieq),ieq,varray)
-      enddo
+        call createDrawInCfile(neqd,trim(srcf),'Source'
+     .        ,'t',trim(xlabel),trim(ylabel),dbg_desc,'-c -X0 -L57'
+     .        ,'drawsrc_p'//trim(int2char(my_rank))//'.in')
 
-c     End program
+        call mapVectorToStructure(u_graph,fsrc)
 
-      end subroutine PackVariables
+        nunit = 110
 
-      end subroutine createEquilibrium
+        open(nunit,file=trim(srcf),form='unformatted'
+     .        ,status='replace')
+
+        do ieq=1,neqd
+          call C_contour(u_graph%array_var(ieq)%array(1:nx,1:ny,1:nz)
+     .                ,grid_params%gxmin,grid_params%gxmax
+     .                ,grid_params%gymin,grid_params%gymax
+     .                ,grid_params%gzmin,grid_params%gzmax
+     .                ,ieq-1,nunit)
+        enddo
+
+        close (nunit)
+
+      end subroutine dump_src
+
+      end subroutine initializeCalculation
 
 c setInitialCondition
 c####################################################################
@@ -369,12 +255,12 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
+        subroutine applyBC (varray,iigx,iigy,iigz,obc)
         use variable_setup
         integer    :: iigx,iigy,iigz
         integer,optional :: obc
         type(var_array),pointer :: varray
-        end subroutine imposeBoundaryConditions
+        end subroutine applyBC
       END INTERFACE
 
 c Begin program
@@ -397,7 +283,7 @@ c Perturb equilibrium
         inewtime = 1
 
         !Impose BC on varrayn
-        call imposeBoundaryConditions(varraynp,1,1,1)
+        call applyBC(varraynp,1,1,1)
 
       else
 
@@ -411,6 +297,7 @@ c End program
 
       contains
 
+#if !defined(adios)
 c     readRestartFile
 c     #################################################################
       subroutine readRestartFile(nx,ny,nz,itime,time,vn,vnp)
@@ -428,21 +315,19 @@ c     Call variables
       integer   ,intent(OUT) :: nx,ny,nz,itime
       real(8),intent(OUT)    :: time
 
-      type(var_array),pointer       :: vn,vnp
+      type(var_array),pointer :: vn,vnp
 
 c     Local variables
 
       integer    :: ierr
 
-      type(var_array),pointer       :: vmed
+      type(var_array),pointer :: vmed => null()
 
 c     Begin program
 
-      call allocateDerivedType(vmed)
+c     Open restart files and check mesh sizes
 
       call openBinFile(urecord,recordfile,status='old')
-cc      open(unit=urecord,file=trim(recordfile),form='unformatted'
-cc     .    ,status='old')
 
       read (urecord) nx,ilog,ihig
       read (urecord) ny,jlog,jhig
@@ -456,6 +341,12 @@ cc     .    ,status='old')
         call pstop('initializeCalculation'
      $            ,'Grid meshes do not agree; cannot restart')
       endif
+
+c     Allocate intermediate variable
+
+      call allocateDerivedType(vmed)
+
+c     Read files
 
       if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
 
@@ -474,7 +365,77 @@ cc     .    ,status='old')
         endif
       enddo
 
+      if (my_rank == 0) write (*,*) ' Done!'
+
+c     End
+
       close(urecord)
+
+      call deallocateDerivedType(vmed)
+
+      end subroutine readRestartFile
+
+#else
+
+c     readRestartFile
+c     #################################################################
+      subroutine readRestartFile(nx,ny,nz,itime,time,vn,vnp)
+
+c     -----------------------------------------------------------------
+c     Reads restart file
+c     -----------------------------------------------------------------
+
+      use variables
+
+      implicit none
+
+c     Call variables
+
+      integer   ,intent(OUT) :: nx,ny,nz,itime
+      real(8),intent(OUT)    :: time
+
+      type(var_array),pointer :: vn,vnp
+
+c     Local variables
+
+      integer    :: ierr
+
+      type(var_array),pointer :: vmed => null()
+
+c     Begin program
+
+      call allocateDerivedType(vmed)
+
+      call adios_init_noxml (adios_err)
+
+      ! allocate 100MB buffer for ADIOS
+      call adios_allocate_buffer (100,adios_err)
+
+      if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
+
+      call openRecordFileAdiosForRead(adios_err)
+
+      if (adios_err /= 0) then
+        call pstop('readRestartFile'
+     $            ,'Error reading ADIOS restart file')
+      endif
+
+      ierr = readRecordFile(urecord,itime,time,dt,vn)
+
+      call equateDerivedType(vnp,vn)
+
+      do
+        ierr = readRecordFile(urecord,itime,time,dt,vmed)
+
+        if (ierr /= 0) then
+          exit
+        else
+          call equateDerivedType(vn ,vnp)
+          call equateDerivedType(vnp,vmed)
+        endif
+      enddo
+
+      call closeRecordFileAdiosForRead(adios_err)
 
       if (my_rank == 0) write (*,*) ' Done!'
 
@@ -483,6 +444,7 @@ c     End
       call deallocateDerivedType(vmed)
 
       end subroutine readRestartFile
+#endif
 
       end subroutine setInitialCondition
 
@@ -511,12 +473,12 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
+        subroutine applyBC (varray,iigx,iigy,iigz,obc)
         use variable_setup
         integer    :: iigx,iigy,iigz
         integer,optional :: obc
         type(var_array),pointer :: varray
-        end subroutine imposeBoundaryConditions
+        end subroutine applyBC
       END INTERFACE
 
 c Begin program
@@ -541,7 +503,7 @@ c Open record file
 
       if (.not.restart) then
 
-        !Check source/PC debugging
+        !PC debugging
 cc        if (chk_src) then
 cc          call mapVectorToStructure(u_graph,fsrc)
 cc        else
@@ -551,56 +513,55 @@ cccc           u_graph = u_n
 cccc         endif
 cc        endif
 
-        if (chk_src) then
+        !Impose BC's on u_graph <- u_0
+        !(do not overwrite u_0, since it contains equil. BCs;
+        ! do nothing at EQU boundaries, to preserve EQU BCs)
+        call equateDerivedType(u_graph,u_0)
 
-          !Check source
-          if (my_rank == 0) write (*,*) 'Dumping source...'
-          call mapVectorToStructure(u_graph,fsrc)
+cc        call applyBC(u_graph,1,1,1,obc=0)
+        call applyBC(u_graph,1,1,1)
 
-        else
-          !Impose BC's on u_graph <- u_0
-          !(do not overwrite u_0, since it contains equil. BCs;
-          ! do nothing at EQU boundaries, to preserve EQU BCs)
-          call equateDerivedType(u_graph,u_0)
+#if !defined(adios)
+        !Initialize POSIX files
+        call init_POSIX
+#endif
 
-cc          !Impose logical BCs
-cc          do ieq=1,u_graph%nvar
-cc            where (abs(u_graph%array_var(ieq)%bconds) == EQU)
-cc     .             u_graph%array_var(ieq)%bconds = DEF
-cc          enddo
-
-          call imposeBoundaryConditions(u_graph,1,1,1,obc=0)
-
-          !Recover u_0 BC defs. for u_graph (used in graphics postprocessor)
-cc          do ieq=1,u_graph%nvar
-cc            u_graph%array_var(ieq)%bconds =
-cc     .          u_0%array_var(ieq)%bconds
-cc          enddo
-
-        endif
-
-        !Open record file
-        call openBinFile(urecord,recordfile,status='unknown')
-cc        open(unit=urecord,file=recordfile
-cc     .      ,form='unformatted',status='unknown')
-
-        write (urecord) nxl,ilog,ihig
-        write (urecord) nyl,jlog,jhig
-        write (urecord) nzl,klog,khig
-
+        !Dump initial data
         call writeRecordFile(urecord,0,0d0,dt,u_graph)
         call writeRecordFile(urecord,0,0d0,dt,u_np)
 
       else
 
+#if defined(adios)
+        adios_open_num = 1  !Set ADIOS file to append
+#else
         call openBinFile(urecord,recordfile,status='old'
      .                  ,position='append'
      .                  ,check=.true.)
-cc        open(unit=urecord,file=recordfile
-cc     .      ,form='unformatted',status='old',position='append')
-          
+#endif
       endif
 
 c End programs
+
+      contains
+
+c     init_POSIX
+c     ##############################################################
+      subroutine init_POSIX
+
+        if (my_rank == 0) ierr = rm_files(recordfile)
+
+#if defined(petsc) 
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
+
+        !Initialize record file
+        call openBinFile(urecord,recordfile,status='unknown')
+
+        write (urecord) nxl,ilog,ihig
+        write (urecord) nyl,jlog,jhig
+        write (urecord) nzl,klog,khig
+
+      end subroutine init_POSIX
 
       end subroutine initializeRecordFile

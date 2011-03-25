@@ -16,11 +16,7 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-      use constants
-
       use iosetup
-
-      use generalpurposefunctions
 
       implicit none
 
@@ -33,11 +29,6 @@ c Local variables
 
       integer         :: iminl,imaxl,jminl,jmaxl,kminl,kmaxl,ieq
      .                  ,ierr
-
-c External
-
-c      integer    :: system
-c      external      system
 
 c Interfaces
 
@@ -55,9 +46,6 @@ c Initailize gv
 c Initialize old time solution
 
       call initializeDerivedType(gv%u_n)
-
-      call equateDerivedType(gv%u_n,gv%u_0)
-
 
 c End program
 

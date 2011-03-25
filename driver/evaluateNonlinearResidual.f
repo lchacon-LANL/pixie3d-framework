@@ -112,12 +112,12 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      real(8)          :: fi(ntotd)
+      real(8) :: fi(ntotd)
       type(var_array),pointer :: varray
 
 c Local variables
 
-      integer          :: i,j,k,ii
+      integer :: i,j,k,ii
 
 c Interfaces
 

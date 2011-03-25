@@ -61,7 +61,7 @@ c Time loop
 c diag ***** Redefine perturbations for preconditioner debugging
 cc        write (*,*) 'Redefined perts for PC debugging in 3dplot'
 cc        call equateDerivedType(u_ic,u_n)
-cc        call imposeBoundaryConditions(u_ic,igx,igy,igz)
+cc        call applyBC(u_ic,igx,igy,igz)
 c diag *****
 
 c     Read next record
@@ -124,25 +124,18 @@ c Numerical accuracy tests
       if (temp_acc) call acc_test_time
       if (spat_acc) call acc_test_space
 
-c Move files to 'plot' directory
-
-cc      ierr=system('[ -d plots ] || mkdir plots')
-cc      ierr=system('mv draw*in plots')
-
-c Remove backup copy
-
-cc      command='rm '//trim(recordfile)//'.bak'
-cc      ierr=system(trim(command))
-
-c Close graphics files and create draw*.in files
+c Finalize graphics
 
       call finalizeGraphics
 
       call finalizeDiagnostics
 
+#if defined(adios)
+      call closeRecordFileAdiosForRead(adios_err)
+      call adios_finalize(my_rank,adios_err)
+#else
       call closeRecordFiles
-
-cc      if (clean) call closeCleanFiles
+#endif
 
       call fortranDestroy
 
@@ -242,8 +235,6 @@ c Local variables
       integer    :: ierr
       logical    :: petsc_flg
 
-      type(var_array),pointer :: u_src
-
 c Interfaces
 
       INTERFACE
@@ -283,6 +274,14 @@ c Initialize PETSc (parallel version)
      .                       ,petsc_flg,ierr)
 #endif
 
+c Initialize ADIOS
+
+#if defined(adios) && defined(petsc)
+      call adios_init_noxml (adios_err)
+      ! allocate 100MB buffer for ADIOS
+      call adios_allocate_buffer (100,adios_err)
+#endif
+
 c Read user initializations
 
       call readGraphicsInput
@@ -293,48 +292,35 @@ c Initialize MG and create grid
 
 c Open graphics files (this initializes local limits, among other things)
 
+#if defined(adios)
+      call openRecordFileAdiosForRead(adios_err)
+#else
       call openRecordFiles(urecord,recordfile,murecord
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
+#endif
 
 c Initialize vector dimensions
 
       call setVectorDimensions
 
-c Define application arrays (external)
-
-      call allocateApplicationVariables     !External
-
-      allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
-      allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
-      allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
-
-      zeros  = 0d0
-      vzeros = 0d0
-      ones   = 1d0
-
 c Allocate records
 
       call allocateStructures
 
-      if (chk_src) call allocateDerivedType(u_src)
-
-c Read source and equilibrium u_0 (Do NOT postprocess for BC)
-
-      if (chk_src) then
-        call readTimeStep(u_src,ierr)
-
-        if (ierr /= 0) call pstop('initializeCalculation',
-     .                            'Unable to read source')
-      endif
+c Read equilibrium u_0 (Do NOT postprocess for BC)
 
       call readTimeStep(u_0,ierr)
 
       if (ierr /= 0) call pstop('initializeCalculation',
      .                          'Unable to read equilibrium')
 
+c Define application arrays (external)
+
+      call allocateApplicationVariables     !External
+
 c Set plotting range
 
-      call setGraphicsRange(nxl,nyl,nzl,bcond)
+      call setGraphicsRange(igx,igy,igz)
 
 c Initialize diagnostics and related variables
 
@@ -349,16 +335,6 @@ c Initialize diagnostics and related variables
 c Initialize graphics
 
       call initializeGraphics(igx,igy,igz,bcond)
-
-c Dump source for debugging
-
-      if (chk_src) then
-        itime = -1   !For HDF5 file
-        call equateDerivedType(u_np,u_src)
-        call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
-        call dumpTimeStepPlots
-        call deallocateDerivedType(u_src)
-      endif
 
 c End program
 

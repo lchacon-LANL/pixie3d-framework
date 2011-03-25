@@ -2,10 +2,10 @@ c module graphics_io
 c ######################################################################
       module graphics_io
 
-        integer        :: ngroups
+        integer   :: ngroups
 
-        integer   :: ngraph,xdraw_cont_lim
-        parameter   (ngraph=30,xdraw_cont_lim=16)
+        integer   :: ngraph   ,xdraw_cont_lim
+        parameter   (ngraph=40,xdraw_cont_lim=16)
 
         real(8), allocatable, dimension(:) :: xl,yl,zl
         real(8), allocatable, dimension(:,:,:,:) :: xi
@@ -32,6 +32,12 @@ c ######################################################################
         logical    :: hdf_plot=.true.,xdraw_plot=.true.
 #else
         logical    :: hdf_plot=.false.,xdraw_plot=.true.
+#endif
+
+#if defined(adios)
+        logical    :: adios_plot=.true.
+#else
+        logical    :: adios_plot=.false.
 #endif
 
         integer    :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup

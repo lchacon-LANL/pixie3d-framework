@@ -160,6 +160,8 @@ c     Create VISIT expressions (to identify vectors)
 c     Create groups for coordinate data
 
       if (.not.moving_mesh) then
+ccnorb        write(*,'("3dplot.F:165: Create HDF5 groups ",a," and ",a)') 
+ccnorb     .        cell_coords_gname, node_coords_gname
         !Cell center positions
         call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr
      .                  ,izero)
@@ -268,9 +270,12 @@ c     Open .h5 file using default properties.
 
 c     Create groups for computation data
 
+ccnorb      write(*,'("3dplot.F:272: Create HDF5 group ",a') groupname
       call h5gcreate_f(file_id,groupname,group_id,hdferr, izero)
 
       do igrp=1,ngroups
+ccnorb        write(*,'("3dplot.F:276: Create HDF5 group ",a,"/",a') 
+ccnorb     .       groupname,graph(igrp)%descr
         call h5gcreate_f(group_id,graph(igrp)%descr,subgroup_id,
      $                  hdferr,izero)
         call h5gclose_f(subgroup_id, hdferr)
@@ -279,11 +284,15 @@ c     Create groups for computation data
 c     Create a group for coordinates data
 
       if (moving_mesh) then
+ccnorb        write(*,'("3dplot.F:286: Create HDF5 groups ",a,"/",a') 
+ccnorb     .         groupname,cell_coords_gname
         !Cell center positions
         call h5gcreate_f(group_id,cell_coords_gname,subgroup_id,hdferr
      .                  ,izero)
         call h5gclose_f(subgroup_id,hdferr)
 
+ccnorb        write(*,'("3dplot.F:293: Create HDF5 groups ",a,"/",a') 
+ccnorb     .         groupname,node_coords_gname
         !Node positions
         call h5gcreate_f(group_id,node_coords_gname,subgroup_id,hdferr
      .                  ,izero)
@@ -772,18 +781,17 @@ c     ---------------------------------------------------------------------
         do k=klo,khip
           do j=jlo,jhip
             do i=ilo,ihip
-              if (i == ilo .and. ilog == 1 .and. bcSP()) then
-                node(i,j,k,:) = 0.25*(cell(i-1,j  ,k  ,:)
-     .                               +cell(i-1,j-1,k  ,:)
-     .                               +cell(i-1,j  ,k-1,:)
-     .                               +cell(i-1,j-1,k-1,:))
-              else
+cc              if (isSP2(i,1,ibc=1)) then
+cc                node(i,j,k,:)=
+cc     .             0.5*(sum(cell(i,jlo:jhi,k-1,:),dim=1)/(jhi-jlo+1)
+cc     .                 +sum(cell(i,jlo:jhi,k  ,:),dim=1)/(jhi-jlo+1))
+cc              else
                 node(i,j,k,:) = 0.125
      .                       *(cell(i  ,j  ,k  ,:)+cell(i-1,j  ,k  ,:)
      .                        +cell(i  ,j-1,k  ,:)+cell(i-1,j-1,k  ,:)
      .                        +cell(i  ,j  ,k-1,:)+cell(i-1,j  ,k-1,:)
      .                        +cell(i  ,j-1,k-1,:)+cell(i-1,j-1,k-1,:))
-              endif
+cc              endif
             enddo
           enddo
         enddo

@@ -52,6 +52,63 @@ c ######################################################################
 
       contains
 
+#if !defined(samrai)
+c     createTS
+c     #################################################################
+      subroutine createTS
+
+c     -----------------------------------------------------------------
+c     Allocates time-stepping arrays
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+c     Local variables
+
+c     Begin program
+
+      allocate(fold(ntotd),fsrc(ntotd))
+
+      allocate(cnf(neqd),one_over_dt(neqd)
+     .        ,bdfp(neqd),bdfn(neqd),bdfnm(neqd))
+
+c     Initialization
+
+      bdfp  =  1d0
+      bdfn  = -1d0
+      bdfnm =  0d0
+
+c     End program
+
+      end subroutine createTS
+
+c     destroyTS
+c     #################################################################
+      subroutine destroyTS
+
+c     -----------------------------------------------------------------
+c     Deallocates time-stepping arrays
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+c     Local variables
+
+c     Begin program
+
+      deallocate(fold,fsrc)
+
+      deallocate(cnf,one_over_dt,bdfp,bdfn,bdfnm)
+
+c     End program
+
+      end subroutine destroyTS
+#endif
+
 c     readTimeStep
 c     #################################################################
       subroutine readTimeStep(varray,ierr)
@@ -489,6 +546,8 @@ c     #######################################################################
 
       elseif (sm_flag == 2) then  !BDF2
 
+        cnfactor = 0d0
+
         bdf2 = (itm > 1 .and. (.not.timecorr) )
      .    .or. (itm > 2 .and.       timecorr  )
 
@@ -497,10 +556,6 @@ c     #######################################################################
           cnp = (2*dt+dtold)/(dt+dtold)
           cn  = -(dt+dtold)/dtold
           cnm = -cnp-cn    !Sum should be zero identically
-
-          cnfactor = 0d0
-        else
-          cnfactor = 0.5
         endif
 
       endif

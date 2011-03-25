@@ -171,9 +171,9 @@ cc      else
 cc        nv = nx
 cc      endif
 
-      if (   ceiling(log(1d0*nv)/log(2d0)) 
-     .    /= int    (log(1d0*nv)/log(2d0))) then
-
+cc      if (   ceiling(log(1d0*nv)/log(2d0)) 
+cc     .    /= int    (log(1d0*nv)/log(2d0))) then
+      if (2**ceiling(log(1d0*nv)/log(2d0)) /= nv) then
         write (*,*) 'FFT vectors sizes are not a power of 2.'
         write (*,*) 'Aborting...'
         stop

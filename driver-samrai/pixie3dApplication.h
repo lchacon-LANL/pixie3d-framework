@@ -1,5 +1,5 @@
 //
-// $Id: pixie3dApplication.h 2457 2006-04-18 14:21:27Z philib $
+// $Id: pixie3dApplication.h 2457 2006-04-18 14:21:27Z philipb $
 // $Revision: 2457 $
 // $Date: 2006-04-18 08:21:27 -0600 (Tue, 18 Apr 2006) $
 //
@@ -25,30 +25,39 @@
 #include "RefinePatchStrategy.h"
 #include "RefineAlgorithm.h"
 #include "RefineSchedule.h"
+//#include "SiblingGhostAlgorithm.h"
+//#include "SiblingGhostSchedule.h"
 #include "CoarsenAlgorithm.h"
 #include "CoarsenSchedule.h"
 #include "VariableContext.h"
 #include "FaceData.h"
 #include "LevelContainer.h"
+#include "PatchContainer.h"
 
 #include "VisItDataWriter.h"
 
 #include "DiscreteOperator.h"
 #include "pixie3dApplicationParameters.h"
+#include "pixie3dRefinePatchStrategy.h"
+#include "SiblingGhostAlgorithm.h"
 
-using namespace SAMRAI;
+#include "StandardTagAndInitStrategy.h"
 
+//#include "pixie3dData.h"
+
+
+extern "C"{
 /* User-defined application context */
-#include "petscsnes.h"
-#include "petscda.h"
+//#include "petscsnes.h"
+//#include "petscda.h"
 typedef struct {
-  PetscReal  tolgm;
-  PetscReal  rtol;
-  PetscReal  atol;
-  PetscReal  damp;
-  PetscReal  dt;
-  PetscReal  tmax;
-  PetscReal  mf_eps;
+  double  tolgm;
+  double  rtol;
+  double  atol;
+  double  damp;
+  double  dt;
+  double  tmax;
+  double  mf_eps;
   int        nvar;
   int        nauxs;
   int        nauxv;
@@ -69,8 +78,13 @@ typedef struct {
   int        precpass;
   int        sm_flag;
   int        bcs[6];
-  PetscTruth asm_PC;
+  int asm_PC;
 } input_CTX;
+}
+
+
+
+namespace SAMRAI{
 
 
 /** \class pixie3dApplication
@@ -80,11 +94,17 @@ typedef struct {
  * problem for pixie3d.
  */
 
-class pixie3dApplication : public SAMRSolvers::DiscreteOperator
+class pixie3dApplication : 
+   public SAMRSolvers::DiscreteOperator,
+   public mesh::StandardTagAndInitStrategy<NDIM>
 {
 public:
+
+   // Empty constructor.
+   pixie3dApplication();
+
    // Constructor that takes a parameter list.  Calls initialize.
-  pixie3dApplication( pixie3dApplicationParameters* parameters );
+   pixie3dApplication( pixie3dApplicationParameters* parameters );
 
    // Destructor.
    ~pixie3dApplication();
@@ -95,17 +115,8 @@ public:
    // Set initial conditions on all levels
    void setInitialConditions( const double initial_time );
 
-   // Set initial conditions on new level.
-   void setInitialConditions( const double initial_time, tbox::Pointer< hier::PatchLevel<NDIM> > level );
-
    // Register location to write initial conditions.
    void setInitialConditions( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > ic );
-
-   // Return ComponentSelector of data to allocate on a new level.
-   hier::ComponentSelector getDataToAllocate();
-
-   // Return ComponentSelector of data to time stamp on a new level.
-   hier::ComponentSelector getDataToTimeStamp();
 
    // return the number of dependent variables
    int getNumberOfDependentVariables(void);
@@ -113,9 +124,7 @@ public:
    // Set data values on new level.
    void setValuesOnNewLevel( tbox::Pointer< hier::PatchLevel<NDIM> > level );
 
-   // Return a list of variables used by this application.
-   tbox::Array< tbox::Pointer< hier::Variable<NDIM> > > getVariables();
-   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > get_x() { return(d_x); }
+   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > get_ic() { return(d_x_ic); }
 
    // Evaluate IVP forcing term.
    void apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> >  &f,
@@ -129,15 +138,58 @@ public:
    // Print identifying string.
    void printObjectName( std::ostream& os );
 
-   void setBoundarySchedules(bool bIsInitialTime);
-
    void registerVizWriter( SAMRAI::appu::VisItDataWriter<NDIM>* visit_writer){d_VizWriter = visit_writer;}
+
+   /*
+    * Write the primary and auxillary variables to a binary file.
+    * type = 1:  Write each patch with ghost cells for all levels in double precision
+    * type = 2:  Write the coarse level without ghost cells as a single patch in double precision
+    */
+   void writeDebugData( FILE *fp, const int it, const double time, int type=1 );
+
+
+/***********************************************************************
+* Functions inherited from mesh::StandardTagAndInitStrategy<NDIM>      *
+***********************************************************************/
+
+   /*
+    * Initialize data on a new level after it is inserted into an AMR
+    * patch hierarchy by the gridding algorithm. The level number
+    * indicates that of the new level.
+    *
+    * In this aspect of regridding operations, data that represents
+    * the state of the solution must be interpolated from one grid
+    * configuration to the next.
+    *
+    * When assertion checking is enabled, passing in a null pointer
+    * for either the hierarchy or the level will result in an
+    * unrecoverable exception.
+    *
+    * Function overloaded from mesh::StandardTagAndInitStrategy<NDIM>.
+    *
+    */
+   void initializeLevelData( const tbox::Pointer<hier::BasePatchHierarchy<NDIM> > hierarchy,
+                             const int level_number,
+                             const double time,
+                             const bool can_be_refined,
+                             const bool initial_time,
+                             const tbox::Pointer<hier::BasePatchLevel<NDIM> > old_level=NULL,
+                             const bool allocate_data=true );
+
+   /**
+    * Reset cached information that depends on the hierarchy configuration.  
+    *
+    * Function overloaded from mesh::StandardTagAndInitStrategy<NDIM>.
+    */
+   void resetHierarchyConfiguration(
+           const tbox::Pointer<hier::BasePatchHierarchy<NDIM> > hierarchy,
+           const int coarsest_level,
+           const int finest_level );
+
+
 private:
    
    void printVector( const tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > vector);
-
-   // Empty constructor.
-   pixie3dApplication();
 
    void generateTransferSchedules( void );
 
@@ -147,60 +199,69 @@ private:
 
    void synchronizeVariables(void);
 
+   void writeCellData( FILE *fp, int var_id );
+   void writeGlobalCellData( FILE *fp, int var_id );
+
    // Name of application
    std::string d_object_name;
 
    // Hierarchy
    tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
    
-   // Data Variables
-   PetscReal time;
-   double d_initial_time;
-
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_initial;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x_tmp;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x;
+   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x_r;
+   tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_x_ic;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_scalar;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_vector;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_scalar_tmp;
    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > d_aux_vector_tmp;
    tbox::Pointer< pdat::CellVariable<NDIM,double> > d_f_src;
    int f_src_id;
-   int d_number_solution_components;
 
    bool d_RefineSchedulesGenerated;
-   
-   tbox::Array< tbox::Pointer< hier::Variable<NDIM> > > d_variable_list;
-   void **level_container_array;
 
-   int d_NumberOfBoundaryConditions, *d_BoundaryConditionSequence;
    int *u0_id, *u_id, *auxs_id, *auxv_id;
    int *f_id, *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
 
-   // Misc. variables   
-   hier::ComponentSelector d_application_data;
-   tbox::Array< tbox::Pointer< xfer::RefineSchedule<NDIM> > > d_regrid_refine_scheds;
-   tbox::Pointer<hier::VariableContext> d_application_ctx;
-   input_CTX data;
+   bool d_bIsInitialTime;
+
+   pixie3dRefinePatchStrategy* d_refine_strategy; 
 
    std::string d_refine_op_str;
-   xfer::RefineAlgorithm<NDIM> d_refineScalarAlgorithm;
-   xfer::RefineAlgorithm<NDIM> d_refineVectorComponentAlgorithm;
-   xfer::RefineAlgorithm<NDIM> d_refineVectorAlgorithm;
-   xfer::RefineAlgorithm<NDIM> d_levelAlgorithm;
+
+   //   xfer::SiblingGhostAlgorithm<NDIM> d_siblingGhostVectorAlgorithm;
 
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineScalarSchedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorComponentSchedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_refineVectorSchedules;
    tbox::Array< tbox::Pointer<xfer::RefineSchedule<NDIM> > > d_levelSchedules;
 
-   xfer::RefinePatchStrategy<NDIM> *d_refine_strategy; 
+   //   tbox::Array< tbox::Pointer<xfer::SiblingGhostSchedule<NDIM> > > d_siblingGhostVectorSchedules;
 
-   std::string d_coarsen_op_str;
-   xfer::CoarsenAlgorithm<NDIM> d_cell_coarsen_alg;
-   tbox::Array< tbox::Pointer<xfer::CoarsenSchedule<NDIM> > > d_cell_coarsen_schedules;
 
    SAMRAI::appu::VisItDataWriter<NDIM>* d_VizWriter;
-   bool d_bIsInitialTime;
+
+   input_CTX *input_data;
+
+   // Level container info
+   static const int MAX_LEVELS = 20;
+   LevelContainer *level_container_array[MAX_LEVELS];
+
+   // Data for applying the boundary conditions and the coarsen/refine schedules
+   std::string d_coarsen_op_str;
+   int d_NumberOfBoundarySequenceGroups;
+   pixie3dRefinePatchStrategy::bcgrp_struct *d_BoundarySequenceGroups;
+   tbox::Pointer< xfer::RefineSchedule<NDIM> > *refineSchedule[MAX_LEVELS];
+   tbox::Pointer< xfer::SiblingGhostSchedule<NDIM> > *siblingSchedule[MAX_LEVELS];
+   tbox::Pointer<xfer::CoarsenSchedule<NDIM> > coarsenSchedule[MAX_LEVELS];
+
+   // The names of the primary and auxillary variables
+   std::string *depVarLabels;
+   std::string *auxScalarLabels;
+   std::string *auxVectorLabels;
+
 };
+}
 #endif

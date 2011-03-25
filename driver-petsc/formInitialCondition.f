@@ -183,11 +183,11 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz)
+        subroutine applyBC (varray,iigx,iigy,iigz)
         use variable_setup
         integer    :: iigx,iigy,iigz
         type(var_array),pointer :: varray
-        end subroutine imposeBoundaryConditions
+        end subroutine applyBC
       END INTERFACE
 
 c Begin program
@@ -211,7 +211,7 @@ c Perturb equilibrium
 cc        call equateDerivedType(varraynp,varrayn)
 
         !Impose BC on varrayn
-        call imposeBoundaryConditions(varraynp,1,1,1)
+        call applyBC(varraynp,1,1,1)
 
       else
 

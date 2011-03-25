@@ -9,8 +9,8 @@
 //               application.
 //
 
-#ifndef included_pixie3d_application_parameters
-#define included_pixie3d_application_parameters
+#ifndef included_pixie3dApplicationParameters
+#define included_pixie3dApplicationParameters
 
 #include <string>
 
@@ -22,9 +22,8 @@
 #include "VisItDataWriter.h"
 
 
-#ifndef LACKS_NAMESPACE
-using namespace SAMRAI;
-#endif
+namespace SAMRAI{
+
 
 /** \class pixie3dApplicationParameters
  *
@@ -40,7 +39,7 @@ public:
 
    // Construct and initialize a parameter list according to input
    // data.  See Application for a list of required and optional keywords.
-   pixie3dApplicationParameters( const tbox::Pointer<tbox::Database> &database );
+   pixie3dApplicationParameters( tbox::Pointer<tbox::Database> database );
 
    // Destructor.
    virtual ~pixie3dApplicationParameters();
@@ -50,4 +49,6 @@ public:
 
    SAMRAI::appu::VisItDataWriter<NDIM>* d_VizWriter;
 };
+}
+
 #endif

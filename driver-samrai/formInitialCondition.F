@@ -16,11 +16,11 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-      use constants
+c      use constants
 
       use iosetup
 
-      use generalpurposefunctions
+c      use generalpurposefunctions
 
 c      use auxiliaryVariables
 
@@ -78,27 +78,27 @@ c Set unperturbed forcing fields
 
       if (.not.source) fsrc = 0d0
 
-c Set output file
-
-      if (.not.restart) then
-        if (my_rank == 0)
-     .     ierr=shellcmd('rm -f '//trim(recordfile)//'* >& /dev/null')
-c        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-      endif
-
-      urecord = urecord + my_rank
-
-      if (np > 1) then
-        recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
-      endif
+ccc Set output file
+cc
+cc      if (.not.restart) then
+cc        if (my_rank == 0)
+cc     .     ierr=shellcmd('rm -f '//trim(recordfile)//'* >& /dev/null')
+ccc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cc      endif
+cc
+cc      urecord = urecord + my_rank
+cc
+cc      if (np > 1) then
+cc        recordfile=trim(recordfile)//'_proc'//trim(int2char(my_rank))
+cc      endif
 
 c Set initial condition
 
       call setInitialCondition(u_n,u_np)
 
-c Initialize record file
-
-      call initializeRecordFile
+cc Initialize record file
+c
+c      call initializeRecordFile
 
 c Check time limits
 
@@ -151,7 +151,7 @@ c--------------------------------------------------------------------
 
       use timeStepping
 
-      use constants
+c      use constants
 
       use iosetup
 
@@ -184,9 +184,12 @@ c Perturb equilibrium
 
       else
 
-        call readRestartFile (itime,time,varrayn,varraynp)
+        call pstop('setInitialCondition'
+     .            ,'No restart capability implemented in SAMRAI')
 
-        inewtime = itime + 1
+cc        call readRestartFile (itime,time,varrayn,varraynp)
+cc
+cc        inewtime = itime + 1
 
       endif
 
@@ -194,149 +197,150 @@ c End program
 
       contains
 
-c     readRestartFile
-c     #################################################################
-      subroutine readRestartFile(itime,time,vn,vnp)
-
-c     -----------------------------------------------------------------
-c     Reads restart file
-c     -----------------------------------------------------------------
-
-      use variables
-
-      implicit none
-
-c     Call variables
-
-      integer   ,intent(OUT) :: itime
-      real(8),intent(OUT)    :: time
-
-      type(var_array),pointer       :: vn,vnp
-
-c     Local variables
-
-      integer                :: ierr,nx,ny,nz,il,jl,kl,ih,jh,kh
-
-      type(var_array),pointer       :: vmed
-
-c     Begin program
-
-      call allocateDerivedType(vmed)
-
-      open(unit=urecord,file=recordfile,form='unformatted',status='old')
-
-      read (urecord) nx,ilog,ihig
-      read (urecord) ny,jlog,jhig
-      read (urecord) nz,klog,khig
-
-      if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)
-     .    .and.(my_rank == 0)) then
-        write (*,*) 'Grid meshes do not agree; cannot restart'
-        write (*,*) 'Aborting...'
-        stop
-      endif
-
-      if (my_rank == 0) write (*,*) 'Reading restart file(s)...'
-
-      call readRecordFile(urecord,itime,time,dt,vn,ierr)
-
-      vnp = vn
-
-      do
-        call readRecordFile(urecord,itime,time,dt,vmed,ierr)
-
-        if (ierr /= 0) then
-          exit
-        else
-          vn  = vnp
-          vnp = vmed
-        endif
-      enddo
-
-      close (urecord)
-
-      if (my_rank == 0) write (*,*) 'Done!'
-
-c     End
-
-      call deallocateDerivedType(vmed)
-
-      end subroutine readRestartFile
+ccc     readRestartFile
+ccc     #################################################################
+cc      subroutine readRestartFile(itime,time,vn,vnp)
+cc
+ccc     -----------------------------------------------------------------
+ccc     Reads restart file
+ccc     -----------------------------------------------------------------
+cc
+cc      use variables
+cc
+cc      implicit none
+cc
+ccc     Call variables
+cc
+cc      integer   ,intent(OUT) :: itime
+cc      real(8),intent(OUT)    :: time
+cc
+cc      type(var_array),pointer       :: vn,vnp
+cc
+ccc     Local variables
+cc
+cc      integer                :: ierr,nx,ny,nz,il,jl,kl,ih,jh,kh
+cc
+cc      type(var_array),pointer       :: vmed
+cc
+ccc     Begin program
+cc
+cc      call allocateDerivedType(vmed)
+cc
+cc      open(unit=urecord,file=recordfile,form='unformatted',status='old')
+cc
+cc      read (urecord) nx,ilog,ihig
+cc      read (urecord) ny,jlog,jhig
+cc      read (urecord) nz,klog,khig
+cc
+cc      if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl)
+cc     .    .and.(my_rank == 0)) then
+cc        write (*,*) 'Grid meshes do not agree; cannot restart'
+cc        write (*,*) 'Aborting...'
+cc        stop
+cc      endif
+cc
+cc      if (my_rank == 0) write (*,*) 'Reading restart file(s)...'
+cc
+cc      ierr = readRecordFile(urecord,itime,time,dt,vn)
+cc
+cc      vnp = vn
+cc
+cc      do
+cc        ierr = readRecordFile(urecord,itime,time,dt,vmed)
+cc
+cc        if (ierr /= 0) then
+cc          exit
+cc        else
+cc          vn  = vnp
+cc          vnp = vmed
+cc        endif
+cc      enddo
+cc
+cc      close (urecord)
+cc
+cc      if (my_rank == 0) write (*,*) 'Done!'
+cc
+ccc     End
+cc
+cc      call deallocateDerivedType(vmed)
+cc
+cc      end subroutine readRestartFile
 
       end subroutine setInitialCondition
 
-c initializeRecordFile
-c######################################################################
-      subroutine initializeRecordFile
-
-c----------------------------------------------------------------------
-c     Creates graphics pointers, defines dumping intervals
-c----------------------------------------------------------------------
-
-      use timeStepping
-
-      use variables
-
-      use iosetup
-
-      implicit none
-
-c Call variables
-
-c Local variables
-
-      integer    :: i,ierr
-
-c Begin program
-
-c Set data dumping intervals
-
-      dfreq = 8d0
-
-      if (tmax.gt.0d0) then
-        if (dstep.eq.0d0) then
-          dstep = dt*max(int((tmax-time)/dfreq/dt),1)
-cc        else
-cc          dstep = max(dstep,dt)
-        endif
-        rstep = min(dt*max(int((tmax-time)/dfreq/dt),1),dstep)
-        ndstep  = -1
-        numtime = -1
-      else
-        if (ndstep.eq.0) ndstep = max(numtime/int(dfreq),1)
-        nrstep = min(max(numtime/int(dfreq),1),ndstep)
-        dstep = 1e30
-        tmax  = 0d0
-      endif
-
-c Open record file
-
-      if (.not.restart) then
-
-        u_graph = u_0    !Needed for BCs
-cc        u_graph = u_n  !For debugging to compare agains PC solution
-cc        u_graph = fsrc !For debugging source
-
-        !Open record file
-        open(unit=urecord,file=recordfile
-     .      ,form='unformatted',status='unknown')
-
-        write (urecord) nxl,ilog,ihig
-        write (urecord) nyl,jlog,jhig
-        write (urecord) nzl,klog,khig
-
-cc        call writeRecordFile(urecord,0,0d0,dt,u_n)
-        call writeRecordFile(urecord,0,0d0,dt,u_graph)
-        call writeRecordFile(urecord,0,0d0,dt,u_np)
-
-      else
-
-        open(unit=urecord,file=recordfile
-     .      ,form='unformatted',status='old',position='append')
-          
-      endif
-
-c End program
-
-      end subroutine initializeRecordFile
-
+ccc initializeRecordFile
+ccc######################################################################
+cc      subroutine initializeRecordFile
+cc
+ccc----------------------------------------------------------------------
+ccc     Creates graphics pointers, defines dumping intervals
+ccc----------------------------------------------------------------------
+cc
+cc      use timeStepping
+cc
+cc      use variables
+cc
+cc      use iosetup
+cc
+cc      implicit none
+cc
+ccc Call variables
+cc
+ccc Local variables
+cc
+cc      integer    :: i,ierr
+cc
+ccc Begin program
+cc
+ccc Set data dumping intervals
+cc
+cc      dfreq = 8d0
+cc
+cc      if (tmax.gt.0d0) then
+cc        if (dstep.eq.0d0) then
+cc          dstep = dt*max(int((tmax-time)/dfreq/dt),1)
+cccc        else
+cccc          dstep = max(dstep,dt)
+cc        endif
+cc        rstep = min(dt*max(int((tmax-time)/dfreq/dt),1),dstep)
+cc        ndstep  = -1
+cc        numtime = -1
+cc      else
+cc        if (ndstep.eq.0) ndstep = max(numtime/int(dfreq),1)
+cc        nrstep = min(max(numtime/int(dfreq),1),ndstep)
+cc        dstep = 1e30
+cc        tmax  = 0d0
+cc      endif
+cc
+ccc Open record file
+cc
+cc      if (.not.restart) then
+cc
+cc        call equateDerivedType(u_graph,u_0)
+cccc        u_graph = u_0    !Needed for BCs
+cccc        u_graph = u_n  !For debugging to compare agains PC solution
+cccc        u_graph = fsrc !For debugging source
+cc
+cc        !Open record file
+cc        open(unit=urecord,file=recordfile
+cc     .      ,form='unformatted',status='unknown')
+cc
+cc        write (urecord) nxl,ilog,ihig
+cc        write (urecord) nyl,jlog,jhig
+cc        write (urecord) nzl,klog,khig
+cc
+cccc        call writeRecordFile(urecord,0,0d0,dt,u_n)
+cc        call writeRecordFile(urecord,0,0d0,dt,u_graph)
+cc        call writeRecordFile(urecord,0,0d0,dt,u_np)
+cc
+cc      else
+cc
+cc        open(unit=urecord,file=recordfile
+cc     .      ,form='unformatted',status='old',position='append')
+cc          
+cc      endif
+cc
+ccc End program
+cc
+cc      end subroutine initializeRecordFile
+cc

@@ -16,8 +16,6 @@ c ******************************************************************
 
       use grid
 
-cc      use icond
-
 c Common variables
 
       implicit none
@@ -68,6 +66,13 @@ c Initialize PETSc and MPI (parallel version)
       call PetscLogStageRegister('Sol. processing',prof_stage(3),perr)  
 #endif
 
+c Initialize ADIOS for componentized I/O
+
+#if defined(adios) && defined(petsc)
+      call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
+      call adios_init('adios_config.xml', adios_err)
+#endif
+
 c Initialize calculation
 
 #if defined(petsc)
@@ -110,7 +115,7 @@ c Time loop
 
         itime = itime + 1
 
-        if (tmax.gt.0d0.and.time.ge.(tmax-1d-5*dt))  exit
+        if (tmax.gt.0d0.and.time.ge.(tmax-1d-9*dt))  exit
 cc        if (tmax.gt.0d0.and.time.gt.tmax)  exit
         if (numtime.ge.0.and.itime.ge.(numtime+inewtime)) exit
 
@@ -152,7 +157,8 @@ c     Check for error in time stepping
 
         if (ierr == 1) then     !Restart time step
 
-          call equateDerivedType(u_np,u_n)
+          call equateDerivedType(u_np,u_n )
+          call equateDerivedType(u_n ,u_nm)
 
           itime = itime - 1
           time  = time - dt
@@ -193,7 +199,7 @@ c     Time level data dump
 #if defined(RFX)
         if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
 #else
-        if (nrst.eq.ndstep.or.tmrst.ge.0.99*dstep) then
+        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep) then
 #endif
           nrst  = 0
           if (itime.gt.0) tmrst = tmrst - dstep
@@ -206,7 +212,7 @@ c     Time level data dump
 
 c Average explicit time step
 
-      if (cnfactor.eq.1d0 .and. my_rank == 0) then
+      if (cnfactor.eq.1d0.and.my_rank == 0.and.(itime > inewtime)) then
         dtexp = dtexp/(itime - inewtime)
         write (*,*) 'Average explicit time step: ',dtexp
       endif
@@ -250,13 +256,6 @@ c Formats
 c End program
 
       call fortranDestroy
-
-#if defined(petsc)
-      !Finalize profiling
-      call PetscLogStagePop(perr)
-
-      call PetscFinalize(perr)
-#endif
 
       end
 
@@ -321,12 +320,12 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine imposeBoundaryConditions (varray,iigx,iigy,iigz,obc)
+        subroutine applyBC (varray,iigx,iigy,iigz,obc)
         use variable_setup
         integer    :: iigx,iigy,iigz
         integer,optional :: obc
         type(var_array),pointer :: varray
-        end subroutine imposeBoundaryConditions
+        end subroutine applyBC
       END INTERFACE
 
 c Begin program
@@ -337,7 +336,6 @@ c Begin program
 
 c Evaluate nonlinear function at old time for theta scheme
 
-cc      jit = -1
       old_time_eval = .true.     !This informs nlfunction that we are processing
                                  !  n time level info
 
@@ -454,7 +452,7 @@ c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
           call mapVectorToStructure(vnp,x)
-          call imposeBoundaryConditions(vnp,1,1,1)
+          call applyBC(vnp,1,1,1)
           if (predictor) call storeTSinfo(vn,vnp)
         endif
 
@@ -466,7 +464,7 @@ c Explicit update
 
         call explicit(vn,vnp,itgmres,ilevel)
 
-        call imposeBoundaryConditions(vnp,1,1,1)
+        call applyBC(vnp,1,1,1)
 
         itnewt = 1
 
