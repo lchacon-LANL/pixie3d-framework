@@ -15,10 +15,8 @@ ifeq "$(BUILDTYPE)" "i386-Darwin"
 endif
 
 # Machine configuration
-ifndef HOSTNAME
-    HOSTNAME = $(shell hostname)
-endif
-HOST?=$(HOSTNAME)
+
+HOST ?= $(shell hostname -s)
 
 MACHINE ?=HaveNoIdea
 
@@ -46,7 +44,7 @@ endif
 # quevedo #
 ###########
 
-ifeq ($(HOST),quevedo.ornl.gov)
+ifeq ($(HOST),quevedo)
   MACHINE=quevedo
 
   FC = gfortran
@@ -63,7 +61,6 @@ ifeq ($(HOST),quevedo.ornl.gov)
     ifdef BOPT
       PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
-      FC=gfortran
       ifeq ($(BOPT),O)
         PETSC_ARCH = linux64_openmpi
       else
@@ -125,7 +122,7 @@ endif
 # gongora #
 ###########
 
-ifeq ($(HOST),gongora.ornl.gov)
+ifeq ($(HOST),gongora)
   MACHINE=gongora
 
   FC=gfortran
@@ -161,7 +158,6 @@ ifeq ($(HOST),siesta)
   ifdef BOPT
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
-    FC=gfortran
     ifeq ($(BOPT),O)
       PETSC_ARCH = linux64_openmpi
     else
@@ -169,11 +165,15 @@ ifeq ($(HOST),siesta)
     endif
 
     HDF5 = t
-
-    HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
+    HDF5_HOME = /usr/lib64/openmpi
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)/lib
-    HDF5_INC  =-I$(HDF5_HOME)/include
+    HDF5_MOD  = /usr/include/openmpi-x86_64
+    HDF5_INC  =-I/usr/include/openmpi-x86_64
+
+    ADIOS = f
+
+    ADIOS_HOME = $(HOME)/lib/adios-1.2.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
   else
     LIBS += -L/usr/lib64 -llapack -lblas
     HDF5 = f
@@ -197,7 +197,7 @@ ifeq ($(HOST),siesta)
 
   NETCDF=t
   NETCDF_LIBS = -lnetcdff -lnetcdf
-  NETCDF_INC  = -I/usr/include/netcdf
+  NETCDF_INC  = -I/usr/include
 
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 endif
@@ -206,7 +206,7 @@ endif
 # swim #
 ########
 
-ifeq ($(HOST),swim.ornl.gov)
+ifeq ($(HOST),swim)
   MACHINE=swim
 
   FC=gfortran
@@ -214,7 +214,6 @@ ifeq ($(HOST),swim.ornl.gov)
   ifdef BOPT
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
-    FC=gfortran
     ifeq ($(BOPT),O)
       PETSC_ARCH = linux64_openmpi
     else
@@ -379,7 +378,7 @@ endif
 # chenhp (Guangye Chen's) #
 ###########################
 
-ifeq ($(HOST),chenshp.ornl.gov)
+ifeq ($(HOST),chenshp)
     MACHINE=chenshp
 
     LIBS += -L/usr/lib64/atlas -llapack -lblas
