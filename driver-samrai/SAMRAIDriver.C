@@ -256,9 +256,9 @@ int main( int argc, char *argv[] )
             tbox::pout << "Advanced solution to time : " << current_time << std::endl;
 
             if ( (plot_interval > 0) && ((iteration_num % plot_interval) == 0) )  {
-                visit_writer->writePlotData(hierarchy, iteration_num, current_time);
                 if ( save_debug>0 )
                     application->writeDebugData(debug_file,iteration_num,current_time,save_debug);
+                visit_writer->writePlotData(hierarchy, iteration_num, current_time);
             }
         } else {
             tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
