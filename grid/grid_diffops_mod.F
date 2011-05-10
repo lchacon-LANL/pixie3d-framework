@@ -453,7 +453,7 @@ c     Local variables
 
 c     Begin program
 
-      vol_wgt = .true.
+      vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
 c     Curl at vertices
@@ -521,7 +521,7 @@ c     Local variables
 
 c     Begin program
 
-      vol_wgt = .true.
+      vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
 c     Curl at vertices
@@ -1423,7 +1423,7 @@ c     Local variables
 
 c     Begin program
 
-      vol_wgt = .true.
+      vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
       cnvt = .false.
@@ -1543,7 +1543,7 @@ c     Local variables
 
 c     Begin program
 
-      vol_wgt = .true.
+      vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
       igrid = igx
@@ -1720,7 +1720,7 @@ c     Begin program
       if (PRESENT(vol)) then
         vol_wgt = vol
       else
-        vol_wgt = .true.
+        vol_wgt = .false.
       endif
 
       igrid = igx
@@ -1906,7 +1906,7 @@ c     Begin program
       if (PRESENT(vol)) then
         vol_wgt = vol
       else
-        vol_wgt = .true.
+        vol_wgt = .false.
       endif
 
       igrid = igx
@@ -3401,7 +3401,7 @@ c     Local variables
 
 c     Begin program
 
-      vol_wgt = .true.
+      vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
       igrid = igx
@@ -3549,7 +3549,7 @@ cc      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
 
 c     Begin program
 
-      vol_wgt = .true.
+      vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
       igrid = igx
@@ -3722,7 +3722,7 @@ c     Local variables
 
 c     Begin program
 
-      vol_wgt = .true.
+      vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
       alt_eom = .false.
@@ -3777,7 +3777,7 @@ c     Local variables
 
 c     Begin program
 
-      vol_wgt = .true.
+      vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
       alt_eom = .false.
@@ -4038,7 +4038,7 @@ c     Local variables
 
 c     Begin program
 
-      vol_wgt = .true.
+      vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
       if (coords == 'car') then
@@ -4090,7 +4090,7 @@ c     Local variables
 
 c     Begin program
 
-      vol_wgt = .true.
+      vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
       if (coords == 'car') then
