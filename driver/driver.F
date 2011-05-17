@@ -58,7 +58,9 @@ c Allocate global variable
 c Initialize PETSc and MPI (parallel version)
 
 #if defined(petsc)
-      call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
+      call PetscInitialize(PETSC_NULL_CHARACTER,perr)
+
+      call initMPI(MPI_COMM_WORLD,np,my_rank)
 
       !Set profiling stages
       call PetscLogStageRegister('Initial setup'  ,prof_stage(1),perr)
@@ -69,8 +71,13 @@ c Initialize PETSc and MPI (parallel version)
 c Initialize ADIOS for componentized I/O
 
 #if defined(adios) && defined(petsc)
-      call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
-      call adios_init('adios_config.xml', adios_err)
+      if (.not.is_file('adios_config.xml')) then
+        call pstop('driver_3d'
+     .            ,'ADIOS config file not present')
+      else
+        call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
+        call adios_init('adios_config.xml', adios_err)
+      endif
 #endif
 
 c Initialize calculation
