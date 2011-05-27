@@ -301,8 +301,7 @@ cc        endif
 
 c     find_dr_2nd
 c     #####################################################################
-      function find_dr_2nd(i,j,k,igrid,gparams,x)
-     .         result(dr)
+      function find_dr_2nd(i,j,k,igrid,gparams,x) result(dr)
 
 c     ---------------------------------------------------------------------
 c     This routine finds dx/d_xi tensor at the point (i,j,k)
@@ -704,104 +703,9 @@ c     Begin program
         mgy = gparams%mg_ratio_y(igf)
         mgz = gparams%mg_ratio_z(igf)
 
-cc        x0_j = 0d0
-
-cc        do kc = 1,nzc
-cc          do jc = 1,nyc
-cc            do ic = 1,nxc
-cc
-cc              !Fill inner domain
-cc              volc   = 0d0
-cc              ac     = 0d0
-cc
-cc              do kf = mgz*(kc-1)+1,mgz*kc
-cc                do jf = mgy*(jc-1)+1,mgy*jc
-cc                  do if = mgx*(ic-1)+1,mgx*ic
-cc                    ac   = ac   + xf_j(if,jf,kf)
-cc                    volc = volc + 1d0
-cc                  enddo
-cc                enddo
-cc              enddo
-cc
-cc              xc_j(ic,jc,kc) = ac/volc
-cc
-cc              !Fill face values for extrapolation to ghost cells
-cc              i_off = 0
-cc              j_off = 0
-cc              k_off = 0
-cc
-cc              ac   = 0d0
-cc
-cc              select case(dim)
-cc              case (1)
-cccc                if (ic == 1  .and.nxc /= 1) i_off =-1
-cccc                if (ic == nxc.and.nxc /= 1) i_off = 1
-cc                if (ic == 1  ) i_off =-1
-cc                if (ic == nxc) i_off = 1
-cc
-cc                if (i_off /= 0) then
-cc                  do kf = mgz*(kc-1)+1,mgz*kc
-cc                    do jf = mgy*(jc-1)+1,mgy*jc
-cc                      do if = mgx*(ic-1)+1,mgx*ic
-cc                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
-cc                      enddo
-cc                    enddo
-cc                  enddo
-cc                endif
-cc              case (2)
-cccc                if (jc == 1  .and.nyc /= 1) j_off =-1
-cccc                if (jc == nyc.and.nyc /= 1) j_off = 1
-cc                if (jc == 1  ) j_off =-1
-cc                if (jc == nyc) j_off = 1
-cc
-cc                if (j_off /= 0) then
-cc                  do kf = mgz*(kc-1)+1,mgz*kc
-cc                    do jf = mgy*(jc-1)+1,mgy*jc
-cc                      do if = mgx*(ic-1)+1,mgx*ic
-cc                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
-cc                      enddo
-cc                    enddo
-cc                  enddo
-cc                endif
-cc              case (3)
-cccc                if (kc == 1  .and.nzc /= 1) k_off =-1
-cccc                if (kc == nzc.and.nzc /= 1) k_off = 1
-cc                if (kc == 1  ) k_off =-1
-cc                if (kc == nzc) k_off = 1
-cc
-cc                if (k_off /= 0) then
-cc                  write (*,*) k_off
-cc                  do kf = mgz*(kc-1)+1,mgz*kc
-cc                    do jf = mgy*(jc-1)+1,mgy*jc
-cc                      do if = mgx*(ic-1)+1,mgx*ic
-cc                        ac = ac + xf_j(if+i_off,jf+j_off,kf+k_off)
-cc                      enddo
-cc                    enddo
-cc                  enddo
-cc                endif
-cc              end select
-cc
-cc              x0_j(ic+i_off,jc+j_off,kc+k_off) = ac/volc
-cc            enddo
-cc          enddo
-cc        enddo
-
         do kc = 0,nzc+1
           do jc = 0,nyc+1
             do ic = 0,nxc+1
-
-cc              i_off = 0
-cc              j_off = 0
-cc              k_off = 0
-cc
-cc              if (ic == 0    ) i_off = 1
-cc              if (ic == nxc+1) i_off =-1
-cc
-cc              if (jc == 0    ) j_off = 1
-cc              if (jc == nyc+1) j_off =-1
-cc
-cc              if (kc == 0    ) k_off = 1
-cc              if (kc == nzc+1) k_off =-1
 
               i_off = min(max(ic,1),nxc)-ic
               j_off = min(max(jc,1),nyc)-jc
@@ -820,17 +724,55 @@ cc              if (kc == nzc+1) k_off =-1
                 enddo
               enddo
 
+cc              write (*,*) 'ic,jc,kc,volc',ic,jc,kc,volc
               xc_j(ic,jc,kc) = ac/volc
 
             enddo
           enddo
         enddo
 
+c       Prepare boundaries
+
         x0_j = xc_j
+
+        if ((nxc == 1).and.(dim == 1)) then
+          i=0
+          x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i+1,:,:))
+          i=nxc+1
+          x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i-1,:,:))
+        endif
+
+        if ((nyc == 1).and.(dim == 2)) then
+          j=0
+          x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j+1,:))
+          j=nyc+1
+          x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j-1,:))
+        endif
+
+        if ((nzc == 1).and.(dim == 3)) then
+          k=0
+          x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k+1))
+          k=nzc+1
+          x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k-1))
+        endif
+
+cc        write (*,*) 'x0'
+cc        do jc=0,nyc+1
+cc          write (*,*) x0_j(:,jc,0)
+cc        enddo
+cc        write (*,*)
+cc        pause
 
 c     Fill ghost cells
 
         call map_bc(dim,igc,nxc,nyc,nzc,xc_j,x0_j)
+
+cc        write (*,*) 'xj'
+cc        do jc=0,nyc+1
+cc          write (*,*) xc_j(:,jc,0)
+cc        enddo
+cc        write (*,*)
+cc        pause
 
       end subroutine crse_map_comp
 
@@ -854,13 +796,17 @@ c     Call variables
      .            ,x0_j(0:nxl+1,0:nyl+1,0:nzl+1)
 
         integer,optional,intent(IN) :: iorder
-        integer,optional :: bconds(2)
+        integer,optional :: bconds(6)
 
 c     Local variables
 
         integer :: bcnd(6),iibc,order
 
 c     Begin program
+
+cc        if (    (dim == 1 .and. nxl ==1)
+cc     .      .or.(dim == 2 .and. nyl ==1)
+cc     .      .or.(dim == 3 .and. nzl ==1)) return
 
         if (PRESENT(iorder)) then
           order = iorder
@@ -877,19 +823,21 @@ c     Setup boundary conditions (topological conditions are meaningless for maps
         end where
 
         if (PRESENT(bconds)) then
-          bcnd = DEF
-
-          select case(dim)
-          case(1)
-            bcnd(1:2) = bconds
-          case(2)
-            bcnd(3:4) = bconds
-          case(3)
-            bcnd(5:6) = bconds
-          end select
+cc          bcnd = DEF
+cc
+cc          select case(dim)
+cc          case(1)
+cc            bcnd(1:2) = bconds
+cc          case(2)
+cc            bcnd(3:4) = bconds
+cc          case(3)
+cc            bcnd(5:6) = bconds
+cc          end select
+          bcnd = bconds
 
         else
-          bcnd = EXT
+cc          bcnd = EXT
+          bcnd = bcond
 
           !Force boundaries along dimension
           select case(dim)
@@ -900,6 +848,13 @@ c     Setup boundary conditions (topological conditions are meaningless for maps
           case(3)
             bcnd(5:6) = EQU
           end select
+
+          where(bcnd == DEF) bcnd = EXT
+cc          where(bcnd == DEF) bcnd = EQU
+
+cc          if (nxl == 1) bcnd(1:2) = DEF
+cc          if (nyl == 1) bcnd(3:4) = DEF
+cc          if (nzl == 1) bcnd(5:6) = DEF
         endif
 
 c     Impose BCs
@@ -2114,7 +2069,7 @@ c     #################################################################
       subroutine topol_bc(igrid,nxl,nyl,nzl,array)
 
 c     -----------------------------------------------------------------
-c     !Enforce topological constraints on array
+c     Enforce topological constraints on array
 c     -----------------------------------------------------------------
 
         implicit  none
@@ -2191,7 +2146,7 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: igrmin,igrmax,igrid,istat
+        integer :: igrmin,igrmax,igrid,istat
 
 c     Begin program
 
@@ -2529,8 +2484,8 @@ c     Output
       write(funit,*) '**********************************'
       write(funit,*)
 
-cc      dump_diff = .false.
       dump_diff = anal_map.and.numerical_grid
+cc      dump_diff = .false.
 
       if (dump_diff) then
         write(funit,*)'Analytical mapping available; dumping diffs...'

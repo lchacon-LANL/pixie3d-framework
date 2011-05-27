@@ -14,22 +14,22 @@ c #####################################################################
         integer :: istep=0
 
         !Private variables
-        integer,private :: kx,ky,kz,nx,ny,nz,dim,flg,ag
+        integer,private :: kx,ky,kz,nx,ny,nz,dim,flg,ag,sbcnd(6)
 
         real(8),private :: xsmin,xsmax,ysmin,ysmax,zsmin,zsmax
 
-        real(8),private,dimension(:),allocatable    :: tx,ty,tz,work
-     .                                                ,xs,ys,zs
+        real(8),private,dimension(:),allocatable :: tx,ty,tz,work
+     .                                             ,xs,ys,zs
 
-        real(8),private,dimension(:,:,:),allocatable:: jcoef
-     .                                        ,acoefx,acoefy,acoefz
-     .                                        ,bcoefx,bcoefy,bcoefz
-     .                                        ,xcoefx,xcoefy,xcoefz
-     .                                        ,b2coefx,b2coefz
-     .                                        ,b3coefx,b3coefy
-     .                                        ,bxcarcoef,bycarcoef
-     .                                        ,bzcarcoef
-     .                                        ,fldcoef
+        real(8),private,dimension(:,:,:),pointer:: jcoef   => null()
+     .                                            ,acoefx  => null()
+     .                                            ,acoefy  => null()
+     .                                            ,acoefz  => null()
+     .                                            ,fldcoef => null()
+
+        real(8),private,dimension(:,:,:,:),pointer :: xcoef => null()
+     .                                               ,bcoef => null()
+     .                                               ,bcarcoef => null()
 
       contains
 
@@ -102,20 +102,20 @@ c     Begin program
       ierror = 0
 
       if (x > xsmax) then
-        if (bcond(2) == PER) then   !Periodic BC
+        if (sbcnd(2) == PER) then   !Periodic BC
           if (per_bc) x = xsmin + mod(x-xsmin,(xsmax-xsmin))
         else
           ierror = 1
         endif
       endif
 
-      if (x < 0d0 .and. bcond(1) == SP) then !Singular point BC
+      if (x < 0d0 .and. sbcnd(1) == SP) then !Singular point BC
         x =-x
         y = y + acos(-1d0)
       endif
 
       if (x < xsmin) then
-        if (bcond(1) == PER) then   !Periodic BC
+        if (sbcnd(1) == PER) then   !Periodic BC
           if (per_bc) x = xsmax - mod(xsmin-x,xsmax-xsmin)
         else
           ierror = 1
@@ -123,7 +123,7 @@ c     Begin program
       endif
 
       if (y > ysmax) then
-        if (bcond(4) == PER) then   !Periodic BC
+        if (sbcnd(4) == PER) then   !Periodic BC
           if (per_bc) y = ysmin + mod(y-ysmin,(ysmax-ysmin))
         else
           ierror = 1
@@ -131,7 +131,7 @@ c     Begin program
       endif
 
       if (y < ysmin) then
-        if (bcond(3) == PER) then   !Periodic BC
+        if (sbcnd(3) == PER) then   !Periodic BC
           if (per_bc) y = ysmax - mod(ysmin-y,ysmax-ysmin)
         else
           ierror = 1
@@ -139,7 +139,7 @@ c     Begin program
       endif
 
       if (z > zsmax) then
-        if (bcond(6) == PER) then   !Periodic BC
+        if (sbcnd(6) == PER) then   !Periodic BC
           if (per_bc) z = zsmin + mod(z-zsmin,(zsmax-zsmin))
         else
           ierror = 1
@@ -147,7 +147,7 @@ c     Begin program
       endif
 
       if (z < zsmin) then
-        if (bcond(5) == PER) then   !Periodic BC
+        if (sbcnd(5) == PER) then   !Periodic BC
           if (per_bc) z = zsmax - mod(zsmin-z,zsmax-zsmin)
         else
           ierror = 1
@@ -173,7 +173,7 @@ c     End program
 c     setupSplines
 c     #################################################################
       subroutine setupSplines(nnx,nny,nnz,xx,yy,zz,order
-     .                       ,xmin,xmax,ymin,ymax,zmin,zmax)
+     .                       ,xmin,xmax,ymin,ymax,zmin,zmax,bcnd)
 c     -----------------------------------------------------------------
 c     This routine sets up 3D splines, including allocation of memory
 c     space.
@@ -186,12 +186,19 @@ c     Call variables
       integer :: nnx,nny,nnz,order
       real(8) :: xx(nnx),yy(nny),zz(nnz)
       real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
+      integer,optional :: bcnd(6)
 
 c     Local variables
 
       integer :: alloc_stat,i
 
 c     Begin program
+
+      if (PRESENT(bcnd)) then
+        sbcnd = bcnd
+      else
+        sbcnd = bcond
+      endif
 
 c     Initialize private variables
 
@@ -207,9 +214,9 @@ c     Initialize spline domain arrays
         ys = yy
         zs = zz
 
-        call sp_domain_limits(xs,bcond(1),xsmin,xsmax)
-        call sp_domain_limits(ys,bcond(3),ysmin,ysmax)
-        call sp_domain_limits(zs,bcond(5),zsmin,zsmax)
+        call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+        call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+        call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
 
         xmin = xsmin
         xmax = xsmax
@@ -220,7 +227,7 @@ c     Initialize spline domain arrays
         zmin = zsmin
         zmax = zsmax
 
-cc        if (bcond(1) == PER) then
+cc        if (sbcnd(1) == PER) then
 cc          xmin = xs(2)
 cc          xmax = xs(nx)
 cc        else
@@ -228,7 +235,7 @@ cc          xmin = xs(1)
 cc          xmax = xs(nx)
 cc        endif
 cc
-cc        if (bcond(3) == PER) then
+cc        if (sbcnd(3) == PER) then
 cc          ymin = ys(2)
 cc          ymax = ys(ny)
 cc        else
@@ -236,7 +243,7 @@ cc          ymin = ys(1)
 cc          ymax = ys(ny)
 cc        endif
 cc
-cc        if (bcond(5) == PER) then
+cc        if (sbcnd(5) == PER) then
 cc          zmin = zs(2)
 cc          zmax = zs(nz)
 cc        else
@@ -750,22 +757,21 @@ c     Call variables
 
 c     Local variables
 
-      integer :: alloc_stat,i,j,k
+      integer :: alloc_stat,i
       real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
 
 c     Begin program
 
-      allocate(bcoefx(nx,ny,nz),stat=alloc_stat)
-      call db3ink(xs,nx,ys,ny,zs,nz
-     .           ,bx,nx,ny,kx,ky,kz,tx,ty,tz,bcoefx,work,flg)
+      allocate(bcoef(nx,ny,nz,3),stat=alloc_stat)
 
-      allocate(bcoefy(nx,ny,nz),stat=alloc_stat)
       call db3ink(xs,nx,ys,ny,zs,nz
-     .           ,by,nx,ny,kx,ky,kz,tx,ty,tz,bcoefy,work,flg)
+     .           ,bx,nx,ny,kx,ky,kz,tx,ty,tz,bcoef(:,:,:,1),work,flg)
 
-      allocate(bcoefz(nx,ny,nz),stat=alloc_stat)
       call db3ink(xs,nx,ys,ny,zs,nz
-     .           ,bz,nx,ny,kx,ky,kz,tx,ty,tz,bcoefz,work,flg)
+     .           ,by,nx,ny,kx,ky,kz,tx,ty,tz,bcoef(:,:,:,2),work,flg)
+
+      call db3ink(xs,nx,ys,ny,zs,nz
+     .           ,bz,nx,ny,kx,ky,kz,tx,ty,tz,bcoef(:,:,:,3),work,flg)
 
       end subroutine splineB
 
@@ -789,18 +795,16 @@ c     Local variables
 
 c     Begin program
 
-      allocate(bxcarcoef(nx,ny,nz)
-     .        ,bycarcoef(nx,ny,nz)
-     .        ,bzcarcoef(nx,ny,nz),stat=alloc_stat)
+      allocate(bcarcoef(nx,ny,nz,3),stat=alloc_stat)
 
       call db3ink(xs,nx,ys,ny,zs,nz
-     .           ,bx,nx,ny,kx,ky,kz,tx,ty,tz,bxcarcoef,work,flg)
+     .           ,bx,nx,ny,kx,ky,kz,tx,ty,tz,bcarcoef(:,:,:,1),work,flg)
 
       call db3ink(xs,nx,ys,ny,zs,nz
-     .           ,by,nx,ny,kx,ky,kz,tx,ty,tz,bycarcoef,work,flg)
+     .           ,by,nx,ny,kx,ky,kz,tx,ty,tz,bcarcoef(:,:,:,2),work,flg)
 
       call db3ink(xs,nx,ys,ny,zs,nz
-     .           ,bz,nx,ny,kx,ky,kz,tx,ty,tz,bzcarcoef,work,flg)
+     .           ,bz,nx,ny,kx,ky,kz,tx,ty,tz,bcarcoef(:,:,:,3),work,flg)
 
       end subroutine splineBcar
 
@@ -833,7 +837,7 @@ c     Begin program
 
 c     splineX
 c     #################################################################
-      subroutine splineX(xcar)
+      subroutine splineX(xcar,xcoef_ext)
 c     -----------------------------------------------------------------
 c     This routine splines up the Cartesian map on a
 c     grid of size (nx,ny,nz) with positions xs,ys,zs.
@@ -843,24 +847,35 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      real(8)    :: xcar(nx,ny,nz,3)
+      real(8) :: xcar(nx,ny,nz,3)
+      real(8),optional,INTENT(OUT) :: xcoef_ext(:,:,:,:)
 
 c     Local variables
 
-      integer :: alloc_stat
+      integer :: alloc_stat,i
+      real(8),pointer,dimension(:,:,:,:) :: ext_xcoef,lxcoef
 
 c     Begin program
 
-      allocate(xcoefx(nx,ny,nz),stat=alloc_stat)
-      allocate(xcoefy(nx,ny,nz),stat=alloc_stat)
-      allocate(xcoefz(nx,ny,nz),stat=alloc_stat)
+      if (PRESENT(xcoef_ext)) then
+        allocate(ext_xcoef(nx,ny,nz,3),stat=alloc_stat)
+        lxcoef => ext_xcoef
+      else
+        allocate(xcoef(nx,ny,nz,3),stat=alloc_stat)
+        lxcoef => xcoef
+      endif
 
-      call db3ink(xs,nx,ys,ny,zs,nz,xcar(:,:,:,1)
-     .           ,nx,ny,kx,ky,kz,tx,ty,tz,xcoefx,work,flg)
-      call db3ink(xs,nx,ys,ny,zs,nz,xcar(:,:,:,2)
-     .           ,nx,ny,kx,ky,kz,tx,ty,tz,xcoefy,work,flg)
-      call db3ink(xs,nx,ys,ny,zs,nz,xcar(:,:,:,3)
-     .           ,nx,ny,kx,ky,kz,tx,ty,tz,xcoefz,work,flg)
+      do i=1,3
+        call db3ink(xs,nx,ys,ny,zs,nz,xcar(:,:,:,i)
+     .             ,nx,ny,kx,ky,kz,tx,ty,tz,lxcoef(:,:,:,i),work,flg)
+      enddo
+
+      if (PRESENT(xcoef_ext)) then
+        xcoef_ext = lxcoef
+        deallocate(ext_xcoef)
+      endif
+
+      nullify(lxcoef)
 
 c     End program
 
@@ -1075,11 +1090,11 @@ c     Begin program
       call chk_pos(x1,x2,x3)
 
       bx = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .           ,kx,ky,kz,bcoefx,work)
+     .           ,kx,ky,kz,bcoef(:,:,:,1),work)
       by = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .           ,kx,ky,kz,bcoefy,work)
+     .           ,kx,ky,kz,bcoef(:,:,:,2),work)
       bz = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .           ,kx,ky,kz,bcoefz,work)
+     .           ,kx,ky,kz,bcoef(:,:,:,3),work)
 
       end subroutine evalB
 
@@ -1104,13 +1119,13 @@ c     Begin program
       call chk_pos(x1,x2,x3)
 
       bx = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .            ,kx,ky,kz,bxcarcoef,work)
+     .            ,kx,ky,kz,bcarcoef(:,:,:,1),work)
 
       by = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .            ,kx,ky,kz,bycarcoef,work)
+     .            ,kx,ky,kz,bcarcoef(:,:,:,2),work)
 
       bz = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .            ,kx,ky,kz,bzcarcoef,work)
+     .            ,kx,ky,kz,bcarcoef(:,:,:,3),work)
 
       end subroutine evalBcar
 
@@ -1159,7 +1174,7 @@ c     End program
 
 c     evalX
 c     #################################################################
-      subroutine evalX(x1,x2,x3,x,y,z)
+      subroutine evalX(x1,x2,x3,x,y,z,xcoef_ext)
 c     -----------------------------------------------------------------
 c     This evaluates cartesian position (x,y,z) at logical position
 c     (x1,x2,x3).
@@ -1170,27 +1185,38 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       real(8) :: x,y,z,x1,x2,x3
+      real(8),optional,pointer,INTENT(IN) :: xcoef_ext(:,:,:,:)
 
 c     Local variables
 
+      real(8),pointer :: lxcoef(:,:,:,:)
+
 c     Begin program
+
+      if (PRESENT(xcoef_ext)) then
+        lxcoef => xcoef_ext
+      else
+        lxcoef => xcoef
+      endif
 
       call chk_pos(x1,x2,x3)
 
       x = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .          ,kx,ky,kz,xcoefx,work)
+     .          ,kx,ky,kz,lxcoef(:,:,:,1),work)
 
       y = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .          ,kx,ky,kz,xcoefy,work)
+     .          ,kx,ky,kz,lxcoef(:,:,:,2),work)
 
       z = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .          ,kx,ky,kz,xcoefz,work)
+     .          ,kx,ky,kz,lxcoef(:,:,:,3),work)
+
+      nullify(lxcoef)
 
       end subroutine evalX
 
 c     evalXi
 c     #################################################################
-      subroutine evalXi(ilevel,x,y,z,x1,x2,x3,ierror)
+      subroutine evalXi(ilevel,x,y,z,x1,x2,x3,ierror,xcoef_ext)
 c     -----------------------------------------------------------------
 c     This evaluates logical position (x1,x2,x3) at Cartesian position
 c     (x,y,z). Requires Newton inversion of map x(xi). On input,
@@ -1203,6 +1229,7 @@ c     Call variables
 
       integer :: ilevel,ierror
       real(8) :: x,y,z,x1,x2,x3
+      real(8),optional,pointer,INTENT(IN) :: xcoef_ext(:,:,:,:)
 
 c     Local variables
 
@@ -1215,7 +1242,15 @@ c     Local variables
 
       logical :: prnt
 
+      real(8),pointer :: lxcoef(:,:,:,:)
+
 c     Begin program
+
+      if (PRESENT(xcoef_ext)) then
+        lxcoef => xcoef_ext
+      else
+        lxcoef => xcoef
+      endif
 
       prnt = (my_rank == 0).and.(ilevel > 1)
 
@@ -1240,6 +1275,10 @@ c     Begin program
 
         !Form Jacobian
         JJ = formJacobian(x1,x2,x3)
+
+        if (prnt) write (*,*) 'evalXi -- J(1,:)=',JJ(1,:)
+        if (prnt) write (*,*) 'evalXi -- J(2,:)=',JJ(2,:)
+        if (prnt) write (*,*) 'evalXi -- J(3,:)=',JJ(3,:)
 
         !Find update dxi = JJ^-1(res)
         call blockSolve(size,JJ,icol,res,dxi)
@@ -1299,17 +1338,17 @@ c     ###################################################################
       call chk_pos(x11,x22,x33)
 
       res(1) = x - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,xcoefx,work)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,1),work)
 
       res(2) = y - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,xcoefy,work)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,2),work)
 
       res(3) = z - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,xcoefz,work)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,3),work)
 
-      if (bcond(1) == PER) res(1) = mod(res(1),xsmax-xsmin-0.1*tol)
-      if (bcond(3) == PER) res(2) = mod(res(2),ysmax-ysmin-0.1*tol)
-      if (bcond(5) == PER) res(3) = mod(res(3),zsmax-zsmin-0.1*tol)
+      if (sbcnd(1) == PER) res(1) = mod(res(1),xsmax-xsmin-0.1*tol)
+      if (sbcnd(3) == PER) res(2) = mod(res(2),ysmax-ysmin-0.1*tol)
+      if (sbcnd(5) == PER) res(3) = mod(res(3),zsmax-zsmin-0.1*tol)
 
       end function formResidual
 
@@ -1330,25 +1369,25 @@ c     ###################################################################
       call chk_pos(x11,x22,x33)
 
       JJ(1,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,xcoefx,work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,1),work)
       JJ(1,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,xcoefx,work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,1),work)
       JJ(1,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,xcoefx,work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,1),work)
 
       JJ(2,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,xcoefy,work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,2),work)
       JJ(2,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,xcoefy,work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,2),work)
       JJ(2,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,xcoefy,work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,2),work)
 
       JJ(3,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,xcoefz,work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,3),work)
       JJ(3,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,xcoefz,work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,3),work)
       JJ(3,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,xcoefz,work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,3),work)
 
       end function formJacobian
 
@@ -1471,7 +1510,7 @@ c     Begin program
 
 c     splineFld
 c     #################################################################
-      subroutine splineFld(fld)
+      subroutine splineFld(fld,fcoef_ext)
 c     -----------------------------------------------------------------
 c     This routine splines up a user-input field on a mesh
 c     of size (nx,ny,nz) with positions xs,ys,zs.
@@ -1482,23 +1521,32 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       real(8) :: fld(nx,ny,nz)
+      real(8),optional,pointer,INTENT(OUT) :: fcoef_ext(:,:,:)
 
 c     Local variables
 
-      integer :: alloc_stat,i
+      real(8),pointer,dimension(:,:,:) :: lfcoef => null()
 
 c     Begin program
 
-      allocate(fldcoef(nx,ny,nz),stat=alloc_stat)
+      if (PRESENT(fcoef_ext)) then
+        lfcoef => fcoef_ext
+      else
+        if (.not.associated(fldcoef)) allocate(fldcoef(nx,ny,nz))
+        lfcoef => fldcoef
+      endif
 
       call db3ink(xs,nx,ys,ny,zs,nz
-     .           ,fld,nx,ny,kx,ky,kz,tx,ty,tz,fldcoef,work,flg)
+     .           ,fld,nx,ny,kx,ky,kz,tx,ty,tz,lfcoef,work,flg)
+
+
+      nullify(lfcoef)
 
       end subroutine splineFld
 
 c     evalFld
 c     #################################################################
-      function evalFld(x1,x2,x3,ierror) result(ff)
+      function evalFld(x1,x2,x3,ierror,fcoef_ext) result(ff)
 c     -----------------------------------------------------------------
 c     This evaluates a user-input positive-definite field at logical
 c     position (x1,x2,x3).
@@ -1510,15 +1558,28 @@ c     Call variables
 
       integer :: ierror
       real(8) :: x1,x2,x3,ff
+      real(8),optional,pointer,INTENT(IN) :: fcoef_ext(:,:,:)
 
 c     Local variables
 
+      real(8),pointer :: lfcoef(:,:,:)
+
 c     Begin program
+
+      if (PRESENT(fcoef_ext)) then
+        lfcoef => fcoef_ext
+      else
+        lfcoef => fldcoef
+      endif
+
+      ierror = 0
 
       call chk_pos(x1,x2,x3)
 
       ff = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .            ,kx,ky,kz,fldcoef,work)
+     .           ,kx,ky,kz,lfcoef,work)
+
+      nullify(lfcoef)
 
       end function evalFld
 
@@ -1537,9 +1598,8 @@ c     Begin program
 
       deallocate(work,tx,ty,tz,xs,ys,zs,stat=alloc_stat)
       deallocate(acoefx,acoefy,acoefz,stat=alloc_stat)
-      deallocate(jcoef,xcoefx,xcoefy,xcoefz,stat=alloc_stat)
-      deallocate(b2coefx,b2coefz,b3coefx,b3coefy,stat=alloc_stat)
-      deallocate(bcoefx,bcoefy,bcoefz,stat=alloc_stat)
+      deallocate(jcoef,xcoef,stat=alloc_stat)
+      deallocate(bcoef,bcarcoef,stat=alloc_stat)
       deallocate(fldcoef,stat=alloc_stat)
 
 c     End programs

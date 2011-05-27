@@ -16,13 +16,15 @@ c ******************************************************************
 
       use grid
 
+      use mk, ONLY: mk_relax_init_grid
+
 c Common variables
 
       implicit none
 
 c Local variables
 
-      integer    :: prec_tot,ierr,perr,prof_stage(3)
+      integer    :: prec_tot,ierr,perr,prof_stage(3),offset
       real(8)    :: time1,time2,time3,time4
 
 c Interfaces
@@ -47,6 +49,14 @@ c Interfaces
         use variable_setup
         type(var_array),pointer :: v_arr
         end subroutine postProcessSol
+      END INTERFACE
+
+      INTERFACE
+        subroutine get_src(varray,spline)
+        use variable_setup
+        logical :: spline
+        type(var_array),pointer :: varray
+        end subroutine get_src
       END INTERFACE
 
 c Begin program
@@ -111,6 +121,9 @@ c Time loop
       call PetscLogStagePush(prof_stage(3),perr)
 #endif
 
+      offset = 0
+      if (mk_relax_init_grid) offset = 1
+
       do
 
         itime = itime + 1
@@ -125,9 +138,9 @@ c     Find new time step
      .     .or.(timecorr.and.ierr.eq.0.and.itime.eq.1)   !First explicit step if timecorr
      .     ) then
           call findExplicitDt
-          call correctTimeStep(itime,ierr,dt_exp=dt)
+          call correctTimeStep(itime-offset,ierr,dt_exp=dt)
         else
-          call correctTimeStep(itime,ierr)
+          call correctTimeStep(itime-offset,ierr)
         endif
 
 c     Assign old time solution
@@ -143,7 +156,9 @@ c     Time update
         call PetscLogStagePush(prof_stage(2),perr)
 #endif
 
-        time   = time  + dt
+        if (.not.mk_relax_init_grid) then
+          time = time + dt
+        endif
 
         call timeStep(u_n,u_np,ierr)
 
@@ -187,8 +202,10 @@ c     Postprocess solution
 
 c     Update counters (only if timeStep is successful)
 
-        tmrst  = tmrst + dt
-        nrst   = nrst  + 1
+        if (.not.mk_relax_init_grid) then
+          tmrst  = tmrst + dt
+          nrst   = nrst  + 1
+        endif
 
 c     Output per time step
 
@@ -197,16 +214,21 @@ c     Output per time step
 c     Time level data dump
 
 #if defined(RFX)
-        if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
+        if (nrst.eq.ndstep.or.tmrst.ge.dstep
 #else
-        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep) then
+        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep
 #endif
-          nrst  = 0
-          if (itime.gt.0) tmrst = tmrst - dstep
+     .      .or.mk_relax_init_grid) then
+          if (.not.mk_relax_init_grid) nrst  = 0
+          if(itime.gt.0.and.(.not.mk_relax_init_grid)) tmrst=tmrst-dstep
           call writeRecordFile(urecord,itime,time,dt,u_np)
         endif
 
         if (eigen) exit
+        if (mk_relax_init_grid) then
+          mk_relax_init_grid = .false.
+cc          if (source) call get_src(u_np,.true.)  !Update source with equilibrium
+        endif
 
       enddo       !End of time loop
 
@@ -281,6 +303,8 @@ c----------------------------------------------------------------------
 
       use eigen_mod
 
+cc      use mk
+
       implicit none
 
 c Call variables
@@ -313,14 +337,14 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine applyPreconditioner(n,x,y,out)
+        subroutine applyPC(n,x,y,out)
         integer :: n,out
         real(8),dimension(n) :: x,y
         end subroutine
       END INTERFACE
 
       INTERFACE
-        subroutine applyBC (varray,iigx,iigy,iigz,obc)
+        subroutine applyBC(varray,iigx,iigy,iigz,obc)
         use variable_setup
         integer    :: iigx,iigy,iigz
         integer,optional :: obc
@@ -375,7 +399,7 @@ cc#endif
         iguess = 1
         call lehoucq_eig(ntotd,x,iguess,ilevel,ierr
      .                  ,matrixFreeMatVec
-     .                  ,applyPreconditioner
+     .                  ,applyPC
      .                  ,ldot=dot2)
 
         select case(ierr)
@@ -452,7 +476,9 @@ c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
           call mapVectorToStructure(vnp,x)
+
           call applyBC(vnp,1,1,1)
+
           if (predictor) call storeTSinfo(vn,vnp)
         endif
 

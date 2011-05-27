@@ -11,7 +11,8 @@ SUBDIRS = $(COMMONDIR)/math\
 	  $(COMMONDIR)/io\
 	  $(COMMONDIR)/grid\
 	  $(COMMONDIR)/var_setup\
-	  $(COMMONDIR)/driver_setup
+	  $(COMMONDIR)/driver_setup\
+	  $(COMMONDIR)/mk
 
 #Define dependencies
 

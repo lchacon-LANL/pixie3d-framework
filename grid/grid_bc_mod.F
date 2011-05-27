@@ -457,15 +457,15 @@ c #####################################################################
           module procedure quad_int_0,quad_int_1,quad_int_2
         end INTERFACE
 
-        integer    :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
-        integer    :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
+        integer  :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
+        integer  :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
 
-        integer   ,private :: bctype
+        integer,private :: bctype
 
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
         ! important for colored diagonal formation)
-        integer   ,private :: order=1
+        integer,private :: order=1
 
         private :: setASMflags
 
@@ -846,12 +846,12 @@ c     Local variables
 
 c     Begin program
 
-c     Initialize interpolation order
+c     Initialize interpolation order (else use last set)
 
       if (PRESENT(iorder)) then
         order = iorder
-      else
-        order = 1
+cc      else
+cc        order = 1
       endif
 
 c     Initialize BC grid quantities
@@ -1118,12 +1118,12 @@ c     Begin program
         to_cnv = .false.
       endif
 
-c     Initialize interpolation order
+c     Initialize interpolation order (else use last set)
 
       if (PRESENT(iorder)) then
         order = iorder
-      else
-        order = 1
+cc      else
+cc        order = 1
       endif
 
 c     Initialize BC grid quantities

@@ -94,16 +94,6 @@ c       Profiles (selects same profiles as contour plots except vector plots)
             endif
           enddo
 
-cc          where (graph(igroup)%array_graph(:)%descr) /= '')
-cc            prof_desc(igroup,:) = 'Prof '
-cc     .                      // graph(igroup)%array_graph(:)%descr
-cc          elsewhere
-cc            prof_desc(igroup,:) = ''
-cc          end where
-cc        enddo
-cc
-cc        do igroup=1,ngroups
-
           nplots = count (sel_gr(igroup,:) /= 0)
           prof_label = 'Profiles '//graph(igroup)%descr
 

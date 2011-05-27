@@ -82,78 +82,6 @@ c     End program
 
       end function grad_vrtx
 
-ccc     grad_vrtx
-ccc     ##################################################################
-cc      function grad_vrtx(i,j,k,igx,igy,igz,phi) result(grd)
-cc
-ccc     ------------------------------------------------------------------
-ccc     Calculates gradient at vertex (i+1/2,j+1/2,k+1/2) from scalar
-ccc     defined at surrounding cell centers
-ccc     ------------------------------------------------------------------
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer :: i,j,k,igx,igy,igz
-cc      real(8) :: phi(2,2,2),grd(3)
-cc
-ccc     Local variables
-cc
-cc      integer :: ig,jg,kg,ip,i0,jp,j0,kp,k0,nx,ny,nz
-cc      real(8) :: idhx,idhy,idhz,fp,fm
-cc
-ccc     Begin program
-cc
-cc      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-cc
-cc      idhx = 0d0
-cc      idhy = 0d0
-cc      idhz = 0d0
-cc
-cc      nx = grid_params%nxgl(igx)
-cc      ny = grid_params%nygl(igy)
-cc      nz = grid_params%nzgl(igz)
-cc
-cc      if (nx > 1) idhx = 1d0/grid_params%dx(ig)
-cc      if (ny > 1) idhy = 1d0/grid_params%dy(jg)
-cc      if (nz > 1) idhz = 1d0/grid_params%dz(kg)
-cc
-cc      ip = 2
-cc      i0 = 1
-cc      jp = 2
-cc      j0 = 1
-cc      kp = 2
-cc      k0 = 1
-cc
-cc      !X component
-cc      fp = 0.25*(phi(ip,j0,k0)+phi(ip,jp,k0)
-cc     .          +phi(ip,j0,kp)+phi(ip,jp,kp))
-cc      fm = 0.25*(phi(i0,j0,k0)+phi(i0,jp,k0)
-cc     .          +phi(i0,j0,kp)+phi(i0,jp,kp))
-cc
-cc      grd(1) = (fp-fm)*idhx
-cc
-cc      !Y component
-cc      fp = 0.25*(phi(i0,jp,k0)+phi(ip,jp,k0)
-cc     .          +phi(i0,jp,kp)+phi(ip,jp,kp))
-cc      fm = 0.25*(phi(i0,j0,k0)+phi(ip,j0,k0)
-cc     .          +phi(i0,j0,kp)+phi(ip,j0,kp))
-cc
-cc      grd(2) = (fp-fm)*idhy
-cc
-cc      !Z component
-cc      fp = 0.25*(phi(ip,j0,kp)+phi(i0,j0,kp)
-cc     .          +phi(ip,jp,kp)+phi(i0,jp,kp))
-cc      fm = 0.25*(phi(ip,j0,k0)+phi(i0,j0,k0)
-cc     .          +phi(ip,jp,k0)+phi(i0,jp,k0))
-cc
-cc      grd(3) = (fp-fm)*idhz
-cc
-ccc     End program
-cc
-cc      end function grad_vrtx
-
 c     curl_vrtx
 c     ##################################################################
       function curl_vrtx(i,j,k,igx,igy,igz,vv,vrtx) result(cnv)
@@ -340,7 +268,7 @@ c     End program
 
 c     lap_vrtx
 c     ###############################################################
-      function lap_vrtx(i,j,k,nx,ny,nz,igx,igy,igz,aa,vol,enf_bc)
+      function lap_vrtx(i,j,k,nx,ny,nz,igx,igy,igz,aa,vol)
      .         result(lap)
 
 c     ---------------------------------------------------------------
@@ -357,7 +285,7 @@ c     Call variables
 
       real(8)    :: aa(0:nx+1,0:ny+1,0:nz+1),lap
 
-      logical,optional,intent(IN) :: vol,enf_bc
+      logical,optional,intent(IN) :: vol
 
 c     Local variables
 
@@ -373,12 +301,6 @@ c     Begin program
         vol_wgt = vol
       else
         vol_wgt = .false.
-      endif
-
-      if (PRESENT(enf_bc)) then
-        enfbc = enf_bc
-      else
-        enfbc = .false.
       endif
 
 c     Gradient at vertices
@@ -400,17 +322,6 @@ c     Gradient at vertices
           enddo
         enddo
       enddo
-
-      if (enfbc) then
-        if (isBdry(i,igx,1).and.(bcond(1) /= PER)) cnv(1,:,:,1)=0d0
-        if (isBdry(i,igx,2).and.(bcond(2) /= PER)) cnv(2,:,:,1)=0d0
-
-        if (isBdry(j,igy,3).and.(bcond(3) /= PER)) cnv(:,1,:,2)=0d0
-        if (isBdry(j,igy,4).and.(bcond(4) /= PER)) cnv(:,2,:,2)=0d0
-
-        if (isBdry(k,igz,5).and.(bcond(5) /= PER)) cnv(:,:,1,3)=0d0
-        if (isBdry(k,igz,6).and.(bcond(6) /= PER)) cnv(:,:,2,3)=0d0
-      endif
 
 c     Divergence at cell centers
 
@@ -724,6 +635,79 @@ cc        j0 = 1
 cc        kp = 2
 cc        k0 = 1
 cccc      endif
+cc
+cc      !X component
+cc      fp = 0.25*(phi(ip,j0,k0)+phi(ip,jp,k0)
+cc     .          +phi(ip,j0,kp)+phi(ip,jp,kp))
+cc      fm = 0.25*(phi(i0,j0,k0)+phi(i0,jp,k0)
+cc     .          +phi(i0,j0,kp)+phi(i0,jp,kp))
+cc
+cc      grd(1) = (fp-fm)*idhx
+cc
+cc      !Y component
+cc      fp = 0.25*(phi(i0,jp,k0)+phi(ip,jp,k0)
+cc     .          +phi(i0,jp,kp)+phi(ip,jp,kp))
+cc      fm = 0.25*(phi(i0,j0,k0)+phi(ip,j0,k0)
+cc     .          +phi(i0,j0,kp)+phi(ip,j0,kp))
+cc
+cc      grd(2) = (fp-fm)*idhy
+cc
+cc      !Z component
+cc      fp = 0.25*(phi(ip,j0,kp)+phi(i0,j0,kp)
+cc     .          +phi(ip,jp,kp)+phi(i0,jp,kp))
+cc      fm = 0.25*(phi(ip,j0,k0)+phi(i0,j0,k0)
+cc     .          +phi(ip,jp,k0)+phi(i0,jp,k0))
+cc
+cc      grd(3) = (fp-fm)*idhz
+cc
+ccc     End program
+cc
+cc      end function grad_vrtx
+cc
+
+ccc     grad_vrtx
+ccc     ##################################################################
+cc      function grad_vrtx(i,j,k,igx,igy,igz,phi) result(grd)
+cc
+ccc     ------------------------------------------------------------------
+ccc     Calculates gradient at vertex (i+1/2,j+1/2,k+1/2) from scalar
+ccc     defined at surrounding cell centers
+ccc     ------------------------------------------------------------------
+cc
+cc      implicit none
+cc
+ccc     Call variables
+cc
+cc      integer :: i,j,k,igx,igy,igz
+cc      real(8) :: phi(2,2,2),grd(3)
+cc
+ccc     Local variables
+cc
+cc      integer :: ig,jg,kg,ip,i0,jp,j0,kp,k0,nx,ny,nz
+cc      real(8) :: idhx,idhy,idhz,fp,fm
+cc
+ccc     Begin program
+cc
+cc      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+cc
+cc      idhx = 0d0
+cc      idhy = 0d0
+cc      idhz = 0d0
+cc
+cc      nx = grid_params%nxgl(igx)
+cc      ny = grid_params%nygl(igy)
+cc      nz = grid_params%nzgl(igz)
+cc
+cc      if (nx > 1) idhx = 1d0/grid_params%dx(ig)
+cc      if (ny > 1) idhy = 1d0/grid_params%dy(jg)
+cc      if (nz > 1) idhz = 1d0/grid_params%dz(kg)
+cc
+cc      ip = 2
+cc      i0 = 1
+cc      jp = 2
+cc      j0 = 1
+cc      kp = 2
+cc      k0 = 1
 cc
 cc      !X component
 cc      fp = 0.25*(phi(ip,j0,k0)+phi(ip,jp,k0)
@@ -1175,9 +1159,6 @@ c     Begin program
       do k=0,nz+1
         do j=0,ny+1
           do i=0,nx+1
-cc      do k=1,nz
-cc        do j=1,ny
-cc          do i=1,nx
             cnv(i,j,k,:)=curl_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,cov)
           enddo
         enddo
@@ -1507,9 +1488,9 @@ c     Calculate gradient
 
       end function gradDiv
 
-c     lap_diff
+c     lap_diff_old
 c     ###############################################################
-      function lap_diff(i,j,k,nx,ny,nz,igx,igy,igz,arr,dff,vol)
+      function lap_diff_old(i,j,k,nx,ny,nz,igx,igy,igz,arr,dff,vol)
      .         result (laplacian)
 c     ---------------------------------------------------------------
 c     Calculates div(dff grad(arr)) at cell centers in general non-orthog.
@@ -1681,11 +1662,315 @@ cc     .                      *gmetric%grid(igx)%dvol(i,j,k)
 
 c     End program
 
+      end function lap_diff_old
+
+c     lap_diff
+c     ###############################################################
+      function lap_diff(i,j,k,nx,ny,nz,igx,igy,igz,arr,dff,vol)
+c     ---------------------------------------------------------------
+c     Calculates div(dff grad(arr)) at cell centers in general non-orthog.
+c     coordinates, preserving the SPD property.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+
+      real(8)    :: arr(0:nx+1,0:ny+1,0:nz+1),lap_diff
+
+      real(8)    :: dff(0:nx+1,0:ny+1,0:nz+1)
+
+      logical,optional,intent(IN) :: vol
+
+c     Local variables
+
+      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg,igrid
+
+      real(8)    :: d_xx_ip,d_xx_im,d_yy_jp,d_yy_jm,d_zz_kp,d_zz_km
+     .             ,d_xy_ipjp,d_xy_ipjm,d_xy_imjp,d_xy_imjm
+     .             ,d_xz_ipkp,d_xz_ipkm,d_xz_imkp,d_xz_imkm
+     .             ,d_yz_jpkp,d_yz_jpkm,d_yz_jmkp,d_yz_jmkm
+     .             ,flxip,flxim,flxjp,flxjm,flxkp,flxkm
+
+      real(8),dimension(:,:,:,:,:),pointer :: gsup
+
+      logical    :: vol_wgt
+
+c     Begin program
+
+      vol_wgt = .false.
+      if (PRESENT(vol)) vol_wgt = vol
+
+      igrid = igx
+
+      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+      ip = i+1
+      im = i-1
+      jp = j+1
+      jm = j-1
+      kp = k+1
+      km = k-1
+
+      !Average metrics (defined at vertices)
+      gsup => gmetric%grid(igrid)%gsup_v
+
+      d_xx_ip = 0.25*(gsup(i ,j ,k ,1,1)
+     .               +gsup(i ,jm,k ,1,1)
+     .               +gsup(i ,j ,km,1,1)
+     .               +gsup(i ,jm,km,1,1))
+      d_xx_im = 0.25*(gsup(im,j ,k ,1,1)
+     .               +gsup(im,jm,k ,1,1)
+     .               +gsup(im,j ,km,1,1)
+     .               +gsup(im,jm,km,1,1))
+
+      d_yy_jp = 0.25*(gsup(i ,j ,k ,2,2)
+     .               +gsup(im,j ,k ,2,2)
+     .               +gsup(i ,j ,km,2,2)
+     .               +gsup(im,j ,km,2,2))
+      d_yy_jm = 0.25*(gsup(i ,jm,k ,2,2)
+     .               +gsup(im,jm,k ,2,2)
+     .               +gsup(i ,jm,km,2,2)
+     .               +gsup(im,jm,km,2,2))
+
+      d_zz_kp = 0.25*(gsup(i ,j ,k ,3,3)
+     .               +gsup(im,j ,k ,3,3)
+     .               +gsup(i ,jm,k ,3,3)
+     .               +gsup(im,jm,k ,3,3))
+      d_zz_km = 0.25*(gsup(i ,j ,km,3,3)
+     .               +gsup(im,j ,km,3,3)
+     .               +gsup(i ,jm,km,3,3)
+     .               +gsup(im,jm,km,3,3))
+
+      d_xy_ipjp = 0.5*(gsup(i ,j ,k ,1,2)
+     .                +gsup(i ,j ,km,1,2))
+      d_xy_ipjm = 0.5*(gsup(i ,jm,k ,1,2)
+     .                +gsup(i ,jm,km,1,2))
+      d_xy_imjp = 0.5*(gsup(im,j ,k ,1,2)
+     .                +gsup(im,j ,km,1,2))
+      d_xy_imjm = 0.5*(gsup(im,jm,k ,1,2)
+     .                +gsup(im,jm,km,1,2))
+                       
+      d_xz_ipkp = 0.5*(gsup(i ,j ,k ,1,3)
+     .                +gsup(i ,jm,k ,1,3))
+      d_xz_ipkm = 0.5*(gsup(i ,j ,km,1,3)
+     .                +gsup(i ,jm,km,1,3))
+      d_xz_imkp = 0.5*(gsup(im,j ,k ,1,3)
+     .                +gsup(im,jm,k ,1,3))
+      d_xz_imkm = 0.5*(gsup(im,j ,km,1,3)
+     .                +gsup(im,jm,km,1,3))
+                       
+      d_yz_jpkp = 0.5*(gsup(i ,j ,k ,2,3)
+     .                +gsup(im,j ,k ,2,3))
+      d_yz_jpkm = 0.5*(gsup(i ,j ,km,2,3)
+     .                +gsup(im,j ,km,2,3))
+      d_yz_jmkp = 0.5*(gsup(i ,jm,k ,2,3)
+     .                +gsup(im,jm,k ,2,3))
+      d_yz_jmkm = 0.5*(gsup(i ,jm,km,2,3)
+     .                +gsup(im,jm,km,2,3))
+
+      !Add diffusion coefficient (defined at cell centers)
+      d_xx_ip = 0.5*(dff(i ,j,k)+dff(ip,j,k))*d_xx_ip
+      d_xx_im = 0.5*(dff(i ,j,k)+dff(im,j,k))*d_xx_im
+      d_yy_jp = 0.5*(dff(i,j ,k)+dff(i,jp,k))*d_yy_jp
+      d_yy_jm = 0.5*(dff(i,j ,k)+dff(i,jm,k))*d_yy_jm
+      d_zz_kp = 0.5*(dff(i,j,k )+dff(i,j,kp))*d_zz_kp
+      d_zz_km = 0.5*(dff(i,j,k )+dff(i,j,km))*d_zz_km
+
+      d_xy_ipjp = 0.25*(dff(i ,j ,k)
+     .                 +dff(ip,j ,k)
+     .                 +dff(i ,jp,k)
+     .                 +dff(ip,jp,k))*d_xy_ipjp
+      d_xy_ipjm = 0.25*(dff(i ,j ,k)          
+     .                 +dff(ip,j ,k)          
+     .                 +dff(i ,jm,k)          
+     .                 +dff(ip,jm,k))*d_xy_ipjm
+      d_xy_imjp = 0.25*(dff(i ,j ,k)          
+     .                 +dff(im,j ,k)          
+     .                 +dff(i ,jp,k)          
+     .                 +dff(im,jp,k))*d_xy_imjp
+      d_xy_imjm = 0.25*(dff(i ,j ,k)          
+     .                 +dff(im,j ,k)          
+     .                 +dff(i ,jm,k)          
+     .                 +dff(im,jm,k))*d_xy_imjm
+                                              
+      d_xz_ipkp = 0.25*(dff(i ,j,k )          
+     .                 +dff(ip,j,k )          
+     .                 +dff(i ,j,kp)          
+     .                 +dff(ip,j,kp))*d_xz_ipkp
+      d_xz_ipkm = 0.25*(dff(i ,j,k )           
+     .                 +dff(ip,j,k )           
+     .                 +dff(i ,j,km)           
+     .                 +dff(ip,j,km))*d_xz_ipkm
+      d_xz_imkp = 0.25*(dff(i ,j,k )           
+     .                 +dff(im,j,k )           
+     .                 +dff(i ,j,kp)           
+     .                 +dff(im,j,kp))*d_xz_imkp
+      d_xz_imkm = 0.25*(dff(i ,j,k )           
+     .                 +dff(im,j,k )           
+     .                 +dff(i ,j,km)           
+     .                 +dff(im,j,km))*d_xz_imkm
+                                              
+      d_yz_jpkp = 0.25*(dff(i,j ,k )          
+     .                 +dff(i,jp,k )          
+     .                 +dff(i,j ,kp)          
+     .                 +dff(i,jp,kp))*d_yz_jpkp
+      d_yz_jpkm = 0.25*(dff(i,j ,k )           
+     .                 +dff(i,jp,k )           
+     .                 +dff(i,j ,km)           
+     .                 +dff(i,jp,km))*d_yz_jpkm
+      d_yz_jmkp = 0.25*(dff(i,j ,k )           
+     .                 +dff(i,jm,k )           
+     .                 +dff(i,j ,kp)           
+     .                 +dff(i,jm,kp))*d_yz_jmkp
+      d_yz_jmkm = 0.25*(dff(i,j ,k )           
+     .                 +dff(i,jm,k )           
+     .                 +dff(i,j ,km)           
+     .                 +dff(i,jm,km))*d_yz_jmkm
+
+      flxip = d_xx_ip  *(arr(ip,j ,k)-arr(i,j ,k))/grid_params%dx(ig)
+     .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
+     .                  -arr(ip,j ,k)-arr(i,j ,k))/grid_params%dy(jg)
+     .  +     d_xy_ipjm*(arr(ip,j ,k)+arr(i,j ,k)               
+     .                  -arr(ip,jm,k)-arr(i,jm,k))/grid_params%dy(jg-1)
+     .  +     d_xz_ipkp*(arr(ip,j,kp)+arr(i,j,kp)               
+     .                  -arr(ip,j,k )-arr(i,j,k ))/grid_params%dz(kg)
+     .  +     d_xz_ipkm*(arr(ip,j,k )+arr(i,j,k )               
+     .                  -arr(ip,j,km)-arr(i,j,km))/grid_params%dz(kg-1))
+                                                                     
+      flxim =-d_xx_im  *(arr(im,j ,k)-arr(i,j ,k))/grid_params%dx(ig-1)
+     .  +.25*(d_xy_imjp*(arr(im,jp,k)+arr(i,jp,k)               
+     .                  -arr(im,j ,k)-arr(i,j ,k))/grid_params%dy(jg)
+     .  +     d_xy_imjm*(arr(im,j ,k)+arr(i,j ,k)               
+     .                  -arr(im,jm,k)-arr(i,jm,k))/grid_params%dy(jg-1)
+     .  +     d_xz_imkp*(arr(im,j,kp)+arr(i,j,kp)               
+     .                  -arr(im,j,k )-arr(i,j,k ))/grid_params%dz(kg)
+     .  +     d_xz_imkm*(arr(im,j,k )+arr(i,j,k )               
+     .                  -arr(im,j,km)-arr(i,j,km))/grid_params%dz(kg-1))
+                                                                     
+      flxjp = d_yy_jp  *(arr(i ,jp,k)-arr(i ,j,k))/grid_params%dy(jg)
+     .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(ip,j,k)               
+     .                 -arr(i ,jp,k)-arr(i ,j,k))/grid_params%dx(ig)
+     .  +     d_xy_imjp*(arr(i ,jp,k)+arr(i ,j,k)               
+     .                  -arr(im,jp,k)-arr(im,j,k))/grid_params%dx(ig-1)
+     .  +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,j,kp)               
+     .                  -arr(i,jp,k )-arr(i,j,k ))/grid_params%dz(kg)
+     .  +     d_yz_jpkm*(arr(i,jp,k )+arr(i,j,k )               
+     .                  -arr(i,jp,km)-arr(i,j,km))/grid_params%dz(kg-1))
+                                                                     
+      flxjm =-d_yy_jm  *(arr(i ,jm,k)-arr(i ,j,k))/grid_params%dy(jg-1)
+     .  +.25*(d_xy_ipjm*(arr(ip,jm,k)+arr(ip,j,k)               
+     .                  -arr(i ,jm,k)-arr(i ,j,k))/grid_params%dx(ig)
+     .  +     d_xy_imjm*(arr(i ,jm,k)+arr(i ,j,k)               
+     .                  -arr(im,jm,k)-arr(im,j,k))/grid_params%dx(ig-1)
+     .  +     d_yz_jmkp*(arr(i,jm,kp)+arr(i,j,kp)               
+     .                  -arr(i,jm,k )-arr(i,j,k ))/grid_params%dz(kg)
+     .  +     d_yz_jmkm*(arr(i,jm,k )+arr(i,j,k )               
+     .                  -arr(i,jm,km)-arr(i,j,km))/grid_params%dz(kg-1))
+                                                                     
+      flxkp = d_zz_kp  *(arr(i ,j,kp)-arr(i ,j,k))/grid_params%dz(kg)
+     .  +.25*(d_xz_ipkp*(arr(ip,j,kp)+arr(ip,j,k)               
+     .                  -arr(i ,j,kp)-arr(i ,j,k))/grid_params%dx(ig)
+     .  +     d_xz_imkp*(arr(i ,j,kp)+arr(i ,j,k)               
+     .                  -arr(im,j,kp)-arr(im,j,k))/grid_params%dx(ig-1)
+     .  +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,jp,k)               
+     .                  -arr(i,j ,kp)-arr(i,j ,k))/grid_params%dy(jg)
+     .  +     d_yz_jmkp*(arr(i,j ,kp)+arr(i,j ,k)               
+     .                  -arr(i,jm,kp)-arr(i,jm,k))/grid_params%dy(jg-1))
+                                                                     
+      flxkm =-d_zz_km  *(arr(i ,j,km)-arr(i ,j,k))/grid_params%dz(kg)
+     .  +.25*(d_xz_ipkm*(arr(ip,j,km)+arr(ip,j,k)               
+     .                 -arr(i ,j,km)-arr(i ,j,k))/grid_params%dx(ig)
+     .  +     d_xz_imkm*(arr(i ,j,km)+arr(i ,j,k)               
+     .                  -arr(im,j,km)-arr(im,j,k))/grid_params%dx(ig-1)
+     .  +     d_yz_jpkm*(arr(i,jp,km)+arr(i,jp,k)               
+     .                  -arr(i,j ,km)-arr(i,j ,k))/grid_params%dy(jg)
+     .  +     d_yz_jmkm*(arr(i,j ,km)+arr(i,j ,k)               
+     .                  -arr(i,jm,km)-arr(i,jm,k))/grid_params%dy(jg-1))
+
+      lap_diff= ((flxip -flxim)/grid_params%dxh(ig)
+     .          +(flxjp -flxjm)/grid_params%dyh(jg)
+     .          +(flxkp -flxkm)/grid_params%dzh(kg))
+     .          /gmetric%grid(igx)%jac(i,j,k)
+
+      if (vol_wgt) lap_diff=lap_diff*gmetric%grid(igx)%dvol(i,j,k)
+cc
+cc      flxip =  d_xx_ip  *(arr(ip,j ,k)-arr(i,j ,k))/grid_params%dx(ig)
+cc     .   +0.25*d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
+cc     .                   -arr(ip,j ,k)-arr(i,j ,k))/grid_params%dy(jg)
+cc     .   +0.25*d_xy_ipjm*(arr(ip,j ,k)+arr(i,j ,k)               
+cc     .                   -arr(ip,jm,k)-arr(i,jm,k))/grid_params%dy(jg-1)
+cc     .   +0.25*d_xz_ipkp*(arr(ip,j,kp)+arr(i,j,kp)               
+cc     .                   -arr(ip,j,k )-arr(i,j,k ))/grid_params%dz(kg)
+cc     .   +0.25*d_xz_ipkm*(arr(ip,j,k )+arr(i,j,k )               
+cc     .                   -arr(ip,j,km)-arr(i,j,km))/grid_params%dz(kg-1)
+cc                                                                     
+cc      flxim = -d_xx_im  *(arr(im,j ,k)-arr(i,j ,k))/grid_params%dx(ig-1)
+cc     .   +0.25*d_xy_imjp*(arr(im,jp,k)+arr(i,jp,k)               
+cc     .                   -arr(im,j ,k)-arr(i,j ,k))/grid_params%dy(jg)
+cc     .   +0.25*d_xy_imjm*(arr(im,j ,k)+arr(i,j ,k)               
+cc     .                   -arr(im,jm,k)-arr(i,jm,k))/grid_params%dy(jg-1)
+cc     .   +0.25*d_xz_imkp*(arr(im,j,kp)+arr(i,j,kp)               
+cc     .                   -arr(im,j,k )-arr(i,j,k ))/grid_params%dz(kg)
+cc     .   +0.25*d_xz_imkm*(arr(im,j,k )+arr(i,j,k )               
+cc     .                   -arr(im,j,km)-arr(i,j,km))/grid_params%dz(kg-1)
+cc                                                                     
+cc      flxjp =  d_yy_jp  *(arr(i ,jp,k)-arr(i ,j,k))/grid_params%dy(jg)
+cc     .   +0.25*d_xy_ipjp*(arr(ip,jp,k)+arr(ip,j,k)               
+cc     .                   -arr(i ,jp,k)-arr(i ,j,k))/grid_params%dx(ig)
+cc     .   +0.25*d_xy_imjp*(arr(i ,jp,k)+arr(i ,j,k)               
+cc     .                   -arr(im,jp,k)-arr(im,j,k))/grid_params%dx(ig-1)
+cc     .   +0.25*d_yz_jpkp*(arr(i,jp,kp)+arr(i,j,kp)               
+cc     .                   -arr(i,jp,k )-arr(i,j,k ))/grid_params%dz(kg)
+cc     .   +0.25*d_yz_jpkm*(arr(i,jp,k )+arr(i,j,k )               
+cc     .                   -arr(i,jp,km)-arr(i,j,km))/grid_params%dz(kg-1)
+cc                                                                     
+cc      flxjm = -d_yy_jm  *(arr(i ,jm,k)-arr(i ,j,k))/grid_params%dy(jg-1)
+cc     .   +0.25*d_xy_ipjm*(arr(ip,jm,k)+arr(ip,j,k)               
+cc     .                   -arr(i ,jm,k)-arr(i ,j,k))/grid_params%dx(ig)
+cc     .   +0.25*d_xy_imjm*(arr(i ,jm,k)+arr(i ,j,k)               
+cc     .                   -arr(im,jm,k)-arr(im,j,k))/grid_params%dx(ig-1)
+cc     .   +0.25*d_yz_jmkp*(arr(i,jm,kp)+arr(i,j,kp)               
+cc     .                   -arr(i,jm,k )-arr(i,j,k ))/grid_params%dz(kg)
+cc     .   +0.25*d_yz_jmkm*(arr(i,jm,k )+arr(i,j,k )               
+cc     .                   -arr(i,jm,km)-arr(i,j,km))/grid_params%dz(kg-1)
+cc                                                                     
+cc      flxkp =  d_zz_kp  *(arr(i ,j,kp)-arr(i ,j,k))/grid_params%dz(kg)
+cc     .   +0.25*d_xz_ipkp*(arr(ip,j,kp)+arr(ip,j,k)               
+cc     .                   -arr(i ,j,kp)-arr(i ,j,k))/grid_params%dx(ig)
+cc     .   +0.25*d_xz_imkp*(arr(i ,j,kp)+arr(i ,j,k)               
+cc     .                   -arr(im,j,kp)-arr(im,j,k))/grid_params%dx(ig-1)
+cc     .   +0.25*d_yz_jpkp*(arr(i,jp,kp)+arr(i,jp,k)               
+cc     .                   -arr(i,j ,kp)-arr(i,j ,k))/grid_params%dy(jg)
+cc     .   +0.25*d_yz_jmkp*(arr(i,j ,kp)+arr(i,j ,k)               
+cc     .                   -arr(i,jm,kp)-arr(i,jm,k))/grid_params%dy(jg-1)
+cc                                                                     
+cc      flxkm = -d_zz_km  *(arr(i ,j,km)-arr(i ,j,k))/grid_params%dz(kg)
+cc     .   +0.25*d_xz_ipkm*(arr(ip,j,km)+arr(ip,j,k)               
+cc     .                   -arr(i ,j,km)-arr(i ,j,k))/grid_params%dx(ig)
+cc     .   +0.25*d_xz_imkm*(arr(i ,j,km)+arr(i ,j,k)               
+cc     .                   -arr(im,j,km)-arr(im,j,k))/grid_params%dx(ig-1)
+cc     .   +0.25*d_yz_jpkm*(arr(i,jp,km)+arr(i,jp,k)               
+cc     .                   -arr(i,j ,km)-arr(i,j ,k))/grid_params%dy(jg)
+cc     .   +0.25*d_yz_jmkm*(arr(i,j ,km)+arr(i,j ,k)               
+cc     .                   -arr(i,jm,km)-arr(i,jm,k))/grid_params%dy(jg-1)
+cc
+cc      lap_diff = grid_params%dyh(jg)*grid_params%dzh(kg)*(flxip -flxim)
+cc     .           +grid_params%dxh(ig)*grid_params%dzh(kg)*(flxjp -flxjm)
+cc     .           +grid_params%dxh(ig)*grid_params%dyh(jg)*(flxkp -flxkm)
+cc
+cc      if (.not.vol_wgt) lap_diff=lap_diff
+cc     .                           /gmetric%grid(igx)%dvol(i,j,k)
+
+c     End program
+
       end function lap_diff
 
-c     lap_ndiff
+c     lap_ndiff_old
 c     ###############################################################
-      function lap_ndiff(i,j,k,nx,ny,nz,igx,igy,igz,arr,vol)
+      function lap_ndiff_old(i,j,k,nx,ny,nz,igx,igy,igz,arr,vol)
      .         result (laplacian)
 c     ---------------------------------------------------------------
 c     Calculates lap(arr) at cell centers in general non-orthog.
@@ -1862,6 +2147,182 @@ cc        endif
 
 c     End program
 
+      end function lap_ndiff_old
+
+c     lap_ndiff
+c     ###############################################################
+      function lap_ndiff(i,j,k,nx,ny,nz,igx,igy,igz,arr,vol)
+c     ---------------------------------------------------------------
+c     Calculates lap(arr) at cell centers in general non-orthog.
+c     coordinates, preserving the SPD property.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+
+      real(8)    :: arr (0:nx+1,0:ny+1,0:nz+1),lap_ndiff
+
+      logical,optional,intent(IN) :: vol
+
+c     Local variables
+
+      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
+
+      real(8)    :: d_xx_ip,d_xx_im,d_yy_jp,d_yy_jm,d_zz_kp,d_zz_km
+     .             ,d_xy_ipjp,d_xy_ipjm,d_xy_imjp,d_xy_imjm
+     .             ,d_xz_ipkp,d_xz_ipkm,d_xz_imkp,d_xz_imkm
+     .             ,d_yz_jpkp,d_yz_jpkm,d_yz_jmkp,d_yz_jmkm
+     .             ,flxip,flxim,flxjp,flxjm,flxkp,flxkm
+
+      real(8),dimension(:,:,:,:,:),pointer :: gsup
+
+      logical    :: vol_wgt
+
+c     Begin program
+
+      if (PRESENT(vol)) then
+        vol_wgt = vol
+      else
+        vol_wgt = .false.
+      endif
+
+      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+      ip = i+1
+      im = i-1
+      jp = j+1
+      jm = j-1
+      kp = k+1
+      km = k-1
+
+      gsup => gmetric%grid(igx)%gsup_v
+
+      d_xx_ip = 0.25*(gsup(i ,j ,k ,1,1)
+     .               +gsup(i ,jm,k ,1,1)
+     .               +gsup(i ,j ,km,1,1)
+     .               +gsup(i ,jm,km,1,1))
+      d_xx_im = 0.25*(gsup(im,j ,k ,1,1)
+     .               +gsup(im,jm,k ,1,1)
+     .               +gsup(im,j ,km,1,1)
+     .               +gsup(im,jm,km,1,1))
+
+      d_yy_jp = 0.25*(gsup(i ,j ,k ,2,2)
+     .               +gsup(im,j ,k ,2,2)
+     .               +gsup(i ,j ,km,2,2)
+     .               +gsup(im,j ,km,2,2))
+      d_yy_jm = 0.25*(gsup(i ,jm,k ,2,2)
+     .               +gsup(im,jm,k ,2,2)
+     .               +gsup(i ,jm,km,2,2)
+     .               +gsup(im,jm,km,2,2))
+
+      d_zz_kp = 0.25*(gsup(i ,j ,k ,3,3)
+     .               +gsup(im,j ,k ,3,3)
+     .               +gsup(i ,jm,k ,3,3)
+     .               +gsup(im,jm,k ,3,3))
+      d_zz_km = 0.25*(gsup(i ,j ,km,3,3)
+     .               +gsup(im,j ,km,3,3)
+     .               +gsup(i ,jm,km,3,3)
+     .               +gsup(im,jm,km,3,3))
+
+      d_xy_ipjp = 0.5*(gsup(i ,j ,k ,1,2)
+     .                +gsup(i ,j ,km,1,2))
+      d_xy_ipjm = 0.5*(gsup(i ,jm,k ,1,2)
+     .                +gsup(i ,jm,km,1,2))
+      d_xy_imjp = 0.5*(gsup(im,j ,k ,1,2)
+     .                +gsup(im,j ,km,1,2))
+      d_xy_imjm = 0.5*(gsup(im,jm,k ,1,2)
+     .                +gsup(im,jm,km,1,2))
+
+      d_xz_ipkp = 0.5*(gsup(i ,j ,k ,1,3)
+     .                +gsup(i ,jm,k ,1,3))
+      d_xz_ipkm = 0.5*(gsup(i ,j ,km,1,3)
+     .                +gsup(i ,jm,km,1,3))
+      d_xz_imkp = 0.5*(gsup(im,j ,k ,1,3)
+     .                +gsup(im,jm,k ,1,3))
+      d_xz_imkm = 0.5*(gsup(im,j ,km,1,3)
+     .                +gsup(im,jm,km,1,3))
+
+      d_yz_jpkp = 0.5*(gsup(i ,j ,k ,2,3)
+     .                +gsup(im,j ,k ,2,3))
+      d_yz_jpkm = 0.5*(gsup(i ,j ,km,2,3)
+     .                +gsup(im,j ,km,2,3))
+      d_yz_jmkp = 0.5*(gsup(i ,jm,k ,2,3)
+     .                +gsup(im,jm,k ,2,3))
+      d_yz_jmkm = 0.5*(gsup(i ,jm,km,2,3)
+     .                +gsup(im,jm,km,2,3))
+
+      flxip = d_xx_ip  *(arr(ip,j ,k)-arr(i,j ,k))/grid_params%dx(ig)
+     .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
+     .                  -arr(ip,j ,k)-arr(i,j ,k))/grid_params%dy(jg)
+     .  +     d_xy_ipjm*(arr(ip,j ,k)+arr(i,j ,k)               
+     .                  -arr(ip,jm,k)-arr(i,jm,k))/grid_params%dy(jg-1)
+     .  +     d_xz_ipkp*(arr(ip,j,kp)+arr(i,j,kp)               
+     .                  -arr(ip,j,k )-arr(i,j,k ))/grid_params%dz(kg)
+     .  +     d_xz_ipkm*(arr(ip,j,k )+arr(i,j,k )               
+     .                  -arr(ip,j,km)-arr(i,j,km))/grid_params%dz(kg-1))
+                                                                     
+      flxim =-d_xx_im  *(arr(im,j ,k)-arr(i,j ,k))/grid_params%dx(ig-1)
+     .  +.25*(d_xy_imjp*(arr(im,jp,k)+arr(i,jp,k)               
+     .                  -arr(im,j ,k)-arr(i,j ,k))/grid_params%dy(jg)
+     .  +     d_xy_imjm*(arr(im,j ,k)+arr(i,j ,k)               
+     .                  -arr(im,jm,k)-arr(i,jm,k))/grid_params%dy(jg-1)
+     .  +     d_xz_imkp*(arr(im,j,kp)+arr(i,j,kp)               
+     .                  -arr(im,j,k )-arr(i,j,k ))/grid_params%dz(kg)
+     .  +     d_xz_imkm*(arr(im,j,k )+arr(i,j,k )               
+     .                  -arr(im,j,km)-arr(i,j,km))/grid_params%dz(kg-1))
+                                                                     
+      flxjp = d_yy_jp  *(arr(i ,jp,k)-arr(i ,j,k))/grid_params%dy(jg)
+     .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(ip,j,k)               
+     .                 -arr(i ,jp,k)-arr(i ,j,k))/grid_params%dx(ig)
+     .  +     d_xy_imjp*(arr(i ,jp,k)+arr(i ,j,k)               
+     .                  -arr(im,jp,k)-arr(im,j,k))/grid_params%dx(ig-1)
+     .  +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,j,kp)               
+     .                  -arr(i,jp,k )-arr(i,j,k ))/grid_params%dz(kg)
+     .  +     d_yz_jpkm*(arr(i,jp,k )+arr(i,j,k )               
+     .                  -arr(i,jp,km)-arr(i,j,km))/grid_params%dz(kg-1))
+                                                                     
+      flxjm =-d_yy_jm  *(arr(i ,jm,k)-arr(i ,j,k))/grid_params%dy(jg-1)
+     .  +.25*(d_xy_ipjm*(arr(ip,jm,k)+arr(ip,j,k)               
+     .                  -arr(i ,jm,k)-arr(i ,j,k))/grid_params%dx(ig)
+     .  +     d_xy_imjm*(arr(i ,jm,k)+arr(i ,j,k)               
+     .                  -arr(im,jm,k)-arr(im,j,k))/grid_params%dx(ig-1)
+     .  +     d_yz_jmkp*(arr(i,jm,kp)+arr(i,j,kp)               
+     .                  -arr(i,jm,k )-arr(i,j,k ))/grid_params%dz(kg)
+     .  +     d_yz_jmkm*(arr(i,jm,k )+arr(i,j,k )               
+     .                  -arr(i,jm,km)-arr(i,j,km))/grid_params%dz(kg-1))
+                                                                     
+      flxkp = d_zz_kp  *(arr(i ,j,kp)-arr(i ,j,k))/grid_params%dz(kg)
+     .  +.25*(d_xz_ipkp*(arr(ip,j,kp)+arr(ip,j,k)               
+     .                  -arr(i ,j,kp)-arr(i ,j,k))/grid_params%dx(ig)
+     .  +     d_xz_imkp*(arr(i ,j,kp)+arr(i ,j,k)               
+     .                  -arr(im,j,kp)-arr(im,j,k))/grid_params%dx(ig-1)
+     .  +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,jp,k)               
+     .                  -arr(i,j ,kp)-arr(i,j ,k))/grid_params%dy(jg)
+     .  +     d_yz_jmkp*(arr(i,j ,kp)+arr(i,j ,k)               
+     .                  -arr(i,jm,kp)-arr(i,jm,k))/grid_params%dy(jg-1))
+                                                                     
+      flxkm =-d_zz_km  *(arr(i ,j,km)-arr(i ,j,k))/grid_params%dz(kg)
+     .  +.25*(d_xz_ipkm*(arr(ip,j,km)+arr(ip,j,k)               
+     .                 -arr(i ,j,km)-arr(i ,j,k))/grid_params%dx(ig)
+     .  +     d_xz_imkm*(arr(i ,j,km)+arr(i ,j,k)               
+     .                  -arr(im,j,km)-arr(im,j,k))/grid_params%dx(ig-1)
+     .  +     d_yz_jpkm*(arr(i,jp,km)+arr(i,jp,k)               
+     .                  -arr(i,j ,km)-arr(i,j ,k))/grid_params%dy(jg)
+     .  +     d_yz_jmkm*(arr(i,j ,km)+arr(i,j ,k)               
+     .                  -arr(i,jm,km)-arr(i,jm,k))/grid_params%dy(jg-1))
+
+      lap_ndiff= ((flxip -flxim)/grid_params%dxh(ig)
+     .           +(flxjp -flxjm)/grid_params%dyh(jg)
+     .           +(flxkp -flxkm)/grid_params%dzh(kg))
+     .           /gmetric%grid(igx)%jac(i,j,k)
+
+      if (vol_wgt) lap_ndiff=lap_ndiff*gmetric%grid(igx)%dvol(i,j,k)
+
+c     End program
+
       end function lap_ndiff
 
 c     lap_tnsr
@@ -1992,7 +2453,7 @@ c     Begin program
      .                 +tnsr(i,j ,km,5)
      .                 +tnsr(i,jm,km,5))
 
-        laplacian = 
+      laplacian = 
      .     grid_params%dyh(jg)*grid_params%dzh(kg)
      .       *( d_xx_ip*(arr(ip,j,k)-arr(i,j,k))/grid_params%dx(ig)
      .         +d_xx_im*(arr(im,j,k)-arr(i,j,k))/grid_params%dx(ig-1) )
@@ -2017,26 +2478,6 @@ c     Begin program
      .                    +d_yz_jmkm*(arr(i,jm,km)-arr(i,j,k))
      .                    -d_yz_jpkm*(arr(i,jp,km)-arr(i,j,k))
      .                    -d_yz_jmkp*(arr(i,jm,kp)-arr(i,j,k)) ) )
-
-cc      laplacian = 
-cc     .   dyh(jg)*dzh(kg)*( d_xx_ip*(arr(ip,j,k)-arr(i,j,k))/dx(ig)
-cc     .                    +d_xx_im*(arr(im,j,k)-arr(i,j,k))/dx(ig-1) )
-cc     .  +dxh(ig)*dzh(kg)*( d_yy_jp*(arr(i,jp,k)-arr(i,j,k))/dy(jg)
-cc     .                    +d_yy_jm*(arr(i,jm,k)-arr(i,j,k))/dy(jg-1) )
-cc     .  +dxh(ig)*dyh(jg)*( d_zz_kp*(arr(i,j,kp)-arr(i,j,k))/dz(kg)
-cc     .                    +d_zz_km*(arr(i,j,km)-arr(i,j,k))/dz(kg-1) )
-cc     .  +0.5*( dzh(kg)*( d_xy_ipjp*(arr(ip,jp,k)-arr(i,j,k))
-cc     .                  +d_xy_imjm*(arr(im,jm,k)-arr(i,j,k))
-cc     .                  -d_xy_ipjm*(arr(ip,jm,k)-arr(i,j,k))
-cc     .                  -d_xy_imjp*(arr(im,jp,k)-arr(i,j,k)) )
-cc     .        +dyh(jg)*( d_xz_ipkp*(arr(ip,j,kp)-arr(i,j,k))
-cc     .                  +d_xz_imkm*(arr(im,j,km)-arr(i,j,k))
-cc     .                  -d_xz_ipkm*(arr(ip,j,km)-arr(i,j,k))
-cc     .                  -d_xz_imkp*(arr(im,j,kp)-arr(i,j,k)) )
-cc     .        +dxh(ig)*( d_yz_jpkp*(arr(i,jp,kp)-arr(i,j,k))
-cc     .                  +d_yz_jmkm*(arr(i,jm,km)-arr(i,j,k))
-cc     .                  -d_yz_jpkm*(arr(i,jp,km)-arr(i,j,k))
-cc     .                  -d_yz_jmkp*(arr(i,jm,kp)-arr(i,j,k)) ) )
 
       if (.not.vol_wgt) laplacian=laplacian
      .                           /gmetric%grid(igx)%dvol(i,j,k)
@@ -4399,7 +4840,7 @@ cc
 cc      if (PRESENT(vol)) then
 cc        vw = vol
 cc      else
-cc        vw = .true.
+cc        vw = .false.
 cc      endif
 cc
 cc      if (PRESENT(upwind)) then
@@ -4534,7 +4975,7 @@ c     Begin program
       if (PRESENT(vol)) then
         vw = vol
       else
-        vw = .true.
+        vw = .false.
       endif
 
       if (PRESENT(upwind)) then
@@ -4705,7 +5146,7 @@ c     End
 c     flx_advec
 c     ###############################################################
       function flx_advec(i,j,k,nx,ny,nz,igx,igy,igz,v,arr
-     .                     ,method,sp,vol) result(advec)
+     .                  ,method,sp,vol,zip_vel,conserv) result(advec)
       implicit none
 c     ---------------------------------------------------------------
 c     Calculates divergence of vector field (v.arr) at cell centers in
@@ -4716,38 +5157,36 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz,method
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz,method
 
-      real(8)    :: arr(0:nx+1,0:ny+1,0:nz+1)
-     .             ,v  (0:nx+1,0:ny+1,0:nz+1,3),advec
+      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1)
+     .          ,v  (0:nx+1,0:ny+1,0:nz+1,3),advec
 
-      logical,optional :: sp,vol
+      logical,optional :: sp,vol,zip_vel,conserv
 
 c     Local variables
 
-      integer    :: igrid,half_elem,su
+      integer :: igrid,half_elem,su
 
-      integer    :: im,ip,ipp,imm,igm,igp,igpp,igmm
-     .             ,jm,jp,jpp,jmm,jgm,jgp,jgpp,jgmm
-     .             ,km,kp,kpp,kmm,kgm,kgp,kgpp,kgmm
-     .             ,ig,jg,kg,igl,jgl,kgl
+      integer :: im,ip,ipp,imm,igm,igp,igpp,igmm
+     .          ,jm,jp,jpp,jmm,jgm,jgp,jgpp,jgmm
+     .          ,km,kp,kpp,kmm,kgm,kgp,kgpp,kgmm
+     .          ,ig,jg,kg,igl,jgl,kgl
 
-      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jacip,jacim,jac,jach
-      real(8)    :: vxp,vxm,vyp,vym,vzp,vzm
-     .             ,qip,qim,qjp,qjm,qkp,qkm
-      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
-      logical    :: vw,spoint,bc_safe
+      real(8) :: dxx,dyy,dzz,x0,y0,z0,jacip,jacim,jac,jach
+      real(8) :: vxp,vxm,vyp,vym,vzp,vzm
+     .          ,qip,qim,qjp,qjm,qkp,qkm
+      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+      logical :: vw,spoint,bc_safe,zv,cv
 
 c     Begin program
 
 c     Set defaults
 
-      bc_safe = (method <=2)
-
       if (PRESENT(vol)) then
         vw = vol
       else
-        vw = .true.
+        vw = .false.
       endif
 
       if (PRESENT(sp)) then
@@ -4755,6 +5194,20 @@ c     Set defaults
       else
         spoint = .false.
       endif
+
+      if (PRESENT(zip_vel)) then
+        zv = zip_vel
+      else
+        zv = .true.
+      endif
+
+      if (PRESENT(conserv)) then
+        cv = conserv
+      else
+        cv = .true.
+      endif
+
+      bc_safe = (method <=2)
 
 c     General setup
 
@@ -4821,61 +5274,77 @@ c     Grid info
 
 c     Find ZIP fluxes
 
-      !X flux
-      if (.not.isBdry(i,igx,2)) then  !Not at r=1 boundary
-cc      if     (igl < grid_params%nxgl(igx)) then
-        jach  = 0.5*(jac+jacip)
-        flxip = 0.5*(v(ip,j,k,1)*arr(i ,j,k)/jacip
-     .             + v(i ,j,k,1)*arr(ip,j,k)/jac  )*jach
+      if ((method == 2.and.cv).or.zv) then
 
-        if (isSP2(i,igx,ibc=1).and.spoint) then
-          flxim = 0d0
+        !X flux
+        if (.not.isBdry(i,igx,2)) then  !Not at r=1 boundary
+          jach  = 0.5*(jac+jacip)
+          flxip = 0.5*(v(ip,j,k,1)*arr(i ,j,k)/jacip
+     .               + v(i ,j,k,1)*arr(ip,j,k)/jac  )*jach
+
+          if (isSP2(i,igx,ibc=1).and.spoint) then
+            flxim = 0d0
+          else
+            jach  = 0.5*(jac+jacim)
+            flxim = 0.5*(v(im,j,k,1)*arr(i ,j,k)/jacim
+     .                 + v(i ,j,k,1)*arr(im,j,k)/jac  )*jach
+          endif
         else
+          if (v(ip,j,k,1) == -v(i,j,k,1)) then
+            flxip = 0d0    !Shut off flux for vn=0 BC
+          else
+            flxip = 0.5*(v(ip,j,k,1)*arr(i,j,k)+v(i,j,k,1)*arr(ip,j,k))
+          endif
+
           jach  = 0.5*(jac+jacim)
           flxim = 0.5*(v(im,j,k,1)*arr(i ,j,k)/jacim
      .               + v(i ,j,k,1)*arr(im,j,k)/jac  )*jach
         endif
-cc      elseif (igl == grid_params%nxgl(igx)) then
-      else
-        if (v(ip,j,k,1) == -v(i,j,k,1)) then
-          flxip = 0d0    !Shut off flux for vn=0 BC
-        else
-          flxip = 0.5*(v(ip,j,k,1)*arr(i,j,k) + v(i,j,k,1)*arr(ip,j,k))
-        endif
 
-        jach  = 0.5*(jac+jacim)
-        flxim = 0.5*(v(im,j,k,1)*arr(i ,j,k)/jacim
-     .             + v(i ,j,k,1)*arr(im,j,k)/jac  )*jach
+        !Y flux
+        flxjp = 0.5*(v(i,jp,k,2)*arr(i,j,k) + v(i,j,k,2)*arr(i,jp,k))
+        flxjm = 0.5*(v(i,jm,k,2)*arr(i,j,k) + v(i,j,k,2)*arr(i,jm,k))
+
+        !Z flux
+        flxkp = 0.5*(v(i,j,kp,3)*arr(i,j,k) + v(i,j,k,3)*arr(i,j,kp))
+        flxkm = 0.5*(v(i,j,km,3)*arr(i,j,k) + v(i,j,k,3)*arr(i,j,km))
+
       endif
-
-      !Y flux
-      flxjp = 0.5*(v(i,jp,k,2)*arr(i,j,k) + v(i,j,k,2)*arr(i,jp,k))
-      flxjm = 0.5*(v(i,jm,k,2)*arr(i,j,k) + v(i,j,k,2)*arr(i,jm,k))
-
-      !Z flux
-      flxkp = 0.5*(v(i,j,kp,3)*arr(i,j,k) + v(i,j,k,3)*arr(i,j,kp))
-      flxkm = 0.5*(v(i,j,km,3)*arr(i,j,k) + v(i,j,k,3)*arr(i,j,km))
 
 c     Find velocities at faces from ZIP fluxes
 
       if (method /= 2) then
 
-cc        vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k)+1d-10)
-cc        vxm = 2.*flxim/(arr(im,j,k)+arr(i,j,k)+1d-10)
-cc
-cc        vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k)+1d-10)
-cc        vym = 2.*flxjm/(arr(i,jm,k)+arr(i,j,k)+1d-10)
-cc
-cc        vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k)+1d-10)
-cc        vzm = 2.*flxkm/(arr(i,j,km)+arr(i,j,k)+1d-10)
-        vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k)+1d-12)
-        vxm = 2.*flxim/(arr(im,j,k)+arr(i,j,k)+1d-12)
+        if (zv) then
+          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k)+1d-12)
+          vxm = 2.*flxim/(arr(im,j,k)+arr(i,j,k)+1d-12)
                                                     
-        vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k)+1d-12)
-        vym = 2.*flxjm/(arr(i,jm,k)+arr(i,j,k)+1d-12)
+          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k)+1d-12)
+          vym = 2.*flxjm/(arr(i,jm,k)+arr(i,j,k)+1d-12)
                                                     
-        vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k)+1d-12)
-        vzm = 2.*flxkm/(arr(i,j,km)+arr(i,j,k)+1d-12)
+          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k)+1d-12)
+          vzm = 2.*flxkm/(arr(i,j,km)+arr(i,j,k)+1d-12)
+        else
+          if (cv) then
+            vxp = 0.5*(v(ip,j,k,1)+v(i,j,k,1))
+            vxm = 0.5*(v(im,j,k,1)+v(i,j,k,1))
+                                                    
+            vyp = 0.5*(v(i,jp,k,2)+v(i,j,k,2))
+            vym = 0.5*(v(i,jm,k,2)+v(i,j,k,2))
+                                                    
+            vzp = 0.5*(v(i,j,kp,3)+v(i,j,k,3))
+            vzm = 0.5*(v(i,j,km,3)+v(i,j,k,3))
+          else
+            vxp = v(i,j,k,1)
+            vxm = v(i,j,k,1)
+                                                    
+            vyp = v(i,j,k,2)
+            vym = v(i,j,k,2)
+                                                    
+            vzp = v(i,j,k,3)
+            vzm = v(i,j,k,3)
+           endif
+        endif
 
 c     Find advected quantity at faces
 
@@ -4965,14 +5434,6 @@ c     Find advected quantity at faces
 
 c     Setup fluxes (ZIP at boundaries by default for conservation)
 
-cc        if (igl<grid_params%nxgl(igx).or.bcond(2)==PER) flxip=vxp*qip
-cc        if (igl>1                    .or.bcond(1)==PER) flxim=vxm*qim
-cc
-cc        if (jgl<grid_params%nygl(igy).or.bcond(4)==PER) flxjp=vyp*qjp
-cc        if (jgl>1                    .or.bcond(3)==PER) flxjm=vym*qjm
-cc
-cc        if (kgl<grid_params%nzgl(igz).or.bcond(6)==PER) flxkp=vzp*qkp
-cc        if (kgl>1                    .or.bcond(5)==PER) flxkm=vzm*qkm
         if (.not.isBdry(i,igx,2).or.bc_safe) flxip=vxp*qip
         if (.not.isBdry(i,igx,1).or.bc_safe) flxim=vxm*qim
 
@@ -5344,253 +5805,253 @@ cc
 ccc     End 
 cc
 cc      end function flx_advec
-
-c     flx_nc_advec
-c     ###############################################################
-      function flx_nc_advec(i,j,k,nx,ny,nz,igx,igy,igz,v,arr
-     .                     ,method,sp,vol) result(advec)
-      implicit none
-c     ---------------------------------------------------------------
-c     Calculates divergence of vector field (v.arr) at cell centers in
-c     general non-orthogonal geometry.
-c
-c     method: specifies the advective scheme (see inter)
-c     ---------------------------------------------------------------
-
-c     Call variables
-
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz,method
-
-      real(8)    :: arr(0:nx+1,0:ny+1,0:nz+1)
-     .             ,v  (0:nx+1,0:ny+1,0:nz+1,3),advec
-
-      logical,optional :: sp,vol
-
-c     Local variables
-
-      integer    :: igrid,half_elem,su
-
-      integer    :: im,ip,ipp,imm,igm,igp,igpp,igmm
-     .             ,jm,jp,jpp,jmm,jgm,jgp,jgpp,jgmm
-     .             ,km,kp,kpp,kmm,kgm,kgp,kgpp,kgmm
-     .             ,ig,jg,kg,igl,jgl,kgl
-
-      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jac
-      real(8)    :: vxp,vxm,vyp,vym,vzp,vzm
-     .             ,qip,qim,qjp,qjm,qkp,qkm
-      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
-      logical    :: vw,spoint,bc_safe
-
-c     Begin program
-
-c     Set defaults
-
-      bc_safe = (method <=2)
-
-      if (PRESENT(vol)) then
-        vw = vol
-      else
-        vw = .true.
-      endif
-
-      if (PRESENT(sp)) then
-        spoint = sp
-      else
-        spoint = .false.
-      endif
-
-c     General setup
-
-      igrid = igx
-
-      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-
-      ip = i+1
-      im = i-1
-      jp = j+1
-      jm = j-1
-      kp = k+1
-      km = k-1
-
-      ipp = ip+1
-      imm = im-1
-      ipp = min(ipp,nx+1)
-      imm = max(imm,0)
-
-      igp  = ig+1
-      igm  = ig-1
-      igpp = ig + (ipp - i)
-      igmm = ig + (imm - i)
-
-      jpp = jp+1
-      jmm = jm-1
-      jpp = min(jpp,ny+1)
-      jmm = max(jmm,0)
-
-      jgp  = jg+1
-      jgm  = jg-1
-      jgpp = jg + (jpp-j)
-      jgmm = jg + (jmm-j)
-
-      kpp = kp+1
-      kmm = km-1
-      kpp = min(kpp,nz+1)
-      kmm = max(kmm,0)
-
-      kgp  = kg+1
-      kgm  = kg-1
-      kgpp = kg + (kpp-k)
-      kgmm = kg + (kmm-k)
-
-      igl = i+grid_params%ilo(igx)-1
-      jgl = j+grid_params%jlo(igy)-1
-      kgl = k+grid_params%klo(igz)-1
-
-c     Grid info
-
-      dxx = grid_params%dxh(ig)
-      dyy = grid_params%dyh(jg)
-      dzz = grid_params%dzh(kg)
-
-      jac = gmetric%grid(igrid)%jac(i,j,k)
-
-c     Find non-conservative fluxes
-
-      !X flux
-      flxip = 0.5*(arr(i,j,k) + arr(ip,j,k))*v(i,j,k,1)
-      flxim = 0.5*(arr(i,j,k) + arr(im,j,k))*v(i,j,k,1)
-
-      !Y flux
-      flxjp = 0.5*(arr(i,j,k) + arr(i,jp,k))*v(i,j,k,2)
-      flxjm = 0.5*(arr(i,j,k) + arr(i,jm,k))*v(i,j,k,2)
-
-      !Z flux
-      flxkp = 0.5*(arr(i,j,k) + arr(i,j,kp))*v(i,j,k,3)
-      flxkm = 0.5*(arr(i,j,k) + arr(i,j,km))*v(i,j,k,3)
-
-c     Find velocities at faces from ZIP fluxes
-
-      if (method /= 2) then
-
-        vxp = v(i,j,k,1)
-        vxm = v(i,j,k,1)
-                                                    
-        vyp = v(i,j,k,2)
-        vym = v(i,j,k,2)
-                                                    
-        vzp = v(i,j,k,3)
-        vzm = v(i,j,k,3)
-
-c     Find advected quantity at faces
-
-        if ((i == nx).and.(method > 2 .and. method <= 6)) then
-          qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
-     .             ,grid_params%xx(igp ),arr(ip ,j,k)
-     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
-     .             ,grid_params%xx(igm ),arr(im ,j,k)
-     .             ,vxp,1)
-        else
-          qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
-     .             ,grid_params%xx(igp ),arr(ip ,j,k)
-     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
-     .             ,grid_params%xx(igm ),arr(im ,j,k)
-     .             ,vxp,method)
-        endif
-
-        if ((i == 1).and.(method > 2 .and. method <= 6)) then
-          qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
-     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
-     .             ,grid_params%xx(igm ),arr(im ,j,k)
-     .             ,grid_params%xx(igmm),arr(imm,j,k)
-     .             ,vxm,1)
-        else
-          qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
-     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
-     .             ,grid_params%xx(igm ),arr(im ,j,k)
-     .             ,grid_params%xx(igmm),arr(imm,j,k)
-     .             ,vxm,method)
-        endif
-
-        if ((j == ny).and.(method > 2 .and. method <= 6)) then
-          qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
-     .             ,grid_params%yy(jgp ),arr(i,jp ,k)
-     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
-     .             ,grid_params%yy(jgm ),arr(i,jm ,k)
-     .             ,vyp,1)
-        else
-          qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
-     .             ,grid_params%yy(jgp ),arr(i,jp ,k)
-     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
-     .             ,grid_params%yy(jgm ),arr(i,jm ,k)
-     .             ,vyp,method)
-        endif
-
-        if ((j == 1).and.(method > 2 .and. method <= 6)) then
-          qjm=inter(grid_params%yy(jgp ),arr(i,jp ,k)
-     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
-     .             ,grid_params%yy(jgm ),arr(i,jm ,k)
-     .             ,grid_params%yy(jgmm),arr(i,jmm,k)
-     .             ,vym,1)
-        else
-          qjm=inter(grid_params%yy(jgp ),arr(i,jp,k )
-     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
-     .             ,grid_params%yy(jgm ),arr(i,jm,k )
-     .             ,grid_params%yy(jgmm),arr(i,jmm,k)
-     .             ,vym,method)
-        endif
-
-        if ((k == nz).and.(method > 2 .and. method <= 6)) then
-          qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
-     .             ,grid_params%zz(kgp ),arr(i,j,kp )
-     .             ,grid_params%zz(kg  ),arr(i,j,k  )
-     .             ,grid_params%zz(kgm ),arr(i,j,km )
-     .             ,vzp,1)
-        else
-          qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
-     .             ,grid_params%zz(kgp ),arr(i,j,kp )
-     .             ,grid_params%zz(kg  ),arr(i,j,k  )
-     .             ,grid_params%zz(kgm ),arr(i,j,km )
-     .             ,vzp,method)
-        endif
-
-        if ((k == 1).and.(method > 2 .and. method <= 6)) then
-          qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
-     .             ,grid_params%zz(kg  ),arr(i,j,k  )
-     .             ,grid_params%zz(kgm ),arr(i,j,km )
-     .             ,grid_params%zz(kgmm),arr(i,j,kmm)
-     .             ,vzm,1)
-        else
-          qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
-     .             ,grid_params%zz(kg  ),arr(i,j,k  )
-     .             ,grid_params%zz(kgm ),arr(i,j,km )
-     .             ,grid_params%zz(kgmm),arr(i,j,kmm)
-     .             ,vzm,method)
-        endif
-
-c     Setup fluxes
-
-        if (.not.isBdry(i,igx,2).or.bc_safe) flxip=vxp*qip
-        if (.not.isBdry(i,igx,1).or.bc_safe) flxim=vxm*qim
-
-        if (.not.isBdry(j,igy,4).or.bc_safe) flxjp=vyp*qjp
-        if (.not.isBdry(j,igy,3).or.bc_safe) flxjm=vym*qjm
-
-        if (.not.isBdry(k,igz,6).or.bc_safe) flxkp=vzp*qkp
-        if (.not.isBdry(k,igz,5).or.bc_safe) flxkm=vzm*qkm
-
-      endif
-
-c     Find advective term
-
-      advec =( (flxip - flxim)/dxx
-     .       + (flxjp - flxjm)/dyy
-     .       + (flxkp - flxkm)/dzz )/jac
-      
-      if (vw) advec = advec*gmetric%grid(igx)%dvol(i,j,k)
-
-c     End 
-
-      end function flx_nc_advec
+cc
+ccc     flx_nc_advec
+ccc     ###############################################################
+cc      function flx_nc_advec(i,j,k,nx,ny,nz,igx,igy,igz,v,arr
+cc     .                     ,method,sp,vol) result(advec)
+cc      implicit none
+ccc     ---------------------------------------------------------------
+ccc     Calculates divergence of vector field (v.arr) at cell centers in
+ccc     general non-orthogonal geometry.
+ccc
+ccc     method: specifies the advective scheme (see inter)
+ccc     ---------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc      integer    :: i,j,k,nx,ny,nz,igx,igy,igz,method
+cc
+cc      real(8)    :: arr(0:nx+1,0:ny+1,0:nz+1)
+cc     .             ,v  (0:nx+1,0:ny+1,0:nz+1,3),advec
+cc
+cc      logical,optional :: sp,vol
+cc
+ccc     Local variables
+cc
+cc      integer    :: igrid,half_elem,su
+cc
+cc      integer    :: im,ip,ipp,imm,igm,igp,igpp,igmm
+cc     .             ,jm,jp,jpp,jmm,jgm,jgp,jgpp,jgmm
+cc     .             ,km,kp,kpp,kmm,kgm,kgp,kgpp,kgmm
+cc     .             ,ig,jg,kg,igl,jgl,kgl
+cc
+cc      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jac
+cc      real(8)    :: vxp,vxm,vyp,vym,vzp,vzm
+cc     .             ,qip,qim,qjp,qjm,qkp,qkm
+cc      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+cc      logical    :: vw,spoint,bc_safe
+cc
+ccc     Begin program
+cc
+ccc     Set defaults
+cc
+cc      bc_safe = (method <=2)
+cc
+cc      if (PRESENT(vol)) then
+cc        vw = vol
+cc      else
+cc        vw = .false.
+cc      endif
+cc
+cc      if (PRESENT(sp)) then
+cc        spoint = sp
+cc      else
+cc        spoint = .false.
+cc      endif
+cc
+ccc     General setup
+cc
+cc      igrid = igx
+cc
+cc      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+cc
+cc      ip = i+1
+cc      im = i-1
+cc      jp = j+1
+cc      jm = j-1
+cc      kp = k+1
+cc      km = k-1
+cc
+cc      ipp = ip+1
+cc      imm = im-1
+cc      ipp = min(ipp,nx+1)
+cc      imm = max(imm,0)
+cc
+cc      igp  = ig+1
+cc      igm  = ig-1
+cc      igpp = ig + (ipp - i)
+cc      igmm = ig + (imm - i)
+cc
+cc      jpp = jp+1
+cc      jmm = jm-1
+cc      jpp = min(jpp,ny+1)
+cc      jmm = max(jmm,0)
+cc
+cc      jgp  = jg+1
+cc      jgm  = jg-1
+cc      jgpp = jg + (jpp-j)
+cc      jgmm = jg + (jmm-j)
+cc
+cc      kpp = kp+1
+cc      kmm = km-1
+cc      kpp = min(kpp,nz+1)
+cc      kmm = max(kmm,0)
+cc
+cc      kgp  = kg+1
+cc      kgm  = kg-1
+cc      kgpp = kg + (kpp-k)
+cc      kgmm = kg + (kmm-k)
+cc
+cc      igl = i+grid_params%ilo(igx)-1
+cc      jgl = j+grid_params%jlo(igy)-1
+cc      kgl = k+grid_params%klo(igz)-1
+cc
+ccc     Grid info
+cc
+cc      dxx = grid_params%dxh(ig)
+cc      dyy = grid_params%dyh(jg)
+cc      dzz = grid_params%dzh(kg)
+cc
+cc      jac = gmetric%grid(igrid)%jac(i,j,k)
+cc
+ccc     Find non-conservative fluxes
+cc
+cc      !X flux
+cc      flxip = 0.5*(arr(i,j,k) + arr(ip,j,k))*v(i,j,k,1)
+cc      flxim = 0.5*(arr(i,j,k) + arr(im,j,k))*v(i,j,k,1)
+cc
+cc      !Y flux
+cc      flxjp = 0.5*(arr(i,j,k) + arr(i,jp,k))*v(i,j,k,2)
+cc      flxjm = 0.5*(arr(i,j,k) + arr(i,jm,k))*v(i,j,k,2)
+cc
+cc      !Z flux
+cc      flxkp = 0.5*(arr(i,j,k) + arr(i,j,kp))*v(i,j,k,3)
+cc      flxkm = 0.5*(arr(i,j,k) + arr(i,j,km))*v(i,j,k,3)
+cc
+ccc     Find velocities at faces from ZIP fluxes
+cc
+cc      if (method /= 2) then
+cc
+cc        vxp = v(i,j,k,1)
+cc        vxm = v(i,j,k,1)
+cc                                                    
+cc        vyp = v(i,j,k,2)
+cc        vym = v(i,j,k,2)
+cc                                                    
+cc        vzp = v(i,j,k,3)
+cc        vzm = v(i,j,k,3)
+cc
+ccc     Find advected quantity at faces
+cc
+cc        if ((i == nx).and.(method > 2 .and. method <= 6)) then
+cc          qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
+cc     .             ,grid_params%xx(igp ),arr(ip ,j,k)
+cc     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
+cc     .             ,grid_params%xx(igm ),arr(im ,j,k)
+cc     .             ,vxp,1)
+cc        else
+cc          qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
+cc     .             ,grid_params%xx(igp ),arr(ip ,j,k)
+cc     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
+cc     .             ,grid_params%xx(igm ),arr(im ,j,k)
+cc     .             ,vxp,method)
+cc        endif
+cc
+cc        if ((i == 1).and.(method > 2 .and. method <= 6)) then
+cc          qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
+cc     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
+cc     .             ,grid_params%xx(igm ),arr(im ,j,k)
+cc     .             ,grid_params%xx(igmm),arr(imm,j,k)
+cc     .             ,vxm,1)
+cc        else
+cc          qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
+cc     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
+cc     .             ,grid_params%xx(igm ),arr(im ,j,k)
+cc     .             ,grid_params%xx(igmm),arr(imm,j,k)
+cc     .             ,vxm,method)
+cc        endif
+cc
+cc        if ((j == ny).and.(method > 2 .and. method <= 6)) then
+cc          qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
+cc     .             ,grid_params%yy(jgp ),arr(i,jp ,k)
+cc     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
+cc     .             ,grid_params%yy(jgm ),arr(i,jm ,k)
+cc     .             ,vyp,1)
+cc        else
+cc          qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
+cc     .             ,grid_params%yy(jgp ),arr(i,jp ,k)
+cc     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
+cc     .             ,grid_params%yy(jgm ),arr(i,jm ,k)
+cc     .             ,vyp,method)
+cc        endif
+cc
+cc        if ((j == 1).and.(method > 2 .and. method <= 6)) then
+cc          qjm=inter(grid_params%yy(jgp ),arr(i,jp ,k)
+cc     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
+cc     .             ,grid_params%yy(jgm ),arr(i,jm ,k)
+cc     .             ,grid_params%yy(jgmm),arr(i,jmm,k)
+cc     .             ,vym,1)
+cc        else
+cc          qjm=inter(grid_params%yy(jgp ),arr(i,jp,k )
+cc     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
+cc     .             ,grid_params%yy(jgm ),arr(i,jm,k )
+cc     .             ,grid_params%yy(jgmm),arr(i,jmm,k)
+cc     .             ,vym,method)
+cc        endif
+cc
+cc        if ((k == nz).and.(method > 2 .and. method <= 6)) then
+cc          qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
+cc     .             ,grid_params%zz(kgp ),arr(i,j,kp )
+cc     .             ,grid_params%zz(kg  ),arr(i,j,k  )
+cc     .             ,grid_params%zz(kgm ),arr(i,j,km )
+cc     .             ,vzp,1)
+cc        else
+cc          qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
+cc     .             ,grid_params%zz(kgp ),arr(i,j,kp )
+cc     .             ,grid_params%zz(kg  ),arr(i,j,k  )
+cc     .             ,grid_params%zz(kgm ),arr(i,j,km )
+cc     .             ,vzp,method)
+cc        endif
+cc
+cc        if ((k == 1).and.(method > 2 .and. method <= 6)) then
+cc          qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
+cc     .             ,grid_params%zz(kg  ),arr(i,j,k  )
+cc     .             ,grid_params%zz(kgm ),arr(i,j,km )
+cc     .             ,grid_params%zz(kgmm),arr(i,j,kmm)
+cc     .             ,vzm,1)
+cc        else
+cc          qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
+cc     .             ,grid_params%zz(kg  ),arr(i,j,k  )
+cc     .             ,grid_params%zz(kgm ),arr(i,j,km )
+cc     .             ,grid_params%zz(kgmm),arr(i,j,kmm)
+cc     .             ,vzm,method)
+cc        endif
+cc
+ccc     Setup fluxes
+cc
+cc        if (.not.isBdry(i,igx,2).or.bc_safe) flxip=vxp*qip
+cc        if (.not.isBdry(i,igx,1).or.bc_safe) flxim=vxm*qim
+cc
+cc        if (.not.isBdry(j,igy,4).or.bc_safe) flxjp=vyp*qjp
+cc        if (.not.isBdry(j,igy,3).or.bc_safe) flxjm=vym*qjm
+cc
+cc        if (.not.isBdry(k,igz,6).or.bc_safe) flxkp=vzp*qkp
+cc        if (.not.isBdry(k,igz,5).or.bc_safe) flxkm=vzm*qkm
+cc
+cc      endif
+cc
+ccc     Find advective term
+cc
+cc      advec =( (flxip - flxim)/dxx
+cc     .       + (flxjp - flxjm)/dyy
+cc     .       + (flxkp - flxkm)/dzz )/jac
+cc      
+cc      if (vw) advec = advec*gmetric%grid(igx)%dvol(i,j,k)
+cc
+ccc     End 
+cc
+cc      end function flx_nc_advec
 
 c     tensor_advc
 c     #####################################################################

@@ -373,8 +373,8 @@ c     Nullify gmetric
 
        !Should not deallocate gmetric, since it is not
        !allocated in allocateGridStructure
-        if (associated(grid_st%gmetric)) nullify(grid_st%gmetric)
-cc        call deallocateGridMetric(grid_st%gmetric)
+cc        if (associated(grid_st%gmetric)) nullify(grid_st%gmetric)
+        call deallocateGridMetric(grid_st%gmetric)
 
 c     Deallocate PETSC DA context
 
@@ -574,16 +574,17 @@ c       Copy values
 
         grid_st2%g_pack     = grid_st1%g_pack
 
-ccc       Create and copy grid metric
-cc
+c       Create and copy grid metric
+
 cc        call allocateGridMetric(grid_st2%gmetric,grid_st1)
-cc
-cc        call equateGridMetric(grid_st2%gmetric
-cc     .                       ,grid_st1%gmetric,grid_st1)
 
-c       Point to grid_st1 gmetric (which is *not* going to be modified)
+        call equateGridMetric(grid_st2%gmetric
+     .                       ,grid_st1%gmetric,grid_st1)
 
-        grid_st2%gmetric => grid_st1%gmetric
+c       Nullify gmetric
+
+cc        grid_st2%gmetric => grid_st1%gmetric
+cc        nullify(grid_st2%gmetric)
 
 c     End program
 

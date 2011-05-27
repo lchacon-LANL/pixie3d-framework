@@ -648,9 +648,11 @@ c     Begin program
         zmax = gdef%gzmax
 
         !Consistency
+        numerical_grid = .true.  !Needed because of vertex metrics
+
         select case (coords)
         case ('car')
-          numerical_grid = .false.
+cc          numerical_grid = .false.
         case ('scl')
           numerical_grid = .true.   !To deal properly with ghost cells
 

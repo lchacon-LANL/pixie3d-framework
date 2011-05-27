@@ -464,7 +464,8 @@ c     Local variables
 c     Begin program
 
         if (associated(varray2)) then
-           if (varray2%nvar /= neqd) nullify(varray2)
+cc           if (varray2%nvar /= neqd) nullify(varray2)
+           if (varray2%nvar /= neqd) call deallocateDerivedType(varray2)
         endif
 
         call allocateDerivedType(varray2)
@@ -713,6 +714,71 @@ c     Unpack vector x
 c     End program
 
       end subroutine mapVectorToStructure
+
+c     gatherVector
+c     ###################################################################
+      subroutine gatherVector(xout,xin)
+
+c     -------------------------------------------------------------------
+c     Collects PC solution vectors into a single vector.
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        real(8),intent(IN)  :: xin(:,:)
+        real(8),intent(OUT) :: xout(:)
+
+c     Local variables
+
+        integer    :: i,j,k,ii,iii,ieq
+
+c     Begin program
+
+        do ii=1,size(xin,1)
+          do ieq=1,size(xin,2)
+            iii = ieq + size(xin,2)*(ii-1)
+            xout(iii) = xin(ii,ieq)
+          enddo
+        enddo
+
+c     End program
+
+      end subroutine gatherVector
+
+c     scatterVector
+c     ###################################################################
+      subroutine scatterVector(xout,xin)
+
+c     -------------------------------------------------------------------
+c     Scatters PC residual into separate residuals, one per equation
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        real(8),intent(IN)  :: xin(:)
+        real(8),intent(OUT) :: xout(:,:)
+
+c     Local variables
+
+        integer    :: i,j,k,ii,iii,ieq
+        real(8)    :: dvol
+
+c     Begin program
+
+        do ii=1,size(xout,1)
+          do ieq=1,size(xout,2)
+            iii = ieq + size(xout,2)*(ii-1)
+            xout(ii,ieq) = xin(iii)
+          enddo
+        enddo
+
+c     End program
+
+      end subroutine scatterVector
 
       end module variable_setup
 

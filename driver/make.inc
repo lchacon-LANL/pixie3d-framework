@@ -13,6 +13,7 @@ SUBDIRS = $(COMMONDIR)/math \
 	  $(COMMONDIR)/var_setup \
 	  $(COMMONDIR)/driver_setup \
           $(COMMONDIR)/newtonGMRES\
+          $(COMMONDIR)/mk\
           $(COMMONDIR)/eigen
 
 # Module order

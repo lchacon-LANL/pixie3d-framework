@@ -1,0 +1,352 @@
+c setupPC
+c####################################################################
+      subroutine setupPC(ntot,x,nwt_it)
+
+c--------------------------------------------------------------------
+c     Finds velocity and magnetic field components in all grids
+c     for matrix-free preconditioning. Here, x is current Newton
+c     state vector.
+c--------------------------------------------------------------------
+
+      use grid
+
+      use mk_pc
+
+      use nk_setup
+
+      implicit none
+
+c Call variables
+
+      integer :: ntot,nwt_it
+      real(8) :: x(ntot)
+
+c Local variables
+
+      integer :: igrid,ieq
+
+      type (var_array),pointer :: varray => null()
+
+      INTERFACE
+        subroutine setup_app_PC(igrid,varray,nwt_it)
+        use variable_setup
+        integer    :: igrid,nwt_it
+        type(var_array),pointer :: varray
+        end subroutine setup_app_PC
+      END INTERFACE
+
+c Begin program
+
+      if (id_pc) return
+
+      igrid = 1
+
+c Copy solution state info
+
+      call mapVectorToStructure(varray,x)
+
+c Setup MK preconditioner
+
+      if (mk_grid) then
+        call MK_setupPC(igrid,varray%array_var(neqd)%array)
+        varray%nvar = varray%nvar-1  !Substract MK equation
+      endif
+
+c Setup application PC
+
+      call setup_app_PC(igrid,varray,nwt_it)
+
+c Free memory
+
+      call deallocateDerivedType(varray)
+
+c End program
+
+      end subroutine setupPC
+
+c applyPC
+c###################################################################
+      subroutine applyPC(ntot,y,x,iout)
+
+c-------------------------------------------------------------------
+c     This subroutine solves P x = y for the vector x. 
+c     The parameter iout controls output level:
+c       * iout <= 0 --> No output
+c       * iout >  0 --> Level of output design by user.
+c-------------------------------------------------------------------
+
+      use iosetup
+
+      use variables
+
+      use timeStepping
+
+      use mk_pc
+
+      use nk_setup
+
+      implicit none
+
+c Call variables
+
+      integer :: ntot,iout
+      real(8) :: x(ntot),y(ntot)
+
+c Local variables
+
+      real(8) :: xxx(ntot/neqd,neqd),yyy(ntot/neqd,neqd),dvol
+
+      integer :: ii,iii,igrid,nn,neq,ieq,nx,ny,nz,i,j,k,ig,jg,kg
+
+      logical :: pc_diag
+
+c Begin program
+
+      igrid = 1
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
+
+      nn = nx*ny*nz
+
+c *******************************************************************
+c     Identity preconditioner
+c *******************************************************************
+
+      if (id_pc) then
+
+        do k = 1,nz
+          do j = 1,ny
+            do i = 1,nx
+              ii  = i + nx*(j-1) + nx*ny*(k-1)
+              do ieq=1,neqd
+                iii = ieq + neqd*(ii-1)
+                if (one_over_dt(ieq) == 0d0) then
+                  x(iii) = y(iii)
+                else
+                  if (vol_wgt) then
+                    x(iii) = y(iii)*dt/gmetric%grid(igrid)%dvol(i,j,k)
+                  else
+                    x(iii) = y(iii)*dt
+                  endif
+                endif
+              enddo
+
+            enddo
+          enddo
+        enddo
+
+      else
+
+        if (mk_grid) then
+          neq = neqd-1   !Substract MK equation
+        else
+          neq = neqd
+        endif
+
+        xxx = 0d0
+
+c     Scatter residuals
+
+        call scatterVector(yyy,y)
+
+c     MK PC
+
+        if (mk_grid) call MK_applyPC(igrid,yyy,xxx(:,neqd),iout)  !Last equation is MK
+
+c     Application PC
+
+        if (mk_grid.and.mk_relax_init_grid) then !Trivial PC for spline EQU
+          do k = 1,nz
+            do j = 1,ny
+              do i = 1,nx
+                ii  = i + nx*(j-1) + nx*ny*(k-1)
+
+                call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+                if (vol_wgt) then
+                  dvol =  grid_params%dxh(ig)
+     .                   *grid_params%dyh(jg)
+     .                   *grid_params%dzh(kg)
+                else
+                  dvol = 1d0
+                endif
+
+                xxx(ii,1:neq) = yyy(ii,1:neq)/dvol
+              enddo
+            enddo
+          enddo
+        else
+          call apply_app_PC(igrid,nn,neq,yyy(:,1:neq),xxx(:,1:neq),iout)
+        endif
+
+c     Gather solution in "x"
+
+        call gatherVector(x,xxx)
+
+c     PC diagnostics
+
+        if (pc_debug) then
+          if (pc_debug_it > 0) then
+            if (my_rank == 0) then
+              write (*,'(a)',ADVANCE='no')
+     .             '  ==> Run PC diagnostics (t or f)? '
+              read(*,*) pc_diag
+            endif
+
+#if defined(petsc) || defined(petsc_c)
+            call MPI_Bcast(pc_diag,1,MPI_LOGICAL,0,MPI_COMM_WORLD
+     .                    ,mpierr)
+#endif
+            if (pc_diag) call PCdiagnostics
+          endif
+        endif
+
+      endif
+
+c End program
+
+      contains
+
+c     PCdiagnostics
+c     ##############################################################
+      subroutine PCdiagnostics
+
+c     --------------------------------------------------------------
+c     Performs diagnostics on PC
+c     --------------------------------------------------------------
+
+        use grid_debug,ONLY:C_contour,cont_conf,dbg,createDrawInCfile
+
+        implicit none
+
+        integer :: iplot
+
+        real(8) :: mag,mag2,mag0,rr(ntot)
+
+        character(10) :: solf,resf,rhsf!,crsf
+        character(4)  :: dbg_desc(neqd)
+
+c     Begin program
+
+c     Create XDRAW files
+
+        solf='sol_p'//trim(int2char(my_rank))//'.bin'
+        resf='res_p'//trim(int2char(my_rank))//'.bin'
+        rhsf='rhs_p'//trim(int2char(my_rank))//'.bin'
+cc        crsf='crs_p'//trim(int2char(my_rank))//'.bin'
+
+        do iplot=1,neqd
+          dbg_desc(iplot) = 'dgb'//trim(int2char(iplot))
+        enddo
+
+        call createDrawInCfile(neqd,trim(solf),'Solution'
+     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
+     .          ,'drawsol_p'//trim(int2char(my_rank))//'.in')
+
+        call createDrawInCfile(neqd,trim(resf),'Residual'
+     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
+     .          ,'drawres_p'//trim(int2char(my_rank))//'.in')
+
+        call createDrawInCfile(neqd,trim(rhsf),'RHS     '
+     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
+     .          ,'drawrhs_p'//trim(int2char(my_rank))//'.in')
+
+cc        call createDrawInCfile(neqd,trim(crsf),'Corr. residual'
+cc     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
+cc     .          ,'drawcrhs_p'//trim(int2char(my_rank))//'.in')
+
+c     Plot PC solution
+
+        call MGplot(neqd,x,igrid,0,solf)
+
+c     Plot PC RHS
+
+        call MGplot(neqd,y,igrid,0,rhsf)
+
+c     Plot corresponding linear residual to PC solution
+
+#if !defined(petsc_c)
+        call matrixFreeMatVec(ntot,x,rr)
+#else
+        rr = 0d0
+#endif
+        mag0 = sqrt(dot(ntot,y,y))
+        y = y - rr
+        mag = sqrt(dot(ntot,y,y))
+        call MGplot(neqd,y,igrid,0,resf)
+
+        if (my_rank == 0) then
+           write (*,*)
+           write (*,*) 'LINEAR RESIDUAL'
+           write (*,*) 'abs res=',mag
+           write (*,*) 'abs res (per node)=',mag/ntot
+     $                ,', rel res=',mag/mag0
+        endif
+
+        !Compute magnitude of individual residual eqs
+        call scatterVector(yyy,y)
+        do ieq=1,neqd
+          mag = sqrt(dot(ntotdp,yyy(:,ieq),yyy(:,ieq)))
+          if (my_rank == 0) write (*,*) 'Res. eqn',ieq,':',mag
+        enddo
+
+cc        !Nonlinear residual plot
+cc#if !defined(petsc_c)
+cc        if (iguess /= 1) then
+cc          write (*,*)'iguess should be =1 for NONLINEAR residual plots!'
+cc        else
+cc          mag0 = sqrt(dot(ntot,rk,rk))
+cccc          mag0 = sqrt(sum(rk*rk))
+cc          x = x + xk
+cc          call evaluateNonlinearResidual(ntot,x ,rr)
+cc          mag  = sqrt(dot(ntot,rr,rr))
+cc
+cc          if (my_rank == 0) then
+cc            write (*,*)
+cc            write (*,*) 'NONLINEAR RESIDUAL'
+cc            write (*,*) 'abs res=',mag
+cc            write (*,*) 'abs res (per node)=',mag/ntot
+cc     .               ,', rel res=',mag/mag0
+cc          endif
+cc
+cc          call MGplot(neqd,rr,igrid,0,'nlres.bin')
+cc
+cc          !Individual residual eqs
+cc          call scatter(yyy,rr)
+cc          do ieq=1,neqd
+cc            mag = sqrt(dot(ntotdp,yyy(:,ieq),yyy(:,ieq)))
+cc            if (my_rank == 0) write (*,*) 'Res. eqn',ieq,':',mag
+cc          enddo
+cc        endif
+cc#endif
+
+cc        !Corrector rhs plot
+cc        do ieq=1,neqd
+cc          call MGplot(1,rhspc(:,ieq),igrid,ieq-1,crsf)
+cc        enddo
+
+        call pstop('PCdiag','Finished diagnostics...')
+
+      end subroutine PCdiagnostics
+
+      end subroutine applyPC
+
+c killPC
+c###########################################################################
+      subroutine killPC
+
+      use mk_pc
+
+      use nk_setup
+
+c     Deallocate variables
+
+      if (id_pc) return
+
+      if (mk_grid) call MK_killPC
+
+      call kill_app_PC
+
+      end subroutine killPC

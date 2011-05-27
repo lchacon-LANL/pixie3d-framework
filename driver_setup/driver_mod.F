@@ -2,11 +2,12 @@ c module nk_setup
 c ######################################################################
       module nk_setup
 
-        integer ::  maxitnwt,maxitgm,iguess,maxksp,method,global
+        integer :: maxitnwt,maxitgm,iguess,maxksp,method,global
 
-        real(8) ::  tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
+        real(8) :: tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
 
-        logical ::  fpa=.false.
+        logical :: fpa=.false.,pc_debug=.false.,id_pc=.false.
+        integer :: pc_debug_it=0
 
       end module nk_setup
 

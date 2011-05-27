@@ -18,6 +18,8 @@ c----------------------------------------------------------------------
 
       use iosetup
 
+      use mk
+
       implicit none
 
 c Call variables
@@ -31,10 +33,10 @@ c Local variables
 c Interfaces
 
       INTERFACE
-         subroutine setInitialCondition(varrayn,varraynp)
-         use variable_setup
-         type(var_array),pointer :: varrayn,varraynp
-         end subroutine setInitialCondition
+        subroutine setInitialCondition(varrayn,varraynp)
+        use variable_setup
+        type(var_array),pointer :: varrayn,varraynp
+        end subroutine setInitialCondition
       END INTERFACE
 
       INTERFACE
@@ -47,11 +49,19 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
-         subroutine setEquilibrium(igx,igy,igz,varray)
-         use variable_setup
-         integer :: igx,igy,igz
-         type(var_array),pointer :: varray
-         end subroutine setEquilibrium
+        subroutine setEquilibrium(igx,igy,igz,varray)
+        use variable_setup
+        integer :: igx,igy,igz
+        type(var_array),pointer :: varray
+        end subroutine setEquilibrium
+      END INTERFACE
+
+      INTERFACE
+        subroutine get_src(varray,spline)
+        use variable_setup
+        logical :: spline
+        type(var_array),pointer :: varray
+        end subroutine get_src
       END INTERFACE
 
 c Begin program
@@ -59,6 +69,10 @@ c Begin program
 c Read user initializations
 
       call readInput
+
+c Account for MK equation
+
+      if (mk_grid) neqd = neqd+1
 
 c Read PETSc runtime options
 
@@ -121,9 +135,22 @@ c Create nonlinear function
 
       call createNonlinearFunction    !External
 
+c Initialize MK variables
+
+      if (mk_grid) call MK_alloc
+
 c Create equilibrium u_0
 
       call setEquilibrium(1,1,1,u_0)  !External
+
+c Initialize MK mesh quantities
+
+      if (mk_grid) then
+        u_0%array_var(neqd)%descr = 'MK phi'
+        u_0%array_var(neqd)%array = 0d0
+
+        call MK_initGrid(1)
+      endif
 
 c Initialize old time solution
 
@@ -131,21 +158,35 @@ c Initialize old time solution
 
 c Set unperturbed forcing fields
 
-      source_eval = .true.   !This informs nlfunction that we are processing the source
-      
-      !This not only evaluates fsrc, but defines BCs on u_n
-      call evaluateNonlinearFunction(u_n,fsrc)
+cc      call get_src(u_n,.not.mk_init_relax)
+      call get_src(u_n,.true.)
 
-      !Dump source
-      if (chk_src) call dump_src
-
-      if (.not.source) fsrc = 0d0
-
-      source_eval = .false.
+cc      source_eval = .true.   !This informs nlfunction that we are processing the source
+cc      
+cc      !This not only evaluates fsrc, but defines BCs on u_n
+cc      call evaluateNonlinearFunction(u_n,fsrc)
+cc
+cc      !Dump source
+cccc      if (chk_src) call dump_src
+cc
+cc      if (.not.source) then
+cc        fsrc = 0d0
+cc      elseif (mk_grid) then
+cc        call MK_spline_src(1,fsrc)
+cc      endif
+cc
+cc      source_eval = .false.
 
 c Set initial condition
 
       call setInitialCondition(u_n,u_np)
+
+c Spline initial condition for moving mesh initial step
+
+      if (mk_grid.and.mk_init_relax) then
+        mk_relax_init_grid = .true.
+        call MK_spline_equ(1,u_np)
+      endif
 
 c Initialize record file
 
@@ -166,63 +207,6 @@ c Check time limits
 
 c End program
 
-      contains
-
-c     dump_src
-c     ###############################################################
-      subroutine dump_src
-
-        use grid_debug,ONLY:C_contour,cont_conf,dbg,createDrawInCfile
-
-        integer :: ieq,nx,ny,nz,nunit
-
-        character(10) :: srcf
-        character(4)  :: dbg_desc(neqd)
-        character(3)  :: xlabel,ylabel
-
-        if (my_rank == 0) then
-          write (*,*)
-          write (*,*) '>>>>>>>>>>>>>>>>>'
-          write (*,*) 'Dumping source...'
-          write (*,*) '>>>>>>>>>>>>>>>>>'
-        endif
-
-        nx = grid_params%nxv(1)
-        ny = grid_params%nyv(1)
-        nz = grid_params%nzv(1)
-
-        xlabel=cont_conf%label(1)
-        ylabel=cont_conf%label(2)
-
-        do ieq=1,neqd
-          dbg_desc(ieq) = 'dgb'//trim(int2char(ieq))
-        enddo
-
-        srcf='src_p'//trim(int2char(my_rank))//'.bin'
-
-        call createDrawInCfile(neqd,trim(srcf),'Source'
-     .        ,'t',trim(xlabel),trim(ylabel),dbg_desc,'-c -X0 -L57'
-     .        ,'drawsrc_p'//trim(int2char(my_rank))//'.in')
-
-        call mapVectorToStructure(u_graph,fsrc)
-
-        nunit = 110
-
-        open(nunit,file=trim(srcf),form='unformatted'
-     .        ,status='replace')
-
-        do ieq=1,neqd
-          call C_contour(u_graph%array_var(ieq)%array(1:nx,1:ny,1:nz)
-     .                ,grid_params%gxmin,grid_params%gxmax
-     .                ,grid_params%gymin,grid_params%gymax
-     .                ,grid_params%gzmin,grid_params%gzmax
-     .                ,ieq-1,nunit)
-        enddo
-
-        close (nunit)
-
-      end subroutine dump_src
-
       end subroutine initializeCalculation
 
 c setInitialCondition
@@ -241,6 +225,8 @@ c--------------------------------------------------------------------
       use timeStepping
 
       use iosetup
+
+      use mk
 
       implicit none
 
@@ -285,6 +271,11 @@ c Perturb equilibrium
       else
 
         call readRestartFile(nx,ny,nz,itime,time,varrayn,varraynp)
+
+        if (mk_grid) then
+          call MK_setup_grid(1,varraynp%array_var(neqd)%array)
+          mk_relax_init_grid = .false.
+        endif
 
         inewtime = itime+1
 
@@ -519,8 +510,8 @@ cc        endif
         ! do nothing at EQU boundaries, to preserve EQU BCs)
         call equateDerivedType(u_graph,u_0)
 
-cc        call applyBC(u_graph,1,1,1,obc=0)
-        call applyBC(u_graph,1,1,1)
+        call applyBC(u_graph,1,1,1,obc=0)
+cc        call applyBC(u_graph,1,1,1)
 
 #if !defined(adios)
         !Initialize POSIX files
@@ -566,3 +557,115 @@ c     ##############################################################
       end subroutine init_POSIX
 
       end subroutine initializeRecordFile
+
+c get_src
+c####################################################################
+      subroutine get_src(varray,spline)
+
+c--------------------------------------------------------------------
+c     Set initial conditions for initial value calculation. Variables
+c     are stored in u_np
+c--------------------------------------------------------------------
+
+      use variable_setup
+
+      use timeStepping
+
+      use mk
+
+      implicit none
+
+c Call variables
+
+      logical :: spline
+      type(var_array),pointer :: varray
+
+c Local variables
+
+      INTERFACE
+        subroutine evaluateNonlinearFunction(varray,fi)
+        use parameters
+        use variable_setup
+        real(8)          :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluateNonlinearFunction
+      END INTERFACE
+
+c Begin program
+
+      source_eval = .true.   !This informs nlfunction that we are processing the source
+      
+      !This not only evaluates fsrc, but defines BCs on u_n
+      call evaluateNonlinearFunction(varray,fsrc)
+
+      !Dump source
+      if (chk_src) call dump_src
+
+      if (.not.source) then
+        fsrc = 0d0
+      elseif (mk_grid.and.spline) then
+        call MK_spline_src(1,fsrc)
+      endif
+
+      source_eval = .false.
+
+c End program
+
+      contains
+
+c     dump_src
+c     ###############################################################
+      subroutine dump_src
+
+        use grid_debug,ONLY:C_contour,cont_conf,dbg,createDrawInCfile
+
+        integer :: ieq,nx,ny,nz,nunit
+
+        character(10) :: srcf
+        character(4)  :: dbg_desc(neqd)
+        character(3)  :: xlabel,ylabel
+
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) '>>>>>>>>>>>>>>>>>'
+          write (*,*) 'Dumping source...'
+          write (*,*) '>>>>>>>>>>>>>>>>>'
+        endif
+
+        nx = grid_params%nxv(1)
+        ny = grid_params%nyv(1)
+        nz = grid_params%nzv(1)
+
+        xlabel=cont_conf%label(1)
+        ylabel=cont_conf%label(2)
+
+        do ieq=1,neqd
+          dbg_desc(ieq) = 'dgb'//trim(int2char(ieq))
+        enddo
+
+        srcf='src_p'//trim(int2char(my_rank))//'.bin'
+
+        call createDrawInCfile(neqd,trim(srcf),'Source'
+     .        ,'t',trim(xlabel),trim(ylabel),dbg_desc,'-c -X0 -L57'
+     .        ,'drawsrc_p'//trim(int2char(my_rank))//'.in')
+
+        call mapVectorToStructure(u_graph,fsrc)
+
+        nunit = 110
+
+        open(nunit,file=trim(srcf),form='unformatted'
+     .        ,status='replace')
+
+        do ieq=1,neqd
+          call C_contour(u_graph%array_var(ieq)%array(1:nx,1:ny,1:nz)
+     .                ,grid_params%gxmin,grid_params%gxmax
+     .                ,grid_params%gymin,grid_params%gymax
+     .                ,grid_params%gzmin,grid_params%gzmax
+     .                ,ieq-1,nunit)
+        enddo
+
+        close (nunit)
+
+      end subroutine dump_src
+
+      end subroutine get_src

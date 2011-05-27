@@ -10,13 +10,15 @@ c ######################################################################
 
       use ts_setup
 
+      use mk
+
       implicit none
 
 c Call variables
 
 c Local variables
 
-      integer :: ierr,igr
+      integer :: ierr
 
 c Begin program
 
@@ -27,6 +29,8 @@ c Free memory
       call destroyTS
 
       call destroyNonlinearFunction   !External
+
+      if (mk_grid) call MK_dealloc
 
       call deallocateGlobalVar(gv)
 
