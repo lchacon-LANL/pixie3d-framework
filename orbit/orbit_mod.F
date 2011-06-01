@@ -19,9 +19,9 @@ c ######################################################################
         integer,private :: icross,ncross=100000,nbins=100
         real(8),private,allocatable,dimension(:,:) :: fpos,qdif
 
-        !LSODE public variables
+        !Integrator public variables
         real(8) :: xold,yold,zold,lsode_out(10)
-        logical :: sing_point=.false.,sln,exit_loop
+        logical :: sing_point=.false.,sln,exit_loop,orb_init
 
         integer :: iiout
 
@@ -46,6 +46,8 @@ c ######################################################################
           logical :: solen     !Whether use solenoidal version or LSODE
           logical :: picard    !Whether to use picard or Newton
           logical :: lsode_dt_lim  !Whether to limit lsode time step
+          logical :: lsode_s_indep !Whether to arc-length is indep. var. in LSODE
+          logical :: lsode_to_smax !Whether to integrate LSODE exactly to target arc-length
           integer :: lsode_neq !Number of equations for LSODE
         end type ode_solver
 
@@ -67,8 +69,8 @@ c ######################################################################
         integer,private :: nunitx,nunity,nunitz,nunitrz
         integer,private :: npointx,npointy,npointz
 
-        real(8),private :: tvold,told,tprev,time,tmax
-     .                    ,svold,sold,sprev,ss  ,smax
+        real(8),private :: tvold,told,time,tmax
+     .                    ,svold,sold,ss  ,smax
         real(8),private :: x,y,z,xcar,ycar,zcar,xss0,yss0,zss0
      .                    ,xvold,yvold,zvold,x00,y00,z00
         real(8),private :: xss,yss,zss,tss,rmin
@@ -329,9 +331,16 @@ c     ----------------------------------------------------------------------
       orb_default%ode_conf%niter  = 20     !Number of nonlinear iterations
       orb_default%ode_conf%rtol   = 0d-8   !Relative tolerance
       orb_default%ode_conf%atol   = 1d-8   !Absolute tolerance
-c3-eq      orb_default%ode_conf%lsode_neq = 3   !Number of LSODE equations
-      orb_default%ode_conf%lsode_neq = 5   !Number of LSODE equations
+
+      !LSODE default setup
       orb_default%ode_conf%lsode_dt_lim = .false. !Do not limit LSODE time step
+      orb_default%ode_conf%lsode_s_indep  = .false. !Find arc-length as dependent variable
+      if (orb_default%ode_conf%lsode_s_indep) then
+        orb_default%ode_conf%lsode_neq = 3 !Number of LSODE equations
+      else
+        orb_default%ode_conf%lsode_neq = 5 !Number of LSODE equations
+      endif
+      orb_default%ode_conf%lsode_to_smax  = .false. !Return after every single LSODE step
 
       !Splines
       orb_default%spline_conf%order = 2    !Spline interpolation order
@@ -346,7 +355,8 @@ c     ######################################################################
      .                      ,tmax,smax,dtime
      .                      ,niter,atol,rtol,order,solen,picard
      .                      ,spline_order,gauge,B_input_is_A,r_min
-     .                      ,lsode_neq,lsode_dt_lim)
+     .                      ,lsode_neq,lsode_dt_lim,lsode_to_smax
+     .                      ,lsode_s_indep)
 
 c     ----------------------------------------------------------------------
 c     Sets up orbit integrator.
@@ -366,6 +376,7 @@ c     Call variables
         real(8),optional :: tmax,smax,dtime,atol,rtol,r_min
         integer,optional :: niter,order,spline_order,gauge,lsode_neq
         logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
+     .                     ,lsode_to_smax,lsode_s_indep
 
 c     Begin program
 
@@ -413,7 +424,14 @@ c     Begin program
 
         if (PRESENT(lsode_dt_lim)) then
           orb_default%ode_conf%lsode_dt_lim = lsode_dt_lim
-          
+        endif
+
+        if (PRESENT(lsode_s_indep)) then
+          orb_default%ode_conf%lsode_s_indep = lsode_s_indep
+        endif
+
+        if (PRESENT(lsode_to_smax)) then
+          orb_default%ode_conf%lsode_to_smax = lsode_to_smax
         endif
 
         if (PRESENT(spline_order)) then
@@ -431,6 +449,19 @@ c     Begin program
         endif
 
         ode_conf = orb_default%ode_conf
+
+c     Consistency checks
+
+        if (ode_conf%lsode_to_smax) then
+          ode_conf%solen = .false.
+          ode_conf%lsode_s_indep = .true.
+        endif
+
+cc        if (ode_conf%lsode_s_indep) then
+cc          ode_conf%lsode_neq = 3 !Number of LSODE equations for field line integration
+cc        else
+cc          ode_conf%lsode_neq = 5 !Number of LSODE equations for field line integration
+cc        endif
 
 c     Do splines
 
@@ -478,7 +509,8 @@ c     Finalize B diagnostics
 
 c     orbit_find
 c     ######################################################################
-      subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,lsode_f,ss_order)
+      subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,lsode_f,ss_order
+     .                     ,t_max,s_max)
 
 c     ----------------------------------------------------------------------
 c     Integrates orbit up to specified limit in arc length or pseudotime
@@ -503,6 +535,7 @@ c     Call variables
         logical :: fwd
 
         integer,optional :: ss_order
+        real(8),optional :: t_max,s_max
 
         optional :: line_int
 
@@ -538,8 +571,18 @@ c     Begin program
 
         chk_ss = (.not.integral).and.ss_io  !Do SS only if not integrating and if IO has been set up
 
-        tmax = ode_conf%tmax
-        smax = ode_conf%smax
+        !Override maximum limits
+        if (PRESENT(t_max)) then
+          tmax = t_max
+        else
+          tmax = ode_conf%tmax 
+        endif
+
+        if (PRESENT(s_max)) then
+          smax = s_max
+        else
+          smax = ode_conf%smax
+        endif
 
 c     Check ranges
 
@@ -616,15 +659,39 @@ c     Orbit integral
           !Find new LOGICAL positions, new time, new arc length
           call orbit_step(x,y,z,iterror,forward=fwd,lsode_f=lsode_f)
 
-          !Line-orbit integration
-          if (integral) then
-            exit_loop = line_int(fwd,xold,x,yold,y,zold,z,sold,ss)
+          !Check for orbit end and interpolate quantities
+          if (smax /= 0d0) then
+            exit_loop = (abs(ss) >= smax)
+
+            if (exit_loop) then
+              x = xold + (smax-abs(sold))/abs(ss-sold)*(x-xold)
+              y = yold + (smax-abs(sold))/abs(ss-sold)*(y-yold)
+              z = zold + (smax-abs(sold))/abs(ss-sold)*(z-zold)
+              ss = sign(1d0,ss)*smax
+            endif
+          elseif (tmax /= 0d0) then
+            exit_loop = (abs(time) >= tmax)
+
+            if (exit_loop) then
+              x = xold + (tmax-abs(told))/abs(time-told)*(x-xold)
+              y = yold + (tmax-abs(told))/abs(time-told)*(y-yold)
+              z = zold + (tmax-abs(told))/abs(time-told)*(z-zold)
+              time = sign(1d0,time)*tmax
+            endif
+          else
+            exit_loop = .false.
           endif
 
-          if (exit_loop .or. orbit_error(iterror)) then
-            if (iiout >=0) write (*,*)
-            exit
+          !Line-orbit integration
+          if (integral) then
+            exit_loop = (line_int(fwd,xold,x,yold,y,zold,z,sold,ss))
+     .                  .or.(exit_loop)
           endif
+
+cc          if (exit_loop .or. orbit_error(iterror)) then
+cc            if (iiout >=0) write (*,*)
+cc            exit
+cc          endif
 
           !Check for intersection with surface of section
           if (iterror /= 2 .and. itime > 2 .and. chk_ss) then
@@ -639,16 +706,17 @@ c     Orbit integral
             endif
           endif
 
-          !Show progress/terminate
+          !Show progress
           if (smax /= 0d0) then
-            call orbit_progress(ss  ,sprev,smax,fwd,exit_loop)
+            call orbit_progress(ss  ,smax,fwd,exit_loop)
           elseif (tmax /= 0d0) then
-            call orbit_progress(time,tprev,tmax,fwd,exit_loop)
-          else
-            exit_loop = .false.
+            call orbit_progress(time,tmax,fwd,exit_loop)
+cc          else
+cc            exit_loop = .false.
           endif
 
-          if (exit_loop) then
+          if (exit_loop .or. orbit_error(iterror)) then
+cc          if (exit_loop) then
             if (iiout >=0) write (*,*)
             exit
           endif
@@ -694,11 +762,9 @@ c     Begin program
 
         time = 0d0  !Initialize pseudo-time along line
         told = 0d0
-        tprev= 0d0
 
         ss   = 0d0  !Initialize arc-length along line
         sold = 0d0
-        sprev= 0d0
 
         lsode_out = 0d0   !Initialize additional LSODE output
 
@@ -709,6 +775,8 @@ c     Begin program
         itime = 0
 
         exit_loop = .false.
+
+        orb_init = .true.
 
         if (iiout == 0) then
           write (*,FMT="(a,3f9.4,a)",ADVANCE="NO")
@@ -745,7 +813,7 @@ c     Local Variables
       real(8) :: vx,vy,vz,error(ode_conf%niter),atol,rtol,dtime
       real(8) :: xh,yh,zh,xnew,ynew,znew,xc,yc,zc,ds,cc
       integer :: iter,order,niter
-      logical :: restart,nt,fwd
+      logical :: restart,nt,fwd,lsode_3eq,lsode_to_smax
 
       save dt
 
@@ -771,6 +839,13 @@ c     ODE configuration
       order = ode_conf%order
       sln   = ode_conf%solen
       nt    = .not.ode_conf%picard
+      lsode_to_smax = ode_conf%lsode_to_smax
+
+      if (lsode_to_smax) then
+        lsode_3eq=.true.
+      else
+        lsode_3eq = ode_conf%lsode_s_indep
+      endif
 
       if (PRESENT(forward)) then
         fwd = forward
@@ -800,8 +875,11 @@ c     Time integration
 
       else                                  !LSODE (non-solenoidal)
 
-        call lsode_step(atol,rtol,x,y,z,ierror)
-
+        if (lsode_3eq) then
+          call lsode_step_3eq(atol,rtol,x,y,z,ierror)
+        else
+          call lsode_step    (atol,rtol,x,y,z,ierror)
+        endif
       endif
 
 c     Output
@@ -873,7 +951,6 @@ c     Initial conditions
         YY(4) = time
         YY(5) = ss
         if (NEQD(1) > 5) YY(6:NEQD(1))=lsode_out(1:NEQD(1)-5)
-c3-eq        if (NEQD(1) > 3) YY(4:NEQD(1))=lsode_out(1:NEQD(1)-3)
 
         TOUT = 0.1*cc*dtime !Output time value (ignored after first call, since ITASK=2)
       else
@@ -883,14 +960,12 @@ c3-eq        if (NEQD(1) > 3) YY(4:NEQD(1))=lsode_out(1:NEQD(1)-3)
         YY(4) = time
         YY(5) = ss
         if (NEQD(1) > 5) YY(6:NEQD(1))=lsode_out(1:NEQD(1)-5)
-c3-eq        if (NEQD(1) > 3) YY(4:NEQD(1))=lsode_out(1:NEQD(1)-3)
 
         TOUT  = cc*dtime    !Output time value (ignored after first call, since ITASK=2)
       endif
 
 c     LSODE configuration and call
 
-c3-eq      T    = time   !Independent variable
       T    = 0d0   !Independent variable
 
       ITOL = 1      !Whether atol is array or not (2 => true)
@@ -984,17 +1059,182 @@ c     Advance time and arc length
 
       if (NEQD(1) > 5) lsode_out(1:NEQD(1)-5)=cc*YY(6:NEQD(1))
 
-c3-eq      dt   = (abs(T)-time)   !For output
-c3-eq      ds   = (abs(T)-time)   !For output
-c3-eq
-c3-eq      time = abs(T)
-c3-eq      ss   = abs(T)
-c3-eq
-c3-eq      if (NEQD(1) > 3) lsode_out(1:NEQD(1)-3)=cc*YY(4:NEQD(1))
-
 c     End program
 
       end subroutine lsode_step
+
+c     lsode_step_3eq
+c     ####################################################################
+      subroutine lsode_step_3eq(aatol,rrtol,x,y,z,iterr)
+
+c     --------------------------------------------------------------------
+c     Performs orbit integration step using LSODE (arbitrary order < 12th,
+c     implicit Adams-Moulton, adaptive time stepping).
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: iterr
+      real(8) :: x,y,z,aatol,rrtol
+
+c     Local variables
+
+      real(8) :: xc,yc,zc
+      real(8) :: xh,yh,zh,jach
+
+      logical  :: external_f
+
+c     Interfaces
+
+      INTERFACE
+        subroutine ff_3eq(neq,t,y,ydot)
+        integer :: neq
+        real(8) :: t,y(neq),ydot(neq)
+        end subroutine ff_3eq
+      END INTERFACE
+
+c     Begin program
+
+      if (cartesian .and. (.not.sing_point)) ISTATE=1 !Restart LSODE for cartesian step
+      external_f = PRESENT(lsode_f)                   !LSODE function is external
+
+      sing_point = cartesian
+
+      NEQD = ode_conf%lsode_neq    !Number of equations
+
+c     Initial conditions
+
+      if (cartesian) then
+        !Find Cartesian coordinates
+        call evalX(x,y,z,xc,yc,zc)
+
+        YY(1) = xc
+        YY(2) = yc
+        YY(3) = zc
+        if (NEQD(1) > 3) YY(4:NEQD(1))=lsode_out(1:NEQD(1)-3)
+
+        TOUT = 0.1*cc*dtime !Output time value (ignored after first call, since ITASK=2)
+      else
+        YY(1) = x
+        YY(2) = y
+        YY(3) = z
+        if (NEQD(1) > 3) YY(4:NEQD(1))=lsode_out(1:NEQD(1)-3)
+
+        TOUT  = cc*dtime    !Output time value (ignored after first call, since ITASK=2)
+      endif
+
+c     LSODE configuration and call
+
+      T = time   !Independent variable
+
+      ITOL = 1      !Whether atol is array or not (2 => true)
+
+      if (ISTATE /= 3) then
+        LS_RTOL = rrtol            !Relative tolerance
+        LS_ATOL = aatol            !Absolute tolerance
+      endif
+
+      if (.not.lsode_to_smax) then
+        ITASK = 2   !Mode of operation: take one step and return
+      else
+        TOUT = smax !Set smax for end of integration
+cc        ITASK = 1   !Mode of operation: integrate to end and return at TOUT=smax by interpolation
+        ITASK = 4   !Mode of operation: integrate to end and return at TOUT=smax w/o overshooting
+      endif
+
+      !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
+      if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
+
+      IOPT = 0                  !Whether optional inputs are needed
+      if (ode_conf%lsode_dt_lim) then
+cc        write (*,*) 'LSODE -- limiting time step'
+        IOPT = 1                !Whether optional inputs are needed
+        RWORK(6) = dtime        !Maximum time step allowed (optional input)
+      endif
+      if (ITASK==4) then
+        IOPT = 1                !Whether optional inputs are needed
+        RWORK(1) = TOUT         !TCRIT: not to be overshot
+        IWORK(6) = 10000        !Maximum number of steps
+      endif
+
+      MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
+
+cc      write (*,*)'Number of equations',NEQD
+cc      write (*,*)'Input state=',YY(1:NEQD(1))
+cc      write (*,*)'Current time=',T
+cc      write (*,*)'Next time=',TOUT
+cc      write (*,*)'Tolerances=',ITOL,LS_RTOL,LS_ATOL
+cc      write (*,*)'LSODE task=',ITASK
+cc      write (*,*)'LSODE state=',ISTATE
+cc      write (*,*)'Optional inputs required?',IOPT
+cc      write (*,*)'Real work array size=',size(RWORK),' declared=',LRW
+cc      write (*,*)'Integer work array size=',size(IWORK),' declared=',LIW
+cc      write (*,*)'LSODE method=',MF
+
+      if (external_f) then
+        CALL LSODE (lsode_f,NEQD(1),YY(1:NEQD(1)),T,TOUT
+     .             ,ITOL,LS_RTOL,LS_ATOL
+     .             ,ITASK,ISTATE,IOPT,RWORK,LRW,IWORK,LIW,lsode_f, MF)
+      else
+        CALL LSODE (ff_3eq ,NEQD(1),YY(1:NEQD(1)),T,TOUT
+     .             ,ITOL,LS_RTOL,LS_ATOL
+     .             ,ITASK,ISTATE,IOPT,RWORK,LRW,IWORK,LIW,ff_3eq  ,MF)
+      endif
+
+      select case(ISTATE)
+      case(2)       !Uneventful
+        continue
+      case(-1)      !Too much work: call again
+        ISTATE = 3
+      case(-2)      !Rescale tolerances
+        ISTATE = 3
+        RTOL=RTOL*RWORK(14)
+        ATOL=ATOL*RWORK(14)
+      case default  !Exit LSODE
+        write (*,*) 'Error code ISTATE=',ISTATE
+        write (*,*) 'See lsode.f for instructions'
+        write (*,*) 'Aborting...'
+        stop
+      end select
+
+c     Postprocessing to find logical coordinates
+
+      if (cartesian) then
+        x = xold ; y = yold ; z = zold
+        call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,iterr)
+
+        if (iterr /= 0) then
+          iterr = 6
+          return
+        endif
+
+        if (x >= rmin) then
+          iterr = -2
+          ISTATE = 1   !Instruct LSODE to start anew for next time step
+          cartesian = .false.
+          sing_point= .false.
+        endif
+      else
+        x = YY(1)
+        y = YY(2)
+        z = YY(3)
+      endif
+
+c     Advance time and arc length
+
+      dt   = (abs(T)-time)   !For output
+      ds   = (abs(T)-time)   !For output
+
+      time = abs(T)
+      ss   = abs(T)
+
+      if (NEQD(1) > 3) lsode_out(1:NEQD(1)-3)=cc*YY(4:NEQD(1))
+
+c     End program
+
+      end subroutine lsode_step_3eq
 
 c     vp_solver
 c     #########################################################################
@@ -1175,8 +1415,10 @@ c     Local variables
 
 c     Begin program
 
+      !Check whether we are doing correct step (based on vector potential components)
       if (iterr /= 0 .or. (istep /= 0 .and. flag /= istep)) return
 
+      !Initialize position
       x0=x
       y0=y
       z0=z
@@ -1324,79 +1566,80 @@ c     ###################################################################
 
       end subroutine orbit_step
 
-c3-eqc     lsode_orbit_f
-c3-eqc     #####################################################################
-c3-eq      subroutine lsode_orbit_f(neq,t,y,ydot,xx1,yy1,zz1)
-c3-eq
-c3-eqc     ---------------------------------------------------------------------
-c3-eqc     Driver routine for LSODE integration: ydot = lsode_orbit_f(y,t)
-c3-eqc     ---------------------------------------------------------------------
-c3-eq
-c3-eq      implicit none
-c3-eq
-c3-eqc     Call variables
-c3-eq
-c3-eq      integer :: neq
-c3-eq      real(8) :: t,y(neq),ydot(neq)
-c3-eq      real(8),optional :: xx1,yy1,zz1
-c3-eq
-c3-eqc     Local variables
-c3-eq
-c3-eq      integer :: ierror
-c3-eq      real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,coeff
-c3-eq
-c3-eqc     Begin program
-c3-eq
-c3-eq      if (neq /= 3) then
-c3-eq        write (*,*) 'Wrong number of Eqs. in lsode_orbit_f:',neq
-c3-eq        stop
-c3-eq      endif
-c3-eq
-c3-eq      !Find logical coordinates
-c3-eq      if (sing_point) then
-c3-eq        x1 = xold ; y1 = yold ; z1 = zold
-c3-eq        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,ierror)
-c3-eq        if (ierror /= 0) then
-c3-eq          write (*,*) ierror
-c3-eq          write (*,*) 'Could not find logical coords in lsode_orbit_f'
-c3-eq          stop
-c3-eq        endif
-c3-eq      else
-c3-eq        x1 = y(1)
-c3-eq        y1 = y(2)
-c3-eq        z1 = y(3)
-c3-eq      endif
-c3-eq
-c3-eq      !Get vector field (Cartesian if sing_point is .true.)
-c3-eq      call getB(x1,y1,z1,vx,vy,vz,sln,sing_point)
-c3-eq
-c3-eq      ydot(1) = vx
-c3-eq      ydot(2) = vy
-c3-eq      ydot(3) = vz
-c3-eq
-c3-eq      !Time and arc-length ODEs
-c3-eq      if (.not.sing_point) then
-c3-eq        coeff = evalJ(x1,y1,z1,ierror)
-c3-eq        if (ierror /= 0) then
-c3-eq          write (*,*) 'Negative Jacobian in lsode_orbit_f'
-c3-eq          stop
-c3-eq        endif
-c3-eq
-c3-eq        call evalBcar(x1,y1,z1,vx,vy,vz)
-c3-eq        coeff = coeff*sqrt(vx**2+vy**2+vz**2)
-c3-eq      else
-c3-eq        coeff = sqrt(vx**2+vy**2+vz**2)
-c3-eq      endif
-c3-eq
-c3-eq      ydot = ydot/coeff
-c3-eq
-c3-eq      if (PRESENT(xx1)) xx1 = x1
-c3-eq      if (PRESENT(yy1)) yy1 = y1
-c3-eq      if (PRESENT(zz1)) zz1 = z1
-c3-eq
-c3-eqc     End program
-c3-eq
-c3-eq      end subroutine lsode_orbit_f
+c     lsode_orbit_f_3eq
+c     #####################################################################
+      subroutine lsode_orbit_f_3eq(neq,t,y,ydot,xx1,yy1,zz1)
+
+c     ---------------------------------------------------------------------
+c     Driver routine for LSODE integration: ydot = lsode_orbit_f(y,t)
+c     ---------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: neq
+      real(8) :: t,y(neq),ydot(neq)
+      real(8),optional :: xx1,yy1,zz1
+
+c     Local variables
+
+      integer :: ierror
+      real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,coeff
+
+c     Begin program
+
+      if (neq /= 3) then
+        write (*,*) 'Wrong number of Eqs. in lsode_orbit_f_3eq:',neq
+        stop
+      endif
+
+      !Find logical coordinates
+      if (sing_point) then
+        x1 = xold ; y1 = yold ; z1 = zold
+        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,ierror)
+        if (ierror /= 0) then
+          write (*,*) ierror
+          write (*,*)
+     .         'Could not find logical coords in lsode_orbit_f_3eq'
+          stop
+        endif
+      else
+        x1 = y(1)
+        y1 = y(2)
+        z1 = y(3)
+      endif
+
+      !Get vector field (Cartesian if sing_point is .true.)
+      call getB(x1,y1,z1,vx,vy,vz,sln,sing_point)
+
+      ydot(1) = vx
+      ydot(2) = vy
+      ydot(3) = vz
+
+      !Time and arc-length ODEs
+      if (.not.sing_point) then
+        coeff = evalJ(x1,y1,z1,ierror)
+        if (ierror /= 0) then
+          write (*,*) 'Negative Jacobian in lsode_orbit_f_3eq'
+          stop
+        endif
+
+        call evalBcar(x1,y1,z1,vx,vy,vz)
+        coeff = coeff*sqrt(vx**2+vy**2+vz**2)
+      else
+        coeff = sqrt(vx**2+vy**2+vz**2)
+      endif
+
+      ydot = ydot/coeff
+
+      if (PRESENT(xx1)) xx1 = x1
+      if (PRESENT(yy1)) yy1 = y1
+      if (PRESENT(zz1)) zz1 = z1
+
+c     End program
+
+      end subroutine lsode_orbit_f_3eq
 
 c     lsode_orbit_f
 c     #####################################################################
@@ -1475,7 +1718,7 @@ c     End program
 
 c     orbit_progress
 c     #################################################################
-      subroutine orbit_progress(time,tprev,tmax,fwd,exit_loop)
+      subroutine orbit_progress(time,tmax,fwd,exit_loop)
 
 c     -----------------------------------------------------------------
 c     Shows progress of orbit integration in various ways, depending
@@ -1484,10 +1727,11 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-        real(8) :: time,tprev,tmax
+        real(8) :: time,tmax
         logical :: fwd,exit_loop
 
-        exit_loop = (abs(time) > tmax)
+        real(8) :: tprev=0d0
+        save :: tprev
 
         if (iiout == 0) then
           if (abs(time-tprev) > 0.1*tmax .or. exit_loop) then
@@ -2001,3 +2245,30 @@ c Begin program
 c End program
 
       end subroutine ff
+
+c ff_3eq
+c #########################################################################
+      subroutine ff_3eq(neq,t,y,ydot)
+
+c -------------------------------------------------------------------------
+c     Interface driver routine for LSODE integration: ydot = ff(y,t)
+c -------------------------------------------------------------------------
+
+      use orbit
+
+      implicit none
+
+c Call variables
+
+      integer :: neq
+      real(8) :: t,y(neq),ydot(neq)
+
+c Local variables
+
+c Begin program
+
+      call lsode_orbit_f_3eq(neq,t,y,ydot)
+
+c End program
+
+      end subroutine ff_3eq
