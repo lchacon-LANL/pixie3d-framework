@@ -877,8 +877,8 @@ c ######################################################################
 
 c     grad_ijk
 c     ###############################################################
-      function grad_ijk(i,j,k,nx,ny,nz,igx,igy,igz,arr,he,order)
-     .         result(cov)
+      function grad_ijk(i,j,k,nx,ny,nz,igx,igy,igz,arr,hex,hey,hez
+     .                 ,order) result(cov)
 
 c     ---------------------------------------------------------------
 c     Calculates grad(A) in general non-orthogonal coordinates.
@@ -893,7 +893,7 @@ c     Call variables
 
       real(8) :: arr(0:nx+1,0:ny+1,0:nz+1),cov(3)
 
-      integer,optional :: he,order!,hex,hey,hez
+      integer,optional :: order,hex,hey,hez
 
 c     Local variables
 
@@ -905,16 +905,9 @@ c     Begin program
 
       hx = 0; hy = 0; hz = 0
 
-      if (PRESENT(he)) then
-        select case(he)
-        case(1)
-          hx = 1
-        case(2)
-          hy = 1
-        case(3)
-          hz = 1
-        end select
-      endif
+      if (PRESENT(hex)) hx = hex
+      if (PRESENT(hey)) hy = hey
+      if (PRESENT(hez)) hz = hez
 
       ip = i+1
       im = i-1
@@ -1109,7 +1102,8 @@ c     End program
 
 c     curl_ijk
 c     ###############################################################
-      function curl_ijk(i,j,k,nx,ny,nz,igx,igy,igz,a,he) result(cnv)
+      function curl_ijk(i,j,k,nx,ny,nz,igx,igy,igz,a,hex,hey,hez)
+     .         result(cnv)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -1127,7 +1121,7 @@ c     Call variables
 
       real(8)    :: a(0:nx+1,0:ny+1,0:nz+1,3)
 
-      integer,optional :: he
+      integer,optional :: hex,hey,hez
 
 c     Local variables
 
@@ -1138,7 +1132,7 @@ c     Begin program
 
       do icomp=1,3
         gv(:,icomp) = grad_ijk(i,j,k,nx,ny,nz,igx,igy,igz
-     .                    ,a(:,:,:,icomp),he=he)
+     .                    ,a(:,:,:,icomp),hex=hex,hey=hey,hez=hez)
       enddo
 
       cnv(1) = gv(2,3)-gv(3,2)
@@ -1195,7 +1189,7 @@ c     End program
 
 c     div_ijk
 c     ###############################################################
-      function div_ijk(i,j,k,nx,ny,nz,igx,igy,igz,cnv,he,hex,hey,hez,sp)
+      function div_ijk(i,j,k,nx,ny,nz,igx,igy,igz,cnv,hex,hey,hez,sp)
      .         result(div)
 
       implicit none
@@ -1209,12 +1203,12 @@ c     Call variables
 
       integer :: i,j,k,nx,ny,nz,igx,igy,igz
       real(8) :: cnv(0:nx+1,0:ny+1,0:nz+1,3),div
-      integer,optional :: he,hex,hey,hez
+      integer,optional :: hex,hey,hez
       logical,optional :: sp
 
 c     Local variables
 
-      integer :: ig,jg,kg,igrid,ip,im,jp,jm,kp,km,hx,hy,hz,half_elem
+      integer :: ig,jg,kg,igrid,ip,im,jp,jm,kp,km,hx,hy,hz
       real(8) :: dxx,dyy,dzz,x0,y0,z0,jacp,jacm,jac0,jach
       logical :: spoint
 
@@ -1222,24 +1216,24 @@ c     Begin program
 
       hx = 0; hy = 0; hz = 0
 
-      if (PRESENT(he)) then
-        half_elem = he
-
-        select case(he)
-        case(1)
-          hx = 1
-        case(2)
-          hy = 1
-        case(3)
-          hz = 1
-        end select
-      else
-        half_elem = 0
+cc      if (PRESENT(he)) then
+cc        half_elem = he
+cc
+cc        select case(he)
+cc        case(1)
+cc          hx = 1
+cc        case(2)
+cc          hy = 1
+cc        case(3)
+cc          hz = 1
+cc        end select
+cc      else
+cc        half_elem = 0
 
         if (PRESENT(hex)) hx = hex
         if (PRESENT(hey)) hy = hey
         if (PRESENT(hez)) hz = hez
-      endif
+cc      endif
 
       if (PRESENT(sp)) then
         spoint = sp
@@ -1312,25 +1306,25 @@ cc      if (isSP2(i,igx).and.half_elem == 0.and.spoint) then
 
 c     Affect calculation by inverse jacobian
 
-      select case(half_elem)
-      case(1)
-cc        im = i
-cc        dxx = grid_params%dx(ig)
-        jac0 = 0.5*(gmetric%grid(igrid)%jac(ip,j,k)
-     .             +gmetric%grid(igrid)%jac(i ,j,k))
-      case(2)
-cc        jm = j
-cc        dyy = grid_params%dy(jg)
-        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,jp,k)
-     .             +gmetric%grid(igrid)%jac(i,j ,k))
-      case(3)
-cc        km = k
-cc        dzz = grid_params%dz(kg)
-        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,j,kp)
-     .             +gmetric%grid(igrid)%jac(i,j,k ))
-      case default
+cc      select case(half_elem)
+cc      case(1)
+cccc        im = i
+cccc        dxx = grid_params%dx(ig)
+cc        jac0 = 0.5*(gmetric%grid(igrid)%jac(ip,j,k)
+cc     .             +gmetric%grid(igrid)%jac(i ,j,k))
+cc      case(2)
+cccc        jm = j
+cccc        dyy = grid_params%dy(jg)
+cc        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,jp,k)
+cc     .             +gmetric%grid(igrid)%jac(i,j ,k))
+cc      case(3)
+cccc        km = k
+cccc        dzz = grid_params%dz(kg)
+cc        jac0 = 0.5*(gmetric%grid(igrid)%jac(i,j,kp)
+cc     .             +gmetric%grid(igrid)%jac(i,j,k ))
+cc      case default
         jac0 = gmetric%grid(igrid)%jac(i,j,k)
-      end select
+cc      end select
 
       div = div/jac0
       
@@ -5351,6 +5345,253 @@ ccc     End
 cc
 cc      end function flx_advec
 
+c     flx_nc_advec
+c     ###############################################################
+      function flx_nc_advec(i,j,k,nx,ny,nz,igx,igy,igz,v,arr
+     .                     ,method,sp,vol) result(advec)
+      implicit none
+c     ---------------------------------------------------------------
+c     Calculates divergence of vector field (v.arr) at cell centers in
+c     general non-orthogonal geometry.
+c
+c     method: specifies the advective scheme (see inter)
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer    :: i,j,k,nx,ny,nz,igx,igy,igz,method
+
+      real(8)    :: arr(0:nx+1,0:ny+1,0:nz+1)
+     .             ,v  (0:nx+1,0:ny+1,0:nz+1,3),advec
+
+      logical,optional :: sp,vol
+
+c     Local variables
+
+      integer    :: igrid,half_elem,su
+
+      integer    :: im,ip,ipp,imm,igm,igp,igpp,igmm
+     .             ,jm,jp,jpp,jmm,jgm,jgp,jgpp,jgmm
+     .             ,km,kp,kpp,kmm,kgm,kgp,kgpp,kgmm
+     .             ,ig,jg,kg,igl,jgl,kgl
+
+      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jac
+      real(8)    :: vxp,vxm,vyp,vym,vzp,vzm
+     .             ,qip,qim,qjp,qjm,qkp,qkm
+      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+      logical    :: vw,spoint,bc_safe
+
+c     Begin program
+
+c     Set defaults
+
+      bc_safe = (method <=2)
+
+      if (PRESENT(vol)) then
+        vw = vol
+      else
+        vw = .true.
+      endif
+
+      if (PRESENT(sp)) then
+        spoint = sp
+      else
+        spoint = .false.
+      endif
+
+c     General setup
+
+      igrid = igx
+
+      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+      ip = i+1
+      im = i-1
+      jp = j+1
+      jm = j-1
+      kp = k+1
+      km = k-1
+
+      ipp = ip+1
+      imm = im-1
+      ipp = min(ipp,nx+1)
+      imm = max(imm,0)
+
+      igp  = ig+1
+      igm  = ig-1
+      igpp = ig + (ipp - i)
+      igmm = ig + (imm - i)
+
+      jpp = jp+1
+      jmm = jm-1
+      jpp = min(jpp,ny+1)
+      jmm = max(jmm,0)
+
+      jgp  = jg+1
+      jgm  = jg-1
+      jgpp = jg + (jpp-j)
+      jgmm = jg + (jmm-j)
+
+      kpp = kp+1
+      kmm = km-1
+      kpp = min(kpp,nz+1)
+      kmm = max(kmm,0)
+
+      kgp  = kg+1
+      kgm  = kg-1
+      kgpp = kg + (kpp-k)
+      kgmm = kg + (kmm-k)
+
+      igl = i+grid_params%ilo(igx)-1
+      jgl = j+grid_params%jlo(igy)-1
+      kgl = k+grid_params%klo(igz)-1
+
+c     Grid info
+
+      dxx = grid_params%dxh(ig)
+      dyy = grid_params%dyh(jg)
+      dzz = grid_params%dzh(kg)
+
+      jac = gmetric%grid(igrid)%jac(i,j,k)
+
+c     Find non-conservative fluxes
+
+      !X flux
+      flxip = 0.5*(arr(i,j,k) + arr(ip,j,k))*v(i,j,k,1)
+      flxim = 0.5*(arr(i,j,k) + arr(im,j,k))*v(i,j,k,1)
+
+      !Y flux
+      flxjp = 0.5*(arr(i,j,k) + arr(i,jp,k))*v(i,j,k,2)
+      flxjm = 0.5*(arr(i,j,k) + arr(i,jm,k))*v(i,j,k,2)
+
+      !Z flux
+      flxkp = 0.5*(arr(i,j,k) + arr(i,j,kp))*v(i,j,k,3)
+      flxkm = 0.5*(arr(i,j,k) + arr(i,j,km))*v(i,j,k,3)
+
+c     Find velocities at faces from ZIP fluxes
+
+      if (method /= 2) then
+
+        vxp = v(i,j,k,1)
+        vxm = v(i,j,k,1)
+                                                    
+        vyp = v(i,j,k,2)
+        vym = v(i,j,k,2)
+                                                    
+        vzp = v(i,j,k,3)
+        vzm = v(i,j,k,3)
+
+c     Find advected quantity at faces
+
+        if ((i == nx).and.(method > 2 .and. method <= 6)) then
+          qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
+     .             ,grid_params%xx(igp ),arr(ip ,j,k)
+     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
+     .             ,grid_params%xx(igm ),arr(im ,j,k)
+     .             ,vxp,1)
+        else
+          qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
+     .             ,grid_params%xx(igp ),arr(ip ,j,k)
+     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
+     .             ,grid_params%xx(igm ),arr(im ,j,k)
+     .             ,vxp,method)
+        endif
+
+        if ((i == 1).and.(method > 2 .and. method <= 6)) then
+          qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
+     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
+     .             ,grid_params%xx(igm ),arr(im ,j,k)
+     .             ,grid_params%xx(igmm),arr(imm,j,k)
+     .             ,vxm,1)
+        else
+          qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
+     .             ,grid_params%xx(ig  ),arr(i  ,j,k)
+     .             ,grid_params%xx(igm ),arr(im ,j,k)
+     .             ,grid_params%xx(igmm),arr(imm,j,k)
+     .             ,vxm,method)
+        endif
+
+        if ((j == ny).and.(method > 2 .and. method <= 6)) then
+          qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
+     .             ,grid_params%yy(jgp ),arr(i,jp ,k)
+     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
+     .             ,grid_params%yy(jgm ),arr(i,jm ,k)
+     .             ,vyp,1)
+        else
+          qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
+     .             ,grid_params%yy(jgp ),arr(i,jp ,k)
+     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
+     .             ,grid_params%yy(jgm ),arr(i,jm ,k)
+     .             ,vyp,method)
+        endif
+
+        if ((j == 1).and.(method > 2 .and. method <= 6)) then
+          qjm=inter(grid_params%yy(jgp ),arr(i,jp ,k)
+     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
+     .             ,grid_params%yy(jgm ),arr(i,jm ,k)
+     .             ,grid_params%yy(jgmm),arr(i,jmm,k)
+     .             ,vym,1)
+        else
+          qjm=inter(grid_params%yy(jgp ),arr(i,jp,k )
+     .             ,grid_params%yy(jg  ),arr(i,j  ,k)
+     .             ,grid_params%yy(jgm ),arr(i,jm,k )
+     .             ,grid_params%yy(jgmm),arr(i,jmm,k)
+     .             ,vym,method)
+        endif
+
+        if ((k == nz).and.(method > 2 .and. method <= 6)) then
+          qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
+     .             ,grid_params%zz(kgp ),arr(i,j,kp )
+     .             ,grid_params%zz(kg  ),arr(i,j,k  )
+     .             ,grid_params%zz(kgm ),arr(i,j,km )
+     .             ,vzp,1)
+        else
+          qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
+     .             ,grid_params%zz(kgp ),arr(i,j,kp )
+     .             ,grid_params%zz(kg  ),arr(i,j,k  )
+     .             ,grid_params%zz(kgm ),arr(i,j,km )
+     .             ,vzp,method)
+        endif
+
+        if ((k == 1).and.(method > 2 .and. method <= 6)) then
+          qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
+     .             ,grid_params%zz(kg  ),arr(i,j,k  )
+     .             ,grid_params%zz(kgm ),arr(i,j,km )
+     .             ,grid_params%zz(kgmm),arr(i,j,kmm)
+     .             ,vzm,1)
+        else
+          qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
+     .             ,grid_params%zz(kg  ),arr(i,j,k  )
+     .             ,grid_params%zz(kgm ),arr(i,j,km )
+     .             ,grid_params%zz(kgmm),arr(i,j,kmm)
+     .             ,vzm,method)
+        endif
+
+c     Setup fluxes
+
+        if (.not.isBdry(i,igx,2).or.bc_safe) flxip=vxp*qip
+        if (.not.isBdry(i,igx,1).or.bc_safe) flxim=vxm*qim
+
+        if (.not.isBdry(j,igy,4).or.bc_safe) flxjp=vyp*qjp
+        if (.not.isBdry(j,igy,3).or.bc_safe) flxjm=vym*qjm
+
+        if (.not.isBdry(k,igz,6).or.bc_safe) flxkp=vzp*qkp
+        if (.not.isBdry(k,igz,5).or.bc_safe) flxkm=vzm*qkm
+
+      endif
+
+c     Find advective term
+
+      advec =( (flxip - flxim)/dxx
+     .       + (flxjp - flxjm)/dyy
+     .       + (flxkp - flxkm)/dzz )/jac
+      
+      if (vw) advec = advec*gmetric%grid(igx)%dvol(i,j,k)
+
+c     End 
+
+      end function flx_nc_advec
+
 c     tensor_advc
 c     #####################################################################
       function tensor_advc(i,j,k,nxx,nyy,nzz,igx,igy,igz,v0,v1,method
@@ -5455,8 +5696,8 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ig,jg,kg,ip,im,ipp,igpp,igp,igm,icomp
-        real(8)    :: vxp,qp,t1(3)
+        integer    :: ig,jg,kg,ip,im,ipp,igpp,igp,igm,icomp,adv__meth
+        real(8)    :: vxp,qp(3),t1(3)
         real(8)    :: jac,jac0,jacp,ijac,ijac0,ijacp
 
 c     Begin program
@@ -5482,7 +5723,7 @@ c     Begin program
         ijac0 = 1d0/jac0
         ijacp = 1d0/jacp
 
-c     ZIP fluxes
+c     ZIP advective fluxes
 
         t1(1) = 0.25*( vec2(ip,j,k,1)*vec1(i ,j,k,1)
      .                +vec2(i ,j,k,1)*vec1(ip,j,k,1)
@@ -5506,6 +5747,14 @@ c     Flux limiting
 
         if (adv_meth /= 2 .and. flag /= 0) then
 
+          !Revert extended support methods to upwinding at processor boundaries
+          if ((i == nx .or. i == 0)
+     .       .and.(adv_meth > 2 .and. adv_meth <= 6)) then
+            adv__meth = 1
+          else
+            adv__meth = adv_meth
+          endif
+
           call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
           ipp  = min(ip+1,nx+1)
@@ -5515,39 +5764,14 @@ c     Flux limiting
           igm  = ig + (im  - i)
           igpp = ig + (ipp - i)
 
-          do icomp=1,3
-            !Find velocities at faces from fluxes
-cccc            if (     t1(icomp)/=0d0
-cccc     .          .and.vec2(i,j,k,icomp)*vec2(ip,j,k,icomp)>0d0) then
-cc            if (vec2(i,j,k,icomp)*vec2(ip,j,k,icomp)>0d0) then
-cc              vxp = 2d0*t1(icomp)/(vec2(i,j,k,icomp)+vec2(ip,j,k,icomp))
-cc            else
-              vxp = 0.5*(vec1(ip,j,k,1)*ijacp+vec1(i,j,k,1)*ijac0)*jac
-cc            endif
+          vxp = 0.5*(vec1(ip,j,k,1)*ijacp+vec1(i,j,k,1)*ijac0)*jac
 
-            if (    (i == nx .or. i == 0)
-     .         .and.(adv_meth > 2 .and. adv_meth <= 6)) then
-              !Revert extended support methods to upwinding at processor boundaries
-              qp=inter(grid_params%xx(igpp),vec2(ipp,j,k,icomp)
-     .                ,grid_params%xx(igp ),vec2(ip ,j,k,icomp)
-     .                ,grid_params%xx(ig  ),vec2(i  ,j,k,icomp)
-     .                ,grid_params%xx(igm ),vec2(im ,j,k,icomp)
-     .                ,vxp,1)
-            else
-              !Limit flux based on velocity
-              qp=inter(grid_params%xx(igpp),vec2(ipp,j,k,icomp)
-     .                ,grid_params%xx(igp ),vec2(ip ,j,k,icomp)
-     .                ,grid_params%xx(ig  ),vec2(i  ,j,k,icomp)
-     .                ,grid_params%xx(igm ),vec2(im ,j,k,icomp)
-     .                ,vxp,adv_meth)
-            endif
-
-            !Recover flux (use ZIP flux if possible)
-cc            if (vec2(i,j,k,icomp)*vec2(ip,j,k,icomp)>0d0)
-cc     .        vxp = 2d0*t1(icomp)/(vec2(i,j,k,icomp)+vec2(ip,j,k,icomp))
-            t1(icomp) = vxp*qp
-          enddo
-
+          !Limit flux based on velocity
+          t1 = vxp*inter(grid_params%xx(igpp),vec2(ipp,j,k,:)
+     .                  ,grid_params%xx(igp ),vec2(ip ,j,k,:)
+     .                  ,grid_params%xx(ig  ),vec2(i  ,j,k,:)
+     .                  ,grid_params%xx(igm ),vec2(im ,j,k,:)
+     .                  ,vxp,adv__meth)
         endif
 
 c     Postprocessing
@@ -5596,8 +5820,8 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ig,jg,kg,jp,jm,jpp,jgpp,jgp,jgm,icomp
-        real(8) :: vyp,qp,jac,ijac,t2(3)
+        integer :: ig,jg,kg,jp,jm,jpp,jgpp,jgp,jgm,adv__meth
+        real(8) :: vyp,qp(3),jac,ijac,t2(3)
 
 c     Begin program
 
@@ -5607,7 +5831,7 @@ c     Begin program
         jac = 0.5*(gmetric%grid(igx)%jac(i,jp,k)
      .            +gmetric%grid(igx)%jac(i,j ,k))
 
-c     Advective fluxes
+c     ZIP advective fluxes
 
         t2 = 0.25*( vec2(i,jp,k,2)*vec1(i,j ,k,:)
      .             +vec2(i,j ,k,2)*vec1(i,jp,k,:)
@@ -5618,6 +5842,14 @@ c     Flux limiting
 
         if (adv_meth /= 2 .and. flag /= 0) then
 
+          !Revert extended support methods to upwinding at processor boundaries
+          if ((j == ny .or. j == 0)
+     .       .and.(adv_meth > 2 .and. adv_meth <= 6)) then
+            adv__meth = 1
+          else
+            adv__meth = adv_meth
+          endif
+
           call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
           jpp = min(jp+1,ny+1)
@@ -5627,38 +5859,14 @@ c     Flux limiting
           jgm  = jg + (jm  - j)
           jgpp = jg + (jpp - j)
 
-          do icomp=1,3
-            !Find velocities at faces from fluxes
-cccc            if (     t2(icomp)/=0d0
-cccc     .          .and.vec2(i,j,k,icomp)*vec2(i,jp,k,icomp)>0d0) then
-cc            if (vec2(i,j,k,icomp)*vec2(i,jp,k,icomp)>0d0) then
-cc              vyp = 2d0*t2(icomp)/(vec2(i,j,k,icomp)+vec2(i,jp,k,icomp))
-cc            else
-              vyp = 0.5*(vec1(i,jp,k,2)+vec1(i,j,k,2))
-cc            endif
+          vyp = 0.5*(vec1(i,jp,k,2)+vec1(i,j,k,2))
 
-            if (     (j == ny .or. j == 0)
-     .         .and. (adv_meth > 2 .and. adv_meth <= 6)) then
-              !Revert extended support methods to upwinding at processor boundaries
-              qp=inter(grid_params%yy(jgpp),vec2(i,jpp,k,icomp)
-     .                ,grid_params%yy(jgp ),vec2(i,jp ,k,icomp)
-     .                ,grid_params%yy(jg  ),vec2(i,j  ,k,icomp)
-     .                ,grid_params%yy(jgm ),vec2(i,jm ,k,icomp)
-     .                ,vyp,1)
-            else
-              !Limit flux based on velocity
-              qp=inter(grid_params%yy(jgpp),vec2(i,jpp,k,icomp)
-     .                ,grid_params%yy(jgp ),vec2(i,jp ,k,icomp)
-     .                ,grid_params%yy(jg  ),vec2(i,j  ,k,icomp)
-     .                ,grid_params%yy(jgm ),vec2(i,jm ,k,icomp)
-     .                ,vyp,adv_meth)
-            endif
-
-            !Recover flux (use ZIP flux if possible)
-cc            if (vec2(i,j,k,icomp)*vec2(i,jp,k,icomp)>0d0)
-cc     .        vyp = 2d0*t2(icomp)/(vec2(i,j,k,icomp)+vec2(i,jp,k,icomp))
-            t2(icomp) = vyp*qp
-          enddo
+          !Limit flux based on velocity
+          t2 = vyp*inter(grid_params%yy(jgpp),vec2(i,jpp,k,:)
+     .                  ,grid_params%yy(jgp ),vec2(i,jp ,k,:)
+     .                  ,grid_params%yy(jg  ),vec2(i,j  ,k,:)
+     .                  ,grid_params%yy(jgm ),vec2(i,jm ,k,:)
+     .                  ,vyp,adv__meth)
 
         endif
 
@@ -5708,8 +5916,8 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ig,jg,kg,kp,km,kpp,kgpp,kgp,kgm,icomp
-        real(8) :: vzp,qp,jac,ijac,t3(3)
+        integer :: ig,jg,kg,kp,km,kpp,kgpp,kgp,kgm,adv__meth
+        real(8) :: vzp,qp(3),jac,ijac,t3(3)
 
 c     Begin program
 
@@ -5719,7 +5927,7 @@ c     Begin program
         jac= 0.5*(gmetric%grid(igx)%jac(i,j,kp)
      .           +gmetric%grid(igx)%jac(i,j,k ))
 
-c     Advective fluxes
+c     ZIP advective fluxes
 
         t3 = 0.25*( vec2(i,j,kp,3)*vec1(i,j,k ,:)
      .             +vec2(i,j,k ,3)*vec1(i,j,kp,:)
@@ -5730,6 +5938,14 @@ c     Flux limiting
 
         if (adv_meth /= 2 .and. flag /= 0) then
 
+         !Revert extended support methods to upwinding at processor boundaries
+          if ((k == nz .or. k == 0)
+     .       .and.(adv_meth > 2 .and. adv_meth <= 6)) then
+            adv__meth = 1
+          else
+            adv__meth = adv_meth
+          endif
+
           call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
           kpp = min(kp+1,nz+1)
@@ -5739,38 +5955,14 @@ c     Flux limiting
           kgm  = kg + (km  - k)
           kgpp = kg + (kpp - k)
 
-          do icomp=1,3
-            !Find velocities at faces from fluxes
-cccc            if (     t3(icomp)/=0d0
-cccc     .          .and.vec2(i,j,k,icomp)*vec2(i,j,kp,icomp)>0d0) then
-cc            if (vec2(i,j,k,icomp)*vec2(i,j,kp,icomp)>0d0) then
-cc              vzp = 2d0*t3(icomp)/(vec2(i,j,k,icomp)+vec2(i,j,kp,icomp))
-cc            else
-              vzp = 0.5*(vec1(i,j,kp,3)+vec1(i,j,k,3))
-cc            endif
+          vzp = 0.5*(vec1(i,j,kp,3)+vec1(i,j,k,3))
 
-            if (     (k == nz .or. k == 0)
-     .          .and.(adv_meth > 2 .and. adv_meth <= 6)) then
-              !Revert extended support methods to upwinding at processor boundaries
-              qp=inter(grid_params%zz(kgpp),vec2(i,j,kpp,icomp)
-     .                ,grid_params%zz(kgp ),vec2(i,j,kp ,icomp)
-     .                ,grid_params%zz(kg  ),vec2(i,j,k  ,icomp)
-     .                ,grid_params%zz(kgm ),vec2(i,j,km ,icomp)
-     .                ,vzp,1)
-            else                                        
-              !Limit flux based on velocity
-              qp=inter(grid_params%zz(kgpp),vec2(i,j,kpp,icomp)
-     .                ,grid_params%zz(kgp ),vec2(i,j,kp ,icomp)
-     .                ,grid_params%zz(kg  ),vec2(i,j,k  ,icomp)
-     .                ,grid_params%zz(kgm ),vec2(i,j,km ,icomp)
-     .                ,vzp,adv_meth)
-            endif
-
-            !Recover flux (use ZIP flux if possible)
-cc             if (vec2(i,j,k,icomp)*vec2(i,j,kp,icomp)>0d0)
-cc     .        vzp = 2d0*t3(icomp)/(vec2(i,j,k,icomp)+vec2(i,j,kp,icomp))
-            t3(icomp) = vzp*qp
-          enddo
+            !Limit flux based on velocity
+          t3=vzp*inter(grid_params%zz(kgpp),vec2(i,j,kpp,:)
+     .                ,grid_params%zz(kgp ),vec2(i,j,kp ,:)
+     .                ,grid_params%zz(kg  ),vec2(i,j,k  ,:)
+     .                ,grid_params%zz(kgm ),vec2(i,j,km ,:)
+     .                ,vzp,adv__meth)
 
         endif
 
@@ -6042,7 +6234,7 @@ c     ###############################################################
 
 c     ---------------------------------------------------------------
 c     This function computes the advection interpolation at control
-c     volume face. Options:
+c     volume face based of face velocity "vel". Options:
 c       * advect = 1 => First-order upwind
 c       * advect = 2 => Centered
 c       * advect = 3 => High-order upwind (QUICK)
@@ -6202,7 +6394,7 @@ cc        endif
 
       case default
 
-        call pstop('inter','Advection scheme not available')
+        call pstop('in2face_scl','Advection scheme not available')
 
       end select
 
@@ -6216,8 +6408,9 @@ c     ###############################################################
      .         result(inter)
 
 c     ---------------------------------------------------------------
-c     This function computes the advection interpolation at control
-c     volume face. Options:
+c     This function computes the advection interpolation of vector
+c     quantity at control volume face based of face velocity "vel".
+c     Options:
 c       * advect = 1 => First-order upwind
 c       * advect = 2 => Centered
 c       * advect = 3 => High-order upwind (QUICK)
@@ -6414,7 +6607,7 @@ cc        endif
 
       case default
 
-        call pstop('inter','Advection scheme not available')
+        call pstop('in2face_vec','Advection scheme not available')
 
       end select
 

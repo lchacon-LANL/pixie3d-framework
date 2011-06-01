@@ -63,7 +63,7 @@ LevelContainer::LevelContainer(int n, tbox::Pointer< hier::PatchHierarchy<NDIM> 
 }
 
 
-void LevelContainer::CreatePatch(int patch_id, tbox::Pointer< hier::Patch<NDIM> > patch )
+void LevelContainer::CreatePatch(int patch_id, tbox::Pointer< hier::Patch<NDIM> > &patch )
 {
     patch_ptr[patch_id] = patch;
     data[patch_id] = new PatchContainer::PatchContainer(d_hierarchy,patch_ptr[patch_id],n_var,u0_id,u_id,n_auxs,auxs_id,n_auxv,auxv_id);

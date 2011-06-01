@@ -282,9 +282,6 @@ c Perturb equilibrium
         itime    = 1   !Needed for BC logic
         inewtime = 1
 
-        !Impose BC on varrayn
-        call applyBC(varraynp,1,1,1)
-
       else
 
         call readRestartFile(nx,ny,nz,itime,time,varrayn,varraynp)
@@ -292,6 +289,10 @@ c Perturb equilibrium
         inewtime = itime+1
 
       endif
+
+c Impose BC on varrayn
+
+      call applyBC(varraynp,1,1,1)
 
 c End program
 

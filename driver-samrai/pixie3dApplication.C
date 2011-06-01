@@ -218,8 +218,8 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 {
    d_coarsen_op_str = "CONSERVATIVE_COARSEN";
    //d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
-   d_refine_op_str  = "CONSTANT_REFINE";
-   //d_refine_op_str  = "LINEAR_REFINE";   
+   //d_refine_op_str  = "CONSTANT_REFINE";
+   d_refine_op_str  = "LINEAR_REFINE";   
    //d_refine_op_str  = "CELL_DOUBLE_CUBIC_REFINE";
    d_RefineSchedulesGenerated=false;
 
@@ -400,7 +400,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     for (int i=0; i<input_data->nvar; i++)
         u_id[i]  = d_x->getComponentDescriptorIndex(i);
     for (int i=0; i<input_data->nvar; i++)
-        u_tmp_id[i]  = d_x_tmp->getComponentDescriptorIndex(i);
+        u_tmp_id[i] = d_x_tmp->getComponentDescriptorIndex(i);
     for (int i=0; i<input_data->nauxs; i++)
         auxs_id[i] = d_aux_scalar->getComponentDescriptorIndex(i);
     for (int i=0; i<input_data->nauxv; i++)
@@ -487,6 +487,8 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
             continue;
         if ( auxScalarLabels[i].compare("zeros")==0 || auxScalarLabels[i].compare("ones")==0 )
             continue;
+        if ( auxScalarLabels[i].compare("NULL")==0 )
+            continue;
         d_VizWriter->registerPlotQuantity(auxScalarLabels[i], "SCALAR", auxs_id[i]);
     }
     for (int i=0; i<input_data->nauxv; i++) {
@@ -494,10 +496,17 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
             continue;
         if ( auxVectorLabels[i].compare("zeros")==0 || auxVectorLabels[i].compare("ones")==0 )
             continue;
+        if ( auxVectorLabels[i].compare("NULL")==0 )
+            continue;
         //d_VizWriter->registerPlotQuantity(auxVectorLabels[i], "VECTOR", auxv_id);
         d_VizWriter->registerPlotQuantity(auxVectorLabels[i]+"_x", "SCALAR", auxv_id[i], 0);
         d_VizWriter->registerPlotQuantity(auxVectorLabels[i]+"_y", "SCALAR", auxv_id[i], 1);
         d_VizWriter->registerPlotQuantity(auxVectorLabels[i]+"_z", "SCALAR", auxv_id[i], 2);
+    }
+    for (int i=0; i<input_data->nvar; i++) {
+        if ( depVarLabels[i].empty() )
+            continue;
+        d_VizWriter->registerPlotQuantity(depVarLabels[i]+"_r", "SCALAR", d_x_r->getComponentDescriptorIndex(i));
     }
 
 }
@@ -538,6 +547,9 @@ void pixie3dApplication::setInitialConditions( const double initial_time )
             #endif
         }
     }
+
+    // Apply boundary conditions
+    synchronizeVariables();   
 
     // Copy the data from u to u_ic
     d_x_ic->copyVector(d_x,false);
@@ -625,11 +637,6 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
         	int n_elem = patch->getBox().size()*tmp->getDepth();
         	// Create varray on fortran side
         	varrayContainer *varray = new varrayContainer(patch,input_data->nvar,f_id);
-            // Get the patch container
-            const hier::IntVector<NDIM> ratio = level->getRatio();
-            int ng[NDIM];
-            for (int i=0; i<NDIM; i++)
-                ng[i] = nbox[i]*ratio(i);
         	// Create f
             #ifdef absoft
             	FORTRAN_NAME(EVALUATENONLINEARRESIDUAL)(level_container->getPtr(p()),&n_elem,fsrc,varray->getPtr());
@@ -729,9 +736,9 @@ void pixie3dApplication::printVector( const tbox::Pointer< solv::SAMRAIVectorRea
 ***********************************************************************/
 void pixie3dApplication::coarsenVariables(void)
 {
-    //for ( int ln=d_hierarchy->getFinestLevelNumber()-1; ln>=0; ln-- ) {
-    //    coarsenSchedule[ln]->coarsenData();
-    //}
+    for ( int ln=d_hierarchy->getFinestLevelNumber()-1; ln>=0; ln-- ) {
+        coarsenSchedule[ln]->coarsenData();
+    }
 }
 
 
