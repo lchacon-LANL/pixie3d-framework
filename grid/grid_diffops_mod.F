@@ -5272,49 +5272,53 @@ c     Grid info
         jacim = jac
       endif
 
-c     Find ZIP fluxes
+c     Find ZIP fluxes (used even if method /= ZIP)
 
-      if ((method == 2.and.cv).or.zv) then
+      flxip = 0d0
+      flxim = 0d0
+      flxjp = 0d0
+      flxjm = 0d0
+      flxkp = 0d0
+      flxkm = 0d0
 
-        !X flux
-        if (.not.isBdry(i,igx,2)) then  !Not at r=1 boundary
-          jach  = 0.5*(jac+jacip)
-          flxip = 0.5*(v(ip,j,k,1)*arr(i ,j,k)/jacip
-     .               + v(i ,j,k,1)*arr(ip,j,k)/jac  )*jach
+      !X flux
+      if (.not.isBdry(i,igx,2)) then  !Not at r=1 boundary
+        jach  = 0.5*(jac+jacip)
+        flxip = 0.5*(v(ip,j,k,1)*arr(i ,j,k)/jacip
+     .             + v(i ,j,k,1)*arr(ip,j,k)/jac  )*jach
 
-          if (isSP2(i,igx,ibc=1).and.spoint) then
-            flxim = 0d0
-          else
-            jach  = 0.5*(jac+jacim)
-            flxim = 0.5*(v(im,j,k,1)*arr(i ,j,k)/jacim
-     .                 + v(i ,j,k,1)*arr(im,j,k)/jac  )*jach
-          endif
+        if (isSP2(i,igx,ibc=1).and.spoint) then
+          flxim = 0d0
         else
-          if (v(ip,j,k,1) == -v(i,j,k,1)) then
-            flxip = 0d0    !Shut off flux for vn=0 BC
-          else
-            flxip = 0.5*(v(ip,j,k,1)*arr(i,j,k)+v(i,j,k,1)*arr(ip,j,k))
-          endif
-
           jach  = 0.5*(jac+jacim)
           flxim = 0.5*(v(im,j,k,1)*arr(i ,j,k)/jacim
      .               + v(i ,j,k,1)*arr(im,j,k)/jac  )*jach
         endif
+      else
+        if (v(ip,j,k,1) == -v(i,j,k,1)) then
+          flxip = 0d0    !Shut off flux for vn=0 BC
+        else
+          flxip = 0.5*(v(ip,j,k,1)*arr(i,j,k)+v(i,j,k,1)*arr(ip,j,k))
+        endif
 
-        !Y flux
-        flxjp = 0.5*(v(i,jp,k,2)*arr(i,j,k) + v(i,j,k,2)*arr(i,jp,k))
-        flxjm = 0.5*(v(i,jm,k,2)*arr(i,j,k) + v(i,j,k,2)*arr(i,jm,k))
-
-        !Z flux
-        flxkp = 0.5*(v(i,j,kp,3)*arr(i,j,k) + v(i,j,k,3)*arr(i,j,kp))
-        flxkm = 0.5*(v(i,j,km,3)*arr(i,j,k) + v(i,j,k,3)*arr(i,j,km))
-
+        jach  = 0.5*(jac+jacim)
+        flxim = 0.5*(v(im,j,k,1)*arr(i ,j,k)/jacim
+     .             + v(i ,j,k,1)*arr(im,j,k)/jac  )*jach
       endif
 
-c     Find velocities at faces from ZIP fluxes
+      !Y flux
+      flxjp = 0.5*(v(i,jp,k,2)*arr(i,j,k) + v(i,j,k,2)*arr(i,jp,k))
+      flxjm = 0.5*(v(i,jm,k,2)*arr(i,j,k) + v(i,j,k,2)*arr(i,jm,k))
 
-      if (method /= 2) then
+      !Z flux
+      flxkp = 0.5*(v(i,j,kp,3)*arr(i,j,k) + v(i,j,k,3)*arr(i,j,kp))
+      flxkm = 0.5*(v(i,j,km,3)*arr(i,j,k) + v(i,j,k,3)*arr(i,j,km))
 
+c     Other advective methods
+
+      if (method /= 2 .or. (.not.cv)) then
+
+        !Find velocities at faces from ZIP fluxes
         if (zv) then
           vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k)+1d-12)
           vxm = 2.*flxim/(arr(im,j,k)+arr(i,j,k)+1d-12)
@@ -5346,8 +5350,7 @@ c     Find velocities at faces from ZIP fluxes
            endif
         endif
 
-c     Find advected quantity at faces
-
+        !Find advected quantity at faces
         if ((i == nx).and.(method > 2 .and. method <= 6)) then
           qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
      .             ,grid_params%xx(igp ),arr(ip ,j,k)
@@ -5432,16 +5435,15 @@ c     Find advected quantity at faces
      .             ,vzm,method)
         endif
 
-c     Setup fluxes (ZIP at boundaries by default for conservation)
+        !Setup fluxes (ZIP at boundaries by default for conservation)
+        if (.not.isBdry(i,igx,2).or.bc_safe.or.(.not.cv)) flxip=vxp*qip
+        if (.not.isBdry(i,igx,1).or.bc_safe.or.(.not.cv)) flxim=vxm*qim
 
-        if (.not.isBdry(i,igx,2).or.bc_safe) flxip=vxp*qip
-        if (.not.isBdry(i,igx,1).or.bc_safe) flxim=vxm*qim
+        if (.not.isBdry(j,igy,4).or.bc_safe.or.(.not.cv)) flxjp=vyp*qjp
+        if (.not.isBdry(j,igy,3).or.bc_safe.or.(.not.cv)) flxjm=vym*qjm
 
-        if (.not.isBdry(j,igy,4).or.bc_safe) flxjp=vyp*qjp
-        if (.not.isBdry(j,igy,3).or.bc_safe) flxjm=vym*qjm
-
-        if (.not.isBdry(k,igz,6).or.bc_safe) flxkp=vzp*qkp
-        if (.not.isBdry(k,igz,5).or.bc_safe) flxkm=vzm*qkm
+        if (.not.isBdry(k,igz,6).or.bc_safe.or.(.not.cv)) flxkp=vzp*qkp
+        if (.not.isBdry(k,igz,5).or.bc_safe.or.(.not.cv)) flxkm=vzm*qkm
 
       endif
 
@@ -5450,7 +5452,7 @@ c     Find advective term
       advec =( (flxip - flxim)/dxx
      .       + (flxjp - flxjm)/dyy
      .       + (flxkp - flxkm)/dzz )/jac
-      
+
       if (vw) advec = advec*gmetric%grid(igx)%dvol(i,j,k)
 
 c     End 
