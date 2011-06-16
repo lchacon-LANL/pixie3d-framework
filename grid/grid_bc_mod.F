@@ -758,7 +758,13 @@ c     Determine ASM BCs
 cc     .         .or.((bcond(ibc)==PER).and.asm_dir(dim))  !Deal with interrupted periodic boundaries
      .         .or.(bcond(ibc)==PER)  !Deal with interrupted periodic boundaries
 
-            if (dn) bcs(ibc,:) = IIBC*bcs(ibc,:)/abs(bcs(ibc,:))
+            if (dn) then
+              where (bcs(ibc,:) /= 0) 
+                bcs(ibc,:) = IIBC*bcs(ibc,:)/abs(bcs(ibc,:))
+              elsewhere
+                bcs(ibc,:) = 0
+              end where
+            endif
           enddo
         enddo
       else
