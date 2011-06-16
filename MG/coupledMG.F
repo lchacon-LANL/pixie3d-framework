@@ -997,7 +997,7 @@ c     Local variables
 
       integer    :: igridf,igridc,isigf,isigc,i,j,k,ii,ieq
      .             ,nxxf,nyyf,nzzf,nxxc,nyyc,nzzc,ntotc,ntotf
-     .             ,bcmod(6,neq)
+     .             ,bcmod(6,neq),icmp2(max(neq/3,1))
 
       real(8),allocatable,dimension(:) :: vecf,vecc
       logical    :: fpointers
@@ -1078,10 +1078,11 @@ c     Map vector to array
       call mapMGVectorToArray(0,neq,vecc,nxc,nyc,nzc,arrayc,igc,.false.)
 
       if (icmp /= 0) then
+        icmp2 = icmp
         if (have_equl) then
           call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
      .                ,arr0=equl%grid(igc)%array
-     .                ,icomp=(/icmp/),is_cnv=is__cnv,is_vec=is__vec
+     .                ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
      .                ,result_is_vec=res_is_vec,iorder=order)
         else
           bcmod = bcnd
@@ -1089,7 +1090,7 @@ c     Map vector to array
             bcmod = EXT
           end where
           call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
-     .              ,icomp=(/icmp/),is_cnv=is__cnv,is_vec=is__vec
+     .              ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
      .              ,result_is_vec=res_is_vec,iorder=order)
 cc     .              ,is_cnv=is__cnv)
         endif
@@ -1606,9 +1607,11 @@ c     ##################################################################
      .                  ,mg_debug
      .                  ,sm_ncolors
      .                  ,sm_omega
+     .                  ,sm_it
      .                  ,sm_line_relax
      .                  ,sm_zebra_relax
-     .                  ,sm_it
+     .                  ,sm_zebra_omega
+     .                  ,sm_zebra_it
      .                  )
 c     ---------------------------------------------------------------
 c     This subroutine solves a coupled system of neq equations. 
@@ -1651,6 +1654,8 @@ c       * sm_omega: damping for JB smoother
 c       * sm_ncolors: number of colors in grid (for GS).
 c       * sm_line_relax: whether we want line relaxation
 c       * sm_zebra_relax: whether we want zebra GS relaxation
+c       * sm_zebra_omega: inner relaxation factor in ZEBRA smoothing (between directions)
+c       * sm_zebra_it: inner ZEBRA iterations (per direction).
 c     ---------------------------------------------------------------
 
         implicit none
@@ -1663,12 +1668,14 @@ c     Call variables
 
         real(8),optional,intent(IN) :: dg(neq,2*neq*ntotp)
      .                                ,sm_omega
+     .                                ,sm_zebra_omega
      .                                ,tol
         integer,optional,intent(IN) :: mg_order_res
      .                                ,mg_order_prol
      .                                ,mg_vcyc,mg_cycle
      .                                ,mg_coarse_grid_size
      .                                ,sm_it
+     .                                ,sm_zebra_it
      .                                ,sm_ncolors
      .                                ,ks_it
         logical,optional,intent(IN) :: sm_line_relax
@@ -1689,8 +1696,8 @@ c     Call variables
 c     Local variables
 
         integer    :: ntot,iorder_res,iorder_prol,vcyc,mu_cyc,nclrs,smit
-     .               ,mgmin,i,ieq,gmit
-        real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,rtol
+     .               ,mgmin,i,ieq,gmit,zit
+        real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,rtol,zomg
         real(8), target :: ddg(neq,2*neq*ntotp)
         logical    :: gm_crse_solve,cvrg_test,lrelax,zrelax
      .               ,gm_drvr,gm_smat,cg_drvr,glkin
@@ -1803,6 +1810,18 @@ c     Process optional arguments
           zrelax = sm_zebra_relax
         else
           zrelax = .false.
+        endif
+
+        if (PRESENT(sm_zebra_omega)) then
+          zomg = sm_zebra_omega
+        else
+          zomg = 0.8
+        endif
+
+        if (PRESENT(sm_zebra_it)) then
+          zit = sm_zebra_it
+        else
+          zit = 1
         endif
 
         if(PRESENT(sm_it)) then
@@ -2004,15 +2023,16 @@ c       MG smoother
 
         select case (smth)
         case('gs')
-          solverOptions%omega   = 1d0
+          solverOptions%omega   = omg
           solverOptions%ncolors = nclrs
           solverOptions%mg_zebra_relax = zrelax
           solverOptions%mg_zebra_prefd = 0
 cc          if(bcSP()) solverOptions%mg_zebra_prefd = 1
-          solverOptions%mg_zebra_it    = 1
-          solverOptions%mg_zebra_omega = 0.8
+          solverOptions%mg_zebra_it    = zit
+          solverOptions%mg_zebra_omega = zomg
 
-          solverOptions%iter=ceiling(1.*smit/solverOptions%mg_zebra_it)
+cc          solverOptions%iter=ceiling(1.*smit/solverOptions%mg_zebra_it)
+          solverOptions%iter=smit
 
           call assembleSolverHierarchy('gs')
         case('gm')
@@ -5290,6 +5310,16 @@ c         ZEBRA LINE RELAXATION
                   do zit=1,zebra_it
 
                     call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+
+                    if (out.ge.3.and.prnt) then
+                      write (*,'(a,i2,a,i2,a,i2,a,3i4)')
+     .                                'Inner zebra GS: dir=',zd
+     .                               ,'; it= ',zit
+     .                               ,'; color=',irbg1
+     .                                  + nrbg1*(irbg2-1)
+     .                                  + nrbg2*(irbg3-1)
+cc     .                               ,'; grid pos=',i,j,k
+                    endif
 
                     do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
                      do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2

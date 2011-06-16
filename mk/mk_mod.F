@@ -824,7 +824,7 @@ c diag ****
 
 c     MK_residual
 c     ###############################################################
-      function MK_residual(i,j,k,igx,igy,igz,phi) result(mk_res)
+      function MK_residual(i,j,k,igrid,phi) result(mk_res)
 
 c     ---------------------------------------------------------------
 c     Computes MK nonlinear residual
@@ -834,13 +834,13 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer :: i,j,k,igx,igy,igz
+      integer :: i,j,k,igrid
 
       real(8) :: phi(0:,0:,0:),mk_res
 
 c     Local variables
 
-      integer :: nx,ny,nz
+      integer :: nx,ny,nz,igx,igy,igz
 
 c     Begin program
  
@@ -848,6 +848,10 @@ c     Begin program
         mk_res = 0d0
         return
       endif
+
+      igx = igrid
+      igy = igrid
+      igz = igrid
 
       nx = mk_gr_params%nxv(igx)
       ny = mk_gr_params%nyv(igy)

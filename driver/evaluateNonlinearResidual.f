@@ -237,7 +237,7 @@ c Store function evaluation
                 endif
               endif
 
-              fi(ii+neqd) = MK_residual(i,j,k,1,1,1
+              fi(ii+neqd) = MK_residual(i,j,k,1
      .                                 ,varray%array_var(neqd)%array)
             endif
           enddo

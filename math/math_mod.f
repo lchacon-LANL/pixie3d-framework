@@ -29,11 +29,11 @@ c     #################################################################
       real(8) :: determ3
 
       determ3 = tensor(1,1)*tensor(2,2)*tensor(3,3)
-     .        +tensor(3,2)*tensor(2,1)*tensor(1,3)
-     .        +tensor(1,2)*tensor(2,3)*tensor(3,1)
-     .        -tensor(1,3)*tensor(2,2)*tensor(3,1)
-     .        -tensor(1,1)*tensor(2,3)*tensor(3,2)
-     .        -tensor(3,3)*tensor(1,2)*tensor(2,1)
+     .         +tensor(3,2)*tensor(2,1)*tensor(1,3)
+     .         +tensor(1,2)*tensor(2,3)*tensor(3,1)
+     .         -tensor(1,3)*tensor(2,2)*tensor(3,1)
+     .         -tensor(1,1)*tensor(2,3)*tensor(3,2)
+     .         -tensor(3,3)*tensor(1,2)*tensor(2,1)
 
       end function determ3
 
