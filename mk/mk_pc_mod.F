@@ -5,7 +5,7 @@ c####################################################################
 
         use mk
 
-        use nk_mod, ONLY: matrixFreeMatVec
+        use nk, ONLY: matrixFreeMatVec
 
         !PC setup
         real(8), allocatable,dimension(:,:)   :: mkdiag
@@ -40,32 +40,32 @@ c     ---------------------------------------------------------------
 c     Sets up MK preconditioner variables and operators.
 c     ---------------------------------------------------------------
 
-      use xdraw_io
+cc      use xdraw_io
 
       implicit none
 
 c     Call variables
 
-      integer    :: igrid
-      real(8)    :: phi(:,:,:)
+      integer :: igrid
+      real(8) :: phi(:,:,:)
 
 c     Local variables
 
-      integer    :: i,j,k,ig,jg,kg,ieq,igr,ijk,ijkg
-     .             ,igx,igy,igz,nx,ny,nz
+      integer :: i,j,k,ig,jg,kg,ieq,igr,ijk,ijkg
+     .          ,igx,igy,igz,nx,ny,nz
 
-      integer    :: order,alloc_stat,bcnd(6)
+      integer :: order,alloc_stat,bcnd(6)
 
-      integer    :: nn,isig
+      integer :: nn,isig
 
       real(8), allocatable, dimension(:) :: xpc
 
-      real(8)    :: dummy(3),x1,y1
+      real(8) :: dummy(3),x1,y1
 
 c     Debug
 
-      real(8),allocatable,dimension(:,:,:) :: debug2
-      character(13) :: debugfile
+cc      real(8),allocatable,dimension(:,:,:) :: debug2
+cc      character(13) :: debugfile
 
 c     Begin program
 
@@ -81,9 +81,7 @@ c     Begin program
 
       ngrid = mk_gr_params%ngrid
 
-      igrid = igx
-
-      order=0  !Order of restriction for MG arrays
+      order = 0  !Order of restriction for MG arrays
 
 c     Allocate variables
 
@@ -96,41 +94,42 @@ c     Extract arrays and BC's
       bcnd = mk_bcs
 
       where(mk_bcs == NEU) bcnd = EXT
-
-cc      call setASM_PC_BC(igx,igy,igz,bcnd,IIBC=EXT) !THIS STATES NOT TO COMMUNICATE COEFF.
-cc                                                   !(requires call to setASMflag to restore COMM before PC is called)
+cc      call setASM_PC_BC(igx,igy,igz,bcnd,.true.,IIBC=EXT) !THIS STATES NOT TO COMMUNICATE COEFF.
 
 c     Store phi in all grids
 
       gmk_phi%grid(igrid)%array(:,:,:,1) = phi
 
-      call restrictMGArray(IMK,1,gmk_phi,bcnd,igrid,order
-     .                    ,isvec=.false.)                     !Hardwired order=1 to resolve
-                                                              !circular problem of needing
-                                                              !grid volume info for agglomeration,
-                                                              !and needing coarse grid positions
-                                                              !to find volume info.
-ccc Store source jacobian in all grids
-cc
-cc      gsjac%grid(igrid)%array(:,:,:,1) = sjac
-cc
-cc      call restrictMGArray(IMK,1,gsjac,mk_bcs,igrid,0
-cc     .                    ,isvec=.false.)
+      call restrictMGArray(IMK,1,gmk_phi,mk_bcs,igrid,0
+     .                    ,isvec=.false.)
 
-c     Store xold in all grids
+c     Store xold in all grids (This should only be done once in the beginning!)
 
       gx0%grid(igrid)%array = x0
 
       do igr=2,mk_gr_params%ngrid
         call coarsen_map(igr,mk_gr_params
-     .                  ,mk_gr_params%nxv(igr-1)
-     .                  ,mk_gr_params%nyv(igr-1)
-     .                  ,mk_gr_params%nzv(igr-1)
      .                  ,gx0%grid(igr-1)%array
-     .                  ,mk_gr_params%nxv(igr)
-     .                  ,mk_gr_params%nyv(igr)
-     .                  ,mk_gr_params%nzv(igr)
-     .                  ,gx0%grid(igr)%array)
+     .                  ,gx0%grid(igr  )%array)
+      enddo
+
+c     Store xv_k (current vertex positions) in all grids
+
+      do igr=1,mk_gr_params%ngrid
+        do k=0,mk_gr_params%nzv(igr)
+          do j=0,mk_gr_params%nyv(igr)
+            do i=0,mk_gr_params%nxv(igr)
+              gxv0%grid(igr)%array(i,j,k,:)
+     .             =findPos(i,j,k,igr,igr,igr
+     .                     ,mk_gr_params%nxv(igr)
+     .                     ,mk_gr_params%nyv(igr)
+     .                     ,mk_gr_params%nzv(igr)
+     .                     ,gx0    %grid(igr)%array
+     .                     ,gmk_phi%grid(igr)%array
+     .                     ,1)
+            enddo
+          enddo
+        enddo
       enddo
 
 c     Store grid velocity in all grids
@@ -139,14 +138,8 @@ c     Store grid velocity in all grids
 
       do igr=2,mk_gr_params%ngrid
         call coarsen_map(igr,mk_gr_params
-     .                  ,mk_gr_params%nxv(igr-1)
-     .                  ,mk_gr_params%nyv(igr-1)
-     .                  ,mk_gr_params%nzv(igr-1)
      .                  ,gmk_vel%grid(igr-1)%array
-     .                  ,mk_gr_params%nxv(igr)
-     .                  ,mk_gr_params%nyv(igr)
-     .                  ,mk_gr_params%nzv(igr)
-     .                  ,gmk_vel%grid(igr)%array)
+     .                  ,gmk_vel%grid(igr  )%array,bcs=mk_map_bcs)
       enddo
 
       do igr=1,mk_gr_params%ngrid
@@ -154,44 +147,63 @@ c     Store grid velocity in all grids
      .       = XformToCurv(igr,gmk_vel%grid(igr)%array,.true.)
       enddo
 
-c     Store xv_k (current vertex positions) in all grids
-
-cc      if (.not.mf_pc) then
-        do igr=1,mk_gr_params%ngrid
-          do k=0,mk_gr_params%nzv(igr)
-            do j=0,mk_gr_params%nyv(igr)
-              do i=0,mk_gr_params%nxv(igr)
-                gxv0%grid(igr)%array(i,j,k,:)
-     .               =findPos(i,j,k,igr,igr,igr
-     .                       ,mk_gr_params%nxv(igr)
-     .                       ,mk_gr_params%nyv(igr)
-     .                       ,mk_gr_params%nzv(igr)
-     .                       ,gx0 %grid(igr)%array
-     .                       ,gmk_phi%grid(igr)%array
-     .                       ,1)
-              enddo
-            enddo
-          enddo
-        enddo
-cc      endif
-
 c     Store current target jacobian in all grids
 
-        gtjac%grid(igrid)%array(:,:,:,1) = tjac
+      gtjac%grid(igrid)%array(:,:,:,1) = tjac
 
-        call restrictMGArray(IMK,1,gtjac,bcnd,igrid,0,isvec=.false.)
+      call restrictMGArray(IMK,1,gtjac,bcnd,igrid,order,isvec=.false.)
 
-c Find diagonal
+c     Find diagonal
 
-        if (mk_3d) then
-          call find_mf_diag_colored(1,ntotdp,mk_3d_mtvc,1,mk_bcs
+      if (mk_3d) then
+        call find_mf_diag_colored(1,ntotdp,mk_3d_mtvc,1,mk_bcs
      .                           ,mkdiag,mk_ncolors)
-        else
-          call find_mf_diag_colored(1,ntotdp,mk_2d_mtvc,1,mk_bcs
+      else
+        call find_mf_diag_colored(1,ntotdp,mk_2d_mtvc,1,mk_bcs
      .                           ,mkdiag,mk_ncolors)
-        endif
+      endif
 
-c End program
+c diag ****
+cc      debugfile = 'debug_p'//trim(int2char(my_rank))//'.bin'
+cc      open(unit=110,file=debugfile,form='unformatted'
+cc     .    ,status='replace')
+cc
+cc      k = 1
+cc
+cc      igrid = 3
+cc
+cc      nx = mk_gr_params%nxv(igrid)
+cc      ny = mk_gr_params%nyv(igrid)
+cc      nz = mk_gr_params%nzv(igrid)
+cc
+cc      allocate(debug2(0:nx+1,0:ny+1,0:nz+1))
+cc
+cc      debug2 = gmk_phi%grid(igrid)%array(:,:,:,1)
+cc      call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2
+cc     .              ,0d0,1d0,0d0,1d0,0,110)
+cc
+cc      do ieq=1,3
+cc        debug2 = gx0%grid(igrid)%array(:,:,:,ieq)
+cc        call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2
+cc     .              ,0d0,1d0,0d0,1d0,1,110)
+cc      enddo
+cc
+cccc      do ieq=1,3
+cccc        debug2 = 
+cccc        call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2
+cccc     .              ,0d0,1d0,0d0,1d0,1,110)
+cccc      enddo
+cc
+cc      deallocate(debug2)
+cc      close(110)
+cc
+cc#if defined(petsc)
+cc      call PetscEnd(mpierr)
+cc#endif
+cc      stop
+c diag ****
+
+c     End program
 
       end subroutine MK_setupPC
 
@@ -303,12 +315,13 @@ c     Begin program
 !!      mk_mg_debug    = .true.!Whether to go into debugging mode in MG
       mk_cvrg_test   = .false.!Whether to perform convergence test of smoother
 
+!!      mk_maxvcyc     = 10      !Maximum number of MG vcycles
       mk_maxvcyc     = 2      !Maximum number of MG vcycles
       mk_nsweep      = 2      !Maximum number of smoothing passes
       mk_ores        = 0      !Restriction order for MG
       mk_oprol       = 1      !Prolongation order for MG
 !!      mk_oprol       = 0      !Prolongation order for MG
-      mk_mgtol       = 1d-1  !MG tolerance
+      mk_mgtol       = 1d-2  !MG tolerance
 
       mk_smooth      = 'jb'   !Type of smoother ('jg','gs','gm')
       mk_omeg_smth   = 0.7    !Damping for MG smoother (only when 'jb' is chosen)
@@ -377,7 +390,7 @@ c     Begin program
         stop
       endif
 
-      x   = 0d0
+      x = 0d0
 
       y = y/(1d0+tau/dt)  !Renormalize MK residual to account for time constant (introduced in evaluateNLF)
 
@@ -449,7 +462,7 @@ c     Call variables
 
 c     Local variables
 
-        integer(4) :: nn,neq
+        integer(4) :: nn,neq,ntot
         real(8)    :: z (size(rhs))
      .               ,rr(size(rhs))
      .               ,scat_vec(size(rhs,1),size(rhs,2))
@@ -460,6 +473,9 @@ c     Begin program
 
         nn  = size(rhs,1)
         neq = size(rhs,2)
+        ntot = nn*neq
+
+        rr = 0d0
 
         !Gather MK solution update
         scat_vec = 0d0
@@ -473,7 +489,7 @@ c     Begin program
 
         !Do linear matvec for application (NOTE: this redefines grid quantities!)
         mk_res_eval = .false.
-        call matrixFreeMatVec(nn*neq,z,rr)
+        call matrixFreeMatVec(ntot,z,rr)
         mk_res_eval = .true.
 
         !Recover map and associated metrics
@@ -513,12 +529,12 @@ c     --------------------------------------------------------------------
 
       implicit none
 
-c Call variables
+c     Call variables
 
       integer    :: neq,ntot,igrid,gpos,bcnd(6,neq)
       real(8)    :: x(ntot),y(ntot)
 
-c Local variables
+c     Local variables
 
       integer    :: i,j,k,ig,jg,kg,ieq,bcmod(6,neq)
      .             ,igx,igy,igz,nxx,nyy,nzz
@@ -527,7 +543,7 @@ c Local variables
       integer    :: imin,imax,jmin,jmax,kmin,kmax
 
       real(8),allocatable,dimension(:,:,:,:)   :: dphi
-      real(8),pointer    ,dimension(:,:,:,:)   :: phi_k,x0_k,xv_k,tj
+      real(8),pointer    ,dimension(:,:,:,:)   :: phi_k,xv_k,tj
 
       real(8),allocatable,dimension(:,:,:)     :: pjac
       real(8),allocatable,dimension(:,:,:,:)   :: dxcar
@@ -539,7 +555,7 @@ c Local variables
 
       logical    :: fpointers,is_cnv
 
-c Begin program
+c     Begin program
 
       is_cnv = .true.
 
@@ -555,12 +571,12 @@ c Begin program
       nyy = mk_gr_params%nyv(igy)
       nzz = mk_gr_params%nzv(igz)
 
-c Find limits for loops
+c     Find limits for loops
 
       call limits(abs(gpos),nxx,nyy,nzz,igrid
      .           ,imin,imax,jmin,jmax,kmin,kmax)
 
-c Map vector x to array for processing
+c     Map vector x to array for processing
 
       allocate(dphi(0:nxx+1,0:nyy+1,0:nzz+1,neq))
 
@@ -572,14 +588,13 @@ c Map vector x to array for processing
       call setMGBC(max(0,gpos),neq,nxx,nyy,nzz,igrid,dphi,bcnd
      .            ,icomp=(/IMK/),is_vec=.false.,iorder=0)
 
-c Aliases
+c     Aliases
 
       phi_k => gmk_phi%grid(igrid)%array
-      x0_k  => gx0 %grid(igrid)%array
       xv_k  => gxv0%grid(igrid)%array
       tj    => gtjac%grid(igrid)%array
 
-c Find auxiliary quantities
+c     Find auxiliary quantities
 
       allocate(dxcar(0:nxx+1,0:nyy+1,0:nzz+1,3)
      .        ,pjac (0:nxx+1,0:nyy+1,0:nzz+1))
@@ -593,7 +608,7 @@ c Find auxiliary quantities
         enddo
       enddo
 
-c Calculate matrix-vector product
+c     Calculate matrix-vector product
 
       do k = kmin,kmax
         do j = jmin,jmax
@@ -665,11 +680,11 @@ c Calculate matrix-vector product
         enddo
       enddo
 
-c End program
+c     End program
 
       deallocate(dphi,dxcar,pjac)
 
-      nullify(phi_k,xv_k,x0_k)
+      nullify(phi_k,xv_k)
 
       call deallocPointers(fpointers)
 
@@ -699,12 +714,12 @@ c     --------------------------------------------------------------------
 
       implicit none
 
-c Call variables
+c     Call variables
 
       integer    :: neq,ntot,igrid,gpos,bcnd(6,neq)
       real(8)    :: x(ntot),y(ntot)
 
-c Local variables
+c     Local variables
 
       integer    :: i,j,k,ig,jg,kg,ieq,bcmod(6,neq)
      .             ,igx,igy,igz,nxx,nyy,nzz
@@ -713,7 +728,7 @@ c Local variables
       integer    :: imin,imax,jmin,jmax,kmin,kmax
 
       real(8),allocatable,dimension(:,:,:,:)   :: dphi
-      real(8),pointer    ,dimension(:,:,:,:)   :: phi_k,x0_k,xv_k,tj
+      real(8),pointer    ,dimension(:,:,:,:)   :: phi_k,xv_k,tj
 
       real(8),allocatable,dimension(:,:,:)     :: pjac
       real(8),allocatable,dimension(:,:,:,:)   :: dxcar
@@ -725,7 +740,7 @@ c Local variables
 
       logical    :: fpointers,is_cnv
 
-c Begin program
+c     Begin program
 
       is_cnv = .true.
 
@@ -741,12 +756,12 @@ c Begin program
       nyy = mk_gr_params%nyv(igy)
       nzz = mk_gr_params%nzv(igz)
 
-c Find limits for loops
+c     Find limits for loops
 
       call limits(abs(gpos),nxx,nyy,nzz,igrid
      .           ,imin,imax,jmin,jmax,kmin,kmax)
 
-c Map vector x to array for processing
+c     Map vector x to array for processing
 
       allocate(dphi(0:nxx+1,0:nyy+1,0:nzz+1,neq))
 
@@ -758,14 +773,13 @@ c Map vector x to array for processing
       call setMGBC(max(0,gpos),neq,nxx,nyy,nzz,igrid,dphi,bcnd
      .            ,icomp=(/IMK/),is_vec=.false.,iorder=0)
 
-c Aliases
+c     Aliases
 
       phi_k => gmk_phi%grid(igrid)%array
-      x0_k  => gx0 %grid(igrid)%array
       xv_k  => gxv0%grid(igrid)%array
       tj    => gtjac%grid(igrid)%array
 
-c Find auxiliary quantities
+c     Find auxiliary quantities
 
       allocate(dxcar(0:nxx+1,0:nyy+1,0:nzz+1,3)
      .        ,pjac (0:nxx+1,0:nyy+1,0:nzz+1))
@@ -779,7 +793,7 @@ c Find auxiliary quantities
         enddo
       enddo
 
-c Calculate matrix-vector product
+c     Calculate matrix-vector product
 
       do k = kmin,kmax
         do j = jmin,jmax
@@ -840,11 +854,11 @@ c Calculate matrix-vector product
         enddo
       enddo
 
-c End program
+c     End program
 
       deallocate(dphi,dxcar,pjac)
 
-      nullify(phi_k,xv_k,x0_k)
+      nullify(phi_k,xv_k)
 
       call deallocPointers(fpointers)
 

@@ -10,24 +10,24 @@ c ######################################################################
 
         use ts_setup
 
-        use mgarraySetup
-
         use mg_solver
+
+        use mg_io
 
         use imposeBCinterface
 
         use spline_field
 
         integer :: sp_order=2             !Spline order for interpolation
-     .            ,mk_advect=3            !Grid velocity advection method (QUICK)
+     .            ,mk_advect=2            !Grid velocity advection method (see common/grid/grid_diffops_mod.F)
 
         real(8) :: tau=0d0                !Time constant for MMPDE1
      .            ,g_ratio=1d0            !Cell volume limiting factorx
 
-        logical :: mk_grid=.true.
+        logical :: mk_grid=.true.         !Whether we turn on MK mesh motion
      .            ,mk_nc=.true.           !Whether we are doing non-conservative discret.
      .            ,lagged_err_mon=.true.  !Whether we are lagging the monitor function
-     .            ,limit_err_mon =.false. !Whether we are limitting the monitor function
+cc     .            ,limit_err_mon =.false. !Whether we are limiting the monitor function
      .            ,mk_init_relax =.true.  !Whether to relax initial grid according to monitor function
 
         real(8),target,allocatable,dimension(:,:,:,:) :: gvel
@@ -35,21 +35,20 @@ c ######################################################################
         real(8),target,allocatable,dimension(:,:,:) :: jacn,jacnm
 
         !MK auxiliary variables
-        integer :: IMK=1,mk_bcs(6)
+        integer :: IMK=1,mk_bcs(6),mk_map_bcs(6,3)
 
         real(8),target,allocatable
      .                ,dimension(:,:,:,:) :: xnew,xold,xnm,x0
         real(8),target,allocatable,dimension(:,:,:) :: det,tjac
 
-        type(grid_mg_def),pointer :: mk_gr_params
+        type(grid_mg_def),pointer :: mk_gr_params => null()
 
-        type(MG_grid_metrics),pointer :: mk_gmetric
+        type(MG_grid_metrics),pointer :: mk_gmetric => null()
 
         real(8),private :: mk_det_int
 
         logical :: mk_res_eval=.true.
      .            ,mk_3d=.true.
-     .            ,mk_relax_init_grid=.false.
 
         !Spline variables
         real(8),pointer,dimension(:,:,:,:),private :: src_coef
@@ -177,9 +176,9 @@ c     Begin program
 
       call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
-      nx = mk_gr_params%nxgl(igx)
-      ny = mk_gr_params%nygl(igy)
-      nz = mk_gr_params%nzgl(igz)
+      nx = mk_gr_params%nxv(igx)
+      ny = mk_gr_params%nyv(igy)
+      nz = mk_gr_params%nzv(igz)
 
       if (vrtx) then
         idhx = 1./mk_gr_params%dx(ig)
@@ -411,14 +410,6 @@ c     Begin program
 
         if ((isBdry(k,igz,5)).and.(mk_bcs(5) /= PER)) flxkm=0d0
         if ((isBdry(k,igz,6)).and.(mk_bcs(6) /= PER)) flxkp=0d0
-cc        if (isBdry(i,igx,1)) flxim=0d0
-cc        if (isBdry(i,igx,2)) flxip=0d0
-cc
-cc        if (isBdry(j,igy,3)) flxjm=0d0
-cc        if (isBdry(j,igy,4)) flxjp=0d0
-cc
-cc        if (isBdry(k,igz,5)) flxkm=0d0
-cc        if (isBdry(k,igz,6)) flxkp=0d0
       endif
 
       laplacian = (flxip -flxim)/mk_gr_params%dxh(ig)
@@ -487,14 +478,6 @@ c     Gradient at vertices
       enddo
 
       if (enfbc) then
-cc        if (isBdry(i,igx,1)) cnv(1,:,:,1)=0d0
-cc        if (isBdry(i,igx,2)) cnv(2,:,:,1)=0d0
-cc
-cc        if (isBdry(j,igy,3)) cnv(:,1,:,2)=0d0
-cc        if (isBdry(j,igy,4)) cnv(:,2,:,2)=0d0
-cc
-cc        if (isBdry(k,igz,5)) cnv(:,:,1,3)=0d0
-cc        if (isBdry(k,igz,6)) cnv(:,:,2,3)=0d0
         if (isBdry(i,igx,1).and.(mk_bcs(1) /= PER)) cnv(1,:,:,1)=0d0
         if (isBdry(i,igx,2).and.(mk_bcs(2) /= PER)) cnv(2,:,:,1)=0d0
 
@@ -622,10 +605,21 @@ c     Setup boundary conditions
 
       if(PRESENT(bcs)) then
         mk_bcs = bcs
-        where (mk_bcs == DEF) mk_bcs = NEU
+        where (mk_bcs /= PER) mk_bcs = NEU
       else
         mk_bcs = NEU !Homogeneous Neumann BCs by default for MK potential
       endif
+
+      !Map BCs (enforces PER bcs at boundary, because it acts on map updates)
+      mk_map_bcs(:,1) = mk_bcs
+      mk_map_bcs(:,2) = mk_bcs
+      mk_map_bcs(:,3) = mk_bcs
+
+      where (mk_map_bcs /= PER) mk_map_bcs = EXT !Extrapolate map by default
+
+      where (mk_map_bcs(1:2,1) /= PER) mk_map_bcs(1:2,1) = DIR
+      where (mk_map_bcs(3:4,2) /= PER) mk_map_bcs(3:4,2) = DIR
+      where (mk_map_bcs(5:6,3) /= PER) mk_map_bcs(5:6,3) = DIR
 
 c     Use currently provided map
 
@@ -667,11 +661,14 @@ c     Set up interpolation by splines
      .                 ,xmin,xmax,ymin,ymax,zmin,zmax !-->Outputs logical mesh dimensions
      .                 ,bcnd=mk_bcs)
 
+cc      write (*,*) 'MK domain limits',xmin,xmax,ymin,ymax,zmin,zmax
+
       allocate(x0_coef  (nx+2,ny+2,nz+2,3))
       allocate(xold_coef(nx+2,ny+2,nz+2,3))
 
       call splineX(x0,xcoef_ext=x0_coef)
 
+      xnew = x0
       xold = x0
       xnm  = x0
 
@@ -679,9 +676,9 @@ c     End program
 
       end subroutine MK_initGrid
 
-c     MK_setup_NLF
+c     mk_setup_NLF
 c     ################################################################
-      subroutine MK_setup_NLF(igrid,phi,xold)
+      subroutine mk_setup_NLF(igrid,phi,xold)
 
 cc      use xdraw_io
 
@@ -823,7 +820,7 @@ cc#endif
 cc      stop
 c diag ****
 
-      end subroutine MK_setup_NLF
+      end subroutine mk_setup_NLF
 
 c     MK_residual
 c     ###############################################################
@@ -852,9 +849,9 @@ c     Begin program
         return
       endif
 
-      nx = mk_gr_params%nxgl(igx)
-      ny = mk_gr_params%nygl(igy)
-      nz = mk_gr_params%nzgl(igz)
+      nx = mk_gr_params%nxv(igx)
+      ny = mk_gr_params%nyv(igy)
+      nz = mk_gr_params%nzv(igz)
 
       mk_res = det(i,j,k)
      .        -mk_lap_vrtx(i,j,k,nx,ny,nz,igx,igy,igz,phi,enf_bc=.true.)
@@ -1029,9 +1026,9 @@ c     Local variables
 
 c     Begin program
 
-      nx = mk_gr_params%nxgl(igrid)
-      ny = mk_gr_params%nygl(igrid)
-      nz = mk_gr_params%nzgl(igrid)
+      nx = mk_gr_params%nxv(igrid)
+      ny = mk_gr_params%nyv(igrid)
+      nz = mk_gr_params%nzv(igrid)
 
       if (lagged_err_mon) then
         if (old_time_eval.or.source_eval) then
@@ -1379,7 +1376,7 @@ c     Invert old map to find logical coords (this function only called when tjac
 
         ilevel = 0 !For debugging level in evalXi
         call evalXi(ilevel,x1,x2,x3,xi1,xi2,xi3,ierror
-     .             ,xcoef_ext=xold_coef)
+     .             ,xcoef_ext=xold_coef)!,no_perbc=.true.)
 
         if (ierror /= 0) then
           call pstop('evalJac in MK','Map inversion failed')
@@ -1442,8 +1439,8 @@ c     Rescale target jacobian according to max-to-min ratio
 c     Find integral of error monitor function, Int(J' dxi)
 
       cc_new = integral(igx,igy,igz,nx,ny,nz,jac
-     .                       ,average=.false.
-     .                       ,logical_dom=.true.)
+     .                 ,average=.false.
+     .                 ,logical_dom=.true.)
 
       jac_norm = cc_new/mk_det_int  !Int(J' dxi)/Int(dxi)
 
@@ -1469,15 +1466,23 @@ c     Call variables
 
 c     Local variables
 
-      real(8) :: maxv,minv,alpha
+      real(8) :: maxv,minv,alpha,gext(2),lext(2)
 
 c     Begin program
 
-      maxv = maxval(mon)
-      minv = minval(mon)
+      if (g_ratio > 1d0) then
+        maxv = maxval(mon)
+        minv = minval(mon)
 
-      if (g_ratio > 1d0 .and. limit_err_mon) then
-        if (maxv < g_ratio*minv) then
+#if defined(petsc)
+        lext = (/ maxv, minv/)
+        call MPI_AllReduce(lext,gext,2,MPI_DOUBLE_PRECISION
+     .                    ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+        maxv = gext(1)
+        minv = gext(2)
+#endif
+
+        if (maxv > g_ratio*minv) then
           alpha = (maxv - g_ratio*minv)/(g_ratio - 1d0)
           mon = mon + alpha
         endif
@@ -1491,7 +1496,8 @@ c     ##############################################################
      .         result(pos)
 
 c     --------------------------------------------------------------
-c     Finds grid vertex and cell-center positions from phi. On input:
+c     Finds grid vertex and cell-center CARTESIAN positions from phi.
+c     On input:
 c        * xold: old Cartesian cell-center positions
 c        * he: determines whether we find vertex positions (he=1)
 c              or cell center positions (he=0). If vertex, computes
@@ -1563,9 +1569,9 @@ c     Begin program
 
       end function findPos
 
-ccc     XferImesh
+ccc     mk_xfer_mesh
 ccc     ##############################################################
-cc      subroutine XferImesh(igrid,nx,ny,nz,phi,xold,xnew)
+cc      subroutine mk_xfer_mesh(igrid,nx,ny,nz,phi,xold,xnew)
 ccc     --------------------------------------------------------------
 ccc     Transfers x'=x+grad(phi) -> x at cell centers
 ccc     --------------------------------------------------------------
@@ -1575,9 +1581,9 @@ cc
 ccc     Call variables
 cc
 cc      integer :: igrid,nx,ny,nz
-cc      real(8) :: phi (0:nx+1,0:ny+1,0:nz+1)
-cc     .          ,xold(0:nx+1,0:ny+1,0:nz+1,3)
-cc     .          ,xnew(0:nx+1,0:ny+1,0:nz+1,3)
+cc      real(8),INTENT(IN) :: phi (0:nx+1,0:ny+1,0:nz+1)
+cc     .                     ,xold(0:nx+1,0:ny+1,0:nz+1,3)
+cc      real(8) :: xnew(0:nx+1,0:ny+1,0:nz+1,3)
 cc
 ccc     Local variables
 cc
@@ -1594,14 +1600,12 @@ cc      igz = igrid
 cc
 ccc     Find vertex positions and average to cell centers
 cc
-cccc      xnew = 0d0
 cc      xx0 = 0d0
 cc
 cc      !Find vertex positions
 cc      do k=0,nz
 cc        do j=0,ny
 cc          do i=0,nx
-cccc            xnew(i,j,k,:)=findPos(i,j,k,igx,igy,igz,nx,ny,nz,xold
 cc            xx0(i,j,k,:)=findPos(i,j,k,igx,igy,igz,nx,ny,nz,xold
 cc     .                           ,phi,1,abs=.false.)
 cc          enddo
@@ -1610,10 +1614,6 @@ cc      enddo
 cc
 cc      !Average to cell centers
 cc      xnew(1:nx,1:ny,1:nz,:) = xold(1:nx,1:ny,1:nz,:)
-cccc     .  +0.125*(xnew(0:nx-1,1:ny,0:nz-1,:)+xnew(0:nx-1,0:ny-1,0:nz-1,:)
-cccc     .         +xnew(1:nx  ,1:ny,0:nz-1,:)+xnew(1:nx  ,0:ny-1,0:nz-1,:)
-cccc     .         +xnew(0:nx-1,1:ny,1:nz  ,:)+xnew(0:nx-1,0:ny-1,1:nz  ,:)
-cccc     .         +xnew(1:nx  ,1:ny,1:nz  ,:)+xnew(1:nx  ,0:ny-1,1:nz  ,:))
 cc     .  +0.125*(xx0(0:nx-1,1:ny,0:nz-1,:)+xx0(0:nx-1,0:ny-1,0:nz-1,:)
 cc     .         +xx0(1:nx  ,1:ny,0:nz-1,:)+xx0(1:nx  ,0:ny-1,0:nz-1,:)
 cc     .         +xx0(0:nx-1,1:ny,1:nz  ,:)+xx0(0:nx-1,0:ny-1,1:nz  ,:)
@@ -1621,42 +1621,25 @@ cc     .         +xx0(1:nx  ,1:ny,1:nz  ,:)+xx0(1:nx  ,0:ny-1,1:nz  ,:))
 cc
 ccc     Prepare to fill ghost cells by extrapolation
 cc
-cccc      xx0 = 0d0
-cccc      xx0 = xold
+cccc      call map__bc(1)
+cccc      call map__bc(2)
+cccc      call map__bc(3)
 cc
 cc      !X component BC
 cc      if (isBdry(1,igx,1)) then
 cc        i = 0
-cccc        do k=0,nz
-cccc          do j=0,ny
-cccc            xx0(i  ,j,k,:)=findPos(i,j,k,igx,igy,igz,nx,ny,nz,xold
-cccc     .                            ,phi,1)
-cccc          enddo
-cccc        enddo
-cc
-cccc        xx0(i,1:ny,1:nz,1) =
 cc        xx0(i,1:ny,1:nz,1) = 0.5*(xold(i  ,1:ny,1:nz,1)
 cc     .                           +xold(i+1,1:ny,1:nz,1))
 cc     .         +0.25*(xx0(i,1:ny,0:nz-1,1)+xx0(i,0:ny-1,0:nz-1,1)
 cc     .               +xx0(i,1:ny,1:nz  ,1)+xx0(i,0:ny-1,1:nz  ,1))
-cc
 cc      endif
 cc
 cc      if (isBdry(nx,igx,2)) then
-cc        i = nx
-cccc        do k=0,nz
-cccc          do j=0,ny
-cccc            xx0(i+1,j,k,:)=findPos(i,j,k,igx,igy,igz,nx,ny,nz,xold
-cccc     .                            ,phi,1)
-cccc          enddo
-cccc        enddo
-cc
 cc        i = nx+1
-cccc        xx0(i,1:ny,1:nz,1) =
 cc        xx0(i,1:ny,1:nz,1) = 0.5*(xold(i  ,1:ny,1:nz,1)
 cc     .                           +xold(i-1,1:ny,1:nz,1))
-cc     .         +0.25*(xx0(i,1:ny,0:nz-1,1)+xx0(i,0:ny-1,0:nz-1,1)
-cc     .               +xx0(i,1:ny,1:nz  ,1)+xx0(i,0:ny-1,1:nz  ,1))
+cc     .         +0.25*(xx0(i-1,1:ny,0:nz-1,1)+xx0(i-1,0:ny-1,0:nz-1,1)
+cc     .               +xx0(i-1,1:ny,1:nz  ,1)+xx0(i-1,0:ny-1,1:nz  ,1))
 cc      endif
 cc
 cc      call map_bc(1,igx,nx,ny,nz,xnew(:,:,:,1),xx0(:,:,:,1),iorder=1)
@@ -1664,14 +1647,6 @@ cc
 cc      !Y component BC
 cc      if (isBdry(1,igy,3)) then
 cc        j = 0
-cccc        do k=0,nz
-cccc          do i=0,nx
-cccc            xx0(i,j  ,k,:)=findPos(i,j,k,igx,igy,igz,nx,ny,nz,xold
-cccc     .                             ,phi,1)
-cccc          enddo
-cccc        enddo
-cccc
-cccc        xx0(1:nx,j,1:nz,2) =
 cc        xx0(1:nx,j,1:nz,2) = 0.5*(xold(1:nx,j  ,1:nz,2)
 cc     .                           +xold(1:nx,j+1,1:nz,2))
 cc     .         +0.25*(xx0(1:nx,j,0:nz-1,2)+xx0(0:nx-1,j,0:nz-1,2)
@@ -1679,20 +1654,11 @@ cc     .               +xx0(1:nx,j,1:nz  ,2)+xx0(0:nx-1,j,1:nz  ,2))
 cc      endif
 cc
 cc      if (isBdry(ny,igy,4)) then
-cc        j = ny
-cccc        do k=0,nz
-cccc          do i=0,nx
-cccc            xx0(i,j+1,k,:)=findPos(i,j,k,igx,igy,igz,nx,ny,nz,xold
-cccc     .                             ,phi,1)
-cccc          enddo
-cccc        enddo
-cc
 cc        j = ny+1
-cccc        xx0(1:nx,j,1:nz,2) =
 cc        xx0(1:nx,j,1:nz,2) = 0.5*(xold(1:nx,j  ,1:nz,2)
 cc     .                           +xold(1:nx,j-1,1:nz,2))
-cc     .         +0.25*(xx0(1:nx,j,0:nz-1,2)+xx0(0:nx-1,j,0:nz-1,2)
-cc     .               +xx0(1:nx,j,1:nz  ,2)+xx0(0:nx-1,j,1:nz  ,2))
+cc     .         +0.25*(xx0(1:nx,j-1,0:nz-1,2)+xx0(0:nx-1,j-1,0:nz-1,2)
+cc     .               +xx0(1:nx,j-1,1:nz  ,2)+xx0(0:nx-1,j-1,1:nz  ,2))
 cc      endif
 cc
 cc      call map_bc(2,igx,nx,ny,nz,xnew(:,:,:,2),xx0(:,:,:,2),iorder=1)
@@ -1700,14 +1666,6 @@ cc
 cc      !Z component BC
 cc      if (isBdry(1,igz,5)) then
 cc        k = 0
-cccc        do j=0,ny
-cccc          do i=0,nx
-cccc          xx0(i,j,k,:)=findPos(i,j,k,igx,igy,igz,nx,ny,nz,xold
-cccc     .                             ,phi,1)
-cccc          enddo
-cccc        enddo
-cccc
-cccc        xx0(1:nx,1:ny,k,3) =
 cc        xx0(1:nx,1:ny,k,3) = 0.5*(xold(1:nx,1:ny,k  ,3)
 cc     .                           +xold(1:nx,1:ny,k+1,3))
 cc     .         +0.25*(xx0(1:nx,0:ny-1,k,3)+xx0(0:nx-1,0:ny-1,k,3)
@@ -1715,29 +1673,91 @@ cc     .               +xx0(1:nx,1:ny  ,k,3)+xx0(0:nx-1,1:ny  ,k,3))
 cc      endif
 cc
 cc      if (isBdry(nz,igz,6)) then
-cccc        k = nz
-cccc        do j=0,ny
-cccc          do i=0,nx
-cccc            xx0(i,j,k+1,:)=findPos(i,j,k,igx,igy,igz,nx,ny,nz,xold
-cccc     .                             ,phi,1)
-cccc          enddo
-cccc        enddo
-cc
 cc        k = nz+1
-cccc        xx0(1:nx,1:ny,k,3) =
 cc        xx0(1:nx,1:ny,k,3) = 0.5*(xold(1:nx,1:ny,k  ,3)
 cc     .                           +xold(1:nx,1:ny,k-1,3))
-cc     .         +0.25*(xx0(1:nx,0:ny-1,k,3)+xx0(0:nx-1,0:ny-1,k,3)
-cc     .               +xx0(1:nx,1:ny  ,k,3)+xx0(0:nx-1,1:ny  ,k,3))
+cc     .         +0.25*(xx0(1:nx,0:ny-1,k-1,3)+xx0(0:nx-1,0:ny-1,k-1,3)
+cc     .               +xx0(1:nx,1:ny  ,k-1,3)+xx0(0:nx-1,1:ny  ,k-1,3))
 cc      endif
 cc
 cc      call map_bc(3,igx,nx,ny,nz,xnew(:,:,:,3),xx0(:,:,:,3),iorder=1)
 cc
-cc      end subroutine XferImesh
+cccc        write (*,*)sum((xnew(1:nx,1:ny,1:nz,:)-xold(1:nx,1:ny,1:nz,:))**2)
+cccc        write (*,*)sum((xnew(:,1:ny,1:nz,:)-xold(:,1:ny,1:nz,:))**2)
+cccc        write (*,*)sum((xnew(1:nx,:,1:nz,:)-xold(1:nx,:,1:nz,:))**2)
+cccc        write (*,*)sum((xnew(1:nx,1:ny,:,:)-xold(1:nx,1:ny,:,:))**2)
+cccc        stop
+cc
+cc      contains
+cc
+ccc     map__bc
+ccc     ###############################################################
+cc      subroutine map__bc(ieq)
+cc
+cc      integer :: ieq,map_bcnd(6)
+cc      real(8) :: x00 (0:nx+1,0:ny+1,0:nz+1,3)
+cc
+cc      map_bcnd = EQU
+cc
+cc      !X component BC
+cc      if (isBdry(1,igx,1)) then
+cc        i = 0
+cc        x00(i,1:ny,1:nz,ieq) = 0.5*(xold(i  ,1:ny,1:nz,ieq)
+cc     .                             +xold(i+1,1:ny,1:nz,ieq))
+cc     .       +0.25*(xx0(i,1:ny,0:nz-1,ieq)+xx0(i,0:ny-1,0:nz-1,ieq)
+cc     .             +xx0(i,1:ny,1:nz  ,ieq)+xx0(i,0:ny-1,1:nz  ,ieq))
+cc      endif
+cc
+cc      if (isBdry(nx,igx,2)) then
+cc        i = nx+1
+cc        x00(i,1:ny,1:nz,ieq) = 0.5*(xold(i  ,1:ny,1:nz,ieq)
+cc     .                             +xold(i-1,1:ny,1:nz,ieq))
+cc     .       +0.25*(xx0(i-1,1:ny,0:nz-1,ieq)+xx0(i-1,0:ny-1,0:nz-1,ieq)
+cc     .             +xx0(i-1,1:ny,1:nz  ,ieq)+xx0(i-1,0:ny-1,1:nz  ,ieq))
+cc      endif
+cc
+cc      if (isBdry(1,igy,3)) then
+cc        j = 0
+cc        x00(1:nx,j,1:nz,ieq) = 0.5*(xold(1:nx,j  ,1:nz,ieq)
+cc     .                             +xold(1:nx,j+1,1:nz,ieq))
+cc     .       +0.25*(xx0(1:nx,j,0:nz-1,ieq)+xx0(0:nx-1,j,0:nz-1,ieq)
+cc     .             +xx0(1:nx,j,1:nz  ,ieq)+xx0(0:nx-1,j,1:nz  ,ieq))
+cc      endif
+cc
+cc      if (isBdry(ny,igy,4)) then
+cc        j = ny+1
+cc        x00(1:nx,j,1:nz,ieq) = 0.5*(xold(1:nx,j  ,1:nz,ieq)
+cc     .                             +xold(1:nx,j-1,1:nz,ieq))
+cc     .       +0.25*(xx0(1:nx,j-1,0:nz-1,ieq)+xx0(0:nx-1,j-1,0:nz-1,ieq)
+cc     .             +xx0(1:nx,j-1,1:nz  ,ieq)+xx0(0:nx-1,j-1,1:nz  ,ieq))
+cc      endif
+cc
+cc      if (isBdry(1,igz,5)) then
+cc        k = 0
+cc        x00(1:nx,1:ny,k,ieq) = 0.5*(xold(1:nx,1:ny,k  ,ieq)
+cc     .                             +xold(1:nx,1:ny,k+1,ieq))
+cc     .       +0.25*(xx0(1:nx,0:ny-1,k,ieq)+xx0(0:nx-1,0:ny-1,k,ieq)
+cc     .             +xx0(1:nx,1:ny  ,k,ieq)+xx0(0:nx-1,1:ny  ,k,ieq))
+cc      endif
+cc
+cc      if (isBdry(nz,igz,6)) then
+cc        k = nz+1
+cc        x00(1:nx,1:ny,k,ieq) = 0.5*(xold(1:nx,1:ny,k  ,ieq)
+cc     .                             +xold(1:nx,1:ny,k-1,ieq))
+cc     .       +0.25*(xx0(1:nx,0:ny-1,k-1,ieq)+xx0(0:nx-1,0:ny-1,k-1,ieq)
+cc     .             +xx0(1:nx,1:ny  ,k-1,ieq)+xx0(0:nx-1,1:ny  ,k-1,ieq))
+cc      endif
+cc
+cc      call map_bc(ieq,igx,nx,ny,nz,xnew(:,:,:,ieq),x00(:,:,:,ieq)
+cc     .           ,iorder=1)!,bconds=map_bcnd)
+cc
+cc      end subroutine map__bc
+cc
+cc      end subroutine mk_xfer_mesh
 
-c     XferImesh
+c     mk_xfer_mesh
 c     ##############################################################
-      subroutine XferImesh(igrid,nx,ny,nz,phi,xold,xnew)
+      subroutine mk_xfer_mesh(igrid,nx,ny,nz,phi,xold,xnew)
 c     --------------------------------------------------------------
 c     Transfers x'=x+grad(phi) -> x at cell centers
 c     --------------------------------------------------------------
@@ -1753,7 +1773,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,igx,igy,igz
+      integer :: i,j,k,igx,igy,igz!,map_bcs(6,3)
       real(8) :: xx0 (0:nx+1,0:ny+1,0:nz+1,3)
 
       real(8) :: sendbuf(1),recbuf(1)
@@ -1764,11 +1784,10 @@ c     Begin program
       igy = igrid
       igz = igrid
 
-c     Find vertex positions and average to cell centers
+c     Find grad(phi) in Cartesian geom. at vertices
 
       xx0 = 0d0
 
-      !Find vertex positions
       do k=0,nz
         do j=0,ny
           do i=0,nx
@@ -1778,148 +1797,36 @@ c     Find vertex positions and average to cell centers
         enddo
       enddo
 
-      !Average to cell centers
-      xnew(1:nx,1:ny,1:nz,:) = xold(1:nx,1:ny,1:nz,:)
-     .  +0.125*(xx0(0:nx-1,1:ny,0:nz-1,:)+xx0(0:nx-1,0:ny-1,0:nz-1,:)
+c     Average to cell centers
+
+      xnew(1:nx,1:ny,1:nz,:) = 
+     .   0.125*(xx0(0:nx-1,1:ny,0:nz-1,:)+xx0(0:nx-1,0:ny-1,0:nz-1,:)
      .         +xx0(1:nx  ,1:ny,0:nz-1,:)+xx0(1:nx  ,0:ny-1,0:nz-1,:)
      .         +xx0(0:nx-1,1:ny,1:nz  ,:)+xx0(0:nx-1,0:ny-1,1:nz  ,:)
      .         +xx0(1:nx  ,1:ny,1:nz  ,:)+xx0(1:nx  ,0:ny-1,1:nz  ,:))
 
-c     Prepare to fill ghost cells by extrapolation
+c     Fill ghost cells of xnew=grad(phi)
 
-cc      call map__bc(1)
-cc      call map__bc(2)
-cc      call map__bc(3)
+cc      map_bcs(:,1) = mk_bcs
+cc      map_bcs(:,2) = mk_bcs
+cc      map_bcs(:,3) = mk_bcs
+cc
+cc      where (map_bcs /= PER) map_bcs = EXT !Extrapolate map by default
+cc
+cc      where (mk_bcs(1:2) /= PER) map_bcs(1:2,1) = EQU
+cc      where (mk_bcs(3:4) /= PER) map_bcs(3:4,2) = EQU
+cc      where (mk_bcs(5:6) /= PER) map_bcs(5:6,3) = EQU
 
-      !X component BC
-      if (isBdry(1,igx,1)) then
-        i = 0
-        xx0(i,1:ny,1:nz,1) = 0.5*(xold(i  ,1:ny,1:nz,1)
-     .                           +xold(i+1,1:ny,1:nz,1))
-     .         +0.25*(xx0(i,1:ny,0:nz-1,1)+xx0(i,0:ny-1,0:nz-1,1)
-     .               +xx0(i,1:ny,1:nz  ,1)+xx0(i,0:ny-1,1:nz  ,1))
-      endif
+      do i=1,3
+        call map_bc(i,igrid,nx,ny,nz,xnew(:,:,:,i),xx0(:,:,:,i),iorder=1
+     .             ,bcs=mk_map_bcs(:,i))
+      enddo
 
-      if (isBdry(nx,igx,2)) then
-        i = nx+1
-        xx0(i,1:ny,1:nz,1) = 0.5*(xold(i  ,1:ny,1:nz,1)
-     .                           +xold(i-1,1:ny,1:nz,1))
-     .         +0.25*(xx0(i,1:ny,0:nz-1,1)+xx0(i,0:ny-1,0:nz-1,1)
-     .               +xx0(i,1:ny,1:nz  ,1)+xx0(i,0:ny-1,1:nz  ,1))
-      endif
+c     Add old map at cell centers
 
-      call map_bc(1,igx,nx,ny,nz,xnew(:,:,:,1),xx0(:,:,:,1),iorder=1)
+      xnew = xnew + xold
 
-      !Y component BC
-      if (isBdry(1,igy,3)) then
-        j = 0
-        xx0(1:nx,j,1:nz,2) = 0.5*(xold(1:nx,j  ,1:nz,2)
-     .                           +xold(1:nx,j+1,1:nz,2))
-     .         +0.25*(xx0(1:nx,j,0:nz-1,2)+xx0(0:nx-1,j,0:nz-1,2)
-     .               +xx0(1:nx,j,1:nz  ,2)+xx0(0:nx-1,j,1:nz  ,2))
-      endif
-
-      if (isBdry(ny,igy,4)) then
-        j = ny+1
-        xx0(1:nx,j,1:nz,2) = 0.5*(xold(1:nx,j  ,1:nz,2)
-     .                           +xold(1:nx,j-1,1:nz,2))
-     .         +0.25*(xx0(1:nx,j,0:nz-1,2)+xx0(0:nx-1,j,0:nz-1,2)
-     .               +xx0(1:nx,j,1:nz  ,2)+xx0(0:nx-1,j,1:nz  ,2))
-      endif
-
-      call map_bc(2,igx,nx,ny,nz,xnew(:,:,:,2),xx0(:,:,:,2),iorder=1)
-
-      !Z component BC
-      if (isBdry(1,igz,5)) then
-        k = 0
-        xx0(1:nx,1:ny,k,3) = 0.5*(xold(1:nx,1:ny,k  ,3)
-     .                           +xold(1:nx,1:ny,k+1,3))
-     .         +0.25*(xx0(1:nx,0:ny-1,k,3)+xx0(0:nx-1,0:ny-1,k,3)
-     .               +xx0(1:nx,1:ny  ,k,3)+xx0(0:nx-1,1:ny  ,k,3))
-      endif
-
-      if (isBdry(nz,igz,6)) then
-        k = nz+1
-        xx0(1:nx,1:ny,k,3) = 0.5*(xold(1:nx,1:ny,k  ,3)
-     .                           +xold(1:nx,1:ny,k-1,3))
-     .         +0.25*(xx0(1:nx,0:ny-1,k,3)+xx0(0:nx-1,0:ny-1,k,3)
-     .               +xx0(1:nx,1:ny  ,k,3)+xx0(0:nx-1,1:ny  ,k,3))
-      endif
-
-      call map_bc(3,igx,nx,ny,nz,xnew(:,:,:,3),xx0(:,:,:,3),iorder=1)
-
-cc        write (*,*)sum((xnew(1:nx,1:ny,1:nz,:)-xold(1:nx,1:ny,1:nz,:))**2)
-cc        write (*,*)sum((xnew(:,1:ny,1:nz,:)-xold(:,1:ny,1:nz,:))**2)
-cc        write (*,*)sum((xnew(1:nx,:,1:nz,:)-xold(1:nx,:,1:nz,:))**2)
-cc        write (*,*)sum((xnew(1:nx,1:ny,:,:)-xold(1:nx,1:ny,:,:))**2)
-cc        stop
-
-      contains
-
-c     map__bc
-c     ###############################################################
-      subroutine map__bc(ieq)
-
-      integer :: ieq,map_bcnd(6)
-      real(8) :: x00 (0:nx+1,0:ny+1,0:nz+1,3)
-
-      map_bcnd = EQU
-
-      !X component BC
-      if (isBdry(1,igx,1)) then
-        i = 0
-        x00(i,1:ny,1:nz,ieq) = 0.5*(xold(i  ,1:ny,1:nz,ieq)
-     .                             +xold(i+1,1:ny,1:nz,ieq))
-     .         +0.25*(xx0(i,1:ny,0:nz-1,ieq)+xx0(i,0:ny-1,0:nz-1,ieq)
-     .               +xx0(i,1:ny,1:nz  ,ieq)+xx0(i,0:ny-1,1:nz  ,ieq))
-      endif
-
-      if (isBdry(nx,igx,2)) then
-        i = nx+1
-        x00(i,1:ny,1:nz,ieq) = 0.5*(xold(i  ,1:ny,1:nz,ieq)
-     .                             +xold(i-1,1:ny,1:nz,ieq))
-     .         +0.25*(xx0(i,1:ny,0:nz-1,ieq)+xx0(i,0:ny-1,0:nz-1,ieq)
-     .               +xx0(i,1:ny,1:nz  ,ieq)+xx0(i,0:ny-1,1:nz  ,ieq))
-      endif
-
-      if (isBdry(1,igy,3)) then
-        j = 0
-        x00(1:nx,j,1:nz,ieq) = 0.5*(xold(1:nx,j  ,1:nz,ieq)
-     .                             +xold(1:nx,j+1,1:nz,ieq))
-     .         +0.25*(xx0(1:nx,j,0:nz-1,ieq)+xx0(0:nx-1,j,0:nz-1,ieq)
-     .               +xx0(1:nx,j,1:nz  ,ieq)+xx0(0:nx-1,j,1:nz  ,ieq))
-      endif
-
-      if (isBdry(ny,igy,4)) then
-        j = ny+1
-        x00(1:nx,j,1:nz,ieq) = 0.5*(xold(1:nx,j  ,1:nz,ieq)
-     .                             +xold(1:nx,j-1,1:nz,ieq))
-     .         +0.25*(xx0(1:nx,j,0:nz-1,ieq)+xx0(0:nx-1,j,0:nz-1,ieq)
-     .               +xx0(1:nx,j,1:nz  ,ieq)+xx0(0:nx-1,j,1:nz  ,ieq))
-      endif
-
-      if (isBdry(1,igz,5)) then
-        k = 0
-        x00(1:nx,1:ny,k,ieq) = 0.5*(xold(1:nx,1:ny,k  ,ieq)
-     .                             +xold(1:nx,1:ny,k+1,ieq))
-     .         +0.25*(xx0(1:nx,0:ny-1,k,ieq)+xx0(0:nx-1,0:ny-1,k,ieq)
-     .               +xx0(1:nx,1:ny  ,k,ieq)+xx0(0:nx-1,1:ny  ,k,ieq))
-      endif
-
-      if (isBdry(nz,igz,6)) then
-        k = nz+1
-        x00(1:nx,1:ny,k,ieq) = 0.5*(xold(1:nx,1:ny,k  ,ieq)
-     .                             +xold(1:nx,1:ny,k-1,ieq))
-     .         +0.25*(xx0(1:nx,0:ny-1,k,ieq)+xx0(0:nx-1,0:ny-1,k,ieq)
-     .               +xx0(1:nx,1:ny  ,k,ieq)+xx0(0:nx-1,1:ny  ,k,ieq))
-      endif
-
-      call map_bc(ieq,igx,nx,ny,nz,xnew(:,:,:,ieq),x00(:,:,:,ieq)
-     .           ,iorder=1)!,bconds=map_bcnd)
-
-      end subroutine map__bc
-
-      end subroutine XferImesh
+      end subroutine mk_xfer_mesh
 
 c     MK_setup_grid
 c     ###############################################################
@@ -1953,33 +1860,16 @@ c     Begin program
         nz = mk_gr_params%nzv(igz)
 
         !Impose BCs for MK potential
-        call MK_applyBC(igrid,phi)
+        call mk_applyBC(igrid,phi)
 
         !Setup MK residual evaluation
-        call MK_setup_NLF(igrid,phi,x0)
+        call mk_setup_NLF(igrid,phi,x0)
 
         !Find new mesh at cell centers
-cc        xnew = x0
-        call XferImesh(igrid,nx,ny,nz,phi,x0,xnew)
+        call mk_xfer_mesh(igrid,nx,ny,nz,phi,x0,xnew)
 
         !Calculate grid velocity (cnv)
         if (old_time_eval.or.source_eval.or.itime==0) then
-
-          !Print out grid velocity
-          if (my_rank == 0.and.itime > 0) then
-            if (ilevel > 0) write (*,*)
-            if (mk_relax_init_grid) then
-              write (*,*) '     >>> MK --- Relaxed initial grid'
-            endif
-            if (mk_relax_init_grid.or.itime > 1) then
-              write (*,10) '      >>> MK --- Max grid velocities:'
-     .                   ,maxval(abs(gvel(:,:,:,1)))
-     .                   ,maxval(abs(gvel(:,:,:,2)))
-     .                   ,maxval(abs(gvel(:,:,:,3)))
- 10           format (a,1p3e12.3)
-            endif
-          endif
-
           xnm  = xold
           xold = xnew
 
@@ -1988,14 +1878,17 @@ cc        xnew = x0
 
           gvel = 0d0
 
+cc          phi = 0d0
+
           !Spline map (for lagged monitor function only)
           if (lagged_err_mon) call splineX(xold,xcoef_ext=xold_coef)
         else
 
+          !In Cartesian geometry
           if (bdf2) then
             gvel =-(cnp*xnew+cn*xold+cnm*xnm)/dt
           else
-            gvel =-(xnew-xold)/dt  !In Cartesian geometry
+            gvel =-(xnew-xold)/dt
           endif
           gvel = XformToCurv(igrid,gvel,.true.)
 
@@ -2009,9 +1902,9 @@ c     End program
 
       end subroutine MK_setup_grid
 
-c     MK_applyBC
+c     mk_applyBC
 c     ##############################################################
-      subroutine MK_applyBC(igrid,phi)
+      subroutine mk_applyBC(igrid,phi)
 
 c     --------------------------------------------------------------
 c     Apply boundary conditions to MK potential.
@@ -2041,7 +1934,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine MK_applyBC
+      end subroutine mk_applyBC
 
 c     MK_spline_src
 c     ##############################################################
@@ -2070,6 +1963,12 @@ c     Spline-related
 
       integer :: flg,alloc_stat
 
+ccc     Debug
+cc
+cccc      integer :: ieq
+cc      real(8),allocatable,dimension(:,:,:) :: debug2
+cc      character(13) :: debugfile
+
 c     Begin program
 
       igx = igrid
@@ -2094,23 +1993,52 @@ c     Fill ghost cells (extrapolate at physical boundaries)
 
         call setBC(ieq,nx,ny,nz
      .            ,vsrc%array_var(ieq)%array
-     .            ,u_0 %array_var(ieq)%array !dummy
+     .            ,u_0 %array_var(ieq)%array
      .            ,vsrc%array_var(ieq)%bconds
-     .            ,igx,igy,igz)!,iorder=sp_order)
+     .            ,igx,igy,igz,iorder=sp_order)
       enddo
 
 c     Allocate spline coefficient arrays
 
-      allocate(src_coef (nx+2,ny+2,nz+2,neq)
-     .        ,tmp_coef (nx+2,ny+2,nz+2),STAT=alloc_stat)
+      allocate(src_coef(nx+2,ny+2,nz+2,neq)
+     .        ,tmp_coef(nx+2,ny+2,nz+2),STAT=alloc_stat)
 
-c     Spline gradient function
+c     Spline variables and current map for later source interpolation
 
       do ieq=1,neq
         var => vsrc%array_var(ieq)%array
         call splineFld(var,fcoef_ext=tmp_coef)
         src_coef(:,:,:,ieq) = tmp_coef
       enddo
+
+cc      call splineX(xnew,xcoef_ext=x0_coef)
+
+c diag ****
+cc      debugfile = 'debug_p'//trim(int2char(my_rank))//'.bin'
+cc      open(unit=110,file=debugfile,form='unformatted'
+cc     .    ,status='replace')
+cc
+cc      k = 1
+cc
+cc      nx = grid_params%nxv(igx)
+cc      ny = grid_params%nyv(igx)
+cc      nz = grid_params%nzv(igx)
+cc      allocate(debug2(0:nx+1,0:ny+1,0:nz+1))
+cc
+cc      do ieq=1,neqd
+cc        debug2 = vsrc%array_var(ieq)%array
+cc        call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2
+cc     .              ,0d0,1d0,0d0,1d0,ieq-1,110)
+cc      enddo
+cc
+cc      deallocate(debug2)
+cc      close(110)
+cc
+cc#if defined(petsc)
+cc      call PetscEnd(mpierr)
+cc#endif
+cc      stop
+c diag ****
 
 c     Free memory
 
@@ -2189,6 +2117,8 @@ c     --------------------------------------------------------------
 c     Spline source for source evaluation with moving mesh.
 c     --------------------------------------------------------------
 
+cc      use xdraw_io
+
       implicit none
 
 c     Call variables
@@ -2207,6 +2137,13 @@ c     Spline-related
 
       integer :: flg,alloc_stat
 
+c     Debug
+
+cc      integer :: ierror
+cc      real(8) :: xi1,xi2,xi3
+cc      real(8),allocatable,dimension(:,:,:) :: debug2
+cc      character(13) :: debugfile
+
 c     Begin program
 
       igx = igrid
@@ -2222,15 +2159,39 @@ c     Fill ghost cells (extrapolate at physical boundaries)
       neq = vequ%nvar-1
 
       do ieq=1,neq
-        vequ%array_var(ieq)%bconds = bcond  !Topological boundary conditions
-        where (bcond == DEF)  vequ%array_var(ieq)%bconds = EQU
+        vequ%array_var(ieq)%bconds = u_0%array_var(ieq)%bconds
 
         call setBC(ieq,nx,ny,nz
      .            ,vequ%array_var(ieq)%array
-     .            ,u_0 %array_var(ieq)%array !dummy
+     .            ,u_0 %array_var(ieq)%array
      .            ,vequ%array_var(ieq)%bconds
      .            ,igx,igy,igz,iorder=sp_order)
       enddo
+
+c diag ****
+cc      write (*,*) 'DIAG -- MK_spline_equ'
+cc      debugfile = 'debug_p'//trim(int2char(my_rank))//'.bin'
+cc      open(unit=110,file=debugfile,form='unformatted'
+cc     .    ,status='replace')
+cc
+cc      k = 1
+cc
+cc      allocate(debug2(0:nx+1,0:ny+1,0:nz+1))
+cc
+cc      do ieq=1,neq
+cc        debug2 = vequ%array_var(ieq)%array
+cc        call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2
+cc     .              ,0d0,1d0,0d0,1d0,ieq-1,110)
+cc      enddo
+cc
+cc      deallocate(debug2)
+cc      close(110)
+cc
+cc#if defined(petsc)
+cc      call PetscEnd(mpierr)
+cc#endif
+cc      stop
+c diag ****
 
 c     Allocate spline coefficient arrays
 
@@ -2244,6 +2205,43 @@ c     Spline gradient function
         call splineFld(var,fcoef_ext=tmp_coef)
         equ_coef(:,:,:,ieq) = tmp_coef
       enddo
+
+c diag ****
+cc      write (*,*) 'DIAG -- MK_spline_equ'
+cc      debugfile = 'debug_p'//trim(int2char(my_rank))//'.bin'
+cc      open(unit=110,file=debugfile,form='unformatted'
+cc     .    ,status='replace')
+cc
+cc      allocate(debug2(0:nx+1,0:ny+1,0:nz+1))
+cc
+cc      do ieq=1,neq
+cccc        debug2 = vequ%array_var(ieq)%array
+cc        do k=0,nz+1
+cc          do j=0,ny+1
+cc            do i=0,nx+1
+cc              call getCurvilinearCoordinates(i,j,k,igrid,igrid,igrid
+cc     .                                      ,ig,jg,kg,xi1,xi2,xi3)
+cc              tmp_coef = equ_coef(:,:,:,ieq)
+cc              debug2(i,j,k) = evalFld(xi1,xi2,xi3,ierror
+cc     .                               ,fcoef_ext=tmp_coef)
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+cc        k = 2
+cc
+cc        call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2
+cc     .              ,0d0,1d0,0d0,1d0,ieq-1,110)
+cc      enddo
+cc
+cc      deallocate(debug2)
+cc      close(110)
+cc
+cc#if defined(petsc)
+cc      call PetscEnd(mpierr)
+cc#endif
+cc      stop
+c diag ****
 
 c     Free memory
 
@@ -2274,13 +2272,13 @@ c     Local variables
 
 c     Begin program
 
-c     Find current physical coordinates
+c     Get current physical coordinates
 
         x1 = gmetric%grid(igrid)%car(i,j,k,1)
         x2 = gmetric%grid(igrid)%car(i,j,k,2)
         x3 = gmetric%grid(igrid)%car(i,j,k,3)
 
-c     Invert map to find logical coordinates
+c     Invert map to find logical coordinates based on map x0
 
         !Initial guess for logical coords
         call getCurvilinearCoordinates(i,j,k,igrid,igrid,igrid,ig,jg,kg
@@ -2300,7 +2298,7 @@ c     Interpolate at logical coordinates
      .                   ,size(equ_coef,2)
      .                   ,size(equ_coef,3)))
 
-        do ieq=1,neqd-1
+        do ieq=1,size(equ_coef,4)
           tmp_coef = equ_coef(:,:,:,ieq)
           equ(ieq) = evalFld(xi1,xi2,xi3,ierror,fcoef_ext=tmp_coef)
         enddo
@@ -2353,9 +2351,6 @@ c     Begin program
         enddo
 
         do ieq=1,neqd-1
-cc          vequ%array_var(ieq)%bconds = bcond !Topological boundary conditions
-cc          where (bcond == DEF)  vequ%array_var(ieq)%bconds = EQU
-
           call setBC(ieq,nx,ny,nz
      .            ,vequ%array_var(ieq)%array
      .            ,u_0 %array_var(ieq)%array
@@ -2366,5 +2361,49 @@ cc          where (bcond == DEF)  vequ%array_var(ieq)%bconds = EQU
 c     End program
 
       end subroutine MK_xfer_equ
+
+c     MK_output
+c     ###################################################################
+      subroutine MK_output
+
+c     -------------------------------------------------------------------
+c     MK output
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+c     Local variables
+
+        real(8) :: gvmax(3),lgvmax(3)
+
+c     Begin program
+
+        if (ilevel > 0.and.my_rank == 0) write (*,*)
+
+        if (itime.lt.inewtime) then
+          if (relax_init_grid.and.my_rank == 0)
+     .           write (*,*) '     >>> MK --- Relaxing initial grid...'
+        else
+          gvmax(1) = maxval(abs(gvel(:,:,:,1)))
+          gvmax(2) = maxval(abs(gvel(:,:,:,2)))
+          gvmax(3) = maxval(abs(gvel(:,:,:,3)))
+
+#if defined(petsc)
+          lgvmax = gvmax
+          call MPI_Reduce(lgvmax,gvmax,3,MPI_DOUBLE_PRECISION
+     .                   ,MPI_MAX,0,MPI_COMM_WORLD,mpierr)
+#endif
+
+          if (my_rank == 0) 
+     .      write (*,10) '      >>> MK --- Max grid velocities:',gvmax
+        endif
+
+c     End program
+
+ 10    format (a,1p3e12.3)
+
+      end subroutine MK_output
 
       end module mk
