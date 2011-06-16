@@ -429,7 +429,7 @@ c     Local variables
 c     Begin program
 
         if (associated(varray)) then
-          do ieq=1,neqd
+          do ieq=1,size(varray%array_var)
             deallocate(varray%array_var(ieq)%array,stat=istat)
             deallocate(varray%array_var(ieq)%bc_dep_list,stat=istat)
             deallocate(varray%array_var(ieq)%dom_dep_list,stat=istat)
@@ -463,14 +463,15 @@ c     Local variables
 
 c     Begin program
 
-        if (associated(varray2)) then
-cc           if (varray2%nvar /= neqd) nullify(varray2)
-           if (varray2%nvar /= neqd) call deallocateDerivedType(varray2)
-        endif
+cc        if (associated(varray2)) then
+cccc           if (varray2%nvar /= neqd) nullify(varray2)
+cc           if (varray2%nvar /= neqd) call deallocateDerivedType(varray2)
+cc        endif
 
         call allocateDerivedType(varray2)
 
         varray2%nvar = varray1%nvar
+
         do ieq=1,varray2%nvar
           varray2%array_var(ieq)%bconds =varray1%array_var(ieq)%bconds
           varray2%array_var(ieq)%array  =varray1%array_var(ieq)%array
@@ -509,6 +510,7 @@ c     Begin program
         call allocateDerivedType(varray,igx=igx,igy=igy,igz=igz)
 
         varray%nvar = gv%u_0%nvar
+
         do ieq=1,varray%nvar
           varray%array_var(ieq)%bconds = gv%u_0%array_var(ieq)%bconds
           varray%array_var(ieq)%descr  = gv%u_0%array_var(ieq)%descr
@@ -545,6 +547,7 @@ c     Begin program
         call allocateDerivedType(varray3)
 
         varray3%nvar = varray2%nvar
+
         do ieq=1,varray3%nvar
           varray3%array_var(ieq)%bconds =varray2%array_var(ieq)%bconds
           varray3%array_var(ieq)%array  =
@@ -736,8 +739,8 @@ c     Local variables
 
 c     Begin program
 
-        do ii=1,size(xin,1)
-          do ieq=1,size(xin,2)
+        do ieq=1,size(xin,2)
+          do ii=1,size(xin,1)
             iii = ieq + size(xin,2)*(ii-1)
             xout(iii) = xin(ii,ieq)
           enddo
@@ -764,13 +767,13 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: i,j,k,ii,iii,ieq
-        real(8)    :: dvol
+        integer :: i,j,k,ii,iii,ieq
+        real(8) :: dvol
 
 c     Begin program
 
-        do ii=1,size(xout,1)
-          do ieq=1,size(xout,2)
+        do ieq=1,size(xout,2)
+          do ii=1,size(xout,1)
             iii = ieq + size(xout,2)*(ii-1)
             xout(ii,ieq) = xin(iii)
           enddo
