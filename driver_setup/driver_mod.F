@@ -48,6 +48,7 @@ c ######################################################################
      .               ,chk_src=.false.,source_eval=.false.
      .               ,old_time_eval=.false.,vol_wgt=.true.
      .               ,bdf2=.false.,eigen=.false.
+     .               ,relax_init_grid=.false.
 
         real(8)    :: cnp=1d0,cn=-1d0,cnm=0d0
 
