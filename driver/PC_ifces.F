@@ -157,7 +157,7 @@ c     MK PC
 
 c     Application PC
 
-        if (mk_grid.and.mk_relax_init_grid) then !Trivial PC for spline EQU
+        if (relax_init_grid) then !Trivial PC for spline EQU
           do k = 1,nz
             do j = 1,ny
               do i = 1,nx
@@ -166,9 +166,13 @@ c     Application PC
                 call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
                 if (vol_wgt) then
-                  dvol =  grid_params%dxh(ig)
-     .                   *grid_params%dyh(jg)
-     .                   *grid_params%dzh(kg)
+                  if (mk_nc) then
+                    dvol = gmetric%grid(igrid)%dvol(i,j,k)
+                  else
+                    dvol = grid_params%dxh(ig)
+     .                    *grid_params%dyh(jg)
+     .                    *grid_params%dzh(kg)
+                  endif
                 else
                   dvol = 1d0
                 endif
@@ -217,65 +221,32 @@ c     --------------------------------------------------------------
 c     Performs diagnostics on PC
 c     --------------------------------------------------------------
 
-        use grid_debug,ONLY:C_contour,cont_conf,dbg,createDrawInCfile
+        use mg_io
 
         implicit none
 
-        integer :: iplot
-
-        real(8) :: mag,mag2,mag0,rr(ntot)
-
-        character(10) :: solf,resf,rhsf!,crsf
-        character(4)  :: dbg_desc(neqd)
+        real(8) :: mag,mag0,rr(ntot)
 
 c     Begin program
 
-c     Create XDRAW files
-
-        solf='sol_p'//trim(int2char(my_rank))//'.bin'
-        resf='res_p'//trim(int2char(my_rank))//'.bin'
-        rhsf='rhs_p'//trim(int2char(my_rank))//'.bin'
-cc        crsf='crs_p'//trim(int2char(my_rank))//'.bin'
-
-        do iplot=1,neqd
-          dbg_desc(iplot) = 'dgb'//trim(int2char(iplot))
-        enddo
-
-        call createDrawInCfile(neqd,trim(solf),'Solution'
-     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
-     .          ,'drawsol_p'//trim(int2char(my_rank))//'.in')
-
-        call createDrawInCfile(neqd,trim(resf),'Residual'
-     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
-     .          ,'drawres_p'//trim(int2char(my_rank))//'.in')
-
-        call createDrawInCfile(neqd,trim(rhsf),'RHS     '
-     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
-     .          ,'drawrhs_p'//trim(int2char(my_rank))//'.in')
-
-cc        call createDrawInCfile(neqd,trim(crsf),'Corr. residual'
-cc     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
-cc     .          ,'drawcrhs_p'//trim(int2char(my_rank))//'.in')
-
 c     Plot PC solution
 
-        call MGplot(neqd,x,igrid,0,solf)
+        call vec_plot(neqd,x,igrid,'sol','Solution')
 
 c     Plot PC RHS
 
-        call MGplot(neqd,y,igrid,0,rhsf)
+        call vec_plot(neqd,y,igrid,'rhs','RHS')
 
 c     Plot corresponding linear residual to PC solution
 
 #if !defined(petsc_c)
+        mag0 = sqrt(dot2(y,y))
+
         call matrixFreeMatVec(ntot,x,rr)
-#else
-        rr = 0d0
-#endif
-        mag0 = sqrt(dot(ntot,y,y))
         y = y - rr
-        mag = sqrt(dot(ntot,y,y))
-        call MGplot(neqd,y,igrid,0,resf)
+        mag = sqrt(dot2(y,y))
+
+        call vec_plot(neqd,y,igrid,'res','Residual')
 
         if (my_rank == 0) then
            write (*,*)
@@ -288,44 +259,10 @@ c     Plot corresponding linear residual to PC solution
         !Compute magnitude of individual residual eqs
         call scatterVector(yyy,y)
         do ieq=1,neqd
-          mag = sqrt(dot(ntotdp,yyy(:,ieq),yyy(:,ieq)))
+          mag = sqrt(dot2(yyy(:,ieq),yyy(:,ieq)))
           if (my_rank == 0) write (*,*) 'Res. eqn',ieq,':',mag
         enddo
-
-cc        !Nonlinear residual plot
-cc#if !defined(petsc_c)
-cc        if (iguess /= 1) then
-cc          write (*,*)'iguess should be =1 for NONLINEAR residual plots!'
-cc        else
-cc          mag0 = sqrt(dot(ntot,rk,rk))
-cccc          mag0 = sqrt(sum(rk*rk))
-cc          x = x + xk
-cc          call evaluateNonlinearResidual(ntot,x ,rr)
-cc          mag  = sqrt(dot(ntot,rr,rr))
-cc
-cc          if (my_rank == 0) then
-cc            write (*,*)
-cc            write (*,*) 'NONLINEAR RESIDUAL'
-cc            write (*,*) 'abs res=',mag
-cc            write (*,*) 'abs res (per node)=',mag/ntot
-cc     .               ,', rel res=',mag/mag0
-cc          endif
-cc
-cc          call MGplot(neqd,rr,igrid,0,'nlres.bin')
-cc
-cc          !Individual residual eqs
-cc          call scatter(yyy,rr)
-cc          do ieq=1,neqd
-cc            mag = sqrt(dot(ntotdp,yyy(:,ieq),yyy(:,ieq)))
-cc            if (my_rank == 0) write (*,*) 'Res. eqn',ieq,':',mag
-cc          enddo
-cc        endif
-cc#endif
-
-cc        !Corrector rhs plot
-cc        do ieq=1,neqd
-cc          call MGplot(1,rhspc(:,ieq),igrid,ieq-1,crsf)
-cc        enddo
+#endif
 
         call pstop('PCdiag','Finished diagnostics...')
 
