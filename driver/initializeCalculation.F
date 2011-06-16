@@ -57,12 +57,20 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine get_src(varray,spline)
+        subroutine get_src(varray)
         use variable_setup
-        logical :: spline
         type(var_array),pointer :: varray
         end subroutine get_src
       END INTERFACE
+
+cc      INTERFACE
+cc        subroutine applyBC (varray,iigx,iigy,iigz,obc)
+cc        use variable_setup
+cc        integer    :: iigx,iigy,iigz
+cc        integer,optional :: obc
+cc        type(var_array),pointer :: varray
+cc        end subroutine applyBC
+cc      END INTERFACE
 
 c Begin program
 
@@ -111,7 +119,7 @@ c Check for autoinitializing parameters
 
 c Initialize MG and create grid
 
-      call createGrid(nxd,nyd,nzd,g_pack,gv%gparams)
+      call createGrid(nxd,nyd,nzd,gv%gparams)
 
 c Initialize global domain limits
 
@@ -149,7 +157,8 @@ c Initialize MK mesh quantities
         u_0%array_var(neqd)%descr = 'MK phi'
         u_0%array_var(neqd)%array = 0d0
 
-        call MK_initGrid(1)
+        call MK_initGrid(1,bcs=bcond)  !Change also in 3dplot.F
+cc        call MK_initGrid(1)
       endif
 
 c Initialize old time solution
@@ -158,35 +167,19 @@ c Initialize old time solution
 
 c Set unperturbed forcing fields
 
-cc      call get_src(u_n,.not.mk_init_relax)
-      call get_src(u_n,.true.)
+      call get_src(u_n)
 
-cc      source_eval = .true.   !This informs nlfunction that we are processing the source
-cc      
-cc      !This not only evaluates fsrc, but defines BCs on u_n
-cc      call evaluateNonlinearFunction(u_n,fsrc)
-cc
-cc      !Dump source
-cccc      if (chk_src) call dump_src
-cc
-cc      if (.not.source) then
-cc        fsrc = 0d0
-cc      elseif (mk_grid) then
-cc        call MK_spline_src(1,fsrc)
-cc      endif
-cc
-cc      source_eval = .false.
+c Spline unperturbed equilibrium and source if moving mesh
+
+      relax_init_grid = mk_grid.and.mk_init_relax.and.(.not.restart)
+
+      if (relax_init_grid) call MK_spline_equ(1,u_n)
+
+      if (mk_grid) call MK_spline_src(1,fsrc)
 
 c Set initial condition
 
       call setInitialCondition(u_n,u_np)
-
-c Spline initial condition for moving mesh initial step
-
-      if (mk_grid.and.mk_init_relax) then
-        mk_relax_init_grid = .true.
-        call MK_spline_equ(1,u_np)
-      endif
 
 c Initialize record file
 
@@ -249,6 +242,13 @@ c Interfaces
         end subroutine applyBC
       END INTERFACE
 
+      INTERFACE
+        subroutine perturbEquilibrium(varray)
+        use variable_setup
+        type(var_array),pointer :: varray
+        end subroutine perturbEquilibrium
+      END INTERFACE
+
 c Begin program
 
 c Perturb equilibrium
@@ -258,11 +258,7 @@ c Perturb equilibrium
         !Equate to varraynp
         call equateDerivedType(varraynp,varrayn)
 
-        do ieq = 1,neqd
-          call perturbEquilibrium(varraynp%array_var(ieq)%array
-     .                           ,varraynp%array_var(ieq)%bconds
-     .                           ,ieq)
-        enddo
+        if (.not.relax_init_grid) call perturbEquilibrium(varraynp)
 
         time     = 0d0
         itime    = 1   !Needed for BC logic
@@ -272,10 +268,9 @@ c Perturb equilibrium
 
         call readRestartFile(nx,ny,nz,itime,time,varrayn,varraynp)
 
-        if (mk_grid) then
-          call MK_setup_grid(1,varraynp%array_var(neqd)%array)
-          mk_relax_init_grid = .false.
-        endif
+        if(mk_grid) call MK_setup_grid(1,varraynp%array_var(neqd)%array)
+
+        if(mk_grid.and.mk_init_relax.and.itime==1) itime = 0
 
         inewtime = itime+1
 
@@ -284,6 +279,8 @@ c Perturb equilibrium
 c Impose BC on varrayn
 
       call applyBC(varraynp,1,1,1)
+
+      if (mk_grid) call MK_applyBC(1,varraynp%array_var(neqd)%array)
 
 c End program
 
@@ -454,6 +451,8 @@ c----------------------------------------------------------------------
 
       use iosetup
 
+      use mk
+
       implicit none
 
 c Call variables
@@ -513,6 +512,8 @@ cc        endif
         call applyBC(u_graph,1,1,1,obc=0)
 cc        call applyBC(u_graph,1,1,1)
 
+        if (mk_grid) call MK_applyBC(1,u_graph%array_var(neqd)%array)
+
 #if !defined(adios)
         !Initialize POSIX files
         call init_POSIX
@@ -560,7 +561,7 @@ c     ##############################################################
 
 c get_src
 c####################################################################
-      subroutine get_src(varray,spline)
+      subroutine get_src(varray)
 
 c--------------------------------------------------------------------
 c     Set initial conditions for initial value calculation. Variables
@@ -577,16 +578,17 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      logical :: spline
       type(var_array),pointer :: varray
 
 c Local variables
+
+      integer :: ieq
 
       INTERFACE
         subroutine evaluateNonlinearFunction(varray,fi)
         use parameters
         use variable_setup
-        real(8)          :: fi(ntotd)
+        real(8) :: fi(ntotd)
         type(var_array),pointer :: varray
         end subroutine evaluateNonlinearFunction
       END INTERFACE
@@ -594,18 +596,14 @@ c Local variables
 c Begin program
 
       source_eval = .true.   !This informs nlfunction that we are processing the source
-      
+
       !This not only evaluates fsrc, but defines BCs on u_n
       call evaluateNonlinearFunction(varray,fsrc)
 
       !Dump source
       if (chk_src) call dump_src
 
-      if (.not.source) then
-        fsrc = 0d0
-      elseif (mk_grid.and.spline) then
-        call MK_spline_src(1,fsrc)
-      endif
+      if (.not.source) fsrc = 0d0
 
       source_eval = .false.
 
