@@ -10,9 +10,9 @@
 
       real(8) :: pi
 
-      INTERFACE determ
-        module procedure determ3
-      END INTERFACE
+cc      INTERFACE determ
+cc        module procedure determ3
+cc      END INTERFACE
 
       INTERFACE fmed
         module procedure fmed_scl,fmed_vec
@@ -26,14 +26,14 @@ c     #################################################################
 
       real(8) :: tensor(3,3)
 
-      real(8) :: determ
+      real(8) :: determ3
 
-      determ = tensor(1,1)*tensor(2,2)*tensor(3,3)
-     .        +tensor(3,2)*tensor(2,1)*tensor(1,3)
-     .        +tensor(1,2)*tensor(2,3)*tensor(3,1)
-     .        -tensor(1,3)*tensor(2,2)*tensor(3,1)
-     .        -tensor(1,1)*tensor(2,3)*tensor(3,2)
-     .        -tensor(3,3)*tensor(1,2)*tensor(2,1)
+      determ3 = tensor(1,1)*tensor(2,2)*tensor(3,3)
+     .         +tensor(3,2)*tensor(2,1)*tensor(1,3)
+     .         +tensor(1,2)*tensor(2,3)*tensor(3,1)
+     .         -tensor(1,3)*tensor(2,2)*tensor(3,1)
+     .         -tensor(1,1)*tensor(2,3)*tensor(3,2)
+     .         -tensor(3,3)*tensor(1,2)*tensor(2,1)
 
       end function determ3
 

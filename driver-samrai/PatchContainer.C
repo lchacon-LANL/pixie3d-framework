@@ -33,6 +33,7 @@ PatchContainer::PatchContainer()
     data = NULL;
     gparams = NULL;
     data = NULL;
+    tmp_mem = NULL;
 }
 
 
@@ -40,18 +41,22 @@ PatchContainer::PatchContainer()
 PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy, tbox::Pointer< hier::Patch<NDIM> > &patch, 
     int n_var, int *u0_id, int *u_id, int n_auxs, int *auxs_id, int n_auxv, int *auxv_id)
 {
+    tmp_mem = NULL;
+    assert(!patch.isNull());
     int gcw = 1;
     hier::IntVector<NDIM> gcwc;
-    double *u_ptr[n_var], *u0_ptr [n_var], *auxs_ptr[n_auxs], *auxv_ptr[n_auxv];
+    double *u_ptr[n_var], *u0_ptr[n_var], *auxs_ptr[n_auxs], *auxv_ptr[n_auxv];
     tbox::Pointer< pdat::CellData<NDIM,double> > tmp;
     // Get the dimensions of the domain
     tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry = d_hierarchy->getGridGeometry();
-    const double *lower = grid_geometry->getXLower();
-    const double *upper = grid_geometry->getXUpper();
+    const double *lowerX = grid_geometry->getXLower();
+    const double *upperX = grid_geometry->getXUpper();
+    double lower[NDIM], upper[NDIM];
+    for (int i=0; i<NDIM; i++) {
+        lower[i] = lowerX[i];
+        upper[i] = upperX[i];
+    }
     const SAMRAI::hier::BoxArray<NDIM> &physicalDomain = grid_geometry->getPhysicalDomain() ;
-    int nbox[NDIM];
-    for (int i=0; i<NDIM; i++)
-        nbox[i] = physicalDomain[0].numberCells(i);
     // Get the size of the patch
     const hier::Index<NDIM> ifirst = patch->getBox().lower();
     const hier::Index<NDIM> ilast  = patch->getBox().upper();
@@ -63,81 +68,156 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
     int ze = ilast(2)+1;
     tbox::Pointer<hier::PatchGeometry<NDIM> > patch_geometry = patch->getPatchGeometry();
     const hier::IntVector<NDIM> ratio = patch_geometry->getRatio();
-    int ng[NDIM];
+    int nbox[NDIM];
     for (int i=0; i<NDIM; i++)
-        ng[i] = nbox[i]*ratio(i);
+        nbox[i] = physicalDomain[0].numberCells(i)*ratio(i);
 
     // Get the pointers to u_0, u_n
     for (int i=0; i<n_var; i++)  {
         // Get the pointers to u_0
         tmp = patch->getPatchData(u0_id[i]);
-        #ifdef DEBUG_CHECK_ASSERTIONS
-            assert(!tmp.isNull());
-        #endif
-        u0_ptr[i] = tmp->getPointer();
-        // Check ghost cell width
-        gcwc = tmp->getGhostCellWidth();
-        for (int j=0; j<NDIM; j++) {
-	        if ( gcw!=gcwc(j) ) 
-                TBOX_ERROR("Ghost Cell width must be 1"); 
-	    }
+        if ( tmp.isNull() ) {
+            // u0[i] is missing
+            if ( patch->inHierarchy() )
+                TBOX_ERROR("u0 is missing in patch"); 
+            u0_ptr[i] = NULL;
+        } else {
+            u0_ptr[i] = tmp->getPointer();
+            // Check ghost cell width
+            gcwc = tmp->getGhostCellWidth();
+            for (int j=0; j<NDIM; j++) {
+    	        if ( gcw!=gcwc(j) ) 
+                    TBOX_ERROR("Ghost Cell width must be 1"); 
+    	    }
+        }
         // Get the pointers to u_n
         tmp = patch->getPatchData(u_id[i]);
-        #ifdef DEBUG_CHECK_ASSERTIONS
-            assert(!tmp.isNull());
-        #endif
-        u_ptr[i] = tmp->getPointer();
-        // Check ghost cell width
-        gcwc = tmp->getGhostCellWidth();
-        for (int j=0; j<NDIM; j++) {
-            if ( gcw!=gcwc(j) ) 
-                TBOX_ERROR("Ghost Cell width must be 1"); 
-	    }
+        if ( tmp.isNull() ) {
+            // u[i] is missing
+            if ( patch->inHierarchy() )
+                TBOX_ERROR("u is missing in patch"); 
+            u_ptr[i] = NULL;
+        } else {
+            u_ptr[i] = tmp->getPointer();
+            // Check ghost cell width
+            gcwc = tmp->getGhostCellWidth();
+            for (int j=0; j<NDIM; j++) {
+                if ( gcw!=gcwc(j) ) 
+                    TBOX_ERROR("Ghost Cell width must be 1"); 
+	        }
+        }
     }
 
     // Get the pointers to the auxillary variables
     for (int i=0; i<n_auxs; i++) {
         // Get the pointers to scalar variables
         tmp = patch->getPatchData(auxs_id[i]);
-        #ifdef DEBUG_CHECK_ASSERTIONS
-            assert(!tmp.isNull());
-        #endif
-        auxs_ptr[i] = tmp->getPointer();
-        // Check ghost cell width
-        gcwc = tmp->getGhostCellWidth();
-        for (int j=0; j<NDIM; j++) {
-            if ( gcw!=gcwc(j) ) 
-                TBOX_ERROR("Ghost Cell width must be 1"); 
+        if ( tmp.isNull() ) {
+            // auxs[i] is missing
+            if ( patch->inHierarchy() )
+                TBOX_ERROR("auxs is missing in patch"); 
+            auxs_ptr[i] = NULL;
+        } else {
+            auxs_ptr[i] = tmp->getPointer();
+            // Check ghost cell width
+            gcwc = tmp->getGhostCellWidth();
+            for (int j=0; j<NDIM; j++) {
+                if ( gcw!=gcwc(j) ) 
+                    TBOX_ERROR("Ghost Cell width must be 1"); 
+            }
         }
     }
     for (int i=0; i<n_auxv; i++) {
         // Get the pointers to vector variables
         tmp = patch->getPatchData(auxv_id[i]);
-        #ifdef DEBUG_CHECK_ASSERTIONS
-            assert(!tmp.isNull());
-        #endif
-        auxv_ptr[i] = tmp->getPointer();
-        // Check ghost cell width
-        gcwc = tmp->getGhostCellWidth();
-        for (int j=0; j<NDIM; j++) {
-            if ( gcw!=gcwc(j) ) 
-	       TBOX_ERROR("Ghost Cell width must be 1"); 
+        if ( tmp.isNull() ) {
+            // auxs[i] is missing
+            if ( patch->inHierarchy() )
+                TBOX_ERROR("auxv is missing in patch"); 
+            auxv_ptr[i] = NULL;
+        } else {
+            auxv_ptr[i] = tmp->getPointer();
+            // Check ghost cell width
+            gcwc = tmp->getGhostCellWidth();
+            for (int j=0; j<NDIM; j++) {
+                if ( gcw!=gcwc(j) ) 
+	                TBOX_ERROR("Ghost Cell width must be 1"); 
+            }
         }
-   }
+    }
 
-   // Create the patch object
-   CreatePatchFortran(lower,upper,ng,xs,ys,zs,xe,ye,ze,gcw,n_var,u0_ptr,u_ptr,n_auxs,auxs_ptr,n_auxv,auxv_ptr);
-   //f_delete_patch_data_(data);
-   //CreatePatchFortran(lower,upper,ng,xs,ys,zs,xe,ye,ze,gcw,n_var,u0_ptr,u_ptr,n_auxs,auxs_ptr,n_auxv,auxv_ptr);
+    // Check the patch range
+    if ( patch->inHierarchy() ) {
+        // The patch is in the hierarchy, no ranges should be outside the logical domain
+        if ( xs<1 || ys<1 || zs<1 || xe>nbox[0] || ye>nbox[1] || ze>nbox[2] )
+            TBOX_ERROR("Error, patch is outside domain"); 
+    } else {
+        // A temporary patch is outside the logical domain
+        if ( (xe-xs+1) > nbox[0] ) {
+            // Temporary patch has more cells than domain, extend domain
+            nbox[0] *= 2;
+            upper[0] += upper[0]-lower[0];
+        }
+        if ( (ye-ys+1) > nbox[1] ) {
+            // Temporary patch has more cells than domain, extend domain
+            nbox[1] *= 2;
+            upper[1] += upper[1]-lower[1];
+        }
+        if ( (ze-zs+1) > nbox[2] ) {
+            // Temporary patch has more cells than domain, extend domain
+            nbox[2] *= 2;
+            upper[2] += upper[2]-lower[2];
+        }
+        // Shift the domain as necessary to cover the patch
+        tbox::Pointer<hier::PatchGeometry<NDIM> > PatchGeom = patch->getPatchGeometry();
+        int shift[NDIM];
+        for (int i=0; i<NDIM; i++)
+            shift[i] = 0;
+        if ( xs < 1 )
+            shift[1] = 1-xs;
+    	if ( xs >= nbox[0] )
+            shift[0] = nbox[0]-1-xe;
+        if ( ys < 1 )
+            shift[1] = 1-ys;
+    	if ( ys >= nbox[1] )
+            shift[1] = nbox[1]-1-ye;
+        if ( zs < 1 )
+            shift[2] = 1-zs;
+    	if ( zs >= nbox[2] )
+            shift[2] = nbox[2]-1-ze;
+        for (int i=0; i<NDIM; i++) {
+            if ( shift[i]==0 )
+                continue;
+            if ( !PatchGeom->getTouchesPeriodicBoundary(i,0) || !PatchGeom->getTouchesPeriodicBoundary(i,1) )
+                TBOX_ERROR("Error, patch is outside physical domain"); 
+            if ( i==0 ) {
+                xs += shift[i];
+                xe += shift[i];
+            } else if ( i==1 ) {
+                ys += shift[i];
+                ye += shift[i];
+            } else if ( i==2 ) {
+                zs += shift[i];
+                ze += shift[i];
+            }
+            lower[i] -= (upper[i]-lower[i])*((double) shift[i])/((double) nbox[i]);
+            upper[i] -= (upper[i]-lower[i])*((double) shift[i])/((double) nbox[i]);
+        }
+    }
+
+    // Create the patch object
+    CreatePatchFortran(lower,upper,nbox,xs,ys,zs,xe,ye,ze,gcw,n_var,u0_ptr,u_ptr,n_auxs,auxs_ptr,n_auxv,auxv_ptr);
 
 }
 
 
 // Function to initialize the fortran side of the patch
 void PatchContainer::CreatePatchFortran( const double *lowerCoordinates,const double *upperCoordinates, const int *ng, 
-					 int xs, int ys, int zs, int xe, int ye, int ze, int gcw, 
-   int n_var, double **u0_ptr, double **u_ptr, int n_auxs, double **auxs_ptr, int n_auxv, double **auxv_ptr)
+    int xs, int ys, int zs, int xe, int ye, int ze, int gcw, int n_var, double **u0_ptr, double **u_ptr, int n_auxs, 
+    double **auxs_ptr, int n_auxv, double **auxv_ptr)
 {
+    if ( xs<1 || ys<1 || zs<1 || xe>ng[0] || ye>ng[1] || ze>ng[2] )
+        TBOX_ERROR("Bad index"); 
     int xsg, ysg, zsg, xeg, yeg, zeg;
     xsg = xs-gcw;
     ysg = ys-gcw;
@@ -158,10 +238,26 @@ void PatchContainer::CreatePatchFortran( const double *lowerCoordinates,const do
     int ngly = ng[1];
     int nglz = ng[2];
 
+    // Allocate temporary memory of u0 if necessary
+    bool use_tmp_mem = false;
+    tmp_mem = NULL;
+    for(int i=0; i<n_var; i++) {
+        if ( u0_ptr[i]==NULL )
+            use_tmp_mem = true;
+    }
+    if ( use_tmp_mem == true ) {
+        int N = (xeg-xsg+1)*(yeg-ysg+1)*(zeg-zsg+1);
+        tmp_mem = new double[n_var*N];
+        for(int i=0; i<n_var; i++) {
+            if ( u0_ptr[i]==NULL )
+                u0_ptr[i] = &tmp_mem[i*N];
+        }
+    }
+
     // Create var_array for u, u0
     f_create_var_array_(&u,n_var);
     f_create_var_array_(&u0,n_var);
-    for(int i=0; i<n_var; i++) {
+    for (int i=0; i<n_var; i++) {
         fill_var_array_( u,i, u_ptr[i],xsgt,ysgt,zsgt,xegt,yegt,zegt);
         fill_var_array_(u0,i,u0_ptr[i],xsgt,ysgt,zsgt,xegt,yegt,zegt);
     }
@@ -197,12 +293,16 @@ PatchContainer::~PatchContainer()
 {
     // Delete the var_array on the fortran side
     f_delete_patch_data_(data);
+    // Delete the temporary memory
+    if ( tmp_mem != NULL )
+        delete [] tmp_mem;
     // Set all pointers to null for safety
     u = NULL;
     u0 = NULL;
     aux = NULL;
     data = NULL;
     gparams = NULL;
+    tmp_mem = NULL;
 }
 
 

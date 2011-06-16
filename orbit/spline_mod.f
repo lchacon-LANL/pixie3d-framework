@@ -1540,6 +1540,7 @@ c     Begin program
       deallocate(jcoef,xcoefx,xcoefy,xcoefz,stat=alloc_stat)
       deallocate(b2coefx,b2coefz,b3coefx,b3coefy,stat=alloc_stat)
       deallocate(bcoefx,bcoefy,bcoefz,stat=alloc_stat)
+      deallocate(bxcarcoef,bycarcoef,bzcarcoef,stat=alloc_stat)
       deallocate(fldcoef,stat=alloc_stat)
 
 c     End programs

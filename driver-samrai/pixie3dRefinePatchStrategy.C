@@ -104,13 +104,13 @@ pixie3dRefinePatchStrategy::bcgrp_struct::~bcgrp_struct() {
 ***********************************************************************/
 pixie3dRefinePatchStrategy::pixie3dRefinePatchStrategy(void)
 {
-  u0_id = NULL;
-  u_id = NULL;
-  u_tmp_id = NULL;
-  auxs_id = NULL;
-  auxs_tmp_id = NULL;
-  auxv_id = NULL;
-  auxv_tmp_id = NULL;
+    u0_id = NULL;
+    u_id = NULL;
+    u_tmp_id = NULL;
+    auxs_id = NULL;
+    auxs_tmp_id = NULL;
+    auxv_id = NULL;
+    auxv_tmp_id = NULL;
 }
 
 
@@ -121,13 +121,13 @@ pixie3dRefinePatchStrategy::pixie3dRefinePatchStrategy(void)
 ***********************************************************************/
 pixie3dRefinePatchStrategy::~pixie3dRefinePatchStrategy()
 {
-  delete [] u0_id;
-  delete [] u_id;
-  delete [] u_tmp_id;
-  delete [] auxs_id;
-  delete [] auxs_tmp_id;
-  delete [] auxv_id;
-  delete [] auxv_tmp_id;
+    delete [] u0_id;
+    delete [] u_id;
+    delete [] u_tmp_id;
+    delete [] auxs_id;
+    delete [] auxs_tmp_id;
+    delete [] auxv_id;
+    delete [] auxv_tmp_id;
 }
 
 
@@ -141,121 +141,86 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
                                                            const double time,
                                                            const hier::IntVector<NDIM>& ghost_width_to_fill)
 {
-   assert(d_nvar>=0);
-   assert(d_nauxs>=0);
-   assert(d_nauxv>=0);
-   if ( ghost_width_to_fill==hier::IntVector<NDIM>(0) ) {
-      // We don't need to fill the ghost cells, return
-      // This can happen with temporary patches
-      return;
-   }
-  
-   if (patch.inHierarchy()) {
+    assert(d_nvar>=0);
+    assert(d_nauxs>=0);
+    assert(d_nauxv>=0);
+    if ( ghost_width_to_fill==hier::IntVector<NDIM>(0) ) {
+        // We don't need to fill the ghost cells, return
+        // This can happen with temporary patches
+        return;
+    }
+    /*if ( !checkPhysicalBoundary(patch) ) {
+        // Patch does not touch physical boundary, no need to do anything, return
+        return;
+    }*/
 
-      // Patch is in the hierarchy, all is well
-      const int ln = patch.getPatchLevelNumber();
-      const int pn = patch.getPatchNumber();
+    // Get some basic patch info
+    const int ln = patch.getPatchLevelNumber();
+    const int pn = patch.getPatchNumber();
 
-      LevelContainer *level_container = (LevelContainer *) d_level_container_array[ln];
-      assert(level_container!=NULL);
-      void *pixie3d_data = level_container->getPtr(pn);
-      //assert(pixie3d_data!=NULL);
-      tbox::Pointer<hier::PatchLevel<NDIM> > level = d_hierarchy->getPatchLevel(ln);
-      tbox::Pointer< hier::Patch<NDIM> > patch_ptr = tbox::Pointer<hier::Patch<NDIM> >( &patch, false );
-      assert(pixie3d_data!=NULL);
-
-      // Copy the data from the temporary patch to the pixie patch
-      if ( copy_data ) {
-         // Copy u
-         for (int i=0; i<d_nvar; i++)
+    // Copy the data from the temporary patch to the pixie patch
+    if ( copy_data ) {
+        // Copy u
+        for (int i=0; i<d_nvar; i++)
             copy_data_patch(patch,u_tmp_id[i],u_id[i]);
-         // Copy auxillary scalars
-         for (int i=0; i<d_nauxs; i++)
+        // Copy auxillary scalars
+        for (int i=0; i<d_nauxs; i++)
             copy_data_patch(patch,auxs_tmp_id[i],auxs_id[i]);
-         // Copy auxillary vectors
-         for (int i=0; i<d_nauxv; i++)
+        // Copy auxillary vectors
+        for (int i=0; i<d_nauxv; i++)
             copy_data_patch(patch,auxv_tmp_id[i],auxv_id[i]);
-      }
+    }
 
-      // Apply the boundary conditions
-	  int nbc_seq = d_bc_grp.nbc_seq;
-      int *bc_seq = new int[3*nbc_seq];
-      for (int i=0; i<nbc_seq; i++) {
-         bc_seq[i] = d_bc_grp.bc_seq[i];
-         bc_seq[i+d_bc_grp.nbc_seq] = d_bc_grp.vector[i];
-         bc_seq[i+2*d_bc_grp.nbc_seq] = d_bc_grp.fillBC[i];
-      }
-      #ifdef absoft
+    // Get the pixie patch (create a temporary patch if necessary)
+    LevelContainer *level_container = NULL;
+    if (patch.inHierarchy()) {
+        // Patch is in the hierarchy, all is well
+        level_container = (LevelContainer *) d_level_container_array[ln];
+    } else {
+//TBOX_ERROR("Not tested");
+        // Patch is not in the hierarchy, create a temporary pixie patch
+        level_container = new LevelContainer::LevelContainer(pn+1,d_hierarchy,
+            d_nvar,u0_id,u_id,d_nauxs,auxs_id,d_nauxv,auxv_id);
+        tbox::Pointer< hier::Patch<NDIM> > patch_ptr = tbox::Pointer< hier::Patch<NDIM> >::Pointer(&patch,false);
+        level_container->CreatePatch(pn,patch_ptr);
+    }
+    assert(level_container!=NULL);
+    void *pixie3d_data = level_container->getPtr(pn);
+    assert(pixie3d_data!=NULL);
+
+    // Apply the boundary conditions
+    int nbc_seq = d_bc_grp.nbc_seq;
+    int *bc_seq = new int[3*nbc_seq];
+    for (int i=0; i<nbc_seq; i++) {
+        bc_seq[i] = d_bc_grp.bc_seq[i];
+        bc_seq[i+d_bc_grp.nbc_seq] = d_bc_grp.vector[i];
+        bc_seq[i+2*d_bc_grp.nbc_seq] = d_bc_grp.fillBC[i];
+    }
+    #ifdef absoft
         FORTRAN_NAME(APPLYBC)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
-      #else
-         FORTRAN_NAME(applybc)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
-      #endif
-      delete [] bc_seq;
+    #else
+        FORTRAN_NAME(applybc)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
+    #endif
+    delete [] bc_seq;
 
-      // Copy the data from the pixie patch to the temporary patch
-      if ( copy_data ) {
-         // Copy u         
-         for (int i=0; i<d_nvar; i++)
+    // Delete the temporary pixie patch (if used)
+    if (!patch.inHierarchy()) {
+        delete level_container;
+    }
+
+    // Copy the data from the pixie patch to the temporary patch
+    if ( copy_data ) {
+        // Copy u         
+        for (int i=0; i<d_nvar; i++)
             copy_data_patch(patch,u_id[i],u_tmp_id[i]);
-         // Copy auxillary scalars
-         for (int i=0; i<d_nauxs; i++)
+        // Copy auxillary scalars
+        for (int i=0; i<d_nauxs; i++)
             copy_data_patch(patch,auxs_id[i],auxs_tmp_id[i]);
-         // Copy auxillary vectors
-         for (int i=0; i<d_nauxv; i++)
+        // Copy auxillary vectors
+        for (int i=0; i<d_nauxv; i++)
             copy_data_patch(patch,auxv_id[i],auxv_tmp_id[i]);
-      }
-   
-   } else if( checkPhysicalBoundary(patch) ) {
-
-      // Patch is not in the hierarchy and touches the boundary (this is not finished)
-
-      // Check the gcw on each variable
-      hier::IntVector<NDIM> max_gcw = hier::IntVector<NDIM>(0);
-      for (int i=0; i<d_nvar+d_nauxs+d_nauxv; i++) {
-         tbox::Pointer< pdat::CellData<NDIM,double> > pdat;
-         if ( i < d_nvar )
-             pdat = patch.getPatchData(u_id[i]);
-         else if ( i < d_nvar+d_nauxs )
-             pdat = patch.getPatchData(auxs_id[i-d_nvar]);
-         else
-             pdat = patch.getPatchData(auxv_id[i-d_nvar-d_nauxs]);
-         if ( pdat.isNull() )
-            continue;
-         max_gcw.max(pdat->getGhostCellWidth());
-      }
-
-      // Copy the data from the temporary patch to a patch with gcw = 1
-      if ( copy_data ) {
-         // This is not finished
-         TBOX_ERROR("Not Programmed Yet");
-      }
-
-      // Create a single PatchContainer
-      TBOX_ERROR("Not Programmed Yet");
-      //PatchContainer( tbox::Pointer< hier::PatchHierarchy<NDIM> > hierarchy, tbox::Pointer< hier::Patch<NDIM> > &patch, 
-      //  int n_var, int *u0_id, int *u_id, int n_auxs, int *auxs_id, int n_auxv, int *auxv_id );  
-
-
-      const hier::IntVector< NDIM > ratio = patch.getPatchGeometry()->getRatio();
-      hier::BoxArray<NDIM> physicalDomain = d_grid_geometry->getPhysicalDomain();
-      physicalDomain.refine(ratio);
-      
-
-      // we assume the domain is a single box
-      if( d_grid_geometry->getDomainIsSingleBox() ) {
-	     hier::Box<NDIM> physicalBox = physicalDomain[0];
-         const int nx = physicalBox.numberCells(0);
-         const int ny = physicalBox.numberCells(1);
-         const int nz = physicalBox.numberCells(2);
-      } else {
-         abort();
-      }
-      abort();
-   } else {
-      // Patch is not in the hierarchy and does not touch the boundary
-      // No need to do anything
-   }
-
+    }
+    
 }
 
 
@@ -290,8 +255,11 @@ void pixie3dRefinePatchStrategy::postprocessRefine( hier::Patch<NDIM>& patch,
     assert(d_nauxs>=0);
     assert(d_nauxv>=0);
     bool touches_boundary = this->checkPhysicalBoundary(patch);
-    if ( touches_boundary )
-        return;     // Return for now if we called applybc, eventually we will call the post processor on all patches
+    /*if ( touches_boundary ) {
+        // Return for now if we called applybc, eventually we will call the post processor on all patches
+        return;
+    }*/
+
 
     // Perform a post processor step in which we fill all the trivial relationships
     // This needs to be done on all patches   
@@ -430,7 +398,7 @@ bool pixie3dRefinePatchStrategy::checkPhysicalBoundary( hier::Patch<NDIM>& patch
         }
         if (patchGeom->getTouchesRegularBoundary(i,1)) {
             const int patch_upper = box.upper(i);
-            if ( patch_upper >= physicalBox.numberCells(i) )
+            if ( patch_upper >= physicalBox.numberCells(i)-1 )
                 return true;
         }
     }
@@ -444,8 +412,9 @@ bool pixie3dRefinePatchStrategy::checkPhysicalBoundary( hier::Patch<NDIM>& patch
 void pixie3dRefinePatchStrategy::copy_data_patch( hier::Patch<NDIM>& patch, int src_id, int dst_id ) {
     tbox::Pointer< pdat::CellData<NDIM,double> > src_data = patch.getPatchData(src_id);
     tbox::Pointer< pdat::CellData<NDIM,double> > dst_data = patch.getPatchData(dst_id);
+    if ( dst_data.isNull() )
+        return;
     assert(!src_data.isNull());
-    assert(!dst_data.isNull());
     dst_data->copy(*src_data);
 }
 
