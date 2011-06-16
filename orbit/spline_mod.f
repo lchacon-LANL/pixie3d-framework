@@ -33,7 +33,7 @@ c #####################################################################
 
       contains
 
-c     domain_limits
+c     sp_domain_limits
 c     ##################################################################
       subroutine sp_domain_limits(x,bc,xmin,xmax)
 
@@ -71,12 +71,14 @@ c     End program
 
 c     chk_pos
 c     ##################################################################
-      subroutine chk_pos(x,y,z,no_per_bc)
+      subroutine chk_pos(x,y,z,no_per_bc,ierr)
 
 c     ------------------------------------------------------------------
 c     Check whether we are within LOGICAL domain, and if not:
 c       * If periodic, return position within first period
-c       * Otherwise, terminate with error.
+c       * Otherwise:
+c          + If ierr is not present, terminate with error
+c          + Else, return ierr /= 0.
 c     ------------------------------------------------------------------
 
       implicit none
@@ -85,6 +87,7 @@ c     Call variables
 
       real(8) :: x,y,z
       logical,optional :: no_per_bc
+      integer,optional :: ierr
 
 c     Local Variables
 
@@ -154,16 +157,20 @@ c     Begin program
         endif
       endif
 
-      if (ierror /= 0) then
-        write (*,*)
-        write (*,*) 'OOPS; out of domain!'
-        write (*,*)
-        write (*,*) 'Current position',x,y,z
-        write (*,*)
-        write (*,*) 'X domain limits=',xsmin,xsmax
-        write (*,*) 'Y domain limits=',ysmin,ysmax
-        write (*,*) 'Z domain limits=',zsmin,zsmax
-        stop
+      if (.not.PRESENT(ierr)) then
+        if (ierror /= 0) then
+          write (*,*) 
+          write (*,*) 'Error in chk_pos: out of domain!'
+          write (*,*)
+          write (*,*) 'Current position',x,y,z
+          write (*,*)
+          write (*,*) 'X domain limits=',xsmin,xsmax
+          write (*,*) 'Y domain limits=',ysmin,ysmax
+          write (*,*) 'Z domain limits=',zsmin,zsmax
+          stop
+        endif
+      else
+        ierr = ierror
       endif
 
 c     End program
@@ -226,30 +233,6 @@ c     Initialize spline domain arrays
                  
         zmin = zsmin
         zmax = zsmax
-
-cc        if (sbcnd(1) == PER) then
-cc          xmin = xs(2)
-cc          xmax = xs(nx)
-cc        else
-cc          xmin = xs(1)
-cc          xmax = xs(nx)
-cc        endif
-cc
-cc        if (sbcnd(3) == PER) then
-cc          ymin = ys(2)
-cc          ymax = ys(ny)
-cc        else
-cc          ymin = ys(1)
-cc          ymax = ys(ny)
-cc        endif
-cc
-cc        if (sbcnd(5) == PER) then
-cc          zmin = zs(2)
-cc          zmax = zs(nz)
-cc        else
-cc          zmin = zs(1)
-cc          zmax = zs(nz)
-cc        endif
 
 c     Prepare 3d spline interpolation
 
@@ -1223,7 +1206,7 @@ c     (x,y,z). Requires Newton inversion of map x(xi). On input,
 c     (x1,x2,x3) contains initial guess. 
 c     -----------------------------------------------------------------
 
-      implicit none            ! For safe Fortran
+      implicit none            !For safe Fortran
 
 c     Call variables
 
@@ -1234,7 +1217,7 @@ c     Call variables
 c     Local variables
 
       integer,parameter :: maxit=100,size=3,icol=1
-      real(8),parameter :: tol=1d-10
+      real(8),parameter :: tol=1d-14
 
       integer :: iter
       real(8) :: JJ(size,size),res(size,icol)
@@ -1260,7 +1243,11 @@ c     Begin program
         write (*,*) 'evalXi -- xi=',x1,x2,x3
       endif
 
+      ierror = 0
+
       do iter=1,maxit
+
+        if (prnt) write (*,*) '>>>>Iteration=',iter
 
         !Form residual and check convergence
         res(:,1) = formResidual(x1,x2,x3)
@@ -1285,13 +1272,6 @@ c     Begin program
 
         if (prnt) write (*,*) 'evalXi -- dxi=',dxi
 
-        !Check convergence
-cc        error(iter) = sqrt(sum(dxi**2))
-cc
-cc        if (prnt) write (*,*) 'evalXi -- error=',error(iter)
-cc
-cc        if (error(iter) < tol) exit
-
         !Update solution
         x1 = x1 + dxi(1,1)
         x2 = x2 + dxi(2,1)
@@ -1304,17 +1284,17 @@ cc        if (error(iter) < tol) exit
 
       enddo
 
-      if (iter > maxit) then
-        ierror = 1
+      if (iter > maxit .or. ilevel == 1) then
+        if (iter > maxit) ierror = 1
         if (my_rank == 0) then
           write (*,*)
           write (*,*) 'evalXi -- x =',x,y,z
           write (*,*) 'evalXi -- xi=',x1,x2,x3
           write (*,*) 'evalXi -- domain=',xsmin,xsmax,ysmin,ysmax
      .                                   ,zsmin,zsmax
-          write (*,*) 'evalXi -- Convergence history: ',error
+          write (*,*) 'evalXi -- Convergence history: '
+     .                ,error(1:min(iter,maxit))
         endif
-cc        call pstop('evalXi','No convergence in Newton')
       else
         ierror = 0
       endif
@@ -1338,17 +1318,24 @@ c     ###################################################################
       call chk_pos(x11,x22,x33)
 
       res(1) = x - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,1),work)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,1),work) - (x1-x11)
 
       res(2) = y - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,2),work)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,2),work) - (x2-x22)
 
       res(3) = z - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,3),work)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,3),work) - (x3-x33)
 
-      if (sbcnd(1) == PER) res(1) = mod(res(1),xsmax-xsmin-0.1*tol)
-      if (sbcnd(3) == PER) res(2) = mod(res(2),ysmax-ysmin-0.1*tol)
-      if (sbcnd(5) == PER) res(3) = mod(res(3),zsmax-zsmin-0.1*tol)
+cc      if (prnt) write (*,*) 'evalXi -- sbcnd',sbcnd
+cc      if (prnt) write (*,*) 'evalXi -- limits',xsmin,xsmax
+cc     .                                        ,ysmin,ysmax
+cc     .                                        ,zsmin,zsmax,tol
+cc      if (prnt) write (*,*) 'evalXi -- log coords',x11,x22,x33
+cc      if (prnt) write (*,*) 'evalXi -- res before mod=',res
+
+cc      if (sbcnd(1) == PER) res(1) = mod(res(1),xsmax-xsmin-0.1*tol)
+cc      if (sbcnd(3) == PER) res(2) = mod(res(2),ysmax-ysmin-0.1*tol)
+cc      if (sbcnd(5) == PER) res(3) = mod(res(3),zsmax-zsmin-0.1*tol)
 
       end function formResidual
 
