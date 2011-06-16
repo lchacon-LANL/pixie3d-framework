@@ -10,7 +10,7 @@ c #####################################################################
         implicit none
 
         integer   ,parameter :: ngparams = 10,UNDEF_INT=-1234
-        real(8)   ,parameter :: UNDEF_DP=-1234.
+        real(8)   ,parameter :: UNDEF_DP=-1234d0
 
         type :: grid_metrics
 #if defined(samrai)
@@ -127,9 +127,9 @@ c #####################################################################
 
         end type grid_mg_def
 
-        type(grid_mg_def),pointer :: grid_params
+        type(grid_mg_def),pointer :: grid_params => null()
 
-        type(MG_grid_metrics),pointer :: gmetric
+        type(MG_grid_metrics),pointer :: gmetric => null()
 
       contains
 
@@ -235,15 +235,6 @@ c     Begin program
           allocate(grid_st%xg(0:grid_st%nglx+1))
           allocate(grid_st%yg(0:grid_st%ngly+1))
           allocate(grid_st%zg(0:grid_st%nglz+1))
-cc          allocate(grid_st%xx(nxmg+2*grid_st%ngrid))
-cc          allocate(grid_st%yy(nymg+2*grid_st%ngrid))
-cc          allocate(grid_st%zz(nzmg+2*grid_st%ngrid))
-cc          allocate(grid_st%dx(nxmg+2*grid_st%ngrid))
-cc          allocate(grid_st%dy(nymg+2*grid_st%ngrid))
-cc          allocate(grid_st%dz(nzmg+2*grid_st%ngrid))
-cc          allocate(grid_st%dxh(nxmg+2*grid_st%ngrid))
-cc          allocate(grid_st%dyh(nymg+2*grid_st%ngrid))
-cc          allocate(grid_st%dzh(nzmg+2*grid_st%ngrid))
           allocate(grid_st%xx (nxmg))
           allocate(grid_st%yy (nymg))
           allocate(grid_st%zz (nzmg))
@@ -265,7 +256,6 @@ cc          allocate(grid_st%dzh(nzmg+2*grid_st%ngrid))
           allocate(grid_st%ihi (grid_st%ngrid))
           allocate(grid_st%jhi (grid_st%ngrid))
           allocate(grid_st%khi (grid_st%ngrid))
-cc          allocate(grid_st%ntotv(grid_st%ngrid))
           allocate(grid_st%istartx(grid_st%ngrid))
           allocate(grid_st%istarty(grid_st%ngrid))
           allocate(grid_st%istartz(grid_st%ngrid))
@@ -276,8 +266,6 @@ cc          allocate(grid_st%ntotv(grid_st%ngrid))
           allocate(grid_st%iline(grid_st%ngrid))
           allocate(grid_st%jline(grid_st%ngrid))
           allocate(grid_st%kline(grid_st%ngrid))
-
-cc          allocate(grid_st%g_pack)
 
           !Initialize arrays
           grid_st%xg = 0.
@@ -369,22 +357,32 @@ c     Local variables
 
 c     Begin program
 
-c     Nullify gmetric
+        if (.not.associated(grid_st)) then
+          nullify(grid_st)
+          return
+        endif
 
-       !Should not deallocate gmetric, since it is not
-       !allocated in allocateGridStructure
-cc        if (associated(grid_st%gmetric)) nullify(grid_st%gmetric)
-        call deallocateGridMetric(grid_st%gmetric)
+c     Deallocate gmetric
+
+        if (associated(grid_st%gmetric)) then
+          call deallocateGridMetric(grid_st%gmetric)
+        else
+          nullify(grid_st%gmetric)
+        endif
 
 c     Deallocate PETSC DA context
 
 #if defined(petsc)  && !defined(samrai)
-        do igr=1,grid_st%ngrid
-          da_ctx => grid_st%dactx(igr)
-          call destroyPETScFortranDA(da_ctx)
-        enddo
+        if (associated(grid_st%dactx)) then
+          do igr=1,size(grid_st%dactx)
+            da_ctx => grid_st%dactx(igr)
+            call destroyPETScFortranDA(da_ctx)
+          enddo
 
-        deallocate(grid_st%dactx)
+          deallocate(grid_st%dactx)
+        else
+          nullify(grid_st%dactx)
+        endif
 #endif
 
 c     Deallocate MG storage variables
@@ -437,7 +435,6 @@ c     Deallocate MG storage variables
           deallocate(grid_st%ihi)
           deallocate(grid_st%jhi)
           deallocate(grid_st%khi)
-cc          deallocate(grid_st%ntotv)
           deallocate(grid_st%istartx)
           deallocate(grid_st%istarty)
           deallocate(grid_st%istartz)
@@ -448,8 +445,6 @@ cc          deallocate(grid_st%ntotv)
           deallocate(grid_st%iline)
           deallocate(grid_st%jline)
           deallocate(grid_st%kline)
-
-cc          deallocate(grid_st%g_pack)
         endif
         
         deallocate(grid_st)
@@ -482,9 +477,6 @@ c     Local variables
      .                   ,ilog,ihig,jlog,jhig,klog,khig
 
 c     Begin program
-
-cc        write (*,*) 'Routine equateGridSt should not be used'
-cc        stop
 
         ngridx = grid_st1%ngrdx
         ngridy = grid_st1%ngrdy
@@ -520,13 +512,8 @@ cc        stop
 
 c       Create basic structure
 
-#if defined(petsc) 
         call allocateGridStructure(ngridx,ngridy,ngridz
      .                            ,nglx,ngly,nglz,grid_st2)
-#else
-        call allocateGridStructure(ngridx,ngridy,ngridz
-     .                            ,nglx,ngly,nglz,grid_st2)
-#endif
 
 c       Copy values
 
@@ -573,18 +560,22 @@ c       Copy values
         grid_st2%gzmax      = grid_st1%gzmax
 
         grid_st2%g_pack     = grid_st1%g_pack
+        grid_st2%params     = grid_st1%params
 
 c       Create and copy grid metric
 
-cc        call allocateGridMetric(grid_st2%gmetric,grid_st1)
+        if (associated(grid_st1%gmetric)) then
+          call equateGridMetric(grid_st2%gmetric
+     .                         ,grid_st1%gmetric,grid_st1)
+        else
+          nullify(grid_st2%gmetric)
+        endif
 
-        call equateGridMetric(grid_st2%gmetric
-     .                       ,grid_st1%gmetric,grid_st1)
+c       Create fortran PETSc parallel grid hierarchy (parallel version)
 
-c       Nullify gmetric
-
-cc        grid_st2%gmetric => grid_st1%gmetric
-cc        nullify(grid_st2%gmetric)
+#if defined(petsc)
+        call createPETScGrid(grid_st2,0)
+#endif
 
 c     End program
 
@@ -595,7 +586,7 @@ c     #################################################################
       subroutine writeGridStructure(grid_st)
 
 c     -----------------------------------------------------------------
-c     Performs grid_st2 = grid_st1
+c     Dumps info on grid structure.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -822,7 +813,7 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: nxgl,nygl,nzgl,igrid,mpi_comm
+        integer :: nxgl,nygl,nzgl,igrid,mpi_comm
         type(petsc_da_ctx),pointer :: da_ctx
 
 c     Begin program
