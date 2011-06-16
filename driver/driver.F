@@ -16,7 +16,7 @@ c ******************************************************************
 
       use grid
 
-      use mk, ONLY: mk_relax_init_grid
+      use mk, ONLY: mk_grid,MK_output
 
 c Common variables
 
@@ -24,7 +24,7 @@ c Common variables
 
 c Local variables
 
-      integer    :: prec_tot,ierr,perr,prof_stage(3),offset
+      integer    :: prec_tot,ierr,perr,prof_stage(3),offset,ieq
       real(8)    :: time1,time2,time3,time4
 
 c Interfaces
@@ -51,12 +51,34 @@ c Interfaces
         end subroutine postProcessSol
       END INTERFACE
 
+cc      INTERFACE
+cc        subroutine get_src(varray)
+cc        use variable_setup
+cc        type(var_array),pointer :: varray
+cc        end subroutine get_src
+cc      END INTERFACE
+
       INTERFACE
-        subroutine get_src(varray,spline)
+        subroutine setInitialCondition(varrayn,varraynp)
         use variable_setup
-        logical :: spline
+        type(var_array),pointer :: varrayn,varraynp
+        end subroutine setInitialCondition
+      END INTERFACE
+
+cc      INTERFACE
+cc        subroutine applyBC(varray,iigx,iigy,iigz,obc)
+cc        use variable_setup
+cc        integer    :: iigx,iigy,iigz
+cc        integer,optional :: obc
+cc        type(var_array),pointer :: varray
+cc        end subroutine applyBC
+cc      END INTERFACE
+
+      INTERFACE
+        subroutine perturbEquilibrium(varray)
+        use variable_setup
         type(var_array),pointer :: varray
-        end subroutine get_src
+        end subroutine perturbEquilibrium
       END INTERFACE
 
 c Begin program
@@ -110,6 +132,8 @@ c Initial output
 
       call output(u_np)
 
+      if (mk_grid) call MK_output
+
 c Time loop
 
 #if defined(petsc)
@@ -122,7 +146,7 @@ c Time loop
 #endif
 
       offset = 0
-      if (mk_relax_init_grid) offset = 1
+      if (relax_init_grid) offset = 1
 
       do
 
@@ -156,7 +180,7 @@ c     Time update
         call PetscLogStagePush(prof_stage(2),perr)
 #endif
 
-        if (.not.mk_relax_init_grid) then
+        if (.not.relax_init_grid) then
           time = time + dt
         endif
 
@@ -202,12 +226,14 @@ c     Postprocess solution
 
 c     Update counters (only if timeStep is successful)
 
-        if (.not.mk_relax_init_grid) then
+        if (.not.relax_init_grid) then
           tmrst  = tmrst + dt
           nrst   = nrst  + 1
         endif
 
 c     Output per time step
+
+        if (mk_grid) call MK_output
 
         call output(u_np)
 
@@ -218,16 +244,20 @@ c     Time level data dump
 #else
         if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep
 #endif
-     .      .or.mk_relax_init_grid) then
-          if (.not.mk_relax_init_grid) nrst  = 0
-          if(itime.gt.0.and.(.not.mk_relax_init_grid)) tmrst=tmrst-dstep
+     .      .or.relax_init_grid) then
+          if (.not.relax_init_grid) nrst  = 0
+          if(itime.gt.0.and.(.not.relax_init_grid)) tmrst=tmrst-dstep
           call writeRecordFile(urecord,itime,time,dt,u_np)
         endif
 
         if (eigen) exit
-        if (mk_relax_init_grid) then
-          mk_relax_init_grid = .false.
-cc          if (source) call get_src(u_np,.true.)  !Update source with equilibrium
+
+        if (relax_init_grid) then
+          relax_init_grid = .false.
+cc          if (source) call get_src(u_np,.true.)  !Update source with interpolated equilibrium
+          call equateDerivedType (u_n,u_np)     !Save interpolated (unperturbed) equilibrium
+          call perturbEquilibrium(u_np)         !Perturb interpolated equilibrium
+cc          call applyBC(u_np,1,1,1)
         endif
 
       enddo       !End of time loop
@@ -303,7 +333,7 @@ c----------------------------------------------------------------------
 
       use eigen_mod
 
-cc      use mk
+      use mk
 
       implicit none
 
@@ -467,7 +497,7 @@ cc        nk_conf%krylov_method='gm'
 
         nk_conf%vol_wgt = vol_wgt
 
-        call nk(neqd,ntotd,x,iguess,ilevel,ierr)
+        call jfnk(neqd,ntotd,x,iguess,ilevel,ierr)
 
         itgmres = nk_conf%gm_it_out
         itnewt  = nk_conf%nwt_it_out
@@ -478,6 +508,8 @@ c     Map Newton solution to vnp (if no error)
           call mapVectorToStructure(vnp,x)
 
           call applyBC(vnp,1,1,1)
+
+          if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
 
           if (predictor) call storeTSinfo(vn,vnp)
         endif
@@ -491,6 +523,8 @@ c Explicit update
         call explicit(vn,vnp,itgmres,ilevel)
 
         call applyBC(vnp,1,1,1)
+
+        if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
 
         itnewt = 1
 
