@@ -51,26 +51,6 @@ c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
       call evaluateNonlinearFunction(varray,f)
 
-c Define time-step parameters
-
-      call defineTSParameters
-
-      if (mk_grid) then
-        if (mk_relax_init_grid) then
-          cnf = 0d0
-          bdfp = 0d0
-          bdfn = 0d0
-          bdfnm = 0d0
-          one_over_dt = 0d0
-        else
-          cnf  (neqd) = -tau/dt
-          bdfp (neqd) = 0d0
-          bdfn (neqd) = 0d0
-          bdfnm(neqd) = 0d0
-          one_over_dt(neqd) = 0d0
-        endif
-      endif
-
 c Calculate residuals
 
       jac => gmetric%grid(1)%jac
@@ -84,7 +64,7 @@ c Calculate residuals
             ii = vecPos(neqd,i,j,k,1,1,1)
 
             if (source.and.mk_grid) then
-              if (mk_relax_init_grid) then
+              if (relax_init_grid) then
                 src = 0d0
               else
                 src = MK_eval_src(1,i,j,k) !Interpolate source on current MK mesh
@@ -117,7 +97,7 @@ c Calculate residuals
             enddo
 
             if (vol_wgt) then
-              if (mk_grid) then
+              if (mk_grid.and.(.not.mk_nc)) then
               !Moving grid case
                 dvol = grid_params%dxh(ig)
      .                *grid_params%dyh(jg)
@@ -190,6 +170,26 @@ c Interfaces
 
 c Begin program
 
+c Define time-step parameters
+
+      call defineTSParameters
+
+      if (mk_grid) then
+        if (relax_init_grid) then
+          cnf = 0d0
+          bdfp = 0d0
+          bdfn = 0d0
+          bdfnm = 0d0
+          one_over_dt = 0d0
+        else
+          cnf  (neqd) = -tau/dt
+          bdfp (neqd) = 0d0
+          bdfn (neqd) = 0d0
+          bdfnm(neqd) = 0d0
+          one_over_dt(neqd) = 0d0
+        endif
+      endif
+
 c Setup parallel BC flags to indicate BCs require communication
 
       call setup_petsc_BC
@@ -208,7 +208,8 @@ c Store function evaluation
         do j = jlo,jhi
           do i = ilo,ihi
             ii = vecPos(neqd,i,j,k,1,1,1)
-            if (mk_relax_init_grid) then
+
+            if (relax_init_grid) then
               do ieq=1,neqd-1
                 fi(ii+ieq) = varray%array_var(ieq)%array(i,j,k)
               enddo
@@ -220,7 +221,7 @@ c Store function evaluation
             !Compute MK residual, add grid velocity,
             !and multiply by jacobian factor (if conservative)
             if (mk_grid) then
-              if (.not.mk_relax_init_grid) then
+              if (.not.relax_init_grid) then
                 do ieq=1,neqd-1
                   if (one_over_dt(ieq) == 0d0) cycle
                   fi(ii+ieq) = fi(ii+ieq)
