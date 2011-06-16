@@ -79,7 +79,7 @@ c     Read reference grid info
       call setVectorDimensions
 
       !Create grid
-      call createGrid(nxd,nyd,nzd,g_pack,gv%gparams)
+      call createGrid(nxd,nyd,nzd,gv%gparams)
 
       !Read solutions
       call allocateDerivedType(vref)
@@ -145,7 +145,7 @@ c Initialize current grid info and read current grid solution
 
       call setVectorDimensions
 
-      call createGrid(nxd,nyd,nzd,g_pack,gv%gparams)
+      call createGrid(nxd,nyd,nzd,gv%gparams)
 
       call allocateDerivedType(vsol)
 
