@@ -10,14 +10,11 @@ c        * allocateGridMetric
 c        * deallocateGridMetric
 c        * findGridMetrics
 c           -> gammaZeroForce
-c           -> zeroForceCheck
 c        * coarsenGridMetrics
 c           -> coarsen
 c        * topol_bc
 c        * map_bc
 c        * defineGridMetric
-c           -> numericalGridCoeffsCheck
-c           -> graphicsCheck
 c ---------------------------------------------------------------------
 
         use grid_anal_map
@@ -28,8 +25,7 @@ c ---------------------------------------------------------------------
 
         implicit none
 
-        integer :: funit
-        logical :: check_grid,numerical_grid
+        logical :: numerical_grid,check_grid
 
 c     PRIVATE VARIABLES & PROCEDURES
 
@@ -640,7 +636,7 @@ cc      end function find_dr
 
 c     coarsen_map
 c     #################################################################
-      subroutine coarsen_map(igc,gparams,nxf,nyf,nzf,xf,nxc,nyc,nzc,xc)
+      subroutine coarsen_map(igc,gparams,xf,xc,bcs)
 
 c     -----------------------------------------------------------------
 c     Coarsen fine map xf(xi) to coarse map xc(xi). This is done
@@ -651,41 +647,62 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc
-        real(8)    :: xf(0:nxf+1,0:nyf+1,0:nzf+1,3)
-     .               ,xc(0:nxc+1,0:nyc+1,0:nzc+1,3)
+        integer :: igc
+        real(8) :: xf(0:,0:,0:,:)
+     .            ,xc(0:,0:,0:,:)
 
         type(grid_mg_def),pointer :: gparams
 
+        integer,optional :: bcs(6,3)
+
 c     Local variables
 
-        integer    :: ii,igf
+        integer :: ii,igf,nxf,nyf,nzf,nxc,nyc,nzc
 
 c     Begin program
 
-        do ii=1,3
-          call crse_map_comp(ii,igc,nxf,nyf,nzf,xf(:,:,:,ii)
-     .                             ,nxc,nyc,nzc,xc(:,:,:,ii))
-        enddo
+        igf = igc - 1
+
+        nxf = gparams%nxv(igf)
+        nyf = gparams%nyv(igf)
+        nzf = gparams%nzv(igf)
+
+        nxc = gparams%nxv(igc)
+        nyc = gparams%nyv(igc)
+        nzc = gparams%nzv(igc)
+
+        if (PRESENT(bcs)) then
+          do ii=1,3
+            call crse_map_comp(ii,xf(:,:,:,ii)
+     .                           ,xc(:,:,:,ii)
+     .                           ,bcs=bcs(:,ii))
+          enddo
+        else
+          do ii=1,3
+            call crse_map_comp(ii,xf(:,:,:,ii)
+     .                           ,xc(:,:,:,ii))
+          enddo
+        endif
 
       contains
 
 c     crse_map_comp
 c     #################################################################
-      subroutine crse_map_comp(dim,igc,nxf,nyf,nzf,xf_j
-     .                                ,nxc,nyc,nzc,xc_j)
+      subroutine crse_map_comp(dim,xf_j,xc_j,bcs)
 
 c     -----------------------------------------------------------------
-c     Coarsen xf_j to xc_j at grid level igc.
+c     Coarsen component "dim" of xf_j to xc_j one grid level.
 c     -----------------------------------------------------------------
 
         implicit none
 
 c     Input variables
 
-        integer    :: igc,nxf,nyf,nzf,nxc,nyc,nzc,dim
+        integer    :: dim
         real(8)    :: xf_j(0:nxf+1,0:nyf+1,0:nzf+1)
      .               ,xc_j(0:nxc+1,0:nyc+1,0:nzc+1)
+
+        integer,optional :: bcs(6)
 
 c     Local variables
 
@@ -765,7 +782,7 @@ cc        pause
 
 c     Fill ghost cells
 
-        call map_bc(dim,igc,nxc,nyc,nzc,xc_j,x0_j)
+        call map_bc(dim,igc,nxc,nyc,nzc,xc_j,x0_j,bcs=bcs)
 
 cc        write (*,*) 'xj'
 cc        do jc=0,nyc+1
@@ -780,7 +797,7 @@ cc        pause
 
 c     map_bc
 c     #################################################################
-      subroutine map_bc(dim,igrid,nxl,nyl,nzl,x_j,x0_j,iorder,bconds)
+      subroutine map_bc(dim,igrid,nxl,nyl,nzl,x_j,x0_j,iorder,bcs)
 
 c     -----------------------------------------------------------------
 c     Impose BCs on map component x_j using boundary of x0_j.
@@ -796,7 +813,7 @@ c     Call variables
      .            ,x0_j(0:nxl+1,0:nyl+1,0:nzl+1)
 
         integer,optional,intent(IN) :: iorder
-        integer,optional :: bconds(6)
+        integer,optional :: bcs(6)
 
 c     Local variables
 
@@ -804,39 +821,17 @@ c     Local variables
 
 c     Begin program
 
-cc        if (    (dim == 1 .and. nxl ==1)
-cc     .      .or.(dim == 2 .and. nyl ==1)
-cc     .      .or.(dim == 3 .and. nzl ==1)) return
-
         if (PRESENT(iorder)) then
           order = iorder
         else
           order = 1    !Default to first order for predictable results at boundaries
         endif
 
-c     Setup boundary conditions (topological conditions are meaningless for maps!)
+c     Setup boundary conditions
 
-        where (bcond == DEF)
-          bcnd = EXT
-        elsewhere
-          bcnd = DEF
-        end where
-
-        if (PRESENT(bconds)) then
-cc          bcnd = DEF
-cc
-cc          select case(dim)
-cc          case(1)
-cc            bcnd(1:2) = bconds
-cc          case(2)
-cc            bcnd(3:4) = bconds
-cc          case(3)
-cc            bcnd(5:6) = bconds
-cc          end select
-          bcnd = bconds
-
+        if (PRESENT(bcs)) then
+          bcnd = bcs
         else
-cc          bcnd = EXT
           bcnd = bcond
 
           !Force boundaries along dimension
@@ -850,11 +845,6 @@ cc          bcnd = EXT
           end select
 
           where(bcnd == DEF) bcnd = EXT
-cc          where(bcnd == DEF) bcnd = EQU
-
-cc          if (nxl == 1) bcnd(1:2) = DEF
-cc          if (nyl == 1) bcnd(3:4) = DEF
-cc          if (nzl == 1) bcnd(5:6) = DEF
         endif
 
 c     Impose BCs
@@ -947,7 +937,7 @@ c       ANALYTICAL QUANTITIES **********************************
 
           !Zero force condition on Christoffel symbols (only on finest grid)
           if (igrid == 1) then
-            call gammaZeroForce(igrid)
+            call hessianZeroForceCorr(igrid)
           endif
 
 c       NUMERICAL QUANTITIES ***********************************
@@ -996,16 +986,17 @@ c     Begin program
           if (igrid > 1 .and. coarsen) then  !Coarsen map if at coarse grid level
             xf => gparams%gmetric%grid(igrid-1)%car
 
-            nxf=size(xf,1)-2
-            nyf=size(xf,2)-2
-            nzf=size(xf,3)-2
-
-            nxc=size(xc,1)-2
-            nyc=size(xc,2)-2
-            nzc=size(xc,3)-2
-
-            call coarsen_map(igrid,gparams,nxf,nyf,nzf,xf
-     .                                    ,nxc,nyc,nzc,xc)
+cc            nxf=size(xf,1)-2
+cc            nyf=size(xf,2)-2
+cc            nzf=size(xf,3)-2
+cc
+cc            nxc=size(xc,1)-2
+cc            nyc=size(xc,2)-2
+cc            nzc=size(xc,3)-2
+cc
+cc            call coarsen_map(igrid,gparams,nxf,nyf,nzf,xf
+cc     .                                    ,nxc,nyc,nzc,xc)
+            call coarsen_map(igrid,gparams,xf,xc)
 
             nullify(xf)
           endif
@@ -1138,7 +1129,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: he,imin,imax,jmin,jmax,kmin,kmax
+        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
 
         real(8) :: r(3,3),car0(3),carp(3),carm(3),jac,ijac
      .            ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
@@ -1209,7 +1200,8 @@ c     Enforce topological constraints on dr (including SP)
           enddo
         enddo
 
-        !Evaluate grid quantities
+c     Evaluate grid quantities
+
         do k = kmin,kmax
           do j = jmin,jmax
             do i = imin,imax
@@ -1377,7 +1369,7 @@ cc              gparams%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
         enddo
 
         !Zero-force condition on Christoffle symbols 
-        if (igrid == 1) call gammaZeroForce(igrid)
+        if (igrid == 1) call hessianZeroForceCorr(igrid)
 
         !Enforce topological constraints on Christoffel symbols
         do i=1,3
@@ -1410,7 +1402,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: he,imin,imax,jmin,jmax,kmin,kmax
+        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
 
         real(8) :: r(3,3),cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),jac,ijac
 
@@ -1440,23 +1432,33 @@ c     Evaluate dr=dx/dxi vectors at vertices
 
         xc => gparams%gmetric%grid(igrid)%car
 
-        allocate(dr(imin:imax,jmin:jmax,kmin:kmax,3,3))
+        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
 
         dr = 0d0
 
         do k = kmin,kmax
           do j = jmin,jmax
             do i = imin,imax
-              dr(i,j,k,:,:) = find_dr(i,j,k,igrid,he,he,he,gparams,xc)
+              dr(i+1,j+1,k+1,:,:)
+     .             = find_dr(i,j,k,igrid,he,he,he,gparams,xc)
             enddo
           enddo
         enddo
 
-        !Evaluate grid quantities
+c     Enforce topological constraints
+
+cc        do i=1,3
+cc          do j=1,3
+cc            call topol_bc_vrtx(igrid,nx,ny,nz,dr(:,:,:,i,j))
+cc          enddo
+cc        enddo
+
+c     Evaluate grid quantities
+
         do k = kmin,kmax
           do j = jmin,jmax
             do i = imin,imax
-              r = dr(i,j,k,:,:)
+              r = dr(i+1,j+1,k+1,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
               jac = triple_product(r(:,1),r(:,2),r(:,3))
@@ -1466,9 +1468,9 @@ c     Evaluate dr=dx/dxi vectors at vertices
                 write (*,*) 'Negative Jacobian in half mesh'
                 write (*,*) 'Grid level',igrid
                 write (*,*) 'Grid position=',i,j,k
-                write (*,*) 'dr/dxi_1=',dr(i,j,k,:,1)
-                write (*,*) 'dr/dxi_2=',dr(i,j,k,:,2)
-                write (*,*) 'dr/dxi_3=',dr(i,j,k,:,3)
+                write (*,*) 'dr/dxi_1=',r(:,1)
+                write (*,*) 'dr/dxi_2=',r(:,2)
+                write (*,*) 'dr/dxi_3=',r(:,3)
                 write (*,*) 'Jacobian=',jac
                 if (.not.check_grid)
      .             call pstop('findVertexMetrics','Inverted jacobian')
@@ -1517,10 +1519,128 @@ cc              if (isSP2(i+1,igrid,ibc=1)) then
 c     End program
 
       end subroutine findVertexMetrics
-      
-c     gammaZeroForce
+
+ccc     findVertexMetrics
+ccc     #################################################################
+cc      subroutine findVertexMetrics
+cc
+ccc     -----------------------------------------------------------------
+ccc     Finds metrics at vertices (i+1/2,j+1/2,k+1/2) (stored at (i,j,k))
+ccc     -----------------------------------------------------------------
+cc
+cc        implicit  none
+cc
+ccc     Call variables
+cc
+ccc     Local variables
+cc
+cc        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+cc
+cc        real(8) :: r(3,3),cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),jac,ijac
+cc
+cc        real(8),pointer,dimension(:,:,:,:,:) :: dr
+cc        real(8),pointer,dimension(:,:,:,:)   :: xc
+cc
+ccc     Begin program
+cc
+cc        imin = ilom
+cc        imax = ihi
+cc
+cc        jmin = jlom
+cc        jmax = jhi
+cc
+cc        kmin = klom
+cc        kmax = khi
+cc
+cc        he = 1
+cc
+ccc     Evaluate dr=dx/dxi vectors at vertices
+cc
+cc        xc => gparams%gmetric%grid(igrid)%car
+cc
+cc        allocate(dr(imin:imax,jmin:jmax,kmin:kmax,3,3))
+cc
+cc        dr = 0d0
+cc
+cc        do k = kmin,kmax
+cc          do j = jmin,jmax
+cc            do i = imin,imax
+cc              dr(i,j,k,:,:)
+cc     .             = find_dr(i,j,k,igrid,he,he,he,gparams,xc)
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+ccc     Evaluate grid quantities
+cc
+cc        do k = kmin,kmax
+cc          do j = jmin,jmax
+cc            do i = imin,imax
+cc              r = dr(i,j,k,:,:)
+cc
+cc              !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+cc              jac = triple_product(r(:,1),r(:,2),r(:,3))
+cc              gparams%gmetric%grid(igrid)%jac_v(i,j,k) = jac
+cc
+cc              if (jac <= 0d0 .and. (.not.isSP2(i+1,igrid,ibc=1))) then
+cc                write (*,*) 'Negative Jacobian in half mesh'
+cc                write (*,*) 'Grid level',igrid
+cc                write (*,*) 'Grid position=',i,j,k
+cc                write (*,*) 'dr/dxi_1=',r(:,1)
+cc                write (*,*) 'dr/dxi_2=',r(:,2)
+cc                write (*,*) 'dr/dxi_3=',r(:,3)
+cc                write (*,*) 'Jacobian=',jac
+cc                if (.not.check_grid)
+cc     .             call pstop('findVertexMetrics','Inverted jacobian')
+cc              elseif (isSP2(i+1,igrid,ibc=1)) then
+cccc              if (isSP2(i+1,igrid,ibc=1)) then
+cc                ijac = 0d0
+cc              else
+cc                ijac = 1d0/jac
+cc              endif
+cc
+cc              !Contravariant vectors <<<<<<<<<<<<<<<<<<<
+cc              cnv(:,:) = r(:,:)*ijac
+cc
+cc              gparams%gmetric%grid(igrid)%cnv_v(i,j,k,:,:)
+cc     .                 =transpose(cnv)
+cc
+cc              !Covariant vectors <<<<<<<<<<<<<<<<<<<<<<
+cc              cov(:,1) = cross_product(r(:,2),r(:,3))
+cc              cov(:,2) = cross_product(r(:,3),r(:,1))
+cc              cov(:,3) = cross_product(r(:,1),r(:,2))
+cc
+cc              cov = cov*ijac
+cc
+cc              gparams%gmetric%grid(igrid)%cov_v(i,j,k,:,:)
+cc     .               = transpose(cov)
+cc
+cc              !Metric tensors <<<<<<<<<<<<<<<<<<<<<<<<
+cc              do m=1,3
+cc                do l=m,3
+cc                  gsub(l,m) = jac*dot_product(cnv(:,l),cnv(:,m))
+cc                  gsub(m,l) = gsub(l,m) !Symmetry
+cc                  gsup(l,m) = jac*dot_product(cov(:,l),cov(:,m))
+cc                  gsup(m,l) = gsup(l,m) !Symmetry
+cc                enddo
+cc              enddo
+cc              gparams%gmetric%grid(igrid)%gsub_v(i,j,k,:,:) = gsub
+cc              gparams%gmetric%grid(igrid)%gsup_v(i,j,k,:,:) = gsup
+cc
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+cc        deallocate(dr)
+cc        nullify(xc)
+cc
+ccc     End program
+cc
+cc      end subroutine findVertexMetrics
+
+c     hessianZeroForceCorr
 c     #################################################################
-      subroutine gammaZeroForce(igrid)
+      subroutine hessianZeroForceCorr(igrid)
 
 c     -----------------------------------------------------------------
 c     Postprocess Christoffel symbol to satisfy zero-force condition
@@ -1543,13 +1663,13 @@ c     Local variables
 
 c     Begin program
 
-        if (check_grid) then
-          write (funit,*)
-          write (funit,*) '********************************'
-          write (funit,*) 'Checking zero-force condition...'
-          write (funit,*) '********************************'
-          write (funit,*)
-        endif
+cc        if (check_grid) then
+cc          write (funit,*)
+cc          write (funit,*) '********************************'
+cc          write (funit,*) 'Checking zero-force condition...'
+cc          write (funit,*) '********************************'
+cc          write (funit,*)
+cc        endif
 
         do k = klo,khi
           do j = jlo,jhi
@@ -1647,7 +1767,6 @@ cc              endif
 
             enddo
 
-
             !Symmetrize
             do ii=1,3
               do ll=1,3             !cycle through tensor components
@@ -1658,11 +1777,11 @@ cc              endif
               enddo
             enddo
 
-c           START CHECKS
-
-            if (check_grid)
-     .         call zeroForceCheck(i,j,k,igrid,gamma
-     $                 ,gparams%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:))
+ccc           START CHECKS
+cc
+cc            if (check_grid)
+cc     .         call zeroForceCheck(i,j,k,igrid,gamma
+cc     $                 ,gparams%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:))
 
             enddo
           enddo
@@ -1872,195 +1991,7 @@ cc        endif
 
 c     End program
 
-      end subroutine gammaZeroForce
-
-c     zeroForceCheck
-c     #################################################################
-      subroutine zeroForceCheck(i,j,k,igrid,gold,gnew)
-
-c     -----------------------------------------------------------------
-c     Check zero-force condition of Christoffle symbols
-c     -----------------------------------------------------------------
-
-        implicit  none
-
-c     Call variables
-
-        integer    :: i,j,k,igrid
-        real(8)    :: gold(3,3,3),gnew(3,3,3)
-        
-c     Local variables
-
-        integer    :: ii,ll,kk,mm,jj,ig,jg,kg
-        real(8)    :: summ,summ2,dh,jac,jacp,jacm,const,hlf
-        real(8)    :: hess(3,3,3),gsup(3,3),gsub(3,3)
-     $               ,gsupp(3,3),gsupm(3,3)
-        logical    :: alt_eom
-
-c     Begin program
-
-        write(funit,*)
-        write(funit,*) 'Grid:',igrid,'  Grid node:',i,j,k
-
-        call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
-
-        gsup  = gparams%gmetric%grid(igrid)%gsup(i,j,k,:,:)
-        gsub  = gparams%gmetric%grid(igrid)%gsub(i,j,k,:,:)
-
-        hlf = 0.5
-
-c      Check difference between correction and prediction
-
-        hess = gnew - gold
-
-        summ2= sqrt(sum(gold*gold))
-        if (summ2 /= 0d0) then
-          summ = sqrt(sum(hess*hess))/summ2
-        else
-          summ = 0d0
-        endif
-
-        write(funit,*) '  Correction size:',summ
-
-c      Check cancellation property g^lk(d_il G^j_kj-g_lm g^ij G^m_jk) = 0
-
-        do ii=1,3 !cycle through Chistoffel symbols
-          do ll=1,3
-            do kk=1,3
-              hess(ii,ll,kk) =
-     .               delta(ii,ll)*(gnew(1,kk,1)
-     .                            +gnew(2,kk,2)
-     .                            +gnew(3,kk,3))
-
-              summ=0d0
-              do mm=1,3
-                do jj=1,3
-                  summ = summ + gsub(ll,mm)*gsup(ii,jj)*gnew(mm,jj,kk)
-                enddo
-              enddo
-
-              hess(ii,ll,kk) = hess(ii,ll,kk) - summ
-            enddo
-          enddo
-
-          summ = 0d0
-          do ll=1,3
-            do kk=1,3
-              summ = summ + gsup(ll,kk)*hess(ii,ll,kk)
-            enddo
-          enddo
-
-          write(funit,'(a,i1,a,e10.3)')
-     .       '  Cancel. of corrector term for Gamma^',ii,':',summ
-        enddo
-
-c      Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
-
-        do ii=1,3 !cycle through Chistoffel symbols
-
-          alt_eom = (ii == 2 .and. alt__eom())
-
-          if (alt_eom) then
-            jac  = gparams%gmetric%grid(igrid)%jac(i,j,k)
-            const= 1d0
-          else
-            jac  = 1d0
-            const= 0d0
-          endif
-
-          summ = 0d0
-
-cc          dh = gparams%dxh(ig)
-cc          if (alt_eom) then
-cc            jacp = hlf*(jac+gparams%gmetric%grid(igrid)%jac(i+1,j,k))
-cc            jacm = hlf*(jac+gparams%gmetric%grid(igrid)%jac(i-1,j,k))
-cc          else
-cc            jacp=1d0
-cc            jacm=1d0
-cc          endif
-cc          gsupp = jacp
-cc     $         *hlf*(gsup+gparams%gmetric%grid(igrid)%gsup(i+1,j,k,:,:))
-cc          gsupm = jacm
-cc     $         *hlf*(gsup+gparams%gmetric%grid(igrid)%gsup(i-1,j,k,:,:))
-          dh = 2*gparams%dxh(ig)
-          if (alt_eom) then
-            jacp = gparams%gmetric%grid(igrid)%jac(i+1,j,k)
-            jacm = gparams%gmetric%grid(igrid)%jac(i-1,j,k)
-          else
-            jacp=1d0
-            jacm=1d0
-          endif
-          gsupp = jacp*gparams%gmetric%grid(igrid)%gsup(i+1,j,k,:,:)
-          gsupm = jacm*gparams%gmetric%grid(igrid)%gsup(i-1,j,k,:,:)
-
-          summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
-
-cc          dh = gparams%dyh(jg)
-cc          if (alt_eom) then
-cc            jacp = hlf*(jac+gparams%gmetric%grid(igrid)%jac(i,j+1,k))
-cc            jacm = hlf*(jac+gparams%gmetric%grid(igrid)%jac(i,j-1,k))
-cc          else
-cc            jacp=1d0
-cc            jacm=1d0
-cc          endif
-cc          gsupp = jacp
-cc     $         *hlf*(gsup+gparams%gmetric%grid(igrid)%gsup(i,j+1,k,:,:))
-cc          gsupm = jacm
-cc     $         *hlf*(gsup+gparams%gmetric%grid(igrid)%gsup(i,j-1,k,:,:))
-          dh = 2*gparams%dyh(jg)
-          if (alt_eom) then
-            jacp = gparams%gmetric%grid(igrid)%jac(i,j+1,k)
-            jacm = gparams%gmetric%grid(igrid)%jac(i,j-1,k)
-          else
-            jacp=1d0
-            jacm=1d0
-          endif
-          gsupp = jacp*gparams%gmetric%grid(igrid)%gsup(i,j+1,k,:,:)
-          gsupm = jacm*gparams%gmetric%grid(igrid)%gsup(i,j-1,k,:,:)
-
-          summ = summ +(gsupp(2,ii)-gsupm(2,ii))/dh/jac
-
-cc          dh = gparams%dzh(kg)
-cc          if (alt_eom) then
-cc            jacp = hlf*(jac+gparams%gmetric%grid(igrid)%jac(i,j,k+1))
-cc            jacm = hlf*(jac+gparams%gmetric%grid(igrid)%jac(i,j,k-1))
-cc          else
-cc            jacp=1d0
-cc            jacm=1d0
-cc          endif
-cc          gsupp = jacp
-cc     $         *hlf*(gsup+gparams%gmetric%grid(igrid)%gsup(i,j,k+1,:,:))
-cc          gsupm = jacm
-cc     $         *hlf*(gsup+gparams%gmetric%grid(igrid)%gsup(i,j,k-1,:,:))
-          dh = 2*gparams%dzh(kg)
-          if (alt_eom) then
-            jacp = gparams%gmetric%grid(igrid)%jac(i,j,k+1)
-            jacm = gparams%gmetric%grid(igrid)%jac(i,j,k-1)
-          else
-            jacp=1d0
-            jacm=1d0
-          endif
-          gsupp = jacp*gparams%gmetric%grid(igrid)%gsup(i,j,k+1,:,:)
-          gsupm = jacm*gparams%gmetric%grid(igrid)%gsup(i,j,k-1,:,:)
-
-          summ = summ +(gsupp(3,ii)-gsupm(3,ii))/dh/jac
-
-          summ2 = 0d0
-          do ll=1,3
-            do kk=1,3
-              summ2 = summ2 + gsup(ll,kk)*gnew(ii,ll,kk)
-     $                - const*gsup(ll,ii)*gnew(kk,ll,kk)
-            enddo
-          enddo
-
-cc          write(*,*) '  Zero force cancellation for i=',ii,':',summ,summ2,summ+summ2
-          write(funit,*) '  Zero force cancellation for i=',ii,':'
-     .               ,summ+summ2
-        enddo
-
-c     End program
-
-      end subroutine zeroForceCheck
+      end subroutine hessianZeroForceCorr
 
       end subroutine findGridMetrics
 
@@ -2076,12 +2007,10 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: igrid,nxl,nyl,nzl
-        real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
+        integer :: igrid,nxl,nyl,nzl
+        real(8) :: array(0:nxl+1,0:nyl+1,0:nzl+1)
 
 c     Local variables
-
-        integer    :: nxg,nyg,nzg,dim
 
 #if defined(petsc)
         type(petsc_da_ctx),pointer :: da_ctx
@@ -2121,6 +2050,67 @@ cc        endif
 c     End program
 
       end subroutine topol_bc
+
+ccc     topol_bc_vrtx
+ccc     #################################################################
+cc      subroutine topol_bc_vrtx(igrid,nxl,nyl,nzl,array)
+cc
+ccc     -----------------------------------------------------------------
+ccc     Enforce topological constraints on array
+ccc     -----------------------------------------------------------------
+cc
+cc        implicit  none
+cc
+ccc     Call variables
+cc
+cc        integer    :: igrid,nxl,nyl,nzl
+cc        real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
+cc
+ccc     Local variables
+cc
+cc#if defined(petsc)
+cc        type(petsc_da_ctx),pointer :: da_ctx
+cc#endif
+cc
+ccc     External
+cc
+ccc     Begin program
+cc
+cc#if !defined(petsc)
+cc        if (bcond(1) == PER .or. bcond(2) == PER) then
+cccc          array(0    ,:,:) = array(nxl,:,:)
+cccc          array(nxl+1,:,:) = array(1,:,:)
+cc          array(1,:,:) = array(nxl+1,:,:)
+cc        endif
+cc
+cc        if (bcond(3) == PER .or. bcond(4) == PER) then
+cccc          array(:,0    ,:) = array(:,nyl,:)
+cccc          array(:,nyl+1,:) = array(:,1,:)
+cc          array(:,1,:) = array(:,nyl+1,:)
+cc        endif
+cc        
+cc        if (bcond(5) == PER .or. bcond(6) == PER) then
+cccc          array(:,:,0    ) = array(:,:,nzl)
+cccc          array(:,:,nzl+1) = array(:,:,1)
+cc          array(:,:,1) = array(:,:,nzl+1)
+cc        endif
+cc#else
+cc#if !defined(samrai)
+cc          write(*,*) 'WARNING: vertex metrics in PETSc are not being'
+cc     .              ,' communicated yet.'
+cccccc        if (igrid == 1) then
+cccc          da_ctx => grid_params%dactx(igrid)
+cccc          call fillPetscGhostCells(da_ctx,array)
+cccccc        endif
+cc#else
+cc          write(*,*) 'WARNING: metrics in SAMRAI are not being'
+cc     .              ,' communicated yet.'
+cc#endif
+cc#endif
+cc
+ccc     End program
+cc
+cc      end subroutine topol_bc_vrtx
 
 c     defineGridMetric
 c     #################################################################
@@ -2177,485 +2167,8 @@ c     Find grid metrics
         do igrid=igrmin,igrmax
           call findGridMetrics(gparams,igrid,.not.PRESENT(igr))
         enddo
-        
-c     Check grid: test of numerical calculation vs. analytical calculation
-
-        if (check_grid) then
-          call numericalGridCoeffsCheck
-          call graphicsCheck
-
-          close(funit)
-          call pstop('checkGrid','End of grid check')
-        endif
 
 c     End program
-
-      contains
-
-c     hessianCheck
-c     #################################################################
-      subroutine hessianCheck(igx,igy,igz,nxv,nyv,nzv,gdef)
-
-        implicit  none
-
-c     Call variables
-
-        integer    :: igx,igy,igz,nxv(*),nyv(*),nzv(*)
-
-        type(grid_mg_def),pointer :: gdef
-
-c     Local variables
-
-        integer    :: i,j,k,i1,j1,k1,ig,jg,kg,ih
-        real(8)    :: x1,y1,z1
-        real(8)    :: hess(3,3,3),hess_cnv(3,3,3),table(3,3,3)
-
-c     Begin program
-
-        write (funit,*) 
-        write (funit,*) '*************************'
-        write (funit,*) '     Hessian check'
-        write (funit,*) '*************************'
-        write (funit,*)
-
-        do i = 2,nxv(igx)   !Start at 2 to avoid singular points
-          do j = 1,nyv(igy)
-            do k = 1,nzv(igz)
-
-              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-
-              x1 = gdef%xx(ig)
-              y1 = gdef%yy(jg)
-              z1 = gdef%zz(kg)
-
-              hess = -christ_2knd(i,j,k,igx,igy,igz)
-
-              hess_cnv(1,:,:) = hessian_cnv(1,x1,y1,z1)
-              hess_cnv(2,:,:) = hessian_cnv(2,x1,y1,z1)
-              hess_cnv(3,:,:) = hessian_cnv(3,x1,y1,z1)
-
-              do i1=1,3
-                do j1=1,3
-                  do k1=1,3
-                    table(i1,j1,k1) = hess_cnv(i1,j1,k1)
-     .                               -delta(i1,k1)*(hess(1,j1,1)
-     .                                             +hess(2,j1,2)
-     .                                             +hess(3,j1,3))
-     .                               +hess(k1,i1,j1)
-                  enddo
-                enddo
-              enddo
-
-              write (funit,5) 'Grid point: (',x1,',',y1,',',z1,')'
- 5            format (/,a,f7.3,a,f7.3,a,f7.3,a)
-
-              write (funit,*) 
-              write (funit,*) 'Hessian relation'
-
-              do ih=1,3
-                write (funit,*) 
-                write (funit,10) table(ih,1,1:3)
-                write (funit,10) table(ih,2,1:3)
-                write (funit,10) table(ih,3,1:3)
- 10             format (3f10.3)
-              enddo
-
-            enddo
-          enddo
-        enddo
-
-c     End program
-
-      end subroutine hessianCheck
-
-c     metricTensorCheck
-c     #################################################################
-      subroutine metricTensorCheck(igx,igy,igz,nxv,nyv,nzv,gdef)
-
-        implicit  none
-
-c     Call variables
-
-        integer    :: igx,igy,igz,nxv(*),nyv(*),nzv(*)
-
-        type(grid_mg_def),pointer :: gdef
-
-c     Local variables
-
-        integer    :: i,j,k,i1,j1,k1,ig,jg,kg,ih
-        real(8)    :: x1,y1,z1,check
-        real(8)    :: gup(3,3),gdown(3,3),tensor(3,3)
-        logical    :: cartesian
-
-c     Begin program
-
-        check = 0d0
-
-        write (funit,*) 
-        write (funit,*) '*************************'
-        write (funit,*) '   Metric Tensor check'
-        write (funit,*) '*************************'
-        write (funit,*)
-        write (funit,*) 'Grid levels:',igx,igy,igz
-        write (funit,*)
-
-        do i = 1,nxv(igx)   !Start at 2 to avoid singular points
-          do j = 1,nyv(igy)
-            do k = 1,nzv(igz)
-
-              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-
-              x1 = gdef%xx(ig)
-              y1 = gdef%yy(jg)
-              z1 = gdef%zz(kg)
-
-              gup   = gdef%gmetric%grid(igx)%gsup(i,j,k,:,:)
-              gdown = gdef%gmetric%grid(igx)%gsub(i,j,k,:,:)
-
-              tensor = matmul(gup,gdown)
-
-cc              write (funit,5) 'Grid point: (',x1,',',y1,',',z1,')'
-cc 5            format (/,a,f7.3,a,f7.3,a,f7.3,a)
-              write (funit,5) 'Grid point: (',i,',',j,',',k,')'
- 5            format (/,a,i3,a,i3,a,i3,a)
-
-              write(funit,*)
-              write(funit,*) 'Gup'
-              write(funit,10) gup(1,1:3)
-              write(funit,10) gup(2,1:3)
-              write(funit,10) gup(3,1:3)
-
-              write(funit,*)
-              write(funit,*) 'Gdown'
-              write(funit,10) gdown(1,1:3)
-              write(funit,10) gdown(2,1:3)
-              write(funit,10) gdown(3,1:3)
-
-              write(funit,*)
-              write(funit,*) 'Cov: cov1      cov2      cov3'
-              write(funit,10) gdef%gmetric%grid(igx)%cov(i,j,k,1:3,1)
-              write(funit,10) gdef%gmetric%grid(igx)%cov(i,j,k,1:3,2)
-              write(funit,10) gdef%gmetric%grid(igx)%cov(i,j,k,1:3,3)
-
-              write(funit,*)
-              write(funit,*) 'Cnv: cnv1      cnv2      cnv3'
-              write(funit,10) gdef%gmetric%grid(igx)%cnv(i,j,k,1:3,1)
-              write(funit,10) gdef%gmetric%grid(igx)%cnv(i,j,k,1:3,2)
-              write(funit,10) gdef%gmetric%grid(igx)%cnv(i,j,k,1:3,3)
-
-              write(funit,*)
-              write(funit,*) 'Jac:',gdef%gmetric%grid(igx)%jac(i,j,k)
-
-              write(funit,*) 
-              write(funit,*) 'Metric tensor product'
-              write(funit,10) tensor(1,1:3)
-              write(funit,10) tensor(2,1:3)
-              write(funit,10) tensor(3,1:3)
- 10           format (3f10.3)
-
-            enddo
-          enddo
-        enddo
-
-c     End program
-
-      end subroutine metricTensorCheck
-
-c     numericalGridCoeffsCheck
-c     #################################################################
-      subroutine numericalGridCoeffsCheck
-
-c     -----------------------------------------------------------------
-c     Test of numerical calculation vs. analytical calculation of
-c     grid quantities.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-      real(8)    :: mag,mag1,mag2(3,3),mag3(3,3),mag4(3,3,3)
-
-c     Begin program
-
-      if (anal_map.and.(.not.numerical_grid)) then
-        write(funit,*)
-        write(funit,*)'***********************************************'
-        write(funit,*)'Checking accuracy of numerical grid quantities.'
-        write(funit,*)'***********************************************'
-        write(funit,*)
-      else
-        write(funit,*)
-        write(funit,*)'***********************************************'
-        write(funit,*)'Cannot check numerical grid quantities:'
-        write(funit,*)'   analytical mapping unavailable'
-        write(funit,*)'***********************************************'
-        write(funit,*)
-        return
-      endif
-
-      do igrid=igrmin,igrmax
-
-        igx = igrid
-        igy = igrid
-        igz = igrid
-
-        ilo = 1
-        jlo = 1
-        klo = 1
-        ihi = gparams%nxv(igrid)
-        jhi = gparams%nyv(igrid)
-        khi = gparams%nzv(igrid)
-
-        ilom = ilo-1
-        jlom = jlo-1
-        klom = klo-1
-        ihip = ihi+1
-        jhip = jhi+1
-        khip = khi+1
-
-        mag1 = 0d0
-        mag2 = 0d0
-        mag3 = 0d0
-        mag4 = 0d0
-
-        do k = klom,khip
-          do j = jlom,jhip
-            do i = ilom,ihip
-              mag1 = mag1
-     .             + (gparams%gmetric%grid(igrid)%jac  (i,j,k)
-     .               -jacobian(i,j,k,igx,igy,igz))**2
-              mag2 = mag2
-     .             + (gparams%gmetric%grid(igrid)%gsub (i,j,k,:,:)
-     .               -g_sub   (i,j,k,igx,igy,igz))**2
-              mag3 = mag3
-     .             + (gparams%gmetric%grid(igrid)%gsup (i,j,k,:,:)
-     .               -g_sup   (i,j,k,igx,igy,igz))**2
-              mag4 = mag4
-     .             + (gparams%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-     .               -christ_2knd(i,j,k,igx,igy,igz))**2
-            enddo
-          enddo
-        enddo
-
-        write(funit,*) 'Grid level:',igrid
-          
-        mag = sqrt(    mag1/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1))
-        write(funit,*)'   Jacobian tst=',mag
-        mag = sum(sqrt(mag2/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1)))/9.
-        write(funit,*)'   Gsub tst    =',mag
-        mag = sum(sqrt(mag3/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1)))/9.
-        write(funit,*)'   Gsup tst    =',mag
-        mag = sum(sqrt(mag4/(ihi-ilo+1)/(jhi-jlo+1)/(khi-klo+1)))/27.
-        write(funit,*)'   Gamma tst   =',mag
-        write(funit,*)
-
-      enddo
-
-      end subroutine numericalGridCoeffsCheck
-
-c     graphicsCheck
-c     #################################################################
-      subroutine graphicsCheck
-
-c     -----------------------------------------------------------------
-c     Test of numerical calculation vs. analytical calculation of
-c     grid quantities.
-c     -----------------------------------------------------------------
-
-      use grid_debug
-
-      implicit none
-
-      integer    :: nx,ny,nz,i,j,k,l,m,n,igrid,ivar
-      real(8)    :: tensor(3,3,3),vec(3)
-      character(30) :: debugfile,drawfile
-
-      integer   ,parameter :: nvar=50
-      character(30) :: descr(nvar)
-
-      logical :: dump_diff
-
-c     Begin program
-
-c     Output
-
-      write(funit,*)
-      write(funit,*) '**********************************'
-      write(funit,*) 'Dumping grid debugging graphics...'
-      write(funit,*) '**********************************'
-      write(funit,*)
-
-      dump_diff = anal_map.and.numerical_grid
-cc      dump_diff = .false.
-
-      if (dump_diff) then
-        write(funit,*)'Analytical mapping available; dumping diffs...'
-      else
-        if (anal_map) then
-          write(funit,*)'Dumping analytical qtys...'
-        else
-          write(funit,*)
-     .              'Analytical map unavailable; dumping full qtys...'
-        endif
-      endif
-      write(funit,*)
-
-c     Dump quantities
-
-      do igrid=igrmin,igrmax
-
-        nx = gparams%nxv(igrid)
-        ny = gparams%nyv(igrid)
-        nz = gparams%nzv(igrid)
-
-        do k=0,nz+1
-
-        write(funit,*)
-        write(funit,*) '   ******************************'
-        write(funit,*) '   Grid level',igrid,'on slice k=',k
-        write(funit,*) '   ******************************'
-        write(funit,*)
-
-        !Open .bin file
-        debugfile = 'grid_gl'//trim(int2char(igrid))
-     .                 //'k='//trim(int2char(k))
-     .                 //'p' //trim(int2char(my_rank))//'.bin'
-        drawfile = 'drawgl'//trim(int2char(igrid))
-     .              //'_k='//trim(int2char(k))
-     .               //'_p'//trim(int2char(my_rank))//'.in'
-        open(unit=110,file=trim(debugfile),form='unformatted'
-     .    ,status='replace')
-
-        !Allocate dummy array
-        allocate(dbg(0:nx+1,0:ny+1,1,1))
-
-        !Jacobian
-        do j=0,ny+1
-          do i=0,nx+1
-            dbg(i,j,1,1) = gparams%gmetric%grid(igrid)%jac(i,j,k)
-            if (dump_diff) dbg(i,j,1,1) = dbg(i,j,1,1)
-     .                    -jacobian(i,j,k,igrid,igrid,igrid)
-          enddo
-        enddo
-        write(funit,*) '   Dumping Jacobian'
-        ivar = 1
-        descr(ivar) = 'jac'
-        call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,0,110)
-
-        !Metric tensors
-        do l=1,3
-          do m=l,3
-            do j=0,ny+1
-              do i=0,nx+1
-                dbg(i,j,1,1) =
-     .               gparams%gmetric%grid(igrid)%gsub(i,j,k,l,m)
-     .              *gparams%gmetric%grid(igrid)%jac(i,j,k)
-                if (dump_diff) then
-                  tensor(:,:,1)  = g_sub(i,j,k,igrid,igrid,igrid)
-                  dbg(i,j,1,1) = dbg(i,j,1,1)
-     .                    -tensor(l,m,1)
-     .                    *jacobian(i,j,k,igrid,igrid,igrid)
-                endif
-              enddo
-            enddo
-            write(funit,*) '   Dumping Gsub component',l,m
-            ivar = ivar+1
-            descr(ivar)='gsub('//trim(int2char(l))//','
-     .                         //trim(int2char(m))//')'
-            call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
-          enddo
-        enddo
-
-        do l=1,3
-          do m=l,3
-            do j=0,ny+1
-              do i=0,nx+1
-                dbg(i,j,1,1) =
-     .               gparams%gmetric%grid(igrid)%gsup(i,j,k,l,m)
-     .              *gparams%gmetric%grid(igrid)%jac(i,j,k)
-                if (dump_diff) then
-                  tensor(:,:,1)  = g_sup(i,j,k,igrid,igrid,igrid)
-                  dbg(i,j,1,1) = dbg(i,j,1,1)
-     .                        -tensor(l,m,1)
-     .                    *jacobian(i,j,k,igrid,igrid,igrid)
-                endif
-              enddo
-            enddo
-            write(funit,*) '   Dumping Gsup component',l,m
-            ivar = ivar+1
-            descr(ivar)='gsup('//trim(int2char(l))//','
-     .                         //trim(int2char(m))//')'
-            call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
-          enddo
-        enddo
-
-        !Cnv vectors
-        do l=1,3
-          do m=1,3
-            do j=0,ny+1
-              do i=0,nx+1
-                dbg(i,j,1,1) =
-     .               gparams%gmetric%grid(igrid)%cnv(i,j,k,l,m)
-     .              *gparams%gmetric%grid(igrid)%jac(i,j,k)
-                if (dump_diff) then
-                  vec = contravariantVector(l,i,j,k,igrid,igrid,igrid)
-     .                 *jacobian(i,j,k,igrid,igrid,igrid)
-                  dbg(i,j,1,1) = dbg(i,j,1,1)-vec(m)
-                endif
-              enddo
-            enddo
-            write(funit,*) '   Dumping Cnv vector',l,' component',m
-            ivar = ivar+1
-            descr(ivar)='Cnv_'//trim(int2char(l))//'('
-     .                        //trim(int2char(m))//')'
-            call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1
-     .                    ,110)
-          enddo
-        enddo
-
-        !Christoffle symbols
-        do l=1,3
-          do m=1,3
-            do n=m,3
-              do j=0,ny+1
-                do i=0,nx+1
-                  dbg(i,j,1,1) =
-     .                 gparams%gmetric%grid(igrid)%Gamma(i,j,k,l,m,n)
-     .                *gparams%gmetric%grid(igrid)%jac(i,j,k)
-                  if (dump_diff) then
-                    tensor  = christ_2knd(i,j,k,igrid,igrid,igrid)
-                    dbg(i,j,1,1) = dbg(i,j,1,1)
-     .                    -tensor(l,m,n)
-     .                    *jacobian(i,j,k,igrid,igrid,igrid)
-                  endif
-                enddo
-              enddo
-              write(funit,*) '   Dumping Gamma component',l,m,n
-              ivar = ivar+1
-              descr(ivar)='Gamma'//trim(int2char(l))//'('
-     .                           //trim(int2char(m))//','
-     .                           //trim(int2char(n))//')'
-              call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1
-     .                    ,110)
-            enddo
-          enddo
-        enddo
-
-        deallocate(dbg)
-        close(110)
-
-        !Create draw*.in file
-        call createDrawInCfile(ivar,debugfile,'Grid debug'
-     .                        ,'t','x','y',descr,'-c -X0 -L57'
-     .                        ,drawfile)
-
-        enddo
-      enddo
-
-      write(funit,*)
-      write(funit,*) 'Done!'
-      write(funit,*) 
-
-      end subroutine graphicsCheck
 
       end subroutine defineGridMetric
 
