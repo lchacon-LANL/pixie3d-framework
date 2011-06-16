@@ -27,9 +27,9 @@ c      Deallocates dynamic storage space used in preconditioner
 c
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
-c module nk_mod
+c module nk
 c ###################################################################
-      module nk_mod
+      module nk
 
       use grid_mpi
 
@@ -102,9 +102,9 @@ c     Local variables
 
       end subroutine findRoundOff
 
-c     nk
+c     jfnk
 c     ###############################################################
-      subroutine nk(neq,ntot,x,iguess,out,ierr)
+      subroutine jfnk(neq,ntot,x,iguess,out,ierr)
 c     ---------------------------------------------------------------
 c     Performs Jacobian-free inexact Newton iteration on res(x) = 0, 
 c     where res is calculated in 'evaluateNonlinearResidual' (provided
@@ -435,7 +435,7 @@ cc      deallocate (xx0)
  240  format ('    Newton converged in too many iterations (>',i2,')')
  320  format (' Residual  eqn. ',i2,': ',1pe9.2)
 
-      end subroutine nk
+      end subroutine jfnk
 
 c     calculateResidualNorms
 c     ###############################################################
@@ -1558,4 +1558,4 @@ ccc     End
 cc
 cc      end function fmedval
 
-      end module nk_mod
+      end module nk
