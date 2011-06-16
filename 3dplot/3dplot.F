@@ -302,7 +302,7 @@ c Read user initializations
 
 c Initialize MG and create grid
 
-      call createGrid(nxd,nyd,nzd,g_pack,gv%gparams)
+      call createGrid(nxd,nyd,nzd,gv%gparams)
 
 c Open graphics files (this initializes local limits, among other things)
 
@@ -336,7 +336,8 @@ c Initialize MK grid
 
       if (mk_grid) then
         call MK_alloc
-        call MK_initGrid(igx)
+        call MK_initGrid(igx,bcs=bcond)
+cc        call MK_initGrid(1)
       endif
 
 c Set plotting range
