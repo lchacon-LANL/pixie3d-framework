@@ -72,8 +72,7 @@ c Initialize ADIOS for componentized I/O
 
 #if defined(adios) && defined(petsc)
       if (.not.is_file('adios_config.xml')) then
-        call pstop('driver_3d'
-     .            ,'ADIOS config file not present')
+        call pstop('driver_3d','ADIOS config file not present')
       else
         call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
         call adios_init('adios_config.xml', adios_err)
