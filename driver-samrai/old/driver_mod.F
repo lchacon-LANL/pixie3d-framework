@@ -17,7 +17,7 @@ c ######################################################################
       module newtongm
 
 #if !defined(petsc_c)
-        use nk_mod
+        use nk
 #else
         integer    :: jit=1
 #endif
