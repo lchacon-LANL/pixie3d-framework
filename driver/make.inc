@@ -7,12 +7,16 @@ MESSAGE = "Compiling f90 driver"
 COMMONDIR = ..
 
 SUBDIRS = $(COMMONDIR)/math \
-	  $(COMMONDIR)/interpolation/1d_int \
 	  $(COMMONDIR)/io \
 	  $(COMMONDIR)/grid \
+	  $(COMMONDIR)/interpolation/1d_int \
 	  $(COMMONDIR)/var_setup \
 	  $(COMMONDIR)/driver_setup \
           $(COMMONDIR)/newtonGMRES\
+	  $(COMMONDIR)/matrixLightSolver\
+          $(COMMONDIR)/MG\
+          $(COMMONDIR)/orbit\
+          $(COMMONDIR)/mk\
           $(COMMONDIR)/eigen
 
 # Module order

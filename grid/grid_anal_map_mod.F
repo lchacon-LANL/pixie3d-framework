@@ -507,7 +507,7 @@ c         Convergence check
 
 c     jacobian
 c     #################################################################
-      function jacobian(i,j,k,igx,igy,igz) result(jac)
+      function jacobian(i,j,k,igx,igy,igz,vertex) result(jac)
 
 c     -----------------------------------------------------------------
 c     Calculates Jacobian of curvilinear coordinate system
@@ -517,18 +517,37 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: i,j,k,igx,igy,igz
-        real(8)    :: jac
+        integer :: i,j,k,igx,igy,igz
+        real(8) :: jac
+        logical,optional :: vertex
 
 c     Local variables
 
-        integer    :: ig,jg,kg
-        real(8)    :: x1,x2,x3,car(3),curv(3),aa,bb,major_r,mm,kk,eps
-     .               ,gp(ngparams)
+        integer :: ig,jg,kg
+        real(8) :: x1,x2,x3,car(3),curv(3),aa,bb,major_r,mm,kk,eps
+     .            ,gp(ngparams),x1p,x2p,x3p
+        logical :: vrtx
 
 c     Begin program
 
+        if (PRESENT(vertex)) then
+          vrtx = vertex
+        else
+          vrtx = .false.
+        endif
+
         gp = grid_params%params
+
+        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                ,x1,x2,x3)
+
+        if (vrtx) then
+          call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = 0.5*(x1+x1p)
+          x2 = 0.5*(x2+x2p)
+          x3 = 0.5*(x3+x3p)
+        endif
 
         select case (coords)
         case ('car')
@@ -551,19 +570,12 @@ cc          endif
 cc          ypp = (2*curv(2)/ymax-1.)
 cc          jac = cc*lambda/(cc**2-ypp**2)
         case ('cyl')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
           jac = x1
         case ('hel')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
           jac = x1
         case ('hl2')
           jac = 1d0
         case ('tor')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
-
           major_r = gp(1)
           aa      = gp(2)
           bb      = gp(3)
@@ -571,9 +583,6 @@ cc          jac = cc*lambda/(cc**2-ypp**2)
           jac = aa*bb*x1*(major_r + aa*x1*cos(x2))
         case ('sin')
           pi = acos(-1d0)
-
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
 
           eps = gp(1)
           jac = (xmax*ymax + eps*Pi*(xmax - ymax)*
@@ -590,7 +599,8 @@ cc          jac = cc*lambda/(cc**2-ypp**2)
 
 c     covariantVector
 c     #################################################################
-      function covariantVector(comp,i,j,k,igx,igy,igz) result (vec)
+      function covariantVector(comp,i,j,k,igx,igy,igz,vertex)
+     .         result(vec)
 
 c     -----------------------------------------------------------------
 c     Calculates covariant vectors of curvilinear coordinate system
@@ -601,17 +611,37 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: comp,i,j,k,igx,igy,igz
+        integer :: comp,i,j,k,igx,igy,igz
+        logical,optional :: vertex
 
 c     Local variables
 
-        integer    :: ig,jg,kg
-        real(8)    :: x1,x2,x3,aa,bb,major_r,mm,kk,eps,phi,jac,r
-        real(8)    :: car(3),curv(3),vec(3),gp(ngparams)
+        integer :: ig,jg,kg
+        real(8) :: x1,x2,x3,aa,bb,major_r,mm,kk,eps,phi,jac,r
+     .            ,x1p,x2p,x3p
+        real(8) :: car(3),curv(3),vec(3),gp(ngparams)
+        logical :: vrtx
 
 c     Begin program
 
+        if (PRESENT(vertex)) then
+          vrtx = vertex
+        else
+          vrtx = .false.
+        endif
+
         gp = grid_params%params
+
+        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                ,x1,x2,x3)
+
+        if (vrtx) then
+          call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = 0.5*(x1+x1p)
+          x2 = 0.5*(x2+x2p)
+          x3 = 0.5*(x3+x3p)
+        endif
 
         select case (coords)
         case ('car')
@@ -626,9 +656,6 @@ c     Begin program
         case ('scl')
           vec = 0d0
 cc          lambda = gp(1)
-cc
-cc          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-cc     .                                  ,x1,x2,x3)
 cc
 cc          curv = (/ x1,x2,x3 /)
 cc
@@ -646,8 +673,11 @@ cc            case (3)
 cc              vec = (/ 0d0,0d0,1d0 /)
 cc          end select
         case ('cyl')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
+          if (x1 == 0d0) then
+            vec = 0d0
+            return
+          endif
+
           curv = (/ x1,x2,x3 /)
 
           select case (comp)
@@ -659,8 +689,11 @@ cc          end select
               vec = (/ 0d0,0d0,1d0 /)
           end select
         case ('hel')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
+          if (x1 == 0d0) then
+            vec = 0d0
+            return
+          endif
+
           curv = (/ x1,x2,x3 /)
 
           mm = gp(1)
@@ -677,8 +710,6 @@ cc          end select
               vec = (/ 0d0,0d0,1d0 /)
           end select
         case ('hl2')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
           curv = (/ sign(sqrt(2*abs(x1)),x1),x2,x3 /)
 
           mm = gp(1)
@@ -695,12 +726,15 @@ cc          end select
               vec = (/ 0d0,0d0,1d0 /)
           end select
         case ('tor')
+          if (x1 == 0d0) then
+            vec = 0d0
+            return
+          endif
+
           major_r = gp(1)
           aa      = gp(2)
           bb      = gp(3)
 
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
           curv = (/ x1,x2,x3 /)
 
           select case (comp)
@@ -719,9 +753,6 @@ cc          end select
         case ('sin')
 
           pi = acos(-1d0)
-
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
 
           eps = gp(1)
 
@@ -767,7 +798,8 @@ cc          end select
 
 c     contravariantVector
 c     #################################################################
-      function contravariantVector(comp,i,j,k,igx,igy,igz) result (vec)
+      function contravariantVector(comp,i,j,k,igx,igy,igz,vertex)
+     .         result (vec)
 
 c     -----------------------------------------------------------------
 c     Calculates contravariant vectors of curvilinear coordinate system
@@ -778,18 +810,38 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: comp,i,j,k,igx,igy,igz
-        real(8)    :: vec(3)
+        integer :: comp,i,j,k,igx,igy,igz
+        real(8) :: vec(3)
+        logical,optional :: vertex
 
 c     Local variables
 
-        integer    :: ig,jg,kg
-        real(8)    :: car(3),curv(3),jac
-        real(8)    :: x1,x2,x3,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
+        integer :: ig,jg,kg
+        real(8) :: car(3),curv(3),jac
+        real(8) :: x1,x2,x3,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
+     .            ,x1p,x2p,x3p
+        logical :: vrtx
 
 c     Begin program
 
+        if (PRESENT(vertex)) then
+          vrtx = vertex
+        else
+          vrtx = .false.
+        endif
+
         gp = grid_params%params
+
+        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                ,x1,x2,x3)
+
+        if (vrtx) then
+          call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = 0.5*(x1+x1p)
+          x2 = 0.5*(x2+x2p)
+          x3 = 0.5*(x3+x3p)
+        endif
 
         select case (coords)
         case ('car')
@@ -803,8 +855,6 @@ c     Begin program
           end select
        case ('scl')
          vec = 0d0
-cc          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-cc     .                                  ,x1,x2,x3)
 cc          curv = (/ x1,x2,x3 /)
 cc
 cc          lambda = gp(1)
@@ -822,8 +872,11 @@ cc            case (3)
 cc              vec = (/ 0d0,0d0,jac /)
 cc          end select
         case ('cyl')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
+          if (x1 == 0d0) then
+            vec = 0d0
+            return
+          endif
+
           curv = (/ x1,x2,x3 /)
 
           select case (comp)
@@ -835,8 +888,11 @@ cc          end select
               vec = (/ 0d0,0d0,1d0 /)/curv(1)
           end select
         case ('hel')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
+          if (x1 == 0d0) then
+            vec = 0d0
+            return
+          endif
+
           curv = (/ x1,x2,x3 /)
 
           mm = gp(1)
@@ -852,8 +908,6 @@ cc          end select
               vec = (/ aa*sin(phi),-aa*cos(phi),1d0/curv(1) /)
           end select
         case ('hl2')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
           curv = (/ sign(sqrt(2*abs(x1)),x1),x2,x3 /)
 
           mm = gp(1)
@@ -869,12 +923,15 @@ cc          end select
               vec = (/ aa*sin(phi)*curv(1),-aa*cos(phi)*curv(1),1d0 /)
           end select
         case ('tor')
+          if (x1 == 0d0) then
+            vec = 0d0
+            return
+          endif
+
           major_r = gp(1)
           aa      = gp(2)
           bb      = gp(3)
 
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
           curv = (/ x1,x2,x3 /)
 
           select case (comp)
@@ -894,9 +951,6 @@ cc          end select
         case ('sin')
 
           pi = acos(-1d0)
-
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
 
           eps = gp(1)
 
@@ -1487,7 +1541,7 @@ cc          end select
 
 c     g_sub
 c     #################################################################
-      function g_sub(i,j,k,igx,igy,igz) result (tensor)
+      function g_sub(i,j,k,igx,igy,igz,vertex) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates contravariant metric tensor of curvilinear coordinate 
@@ -1498,18 +1552,38 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: i,j,k,igx,igy,igz
-        real(8)    :: tensor(3,3)
+        integer :: i,j,k,igx,igy,igz
+        real(8) :: tensor(3,3)
+        logical,optional :: vertex
 
 c     Local variables
 
-        integer    :: ig,jg,kg
-        real(8)    :: vec(9),jac,car(3),curv(3)
-        real(8)    :: x1,x2,x3,aa,bb,major_r,mm,kk,eps,gp(ngparams)
+        integer :: ig,jg,kg
+        real(8) :: vec(9),jac,car(3),curv(3)
+        real(8) :: x1,x2,x3,aa,bb,major_r,mm,kk,eps,gp(ngparams)
+     .            ,x1p,x2p,x3p,i_x1
+        logical :: vrtx
 
 c     Begin program
 
+        if (PRESENT(vertex)) then
+          vrtx = vertex
+        else
+          vrtx = .false.
+        endif
+
         gp = grid_params%params
+
+        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                ,x1,x2,x3)
+
+        if (vrtx) then
+          call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = 0.5*(x1+x1p)
+          x2 = 0.5*(x2+x2p)
+          x3 = 0.5*(x3+x3p)
+        endif
 
         select case (coords)
         case ('car')
@@ -1518,8 +1592,6 @@ c     Begin program
      .            ,0d0, 0d0, 1d0 /)
         case ('scl')
           vec = 0d0
-cc          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-cc     .                                  ,curv(1),curv(2),curv(3))
 cccc          curv = (/ x1,x2,x3 /)
 cc
 cc          lambda = gp(1)
@@ -1531,25 +1603,25 @@ cc          vec = (/ 1d0/jac, 0d0, 0d0
 cc     .            ,0d0    , jac, 0d0
 cc     .            ,0d0    , 0d0, 1d0/jac /)
         case ('cyl')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
-
-          vec = (/ 1d0/x1, 0d0  , 0d0
-     .            ,0d0   , x1   , 0d0
-     .            ,0d0   , 0d0  , 1d0/x1 /)
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+            vec = (/ 1d0/x1, 0d0  , 0d0
+     .              ,0d0   , x1   , 0d0
+     .              ,0d0   , 0d0  , 1d0/x1 /)
+          endif
         case ('hel')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
-
           mm = gp(1)
           kk = gp(2)
           aa = kk/mm
-          vec = (/ 1./x1, 0d0  ,      0d0
-     .            ,0d0  ,  x1  ,    -aa*x1
-     .            ,0d0  ,-aa*x1, 1./x1 + aa**2*x1 /)
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+            vec = (/ 1./x1, 0d0  ,      0d0
+     .              ,0d0  ,  x1  ,    -aa*x1
+     .              ,0d0  ,-aa*x1, 1./x1 + aa**2*x1 /)
+          endif
         case ('hl2')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
           curv = (/ abs(2*x1),x2,x3 /)
 
           mm = gp(1)
@@ -1559,43 +1631,35 @@ cc     .            ,0d0    , 0d0, 1d0/jac /)
      .            ,0d0, curv(1) ,-aa*curv(1)
      .            ,0d0,-aa*curv(1), 1 + aa**2*curv(1) /)
         case ('tor')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+            major_r = gp(1)
+            aa      = gp(2)
+            bb      = gp(3)
 
-          major_r = gp(1)
-          aa      = gp(2)
-          bb      = gp(3)
+            vec(1) = (aa**2 + bb**2 + (aa**2 - bb**2)*Cos(2*x2))/
+     -               (2.*aa*bb*x1*(major_r + aa*x1*Cos(x2)))
 
-cc          curv = (/ x1,x2,x3 /)
-cc          vec = (/ 1d0/curv(1)/(major_r + curv(1)*cos(curv(2))),0d0,0d0
-cc     .            ,0d0, curv(1)/(major_r + curv(1)*cos(curv(2))), 0d0
-cc     .            ,0d0, 0d0, (major_r/curv(1) + cos(curv(2))) /)
+            vec(2) = ((-aa**2 + bb**2)*Cos(x2)*Sin(x2))
+     .               /(aa*bb*(major_r + aa*x1*Cos(x2)))
 
-          vec(1) = (aa**2 + bb**2 + (aa**2 - bb**2)*Cos(2*x2))/
-     -             (2.*aa*bb*x1*(major_r + aa*x1*Cos(x2)))
+            vec(3) = 0d0
 
-          vec(2) = ((-aa**2 + bb**2)*Cos(x2)*Sin(x2))
-     .             /(aa*bb*(major_r + aa*x1*Cos(x2)))
+            vec(4) = vec(2)
 
-          vec(3) = 0d0
+            vec(5) = (x1*(aa**2 + bb**2 + (-aa**2 + bb**2)*Cos(2*x2)))/
+     -               (2.*aa*bb*(major_r + aa*x1*Cos(x2)))
 
-          vec(4) = vec(2)
+            vec(6) = 0d0
 
-          vec(5) = (x1*(aa**2 + bb**2 + (-aa**2 + bb**2)*Cos(2*x2)))/
-     -             (2.*aa*bb*(major_r + aa*x1*Cos(x2)))
-
-          vec(6) = 0d0
-
-          vec(7) = vec(3)
-          vec(8) = vec(6)
-          vec(9) = (major_r + aa*x1*Cos(x2))/(aa*bb*x1)
-
+            vec(7) = vec(3)
+            vec(8) = vec(6)
+            vec(9) = (major_r + aa*x1*Cos(x2))/(aa*bb*x1)
+          endif
         case ('sin')
 
           pi = acos(-1d0)
-
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
 
           eps = gp(1)
 
@@ -1652,13 +1716,13 @@ cc     .            ,0d0, 0d0, (major_r/curv(1) + cos(curv(2))) /)
           stop
         end select
 
-        tensor = reshape(vec, (/3,3/))
+        tensor = reshape(vec,(/3,3/))
 
       end function g_sub
 
 c     g_sup
 c     #################################################################
-      function g_sup(i,j,k,igx,igy,igz) result (tensor)
+      function g_sup(i,j,k,igx,igy,igz,vertex) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates covariant metric tensor of curvilinear coordinate 
@@ -1669,28 +1733,46 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: i,j,k,igx,igy,igz
-        real(8)    :: tensor(3,3)
+        integer :: i,j,k,igx,igy,igz
+        real(8) :: tensor(3,3)
+        logical,optional :: vertex
 
 c     Local variables
 
-        integer    :: ig,jg,kg
-        real(8)    :: vec(9),jac,car(3),curv(3)
-        real(8)    :: x1,x2,x3,aa,bb,major_r,mm,kk,eps,gp(ngparams)
+        integer :: ig,jg,kg
+        real(8) :: vec(9),jac,car(3),curv(3)
+        real(8) :: x1,x2,x3,aa,bb,major_r,mm,kk,eps,gp(ngparams)
+     .            ,x1p,x2p,x3p
+        logical :: vrtx
 
 c     Begin program
 
+        if (PRESENT(vertex)) then
+          vrtx = vertex
+        else
+          vrtx = .false.
+        endif
+
         gp = grid_params%params
+
+        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
+     .                                ,x1,x2,x3)
+
+        if (vrtx) then
+          call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = 0.5*(x1+x1p)
+          x2 = 0.5*(x2+x2p)
+          x3 = 0.5*(x3+x3p)
+        endif
 
         select case (coords)
         case ('car')
           vec = (/ 1d0, 0d0, 0d0
      .            ,0d0, 1d0, 0d0
      .            ,0d0, 0d0, 1d0 /)
-       case ('scl')
+        case ('scl')
           vec = 0d0
-cc          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-cc     .                                  ,x1,x2,x3)
 cc          curv = (/ x1,x2,x3 /)
 cc
 cc          lambda = gp(1)
@@ -1702,76 +1784,71 @@ cc          vec = (/ jac, 0d0    , 0d0
 cc     .            ,0d0, 1d0/jac, 0d0
 cc     .            ,0d0, 0d0    , jac /)
         case ('cyl')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
-          curv = (/ x1,x2,x3 /)
-
-          vec = (/ curv(1) , 0d0   , 0d0
-     .            ,0d0, 1d0/curv(1), 0d0
-     .            ,0d0, 0d0   , curv(1) /)
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+            vec = (/ x1 , 0d0   , 0d0
+     .              ,0d0, 1d0/x1, 0d0
+     .              ,0d0, 0d0   , x1 /)
+          endif
         case ('hel')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
-          curv = (/ x1,x2,x3 /)
-
           mm = gp(1)
           kk = gp(2)
           aa = kk/mm
-          vec = (/ curv(1),0d0,0d0
-     .            ,0d0,1./curv(1) + aa**2*curv(1), aa*curv(1)
-     .            ,0d0, aa*curv(1), curv(1) /)
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+            vec = (/  x1  , 0d0              , 0d0
+     .              , 0d0 , 1./x1 + aa**2*x1 , aa*x1
+     .              , 0d0 , aa*x1            , x1 /)
+          endif
         case ('hl2')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
-          curv = (/ abs(2*x1),x2,x3 /)
-
           mm = gp(1)
           kk = gp(2)
           aa = kk/mm
-          vec = (/ curv(1),0d0,0d0
-     .            ,0d0,1./curv(1) + aa**2, aa
-     .            ,0d0, aa, 1d0 /)
+
+          x1 = abs(2*x1)
+
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+            vec = (/ x1 , 0d0          , 0d0
+     .              ,0d0, 1./x1 + aa**2, aa
+     .              ,0d0, aa           , 1d0 /)
+          endif
         case ('tor')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
-          curv = (/ x1,x2,x3 /)
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+            major_r = gp(1)
+            aa      = gp(2)
+            bb      = gp(3)
 
-          major_r = gp(1)
-          aa      = gp(2)
-          bb      = gp(3)
+            vec(1) = -(x1*(major_r + aa*x1*Cos(x2))*
+     .               (-aa**2 - bb**2 + (aa**2 - bb**2)*Cos(2*x2)))
+     .               /(2.*aa*bb)
 
-cc          vec = (/ curv(1)*(major_r + curv(1)*cos(curv(2))), 0d0, 0d0
-cc     .            ,0d0, (major_r/curv(1) + cos(curv(2))), 0d0
-cc     .            ,0d0, 0d0, curv(1)/(major_r + curv(1)*cos(curv(2))) /)
+            vec(2) = ((aa**2 - bb**2)*Cos(x2)
+     .               *(major_r + aa*x1*Cos(x2))*Sin(x2))
+     .               /(aa*bb)
 
-          vec(1) = -(x1*(major_r + aa*x1*Cos(x2))*
-     .             (-aa**2 - bb**2 + (aa**2 - bb**2)*Cos(2*x2)))
-     .             /(2.*aa*bb)
+            vec(3) = 0d0
 
-          vec(2) = ((aa**2 - bb**2)*Cos(x2)
-     .             *(major_r + aa*x1*Cos(x2))*Sin(x2))
-     .             /(aa*bb)
+            vec(4) = vec(2)
 
-          vec(3) = 0d0
+            vec(5) = ((major_r + aa*x1*Cos(x2))
+     .              *(aa**2 + bb**2 + (aa**2 - bb**2)*Cos(2*x2)))
+     .              /(2.*aa*bb*x1)
 
-          vec(4) = vec(2)
+            vec(6) = 0d0
 
-          vec(5) = ((major_r + aa*x1*Cos(x2))
-     .            *(aa**2 + bb**2 + (aa**2 - bb**2)*Cos(2*x2)))
-     .            /(2.*aa*bb*x1)
-
-          vec(6) = 0d0
-
-          vec(7) = vec(3)
-          vec(8) = vec(6)
-          vec(9) = (aa*bb*x1)/(major_r + aa*x1*Cos(x2))
-
+            vec(7) = vec(3)
+            vec(8) = vec(6)
+            vec(9) = (aa*bb*x1)/(major_r + aa*x1*Cos(x2))
+          endif
         case ('sin')
 
           pi = acos(-1d0)
-
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
 
           eps = gp(1)
 
@@ -1828,7 +1905,7 @@ cc     .            ,0d0, 0d0, curv(1)/(major_r + curv(1)*cos(curv(2))) /)
           stop
         end select
 
-        tensor = reshape(vec, (/3,3/))
+        tensor = reshape(vec,(/3,3/))
 
       end function g_sup
 

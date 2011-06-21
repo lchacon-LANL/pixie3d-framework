@@ -429,7 +429,7 @@ c     Local variables
 c     Begin program
 
         if (associated(varray)) then
-          do ieq=1,neqd
+          do ieq=1,size(varray%array_var)
             deallocate(varray%array_var(ieq)%array,stat=istat)
             deallocate(varray%array_var(ieq)%bc_dep_list,stat=istat)
             deallocate(varray%array_var(ieq)%dom_dep_list,stat=istat)
@@ -463,13 +463,15 @@ c     Local variables
 
 c     Begin program
 
-        if (associated(varray2)) then
-           if (varray2%nvar /= neqd) nullify(varray2)
-        endif
+cc        if (associated(varray2)) then
+cccc           if (varray2%nvar /= neqd) nullify(varray2)
+cc           if (varray2%nvar /= neqd) call deallocateDerivedType(varray2)
+cc        endif
 
         call allocateDerivedType(varray2)
 
         varray2%nvar = varray1%nvar
+
         do ieq=1,varray2%nvar
           varray2%array_var(ieq)%bconds =varray1%array_var(ieq)%bconds
           varray2%array_var(ieq)%array  =varray1%array_var(ieq)%array
@@ -508,6 +510,7 @@ c     Begin program
         call allocateDerivedType(varray,igx=igx,igy=igy,igz=igz)
 
         varray%nvar = gv%u_0%nvar
+
         do ieq=1,varray%nvar
           varray%array_var(ieq)%bconds = gv%u_0%array_var(ieq)%bconds
           varray%array_var(ieq)%descr  = gv%u_0%array_var(ieq)%descr
@@ -544,6 +547,7 @@ c     Begin program
         call allocateDerivedType(varray3)
 
         varray3%nvar = varray2%nvar
+
         do ieq=1,varray3%nvar
           varray3%array_var(ieq)%bconds =varray2%array_var(ieq)%bconds
           varray3%array_var(ieq)%array  =
@@ -713,6 +717,71 @@ c     Unpack vector x
 c     End program
 
       end subroutine mapVectorToStructure
+
+c     gatherVector
+c     ###################################################################
+      subroutine gatherVector(xout,xin)
+
+c     -------------------------------------------------------------------
+c     Collects PC solution vectors into a single vector.
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        real(8),intent(IN)  :: xin(:,:)
+        real(8),intent(OUT) :: xout(:)
+
+c     Local variables
+
+        integer    :: i,j,k,ii,iii,ieq
+
+c     Begin program
+
+        do ieq=1,size(xin,2)
+          do ii=1,size(xin,1)
+            iii = ieq + size(xin,2)*(ii-1)
+            xout(iii) = xin(ii,ieq)
+          enddo
+        enddo
+
+c     End program
+
+      end subroutine gatherVector
+
+c     scatterVector
+c     ###################################################################
+      subroutine scatterVector(xout,xin)
+
+c     -------------------------------------------------------------------
+c     Scatters PC residual into separate residuals, one per equation
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        real(8),intent(IN)  :: xin(:)
+        real(8),intent(OUT) :: xout(:,:)
+
+c     Local variables
+
+        integer :: i,j,k,ii,iii,ieq
+        real(8) :: dvol
+
+c     Begin program
+
+        do ieq=1,size(xout,2)
+          do ii=1,size(xout,1)
+            iii = ieq + size(xout,2)*(ii-1)
+            xout(ii,ieq) = xin(iii)
+          enddo
+        enddo
+
+c     End program
+
+      end subroutine scatterVector
 
       end module variable_setup
 
