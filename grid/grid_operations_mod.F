@@ -37,8 +37,12 @@ c ---------------------------------------------------------------------
           module procedure XformToCar_ijk,XformToCar_mesh
         end INTERFACE
 
+        INTERFACE XformToCurv
+          module procedure XformToCurv_ijk,XformToCurv_mesh
+        end INTERFACE
+
         INTERFACE XformVector
-          module procedure XformVector_mesh,XformVector_mesh2
+          module procedure XformVector_mesh!,XformVector_mesh2
         end INTERFACE
 
 cc        private :: transformVectorToCartesian
@@ -254,7 +258,7 @@ c     -----------------------------------------------------------------
 c     Input variables
 
         integer :: i,j,k,igrid
-        real(8) :: curv(:,:,:,:)
+        real(8) :: curv(0:,0:,0:,:)
      .            ,car(0:size(curv,1)-1
      .                ,0:size(curv,2)-1
      .                ,0:size(curv,3)-1,size(curv,4))
@@ -280,6 +284,99 @@ c     Begin program
         enddo
 
       end function XformToCar_mesh
+
+c     XformToCurv_ijk
+c     #################################################################
+      function XformToCurv_ijk(i,j,k,igrid,car,tocnv) result(curv)
+
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
+c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: car(3),curv(3)
+        logical :: tocnv
+
+c     Local variables
+
+        real(8) :: jac
+
+c     Begin program
+
+        jac = gmetric%grid(igrid)%jac(i,j,k)
+
+        if (.not.tocnv) then
+          curv = jac*matmul(gmetric%grid(igrid)%cnv(i,j,k,:,:),car)
+        else
+          curv = jac*matmul(gmetric%grid(igrid)%cov(i,j,k,:,:),car)
+        endif
+
+      end function XformToCurv_ijk
+
+c     XformToCurv_mesh
+c     #################################################################
+      function XformToCurv_mesh(igrid,car,tocnv) result(curv)
+
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector to Cartesian 
+c     over the whole mesh. Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: car(0:,0:,0:,:)
+     .            ,curv(0:size(car,1)-1
+     .                 ,0:size(car,2)-1
+     .                 ,0:size(car,3)-1,size(car,4))
+        logical :: tocnv
+
+c     Local variables
+
+        integer :: nxl,nyl,nzl
+
+c     Begin program
+
+        nxl = grid_params%nxv(igrid)
+        nyl = grid_params%nyv(igrid)
+        nzl = grid_params%nzv(igrid)
+
+cc        do k=0,nzl+1
+cc          do j=0,nyl+1
+cc            do i=0,nxl+1
+cc              curv(i,j,k,:) = XformToCurv_ijk(i,j,k,igrid,car(i,j,k,:)
+cc     .                                       ,tocnv)
+cc            enddo
+cc          enddo
+cc        enddo
+
+        curv = car
+        if (tocnv) then
+          call transformVector(igrid,igrid,igrid
+     .                      ,0,nxl,0,nyl,0,nzl
+     .                      ,curv(:,:,:,1)
+     .                      ,curv(:,:,:,2)
+     .                      ,curv(:,:,:,3)
+     .                      ,'car','cnv')
+        else
+          call transformVector(igrid,igrid,igrid
+     .                      ,0,nxl,0,nyl,0,nzl
+     .                      ,curv(:,:,:,1)
+     .                      ,curv(:,:,:,2)
+     .                      ,curv(:,:,:,3)
+     .                      ,'car','cov')
+        endif
+
+      end function XformToCurv_mesh
 
 c     transformVectorToCurvilinear
 c     #################################################################
@@ -649,6 +746,7 @@ c     Input variables
 
         integer :: igrid
         real(8) :: vec(:,:,:,:)
+
         character(3) :: in_repr,out_repr
 
 c     Local variables

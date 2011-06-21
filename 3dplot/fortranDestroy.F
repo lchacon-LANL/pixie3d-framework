@@ -10,6 +10,8 @@ c ######################################################################
 
       use graphics
 
+      use mk
+
       implicit none
 
 c Call variables
@@ -25,6 +27,8 @@ c Begin program
       call deallocateDerivedType(u_ic)
 
       call deallocateApplicationVariables   !External
+
+      if (mk_grid) call MK_dealloc
 
       call deallocateGlobalVar(gv)
 

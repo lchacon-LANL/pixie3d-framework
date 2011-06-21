@@ -19,6 +19,8 @@ c##########################################################################
 
       use acc_tests
 
+      use mk
+
       implicit none
 
 c Local variables
@@ -93,6 +95,14 @@ c     Time level plots (xdraw)
         if (    nplot        == ndplot
      .     .or.(time-tmplot) >= dplot-0.9*dt
      .     .or. time         == 0d0) then
+
+          !Setup MK grid
+          if(mk_grid) then
+            xold = xnew
+            call MK_setup_grid(igx,u_np%array_var(neqd)%array)
+            gvel =-(xnew-xold)/dt  !In Cartesian geometry
+            call MK_xfer_equ  (igx,u_ic)
+          endif
 
           !Post-process solution for diagnostics
           call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
@@ -224,6 +234,8 @@ c----------------------------------------------------------------------
 
       use graphics
 
+      use mk
+
       implicit none
 
 c Call variables
@@ -286,9 +298,11 @@ c Read user initializations
 
       call readGraphicsInput
 
+      if (mk_grid) neqd = neqd+1  !Add MK equation
+
 c Initialize MG and create grid
 
-      call createGrid(nxd,nyd,nzd,g_pack,gv%gparams)
+      call createGrid(nxd,nyd,nzd,gv%gparams)
 
 c Open graphics files (this initializes local limits, among other things)
 
@@ -318,6 +332,14 @@ c Define application arrays (external)
 
       call allocateApplicationVariables     !External
 
+c Initialize MK grid
+
+      if (mk_grid) then
+        call MK_alloc
+        call MK_initGrid(igx,bcs=bcond)
+cc        call MK_initGrid(1)
+      endif
+
 c Set plotting range
 
       call setGraphicsRange(igx,igy,igz)
@@ -325,9 +347,14 @@ c Set plotting range
 c Initialize diagnostics and related variables
 
       call equateDerivedType(u_ic,u_0)
+
+      if (mk_grid) call MK_spline_equ(igx,u_ic)  !Spline equilibrium
+
       call equateDerivedType(u_n ,u_0)
 
+      if (mk_grid) u_ic%nvar = u_ic%nvar-1
       call initializeDiagnostics(u_ic,igx,igy,igz)    !External
+      if (mk_grid) u_ic%nvar = u_ic%nvar+1
 
       call equateDerivedType(u_np,u_ic)
       call equateDerivedType(u_n ,u_ic)
