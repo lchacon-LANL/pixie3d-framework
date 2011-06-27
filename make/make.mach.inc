@@ -261,15 +261,38 @@ endif
 ifeq ($(HOST),ra22)
   MACHINE=ra22
 
-  FC     = pgf95
+  CPPFLAGS += $(PREPROC)RFX
 
-  PETSC_ARCH = linux64_openmpi
-  PETSC_DIR =/ricercatori/ft/petsc-3.0.0-p7
+  FC = pgf95
 
   override HDF5 = f
 
-  CPPFLAGS += $(PREPROC)RFX
-  LIBS     += -llapack -lblas
+  ifdef BOPT
+    PETSC_DIR =/ricercatori/ft/petsc-3.0.0-p7
+#    PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_openmpi
+    else
+      PETSC_ARCH = linux64_openmpi_g
+    endif
+
+    ADIOS = t
+    ADIOS_HOME = /ricercatori/ft/adios-1.2.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/ricercatori/ft/mxml-2.6/lib -lmxml
+
+  else
+    LIBS     += -llapack -lblas
+
+    ADIOS = f
+  endif
+
+  VMEC = t
+
+  NETCDF=f
+#  NETCDF_LIBS = -lnetcdff -lnetcdf
+#  NETCDF_INC  = -I/usr/include
+
 endif
 
 ############
