@@ -599,11 +599,11 @@ c     ----------------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: nx1,ny1,nz1
+      integer :: nx1,ny1,nz1
 
 c     Local variables
 
-      integer    :: nx,ny,nz,sum_exp,nd,navg,exp(3),npt(3),nprocs
+      integer :: nx,ny,nz,sum_exp,nd,navg,exp(3),npt(3),nprocs
 
 c     Begin program
 
@@ -642,7 +642,7 @@ c     Eliminate specified directions
         endif
       endif
 
-c     Check MG is an option
+c     Check for unallocated procs
 
       sum_exp = floor(log(1d0*nprocs)/log(2d0))
 
@@ -681,20 +681,23 @@ c     Find dimensionality
       endif
 
       !Find exponents
-cc      navg = nint((nx*ny*nz/nprocs)**(1./nd))
-      navg = int((nx*ny*nz/nprocs)**(1./nd))
+      navg = (int((nx*ny*nz)/nprocs)**(1./nd))
 
       npt = (/nx,ny,nz/)
-cc      exp = nint(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
       exp = int(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
-
-cc      write (*,*) 'DIAG -- procAlloc',nx,ny,nz,nprocs,navg,exp,sum_exp
 
       !Consistency check
       if (sum(exp) /= sum_exp) then
-        if (nx >= ny .and. nx >= nz) then
+cc        if (nx >= ny .and. nx >= nz) then
+cc          exp(1) = sum_exp - exp(2) - exp(3)
+cc        elseif (ny >= nx .and. ny >= nz) then
+cc          exp(2) = sum_exp - exp(1) - exp(3)
+cc        else
+cc          exp(3) = sum_exp - exp(1) - exp(2)
+cc        endif
+        if (exp(1) /= maxval(exp).and. nx > 1) then
           exp(1) = sum_exp - exp(2) - exp(3)
-        elseif (ny >= nx .and. ny >= nz) then
+        elseif (exp(2) /= maxval(exp).and. ny > 1) then
           exp(2) = sum_exp - exp(1) - exp(3)
         else
           exp(3) = sum_exp - exp(1) - exp(2)
@@ -706,6 +709,11 @@ c     Find processor distribution
       if (npx == 0) npx = 2**exp(1)
       if (npy == 0) npy = 2**exp(2)
       if (npz == 0) npz = 2**exp(3)
+
+cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank
+cc     .            ,nx,ny,nz,nprocs,navg,exp,sum_exp
+cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank
+cc     .            ,npx,npy,npz
 
 c     End program
 
