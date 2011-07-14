@@ -204,12 +204,12 @@ c     Begin program
           kmaxg = nz+1
         endif
 
-        iming = 0
-        imaxg = nx+1
-        jming = 0
-        jmaxg = ny+1
-        kming = 0
-        kmaxg = nz+1
+cc        iming = 0
+cc        imaxg = nx+1
+cc        jming = 0
+cc        jmaxg = ny+1
+cc        kming = 0
+cc        kmaxg = nz+1
 
 cc        iming = ilo
 cc        imaxg = ihi
