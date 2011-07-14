@@ -69,10 +69,10 @@ ifeq ($(HOST),quevedo)
 
       HDF5 = t
 
-      HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
-      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(HDF5_HOME)/lib
-      HDF5_INC  =-I$(HDF5_HOME)/include
+      HDF5_HOME =/usr/lib64/openmpi/lib
+      HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(HDF5_HOME)
+      HDF5_INC  =-I/usr/include/openmpi-x86_64
 
       ADIOS = t
 
@@ -93,11 +93,6 @@ ifeq ($(HOST),quevedo)
       endif
       ifeq ($(FC),gfortran)
         HDF5 = t
-
-//         HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
-//         HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-//         HDF5_MOD  = $(HDF5_HOME)/lib
-//         HDF5_INC  =-I$(HDF5_HOME)/include
 
         HDF5_HOME =/usr/lib64
         HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
@@ -129,21 +124,49 @@ ifeq ($(HOST),gongora)
 
   LIBS += -L/usr/lib -llapack -lblas
 
-  PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
-  PETSC_ARCH = linux_openmpi
-
-  HDF5 = t
-  HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
-  HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-  HDF5_MOD  = $(HDF5_HOME)/lib
-  HDF5_INC  =-I$(HDF5_HOME)/include
-
   NETCDF=f
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include/netcdf
 
   VMEC = t
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  ifdef BOPT
+    PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux_openmpi
+    else
+      PETSC_ARCH = linux_openmpi_g
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME =/usr/lib/openmpi/lib
+    HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)
+    HDF5_INC  =-I$/usr/include/openmpi-i386
+
+    ADIOS = f
+#    ADIOS = t
+
+#    ADIOS_HOME = $(HOME)/lib/adios-1.2.1
+#    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+
+  else
+    LIBS += -L/usr/lib -llapack -lblas
+
+    HDF5 = t
+
+    HDF5_HOME =/usr/lib
+    HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
+    HDF5_INC  =-I/usr/include
+
+    ADIOS = f
+
+  endif
+
 endif
 
 ##########
