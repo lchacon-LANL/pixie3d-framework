@@ -385,7 +385,7 @@ ifeq ($(findstring sith,$(HOST)),sith)
   #HDF5_DIR = /sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2
   HDF5_HOME = $(HDF5_DIR)
   HDF5_LIBS = $(HDF5_FLIB)
-  HDF5_MOD  = $(HDF5_HOME)/lib
+  HDF5_MOD  = $(HDF5_HOME)/lib -I$(HDF5_DIR)/include
 
   ADIOS = t
   #ADIOS_DIR=/ccs/proj/e2e/pnorbert/ADIOS/sith.pgi

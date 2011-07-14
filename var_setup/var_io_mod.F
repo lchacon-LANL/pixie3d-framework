@@ -49,7 +49,7 @@ c     #################################################################
       subroutine openRecordFileAdiosForRead(ierr)
         integer, intent(out) :: ierr
 
-        integer :: gcnt, vcnt, acnt, nullidx 
+        integer :: gcnt, vcnt, acnt, nullidx, ts, lastts
         character (len=20), dimension(1)  :: gnamelist  ! list of groups (=1)
 
         call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
@@ -62,7 +62,7 @@ c     #################################################################
         call adios_gopen (adios_fh, adios_gh, gnamelist(1), 
      .                     adios_varcount, adios_attrcount, ierr)
         call adios_inq_group (adios_gh, adios_varlist, 
-     .                       adios_attrlist, ierr)
+     .                       adios_attrlist, ts, lastts, ierr)
 
         ! count /var/ variables
         adios_nvar=0
