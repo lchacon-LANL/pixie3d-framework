@@ -681,23 +681,30 @@ c     Find dimensionality
       endif
 
       !Find exponents
-      navg = (int((nx*ny*nz)/nprocs)**(1./nd))
+      navg = int((1d0*(nx*ny*nz)/nprocs)**(1./nd))
 
       npt = (/nx,ny,nz/)
       exp = int(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
 
-      !Consistency check
+cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
+cc     .           ,' sum_exp=',sum_exp
+
+      !Consistency check (1st layer)
       if (sum(exp) /= sum_exp) then
-cc        if (nx >= ny .and. nx >= nz) then
-cc          exp(1) = sum_exp - exp(2) - exp(3)
-cc        elseif (ny >= nx .and. ny >= nz) then
-cc          exp(2) = sum_exp - exp(1) - exp(3)
-cc        else
-cc          exp(3) = sum_exp - exp(1) - exp(2)
-cc        endif
         if (exp(1) /= maxval(exp).and. nx > 1) then
           exp(1) = sum_exp - exp(2) - exp(3)
         elseif (exp(2) /= maxval(exp).and. ny > 1) then
+          exp(2) = sum_exp - exp(1) - exp(3)
+        elseif (exp(3) /= maxval(exp).and. nz > 1) then
+          exp(3) = sum_exp - exp(1) - exp(2)
+        endif
+      endif
+
+      !Consistency check (2nd layer)
+      if (sum(exp) /= sum_exp) then
+        if (nx >= ny .and. nx >= nz) then
+          exp(1) = sum_exp - exp(2) - exp(3)
+        elseif (ny >= nx .and. ny >= nz) then
           exp(2) = sum_exp - exp(1) - exp(3)
         else
           exp(3) = sum_exp - exp(1) - exp(2)
@@ -710,10 +717,13 @@ c     Find processor distribution
       if (npy == 0) npy = 2**exp(2)
       if (npz == 0) npz = 2**exp(3)
 
+cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
+cc     .           ,' sum_exp=',sum_exp
+cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' npt=',npt
+cc     .            ,' nprocs=',nprocs,' navg=',navg
 cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank
-cc     .            ,nx,ny,nz,nprocs,navg,exp,sum_exp
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank
-cc     .            ,npx,npy,npz
+cc     .           ,'Procs alloc=',npx,npy,npz
+cc      stop
 
 c     End program
 
