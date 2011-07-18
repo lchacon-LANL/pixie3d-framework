@@ -69,10 +69,10 @@ ifeq ($(HOST),quevedo)
 
       HDF5 = t
 
-      HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
-      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(HDF5_HOME)/lib
-      HDF5_INC  =-I$(HDF5_HOME)/include
+      HDF5_HOME =/usr/lib64/openmpi/lib
+      HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(HDF5_HOME)
+      HDF5_INC  =-I/usr/include/openmpi-x86_64
 
       ADIOS = t
 
@@ -93,11 +93,6 @@ ifeq ($(HOST),quevedo)
       endif
       ifeq ($(FC),gfortran)
         HDF5 = t
-
-//         HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
-//         HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-//         HDF5_MOD  = $(HDF5_HOME)/lib
-//         HDF5_INC  =-I$(HDF5_HOME)/include
 
         HDF5_HOME =/usr/lib64
         HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
@@ -129,21 +124,49 @@ ifeq ($(HOST),gongora)
 
   LIBS += -L/usr/lib -llapack -lblas
 
-  PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
-  PETSC_ARCH = linux_openmpi
-
-  HDF5 = t
-  HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
-  HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-  HDF5_MOD  = $(HDF5_HOME)/lib
-  HDF5_INC  =-I$(HDF5_HOME)/include
-
   NETCDF=f
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include/netcdf
 
   VMEC = t
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  ifdef BOPT
+    PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux_openmpi
+    else
+      PETSC_ARCH = linux_openmpi_g
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME =/usr/lib/openmpi/lib
+    HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)
+    HDF5_INC  =-I$/usr/include/openmpi-i386
+
+    ADIOS = f
+#    ADIOS = t
+
+#    ADIOS_HOME = $(HOME)/lib/adios-1.2.1
+#    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+
+  else
+    LIBS += -L/usr/lib -llapack -lblas
+
+    HDF5 = t
+
+    HDF5_HOME =/usr/lib
+    HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
+    HDF5_INC  =-I/usr/include
+
+    ADIOS = f
+
+  endif
+
 endif
 
 ##########
@@ -261,15 +284,38 @@ endif
 ifeq ($(HOST),ra22)
   MACHINE=ra22
 
-  FC     = pgf95
+  CPPFLAGS += $(PREPROC)RFX
 
-  PETSC_ARCH = linux64_openmpi
-  PETSC_DIR =/ricercatori/ft/petsc-3.0.0-p7
+  FC = pgf95
 
   override HDF5 = f
 
-  CPPFLAGS += $(PREPROC)RFX
-  LIBS     += -llapack -lblas
+  ifdef BOPT
+    PETSC_DIR =/ricercatori/ft/petsc-3.0.0-p7
+#    PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_openmpi
+    else
+      PETSC_ARCH = linux64_openmpi_g
+    endif
+
+    ADIOS = t
+    ADIOS_HOME = /ricercatori/ft/adios-1.2.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/ricercatori/ft/mxml-2.6/lib -lmxml
+
+  else
+    LIBS     += -llapack -lblas
+
+    ADIOS = f
+  endif
+
+  VMEC = t
+
+  NETCDF=f
+#  NETCDF_LIBS = -lnetcdff -lnetcdf
+#  NETCDF_INC  = -I/usr/include
+
 endif
 
 ############
@@ -312,20 +358,50 @@ ifeq ($(findstring jaguar,$(HOST)),jaguar)
   PETSC_ARCH ?= cray-xt
 
   HDF5 = t
-  HDF5_HOME = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+  #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+  HDF5_HOME = $(CRAY_HDF5_DIR)
   HDF5_LIBS = $(HDF5_FLIB)
   HDF5_MOD  = $(HDF5_HOME)/lib
 
   ADIOS = t
   ADIOS_HOME = $(ADIOS_DIR)
-  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) $(ADIOSREAD_FLIB)
+  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) 
 
   MACHINE = jaguar
+endif
+
+########
+# sith #
+########
+
+ifeq ($(findstring sith,$(HOST)),sith)
+  FC = pgf95
+
+  BOPT = t
+  PETSC_DIR ?= /sw/sith/petsc/3.0.0/centos5.5_pgi10.9_opt/petsc-3.0.0-p10
+  PETSC_ARCH ?= sith-opt
+
+  HDF5 = t
+  #HDF5_DIR = /sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2
+  HDF5_HOME = $(HDF5_DIR)
+  HDF5_LIBS = $(HDF5_FLIB)
+  HDF5_MOD  = $(HDF5_HOME)/lib -I$(HDF5_DIR)/include
+
+  ADIOS = t
+  #ADIOS_DIR=/ccs/proj/e2e/pnorbert/ADIOS/sith.pgi
+  #ADIOS_INC=-I/ccs/proj/e2e/pnorbert/ADIOS/sith.pgi/include -I/sw/sith/mxml/2.6/centos5.5_pgi10.9/include -I/sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2/include
+  #ADIOS_FLIB=-L/ccs/proj/e2e/pnorbert/ADIOS/sith.pgi/lib -ladiosf -L/sw/sith/mxml/2.6/centos5.5_pgi10.9/lib -lmxml -L/sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2/lib -lm -lmxml -lpthread -I/sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2/include -L/sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2/lib -lhdf5_hl -lhdf5 -L/sw/sith/szip/2.1/centos5.5_pgi10.9/lib -lsz -lz -lm -libverbs
+
+  ADIOS_HOME = $(ADIOS_DIR)
+  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) 
+
+  MACHINE = sith
 endif
 
 ###########
 # chester #
 ###########
+
 
 ifeq ($(findstring chester,$(HOST)),chester)
   # SAME AS JAGUAR
@@ -342,7 +418,7 @@ ifeq ($(findstring chester,$(HOST)),chester)
 
   ADIOS = t
   ADIOS_HOME = $(ADIOS_DIR)
-  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) $(ADIOSREAD_FLIB)
+  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB)
 
   MACHINE = chester
 endif
