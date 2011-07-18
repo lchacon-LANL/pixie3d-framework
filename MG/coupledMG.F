@@ -1612,6 +1612,7 @@ c     ##################################################################
      .                  ,sm_zebra_relax
      .                  ,sm_zebra_omega
      .                  ,sm_zebra_it
+     .                  ,sm_zebra_dir
      .                  )
 c     ---------------------------------------------------------------
 c     This subroutine solves a coupled system of neq equations. 
@@ -1656,6 +1657,7 @@ c       * sm_line_relax: whether we want line relaxation
 c       * sm_zebra_relax: whether we want zebra GS relaxation
 c       * sm_zebra_omega: inner relaxation factor in ZEBRA smoothing (between directions)
 c       * sm_zebra_it: inner ZEBRA iterations (per direction).
+c       * sm_zebra_dir: ZEBRA preferred direction (1,2,3; do all if zero)
 c     ---------------------------------------------------------------
 
         implicit none
@@ -1676,6 +1678,7 @@ c     Call variables
      .                                ,mg_coarse_grid_size
      .                                ,sm_it
      .                                ,sm_zebra_it
+     .                                ,sm_zebra_dir
      .                                ,sm_ncolors
      .                                ,ks_it
         logical,optional,intent(IN) :: sm_line_relax
@@ -1696,7 +1699,7 @@ c     Call variables
 c     Local variables
 
         integer    :: ntot,iorder_res,iorder_prol,vcyc,mu_cyc,nclrs,smit
-     .               ,mgmin,i,ieq,gmit,zit
+     .               ,mgmin,i,ieq,gmit,zit,zdir
         real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,rtol,zomg
         real(8), target :: ddg(neq,2*neq*ntotp)
         logical    :: gm_crse_solve,cvrg_test,lrelax,zrelax
@@ -1822,6 +1825,12 @@ c     Process optional arguments
           zit = sm_zebra_it
         else
           zit = 1
+        endif
+
+        if (PRESENT(sm_zebra_dir)) then
+          zdir = sm_zebra_dir
+        else
+          zdir = 0  !Do all directions
         endif
 
         if(PRESENT(sm_it)) then
@@ -2026,7 +2035,7 @@ c       MG smoother
           solverOptions%omega   = omg
           solverOptions%ncolors = nclrs
           solverOptions%mg_zebra_relax = zrelax
-          solverOptions%mg_zebra_prefd = 0
+          solverOptions%mg_zebra_prefd = zdir
 cc          if(bcSP()) solverOptions%mg_zebra_prefd = 1
           solverOptions%mg_zebra_it    = zit
           solverOptions%mg_zebra_omega = zomg
@@ -5066,7 +5075,7 @@ c Local variables
 
       integer    :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf
       integer    :: ii,iii,iib,iiib,iiv,ivg,iblock,jblock,kblock,nblk
-      real(8)    :: mag0=1d0,mag1,magsp,magsp0,mag,lmag,yy(ntot)
+      real(8)    :: mag0,mag1,magsp,magsp0,mag,lmag,yy(ntot),magz,magz0
 
       integer    :: ncolors,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
 
@@ -5154,7 +5163,24 @@ c Preparation for iteration
 
       nn = ntot
 
-      if (guess.eq.0) zz = 0d0
+      if (guess.eq.0) then
+        zz = 0d0
+        mag0 = sqrt(MGdot(igrid,neq,ntot,rr,rr)) !sqrt(yy*yy)
+      else
+        call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+        call MGvecadd(igrid,neq,ntot,-1d0,yy,1d0,rr) !yy=rr-yy
+        mag0 = sqrt(MGdot(igrid,neq,ntot,yy,yy)) !sqrt(yy*yy)
+       endif
+
+      mag = mag0
+
+      if (out.ge.2.and.prnt) write(*,10) '',0,mag,1d0
+
+      if (mag0.lt.1d-20*nn) then
+        mag0 = 1d0
+        mag1 = 1d0
+        iter = 0
+      endif
 
 c GS iteration
 
@@ -5162,6 +5188,7 @@ c GS iteration
 
       do itr=1,iter
 
+        mag1 = mag
         mag  = 0d0
 
 c       ----------
@@ -5174,261 +5201,21 @@ c         VERTEX-BASED RELAXATION
 
             gs_type = 'C-VERTX'
 
-            call scheduleColors(igrid,ncolors,nrbg1,nrbg2,nrbg3
-     .                         ,i1min,i1max,j1min,j1max,k1min,k1max)
-
-            do irbg3 = 1,nrbg3
-              do irbg2 = 1,nrbg2
-                do irbg1 = 1,nrbg1
-
-                call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-
-                !Vertex sampling
-                do kv=1+mod((    irbg3-1),nrbg3)
-     .                       ,max(nzf-mg_ratio_z(igrid)+1,1),nrbg3
-                  do jv=1+mod((kv   +irbg2+irbg1-1),nrbg2)
-     .                         ,max(nyf-mg_ratio_y(igrid)+1,1),nrbg2
-                    do iv=1+mod((jv+kv+irbg1-1),nrbg1)
-     .                           ,max(nxf-mg_ratio_x(igrid)+1,1),nrbg1
-
-                     !Find new residual
-                      do kblock=1,mg_ratio_z(igrid)
-                        do jblock=1,mg_ratio_y(igrid)
-                          do iblock=1,mg_ratio_x(igrid)
-
-                            iib = iblock + mg_ratio_x(igrid)*(jblock-1)
-     .                                   + mg_ratio_x(igrid)
-     .                                    *mg_ratio_y(igrid)*(kblock-1)
-
-                            if = iv-1 + iblock
-                            jf = jv-1 + jblock
-                            kf = kv-1 + kblock
-
-                            ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-
-                            do ieq = 1,neq
-                              iii  = neq*(ii -1) + ieq
-                              iiib = neq*(iib-1) + ieq
-                              rhs(iiib) = rr(iii) - yy(iii)
-                            enddo
-
-                          enddo
-                        enddo
-                      enddo
-
-                      !Multiply by D^-1 (stored in diag)
-                      iiv = iv + nxf*(jv-1) + nxf*nyf*(kv-1)
-                      ivg  = (iiv-1)*neq*nblk + isig -1
-                      dummy=matmul(transpose(diag(:,ivg+1:ivg+neq*nblk))
-     .                            ,rhs)
-
-                      !Update zz
-                      do kblock=1,mg_ratio_z(igrid)
-                        do jblock=1,mg_ratio_y(igrid)
-                          do iblock=1,mg_ratio_x(igrid)
-
-                            iib = iblock + mg_ratio_x(igrid)*(jblock-1)
-     .                                   + mg_ratio_x(igrid)
-     .                                    *mg_ratio_y(igrid)*(kblock-1)
-
-                            if = iv-1 + iblock
-                            jf = jv-1 + jblock
-                            kf = kv-1 + kblock
-
-                            ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-
-                            do ieq = 1,neq
-                              iii  = neq*(ii -1) + ieq
-                              iiib = neq*(iib-1) + ieq
-                              zz(iii) = zz(iii) + omega0*dummy(iiib)
-                            enddo
-
-                          enddo
-                        enddo
-                      enddo
-
-                      mag = mag + sum(rhs*rhs)
-
-                      enddo
-                    enddo
-                  enddo
-
-                enddo
-              enddo
-            enddo
+            call colored_vrtx_GS
 
 c         ZEBRA LINE RELAXATION
           elseif (zebra) then
 
             gs_type = 'C-ZEBRA'
 
-            if (zebra_dir == 0) then
-              minzd = 1
-              maxzd = 3
-            else
-              minzd = zebra_dir
-              maxzd = zebra_dir
-            endif
-
-            do zd=minzd,maxzd  !Cycle in zebra directions
-
-              call scheduleColors(igrid,ncolors,nrbg1,nrbg2,nrbg3
-     .                         ,i1min,i1max,j1min,j1max,k1min,k1max
-     .                         ,zebra_dir=zd)
-
-              if (out.ge.2.and.prnt) then
-                if (nrbg1/=0 .and. nrbg2/=0 .and. nrbg3/=0) then
-                  write (*,*) 'Zebra GS, line = ',zd
-                else
-                  write (*,*) 'Skipping GS zebra line = ',zd
-                endif
-              endif
-
-              if (out.ge.3.and.prnt) then
-                if (nrbg1/=0 .and. nrbg2/=0 .and. nrbg3/=0) then
-                  write (*,*) '  colors=',nrbg1,nrbg2,nrbg3
-                  write (*,*) '  ilimits=',i1min,i1max
-                  write (*,*) '  jlimits=',j1min,j1max
-                  write (*,*) '  klimits=',k1min,k1max
-                endif
-              endif
-
-              if (     (minzd==maxzd)
-     .            .and.(nrbg1==0.and.nrbg2==0.and.nrbg3==0)) then
-                write (*,*) 'zebra dir=',zd,' range=',minzd,maxzd
-                write (*,*) 'colors=',nrbg1,nrbg2,nrbg3
-                write (*,*) 'ilimits=',i1min,i1max
-                write (*,*) 'jlimits=',j1min,j1max
-                write (*,*) 'klimits=',k1min,k1max
-                call pstop('gs','No zebra GS relaxation is possible!')
-              endif
-
-              do irbg3 = 1,nrbg3
-               do irbg2 = 1,nrbg2
-                do irbg1 = 1,nrbg1
-
-                  do zit=1,zebra_it
-
-                    call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-
-                    if (out.ge.3.and.prnt) then
-                      write (*,'(a,i2,a,i2,a,i2,a,3i4)')
-     .                                'Inner zebra GS: dir=',zd
-     .                               ,'; it= ',zit
-     .                               ,'; color=',irbg1
-     .                                  + nrbg1*(irbg2-1)
-     .                                  + nrbg2*(irbg3-1)
-cc     .                               ,'; grid pos=',i,j,k
-                    endif
-
-                    do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
-                     do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2
-                      do i1=i1min+mod(j1+k1+irbg1-1,nrbg1),i1max,nrbg1
-
-                        call scheduleIndices(igrid,i1,j1,k1,i,j,k
-     .                                      ,zebra_dir=zd)
-
-cc                        write (*,*) 'DIAG -- zebra GS: it= ',zebra_it
-cc     .                             ,', dir=',zd
-cc     .                             ,', grid pos=',i,j,k
-cc
-cc                        ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-cc                        
-cc                        call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd
-cc     .                               ,matvec)
-
-cc                        if (zd==2 .and. isSP2(i,igrid,dim=1)) cycle
-
-                        !nxf,nyf,nzf are the original grid's even in line relaxation.
-                        iii = neq*(i-1 + nxf*(j-1) + nxf*nyf*(k-1))
-
-                        !Find new residual
-                        do ieq = 1,neq
-                          rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-                        enddo
-
-                        !Multiply by D^-1 (stored in diag)
-                        iig = iii + isig - 1
-                        dummy=matmul(transpose(diag(:,iig+1:iig+neq))
-     .                              ,rhs)
-
-                        !Update zz
-                        do ieq=1,neq
-                          zz(iii+ieq) = zz(iii+ieq)+zebra_omg*dummy(ieq)
-                        enddo
-
-                        if (zit == zebra_it) mag = mag + sum(rhs*rhs)
-
-                      enddo
-                     enddo
-                    enddo
-
-                  enddo
-
-                 enddo
-               enddo
-              enddo
-
-            enddo
+            call zebra_GS
 
 c         STANDARD RELAXATION
           else
 
             gs_type = 'Colored'
 
-            call scheduleColors(igrid,ncolors,nrbg1,nrbg2,nrbg3
-     .                         ,i1min,i1max,j1min,j1max,k1min,k1max)
-
-
-            if (out.ge.3.and.prnt) then
-              write (*,*) '  colors=',nrbg1,nrbg2,nrbg3
-              write (*,*) '  ilimits=',i1min,i1max
-              write (*,*) '  jlimits=',j1min,j1max
-              write (*,*) '  klimits=',k1min,k1max
-            endif
-
-            do irbg3 = 1,nrbg3
-              do irbg2 = 1,nrbg2
-                do irbg1 = 1,nrbg1
-
-                call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-
-                do k1=k1min+mod((    irbg3-1),nrbg3),k1max,nrbg3
-                  do j1=j1min+mod((k1+irbg2+irbg1-1),nrbg2),j1max,nrbg2
-                    do i1=i1min+mod((j1+k1+irbg1-1),nrbg1),i1max,nrbg1
-
-                      call scheduleIndices(igrid,i1,j1,k1,i,j,k)
-
-cc                      if (.not.isSP(i,j,k,igrid,igrid,igrid)) then
-                        !nxf,nyf,nzf are the original grid's even in line relaxation.
-                        iii = neq*(i-1 + nxf*(j-1) + nxf*nyf*(k-1))
-
-                        !Find new residual
-                        do ieq = 1,neq
-                          rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-                        enddo
-
-                        !Multiply by D^-1 (stored in diag)
-                        iig = iii + isig - 1
-                        dummy=matmul(transpose(diag(:,iig+1:iig+neq))
-     .                              ,rhs)
-
-                        !Update zz (except around SP)
-                        do ieq=1,neq
-                          zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
-                        enddo
-
-                        mag = mag + sum(rhs*rhs)
-cc                      endif
-
-                    enddo
-                  enddo
-
-                enddo
-
-                enddo
-              enddo
-            enddo
+            call colored_GS
 
           endif
 
@@ -5441,93 +5228,344 @@ c         VERTEX-BASED RELAXATION
           if (vbr) then
             gs_type = 'L-VERTX'
 
-            !Vertex sampling
-            do kv=1,max(nzf-mg_ratio_z(igrid)+1,1)
-              do jv=1,max(nyf-mg_ratio_y(igrid)+1,1)
-                do iv=1,max(nxf-mg_ratio_x(igrid)+1,1)
-
-                !Find new residual
-                do kblock=1,mg_ratio_z(igrid)
-                  do jblock=1,mg_ratio_y(igrid)
-                    do iblock=1,mg_ratio_x(igrid)
-
-                    iib = iblock + mg_ratio_x(igrid)*(jblock-1)
-     .                           + mg_ratio_x(igrid)
-     .                            *mg_ratio_y(igrid)*(kblock-1)
-
-                    if = iv-1 + iblock
-                    jf = jv-1 + jblock
-                    kf = kv-1 + kblock
-
-                    ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-
-                    call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
-
-                    do ieq = 1,neq
-                      iii  = neq*(ii -1) + ieq
-                      iiib = neq*(iib-1) + ieq
-                      rhs(iiib) = rr(iii) - yy(iii)
-                    enddo
-
-                    enddo
-                  enddo
-                enddo
-
-                !Multiply by D^-1 (stored in diag)
-                iiv = iv + nxf*(jv-1) + nxf*nyf*(kv-1)
-                ivg  = (iiv-1)*neq*nblk + isig -1
-                dummy=matmul(transpose(diag(:,ivg+1:ivg+neq*nblk)),rhs)
-
-                !Update zz
-                do kblock=1,mg_ratio_z(igrid)
-                  do jblock=1,mg_ratio_y(igrid)
-                    do iblock=1,mg_ratio_x(igrid)
-
-                    iib = iblock + mg_ratio_x(igrid)*(jblock-1)
-     .                           + mg_ratio_x(igrid)
-     .                            *mg_ratio_y(igrid)*(kblock-1)
-
-                    if = iv-1 + iblock
-                    jf = jv-1 + jblock
-                    kf = kv-1 + kblock
-
-                    ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-
-                    do ieq = 1,neq
-                      iii  = neq*(ii -1) + ieq
-                      iiib = neq*(iib-1) + ieq
-                      zz(iii) = zz(iii) + omega0*dummy(iiib)
-                    enddo
-
-                    enddo
-                  enddo
-                enddo
-
-                mag = mag + sum(rhs*rhs)
-
-                enddo
-              enddo
-            enddo
+            call vertex_GS
 
 c         STANDARD RELAXATION
           else
  
            gs_type = 'Lexicog'
 
-c           Forward pass
-            call limits(0,nxf,nyf,nzf,igrid
-     .                 ,imin,imax,jmin,jmax,kmin,kmax)
+           call lexic_GS
 
-            do k=kmin,kmax
-              do j=jmin,jmax
-                do i=imin,imax
+          endif
+
+        endif
+
+c     Check convergence
+
+#if defined(petsc)
+cc        if (.not.asm .and. out >= 1) then   !Do reduction only for debugging
+        if (.not.asm) then
+           lmag = mag
+           call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
+     .                       ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+cc        else
+cc          mag = mag0                  !Do NOT do reduction in parallel (convergence is set by #its)
+        endif
+#endif
+
+        mag = sqrt(mag)
+
+        if (out.ge.2.and.prnt) write(*,20) gs_type,itr,mag,mag/mag0
+     .                                     ,mag/mag1
+
+        if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
+
+      enddo
+
+c Calculate final residual and output info
+
+      itr = min(itr,iter)
+
+      if (out.ge.2.and.prnt) then
+cc        write (*,20) gs_type,itr,mag,mag/mag0,mag/mag1
+cc        write (*,10) gs_type,itr,mag,mag/mag0
+        write (*,*)
+      elseif (out.eq.1.and.prnt) then
+        write (*,10) gs_type,itr,mag,mag/mag0
+      endif
+
+      options%iter_out = itr
+      options%tol_out  = mag/mag0
+
+c End program
+
+      deallocate (dummy,rhs)
+
+      if (fdiag) then
+        deallocate(diag)
+      else
+        nullify(diag)
+      endif
+
+      call deallocPointers(fpointers)
+
+      return
+
+ 10   format (a,' GS Iteration:',i4,'; Residual:',1p,1e10.2,
+     .        '; Ratio:',1e10.2)
+ 20   format (a,' GS Iteration:',i4,'; Residual:',1p,1e10.2,
+     .        '; Ratio:',1e10.2,'; Damping:',1e10.2)
+
+      contains
+
+c     optionsConsistencyCheck
+c     ###################################################################
+      subroutine optionsConsistencyCheck
+
+        if ( (options%mg_vertex_relax.and.options%mg_zebra_relax))then
+          if (prnt) write (*,*) 'Invalid relaxation choice for GS'
+          call pstop('optionsConsistencyCheck in gs','Aborting...')
+        elseif (options%mg_vertex_relax .or. vbr_mg) then
+          options%ncolors = 4
+        elseif (options%mg_line_relax) then
+          options%ncolors = 1
+cc        elseif (options%mg_zebra_relax) then
+cc          options%omega = 0.7   !Do damped JB along lines
+cccc          options%omega = 1.
+        endif
+          
+      end subroutine optionsConsistencyCheck
+
+c     zebra_GS
+c     ###################################################################
+      subroutine zebra_GS
+
+        if (zebra_dir == 0) then
+          minzd = 1
+          maxzd = 3
+        else
+          minzd = zebra_dir
+          maxzd = zebra_dir
+        endif
+
+        do zd=minzd,maxzd  !Cycle in zebra directions
+
+          call scheduleColors(igrid,ncolors,nrbg1,nrbg2,nrbg3
+     .                     ,i1min,i1max,j1min,j1max,k1min,k1max
+     .                     ,zebra_dir=zd)
+
+          if (out.ge.2.and.prnt) then
+            if (nrbg1/=0 .and. nrbg2/=0 .and. nrbg3/=0) then
+              write (*,'(a,i1)') 'Zebra GS, line = ',zd
+            else
+              write (*,'(a,i1)') 'Skipping GS zebra line = ',zd
+            endif
+          endif
+
+          if (out.ge.3.and.prnt) then
+            if (nrbg1/=0 .and. nrbg2/=0 .and. nrbg3/=0) then
+              write (*,*) '  colors =',nrbg1,nrbg2,nrbg3
+              write (*,*) '  ilimits=',i1min,i1max
+              write (*,*) '  jlimits=',j1min,j1max
+              write (*,*) '  klimits=',k1min,k1max
+            endif
+          endif
+
+          if (     (minzd==maxzd)
+     .        .and.(nrbg1==0.and.nrbg2==0.and.nrbg3==0)) then
+            if (prnt) then
+              write (*,*) 'zebra dir=',zd,' range=',minzd,maxzd
+              write (*,*) 'colors =',nrbg1,nrbg2,nrbg3
+              write (*,*) 'ilimits=',i1min,i1max
+              write (*,*) 'jlimits=',j1min,j1max
+              write (*,*) 'klimits=',k1min,k1max
+            endif
+            call pstop('gs','No zebra GS relaxation is possible!')
+          endif
+
+          !Cycle in colors
+          do irbg3 = 1,nrbg3
+           do irbg2 = 1,nrbg2
+            do irbg1 = 1,nrbg1
+
+              !Inner ZEBRA iterations
+              do zit=1,zebra_it 
+
+                magz = 0d0
+
+                call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+
+                do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
+                 do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2
+                  do i1=i1min+mod(j1+k1+irbg1-1,nrbg1),i1max,nrbg1
+
+                    call scheduleIndices(igrid,i1,j1,k1,i,j,k
+     .                                  ,zebra_dir=zd)
+
+cc                    if (out.ge.4.and.prnt)
+                    if (prnt)
+     .                 write (*,'(a,i4,a,i2,a,3i4)')
+     .                         'DIAG -- zebra GS: it= ',zit
+     .                        ,', dir=',zd
+     .                        ,', grid pos=',i,j,k
+
+c diag ****
+cc                    ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+cc                    call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
+c diag ****
+
+                    !nxf,nyf,nzf are the original grid's even in line relaxation.
+                    iii = neq*(i-1 + nxf*(j-1) + nxf*nyf*(k-1))
+
+                    !Find new residual
+                    rhs = rr(iii+1:iii+neq) - yy(iii+1:iii+neq)
+
+                    !Multiply by D^-1 (stored in diag)
+                    iig = iii + isig - 1
+                    dummy=matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
+
+                    !Update zz
+                    zz(iii+1:iii+neq)=zz(iii+1:iii+neq)+zebra_omg*dummy
+
+                    magz = magz + sum(rhs*rhs)  !Zebra color accumulator (sum over same color)
+
+                  enddo
+                 enddo
+                enddo
+
+                if (zit == 1) magz0 = magz
+
+                if (out.ge.3.and.prnt) then
+                  write (*,'(a,i2,a,i4,a,i2,a,1pe10.2)')
+     .                            '   --> Inner zebra GS: dir=',zd
+     .                           ,'; it= ',zit
+     .                           ,'; color=',irbg1
+     .                              + nrbg1*(irbg2-1)
+     .                              + nrbg2*(irbg3-1)
+     .                           ,'; residual=',sqrt(magz/magz0)
+                endif
+
+              enddo
+
+              mag = mag + magz !Update outer accumulator (sum over colors)
+
+              if (out == 2.and.prnt) then
+                write (*,'(a,i2,a,i4,a,i2,a,1pe10.4)')
+     .                            '   --> Inner zebra GS: dir=',zd
+     .                           ,'; it= ',zebra_it
+     .                           ,'; color=',irbg1
+     .                              + nrbg1*(irbg2-1)
+     .                              + nrbg2*(irbg3-1)
+     .                           ,'; residual=',sqrt(magz/magz0)
+              endif
+
+             enddo
+           enddo
+          enddo
+
+        enddo
+
+      end subroutine zebra_GS
+
+c     colored_vrtx_GS
+c     ###################################################################
+      subroutine colored_vrtx_GS
+
+        call scheduleColors(igrid,ncolors,nrbg1,nrbg2,nrbg3
+     .                     ,i1min,i1max,j1min,j1max,k1min,k1max)
+
+        do irbg3 = 1,nrbg3
+          do irbg2 = 1,nrbg2
+            do irbg1 = 1,nrbg1
+
+            call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+
+            !Vertex sampling
+            do kv=1+mod((    irbg3-1),nrbg3)
+     .                   ,max(nzf-mg_ratio_z(igrid)+1,1),nrbg3
+              do jv=1+mod((kv   +irbg2+irbg1-1),nrbg2)
+     .                     ,max(nyf-mg_ratio_y(igrid)+1,1),nrbg2
+                do iv=1+mod((jv+kv+irbg1-1),nrbg1)
+     .                       ,max(nxf-mg_ratio_x(igrid)+1,1),nrbg1
+
+                 !Find new residual
+                  do kblock=1,mg_ratio_z(igrid)
+                    do jblock=1,mg_ratio_y(igrid)
+                      do iblock=1,mg_ratio_x(igrid)
+
+                        iib = iblock + mg_ratio_x(igrid)*(jblock-1)
+     .                               + mg_ratio_x(igrid)
+     .                                *mg_ratio_y(igrid)*(kblock-1)
+
+                        if = iv-1 + iblock
+                        jf = jv-1 + jblock
+                        kf = kv-1 + kblock
+
+                        ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                        do ieq = 1,neq
+                          iii  = neq*(ii -1) + ieq
+                          iiib = neq*(iib-1) + ieq
+                          rhs(iiib) = rr(iii) - yy(iii)
+                        enddo
+
+                      enddo
+                    enddo
+                  enddo
+
+                  !Multiply by D^-1 (stored in diag)
+                  iiv = iv + nxf*(jv-1) + nxf*nyf*(kv-1)
+                  ivg  = (iiv-1)*neq*nblk + isig -1
+                  dummy=matmul(transpose(diag(:,ivg+1:ivg+neq*nblk))
+     .                        ,rhs)
+
+                  !Update zz
+                  do kblock=1,mg_ratio_z(igrid)
+                    do jblock=1,mg_ratio_y(igrid)
+                      do iblock=1,mg_ratio_x(igrid)
+
+                        iib = iblock + mg_ratio_x(igrid)*(jblock-1)
+     .                               + mg_ratio_x(igrid)
+     .                                *mg_ratio_y(igrid)*(kblock-1)
+
+                        if = iv-1 + iblock
+                        jf = jv-1 + jblock
+                        kf = kv-1 + kblock
+
+                        ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                        do ieq = 1,neq
+                          iii  = neq*(ii -1) + ieq
+                          iiib = neq*(iib-1) + ieq
+                          zz(iii) = zz(iii) + omega0*dummy(iiib)
+                        enddo
+
+                      enddo
+                    enddo
+                  enddo
+
+                  mag = mag + sum(rhs*rhs)
+
+                  enddo
+                enddo
+              enddo
+
+            enddo
+          enddo
+        enddo
+
+      end subroutine colored_vrtx_GS
+
+c     colored_GS
+c     ###################################################################
+      subroutine colored_GS
+
+        call scheduleColors(igrid,ncolors,nrbg1,nrbg2,nrbg3
+     .                     ,i1min,i1max,j1min,j1max,k1min,k1max)
+
+
+        if (out.ge.3.and.prnt) then
+          write (*,*) '  colors=',nrbg1,nrbg2,nrbg3
+          write (*,*) '  ilimits=',i1min,i1max
+          write (*,*) '  jlimits=',j1min,j1max
+          write (*,*) '  klimits=',k1min,k1max
+        endif
+
+        do irbg3 = 1,nrbg3
+          do irbg2 = 1,nrbg2
+            do irbg1 = 1,nrbg1
+
+            call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+
+            do k1=k1min+mod((    irbg3-1),nrbg3),k1max,nrbg3
+              do j1=j1min+mod((k1+irbg2+irbg1-1),nrbg2),j1max,nrbg2
+                do i1=i1min+mod((j1+k1+irbg1-1),nrbg1),i1max,nrbg1
+
+                  call scheduleIndices(igrid,i1,j1,k1,i,j,k)
 
                   !nxf,nyf,nzf are the original grid's even in line relaxation.
-                  ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-
-                  call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
-
-                  iii = neq*(ii-1)
+                  iii = neq*(i-1 + nxf*(j-1) + nxf*nyf*(k-1))
 
                   !Find new residual
                   do ieq = 1,neq
@@ -5536,9 +5574,10 @@ c           Forward pass
 
                   !Multiply by D^-1 (stored in diag)
                   iig = iii + isig - 1
-                  dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
+                  dummy=matmul(transpose(diag(:,iig+1:iig+neq))
+     .                        ,rhs)
 
-                  !Update solution zz
+                  !Update zz (except around SP)
                   do ieq=1,neq
                     zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
                   enddo
@@ -5547,7 +5586,127 @@ c           Forward pass
 
                 enddo
               enddo
+
             enddo
+
+            enddo
+          enddo
+        enddo
+
+      end subroutine colored_GS
+
+c     vertex_GS
+c     ###################################################################
+      subroutine vertex_GS
+
+        !Vertex sampling
+        do kv=1,max(nzf-mg_ratio_z(igrid)+1,1)
+          do jv=1,max(nyf-mg_ratio_y(igrid)+1,1)
+            do iv=1,max(nxf-mg_ratio_x(igrid)+1,1)
+
+            !Find new residual
+            do kblock=1,mg_ratio_z(igrid)
+              do jblock=1,mg_ratio_y(igrid)
+                do iblock=1,mg_ratio_x(igrid)
+
+                iib = iblock + mg_ratio_x(igrid)*(jblock-1)
+     .                       + mg_ratio_x(igrid)
+     .                        *mg_ratio_y(igrid)*(kblock-1)
+
+                if = iv-1 + iblock
+                jf = jv-1 + jblock
+                kf = kv-1 + kblock
+
+                ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
+
+                do ieq = 1,neq
+                  iii  = neq*(ii -1) + ieq
+                  iiib = neq*(iib-1) + ieq
+                  rhs(iiib) = rr(iii) - yy(iii)
+                enddo
+
+                enddo
+              enddo
+            enddo
+
+            !Multiply by D^-1 (stored in diag)
+            iiv = iv + nxf*(jv-1) + nxf*nyf*(kv-1)
+            ivg  = (iiv-1)*neq*nblk + isig -1
+            dummy=matmul(transpose(diag(:,ivg+1:ivg+neq*nblk)),rhs)
+
+            !Update zz
+            do kblock=1,mg_ratio_z(igrid)
+              do jblock=1,mg_ratio_y(igrid)
+                do iblock=1,mg_ratio_x(igrid)
+
+                iib = iblock + mg_ratio_x(igrid)*(jblock-1)
+     .                       + mg_ratio_x(igrid)
+     .                        *mg_ratio_y(igrid)*(kblock-1)
+
+                if = iv-1 + iblock
+                jf = jv-1 + jblock
+                kf = kv-1 + kblock
+
+                ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                do ieq = 1,neq
+                  iii  = neq*(ii -1) + ieq
+                  iiib = neq*(iib-1) + ieq
+                  zz(iii) = zz(iii) + omega0*dummy(iiib)
+                enddo
+
+                enddo
+              enddo
+            enddo
+
+            mag = mag + sum(rhs*rhs)
+
+            enddo
+          enddo
+        enddo
+
+      end subroutine vertex_GS
+
+c     lexic_GS
+c     ###################################################################
+      subroutine lexic_GS
+
+c       Forward pass
+        call limits(0,nxf,nyf,nzf,igrid
+     .             ,imin,imax,jmin,jmax,kmin,kmax)
+
+        do k=kmin,kmax
+          do j=jmin,jmax
+            do i=imin,imax
+
+              !nxf,nyf,nzf are the original grid's even in line relaxation.
+              ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+
+              call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
+
+              iii = neq*(ii-1)
+
+              !Find new residual
+              do ieq = 1,neq
+                rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+              enddo
+
+              !Multiply by D^-1 (stored in diag)
+              iig = iii + isig - 1
+              dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
+
+              !Update solution zz
+              do ieq=1,neq
+                zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
+              enddo
+
+              mag = mag + sum(rhs*rhs)
+
+            enddo
+          enddo
+        enddo
 
 ccc           Backward pass
 cc            do k=kmax,kmin,-1
@@ -5580,214 +5739,7 @@ cc                enddo
 cc              enddo
 cc            enddo
 
-          endif
-
-        endif
-
-cc#if 0
-ccc       Take care of points around singular point (using JB)
-cc
-cc        if (isSP(1,1,1,igrid,igrid,igrid)) then
-cc#if defined(petsc)
-cc          if (np > 1) call pstop('gs','Does not work in parallel')
-cc#endif
-cc          do i1=3,1,-1
-cc
-cc            mg_ctx_temp%iline(igrid) = i1   !Set line smoothing around SP
-cc
-cc            call limits(0,nxf,nyf,nzf,igrid
-cc     .                 ,imin,imax,jmin,jmax,kmin,kmax)
-cc
-cccc            write (*,*) imin,imax,jmin,jmax,kmin,kmax
-cc
-cc            do itr2=1,5    !JB iteration around SP
-cc
-cc              magsp = 0d0
-cc
-cc              call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-cc
-cc              do k=kmin,kmax
-cc                do j=jmin,jmax
-cc                  do i=imin,imax
-cc                    !nxf,nyf,nzf are the original grid's even in line relaxation.
-cc                    ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-cc
-cc                    iii = neq*(ii-1)
-cc
-cc                    !Find new residual
-cc                    do ieq = 1,neq
-cc                      rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-cc                    enddo
-cc
-cc                    !Multiply by D^-1 (stored in diag)
-cc                    iig = iii + isig - 1
-cc                    dummy = matmul(transpose(diag(:,iig+1:iig+neq))
-cc     .                            ,rhs)
-cc
-cc                    !Update solution zz
-cc                    do ieq=1,neq
-cc                      zz(iii+ieq) = zz(iii+ieq) + 0.7*dummy(ieq)
-cc                    enddo
-cc
-cc                    magsp = magsp + sum(rhs*rhs)
-cc                  enddo
-cc                enddo
-cc              enddo
-cc
-cc              if (itr2 == 1) then
-cc                magsp0 = magsp
-cc              else
-cc                if (out.ge.3.and.prnt)
-cc     .               write (*,*) '  SP smoothing in GS: line = ',i1
-cc     .                   ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
-cc                if (   sqrt(magsp/magsp0) < 0.5
-cc     .             .or.sqrt(magsp/magsp0) > 1d0) exit
-cc              endif
-cc
-cc            enddo
-cc
-cc            if (out.ge.3.and.prnt) write (*,*)
-cc
-cc            if (out.eq.2.and.prnt)
-cc     .        write (*,*) '  SP smoothing in GS: line = ',i1
-cc     .                   ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
-cc
-cccc            if (magsp/magsp0 > 1d0) stop
-cc          enddo
-cc
-cc          mg_ctx_temp%iline(igrid) = 0 !Unset line smoothing
-cc
-cccc        !GS
-cccc        call limits(0,nxf,nyf,nzf,igrid
-cccc     .             ,imin,imax,jmin,jmax,kmin,kmax)
-cccc
-cccc        i = 1
-cccc
-cccc        do k=kmin,kmax
-cccc         do itr2=1,10
-cccc          do j=jmin,jmax
-cccc
-cccc            !nxf,nyf,nzf are the original grid's even in line relaxation.
-cccc            ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-cccc
-cccc            call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
-cccc
-cccc            iii = neq*(ii-1)
-cccc
-cccc            !Find new residual
-cccc            do ieq = 1,neq
-cccc              rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-cccc            enddo
-cccc
-cccc            !Multiply by D^-1 (stored in diag)
-cccc            iig = iii + isig - 1
-cccc            dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
-cccc
-cccc            !Update solution zz
-cccc            do ieq=1,neq
-cccc              zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
-cccc            enddo
-cccc
-cccc            mag = mag + sum(rhs*rhs)
-cccc
-cccc          enddo
-cccc         enddo
-cccc        enddo
-cc
-cc        endif
-cc#endif
-
-c     Check convergence
-
-#if defined(petsc)
-cc        if (.not.asm .and. out >= 1) then   !Do reduction only for debugging
-        if (.not.asm) then
-           lmag = mag
-           call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
-     .                       ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-cc        else
-cc          mag = mag0                  !Do NOT do reduction in parallel (convergence is set by #its)
-        endif
-#endif
-
-        mag = sqrt(mag)
-
-        if (itr.eq.1) then
-          mag0 = mag
-          mag1 = mag
-          if (mag.lt.1d-20*nn) then
-            mag0 = 1d0
-            mag1 = 1d0
-            exit
-          endif
-          if (out.ge.2.and.prnt) write(*,10)gs_type,itr-1,mag,mag/mag0
-        else
-          if (out.ge.2.and.prnt) write(*,20)gs_type,itr-1,mag,mag/mag0
-     .                                     ,mag/mag1
-          mag1 = mag
-          if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
-        endif
-
-      enddo
-
-c Calculate final residual and output info
-
-      itr = min(itr,iter)
-
-      if (out.ge.1) then
-        call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-        call MGvecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
-        mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
-      endif
-
-      if (out.ge.2.and.prnt) then
-        write (*,20) gs_type,itr,mag,mag/mag0,mag/mag1
-        write (*,*)
-      elseif (out.eq.1.and.prnt) then
-        write (*,10) gs_type,itr,mag,mag/mag0
-      endif
-
-      options%iter_out = itr
-      options%tol_out  = mag/mag0
-
-c End program
-
-      deallocate (dummy,rhs)
-
-      if (fdiag) then
-        deallocate(diag)
-      else
-        nullify(diag)
-      endif
-
-      call deallocPointers(fpointers)
-
-      return
-
- 10   format (a,' GS Iteration:',i4,'; Residual:',1p,1e10.2,
-     .        '; Ratio:',1e10.2)
- 20   format (a,' GS Iteration:',i4,'; Residual:',1p,1e10.2,
-     .        '; Ratio:',1e10.2,'; Damping:',1e10.2)
-
-      contains
-
-c     optionsConsistencyCheck
-c     ###################################################################
-        subroutine optionsConsistencyCheck
-
-        if ( (options%mg_vertex_relax.and.options%mg_zebra_relax))then
-          if (prnt) write (*,*) 'Invalid relaxation choice for GS'
-          call pstop('optionsConsistencyCheck in gs','Aborting...')
-        elseif (options%mg_vertex_relax .or. vbr_mg) then
-          options%ncolors = 4
-        elseif (options%mg_line_relax) then
-          options%ncolors = 1
-cc        elseif (options%mg_zebra_relax) then
-cc          options%omega = 0.7   !Do damped JB along lines
-cccc          options%omega = 1.
-        endif
-          
-        end subroutine optionsConsistencyCheck
+      end subroutine lexic_GS
 
       end subroutine gs
 
