@@ -177,7 +177,7 @@ c     Find new time step
         if (    cnfactor == 1d0                          !Explicit
      .     .or.(timecorr.and.ierr.eq.0.and.itime.eq.1)   !First explicit step if timecorr
      .     ) then
-          call findExplicitDt
+          call findExplicitDt(dt)
           call correctTimeStep(itime-offset,ierr,dt_exp=dt)
         else
           call correctTimeStep(itime-offset,ierr)
