@@ -27,7 +27,7 @@ c ######################################################################
 
         !LSODE private variables
         INTEGER,private :: LIW, LRW, NEQ
-        PARAMETER  (NEQ=10,LIW = 20,LRW = LIW + 16*NEQ)
+        PARAMETER  (NEQ=20,LIW = 20,LRW = LIW + 16*NEQ)
 
         INTEGER,private :: IOPT,IOUT,ISTATE=0,ITASK,ITOL
      .                    ,IWORK(LIW),MF,NEQD(1)
