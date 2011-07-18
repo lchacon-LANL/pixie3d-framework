@@ -818,6 +818,54 @@ c     Begin program
 
       end subroutine splineJ
 
+c     splineFlds
+c     #################################################################
+      subroutine splineFlds(flds,fldcoef)
+c     -----------------------------------------------------------------
+c     This routine splines up a set of fields on a
+c     mesh of size (nx,ny,nz) with positions xs,ys,zs.
+c     -----------------------------------------------------------------
+
+      implicit none            ! For safe Fortran
+
+c     Call variables
+
+      real(8) :: flds(:,:,:,:)
+      real(8),optional,INTENT(OUT) :: fldcoef(:,:,:,:)
+
+c     Local variables
+
+      integer :: alloc_stat,i
+      real(8),pointer,dimension(:,:,:,:) :: ext_xcoef,lxcoef
+
+c     Begin program
+
+      if (PRESENT(fldcoef)) then
+        allocate(ext_xcoef(size(flds,1),size(flds,2)
+     .                    ,size(flds,3),size(flds,4)),stat=alloc_stat)
+        lxcoef => ext_xcoef
+      else
+        allocate(xcoef(size(flds,1),size(flds,2)
+     .                ,size(flds,3),size(flds,4)),stat=alloc_stat)
+        lxcoef => xcoef
+      endif
+
+      do i=1,size(flds,4)
+        call db3ink(xs,nx,ys,ny,zs,nz,flds(:,:,:,i)
+     .             ,nx,ny,kx,ky,kz,tx,ty,tz,lxcoef(:,:,:,i),work,flg)
+      enddo
+
+      if (PRESENT(fldcoef)) then
+        fldcoef = lxcoef
+        deallocate(ext_xcoef)
+      endif
+
+      nullify(lxcoef)
+
+c     End program
+
+      end subroutine splineFlds
+
 c     splineX
 c     #################################################################
       subroutine splineX(xcar,xcoef_ext)
@@ -830,35 +878,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      real(8) :: xcar(nx,ny,nz,3)
+      real(8) :: xcar(:,:,:,:)
       real(8),optional,INTENT(OUT) :: xcoef_ext(:,:,:,:)
 
 c     Local variables
 
-      integer :: alloc_stat,i
-      real(8),pointer,dimension(:,:,:,:) :: ext_xcoef,lxcoef
-
-c     Begin program
-
-      if (PRESENT(xcoef_ext)) then
-        allocate(ext_xcoef(nx,ny,nz,3),stat=alloc_stat)
-        lxcoef => ext_xcoef
-      else
-        allocate(xcoef(nx,ny,nz,3),stat=alloc_stat)
-        lxcoef => xcoef
-      endif
-
-      do i=1,3
-        call db3ink(xs,nx,ys,ny,zs,nz,xcar(:,:,:,i)
-     .             ,nx,ny,kx,ky,kz,tx,ty,tz,lxcoef(:,:,:,i),work,flg)
-      enddo
-
-      if (PRESENT(xcoef_ext)) then
-        xcoef_ext = lxcoef
-        deallocate(ext_xcoef)
-      endif
-
-      nullify(lxcoef)
+      call splineFlds(xcar,fldcoef=xcoef_ext)
 
 c     End program
 
@@ -1154,6 +1179,34 @@ c     Begin program
 c     End program
 
       end subroutine getB
+
+c     evalFlds
+c     #################################################################
+      function evalFlds(x1,x2,x3,spcoef) result(vec)
+c     -----------------------------------------------------------------
+c     This evaluates cartesian position (x,y,z) at logical position
+c     (x1,x2,x3).
+c     -----------------------------------------------------------------
+
+      implicit none            ! For safe Fortran
+
+c     Call variables
+
+      real(8) :: spcoef(:,:,:,:)
+      real(8) :: x1,x2,x3,vec(size(spcoef,4))
+
+c     Local variables
+
+      integer :: i
+
+c     Begin program
+
+      do i = 1,size(spcoef,4)
+        vec(i) = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
+     .                 ,kx,ky,kz,spcoef(:,:,:,i),work)
+      enddo
+
+      end function evalFlds
 
 c     evalX
 c     #################################################################
