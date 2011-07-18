@@ -27,6 +27,8 @@ c Local variables
       integer    :: prec_tot,ierr,perr,prof_stage(3),offset,ieq
       real(8)    :: time1,time2,time3,time4
 
+cc      type (var_array),pointer :: u_star => null()
+
 c Interfaces
 
       INTERFACE
@@ -38,10 +40,25 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
+        subroutine eigen_sol(vn,vnp,ierr)
+        use variable_setup
+        integer          :: ierr
+        type(var_array),pointer :: vnp,vn
+        end subroutine eigen_sol
+      END INTERFACE
+
+      INTERFACE
         subroutine output(varr)
         use variable_setup
         type(var_array),pointer :: varr
         end subroutine output
+      END INTERFACE
+
+      INTERFACE
+        subroutine preProcessSol(v_n,v_nm)
+        use variable_setup
+        type(var_array),pointer :: v_n,v_nm
+        end subroutine preProcessSol
       END INTERFACE
 
       INTERFACE
@@ -50,13 +67,6 @@ c Interfaces
         type(var_array),pointer :: v_arr
         end subroutine postProcessSol
       END INTERFACE
-
-cc      INTERFACE
-cc        subroutine get_src(varray)
-cc        use variable_setup
-cc        type(var_array),pointer :: varray
-cc        end subroutine get_src
-cc      END INTERFACE
 
       INTERFACE
         subroutine setInitialCondition(varrayn,varraynp)
@@ -178,6 +188,16 @@ c     Assign old time solution
         call equateDerivedType(u_nm,u_n)
         call equateDerivedType(u_n ,u_np)
 
+c     Preprocess old solution (for e.g. splitting)
+
+        if (preprocess) call preProcessSol(u_nm,u_n) !External
+
+c     Store BDF2 old-time solution (in u_np)
+
+        if (bdf2) then
+          call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,u_np)
+        endif
+
 c     Time update
 
 #if defined(petsc)
@@ -190,7 +210,13 @@ c     Time update
           time = time + dt
         endif
 
-        call timeStep(u_n,u_np,ierr)
+        if (eigen) then
+          !Eigenvalue solver
+          call eigen_sol(u_n,u_np,ierr)
+        else
+          !Time step
+          call timeStep(u_n,u_np,ierr)
+        endif
 
 c     Check for error in time stepping
 
@@ -228,7 +254,7 @@ c     Check for error in time stepping
 
 c     Postprocess solution
 
-        if (postprocess) call postProcessSol(u_np)
+        if (postprocess) call postProcessSol(u_np)  !External
 
 c     Update counters (only if timeStep is successful)
 
@@ -365,18 +391,11 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine explicit(vn,vnp,iter,iout)
+        subroutine explicit(vnp,iter,iout)
         use variable_setup
-        integer          :: iter,iout
-        type(var_array),pointer :: vnp,vn
+        integer :: iter,iout
+        type(var_array),pointer :: vnp
         end subroutine explicit
-      END INTERFACE
-
-      INTERFACE
-        subroutine applyPC(n,x,y,out)
-        integer :: n,out
-        real(8),dimension(n) :: x,y
-        end subroutine
       END INTERFACE
 
       INTERFACE
@@ -402,82 +421,22 @@ c Evaluate nonlinear function at old time for theta scheme
       call evaluateNonlinearFunction(vnp,fold)
 
       old_time_eval = .false.
-
-c Eigenvalue solver
-
-      if (eigen) then
-
-        !Setup matrix-free vectors (xk, rk)
-        allocate(nk_conf%xk(ntotd),nk_conf%rk(ntotd))
-
-        call mapStructureToVector(nk_conf%xk,u_0)
-        call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
-
-        !Setup preconditioner
-        call setupPC(ntotd,nk_conf%xk,1)
-
-        !Setup initial guess for eigenfunction
-        call mapStructureToVector(x ,vnp)
-        x = x - nk_conf%xk
-
-        !Eigensolve
-cc#if defined(arpack)
-cc        call arnoldi_eig(neqd,ntotd,x,ilevel)
-cc#endif
-        eigen_conf%my_rank = my_rank
-
-        eigen_conf%ksmax   = maxksp
-        eigen_conf%armax   = maxitgm
-        if (rtol > 0d0) eigen_conf%rtol = rtol
-        if (atol > 0d0) eigen_conf%atol = atol
-        eigen_conf%step    = eig_dt
-
-        iguess = 1
-        call lehoucq_eig(ntotd,x,iguess,ilevel,ierr
-     .                  ,matrixFreeMatVec
-     .                  ,applyPC
-     .                  ,ldot=dot2)
-
-        select case(ierr)
-        case(1)
-          call pstop('lehoucq_eig'
-     .              ,'Matrix not positive definite')
-        end select
-
-        !Output
-        if (my_rank == 0) then
-           write (*,*)
-           write (*,*) '**************************************'
-           write (*,'(a,1p,1e10.3,a)') ' ****** Eigenvalue is='
-     $             ,1d0/dt-eigen_conf%eigv,' ******' 
-           write (*,*) '**************************************'
-        endif
-
-        itgmres = eigen_conf%iter_out
-
-        !Map eigenvector for plotting
-        x = x + nk_conf%xk
-        call mapVectorToStructure(vnp,x)
-
-        !Free memory
-        deallocate(nk_conf%xk,nk_conf%rk)
  
+c Map old solution
+
+      call mapStructureToVector(x_old,vnp)
+
 c Implicit update (Newton)
 
-      elseif (cnfactor.lt.1d0) then
+      if (cnfactor.lt.1d0) then
 
 c     Initial guess
 
-        if (predictor) then
+        if (predictor.and.(.not.bdf2)) then
           call findGuess(vn,vnp)
           call mapStructureToVector(x,vnp)
         else
-          if (bdf2) then
-            call AXPYDerivedType(-cn/cnp,vn,-cnm/cnp,u_nm,vnp)
-            call mapStructureToVector(x,vnp)
-          else
-            call mapStructureToVector(x,vnp)
-          endif
+          x = x_old
         endif
 
 c     Newton-Krylov iteration
@@ -526,7 +485,7 @@ c Explicit update
 
         itgmres = maxitgm
 
-        call explicit(vn,vnp,itgmres,ilevel)
+        call explicit(vnp,itgmres,ilevel)
 
         call applyBC(vnp,1,1,1)
 
@@ -545,3 +504,141 @@ c Update counters
 c End program
 
       end subroutine timeStep
+
+c eigen_sol
+c######################################################################
+      subroutine eigen_sol(vn,vnp,ierr)
+
+c----------------------------------------------------------------------
+c     Performs time advance of solution from vn to vnp
+c----------------------------------------------------------------------
+
+      use parameters
+
+      use variable_setup
+
+      use timeStepping
+
+      use newtongm
+
+      use counters
+
+      use iosetup
+
+      use eigen_mod
+
+      use mk
+
+      implicit none
+
+c Call variables
+
+      integer :: ierr
+
+      type(var_array),pointer :: vnp,vn
+
+c Local variables
+
+      real(8) :: x(ntotd)
+
+c Interfaces
+
+      INTERFACE
+        subroutine evaluateNonlinearFunction(varray,fi)
+        use parameters
+        use variable_setup
+        real(8)          :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluateNonlinearFunction
+      END INTERFACE
+
+      INTERFACE
+        subroutine applyPC(n,x,y,out)
+        integer :: n,out
+        real(8),dimension(n) :: x,y
+        end subroutine
+      END INTERFACE
+
+      INTERFACE
+        subroutine applyBC(varray,iigx,iigy,iigz,obc)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        integer,optional :: obc
+        type(var_array),pointer :: varray
+        end subroutine applyBC
+      END INTERFACE
+
+c Begin program
+
+      ierr = 0
+
+      itwhistler = 0
+
+c Evaluate nonlinear function at old time for theta scheme
+
+      old_time_eval = .true.     !This informs nlfunction that we are processing
+                                 !  n time level info
+
+      call evaluateNonlinearFunction(vn,fold)
+
+      old_time_eval = .false.
+
+c Eigenvalue solver
+
+      !Setup matrix-free vectors (xk, rk)
+      allocate(nk_conf%xk(ntotd),nk_conf%rk(ntotd))
+
+      call mapStructureToVector(nk_conf%xk,u_0)
+      call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
+
+      !Setup preconditioner
+      call setupPC(ntotd,nk_conf%xk,1)
+
+      !Setup initial guess for eigenfunction
+      call mapStructureToVector(x ,vnp)
+      x = x - nk_conf%xk
+
+        !Eigensolve
+cc#if defined(arpack)
+cc        call arnoldi_eig(neqd,ntotd,x,ilevel)
+cc#endif
+      eigen_conf%my_rank = my_rank
+
+      eigen_conf%ksmax   = maxksp
+      eigen_conf%armax   = maxitgm
+      if (rtol > 0d0) eigen_conf%rtol = rtol
+      if (atol > 0d0) eigen_conf%atol = atol
+      eigen_conf%step    = eig_dt
+
+      iguess = 1
+      call lehoucq_eig(ntotd,x,iguess,ilevel,ierr
+     .                ,matrixFreeMatVec
+     .                ,applyPC
+     .                ,ldot=dot2)
+
+      select case(ierr)
+      case(1)
+        call pstop('lehoucq_eig','Matrix not positive definite')
+      end select
+
+      !Output
+      if (my_rank == 0) then
+         write (*,*)
+         write (*,*) '**************************************'
+         write (*,'(a,1p,1e10.3,a)') ' ****** Eigenvalue is='
+     $           ,1d0/dt-eigen_conf%eigv,' ******' 
+         write (*,*) '**************************************'
+      endif
+
+      itgmres = eigen_conf%iter_out
+
+      !Map eigenvector for plotting
+      x = x + nk_conf%xk
+      call mapVectorToStructure(vnp,x)
+
+      !Free memory
+      deallocate(nk_conf%xk,nk_conf%rk)
+ 
+c End program
+
+      end subroutine eigen_sol
