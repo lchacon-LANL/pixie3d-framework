@@ -28,6 +28,7 @@ ifeq ($(HOST),lap0086227)
     FC=gfortran
 #    FC=vtf77
     OPT=g
+    HDF5 = t
 #    HDF5_HOME =/usr
 #    HDF5_HOME =$(HDF5)
 #    HDF5_HOME =/packages/hdf5-1.8.3/hdf5
