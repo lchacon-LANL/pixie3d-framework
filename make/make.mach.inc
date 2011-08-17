@@ -69,14 +69,18 @@ ifeq ($(HOST),quevedo)
 
       HDF5 = t
 
-      HDF5_HOME =/usr/lib64/openmpi/lib
-      HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(HDF5_HOME)
-      HDF5_INC  =-I/usr/include/openmpi-x86_64
+#      HDF5_HOME =/usr/lib64/openmpi/lib
+#      HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+#      HDF5_MOD  = $(HDF5_HOME)
+#      HDF5_INC  =-I/usr/include/openmpi-x86_64
+      HDF5_HOME = $(PHDF5_HOME)
+      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(PHDF5_HOME)
+      HDF5_INC  =-I$(PHDF5_INC)
 
       ADIOS = t
 
-      ADIOS_HOME = $(HOME)/lib/adios-1.2.1
+      ADIOS_HOME = $(HOME)/lib/adios-1.3
       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
 
     else
