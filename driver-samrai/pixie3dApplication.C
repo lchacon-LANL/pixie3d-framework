@@ -125,6 +125,7 @@ pixie3dApplication::pixie3dApplication()
         refineSchedule[i] = NULL;
         siblingSchedule[i] = NULL;
     }
+    dt_exp = 1.0;
 }
 
 
@@ -144,6 +145,7 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
         refineSchedule[i] = NULL;
         siblingSchedule[i] = NULL;
     }
+    dt_exp = 1.0;
     initialize( parameters );
 }
 
@@ -617,7 +619,7 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
     }
 
     // Call EvaluateFunction
-    double dt_exp = 1e10;
+    dt_exp = 1e10;
     for (int i=0; i<input_data->nvar; i++)
         f_id[i] = d_x_r->getComponentDescriptorIndex(i);
     tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry = d_hierarchy->getGridGeometry();

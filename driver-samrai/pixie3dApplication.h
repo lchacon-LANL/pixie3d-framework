@@ -147,6 +147,9 @@ public:
     */
    void writeDebugData( FILE *fp, const int it, const double time, int type=1 );
 
+   // Get the current explicit timestep
+   double getExpdT() { return dt_exp; }
+
 
 /***********************************************************************
 * Functions inherited from mesh::StandardTagAndInitStrategy<NDIM>      *
@@ -226,6 +229,8 @@ private:
    int *f_id, *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
 
    bool d_bIsInitialTime;
+
+   double dt_exp;   // The current maximum timestep for explicit integration
 
    pixie3dRefinePatchStrategy* d_refine_strategy; 
 

@@ -265,6 +265,8 @@ int main( int argc, char *argv[] )
         }
 
         dt = timeIntegrator->getNextDt(solnAcceptable);
+        double dt_exp = application->getExpdT();
+        
         tbox::pout << "Estimating next time step : " << dt << std::endl;
     }
 
