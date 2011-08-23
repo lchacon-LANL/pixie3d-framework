@@ -654,6 +654,8 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
             #else
               	FORTRAN_NAME(findexplicitdt)(level_container->getPtr(p()),&dt_patch);
             #endif
+            if ( dt_patch<=0.0 || dt_patch!=dt_patch )
+                TBOX_ERROR("Invalid timestep detected\n");
             if ( dt_patch < dt_exp )
                 dt_exp = dt_patch;
         	// Delete varray

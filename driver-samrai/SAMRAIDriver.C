@@ -264,8 +264,8 @@ int main( int argc, char *argv[] )
             tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
         }
 
-        dt = timeIntegrator->getNextDt(solnAcceptable);
-        double dt_exp = application->getExpdT();
+        //dt = timeIntegrator->getNextDt(solnAcceptable);
+        dt = application->getExpdT();
         
         tbox::pout << "Estimating next time step : " << dt << std::endl;
     }
