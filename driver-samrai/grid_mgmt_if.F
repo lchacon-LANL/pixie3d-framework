@@ -119,7 +119,7 @@ c      use grid_mgmt, only: setup_patch
       nullify(grid_data%kline)
 
       nullify(grid_data%gmetric)
-      nullify(grid_data%g_pack)
+c      nullify(grid_data%g_pack)
       
       grid_data%ngrdx = 1
       grid_data%ngrdy = 1

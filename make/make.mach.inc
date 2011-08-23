@@ -41,6 +41,23 @@ ifeq ($(HOST),lap0086227)
     LIBS += -L${PETSC_DIR}/${PETSC_ARCH}/lib -lflapack -lfblas
 endif
 
+###############################
+# vayu (Bobby's desktop)      #
+###############################
+
+ifeq ($(HOST),vayu)
+    FC=gfortran
+    #FC=mpif90
+    #CC=mpicc
+    #CXX=mpic++
+    OPT=g
+    HDF5 = t
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/lib
+    HDF5_INC  =-I$(HDF5_HOME)/include
+    LIBS += -L${ACML_DIR} -llapack -lblas
+endif
+
 ###########
 # quevedo #
 ###########

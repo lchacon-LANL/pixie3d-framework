@@ -39,7 +39,7 @@ LevelContainer::LevelContainer(int n, tbox::Pointer< hier::PatchHierarchy<NDIM> 
     N = n;
     d_hierarchy = hierarchy;
     // Create space for a patch object for each patch (n patches)
-    data = new PatchContainer::PatchContainer *[N];
+    data = new PatchContainer *[N];
     patch_ptr = new tbox::Pointer< hier::Patch<NDIM> > [N];
     for (int i=0; i<N; i++) {
         data[i] = NULL;
@@ -66,10 +66,10 @@ LevelContainer::LevelContainer(int n, tbox::Pointer< hier::PatchHierarchy<NDIM> 
 void LevelContainer::CreatePatch(int patch_id, tbox::Pointer< hier::Patch<NDIM> > &patch )
 {
     patch_ptr[patch_id] = patch;
-    data[patch_id] = new PatchContainer::PatchContainer(d_hierarchy,patch_ptr[patch_id],n_var,u0_id,u_id,n_auxs,auxs_id,n_auxv,auxv_id);
+    data[patch_id] = new PatchContainer(d_hierarchy,patch_ptr[patch_id],n_var,u0_id,u_id,n_auxs,auxs_id,n_auxv,auxv_id);
     //delete data[patch_id];
     //data[patch_id] = NULL;
-    //data[patch_id] = new PatchContainer::PatchContainer(d_hierarchy,patch_ptr[patch_id],n_var,u0_id,u_id,n_auxs,auxs_id,n_auxv,auxv_id);
+    //data[patch_id] = new PatchContainer(d_hierarchy,patch_ptr[patch_id],n_var,u0_id,u_id,n_auxs,auxs_id,n_auxv,auxv_id);
 }
 
 

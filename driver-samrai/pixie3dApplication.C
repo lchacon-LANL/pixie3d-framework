@@ -300,9 +300,9 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     tbox::Pointer<hier::VariableContext> context_in = var_db->getContext("pixie3d-initial");
     tbox::Pointer<hier::VariableContext> context_f = var_db->getContext("pixie3d-source");
     tbox::Pointer< pdat::CellVariable<NDIM,double> > var;
-    hier::IntVector<NDIM> ghost0 = hier::IntVector<NDIM>::IntVector(0);
-    hier::IntVector<NDIM> ghost1 = hier::IntVector<NDIM>::IntVector(1);
-    hier::IntVector<NDIM> ghost2 = hier::IntVector<NDIM>::IntVector(GHOST);
+    hier::IntVector<NDIM> ghost0 = hier::IntVector<NDIM>(0);
+    hier::IntVector<NDIM> ghost1 = hier::IntVector<NDIM>(1);
+    hier::IntVector<NDIM> ghost2 = hier::IntVector<NDIM>(GHOST);
    
     var = new pdat::CellVariable<NDIM,double>("weight", 1);
     const int weight_id = var_db->registerVariableAndContext(var, context_xt, ghost0);
@@ -868,8 +868,8 @@ pixie3dApplication::generateTransferSchedules(void)
        // Create the CartesianCellDoubleCubicRefine operator
        CartesianCellDoubleCubicRefine* temp = new CartesianCellDoubleCubicRefine();
        // manually set the refinement ratio and stencil width for the CartesianCellDoubleCubicRefine
-      hier::IntVector<NDIM> width = hier::IntVector<NDIM>::IntVector(2);
-      hier::IntVector<NDIM> ratio = hier::IntVector<NDIM>::IntVector(3);
+      hier::IntVector<NDIM> width = hier::IntVector<NDIM>(2);
+      hier::IntVector<NDIM> ratio = hier::IntVector<NDIM>(3);
       if ( IS2D == 1 )
 	{
 	  width(2) = 0;
