@@ -38,7 +38,7 @@ c ---------------------------------------------------------------------
         end INTERFACE
 
         INTERFACE XformVector
-          module procedure XformVector_mesh,XformVector_mesh2
+          module procedure XformVector_mesh!,XformVector_mesh2
         end INTERFACE
 
 cc        private :: transformVectorToCartesian
