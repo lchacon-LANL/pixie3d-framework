@@ -416,10 +416,10 @@ endif
 
 ifeq ($(PIC_CUDA),t) 
 	NVCC = nvcc	
-	gpu_arch = -arch sm_13
-	NVCCFLAGS= --ptxas-options=-v -O2 #-g -G #
-	CUDA_OPT = -L/usr/local/cuda/lib64 /usr/local/cuda/lib64/libcudart.so.3.2.16  -lcuda -I/usr/local/cuda/include/ 
-	CUDA_INCLUDE = -I/home/gcc/NVIDIA_GPU_Computing_SDK/C/common/inc
+	gpu_arch = -arch sm_20
+	NVCCFLAGS= --ptxas-options=-v -O2 --compiler-bindir /home/gcc/soft/gcc/gcc-445/bin  #-g -G # 
+	CUDA_OPT = -L/usr/local/cuda/lib64 /usr/local/cuda/lib64/libcudart.so  -lcuda -I/usr/local/cuda/include/ 
+	CUDA_INCLUDE =  # -I/home/gcc/NVIDIA_GPU_Computing_SDK/C/common/inc
 endif
 
 
