@@ -700,9 +700,9 @@ c End program
 
       call killgm
 
- 10   format (' GMRES Iteration:',i4,'; Residual:',1p,1e12.4,
+ 10   format ('   GMRES Iteration:',i4,'; Residual:',1p,1e12.4,
      .        '; Ratio:',1e12.4)
- 20   format (' GMRES Iteration:',i4,'; Residual:',1p,1e12.4,
+ 20   format ('   GMRES Iteration:',i4,'; Residual:',1p,1e12.4,
      .        '; Ratio:',1e12.4,'; # restarts:',i2)
 
       contains

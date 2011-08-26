@@ -18,11 +18,7 @@ c----------------------------------------------------------------------
 
       use newtongm
 
-c      use constants
-
       use iosetup
-
-c      use generalPurposeFunctions
 
       implicit none
 
@@ -47,32 +43,17 @@ c Check for autoinitializing parameters
 
       pi = acos(-1d0)
 
-cc      if (maxitnwt.eq.0) 
-cc     .      maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
-cc
-cc      alpha = 1. - cnfactor
-cc
-cc      dtbase = dt   
-
 c Allocate global variable
 
       call allocateGlobalVar(gv)
 
 c Initialize MG and create grid
 
-      call createGrid(nxd,nyd,nzd,g_pack,gv%gparams)
+      call createGrid(nxd,nyd,nzd,gv%gparams)
 
 c Initialize vector dimensions for global and local problems
 
       call setVectorDimensions
-
-cc      allocate(zeros (ilom:ihip,jlom:jhip,klom:khip))
-cc      allocate(vzeros(ilom:ihip,jlom:jhip,klom:khip,3))
-cc      allocate(ones  (ilom:ihip,jlom:jhip,klom:khip))
-cc
-cc      zeros  = 0d0
-cc      vzeros = 0d0
-cc      ones   = 1d0
 
 c Create nonlinear solver
 

@@ -81,20 +81,12 @@ c Calculate residuals
      .        +bdfnm(ieq)*jacnm(i,j,k)*u_nm%array_var(ieq)%array(i,j,k))
               enddo
             else
-              do ieq=1,neqd
-                dfdt(ieq) = one_over_dt(ieq)*
-     .              (bdfp (ieq)*varray%array_var(ieq)%array(i,j,k)
-     .              +bdfn (ieq)*u_n   %array_var(ieq)%array(i,j,k)
-     .              +bdfnm(ieq)*u_nm  %array_var(ieq)%array(i,j,k))
-              enddo
+              dfdt = cnp*(x(ii+1:ii+neqd)-x_old(ii+1:ii+neqd))
+     .                  *one_over_dt
             endif
 
-            do ieq=1,neqd
-              f(ii+ieq) = dfdt(ieq)
-     .                  + ((1d0-cnf(ieq))*f   (ii+ieq)
-     .                  +       cnf(ieq) *fold(ii+ieq)
-     .                  -                  src(   ieq))
-            enddo
+            f(ii+1:ii+neqd) = dfdt + (1d0-cnf)*f   (ii+1:ii+neqd)
+     .                             +      cnf *fold(ii+1:ii+neqd) - src
 
             if (vol_wgt) then
               if (mk_grid.and.(.not.mk_nc)) then
@@ -102,12 +94,11 @@ c Calculate residuals
                 dvol = grid_params%dxh(ig)
      .                *grid_params%dyh(jg)
      .                *grid_params%dzh(kg)
-                f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*dvol
               else
               !Fixed grid case
-                f(ii+1:ii+neqd) = f(ii+1:ii+neqd)
-     .                           *gmetric%grid(1)%dvol(i,j,k)
+                dvol = gmetric%grid(1)%dvol(i,j,k)
               endif
+              f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*dvol
             endif
 
           enddo

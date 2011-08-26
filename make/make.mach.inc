@@ -51,7 +51,7 @@ ifeq ($(HOST),quevedo)
 
   ifdef SAMR
 
-    PETSC_DIR        =/opt/petsc-dev
+    override PETSC_DIR  =/opt/petsc-dev
     PETSC_ARCH       =openmpi-gcc-4.4.5-debug
     SAMRAI           =/opt/samrai/samrai-v2.4.4-petsc-dev-openmpi-gcc-4.4.5-debug
     AMRUTILITIES_HOME=/opt/samrutils
@@ -59,23 +59,18 @@ ifeq ($(HOST),quevedo)
 
   else
     ifdef BOPT
-      PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
+      PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
 
       ifeq ($(BOPT),O)
-        PETSC_ARCH = linux64_openmpi
+        PETSC_ARCH = $(PETSC_ARCH_O)
       else
-        PETSC_ARCH = linux64_openmpi_g
+        PETSC_ARCH = $(PETSC_ARCH_g)
       endif
 
       HDF5 = t
 
-#      HDF5_HOME =/usr/lib64/openmpi/lib
-#      HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
-#      HDF5_MOD  = $(HDF5_HOME)
-#      HDF5_INC  =-I/usr/include/openmpi-x86_64
-      HDF5_HOME = $(PHDF5_HOME)
       HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(PHDF5_HOME)
+      HDF5_MOD  = $(PHDF5_LIB)
       HDF5_INC  =-I$(PHDF5_INC)
 
       ADIOS = t

@@ -54,8 +54,10 @@ c     Interpolation
 
 c     Begin program
 
-      write (*,*)
-      write (*,*) ' Starting spatial convergence test...'
+      if(my_rank == 0) then
+        write (*,*)
+        write (*,*) ' Starting spatial convergence test...'
+      endif
 
       igx = 1
       igy = 1
@@ -72,9 +74,11 @@ c     Read reference grid info
       ny = jhig-jlog+1
       nz = khig-klog+1
 
-      write (*,*)
-      write (*,*) ' Reading reference file...'
-      write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
+      if (my_rank == 0) then
+        write (*,*)
+        write (*,*) ' Reading reference file...'
+        write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
+      endif
 
       call setVectorDimensions
 
@@ -139,9 +143,11 @@ c Initialize current grid info and read current grid solution
       ny = jhig-jlog+1
       nz = khig-klog+1
 
-      write (*,*)
-      write (*,*) ' Reading solution file...'
-      write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
+      if (my_rank == 0) then
+        write (*,*)
+        write (*,*) ' Reading solution file...'
+        write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
+      endif
 
       call setVectorDimensions
 
@@ -161,12 +167,13 @@ cc        ierr = readRecordFile(urecord,itime,tsol,dt,vsol)
 
 c Calculate difference
 
-      if (tref /= tsol) then
+      if (abs(tref- tsol)>1d-8) then
+        if (my_rank == 0) write (*,*) 'T_ref-T_sol=',tref-tsol
         call pstop('acc_test_space'
      .            ,'Reference and solution are not at same time')
       endif
 
-      write (*,*)
+      if (my_rank == 0) write (*,*)
 
       do ivar=1,vref%nvar
 
@@ -226,27 +233,35 @@ c     Tests temporal convergence on variable number icomp based on variable
 c     stored in recordfile.
 c     -----------------------------------------------------------------------
 
+      use xdraw_io
+
       implicit none
 
 c     Call variables
 
 c     Local variables
 
-      integer        :: i,j,k,ig,jg,kg,nx,ny,nz,ivar
-      integer        :: ierr,system,nplot,igx,igy,igz
+      integer :: i,j,k,ig,jg,kg,nx,ny,nz,ivar,nxs,nys,nzs
+      integer :: ierr,system,nplot,igx,igy,igz
 
-      real(8)        :: mag,mag0,jac,tref,tsol
+      real(8) :: mag,mag0,jac,tref,tsol
       real(8),allocatable,dimension(:,:,:,:) :: pos 
       real(8),pointer,dimension(:,:,:) :: aref,asol
 
       type (var_array),pointer :: vref => null(),vsol => null()
 
+c     Debug
+
+      character(13) :: debugfile
+
 c     Begin program
 
-      write (*,*)
-      write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
-      write (*,*) 'Starting temporal convergence test...'
-      write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+      if (my_rank == 0) then
+        write (*,*)
+        write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+        write (*,*) 'Starting temporal convergence test...'
+        write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+      endif
 
       igx = 1
       igy = 1
@@ -258,8 +273,10 @@ c     Begin program
 
 c     Read reference field
 
-      write (*,*)
-      write (*,*) '>>>>> Reading reference file...'
+      if (my_rank == 0) then
+        write (*,*)
+        write (*,*) '>>>>> Reading reference file...'
+      endif
 
       call openRecordFiles(urecord,acc_ref_file,murecord
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
@@ -268,23 +285,29 @@ c     Read reference field
 
       do
         call readTimeStep(vref,ierr)
-        if (ierr /= 0) exit
+        if (ierr /= 0 .or. abs(time-tmax)<1d-8 ) exit
       enddo
 
       nx = ihig-ilog+1
       ny = jhig-jlog+1
       nz = khig-klog+1
 
-      write (*,*) 'Grid size =',nx,ny,nz
-      write (*,*) 'Final time=',time
-      write (*,*)
+      if (my_rank == 0) then
+        write (*,*) 'Grid size =',nx,ny,nz
+        write (*,*) 'Final time=',time
+        write (*,*)
+      endif
 
       call closeRecordFiles
 
+      tref = time
+
 c     Read current solution
 
-      write (*,*)
-      write (*,*) '>>>>> Reading solution file...'
+      if (my_rank == 0) then
+        write (*,*)
+        write (*,*) '>>>>> Reading solution file...'
+      endif
 
       call openRecordFiles(urecord,recordfile,murecord
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
@@ -293,44 +316,71 @@ c     Read current solution
 
       do
         call readTimeStep(vsol,ierr)
-        if (ierr /= 0) exit
+        if (ierr /= 0 .or. abs(time-tmax)<1d-10) exit
       enddo
 
-      nx = ihig-ilog+1
-      ny = jhig-jlog+1
-      nz = khig-klog+1
+      nxs = ihig-ilog+1
+      nys = jhig-jlog+1
+      nzs = khig-klog+1
 
-      write (*,*) 'Grid size =',nx,ny,nz
-      write (*,*) 'Final time=',time
-      write (*,*)
+      if (my_rank == 0) then
+        write (*,*) 'Grid size =',nxs,nys,nzs
+        write (*,*) 'Final time=',time
+        write (*,*)
+      endif
 
       call closeRecordFiles
 
-c     Calculate difference
+      tsol = time
 
-      if (tref /= tsol) then
-        if (my_rank == 0) write (*,*) tref,tsol
+c     Consistency checks
+
+      if (nx /= nxs .or. ny /= nys .or. nz /= nzs) then
+         call pstop('acc_test_time'
+     .   ,'Reference and solution are at different spatial resolutions')
+      endif
+
+      if (abs(tref-tsol)>1d-10) then
+        if (my_rank == 0) write (*,*) 'T_ref-T_sol=',tref-tsol
         call pstop('acc_test_time'
      .            ,'Reference and solution are not at same time')
       endif
 
-      write (*,*) '>>>>> Temporal errors...'
-      write (*,*)
+c     Calculate difference
+
+      if (my_rank == 0) then
+        write (*,*) '>>>>> Temporal errors...'
+        write (*,*)
+      endif
 
       do ivar=1,vref%nvar
         aref => vref%array_var(ivar)%array
         asol => vsol%array_var(ivar)%array
 
-        mag = integral(igx,igy,igz,nx,ny,nz,(asol-aref)**2
-     .                ,average=.true.)
+        asol = asol-aref
+        mag = integral(igx,igy,igz,nx,ny,nz,asol**2,average=.true.)
         mag = sqrt(mag)
 
-        write (*,10) ' L2-norm time error, component:',ivar,'=',mag
+        if (my_rank == 0)
+     .    write (*,10) ' L2-norm time error, component:',ivar,'=',mag
       enddo
 
- 10   format(a,i2,a,1pe12.3)
+      if (my_rank == 0) write (*,10)
+
+c diag ****
+cc      debugfile = 'debug_p'//trim(int2char(my_rank))//'.bin'
+cc      open(unit=110,file=debugfile,form='unformatted'
+cc     .    ,status='replace')
+cc
+cc      call contour(asol(0:nx+1,0:ny+1,1),nx+2,ny+2
+cc     .            ,0d0,1d0,0d0,1d0,0,110)
+cc
+cc      close(110)
+c diag ****
 
 c     End program
+
+ 10   format(a,i2,a,1pe12.3)
 
       nullify(asol,aref)
       call deallocateDerivedType(vref)

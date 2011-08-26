@@ -119,7 +119,7 @@ c      use grid_mgmt, only: setup_patch
       nullify(grid_data%kline)
 
       nullify(grid_data%gmetric)
-      nullify(grid_data%g_pack)
+cc      nullify(grid_data%g_pack)
       
       grid_data%ngrdx = 1
       grid_data%ngrdy = 1
@@ -205,6 +205,15 @@ c      use grid_mgmt
       integer,INTENT(IN)       :: i,xs,ys,zs,xe,ye,ze
       REAL*8, INTENT(IN)       :: c_array(xs:xe,ys:ye,zs:ze)
 
+      INTERFACE
+      subroutine setup_var_array(farray,i,c_array_ptr,xs,ys,zs,xe,ye,ze)
+        use variable_setup, only: var_array
+        type(var_array) :: farray
+        integer    :: i,xs,ys,zs,xe,ye,ze
+        REAL*8, TARGET :: c_array_ptr(xs:xe,ys:ye,zs:ze)
+      end subroutine setup_var_array
+      END INTERFACE
+
       call setup_var_array(fvararray,i,c_array,xs,ys,zs,xe,ye,ze)
 
       end subroutine fill_var_array
@@ -221,6 +230,15 @@ c      use grid_mgmt
       integer,INTENT(IN)       :: i,xs,ys,zs,xe,ye,ze
       REAL*8, INTENT(IN)       :: c_array(xs:xe,ys:ye,zs:ze)
 
+      INTERFACE
+       subroutine setup_aux_var(fauxvar,i,c_array_ptr,xs,ys,zs,xe,ye,ze)
+         use variable_setup, only: aux_array
+         type(aux_array) :: fauxvar
+         integer    :: i,xs,ys,zs,xe,ye,ze
+         REAL*8, TARGET :: c_array_ptr(xs:xe,ys:ye,zs:ze)
+       end subroutine setup_aux_var
+      END INTERFACE
+
       call setup_aux_var(fauxvar,i,c_array,xs,ys,zs,xe,ye,ze)
 
       end subroutine fill_aux_array_var
@@ -236,6 +254,15 @@ c      use grid_mgmt
       type(aux_array),INTENT(INOUT) :: fauxvec
       integer,INTENT(IN)       :: i,xs,ys,zs,xe,ye,ze
       REAL*8, INTENT(IN)       :: c_array(xs:xe,ys:ye,zs:ze,1:3)
+
+      INTERFACE
+      subroutine setup_aux_vec(fauxvec,i,c_array_ptr,xs,ys,zs,xe,ye,ze)
+        use variable_setup, only: aux_array
+        type(aux_array) :: fauxvec
+        integer    :: i,xs,ys,zs,xe,ye,ze
+        REAL*8, TARGET :: c_array_ptr(xs:xe,ys:ye,zs:ze,1:3)
+      end subroutine setup_aux_vec
+      END INTERFACE
 
       call setup_aux_vec(fauxvec,i,c_array,xs,ys,zs,xe,ye,ze)
 
@@ -276,6 +303,13 @@ c######################################################################
       type(patch), target :: fpatch
       type(patch), pointer :: patch_data
       integer igr, i
+
+      INTERFACE
+        subroutine f_delete_var_array(farray)
+          use variable_setup, only: var_array
+          type(var_array), target :: farray
+        end subroutine f_delete_var_array
+      END INTERFACE
 
       patch_data => fpatch;
 

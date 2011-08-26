@@ -2,7 +2,7 @@ c module nk_setup
 c ######################################################################
       module nk_setup
 
-        use grid
+        use grid, ONLY: np
 
         integer :: maxitnwt,maxitgm,iguess,maxksp,method,global
 
@@ -16,11 +16,14 @@ c ######################################################################
      .            ,mg_oprol       = 2     !Prolongation order for MG
      .            ,mg_coarse_size = 2     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
      .            ,mg_vcyc        = 1     !Maximum number of MG V-cycles
+     .            ,mg_zebra_it    = 1     !Number of relaxations in ZEBRA smoothing
+     .            ,mg_zebra_dir   = 0     !Preferred smoothing direction in ZEBRA smoothing (all if zero)
      .            ,sm_ncolors     = 8     !Number of colors for diagonal calc., smoothing
      .            ,sm_iter        = 5     !Number of MG smoothing passes
 
         real(8) :: pc_tol        = 1d-3   !PC solvers convergence tolerance
      .            ,sm_omega      = 0.7    !Damping for MG smoother (only when 'jb' is chosen)
+     .            ,mg_zebra_omg  = 1d0    !Damping for ZEBRA smoothing
 
         character(2) :: pc_type  = 'id'   !Type of preconditioner (application dependent)
      .                 ,sm_type  = 'jb'   !Type of smoother ('jg','gs','gm')
@@ -34,7 +37,6 @@ c ######################################################################
      .            ,pc_asm        =.false. !Whether to do additive Schwartz PC
      .            ,pc_debug      =.false. !PC debugging flag
      .            ,pc_id         =.false. !Whether we are doing identity PC
-
 
 cc        type :: pcsetup
 cc          integer :: sm_iter,maxvcyc,pc_max_iter,debug_it
@@ -68,9 +70,9 @@ c     ##################################################################
 
       implicit none
 
-cc      if (pc_id) iguess = 0
-
       pc_id = (pc_type == 'id')
+
+cc      if (pc_id) iguess = 0
 
       if (np > 1) mg_gm_coarse = .false.       !Do not perform GMRES coarse solve in parallel
 
@@ -105,7 +107,7 @@ c ######################################################################
      .                                     ,bdfp,bdfn,bdfnm
 
 #if !defined(samrai)
-        real(8),allocatable,dimension(:)   :: fold,fsrc
+        real(8),allocatable,dimension(:)   :: fold,fsrc,x_old
 #endif
         real(8),allocatable,dimension(:,:) :: old_f
 
@@ -114,6 +116,7 @@ c ######################################################################
 
         logical    :: timecorr=.false.,restart=.false.,source=.true.
      .               ,predictor=.false.,postprocess=.false.
+     .               ,preprocess=.false.
      .               ,chk_src=.false.,source_eval=.false.
      .               ,old_time_eval=.false.,vol_wgt=.true.
      .               ,bdf2=.false.,eigen=.false.
@@ -140,7 +143,7 @@ c     Local variables
 
 c     Begin program
 
-      allocate(fold(ntotd),fsrc(ntotd))
+      allocate(fold(ntotd),fsrc(ntotd),x_old(ntotd))
 
       allocate(cnf(neqd),one_over_dt(neqd)
      .        ,bdfp(neqd),bdfn(neqd),bdfnm(neqd))
@@ -171,7 +174,7 @@ c     Local variables
 
 c     Begin program
 
-      deallocate(fold,fsrc)
+      deallocate(fold,fsrc,x_old)
 
       deallocate(cnf,one_over_dt,bdfp,bdfn,bdfnm)
 
@@ -231,7 +234,7 @@ c ######################################################################
 
 #if !defined(petsc_c)
         type(var_array),pointer :: dn,dnm,dnp
-        real(8)    :: l_np,l_n,et1,et2
+        real(8) :: l_np,l_n,et1,et2
 
       contains
 
@@ -576,6 +579,7 @@ cc                dt = min(dtbase,dt*coef2)
 cc              endif
               if  (itm == 1) then
                 dt = 0.1*dtbase
+                dtold = dt
               elseif (itm == 2) then
                 dt = dtbase - dt
               elseif (itm == 3) then

@@ -637,24 +637,13 @@ cc        numerical_grid = .true.  !Needed because of vertex metrics
 
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
-        if (numerical_grid .and. my_rank == 0) then
-          if (nxx == 1 .and. ((xmax-xmin)>1d-3)) then
-            write (*,*)
-            write (*,*) 'Error: large grid spacing in',
-     .                  ' ignorable direction'
-            stop
-          endif
-          if (nyy == 1 .and. ((ymax-ymin)>1d-3)) then
-            write (*,*)
-            write (*,*) 'Error: large grid spacing in',
-     .                  ' ignorable direction'
-            stop
-          endif
-          if (nzz == 1 .and. ((zmax-zmin)>1d-3)) then
-            write (*,*)
-            write (*,*) 'Error: large grid spacing in',
-     .                  ' ignorable direction'
-            stop
+        if (numerical_grid) then
+          if    ((nxx == 1 .and. ((xmax-xmin)>1d-3))
+     .       .or.(nyy == 1 .and. ((ymax-ymin)>1d-3))
+     .       .or.(nzz == 1 .and. ((zmax-zmin)>1d-3))) then
+            call pstop('consistencyCheck'
+     .                ,'Error: large grid spacing in'//
+     .                 ' ignorable direction')
           endif
         endif
 
