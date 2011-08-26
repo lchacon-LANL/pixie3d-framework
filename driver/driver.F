@@ -16,7 +16,9 @@ c ******************************************************************
 
       use grid
 
+#if defined(MK)
       use mk, ONLY: mk_grid,MK_output
+#endif
 
 c Common variables
 
@@ -150,7 +152,9 @@ c Initial output
 
       call output(u_np)
 
+#if defined(MK)
       if (mk_grid) call MK_output
+#endif
 
 c Time loop
 
@@ -267,7 +271,9 @@ c     Update counters (only if timeStep is successful)
 
 c     Output per time step
 
+#if defined(MK)
         if (mk_grid) call MK_output
+#endif
 
         call output(u_np)
 
@@ -367,7 +373,9 @@ c----------------------------------------------------------------------
 
       use eigen_mod
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 
@@ -476,7 +484,9 @@ c     Map Newton solution to vnp (if no error)
 
           call applyBC(vnp,1,1,1)
 
+#if defined(MK)
           if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
+#endif
 
           if (predictor) call storeTSinfo(vn,vnp)
         endif
@@ -491,7 +501,9 @@ c Explicit update
 
         call applyBC(vnp,1,1,1)
 
+#if defined(MK)
         if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
+#endif
 
         itnewt = 1
 
@@ -529,7 +541,9 @@ c----------------------------------------------------------------------
 
       use eigen_mod
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 

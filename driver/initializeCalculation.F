@@ -18,7 +18,9 @@ c----------------------------------------------------------------------
 
       use iosetup
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 
@@ -71,7 +73,9 @@ c Read user initializations
 
 c Account for MK equation
 
+#if defined(MK)
       if (mk_grid) neqd = neqd+1
+#endif
 
 c Read PETSc runtime options
 
@@ -136,7 +140,9 @@ c Create nonlinear function
 
 c Initialize MK variables
 
+#if defined(MK)
       if (mk_grid) call MK_alloc
+#endif
 
 c Create equilibrium u_0
 
@@ -144,6 +150,7 @@ c Create equilibrium u_0
 
 c Initialize MK mesh quantities
 
+#if defined(MK)
       if (mk_grid) then
         u_0%array_var(neqd)%descr = 'MK phi'
         u_0%array_var(neqd)%array = 0d0
@@ -151,6 +158,7 @@ c Initialize MK mesh quantities
         call MK_initGrid(1,bcs=bcond)  !Change also in 3dplot.F
 cc        call MK_initGrid(1)
       endif
+#endif
 
 c Initialize old time solution
 
@@ -162,11 +170,13 @@ c Set unperturbed forcing fields
 
 c Spline unperturbed equilibrium and source if moving mesh
 
+#if defined(MK)
       relax_init_grid = mk_grid.and.mk_init_relax.and.(.not.restart)
 
       if (relax_init_grid) call MK_spline_equ(1,u_n)
 
       if (mk_grid) call MK_spline_src(1,fsrc)
+#endif
 
 c Set initial condition
 
@@ -210,7 +220,9 @@ c--------------------------------------------------------------------
 
       use iosetup
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 
@@ -259,9 +271,11 @@ c Perturb equilibrium
 
         call readRestartFile(nx,ny,nz,itime,time,varrayn,varraynp)
 
+#if defined(MK)
         if(mk_grid) call MK_setup_grid(1,varraynp%array_var(neqd)%array)
 
         if(mk_grid.and.mk_init_relax.and.itime==1) itime = 0
+#endif
 
         inewtime = itime+1
 
@@ -271,7 +285,9 @@ c Impose BC on varrayn
 
       call applyBC(varraynp,1,1,1)
 
+#if defined(MK)
       if (mk_grid) call MK_applyBC(1,varraynp%array_var(neqd)%array)
+#endif
 
 c End program
 
@@ -442,7 +458,9 @@ c----------------------------------------------------------------------
 
       use iosetup
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 
@@ -503,7 +521,9 @@ cc        endif
         call applyBC(u_graph,1,1,1,obc=0)
 cc        call applyBC(u_graph,1,1,1)
 
+#if defined(MK)
         if (mk_grid) call MK_applyBC(1,u_graph%array_var(neqd)%array)
+#endif
 
 #if !defined(adios)
         !Initialize POSIX files
@@ -563,7 +583,9 @@ c--------------------------------------------------------------------
 
       use timeStepping
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 

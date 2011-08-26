@@ -10,7 +10,11 @@ c--------------------------------------------------------------------
 
       use grid
 
+#if defined(MK)
       use mk_pc
+#else
+      use variables
+#endif
 
       use nk_setup
 
@@ -47,10 +51,12 @@ c Copy solution state info
 
 c Setup MK preconditioner
 
+#if defined(MK)
       if (mk_grid) then
         call MK_setupPC(igrid,varray%array_var(neqd)%array)
         varray%nvar = varray%nvar-1  !Substract MK equation
       endif
+#endif
 
 c Setup application PC
 
@@ -81,7 +87,11 @@ c-------------------------------------------------------------------
 
       use timeStepping
 
+#if defined(MK)
       use mk_pc
+#else
+      use nk
+#endif
 
       use nk_setup
 
@@ -139,11 +149,15 @@ c *******************************************************************
 
       else
 
+#if defined(MK)
         if (mk_grid) then
           neq = neqd-1   !Substract MK equation
         else
           neq = neqd
         endif
+#else
+        neq = neqd
+#endif
 
         xxx = 0d0
 
@@ -153,10 +167,13 @@ c     Scatter residuals
 
 c     MK PC
 
+#if defined(MK)
         if (mk_grid) call MK_applyPC(igrid,yyy,xxx(:,neqd),iout)  !Last equation is MK
+#endif
 
 c     Application PC
 
+#if defined(MK)
         if (relax_init_grid) then !Trivial PC for spline EQU
           do k = 1,nz
             do j = 1,ny
@@ -184,6 +201,9 @@ c     Application PC
         else
           call apply_app_PC(igrid,nn,neq,yyy(:,1:neq),xxx(:,1:neq),iout)
         endif
+#else
+        call apply_app_PC(igrid,nn,neq,yyy(:,1:neq),xxx(:,1:neq),iout)
+#endif
 
 c     Gather solution in "x"
 
@@ -272,7 +292,9 @@ c killPC
 c###########################################################################
       subroutine killPC
 
+#if defined(MK)
       use mk_pc
+#endif
 
       use nk_setup
 
@@ -280,7 +302,9 @@ c     Deallocate variables
 
       if (pc_id) return
 
+#if defined(MK)
       if (mk_grid) call MK_killPC
+#endif
 
       call kill_app_PC
 

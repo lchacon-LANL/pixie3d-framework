@@ -12,7 +12,9 @@ c--------------------------------------------------------------------
 
       use timeStepping
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 
@@ -63,6 +65,7 @@ c Calculate residuals
 
             ii = vecPos(neqd,i,j,k,1,1,1)
 
+#if defined(MK)
             if (source.and.mk_grid) then
               if (relax_init_grid) then
                 src = 0d0
@@ -72,7 +75,11 @@ c Calculate residuals
             else
               src = fsrc(ii+1:ii+neqd)
             endif
+#else
+            src = fsrc(ii+1:ii+neqd)
+#endif
 
+#if defined(MK)
             if (mk_grid.and.(.not.mk_nc)) then
               do ieq=1,neqd
                 dfdt(ieq) = one_over_dt(ieq)*
@@ -84,11 +91,16 @@ c Calculate residuals
               dfdt = cnp*(x(ii+1:ii+neqd)-x_old(ii+1:ii+neqd))
      .                  *one_over_dt
             endif
+#else
+            dfdt = cnp*(x(ii+1:ii+neqd)-x_old(ii+1:ii+neqd))
+     .                *one_over_dt
+#endif
 
             f(ii+1:ii+neqd) = dfdt + (1d0-cnf)*f   (ii+1:ii+neqd)
      .                             +      cnf *fold(ii+1:ii+neqd) - src
 
             if (vol_wgt) then
+#if defined(MK)
               if (mk_grid.and.(.not.mk_nc)) then
               !Moving grid case
                 dvol = grid_params%dxh(ig)
@@ -98,6 +110,9 @@ c Calculate residuals
               !Fixed grid case
                 dvol = gmetric%grid(1)%dvol(i,j,k)
               endif
+#else
+              dvol = gmetric%grid(1)%dvol(i,j,k)
+#endif
               f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*dvol
             endif
 
@@ -127,7 +142,9 @@ c--------------------------------------------------------------------
 
       use variable_setup
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 
@@ -165,6 +182,7 @@ c Define time-step parameters
 
       call defineTSParameters
 
+#if defined(MK)
       if (mk_grid) then
         if (relax_init_grid) then
           cnf = 0d0
@@ -180,6 +198,7 @@ c Define time-step parameters
           one_over_dt(neqd) = 0d0
         endif
       endif
+#endif
 
 c Setup parallel BC flags to indicate BCs require communication
 
@@ -200,6 +219,7 @@ c Store function evaluation
           do i = ilo,ihi
             ii = vecPos(neqd,i,j,k,1,1,1)
 
+#if defined(MK)
             if (relax_init_grid) then
               do ieq=1,neqd-1
                 fi(ii+ieq) = varray%array_var(ieq)%array(i,j,k)
@@ -231,6 +251,10 @@ c Store function evaluation
               fi(ii+neqd) = MK_residual(i,j,k,1
      .                                 ,varray%array_var(neqd)%array)
             endif
+#else
+            call nonlinearRHS(i,j,k,1,1,1,varray,fi(ii+1:ii+neqd))
+#endif
+
           enddo
         enddo
       enddo
@@ -255,7 +279,9 @@ c------------------------------------------------------------------
 
       use variables
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 
@@ -280,7 +306,9 @@ c Begin program
 
 c Set up MK grid (MK variable is last equation)
 
+#if defined(MK)
       if(mk_grid) call MK_setup_grid(igrid,varray%array_var(neqd)%array)
+#endif
 
 c Call application setup
 
@@ -288,7 +316,9 @@ c Call application setup
 
 c Setup MK monitor function
 
+#if defined(MK)
       if(mk_grid) call MK_get_mon(igrid)
+#endif
 
 c End program
 

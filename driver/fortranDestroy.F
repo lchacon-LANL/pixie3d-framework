@@ -10,7 +10,9 @@ c ######################################################################
 
       use ts_setup
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 
@@ -30,7 +32,9 @@ c Free memory
 
       call destroyNonlinearFunction   !External
 
+#if defined(MK)
       if (mk_grid) call MK_dealloc
+#endif
 
       call deallocateGlobalVar(gv)
 
