@@ -70,7 +70,7 @@ c Copy and supplement time series up to nx
 
 c Perform fft 
 
-      call fft(nx,ps,x,fk_r,fk_i,omega,inter,ism)
+      call fft(nx,ps,x,nn,fk_r,fk_i,omega,inter,ism)
 
 c Find power spectrum
 
