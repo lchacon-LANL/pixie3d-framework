@@ -51,6 +51,7 @@ ifeq ($(FC),ifort)
   ADDMODFLAG   = -I
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)ifort
+  FOPENMP      = -openmp
 endif
 
 # Flags for g95
@@ -77,7 +78,9 @@ ifeq ($(FC),gfortran)
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)gfortran
   FFLAGS      += #$(STATIC) 
+  FOPENMP      = -fopenmp
 endif
+
 ifeq ($(FC),vtf77)
   OPTIMIZATION = -O3 -march=native
   DEBUG        = -ggdb -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv
