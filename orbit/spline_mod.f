@@ -31,6 +31,8 @@ c #####################################################################
      .                                               ,bcoef => null()
      .                                               ,bcarcoef => null()
 
+        logical, private :: x_is_log,y_is_log,z_is_log
+
       contains
 
 c     sp_domain_limits
@@ -885,6 +887,15 @@ c     Local variables
 
       call splineFlds(xcar,fldcoef=xcoef_ext)
 
+c     Detect whether physical coord is logical coord (needed for evalXi)
+
+      x_is_log = sqrt(sum((xcar(nx/2,:,:,1)-xcar(nx/2,1,1,1))**2))<1d-10
+      y_is_log = sqrt(sum((xcar(:,ny/2,:,2)-xcar(1,ny/2,1,2))**2))<1d-10
+      z_is_log = sqrt(sum((xcar(:,:,nz/2,3)-xcar(1,1,nz/2,3))**2))<1d-10
+
+cc      write (*,*) x_is_log,y_is_log,z_is_log
+cc      stop
+
 c     End program
 
       end subroutine splineX
@@ -1270,7 +1281,7 @@ c     Call variables
 c     Local variables
 
       integer,parameter :: maxit=100,size=3,icol=1
-      real(8),parameter :: tol=1d-14
+      real(8),parameter :: tol=1d-12
 
       integer :: iter
       real(8) :: JJ(size,size),res(size,icol)
@@ -1371,20 +1382,30 @@ c     ###################################################################
       call chk_pos(x11,x22,x33)
 
       res(1) = x - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,1),work) - (x1-x11)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,1),work)
 
       res(2) = y - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,2),work) - (x2-x22)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,2),work)
 
       res(3) = z - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,3),work) - (x3-x33)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,3),work)
 
-cc      if (prnt) write (*,*) 'evalXi -- sbcnd',sbcnd
-cc      if (prnt) write (*,*) 'evalXi -- limits',xsmin,xsmax
-cc     .                                        ,ysmin,ysmax
-cc     .                                        ,zsmin,zsmax,tol
-cc      if (prnt) write (*,*) 'evalXi -- log coords',x11,x22,x33
-cc      if (prnt) write (*,*) 'evalXi -- res before mod=',res
+      !Shift residual if physical coord is logical coord
+      if (x_is_log) res(1) = res(1) - (x1-x11)
+      if (y_is_log) res(2) = res(2) - (x2-x22)
+      if (z_is_log) res(3) = res(3) - (x3-x33)
+
+cc      if (prnt) then
+cc        write (*,*)
+cc        write (*,*) 'evalXi -- sbcnd',sbcnd
+cc        write (*,*) 'evalXi -- limits',xsmin,xsmax
+cc     .                                ,ysmin,ysmax
+cc     .                                ,zsmin,zsmax,tol
+cc        write (*,*) 'evalXi -- input log coords',x1 ,x2 ,x3
+cc        write (*,*) 'evalXi -- shifted log coords',x11,x22,x33
+cc        write (*,*) 'evalXi -- Shifts=',x1-x11,x2-x22,x3-x33
+cc        write (*,*) 'evalXi -- res before mod=',res
+cc      endif
 
 cc      if (sbcnd(1) == PER) res(1) = mod(res(1),xsmax-xsmin-0.1*tol)
 cc      if (sbcnd(3) == PER) res(2) = mod(res(2),ysmax-ysmin-0.1*tol)
