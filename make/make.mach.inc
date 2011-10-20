@@ -108,7 +108,6 @@ ifeq ($(HOST),quevedo)
     NETCDF_LIBS = -lnetcdff -lnetcdf
     NETCDF_INC  = -I/usr/include
 
-    VMEC = t
 #    ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
   endif
 
@@ -129,7 +128,6 @@ ifeq ($(HOST),gongora)
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include/netcdf
 
-  VMEC = t
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
   ifdef BOPT
@@ -224,8 +222,6 @@ ifeq ($(HOST),siesta)
     endif
   endif
 
-  VMEC = t
-
   NETCDF=t
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include
@@ -273,8 +269,6 @@ ifeq ($(HOST),swim)
     ADIOS = f
   endif
 
-  VMEC = t
-
   NETCDF=t
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include
@@ -315,8 +309,6 @@ ifeq ($(HOST),ra22)
 
     ADIOS = f
   endif
-
-  VMEC = t
 
   NETCDF=f
 #  NETCDF_LIBS = -lnetcdff -lnetcdf
@@ -484,5 +476,3 @@ ifeq ($(PIC_CUDA),t)
 	CUDA_OPT = -L/usr/local/cuda/lib64 /usr/local/cuda/lib64/libcudart.so.3.2.16  -lcuda -I/usr/local/cuda/include/ 
 	CUDA_INCLUDE = -I/home/gcc/NVIDIA_GPU_Computing_SDK/C/common/inc
 endif
-
-
