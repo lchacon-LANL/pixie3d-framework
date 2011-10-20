@@ -175,15 +175,15 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
             shift[i] = 0;
         if ( xs < 1 )
             shift[1] = 1-xs;
-    	if ( xs >= nbox[0] )
+    	if ( xe >= nbox[0] )
             shift[0] = nbox[0]-1-xe;
         if ( ys < 1 )
             shift[1] = 1-ys;
-    	if ( ys >= nbox[1] )
+    	if ( ye >= nbox[1] )
             shift[1] = nbox[1]-1-ye;
         if ( zs < 1 )
             shift[2] = 1-zs;
-    	if ( zs >= nbox[2] )
+    	if ( ze >= nbox[2] )
             shift[2] = nbox[2]-1-ze;
         for (int i=0; i<NDIM; i++) {
             if ( shift[i]==0 )

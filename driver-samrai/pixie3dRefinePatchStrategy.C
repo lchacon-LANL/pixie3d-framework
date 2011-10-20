@@ -179,9 +179,9 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
     } else {
 //TBOX_ERROR("Not tested");
         // Patch is not in the hierarchy, create a temporary pixie patch
-        level_container = new LevelContainer::LevelContainer(pn+1,d_hierarchy,
+        level_container = new LevelContainer(pn+1,d_hierarchy,
             d_nvar,u0_id,u_id,d_nauxs,auxs_id,d_nauxv,auxv_id);
-        tbox::Pointer< hier::Patch<NDIM> > patch_ptr = tbox::Pointer< hier::Patch<NDIM> >::Pointer(&patch,false);
+        tbox::Pointer< hier::Patch<NDIM> > patch_ptr = tbox::Pointer< hier::Patch<NDIM> >(&patch,false);
         level_container->CreatePatch(pn,patch_ptr);
     }
     assert(level_container!=NULL);

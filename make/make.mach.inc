@@ -28,6 +28,7 @@ ifeq ($(HOST),lap0086227)
     FC=gfortran
 #    FC=vtf77
     OPT=g
+    HDF5 = t
 #    HDF5_HOME =/usr
 #    HDF5_HOME =$(HDF5)
 #    HDF5_HOME =/packages/hdf5-1.8.3/hdf5
@@ -38,6 +39,23 @@ ifeq ($(HOST),lap0086227)
     # PETSC_DIR = ${PETSC_DIR}
     # PETSC_ARCH = ${PETSC_ARCH}
     LIBS += -L${PETSC_DIR}/${PETSC_ARCH}/lib -lflapack -lfblas
+endif
+
+###############################
+# vayu (Bobby's desktop)      #
+###############################
+
+ifeq ($(HOST),vayu)
+    FC=gfortran
+    #FC=mpif90
+    #CC=mpicc
+    #CXX=mpic++
+    OPT=g
+    HDF5 = t
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/lib
+    HDF5_INC  =-I$(HDF5_HOME)/include
+    LIBS += -L${ACML_DIR} -llapack -lblas
 endif
 
 ###########
@@ -471,8 +489,8 @@ endif
 
 ifeq ($(PIC_CUDA),t) 
 	NVCC = nvcc	
-	gpu_arch = -arch sm_13
-	NVCCFLAGS= --ptxas-options=-v -O2 #-g -G #
-	CUDA_OPT = -L/usr/local/cuda/lib64 /usr/local/cuda/lib64/libcudart.so.3.2.16  -lcuda -I/usr/local/cuda/include/ 
-	CUDA_INCLUDE = -I/home/gcc/NVIDIA_GPU_Computing_SDK/C/common/inc
+	gpu_arch = -arch sm_20
+	NVCCFLAGS= --ptxas-options=-v -O2 --compiler-bindir /home/gcc/soft/gcc/gcc-445/bin  #-g -G # 
+	CUDA_OPT = -L/usr/local/cuda/lib64 /usr/local/cuda/lib64/libcudart.so  -lcuda -I/usr/local/cuda/include/ 
+	CUDA_INCLUDE =  # -I/home/gcc/NVIDIA_GPU_Computing_SDK/C/common/inc
 endif

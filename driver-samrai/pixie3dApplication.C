@@ -99,11 +99,12 @@ extern void FORTRAN_NAME(formequilibrium) (void*);
 extern void FORTRAN_NAME(initialize_u_n) (void*);
 extern void FORTRAN_NAME(forminitialcondition) (void*, int*, double*);
 extern void FORTRAN_NAME(evaluatenonlinearresidual) (void*, int*, double*, void*);
-extern void FORTRAN_NAME(setupvarinitseq)(void *, int*);
+extern void FORTRAN_NAME(setupvarinitseq)(void*, int*);
 extern void FORTRAN_NAME(getnumberofbcgroups)(void*, int*);
 extern void FORTRAN_NAME(getbcsequence)(void*, int*, int*, int**);
-extern void FORTRAN_NAME(initializeauxvar)(void *, int*);
-extern void FORTRAN_NAME(get_var_names)(void *, char*, char*, char*);
+extern void FORTRAN_NAME(initializeauxvar)(void*, int*);
+extern void FORTRAN_NAME(get_var_names)(void*, char*, char*, char*);
+extern void FORTRAN_NAME(findexplicitdt)(void*, double*);
 #endif
 }
 
@@ -124,6 +125,7 @@ pixie3dApplication::pixie3dApplication()
         refineSchedule[i] = NULL;
         siblingSchedule[i] = NULL;
     }
+    dt_exp = 1.0;
 }
 
 
@@ -143,6 +145,7 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
         refineSchedule[i] = NULL;
         siblingSchedule[i] = NULL;
     }
+    dt_exp = 1.0;
     initialize( parameters );
 }
 
@@ -297,9 +300,9 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     tbox::Pointer<hier::VariableContext> context_in = var_db->getContext("pixie3d-initial");
     tbox::Pointer<hier::VariableContext> context_f = var_db->getContext("pixie3d-source");
     tbox::Pointer< pdat::CellVariable<NDIM,double> > var;
-    hier::IntVector<NDIM> ghost0 = hier::IntVector<NDIM>::IntVector(0);
-    hier::IntVector<NDIM> ghost1 = hier::IntVector<NDIM>::IntVector(1);
-    hier::IntVector<NDIM> ghost2 = hier::IntVector<NDIM>::IntVector(GHOST);
+    hier::IntVector<NDIM> ghost0 = hier::IntVector<NDIM>(0);
+    hier::IntVector<NDIM> ghost1 = hier::IntVector<NDIM>(1);
+    hier::IntVector<NDIM> ghost2 = hier::IntVector<NDIM>(GHOST);
    
     var = new pdat::CellVariable<NDIM,double>("weight", 1);
     const int weight_id = var_db->registerVariableAndContext(var, context_xt, ghost0);
@@ -616,6 +619,7 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
     }
 
     // Call EvaluateFunction
+    dt_exp = 1e10;
     for (int i=0; i<input_data->nvar; i++)
         f_id[i] = d_x_r->getComponentDescriptorIndex(i);
     tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry = d_hierarchy->getGridGeometry();
@@ -643,11 +647,24 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > 
             #else
             	FORTRAN_NAME(evaluatenonlinearresidual)(level_container->getPtr(p()),&n_elem,fsrc,varray->getPtr());
             #endif
+            // Comupute the timestep required for an explicit method, computed by pixie3d
+            double dt_patch;
+            #ifdef absoft
+            	FORTRAN_NAME(FINDEXPLICITDT)(level_container->getPtr(p()),&n_elem,fsrc,varray->getPtr());
+            #else
+              	FORTRAN_NAME(findexplicitdt)(level_container->getPtr(p()),&dt_patch);
+            #endif
+            if ( dt_patch<=0.0 || dt_patch!=dt_patch )
+                TBOX_ERROR("Invalid timestep detected\n");
+            if ( dt_patch < dt_exp )
+                dt_exp = dt_patch;
         	// Delete varray
         	delete varray;
         }
     }
-    
+    // Get the global minimum timestep
+    dt_exp = tbox::SAMRAI_MPI::minReduction(dt_exp);
+
     // Copy r
     r->copyVector(d_x_r);
 }
@@ -851,8 +868,8 @@ pixie3dApplication::generateTransferSchedules(void)
        // Create the CartesianCellDoubleCubicRefine operator
        CartesianCellDoubleCubicRefine* temp = new CartesianCellDoubleCubicRefine();
        // manually set the refinement ratio and stencil width for the CartesianCellDoubleCubicRefine
-      hier::IntVector<NDIM> width = hier::IntVector<NDIM>::IntVector(2);
-      hier::IntVector<NDIM> ratio = hier::IntVector<NDIM>::IntVector(3);
+      hier::IntVector<NDIM> width = hier::IntVector<NDIM>(2);
+      hier::IntVector<NDIM> ratio = hier::IntVector<NDIM>(3);
       if ( IS2D == 1 )
 	{
 	  width(2) = 0;

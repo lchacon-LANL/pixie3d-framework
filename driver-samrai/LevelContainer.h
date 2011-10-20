@@ -31,7 +31,7 @@ private:
     int N;
     tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
     int n_var, *u0_id, *u_id, n_auxs, *auxs_id, n_auxv, *auxv_id;
-    PatchContainer::PatchContainer **data;
+    PatchContainer **data;
     tbox::Pointer< hier::Patch<NDIM> > *patch_ptr;
 };
 
