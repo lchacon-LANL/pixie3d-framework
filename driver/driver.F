@@ -132,8 +132,6 @@ c Initialize calculation
 
       call initializeCalculation
 
-      call nk_setup_consistency
-
 c Initialize counters
 
       gmres_tot = 0
@@ -212,9 +210,7 @@ c     Time update
         call PetscLogStagePush(prof_stage(2),perr)
 #endif
 
-        if (.not.relax_init_grid) then
-          time = time + dt
-        endif
+        if (.not.relax_init_grid) time = time + dt
 
         if (eigen) then
           !Eigenvalue solver
