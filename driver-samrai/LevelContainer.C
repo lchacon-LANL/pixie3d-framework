@@ -1,8 +1,8 @@
-#include "LevelContainer.h"
 #include <iostream>
+#include "LevelContainer.h"
 #include "PatchContainer.h"
-#include "CartesianGridGeometry.h"
-#include "CartesianPatchGeometry.h"
+#include "SAMRAI/geom/CartesianGridGeometry.h"
+#include "SAMRAI/geom/CartesianPatchGeometry.h"
 
 
 extern "C"{
@@ -22,29 +22,18 @@ extern "C"{
 }
 
 
-#if NDIM != 3
-#error Not programed for dimension other than 3
-#endif
 
-
-LevelContainer::LevelContainer()
+/********************************************************************
+* Constructor                                                       *
+********************************************************************/
+LevelContainer::LevelContainer( tbox::Pointer<hier::PatchHierarchy> hierarchy, 
+    tbox::Pointer< hier::PatchLevel> level,
+    int n_var_in, int *u0_id_in, int *u_id_in, int n_auxs_in, 
+    int *auxs_id_in, int n_auxv_in, int *auxv_id_in )
 {
-   data = NULL;
-   patch_ptr = NULL;
-}
-
-LevelContainer::LevelContainer(int n, tbox::Pointer< hier::PatchHierarchy<NDIM> > hierarchy,
-      int n_var_in, int *u0_id_in, int *u_id_in, int n_auxs_in, int *auxs_id_in, int n_auxv_in, int *auxv_id_in )
-{
-    N = n;
+    // Copy the inputs
     d_hierarchy = hierarchy;
-    // Create space for a patch object for each patch (n patches)
-    data = new PatchContainer *[N];
-    patch_ptr = new tbox::Pointer< hier::Patch<NDIM> > [N];
-    for (int i=0; i<N; i++) {
-        data[i] = NULL;
-        patch_ptr[i].setNull();;
-    }
+    d_level = level;
     n_var = n_var_in;
     u_id = new int[n_var];
     u0_id = new int[n_var];
@@ -60,29 +49,31 @@ LevelContainer::LevelContainer(int n, tbox::Pointer< hier::PatchHierarchy<NDIM> 
     auxv_id = new int[n_auxv];
     for (int i=0; i<n_auxv; i++) 
         auxv_id[i] = auxv_id_in[i];
+    // Create the patch objects
+    data.resize(0);
+    data.reserve(level->getNumberOfPatches());
+    for (hier::PatchLevel::Iterator p(level); p; p++) {
+        tbox::Pointer<hier::Patch> patch = *p;
+        int local_id = patch->getLocalId().getValue();
+        int index = (int) data.size();
+        patch_map.insert( std::pair<int,int>(local_id,index) );
+        data[index] = new PatchContainer(d_hierarchy,patch,n_var,u0_id,u_id,n_auxs,auxs_id,n_auxv,auxv_id);
+    }
 }
 
 
-void LevelContainer::CreatePatch(int patch_id, tbox::Pointer< hier::Patch<NDIM> > &patch )
+
+void *LevelContainer::getPtr(tbox::Pointer<hier::Patch> patch)
 {
-    patch_ptr[patch_id] = patch;
-    data[patch_id] = new PatchContainer(d_hierarchy,patch_ptr[patch_id],n_var,u0_id,u_id,n_auxs,auxs_id,n_auxv,auxv_id);
-    //delete data[patch_id];
-    //data[patch_id] = NULL;
-    //data[patch_id] = new PatchContainer(d_hierarchy,patch_ptr[patch_id],n_var,u0_id,u_id,n_auxs,auxs_id,n_auxv,auxv_id);
-}
-
-
-
-void * LevelContainer::getPtr(int patch)
-{
-    if ( patch<0 || patch>=N )
+    if ( patch.isNull() )
         return NULL;
-    if ( data[patch] == NULL )
+    int local_id = patch->getLocalId().getValue();
+    int index = patch_map.find(local_id)->second;
+    if ( data[index] == NULL )
        return NULL;
-    //delete data[patch];
-    //data[patch] = new PatchContainer::PatchContainer(d_hierarchy,patch_ptr[patch],n_var,u0_id,u_id,n_auxs,auxs_id,n_auxv,auxv_id);  
-    void *data_ptr = data[patch]->getPtr();
+    //delete data[index];
+    //data[index] = new PatchContainer::PatchContainer(d_hierarchy,patch,n_var,u0_id,u_id,n_auxs,auxs_id,n_auxv,auxv_id);  
+    void *data_ptr = data[index]->getPtr();
     return data_ptr;
 }
 
@@ -90,21 +81,17 @@ void * LevelContainer::getPtr(int patch)
 LevelContainer::~LevelContainer()
 {
     // Delete the patch data
-    if ( data != NULL ) {
-        for(int i=0; i<N; i++) {
-            if ( data[i] != NULL )
-                delete data[i];
-        }
-        delete [] data;
-        delete [] patch_ptr;
-        data = NULL;
+    for (size_t i=0; i<data.size(); i++) {
+        if ( data[i] != NULL )
+            delete data[i];
     }
+    data.clear();
+    patch_map.clear();
     // Delete the internal variables
     delete [] u0_id;
     delete [] u_id;
     delete [] auxs_id;
     delete [] auxv_id;
-    N = 0;
 }
 
 
