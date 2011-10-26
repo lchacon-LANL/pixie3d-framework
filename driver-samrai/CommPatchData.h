@@ -6,6 +6,7 @@
 #include "SAMRAI/hier/IntVector.h"
 #include "SAMRAI/hier/Patch.h"
 #include "SAMRAI/tbox/Pointer.h"
+#include "SAMRAI/tbox/Dimension.h"
 
 using namespace SAMRAI;
 
@@ -16,8 +17,8 @@ using namespace SAMRAI;
 class commPatchData {
     public:
 
-        // Default constructor
-        commPatchData();
+        // Constructor that initializes patch data
+        commPatchData( tbox::Dimension dim );
 
         // Constructor that initializes patch data
         commPatchData( const tbox::Pointer<hier::Patch>& patch, const int var_id );

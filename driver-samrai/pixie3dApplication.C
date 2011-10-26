@@ -1180,7 +1180,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
         refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_NumberOfBoundarySequenceGroups];
         siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_NumberOfBoundarySequenceGroups];
         for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
-            int data_id;
+            int data_id=-1;
             xfer::RefineAlgorithm refineVariableAlgorithm(d_hierarchy->getDim());
             // Register the variables in the current squence
             std::vector<int> ids(d_BoundarySequenceGroups[iSeq].nbc_seq,-1);
@@ -1275,9 +1275,9 @@ std::vector<commPatchData> pixie3dApplication::collectAllPatchData(tbox::Pointer
     // Allocate space for the output
     std::vector<commPatchData> patch_data;
     if ( rank==root )
-        patch_data.resize(NpatchesGlobal);
+        patch_data.resize(NpatchesGlobal,commPatchData(level->getDim()));
     // Create the local patch data objects
-    std::vector<commPatchData> patch_data_local(NpatchesLocal);
+    std::vector<commPatchData> patch_data_local(NpatchesLocal,commPatchData(level->getDim()));
     int k=0;
     for (hier::PatchLevel::Iterator p(level); p; p++) {
         patch_data_local[k] = commPatchData(*p,id);
@@ -1290,20 +1290,49 @@ std::vector<commPatchData> pixie3dApplication::collectAllPatchData(tbox::Pointer
         for (int i=0; i<size; i++) {
             if ( i==rank ) {
                 // Perform a local copy
-                for (size_t j=0; j<patch_data_local.size(); j++) {
+                for (int j=0; j<Npatches[i]; j++) {
                     patch_data[k] = patch_data_local[j];
                     k++;
                 }
             } else {
                 // Recieve the data from the remote processor
-                TBOX_ERROR("Not implimented yet");
+                MPI_Status status;
+                comm.Probe(i,132,&status);
+                int buffer_size;
+                MPI_Get_count(&status,MPI_INT,&buffer_size);
+                int *buffer = new int[buffer_size];
+                comm.Recv(buffer,buffer_size,MPI_INT,i,132,&status);
+                int index = 0;
+                for (int j=0; j<Npatches[i]; j++) {
+                    patch_data[k].getFromIntBuffer(&buffer[index+1]);
+                    index += 1+buffer[index];
+                    k++;
+                }
+                delete [] buffer;
             }
         }
     } else {
         // We are sending our data
-        TBOX_ERROR("Not implimented yet");
+        // Compute the necessary buffer size
+        size_t buffer_size = NpatchesLocal;
+        for (int j=0; j<Npatches[rank]; j++)
+            buffer_size += patch_data_local[j].commBufferSize();
+        // Create the buffer
+        int *buffer = new int[buffer_size];
+        // Fill the buffer
+        size_t k = 0;
+        for (int j=0; j<Npatches[rank]; j++) {
+            size_t patch_size = patch_data_local[j].commBufferSize();
+            buffer[k] = (int) patch_size;
+            patch_data_local[j].putToIntBuffer(&buffer[k+1]);
+            k += 1+patch_size;
+        }
+        // Send the buffer
+        comm.Send(buffer,buffer_size,MPI_INT,0,132);
+        delete [] buffer;
     }
     // Finished
+    comm.Barrier();
     return patch_data;
 }
 

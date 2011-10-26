@@ -52,12 +52,13 @@ LevelContainer::LevelContainer( tbox::Pointer<hier::PatchHierarchy> hierarchy,
     // Create the patch objects
     data.resize(0);
     data.reserve(level->getNumberOfPatches());
+    int index = 0;
     for (hier::PatchLevel::Iterator p(level); p; p++) {
         tbox::Pointer<hier::Patch> patch = *p;
         int local_id = patch->getLocalId().getValue();
-        int index = (int) data.size();
         patch_map.insert( std::pair<int,int>(local_id,index) );
         data[index] = new PatchContainer(d_hierarchy,patch,n_var,u0_id,u_id,n_auxs,auxs_id,n_auxv,auxv_id);
+        index++;
     }
 }
 

@@ -6,9 +6,9 @@
 /************************************************************************
 *  Default constructor                                                  *
 ************************************************************************/
-commPatchData::commPatchData():
-    box(hier::Box(tbox::Dimension(0))),
-    gcw(hier::IntVector(tbox::Dimension(0)))
+commPatchData::commPatchData(tbox::Dimension dim):
+    box(hier::Box(dim)),
+    gcw(hier::IntVector(dim))
 { 
     depth = 0;
     data = NULL;
@@ -20,8 +20,8 @@ commPatchData::commPatchData():
 *  Initializing constructor                                             *
 ************************************************************************/
 commPatchData::commPatchData( const tbox::Pointer<hier::Patch>& patch, const int var_id ):
-    box(hier::Box(tbox::Dimension(0))),
-    gcw(hier::IntVector(tbox::Dimension(0)))
+    box(hier::Box(patch->getDim())),
+    gcw(hier::IntVector(patch->getDim()))
 { 
     box = patch->getBox();
     tbox::Pointer< pdat::CellData<double> > pdat = patch->getPatchData(var_id);
@@ -45,8 +45,8 @@ commPatchData::~commPatchData()
 *  Copy constructor                                                     *
 ************************************************************************/
 commPatchData::commPatchData( const commPatchData& rhs ):
-    box(hier::Box(tbox::Dimension(0))),
-    gcw(hier::IntVector(tbox::Dimension(0)))
+    box(rhs.box),
+    gcw(rhs.gcw)
 { 
     box = rhs.box;
     gcw = rhs.gcw;
@@ -89,7 +89,7 @@ size_t commPatchData::commBufferSize()
     size_t data_size = depth;
     for (int i=0; i<dim; i++)
         data_size *= ilast(i)-ifirst(i)+1+2*gcw(i);
-    size += data_size;
+    size += data_size*sizeof(double)/sizeof(int);
     return size;
 }
 
@@ -118,7 +118,7 @@ void commPatchData::putToIntBuffer(int *buffer)
         return;
     if ( data==NULL ) 
         TBOX_ERROR("Internal Error");
-    double *ptr = (double*) buffer[2+3*dim];
+    double *ptr = (double*) &buffer[2+3*dim];
     size_t data_size = depth;
     for (int i=0; i<dim; i++)
         data_size *= ilast(i)-ifirst(i)+1+2*gcw(i);
@@ -151,7 +151,7 @@ void commPatchData::getFromIntBuffer(int *buffer)
     for (int i=0; i<dim; i++)
         data_size *= ilast(i)-ifirst(i)+1+2*gcw(i);
     data = new double[data_size];
-    double *ptr = (double*) buffer[2+3*dim];
+    double *ptr = (double*) &buffer[2+3*dim];
     for (size_t i=0; i<data_size; i++)
         data[i] = ptr[i];
 }
