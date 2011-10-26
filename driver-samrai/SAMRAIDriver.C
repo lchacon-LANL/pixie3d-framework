@@ -122,7 +122,8 @@ int main( int argc, char *argv[] )
     application->setInitialConditions(t0);
 
     // Perform a regrid to make sure the tagging is all set correctly
-    tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = application;
+    tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
+    TBOX_ASSERT(!error_detector.isNull());
     error_detector->turnOnGradientDetector();
     error_detector->turnOffRefineBoxes();
     tbox::Array<int> tag_buffer;
