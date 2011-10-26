@@ -16,14 +16,20 @@ c ******************************************************************
 
       use grid
 
+#if defined(MK)
+      use mk, ONLY: mk_grid,MK_output
+#endif
+
 c Common variables
 
       implicit none
 
 c Local variables
 
-      integer    :: prec_tot,ierr,perr,prof_stage(3)
+      integer    :: prec_tot,ierr,perr,prof_stage(3),offset,ieq
       real(8)    :: time1,time2,time3,time4
+
+cc      type (var_array),pointer :: u_star => null()
 
 c Interfaces
 
@@ -36,6 +42,14 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
+        subroutine eigen_sol(vn,vnp,ierr)
+        use variable_setup
+        integer          :: ierr
+        type(var_array),pointer :: vnp,vn
+        end subroutine eigen_sol
+      END INTERFACE
+
+      INTERFACE
         subroutine output(varr)
         use variable_setup
         type(var_array),pointer :: varr
@@ -43,10 +57,40 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
+        subroutine preProcessSol(v_n,v_nm)
+        use variable_setup
+        type(var_array),pointer :: v_n,v_nm
+        end subroutine preProcessSol
+      END INTERFACE
+
+      INTERFACE
         subroutine postProcessSol(v_arr)
         use variable_setup
         type(var_array),pointer :: v_arr
         end subroutine postProcessSol
+      END INTERFACE
+
+      INTERFACE
+        subroutine setInitialCondition(varrayn,varraynp)
+        use variable_setup
+        type(var_array),pointer :: varrayn,varraynp
+        end subroutine setInitialCondition
+      END INTERFACE
+
+cc      INTERFACE
+cc        subroutine applyBC(varray,iigx,iigy,iigz,obc)
+cc        use variable_setup
+cc        integer    :: iigx,iigy,iigz
+cc        integer,optional :: obc
+cc        type(var_array),pointer :: varray
+cc        end subroutine applyBC
+cc      END INTERFACE
+
+      INTERFACE
+        subroutine perturbEquilibrium(varray)
+        use variable_setup
+        type(var_array),pointer :: varray
+        end subroutine perturbEquilibrium
       END INTERFACE
 
 c Begin program
@@ -58,7 +102,9 @@ c Allocate global variable
 c Initialize PETSc and MPI (parallel version)
 
 #if defined(petsc)
-      call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
+      call PetscInitialize(PETSC_NULL_CHARACTER,perr)
+
+      call initMPI(MPI_COMM_WORLD,np,my_rank)
 
       !Set profiling stages
       call PetscLogStageRegister('Initial setup'  ,prof_stage(1),perr)
@@ -69,8 +115,12 @@ c Initialize PETSc and MPI (parallel version)
 c Initialize ADIOS for componentized I/O
 
 #if defined(adios) && defined(petsc)
-      call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
-      call adios_init('adios_config.xml', adios_err)
+      if (.not.is_file('adios_config.xml')) then
+        call pstop('driver_3d','ADIOS config file not present')
+      else
+        call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
+        call adios_init('adios_config.xml', adios_err)
+      endif
 #endif
 
 c Initialize calculation
@@ -100,6 +150,10 @@ c Initial output
 
       call output(u_np)
 
+#if defined(MK)
+      if (mk_grid) call MK_output
+#endif
+
 c Time loop
 
 #if defined(petsc)
@@ -110,6 +164,9 @@ c Time loop
       call PetscLogStagePop(perr)
       call PetscLogStagePush(prof_stage(3),perr)
 #endif
+
+      offset = 0
+      if (relax_init_grid) offset = 1
 
       do
 
@@ -124,16 +181,26 @@ c     Find new time step
         if (    cnfactor == 1d0                          !Explicit
      .     .or.(timecorr.and.ierr.eq.0.and.itime.eq.1)   !First explicit step if timecorr
      .     ) then
-          call findExplicitDt
-          call correctTimeStep(itime,ierr,dt_exp=dt)
+          call findExplicitDt(dt)
+          call correctTimeStep(itime-offset,ierr,dt_exp=dt)
         else
-          call correctTimeStep(itime,ierr)
+          call correctTimeStep(itime-offset,ierr)
         endif
 
 c     Assign old time solution
 
         call equateDerivedType(u_nm,u_n)
         call equateDerivedType(u_n ,u_np)
+
+c     Preprocess old solution (for e.g. splitting)
+
+        if (preprocess) call preProcessSol(u_nm,u_n) !External
+
+c     Store BDF2 old-time solution (in u_np)
+
+        if (bdf2) then
+          call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,u_np)
+        endif
 
 c     Time update
 
@@ -143,9 +210,15 @@ c     Time update
         call PetscLogStagePush(prof_stage(2),perr)
 #endif
 
-        time   = time  + dt
+        if (.not.relax_init_grid) time = time + dt
 
-        call timeStep(u_n,u_np,ierr)
+        if (eigen) then
+          !Eigenvalue solver
+          call eigen_sol(u_n,u_np,ierr)
+        else
+          !Time step
+          call timeStep(u_n,u_np,ierr)
+        endif
 
 c     Check for error in time stepping
 
@@ -183,30 +256,45 @@ c     Check for error in time stepping
 
 c     Postprocess solution
 
-        if (postprocess) call postProcessSol(u_np)
+        if (postprocess) call postProcessSol(u_np)  !External
 
 c     Update counters (only if timeStep is successful)
 
-        tmrst  = tmrst + dt
-        nrst   = nrst  + 1
+        if (.not.relax_init_grid) then
+          tmrst  = tmrst + dt
+          nrst   = nrst  + 1
+        endif
 
 c     Output per time step
+
+#if defined(MK)
+        if (mk_grid) call MK_output
+#endif
 
         call output(u_np)
 
 c     Time level data dump
 
 #if defined(RFX)
-        if (nrst.eq.ndstep.or.tmrst.ge.dstep) then
+        if (nrst.eq.ndstep.or.tmrst.ge.dstep
 #else
-        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep) then
+        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep
 #endif
-          nrst  = 0
-          if (itime.gt.0) tmrst = tmrst - dstep
+     .      .or.relax_init_grid) then
+          if (.not.relax_init_grid) nrst  = 0
+          if(itime.gt.0.and.(.not.relax_init_grid)) tmrst=tmrst-dstep
           call writeRecordFile(urecord,itime,time,dt,u_np)
         endif
 
         if (eigen) exit
+
+        if (relax_init_grid) then
+          relax_init_grid = .false.
+cc          if (source) call get_src(u_np,.true.)  !Update source with interpolated equilibrium
+          call equateDerivedType (u_n,u_np)     !Save interpolated (unperturbed) equilibrium
+          call perturbEquilibrium(u_np)         !Perturb interpolated equilibrium
+cc          call applyBC(u_np,1,1,1)
+        endif
 
       enddo       !End of time loop
 
@@ -281,6 +369,10 @@ c----------------------------------------------------------------------
 
       use eigen_mod
 
+#if defined(MK)
+      use mk
+#endif
+
       implicit none
 
 c Call variables
@@ -305,22 +397,15 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine explicit(vn,vnp,iter,iout)
+        subroutine explicit(vnp,iter,iout)
         use variable_setup
-        integer          :: iter,iout
-        type(var_array),pointer :: vnp,vn
+        integer :: iter,iout
+        type(var_array),pointer :: vnp
         end subroutine explicit
       END INTERFACE
 
       INTERFACE
-        subroutine applyPreconditioner(n,x,y,out)
-        integer :: n,out
-        real(8),dimension(n) :: x,y
-        end subroutine
-      END INTERFACE
-
-      INTERFACE
-        subroutine applyBC (varray,iigx,iigy,iigz,obc)
+        subroutine applyBC(varray,iigx,iigy,iigz,obc)
         use variable_setup
         integer    :: iigx,iigy,iigz
         integer,optional :: obc
@@ -342,82 +427,22 @@ c Evaluate nonlinear function at old time for theta scheme
       call evaluateNonlinearFunction(vnp,fold)
 
       old_time_eval = .false.
-
-c Eigenvalue solver
-
-      if (eigen) then
-
-        !Setup matrix-free vectors (xk, rk)
-        allocate(nk_conf%xk(ntotd),nk_conf%rk(ntotd))
-
-        call mapStructureToVector(nk_conf%xk,u_0)
-        call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
-
-        !Setup preconditioner
-        call setupPC(ntotd,nk_conf%xk,1)
-
-        !Setup initial guess for eigenfunction
-        call mapStructureToVector(x ,vnp)
-        x = x - nk_conf%xk
-
-        !Eigensolve
-cc#if defined(arpack)
-cc        call arnoldi_eig(neqd,ntotd,x,ilevel)
-cc#endif
-        eigen_conf%my_rank = my_rank
-
-        eigen_conf%ksmax   = maxksp
-        eigen_conf%armax   = maxitgm
-        if (rtol > 0d0) eigen_conf%rtol = rtol
-        if (atol > 0d0) eigen_conf%atol = atol
-        eigen_conf%step    = eig_dt
-
-        iguess = 1
-        call lehoucq_eig(ntotd,x,iguess,ilevel,ierr
-     .                  ,matrixFreeMatVec
-     .                  ,applyPreconditioner
-     .                  ,ldot=dot2)
-
-        select case(ierr)
-        case(1)
-          call pstop('lehoucq_eig'
-     .              ,'Matrix not positive definite')
-        end select
-
-        !Output
-        if (my_rank == 0) then
-           write (*,*)
-           write (*,*) '**************************************'
-           write (*,'(a,1p,1e10.3,a)') ' ****** Eigenvalue is='
-     $             ,1d0/dt-eigen_conf%eigv,' ******' 
-           write (*,*) '**************************************'
-        endif
-
-        itgmres = eigen_conf%iter_out
-
-        !Map eigenvector for plotting
-        x = x + nk_conf%xk
-        call mapVectorToStructure(vnp,x)
-
-        !Free memory
-        deallocate(nk_conf%xk,nk_conf%rk)
  
+c Map old solution
+
+      call mapStructureToVector(x_old,vnp)
+
 c Implicit update (Newton)
 
-      elseif (cnfactor.lt.1d0) then
+      if (cnfactor.lt.1d0) then
 
 c     Initial guess
 
-        if (predictor) then
+        if (predictor.and.(.not.bdf2)) then
           call findGuess(vn,vnp)
           call mapStructureToVector(x,vnp)
         else
-          if (bdf2) then
-            call AXPYDerivedType(-cn/cnp,vn,-cnm/cnp,u_nm,vnp)
-            call mapStructureToVector(x,vnp)
-          else
-            call mapStructureToVector(x,vnp)
-          endif
+          x = x_old
         endif
 
 c     Newton-Krylov iteration
@@ -443,7 +468,7 @@ cc        nk_conf%krylov_method='gm'
 
         nk_conf%vol_wgt = vol_wgt
 
-        call nk(neqd,ntotd,x,iguess,ilevel,ierr)
+        call jfnk(neqd,ntotd,x,iguess,ilevel,ierr)
 
         itgmres = nk_conf%gm_it_out
         itnewt  = nk_conf%nwt_it_out
@@ -452,7 +477,13 @@ c     Map Newton solution to vnp (if no error)
 
         if (ierr.eq.0.or.ierr.eq.2) then
           call mapVectorToStructure(vnp,x)
+
           call applyBC(vnp,1,1,1)
+
+#if defined(MK)
+          if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
+#endif
+
           if (predictor) call storeTSinfo(vn,vnp)
         endif
 
@@ -462,9 +493,13 @@ c Explicit update
 
         itgmres = maxitgm
 
-        call explicit(vn,vnp,itgmres,ilevel)
+        call explicit(vnp,itgmres,ilevel)
 
         call applyBC(vnp,1,1,1)
+
+#if defined(MK)
+        if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
+#endif
 
         itnewt = 1
 
@@ -479,3 +514,143 @@ c Update counters
 c End program
 
       end subroutine timeStep
+
+c eigen_sol
+c######################################################################
+      subroutine eigen_sol(vn,vnp,ierr)
+
+c----------------------------------------------------------------------
+c     Performs time advance of solution from vn to vnp
+c----------------------------------------------------------------------
+
+      use parameters
+
+      use variable_setup
+
+      use timeStepping
+
+      use newtongm
+
+      use counters
+
+      use iosetup
+
+      use eigen_mod
+
+#if defined(MK)
+      use mk
+#endif
+
+      implicit none
+
+c Call variables
+
+      integer :: ierr
+
+      type(var_array),pointer :: vnp,vn
+
+c Local variables
+
+      real(8) :: x(ntotd)
+
+c Interfaces
+
+      INTERFACE
+        subroutine evaluateNonlinearFunction(varray,fi)
+        use parameters
+        use variable_setup
+        real(8)          :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluateNonlinearFunction
+      END INTERFACE
+
+      INTERFACE
+        subroutine applyPC(n,x,y,out)
+        integer :: n,out
+        real(8),dimension(n) :: x,y
+        end subroutine
+      END INTERFACE
+
+      INTERFACE
+        subroutine applyBC(varray,iigx,iigy,iigz,obc)
+        use variable_setup
+        integer    :: iigx,iigy,iigz
+        integer,optional :: obc
+        type(var_array),pointer :: varray
+        end subroutine applyBC
+      END INTERFACE
+
+c Begin program
+
+      ierr = 0
+
+      itwhistler = 0
+
+c Evaluate nonlinear function at old time for theta scheme
+
+      old_time_eval = .true.     !This informs nlfunction that we are processing
+                                 !  n time level info
+
+      call evaluateNonlinearFunction(vn,fold)
+
+      old_time_eval = .false.
+
+c Eigenvalue solver
+
+      !Setup matrix-free vectors (xk, rk)
+      allocate(nk_conf%xk(ntotd),nk_conf%rk(ntotd))
+
+      call mapStructureToVector(nk_conf%xk,u_0)
+      call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
+
+      !Setup preconditioner
+      call setupPC(ntotd,nk_conf%xk,1)
+
+      !Setup initial guess for eigenfunction
+      call mapStructureToVector(x ,vnp)
+      x = x - nk_conf%xk
+
+        !Eigensolve
+cc#if defined(arpack)
+cc        call arnoldi_eig(neqd,ntotd,x,ilevel)
+cc#endif
+      eigen_conf%my_rank = my_rank
+
+      eigen_conf%ksmax   = maxksp
+      eigen_conf%armax   = maxitgm
+      if (rtol > 0d0) eigen_conf%rtol = rtol
+      if (atol > 0d0) eigen_conf%atol = atol
+      eigen_conf%step    = eig_dt
+
+      iguess = 1
+      call lehoucq_eig(ntotd,x,iguess,ilevel,ierr
+     .                ,matrixFreeMatVec
+     .                ,applyPC
+     .                ,ldot=dot2)
+
+      select case(ierr)
+      case(1)
+        call pstop('lehoucq_eig','Matrix not positive definite')
+      end select
+
+      !Output
+      if (my_rank == 0) then
+         write (*,*)
+         write (*,*) '**************************************'
+         write (*,'(a,1p,1e10.3,a)') ' ****** Eigenvalue is='
+     $           ,1d0/dt-eigen_conf%eigv,' ******' 
+         write (*,*) '**************************************'
+      endif
+
+      itgmres = eigen_conf%iter_out
+
+      !Map eigenvector for plotting
+      x = x + nk_conf%xk
+      call mapVectorToStructure(vnp,x)
+
+      !Free memory
+      deallocate(nk_conf%xk,nk_conf%rk)
+ 
+c End program
+
+      end subroutine eigen_sol

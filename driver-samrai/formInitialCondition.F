@@ -165,17 +165,20 @@ c Local variables
 
       integer    ::  ieq,nx,ny,nz
 
+      INTERFACE
+        subroutine perturbEquilibrium(varray)
+        use variable_setup
+        type(var_array),pointer :: varray
+        end subroutine perturbEquilibrium
+      END INTERFACE
+
 c Begin program
 
 c Perturb equilibrium
 
       if (.not.restart) then
 
-        do ieq = 1,neqd
-          call perturbEquilibrium(varrayn%array_var(ieq)%array
-     .                           ,abs(varrayn%array_var(ieq)%bconds)
-     .                           ,ieq)
-        enddo
+        call perturbEquilibrium(varrayn)
 
         time     = 0d0
         inewtime = 1

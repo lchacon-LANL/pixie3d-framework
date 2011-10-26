@@ -24,13 +24,14 @@ c       generic constants
         integer, parameter :: adios_double = 6 
         integer, parameter :: adios_string = 9 
 
-        logical :: moving_mesh = .false.
+        logical :: moving_mesh = .true.
 
 c       ADIOS function call variables
-        integer        :: num_open  ! first create, then append file
+        integer        :: num_open    ! first create, then append file
         character(20)  :: adios_fname ! set in ./plot/defineGraphics.F
+        integer        :: adios_rank  ! ?=? my_rank ???
 
-        logical,private   :: adios_debug=.false.
+        logical,private :: adios_debug=.false.
 
 c       ADIOS no-xml definition variables
         integer*8      :: grp
@@ -87,21 +88,36 @@ c     Attach location of node positions as attribute (relative path to timestep)
 
 c     Check whether we are dealing with moving mesh
 cc      moving_mesh = .not.checkMapDatabase()
+      ! The mesh definitions with time below work only with moving_mesh=true 
       moving_mesh = .true.
+
+      ! FIXME: isProc(0) is always equal to adios_rank==0 ??
+      !        then we do not need adios_rank at all.
+      call MPI_Comm_rank(adios_world_comm,adios_rank,mpierr)
+
 
 c     Define adios group and transport method
       if (adios_debug)
      .   write (*,'("%%%%     declare adios group ",a)') grp_name 
-      call adios_declare_group (grp,grp_name,"iter", ierr);
+      !! FIXME: after adios 1.2.1, adios_declare_group has one more
+       ! argument: (ADIOS_FLAG stats), 1 for true, 2 for false
+      if (ADIOS_VER <= 1.21) then
+        write (*,*) 'Here'
+        stop
+        call adios_declare_group (grp,grp_name,"iter",ierr);
+      else
+        call adios_declare_group (grp,grp_name,"iter",1,ierr);
+      endif
+
       if (adios_debug) write (*,'("%%%%     select method MPI")')
 
-      !call adios_select_method (grp, "MPI", "", "");
       call adios_select_method (grp, "MPI", "","",ierr);
 
       num_open = 0
 
 c     Exit if not in rank=0
-      if (.not.isProc(0)) return
+      !if (.not.isProc(0)) return
+      if (adios_rank.ne.0) return
 
 c     Create VISIT expressions (to identify vectors)
       if (adios_debug) write (*,'("%%%%     selectExpressions")')  
@@ -180,23 +196,26 @@ c     Local variables
       integer        :: i,j,k,ieq,icoords
       integer        :: slth
       integer        :: toffset
-      integer*8      :: handle, totalsize, groupsize
+      integer*8      :: handle, totalsize
+      integer*8      :: groupsize0  ! extra groupsize on rank 0
       integer        :: ierr
 
-      character*(strlength) :: timestep, attname, attdimstr
+      character*(strlength) :: attname, attdimstr
       character*128         :: basepath,path
       character*1           :: openmode
 
       integer :: iattr,igrp
       integer, dimension(ARRAY_RANK) :: count,node_count
       integer, dimension(ARRAY_RANK) :: offset
-cc      character*128  :: local_count_str
       character*128  :: node_ldim_str, cell_ldim_str, offset_str
 
       real(8),allocatable,dimension(:,:,:,:) :: cell,node
 
-c     Variables for temporary fix of ADIOS' bug
+c     Variables for temporary fix of ADIOS bug
       integer :: nx_temp,ny_temp,nz_temp
+      
+c     Saved variables (calculated in first call)
+      integer*8,save :: groupsize
 
 c     Begin program
 
@@ -206,8 +225,6 @@ c     Create the output file and data groups
 
       toffset = 0
       if (itime == -1) toffset = 1 
-
-      timestep = trim('/Timestep_'//int2char(itime+toffset))
 
       if (num_open == 0) then
           openmode = 'w'
@@ -220,11 +237,11 @@ c     Create the output file and data groups
       call adios_open (handle, grp_name, adios_fname, openmode,
      .                 adios_world_comm, ierr)
 
-
+      groupsize0 = 0
 c     Define variables and
 c     Calculate/approx. the size of data we will going to write out
-      groupsize = 0
       if (num_open == 0) then
+          groupsize = 0
           ! Define global dimension variables a the first time
           call adios_define_var (grp,"nxd","/dimension",
      .                           adios_integer,"","","",ierr)
@@ -239,8 +256,9 @@ c     Calculate/approx. the size of data we will going to write out
           call adios_define_var (grp,"nzd+1","/dimension",
      .                           adios_integer,"","","",ierr)
           groupsize = groupsize + 12*4  ! aux/ and dimension/ variables
-
-          if (isProc(0)) then
+ 
+          !if (isProc(0)) then
+          if (adios_rank.eq.0) then
               call adios_define_attribute (grp, "name","/schema",
      .                                 adios_string,"Pixie","",ierr)
               if (adios_debug)
@@ -256,22 +274,17 @@ c     Calculate/approx. the size of data we will going to write out
               if (slth > 0) then
                   call adios_define_var (grp, "visit_expressions","",
      .                                   adios_string,"","","",ierr)
-                  groupsize = groupsize + len(trim(vexp))+1 ! vexp
+                  groupsize0 = groupsize0 + len(trim(vexp))+1 ! vexp
               endif
           endif
       endif
 
-      if (moving_mesh) then
-          ! nodes/ and cells/ goes under /Timestep_NN/
-          basepath = trim(timestep)
-      else
-          basepath = ""
-      endif
+      basepath = ""
 
       write (offset_str   , '(i0,",",i0,",",i0)') ilomg,jlomg,klomg
-      write (cell_ldim_str, '(i0,",",i0,",",i0)') nxl  ,nyl  ,nzl
+      write (cell_ldim_str, '(i0,",",i0,",",i0,",iter")') nxl,nyl,nzl
 cc      write (node_ldim_str, '(i0,",",i0,",",i0)') nxl+1,nyl+1,nzl+1
-c Temporary fix to ADIOS' bug (L. Chacon, 10/6/10)
+c Temporary fix to ADIOS bug (L. Chacon, 10/6/10)
       nx_temp = nxl
       if (isBdry(nxl,1,2)) nx_temp = nxl + 1
       ny_temp = nyl
@@ -279,7 +292,8 @@ c Temporary fix to ADIOS' bug (L. Chacon, 10/6/10)
       nz_temp = nzl
       if (isBdry(nzl,1,6)) nz_temp = nzl + 1
 
-      write (node_ldim_str, '(i0,",",i0,",",i0)')nx_temp,ny_temp,nz_temp
+      write (node_ldim_str, '(i0,",",i0,",",i0,",iter")')
+     .        nx_temp,ny_temp,nz_temp
 
 cc      write (*,*) isBdry(nxl,1,2),nx_temp,ihip-ilo+1
 cc      write (*,*) isBdry(nyl,1,4),ny_temp,jhip-jlo+1
@@ -291,10 +305,10 @@ c End of temporary fix
      .       my_rank, trim(offset_str), trim(cell_ldim_str), 
      .       trim(node_ldim_str)
 
-      ! Define coordinate variables and calculate size
-      if (moving_mesh .or. num_open == 0) then
+      ! Define coordinate variables and calculate size 
+      if (num_open == 0) then
           ! define cells/X, cells/Y, cells/Z,
-          path=trim(basepath)//"/"//trim(cell_coords_gname) 
+          path="/"//trim(cell_coords_gname) 
           do icoords=1,ARRAY_RANK
               call adios_define_var (grp, coords_descr(icoords), 
      .                 path,
@@ -306,7 +320,7 @@ c End of temporary fix
      .      + (ihi-ilo+1) * (jhi-jlo+1) * (khi-klo+1) *ARRAY_RANK*8 ! cell coords
 
           ! define nodes/X, nodes/Y, nodes/Z,
-          path=trim(basepath)//"/"//trim(node_coords_gname) 
+          path="/"//trim(node_coords_gname) 
           do icoords=1,ARRAY_RANK
               call adios_define_var (grp, coords_descr(icoords), 
      .               path,
@@ -316,72 +330,76 @@ c End of temporary fix
           enddo
           groupsize = groupsize 
 cc     .      + (ihip-ilo+1) * (jhip-jlo+1) * (khip-klo+1) *ARRAY_RANK*8 ! node coords
-c Temporary fix to ADIOS' bug (L. Chacon 10/6/10)
+c Temporary fix to ADIOS bug (L. Chacon 10/6/10)
      .      + nx_temp * ny_temp * nz_temp *ARRAY_RANK*8 ! node coords
 c End of temporary fix
-      endif
 
-      ! Define data variables and calculate size
-      do igrp=1,ngroups
-          ! set path in file for all variables
-          basepath = trim(timestep)//"/"//graph(igrp)%descr
-          if (graph(igrp)%cartesian) then
-              ! Define Coordinate Attribute data 
-              write (attdimstr, '(i0)') attr_dim(1)
-              call adios_define_attribute (grp, "ncoord",
-     .             trim(basepath)//"/"//trim(attr_name),
-     .             adios_integer,attdimstr,"",ierr)
-              do iattr=1,attr_dim(1)
-                  write (attname,'("coord",i0)') iattr
-                  call adios_define_attribute (grp, attname,
-     .                 trim(basepath)//"/"//trim(attr_name),
-     .                 adios_string,attr_data(iattr),"",ierr)
-              enddo
+          ! Define data variables and calculate size
+          do igrp=1,ngroups
+              ! set path in file for all variables
+              basepath = "/"//graph(igrp)%descr
+              if (graph(igrp)%cartesian) then
+                  ! Define Coordinate Attribute data 
+                  write (attdimstr, '(i0)') attr_dim(1)
+                  call adios_define_attribute (grp, "ncoord",
+     .                  trim(basepath)//"/"//trim(attr_name),
+     .                  adios_integer,attdimstr,"",ierr)
+                  do iattr=1,attr_dim(1)
+                      write (attname,'("coord",i0)') iattr
+                      call adios_define_attribute (grp, attname,
+     .                     trim(basepath)//"/"//trim(attr_name),
+     .                     adios_string,attr_data(iattr),"",ierr)
+                  enddo
 
-              if (adios_debug)
-     .          write (*,'("%%%%     defined coordinate attributes")') 
+                  if (adios_debug) write (*,
+     .              '("%%%%     defined coordinate attributes")') 
 
-              ! Define nodal data variables    
-              do ieq=1,nqty(igrp)
-                  call adios_define_var (grp, 
-     .                    graph(igrp)%array_graph(ieq)%descr, 
-     .                    basepath, adios_double, 
-     .                    node_ldim_str, "nxd+1,nyd+1,nzd+1",
-     .                    offset_str, ierr)
-              enddo
+                  ! Define nodal data variables    
+                  do ieq=1,nqty(igrp)
+                     call adios_define_var (grp, 
+     .                        graph(igrp)%array_graph(ieq)%descr, 
+     .                        basepath, adios_double, 
+     .                        node_ldim_str, "nxd+1,nyd+1,nzd+1",
+     .                        offset_str, ierr)
+                  enddo
 
-              groupsize = groupsize +
-cc     .          nqty(igrp)*(ihip-ilo+1)*(jhip-jlo+1)*(khip-klo+1)*8 ! node data
-c Temporary fix to ADIOS' bug (L. Chacon 10/6/10)
-     .          nqty(igrp)*nx_temp*ny_temp*nz_temp*8 ! node data
+                  groupsize = groupsize +
+cc     .             nqty(igrp)*(ihip-ilo+1)*(jhip-jlo+1)*(khip-klo+1)*8 ! node data
+c Temporary fix to ADIOS bug (L. Chacon 10/6/10)
+     .              nqty(igrp)*nx_temp*ny_temp*nz_temp*8 ! node data
 c End of temporary fix
-          else
-              ! Define cell data variables
-              do ieq=1,nqty(igrp)
-                  call adios_define_var (grp, 
-     .                    graph(igrp)%array_graph(ieq)%descr, 
-     .                    basepath, adios_double, 
-     .                    cell_ldim_str, "nxd,nyd,nzd", 
-     .                    offset_str, ierr)
-              enddo
+            else
+                  ! Define cell data variables
+                  do ieq=1,nqty(igrp)
+                     call adios_define_var (grp, 
+     .                        graph(igrp)%array_graph(ieq)%descr, 
+     .                        basepath, adios_double, 
+     .                        cell_ldim_str, "nxd,nyd,nzd", 
+     .                        offset_str, ierr)
+                  enddo
 
-              groupsize = groupsize +
-     .          nqty(igrp)*(ihi-ilo+1)*(jhi-jlo+1)*(khi-klo+1)*8 ! cell data
-          endif
-      enddo
+                  groupsize = groupsize +
+     .              nqty(igrp)*(ihi-ilo+1)*(jhi-jlo+1)*(khi-klo+1)*8 ! cell data
+              endif
+          enddo
+
+      endif  ! first open
 
       ! Tell ADIOS about the size of all data in this process
-      call adios_group_size (handle, groupsize, totalsize, ierr)
+      call adios_group_size (handle, groupsize+groupsize0, 
+     .                       totalsize, ierr)
       if (adios_debug)
      .  write (*,'("rank",i3," %%%%  groupsize=",i0,"  totalsize=",i0)') 
-     .    my_rank, groupsize, totalsize
+     .    my_rank, groupsize+groupsize0, totalsize
 
 
-c     Write the variables (they are buffered and I/O starts at adios_close())
+c     Write the variables 
+c       (they are buffered and I/O starts at adios_close())
 
       if (num_open == 0) then
           ! First writing
-          if (isProc(0)) then
+          !if (isProc(0)) then
+          if (adios_rank.eq.0) then
               if (slth > 0) then
                   ! Write VisIt expressions from proc 0
                   call adios_write(handle,"visit_expressions",vexp,ierr)
@@ -399,7 +417,8 @@ c     Write the variables (they are buffered and I/O starts at adios_close())
       call adios_write(handle,"nxd+1",nxd+1,ierr)
       call adios_write(handle,"nyd+1",nyd+1,ierr)
       call adios_write(handle,"nzd+1",nzd+1,ierr)
-      if (isProc(0)) then
+      !if (isProc(0)) then
+      if (adios_rank.eq.0) then
           call adios_write(handle,"time",time,ierr)
           call adios_write(handle,"itime",itime+toffset,ierr)
       endif
@@ -425,16 +444,9 @@ c         Write the coordinate data
             enddo
           enddo
 
-          if (moving_mesh) then
-              ! nodes/ and cells/ goes under /Timestep_NN/
-              basepath = trim(timestep)
-          else
-              basepath = ""
-          endif
-
           ! Define coordinate variables and calculate size
 
-          path=trim(basepath)//"/"//trim(cell_coords_gname) 
+          path="/"//trim(cell_coords_gname) 
           do icoords=1,ARRAY_RANK
               call adios_write(handle, 
      .                trim(path)//"/"//coords_descr(icoords),
@@ -447,12 +459,12 @@ c         Write the coordinate data
           ! Node positions
           call interpolateNodalData
 
-          path=trim(basepath)//"/"//trim(node_coords_gname) 
+          path="/"//trim(node_coords_gname) 
           do icoords=1,ARRAY_RANK
               call adios_write(handle, 
      .            trim(path)//"/"//coords_descr(icoords),
 cc     .            node(ilo:ihip,jlo:jhip,klo:khip,icoords), ierr)
-c Temporary fix to ADIOS' bug (L. Chacon 10/6/10)
+c Temporary fix to ADIOS bug (L. Chacon 10/6/10)
      .           node(ilo:nx_temp,jlo:ny_temp,klo:nz_temp,icoords),ierr)
 c End of temporary fix
           enddo
@@ -470,7 +482,7 @@ c     Write the actual data
       do igrp=1,ngroups
 
 c         set path in file for all variables
-          basepath = trim(timestep)//"/"//graph(igrp)%descr
+          basepath = "/"//graph(igrp)%descr
 
           if (graph(igrp)%cartesian) then
 
@@ -488,7 +500,7 @@ c             Write nodal data
      .                  trim(basepath)//"/"//
      .                      graph(igrp)%array_graph(ieq)%descr,
 cc     .                  node(ilo:ihip,jlo:jhip,klo:khip,1), ierr)
-c Temporary fix to ADIOS' bug (L. Chacon 10/6/10)
+c Temporary fix to ADIOS bug (L. Chacon 10/6/10)
      .           node(ilo:nx_temp,jlo:ny_temp,klo:nz_temp,1),ierr)
 c End of temporary fix
 

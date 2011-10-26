@@ -4,6 +4,6 @@ c ######################################################################
 
         use nk_setup
 
-        use nk_mod
+        use nk
 
       end module newtongm

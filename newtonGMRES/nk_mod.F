@@ -13,7 +13,7 @@ c == subroutine setupPC(ntot,xk,nwt_it)
 c
 c      Initializes preconditioner based on current Newton iterate
 c
-c == subroutine applyPreconditioner(ntot,rhs,sol,iout)
+c == subroutine applyPC(ntot,rhs,sol,iout)
 c
 c      Applies preconditioner operator by solving P sol = rhs.
 c
@@ -27,9 +27,9 @@ c      Deallocates dynamic storage space used in preconditioner
 c
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
-c module nk_mod
+c module nk
 c ###################################################################
-      module nk_mod
+      module nk
 
       use grid_mpi
 
@@ -102,9 +102,9 @@ c     Local variables
 
       end subroutine findRoundOff
 
-c     nk
+c     jfnk
 c     ###############################################################
-      subroutine nk(neq,ntot,x,iguess,out,ierr)
+      subroutine jfnk(neq,ntot,x,iguess,out,ierr)
 c     ---------------------------------------------------------------
 c     Performs Jacobian-free inexact Newton iteration on res(x) = 0, 
 c     where res is calculated in 'evaluateNonlinearResidual' (provided
@@ -303,7 +303,7 @@ c     Jacobian-free solve
 
 #if defined(FPA)
         if (nk_conf%fpa) then
-          call applyPreconditioner(ntot,nk_conf%rk,ddx,iout)
+          call applyPC(ntot,nk_conf%rk,ddx,iout)
 
           call fpa_correction(nk_conf%fpas,ddx,dp=dot2)
           ddx = -ddx
@@ -435,7 +435,7 @@ cc      deallocate (xx0)
  240  format ('    Newton converged in too many iterations (>',i2,')')
  320  format (' Residual  eqn. ',i2,': ',1pe9.2)
 
-      end subroutine nk
+      end subroutine jfnk
 
 c     calculateResidualNorms
 c     ###############################################################
@@ -697,7 +697,7 @@ c     Compute the initial guess x
 
       if (iguess.eq.1) then
         iiout = iout - 2
-        call applyPreconditioner(nn,b,x,iiout)
+        call applyPC(nn,b,x,iiout)
       else
         x = 0d0
       endif
@@ -852,7 +852,7 @@ c       FGMRES iteration
           its = its + 1
           i1  = i + 1
 
-          call applyPreconditioner(ntot,vv(:,i),zz(:,i),precout)
+          call applyPC(ntot,vv(:,i),zz(:,i),precout)
 
           call matrixFreeMatVec(ntot,zz(:,i),vv(:,i1))
 
@@ -1171,7 +1171,7 @@ c     FGMRES iteration
           its = its + 1
           i1  = i + 1
 
-          call applyPreconditioner(ntot,vv(1,i),rhs,precout)
+          call applyPC(ntot,vv(1,i),rhs,precout)
 
           call matrixFreeMatVec(ntot,rhs,vv(1,i1))
 
@@ -1305,7 +1305,7 @@ c     Form linear combination of zz=P*vv to get solution
 
 c     Call preconditioner
 
-       call applyPreconditioner(ntot,dsol,vv(1,im+1),precout)
+       call applyPC(ntot,dsol,vv(1,im+1),precout)
 
 c     Update solution
 
@@ -1558,4 +1558,4 @@ ccc     End
 cc
 cc      end function fmedval
 
-      end module nk_mod
+      end module nk

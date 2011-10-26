@@ -69,7 +69,7 @@ ifeq ($(HOST),quevedo)
 
   ifdef SAMR
 
-    PETSC_DIR        =/opt/petsc-dev
+    override PETSC_DIR  =/opt/petsc-dev
     PETSC_ARCH       =openmpi-gcc-4.4.5-debug
     SAMRAI           =/opt/samrai/samrai-v2.4.4-petsc-dev-openmpi-gcc-4.4.5-debug
     AMRUTILITIES_HOME=/opt/samrutils
@@ -77,25 +77,26 @@ ifeq ($(HOST),quevedo)
 
   else
     ifdef BOPT
-      PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
+      PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
 
       ifeq ($(BOPT),O)
-        PETSC_ARCH = linux64_openmpi
+        PETSC_ARCH = $(PETSC_ARCH_O)
       else
-        PETSC_ARCH = linux64_openmpi_g
+        PETSC_ARCH = $(PETSC_ARCH_g)
       endif
 
       HDF5 = t
 
-      HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
-      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(HDF5_HOME)/lib
-      HDF5_INC  =-I$(HDF5_HOME)/include
+      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(PHDF5_LIB)
+      HDF5_INC  =-I$(PHDF5_INC)
 
       ADIOS = t
 
-      ADIOS_HOME = $(HOME)/lib/adios-1.2.1
-      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+#      ADIOS_HOME = $(HOME)/lib/adios-1.3
+#      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+#      ADIOS_VER  = 1.3
+      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
 
     else
       LIBS += -L/usr/lib64 -llapack -lblas
@@ -112,11 +113,6 @@ ifeq ($(HOST),quevedo)
       ifeq ($(FC),gfortran)
         HDF5 = t
 
-#         HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
-#         HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-#         HDF5_MOD  = $(HDF5_HOME)/lib
-#         HDF5_INC  =-I$(HDF5_HOME)/include
-
         HDF5_HOME =/usr/lib64
         HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
         HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
@@ -130,7 +126,6 @@ ifeq ($(HOST),quevedo)
     NETCDF_LIBS = -lnetcdff -lnetcdf
     NETCDF_INC  = -I/usr/include
 
-    VMEC = t
 #    ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
   endif
 
@@ -147,21 +142,49 @@ ifeq ($(HOST),gongora)
 
   LIBS += -L/usr/lib -llapack -lblas
 
-  PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
-  PETSC_ARCH = linux_openmpi
-
-  HDF5 = t
-  HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/parallel
-  HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-  HDF5_MOD  = $(HDF5_HOME)/lib
-  HDF5_INC  =-I$(HDF5_HOME)/include
-
   NETCDF=f
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include/netcdf
 
-  VMEC = t
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  ifdef BOPT
+    PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux_openmpi
+    else
+      PETSC_ARCH = linux_openmpi_g
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME =/usr/lib/openmpi/lib
+    HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)
+    HDF5_INC  =-I$/usr/include/openmpi-i386
+
+    ADIOS = f
+#    ADIOS = t
+
+#    ADIOS_HOME = $(HOME)/lib/adios-1.2.1
+#    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+#    ADIOS_VER  = 1.21
+
+  else
+    LIBS += -L/usr/lib -llapack -lblas
+
+    HDF5 = t
+
+    HDF5_HOME =/usr/lib
+    HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
+    HDF5_INC  =-I/usr/include
+
+    ADIOS = f
+
+  endif
+
 endif
 
 ##########
@@ -192,6 +215,8 @@ ifeq ($(HOST),siesta)
 
     ADIOS_HOME = $(HOME)/lib/adios-1.2.1
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+    ADIOS_VER  = 1.21
+
   else
     LIBS += -L/usr/lib64 -llapack -lblas
     HDF5 = f
@@ -203,15 +228,17 @@ ifeq ($(HOST),siesta)
       HDF5 = t
     endif
     ifeq ($(FC),gfortran)
-      HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
-      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(HDF5_HOME)/lib
-      HDF5_INC  =-I$(HDF5_HOME)/include
+      HDF5_HOME =/usr/lib64
+      HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
+      HDF5_INC  =-I/usr/include
+#      HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
+#      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#      HDF5_MOD  = $(HDF5_HOME)/lib
+#      HDF5_INC  =-I$(HDF5_HOME)/include
       HDF5 = t
     endif
   endif
-
-  VMEC = t
 
   NETCDF=t
   NETCDF_LIBS = -lnetcdff -lnetcdf
@@ -233,22 +260,19 @@ ifeq ($(HOST),swim)
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = linux64_openmpi
+      PETSC_ARCH = $(PETSC_ARCH_O)
     else
-      PETSC_ARCH = linux64_openmpi_g
+      PETSC_ARCH = $(PETSC_ARCH_g)
     endif
 
     HDF5 = t
 
-    HDF5_HOME = /usr/lib64/openmpi
-    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = /usr/include/openmpi-x86_64
-    HDF5_INC  =-I/usr/include/openmpi-x86_64
+    HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(PHDF5_LIB)
+    HDF5_INC  =-I$(PHDF5_INC)
 
     ADIOS = t
-
-    ADIOS_HOME = $(HOME)/lib/adios-1.2.1
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+    ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
 
   else
     LIBS += -L/usr/lib64 -llapack -lblas
@@ -262,8 +286,6 @@ ifeq ($(HOST),swim)
 
     ADIOS = f
   endif
-
-  VMEC = t
 
   NETCDF=t
   NETCDF_LIBS = -lnetcdff -lnetcdf
@@ -279,15 +301,37 @@ endif
 ifeq ($(HOST),ra22)
   MACHINE=ra22
 
-  FC     = pgf95
+  CPPFLAGS += $(PREPROC)RFX
 
-  PETSC_ARCH = linux64_openmpi
-  PETSC_DIR =/ricercatori/ft/petsc-3.0.0-p7
+  FC = pgf95
 
   override HDF5 = f
 
-  CPPFLAGS += $(PREPROC)RFX
-  LIBS     += -llapack -lblas
+  ifdef BOPT
+    PETSC_DIR =/ricercatori/ft/petsc-3.0.0-p7
+#    PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_openmpi
+    else
+      PETSC_ARCH = linux64_openmpi_g
+    endif
+
+    ADIOS = t
+    ADIOS_HOME = /ricercatori/ft/adios-1.2.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/ricercatori/ft/mxml-2.6/lib -lmxml
+    ADIOS_VER  = 1.21
+
+  else
+    LIBS     += -llapack -lblas
+
+    ADIOS = f
+  endif
+
+  NETCDF=f
+#  NETCDF_LIBS = -lnetcdff -lnetcdf
+#  NETCDF_INC  = -I/usr/include
+
 endif
 
 ############
@@ -330,15 +374,42 @@ ifeq ($(findstring jaguar,$(HOST)),jaguar)
   PETSC_ARCH ?= cray-xt
 
   HDF5 = t
-  HDF5_HOME = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+  #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+  HDF5_HOME = $(CRAY_HDF5_DIR)
   HDF5_LIBS = $(HDF5_FLIB)
   HDF5_MOD  = $(HDF5_HOME)/lib
 
   ADIOS = t
   ADIOS_HOME = $(ADIOS_DIR)
-  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) $(ADIOSREAD_FLIB)
+  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) 
+  ADIOS_VER  = 1.3
 
   MACHINE = jaguar
+endif
+
+########
+# sith #
+########
+
+ifeq ($(findstring sith,$(HOST)),sith)
+  FC = pgf95
+
+  BOPT = t
+  PETSC_DIR ?= /sw/sith/petsc/3.0.0/centos5.5_pgi10.9_opt/petsc-3.0.0-p10
+  PETSC_ARCH ?= sith-opt
+
+  HDF5 = t
+  #HDF5_DIR = /sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2
+  HDF5_HOME = $(HDF5_DIR)
+  HDF5_LIBS = $(HDF5_FLIB)
+  HDF5_MOD  = $(HDF5_HOME)/lib -I$(HDF5_DIR)/include
+
+  ADIOS = t
+  ADIOS_HOME = $(ADIOS_DIR)
+  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) 
+  ADIOS_VER  = 1.3
+
+  MACHINE = sith
 endif
 
 ###########
@@ -360,7 +431,8 @@ ifeq ($(findstring chester,$(HOST)),chester)
 
   ADIOS = t
   ADIOS_HOME = $(ADIOS_DIR)
-  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) $(ADIOSREAD_FLIB)
+  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB)
+  ADIOS_VER  = 1.3
 
   MACHINE = chester
 endif
@@ -380,11 +452,12 @@ ifeq ($(findstring ewok,$(HOST)),ewok)
   HDF5_MOD  = $(HDF5_HOME)/lib
   HDF5 = t
 
+  ADIOS = t
   #ADIOS_HOME = $(ADIOS_DIR)
   ADIOS_HOME = /ccs/proj/e2e/pnorbert/ADIOS/ewok.noxml
   #ADIOS_LIBS = $(ADIOS_LIB) 
   ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
-  ADIOS = t
+  ADIOS_VER  = 1.3
 
   OPTIMIZATION = -O2 -Mbounds
   DEBUG = -g -Mbounds -Mchkptr
@@ -421,5 +494,3 @@ ifeq ($(PIC_CUDA),t)
 	CUDA_OPT = -L/usr/local/cuda/lib64 /usr/local/cuda/lib64/libcudart.so  -lcuda -I/usr/local/cuda/include/ 
 	CUDA_INCLUDE =  # -I/home/gcc/NVIDIA_GPU_Computing_SDK/C/common/inc
 endif
-
-

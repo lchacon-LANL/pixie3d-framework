@@ -457,15 +457,15 @@ c #####################################################################
           module procedure quad_int_0,quad_int_1,quad_int_2
         end INTERFACE
 
-        integer    :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
-        integer    :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
+        integer  :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
+        integer  :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
 
-        integer   ,private :: bctype
+        integer,private :: bctype
 
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
         ! important for colored diagonal formation)
-        integer   ,private :: order=1
+        integer,private :: order=1
 
         private :: setASMflags
 
@@ -758,7 +758,13 @@ c     Determine ASM BCs
 cc     .         .or.((bcond(ibc)==PER).and.asm_dir(dim))  !Deal with interrupted periodic boundaries
      .         .or.(bcond(ibc)==PER)  !Deal with interrupted periodic boundaries
 
-            if (dn) bcs(ibc,:) = IIBC*bcs(ibc,:)/abs(bcs(ibc,:))
+            if (dn) then
+              where (bcs(ibc,:) /= 0) 
+                bcs(ibc,:) = IIBC*bcs(ibc,:)/abs(bcs(ibc,:))
+              elsewhere
+                bcs(ibc,:) = 0
+              end where
+            endif
           enddo
         enddo
       else
@@ -846,12 +852,12 @@ c     Local variables
 
 c     Begin program
 
-c     Initialize interpolation order
+c     Initialize interpolation order (else use last set)
 
       if (PRESENT(iorder)) then
         order = iorder
-      else
-        order = 1
+cc      else
+cc        order = 1
       endif
 
 c     Initialize BC grid quantities
@@ -1118,12 +1124,12 @@ c     Begin program
         to_cnv = .false.
       endif
 
-c     Initialize interpolation order
+c     Initialize interpolation order (else use last set)
 
       if (PRESENT(iorder)) then
         order = iorder
-      else
-        order = 1
+cc      else
+cc        order = 1
       endif
 
 c     Initialize BC grid quantities
