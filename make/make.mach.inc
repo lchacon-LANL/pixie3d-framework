@@ -26,19 +26,15 @@ MACHINE ?=HaveNoIdea
 
 ifeq ($(HOST),lap0086227)
     FC=gfortran
-#    FC=vtf77
     OPT=g
     HDF5 = t
-#    HDF5_HOME =/usr
-#    HDF5_HOME =$(HDF5)
-#    HDF5_HOME =/packages/hdf5-1.8.3/hdf5
-    HDF5_HOME =/usr
+    ifndef SAMR
+        HDF5_HOME =/usr
+        LIBS += -L/packages/lapack-3.2.2/ -llapack -lblas
+    endif
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include
-    # PETSC_DIR = ${PETSC_DIR}
-    # PETSC_ARCH = ${PETSC_ARCH}
-    LIBS += -L${PETSC_DIR}/${PETSC_ARCH}/lib -lflapack -lfblas
 endif
 
 ###############################
