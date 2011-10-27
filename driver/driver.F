@@ -29,8 +29,6 @@ c Local variables
       integer    :: prec_tot,ierr,perr,prof_stage(3),offset,ieq
       real(8)    :: time1,time2,time3,time4
 
-cc      type (var_array),pointer :: u_star => null()
-
 c Interfaces
 
       INTERFACE
@@ -138,7 +136,6 @@ c Initialize counters
 
       gmres_tot = 0
       newt_tot  = 0
-      wh_tot    = 0
       ierr      = 0
 
       itime     = inewtime - 1
@@ -180,12 +177,12 @@ cc        if (tmax.gt.0d0.and.time.gt.tmax)  exit
 
 c     Find new time step
 
-        if (    cnfactor == 1d0                          !Explicit
-     .     .or.(timecorr.and.ierr.eq.0.and.itime.eq.1)   !First explicit step if timecorr
+        if (    cnfactor == 1d0                            !Explicit
+     .     .or.(timecorr.and.ierr==0.and.itime-offset==1)  !First explicit step if timecorr
      .     ) then
           call findExplicitDt(dt)
           call correctTimeStep(itime-offset,ierr,dt_exp=dt)
-        else
+        elseif (timecorr) then
           call correctTimeStep(itime-offset,ierr)
         endif
 
@@ -286,7 +283,7 @@ c     Time level data dump
 #endif
      .      .or.relax_init_grid) then
           if (.not.relax_init_grid) nrst  = 0
-          if(itime.gt.0.and.(.not.relax_init_grid)) tmrst=tmrst-dstep
+          if(itime-offset > 0) tmrst=tmrst-dstep
           call writeRecordFile(urecord,itime,time,dt,u_np)
         endif
 
@@ -392,10 +389,11 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine evaluateNonlinearFunction(varray,fi)
+        subroutine evaluateNonlinearFunction(igr,varray,fi)
         use parameters
         use variable_setup
-        real(8)          :: fi(ntotd)
+        integer :: igr
+        real(8) :: fi(ntotd)
         type(var_array),pointer :: varray
         end subroutine evaluateNonlinearFunction
       END INTERFACE
@@ -421,18 +419,16 @@ c Begin program
 
       ierr = 0
 
-      itwhistler = 0
-
 c Evaluate nonlinear function at old time for theta scheme
 
       old_time_eval = .true.     !This informs nlfunction that we are processing
                                  !  n time level info
 
-      call evaluateNonlinearFunction(vnp,fold)
+      call evaluateNonlinearFunction(1,vn,fold)
 
       old_time_eval = .false.
  
-c Map old solution
+c Map old solution (use vnp in case we are doing BDF2)
 
       call mapStructureToVector(x_old,vnp)
 
@@ -513,7 +509,6 @@ c Update counters
 
       gmres_tot = gmres_tot + itgmres
       newt_tot  = newt_tot  + itnewt
-      wh_tot    = wh_tot    + itwhistler
 
 c End program
 
@@ -560,10 +555,11 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine evaluateNonlinearFunction(varray,fi)
+        subroutine evaluateNonlinearFunction(igr,varray,fi)
         use parameters
         use variable_setup
-        real(8)          :: fi(ntotd)
+        integer :: igr
+        real(8) :: fi(ntotd)
         type(var_array),pointer :: varray
         end subroutine evaluateNonlinearFunction
       END INTERFACE
@@ -588,14 +584,12 @@ c Begin program
 
       ierr = 0
 
-      itwhistler = 0
-
 c Evaluate nonlinear function at old time for theta scheme
 
       old_time_eval = .true.     !This informs nlfunction that we are processing
                                  !  n time level info
 
-      call evaluateNonlinearFunction(vn,fold)
+      call evaluateNonlinearFunction(1,vn,fold)
 
       old_time_eval = .false.
 
