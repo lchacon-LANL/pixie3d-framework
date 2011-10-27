@@ -1080,20 +1080,29 @@ c     Output
       write(funit,*) '**********************************'
       write(funit,*)
 
+      write(*    ,*)
+      write(*    ,*) '**********************************'
+      write(*    ,*) 'Dumping grid debugging graphics...'
+      write(*    ,*) '**********************************'
+      write(*    ,*)
+
       dump_diff = anal_map.and.numerical_grid
 cc      dump_diff = .false.
 
       if (dump_diff) then
+        write(*    ,*)'Analytical mapping available; dumping diffs...'
         write(funit,*)'Analytical mapping available; dumping diffs...'
       else
-        if (anal_map) then
+        if (.not.numerical_grid) then
+          write(*    ,*)'Dumping analytical qtys...'
           write(funit,*)'Dumping analytical qtys...'
         else
-          write(funit,*)
-     .              'Analytical map unavailable; dumping full qtys...'
+          write(*    ,*)'Dumping numerical qtys...'
+          write(funit,*)'Dumping numerical qtys...'
         endif
       endif
       write(funit,*)
+      write(*,*)
 
 c     Dump quantities
 
@@ -1137,6 +1146,26 @@ cc            dbg(i,j,1,1) = gdef%gmetric%grid(igrid)%jac_v(i,j,k)
         ivar = 1
         descr(ivar) = 'jac'
         call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,0,110)
+
+cc        !Volume
+cc        dbg = 0d0
+cc        if (igrid > 1) then
+cc          do j=1,ny
+cc            do i=1,nx
+cc              dbg(i,j,1,1) =
+cc     .       sum(gdef%gmetric%grid(igrid-1)%dvol(2*i-1:2*i,2*j-1:2*j,k))
+cc            enddo
+cc          enddo
+cc          dbg(1:nx,1:ny,1,1)=dbg(1:nx,1:ny,1,1)
+cc     .            -gdef%gmetric%grid(igrid)%dvol(1:nx,1:ny,k)
+cc          write (*,*) 'Grid level=',igrid,'  Sum=',sum(dbg)
+cc        else
+cc          dbg(:,:,1,1) = gdef%gmetric%grid(igrid)%dvol(:,:,k)
+cc        endif
+cc        write(funit,*) '   Dumping Cell Volume'
+cc        ivar = ivar+1
+cc        descr(ivar) = 'dvol'
+cc        call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
 
         !Metric tensors
         do l=1,3
