@@ -41,14 +41,15 @@ c Interfaces
         end subroutine setInitialCondition
       END INTERFACE
 
-      INTERFACE
-        subroutine evaluateNonlinearFunction(varray,fi)
-        use parameters
-        use variable_setup
-        real(8)          :: fi(ntotd)
-        type(var_array),pointer :: varray
-        end subroutine evaluateNonlinearFunction
-      END INTERFACE
+cc      INTERFACE
+cc        subroutine evaluateNonlinearFunction(igr,varray,fi)
+cc        use parameters
+cc        use variable_setup
+cc        integer :: igr
+cc        real(8) :: fi(ntotd)
+cc        type(var_array),pointer :: varray
+cc        end subroutine evaluateNonlinearFunction
+cc      END INTERFACE
 
       INTERFACE
         subroutine setEquilibrium(igx,igy,igz,varray)
@@ -595,12 +596,13 @@ c Call variables
 
 c Local variables
 
-      integer :: ieq
+      integer :: ieq,igr
 
       INTERFACE
-        subroutine evaluateNonlinearFunction(varray,fi)
+        subroutine evaluateNonlinearFunction(igr,varray,fi)
         use parameters
         use variable_setup
+        integer :: igr
         real(8) :: fi(ntotd)
         type(var_array),pointer :: varray
         end subroutine evaluateNonlinearFunction
@@ -608,10 +610,12 @@ c Local variables
 
 c Begin program
 
+      igr = 1
+
       source_eval = .true.   !This informs nlfunction that we are processing the source
 
-      !This not only evaluates fsrc, but defines BCs on u_n
-      call evaluateNonlinearFunction(varray,fsrc)
+      !This not only evaluates fsrc, but defines BCs on varray
+      call evaluateNonlinearFunction(igr,varray,fsrc)
 
       !Dump source
       if (chk_src) call dump_src
