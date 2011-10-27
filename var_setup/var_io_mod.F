@@ -16,7 +16,7 @@ c ######################################################################
 
         integer,pointer,dimension(:) :: murecord,musave
 
-        logical :: debug,clean=.false.,tst_flg=.false.
+        logical :: clean=.false.,tst_flg=.false.
 
 #if defined(adios)
         !!! ADIOS variables
