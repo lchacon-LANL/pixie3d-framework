@@ -10,14 +10,14 @@ c #####################################################################
 
         use variables
 
-        character*(20) :: debugfile
+cc        character*(20) :: debugfile
         character*(20),allocatable,dimension(:) ::
      .                    graphfile,drawgraph,profilefile,drawprof
         character*(20),allocatable,dimension(:,:) :: prof_desc
         integer       ,allocatable,dimension(:,:) :: prof_ivar,prof_log
         logical       ,allocatable,dimension(:)   :: prof_spline
 
-        integer        :: udebug
+cc        integer        :: udebug
 
         integer   ,allocatable,dimension(:) :: ugraph,uprofile
 
@@ -396,7 +396,7 @@ c     Begin program
      .            ,form='unformatted',status='replace')
         enddo
 
-        if (debug) open(unit=udebug,file=debugfile,form='unformatted')
+cc        if (debug) open(unit=udebug,file=debugfile,form='unformatted')
 
       end subroutine openXDRAWGraphicsFiles
 
@@ -416,7 +416,7 @@ c     ##################################################################
           close(unit=uprofile(igroup))
         enddo
 
-        if (debug) close(unit=udebug)
+cc        if (debug) close(unit=udebug)
 
       end subroutine closeXDRAWGraphicsFiles
 
