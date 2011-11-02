@@ -48,6 +48,7 @@
 #include "SAMRAI/hier/MappedBoxSet.h"
 #include "SAMRAI/xfer/PatchLevelFillPattern.h"
 #include "SAMRAI/xfer/PatchLevelBorderFillPattern.h"
+#include "SAMRAI/xfer/PatchLevelFullFillPattern.h"
 
 //#include "HierarchyCellDataOpsReal.h"
 //#include "BoundaryConditionStrategy.h"
@@ -1174,7 +1175,8 @@ void pixie3dApplication::resetHierarchyConfiguration(
     // Create the refineSchedule and siblingSchedule
     tbox::Pointer<hier::Variable> var0;
     tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
-    tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelBorderFillPattern());
+    //tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelBorderFillPattern());
+    tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelFullFillPattern());     // This may reduce performance
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
         level = d_hierarchy->getPatchLevel(ln);
         refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_NumberOfBoundarySequenceGroups];

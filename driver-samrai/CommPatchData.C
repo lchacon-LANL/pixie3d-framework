@@ -137,8 +137,9 @@ void commPatchData::getFromIntBuffer(int *buffer)
     tbox::Dimension Dim(dim);
     hier::IntVector ifirst = hier::Index(hier::IntVector(Dim,&buffer[1]));
     hier::IntVector ilast = hier::Index(hier::IntVector(Dim,&buffer[1+dim]));
+    box = hier::Box(hier::Index(ifirst),hier::Index(ilast));
     // Unpack gcw
-    gcw = hier::IntVector(Dim,&buffer[2+dim]);
+    gcw = hier::IntVector(Dim,&buffer[1+2*dim]);
     // Unpack the depth
     depth = buffer[1+3*dim];
     // Unpack the data
