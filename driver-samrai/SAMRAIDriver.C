@@ -105,6 +105,16 @@ int main( int argc, char *argv[] )
     SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRAI::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
     TBOX_ASSERT(dim==hierarchy->getDim());
 
+    // Check that the initial hierarchy has at least one patch per processor
+    int N_patches = 0;
+    for ( int ln=0; ln<hierarchy->getNumberOfLevels(); ln++ ) {
+        SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel> level = hierarchy->getPatchLevel(ln);
+        for (SAMRAI::hier::PatchLevel::Iterator p(level); p; p++)
+            N_patches++;
+    }
+    if ( N_patches==0 )
+        TBOX_ERROR("One or more processors does not have any patches");
+
     // Initialize the writer
     appu::VisItDataWriter* visit_writer;
     visit_writer = new appu::VisItDataWriter( dim, "pixie3d visualizer", write_path );

@@ -1117,10 +1117,9 @@ void pixie3dApplication::resetHierarchyConfiguration(
     d_aux_vector_tmp->resetLevels(0,N_levels-1);
 
     // Reset the level container
-    LevelContainer *level_container;
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
         if ( level_container_array[ln] != NULL ) {
-            level_container = (LevelContainer *) level_container_array[ln];
+            LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
             delete level_container;
             level_container_array[ln] = NULL;
         }
@@ -1150,12 +1149,21 @@ void pixie3dApplication::resetHierarchyConfiguration(
         d_BoundarySequenceGroups = NULL;
     }
     d_NumberOfBoundarySequenceGroups = 0;
+    // Get an arbitrary patch to give us the number of boundary sequency groups
+    void *pixiePatchData = NULL;
+    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+        LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
+        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        for (hier::PatchLevel::Iterator p(level); p; p++) {
+            pixiePatchData = level_container->getPtr(*p);
+            break;
+        }
+        if ( pixiePatchData != NULL )
+            break;
+    }
+    if ( pixiePatchData == NULL )
+        TBOX_ERROR("One of the processors does not have any patches");
     // Get the number of boundary condition groups and the sequence for each group
-    tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(0);
-    hier::PatchLevel::Iterator p(level);
-    level_container = (LevelContainer *) level_container_array[0];
-    void *pixiePatchData = level_container->getPtr(p());    // This is an arbitrary patch to give us the number of boundary sequency groups
-    assert(pixiePatchData!=NULL);
     FORTRAN_NAME(getnumberofbcgroups)(pixiePatchData,&d_NumberOfBoundarySequenceGroups);
     d_BoundarySequenceGroups = new pixie3dRefinePatchStrategy::bcgrp_struct[d_NumberOfBoundarySequenceGroups];
     for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
@@ -1178,7 +1186,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
     //tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelBorderFillPattern());
     tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelFullFillPattern());     // This may reduce performance
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
-        level = d_hierarchy->getPatchLevel(ln);
+        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
         refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_NumberOfBoundarySequenceGroups];
         siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_NumberOfBoundarySequenceGroups];
         for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
