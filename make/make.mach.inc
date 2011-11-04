@@ -65,11 +65,14 @@ ifeq ($(HOST),quevedo)
 
   ifdef SAMR
 
-    override PETSC_DIR  =/opt/petsc-dev
-    PETSC_ARCH       =openmpi-gcc-4.4.5-debug
-    SAMRAI           =/opt/samrai/samrai-v2.4.4-petsc-dev-openmpi-gcc-4.4.5-debug
-    AMRUTILITIES_HOME=/opt/samrutils
-    SAMRSOLVERS_HOME =/opt/samrsolvers
+    CC=mpiccCC = /usr/lib64/openmpi/bin/mpicc
+    CXX = /usr/lib64/openmpi/bin/mpicxx
+    F77 = gfortran
+    override PETSC_DIR  =
+    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/debug
+    HDF5 = f
+    HDF5_LIBS = 
+    LDFLAGS    += -lgfortran
 
   else
     ifdef BOPT
