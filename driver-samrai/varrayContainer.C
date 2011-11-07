@@ -1,4 +1,5 @@
 #include "varrayContainer.h"
+#include "SAMRAI/pdat/CellData.h"
 #include <iostream>
 
 extern "C"{
@@ -12,14 +13,15 @@ varrayContainer::varrayContainer()
    data = NULL;
 }
 
-varrayContainer::varrayContainer(tbox::Pointer< hier::Patch<NDIM> > patch, int n_var, int *u_id)
+varrayContainer::varrayContainer(tbox::Pointer<hier::Patch> patch, int n_var, int *u_id)
 {
+   tbox::Dimension dim(patch->getDim());
    int gcw = 1;
    int xs, xe, ys, ye, zs, ze;
-   hier::IntVector<NDIM> gcwc;
+   hier::IntVector gcwc(dim,0);
    // Get the size of the patch         
-   const hier::Index<NDIM> ifirst = patch->getBox().lower();
-   const hier::Index<NDIM> ilast  = patch->getBox().upper();
+   const hier::Index ifirst = patch->getBox().lower();
+   const hier::Index ilast  = patch->getBox().upper();
    xs = ifirst(0)+1;
    ys = ifirst(1)+1;
    zs = ifirst(2)+1;
@@ -27,7 +29,7 @@ varrayContainer::varrayContainer(tbox::Pointer< hier::Patch<NDIM> > patch, int n
    ye = ilast(1)+1;
    ze = ilast(2)+1;
    double *u_ptr[n_var];
-   tbox::Pointer< pdat::CellData<NDIM,double> > tmp;
+   tbox::Pointer< pdat::CellData<double> > tmp;
    // Get the pointers to u
    for (int i=0; i<n_var; i++) {
       // Get the pointers to u
@@ -35,7 +37,7 @@ varrayContainer::varrayContainer(tbox::Pointer< hier::Patch<NDIM> > patch, int n
       u_ptr[i] = tmp->getPointer();
       // Check ghost cell width
       gcwc = tmp->getGhostCellWidth();
-      for (int j=0; j<NDIM; j++)
+      for (int j=0; j<dim.getValue(); j++)
          if ( gcw!=gcwc(j) ) { TBOX_ERROR("Ghost Cell width must be 1"); }
     }
    // create the patch object

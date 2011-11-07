@@ -1,7 +1,7 @@
 #include "PatchContainer.h"
 #include <iostream>
-#include "CartesianGridGeometry.h"
-#include "CartesianPatchGeometry.h"
+#include "SAMRAI/geom/CartesianGridGeometry.h"
+#include "SAMRAI/geom/CartesianPatchGeometry.h"
 
 extern "C" {
 #include "assert.h"
@@ -38,39 +38,47 @@ PatchContainer::PatchContainer()
 
 
 // Constructor to create and initialize the patch container object
-PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy, tbox::Pointer< hier::Patch<NDIM> > &patch, 
+PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, tbox::Pointer<hier::Patch> &patch, 
     int n_var, int *u0_id, int *u_id, int n_auxs, int *auxs_id, int n_auxv, int *auxv_id)
 {
+    tbox::Dimension dim(patch->getDim());
     tmp_mem = NULL;
     assert(!patch.isNull());
     int gcw = 1;
-    hier::IntVector<NDIM> gcwc;
+    hier::IntVector gcwc(dim,0);
     double *u_ptr[n_var], *u0_ptr[n_var], *auxs_ptr[n_auxs], *auxv_ptr[n_auxv];
-    tbox::Pointer< pdat::CellData<NDIM,double> > tmp;
+    tbox::Pointer< pdat::CellData<double> > tmp;
     // Get the dimensions of the domain
-    tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry = d_hierarchy->getGridGeometry();
+    tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     const double *lowerX = grid_geometry->getXLower();
     const double *upperX = grid_geometry->getXUpper();
-    double lower[NDIM], upper[NDIM];
-    for (int i=0; i<NDIM; i++) {
+    double lower[10], upper[10];
+    for (int i=0; i<dim.getValue(); i++) {
         lower[i] = lowerX[i];
         upper[i] = upperX[i];
     }
-    const SAMRAI::hier::BoxArray<NDIM> &physicalDomain = grid_geometry->getPhysicalDomain() ;
+    if ( grid_geometry->getNumberBlocks() != 1 )
+        TBOX_ERROR("Multiblock domains are not supported");
+    const SAMRAI::hier::BoxList &physicalDomainList = grid_geometry->getPhysicalDomain(0);
+    if ( physicalDomainList.size() != 1 )
+        TBOX_ERROR("Multiple box domains are not supported");
+    const SAMRAI::hier::Box physicalDomain = physicalDomainList.getBoundingBox();
     // Get the size of the patch
-    const hier::Index<NDIM> ifirst = patch->getBox().lower();
-    const hier::Index<NDIM> ilast  = patch->getBox().upper();
+    const hier::Index ifirst = patch->getBox().lower();
+    const hier::Index ilast  = patch->getBox().upper();
     int xs = ifirst(0)+1;
     int ys = ifirst(1)+1;
     int zs = ifirst(2)+1;
     int xe = ilast(0)+1;
     int ye = ilast(1)+1;
     int ze = ilast(2)+1;
-    tbox::Pointer<hier::PatchGeometry<NDIM> > patch_geometry = patch->getPatchGeometry();
-    const hier::IntVector<NDIM> ratio = patch_geometry->getRatio();
-    int nbox[NDIM];
-    for (int i=0; i<NDIM; i++)
-        nbox[i] = physicalDomain[0].numberCells(i)*ratio(i);
+    tbox::Pointer<hier::PatchGeometry> patch_geometry = patch->getPatchGeometry();
+    const hier::IntVector ratio = patch_geometry->getRatio();
+    int nbox[10];
+    for (int i=0; i<10; i++)
+        nbox[i] = 0;
+    for (int i=0; i<dim.getValue(); i++)
+        nbox[i] = physicalDomain.numberCells(i)*ratio(i);
 
     // Get the pointers to u_0, u_n
     for (int i=0; i<n_var; i++)  {
@@ -85,7 +93,7 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
             u0_ptr[i] = tmp->getPointer();
             // Check ghost cell width
             gcwc = tmp->getGhostCellWidth();
-            for (int j=0; j<NDIM; j++) {
+            for (int j=0; j<dim.getValue(); j++) {
     	        if ( gcw!=gcwc(j) ) 
                     TBOX_ERROR("Ghost Cell width must be 1"); 
     	    }
@@ -101,7 +109,7 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
             u_ptr[i] = tmp->getPointer();
             // Check ghost cell width
             gcwc = tmp->getGhostCellWidth();
-            for (int j=0; j<NDIM; j++) {
+            for (int j=0; j<dim.getValue(); j++) {
                 if ( gcw!=gcwc(j) ) 
                     TBOX_ERROR("Ghost Cell width must be 1"); 
 	        }
@@ -121,7 +129,7 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
             auxs_ptr[i] = tmp->getPointer();
             // Check ghost cell width
             gcwc = tmp->getGhostCellWidth();
-            for (int j=0; j<NDIM; j++) {
+            for (int j=0; j<dim.getValue(); j++) {
                 if ( gcw!=gcwc(j) ) 
                     TBOX_ERROR("Ghost Cell width must be 1"); 
             }
@@ -139,7 +147,7 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
             auxv_ptr[i] = tmp->getPointer();
             // Check ghost cell width
             gcwc = tmp->getGhostCellWidth();
-            for (int j=0; j<NDIM; j++) {
+            for (int j=0; j<dim.getValue(); j++) {
                 if ( gcw!=gcwc(j) ) 
 	                TBOX_ERROR("Ghost Cell width must be 1"); 
             }
@@ -169,23 +177,23 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
             upper[2] += upper[2]-lower[2];
         }
         // Shift the domain as necessary to cover the patch
-        tbox::Pointer<hier::PatchGeometry<NDIM> > PatchGeom = patch->getPatchGeometry();
-        int shift[NDIM];
-        for (int i=0; i<NDIM; i++)
+        tbox::Pointer<hier::PatchGeometry> PatchGeom = patch->getPatchGeometry();
+        int shift[10];
+        for (int i=0; i<10; i++)
             shift[i] = 0;
         if ( xs < 1 )
-            shift[1] = 1-xs;
-    	if ( xs >= nbox[0] )
-            shift[0] = nbox[0]-1-xe;
+            shift[0] = 1-xs;
+    	if ( xe > nbox[0] )
+            shift[0] = nbox[0]-xe;
         if ( ys < 1 )
             shift[1] = 1-ys;
-    	if ( ys >= nbox[1] )
-            shift[1] = nbox[1]-1-ye;
+    	if ( ye > nbox[1] )
+            shift[1] = nbox[1]-ye;
         if ( zs < 1 )
             shift[2] = 1-zs;
-    	if ( zs >= nbox[2] )
-            shift[2] = nbox[2]-1-ze;
-        for (int i=0; i<NDIM; i++) {
+    	if ( ze > nbox[2] )
+            shift[2] = nbox[2]-ze;
+        for (int i=0; i<dim.getValue(); i++) {
             if ( shift[i]==0 )
                 continue;
             if ( !PatchGeom->getTouchesPeriodicBoundary(i,0) || !PatchGeom->getTouchesPeriodicBoundary(i,1) )
@@ -203,6 +211,9 @@ PatchContainer::PatchContainer(tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hie
             lower[i] -= (upper[i]-lower[i])*((double) shift[i])/((double) nbox[i]);
             upper[i] -= (upper[i]-lower[i])*((double) shift[i])/((double) nbox[i]);
         }
+        // Check that the shifted patch is within the domain (1:nbox)
+        if ( xs<1 || ys<1 || zs<1 || xe>nbox[0] || ye>nbox[1] || ze>nbox[2] )
+            TBOX_ERROR("Unable to create a valid temporary patch"); 
     }
 
     // Create the patch object

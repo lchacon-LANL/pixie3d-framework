@@ -5257,7 +5257,6 @@ c     Set defaults
 
 cc      bc_safe = (method <=2)
       bc_safe = .not.(method > 2 .and. method <= 6)
-
 c     General setup
 
       igrid = igx
@@ -5475,6 +5474,7 @@ c     Other advective methods
 
         !Setup fluxes (ZIP at boundaries by default for conservation)
         if (.not.isBdry(i,igx,2).or.bc_safe) flxip=vxp*qip
+cc        bc_safe = (method<=2).and.(.not.(isSP2(i,igx,ibc=1).and.spoint))
         if (.not.isBdry(i,igx,1).or.bc_safe) flxim=vxm*qim
 
         if (.not.isBdry(j,igy,4).or.bc_safe) flxjp=vyp*qjp

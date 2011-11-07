@@ -27,11 +27,11 @@ c       generic constants
         logical :: moving_mesh = .true.
 
 c       ADIOS function call variables
-        integer        :: num_open  ! first create, then append file
+        integer        :: num_open    ! first create, then append file
         character(20)  :: adios_fname ! set in ./plot/defineGraphics.F
-        integer       :: adios_rank   ! ?=? my_rank ???
+        integer        :: adios_rank  ! ?=? my_rank ???
 
-        logical,private   :: adios_debug=.false.
+        logical,private :: adios_debug=.false.
 
 c       ADIOS no-xml definition variables
         integer*8      :: grp
@@ -101,7 +101,14 @@ c     Define adios group and transport method
      .   write (*,'("%%%%     declare adios group ",a)') grp_name 
       !! FIXME: after adios 1.2.1, adios_declare_group has one more
        ! argument: (ADIOS_FLAG stats), 1 for true, 2 for false
-      call adios_declare_group (grp,grp_name,"iter",1,ierr);
+      if (ADIOS_VER <= 1.21) then
+        write (*,*) 'Here'
+        stop
+        call adios_declare_group (grp,grp_name,"iter",ierr);
+      else
+        call adios_declare_group (grp,grp_name,"iter",1,ierr);
+      endif
+
       if (adios_debug) write (*,'("%%%%     select method MPI")')
 
       call adios_select_method (grp, "MPI", "","",ierr);

@@ -4,63 +4,38 @@
 // $Date: 2005-08-23 15:10:00 -0600 (Tue, 23 Aug 2005) $
 //
 
-#include "SAMRAI_config.h"
-
 #include <iostream>
-
-#include <fstream>
-using namespace std;
-
-#include <sys/stat.h>
-
-/*
- * SAMRAI headers.
- */
-#include "BoundaryBox.h"
-#include "BoxArray.h"
-#include "BoxList.h"
-#include "BergerRigoutsos.h"
-#include "CartesianGridGeometry.h"
-#include "CartesianPatchGeometry.h"
-#include "CellData.h"
-#include "CellVariable.h"
-#include "FaceData.h"
-#include "FaceVariable.h"
-#include "GriddingAlgorithm.h"
-#include "Index.h"
-#include "tbox/InputDatabase.h"
-#include "tbox/InputManager.h"
-#include "IntVector.h"
-#include "LoadBalancer.h"
-#include "tbox/SAMRAI_MPI.h"
-#include "Patch.h"
-#include "PatchGeometry.h"
-#include "tbox/PIO.h"
-#include "RefineAlgorithm.h"
-#include "RefineOperator.h"
-#include "tbox/SAMRAIManager.h"
-#include "StandardTagAndInitialize.h"
-#include "tbox/Utilities.h"
-#include "VariableContext.h"
-#include "VariableDatabase.h"
-#include "PETSc_SAMRAIVectorReal.h"
-
-#include "pixie3dApplication.h"
-#include "pixie3dApplicationParameters.h"
-#include "TimeIntegratorParameters.h"
-#include "TimeIntegratorFactory.h"
-#include "VisItDataWriter.h"
 #include <sstream>
 #include <string>
+#include <fstream>
+#include <sys/stat.h>
+
+// Application header.
+#include "SAMRAIDriver.h"
+
+// SAMRAI headers
+#include "SAMRAI/SAMRAI_config.h"
+#include "SAMRAI/tbox/Database.h"
+#include "SAMRAI/tbox/MemoryDatabase.h"
+#include "SAMRAI/tbox/InputManager.h"
+#include "SAMRAI/mesh/StandardTagAndInitialize.h"
+#include "SAMRAI/appu/VisItDataWriter.h"
+//#include "SAMRAI/solv/PETSc_SAMRAIVectorReal.h"
+
+// SAMRUTILS headers
+#include "testutils/SAMRBuilder.h"
+
+// SAMRSOLVERS headers
+#include "time_integrators/TimeIntegratorParameters.h"
+#include "time_integrators/TimeIntegratorFactory.h"
+
+// Local headers
+#include "pixie3dApplication.h"
+#include "pixie3dApplicationParameters.h"
 
 extern "C"{
 #include "assert.h"
 }
-/*
- * Application header.
- */
-#include "BogusTagAndInitStrategy.h"
-#include "SAMRAIDriver.h"
 
 /*
  * Ghost cell width for variables that need them.
@@ -71,32 +46,36 @@ extern "C"{
 
 int main( int argc, char *argv[] ) 
 {
-    string input_file;
-    string log_file;
+  SAMRAI::tbox::SAMRAI_MPI::init(&argc, &argv);
+  SAMRAI::tbox::SAMRAIManager::initialize();
+  SAMRAI::tbox::SAMRAIManager::startup();
+  const SAMRAI::tbox::SAMRAI_MPI& mpi(SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld());
+
+  //PetscInitializeNoArguments();
+  //PetscInitializeFortran();
+
+  // This extra code block is used to scope some temporaries that are
+  // created, it forces the destruction before the manager is shutdown.
+  {
+
+    std::string input_file;
+    std::string log_file;
     int plot_interval=0;
-    string write_path;
+    std::string write_path;
    
-    tbox::SAMRAI_MPI::init(&argc, &argv);
-    tbox::SAMRAIManager::startup();
-    int rank = tbox::SAMRAI_MPI::getRank();
-    int N_procs = tbox::SAMRAI_MPI::getNodes();
-    int ierr = PetscInitializeNoArguments();
-    PetscInitializeFortran();
+    int rank = mpi.getRank();
 
-    /*
-     * Process command line arguments and dump to log file.
-     */
-    processCommandLine(argc, argv, input_file, log_file);
+    // Process command line arguments and dump to log file.
+    SAMRAI::SAMRBuilder::processCommandLine(argc, argv, input_file, log_file);
 
-    tbox::PIO::logOnlyNodeZero(log_file);
+    // Create the log file
+    SAMRAI::tbox::PIO::logOnlyNodeZero(log_file);
 
-    /*
-     * Create input database and parse all data in input file.  This
-     * parsing allows us to subsequently extract individual sections.
-     */
-    tbox::Pointer<tbox::Database> input_db = new tbox::InputDatabase("input_db");
-    tbox::InputManager::getManager()->parseInputFile(input_file, input_db);
-    tbox::Pointer< tbox::Database > main_db = input_db->getDatabase("Main");
+    // Create input database and parse all data in input file.
+    SAMRAI::tbox::Pointer<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
+    SAMRAI::tbox::InputManager::getManager()->parseInputFile(input_file, input_db);
+    SAMRAI::tbox::Pointer<SAMRAI::tbox::Database> main_db = input_db->getDatabase("Main");
+    SAMRAI::tbox::Pointer<SAMRAI::tbox::Database>  tag_db = input_db->getDatabase("StandardTagAndInitialize");
     double dt_save;
     if ( main_db->keyExists("output_path") ) {
         write_path = main_db->getString("output_path");
@@ -110,51 +89,35 @@ int main( int argc, char *argv[] )
     int save_debug = 0;
     if ( main_db->keyExists("save_debug") ) 
         save_debug = main_db->getInteger("save_debug");
-    string debug_name;
+    std::string debug_name;
     if ( main_db->keyExists("debug_name") )
         debug_name = main_db->getString("debug_name");
     else
         debug_name = "debugFile";
 
     // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
-    SAMRAI::pixie3dApplication* application  = new SAMRAI::pixie3dApplication( );
+    const SAMRAI::tbox::Dimension dim(3);
+    tbox::Pointer<SAMRAI::pixie3dApplication> application( new SAMRAI::pixie3dApplication() );
 
-    tbox::Pointer<tbox::Database> griddingDb = input_db->getDatabase("GriddingAlgorithm");
-    tbox::Pointer<tbox::Database> ratioDb = griddingDb->getDatabase("ratio_to_coarser");
-    // Create dummy variable to allow larger ghost cell widths
-    hier::IntVector<NDIM> ghost = hier::IntVector<NDIM>::IntVector(ratioDb->getIntegerArray("level_1"));
-    //   ghost(2) = 1;
-    tbox::Pointer< pdat::CellVariable<NDIM,double> > var = new pdat::CellVariable<NDIM,double>( "tmp", 1 );
-    hier::VariableDatabase<NDIM>* var_db = hier::VariableDatabase<NDIM>::getDatabase();
-    tbox::Pointer<hier::VariableContext> d_application_ctx = var_db->getContext("APPLICATION_SCRATCH");
-    int var_id = var_db->registerVariableAndContext(var, d_application_ctx, ghost );
+    // Create the patch hierarchy
+    SAMRAI::tbox::Pointer<SAMRAI::mesh::StandardTagAndInitStrategy> object = application;
+    SAMRAI::tbox::Pointer<SAMRAI::mesh::GriddingAlgorithm> gridding_algorithm;
+    SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRAI::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
+    TBOX_ASSERT(dim==hierarchy->getDim());
 
-    // Create the AMR hierarchy and initialize it
-    tbox::Pointer<hier::PatchHierarchy<NDIM> > hierarchy;
-    // Get some of the databases
-    tbox::Pointer< tbox::Database > grid_db = input_db->getDatabase("CartesianGeometry");
-    tbox::Pointer< tbox::Database >  tag_db = input_db->getDatabase("StandardTagAndInitialize");
-    tbox::Pointer< tbox::Database > load_db = input_db->getDatabase("LoadBalancer");
-    tbox::Pointer< tbox::Database > grid_alg_db = input_db->getDatabase("GriddingAlgorithm");
-    // Create the hierarchy
-    tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry =
-        new geom::CartesianGridGeometry<NDIM>("CartesianGeometry",grid_db);
-    hierarchy = new hier::PatchHierarchy<NDIM>("PatchHierarchy", grid_geometry);
-    // Create the gridding algorithum
-    tbox::Pointer<mesh::StandardTagAndInitialize<NDIM> > error_detector =
-        new mesh::StandardTagAndInitialize<NDIM>( "CellTaggingMethod", application, tag_db );
-    tbox::Pointer<mesh::BergerRigoutsos<NDIM> > box_generator = new mesh::BergerRigoutsos<NDIM>();
-    tbox::Pointer<mesh::LoadBalancer<NDIM> > load_balancer =
-        new mesh::LoadBalancer<NDIM>("UniformLoadBalance",load_db);
-    tbox::Pointer<mesh::GriddingAlgorithm<NDIM> > gridding_algorithm =
-        new mesh::GriddingAlgorithm<NDIM>("GriddingAlgorithm", grid_alg_db, error_detector, box_generator, load_balancer);
-    // Create the coarsest level
-    gridding_algorithm->makeCoarsestLevel(hierarchy, -1);
- 
-   
+    // Check that the initial hierarchy has at least one patch per processor
+    int N_patches = 0;
+    for ( int ln=0; ln<hierarchy->getNumberOfLevels(); ln++ ) {
+        SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel> level = hierarchy->getPatchLevel(ln);
+        for (SAMRAI::hier::PatchLevel::Iterator p(level); p; p++)
+            N_patches++;
+    }
+    if ( N_patches==0 )
+        TBOX_ERROR("One or more processors does not have any patches");
+
     // Initialize the writer
-    appu::VisItDataWriter<NDIM>* visit_writer;
-    visit_writer = new appu::VisItDataWriter<NDIM>("pixie3d visualizer", write_path);
+    appu::VisItDataWriter* visit_writer;
+    visit_writer = new appu::VisItDataWriter( dim, "pixie3d visualizer", write_path );
 
 
     // Initialize the application
@@ -163,47 +126,23 @@ int main( int argc, char *argv[] )
     application_parameters->d_hierarchy = hierarchy;
     application_parameters->d_VizWriter = visit_writer;
     application->initialize( application_parameters );
-   
 
     // Initialize x0
     double t0 = 0.0;
     application->setInitialConditions(t0);
 
-    // Set up tag buffers that are passed to the gridding algorithm
-    // for buffering tagged cells before new levels are created.
-    int N_levels_max = gridding_algorithm->getMaxLevels();
-    tbox::Array<int> tag_buffer(N_levels_max);
-    for (int ln = 0; ln < gridding_algorithm->getMaxLevels(); ln++) {
-        if ( error_detector->refineUserBoxInputOnly() )
-            tag_buffer[ln] = 0;     // Only user-defined refinement box are used, no tag buffer is necessary
-        else
-            tag_buffer[ln] = 2;     // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
-    }
-    if (main_db->keyExists("tag_buffer")) {
-        tbox::Array<int> input_tags = main_db->getIntegerArray("tag_buffer");
-        if (input_tags.getSize() > 0) {
-            for (int ln = 0; ln<N_levels_max; ln++) {
-                if (input_tags.getSize() > ln) {
-                    tag_buffer[ln] = ((input_tags[ln] > 0) ? input_tags[ln] : 0);
-                } else {
-                    tag_buffer[ln] = ((input_tags[input_tags.getSize()-1] > 0)
-                                ? input_tags[input_tags.getSize()-1] : 0);
-                }
-            }
-        }
-    }
-
-    // Use the gridding algorithm to initialize the hierarchy.
-    bool initial_time = true;
-    for ( int ln=0; gridding_algorithm->levelCanBeRefined(ln); ln++ ) {
-        gridding_algorithm->makeFinerLevel(hierarchy, t0, initial_time, tag_buffer[ln]);
-        application->setInitialConditions(t0);
-    }
     // Perform a regrid to make sure the tagging is all set correctly
+    tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
+    TBOX_ASSERT(!error_detector.isNull());
     error_detector->turnOnGradientDetector();
     error_detector->turnOffRefineBoxes();
-    gridding_algorithm->regridAllFinerLevels(hierarchy, 0, t0, tag_buffer);
-    application->setInitialConditions(initial_time);
+    tbox::Array<int> tag_buffer;
+    if ( error_detector->refineUserBoxInputOnly() )
+        tag_buffer = tbox::Array<int>(20,0);    // Only user-defined refinement boxes are used, no tag buffer is necessary
+    else
+        tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
+    gridding_algorithm->regridAllFinerLevels(0,t0,tag_buffer);
+    application->setInitialConditions(t0);
 
     // initialize a time integrator parameters object
     tbox::Pointer<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");
@@ -217,7 +156,7 @@ int main( int argc, char *argv[] )
     std::auto_ptr<SAMRSolvers::TimeIntegrator> timeIntegrator = tiFactory->createTimeIntegrator(timeIntegratorParameters);
 
     // Create x(t)
-    tbox::Pointer< solv::SAMRAIVectorReal<NDIM,double> > x_t;
+    tbox::Pointer< solv::SAMRAIVectorReal<double> > x_t;
     x_t = timeIntegrator->getCurrentSolution();
 
     tbox::Pointer<tbox::Database> plot_db = input_db->getDatabase("Plotting");
@@ -230,7 +169,7 @@ int main( int argc, char *argv[] )
     visit_writer->writePlotData(hierarchy,0,0);
     FILE *debug_file = NULL;
     if ( save_debug>0 ) {
-        if ( tbox::SAMRAI_MPI::getRank()==0 )
+        if ( rank==0 )
             debug_file = fopen( debug_name.c_str() , "wb" );
         application->writeDebugData(debug_file,0,0,save_debug);
     }
@@ -264,7 +203,9 @@ int main( int argc, char *argv[] )
             tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
         }
 
-        dt = timeIntegrator->getNextDt(solnAcceptable);
+        //dt = timeIntegrator->getNextDt(solnAcceptable);
+        dt = application->getExpdT();
+        
         tbox::pout << "Estimating next time step : " << dt << std::endl;
     }
 
@@ -272,145 +213,25 @@ int main( int argc, char *argv[] )
         fclose(debug_file);
 
     // Barrier to make sure all processors have finished
-    tbox::SAMRAI_MPI::barrier();
+    mpi.Barrier();
     // Delete the time integrator
     delete tiFactory;
     delete timeIntegratorParameters;
     // Delete the application
-    delete application;
+    application.setNull();
     delete application_parameters;
-    // Delete the writer
-    delete visit_writer;
-    // Delete the hierarchy
-    var.setNull();
-    hierarchy.setNull();
-    load_balancer.setNull();
-    gridding_algorithm.setNull();
-    grid_geometry.setNull();
-    // Delete the input database
-    main_db.setNull();
-    input_db.setNull();
-    pixie3d_db.setNull();
-    grid_db.setNull();
-    tag_db.setNull();
-    load_db.setNull();
-    grid_alg_db.setNull();
-    tbox::InputManager::freeManager();
-    delete input_db;
-    tbox::pout << "Input database deleted\n";
-    // Finalize PETsc, MPI, and SAMRAI
-    tbox::SAMRAI_MPI::barrier();
-    PetscFinalize();
-    tbox::SAMRAIManager::shutdown();
-    tbox::SAMRAI_MPI::finalize();
-    return(0);
+
+  } // End code block
+  tbox::pout << "Finializing PETSc, MPI and SAMRAI" << std::endl;
+
+  // That's all, folks!
+  mpi.Barrier();
+  //PetscFinalize();
+  SAMRAI::tbox::SAMRAIManager::shutdown();
+  SAMRAI::tbox::SAMRAIManager::finalize();
+  SAMRAI::tbox::SAMRAI_MPI::finalize(); 
+  return(0);
 }
 
 
-/*
-************************************************************************
-*                                                                      *
-*  Parse command line arguments, returning name of input file and log  *
-*  file.                                                               *
-*                                                                      *
-************************************************************************
-*/
-void processCommandLine(int argc, 
-                        char *argv[], 
-                        string& input_file, 
-                        string& log_file)
-{
-  if ( (argc != 3) ) {
-    tbox::pout << "USAGE:  " << argv[0] << " <input file> <log file> " << endl;
-    exit(-1);
-  } else {
-    input_file = argv[1];
-    log_file = argv[2];
-  }
-
-  return;
-}
-
-/*
-************************************************************************
-*                                                                      *
-* Generate a patch hierarchy from information specified in input       *
-* database.                                                            *
-*                                                                      *
-************************************************************************
-*/
-void initializeAMRHierarchy(tbox::Pointer<tbox::Database> &input_db,
-			    mesh::StandardTagAndInitStrategy<NDIM>* user_tagging_strategy,
-			    tbox::Pointer<hier::PatchHierarchy<NDIM> > &hierarchy)
-{
-   /*
-    * Create geometry object.  This specifies the index space of the
-    * coarsest level, as well as its physical (Cartesian) coordinates.
-    */
-   tbox::Pointer<geom::CartesianGridGeometry<NDIM> > grid_geometry = 
-      new geom::CartesianGridGeometry<NDIM>("CartesianGeometry",
-                                input_db->getDatabase("CartesianGeometry"));
-
-   /*
-    * Create patch hierarchy.
-    */
-   hierarchy = new hier::PatchHierarchy<NDIM>("PatchHierarchy", grid_geometry);
-
-   /* 
-    * A mesh::GriddingAlgorithm<NDIM> is used to build the initial grid hierarchy.
-    * Classes for tagging cells that need refinement, generation of
-    * boxes from these tagged cells, and load balancing the grid
-    * hierarchy are needed to build the mesh::GriddingAlgorithm<NDIM>.
-    *
-    * First build the object used to tag cells that need refinement.
-    */
-    tbox::Pointer<mesh::StandardTagAndInitialize<NDIM> > error_detector = 
-	new mesh::StandardTagAndInitialize<NDIM>( 
-	    "CellTaggingMethod", 
-	    user_tagging_strategy, 
-	    input_db->getDatabase("StandardTagAndInitialize"));
-    
-   /*
-    * Next, specify the built-in Berger-Rigoutsos method for
-    * generating boxes from the tagged cells.
-    */
-   tbox::Pointer<mesh::BergerRigoutsos<NDIM> > box_generator = new mesh::BergerRigoutsos<NDIM>(); 
-
-   /*
-    * Next, specify the built-in uniform load balancer to distribute
-    * patches across processors.
-    */
-   tbox::Pointer<mesh::LoadBalancer<NDIM> > load_balancer =
-      new mesh::LoadBalancer<NDIM>(input_db->getDatabase("LoadBalancer"));
-
-   /*
-    * Finally, build the grid generator, registering the above
-    * strategies for tagging cells, generating boxes, and load
-    * balancing the calculation.
-    */
-   tbox::Pointer<mesh::GriddingAlgorithm<NDIM> > gridding_algorithm =
-      new mesh::GriddingAlgorithm<NDIM>("GriddingAlgorithm",
-                            input_db->getDatabase("GriddingAlgorithm"),
-                            error_detector,
-                            box_generator,
-                            load_balancer);
-
-   /*
-    * Build an initial grid hierarchy.  Note that in this simple
-    * example we do not buffer the refinement regions.
-    */
-   gridding_algorithm->makeCoarsestLevel(hierarchy, 0.0);
-   
-   bool done = false;
-   bool initial_time = true;
-   for (int ln = 0;
-        gridding_algorithm->levelCanBeRefined(ln) && !done; 
-        ln++) {
-       gridding_algorithm->makeFinerLevel(hierarchy,
-                                          0.0,
-                                          initial_time,
-                                          0);
-       done = !(hierarchy->finerLevelExists(ln));
-   }
-}
 
