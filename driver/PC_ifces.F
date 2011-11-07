@@ -126,6 +126,10 @@ c *******************************************************************
 
       if (pc_id) then
 
+        if (iout > 1 .and. my_rank == 0) then
+          write (*,*) '--> Performing IDENTITY PC'
+        endif
+
         do k = 1,nz
           do j = 1,ny
             do i = 1,nx
