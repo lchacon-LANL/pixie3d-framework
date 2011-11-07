@@ -81,7 +81,9 @@ c     Begin program
 
       ngrid = mk_gr_params%ngrid
 
-      order = 0  !Order of restriction for MG arrays
+      order = 1  !Order of restriction for MG arrays
+                 !Use order=1 to avoid circular dependency between cell volume
+                 ! and restricted quantity
 
 c     Allocate variables
 
@@ -100,7 +102,7 @@ c     Store phi in all grids
 
       gmk_phi%grid(igrid)%array(:,:,:,1) = phi
 
-      call restrictMGArray(IMK,1,gmk_phi,mk_bcs,igrid,0
+      call restrictMGArray(IMK,1,gmk_phi,mk_bcs,igrid,order
      .                    ,isvec=.false.)
 
 c     Store xold in all grids (This should only be done once in the beginning!)
@@ -302,7 +304,7 @@ c     Begin program
       mk_asm_PC      =.false. !Whether to do additive Schwartz PC
 
       mk_gm_smooth   =.false. !Whether to use GMRES smoothing in MG
-      mk_gm_coarse   =.false.  !Whether to use GMRES as the coarse solve
+      mk_gm_coarse   =.false. !Whether to use GMRES as the coarse solve
       mk_mg_glrkin   =.false. !Whether to use Galerking MG
       mk_line_relax  =.false. !Whether to perform line relaxation in MG
       mk_zebra_relax =.false. !Whether to perform zebra (line) relaxation in MG. If true,
@@ -316,9 +318,15 @@ c     Begin program
       mk_cvrg_test   = .false.!Whether to perform convergence test of smoother
 
 !!      mk_maxvcyc     = 10      !Maximum number of MG vcycles
-      mk_maxvcyc     = 2      !Maximum number of MG vcycles
-      mk_nsweep      = 2      !Maximum number of smoothing passes
-      mk_ores        = 0      !Restriction order for MG
+      mk_maxvcyc     = 1      !Maximum number of MG vcycles
+      mk_nsweep      = 5      !Maximum number of smoothing passes
+
+      if (vol_wgt) then
+        mk_ores      = 0      !Restriction order for MG
+      else
+        mk_ores      = 1      !Restriction order for MG
+      endif
+
       mk_oprol       = 1      !Prolongation order for MG
 !!      mk_oprol       = 0      !Prolongation order for MG
       mk_mgtol       = 1d-2  !MG tolerance
@@ -392,9 +400,14 @@ c     Begin program
 
       x = 0d0
 
-      y = y/(1d0+tau/dt)  !Renormalize MK residual to account for time constant (introduced in evaluateNLF)
+      !Renormalize MK residual to account for time constant (introduced in MK_residual)
+      if ((.not.relax_init_grid).and.(tau>0d0)) y = y/(1d0+dt/tau)
 
-c     Solve linear shellcmd with MG
+      if (iout > 0.and.my_rank==0) then
+        write (*,*) '>>>> Preconditioning MK...'
+      endif
+
+c     Solve linear system with MG
 
       guess = 0
 
