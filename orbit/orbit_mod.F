@@ -45,6 +45,7 @@ c ######################################################################
           real(8) :: smax      !Maximum arc length
           logical :: solen     !Whether use solenoidal version or LSODE
           logical :: picard    !Whether to use picard or Newton
+          logical :: ds_is_Bds !Whether we use B.ds instead of ds as independent variable
           logical :: lsode_dt_lim  !Whether to limit lsode time step
           logical :: lsode_s_indep !Whether to arc-length is indep. var. in LSODE
           logical :: lsode_to_smax !Whether to integrate LSODE exactly to target arc-length
@@ -332,6 +333,8 @@ c     ----------------------------------------------------------------------
       orb_default%ode_conf%rtol   = 0d-8   !Relative tolerance
       orb_default%ode_conf%atol   = 1d-8   !Absolute tolerance
 
+      orb_default%ode_conf%ds_is_Bds = .false.  !Whether we use B.ds instead of ds as independent variable
+
       !LSODE default setup
       orb_default%ode_conf%lsode_dt_lim = .false. !Do not limit LSODE time step
       orb_default%ode_conf%lsode_s_indep  = .false. !Find arc-length as dependent variable
@@ -356,7 +359,7 @@ c     ######################################################################
      .                      ,niter,atol,rtol,order,solen,picard
      .                      ,spline_order,gauge,B_input_is_A,r_min
      .                      ,lsode_neq,lsode_dt_lim,lsode_to_smax
-     .                      ,lsode_s_indep)
+     .                      ,lsode_s_indep,ds_is_Bds)
 
 c     ----------------------------------------------------------------------
 c     Sets up orbit integrator.
@@ -376,7 +379,7 @@ c     Call variables
         real(8),optional :: tmax,smax,dtime,atol,rtol,r_min
         integer,optional :: niter,order,spline_order,gauge,lsode_neq
         logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
-     .                     ,lsode_to_smax,lsode_s_indep
+     .                     ,lsode_to_smax,lsode_s_indep,ds_is_Bds
 
 c     Begin program
 
@@ -432,6 +435,10 @@ c     Begin program
 
         if (PRESENT(lsode_to_smax)) then
           orb_default%ode_conf%lsode_to_smax = lsode_to_smax
+        endif
+
+        if (PRESENT(ds_is_Bds)) then
+          orb_default%ode_conf%ds_is_Bds = ds_is_Bds
         endif
 
         if (PRESENT(spline_order)) then
@@ -1568,10 +1575,14 @@ c     ###################################################################
 
 c     lsode_orbit_f_3eq
 c     #####################################################################
-      subroutine lsode_orbit_f_3eq(neq,t,y,ydot,xx1,yy1,zz1)
+      subroutine lsode_orbit_f_3eq(neq,t,y,ydot,xx1,yy1,zz1,B2)
 
 c     ---------------------------------------------------------------------
-c     Driver routine for LSODE integration: ydot = lsode_orbit_f(y,t)
+c     Driver routine for LSODE integration: ydot = lsode_orbit_f(y,t), using
+c     either arc-length or B-weighed arc-length (determined at orbit setup).
+c
+c     xx1,yy1,zz1 are optional, and provide logical coordinates on output.
+c     B2 is optional, and provides B.B
 c     ---------------------------------------------------------------------
 
       implicit none
@@ -1580,12 +1591,13 @@ c     Call variables
 
       integer :: neq
       real(8) :: t,y(neq),ydot(neq)
-      real(8),optional :: xx1,yy1,zz1
+      real(8),optional,INTENT(OUT) :: xx1,yy1,zz1,B2
 
 c     Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,coeff
+      real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,bnorm,jac
+      logical :: bwgt
 
 c     Begin program
 
@@ -1593,6 +1605,8 @@ c     Begin program
         write (*,*) 'Wrong number of Eqs. in lsode_orbit_f_3eq:',neq
         stop
       endif
+
+      bwgt = ode_conf%ds_is_Bds
 
       !Find logical coordinates
       if (sing_point) then
@@ -1619,23 +1633,33 @@ c     Begin program
 
       !Time and arc-length ODEs
       if (.not.sing_point) then
-        coeff = evalJ(x1,y1,z1,ierror)
+        call evalBcar(x1,y1,z1,vx,vy,vz)
+        bnorm = vx**2+vy**2+vz**2
+        if (.not.bwgt) bnorm = sqrt(bnorm)
+
+        jac = evalJ(x1,y1,z1,ierror)
         if (ierror /= 0) then
           write (*,*) 'Negative Jacobian in lsode_orbit_f_3eq'
           stop
         endif
-
-        call evalBcar(x1,y1,z1,vx,vy,vz)
-        coeff = coeff*sqrt(vx**2+vy**2+vz**2)
       else
-        coeff = sqrt(vx**2+vy**2+vz**2)
+        jac = 1d0
+        bnorm = vx**2+vy**2+vz**2
+        if (.not.bwgt) bnorm = sqrt(bnorm)
       endif
 
-      ydot = ydot/coeff
+      ydot = ydot/(bnorm*jac)
 
       if (PRESENT(xx1)) xx1 = x1
       if (PRESENT(yy1)) yy1 = y1
       if (PRESENT(zz1)) zz1 = z1
+      if (PRESENT(B2)) then
+        if (bwgt) then
+          B2 = bnorm
+        else
+          B2 = bnorm*bnorm
+        endif
+      endif
 
 c     End program
 
@@ -1643,10 +1667,16 @@ c     End program
 
 c     lsode_orbit_f
 c     #####################################################################
-      subroutine lsode_orbit_f(neq,t,y,ydot,xx1,yy1,zz1)
+      subroutine lsode_orbit_f(neq,t,y,ydot,xx1,yy1,zz1,B2)
 
 c     ---------------------------------------------------------------------
-c     Driver routine for LSODE integration: ydot = lsode_orbit_f(y,t)
+c     Driver routine for LSODE integration: ydot = lsode_orbit_f(y,t), using
+c     pseudo-time (dt=ds/J/B). The fourth equation integrates geometric
+c     pseudo-time (dt'=ds/B), and the fifth either arc-length
+c     or B-weighed arc-length (determined at orbit setup).
+c
+c     xx1,yy1,zz1 are optional, and provide logical coordinates on output.
+c     B2 is optional, and provides B.B
 c     ---------------------------------------------------------------------
 
       implicit none
@@ -1655,12 +1685,13 @@ c     Call variables
 
       integer :: neq
       real(8) :: t,y(neq),ydot(neq)
-      real(8),optional :: xx1,yy1,zz1
+      real(8),optional,INTENT(OUT) :: xx1,yy1,zz1,B2
 
 c     Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0
+      real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,bnorm
+      logical :: bwgt
 
 c     Begin program
 
@@ -1668,6 +1699,8 @@ c     Begin program
         write (*,*) 'Wrong number of Eqs. for lsode_orbit',neq
         stop
       endif
+
+      bwgt = ode_conf%ds_is_Bds
 
       !Find logical coordinates
       if (sing_point) then
@@ -1702,15 +1735,29 @@ c     Begin program
         endif
 
         call evalBcar(x1,y1,z1,vx,vy,vz)
-        ydot(5) = ydot(4)*sqrt(vx**2+vy**2+vz**2)
+        bnorm = vx**2+vy**2+vz**2
+        if (.not.bwgt) bnorm = sqrt(bnorm)
+
+        ydot(5) = ydot(4)*bnorm
       else
         ydot(4) = 1d0
-        ydot(5) = sqrt(vx**2+vy**2+vz**2)
+
+        bnorm = vx**2+vy**2+vz**2
+        if (.not.bwgt) bnorm = sqrt(bnorm)
+
+        ydot(5) = bnorm
       endif
 
       if (PRESENT(xx1)) xx1 = x1
       if (PRESENT(yy1)) yy1 = y1
       if (PRESENT(zz1)) zz1 = z1
+      if (PRESENT(B2)) then
+        if (bwgt) then
+          B2 = bnorm
+        else
+          B2 = bnorm*bnorm
+        endif
+      endif
 
 c     End program
 
