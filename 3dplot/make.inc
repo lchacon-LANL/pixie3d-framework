@@ -14,8 +14,11 @@ SUBDIRS = $(COMMONDIR)/math\
 	  $(COMMONDIR)/driver_setup\
 	  $(COMMONDIR)/matrixLightSolver\
           $(COMMONDIR)/MG\
-          $(COMMONDIR)/orbit\
-	  $(COMMONDIR)/mk
+          $(COMMONDIR)/orbit
+
+ifeq ($(MK),t)
+  SUBDIRS += $(COMMONDIR)/mk
+endif
 
 #Define dependencies
 
