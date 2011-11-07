@@ -1154,7 +1154,7 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       real(8) :: x1,x2,x3,b1,b2,b3
-      logical :: solen,car
+      logical,INTENT(IN) :: solen,car
       integer,optional :: flag
 
 c     Local variables
