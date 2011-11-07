@@ -440,17 +440,17 @@ c     Begin program
         i1 = 0
         i2 = 0
 
-        if (max_x-min_x<1d-15) then
+        if (max_x-min_x<1d-14) then
           i1 = 2
           i2 = 3
         endif
 
-        if (max_y-min_y<1d-15) then
+        if (max_y-min_y<1d-14) then
           i1 = 1
           i2 = 3
         endif
 
-        if (max_z-min_z<1d-15) then
+        if (max_z-min_z<1d-14) then
           i1 = 1
           i2 = 2
         endif

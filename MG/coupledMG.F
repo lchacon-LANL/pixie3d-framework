@@ -1068,8 +1068,8 @@ c       Restrict vector
 
         call crestrict(neq,vecc,ntotc,nxxc,nyyc,nzzc
      .                    ,vecf,ntotf,nxxf,nyyf,nzzf
-cc     .                ,order,igridf,volf)
-     .                ,0,igridf,volf)
+     .                ,order,igridf,volf)
+cc     .                ,0,igridf,volf)
 
       enddo
 
@@ -2062,7 +2062,7 @@ c       MG coarsest grid solve
         call solverOptionsInit
 
         solverOptions%tol             = 1d-5
-        solverOptions%krylov_subspace = 100
+        solverOptions%krylov_subspace = min(100,2*neq*ntotp)
         solverOptions%iter            = 100
         solverOptions%stp_test        = 1 
         solverOptions%omega           = 1d0
@@ -4452,6 +4452,14 @@ c Agglomeration
 
       if (order.eq.0) then
 
+cc        if (.not.volw.and.my_rank==0) then
+cc          write (*,*)
+cc          write (*,*) 'Non-volume-weighed quantity'
+cc          write (*,*) 'Should be using interpolated restriction'
+cc          write (*,*) '  instead of agglomeration'
+cc          write (*,*)
+cc        endif
+
         call limits(0,nxc,nyc,nzc,igc
      .             ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
 
@@ -4480,7 +4488,9 @@ c Agglomeration
                 enddo
               enddo
 
-              if (.not.volw) xc(iic) = xc(iic)/volt
+cc              if (.not.volw) xc(iic) = xc(iic)/volt
+              if (.not.volw) xc(iic) = xc(iic)
+     .                                /gmetric%grid(igc)%dvol(ic,jc,kc)
 
             enddo
           enddo
@@ -4510,19 +4520,22 @@ c     Map vectors into arrays
 c     Renormalize without volume fractions
 
         if (volw) then
+
+cc          if (my_rank==0) then
+cc            write (*,*)
+cc            write (*,*) 'Volume-weighed quantity'
+cc            write (*,*) 'Should be using agglomeration'
+cc            write (*,*) '  instead of interpolated restriction'
+cc            write (*,*)
+cc          endif
+
           do kf = kminf,kmaxf
             do jf = jminf,jmaxf
               do if = iminf,imaxf
-
                 call getMGmap(if,jf,kf,igf,igf,igf,ifg,jfg,kfg)
 
                 arrayf(if,jf,kf) = arrayf(if,jf,kf)
      .                            /gmetric%grid(igf)%dvol(if,jf,kf)
-cc     .                            /volume(if,jf,kf,igf,igf,igf)
-cc     .                            /(grid_params%dxh(ifg)
-cc     .                             *grid_params%dyh(jfg)
-cc     .                             *grid_params%dzh(kfg))
-
               enddo
             enddo
           enddo

@@ -19,7 +19,9 @@ c##########################################################################
 
       use acc_tests
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 
@@ -96,14 +98,26 @@ c     Time level plots (xdraw)
      .     .or.(time-tmplot) >= dplot-0.9*dt
      .     .or. time         == 0d0) then
 
+#if defined(MK)
           !Setup MK grid
           if(mk_grid) then
-            xold = xnew
-            call MK_setup_grid(igx,u_np%array_var(neqd)%array)
-            gvel =-(xnew-xold)/dt  !In Cartesian geometry
-            call MK_xfer_equ  (igx,u_ic)
-          endif
 
+            old_time_eval = .false.
+            xnm  = xold
+            xold = xnew
+
+            call MK_setup_grid(igx,u_np%array_var(neqd)%array)
+
+cc            !Grid velocity in Cartesian geometry
+cc            if (bdf2) then
+cc              gvel =-(cnp*xnew+cn*xold+cnm*xnm)/dt
+cc            else
+cc              gvel =-(xnew-xold)/dt
+cc            endif
+
+            call MK_xfer_equ(igx,u_ic)
+          endif
+#endif
           !Post-process solution for diagnostics
           call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
@@ -234,7 +248,9 @@ c----------------------------------------------------------------------
 
       use graphics
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 
@@ -298,7 +314,9 @@ c Read user initializations
 
       call readGraphicsInput
 
+#if defined(MK)
       if (mk_grid) neqd = neqd+1  !Add MK equation
+#endif
 
 c Initialize MG and create grid
 
@@ -334,11 +352,13 @@ c Define application arrays (external)
 
 c Initialize MK grid
 
+#if defined(MK)
       if (mk_grid) then
         call MK_alloc
         call MK_initGrid(igx,bcs=bcond)
 cc        call MK_initGrid(1)
       endif
+#endif
 
 c Set plotting range
 
@@ -348,13 +368,23 @@ c Initialize diagnostics and related variables
 
       call equateDerivedType(u_ic,u_0)
 
-      if (mk_grid) call MK_spline_equ(igx,u_ic)  !Spline equilibrium
+#if defined(MK)
+      if (mk_grid) then
+        call MK_spline_equ(igx,u_ic) !Spline equilibrium
+        call MK_setup_grid(igx,u_ic%array_var(neqd)%array)
+      endif
+#endif
 
       call equateDerivedType(u_n ,u_0)
 
+#if defined(MK)
       if (mk_grid) u_ic%nvar = u_ic%nvar-1
+#endif
       call initializeDiagnostics(u_ic,igx,igy,igz)    !External
+
+#if defined(MK)
       if (mk_grid) u_ic%nvar = u_ic%nvar+1
+#endif
 
       call equateDerivedType(u_np,u_ic)
       call equateDerivedType(u_n ,u_ic)

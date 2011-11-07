@@ -14,10 +14,11 @@ c #####################################################################
         integer :: istep=0
 
         !Private variables
-        integer,private :: kx,ky,kz,nx,ny,nz,dim,flg,ag,sbcnd(6)
+        integer,private :: nx,ny,nz,ag,sbcnd(6)
 
         real(8),private :: xsmin,xsmax,ysmin,ysmax,zsmin,zsmax
 
+        integer,private :: kx,ky,kz,dim,flg
         real(8),private,dimension(:),allocatable :: tx,ty,tz,work
      .                                             ,xs,ys,zs
 
@@ -1578,7 +1579,6 @@ c     Begin program
 
       call db3ink(xs,nx,ys,ny,zs,nz
      .           ,fld,nx,ny,kx,ky,kz,tx,ty,tz,lfcoef,work,flg)
-
 
       nullify(lfcoef)
 

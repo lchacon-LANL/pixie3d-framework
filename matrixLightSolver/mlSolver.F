@@ -389,7 +389,7 @@ c Extract options
       rtol     = options%tol                        !Relative convergence tolerance
       atol     = options%atol                       !Absolute convergence tolerance
       stol     = options%stol                       !Update convergence tolerance (not used)
-      k_max    = min(options%krylov_subspace,ntot)  !Maximum krylov subspace
+      k_max    = options%krylov_subspace            !Maximum krylov subspace
       sing_mat = options%singular_matrix            !Tell GMRES is dealing with a singular matrix
 
       if (sing_mat .and. iout >= 1.and. my_rank == 0)

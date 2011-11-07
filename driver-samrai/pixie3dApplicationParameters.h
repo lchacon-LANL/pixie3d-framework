@@ -14,12 +14,14 @@
 
 #include <string>
 
-#include "tbox/Database.h"
-#include "PatchHierarchy.h"
+// SAMRAI headers
+#include "SAMRAI/tbox/Database.h"
+#include "SAMRAI/hier/PatchHierarchy.h"
+#include "SAMRAI/appu/VisItDataWriter.h"
 
-#include "DiscreteOperatorParameters.h"
+// SAMRSOLVERS headers
+#include "operators/DiscreteOperatorParameters.h"
 
-#include "VisItDataWriter.h"
 
 
 namespace SAMRAI{
@@ -45,9 +47,9 @@ public:
    virtual ~pixie3dApplicationParameters();
 
    // Computational grid where problem is solved.
-   tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
+   tbox::Pointer<hier::PatchHierarchy> d_hierarchy;
 
-   SAMRAI::appu::VisItDataWriter<NDIM>* d_VizWriter;
+   SAMRAI::appu::VisItDataWriter* d_VizWriter;
 };
 }
 

@@ -623,7 +623,7 @@ cc      end subroutine varUnPack
 
 c     mapStructureToVector
 c     #################################################################
-      subroutine mapStructureToVector(x,varray,igx,igy,igz)
+      subroutine mapStructureToVector(x,varray,igr)
 
 c     -----------------------------------------------------------------
 c     Maps structure into vector (without ghost cells)
@@ -634,28 +634,26 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       real(8),intent(out)      :: x(:)
-      integer, optional :: igx,igy,igz
+      integer, optional :: igr
 
       type(var_array),pointer  :: varray
 
 c     Local variables
 
-      integer :: i,j,k,ii,ieq,neq,iigx=1,iigy=1,iigz=1
+      integer :: i,j,k,ii,ieq,neq,iigr=1
 
 c     Begin program
 
-      if (PRESENT(igx)) iigx=igx
-      if (PRESENT(igy)) iigy=igy
-      if (PRESENT(igz)) iigz=igz
+      if (PRESENT(igr)) iigr=igr
 
 c     Unpack vector x
 
       neq = varray%nvar
 
-      do k = 1,gv%gparams%nzv(iigz)
-        do j = 1,gv%gparams%nyv(iigy)
-          do i = 1,gv%gparams%nxv(iigx)
-            ii = vecPos(neq,i,j,k,iigx,iigy,iigz)
+      do k = 1,gv%gparams%nzv(iigr)
+        do j = 1,gv%gparams%nyv(iigr)
+          do i = 1,gv%gparams%nxv(iigr)
+            ii = vecPos(neq,i,j,k,iigr,iigr,iigr)
             do ieq=1,neq
               x(ii+ieq) = varray%array_var(ieq)%array(i,j,k)
             enddo
@@ -669,7 +667,7 @@ c     End program
 
 c     mapVectorToStructure
 c     #################################################################
-      subroutine mapVectorToStructure(varray,x,igx,igy,igz)
+      subroutine mapVectorToStructure(varray,x,igr)
 
 c     -----------------------------------------------------------------
 c     Maps vector solution into structure.
@@ -679,21 +677,18 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-cc      real(8),intent(in)      :: x(ntotd)
       real(8),dimension(:),intent(in) :: x(:)
-      integer, optional :: igx,igy,igz
+      integer, optional :: igr
 
       type(var_array),pointer :: varray
 
 c     Local variables
 
-      integer    :: i,j,k,ii,ieq,neq,iigx=1,iigy=1,iigz=1
+      integer    :: i,j,k,ii,ieq,neq,iigr=1
 
 c     Begin program
 
-      if (PRESENT(igx)) iigx=igx
-      if (PRESENT(igy)) iigy=igy
-      if (PRESENT(igz)) iigz=igz
+      if (PRESENT(igr)) iigr=igr
 
 c     Initialize varray
 
@@ -703,10 +698,10 @@ c     Unpack vector x
 
       neq = varray%nvar
 
-      do k = 1,gv%gparams%nzv(iigz)
-        do j = 1,gv%gparams%nyv(iigy)
-          do i = 1,gv%gparams%nxv(iigx)
-            ii = vecPos(neq,i,j,k,iigx,iigy,iigz)
+      do k = 1,gv%gparams%nzv(iigr)
+        do j = 1,gv%gparams%nyv(iigr)
+          do i = 1,gv%gparams%nxv(iigr)
+            ii = vecPos(neq,i,j,k,iigr,iigr,iigr)
             do ieq=1,neq
               varray%array_var(ieq)%array(i,j,k) = x(ii+ieq)
             enddo

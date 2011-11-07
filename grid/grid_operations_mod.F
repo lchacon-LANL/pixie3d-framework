@@ -350,31 +350,31 @@ c     Begin program
         nyl = grid_params%nyv(igrid)
         nzl = grid_params%nzv(igrid)
 
-cc        do k=0,nzl+1
-cc          do j=0,nyl+1
-cc            do i=0,nxl+1
-cc              curv(i,j,k,:) = XformToCurv_ijk(i,j,k,igrid,car(i,j,k,:)
-cc     .                                       ,tocnv)
-cc            enddo
-cc          enddo
-cc        enddo
+        do k=0,nzl+1
+          do j=0,nyl+1
+            do i=0,nxl+1
+              curv(i,j,k,:) = XformToCurv_ijk(i,j,k,igrid,car(i,j,k,:)
+     .                                       ,tocnv)
+            enddo
+          enddo
+        enddo
 
-        curv = car
-        if (tocnv) then
-          call transformVector(igrid,igrid,igrid
-     .                      ,0,nxl,0,nyl,0,nzl
-     .                      ,curv(:,:,:,1)
-     .                      ,curv(:,:,:,2)
-     .                      ,curv(:,:,:,3)
-     .                      ,'car','cnv')
-        else
-          call transformVector(igrid,igrid,igrid
-     .                      ,0,nxl,0,nyl,0,nzl
-     .                      ,curv(:,:,:,1)
-     .                      ,curv(:,:,:,2)
-     .                      ,curv(:,:,:,3)
-     .                      ,'car','cov')
-        endif
+cc        curv = car
+cc        if (tocnv) then
+cc          call transformVector(igrid,igrid,igrid
+cc     .                      ,0,nxl+1,0,nyl+1,0,nzl+1
+cc     .                      ,curv(:,:,:,1)
+cc     .                      ,curv(:,:,:,2)
+cc     .                      ,curv(:,:,:,3)
+cc     .                      ,'car','cnv')
+cc        else
+cc          call transformVector(igrid,igrid,igrid
+cc     .                      ,0,nxl+1,0,nyl+1,0,nzl+1
+cc     .                      ,curv(:,:,:,1)
+cc     .                      ,curv(:,:,:,2)
+cc     .                      ,curv(:,:,:,3)
+cc     .                      ,'car','cov')
+cc        endif
 
       end function XformToCurv_mesh
 

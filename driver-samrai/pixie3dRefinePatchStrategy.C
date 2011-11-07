@@ -11,13 +11,14 @@
 
 #include "pixie3dRefinePatchStrategy.h"
 
-#include "CartesianPatchGeometry.h"
-#include "CellData.h"
-#include "tbox/Pointer.h"
+#include "SAMRAI/geom/CartesianPatchGeometry.h"
+#include "SAMRAI/geom/CartesianGridGeometry.h"
+#include "SAMRAI/pdat/CellData.h"
+#include "SAMRAI/tbox/Pointer.h"
+#include "SAMRAI/hier/GridGeometry.h"
+
 #include "LevelContainer.h"
 #include "PatchContainer.h"
-#include "GridGeometry.h"
-#include "CartesianGridGeometry.h"
 
 extern "C"{
 #include <assert.h>
@@ -102,7 +103,9 @@ pixie3dRefinePatchStrategy::bcgrp_struct::~bcgrp_struct() {
 * Constructor.                                                         *
 *                                                                      *
 ***********************************************************************/
-pixie3dRefinePatchStrategy::pixie3dRefinePatchStrategy(void)
+pixie3dRefinePatchStrategy::pixie3dRefinePatchStrategy(const tbox::Dimension &dim_in):
+    RefinePatchStrategy(dim_in),
+    dim(dim_in)
 {
     u0_id = NULL;
     u_id = NULL;
@@ -137,14 +140,14 @@ pixie3dRefinePatchStrategy::~pixie3dRefinePatchStrategy()
 *                                                                      *
 ***********************************************************************/
 void 
-pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& patch,
+pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch& patch,
                                                            const double time,
-                                                           const hier::IntVector<NDIM>& ghost_width_to_fill)
+                                                           const hier::IntVector& ghost_width_to_fill)
 {
     assert(d_nvar>=0);
     assert(d_nauxs>=0);
     assert(d_nauxv>=0);
-    if ( ghost_width_to_fill==hier::IntVector<NDIM>(0) ) {
+    if ( ghost_width_to_fill==hier::IntVector(dim,0) ) {
         // We don't need to fill the ghost cells, return
         // This can happen with temporary patches
         return;
@@ -153,10 +156,6 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
         // Patch does not touch physical boundary, no need to do anything, return
         return;
     }*/
-
-    // Get some basic patch info
-    const int ln = patch.getPatchLevelNumber();
-    const int pn = patch.getPatchNumber();
 
     // Copy the data from the temporary patch to the pixie patch
     if ( copy_data ) {
@@ -172,20 +171,19 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
     }
 
     // Get the pixie patch (create a temporary patch if necessary)
-    LevelContainer *level_container = NULL;
+    void *pixie3d_data = NULL;
+    PatchContainer *pixie_patch = NULL;
+    tbox::Pointer<hier::Patch> patch_ptr = tbox::Pointer<hier::Patch>(&patch,false);
     if (patch.inHierarchy()) {
         // Patch is in the hierarchy, all is well
-        level_container = (LevelContainer *) d_level_container_array[ln];
+        const int ln = patch.getPatchLevelNumber();
+        LevelContainer *level_container = (LevelContainer *) d_level_container_array[ln];
+        pixie3d_data = level_container->getPtr(patch_ptr);
     } else {
-//TBOX_ERROR("Not tested");
         // Patch is not in the hierarchy, create a temporary pixie patch
-        level_container = new LevelContainer::LevelContainer(pn+1,d_hierarchy,
-            d_nvar,u0_id,u_id,d_nauxs,auxs_id,d_nauxv,auxv_id);
-        tbox::Pointer< hier::Patch<NDIM> > patch_ptr = tbox::Pointer< hier::Patch<NDIM> >::Pointer(&patch,false);
-        level_container->CreatePatch(pn,patch_ptr);
+        pixie_patch = new PatchContainer(d_hierarchy,patch_ptr,d_nvar,u0_id,u_id,d_nauxs,auxs_id,d_nauxv,auxv_id);        
+        pixie3d_data =pixie_patch->getPtr();
     }
-    assert(level_container!=NULL);
-    void *pixie3d_data = level_container->getPtr(pn);
     assert(pixie3d_data!=NULL);
 
     // Apply the boundary conditions
@@ -204,8 +202,8 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
     delete [] bc_seq;
 
     // Delete the temporary pixie patch (if used)
-    if (!patch.inHierarchy()) {
-        delete level_container;
+    if ( pixie_patch != NULL ) {
+        delete pixie_patch;
     }
 
     // Copy the data from the pixie patch to the temporary patch
@@ -229,10 +227,10 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch<NDIM>& pa
 * Preprocessor                                                         *
 *                                                                      *
 ***********************************************************************/
-void pixie3dRefinePatchStrategy::preprocessRefine( hier::Patch<NDIM>& fine,
-                           const hier::Patch<NDIM>& coarse,
-                           const hier::Box<NDIM>& fine_box,
-                           const hier::IntVector<NDIM>& ratio ) 
+void pixie3dRefinePatchStrategy::preprocessRefine( hier::Patch& fine,
+                           const hier::Patch& coarse,
+                           const hier::Box& fine_box,
+                           const hier::IntVector& ratio ) 
 {
     (void) fine;
     (void) coarse;
@@ -246,16 +244,16 @@ void pixie3dRefinePatchStrategy::preprocessRefine( hier::Patch<NDIM>& fine,
 * Postprocessor                                                        *
 *                                                                      *
 ***********************************************************************/
-void pixie3dRefinePatchStrategy::postprocessRefine( hier::Patch<NDIM>& patch,
-					       const hier::Patch<NDIM>& coarse,
-					       const hier::Box<NDIM>& fine_box,
-					       const hier::IntVector<NDIM>& ratio )
+void pixie3dRefinePatchStrategy::postprocessRefine( hier::Patch& patch,
+					       const hier::Patch& coarse,
+					       const hier::Box& fine_box,
+					       const hier::IntVector& ratio )
 {
     assert(d_nvar>=0);
     assert(d_nauxs>=0);
     assert(d_nauxv>=0);
-    bool touches_boundary = this->checkPhysicalBoundary(patch);
-    /*if ( touches_boundary ) {
+    /*bool touches_boundary = this->checkPhysicalBoundary(patch);
+    if ( touches_boundary ) {
         // Return for now if we called applybc, eventually we will call the post processor on all patches
         return;
     }*/
@@ -263,15 +261,14 @@ void pixie3dRefinePatchStrategy::postprocessRefine( hier::Patch<NDIM>& patch,
 
     // Perform a post processor step in which we fill all the trivial relationships
     // This needs to be done on all patches   
+    tbox::Pointer<hier::Patch> patch_ptr = tbox::Pointer<hier::Patch>(&patch,false);
     if (patch.inHierarchy()) {
 
         // Patch is in the hierarchy, all is well
         const int ln = patch.getPatchLevelNumber();
-        const int pn = patch.getPatchNumber();
-	  
         LevelContainer *level_container = (LevelContainer *) d_level_container_array[ln];
         assert(level_container!=NULL);
-        void *pixie3d_data = level_container->getPtr(pn);
+        void *pixie3d_data = level_container->getPtr(patch_ptr);
         assert(pixie3d_data!=NULL);
  
         // Copy the data from the temporary patch to the pixie patch
@@ -379,18 +376,18 @@ pixie3dRefinePatchStrategy::setPixie3dDataIDs(bool copy,
 /***********************************************************************
 *                                                                      *
 * Check if patch touches physical boundaries.                          *
-* For temporary patches looks like SAMRAI has a bug
 *                                                                      *
 ***********************************************************************/
-bool pixie3dRefinePatchStrategy::checkPhysicalBoundary( hier::Patch<NDIM>& patch)
+bool pixie3dRefinePatchStrategy::checkPhysicalBoundary( hier::Patch& patch)
 {
-    tbox::Pointer< hier::PatchGeometry<NDIM> > patchGeom = patch.getPatchGeometry();
-    const hier::Box<NDIM> box = patch.getBox();
-    const hier::IntVector< NDIM > ratio = patch.getPatchGeometry()->getRatio();
-    hier::BoxArray<NDIM> physicalDomain = d_grid_geometry->getPhysicalDomain();
+    tbox::Pointer<hier::PatchGeometry> patchGeom = patch.getPatchGeometry();
+    return patchGeom->getTouchesRegularBoundary();
+    /*const hier::Box box = patch.getBox();
+    const hier::IntVector ratio = patch.getPatchGeometry()->getRatio();
+    hier::BoxArray physicalDomain = d_grid_geometry->getPhysicalDomain();
     physicalDomain.refine(ratio);
-    hier::Box<NDIM> physicalBox = physicalDomain[0];
-    for (int i=0; i<NDIM; i++) {
+    hier::Box physicalBox = physicalDomain[0];
+    for (int i=0; i<dim->getValue(); i++) {
         if (patchGeom->getTouchesRegularBoundary(i,0)) {
             const int patch_lower = box.lower(i);
             if ( patch_lower <= 0 )
@@ -402,16 +399,16 @@ bool pixie3dRefinePatchStrategy::checkPhysicalBoundary( hier::Patch<NDIM>& patch
                 return true;
         }
     }
-    return(false);
+    return(false);*/
 }
 
 
 /***********************************************************************
 * Copy data from src_id to dst_id on the given patch                   *
 ***********************************************************************/
-void pixie3dRefinePatchStrategy::copy_data_patch( hier::Patch<NDIM>& patch, int src_id, int dst_id ) {
-    tbox::Pointer< pdat::CellData<NDIM,double> > src_data = patch.getPatchData(src_id);
-    tbox::Pointer< pdat::CellData<NDIM,double> > dst_data = patch.getPatchData(dst_id);
+void pixie3dRefinePatchStrategy::copy_data_patch( hier::Patch& patch, int src_id, int dst_id ) {
+    tbox::Pointer< pdat::CellData<double> > src_data = patch.getPatchData(src_id);
+    tbox::Pointer< pdat::CellData<double> > dst_data = patch.getPatchData(dst_id);
     if ( dst_data.isNull() )
         return;
     assert(!src_data.isNull());

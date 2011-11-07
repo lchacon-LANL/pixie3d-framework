@@ -467,7 +467,8 @@ c #####################################################################
         ! important for colored diagonal formation)
         integer,private :: order=1
 
-        private :: setASMflags
+        private :: setASMflags,interpolateToFace
+     .            ,fillEdges,fillCorners
 
       contains
 
@@ -1558,7 +1559,7 @@ cc     .                          ,array0(:,:,:,nvar)
         case(NEU)
           call scalarNeumannBC(array(:,:,:,nvar),ieq,dim,loc)
         case(EXT)
-          call fillFaces(array(:,:,:,nvar),dim,loc)
+          call fillFaces(array(:,:,:,nvar),dim,loc,order)
         case(SP)
           call scalarSingularBC(array(:,:,:,nvar))
         case(IFC)
@@ -1582,7 +1583,7 @@ cc          call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,order)
         case(NEU)
           call vectorNeumannBC(ivar,array,array0,ieq,dim,loc)
         case(EXT)
-          call fillFaces(array(:,:,:,ivar),dim,loc)
+          call fillFaces(array(:,:,:,ivar),dim,loc,order)
         case(SP)
           call vectorSingularBC(ivar,array(:,:,:,ivar),cov)
         case(IFC)
@@ -2113,7 +2114,7 @@ c     End program
 
 c     fillFaces
 c     #################################################################
-      subroutine fillFaces(array,dim,loc)
+      subroutine fillFaces(array,dim,loc,order)
 c     -----------------------------------------------------------------
 c     Fills ghost cells in faces by extrapolation (6 in 3D). On input:
 c        * array  -> 3D array to impose BC's on.
@@ -2128,7 +2129,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: dim,loc
+      integer    :: dim,loc,order
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables

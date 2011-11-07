@@ -86,8 +86,8 @@ while 1
             N = prod(data(i).nbox)*depth;
             data_read = fread(fid,N,'double');
             data_read = reshape(data_read,[data(i).nbox,depth]);
-            data(i).var(j).ifirst{1} = [1 1 1];
-            data(i).var(j).ilast{1} = data(i).nbox;
+            data(i).var(j).ifirst{1} = [0 0 0];
+            data(i).var(j).ilast{1} = data(i).nbox-1;
             data(i).var(j).depth = depth;
             data(i).var(j).data{1} = data_read;
             tline = fgetl(fid); %#ok<NASGU>
