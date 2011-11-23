@@ -2,13 +2,13 @@
 #define included_patchcontainer
 
 #include <vector>
-#include "tbox/Array.h"
-#include "tbox/Pointer.h"
-#include "CellData.h"
-#include "CellVariable.h"
-#include "ComponentSelector.h"
-#include "PatchHierarchy.h"
-#include "VariableContext.h"
+#include "SAMRAI/tbox/Array.h"
+#include "SAMRAI/tbox/Pointer.h"
+#include "SAMRAI/pdat/CellData.h"
+#include "SAMRAI/pdat/CellVariable.h"
+#include "SAMRAI/hier/ComponentSelector.h"
+#include "SAMRAI/hier/PatchHierarchy.h"
+#include "SAMRAI/hier/VariableContext.h"
 
 #ifndef LACKS_NAMESPACE
 using namespace SAMRAI;
@@ -16,7 +16,7 @@ using namespace SAMRAI;
 
 class PatchContainer{
 public:
-    PatchContainer( tbox::Pointer< hier::PatchHierarchy<NDIM> > hierarchy, tbox::Pointer< hier::Patch<NDIM> > &patch, 
+    PatchContainer( tbox::Pointer<hier::PatchHierarchy> hierarchy, tbox::Pointer<hier::Patch> &patch, 
         int n_var, int *u0_id, int *u_id, int n_auxs, int *auxs_id, int n_auxv, int *auxv_id );  
     ~PatchContainer();
     void *getPtr() { return data; }

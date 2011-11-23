@@ -11,26 +11,26 @@
 #ifndef included_pixie3dRefinePatchStrategy
 #define included_pixie3dRefinePatchStrategy
 
-#include "SAMRAI_config.h"
-
-#include "Box.h"
-#include "IntVector.h"
-#include "Patch.h"
-#include "RefinePatchStrategy.h"
-#include "GridGeometry.h"
-#include "PatchHierarchy.h"
+// SAMRAI headers
+#include "SAMRAI/SAMRAI_config.h"
+#include "SAMRAI/hier/Box.h"
+#include "SAMRAI/hier/IntVector.h"
+#include "SAMRAI/hier/Patch.h"
+#include "SAMRAI/hier/PatchHierarchy.h"
+#include "SAMRAI/xfer/RefinePatchStrategy.h"
+#include "SAMRAI/hier/GridGeometry.h"
 
 
 
 namespace SAMRAI{
 
-class pixie3dRefinePatchStrategy : public xfer::RefinePatchStrategy<NDIM>
+class pixie3dRefinePatchStrategy : public xfer::RefinePatchStrategy
 {
 public:
 
 
     // Constructor.
-    pixie3dRefinePatchStrategy(void);
+    pixie3dRefinePatchStrategy(const tbox::Dimension &);
 
     // Virtual destructor.
     virtual ~pixie3dRefinePatchStrategy();
@@ -38,41 +38,41 @@ public:
 
     // Set solution ghost cell values along physical boundaries.
     // Function is overloaded from xfer_RefinePatchStrategyX.
-    void setPhysicalBoundaryConditions( hier::Patch<NDIM>& patch,
+    void setPhysicalBoundaryConditions( hier::Patch& patch,
                                         const double time,
-                                        const hier::IntVector<NDIM>& ghost_width_to_fill );
+                                        const hier::IntVector& ghost_width_to_fill );
 
 
     /* Function for applying user-defined data processing prior to refinement.  
      * This function is called after setPhysicalBoundaryConditions.
      * Function is overloaded from xfer_RefinePatchStrategyX.  
      */
-    void preprocessRefine( hier::Patch<NDIM>& fine,
-                           const hier::Patch<NDIM>& coarse,
-                           const hier::Box<NDIM>& fine_box,
-                           const hier::IntVector<NDIM>& ratio );
+    void preprocessRefine( hier::Patch& fine,
+                           const hier::Patch& coarse,
+                           const hier::Box& fine_box,
+                           const hier::IntVector& ratio );
 
 
     // Function for applying user-defined data processing after refinement.  
     // Function is overloaded from xfer\_RefinePatchStrategyX. 
-    void postprocessRefine( hier::Patch<NDIM>& fine,
-                           const hier::Patch<NDIM>& coarse,
-                           const hier::Box<NDIM>& fine_box,
-                           const hier::IntVector<NDIM>& ratio );
+    void postprocessRefine( hier::Patch& fine,
+                           const hier::Patch& coarse,
+                           const hier::Box& fine_box,
+                           const hier::IntVector& ratio );
 
 
     /* Return maximum stencil width needed for user-defined 
      * data interpolation operations.  Default is to return 
      * zero, assuming no user-defined operations provided.
      */
-    hier::IntVector<NDIM> getRefineOpStencilWidth( void ) const  { return(hier::IntVector<NDIM>(0)); }
+    hier::IntVector getRefineOpStencilWidth( void ) const  { return(hier::IntVector(dim,0)); }
 
 
     // Set the hierarchy
-    void setHierarchy(tbox::Pointer< hier::PatchHierarchy<NDIM> > hierarchy) { d_hierarchy=hierarchy; }
+    void setHierarchy(tbox::Pointer<hier::PatchHierarchy> hierarchy) { d_hierarchy=hierarchy; }
 
     // Set the grid geometry
-    void setGridGeometry(tbox::Pointer< hier::GridGeometry<NDIM > > grid_geometry) { d_grid_geometry=grid_geometry; }
+    void setGridGeometry(tbox::Pointer<hier::GridGeometry> grid_geometry) { d_grid_geometry=grid_geometry; }
 
     // Set the level contanier data
     void setPixie3dHierarchyData(void **hierarchy_data) { d_level_container_array = hierarchy_data; }
@@ -81,7 +81,7 @@ public:
     void setPixie3dDataIDs(bool copy, int nvar, int nauxs, int nauxv, int *u0, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp );
 
     // Check the physical boundaries
-    bool checkPhysicalBoundary( hier::Patch<NDIM>& patch);
+    bool checkPhysicalBoundary( hier::Patch& patch);
 
     // Structures used to hold a single boundary condition group
     struct bcgrp_struct {
@@ -102,12 +102,15 @@ public:
 
 private:
    
+    // Dimension
+    tbox::Dimension dim;
+
     // Private function to copy data on a patch from one variable to another
-    void copy_data_patch( hier::Patch<NDIM>& patch, int src_id, int dst_id );
+    void copy_data_patch( hier::Patch& patch, int src_id, int dst_id );
     
     // Information about the hierarchy
-    tbox::Pointer< hier::PatchHierarchy<NDIM> > d_hierarchy;
-    tbox::Pointer< hier::GridGeometry<NDIM > > d_grid_geometry;
+    tbox::Pointer<hier::PatchHierarchy> d_hierarchy;
+    tbox::Pointer<hier::GridGeometry> d_grid_geometry;
 
     // The number of variables and their ids
     int d_nvar;

@@ -108,6 +108,8 @@ endif
 
 #Assemble compiler options
 
+MODPATH = $(MODFLAG).
+
 ifneq (,$(findstring O,$(OPT)))
 FFLAGS += $(OPTIMIZATION)
 endif

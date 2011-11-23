@@ -140,3 +140,9 @@ $(OBJS) : $(MODS) $(COMMOM_MODS)
 %.o : %.c
 	@echo 'Compiling' $@
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) $<
+
+%.o : %.C
+	@echo 'Compiling' $@
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $<
+
+

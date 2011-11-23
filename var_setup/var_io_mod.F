@@ -16,7 +16,7 @@ c ######################################################################
 
         integer,pointer,dimension(:) :: murecord,musave
 
-        logical :: debug,clean=.false.,tst_flg=.false.
+        logical :: clean=.false.,tst_flg=.false.
 
 #if defined(adios)
         !!! ADIOS variables
@@ -47,33 +47,48 @@ c ######################################################################
 c     openRecordFileAdiosForRead(ierr)
 c     #################################################################
       subroutine openRecordFileAdiosForRead(ierr)
+
+        implicit none
+
         integer, intent(out) :: ierr
 
-        integer :: gcnt, vcnt, acnt, nullidx, ts, lastts
+        integer :: gcnt, vcnt, acnt, nullidx, ts, lastts,i
         character (len=20), dimension(1)  :: gnamelist  ! list of groups (=1)
 
         call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
-        call adios_fopen (adios_fh, adiosfile, adios_world_comm, 
-     .                     gcnt, ierr)
-        call adios_inq_file (adios_fh,vcnt,acnt,
-     .                    adios_tstart,adios_ntsteps,gnamelist,ierr)
 
-        adios_tstep = adios_tstart + adios_ntsteps - 1
-        call adios_gopen (adios_fh, adios_gh, gnamelist(1), 
-     .                     adios_varcount, adios_attrcount, ierr)
-        call adios_inq_group (adios_gh, adios_varlist, 
-     .                       adios_attrlist, ts, lastts, ierr)
+        !Open ADIOS file
+        call adios_fopen (adios_fh,adiosfile,adios_world_comm,gcnt,ierr)
+
+        !Inquire ADIOS file
+        call adios_inq_file(adios_fh,vcnt,acnt,adios_tstart
+     .                     ,adios_ntsteps,gnamelist,ierr)
+
+        adios_tend = adios_tstart + adios_ntsteps - 1
+
+        !Open ADIOS group
+        call adios_gopen (adios_fh,adios_gh,gnamelist(1)
+     .                   ,adios_varcount,adios_attrcount,ierr)
+
+        !Inquire ADIOS group
+        if (ADIOS_VER > 1.21) then
+          call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
+     .                        ,ts,lastts,ierr)
+        else
+          call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
+     .                        ,ierr)
+        endif
 
         ! count /var/ variables
         adios_nvar=0
         do i=1,adios_varcount
             if (index(adios_varlist(i),"/var/") == 1) then
                 adios_nvar = adios_nvar+1
-        !        ! get rid of trailing char(0) in names
-        !        nullidx=index(adios_varlist(i),char(0))
-        !        if (nullidx == 0) nullidx=len(trim(adios_varlist(i)))+1
-        !        adios_varnames(adios_nvar) = 
-     .  !                  adios_varlist(i)(1:nullidx-1)
+cc                ! get rid of trailing char(0) in names
+cc                nullidx=index(adios_varlist(i),char(0))
+cc                if (nullidx == 0) nullidx=len(trim(adios_varlist(i)))+1
+cc                adios_varnames(adios_nvar) = 
+cc     .                    adios_varlist(i)(1:nullidx-1)
             endif
         enddo
         
@@ -96,6 +111,9 @@ c     #################################################################
 c     closeRecordFileAdiosForRead(ierr)
 c     #################################################################
       subroutine closeRecordFileAdiosForRead(ierr)
+
+        implicit none
+
         integer, intent(out) :: ierr
 
         call adios_gclose(adios_gh, ierr)
@@ -108,6 +126,8 @@ c     #################################################################
 c     writeDerivedTypeAdios
 c     #################################################################
       subroutine writeDerivedTypeAdios(handle, varray, addl_write)
+
+        implicit none
 
 c     Call variables
 
@@ -252,6 +272,8 @@ c     End program
 c     readDerivedTypeAdios
 c     #################################################################
       subroutine readDerivedTypeAdios(gh,varray,step,firstread,ierr)
+
+        implicit none
 
 c     Call variables
         integer*8                :: gh  ! adios group handler (to read data)
@@ -483,51 +505,63 @@ c     Begin program
 
 #if defined(adios)
       !firstread = (adios_tread == 0)
+
       if (adios_debug)
-     .  write (*,"(a,i0,a,i2)"), "rank=",my_rank,
+     .  write (*,"(a,i0,a,i5)"), "rank=",my_rank,
      .       " adios read time=", adios_tread
+
       if (adios_tread < adios_ntsteps) then
           ! read 1 item from the 1D arrays, from position adios_tread
           start = adios_tread 
           readcount = 1
-          if (adios_debug)
-     .      write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
-     .           ": read in time. start=",start,"count=",readcount
-          call adios_read_var (adios_gh, "time", 
-     .                     start, readcount, time, m)
-          start = adios_tread 
-          if (adios_debug)
-     .      write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
-     .           ": read in itime. start=",start,"count=",readcount
-          call adios_read_var (adios_gh, "itime", 
-     .                     start, readcount, itime, m)
-          start = adios_tread 
-          if (adios_debug)
-     .      write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
-     .           ": read in dt. start=",start,"count=",readcount
 
-          call adios_read_var (adios_gh, "dt",  
-     .                     start, readcount, dt, m)
+          if (adios_debug)
+     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .           ": read in time.  start=",start,"count=",readcount
+
+          call adios_read_var(adios_gh,"time",start,readcount,time,m)
+          start = adios_tread 
+
+          if (adios_debug)
+     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .           ": read in itime. start=",start,"count=",readcount
+
+          call adios_read_var(adios_gh,"itime",start,readcount,itime,m)
+          start = adios_tread 
+
+          if (adios_debug)
+     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .           ": read in dt.   start=",start,"count=",readcount
+
+          call adios_read_var(adios_gh,"dt",start,readcount,dt,m)
 
           if (firstread) then
-                start = adios_tread 
-                call adios_read_var (adios_gh, "nvar", 
-     .                              start, readcount, tmp, m)
-                varray%nvar = tmp(1)
-                ! consistency check
-                if (adios_nvar.ne.varray%nvar) then
-                    write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
-     .                     " ERROR: adios_nvar=",adios_nvar,
-     .                     " != varray%nvar=",varray%nvar
-                endif
+            start = adios_tread 
+            call adios_read_var(adios_gh,"nvar",start,readcount,tmp,m)
+
+            varray%nvar = tmp(1)
+            ! consistency check
+            if (adios_nvar.ne.varray%nvar) then
+                write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
+     .                 " ERROR: adios_nvar=",adios_nvar,
+     .                 " != varray%nvar=",varray%nvar
+            endif
           endif
 
           if (adios_debug)
-     .      write (*,"(a,i0,a,i2,a,f6.2,a,i2)"), "rank=",my_rank,
-     .         ": read itime=",itime," time=",time," nvar=",varray%nvar
+     .      write (*,"(a,i0,a,i5,a,f8.2,a,i2)")
+     .          "rank=",my_rank
+     .         ," read itime=",itime
+     .         ," time=",time
+     .         ," nvar=",varray%nvar
 
-          call readDerivedTypeAdios(adios_gh,varray,adios_tread,
-     .           firstread,ierr)
+          call readDerivedTypeAdios(adios_gh,varray,adios_tread
+     .                             ,firstread,ierr)
+
+          if (adios_debug) then
+            write (*,*), 'rank=',my_rank,' Adios read returns ierr',ierr
+            write (*,*)
+          endif
 
           adios_tread = adios_tread + 1
       else  ! EOF
@@ -535,7 +569,6 @@ c     Begin program
       endif
 
       firstread = .false.
-      if (adios_debug) write (*,*), "Adios read returns ierr",ierr
 
 #else
       read (unit,iostat=ierr,end=100) time
@@ -597,42 +630,44 @@ c     ADIOS variables
 c     Begin program
 
 #if defined(adios)
+
 c     Offsets to include ghosts
 c     1. internal processes: no ghost cells written out
-        xloghost = 1
-        yloghost = 1
-        zloghost = 1
-        xhighost = -1
-        yhighost = -1
-        zhighost = -1
+
+      xloghost = 1
+      yloghost = 1
+      zloghost = 1
+      xhighost = -1
+      yhighost = -1
+      zhighost = -1
       
 c     2. processes that has some face 
-c       x=0 face
-        if (ilomg == 0) xloghost = 0
 
-c       x=1 face
-        if (ihipg == nxd+1) xhighost = 0
+      !x=0 face
+      if (ilomg == 0) xloghost = 0
 
-c       y=0 face
-        if (jlomg == 0) yloghost = 0
+      !x=1 face
+      if (ihipg == nxd+1) xhighost = 0
 
-c       y=1 face
-        if (jhipg == nyd+1) yhighost = 0
+      !y=0 face
+      if (jlomg == 0) yloghost = 0
 
-c       z=0 face
-        if (klomg == 0) zloghost = 0
+      !y=1 face
+      if (jhipg == nyd+1) yhighost = 0
 
-c       z=1 face
-        if (khipg == nzd+1) zhighost = 0
+      !z=0 face
+      if (klomg == 0) zloghost = 0
 
-c       calculate size actually written for each dimension
-        xsize = ihip+xhighost-ilom-xloghost+1  
-        ysize = jhip+yhighost-jlom-yloghost+1  
-        zsize = khip+zhighost-klom-zloghost+1  
+      !z=1 face
+      if (khipg == nzd+1) zhighost = 0
 
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      !calculate size actually written for each dimension
+      xsize = ihip+xhighost-ilom-xloghost+1  
+      ysize = jhip+yhighost-jlom-yloghost+1  
+      zsize = khip+zhighost-klom-zloghost+1  
 
 c     Create/Append adios file
+
       addl_write=.false.
       if (adios_open_num.eq.0) then
           mode = 'w'//char(0)
@@ -657,29 +692,77 @@ c             the boundary conditions and variable names
      .     varray%nvar * 20       ! descr (var names)
       endif
 
-c      write (*,"('rank= ',i0,' ihip=',i0,' ilom=',i0,' jhip=',
-c     . i0,' jlom=',i0,' khip=',i0,' klom=',i0)") my_rank, ihip, ilom, 
-c     . jhip, jlom, khip, klom
+      if (adios_debug.and.my_rank==0) then
+        write (*,*) ' ADIOS file open...'
+      endif
 
-      call adios_open (handle, 'record', adiosfile, mode,
-     .                 adios_world_comm, err)
+      call adios_open(handle,'record',adiosfile,mode
+     .               ,adios_world_comm,err)
 
-c      print *, "ADIOS: adios_group_size =", groupsize
-      call adios_group_size(handle, groupsize, totalsize, err)
-c      print *, "ADIOS: write time", time
+      if (err /= 0) then
+        write (*,*) 'Problem in writeRecordFile'
+        write (*,*) 'rank=',my_rank,'  ERROR in "adios_open"'
+        stop
+      endif
+
+      if (adios_debug.and.my_rank==0) then
+        write (*,*) 'ADIOS file access mode=',mode
+        write (*,*) 'ADIOS open: adios_file=',adiosfile
+      endif
+
+      if (adios_debug) then
+        write (*,111) my_rank, ihip, ilom, jhip, jlom, khip, klom
+ 111    format ('rank= ',i0,' ihip=',i0,' ilom=',i0,' jhip='
+     .         ,i0,' jlom=',i0,' khip=',i0,' klom=',i0)
+        write (*,*) 'rank=',my_rank,' ADIOS open: handle=',handle
+      endif
+
+c     Inquire IO sizes
+
+      if (adios_debug.and.my_rank==0) then
+        write (*,*) ' ADIOS file inquire...'
+      endif
+
+      call adios_group_size(handle,groupsize,totalsize,err)
+
+      if (err /= 0) then
+        write (*,*) 'Problem in writeRecordFile'
+        write (*,*) 'rank=',my_rank,'  ERROR in "adios_group_size"'
+        stop
+      endif
+
+      if (adios_debug) then
+        write (*,*) 'rank=',my_rank,' ADIOS group_size=',groupsize
+        write (*,*) 'rank=',my_rank,' ADIOS total size=',totalsize
+      endif
 
 c     Write all variables to buffer
-      if (my_rank == 0) then
-          call adios_write (handle, "time", time, err)
-          call adios_write (handle, "itime", itime, err)
-          call adios_write (handle, "dt", dt, err)
+
+      if (adios_debug.and.my_rank==0) then
+        write (*,*) ' ADIOS file write...'
       endif
-      call writeDerivedTypeAdios(handle, varray, addl_write)
+
+      if (my_rank == 0) then
+        call adios_write(handle,"time" ,time ,err)
+        call adios_write(handle,"itime",itime,err)
+        call adios_write(handle,"dt"   ,dt   ,err)
+      endif
+
+      call writeDerivedTypeAdios(handle,varray,addl_write)
 
 c     Close adios file which starts I/O writing from the buffer
-c      print *, "ADIOS: close", time
+
+      if (adios_debug.and.my_rank==0) then
+        write (*,*) ' ADIOS file close...'
+      endif
 
       call adios_close (handle, err)
+
+      if (err /= 0) then
+        write (*,*) 'Problem in writeRecordFile'
+        write (*,*) 'rank=',my_rank,'  ERROR in "adios_close"'
+        stop
+      endif
 
 #else
       write (unit) time
@@ -687,10 +770,11 @@ c      print *, "ADIOS: close", time
       write (unit) dt
 
       call writeDerivedType(varray,unit,.false.)
-#endif
 
 #if !defined(absoft_) && !defined(absoft) && !defined(lf95)
       call flush(unit)
+#endif
+
 #endif
 
 c     End

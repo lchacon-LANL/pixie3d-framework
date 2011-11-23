@@ -16,8 +16,11 @@ SUBDIRS = $(COMMONDIR)/math \
 	  $(COMMONDIR)/matrixLightSolver\
           $(COMMONDIR)/MG\
           $(COMMONDIR)/orbit\
-          $(COMMONDIR)/mk\
           $(COMMONDIR)/eigen
+
+ifeq ($(MK),t)
+  SUBDIRS += $(COMMONDIR)/mk
+endif
 
 # Module order
 

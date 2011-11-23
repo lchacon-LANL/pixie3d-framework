@@ -25,6 +25,7 @@ c #####################################################################
           real(8),pointer,dimension(:,:,:,:,:)   :: cov   !Covariant vectors
           real(8),pointer,dimension(:,:,:,:,:)   :: cnv   !Contravariant vectors
 
+          real(8),pointer,dimension(:,:,:,:)     :: car_v !Vertex positions in cartesian space
           real(8),pointer,dimension(:,:,:)       :: jac_v !Jacobian factor at grid vertices
           real(8),pointer,dimension(:,:,:,:,:)   :: gsub_v!Covariant metric tensor at vertices
           real(8),pointer,dimension(:,:,:,:,:)   :: gsup_v!Contravariant metric tensor at vertices
@@ -691,6 +692,8 @@ c     Begin program
      $           %Gamma(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
 
             allocate(gmetric%grid(igrid)
+     $           %car_v (ilom:ihip,jlom:jhip,klom:khip,3))
+            allocate(gmetric%grid(igrid)
      $           %jac_v (ilom:ihip,jlom:jhip,klom:khip))
             allocate(gmetric%grid(igrid)
      $           %gsub_v(ilom:ihip,jlom:jhip,klom:khip,3,3))
@@ -742,6 +745,7 @@ c     Begin program
           gmetric2%grid(igrid)%cnv  = gmetric1%grid(igrid)%cnv  
           gmetric2%grid(igrid)%Gamma= gmetric1%grid(igrid)%Gamma
 
+          gmetric2%grid(igrid)%car_v  = gmetric1%grid(igrid)%car_v
           gmetric2%grid(igrid)%jac_v  = gmetric1%grid(igrid)%jac_v
           gmetric2%grid(igrid)%gsub_v = gmetric1%grid(igrid)%gsub_v 
           gmetric2%grid(igrid)%gsup_v = gmetric1%grid(igrid)%gsup_v 
@@ -780,6 +784,7 @@ c     Begin program
             deallocate(gmetric%grid(igrid)%cnv)
             deallocate(gmetric%grid(igrid)%Gamma)
 
+            deallocate(gmetric%grid(igrid)%car_v)
             deallocate(gmetric%grid(igrid)%jac_v)
             deallocate(gmetric%grid(igrid)%gsub_v)
             deallocate(gmetric%grid(igrid)%gsup_v)

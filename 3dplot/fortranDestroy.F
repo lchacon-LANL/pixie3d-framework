@@ -10,7 +10,9 @@ c ######################################################################
 
       use graphics
 
+#if defined(MK)
       use mk
+#endif
 
       implicit none
 
@@ -28,7 +30,9 @@ c Begin program
 
       call deallocateApplicationVariables   !External
 
+#if defined(MK)
       if (mk_grid) call MK_dealloc
+#endif
 
       call deallocateGlobalVar(gv)
 

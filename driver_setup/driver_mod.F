@@ -30,13 +30,14 @@ c ######################################################################
 
         logical :: mg_glrkin     =.false. !Whether to use Galerking MG
      .            ,mg_gm_coarse  =.false. !Whether to use GMRES as the coarse solve
-     .            ,mg_line_relax =.false. !Whether to perform line relaxation in MG
-     .            ,mg_zebra_relax=.false. !Whether to perform ZEBRA line relaxation in MG
+     .            ,sm_line_relax =.false. !Whether to perform line relaxation in MG
+     .            ,sm_zebra_relax=.false. !Whether to perform ZEBRA line relaxation in MG
      .            ,mg_debug      =.false. !Whether to go into debugging mode in MG
      .            ,mg_cvrg_test  =.false. !Whether to perform convergence test of smoother
      .            ,pc_asm        =.false. !Whether to do additive Schwartz PC
      .            ,pc_debug      =.false. !PC debugging flag
      .            ,pc_id         =.false. !Whether we are doing identity PC
+     .            ,pc_gm_driver  =.false. !whether GMRES drives PC solves or not
 
 cc        type :: pcsetup
 cc          integer :: sm_iter,maxvcyc,pc_max_iter,debug_it
@@ -86,8 +87,8 @@ c module counters
 c ######################################################################
       module counters
 
-        integer    :: itnewt,itgmres,itwhistler
-        integer    :: gmres_tot,newt_tot,wh_tot
+        integer    :: itnewt,itgmres
+        integer    :: gmres_tot,newt_tot
 
       end module counters
 
@@ -560,23 +561,10 @@ c     #######################################################################
                 dt = 0.1*dtbase
               elseif (itm == 3) then
                 dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
-cc                dt = dtbase - dt
-cc              elseif (itm == 4) then
-cc                dt = dtbase
               else
                 dt = min(dtbase,dt*coef2)
               endif
-cc              if (itm == 2) then
-cc                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
-cc              else
-cc                dt = min(dtbase,dt*coef2)
-cc              endif
             else
-cc              if (itm == 1) then
-cc                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
-cc              else
-cc                dt = min(dtbase,dt*coef2)
-cc              endif
               if  (itm == 1) then
                 dt = 0.1*dtbase
                 dtold = dt
