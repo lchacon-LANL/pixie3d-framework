@@ -314,7 +314,7 @@ cc        endif
 
 c     Read poincare position arrays
 
-        allocate(xx(nxg+2),yy(nyg+2),zz(nzg+2))
+        allocate(xx(0:nxg+1),yy(0:nyg+1),zz(0:nzg+1))
 
         read (upixie) xx
         read (upixie) yy
@@ -495,7 +495,7 @@ cc        endif
 
 c     Allocate global arrays
 
-        allocate(xx(nxg+2),yy(nyg+2),zz(nzg+2))
+        allocate(xx(0:nxg+1),yy(0:nyg+1),zz(0:nzg+1))
 
         allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
      .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
