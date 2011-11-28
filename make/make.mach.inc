@@ -317,9 +317,9 @@ ifeq ($(HOST),ra22)
     endif
 
     ADIOS = t
-    ADIOS_HOME = /ricercatori/ft/adios-1.2.1
+    ADIOS_HOME = /ricercatori/ft/adios-1.3
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/ricercatori/ft/mxml-2.6/lib -lmxml
-    ADIOS_VER  = 1.21
+    ADIOS_VER  = 1.3
 
   else
     LIBS     += -llapack -lblas
