@@ -59,26 +59,9 @@ endif
 #SAMRAI setup
 
 ifdef SAMR
-   include ${SAMRAI}/config/Makefile.config
+  include ${SAMRSOLVERS_HOME}/Makefile.config
 
-   PDIM = 3
-   OBJECT=${SAMRAI}
-   CXXFLAGS_EXTRA += -DNDIM=$(PDIM)
+  OBJECT=${SAMRAI}
 
-   TARGET = samrai
-   CPPFLAGS += -Dsamrai
-
-   SUBDIRS += common/driver-samrai
-
-   CPPFLAGS_EXTRA += -I${AMRUTILITIES_HOME}/include
-   CPPFLAGS_EXTRA += -I${SAMRSOLVERS_HOME}/include
-   CXXFLAGS_EXTRA += -I${AMRUTILITIES_HOME}/include
-   CXXFLAGS_EXTRA += -I${SAMRSOLVERS_HOME}/include
-   LDFLAGS_EXTRA += -L${AMRUTILITIES_HOME}/lib   
-   LDLIBS_EXTRA += ${AMRUTILITIES_HOME}/lib/libAMRUtils3d.a
-   LDLIBS_EXTRA += ${SAMRSOLVERS_HOME}/lib/liblinearops3d.a
-   LDLIBS_EXTRA += ${SAMRSOLVERS_HOME}/lib/libmlsolvers3d.a
-   LDFLAGS_EXTRA += -L${SAMRSOLVERS_HOME}/lib   
-   LDLIBS_EXTRA += ${SAMRSOLVERS_HOME}/lib/libtimeintegrators3d.a
-   #LDLIBS_EXTRA += -lAMRUtils${PDIM}d
+  CPPFLAGS += $(PREPROC)samrai
 endif
