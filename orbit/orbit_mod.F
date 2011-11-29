@@ -26,7 +26,7 @@ c ######################################################################
         integer :: iiout
 
         !LSODE private variables
-        INTEGER,private :: LIW, LRW, NEQ
+        INTEGER,private :: LIW, LRW, NEQ, LSODE_IERR=0
         PARAMETER  (NEQ=20,LIW = 20,LRW = LIW + 16*NEQ)
 
         INTEGER,private :: IOPT,IOUT,ISTATE=0,ITASK,ITOL
@@ -943,7 +943,8 @@ c     Initial conditions
 
       if (cartesian) then
         !Find Cartesian coordinates
-        call evalX(x,y,z,xc,yc,zc)
+        call evalX(x,y,z,xc,yc,zc,ierr=iterr)
+        if (iterr /= 0) return
 
         YY(1) = xc
         YY(2) = yc
@@ -1026,6 +1027,9 @@ cc      write (*,*)'LSODE method=',MF
         stop
       end select
 
+      iterr = LSODE_IERR !Recover errors from LSODE residual call
+      if (iterr /= 0) return
+
 c     Postprocessing to find logical coordinates
 
       if (cartesian) then
@@ -1033,12 +1037,12 @@ c     Postprocessing to find logical coordinates
         call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,iterr)
 
         if (iterr /= 0) then
-          iterr = 6
+          iterr = 6  !Error around SP
           return
         endif
 
         if (x >= rmin) then
-          iterr = -2
+          iterr = -2   !End of Cartesian step
           ISTATE = 1   !Instruct LSODE to start anew for next time step
           cartesian = .false.
           sing_point= .false.
@@ -1108,7 +1112,8 @@ c     Initial conditions
 
       if (cartesian) then
         !Find Cartesian coordinates
-        call evalX(x,y,z,xc,yc,zc)
+        call evalX(x,y,z,xc,yc,zc,ierr=iterr)
+        if (iterr /= 0) return
 
         YY(1) = xc
         YY(2) = yc
@@ -1199,6 +1204,9 @@ cc      write (*,*)'LSODE method=',MF
         stop
       end select
 
+      iterr = LSODE_IERR
+      if (iterr /= 0) return
+
 c     Postprocessing to find logical coordinates
 
       if (cartesian) then
@@ -1206,12 +1214,12 @@ c     Postprocessing to find logical coordinates
         call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,iterr)
 
         if (iterr /= 0) then
-          iterr = 6
+          iterr = 6 !Error around SP
           return
         endif
 
         if (x >= rmin) then
-          iterr = -2
+          iterr = -2   !End of Cartesian integration
           ISTATE = 1   !Instruct LSODE to start anew for next time step
           cartesian = .false.
           sing_point= .false.
@@ -1302,55 +1310,60 @@ c       Find jacobian at mid-point (for time/arc-length integral)
           xh = 0.5*(xold+x)
           yh = 0.5*(yold+y)
           zh = 0.5*(zold+z)
-          jach = evalJ(xh,yh,zh,iterr)
 
-          if (iterr /= 0) iterr = 4
+          jach = evalJ(xh,yh,zh,ierror)
+          if (ierror /= 0) return
         endif
 
 c       Check for errors
 
-        ierror = iterr
-
         if (iterr /= 0 .and. iterr /= -2) then
 
-          if (iterr < 4 .and. iterr > 0) then
-            if (iiout == 1) then
+          if (iterr > 0 .and. iterr < 4) then  !Convergence failure in VP step
+
+            if (iiout >= 2) then
               write (*,*) 'VP -- Step',iterr
-     .                ,' in CN did not converge to prescribed accuracy'
-            elseif (iiout == 2) then
+     .                 ,' in CN did not converge to prescribed accuracy'
+            endif
+
+            if (iiout == 2) then
               write(*,*)'VP --Initial error=',error(1)
               write(*,*)'VP --Final error  =',error(niter),'> tol=',atol
             elseif (iiout > 2) then
-              write (*,*)'VP --Error history=',error
+              write(*,*)'VP --Error history=',error
             endif
-          elseif (iterr == 4) then
-            call pstop('vp_solver','Negative Jacobian')
+
+            !Return to initial conditions and try again with smaller time step
+            x = xold
+            y = yold
+            z = zold
+
+            dt = 0.8*dt
+
+            if (dt < 1d-8) then
+              ierror = 1  !Time step too small
+              return
+            else
+              if (iiout > 1)
+     .           write(*,*)'VP -- Trying smaller time step:',dt,'...'
+
+              restart = .true.
+
+              go to 1
+            endif
+
           else
-            write (messg,*) 'Unknown error ',iterr
-            call pstop('orbit_step',messg)
+
+            ierror = iterr !Return with unknown error
+            return
+
           endif
-
-          !Return to initial conditions and try again with smaller time step
-          x = xold
-          y = yold
-          z = zold
-
-          dt = 0.8*dt
-
-          if (dt < 1d-8) call pstop('vp_solver','Time step too small')
-
-          if (iiout > 1)
-     .         write(*,*)'VP -- Trying smaller time step:',dt,'...'
-
-          restart = .true.
-
-          go to 1
 
         elseif (restart) then
 
           restart = .false.
 
-          ierror = -1
+          ierror = -1  !Indicates time step has been decreased
 
           if (iiout > 1) then
             write (*,*) 'VP -- CN succeeded! Proceeding.'
@@ -1361,14 +1374,16 @@ c       Check for errors
 
 c       Advance time and arc length
 
-        call updt_measures(xh,yh,zh,jach*dt)
-
+        call updt_measures(xh,yh,zh,jach*dt,iterr)
+        if (iterr /= 0) ierror = iterr
+       
       end subroutine vp_solver
 
 c     updt_measures
 c     #########################################################################
-      subroutine updt_measures(x,y,z,dt)
+      subroutine updt_measures(x,y,z,dt,ierr)
 
+      integer :: ierr
       real(8),intent(IN) :: x,y,z,dt
 
       real(8) :: vx,vy,vz
@@ -1377,7 +1392,7 @@ c     #########################################################################
       time=time+dt  !Include Jacobian factor to advance time
 
       !Update arc length
-      call evalBcar(x,y,z,vx,vy,vz)
+      call evalBcar(x,y,z,vx,vy,vz,ierr)
 
       ds = dt*sqrt(vx**2+vy**2+vz**2)
       ss = ss + ds
@@ -1432,7 +1447,8 @@ cc        call blockSolve(size,JJ,icol,res,dx,ret_inv=.true.)
 cc      endif
 
       !Form initial residual
-      res(:,1) = -formResidual(flag,dt,x0,y0,z0,x,y,z)
+      res(:,1) = -formResidual(flag,dt,x0,y0,z0,x,y,z,iterr)
+      if (iterr /= 0) return
 
       tol = atol + rtol*sqrt(sum(res**2))
 
@@ -1447,7 +1463,9 @@ cc      endif
            xh = 0.5*(x+x0)
            yh = 0.5*(y+y0)
            zh = 0.5*(z+z0)
-           JJ = formJacobian(size,flag,dt,xh,yh,zh)
+           JJ = formJacobian(size,flag,dt,xh,yh,zh,iterr)
+           if (iterr /= 0) return
+
            call blockSolve(size,JJ,icol,res,dx)
 cc           dx = matmul(JJ,res)
 
@@ -1473,7 +1491,8 @@ cc           dx = matmul(JJ,res)
          if (error(iter) < tol) exit
 
          !Form new residual
-         res(:,1) = -formResidual(flag,dt,x0,y0,z0,x,y,z)
+         res(:,1) = -formResidual(flag,dt,x0,y0,z0,x,y,z,iterr)
+         if (iterr /= 0) return
 
       enddo
 
@@ -1482,7 +1501,7 @@ cc           dx = matmul(JJ,res)
      .             ,'; error history=',error(1:min(iter,niter))
       endif
 
-      if (iter > niter) iterr = flag
+      if (iter > niter .and. iterr == 0) iterr = flag
 
 c     End program
 
@@ -1490,14 +1509,16 @@ c     End program
 
 c     formResidual
 c     ###################################################################
-      function formResidual(flag,dt,x0,y0,z0,x1,y1,z1) result(res)
+      function formResidual(flag,dt,x0,y0,z0,x1,y1,z1,ierr) result(res)
 
       implicit none
 
-      integer :: flag
+      integer :: flag,ierr
       real(8) :: dt,x0,y0,z0,x1,y1,z1,res(3)
 
       real(8) :: xh,yh,zh,vx,vy,vz,xc0,yc0,zc0,x11,y11,z11
+
+      ierr = 0
 
       !Find mid point
       xh = 0.5*(x1+x0)
@@ -1505,7 +1526,8 @@ c     ###################################################################
       zh = 0.5*(z1+z0)
 
       !Find vector field at midpoint
-      call getB(xh,yh,zh,vx,vy,vz,.true.,cartesian,flag=flag)
+      call getB(xh,yh,zh,vx,vy,vz,.true.,cartesian,ierr,flag=flag)
+      if (ierr /= 0) return
 
       !Evaluate residual
       if (cartesian) then
@@ -1520,11 +1542,8 @@ c     ###################################################################
 
         !Find logical coordinates
         x11 = x0 ; y11 = y0 ; z11 = z0
-        call evalXi(iiout,xc0,yc0,zc0,x11,y11,z11,ierror)
-
-        if (ierror /= 0) then
-          call pstop('formResidual','Could not find logical coords')
-        endif
+        call evalXi(iiout,xc0,yc0,zc0,x11,y11,z11,ierr)
+        if (ierr /= 0) ierr = 6 !Error around SP
 
         res(1) = x1 - x11
         res(2) = y1 - y11
@@ -1540,20 +1559,20 @@ c     ###################################################################
 
 c     formJacobian
 c     ###################################################################
-      function formJacobian(size,flag,dt,x1,y1,z1) result(JJ)
+      function formJacobian(size,flag,dt,x1,y1,z1,ierr) result(JJ)
 
       implicit none
 
-      integer :: size,flag
+      integer :: size,flag,ierr
       real(8) :: dt,x1,y1,z1,JJ(size,size)
 
-      call evalCurlA(x1,y1,z1,JJ(1,1),JJ(2,1),JJ(3,1),flag=flag
+      call evalCurlA(x1,y1,z1,JJ(1,1),JJ(2,1),JJ(3,1),ierr,flag=flag
      .              ,idx=1,idy=0,idz=0)
 
-      call evalCurlA(x1,y1,z1,JJ(1,2),JJ(2,2),JJ(3,2),flag=flag
+      call evalCurlA(x1,y1,z1,JJ(1,2),JJ(2,2),JJ(3,2),ierr,flag=flag
      .              ,idx=0,idy=1,idz=0)
 
-      call evalCurlA(x1,y1,z1,JJ(1,3),JJ(2,3),JJ(3,3),flag=flag
+      call evalCurlA(x1,y1,z1,JJ(1,3),JJ(2,3),JJ(3,3),ierr,flag=flag
      .              ,idx=0,idy=0,idz=1)
 
       JJ =-0.5*dt*JJ
@@ -1584,7 +1603,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ierror
+cc      integer :: ierror
       real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,coeff
 
 c     Begin program
@@ -1597,13 +1616,11 @@ c     Begin program
       !Find logical coordinates
       if (sing_point) then
         x1 = xold ; y1 = yold ; z1 = zold
-        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,ierror)
-        if (ierror /= 0) then
-          write (*,*) ierror
-          write (*,*)
-     .         'Could not find logical coords in lsode_orbit_f_3eq'
-          stop
-        endif
+        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,LSODE_IERR)
+        if (LSODE_IERR /= 0) return
+cc        if (ierror /= 0) then
+cc         call pstop('lsode_orbit_f_3eq','Could not find logical coords')
+cc        endif
       else
         x1 = y(1)
         y1 = y(2)
@@ -1611,7 +1628,11 @@ c     Begin program
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
-      call getB(x1,y1,z1,vx,vy,vz,sln,sing_point)
+      call getB(x1,y1,z1,vx,vy,vz,sln,sing_point,LSODE_IERR)
+      if (LSODE_IERR /= 0) return
+cc      if (ierror /= 0) then
+cc        call pstop('lsode_orbit_f_3eq','Error reading B')
+cc      endif
 
       ydot(1) = vx
       ydot(2) = vy
@@ -1619,13 +1640,20 @@ c     Begin program
 
       !Time and arc-length ODEs
       if (.not.sing_point) then
-        coeff = evalJ(x1,y1,z1,ierror)
-        if (ierror /= 0) then
-          write (*,*) 'Negative Jacobian in lsode_orbit_f_3eq'
-          stop
-        endif
+        coeff = evalJ(x1,y1,z1,LSODE_IERR)
+        if (LSODE_IERR /= 0) return
+cc        if (ierror /= 0) then
+cc          write (*,*) 'Negative Jacobian in lsode_orbit_f_3eq'
+cc          stop
+cc        endif
 
-        call evalBcar(x1,y1,z1,vx,vy,vz)
+        call evalBcar(x1,y1,z1,vx,vy,vz,LSODE_IERR)
+        if (LSODE_IERR /= 0) return
+cc        if (ierror /= 0) then
+cc          write (*,*) 'Problem reading Bcar in lsode_orbit_f_3eq'
+cc          stop
+cc        endif
+
         coeff = coeff*sqrt(vx**2+vy**2+vz**2)
       else
         coeff = sqrt(vx**2+vy**2+vz**2)
@@ -1659,7 +1687,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ierror
+cc      integer :: ierror
       real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0
 
 c     Begin program
@@ -1672,12 +1700,11 @@ c     Begin program
       !Find logical coordinates
       if (sing_point) then
         x1 = xold ; y1 = yold ; z1 = zold
-        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,ierror)
-        if (ierror /= 0) then
-          write (*,*) ierror
-          write (*,*) 'Could not find logical coords in lsode_orbit_f'
-          stop
-        endif
+        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,LSODE_IERR)
+        if (LSODE_IERR /= 0) return
+cc        if (ierror /= 0) then
+cc          call pstop('lsode_orbit_f','Could not find logical coords')
+cc        endif
       else
         x1 = y(1)
         y1 = y(2)
@@ -1685,7 +1712,11 @@ c     Begin program
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
-      call getB(x1,y1,z1,vx,vy,vz,sln,sing_point)
+      call getB(x1,y1,z1,vx,vy,vz,sln,sing_point,LSODE_IERR)
+      if (LSODE_IERR /= 0) return
+cc      if (ierror /= 0) then
+cc        call pstop('lsode_orbit_f','Error reading B')
+cc      endif
 
       ydot(1) = vx
       ydot(2) = vy
@@ -1693,15 +1724,20 @@ c     Begin program
 
       !Time and arc-length ODEs
       if (.not.sing_point) then
-        ydot(4) = evalJ(x1,y1,z1,ierror)
-        if (ierror /= 0) then
-          write (*,*) 'Position=',x1,y1,z1
-          write (*,*) 'Jacobian=',ydot(4)
-          write (*,*) 'Negative Jacobian in lsode_orbit_f'
-          stop
-        endif
+        ydot(4) = evalJ(x1,y1,z1,LSODE_IERR)
+        if (LSODE_IERR /= 0) return
+cc        if (ierror /= 0) then
+cc          write (*,*) 'Negative Jacobian in lsode_orbit_f'
+cc          stop
+cc        endif
 
-        call evalBcar(x1,y1,z1,vx,vy,vz)
+        call evalBcar(x1,y1,z1,vx,vy,vz,LSODE_IERR)
+        if (LSODE_IERR /= 0) return
+cc        if (ierror /= 0) then
+cc          write (*,*) 'Problems reading Bcar'
+cc          stop
+cc        endif
+
         ydot(5) = ydot(4)*sqrt(vx**2+vy**2+vz**2)
       else
         ydot(4) = 1d0
@@ -1734,7 +1770,7 @@ c     -----------------------------------------------------------------
         save :: tprev
 
         if (iiout == 0) then
-          if (abs(time-tprev) > 0.1*tmax .or. exit_loop) then
+          if (time-tprev >= 0.1*tmax .or. exit_loop) then
             if (cartesian_flag) then
               write (*,FMT="(a1)",ADVANCE="NO") 'C'
               cartesian_flag = .false.
@@ -1750,6 +1786,8 @@ c     -----------------------------------------------------------------
             endif
             tprev = time
           endif
+
+          if (time >= tmax) tprev = 0d0
         endif
 
       end subroutine orbit_progress
@@ -1779,11 +1817,14 @@ c     -----------------------------------------------------------------
         case(1)
           write (*,*) 'Time step too small. Skipping orbit'
           exitloop = .true.
-        case(5)
-          write (*,*) 'Negative Jacobian in Cartesian integration'
+        case(2)
+          write (*,*) 'Out of domain. Skipping orbit'
+          exitloop = .true.
+        case(4)
+          write (*,*) 'Negative Jacobian. Terminating'
           stop
         case(6)
-          write (*,*) 'Error in Cartesian integration around SP'
+          write (*,*) 'Error around SP. Skipping orbit'
           exitloop = .true.
         case default
           write (*,*) 'Error in orbit_step routine=',iterror
