@@ -910,16 +910,16 @@ c     Local variables
 
 c     Begin program
 
-      if (PRESENT(iscnv)) then
-        is__cnv = iscnv
-      else
-        is__cnv = .true.   !Contravariant representation by default
-      endif
-
       if (PRESENT(isvec)) then
         is__vec = isvec
       else
-        is__vec = .true.   !Contravariant representation by default
+        is__vec = (neq /= 1)
+      endif
+
+      if (PRESENT(iscnv)) then
+        is__cnv = iscnv
+      else
+        is__cnv = is__vec   !Contravariant representation by default
       endif
 
       if (PRESENT(result_is_vec)) then
@@ -1069,7 +1069,6 @@ c       Restrict vector
         call crestrict(neq,vecc,ntotc,nxxc,nyyc,nzzc
      .                    ,vecf,ntotf,nxxf,nyyf,nzzf
      .                ,order,igridf,volf)
-cc     .                ,0,igridf,volf)
 
       enddo
 
@@ -1086,13 +1085,10 @@ c     Map vector to array
      .                ,result_is_vec=res_is_vec,iorder=order)
         else
           bcmod = bcnd
-          where (bcnd == EQU)
-            bcmod = EXT
-          end where
+          where (bcmod == EQU) bcmod = EXT
           call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
-     .              ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
-     .              ,result_is_vec=res_is_vec,iorder=order)
-cc     .              ,is_cnv=is__cnv)
+     .                ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                ,result_is_vec=res_is_vec,iorder=order)
         endif
       endif
 
