@@ -92,6 +92,7 @@ ifeq ($(HOST),quevedo)
 
       ADIOS = t
 
+      #Determined via modules
 #      ADIOS_HOME = $(HOME)/lib/adios-1.3
 #      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
 #      ADIOS_VER  = 1.3
