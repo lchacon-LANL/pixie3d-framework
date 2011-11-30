@@ -38,7 +38,7 @@ c ######################################################################
         integer   :: adios_tread          ! 0 ... ntsteps-1
         integer   :: adios_err            ! error handler
 
-        logical,private   :: adios_debug=.false.
+        logical,private :: adios_debug=.false.
 #endif
 
       contains
