@@ -64,7 +64,7 @@ c ######################################################################
         type(orbit_def),private  :: orb_default
         type(ode_solver),private :: ode_conf
 
-        integer,private :: itime,iterror,ssorder
+        integer,private :: itime,iterror,ssorder,obcnd(6)
 
         integer,private :: nunitx,nunity,nunitz,nunitrz
         integer,private :: npointx,npointy,npointz
@@ -351,7 +351,7 @@ c     ----------------------------------------------------------------------
 c     orbit_setup
 c     ######################################################################
       subroutine orbit_setup(nx,ny,nz,xx,yy,zz
-     .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap
+     .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap,bcnd
      .                      ,tmax,smax,dtime
      .                      ,niter,atol,rtol,order,solen,picard
      .                      ,spline_order,gauge,B_input_is_A,r_min
@@ -366,7 +366,7 @@ c     ----------------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz
+        integer :: nx,ny,nz,bcnd(6)
         real(8) :: xx(nx),yy(ny),zz(nz)
         real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
         real(8) :: bxcar(nx,ny,nz),bycar(nx,ny,nz),bzcar(nx,ny,nz)
@@ -450,6 +450,8 @@ c     Begin program
 
         ode_conf = orb_default%ode_conf
 
+        obcnd = bcnd
+
 c     Consistency checks
 
         if (ode_conf%lsode_to_smax) then
@@ -467,7 +469,7 @@ c     Do splines
 
         call setupSplines(nx,ny,nz,xx,yy,zz
      .                   ,orb_default%spline_conf%order
-     .                   ,xmin,xmax,ymin,ymax,zmin,zmax)
+     .                   ,xmin,xmax,ymin,ymax,zmin,zmax,obcnd)
 
         if (ode_conf%solen) then
           call splineA(bx,by,bz,orb_default%spline_conf%a_gauge
@@ -587,19 +589,19 @@ c     Begin program
 c     Check ranges
 
         if((x0.le.xmin.or.x0.ge.xmax)
-     .     .and.(bcond(1)/=PER))then
+     .     .and.(obcnd(1)/=PER))then
           write(*,*) 'x0(init)=',x0,' out of range:',xmin,xmax
           return
         endif
 
         if((y0.le.ymin.or.y0.ge.ymax)
-     .     .and.(bcond(3)/=PER))then
+     .     .and.(obcnd(3)/=PER))then
           write(*,*) 'y0(init)=',y0,' out of range:',ymin,ymax
           return
         endif
 
         if((z0.le.zmin.or.z0.ge.zmax)
-     .     .and.(bcond(5)/=PER))then
+     .     .and.(obcnd(5)/=PER))then
           write(*,*) 'z0(init)=',z0,' out of range:',zmin,zmax
           return
         endif
@@ -865,7 +867,7 @@ c     ODE configuration
 
 c     Check for SP
 
-      if (.not.cartesian) cartesian = (bcond(1)==SP).and.(x<rmin)
+      if (.not.cartesian) cartesian = (obcnd(1)==SP).and.(x<rmin)
 
 c     Time integration
 
@@ -2032,7 +2034,7 @@ c     Lower order of interpolation for SS if derivatives are too different
 c     Check for intersection with X surface of section
 
         if (lssx
-     .      .and.chk_ss_pos(xss0,xold,x,bcond(1),xmin,xmax,xss)) then
+     .      .and.chk_ss_pos(xss0,xold,x,obcnd(1),xmin,xmax,xss)) then
 
           call sursec(yvold,zvold,xvold,tv
      .               ,yold ,zold ,xold ,to
@@ -2051,7 +2053,7 @@ c     Check for intersection with X surface of section
 c     Check for intersection with Y surface of section
 
         if (lssy
-     .      .and.chk_ss_pos(yss0,yold,y,bcond(3),ymin,ymax,yss)) then
+     .      .and.chk_ss_pos(yss0,yold,y,obcnd(3),ymin,ymax,yss)) then
 
           call sursec(zvold,xvold,yvold,tv
      .               ,zold ,xold ,yold ,to
@@ -2075,7 +2077,7 @@ c     Check for intersection with Y surface of section
 c     Check for intersection with Z surface of section
 
         if ((lssz.or.rzss)
-     .      .and.chk_ss_pos(zss0,zold,z,bcond(5),zmin,zmax,zss)) then
+     .      .and.chk_ss_pos(zss0,zold,z,obcnd(5),zmin,zmax,zss)) then
 
           call sursec(xvold,yvold,zvold,tv
      .               ,xold ,yold ,zold ,to

@@ -6,7 +6,7 @@ c #####################################################################
 
         use grid, ONLY:pstop,my_rank
 
-        use bc_def
+        use bc_def, bcond2 => bcond
 
         real(8)  :: db3val
         external :: db3val
@@ -170,6 +170,8 @@ c     Begin program
           write (*,*) 'X domain limits=',xsmin,xsmax
           write (*,*) 'Y domain limits=',ysmin,ysmax
           write (*,*) 'Z domain limits=',zsmin,zsmax
+          write (*,*)
+          write (*,*) 'BCs',sbcnd
           stop
         endif
       else
@@ -189,26 +191,22 @@ c     This routine sets up 3D splines, including allocation of memory
 c     space.
 c     -----------------------------------------------------------------
 
-      implicit none            ! For safe Fortran
+        implicit none            ! For safe Fortran
 
 c     Call variables
 
-      integer :: nnx,nny,nnz,order
-      real(8) :: xx(nnx),yy(nny),zz(nnz)
-      real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
-      integer,optional :: bcnd(6)
+        integer :: nnx,nny,nnz,order
+        real(8) :: xx(nnx),yy(nny),zz(nnz)
+        real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
+        integer :: bcnd(6)
 
 c     Local variables
 
-      integer :: alloc_stat,i
+        integer :: alloc_stat,i
 
 c     Begin program
 
-      if (PRESENT(bcnd)) then
         sbcnd = bcnd
-      else
-        sbcnd = bcond
-      endif
 
 c     Initialize private variables
 

@@ -6,6 +6,10 @@ c ######################################################################
 
         implicit none
 
+        INTERFACE find_global
+          module procedure find_global_field_vec,find_global_field_scl
+        END INTERFACE
+
 #if defined(petsc)
 
 #include "finclude/petscdef.h"
@@ -1722,6 +1726,198 @@ c     Begin program
 c     End program
 
       end function inProc
+
+c     find_global_field_vec
+c     ##############################################################
+      subroutine find_global_field_vec(lf,gf,dump)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs parallel reduction to find global field.
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      real(8),dimension(0:,0:,0:,:) :: lf,gf
+
+      logical,optional :: dump
+
+c     Local variables
+
+      integer :: i,j,k,dl(4),dg(4),lsize,gsize
+      real(8),pointer,dimension(:) :: local_x,global_x
+
+      logical :: plot
+
+c     Begin program
+
+      if (PRESENT(dump)) then
+        plot=dump
+      else
+        plot=.false.
+      endif
+
+c     Calculate array sizes
+
+      dl = shape(lf)
+
+      dg = shape(gf)
+
+      lsize = dl(1)*dl(2)*dl(3)*dl(4)
+
+      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz*dl(4)
+
+c     Communicate
+
+#if defined(petsc)
+      allocate(local_x(lsize),global_x(gsize))
+
+      local_x = reshape(lf, (/ lsize /))
+
+      call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
+     .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
+     .                  ,MPI_COMM_WORLD,mpierr)
+
+
+      do k=1,npz
+        do j=1,npy
+          do i=1,npx
+
+            gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
+     .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
+     .        ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1,1:dg(4))
+     .        = reshape(global_x(1+lsize*(        (i-1)
+     .                                   +npx    *(j-1)
+     .                                   +npx*npy*(k-1))
+     .                          :  lsize*(         i
+     .                                   +npx    *(j-1)
+     .                                   +npx*npy*(k-1)) )
+     .                 ,dl )
+          enddo
+        enddo
+      enddo
+
+      deallocate(local_x,global_x)
+#else
+      gf = lf
+#endif
+
+c     Dump global array
+
+      if (plot) then
+        if (my_rank == 0) then
+          open(unit=110,file='debug.bin'
+     .        ,form='unformatted',status='replace')
+          do i=1,dg(4)
+            call contour(gf(0:dg(1)-1,0:dg(2)-1,1,i),dg(1),dg(2)
+     .                ,0d0,xmax,0d0,ymax,i-1,110)
+          enddo
+cc          do i=1,dl(4)
+cc            call contour(lf(0:dl(1)-1,0:dl(2)-1,1,i),dl(1),dl(2)
+cc     .                ,0d0,xmax,0d0,ymax,i-1,110)
+cc          enddo
+          close(110)
+        endif
+
+        call pstop('find_global_field_vec','Dumping global arrays...')
+      endif
+
+c     End program
+
+      end subroutine find_global_field_vec
+
+c     find_global_field_scl
+c     ##############################################################
+      subroutine find_global_field_scl(lf,gf,dump)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs parallel reduction to find global field.
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      real(8),dimension(0:,0:,0:) :: lf,gf
+
+      logical,optional :: dump
+
+c     Local variables
+
+      integer :: i,j,k,dl(3),dg(3),lsize,gsize
+      real(8),pointer,dimension(:) :: local_x,global_x
+
+      logical :: plot
+
+c     Begin program
+
+      if (PRESENT(dump)) then
+        plot=dump
+      else
+        plot=.false.
+      endif
+
+c     Calculate array sizes
+
+      dl = shape(lf)
+
+      dg = shape(gf)
+
+      lsize = dl(1)*dl(2)*dl(3)
+
+      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz
+
+c     Communicate
+
+#if defined(petsc)
+      allocate(local_x(lsize),global_x(gsize))
+
+      local_x = reshape(lf, (/ lsize /))
+
+      call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
+     .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
+     .                  ,MPI_COMM_WORLD,mpierr)
+
+      do k=1,npz
+        do j=1,npy
+          do i=1,npx
+            gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
+     .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
+     .        ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1)
+     .        = reshape(global_x(1+lsize*(        (i-1)
+     .                                   +npx    *(j-1)
+     .                                   +npx*npy*(k-1))
+     .                          :  lsize*(         i
+     .                                   +npx    *(j-1)
+     .                                   +npx*npy*(k-1)) )
+     .                 ,dl )
+          enddo
+        enddo
+      enddo
+
+      deallocate(local_x,global_x)
+#else
+      gf = lf
+#endif
+
+c     Dump global array
+
+      if (plot) then
+        if (my_rank == 0) then
+          open(unit=110,file='debug.bin'
+     .        ,form='unformatted',status='replace')
+          call contour(gf(0:dg(1)-1,0:dg(2)-1,1),dg(1),dg(2)
+     .                ,0d0,xmax,0d0,ymax,0,110)
+          close(110)
+        endif
+
+        call pstop('find_global_field_scl','Dumping global arrays...')
+      endif
+
+c     End program
+
+      end subroutine find_global_field_scl
 
       end module grid_mpi
 
