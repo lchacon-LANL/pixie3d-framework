@@ -434,6 +434,11 @@ c     Begin program
 
       call closeRecordFileAdiosForRead(adios_err)
 
+      if (adios_err /= 0) then
+        call pstop('readRestartFile'
+     $            ,'Error closing ADIOS restart file')
+      endif
+
       if (my_rank == 0) write (*,*) ' Done!'
 
 c     End
