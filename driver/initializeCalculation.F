@@ -309,8 +309,8 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer   ,intent(OUT) :: nx,ny,nz,itime
-      real(8),intent(OUT)    :: time
+      integer,intent(OUT) :: nx,ny,nz,itime
+      real(8),intent(OUT) :: time
 
       type(var_array),pointer :: vn,vnp
 
