@@ -494,3 +494,34 @@ ifeq ($(PIC_CUDA),t)
 	CUDA_OPT = -L/usr/local/cuda/lib64 /usr/local/cuda/lib64/libcudart.so  -lcuda -I/usr/local/cuda/include/ 
 	CUDA_INCLUDE =  # -I/home/gcc/NVIDIA_GPU_Computing_SDK/C/common/inc
 endif
+
+####################
+# juelich (JUROPA) #
+####################
+
+ifeq ($(findstring jf,$(HOST)),jf)
+  FC = ifort
+
+#  BOPT = O
+
+  ifdef BOPT
+    PETSC_ARCH ?= juropa-basic
+
+    HDF5 = f
+    #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+    #HDF5_HOME = $(CRAY_HDF5_DIR)
+    #HDF5_LIBS = $(HDF5_FLIB)
+    #HDF5_MOD  = $(HDF5_HOME)/lib
+
+    ADIOS = t
+    ADIOS_HOME = $(HOME)/lib/adios-1.3
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml -llustreapi
+    ADIOS_VER  = 1.3
+  else
+    HDF5 = f
+    ADIOS = f
+    LIBS += -llapack -lblas
+  endif
+
+  MACHINE = juelich
+endif
