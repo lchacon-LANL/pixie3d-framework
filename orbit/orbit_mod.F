@@ -695,11 +695,6 @@ c     Orbit integral
      .                  .or.(exit_loop)
           endif
 
-cc          if (exit_loop .or. orbit_error(iterror)) then
-cc            if (iiout >=0) write (*,*)
-cc            exit
-cc          endif
-
           !Check for intersection with surface of section
           if (iterror /= 2 .and. itime > 2 .and. chk_ss) then
             if (smax /= 0d0) then
