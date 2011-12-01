@@ -16,14 +16,14 @@ c ######################################################################
      .            ,mg_oprol       = 2     !Prolongation order for MG
      .            ,mg_coarse_size = 2     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
      .            ,mg_vcyc        = 1     !Maximum number of MG V-cycles
-     .            ,mg_zebra_it    = 1     !Number of relaxations in ZEBRA smoothing
-     .            ,mg_zebra_dir   = 0     !Preferred smoothing direction in ZEBRA smoothing (all if zero)
+     .            ,sm_zebra_it    = 1     !Number of relaxations in ZEBRA smoothing
+     .            ,sm_zebra_dir   = 0     !Preferred smoothing direction in ZEBRA smoothing (all if zero)
      .            ,sm_ncolors     = 8     !Number of colors for diagonal calc., smoothing
      .            ,sm_iter        = 5     !Number of MG smoothing passes
 
         real(8) :: pc_tol        = 1d-3   !PC solvers convergence tolerance
      .            ,sm_omega      = 0.7    !Damping for MG smoother (only when 'jb' is chosen)
-     .            ,mg_zebra_omg  = 1d0    !Damping for ZEBRA smoothing
+     .            ,sm_zebra_omg  = 1d0    !Damping for ZEBRA smoothing
 
         character(2) :: pc_type  = 'id'   !Type of preconditioner (application dependent)
      .                 ,sm_type  = 'jb'   !Type of smoother ('jg','gs','gm')
