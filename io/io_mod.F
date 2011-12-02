@@ -13,6 +13,33 @@ c ########################################################################
 
       contains 
 
+c     runtime_cmds
+c     ##################################################################
+      subroutine runtime_cmds(narg,command)
+
+c     -----------------------------------------------------------------
+c     Gets files from command input.
+c     -----------------------------------------------------------------
+
+c     Call variables
+
+      integer      :: narg
+      character(*) :: command(narg)
+
+c     Local variables
+
+      integer       :: iarg
+
+c     Begin program
+
+      do iarg = 1,narg
+        call getarg(iarg,command(iarg))
+      enddo
+
+c     End program
+
+      end subroutine runtime_cmds
+
 c     shellcmd
 c     ####################################################################
       function shellcmd(command) result (ierr)
@@ -68,11 +95,10 @@ c     Local variables
 
 c     Begin program
 
-cc      INQUIRE(FILE=trim(file),exist=is_file)
+      INQUIRE(FILE=trim(file),exist=is_file)
 
-      ierr = shellcmd('test -f '//trim(file))
-
-      is_file = (ierr == 0)
+cc      ierr = shellcmd('test -f '//trim(file))
+cc      is_file = (ierr == 0)
 
 c     End program
 

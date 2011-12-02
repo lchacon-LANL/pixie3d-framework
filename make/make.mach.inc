@@ -92,6 +92,7 @@ ifeq ($(HOST),quevedo)
 
       ADIOS = t
 
+      #Determined via modules
 #      ADIOS_HOME = $(HOME)/lib/adios-1.3
 #      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
 #      ADIOS_VER  = 1.3
@@ -317,9 +318,9 @@ ifeq ($(HOST),ra22)
     endif
 
     ADIOS = t
-    ADIOS_HOME = /ricercatori/ft/adios-1.2.1
+    ADIOS_HOME = /ricercatori/ft/adios-1.3
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/ricercatori/ft/mxml-2.6/lib -lmxml
-    ADIOS_VER  = 1.21
+    ADIOS_VER  = 1.3
 
   else
     LIBS     += -llapack -lblas
@@ -492,4 +493,35 @@ ifeq ($(PIC_CUDA),t)
 	NVCCFLAGS= --ptxas-options=-v -O2 --compiler-bindir /home/gcc/soft/gcc/gcc-445/bin  #-g -G # 
 	CUDA_OPT = -L/usr/local/cuda/lib64 /usr/local/cuda/lib64/libcudart.so  -lcuda -I/usr/local/cuda/include/ 
 	CUDA_INCLUDE =  # -I/home/gcc/NVIDIA_GPU_Computing_SDK/C/common/inc
+endif
+
+####################
+# juelich (JUROPA) #
+####################
+
+ifeq ($(findstring jf,$(HOST)),jf)
+  FC = ifort
+
+#  BOPT = O
+
+  ifdef BOPT
+    PETSC_ARCH ?= juropa-basic
+
+    HDF5 = f
+    #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+    #HDF5_HOME = $(CRAY_HDF5_DIR)
+    #HDF5_LIBS = $(HDF5_FLIB)
+    #HDF5_MOD  = $(HDF5_HOME)/lib
+
+    ADIOS = t
+    ADIOS_HOME = $(HOME)/lib/adios-1.3
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml -llustreapi
+    ADIOS_VER  = 1.3
+  else
+    HDF5 = f
+    ADIOS = f
+    LIBS += -llapack -lblas
+  endif
+
+  MACHINE = juelich
 endif

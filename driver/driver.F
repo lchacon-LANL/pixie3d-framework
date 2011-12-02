@@ -121,6 +121,8 @@ c Initialize calculation
 
       call initializeCalculation
 
+      call nk_setup_consistency
+
 c Initialize counters
 
       gmres_tot = 0
@@ -171,7 +173,8 @@ c     Find new time step
      .     ) then
           call findExplicitDt(dt)
           call correctTimeStep(itime-offset,ierr,dt_exp=dt)
-        elseif (timecorr) then
+cc        elseif (timecorr) then
+        else
           call correctTimeStep(itime-offset,ierr)
         endif
 

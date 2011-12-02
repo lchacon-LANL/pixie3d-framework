@@ -188,11 +188,12 @@ cc            dx0 = alphal*dx0  !Modify initial interval for coarser grids
 
           dh = length/ng
 
-          if (bcs1 == PER .and. bcs2 == PER) then
-            dh = length/ng
-            lstart = lmin
-            lend   = lmax
-          elseif (bcs1 == SYM .and. bcs2 == SYM) then
+cc          if (bcs1 == PER .and. bcs2 == PER) then
+cc            dh = length/ng
+cc            lstart = lmin
+cc            lend   = lmax
+cc          elseif (bcs1 == SYM .and. bcs2 == SYM) then
+          if (bcs1 == SYM .and. bcs2 == SYM) then
             dh = length/(ng-1)
             lstart = lmin
             lend   = lmax
@@ -206,8 +207,13 @@ cc            dx0 = alphal*dx0  !Modify initial interval for coarser grids
             lend   = lmax
           else
             dh = length/ng
-            lstart = lmin+dh/2.
-            lend   = lmax-dh/2.
+            if (bcs1 == PER .and. bcs2 == PER.and.ng == 1) then
+              lstart = lmin
+              lend   = lmax
+            else
+              lstart = lmin+dh/2.
+              lend   = lmax-dh/2.
+            endif
           endif
 
           xg(1) = lstart

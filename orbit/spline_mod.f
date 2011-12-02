@@ -6,7 +6,7 @@ c #####################################################################
 
         use grid, ONLY:pstop,my_rank
 
-        use bc_def
+        use bc_def, bcond2 => bcond
 
         real(8)  :: db3val
         external :: db3val
@@ -31,6 +31,8 @@ c #####################################################################
         real(8),private,dimension(:,:,:,:),pointer :: xcoef => null()
      .                                               ,bcoef => null()
      .                                               ,bcarcoef => null()
+
+        logical, private :: x_is_log,y_is_log,z_is_log
 
       contains
 
@@ -109,7 +111,7 @@ c     Begin program
         if (sbcnd(2) == PER) then   !Periodic BC
           if (per_bc) x = xsmin + mod(x-xsmin,(xsmax-xsmin))
         else
-          ierror = 1
+          ierror = 2
         endif
       endif
 
@@ -122,7 +124,7 @@ c     Begin program
         if (sbcnd(1) == PER) then   !Periodic BC
           if (per_bc) x = xsmax - mod(xsmin-x,xsmax-xsmin)
         else
-          ierror = 1
+          ierror = 2
         endif
       endif
 
@@ -130,7 +132,7 @@ c     Begin program
         if (sbcnd(4) == PER) then   !Periodic BC
           if (per_bc) y = ysmin + mod(y-ysmin,(ysmax-ysmin))
         else
-          ierror = 1
+          ierror = 2
         endif
       endif
 
@@ -138,7 +140,7 @@ c     Begin program
         if (sbcnd(3) == PER) then   !Periodic BC
           if (per_bc) y = ysmax - mod(ysmin-y,ysmax-ysmin)
         else
-          ierror = 1
+          ierror = 2
         endif
       endif
 
@@ -146,7 +148,7 @@ c     Begin program
         if (sbcnd(6) == PER) then   !Periodic BC
           if (per_bc) z = zsmin + mod(z-zsmin,(zsmax-zsmin))
         else
-          ierror = 1
+          ierror = 2
         endif
       endif
 
@@ -154,7 +156,7 @@ c     Begin program
         if (sbcnd(5) == PER) then   !Periodic BC
           if (per_bc) z = zsmax - mod(zsmin-z,zsmax-zsmin)
         else
-          ierror = 1
+          ierror = 2
         endif
       endif
 
@@ -168,6 +170,8 @@ c     Begin program
           write (*,*) 'X domain limits=',xsmin,xsmax
           write (*,*) 'Y domain limits=',ysmin,ysmax
           write (*,*) 'Z domain limits=',zsmin,zsmax
+          write (*,*)
+          write (*,*) 'BCs',sbcnd
           stop
         endif
       else
@@ -187,26 +191,22 @@ c     This routine sets up 3D splines, including allocation of memory
 c     space.
 c     -----------------------------------------------------------------
 
-      implicit none            ! For safe Fortran
+        implicit none            ! For safe Fortran
 
 c     Call variables
 
-      integer :: nnx,nny,nnz,order
-      real(8) :: xx(nnx),yy(nny),zz(nnz)
-      real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
-      integer,optional :: bcnd(6)
+        integer :: nnx,nny,nnz,order
+        real(8) :: xx(nnx),yy(nny),zz(nnz)
+        real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
+        integer :: bcnd(6)
 
 c     Local variables
 
-      integer :: alloc_stat,i
+        integer :: alloc_stat,i
 
 c     Begin program
 
-      if (PRESENT(bcnd)) then
         sbcnd = bcnd
-      else
-        sbcnd = bcond
-      endif
 
 c     Initialize private variables
 
@@ -886,13 +886,22 @@ c     Local variables
 
       call splineFlds(xcar,fldcoef=xcoef_ext)
 
+c     Detect whether physical coord is logical coord (needed for evalXi)
+
+      x_is_log = sqrt(sum((xcar(nx/2,:,:,1)-xcar(nx/2,1,1,1))**2))<1d-10
+      y_is_log = sqrt(sum((xcar(:,ny/2,:,2)-xcar(1,ny/2,1,2))**2))<1d-10
+      z_is_log = sqrt(sum((xcar(:,:,nz/2,3)-xcar(1,1,nz/2,3))**2))<1d-10
+
+cc      write (*,*) x_is_log,y_is_log,z_is_log
+cc      stop
+
 c     End program
 
       end subroutine splineX
 
 c     evalA
 c     #################################################################
-      subroutine evalA(x1,x2,x3,ax,ay,az)
+      subroutine evalA(x1,x2,x3,ax,ay,az,ierr)
 c     -----------------------------------------------------------------
 c     This evaluates vector potential components at logical position
 c     (x1,x2,x3).
@@ -902,13 +911,16 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+      integer :: ierr
       real(8) :: x1,x2,x3,ax,ay,az
 
 c     Local variables
 
 c     Begin program
 
-      call chk_pos(x1,x2,x3)
+      call chk_pos(x1,x2,x3,ierr=ierr)
+
+      if (ierr /= 0) return
 
       select case(ag)
       case(1)
@@ -928,7 +940,7 @@ c     Begin program
 
 c     evalCurlA
 c     #################################################################
-      subroutine evalCurlA(x1,x2,x3,bx,by,bz,flag,idx,idy,idz)
+      subroutine evalCurlA(x1,x2,x3,bx,by,bz,ierr,flag,idx,idy,idz)
 c     -----------------------------------------------------------------
 c     This evaluates B=curl(A) at logical position (x1,x2,x3). Other
 c     variables are:
@@ -947,6 +959,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+      integer :: ierr
       real(8) :: x1,x2,x3,bx,by,bz
       integer,optional :: flag,idx,idy,idz
 
@@ -983,7 +996,9 @@ c     Begin program
 
 c     Calculate derivatives
 
-      call chk_pos(x1,x2,x3)
+      call chk_pos(x1,x2,x3,ierr=ierr)
+
+      if (ierr /= 0) return
 
       select case(ag)
       case(1) !Ax=0
@@ -1080,7 +1095,7 @@ c     Find curl
 
 c     evalB
 c     #################################################################
-      subroutine evalB(x1,x2,x3,bx,by,bz)
+      subroutine evalB(x1,x2,x3,bx,by,bz,ierr)
 c     -----------------------------------------------------------------
 c     This evaluates magnetic field components at logical position
 c     (x1,x2,x3).
@@ -1090,13 +1105,16 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+      integer :: ierr
       real(8) :: x1,x2,x3,bx,by,bz
 
 c     Local variables
 
 c     Begin program
 
-      call chk_pos(x1,x2,x3)
+      call chk_pos(x1,x2,x3,ierr=ierr)
+
+      if (ierr /= 0) return
 
       bx = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .           ,kx,ky,kz,bcoef(:,:,:,1),work)
@@ -1109,7 +1127,7 @@ c     Begin program
 
 c     evalBcar
 c     #################################################################
-      subroutine evalBcar(x1,x2,x3,bx,by,bz)
+      subroutine evalBcar(x1,x2,x3,bx,by,bz,ierr)
 c     -----------------------------------------------------------------
 c     This evaluates Cartesian components of magnetic field at
 c     logical position (x1,x2,x3).
@@ -1119,13 +1137,16 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+      integer :: ierr
       real(8) :: x1,x2,x3,bx,by,bz
 
 c     Local variables
 
 c     Begin program
 
-      call chk_pos(x1,x2,x3)
+      call chk_pos(x1,x2,x3,ierr=ierr)
+
+      if (ierr /= 0) return
 
       bx = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .            ,kx,ky,kz,bcarcoef(:,:,:,1),work)
@@ -1140,7 +1161,7 @@ c     Begin program
 
 c     getB
 c     ##################################################################
-      subroutine getB(x1,x2,x3,b1,b2,b3,solen,car,flag)
+      subroutine getB(x1,x2,x3,b1,b2,b3,solen,car,ierr,flag)
 
 c     ------------------------------------------------------------------
 c     Wrapper routine to find magnetic field components on specified
@@ -1154,6 +1175,7 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
+      integer :: ierr
       real(8) :: x1,x2,x3,b1,b2,b3
       logical,INTENT(IN) :: solen,car
       integer,optional :: flag
@@ -1167,13 +1189,13 @@ c     Begin program
       if (car) then
 
         !Find Cartesian vector components
-        call evalBcar(x1,x2,x3,b1,b2,b3)
+        call evalBcar(x1,x2,x3,b1,b2,b3,ierr)
 
       else
         if (solen) then
-          call evalCurlA(x1,x2,x3,b1,b2,b3,flag=flag)
+          call evalCurlA(x1,x2,x3,b1,b2,b3,ierr,flag=flag)
         else
-          call evalB    (x1,x2,x3,b1,b2,b3)
+          call evalB    (x1,x2,x3,b1,b2,b3,ierr)
         endif
       endif
 
@@ -1211,7 +1233,7 @@ c     Begin program
 
 c     evalX
 c     #################################################################
-      subroutine evalX(x1,x2,x3,x,y,z,xcoef_ext)
+      subroutine evalX(x1,x2,x3,x,y,z,ierr,xcoef_ext)
 c     -----------------------------------------------------------------
 c     This evaluates cartesian position (x,y,z) at logical position
 c     (x1,x2,x3).
@@ -1222,6 +1244,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       real(8) :: x,y,z,x1,x2,x3
+      integer,optional :: ierr
       real(8),optional,pointer :: xcoef_ext(:,:,:,:)
 
 c     Local variables
@@ -1236,7 +1259,7 @@ c     Begin program
         lxcoef => xcoef
       endif
 
-      call chk_pos(x1,x2,x3)
+      call chk_pos(x1,x2,x3,ierr=ierr)
 
       x = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,1),work)
@@ -1271,7 +1294,7 @@ c     Call variables
 c     Local variables
 
       integer,parameter :: maxit=100,size=3,icol=1
-      real(8),parameter :: tol=1d-14
+      real(8),parameter :: tol=1d-12
 
       integer :: iter
       real(8) :: JJ(size,size),res(size,icol)
@@ -1304,7 +1327,9 @@ c     Begin program
         if (prnt) write (*,*) '>>>>Iteration=',iter
 
         !Form residual and check convergence
-        res(:,1) = formResidual(x1,x2,x3)
+        res(:,1) = formResidual(x1,x2,x3,ierror)
+
+        if (ierror /= 0) return
 
         if (prnt) write (*,*) 'evalXi -- res=',res
 
@@ -1332,7 +1357,7 @@ c     Begin program
         x3 = x3 + dxi(3,1)
 
         !Singular point BC
-        call chk_pos(x1,x2,x3,no_per_bc=.true.)
+        call chk_pos(x1,x2,x3,ierr=ierror,no_per_bc=.true.)
 
         if (prnt) write (*,*) 'evalXi -- xi=',x1,x2,x3
 
@@ -1344,7 +1369,8 @@ c     Begin program
           write (*,*)
           write (*,*) 'evalXi -- x =',x,y,z
           write (*,*) 'evalXi -- xi=',x1,x2,x3
-          write (*,*) 'evalXi -- domain=',xsmin,xsmax,ysmin,ysmax
+          write (*,*) 'evalXi -- domain=',xsmin,xsmax
+     .                                   ,ysmin,ysmax
      .                                   ,zsmin,zsmax
           write (*,*) 'evalXi -- Convergence history: '
      .                ,error(1:min(iter,maxit))
@@ -1357,10 +1383,11 @@ c     Begin program
 
 c     formResidual
 c     ###################################################################
-      function formResidual(x1,x2,x3) result(res)
+      function formResidual(x1,x2,x3,ierr) result(res)
 
       implicit none
 
+      integer :: ierr
       real(8) :: x1,x2,x3,res(3)
 
       real(8) :: x11,x22,x33
@@ -1369,23 +1396,35 @@ c     ###################################################################
       x22 = x2
       x33 = x3
 
-      call chk_pos(x11,x22,x33)
+      call chk_pos(x11,x22,x33,ierr=ierr)
+
+      if (ierr /= 0) return
 
       res(1) = x - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,1),work) - (x1-x11)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,1),work)
 
       res(2) = y - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,2),work) - (x2-x22)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,2),work)
 
       res(3) = z - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,3),work) - (x3-x33)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,3),work)
 
-cc      if (prnt) write (*,*) 'evalXi -- sbcnd',sbcnd
-cc      if (prnt) write (*,*) 'evalXi -- limits',xsmin,xsmax
-cc     .                                        ,ysmin,ysmax
-cc     .                                        ,zsmin,zsmax,tol
-cc      if (prnt) write (*,*) 'evalXi -- log coords',x11,x22,x33
-cc      if (prnt) write (*,*) 'evalXi -- res before mod=',res
+      !Shift residual if physical coord is logical coord
+      if (x_is_log) res(1) = res(1) - (x1-x11)
+      if (y_is_log) res(2) = res(2) - (x2-x22)
+      if (z_is_log) res(3) = res(3) - (x3-x33)
+
+cc      if (prnt) then
+cc        write (*,*)
+cc        write (*,*) 'evalXi -- sbcnd',sbcnd
+cc        write (*,*) 'evalXi -- limits',xsmin,xsmax
+cc     .                                ,ysmin,ysmax
+cc     .                                ,zsmin,zsmax,tol
+cc        write (*,*) 'evalXi -- input log coords',x1 ,x2 ,x3
+cc        write (*,*) 'evalXi -- shifted log coords',x11,x22,x33
+cc        write (*,*) 'evalXi -- Shifts=',x1-x11,x2-x22,x3-x33
+cc        write (*,*) 'evalXi -- res before mod=',res
+cc      endif
 
 cc      if (sbcnd(1) == PER) res(1) = mod(res(1),xsmax-xsmin-0.1*tol)
 cc      if (sbcnd(3) == PER) res(2) = mod(res(2),ysmax-ysmin-0.1*tol)
@@ -1539,13 +1578,14 @@ c     Local variables
 
 c     Begin program
 
-      call chk_pos(x1,x2,x3)
+      call chk_pos(x1,x2,x3,ierr=ierror)
+
+      if (ierror /= 0) return
 
       jac = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .            ,kx,ky,kz,jcoef,work)
 
-      ierror = 0
-      if (jac < 0d0) ierror = 1
+      if (jac < 0d0) ierror = 4 !Negative Jacobian
 
       end function evalJ
 
@@ -1612,9 +1652,9 @@ c     Begin program
         lfcoef => fldcoef
       endif
 
-      ierror = 0
+      call chk_pos(x1,x2,x3,ierr=ierror)
 
-      call chk_pos(x1,x2,x3)
+      if (ierror /= 0) return
 
       ff = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .           ,kx,ky,kz,lfcoef,work)

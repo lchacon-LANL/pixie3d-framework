@@ -309,8 +309,8 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer   ,intent(OUT) :: nx,ny,nz,itime
-      real(8),intent(OUT)    :: time
+      integer,intent(OUT) :: nx,ny,nz,itime
+      real(8),intent(OUT) :: time
 
       type(var_array),pointer :: vn,vnp
 
@@ -433,6 +433,11 @@ c     Begin program
       enddo
 
       call closeRecordFileAdiosForRead(adios_err)
+
+      if (adios_err /= 0) then
+        call pstop('readRestartFile'
+     $            ,'Error closing ADIOS restart file')
+      endif
 
       if (my_rank == 0) write (*,*) ' Done!'
 
