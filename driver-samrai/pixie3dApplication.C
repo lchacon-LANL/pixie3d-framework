@@ -54,7 +54,7 @@
 //#include "BoundaryConditionStrategy.h"
 //#include "RefineOperator.h"
 
-//#include "AMRUtilities.h"
+#include "source/AMRUtilities.h"
 //#include "test_utilities.h"
 
 //#include "RefinementBoundaryInterpolation.h"
@@ -74,7 +74,6 @@ extern "C"{
 #include <assert.h>
 
 }
-
 
 
 /************************************************************************
@@ -323,7 +322,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         level->allocatePatchData(weight_id);
     }
 
-    //AMRUtilities::setVectorWeights(d_hierarchy, weight_id);
+    AMRUtilities::setVectorWeights(d_hierarchy, weight_id);
 
     // Allocate data for u, u_0, u_ic
     if ( IS2D == 1 )

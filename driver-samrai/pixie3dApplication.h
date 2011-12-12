@@ -193,9 +193,8 @@ public:
            const int coarsest_level,
            const int finest_level );
 
+protected:
 
-private:
-   
    void printVector( const tbox::Pointer< solv::SAMRAIVectorReal<double> > vector);
 
    void generateTransferSchedules( void );
