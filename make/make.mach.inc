@@ -502,7 +502,7 @@ endif
 ifeq ($(findstring jf,$(HOST)),jf)
   FC = ifort
 
-#  BOPT = O
+  BOPT = O
 
   ifdef BOPT
     PETSC_ARCH ?= juropa-basic
