@@ -6,7 +6,7 @@ MESSAGE = "Compiling f90 NK modules"
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/math $(COMMONDIR)/grid 
+SUBDIRS = $(COMMONDIR)/io $(COMMONDIR)/math $(COMMONDIR)/grid 
 
 #Dependencies
 
