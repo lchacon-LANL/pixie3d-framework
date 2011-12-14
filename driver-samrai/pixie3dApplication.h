@@ -188,10 +188,9 @@ public:
     *
     * Function overloaded from mesh::StandardTagAndInitStrategy.
     */
-   void resetHierarchyConfiguration(
-           const tbox::Pointer<hier::PatchHierarchy> hierarchy,
-           const int coarsest_level,
-           const int finest_level );
+   virtual void resetHierarchyConfiguration( const tbox::Pointer<hier::PatchHierarchy> hierarchy,
+					     const int coarsest_level,
+					     const int finest_level );
 
 protected:
 
@@ -227,8 +226,12 @@ protected:
    tbox::Pointer< pdat::CellVariable<double> > d_f_src;
    int f_src_id;
 
+   int d_weight_id;
+   
    bool d_RefineSchedulesGenerated;
 
+   bool d_vectorsCloned;
+   
    int *u0_id, *u_id, *auxs_id, *auxv_id;
    int *f_id, *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
 

@@ -1,16 +1,39 @@
 #include "ImplicitPixie3dApplication.h"
+#include "source/AMRUtilities.h"
 
 #include "SAMRAI/tbox/IEEE.h"
+#include "SAMRAI/solv/PETSc_SAMRAIVectorReal.h"
 #include <algorithm>
 
 namespace SAMRAI{
 
+ImplicitPixie3dApplication::ImplicitPixie3dApplication():
+  pixie3dApplication()
+{
+  /*
+   * Set default values for data members.
+   */
+  
+  d_current_time                = tbox::IEEE::getSignalingNaN();
+  d_current_dt                  = tbox::IEEE::getSignalingNaN();
+  d_old_dt                      = tbox::IEEE::getSignalingNaN();
+  d_new_time                    = tbox::IEEE::getSignalingNaN();
+  d_initial_dt                  = tbox::IEEE::getSignalingNaN();
+
+  d_debug_print_info_level=0;
+
+  d_newSolutionVector.setNull();
+  d_currentSolutionVector.setNull();
+  d_previousSolutionVector.setNull();
+  d_scratchVector.setNull();
+}
+  
 ImplicitPixie3dApplication::ImplicitPixie3dApplication(ImplicitPixie3dApplicationParameters *parameters):
   pixie3dApplication(parameters)
-{
-   /*
-    * Set default values for data members.
-    */
+{  
+  /*
+   * Set default values for data members.
+   */
   
   d_current_time                = tbox::IEEE::getSignalingNaN();
   d_current_dt                  = tbox::IEEE::getSignalingNaN();
@@ -19,7 +42,23 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication(ImplicitPixie3dApplicatio
   d_initial_dt                  = tbox::IEEE::getSignalingNaN();
   
   d_debug_print_info_level=0;
+
+  d_newSolutionVector.setNull();
+  d_currentSolutionVector.setNull();
+  d_previousSolutionVector.setNull();
+  d_scratchVector.setNull();
+
+  initialize(parameters);
+}
   
+void
+ImplicitPixie3dApplication::initialize(ImplicitPixie3dApplicationParameters *parameters)
+{
+
+  tbox::pout << "Begin: Initializing implicit run" << std::endl;
+  
+  pixie3dApplication::initialize(parameters);
+    
   d_current_dt      = d_initial_dt;
   d_old_dt          = 0.0;
   
@@ -33,20 +72,77 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication(ImplicitPixie3dApplicatio
   assert(!ic_vector.isNull());
 #endif
   
-  // allocate components and space for the current and previous solution vectors
-  d_currentSolutionVector = ic_vector->cloneVector("CurrentSolutionVector");
-  d_previousSolutionVector = ic_vector->cloneVector("PreviousSolutionVector");
-  d_scratchVector = ic_vector->cloneVector("ScratchVector");
+  // Initialize them to have the same values as the initial condition vector
+  d_currentSolutionVector->copyVector(ic_vector);
+  d_previousSolutionVector->copyVector(ic_vector);
+
+  // this sets the weight_id to be the volume of each cell in cells that do not lie
+  // under finer cells and to zero for cells that lie under finer cells. The weight id
+  // is important for SAMRAIVectors and is used in computing vector norms correctly
+  AMRUtilities::setVectorWeights(d_hierarchy, d_weight_id);
+
+  tbox::pout << "End: Initializing implicit run" << std::endl;
+
+}
+
+void
+ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hier::PatchHierarchy> hierarchy,
+							 const int coarsest_level,
+							 const int finest_level )
+{
+  // Check if the application has been initialized
+  if ( d_hierarchy.isNull() )
+        return;
+  tbox::pout << "Begin: implicit resetHierarchyConfiguration" << std::endl;
+  // call the base class function
+  pixie3dApplication::resetHierarchyConfiguration(hierarchy, coarsest_level, finest_level);
   
+  // the initial condition vector is assumed to have all the necessary information
+  // about components
+  tbox::Pointer< solv::SAMRAIVectorReal<double> > ic_vector = this->get_ic();
+  
+#ifdef DEBUG_CHECK_ASSERTIONS
+  assert(!ic_vector.isNull());
+#endif
+  
+
+  if(!d_vectorsCloned)
+    {
+      // allocate components and space for the current and previous solution vectors
+      d_currentSolutionVector = ic_vector->cloneVector("CurrentSolutionVector");
+      d_currentSolutionVector->allocateVectorData(0.0);
+
+      d_previousSolutionVector = ic_vector->cloneVector("PreviousSolutionVector");
+      d_previousSolutionVector->allocateVectorData(0.0);
+
+      d_scratchVector = ic_vector->cloneVector("ScratchVector");
+      d_scratchVector->allocateVectorData(0.0);
+      
+      d_vectorsCloned = true;
+    }
 #ifdef DEBUG_CHECK_ASSERTIONS
   assert(!d_currentSolutionVector.isNull());
   assert(!d_previousSolutionVector.isNull());
   assert(!d_scratchVector.isNull());
 #endif
+
+  tbox::pout << "Middle: implicit resetHierarchyConfiguration" << std::endl;
+  if(d_newSolutionVector)
+    {
+      d_newSolutionVector->resetLevels(0, hierarchy->getNumberOfLevels()-1);
+    }
   
-  // Initialize them to have the same values as the initial condition vector
-  d_currentSolutionVector->copyVector(ic_vector);
-  d_previousSolutionVector->copyVector(ic_vector);
+  // reset the level fields in the vectors after regridding
+  d_currentSolutionVector->resetLevels(0, hierarchy->getNumberOfLevels()-1);
+  tbox::pout << "Middle: implicit resetHierarchyConfiguration" << std::endl;
+  d_previousSolutionVector->resetLevels(0, hierarchy->getNumberOfLevels()-1);
+  d_scratchVector->resetLevels(0, hierarchy->getNumberOfLevels()-1);
+  
+  // this sets the weight_id to be the volume of each cell in cells that do not lie
+  // under finer cells and to zero for cells that lie under finer cells. The weight id
+  // is important for SAMRAIVectors and is used in computing vector norms correctly
+  AMRUtilities::setVectorWeights(d_hierarchy, d_weight_id);
+  tbox::pout << "End: implicit resetHierarchyConfiguration" << std::endl;
   
 }
 
@@ -54,20 +150,82 @@ ImplicitPixie3dApplication::~ImplicitPixie3dApplication()
 {
 }
 
+/*
+*************************************************************************
+*                                                                       *
+* Intermediate call between the PETSc abstract inteface and SAMRAI.     *
+*                                                                       *
+*************************************************************************
+*/
+int ImplicitPixie3dApplication::evaluateNonlinearFunction(Vec xcur, Vec fcur)
+{
+  tbox::Pointer< solv::SAMRAIVectorReal<double> > x =
+    solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(xcur);
+  tbox::Pointer< solv::SAMRAIVectorReal<double> > f =
+    solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(fcur);
+  
+  return ( evaluateNonlinearFunction(x, f) );
+  
+}
+
+/*
+*************************************************************************
+*                                                                       *
+* Intermediate call between the PETSc abstract interface and SAMRAI.    *
+*                                                                       *
+*************************************************************************
+*/
+int
+ImplicitPixie3dApplication::applyPreconditioner(Vec r, Vec z)
+{
+#ifdef DEBUG_CHECK_ASSERTIONS
+   assert(r != NULL);
+   assert(z != NULL);
+#endif
+
+   tbox::Pointer< solv::SAMRAIVectorReal<double> > rhs  = solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(r);
+   tbox::Pointer< solv::SAMRAIVectorReal<double> > soln = solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(z);
+
+  this->applyPreconditioner(rhs, soln);
+
+   return 0;
+}
+
+/*
+*************************************************************************
+*                                                                       *
+* Intermediate call between the PETSc abstract interface and SAMRAI.    *
+*                                                                       *
+*************************************************************************
+*/
+int
+ImplicitPixie3dApplication::setupPreconditioner(Vec xcur)
+{
+  tbox::Pointer< solv::SAMRAIVectorReal<double> > soln = solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(xcur);  
+  
+  return(setupPreconditioner(soln));
+  
+}
+ 
 int
 ImplicitPixie3dApplication::evaluateNonlinearFunction(tbox::Pointer< solv::SAMRAIVectorReal<double> > x,
 						      tbox::Pointer< solv::SAMRAIVectorReal<double> > f)
 {
+  tbox::pout << "Begin: evaluateNonlinearFunction" << std::endl;
   tbox::Pointer< solv::SAMRAIVectorReal<double> > nullVector;
 
+  tbox::pout << "Begin: Calling f(u)" << std::endl;
   // compute f(u^{n+1})
   this->apply(nullVector, x, f, 1.0, 0.0);
+  tbox::pout << "End: Calling f(u)" << std::endl;
 
   if (d_first_step) 
     {
+      tbox::pout << "Begin: calculating BE residual" << std::endl;
       // if it's the first step use backward Euler instead of BDF2
       d_scratchVector->subtract(x, d_currentSolutionVector);
       f->axpy(-d_current_dt, f, d_scratchVector);
+      tbox::pout << "End: calculating BE residual" << std::endl;
     }
   else
     {
@@ -76,12 +234,16 @@ ImplicitPixie3dApplication::evaluateNonlinearFunction(tbox::Pointer< solv::SAMRA
       const double factor2 = pow(d_current_dt,2)/(d_old_dt*(2.0*d_current_dt+d_old_dt));
       const double factor3 = d_current_dt*(d_current_dt+d_old_dt)/(2.0*d_current_dt+d_old_dt);
       
+      tbox::pout << "Begin: calculating BDF2 residual" << std::endl;
       d_scratchVector->linearSum(-factor1, d_currentSolutionVector, factor2, d_previousSolutionVector);
       d_scratchVector->add(x, d_scratchVector);
 
       f->axpy(-factor3, f, d_scratchVector);
+      tbox::pout << "End: calculating BDF2 residual" << std::endl;
 
     }
+
+  tbox::pout << "End: evaluateNonlinearFunction" << std::endl;
 
   return 0;
 }
@@ -148,6 +310,7 @@ ImplicitPixie3dApplication::setupSolutionVector(tbox::Pointer< solv::SAMRAIVecto
       
     }
 
+  d_newSolutionVector->allocateVectorData(0.0);
 }
 
 double
@@ -193,7 +356,19 @@ ImplicitPixie3dApplication::setInitialGuess(const bool first_step,
 					    const double old_dt)
 {
   d_first_step = first_step;
-  abort();
+  
+  // the initial condition vector is assumed to have all the necessary information
+  // about components
+  tbox::Pointer< solv::SAMRAIVectorReal<double> > ic_vector = this->get_ic();
+  
+#ifdef DEBUG_CHECK_ASSERTIONS
+  assert(!ic_vector.isNull());
+#endif
+  
+  // Initialize them to have the same values as the initial condition vector
+  d_currentSolutionVector->copyVector(ic_vector);
+  d_previousSolutionVector->copyVector(ic_vector);
+  tbox::pout << "In the initial guess routine, not doing anything for now" << std::endl;
 }
   
 bool

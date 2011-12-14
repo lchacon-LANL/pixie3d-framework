@@ -18,6 +18,11 @@ class ImplicitPixie3dApplication:
 public: 
 
   /*!
+   * DEfault constructor
+   */
+  ImplicitPixie3dApplication();
+
+  /*!
    * Constructor that takes a parameter list.  Calls initialize.
    */
   ImplicitPixie3dApplication(ImplicitPixie3dApplicationParameters *parameters);
@@ -27,6 +32,45 @@ public:
    */
   ~ImplicitPixie3dApplication();  
   
+  /**
+   * Initialize application using specified parameters.
+   */
+  void initialize(ImplicitPixie3dApplicationParameters *parameters);
+  
+  /*
+   * Interface functions overloaded from solv::SNESAbstractFunctions.
+   */
+  int evaluateNonlinearFunction(Vec xcur, Vec fcur);
+  
+  /*
+   * Interface functions overloaded from solv::SNESAbstractFunctions.
+   */
+  int setupPreconditioner(Vec x);
+
+  /*
+   * Interface functions overloaded from solv::SNESAbstractFunctions.
+   */
+   int applyPreconditioner(Vec r, Vec z);
+  
+  /*
+   * Interface functions overloaded from solv::SNESAbstractFunctions.
+   */
+  int evaluateJacobian(Vec x)
+  {
+    (void) x;
+    return 0;
+  }
+  
+  /*
+   * Interface functions overloaded from solv::SNESAbstractFunctions.
+   */
+  int jacobianTimesVector(Vec v, Vec Jv)
+  {
+    (void) v;
+    (void) Jv;
+    return 0;
+  }
+
   /*!
    * User-supplied nonlinear function evaluation.  Returns 0 if successful.
    * Arguments:
@@ -143,6 +187,16 @@ public:
     */
    void putToDatabase(tbox::Pointer<tbox::Database> db);
 
+   /**
+    * Reset cached information that depends on the hierarchy configuration.  
+    *
+    * Function overloaded from mesh::StandardTagAndInitStrategy.
+    */
+   void resetHierarchyConfiguration(
+           const tbox::Pointer<hier::PatchHierarchy> hierarchy,
+           const int coarsest_level,
+           const int finest_level );
+
  private:
  
    /*
@@ -175,6 +229,12 @@ public:
     */
    bool d_first_step;
    bool d_first_regrid;
+
+   /**
+    * bool flag to ensure current, previous, and new vectors are only cloned once
+    */
+   bool d_vectorsCloned;
+   
    double d_current_time;
    double d_new_time;
 
