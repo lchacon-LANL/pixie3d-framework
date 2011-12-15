@@ -55,7 +55,7 @@ void
 ImplicitPixie3dApplication::initialize(ImplicitPixie3dApplicationParameters *parameters)
 {
 
-  tbox::pout << "Begin: Initializing implicit run" << std::endl;
+  //  tbox::pout << "Begin: Initializing implicit run" << std::endl;
   
   pixie3dApplication::initialize(parameters);
 
@@ -94,7 +94,7 @@ ImplicitPixie3dApplication::initialize(ImplicitPixie3dApplicationParameters *par
   // is important for SAMRAIVectors and is used in computing vector norms correctly
   AMRUtilities::setVectorWeights(d_hierarchy, d_weight_id);
 
-  tbox::pout << "End: Initializing implicit run" << std::endl;
+  //  tbox::pout << "End: Initializing implicit run" << std::endl;
 
 }
 
@@ -106,7 +106,7 @@ ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hie
   // Check if the application has been initialized
   if ( d_hierarchy.isNull() )
         return;
-  tbox::pout << "Begin: implicit resetHierarchyConfiguration" << std::endl;
+  //  tbox::pout << "Begin: implicit resetHierarchyConfiguration" << std::endl;
   // call the base class function
   pixie3dApplication::resetHierarchyConfiguration(hierarchy, coarsest_level, finest_level);
   
@@ -139,7 +139,7 @@ ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hie
   assert(!d_scratchVector.isNull());
 #endif
 
-  tbox::pout << "Middle: implicit resetHierarchyConfiguration" << std::endl;
+  //  tbox::pout << "Middle: implicit resetHierarchyConfiguration" << std::endl;
   if(d_newSolutionVector)
     {
       d_newSolutionVector->resetLevels(0, hierarchy->getNumberOfLevels()-1);
@@ -147,7 +147,7 @@ ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hie
   
   // reset the level fields in the vectors after regridding
   d_currentSolutionVector->resetLevels(0, hierarchy->getNumberOfLevels()-1);
-  tbox::pout << "Middle: implicit resetHierarchyConfiguration" << std::endl;
+  //  tbox::pout << "Middle: implicit resetHierarchyConfiguration" << std::endl;
   d_previousSolutionVector->resetLevels(0, hierarchy->getNumberOfLevels()-1);
   d_scratchVector->resetLevels(0, hierarchy->getNumberOfLevels()-1);
   
@@ -155,7 +155,7 @@ ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hie
   // under finer cells and to zero for cells that lie under finer cells. The weight id
   // is important for SAMRAIVectors and is used in computing vector norms correctly
   AMRUtilities::setVectorWeights(d_hierarchy, d_weight_id);
-  tbox::pout << "End: implicit resetHierarchyConfiguration" << std::endl;
+  //  tbox::pout << "End: implicit resetHierarchyConfiguration" << std::endl;
   
 }
 
@@ -224,21 +224,21 @@ int
 ImplicitPixie3dApplication::evaluateNonlinearFunction(tbox::Pointer< solv::SAMRAIVectorReal<double> > x,
 						      tbox::Pointer< solv::SAMRAIVectorReal<double> > f)
 {
-  tbox::pout << "Begin: evaluateNonlinearFunction" << std::endl;
+  //  tbox::pout << "Begin: evaluateNonlinearFunction" << std::endl;
   tbox::Pointer< solv::SAMRAIVectorReal<double> > nullVector;
 
-  tbox::pout << "Begin: Calling f(u)" << std::endl;
+  //  tbox::pout << "Begin: Calling f(u)" << std::endl;
   // compute f(u^{n+1})
   this->apply(nullVector, x, f, 1.0, 0.0);
-  tbox::pout << "End: Calling f(u)" << std::endl;
+  //  tbox::pout << "End: Calling f(u)" << std::endl;
 
   if (d_first_step) 
     {
-      tbox::pout << "Begin: calculating BE residual" << std::endl;
+      //      tbox::pout << "Begin: calculating BE residual" << std::endl;
       // if it's the first step use backward Euler instead of BDF2
       d_scratchVector->subtract(x, d_currentSolutionVector);
       f->axpy(-d_current_dt, f, d_scratchVector);
-      tbox::pout << "End: calculating BE residual" << std::endl;
+      //      tbox::pout << "End: calculating BE residual" << std::endl;
     }
   else
     {
@@ -247,20 +247,20 @@ ImplicitPixie3dApplication::evaluateNonlinearFunction(tbox::Pointer< solv::SAMRA
       const double factor2 = pow(d_current_dt,2)/(d_old_dt*(2.0*d_current_dt+d_old_dt));
       const double factor3 = d_current_dt*(d_current_dt+d_old_dt)/(2.0*d_current_dt+d_old_dt);
       
-      tbox::pout << "Begin: calculating BDF2 residual" << std::endl;
+      //      tbox::pout << "Begin: calculating BDF2 residual" << std::endl;
       d_scratchVector->linearSum(-factor1, d_currentSolutionVector, factor2, d_previousSolutionVector);
       d_scratchVector->add(x, d_scratchVector);
 
       f->axpy(-factor3, f, d_scratchVector);
-      tbox::pout << "End: calculating BDF2 residual" << std::endl;
+      //      tbox::pout << "End: calculating BDF2 residual" << std::endl;
 
     }
 
-  tbox::pout << "End: evaluateNonlinearFunction" << std::endl;
+  //  tbox::pout << "End: evaluateNonlinearFunction" << std::endl;
 
-  d_currentSolutionVector->print(tbox::pout);
-  x->print(tbox::pout);
-  f->print(tbox::pout);
+  //  d_currentSolutionVector->print(tbox::pout);
+  //  x->print(tbox::pout);
+  //  f->print(tbox::pout);
   
   return 0;
 }
@@ -355,6 +355,8 @@ ImplicitPixie3dApplication::getNextDt(const bool good_solution, const int solver
 
   if (good_solution) 
     {
+      // going to pick an arbitrary 50 times the explicit
+      d_current_dt = 25*dt_exp;
     }
   else
     {

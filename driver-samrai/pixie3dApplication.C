@@ -614,21 +614,14 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
                tbox::Pointer< solv::SAMRAIVectorReal<double> >  &r,
                double, double)
 {
-  tbox::pout << "Begin: f(u) in pixie2dApplication" << std::endl;
-  tbox::pout << "Begin: copy d_x->copy(x) in pixie3dApplication" << std::endl;
   // Copy x
   if(d_x.isNull())  TBOX_ERROR( "d_x is Null");
   if(x.isNull())  TBOX_ERROR( "x is Null");
 
     d_x->copyVector(x);
-  tbox::pout << "End: copy d_x->copy(x) in pixie3dApplication" << std::endl;
-
     // Coarsen and Refine x
-  
-  tbox::pout << "Begin: synchronizeVariables in pixie3dApplication" << std::endl;
     // Apply boundary conditions
     synchronizeVariables();
-  tbox::pout << "End: synchronizeVariables in pixie3dApplication" << std::endl;
   
     if(d_debug_print_info_level>5) {
         tbox::pout << "*****************************************" << std::endl; 
@@ -819,7 +812,7 @@ pixie3dApplication::generateTransferSchedules(void)
     tbox::Pointer< geom::CartesianGridGeometry > grid_geometry = d_hierarchy->getGridGeometry();
     tbox::Pointer< hier::RefineOperator > refine_op;
     if (d_refine_op_str=="CELL_DOUBLE_CUBIC_REFINE") {
-        TBOX_ERROR("Not Implimented");
+        TBOX_ERROR("Not Implemented");
        /*// Create the CartesianCellDoubleCubicRefine operator
        CartesianCellDoubleCubicRefine* temp = new CartesianCellDoubleCubicRefine();
        // manually set the refinement ratio and stencil width for the CartesianCellDoubleCubicRefine

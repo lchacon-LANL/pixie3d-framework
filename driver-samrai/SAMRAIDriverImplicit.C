@@ -49,6 +49,8 @@ int main( int argc, char *argv[] )
   SAMRAI::tbox::SAMRAI_MPI::init(&argc, &argv);
   SAMRAI::tbox::SAMRAIManager::initialize();
   SAMRAI::tbox::SAMRAIManager::startup();
+  const int maxPatchDataEntries = 2000;
+  SAMRAI::tbox::SAMRAIManager::setMaxNumberPatchDataEntries(maxPatchDataEntries);
   const SAMRAI::tbox::SAMRAI_MPI& mpi(SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld());
 
   int ierr = PetscInitialize(&argc, &argv, PETSC_NULL,PETSC_NULL);
@@ -75,6 +77,7 @@ int main( int argc, char *argv[] )
     // Create input database and parse all data in input file.
     SAMRAI::tbox::Pointer<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
     SAMRAI::tbox::InputManager::getManager()->parseInputFile(input_file, input_db);
+    
     SAMRAI::tbox::Pointer<SAMRAI::tbox::Database> main_db = input_db->getDatabase("Main");
     SAMRAI::tbox::Pointer<SAMRAI::tbox::Database>  tag_db = input_db->getDatabase("StandardTagAndInitialize");
     double dt_save;
@@ -346,7 +349,7 @@ int main( int argc, char *argv[] )
 		  {
 		    application->writeDebugData(debug_file,timestep,current_time,save_debug);
 		  }
-                visit_writer->writePlotData(hierarchy, timestep, current_time);
+                visit_writer->writePlotData(hierarchy, timestep+1, current_time);
 	      }
 
 	    dt = timeIntegrator->getNextDt(solnAcceptable, solver_retcode);
