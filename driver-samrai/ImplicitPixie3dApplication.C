@@ -58,7 +58,20 @@ ImplicitPixie3dApplication::initialize(ImplicitPixie3dApplicationParameters *par
   tbox::pout << "Begin: Initializing implicit run" << std::endl;
   
   pixie3dApplication::initialize(parameters);
-    
+
+  tbox::Pointer<tbox::Database> db = parameters->d_db;
+
+#ifdef DEBUG_CHECK_ASSERTIONS
+  assert(!db.isNull());
+#endif
+  
+  if (db->keyExists("initial_timestep")) {
+    d_initial_dt = db->getDouble("initial_timestep");
+  } else {
+    TBOX_ERROR(d_object_name << " -- Key data `initial_timestep'"
+	       << " missing in input.");
+  }
+  
   d_current_dt      = d_initial_dt;
   d_old_dt          = 0.0;
   
@@ -245,6 +258,10 @@ ImplicitPixie3dApplication::evaluateNonlinearFunction(tbox::Pointer< solv::SAMRA
 
   tbox::pout << "End: evaluateNonlinearFunction" << std::endl;
 
+  d_currentSolutionVector->print(tbox::pout);
+  x->print(tbox::pout);
+  f->print(tbox::pout);
+  
   return 0;
 }
 
@@ -364,10 +381,17 @@ ImplicitPixie3dApplication::setInitialGuess(const bool first_step,
 #ifdef DEBUG_CHECK_ASSERTIONS
   assert(!ic_vector.isNull());
 #endif
+
+  if(d_first_step)
+    {
+      // Initialize them to have the same values as the initial condition vector
+      d_currentSolutionVector->copyVector(ic_vector);
+      d_previousSolutionVector->copyVector(ic_vector);
+    }
+
+  // for now just copy over from the previous timestep
+  d_newSolutionVector->copyVector(d_currentSolutionVector);
   
-  // Initialize them to have the same values as the initial condition vector
-  d_currentSolutionVector->copyVector(ic_vector);
-  d_previousSolutionVector->copyVector(ic_vector);
   tbox::pout << "In the initial guess routine, not doing anything for now" << std::endl;
 }
   
