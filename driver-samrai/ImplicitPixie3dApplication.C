@@ -355,7 +355,7 @@ ImplicitPixie3dApplication::getNextDt(const bool good_solution, const int solver
 
   if (good_solution) 
     {
-      // going to pick an arbitrary 50 times the explicit
+      // going to pick an arbitrary factor times the explicit
       d_current_dt = 25*dt_exp;
     }
   else
