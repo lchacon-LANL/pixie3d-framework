@@ -189,16 +189,30 @@ c     Begin program
         endif
 
         if (bcond(3) == PER) then
-          jming = 1
-          jmaxg = ny+1
+cc          jming = 1   !This is when PER domains start at angle 0
+cc          jmaxg = ny+1
+          if (ny == 1) then
+            jming = 1
+            jmaxg = ny+1
+          else
+            jming = 0
+            jmaxg = ny
+          endif
         else
           jming = 0
           jmaxg = ny+1
         endif
 
         if (bcond(5) == PER) then
-          kming = 1
-          kmaxg = nz+1
+cc          kming = 1   !This is when PER domains start at angle 0
+cc          kmaxg = nz+1
+          if (nz == 1) then
+            kming = 1
+            kmaxg = nz+1
+          else
+            kming = 0
+            kmaxg = nz
+          endif
         else
           kming = 0
           kmaxg = nz+1
