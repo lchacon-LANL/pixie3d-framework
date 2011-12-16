@@ -40,10 +40,10 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer    ::  neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
-      real(8)    ::  x(ntot),b(ntot)
+      integer :: neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
+      real(8) :: x(ntot),b(ntot)
 
-      external       matvec
+      external    matvec
 
 c Local variables
 

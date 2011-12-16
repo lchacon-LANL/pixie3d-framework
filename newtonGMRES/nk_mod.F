@@ -1402,7 +1402,7 @@ c       Calculate difference parameter
         modx  = dot(nn,nk_conf%xk,nk_conf%xk)
         xdotz = dot(nn,z         ,nk_conf%xk)
 
-        if (modx == 0d0) then
+        if (modx < roundoff) then
           pert = nk_conf%mf_eps/sqrt(modz)
         else
           pert = nk_conf%mf_eps*sqrt(modx)/sqrt(modz)

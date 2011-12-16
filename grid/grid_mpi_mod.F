@@ -4,6 +4,8 @@ c ######################################################################
 
         use grid_def
 
+        use xdraw_io, ONLY: contour
+
         implicit none
 
         INTERFACE find_global

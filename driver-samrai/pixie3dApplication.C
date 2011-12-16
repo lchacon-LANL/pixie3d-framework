@@ -54,7 +54,7 @@
 //#include "BoundaryConditionStrategy.h"
 //#include "RefineOperator.h"
 
-//#include "AMRUtilities.h"
+#include "source/AMRUtilities.h"
 //#include "test_utilities.h"
 
 //#include "RefinementBoundaryInterpolation.h"
@@ -74,7 +74,6 @@ extern "C"{
 #include <assert.h>
 
 }
-
 
 
 /************************************************************************
@@ -127,6 +126,9 @@ pixie3dApplication::pixie3dApplication():
         siblingSchedule[i] = NULL;
     }
     dt_exp = 1.0;
+    d_weight_id = -1;
+
+    d_vectorsCloned = false;
 }
 
 
@@ -149,6 +151,10 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
         siblingSchedule[i] = NULL;
     }
     dt_exp = 1.0;
+    d_weight_id = -1;
+
+    d_vectorsCloned = false;
+
     initialize( parameters );
 }
 
@@ -316,14 +322,12 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     hier::IntVector ghost2 = hier::IntVector(dim,GHOST);
    
     var = new pdat::CellVariable<double>(dim, "weight", 1);
-    const int weight_id = var_db->registerVariableAndContext(var, context_xt, ghost0);
+    d_weight_id = var_db->registerVariableAndContext(var, context_xt, ghost0);
 
     for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
-        level->allocatePatchData(weight_id);
+        level->allocatePatchData(d_weight_id);
     }
-
-    //AMRUtilities::setVectorWeights(d_hierarchy, weight_id);
 
     // Allocate data for u, u_0, u_ic
     if ( IS2D == 1 )
@@ -342,16 +346,16 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
        stream.str("");
        var = new pdat::CellVariable<double>( dim, var_name, 1 );
        var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
-       d_x->addComponent( var, var_id, weight_id );
+       d_x->addComponent( var, var_id, d_weight_id );
        
        var_id = var_db->registerVariableAndContext(var, context_xt, ghost2);
-       d_x_tmp->addComponent( var, var_id, weight_id );
+       d_x_tmp->addComponent( var, var_id, d_weight_id );
        var_id = var_db->registerVariableAndContext(var, context_in, ghost1);
-       d_initial->addComponent( var, var_id, weight_id );
+       d_initial->addComponent( var, var_id, d_weight_id );
        var_id = var_db->registerVariableAndContext(var, context_ic, ghost0);
-       d_x_ic->addComponent( var, var_id, weight_id );
+       d_x_ic->addComponent( var, var_id, d_weight_id );
        var_id = var_db->registerVariableAndContext(var, context_xr, ghost1);
-       d_x_r->addComponent( var, var_id, weight_id );
+       d_x_r->addComponent( var, var_id, d_weight_id );
     }
     // allocate data for all variables on all levels
     d_x->allocateVectorData();
@@ -376,9 +380,9 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         stream.str("");
         var = new pdat::CellVariable<double>( dim, var_name, 1 );
         var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
-        d_aux_scalar->addComponent( var, var_id, weight_id );
+        d_aux_scalar->addComponent( var, var_id, d_weight_id );
         var_id = var_db->registerVariableAndContext(var, context_xt, ghost2);
-        d_aux_scalar_tmp->addComponent( var, var_id, weight_id );
+        d_aux_scalar_tmp->addComponent( var, var_id, d_weight_id );
     }
     for (int i=0; i<input_data->nauxv; i++) {
         stream << "auxv(" << i << ")"; 
@@ -386,9 +390,9 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         stream.str("");
         var = new pdat::CellVariable<double>( dim, var_name, dim.getValue() );
         var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
-        d_aux_vector->addComponent( var, var_id, weight_id );
+        d_aux_vector->addComponent( var, var_id, d_weight_id );
         var_id = var_db->registerVariableAndContext(var, context_xt, ghost2);
-        d_aux_vector_tmp->addComponent( var, var_id, weight_id );
+        d_aux_vector_tmp->addComponent( var, var_id, d_weight_id );
     }
     d_aux_scalar->allocateVectorData();
     d_aux_vector->allocateVectorData();
@@ -459,10 +463,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     }
    
     // Reset the Hierarchy Configuration (this will create the level container and initialize the communication schedules)
-    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
-        const tbox::Pointer<hier::PatchHierarchy> hierarchy = d_hierarchy;
-        resetHierarchyConfiguration(hierarchy,0,d_hierarchy->getFinestLevelNumber());
-    }
+    resetHierarchyConfiguration(d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
 
     // Copy the data from u0 to u and set the boundary conditions (needed to set the auxillary variable names)
     d_x->copyVector(d_initial,false);
@@ -613,12 +614,12 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
                tbox::Pointer< solv::SAMRAIVectorReal<double> >  &r,
                double, double)
 {
+  // Copy x
+  if(d_x.isNull())  TBOX_ERROR( "d_x is Null");
+  if(x.isNull())  TBOX_ERROR( "x is Null");
 
-    // Copy x
     d_x->copyVector(x);
-
     // Coarsen and Refine x
-  
     // Apply boundary conditions
     synchronizeVariables();
   
@@ -811,7 +812,7 @@ pixie3dApplication::generateTransferSchedules(void)
     tbox::Pointer< geom::CartesianGridGeometry > grid_geometry = d_hierarchy->getGridGeometry();
     tbox::Pointer< hier::RefineOperator > refine_op;
     if (d_refine_op_str=="CELL_DOUBLE_CUBIC_REFINE") {
-        TBOX_ERROR("Not Implimented");
+        TBOX_ERROR("Not Implemented");
        /*// Create the CartesianCellDoubleCubicRefine operator
        CartesianCellDoubleCubicRefine* temp = new CartesianCellDoubleCubicRefine();
        // manually set the refinement ratio and stencil width for the CartesianCellDoubleCubicRefine
@@ -1117,14 +1118,14 @@ void pixie3dApplication::resetHierarchyConfiguration(
     d_aux_vector_tmp->resetLevels(0,N_levels-1);
 
     // Reset the level container
-    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+    for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         if ( level_container_array[ln] != NULL ) {
             LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
             delete level_container;
             level_container_array[ln] = NULL;
         }
     }
-    for ( int ln=0; ln<N_levels; ln++ ) {
+    for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
         // Create the level container
         level_container_array[ln] = new LevelContainer(d_hierarchy,level,
@@ -1132,7 +1133,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
     }
 
     // Reset the communication schedules
-    for (int i=0; i<MAX_LEVELS; i++) {
+    for (int i=coarsest_level; i<=finest_level; i++) {
         if ( refineSchedule[i] != NULL ) {
             for (int j=0; j<d_NumberOfBoundarySequenceGroups; j++)
                 refineSchedule[i][j].setNull();
@@ -1151,7 +1152,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
     d_NumberOfBoundarySequenceGroups = 0;
     // Get an arbitrary patch to give us the number of boundary sequency groups
     void *pixiePatchData = NULL;
-    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+    for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
         for (hier::PatchLevel::Iterator p(level); p; p++) {
@@ -1185,7 +1186,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
     tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     //tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelBorderFillPattern());
     tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelFullFillPattern());     // This may reduce performance
-    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+    for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
         refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_NumberOfBoundarySequenceGroups];
         siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_NumberOfBoundarySequenceGroups];
@@ -1241,7 +1242,8 @@ void pixie3dApplication::resetHierarchyConfiguration(
         }
     }
     // Create the coarsenSchedule
-    for ( int ln=0; ln<d_hierarchy->getFinestLevelNumber(); ln++ ) {
+    for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
+        if (ln==0) continue;
         xfer::CoarsenAlgorithm coarsenAlgorithm(d_hierarchy->getDim());
         for (int i=0; i<input_data->nvar; i++) {
             var0 = d_x->getComponentVariable(i);
@@ -1258,9 +1260,9 @@ void pixie3dApplication::resetHierarchyConfiguration(
             coarsenAlgorithm.registerCoarsen( auxv_id[i], auxv_id[i],
                 grid_geometry->lookupCoarsenOperator(var0,d_coarsen_op_str) );
         }
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);    
-        tbox::Pointer<hier::PatchLevel> flevel = d_hierarchy->getPatchLevel(ln+1);    
-        coarsenSchedule[ln] = coarsenAlgorithm.createSchedule(level,flevel);
+        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln-1);    
+        tbox::Pointer<hier::PatchLevel> flevel = d_hierarchy->getPatchLevel(ln);    
+        coarsenSchedule[ln-1] = coarsenAlgorithm.createSchedule(level,flevel);
     }
 
 }
