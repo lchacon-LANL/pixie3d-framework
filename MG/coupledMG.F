@@ -26,7 +26,7 @@ c######################################################################
 
         integer, parameter :: BOX=1,STAR=2
 
-        logical :: vbr_mg,galerkin=.false.,volf,prnt=.true.
+        logical :: vbr_mg,galerkin=.false.,prnt=.true.,volf=.false.
 
       contains
 
@@ -1705,6 +1705,8 @@ c     Local variables
 
 c     Begin program
 
+      volf = vol_wgt  !Initialize volume-weighing variable
+
 c     Process optional arguments
 
         if (PRESENT(dg)) ddg = dg
@@ -1943,6 +1945,7 @@ c       Check whether GMRES is driving solve
 
           solverOptions%stp_test = 1 
           solverOptions%krylov_subspace = solverOptions%iter 
+
           if (gm_drvr) then
             solverOptions%singular_matrix = gm_smat
             call assembleSolverHierarchy('gm')
@@ -1966,7 +1969,6 @@ c       MG solver options
         solverOptions%orderres = iorder_res
         solverOptions%orderprol= iorder_prol
         solverOptions%mg_mu    = mu_cyc
-        solverOptions%vol_res  = vol_wgt
         solverOptions%mg_galerkin = glkin
 
         if (PRESENT(mg_debug)) solverOptions%mg_debug = mg_debug
@@ -2189,7 +2191,7 @@ c Assign options
       orderres        = options%orderres
       orderprol       = options%orderprol
       fdiag           = options%fdiag
-      volf            = options%vol_res
+cc      volf            = options%vol_res
       crsedpth        = options%mg_coarse_solver_depth
       mu              = options%mg_mu
       vbr_mg          = options%mg_vertex_relax
@@ -2677,7 +2679,7 @@ c     Begin program
 
           !Call solver
           call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcnd
-     .                    ,guess2,outc,depth1)
+     .                  ,guess2,outc,depth1)
         else
           call linesmooth(igr)
         endif
@@ -3028,7 +3030,7 @@ c       Else smooth 1D problem (for MG line smoother)
           depth1 = depth + 1
 
           call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcnd
-     .         ,guess2,outc,depth1)
+     .                  ,guess2,outc,depth1)
 
         endif
 
@@ -3410,7 +3412,7 @@ c     Configure recursive plane/line JB solve
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
-        options%vol_res                     = volf        
+cc        options%vol_res                     = volf        
 
         options%mg_coarse_solver_depth      = line_crse_depth
         options%mg_line_relax               = .false.
@@ -3878,7 +3880,7 @@ c     Configure recursive plane/line MG solve
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
-        options%vol_res                     = volf        
+cc        options%vol_res                     = volf        
         options%mg_line_relax               = .false.
         options%mg_coarse_solver_depth      = crsedpth 
         options%mg_vertex_relax             = vbr_mg
