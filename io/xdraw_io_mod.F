@@ -178,7 +178,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: nqty,iopt,nunit!,igroup
+        integer :: nqty,iopt,nunit!,igroup
 
         type (graph_var_def),dimension(nqty) :: array_graph
 
@@ -186,9 +186,9 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: nsblk,nusblk
-        integer    :: i,j,k,igr,plt(3)
-        logical    :: cut(3),M2
+        integer :: nsblk,nusblk
+        integer :: i,j,k,igr,plt(3)
+        logical :: cut(3),M2
 
 c     Begin program
 
@@ -351,11 +351,11 @@ c     ################################################################
 
 c     Call variables
 
-        integer    :: imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
+        integer :: imng,imxg,jmng,jmxg,kmng,kmxg,i1,i2
 
 c     Local variables
 
-        integer    :: ii
+        integer :: ii
 
         real(8),pointer,dimension(:,:,:,:) :: lcar
 
@@ -409,6 +409,20 @@ c     Local variables
 
 c     Begin program
 
+cc        select case(iplane)
+cc        case(1)
+cc          i1 = 2
+cc          i2 = 3
+cc        case(2)
+cc          i1 = 1
+cc          i2 = 3
+cc        case(3)
+cc          i1 = 1
+cc          i2 = 2
+cc        end select
+cc
+cc        return
+
         ii = 2 !This needs to be "2" because car starts at 1; BROKEN logic; needs fixing
 
         if (iplane == 1) then   
@@ -440,23 +454,38 @@ c     Begin program
         i1 = 0
         i2 = 0
 
-        if (max_x-min_x<1d-14) then
+cc        if (max_x-min_x<1d-14) then
+cc          i1 = 2
+cc          i2 = 3
+cc        endif
+cc
+cc        if (max_y-min_y<1d-14) then
+cc          i1 = 1
+cc          i2 = 3
+cc        endif
+cc
+cc        if (max_z-min_z<1d-14) then
+cc          i1 = 1
+cc          i2 = 2
+cc        endif
+        if (max_x-min_x<max_y-min_y .and.max_x-min_x<max_z-min_z) then
           i1 = 2
           i2 = 3
         endif
 
-        if (max_y-min_y<1d-14) then
+        if (max_y-min_y<max_x-min_x .and.max_y-min_y<max_z-min_z) then
           i1 = 1
           i2 = 3
         endif
 
-        if (max_z-min_z<1d-14) then
+        if (max_z-min_z<max_x-min_x .and.max_z-min_z<max_y-min_y) then
           i1 = 1
           i2 = 2
         endif
 
         if (i1 == 0 .or. i2 == 0) then
           write(*,*) 'Could not find cartesian plane in find_cart_plane'
+          write(*,*) 'Plane=',iplane
           write(*,*) 'Min X, Max X=',min_x,max_x
           write(*,*) 'Min Y, Max Y=',min_y,max_y
           write(*,*) 'Min Z, Max Z=',min_z,max_z
