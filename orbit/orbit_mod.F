@@ -55,6 +55,7 @@ c ######################################################################
         type,private :: splines
           integer :: order  !Order of splines
           integer :: a_gauge!Gauge for vector potential (1,2)
+          logical :: input_is_A !Whether input is vector potential instead of magnetic field
         end type splines
 
         type,private :: orbit_def
@@ -449,6 +450,10 @@ c     Begin program
           orb_default%spline_conf%a_gauge = gauge
         endif
 
+        if (PRESENT(B_input_is_A)) then
+          orb_default%spline_conf%input_is_A = B_input_is_A
+        endif
+
         if (PRESENT(r_min)) then
           rmin = r_min
         else
@@ -478,9 +483,10 @@ c     Do splines
      .                   ,orb_default%spline_conf%order
      .                   ,xmin,xmax,ymin,ymax,zmin,zmax,obcnd)
 
-        if (ode_conf%solen) then
-          call splineA(bx,by,bz,orb_default%spline_conf%a_gauge
-     .                ,input_is_A=B_input_is_A)
+        if (    ode_conf%solen
+     .      .or.orb_default%spline_conf%input_is_A) then
+          call splineA(bx,by,bz,  orb_default%spline_conf%a_gauge
+     .                ,input_is_A=orb_default%spline_conf%input_is_A)
         else
           call splineB(bx,by,bz)
         endif
@@ -819,6 +825,8 @@ c     Local Variables
       integer :: iter,order,niter
       logical :: restart,nt,fwd,lsode_3eq,lsode_to_smax
 
+      character(5) :: solver
+
       save dt
 
       optional :: lsode_f
@@ -877,20 +885,27 @@ c     Time integration
 
         call vp_solver(atol,rtol,x,y,z,ierror)
 
+        solver = 'VP'
+
       else                                  !LSODE (non-solenoidal)
+
+        sln = orb_default%spline_conf%input_is_A !Whether input is A
 
         if (lsode_3eq) then
           call lsode_step_3eq(atol,rtol,x,y,z,ierror)
         else
           call lsode_step    (atol,rtol,x,y,z,ierror)
         endif
+
+        solver = 'LSODE'
+
       endif
 
 c     Output
 
       if (iiout > 0) then
         write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,3es12.3,a,l3)')
-     .         ' Time=',time
+     .         solver//'; Time=',time
      .        ,' ;  dt=',dt
      .        ,' ;  Arc length=',ss
      .        ,' ;  ds=',ds
@@ -1387,6 +1402,8 @@ c     updt_measures
 c     #########################################################################
       subroutine updt_measures(x,y,z,dt,ierr)
 
+      implicit none
+
       integer :: ierr
       real(8),intent(IN) :: x,y,z,dt
 
@@ -1399,6 +1416,7 @@ c     #########################################################################
       call evalBcar(x,y,z,vx,vy,vz,ierr)
 
       ds = dt*sqrt(vx**2+vy**2+vz**2)
+
       ss = ss + ds
 
       end subroutine updt_measures
@@ -1456,7 +1474,7 @@ cc      endif
 
       tol = atol + rtol*sqrt(sum(res**2))
 
-      !Iterations for first v1 half-step split
+      !Iterations for half-step split
       do iter=1,niter
 
          !Find update
@@ -1732,9 +1750,6 @@ c     Begin program
         x1 = xold ; y1 = yold ; z1 = zold
         call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,LSODE_IERR)
         if (LSODE_IERR /= 0) return
-cc        if (ierror /= 0) then
-cc          call pstop('lsode_orbit_f','Could not find logical coords')
-cc        endif
       else
         x1 = y(1)
         y1 = y(2)
@@ -1744,9 +1759,6 @@ cc        endif
       !Get vector field (Cartesian if sing_point is .true.)
       call getB(x1,y1,z1,vx,vy,vz,sln,sing_point,LSODE_IERR)
       if (LSODE_IERR /= 0) return
-cc      if (ierror /= 0) then
-cc        call pstop('lsode_orbit_f','Error reading B')
-cc      endif
 
       ydot(1) = vx
       ydot(2) = vy
@@ -1756,17 +1768,9 @@ cc      endif
       if (.not.sing_point) then
         ydot(4) = evalJ(x1,y1,z1,LSODE_IERR)
         if (LSODE_IERR /= 0) return
-cc        if (ierror /= 0) then
-cc          write (*,*) 'Negative Jacobian in lsode_orbit_f'
-cc          stop
-cc        endif
 
         call evalBcar(x1,y1,z1,vx,vy,vz,LSODE_IERR)
         if (LSODE_IERR /= 0) return
-cc        if (ierror /= 0) then
-cc          write (*,*) 'Problems reading Bcar'
-cc          stop
-cc        endif
 
         bnorm = vx**2+vy**2+vz**2
         if (.not.bwgt) bnorm = sqrt(bnorm)
