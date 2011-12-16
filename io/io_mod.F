@@ -13,9 +13,9 @@ c ########################################################################
 
       contains 
 
-c     runtime_cmds
+c     command_files
 c     ##################################################################
-      subroutine runtime_cmds(narg,command)
+      subroutine command_files(narg,command)
 
 c     -----------------------------------------------------------------
 c     Gets files from command input.
@@ -38,7 +38,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine runtime_cmds
+      end subroutine command_files
 
 c     shellcmd
 c     ####################################################################
@@ -256,7 +256,6 @@ c     -----------------------------------------------------------------
       implicit none
 
 c     Call variables
-
       integer,pointer,dimension(:) :: munit
 
 c     Local variables
