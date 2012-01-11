@@ -35,6 +35,7 @@ ifeq ($(HOST),lap0086227)
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include
+    LIBS += -L/packages/acml-4-4-0/gfortran64/lib -llapack -lblas -lgfortran
 endif
 
 ###############################

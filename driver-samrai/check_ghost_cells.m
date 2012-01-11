@@ -1,7 +1,7 @@
 % This is a MATLAB program that will check if all of the ghost cells in a 
 % simulation match any other cells on the same level
 
-file = '/projects/pixie3d-v3/bin/debugFile4';
+file = '/projects/pixie3d-v3/bin/debugFile.ic';
 data = loadDebugData(file);
 
 error = zeros(length(data),data(1).N_vars);

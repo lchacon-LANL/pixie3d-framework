@@ -44,8 +44,8 @@
 #include "SAMRAI/geom/CartesianCellDoubleWeightedAverage.h"
 #include "SAMRAI/hier/CoarsenOperator.h"
 #include "SAMRAI/hier/NeighborhoodSet.h"
-#include "SAMRAI/hier/MappedBox.h"
-#include "SAMRAI/hier/MappedBoxSet.h"
+#include "SAMRAI/hier/Box.h"
+#include "SAMRAI/hier/BoxContainer.h"
 #include "SAMRAI/xfer/PatchLevelFillPattern.h"
 #include "SAMRAI/xfer/PatchLevelBorderFillPattern.h"
 #include "SAMRAI/xfer/PatchLevelFullFillPattern.h"
@@ -114,7 +114,7 @@ namespace SAMRAI{
 *                                                                      *
 ***********************************************************************/
 pixie3dApplication::pixie3dApplication():
-    dim(0)
+    dim(3)
 {
     d_hierarchy = NULL;
     for (int i=0; i<MAX_LEVELS; i++)
@@ -240,8 +240,6 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         assert( parameters != (pixie3dApplicationParameters*) NULL );
     #endif
     d_hierarchy = parameters->d_hierarchy;
-    if ( dim.getValue()==0 )
-        dim.setValue(d_hierarchy->getDim().getValue());
     if ( dim!=d_hierarchy->getDim() )
         TBOX_ERROR("Error in dimension");
     if ( dim.getValue() != 3 )
@@ -283,10 +281,10 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     tbox::Pointer<hier::GridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::hier::BoxList &physicalDomainList = grid_geometry->getPhysicalDomain(0);
-    if ( physicalDomainList.size() != 1 )
-        TBOX_ERROR("Multiple box domains are not supported");
-    const SAMRAI::hier::Box physicalDomain = physicalDomainList.getBoundingBox();
+    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    if ( domain_array.size() != 1 ) 
+        TBOX_ERROR("Only 1 domain box is supported");
+    const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
     int nbox[3];
     for (int i=0; i<dim.getValue(); i++)
         nbox[i] = physicalDomain.numberCells(i);
@@ -406,11 +404,10 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     // Allocate data for f_src
     d_f_src = new pdat::CellVariable<double>( dim, "fsrc", input_data->nvar );
     f_src_id = var_db ->registerVariableAndContext(d_f_src, context_f, ghost0);
-
     for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
         level->allocatePatchData(f_src_id);
-    }
+    }   
    
     // Create patch variables
     for (int i=0; i<input_data->nvar; i++)
@@ -768,9 +765,21 @@ void  pixie3dApplication::refineVariables(void)
             }
             // Fill the ghost cells and apply the boundary conditions
             (d_refine_strategy)->setRefineStrategySequence(d_BoundarySequenceGroups[iSeq]);
+            double t1 = MPI_Wtime();
             refineSchedule[ln][iSeq]->fillData(0.0);
+            double t2 = MPI_Wtime();
+            // Fill the interior patches
+            for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
+                tbox::Pointer<hier::Patch> patch = *ip;
+                bool touches_boundary = (d_refine_strategy)->checkPhysicalBoundary(*patch);
+                if ( !touches_boundary )
+                    (d_refine_strategy)->applyBC(patch);
+            }
             // Fill corners and edges
             siblingSchedule[ln][iSeq]->fillData(0.0);
+            double t3 = MPI_Wtime();
+            //printf("ln = %i, N_patches = %i, N_var = %i\n",ln,level->getLocalNumberOfPatches(),d_BoundarySequenceGroups[iSeq].nbc_seq);
+            //printf("[%i][%i]: %f, %f\n",ln,iSeq,t2-t1,t3-t2);
         }
     }
 
@@ -904,10 +913,10 @@ void pixie3dApplication::writeGlobalCellData( FILE *fp, int var_id ) {
     tbox::Pointer<hier::GridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::hier::BoxList &physicalDomainList = grid_geometry->getPhysicalDomain(0);
-    if ( physicalDomainList.size() != 1 )
-        TBOX_ERROR("Multiple box domains are not supported");
-    const SAMRAI::hier::Box physicalDomain = physicalDomainList.getBoundingBox();
+    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    if ( domain_array.size() != 1 ) 
+        TBOX_ERROR("Only 1 domain box is supported");
+    const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
     const hier::Index lower = physicalDomain.lower();
     const hier::Index upper = physicalDomain.upper();
     int Ngx = upper(0)-lower(0)+1;
@@ -963,10 +972,10 @@ void pixie3dApplication::writeDebugData( FILE *fp, const int it, const double ti
     tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::hier::BoxList &physicalDomainList = grid_geometry->getPhysicalDomain(0);
-    if ( physicalDomainList.size() != 1 )
-        TBOX_ERROR("Multiple box domains are not supported");
-    const SAMRAI::hier::Box physicalDomain = physicalDomainList.getBoundingBox();
+    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    if ( domain_array.size() != 1 ) 
+        TBOX_ERROR("Only 1 domain box is supported");
+    const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
     const hier::Index ilower = physicalDomain.lower();
     const hier::Index iupper = physicalDomain.upper();
     int nbox[3];
@@ -1042,19 +1051,18 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     tbox::Pointer<hier::PatchLevel> level = hierarchy->getPatchLevel(level_number);
 
     // Check the new level for overlapping boxes
-    const hier::MappedBoxLevel box_level = level->getGlobalizedMappedBoxLevel();
-    const hier::MappedBoxSet box_set = box_level.getMappedBoxes();
+    const hier::BoxLevel box_level = level->getGlobalizedBoxLevel();
+    const hier::BoxContainer box_set = box_level.getBoxes();
     hier::PersistentOverlapConnectors persistentOverlap = box_level.getPersistentOverlapConnectors();
     hier::IntVector zero(level->getDim(),0);
-    SAMRAI::hier::Connector connector = persistentOverlap.createConnector(box_level,zero);
-    hier::NeighborhoodSet neighborhood = connector.getNeighborhoodSets();
-    for (std::map<hier::MappedBoxId,hier::MappedBoxSet>::iterator it=neighborhood.begin(); it!=neighborhood.end(); it++) {
-        hier::BoxList neighbors;
-        it->second.convertToBoxList(neighbors);
+    hier::Connector connector = persistentOverlap.createConnector(box_level,zero);
+    for (hier::PatchLevel::Iterator p(level); p; p++) {
+        tbox::Pointer<SAMRAI::hier::Patch> patch = *p;
+        hier::BoxContainer neighbors;
+        connector.getNeighborBoxes( patch->getBox().getId(), neighbors );
         if ( neighbors.size() != 1 )
             TBOX_ERROR("Overlapping boxes were detected on new level, and are not supported");
     }
-
     // Allocate data when called for, otherwise set timestamp on allocated data.
     hier::ComponentSelector d_problem_data(false);
     if ( !old_level.isNull() ) {

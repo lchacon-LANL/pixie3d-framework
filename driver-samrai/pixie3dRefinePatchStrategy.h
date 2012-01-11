@@ -99,6 +99,9 @@ public:
     // Function to set the boundary condition group that we are processing
     void setRefineStrategySequence( const bcgrp_struct bc_grp ) { d_bc_grp = bc_grp; }
 
+    // Function to apply boundary conditions to a patch
+    void applyBC( tbox::Pointer<hier::Patch> patch );
+
 
 private:
    

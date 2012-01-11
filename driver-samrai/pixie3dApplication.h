@@ -146,7 +146,7 @@ public:
 
    /*
     * Write the primary and auxillary variables to a binary file.
-    * type = 1:  Write each patch with ghost cells for all levels in double precision
+    * type = 1:  Write each patch with ghost cells for all levels using 14 digits of precision
     * type = 2:  Write the coarse level without ghost cells as a single patch in double precision
     */
    void writeDebugData( FILE *fp, const int it, const double time, int type=1 );

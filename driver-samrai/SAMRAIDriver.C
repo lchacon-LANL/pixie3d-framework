@@ -66,7 +66,7 @@ int main( int argc, char *argv[] )
     int rank = mpi.getRank();
 
     // Process command line arguments and dump to log file.
-    SAMRAI::SAMRBuilder::processCommandLine(argc, argv, input_file, log_file);
+    SAMRUtils::SAMRBuilder::processCommandLine(argc, argv, input_file, log_file);
 
     // Create the log file
     SAMRAI::tbox::PIO::logOnlyNodeZero(log_file);
@@ -102,7 +102,7 @@ int main( int argc, char *argv[] )
     // Create the patch hierarchy
     SAMRAI::tbox::Pointer<SAMRAI::mesh::StandardTagAndInitStrategy> object = application;
     SAMRAI::tbox::Pointer<SAMRAI::mesh::GriddingAlgorithm> gridding_algorithm;
-    SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRAI::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
+    SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRUtils::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
     TBOX_ASSERT(dim==hierarchy->getDim());
 
     // Check that the initial hierarchy has at least one patch per processor
@@ -208,7 +208,6 @@ int main( int argc, char *argv[] )
         
         tbox::pout << "Estimating next time step : " << dt << std::endl;
     }
-
     if ( debug_file != NULL )
         fclose(debug_file);
 
