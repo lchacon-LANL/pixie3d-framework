@@ -60,8 +60,6 @@ int main( int argc, char *argv[] )
 
     std::string input_file;
     std::string log_file;
-    int plot_interval=0;
-    std::string write_path;
    
     int rank = mpi.getRank();
 
@@ -76,24 +74,32 @@ int main( int argc, char *argv[] )
     SAMRAI::tbox::InputManager::getManager()->parseInputFile(input_file, input_db);
     SAMRAI::tbox::Pointer<SAMRAI::tbox::Database> main_db = input_db->getDatabase("Main");
     SAMRAI::tbox::Pointer<SAMRAI::tbox::Database>  tag_db = input_db->getDatabase("StandardTagAndInitialize");
-    double dt_save;
-    if ( main_db->keyExists("output_path") ) {
-        write_path = main_db->getString("output_path");
-    } else {
-        write_path = "output";
+
+    // Get the output parameters
+    bool use_visit = main_db->getBool("use_visit");
+    double dt_save = 1e100;             // Default maximum time between saves
+    int plot_interval = 0x7FFFFFFF;     // Default maximum number of iterators between saves
+    tbox::Array<double> save_times;     // Default times to force a save
+    std::string write_path = "output";  // Default path to save the data
+    long int max_saves = 10000;         // Default maximum number of saves
+    if ( use_visit ) {
+        if ( main_db->keyExists("output_path") )
+            write_path = main_db->getString("output_path");
+        if ( main_db->keyExists("plot_interval") )
+            plot_interval = main_db->getInteger("plot_interval");
+        if ( main_db->keyExists("save_times") )
+            save_times = main_db->getDoubleArray("save_times");
+        if ( main_db->keyExists("dt_save") )
+            dt_save = main_db->getDouble("dt_save");
+        if ( main_db->keyExists("max_saves") )
+            max_saves = (long int) main_db->getDouble("max_saves");
     }
-    if ( main_db->keyExists("dt_save") )
-        dt_save = main_db->getDouble("dt_save");
-    else
-        dt_save = 1.0;
     int save_debug = 0;
     if ( main_db->keyExists("save_debug") ) 
         save_debug = main_db->getInteger("save_debug");
-    std::string debug_name;
+    std::string debug_name = "debugFile";
     if ( main_db->keyExists("debug_name") )
         debug_name = main_db->getString("debug_name");
-    else
-        debug_name = "debugFile";
 
     // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
     const SAMRAI::tbox::Dimension dim(3);
@@ -159,14 +165,9 @@ int main( int argc, char *argv[] )
     tbox::Pointer< solv::SAMRAIVectorReal<double> > x_t;
     x_t = timeIntegrator->getCurrentSolution();
 
-    tbox::Pointer<tbox::Database> plot_db = input_db->getDatabase("Plotting");
-
-    if (plot_db->keyExists("plot_interval")) {
-        plot_interval = plot_db->getInteger("plot_interval");
-    }
-
     // Write the data
-    visit_writer->writePlotData(hierarchy,0,0);
+    if ( use_visit )
+        visit_writer->writePlotData(hierarchy,0,0);
     FILE *debug_file = NULL;
     if ( save_debug>0 ) {
         if ( rank==0 )
@@ -177,12 +178,13 @@ int main( int argc, char *argv[] )
     // Loop through time
     bool first_step = true;
     double dt = 1.0;
-
     double current_time = 0.0;
     double final_time = timeIntegrator->getFinalTime();
-   
-    int iteration_num = 0;
-    while (current_time < final_time) {
+    long int iteration_num = 0;
+    double last_save_time = current_time;
+    long int last_save_it = iteration_num;
+    int it_save_time = 0;
+    while ( current_time < final_time ) {
         iteration_num++;
         current_time = timeIntegrator->getCurrentTime();
         timeIntegrator->advanceSolution(dt, first_step);
@@ -194,10 +196,25 @@ int main( int argc, char *argv[] )
             current_time = timeIntegrator->getCurrentTime();
             tbox::pout << "Advanced solution to time : " << current_time << std::endl;
 
-            if ( (plot_interval > 0) && ((iteration_num % plot_interval) == 0) )  {
-                if ( save_debug>0 )
-                    application->writeDebugData(debug_file,iteration_num,current_time,save_debug);
-                visit_writer->writePlotData(hierarchy, iteration_num, current_time);
+            if ( use_visit ) {
+                bool save_now = false;
+                if ( iteration_num-last_save_it >= plot_interval )
+                    save_now = true;
+                if ( current_time-last_save_time >= dt_save )
+                    save_now = true;
+                if ( save_times.size() > it_save_time ) {
+                    if ( current_time >= save_times[it_save_time] ) {
+                        save_now = true;
+                        it_save_time++;
+                    }
+                }
+                if ( save_now ) {
+                    visit_writer->writePlotData(hierarchy, iteration_num, current_time);
+                    if ( save_debug>0 )
+                        application->writeDebugData(debug_file,iteration_num,current_time,save_debug);
+                    last_save_it = iteration_num;
+                    last_save_time = current_time;
+                }
             }
         } else {
             tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
