@@ -1,0 +1,15 @@
+# Filter std functions
+std::string::*;std::char_traits*;std::basic_string* -- 0
+std::_Rb_tree* -- 0
+
+# Filter out common SAMRAI routines
+SAMRAI::tbox::Pointer<*>::operator*;SAMRAI::tbox::Pointer<*>::Pointer(*);SAMRAI::tbox::Pointer<*>::~Pointer() -- 0
+SAMRAI::tbox::Dimension::getValue* -- 0
+SAMRAI::tbox::ListNode* -- 0
+SAMRAI::pdat::CopyOperation<*>::* -- 0
+SAMRAI::tbox::ListIterator<*>::operator* -- 0
+
+# Filter all remaining functions
+* -- 10000
+
+

@@ -177,15 +177,14 @@ int main( int argc, char *argv[] )
 
     // Loop through time
     bool first_step = true;
-    double dt = 1.0;
     double current_time = 0.0;
+    double dt = 1.0;
     double final_time = timeIntegrator->getFinalTime();
-    long int iteration_num = 0;
+    long int timestep = 0;
     double last_save_time = current_time;
-    long int last_save_it = iteration_num;
+    long int last_save_it = timestep;
     int it_save_time = 0;
     while ( current_time < final_time ) {
-        iteration_num++;
         current_time = timeIntegrator->getCurrentTime();
         timeIntegrator->advanceSolution(dt, first_step);
         bool solnAcceptable = timeIntegrator->checkNewSolution();
@@ -195,35 +194,38 @@ int main( int argc, char *argv[] )
             timeIntegrator->updateSolution();
             current_time = timeIntegrator->getCurrentTime();
             tbox::pout << "Advanced solution to time : " << current_time << std::endl;
+            timestep++;
 
-            if ( use_visit ) {
-                bool save_now = false;
-                if ( iteration_num-last_save_it >= plot_interval )
+            // Determine if we want to save the data
+            bool save_now = false;
+            if ( timestep-last_save_it >= plot_interval )
+                save_now = true;
+            if ( timestep-last_save_time >= dt_save )
+                save_now = true;
+            if ( save_times.size() > it_save_time ) {
+                if ( current_time >= save_times[it_save_time] ) {
                     save_now = true;
-                if ( current_time-last_save_time >= dt_save )
-                    save_now = true;
-                if ( save_times.size() > it_save_time ) {
-                    if ( current_time >= save_times[it_save_time] ) {
-                        save_now = true;
-                        it_save_time++;
-                    }
-                }
-                if ( save_now ) {
-                    visit_writer->writePlotData(hierarchy, iteration_num, current_time);
-                    if ( save_debug>0 )
-                        application->writeDebugData(debug_file,iteration_num,current_time,save_debug);
-                    last_save_it = iteration_num;
-                    last_save_time = current_time;
+                    it_save_time++;
                 }
             }
+            if ( save_now ) {
+                if ( use_visit )
+                    visit_writer->writePlotData(hierarchy, timestep, current_time);
+                if ( save_debug>0 )
+                    application->writeDebugData(debug_file,timestep,current_time,save_debug);
+                last_save_it = timestep;
+                last_save_time = current_time;
+            }
+
+            //dt = timeIntegrator->getNextDt(solnAcceptable);
+            dt = application->getExpdT();
+        
+            tbox::pout << "Estimating next time step : " << dt << std::endl;
         } else {
             tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
+			TBOX_ERROR("Error advancing solution");
         }
 
-        //dt = timeIntegrator->getNextDt(solnAcceptable);
-        dt = application->getExpdT();
-        
-        tbox::pout << "Estimating next time step : " << dt << std::endl;
     }
     if ( debug_file != NULL )
         fclose(debug_file);
@@ -236,7 +238,7 @@ int main( int argc, char *argv[] )
     // Delete the application
     application.setNull();
     delete application_parameters;
-
+    
   } // End code block
   tbox::pout << "Finializing PETSc, MPI and SAMRAI" << std::endl;
 
