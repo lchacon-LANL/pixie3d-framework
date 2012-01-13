@@ -37,6 +37,7 @@
 #include "pixie3dRefinePatchStrategy.h"
 #include "varrayContainer.h"
 #include "fortran.h"
+#include "ProfilerApp.h"
 
 // SAMRAI headers
 #include "SAMRAI/geom/CartesianGridGeometry.h"
@@ -757,29 +758,32 @@ void  pixie3dApplication::refineVariables(void)
         for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
             // initialize the aux variable on all patches on the level before interpolating
             // coarse values up and sync-ing periodic/sibling boundaries
+            PROFILE_START("Call initializeauxvar");
             for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
                 pixiePatchData = level_container->getPtr(*ip);
                 assert(pixiePatchData!=NULL);
                 int iSeq2 = iSeq+1;     // The Fortran code starts indexing at 1
                 FORTRAN_NAME(initializeauxvar)(pixiePatchData, &iSeq2);
             }
+            PROFILE_STOP("Call initializeauxvar");
             // Fill the ghost cells and apply the boundary conditions
+            PROFILE_START("Refine");
             (d_refine_strategy)->setRefineStrategySequence(d_BoundarySequenceGroups[iSeq]);
-            double t1 = MPI_Wtime();
             refineSchedule[ln][iSeq]->fillData(0.0);
-            double t2 = MPI_Wtime();
+            PROFILE_STOP("Refine");
             // Fill the interior patches
+            PROFILE_START("Call applybc");
             for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
                 tbox::Pointer<hier::Patch> patch = *ip;
                 bool touches_boundary = (d_refine_strategy)->checkPhysicalBoundary(*patch);
                 if ( !touches_boundary )
                     (d_refine_strategy)->applyBC(patch);
             }
+            PROFILE_STOP("Call applybc");
             // Fill corners and edges
+            PROFILE_START("siblingSchedule");
             siblingSchedule[ln][iSeq]->fillData(0.0);
-            double t3 = MPI_Wtime();
-            //printf("ln = %i, N_patches = %i, N_var = %i\n",ln,level->getLocalNumberOfPatches(),d_BoundarySequenceGroups[iSeq].nbc_seq);
-            //printf("[%i][%i]: %f, %f\n",ln,iSeq,t2-t1,t3-t2);
+            PROFILE_STOP("siblingSchedule");
         }
     }
 

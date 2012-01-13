@@ -32,6 +32,7 @@
 // Local headers
 #include "pixie3dApplication.h"
 #include "pixie3dApplicationParameters.h"
+#include "ProfilerApp.h"
 
 extern "C"{
 #include "assert.h"
@@ -58,6 +59,8 @@ int main( int argc, char *argv[] )
   // created, it forces the destruction before the manager is shutdown.
   {
 
+    PROFILE_START("MAIN");
+    std::string timer_results = "pixie3d.samrai";
     std::string input_file;
     std::string log_file;
    
@@ -186,7 +189,9 @@ int main( int argc, char *argv[] )
     int it_save_time = 0;
     while ( current_time < final_time ) {
         current_time = timeIntegrator->getCurrentTime();
+        PROFILE_START("advanceSolution");
         timeIntegrator->advanceSolution(dt, first_step);
+        PROFILE_STOP("advanceSolution");
         bool solnAcceptable = timeIntegrator->checkNewSolution();
 
         if(solnAcceptable) {
@@ -200,7 +205,7 @@ int main( int argc, char *argv[] )
             bool save_now = false;
             if ( timestep-last_save_it >= plot_interval )
                 save_now = true;
-            if ( timestep-last_save_time >= dt_save )
+            if ( current_time-last_save_time >= dt_save )
                 save_now = true;
             if ( save_times.size() > it_save_time ) {
                 if ( current_time >= save_times[it_save_time] ) {
@@ -213,6 +218,7 @@ int main( int argc, char *argv[] )
                     visit_writer->writePlotData(hierarchy, timestep, current_time);
                 if ( save_debug>0 )
                     application->writeDebugData(debug_file,timestep,current_time,save_debug);
+                PROFILE_SAVE(timer_results);
                 last_save_it = timestep;
                 last_save_time = current_time;
             }
@@ -238,6 +244,8 @@ int main( int argc, char *argv[] )
     // Delete the application
     application.setNull();
     delete application_parameters;
+    PROFILE_STOP("MAIN");
+    PROFILE_SAVE(timer_results);
     
   } // End code block
   tbox::pout << "Finializing PETSc, MPI and SAMRAI" << std::endl;

@@ -19,6 +19,7 @@
 
 #include "LevelContainer.h"
 #include "PatchContainer.h"
+#include "ProfilerApp.h"
 
 extern "C"{
 #include <assert.h>
@@ -29,8 +30,10 @@ extern "C"{
 extern "C" {
 #ifdef absoft
   extern void FORTRAN_NAME(APPLYBC) (void*, int*, int*);
+  extern void FORTRAN_NAME(POSTPROC)(void*, int*, int*);
 #else
   extern void FORTRAN_NAME(applybc) (void*, int*, int*);
+  extern void FORTRAN_NAME(postproc)(void*, int*, int*);
 #endif
 }
 namespace SAMRAI{
@@ -296,7 +299,6 @@ void pixie3dRefinePatchStrategy::copy_data_patch( hier::Patch& patch, int src_id
 ***********************************************************************/
 void pixie3dRefinePatchStrategy::applyBC( tbox::Pointer<hier::Patch> patch )
 {
-    //double t1 = MPI_Wtime();
 
     // Some basic error checking
     assert(d_nvar>=0);
@@ -339,13 +341,20 @@ void pixie3dRefinePatchStrategy::applyBC( tbox::Pointer<hier::Patch> patch )
         bc_seq[i+d_bc_grp.nbc_seq] = d_bc_grp.vector[i];
         bc_seq[i+2*d_bc_grp.nbc_seq] = d_bc_grp.fillBC[i];
     }
-    //double t2 = MPI_Wtime();
+    PROFILE_START("Call applybc");
     #ifdef absoft
         FORTRAN_NAME(APPLYBC)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
     #else
         FORTRAN_NAME(applybc)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
     #endif
-    //double t3 = MPI_Wtime();
+    PROFILE_STOP("Call applybc");
+    PROFILE_START("Call postproc");
+    #ifdef absoft
+        FORTRAN_NAME(POSTPROC)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
+    #else
+        FORTRAN_NAME(postproc)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
+    #endif
+    PROFILE_STOP("Call postproc");
     delete [] bc_seq;
 
     // Delete the temporary pixie patch (if used)
@@ -365,9 +374,6 @@ void pixie3dRefinePatchStrategy::applyBC( tbox::Pointer<hier::Patch> patch )
         for (int i=0; i<d_nauxv; i++)
             copy_data_patch(*patch,auxv_id[i],auxv_tmp_id[i]);
     }
-
-    //double t4 = MPI_Wtime();
-    //printf("   call applyBC: %i, %f, %f\n",patch->getPatchLevelNumber(),t4-t1,t3-t2);
     
 }
 

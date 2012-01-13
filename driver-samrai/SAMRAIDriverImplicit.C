@@ -320,7 +320,7 @@ int main( int argc, char *argv[] )
             bool save_now = false;
             if ( timestep-last_save_it >= plot_interval )
                 save_now = true;
-            if ( timestep-last_save_time >= dt_save )
+            if ( current_time-last_save_time >= dt_save )
                 save_now = true;
             if ( save_times.size() > it_save_time ) {
                 if ( current_time >= save_times[it_save_time] ) {
