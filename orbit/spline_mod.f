@@ -13,6 +13,11 @@ c #####################################################################
 
         integer :: istep=0
 
+        !Error codes
+        integer, parameter :: ORB_OK=0,ORB_ADJ_DT=-1,ORB_CAR_ST=-2
+     .                       ,ORB_SML_DT=1,ORB_OUT_DOM=2,ORB_NEG_J=4
+     .                       ,ORB_SP_ERR=6,ORB_MAP_INV=5
+
         !Private variables
         integer,private :: nx,ny,nz,ag,sbcnd(6)
 
@@ -105,13 +110,13 @@ c     Begin program
         per_bc = .true.
       endif
 
-      ierror = 0
+      ierror = ORB_OK
 
       if (x > xsmax) then
         if (sbcnd(2) == PER) then   !Periodic BC
           if (per_bc) x = xsmin + mod(x-xsmin,(xsmax-xsmin))
         else
-          ierror = 2
+          ierror = ORB_OUT_DOM
         endif
       endif
 
@@ -124,7 +129,7 @@ c     Begin program
         if (sbcnd(1) == PER) then   !Periodic BC
           if (per_bc) x = xsmax - mod(xsmin-x,xsmax-xsmin)
         else
-          ierror = 2
+          ierror = ORB_OUT_DOM
         endif
       endif
 
@@ -132,7 +137,7 @@ c     Begin program
         if (sbcnd(4) == PER) then   !Periodic BC
           if (per_bc) y = ysmin + mod(y-ysmin,(ysmax-ysmin))
         else
-          ierror = 2
+          ierror = ORB_OUT_DOM
         endif
       endif
 
@@ -140,7 +145,7 @@ c     Begin program
         if (sbcnd(3) == PER) then   !Periodic BC
           if (per_bc) y = ysmax - mod(ysmin-y,ysmax-ysmin)
         else
-          ierror = 2
+          ierror = ORB_OUT_DOM
         endif
       endif
 
@@ -148,7 +153,7 @@ c     Begin program
         if (sbcnd(6) == PER) then   !Periodic BC
           if (per_bc) z = zsmin + mod(z-zsmin,(zsmax-zsmin))
         else
-          ierror = 2
+          ierror = ORB_OUT_DOM
         endif
       endif
 
@@ -156,7 +161,7 @@ c     Begin program
         if (sbcnd(5) == PER) then   !Periodic BC
           if (per_bc) z = zsmax - mod(zsmin-z,zsmax-zsmin)
         else
-          ierror = 2
+          ierror = ORB_OUT_DOM
         endif
       endif
 
@@ -920,7 +925,7 @@ c     Begin program
 
       call chk_pos(x1,x2,x3,ierr=ierr)
 
-      if (ierr /= 0) return
+      if (ierr /= ORB_OK) return
 
       select case(ag)
       case(1)
@@ -998,7 +1003,7 @@ c     Calculate derivatives
 
       call chk_pos(x1,x2,x3,ierr=ierr)
 
-      if (ierr /= 0) return
+      if (ierr /= ORB_OK) return
 
       select case(ag)
       case(1) !Ax=0
@@ -1114,7 +1119,7 @@ c     Begin program
 
       call chk_pos(x1,x2,x3,ierr=ierr)
 
-      if (ierr /= 0) return
+      if (ierr /= ORB_OK) return
 
       bx = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .           ,kx,ky,kz,bcoef(:,:,:,1),work)
@@ -1146,7 +1151,7 @@ c     Begin program
 
       call chk_pos(x1,x2,x3,ierr=ierr)
 
-      if (ierr /= 0) return
+      if (ierr /= ORB_OK) return
 
       bx = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .            ,kx,ky,kz,bcarcoef(:,:,:,1),work)
@@ -1261,6 +1266,8 @@ c     Begin program
 
       call chk_pos(x1,x2,x3,ierr=ierr)
 
+      if (ierr /= ORB_OK) return
+
       x = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,1),work)
 
@@ -1320,7 +1327,7 @@ c     Begin program
         write (*,*) 'evalXi -- xi=',x1,x2,x3
       endif
 
-      ierror = 0
+      ierror = ORB_OK
 
       do iter=1,maxit
 
@@ -1329,7 +1336,7 @@ c     Begin program
         !Form residual and check convergence
         res(:,1) = formResidual(x1,x2,x3,ierror)
 
-        if (ierror /= 0) return
+        if (ierror /= ORB_OK) exit
 
         if (prnt) write (*,*) 'evalXi -- res=',res
 
@@ -1359,24 +1366,23 @@ c     Begin program
         !Singular point BC
         call chk_pos(x1,x2,x3,ierr=ierror,no_per_bc=.true.)
 
+        if (ierror /= ORB_OK) exit
+
         if (prnt) write (*,*) 'evalXi -- xi=',x1,x2,x3
 
       enddo
 
-      if (iter > maxit .or. ilevel == 1) then
-        if (iter > maxit) ierror = 1
-        if (my_rank == 0) then
-          write (*,*)
-          write (*,*) 'evalXi -- x =',x,y,z
-          write (*,*) 'evalXi -- xi=',x1,x2,x3
-          write (*,*) 'evalXi -- domain=',xsmin,xsmax
-     .                                   ,ysmin,ysmax
-     .                                   ,zsmin,zsmax
-          write (*,*) 'evalXi -- Convergence history: '
-     .                ,error(1:min(iter,maxit))
-        endif
-      else
-        ierror = 0
+      if (iter > maxit) ierror = ORB_MAP_INV
+
+      if (ilevel == 1 .or. iter > maxit) then
+        write (*,*)
+        write (*,*) 'evalXi -- x =',x,y,z
+        write (*,*) 'evalXi -- xi=',x1,x2,x3
+        write (*,*) 'evalXi -- domain=',xsmin,xsmax
+     .                                 ,ysmin,ysmax
+     .                                 ,zsmin,zsmax
+        write (*,*) 'evalXi -- Convergence history: '
+     .              ,error(1:min(iter,maxit))
       endif
 
       contains
@@ -1398,7 +1404,7 @@ c     ###################################################################
 
       call chk_pos(x11,x22,x33,ierr=ierr)
 
-      if (ierr /= 0) return
+      if (ierr /= ORB_OK) return
 
       res(1) = x - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,lxcoef(:,:,:,1),work)
@@ -1580,12 +1586,12 @@ c     Begin program
 
       call chk_pos(x1,x2,x3,ierr=ierror)
 
-      if (ierror /= 0) return
+      if (ierror /= ORB_OK) return
 
       jac = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .            ,kx,ky,kz,jcoef,work)
 
-      if (jac < 0d0) ierror = 4 !Negative Jacobian
+      if (jac < 0d0) ierror = ORB_NEG_J !Negative Jacobian
 
       end function evalJ
 
@@ -1654,7 +1660,7 @@ c     Begin program
 
       call chk_pos(x1,x2,x3,ierr=ierror)
 
-      if (ierror /= 0) return
+      if (ierror /= ORB_OK) return
 
       ff = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .           ,kx,ky,kz,lfcoef,work)

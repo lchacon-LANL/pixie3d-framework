@@ -14,7 +14,10 @@ SUBDIRS = $(COMMONDIR)/math\
           $(COMMONDIR)/io\
           $(COMMONDIR)/grid\
           $(COMMONDIR)/interpolation/1d_int\
+	  $(COMMONDIR)/var_setup\
+	  $(COMMONDIR)/driver_setup
 
 #Define dependencies
 
 orbit_mod.o: spline_mod.o
+par_int_mod.o: orbit_mod.o
