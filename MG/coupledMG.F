@@ -1705,7 +1705,7 @@ c     Local variables
 
 c     Begin program
 
-      volf = vol_wgt  !Initialize volume-weighing variable
+        volf = vol_wgt          !Initialize volume-weighing variable
 
 c     Process optional arguments
 
