@@ -6,6 +6,8 @@
 
         use grid
 
+	use grid_mpi
+
         use orbit
 
         integer :: upixie=12345,ierr
@@ -61,7 +63,7 @@ c     Begin program
 
         write (*,*)
         write (*,*) '*****************************************'
-        write (*,*) 'Opening file ',trim(file),'...'
+        write (*,*) 'Opening file ',trim(file),'...(read_file)'
         write (*,*) '*****************************************'
         write (*,*)
 
@@ -294,9 +296,9 @@ c     Begin program
         endif
 
         write (*,*)
-        write (*,*) '*****************************************'
-        write (*,*) 'Opening file ',trim(poincfile),'...'
-        write (*,*) '*****************************************'
+        write (*,*) '***********************************************'
+        write (*,*) 'Opening file ',trim(poincfile),'...(read files)'
+        write (*,*) '***********************************************'
         write (*,*)
 
         open(unit=upixie,file=trim(poincfile),status='unknown'
@@ -459,12 +461,15 @@ c     Setup files
 
 c     Read setup info
 
-        write (*,*)
-        write (*,*) '*****************************************'
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) '*****************************************'
+        endif
 
         do ifl=1,nfiles
 
-          write (*,*) 'Opening file ',trim(mpixie(ifl)),'...'
+          write (*,'(a,i4,3a)') ' Proc ',my_rank,' opening file '
+     .                ,trim(mpixie(ifl)),'...(async)'
 
           open(mupixie(ifl),file=trim(mpixie(ifl))
      $        ,form='unformatted',status='old')
@@ -473,8 +478,13 @@ c     Read setup info
 
         enddo
 
-        write (*,*) '*****************************************'
-        write (*,*)
+#if defined(use_mpi)
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
+        if (my_rank == 0) then
+          write (*,*) '*****************************************'
+          write (*,*)
+        endif
 
 cc        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
 cc          do ifl=1,nfiles

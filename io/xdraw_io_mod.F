@@ -1,4 +1,4 @@
-c module xdraw_io
+
 c ######################################################################
       module xdraw_io
 
@@ -497,6 +497,147 @@ cc        endif
 
       end subroutine M_contour
 
+ccc     createDrawInGfile
+ccc     ################################################################
+cc      subroutine createDrawInGfile(nvar,ntot,binfile,graphlabel
+cc     .                       ,ivar_name,dvar,dvar_name,ivar,logplot
+cc     .                       ,drawfile,connect,spline,title)
+cc
+ccc     ----------------------------------------------------------------
+ccc     Creates the G-type (x-y curves) draw.in file for xdraw graphics.
+ccc     On call sequence:
+ccc       * nvar       : number of variables in consideration for plotting
+ccc       * ntot       : total number of variables
+ccc       * binfile    : name of binary file to be read (string)
+ccc       * graphlabel : character array of arbitrary length specifying
+ccc                      graph title
+ccc       * ivar_name  : name of independent variable (string)
+ccc       * dvar       : integer array of size (nvar) identifying the 
+ccc                      dependent variables
+ccc       * dvar_name  : character array containing dependent variables
+ccc                      descriptions.
+ccc       * ivar       : integer array specifying independent variables 
+ccc                      for all the dependent variables.
+ccc                      These include any of the dependent
+ccc                      variable indeces plus 0 (indicating the true
+ccc                      independent variable).
+ccc       * logplot    : integer array specifying which (in)dependent
+ccc                      variables will be plotted in log scale.
+ccc       * drawfile   : character variable specifying the name of the
+ccc                      draw.in file.
+ccc       * connect    : logical variable that specifies whether 
+ccc                      xdraw should connect points or not.
+ccc       * spline     : logical variable that specifies whether 
+ccc                      xdraw should do spline interpolations or not.
+ccc       * title (optional): character array containing title of
+ccc                      xdraw windows (if not present, dvar_name is used)
+ccc     ----------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer,intent(in) :: nvar,ntot,ivar(ntot),dvar(nvar)
+cc     .                       ,logplot(0:ntot)
+cc        character(*),intent(in) :: binfile,drawfile,graphlabel,ivar_name
+cc        character(*),intent(in) :: dvar_name(ntot)
+cc        logical      :: spline,connect
+cc        character(*),optional :: title(ntot)
+cc
+ccc     Local variables
+cc
+cc        integer      :: i,j,gfile,lngt
+cc        character(50):: label,dscr(ntot)
+cc        character(2) :: options
+cc        character(6) :: str
+cc        logical      :: flag
+cc
+ccc     Begin program
+cc
+cc        if (nvar > ntot) then
+cc          write (*,*) 'Error in createDrawInGfile'
+cc          write (*,*) 'More plotting variables than available'
+cc          write (*,*) 'Aborting...'
+cc          stop
+cc        endif
+cc
+cc        gfile = 111
+cc
+cc        open (unit=gfile,file=drawfile,status='unknown')
+cc
+cc        write (gfile,'(1a,/)') 
+cc     .     'Type (G=Graph, C=Contour, M=TS contour):      G'
+cc        write (gfile,'(a)') 'filename(s)'
+cc        write (gfile,'(a,/)') trim(binfile)
+cc
+cc        write (gfile,'(2a,/)') 'graph title: ',trim(graphlabel)
+cc        write (gfile,'(a)') 'variable names'
+cc        write (gfile,'(2a)') ' 0       ',trim(ivar_name)
+cc
+cc        do i=1,size(dvar_name)
+cc          lngt = len(trim(dvar_name(i)))
+cc          if (lngt == 0) cycle
+cc          write (gfile,'(i2,2a)') i  ,'       ',trim(dvar_name(i))
+cc        enddo
+cc        write (gfile,'(/,a)') 'ix       iy        window title'
+cc
+cc        options = ''
+cc        if (spline) options = trim(options) // '&'
+cc        if (.not.connect) options = trim(options) // '.'
+cc
+cc        if (PRESENT(title)) then
+cc          dscr = title
+cc        else
+cc          dscr = dvar_name
+cc        endif
+cc
+cc        if (logplot(0) == 1) then
+cc          str = 'L     '
+cc        else
+cc          str = '      '
+cc        endif
+cc
+cc        do i=1,size(dscr)
+cc          lngt = len(trim(dscr(i)))
+cc          if (lngt == 0) exit
+cc          flag = .false.
+cc          do j = 1,nvar
+cc            if (dvar(j).eq.i) then
+cc              flag = .true.
+cc              exit
+cc            endif
+cc          enddo
+cc          if (flag) then
+cc            if(logplot(i) == 1) then
+cc              write (gfile,'(i2,a,i2,2a)')  ivar(i),str
+cc     .                                ,i,'L'//trim(options)//'   '
+cc     .                                ,trim(dscr(i))
+cc            else
+cc              write (gfile,'(i2,a,i2,2a)')  ivar(i),str
+cc     .                                ,i,trim(options)//'      '
+cc     .                                ,trim(dscr(i))
+cc            endif
+cc          else
+cc            if(logplot(i) == 1) then
+cc              write (gfile,'(a,i2,a,i2,2a)') ';',ivar(i),str
+cc     .                                ,i,'L'//trim(options)//'   '
+cc     .                                ,trim(dscr(i))
+cc            else
+cc              write (gfile,'(a,i2,a,i2,2a)') ';',ivar(i),str
+cc     .                                ,i,trim(options)//'      '
+cc     .                                ,trim(dscr(i))
+cc            endif
+cc          endif
+cc        enddo
+cc
+cc        write (gfile,*)
+cc
+cc        close (gfile)
+cc
+ccc     End program
+cc
+cc      end subroutine createDrawInGfile
+
 c     createDrawInGfile
 c     ################################################################
       subroutine createDrawInGfile(nvar,ntot,binfile,graphlabel
@@ -539,17 +680,18 @@ c     Call variables
 
         integer,intent(in) :: nvar,ntot,ivar(ntot),dvar(nvar)
      .                       ,logplot(0:ntot)
-        character(*),intent(in) :: binfile,drawfile,graphlabel,ivar_name
+        character(*),intent(in) :: binfile(:)
+     .                            ,drawfile,graphlabel,ivar_name
         character(*),intent(in) :: dvar_name(ntot)
         logical      :: spline,connect
         character(*),optional :: title(ntot)
 
 c     Local variables
 
-        integer      :: i,j,gfile,lngt
+        integer      :: i,j,gfile,lngt,nttt
         character(50):: label,dscr(ntot)
         character(2) :: options
-        character(6) :: str
+        character(6) :: str,ev,nnttt
         logical      :: flag
 
 c     Begin program
@@ -568,7 +710,12 @@ c     Begin program
         write (gfile,'(1a,/)') 
      .     'Type (G=Graph, C=Contour, M=TS contour):      G'
         write (gfile,'(a)') 'filename(s)'
-        write (gfile,'(a,/)') trim(binfile)
+
+        do i=1,size(binfile)
+	 write(gfile,'(a)') trim(binfile(i))
+	enddo
+
+        write (gfile,'(/)') 
 
         write (gfile,'(2a,/)') 'graph title: ',trim(graphlabel)
         write (gfile,'(a)') 'variable names'

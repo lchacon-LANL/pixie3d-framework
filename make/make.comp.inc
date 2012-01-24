@@ -93,17 +93,18 @@ ifeq ($(FC),vtf77)
   FFLAGS      += #$(STATIC)
 endif
 
-
 # Flags for Portland Group f90
 ifeq ($(FC),pgf95)
   OPTIMIZATION = -fastsse -Mipa=fast
-  DEBUG        = -g -Mbounds -Mchkptr -Ktrap=fp
+#  DEBUG        = -g -Mbounds -Mchkptr -Ktrap=fp
+  DEBUG        = -g -Mbounds -Mchkptr -Ktrap=divz -traceback
   PROFILE      = -pg
   STATIC       = 
   MODFLAG      = -module 
   ADDMODFLAG   = -module 
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)pgf90
+  FOPENMP      = -mp
 endif
 
 #Assemble compiler options
@@ -124,4 +125,7 @@ FFLAGS += $(STATIC)
 endif
 ifneq (,$(findstring v,$(OPT)))
 FFLAGS += $(VERBOSE)
+endif
+ifneq (,$(findstring om,$(OPT)))
+FFLAGS += $(FOPENMP)
 endif

@@ -98,7 +98,7 @@ c       Profiles (selects same profiles as contour plots except vector plots)
           prof_label = 'Profiles '//graph(igroup)%descr
 
           call createDrawInGfile
-     .          (nplots,ngraph,profilefile(igroup),prof_label
+     .          (nplots,ngraph,profilefile(igroup:igroup),prof_label
      .          ,trim(prof_conf%label),abs(sel_gr(igroup,:))
      .          ,prof_desc(igroup,:),prof_ivar(igroup,:)
      .          ,prof_log(igroup,:),drawprof(igroup)

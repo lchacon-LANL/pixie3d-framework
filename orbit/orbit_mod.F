@@ -7,7 +7,15 @@ c ######################################################################
 
         use spline_field
 
-        use grid, ONLY: my_rank,pstop,messg
+        use grid, ONLY: np,my_rank,pstop,messg
+
+        use file_io
+
+#if defined(use_mpi)
+        use mpi
+        integer :: mpierr
+!$OMP THREADPRIVATE(mpierr)
+#endif
 
         !Diagnostics
         integer,private :: nunitd(4)
@@ -20,19 +28,10 @@ c ######################################################################
         real(8),private,allocatable,dimension(:,:) :: fpos,qdif
 
         !Integrator public variables
-        real(8) :: xold,yold,zold,lsode_out(10)
-        logical :: sing_point=.false.,sln,exit_loop,orb_init
+        logical :: sln
+!$OMP THREADPRIVATE(sln)
 
         integer :: iiout
-
-        !LSODE private variables
-        INTEGER,private :: LIW, LRW, NEQ, LSODE_IERR=ORB_OK
-        PARAMETER  (NEQ=20,LIW = 20,LRW = LIW + 16*NEQ)
-
-        INTEGER,private :: IOPT,IOUT,ISTATE=0,ITASK,ITOL
-     .                    ,IWORK(LIW),MF,NEQD(1)
-        REAL(8),private :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW)
-     .                    ,T,TOUT,YY(NEQ)
 
         !ORBIT private variables
         type,private :: ode_solver
@@ -66,24 +65,54 @@ c ######################################################################
         type(orbit_def),private  :: orb_default
         type(ode_solver),private :: ode_conf
 
-        integer,private :: itime,iterror,ssorder,obcnd(6)
+        integer,private :: ssorder,obcnd(6)!,iterror,itime
 
-        integer,private :: nunitx,nunity,nunitz,nunitrz
-        integer,private :: npointx,npointy,npointz
-
-        real(8),private :: tvold,told,time,tmax
-     .                    ,svold,sold,ss  ,smax
-        real(8),private :: x,y,z,xcar,ycar,zcar,xss0,yss0,zss0
-     .                    ,xvold,yvold,zvold,x00,y00,z00
-        real(8),private :: xss,yss,zss,tss,rmin
+        real(8),private :: tmax,smax
+!$OMP THREADPRIVATE(tmax,smax)
+        real(8),private :: xss0,yss0,zss0
+        real(8),private :: rmin
 
         real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax
 
-        character(50),private :: ssx,ssy,ssz,ssrz
-
-        logical,private :: cartesian=.false.,cross=.false.
-     .                    ,cartesian_flag=.false.
         logical,private :: lssx,lssy,lssz,rzss,ss_io=.false.
+
+	!Global variables >>> THREADPRIVATE
+        integer, dimension(:), allocatable :: nunitx,nunity,
+     .                                        nunitz,nunitrz
+!!!!$OMP THREADPRIVATE(nunitx,nunity,nunitz,nunitrz)
+	real(8) :: xold,yold,zold,lsode_out(10)
+!$OMP THREADPRIVATE(xold,yold,zold,lsode_out)
+        logical :: sing_point=.false.,exit_loop,orb_init
+!$OMP THREADPRIVATE(sing_point,exit_loop,orb_init)
+	integer,private :: LSODE_IERR=ORB_OK
+!$OMP THREADPRIVATE(LSODE_IERR)
+        logical,private :: cartesian_flag = .false.,cross = .false.,
+     .             cartesian = .false.
+!$OMP THREADPRIVATE(cartesian_flag,cross,cartesian)
+        real(8),private :: tvold,told,time,svold,sold,ss  
+!$OMP THREADPRIVATE(tvold,told,time,svold,sold,ss)
+        real(8),private :: x,y,z,xcar,ycar,zcar
+     .                    ,xvold,yvold,zvold
+!$OMP THREADPRIVATE(x,y,z,xcar,ycar,zcar,xvold,yvold,zvold)
+        real(8),private :: x00,y00,z00,xss,yss,zss,tss
+!$OMP THREADPRIVATE(x00,y00,z00,xss,yss,zss,tss)
+        integer,private :: npointx,npointy,npointz
+!$OMP THREADPRIVATE(npointx,npointy,npointz)
+!LSODE private variables
+      INTEGER,PRIVATE :: LIW, LRW, NEQ
+!cc!$OMP THREADPRIVATE(LIW,LRW,NEQ)
+      PARAMETER  (NEQ=20,LIW = 20,LRW = LIW + 16*NEQ)
+      INTEGER,PRIVATE :: IOPT,IOUT,ISTATE=0,ITASK,ITOL
+     .                  ,IWORK(LIW),MF,NEQD(1)
+!$OMP THREADPRIVATE(IOPT,IOUT,ISTATE,ITASK,ITOL,IWORK,MF,NEQD)
+      REAL(8),PRIVATE :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW)
+     .                  ,T,TOUT,YY(NEQ)
+!$OMP THREADPRIVATE(LS_ATOL,LS_RTOL,RWORK,T,TOUT,YY)
+!     Store of LSODE common block variables
+      real(8),dimension(218),private :: RSAV
+!$OMP THREADPRIVATE(RSAV)
+      integer,dimension(41),private :: ISAV
+!$OMP THREADPRIVATE(ISAV)
 
       contains
 
@@ -514,6 +543,12 @@ c     Local variables
 
 c     Begin program
 
+c     Close SS output
+
+	call ss_io_end
+
+c     Kill spline info
+
         call killSplines
 
 c     Finalize B diagnostics
@@ -577,6 +612,7 @@ c     Call variables
 
 c     Local variables
 
+	integer :: iterror,itime
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral
 
@@ -584,8 +620,10 @@ c     Begin program
 
         iiout = iout
 
-        integral = PRESENT(line_int)
+	iterror = 0
 
+        integral = PRESENT(line_int)
+        
         chk_ss = (.not.integral).and.ss_io  !Do SS only if not integrating and if IO has been set up
 
         !Override maximum limits
@@ -630,29 +668,31 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
         if (chk_ss) then
 
           if(lssx .and. x0 == xss0) then
-            write(nunitx) real(y0),real(z0)
+            write(nunitx(thr_num)) real(y0),real(z0)
           endif
 
           if(lssy .and. y0 == yss0) then
             if (flux) then
-              write(nunity) real(0.5*x0**2),real(z0)
+              write(nunity(thr_num)) real(0.5*x0**2),real(z0)
             else
-              write(nunity) real(x0),real(z0)
+              write(nunity(thr_num)) real(x0),real(z0)
             endif
           endif
 
           if(lssz .and. z0 == zss0) then
             if (flux) then
-              write(nunitz) real(0.5*x0**2),real(y0) !In flux
+              write(nunitz(thr_num)) real(0.5*x0**2),real(y0) !In flux
             else
-              write(nunitz) real(x0),real(y0)        !In radius
+              write(nunitz(thr_num)) real(x0),real(y0)        !In radius
             endif
-
           endif
 
         endif
 
+
 c     Orbit integral
+
+	itime = 0 
 
         do
 
@@ -740,10 +780,10 @@ cc          if (exit_loop) then
 c       Write orbit separator in XDRAW file
 
         if (chk_ss) then
-          if (lssx) write(nunitx)
-          if (lssy) write(nunity)
-          if (lssz) write(nunitz)
-          if (rzss) write(nunitrz)
+          if (lssx) write(nunitx(thr_num))
+          if (lssy) write(nunity(thr_num))
+          if (lssz) write(nunitz(thr_num))
+          if (rzss) write(nunitrz(thr_num))
         endif
 
       end subroutine orbit_find
@@ -786,8 +826,6 @@ c     Begin program
         npointy=0
         npointz=0
 
-        itime = 0
-
         exit_loop = .false.
 
         orb_init = .true.
@@ -817,6 +855,7 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       integer :: ierror
+
       real(8) :: x,y,z
 
       logical,optional :: forward
@@ -832,6 +871,7 @@ c     Local Variables
       character(5) :: solver
 
       save dt
+!$OMP THREADPRIVATE(dt)
 
       optional :: lsode_f
 
@@ -1014,20 +1054,25 @@ cc        write (*,*) 'LSODE -- limiting time step'
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
 
-cc      write (*,*)'Number of equations',NEQD
-cc      write (*,*)'Input state=',YY(1:NEQD(1))
-cc      write (*,*)'Current time=',T
-cc      write (*,*)'Next time=',TOUT
-cc      write (*,*)'Tolerances=',ITOL,LS_RTOL,LS_ATOL
-cc      write (*,*)'LSODE task=',ITASK
-cc      write (*,*)'LSODE state=',ISTATE
-cc      write (*,*)'Optional inputs required?',IOPT
-cc      write (*,*)'Real work array size=',size(RWORK),' declared=',LRW
-cc      write (*,*)'Integer work array size=',size(IWORK),' declared=',LIW
-cc      write (*,*)'LSODE method=',MF
+!      write (*,*)'Number of equations',NEQD
+!      write (*,*)'Input state=',YY(1:NEQD(1))
+!      write (*,*)'Current time=',T
+!      write (*,*)'Next time=',TOUT
+!      write (*,*)'Tolerances=',ITOL,LS_RTOL,LS_ATOL
+!      write (*,*)'LSODE task=',ITASK
+!      write (*,*)'LSODE state=',ISTATE
+!      write (*,*)'Optional inputs required?',IOPT
+!      write (*,*)'Real work array size=',size(RWORK),' declared=',LRW
+!      write (*,*)'Integer work array size=',size(IWORK),' declared=',LIW
+!      write (*,*)'LSODE method=',MF
+
+!!# Marco, to restore the contents of the DLS001 lsode's common block
+!      if (time .gt. 0d0) then
+!       CALL DSRCOM(RSAV,ISAV,2)
+!      endif
 
       if (external_f) then
-        CALL LSODE (lsode_f,NEQD(1),YY(1:NEQD(1)),T,TOUT
+	CALL LSODE (lsode_f,NEQD(1),YY(1:NEQD(1)),T,TOUT
      .             ,ITOL,LS_RTOL,LS_ATOL
      .             ,ITASK,ISTATE,IOPT,RWORK,LRW,IWORK,LIW,lsode_f, MF)
       else
@@ -1035,6 +1080,9 @@ cc      write (*,*)'LSODE method=',MF
      .             ,ITOL,LS_RTOL,LS_ATOL
      .             ,ITASK,ISTATE,IOPT,RWORK,LRW,IWORK,LIW,ff      ,MF)
       endif
+
+!!# Marco, to save the contents of the DLS001 lsode's common block
+!      CALL DSRCOM(RSAV,ISAV,1)
 
       select case(ISTATE)
       case(2)       !Uneventful
@@ -1285,6 +1333,7 @@ c     Call variables
 c     Local variables
 
         integer :: iterr
+        integer :: omp_get_thread_num,omp_get_num_threads
 
 c     Begin program
 
@@ -1809,15 +1858,19 @@ c     -----------------------------------------------------------------
           if (time-tprev >= 0.1*tmax .or. exit_loop) then
             if (cartesian_flag) then
               write (*,FMT="(a1)",ADVANCE="NO") 'C'
+cc              call flush(6)
               cartesian_flag = .false.
             elseif (cross) then
               write (*,FMT="(a1)",ADVANCE="NO") 'X'
+cc              call flush(6)
               cross = .false.
             else
               if (fwd) then
                 write (*,FMT="(a1)",ADVANCE="NO") '+'
+cc                call flush(6)
               else
                 write (*,FMT="(a1)",ADVANCE="NO") '-'
+cc                call flush(6)
               endif
             endif
             tprev = time
@@ -1921,7 +1974,303 @@ c     Consistency check
      .              ,'Cannot select all 3 surfaces of section!!')
         endif
 
+        if ((.not. lssx) .and. (.not. lssy) .and. (.not. lssz)) then
+          call pstop('ss_init'
+     .              ,'Did not select any surface of section!!')
+        endif
+
       end subroutine ss_init
+
+cc!     ss_io_init
+cc!     #################################################################
+cc      subroutine ss_io_init(file,rz_ss)
+cc
+cc!     -----------------------------------------------------------------
+cc!     Sets up XDRAW IO for surfaces of section
+cc!     -----------------------------------------------------------------
+cc
+cc        implicit none
+cc
+cc!     Call variables
+cc
+cc        character(*) :: file
+cc        logical, optional :: rz_ss
+cc
+cc!     Local variables
+cc
+cc        integer :: cpos
+cc        character(50) :: drawin
+cc
+cc!     Begin program
+cc
+cc        ss_io = .true.   !Turn on SS XDRAW IO
+cc
+cc        if (PRESENT(rz_ss)) then
+cc          rzss = rz_ss
+cc        else
+cc          rzss = .false.
+cc        endif
+cc
+cc!        cpos = len_trim(ssx)-4
+cc        cpos = index(trim(file),'.bin') - 1
+cc
+cc        ssx = 'ssx'//trim(file)
+cc        ssy = 'ssy'//trim(file)
+cc        ssz = 'ssz'//trim(file)
+cc        ssrz= 'ssrz'//trim(file)
+cc
+cc        if (lssx) then
+cc          drawin = 'draw'//ssx(1:cpos+3)//'.in'
+cc          call createDrawInGfile(1,1,trim(ssx),'X surface of section'
+cc     .                       ,'y',(/1/),(/'z'/),(/0/),(/0,0/)
+cc     .                       ,drawin,.false.,.false.)
+cc          nunitx=6027
+cc          open(unit=nunitx,file=trim(ssx),form='unformatted')
+cc        endif
+cc
+cc        if (lssy) then
+cc          drawin = 'draw'//ssy(1:cpos+3)//'.in'
+cc          call createDrawInGfile(1,1,trim(ssy),'Y surface of section'
+cc     .                       ,'x',(/1/),(/'z'/),(/0/),(/0,0/)
+cc     .                       ,drawin,.false.,.false.)
+cc          nunity=6028
+cc          open(unit=nunity,file=trim(ssy),form='unformatted')
+cc        endif
+cc
+cc        if (lssz) then
+cc          drawin = 'draw'//ssz(1:cpos+3)//'.in'
+cc          call createDrawInGfile(1,1,trim(ssz),'Z surface of section'
+cc     .                       ,'x',(/1/),(/'y'/),(/0/),(/0,0/)
+cc     .                       ,drawin,.false.,.false.)
+cc          nunitz=6029
+cc          open(unit=nunitz,file=trim(ssz),form='unformatted')
+cc        endif
+cc
+cc        if (rzss) then
+cc          drawin = 'draw'//ssrz(1:cpos+4)//'.in'
+cc          call createDrawInGfile(1,1,trim(ssrz),'RZ surface of section'
+cc     .                       ,'r',(/1/),(/'z'/),(/0/),(/0,0/)
+cc     .                       ,drawin,.false.,.false.)
+cc          nunitrz=6030
+cc          open(unit=nunitrz,file=trim(ssrz),form='unformatted')
+cc        endif
+cc
+cc      end subroutine ss_io_init
+
+cc!     ss_io_init
+cc!     #################################################################
+cc      subroutine ss_io_init(file,rz_ss)
+cc
+cc!     -----------------------------------------------------------------
+cc!     Sets up XDRAW IO for surfaces of section
+cc!     -----------------------------------------------------------------
+cc
+cc        implicit none
+cc
+cc!     Call variables
+cc
+cc        character(*) :: file
+cc        logical, optional :: rz_ss
+cc
+cc!     Local variables
+cc
+cc        integer :: cpos
+cc        character(50) :: drawin
+cc
+cc        character(50) :: ssx,ssy,ssz,ssrz
+cc
+cc!     Begin program
+cc        ss_io = .true.   !Turn on SS XDRAW IO
+cc
+cc        if (PRESENT(rz_ss)) then
+cc          rzss = rz_ss
+cc        else
+cc          rzss = .false.
+cc        endif
+cc
+cc        cpos = index(trim(file),'.bin') - 1
+cc	
+cc        ssx = 'ssx'//trim(file)
+cc        ssy = 'ssy'//trim(file)
+cc        ssz = 'ssz'//trim(file)
+cc        ssrz= 'ssrz'//trim(file)
+cc	
+cc        if (lssx) then
+cc          drawin = 'draw'//ssx(1:cpos+3)//'.in'
+cc          call createDrawInGfile(1,1,trim(ssx),'X surface of section'
+cc     .                       ,'y',(/1/),(/'z'/),(/0/),(/0,0/)
+cc     .                       ,drawin,.false.,.false.)
+cc        endif
+cc
+cc        if (lssy) then
+cc          drawin = 'draw'//ssy(1:cpos+3)//'.in'
+cc          call createDrawInGfile(1,1,trim(ssy),'Y surface of section'
+cc     .                       ,'x',(/1/),(/'z'/),(/0/),(/0,0/)
+cc     .                       ,drawin,.false.,.false.)
+cc        endif
+cc
+cc        if (lssz) then
+cc          drawin = 'draw'//ssz(1:cpos+3)//'.in'
+cc          call createDrawInGfile(1,1,trim(ssz),'Z surface of section'
+cc     .                       ,'x',(/1/),(/'y'/),(/0/),(/0,0/)
+cc     .                       ,drawin,.false.,.false.)
+cc        endif
+cc
+cc        if (rzss) then
+cc          drawin = 'draw'//ssrz(1:cpos+4)//'.in'
+cc          call createDrawInGfile(1,1,trim(ssrz),'RZ surface of section'
+cc     .                       ,'r',(/1/),(/'z'/),(/0/),(/0,0/)
+cc     .                       ,drawin,.false.,.false.)
+cc        endif
+cc
+cc        if (lssx) then
+cc          nunitx = 27
+cc          open(unit=nunitx,file=trim(ssx),form='unformatted')
+cccc          call openBinFile(nunitx,trim(ssx))
+cc        endif
+cc
+cc        if (lssy) then
+cc          nunity = 1027
+cc          open(unit=nunity,file=trim(ssy),form='unformatted')
+cccc          call openBinFile(nunity,trim(ssy))
+cc        endif
+cc
+cc        if (lssz) then
+cc          nunitz = 2027
+cc          open(unit=nunitz,file=trim(ssz),form='unformatted')
+cccc          call openBinFile(nunitz,trim(ssz))
+cc        endif
+cc
+cc        if (rzss) then
+cc          nunitrz = 3027
+cc          open(unit=nunitrz,file=trim(ssrz),form='unformatted')
+cccc          call openBinFile(nunitrz,trim(ssrz))
+cc        endif
+cc
+cc      end subroutine ss_io_init
+
+!!     ss_io_init
+!!     #################################################################
+!      subroutine ss_io_init(file,rz_ss)
+!
+!!     -----------------------------------------------------------------
+!!     Sets up XDRAW IO for surfaces of section
+!!     -----------------------------------------------------------------
+!
+!        implicit none
+!
+!!     Call variables
+!
+!        character(*) :: file
+!        logical, optional :: rz_ss
+!
+!!     Local variables
+!
+!        integer :: cpos,nfiles,ifile,ith,iproc,ierr
+!        character(50) :: drawin,dummy
+!
+!        character(50),dimension(:),allocatable :: ssx,ssy,ssz,ssrz
+!
+!!     Begin program
+!
+!        cpos = index(trim(file),'.bin') - 1
+!
+!        nfiles = np*thr_tot
+!        allocate(ssx(0:nfiles-1),ssy (0:nfiles-1)
+!     .          ,ssz(0:nfiles-1),ssrz(0:nfiles-1))
+!
+!cc        write (*,*) 'DIAG -- ss_io_init',thr_tot,np
+!
+!        do ith=0,thr_tot-1
+!          do iproc=0,np-1
+!            ifile = ith+thr_tot*iproc
+!            ssx(ifile) = 'ssx'//trim(file)//'_proc'//int2char(ifile)
+!            ssy(ifile) = 'ssy'//trim(file)//'_proc'//int2char(ifile)
+!            ssz(ifile) = 'ssz'//trim(file)//'_proc'//int2char(ifile)
+!            ssrz(ifile)= 'ssrz'//trim(file)//'_proc'//int2char(ifile)
+!          enddo
+!        enddo
+!
+!        ss_io = .true.   !Turn on SS XDRAW IO
+!  
+!        if (PRESENT(rz_ss)) then
+!          rzss = rz_ss
+!        else
+!          rzss = .false.
+!        endif
+!
+!        if (my_rank == 0.and.thr_num==0) then
+!          if (lssx) then
+!            dummy = 'ssx'//trim(file)
+!cc            ierr = rm_files(dummy)
+!            drawin = 'draw'//dummy(1:cpos+3)//'.in'
+!            call createDrawInGfile(1,1,ssx
+!     .                         ,'X surface of section'
+!     .                         ,'y',(/1/),(/'z'/),(/0/),(/0,0/)
+!     .                         ,drawin,.false.,.false.)
+!          endif
+!          if (lssy) then
+!            dummy = 'ssy'//trim(file)
+!cc            ierr = rm_files(dummy)
+!            drawin = 'draw'//dummy(1:cpos+3)//'.in'
+!            call createDrawInGfile(1,1,ssy
+!     .                         ,'Y surface of section'
+!     .                         ,'x',(/1/),(/'z'/),(/0/),(/0,0/)
+!     .                         ,trim(drawin),.false.,.false.)
+!          endif
+!          if (lssz) then
+!            dummy = 'ssz'//trim(file)
+!cc            ierr = rm_files(dummy)
+!            drawin = 'draw'//dummy(1:cpos+3)//'.in'
+!            call createDrawInGfile(1,1,ssz
+!     .                         ,'Z surface of section'
+!     .                         ,'x',(/1/),(/'y'/),(/0/),(/0,0/)
+!     .                         ,drawin,.false.,.false.)
+!          endif
+!          if (rzss) then
+!            dummy = 'ssrz'//trim(file)
+!cc            ierr = rm_files(dummy)
+!            drawin = 'draw'//dummy(1:cpos+4)//'.in'
+!            call createDrawInGfile(1,1,ssrz
+!     .                         ,'RZ surface of section'
+!     .                         ,'r',(/1/),(/'z'/),(/0/),(/0,0/)
+!     .                         ,drawin,.false.,.false.)
+!          endif
+!
+!        endif
+!
+!c!$OMP CRITICAL
+!        ifile = thr_num + thr_tot*my_rank
+!        if (lssx) then
+!          nunitx=6027+thr_num
+!          open(unit=nunitx,file=trim(ssx(ifile))
+!     .        ,form='unformatted')
+!        endif
+!
+!        if (lssy) then
+!          nunity=7027+thr_num
+!          open(unit=nunity,file=trim(ssy(ifile))
+!     .        ,form='unformatted')
+!        endif
+!
+!        if (lssz) then
+!          nunitz=8027+thr_num
+!          open(unit=nunitz,file=trim(ssz(ifile))
+!     .        ,form='unformatted')
+!        endif
+!
+!        if (rzss) then
+!          nunitrz=9027+thr_num
+!          open(unit=nunitrz,file=trim(ssrz(ifile))
+!     .        ,form='unformatted')
+!        endif
+!c!$OMP END CRITICAL
+!
+!!$OMP BARRIER
+!
+!        deallocate(ssx,ssy,ssz,ssrz)
+!
+!      end subroutine ss_io_init
 
 c     ss_io_init
 c     #################################################################
@@ -1940,63 +2289,122 @@ c     Call variables
 
 c     Local variables
 
-        integer :: cpos
-        character(50) :: drawin
+        integer :: cpos,nfiles,ifile,ith,iproc,ierr,ic
+        character(50) :: drawin,dummy
+
+        character(50),dimension(:),allocatable :: ssx,ssy,ssz,ssrz
 
 c     Begin program
 
-        ss_io = .true.   !Turn on SS XDRAW IO
+        cpos = index(trim(file),'.bin') - 1
 
+        nfiles = np*thr_tot
+        allocate(ssx(0:nfiles-1),ssy (0:nfiles-1)
+     .          ,ssz(0:nfiles-1),ssrz(0:nfiles-1))
+
+cc        write (*,*) 'DIAG -- ss_io_init',thr_tot,np
+
+        do ith=0,thr_tot-1
+          do iproc=0,np-1
+            ifile = ith+thr_tot*iproc
+            ssx(ifile) = 'ssx'//trim(file)//'_proc'//int2char(ifile)
+            ssy(ifile) = 'ssy'//trim(file)//'_proc'//int2char(ifile)
+            ssz(ifile) = 'ssz'//trim(file)//'_proc'//int2char(ifile)
+            ssrz(ifile)= 'ssrz'//trim(file)//'_proc'//int2char(ifile)
+          enddo
+        enddo
+
+        ss_io = .true.   !Turn on SS XDRAW IO
+  
         if (PRESENT(rz_ss)) then
           rzss = rz_ss
         else
           rzss = .false.
         endif
 
-cc        cpos = len_trim(ssx)-4
-        cpos = index(trim(file),'.bin') - 1
+        if (my_rank == 0) then
+!!# Marco: inside MPI parallel region, only 1 thread needs to create the .in
+!files
+          if (lssx) then
+            dummy = 'ssx'//trim(file)
+cc            ierr = rm_files(dummy)
+            drawin = 'draw'//dummy(1:cpos+3)//'.in'
+            call createDrawInGfile(1,1,ssx
+     .                         ,'X surface of section'
+     .                         ,'y',(/1/),(/'z'/),(/0/),(/0,0/)
+     .                         ,drawin,.false.,.false.)
+          endif
+          if (lssy) then
+            dummy = 'ssy'//trim(file)
+cc            ierr = rm_files(dummy)
+            drawin = 'draw'//dummy(1:cpos+3)//'.in'
+            call createDrawInGfile(1,1,ssy
+     .                         ,'Y surface of section'
+     .                         ,'x',(/1/),(/'z'/),(/0/),(/0,0/)
+     .                         ,trim(drawin),.false.,.false.)
+          endif
+          if (lssz) then
+            dummy = 'ssz'//trim(file)
+cc            ierr = rm_files(dummy)
+            drawin = 'draw'//dummy(1:cpos+3)//'.in'
+            call createDrawInGfile(1,1,ssz
+     .                         ,'Z surface of section'
+     .                         ,'x',(/1/),(/'y'/),(/0/),(/0,0/)
+     .                         ,drawin,.false.,.false.)
+          endif
+          if (rzss) then
+            dummy = 'ssrz'//trim(file)
+cc            ierr = rm_files(dummy)
+            drawin = 'draw'//dummy(1:cpos+4)//'.in'
+            call createDrawInGfile(1,1,ssrz
+     .                         ,'RZ surface of section'
+     .                         ,'r',(/1/),(/'z'/),(/0/),(/0,0/)
+     .                         ,drawin,.false.,.false.)
+          endif
 
-        ssx = 'ssx'//trim(file)
-        ssy = 'ssy'//trim(file)
-        ssz = 'ssz'//trim(file)
-        ssrz= 'ssrz'//trim(file)
+        endif
+
+!!# Marco: *.bin files opening
+        allocate(nunitx(0:thr_tot-1),nunity(0:thr_tot-1))
+        allocate(nunitz(0:thr_tot-1),nunitrz(0:thr_tot-1))
 
         if (lssx) then
-          drawin = 'draw'//ssx(1:cpos+3)//'.in'
-          call createDrawInGfile(1,1,trim(ssx),'X surface of section'
-     .                       ,'y',(/1/),(/'z'/),(/0/),(/0,0/)
-     .                       ,drawin,.false.,.false.)
-          nunitx=27
-          open(unit=nunitx,file=trim(ssx),form='unformatted')
-
+	 do ic = 0, thr_tot - 1
+	  ifile = ic + thr_tot*my_rank 
+          nunitx(ic) = 6027+ic
+          open(unit=nunitx(ic),file=trim(ssx(ifile))
+     .        ,form='unformatted')
+	 enddo
         endif
 
         if (lssy) then
-          drawin = 'draw'//ssy(1:cpos+3)//'.in'
-          call createDrawInGfile(1,1,trim(ssy),'Y surface of section'
-     .                       ,'x',(/1/),(/'z'/),(/0/),(/0,0/)
-     .                       ,drawin,.false.,.false.)
-          nunity=28
-          open(unit=nunity,file=trim(ssy),form='unformatted')
+	 do ic = 0, thr_tot - 1
+	  ifile = ic + thr_tot*my_rank 
+          nunity(ic) = 7027+ic
+          open(unit=nunity(ic),file=trim(ssy(ifile))
+     .        ,form='unformatted')
+	 enddo
         endif
 
         if (lssz) then
-          drawin = 'draw'//ssz(1:cpos+3)//'.in'
-          call createDrawInGfile(1,1,trim(ssz),'Z surface of section'
-     .                       ,'x',(/1/),(/'y'/),(/0/),(/0,0/)
-     .                       ,drawin,.false.,.false.)
-          nunitz=29
-          open(unit=nunitz,file=trim(ssz),form='unformatted')
+	 do ic = 0, thr_tot - 1
+	  ifile = ic + thr_tot*my_rank 
+          nunitz(ic) = 8027+ic
+          open(unit=nunitz(ic),file=trim(ssz(ifile))
+     .        ,form='unformatted')
+	 enddo
         endif
 
         if (rzss) then
-          drawin = 'draw'//ssrz(1:cpos+4)//'.in'
-          call createDrawInGfile(1,1,trim(ssrz),'RZ surface of section'
-     .                       ,'r',(/1/),(/'z'/),(/0/),(/0,0/)
-     .                       ,drawin,.false.,.false.)
-          nunitrz=30
-          open(unit=nunitrz,file=trim(ssrz),form='unformatted')
+	 do ic = 0, thr_tot - 1
+	  ifile = ic + thr_tot*my_rank 
+          nunitrz(ic) = 9027+ic
+          open(unit=nunitrz(ic),file=trim(ssrz(ifile))
+     .        ,form='unformatted')
+	 enddo
         endif
+
+        deallocate(ssx,ssy,ssz,ssrz)
 
       end subroutine ss_io_init
 
@@ -2014,12 +2422,18 @@ c     Call variables
 
 c     Local variables
 
+        integer :: ith
+
 c     Begin program
 
-        if (lssx) close(nunitx)
-        if (lssy) close(nunity)
-        if (lssz) close(nunitz)
-        if (rzss) close(nunitrz)
+	do ith=0,thr_tot-1
+          if (lssx) close(nunitx(ith))
+          if (lssy) close(nunity(ith))
+          if (lssz) close(nunitz(ith))
+          if (rzss) close(nunitrz(ith))
+        enddo
+
+        deallocate(nunitx,nunity,nunitz,nunitrz)
 
       end subroutine ss_io_end
 
@@ -2083,7 +2497,7 @@ c     Check for intersection with X surface of section
 
           if (ss_io) then
             call chk_pos(xss,yss,zss) !this resets logical coords
-            write(nunitx) real(yss),real(zss)
+            write(nunitx(thr_num)) real(yss),real(zss)
           endif
 
           !Accumulate B diagnostics
@@ -2104,9 +2518,9 @@ c     Check for intersection with Y surface of section
             call chk_pos(xss,yss,zss) !this resets logical coords
             
             if (flux) then
-              write(nunity) real(0.5*xss**2),real(zss)
+              write(nunity(thr_num)) real(0.5*xss**2),real(zss)
             else
-              write(nunity) real(xss),real(zss)
+              write(nunity(thr_num)) real(xss),real(zss)
             endif
           endif
 
@@ -2128,16 +2542,16 @@ c     Check for intersection with Z surface of section
             if (rzss) then   !Find R-Z plane positions
               call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
               rr = sqrt(xcar**2+ycar**2)
-              write(nunitrz) real(rr),real(zcar)
+              write(nunitrz(thr_num)) real(rr),real(zcar)
             endif
 
             if (lssz) then
               call chk_pos(xss,yss,zss) !this resets logical coords
 
               if (flux) then
-                write(nunitz) real(0.5*xss**2),real(yss) !In flux
+                write(nunitz(thr_num)) real(0.5*xss**2),real(yss) !In flux
               else
-                write(nunitz) real(xss)       ,real(yss) !In radius
+                write(nunitz(thr_num)) real(xss)       ,real(yss) !In radius
               endif
             endif
           endif

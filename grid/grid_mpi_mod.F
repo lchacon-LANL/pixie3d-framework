@@ -590,151 +590,6 @@ ccc     End program
 cc
 cc      end subroutine destroyPETScFortranDA
 
-c     processorAlloc
-c     ######################################################################
-      subroutine processorAlloc(nx1,ny1,nz1)
-
-c     ----------------------------------------------------------------------
-c     Finds processor allocation (npx,npy,npz; defined in module) in the
-c     three logical directions based on global dimensions
-c     (nx1,nx2,nx3). Only returns processor allocation for directions
-c     not specified earlier by user (i.e., when np* is zero).
-c     ----------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: nx1,ny1,nz1
-
-c     Local variables
-
-      integer :: nx,ny,nz,sum_exp,nd,navg,exp(3),npt(3),nprocs
-
-c     Begin program
-
-      nx = nx1
-      ny = ny1
-      nz = nz1
-
-      nprocs = np
-
-      exp = 0
-
-c     Eliminate specified directions
-
-      if (npx /= 0) then
-        nprocs = max(nprocs/npx,1)
-        nx = 1
-      endif
-
-      if (npy /= 0) then
-        nprocs = max(nprocs/npy,1)
-        ny = 1
-      endif
-
-      if (npz /= 0) then
-        nprocs = max(nprocs/npz,1)
-        nz = 1
-      endif
-
-      if (nx == 1 .and. ny == 1 .and. nz == 1) then
-        if (nprocs == 1) then  !Compatible specification of procs. per direction
-          npx = max(npx,1) ; npy = max(npy,1) ; npz = max(npz,1)
-          return
-        else
-          messg = 'np /= npx*npy*npz ... Aborting'
-          call pstop('processorAlloc',messg)
-        endif
-      endif
-
-c     Check for unallocated procs
-
-      sum_exp = floor(log(1d0*nprocs)/log(2d0))
-
-      if (sum_exp < 1) then   !No processors left to allocate
-        if (npx == 0) npx = 1
-        if (npy == 0) npy = 1
-        if (npz == 0) npz = 1
-        return
-      endif
-
-      if (2**sum_exp /= nprocs) then
-        messg = 'Number of processors unsuitable for MG'
-        call pstop('processorAlloc',messg)
-      endif
-
-c     Exclude directions based on topological constraints (PER, SP)
-
-      !Priority: SP, PER
-cc      if (bcond(1) == SP  .or.  bcond(3) == PER ) ny = 1
-cc      if (bcond(1) == PER .and. ny /= 1         ) nx = 1
-cc      if (bcond(5) == PER .and.(nx/=1.and.ny/=1)) nz = 1
-
-      !Priority: SP
-cc      if (bcond(1) == SP) ny = 1
-
-c     Find dimensionality
-
-      nd = 3
-      if (nx == 1) nd = nd-1
-      if (ny == 1) nd = nd-1
-      if (nz == 1) nd = nd-1
-
-      if (nd == 0) then
-        messg = 'No available dimensions!'
-        call pstop('processorAlloc',messg)
-      endif
-
-      !Find exponents
-      navg = int((1d0*(nx*ny*nz)/nprocs)**(1./nd))
-
-      npt = (/nx,ny,nz/)
-      exp = int(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
-
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
-cc     .           ,' sum_exp=',sum_exp
-
-      !Consistency check (1st layer)
-      if (sum(exp) /= sum_exp) then
-        if (exp(1) /= maxval(exp).and. nx > 1) then
-          exp(1) = sum_exp - exp(2) - exp(3)
-        elseif (exp(2) /= maxval(exp).and. ny > 1) then
-          exp(2) = sum_exp - exp(1) - exp(3)
-        elseif (exp(3) /= maxval(exp).and. nz > 1) then
-          exp(3) = sum_exp - exp(1) - exp(2)
-        endif
-      endif
-
-      !Consistency check (2nd layer)
-      if (sum(exp) /= sum_exp) then
-        if (nx >= ny .and. nx >= nz) then
-          exp(1) = sum_exp - exp(2) - exp(3)
-        elseif (ny >= nx .and. ny >= nz) then
-          exp(2) = sum_exp - exp(1) - exp(3)
-        else
-          exp(3) = sum_exp - exp(1) - exp(2)
-        endif
-      endif
-
-c     Find processor distribution
-
-      if (npx == 0) npx = 2**exp(1)
-      if (npy == 0) npy = 2**exp(2)
-      if (npz == 0) npz = 2**exp(3)
-
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
-cc     .           ,' sum_exp=',sum_exp
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' npt=',npt
-cc     .            ,' nprocs=',nprocs,' navg=',navg
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank
-cc     .           ,'Procs alloc=',npx,npy,npz
-cc      stop
-
-c     End program
-
-      end subroutine processorAlloc
-
 c     createMPIComm
 c     #####################################################################
       subroutine createMPIComm(MPI_COMM,selProc)
@@ -1733,6 +1588,8 @@ c     find_global_field_vec
 c     ##############################################################
       subroutine find_global_field_vec(lf,gf,dump)
 
+      use xdraw_io
+
       implicit none
 
 c     --------------------------------------------------------------
@@ -1750,14 +1607,14 @@ c     Local variables
       integer :: i,j,k,dl(4),dg(4),lsize,gsize
       real(8),pointer,dimension(:) :: local_x,global_x
 
-      logical :: plot
+      logical :: dmp
 
 c     Begin program
 
       if (PRESENT(dump)) then
-        plot=dump
+        dmp=dump
       else
-        plot=.false.
+        dmp=.false.
       endif
 
 c     Calculate array sizes
@@ -1807,7 +1664,7 @@ c     Communicate
 
 c     Dump global array
 
-      if (plot) then
+      if (dmp) then
         if (my_rank == 0) then
           open(unit=110,file='debug.bin'
      .        ,form='unformatted',status='replace')
@@ -1833,6 +1690,8 @@ c     find_global_field_scl
 c     ##############################################################
       subroutine find_global_field_scl(lf,gf,dump)
 
+      use xdraw_io
+
       implicit none
 
 c     --------------------------------------------------------------
@@ -1850,14 +1709,14 @@ c     Local variables
       integer :: i,j,k,dl(3),dg(3),lsize,gsize
       real(8),pointer,dimension(:) :: local_x,global_x
 
-      logical :: plot
+      logical :: dmp
 
 c     Begin program
 
       if (PRESENT(dump)) then
-        plot=dump
+        dmp=dump
       else
-        plot=.false.
+        dmp=.false.
       endif
 
 c     Calculate array sizes
@@ -1905,7 +1764,7 @@ c     Communicate
 
 c     Dump global array
 
-      if (plot) then
+      if (dmp) then
         if (my_rank == 0) then
           open(unit=110,file='debug.bin'
      .        ,form='unformatted',status='replace')
@@ -1920,6 +1779,151 @@ c     Dump global array
 c     End program
 
       end subroutine find_global_field_scl
+
+c     processorAlloc
+c     ######################################################################
+      subroutine processorAlloc(nx1,ny1,nz1)
+
+c     ----------------------------------------------------------------------
+c     Finds processor allocation (npx,npy,npz; defined in module) in the
+c     three logical directions based on global dimensions
+c     (nx1,nx2,nx3). Only returns processor allocation for directions
+c     not specified earlier by user (i.e., when np* is zero).
+c     ----------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: nx1,ny1,nz1
+
+c     Local variables
+
+      integer :: nx,ny,nz,sum_exp,nd,navg,exp(3),npt(3),nprocs
+
+c     Begin program
+
+      nx = nx1
+      ny = ny1
+      nz = nz1
+
+      nprocs = np
+
+      exp = 0
+
+c     Eliminate specified directions
+
+      if (npx /= 0) then
+        nprocs = max(nprocs/npx,1)
+        nx = 1
+      endif
+
+      if (npy /= 0) then
+        nprocs = max(nprocs/npy,1)
+        ny = 1
+      endif
+
+      if (npz /= 0) then
+        nprocs = max(nprocs/npz,1)
+        nz = 1
+      endif
+
+      if (nx == 1 .and. ny == 1 .and. nz == 1) then
+        if (nprocs == 1) then  !Compatible specification of procs. per direction
+          npx = max(npx,1) ; npy = max(npy,1) ; npz = max(npz,1)
+          return
+        else
+          messg = 'np /= npx*npy*npz ... Aborting'
+          call pstop('processorAlloc',messg)
+        endif
+      endif
+
+c     Check for unallocated procs
+
+      sum_exp = floor(log(1d0*nprocs)/log(2d0))
+
+      if (sum_exp < 1) then   !No processors left to allocate
+        if (npx == 0) npx = 1
+        if (npy == 0) npy = 1
+        if (npz == 0) npz = 1
+        return
+      endif
+
+      if (2**sum_exp /= nprocs) then
+        messg = 'Number of processors unsuitable for MG'
+        call pstop('processorAlloc',messg)
+      endif
+
+c     Exclude directions based on topological constraints (PER, SP)
+
+      !Priority: SP, PER
+cc      if (bcond(1) == SP  .or.  bcond(3) == PER ) ny = 1
+cc      if (bcond(1) == PER .and. ny /= 1         ) nx = 1
+cc      if (bcond(5) == PER .and.(nx/=1.and.ny/=1)) nz = 1
+
+      !Priority: SP
+cc      if (bcond(1) == SP) ny = 1
+
+c     Find dimensionality
+
+      nd = 3
+      if (nx == 1) nd = nd-1
+      if (ny == 1) nd = nd-1
+      if (nz == 1) nd = nd-1
+
+      if (nd == 0) then
+        messg = 'No available dimensions!'
+        call pstop('processorAlloc',messg)
+      endif
+
+      !Find exponents
+      navg = int((1d0*(nx*ny*nz)/nprocs)**(1./nd))
+
+      npt = (/nx,ny,nz/)
+      exp = int(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
+
+cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
+cc     .           ,' sum_exp=',sum_exp
+
+      !Consistency check (1st layer)
+      if (sum(exp) /= sum_exp) then
+        if (exp(1) /= maxval(exp).and. nx > 1) then
+          exp(1) = sum_exp - exp(2) - exp(3)
+        elseif (exp(2) /= maxval(exp).and. ny > 1) then
+          exp(2) = sum_exp - exp(1) - exp(3)
+        elseif (exp(3) /= maxval(exp).and. nz > 1) then
+          exp(3) = sum_exp - exp(1) - exp(2)
+        endif
+      endif
+
+      !Consistency check (2nd layer)
+      if (sum(exp) /= sum_exp) then
+        if (nx >= ny .and. nx >= nz) then
+          exp(1) = sum_exp - exp(2) - exp(3)
+        elseif (ny >= nx .and. ny >= nz) then
+          exp(2) = sum_exp - exp(1) - exp(3)
+        else
+          exp(3) = sum_exp - exp(1) - exp(2)
+        endif
+      endif
+
+c     Find processor distribution
+
+      if (npx == 0) npx = 2**exp(1)
+      if (npy == 0) npy = 2**exp(2)
+      if (npz == 0) npz = 2**exp(3)
+
+cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
+cc     .           ,' sum_exp=',sum_exp
+cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' npt=',npt
+cc     .            ,' nprocs=',nprocs,' navg=',navg
+cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank
+cc     .           ,'Procs alloc=',npx,npy,npz
+cc      stop
+
+c     End program
+
+      end subroutine processorAlloc
 
       end module grid_mpi
 

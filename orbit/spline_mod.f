@@ -17,15 +17,19 @@ c #####################################################################
         integer, parameter :: ORB_OK=0,ORB_ADJ_DT=-1,ORB_CAR_ST=-2
      .                       ,ORB_SML_DT=1,ORB_OUT_DOM=2,ORB_NEG_J=4
      .                       ,ORB_SP_ERR=6,ORB_MAP_INV=5
+     
+        !OPENMP
+        integer :: thr_tot=1,thr_num=0
+!$OMP THREADPRIVATE(thr_tot,thr_num)
+
 
         !Private variables
         integer,private :: nx,ny,nz,ag,sbcnd(6)
 
         real(8),private :: xsmin,xsmax,ysmin,ysmax,zsmin,zsmax
-
-        integer,private :: kx,ky,kz,dim,flg
+        integer,private :: kx,ky,kz,dim,dime,flg
         real(8),private,dimension(:),allocatable :: tx,ty,tz,work
-     .                                             ,xs,ys,zs
+     .                                             ,xs,ys,zs,worke
 
         real(8),private,dimension(:,:,:),pointer:: jcoef   => null()
      .                                            ,acoefx  => null()
@@ -208,6 +212,7 @@ c     Call variables
 c     Local variables
 
         integer :: alloc_stat,i
+	character*10 :: ev
 
 c     Begin program
 
@@ -247,12 +252,18 @@ c     Prepare 3d spline interpolation
         ky = min(order+1,ny-1)
         kz = min(order+1,nz-1)
 
-        dim = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
+        dim  = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
 
         allocate(work(dim),stat=alloc_stat)
         allocate(tx(nx+kx),stat=alloc_stat)
         allocate(ty(ny+ky),stat=alloc_stat)
         allocate(tz(nz+kz),stat=alloc_stat)
+
+!$      call getenv('OMP_NUM_THREADS',ev)
+!$      read(ev,'(i2)') thr_tot
+
+	dime = kx*kz + 3*max(kx,ky,kz) + kz
+	allocate(worke(dime*thr_tot),stat=alloc_stat)
 
 c     End program
 
@@ -794,7 +805,6 @@ c     Begin program
 
       call db3ink(xs,nx,ys,ny,zs,nz
      .           ,bz,nx,ny,kx,ky,kz,tx,ty,tz,bcarcoef(:,:,:,3),work,flg)
-
       end subroutine splineBcar
 
 c     splineJ
@@ -931,15 +941,18 @@ c     Begin program
       case(1)
         ax = 0d0
         ay = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .             ,kx,ky,kz,acoefy,work)
+     .             ,kx,ky,kz,acoefy
+     .             ,worke(1+thr_num*dime:(thr_num+1)*dime))
       case(2)
         ax = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .             ,kx,ky,kz,acoefx,work)
+     .             ,kx,ky,kz,acoefx
+     .             ,worke(1+thr_num*dime:(thr_num+1)*dime))
         ay = 0d0
       end select
 
       az = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .           ,kx,ky,kz,acoefz,work)
+     .           ,kx,ky,kz,acoefz
+     .           ,worke(1+thr_num*dime:(thr_num+1)*dime))
 
       end subroutine evalA
 
@@ -1014,32 +1027,48 @@ c     Calculate derivatives
         select case(flg)
         case(0)
           ay_x = db3val(x1,x2,x3,1+iidx,iidy,iidz,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefy,work)
+     .               ,kx,ky,kz,acoefy
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
 
           ay_z = db3val(x1,x2,x3,iidx,iidy,1+iidz,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefy,work)
+     .               ,kx,ky,kz,acoefy
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
 
           az_x = db3val(x1,x2,x3,1+iidx,iidy,iidz,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefz,work)
+     .               ,kx,ky,kz,acoefz
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
 
           az_y = db3val(x1,x2,x3,iidx,1+iidy,iidz,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefz,work)
+     .               ,kx,ky,kz,acoefz
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
         case(1)
           az_x = 0d0
           az_y = 0d0
           ay_x = db3val(x1,x2,x3,1+iidx,iidy,iidz,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefy,work)
+     .               ,kx,ky,kz,acoefy
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
 
           ay_z = db3val(x1,x2,x3,iidx,iidy,1+iidz,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefy,work)
+     .               ,kx,ky,kz,acoefy
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
         case(2)
           ay_x = 0d0
           ay_z = 0d0
           az_x = db3val(x1,x2,x3,1+iidx,iidy,iidz,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefz,work)
+     .               ,kx,ky,kz,acoefz
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
 
           az_y = db3val(x1,x2,x3,iidx,1+iidy,iidz,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefz,work)
+     .               ,kx,ky,kz,acoefz
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
         case default
 
           write (*,*) 'Flag ',flg,' not implemented in evalCurlA'
@@ -1055,32 +1084,48 @@ c     Calculate derivatives
         select case(flg)
         case(0)
           ax_y = db3val(x1,x2,x3,0,1,0,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefx,work)
+     .               ,kx,ky,kz,acoefx
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
 
           ax_z = db3val(x1,x2,x3,0,0,1,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefx,work)
+     .               ,kx,ky,kz,acoefx
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
 
           az_x = db3val(x1,x2,x3,1,0,0,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefz,work)
+     .               ,kx,ky,kz,acoefz
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
 
           az_y = db3val(x1,x2,x3,0,1,0,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefz,work)
+     .               ,kx,ky,kz,acoefz
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
         case(1)
           az_x = 0d0
           az_y = 0d0
           ax_y = db3val(x1,x2,x3,0,1,0,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefx,work)
+     .               ,kx,ky,kz,acoefx
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
 
           ax_z = db3val(x1,x2,x3,0,0,1,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefx,work)
+     .               ,kx,ky,kz,acoefx
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
         case(2)
           ax_y = 0d0
           ax_z = 0d0
           az_x = db3val(x1,x2,x3,1,0,0,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefz,work)
+     .               ,kx,ky,kz,acoefz
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
 
           az_y = db3val(x1,x2,x3,0,1,0,tx,ty,tz,nx,ny,nz
-     .               ,kx,ky,kz,acoefz,work)
+     .               ,kx,ky,kz,acoefz
+     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
         case default
 
           write (*,*) 'Flag not implemented in evalCurlA'
@@ -1122,11 +1167,17 @@ c     Begin program
       if (ierr /= ORB_OK) return
 
       bx = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .           ,kx,ky,kz,bcoef(:,:,:,1),work)
+     .           ,kx,ky,kz,bcoef(:,:,:,1)
+     .           ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .           ,work(1+thr_num*dim:(thr_num+1)*dim))
       by = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .           ,kx,ky,kz,bcoef(:,:,:,2),work)
+     .           ,kx,ky,kz,bcoef(:,:,:,2)
+     .           ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .           ,work(1+thr_num*dim:(thr_num+1)*dim))
       bz = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .           ,kx,ky,kz,bcoef(:,:,:,3),work)
+     .           ,kx,ky,kz,bcoef(:,:,:,3)
+     .           ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .           ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       end subroutine evalB
 
@@ -1154,13 +1205,19 @@ c     Begin program
       if (ierr /= ORB_OK) return
 
       bx = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .            ,kx,ky,kz,bcarcoef(:,:,:,1),work)
+     .            ,kx,ky,kz,bcarcoef(:,:,:,1)
+     .            ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .            ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       by = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .            ,kx,ky,kz,bcarcoef(:,:,:,2),work)
+     .            ,kx,ky,kz,bcarcoef(:,:,:,2)
+     .            ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .            ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       bz = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .            ,kx,ky,kz,bcarcoef(:,:,:,3),work)
+     .            ,kx,ky,kz,bcarcoef(:,:,:,3)
+     .            ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .            ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       end subroutine evalBcar
 
@@ -1231,7 +1288,9 @@ c     Begin program
 
       do i = 1,size(spcoef,4)
         vec(i) = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .                 ,kx,ky,kz,spcoef(:,:,:,i),work)
+     .                 ,kx,ky,kz,spcoef(:,:,:,i)
+     .                 ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                 ,work(1+thr_num*dim:(thr_num+1)*dim))
       enddo
 
       end function evalFlds
@@ -1269,13 +1328,19 @@ c     Begin program
       if (ierr /= ORB_OK) return
 
       x = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .          ,kx,ky,kz,lxcoef(:,:,:,1),work)
+     .          ,kx,ky,kz,lxcoef(:,:,:,1)
+     .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       y = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .          ,kx,ky,kz,lxcoef(:,:,:,2),work)
+     .          ,kx,ky,kz,lxcoef(:,:,:,2)
+     .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       z = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .          ,kx,ky,kz,lxcoef(:,:,:,3),work)
+     .          ,kx,ky,kz,lxcoef(:,:,:,3)
+     .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       nullify(lxcoef)
 
@@ -1407,13 +1472,19 @@ c     ###################################################################
       if (ierr /= ORB_OK) return
 
       res(1) = x - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,1),work)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,1)
+     .                   ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                   ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       res(2) = y - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,2),work)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,2)
+     .                   ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                   ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       res(3) = z - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
-     .                   ,kx,ky,kz,lxcoef(:,:,:,3),work)
+     .                   ,kx,ky,kz,lxcoef(:,:,:,3)
+     .                   ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                   ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       !Shift residual if physical coord is logical coord
       if (x_is_log) res(1) = res(1) - (x1-x11)
@@ -1455,25 +1526,43 @@ c     ###################################################################
       call chk_pos(x11,x22,x33)
 
       JJ(1,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,1),work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,1)
+     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
       JJ(1,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,1),work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,1)
+     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
       JJ(1,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,1),work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,1)
+     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       JJ(2,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,2),work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,2)
+     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
       JJ(2,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,2),work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,2)
+     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
       JJ(2,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,2),work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,2)
+     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       JJ(3,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,3),work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,3)
+     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
       JJ(3,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,3),work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,3)
+     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
       JJ(3,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,3),work)
+     .                ,kx,ky,kz,lxcoef(:,:,:,3)
+     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       end function formJacobian
 
@@ -1589,7 +1678,9 @@ c     Begin program
       if (ierror /= ORB_OK) return
 
       jac = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .            ,kx,ky,kz,jcoef,work)
+     .            ,kx,ky,kz,jcoef
+     .            ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .            ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       if (jac < 0d0) ierror = ORB_NEG_J !Negative Jacobian
 
@@ -1663,7 +1754,9 @@ c     Begin program
       if (ierror /= ORB_OK) return
 
       ff = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
-     .           ,kx,ky,kz,lfcoef,work)
+     .           ,kx,ky,kz,lfcoef
+     .           ,worke(1+thr_num*dime:(thr_num+1)*dime))
+!     .           ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       nullify(lfcoef)
 
@@ -1682,7 +1775,7 @@ c     -----------------------------------------------------------------
 
 c     Begin program
 
-      deallocate(work,tx,ty,tz,xs,ys,zs,stat=alloc_stat)
+      deallocate(worke,work,tx,ty,tz,xs,ys,zs,stat=alloc_stat)
       deallocate(acoefx,acoefy,acoefz,stat=alloc_stat)
       deallocate(jcoef,xcoef,stat=alloc_stat)
       deallocate(bcoef,bcarcoef,stat=alloc_stat)
