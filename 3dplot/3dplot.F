@@ -138,8 +138,9 @@ c     Output per time step
 
 c     Check for tmax
 
-        if ((tmax > 0d0 .and. time.ge.tmax*0.99999)
-     .      .or. itime == numtime)  exit
+cc        if ((tmax > 0d0 .and. time.ge.tmax*0.99999)
+cc     .      .or. (tmax < 0d0 .and. itime == numtime))  exit
+        if ((tmax > 0d0 .and. time.ge.tmax*0.99999))  exit
 
       enddo       !End of time loop
 
