@@ -792,7 +792,6 @@ c #####################################################################
      .                            ,u_ic => null()
      .                            ,u_0  => null()
 
-        type(var_array),pointer :: u_graph
       contains
 
 c     allocateStructures
@@ -814,7 +813,6 @@ c     Begin program
 #if !defined(samrai)
         call allocateDerivedType(gv%u_np)
         call allocateDerivedType(gv%u_nm)
-        call allocateDerivedType(u_graph)
 
         u_np    => gv%u_np
         u_nm    => gv%u_nm
@@ -840,7 +838,6 @@ c     Begin program
 #if !defined(samrai)
         call deallocateDerivedType(gv%u_np)
         call deallocateDerivedType(gv%u_nm)
-        call deallocateDerivedType(u_graph)
 #endif
 
 c     End program
