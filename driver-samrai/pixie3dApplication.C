@@ -478,11 +478,12 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     char *tmp_depVarLabels = new char[21*input_data->nvar];
     char *tmp_auxScalarLabels = new char[21*input_data->nauxs];
     char *tmp_auxVectorLabels = new char[21*input_data->nauxv];
-    for (int i=0; i<21*input_data->nauxv; i++) {
+    for (int i=0; i<21*input_data->nvar; i++)
         tmp_depVarLabels[i] = 0;
+    for (int i=0; i<21*input_data->nauxs; i++)
         tmp_auxScalarLabels[i] = 0;
+    for (int i=0; i<21*input_data->nauxv; i++)
         tmp_auxVectorLabels[i] = 0;
-    }
     FORTRAN_NAME(get_var_names)(pixiePatchData,tmp_depVarLabels,tmp_auxScalarLabels,tmp_auxVectorLabels);
     depVarLabels = new std::string[input_data->nvar];
     auxScalarLabels = new std::string[input_data->nauxs];
