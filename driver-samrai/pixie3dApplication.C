@@ -470,12 +470,20 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     // Get the variable names
     tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(0);
     LevelContainer *level_container = (LevelContainer *) level_container_array[0];
+    void *pixiePatchData = NULL;
+    for (hier::PatchLevel::Iterator p(level); p; p++)
+        pixiePatchData = level_container->getPtr(*p);
+    if ( pixiePatchData == NULL )
+        TBOX_ERROR("One of the processors does not have any patches");
     char *tmp_depVarLabels = new char[21*input_data->nvar];
     char *tmp_auxScalarLabels = new char[21*input_data->nauxs];
     char *tmp_auxVectorLabels = new char[21*input_data->nauxv];
-    for (hier::PatchLevel::Iterator p(level); p; p++) {
-        FORTRAN_NAME(get_var_names)(level_container->getPtr(*p),tmp_depVarLabels,tmp_auxScalarLabels,tmp_auxVectorLabels);
+    for (int i=0; i<21*input_data->nauxv; i++) {
+        tmp_depVarLabels[i] = 0;
+        tmp_auxScalarLabels[i] = 0;
+        tmp_auxVectorLabels[i] = 0;
     }
+    FORTRAN_NAME(get_var_names)(pixiePatchData,tmp_depVarLabels,tmp_auxScalarLabels,tmp_auxVectorLabels);
     depVarLabels = new std::string[input_data->nvar];
     auxScalarLabels = new std::string[input_data->nauxs];
     auxVectorLabels = new std::string[input_data->nauxv];
@@ -612,9 +620,10 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
                tbox::Pointer< solv::SAMRAIVectorReal<double> >  &r,
                double, double)
 {
-  // Copy x
-  if(d_x.isNull())  TBOX_ERROR( "d_x is Null");
-  if(x.isNull())  TBOX_ERROR( "x is Null");
+    PROFILE_START("apply");
+    // Copy x
+    if(d_x.isNull())  TBOX_ERROR( "d_x is Null");
+    if(x.isNull())  TBOX_ERROR( "x is Null");
 
     d_x->copyVector(x);
     // Coarsen and Refine x
@@ -646,18 +655,22 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
             // Create varray on fortran side
             varrayContainer *varray = new varrayContainer(*p,input_data->nvar,f_id);
             // Create f
+            PROFILE_START("Call evaluatenonlinearresidual");
             #ifdef absoft
                 FORTRAN_NAME(EVALUATENONLINEARRESIDUAL)(level_container->getPtr(*p),&n_elem,fsrc,varray->getPtr());
             #else
                 FORTRAN_NAME(evaluatenonlinearresidual)(level_container->getPtr(*p),&n_elem,fsrc,varray->getPtr());
             #endif
+            PROFILE_STOP("Call evaluatenonlinearresidual");
             // Comupute the timestep required for an explicit method, computed by pixie3d
             double dt_patch;
+            PROFILE_START("Call findexplicitdt");
             #ifdef absoft
                 FORTRAN_NAME(FINDEXPLICITDT)(level_container->getPtr(*p),&n_elem,fsrc,varray->getPtr());
             #else
                   FORTRAN_NAME(findexplicitdt)(level_container->getPtr(*p),&dt_patch);
             #endif
+            PROFILE_STOP("Call findexplicitdt");
             if ( dt_patch<=0.0 || dt_patch!=dt_patch )
                 TBOX_ERROR("Invalid timestep detected\n");
             if ( dt_patch < dt_exp )
@@ -673,6 +686,7 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
 
     // Copy r
     r->copyVector(d_x_r);
+    PROFILE_STOP("apply");
 }
 
 /***********************************************************************
@@ -700,9 +714,11 @@ void pixie3dApplication::printVector( const tbox::Pointer< solv::SAMRAIVectorRea
 ***********************************************************************/
 void pixie3dApplication::coarsenVariables(void)
 {
+    PROFILE_START("coarsenVariables");
     for ( int ln=d_hierarchy->getFinestLevelNumber()-1; ln>=0; ln-- ) {
         coarsenSchedule[ln]->coarsenData();
     }
+    PROFILE_STOP("coarsenVariables");
 }
 
 
@@ -711,6 +727,7 @@ void pixie3dApplication::coarsenVariables(void)
 ***********************************************************************/
 void  pixie3dApplication::refineVariables(void)
 {
+    PROFILE_START("refineVariables");
     tbox::Pointer< hier::Variable > var0;
     tbox::Pointer< geom::CartesianGridGeometry > grid_geometry = d_hierarchy->getGridGeometry();
     tbox::Pointer< hier::Variable > var;
@@ -767,23 +784,23 @@ void  pixie3dApplication::refineVariables(void)
             }
             PROFILE_STOP("Call initializeauxvar");
             // Fill the ghost cells and apply the boundary conditions
-            PROFILE_START("Refine");
+            PROFILE_START("refineSchedule fillData");
             (d_refine_strategy)->setRefineStrategySequence(d_BoundarySequenceGroups[iSeq]);
             refineSchedule[ln][iSeq]->fillData(0.0);
-            PROFILE_STOP("Refine");
+            PROFILE_STOP("refineSchedule fillData");
             // Fill the interior patches
-            PROFILE_START("Call applybc");
+            PROFILE_START("Fill interiors");
             for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
                 tbox::Pointer<hier::Patch> patch = *ip;
                 bool touches_boundary = (d_refine_strategy)->checkPhysicalBoundary(*patch);
                 if ( !touches_boundary )
                     (d_refine_strategy)->applyBC(patch);
             }
-            PROFILE_STOP("Call applybc");
+            PROFILE_STOP("Fill interiors");
             // Fill corners and edges
-            PROFILE_START("siblingSchedule");
+            PROFILE_START("siblingSchedule fillData");
             siblingSchedule[ln][iSeq]->fillData(0.0);
-            PROFILE_STOP("siblingSchedule");
+            PROFILE_STOP("siblingSchedule fillData");
         }
     }
 
@@ -794,6 +811,7 @@ void  pixie3dApplication::refineVariables(void)
         d_aux_scalar->copyVector(d_aux_scalar_tmp, false);
         d_aux_vector->copyVector(d_aux_vector_tmp, false);
     }  
+    PROFILE_STOP("refineVariables");
 }
 
 
