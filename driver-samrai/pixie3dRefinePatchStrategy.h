@@ -94,6 +94,9 @@ public:
         bcgrp_struct(const bcgrp_struct&);
         bcgrp_struct& operator=(const bcgrp_struct&);
         ~bcgrp_struct();
+        size_t size();      // Number of ints needed to store the struct
+        void pack(int*);    // Pack the struct to a int vector
+        void unpack(int*);  // Unpack the struct from an int vector
     };
 
     // Function to set the boundary condition group that we are processing

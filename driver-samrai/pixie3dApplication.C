@@ -120,8 +120,6 @@ pixie3dApplication::pixie3dApplication():
     d_hierarchy = NULL;
     for (int i=0; i<MAX_LEVELS; i++)
         level_container_array[i] = NULL;
-    d_NumberOfBoundarySequenceGroups = 0;
-    d_BoundarySequenceGroups = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
         refineSchedule[i] = NULL;
         siblingSchedule[i] = NULL;
@@ -145,8 +143,6 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
     d_hierarchy = NULL;
     for (int i=0; i<MAX_LEVELS; i++)
         level_container_array[i] = NULL;
-    d_NumberOfBoundarySequenceGroups = 0;
-    d_BoundarySequenceGroups = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
         refineSchedule[i] = NULL;
         siblingSchedule[i] = NULL;
@@ -180,21 +176,16 @@ pixie3dApplication::~pixie3dApplication()
     // Delete the refine/coarsen schedules
     for (int i=0; i<MAX_LEVELS; i++) {
         if ( refineSchedule[i] != NULL ) {
-            for (int j=0; j<d_NumberOfBoundarySequenceGroups; j++)
+            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 refineSchedule[i][j].setNull();
             delete [] refineSchedule[i];
         }
         if ( siblingSchedule[i] != NULL ) {
-            for (int j=0; j<d_NumberOfBoundarySequenceGroups; j++)
+            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 siblingSchedule[i][j].setNull();
             delete [] siblingSchedule[i];
         }
     }
-    if ( d_BoundarySequenceGroups != NULL ) {
-        delete [] d_BoundarySequenceGroups;
-        d_BoundarySequenceGroups = NULL;
-    }
-    d_NumberOfBoundarySequenceGroups = 0;
     // Delete misc variables
     delete input_data;
     delete [] u0_id;
@@ -783,7 +774,7 @@ void  pixie3dApplication::refineVariables(void)
         level = d_hierarchy->getPatchLevel(ln);
         level_container = (LevelContainer *) level_container_array[ln];
         // process the boundary sequence groups in order
-        for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
+        for(size_t iSeq=0; iSeq<d_BoundarySequenceGroups.size(); iSeq++) {
             // initialize the aux variable on all patches on the level before interpolating
             // coarse values up and sync-ing periodic/sibling boundaries
             PROFILE_START("Call initializeauxvar");
@@ -1176,51 +1167,19 @@ void pixie3dApplication::resetHierarchyConfiguration(
     // Reset the communication schedules
     for (int i=coarsest_level; i<=finest_level; i++) {
         if ( refineSchedule[i] != NULL ) {
-            for (int j=0; j<d_NumberOfBoundarySequenceGroups; j++)
+            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 refineSchedule[i][j].setNull();
             delete [] refineSchedule[i];
         }
         if ( siblingSchedule[i] != NULL ) {
-            for (int j=0; j<d_NumberOfBoundarySequenceGroups; j++)
+            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 siblingSchedule[i][j].setNull();
             delete [] siblingSchedule[i];
         }
     }
-    if ( d_BoundarySequenceGroups != NULL ) {
-        delete [] d_BoundarySequenceGroups;
-        d_BoundarySequenceGroups = NULL;
-    }
-    d_NumberOfBoundarySequenceGroups = 0;
-    // Get an arbitrary patch to give us the number of boundary sequency groups
-    void *pixiePatchData = NULL;
-    for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
-        LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-        for (hier::PatchLevel::Iterator p(level); p; p++) {
-            pixiePatchData = level_container->getPtr(*p);
-            break;
-        }
-        if ( pixiePatchData != NULL )
-            break;
-    }
-    if ( pixiePatchData == NULL )
-        TBOX_ERROR("One of the processors does not have any patches");
+
     // Get the number of boundary condition groups and the sequence for each group
-    FORTRAN_NAME(getnumberofbcgroups)(pixiePatchData,&d_NumberOfBoundarySequenceGroups);
-    d_BoundarySequenceGroups = new pixie3dRefinePatchStrategy::bcgrp_struct[d_NumberOfBoundarySequenceGroups];
-    for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
-        int iSeq2 = iSeq+1;     // The Fortran code starts indexing at 1
-        int N_sequence;
-        int *tmp = NULL;
-        FORTRAN_NAME(getbcsequence)(pixiePatchData,&iSeq2,&N_sequence,&tmp);
-        pixie3dRefinePatchStrategy::bcgrp_struct tmp2(N_sequence);
-        d_BoundarySequenceGroups[iSeq] = tmp2;
-        for (int i=0; i<N_sequence; i++) {
-            d_BoundarySequenceGroups[iSeq].bc_seq[i] = tmp[i];
-            d_BoundarySequenceGroups[iSeq].vector[i] = tmp[i+N_sequence];
-            d_BoundarySequenceGroups[iSeq].fillBC[i] = tmp[i+2*N_sequence];
-        }
-    }
+    d_BoundarySequenceGroups = getBCgroup(coarsest_level);
 
     // Create the refineSchedule and siblingSchedule
     tbox::Pointer<hier::Variable> var0;
@@ -1229,9 +1188,9 @@ void pixie3dApplication::resetHierarchyConfiguration(
     tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelFullFillPattern());     // This may reduce performance
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-        refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_NumberOfBoundarySequenceGroups];
-        siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_NumberOfBoundarySequenceGroups];
-        for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
+        refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_BoundarySequenceGroups.size()];
+        siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_BoundarySequenceGroups.size()];
+        for(size_t iSeq=0; iSeq<d_BoundarySequenceGroups.size(); iSeq++) {
             int data_id=-1;
             xfer::RefineAlgorithm refineVariableAlgorithm(d_hierarchy->getDim());
             // Register the variables in the current squence
@@ -1387,6 +1346,72 @@ std::vector<commPatchData> pixie3dApplication::collectAllPatchData(tbox::Pointer
     // Finished
     comm.Barrier();
     return patch_data;
+}
+
+
+/****************************************************************************
+* Get the boundary condition groups                                         *
+****************************************************************************/
+std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> pixie3dApplication::getBCgroup(int ln)
+{
+    std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> groups;
+    // Get an arbitrary patch to give us the number of boundary sequency groups
+    void *pixiePatchData = NULL;
+    LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
+    tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+    for (hier::PatchLevel::Iterator p(level); p; p++)
+        pixiePatchData = level_container->getPtr(*p);
+    // Determine which processor should compute the bc groups
+    const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
+    int rank = comm.getRank();
+    int size = comm.getSize();
+    int root = size;
+    if ( pixiePatchData != NULL )
+        root = rank;
+    int tmp = root;
+    comm.Allreduce(&tmp,&root,1,MPI_INT,MPI_MIN);
+    // Get the number of boundary condition groups 
+    int N_groups=0;
+    if ( root==rank )
+        FORTRAN_NAME(getnumberofbcgroups)(pixiePatchData,&N_groups);
+    comm.Bcast(&N_groups,1,MPI_INT,root);
+    groups.resize(N_groups);
+    // Get the sequence for each group (root proc)
+    int buffer_size=0;
+    if ( root==rank ) {
+        for( int iSeq=0; iSeq<N_groups; iSeq++) {
+            int iSeq2 = iSeq+1;     // The Fortran code starts indexing at 1
+            int N_sequence;
+            int *data = NULL;
+            FORTRAN_NAME(getbcsequence)(pixiePatchData,&iSeq2,&N_sequence,&data);
+            groups[iSeq] = pixie3dRefinePatchStrategy::bcgrp_struct(N_sequence);
+            for (int i=0; i<N_sequence; i++) {
+                groups[iSeq].bc_seq[i] = data[i];
+                groups[iSeq].vector[i] = data[i+N_sequence];
+                groups[iSeq].fillBC[i] = data[i+2*N_sequence];
+            }
+            buffer_size += groups[iSeq].size();
+        }
+    }
+    // Communicate the bc sequence
+    comm.Bcast(&buffer_size,1,MPI_INT,root);
+    int *buffer = new int[buffer_size];
+    if ( root==rank ) {
+        tmp = 0;
+        for( int iSeq=0; iSeq<N_groups; iSeq++) {
+            groups[iSeq].pack(&buffer[tmp]);
+            tmp += groups[iSeq].size();
+        }
+    }
+    comm.Bcast(buffer,buffer_size,MPI_INT,root);
+    if ( root!=rank ) {
+        tmp = 0;
+        for( int iSeq=0; iSeq<N_groups; iSeq++) {
+            groups[iSeq].unpack(&buffer[tmp]);
+            tmp += groups[iSeq].size();
+        }
+    }
+    return groups;
 }
 
 

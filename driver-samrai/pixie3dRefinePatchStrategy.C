@@ -44,7 +44,7 @@ namespace SAMRAI{
 ***********************************************************************/
 // Empty constructor
 pixie3dRefinePatchStrategy::bcgrp_struct::bcgrp_struct() {
-    nbc_seq = -1;
+    nbc_seq = 0;
     bc_seq = NULL;
     vector = NULL;
     fillBC = NULL;
@@ -99,6 +99,35 @@ pixie3dRefinePatchStrategy::bcgrp_struct::~bcgrp_struct() {
     vector = NULL;
     fillBC = NULL;
 }
+// Number of ints needed to store the struct
+size_t pixie3dRefinePatchStrategy::bcgrp_struct::size() {
+    return 1+3*nbc_seq;
+}
+// Pack the data to an int buffer
+void pixie3dRefinePatchStrategy::bcgrp_struct::pack(int *buffer) {
+    buffer[0] = nbc_seq;
+    for (int i=0; i<nbc_seq; i++) {
+        buffer[1+3*i+0] = bc_seq[i];
+        buffer[1+3*i+1] = vector[i];
+        buffer[1+3*i+2] = fillBC[i];
+    }
+}
+// Unpack the data from an int buffer
+void pixie3dRefinePatchStrategy::bcgrp_struct::unpack(int *buffer) {
+    if ( bc_seq!=NULL ) { delete [] bc_seq; bc_seq=NULL; }
+    if ( vector!=NULL ) { delete [] vector; vector=NULL; }
+    if ( fillBC!=NULL ) { delete [] fillBC; fillBC=NULL; }
+    nbc_seq = buffer[0];
+    bc_seq = new int[nbc_seq];
+    vector = new int[nbc_seq];
+    fillBC = new int[nbc_seq];
+    for (int i=0; i<nbc_seq; i++) {
+        bc_seq[i] = buffer[1+3*i+0];
+        vector[i] = buffer[1+3*i+1];
+        fillBC[i] = buffer[1+3*i+2];
+    }
+}
+
 
   
 /***********************************************************************
