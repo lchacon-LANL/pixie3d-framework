@@ -468,13 +468,19 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     synchronizeVariables();
 
     // Get the variable names
+    const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
+    int rank = comm.getRank();
+    int size = comm.getSize();
     tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(0);
     LevelContainer *level_container = (LevelContainer *) level_container_array[0];
     void *pixiePatchData = NULL;
     for (hier::PatchLevel::Iterator p(level); p; p++)
         pixiePatchData = level_container->getPtr(*p);
-    if ( pixiePatchData == NULL )
-        TBOX_ERROR("One of the processors does not have any patches");
+    int root = size;
+    if ( pixiePatchData!=NULL )
+        root = rank;
+    int tmp = root;
+    comm.Allreduce(&tmp,&root,1,MPI_INT,MPI_MIN);
     char *tmp_depVarLabels = new char[21*input_data->nvar];
     char *tmp_auxScalarLabels = new char[21*input_data->nauxs];
     char *tmp_auxVectorLabels = new char[21*input_data->nauxv];
@@ -484,7 +490,11 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         tmp_auxScalarLabels[i] = 0;
     for (int i=0; i<21*input_data->nauxv; i++)
         tmp_auxVectorLabels[i] = 0;
-    FORTRAN_NAME(get_var_names)(pixiePatchData,tmp_depVarLabels,tmp_auxScalarLabels,tmp_auxVectorLabels);
+    if ( root==rank )
+        FORTRAN_NAME(get_var_names)(pixiePatchData,tmp_depVarLabels,tmp_auxScalarLabels,tmp_auxVectorLabels);
+    comm.Bcast(tmp_depVarLabels,21*input_data->nvar,MPI_CHAR,root);
+    comm.Bcast(tmp_auxScalarLabels,21*input_data->nauxs,MPI_CHAR,root);
+    comm.Bcast(tmp_auxVectorLabels,21*input_data->nauxv,MPI_CHAR,root);
     depVarLabels = new std::string[input_data->nvar];
     auxScalarLabels = new std::string[input_data->nauxs];
     auxVectorLabels = new std::string[input_data->nauxv];
