@@ -65,12 +65,15 @@ int main( int argc, char *argv[] )
     std::string log_file;
    
     int rank = mpi.getRank();
+    int rank2;
+    MPI_Comm_rank(MPI_COMM_WORLD,&rank2);
+    TBOX_ASSERT(rank==rank2);
 
     // Process command line arguments and dump to log file.
     SAMRUtils::SAMRBuilder::processCommandLine(argc, argv, input_file, log_file);
 
     // Create the log file
-    SAMRAI::tbox::PIO::logOnlyNodeZero(log_file);
+    SAMRAI::tbox::PIO::logAllNodes(log_file);
 
     // Create input database and parse all data in input file.
     SAMRAI::tbox::Pointer<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
@@ -103,6 +106,7 @@ int main( int argc, char *argv[] )
     std::string debug_name = "debugFile";
     if ( main_db->keyExists("debug_name") )
         debug_name = main_db->getString("debug_name");
+    timer_results = write_path + "/" + timer_results;
 
     // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
     const SAMRAI::tbox::Dimension dim(3);
@@ -114,15 +118,13 @@ int main( int argc, char *argv[] )
     SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRUtils::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
     TBOX_ASSERT(dim==hierarchy->getDim());
 
-    // Check that the initial hierarchy has at least one patch per processor
-    int N_patches = 0;
+    // Check the initial hierarchy to see the patch distribution
     for ( int ln=0; ln<hierarchy->getNumberOfLevels(); ln++ ) {
         SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel> level = hierarchy->getPatchLevel(ln);
-        for (SAMRAI::hier::PatchLevel::Iterator p(level); p; p++)
-            N_patches++;
+        int N_local = level->getLocalNumberOfPatches();
+        int N_global = level->getGlobalNumberOfPatches();
+        SAMRAI::tbox::plog << ln << ": " << N_local << " of " << N_global << std::endl;
     }
-    if ( N_patches==0 )
-        TBOX_ERROR("One or more processors does not have any patches");
 
     // Initialize the writer
     appu::VisItDataWriter* visit_writer;
@@ -171,6 +173,7 @@ int main( int argc, char *argv[] )
     // Write the data
     if ( use_visit )
         visit_writer->writePlotData(hierarchy,0,0);
+    PROFILE_SAVE(timer_results);
     FILE *debug_file = NULL;
     if ( save_debug>0 ) {
         if ( rank==0 )

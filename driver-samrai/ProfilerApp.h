@@ -5,6 +5,10 @@
 #define included_ProfilerApp
 
 
+// We are always using SAMRAI in the pixie3d driver
+#define USE_SAMRAI
+
+
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
     #define USE_WINDOWS
 #else

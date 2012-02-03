@@ -17,9 +17,10 @@ extern "C" {
 
 
 #ifdef USE_SAMRAI
-    #include "tbox/IOStream.h"
-    #include "tbox/Utilities.h"
-    #include "tbox/SAMRAI_MPI.h"
+    //#include "tbox/Utilities.h"
+    //#include "tbox/SAMRAI_MPI.h"
+    #include "SAMRAI/tbox/Utilities.h"
+    #include "SAMRAI/tbox/SAMRAI_MPI.h"
     #define ERROR_MSG TBOX_ERROR
 #elif defined USE_MPI
     #include "mpi.h"
@@ -364,12 +365,8 @@ void ProfilerApp::save( const std::string& filename ) {
     }
     // Loop through all of the entries, saving the detailed data and the trace logs
     fprintf(timerFile,"\n\n");
-    #ifdef USE_SAMRAI
-        int N_procs = SAMRAI::tbox::SAMRAI_MPI::getNodes();
-    #else
-        int N_procs;
-        MPI_Comm_size(MPI_COMM_WORLD,&N_procs);
-    #endif
+    int N_procs;
+    MPI_Comm_size(MPI_COMM_WORLD,&N_procs);
     fprintf(timerFile,"<N_procs=%i,id=%i>\n",N_procs,rank);
     head = id_head;
     thread_id = 0;
