@@ -184,7 +184,7 @@ int main( int argc, char *argv[] )
     // Loop through time
     bool first_step = true;
     double current_time = 0.0;
-    double dt = 1.0;
+    double dt = 0.01;
     double final_time = timeIntegrator->getFinalTime();
     long int timestep = 0;
     double last_save_time = current_time;
@@ -192,9 +192,12 @@ int main( int argc, char *argv[] )
     int it_save_time = 0;
     while ( current_time < final_time ) {
         current_time = timeIntegrator->getCurrentTime();
+        
+        // try and take a step
         PROFILE_START("advanceSolution");
         timeIntegrator->advanceSolution(dt, first_step);
         PROFILE_STOP("advanceSolution");
+        // check if the computed approximation is acceptable for the timestep taken
         bool solnAcceptable = timeIntegrator->checkNewSolution();
 
         if(solnAcceptable) {

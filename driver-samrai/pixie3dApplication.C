@@ -104,6 +104,7 @@ extern void FORTRAN_NAME(getbcsequence)(void*, int*, int*, int**);
 extern void FORTRAN_NAME(initializeauxvar)(void*, int*);
 extern void FORTRAN_NAME(get_var_names)(void*, char*, char*, char*);
 extern void FORTRAN_NAME(findexplicitdt)(void*, double*);
+extern void FORTRAN_NAME(calcDivergence)(void*, double*);
 #endif
 }
 
@@ -542,6 +543,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 ***********************************************************************/
 void pixie3dApplication::setInitialConditions( const double )
 {
+    PROFILE_START("setInitialConditions");
     // We have already set u0 we created the level container on the resetHierarchyConfiguration
 
     // Copy the data from u0 to u 
@@ -576,7 +578,7 @@ void pixie3dApplication::setInitialConditions( const double )
 
     // Copy the data from u to u_ic
     d_x_ic->copyVector(d_x,false);
-
+    PROFILE_STOP("setInitialConditions");
 }
 
 
@@ -688,6 +690,17 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
 
     // Copy r
     r->copyVector(d_x_r);
+
+    // Get the divergence of the magnetic field
+    /*for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
+        for (hier::PatchLevel::Iterator p(level); p; p++) {
+            PROFILE_START("Call calcDivergence");
+            FORTRAN_NAME(calcdivergence)(level_container->getPtr(*p),NULL,NULL);
+            PROFILE_STOP("Call calcDivergence");
+        }
+    }*/
     PROFILE_STOP("apply");
 }
 

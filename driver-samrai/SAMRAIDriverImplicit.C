@@ -32,6 +32,7 @@
 // Local headers
 #include "ImplicitPixie3dApplication.h"
 #include "ImplicitPixie3dApplicationParameters.h"
+#include "ProfilerApp.h"
 
 extern "C"{
 #include "assert.h"
@@ -63,6 +64,8 @@ int main( int argc, char *argv[] )
   // created, it forces the destruction before the manager is shutdown.
   {
 
+    PROFILE_START("MAIN");
+    std::string timer_results = "pixie3d.samrai";
     std::string input_file;
     std::string log_file;
    
@@ -105,7 +108,8 @@ int main( int argc, char *argv[] )
     std::string debug_name = "debugFile";
     if ( main_db->keyExists("debug_name") )
         debug_name = main_db->getString("debug_name");
-
+    timer_results = write_path + "/" + timer_results;
+	
     // Options for printing residuals
     bool print_nonlinear_residuals = false;
     if (main_db->keyExists("print_nonlinear_residuals"))
@@ -129,15 +133,13 @@ int main( int argc, char *argv[] )
     SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRUtils::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
     TBOX_ASSERT(dim==hierarchy->getDim());
 
-    // Check that the initial hierarchy has at least one patch per processor
-    int N_patches = 0;
+    // Check the initial hierarchy to see the patch distribution
     for ( int ln=0; ln<hierarchy->getNumberOfLevels(); ln++ ) {
         SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel> level = hierarchy->getPatchLevel(ln);
-        for (SAMRAI::hier::PatchLevel::Iterator p(level); p; p++)
-            N_patches++;
+        int N_local = level->getLocalNumberOfPatches();
+        int N_global = level->getGlobalNumberOfPatches();
+        SAMRAI::tbox::plog << ln << ": " << N_local << " of " << N_global << std::endl;
     }
-    if ( N_patches==0 )
-        TBOX_ERROR("One or more processors does not have any patches");
 
     // Initialize the writer
     appu::VisItDataWriter* visit_writer;
@@ -231,6 +233,7 @@ int main( int argc, char *argv[] )
     // Write the data
     if ( use_visit )
         visit_writer->writePlotData(hierarchy,0,0);
+    PROFILE_SAVE(timer_results);
     FILE *debug_file = NULL;
     if ( save_debug>0 ) {
         if ( rank==0 )
@@ -254,21 +257,18 @@ int main( int argc, char *argv[] )
     while ( current_time < final_time ) {
         current_time = timeIntegrator->getCurrentTime();
         tbox::pout << "Timestep " << timestep  << ", current time: " << current_time << std::endl;
-        //-------------------------------------------------------------------------------
+        
         // try and take a step
+        PROFILE_START("advanceSolution");
         int solver_retcode = timeIntegrator->advanceSolution(dt, first_step);
-
+        PROFILE_STOP("advanceSolution");
         int nonlinear_itns, linear_itns;
-    
         nonlinear_itns = snes_solver->getNumberOfNonlinearIterations();
         linear_itns = snes_solver->getTotalNumberOfLinearIterations();
-    
         tbox::pout << "Completed nonlinear solve" << std::endl;
-
         total_nonlinear_itns += nonlinear_itns;
         total_linear_itns += linear_itns;
 
-        //--------------------------------------------------------------------------------
         // check if the computed approximation is acceptable for the timestep taken
         bool solnAcceptable = timeIntegrator->checkNewSolution(solver_retcode);
 
@@ -333,6 +333,7 @@ int main( int argc, char *argv[] )
                     visit_writer->writePlotData(hierarchy, timestep, current_time);
                 if ( save_debug>0 )
                     application->writeDebugData(debug_file,timestep,current_time,save_debug);
+                PROFILE_SAVE(timer_results);
                 last_save_it = timestep;
                 last_save_time = current_time;
             }
@@ -359,6 +360,8 @@ int main( int argc, char *argv[] )
     // Delete the application
     application.setNull();
     delete application_parameters;
+    PROFILE_STOP("MAIN");
+    PROFILE_SAVE(timer_results);
     
   } // End code block
   tbox::pout << "Finializing PETSc, MPI and SAMRAI" << std::endl;
