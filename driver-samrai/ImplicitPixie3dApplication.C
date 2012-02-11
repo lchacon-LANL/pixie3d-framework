@@ -26,6 +26,7 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication():
   d_currentSolutionVector.setNull();
   d_previousSolutionVector.setNull();
   d_scratchVector.setNull();
+  d_vectorsCloned = false;
 }
   
 ImplicitPixie3dApplication::ImplicitPixie3dApplication(ImplicitPixie3dApplicationParameters *parameters):
@@ -47,6 +48,7 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication(ImplicitPixie3dApplicatio
   d_currentSolutionVector.setNull();
   d_previousSolutionVector.setNull();
   d_scratchVector.setNull();
+  d_vectorsCloned = false;
 
   initialize(parameters);
 }
