@@ -146,7 +146,7 @@ public:
 
    /*
     * Write the primary and auxillary variables to a binary file.
-    * type = 1:  Write each patch with ghost cells for all levels in double precision
+    * type = 1:  Write each patch with ghost cells for all levels using 14 digits of precision
     * type = 2:  Write the coarse level without ghost cells as a single patch in double precision
     */
    void writeDebugData( FILE *fp, const int it, const double time, int type=1 );
@@ -263,8 +263,7 @@ protected:
 
    // Data for applying the boundary conditions and the coarsen/refine schedules
    std::string d_coarsen_op_str;
-   int d_NumberOfBoundarySequenceGroups;
-   pixie3dRefinePatchStrategy::bcgrp_struct *d_BoundarySequenceGroups;
+   std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> d_BoundarySequenceGroups;
    tbox::Pointer<xfer::RefineSchedule> *refineSchedule[MAX_LEVELS];
    tbox::Pointer<xfer::SiblingGhostSchedule> *siblingSchedule[MAX_LEVELS];
    tbox::Pointer<xfer::CoarsenSchedule> coarsenSchedule[MAX_LEVELS];
@@ -277,6 +276,10 @@ protected:
    // Function to collect the data for a given id for all patches onto a single processor
    // Note: this is provided for writing debug files, requires global communication, and is not scalable
    std::vector<commPatchData> collectAllPatchData(tbox::Pointer<hier::PatchLevel> level, int id, int root);
+
+   // Get the boundary condition groups
+   std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> getBCgroup(int ln);
+   
 
 };
 }

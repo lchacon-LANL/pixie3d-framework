@@ -26,6 +26,7 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication():
   d_currentSolutionVector.setNull();
   d_previousSolutionVector.setNull();
   d_scratchVector.setNull();
+  d_vectorsCloned = false;
 }
   
 ImplicitPixie3dApplication::ImplicitPixie3dApplication(ImplicitPixie3dApplicationParameters *parameters):
@@ -47,6 +48,7 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication(ImplicitPixie3dApplicatio
   d_currentSolutionVector.setNull();
   d_previousSolutionVector.setNull();
   d_scratchVector.setNull();
+  d_vectorsCloned = false;
 
   initialize(parameters);
 }
@@ -71,6 +73,8 @@ ImplicitPixie3dApplication::initialize(ImplicitPixie3dApplicationParameters *par
     TBOX_ERROR(d_object_name << " -- Key data `initial_timestep'"
 	       << " missing in input.");
   }
+  d_max_timestep = 1e10;
+
   
   d_current_dt      = d_initial_dt;
   d_old_dt          = 0.0;
@@ -356,7 +360,7 @@ ImplicitPixie3dApplication::getNextDt(const bool good_solution, const int solver
   if (good_solution) 
     {
       // going to pick an arbitrary factor times the explicit
-      d_current_dt = 25*dt_exp;
+      d_current_dt = 10.0*dt_exp;
     }
   else
     {

@@ -20,16 +20,19 @@
 #include "SAMRAI/tbox/InputManager.h"
 #include "SAMRAI/mesh/StandardTagAndInitialize.h"
 #include "SAMRAI/appu/VisItDataWriter.h"
-#include "SAMRAI/algs/ImplicitIntegrator.h"
-#include "SAMRAI/solv/SNES_SAMRAIContext.h"
 //#include "SAMRAI/solv/PETSc_SAMRAIVectorReal.h"
 
 // SAMRUTILS headers
 #include "testutils/SAMRBuilder.h"
 
+// SAMRSOLVERS headers
+#include "SAMRAI/algs/ImplicitIntegrator.h"
+#include "SAMRAI/solv/SNES_SAMRAIContext.h"
+
 // Local headers
 #include "ImplicitPixie3dApplication.h"
 #include "ImplicitPixie3dApplicationParameters.h"
+#include "ProfilerApp.h"
 
 extern "C"{
 #include "assert.h"
@@ -61,15 +64,15 @@ int main( int argc, char *argv[] )
   // created, it forces the destruction before the manager is shutdown.
   {
 
+    PROFILE_START("MAIN");
+    std::string timer_results = "pixie3d.samrai";
     std::string input_file;
     std::string log_file;
-    int plot_interval=0;
-    std::string write_path;
    
     int rank = mpi.getRank();
 
     // Process command line arguments and dump to log file.
-    SAMRAI::SAMRBuilder::processCommandLine(argc, argv, input_file, log_file);
+    SAMRUtils::SAMRBuilder::processCommandLine(argc, argv, input_file, log_file);
 
     // Create the log file
     SAMRAI::tbox::PIO::logOnlyNodeZero(log_file);
@@ -77,45 +80,48 @@ int main( int argc, char *argv[] )
     // Create input database and parse all data in input file.
     SAMRAI::tbox::Pointer<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
     SAMRAI::tbox::InputManager::getManager()->parseInputFile(input_file, input_db);
-    
     SAMRAI::tbox::Pointer<SAMRAI::tbox::Database> main_db = input_db->getDatabase("Main");
     SAMRAI::tbox::Pointer<SAMRAI::tbox::Database>  tag_db = input_db->getDatabase("StandardTagAndInitialize");
-    double dt_save;
-    if ( main_db->keyExists("output_path") ) {
-        write_path = main_db->getString("output_path");
-    } else {
-        write_path = "output";
+
+    // Get the output parameters
+    bool use_visit = main_db->getBool("use_visit");
+    double dt_save = 1e100;             // Default maximum time between saves
+    int plot_interval = 0x7FFFFFFF;     // Default maximum number of iterators between saves
+    tbox::Array<double> save_times;     // Default times to force a save
+    std::string write_path = "output";  // Default path to save the data
+    long int max_saves = 10000;         // Default maximum number of saves
+    if ( use_visit ) {
+        if ( main_db->keyExists("output_path") )
+            write_path = main_db->getString("output_path");
+        if ( main_db->keyExists("plot_interval") )
+            plot_interval = main_db->getInteger("plot_interval");
+        if ( main_db->keyExists("save_times") )
+            save_times = main_db->getDoubleArray("save_times");
+        if ( main_db->keyExists("dt_save") )
+            dt_save = main_db->getDouble("dt_save");
+        if ( main_db->keyExists("max_saves") )
+            max_saves = (long int) main_db->getDouble("max_saves");
     }
-    if ( main_db->keyExists("dt_save") )
-        dt_save = main_db->getDouble("dt_save");
-    else
-        dt_save = 1.0;
     int save_debug = 0;
     if ( main_db->keyExists("save_debug") ) 
         save_debug = main_db->getInteger("save_debug");
-    std::string debug_name;
+    std::string debug_name = "debugFile";
     if ( main_db->keyExists("debug_name") )
         debug_name = main_db->getString("debug_name");
-    else
-        debug_name = "debugFile";
-
+    timer_results = write_path + "/" + timer_results;
+	
+    // Options for printing residuals
     bool print_nonlinear_residuals = false;
     if (main_db->keyExists("print_nonlinear_residuals"))
-      {
-	print_nonlinear_residuals = main_db->getBool("print_nonlinear_residuals");
-      }
-
+        print_nonlinear_residuals = main_db->getBool("print_nonlinear_residuals");
     bool print_linear_residuals = false;
     if (main_db->keyExists("print_linear_residuals"))
-      {
-	print_linear_residuals = main_db->getBool("print_linear_residuals");
-      }
+        print_linear_residuals = main_db->getBool("print_linear_residuals");
     
+    // Options for regridding
     int regrid_interval = 0;
     if (main_db->keyExists("regrid_interval"))
-      {
-	regrid_interval = main_db->getInteger("regrid_interval");
-      }
+        regrid_interval = main_db->getInteger("regrid_interval");
 
     // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
     const SAMRAI::tbox::Dimension dim(3);
@@ -124,18 +130,16 @@ int main( int argc, char *argv[] )
     // Create the patch hierarchy
     SAMRAI::tbox::Pointer<SAMRAI::mesh::StandardTagAndInitStrategy> object = application;
     SAMRAI::tbox::Pointer<SAMRAI::mesh::GriddingAlgorithm> gridding_algorithm;
-    SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRAI::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
+    SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRUtils::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
     TBOX_ASSERT(dim==hierarchy->getDim());
 
-    // Check that the initial hierarchy has at least one patch per processor
-    int N_patches = 0;
+    // Check the initial hierarchy to see the patch distribution
     for ( int ln=0; ln<hierarchy->getNumberOfLevels(); ln++ ) {
         SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel> level = hierarchy->getPatchLevel(ln);
-        for (SAMRAI::hier::PatchLevel::Iterator p(level); p; p++)
-            N_patches++;
+        int N_local = level->getLocalNumberOfPatches();
+        int N_global = level->getGlobalNumberOfPatches();
+        SAMRAI::tbox::plog << ln << ": " << N_local << " of " << N_global << std::endl;
     }
-    if ( N_patches==0 )
-        TBOX_ERROR("One or more processors does not have any patches");
 
     // Initialize the writer
     appu::VisItDataWriter* visit_writer;
@@ -158,33 +162,30 @@ int main( int argc, char *argv[] )
     TBOX_ASSERT(!error_detector.isNull());
     error_detector->turnOnGradientDetector();
     error_detector->turnOffRefineBoxes();
-
     tbox::Array<int> tag_buffer;
-
     if ( error_detector->refineUserBoxInputOnly() )
         tag_buffer = tbox::Array<int>(20,0);    // Only user-defined refinement boxes are used, no tag buffer is necessary
     else
-      tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
-    
+        tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
     gridding_algorithm->regridAllFinerLevels(0,t0,tag_buffer);
     application->setInitialConditions(t0);
 
     solv::SNES_SAMRAIContext* snes_solver = NULL;
     
     snes_solver = new solv::SNES_SAMRAIContext("SNESSolver",
-					       input_db->getDatabase("SNESSolver"),
-					       application);
+                           input_db->getDatabase("SNESSolver"),
+                           application);
 
     tbox::pout << "Created nonlinear solver " << std::endl;
     
     input_db->getDatabase("SNESSolver")->printClassData(tbox::plog);
 
     algs::ImplicitIntegrator* timeIntegrator = 
-      new algs::ImplicitIntegrator("ImplicitIntegrator",
-				   input_db->getDatabase("ImplicitIntegrator"),
-				   application,
-				   snes_solver,
-				   hierarchy);
+        new algs::ImplicitIntegrator("ImplicitIntegrator",
+                   input_db->getDatabase("ImplicitIntegrator"),
+                   application,
+                   snes_solver,
+                   hierarchy);
 
     tbox::pout << "Created implicit time integrator " << std::endl;
     input_db->getDatabase("ImplicitIntegrator")->printClassData(tbox::plog);
@@ -204,42 +205,35 @@ int main( int argc, char *argv[] )
     
 #if PETSC_VERSION_(3,0,0)   
     ierr = KSPSetPreconditionerSide(snes_solver->getKrylovSolver(),
-				    PC_RIGHT);
+                    PC_RIGHT);
     
     PETSC_SAMRAI_ERROR(ierr);
 #else
     ierr = KSPSetPCSide(snes_solver->getKrylovSolver(),
-			PC_RIGHT);
+            PC_RIGHT);
     
     PETSC_SAMRAI_ERROR(ierr);
 #endif
     
    
-    if ( print_nonlinear_residuals )
-      {
-	ierr = SNESMonitorSet(snes_solver->getSNESSolver(),
-			      SNESMonitorDefault,
-			      PETSC_NULL,
-			      PETSC_NULL);  CHKERRQ(ierr);
-      }
+    if ( print_nonlinear_residuals ) {
+        ierr = SNESMonitorSet(snes_solver->getSNESSolver(),
+                  SNESMonitorDefault,
+                  PETSC_NULL,
+                  PETSC_NULL);  CHKERRQ(ierr);
+    }
     
-    if ( print_linear_residuals )
-      {
-	ierr = KSPMonitorSet(snes_solver->getKrylovSolver(),
-			     KSPMonitorDefault, 
-			     PETSC_NULL, 
-			     PETSC_NULL);  CHKERRQ(ierr);
-      }
-    
-    
-    tbox::Pointer<tbox::Database> plot_db = input_db->getDatabase("Plotting");
-
-    if (plot_db->keyExists("plot_interval")) {
-        plot_interval = plot_db->getInteger("plot_interval");
+    if ( print_linear_residuals ) {
+        ierr = KSPMonitorSet(snes_solver->getKrylovSolver(),
+                 KSPMonitorDefault, 
+                 PETSC_NULL, 
+                 PETSC_NULL);  CHKERRQ(ierr);
     }
 
     // Write the data
-    visit_writer->writePlotData(hierarchy,0,0);
+    if ( use_visit )
+        visit_writer->writePlotData(hierarchy,0,0);
+    PROFILE_SAVE(timer_results);
     FILE *debug_file = NULL;
     if ( save_debug>0 ) {
         if ( rank==0 )
@@ -249,134 +243,125 @@ int main( int argc, char *argv[] )
 
     // Loop through time
     bool first_step = true;
-
     double current_time = 0.0;
-    double dt       = timeIntegrator->getCurrentDt();
+    double dt = timeIntegrator->getCurrentDt();
     double final_time = timeIntegrator->getFinalTime();
-
+    long int timestep = 0;
+    double last_save_time = current_time;
+    long int last_save_it = timestep;
+    int it_save_time = 0;
     // the next two variables are to keep statistics on the
     // total number of linear and nonlinear solves
     int total_nonlinear_itns = 0;
     int total_linear_itns = 0;
-   
-    int timestep = 0;
-    while (current_time < final_time)
-      {
+    while ( current_time < final_time ) {
         current_time = timeIntegrator->getCurrentTime();
-	tbox::pout << "Timestep " << timestep  << ", current time: " << current_time << std::endl;
-	//-------------------------------------------------------------------------------
-	// try and take a step
+        tbox::pout << "Timestep " << timestep  << ", current time: " << current_time << std::endl;
+        
+        // try and take a step
+        PROFILE_START("advanceSolution");
         int solver_retcode = timeIntegrator->advanceSolution(dt, first_step);
+        PROFILE_STOP("advanceSolution");
+        int nonlinear_itns, linear_itns;
+        nonlinear_itns = snes_solver->getNumberOfNonlinearIterations();
+        linear_itns = snes_solver->getTotalNumberOfLinearIterations();
+        tbox::pout << "Completed nonlinear solve" << std::endl;
+        total_nonlinear_itns += nonlinear_itns;
+        total_linear_itns += linear_itns;
 
-	int nonlinear_itns, linear_itns;
-	
-	nonlinear_itns = snes_solver->getNumberOfNonlinearIterations();
-	linear_itns = snes_solver->getTotalNumberOfLinearIterations();
-	
-	tbox::pout << "Completed nonlinear solve" << std::endl;
-
-	total_nonlinear_itns += nonlinear_itns;
-	total_linear_itns += linear_itns;
-
-	//--------------------------------------------------------------------------------
-	// check if the computed approximation is acceptable for the timestep taken
+        // check if the computed approximation is acceptable for the timestep taken
         bool solnAcceptable = timeIntegrator->checkNewSolution(solver_retcode);
 
-        if(solnAcceptable)
-	  {
+        if(solnAcceptable) {
             first_step = false;
-	    /*
-	     * If desired, regrid patch hierarchy and reset vector weights.
-	     */
-	    if ( (regrid_interval > 0)  && ((timestep % regrid_interval) == 0) ) 
-	      {
-		tbox::pout << " Regridding ..." << std::endl;
 
-		gridding_algorithm->regridAllFinerLevels(0,
-							 current_time,
-							 tag_buffer);
+            // If desired, regrid patch hierarchy and reset vector weights.
+            if ( (regrid_interval > 0)  && ((timestep % regrid_interval) == 0) ) {
 
-		tbox::pout << "************************* Finished regrid *********************************" << std::endl;
+                tbox::pout << " Regridding ..." << std::endl;
+                gridding_algorithm->regridAllFinerLevels( 0, current_time, tag_buffer );
+                tbox::pout << "************************* Finished regrid *********************************" << std::endl;
    
-		snes_solver->resetSolver(0, hierarchy->getFinestLevelNumber());
-		
-		snes_solver->setGMRESOrthogonalizationMethod(gmresOrthogonalizationMethod);
-		
-#if PETSC_VERSION_(3,0,0)   
-		ierr = KSPSetPreconditionerSide(snes_solver->getKrylovSolver(),
-						PC_RIGHT);
-		
-		PETSC_SAMRAI_ERROR(ierr);
-#else
-		ierr = KSPSetPCSide(snes_solver->getKrylovSolver(),
-				    PC_RIGHT);
-		
-		PETSC_SAMRAI_ERROR(ierr);
-#endif
-		
-		if ( print_nonlinear_residuals ) 
-		  {
-		    ierr = SNESMonitorSet(snes_solver->getSNESSolver(),
-					  SNESMonitorDefault,
-					  PETSC_NULL,
-					  PETSC_NULL);  CHKERRQ(ierr);
-		  }
-		
-		if ( print_linear_residuals ) 
-		  {
-		    ierr = KSPMonitorSet(snes_solver->getKrylovSolver(),
-					 KSPMonitorDefault, 
-					 PETSC_NULL, 
-					 PETSC_NULL);  CHKERRQ(ierr);
-		  }
+                snes_solver->resetSolver(0, hierarchy->getFinestLevelNumber());
+                
+                snes_solver->setGMRESOrthogonalizationMethod(gmresOrthogonalizationMethod);
+        
+                #if PETSC_VERSION_(3,0,0)   
+                    ierr = KSPSetPreconditionerSide( snes_solver->getKrylovSolver(), PC_RIGHT );
+                    PETSC_SAMRAI_ERROR(ierr);
+                #else
+                    ierr = KSPSetPCSide( snes_solver->getKrylovSolver(), PC_RIGHT );
+                    PETSC_SAMRAI_ERROR(ierr);
+                #endif
+        
+                if ( print_nonlinear_residuals ) {
+                    ierr = SNESMonitorSet(snes_solver->getSNESSolver(),
+                        SNESMonitorDefault,
+                        PETSC_NULL,
+                        PETSC_NULL);  CHKERRQ(ierr);
+                }
+        
+                if ( print_linear_residuals ) {
+                    ierr = KSPMonitorSet(snes_solver->getKrylovSolver(),
+                        KSPMonitorDefault, 
+                        PETSC_NULL, 
+                        PETSC_NULL);  CHKERRQ(ierr);
+                }
 
-		first_step = false;
-		solver_retcode = timeIntegrator->advanceSolution(dt, first_step);
-	      }
-	    else 
-	      {
-		first_step = false;
-	      }
-	    
-		
-	    current_time = timeIntegrator->updateSolution();
+                solver_retcode = timeIntegrator->advanceSolution(dt, first_step);
 
+            }
+			
+            current_time = timeIntegrator->updateSolution();
             tbox::pout << "Advanced solution to time : " << current_time << std::endl;
-	    
-            if ( (plot_interval > 0) && ((timestep % plot_interval) == 0) )
-	      {
-                if ( save_debug>0 )
-		  {
-		    application->writeDebugData(debug_file,timestep,current_time,save_debug);
-		  }
-                visit_writer->writePlotData(hierarchy, timestep+1, current_time);
-	      }
+            timestep++;
 
-	    dt = timeIntegrator->getNextDt(solnAcceptable, solver_retcode);
-	    timestep++;
-	    tbox::pout << "\n\n++++++++++++++++++++++++++++++++++++++++++++" << std::endl;
-	    tbox::pout << "At end of timestep # " << timestep - 1 << std::endl;
-	    tbox::pout << " Iterations:  nonlinear " << nonlinear_itns << std::endl;
-	    tbox::pout << "              linear:   " << linear_itns << std::endl;
-	    tbox::pout << "Simulation time is " << current_time << std::endl;
-	    tbox::pout << "++++++++++++++++++++++++++++++++++++++++++++\n\n" << std::endl;
-	  }
-	else
-	  {
+            // Determine if we want to save the data
+            bool save_now = false;
+            if ( timestep-last_save_it >= plot_interval )
+                save_now = true;
+            if ( current_time-last_save_time >= dt_save )
+                save_now = true;
+            if ( save_times.size() > it_save_time ) {
+                if ( current_time >= save_times[it_save_time] ) {
+                    save_now = true;
+                    it_save_time++;
+                }
+            }
+            if ( save_now ) {
+                if ( use_visit )
+                    visit_writer->writePlotData(hierarchy, timestep, current_time);
+                if ( save_debug>0 )
+                    application->writeDebugData(debug_file,timestep,current_time,save_debug);
+                PROFILE_SAVE(timer_results);
+                last_save_it = timestep;
+                last_save_time = current_time;
+            }
+
+            dt = timeIntegrator->getNextDt(solnAcceptable, solver_retcode);
+            tbox::pout << "\n\n++++++++++++++++++++++++++++++++++++++++++++" << std::endl;
+            tbox::pout << "At end of timestep # " << timestep - 1 << std::endl;
+            tbox::pout << " Iterations:  nonlinear " << nonlinear_itns << std::endl;
+            tbox::pout << "              linear:   " << linear_itns << std::endl;
+            tbox::pout << "Simulation time is " << current_time << std::endl;
+            tbox::pout << "++++++++++++++++++++++++++++++++++++++++++++\n\n" << std::endl;
+            tbox::pout << "Estimating next time step : " << dt << std::endl;
+        } else {
             tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
-	  }
-	        
-        tbox::pout << "Estimating next time step : " << dt << std::endl;
-      }
-    
+			TBOX_ERROR("Error advancing solution");
+        }
+
+    }
     if ( debug_file != NULL )
-      fclose(debug_file);
-    
+        fclose(debug_file);
+
     // Barrier to make sure all processors have finished
     mpi.Barrier();
     // Delete the application
     application.setNull();
     delete application_parameters;
+    PROFILE_STOP("MAIN");
+    PROFILE_SAVE(timer_results);
     
   } // End code block
   tbox::pout << "Finializing PETSc, MPI and SAMRAI" << std::endl;

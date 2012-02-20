@@ -35,6 +35,18 @@ ifeq ($(HOST),lap0086227)
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
     HDF5_INC  =-I$(HDF5_HOME)/include
+    LIBS += -L/packages/acml-4-4-0/gfortran64/lib -llapack -lblas -lgfortran
+endif
+
+###############################
+# cray2 (CSU cray cluster)    #
+###############################
+
+ifeq ($(HOST),cray2)
+    FC=gfortran
+    OPT=g
+    HDF5 = f
+    SAMRSOLVERS_HOME=/home/mberrill/lustrefs/samrsolvers-v3/build/optimized
 endif
 
 ###############################

@@ -37,6 +37,7 @@
 #include "pixie3dRefinePatchStrategy.h"
 #include "varrayContainer.h"
 #include "fortran.h"
+#include "ProfilerApp.h"
 
 // SAMRAI headers
 #include "SAMRAI/geom/CartesianGridGeometry.h"
@@ -44,8 +45,8 @@
 #include "SAMRAI/geom/CartesianCellDoubleWeightedAverage.h"
 #include "SAMRAI/hier/CoarsenOperator.h"
 #include "SAMRAI/hier/NeighborhoodSet.h"
-#include "SAMRAI/hier/MappedBox.h"
-#include "SAMRAI/hier/MappedBoxSet.h"
+#include "SAMRAI/hier/Box.h"
+#include "SAMRAI/hier/BoxContainer.h"
 #include "SAMRAI/xfer/PatchLevelFillPattern.h"
 #include "SAMRAI/xfer/PatchLevelBorderFillPattern.h"
 #include "SAMRAI/xfer/PatchLevelFullFillPattern.h"
@@ -103,6 +104,7 @@ extern void FORTRAN_NAME(getbcsequence)(void*, int*, int*, int**);
 extern void FORTRAN_NAME(initializeauxvar)(void*, int*);
 extern void FORTRAN_NAME(get_var_names)(void*, char*, char*, char*);
 extern void FORTRAN_NAME(findexplicitdt)(void*, double*);
+extern void FORTRAN_NAME(calcDivergence)(void*, double*);
 #endif
 }
 
@@ -114,13 +116,11 @@ namespace SAMRAI{
 *                                                                      *
 ***********************************************************************/
 pixie3dApplication::pixie3dApplication():
-    dim(0)
+    dim(3)
 {
     d_hierarchy = NULL;
     for (int i=0; i<MAX_LEVELS; i++)
         level_container_array[i] = NULL;
-    d_NumberOfBoundarySequenceGroups = 0;
-    d_BoundarySequenceGroups = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
         refineSchedule[i] = NULL;
         siblingSchedule[i] = NULL;
@@ -144,8 +144,6 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
     d_hierarchy = NULL;
     for (int i=0; i<MAX_LEVELS; i++)
         level_container_array[i] = NULL;
-    d_NumberOfBoundarySequenceGroups = 0;
-    d_BoundarySequenceGroups = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
         refineSchedule[i] = NULL;
         siblingSchedule[i] = NULL;
@@ -179,21 +177,16 @@ pixie3dApplication::~pixie3dApplication()
     // Delete the refine/coarsen schedules
     for (int i=0; i<MAX_LEVELS; i++) {
         if ( refineSchedule[i] != NULL ) {
-            for (int j=0; j<d_NumberOfBoundarySequenceGroups; j++)
+            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 refineSchedule[i][j].setNull();
             delete [] refineSchedule[i];
         }
         if ( siblingSchedule[i] != NULL ) {
-            for (int j=0; j<d_NumberOfBoundarySequenceGroups; j++)
+            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 siblingSchedule[i][j].setNull();
             delete [] siblingSchedule[i];
         }
     }
-    if ( d_BoundarySequenceGroups != NULL ) {
-        delete [] d_BoundarySequenceGroups;
-        d_BoundarySequenceGroups = NULL;
-    }
-    d_NumberOfBoundarySequenceGroups = 0;
     // Delete misc variables
     delete input_data;
     delete [] u0_id;
@@ -240,8 +233,6 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         assert( parameters != (pixie3dApplicationParameters*) NULL );
     #endif
     d_hierarchy = parameters->d_hierarchy;
-    if ( dim.getValue()==0 )
-        dim.setValue(d_hierarchy->getDim().getValue());
     if ( dim!=d_hierarchy->getDim() )
         TBOX_ERROR("Error in dimension");
     if ( dim.getValue() != 3 )
@@ -283,10 +274,10 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     tbox::Pointer<hier::GridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::hier::BoxList &physicalDomainList = grid_geometry->getPhysicalDomain(0);
-    if ( physicalDomainList.size() != 1 )
-        TBOX_ERROR("Multiple box domains are not supported");
-    const SAMRAI::hier::Box physicalDomain = physicalDomainList.getBoundingBox();
+    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    if ( domain_array.size() != 1 ) 
+        TBOX_ERROR("Only 1 domain box is supported");
+    const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
     int nbox[3];
     for (int i=0; i<dim.getValue(); i++)
         nbox[i] = physicalDomain.numberCells(i);
@@ -406,11 +397,10 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     // Allocate data for f_src
     d_f_src = new pdat::CellVariable<double>( dim, "fsrc", input_data->nvar );
     f_src_id = var_db ->registerVariableAndContext(d_f_src, context_f, ghost0);
-
     for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
         level->allocatePatchData(f_src_id);
-    }
+    }   
    
     // Create patch variables
     for (int i=0; i<input_data->nvar; i++)
@@ -470,14 +460,33 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     synchronizeVariables();
 
     // Get the variable names
+    const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
+    int rank = comm.getRank();
+    int size = comm.getSize();
     tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(0);
     LevelContainer *level_container = (LevelContainer *) level_container_array[0];
+    void *pixiePatchData = NULL;
+    for (hier::PatchLevel::Iterator p(level); p; p++)
+        pixiePatchData = level_container->getPtr(*p);
+    int root = size;
+    if ( pixiePatchData!=NULL )
+        root = rank;
+    int tmp = root;
+    comm.Allreduce(&tmp,&root,1,MPI_INT,MPI_MIN);
     char *tmp_depVarLabels = new char[21*input_data->nvar];
     char *tmp_auxScalarLabels = new char[21*input_data->nauxs];
     char *tmp_auxVectorLabels = new char[21*input_data->nauxv];
-    for (hier::PatchLevel::Iterator p(level); p; p++) {
-        FORTRAN_NAME(get_var_names)(level_container->getPtr(*p),tmp_depVarLabels,tmp_auxScalarLabels,tmp_auxVectorLabels);
-    }
+    for (int i=0; i<21*input_data->nvar; i++)
+        tmp_depVarLabels[i] = 0;
+    for (int i=0; i<21*input_data->nauxs; i++)
+        tmp_auxScalarLabels[i] = 0;
+    for (int i=0; i<21*input_data->nauxv; i++)
+        tmp_auxVectorLabels[i] = 0;
+    if ( root==rank )
+        FORTRAN_NAME(get_var_names)(pixiePatchData,tmp_depVarLabels,tmp_auxScalarLabels,tmp_auxVectorLabels);
+    comm.Bcast(tmp_depVarLabels,21*input_data->nvar,MPI_CHAR,root);
+    comm.Bcast(tmp_auxScalarLabels,21*input_data->nauxs,MPI_CHAR,root);
+    comm.Bcast(tmp_auxVectorLabels,21*input_data->nauxv,MPI_CHAR,root);
     depVarLabels = new std::string[input_data->nvar];
     auxScalarLabels = new std::string[input_data->nauxs];
     auxVectorLabels = new std::string[input_data->nauxv];
@@ -534,6 +543,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 ***********************************************************************/
 void pixie3dApplication::setInitialConditions( const double )
 {
+    PROFILE_START("setInitialConditions");
     // We have already set u0 we created the level container on the resetHierarchyConfiguration
 
     // Copy the data from u0 to u 
@@ -568,7 +578,7 @@ void pixie3dApplication::setInitialConditions( const double )
 
     // Copy the data from u to u_ic
     d_x_ic->copyVector(d_x,false);
-
+    PROFILE_STOP("setInitialConditions");
 }
 
 
@@ -614,9 +624,10 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
                tbox::Pointer< solv::SAMRAIVectorReal<double> >  &r,
                double, double)
 {
-  // Copy x
-  if(d_x.isNull())  TBOX_ERROR( "d_x is Null");
-  if(x.isNull())  TBOX_ERROR( "x is Null");
+    PROFILE_START("apply");
+    // Copy x
+    if(d_x.isNull())  TBOX_ERROR( "d_x is Null");
+    if(x.isNull())  TBOX_ERROR( "x is Null");
 
     d_x->copyVector(x);
     // Coarsen and Refine x
@@ -648,18 +659,22 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
             // Create varray on fortran side
             varrayContainer *varray = new varrayContainer(*p,input_data->nvar,f_id);
             // Create f
+            PROFILE_START("Call evaluatenonlinearresidual");
             #ifdef absoft
                 FORTRAN_NAME(EVALUATENONLINEARRESIDUAL)(level_container->getPtr(*p),&n_elem,fsrc,varray->getPtr());
             #else
                 FORTRAN_NAME(evaluatenonlinearresidual)(level_container->getPtr(*p),&n_elem,fsrc,varray->getPtr());
             #endif
+            PROFILE_STOP("Call evaluatenonlinearresidual");
             // Comupute the timestep required for an explicit method, computed by pixie3d
             double dt_patch;
+            PROFILE_START("Call findexplicitdt");
             #ifdef absoft
                 FORTRAN_NAME(FINDEXPLICITDT)(level_container->getPtr(*p),&n_elem,fsrc,varray->getPtr());
             #else
                   FORTRAN_NAME(findexplicitdt)(level_container->getPtr(*p),&dt_patch);
             #endif
+            PROFILE_STOP("Call findexplicitdt");
             if ( dt_patch<=0.0 || dt_patch!=dt_patch )
                 TBOX_ERROR("Invalid timestep detected\n");
             if ( dt_patch < dt_exp )
@@ -675,6 +690,18 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
 
     // Copy r
     r->copyVector(d_x_r);
+
+    // Get the divergence of the magnetic field
+    /*for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
+        for (hier::PatchLevel::Iterator p(level); p; p++) {
+            PROFILE_START("Call calcDivergence");
+            FORTRAN_NAME(calcdivergence)(level_container->getPtr(*p),NULL,NULL);
+            PROFILE_STOP("Call calcDivergence");
+        }
+    }*/
+    PROFILE_STOP("apply");
 }
 
 /***********************************************************************
@@ -702,9 +729,11 @@ void pixie3dApplication::printVector( const tbox::Pointer< solv::SAMRAIVectorRea
 ***********************************************************************/
 void pixie3dApplication::coarsenVariables(void)
 {
+    PROFILE_START("coarsenVariables");
     for ( int ln=d_hierarchy->getFinestLevelNumber()-1; ln>=0; ln-- ) {
         coarsenSchedule[ln]->coarsenData();
     }
+    PROFILE_STOP("coarsenVariables");
 }
 
 
@@ -713,6 +742,7 @@ void pixie3dApplication::coarsenVariables(void)
 ***********************************************************************/
 void  pixie3dApplication::refineVariables(void)
 {
+    PROFILE_START("refineVariables");
     tbox::Pointer< hier::Variable > var0;
     tbox::Pointer< geom::CartesianGridGeometry > grid_geometry = d_hierarchy->getGridGeometry();
     tbox::Pointer< hier::Variable > var;
@@ -757,20 +787,35 @@ void  pixie3dApplication::refineVariables(void)
         level = d_hierarchy->getPatchLevel(ln);
         level_container = (LevelContainer *) level_container_array[ln];
         // process the boundary sequence groups in order
-        for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
+        for(size_t iSeq=0; iSeq<d_BoundarySequenceGroups.size(); iSeq++) {
             // initialize the aux variable on all patches on the level before interpolating
             // coarse values up and sync-ing periodic/sibling boundaries
+            PROFILE_START("Call initializeauxvar");
             for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
                 pixiePatchData = level_container->getPtr(*ip);
                 assert(pixiePatchData!=NULL);
                 int iSeq2 = iSeq+1;     // The Fortran code starts indexing at 1
                 FORTRAN_NAME(initializeauxvar)(pixiePatchData, &iSeq2);
             }
+            PROFILE_STOP("Call initializeauxvar");
             // Fill the ghost cells and apply the boundary conditions
+            PROFILE_START("refineSchedule fillData");
             (d_refine_strategy)->setRefineStrategySequence(d_BoundarySequenceGroups[iSeq]);
             refineSchedule[ln][iSeq]->fillData(0.0);
+            PROFILE_STOP("refineSchedule fillData");
+            // Fill the interior patches
+            PROFILE_START("Fill interiors");
+            for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
+                tbox::Pointer<hier::Patch> patch = *ip;
+                bool touches_boundary = (d_refine_strategy)->checkPhysicalBoundary(*patch);
+                if ( !touches_boundary )
+                    (d_refine_strategy)->applyBC(patch);
+            }
+            PROFILE_STOP("Fill interiors");
             // Fill corners and edges
+            PROFILE_START("siblingSchedule fillData");
             siblingSchedule[ln][iSeq]->fillData(0.0);
+            PROFILE_STOP("siblingSchedule fillData");
         }
     }
 
@@ -781,6 +826,7 @@ void  pixie3dApplication::refineVariables(void)
         d_aux_scalar->copyVector(d_aux_scalar_tmp, false);
         d_aux_vector->copyVector(d_aux_vector_tmp, false);
     }  
+    PROFILE_STOP("refineVariables");
 }
 
 
@@ -904,10 +950,10 @@ void pixie3dApplication::writeGlobalCellData( FILE *fp, int var_id ) {
     tbox::Pointer<hier::GridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::hier::BoxList &physicalDomainList = grid_geometry->getPhysicalDomain(0);
-    if ( physicalDomainList.size() != 1 )
-        TBOX_ERROR("Multiple box domains are not supported");
-    const SAMRAI::hier::Box physicalDomain = physicalDomainList.getBoundingBox();
+    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    if ( domain_array.size() != 1 ) 
+        TBOX_ERROR("Only 1 domain box is supported");
+    const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
     const hier::Index lower = physicalDomain.lower();
     const hier::Index upper = physicalDomain.upper();
     int Ngx = upper(0)-lower(0)+1;
@@ -963,10 +1009,10 @@ void pixie3dApplication::writeDebugData( FILE *fp, const int it, const double ti
     tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::hier::BoxList &physicalDomainList = grid_geometry->getPhysicalDomain(0);
-    if ( physicalDomainList.size() != 1 )
-        TBOX_ERROR("Multiple box domains are not supported");
-    const SAMRAI::hier::Box physicalDomain = physicalDomainList.getBoundingBox();
+    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    if ( domain_array.size() != 1 ) 
+        TBOX_ERROR("Only 1 domain box is supported");
+    const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
     const hier::Index ilower = physicalDomain.lower();
     const hier::Index iupper = physicalDomain.upper();
     int nbox[3];
@@ -1042,19 +1088,18 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     tbox::Pointer<hier::PatchLevel> level = hierarchy->getPatchLevel(level_number);
 
     // Check the new level for overlapping boxes
-    const hier::MappedBoxLevel box_level = level->getGlobalizedMappedBoxLevel();
-    const hier::MappedBoxSet box_set = box_level.getMappedBoxes();
+    const hier::BoxLevel box_level = level->getGlobalizedBoxLevel();
+    const hier::BoxContainer box_set = box_level.getBoxes();
     hier::PersistentOverlapConnectors persistentOverlap = box_level.getPersistentOverlapConnectors();
     hier::IntVector zero(level->getDim(),0);
-    SAMRAI::hier::Connector connector = persistentOverlap.createConnector(box_level,zero);
-    hier::NeighborhoodSet neighborhood = connector.getNeighborhoodSets();
-    for (std::map<hier::MappedBoxId,hier::MappedBoxSet>::iterator it=neighborhood.begin(); it!=neighborhood.end(); it++) {
-        hier::BoxList neighbors;
-        it->second.convertToBoxList(neighbors);
+    hier::Connector connector = persistentOverlap.createConnector(box_level,zero);
+    for (hier::PatchLevel::Iterator p(level); p; p++) {
+        tbox::Pointer<SAMRAI::hier::Patch> patch = *p;
+        hier::BoxContainer neighbors;
+        connector.getNeighborBoxes( patch->getBox().getId(), neighbors );
         if ( neighbors.size() != 1 )
             TBOX_ERROR("Overlapping boxes were detected on new level, and are not supported");
     }
-
     // Allocate data when called for, otherwise set timestamp on allocated data.
     hier::ComponentSelector d_problem_data(false);
     if ( !old_level.isNull() ) {
@@ -1135,51 +1180,19 @@ void pixie3dApplication::resetHierarchyConfiguration(
     // Reset the communication schedules
     for (int i=coarsest_level; i<=finest_level; i++) {
         if ( refineSchedule[i] != NULL ) {
-            for (int j=0; j<d_NumberOfBoundarySequenceGroups; j++)
+            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 refineSchedule[i][j].setNull();
             delete [] refineSchedule[i];
         }
         if ( siblingSchedule[i] != NULL ) {
-            for (int j=0; j<d_NumberOfBoundarySequenceGroups; j++)
+            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 siblingSchedule[i][j].setNull();
             delete [] siblingSchedule[i];
         }
     }
-    if ( d_BoundarySequenceGroups != NULL ) {
-        delete [] d_BoundarySequenceGroups;
-        d_BoundarySequenceGroups = NULL;
-    }
-    d_NumberOfBoundarySequenceGroups = 0;
-    // Get an arbitrary patch to give us the number of boundary sequency groups
-    void *pixiePatchData = NULL;
-    for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
-        LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-        for (hier::PatchLevel::Iterator p(level); p; p++) {
-            pixiePatchData = level_container->getPtr(*p);
-            break;
-        }
-        if ( pixiePatchData != NULL )
-            break;
-    }
-    if ( pixiePatchData == NULL )
-        TBOX_ERROR("One of the processors does not have any patches");
+
     // Get the number of boundary condition groups and the sequence for each group
-    FORTRAN_NAME(getnumberofbcgroups)(pixiePatchData,&d_NumberOfBoundarySequenceGroups);
-    d_BoundarySequenceGroups = new pixie3dRefinePatchStrategy::bcgrp_struct[d_NumberOfBoundarySequenceGroups];
-    for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
-        int iSeq2 = iSeq+1;     // The Fortran code starts indexing at 1
-        int N_sequence;
-        int *tmp = NULL;
-        FORTRAN_NAME(getbcsequence)(pixiePatchData,&iSeq2,&N_sequence,&tmp);
-        pixie3dRefinePatchStrategy::bcgrp_struct tmp2(N_sequence);
-        d_BoundarySequenceGroups[iSeq] = tmp2;
-        for (int i=0; i<N_sequence; i++) {
-            d_BoundarySequenceGroups[iSeq].bc_seq[i] = tmp[i];
-            d_BoundarySequenceGroups[iSeq].vector[i] = tmp[i+N_sequence];
-            d_BoundarySequenceGroups[iSeq].fillBC[i] = tmp[i+2*N_sequence];
-        }
-    }
+    d_BoundarySequenceGroups = getBCgroup(coarsest_level);
 
     // Create the refineSchedule and siblingSchedule
     tbox::Pointer<hier::Variable> var0;
@@ -1188,9 +1201,9 @@ void pixie3dApplication::resetHierarchyConfiguration(
     tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelFullFillPattern());     // This may reduce performance
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-        refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_NumberOfBoundarySequenceGroups];
-        siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_NumberOfBoundarySequenceGroups];
-        for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
+        refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_BoundarySequenceGroups.size()];
+        siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_BoundarySequenceGroups.size()];
+        for(size_t iSeq=0; iSeq<d_BoundarySequenceGroups.size(); iSeq++) {
             int data_id=-1;
             xfer::RefineAlgorithm refineVariableAlgorithm(d_hierarchy->getDim());
             // Register the variables in the current squence
@@ -1346,6 +1359,72 @@ std::vector<commPatchData> pixie3dApplication::collectAllPatchData(tbox::Pointer
     // Finished
     comm.Barrier();
     return patch_data;
+}
+
+
+/****************************************************************************
+* Get the boundary condition groups                                         *
+****************************************************************************/
+std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> pixie3dApplication::getBCgroup(int ln)
+{
+    std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> groups;
+    // Get an arbitrary patch to give us the number of boundary sequency groups
+    void *pixiePatchData = NULL;
+    LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
+    tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+    for (hier::PatchLevel::Iterator p(level); p; p++)
+        pixiePatchData = level_container->getPtr(*p);
+    // Determine which processor should compute the bc groups
+    const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
+    int rank = comm.getRank();
+    int size = comm.getSize();
+    int root = size;
+    if ( pixiePatchData != NULL )
+        root = rank;
+    int tmp = root;
+    comm.Allreduce(&tmp,&root,1,MPI_INT,MPI_MIN);
+    // Get the number of boundary condition groups 
+    int N_groups=0;
+    if ( root==rank )
+        FORTRAN_NAME(getnumberofbcgroups)(pixiePatchData,&N_groups);
+    comm.Bcast(&N_groups,1,MPI_INT,root);
+    groups.resize(N_groups);
+    // Get the sequence for each group (root proc)
+    int buffer_size=0;
+    if ( root==rank ) {
+        for( int iSeq=0; iSeq<N_groups; iSeq++) {
+            int iSeq2 = iSeq+1;     // The Fortran code starts indexing at 1
+            int N_sequence;
+            int *data = NULL;
+            FORTRAN_NAME(getbcsequence)(pixiePatchData,&iSeq2,&N_sequence,&data);
+            groups[iSeq] = pixie3dRefinePatchStrategy::bcgrp_struct(N_sequence);
+            for (int i=0; i<N_sequence; i++) {
+                groups[iSeq].bc_seq[i] = data[i];
+                groups[iSeq].vector[i] = data[i+N_sequence];
+                groups[iSeq].fillBC[i] = data[i+2*N_sequence];
+            }
+            buffer_size += groups[iSeq].size();
+        }
+    }
+    // Communicate the bc sequence
+    comm.Bcast(&buffer_size,1,MPI_INT,root);
+    int *buffer = new int[buffer_size];
+    if ( root==rank ) {
+        tmp = 0;
+        for( int iSeq=0; iSeq<N_groups; iSeq++) {
+            groups[iSeq].pack(&buffer[tmp]);
+            tmp += groups[iSeq].size();
+        }
+    }
+    comm.Bcast(buffer,buffer_size,MPI_INT,root);
+    if ( root!=rank ) {
+        tmp = 0;
+        for( int iSeq=0; iSeq<N_groups; iSeq++) {
+            groups[iSeq].unpack(&buffer[tmp]);
+            tmp += groups[iSeq].size();
+        }
+    }
+    return groups;
 }
 
 

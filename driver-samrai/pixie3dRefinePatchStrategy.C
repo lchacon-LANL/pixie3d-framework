@@ -19,6 +19,7 @@
 
 #include "LevelContainer.h"
 #include "PatchContainer.h"
+#include "ProfilerApp.h"
 
 extern "C"{
 #include <assert.h>
@@ -29,8 +30,10 @@ extern "C"{
 extern "C" {
 #ifdef absoft
   extern void FORTRAN_NAME(APPLYBC) (void*, int*, int*);
+  extern void FORTRAN_NAME(POSTPROC)(void*, int*, int*);
 #else
   extern void FORTRAN_NAME(applybc) (void*, int*, int*);
+  extern void FORTRAN_NAME(postproc)(void*, int*, int*);
 #endif
 }
 namespace SAMRAI{
@@ -41,7 +44,7 @@ namespace SAMRAI{
 ***********************************************************************/
 // Empty constructor
 pixie3dRefinePatchStrategy::bcgrp_struct::bcgrp_struct() {
-    nbc_seq = -1;
+    nbc_seq = 0;
     bc_seq = NULL;
     vector = NULL;
     fillBC = NULL;
@@ -96,6 +99,35 @@ pixie3dRefinePatchStrategy::bcgrp_struct::~bcgrp_struct() {
     vector = NULL;
     fillBC = NULL;
 }
+// Number of ints needed to store the struct
+size_t pixie3dRefinePatchStrategy::bcgrp_struct::size() {
+    return 1+3*nbc_seq;
+}
+// Pack the data to an int buffer
+void pixie3dRefinePatchStrategy::bcgrp_struct::pack(int *buffer) {
+    buffer[0] = nbc_seq;
+    for (int i=0; i<nbc_seq; i++) {
+        buffer[1+3*i+0] = bc_seq[i];
+        buffer[1+3*i+1] = vector[i];
+        buffer[1+3*i+2] = fillBC[i];
+    }
+}
+// Unpack the data from an int buffer
+void pixie3dRefinePatchStrategy::bcgrp_struct::unpack(int *buffer) {
+    if ( bc_seq!=NULL ) { delete [] bc_seq; bc_seq=NULL; }
+    if ( vector!=NULL ) { delete [] vector; vector=NULL; }
+    if ( fillBC!=NULL ) { delete [] fillBC; fillBC=NULL; }
+    nbc_seq = buffer[0];
+    bc_seq = new int[nbc_seq];
+    vector = new int[nbc_seq];
+    fillBC = new int[nbc_seq];
+    for (int i=0; i<nbc_seq; i++) {
+        bc_seq[i] = buffer[1+3*i+0];
+        vector[i] = buffer[1+3*i+1];
+        fillBC[i] = buffer[1+3*i+2];
+    }
+}
+
 
   
 /***********************************************************************
@@ -144,80 +176,23 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch& patch,
                                                            const double time,
                                                            const hier::IntVector& ghost_width_to_fill)
 {
-    assert(d_nvar>=0);
-    assert(d_nauxs>=0);
-    assert(d_nauxv>=0);
+    //double start = MPI_Wtime();
     if ( ghost_width_to_fill==hier::IntVector(dim,0) ) {
         // We don't need to fill the ghost cells, return
         // This can happen with temporary patches
         return;
     }
-    /*if ( !checkPhysicalBoundary(patch) ) {
+    if ( !checkPhysicalBoundary(patch) ) {
         // Patch does not touch physical boundary, no need to do anything, return
         return;
-    }*/
-
-    // Copy the data from the temporary patch to the pixie patch
-    if ( copy_data ) {
-        // Copy u
-        for (int i=0; i<d_nvar; i++)
-            copy_data_patch(patch,u_tmp_id[i],u_id[i]);
-        // Copy auxillary scalars
-        for (int i=0; i<d_nauxs; i++)
-            copy_data_patch(patch,auxs_tmp_id[i],auxs_id[i]);
-        // Copy auxillary vectors
-        for (int i=0; i<d_nauxv; i++)
-            copy_data_patch(patch,auxv_tmp_id[i],auxv_id[i]);
     }
 
-    // Get the pixie patch (create a temporary patch if necessary)
-    void *pixie3d_data = NULL;
-    PatchContainer *pixie_patch = NULL;
+    // Apply the BC (and interior fill) on the patch
     tbox::Pointer<hier::Patch> patch_ptr = tbox::Pointer<hier::Patch>(&patch,false);
-    if (patch.inHierarchy()) {
-        // Patch is in the hierarchy, all is well
-        const int ln = patch.getPatchLevelNumber();
-        LevelContainer *level_container = (LevelContainer *) d_level_container_array[ln];
-        pixie3d_data = level_container->getPtr(patch_ptr);
-    } else {
-        // Patch is not in the hierarchy, create a temporary pixie patch
-        pixie_patch = new PatchContainer(d_hierarchy,patch_ptr,d_nvar,u0_id,u_id,d_nauxs,auxs_id,d_nauxv,auxv_id);        
-        pixie3d_data =pixie_patch->getPtr();
-    }
-    assert(pixie3d_data!=NULL);
+    applyBC( patch_ptr );
 
-    // Apply the boundary conditions
-    int nbc_seq = d_bc_grp.nbc_seq;
-    int *bc_seq = new int[3*nbc_seq];
-    for (int i=0; i<nbc_seq; i++) {
-        bc_seq[i] = d_bc_grp.bc_seq[i];
-        bc_seq[i+d_bc_grp.nbc_seq] = d_bc_grp.vector[i];
-        bc_seq[i+2*d_bc_grp.nbc_seq] = d_bc_grp.fillBC[i];
-    }
-    #ifdef absoft
-        FORTRAN_NAME(APPLYBC)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
-    #else
-        FORTRAN_NAME(applybc)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
-    #endif
-    delete [] bc_seq;
-
-    // Delete the temporary pixie patch (if used)
-    if ( pixie_patch != NULL ) {
-        delete pixie_patch;
-    }
-
-    // Copy the data from the pixie patch to the temporary patch
-    if ( copy_data ) {
-        // Copy u         
-        for (int i=0; i<d_nvar; i++)
-            copy_data_patch(patch,u_id[i],u_tmp_id[i]);
-        // Copy auxillary scalars
-        for (int i=0; i<d_nauxs; i++)
-            copy_data_patch(patch,auxs_id[i],auxs_tmp_id[i]);
-        // Copy auxillary vectors
-        for (int i=0; i<d_nauxv; i++)
-            copy_data_patch(patch,auxv_id[i],auxv_tmp_id[i]);
-    }
+    //double stop = MPI_Wtime();
+    //printf("   call setPhysicalBoundaryConditions: %i, %f\n",patch.getPatchLevelNumber(),stop-start);
     
 }
 
@@ -227,15 +202,11 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch& patch,
 * Preprocessor                                                         *
 *                                                                      *
 ***********************************************************************/
-void pixie3dRefinePatchStrategy::preprocessRefine( hier::Patch& fine,
+void pixie3dRefinePatchStrategy::preprocessRefine( hier::Patch& patch,
                            const hier::Patch& coarse,
                            const hier::Box& fine_box,
                            const hier::IntVector& ratio ) 
 {
-    (void) fine;
-    (void) coarse;
-    (void) fine_box;
-    (void) ratio;
 } 
 
 
@@ -249,71 +220,6 @@ void pixie3dRefinePatchStrategy::postprocessRefine( hier::Patch& patch,
 					       const hier::Box& fine_box,
 					       const hier::IntVector& ratio )
 {
-    assert(d_nvar>=0);
-    assert(d_nauxs>=0);
-    assert(d_nauxv>=0);
-    /*bool touches_boundary = this->checkPhysicalBoundary(patch);
-    if ( touches_boundary ) {
-        // Return for now if we called applybc, eventually we will call the post processor on all patches
-        return;
-    }*/
-
-
-    // Perform a post processor step in which we fill all the trivial relationships
-    // This needs to be done on all patches   
-    tbox::Pointer<hier::Patch> patch_ptr = tbox::Pointer<hier::Patch>(&patch,false);
-    if (patch.inHierarchy()) {
-
-        // Patch is in the hierarchy, all is well
-        const int ln = patch.getPatchLevelNumber();
-        LevelContainer *level_container = (LevelContainer *) d_level_container_array[ln];
-        assert(level_container!=NULL);
-        void *pixie3d_data = level_container->getPtr(patch_ptr);
-        assert(pixie3d_data!=NULL);
- 
-        // Copy the data from the temporary patch to the pixie patch
-        if ( copy_data ) {
-            // Copy u         
-            for (int i=0; i<d_nvar; i++)
-                copy_data_patch(patch,u_tmp_id[i],u_id[i]);
-            // Copy auxillary scalars
-            for (int i=0; i<d_nauxs; i++)
-                copy_data_patch(patch,auxs_tmp_id[i],auxs_id[i]);
-            // Copy auxillary vectors
-            for (int i=0; i<d_nauxv; i++)
-                copy_data_patch(patch,auxv_tmp_id[i],auxv_id[i]);
-        }
-      
-        // Apply the post-processor to fill the algebraic auxillary variables
-        int *bc_seq = new int[3*d_bc_grp.nbc_seq];
-        for (int i=0; i<d_bc_grp.nbc_seq; i++) {
-            bc_seq[i] = d_bc_grp.bc_seq[i];
-            bc_seq[i+d_bc_grp.nbc_seq] = d_bc_grp.vector[i];
-            bc_seq[i+2*d_bc_grp.nbc_seq] = d_bc_grp.fillBC[i];
-        }
-        #ifdef absoft
-            FORTRAN_NAME(APPLYBC)(pixie3d_data, &d_bc_grp.nbc_seq, bc_seq);
-        #else
-            FORTRAN_NAME(applybc)(pixie3d_data, &d_bc_grp.nbc_seq, bc_seq);
-        #endif
-        delete [] bc_seq;
-	  
-	    // Copy the data from the pixie patch to the temporary patch
-        if ( copy_data ) {
-            // Copy u         
-            for (int i=0; i<d_nvar; i++)
-                copy_data_patch(patch,u_id[i],u_tmp_id[i]);
-            // Copy auxillary scalars
-            for (int i=0; i<d_nauxs; i++)
-                copy_data_patch(patch,auxs_id[i],auxs_tmp_id[i]);
-            // Copy auxillary vectors
-            for (int i=0; i<d_nauxv; i++)
-                copy_data_patch(patch,auxv_id[i],auxv_tmp_id[i]);
-        }
-    } else {
-        // Patch is not in the hierarchy, we should not need to apply the post processor
-        abort();
-    }
 }
 
 
@@ -415,6 +321,90 @@ void pixie3dRefinePatchStrategy::copy_data_patch( hier::Patch& patch, int src_id
     dst_data->copy(*src_data);
 }
 
+
+/***********************************************************************
+* Apply the boundary conditions to a patch                             *
+* Note: this will also fill the trivial relations for the interiors    *
+***********************************************************************/
+void pixie3dRefinePatchStrategy::applyBC( tbox::Pointer<hier::Patch> patch )
+{
+
+    // Some basic error checking
+    assert(d_nvar>=0);
+    assert(d_nauxs>=0);
+    assert(d_nauxv>=0);
+
+    // Copy the data from the temporary patch to the pixie patch
+    if ( copy_data ) {
+        // Copy u
+        for (int i=0; i<d_nvar; i++)
+            copy_data_patch(*patch,u_tmp_id[i],u_id[i]);
+        // Copy auxillary scalars
+        for (int i=0; i<d_nauxs; i++)
+            copy_data_patch(*patch,auxs_tmp_id[i],auxs_id[i]);
+        // Copy auxillary vectors
+        for (int i=0; i<d_nauxv; i++)
+            copy_data_patch(*patch,auxv_tmp_id[i],auxv_id[i]);
+    }
+
+    // Get the pixie patch (create a temporary patch if necessary)
+    void *pixie3d_data = NULL;
+    PatchContainer *pixie_patch = NULL;
+    if ( patch->inHierarchy() ) {
+        // Patch is in the hierarchy, all is well
+        const int ln = patch->getPatchLevelNumber();
+        LevelContainer *level_container = (LevelContainer *) d_level_container_array[ln];
+        pixie3d_data = level_container->getPtr(patch);
+    } else {
+        // Patch is not in the hierarchy, create a temporary pixie patch
+        pixie_patch = new PatchContainer(d_hierarchy,patch,d_nvar,u0_id,u_id,d_nauxs,auxs_id,d_nauxv,auxv_id);        
+        pixie3d_data = pixie_patch->getPtr();
+    }
+    assert(pixie3d_data!=NULL);
+
+    // Apply the boundary conditions
+    int nbc_seq = d_bc_grp.nbc_seq;
+    int *bc_seq = new int[3*nbc_seq];
+    for (int i=0; i<nbc_seq; i++) {
+        bc_seq[i] = d_bc_grp.bc_seq[i];
+        bc_seq[i+d_bc_grp.nbc_seq] = d_bc_grp.vector[i];
+        bc_seq[i+2*d_bc_grp.nbc_seq] = d_bc_grp.fillBC[i];
+    }
+    PROFILE_START("Call applybc");
+    #ifdef absoft
+        FORTRAN_NAME(APPLYBC)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
+    #else
+        FORTRAN_NAME(applybc)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
+    #endif
+    PROFILE_STOP("Call applybc");
+    PROFILE_START("Call postproc");
+    #ifdef absoft
+        FORTRAN_NAME(POSTPROC)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
+    #else
+        FORTRAN_NAME(postproc)(pixie3d_data,&d_bc_grp.nbc_seq,bc_seq);
+    #endif
+    PROFILE_STOP("Call postproc");
+    delete [] bc_seq;
+
+    // Delete the temporary pixie patch (if used)
+    if ( pixie_patch != NULL ) {
+        delete pixie_patch;
+    }
+
+    // Copy the data from the pixie patch to the temporary patch
+    if ( copy_data ) {
+        // Copy u         
+        for (int i=0; i<d_nvar; i++)
+            copy_data_patch(*patch,u_id[i],u_tmp_id[i]);
+        // Copy auxillary scalars
+        for (int i=0; i<d_nauxs; i++)
+            copy_data_patch(*patch,auxs_id[i],auxs_tmp_id[i]);
+        // Copy auxillary vectors
+        for (int i=0; i<d_nauxv; i++)
+            copy_data_patch(*patch,auxv_id[i],auxv_tmp_id[i]);
+    }
+    
+}
 
 
 }

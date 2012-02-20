@@ -24,6 +24,33 @@ extern "C"{
 }
 
 
+// Function to get which boundaries of a patch touch a periodic boundary
+static void touchesPeriodicBoundary( SAMRAI::tbox::Pointer<SAMRAI::hier::Patch >& patch, 
+    SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel>& level, bool* periodic )
+{
+    const short int dim = level->getDim().getValue();
+    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = level->getPhysicalDomainArray();
+    if ( domain_array.size() != 1 ) 
+        TBOX_ERROR("Only 1 domain box is supported");
+    const SAMRAI::hier::Index ifirst_global = domain_array[0].getBoundingBox().lower();
+    const SAMRAI::hier::Index ilast_global  = domain_array[0].getBoundingBox().upper();
+    const SAMRAI::hier::IntVector ratio = level->getRatioToLevelZero();
+    const SAMRAI::hier::IntVector shift = level->getGridGeometry()->getPeriodicShift(ratio);
+    const SAMRAI::hier::Index ifirst = patch->getBox().lower();
+    const SAMRAI::hier::Index ilast  = patch->getBox().upper();
+    for (int i=0; i<dim; i++) {
+        periodic[2*i+0] = false;
+        periodic[2*i+1] = false;
+        if ( shift[i]!=0 ) {
+            if ( ifirst(i)==0 )
+                periodic[2*i+0] = true;
+            if ( ilast(i)==ilast_global(i) )
+                periodic[2*i+1] = true;
+        } 
+    }
+}
+
+
 // Empty constructor
 PatchContainer::PatchContainer()
 {
@@ -59,10 +86,10 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
     }
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::hier::BoxList &physicalDomainList = grid_geometry->getPhysicalDomain(0);
-    if ( physicalDomainList.size() != 1 )
-        TBOX_ERROR("Multiple box domains are not supported");
-    const SAMRAI::hier::Box physicalDomain = physicalDomainList.getBoundingBox();
+    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    if ( domain_array.size() != 1 ) 
+        TBOX_ERROR("Only 1 domain box is supported");
+    const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
     // Get the size of the patch
     const hier::Index ifirst = patch->getBox().lower();
     const hier::Index ilast  = patch->getBox().upper();
@@ -79,6 +106,15 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
         nbox[i] = 0;
     for (int i=0; i<dim.getValue(); i++)
         nbox[i] = physicalDomain.numberCells(i)*ratio(i);
+
+    // Check that the patch size is >= 3x3
+    // There is an error with 2x2 patches when creating the equlibrium.
+    // Grid has to support second-order extrapolation to boundary, which requires at least 3 points in domain
+    for (int i=0; i<dim.getValue(); i++) {
+        int n = ilast(i)-ifirst(i)+1;
+        if ( n<3 && n!=nbox[i] )
+            TBOX_ERROR("Patches must be at least 3x3");
+    }
 
     // Get the pointers to u_0, u_n
     for (int i=0; i<n_var; i++)  {
@@ -177,6 +213,9 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
             upper[2] += upper[2]-lower[2];
         }
         // Shift the domain as necessary to cover the patch
+        SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel> level = d_hierarchy->getPatchLevel(patch->getPatchLevelNumber());
+        bool is_periodic[6];
+        touchesPeriodicBoundary( patch, level, is_periodic );
         tbox::Pointer<hier::PatchGeometry> PatchGeom = patch->getPatchGeometry();
         int shift[10];
         for (int i=0; i<10; i++)
@@ -196,7 +235,7 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
         for (int i=0; i<dim.getValue(); i++) {
             if ( shift[i]==0 )
                 continue;
-            if ( !PatchGeom->getTouchesPeriodicBoundary(i,0) || !PatchGeom->getTouchesPeriodicBoundary(i,1) )
+            if ( !is_periodic[2*i+0] || !is_periodic[2*i+1] )
                 TBOX_ERROR("Error, patch is outside physical domain"); 
             if ( i==0 ) {
                 xs += shift[i];
