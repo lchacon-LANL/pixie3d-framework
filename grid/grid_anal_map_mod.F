@@ -130,13 +130,44 @@ cc          zz = scl_coord(x3,aaz,zmin,zmax,gp(6),gp(5))
 
           !Find monotonic cubic polynomial with given slope (gp(2,4,6)
           !  for X, Y, Z) at given position (gp(1,3,5) for X, Y, Z).
-          if (bbx == 0d0) bbx=find_eta(xmin,xmax,gp(1),gp(2))
-          if (bby == 0d0) bby=find_eta(ymin,ymax,gp(3),gp(4))
-          if (bbz == 0d0) bbz=find_eta(zmin,zmax,gp(5),gp(6))
+          if (bcond(1) == PER) then
+            if (bbx == 0d0) bbx = (1.-gp(2))  !Slope is in gp(2) (see grid_create_mod.F)
+            if (bbx <=-1d0) then
+              write (*,*) 'Slope too small along X coordinate'
+              write (*,*) 'Aborting...'
+              stop
+            endif
+            xx = x1+(xmax-xmin)/2/pi*bbx*sin(2*pi*(x1-xmin)/(xmax-xmin))
+          else
+            if (bbx == 0d0) bbx=find_eta(xmin,xmax,gp(1),gp(2))
+            xx = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
+          endif
 
-          xx = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
-          yy = scl_coord(x2,bby,ymin,ymax,gp(3),gp(4))
-          zz = scl_coord(x3,bbz,zmin,zmax,gp(5),gp(6))
+          if (bcond(3) == PER) then
+            if (bby == 0d0) bby = (1.-gp(4))  !Slope is in gp(4) (see grid_create_mod.F)
+            if (bby <=-1d0) then
+              write (*,*) 'Slope too small along Y coordinate'
+              write (*,*) 'Aborting...'
+              stop
+            endif
+            yy = x2+(ymax-ymin)/2/pi*bby*sin(2*pi*(x2-ymin)/(ymax-ymin))
+          else
+            if (bby == 0d0) bby=find_eta(ymin,ymax,gp(3),gp(4))
+            yy = scl_coord(x2,bby,ymin,ymax,gp(3),gp(4))
+          endif
+
+          if (bcond(5) == PER) then
+            if (bbz == 0d0) bbz = (1.-gp(6))  !Slope is in gp(6) (see grid_create_mod.F)
+            if (bbz <=-1d0) then
+              write (*,*) 'Slope too small along Z coordinate'
+              write (*,*) 'Aborting...'
+              stop
+            endif
+            zz = x3+(zmax-zmin)/2/pi*bbz*sin(2*pi*(x3-zmin)/(zmax-zmin))
+          else
+            if (bbz == 0d0) bbz=find_eta(zmin,zmax,gp(5),gp(6))
+            zz = scl_coord(x3,bbz,zmin,zmax,gp(5),gp(6))
+          endif
         case ('cyl')
           xx = x1*cos(x2)
           yy = x1*sin(x2)
