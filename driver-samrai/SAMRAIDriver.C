@@ -99,6 +99,7 @@ int main( int argc, char *argv[] )
             dt_save = main_db->getDouble("dt_save");
         if ( main_db->keyExists("max_saves") )
             max_saves = (long int) main_db->getDouble("max_saves");
+        timer_results = write_path + "/" + timer_results;
     }
     int save_debug = 0;
     if ( main_db->keyExists("save_debug") ) 
@@ -106,7 +107,6 @@ int main( int argc, char *argv[] )
     std::string debug_name = "debugFile";
     if ( main_db->keyExists("debug_name") )
         debug_name = main_db->getString("debug_name");
-    timer_results = write_path + "/" + timer_results;
 
     // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
     const SAMRAI::tbox::Dimension dim(3);
