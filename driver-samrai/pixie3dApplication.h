@@ -224,7 +224,9 @@ protected:
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_aux_scalar_tmp;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_aux_vector_tmp;
    tbox::Pointer< pdat::CellVariable<double> > d_f_src;
+   tbox::Pointer< pdat::CellVariable<double> > d_div_B;
    int f_src_id;
+   int div_B_id;
 
    int d_weight_id;
    
