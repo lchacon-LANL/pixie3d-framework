@@ -75,7 +75,7 @@ int main( int argc, char *argv[] )
     SAMRUtils::SAMRBuilder::processCommandLine(argc, argv, input_file, log_file);
 
     // Create the log file
-    SAMRAI::tbox::PIO::logOnlyNodeZero(log_file);
+    SAMRAI::tbox::PIO::logAllNodes(log_file);
 
     // Create input database and parse all data in input file.
     SAMRAI::tbox::Pointer<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
