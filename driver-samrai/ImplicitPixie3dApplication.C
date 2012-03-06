@@ -20,8 +20,6 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication():
   d_new_time                    = tbox::IEEE::getSignalingNaN();
   d_initial_dt                  = tbox::IEEE::getSignalingNaN();
 
-  d_debug_print_info_level=0;
-
   d_newSolutionVector.setNull();
   d_currentSolutionVector.setNull();
   d_previousSolutionVector.setNull();
@@ -41,8 +39,6 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication(ImplicitPixie3dApplicatio
   d_old_dt                      = tbox::IEEE::getSignalingNaN();
   d_new_time                    = tbox::IEEE::getSignalingNaN();
   d_initial_dt                  = tbox::IEEE::getSignalingNaN();
-  
-  d_debug_print_info_level=0;
 
   d_newSolutionVector.setNull();
   d_currentSolutionVector.setNull();

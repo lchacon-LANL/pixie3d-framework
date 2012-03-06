@@ -127,7 +127,8 @@ pixie3dApplication::pixie3dApplication():
     }
     dt_exp = 1.0;
     d_weight_id = -1;
-
+    d_debug_print_info_level = 0;
+    d_RefineSchedulesGenerated=false;
     d_vectorsCloned = false;
 }
 
@@ -152,6 +153,7 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
     d_weight_id = -1;
 
     d_vectorsCloned = false;
+    d_RefineSchedulesGenerated=false;
 
     initialize( parameters );
 }
@@ -221,12 +223,8 @@ pixie3dApplication::~pixie3dApplication()
 void
 pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 {
-   d_coarsen_op_str = "CONSERVATIVE_COARSEN";
-   //d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
-   //d_refine_op_str  = "CONSTANT_REFINE";
-   d_refine_op_str  = "LINEAR_REFINE";   
-   //d_refine_op_str  = "CELL_DOUBLE_CUBIC_REFINE";
-   d_RefineSchedulesGenerated=false;
+    d_coarsen_op_str = "CONSERVATIVE_COARSEN";
+    //d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
 
     // Load basic information from the parameters
     #ifdef DEBUG_CHECK_ASSERTIONS
@@ -239,7 +237,37 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         TBOX_ERROR("Only programmed for dimension == 3");
     d_object_name = "pixie3d";
     d_VizWriter = parameters->d_VizWriter;
-   
+    
+    // Get info from the database
+    TBOX_ASSERT(!parameters->d_db.isNull());
+    d_db = parameters->d_db;
+    if ( d_db->keyExists("print_info_level") ) 
+        d_debug_print_info_level = d_db->getInteger("print_info_level");
+    else
+        d_debug_print_info_level = 0;
+    if ( d_db->keyExists("refine_method") ) {
+        if ( d_db->getString("refine_method") == "CONSTANT" ) {
+            // Use SAMRAI's linear interpolation
+            d_refine_op_str  = "CONSTANT_REFINE";
+            d_tangentScheme = RefinementBoundaryInterpolation::piecewiseConstant;
+            d_normalScheme = RefinementBoundaryInterpolation::piecewiseConstant;
+        } else if ( d_db->getString("refine_method") == "COARSE_LINEAR" ) {
+            // Use SAMRAI's linear interpolation
+            d_refine_op_str  = "LINEAR_REFINE";
+            d_tangentScheme = RefinementBoundaryInterpolation::piecewiseConstant;
+            d_normalScheme = RefinementBoundaryInterpolation::piecewiseConstant;
+        } else if ( d_db->getString("refine_method") == "FINE_LINEAR" ) {
+            // Use SAMRUTILS coarse-fine interpolation
+            d_refine_op_str  = "CONSTANT_REFINE";
+            d_tangentScheme = RefinementBoundaryInterpolation::linear;
+            d_normalScheme = RefinementBoundaryInterpolation::linear;
+        } else {
+            TBOX_ERROR("Unknown interpolation");
+        }
+    } else {
+        TBOX_ERROR("key refine_method must exist in database");
+    }
+
     tbox::pout << "Initializing\n";
     input_data = new input_CTX;
    
@@ -541,7 +569,6 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         d_VizWriter->registerPlotQuantity(depVarLabels[i]+"_r", "SCALAR", d_x_r->getComponentDescriptorIndex(i));
     }
     d_VizWriter->registerPlotQuantity("div_B", "SCALAR", div_B_id, 0);
-
 }
 
 
@@ -828,6 +855,20 @@ void  pixie3dApplication::refineVariables(void)
             (d_refine_strategy)->setRefineStrategySequence(d_BoundarySequenceGroups[iSeq]);
             refineSchedule[ln][iSeq]->fillData(0.0);
             PROFILE_STOP("refineSchedule fillData");
+            // Perform the second interpolation step (if necessary)
+            if ( ln>0 && d_tangentScheme!=RefinementBoundaryInterpolation::piecewiseConstant &&
+                d_normalScheme!=RefinementBoundaryInterpolation::piecewiseConstant ) 
+            {
+                PROFILE_START("RefinementBoundaryInterpolation");
+                for (size_t i=0; i<bcgrp_ids[iSeq].size(); i++) {
+                    d_coarseFineInterp->setGhostCellData( ln, bcgrp_ids[iSeq][i] );
+                    d_coarseFineInterp->interpolateGhostValues( ln, 
+                        d_tangentScheme,
+                        d_normalScheme,
+                        bcgrp_ids[iSeq][i], 0, false );
+                }
+                PROFILE_STOP("RefinementBoundaryInterpolation");
+            }
             // Fill the interior patches
             PROFILE_START("Fill interiors");
             for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
@@ -1224,6 +1265,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
     tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     //tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelBorderFillPattern());
     tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelFullFillPattern());     // This may reduce performance
+    bcgrp_ids = std::vector<std::vector<int> >(d_BoundarySequenceGroups.size());
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
         refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_BoundarySequenceGroups.size()];
@@ -1274,11 +1316,13 @@ void pixie3dApplication::resetHierarchyConfiguration(
                 refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
                         grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
             }
+            bcgrp_ids[iSeq] = ids;
             // Create the schedules
             refineSchedule[ln][iSeq] = refineVariableAlgorithm.createSchedule(level, ln-1, d_hierarchy, d_refine_strategy);
             siblingSchedule[ln][iSeq] = tbox::Pointer< xfer::SiblingGhostSchedule >(new xfer::SiblingGhostSchedule(level,ids,ids,ids,fill_pattern));
         }
     }
+
     // Create the coarsenSchedule
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         if (ln==0) continue;
@@ -1302,6 +1346,9 @@ void pixie3dApplication::resetHierarchyConfiguration(
         tbox::Pointer<hier::PatchLevel> flevel = d_hierarchy->getPatchLevel(ln);    
         coarsenSchedule[ln-1] = coarsenAlgorithm.createSchedule(level,flevel);
     }
+
+   // Create RefinementBoundaryInterpolation.
+   d_coarseFineInterp = tbox::Pointer<RefinementBoundaryInterpolation>( new SAMRAI::RefinementBoundaryInterpolation( d_hierarchy ) );
 
 }
 

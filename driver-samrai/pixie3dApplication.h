@@ -35,6 +35,7 @@
 
 // SAMRUTILS headers
 #include "transfer/SiblingGhostSchedule.h"
+#include "interpolation/RefinementBoundaryInterpolation.h"
 
 // SAMRSOLVERS headers
 #include "operators/DiscreteOperator.h"
@@ -96,6 +97,17 @@ namespace SAMRAI{
  * This is a concrete class that provides an interface between
  * the interface defined by ApplicationStrategy and the test
  * problem for pixie3d.
+ *
+ * The input database specifies several key parameters:
+ * @code
+       refine_method - Specifies the method used for refinement interpolation
+                       "CONSTANT" - Use constant interpolation from the coarse data
+                       "COARSE_LINEAR" - Use linear interpolation using only coarse data
+                       "FINE_LINEAR" - Use linear interpolation using the coarse and fine data
+       coarsen_method - Specifies the method use for coarsening
+                       "CONSERVATIVE" - Use conservative coarsening for all quantities
+       print_info_level - Specifies the level of printing
+ * @endcode
  */
 
 class pixie3dApplication : 
@@ -132,8 +144,8 @@ public:
 
    // Evaluate IVP forcing term.
    void apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &f,
-	       tbox::Pointer< solv::SAMRAIVectorReal<double> >  &x,
-	       tbox::Pointer< solv::SAMRAIVectorReal<double> >  &r,
+           tbox::Pointer< solv::SAMRAIVectorReal<double> >  &x,
+           tbox::Pointer< solv::SAMRAIVectorReal<double> >  &r,
                double a = -1.0, double b=1.0 );
 
    // Evaluate IVP forcing term.
@@ -189,8 +201,8 @@ public:
     * Function overloaded from mesh::StandardTagAndInitStrategy.
     */
    virtual void resetHierarchyConfiguration( const tbox::Pointer<hier::PatchHierarchy> hierarchy,
-					     const int coarsest_level,
-					     const int finest_level );
+                         const int coarsest_level,
+                         const int finest_level );
 
 protected:
 
@@ -243,8 +255,6 @@ protected:
 
    pixie3dRefinePatchStrategy* d_refine_strategy; 
 
-   std::string d_refine_op_str;
-
    //   xfer::SiblingGhostAlgorithm d_siblingGhostVectorAlgorithm;
 
    tbox::Array< tbox::Pointer<xfer::RefineSchedule> > d_refineScalarSchedules;
@@ -264,11 +274,16 @@ protected:
    LevelContainer *level_container_array[MAX_LEVELS];
 
    // Data for applying the boundary conditions and the coarsen/refine schedules
+   std::string d_refine_op_str;
+   RefinementBoundaryInterpolation::InterpolationScheme d_tangentScheme;
+   RefinementBoundaryInterpolation::InterpolationScheme d_normalScheme;
    std::string d_coarsen_op_str;
    std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> d_BoundarySequenceGroups;
+   std::vector<std::vector<int> > bcgrp_ids;
    tbox::Pointer<xfer::RefineSchedule> *refineSchedule[MAX_LEVELS];
    tbox::Pointer<xfer::SiblingGhostSchedule> *siblingSchedule[MAX_LEVELS];
    tbox::Pointer<xfer::CoarsenSchedule> coarsenSchedule[MAX_LEVELS];
+   tbox::Pointer<RefinementBoundaryInterpolation> d_coarseFineInterp;
 
    // The names of the primary and auxillary variables
    std::string *depVarLabels;
