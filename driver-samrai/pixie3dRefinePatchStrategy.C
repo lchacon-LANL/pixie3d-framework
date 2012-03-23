@@ -31,9 +31,11 @@ extern "C" {
 #ifdef absoft
   extern void FORTRAN_NAME(APPLYBC) (void*, int*, int*);
   extern void FORTRAN_NAME(POSTPROC)(void*, int*, int*);
+  extern void FORTRAN_NAME(FIXDIVB)(void*);
 #else
   extern void FORTRAN_NAME(applybc) (void*, int*, int*);
   extern void FORTRAN_NAME(postproc)(void*, int*, int*);
+  extern void FORTRAN_NAME(fixdivb)(void*);
 #endif
 }
 namespace SAMRAI{
@@ -362,7 +364,14 @@ void pixie3dRefinePatchStrategy::applyBC( tbox::Pointer<hier::Patch> patch )
     }
     assert(pixie3d_data!=NULL);
 
-    // Apply the boundary conditions
+    // Correct div(B) = 0
+    #ifdef absoft
+        FORTRAN_NAME(FIXDIVB)(pixie3d_data);
+    #else
+        FORTRAN_NAME(fixdivb)(pixie3d_data);
+    #endif
+
+    // Apply the boundary conditions (this also fills interior auxillary variables)
     int nbc_seq = d_bc_grp.nbc_seq;
     int *bc_seq = new int[3*nbc_seq];
     for (int i=0; i<nbc_seq; i++) {
