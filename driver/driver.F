@@ -293,7 +293,7 @@ c Average explicit time step
 
       if (cnfactor.eq.1d0.and.my_rank == 0.and.(itime > inewtime)) then
         dtexp = dtexp/(itime - inewtime)
-        write (*,*) 'Average explicit time step: ',dtexp
+        write (*,'(a,1pe10.4)') 'Average explicit time step: ',dtexp
       endif
 
 c Final statistics
