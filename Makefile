@@ -68,7 +68,7 @@ distclean: clean
 
 setup: contrib_setup
 	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
-		-rm $$subdir/makefile 2>/dev/null ; \
+		rm $$subdir/makefile 2>/dev/null ; \
 		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
 		$(MAKE) -C $$subdir setup_lnk; done
 
@@ -89,31 +89,31 @@ endif
 #Contributed software setup
 
 contrib: ;
-	$(MAKE) -e -C contrib/lsode lib
-	$(MAKE) -e -C contrib/slatec lib
+	$(MAKE) --no-print-directory -e -C contrib/lsode lib
+	$(MAKE) --no-print-directory -e -C contrib/slatec lib
 ifdef ARPACK
-	$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack lib
+	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack lib
 ifdef BOPT
-	$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack plib
+	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack plib
 endif
 endif
 ifdef FPA
-	$(MAKE) -e -C contrib/fpa/src lib
+	$(MAKE) --no-print-directory -e -C contrib/fpa/src lib
 endif
 
 contrib_clean: ;
-	$(MAKE) -e -C contrib/lsode clean
-	$(MAKE) -e -C contrib/slatec distclean
+	$(MAKE) --no-print-directory -e -C contrib/lsode clean
+	$(MAKE) --no-print-directory -e -C contrib/slatec distclean
 ifdef ARPACK
-	$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack clean
+	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack clean
 endif
 ifdef FPA
-	$(MAKE) -e -C contrib/fpa/src distclean
+	$(MAKE) --no-print-directory -e -C contrib/fpa/src distclean
 endif
 
 contrib_setup: ;
-	-tar xzf common_contrib.tgz
-	$(MAKE) -e -C contrib/slatec setup
+	-@tar xzf common_contrib.tgz
+	$(MAKE) --no-print-directory -e -C contrib/slatec setup
 
 #Define dependencies
 

@@ -9,9 +9,9 @@ COMMONDIR = ..
 SUBDIRS = $(COMMONDIR)/math $(COMMONDIR)/interpolation/1d_int $(COMMONDIR)/grid
 
 # Petsc include
-ifneq ($(HOSTNAME),dlg-hp.ornl.gov)
-	include ${PETSC_DIR}/bmake/common/base
-endif
+#ifneq ($(HOSTNAME),dlg-hp.ornl.gov)
+#	include ${PETSC_DIR}/bmake/common/base
+#endif
 
 # Module order
 
