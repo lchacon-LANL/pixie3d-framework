@@ -123,7 +123,7 @@ pixie3dApplication::pixie3dApplication():
         level_container_array[i] = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
         refineSchedule[i] = NULL;
-        siblingSchedule[i] = NULL;
+        //siblingSchedule[i] = NULL;
     }
     dt_exp = 1.0;
     d_weight_id = -1;
@@ -147,7 +147,7 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
         level_container_array[i] = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
         refineSchedule[i] = NULL;
-        siblingSchedule[i] = NULL;
+        //siblingSchedule[i] = NULL;
     }
     dt_exp = 1.0;
     d_weight_id = -1;
@@ -183,11 +183,11 @@ pixie3dApplication::~pixie3dApplication()
                 refineSchedule[i][j].setNull();
             delete [] refineSchedule[i];
         }
-        if ( siblingSchedule[i] != NULL ) {
+        /*if ( siblingSchedule[i] != NULL ) {
             for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 siblingSchedule[i][j].setNull();
             delete [] siblingSchedule[i];
-        }
+        }*/
     }
     // Delete misc variables
     delete input_data;
@@ -247,6 +247,18 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         d_debug_print_info_level = 0;
     if ( d_db->keyExists("refine_method") ) {
         if ( d_db->getString("refine_method") == "CONSTANT" ) {
+            // Use triangle-based constant interpolation
+            d_refine_op_str  = "constant";
+        } else if ( d_db->getString("refine_method") == "LINEAR" ) {
+            // Use triangle-based linear interpolation
+            d_refine_op_str  = "linear";
+        } else if ( d_db->getString("refine_method") == "CUBIC" ) {
+            // Use triangle-based cubic interpolation
+            d_refine_op_str  = "cubic";
+        } else {
+            TBOX_ERROR("Unknown interpolation");
+        }
+        /*if ( d_db->getString("refine_method") == "CONSTANT" ) {
             // Use SAMRAI's linear interpolation
             d_refine_op_str  = "CONSTANT_REFINE";
             d_tangentScheme = RefinementBoundaryInterpolation::piecewiseConstant;
@@ -263,7 +275,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
             d_normalScheme = RefinementBoundaryInterpolation::linear;
         } else {
             TBOX_ERROR("Unknown interpolation");
-        }
+        }*/
     } else {
         TBOX_ERROR("key refine_method must exist in database");
     }
@@ -855,7 +867,7 @@ void  pixie3dApplication::refineVariables(void)
             (d_refine_strategy)->setRefineStrategySequence(d_BoundarySequenceGroups[iSeq]);
             refineSchedule[ln][iSeq]->fillData(0.0);
             PROFILE_STOP("refineSchedule fillData");
-            // Perform the second interpolation step (if necessary)
+            /*// Perform the second interpolation step (if necessary)
             if ( ln>0 && d_tangentScheme!=RefinementBoundaryInterpolation::piecewiseConstant &&
                 d_normalScheme!=RefinementBoundaryInterpolation::piecewiseConstant ) 
             {
@@ -868,7 +880,7 @@ void  pixie3dApplication::refineVariables(void)
                         bcgrp_ids[iSeq][i], 0, false );
                 }
                 PROFILE_STOP("RefinementBoundaryInterpolation");
-            }
+            }*/
             // Fill the interior patches
             PROFILE_START("Fill interiors");
             for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
@@ -878,10 +890,10 @@ void  pixie3dApplication::refineVariables(void)
                     (d_refine_strategy)->applyBC(patch);
             }
             PROFILE_STOP("Fill interiors");
-            // Fill corners and edges
+            /*// Fill corners and edges
             PROFILE_START("siblingSchedule fillData");
             siblingSchedule[ln][iSeq]->fillData(0.0);
-            PROFILE_STOP("siblingSchedule fillData");
+            PROFILE_STOP("siblingSchedule fillData");*/
         }
     }
 
@@ -1250,11 +1262,11 @@ void pixie3dApplication::resetHierarchyConfiguration(
                 refineSchedule[i][j].setNull();
             delete [] refineSchedule[i];
         }
-        if ( siblingSchedule[i] != NULL ) {
+        /*if ( siblingSchedule[i] != NULL ) {
             for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 siblingSchedule[i][j].setNull();
             delete [] siblingSchedule[i];
-        }
+        }*/
     }
 
     // Get the number of boundary condition groups and the sequence for each group
@@ -1265,11 +1277,15 @@ void pixie3dApplication::resetHierarchyConfiguration(
     tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     //tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelBorderFillPattern());
     tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelFullFillPattern());     // This may reduce performance
-    bcgrp_ids = std::vector<std::vector<int> >(d_BoundarySequenceGroups.size());
+    //bcgrp_ids = std::vector<std::vector<int> >(d_BoundarySequenceGroups.size());
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-        refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_BoundarySequenceGroups.size()];
-        siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_BoundarySequenceGroups.size()];
+        tbox::Pointer<hier::PatchLevel> coarse_level;
+        if ( ln>0 )
+            coarse_level = d_hierarchy->getPatchLevel(ln-1);
+        refineSchedule[ln] = new tbox::Pointer< xfer::TriangleRefineSchedule >[d_BoundarySequenceGroups.size()];
+        //refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_BoundarySequenceGroups.size()];
+        //siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_BoundarySequenceGroups.size()];
         for(size_t iSeq=0; iSeq<d_BoundarySequenceGroups.size(); iSeq++) {
             int data_id=-1;
             xfer::RefineAlgorithm refineVariableAlgorithm(d_hierarchy->getDim());
@@ -1313,13 +1329,15 @@ void pixie3dApplication::resetHierarchyConfiguration(
                     TBOX_ERROR("Bad boundary group member");
                 }
                 ids[i] = data_id;
-                refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
-                        grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
+                //refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
+                //        grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
             }
-            bcgrp_ids[iSeq] = ids;
+            //bcgrp_ids[iSeq] = ids;
             // Create the schedules
-            refineSchedule[ln][iSeq] = refineVariableAlgorithm.createSchedule(level, ln-1, d_hierarchy, d_refine_strategy);
-            siblingSchedule[ln][iSeq] = tbox::Pointer< xfer::SiblingGhostSchedule >(new xfer::SiblingGhostSchedule(level,ids,ids,ids,fill_pattern));
+            refineSchedule[ln][iSeq] = tbox::Pointer<xfer::TriangleRefineSchedule>(
+                new xfer::TriangleRefineSchedule( coarse_level, level, ids, ids, ids, d_refine_op_str, d_refine_strategy ) );
+            //refineSchedule[ln][iSeq] = refineVariableAlgorithm.createSchedule(level, ln-1, d_hierarchy, d_refine_strategy);
+            //siblingSchedule[ln][iSeq] = tbox::Pointer< xfer::SiblingGhostSchedule >(new xfer::SiblingGhostSchedule(level,ids,ids,ids,fill_pattern));
         }
     }
 

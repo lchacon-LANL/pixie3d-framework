@@ -35,6 +35,7 @@
 
 // SAMRUTILS headers
 #include "transfer/SiblingGhostSchedule.h"
+#include "transfer/TriangleRefineSchedule.h"
 #include "interpolation/RefinementBoundaryInterpolation.h"
 
 // SAMRSOLVERS headers
@@ -253,18 +254,6 @@ protected:
 
    double dt_exp;   // The current maximum timestep for explicit integration
 
-   pixie3dRefinePatchStrategy* d_refine_strategy; 
-
-   //   xfer::SiblingGhostAlgorithm d_siblingGhostVectorAlgorithm;
-
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule> > d_refineScalarSchedules;
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule> > d_refineVectorComponentSchedules;
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule> > d_refineVectorSchedules;
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule> > d_levelSchedules;
-
-   //   tbox::Array< tbox::Pointer<xfer::SiblingGhostSchedule> > d_siblingGhostVectorSchedules;
-
-
    SAMRAI::appu::VisItDataWriter* d_VizWriter;
 
    input_CTX *input_data;
@@ -273,15 +262,19 @@ protected:
    static const int MAX_LEVELS = 20;
    LevelContainer *level_container_array[MAX_LEVELS];
 
-   // Data for applying the boundary conditions and the coarsen/refine schedules
+   // Data for applying the boundary conditions and the refine schedules
    std::string d_refine_op_str;
-   RefinementBoundaryInterpolation::InterpolationScheme d_tangentScheme;
-   RefinementBoundaryInterpolation::InterpolationScheme d_normalScheme;
-   std::string d_coarsen_op_str;
+   pixie3dRefinePatchStrategy* d_refine_strategy; 
    std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> d_BoundarySequenceGroups;
-   std::vector<std::vector<int> > bcgrp_ids;
-   tbox::Pointer<xfer::RefineSchedule> *refineSchedule[MAX_LEVELS];
-   tbox::Pointer<xfer::SiblingGhostSchedule> *siblingSchedule[MAX_LEVELS];
+   //std::vector<std::vector<int> > bcgrp_ids;
+   //RefinementBoundaryInterpolation::InterpolationScheme d_tangentScheme;
+   //RefinementBoundaryInterpolation::InterpolationScheme d_normalScheme;
+   //tbox::Pointer<xfer::RefineSchedule> *refineSchedule[MAX_LEVELS];
+   //tbox::Pointer<xfer::SiblingGhostSchedule> *siblingSchedule[MAX_LEVELS];
+   tbox::Pointer<xfer::TriangleRefineSchedule> *refineSchedule[MAX_LEVELS];
+
+   // Data for the coarsen schedules
+   std::string d_coarsen_op_str;
    tbox::Pointer<xfer::CoarsenSchedule> coarsenSchedule[MAX_LEVELS];
    tbox::Pointer<RefinementBoundaryInterpolation> d_coarseFineInterp;
 
