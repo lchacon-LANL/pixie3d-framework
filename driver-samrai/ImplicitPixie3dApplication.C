@@ -5,10 +5,11 @@
 #include "SAMRAI/solv/PETSc_SAMRAIVectorReal.h"
 #include <algorithm>
 
+#include "Pixie3dPreconditionerParameters.h"
+
 namespace SAMRAI{
 
-ImplicitPixie3dApplication::ImplicitPixie3dApplication():
-  pixie3dApplication()
+ImplicitPixie3dApplication::ImplicitPixie3dApplication(): pixie3dApplication()
 {
   /*
    * Set default values for data members.
@@ -69,6 +70,13 @@ ImplicitPixie3dApplication::initialize(ImplicitPixie3dApplicationParameters *par
     TBOX_ERROR(d_object_name << " -- Key data `initial_timestep'"
 	       << " missing in input.");
   }
+
+       
+  if(db->keyExists("preconditioner"))
+    {
+      d_pc_db = db->getDatabase("preconditioner");
+    }
+  
   d_max_timestep = 1e10;
 
   
@@ -265,17 +273,62 @@ ImplicitPixie3dApplication::evaluateNonlinearFunction(tbox::Pointer< solv::SAMRA
   return 0;
 }
 
+void
+ImplicitPixie3dApplication::createPreconditioner()
+{
+  
+  SAMRSolvers::Pixie3dPreconditionerParameters *parameters = createPreconditionerParameters(d_pc_db);
+  
+  d_preconditioner =  new SAMRSolvers::Pixie3dPreconditioner(parameters);
+  delete parameters;
+  
+}
+
+void
+ImplicitPixie3dApplication::destroyPreconditioner()
+{
+  SAMRSolvers::Pixie3dPreconditioner *ptr = d_preconditioner.getPointer();
+
+   delete ptr;
+
+   d_preconditioner.setNull();
+}
+
+SAMRSolvers::Pixie3dPreconditionerParameters *
+ImplicitPixie3dApplication::createPreconditionerParameters( tbox::Pointer<tbox::Database> &db )
+{
+
+  //BP: the database should be populated with additional entries required by the preconditioner here
+  
+  SAMRSolvers::Pixie3dPreconditionerParameters *parameters = new SAMRSolvers::Pixie3dPreconditionerParameters(db);
+   parameters->d_hierarchy                  = d_hierarchy;
+
+   // currently setting the interpolant to NULL, need to remove if it is not being used
+   parameters->d_cf_interpolant             = NULL;
+
+   return parameters;
+}
+
+  
 int
 ImplicitPixie3dApplication::setupPreconditioner(tbox::Pointer< solv::SAMRAIVectorReal<double> > x)
 {
-  abort();
+  tbox::Pointer<tbox::Database> db( new tbox::InputDatabase("null db"));
+
+  // BP: add code in here necessary to setup the parameters object
+  
+  SAMRSolvers::Pixie3dPreconditionerParameters *parameters = new SAMRSolvers::Pixie3dPreconditionerParameters(db);
+  
+  d_preconditioner->setupPreconditioner(parameters);
+
+  return (0);
 }
 
 int
 ImplicitPixie3dApplication::applyPreconditioner(tbox::Pointer< solv::SAMRAIVectorReal<double> > r,
 						tbox::Pointer< solv::SAMRAIVectorReal<double> > z)
-{
-  abort();
+{  
+  return d_preconditioner->applyPreconditioner(r,z);
 }
 
 void

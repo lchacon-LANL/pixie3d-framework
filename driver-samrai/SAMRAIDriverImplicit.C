@@ -170,6 +170,8 @@ int main( int argc, char *argv[] )
     gridding_algorithm->regridAllFinerLevels(0,t0,tag_buffer);
     application->setInitialConditions(t0);
 
+    application->createPreconditioner();
+    
     solv::SNES_SAMRAIContext* snes_solver = NULL;
     
     snes_solver = new solv::SNES_SAMRAIContext("SNESSolver",
