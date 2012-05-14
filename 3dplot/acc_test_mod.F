@@ -12,7 +12,7 @@ c ###########################################################################
 
         logical :: temp_acc=.false.,spat_acc=.false.
 
-        character(50) :: acc_ref_file
+        character(200) :: acc_ref_file
 
       contains
 
@@ -33,7 +33,7 @@ c     Local variables
       integer        :: i,j,k,ig,jg,kg,nx,ny,nz,ivar
       integer        :: ierr,system,nplot,igx,igy,igz
 
-      real(8)        :: mag,mag0,jac,tref,tsol
+      real(8)        :: mag,mag0,jac,tref,tsol,lmax
       real(8),allocatable,dimension(:,:,:,:) :: pos 
       real(8),pointer,dimension(:,:,:) :: array
 
@@ -52,6 +52,10 @@ c     Interpolation
       real(8)    :: db2val,db3val
       external      db2val,db3val
 
+c     Debug
+
+      character(13) :: debugfile
+
 c     Begin program
 
       if(my_rank == 0) then
@@ -63,9 +67,14 @@ c     Begin program
       igy = 1
       igz = 1
 
+c     Close current record files
+
+      call closeRecordFiles
+
 c     Read reference grid info
 
-      call destroyGrid(grid_params)
+      nullify(grid_params)
+      call destroyGrid(gv%gparams)
 
       call openRecordFiles(urecord,acc_ref_file,murecord
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
@@ -80,17 +89,16 @@ c     Read reference grid info
         write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
       endif
 
-      call setVectorDimensions
-
       !Create grid
       call createGrid(nxd,nyd,nzd,gv%gparams)
+
+      call setVectorDimensions
 
       !Read solutions
       call allocateDerivedType(vref)
 
       do
         call readTimeStep(vref,ierr)
-cc        ierr = readRecordFile(urecord,itime,tref,dt,vref)
         if (ierr /= 0) exit
       enddo
 
@@ -100,7 +108,7 @@ cc        ierr = readRecordFile(urecord,itime,tref,dt,vref)
 
 c Spline reference solution
 
-      order = 2
+      order = 2  !Order of interpolation of ref solution
 
       nxs = nx+2
       nys = ny+2
@@ -130,7 +138,8 @@ c Spline reference solution
 
 c Initialize current grid info and read current grid solution
 
-      call destroyGrid(grid_params)
+      nullify(grid_params)
+      call destroyGrid(gv%gparams)
 
       igx = 1
       igy = 1
@@ -149,15 +158,14 @@ c Initialize current grid info and read current grid solution
         write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
       endif
 
-      call setVectorDimensions
-
       call createGrid(nxd,nyd,nzd,gv%gparams)
+
+      call setVectorDimensions
 
       call allocateDerivedType(vsol)
 
       do
         call readTimeStep(vsol,ierr)
-cc        ierr = readRecordFile(urecord,itime,tsol,dt,vsol)
         if (ierr /= 0) exit
       enddo
 
@@ -177,10 +185,10 @@ c Calculate difference
 
       do ivar=1,vref%nvar
 
-        !Spline component
+        !Spline reference component
         array => vref%array_var(ivar)%array
 
-        call db3ink(xx,nxs,yy,nys,zz,nzs,array(0:nx+1,0:ny+1,0:nz+1)
+        call db3ink(xx,nxs,yy,nys,zz,nzs,array
      .             ,nxs,nys,kx,ky,kz,tx,ty,tz,bcoef,work,flg)
 
         !Interpolate to solution grid and compute L2-norm
@@ -195,20 +203,54 @@ c Calculate difference
               yp = grid_params%yy(jg)
               zp = grid_params%zz(kg)
 
-              interp = db3val(xp,yp,zp,0,0,0,tx,ty,tz,nx,ny,nz
+              interp = db3val(xp,yp,zp,0,0,0,tx,ty,tz,nxs,nys,nzs
      .                       ,kx,ky,kz,bcoef,work)
 
-              array(i,j,k) = (array(i,j,k) - interp)**2
+              array(i,j,k) = abs(array(i,j,k) - interp)
             enddo
           enddo
         enddo
 
+c diag ****
+        debugfile = 'debug_var'//trim(int2char(ivar))//'.bin'
+        open(unit=110,file=debugfile,form='unformatted'
+     .      ,status='replace')
+
+        call contour(log10(array(1:nx,1:ny,1)),nx,ny
+     .              ,0d0,1d0,0d0,1d0,0,110)
+
+        close(110)
+c diag ****
+
+        !L1 norm
         mag = integral(igx,igy,igz,nx,ny,nz,array,average=.true.)
 
+        if (my_rank == 0)
+     .    write (*,10) ' L1-norm error, component:',ivar,'=',mag
+
+        !L2 norm
+        mag = integral(igx,igy,igz,nx,ny,nz,array**2,average=.true.)
         mag = sqrt(mag)
 
-        !Write output
-        write (*,10) ' L2-norm time error, component:',ivar,'=',mag
+        if (my_rank == 0)
+     .    write (*,10) ' L2-norm error, component:',ivar,'=',mag
+
+        !L-infty norm
+        mag = maxval(array(1:nx,1:ny,1:nz))
+#if defined(petsc)
+        lmax = mag
+        call MPI_Allreduce(lmax,mag,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+#endif
+
+        if (my_rank == 0)
+     .    write (*,10) ' Linfty-norm error, component:',ivar,'=',mag
+
+        !Number of points with sizable error
+        write (*,*) ' Number of points with error > 0.1 Linfty='
+     .              ,count((array(1:nx,1:ny,1:nz)>0.1*mag))
+        write (*,*) ' Number of points with error > 0.9 Linfty='
+     .              ,count((array(1:nx,1:ny,1:nz)>0.9*mag))
 
       enddo
 
@@ -244,7 +286,7 @@ c     Local variables
       integer :: i,j,k,ig,jg,kg,nx,ny,nz,ivar,nxs,nys,nzs
       integer :: ierr,system,nplot,igx,igy,igz
 
-      real(8) :: mag,mag0,jac,tref,tsol
+      real(8) :: mag,mag0,jac,tref,tsol,lmax
       real(8),allocatable,dimension(:,:,:,:) :: pos 
       real(8),pointer,dimension(:,:,:) :: aref,asol
 
@@ -252,7 +294,7 @@ c     Local variables
 
 c     Debug
 
-      character(13) :: debugfile
+      character(20) :: debugfile
 
 c     Begin program
 
@@ -357,26 +399,46 @@ c     Calculate difference
         aref => vref%array_var(ivar)%array
         asol => vsol%array_var(ivar)%array
 
-        asol = asol-aref
+        asol = abs(asol-aref)
+
+c diag ****
+        debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
+        open(unit=110,file=debugfile,form='unformatted'
+     .      ,status='replace')
+
+        call contour(asol(0:nx+1,0:ny+1,1),nx+2,ny+2
+     .              ,0d0,1d0,0d0,1d0,0,110)
+
+        close(110)
+c diag ****
+
+        !L1 norm
+        mag = integral(igx,igy,igz,nx,ny,nz,asol,average=.true.)
+
+        if (my_rank == 0)
+     .    write (*,10) ' L1-norm time error, component:',ivar,'=',mag
+
+        !L2 norm
         mag = integral(igx,igy,igz,nx,ny,nz,asol**2,average=.true.)
         mag = sqrt(mag)
 
         if (my_rank == 0)
      .    write (*,10) ' L2-norm time error, component:',ivar,'=',mag
+
+        !L-infty norm
+        mag = maxval(asol(1:nx,1:ny,1:nz))
+#if defined(petsc)
+        lmax = mag
+        call MPI_Allreduce(lmax,mag,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+#endif
+
+        if (my_rank == 0)
+     .   write (*,10) ' Linfty-norm time error, component:',ivar,'=',mag
+
       enddo
 
       if (my_rank == 0) write (*,10)
-
-c diag ****
-cc      debugfile = 'debug_p'//trim(int2char(my_rank))//'.bin'
-cc      open(unit=110,file=debugfile,form='unformatted'
-cc     .    ,status='replace')
-cc
-cc      call contour(asol(0:nx+1,0:ny+1,1),nx+2,ny+2
-cc     .            ,0d0,1d0,0d0,1d0,0,110)
-cc
-cc      close(110)
-c diag ****
 
 c     End program
 
