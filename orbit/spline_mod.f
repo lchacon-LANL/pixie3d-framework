@@ -907,9 +907,6 @@ c     Detect whether physical coord is logical coord (needed for evalXi)
       y_is_log = sqrt(sum((xcar(:,ny/2,:,2)-xcar(1,ny/2,1,2))**2))<1d-10
       z_is_log = sqrt(sum((xcar(:,:,nz/2,3)-xcar(1,1,nz/2,3))**2))<1d-10
 
-cc      write (*,*) x_is_log,y_is_log,z_is_log
-cc      stop
-
 c     End program
 
       end subroutine splineX
