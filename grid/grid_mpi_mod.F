@@ -89,14 +89,13 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: my_sp_rank,np_sp
+        integer :: my_sp_rank,np_sp
 
 c     Begin program
 
 c     Singular-point boundary MPI communicator
 
         if (bcSP()) call createMPIComm(MPI_COMM_SP,selectRank_SP)
-
 cc        call check_MPI_COMM(MPI_COMM_SP,'MPI_COMM_SP')
 
 c     X MPI communicator (domains that share the same Y, Z  slices)
@@ -104,7 +103,6 @@ c     X MPI communicator (domains that share the same Y, Z  slices)
         call createMPIComm(MPI_COMM_X,selectRank_X)
 
         if (bcSP()) MPI_COMM_RAD = MPI_COMM_X
-
 cc        call check_MPI_COMM(MPI_COMM_X,'MPI_COMM_X')
 
 c     Y MPI communicator (domains that share same X, Z slices)
@@ -112,25 +110,21 @@ c     Y MPI communicator (domains that share same X, Z slices)
         call createMPIComm(MPI_COMM_Y,selectRank_Y)
 
         if (bcSP()) MPI_COMM_POL = MPI_COMM_Y
-
 cc        call check_MPI_COMM(MPI_COMM_Y,'MPI_COMM_Y')
 
 c     Z MPI communicator (domains that share same X, Z slices)
 
         call createMPIComm(MPI_COMM_Z,selectRank_Z)
-
 cc        call check_MPI_COMM(MPI_COMM_Z,'MPI_COMM_Z')
 
 c     XY MPI communicator (domains that share same Z slices)
 
         call createMPIComm(MPI_COMM_XY,selectRank_XY)
-
 cc        call check_MPI_COMM(MPI_COMM_XY,'MPI_COMM_XY')
 
 c     YZ MPI communicator (domains that share same X slices)
 
         call createMPIComm(MPI_COMM_YZ,selectRank_YZ)
-
 cc        call check_MPI_COMM(MPI_COMM_YZ,'MPI_COMM_YZ')
 
 c     Periodic BCs communicators
@@ -143,12 +137,12 @@ cc        call check_MPI_COMM(MPI_COMM_PER(1),'MPI_COMM_PERx')
         if (bcond(3) == PER) then
           call createMPIComm(MPI_COMM_PER(2),selectRank_PER_Y)
         endif
-cc          call check_MPI_COMM(MPI_COMM_PER(2),'MPI_COMM_PERy')
+cc        call check_MPI_COMM(MPI_COMM_PER(2),'MPI_COMM_PERy')
 
         if (bcond(5) == PER) then
           call createMPIComm(MPI_COMM_PER(3),selectRank_PER_Z)
         endif
-cc          call check_MPI_COMM(MPI_COMM_PER(3),'MPI_COMM_PERz')
+cc        call check_MPI_COMM(MPI_COMM_PER(3),'MPI_COMM_PERz')
 
 c     End program
 
@@ -178,7 +172,8 @@ c     Begin program
       if (mpi_comm /= MPI_COMM_NULL) then
         call MPI_Comm_size(MPI_COMM,np_l     ,mpierr)
         call MPI_Comm_rank(MPI_COMM,my_rank_l,mpierr)
-        write (*,*) trim(mpi_comm_id)//'=',MPI_COMM
+        write (*,'(a,i4,a,i4,a,i4,a,i4)')
+     .       trim(mpi_comm_id)//'=',MPI_COMM
      .                ,'; nproc_local=',np_l
      .                ,'; my_rank_local=',my_rank_l
      .                ,'; my_rank_global=',my_rank
@@ -434,175 +429,6 @@ c     Rank and number of processors
 
       end subroutine initMPI
 
-ccc     createPETScFortranDA
-ccc     #################################################################
-cc      subroutine createPETScFortranDA(igrid,nxgl,nygl,nzgl)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Creates PETSc distributed array (DA) for boundary communication
-ccc     in fortran at grid level igrid.
-ccc     -----------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer    :: igrid
-cc        integer   ,optional :: nxgl,nygl,nzgl
-cc
-ccc     Local variables
-cc
-cc        integer    :: BC,ierr,nxg,nyg,nzg,igx,igy,igz
-cc
-ccc     Begin program
-cc
-cc        igx = igrid
-cc        igy = igrid
-cc        igz = igrid
-cc
-cc        if (PRESENT(nxgl)) then
-cc          nxg = nxgl
-cc        else
-cc          nxg = grid_params%nxgl(igx)
-cc        endif
-cc
-cc        if (PRESENT(nygl)) then
-cc          nyg = nygl
-cc        else
-cc          nyg = grid_params%nygl(igy)
-cc        endif
-cc
-cc        if (PRESENT(nzgl)) then
-cc          nzg = nzgl
-cc        else
-cc          nzg = grid_params%nzgl(igz)
-cc        endif
-cc
-cc        if (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)==PER) then
-cc          BC = DA_XYZPERIODIC
-cc        elseif (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)/=PER) then
-cc          BC = DA_XYPERIODIC
-cc        elseif (bcond(1)==PER.and.bcond(3)/=PER.and.bcond(5)==PER) then
-cc          BC = DA_XZPERIODIC
-cc        elseif (bcond(1)/=PER.and.bcond(3)==PER.and.bcond(5)==PER) then
-cc          BC = DA_YZPERIODIC
-cc        elseif (bcond(1)==PER.and.bcond(3)/=PER.and.bcond(5)/=PER) then
-cc          BC = DA_XPERIODIC
-cc        elseif (bcond(1)/=PER.and.bcond(3)==PER.and.bcond(5)/=PER) then
-cc          BC = DA_YPERIODIC
-cc        elseif (bcond(1)/=PER.and.bcond(3)/=PER.and.bcond(5)==PER) then
-cc          BC = DA_ZPERIODIC
-cc        elseif (bcond(1)/=PER.and.bcond(3)/=PER.and.bcond(5)/=PER) then
-cc          BC = DA_NONPERIODIC
-cc        endif
-cc
-cc        if (npx == 0) npx = PETSC_DECIDE
-cc        if (npy == 0) npy = PETSC_DECIDE
-cc        if (npz == 0) npz = PETSC_DECIDE
-cc
-cc        call DACreate3d(PETSC_COMM_WORLD,BC,DA_STENCIL_BOX,nxg,nyg,nzg
-cc     &                 ,npx,npy,npz,1,1
-cc     &                 ,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER
-cc     &                 ,PETSC_NULL_INTEGER,dactx(igrid)%da,ierr)
-cc
-cc        call DACreateGlobalVector(dactx(igrid)%da,dactx(igrid)%Xg,ierr)
-cc
-ccc       Get local grid boundaries in global grid
-cc
-cc        call DAGetCorners(dactx(igrid)%da
-cc     .         ,dactx(igrid)%xs,dactx(igrid)%ys,dactx(igrid)%zs
-cc     .         ,dactx(igrid)%xm,dactx(igrid)%ym,dactx(igrid)%zm,ierr)
-cc        call DAGetGhostCorners(dactx(igrid)%da
-cc     .         ,dactx(igrid)%gxs,dactx(igrid)%gys,dactx(igrid)%gzs
-cc     .         ,dactx(igrid)%gxm,dactx(igrid)%gym,dactx(igrid)%gzm,ierr)
-cc
-cc        dactx(igrid)%xs  = dactx(igrid)%xs+1
-cc        dactx(igrid)%ys  = dactx(igrid)%ys+1
-cc        dactx(igrid)%zs  = dactx(igrid)%zs+1
-cc        dactx(igrid)%gxs = dactx(igrid)%gxs+1
-cc        dactx(igrid)%gys = dactx(igrid)%gys+1
-cc        dactx(igrid)%gzs = dactx(igrid)%gzs+1
-cc
-cc        dactx(igrid)%ye  = dactx(igrid)%ys+dactx(igrid)%ym-1
-cc        dactx(igrid)%xe  = dactx(igrid)%xs+dactx(igrid)%xm-1
-cc        dactx(igrid)%ze  = dactx(igrid)%zs+dactx(igrid)%zm-1
-cc        dactx(igrid)%gye = dactx(igrid)%gys+dactx(igrid)%gym-1
-cc        dactx(igrid)%gxe = dactx(igrid)%gxs+dactx(igrid)%gxm-1
-cc        dactx(igrid)%gze = dactx(igrid)%gzs+dactx(igrid)%gzm-1
-cc
-cc        !With ghost cells (only those that PETSc includes)
-cc        dactx(igrid)%lgxs = dactx(igrid)%gxs - dactx(igrid)%xs + 1
-cc        dactx(igrid)%lgys = dactx(igrid)%gys - dactx(igrid)%ys + 1
-cc        dactx(igrid)%lgzs = dactx(igrid)%gzs - dactx(igrid)%zs + 1
-cc        dactx(igrid)%lgxe = dactx(igrid)%gxe - dactx(igrid)%xs + 1
-cc        dactx(igrid)%lgye = dactx(igrid)%gye - dactx(igrid)%ys + 1
-cc        dactx(igrid)%lgze = dactx(igrid)%gze - dactx(igrid)%zs + 1
-cc
-cc        !Domain limits (without ghost cells)
-cc        dactx(igrid)%lxs = 1
-cc        dactx(igrid)%lys = 1
-cc        dactx(igrid)%lzs = 1
-cc        dactx(igrid)%lxe = dactx(igrid)%xm
-cc        dactx(igrid)%lye = dactx(igrid)%ym
-cc        dactx(igrid)%lze = dactx(igrid)%zm
-cc
-cc        !Array limits (with all ghost cells)
-cc        dactx(igrid)%il = dactx(igrid)%lxs
-cc        dactx(igrid)%jl = dactx(igrid)%lys
-cc        dactx(igrid)%kl = dactx(igrid)%lzs
-cc        dactx(igrid)%ih = dactx(igrid)%lxe
-cc        dactx(igrid)%jh = dactx(igrid)%lye
-cc        dactx(igrid)%kh = dactx(igrid)%lze
-cc
-cc        dactx(igrid)%ilm = dactx(igrid)%il-1
-cc        dactx(igrid)%ihp = dactx(igrid)%ih+1
-cc        dactx(igrid)%jlm = dactx(igrid)%jl-1
-cc        dactx(igrid)%jhp = dactx(igrid)%jh+1
-cc        dactx(igrid)%klm = dactx(igrid)%kl-1
-cc        dactx(igrid)%khp = dactx(igrid)%kh+1
-cc
-ccc     Store grid level
-cc
-cc        dactx(igrid)%igx = igx
-cc        dactx(igrid)%igy = igy
-cc        dactx(igrid)%igz = igz
-cc
-ccc     End program
-cc
-cc      end subroutine createPETScFortranDA
-cc
-ccc     destroyPETScFortranDA
-ccc     #################################################################
-cc      subroutine destroyPETScFortranDA(dactx)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Deallocates PETSc DA
-ccc     -----------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        type(petsc_da_ctx),pointer :: dactx
-cc
-ccc     Local variables
-cc
-cc        integer    :: ierr,igr
-cc
-ccc     Begin program
-cc
-cccc        do igr=1,ngrid
-cccc          call VecDestroy(dactx(igr)%Xg,ierr)
-cccc          call DADestroy (dactx(igr)%da,ierr)
-cccc        enddo
-cc
-cc        call VecDestroy(dactx%Xg,ierr)
-cc        call DADestroy (dactx%da,ierr)
-cc
-ccc     End program
-cc
-cc      end subroutine destroyPETScFortranDA
-
 c     createMPIComm
 c     #####################################################################
       subroutine createMPIComm(MPI_COMM,selProc)
@@ -686,6 +512,8 @@ c     Set global limits of global domain g_lim(dim,loc)
 
 c     Select rank
 
+        split_key = MPI_UNDEFINED
+
         do loc=0,1
           cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
           if (cp(loc)) split_key = BC
@@ -696,11 +524,11 @@ c     Select rank
           split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
         endif
 
-        !Create self-communicator for single-point dimensions
-        if (      (l_lim(dim,0) == l_lim(dim,1))
-     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
-          split_key=split_key+my_rank+1
-        endif
+cc        !Create self-communicator for single-point dimensions
+cc        if (      (l_lim(dim,0) == l_lim(dim,1))
+cc     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
+cc          split_key=split_key+my_rank+1
+cc        endif
 
 c     End program
 
@@ -792,7 +620,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer :: split_key
+        integer,INTENT(OUT) :: split_key
 
 c     Local variables
 
@@ -823,24 +651,26 @@ c     Set global limits of global domain g_lim(dim,loc)
         g_lim(2,1) = grid_params%nygl(1)
         g_lim(3,1) = grid_params%nzgl(1)
 
-c     Select rank
+c     Check whether proc is at boundary of appropriate type
 
-        !Check whether proc is at boundary of appropriate type
+        split_key = MPI_UNDEFINED
+
         do loc=0,1
           cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
           if (cp(loc)) split_key = BC
         enddo
 
-        !Group communicators based on location in face
+c     Group communicators based on location in face
+
         if (split_key /= MPI_UNDEFINED) then
           call selectRank_X(split_key)
         endif
 
-        !Create self-communicator for single-point dimensions
-        if (      (l_lim(dim,0) == l_lim(dim,1))
-     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
-          split_key=split_key+my_rank+1
-        endif
+cc        !Create self-communicator for single-point dimensions
+cc        if (      (l_lim(dim,0) == l_lim(dim,1))
+cc     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
+cc          split_key=split_key+my_rank+1
+cc        endif
 
 c     End program
 
@@ -858,7 +688,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer :: split_key
+        integer,INTENT(OUT) :: split_key
 
 c     Local variables
 
@@ -889,24 +719,26 @@ c     Set global limits of global domain g_lim(dim,loc)
         g_lim(2,1) = grid_params%nygl(1)
         g_lim(3,1) = grid_params%nzgl(1)
 
-c     Select rank
+c     Check whether proc is at boundary of appropriate type
 
-        !Check whether proc is at boundary of appropriate type
+        split_key = MPI_UNDEFINED
+
         do loc=0,1
           cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
           if (cp(loc)) split_key = BC
         enddo
 
-        !Group communicators based on location in face
+c     Group communicators based on location in face
+
         if (split_key /= MPI_UNDEFINED) then
           call selectRank_Y(split_key)
         endif
 
-        !Create self-communicator for single-point dimensions
-        if (      (l_lim(dim,0) == l_lim(dim,1))
-     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
-          split_key=split_key+my_rank+1
-        endif
+cc        !Create self-communicator for single-point dimensions
+cc        if (      (l_lim(dim,0) == l_lim(dim,1))
+cc     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
+cc          split_key=split_key+my_rank+1
+cc        endif
 
 c     End program
 
@@ -924,7 +756,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer :: split_key
+        integer,INTENT(OUT) :: split_key
 
 c     Local variables
 
@@ -957,6 +789,8 @@ c     Set global limits of global domain g_lim(dim,loc)
 
 c     Select rank
 
+        split_key = MPI_UNDEFINED
+
         !Check whether proc is at boundary of appropriate type
         do loc=0,1
           cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
@@ -969,10 +803,10 @@ c     Select rank
         endif
 
         !Create self-communicator for single-point dimensions
-        if (      (l_lim(dim,0) == l_lim(dim,1))
-     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
-          split_key=split_key+my_rank+1
-        endif
+cc        if (      (l_lim(dim,0) == l_lim(dim,1))
+cc     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
+cc          split_key=split_key+my_rank+1
+cc        endif
 
 c     End program
 
@@ -991,7 +825,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: split_key
+        integer,INTENT(INOUT) :: split_key
 
 c     Local variables
 
@@ -1048,7 +882,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: split_key
+        integer,INTENT(INOUT) :: split_key
 
 c     Local variables
 
@@ -1105,7 +939,7 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: split_key
+        integer,INTENT(INOUT) :: split_key
 
 c     Local variables
 
@@ -1216,13 +1050,13 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: split_key
+        integer,INTENT(INOUT) :: split_key
 
 c     Local variables
 
-        integer    :: loc,lrank
+        integer :: loc,lrank
 
-        logical    :: cp(0:1)
+        logical :: cp(0:1)
 
 c     Begin program
 
@@ -1287,64 +1121,6 @@ c     Begin program
      .                 .and.bcond(ibc(dim,loc))==BC
 
       end function checkProc
-
-ccc     setupPETScLocalLimits
-ccc     #################################################################
-cc      subroutine setupPETScLocalLimits(igrid)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Defines local limits of current domain, and stores them in dactx.
-ccc     -----------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer    :: igrid
-cc
-ccc     Local variables
-cc
-ccc     Begin program
-cc
-cc        !With ghost cells (only those that PETSc includes)
-cc        call fromGlobalToLocalLimits
-cc     .       (dactx(igrid)%gxs ,dactx(igrid)%gys ,dactx(igrid)%gzs
-cc     $       ,dactx(igrid)%lgxs,dactx(igrid)%lgys,dactx(igrid)%lgzs
-cc     $       ,dactx(igrid)%igx ,dactx(igrid)%igy ,dactx(igrid)%igz)
-cc
-cc        call fromGlobalToLocalLimits
-cc     .       (dactx(igrid)%gxe ,dactx(igrid)%gye ,dactx(igrid)%gze
-cc     $       ,dactx(igrid)%lgxe,dactx(igrid)%lgye,dactx(igrid)%lgze
-cc     $       ,dactx(igrid)%igx ,dactx(igrid)%igy ,dactx(igrid)%igz)
-cc
-cc        !Domain limits (without ghost cells)
-cc        call fromGlobalToLocalLimits
-cc     .       (dactx(igrid)%xs,dactx(igrid)%ys,dactx(igrid)%zs
-cc     $       ,dactx(igrid)%il,dactx(igrid)%jl,dactx(igrid)%kl
-cc     $       ,dactx(igrid)%igx,dactx(igrid)%igy,dactx(igrid)%igz)
-cc        call fromGlobalToLocalLimits
-cc     .       (dactx(igrid)%xe,dactx(igrid)%ye,dactx(igrid)%ze
-cc     $       ,dactx(igrid)%ih,dactx(igrid)%jh,dactx(igrid)%kh
-cc     $       ,dactx(igrid)%igx,dactx(igrid)%igy,dactx(igrid)%igz)
-cc
-cc        !Array limits (with all ghost cells)
-ccc$$$        dactx(igrid)%il = 1
-ccc$$$        dactx(igrid)%jl = 1
-ccc$$$        dactx(igrid)%kl = 1
-ccc$$$        dactx(igrid)%ih = grid_params%nxv(igx)
-ccc$$$        dactx(igrid)%jh = grid_params%nyv(igy)
-ccc$$$        dactx(igrid)%kh = grid_params%nzv(igz)
-cc
-cc        dactx(igrid)%ilm = dactx(igrid)%il-1
-cc        dactx(igrid)%ihp = dactx(igrid)%ih+1
-cc        dactx(igrid)%jlm = dactx(igrid)%jl-1
-cc        dactx(igrid)%jhp = dactx(igrid)%jh+1
-cc        dactx(igrid)%klm = dactx(igrid)%kl-1
-cc        dactx(igrid)%khp = dactx(igrid)%kh+1
-cc
-ccc     End program
-cc
-cc      end subroutine setupPETScLocalLimits
 
 c     fillLocalVec
 c     #################################################################
