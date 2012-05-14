@@ -977,10 +977,16 @@ c     Begin program
           call MPI_Comm_size(MPI_COMM_PER(dim),np_l     ,mpierr)
           call MPI_Comm_rank(MPI_COMM_PER(dim),my_rank_l,mpierr)
 
-          dest = np_l - 1 -my_rank_l
-          src  = dest
+          if (np_l > 2) then
+            call pstop('sync_PER','Periodic comm has rank > 2')
+          endif
 
-          write (*,*)dim,np_l,my_rank_l,dest,isBdry(1,1,1+2*(dim-1))
+          dest = np_l - 1 -my_rank_l
+cc          src  = dest
+          src  = my_rank_l
+
+          write (*,*) 'DIAG -- sync_PER'
+     .              ,dim,np_l,my_rank_l,dest,isBdry(1,1,1+2*(dim-1))
 
           select case(dim)
           case(1)
