@@ -62,8 +62,8 @@ c ######################################################################
           type(splines)    :: spline_conf
         end type orbit_def
 
-        type(orbit_def),private  :: orb_default
-        type(ode_solver),private :: ode_conf
+        type(orbit_def),target  :: orbit_conf
+        type(ode_solver),pointer :: ode_conf
 
         integer,private :: ssorder,obcnd(6)!,iterror,itime
 
@@ -80,38 +80,41 @@ c ######################################################################
         integer, dimension(:), allocatable :: nunitx,nunity,
      .                                        nunitz,nunitrz
 !!!!$OMP THREADPRIVATE(nunitx,nunity,nunitz,nunitrz)
-	real(8) :: xold,yold,zold,lsode_out(10)
-!$OMP THREADPRIVATE(xold,yold,zold,lsode_out)
-        logical :: sing_point=.false.,exit_loop,orb_init
+	real(8) :: xold,yold,zold,xvold,yvold,zvold,svold,sold
+!$OMP THREADPRIVATE(xold,yold,zold,xvold,yvold,zvold,svold,sold)
+        logical :: sing_point=.false.,exit_loop=.false.,orb_init
 !$OMP THREADPRIVATE(sing_point,exit_loop,orb_init)
 	integer,private :: LSODE_IERR=ORB_OK
 !$OMP THREADPRIVATE(LSODE_IERR)
         logical,private :: cartesian_flag = .false.,cross = .false.,
      .             cartesian = .false.
 !$OMP THREADPRIVATE(cartesian_flag,cross,cartesian)
-        real(8),private :: tvold,told,time,svold,sold,ss  
-!$OMP THREADPRIVATE(tvold,told,time,svold,sold,ss)
+        real(8),private :: tvold,told,time,ss  
+!$OMP THREADPRIVATE(tvold,told,time,ss)
         real(8),private :: x,y,z,xcar,ycar,zcar
-     .                    ,xvold,yvold,zvold
-!$OMP THREADPRIVATE(x,y,z,xcar,ycar,zcar,xvold,yvold,zvold)
+!$OMP THREADPRIVATE(x,y,z,xcar,ycar,zcar)
         real(8),private :: x00,y00,z00,xss,yss,zss,tss
 !$OMP THREADPRIVATE(x00,y00,z00,xss,yss,zss,tss)
         integer,private :: npointx,npointy,npointz
 !$OMP THREADPRIVATE(npointx,npointy,npointz)
+
 !LSODE private variables
-      INTEGER,PRIVATE :: LIW, LRW, NEQ
-!cc!$OMP THREADPRIVATE(LIW,LRW,NEQ)
-      PARAMETER  (NEQ=20,LIW = 20,LRW = LIW + 16*NEQ)
-      INTEGER,PRIVATE :: IOPT,IOUT,ISTATE=0,ITASK,ITOL
+
+        INTEGER :: LSODE_ACC_DIM
+        PARAMETER (LSODE_ACC_DIM=10)
+        INTEGER,PRIVATE :: LIW, LRW, NEQ
+        PARAMETER  (NEQ=20,LIW = 20,LRW = LIW + 16*NEQ)
+
+        INTEGER,PRIVATE :: IOPT,IOUT,ISTATE=0,ITASK,ITOL
      .                  ,IWORK(LIW),MF,NEQD(1)
 !$OMP THREADPRIVATE(IOPT,IOUT,ISTATE,ITASK,ITOL,IWORK,MF,NEQD)
-      REAL(8),PRIVATE :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW)
-     .                  ,T,TOUT,YY(NEQ)
-!$OMP THREADPRIVATE(LS_ATOL,LS_RTOL,RWORK,T,TOUT,YY)
+        REAL(8),PRIVATE :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW)
+     .                    ,T,TOUT,YY(NEQ),LSODE_ACC(LSODE_ACC_DIM)
+!$OMP THREADPRIVATE(LS_ATOL,LS_RTOL,RWORK,T,TOUT,YY,LSODE_ACC)
 !     Store of LSODE common block variables
-      real(8),dimension(218),private :: RSAV
+        real(8),dimension(218),private :: RSAV
 !$OMP THREADPRIVATE(RSAV)
-      integer,dimension(41),private :: ISAV
+        integer,dimension(41),private :: ISAV
 !$OMP THREADPRIVATE(ISAV)
 
       contains
@@ -243,8 +246,6 @@ c     Local variables
 
 c     Begin program
 
-      if (.not.bdiag) return
-
       icross = icross + 1
 
       if (icross > ncross) then
@@ -286,8 +287,6 @@ c     Local variables
         real(8),allocatable,dimension(:) ::  mean,sigma,vol,diff
 
 c     Begin program
-
-        if (.not.bdiag) return
 
         open(unit=50,file='b_stat.txt',status='unknown')
 
@@ -352,32 +351,32 @@ c     Default configuration for orbit integrator
 c     ----------------------------------------------------------------------
 
       !ODE solver
-      orb_default%ode_conf%tmax   = 0d0    !Maximum orbit pseudotime
-      orb_default%ode_conf%smax   = 0d0    !Maximum orbit arc length
-      orb_default%ode_conf%dtime  = 0.01   !Maximum time step
+      orbit_conf%ode_conf%tmax   = 0d0    !Maximum orbit pseudotime
+      orbit_conf%ode_conf%smax   = 0d0    !Maximum orbit arc length
+      orbit_conf%ode_conf%dtime  = 0.01   !Maximum time step
 
-      orb_default%ode_conf%solen  = .true. !Whether to use solenoidal ODE int.
-      orb_default%ode_conf%order  = 1      !Order of integration in solenoidal int. (1,2)
-      orb_default%ode_conf%picard = .true. !Whether to use functional iteration
-      orb_default%ode_conf%niter  = 20     !Number of nonlinear iterations
-      orb_default%ode_conf%rtol   = 0d-8   !Relative tolerance
-      orb_default%ode_conf%atol   = 1d-8   !Absolute tolerance
+      orbit_conf%ode_conf%solen  = .true. !Whether to use solenoidal ODE int.
+      orbit_conf%ode_conf%order  = 1      !Order of integration in solenoidal int. (1,2)
+      orbit_conf%ode_conf%picard = .true. !Whether to use functional iteration
+      orbit_conf%ode_conf%niter  = 20     !Number of nonlinear iterations
+      orbit_conf%ode_conf%rtol   = 0d-8   !Relative tolerance
+      orbit_conf%ode_conf%atol   = 1d-8   !Absolute tolerance
 
-      orb_default%ode_conf%ds_is_Bds = .false.  !Whether we use B.ds instead of ds as independent variable
+      orbit_conf%ode_conf%ds_is_Bds = .false.  !Whether we use B.ds instead of ds as independent variable
 
       !LSODE default setup
-      orb_default%ode_conf%lsode_dt_lim = .false. !Do not limit LSODE time step
-      orb_default%ode_conf%lsode_s_indep  = .false. !Find arc-length as dependent variable
-      if (orb_default%ode_conf%lsode_s_indep) then
-        orb_default%ode_conf%lsode_neq = 3 !Number of LSODE equations
+      orbit_conf%ode_conf%lsode_dt_lim = .false. !Do not limit LSODE time step
+      orbit_conf%ode_conf%lsode_s_indep  = .false. !Find arc-length as dependent variable
+      if (orbit_conf%ode_conf%lsode_s_indep) then
+        orbit_conf%ode_conf%lsode_neq = 3 !Number of LSODE equations
       else
-        orb_default%ode_conf%lsode_neq = 5 !Number of LSODE equations
+        orbit_conf%ode_conf%lsode_neq = 5 !Number of LSODE equations
       endif
-      orb_default%ode_conf%lsode_to_smax  = .false. !Return after every single LSODE step
+      orbit_conf%ode_conf%lsode_to_smax  = .false. !Return after every single LSODE step
 
       !Splines
-      orb_default%spline_conf%order = 2    !Spline interpolation order
-      orb_default%spline_conf%a_gauge = 2  !Gauge for vector potential
+      orbit_conf%spline_conf%order = 2    !Spline interpolation order
+      orbit_conf%spline_conf%a_gauge = 2  !Gauge for vector potential
 
       end subroutine orbit_conf_def
 
@@ -416,71 +415,71 @@ c     Begin program
         call orbit_conf_def   !Defaults are defined here.
 
         if (PRESENT(tmax)) then
-          orb_default%ode_conf%tmax = tmax
+          orbit_conf%ode_conf%tmax = tmax
         endif
 
         if (PRESENT(smax)) then
-          orb_default%ode_conf%smax = smax
+          orbit_conf%ode_conf%smax = smax
         endif
 
         if (PRESENT(dtime)) then
-          orb_default%ode_conf%dtime = dtime
+          orbit_conf%ode_conf%dtime = dtime
         endif
 
         if (PRESENT(niter)) then
-          orb_default%ode_conf%niter = niter
+          orbit_conf%ode_conf%niter = niter
         endif
 
         if (PRESENT(atol)) then
-          orb_default%ode_conf%atol = atol
+          orbit_conf%ode_conf%atol = atol
         endif
 
         if (PRESENT(rtol)) then
-          orb_default%ode_conf%rtol = rtol
+          orbit_conf%ode_conf%rtol = rtol
         endif
 
         if (PRESENT(order)) then
-          orb_default%ode_conf%order = order
+          orbit_conf%ode_conf%order = order
         endif
 
         if (PRESENT(solen)) then
-          orb_default%ode_conf%solen = solen
+          orbit_conf%ode_conf%solen = solen
         endif
 
         if (PRESENT(picard)) then
-          orb_default%ode_conf%picard = picard
+          orbit_conf%ode_conf%picard = picard
         endif
 
         if (PRESENT(lsode_neq)) then
-          orb_default%ode_conf%lsode_neq = lsode_neq
+          orbit_conf%ode_conf%lsode_neq = lsode_neq
         endif
 
         if (PRESENT(lsode_dt_lim)) then
-          orb_default%ode_conf%lsode_dt_lim = lsode_dt_lim
+          orbit_conf%ode_conf%lsode_dt_lim = lsode_dt_lim
         endif
 
         if (PRESENT(lsode_s_indep)) then
-          orb_default%ode_conf%lsode_s_indep = lsode_s_indep
+          orbit_conf%ode_conf%lsode_s_indep = lsode_s_indep
         endif
 
         if (PRESENT(lsode_to_smax)) then
-          orb_default%ode_conf%lsode_to_smax = lsode_to_smax
+          orbit_conf%ode_conf%lsode_to_smax = lsode_to_smax
         endif
 
         if (PRESENT(ds_is_Bds)) then
-          orb_default%ode_conf%ds_is_Bds = ds_is_Bds
+          orbit_conf%ode_conf%ds_is_Bds = ds_is_Bds
         endif
 
         if (PRESENT(spline_order)) then
-          orb_default%spline_conf%order = spline_order
+          orbit_conf%spline_conf%order = spline_order
         endif
 
         if (PRESENT(gauge)) then
-          orb_default%spline_conf%a_gauge = gauge
+          orbit_conf%spline_conf%a_gauge = gauge
         endif
 
         if (PRESENT(B_input_is_A)) then
-          orb_default%spline_conf%input_is_A = B_input_is_A
+          orbit_conf%spline_conf%input_is_A = B_input_is_A
         endif
 
         if (PRESENT(r_min)) then
@@ -489,7 +488,7 @@ c     Begin program
           rmin = 1d-3
         endif
 
-        ode_conf = orb_default%ode_conf
+        ode_conf => orbit_conf%ode_conf
 
         obcnd = bcnd
 
@@ -509,13 +508,13 @@ cc        endif
 c     Do splines
 
         call setupSplines(nx,ny,nz,xx,yy,zz
-     .                   ,orb_default%spline_conf%order
+     .                   ,orbit_conf%spline_conf%order
      .                   ,xmin,xmax,ymin,ymax,zmin,zmax,obcnd)
 
         if (    ode_conf%solen
-     .      .or.orb_default%spline_conf%input_is_A) then
-          call splineA(bx,by,bz,  orb_default%spline_conf%a_gauge
-     .                ,input_is_A=orb_default%spline_conf%input_is_A)
+     .      .or.orbit_conf%spline_conf%input_is_A) then
+          call splineA(bx,by,bz,  orbit_conf%spline_conf%a_gauge
+     .                ,input_is_A=orbit_conf%spline_conf%input_is_A)
         else
           call splineB(bx,by,bz)
         endif
@@ -545,7 +544,7 @@ c     Begin program
 
 c     Close SS output
 
-	call ss_io_end
+	if (ss_io) call ss_io_end
 
 c     Kill spline info
 
@@ -553,14 +552,14 @@ c     Kill spline info
 
 c     Finalize B diagnostics
 
-        call B_diag_finalize
+        if (bdiag) call B_diag_finalize
 
       end subroutine orbit_destroy
 
 c     orbit_find
 c     ######################################################################
       subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,lsode_f,ss_order
-     .                     ,t_max,s_max,ierror)
+     .                     ,t_max,s_max,ierror,lsode_sum)
 
 c     ----------------------------------------------------------------------
 c     Integrates orbit up to specified limit in arc length or pseudotime
@@ -574,8 +573,11 @@ c       * ode_line_int: external routine to perform line integrals using LSODE
 c       * ss_check: check for surface of section (default: not when
 c                   performing integrals along line)
 c       * ss_order: order of interpolation for SS (default: 1)
+c       * t_max,s_max: override maximum orbit lengths, measured in pseudotime
+c                      units (t_max, for solenoidal int), or arclength (s_max)
 c     Optional output:
 c       * ierror: gives error code (see spline_mod.f for codes)
+c       * lsode_sum: gives LSODE accumulators (real)
 c     ----------------------------------------------------------------------
 
         implicit none
@@ -586,8 +588,11 @@ c     Call variables
         real(8),intent(IN) :: x0,y0,z0
         logical :: fwd
 
-        integer,optional :: ss_order,ierror
-        real(8),optional :: t_max,s_max
+        integer,optional,INTENT(IN) :: ss_order
+        real(8),optional,INTENT(IN) :: t_max,s_max
+
+        integer,optional,INTENT(OUT) :: ierror
+        real(8),optional,INTENT(OUT) :: lsode_sum(LSODE_ACC_DIM)
 
         optional :: line_int
 
@@ -635,10 +640,16 @@ c     Begin program
 
         if (PRESENT(s_max)) then
           smax = s_max
+          ode_conf%smax = smax
         else
           smax = ode_conf%smax
         endif
 
+        if (PRESENT(lsode_f).and.(.not.PRESENT(lsode_sum))
+     .     .and.my_rank==0) then
+          write(*,*)'WARNING: no LSODE accumulators given to orbit_find'
+        endif
+          
 c     Check ranges
 
         if((x0.le.xmin.or.x0.ge.xmax)
@@ -689,7 +700,6 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 
         endif
 
-
 c     Orbit integral
 
 	itime = 0 
@@ -735,8 +745,8 @@ c     Orbit integral
               z = zold + (tmax-abs(told))/abs(time-told)*(z-zold)
               time = sign(1d0,time)*tmax
             endif
-          else
-            exit_loop = .false.
+cc          else
+cc            exit_loop = .false.
           endif
 
           !Line-orbit integration
@@ -776,6 +786,8 @@ cc          if (exit_loop) then
         enddo
 
         if (PRESENT(ierror)) ierror = iterror
+
+        if (PRESENT(lsode_sum)) lsode_sum = LSODE_ACC
 
 c       Write orbit separator in XDRAW file
 
@@ -820,7 +832,7 @@ c     Begin program
         ss   = 0d0  !Initialize arc-length along line
         sold = 0d0
 
-        lsode_out = 0d0   !Initialize additional LSODE output
+        LSODE_ACC = 0d0   !Initialize additional LSODE output
 
         npointx=0
         npointy=0
@@ -933,7 +945,7 @@ c     Time integration
 
       else                                  !LSODE (non-solenoidal)
 
-        sln = orb_default%spline_conf%input_is_A !Whether input is A
+        sln = orbit_conf%spline_conf%input_is_A !Whether input is A
 
         if (lsode_3eq) then
           call lsode_step_3eq(atol,rtol,x,y,z,ierror)
@@ -1014,7 +1026,7 @@ c     Initial conditions
         YY(3) = zc
         YY(4) = time
         YY(5) = ss
-        if (NEQD(1) > 5) YY(6:NEQD(1))=lsode_out(1:NEQD(1)-5)
+        if (NEQD(1) > 5) YY(6:NEQD(1))=LSODE_ACC(1:NEQD(1)-5)
 
         TOUT = 0.1*cc*dtime !Output time value (ignored after first call, since ITASK=2)
       else
@@ -1023,7 +1035,7 @@ c     Initial conditions
         YY(3) = z
         YY(4) = time
         YY(5) = ss
-        if (NEQD(1) > 5) YY(6:NEQD(1))=lsode_out(1:NEQD(1)-5)
+        if (NEQD(1) > 5) YY(6:NEQD(1))=LSODE_ACC(1:NEQD(1)-5)
 
         TOUT  = cc*dtime    !Output time value (ignored after first call, since ITASK=2)
       endif
@@ -1087,10 +1099,11 @@ cc        write (*,*) 'LSODE -- limiting time step'
       select case(ISTATE)
       case(2)       !Uneventful
         continue
-      case(-2)      !Rescale tolerances
+      case(-2)      !Rescale tolerances and continue
         ISTATE = 3
         RTOL=RTOL*RWORK(14)
         ATOL=ATOL*RWORK(14)
+        write (*,*) 'Rescaling tolerances and continuing...'
       case default  !Exit LSODE
         write (*,*) 'Error code ISTATE=',ISTATE
         write (*,*) 'See lsode.f for instructions'
@@ -1132,7 +1145,7 @@ c     Advance time and arc length
       time = cc*YY(4)
       ss   = cc*YY(5)
 
-      if (NEQD(1) > 5) lsode_out(1:NEQD(1)-5)=cc*YY(6:NEQD(1))
+      if (NEQD(1) > 5) LSODE_ACC(1:NEQD(1)-5)=cc*YY(6:NEQD(1))
 
 c     End program
 
@@ -1189,14 +1202,14 @@ c     Initial conditions
         YY(1) = xc
         YY(2) = yc
         YY(3) = zc
-        if (NEQD(1) > 3) YY(4:NEQD(1))=lsode_out(1:NEQD(1)-3)
+        if (NEQD(1) > 3) YY(4:NEQD(1))=LSODE_ACC(1:NEQD(1)-3)
 
         TOUT = 0.1*cc*dtime !Output time value (ignored after first call, since ITASK=2)
       else
         YY(1) = x
         YY(2) = y
         YY(3) = z
-        if (NEQD(1) > 3) YY(4:NEQD(1))=lsode_out(1:NEQD(1)-3)
+        if (NEQD(1) > 3) YY(4:NEQD(1))=LSODE_ACC(1:NEQD(1)-3)
 
         TOUT  = cc*dtime    !Output time value (ignored after first call, since ITASK=2)
       endif
@@ -1224,11 +1237,13 @@ cc        ITASK = 1   !Mode of operation: integrate to end and return at TOUT=sm
       if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
 
       IOPT = 0                  !Whether optional inputs are needed
+
       if (ode_conf%lsode_dt_lim) then
 cc        write (*,*) 'LSODE -- limiting time step'
         IOPT = 1                !Whether optional inputs are needed
         RWORK(6) = dtime        !Maximum time step allowed (optional input)
       endif
+
       if (ITASK==4) then
         IOPT = 1                !Whether optional inputs are needed
         RWORK(1) = TOUT         !TCRIT: not to be overshot
@@ -1264,10 +1279,12 @@ cc      write (*,*)'LSODE method=',MF
         continue
       case(-1)      !Too much work: call again
         ISTATE = 3
-      case(-2)      !Rescale tolerances
+        write (*,*) 'Continuing with LSODE integral...'
+      case(-2)      !Rescale tolerances and call again
         ISTATE = 3
         RTOL=RTOL*RWORK(14)
         ATOL=ATOL*RWORK(14)
+        write (*,*) 'Rescaling tolerances and continuing...'
       case default  !Exit LSODE
         write (*,*) 'Error code ISTATE=',ISTATE
         write (*,*) 'See lsode.f for instructions'
@@ -1275,7 +1292,7 @@ cc      write (*,*)'LSODE method=',MF
         stop
       end select
 
-      iterr = LSODE_IERR
+      iterr = LSODE_IERR  !Set in LSODE integration routine lsode_f or ff_3eq
       if (iterr /= ORB_OK) return
 
 c     Postprocessing to find logical coordinates
@@ -1309,7 +1326,7 @@ c     Advance time and arc length
       time = abs(T)
       ss   = abs(T)
 
-      if (NEQD(1) > 3) lsode_out(1:NEQD(1)-3)=cc*YY(4:NEQD(1))
+      if (NEQD(1) > 3) LSODE_ACC(1:NEQD(1)-3)=cc*YY(4:NEQD(1))
 
 c     End program
 
@@ -2296,13 +2313,21 @@ c     Local variables
 
 c     Begin program
 
+        ss_io = .true.   !Turn on SS XDRAW IO
+  
+        if (PRESENT(rz_ss)) then
+          rzss = rz_ss
+        else
+          rzss = .false.
+        endif
+
+c     Define surface of section files (one per OMP thread and MPI job)
+
         cpos = index(trim(file),'.bin') - 1
 
         nfiles = np*thr_tot
         allocate(ssx(0:nfiles-1),ssy (0:nfiles-1)
      .          ,ssz(0:nfiles-1),ssrz(0:nfiles-1))
-
-cc        write (*,*) 'DIAG -- ss_io_init',thr_tot,np
 
         do ith=0,thr_tot-1
           do iproc=0,np-1
@@ -2314,17 +2339,9 @@ cc        write (*,*) 'DIAG -- ss_io_init',thr_tot,np
           enddo
         enddo
 
-        ss_io = .true.   !Turn on SS XDRAW IO
-  
-        if (PRESENT(rz_ss)) then
-          rzss = rz_ss
-        else
-          rzss = .false.
-        endif
+c     Create draw.in files (inside MPI region, outside OMP threading)
 
         if (my_rank == 0) then
-!!# Marco: inside MPI parallel region, only 1 thread needs to create the .in
-!files
           if (lssx) then
             dummy = 'ssx'//trim(file)
 cc            ierr = rm_files(dummy)
@@ -2364,7 +2381,8 @@ cc            ierr = rm_files(dummy)
 
         endif
 
-!!# Marco: *.bin files opening
+c     Open output files (one per thread and MPI process)
+
         allocate(nunitx(0:thr_tot-1),nunity(0:thr_tot-1))
         allocate(nunitz(0:thr_tot-1),nunitrz(0:thr_tot-1))
 
@@ -2426,7 +2444,7 @@ c     Local variables
 
 c     Begin program
 
-	do ith=0,thr_tot-1
+ 	do ith=0,thr_tot-1
           if (lssx) close(nunitx(ith))
           if (lssy) close(nunity(ith))
           if (lssz) close(nunitz(ith))
@@ -2501,7 +2519,7 @@ c     Check for intersection with X surface of section
           endif
 
           !Accumulate B diagnostics
-          call B_diag_update(yss,y00,tss)
+          if (bdiag) call B_diag_update(yss,y00,tss)
         endif
 
 c     Check for intersection with Y surface of section
@@ -2525,7 +2543,7 @@ c     Check for intersection with Y surface of section
           endif
 
           !Accumulate B diagnostics
-          call B_diag_update(xss,x00,tss)
+          if (bdiag) call B_diag_update(xss,x00,tss)
         endif
 
 c     Check for intersection with Z surface of section
@@ -2557,7 +2575,7 @@ c     Check for intersection with Z surface of section
           endif
 
           !Accumulate B diagnostics
-          call B_diag_update(xss,x00,tss)
+          if (bdiag) call B_diag_update(xss,x00,tss)
         endif
 
       end subroutine sschk
@@ -2587,8 +2605,10 @@ c     Local variables
 c     Begin program
 
       if (bc == PER) then
-        p1 = floor((x1-xmin)/(xmax-xmin))
-        p2 = floor((x2-xmin)/(xmax-xmin))
+cc        p1 = floor((x1-xmin)/(xmax-xmin))
+cc        p2 = floor((x2-xmin)/(xmax-xmin))
+        p1 = floor((x1-x0)/(xmax-xmin))
+        p2 = floor((x2-x0)/(xmax-xmin))
 
         x00 = x0
 
@@ -2623,6 +2643,9 @@ c     Begin program
 
       found =    ((x11-x00)*(x22-x00) <= 0d0)
      .       .or.((x11-x0 )*(x22-x0 ) <= 0d0)
+
+cc      write (*,*)'chk_ss_pos',x0,x00,x1,x2,x11,x22,p1,p2,found
+cc      pause
 
       if ((x11-x00)*(x22-x00) <= 0d0) xss = x00+pp*(xmax-xmin)
       if ((x11-x0 )*(x22-x0 ) <= 0d0) xss = x0 +pp*(xmax-xmin)
