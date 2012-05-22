@@ -268,7 +268,7 @@ PCDensityLevelOperator::setExtrapolationOrder(const int extrapolation_order)
 
          if(d_level->patchTouchesRegularBoundary(mappedBox.getId()))
          {
-            d_stencil_initialized=false; // reset this to false so that stencils are recomputed
+	   //            d_stencil_initialized=false; // reset this to false so that stencils are recomputed
          }
       }
    }
@@ -291,8 +291,9 @@ PCDensityLevelOperator::setInterpolationScheme(SAMRAI::RefinementBoundaryInterpo
      d_normal_interp_scheme=scheme;
    }
 
+   // BP: we need to do the equivalent for the commented statement below
    // reset this to false so that stencils are recomputed
-   d_stencil_initialized=false;
+   //   d_stencil_initialized=false;
 }
 
 std::vector<int>
@@ -383,11 +384,6 @@ PCDensityLevelOperator::applyBoundaryCondition(const int *var_id,
    {
       SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme normal_scheme=d_normal_interp_scheme;
 
-      if(d_adjust_cf_coefficients)
-      {
-         normal_scheme=SAMRAI::RefinementBoundaryInterpolation::piecewiseConstant;
-      }
-
       bool cachedIsVariableInterpolationOrder=d_cf_interpolant->getVariableOrderInterpolation();
       d_cf_interpolant->setVariableOrderInterpolation(d_variable_order_interpolation);
 
@@ -417,16 +413,13 @@ PCDensityLevelOperator::setFlux(const int flux_id,
    bool cached_interpolate_ghost_values = d_interpolate_ghost_values;
    // for calculating fluxes we need to ensure data is properly
    // aligned in coarse fine ghost cells
-   bool cached_adjust_cf_coefficients   = d_adjust_cf_coefficients;
    bool cached_reset_ghost_cells        = d_reset_ghost_cells;
    d_interpolate_ghost_values           = true;
-   d_adjust_cf_coefficients             = false;
    d_reset_ghost_cells                  = true;
 
    applyBoundaryCondition(u_id, u_idx );
 
    d_interpolate_ghost_values           = cached_interpolate_ghost_values;
-   d_adjust_cf_coefficients             = cached_adjust_cf_coefficients;
    d_reset_ghost_cells                  = cached_reset_ghost_cells;
 
    const hier::IntVector no_ghosts(hier::IntVector::getZero(d_level->getDim()));

@@ -223,7 +223,6 @@ void PCDensityRefinePatchStrategy::setPhysicalBoundaryConditions(
                tbox::pout << "Face :: " << face << std::endl;
                tbox::pout << "Type :: " << type << std::endl;
                tbox::pout << "Extrapolation order " << d_extrapolation_order << std::endl;
-               tbox::pout << "Robin coefficients ::" << d_robin_bc_coefficients[0] << ", " << d_robin_bc_coefficients[1] << std::endl;
             }
 
          }

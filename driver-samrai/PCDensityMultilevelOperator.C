@@ -1,12 +1,16 @@
 
-#include "PCDensityMultilevelOperator.h"
-
-
 #include "SAMRAI/xfer/CoarsenAlgorithm.h"
 #include "SAMRAI/geom/CartesianGridGeometry.h"
 
 // SAMRAIUTILS headers
 #include "source/AMRUtilities.h"
+
+
+#include "operators/LevelOperatorParameters.h"
+#include "PCDensityLevelOperator.h"
+#include "PCDensityMultilevelOperator.h"
+
+
 
 namespace SAMRAI {
 namespace SAMRSolvers {
@@ -15,11 +19,12 @@ namespace SAMRSolvers {
 PCDensityMultilevelOperator::PCDensityMultilevelOperator()
 {
    d_flux_id                      = -1;
+
    d_coarsen_diffusive_fluxes     = true;
    d_schedules_initialized        = false;
-   d_adjust_cf_coefficients       = false; 
    d_variable_order_interpolation = false;
    d_reset_ghost_values           = true;
+
    d_face_coarsen_op_str          = "CONSERVATIVE_COARSEN";
    d_cell_coarsen_op_str          = "CONSERVATIVE_COARSEN";
    d_cell_refine_op_str           = "CONSTANT_REFINE";
@@ -43,14 +48,16 @@ PCDensityMultilevelOperator::PCDensityMultilevelOperator(MultilevelOperatorParam
    d_flux_id                      = -1;
    d_coarsen_diffusive_fluxes     = true;
    d_schedules_initialized        = false;
-   d_adjust_cf_coefficients       = false; 
    d_variable_order_interpolation = false;
    d_reset_ghost_values           = true;
+
    d_face_coarsen_op_str          = "CONSERVATIVE_COARSEN";
    d_cell_coarsen_op_str          = "CONSERVATIVE_COARSEN";
    d_cell_refine_op_str           = "CONSTANT_REFINE";
    d_face_refine_op_str           = "CONSTANT_REFINE";
    d_flux.setNull();
+
+   d_bdry_types                   = new int[2*d_hierarchy->getDim().getValue()];
 
    const int hierarchy_size       = d_hierarchy->getNumberOfLevels();
 
@@ -63,6 +70,8 @@ PCDensityMultilevelOperator::PCDensityMultilevelOperator(MultilevelOperatorParam
    // read in parameters from database
    getFromInput(parameters->d_db);
      
+   initializeBoundaryConditionStrategy(parameters->d_db);
+
    initializeInternalVariableData();
 
    // make sure the flux id is non zero before initializing the level operators
@@ -71,7 +80,7 @@ PCDensityMultilevelOperator::PCDensityMultilevelOperator(MultilevelOperatorParam
    assert(d_flux_id>=0);
 #endif
 
-   initializeLevelOperators();
+   initializeLevelOperators(parameters);
      
 }
 
@@ -93,8 +102,36 @@ PCDensityMultilevelOperator::~PCDensityMultilevelOperator()
    // deallocation of memory on the levels potentially
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
    variable_db->removePatchDataIndex(d_flux_id);
+
+   delete []d_bdry_types;
 }
 
+void
+PCDensityMultilevelOperator::initializeLevelOperators(MultilevelOperatorParameters *parameters)
+{
+
+   for(int ln=0; ln<=d_hierarchy->getFinestLevelNumber(); ln++)
+     {
+       SAMRSolvers::LevelOperatorParameters *params = new SAMRSolvers::LevelOperatorParameters(parameters->d_db);
+       // The next call is important
+       // It lets the level operators know what object_id to use as a suffix
+       // when creating internal data to minimize the number of variables created
+       parameters->d_db->putInteger("object_id", d_object_id);
+       parameters->d_db->putInteger("flux_id", d_flux_id);
+       // let the level operator know it is part of a multilevel operator
+       parameters->d_db->putBool("isPartOfMultilevelOp", true);
+       
+       tbox::Pointer<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
+       
+       params->d_level               = level;
+       params->d_cf_interpolant      = parameters->d_cf_interpolant;
+       params->d_set_boundary_ghosts = d_set_boundary_ghosts;
+       tbox::Pointer<LevelOperator> levelOp(new SAMRSolvers::PCDensityLevelOperator(params));
+       d_level_operators[ln]         = levelOp;
+       delete params;
+     }
+}
+  
 void
 PCDensityMultilevelOperator::initializeInternalVariableData()
 {
@@ -214,17 +251,6 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
                  << " missing in input.");
    }
 
-   if (db->keyExists("adjust_cf_coefficients")) 
-   {
-      d_adjust_cf_coefficients = db->getBool("adjust_cf_coefficients");      
-   } 
-   else 
-   {
-      TBOX_ERROR( "PCDensityMultilevelOperator" 
-                 << " -- Required key `adjust_cf_coefficients'"
-                 << " missing in input.");
-   }
-
    if(db->keyExists("use_cf_interpolant"))
    {
       d_use_cf_interpolant = db->getBool("use_cf_interpolant");
@@ -331,6 +357,28 @@ PCDensityMultilevelOperator::getLevelOperator(const int ln)
 }
   
 
+void 
+PCDensityMultilevelOperator::initializeBoundaryConditionStrategy(tbox::Pointer<tbox::Database> &db)
+{
+  if(d_internal_refine_strategy)
+    {
+      BoundaryConditionParameters *parameters = new BoundaryConditionParameters(db);
+      d_set_boundary_ghosts = new PCDensityRefinePatchStrategy(d_hierarchy->getDim(), parameters);
+      delete parameters;
+    }
+  
+  if(!d_set_boundary_ghosts.isNull())
+    {
+      PCDensityRefinePatchStrategy *ptr=dynamic_cast<PCDensityRefinePatchStrategy*>(d_set_boundary_ghosts.getPointer());
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(ptr!=NULL);
+      assert(d_bdry_types!=NULL);
+#endif      
+
+      ptr->setBoundaryTypes(d_bdry_types);
+   }
+}
+
 void
 PCDensityMultilevelOperator::apply(const int coarse_ln,
 				   const int fine_ln,
@@ -370,6 +418,7 @@ PCDensityMultilevelOperator::apply(const int coarse_ln,
       for(int ln=fine_ln-1; ln>=coarse_ln; ln--)
 	{
 	  bool coarsen_rhs = (b!=0.0)?true:false;         
+
 	  coarsenSolutionAndSourceTerm(ln, u_id[0], f_id[0], coarsen_rhs);      
 	  
 #ifdef DEBUG_CHECK_ASSERTIONS
@@ -469,6 +518,73 @@ PCDensityMultilevelOperator::setupTransferSchedules(void)
    }
 }
 
+
+void
+PCDensityMultilevelOperator::coarsenSolutionAndSourceTerm(const int ln, 
+							  const int u_id,
+							  const int f_id, 
+							  const bool coarsen_rhs)
+{
+  hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
+  tbox::Pointer< hier::Variable > f;
+  variable_db->mapIndexToVariable(f_id, f);
+  
+#ifdef DEBUG_CHECK_ASSERTIONS
+  assert(!f.isNull());      
+  assert(ln<d_hierarchy->getFinestLevelNumber());
+#endif
+  
+  tbox::Pointer< hier::GridGeometry > geometry = d_hierarchy->getGridGeometry();
+  
+#ifdef DEBUG_CHECK_ASSERTIONS
+  assert(!geometry.isNull());      
+#endif
+  
+  xfer::CoarsenAlgorithm coarsen_alg(d_hierarchy->getDim());
+  
+  // check if this is necessary, not necessary if there are no diagonal terms
+  // involving the solution variable
+  coarsen_alg.registerCoarsen(u_id, u_id,
+			      geometry->lookupCoarsenOperator(f, d_cell_coarsen_op_str));
+  
+  if(coarsen_rhs)
+    {
+      coarsen_alg.registerCoarsen(f_id, f_id,
+                                  geometry->lookupCoarsenOperator(f, d_cell_coarsen_op_str));
+    }
+  
+  // if a schedule does not currently exist create it
+  if(d_src_coarsen_schedule[ln].isNull())
+    {
+      tbox::Pointer<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln+1);
+      tbox::Pointer<hier::PatchLevel > clevel = d_hierarchy->getPatchLevel(ln);
+      d_src_coarsen_schedule[ln]=coarsen_alg.createSchedule(clevel, flevel); 
+    }
+  else
+    {
+      // recreating a schedule when it is not consistent is not the
+      // most efficient way of doing this. An improvement would be
+      // to cache multiple schedules 
+      if(coarsen_alg.checkConsistency(d_src_coarsen_schedule[ln]))
+	{
+	  coarsen_alg.resetSchedule(d_src_coarsen_schedule[ln]);
+	}
+      else
+	{
+	  tbox::Pointer<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln+1);
+	  tbox::Pointer<hier::PatchLevel > clevel = d_hierarchy->getPatchLevel(ln);
+	  d_src_coarsen_schedule[ln]=coarsen_alg.createSchedule(clevel, flevel); 
+	  tbox::pout << "PCDensityMultilevelOperator::coarsenSolutionAndSourceTerm()::Forced to recreate schedule " << std::endl;
+	}
+    }
+  
+#ifdef DEBUG_CHECK_ASSERTIONS
+  assert(!d_src_coarsen_schedule[ln].isNull());      
+#endif
+  
+  d_src_coarsen_schedule[ln]->coarsenData();   
+  
+}
 
 void
 PCDensityMultilevelOperator::setFlux(const int coarse_ln,

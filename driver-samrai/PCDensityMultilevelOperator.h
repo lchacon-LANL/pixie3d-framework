@@ -4,6 +4,7 @@
 
 #include "SAMRAI/SAMRAI_config.h"
 #include "SAMRAI/tbox/Array.h"
+#include "SAMRAI/xfer/CoarsenSchedule.h"
 
 #include <vector>
 
@@ -165,7 +166,7 @@ public:
 		    const int *dst_id,
 		    const int *src_id,
 		    const int *scratch_id,
-		    std::string &refine_op)
+		    std::string &refine_op);
 
    /**
     * Register class that performs interpolation at coarse/fine boundaries.
@@ -175,7 +176,7 @@ public:
    /**
    * Returns a pointer to the cached SAMRAI::RefinementBoundaryInterpolation object
    */
-   virtual SAMRAI::RefinementBoundaryInterpolation *getRefinementBoundaryInterpolant(void){return d_cf_interpolant;}
+   virtual SAMRAI::RefinementBoundaryInterpolation *getRefinementBoundaryInterpolant(void) { return d_cf_interpolant; }
 
    /**
    * Returns the number of primitive variables for the discretization
@@ -195,16 +196,9 @@ public:
    * \param reset_ghost_values
    *        boolean flag, set to true to reset ghost values
    */
-   void resetGhostValues(bool bval){ d_reset_ghost_values=reset_ghost_values; }
+   void resetGhostValues(bool reset_ghost_values){ d_reset_ghost_values=reset_ghost_values; }
 
    void resetCoarseFineGhostData(const int ln, const int var_id);
-
-  /**
-   * Get information describing physical boundary conditions.  The
-   * return value is a pointer to 2*d integers that describe the
-   * physical boundary conditions (d is the spatial dimension).
-   */
-   const int* getPhysicalBoundaryConditions(void) const;
 
    /**
    * Resets the operator internally with new parameters if necessary
@@ -213,6 +207,7 @@ public:
    */
    void reset(DiscreteOperatorParameters *parameters=NULL);
 
+   void initializeBoundaryConditionStrategy(tbox::Pointer<tbox::Database> &db);
 
    /**
    * This routine allows a linear operator by default to create
@@ -247,6 +242,12 @@ public:
 			bool bOverride = false,
 			std::string centering = "");
 
+   /**
+    * Get information describing physical boundary conditions.  The
+    * return value is a pointer to 2*d integers that describe the
+    * physical boundary conditions (d is the spatial dimension).
+    */
+   const int* getPhysicalBoundaryConditions(void) const{ return d_bdry_types; }
 
    
 protected:
@@ -257,6 +258,25 @@ protected:
    void initializeInternalVariableData(void);
 
    void getFromInput(tbox::Pointer<tbox::Database> db);
+
+
+   /**
+   * Coarsen a souce term like variable from level ln+1 to level ln
+   * currently this routine is identical to coarsenVariable but that may
+   * change
+   * \param ln
+   *        level number
+   * \param u_id
+   *        descriptor index of solution to coarsen
+   * \param src_id
+   *        descriptor index of rhs to coarsen
+   * \param b
+   *        boolean to determine if b should be coarsened or not
+   */
+   void coarsenSolutionAndSourceTerm(const int ln, 
+                                     const int u_id,
+                                     const int src_id,
+                                     const bool coarsen_rhs);
 
    /**
    * Compute fluxes.
@@ -286,7 +306,11 @@ protected:
     */
    PCDensityMultilevelOperator();
 
+   void initializeLevelOperators(MultilevelOperatorParameters *parameters);
+
    int d_flux_id;
+
+   bool d_coarsen_diffusive_fluxes;
    bool d_schedules_initialized;
    bool d_use_cf_interpolant;
    bool d_variable_order_interpolation;
@@ -298,6 +322,8 @@ protected:
    std::string d_cell_refine_op_str;
    std::string d_tangent_interp_scheme_str;
    std::string d_normal_interp_scheme_str;
+
+   int *d_bdry_types;
 
    tbox::Pointer< pdat::FaceVariable<double> > d_flux;
 
