@@ -181,7 +181,7 @@ public:
    /**
    * Returns the number of primitive variables for the discretization
    */
-   int getNumberOfVariables(void);
+   int getNumberOfVariables(void){return 1;};
 
    /**
    * return a pointer to a level linear operator object, can't use a Pointer here thanks to the Pointer semantics being messed up
@@ -198,8 +198,6 @@ public:
    */
    void resetGhostValues(bool reset_ghost_values){ d_reset_ghost_values=reset_ghost_values; }
 
-   void resetCoarseFineGhostData(const int ln, const int var_id);
-
    /**
    * Resets the operator internally with new parameters if necessary
    * \param parameters
@@ -208,6 +206,10 @@ public:
    void reset(DiscreteOperatorParameters *parameters=NULL);
 
    void initializeBoundaryConditionStrategy(tbox::Pointer<tbox::Database> &db);
+
+
+   tbox::Pointer< xfer::RefineSchedule > getRefineSchedule(const int ln,
+							   const int var_id);
 
    /**
    * This routine allows a linear operator by default to create

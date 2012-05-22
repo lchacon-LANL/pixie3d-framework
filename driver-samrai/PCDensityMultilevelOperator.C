@@ -321,6 +321,70 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
 
 }
 
+tbox::Pointer< xfer::RefineSchedule > 
+PCDensityMultilevelOperator::getRefineSchedule(const int ln, 
+					       const int var_id)
+{
+
+#ifdef DEBUG_CHECK_ASSERTIONS
+   assert(var_id>=0);
+   assert(ln>=0);
+#endif
+   
+   hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
+   tbox::Pointer< hier::Variable > var;
+   variable_db->mapIndexToVariable(var_id, var);
+   
+#ifdef DEBUG_CHECK_ASSERTIONS
+   assert(!var.isNull());      
+#endif
+   
+   tbox::Pointer< hier::GridGeometry > geometry = d_hierarchy->getGridGeometry();
+   
+#ifdef DEBUG_CHECK_ASSERTIONS
+   assert(!geometry.isNull());      
+#endif
+   
+   xfer::RefineAlgorithm refine_alg(d_hierarchy->getDim());
+
+   refine_alg.registerRefine(var_id, var_id, var_id,
+                             geometry->lookupRefineOperator(var, 
+                                                            d_cell_refine_op_str));
+   
+   tbox::Pointer<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln);
+
+   if(ln>0)
+   {
+     tbox::Pointer<hier::PatchLevel > clevel = d_hierarchy->getPatchLevel(ln-1);
+   }
+   
+   if(d_var_refine_schedule[ln].isNull()||(!refine_alg.checkConsistency(d_var_refine_schedule[ln])))
+     {
+       if(ln==0)
+	 {
+	   d_var_refine_schedule[ln]=refine_alg.createSchedule(flevel,
+							       d_set_boundary_ghosts.getPointer());
+	 }
+       else
+	 {
+	   d_var_refine_schedule[ln]=refine_alg.createSchedule(flevel,
+							       ln-1,
+							       d_hierarchy,
+							       d_set_boundary_ghosts.getPointer());
+	 }
+     }
+   else
+     {
+       refine_alg.resetSchedule(d_var_refine_schedule[ln]);
+     }
+   
+#ifdef DEBUG_CHECK_ASSERTIONS
+   assert(!d_var_refine_schedule[ln].isNull());
+#endif
+   
+   return d_var_refine_schedule[ln];
+}
+
 void
 PCDensityMultilevelOperator::applyBoundaryCondition(const int ln,
 						    const int *var_id,
@@ -343,12 +407,12 @@ PCDensityMultilevelOperator::applyBoundaryCondition(const int ln,
    tbox::Pointer< xfer::RefinePatchStrategy > refine_strategy;
    refine_strategy=d_set_boundary_ghosts;
    
-   CellDiffusionRefinePatchStrategy *ptr=NULL;
+   PCDensityRefinePatchStrategy *ptr=NULL;
 
    if(!refine_strategy.isNull())
    {
       // set the index to fill for the refine patch strategy
-      ptr=dynamic_cast<CellDiffusionRefinePatchStrategy*>(refine_strategy.getPointer());
+      ptr=dynamic_cast<PCDensityRefinePatchStrategy*>(refine_strategy.getPointer());
 #ifdef DEBUG_CHECK_ASSERTIONS
       assert(ptr!=NULL);
 #endif
@@ -765,7 +829,41 @@ PCDensityMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel > 
 #endif
    d_interpolate_schedule[ln]->fillData(0.0);
 }
- 
+
+int
+PCDensityMultilevelOperator::getVariableIndex(std::string &name, 
+					      tbox::Pointer<hier::VariableContext> &context,
+					      tbox::Pointer<hier::Variable > &var,
+					      hier::IntVector nghosts,
+					      int depth,
+					      bool bOverride,
+					      std::string centering)
+{
+  int var_id = -1;
+  
+  if(!bOverride)
+    {
+      hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
+      
+      var = variable_db->getVariable(name);
+      
+      if(!var)
+	{
+	  var = new pdat::CellVariable< double>(d_hierarchy->getDim(), name, depth);         
+	}
+      
+      var_id = variable_db->registerVariableAndContext(var,
+                                                       context,
+                                                       nghosts);
+    }
+  else
+    {
+      abort();
+    }
+  
+  return var_id;
+}
+
 void
 PCDensityMultilevelOperator::reset(DiscreteOperatorParameters *params)
 {
