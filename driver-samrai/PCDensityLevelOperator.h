@@ -198,11 +198,6 @@ public:
    std::vector<int> getStencilOffsets(const int i=0, const int j=0, const int k=0);
 
    /**
-   * Returns the number of primitive variables for the discretization
-   */
-   int getNumberOfVariables(void){return 1;}
-
-   /**
     * Compute b*f+a*A*u from fluxes, default values for a and b yield the residual
     */
    void apply(const int flux_id, 

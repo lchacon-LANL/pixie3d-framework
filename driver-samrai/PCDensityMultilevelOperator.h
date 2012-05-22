@@ -179,11 +179,6 @@ public:
    virtual SAMRAI::RefinementBoundaryInterpolation *getRefinementBoundaryInterpolant(void) { return d_cf_interpolant; }
 
    /**
-   * Returns the number of primitive variables for the discretization
-   */
-   int getNumberOfVariables(void){return 1;};
-
-   /**
    * return a pointer to a level linear operator object, can't use a Pointer here thanks to the Pointer semantics being messed up
    */
    LevelOperator *getLevelOperator(const int ln);

@@ -103,7 +103,7 @@ PCDensityMultilevelOperator::~PCDensityMultilevelOperator()
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
    variable_db->removePatchDataIndex(d_flux_id);
 
-   delete []d_bdry_types;
+   delete [] d_bdry_types;
 }
 
 void
@@ -120,7 +120,8 @@ PCDensityMultilevelOperator::initializeLevelOperators(MultilevelOperatorParamete
        parameters->d_db->putInteger("flux_id", d_flux_id);
        // let the level operator know it is part of a multilevel operator
        parameters->d_db->putBool("isPartOfMultilevelOp", true);
-       
+       parameters->d_db->putInteger("number_of_variables", d_number_of_variables);
+
        tbox::Pointer<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
        
        params->d_level               = level;
@@ -153,7 +154,7 @@ PCDensityMultilevelOperator::initializeInternalVariableData()
 
    if (!d_flux) 
    {
-     d_flux = new pdat::FaceVariable<double>(dim,cellFlux,1);
+     d_flux = new pdat::FaceVariable<double>(dim,cellFlux,d_number_of_variables);
    }
 
    d_flux_id = variable_db->registerVariableAndContext(d_flux,
@@ -807,16 +808,16 @@ PCDensityMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel > 
       if(ln==0)
       {
          d_interpolate_schedule[ln]=refine_alg.createSchedule(flevel,
-                                                             ptr);
+							      ptr);
       }
       else
 	{
 	  tbox::Pointer<hier::PatchLevel> nullLevelPtr;
-         d_interpolate_schedule[ln]=refine_alg.createSchedule(flevel,
-                                                              nullLevelPtr,
-                                                              ln-1,
-                                                              d_hierarchy,
-                                                              ptr);
+	  d_interpolate_schedule[ln]=refine_alg.createSchedule(flevel,
+							       nullLevelPtr,
+							       ln-1,
+							       d_hierarchy,
+							       ptr);
       }
    }
    else
