@@ -321,6 +321,78 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
 
 }
 
+void
+PCDensityMultilevelOperator::applyBoundaryCondition(const int ln,
+						    const int *var_id,
+						    const int *var_idx,
+						    const int *var_components,
+						    const int number_of_variables,
+						    const bool reset_ghost_values)
+{
+#ifdef DEBUG_CHECK_ASSERTIONS   
+  assert(!d_level_operators[ln].isNull());
+   assert(var_id!=NULL);
+   assert(var_components==NULL);
+#endif
+
+   const int idx=(var_idx==NULL)?0:var_idx[0];
+
+   // if ghost values have already been initialized then don't do it again
+   // else reinitialize the values in ghost cells
+   // get a pointer to the refine strategy object
+   tbox::Pointer< xfer::RefinePatchStrategy > refine_strategy;
+   refine_strategy=d_set_boundary_ghosts;
+   
+   CellDiffusionRefinePatchStrategy *ptr=NULL;
+
+   if(!refine_strategy.isNull())
+   {
+      // set the index to fill for the refine patch strategy
+      ptr=dynamic_cast<CellDiffusionRefinePatchStrategy*>(refine_strategy.getPointer());
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(ptr!=NULL);
+#endif
+      ptr->setIndexToFill(var_id[0], idx);
+   }
+   
+   if(reset_ghost_values)
+   {
+      // get the refine schedule for the level and fill data
+      tbox::Pointer< xfer::RefineSchedule > refineSchedule;
+      refineSchedule=this->getRefineSchedule(ln, var_id[0]);
+      refineSchedule->fillData(0.0);
+   }
+
+   if (d_use_cf_interpolant && (ln > 0))
+   {
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(d_cf_interpolant!=NULL);
+#endif
+      if(reset_ghost_values)
+      {
+         d_cf_interpolant->setGhostCellData(ln, var_id[0]);
+      }
+
+      SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme normal_scheme=d_normal_interp_scheme;
+
+      bool cachedIsVariableInterpolationOrder=d_cf_interpolant->getVariableOrderInterpolation();
+      d_cf_interpolant->setVariableOrderInterpolation(d_variable_order_interpolation);
+      
+      d_cf_interpolant->interpolateGhostValues(ln,
+                                               d_tangent_interp_scheme,
+                                               normal_scheme,
+                                               var_id[0], idx);
+      
+      d_cf_interpolant->setVariableOrderInterpolation(cachedIsVariableInterpolationOrder);
+      
+      if(ptr!=NULL)
+      {
+         ptr->extrapolateCornerGhostCells(d_hierarchy,
+                                          ln,
+                                          var_id[0], idx);      
+      }
+   }
+}
 
 void 
 PCDensityMultilevelOperator::apply(const int ln,
@@ -693,6 +765,25 @@ PCDensityMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel > 
 #endif
    d_interpolate_schedule[ln]->fillData(0.0);
 }
+ 
+void
+PCDensityMultilevelOperator::reset(DiscreteOperatorParameters *params)
+{
   
+  MultilevelOperator::reset(params);
+  
+  getFromInput(params->d_db);
+  
+  // reset the level operators
+  for (int ln = 0; ln <= d_hierarchy->getFinestLevelNumber(); ln++) 
+    {
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(!d_level_operators[ln].isNull());
+#endif
+      
+      d_level_operators[ln]->reset(params);
+    }  
+}
+ 
 }
 }
