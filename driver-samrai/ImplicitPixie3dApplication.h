@@ -6,6 +6,7 @@
 #include "SAMRAI/solv/SNESAbstractFunctions.h"
 #include "pixie3dApplication.h"
 #include "ImplicitPixie3dApplicationParameters.h"
+#include "Pixie3dPreconditioner.h"
 
 namespace SAMRAI{
 
@@ -197,8 +198,21 @@ public:
            const int coarsest_level,
            const int finest_level );
 
+   /**
+    * create the preconditioner
+    */
+   void createPreconditioner( void );
+
+   /**
+    * Destroy the preconditioner.
+    */
+   void destroyPreconditioner(void);
+
  private:
- 
+    
+   SAMRSolvers::Pixie3dPreconditionerParameters *
+   createPreconditionerParameters( tbox::Pointer<tbox::Database> &db );
+
    /*
     * The nonlinear solution process requires a solution vector; we cache
     * a pointer to it here.
@@ -222,6 +236,16 @@ public:
     * scheme. This vector will be used to store intermediate quantities
     */
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_scratchVector;
+
+   /**
+    * Pointer to pixie preconditioner
+    */
+   tbox::Pointer< SAMRSolvers::Pixie3dPreconditioner > d_preconditioner;
+   
+   /**
+    * Pointer to database with preconditioner parameters
+    */
+   tbox::Pointer<tbox::Database> d_pc_db;
 
    /*
     * Current solution time and time increment used in the solution process.
