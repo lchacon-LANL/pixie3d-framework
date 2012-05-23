@@ -24,6 +24,7 @@
 
 // SAMRUTILS headers
 #include "testutils/SAMRBuilder.h"
+#include "utilities/ProfilerApp.h"
 
 // SAMRSOLVERS headers
 #include "SAMRAI/algs/ImplicitIntegrator.h"
@@ -32,7 +33,6 @@
 // Local headers
 #include "ImplicitPixie3dApplication.h"
 #include "ImplicitPixie3dApplicationParameters.h"
-#include "ProfilerApp.h"
 
 extern "C"{
 #include "assert.h"

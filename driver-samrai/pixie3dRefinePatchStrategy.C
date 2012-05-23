@@ -19,7 +19,7 @@
 
 #include "LevelContainer.h"
 #include "PatchContainer.h"
-#include "ProfilerApp.h"
+#include "utilities/ProfilerApp.h"
 
 extern "C"{
 #include <assert.h>

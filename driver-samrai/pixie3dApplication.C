@@ -37,7 +37,6 @@
 #include "pixie3dRefinePatchStrategy.h"
 #include "varrayContainer.h"
 #include "fortran.h"
-#include "ProfilerApp.h"
 
 // SAMRAI headers
 #include "SAMRAI/geom/CartesianGridGeometry.h"
@@ -55,6 +54,7 @@
 //#include "BoundaryConditionStrategy.h"
 //#include "RefineOperator.h"
 
+#include "utilities/ProfilerApp.h"
 #include "source/AMRUtilities.h"
 //#include "test_utilities.h"
 
