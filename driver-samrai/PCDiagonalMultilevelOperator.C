@@ -184,30 +184,6 @@ PCDiagonalMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
    assert(!db.isNull());
 #endif
 
-   if (db->keyExists("tangent_interp_scheme")) 
-     {
-       d_tangent_interp_scheme_str = db->getString("tangent_interp_scheme");
-       d_tangent_interp_scheme = SAMRAI::RefinementBoundaryInterpolation::lookupInterpolationScheme(d_tangent_interp_scheme_str);
-   } 
-   else 
-   {
-      TBOX_ERROR( "PCDiagonalMultilevelOperator" 
-                 << " -- Required key `tangent_interp_scheme'"
-                 << " missing in input.");
-   }
-
-   if (db->keyExists("normal_interp_scheme")) 
-   {
-     d_normal_interp_scheme_str = db->getString("normal_interp_scheme");
-     d_normal_interp_scheme = SAMRAI::RefinementBoundaryInterpolation::lookupInterpolationScheme(d_normal_interp_scheme_str);
-   } 
-   else 
-   {
-      TBOX_ERROR( "PCDiagonalMultilevelOperator" 
-                 << " -- Required key `normal_interp_scheme'"
-                 << " missing in input.");
-   }
-
    if (db->keyExists("coarsen_diffusive_fluxes")) 
    {
       d_coarsen_diffusive_fluxes = db->getBool("coarsen_diffusive_fluxes");
@@ -258,18 +234,43 @@ PCDiagonalMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
       
       if(d_use_cf_interpolant)
       {
-         d_cell_refine_op_str = "CONSTANT_REFINE";
 
-         if (db->keyExists("variable_order_interpolation")) 
-         {
+	if (db->keyExists("tangent_interp_scheme")) 
+	  {
+	    d_tangent_interp_scheme_str = db->getString("tangent_interp_scheme");
+	    d_tangent_interp_scheme = SAMRAI::RefinementBoundaryInterpolation::lookupInterpolationScheme(d_tangent_interp_scheme_str);
+	  } 
+	else 
+	  {
+	    TBOX_ERROR( "PCDiagonalMultilevelOperator" 
+			<< " -- Required key `tangent_interp_scheme'"
+			<< " missing in input.");
+	  }
+	
+	if (db->keyExists("normal_interp_scheme")) 
+	  {
+	    d_normal_interp_scheme_str = db->getString("normal_interp_scheme");
+	    d_normal_interp_scheme = SAMRAI::RefinementBoundaryInterpolation::lookupInterpolationScheme(d_normal_interp_scheme_str);
+	  } 
+	else 
+	  {
+	    TBOX_ERROR( "PCDiagonalMultilevelOperator" 
+			<< " -- Required key `normal_interp_scheme'"
+			<< " missing in input.");
+	  }
+	
+	d_cell_refine_op_str = "CONSTANT_REFINE";
+	
+	if (db->keyExists("variable_order_interpolation")) 
+	  {
             d_variable_order_interpolation = db->getBool("variable_order_interpolation");
-         } 
-         else 
-         {
+	  } 
+	else 
+	  {
             TBOX_ERROR("PCDiagonalMultilevelOperator"
                        << " -- Required key `variable_order_interpolation'"
                        << " missing in input.");
-         }
+	  }
       }
       else
       {

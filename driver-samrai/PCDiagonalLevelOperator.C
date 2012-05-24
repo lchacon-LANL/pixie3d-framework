@@ -16,6 +16,15 @@ namespace SAMRSolvers {
 
 PCDiagonalLevelOperator::PCDiagonalLevelOperator()
 {
+
+   d_interpolate_ghost_values     = false;
+   d_sibling_fill_cached          = false;
+   d_variable_order_interpolation = false;
+   d_coefficients_changed         = true;
+   d_reset_ghost_cells            = true;
+   d_use_cf_interpolant           = false;
+   
+   d_sibling_fill_schedule.setNull();
 }
 
 PCDiagonalLevelOperator::PCDiagonalLevelOperator(LevelOperatorParameters *parameters):LevelOperator(parameters)
@@ -29,6 +38,7 @@ PCDiagonalLevelOperator::PCDiagonalLevelOperator(LevelOperatorParameters *parame
    d_variable_order_interpolation = false;
    d_coefficients_changed         = true;
    d_reset_ghost_cells            = true;
+   d_use_cf_interpolant           = false;
    
    d_sibling_fill_schedule.setNull();
 
@@ -152,26 +162,43 @@ PCDiagonalLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
 		       << " missing in input.");
 	 }
      }
-   
-   if (db->keyExists("tangent_interp_scheme"))
-   {
-      d_tangent_interp_scheme = SAMRAI::RefinementBoundaryInterpolation::lookupInterpolationScheme(db->getString("tangent_interp_scheme"));
-   }
-   else
-   {
-      TBOX_ERROR( "PCDiagonalLevelOperator"
-                 << " -- Required key `tangent_interp_scheme'"
-                 << " missing in input.");
-   }
 
-   if (db->keyExists("normal_interp_scheme"))
+   if(db->keyExists("use_cf_interpolant"))
    {
-      d_normal_interp_scheme = SAMRAI::RefinementBoundaryInterpolation::lookupInterpolationScheme(db->getString("normal_interp_scheme"));
+      d_use_cf_interpolant = db->getBool("use_cf_interpolant");
+      
+      if(d_use_cf_interpolant)
+      {
+
+	if (db->keyExists("tangent_interp_scheme")) 
+	  {
+	    std::string tangent_interp_scheme_str = db->getString("tangent_interp_scheme");
+	    d_tangent_interp_scheme = SAMRAI::RefinementBoundaryInterpolation::lookupInterpolationScheme(tangent_interp_scheme_str);
+	  } 
+	else 
+	  {
+	    TBOX_ERROR( "PCDiagonalMultilevelOperator" 
+			<< " -- Required key `tangent_interp_scheme'"
+			<< " missing in input.");
+	  }
+	
+	if (db->keyExists("normal_interp_scheme")) 
+	  {
+	    std::string normal_interp_scheme_str = db->getString("normal_interp_scheme");
+	    d_normal_interp_scheme = SAMRAI::RefinementBoundaryInterpolation::lookupInterpolationScheme(normal_interp_scheme_str);
+	  } 
+	else 
+	  {
+	    TBOX_ERROR( "PCDiagonalMultilevelOperator" 
+			<< " -- Required key `normal_interp_scheme'"
+			<< " missing in input.");
+	  }
+      }
    }
    else
    {
-      TBOX_ERROR( "PCDiagonalLevelOperator"
-                 << " -- Required key `normal_interp_scheme'"
+      TBOX_ERROR("PCDensityMultilevelOperator"
+                 << " -- Required key `use_cf_interpolant'"
                  << " missing in input.");
    }
 

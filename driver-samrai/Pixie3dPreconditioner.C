@@ -86,6 +86,10 @@ Pixie3dPreconditioner::initializeOperators(tbox::Pointer<tbox::Database> &db)
 
 	      tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(MOperatorDB) );
 
+	      mlParams->d_hierarchy                = d_hierarchy;
+	      mlParams->d_cf_interpolant           = d_cf_interpolant;
+	      mlParams->d_set_boundary_ghosts      = NULL;
+
 	      d_MOperators[i].reset( new PCDiagonalMultilevelOperator(mlParams) );
 	      
 #ifdef DEBUG_CHECK_ASSERTIONS
@@ -119,6 +123,10 @@ Pixie3dPreconditioner::initializeOperators(tbox::Pointer<tbox::Database> &db)
       
       tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(UOperatorDB) );
       
+      mlParams->d_hierarchy                = d_hierarchy;
+      mlParams->d_cf_interpolant           = d_cf_interpolant;
+      mlParams->d_set_boundary_ghosts      = NULL;
+      
       d_UOperator.reset( new PCDiagonalMultilevelOperator(mlParams) );
       
 #ifdef DEBUG_CHECK_ASSERTIONS
@@ -143,6 +151,10 @@ Pixie3dPreconditioner::initializeOperators(tbox::Pointer<tbox::Database> &db)
 #endif
       
       tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(LOperatorDB) );
+      
+      mlParams->d_hierarchy                = d_hierarchy;
+      mlParams->d_cf_interpolant           = d_cf_interpolant;
+      mlParams->d_set_boundary_ghosts      = NULL;
       
       d_LOperator.reset( new PCDiagonalMultilevelOperator(mlParams) );
       
@@ -169,6 +181,10 @@ Pixie3dPreconditioner::initializeOperators(tbox::Pointer<tbox::Database> &db)
 #endif
       
       tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(PSchurOperatorDB) );
+      
+      mlParams->d_hierarchy                = d_hierarchy;
+      mlParams->d_cf_interpolant           = d_cf_interpolant;
+      mlParams->d_set_boundary_ghosts      = NULL;
       
       d_PSchurOperator.reset( new PCDiagonalMultilevelOperator(mlParams) );
       

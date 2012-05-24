@@ -259,7 +259,8 @@ private:
    bool d_coefficients_changed;
    bool d_variable_order_interpolation;
    bool d_reset_ghost_cells;
-
+   bool d_use_cf_interpolant;
+   
    int d_extrapolation_order;           // extrapolation order to use for ghost cells on physical boundaries
    int *d_bdry_types;
 
