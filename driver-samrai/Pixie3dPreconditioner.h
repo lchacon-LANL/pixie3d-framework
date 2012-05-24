@@ -13,6 +13,7 @@
 #include "operators/MultilevelOperatorFactory.h"
 
 #include "Pixie3dPreconditionerParameters.h"
+#include "PCDiagonalMultilevelOperator.h"
 
 #include <vector>
 
@@ -21,6 +22,10 @@ typedef SAMRAI::tbox::List< SAMRAI::tbox::Pointer<SAMRAI::xfer::CoarsenSchedule 
 namespace SAMRAI{
 
 namespace SAMRSolvers{
+
+  // This preconditioner closely follows the description found in the paper
+  // An optimal, parallel, fully implicit Newton-Krylov solver for three-dimensional
+  // viscoresistive megnatohydrodynamics, L, Chacon, Physics of Plasmas, !5, 2008
 
 class Pixie3dPreconditioner: public PreconditionerStrategy
 {
@@ -94,6 +99,38 @@ private:
    tbox::Pointer<hier::PatchHierarchy > d_hierarchy;
 
    RefinementBoundaryInterpolation *d_cf_interpolant;
+
+   int d_numberOfMOperators;
+   
+   /**
+    * array of operators to represent the M operators
+    */
+   tbox::Array< tbox::Pointer<PCDiagonalMultilevelOperator> > d_MOperators;
+
+   /**
+    * U operator from paper
+    */
+   tbox::Pointer<PCDiagonalMultilevelOperator> d_UOperator;
+
+   /**
+    * L operator from paper
+    */
+   tbox::Pointer<PCDiagonalMultilevelOperator> d_LOperator;
+
+   /**
+    * Pschur operator from paper
+    */
+   tbox::Pointer<PCDiagonalMultilevelOperator> d_PSchurOperator;
+
+   /**
+    * array of solvers used to invert components of M
+    */
+   tbox::Array< tbox::Pointer<MultilevelSolver> > d_MSolvers;
+
+   /**
+    * solver for Schur complement inversion
+    */
+   tbox::Pointer<MultilevelSolver> d_PSchurSolver;
 
 };
 

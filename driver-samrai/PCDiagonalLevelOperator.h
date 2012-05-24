@@ -1,5 +1,5 @@
-#ifndef included_PCDensityLevelOperator
-#define included_PCDensityLevelOperator
+#ifndef included_PCDiagonalLevelOperator
+#define included_PCDiagonalLevelOperator
 
 
 #include "SAMRAI/SAMRAI_config.h"
@@ -15,7 +15,7 @@ extern "C"{
 
 #include "SAMRAI/pdat/FaceVariable.h"
 #include "patchdata/CCellVariable.h"
-#include "PCDensityRefinePatchStrategy.h"
+#include "PCDiagonalRefinePatchStrategy.h"
 
 #include "operators/LevelOperatorParameters.h"
 #include "operators/LevelOperator.h"
@@ -24,16 +24,16 @@ namespace SAMRAI {
 
 namespace SAMRSolvers {
 
-/**\class PCDensityLevelOperator
+/**\class PCDiagonalLevelOperator
  * 
- * Class PCDensityLevelOperator represents linear operators on a cell-centered array on an SAMRAI patch level.
+ * Class PCDiagonalLevelOperator represents linear operators on a cell-centered array on an SAMRAI patch level.
  * The discretization is the standard second order finite difference stencil. Instances
- * of this class are typically created internally by the PCDensityMultilevelOperator.
+ * of this class are typically created internally by the PCDiagonalMultilevelOperator.
  * However, it may be used independent of that class.
  * 
- * The user must perform the following steps to use the PCDensityLevelOperator
+ * The user must perform the following steps to use the PCDiagonalLevelOperator
  * 
- * -# Create a  PCDensityLevelOperator object using a 
+ * -# Create a  PCDiagonalLevelOperator object using a 
  *    LevelOperatorParameters class as argument to the constructor.
  * -# LevelOperatorParameters object must contain a database object with the following keys and values.
  *    Those that have defaults do not need to be specified.    
@@ -60,12 +60,12 @@ namespace SAMRSolvers {
  *      - weight_id                   : integer, descriptor index for weighting in computing norms etc, default is -1
  */
 
-class PCDensityLevelOperator: public LevelOperator
+class PCDiagonalLevelOperator: public LevelOperator
 {
 public:
-   PCDensityLevelOperator(LevelOperatorParameters *parameters);
+   PCDiagonalLevelOperator(LevelOperatorParameters *parameters);
 
-   ~PCDensityLevelOperator();
+   ~PCDiagonalLevelOperator();
 
    /**
     * Compute forward apply operation, with the default arguments for a and b
@@ -252,7 +252,7 @@ protected:
    void initializeDatabase(tbox::Pointer<tbox::Database> db);
 
 private:
-   PCDensityLevelOperator();
+   PCDiagonalLevelOperator();
 
    bool d_interpolate_ghost_values;
    bool d_sibling_fill_cached;

@@ -1,5 +1,5 @@
 
-#include "PCDensityRefinePatchStrategy.h"
+#include "PCDiagonalRefinePatchStrategy.h"
 
 #include "SAMRAI/geom/CartesianPatchGeometry.h"
 #include "SAMRAI/pdat/CellData.h"
@@ -14,7 +14,7 @@ namespace SAMRAI {
 
 namespace SAMRSolvers {
 
-PCDensityRefinePatchStrategy::PCDensityRefinePatchStrategy(
+PCDiagonalRefinePatchStrategy::PCDiagonalRefinePatchStrategy(
       const tbox::Dimension & dim,
       BoundaryConditionParameters *parameters)
    :xfer::RefinePatchStrategy(dim)
@@ -30,19 +30,19 @@ PCDensityRefinePatchStrategy::PCDensityRefinePatchStrategy(
    getFromInput(parameters->d_db);
 }
  
-PCDensityRefinePatchStrategy::~PCDensityRefinePatchStrategy()
+PCDiagonalRefinePatchStrategy::~PCDiagonalRefinePatchStrategy()
 {
   delete [] d_bdry_types;
   d_bdry_types = NULL;
 }
 
 void
-PCDensityRefinePatchStrategy::getFromInput(const tbox::Pointer<tbox::Database> &db)
+PCDiagonalRefinePatchStrategy::getFromInput(const tbox::Pointer<tbox::Database> &db)
 {
    if (db->keyExists("extrapolation_order")) {
       d_extrapolation_order = db->getInteger("extrapolation_order");
    } else {
-      TBOX_ERROR("PCDensityRefinePatchStrategy"
+      TBOX_ERROR("PCDiagonalRefinePatchStrategy"
             << " -- Required key `extrapolation_order'"
             << " missing in input.");
    }
@@ -59,14 +59,14 @@ PCDensityRefinePatchStrategy::getFromInput(const tbox::Pointer<tbox::Database> &
    } 
    else 
    {
-      TBOX_ERROR("PCDensityRefinePatchStrategy" 
+      TBOX_ERROR("PCDiagonalRefinePatchStrategy" 
             << " -- Required key `boundary_conditions'"
             << " missing in input.");
    }
 }
 
 void 
-PCDensityRefinePatchStrategy::setBoundaryTypes(int* bdry_types)
+PCDiagonalRefinePatchStrategy::setBoundaryTypes(int* bdry_types)
 {
    const int dim = getDim().getValue();
 
@@ -78,12 +78,12 @@ PCDensityRefinePatchStrategy::setBoundaryTypes(int* bdry_types)
    }
 }
 
-void PCDensityRefinePatchStrategy::setExtrapolationOrder(int order)
+void PCDiagonalRefinePatchStrategy::setExtrapolationOrder(int order)
 {
    d_extrapolation_order = order;
 }
 
-void PCDensityRefinePatchStrategy::setPhysicalBoundaryConditions(
+void PCDiagonalRefinePatchStrategy::setPhysicalBoundaryConditions(
                                   hier::Patch& patch,
                                   const double time,
                                   const hier::IntVector& ghost_width_to_fill)
@@ -279,7 +279,7 @@ void PCDensityRefinePatchStrategy::setPhysicalBoundaryConditions(
 *                                                                      *
 ************************************************************************
 */
-void PCDensityRefinePatchStrategy::extrapolateCornerGhostCells(
+void PCDiagonalRefinePatchStrategy::extrapolateCornerGhostCells(
         tbox::Pointer<hier::PatchHierarchy > hierarchy,
         const int ln,
         const int var_id,
@@ -379,14 +379,14 @@ void PCDensityRefinePatchStrategy::extrapolateCornerGhostCells(
 }
 
 void 
-PCDensityRefinePatchStrategy::postprocessRefine(hier::Patch& fine,
+PCDiagonalRefinePatchStrategy::postprocessRefine(hier::Patch& fine,
 						const hier::Patch& coarse,
 						const hier::Box& fine_box,
 						const hier::IntVector& ratio) 
 {
 }
 
-bool PCDensityRefinePatchStrategy::contains(
+bool PCDiagonalRefinePatchStrategy::contains(
 					    const SAMRAI::hier::Box & bigBox,
 					    const SAMRAI::hier::Box & smallBox,
 					    const SAMRAI::hier::IntVector & ghosts)

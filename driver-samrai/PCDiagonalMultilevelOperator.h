@@ -1,5 +1,5 @@
-#ifndef included_PCDensityMultilevelOperator
-#define included_PCDensityMultilevelOperator
+#ifndef included_PCDiagonalMultilevelOperator
+#define included_PCDiagonalMultilevelOperator
 
 
 #include "SAMRAI/SAMRAI_config.h"
@@ -15,12 +15,12 @@ namespace SAMRAI {
 
 namespace SAMRSolvers {
 
-/**\class PCDensityMultilevelOperator
- * Class PCDensityMultilevelOperator is the multilevel operator that will be used within the preconditioner
+/**\class PCDiagonalMultilevelOperator
+ * Class PCDiagonalMultilevelOperator is the multilevel operator that will be used within the preconditioner
  * associated with the density variable
 */
 
-class PCDensityMultilevelOperator: public MultilevelOperator
+class PCDiagonalMultilevelOperator: public MultilevelOperator
 {
 public:
    /**
@@ -29,12 +29,12 @@ public:
    *        A MultilevelOperatorParameters class used to provide arguments
    *        to initialize the CellDiffusionMultilevelOperator class
    */
-   PCDensityMultilevelOperator(MultilevelOperatorParameters *parameters);
+   PCDiagonalMultilevelOperator(MultilevelOperatorParameters *parameters);
   
    /**
    * destructor
    */
-   ~PCDensityMultilevelOperator();
+   ~PCDiagonalMultilevelOperator();
 
    /**
     * Compute forward apply operation on a level, with the default arguments for a and b
@@ -301,7 +301,7 @@ protected:
    /**
     * Default constructor, should not be used in general
     */
-   PCDensityMultilevelOperator();
+   PCDiagonalMultilevelOperator();
 
    void initializeLevelOperators(MultilevelOperatorParameters *parameters);
 

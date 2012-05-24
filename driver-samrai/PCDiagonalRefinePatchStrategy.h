@@ -1,6 +1,6 @@
 
-#ifndef included_PCDensityRefinePatchStrategy
-#define included_PCDensityRefinePatchStrategy
+#ifndef included_PCDiagonalRefinePatchStrategy
+#define included_PCDiagonalRefinePatchStrategy
 
 #include "SAMRAI/SAMRAI_config.h"
 #include "SAMRAI/xfer/RefinePatchStrategy.h"
@@ -17,9 +17,9 @@ namespace SAMRAI {
 
 namespace SAMRSolvers {
 
-/** \class PCDensityRefinePatchStrategy
+/** \class PCDiagonalRefinePatchStrategy
  *
- * Class PCDensityRefinePatchStrategy provides a concrete
+ * Class PCDiagonalRefinePatchStrategy provides a concrete
  * xfer::RefinePatchStrategy.  It
  * is used to fill ghost cells that represent physical boundary
  * conditions, which, for a preconditioner, are merely homogeneous
@@ -30,20 +30,20 @@ namespace SAMRSolvers {
  * @see xfer::RefinePatchStrategy
  */
 
-class PCDensityRefinePatchStrategy :
+class PCDiagonalRefinePatchStrategy :
    public xfer::RefinePatchStrategy
 {
 public:
    /**
-    * Blank constructor for PCDensityRefinePatchStrategy.
+    * Blank constructor for PCDiagonalRefinePatchStrategy.
     */
-   PCDensityRefinePatchStrategy(const tbox::Dimension &dim, BoundaryConditionParameters *parameters);
+   PCDiagonalRefinePatchStrategy(const tbox::Dimension &dim, BoundaryConditionParameters *parameters);
 
    /**
-    * Virtual destructor for PCDensityRefinePatchStrategy
+    * Virtual destructor for PCDiagonalRefinePatchStrategy
     */
 
-   virtual ~PCDensityRefinePatchStrategy();
+   virtual ~PCDiagonalRefinePatchStrategy();
 
    /**
     * Set boundary types.
@@ -132,9 +132,9 @@ public:
 
 private:
    /**
-    * Blank constructor for PCDensityRefinePatchStrategy.
+    * Blank constructor for PCDiagonalRefinePatchStrategy.
     */
-   PCDensityRefinePatchStrategy();
+   PCDiagonalRefinePatchStrategy();
 
    bool contains( const SAMRAI::hier::Box & bigBox,
       const SAMRAI::hier::Box & smallBox,

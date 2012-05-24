@@ -49,7 +49,7 @@ Pixie3dPreconditioner::getFromInput( tbox::Pointer<tbox::Database> &db,
 #endif
    if (!is_from_restart)
    {
-
+     
    }
    else
    {
@@ -65,6 +65,124 @@ Pixie3dPreconditioner::getFromInput( tbox::Pointer<tbox::Database> &db,
 void
 Pixie3dPreconditioner::initializeOperators(tbox::Pointer<tbox::Database> &db)
 {
+  
+  // first read in the names of the M Operators and construct the M Operators
+  if (db->keyExists("MOperators"))
+    {
+      tbox::Array<std::string> MOperatorNames = db->getStringArray("MOperators");
+
+      d_MOperators.resizeArray(MOperatorNames.getSize());
+      
+      for(int i=0; i<MOperatorNames.getSize(); i++)
+	{
+	  
+	  if (db->keyExists(MOperatorNames[i]))
+	    {
+	      tbox::Pointer<tbox::Database> MOperatorDB = db->getDatabase(MOperatorNames[i]);
+
+#ifdef DEBUG_CHECK_ASSERTIONS
+	      assert(!MOperatorDB.isNull());
+#endif
+
+	      tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(MOperatorDB) );
+
+	      d_MOperators[i].reset( new PCDiagonalMultilevelOperator(mlParams) );
+	      
+#ifdef DEBUG_CHECK_ASSERTIONS
+	      assert(!d_MOperators[i].isNull());
+#endif
+
+	    }
+	  else
+	    {
+	      TBOX_ERROR( "Pixie3dPreconditioner"
+			  << " -- Required key "  << MOperatorNames[i]
+			  << " missing in input.");
+	    }
+	}
+    }
+  else
+    {
+      TBOX_ERROR( "Pixie3dPreconditioner"
+		  << " -- Required key `MOperators'"
+		  << " missing in input.");
+    }
+
+  // next construct the U Operator
+  if (db->keyExists("UOperator"))
+    {
+      tbox::Pointer<tbox::Database> UOperatorDB = db->getDatabase("UOperator");
+      
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(!UOperatorDB.isNull());
+#endif
+      
+      tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(UOperatorDB) );
+      
+      d_UOperator.reset( new PCDiagonalMultilevelOperator(mlParams) );
+      
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(!d_UOperator.isNull());
+#endif      
+      
+    }  
+  else
+    {
+      TBOX_ERROR( "Pixie3dPreconditioner"
+		  << " -- Required key `UOperator'"
+		  << " missing in input.");
+    }
+  
+  // next construct the L Operator
+  if (db->keyExists("LOperator"))
+    {
+      tbox::Pointer<tbox::Database> LOperatorDB = db->getDatabase("LOperator");
+      
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(!LOperatorDB.isNull());
+#endif
+      
+      tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(LOperatorDB) );
+      
+      d_LOperator.reset( new PCDiagonalMultilevelOperator(mlParams) );
+      
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(!d_LOperator.isNull());
+#endif      
+      
+    }  
+  else
+    {
+      TBOX_ERROR( "Pixie3dPreconditioner"
+		  << " -- Required key `LOperator'"
+		  << " missing in input.");
+    }
+  
+
+  // next construct the PSchur Operator
+  if (db->keyExists("PSchurOperator"))
+    {
+      tbox::Pointer<tbox::Database> PSchurOperatorDB = db->getDatabase("PSchurOperator");
+      
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(!PSchurOperatorDB.isNull());
+#endif
+      
+      tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(PSchurOperatorDB) );
+      
+      d_PSchurOperator.reset( new PCDiagonalMultilevelOperator(mlParams) );
+      
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(!d_PSchurOperator.isNull());
+#endif      
+      
+    }  
+  else
+    {
+      TBOX_ERROR( "Pixie3dPreconditioner"
+		  << " -- Required key `PSchurOperator'"
+		  << " missing in input.");
+    }
 
 }
 

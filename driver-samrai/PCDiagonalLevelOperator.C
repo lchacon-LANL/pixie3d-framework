@@ -8,17 +8,17 @@
 
 #include "source/AMRUtilities.h"
 
-#include "PCDensityLevelOperator.h"
+#include "PCDiagonalLevelOperator.h"
 
 namespace SAMRAI {
 
 namespace SAMRSolvers {
 
-PCDensityLevelOperator::PCDensityLevelOperator()
+PCDiagonalLevelOperator::PCDiagonalLevelOperator()
 {
 }
 
-PCDensityLevelOperator::PCDensityLevelOperator(LevelOperatorParameters *parameters):LevelOperator(parameters)
+PCDiagonalLevelOperator::PCDiagonalLevelOperator(LevelOperatorParameters *parameters):LevelOperator(parameters)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(parameters!=NULL);
@@ -39,13 +39,13 @@ PCDensityLevelOperator::PCDensityLevelOperator(LevelOperatorParameters *paramete
    // verify that any routines coming after this one do
    // not overwrite values initialized in getFromInput
    // unintentionally
-   PCDensityLevelOperator::getFromInput(parameters->d_db);
+   PCDiagonalLevelOperator::getFromInput(parameters->d_db);
 
    initializeInternalVariableData();
 
 }
 
-PCDensityLevelOperator::~PCDensityLevelOperator()
+PCDiagonalLevelOperator::~PCDiagonalLevelOperator()
 {
 
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
@@ -72,14 +72,14 @@ PCDensityLevelOperator::~PCDensityLevelOperator()
 }
 
 void
-PCDensityLevelOperator::reset(DiscreteOperatorParameters *params)
+PCDiagonalLevelOperator::reset(DiscreteOperatorParameters *params)
 {
-  PCDensityLevelOperator::getFromInput(params->d_db);
+  PCDiagonalLevelOperator::getFromInput(params->d_db);
 }
 
 
 void
-PCDensityLevelOperator::initializeInternalVariableData()
+PCDiagonalLevelOperator::initializeInternalVariableData()
 {
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
 
@@ -96,15 +96,15 @@ PCDensityLevelOperator::initializeInternalVariableData()
    // not need to use the flux storage at the same time
    if(!d_isPartOfMultilevelOp)
      {
-       std::string cellFlux("PCDensityOperator_InternalFlux");
+       std::string cellFlux("PCDiagonalOperator_InternalFlux");
        cellFlux+=object_str;
        
 #ifdef DEBUG_CHECK_ASSERTIONS
        if(d_debug_print_info_level>4)
 	 {
 	   const int ln = (d_level->inHierarchy())?d_level->getLevelNumber():-1;
-	   tbox::pout << "PCDensityLevelOperator::level number " << ln << std::endl;
-	   tbox::pout << "PCDensityLevelOperator::Cell Flux variable name " << cellFlux << std::endl;
+	   tbox::pout << "PCDiagonalLevelOperator::level number " << ln << std::endl;
+	   tbox::pout << "PCDiagonalLevelOperator::Cell Flux variable name " << cellFlux << std::endl;
 	   
 	 }
 #endif
@@ -129,7 +129,7 @@ PCDensityLevelOperator::initializeInternalVariableData()
 }
 
 void
-PCDensityLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
+PCDiagonalLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
 {
    LevelOperator::getFromInput(db);
 
@@ -147,7 +147,7 @@ PCDensityLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
 	 }
        else
 	 {
-	   TBOX_ERROR( "PCDensityLevelOperator"
+	   TBOX_ERROR( "PCDiagonalLevelOperator"
 		       << " -- Required key `flux_id'"
 		       << " missing in input.");
 	 }
@@ -159,7 +159,7 @@ PCDensityLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
    }
    else
    {
-      TBOX_ERROR( "PCDensityLevelOperator"
+      TBOX_ERROR( "PCDiagonalLevelOperator"
                  << " -- Required key `tangent_interp_scheme'"
                  << " missing in input.");
    }
@@ -170,7 +170,7 @@ PCDensityLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
    }
    else
    {
-      TBOX_ERROR( "PCDensityLevelOperator"
+      TBOX_ERROR( "PCDiagonalLevelOperator"
                  << " -- Required key `normal_interp_scheme'"
                  << " missing in input.");
    }
@@ -181,7 +181,7 @@ PCDensityLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
    }
    else
    {
-      TBOX_ERROR("PCDensityLevelOperator"
+      TBOX_ERROR("PCDiagonalLevelOperator"
                  << " -- Required key `variable_order_interpolation'"
                  << " missing in input.");
    }
@@ -199,7 +199,7 @@ PCDensityLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
    }
    else
    {
-      TBOX_ERROR("PCDensityLevelOperator"
+      TBOX_ERROR("PCDiagonalLevelOperator"
                  << " -- Required key `interpolate_ghost_values'"
                  << " missing in input.");
    }
@@ -210,7 +210,7 @@ PCDensityLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
      }
    else
      {
-       TBOX_ERROR("PCDensityLevelOperator"
+       TBOX_ERROR("PCDiagonalLevelOperator"
 		  << " -- Required key `extrapolation_order'"
 		  << " missing in input.");
      }
@@ -234,7 +234,7 @@ PCDensityLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
      }
    else
      {
-       TBOX_ERROR("PCDensityLevelOperator"
+       TBOX_ERROR("PCDiagonalLevelOperator"
 		  << " -- Required key `boundary_conditions'"
 		  << " missing in input.");
      }
@@ -242,7 +242,7 @@ PCDensityLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
 }
 
 void
-PCDensityLevelOperator::setExtrapolationOrder(const int extrapolation_order)
+PCDiagonalLevelOperator::setExtrapolationOrder(const int extrapolation_order)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(extrapolation_order>=0);
@@ -275,7 +275,7 @@ PCDensityLevelOperator::setExtrapolationOrder(const int extrapolation_order)
 }
 
 void
-PCDensityLevelOperator::setInterpolationScheme(SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme scheme,
+PCDiagonalLevelOperator::setInterpolationScheme(SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme scheme,
 					       const int dir)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
@@ -297,7 +297,7 @@ PCDensityLevelOperator::setInterpolationScheme(SAMRAI::RefinementBoundaryInterpo
 }
 
 std::vector<int>
-PCDensityLevelOperator::getStencilOffsets(const int i,
+PCDiagonalLevelOperator::getStencilOffsets(const int i,
 					  const int j,
 					  const int k)
 {
@@ -307,7 +307,7 @@ PCDensityLevelOperator::getStencilOffsets(const int i,
 }
 
 tbox::Pointer< hier::PatchData >
-PCDensityLevelOperator::getStencilBlock(const tbox::Pointer<hier::Patch> patch,
+PCDiagonalLevelOperator::getStencilBlock(const tbox::Pointer<hier::Patch> patch,
 					const int i,
 					const int j,
 					const int k)
@@ -319,7 +319,7 @@ PCDensityLevelOperator::getStencilBlock(const tbox::Pointer<hier::Patch> patch,
 }
 
 void
-PCDensityLevelOperator::applyBoundaryCondition(const int *var_id,
+PCDiagonalLevelOperator::applyBoundaryCondition(const int *var_id,
 					       const int *var_idx,
 					       const int *var_components,
 					       const int number_of_variables)
@@ -345,11 +345,11 @@ PCDensityLevelOperator::applyBoundaryCondition(const int *var_id,
       xfer::RefineAlgorithm ghost_cell_fill(d_level->getDim());
       ghost_cell_fill.registerRefine(var_id[0], var_id[0], var_id[0], nullRefineOp);
 
-      PCDensityRefinePatchStrategy *ptr=NULL;
+      PCDiagonalRefinePatchStrategy *ptr=NULL;
 
       if(!d_set_boundary_ghosts.isNull())
       {
-         ptr=dynamic_cast<PCDensityRefinePatchStrategy*>(d_set_boundary_ghosts.getPointer());
+         ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(d_set_boundary_ghosts.getPointer());
 
 #ifdef DEBUG_CHECK_ASSERTIONS
          assert(ptr!=NULL);
@@ -400,7 +400,7 @@ PCDensityLevelOperator::applyBoundaryCondition(const int *var_id,
 }
 
 void
-PCDensityLevelOperator::setFlux(const int flux_id,
+PCDiagonalLevelOperator::setFlux(const int flux_id,
 				const int *u_id,
 				const int *u_idx)
 {
@@ -456,7 +456,7 @@ PCDensityLevelOperator::setFlux(const int flux_id,
 }
 
 void
-PCDensityLevelOperator::apply(const int *f_id,
+PCDiagonalLevelOperator::apply(const int *f_id,
 			      const int *u_id,
 			      const int *r_id,
 			      const int *f_idx,
@@ -483,7 +483,7 @@ PCDensityLevelOperator::apply(const int *f_id,
 }
 
 void
-PCDensityLevelOperator::apply(const int flux_id,
+PCDiagonalLevelOperator::apply(const int flux_id,
 			      const int *f_id,
 			      const int *u_id,
 			      const int *r_id,
@@ -558,7 +558,7 @@ PCDensityLevelOperator::apply(const int flux_id,
 }
   
 void
-PCDensityLevelOperator::initializeDatabase(tbox::Pointer<tbox::Database> db)
+PCDiagonalLevelOperator::initializeDatabase(tbox::Pointer<tbox::Database> db)
   {
     // initialize any required base class entries
    LevelOperator::initializeDatabase(db);
@@ -603,7 +603,7 @@ PCDensityLevelOperator::initializeDatabase(tbox::Pointer<tbox::Database> db)
 }
 
 LevelOperator *
-PCDensityLevelOperator::constructOperator(LevelOperatorParameters *parameters)
+PCDiagonalLevelOperator::constructOperator(LevelOperatorParameters *parameters)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(!parameters->d_level.isNull());
@@ -613,7 +613,7 @@ PCDensityLevelOperator::constructOperator(LevelOperatorParameters *parameters)
    parameters->d_set_boundary_ghosts = d_set_boundary_ghosts;
 
    // populate the database with entries that are required for initialization
-   // of a PCDensityLevelOperator, inserting only entries that do not already
+   // of a PCDiagonalLevelOperator, inserting only entries that do not already
    // exist
    initializeDatabase(parameters->d_db);
 
@@ -646,13 +646,13 @@ PCDensityLevelOperator::constructOperator(LevelOperatorParameters *parameters)
 #endif
    
    // create the new operator and cache a pointer to it
-   d_constructed_op = new PCDensityLevelOperator(parameters);
+   d_constructed_op = new PCDiagonalLevelOperator(parameters);
 
    return d_constructed_op;
 }
 
 int
-PCDensityLevelOperator::getVariableIndex(std::string &name,
+PCDiagonalLevelOperator::getVariableIndex(std::string &name,
 					 tbox::Pointer<hier::VariableContext> &context,
 					 tbox::Pointer<hier::Variable > &var,
 					 hier::IntVector nghosts,

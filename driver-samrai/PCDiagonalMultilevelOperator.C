@@ -7,8 +7,8 @@
 
 
 #include "operators/LevelOperatorParameters.h"
-#include "PCDensityLevelOperator.h"
-#include "PCDensityMultilevelOperator.h"
+#include "PCDiagonalLevelOperator.h"
+#include "PCDiagonalMultilevelOperator.h"
 
 
 
@@ -16,7 +16,7 @@ namespace SAMRAI {
 namespace SAMRSolvers {
 
 // default constructor
-PCDensityMultilevelOperator::PCDensityMultilevelOperator()
+PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator()
 {
    d_flux_id                      = -1;
 
@@ -40,7 +40,7 @@ PCDensityMultilevelOperator::PCDensityMultilevelOperator()
    d_interpolate_schedule.resizeArray(hierarchy_size);
 }
 
-PCDensityMultilevelOperator::PCDensityMultilevelOperator(MultilevelOperatorParameters *parameters):MultilevelOperator(parameters)
+PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator(MultilevelOperatorParameters *parameters):MultilevelOperator(parameters)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(parameters!=NULL);
@@ -84,7 +84,7 @@ PCDensityMultilevelOperator::PCDensityMultilevelOperator(MultilevelOperatorParam
      
 }
 
-PCDensityMultilevelOperator::~PCDensityMultilevelOperator()
+PCDiagonalMultilevelOperator::~PCDiagonalMultilevelOperator()
 {
 
    for(int ln=0; ln<=d_hierarchy->getFinestLevelNumber(); ln++)
@@ -107,7 +107,7 @@ PCDensityMultilevelOperator::~PCDensityMultilevelOperator()
 }
 
 void
-PCDensityMultilevelOperator::initializeLevelOperators(MultilevelOperatorParameters *parameters)
+PCDiagonalMultilevelOperator::initializeLevelOperators(MultilevelOperatorParameters *parameters)
 {
 
    for(int ln=0; ln<=d_hierarchy->getFinestLevelNumber(); ln++)
@@ -127,14 +127,14 @@ PCDensityMultilevelOperator::initializeLevelOperators(MultilevelOperatorParamete
        params->d_level               = level;
        params->d_cf_interpolant      = parameters->d_cf_interpolant;
        params->d_set_boundary_ghosts = d_set_boundary_ghosts;
-       tbox::Pointer<LevelOperator> levelOp(new SAMRSolvers::PCDensityLevelOperator(params));
+       tbox::Pointer<LevelOperator> levelOp(new SAMRSolvers::PCDiagonalLevelOperator(params));
        d_level_operators[ln]         = levelOp;
        delete params;
      }
 }
   
 void
-PCDensityMultilevelOperator::initializeInternalVariableData()
+PCDiagonalMultilevelOperator::initializeInternalVariableData()
 {
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
 
@@ -147,7 +147,7 @@ PCDensityMultilevelOperator::initializeInternalVariableData()
    ibuffer<<(long)d_object_id;
    std::string object_str=ibuffer.str();
 
-   std::string cellFlux("PCDensityMultilevelOperator_InternalFlux");
+   std::string cellFlux("PCDiagonalMultilevelOperator_InternalFlux");
    cellFlux+=object_str;
 
    d_flux = variable_db->getVariable(cellFlux);
@@ -178,7 +178,7 @@ PCDensityMultilevelOperator::initializeInternalVariableData()
 }
 
 void 
-PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
+PCDiagonalMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(!db.isNull());
@@ -191,7 +191,7 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
    } 
    else 
    {
-      TBOX_ERROR( "PCDensityMultilevelOperator" 
+      TBOX_ERROR( "PCDiagonalMultilevelOperator" 
                  << " -- Required key `tangent_interp_scheme'"
                  << " missing in input.");
    }
@@ -203,7 +203,7 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
    } 
    else 
    {
-      TBOX_ERROR( "PCDensityMultilevelOperator" 
+      TBOX_ERROR( "PCDiagonalMultilevelOperator" 
                  << " -- Required key `normal_interp_scheme'"
                  << " missing in input.");
    }
@@ -214,7 +214,7 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
    } 
    else 
    {
-      TBOX_ERROR("PCDensityMultilevelOperator" 
+      TBOX_ERROR("PCDiagonalMultilevelOperator" 
                  << " -- Required key `coarsen_diffusive_fluxes'"
                  << " missing in input.");
    }
@@ -225,7 +225,7 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
    }
    else
    {
-      TBOX_ERROR("PCDensityMultilevelOperator" 
+      TBOX_ERROR("PCDiagonalMultilevelOperator" 
                  << " -- Required key `face_coarsen_op'"
                  << " missing in input.");
    }
@@ -236,7 +236,7 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
    }
    else
    {
-      TBOX_ERROR("PCDensityMultilevelOperator" 
+      TBOX_ERROR("PCDiagonalMultilevelOperator" 
                  << " -- Required key `face_refine_op'"
                  << " missing in input.");
    }
@@ -247,7 +247,7 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
    }
    else
    {
-      TBOX_ERROR("PCDensityMultilevelOperator" 
+      TBOX_ERROR("PCDiagonalMultilevelOperator" 
                  << " -- Required key `cell_coarsen_op'"
                  << " missing in input.");
    }
@@ -266,7 +266,7 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
          } 
          else 
          {
-            TBOX_ERROR("PCDensityMultilevelOperator"
+            TBOX_ERROR("PCDiagonalMultilevelOperator"
                        << " -- Required key `variable_order_interpolation'"
                        << " missing in input.");
          }
@@ -279,7 +279,7 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
          }
          else
          {
-            TBOX_ERROR( "PCDensityMultilevelOperator"
+            TBOX_ERROR( "PCDiagonalMultilevelOperator"
                        << " -- Required key `cell_refine_op'"
                        << " missing in input.");
          }
@@ -287,7 +287,7 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
    }
    else
    {
-      TBOX_ERROR("PCDensityMultilevelOperator"
+      TBOX_ERROR("PCDiagonalMultilevelOperator"
                  << " -- Required key `use_cf_interpolant'"
                  << " missing in input.");
    }
@@ -315,7 +315,7 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
    } 
    else 
    {
-      TBOX_ERROR("PCDensityMultilevelOperator" 
+      TBOX_ERROR("PCDiagonalMultilevelOperator" 
                  << " -- Required key `boundary_conditions'"
                  << " missing in input.");
    }   
@@ -323,7 +323,7 @@ PCDensityMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
 }
 
 tbox::Pointer< xfer::RefineSchedule > 
-PCDensityMultilevelOperator::getRefineSchedule(const int ln, 
+PCDiagonalMultilevelOperator::getRefineSchedule(const int ln, 
 					       const int var_id)
 {
 
@@ -387,7 +387,7 @@ PCDensityMultilevelOperator::getRefineSchedule(const int ln,
 }
 
 void
-PCDensityMultilevelOperator::applyBoundaryCondition(const int ln,
+PCDiagonalMultilevelOperator::applyBoundaryCondition(const int ln,
 						    const int *var_id,
 						    const int *var_idx,
 						    const int *var_components,
@@ -408,12 +408,12 @@ PCDensityMultilevelOperator::applyBoundaryCondition(const int ln,
    tbox::Pointer< xfer::RefinePatchStrategy > refine_strategy;
    refine_strategy=d_set_boundary_ghosts;
    
-   PCDensityRefinePatchStrategy *ptr=NULL;
+   PCDiagonalRefinePatchStrategy *ptr=NULL;
 
    if(!refine_strategy.isNull())
    {
       // set the index to fill for the refine patch strategy
-      ptr=dynamic_cast<PCDensityRefinePatchStrategy*>(refine_strategy.getPointer());
+      ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(refine_strategy.getPointer());
 #ifdef DEBUG_CHECK_ASSERTIONS
       assert(ptr!=NULL);
 #endif
@@ -460,7 +460,7 @@ PCDensityMultilevelOperator::applyBoundaryCondition(const int ln,
 }
 
 void 
-PCDensityMultilevelOperator::apply(const int ln,
+PCDiagonalMultilevelOperator::apply(const int ln,
 				   const int *f_id,
 				   const int *u_id, 
 				   const int *r_id,
@@ -484,7 +484,7 @@ PCDensityMultilevelOperator::apply(const int ln,
 }
 
 LevelOperator *
-PCDensityMultilevelOperator::getLevelOperator(const int ln)
+PCDiagonalMultilevelOperator::getLevelOperator(const int ln)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
   assert(!d_level_operators[ln].isNull());
@@ -495,18 +495,18 @@ PCDensityMultilevelOperator::getLevelOperator(const int ln)
   
 
 void 
-PCDensityMultilevelOperator::initializeBoundaryConditionStrategy(tbox::Pointer<tbox::Database> &db)
+PCDiagonalMultilevelOperator::initializeBoundaryConditionStrategy(tbox::Pointer<tbox::Database> &db)
 {
   if(d_internal_refine_strategy)
     {
       BoundaryConditionParameters *parameters = new BoundaryConditionParameters(db);
-      d_set_boundary_ghosts = new PCDensityRefinePatchStrategy(d_hierarchy->getDim(), parameters);
+      d_set_boundary_ghosts = new PCDiagonalRefinePatchStrategy(d_hierarchy->getDim(), parameters);
       delete parameters;
     }
   
   if(!d_set_boundary_ghosts.isNull())
     {
-      PCDensityRefinePatchStrategy *ptr=dynamic_cast<PCDensityRefinePatchStrategy*>(d_set_boundary_ghosts.getPointer());
+      PCDiagonalRefinePatchStrategy *ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(d_set_boundary_ghosts.getPointer());
 #ifdef DEBUG_CHECK_ASSERTIONS
       assert(ptr!=NULL);
       assert(d_bdry_types!=NULL);
@@ -517,7 +517,7 @@ PCDensityMultilevelOperator::initializeBoundaryConditionStrategy(tbox::Pointer<t
 }
 
 void
-PCDensityMultilevelOperator::apply(const int coarse_ln,
+PCDiagonalMultilevelOperator::apply(const int coarse_ln,
 				   const int fine_ln,
 				   const int *f_id,
 				   const int *u_id, 
@@ -543,13 +543,13 @@ PCDensityMultilevelOperator::apply(const int coarse_ln,
     {
       for(int ln=fine_ln; ln>=coarse_ln; ln--)
 	{
-	  PCDensityLevelOperator *pcDensityLevelOp = dynamic_cast<PCDensityLevelOperator *>(this->getLevelOperator(ln));
+	  PCDiagonalLevelOperator *pcDiagonalLevelOp = dynamic_cast<PCDiagonalLevelOperator *>(this->getLevelOperator(ln));
 	  
 #ifdef DEBUG_CHECK_ASSERTIONS
-	  assert(pcDensityLevelOp!=NULL);
+	  assert(pcDiagonalLevelOp!=NULL);
 #endif
 	  
-	  pcDensityLevelOp->setFlux(d_flux_id, u_id, u_idx);
+	  pcDiagonalLevelOp->setFlux(d_flux_id, u_id, u_idx);
 	}
       
       for(int ln=fine_ln-1; ln>=coarse_ln; ln--)
@@ -567,13 +567,13 @@ PCDensityMultilevelOperator::apply(const int coarse_ln,
       
       for(int ln=fine_ln; ln>=coarse_ln; ln--)
 	{
-	  PCDensityLevelOperator *pcDensityLevelOp = dynamic_cast<PCDensityLevelOperator *>(this->getLevelOperator(ln));
+	  PCDiagonalLevelOperator *pcDiagonalLevelOp = dynamic_cast<PCDiagonalLevelOperator *>(this->getLevelOperator(ln));
 	  
 #ifdef DEBUG_CHECK_ASSERTIONS
-	  assert(pcDensityLevelOp!=NULL);
+	  assert(pcDiagonalLevelOp!=NULL);
 #endif
 	  
-	  pcDensityLevelOp->apply(d_flux_id,
+	  pcDiagonalLevelOp->apply(d_flux_id,
 				  f_id , u_id , r_id, 
 				  f_idx, u_idx, r_idx,
 				  a, b);
@@ -583,10 +583,10 @@ PCDensityMultilevelOperator::apply(const int coarse_ln,
     {
       for(int ln=fine_ln; ln>=coarse_ln; ln--)
 	{
-	  PCDensityLevelOperator *pcDensityLevelOp = dynamic_cast<PCDensityLevelOperator *>(this->getLevelOperator(ln));
+	  PCDiagonalLevelOperator *pcDiagonalLevelOp = dynamic_cast<PCDiagonalLevelOperator *>(this->getLevelOperator(ln));
 	  
 #ifdef DEBUG_CHECK_ASSERTIONS
-	  assert(pcDensityLevelOp!=NULL);
+	  assert(pcDiagonalLevelOp!=NULL);
 #endif
 	  
 	  if(ln<fine_ln)
@@ -595,7 +595,7 @@ PCDensityMultilevelOperator::apply(const int coarse_ln,
 	      coarsenSolutionAndSourceTerm(ln, u_id[0], f_id[0], coarsen_rhs);      
 	    }
 	  
-	  pcDensityLevelOp->setFlux(d_flux_id, u_id, u_idx);
+	  pcDiagonalLevelOp->setFlux(d_flux_id, u_id, u_idx);
 	  
 	  if((ln<fine_ln)&&(d_coarsen_diffusive_fluxes))
 	    {
@@ -606,7 +606,7 @@ PCDensityMultilevelOperator::apply(const int coarse_ln,
 	      d_flux_coarsen_schedule[ln]->coarsenData();
 	    } 
 	  
-	  pcDensityLevelOp->apply(d_flux_id,
+	  pcDiagonalLevelOp->apply(d_flux_id,
 				  f_id , u_id , r_id, 
 				  f_idx, u_idx, r_idx,
 				  a, b);
@@ -622,7 +622,7 @@ PCDensityMultilevelOperator::apply(const int coarse_ln,
   
   
 void
-PCDensityMultilevelOperator::setupTransferSchedules(void)
+PCDiagonalMultilevelOperator::setupTransferSchedules(void)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(!d_hierarchy.isNull());
@@ -657,7 +657,7 @@ PCDensityMultilevelOperator::setupTransferSchedules(void)
 
 
 void
-PCDensityMultilevelOperator::coarsenSolutionAndSourceTerm(const int ln, 
+PCDiagonalMultilevelOperator::coarsenSolutionAndSourceTerm(const int ln, 
 							  const int u_id,
 							  const int f_id, 
 							  const bool coarsen_rhs)
@@ -711,7 +711,7 @@ PCDensityMultilevelOperator::coarsenSolutionAndSourceTerm(const int ln,
 	  tbox::Pointer<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln+1);
 	  tbox::Pointer<hier::PatchLevel > clevel = d_hierarchy->getPatchLevel(ln);
 	  d_src_coarsen_schedule[ln]=coarsen_alg.createSchedule(clevel, flevel); 
-	  tbox::pout << "PCDensityMultilevelOperator::coarsenSolutionAndSourceTerm()::Forced to recreate schedule " << std::endl;
+	  tbox::pout << "PCDiagonalMultilevelOperator::coarsenSolutionAndSourceTerm()::Forced to recreate schedule " << std::endl;
 	}
     }
   
@@ -724,7 +724,7 @@ PCDensityMultilevelOperator::coarsenSolutionAndSourceTerm(const int ln,
 }
 
 void
-PCDensityMultilevelOperator::setFlux(const int coarse_ln,
+PCDiagonalMultilevelOperator::setFlux(const int coarse_ln,
 				     const int fine_ln,
 				     const int *u_id,
 				     const int *u_idx)
@@ -736,13 +736,13 @@ PCDensityMultilevelOperator::setFlux(const int coarse_ln,
 
    for(int ln=fine_ln; ln>=coarse_ln; ln--)
    {
-	PCDensityLevelOperator *pcDensityLevelOp = dynamic_cast<PCDensityLevelOperator *>(this->getLevelOperator(ln));
+	PCDiagonalLevelOperator *pcDiagonalLevelOp = dynamic_cast<PCDiagonalLevelOperator *>(this->getLevelOperator(ln));
 
 #ifdef DEBUG_CHECK_ASSERTIONS
-	assert(pcDensityLevelOp!=NULL);
+	assert(pcDiagonalLevelOp!=NULL);
 #endif
       
-     pcDensityLevelOp->setFlux(d_flux_id, u_id, u_idx);
+     pcDiagonalLevelOp->setFlux(d_flux_id, u_id, u_idx);
      
      if(ln<fine_ln && d_coarsen_diffusive_fluxes)
        {
@@ -756,7 +756,7 @@ PCDensityMultilevelOperator::setFlux(const int coarse_ln,
 }
 
 void
-PCDensityMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel > &flevel,
+PCDiagonalMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel > &flevel,
 					 const tbox::Pointer<hier::PatchLevel > &clevel,
 					 const int *dst_id,
 					 const int *src_id,
@@ -784,7 +784,7 @@ PCDensityMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel > 
 
    tbox::Pointer< xfer::RefinePatchStrategy > refine_strategy = d_set_boundary_ghosts;
 
-   PCDensityRefinePatchStrategy *ptr=NULL;
+   PCDiagonalRefinePatchStrategy *ptr=NULL;
 
    if(!refine_strategy.isNull())
    {
@@ -793,7 +793,7 @@ PCDensityMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel > 
       assert(!refine_strategy.isNull());      
 #endif
       // set the index to fill for the refine patch strategy
-      ptr=dynamic_cast<PCDensityRefinePatchStrategy*>(refine_strategy.getPointer());
+      ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(refine_strategy.getPointer());
 
 #ifdef DEBUG_CHECK_ASSERTIONS
       assert(ptr!=NULL);
@@ -832,7 +832,7 @@ PCDensityMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel > 
 }
 
 int
-PCDensityMultilevelOperator::getVariableIndex(std::string &name, 
+PCDiagonalMultilevelOperator::getVariableIndex(std::string &name, 
 					      tbox::Pointer<hier::VariableContext> &context,
 					      tbox::Pointer<hier::Variable > &var,
 					      hier::IntVector nghosts,
@@ -866,7 +866,7 @@ PCDensityMultilevelOperator::getVariableIndex(std::string &name,
 }
 
 void
-PCDensityMultilevelOperator::reset(DiscreteOperatorParameters *params)
+PCDiagonalMultilevelOperator::reset(DiscreteOperatorParameters *params)
 {
   
   MultilevelOperator::reset(params);
