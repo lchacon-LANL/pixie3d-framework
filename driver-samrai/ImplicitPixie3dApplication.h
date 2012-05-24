@@ -9,7 +9,8 @@
 #include "Pixie3dPreconditioner.h"
 
 namespace SAMRAI{
-
+namespace Pixie3d{
+    
 class ImplicitPixie3dApplication:
     public SAMRAI::pixie3dApplication,
     public SAMRAI::algs::ImplicitEquationStrategy, 
@@ -210,7 +211,7 @@ public:
 
  private:
     
-   SAMRSolvers::Pixie3dPreconditionerParameters *
+   Pixie3dPreconditionerParameters *
    createPreconditionerParameters( tbox::Pointer<tbox::Database> &db );
 
    /*
@@ -240,7 +241,7 @@ public:
    /**
     * Pointer to pixie preconditioner
     */
-   tbox::Pointer< SAMRSolvers::Pixie3dPreconditioner > d_preconditioner;
+   tbox::Pointer< Pixie3dPreconditioner > d_preconditioner;
    
    /**
     * Pointer to database with preconditioner parameters
@@ -285,4 +286,5 @@ public:
 };
 
 }
+} 
 #endif

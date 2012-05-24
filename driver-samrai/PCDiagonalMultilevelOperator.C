@@ -13,7 +13,7 @@
 
 
 namespace SAMRAI {
-namespace SAMRSolvers {
+namespace Pixie3d {
 
 // default constructor
 PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator()
@@ -40,7 +40,7 @@ PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator()
    d_interpolate_schedule.resizeArray(hierarchy_size);
 }
 
-PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator(MultilevelOperatorParameters *parameters):MultilevelOperator(parameters)
+PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator(SAMRSolvers::MultilevelOperatorParameters *parameters):MultilevelOperator(parameters)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(parameters!=NULL);
@@ -107,7 +107,7 @@ PCDiagonalMultilevelOperator::~PCDiagonalMultilevelOperator()
 }
 
 void
-PCDiagonalMultilevelOperator::initializeLevelOperators(MultilevelOperatorParameters *parameters)
+PCDiagonalMultilevelOperator::initializeLevelOperators( SAMRSolvers::MultilevelOperatorParameters *parameters)
 {
 
    for(int ln=0; ln<=d_hierarchy->getFinestLevelNumber(); ln++)
@@ -127,7 +127,7 @@ PCDiagonalMultilevelOperator::initializeLevelOperators(MultilevelOperatorParamet
        params->d_level               = level;
        params->d_cf_interpolant      = parameters->d_cf_interpolant;
        params->d_set_boundary_ghosts = d_set_boundary_ghosts;
-       tbox::Pointer<LevelOperator> levelOp(new SAMRSolvers::PCDiagonalLevelOperator(params));
+       tbox::Pointer<SAMRSolvers::LevelOperator> levelOp(new PCDiagonalLevelOperator(params));
        d_level_operators[ln]         = levelOp;
        delete params;
      }
@@ -484,7 +484,7 @@ PCDiagonalMultilevelOperator::apply(const int ln,
   
 }
 
-LevelOperator *
+SAMRSolvers::LevelOperator *
 PCDiagonalMultilevelOperator::getLevelOperator(const int ln)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
@@ -867,10 +867,10 @@ PCDiagonalMultilevelOperator::getVariableIndex(std::string &name,
 }
 
 void
-PCDiagonalMultilevelOperator::reset(DiscreteOperatorParameters *params)
+PCDiagonalMultilevelOperator::reset(SAMRSolvers::DiscreteOperatorParameters *params)
 {
   
-  MultilevelOperator::reset(params);
+  SAMRSolvers::MultilevelOperator::reset(params);
   
   getFromInput(params->d_db);
   

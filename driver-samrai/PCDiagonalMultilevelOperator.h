@@ -13,14 +13,14 @@
 
 namespace SAMRAI {
 
-namespace SAMRSolvers {
+namespace Pixie3d {
 
 /**\class PCDiagonalMultilevelOperator
  * Class PCDiagonalMultilevelOperator is the multilevel operator that will be used within the preconditioner
  * associated with the density variable
 */
 
-class PCDiagonalMultilevelOperator: public MultilevelOperator
+  class PCDiagonalMultilevelOperator: public SAMRSolvers::MultilevelOperator
 {
 public:
    /**
@@ -29,7 +29,7 @@ public:
    *        A MultilevelOperatorParameters class used to provide arguments
    *        to initialize the CellDiffusionMultilevelOperator class
    */
-   PCDiagonalMultilevelOperator(MultilevelOperatorParameters *parameters);
+   PCDiagonalMultilevelOperator(SAMRSolvers::MultilevelOperatorParameters *parameters);
   
    /**
    * destructor
@@ -181,7 +181,7 @@ public:
    /**
    * return a pointer to a level linear operator object, can't use a Pointer here thanks to the Pointer semantics being messed up
    */
-   LevelOperator *getLevelOperator(const int ln);
+   SAMRSolvers::LevelOperator *getLevelOperator(const int ln);
 
    /**
    * This routine controls whether ghost cell values are reset either by interpolation on
@@ -198,7 +198,7 @@ public:
    * \param parameters
    *        MultilevelSolverParameters object that is NULL by default
    */
-   void reset(DiscreteOperatorParameters *parameters=NULL);
+   void reset(SAMRSolvers::DiscreteOperatorParameters *parameters=NULL);
 
    void initializeBoundaryConditionStrategy(tbox::Pointer<tbox::Database> &db);
 
@@ -303,7 +303,7 @@ protected:
     */
    PCDiagonalMultilevelOperator();
 
-   void initializeLevelOperators(MultilevelOperatorParameters *parameters);
+   void initializeLevelOperators(SAMRSolvers::MultilevelOperatorParameters *parameters);
 
    int d_flux_id;
 
@@ -333,7 +333,7 @@ protected:
    SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme d_tangent_interp_scheme;
    SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme d_normal_interp_scheme;
 
-   tbox::Array< tbox::Pointer<LevelOperator> > d_level_operators;
+   tbox::Array< tbox::Pointer<SAMRSolvers::LevelOperator> > d_level_operators;
 
 };
   

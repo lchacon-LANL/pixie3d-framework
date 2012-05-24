@@ -12,7 +12,7 @@
 
 namespace SAMRAI {
 
-namespace SAMRSolvers {
+namespace Pixie3d {
 
 PCDiagonalRefinePatchStrategy::PCDiagonalRefinePatchStrategy(
       const tbox::Dimension & dim,

@@ -1,7 +1,7 @@
 #include "Pixie3dPreconditionerParameters.h"
 
 namespace SAMRAI {
-namespace SAMRSolvers {
+namespace Pixie3d {
 
 Pixie3dPreconditionerParameters::Pixie3dPreconditionerParameters()
 {

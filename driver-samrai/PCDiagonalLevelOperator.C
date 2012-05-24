@@ -12,7 +12,7 @@
 
 namespace SAMRAI {
 
-namespace SAMRSolvers {
+namespace Pixie3d {
 
 PCDiagonalLevelOperator::PCDiagonalLevelOperator()
 {
@@ -27,7 +27,7 @@ PCDiagonalLevelOperator::PCDiagonalLevelOperator()
    d_sibling_fill_schedule.setNull();
 }
 
-PCDiagonalLevelOperator::PCDiagonalLevelOperator(LevelOperatorParameters *parameters):LevelOperator(parameters)
+PCDiagonalLevelOperator::PCDiagonalLevelOperator(SAMRSolvers::LevelOperatorParameters *parameters):LevelOperator(parameters)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(parameters!=NULL);
@@ -82,7 +82,7 @@ PCDiagonalLevelOperator::~PCDiagonalLevelOperator()
 }
 
 void
-PCDiagonalLevelOperator::reset(DiscreteOperatorParameters *params)
+PCDiagonalLevelOperator::reset(SAMRSolvers::DiscreteOperatorParameters *params)
 {
   PCDiagonalLevelOperator::getFromInput(params->d_db);
 }
@@ -629,8 +629,8 @@ PCDiagonalLevelOperator::initializeDatabase(tbox::Pointer<tbox::Database> db)
    }
 }
 
-LevelOperator *
-PCDiagonalLevelOperator::constructOperator(LevelOperatorParameters *parameters)
+SAMRSolvers::LevelOperator *
+PCDiagonalLevelOperator::constructOperator(SAMRSolvers::LevelOperatorParameters *parameters)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(!parameters->d_level.isNull());

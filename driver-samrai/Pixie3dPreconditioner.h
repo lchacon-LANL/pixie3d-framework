@@ -21,20 +21,20 @@ typedef SAMRAI::tbox::List< SAMRAI::tbox::Pointer<SAMRAI::xfer::CoarsenSchedule 
 
 namespace SAMRAI{
 
-namespace SAMRSolvers{
+namespace Pixie3d{
 
   // This preconditioner closely follows the description found in the paper
   // An optimal, parallel, fully implicit Newton-Krylov solver for three-dimensional
   // viscoresistive megnatohydrodynamics, L, Chacon, Physics of Plasmas, !5, 2008
 
-class Pixie3dPreconditioner: public PreconditionerStrategy
+class Pixie3dPreconditioner: public SAMRSolvers::PreconditionerStrategy
 {
 public:
    Pixie3dPreconditioner(Pixie3dPreconditionerParameters *parameters);
 
    ~Pixie3dPreconditioner();
    
-   int setupPreconditioner( PreconditionerParameters *parameters );
+   int setupPreconditioner( SAMRSolvers::PreconditionerParameters *parameters );
    
    int applyPreconditioner( tbox::Pointer< solv::SAMRAIVectorReal<double> > r,
                             tbox::Pointer< solv::SAMRAIVectorReal<double> > z );
@@ -52,7 +52,7 @@ public:
    void getFromInput( tbox::Pointer<tbox::Database> &db,
                       bool is_from_restart = false);
    
-   void setRefinementBoundaryInterpolant(RefinementBoundaryInterpolation *cf_interpolant);
+   void setRefinementBoundaryInterpolant(SAMRAI::RefinementBoundaryInterpolation *cf_interpolant);
 
 protected:
 
@@ -67,8 +67,8 @@ private:
 
    void interpolateVariable( const int src_id, 
                              const int dest_id, 
-                             RefinementBoundaryInterpolation::InterpolationScheme tangential_interp_scheme,
-                             RefinementBoundaryInterpolation::InterpolationScheme normal_interp_scheme );
+                             SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme tangential_interp_scheme,
+                             SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme normal_interp_scheme );
 
    void initializeSolvers(tbox::Pointer<tbox::Database> &db);
 
@@ -98,7 +98,7 @@ private:
 
    tbox::Pointer<hier::PatchHierarchy > d_hierarchy;
 
-   RefinementBoundaryInterpolation *d_cf_interpolant;
+   SAMRAI::RefinementBoundaryInterpolation *d_cf_interpolant;
 
    int d_numberOfMOperators;
    
@@ -125,12 +125,12 @@ private:
    /**
     * array of solvers used to invert components of M
     */
-   tbox::Array< tbox::Pointer<MultilevelSolver> > d_MSolvers;
+   tbox::Array< tbox::Pointer<SAMRSolvers::MultilevelSolver> > d_MSolvers;
 
    /**
     * solver for Schur complement inversion
     */
-   tbox::Pointer<MultilevelSolver> d_PSchurSolver;
+   tbox::Pointer<SAMRSolvers::MultilevelSolver> d_PSchurSolver;
 
 };
 

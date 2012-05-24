@@ -11,9 +11,9 @@
 #include "interpolation/RefinementBoundaryInterpolation.h"
 
 namespace SAMRAI{
-namespace SAMRSolvers{
+namespace Pixie3d{
 
-class Pixie3dPreconditionerParameters: public PreconditionerParameters
+class Pixie3dPreconditionerParameters: public SAMRSolvers::PreconditionerParameters
 {
 public:
    Pixie3dPreconditionerParameters();
@@ -37,7 +37,7 @@ public:
    /**
    * Pointer to the RefinementBoundaryInterpolation object used by the preconditioner to initialize and set coarse-fine boundary values.
    */
-   RefinementBoundaryInterpolation *d_cf_interpolant;      // object storing refinement boundary geometry and ghost value info.
+   SAMRAI::RefinementBoundaryInterpolation *d_cf_interpolant;      // object storing refinement boundary geometry and ghost value info.
    
 protected:
 

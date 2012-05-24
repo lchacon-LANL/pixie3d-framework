@@ -22,7 +22,7 @@ extern "C"{
 
 namespace SAMRAI {
 
-namespace SAMRSolvers {
+namespace Pixie3d {
 
 /**\class PCDiagonalLevelOperator
  * 
@@ -60,10 +60,10 @@ namespace SAMRSolvers {
  *      - weight_id                   : integer, descriptor index for weighting in computing norms etc, default is -1
  */
 
-class PCDiagonalLevelOperator: public LevelOperator
+class PCDiagonalLevelOperator: public SAMRSolvers::LevelOperator
 {
 public:
-   PCDiagonalLevelOperator(LevelOperatorParameters *parameters);
+   PCDiagonalLevelOperator(SAMRSolvers::LevelOperatorParameters *parameters);
 
    ~PCDiagonalLevelOperator();
 
@@ -219,7 +219,7 @@ public:
    * \param parameters
    *        LevelOperatorParameters object that should contain a pointer to a valid PatchLevel object
    */
-   LevelOperator *constructOperator(LevelOperatorParameters *parameters);
+   SAMRSolvers::LevelOperator *constructOperator(SAMRSolvers::LevelOperatorParameters *parameters);
 
    /**
     * Get information describing physical boundary conditions.  The
@@ -237,7 +237,7 @@ public:
                         std::string centering="");
 
       
-   void reset(DiscreteOperatorParameters *params);
+   void reset(SAMRSolvers::DiscreteOperatorParameters *params);
    
 protected:
    

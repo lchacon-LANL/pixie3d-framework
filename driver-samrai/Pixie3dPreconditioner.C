@@ -12,7 +12,7 @@
 #include "Pixie3dPreconditioner.h"
 
 namespace SAMRAI{
-namespace SAMRSolvers{
+namespace Pixie3d{
 
 Pixie3dPreconditioner::Pixie3dPreconditioner(Pixie3dPreconditionerParameters *parameters)
 {
@@ -248,7 +248,7 @@ Pixie3dPreconditioner::applyPreconditioner(
 }
 
 int
-Pixie3dPreconditioner::setupPreconditioner( PreconditionerParameters *parameters )
+Pixie3dPreconditioner::setupPreconditioner( SAMRSolvers::PreconditionerParameters *parameters )
 {
    static tbox::Pointer<tbox::Timer> t_setup_pc = tbox::TimerManager::getManager()->getTimer("rd2t::Pixie3dPreconditioner::setupPreconditioner");
    t_setup_pc->start();

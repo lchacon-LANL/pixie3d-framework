@@ -125,7 +125,7 @@ int main( int argc, char *argv[] )
 
     // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
     const SAMRAI::tbox::Dimension dim(3);
-    tbox::Pointer<SAMRAI::ImplicitPixie3dApplication> application( new SAMRAI::ImplicitPixie3dApplication() );
+    tbox::Pointer<SAMRAI::Pixie3d::ImplicitPixie3dApplication> application( new SAMRAI::Pixie3d::ImplicitPixie3dApplication() );
 
     // Create the patch hierarchy
     SAMRAI::tbox::Pointer<SAMRAI::mesh::StandardTagAndInitStrategy> object = application;
@@ -148,7 +148,7 @@ int main( int argc, char *argv[] )
 
     // Initialize the application
     tbox::Pointer< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
-    SAMRAI::ImplicitPixie3dApplicationParameters* application_parameters = new SAMRAI::ImplicitPixie3dApplicationParameters(pixie3d_db);
+    SAMRAI::Pixie3d::ImplicitPixie3dApplicationParameters* application_parameters = new SAMRAI::Pixie3d::ImplicitPixie3dApplicationParameters(pixie3d_db);
     application_parameters->d_hierarchy = hierarchy;
     application_parameters->d_VizWriter = visit_writer;
     application->initialize( application_parameters );

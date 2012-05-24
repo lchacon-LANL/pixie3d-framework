@@ -8,6 +8,7 @@
 #include "Pixie3dPreconditionerParameters.h"
 
 namespace SAMRAI{
+namespace Pixie3d{
 
 ImplicitPixie3dApplication::ImplicitPixie3dApplication(): pixie3dApplication()
 {
@@ -277,9 +278,9 @@ void
 ImplicitPixie3dApplication::createPreconditioner()
 {
   
-  SAMRSolvers::Pixie3dPreconditionerParameters *parameters = createPreconditionerParameters(d_pc_db);
+  Pixie3d::Pixie3dPreconditionerParameters *parameters = createPreconditionerParameters(d_pc_db);
   
-  d_preconditioner =  new SAMRSolvers::Pixie3dPreconditioner(parameters);
+  d_preconditioner =  new Pixie3d::Pixie3dPreconditioner(parameters);
   delete parameters;
   
 }
@@ -287,26 +288,26 @@ ImplicitPixie3dApplication::createPreconditioner()
 void
 ImplicitPixie3dApplication::destroyPreconditioner()
 {
-  SAMRSolvers::Pixie3dPreconditioner *ptr = d_preconditioner.getPointer();
+  Pixie3dPreconditioner *ptr = d_preconditioner.getPointer();
 
    delete ptr;
 
    d_preconditioner.setNull();
 }
 
-SAMRSolvers::Pixie3dPreconditionerParameters *
+Pixie3d::Pixie3dPreconditionerParameters *
 ImplicitPixie3dApplication::createPreconditionerParameters( tbox::Pointer<tbox::Database> &db )
 {
 
   //BP: the database should be populated with additional entries required by the preconditioner here
   
-  SAMRSolvers::Pixie3dPreconditionerParameters *parameters = new SAMRSolvers::Pixie3dPreconditionerParameters(db);
-   parameters->d_hierarchy                  = d_hierarchy;
-
-   // currently setting the interpolant to NULL, need to remove if it is not being used
-   parameters->d_cf_interpolant             = NULL;
-
-   return parameters;
+  Pixie3d::Pixie3dPreconditionerParameters *parameters = new Pixie3d::Pixie3dPreconditionerParameters(db);
+  parameters->d_hierarchy                  = d_hierarchy;
+  
+  // currently setting the interpolant to NULL, need to remove if it is not being used
+  parameters->d_cf_interpolant             = NULL;
+  
+  return parameters;
 }
 
   
@@ -317,7 +318,7 @@ ImplicitPixie3dApplication::setupPreconditioner(tbox::Pointer< solv::SAMRAIVecto
 
   // BP: add code in here necessary to setup the parameters object
   
-  SAMRSolvers::Pixie3dPreconditionerParameters *parameters = new SAMRSolvers::Pixie3dPreconditionerParameters(db);
+  Pixie3d::Pixie3dPreconditionerParameters *parameters = new Pixie3d::Pixie3dPreconditionerParameters(db);
   
   d_preconditioner->setupPreconditioner(parameters);
 
@@ -486,4 +487,5 @@ ImplicitPixie3dApplication::putToDatabase(tbox::Pointer<tbox::Database> db)
   abort();
 }
   
+}
 }

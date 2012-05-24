@@ -15,7 +15,7 @@
 
 namespace SAMRAI {
 
-namespace SAMRSolvers {
+namespace Pixie3d {
 
 /** \class PCDiagonalRefinePatchStrategy
  *
