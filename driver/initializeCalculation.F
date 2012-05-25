@@ -55,6 +55,13 @@ c Read PETSc runtime options
      .                       ,petsc_flg,ierr)
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-test',tst_flg
      .                       ,petsc_flg,ierr)
+
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ilevel',ilevel
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nmax',numtime
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-tmax',tmax
+     .                       ,petsc_flg,ierr)
 #endif
 
 c Check for autoinitializing parameters
