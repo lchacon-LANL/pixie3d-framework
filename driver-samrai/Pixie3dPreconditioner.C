@@ -9,6 +9,7 @@
 
 #include "operators/MultilevelOperatorParameters.h"
 
+#include"PCComponentFACSolver.h"
 #include "Pixie3dPreconditioner.h"
 
 namespace SAMRAI{
@@ -208,6 +209,80 @@ Pixie3dPreconditioner::initializeSolvers(tbox::Pointer<tbox::Database> &db)
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(!d_hierarchy.isNull());
 #endif
+  // first read in the names of the M Operators and construct the M Operators
+  if (db->keyExists("MSolvers"))
+    {
+      tbox::Array<std::string> MSolverNames = db->getStringArray("MSolvers");
+
+      d_MSolvers.resizeArray(MSolverNames.getSize());
+      
+      for(int i=0; i<MSolverNames.getSize(); i++)
+	{
+	  
+	  if (db->keyExists(MSolverNames[i]))
+	    {
+	      tbox::Pointer<tbox::Database> MSolverDB = db->getDatabase(MSolverNames[i]);
+
+#ifdef DEBUG_CHECK_ASSERTIONS
+	      assert(!MSolverDB.isNull());
+#endif
+
+	      SAMRSolvers::MultilevelSolverParameters *mlParams = new SAMRSolvers::MultilevelSolverParameters(MSolverDB) ;
+
+	      mlParams->d_hierarchy                = d_hierarchy;
+
+	      d_MSolvers[i].reset( new PCComponentFACSolver(mlParams) );
+
+	      delete mlParams;
+	      
+#ifdef DEBUG_CHECK_ASSERTIONS
+	      assert(!d_MSolvers[i].isNull());
+#endif
+
+	    }
+	  else
+	    {
+	      TBOX_ERROR( "Pixie3dPreconditioner"
+			  << " -- Required key "  << MSolverNames[i]
+			  << " missing in input.");
+	    }
+	}
+    }
+  else
+    {
+      TBOX_ERROR( "Pixie3dPreconditioner"
+		  << " -- Required key `MSolvers'"
+		  << " missing in input.");
+    }
+
+  // next construct the PSchur Solver
+  if (db->keyExists("PSchurSolver"))
+    {
+      tbox::Pointer<tbox::Database> PSchurSolverDB = db->getDatabase("PSchurSolver");
+      
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(!PSchurSolverDB.isNull());
+#endif
+      
+      SAMRSolvers::MultilevelSolverParameters *mlParams = new SAMRSolvers::MultilevelSolverParameters(PSchurSolverDB) ;
+      
+      mlParams->d_hierarchy                = d_hierarchy;
+      
+      d_PSchurSolver.reset( new PCComponentFACSolver(mlParams) );
+      
+#ifdef DEBUG_CHECK_ASSERTIONS
+      assert(!d_PSchurSolver.isNull());
+#endif      
+
+      delete mlParams;
+      
+    }  
+  else
+    {
+      TBOX_ERROR( "Pixie3dPreconditioner"
+		  << " -- Required key `PSchurSolver'"
+		  << " missing in input.");
+    }
 
 }
 
