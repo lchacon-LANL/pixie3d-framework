@@ -33,7 +33,7 @@ c Local variables
       logical :: petsc_flg
 
 c Begin program
-
+     
 c Read user initializations
 
       call readInput
@@ -86,23 +86,15 @@ c Check for autoinitializing parameters
 
       itime = 0
 
-c Initialize MG and create grid
+c Allocate global variables
 
-      call createGrid(nxd,nyd,nzd,gv%gparams)
-
-c Initialize global domain limits
-
-      call setVectorDimensions
+      call allocateGlobalVar(gv)
 
 #if defined(petsc)
-      if (.not.tst_flg)
-     .   write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
+        if (.not.tst_flg)
+     .       write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
      .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
 #endif
-
-c Allocate structures
-
-      call allocateStructures
 
 c Create nonlinear solver
 
@@ -129,24 +121,6 @@ c Initialize computation
       else
         call readCurrentState
       endif
-
-ccc Set unperturbed forcing fields
-cc
-cc      call get_src(u_n)
-cc
-ccc Spline unperturbed equilibrium and source if moving mesh
-cc
-cc#if defined(MK)
-cc      relax_init_grid = mk_grid.and.mk_init_relax.and.(.not.restart)
-cc
-cc      if (relax_init_grid) call MK_spline_equ(1,u_n)
-cc
-cc      if (mk_grid) call MK_spline_src(1,fsrc)
-cc#endif
-cc
-ccc Set initial condition
-cc
-cc      call setInitialCondition(u_n,u_np)
 
 c Initialize record file
 
