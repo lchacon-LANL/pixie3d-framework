@@ -86,7 +86,7 @@ c Begin program
 
 c Allocate global variable
 
-      call allocateGlobalVar(gv)
+cc      call allocateGlobalVar(gv)
       
 c Initialize PETSc and MPI (parallel version)
 
