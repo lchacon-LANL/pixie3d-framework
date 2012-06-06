@@ -1363,14 +1363,6 @@ c
 c       y ~ (F(xk+ez) - F(xk))/e
 c
 c     where e is some small perturbation constant
-c
-c     The integer array idiag contains the information
-c     that relates the actual column to the main diagonal
-c     since only the non-zero diagonals of A are stored, i.e.,
-c
-c       i = row number
-c       j = column number = i + idiag(k)
-c       k = non-zero diagonal index numbered from left to right
 c     -------------------------------------------------------------
 
       implicit none       !For safe fortran
