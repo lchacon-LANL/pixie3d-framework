@@ -612,6 +612,7 @@ cc        numerical_grid = .true.  !Needed because of vertex metrics
             gdef%params(5) = gdef%g_pack(3)%xp
             gdef%params(6) = gdef%g_pack(3)%dx0/(zmax-zmin)*nzz
           endif
+
         case ('cyl','hel','hl2')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
