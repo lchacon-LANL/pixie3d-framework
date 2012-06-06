@@ -457,6 +457,10 @@ c #####################################################################
           module procedure quad_int_0,quad_int_1,quad_int_2
         end INTERFACE
 
+        INTERFACE XferBCs
+          module procedure XferBCs_scl, XferBCs_vec
+        END INTERFACE 
+
         integer  :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
         integer  :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
 
@@ -3140,12 +3144,15 @@ c     Initialize variables
 
 c     Do nothing for SP boundary face, edge, and corners
 
-      if (.not.face
-     .    .and.(     bcSP(ibc=ibcl(1))
-     .          .or. bcSP(ibc=ibcl(2))
-     .          .or. bcSP(ibc=ibcl(3)))) return
+cc      if (.not.face
+cc     .    .and.(     bcSP(ibc=ibcl(1))
+cc     .          .or. bcSP(ibc=ibcl(2))
+cc     .          .or. bcSP(ibc=ibcl(3)))) return
+      if (     bcSP(ibc=ibcl(1))
+     .    .or. bcSP(ibc=ibcl(2))
+     .    .or. bcSP(ibc=ibcl(3))) return
 
-c     Do nothing for SYM or FSYM boundaries
+c     Do nothing for SYM boundary edges and corners
 
       if (.not.face
      .    .and.(    bcSYM(ibcl(1))
@@ -3216,6 +3223,7 @@ c     Treat special boundaries
         select_bc(i) =(    (abs(bcond(i_bc)) == SP )
      .                 .or.(abs(bcond(i_bc)) == IFC)
      .                 .or.(abs(bcond(i_bc)) == EQU)
+cc     .                 .or.(abs(bcond(i_bc)) == NEU .and. order /= 0)
      .                ).and.selectFace(i_bc)
       enddo
 
@@ -3223,7 +3231,7 @@ c     Treat special boundaries
 
       !Identify special boundaries to interpolate **across**
       !   1) Periodic boundary
-      !   2) Symmetry boundary (either SYM or NEU+order=0)
+      !   2) Symmetry boundary (NEU+order=0; SYM removed on 6/1/12)
       !   3) Equilibrium boundary (Removed 11/10/08; was interfering with parallelization)
       !   4) Discard internal processor boundaries (not real boundaries)
       select_bc = .false.
@@ -3231,7 +3239,7 @@ c     Treat special boundaries
         i_bc = ibcl(i)
         if (i_bc <= 0) cycle
         select_bc(i) =(    (    bcond(i_bc)  == PER)
-     .                .or. (abs(bcond(i_bc)) == SYM)
+cc 6/1/12     .                .or. (abs(bcond(i_bc)) == SYM)
      .                .or. (abs(bcond(i_bc)) == NEU .and. order == 0)
      .                ).and.selectFace(i_bc)
       enddo
@@ -3637,6 +3645,123 @@ c     Begin program
 c     End program
 
       end function quad_int_2
+
+c     XferBCs_scl
+c     ###################################################################
+      subroutine XferBCs_scl(arr1,arr2,average)
+
+      implicit none
+
+c     -------------------------------------------------------------------
+c     Routine to transfer ghost cell values form arr1 to arr2
+c     -------------------------------------------------------------------
+
+c     Input variables
+
+      real(8) :: arr1(0:,0:,0:)
+      real(8) :: arr2(0:,0:,0:)
+      logical :: average
+
+c     Local variables
+
+      integer :: nxp,nyp,nzp
+
+c     Begin program
+
+      nxp = size(arr1,1)-1
+      nyp = size(arr1,2)-1
+      nzp = size(arr1,3)-1
+
+      if (average) then
+        arr2(nxp,:,:) = 0.5*(arr1(nxp  ,:,:)
+     .                      +arr1(nxp-1,:,:))
+        arr2(0  ,:,:) = 0.5*(arr1(1    ,:,:)
+     .                      +arr1(0    ,:,:))
+
+        arr2(:,nyp,:) = 0.5*(arr1(:,nyp  ,:)
+     .                      +arr1(:,nyp-1,:))
+        arr2(:,0  ,:) = 0.5*(arr1(:,1    ,:)
+     .                      +arr1(:,0    ,:))
+
+        arr2(:,:,nzp) = 0.5*(arr1(:,:,nzp  )
+     .                      +arr1(:,:,nzp-1))
+        arr2(:,:,0  ) = 0.5*(arr1(:,:,1    )
+     .                      +arr1(:,:,0    ))
+      else
+        !X boundaries
+        arr2(0  ,:,:) = arr1(0  ,:,:)
+        arr2(nxp,:,:) = arr1(nxp,:,:)
+
+        !Y boundaries
+        arr2(:,0  ,:) = arr1(:,0  ,:)
+        arr2(:,nyp,:) = arr1(:,nyp,:)
+
+        !Z boundaries
+        arr2(:,:,0  ) = arr1(:,:,0  )
+        arr2(:,:,nzp) = arr1(:,:,nzp)
+      endif
+
+c     End program
+
+      end subroutine XferBCs_scl
+
+c     XferBCs_vec
+c     ###################################################################
+      subroutine XferBCs_vec(vec1,vec2,average)
+
+      implicit none
+c     -------------------------------------------------------------------
+c     Routine to transfer ghost cell values form vec1 to vec2
+c     -------------------------------------------------------------------
+
+c     Input variables
+
+      real(8) :: vec1(0:,0:,0:,:)
+      real(8) :: vec2(0:,0:,0:,:)
+      logical :: average
+
+c     Local variables
+
+      integer :: nxp,nyp,nzp
+
+c     Begin program
+
+      nxp = size(vec1,1)-1
+      nyp = size(vec1,2)-1
+      nzp = size(vec1,3)-1
+
+      if (average) then
+        vec2(nxp,:,:,:) = 0.5*(vec1(nxp  ,:,:,:)
+     .                        +vec1(nxp-1,:,:,:))
+        vec2(0  ,:,:,:) = 0.5*(vec1(1    ,:,:,:)
+     .                        +vec1(0    ,:,:,:))
+
+        vec2(:,nyp,:,:) = 0.5*(vec1(:,nyp  ,:,:)
+     .                        +vec1(:,nyp-1,:,:))
+        vec2(:,0  ,:,:) = 0.5*(vec1(:,1    ,:,:)
+     .                        +vec1(:,0    ,:,:))
+
+        vec2(:,:,nzp,:) = 0.5*(vec1(:,:,nzp  ,:)
+     .                        +vec1(:,:,nzp-1,:))
+        vec2(:,:,0  ,:) = 0.5*(vec1(:,:,1    ,:)
+     .                        +vec1(:,:,0    ,:))
+      else
+        !X boundaries
+        vec2(0  ,:,:,:) = vec1(0  ,:,:,:)
+        vec2(nxp,:,:,:) = vec1(nxp,:,:,:)
+
+        !Y boundaries
+        vec2(:,0  ,:,:) = vec1(:,0  ,:,:)
+        vec2(:,nyp,:,:) = vec1(:,nyp,:,:)
+
+        !Z boundaries
+        vec2(:,:,0  ,:) = vec1(:,:,0  ,:)
+        vec2(:,:,nzp,:) = vec1(:,:,nzp,:)
+      endif
+
+c     End program
+
+      end subroutine XferBCs_vec
 
       end module imposeBCinterface
 
