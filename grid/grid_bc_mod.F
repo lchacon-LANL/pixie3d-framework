@@ -3095,7 +3095,7 @@ c     Begin program
 c     extrapolateToCorner
 c     #################################################################
       subroutine extrapolateToCorner(ibcl,ito,jto,kto,imn,jmn,kmn
-     .                              ,imx,jmx,kmx,array,bcond,array0)
+     .                              ,imx,jmx,kmx,array,bcnd,array0)
 c     -----------------------------------------------------------------
 c     Routine that extrapolates information to edge or vertex corners.
 c     It is the workhorse of the fillEdge and fillCorner routines.
@@ -3115,7 +3115,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer :: ibcl(3),ito,jto,kto,imn,jmn,kmn,imx,jmx,kmx,bcond(6)
+      integer :: ibcl(3),ito,jto,kto,imn,jmn,kmn,imx,jmx,kmx,bcnd(6)
       real(8) :: array(imn:imx,jmn:jmx,kmn:kmx)
       real(8),optional,intent(IN) :: array0(imn:imx,jmn:jmx,kmn:kmx)
 
@@ -3142,22 +3142,25 @@ c     Initialize variables
       edge   = (count(ibcl /= 0) == 2)
       corner = (count(ibcl /= 0) == 3)
 
-c     Do nothing for SP boundary face, edge, and corners
+c     Do nothing for SP boundary faces, edges, and corners
 
 cc      if (.not.face
 cc     .    .and.(     bcSP(ibc=ibcl(1))
 cc     .          .or. bcSP(ibc=ibcl(2))
 cc     .          .or. bcSP(ibc=ibcl(3)))) return
-      if (     bcSP(ibc=ibcl(1))
-     .    .or. bcSP(ibc=ibcl(2))
-     .    .or. bcSP(ibc=ibcl(3))) return
+      if (    (bcnd(ibcl(1))==SP)
+     .    .or.(bcnd(ibcl(2))==SP)
+     .    .or.(bcnd(ibcl(3))==SP)) return
 
-c     Do nothing for SYM boundary edges and corners
+c     Do nothing for SYM boundary facs, edges, and corners
 
-      if (.not.face
-     .    .and.(    bcSYM(ibcl(1))
-     .         .or. bcSYM(ibcl(2))
-     .         .or. bcSYM(ibcl(3)))) return
+cc      if (.not.face
+cc     .    .and.(    bcSYM(ibcl(1))
+cc     .         .or. bcSYM(ibcl(2))
+cc     .         .or. bcSYM(ibcl(3)))) return
+      if (     abs(bcnd(ibcl(1)))==SYM
+     .    .or. abs(bcnd(ibcl(2)))==SYM
+     .    .or. abs(bcnd(ibcl(3)))==SYM) return
 
 c     Identify directions for extrapolation.
 
@@ -3220,10 +3223,10 @@ c     Treat special boundaries
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc <= 0) cycle
-        select_bc(i) =(    (abs(bcond(i_bc)) == SP )
-     .                 .or.(abs(bcond(i_bc)) == IFC)
-     .                 .or.(abs(bcond(i_bc)) == EQU)
-cc     .                 .or.(abs(bcond(i_bc)) == NEU .and. order /= 0)
+        select_bc(i) =(    (abs(bcnd(i_bc)) == SP )
+     .                 .or.(abs(bcnd(i_bc)) == IFC)
+     .                 .or.(abs(bcnd(i_bc)) == EQU)
+cc     .                 .or.(abs(bcnd(i_bc)) == NEU .and. order /= 0)
      .                ).and.selectFace(i_bc)
       enddo
 
@@ -3238,9 +3241,9 @@ cc     .                 .or.(abs(bcond(i_bc)) == NEU .and. order /= 0)
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc <= 0) cycle
-        select_bc(i) =(    (    bcond(i_bc)  == PER)
-cc 6/1/12     .                .or. (abs(bcond(i_bc)) == SYM)
-     .                .or. (abs(bcond(i_bc)) == NEU .and. order == 0)
+        select_bc(i) =(    (    bcnd(i_bc)  == PER)
+cc 6/1/12     .                .or. (abs(bcnd(i_bc)) == SYM)
+     .                .or. (abs(bcnd(i_bc)) == NEU .and. order == 0)
      .                ).and.selectFace(i_bc)
       enddo
 
@@ -3289,9 +3292,9 @@ c     X extrapolation
         xto = grid_params%xx(ig)
 
         if (isSYM(ito+1,igxbc,ibc=ibcl(1))) then
-          valx(1) = sign(1,bcond(ibcl(1)))*array(ito+2,jto,kto)
+          valx(1) = sign(1,bcnd(ibcl(1)))*array(ito+2,jto,kto)
         elseif (isSYM(ito-1,igxbc,ibc=ibcl(1))) then
-          valx(1) = sign(1,bcond(ibcl(1)))*array(ito-2,jto,kto)
+          valx(1) = sign(1,bcnd(ibcl(1)))*array(ito-2,jto,kto)
         else
           call IntDriver1d(inx,xx,array(imni:imxi,jto,kto)
      .                    ,1,xto,valx,order_int(1))
@@ -3324,9 +3327,9 @@ c     Y extrapolation
         yto = grid_params%yy(jg)
 
         if (isSYM(jto+1,igybc,ibc=ibcl(2))) then
-          valy(1) = sign(1,bcond(ibcl(2)))*array(ito,jto+2,kto)
+          valy(1) = sign(1,bcnd(ibcl(2)))*array(ito,jto+2,kto)
         elseif (isSYM(jto-1,igybc,ibc=ibcl(2))) then
-          valy(1) = sign(1,bcond(ibcl(2)))*array(ito,jto-2,kto)
+          valy(1) = sign(1,bcnd(ibcl(2)))*array(ito,jto-2,kto)
         else
           call IntDriver1d(iny,yy,array(ito,jmni:jmxi,kto)
      .                    ,1,yto,valy,order_int(2))
@@ -3360,9 +3363,9 @@ c     Z extrapolation
         zto = grid_params%zz(kg)
 
         if (isSYM(kto+1,igzbc,ibc=ibcl(3))) then
-          valz(1) = sign(1,bcond(ibcl(3)))*array(ito,jto,kto+2)
+          valz(1) = sign(1,bcnd(ibcl(3)))*array(ito,jto,kto+2)
         elseif (isSYM(kto-1,igzbc,ibc=ibcl(3))) then
-          valz(1) = sign(1,bcond(ibcl(3)))*array(ito,jto,kto-2)
+          valz(1) = sign(1,bcnd(ibcl(3)))*array(ito,jto,kto-2)
         else
           call IntDriver1d(inz,zz,array(ito,jto,kmni:kmxi)
      .                    ,1,zto,valz,order_int(3))
