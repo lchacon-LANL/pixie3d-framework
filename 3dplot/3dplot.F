@@ -285,10 +285,6 @@ c Interfaces
 
 c Begin program
 
-c Allocate global variable
-
-      call allocateGlobalVar(gv)
-
 c Initialize PETSc (parallel version)
 
 #if defined(petsc)
@@ -319,9 +315,9 @@ c Read user initializations
       if (mk_grid) neqd = neqd+1  !Add MK equation
 #endif
 
-c Initialize MG and create grid
+c Allocate global variable
 
-      call createGrid(nxd,nyd,nzd,gv%gparams)
+      call allocateGlobalVar(gv)
 
 c Open graphics files (this initializes local limits, among other things)
 
@@ -331,14 +327,6 @@ c Open graphics files (this initializes local limits, among other things)
       call openRecordFiles(urecord,recordfile,murecord
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
 #endif
-
-c Initialize vector dimensions
-
-      call setVectorDimensions
-
-c Allocate records
-
-      call allocateStructures
 
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
