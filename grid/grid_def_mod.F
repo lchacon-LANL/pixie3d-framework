@@ -46,25 +46,25 @@ c #####################################################################
 !!          Variables below have changed from earlier PIXIE3D version!!!
 #endif
           !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
-          integer :: nglx                                 !Global number of mesh points in X, over global domain, not local patch
-          integer :: ngly                                 !Global number of mesh points in Y, over global domain, not local patch
-          integer :: nglz                                 !Global number of mesh points in Z, over global domain, not local patch
+          integer :: nglx    !Global number of mesh points in X, over global domain, not local patch
+          integer :: ngly    !Global number of mesh points in Y, over global domain, not local patch
+          integer :: nglz    !Global number of mesh points in Z, over global domain, not local patch
 
-          integer :: ilog                                 !Global lower  limit in X, patch indices relative to global index space, no ghosts
-          integer :: ihig                                 !Global higher limit in X, patch indices relative to global index space
-          integer :: jlog                                 !Global lower  limit in Y, patch indices relative to global index space
-          integer :: jhig                                 !Global higher limit in Y, patch indices relative to global index space
-          integer :: klog                                 !Global lower  limit in Z, patch indices relative to global index space
-          integer :: khig                                 !Global higher limit in Z, patch indices relative to global index space
+          integer :: ilog    !Global lower  limit in X, patch indices relative to global index space, no ghosts
+          integer :: ihig    !Global higher limit in X, patch indices relative to global index space
+          integer :: jlog    !Global lower  limit in Y, patch indices relative to global index space
+          integer :: jhig    !Global higher limit in Y, patch indices relative to global index space
+          integer :: klog    !Global lower  limit in Z, patch indices relative to global index space
+          integer :: khig    !Global higher limit in Z, patch indices relative to global index space
 
-          real(8) :: gxmin,gxmax                          !Physical dim. of global domain in X
-          real(8) :: gymin,gymax                          !Physical dim. of global domain in Y
-          real(8) :: gzmin,gzmax                          !Physical dim. of global domain in Z
+          real(8) :: gxmin,gxmax        !Physical dim. of global domain in X
+          real(8) :: gymin,gymax        !Physical dim. of global domain in Y
+          real(8) :: gzmin,gzmax        !Physical dim. of global domain in Z
 
-          integer :: mpi_comm,np,rank                     !MPI info
+          integer :: mpi_comm,np,rank   !MPI info
 
-          integer :: aligner                              !Ghost cell width
-          integer :: gcw                                  !Ghost cell width
+          integer :: aligner            !Ghost cell width
+          integer :: gcw                !Ghost cell width
           !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
 
           integer :: ngrdx                                !Grid levels in X, MG specific

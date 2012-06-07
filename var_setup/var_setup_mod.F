@@ -33,22 +33,24 @@ c #####################################################################
           integer :: bconds(6)          !Boundary conditions
           real(8),pointer,dimension(:,:,:) :: array ! contains values at grid points
           character(20) :: descr
-          integer,pointer,dimension(:,:):: bc_dep_list ! Array indicating inter-variable dependencies;
-                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
-                                                       ! First dimension cycles over number of deps.
-                                                       ! Second dimension provides information about coupling:
-                                                       !  + First component identifies variable; its sign indicates
-                                                       !      auxiliary (<0) or dependent (>0) variable.
-                                                       !  + Second component indicates scalar (0) or vector (1)
-                                                       !  + Third component indicates trivial (0) or non-trivial (1)
-          integer,pointer,dimension(:,:):: dom_dep_list! Array indicating inter-variable dependencies;
-                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
-                                                       ! First dimension cycles over number of deps.
-                                                       ! Second dimension provides information about coupling:
-                                                       !  + First component identifies variable; its sign indicates
-                                                       !      auxiliary (<0) or dependent (>0) variable.
-                                                       !  + Second component indicates scalar (0) or vector (1)
-                                                       !  + Third component indicates trivial (0) or non-trivial (1)
+          integer,pointer,dimension(:,:)::
+     .         bc_dep_list      ! Array indicating inter-variable dependencies;
+                                !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                ! First dimension cycles over number of deps.
+                                ! Second dimension provides information about coupling:
+                                !  + First component identifies variable; its sign indicates
+                                !      auxiliary (<0) or dependent (>0) variable.
+                                !  + Second component indicates scalar (0) or vector (1)
+                                !  + Third component indicates trivial (0) or non-trivial (1)
+          integer,pointer,dimension(:,:)::
+     .         dom_dep_list     ! Array indicating inter-variable dependencies;
+                                !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                ! First dimension cycles over number of deps.
+                                ! Second dimension provides information about coupling:
+                                !  + First component identifies variable; its sign indicates
+                                !      auxiliary (<0) or dependent (>0) variable.
+                                !  + Second component indicates scalar (0) or vector (1)
+                                !  + Third component indicates trivial (0) or non-trivial (1)
           logical :: time_0             !Whether this is a time=0 variable
           logical :: time_n             !Whether this is a previous time step variable
         end type var_def
@@ -58,22 +60,24 @@ c #####################################################################
           real(8),pointer,dimension(:,:,:,:) :: vec ! vector (i,j,k,d), d being the component
           character(20) :: descr        !Description
           logical       :: cnv          !Whether it is contravariant or not
-          integer,pointer,dimension(:,:):: bc_dep_list ! Array indicating inter-variable dependencies;
-                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
-                                                       ! First dimension cycles over number of deps.
-                                                       ! Second dimension provides information about coupling:
-                                                       !  + First component identifies variable; its sign indicates
-                                                       !      auxiliary (<0) or dependent (>0) variable.
-                                                       !  + Second component indicates scalar (0) or vector (1)
-                                                       !  + Third component indicates trivial (0) or non-trivial (1)
-          integer,pointer,dimension(:,:):: dom_dep_list! Array indicating inter-variable dependencies;
-                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
-                                                       ! First dimension cycles over number of deps.
-                                                       ! Second dimension provides information about coupling:
-                                                       !  + First component identifies variable; its sign indicates
-                                                       !      auxiliary (<0) or dependent (>0) variable.
-                                                       !  + Second component indicates scalar (0) or vector (1)
-                                                       !  + Third component indicates trivial (0) or non-trivial (1)
+          integer,pointer,dimension(:,:)::
+     .         bc_dep_list      ! Array indicating inter-variable dependencies;
+                                !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                ! First dimension cycles over number of deps.
+                                ! Second dimension provides information about coupling:
+                                !  + First component identifies variable; its sign indicates
+                                !      auxiliary (<0) or dependent (>0) variable.
+                                !  + Second component indicates scalar (0) or vector (1)
+                                !  + Third component indicates trivial (0) or non-trivial (1)
+          integer,pointer,dimension(:,:)::
+     .         dom_dep_list     ! Array indicating inter-variable dependencies;
+                                !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                ! First dimension cycles over number of deps.
+                                ! Second dimension provides information about coupling:
+                                !  + First component identifies variable; its sign indicates
+                                !      auxiliary (<0) or dependent (>0) variable.
+                                !  + Second component indicates scalar (0) or vector (1)
+                                !  + Third component indicates trivial (0) or non-trivial (1)
           logical :: time_0             !Whether this is a time=0 variable
           logical :: time_n             !Whether this is a previous time step variable
         end type vec_def
@@ -105,9 +109,18 @@ c #####################################################################
 
           type(aux_array)  ,pointer :: aux        ! auxiliary variables
           type(grid_mg_def),pointer :: gparams    ! contains all grid info
+#if defined(flux_rhs)
+          real(8),pointer,dimension(:,:,:,:) :: flux_x,flux_y,flux_z,src
+#endif
         end type patch
 
         type (patch),pointer :: gv => null()
+
+        type(var_array),pointer :: u_np => null()
+     .                            ,u_n  => null()
+     .                            ,u_nm => null()
+     .                            ,u_ic => null()
+     .                            ,u_0  => null()
 
       contains
 
@@ -181,9 +194,11 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq
+        integer :: ieq
 
 c     Begin program
+
+c     Nullify pointers
 
         if (.not.associated(gv)) then
           allocate(gv)
@@ -192,6 +207,39 @@ c     Begin program
           nullify(gv%gparams)
           nullify(gv%aux)
         endif
+ 
+c     Initialize MG and create grid
+
+        call createGrid(nxd,nyd,nzd,gv%gparams)
+
+c     Initialize global domain limits
+
+        call setVectorDimensions
+
+#if defined(petsc)
+        if (.not.tst_flg)
+     .       write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
+     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
+#endif
+
+c     Allocate structures
+
+        call allocateStructures
+
+c     Allocate auxiliary variables
+
+        if (NAUXS > 0 .or. NAUXV > 0) then
+          call allocateAuxStruct(gv%aux)
+        endif
+
+c     Allocate fluxes and sources (if flux form)
+
+#if defined(flux_rhs)
+        allocate(gv%flux_x(ilo:ihip,jlo:jhi ,klo:khi ,neqd)
+     .          ,gv%flux_y(ilo:ihi ,jlo:jhip,klo:khi ,neqd)
+     .          ,gv%flux_z(ilo:ihi ,jlo:jhi ,klo:khip,neqd)
+     .          ,gv%src   (ilo:ihi ,jlo:jhi ,klo:khi ,neqd))
+#endif
 
 c     End program
 
@@ -223,6 +271,10 @@ c     Begin program
           enddo
           deallocate(gv%bc_grp,STAT=ierr)
         endif
+
+#if defined(flux_rhs)
+        deallocate(gv%flux_x,gv%flux_y,gv%flux_z,gv%src,STAT=ierr)
+#endif
 
         deallocate(gv,STAT=ierr)
 
@@ -565,62 +617,6 @@ c     End program
 
       end subroutine AXPYDerivedType
 
-ccc     varPack
-ccc     #################################################################
-cc      subroutine varPack(array,bcs,desc,veq,varray)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Fills structure fields of varray with pertinent data corresponding
-ccc     to variable veq: boundary conditions, bcs; variable description,
-ccc     desc; numerical data, array).
-ccc     -----------------------------------------------------------------
-cc
-ccc     Call variables
-cc
-cc        integer      :: veq,bcs(6)
-cc        real(8)      :: array(ilom:ihip,jlom:jhip,klom:khip)
-cc        character(*) :: desc
-cc
-cc        type(var_array),pointer :: varray
-cc
-ccc     Local variables
-cc
-cc        call allocateDerivedType(varray)
-cc
-ccc     Begin program
-cc
-cc        varray%array_var(veq)%bconds = bcs
-cc        varray%array_var(veq)%array  = array
-cc        varray%array_var(veq)%descr  = desc
-cc
-ccc     End program
-cc
-cc      end subroutine varPack
-cc
-ccc     varUnPack
-ccc     #################################################################
-cc      subroutine varUnPack(varray,veq,array,bcs,desc)
-cc
-ccc     Call variables
-cc
-cc        integer       :: nx,ny,nz,veq,bcs(6)
-cc        real(8)       :: array(ilom:ihip,jlom:jhip,klom:khip)
-cc        character(20) :: desc
-cc
-cc        type(var_array),pointer :: varray
-cc
-ccc     Local variables
-cc
-ccc     Begin program
-cc
-cc        bcs   = varray%array_var(veq)%bconds
-cc        array = varray%array_var(veq)%array
-cc        desc  = trim(varray%array_var(veq)%descr)
-cc
-ccc     End program
-cc
-cc      end subroutine varUnPack
-
 c     mapStructureToVector
 c     #################################################################
       subroutine mapStructureToVector(x,varray,igr)
@@ -778,21 +774,6 @@ c     End program
 
       end subroutine scatterVector
 
-      end module variable_setup
-
-c module variables
-c #####################################################################
-      module variables
-
-        use variable_setup
-
-        type(var_array),pointer :: u_np => null()
-     .                            ,u_n  => null()
-     .                            ,u_nm => null()
-     .                            ,u_ic => null()
-     .                            ,u_0  => null()
-
-      contains
 
 c     allocateStructures
 c     #################################################################
@@ -844,4 +825,4 @@ c     End program
 
       end subroutine deallocateStructures
 
-      end module variables
+      end module variable_setup
