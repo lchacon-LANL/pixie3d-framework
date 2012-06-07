@@ -7,7 +7,8 @@ c #########################################################################
 
       contains
 
-#if !defined(petsc)
+cc#if !defined(petsc)
+#if 1
 c     setBCsched
 c     ###################################################################
       subroutine setBCsched(varray,vaux,itime)
@@ -39,8 +40,6 @@ c     Call variables
       type(aux_array),pointer :: vaux
 
 c     Local variables
-
-      integer :: ierr,offset=0,igr
 
 c     Begin program
 
