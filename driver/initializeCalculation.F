@@ -87,7 +87,6 @@ c Check for autoinitializing parameters
       itime = 0
 
 c Allocate global variables
-
       call allocateGlobalVar(gv)
 
 #if defined(petsc)

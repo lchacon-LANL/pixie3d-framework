@@ -5964,6 +5964,247 @@ c     End
 
       end function flx_advec
 
+ccc     c_advec
+ccc     ###############################################################
+cc      function c_advec(i,j,k,nx,ny,nz,igx,igy,igz,v,phi,sp,upwind,vol)
+cc      implicit none
+ccc     ---------------------------------------------------------------
+ccc     Calculates divergence of vector field (v phi) at cell centers in
+ccc     general non-orthogonal geometry.
+ccc     ---------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+cc      real(8)    :: phi(0:nx+1,0:ny+1,0:nz+1)
+cc     .             ,v  (0:nx+1,0:ny+1,0:nz+1,3),c_advec
+cc
+cc      logical,optional :: sp,vol,upwind
+cc
+ccc     Local variables
+cc
+cc      logical :: upw
+cc
+ccc     Begin program
+cc
+cc      if (PRESENT(upwind)) then
+cc        upw = upwind
+cc      else
+cc        upw = .false.
+cc      endif
+cc
+cc      if (upw) then
+cc        c_advec = flx_advec(i,j,k,nx,ny,nz,igx,igy,igz,v,phi
+cc     .                  ,1,sp=sp,vol=vol,zip_vel=.false.)
+cc      else
+cc        c_advec = flx_advec(i,j,k,nx,ny,nz,igx,igy,igz,v,phi
+cc     .                  ,2,sp=sp,vol=vol,zip_vel=.true.)
+cc      endif
+cc
+ccc     End 
+cc
+cc      end function c_advec
+cc
+ccc     c_advec
+ccc     ###############################################################
+cc      function c_advec(i,j,k,nx,ny,nz,igx,igy,igz,v1,v2,v3,phi
+cc     .                ,sp,upwind,vol)
+cc      implicit none
+ccc     ---------------------------------------------------------------
+ccc     Calculates divergence of vector field (v.phi) at cell centers in
+ccc     general non-orthogonal geometry.
+ccc     ---------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+cc      real(8)    :: phi(0:nx+1,0:ny+1,0:nz+1)
+cc     .             ,v1 (0:nx+1,0:ny+1,0:nz+1)
+cc     .             ,v2 (0:nx+1,0:ny+1,0:nz+1)
+cc     .             ,v3 (0:nx+1,0:ny+1,0:nz+1),c_advec
+cc
+cc      logical,optional :: sp,vol,upwind
+cc
+ccc     Local variables
+cc
+cc      integer    :: ig,jg,kg,igrid,half_elem,ip,im,jp,jm,kp,km,su
+cc      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jacip,jacim,jac,jach
+cc      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+cc      logical    :: vw,spoint,upw
+cc
+ccc     Begin program
+cc
+cc      if (PRESENT(vol)) then
+cc        vw = vol
+cc      else
+cc        vw = .false.
+cc      endif
+cc
+cc      if (PRESENT(upwind)) then
+cc        upw = upwind
+cc      else
+cc        upw = .false.
+cc      endif
+cc
+cc      if (PRESENT(sp)) then
+cc        spoint = sp
+cc      else
+cc        spoint = .false.
+cc      endif
+cc
+cc      igrid = igx
+cc
+cc      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+cc
+cc      ip = i+1
+cc      im = i-1
+cc      jp = j+1
+cc      jm = j-1
+cc      kp = k+1
+cc      km = k-1
+cc
+cc      dxx = grid_params%dxh(ig)
+cc      dyy = grid_params%dyh(jg)
+cc      dzz = grid_params%dzh(kg)
+cc
+cc      jac   = gmetric%grid(igrid)%jac(i,j,k)
+cc
+cc      if (spoint) then
+cc        jacip = gmetric%grid(igrid)%jac(ip,j,k)
+cc        jacim = gmetric%grid(igrid)%jac(im,j,k)
+cc      else
+cc        jacip = jac
+cc        jacim = jac
+cc      endif
+cc
+cc      if (upw) then
+cc        !X flux
+cc        if (     i+grid_params%ilo(igx)-1 < grid_params%nxgl(igx)
+cc     .      .or. bcond(2) == PER) then
+cc          jach = 0.5*(jac+jacip)
+cc          flxip = 0.25*jach
+cc     .      *( (    (v1(i,j,k)/jac+v1(ip,j,k)/jacip)
+cc     .          +abs(v1(i,j,k)/jac+v1(ip,j,k)/jacip) ) *phi(i ,j,k)
+cc     .        +(    (v1(i,j,k)/jac+v1(ip,j,k)/jacip)          
+cc     .          -abs(v1(i,j,k)/jac+v1(ip,j,k)/jacip) ) *phi(ip,j,k) )
+cc        else
+cc          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
+cc        endif
+cc
+cc        if (     i+grid_params%ilo(igx)-1 > 1
+cc     .      .or. spoint
+cc     .      .or. bcond(1) == PER) then
+cc          jach = 0.5*(jac+jacim)
+cc          flxim = 0.25*jach
+cc     .       *( (    (v1(i,j,k)/jac+v1(im,j,k)/jacim)          
+cc     .           +abs(v1(i,j,k)/jac+v1(im,j,k)/jacim) ) *phi(im,j,k)
+cc     .         +(    (v1(i,j,k)/jac+v1(im,j,k)/jacim)          
+cc     .           -abs(v1(i,j,k)/jac+v1(im,j,k)/jacim) ) *phi(i ,j,k) )
+cc        else
+cc          flxim = 0.5*(v1(im,j,k)*phi(i,j,k) + v1(i,j,k)*phi(im,j,k))
+cc        endif
+cc
+cc        if (     j+grid_params%jlo(igy)-1 < grid_params%nygl(igy)
+cc     .      .or. bcond(4) == PER) then
+cc          flxjp = 0.25*(
+cc     .         (    (v2(i,j,k)+v2(i,jp,k))
+cc     .          +abs(v2(i,j,k)+v2(i,jp,k)) )*phi(i,j ,k)
+cc     .        +(    (v2(i,j,k)+v2(i,jp,k))          
+cc     .          -abs(v2(i,j,k)+v2(i,jp,k)) )*phi(i,jp,k))
+cc        else
+cc          flxjp = 0.5*(v2(i,jp,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jp,k))
+cc        endif
+cc
+cc        if (     j+grid_params%jlo(igy)-1 > 1
+cc     .      .or. bcond(3) == PER) then
+cc          flxjm = 0.25*(
+cc     .         (    (v2(i,j,k)+v2(i,jm,k))
+cc     .          +abs(v2(i,j,k)+v2(i,jm,k)) )*phi(i,jm,k)
+cc     .        +(    (v2(i,j,k)+v2(i,jm,k))          
+cc     .          -abs(v2(i,j,k)+v2(i,jm,k)) )*phi(i,j ,k))
+cc        else
+cc          flxjm = 0.5*(v2(i,jm,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jm,k))
+cc        endif
+cc
+cc        if (     k+grid_params%klo(igz)-1 < grid_params%nzgl(igz)
+cc     .      .or. bcond(6) == PER) then
+cc          flxkp = 0.25*(
+cc     .         (    (v3(i,j,k)+v3(i,j,kp))
+cc     .          +abs(v3(i,j,k)+v3(i,j,kp)) )*phi(i,j,k )
+cc     .        +(    (v3(i,j,k)+v3(i,j,kp))             
+cc     .          -abs(v3(i,j,k)+v3(i,j,kp)) )*phi(i,j,kp))
+cc        else
+cc          flxkp = 0.5*(v3(i,j,kp)*phi(i,j,k) + v3(i,j,k)*phi(i,j,kp))
+cc        endif
+cc
+cc        if (     k+grid_params%klo(igz)-1 > 1
+cc     .      .or. bcond(5) == PER) then
+cc          flxkm = 0.25*(
+cc     .         (    (v3(i,j,k)+v3(i,j,km))
+cc     .          +abs(v3(i,j,k)+v3(i,j,km)) )*phi(i,j,km)
+cc     .        +(    (v3(i,j,k)+v3(i,j,km))             
+cc     .          -abs(v3(i,j,k)+v3(i,j,km)) )*phi(i,j,k ))
+cc        else
+cc          flxkm = 0.5*(v3(i,j,km)*phi(i,j,k) + v3(i,j,k)*phi(i,j,km))
+cc        endif
+cc
+cc      else
+cc        !X flux
+cc        if (i+grid_params%ilo(igx)-1 < grid_params%nxgl(igx)) then
+cc          jach = 0.5*(jac+jacip)
+cc          flxip = 0.5*(v1(ip,j,k)*phi(i ,j,k)/jacip
+cc     .               + v1(i ,j,k)*phi(ip,j,k)/jac  )*jach
+cc
+cc          jach = 0.5*(jac+jacim)
+cc          if (isSP(i,j,k,igx,igy,igz)) jach = 0d0
+cc          flxim = 0.5*(v1(im,j,k)*phi(i ,j,k)/jacim
+cc     .               + v1(i ,j,k)*phi(im,j,k)/jac  )*jach
+cc        elseif (i+grid_params%ilo(igx)-1 == grid_params%nxgl(igx)) then
+cc          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
+cc
+cc          jach = 0.5*(jac+jacim)
+cc          flxim = 0.5*(v1(im,j,k)*phi(i ,j,k)/jacim
+cc     .               + v1(i ,j,k)*phi(im,j,k)/jac  )*jach
+cc        endif
+cc
+cccc        if (i+grid_params%ilo(igx)-1 == 1) then
+cccc          jach = 0.5*(jac+jacip)
+cccc          flxip = 0.5*(v1(ip,j,k)*phi(i ,j,k)/jacip
+cccc     .               + v1(i ,j,k)*phi(ip,j,k)/jac  )*jach
+cccc          jach = 0.5*(jac+jacim)
+cccc          flxim = 0.5*(v1(im,j,k)*phi(i ,j,k)/jacim
+cccc     .               + v1(i ,j,k)*phi(im,j,k)/jac  )*jach
+cccc        elseif (i+grid_params%ilo(igx)-1 == 2) then
+cccc          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
+cccc
+cccc          jach = 0.5*(jac+jacim)
+cccc          flxim = 0.5*(v1(im,j,k)*phi(i ,j,k)/jacim
+cccc     .               + v1(i ,j,k)*phi(im,j,k)/jac  )*jach
+cccc        else
+cccc          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
+cccc          flxim = 0.5*(v1(im,j,k)*phi(i,j,k) + v1(i,j,k)*phi(im,j,k))
+cccc        endif
+cc
+cc        !Y flux
+cc        flxjp = 0.5*(v2(i,jp,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jp,k))
+cc        flxjm = 0.5*(v2(i,jm,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jm,k))
+cc
+cc        !Z flux
+cc        flxkp = 0.5*(v3(i,j,kp)*phi(i,j,k) + v3(i,j,k)*phi(i,j,kp))
+cc        flxkm = 0.5*(v3(i,j,km)*phi(i,j,k) + v3(i,j,k)*phi(i,j,km))
+cc
+cc      endif
+cc
+cc      c_advec =( (flxip - flxim)/dxx
+cc     .         + (flxjp - flxjm)/dyy
+cc     .         + (flxkp - flxkm)/dzz )/jac
+cc      
+cc      if (vw) c_advec = c_advec*gmetric%grid(igx)%dvol(i,j,k)
+cc
+ccc     End 
+cc
+cc      end function c_advec
+
 ccc     flx_advec
 ccc     ###############################################################
 cc      function flx_advec(i,j,k,nx,ny,nz,igx,igy,igz,v,arr

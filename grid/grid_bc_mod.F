@@ -12,7 +12,7 @@ c     -----------------------------------------------------------------
 
 c     bcSYM
 c     #################################################################
-      function bcSYM(ibc) result(sym_bc)
+      function bcSYM(ibc,bcnd) result(sym_bc)
 
 c     -----------------------------------------------------------------
 c     Detects whether boundary is of SYM or FSYM type. Boundary is
@@ -24,14 +24,29 @@ c     -----------------------------------------------------------------
 
         implicit none
 
+c     Call variables
+
         integer :: ibc
         logical :: sym_bc
+        integer,optional :: bcnd(6)
+
+c     Local variables
+
+        integer :: bc(6)
+
+c     Begin program
+
+        if (PRESENT(bcnd)) then
+          bc = bcnd
+        else
+          bc = bcond
+        endif
 
         if (ibc < 1 .or. ibc > 6) then
           sym_bc = .false.
         else
-          sym_bc =    (abs(bcond(ibc)) ==  SYM)
-cc     .            .or.(abs(bcond(ibc)) == FSYM)
+          sym_bc =    (abs(bc(ibc)) ==  SYM)
+cc     .            .or.(abs(bc(ibc)) == FSYM)
         endif
 
       end function bcSYM
@@ -3148,19 +3163,25 @@ cc      if (.not.face
 cc     .    .and.(     bcSP(ibc=ibcl(1))
 cc     .          .or. bcSP(ibc=ibcl(2))
 cc     .          .or. bcSP(ibc=ibcl(3)))) return
-      if (    (bcnd(ibcl(1))==SP)
-     .    .or.(bcnd(ibcl(2))==SP)
-     .    .or.(bcnd(ibcl(3))==SP)) return
+cc      if (    (bcnd(ibcl(1))==SP)
+cc     .    .or.(bcnd(ibcl(2))==SP)
+cc     .    .or.(bcnd(ibcl(3))==SP)) return
+      if (     bcSP(ibc=ibcl(1),bcnd=bcnd)
+     .    .or. bcSP(ibc=ibcl(2),bcnd=bcnd)
+     .    .or. bcSP(ibc=ibcl(3),bcnd=bcnd)) return
 
-c     Do nothing for SYM boundary facs, edges, and corners
+c     Do nothing for SYM boundary faces, edges, and corners
 
 cc      if (.not.face
 cc     .    .and.(    bcSYM(ibcl(1))
 cc     .         .or. bcSYM(ibcl(2))
 cc     .         .or. bcSYM(ibcl(3)))) return
-      if (     abs(bcnd(ibcl(1)))==SYM
-     .    .or. abs(bcnd(ibcl(2)))==SYM
-     .    .or. abs(bcnd(ibcl(3)))==SYM) return
+cc      if (     abs(bcnd(ibcl(1)))==SYM
+cc     .    .or. abs(bcnd(ibcl(2)))==SYM
+cc     .    .or. abs(bcnd(ibcl(3)))==SYM) return
+      if (     bcSYM(ibc=ibcl(1),bcnd=bcnd)
+     .    .or. bcSYM(ibc=ibcl(2),bcnd=bcnd)
+     .    .or. bcSYM(ibc=ibcl(3),bcnd=bcnd)) return
 
 c     Identify directions for extrapolation.
 

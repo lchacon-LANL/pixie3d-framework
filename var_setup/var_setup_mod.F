@@ -208,25 +208,25 @@ c     Nullify pointers
           nullify(gv%aux)
         endif
  
-c       Initialize MG and create grid
+c     Initialize MG and create grid
 
         call createGrid(nxd,nyd,nzd,gv%gparams)
 
-c       Initialize global domain limits
+c     Initialize global domain limits
 
         call setVectorDimensions
 
-c       Allocate structures
+c     Allocate structures
 
         call allocateStructures
 
-c       Allocate auxiliary variables
+c     Allocate auxiliary variables
 
         if (NAUXS > 0 .or. NAUXV > 0) then
           call allocateAuxStruct(gv%aux)
         endif
 
-c       Allocate fluxes and sources (if flux form)
+c     Allocate fluxes and sources (if flux form)
 
 #if defined(flux_rhs)
         allocate(gv%flux_x(ilo:ihip,jlo:jhi ,klo:khi ,neqd)

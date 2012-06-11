@@ -8,7 +8,7 @@ c #########################################################################
       contains
 
 cc#if !defined(petsc)
-#if 1
+#if 0
 c     setBCsched
 c     ###################################################################
       subroutine setBCsched(varray,vaux,itime)
@@ -509,7 +509,7 @@ c              Unable to find a variable that does not depend on the others, a c
                   call print_var_name(u,aux,tmp1(m))
                enddo
                call pstop('create_bc_schedule',
-     &            'Erroor sorting group, circular dependence detected')
+     &            'Error sorting group, circular dependence detected')
             end if
             bc_groups(i,j) = tmp1(k)
             bc_groups(i,j+1:j+k-1) = tmp1(1:k-1)

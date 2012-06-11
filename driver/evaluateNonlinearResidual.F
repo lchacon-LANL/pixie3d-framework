@@ -113,6 +113,7 @@ c Calculate residuals
               endif
 #else
               dvol = gmetric%grid(igrid)%dvol(i,j,k)
+cc     .              /gmetric%grid(igrid)%jac (i,j,k)
 #endif
               f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*dvol
             endif

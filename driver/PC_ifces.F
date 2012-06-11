@@ -143,6 +143,7 @@ c *******************************************************************
                 else
                   if (vol_wgt) then
                     x(iii) = y(iii)*dt/gmetric%grid(igrid)%dvol(i,j,k)
+cc     .                                *gmetric%grid(igrid)%jac (i,j,k)
                   else
                     x(iii) = y(iii)*dt
                   endif
