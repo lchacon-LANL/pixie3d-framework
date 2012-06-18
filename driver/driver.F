@@ -396,14 +396,14 @@ c Interfaces
         end subroutine explicit
       END INTERFACE
 
-      INTERFACE
-        subroutine applyBC(varray,iigx,iigy,iigz,obc)
-        use variable_setup
-        integer    :: iigx,iigy,iigz
-        integer,optional :: obc
-        type(var_array),pointer :: varray
-        end subroutine applyBC
-      END INTERFACE
+cc      INTERFACE
+cc        subroutine applyBC(varray,iigx,iigy,iigz,obc)
+cc        use variable_setup
+cc        integer    :: iigx,iigy,iigz
+cc        integer,optional :: obc
+cc        type(var_array),pointer :: varray
+cc        end subroutine applyBC
+cc      END INTERFACE
 
 c Begin program
 
@@ -561,14 +561,14 @@ c Interfaces
         end subroutine
       END INTERFACE
 
-      INTERFACE
-        subroutine applyBC(varray,iigx,iigy,iigz,obc)
-        use variable_setup
-        integer    :: iigx,iigy,iigz
-        integer,optional :: obc
-        type(var_array),pointer :: varray
-        end subroutine applyBC
-      END INTERFACE
+cc      INTERFACE
+cc        subroutine applyBC(varray,iigx,iigy,iigz,obc)
+cc        use variable_setup
+cc        integer    :: iigx,iigy,iigz
+cc        integer,optional :: obc
+cc        type(var_array),pointer :: varray
+cc        end subroutine applyBC
+cc      END INTERFACE
 
 c Begin program
 
