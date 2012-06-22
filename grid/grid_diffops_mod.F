@@ -6761,7 +6761,7 @@ cc      end function c_advec
 c     flx_nc_advec
 c     ###############################################################
       function flx_nc_advec(i,j,k,nx,ny,nz,igx,igy,igz,v,arr
-     .                     ,method,sp,vol) result(advec)
+     .                     ,method,sp,vol,reverse) result(advec)
       implicit none
 c     ---------------------------------------------------------------
 c     Calculates divergence of vector field (v.arr) at cell centers in
@@ -6777,7 +6777,7 @@ c     Call variables
       real(8)    :: arr(0:nx+1,0:ny+1,0:nz+1)
      .             ,v  (0:nx+1,0:ny+1,0:nz+1,3),advec
 
-      logical,optional :: sp,vol
+      logical,optional :: sp,vol,reverse
 
 c     Local variables
 
@@ -6788,11 +6788,11 @@ c     Local variables
      .             ,km,kp,kpp,kmm,kgm,kgp,kgpp,kgmm
      .             ,ig,jg,kg,igl,jgl,kgl
 
-      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jac
+      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jac,sgn
       real(8)    :: vxp,vxm,vyp,vym,vzp,vzm
      .             ,qip,qim,qjp,qjm,qkp,qkm
       real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
-      logical    :: vw,spoint,bc_safe
+      logical    :: vw,spoint,bc_safe,rev_sgn
 
 c     Begin program
 
@@ -6812,6 +6812,15 @@ cc      bc_safe = (method <=2)
       else
         spoint = .false.
       endif
+
+      if (PRESENT(reverse)) then
+        rev_sgn = reverse
+      else
+        rev_sgn = .false.
+      endif
+
+      sgn = 1d0
+      if (rev_sgn) sgn=-1d0  !Takes (-v) instead of v
 
 c     General setup
 
@@ -6886,14 +6895,14 @@ c     Find velocities at faces from ZIP fluxes
 
       if (method /= 2) then
 
-        vxp = v(i,j,k,1)
-        vxm = v(i,j,k,1)
+        vxp = sgn*v(i,j,k,1)
+        vxm = sgn*v(i,j,k,1)
                                                     
-        vyp = v(i,j,k,2)
-        vym = v(i,j,k,2)
+        vyp = sgn*v(i,j,k,2)
+        vym = sgn*v(i,j,k,2)
                                                     
-        vzp = v(i,j,k,3)
-        vzm = v(i,j,k,3)
+        vzp = sgn*v(i,j,k,3)
+        vzm = sgn*v(i,j,k,3)
 
 c     Find advected quantity at faces
 
