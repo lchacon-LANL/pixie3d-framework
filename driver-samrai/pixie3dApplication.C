@@ -395,10 +395,12 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     d_x_ic->allocateVectorData();
     d_x_tmp->allocateVectorData();
     d_initial->allocateVectorData();
-    
-    // set to negative values
-    //   d_x->setToScalar( -1.0, false );
-    //   d_initial->setToScalar( -1.0, false );
+    // Register the data for interpolation on regrids
+    d_registeredVectors.push_back( d_x );
+    d_registeredVectors.push_back( d_x_r );
+    d_registeredVectors.push_back( d_x_ic );
+    d_registeredVectors.push_back( d_x_tmp );
+    d_registeredVectors.push_back( d_initial );
 
     // Allocate data for auxillary variables
     tbox::Pointer<hier::VariableContext> context_aux = var_db->getContext("pixie3d-aux");
@@ -628,17 +630,8 @@ void pixie3dApplication::setInitialConditions( const double )
     // Copy the data from u to u_ic
     d_x_ic->copyVector(d_x,false);
 
-    // Get the divergence of the magnetic field
-    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-        LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
-        for (hier::PatchLevel::Iterator p(level); p; p++) {
-            tbox::Pointer< pdat::CellData<double> > tmp = (*p)->getPatchData(div_B_id);
-            double *div_B = tmp->getPointer();
-            hier::IntVector size = (*p)->getBox().numberCells();
-            FORTRAN_NAME(calcdivergence)(level_container->getPtr(*p),div_B,size(0),size(1),size(2));
-        }
-    }
+    // Call apply to fill the initial residual and calculate the divergence of the magnetic field
+    apply( d_x_ic, d_x_ic, d_x_r, 1.0, 0.0 );
 
     PROFILE_STOP("setInitialConditions");
 }
@@ -687,14 +680,24 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
                double, double)
 {
     PROFILE_START("apply");
+    // Check x for nans
+    double x_localNorm = x->L2Norm(true);
+    TBOX_ASSERT(x_localNorm==x_localNorm);
+    TBOX_ASSERT(fabs(x_localNorm)<1e10);
+
     // Copy x
     if(d_x.isNull())  TBOX_ERROR( "d_x is Null");
     if(x.isNull())  TBOX_ERROR( "x is Null");
-
     d_x->copyVector(x);
-    // Coarsen and Refine x
-    // Apply boundary conditions
+
+    // Coarsen and Refine x, fill auxillary variables and apply boundary conditions
     synchronizeVariables();
+    double auxs_localNorm = d_aux_scalar->L2Norm(true);
+    double auxv_localNorm = d_aux_vector->L2Norm(true);
+    TBOX_ASSERT(auxs_localNorm==auxs_localNorm);
+    TBOX_ASSERT(auxv_localNorm==auxv_localNorm);
+    TBOX_ASSERT(fabs(auxs_localNorm)<1e10);
+    TBOX_ASSERT(fabs(auxv_localNorm)<1e10);
   
     if(d_debug_print_info_level>5) {
         tbox::pout << "*****************************************" << std::endl; 
@@ -752,6 +755,11 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
 
     // Copy r
     r->copyVector(d_x_r);
+
+    // Check the residual for nans
+    double r_localNorm = r->L2Norm(true);
+    TBOX_ASSERT(r_localNorm==r_localNorm);
+    TBOX_ASSERT(fabs(r_localNorm)<1e10);
 
     // Get the divergence of the magnetic field
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
@@ -1179,6 +1187,7 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
         if ( neighbors.size() != 1 )
             TBOX_ERROR("Overlapping boxes were detected on new level, and are not supported");
     }
+
     // Allocate data when called for, otherwise set timestamp on allocated data.
     hier::ComponentSelector d_problem_data(false);
     if ( !old_level.isNull() ) {
@@ -1200,14 +1209,27 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
                 d_problem_data.setFlag(i);
         }
     }
-
-
     if ( allocate_data )  {
         level->allocatePatchData(d_problem_data, time);
     } else  {
         level->setTime(time, d_problem_data);
     }
 
+    // Interpolate data from a coarser level and the old_level
+    xfer::RefineAlgorithm fill_current(d_hierarchy->getDim());
+    tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
+    for (size_t i=0; i<d_registeredVectors.size(); i++) {
+        for (int j=0; j<input_data->nvar; j++) {
+            int id = d_registeredVectors[i]->getComponentDescriptorIndex(j);
+            const tbox::Pointer<hier::Variable> x = d_registeredVectors[i]->getComponentVariable(j); 
+	        fill_current.registerRefine( id, id, id, grid_geometry->lookupRefineOperator(x,"CONSTANT_REFINE"));
+        }
+    }
+    if ( level_number>0 && old_level.isNull() ) {
+        fill_current.createSchedule( level, level_number-1, hierarchy, NULL )->fillData(time);
+    } else {
+        fill_current.createSchedule( level, old_level, level_number-1, hierarchy, NULL )->fillData(time);
+    }
 }
 
 
@@ -1299,9 +1321,34 @@ void pixie3dApplication::resetHierarchyConfiguration(
     }
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        // Initialize the auxillary data to 0
+        for (hier::PatchLevel::Iterator p(level); p; p++) {
+            tbox::Pointer<hier::Patch> patch = *p;
+            for (int j=0; j<input_data->nauxs; j++) {
+                tbox::Pointer<pdat::CellData<double> > data = d_aux_scalar->getComponentPatchData( j, *patch );
+                data->fillAll(0.0);
+            }
+            for (int j=0; j<input_data->nauxv; j++) {
+                tbox::Pointer<pdat::CellData<double> > data = d_aux_vector->getComponentPatchData( j, *patch );
+                data->fillAll(0.0);
+            }
+        }
         // Create the level container
         level_container_array[ln] = new LevelContainer(d_hierarchy,level,
             input_data->nvar,u0_id,u_id,input_data->nauxs,auxs_id,input_data->nauxv,auxv_id);
+        // Loop through the different patches
+        for (hier::PatchLevel::Iterator p(level); p; p++) {
+            tbox::Pointer<hier::Patch> patch = *p;
+            tbox::Pointer< pdat::CellData<double> > tmp = patch->getPatchData(f_src_id);
+            double *fsrc = tmp->getPointer();
+            int n_elem = patch->getBox().size()*tmp->getDepth();
+            // Form Initial Conditions
+            #ifdef absoft
+                FORTRAN_NAME(FORMINITIALCONDITION)(level_container_array[ln]->getPtr(patch),&n_elem,fsrc);
+            #else
+                FORTRAN_NAME(forminitialcondition)(level_container_array[ln]->getPtr(patch),&n_elem,fsrc);
+            #endif
+        }
     }
 
     // Reset the communication schedules

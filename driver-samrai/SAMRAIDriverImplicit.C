@@ -248,6 +248,7 @@ int main( int argc, char *argv[] )
     bool first_step = true;
     double current_time = 0.0;
     double dt = timeIntegrator->getCurrentDt();
+    dt = timeIntegrator->getNextDt(true,0);
     double final_time = timeIntegrator->getFinalTime();
     long int timestep = 0;
     double last_save_time = current_time;
@@ -279,7 +280,7 @@ int main( int argc, char *argv[] )
             first_step = false;
 
             // If desired, regrid patch hierarchy and reset vector weights.
-            if ( (regrid_interval > 0)  && ((timestep % regrid_interval) == 0) ) {
+            if ( (regrid_interval > 0)  && ((timestep+1 % regrid_interval) == 0) ) {
 
                 tbox::pout << " Regridding ..." << std::endl;
                 gridding_algorithm->regridAllFinerLevels( 0, current_time, tag_buffer );
@@ -310,7 +311,6 @@ int main( int argc, char *argv[] )
                         PETSC_NULL, 
                         PETSC_NULL);  CHKERRQ(ierr);
                 }
-
                 solver_retcode = timeIntegrator->advanceSolution(dt, first_step);
 
             }

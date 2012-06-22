@@ -241,11 +241,17 @@ protected:
    tbox::Pointer<hier::PatchHierarchy> d_hierarchy;
    tbox::Dimension dim;
    
+   // Solution vectors
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_initial;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_x_tmp;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_x;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_x_r;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_x_ic;
+
+   // A list of all registered vectors that need to be interpolated on a regrid
+   std::vector<tbox::Pointer< solv::SAMRAIVectorReal<double> > >  d_registeredVectors;
+
+   // Auxillary vectors
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_aux_scalar;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_aux_vector;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_aux_scalar_tmp;

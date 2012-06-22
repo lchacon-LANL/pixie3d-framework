@@ -133,12 +133,15 @@ ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hie
       // allocate components and space for the current and previous solution vectors
       d_currentSolutionVector = ic_vector->cloneVector("CurrentSolutionVector");
       d_currentSolutionVector->allocateVectorData(0.0);
+      d_registeredVectors.push_back( d_currentSolutionVector );
 
       d_previousSolutionVector = ic_vector->cloneVector("PreviousSolutionVector");
       d_previousSolutionVector->allocateVectorData(0.0);
+      d_registeredVectors.push_back( d_previousSolutionVector );
 
       d_scratchVector = ic_vector->cloneVector("ScratchVector");
       d_scratchVector->allocateVectorData(0.0);
+      d_registeredVectors.push_back( d_scratchVector );
       
       d_vectorsCloned = true;
     }
@@ -270,6 +273,11 @@ ImplicitPixie3dApplication::evaluateNonlinearFunction(tbox::Pointer< solv::SAMRA
   //  d_currentSolutionVector->print(tbox::pout);
   //  x->print(tbox::pout);
   //  f->print(tbox::pout);
+
+  // Check f for nans
+  double f_localNorm = f->L2Norm(true);
+  TBOX_ASSERT(f_localNorm==f_localNorm);
+  TBOX_ASSERT(fabs(f_localNorm)<1e10);
   
   return 0;
 }
@@ -338,6 +346,7 @@ ImplicitPixie3dApplication::setupSolutionVector(tbox::Pointer< solv::SAMRAIVecto
 #ifdef DEBUG_CHECK_ASSERTIONS
   assert(!solution.isNull());
 #endif
+  d_registeredVectors.push_back( solution );
   d_newSolutionVector = solution;
   
   const tbox::Dimension &dimObj = d_hierarchy->getDim();
@@ -486,6 +495,7 @@ ImplicitPixie3dApplication::putToDatabase(tbox::Pointer<tbox::Database> db)
 {
   abort();
 }
+
   
 }
 }
