@@ -53,8 +53,7 @@ c     #################################################################
 
         logical :: alt__eom
 
-        alt__eom=.false.
-        if (bcSP()) alt__eom=.true.
+        alt__eom = bcSP()
 
       end function alt__eom
 
