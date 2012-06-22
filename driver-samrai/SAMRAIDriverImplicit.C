@@ -158,19 +158,20 @@ int main( int argc, char *argv[] )
     application->setInitialConditions(t0);
 
     // Perform a regrid to make sure the tagging is all set correctly
-    tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
-    TBOX_ASSERT(!error_detector.isNull());
-    error_detector->turnOnGradientDetector();
-    error_detector->turnOffRefineBoxes();
-    tbox::Array<int> tag_buffer;
-    if ( error_detector->refineUserBoxInputOnly() )
-        tag_buffer = tbox::Array<int>(20,0);    // Only user-defined refinement boxes are used, no tag buffer is necessary
-    else
+    tbox::Array<int> tag_buffer(20,2);
+    if ( regrid_interval > 0 ) {
+        tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
+        TBOX_ASSERT(!error_detector.isNull());
+        error_detector->turnOnGradientDetector();
+        error_detector->turnOffRefineBoxes();
         tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
-    gridding_algorithm->regridAllFinerLevels(0,t0,tag_buffer);
-    application->setInitialConditions(t0);
+        for (int ln = 0; hierarchy->levelCanBeRefined(ln); ln++) {
+            gridding_algorithm->regridAllFinerLevels(ln,t0,tag_buffer);
+            application->setInitialConditions(t0);
+        }
+    }
 
-    application->createPreconditioner();
+    //application->createPreconditioner();
     
     solv::SNES_SAMRAIContext* snes_solver = NULL;
     

@@ -205,6 +205,20 @@ public:
                          const int coarsest_level,
                          const int finest_level );
 
+   /**
+    * Tag cells where the gradient of the solution exceeds a user-specified
+    * threshold.  
+    *
+    * Function overloaded from mesh::StandardTagAndInitStrategy.
+    *
+    */
+   virtual void applyGradientDetector( const tbox::Pointer<hier::PatchHierarchy> hierarchy,
+			    const int level_number,
+			    const double time,
+			    const int tag_index,
+			    const bool initial_time,
+			    const bool uses_richardson_extrapolation_too );
+
 protected:
 
    void printVector( const tbox::Pointer< solv::SAMRAIVectorReal<double> > vector);
