@@ -166,6 +166,7 @@ int main( int argc, char *argv[] )
         error_detector->turnOffRefineBoxes();
         tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
         for (int ln = 0; hierarchy->levelCanBeRefined(ln); ln++) {
+            tbox::pout << "Regridding from level " << ln << std::endl;
             gridding_algorithm->regridAllFinerLevels(ln,t0,tag_buffer);
             application->setInitialConditions(t0);
         }

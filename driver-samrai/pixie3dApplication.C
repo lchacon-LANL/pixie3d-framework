@@ -682,8 +682,8 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
     PROFILE_START("apply");
     // Check x for nans
     double x_localNorm = x->L2Norm(true);
-    TBOX_ASSERT(x_localNorm==x_localNorm);
-    TBOX_ASSERT(fabs(x_localNorm)<1e10);
+    if ( x_localNorm!=x_localNorm || fabs(x_localNorm)>1e10 )
+        TBOX_ERROR("x is ouside valid range or contains NaNs");
 
     // Copy x
     if(d_x.isNull())  TBOX_ERROR( "d_x is Null");
@@ -694,10 +694,10 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
     synchronizeVariables();
     double auxs_localNorm = d_aux_scalar->L2Norm(true);
     double auxv_localNorm = d_aux_vector->L2Norm(true);
-    TBOX_ASSERT(auxs_localNorm==auxs_localNorm);
-    TBOX_ASSERT(auxv_localNorm==auxv_localNorm);
-    TBOX_ASSERT(fabs(auxs_localNorm)<1e10);
-    TBOX_ASSERT(fabs(auxv_localNorm)<1e10);
+    if ( auxs_localNorm!=auxs_localNorm || fabs(auxs_localNorm)>1e10 )
+        TBOX_ERROR("auxs is ouside valid range or contains NaNs");
+    if ( auxv_localNorm!=auxv_localNorm || fabs(auxv_localNorm)>1e10 )
+        TBOX_ERROR("auxv is ouside valid range or contains NaNs");
   
     if(d_debug_print_info_level>5) {
         tbox::pout << "*****************************************" << std::endl; 
@@ -758,8 +758,8 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
 
     // Check the residual for nans
     double r_localNorm = r->L2Norm(true);
-    TBOX_ASSERT(r_localNorm==r_localNorm);
-    TBOX_ASSERT(fabs(r_localNorm)<1e10);
+    if ( r_localNorm!=r_localNorm || fabs(r_localNorm)>1e10 )
+        TBOX_ERROR("r is ouside valid range or contains NaNs");
 
     // Get the divergence of the magnetic field
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
@@ -988,7 +988,7 @@ int pixie3dApplication::getNumberOfDependentVariables()
 // Write a single variable to a file for all patches, all levels, including ghostcells
 void pixie3dApplication::writeCellData( FILE *fp, int var_id ) {
     if ( dim.getValue() != 3 )
-        TBOX_ERROR("Not porgramed for dimensions other than 3");
+        TBOX_ERROR("Not programmed for dimensions other than 3");
     const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
     int rank = comm.getRank();
     if ( rank==0 && fp==NULL )
