@@ -1123,15 +1123,13 @@ c     Local variables
 
 c     Interfaces
 
-
       INTERFACE
-        subroutine preproc_AuxVar(igr,bc_inf,varray,vaux,order)
+        subroutine postproc_AuxVar(igr,bc_inf,varray,vaux)
           use variable_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
-          integer,optional :: order
-        end subroutine preproc_AuxVar
+        end subroutine postproc_AuxVar
       END INTERFACE
 
       INTERFACE
@@ -1195,12 +1193,13 @@ c     Local variables
       type(var_array),pointer :: varray => null()
 
       INTERFACE
-        subroutine postproc_AuxVar(igr,bc_inf,varray,vaux)
+        subroutine preproc_AuxVar(igr,bc_inf,varray,vaux,order)
           use variable_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
-        end subroutine postproc_AuxVar
+          integer,optional :: order
+        end subroutine preproc_AuxVar
       END INTERFACE
 
       INTERFACE
