@@ -24,6 +24,7 @@
 
 // SAMRUTILS headers
 #include "testutils/SAMRBuilder.h"
+#include "utilities/ProfilerApp.h"
 
 // SAMRSOLVERS headers
 #include "time_integrators/TimeIntegratorParameters.h"
@@ -32,7 +33,6 @@
 // Local headers
 #include "pixie3dApplication.h"
 #include "pixie3dApplicationParameters.h"
-#include "ProfilerApp.h"
 
 extern "C"{
 #include "assert.h"

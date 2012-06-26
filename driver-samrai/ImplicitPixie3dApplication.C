@@ -5,10 +5,12 @@
 #include "SAMRAI/solv/PETSc_SAMRAIVectorReal.h"
 #include <algorithm>
 
-namespace SAMRAI{
+#include "Pixie3dPreconditionerParameters.h"
 
-ImplicitPixie3dApplication::ImplicitPixie3dApplication():
-  pixie3dApplication()
+namespace SAMRAI{
+namespace Pixie3d{
+
+ImplicitPixie3dApplication::ImplicitPixie3dApplication(): pixie3dApplication()
 {
   /*
    * Set default values for data members.
@@ -19,8 +21,6 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication():
   d_old_dt                      = tbox::IEEE::getSignalingNaN();
   d_new_time                    = tbox::IEEE::getSignalingNaN();
   d_initial_dt                  = tbox::IEEE::getSignalingNaN();
-
-  d_debug_print_info_level=0;
 
   d_newSolutionVector.setNull();
   d_currentSolutionVector.setNull();
@@ -41,8 +41,6 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication(ImplicitPixie3dApplicatio
   d_old_dt                      = tbox::IEEE::getSignalingNaN();
   d_new_time                    = tbox::IEEE::getSignalingNaN();
   d_initial_dt                  = tbox::IEEE::getSignalingNaN();
-  
-  d_debug_print_info_level=0;
 
   d_newSolutionVector.setNull();
   d_currentSolutionVector.setNull();
@@ -73,6 +71,13 @@ ImplicitPixie3dApplication::initialize(ImplicitPixie3dApplicationParameters *par
     TBOX_ERROR(d_object_name << " -- Key data `initial_timestep'"
 	       << " missing in input.");
   }
+
+       
+  if(db->keyExists("preconditioner"))
+    {
+      d_pc_db = db->getDatabase("preconditioner");
+    }
+  
   d_max_timestep = 1e10;
 
   
@@ -128,12 +133,15 @@ ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hie
       // allocate components and space for the current and previous solution vectors
       d_currentSolutionVector = ic_vector->cloneVector("CurrentSolutionVector");
       d_currentSolutionVector->allocateVectorData(0.0);
+      d_registeredVectors.push_back( d_currentSolutionVector );
 
       d_previousSolutionVector = ic_vector->cloneVector("PreviousSolutionVector");
       d_previousSolutionVector->allocateVectorData(0.0);
+      d_registeredVectors.push_back( d_previousSolutionVector );
 
       d_scratchVector = ic_vector->cloneVector("ScratchVector");
       d_scratchVector->allocateVectorData(0.0);
+      d_registeredVectors.push_back( d_scratchVector );
       
       d_vectorsCloned = true;
     }
@@ -265,21 +273,71 @@ ImplicitPixie3dApplication::evaluateNonlinearFunction(tbox::Pointer< solv::SAMRA
   //  d_currentSolutionVector->print(tbox::pout);
   //  x->print(tbox::pout);
   //  f->print(tbox::pout);
+
+  // Check f for nans
+  double f_localNorm = f->L2Norm(true);
+  TBOX_ASSERT(f_localNorm==f_localNorm);
+  TBOX_ASSERT(fabs(f_localNorm)<1e10);
   
   return 0;
 }
 
+void
+ImplicitPixie3dApplication::createPreconditioner()
+{
+  
+  Pixie3d::Pixie3dPreconditionerParameters *parameters = createPreconditionerParameters(d_pc_db);
+  
+  d_preconditioner =  new Pixie3d::Pixie3dPreconditioner(parameters);
+  delete parameters;
+  
+}
+
+void
+ImplicitPixie3dApplication::destroyPreconditioner()
+{
+  Pixie3dPreconditioner *ptr = d_preconditioner.getPointer();
+
+   delete ptr;
+
+   d_preconditioner.setNull();
+}
+
+Pixie3d::Pixie3dPreconditionerParameters *
+ImplicitPixie3dApplication::createPreconditionerParameters( tbox::Pointer<tbox::Database> &db )
+{
+
+  //BP: the database should be populated with additional entries required by the preconditioner here
+  
+  Pixie3d::Pixie3dPreconditionerParameters *parameters = new Pixie3d::Pixie3dPreconditionerParameters(db);
+  parameters->d_hierarchy                  = d_hierarchy;
+  
+  // currently setting the interpolant to NULL, need to remove if it is not being used
+  parameters->d_cf_interpolant             = NULL;
+  
+  return parameters;
+}
+
+  
 int
 ImplicitPixie3dApplication::setupPreconditioner(tbox::Pointer< solv::SAMRAIVectorReal<double> > x)
 {
-  abort();
+  tbox::Pointer<tbox::Database> db( new tbox::InputDatabase("null db"));
+
+  // BP: add code in here necessary to setup the parameters object
+  
+  Pixie3d::Pixie3dPreconditionerParameters *parameters = new Pixie3d::Pixie3dPreconditionerParameters(db);
+  
+  d_preconditioner->setupPreconditioner(parameters);
+
+  return (0);
 }
 
 int
 ImplicitPixie3dApplication::applyPreconditioner(tbox::Pointer< solv::SAMRAIVectorReal<double> > r,
 						tbox::Pointer< solv::SAMRAIVectorReal<double> > z)
-{
-  abort();
+{  
+  return d_preconditioner->applyPreconditioner(r,z);
 }
 
 void
@@ -288,6 +346,7 @@ ImplicitPixie3dApplication::setupSolutionVector(tbox::Pointer< solv::SAMRAIVecto
 #ifdef DEBUG_CHECK_ASSERTIONS
   assert(!solution.isNull());
 #endif
+  d_registeredVectors.push_back( solution );
   d_newSolutionVector = solution;
   
   const tbox::Dimension &dimObj = d_hierarchy->getDim();
@@ -436,5 +495,7 @@ ImplicitPixie3dApplication::putToDatabase(tbox::Pointer<tbox::Database> db)
 {
   abort();
 }
+
   
+}
 }

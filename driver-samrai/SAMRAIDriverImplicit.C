@@ -24,6 +24,7 @@
 
 // SAMRUTILS headers
 #include "testutils/SAMRBuilder.h"
+#include "utilities/ProfilerApp.h"
 
 // SAMRSOLVERS headers
 #include "SAMRAI/algs/ImplicitIntegrator.h"
@@ -32,7 +33,6 @@
 // Local headers
 #include "ImplicitPixie3dApplication.h"
 #include "ImplicitPixie3dApplicationParameters.h"
-#include "ProfilerApp.h"
 
 extern "C"{
 #include "assert.h"
@@ -75,7 +75,7 @@ int main( int argc, char *argv[] )
     SAMRUtils::SAMRBuilder::processCommandLine(argc, argv, input_file, log_file);
 
     // Create the log file
-    SAMRAI::tbox::PIO::logOnlyNodeZero(log_file);
+    SAMRAI::tbox::PIO::logAllNodes(log_file);
 
     // Create input database and parse all data in input file.
     SAMRAI::tbox::Pointer<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
@@ -125,7 +125,7 @@ int main( int argc, char *argv[] )
 
     // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
     const SAMRAI::tbox::Dimension dim(3);
-    tbox::Pointer<SAMRAI::ImplicitPixie3dApplication> application( new SAMRAI::ImplicitPixie3dApplication() );
+    tbox::Pointer<SAMRAI::Pixie3d::ImplicitPixie3dApplication> application( new SAMRAI::Pixie3d::ImplicitPixie3dApplication() );
 
     // Create the patch hierarchy
     SAMRAI::tbox::Pointer<SAMRAI::mesh::StandardTagAndInitStrategy> object = application;
@@ -148,7 +148,7 @@ int main( int argc, char *argv[] )
 
     // Initialize the application
     tbox::Pointer< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
-    SAMRAI::ImplicitPixie3dApplicationParameters* application_parameters = new SAMRAI::ImplicitPixie3dApplicationParameters(pixie3d_db);
+    SAMRAI::Pixie3d::ImplicitPixie3dApplicationParameters* application_parameters = new SAMRAI::Pixie3d::ImplicitPixie3dApplicationParameters(pixie3d_db);
     application_parameters->d_hierarchy = hierarchy;
     application_parameters->d_VizWriter = visit_writer;
     application->initialize( application_parameters );
@@ -158,18 +158,22 @@ int main( int argc, char *argv[] )
     application->setInitialConditions(t0);
 
     // Perform a regrid to make sure the tagging is all set correctly
-    tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
-    TBOX_ASSERT(!error_detector.isNull());
-    error_detector->turnOnGradientDetector();
-    error_detector->turnOffRefineBoxes();
-    tbox::Array<int> tag_buffer;
-    if ( error_detector->refineUserBoxInputOnly() )
-        tag_buffer = tbox::Array<int>(20,0);    // Only user-defined refinement boxes are used, no tag buffer is necessary
-    else
+    tbox::Array<int> tag_buffer(20,2);
+    if ( regrid_interval > 0 ) {
+        tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
+        TBOX_ASSERT(!error_detector.isNull());
+        error_detector->turnOnGradientDetector();
+        error_detector->turnOffRefineBoxes();
         tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
-    gridding_algorithm->regridAllFinerLevels(0,t0,tag_buffer);
-    application->setInitialConditions(t0);
+        for (int ln = 0; hierarchy->levelCanBeRefined(ln); ln++) {
+            tbox::pout << "Regridding from level " << ln << std::endl;
+            gridding_algorithm->regridAllFinerLevels(ln,t0,tag_buffer);
+            application->setInitialConditions(t0);
+        }
+    }
 
+    //application->createPreconditioner();
+    
     solv::SNES_SAMRAIContext* snes_solver = NULL;
     
     snes_solver = new solv::SNES_SAMRAIContext("SNESSolver",
@@ -245,6 +249,7 @@ int main( int argc, char *argv[] )
     bool first_step = true;
     double current_time = 0.0;
     double dt = timeIntegrator->getCurrentDt();
+    dt = timeIntegrator->getNextDt(true,0);
     double final_time = timeIntegrator->getFinalTime();
     long int timestep = 0;
     double last_save_time = current_time;
@@ -276,7 +281,7 @@ int main( int argc, char *argv[] )
             first_step = false;
 
             // If desired, regrid patch hierarchy and reset vector weights.
-            if ( (regrid_interval > 0)  && ((timestep % regrid_interval) == 0) ) {
+            if ( (regrid_interval > 0)  && ((timestep+1 % regrid_interval) == 0) ) {
 
                 tbox::pout << " Regridding ..." << std::endl;
                 gridding_algorithm->regridAllFinerLevels( 0, current_time, tag_buffer );
@@ -307,7 +312,6 @@ int main( int argc, char *argv[] )
                         PETSC_NULL, 
                         PETSC_NULL);  CHKERRQ(ierr);
                 }
-
                 solver_retcode = timeIntegrator->advanceSolution(dt, first_step);
 
             }

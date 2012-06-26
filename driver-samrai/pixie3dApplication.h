@@ -35,6 +35,8 @@
 
 // SAMRUTILS headers
 #include "transfer/SiblingGhostSchedule.h"
+#include "transfer/TriangleRefineSchedule.h"
+#include "interpolation/RefinementBoundaryInterpolation.h"
 
 // SAMRSOLVERS headers
 #include "operators/DiscreteOperator.h"
@@ -96,6 +98,17 @@ namespace SAMRAI{
  * This is a concrete class that provides an interface between
  * the interface defined by ApplicationStrategy and the test
  * problem for pixie3d.
+ *
+ * The input database specifies several key parameters:
+ * @code
+       refine_method - Specifies the method used for refinement interpolation
+                       "CONSTANT" - Use constant interpolation from the coarse data
+                       "COARSE_LINEAR" - Use linear interpolation using only coarse data
+                       "FINE_LINEAR" - Use linear interpolation using the coarse and fine data
+       coarsen_method - Specifies the method use for coarsening
+                       "CONSERVATIVE" - Use conservative coarsening for all quantities
+       print_info_level - Specifies the level of printing
+ * @endcode
  */
 
 class pixie3dApplication : 
@@ -132,8 +145,8 @@ public:
 
    // Evaluate IVP forcing term.
    void apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &f,
-	       tbox::Pointer< solv::SAMRAIVectorReal<double> >  &x,
-	       tbox::Pointer< solv::SAMRAIVectorReal<double> >  &r,
+           tbox::Pointer< solv::SAMRAIVectorReal<double> >  &x,
+           tbox::Pointer< solv::SAMRAIVectorReal<double> >  &r,
                double a = -1.0, double b=1.0 );
 
    // Evaluate IVP forcing term.
@@ -189,8 +202,22 @@ public:
     * Function overloaded from mesh::StandardTagAndInitStrategy.
     */
    virtual void resetHierarchyConfiguration( const tbox::Pointer<hier::PatchHierarchy> hierarchy,
-					     const int coarsest_level,
-					     const int finest_level );
+                         const int coarsest_level,
+                         const int finest_level );
+
+   /**
+    * Tag cells where the gradient of the solution exceeds a user-specified
+    * threshold.  
+    *
+    * Function overloaded from mesh::StandardTagAndInitStrategy.
+    *
+    */
+   virtual void applyGradientDetector( const tbox::Pointer<hier::PatchHierarchy> hierarchy,
+			    const int level_number,
+			    const double time,
+			    const int tag_index,
+			    const bool initial_time,
+			    const bool uses_richardson_extrapolation_too );
 
 protected:
 
@@ -214,17 +241,25 @@ protected:
    tbox::Pointer<hier::PatchHierarchy> d_hierarchy;
    tbox::Dimension dim;
    
+   // Solution vectors
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_initial;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_x_tmp;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_x;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_x_r;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_x_ic;
+
+   // A list of all registered vectors that need to be interpolated on a regrid
+   std::vector<tbox::Pointer< solv::SAMRAIVectorReal<double> > >  d_registeredVectors;
+
+   // Auxillary vectors
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_aux_scalar;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_aux_vector;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_aux_scalar_tmp;
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_aux_vector_tmp;
    tbox::Pointer< pdat::CellVariable<double> > d_f_src;
+   tbox::Pointer< pdat::CellVariable<double> > d_div_B;
    int f_src_id;
+   int div_B_id;
 
    int d_weight_id;
    
@@ -239,20 +274,6 @@ protected:
 
    double dt_exp;   // The current maximum timestep for explicit integration
 
-   pixie3dRefinePatchStrategy* d_refine_strategy; 
-
-   std::string d_refine_op_str;
-
-   //   xfer::SiblingGhostAlgorithm d_siblingGhostVectorAlgorithm;
-
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule> > d_refineScalarSchedules;
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule> > d_refineVectorComponentSchedules;
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule> > d_refineVectorSchedules;
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule> > d_levelSchedules;
-
-   //   tbox::Array< tbox::Pointer<xfer::SiblingGhostSchedule> > d_siblingGhostVectorSchedules;
-
-
    SAMRAI::appu::VisItDataWriter* d_VizWriter;
 
    input_CTX *input_data;
@@ -261,12 +282,21 @@ protected:
    static const int MAX_LEVELS = 20;
    LevelContainer *level_container_array[MAX_LEVELS];
 
-   // Data for applying the boundary conditions and the coarsen/refine schedules
-   std::string d_coarsen_op_str;
+   // Data for applying the boundary conditions and the refine schedules
+   std::string d_refine_op_str;
+   pixie3dRefinePatchStrategy* d_refine_strategy; 
    std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> d_BoundarySequenceGroups;
-   tbox::Pointer<xfer::RefineSchedule> *refineSchedule[MAX_LEVELS];
-   tbox::Pointer<xfer::SiblingGhostSchedule> *siblingSchedule[MAX_LEVELS];
+   //std::vector<std::vector<int> > bcgrp_ids;
+   //RefinementBoundaryInterpolation::InterpolationScheme d_tangentScheme;
+   //RefinementBoundaryInterpolation::InterpolationScheme d_normalScheme;
+   //tbox::Pointer<xfer::RefineSchedule> *refineSchedule[MAX_LEVELS];
+   //tbox::Pointer<xfer::SiblingGhostSchedule> *siblingSchedule[MAX_LEVELS];
+   tbox::Pointer<xfer::TriangleRefineSchedule> *refineSchedule[MAX_LEVELS];
+
+   // Data for the coarsen schedules
+   std::string d_coarsen_op_str;
    tbox::Pointer<xfer::CoarsenSchedule> coarsenSchedule[MAX_LEVELS];
+   tbox::Pointer<RefinementBoundaryInterpolation> d_coarseFineInterp;
 
    // The names of the primary and auxillary variables
    std::string *depVarLabels;

@@ -37,7 +37,6 @@
 #include "pixie3dRefinePatchStrategy.h"
 #include "varrayContainer.h"
 #include "fortran.h"
-#include "ProfilerApp.h"
 
 // SAMRAI headers
 #include "SAMRAI/geom/CartesianGridGeometry.h"
@@ -55,6 +54,7 @@
 //#include "BoundaryConditionStrategy.h"
 //#include "RefineOperator.h"
 
+#include "utilities/ProfilerApp.h"
 #include "source/AMRUtilities.h"
 //#include "test_utilities.h"
 
@@ -104,7 +104,8 @@ extern void FORTRAN_NAME(getbcsequence)(void*, int*, int*, int**);
 extern void FORTRAN_NAME(initializeauxvar)(void*, int*);
 extern void FORTRAN_NAME(get_var_names)(void*, char*, char*, char*);
 extern void FORTRAN_NAME(findexplicitdt)(void*, double*);
-extern void FORTRAN_NAME(calcDivergence)(void*, double*);
+extern void FORTRAN_NAME(calcdivergence)(void*, double*, int&, int&, int&);
+extern void FORTRAN_NAME(tag_cells)(const int*, const int*, const int*, const int*, const double*, const double&, int*);
 #endif
 }
 
@@ -123,11 +124,12 @@ pixie3dApplication::pixie3dApplication():
         level_container_array[i] = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
         refineSchedule[i] = NULL;
-        siblingSchedule[i] = NULL;
+        //siblingSchedule[i] = NULL;
     }
     dt_exp = 1.0;
     d_weight_id = -1;
-
+    d_debug_print_info_level = 0;
+    d_RefineSchedulesGenerated=false;
     d_vectorsCloned = false;
 }
 
@@ -146,12 +148,13 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
         level_container_array[i] = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
         refineSchedule[i] = NULL;
-        siblingSchedule[i] = NULL;
+        //siblingSchedule[i] = NULL;
     }
     dt_exp = 1.0;
     d_weight_id = -1;
 
     d_vectorsCloned = false;
+    d_RefineSchedulesGenerated=false;
 
     initialize( parameters );
 }
@@ -181,11 +184,11 @@ pixie3dApplication::~pixie3dApplication()
                 refineSchedule[i][j].setNull();
             delete [] refineSchedule[i];
         }
-        if ( siblingSchedule[i] != NULL ) {
+        /*if ( siblingSchedule[i] != NULL ) {
             for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 siblingSchedule[i][j].setNull();
             delete [] siblingSchedule[i];
-        }
+        }*/
     }
     // Delete misc variables
     delete input_data;
@@ -221,12 +224,8 @@ pixie3dApplication::~pixie3dApplication()
 void
 pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 {
-   d_coarsen_op_str = "CONSERVATIVE_COARSEN";
-   //d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
-   //d_refine_op_str  = "CONSTANT_REFINE";
-   d_refine_op_str  = "LINEAR_REFINE";   
-   //d_refine_op_str  = "CELL_DOUBLE_CUBIC_REFINE";
-   d_RefineSchedulesGenerated=false;
+    d_coarsen_op_str = "CONSERVATIVE_COARSEN";
+    //d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
 
     // Load basic information from the parameters
     #ifdef DEBUG_CHECK_ASSERTIONS
@@ -239,7 +238,49 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         TBOX_ERROR("Only programmed for dimension == 3");
     d_object_name = "pixie3d";
     d_VizWriter = parameters->d_VizWriter;
-   
+    
+    // Get info from the database
+    TBOX_ASSERT(!parameters->d_db.isNull());
+    d_db = parameters->d_db;
+    if ( d_db->keyExists("print_info_level") ) 
+        d_debug_print_info_level = d_db->getInteger("print_info_level");
+    else
+        d_debug_print_info_level = 0;
+    if ( d_db->keyExists("refine_method") ) {
+        if ( d_db->getString("refine_method") == "CONSTANT" ) {
+            // Use triangle-based constant interpolation
+            d_refine_op_str  = "constant";
+        } else if ( d_db->getString("refine_method") == "LINEAR" ) {
+            // Use triangle-based linear interpolation
+            d_refine_op_str  = "linear";
+        } else if ( d_db->getString("refine_method") == "CUBIC" ) {
+            // Use triangle-based cubic interpolation
+            d_refine_op_str  = "cubic";
+        } else {
+            TBOX_ERROR("Unknown interpolation");
+        }
+        /*if ( d_db->getString("refine_method") == "CONSTANT" ) {
+            // Use SAMRAI's linear interpolation
+            d_refine_op_str  = "CONSTANT_REFINE";
+            d_tangentScheme = RefinementBoundaryInterpolation::piecewiseConstant;
+            d_normalScheme = RefinementBoundaryInterpolation::piecewiseConstant;
+        } else if ( d_db->getString("refine_method") == "COARSE_LINEAR" ) {
+            // Use SAMRAI's linear interpolation
+            d_refine_op_str  = "LINEAR_REFINE";
+            d_tangentScheme = RefinementBoundaryInterpolation::piecewiseConstant;
+            d_normalScheme = RefinementBoundaryInterpolation::piecewiseConstant;
+        } else if ( d_db->getString("refine_method") == "FINE_LINEAR" ) {
+            // Use SAMRUTILS coarse-fine interpolation
+            d_refine_op_str  = "CONSTANT_REFINE";
+            d_tangentScheme = RefinementBoundaryInterpolation::linear;
+            d_normalScheme = RefinementBoundaryInterpolation::linear;
+        } else {
+            TBOX_ERROR("Unknown interpolation");
+        }*/
+    } else {
+        TBOX_ERROR("key refine_method must exist in database");
+    }
+
     tbox::pout << "Initializing\n";
     input_data = new input_CTX;
    
@@ -354,10 +395,12 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     d_x_ic->allocateVectorData();
     d_x_tmp->allocateVectorData();
     d_initial->allocateVectorData();
-    
-    // set to negative values
-    //   d_x->setToScalar( -1.0, false );
-    //   d_initial->setToScalar( -1.0, false );
+    // Register the data for interpolation on regrids
+    d_registeredVectors.push_back( d_x );
+    d_registeredVectors.push_back( d_x_r );
+    d_registeredVectors.push_back( d_x_ic );
+    d_registeredVectors.push_back( d_x_tmp );
+    d_registeredVectors.push_back( d_initial );
 
     // Allocate data for auxillary variables
     tbox::Pointer<hier::VariableContext> context_aux = var_db->getContext("pixie3d-aux");
@@ -400,6 +443,14 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
         level->allocatePatchData(f_src_id);
+    }   
+    
+    // Allocate data for divergence of B
+    d_div_B = new pdat::CellVariable<double>( dim, "div_B", 1 );
+    div_B_id = var_db ->registerVariableAndContext(d_div_B, context_f, ghost0);
+    for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++) {
+        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
+        level->allocatePatchData(div_B_id);
     }   
    
     // Create patch variables
@@ -532,7 +583,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
             continue;
         d_VizWriter->registerPlotQuantity(depVarLabels[i]+"_r", "SCALAR", d_x_r->getComponentDescriptorIndex(i));
     }
-
+    d_VizWriter->registerPlotQuantity("div_B", "SCALAR", div_B_id, 0);
 }
 
 
@@ -578,6 +629,10 @@ void pixie3dApplication::setInitialConditions( const double )
 
     // Copy the data from u to u_ic
     d_x_ic->copyVector(d_x,false);
+
+    // Call apply to fill the initial residual and calculate the divergence of the magnetic field
+    apply( d_x_ic, d_x_ic, d_x_r, 1.0, 0.0 );
+
     PROFILE_STOP("setInitialConditions");
 }
 
@@ -625,14 +680,24 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
                double, double)
 {
     PROFILE_START("apply");
+    // Check x for nans
+    double x_localNorm = x->L2Norm(true);
+    if ( x_localNorm!=x_localNorm || fabs(x_localNorm)>1e10 )
+        TBOX_ERROR("x is ouside valid range or contains NaNs");
+
     // Copy x
     if(d_x.isNull())  TBOX_ERROR( "d_x is Null");
     if(x.isNull())  TBOX_ERROR( "x is Null");
-
     d_x->copyVector(x);
-    // Coarsen and Refine x
-    // Apply boundary conditions
+
+    // Coarsen and Refine x, fill auxillary variables and apply boundary conditions
     synchronizeVariables();
+    double auxs_localNorm = d_aux_scalar->L2Norm(true);
+    double auxv_localNorm = d_aux_vector->L2Norm(true);
+    if ( auxs_localNorm!=auxs_localNorm || fabs(auxs_localNorm)>1e10 )
+        TBOX_ERROR("auxs is ouside valid range or contains NaNs");
+    if ( auxv_localNorm!=auxv_localNorm || fabs(auxv_localNorm)>1e10 )
+        TBOX_ERROR("auxv is ouside valid range or contains NaNs");
   
     if(d_debug_print_info_level>5) {
         tbox::pout << "*****************************************" << std::endl; 
@@ -691,16 +756,24 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
     // Copy r
     r->copyVector(d_x_r);
 
+    // Check the residual for nans
+    double r_localNorm = r->L2Norm(true);
+    if ( r_localNorm!=r_localNorm || fabs(r_localNorm)>1e10 )
+        TBOX_ERROR("r is ouside valid range or contains NaNs");
+
     // Get the divergence of the magnetic field
-    /*for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
         LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
         for (hier::PatchLevel::Iterator p(level); p; p++) {
+            tbox::Pointer< pdat::CellData<double> > tmp = (*p)->getPatchData(div_B_id);
+            double *div_B = tmp->getPointer();
+            hier::IntVector size = (*p)->getBox().numberCells();
             PROFILE_START("Call calcDivergence");
-            FORTRAN_NAME(calcdivergence)(level_container->getPtr(*p),NULL,NULL);
+            FORTRAN_NAME(calcdivergence)(level_container->getPtr(*p),div_B,size(0),size(1),size(2));
             PROFILE_STOP("Call calcDivergence");
         }
-    }*/
+    }
     PROFILE_STOP("apply");
 }
 
@@ -803,6 +876,20 @@ void  pixie3dApplication::refineVariables(void)
             (d_refine_strategy)->setRefineStrategySequence(d_BoundarySequenceGroups[iSeq]);
             refineSchedule[ln][iSeq]->fillData(0.0);
             PROFILE_STOP("refineSchedule fillData");
+            /*// Perform the second interpolation step (if necessary)
+            if ( ln>0 && d_tangentScheme!=RefinementBoundaryInterpolation::piecewiseConstant &&
+                d_normalScheme!=RefinementBoundaryInterpolation::piecewiseConstant ) 
+            {
+                PROFILE_START("RefinementBoundaryInterpolation");
+                for (size_t i=0; i<bcgrp_ids[iSeq].size(); i++) {
+                    d_coarseFineInterp->setGhostCellData( ln, bcgrp_ids[iSeq][i] );
+                    d_coarseFineInterp->interpolateGhostValues( ln, 
+                        d_tangentScheme,
+                        d_normalScheme,
+                        bcgrp_ids[iSeq][i], 0, false );
+                }
+                PROFILE_STOP("RefinementBoundaryInterpolation");
+            }*/
             // Fill the interior patches
             PROFILE_START("Fill interiors");
             for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
@@ -812,10 +899,10 @@ void  pixie3dApplication::refineVariables(void)
                     (d_refine_strategy)->applyBC(patch);
             }
             PROFILE_STOP("Fill interiors");
-            // Fill corners and edges
+            /*// Fill corners and edges
             PROFILE_START("siblingSchedule fillData");
             siblingSchedule[ln][iSeq]->fillData(0.0);
-            PROFILE_STOP("siblingSchedule fillData");
+            PROFILE_STOP("siblingSchedule fillData");*/
         }
     }
 
@@ -901,7 +988,7 @@ int pixie3dApplication::getNumberOfDependentVariables()
 // Write a single variable to a file for all patches, all levels, including ghostcells
 void pixie3dApplication::writeCellData( FILE *fp, int var_id ) {
     if ( dim.getValue() != 3 )
-        TBOX_ERROR("Not porgramed for dimensions other than 3");
+        TBOX_ERROR("Not programmed for dimensions other than 3");
     const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
     int rank = comm.getRank();
     if ( rank==0 && fp==NULL )
@@ -1067,7 +1154,7 @@ void pixie3dApplication::writeDebugData( FILE *fp, const int it, const double ti
 
 /***********************************************************************
 * Initialize level data.                                               *
-* Function overloaded from mesh::StandardTagAndInitStrategy.          *
+* Function overloaded from mesh::StandardTagAndInitStrategy.           *
 ***********************************************************************/
 void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHierarchy > hierarchy,
     const int level_number, const double time, const bool can_be_refined, const bool initial_time,
@@ -1100,6 +1187,7 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
         if ( neighbors.size() != 1 )
             TBOX_ERROR("Overlapping boxes were detected on new level, and are not supported");
     }
+
     // Allocate data when called for, otherwise set timestamp on allocated data.
     hier::ComponentSelector d_problem_data(false);
     if ( !old_level.isNull() ) {
@@ -1121,16 +1209,77 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
                 d_problem_data.setFlag(i);
         }
     }
-
-
     if ( allocate_data )  {
         level->allocatePatchData(d_problem_data, time);
     } else  {
         level->setTime(time, d_problem_data);
     }
 
+    // Interpolate data from a coarser level and the old_level
+    xfer::RefineAlgorithm fill_current(d_hierarchy->getDim());
+    tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
+    for (size_t i=0; i<d_registeredVectors.size(); i++) {
+        for (int j=0; j<input_data->nvar; j++) {
+            int id = d_registeredVectors[i]->getComponentDescriptorIndex(j);
+            const tbox::Pointer<hier::Variable> x = d_registeredVectors[i]->getComponentVariable(j); 
+	        fill_current.registerRefine( id, id, id, grid_geometry->lookupRefineOperator(x,"CONSTANT_REFINE"));
+        }
+    }
+    if ( level_number>0 && old_level.isNull() ) {
+        fill_current.createSchedule( level, level_number-1, hierarchy, NULL )->fillData(time);
+    } else {
+        fill_current.createSchedule( level, old_level, level_number-1, hierarchy, NULL )->fillData(time);
+    }
 }
 
+
+/************************************************************************
+*                                                                       *
+* Tag cells where the gradient of the solution exceeds a user-specified *
+* threshold.                                                            *
+*                                                                       *
+************************************************************************/
+void pixie3dApplication::applyGradientDetector(const tbox::Pointer<hier::PatchHierarchy> hierarchy,
+                              const int level_number,
+                              const double time,
+                              const int tag_index,
+                              const bool initial_time,
+                              const bool uses_richardson_extrapolation_too)
+{
+   if ( d_hierarchy.isNull() )
+      return;
+   double J_level[4] = {0.1,1.0,5.0,10.0};
+   tbox::Pointer<hier::PatchLevel> level = hierarchy->getPatchLevel(level_number);
+   // Loop through the patches on the level
+   for (hier::PatchLevel::Iterator p(level); p; p++) {
+      // Get the patch and the patch properties
+      tbox::Pointer<hier::Patch> patch = *p;
+      tbox::Pointer<hier::PatchGeometry> patch_geom = patch->getPatchGeometry();
+      assert(!patch.isNull());
+      const SAMRAI::hier::Index ifirst = patch->getBox().lower();
+      const SAMRAI::hier::Index ilast  = patch->getBox().upper();
+      // Get the tag_array
+      tbox::Pointer< pdat::CellData<int> > tag_array = patch->getPatchData(tag_index);
+      assert(!tag_array.isNull());
+      const hier::IntVector gcw_tag_array = tag_array->getGhostCellWidth();
+      int *tag_data = tag_array->getPointer();
+      if ( initial_time )
+         tag_array->fillAll(0);
+      // For now we will refine based on the magnitude of the current
+      int index_J = -1;
+      for (int i=0; i<input_data->nauxv; i++) {
+         if ( auxVectorLabels[i].compare("J cnv")==0 ) 
+            index_J = auxv_id[i];
+      }
+      if ( index_J==-1 )
+         TBOX_ERROR("Current not found");
+      tbox::Pointer< pdat::CellData<double> > J = patch->getPatchData(index_J);
+      assert(!J.isNull());
+      const hier::IntVector gcw = J->getGhostCellWidth();
+      double *J_data = J->getPointer();
+      tag_cells_( &ifirst(0), &ilast(0), &gcw(0), &gcw_tag_array(0), J_data, J_level[level_number], tag_data );
+   }
+}
 
 
 /***********************************************************************
@@ -1172,9 +1321,34 @@ void pixie3dApplication::resetHierarchyConfiguration(
     }
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        // Initialize the auxillary data to 0
+        for (hier::PatchLevel::Iterator p(level); p; p++) {
+            tbox::Pointer<hier::Patch> patch = *p;
+            for (int j=0; j<input_data->nauxs; j++) {
+                tbox::Pointer<pdat::CellData<double> > data = d_aux_scalar->getComponentPatchData( j, *patch );
+                data->fillAll(0.0);
+            }
+            for (int j=0; j<input_data->nauxv; j++) {
+                tbox::Pointer<pdat::CellData<double> > data = d_aux_vector->getComponentPatchData( j, *patch );
+                data->fillAll(0.0);
+            }
+        }
         // Create the level container
         level_container_array[ln] = new LevelContainer(d_hierarchy,level,
             input_data->nvar,u0_id,u_id,input_data->nauxs,auxs_id,input_data->nauxv,auxv_id);
+        // Loop through the different patches
+        for (hier::PatchLevel::Iterator p(level); p; p++) {
+            tbox::Pointer<hier::Patch> patch = *p;
+            tbox::Pointer< pdat::CellData<double> > tmp = patch->getPatchData(f_src_id);
+            double *fsrc = tmp->getPointer();
+            int n_elem = patch->getBox().size()*tmp->getDepth();
+            // Form Initial Conditions
+            #ifdef absoft
+                FORTRAN_NAME(FORMINITIALCONDITION)(level_container_array[ln]->getPtr(patch),&n_elem,fsrc);
+            #else
+                FORTRAN_NAME(forminitialcondition)(level_container_array[ln]->getPtr(patch),&n_elem,fsrc);
+            #endif
+        }
     }
 
     // Reset the communication schedules
@@ -1184,11 +1358,11 @@ void pixie3dApplication::resetHierarchyConfiguration(
                 refineSchedule[i][j].setNull();
             delete [] refineSchedule[i];
         }
-        if ( siblingSchedule[i] != NULL ) {
+        /*if ( siblingSchedule[i] != NULL ) {
             for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 siblingSchedule[i][j].setNull();
             delete [] siblingSchedule[i];
-        }
+        }*/
     }
 
     // Get the number of boundary condition groups and the sequence for each group
@@ -1199,10 +1373,15 @@ void pixie3dApplication::resetHierarchyConfiguration(
     tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     //tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelBorderFillPattern());
     tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelFullFillPattern());     // This may reduce performance
+    //bcgrp_ids = std::vector<std::vector<int> >(d_BoundarySequenceGroups.size());
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-        refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_BoundarySequenceGroups.size()];
-        siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_BoundarySequenceGroups.size()];
+        tbox::Pointer<hier::PatchLevel> coarse_level;
+        if ( ln>0 )
+            coarse_level = d_hierarchy->getPatchLevel(ln-1);
+        refineSchedule[ln] = new tbox::Pointer< xfer::TriangleRefineSchedule >[d_BoundarySequenceGroups.size()];
+        //refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_BoundarySequenceGroups.size()];
+        //siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_BoundarySequenceGroups.size()];
         for(size_t iSeq=0; iSeq<d_BoundarySequenceGroups.size(); iSeq++) {
             int data_id=-1;
             xfer::RefineAlgorithm refineVariableAlgorithm(d_hierarchy->getDim());
@@ -1246,14 +1425,18 @@ void pixie3dApplication::resetHierarchyConfiguration(
                     TBOX_ERROR("Bad boundary group member");
                 }
                 ids[i] = data_id;
-                refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
-                        grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
+                //refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
+                //        grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
             }
+            //bcgrp_ids[iSeq] = ids;
             // Create the schedules
-            refineSchedule[ln][iSeq] = refineVariableAlgorithm.createSchedule(level, ln-1, d_hierarchy, d_refine_strategy);
-            siblingSchedule[ln][iSeq] = tbox::Pointer< xfer::SiblingGhostSchedule >(new xfer::SiblingGhostSchedule(level,ids,ids,ids,fill_pattern));
+            refineSchedule[ln][iSeq] = tbox::Pointer<xfer::TriangleRefineSchedule>(
+                new xfer::TriangleRefineSchedule( coarse_level, level, ids, ids, ids, d_refine_op_str, d_refine_strategy ) );
+            //refineSchedule[ln][iSeq] = refineVariableAlgorithm.createSchedule(level, ln-1, d_hierarchy, d_refine_strategy);
+            //siblingSchedule[ln][iSeq] = tbox::Pointer< xfer::SiblingGhostSchedule >(new xfer::SiblingGhostSchedule(level,ids,ids,ids,fill_pattern));
         }
     }
+
     // Create the coarsenSchedule
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         if (ln==0) continue;
@@ -1277,6 +1460,9 @@ void pixie3dApplication::resetHierarchyConfiguration(
         tbox::Pointer<hier::PatchLevel> flevel = d_hierarchy->getPatchLevel(ln);    
         coarsenSchedule[ln-1] = coarsenAlgorithm.createSchedule(level,flevel);
     }
+
+   // Create RefinementBoundaryInterpolation.
+   d_coarseFineInterp = tbox::Pointer<RefinementBoundaryInterpolation>( new SAMRAI::RefinementBoundaryInterpolation( d_hierarchy ) );
 
 }
 

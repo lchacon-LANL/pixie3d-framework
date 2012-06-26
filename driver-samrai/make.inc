@@ -21,11 +21,11 @@ SUBDIRS = $(COMMONDIR)/math \
 	  $(COMMONDIR)/grid \
 	  $(COMMONDIR)/var_setup \
 	  $(COMMONDIR)/driver_setup\
-          $(COMMONDIR)/newtonGMRES
+      $(COMMONDIR)/newtonGMRES \
 
 # Module order
 
-MODS = newtongm_mod.F 
+MODS = newtongm_mod.F
 #MODS =  setup_mod.F driver_mod.F
 
 #Setup defs.

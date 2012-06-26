@@ -58,7 +58,7 @@ ifeq ($(HOST),vayu)
     #FC=mpif90
     #CC=mpicc
     #CXX=mpic++
-    OPT=g
+    OPT=O
     HDF5 = t
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
