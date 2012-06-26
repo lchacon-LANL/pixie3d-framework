@@ -142,252 +142,6 @@ c End program
 
       end subroutine initializeCalculation
 
-ccc setInitialCondition
-ccc####################################################################
-cc      subroutine setInitialCondition(varrayn,varraynp)
-cc
-ccc--------------------------------------------------------------------
-ccc     Set initial conditions for initial value calculation. Variables
-ccc     are stored in u_np
-ccc--------------------------------------------------------------------
-cc
-cc      use grid
-cc
-cc      use variable_setup
-cc
-cc      use timeStepping
-cc
-cc      use iosetup
-cc
-cc#if defined(MK)
-cc      use mk
-cc#endif
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      type(var_array),pointer :: varrayn,varraynp
-cc
-ccc Local variables
-cc
-cc      integer    ::  ieq,nx,ny,nz
-cc
-ccc Interfaces
-cc
-cc      INTERFACE
-cc        subroutine applyBC (varray,iigx,iigy,iigz,obc)
-cc        use variable_setup
-cc        integer    :: iigx,iigy,iigz
-cc        integer,optional :: obc
-cc        type(var_array),pointer :: varray
-cc        end subroutine applyBC
-cc      END INTERFACE
-cc
-cc      INTERFACE
-cc        subroutine perturbEquilibrium(varray)
-cc        use variable_setup
-cc        type(var_array),pointer :: varray
-cc        end subroutine perturbEquilibrium
-cc      END INTERFACE
-cc
-ccc Begin program
-cc
-ccc Perturb equilibrium
-cc
-cc      if (.not.restart) then
-cc
-cc        !Equate to varraynp
-cc        call equateDerivedType(varraynp,varrayn)
-cc
-cc        if (.not.relax_init_grid) call perturbEquilibrium(varraynp)
-cc
-cc        time     = 0d0
-cc        itime    = 1   !Needed for BC logic
-cc        inewtime = 1
-cc
-cc      else
-cc
-cc        call readRestartFile(nx,ny,nz,itime,time,varrayn,varraynp)
-cc
-cc#if defined(MK)
-cc        if(mk_grid) call MK_setup_grid(1,varraynp%array_var(neqd)%array)
-cc
-cc        if(mk_grid.and.mk_init_relax.and.itime==1) itime = 0
-cc#endif
-cc
-cc        inewtime = itime+1
-cc
-cc      endif
-cc
-ccc Impose BC on varrayn
-cc
-cc      call applyBC(varraynp,1,1,1)
-cc
-cc#if defined(MK)
-cc      if (mk_grid) call MK_applyBC(1,varraynp%array_var(neqd)%array)
-cc#endif
-cc
-ccc End program
-cc
-cc      contains
-cc
-cc#if !defined(adios)
-ccc     readRestartFile
-ccc     #################################################################
-cc      subroutine readRestartFile(nx,ny,nz,itime,time,vn,vnp)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Reads restart file
-ccc     -----------------------------------------------------------------
-cc
-cc      use variables
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer,intent(OUT) :: nx,ny,nz,itime
-cc      real(8),intent(OUT) :: time
-cc
-cc      type(var_array),pointer :: vn,vnp
-cc
-ccc     Local variables
-cc
-cc      integer    :: ierr
-cc
-cc      type(var_array),pointer :: vmed => null()
-cc
-ccc     Begin program
-cc
-ccc     Open restart files and check mesh sizes
-cc
-cc      call openBinFile(urecord,recordfile,status='old')
-cc
-cc      read (urecord) nx,ilog,ihig
-cc      read (urecord) ny,jlog,jhig
-cc      read (urecord) nz,klog,khig
-cc
-cc#if defined(petsc) 
-cc      if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
-cc#else
-cc      if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
-cc#endif
-cc        call pstop('initializeCalculation'
-cc     $            ,'Grid meshes do not agree; cannot restart')
-cc      endif
-cc
-ccc     Allocate intermediate variable
-cc
-cc      call allocateDerivedType(vmed)
-cc
-ccc     Read files
-cc
-cc      if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
-cc
-cc      ierr = readRecordFile(urecord,itime,time,dt,vn)
-cc
-cc      call equateDerivedType(vnp,vn)
-cc
-cc      do
-cc        ierr = readRecordFile(urecord,itime,time,dt,vmed)
-cc
-cc        if (ierr /= 0) then
-cc          exit
-cc        else
-cc          call equateDerivedType(vn ,vnp)
-cc          call equateDerivedType(vnp,vmed)
-cc        endif
-cc      enddo
-cc
-cc      if (my_rank == 0) write (*,*) ' Done!'
-cc
-ccc     End
-cc
-cc      close(urecord)
-cc
-cc      call deallocateDerivedType(vmed)
-cc
-cc      end subroutine readRestartFile
-cc
-cc#else
-cc
-ccc     readRestartFile
-ccc     #################################################################
-cc      subroutine readRestartFile(nx,ny,nz,itime,time,vn,vnp)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Reads restart file
-ccc     -----------------------------------------------------------------
-cc
-cc      use variables
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer   ,intent(OUT) :: nx,ny,nz,itime
-cc      real(8),intent(OUT)    :: time
-cc
-cc      type(var_array),pointer :: vn,vnp
-cc
-ccc     Local variables
-cc
-cc      integer    :: ierr
-cc
-cc      type(var_array),pointer :: vmed => null()
-cc
-ccc     Begin program
-cc
-cc      call allocateDerivedType(vmed)
-cc
-cc      call adios_init_noxml (adios_err)
-cc
-cc      ! allocate 100MB buffer for ADIOS
-cc      call adios_allocate_buffer (100,adios_err)
-cc
-cc      if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
-cc
-cc      call openRecordFileAdiosForRead(adios_err)
-cc
-cc      if (adios_err /= 0) then
-cc        call pstop('readRestartFile'
-cc     $            ,'Error reading ADIOS restart file')
-cc      endif
-cc
-cc      ierr = readRecordFile(urecord,itime,time,dt,vn)
-cc
-cc      call equateDerivedType(vnp,vn)
-cc
-cc      do
-cc        ierr = readRecordFile(urecord,itime,time,dt,vmed)
-cc
-cc        if (ierr /= 0) then
-cc          exit
-cc        else
-cc          call equateDerivedType(vn ,vnp)
-cc          call equateDerivedType(vnp,vmed)
-cc        endif
-cc      enddo
-cc
-cc      call closeRecordFileAdiosForRead(adios_err)
-cc
-cc      if (adios_err /= 0) then
-cc        call pstop('readRestartFile'
-cc     $            ,'Error closing ADIOS restart file')
-cc      endif
-cc
-cc      if (my_rank == 0) write (*,*) ' Done!'
-cc
-ccc     End
-cc
-cc      call deallocateDerivedType(vmed)
-cc
-cc      end subroutine readRestartFile
-cc#endif
-cc
-cc      end subroutine setInitialCondition
-
 c setInitialState
 c####################################################################
       subroutine setInitialState
@@ -421,21 +175,12 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine setEquilibrium(igx,igy,igz,varray)
+        subroutine setEquilibrium(igx,varray)
         use variable_setup
-        integer :: igx,igy,igz
+        integer :: igx
         type(var_array),pointer :: varray
         end subroutine setEquilibrium
       END INTERFACE
-
-cc      INTERFACE
-cc        subroutine applyBC (varray,iigx,iigy,iigz,obc)
-cc        use variable_setup
-cc        integer    :: iigx,iigy,iigz
-cc        integer,optional :: obc
-cc        type(var_array),pointer :: varray
-cc        end subroutine applyBC
-cc      END INTERFACE
 
       INTERFACE
         subroutine perturbEquilibrium(varray)
@@ -455,11 +200,11 @@ c Begin program
 
       igrid = 1
 
-      itime = 0 !Needed for BC logic
-
 c Create equilibrium u_0
 
-      call setEquilibrium(igrid,igrid,igrid,u_0)  !External
+      itime = 0 !Needed for BC logic
+
+      call setEquilibrium(igrid,u_0)  !External
 
 #if defined(MK)
       if (mk_grid) then
@@ -472,7 +217,7 @@ c Create equilibrium u_0
 
       call equateDerivedType(u_n,u_0)
 
-      call get_src(u_n)
+      call get_src(u_n)  !This also imposes BCs
 
 c Perturb equilibrium
 
@@ -481,12 +226,12 @@ c Perturb equilibrium
       if (.not.relax_init_grid) call perturbEquilibrium(u_np)
 
       time     = 0d0
-      itime    = 1   !Needed for BC logic
+cc      itime    = 1   !Needed for BC logic
       inewtime = 1
 
 c Impose BC (to initialize all auxiliary variables)
 
-      call applyBC(u_np,igrid,igrid,igrid)
+      call applyBC(igrid,u_np,it=1)
 
 #if defined(MK)
       if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
@@ -526,15 +271,6 @@ c Local variables
 
 c Interfaces
 
-cc      INTERFACE
-cc        subroutine applyBC (varray,iigx,iigy,iigz,obc)
-cc        use variable_setup
-cc        integer    :: iigx,iigy,iigz
-cc        integer,optional :: obc
-cc        type(var_array),pointer :: varray
-cc        end subroutine applyBC
-cc      END INTERFACE
-
       INTERFACE
         subroutine get_src(varray)
         use variable_setup
@@ -558,7 +294,7 @@ c Begin program
 
 c Impose BCs (to initialize all auxiliary variables)
 
-      call applyBC(u_np,igrid,igrid,igrid)
+      call applyBC(igrid,u_np,it=itime)
 
 #if defined(MK)
       if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
@@ -778,15 +514,6 @@ c Local variables
 
 c Interfaces
 
-cc      INTERFACE
-cc        subroutine applyBC (varray,iigx,iigy,iigz,obc)
-cc        use variable_setup
-cc        integer    :: iigx,iigy,iigz
-cc        integer,optional :: obc
-cc        type(var_array),pointer :: varray
-cc        end subroutine applyBC
-cc      END INTERFACE
-
 c Begin program
 
       igrid = 1
@@ -826,7 +553,7 @@ cc        endif
         ! do nothing at EQU boundaries, to preserve EQU BCs)
         call equateDerivedType(u_graph,u_0)
 
-        call applyBC(u_graph,igrid,igrid,igrid)!,obc=0)
+        call applyBC(igrid,u_graph,it=1)
 
 #if defined(MK)
         if (mk_grid)call MK_applyBC(igrid,u_graph%array_var(neqd)%array)

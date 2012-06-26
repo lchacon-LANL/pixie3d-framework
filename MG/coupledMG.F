@@ -4002,22 +4002,22 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer    :: neq,ntotc,nxc,nyc,nzc,ntotf,nxf,nyf,nzf,order,igc
-     .             ,bcnd(6,neq)
-      real(8)    :: xc(ntotc),xf(ntotf)
+      integer :: neq,ntotc,nxc,nyc,nzc,ntotf,nxf,nyf,nzf,order,igc
+     .          ,bcnd(6,neq)
+      real(8) :: xc(ntotc),xf(ntotf)
 
 c Local variables
  
-      real(8)    :: xxf(ntotf/neq,neq),car(3)
-     .             ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
+      real(8) :: xxf(ntotf/neq,neq),car(3)
+     .          ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
 
       real(8),allocatable :: arrayf(:,:,:,:),sp_sum(:,:)
      .                      ,dv_sum(:,:),l_sum(:,:)
 
-      integer    :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg
-     .             ,ieq,nntotc,nntotf,igf
+      integer :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg
+     .          ,ieq,nntotc,nntotf,igf
 
-      logical    :: cartesian,isvec,iscnv
+      logical :: cartesian,isvec,iscnv
 
 c Begin program
 
@@ -4030,9 +4030,9 @@ c Unpack vector into array
 
 c Impose boundary conditions (external)
 
-      isvec = (neq > 1)                   !Initialize isvec (may be modified by setMGBC)
+      isvec = (neq > 1)                 !Initialize isvec (may be modified by setMGBC)
 
-      cartesian = (bcSP() .and. neq > 1)  !Return Cartesian variables for prolongation
+      cartesian = (bcSP() .and. isvec)  !Return Cartesian variables for prolongation
 
       if (order > 0 .or. cartesian) then
         call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
@@ -4051,8 +4051,8 @@ c Perform average along azimuthal direction for SP configurations
         do ieq=1,neq
           do k=0,nzc+1
             sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,ieq)
-     .                        *gmetric%grid(igc)%dvol(1,1:nyc,k))
-            dv_sum(k,ieq)= sum(gmetric%grid(igc)%dvol(1,1:nyc,k))
+     .                        *gmetric%grid(igc)%dlvol(1,1:nyc,k))
+            dv_sum(k,ieq)= sum(gmetric%grid(igc)%dlvol(1,1:nyc,k))
           enddo
         enddo
 
@@ -4093,7 +4093,7 @@ c Prolong arrays (use scalar prolongation)
 
 cc        !Repack prolonged vector
 cc        do i=1,nntotf
-cc          xf(neq*(i-1)+ieq)=xxf(i)
+cc          xf(neq*(i-1)+ieq)=xxf(i,ieq)
 cc        enddo
 
       enddo
@@ -4281,29 +4281,6 @@ c     Interpolate
 
       endif
 
-ccc Postprocessing for SP systems
-cc
-cc      call limits(0,nxf,nyf,nzf,igf
-cc     .           ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf)
-cc
-cc      if (isSP(iminf,jminf,kminf,igf,igf,igf)) then
-cc
-cc        if = iminf
-cc
-cc        do kf = kminf,kmaxf
-cc          mag = 0d0
-cc          vol = 0d0
-cc          do jf = jminf,jmaxf
-cc            iif = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-cc
-cc            mag = mag + gmetric%grid(igf)%dvol(if,jf,kf)*xf(iif)
-cc            vol = vol + gmetric%grid(igf)%dvol(if,jf,kf)
-cc          enddo
-cc          xf(iif) = mag/vol
-cc        enddo
-cc
-cc      endif
-
 c End program
 
       call deallocPointers(fpointers)
@@ -4475,7 +4452,8 @@ cc        endif
                     iif = if + nxf*(jf-1) + nxf*nyf*(kf-1)
 
                     if (.not.volw) then
-                      vol = gmetric%grid(igf)%dvol(if,jf,kf)
+cc                      vol = gmetric%grid(igf)%dvol(if,jf,kf)
+                      vol = gmetric%grid(igf)%dlvol(if,jf,kf)  !Logical volume
                       xc(iic) = xc(iic) + xf(iif)*vol
                       volt = volt + vol
                     else
@@ -4488,7 +4466,8 @@ cc        endif
 
 cc              if (.not.volw) xc(iic) = xc(iic)/volt
               if (.not.volw) xc(iic) = xc(iic)
-     .                                /gmetric%grid(igc)%dvol(ic,jc,kc)
+cc     .                                /gmetric%grid(igc)%dvol(ic,jc,kc)
+     .                                /gmetric%grid(igc)%dlvol(ic,jc,kc)
 
             enddo
           enddo
@@ -4533,7 +4512,8 @@ cc          endif
                 call getMGmap(if,jf,kf,igf,igf,igf,ifg,jfg,kfg)
 
                 arrayf(if,jf,kf) = arrayf(if,jf,kf)
-     .                            /gmetric%grid(igf)%dvol(if,jf,kf)
+cc     .                            /gmetric%grid(igf)%dvol(if,jf,kf)
+     .                            /gmetric%grid(igf)%dlvol(if,jf,kf)
               enddo
             enddo
           enddo
@@ -4630,7 +4610,8 @@ c     Calculate interpolation
      .                        ,kx,ky,kz,bcoef,work)
               endif
 
-              if (volw) xc(iic)=xc(iic)*gmetric%grid(igc)%dvol(ic,jc,kc)
+cc              if (volw) xc(iic)=xc(iic)*gmetric%grid(igc)%dvol(ic,jc,kc)
+              if(volw) xc(iic)=xc(iic)*gmetric%grid(igc)%dlvol(ic,jc,kc)
 
             enddo
           enddo

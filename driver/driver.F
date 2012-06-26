@@ -284,7 +284,6 @@ c     Time level data dump
 cc          if (source) call get_src(u_np,.true.)  !Update source with interpolated equilibrium
           call equateDerivedType (u_n,u_np)     !Save interpolated (unperturbed) equilibrium
           call perturbEquilibrium(u_np)         !Perturb interpolated equilibrium
-cc          call applyBC(u_np,1,1,1)
         endif
 
       enddo       !End of time loop
@@ -396,15 +395,6 @@ c Interfaces
         end subroutine explicit
       END INTERFACE
 
-cc      INTERFACE
-cc        subroutine applyBC(varray,iigx,iigy,iigz,obc)
-cc        use variable_setup
-cc        integer    :: iigx,iigy,iigz
-cc        integer,optional :: obc
-cc        type(var_array),pointer :: varray
-cc        end subroutine applyBC
-cc      END INTERFACE
-
 c Begin program
 
       ierr = 0
@@ -468,7 +458,7 @@ c     Map Newton solution to vnp (if no error)
         if (ierr.eq.0.or.ierr.eq.2) then
           call mapVectorToStructure(vnp,x)
 
-          call applyBC(vnp,1,1,1)
+          call applyBC(1,vnp,it=itime)
 
 #if defined(MK)
           if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
@@ -485,7 +475,7 @@ c Explicit update
 
         call explicit(vnp,itgmres,ilevel)
 
-        call applyBC(vnp,1,1,1)
+        call applyBC(1,vnp,it=itime)
 
 #if defined(MK)
         if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
@@ -560,15 +550,6 @@ c Interfaces
         real(8),dimension(n) :: x,y
         end subroutine
       END INTERFACE
-
-cc      INTERFACE
-cc        subroutine applyBC(varray,iigx,iigy,iigz,obc)
-cc        use variable_setup
-cc        integer    :: iigx,iigy,iigz
-cc        integer,optional :: obc
-cc        type(var_array),pointer :: varray
-cc        end subroutine applyBC
-cc      END INTERFACE
 
 c Begin program
 

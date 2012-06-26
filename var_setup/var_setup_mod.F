@@ -768,6 +768,63 @@ c     End program
 
       end subroutine scatterVector
 
+c     scaleVector_by_vol
+c     ###################################################################
+      function scaleVector_by_vol(igr,neq,vec1,op) result(vec2)
+
+c     -------------------------------------------------------------------
+c     Scales vec1 by volume ( vec2=vec1/vol on the mesh. In call:
+c       * igr: grid level
+c       * neq: number of variables contained in vectors.
+c       * vec1: input vector
+c       * op: operation ('mul','div')
+c       * vec2: return vector
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igr,neq
+      real(8) :: vec1(:),vec2(size(vec1))
+      character(3) :: op
+
+c     Local variables
+
+      integer :: i,j,k,iii,ieq,nnx,nny,nnz
+
+c     Begin program
+
+      nnx = grid_params%nxv(igr)
+      nny = grid_params%nyv(igr)
+      nnz = grid_params%nzv(igr)
+
+      select case(op)
+      case('mul')
+        do k=1,nnz
+          do j=1,nny
+            do i=1,nnx
+              do ieq=1,neq
+                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
+                vec2(iii) = vec1(iii)*gmetric%grid(igr)%dlvol(i,j,k)
+              enddo
+            enddo
+          enddo
+        enddo
+      case('div')
+        do k=1,nnz
+          do j=1,nny
+            do i=1,nnx
+              do ieq=1,neq
+                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
+                vec2(iii) = vec1(iii)/gmetric%grid(igr)%dlvol(i,j,k)
+              enddo
+            enddo
+          enddo
+        enddo
+      end select
+
+      end function scaleVector_by_vol
 
 c     allocateStructures
 c     #################################################################

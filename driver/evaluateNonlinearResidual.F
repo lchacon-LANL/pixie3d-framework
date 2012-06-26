@@ -104,16 +104,13 @@ c Calculate residuals
 #if defined(MK)
               if (mk_grid.and.(.not.mk_nc)) then
               !Moving grid case
-                dvol = grid_params%dxh(ig)
-     .                *grid_params%dyh(jg)
-     .                *grid_params%dzh(kg)
+                dvol = gmetric%grid(igrid)%dlvol(i,j,k) !Logical volume
               else
               !Fixed grid case
                 dvol = gmetric%grid(igrid)%dvol(i,j,k)
               endif
 #else
-              dvol = gmetric%grid(igrid)%dvol(i,j,k)
-     .              /gmetric%grid(igrid)%jac (i,j,k)
+              dvol = gmetric%grid(igrid)%dlvol(i,j,k)  !Logical volume
 #endif
               f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*dvol
             endif

@@ -713,22 +713,22 @@ c       ANALYTICAL QUANTITIES **********************************
                 call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
                 if (gparams%nxgl(igrid) > 1)
-     .               gparams%gmetric%grid(igrid)%dvol(i,j,k) =
+     .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
      .                           gparams%dxh(ig)
 
                 if (gparams%nygl(igrid) > 1)
-     .               gparams%gmetric%grid(igrid)%dvol(i,j,k) =
-     .               gparams%gmetric%grid(igrid)%dvol(i,j,k) *
+     .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+     .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
      .                           gparams%dyh(jg)
 
                 if (gparams%nzgl(igrid) > 1)
-     .               gparams%gmetric%grid(igrid)%dvol(i,j,k) =
-     .               gparams%gmetric%grid(igrid)%dvol(i,j,k) *
+     .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+     .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
      .                           gparams%dzh(kg)
 
                 gparams%gmetric%grid(igrid)%dvol(i,j,k)=
-     .                           gparams%gmetric%grid(igrid)%jac(i,j,k)
-     .                          *gparams%gmetric%grid(igrid)%dvol(i,j,k)
+     .                          gparams%gmetric%grid(igrid)%jac(i,j,k)
+     .                         *gparams%gmetric%grid(igrid)%dlvol(i,j,k)
               enddo
             enddo
           enddo
@@ -1466,22 +1466,22 @@ c     Evaluate grid quantities
               call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
               if (gparams%nxgl(igrid) > 1)
-     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) =
+     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
      .                         gparams%dxh(ig)
 
               if (gparams%nygl(igrid) > 1)
-     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) =
-     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) *
+     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
      .                         gparams%dyh(jg)
 
               if (gparams%nzgl(igrid) > 1)
-     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) =
-     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) *
+     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
      .                         gparams%dzh(kg)
 
               gparams%gmetric%grid(igrid)%dvol(i,j,k)=
-     .                           gparams%gmetric%grid(igrid)%jac(i,j,k)
-     .                          *gparams%gmetric%grid(igrid)%dvol(i,j,k)
+     .                          gparams%gmetric%grid(igrid)%jac(i,j,k)
+     .                         *gparams%gmetric%grid(igrid)%dlvol(i,j,k)
 
 cc              !Christoffel symbols (OLD) <<<<<<<<<<<<<<<<<<
 cc              do l=1,3

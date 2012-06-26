@@ -16,271 +16,11 @@ c     Hardwired BC configuration parameters
 
       contains
 
-#if defined(samrai)
-
-c     applybc
-c     #################################################################
-      subroutine applybc(patch_var,nbc_seq,bc_seq)
-
-c     -----------------------------------------------------------------
-c     Applies the boundary conditions for SAMRAI
-c     -----------------------------------------------------------------
-
-cc      use local_BCS_variables
-cc
-cc      use imposeBCinterface
-cc
-cc      use auxiliaryVariables
-cc
-cc      use variable_setup
-
-      implicit none
-
-c     Call variables
-
-      integer :: nbc_seq, bc_seq(nbc_seq,3)
-      type(patch), TARGET :: patch_var
-
-c     Local variables
-
-      integer :: i
-      type(var_array),pointer :: varray => null()
-
-c     Interfaces
-
-      INTERFACE
-        subroutine applyDepVarBC(bc_inf,varray,iigx,iigy,iigz,order)
-          use variable_setup
-          integer    :: iigx,iigy,iigz,bc_inf(2)
-          type(var_array),pointer :: varray
-          integer,optional :: order
-        end subroutine applyDepVarBC
-      END INTERFACE
-
-      INTERFACE
-        subroutine applyAuxVarBC(bc_inf,varray,vaux,iigx,iigy,iigz
-     .                          ,order)
-          use variable_setup
-          integer    :: iigx,iigy,iigz,bc_inf(2)
-          type(var_array),pointer :: varray
-          type(aux_array),pointer :: vaux
-          integer,optional :: order
-        end subroutine applyAuxVarBC
-      END INTERFACE
-
-c     Begin program
-
-c     Setup pointers
-
-      gv => patch_var
-      grid_params => gv%gparams
-      gmetric => gv%gparams%gmetric
-      call setVectorDimensions
-
-      varray => gv%u_n
-      u_0    => gv%u_0
-
-      call allocAuxVariables(gv%aux)
-
-c     Set boundary conditions
-
-      !Impose BCs on group
-      do i = 1,nbc_seq
-        if (bc_seq(i,1)*AUX < 0) then !Process dep. variable
-          call applyDepVarBC(bc_seq(i,:),varray
-     .                      ,1,1,1,order=bc_order)
-        elseif (bc_seq(i,1)*AUX > 0) then !Process aux. variable
-          call applyAuxVarBC(bc_seq(i,:),varray,gv%aux
-     .                      ,1,1,1,order=bc_order)
-        endif
-      enddo
-
-c     Nullify aux pointers
-
-      call deallocLocalAuxVars
-
-c     End program
-
-      end subroutine applybc
-
-c     postproc
-c     #################################################################
-      subroutine postproc(patch_var,nbc_seq,bc_seq)
-
-c     -----------------------------------------------------------------
-c     Applies the postprocessor for SAMRAI
-c     -----------------------------------------------------------------
-
-cc      use local_BCS_variables
-cc      use imposeBCinterface
-cc      use auxiliaryVariables
-cc      use variable_setup
-      implicit none
-
-c     Call variables
-
-      integer :: nbc_seq, bc_seq(nbc_seq,3)
-      type(patch), TARGET :: patch_var
-
-c     Local variables
-
-      integer :: i
-      type(var_array),pointer :: varray => null()
-
-c     Interfaces
-
-      INTERFACE
-        subroutine postproc_AuxVar(bc_inf,varray,vaux,iigx,iigy,iigz)
-          use variable_setup
-          integer    :: iigx,iigy,iigz,bc_inf(2)
-          type(var_array),pointer :: varray
-          type(aux_array),pointer :: vaux
-        end subroutine postproc_AuxVar
-      END INTERFACE
-
-c     Begin program
-
-c     Setup pointers
-
-      gv => patch_var
-      grid_params => gv%gparams
-      gmetric => gv%gparams%gmetric
-      call setVectorDimensions
-      varray => gv%u_n
-      u_0    => gv%u_0
-      call allocAuxVariables(gv%aux)
-
-c     Postprocess auxiliary quantities
-
-      do i = 1,nbc_seq
-        if (bc_seq(i,1)*AUX > 0) then
-          call postproc_AuxVar(bc_seq(i,:),varray,gv%aux,1,1,1)
-        endif
-      enddo
-
-c     Nullify aux pointers
-
-      call deallocLocalAuxVars
-
-c     End program
-
-      end subroutine postproc
-
-c     initializeAuxVar
-c     #################################################################
-      subroutine initializeAuxVar(patch_var,igrp)
-
-c     -----------------------------------------------------------------
-c     Fills auxiliary variable arrays
-c     -----------------------------------------------------------------
-
-cc      use local_BCS_variables
-cc      use parameters
-cc      use grid
-cc      use variable_setup
-
-      implicit none
-
-c     Call variables
-
-      type(patch), TARGET :: patch_var
-      integer:: igrp,i
-
-c     Local variables
-
-      type(var_array),pointer :: varray => null()
-
-      INTERFACE
-      subroutine preproc_AuxVar(bc_inf,varray,vaux,iigx,iigy,iigz,order)
-        use variable_setup
-        integer    :: iigx,iigy,iigz,bc_inf(2)             
-        type(var_array),pointer :: varray
-        type(aux_array),pointer :: vaux               
-        integer,optional :: order
-       end subroutine preproc_AuxVar
-      END INTERFACE
-
-c     Begin program
-
-c     Setup pointers
-
-      gv => patch_var
-      grid_params => gv%gparams
-      gmetric => gv%gparams%gmetric
-      call setVectorDimensions
-
-      varray => gv%u_n
-      u_0    => gv%u_0
-
-      call allocAuxVariables(gv%aux)
-
-c     Fill auxiliary variable arrays
-
-      do i = 1,gv%bc_grp(igrp)%nbc_seq
-        if (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then
-          call preproc_AuxVar(gv%bc_grp(igrp)%bc_seq(i,:),varray
-     .                       ,gv%aux,1,1,1,order=bc_order)
-        endif
-      enddo
-
-c     Nullify pointers
-
-cc      call deallocAuxVariables(gv%aux)
-      call deallocLocalAuxVars
-
-      end subroutine initializeAuxVar
-
-c     setupVarInitSeq
-c     #################################################################
-      subroutine setupVarInitSeq(patch_var,it)
-c     -----------------------------------------------------------------
-c     Sets up application BC for SAMRAI
-c     -----------------------------------------------------------------
-
-cc      use parameters
-cc      use grid
-cc      use variable_setup
-cc      use local_BCS_variables
-
-      implicit none
-
-c     Call variables
-
-      integer :: it
-
-      type(patch), TARGET :: patch_var
-
-c     Local variables
-
-      INTERFACE
-        subroutine setAppBCs(varray,vaux)
-          use variable_setup
-          type(var_array),pointer :: varray
-          type(aux_array),pointer :: vaux
-        end subroutine setAppBCs
-      END INTERFACE
-
-c     Begin program
-
-      gv => patch_var
-
-c     Set application BCs (external)
-
-      call setAppBCs(gv%u_n,gv%aux)
-
-c     Set BC schedule
-
-      call setBCsched(gv%u_n,gv%aux,it)
-
-c     End program
-
-      end subroutine setupVarInitSeq
-
-#else
+#if !defined(samrai)
 
 c applyBC
 c     ###############################################################
-      subroutine applyBC(varray,iigx,iigy,iigz,obc)
+      subroutine applyBC(igr,varray,it)
 c     ---------------------------------------------------------------
 c     Sets adequate boundary conditions on array structure varray.
 c     ---------------------------------------------------------------
@@ -289,31 +29,30 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer :: iigx,iigy,iigz
-      integer,optional :: obc
+      integer :: igr
+      integer,optional :: it
 
       type(var_array),pointer :: varray
 
 c     Local variables
 
-      integer :: i,order,igrp,it=0
+      integer :: i,order,igrp,itm
 
 c     Interfaces
 
       INTERFACE
-        subroutine applyDepVarBC(bc_inf,varray,iigx,iigy,iigz,order)
+        subroutine applyDepVarBC(igr,bc_inf,varray,order)
           use variable_setup
-          integer    :: iigx,iigy,iigz,bc_inf(2)
+          integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           integer,optional :: order
         end subroutine applyDepVarBC
       END INTERFACE
 
       INTERFACE
-        subroutine applyAuxVarBC(bc_inf,varray,vaux,iigx,iigy,iigz
-     .                          ,order)
+        subroutine applyAuxVarBC(igr,bc_inf,varray,vaux,order)
           use variable_setup
-          integer    :: iigx,iigy,iigz,bc_inf(2)
+          integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
           integer,optional :: order
@@ -321,10 +60,9 @@ c     Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine preproc_AuxVar(bc_inf,varray,vaux,iigx,iigy,iigz
-     .                          ,order)
+        subroutine preproc_AuxVar(igr,bc_inf,varray,vaux,order)
           use variable_setup
-          integer    :: iigx,iigy,iigz,bc_inf(2)
+          integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
           integer,optional :: order
@@ -332,9 +70,9 @@ c     Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine postproc_AuxVar(bc_inf,varray,vaux,iigx,iigy,iigz)
+        subroutine postproc_AuxVar(igr,bc_inf,varray,vaux)
           use variable_setup
-          integer    :: iigx,iigy,iigz,bc_inf(2)
+          integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
         end subroutine postproc_AuxVar
@@ -350,11 +88,13 @@ c     Interfaces
 
 c     Begin program
 
-      if (PRESENT(obc)) then
-        order = obc
+      if (PRESENT(it)) then
+        itm = it
       else
-        order = bc_order     !Order of extrapolation in BCs (defined in imposeBC_mod.F)
+        itm = 0
       endif
+
+      order = bc_order
 
 c     Set application BCs (external)
 
@@ -362,7 +102,7 @@ c     Set application BCs (external)
 
 c     Set BC schedule
 
-      call setBCsched(varray,gv%aux,it)
+      call setBCsched(varray,gv%aux,itm)
 
 c     Impose BCs
 
@@ -370,39 +110,39 @@ c     Impose BCs
         !Fill auxiliary quantities
         do i = 1,gv%bc_grp(igrp)%nbc_seq
           if (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then
-            call preproc_AuxVar(gv%bc_grp(igrp)%bc_seq(i,:),varray
-     .                         ,gv%aux,iigx,iigy,iigz,order=order)
+            call preproc_AuxVar(igr,gv%bc_grp(igrp)%bc_seq(i,:),varray
+     .                         ,gv%aux,order=order)
           endif
         enddo
 
         !Impose BCs on group
         do i = 1,gv%bc_grp(igrp)%nbc_seq
           if (gv%bc_grp(igrp)%bc_seq(i,1)*AUX < 0) then     !Process dep. variables
-            call applyDepVarBC(gv%bc_grp(igrp)%bc_seq(i,:),varray
-     .                        ,iigx,iigy,iigz,order=order)
+            call applyDepVarBC(igr,gv%bc_grp(igrp)%bc_seq(i,:),varray
+     .                        ,order=order)
           elseif (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then !Process aux. variables
-            call applyAuxVarBC(gv%bc_grp(igrp)%bc_seq(i,:),varray,gv%aux
-     .                        ,iigx,iigy,iigz,order=order)
+            call applyAuxVarBC(igr,gv%bc_grp(igrp)%bc_seq(i,:),varray
+     .                        ,gv%aux,order=order)
           endif
         enddo
 
         !Postprocess auxiliary quantities
         do i = 1,gv%bc_grp(igrp)%nbc_seq
           if (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then
-            call postproc_AuxVar(gv%bc_grp(igrp)%bc_seq(i,:),varray
-     .                          ,gv%aux,iigx,iigy,iigz)
+            call postproc_AuxVar(igr,gv%bc_grp(igrp)%bc_seq(i,:),varray
+     .                          ,gv%aux)
           endif
         enddo
 
       enddo
 
-c End program
+c     End program
 
       end subroutine applyBC
 
 c     applyBCplot
 c     ##############################################################
-      subroutine applyBCplot(igrid,varray)
+      subroutine applyBCplot(igr,varray,it)
 c     ---------------------------------------------------------------
 c     Sets adequate boundary conditions on array structure varray.
 c     ---------------------------------------------------------------
@@ -411,20 +151,20 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer :: igrid
+      integer :: igr
       type(var_array),pointer :: varray
+      integer, optional :: it
 
 c     Local variables
 
-      integer :: i,order,igrp,it=0
+      integer :: i,order,igrp,itm
 
 c     Interfaces
 
       INTERFACE
-        subroutine preproc_AuxVar(bc_inf,varray,vaux,iigx,iigy,iigz
-     .                          ,order)
+        subroutine preproc_AuxVar(igr,bc_inf,varray,vaux,order)
           use variable_setup
-          integer    :: iigx,iigy,iigz,bc_inf(2)
+          integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
           integer,optional :: order
@@ -432,9 +172,9 @@ c     Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine postproc_AuxVar(bc_inf,varray,vaux,iigx,iigy,iigz)
+        subroutine postproc_AuxVar(igr,bc_inf,varray,vaux)
           use variable_setup
-          integer    :: iigx,iigy,iigz,bc_inf(2)
+          integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
         end subroutine postproc_AuxVar
@@ -449,6 +189,12 @@ c     Interfaces
       END INTERFACE
 
 c     Begin program
+
+      if (PRESENT(it)) then
+        itm = it
+      else
+        itm = 0
+      endif
 
       order = bc_order          !Order of extrapolation in BCs (defined in imposeBC_mod.F)
 
@@ -458,7 +204,7 @@ c     Set application BCs (external)
 
 c     Set BC schedule
 
-      call setBCsched(varray,gv%aux,it)
+      call setBCsched(varray,gv%aux,itm)
 
 c     Impose BCs
 
@@ -466,16 +212,16 @@ c     Impose BCs
         !Fill auxiliary quantities
         do i = 1,gv%bc_grp(igrp)%nbc_seq
           if (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then
-            call preproc_AuxVar(gv%bc_grp(igrp)%bc_seq(i,:),varray
-     .                         ,gv%aux,igrid,igrid,igrid,order=order)
+            call preproc_AuxVar(igr,gv%bc_grp(igrp)%bc_seq(i,:),varray
+     .                         ,gv%aux,order=order)
           endif
         enddo
 
         !Postprocess auxiliary quantities
         do i = 1,gv%bc_grp(igrp)%nbc_seq
           if (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then
-            call postproc_AuxVar(gv%bc_grp(igrp)%bc_seq(i,:),varray
-     .                          ,gv%aux,igrid,igrid,igrid)
+            call postproc_AuxVar(igr,gv%bc_grp(igrp)%bc_seq(i,:),varray
+     .                          ,gv%aux)
           endif
         enddo
 
@@ -520,16 +266,15 @@ c     Local variables
 
 c     Begin program
 
-      call setbcsched_app
-      return
-
 #if defined(samrai)
       call create_bc_schedule(varray,vaux,gv%nbc_grp,gv%bc_grp
      .                       ,.true.,.false.,.false.,.false.)
 #else
+cc      call setbcsched_app  !Application-specific scheduler
+cc      return
       call create_bc_schedule(varray,vaux,gv%nbc_grp,gv%bc_grp
      .                       ,.false.,.false.,.false.,.false.)
-cc     .                       ,.false.,.false.,(itime==0),.false.)
+cc     .                       ,.false.,.false.,(it==0),.false.)
 #endif
 
 c     End program
@@ -541,20 +286,26 @@ c     ######################################################################
       subroutine create_bc_schedule(u,aux,nbc_grp,bc_grp,inherit
      .                             ,interior_only,print_used,reverse)
 
+c     ----------------------------------------------------------------------
+c     Creates BC schedule based on dependencies within domain and at
+c     boundaries. Input/output explained below.  Contributed by Mark
+c     Berrill, 2011
+c     ----------------------------------------------------------------------
+
       implicit none
 
 c     Call variables
 
       !Input variables
-      type(var_array) :: u        ! We need nvar, bc_dep_list, dom_dep_list, descr for each variable
-      type(aux_array) :: aux      ! We need nvar, nvec, bc_dep_list, dom_dep_list, descr for each variable
+      type(var_array) :: u    ! We need nvar, bc_dep_list, dom_dep_list, descr for each variable
+      type(aux_array) :: aux  ! We need nvar, nvec, bc_dep_list, dom_dep_list, descr for each variable
 
-      logical :: inherit          ! Do we want to inherit the dependencies for the groups (set to false)
-      logical :: interior_only    ! Do we want to allow some variables to fill interiors only
-                                  !     (potential performance increase if true)
-      logical :: print_used       ! Do we want to print how the variables are used
-      logical :: reverse          ! Do we want to reverse the default order within a group
-                                  !     (useful for debugging, dependencies will always be preserved)
+      logical :: inherit      ! Do we want to inherit the dependencies for the groups (set to false)
+      logical :: interior_only! Do we want to allow some variables to fill interiors only
+                              !     (potential performance increase if true)
+      logical :: print_used   ! Do we want to print how the variables are used
+      logical :: reverse      ! Do we want to reverse the default order within a group
+                              !     (useful for debugging, dependencies will always be preserved)
 
       !Output variables
       integer :: nbc_grp                    ! Number of boundary condition groups
@@ -1259,3 +1010,279 @@ c #####################################################################
         use variables_bc
 
       end module variables
+
+#if defined(samrai)
+c     applybc
+c     #################################################################
+      subroutine applybc(patch_var,nbc_seq,bc_seq)
+
+c     -----------------------------------------------------------------
+c     Applies the boundary conditions for SAMRAI
+c     -----------------------------------------------------------------
+
+      use variables
+
+      implicit none
+
+c     Call variables
+
+      integer :: nbc_seq, bc_seq(nbc_seq,3)
+      type(patch), TARGET :: patch_var
+
+c     Local variables
+
+      integer :: i
+      type(var_array),pointer :: varray => null()
+
+c     Interfaces
+
+      INTERFACE
+        subroutine applyDepVarBC(igr,bc_inf,varray,order)
+          use variable_setup
+          integer    :: igr,bc_inf(2)
+          type(var_array),pointer :: varray
+          integer,optional :: order
+        end subroutine applyDepVarBC
+      END INTERFACE
+
+      INTERFACE
+        subroutine applyAuxVarBC(igr,bc_inf,varray,vaux,order)
+          use variable_setup
+          integer    :: igr,bc_inf(2)
+          type(var_array),pointer :: varray
+          type(aux_array),pointer :: vaux
+          integer,optional :: order
+        end subroutine applyAuxVarBC
+      END INTERFACE
+
+      INTERFACE
+        subroutine setAppBCs(varray,vaux)
+          use variable_setup
+          type(var_array),pointer :: varray
+          type(aux_array),pointer :: vaux
+        end subroutine setAppBCs
+      END INTERFACE
+
+c     Begin program
+
+c     Setup pointers
+
+      gv => patch_var
+      grid_params => gv%gparams
+      gmetric => gv%gparams%gmetric
+      call setVectorDimensions
+
+      varray => gv%u_n
+      u_0    => gv%u_0
+
+      call setAppBCs(varray,gv%aux)
+cc      call allocAuxVariables(gv%aux)
+
+c     Set boundary conditions
+
+      !Impose BCs on group
+      do i = 1,nbc_seq
+        if (bc_seq(i,1)*AUX < 0) then !Process dep. variable
+          call applyDepVarBC(1,bc_seq(i,:),varray,order=bc_order)
+        elseif (bc_seq(i,1)*AUX > 0) then !Process aux. variable
+          call applyAuxVarBC(1,bc_seq(i,:),varray,gv%aux
+     .                      ,order=bc_order)
+        endif
+      enddo
+
+c     Nullify aux pointers
+
+cc      call deallocLocalAuxVars
+      call destroyAppBCs
+
+c     End program
+
+      end subroutine applybc
+
+c     postproc
+c     #################################################################
+      subroutine postproc(patch_var,nbc_seq,bc_seq)
+
+c     -----------------------------------------------------------------
+c     Applies the postprocessor for SAMRAI
+c     -----------------------------------------------------------------
+
+      use variables
+
+      implicit none
+
+c     Call variables
+
+      integer :: nbc_seq, bc_seq(nbc_seq,3)
+      type(patch), TARGET :: patch_var
+
+c     Local variables
+
+      integer :: i
+      type(var_array),pointer :: varray => null()
+
+c     Interfaces
+
+
+      INTERFACE
+        subroutine preproc_AuxVar(igr,bc_inf,varray,vaux,order)
+          use variable_setup
+          integer    :: igr,bc_inf(2)
+          type(var_array),pointer :: varray
+          type(aux_array),pointer :: vaux
+          integer,optional :: order
+        end subroutine preproc_AuxVar
+      END INTERFACE
+
+      INTERFACE
+        subroutine setAppBCs(varray,vaux)
+          use variable_setup
+          type(var_array),pointer :: varray
+          type(aux_array),pointer :: vaux
+        end subroutine setAppBCs
+      END INTERFACE
+
+c     Begin program
+
+c     Setup pointers
+
+      gv => patch_var
+      grid_params => gv%gparams
+      gmetric => gv%gparams%gmetric
+      call setVectorDimensions
+      varray => gv%u_n
+      u_0    => gv%u_0
+
+      call setAppBCs(varray,gv%aux)
+cc      call allocAuxVariables(gv%aux)
+
+c     Postprocess auxiliary quantities
+
+      do i = 1,nbc_seq
+        if (bc_seq(i,1)*AUX > 0) then
+          call postproc_AuxVar(1,bc_seq(i,:),varray,gv%aux)
+        endif
+      enddo
+
+c     Nullify aux pointers
+
+cc      call deallocLocalAuxVars
+      call destroyAppBCs
+
+c     End program
+
+      end subroutine postproc
+
+c     initializeAuxVar
+c     #################################################################
+      subroutine initializeAuxVar(patch_var,igrp)
+
+c     -----------------------------------------------------------------
+c     Fills auxiliary variable arrays
+c     -----------------------------------------------------------------
+
+      use variables
+
+      implicit none
+
+c     Call variables
+
+      type(patch), TARGET :: patch_var
+      integer:: igrp,i
+
+c     Local variables
+
+      type(var_array),pointer :: varray => null()
+
+      INTERFACE
+        subroutine postproc_AuxVar(igr,bc_inf,varray,vaux)
+          use variable_setup
+          integer    :: igr,bc_inf(2)
+          type(var_array),pointer :: varray
+          type(aux_array),pointer :: vaux
+        end subroutine postproc_AuxVar
+      END INTERFACE
+
+      INTERFACE
+        subroutine setAppBCs(varray,vaux)
+          use variable_setup
+          type(var_array),pointer :: varray
+          type(aux_array),pointer :: vaux
+        end subroutine setAppBCs
+      END INTERFACE
+
+c     Begin program
+
+c     Setup pointers
+
+      gv => patch_var
+      grid_params => gv%gparams
+      gmetric => gv%gparams%gmetric
+      call setVectorDimensions
+
+      varray => gv%u_n
+      u_0    => gv%u_0
+
+      call setAppBCs(varray,gv%aux)
+cc      call allocAuxVariables(gv%aux)
+
+c     Fill auxiliary variable arrays
+
+      do i = 1,gv%bc_grp(igrp)%nbc_seq
+        if (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then
+          call preproc_AuxVar(1,gv%bc_grp(igrp)%bc_seq(i,:),varray
+     .                       ,gv%aux,order=bc_order)
+        endif
+      enddo
+
+c     Nullify pointers
+
+cc      call deallocAuxVariables(gv%aux)
+      call destroyAppBCs
+
+      end subroutine initializeAuxVar
+
+c     setupVarInitSeq
+c     #################################################################
+      subroutine setupVarInitSeq(patch_var,it)
+c     -----------------------------------------------------------------
+c     Sets up application BC for SAMRAI
+c     -----------------------------------------------------------------
+
+      use variables
+
+      implicit none
+
+c     Call variables
+
+      integer :: it
+
+      type(patch), TARGET :: patch_var
+
+c     Local variables
+
+      INTERFACE
+        subroutine setAppBCs(varray,vaux)
+          use variable_setup
+          type(var_array),pointer :: varray
+          type(aux_array),pointer :: vaux
+        end subroutine setAppBCs
+      END INTERFACE
+
+c     Begin program
+
+      gv => patch_var
+
+c     Set application BCs (external)
+
+      call setAppBCs(gv%u_n,gv%aux)
+
+c     Set BC schedule
+
+      call setBCsched(gv%u_n,gv%aux,it)
+
+c     End program
+
+      end subroutine setupVarInitSeq
+
+#endif

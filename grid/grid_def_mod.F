@@ -17,7 +17,8 @@ c #####################################################################
           sequence
 #endif
           real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
-          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
+          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell physical volume
+          real(8),pointer,dimension(:,:,:)       :: dlvol !Local cell logical volume
           real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
@@ -679,6 +680,8 @@ c     Begin program
             allocate(gmetric%grid(igrid)
      $           %dvol (ilom:ihip,jlom:jhip,klom:khip))
             allocate(gmetric%grid(igrid)
+     $           %dlvol(ilom:ihip,jlom:jhip,klom:khip))
+            allocate(gmetric%grid(igrid)
      $           %jac  (ilom:ihip,jlom:jhip,klom:khip))
             allocate(gmetric%grid(igrid)
      $           %gsub (ilom:ihip,jlom:jhip,klom:khip,3,3))
@@ -738,6 +741,7 @@ c     Begin program
         do igrid=1,gparams%ngrid
           gmetric2%grid(igrid)%car  = gmetric1%grid(igrid)%car  
           gmetric2%grid(igrid)%dvol = gmetric1%grid(igrid)%dvol 
+          gmetric2%grid(igrid)%dlvol= gmetric1%grid(igrid)%dlvol 
           gmetric2%grid(igrid)%jac  = gmetric1%grid(igrid)%jac  
           gmetric2%grid(igrid)%gsub = gmetric1%grid(igrid)%gsub 
           gmetric2%grid(igrid)%gsup = gmetric1%grid(igrid)%gsup 
@@ -777,6 +781,7 @@ c     Begin program
           do igrid=1,size(gmetric%grid)
             deallocate(gmetric%grid(igrid)%car)
             deallocate(gmetric%grid(igrid)%dvol)
+            deallocate(gmetric%grid(igrid)%dlvol)
             deallocate(gmetric%grid(igrid)%jac)
             deallocate(gmetric%grid(igrid)%gsub)
             deallocate(gmetric%grid(igrid)%gsup)

@@ -4236,7 +4236,7 @@ c     Assemble divergence of tensor
       endif
 
       !Volume factor
-      if (vol_wgt) divt=divt*gmetric%grid(igrid)%dvol(i,j,k)
+      if (vol_wgt) divt=divt*gmetric%grid(igrid)%dlvol(i,j,k)  !Logical volume
 
 c     End program
 
