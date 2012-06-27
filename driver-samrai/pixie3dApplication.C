@@ -614,13 +614,19 @@ void pixie3dApplication::setInitialConditions( const double )
             tbox::Pointer<hier::Patch> patch = *p;
             tbox::Pointer< pdat::CellData<double> > tmp = patch->getPatchData(f_src_id);
             double *fsrc = tmp->getPointer();
-            int n_elem = patch->getBox().size()*tmp->getDepth();
+            int n_elem = tmp->getGhostBox().size()*tmp->getDepth();
             // Form Initial Conditions
             #ifdef absoft
                 FORTRAN_NAME(FORMINITIALCONDITION)(level_container->getPtr(patch),&n_elem,fsrc);
             #else
                 FORTRAN_NAME(forminitialcondition)(level_container->getPtr(patch),&n_elem,fsrc);
             #endif
+            // Check src for nans
+            double *data = tmp->getPointer();
+            for (int j=0; j<n_elem; j++) {
+                if ( data[j]!=data[j] )
+                    TBOX_ERROR("NaNs detected in fsrc");
+            }
         }
     }
 
@@ -680,6 +686,10 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
                double, double)
 {
     PROFILE_START("apply");
+    int N_levels = d_hierarchy->getNumberOfLevels();
+    x->resetLevels(0,N_levels-1);
+    r->resetLevels(0,N_levels-1);
+
     // Check x for nans
     double x_localNorm = x->L2Norm(true);
     if ( x_localNorm!=x_localNorm || fabs(x_localNorm)>1e10 )
@@ -708,6 +718,7 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
 
     // Call EvaluateFunction
     dt_exp = 1e10;
+    d_x_r->setToScalar( 0.0, false );
     for (int i=0; i<input_data->nvar; i++)
         f_id[i] = d_x_r->getComponentDescriptorIndex(i);
     // Loop through hierarchy
@@ -721,6 +732,11 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
             tbox::Pointer< pdat::CellData<double> > tmp = (*p)->getPatchData(f_src_id);
             double *fsrc = tmp->getPointer();
             int n_elem = (*p)->getBox().size()*tmp->getDepth();
+            double *data = tmp->getPointer();
+            for (int j=0; j<n_elem; j++) {
+                if ( data[j]!=data[j] )
+                    TBOX_ERROR("NaNs detected in fsrc");
+            }
             // Create varray on fortran side
             varrayContainer *varray = new varrayContainer(*p,input_data->nvar,f_id);
             // Create f
@@ -731,13 +747,25 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
                 FORTRAN_NAME(evaluatenonlinearresidual)(level_container->getPtr(*p),&n_elem,fsrc,varray->getPtr());
             #endif
             PROFILE_STOP("Call evaluatenonlinearresidual");
+            // Check f for nans
+            for (int i=0; i<input_data->nvar; i++) {
+                tmp = d_x_r->getComponentPatchData( i, *(*p) );
+                int depth = tmp->getDepth();
+                hier::Box gbox = tmp->getGhostBox();
+                data = tmp->getPointer();
+                int N = gbox.numberCells().getProduct();
+                for (int j=0; j<N*depth; j++) {
+                    if ( data[j]!=data[j] )
+                        TBOX_ERROR("NaNs detected in r");
+                }
+            }
             // Comupute the timestep required for an explicit method, computed by pixie3d
             double dt_patch;
             PROFILE_START("Call findexplicitdt");
             #ifdef absoft
                 FORTRAN_NAME(FINDEXPLICITDT)(level_container->getPtr(*p),&n_elem,fsrc,varray->getPtr());
             #else
-                  FORTRAN_NAME(findexplicitdt)(level_container->getPtr(*p),&dt_patch);
+                FORTRAN_NAME(findexplicitdt)(level_container->getPtr(*p),&dt_patch);
             #endif
             PROFILE_STOP("Call findexplicitdt");
             if ( dt_patch<=0.0 || dt_patch!=dt_patch )
@@ -1343,69 +1371,6 @@ void pixie3dApplication::resetHierarchyConfiguration(
     TBOX_ASSERT(coarsest_level>=0);
     TBOX_ASSERT(finest_level<N_levels);
 
-    // Reset the vectors
-    d_initial->resetLevels(0,N_levels-1);
-    d_x_tmp->resetLevels(0,N_levels-1);
-    d_x->resetLevels(0,N_levels-1);
-    d_x_r->resetLevels(0,N_levels-1);
-    d_x_ic->resetLevels(0,N_levels-1);
-    d_aux_scalar->resetLevels(0,N_levels-1);
-    d_aux_vector->resetLevels(0,N_levels-1);
-    d_aux_scalar_tmp->resetLevels(0,N_levels-1);
-    d_aux_vector_tmp->resetLevels(0,N_levels-1);
-    for (size_t i=0; i<d_registeredVectors.size(); i++) {
-        d_registeredVectors[i]->resetLevels(0,N_levels-1);
-        double localNorm = d_registeredVectors[i]->L2Norm(true);
-        if ( localNorm!=localNorm || fabs(localNorm)>1e10 )
-            TBOX_ERROR("x is ouside valid range or contains NaNs");
-    }
-
-    // Reset the level container
-    for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
-        if ( level_container_array[ln] != NULL ) {
-            LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
-            delete level_container;
-            level_container_array[ln] = NULL;
-        }
-    }
-    for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-        // Initialize the auxillary data to 0
-        for (hier::PatchLevel::Iterator p(level); p; p++) {
-            tbox::Pointer<hier::Patch> patch = *p;
-            tbox::Pointer<pdat::CellData<double> > data;
-            for (int j=0; j<input_data->nvar; j++) {
-                data = d_x_ic->getComponentPatchData( j, *patch );
-                data->fillAll(0.0);
-                data = d_initial->getComponentPatchData( j, *patch );
-                data->fillAll(0.0);
-            }
-            for (int j=0; j<input_data->nauxs; j++) {
-                data = d_aux_scalar->getComponentPatchData( j, *patch );
-                data->fillAll(0.0);
-            }
-            for (int j=0; j<input_data->nauxv; j++) {
-                data = d_aux_vector->getComponentPatchData( j, *patch );
-                data->fillAll(0.0);
-            }
-        }
-        // Create the level container
-        level_container_array[ln] = new LevelContainer(d_hierarchy,level,
-            input_data->nvar,u0_id,u_id,input_data->nauxs,auxs_id,input_data->nauxv,auxv_id);
-        // Loop through the different patches
-        for (hier::PatchLevel::Iterator p(level); p; p++) {
-            tbox::Pointer<hier::Patch> patch = *p;
-            tbox::Pointer< pdat::CellData<double> > tmp = patch->getPatchData(f_src_id);
-            double *fsrc = tmp->getPointer();
-            int n_elem = patch->getBox().size()*tmp->getDepth();
-            // Form Initial Conditions
-            #ifdef absoft
-                FORTRAN_NAME(FORMINITIALCONDITION)(level_container_array[ln]->getPtr(patch),&n_elem,fsrc);
-            #else
-                FORTRAN_NAME(forminitialcondition)(level_container_array[ln]->getPtr(patch),&n_elem,fsrc);
-            #endif
-        }
-    }
 
     // Reset the communication schedules
     for (int i=coarsest_level; i<=finest_level; i++) {
@@ -1422,6 +1387,12 @@ void pixie3dApplication::resetHierarchyConfiguration(
     }
 
     // Get the number of boundary condition groups and the sequence for each group
+    if ( level_container_array[coarsest_level] == NULL ) {
+        // We need a level container for the coarsest level to get the BC group sequence
+        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(coarsest_level);
+        level_container_array[coarsest_level] = new LevelContainer(d_hierarchy,level,
+            input_data->nvar,u0_id,u_id,input_data->nauxs,auxs_id,input_data->nauxv,auxv_id);
+    }
     d_BoundarySequenceGroups = getBCgroup(coarsest_level);
 
     // Create the refineSchedule and siblingSchedule
@@ -1517,8 +1488,63 @@ void pixie3dApplication::resetHierarchyConfiguration(
         coarsenSchedule[ln-1] = coarsenAlgorithm.createSchedule(level,flevel);
     }
 
-   // Create RefinementBoundaryInterpolation.
-   d_coarseFineInterp = tbox::Pointer<RefinementBoundaryInterpolation>( new SAMRAI::RefinementBoundaryInterpolation( d_hierarchy ) );
+    // Create RefinementBoundaryInterpolation.
+    d_coarseFineInterp = tbox::Pointer<RefinementBoundaryInterpolation>( new SAMRAI::RefinementBoundaryInterpolation( d_hierarchy ) );
+
+    // Reset the vectors
+    d_initial->resetLevels(0,N_levels-1);
+    d_x_tmp->resetLevels(0,N_levels-1);
+    d_x->resetLevels(0,N_levels-1);
+    d_x_r->resetLevels(0,N_levels-1);
+    d_x_ic->resetLevels(0,N_levels-1);
+    d_aux_scalar->resetLevels(0,N_levels-1);
+    d_aux_vector->resetLevels(0,N_levels-1);
+    d_aux_scalar_tmp->resetLevels(0,N_levels-1);
+    d_aux_vector_tmp->resetLevels(0,N_levels-1);
+    for (size_t i=0; i<d_registeredVectors.size(); i++) {
+        d_registeredVectors[i]->resetLevels(0,N_levels-1);
+        double localNorm = d_registeredVectors[i]->L2Norm(true);
+        if ( localNorm!=localNorm || fabs(localNorm)>1e10 )
+            TBOX_ERROR("x is ouside valid range or contains NaNs");
+    }
+
+    // Initialize the auxillary data to 0
+    for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
+        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        for (hier::PatchLevel::Iterator p(level); p; p++) {
+            tbox::Pointer<hier::Patch> patch = *p;
+            tbox::Pointer<pdat::CellData<double> > data;
+            for (int j=0; j<input_data->nvar; j++) {
+                data = d_x_ic->getComponentPatchData( j, *patch );
+                data->fillAll(0.0);
+                data = d_initial->getComponentPatchData( j, *patch );
+                data->fillAll(0.0);
+            }
+            for (int j=0; j<input_data->nauxs; j++) {
+                data = d_aux_scalar->getComponentPatchData( j, *patch );
+                data->fillAll(0.0);
+            }
+            for (int j=0; j<input_data->nauxv; j++) {
+                data = d_aux_vector->getComponentPatchData( j, *patch );
+                data->fillAll(0.0);
+            }
+        }
+    }
+
+    // Reset the level container (will also create the equilibrium data)
+    for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
+        if ( level_container_array[ln] != NULL ) {
+            LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
+            delete level_container;
+            level_container_array[ln] = NULL;
+        }
+        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        level_container_array[ln] = new LevelContainer(d_hierarchy,level,
+            input_data->nvar,u0_id,u_id,input_data->nauxs,auxs_id,input_data->nauxv,auxv_id);
+    }
+
+    // Call setInitialConditions to fill d_ic and the src vector
+    setInitialConditions( 0.0 );
 
 }
 
