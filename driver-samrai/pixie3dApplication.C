@@ -395,9 +395,11 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     d_x_ic->allocateVectorData();
     d_x_tmp->allocateVectorData();
     d_initial->allocateVectorData();
+    d_x->setToScalar( 0.0, false );
+    d_x_ic->setToScalar( 0.0, false );
+    d_initial->setToScalar( 0.0, false );
     // Register the data for interpolation on regrids
     d_registeredVectors.push_back( d_x );
-    d_registeredVectors.push_back( d_initial );
 
     // Allocate data for auxillary variables
     tbox::Pointer<hier::VariableContext> context_aux = var_db->getContext("pixie3d-aux");
@@ -1212,21 +1214,63 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
         level->setTime(time, d_problem_data);
     }
 
+    // Update the weight id data.  This is important for SAMRAIVectors to compute vector norms correctly
+    AMRUtilities::setVectorWeights(hierarchy, d_weight_id);
+
     // Interpolate data from a coarser level and the old_level
     xfer::RefineAlgorithm fill_current(d_hierarchy->getDim());
     tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
+    // Check the coarse level data
+    if ( level_number>0 ) {
+        for (size_t i=0; i<d_registeredVectors.size(); i++) {
+            int coarse_level = d_registeredVectors[i]->getCoarsestLevelNumber();
+            int fine_level = d_registeredVectors[i]->getFinestLevelNumber();
+            d_registeredVectors[i]->resetLevels(level_number-1,level_number-1);
+            double localNorm = d_registeredVectors[i]->L2Norm(true);
+            if ( localNorm!=localNorm || fabs(localNorm)>1e10 )
+                TBOX_ERROR("x is ouside valid range or contains NaNs");
+            d_registeredVectors[i]->resetLevels(coarse_level,fine_level);
+        }
+    }
+    // Check the old level data
+    if ( !old_level.isNull() ) {
+        
+    }
+    // Initialize the new level data to 0
+    for (hier::PatchLevel::Iterator p(level); p; p++) {
+        tbox::Pointer<hier::Patch> patch = *p;
+        tbox::Pointer<pdat::CellData<double> > data;
+        for (size_t i=0; i<d_registeredVectors.size(); i++) {
+            for (int j=0; j<input_data->nvar; j++) {
+                data = d_registeredVectors[i]->getComponentPatchData( j, *patch );
+                data->fillAll(0.0);
+            }
+        }
+    }
+    // Create the refine schedule
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
+        TBOX_ASSERT(d_registeredVectors[i]->getNumberOfComponents()==input_data->nvar);
         for (int j=0; j<input_data->nvar; j++) {
             int id = d_registeredVectors[i]->getComponentDescriptorIndex(j);
             int scratch_id = d_x_tmp->getComponentDescriptorIndex(j);
             const tbox::Pointer<hier::Variable> x = d_registeredVectors[i]->getComponentVariable(j); 
-	        fill_current.registerRefine( id, id, scratch_id, grid_geometry->lookupRefineOperator(x,"LINEAR_REFINE"));
+	        fill_current.registerRefine( id, id, scratch_id, grid_geometry->lookupRefineOperator(x,"CONSTANT_REFINE"));
         }
     }
     if ( level_number>0 && old_level.isNull() ) {
         fill_current.createSchedule( level, level_number-1, hierarchy, NULL )->fillData(time);
     } else {
         fill_current.createSchedule( level, old_level, level_number-1, hierarchy, NULL )->fillData(time);
+    }
+    // Check the new level data
+    for (size_t i=0; i<d_registeredVectors.size(); i++) {
+        int coarse_level = d_registeredVectors[i]->getCoarsestLevelNumber();
+        int fine_level = d_registeredVectors[i]->getFinestLevelNumber();
+        d_registeredVectors[i]->resetLevels(level_number,level_number);
+        double localNorm = d_registeredVectors[i]->L2Norm(true);
+        if ( localNorm!=localNorm || fabs(localNorm)>1e10 )
+            TBOX_ERROR("x is ouside valid range or contains NaNs");
+        d_registeredVectors[i]->resetLevels(coarse_level,fine_level);
     }
 }
 
@@ -1308,6 +1352,12 @@ void pixie3dApplication::resetHierarchyConfiguration(
     d_aux_vector->resetLevels(0,N_levels-1);
     d_aux_scalar_tmp->resetLevels(0,N_levels-1);
     d_aux_vector_tmp->resetLevels(0,N_levels-1);
+    for (size_t i=0; i<d_registeredVectors.size(); i++) {
+        d_registeredVectors[i]->resetLevels(0,N_levels-1);
+        double localNorm = d_registeredVectors[i]->L2Norm(true);
+        if ( localNorm!=localNorm || fabs(localNorm)>1e10 )
+            TBOX_ERROR("x is ouside valid range or contains NaNs");
+    }
 
     // Reset the level container
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
@@ -1322,12 +1372,19 @@ void pixie3dApplication::resetHierarchyConfiguration(
         // Initialize the auxillary data to 0
         for (hier::PatchLevel::Iterator p(level); p; p++) {
             tbox::Pointer<hier::Patch> patch = *p;
+            tbox::Pointer<pdat::CellData<double> > data;
+            for (int j=0; j<input_data->nvar; j++) {
+                data = d_x_ic->getComponentPatchData( j, *patch );
+                data->fillAll(0.0);
+                data = d_initial->getComponentPatchData( j, *patch );
+                data->fillAll(0.0);
+            }
             for (int j=0; j<input_data->nauxs; j++) {
-                tbox::Pointer<pdat::CellData<double> > data = d_aux_scalar->getComponentPatchData( j, *patch );
+                data = d_aux_scalar->getComponentPatchData( j, *patch );
                 data->fillAll(0.0);
             }
             for (int j=0; j<input_data->nauxv; j++) {
-                tbox::Pointer<pdat::CellData<double> > data = d_aux_vector->getComponentPatchData( j, *patch );
+                data = d_aux_vector->getComponentPatchData( j, *patch );
                 data->fillAll(0.0);
             }
         }

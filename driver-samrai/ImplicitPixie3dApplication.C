@@ -141,7 +141,6 @@ ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hie
 
       d_scratchVector = ic_vector->cloneVector("ScratchVector");
       d_scratchVector->allocateVectorData(0.0);
-      d_registeredVectors.push_back( d_scratchVector );
       
       d_vectorsCloned = true;
     }
