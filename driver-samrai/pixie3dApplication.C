@@ -397,9 +397,6 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     d_initial->allocateVectorData();
     // Register the data for interpolation on regrids
     d_registeredVectors.push_back( d_x );
-    d_registeredVectors.push_back( d_x_r );
-    d_registeredVectors.push_back( d_x_ic );
-    d_registeredVectors.push_back( d_x_tmp );
     d_registeredVectors.push_back( d_initial );
 
     // Allocate data for auxillary variables
@@ -1221,8 +1218,9 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
         for (int j=0; j<input_data->nvar; j++) {
             int id = d_registeredVectors[i]->getComponentDescriptorIndex(j);
+            int scratch_id = d_x_tmp->getComponentDescriptorIndex(j);
             const tbox::Pointer<hier::Variable> x = d_registeredVectors[i]->getComponentVariable(j); 
-	        fill_current.registerRefine( id, id, id, grid_geometry->lookupRefineOperator(x,"CONSTANT_REFINE"));
+	        fill_current.registerRefine( id, id, scratch_id, grid_geometry->lookupRefineOperator(x,"LINEAR_REFINE"));
         }
     }
     if ( level_number>0 && old_level.isNull() ) {

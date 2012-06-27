@@ -281,7 +281,7 @@ int main( int argc, char *argv[] )
             first_step = false;
 
             // If desired, regrid patch hierarchy and reset vector weights.
-            if ( (regrid_interval > 0)  && ((timestep+1 % regrid_interval) == 0) ) {
+            if ( regrid_interval>0 && ((timestep+1)%regrid_interval)==0 ) {
 
                 tbox::pout << " Regridding ..." << std::endl;
                 gridding_algorithm->regridAllFinerLevels( 0, current_time, tag_buffer );
