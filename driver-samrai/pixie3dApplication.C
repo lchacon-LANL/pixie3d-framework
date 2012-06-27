@@ -503,6 +503,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     }
    
     // Reset the Hierarchy Configuration (this will create the level container and initialize the communication schedules)
+    AMRUtilities::setVectorWeights(d_hierarchy, d_weight_id);
     resetHierarchyConfiguration(d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
 
     // Copy the data from u0 to u and set the boundary conditions (needed to set the auxillary variable names)
