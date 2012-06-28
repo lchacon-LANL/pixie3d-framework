@@ -399,7 +399,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     d_x_ic->setToScalar( 0.0, false );
     d_initial->setToScalar( 0.0, false );
     // Register the data for interpolation on regrids
-    d_registeredVectors.push_back( d_x );
+    //d_registeredVectors.push_back( d_x );
 
     // Allocate data for auxillary variables
     tbox::Pointer<hier::VariableContext> context_aux = var_db->getContext("pixie3d-aux");
@@ -1261,10 +1261,6 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
             d_registeredVectors[i]->resetLevels(coarse_level,fine_level);
         }
     }
-    // Check the old level data
-    if ( !old_level.isNull() ) {
-        
-    }
     // Initialize the new level data to 0
     for (hier::PatchLevel::Iterator p(level); p; p++) {
         tbox::Pointer<hier::Patch> patch = *p;
@@ -1277,20 +1273,17 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
         }
     }
     // Create the refine schedule
+    std::vector<int> ids;
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
         TBOX_ASSERT(d_registeredVectors[i]->getNumberOfComponents()==input_data->nvar);
-        for (int j=0; j<input_data->nvar; j++) {
-            int id = d_registeredVectors[i]->getComponentDescriptorIndex(j);
-            int scratch_id = d_x_tmp->getComponentDescriptorIndex(j);
-            const tbox::Pointer<hier::Variable> x = d_registeredVectors[i]->getComponentVariable(j); 
-	        fill_current.registerRefine( id, id, scratch_id, grid_geometry->lookupRefineOperator(x,"CONSTANT_REFINE"));
-        }
+        for (int j=0; j<input_data->nvar; j++)
+            ids.push_back( d_registeredVectors[i]->getComponentDescriptorIndex(j) );
     }
-    if ( level_number>0 && old_level.isNull() ) {
-        fill_current.createSchedule( level, level_number-1, hierarchy, NULL )->fillData(time);
-    } else {
-        fill_current.createSchedule( level, old_level, level_number-1, hierarchy, NULL )->fillData(time);
-    }
+    tbox::Pointer<hier::PatchLevel > coarse_level;
+    if ( level_number>0 )
+        coarse_level = hierarchy->getPatchLevel(level_number-1);
+    xfer::TriangleRefineSchedule refine( old_level, coarse_level, level, ids, ids, ids, "cubic" );
+    refine.fillData(0.0);
     // Check the new level data
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
         int coarse_level = d_registeredVectors[i]->getCoarsestLevelNumber();
