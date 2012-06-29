@@ -297,6 +297,10 @@ protected:
    std::string d_coarsen_op_str;
    tbox::Pointer<xfer::CoarsenSchedule> coarsenSchedule[MAX_LEVELS];
    tbox::Pointer<RefinementBoundaryInterpolation> d_coarseFineInterp;
+    
+   // Data for regrid
+   std::vector<double> d_J_level;
+   std::string d_regrid_op_str;
 
    // The names of the primary and auxillary variables
    std::string *depVarLabels;

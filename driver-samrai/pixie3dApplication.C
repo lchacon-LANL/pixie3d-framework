@@ -280,6 +280,34 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     } else {
         TBOX_ERROR("key refine_method must exist in database");
     }
+    if ( d_db->keyExists("regrid_method") ) {
+        if ( d_db->getString("regrid_method") == "CONSTANT" ) {
+            // Use triangle-based constant interpolation
+            d_regrid_op_str  = "constant";
+        } else if ( d_db->getString("regrid_method") == "LINEAR" ) {
+            // Use triangle-based linear interpolation
+            d_regrid_op_str  = "linear";
+        } else if ( d_db->getString("refine_method") == "CUBIC" ) {
+            // Use triangle-based cubic interpolation
+            d_regrid_op_str  = "cubic";
+        } else {
+            TBOX_ERROR("Unknown interpolation");
+        }
+    } else {
+        TBOX_ERROR("key refine_method must exist in database");
+    }
+    if ( d_db->keyExists("J_regrid") ) {
+        tbox::Array<double> array = d_db->getDoubleArray("J_regrid");
+        d_J_level.resize(array.size());
+        for (int i=0; i<array.size(); i++)
+            d_J_level[i] = array[i];
+    } else {
+        d_J_level.resize(4);
+        d_J_level[0] = 0.1;
+        d_J_level[1] = 1.0;
+        d_J_level[2] = 5.0;
+        d_J_level[3] = 10.0;
+    }
 
     tbox::pout << "Initializing\n";
     input_data = new input_CTX;
@@ -1282,7 +1310,7 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     tbox::Pointer<hier::PatchLevel > coarse_level;
     if ( level_number>0 )
         coarse_level = hierarchy->getPatchLevel(level_number-1);
-    xfer::TriangleRefineSchedule refine( old_level, coarse_level, level, ids, ids, ids, "cubic" );
+    xfer::TriangleRefineSchedule refine( old_level, coarse_level, level, ids, ids, ids, d_regrid_op_str );
     refine.fillData(0.0);
     // Check the new level data
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
@@ -1312,7 +1340,9 @@ void pixie3dApplication::applyGradientDetector(const tbox::Pointer<hier::PatchHi
 {
    if ( d_hierarchy.isNull() )
       return;
-   double J_level[4] = {0.1,1.0,5.0,10.0};
+   double factor = 1.0;
+   if ( time > 0.5 )
+      factor = 0.8;
    tbox::Pointer<hier::PatchLevel> level = hierarchy->getPatchLevel(level_number);
    // Loop through the patches on the level
    for (hier::PatchLevel::Iterator p(level); p; p++) {
@@ -1327,21 +1357,22 @@ void pixie3dApplication::applyGradientDetector(const tbox::Pointer<hier::PatchHi
       assert(!tag_array.isNull());
       const hier::IntVector gcw_tag_array = tag_array->getGhostCellWidth();
       int *tag_data = tag_array->getPointer();
-      if ( initial_time )
-         tag_array->fillAll(0);
-      // For now we will refine based on the magnitude of the current
-      int index_J = -1;
-      for (int i=0; i<input_data->nauxv; i++) {
-         if ( auxVectorLabels[i].compare("J cnv")==0 ) 
-            index_J = auxv_id[i];
+      tag_array->fillAll(0);
+      // Tag based on the magnitude of the current
+      if ( level_number < (int) d_J_level.size() ) {
+         int index_J = -1;
+         for (int i=0; i<input_data->nauxv; i++) {
+            if ( auxVectorLabels[i].compare("J cnv")==0 ) 
+               index_J = auxv_id[i];
+         }
+         if ( index_J==-1 )
+            TBOX_ERROR("Current not found");
+         tbox::Pointer< pdat::CellData<double> > J = patch->getPatchData(index_J);
+         assert(!J.isNull());
+         const hier::IntVector gcw = J->getGhostCellWidth();
+         double *J_data = J->getPointer();
+         tag_cells_( &ifirst(0), &ilast(0), &gcw(0), &gcw_tag_array(0), J_data, factor*d_J_level[level_number], tag_data );
       }
-      if ( index_J==-1 )
-         TBOX_ERROR("Current not found");
-      tbox::Pointer< pdat::CellData<double> > J = patch->getPatchData(index_J);
-      assert(!J.isNull());
-      const hier::IntVector gcw = J->getGhostCellWidth();
-      double *J_data = J->getPointer();
-      tag_cells_( &ifirst(0), &ilast(0), &gcw(0), &gcw_tag_array(0), J_data, J_level[level_number], tag_data );
    }
 }
 
