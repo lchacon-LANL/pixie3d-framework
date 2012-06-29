@@ -152,6 +152,8 @@ public:
    // Evaluate IVP forcing term.
    void apply( const int*, const int*, const int*, const int*, const int*, const int*, double a = -1.0, double b=1.0 );
 
+   void registerVector( tbox::Pointer< solv::SAMRAIVectorReal<double> > x );
+
    // Print identifying string.
    void printObjectName( std::ostream& os );
 

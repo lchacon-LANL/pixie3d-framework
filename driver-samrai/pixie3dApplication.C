@@ -1213,6 +1213,20 @@ void pixie3dApplication::writeDebugData( FILE *fp, const int it, const double ti
 }
 
 
+/***********************************************************************
+* Register a vector for regrids                                        *
+***********************************************************************/
+void pixie3dApplication::registerVector( tbox::Pointer< solv::SAMRAIVectorReal<double> > x )
+{
+    bool found = false;
+    for (size_t i=0; i<d_registeredVectors.size(); i++) {
+        if ( d_registeredVectors[i]==x )
+            found = true;
+    }
+    if ( !found )
+        d_registeredVectors.push_back( x );
+}
+
 
 /***********************************************************************
 * Initialize level data.                                               *
@@ -1272,6 +1286,11 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
                 d_problem_data.setFlag(i);
         }
     }
+    tbox::Pointer<hier::PatchDescriptor> descriptor = level->getPatchDescriptor();
+    for (int i=0; i<descriptor->getMaxNumberRegisteredComponents(); i++) {
+        if ( descriptor->getPatchDataFactory(i).isNull() )
+            d_problem_data.clrFlag(i);
+    }
     if ( allocate_data )  {
         level->allocatePatchData(d_problem_data, time);
     } else  {
@@ -1320,14 +1339,23 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     xfer::TriangleRefineSchedule refine( old_level, coarse_level, level, ids, ids, ids, d_regrid_op_str );
     refine.fillData(0.0);
     // Check the new level data
+    bool interp_error = false;
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
         int coarse_level = d_registeredVectors[i]->getCoarsestLevelNumber();
         int fine_level = d_registeredVectors[i]->getFinestLevelNumber();
         d_registeredVectors[i]->resetLevels(level_number,level_number);
         double localNorm = d_registeredVectors[i]->L2Norm(true);
         if ( localNorm!=localNorm || fabs(localNorm)>1e10 )
-            TBOX_ERROR("x is ouside valid range or contains NaNs");
+            interp_error = true;
         d_registeredVectors[i]->resetLevels(coarse_level,fine_level);
+    }
+    if ( interp_error ) {
+        std::cout << "Old level:" << std::endl;
+        old_level->recursivePrint(std::cout);
+        std::cout << std::endl << "New level:" << std::endl;
+        level->recursivePrint(std::cout);
+        std::cout << std::endl;
+        TBOX_ERROR("Error interpolating data to new grid");
     }
 }
 
