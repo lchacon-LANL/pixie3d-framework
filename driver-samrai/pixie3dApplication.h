@@ -258,6 +258,14 @@ protected:
    tbox::Pointer< solv::SAMRAIVectorReal<double> > d_aux_vector_tmp;
    tbox::Pointer< pdat::CellVariable<double> > d_f_src;
    tbox::Pointer< pdat::CellVariable<double> > d_div_B;
+
+   // Data used for storage for the gradient
+   std::vector<int> d_x_grad_ids;       // storage for d_x
+   std::vector<int> d_x0_grad_ids;      // storage for x (without ghosts)
+   std::vector<int> d_auxs_grad_ids;    // storage for d_aux_scalar
+   std::vector<int> d_auxv_grad_ids;    // storage for d_aux_vector
+
+    // Other data
    int f_src_id;
    int div_B_id;
 
@@ -269,6 +277,7 @@ protected:
    
    int *u0_id, *u_id, *auxs_id, *auxv_id;
    int *f_id, *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
+
 
    bool d_bIsInitialTime;
 

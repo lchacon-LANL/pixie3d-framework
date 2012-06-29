@@ -399,11 +399,10 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     d_x_ic = new solv::SAMRAIVectorReal<double>("xVecIC",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
     d_x_tmp = new solv::SAMRAIVectorReal<double>("xTmpVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
     d_initial = new solv::SAMRAIVectorReal<double>("xInitialVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-    std::stringstream stream;
     for (int i=0; i<input_data->nvar; i++) {
+       std::stringstream stream;
        stream << "x(" << i << ")"; 
        var_name = stream.str();
-       stream.str("");
        var = new pdat::CellVariable<double>( dim, var_name, 1 );
        var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
        d_x->addComponent( var, var_id, d_weight_id );
@@ -436,9 +435,9 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     d_aux_scalar_tmp = new solv::SAMRAIVectorReal<double>("auxs",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
     d_aux_vector_tmp = new solv::SAMRAIVectorReal<double>("auxv",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
     for (int i=0; i<input_data->nauxs; i++) {
+        std::stringstream stream;
         stream << "auxs(" << i << ")"; 
         var_name = stream.str();
-        stream.str("");
         var = new pdat::CellVariable<double>( dim, var_name, 1 );
         var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
         d_aux_scalar->addComponent( var, var_id, d_weight_id );
@@ -446,9 +445,9 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         d_aux_scalar_tmp->addComponent( var, var_id, d_weight_id );
     }
     for (int i=0; i<input_data->nauxv; i++) {
+        std::stringstream stream;
         stream << "auxv(" << i << ")"; 
         var_name = stream.str();
-        stream.str("");
         var = new pdat::CellVariable<double>( dim, var_name, dim.getValue() );
         var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
         d_aux_vector->addComponent( var, var_id, d_weight_id );
@@ -496,26 +495,33 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     for (int i=0; i<input_data->nauxv; i++)
         auxv_tmp_id[i] = d_aux_vector_tmp->getComponentDescriptorIndex(i);
 
-    //tbox::Pointer< hier::pdat::pixie3dData > pixie_data = new pdat::pixie3dData( "fsrc", input_data->nvar );
+    // Allocate temporary data to store gradients
+    d_x_grad_ids.resize(input_data->nvar);
+    d_x0_grad_ids.resize(input_data->nvar);
+    for (int i=0; i<input_data->nvar; i++) {
+        std::stringstream stream1, stream2;
+        stream1 << "d_x_grad(" << i << ")"; 
+        stream2 << "d_x0_grad(" << i << ")"; 
+        var = new pdat::CellVariable<double>( dim, stream1.str(), dim.getValue() );
+        d_x_grad_ids[i] = var_db->registerVariableAndContext(var, context_x, ghost2);
+        var = new pdat::CellVariable<double>( dim, stream2.str(), dim.getValue() );
+        d_x0_grad_ids[i] = var_db->registerVariableAndContext(var, context_x, ghost0);
+    }
+    d_auxs_grad_ids.resize(input_data->nauxs);
+    for (int i=0; i<input_data->nauxs; i++) {
+        std::stringstream stream;
+        stream << "d_auxs_grad(" << i << ")"; 
+        var = new pdat::CellVariable<double>( dim, stream.str(), dim.getValue() );
+        d_auxs_grad_ids[i] = var_db->registerVariableAndContext(var, context_x, ghost2);
+    }
+    d_auxv_grad_ids.resize(input_data->nauxv);
+    for (int i=0; i<input_data->nauxv; i++) {
+        std::stringstream stream;
+        stream << "d_auxv_grad(" << i << ")"; 
+        var = new pdat::CellVariable<double>( dim, stream.str(), dim.getValue()*dim.getValue() );
+        d_auxv_grad_ids[i] = var_db->registerVariableAndContext(var, context_x, ghost2);
+    }
 
-   
-    /*LevelContainer *level_container;
-    hier::IntVector gcwc;
-    int N_levels = d_hierarchy->getNumberOfLevels();
-    if ( N_levels > MAX_LEVELS )
-        TBOX_ERROR("Maximum number of levels exceeded");
-    for ( int ln=0; ln<N_levels; ln++ ) {
-        tbox::Pointer<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
-        // Create the level container
-        level_container_array[ln] = new LevelContainer(level->getNumberOfPatches(),d_hierarchy,
-            input_data->nvar,u0_id,u_id,input_data->nauxs,auxs_id,input_data->nauxv,auxv_id);
-        level_container = (LevelContainer *) level_container_array[ln];
-        // Create each patch object
-        for (hier::PatchLevel::Iterator p(level); p; p++) {
-            tbox::Pointer<hier::Patch> patch = level->getPatch(p());
-            level_container->CreatePatch(p(),patch);
-        }
-    }*/
 
     // Setup pixie3dRefinePatchStrategy
     d_refine_strategy = new pixie3dRefinePatchStrategy(dim);
@@ -1249,18 +1255,19 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     if ( !old_level.isNull() ) {
         // Use the old level to determine which components need to be allocated
         // Assume that the old level is a level on a rectangular domain (not a multiblock domain)
-        const tbox::Pointer<hier::PatchLevel > old_level2 = old_level;
-        for (int i=0; i<d_problem_data.getSize(); i++) {
-            if ( old_level2->checkAllocated(i) )
+        tbox::Pointer<hier::PatchDescriptor> descriptor = old_level->getPatchDescriptor();
+        for (int i=0; i<descriptor->getMaxNumberRegisteredComponents(); i++) {
+            if ( old_level->checkAllocated(i) )
                 d_problem_data.setFlag(i);
         }
     } else { 
         // Use the coarsest level to determine which components need to be allocated
         tbox::Pointer<hier::PatchLevel> coarse_level = d_hierarchy->getPatchLevel(0);
+        tbox::Pointer<hier::PatchDescriptor> descriptor = coarse_level->getPatchDescriptor();
         #ifdef DEBUG_CHECK_ASSERTIONS
             assert(!coarse_level.isNull());
         #endif
-        for (int i=0; i<d_problem_data.getSize(); i++) {
+        for (int i=0; i<descriptor->getMaxNumberRegisteredComponents(); i++) {
             if ( coarse_level->checkAllocated(i) )
                 d_problem_data.setFlag(i);
         }
@@ -1340,9 +1347,6 @@ void pixie3dApplication::applyGradientDetector(const tbox::Pointer<hier::PatchHi
 {
    if ( d_hierarchy.isNull() )
       return;
-   double factor = 1.0;
-   if ( time > 0.5 )
-      factor = 0.8;
    tbox::Pointer<hier::PatchLevel> level = hierarchy->getPatchLevel(level_number);
    // Loop through the patches on the level
    for (hier::PatchLevel::Iterator p(level); p; p++) {
@@ -1371,7 +1375,7 @@ void pixie3dApplication::applyGradientDetector(const tbox::Pointer<hier::PatchHi
          assert(!J.isNull());
          const hier::IntVector gcw = J->getGhostCellWidth();
          double *J_data = J->getPointer();
-         tag_cells_( &ifirst(0), &ilast(0), &gcw(0), &gcw_tag_array(0), J_data, factor*d_J_level[level_number], tag_data );
+         tag_cells_( &ifirst(0), &ilast(0), &gcw(0), &gcw_tag_array(0), J_data, d_J_level[level_number], tag_data );
       }
    }
 }
@@ -1431,14 +1435,14 @@ void pixie3dApplication::resetHierarchyConfiguration(
         if ( ln>0 )
             coarse_level = d_hierarchy->getPatchLevel(ln-1);
         refineSchedule[ln] = new tbox::Pointer< xfer::TriangleRefineSchedule >[d_BoundarySequenceGroups.size()];
-        //refineSchedule[ln] = new tbox::Pointer< xfer::RefineSchedule >[d_BoundarySequenceGroups.size()];
-        //siblingSchedule[ln] = new tbox::Pointer< xfer::SiblingGhostSchedule >[d_BoundarySequenceGroups.size()];
         for(size_t iSeq=0; iSeq<d_BoundarySequenceGroups.size(); iSeq++) {
-            int data_id=-1;
             xfer::RefineAlgorithm refineVariableAlgorithm(d_hierarchy->getDim());
             // Register the variables in the current squence
             std::vector<int> ids(d_BoundarySequenceGroups[iSeq].nbc_seq,-1);
+            std::vector<int> grad_ids(d_BoundarySequenceGroups[iSeq].nbc_seq,-1);
             for (int i=0; i<d_BoundarySequenceGroups[iSeq].nbc_seq; i++) {
+                int data_id=-1;
+                int grad_id=-1;
                 int idx = abs(d_BoundarySequenceGroups[iSeq].bc_seq[i])-1;
                 if ( d_BoundarySequenceGroups[iSeq].bc_seq[i]>0 && d_BoundarySequenceGroups[iSeq].vector[i]==0 ) {
                     // Dependent scalar variable
@@ -1449,6 +1453,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
                         var0 = d_x_tmp->getComponentVariable(idx);
                         data_id = d_x_tmp->getComponentDescriptorIndex(idx);
                     }
+                    grad_id = d_x_grad_ids[idx];
                 } else if ( d_BoundarySequenceGroups[iSeq].bc_seq[i]<0 && d_BoundarySequenceGroups[iSeq].vector[i]==0 ) {
                     // Auxillary scalar variable
                     for(int j=0; j<dim.getValue(); j++) {
@@ -1460,6 +1465,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
                             data_id = d_aux_scalar_tmp->getComponentDescriptorIndex(idx);
                         }
                     }
+                    grad_id = d_auxs_grad_ids[idx];
                 } else if ( d_BoundarySequenceGroups[iSeq].bc_seq[i]<0 && d_BoundarySequenceGroups[iSeq].vector[i]==1 ) {
                     // Auxillary vector variable
                     for(int j=0; j<dim.getValue(); j++) {
@@ -1471,20 +1477,17 @@ void pixie3dApplication::resetHierarchyConfiguration(
                             data_id = d_aux_vector_tmp->getComponentDescriptorIndex(idx);
                         }
                     }
+                    grad_id = d_auxv_grad_ids[idx];
                 } else {
                     // Unknown variable type
                     TBOX_ERROR("Bad boundary group member");
                 }
                 ids[i] = data_id;
-                //refineVariableAlgorithm.registerRefine( data_id, data_id, data_id,
-                //        grid_geometry->lookupRefineOperator(var0,d_refine_op_str) );
+                grad_ids[i] = grad_id;
             }
-            //bcgrp_ids[iSeq] = ids;
             // Create the schedules
             refineSchedule[ln][iSeq] = tbox::Pointer<xfer::TriangleRefineSchedule>(
-                new xfer::TriangleRefineSchedule( coarse_level, level, ids, ids, ids, d_refine_op_str, d_refine_strategy ) );
-            //refineSchedule[ln][iSeq] = refineVariableAlgorithm.createSchedule(level, ln-1, d_hierarchy, d_refine_strategy);
-            //siblingSchedule[ln][iSeq] = tbox::Pointer< xfer::SiblingGhostSchedule >(new xfer::SiblingGhostSchedule(level,ids,ids,ids,fill_pattern));
+                new xfer::TriangleRefineSchedule( coarse_level, level, ids, ids, grad_ids, d_refine_op_str, d_refine_strategy ) );
         }
     }
 
