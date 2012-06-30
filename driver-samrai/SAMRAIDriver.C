@@ -108,6 +108,11 @@ int main( int argc, char *argv[] )
     if ( main_db->keyExists("debug_name") )
         debug_name = main_db->getString("debug_name");
 
+    // Options for regridding
+    int regrid_interval = 0;
+    if (main_db->keyExists("regrid_interval"))
+        regrid_interval = main_db->getInteger("regrid_interval");
+
     // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
     const SAMRAI::tbox::Dimension dim(3);
     tbox::Pointer<SAMRAI::pixie3dApplication> application( new SAMRAI::pixie3dApplication() );
@@ -143,17 +148,19 @@ int main( int argc, char *argv[] )
     application->setInitialConditions(t0);
 
     // Perform a regrid to make sure the tagging is all set correctly
-    tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
-    TBOX_ASSERT(!error_detector.isNull());
-    error_detector->turnOnGradientDetector();
-    error_detector->turnOffRefineBoxes();
-    tbox::Array<int> tag_buffer;
-    if ( error_detector->refineUserBoxInputOnly() )
-        tag_buffer = tbox::Array<int>(20,0);    // Only user-defined refinement boxes are used, no tag buffer is necessary
-    else
+    tbox::Array<int> tag_buffer(20,2);
+    if ( regrid_interval > 0 ) {
+        tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
+        TBOX_ASSERT(!error_detector.isNull());
+        error_detector->turnOnGradientDetector();
+        error_detector->turnOffRefineBoxes();
         tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
-    gridding_algorithm->regridAllFinerLevels(0,t0,tag_buffer);
-    application->setInitialConditions(t0);
+        for (int ln = 0; hierarchy->levelCanBeRefined(ln); ln++) {
+            tbox::pout << "Regridding from level " << ln << std::endl;
+            gridding_algorithm->regridAllFinerLevels(ln,t0,tag_buffer);
+            application->setInitialConditions(t0);
+        }
+    }
 
     // initialize a time integrator parameters object
     tbox::Pointer<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");
@@ -229,10 +236,20 @@ int main( int argc, char *argv[] )
                 last_save_time = current_time;
             }
 
+            // If desired, regrid patch hierarchy and reset vector weights.
+            if ( regrid_interval>0 && ((timestep+1)%regrid_interval)==0 ) {
+                tbox::pout << " Regridding ..." << std::endl;
+                application->registerVector( x_t );
+                gridding_algorithm->regridAllFinerLevels( 0, current_time, tag_buffer );
+                first_step = false;
+                tbox::pout << "************************* Finished regrid *********************************" << std::endl;
+            }
+
             //dt = timeIntegrator->getNextDt(solnAcceptable);
             dt = application->getExpdT();
         
             tbox::pout << "Estimating next time step : " << dt << std::endl;
+
         } else {
             tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
 			TBOX_ERROR("Error advancing solution");
