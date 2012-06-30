@@ -318,7 +318,7 @@ protected:
    std::vector<commPatchData> collectAllPatchData(tbox::Pointer<hier::PatchLevel> level, int id, int root);
 
    // Get the boundary condition groups
-   std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> getBCgroup(int ln);
+   std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> getBCgroup();
    
    // Function to check for overlapping boxes
    static bool overlappingBoxes( const tbox::Pointer<hier::PatchLevel> level );

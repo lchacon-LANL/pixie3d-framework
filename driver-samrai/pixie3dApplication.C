@@ -1389,13 +1389,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
     // Get the number of boundary condition groups and the sequence for each group
     mpi.Barrier();
     tbox::pout << "     get BC groups" << std::endl;
-    if ( level_container_array[coarsest_level] == NULL ) {
-        // We need a level container for the coarsest level to get the BC group sequence
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(coarsest_level);
-        level_container_array[coarsest_level] = new LevelContainer(d_hierarchy,level,
-            input_data->nvar,u0_id,u_id,input_data->nauxs,auxs_id,input_data->nauxv,auxv_id);
-    }
-    d_BoundarySequenceGroups = getBCgroup(coarsest_level);
+    d_BoundarySequenceGroups = getBCgroup();
 
     // Create the refineSchedules
     mpi.Barrier();
@@ -1646,65 +1640,51 @@ std::vector<commPatchData> pixie3dApplication::collectAllPatchData(tbox::Pointer
 /****************************************************************************
 * Get the boundary condition groups                                         *
 ****************************************************************************/
-std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> pixie3dApplication::getBCgroup(int ln)
+std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> pixie3dApplication::getBCgroup()
 {
-    std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> groups;
-    // Get an arbitrary patch to give us the number of boundary sequency groups
-    void *pixiePatchData = NULL;
-    LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
-    tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-    for (hier::PatchLevel::Iterator p(level); p; p++)
-        pixiePatchData = level_container->getPtr(*p);
-    // Determine which processor should compute the bc groups
-    const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
-    int rank = comm.getRank();
-    int size = comm.getSize();
-    int root = size;
-    if ( pixiePatchData != NULL )
-        root = rank;
-    int tmp = root;
-    comm.Allreduce(&tmp,&root,1,MPI_INT,MPI_MIN);
-    // Get the number of boundary condition groups 
+    // Get the dimensions of the domain
+    tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
+    if ( grid_geometry->getNumberBlocks() != 1 )
+        TBOX_ERROR("Multiblock domains are not supported");
+    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    if ( domain_array.size() != 1 ) 
+        TBOX_ERROR("Only 1 domain box is supported");
+    const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
+    // Create a local temporary patch
+    hier::Index lower(dim,0);
+    hier::Index upper(dim,2);
+    upper.min( physicalDomain.upper() );
+    hier::Box box(lower,upper);
+    hier::Index one(dim,1);
+    hier::PatchGeometry::TwoDimBool boundary(dim,false);
+    tbox::Pointer<hier::PatchGeometry> geometry(new hier::PatchGeometry(one, boundary, boundary) );
+    tbox::Pointer<hier::Patch> patch(new hier::Patch( box, d_hierarchy->getPatchDescriptor() ) );
+    patch->setPatchGeometry(geometry);
+    // Allocate the data on the patch
+    patch->allocatePatchData(d_problem_data,0.0);
+    // Create a pixie patch
+    PatchContainer* pixiePatch = new PatchContainer( d_hierarchy, patch, input_data->nvar, 
+        u0_id, u_id,input_data->nauxs, auxs_id, input_data->nauxv, auxv_id );
+    void* pixiePatchData = pixiePatch->getPtr();
+    // Get the boundary condition groups
     int N_groups=0;
-    if ( root==rank )
-        FORTRAN_NAME(getnumberofbcgroups)(pixiePatchData,&N_groups);
-    comm.Bcast(&N_groups,1,MPI_INT,root);
-    groups.resize(N_groups);
-    // Get the sequence for each group (root proc)
-    int buffer_size=0;
-    if ( root==rank ) {
-        for( int iSeq=0; iSeq<N_groups; iSeq++) {
-            int iSeq2 = iSeq+1;     // The Fortran code starts indexing at 1
-            int N_sequence;
-            int *data = NULL;
-            FORTRAN_NAME(getbcsequence)(pixiePatchData,&iSeq2,&N_sequence,&data);
-            groups[iSeq] = pixie3dRefinePatchStrategy::bcgrp_struct(N_sequence);
-            for (int i=0; i<N_sequence; i++) {
-                groups[iSeq].bc_seq[i] = data[i];
+    FORTRAN_NAME(getnumberofbcgroups)(pixiePatchData,&N_groups);
+    TBOX_ASSERT(N_groups<10&&N_groups>=0);
+    std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> groups(N_groups);
+    for( int iSeq=0; iSeq<N_groups; iSeq++) {
+        int iSeq2 = iSeq+1;     // The Fortran code starts indexing at 1
+        int N_sequence=0;
+        int *data = NULL;
+        FORTRAN_NAME(getbcsequence)(pixiePatchData,&iSeq2,&N_sequence,&data);
+        TBOX_ASSERT(N_sequence<100&&N_sequence>=0);
+        groups[iSeq] = pixie3dRefinePatchStrategy::bcgrp_struct(N_sequence);
+        for (int i=0; i<N_sequence; i++) {
+            groups[iSeq].bc_seq[i] = data[i];
                 groups[iSeq].vector[i] = data[i+N_sequence];
                 groups[iSeq].fillBC[i] = data[i+2*N_sequence];
-            }
-            buffer_size += groups[iSeq].size();
         }
     }
-    // Communicate the bc sequence
-    comm.Bcast(&buffer_size,1,MPI_INT,root);
-    int *buffer = new int[buffer_size];
-    if ( root==rank ) {
-        tmp = 0;
-        for( int iSeq=0; iSeq<N_groups; iSeq++) {
-            groups[iSeq].pack(&buffer[tmp]);
-            tmp += groups[iSeq].size();
-        }
-    }
-    comm.Bcast(buffer,buffer_size,MPI_INT,root);
-    if ( root!=rank ) {
-        tmp = 0;
-        for( int iSeq=0; iSeq<N_groups; iSeq++) {
-            groups[iSeq].unpack(&buffer[tmp]);
-            tmp += groups[iSeq].size();
-        }
-    }
+    delete pixiePatch;
     return groups;
 }
 

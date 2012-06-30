@@ -191,10 +191,11 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
     }
 
     // Check the patch range
-    if ( patch->inHierarchy() ) {
+    if ( xs>=1 && ys>=1 && zs>=1 && xe<=nbox[0] && ye<=nbox[1] && ze<=nbox[2] ) {
+        // The patch is within the logical domain
+    } else if ( patch->inHierarchy() ) {
         // The patch is in the hierarchy, no ranges should be outside the logical domain
-        if ( xs<1 || ys<1 || zs<1 || xe>nbox[0] || ye>nbox[1] || ze>nbox[2] )
-            TBOX_ERROR("Error, patch is outside domain"); 
+        TBOX_ERROR("Error, patch is outside domain"); 
     } else {
         // A temporary patch is outside the logical domain
         if ( (xe-xs+1) > nbox[0] ) {
