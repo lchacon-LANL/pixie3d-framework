@@ -34,7 +34,6 @@
 #include "SAMRAI/mesh/StandardTagAndInitStrategy.h"
 
 // SAMRUTILS headers
-#include "transfer/SiblingGhostSchedule.h"
 #include "transfer/TriangleRefineSchedule.h"
 #include "interpolation/RefinementBoundaryInterpolation.h"
 
@@ -295,11 +294,6 @@ protected:
    std::string d_refine_op_str;
    pixie3dRefinePatchStrategy* d_refine_strategy; 
    std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> d_BoundarySequenceGroups;
-   //std::vector<std::vector<int> > bcgrp_ids;
-   //RefinementBoundaryInterpolation::InterpolationScheme d_tangentScheme;
-   //RefinementBoundaryInterpolation::InterpolationScheme d_normalScheme;
-   //tbox::Pointer<xfer::RefineSchedule> *refineSchedule[MAX_LEVELS];
-   //tbox::Pointer<xfer::SiblingGhostSchedule> *siblingSchedule[MAX_LEVELS];
    tbox::Pointer<xfer::TriangleRefineSchedule> *refineSchedule[MAX_LEVELS];
 
    // Data for the coarsen schedules
@@ -323,6 +317,8 @@ protected:
    // Get the boundary condition groups
    std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> getBCgroup(int ln);
    
+   // Function to check for overlapping boxes
+   static bool overlappingBoxes( const tbox::Pointer<hier::PatchLevel> level );
 
 };
 }

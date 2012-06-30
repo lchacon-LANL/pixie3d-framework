@@ -124,7 +124,6 @@ pixie3dApplication::pixie3dApplication():
         level_container_array[i] = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
         refineSchedule[i] = NULL;
-        //siblingSchedule[i] = NULL;
     }
     dt_exp = 1.0;
     d_weight_id = -1;
@@ -148,7 +147,6 @@ pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameter
         level_container_array[i] = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
         refineSchedule[i] = NULL;
-        //siblingSchedule[i] = NULL;
     }
     dt_exp = 1.0;
     d_weight_id = -1;
@@ -184,11 +182,6 @@ pixie3dApplication::~pixie3dApplication()
                 refineSchedule[i][j].setNull();
             delete [] refineSchedule[i];
         }
-        /*if ( siblingSchedule[i] != NULL ) {
-            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
-                siblingSchedule[i][j].setNull();
-            delete [] siblingSchedule[i];
-        }*/
     }
     // Delete misc variables
     delete input_data;
@@ -893,29 +886,6 @@ void  pixie3dApplication::refineVariables(void)
         d_aux_vector_tmp->copyVector(d_aux_vector, false);
     }
 
-  /*  // Check the number of boundary condition groups and the sequence for each group
-    level = d_hierarchy->getPatchLevel(0);
-    hier::PatchLevel::Iterator p(level);
-    level_container = (LevelContainer *) level_container_array[0];
-    pixiePatchData = level_container->getPtr(p());    // This is an arbitrary patch to give us the number of boundary sequency groups
-    assert(pixiePatchData!=NULL);
-    int tmp_NumberOfBoundarySequenceGroups;
-    FORTRAN_NAME(getnumberofbcgroups)(pixiePatchData,&tmp_NumberOfBoundarySequenceGroups);
-    if ( tmp_NumberOfBoundarySequenceGroups != d_NumberOfBoundarySequenceGroups )
-        TBOX_ERROR( "The number of boundary sequency groups changed" );
-    for( int iSeq=0; iSeq<d_NumberOfBoundarySequenceGroups; iSeq++) {
-        int tmp_NumberOfBoundaryConditions;
-        int *tmp_BoundaryConditionSequence;
-        int iSeq2 = iSeq+1;     // The Fortran code starts indexing at 1
-        FORTRAN_NAME(getbc)(pixiePatchData, &iSeq2, &tmp_NumberOfBoundaryConditions,&tmp_BoundaryConditionSequence);
-        if ( tmp_NumberOfBoundaryConditions != d_NumberOfBoundaryConditions[iSeq] )
-            TBOX_ERROR( "The number of boundary conditions in a boundary sequency group changed" );
-        for (int i=0; i<2*d_NumberOfBoundaryConditions[iSeq]; i++) {
-            if ( d_BoundaryConditionSequence[iSeq][i] != tmp_BoundaryConditionSequence[i] )
-                TBOX_ERROR( "The boundary conditions in a boundary sequency group changed" );
-        }
-    }*/
-
     // Fill ghost cells
     // moving from coarser to finer levels fill boundary conditions
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
@@ -924,7 +894,7 @@ void  pixie3dApplication::refineVariables(void)
         // process the boundary sequence groups in order
         for(size_t iSeq=0; iSeq<d_BoundarySequenceGroups.size(); iSeq++) {
             // initialize the aux variable on all patches on the level before interpolating
-            // coarse values up and sync-ing periodic/sibling boundaries
+            // coarse values up and sync-ing periodic boundaries
             PROFILE_START("Call initializeauxvar");
             for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
                 pixiePatchData = level_container->getPtr(*ip);
@@ -938,20 +908,6 @@ void  pixie3dApplication::refineVariables(void)
             (d_refine_strategy)->setRefineStrategySequence(d_BoundarySequenceGroups[iSeq]);
             refineSchedule[ln][iSeq]->fillData(0.0);
             PROFILE_STOP("refineSchedule fillData");
-            /*// Perform the second interpolation step (if necessary)
-            if ( ln>0 && d_tangentScheme!=RefinementBoundaryInterpolation::piecewiseConstant &&
-                d_normalScheme!=RefinementBoundaryInterpolation::piecewiseConstant ) 
-            {
-                PROFILE_START("RefinementBoundaryInterpolation");
-                for (size_t i=0; i<bcgrp_ids[iSeq].size(); i++) {
-                    d_coarseFineInterp->setGhostCellData( ln, bcgrp_ids[iSeq][i] );
-                    d_coarseFineInterp->interpolateGhostValues( ln, 
-                        d_tangentScheme,
-                        d_normalScheme,
-                        bcgrp_ids[iSeq][i], 0, false );
-                }
-                PROFILE_STOP("RefinementBoundaryInterpolation");
-            }*/
             // Fill the interior patches
             PROFILE_START("Fill interiors");
             for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
@@ -961,10 +917,6 @@ void  pixie3dApplication::refineVariables(void)
                     (d_refine_strategy)->applyBC(patch);
             }
             PROFILE_STOP("Fill interiors");
-            /*// Fill corners and edges
-            PROFILE_START("siblingSchedule fillData");
-            siblingSchedule[ln][iSeq]->fillData(0.0);
-            PROFILE_STOP("siblingSchedule fillData");*/
         }
     }
 
@@ -1225,6 +1177,7 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     // Check if the application has been initialized
     if ( d_hierarchy.isNull() )
         return;
+    tbox::pout << "  Initializing level " << level_number << std::endl;
 
     // Get the new level
     #ifdef DEBUG_CHECK_ASSERTIONS
@@ -1237,53 +1190,41 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     tbox::Pointer<hier::PatchLevel> level = hierarchy->getPatchLevel(level_number);
 
     // Check the new level for overlapping boxes
-    const hier::BoxLevel box_level = level->getGlobalizedBoxLevel();
-    const hier::BoxContainer box_set = box_level.getBoxes();
-    hier::PersistentOverlapConnectors persistentOverlap = box_level.getPersistentOverlapConnectors();
-    hier::IntVector zero(level->getDim(),0);
-    hier::Connector connector = persistentOverlap.createConnector(box_level,zero);
-    for (hier::PatchLevel::Iterator p(level); p; p++) {
-        tbox::Pointer<SAMRAI::hier::Patch> patch = *p;
-        hier::BoxContainer neighbors;
-        connector.getNeighborBoxes( patch->getBox().getId(), neighbors );
-        if ( neighbors.size() != 1 )
-            TBOX_ERROR("Overlapping boxes were detected on new level, and are not supported");
-    }
+    if ( pixie3dApplication::overlappingBoxes(level) )
+        TBOX_ERROR("Overlapping boxes in hierarchy were detected");
 
     // Allocate data when called for, otherwise set timestamp on allocated data.
-    hier::ComponentSelector d_problem_data(false);
-    if ( !old_level.isNull() ) {
-        // Use the old level to determine which components need to be allocated
-        // Assume that the old level is a level on a rectangular domain (not a multiblock domain)
-        tbox::Pointer<hier::PatchDescriptor> descriptor = old_level->getPatchDescriptor();
-        for (int i=0; i<descriptor->getMaxNumberRegisteredComponents(); i++) {
-            if ( old_level->checkAllocated(i) )
-                d_problem_data.setFlag(i);
-        }
-    } else { 
-        // Use the coarsest level to determine which components need to be allocated
-        tbox::Pointer<hier::PatchLevel> coarse_level = d_hierarchy->getPatchLevel(0);
-        tbox::Pointer<hier::PatchDescriptor> descriptor = coarse_level->getPatchDescriptor();
-        #ifdef DEBUG_CHECK_ASSERTIONS
-            assert(!coarse_level.isNull());
-        #endif
-        for (int i=0; i<descriptor->getMaxNumberRegisteredComponents(); i++) {
-            if ( coarse_level->checkAllocated(i) )
-                d_problem_data.setFlag(i);
-        }
-    }
     if ( allocate_data )  {
+        hier::ComponentSelector d_problem_data(false);
+        if ( !old_level.isNull() ) {
+            // Use the old level to determine which components need to be allocated
+            // Assume that the old level is a level on a rectangular domain (not a multiblock domain)
+            tbox::Pointer<hier::PatchDescriptor> descriptor = old_level->getPatchDescriptor();
+            for (int i=0; i<descriptor->getMaxNumberRegisteredComponents(); i++) {
+                if ( old_level->checkAllocated(i) )
+                    d_problem_data.setFlag(i);
+            }
+        } else { 
+            // Use the coarsest level to determine which components need to be allocated
+            tbox::Pointer<hier::PatchLevel> coarse_level = d_hierarchy->getPatchLevel(0);
+            tbox::Pointer<hier::PatchDescriptor> descriptor = coarse_level->getPatchDescriptor();
+            #ifdef DEBUG_CHECK_ASSERTIONS
+                assert(!coarse_level.isNull());
+            #endif
+            for (int i=0; i<descriptor->getMaxNumberRegisteredComponents(); i++) {
+                if ( coarse_level->checkAllocated(i) )
+                    d_problem_data.setFlag(i);
+            }
+        }
         level->allocatePatchData(d_problem_data, time);
     } else  {
-        level->setTime(time, d_problem_data);
+        level->setTime(time);
     }
 
     // Update the weight id data.  This is important for SAMRAIVectors to compute vector norms correctly
     AMRUtilities::setVectorWeights(hierarchy, d_weight_id);
 
     // Interpolate data from a coarser level and the old_level
-    xfer::RefineAlgorithm fill_current(d_hierarchy->getDim());
-    tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     // Check the coarse level data
     if ( level_number>0 ) {
         for (size_t i=0; i<d_registeredVectors.size(); i++) {
@@ -1307,7 +1248,7 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
             }
         }
     }
-    // Create the refine schedule
+    // Create the refine schedule and fill the new level
     std::vector<int> ids;
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
         TBOX_ASSERT(d_registeredVectors[i]->getNumberOfComponents()==input_data->nvar);
@@ -1317,8 +1258,10 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     tbox::Pointer<hier::PatchLevel > coarse_level;
     if ( level_number>0 )
         coarse_level = hierarchy->getPatchLevel(level_number-1);
-    xfer::TriangleRefineSchedule refine( old_level, coarse_level, level, ids, ids, ids, d_regrid_op_str );
-    refine.fillData(0.0);
+    xfer::TriangleRefineSchedule* refine;       // Keep the refine schedule off the stack
+    refine = new xfer::TriangleRefineSchedule( old_level, coarse_level, level, ids, ids, ids, d_regrid_op_str );
+    refine->fillData(0.0);
+    delete refine;
     // Check the new level data
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
         int coarse_level = d_registeredVectors[i]->getCoarsestLevelNumber();
@@ -1329,6 +1272,7 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
             TBOX_ERROR("x is ouside valid range or contains NaNs");
         d_registeredVectors[i]->resetLevels(coarse_level,fine_level);
     }
+    tbox::pout << "  Finished initializing level " << level_number << std::endl;
 }
 
 
@@ -1392,6 +1336,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
     // Check if the application has been initialized
     if ( d_hierarchy.isNull() )
         return;
+    tbox::pout << "  resetting Hierarchy" << std::endl;
     TBOX_ASSERT(hierarchy->getDim()==d_hierarchy->getDim());
     int N_levels = d_hierarchy->getNumberOfLevels();
     if ( N_levels > MAX_LEVELS ) 
@@ -1407,11 +1352,6 @@ void pixie3dApplication::resetHierarchyConfiguration(
                 refineSchedule[i][j].setNull();
             delete [] refineSchedule[i];
         }
-        /*if ( siblingSchedule[i] != NULL ) {
-            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
-                siblingSchedule[i][j].setNull();
-            delete [] siblingSchedule[i];
-        }*/
     }
 
     // Get the number of boundary condition groups and the sequence for each group
@@ -1423,12 +1363,10 @@ void pixie3dApplication::resetHierarchyConfiguration(
     }
     d_BoundarySequenceGroups = getBCgroup(coarsest_level);
 
-    // Create the refineSchedule and siblingSchedule
+    // Create the refineSchedules
     tbox::Pointer<hier::Variable> var0;
-    tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     //tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelBorderFillPattern());
     tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelFullFillPattern());     // This may reduce performance
-    //bcgrp_ids = std::vector<std::vector<int> >(d_BoundarySequenceGroups.size());
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
         tbox::Pointer<hier::PatchLevel> coarse_level;
@@ -1492,6 +1430,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
     }
 
     // Create the coarsenSchedule
+    tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         if (ln==0) continue;
         xfer::CoarsenAlgorithm coarsenAlgorithm(d_hierarchy->getDim());
@@ -1721,6 +1660,29 @@ std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> pixie3dApplication::getBCg
     }
     return groups;
 }
+
+
+/****************************************************************************
+* Function to test if any boxes overlap                                     *
+****************************************************************************/
+bool pixie3dApplication::overlappingBoxes( const tbox::Pointer<hier::PatchLevel> level )
+{
+    const hier::BoxLevel box_level = level->getGlobalizedBoxLevel();
+    const hier::BoxContainer box_set = box_level.getBoxes();
+    hier::PersistentOverlapConnectors persistentOverlap = box_level.getPersistentOverlapConnectors();
+    hier::IntVector zero(level->getDim(),0);
+    hier::Connector connector = persistentOverlap.createConnector(box_level,zero);
+    bool overlap = false;
+    for (hier::PatchLevel::Iterator p(level); p; p++) {
+        tbox::Pointer<SAMRAI::hier::Patch> patch = *p;
+        hier::BoxContainer neighbors;
+        connector.getNeighborBoxes( patch->getBox().getId(), neighbors );
+        if ( neighbors.size() != 1 )
+            overlap = true;
+    }
+    return overlap;
+}
+
 
 
 }
