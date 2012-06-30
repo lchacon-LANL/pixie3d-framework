@@ -279,6 +279,7 @@ protected:
    int *u0_id, *u_id, *auxs_id, *auxv_id;
    int *f_id, *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
 
+   hier::ComponentSelector d_problem_data;
 
    bool d_bIsInitialTime;
 

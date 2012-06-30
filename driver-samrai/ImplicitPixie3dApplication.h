@@ -6,7 +6,7 @@
 #include "SAMRAI/solv/SNESAbstractFunctions.h"
 #include "pixie3dApplication.h"
 #include "ImplicitPixie3dApplicationParameters.h"
-#include "Pixie3dPreconditioner.h"
+#include "Pixie3dPreconditionerParameters.h"
 
 namespace SAMRAI{
 namespace Pixie3d{
@@ -52,7 +52,7 @@ public:
   /*
    * Interface functions overloaded from solv::SNESAbstractFunctions.
    */
-   int applyPreconditioner(Vec r, Vec z);
+  int applyPreconditioner(Vec r, Vec z);
   
   /*
    * Interface functions overloaded from solv::SNESAbstractFunctions.
@@ -241,7 +241,7 @@ public:
    /**
     * Pointer to pixie preconditioner
     */
-   tbox::Pointer< Pixie3dPreconditioner > d_preconditioner;
+   //tbox::Pointer< Pixie3dPreconditioner > d_preconditioner;
    
    /**
     * Pointer to database with preconditioner parameters

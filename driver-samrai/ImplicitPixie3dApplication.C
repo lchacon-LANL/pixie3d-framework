@@ -5,6 +5,7 @@
 #include "SAMRAI/solv/PETSc_SAMRAIVectorReal.h"
 #include <algorithm>
 
+//#include "Pixie3dPreconditioner.h"
 #include "Pixie3dPreconditionerParameters.h"
 
 namespace SAMRAI{
@@ -133,14 +134,16 @@ ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hie
       // allocate components and space for the current and previous solution vectors
       d_currentSolutionVector = ic_vector->cloneVector("CurrentSolutionVector");
       d_currentSolutionVector->allocateVectorData(0.0);
-      d_registeredVectors.push_back( d_currentSolutionVector );
+      registerVector( d_currentSolutionVector );
 
       d_previousSolutionVector = ic_vector->cloneVector("PreviousSolutionVector");
       d_previousSolutionVector->allocateVectorData(0.0);
-      d_registeredVectors.push_back( d_previousSolutionVector );
+      registerVector( d_previousSolutionVector );
 
       d_scratchVector = ic_vector->cloneVector("ScratchVector");
       d_scratchVector->allocateVectorData(0.0);
+      for (int i=0; i<d_scratchVector->getNumberOfComponents(); i++)
+          d_problem_data.setFlag( d_scratchVector->getComponentDescriptorIndex(i) );
       
       d_vectorsCloned = true;
     }
@@ -210,7 +213,7 @@ ImplicitPixie3dApplication::applyPreconditioner(Vec r, Vec z)
    tbox::Pointer< solv::SAMRAIVectorReal<double> > rhs  = solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(r);
    tbox::Pointer< solv::SAMRAIVectorReal<double> > soln = solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(z);
 
-  this->applyPreconditioner(rhs, soln);
+  // this->applyPreconditioner(rhs, soln);
 
    return 0;
 }
@@ -284,28 +287,31 @@ ImplicitPixie3dApplication::evaluateNonlinearFunction(tbox::Pointer< solv::SAMRA
 void
 ImplicitPixie3dApplication::createPreconditioner()
 {
-  
-  Pixie3d::Pixie3dPreconditionerParameters *parameters = createPreconditionerParameters(d_pc_db);
+  TBOX_ERROR("STOP");
+/*  Pixie3d::Pixie3dPreconditionerParameters *parameters = createPreconditionerParameters(d_pc_db);
   
   d_preconditioner =  new Pixie3d::Pixie3dPreconditioner(parameters);
   delete parameters;
-  
+  */
 }
 
 void
 ImplicitPixie3dApplication::destroyPreconditioner()
 {
-  Pixie3dPreconditioner *ptr = d_preconditioner.getPointer();
+  TBOX_ERROR("STOP");
+  /*Pixie3dPreconditioner *ptr = d_preconditioner.getPointer();
 
    delete ptr;
 
-   d_preconditioner.setNull();
+   d_preconditioner.setNull();*/
 }
 
 Pixie3d::Pixie3dPreconditionerParameters *
 ImplicitPixie3dApplication::createPreconditionerParameters( tbox::Pointer<tbox::Database> &db )
 {
-
+  TBOX_ERROR("STOP");
+  return NULL;
+/*
   //BP: the database should be populated with additional entries required by the preconditioner here
   
   Pixie3d::Pixie3dPreconditionerParameters *parameters = new Pixie3d::Pixie3dPreconditionerParameters(db);
@@ -314,21 +320,22 @@ ImplicitPixie3dApplication::createPreconditionerParameters( tbox::Pointer<tbox::
   // currently setting the interpolant to NULL, need to remove if it is not being used
   parameters->d_cf_interpolant             = NULL;
   
-  return parameters;
+  return parameters;*/
 }
 
   
 int
 ImplicitPixie3dApplication::setupPreconditioner(tbox::Pointer< solv::SAMRAIVectorReal<double> > x)
 {
-  tbox::Pointer<tbox::Database> db( new tbox::InputDatabase("null db"));
+  TBOX_ERROR("STOP");
+/*  tbox::Pointer<tbox::Database> db( new tbox::InputDatabase("null db"));
 
   // BP: add code in here necessary to setup the parameters object
   
   Pixie3d::Pixie3dPreconditionerParameters *parameters = new Pixie3d::Pixie3dPreconditionerParameters(db);
   
   d_preconditioner->setupPreconditioner(parameters);
-
+*/
   return (0);
 }
 
@@ -336,8 +343,11 @@ int
 ImplicitPixie3dApplication::applyPreconditioner(tbox::Pointer< solv::SAMRAIVectorReal<double> > r,
 						tbox::Pointer< solv::SAMRAIVectorReal<double> > z)
 {  
-  return d_preconditioner->applyPreconditioner(r,z);
+  TBOX_ERROR("STOP");
+  return 0;
+  //return d_preconditioner->applyPreconditioner(r,z);
 }
+
 
 void
 ImplicitPixie3dApplication::setupSolutionVector(tbox::Pointer< solv::SAMRAIVectorReal<double> > solution)
@@ -345,7 +355,7 @@ ImplicitPixie3dApplication::setupSolutionVector(tbox::Pointer< solv::SAMRAIVecto
 #ifdef DEBUG_CHECK_ASSERTIONS
   assert(!solution.isNull());
 #endif
-  d_registeredVectors.push_back( solution );
+  registerVector( solution );
   d_newSolutionVector = solution;
   
   const tbox::Dimension &dimObj = d_hierarchy->getDim();
