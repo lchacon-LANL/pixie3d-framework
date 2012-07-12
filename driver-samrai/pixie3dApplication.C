@@ -1229,7 +1229,7 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
 
     // Allocate data when called for, otherwise set timestamp on allocated data.
     mpi.Barrier();
-    tbox::pout << "      allocate data" << std::endl;
+    tbox::pout << "     allocate data" << std::endl;
     if ( allocate_data )  {
         for (size_t i=0; i<d_registeredVectors.size(); i++) {
             for (int j=0; j<d_registeredVectors[i]->getNumberOfComponents(); j++)
@@ -1248,8 +1248,6 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     AMRUtilities::setVectorWeights(hierarchy, d_weight_id);
 
     // Interpolate data from a coarser level and the old_level
-    mpi.Barrier();
-    tbox::pout << "     fill new level" << std::endl;
     // Check the coarse level data
     if ( level_number>0 ) {
         for (size_t i=0; i<d_registeredVectors.size(); i++) {
@@ -1274,6 +1272,8 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
         }
     }
     // Create the refine schedule and fill the new level
+    mpi.Barrier();
+    tbox::pout << "     interpolate" << std::endl;
     std::vector<int> ids;
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
         TBOX_ASSERT(d_registeredVectors[i]->getNumberOfComponents()==input_data->nvar);
@@ -1283,12 +1283,8 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     tbox::Pointer<hier::PatchLevel > coarse_level;
     if ( level_number>0 )
         coarse_level = hierarchy->getPatchLevel(level_number-1);
-    mpi.Barrier();
-    tbox::pout << "        create" << std::endl;
     xfer::TriangleRefineSchedule* refine;       // Keep the refine schedule off the stack
     refine = new xfer::TriangleRefineSchedule( old_level, coarse_level, level, ids, ids, ids, d_regrid_op_str );
-    mpi.Barrier();
-    tbox::pout << "        fillData" << std::endl;
     refine->fillData(0.0);
     delete refine;
     // Check the new level data
@@ -1383,6 +1379,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
             for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
                 refineSchedule[i][j].setNull();
             delete [] refineSchedule[i];
+            refineSchedule[i] = NULL;
         }
     }
 
@@ -1546,8 +1543,6 @@ void pixie3dApplication::resetHierarchyConfiguration(
     }
 
     // Call setInitialConditions to fill d_ic and the src vector
-    mpi.Barrier();
-    tbox::pout << "     set initial conditions" << std::endl;
     setInitialConditions( 0.0 );
 
     mpi.Barrier();
@@ -1658,7 +1653,8 @@ std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> pixie3dApplication::getBCg
     hier::Index one(dim,1);
     hier::PatchGeometry::TwoDimBool boundary(dim,false);
     tbox::Pointer<hier::PatchGeometry> geometry(new hier::PatchGeometry(one, boundary, boundary) );
-    tbox::Pointer<hier::Patch> patch(new hier::Patch( box, d_hierarchy->getPatchDescriptor() ) );
+    tbox::Pointer<hier::PatchDescriptor> descriptor = d_hierarchy->getPatchDescriptor();
+    tbox::Pointer<hier::Patch> patch(new hier::Patch( box, descriptor ) );
     patch->setPatchGeometry(geometry);
     // Allocate the data on the patch
     patch->allocatePatchData(d_problem_data,0.0);
