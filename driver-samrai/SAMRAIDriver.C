@@ -25,6 +25,7 @@
 // SAMRUTILS headers
 #include "testutils/SAMRBuilder.h"
 #include "utilities/ProfilerApp.h"
+#include "utilities/Utilities.h"
 
 // SAMRSOLVERS headers
 #include "time_integrators/TimeIntegratorParameters.h"
@@ -47,6 +48,7 @@ extern "C"{
 
 int main( int argc, char *argv[] ) 
 {
+  Utilities::setTerminateStack();
   SAMRAI::tbox::SAMRAI_MPI::init(&argc, &argv);
   SAMRAI::tbox::SAMRAIManager::initialize();
   SAMRAI::tbox::SAMRAIManager::startup();

@@ -4,11 +4,13 @@
 // $Date: 2005-08-23 15:10:00 -0600 (Tue, 23 Aug 2005) $
 //
 
+#include <stdio.h>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <fstream>
 #include <sys/stat.h>
+#include <stdexcept>
 
 // Application header.
 #include "SAMRAIDriver.h"
@@ -25,6 +27,7 @@
 // SAMRUTILS headers
 #include "testutils/SAMRBuilder.h"
 #include "utilities/ProfilerApp.h"
+#include "utilities/Utilities.h"
 
 // SAMRSOLVERS headers
 #include "SAMRAI/algs/ImplicitIntegrator.h"
@@ -49,6 +52,7 @@ extern "C"{
 
 int main( int argc, char *argv[] ) 
 {
+  Utilities::setTerminateStack();
   SAMRAI::tbox::SAMRAI_MPI::init(&argc, &argv);
   SAMRAI::tbox::SAMRAIManager::initialize();
   SAMRAI::tbox::SAMRAIManager::startup();
