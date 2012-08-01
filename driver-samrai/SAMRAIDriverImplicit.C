@@ -52,13 +52,13 @@ extern "C"{
 
 int main( int argc, char *argv[] ) 
 {
-  Utilities::setTerminateStack();
   SAMRAI::tbox::SAMRAI_MPI::init(&argc, &argv);
   SAMRAI::tbox::SAMRAIManager::initialize();
   SAMRAI::tbox::SAMRAIManager::startup();
   const int maxPatchDataEntries = 2000;
   SAMRAI::tbox::SAMRAIManager::setMaxNumberPatchDataEntries(maxPatchDataEntries);
   const SAMRAI::tbox::SAMRAI_MPI& mpi(SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld());
+  Utilities::setMPIErrorHandler( mpi );
 
   int ierr = PetscInitialize(&argc, &argv, PETSC_NULL,PETSC_NULL);
   //PetscInitializeNoArguments();
