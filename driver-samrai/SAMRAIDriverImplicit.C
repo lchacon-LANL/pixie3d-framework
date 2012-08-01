@@ -67,7 +67,6 @@ int main( int argc, char *argv[] )
   // This extra code block is used to scope some temporaries that are
   // created, it forces the destruction before the manager is shutdown.
   {
-
     PROFILE_START("MAIN");
     std::string timer_results = "pixie3d.samrai";
     std::string input_file;
