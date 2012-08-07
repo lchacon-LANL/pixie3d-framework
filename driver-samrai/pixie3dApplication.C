@@ -1274,19 +1274,19 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
     // Create the refine schedule and fill the new level
     mpi.Barrier();
     tbox::pout << "     interpolate" << std::endl;
-    std::vector<int> ids;
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
         TBOX_ASSERT(d_registeredVectors[i]->getNumberOfComponents()==input_data->nvar);
+        std::vector<int> ids(input_data->nvar);
         for (int j=0; j<input_data->nvar; j++)
-            ids.push_back( d_registeredVectors[i]->getComponentDescriptorIndex(j) );
+            ids[j] = d_registeredVectors[i]->getComponentDescriptorIndex(j);
+        tbox::Pointer<hier::PatchLevel > coarse_level;
+        if ( level_number>0 )
+            coarse_level = hierarchy->getPatchLevel(level_number-1);
+        xfer::TriangleRefineSchedule* refine;       // Keep the refine schedule off the stack
+        refine = new xfer::TriangleRefineSchedule( old_level, coarse_level, level, ids, ids, d_x0_grad_ids, d_regrid_op_str );
+        refine->fillData(0.0);
+        delete refine;
     }
-    tbox::Pointer<hier::PatchLevel > coarse_level;
-    if ( level_number>0 )
-        coarse_level = hierarchy->getPatchLevel(level_number-1);
-    xfer::TriangleRefineSchedule* refine;       // Keep the refine schedule off the stack
-    refine = new xfer::TriangleRefineSchedule( old_level, coarse_level, level, ids, ids, ids, d_regrid_op_str );
-    refine->fillData(0.0);
-    delete refine;
     // Check the new level data
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
         int coarse_level = d_registeredVectors[i]->getCoarsestLevelNumber();
