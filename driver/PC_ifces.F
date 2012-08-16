@@ -95,6 +95,8 @@ c-------------------------------------------------------------------
 
       use nk_setup
 
+      use mg_io
+
       implicit none
 
 c Call variables
@@ -140,7 +142,7 @@ c *******************************************************************
                   x(iii) = y(iii)
                 else
                   if (vol_wgt) then
-                    x(iii) = y(iii)*dt/gmetric%grid(igrid)%dvol(i,j,k)
+                    x(iii) = y(iii)*dt/gmetric%grid(igrid)%dlvol(i,j,k)
                   else
                     x(iii) = y(iii)*dt
                   endif
@@ -190,9 +192,7 @@ c     Application PC
                   if (mk_nc) then
                     dvol = gmetric%grid(igrid)%dvol(i,j,k)
                   else
-                    dvol = grid_params%dxh(ig)
-     .                    *grid_params%dyh(jg)
-     .                    *grid_params%dzh(kg)
+                    dvol = gmetric%grid(igrid)%dlvol(i,j,k)
                   endif
                 else
                   dvol = 1d0
@@ -242,8 +242,6 @@ c     ##############################################################
 c     --------------------------------------------------------------
 c     Performs diagnostics on PC
 c     --------------------------------------------------------------
-
-        use mg_io
 
         implicit none
 

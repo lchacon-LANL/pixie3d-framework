@@ -407,7 +407,7 @@ endif
 ifeq ($(findstring sith,$(HOST)),sith)
   FC = pgf95
 
-  BOPT = t
+  BOPT = O
   PETSC_DIR ?= /sw/sith/petsc/3.0.0/centos5.5_pgi10.9_opt/petsc-3.0.0-p10
   PETSC_ARCH ?= sith-opt
 

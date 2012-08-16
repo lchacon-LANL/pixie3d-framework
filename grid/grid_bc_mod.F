@@ -12,7 +12,7 @@ c     -----------------------------------------------------------------
 
 c     bcSYM
 c     #################################################################
-      function bcSYM(ibc) result(sym_bc)
+      function bcSYM(ibc,bcnd) result(sym_bc)
 
 c     -----------------------------------------------------------------
 c     Detects whether boundary is of SYM or FSYM type. Boundary is
@@ -24,14 +24,29 @@ c     -----------------------------------------------------------------
 
         implicit none
 
+c     Call variables
+
         integer :: ibc
         logical :: sym_bc
+        integer,optional :: bcnd(6)
+
+c     Local variables
+
+        integer :: bc(6)
+
+c     Begin program
+
+        if (PRESENT(bcnd)) then
+          bc = bcnd
+        else
+          bc = bcond
+        endif
 
         if (ibc < 1 .or. ibc > 6) then
           sym_bc = .false.
         else
-          sym_bc =    (abs(bcond(ibc)) ==  SYM)
-cc     .            .or.(abs(bcond(ibc)) == FSYM)
+          sym_bc =    (abs(bc(ibc)) ==  SYM)
+cc     .            .or.(abs(bc(ibc)) == FSYM)
         endif
 
       end function bcSYM
@@ -456,6 +471,10 @@ c #####################################################################
         INTERFACE quad_int
           module procedure quad_int_0,quad_int_1,quad_int_2
         end INTERFACE
+
+        INTERFACE XferBCs
+          module procedure XferBCs_scl, XferBCs_vec
+        END INTERFACE 
 
         integer  :: iimax,iimin,jjmax,jjmin,kkmax,kkmin
         integer  :: iimxp,iimnm,jjmxp,jjmnm,kkmxp,kkmnm
@@ -3091,7 +3110,7 @@ c     Begin program
 c     extrapolateToCorner
 c     #################################################################
       subroutine extrapolateToCorner(ibcl,ito,jto,kto,imn,jmn,kmn
-     .                              ,imx,jmx,kmx,array,bcond,array0)
+     .                              ,imx,jmx,kmx,array,bcnd,array0)
 c     -----------------------------------------------------------------
 c     Routine that extrapolates information to edge or vertex corners.
 c     It is the workhorse of the fillEdge and fillCorner routines.
@@ -3111,7 +3130,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer :: ibcl(3),ito,jto,kto,imn,jmn,kmn,imx,jmx,kmx,bcond(6)
+      integer :: ibcl(3),ito,jto,kto,imn,jmn,kmn,imx,jmx,kmx,bcnd(6)
       real(8) :: array(imn:imx,jmn:jmx,kmn:kmx)
       real(8),optional,intent(IN) :: array0(imn:imx,jmn:jmx,kmn:kmx)
 
@@ -3138,19 +3157,31 @@ c     Initialize variables
       edge   = (count(ibcl /= 0) == 2)
       corner = (count(ibcl /= 0) == 3)
 
-c     Do nothing for SP boundary face, edge, and corners
+c     Do nothing for SP boundary faces, edges, and corners
 
-      if (.not.face
-     .    .and.(     bcSP(ibc=ibcl(1))
-     .          .or. bcSP(ibc=ibcl(2))
-     .          .or. bcSP(ibc=ibcl(3)))) return
+cc      if (.not.face
+cc     .    .and.(     bcSP(ibc=ibcl(1))
+cc     .          .or. bcSP(ibc=ibcl(2))
+cc     .          .or. bcSP(ibc=ibcl(3)))) return
+cc      if (    (bcnd(ibcl(1))==SP)
+cc     .    .or.(bcnd(ibcl(2))==SP)
+cc     .    .or.(bcnd(ibcl(3))==SP)) return
+      if (     bcSP(ibc=ibcl(1),bcnd=bcnd)
+     .    .or. bcSP(ibc=ibcl(2),bcnd=bcnd)
+     .    .or. bcSP(ibc=ibcl(3),bcnd=bcnd)) return
 
-c     Do nothing for SYM or FSYM boundaries
+c     Do nothing for SYM boundary faces, edges, and corners
 
-      if (.not.face
-     .    .and.(    bcSYM(ibcl(1))
-     .         .or. bcSYM(ibcl(2))
-     .         .or. bcSYM(ibcl(3)))) return
+cc      if (.not.face
+cc     .    .and.(    bcSYM(ibcl(1))
+cc     .         .or. bcSYM(ibcl(2))
+cc     .         .or. bcSYM(ibcl(3)))) return
+cc      if (     abs(bcnd(ibcl(1)))==SYM
+cc     .    .or. abs(bcnd(ibcl(2)))==SYM
+cc     .    .or. abs(bcnd(ibcl(3)))==SYM) return
+      if (     bcSYM(ibc=ibcl(1),bcnd=bcnd)
+     .    .or. bcSYM(ibc=ibcl(2),bcnd=bcnd)
+     .    .or. bcSYM(ibc=ibcl(3),bcnd=bcnd)) return
 
 c     Identify directions for extrapolation.
 
@@ -3213,9 +3244,10 @@ c     Treat special boundaries
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc <= 0) cycle
-        select_bc(i) =(    (abs(bcond(i_bc)) == SP )
-     .                 .or.(abs(bcond(i_bc)) == IFC)
-     .                 .or.(abs(bcond(i_bc)) == EQU)
+        select_bc(i) =(    (abs(bcnd(i_bc)) == SP )
+     .                 .or.(abs(bcnd(i_bc)) == IFC)
+     .                 .or.(abs(bcnd(i_bc)) == EQU)
+cc     .                 .or.(abs(bcnd(i_bc)) == NEU .and. order /= 0)
      .                ).and.selectFace(i_bc)
       enddo
 
@@ -3223,16 +3255,16 @@ c     Treat special boundaries
 
       !Identify special boundaries to interpolate **across**
       !   1) Periodic boundary
-      !   2) Symmetry boundary (either SYM or NEU+order=0)
+      !   2) Symmetry boundary (NEU+order=0; SYM removed on 6/1/12)
       !   3) Equilibrium boundary (Removed 11/10/08; was interfering with parallelization)
       !   4) Discard internal processor boundaries (not real boundaries)
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc <= 0) cycle
-        select_bc(i) =(    (    bcond(i_bc)  == PER)
-     .                .or. (abs(bcond(i_bc)) == SYM)
-     .                .or. (abs(bcond(i_bc)) == NEU .and. order == 0)
+        select_bc(i) =(    (    bcnd(i_bc)  == PER)
+cc 6/1/12     .                .or. (abs(bcnd(i_bc)) == SYM)
+     .                .or. (abs(bcnd(i_bc)) == NEU .and. order == 0)
      .                ).and.selectFace(i_bc)
       enddo
 
@@ -3281,9 +3313,9 @@ c     X extrapolation
         xto = grid_params%xx(ig)
 
         if (isSYM(ito+1,igxbc,ibc=ibcl(1))) then
-          valx(1) = sign(1,bcond(ibcl(1)))*array(ito+2,jto,kto)
+          valx(1) = sign(1,bcnd(ibcl(1)))*array(ito+2,jto,kto)
         elseif (isSYM(ito-1,igxbc,ibc=ibcl(1))) then
-          valx(1) = sign(1,bcond(ibcl(1)))*array(ito-2,jto,kto)
+          valx(1) = sign(1,bcnd(ibcl(1)))*array(ito-2,jto,kto)
         else
           call IntDriver1d(inx,xx,array(imni:imxi,jto,kto)
      .                    ,1,xto,valx,order_int(1))
@@ -3316,9 +3348,9 @@ c     Y extrapolation
         yto = grid_params%yy(jg)
 
         if (isSYM(jto+1,igybc,ibc=ibcl(2))) then
-          valy(1) = sign(1,bcond(ibcl(2)))*array(ito,jto+2,kto)
+          valy(1) = sign(1,bcnd(ibcl(2)))*array(ito,jto+2,kto)
         elseif (isSYM(jto-1,igybc,ibc=ibcl(2))) then
-          valy(1) = sign(1,bcond(ibcl(2)))*array(ito,jto-2,kto)
+          valy(1) = sign(1,bcnd(ibcl(2)))*array(ito,jto-2,kto)
         else
           call IntDriver1d(iny,yy,array(ito,jmni:jmxi,kto)
      .                    ,1,yto,valy,order_int(2))
@@ -3352,9 +3384,9 @@ c     Z extrapolation
         zto = grid_params%zz(kg)
 
         if (isSYM(kto+1,igzbc,ibc=ibcl(3))) then
-          valz(1) = sign(1,bcond(ibcl(3)))*array(ito,jto,kto+2)
+          valz(1) = sign(1,bcnd(ibcl(3)))*array(ito,jto,kto+2)
         elseif (isSYM(kto-1,igzbc,ibc=ibcl(3))) then
-          valz(1) = sign(1,bcond(ibcl(3)))*array(ito,jto,kto-2)
+          valz(1) = sign(1,bcnd(ibcl(3)))*array(ito,jto,kto-2)
         else
           call IntDriver1d(inz,zz,array(ito,jto,kmni:kmxi)
      .                    ,1,zto,valz,order_int(3))
@@ -3637,6 +3669,123 @@ c     Begin program
 c     End program
 
       end function quad_int_2
+
+c     XferBCs_scl
+c     ###################################################################
+      subroutine XferBCs_scl(arr1,arr2,average)
+
+      implicit none
+
+c     -------------------------------------------------------------------
+c     Routine to transfer ghost cell values form arr1 to arr2
+c     -------------------------------------------------------------------
+
+c     Input variables
+
+      real(8) :: arr1(0:,0:,0:)
+      real(8) :: arr2(0:,0:,0:)
+      logical :: average
+
+c     Local variables
+
+      integer :: nxp,nyp,nzp
+
+c     Begin program
+
+      nxp = size(arr1,1)-1
+      nyp = size(arr1,2)-1
+      nzp = size(arr1,3)-1
+
+      if (average) then
+        arr2(nxp,:,:) = 0.5*(arr1(nxp  ,:,:)
+     .                      +arr1(nxp-1,:,:))
+        arr2(0  ,:,:) = 0.5*(arr1(1    ,:,:)
+     .                      +arr1(0    ,:,:))
+
+        arr2(:,nyp,:) = 0.5*(arr1(:,nyp  ,:)
+     .                      +arr1(:,nyp-1,:))
+        arr2(:,0  ,:) = 0.5*(arr1(:,1    ,:)
+     .                      +arr1(:,0    ,:))
+
+        arr2(:,:,nzp) = 0.5*(arr1(:,:,nzp  )
+     .                      +arr1(:,:,nzp-1))
+        arr2(:,:,0  ) = 0.5*(arr1(:,:,1    )
+     .                      +arr1(:,:,0    ))
+      else
+        !X boundaries
+        arr2(0  ,:,:) = arr1(0  ,:,:)
+        arr2(nxp,:,:) = arr1(nxp,:,:)
+
+        !Y boundaries
+        arr2(:,0  ,:) = arr1(:,0  ,:)
+        arr2(:,nyp,:) = arr1(:,nyp,:)
+
+        !Z boundaries
+        arr2(:,:,0  ) = arr1(:,:,0  )
+        arr2(:,:,nzp) = arr1(:,:,nzp)
+      endif
+
+c     End program
+
+      end subroutine XferBCs_scl
+
+c     XferBCs_vec
+c     ###################################################################
+      subroutine XferBCs_vec(vec1,vec2,average)
+
+      implicit none
+c     -------------------------------------------------------------------
+c     Routine to transfer ghost cell values form vec1 to vec2
+c     -------------------------------------------------------------------
+
+c     Input variables
+
+      real(8) :: vec1(0:,0:,0:,:)
+      real(8) :: vec2(0:,0:,0:,:)
+      logical :: average
+
+c     Local variables
+
+      integer :: nxp,nyp,nzp
+
+c     Begin program
+
+      nxp = size(vec1,1)-1
+      nyp = size(vec1,2)-1
+      nzp = size(vec1,3)-1
+
+      if (average) then
+        vec2(nxp,:,:,:) = 0.5*(vec1(nxp  ,:,:,:)
+     .                        +vec1(nxp-1,:,:,:))
+        vec2(0  ,:,:,:) = 0.5*(vec1(1    ,:,:,:)
+     .                        +vec1(0    ,:,:,:))
+
+        vec2(:,nyp,:,:) = 0.5*(vec1(:,nyp  ,:,:)
+     .                        +vec1(:,nyp-1,:,:))
+        vec2(:,0  ,:,:) = 0.5*(vec1(:,1    ,:,:)
+     .                        +vec1(:,0    ,:,:))
+
+        vec2(:,:,nzp,:) = 0.5*(vec1(:,:,nzp  ,:)
+     .                        +vec1(:,:,nzp-1,:))
+        vec2(:,:,0  ,:) = 0.5*(vec1(:,:,1    ,:)
+     .                        +vec1(:,:,0    ,:))
+      else
+        !X boundaries
+        vec2(0  ,:,:,:) = vec1(0  ,:,:,:)
+        vec2(nxp,:,:,:) = vec1(nxp,:,:,:)
+
+        !Y boundaries
+        vec2(:,0  ,:,:) = vec1(:,0  ,:,:)
+        vec2(:,nyp,:,:) = vec1(:,nyp,:,:)
+
+        !Z boundaries
+        vec2(:,:,0  ,:) = vec1(:,:,0  ,:)
+        vec2(:,:,nzp,:) = vec1(:,:,nzp,:)
+      endif
+
+c     End program
+
+      end subroutine XferBCs_vec
 
       end module imposeBCinterface
 

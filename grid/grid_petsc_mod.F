@@ -48,7 +48,7 @@ c     -----------------------------------------------------------------
 
 c     bcSP
 c     #################################################################
-      function bcSP(ibc) result(sing_bc)
+      function bcSP(ibc,bcnd) result(sing_bc)
 
 c     -----------------------------------------------------------------
 c     Detects whether boundary is of SP type. Boundary is identified
@@ -60,9 +60,18 @@ c     -----------------------------------------------------------------
 
         implicit none
 
+c     Call variables
+
         integer,optional :: ibc
         logical :: sing_bc
         integer :: iibc
+        integer,optional :: bcnd(6)
+
+c     Local variables
+
+        integer :: bc(6)
+
+c     Begin program
 
         if (PRESENT(ibc)) then
           iibc = ibc
@@ -70,10 +79,16 @@ c     -----------------------------------------------------------------
           iibc = 1
         endif
 
+        if (PRESENT(bcnd)) then
+          bc = bcnd
+        else
+          bc = bcond
+        endif
+
         if (iibc < 1 .or. iibc > 6) then
           sing_bc = .false.
         else
-          sing_bc = (abs(bcond(iibc)) == SP)
+          sing_bc = (abs(bc(iibc)) == SP)
         endif
 
       end function bcSP

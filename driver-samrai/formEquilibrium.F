@@ -96,9 +96,9 @@ c      use generalPurposeFunctions
       type(patch), TARGET :: patch_var
 
       INTERFACE
-         subroutine setEquilibrium(igx,igy,igz,varray)
+         subroutine setEquilibrium(igx,varray)
          use variable_setup
-         integer :: igx,igy,igz
+         integer :: igx
          type(var_array),pointer :: varray
          end subroutine setEquilibrium
       END INTERFACE
@@ -116,7 +116,7 @@ c Begin program
 
 c Create equilibrium u_0
 
-      call setEquilibrium(1,1,1,u_0)  !External
+      call setEquilibrium(1,u_0)  !External
 
 c End program
  

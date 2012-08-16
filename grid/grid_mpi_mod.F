@@ -34,6 +34,7 @@ c ######################################################################
      .               ,MPI_COMM_X     =MPI_COMM_NULL
      .               ,MPI_COMM_Y     =MPI_COMM_NULL
      .               ,MPI_COMM_Z     =MPI_COMM_NULL
+     .               ,MPI_COMM_XY    =MPI_COMM_NULL
      .               ,MPI_COMM_YZ    =MPI_COMM_NULL
      .               ,MPI_COMM_PER(3)=MPI_COMM_NULL
 cc        integer   ,allocatable,dimension(:) :: MPI_COMM_PER
@@ -113,6 +114,18 @@ c     Y MPI communicator (domains that share same X, Z slices)
         if (bcSP()) MPI_COMM_POL = MPI_COMM_Y
 
 cc        call check_MPI_COMM(MPI_COMM_Y,'MPI_COMM_Y')
+
+c     Z MPI communicator (domains that share same X, Z slices)
+
+        call createMPIComm(MPI_COMM_Z,selectRank_Z)
+
+cc        call check_MPI_COMM(MPI_COMM_Z,'MPI_COMM_Z')
+
+c     XY MPI communicator (domains that share same Z slices)
+
+        call createMPIComm(MPI_COMM_XY,selectRank_XY)
+
+cc        call check_MPI_COMM(MPI_COMM_XY,'MPI_COMM_XY')
 
 c     YZ MPI communicator (domains that share same X slices)
 
@@ -1135,6 +1148,61 @@ c     Select rank
 c     End program
 
       end subroutine selectRank_Z
+
+c     selectRank_XY
+c     #####################################################################
+      subroutine selectRank_XY(split_key)
+
+c     ---------------------------------------------------------------------
+c     Groups processors based on shared X position in processor mesh.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: split_key
+
+c     Local variables
+
+        integer    :: loc,lrank
+
+        logical    :: cp(0:1)
+
+c     Begin program
+
+        if (split_key == MPI_UNDEFINED) then
+          split_key = 1
+        endif
+
+c     Set global limits of local domain l_lim(dim,loc)
+
+        l_lim(1,0) = grid_params%ilo(1)
+        l_lim(2,0) = grid_params%jlo(1)
+        l_lim(3,0) = grid_params%klo(1)
+        l_lim(1,1) = grid_params%ihi(1)
+        l_lim(2,1) = grid_params%jhi(1)
+        l_lim(3,1) = grid_params%khi(1)
+
+c     Set global limits of global domain g_lim(dim,loc)
+
+        g_lim(1,0) = 1
+        g_lim(2,0) = 1
+        g_lim(3,0) = 1
+        g_lim(1,1) = grid_params%nxgl(1)
+        g_lim(2,1) = grid_params%nygl(1)
+        g_lim(3,1) = grid_params%nzgl(1)
+
+c     Select rank
+
+        !Group processors based on location in x direction
+        !(y and z directions are shared; 
+        ! organize in 1D processor mesh: i
+        split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
+
+c     End program
+
+      end subroutine selectRank_XY
 
 c     selectRank_YZ
 c     #####################################################################

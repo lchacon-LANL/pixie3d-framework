@@ -53,8 +53,7 @@ c     #################################################################
 
         logical :: alt__eom
 
-        alt__eom=.false.
-        if (bcSP()) alt__eom=.true.
+        alt__eom = bcSP()
 
       end function alt__eom
 
@@ -714,22 +713,22 @@ c       ANALYTICAL QUANTITIES **********************************
                 call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
                 if (gparams%nxgl(igrid) > 1)
-     .               gparams%gmetric%grid(igrid)%dvol(i,j,k) =
+     .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
      .                           gparams%dxh(ig)
 
                 if (gparams%nygl(igrid) > 1)
-     .               gparams%gmetric%grid(igrid)%dvol(i,j,k) =
-     .               gparams%gmetric%grid(igrid)%dvol(i,j,k) *
+     .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+     .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
      .                           gparams%dyh(jg)
 
                 if (gparams%nzgl(igrid) > 1)
-     .               gparams%gmetric%grid(igrid)%dvol(i,j,k) =
-     .               gparams%gmetric%grid(igrid)%dvol(i,j,k) *
+     .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+     .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
      .                           gparams%dzh(kg)
 
                 gparams%gmetric%grid(igrid)%dvol(i,j,k)=
-     .                           gparams%gmetric%grid(igrid)%jac(i,j,k)
-     .                          *gparams%gmetric%grid(igrid)%dvol(i,j,k)
+     .                          gparams%gmetric%grid(igrid)%jac(i,j,k)
+     .                         *gparams%gmetric%grid(igrid)%dlvol(i,j,k)
               enddo
             enddo
           enddo
@@ -825,7 +824,7 @@ c     Begin program
               enddo
             enddo
 
-          elseif (coords == 'pck') then
+          elseif (coords == 'pck') then  !Defines numerical map with geometric packing
 
             !X coordinate
             allocate(xg(0:gparams%nxgl(igx)+1))
@@ -1393,8 +1392,9 @@ cc        nullify(xc)
 c     Enforce topological constraints on dr (including SP) and extrapolate otherwise
 
         bc_dr = bcond
-        where (bc_dr == DEF) bc_dr = EXT
-        where (bc_dr == SP ) bc_dr = DEF
+        where (bc_dr == DEF ) bc_dr = EXT
+        where (bc_dr == FSYM) bc_dr = NEU
+        where (bc_dr == SP  ) bc_dr = DEF
 
         do j=1,3
           do i=1,3
@@ -1466,22 +1466,22 @@ c     Evaluate grid quantities
               call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
               if (gparams%nxgl(igrid) > 1)
-     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) =
+     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
      .                         gparams%dxh(ig)
 
               if (gparams%nygl(igrid) > 1)
-     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) =
-     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) *
+     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
      .                         gparams%dyh(jg)
 
               if (gparams%nzgl(igrid) > 1)
-     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) =
-     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) *
+     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
      .                         gparams%dzh(kg)
 
               gparams%gmetric%grid(igrid)%dvol(i,j,k)=
-     .                           gparams%gmetric%grid(igrid)%jac(i,j,k)
-     .                          *gparams%gmetric%grid(igrid)%dvol(i,j,k)
+     .                          gparams%gmetric%grid(igrid)%jac(i,j,k)
+     .                         *gparams%gmetric%grid(igrid)%dlvol(i,j,k)
 
 cc              !Christoffel symbols (OLD) <<<<<<<<<<<<<<<<<<
 cc              do l=1,3

@@ -17,7 +17,8 @@ c #####################################################################
           sequence
 #endif
           real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
-          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
+          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell physical volume
+          real(8),pointer,dimension(:,:,:)       :: dlvol !Local cell logical volume
           real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
@@ -46,25 +47,25 @@ c #####################################################################
 !!          Variables below have changed from earlier PIXIE3D version!!!
 #endif
           !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
-          integer :: nglx                                 !Global number of mesh points in X, over global domain, not local patch
-          integer :: ngly                                 !Global number of mesh points in Y, over global domain, not local patch
-          integer :: nglz                                 !Global number of mesh points in Z, over global domain, not local patch
+          integer :: nglx    !Global number of mesh points in X, over global domain, not local patch
+          integer :: ngly    !Global number of mesh points in Y, over global domain, not local patch
+          integer :: nglz    !Global number of mesh points in Z, over global domain, not local patch
 
-          integer :: ilog                                 !Global lower  limit in X, patch indices relative to global index space, no ghosts
-          integer :: ihig                                 !Global higher limit in X, patch indices relative to global index space
-          integer :: jlog                                 !Global lower  limit in Y, patch indices relative to global index space
-          integer :: jhig                                 !Global higher limit in Y, patch indices relative to global index space
-          integer :: klog                                 !Global lower  limit in Z, patch indices relative to global index space
-          integer :: khig                                 !Global higher limit in Z, patch indices relative to global index space
+          integer :: ilog    !Global lower  limit in X, patch indices relative to global index space, no ghosts
+          integer :: ihig    !Global higher limit in X, patch indices relative to global index space
+          integer :: jlog    !Global lower  limit in Y, patch indices relative to global index space
+          integer :: jhig    !Global higher limit in Y, patch indices relative to global index space
+          integer :: klog    !Global lower  limit in Z, patch indices relative to global index space
+          integer :: khig    !Global higher limit in Z, patch indices relative to global index space
 
-          real(8) :: gxmin,gxmax                          !Physical dim. of global domain in X
-          real(8) :: gymin,gymax                          !Physical dim. of global domain in Y
-          real(8) :: gzmin,gzmax                          !Physical dim. of global domain in Z
+          real(8) :: gxmin,gxmax        !Physical dim. of global domain in X
+          real(8) :: gymin,gymax        !Physical dim. of global domain in Y
+          real(8) :: gzmin,gzmax        !Physical dim. of global domain in Z
 
-          integer :: mpi_comm,np,rank                     !MPI info
+          integer :: mpi_comm,np,rank   !MPI info
 
-          integer :: aligner                              !Ghost cell width
-          integer :: gcw                                  !Ghost cell width
+          integer :: aligner            !Ghost cell width
+          integer :: gcw                !Ghost cell width
           !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
 
           integer :: ngrdx                                !Grid levels in X, MG specific
@@ -679,6 +680,8 @@ c     Begin program
             allocate(gmetric%grid(igrid)
      $           %dvol (ilom:ihip,jlom:jhip,klom:khip))
             allocate(gmetric%grid(igrid)
+     $           %dlvol(ilom:ihip,jlom:jhip,klom:khip))
+            allocate(gmetric%grid(igrid)
      $           %jac  (ilom:ihip,jlom:jhip,klom:khip))
             allocate(gmetric%grid(igrid)
      $           %gsub (ilom:ihip,jlom:jhip,klom:khip,3,3))
@@ -738,6 +741,7 @@ c     Begin program
         do igrid=1,gparams%ngrid
           gmetric2%grid(igrid)%car  = gmetric1%grid(igrid)%car  
           gmetric2%grid(igrid)%dvol = gmetric1%grid(igrid)%dvol 
+          gmetric2%grid(igrid)%dlvol= gmetric1%grid(igrid)%dlvol 
           gmetric2%grid(igrid)%jac  = gmetric1%grid(igrid)%jac  
           gmetric2%grid(igrid)%gsub = gmetric1%grid(igrid)%gsub 
           gmetric2%grid(igrid)%gsup = gmetric1%grid(igrid)%gsup 
@@ -777,6 +781,7 @@ c     Begin program
           do igrid=1,size(gmetric%grid)
             deallocate(gmetric%grid(igrid)%car)
             deallocate(gmetric%grid(igrid)%dvol)
+            deallocate(gmetric%grid(igrid)%dlvol)
             deallocate(gmetric%grid(igrid)%jac)
             deallocate(gmetric%grid(igrid)%gsub)
             deallocate(gmetric%grid(igrid)%gsup)

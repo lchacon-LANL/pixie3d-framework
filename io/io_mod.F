@@ -136,6 +136,103 @@ c     End program
 
       end function rm_files
 
+c     add_line_after_txt
+c     ####################################################################
+      function add_line_after_txt(file,text,line) result(ierr)
+
+c     --------------------------------------------------------------------
+c     Adds line "line" after text "text" in ascii file "file"
+c     --------------------------------------------------------------------
+
+      integer :: ierr
+
+      character(*) :: file,text,line
+
+      character(200):: command
+
+c     Begin program
+
+#if defined(RFX)
+        command=
+     .       'sed -i -e"/'//trim(text)//'/{" -e' // achar(39)
+#else
+        command=
+     .       'sed -i --follow-symlinks -e"/'
+     .                    //trim(text)//'/{" -e' // achar(39)
+#endif
+#if defined(pgf90) || defined(xlf)
+     .       // 'a\\' // achar(39) //' -e"'
+#else
+     .       // 'a\' // achar(39) //' -e"'
+#endif
+     .       // trim(line)   // '" -e"}" '
+     .       // trim(file)
+
+        ierr = shellcmd(trim(command))
+
+       end function add_line_after_txt
+
+c     replace_line
+c     ####################################################################
+      function replace_line(file,text,line) result(ierr)
+
+c     --------------------------------------------------------------------
+c     Replaces line containing "text" with line "line" in ascii file "file"
+c     --------------------------------------------------------------------
+
+      integer :: ierr
+
+      character(*) :: file,text,line
+
+      character(200):: command
+
+c     Begin program
+
+#if defined(RFX)
+          command='sed -i -e"/'//trim(text)//'/{" -e' // achar(39)
+#else
+          command='sed -i --follow-symlinks -e"/'
+     .                         //trim(text)//'/{" -e' // achar(39)
+#endif
+#if defined(pgf90) || defined(xlf)
+     .       // 'c\\' // achar(39) //' -e"'
+#else
+     .       // 'c\' // achar(39) //' -e"'
+#endif
+     .       // trim(line)   // '" -e"}" '
+     .       // trim(file)
+
+        ierr = shellcmd(trim(command))
+
+      end function replace_line
+
+c     delete_line
+c     ####################################################################
+      function delete_line(file,text) result(ierr)
+
+c     --------------------------------------------------------------------
+c     Deletes line containing "text" in ascii file "file"
+c     --------------------------------------------------------------------
+
+        integer :: ierr
+
+        character(*) :: file,text
+
+        character(200):: command
+
+c     Begin program
+
+#if defined(RFX)
+        command='sed -i /'                  //trim(text)//'/d '
+#else
+        command='sed -i --follow-symlinks /'//trim(text)//'/d '
+#endif
+     .       // trim(file)
+
+        ierr = shellcmd(trim(command))
+
+      end function delete_line
+
       end module io
 
 c module file_io
