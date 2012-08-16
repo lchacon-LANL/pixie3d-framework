@@ -58,11 +58,12 @@ int main( int argc, char *argv[] )
   const int maxPatchDataEntries = 2000;
   SAMRAI::tbox::SAMRAIManager::setMaxNumberPatchDataEntries(maxPatchDataEntries);
   const SAMRAI::tbox::SAMRAI_MPI& mpi(SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld());
-  Utilities::setMPIErrorHandler( mpi );
 
   int ierr = PetscInitialize(&argc, &argv, PETSC_NULL,PETSC_NULL);
   //PetscInitializeNoArguments();
   //PetscInitializeFortran();
+
+  Utilities::setAllErrorHandlers( );
 
   // This extra code block is used to scope some temporaries that are
   // created, it forces the destruction before the manager is shutdown.

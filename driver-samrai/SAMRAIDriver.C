@@ -52,10 +52,11 @@ int main( int argc, char *argv[] )
   SAMRAI::tbox::SAMRAIManager::initialize();
   SAMRAI::tbox::SAMRAIManager::startup();
   const SAMRAI::tbox::SAMRAI_MPI& mpi(SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld());
-  Utilities::setMPIErrorHandler( mpi );
 
   //PetscInitializeNoArguments();
   //PetscInitializeFortran();
+
+  Utilities::setAllErrorHandlers( );
 
   // This extra code block is used to scope some temporaries that are
   // created, it forces the destruction before the manager is shutdown.
