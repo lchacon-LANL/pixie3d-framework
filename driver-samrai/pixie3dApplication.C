@@ -674,6 +674,9 @@ void pixie3dApplication::setInitialConditions( const double )
             tbox::Pointer< pdat::CellData<double> > tmp = patch->getPatchData(f_src_id);
             double *fsrc = tmp->getPointer();
             int n_elem = tmp->getGhostBox().size()*tmp->getDepth();
+            double *data = tmp->getPointer();
+            for (int j=0; j<n_elem; j++)
+                data[j] = 0.0;
             // Form Initial Conditions
             #ifdef absoft
                 FORTRAN_NAME(FORMINITIALCONDITION)(level_container->getPtr(patch),&n_elem,fsrc);
@@ -681,7 +684,6 @@ void pixie3dApplication::setInitialConditions( const double )
                 FORTRAN_NAME(forminitialcondition)(level_container->getPtr(patch),&n_elem,fsrc);
             #endif
             // Check src for nans
-            double *data = tmp->getPointer();
             for (int j=0; j<n_elem; j++) {
                 if ( data[j]!=data[j] )
                     TBOX_ERROR("NaNs detected in fsrc");
