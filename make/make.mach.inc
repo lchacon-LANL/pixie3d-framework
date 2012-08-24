@@ -8,7 +8,7 @@ ifeq "$(BUILDTYPE)" "i386-Darwin"
     HDF5_HOME =${HDF_HOME}
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
-    HDF5_INC  =-I$(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_HOME)/include
     PETSC_DIR = /opt/petsc-3.0.0-p9-gcc-4.4.1-debug
     PETSC_ARCH = darwin9.8.0-c-debug
 #  endif
@@ -19,6 +19,15 @@ endif
 HOST ?= $(shell hostname -s)
 
 MACHINE ?=HaveNoIdea
+
+############
+# DEFAULTS #
+############
+
+FC=gfortran
+HDF5 = f
+ADIOS= f
+LIBS += -llapack -lblas -lgfortran
 
 ###############################
 # lap0086227 (Mark Berrill's) #
@@ -34,7 +43,7 @@ ifeq ($(HOST),lap0086227)
     endif
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
-    HDF5_INC  =-I$(HDF5_HOME)/include
+    HDF5_INC  =$(HDF5_HOME)/include
     LIBS += -L/packages/acml-4-4-0/gfortran64/lib -llapack -lblas -lgfortran
 endif
 
@@ -62,13 +71,77 @@ ifeq ($(HOST),vayu)
     HDF5 = t
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
-    HDF5_INC  =-I$(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_HOME)/include
     LIBS += -L${ACML_DIR} -llapack -lblas
 endif
 
-###########
-# quevedo #
-###########
+################
+# jetta (LANL) #
+################
+
+ifeq ($(HOST),jetta)
+  MACHINE=quevedo
+
+  FC = gfortran
+
+  ifdef SAMR
+
+    CC = mpicc
+    CXX = mpicxx
+    F77 = gfortran
+    override PETSC_DIR  =
+#    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/debug
+    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/optimized
+    HDF5 = f
+    HDF5_LIBS = 
+    LDFLAGS    += -lgfortran
+
+  else
+    ifdef BOPT
+      PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
+
+      ifeq ($(BOPT),O)
+        PETSC_ARCH = $(PETSC_ARCH_O)
+      else
+        PETSC_ARCH = $(PETSC_ARCH_g)
+      endif
+
+      HDF5 = t
+
+      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(PHDF5_LIB)
+      HDF5_INC  = $(PHDF5_INC)
+
+      ADIOS = t
+
+      #Determined via modules
+      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
+
+    else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = t
+
+      #Determined via modules
+      HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(SHDF5_LIB)
+      HDF5_INC  = $(SHDF5_INC)
+
+      ADIOS = f
+    endif
+
+    NETCDF=f
+    NETCDF_LIBS = -lnetcdff -lnetcdf
+    NETCDF_INC  = -I/usr/include
+
+#    ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+  endif
+
+endif
+
+##################
+# quevedo (ORNL) #
+##################
 
 ifeq ($(HOST),quevedo)
   MACHINE=quevedo
@@ -101,7 +174,7 @@ ifeq ($(HOST),quevedo)
 
       HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(PHDF5_LIB)
-      HDF5_INC  =-I$(PHDF5_INC)
+      HDF5_INC  = $(PHDF5_INC)
 
       ADIOS = t
 
@@ -120,7 +193,7 @@ ifeq ($(HOST),quevedo)
         HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
         HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
         HDF5_MOD  = $(HDF5_HOME)/lib
-        HDF5_INC  =-I$(HDF5_HOME)/include
+        HDF5_INC  = $(HDF5_HOME)/include
 
       endif
       ifeq ($(FC),gfortran)
@@ -129,7 +202,7 @@ ifeq ($(HOST),quevedo)
         HDF5_HOME =/usr/lib64
         HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
         HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
-        HDF5_INC  =-I/usr/include
+        HDF5_INC  = /usr/include
 
         ADIOS = f
       endif
@@ -175,7 +248,7 @@ ifeq ($(HOST),gongora)
     HDF5_HOME =/usr/lib/openmpi/lib
     HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)
-    HDF5_INC  =-I$/usr/include/openmpi-i386
+    HDF5_INC  = $/usr/include/openmpi-i386
 
     ADIOS = f
 #    ADIOS = t
@@ -192,7 +265,7 @@ ifeq ($(HOST),gongora)
     HDF5_HOME =/usr/lib
     HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
-    HDF5_INC  =-I/usr/include
+    HDF5_INC  = /usr/include
 
     ADIOS = f
 
@@ -222,7 +295,7 @@ ifeq ($(HOST),siesta)
     HDF5_HOME = /usr/lib64/openmpi
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = /usr/include/openmpi-x86_64
-    HDF5_INC  =-I/usr/include/openmpi-x86_64
+    HDF5_INC  = /usr/include/openmpi-x86_64
 
     ADIOS = f
 
@@ -237,18 +310,18 @@ ifeq ($(HOST),siesta)
       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(HDF5_HOME)/lib
-      HDF5_INC  =-I$(HDF5_HOME)/include
+      HDF5_INC  = $(HDF5_HOME)/include
       HDF5 = t
     endif
     ifeq ($(FC),gfortran)
       HDF5_HOME =/usr/lib64
       HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
-      HDF5_INC  =-I/usr/include
+      HDF5_INC  = /usr/include
 #      HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
 #      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
 #      HDF5_MOD  = $(HDF5_HOME)/lib
-#      HDF5_INC  =-I$(HDF5_HOME)/include
+#      HDF5_INC  = $(HDF5_HOME)/include
       HDF5 = t
     endif
   endif
@@ -282,7 +355,7 @@ ifeq ($(HOST),swim)
 
     HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(PHDF5_LIB)
-    HDF5_INC  =-I$(PHDF5_INC)
+    HDF5_INC  = $(PHDF5_INC)
 
     ADIOS = t
     ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
@@ -294,7 +367,7 @@ ifeq ($(HOST),swim)
     HDF5_HOME =/usr/lib64
     HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
-    HDF5_INC  =-I/usr/include
+    HDF5_INC  = /usr/include
     HDF5 = t
 
     ADIOS = f
