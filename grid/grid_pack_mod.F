@@ -1,5 +1,6 @@
       module grid_packing
 
+        use math
         use grid_petsc
 
         type :: grid_pack
@@ -13,7 +14,401 @@
 
         type(grid_pack),dimension(3),save :: g_pack
 
+        logical :: map_grid_pack=.false.
+
+        real(8) :: gp_config(6)
+
       contains
+
+c     scale_coord
+c     #################################################################
+      function scale_coord(xmin,xmax,x1,dim) result(xlog)
+
+c     -----------------------------------------------------------------
+c     Finds global grid xg(0:ng+1) in domain (lmin,lmax) with boundary
+c     conditions bcs1, bcs2, according to specifications in dpack.
+c     The input variable crse_ratio is used to adjust the packing provided
+c     in dpack for the fine mesh to coarser grid levels.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: dim
+        real(8) :: xlog,x1,xmin,xmax
+
+c     Local variables
+
+        integer :: ibc,exp=3
+
+        real(8) :: gp(2),bbx
+
+cc        real(8),save :: aax=0d0,aay=0d0,aaz=0d0
+cc     .                 ,bbx=0d0,bby=0d0,bbz=0d0
+cc     .                 ,lbx=0d0,lby=0d0,lbz=0d0
+
+c     Begin program
+
+        ibc = 1+2*(dim-1)
+
+        !Recover grid packing configuration: slope gp(2) at given position gp(1)
+        gp = gp_config(ibc:ibc+1)
+
+        if (gp(1) == 0d0 .and. gp(2) == 0d0) then
+          xlog = x1
+          return
+        endif
+
+cc        write (*,*) 'Dim=',dim,'gp=',gp
+
+cc          !Find monotonic atanh profile with given slope (gp(2,4,6)
+cc          !  for X, Y, Z) at given position (gp(1,3,5) for X, Y, Z).
+cc          if (aax == 0d0) aax = find_a(xmin,xmax,gp(2),gp(1))
+cc          if (aay == 0d0) aay = find_a(ymin,ymax,gp(4),gp(3))
+cc          if (aaz == 0d0) aaz = find_a(zmin,zmax,gp(6),gp(5))
+cc
+cc          xx = scl_coord(x1,aax,xmin,xmax,gp(2),gp(1))
+cc          yy = scl_coord(x2,aay,ymin,ymax,gp(4),gp(3))
+cc          zz = scl_coord(x3,aaz,zmin,zmax,gp(6),gp(5))
+
+c       Packing
+
+        if (bcond(ibc) == PER) then !cosine jacobian
+          bbx = (1.-gp(2))  !Slope is in gp(2) (see grid_create_mod.F)
+          if (bbx <=-1d0) then
+            write (*,*) 'Slope too small along ',dim,' coordinate'
+            write (*,*) 'Aborting...'
+            stop
+          endif
+          xlog = x1+(xmax-xmin)/2/pi*bbx*sin(2*pi*(x1-xmin)/(xmax-xmin))
+        else  !monotonic cubic polynomial
+          bbx= find_eta(xmin,xmax,gp(1),gp(2))
+          xlog = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
+        endif
+
+      contains
+
+ccc     scl_coord
+ccc     #################################################################
+cc      function scl_coord(xi,aa,xmin,xmax,x0,lambda) result(x)
+cc
+ccc     -----------------------------------------------------------------
+ccc     Packs coordinate according to x0 (location) and lambda (slope).
+ccc     Note:
+ccc       * lambda <= 1d0; dx0 ~ dxi*dlambda
+ccc       * lambda = 0 --> No packing
+ccc     -----------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Global variables
+cc
+cc        real(8) :: aa,xmin,xmax,x0,lambda,xi,x
+cc
+ccc     Local variables
+cc
+cc        real(8) :: bb,xi0
+cc
+ccc     Begin program
+cc
+cc        if (lambda == 0d0) then
+cc          x = xi
+cc        else
+cc          bb = aa/lambda
+cc          xi0 = xmax - bb*tanh((xmax-x0)/aa)
+cc
+cc          if (xi > xmax) then
+cc            x = 2*xmax -(x0 + aa*atanh((2*xmax-xi-xi0)/bb))
+cc          elseif (xi < xmin) then
+cc            x = 2*xmin -(x0 + aa*atanh((2*xmin-xi-xi0)/bb))
+cc          else
+cc            x = x0 + aa*atanh((xi-xi0)/bb)
+cc          endif
+cccc          write (*,*) xi,x,aa,bb,(xi-xi0)/bb
+cc        endif
+cc
+ccc     End program
+cc
+cc      end function scl_coord
+cc
+ccc     find_a
+ccc     #################################################################
+cc      function find_a(xmin,xmax,x0,cc) result(aa)
+cc
+cc        implicit none
+cc
+ccc     Global variables
+cc
+cc        real(8) :: xmin,xmax,x0,cc,aa
+cc
+ccc     Local variables
+cc
+cc        integer,parameter :: nit=20
+cc
+cc        integer :: i
+cc        real(8) :: ijac,dxi(nit),res(nit)
+cc        real(8) :: ll,l0m,l0p,dd,ee,ff,bb
+cc
+ccc     Begin program
+cc
+cc        if (cc == 0d0) return
+cc
+cc        ll  = xmax-xmin
+cc        l0m = x0  -xmin
+cc        l0p = xmax - x0
+cc
+cc        dd = cc*ll
+cc
+cc        if (cc > 1d0) then
+cccc          call pstop('find_a in grid_mod.F',
+cccc     .               'Slope has to <= 1')
+cc          write (*,*) 'find_a in grid_anal_map_mod.F: Slope has to <= 1'
+cc          write (*,*) 'Aborting...'
+cc          stop
+cc        endif
+cc
+ccc     Initial guess
+cc
+cc        aa = 0.5*ll
+cc
+ccc     Newton iteration
+cc
+cc        do i=1,nit
+cc          ff = dd/aa
+cc
+cc          res(i) = dd - aa*(tanh(l0m/aa) + tanh(l0p/aa))
+cc          ijac = 1./(-tanh(l0m/aa)-tanh(l0p/aa)
+cc     .              +l0m/aa/cosh(l0m/aa)**2
+cc     .              +l0p/aa/cosh(l0p/aa)**2)
+cc
+cc          dxi(i) = -res(i)*ijac
+cc          aa = abs(aa + dxi(i))  !Want to find positive root
+cc
+cccc          write (*,*) abs(res(i)),dxi(i),ijac,aa
+cc
+cc          if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
+cc        enddo
+cc
+ccc     Convergence check
+cc
+cc        if (i >= nit) then
+cc          write (*,*)
+cc          write (*,*) 'Newton it. in grid-packing routine find_a'
+cc     .               ,' did not converge'
+cc          write (*,*)
+cc          write (*,*) 'Convergence history:'
+cc          do i=1,nit
+cc            write (*,*) 'Newton it.',i,' residual',abs(res(i))
+cc     .                 ,'update',abs(dxi(i))
+cc          enddo
+cc          write (*,*)
+cc          write (*,*) 'Aborting...'
+cc          stop
+cc        endif
+cc
+cc      end function find_a
+
+c     scl_coord
+c     #################################################################
+      function scl_coord(xi,eta,xmin,xmax,x0,lambda) result(x)
+
+c     -----------------------------------------------------------------
+c     Packs coordinate according to x0 (location) and lambda (slope).
+c     Note:
+c       * lambda <> 1d0 --> dx0 ~ dxi*dlambda
+c       * lambda == 0d0 --> No packing
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Global variables
+
+        real(8),INTENT(IN) :: eta,xmin,xmax,x0,lambda,xi
+        real(8) :: x
+
+c     Local variables
+
+        real(8) :: xi0,xibar,LL,bb,dx
+
+        integer,parameter :: nit=100
+
+        integer :: i
+        real(8) :: ijac,dxi(nit),res(nit)
+
+c     Begin program
+
+        if (eta == 0d0) then
+
+          x = xi
+
+        else
+
+          LL = xmax-xmin
+          bb = eta/LL**2
+
+          if (lambda < 1d0) then   !Pack at x0
+            xibar = 0.5*(xmax+xmin)
+
+            xi0 = xibar + sign(1d0,x0-xibar)
+     .                   *LL*sqrt(4d0*(1d0-lambda)-eta)/sqrt(12.*eta)
+
+            !To ensure periodicity of map
+cc            if (xi > xmax) then
+cc              dx = xi - xmax
+cc              x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
+cc              x = 2*xmax - x
+cc            elseif (xi < xmin) then
+cc              dx = xmin - xi
+cc              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
+cc              x = 2*xmin - x
+cc            else
+              x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
+cc            endif
+
+cc            write (*,*) xi0,eta,LL,xmin,xmax,lambda,xi,x
+          else                    !Pack at edges
+
+            xi0 = xmin - (xmin-x0)/lambda - bb*(xmin-x0)**exp
+
+            !To ensure periodicity of map
+cc            if (xi > xmax) then
+cc              dx = xi - xmax
+cc            elseif (xi < xmin) then
+cc              dx = xi - xmin
+cc            else
+cc              dx = 0d0
+cc            endif
+
+            !Initial guess
+            x = xi! - 2*dx
+
+            !Newton iteration to find x(xi)
+            do i=1,nit
+              res(i) = xi-2*dx-(xi0 + (x-x0)/lambda + bb*(x-x0)**exp)
+
+              ijac = -1d0/lambda -exp*bb*(x-x0)**(exp-1)
+
+              dxi(i) = -res(i)/ijac
+              x = x + dxi(i)
+
+cc              write (*,*) abs(res(i)),dxi(i),x
+
+              if (abs(res(i)) < 1d-8 .or. (abs(dxi(i)) < 1d-14) ) exit
+            enddo
+
+            !Convergence check
+            if (i > nit) then
+              write (*,*)
+              write (*,*)'Newton it. in grid-packing routine',
+     .                   ' scl_coord did not converge'
+              write (*,*)
+              write (*,*) 'Convergence history:'
+              do i=1,nit
+                write (*,*) 'Newton it.',i,' residual',abs(res(i))
+     .                     ,'update',abs(dxi(i))
+              enddo
+              write (*,*)
+              write (*,*) 'Aborting...'
+              stop
+            endif
+
+cc            !To ensure periodicity of map
+cc            if (xi > xmax) then
+cc              x = 2*xmax - x
+cc            elseif (xi < xmin) then
+cc              x = 2*xmin - x
+cc            endif
+
+          endif
+
+        endif
+
+c     End program
+
+      end function scl_coord
+
+c     find_eta
+c     #################################################################
+      function find_eta(xmin,xmax,x0,lambda) result(eta)
+
+        implicit none
+
+c     Global variables
+
+        real(8) :: xmin,xmax,x0,lambda,eta
+
+c     Local variables
+
+        integer,parameter :: nit=20
+
+        integer :: i
+        real(8) :: ijac,dxi(nit),res(nit)
+        real(8) :: ll,dd,xbar,dx
+
+c     Begin program
+
+        if (lambda == 0d0 .or. lambda == 1d0) then
+          eta = 0d0
+          return
+        endif
+
+        LL  = xmax-xmin
+
+        if (lambda > 1d0) then  !Pack at edges
+
+cc          eta = LL**3*(1d0-1d0/lambda)/((xmax-x0)**3-(xmin-x0)**3)
+          eta = LL**exp*(1d0-1d0/lambda)/((xmax-x0)**exp-(xmin-x0)**exp)
+
+        else                    !Pack at x0
+
+          xbar= 0.5*(xmax+xmin)
+          dx  = xbar - x0
+          dd  = (dx/LL)**2
+
+c         Initial guess
+
+          eta = 4d0*(1d0-lambda)
+
+c         Newton iteration
+
+          if (dx == 0d0) return
+
+          do i=1,nit
+            res(i)=(1+2*(eta+lambda))**2*(1-lambda-0.25*eta) -27.*dd*eta
+            ijac = 4*(1+2*(eta+lambda)) *(1-lambda-0.25*eta)
+     .         -0.25*(1+2*(eta+lambda))**2                   -27.*dd
+
+            dxi(i) = -res(i)/ijac
+            eta = abs(eta + dxi(i)) !Want to find positive root
+
+cc            write (*,*) abs(res(i)),dxi(i),ijac,eta
+
+            if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
+          enddo
+
+c         Convergence check
+
+          if (i >= nit) then
+            write (*,*)
+            write (*,*) 'Newton it. in grid-packing routine find_a'
+     .                 ,' did not converge'
+            write (*,*)
+            write (*,*) 'Convergence history:'
+            do i=1,nit
+              write (*,*) 'Newton it.',i,' residual',abs(res(i))
+     .                   ,'update',abs(dxi(i))
+            enddo
+            write (*,*)
+            write (*,*) 'Aborting...'
+            stop
+          endif
+
+        endif
+
+      end function find_eta
+
+      end function scale_coord
 
 c     findGlobalGrid
 c     #################################################################
@@ -35,7 +430,6 @@ c     Call variables
         real(8) :: xg(0:),lmin,lmax
 
         type(grid_pack) :: dpack
-cc        type(dim_pack) :: dpack
 
 c     Local variables
 
@@ -115,11 +509,11 @@ cc            dxr = alphar*dxr  !Modify initial interval for coarser grids
 
 cc            write (*,*) 'alphar,alphal=',alphar,alphal
 
-            if (abs(bcs1) == SP) then
-cc              dxl = alphar*dxl
-              dxl = crse_ratio*dxl
-              dpack%xp = lstart + dxl
-            endif
+cc            if (abs(bcs1) == SP) then
+cccc              dxl = alphar*dxl
+cc              dxl = crse_ratio*dxl
+cc              dpack%xp = lstart + dxl
+cc            endif
 
           else
 

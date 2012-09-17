@@ -1448,7 +1448,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,dl(4),dg(4),lsize,gsize
+      integer :: i,j,k,dl(4),dg(4),lsize,gsize,ibc,ieq
       real(8),pointer,dimension(:) :: local_x,global_x
 
       logical :: dmp
@@ -1506,6 +1506,16 @@ c     Communicate
       gf = lf
 #endif
 
+c     Synchronize global periodic boundaries
+
+      do ibc =1,6
+        if (bcond(ibc) == PER) then
+          do ieq=1,dg(4)
+            call per_bc(ibc,gf(:,:,:,ieq))
+          enddo
+        endif
+      enddo
+
 c     Dump global array
 
       if (dmp) then
@@ -1550,7 +1560,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,dl(3),dg(3),lsize,gsize
+      integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc
       real(8),pointer,dimension(:) :: local_x,global_x
 
       logical :: dmp
@@ -1606,6 +1616,12 @@ c     Communicate
       gf = lf
 #endif
 
+c     Synchronize global periodic boundaries
+
+      do ibc =1,6
+        if (bcond(ibc) == PER) call per_bc(ibc,gf)
+      enddo
+
 c     Dump global array
 
       if (dmp) then
@@ -1623,6 +1639,54 @@ c     Dump global array
 c     End program
 
       end subroutine find_global_field_scl
+
+c     per_BC
+c     #################################################################
+      subroutine per_BC(ibc,array)
+c     -----------------------------------------------------------------
+c     Imposes periodic BC. On input:
+c        * ibc -> face identifier (1 to 6)
+c        * array -> 3D array to impose BC's on.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ibc
+      real(8) :: array (0:,0:,0:)
+
+c     Local variables
+
+      integer :: nx,ny,nz
+
+c     Begin program
+
+      nx = size(array,1)-2
+      ny = size(array,2)-2
+      nz = size(array,3)-2
+
+      select case (ibc)
+      case (1)                  !x0
+        array(0   ,:,:)=array(nx,:,:)
+      case (2)                  !x1
+        array(nx+1,:,:)=array(1 ,:,:)
+      case (3)                  !y0
+        array(:,0   ,:)=array(:,ny,:)
+      case (4)                  !y1
+        array(:,ny+1,:)=array(:,1 ,:)
+      case (5)                  !z0
+        array(:,:,0   )=array(:,:,nz)
+      case (6)                  !z1
+        array(:,:,nz+1)=array(:,:,1 )
+      case default
+        call pstop('per_BC'
+     .            ,'Boundary '//int2char(ibc)//' non existent')
+      end select
+
+c     End program
+
+      end subroutine per_BC
 
 c     processorAlloc
 c     ######################################################################

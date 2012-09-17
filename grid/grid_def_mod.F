@@ -179,7 +179,7 @@ c     Begin program
           if (PRESENT(mpi_comm)) then
             grid_st%mpi_comm = mpi_comm
           else
-            grid_st%mpi_comm = MPI_COMM_WORLD
+            grid_st%mpi_comm = MPI_COMM_NULL
           endif
 
           call MPI_Comm_rank(grid_st%mpi_comm,grid_st%rank,mpierr)

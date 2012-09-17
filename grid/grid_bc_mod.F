@@ -1664,23 +1664,25 @@ cc      end select
 cc
 cc#else
 
-         select case (ibc)
-         case (1)                  !x0
-           array(0     ,:,:)=array(nxbc,:,:)
-         case (2)                  !x1
-           array(nxbc+1,:,:)=array(1   ,:,:)
-         case (3)                  !y0
-           array(:,0     ,:)=array(:,nybc,:)
-         case (4)                  !y1
-           array(:,nybc+1,:)=array(:,1   ,:)
-         case (5)                  !z0
-           array(:,:,0     )=array(:,:,nzbc)
-         case (6)                  !z1
-           array(:,:,nzbc+1)=array(:,:,1   )
-         case default
-           call pstop('periodicBC'
-     .               ,'Boundary '//int2char(ibc)//' non existent')
-         end select
+        call per_BC(ibc,array)
+cc
+cc         select case (ibc)
+cc         case (1)                  !x0
+cc           array(0     ,:,:)=array(nxbc,:,:)
+cc         case (2)                  !x1
+cc           array(nxbc+1,:,:)=array(1   ,:,:)
+cc         case (3)                  !y0
+cc           array(:,0     ,:)=array(:,nybc,:)
+cc         case (4)                  !y1
+cc           array(:,nybc+1,:)=array(:,1   ,:)
+cc         case (5)                  !z0
+cc           array(:,:,0     )=array(:,:,nzbc)
+cc         case (6)                  !z1
+cc           array(:,:,nzbc+1)=array(:,:,1   )
+cc         case default
+cc           call pstop('periodicBC'
+cc     .               ,'Boundary '//int2char(ibc)//' non existent')
+cc         end select
 
 cc#endif
 
@@ -3147,9 +3149,12 @@ c     Initialize variables
 c     Do nothing for SP boundary face, edge, and corners
 
       if (.not.face
-     .    .and.(     bcSP(ibc=ibcl(1))
-     .          .or. bcSP(ibc=ibcl(2))
-     .          .or. bcSP(ibc=ibcl(3)))) return
+cc     .    .and.(     bcSP(ibc=ibcl(1))
+cc     .          .or. bcSP(ibc=ibcl(2))
+cc     .          .or. bcSP(ibc=ibcl(3)))) return
+     .    .and.(     bcond(ibcl(1))==SP
+     .          .or. bcond(ibcl(2))==SP
+     .          .or. bcond(ibcl(3))==SP)) return
 
 c     Do nothing for SYM or FSYM boundaries
 

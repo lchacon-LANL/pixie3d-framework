@@ -37,25 +37,20 @@ c     Begin program
 
         pi = acos(-1d0)
 
-c     Initialize global quantities (from gdef, if existing)
+c     Initialize global quantities (from gdef, if existing) and MPI
 
         if (associated(gdef)) then
           nx = gdef%nglx
           ny = gdef%ngly
           nz = gdef%nglz
 #if defined(petsc)
+          call initFortranMPI(gdef%mpi_comm,nx,ny,nz)
           mpi_comm = gdef%mpi_comm
         else
+          call initFortranMPI(MPI_COMM_WORLD,nx,ny,nz)
           mpi_comm = MPI_COMM_WORLD
 #endif
         endif
-
-c     Initialize MPI and PETSc (parallel version)
-
-#if defined(petsc)
-        call initFortranMPI(mpi_comm,nx,ny,nz)
-        call setup_petsc_BC
-#endif
 
 c     Initialize grid structure
 
@@ -69,12 +64,6 @@ c     Initialize grid structure
      .                 ,coarsen_in_z=.false.
 #endif
      .                 )
-
-c     Create MPI communicators (requires grid_params)
-
-#if defined(petsc)
-        call create_MPI_comms
-#endif
 
 c     Perform grid check
 
@@ -210,15 +199,23 @@ c     Create MG grid hierarchy
 
         grid_params => gdef  !For backward compatibility
 
+c     Create MPI communicators (requires grid_params; needed by defineGridMetric)
+
+#if defined(petsc)
+        call create_MPI_comms
+#endif
+
 c     Create fortran PETSc parallel grid hierarchy (parallel version)
 
 #if defined(petsc)
         call createPETScGrid(gdef,0)
+        call setup_petsc_BC   !Set PETSc BC flags
 #endif
 
 c     Store grid metric parameters in grid metric structure
 
-        if (checkAnalMapDatabase() .or. coords == 'pck') then
+cc        if (checkAnalMapDatabase() .or. coords == 'pck') then
+        if (checkAnalMapDatabase()) then
           call defineGridMetric(gdef)
           gmetric => gdef%gmetric  !For backward compatibility
         endif
@@ -461,7 +458,7 @@ c     Begin program
 
         lpack = dpack
 
-        lpack%pack = lpack%pack.and.(coords == 'car')  !Logical packing only for Cartesian
+        lpack%pack = lpack%pack.and.(coords == 'lpk')  !Logical grid packing
 
 c     Find grid quantities
 
@@ -586,32 +583,41 @@ c     Begin program
         zmin = gdef%gzmin
         zmax = gdef%gzmax
 
-        !Consistency
-cc        numerical_grid = .true.  !Needed because of vertex metrics
+c     Grid packing processing
+
+        if (    gdef%g_pack(1)%pack
+     .      .or.gdef%g_pack(2)%pack
+     .      .or.gdef%g_pack(3)%pack) then
+          numerical_grid = .true.
+
+          map_grid_pack = (coords /= 'lpk')  !Do not pack via map if logical packing ("lpk")
+
+          !Save packing configuration
+          gp_config = 0d0
+
+          if (map_grid_pack) then
+            if (gdef%g_pack(1)%pack) then
+              gp_config(1) = gdef%g_pack(1)%xp
+              gp_config(2) = gdef%g_pack(1)%dx0/(xmax-xmin)*nxx
+            endif
+
+            if (gdef%g_pack(2)%pack) then
+              gp_config(3) = gdef%g_pack(2)%xp
+              gp_config(4) = gdef%g_pack(2)%dx0/(ymax-ymin)*nyy
+            endif
+
+            if (gdef%g_pack(3)%pack) then
+              gp_config(5) = gdef%g_pack(3)%xp
+              gp_config(6) = gdef%g_pack(3)%dx0/(zmax-zmin)*nzz
+            endif
+          endif
+        endif
+
+c     Coordinate-specific checks
 
         select case (coords)
         case ('car')
           numerical_grid = .false.
-        case ('scl')
-          numerical_grid = .true.   !To deal properly with ghost cells
-
-          gdef%params = 0d0
-
-          !Save packing configuration
-          if (gdef%g_pack(1)%pack) then
-            gdef%params(1) = gdef%g_pack(1)%xp
-            gdef%params(2) = gdef%g_pack(1)%dx0/(xmax-xmin)*nxx
-          endif
-
-          if (gdef%g_pack(2)%pack) then
-            gdef%params(3) = gdef%g_pack(2)%xp
-            gdef%params(4) = gdef%g_pack(2)%dx0/(ymax-ymin)*nyy
-          endif
-
-          if (gdef%g_pack(3)%pack) then
-            gdef%params(5) = gdef%g_pack(3)%xp
-            gdef%params(6) = gdef%g_pack(3)%dx0/(zmax-zmin)*nzz
-          endif
         case ('cyl','hel','hl2')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
@@ -1089,6 +1095,7 @@ c     Output
       dump_diff = anal_map.and.numerical_grid
 cc      dump_diff = .false.
 
+      write (*,*) dump_diff,anal_map,numerical_grid
       if (dump_diff) then
         write(*    ,*)'Analytical mapping available; dumping diffs...'
         write(funit,*)'Analytical mapping available; dumping diffs...'

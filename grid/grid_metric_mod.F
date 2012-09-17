@@ -825,64 +825,64 @@ c     Begin program
               enddo
             enddo
 
-          elseif (coords == 'pck') then
-
-            !X coordinate
-            allocate(xg(0:gparams%nxgl(igx)+1))
-
-            if (igx == 1) then
-              c_rat_x = 1
-            else
-              c_rat_x = c_rat_x*gparams%mg_ratio_x(igx-1)
-            endif
-
-            call findGlobalGrid(gparams%gxmin,gparams%gxmax
-     .                         ,bcond(1),bcond(2),xg
-     .                         ,gparams%g_pack(1),c_rat_x)
-
-            do i = ilom,ihip
-              xc(i,:,:,1) = xg(gparams%ilo(igx)+i-1)
-            enddo
-
-            deallocate(xg)
-
-            !Y coordinate
-            allocate(yg(0:gparams%nygl(igy)+1))
-
-            if (igy == 1) then
-              c_rat_y = 1
-            else
-              c_rat_y = c_rat_y*gparams%mg_ratio_y(igy-1)
-            endif
-
-            call findGlobalGrid(gparams%gymin,gparams%gymax
-     .                         ,bcond(3),bcond(4),yg
-     .                         ,gparams%g_pack(2),c_rat_y)
-
-            do j = jlom,jhip
-              xc(:,j,:,2) = yg(gparams%jlo(igy)+j-1)
-            enddo
-
-            deallocate(yg)
-
-            !Z coordinate
-            allocate(zg(0:gparams%nzgl(igz)+1))
-
-            if (igz == 1) then
-              c_rat_z = 1
-            else
-              c_rat_z = c_rat_z*gparams%mg_ratio_z(igz-1)
-            endif
-
-            call findGlobalGrid(gparams%gzmin,gparams%gzmax
-     .                         ,bcond(5),bcond(6),zg
-     .                         ,gparams%g_pack(3),c_rat_z)
-
-            do k = klom,khip
-              xc(:,:,k,3) = zg(gparams%klo(igz)+k-1)
-            enddo
-
-            deallocate(zg)
+cc          elseif (coords == 'pck') then
+cc
+cc            !X coordinate
+cc            allocate(xg(0:gparams%nxgl(igx)+1))
+cc
+cc            if (igx == 1) then
+cc              c_rat_x = 1
+cc            else
+cc              c_rat_x = c_rat_x*gparams%mg_ratio_x(igx-1)
+cc            endif
+cc
+cc            call findGlobalGrid(gparams%gxmin,gparams%gxmax
+cc     .                         ,bcond(1),bcond(2),xg
+cc     .                         ,gparams%g_pack(1),c_rat_x)
+cc
+cc            do i = ilom,ihip
+cc              xc(i,:,:,1) = xg(gparams%ilo(igx)+i-1)
+cc            enddo
+cc
+cc            deallocate(xg)
+cc
+cc            !Y coordinate
+cc            allocate(yg(0:gparams%nygl(igy)+1))
+cc
+cc            if (igy == 1) then
+cc              c_rat_y = 1
+cc            else
+cc              c_rat_y = c_rat_y*gparams%mg_ratio_y(igy-1)
+cc            endif
+cc
+cc            call findGlobalGrid(gparams%gymin,gparams%gymax
+cc     .                         ,bcond(3),bcond(4),yg
+cc     .                         ,gparams%g_pack(2),c_rat_y)
+cc
+cc            do j = jlom,jhip
+cc              xc(:,j,:,2) = yg(gparams%jlo(igy)+j-1)
+cc            enddo
+cc
+cc            deallocate(yg)
+cc
+cc            !Z coordinate
+cc            allocate(zg(0:gparams%nzgl(igz)+1))
+cc
+cc            if (igz == 1) then
+cc              c_rat_z = 1
+cc            else
+cc              c_rat_z = c_rat_z*gparams%mg_ratio_z(igz-1)
+cc            endif
+cc
+cc            call findGlobalGrid(gparams%gzmin,gparams%gzmax
+cc     .                         ,bcond(5),bcond(6),zg
+cc     .                         ,gparams%g_pack(3),c_rat_z)
+cc
+cc            do k = klom,khip
+cc              xc(:,:,k,3) = zg(gparams%klo(igz)+k-1)
+cc            enddo
+cc
+cc            deallocate(zg)
 
 cc#if defined(vmec)
 cc          elseif (coords == 'vmc') then
@@ -905,7 +905,7 @@ cc            endif
 cc#endif
           
           else
-            call pstop('findMap','Map not available')
+            call pstop('findCellMap','Map not available')
           endif
 
         endif
@@ -1409,6 +1409,7 @@ cc            call topol_bc(igrid,nx,ny,nz,dr(:,:,:,i,j))
               !dr behaves like a covariant vector
               call vectorSingularBC(j,dr(:,:,:,i,j),.true.)
             endif
+
           enddo
         enddo
 
