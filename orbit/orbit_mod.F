@@ -7,7 +7,7 @@ c ######################################################################
 
         use spline_field
 
-        use grid, ONLY: np,my_rank,pstop,messg
+        use grid, ONLY: np,my_rank,pstop,messg,UNDEF_DP
 
         use file_io
 
@@ -40,7 +40,7 @@ c ######################################################################
           real(8) :: atol      !Absolute convergence tolerance
           real(8) :: rtol      !Relative convergence tolerance
           real(8) :: dtime     !Time step
-          real(8) :: tmax      !Maximum time
+          real(8) :: tmax      !Maximum pseudotime
           real(8) :: smax      !Maximum arc length
           logical :: solen     !Whether use solenoidal version or LSODE
           logical :: picard    !Whether to use picard or Newton
@@ -65,7 +65,7 @@ c ######################################################################
         type(orbit_def),target  :: orbit_conf
         type(ode_solver),pointer :: ode_conf
 
-        integer,private :: ssorder,obcnd(6)!,iterror,itime
+        integer,private :: ssorder=0,obcnd(6),HIST_LIM=20!,iterror,itime
 
         real(8),private :: tmax,smax
 !$OMP THREADPRIVATE(tmax,smax)
@@ -82,6 +82,12 @@ c ######################################################################
 !!!!$OMP THREADPRIVATE(nunitx,nunity,nunitz,nunitrz)
 	real(8) :: xold,yold,zold,xvold,yvold,zvold,svold,sold
 !$OMP THREADPRIVATE(xold,yold,zold,xvold,yvold,zvold,svold,sold)
+        real(8),private :: tvold,told,time,ss
+!$OMP THREADPRIVATE(tvold,told,time,ss)
+        real(8),private,dimension(:),allocatable :: xhist,yhist,zhist
+     .                                             ,shist,thist
+!$OMP THREADPRIVATE(xhist,yhist,zhist,shist,thist)
+
         logical :: sing_point=.false.,exit_loop=.false.,orb_init
 !$OMP THREADPRIVATE(sing_point,exit_loop,orb_init)
 	integer,private :: LSODE_IERR=ORB_OK
@@ -89,8 +95,6 @@ c ######################################################################
         logical,private :: cartesian_flag = .false.,cross = .false.,
      .             cartesian = .false.
 !$OMP THREADPRIVATE(cartesian_flag,cross,cartesian)
-        real(8),private :: tvold,told,time,ss  
-!$OMP THREADPRIVATE(tvold,told,time,ss)
         real(8),private :: x,y,z,xcar,ycar,zcar
 !$OMP THREADPRIVATE(x,y,z,xcar,ycar,zcar)
         real(8),private :: x00,y00,z00,xss,yss,zss,tss
@@ -410,6 +414,10 @@ c     Call variables
         logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
      .                     ,lsode_to_smax,lsode_s_indep,ds_is_Bds
 
+c     Local variables
+
+        integer :: nn
+
 c     Begin program
 
         call orbit_conf_def   !Defaults are defined here.
@@ -505,6 +513,21 @@ cc        else
 cc          ode_conf%lsode_neq = 5 !Number of LSODE equations for field line integration
 cc        endif
 
+c     Allocate orbit history arrays
+
+        HIST_LIM = max(20,ssorder+1)
+        allocate(xhist(HIST_LIM)
+     .          ,yhist(HIST_LIM)
+     .          ,zhist(HIST_LIM)
+     .          ,thist(HIST_LIM)
+     .          ,shist(HIST_LIM))
+
+        xhist = UNDEF_DP
+        yhist = UNDEF_DP
+        zhist = UNDEF_DP
+        thist = UNDEF_DP
+        shist = UNDEF_DP
+
 c     Do splines
 
         call setupSplines(nx,ny,nz,xx,yy,zz
@@ -540,7 +563,11 @@ c     Call variables
 
 c     Local variables
 
+        integer :: alloc_stat
+
 c     Begin program
+
+        deallocate(xhist,yhist,zhist,thist,shist,STAT=alloc_stat)
 
 c     Close SS output
 
@@ -558,7 +585,7 @@ c     Finalize B diagnostics
 
 c     orbit_find
 c     ######################################################################
-      subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,lsode_f,ss_order
+      subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,lsode_f!,ss_order
      .                     ,t_max,s_max,ierror,lsode_sum)
 
 c     ----------------------------------------------------------------------
@@ -588,7 +615,7 @@ c     Call variables
         real(8),intent(IN) :: x0,y0,z0
         logical :: fwd
 
-        integer,optional,INTENT(IN) :: ss_order
+cc        integer,optional,INTENT(IN) :: ss_order
         real(8),optional,INTENT(IN) :: t_max,s_max
 
         integer,optional,INTENT(OUT) :: ierror
@@ -617,7 +644,7 @@ c     Call variables
 
 c     Local variables
 
-	integer :: iterror,itime
+	integer :: iterror,itime,np
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral
 
@@ -634,6 +661,7 @@ c     Begin program
         !Override maximum limits
         if (PRESENT(t_max)) then
           tmax = t_max
+          ode_conf%tmax = tmax
         else
           tmax = ode_conf%tmax 
         endif
@@ -723,30 +751,53 @@ c     Orbit integral
           yold  = y
           zold  = z
 
+          xhist(3:HIST_LIM) = xhist(2:HIST_LIM-1)
+          xhist(2) = x
+
+          yhist(3:HIST_LIM) = yhist(2:HIST_LIM-1)
+          yhist(2) = y
+
+          zhist(3:HIST_LIM) = zhist(2:HIST_LIM-1)
+          zhist(2) = z
+
+          thist(3:HIST_LIM) = thist(2:HIST_LIM-1)
+          thist(2) = time
+
+          shist(3:HIST_LIM) = shist(2:HIST_LIM-1)
+          shist(2) = ss
+
           !Find new LOGICAL positions, new time, new arc length
           call orbit_step(x,y,z,iterror,forward=fwd,lsode_f=lsode_f)
+
+          xhist(1) = x
+          yhist(1) = y
+          zhist(1) = z
+          thist(1) = time
+          shist(1) = ss
 
           !Check for orbit end and interpolate quantities
           if (smax /= 0d0) then
             exit_loop = (abs(ss) >= smax)
 
-            if (exit_loop) then
-              x = xold + (smax-abs(sold))/abs(ss-sold)*(x-xold)
-              y = yold + (smax-abs(sold))/abs(ss-sold)*(y-yold)
-              z = zold + (smax-abs(sold))/abs(ss-sold)*(z-zold)
+            if (abs(ss) > smax) then !4th order interpolation of orbit end points
               ss = sign(1d0,ss)*smax
+              call sursec_ho(ss,shist,xhist,yhist,zhist,np,x,y,z,4)
+cc              x = xold + (smax-abs(sold))/abs(ss-sold)*(x-xold)
+cc              y = yold + (smax-abs(sold))/abs(ss-sold)*(y-yold)
+cc              z = zold + (smax-abs(sold))/abs(ss-sold)*(z-zold)
+cc              ss = sign(1d0,ss)*smax
             endif
           elseif (tmax /= 0d0) then
             exit_loop = (abs(time) >= tmax)
 
-            if (exit_loop) then
-              x = xold + (tmax-abs(told))/abs(time-told)*(x-xold)
-              y = yold + (tmax-abs(told))/abs(time-told)*(y-yold)
-              z = zold + (tmax-abs(told))/abs(time-told)*(z-zold)
+            if (abs(time) > tmax) then !4th order interpolation of orbit end points
               time = sign(1d0,time)*tmax
+              call sursec_ho(time,thist,xhist,yhist,zhist,np,x,y,z,4)
+cc              x = xold + (tmax-abs(told))/abs(time-told)*(x-xold)
+cc              y = yold + (tmax-abs(told))/abs(time-told)*(y-yold)
+cc              z = zold + (tmax-abs(told))/abs(time-told)*(z-zold)
+cc              time = sign(1d0,time)*tmax
             endif
-cc          else
-cc            exit_loop = .false.
           endif
 
           !Line-orbit integration
@@ -758,11 +809,11 @@ cc            exit_loop = .false.
           !Check for intersection with surface of section
           if (iterror <= 0 .and. itime > 2 .and. chk_ss) then
             if (smax /= 0d0) then
-              call sschk(ssorder,svold,sold,ss
+              call sschk(svold,sold,ss
      .                  ,xvold,xold,x,yvold,yold,y
      .                  ,zvold,zold,z,xss,yss,zss,tss)
             else
-              call sschk(ssorder,tvold,told,time
+              call sschk(tvold,told,time
      .                  ,xvold,xold,x,yvold,yold,y
      .                  ,zvold,zold,z,xss,yss,zss,tss)
             endif
@@ -773,12 +824,9 @@ cc            exit_loop = .false.
             call orbit_progress(ss  ,smax,fwd,exit_loop)
           elseif (tmax /= 0d0) then
             call orbit_progress(time,tmax,fwd,exit_loop)
-cc          else
-cc            exit_loop = .false.
           endif
 
           if (exit_loop .or. orbit_error(iterror)) then
-cc          if (exit_loop) then
             if (iiout >=0) write (*,*)
             exit
           endif
@@ -832,11 +880,17 @@ c     Begin program
         ss   = 0d0  !Initialize arc-length along line
         sold = 0d0
 
+        xhist = UNDEF_DP  !Initialize orbit history accumulators
+        yhist = UNDEF_DP
+        zhist = UNDEF_DP
+        thist = UNDEF_DP
+        shist = UNDEF_DP
+
         LSODE_ACC = 0d0   !Initialize additional LSODE output
 
-        npointx=0
-        npointy=0
-        npointz=0
+        npointx=0   !Poincare points accumulator for X surface of section
+        npointy=0   !Poincare points accumulator for Y surface of section
+        npointz=0   !Poincare points accumulator for Z surface of section
 
         exit_loop = .false.
 
@@ -1247,7 +1301,7 @@ cc        write (*,*) 'LSODE -- limiting time step'
       if (ITASK==4) then
         IOPT = 1                !Whether optional inputs are needed
         RWORK(1) = TOUT         !TCRIT: not to be overshot
-        IWORK(6) = 10000        !Maximum number of steps
+        IWORK(6) = 100000        !Maximum number of steps
       endif
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
@@ -1479,7 +1533,7 @@ c     #########################################################################
 
       real(8) :: vx,vy,vz
 
-      !Update time step
+      !Update time
       time=time+dt  !Include Jacobian factor to advance time
 
       !Update arc length
@@ -2457,7 +2511,7 @@ c     Begin program
 
 c     sschk
 c     #################################################################
-      subroutine sschk(order,tv,to,tt,xvold,xold,x,yvold,yold,y
+      subroutine sschk(tv,to,tt,xvold,xold,x,yvold,yold,y
      .                ,zvold,zold,z,xss,yss,zss,tss)
 
 c     -----------------------------------------------------------------
@@ -2468,7 +2522,6 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer,intent(IN) :: order
         real(8),intent(IN) :: tv,to,tt
      .                       ,xvold,xold,x
      .                       ,yvold,yold,y
@@ -2486,7 +2539,11 @@ c     Begin program
 
 c     Lower order of interpolation for SS if derivatives are too different
 
-        iwhich = order
+        if (ssorder == 0) then
+          call pstop('sschk','Need to call ss_init!')
+        endif
+
+        iwhich = ssorder
 
         if (to > tv) then
           if (tt > to) then
@@ -2580,13 +2637,360 @@ c     Check for intersection with Z surface of section
 
       end subroutine sschk
 
+c     sursec
+c     ##################################################################
+      subroutine sursec(x0,y0,z0,t0
+     .                 ,x1,y1,z1,t1
+     .                 ,x2,y2,z2,t2
+     .                 ,zsurf,npoints,xs,ys,ts,order)
+
+c     ------------------------------------------------------------------
+c     Surface of section routine in Z direction. Allows linear (order=1)
+c     and quadratic (order=2) interpolation of time orbits. Returns (x,y)
+c     and arc-length at surface of section in xs,ys,ts respectively.
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: x0,y0,z0,t0,x1,y1,z1,t1,x2,y2,z2,t2
+      real(8) :: zsurf,xs,ys,ts
+      integer :: npoints,order
+
+c     Local variables
+
+      real(8) :: a11,a12,a21,a22,det
+     .          ,b(order,order),vec(order)
+     .          ,xcf(order),ycf(order),tcf(order)
+
+c     Begin program
+
+      select case(order)
+      case(1)
+
+c       Linear interpolation. x0,y0,z0 not used.
+
+        ts=t1+(zsurf-z1)*(t2-t1)/(z2-z1)
+        xs=x1+(zsurf-z1)*(x2-x1)/(z2-z1)
+        ys=y1+(zsurf-z1)*(y2-y1)/(z2-z1)
+cc        xs=x1+(x-x1)*(ts-t1)/(tt-t1)
+cc        ys=y1+(y-y1)*(ts-t1)/(tt-t1)
+
+      case(2)
+
+c       Quadratic interpolation. Expand about z1.  
+c       Vandermonde matrix with z0, z1, z
+c       Careful if time stepping is made nonuniform!
+
+        a11= z0-z1
+        a12=(z0-z1)**2
+        a21= z2-z1
+        a22=(z2-z1)**2
+
+        det=a11*a22-a12*a21
+
+        if (abs(det) < 1e-15) then
+          write (*,*) 'z0,z1,z2=',z0,z1,z2
+          write (*,*) 'Singular Vandermonde matrix'
+          write (*,*) 'Aborting in routine sursec'
+          stop
+        endif
+
+        b(1,1)= a22/det
+        b(1,2)=-a12/det
+        b(2,1)=-a21/det
+        b(2,2)= a11/det
+
+        vec = (/ x0-x1, x2-x1 /)
+        xcf = matmul(b,vec)
+
+        vec = (/ y0-y1, y2-y1 /)
+        ycf = matmul(b,vec)
+
+        vec = (/ t0-t1, t2-t1 /)
+        tcf = matmul(b,vec)
+
+        vec = (/ zsurf-z1, (zsurf-z1)**2 /)
+        ts = t1 + dot_product(tcf,vec)
+        xs = x1 + dot_product(xcf,vec)
+        ys = y1 + dot_product(ycf,vec)
+
+c       Quadratic interpolation. Expand about z1.  
+c       Vandermonde matrix with z0, z1, z
+c       Careful if time stepping is made nonuniform!
+
+cc        a11=t0-t1
+cc        a12=(t0-t1)**2
+cc        a21=tt-t1
+cc        a22=(tt-t1)**2
+cc
+cc        det=a11*a22-a12*a21
+cc
+cc        b11=a22/det
+cc        b12=-a12/det
+cc        b21=-a21/det
+cc        b22=a11/det
+cc
+cc        bbb=b11*(z0-z1)+b12*(z-z1)
+cc        ccc=b21*(z0-z1)+b22*(z-z1)
+cc        aaa=z1
+cc
+cc        ts=(zsurf-z1)/bbb
+cc        ts=t1+ts           !Linear time
+cc        if (ccc /= 0d0) then   !Calculate quadratic correction
+cc          if(zsurf.ge.z1) then
+cc            ts=(-bbb+sqrt(bbb**2-4.*ccc*(z1-zsurf)))/(2.*ccc)
+cc            ts=t1+ts
+cc          else
+cc            ts=(-bbb-sqrt(bbb**2-4.*ccc*(z1-zsurf)))/(2.*ccc)
+cc            ts=t1+ts
+cc          endif
+cc        endif
+cc
+cc        bbb=b11*(x0-x1)+b12*(x-x1)
+cc        ccc=b21*(x0-x1)+b22*(x-x1)
+cc        aaa=x1
+cc        xs=aaa+bbb*(ts-t1)+ccc*(ts-t1)**2
+cc
+cc        bbb=b11*(y0-y1)+b12*(y-y1)
+cc        ccc=b21*(y0-y1)+b22*(y-y1)
+cc        aaa=y1
+cc        ys=aaa+bbb*(ts-t1)+ccc*(ts-t1)**2
+
+      case default
+
+        write (*,*)
+     .     'Order of accuracy in SS interpolation not implemented'
+        stop
+
+      end select
+
+      npoints=npoints+1
+
+c     End program
+
+      end subroutine sursec
+
+c     sschk_ho
+c     #################################################################
+      subroutine sschk_ho(xss,yss,zss,tss)
+
+c     -----------------------------------------------------------------
+c     Checks whether orbit intersects specified surfaces of section.
+c     Returns (x,y,z,t) at surface of section
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        real(8),intent(OUT):: xss,yss,zss,tss
+
+c     Local variables
+
+        real(8) :: rr
+        integer :: iwhich
+
+c     Begin program
+
+        xss = 0d0 ; yss = 0d0 ; zss = 0d0 ; tss = 0d0
+
+c     Lower order of interpolation for SS if derivatives are too different
+
+        if (ssorder == 0) then
+          call pstop('sschk','Need to call ss_init!')
+        endif
+
+        iwhich = ssorder
+
+cc        if (to > tv) then
+cc          if (tt > to) then
+cc            if(    (   abs(xold-xvold)/(to-tv)
+cc     .              >5*abs(x    -xold)/(tt-to))
+cc     .         .or.(   abs(yold-yvold)/(to-tv)
+cc     .              >5*abs(y    -yold)/(tt-to))
+cc     .         .or.(   abs(zold-zvold)/(to-tv)
+cc     .              >5*abs(z    -zold)/(tt-to)) ) iwhich = 1
+cc          else
+cc            iwhich = 1
+cc          endif
+cc        else
+cc          iwhich = 1
+cc        endif
+
+c     Check for intersection with X surface of section
+
+        if (lssx
+     .      .and.chk_ss_pos(xss0,xold,x,obcnd(1),xmin,xmax,xss)) then
+
+          call sursec_ho(xss,xhist,yhist,zhist,shist
+     .                  ,npointx,yss,zss,tss,iwhich)
+
+          if (ss_io) then
+            call chk_pos(xss,yss,zss) !this resets logical coords
+            write(nunitx(thr_num)) real(yss),real(zss)
+          endif
+
+          !Accumulate B diagnostics
+          if (bdiag) call B_diag_update(yss,y00,tss)
+        endif
+
+c     Check for intersection with Y surface of section
+
+        if (lssy
+     .      .and.chk_ss_pos(yss0,yold,y,obcnd(3),ymin,ymax,yss)) then
+
+          call sursec_ho(yss,yhist,zhist,xhist,shist
+     .                  ,npointy,zss,xss,tss,iwhich)
+
+          if (ss_io) then
+            call chk_pos(xss,yss,zss) !this resets logical coords
+            
+            if (flux) then
+              write(nunity(thr_num)) real(0.5*xss**2),real(zss)
+            else
+              write(nunity(thr_num)) real(xss),real(zss)
+            endif
+          endif
+
+          !Accumulate B diagnostics
+          if (bdiag) call B_diag_update(xss,x00,tss)
+        endif
+
+c     Check for intersection with Z surface of section
+
+        if ((lssz.or.rzss)
+     .      .and.chk_ss_pos(zss0,zold,z,obcnd(5),zmin,zmax,zss)) then
+
+          call sursec_ho(zss,zhist,xhist,yhist,shist
+     .                  ,npointz,xss,yss,tss,iwhich)
+
+          if (ss_io) then
+            if (rzss) then   !Find R-Z plane positions
+              call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
+              rr = sqrt(xcar**2+ycar**2)
+              write(nunitrz(thr_num)) real(rr),real(zcar)
+            endif
+
+            if (lssz) then
+              call chk_pos(xss,yss,zss) !this resets logical coords
+
+              if (flux) then
+                write(nunitz(thr_num)) real(0.5*xss**2),real(yss) !In flux
+              else
+                write(nunitz(thr_num)) real(xss)       ,real(yss) !In radius
+              endif
+            endif
+          endif
+
+          !Accumulate B diagnostics
+          if (bdiag) call B_diag_update(xss,x00,tss)
+        endif
+
+      end subroutine sschk_ho
+
+c     sursec_ho
+c     ##################################################################
+      subroutine sursec_ho(zsurf,z,x,y,t,npoints,xs,ys,ts,order)
+
+c     ------------------------------------------------------------------
+c     Surface of section routine in Z direction.  Returns (x,y) and
+c     arc-length/time at surface of section in xs,ys,ts
+c     respectively. Allows linear (order=1) and quadratic (order=2)
+c     interpolation of time orbits. Arrays are ordered with most recent
+c     point first (first position), and older points later.
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: npoints,order
+      real(8) :: x(:),y(:),z(:),t(:)
+      real(8) :: zsurf,xs,ys,ts
+
+c     Local variables
+
+      integer :: i,j,ii,lorder
+      real(8),allocatable,dimension(:,:) :: a,rhs,sol
+      real(8),allocatable,dimension(:)   :: vec
+
+c     Begin program
+
+      lorder = min(order,count(z /= UNDEF_DP)-1)
+
+cc      write (*,*) count(t /= UNDEF_DP),lorder
+
+      select case(lorder)
+      case(1)
+
+c       Linear interpolation. x0,y0,z0 not used.
+
+        ts=t(2)+(zsurf-z(2))*(t(1)-t(2))/(z(1)-z(2))
+        xs=x(2)+(zsurf-z(2))*(x(1)-x(2))/(z(1)-z(2))
+        ys=y(2)+(zsurf-z(2))*(y(1)-y(2))/(z(1)-z(2))
+
+      case default
+
+        allocate(a  (lorder,lorder)
+     .          ,rhs(lorder,3)
+     .          ,sol(lorder,3)
+     .          ,vec(lorder))
+
+c       Quadratic interpolation. Expand about z(2)
+c       Vandermonde matrix
+c       Careful if time stepping is made nonuniform!
+
+        do i=1,lorder
+          do j=1,lorder
+            ii = i
+            if (i>=2) ii=i+1
+            a(i,j) = (z(ii)-z(2))**j
+          enddo
+        enddo
+
+        rhs(1,1) = x(1)-x(2)
+        rhs(1,2) = y(1)-y(2)
+        rhs(1,3) = t(1)-t(2)
+        rhs(2:lorder,1) = x(3:lorder+1)-x(2)
+        rhs(2:lorder,2) = y(3:lorder+1)-y(2)
+        rhs(2:lorder,3) = t(3:lorder+1)-t(2)
+
+        call blockSolve(lorder,a,3,rhs,sol)
+
+        do i=1,lorder
+          vec(i) = (zsurf-z(2))**i
+        enddo
+
+        xs = x(2) + dot_product(sol(:,1),vec)
+        ys = y(2) + dot_product(sol(:,2),vec)
+        ts = t(2) + dot_product(sol(:,3),vec)
+
+        deallocate(a,rhs,sol,vec)
+cc      case default
+cc
+cc        write (*,*)
+cc     .     'Order of accuracy in SS interpolation not implemented'
+cc        stop
+
+      end select
+
+      npoints=npoints+1
+
+c     End program
+
+      end subroutine sursec_ho
+
 c     chk_ss_pos
 c     ##################################################################
       function chk_ss_pos(x0,x1,x2,bc,xmin,xmax,xss) result(found)
 
 c     ------------------------------------------------------------------
 c     Determines whether surface of section at x0 is between x1 and x2.
-c     It automatically accounts for periodic BCs.
+c     It automatically accounts for periodic BCs. If periodic BCs, it
+c     returns shifted surface of section location, xss, such that
+c                  x1 < xss < x2
 c     ------------------------------------------------------------------
 
       implicit none
@@ -2651,97 +3055,6 @@ cc      pause
       if ((x11-x0 )*(x22-x0 ) <= 0d0) xss = x0 +pp*(xmax-xmin)
 
       end function chk_ss_pos
-
-c     sursec
-c     ##################################################################
-      subroutine sursec(xvold,yvold,zvold,tvold,xold,yold,zold,told
-     $                 ,x,y,z,time,zsurf,npoints,xss,yss,tss,order)
-
-c     ------------------------------------------------------------------
-c     Surface of section routine. Allows linear (order=1) and quadratic
-c     (order=2) interpolation of time orbits.
-c     ------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      real(8) :: xvold,yvold,zvold,tvold,xold,yold,zold,told,x,y,z
-      real(8) :: time,zsurf,xss,yss,tss
-      integer :: npoints,order
-
-c     Local variables
-
-      real(8) :: a11,a12,a21,a22,b11,b12,b21,b22,aaa,bbb,ccc,det
-
-c     Begin program
-
-      select case(order)
-      case(1)
-
-c       Linear interpolation. xvold,yvold,zvold not used.
-
-        tss=told+(zsurf-zold)*(time-told)/(z-zold)
-        xss=xold+(x-xold)*(tss-told)/(time-told)
-        yss=yold+(y-yold)*(tss-told)/(time-told)
-
-      case(2)
-
-c       Quadratic interpolation. Expand about zold.  
-c       Vandermonde matrix with zvold, zold, z
-c       Careful if time stepping is made nonuniform!
-
-        a11=tvold-told
-        a12=(tvold-told)**2
-        a21=time-told
-        a22=(time-told)**2
-
-        det=a11*a22-a12*a21
-
-        b11=a22/det
-        b12=-a12/det
-        b21=-a21/det
-        b22=a11/det
-
-        bbb=b11*(zvold-zold)+b12*(z-zold)
-        ccc=b21*(zvold-zold)+b22*(z-zold)
-        aaa=zold
-
-        tss=(zsurf-zold)/bbb
-        tss=told+tss           !Linear time
-        if (ccc /= 0d0) then   !Calculate quadratic correction
-          if(zsurf.ge.zold) then
-            tss=(-bbb+sqrt(bbb**2-4.*ccc*(zold-zsurf)))/(2.*ccc)
-            tss=told+tss
-          else
-            tss=(-bbb-sqrt(bbb**2-4.*ccc*(zold-zsurf)))/(2.*ccc)
-            tss=told+tss
-          endif
-        endif
-
-        bbb=b11*(xvold-xold)+b12*(x-xold)
-        ccc=b21*(xvold-xold)+b22*(x-xold)
-        aaa=xold
-        xss=aaa+bbb*(tss-told)+ccc*(tss-told)**2
-
-        bbb=b11*(yvold-yold)+b12*(y-yold)
-        ccc=b21*(yvold-yold)+b22*(y-yold)
-        aaa=yold
-        yss=aaa+bbb*(tss-told)+ccc*(tss-told)**2
-
-      case default
-
-        write (*,*)
-     .     'Order of accuracy in SS interpolation not implemented'
-        stop
-
-      end select
-
-      npoints=npoints+1
-
-c     End program
-
-      end subroutine sursec
 
       end module orbit
 
