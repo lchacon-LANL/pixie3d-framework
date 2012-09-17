@@ -80,6 +80,7 @@ c     Begin program
       eta = ct0*(twopi_L)**alpha
 
       if (eta < 1d0) then
+cc        if (my_rank == 0) write (*,*) 'tkernel_per: small eta'
 
         tkernel = tkernel_3d(ss,ct0,alpha,ex_loop)
 
@@ -93,6 +94,7 @@ c     Begin program
         enddo
 
       else
+cc        if (my_rank == 0) write (*,*) 'tkernel_per: large eta'
 
         !Compute iteration limit
         k0 = ceiling((abs(log(0.5*t_tol))/eta)**(1d0/alpha))
@@ -195,6 +197,8 @@ c     Begin program
 
       if (eta < 1d0/sqrt(t_tol*abs(log(t_tol)))) then
 
+cc        if (my_rank == 0) write (*,*) 'skernel_per: small eta'
+
         skernel = skernel_3d(ss,ct0,alpha,ex_loop)
 
         kk = 1
@@ -207,6 +211,8 @@ c     Begin program
         enddo
 
       else
+
+cc        if (my_rank == 0) write (*,*) 'skernel_per: large eta'
 
         !Compute iteration limit
         k0 = ceiling((2d0/t_tol/eta)**(1d0/alpha))
@@ -249,18 +255,16 @@ c #############################################################################
         real(8) :: alpha
 
         !Field line accumulators
+cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
         real(8) :: ct0,ct1  !chi*dt
         real(8) :: temp_s,kernel_s,length_s,b0_s
 
         !Private variables
-        integer,private :: ss_order=2   !Interpolation order in surface of section
-
 cc        real(8),private :: orbit_atol=1e-10    !Orbit integrator absolute tolerance
 cc     .                    ,orbit_rtol=1e-8     !Orbit integrator relative tolerance
-cc     .                    ,orbit_dt  =1d-1     !Orbit integrator time step
         real(8),private :: orbit_atol=1d-12    !Orbit integrator absolute tolerance
      .                    ,orbit_rtol=1d-12    !Orbit integrator relative tolerance
-     .                    ,orbit_dt  =1d-1     !Orbit integrator time step
+     .                    ,orbit_dt  =1d-2     !Orbit integrator time step
      .                    ,CHI_LIMIT =1d-4     !Lower bound for chi*dt (delta-function limit)
 
         real(8),private :: lsode_out(LSODE_ACC_DIM),dx0,dy0,dz0
@@ -587,8 +591,8 @@ cc      end subroutine lagrangian_3d_scl
 
 c     lag_3d
 c     ##############################################################
-      subroutine lag_3d(igrid,nx,ny,nz,vec_in,vec_out
-     .                            ,chi,iout,lsode_f)
+      subroutine lag_3d(igrid,nx,ny,nz,vec_in,vec_out,nints,chi,iout
+     .                 ,lsode_f)
 
       implicit none
 
@@ -599,7 +603,7 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz,igrid,iout
+        integer :: nx,ny,nz,igrid,iout,nints
 
         real(8) :: chi(0:,0:,0:)
 
@@ -624,6 +628,8 @@ c     Local variables
 
 c     Begin program
 
+        orbit_conf%ode_conf%lsode_neq = 5+nints !Number of LSODE integrals
+
 c     Output
 
         if (my_rank == 0) then
@@ -647,7 +653,7 @@ c     Assemble global temperature field
      .              ,'Wrong number of input fields')
         endif
 
-        if (size(vec_out,4) /= 4) then
+        if (size(vec_out,4) /= 5) then
           call pstop('lag_3d'
      .              ,'Wrong number of output fields')
         endif
@@ -709,30 +715,14 @@ c     Orbit integration
               if ((my_rank == 0).and.(iout == 1))
      .                    write (*,FMT="(a)",ADVANCE="NO") '+'
 
-              vec_out(i,j,k,1) = temp_n /gkernel_dt
-              vec_out(i,j,k,2) = temp_nm/gkernel_2dt
-              vec_out(i,j,k,3) = src_dt /pkernel_dt 
-              vec_out(i,j,k,4) = src_2dt/pkernel_2dt
-
-cc              b0_diag = b0_diag + (b0(i,j,k) - pkernel_dt)**2
-cc     .                 *gmetric%grid(igrid)%dvol(i,j,k)
-cc
-cc              if (bwgt) b0(i,j,k) = pkernel_dt  !Update beta
+              vec_out(i,j,k,1) = temp_n !/gkernel_dt
+              vec_out(i,j,k,2) = temp_nm!/gkernel_2dt
+              vec_out(i,j,k,3) = src_dt !/pkernel_dt 
+              vec_out(i,j,k,4) = src_2dt!/pkernel_2dt
+              vec_out(i,j,k,5) = pkernel_dt
             enddo
           enddo
         enddo
-
-cc        !Beta parameter diagnostic
-cc        if (bwgt) then
-cc#if defined(petsc)
-cc          lb0_diag = b0_diag
-cc          call MPI_Allreduce(lb0_diag,b0_diag,1,MPI_DOUBLE_PRECISION
-cc     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-cc#endif
-cc          if (my_rank == 0) then
-cc            write (*,*) '>>>>>Time=',time,' Beta_diff=',sqrt(b0_diag)
-cc          endif
-cc        endif
 
         if ((my_rank == 0).and.(iout == 1)) write (*,*)
 
@@ -742,10 +732,139 @@ c     Free up orbit integral work space
 
       end subroutine lag_3d
 
+c     lag_3d_new
+c     ##############################################################
+      subroutine lag_3d_new(igrid,nx,ny,nz,vec_in,vec_out,chi,iout)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs Lagrangian Green's function temperature integration
+c     of tt and returns it in tt.
+c     --------------------------------------------------------------
+
+c     Call variables
+
+        integer :: nx,ny,nz,igrid,iout
+
+        real(8) :: chi(0:,0:,0:)
+
+        real(8) :: vec_in(0:,0:,0:,:),vec_out(0:,0:,0:,:)
+
+        !Interface for optional LSODE function evaluation
+        INTERFACE
+          subroutine lsode_3d_bdf2_all(neq,t,y,ydot)
+          integer :: neq
+          real(8) :: t,y(neq),ydot(neq)
+          end subroutine lsode_3d_bdf2_all
+        END INTERFACE
+
+c     Local variables
+
+        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nints
+
+        real(8) :: x0,y0,z0,temp_n,gkernel_dt,temp_nm,gkernel_2dt,src_dt
+     .            ,pkernel_dt,src_2dt,pkernel_2dt,b0_diag,lb0_diag
+
+        real(8),pointer,dimension(:,:,:,:) :: vg
+
+c     Begin program
+
+        nints = size(vec_out,4)
+        orbit_conf%ode_conf%lsode_neq = 5+nints !Number of LSODE integrals
+
+        if (nints > LSODE_ACC_DIM) then
+          call pstop('lag_3d_new','Too many LSODE integrals')
+        endif
+
+c     Output
+
+        if (my_rank == 0) then
+          if (iout == 1) then
+            write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 3D: '
+          elseif (iout <= 0) then
+            write (*,*) 'Lagrangian step in 3D...'
+          endif
+        endif
+
+c     Assemble global temperature field
+
+        nxg = grid_params%nxgl(igrid)
+        nyg = grid_params%nygl(igrid)
+        nzg = grid_params%nzgl(igrid)
+
+        neq = size(vec_in,4)
+
+cc        if (neq /= 3) then
+cc          call pstop('lagrangian_3d'
+cc     .              ,'Wrong number of input fields')
+cc        endif
+cc
+cc        if (size(vec_out,4) /= 5) then
+cc          call pstop('lag_3d'
+cc     .              ,'Wrong number of output fields')
+cc        endif
+
+        allocate(vg(0:nxg+1,0:nyg+1,0:nzg+1,neq)
+     .          ,sp_coef (nxg+2,nyg+2,nzg+2,neq))
+
+        call find_global(vec_in,vg)
+
+c     Spline temperature field
+
+        call splineFlds(vg,fldcoef=sp_coef)
+
+        deallocate(vg)
+
+c     Orbit integration
+
+        b0_diag = 0d0
+
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+
+              if (chi(i,j,k) == 0d0) cycle
+
+              call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+              x0 = grid_params%xx(ig)
+              y0 = grid_params%yy(jg)
+              z0 = grid_params%zz(kg)
+
+              ct0 = chi(i,j,k)*dt
+              ct1 = chi(i,j,k)*(dt+dtold)
+
+              call orbit_find(iout-2,x0,y0,z0,.true.
+     .                       ,lsode_f=lsode_3d_bdf2_all
+     .                       ,lsode_sum=lsode_out) !Forward
+
+              vec_out(i,j,k,:) = lsode_out(1:nints)
+
+              call orbit_find(iout-2,x0,y0,z0,.false.
+     .                       ,lsode_f=lsode_3d_bdf2_all
+     .                       ,lsode_sum=lsode_out) !Backward
+
+              vec_out(i,j,k,:) = vec_out(i,j,k,:) + lsode_out
+
+              if ((my_rank == 0).and.(iout == 1))
+     .                    write (*,FMT="(a)",ADVANCE="NO") '+'
+            enddo
+          enddo
+        enddo
+
+        if ((my_rank == 0).and.(iout == 1)) write (*,*)
+
+c     Free up orbit integral work space
+
+        deallocate(sp_coef)
+
+      end subroutine lag_3d_new
+
 c     lag_2d
 c     ##############################################################
-      subroutine lag_2d(igrid,nx,ny,nz,vec_in,vec_out
-     .                            ,chi,iout,lsode_f)
+      subroutine lag_2d(igrid,nx,ny,nz,vec_in,vec_out,nints,chi,iout
+     .                 ,lsode_f)
 
       implicit none
 
@@ -759,7 +878,7 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz,igrid,iout
+        integer :: nx,ny,nz,igrid,iout,nints
 
         real(8) :: chi(0:,0:,0:)
 
@@ -778,11 +897,13 @@ c     Local variables
         integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq
 
         real(8) :: x0,y0,z0,temp_n,gkernel_dt,temp_nm,gkernel_2dt,src_dt
-     .            ,pkernel_dt,src_2dt,pkernel_2dt,b0_diag,lb0_diag
+     .            ,pkernel_dt,src_2dt,pkernel_2dt
 
         real(8),pointer,dimension(:,:,:,:) :: vg
 
 c     Begin program
+
+        orbit_conf%ode_conf%lsode_neq = 3+nints
 
 c     Output
 
@@ -807,7 +928,7 @@ c     Assemble global temperature field
      .              ,'Wrong number of input fields')
         endif
 
-        if (size(vec_out,4) /= 4) then
+        if (size(vec_out,4) /= 5) then
           call pstop('lag_2d'
      .              ,'Wrong number of output fields')
         endif
@@ -824,8 +945,6 @@ c     Spline fields
         deallocate(vg)
 
 c     LSODE orbit integration
-
-        b0_diag = 0d0
 
         do k=1,nz
           do j=1,ny
@@ -860,41 +979,26 @@ c     LSODE orbit integration
               pkernel_2dt = lsode_out(8)
 
               !Parallel Xport piece
-              vec_out(i,j,k,1) = temp_n /gkernel_dt
-              vec_out(i,j,k,2) = temp_nm/gkernel_2dt
+              vec_out(i,j,k,1) = temp_n !/gkernel_dt
+              vec_out(i,j,k,2) = temp_nm!/gkernel_2dt
 
               !Source
+              vec_out(i,j,k,3) = src_dt !/pkernel_dt 
+              vec_out(i,j,k,4) = src_2dt!/pkernel_2dt
+
+              !beta integral
+              vec_out(i,j,k,5) = pkernel_dt
 cc              if (ct0 < CHI_LIMIT) then !Delta function
 cc                vec_out(i,j,k,3) = vec_in(i,j,k,3)
 cc                vec_out(i,j,k,4) = vec_in(i,j,k,3)
 cc              else
-                vec_out(i,j,k,3) = src_dt /pkernel_dt 
-                vec_out(i,j,k,4) = src_2dt/pkernel_2dt
-cc              endif
-
-cc              if (ct0 > CHI_LIMIT) then
-cc                if (bwgt) then
-cc                  b0_diag = b0_diag + (b0(i,j,k) - pkernel_dt)**2
-cc     .                                *gmetric%grid(igrid)%dvol(i,j,k)
-cc                  b0(i,j,k) = pkernel_dt !Update beta
-cc                endif
+cc                vec_out(i,j,k,3) = src_dt !/pkernel_dt 
+cc                vec_out(i,j,k,4) = src_2dt!/pkernel_2dt
 cc              endif
 
             enddo
           enddo
         enddo
-
-        !Beta parameter diagnostic
-cc        if (bwgt) then
-cc#if defined(petsc)
-cc          lb0_diag = b0_diag
-cc          call MPI_Allreduce(lb0_diag,b0_diag,1,MPI_DOUBLE_PRECISION
-cc     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-cc#endif
-cc          if (my_rank == 0) then
-cc            write (*,*) '>>>>>Time=',time,' Beta_diff=',sqrt(b0_diag)
-cc          endif
-cc        endif
 
         if ((my_rank == 0).and.(iout == 1)) write (*,*)
 
@@ -904,12 +1008,137 @@ c     Free up orbit integral work space
 
       end subroutine lag_2d
 
+c     lag_2d_new
+c     ##############################################################
+      subroutine lag_2d_new(igrid,nx,ny,nz,vec_in,vec_out,chi,iout)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs Lagrangian integration of vector field vec_in according 
+c     to B field (bx,by,bz). Result is stored on vector field vec_out:
+c       * vec_in: number of fields to integrate (spline)
+c       * vec_out: number of integrals to be performed on vec_in fields.
+c     Thus, vec_in and vec_out can have different 4th dimension.
+c     --------------------------------------------------------------
+
+c     Call variables
+
+        integer :: nx,ny,nz,igrid,iout
+
+        real(8) :: chi(0:,0:,0:)
+
+        real(8) :: vec_in(0:,0:,0:,:),vec_out(0:,0:,0:,:)
+
+        !Interface for optional LSODE function evaluation
+        INTERFACE
+          subroutine lsode_2d_bdf2_3eq_all(neq,t,y,ydot)
+          integer :: neq
+          real(8) :: t,y(neq),ydot(neq)
+          end subroutine lsode_2d_bdf2_3eq_all
+        END INTERFACE
+
+c     Local variables
+
+        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nints
+
+        real(8) :: x0,y0,z0,temp_n,gkernel_dt,temp_nm,gkernel_2dt,src_dt
+     .            ,pkernel_dt,src_2dt,pkernel_2dt
+
+        real(8),pointer,dimension(:,:,:,:) :: vg
+
+c     Begin program
+
+        nints = size(vec_out,4) !Number of LSODE integrals
+
+        orbit_conf%ode_conf%lsode_neq = 3+nints
+
+        if (nints > LSODE_ACC_DIM) then
+          call pstop('lag_2d_new','Too many LSODE integrals')
+        endif
+
+c     Output
+
+        if (my_rank == 0) then
+          if (iout == 1) then
+            write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 2D: '
+          elseif (iout <= 0) then
+            write (*,*) 'LSODE lagrangian step in 2D...'
+          endif
+        endif
+
+c     Assemble global temperature field
+
+        nxg = grid_params%nxgl(igrid)
+        nyg = grid_params%nygl(igrid)
+        nzg = grid_params%nzgl(igrid)
+
+        neq = size(vec_in,4)
+
+cc        if (neq /= 3) then
+cc          call pstop('lag_2d_new'
+cc     .              ,'Wrong number of input fields')
+cc        endif
+cc
+cc        if (size(vec_out,4) /= 5) then
+cc          call pstop('lag_2d'
+cc     .              ,'Wrong number of output fields')
+cc        endif
+
+        allocate(vg(0:nxg+1,0:nyg+1,0:nzg+1,neq)
+     .          ,sp_coef (nxg+2,nyg+2,nzg+2,neq))
+
+        call find_global(vec_in,vg)
+
+c     Spline fields
+
+        call splineFlds(vg,fldcoef=sp_coef)
+
+        deallocate(vg)
+
+c     LSODE orbit integration
+
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+
+              if (chi(i,j,k) == 0d0) cycle
+
+              call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+              x0 = grid_params%xx(ig)
+              y0 = grid_params%yy(jg)
+              z0 = grid_params%zz(kg)
+
+              ct0 = chi(i,j,k)*dt
+              ct1 = chi(i,j,k)*(dt+dtold)
+
+              call orbit_find(iout-2,x0,y0,z0,.true.
+     .                       ,s_max=ll(i,j,k)
+     .                       ,lsode_f=lsode_2d_bdf2_3eq_all
+     .                       ,lsode_sum=lsode_out)
+
+              if ((my_rank == 0).and.(iout == 1))
+     .                    write (*,FMT="(a)",ADVANCE="NO") '+'
+
+              vec_out(i,j,k,:) = lsode_out(1:nints)
+            enddo
+          enddo
+        enddo
+
+        if ((my_rank == 0).and.(iout == 1)) write (*,*)
+
+c     Free up orbit integral work space
+
+        deallocate(sp_coef)
+
+      end subroutine lag_2d_new
 
 c     lag_2d_init
 c     ##############################################################
       subroutine lag_2d_init(igrid,nx,ny,nz,bb,alp,iout
-     .                             ,G_tol,spline_order,nints,B_wgt
-     .                             ,psi,chi)
+     .                      ,G_tol,spline_order,B_wgt
+     .                      ,psi,chi)
 
       implicit none
 
@@ -919,7 +1148,7 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz,igrid,iout,spline_order,nints
+        integer :: nx,ny,nz,igrid,iout,spline_order
 
         real(8),INTENT(IN) :: bb (0:nx+1,0:ny+1,0:nz+1,3)
 
@@ -1008,15 +1237,8 @@ c     Fill global arrays
 c     Output
 
         if (my_rank == 0) then
-          if (iout == 1) then
-            write (*,FMT="(a)",ADVANCE="NO") '2D orbit integrals: '
-          elseif (iout <= 0) then
-            if (solenoidal) then
-              write (*,*) 'Solenoidal 2D orbit integrals...'
-            else
-              write (*,*) 'LSODE 2D orbit integrals...'
-            endif
-          endif
+          write (*,*)
+          write (*,*) '2D Lagrangian initialization...'
         endif
 
 c     Computation of periodic orbit quantities (length, beta)
@@ -1036,24 +1258,24 @@ c     Computation of periodic orbit quantities (length, beta)
         endif
 
 c diag ****
-        if (np == 1.and.b_wgt) then
-          write (*,*) 'DIAG -- lag_2d_init, dumping plots'
-          open(unit=110,file='per-orbits-qtys.bin',form='unformatted'
-     .        ,status='replace')
-          call contour(ll(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,0,110)
-          call contour(log10(b0(1:nx,1:ny,1)),nx,ny,0d0,xmax,0d0,ymax,1
-     .                ,110)
-          b0 = b0*sum(bcar(:,:,:,:)**2,dim=4)
-          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
-          if (have_chi) then
-            b0 = chi*dt/b0*sum(bcar(:,:,:,:)**2,dim=4)
-          else
-            b0 = sum(bcar(:,:,:,:)**2,dim=4)
-          endif
-          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
-          close(110)
+cc        if (np == 1) then
+cc          write (*,*) 'DIAG -- lag_2d_init, dumping plots'
+cc          open(unit=110,file='per-orbits-qtys.bin',form='unformatted'
+cc     .        ,status='replace')
+cc          call contour(ll(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,0,110)
+cc          call contour(log10(b0(1:nx,1:ny,1)),nx,ny,0d0,xmax,0d0,ymax,1
+cc     .                ,110)
+cc          b0 = b0*sum(bcar(:,:,:,:)**2,dim=4)
+cc          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
+cc          if (have_chi) then
+cc            b0 = chi*dt/b0*sum(bcar(:,:,:,:)**2,dim=4)
+cc          else
+cc            b0 = sum(bcar(:,:,:,:)**2,dim=4)
+cc          endif
+cc          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
+cc          close(110)
 cc          stop
-        endif
+cc        endif
 c diag ****
 
 c     Setup periodic integrator
@@ -1113,7 +1335,7 @@ c     Setup periodic integrator
      .                    ,spline_order=spline_order
      .                    ,solen=.false.
      .                    ,ds_is_Bds=bwgt       !Use B.ds as integration variable
-     .                    ,lsode_neq = 3+nints  !3 fields + number of field integrals
+cc     .                    ,lsode_neq = 3+nints  !3 fields + number of field integrals
      .                    ,lsode_to_smax=.true. !Use arclength as independent variable
      .                    )
 
@@ -1363,7 +1585,7 @@ c     Destroy orbit
 c     lag_3d_init
 c     ##############################################################
       subroutine lag_3d_init(igrid,nx,ny,nz,bb,alp,iout,G_tol
-     .                      ,spline_order,nints,B_wgt,chi,poinc_file)
+     .                      ,spline_order,B_wgt,chi,poinc_file)
       use iosetup
 
       implicit none
@@ -1374,7 +1596,7 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz,igrid,spline_order,nints,iout
+        integer :: nx,ny,nz,igrid,spline_order,iout
  
         real(8) :: G_tol,alp
         real(8),dimension(0:,0:,0:,:) :: bb
@@ -1397,6 +1619,11 @@ c     Local variables
         logical :: have_chi
 
 c     Begin program
+
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) '3D Lagrangian initialization...'
+        endif
 
         init_lag = .true.
 
@@ -1433,41 +1660,28 @@ c     Find global arrays
 
 c     Find initial beta=1/B^2
 
-        !Output
-        if (my_rank == 0) then
-          if (iout == 1) then
-            write (*,FMT="(a)",ADVANCE="NO") '3D orbit integrals: '
-          elseif (iout <= 0) then
-            if (solenoidal) then
-              write (*,*) 'Solenoidal 3D orbit integrals...'
-            else
-              write (*,*) 'LSODE 3D orbit integrals...'
-            endif
-          endif
-        endif
-
         allocate(b0(0:nx+1,0:ny+1,0:nz+1))
 
         call find_beta_3d
 
 c diag ****
-        if (np == 1.and.b_wgt) then
-          write (*,*) 'DIAG -- lag_3d_init, dumping plots'
-          open(unit=110,file='per-orbits-qtys.bin',form='unformatted'
-     .        ,status='replace')
-          call contour(log10(b0(1:nx,1:ny,1)),nx,ny,0d0,xmax,0d0,ymax,0
-     .                ,110)
-          b0 = b0*sum(bcar(:,:,:,:)**2,dim=4)
-          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
-          if (have_chi) then
-            b0 = chi*dt/b0*sum(bcar(:,:,:,:)**2,dim=4)
-          else
-            b0 = sum(bcar(:,:,:,:)**2,dim=4)
-          endif
-          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
-          close(110)
-cc          stop
-        endif
+cc        if (np == 1.and.b_wgt) then
+cc          write (*,*) 'DIAG -- lag_3d_init, dumping plots'
+cc          open(unit=110,file='per-orbits-qtys.bin',form='unformatted'
+cc     .        ,status='replace')
+cc          call contour(log10(b0(1:nx,1:ny,1)),nx,ny,0d0,xmax,0d0,ymax,0
+cc     .                ,110)
+cc          b0 = b0*sum(bcar(:,:,:,:)**2,dim=4)
+cc          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
+cc          if (have_chi) then
+cc            b0 = chi*dt/b0*sum(bcar(:,:,:,:)**2,dim=4)
+cc          else
+cc            b0 = sum(bcar(:,:,:,:)**2,dim=4)
+cc          endif
+cc          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
+cc          close(110)
+cccc          stop
+cc        endif
 c diag ****
 
 c     Orbit initialization on global array
@@ -1490,7 +1704,7 @@ c     Orbit initialization on global array
      .                  ,rtol=orbit_rtol  !Field line integration relative tolerance
      .                  ,spline_order=spline_order
      .                  ,solen=.false.
-     .                  ,lsode_neq=5 + nints  !5 field eqs + number of field integrals
+cc     .                  ,lsode_neq=5 + nints  !5 field eqs + number of field integrals
      .                  ,ds_is_Bds=bwgt   !Use B.ds as integration variable
      .                  )
 
@@ -1846,7 +2060,7 @@ c     Call variables
 
 c     Local variables
 
-        integer ::  nx,ny,nz
+        integer ::  nx,ny,nz,nints
 
         !Interface for optional LSODE function evaluation
         INTERFACE
@@ -1865,19 +2079,110 @@ c     Local variables
 
 c     Begin program
 
+        nints = 8  !Number of LSODE integrals
+
         nx = grid_params%nxv(igrid)
         ny = grid_params%nyv(igrid)
         nz = grid_params%nzv(igrid)
 
         if (l2d) then
-          call lag_2d(igrid,nx,ny,nz,in_flds,out_flds
+          call lag_2d(igrid,nx,ny,nz,in_flds,out_flds,nints
      .               ,chi,iout,lsode_f=lsode_2d_bdf2_3eq)
         else
-          call lag_3d(igrid,nx,ny,nz,in_flds,out_flds
+          call lag_3d(igrid,nx,ny,nz,in_flds,out_flds,nints
      .               ,chi,iout,lsode_f=lsode_3d_bdf2)
         endif
 
       end subroutine lag_xport
+
+c     lag_xport2
+c     ##############################################################
+      subroutine lag_xport2(igrid,in_flds,out_flds,chi,iout)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs Lagrangian temperature integration according to B
+c     field (bx,by,bz).
+c     --------------------------------------------------------------
+
+c     Call variables
+
+        integer :: igrid,iout
+
+        real(8) :: chi(:,:,:),in_flds(:,:,:,:),out_flds(:,:,:,:)
+
+c     Local variables
+
+        integer ::  nx,ny,nz,nints
+
+        !Interface for optional LSODE function evaluation
+        INTERFACE
+          subroutine lsode_2d_bdf2_3eq_dT(neq,t,y,ydot)
+          integer :: neq
+          real(8) :: t,y(neq),ydot(neq)
+          end subroutine lsode_2d_bdf2_3eq_dT
+        END INTERFACE
+
+        INTERFACE
+          subroutine lsode_3d_bdf2_dT(neq,t,y,ydot)
+          integer :: neq
+          real(8) :: t,y(neq),ydot(neq)
+          end subroutine lsode_3d_bdf2_dT
+        END INTERFACE
+
+c     Begin program
+
+        nints = 8  !Number of LSODE integrals
+
+        nx = grid_params%nxv(igrid)
+        ny = grid_params%nyv(igrid)
+        nz = grid_params%nzv(igrid)
+
+        if (l2d) then
+          call lag_2d(igrid,nx,ny,nz,in_flds,out_flds,nints
+     .               ,chi,iout,lsode_f=lsode_2d_bdf2_3eq_dT)
+        else
+          call lag_3d(igrid,nx,ny,nz,in_flds,out_flds,nints
+     .               ,chi,iout,lsode_f=lsode_3d_bdf2_dT)
+        endif
+
+      end subroutine lag_xport2
+
+c     lag_xport3
+c     ##############################################################
+      subroutine lag_xport3(igrid,in_flds,out_flds,chi,iout)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs Lagrangian temperature integration according to B
+c     field (bx,by,bz).
+c     --------------------------------------------------------------
+
+c     Call variables
+
+        integer :: igrid,iout
+
+        real(8) :: chi(:,:,:),in_flds(:,:,:,:),out_flds(:,:,:,:)
+
+c     Local variables
+
+        integer ::  nx,ny,nz
+
+c     Begin program
+
+        nx = grid_params%nxv(igrid)
+        ny = grid_params%nyv(igrid)
+        nz = grid_params%nzv(igrid)
+
+        if (l2d) then
+          call lag_2d_new(igrid,nx,ny,nz,in_flds,out_flds,chi,iout)
+        else
+          call lag_3d_new(igrid,nx,ny,nz,in_flds,out_flds,chi,iout)
+        endif
+
+      end subroutine lag_xport3
 
 c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c     PUBLIC ROUTINES
@@ -1885,11 +2190,11 @@ c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 c     lag_update
 c     ###############################################################
-      subroutine lag_update(igrid,tnm,tn,tnp,chi,iout)
+      subroutine lag_update(igrid,ivar,bcnd,tnm,tn,tnp,chi,iout)
 
 c     ---------------------------------------------------------------
-c     Performs Lagrangian update of temperature at time n+1 (returned in
-c     tnp) to enforce parallel transport.
+c     Performs Lagrangian update of temperature at time n+1 (returned
+c     in tnp) to enforce parallel transport.
 c
 c     >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 c     MUST BE PRECEDED BY A CALL TO lag_init
@@ -1898,9 +2203,11 @@ c     >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 c
 c     On call sequence:
 c       * igrid: grid level
-c       * chi: parallel transport coeff
+c       * ivar: variable identification
+c       * bcnd: boundary conditions
 c       * tnm,tn,tnp: 3-level temperature field (for BDF2); returns
 c                     lagrangian step result in tnp
+c       * chi: parallel transport coeff (array)
 c       * iout: output diagnostics level
 c     ---------------------------------------------------------------
 
@@ -1908,17 +2215,17 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer :: igrid,iout
+      integer :: igrid,iout,bcnd(6),ivar
       real(8),dimension(0:,0:,0:) :: tnm,tn,tnp,chi
 
 c     Local variables
 
       integer :: nx,ny,nz
-      real(8) :: gamma,sgamma
+      real(8) :: gamma,sgamma,dT_error,b0_diag
 
       real(8),dimension(:,:,:,:),pointer :: flds,integrals
 
-      real(8),dimension(:,:,:),pointer :: chi_local
+      real(8),dimension(:,:,:),pointer :: chi_local,rhs,delta_T,zeros
 
 c     Begin program
 
@@ -1934,14 +2241,26 @@ c     Begin program
 c     Lagrangian step
 
       allocate(flds     (0:nx+1,0:ny+1,0:nz+1,3)
-     .        ,integrals(0:nx+1,0:ny+1,0:nz+1,4)
-     .        ,chi_local(0:nx+1,0:ny+1,0:nz+1)  )
+     .        ,integrals(0:nx+1,0:ny+1,0:nz+1,5)
+     .        ,chi_local(0:nx+1,0:ny+1,0:nz+1)
+     .        ,delta_T  (0:nx+1,0:ny+1,0:nz+1)
+     .        ,zeros    (0:nx+1,0:ny+1,0:nz+1)
+     .        ,rhs      (0:nx+1,0:ny+1,0:nz+1)  )
 
+      zeros = 0d0
+      chi_local = 0d0
+      flds = 0d0
+      integrals = 0d0
+      delta_T = 0d0
+      rhs = 0d0
+
+c     Find rhs of delta_T iteration
+      
       flds(:,:,:,1) = tn
       flds(:,:,:,2) = tnm
       flds(:,:,:,3) = cnp*tnp + cn*tn + cnm*tnm
 
-      chi_local = chi/b0  !Divide by beta
+      where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
 
       call lag_xport(igrid,flds,integrals,chi_local,iout)
 
@@ -1950,28 +2269,210 @@ c     Lagrangian step
         gamma = sgamma*sgamma
 
         where (chi_local /= 0d0) 
-          tnp =(        integrals(:,:,:,1)  !G(Tn,dt/eps)
-     .          - gamma*integrals(:,:,:,2)  !G(Tnm,2dt/eps)
-     .          +       integrals(:,:,:,3)  !P(dT/dt,dt/eps)
-     .          -sgamma*integrals(:,:,:,4)  !P(dT/dt,2dt/eps)
-     .         )/(1d0-gamma)
+          rhs =(       (integrals(:,:,:,1)-tn )  !G(Tn,dt/eps)
+     .         - gamma*(integrals(:,:,:,2)-tnm)  !G(Tnm,2dt/eps)
+     .         +(       integrals(:,:,:,3)       !P(dT/dt,dt/eps)/gamma/beta
+     .          -sgamma*integrals(:,:,:,4))/b0 ) !P(dT/dt,2dt/eps)/beta
+     .         /(1d0-sgamma)
         end where
       else
         where (chi_local /= 0d0) 
-          tnp = integrals(:,:,:,1) + integrals(:,:,:,3) !Theta scheme
+          rhs = integrals(:,:,:,1)-tn + integrals(:,:,:,3)/b0 !Theta scheme
         end where
+      endif
+
+c     Perform delta_T iteration
+
+      delta_T = rhs
+
+      if (.not.bwgt) then
+        tnp = (delta_T - cn*tn - cnm*tnm)/cnp
+        deallocate(flds,integrals,chi_local,delta_T,rhs)
+        return
+      endif
+
+cc      if (my_rank == 0) write (*,*) sgamma,cnp,cn,cnm
+
+      if (my_rank ==0) write (*,*) 'Peforming Delta_T iteration...'
+
+      dT_error = 1d0
+      do while (dT_error > 1e-6) 
+        call setBC(ivar,nx,ny,nz,delta_T,zeros,bcnd
+     .            ,igrid,igrid,igrid)
+
+        flds(:,:,:,1) = delta_T
+        flds(:,:,:,2) = delta_T
+        flds(:,:,:,3) = delta_T
+
+        call lag_xport2(igrid,flds,integrals,chi_local,iout)
+      
+        if (bdf2) then
+          where (chi_local /= 0d0) 
+            delta_T = rhs
+     .         +(        integrals(:,:,:,1)      !P(dT,dt/eps) 
+     .           -sgamma*integrals(:,:,:,2)      !P(dT,2dt/eps)
+     .          -(       integrals(:,:,:,3)      !P(dT/B^2,dt/eps)
+     .           -sgamma*integrals(:,:,:,4))/b0 )!P(dT/B^2,2dt/eps)
+     .          /(1d0-sgamma)
+          end where
+        else
+          where (chi_local /= 0d0) 
+            delta_T = rhs + integrals(:,:,:,1)
+     .                    - integrals(:,:,:,3)/b0 !Theta scheme
+          end where
+        endif
+
+        !Compute error
+        flds(:,:,:,1) = (delta_T - flds(:,:,:,1))**2
+
+        dT_error = integral(igrid,igrid,igrid,nx,ny,nz,flds(:,:,:,1))
+        dT_error = sqrt(dT_error)
+
+        if (my_rank ==0) write (*,*) 'Delta_T error=',dT_error
+      enddo
+
+      tnp = (delta_T - cn*tn - cnm*tnm)/cnp
+
+c     Update beta for next time step
+
+      if (bwgt) then
+        where (b0 > 0d0) b0 = (1 - integrals(:,:,:,5)/b0)**2
+        b0_diag = integral(igrid,igrid,igrid,nx,ny,nz,b0)
+        b0_diag = sqrt(b0_diag)
+
+        if (my_rank == 0) then
+          write (*,*) '>>>>>Time=',time,' Beta_diff=',b0_diag
+        endif
+
+        b0 = integrals(:,:,:,5)
       endif
 
 c     Free workspace
 
-      deallocate(flds,integrals,chi_local)
+      deallocate(flds,integrals,chi_local,delta_T,rhs)
 
       end subroutine lag_update
+
+c     lag_residual
+c     ###############################################################
+      subroutine lag_residual(igrid,tnm,tn,tnp,src,chi,iout)
+
+c     ---------------------------------------------------------------
+c     Computes residual of lagrangian integro-differential formulation
+c     for anisotropic heat transport.
+c
+c     >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+c     MUST BE PRECEEDED BY A CALL TO lag_init
+c     WORKSPACE FREED  BY A CALL TO lag_destroy
+c     >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+c
+c     On call sequence:
+c       * igrid: grid level
+c       * chi: parallel transport coeff
+c       * tnm,tn,tnp: 3-level temperature field (for BDF2)
+c       * src: on input, source to be propagated by P propagator;
+c              on output, returns lagrangian residual
+c       * iout: output diagnostics level
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igrid,iout
+      real(8),dimension(0:,0:,0:) :: tnm,tn,tnp,chi,src
+
+c     Local variables
+
+      integer :: nx,ny,nz
+      real(8) :: gamma,sgamma,dT_error,b0_diag
+
+      real(8),dimension(:,:,:,:),pointer :: flds,integrals
+
+      real(8),dimension(:,:,:),pointer :: chi_local,delta_T
+
+c     Begin program
+
+      if (.not.init_lag) then
+        call pstop('lag_update'
+     .            ,'Lagrangian integrator uninitialized')
+      endif
+
+      nx = size(tnp,1)-2
+      ny = size(tnp,2)-2
+      nz = size(tnp,3)-2
+
+c     Lagrangian step
+
+      allocate(flds     (0:nx+1,0:ny+1,0:nz+1,4)
+     .        ,integrals(0:nx+1,0:ny+1,0:nz+1,8)
+     .        ,chi_local(0:nx+1,0:ny+1,0:nz+1)
+     .        ,delta_T  (0:nx+1,0:ny+1,0:nz+1))
+
+c     Find rhs
+
+      delta_T = cnp*tnp + cn*tn + cnm*tnm
+
+      flds(:,:,:,1) = tn
+      flds(:,:,:,2) = tnm
+      flds(:,:,:,3) = delta_T
+      flds(:,:,:,4) = src
+
+      chi_local = 0d0
+      where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
+
+      call lag_xport3(igrid,flds,integrals,chi_local,iout)
+
+      if (bdf2) then
+        sgamma = dt/(dt+dtold)
+        gamma = sgamma*sgamma
+
+        where (chi_local /= 0d0) 
+          src =(       (integrals(:,:,:,1)-tn )  !G(Tn,dt/eps)
+     .         - gamma*(integrals(:,:,:,2)-tnm)  !G(Tnm,2dt/eps)
+     .         +(       integrals(:,:,:,3)       !P(dT/dt,dt/eps)/gamma/beta
+     .          -sgamma*integrals(:,:,:,4))*dt/b0!P(dT/dt,2dt/eps)/beta
+     .         +        integrals(:,:,:,5)       !P(dT,dt/eps) 
+     .          -sgamma*integrals(:,:,:,6)       !P(dT,2dt/eps)
+     .         -(       integrals(:,:,:,7)       !P(dT/B^2,dt/eps)
+     .          -sgamma*integrals(:,:,:,8))/b0 ) !P(dT/B^2,2dt/eps)
+     .          /(1d0-sgamma)
+        end where
+      else  !Theta scheme
+        where (chi_local /= 0d0) 
+          src = integrals(:,:,:,1)-tn + dt*integrals(:,:,:,3)/b0
+     .        + integrals(:,:,:,5)       - integrals(:,:,:,7)/b0
+        end where
+      endif
+
+c     Divide by dt to provide RHS to temporal term
+
+      src = src/dt
+
+ccc     Update beta for next time step
+cc
+cc      if (bwgt) then
+cc        b0 = (b0 - integrals(:,:,:,5))**2
+cc        b0_diag = integral(igrid,igrid,igrid,nx,ny,nz,b0)
+cc        b0_diag = sqrt(b0_diag)
+cc
+cc        if (my_rank == 0) then
+cc          write (*,*) '>>>>>Time=',time,' Beta_diff=',b0_diag
+cc        endif
+cc
+cc        b0 = integrals(:,:,:,5)
+cc      endif
+
+c     Free workspace
+
+      deallocate(flds,integrals,chi_local,delta_T)
+
+      end subroutine lag_residual
 
 c     lag_init
 c     ##############################################################
       subroutine lag_init(igr,nx,ny,nz,bb,alp,iout,G_tol,s_order
-     .                   ,nints,B_wgt,three_d,psi,chi,poinc_file)
+     .                   ,B_wgt,three_d,psi,chi,poinc_file)
 
       implicit none
 
@@ -1981,7 +2482,7 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-      integer :: nx,ny,nz,igr,s_order,nints,iout
+      integer :: nx,ny,nz,igr,s_order,iout
  
       real(8) :: G_tol,alp
       real(8),INTENT(IN) :: bb(0:nx+1,0:ny+1,0:nz+1,3)
@@ -2010,11 +2511,11 @@ c     Begin program
 
       if (lag3d) then
         call lag_3d_init(igr,nx,ny,nz,bb,alp,iout
-     .                  ,G_tol,s_order,nints,B_wgt,chi=chi
+     .                  ,G_tol,s_order,B_wgt,chi=chi
      .                  ,poinc_file=poinc_file)
       else
         call lag_2d_init(igr,nx,ny,nz,bb,alp,iout
-     .                  ,G_tol,s_order,nints,B_wgt,psi=psi
+     .                  ,G_tol,s_order,B_wgt,psi=psi
      .                  ,chi=chi)
       endif
 
@@ -2439,30 +2940,26 @@ c     Begin program
 
         orb_init = .false.
 
+c       Determine initial orbit updates
+
         dx0 = x-x0 !Determines initial direction of orbit
         dy0 = y-y0 !Determines initial direction of orbit
         dz0 = z-z0 !Determines initial direction of orbit
 
-cc        x_per =               (bcond(1)==PER.and.grid_params%nxgl(1)>1)
-cc        if (.not.x_per) y_per=(bcond(3)==PER.and.grid_params%nygl(1)>1)
-cc        if (.not.y_per) z_per=(bcond(5)==PER.and.grid_params%nzgl(1)>1)
+        !Exclude ignorable directions
+        if (grid_params%nxgl(1) == 1) dx0 = 0d0
+        if (grid_params%nygl(1) == 1) dy0 = 0d0
+        if (grid_params%nzgl(1) == 1) dz0 = 0d0
 
-cc        if ((.not.x_per).and.(.not.y_per).and.(.not.z_per)) then
-        !Failsafe in case of non-periodic domains (e.g., NIMROD)
-          !Exclude ignorable directions
-          if (grid_params%nxgl(1) == 1) dx0 = 0d0
-          if (grid_params%nygl(1) == 1) dy0 = 0d0
-          if (grid_params%nzgl(1) == 1) dz0 = 0d0
+c       Select periodic direction based on largest displacement from surface
 
-          !Select periodic direction based on largest displacement from surface
-          x_per = (abs(dx0) > abs(dy0)) .and. (abs(dx0) > abs(dz0))
-          y_per = (abs(dy0) > abs(dx0)) .and. (abs(dy0) > abs(dz0))
-          z_per = (abs(dz0) > abs(dy0)) .and. (abs(dz0) > abs(dx0))
-cc        endif
+        x_per = (abs(dx0) > abs(dy0)) .and. (abs(dx0) > abs(dz0))
+        y_per = (abs(dy0) > abs(dx0)) .and. (abs(dy0) > abs(dz0))
+        z_per = (abs(dz0) > abs(dy0)) .and. (abs(dz0) > abs(dx0))
 
-cc        write (*,*) 'per_orbit=',dx0,dy0,dz0,x_per,y_per,z_per
+c       Set logic to compute lengths using surface of sections with high-order interpolation
 
-        call ss_init(ss_order,x_per,x0,y_per,y0,z_per,z0)
+        call ss_init(4,x_per,x0,y_per,y0,z_per,z0)
 
       end subroutine per_orbit_init
 
@@ -2483,7 +2980,7 @@ c     Call variables
 
 c     Local variables
 
-        real(8) :: xoo=0d0,yoo=0d0,zoo=0d0,soo=0d0
+        real(8) :: xoo,yoo,zoo
 
 c     Begin program
 
@@ -2493,12 +2990,7 @@ c     Begin program
      .      .or.(y_per.and.(y-yo)*dy0 > 0d0)
      .      .or.(z_per.and.(z-zo)*dz0 > 0d0)) then
 
-          call sschk(ss_order
-     .              ,svold,so,ss
-     .              ,xvold,xo,x
-     .              ,yvold,yo,y
-     .              ,zvold,zo,z,xs,ys,zs,ts)  !--> Returns ts <> 0 if intersects
-
+          call sschk_ho(xs,ys,zs,ts)  !--> Returns ts <> 0 if intersects
         endif
 
       end subroutine per_orbit_chk
@@ -3270,6 +3762,152 @@ c End program
 
       end subroutine lsode_3d_bdf2
 
+c lsode_3d_bdf2_dT
+c #########################################################################
+      subroutine lsode_3d_bdf2_dT(neq,t,y,ydot)
+
+c -------------------------------------------------------------------------
+c     Driver routine for LSODE integration: ydot = ff(y,t)
+c -------------------------------------------------------------------------
+
+      use par_int
+
+      implicit none
+
+c Call variables
+
+      integer :: neq
+      real(8) :: t,y(neq),ydot(neq)
+
+c Local variables
+
+      integer :: ierror
+      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2
+      logical :: exl1,exl2,exl3,exl4
+
+c Begin program
+
+      if (neq /= 13) then
+        call pstop('lsode_3d_bdf2_dT','Wrong number of equations')
+      endif
+
+c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
+
+      call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1
+     .                  ,B2=B2)
+
+      if (.not.bwgt) B2=1d0
+
+c Call additional integrators
+
+      s1 = abs(y(5))
+
+      flds = evalFlds(x1,y1,z1,sp_coef)
+
+      !Src @ dt
+      ydot(7) = skernel_3d(s1,ct0,alpha,exl1)*ydot(5)
+
+      ydot(6) = flds(1)*ydot(7)
+
+      !Src * dt+dtold
+      ydot(9) = skernel_3d(s1,ct1,alpha,exl2)*ydot(5)
+
+      ydot(8) = flds(2)*ydot(9)
+
+      !Src @ dt
+      ydot(11) = skernel_3d(s1,ct0,alpha,exl3)*ydot(5)/B2
+
+      ydot(10) = flds(3)*ydot(11)
+
+      !Src @ dt+dtold
+      ydot(13) = skernel_3d(s1,ct1,alpha,exl4)*ydot(5)/B2
+
+      ydot(12) = flds(3)*ydot(13)
+
+c Are we done?
+
+      exit_loop = exl1.and.exl2.and.exl3.and.exl4
+
+c End program
+
+      end subroutine lsode_3d_bdf2_dT
+
+c lsode_3d_bdf2_all
+c #########################################################################
+      subroutine lsode_3d_bdf2_all(neq,t,y,ydot)
+
+c -------------------------------------------------------------------------
+c     Driver routine for LSODE integration: ydot = ff(y,t)
+c -------------------------------------------------------------------------
+
+      use par_int
+
+      implicit none
+
+c Call variables
+
+      integer :: neq
+      real(8) :: t,y(neq),ydot(neq)
+
+c Local variables
+
+      integer :: ierror
+      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,sk,sk2
+      logical :: exl1,exl2,exl3,exl4
+
+c Begin program
+
+      if (neq /= 13) then
+        call pstop('lsode_3d_bdf2','Wrong number of equations')
+      endif
+
+c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
+
+      call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1
+     .                  ,B2=B2)
+
+      if (.not.bwgt) B2=1d0
+
+c Call additional integrators
+
+      s1 = abs(y(5))
+
+      flds = evalFlds(x1,y1,z1,sp_coef)
+
+      !Tn
+      ydot(6) = flds(1)*tkernel_3d(s1,ct0,alpha,exl1)
+
+      !Tnm
+      ydot(7) = flds(2)*tkernel_3d(s1,ct1,alpha,exl2)
+
+      !Src @ dt
+      sk = skernel_3d(s1,ct0,alpha,exl3)
+      ydot(8) = flds(4)*sk/B2
+
+      !Src @ dt+dtold
+      sk2 = skernel_3d(s1,ct1,alpha,exl4)
+      ydot(9) = flds(4)*sk2/B2
+
+      !DT @ dt
+      ydot(10) = flds(3)*sk
+
+      !DT @ dt+dtold
+      ydot(11) = flds(3)*sk2
+
+      !DT/B^2 @dt
+      ydot(12) = flds(3)*sk/B2
+
+      !Src @ dt+dtold
+      ydot(13) = flds(3)*sk2/B2
+
+c Are we done?
+
+      exit_loop = exl1.and.exl2.and.exl3.and.exl4
+
+c End program
+
+      end subroutine lsode_3d_bdf2_all
+
 c lsode_2d_bdf2_3eq
 c #########################################################################
       subroutine lsode_2d_bdf2_3eq(neq,t,y,ydot)
@@ -3333,6 +3971,144 @@ c Call additional integrators
 c End program
 
       end subroutine lsode_2d_bdf2_3eq
+
+c lsode_2d_bdf2_3eq_dT
+c #########################################################################
+      subroutine lsode_2d_bdf2_3eq_dT(neq,t,y,ydot)
+
+c -------------------------------------------------------------------------
+c     Driver routine for LSODE integration: ydot = ff(y,t)
+c -------------------------------------------------------------------------
+
+      use par_int
+
+      implicit none
+
+c Call variables
+
+      integer :: neq
+      real(8) :: t,y(neq),ydot(neq)
+
+c Local variables
+
+      integer :: ierror
+      real(8) :: x1,y1,z1,s1,it_max=0d0,flds(size(sp_coef,4)),B2
+      save :: it_max
+
+c Begin program
+
+      if (neq /= 11) then
+        call pstop('lsode_2d_bdf2_3eq','Wrong number of equations')
+      endif
+
+c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
+
+      call lsode_orbit_f_3eq(3,t,y(1:3),ydot(1:3),xx1=x1,yy1=y1,zz1=z1
+     .                      ,B2=B2)
+
+      if (.not.bwgt) B2=1d0
+
+c Call additional integrators
+
+      flds = evalFlds(x1,y1,z1,sp_coef)
+
+      !Src @ dt
+      ydot(5) = skernel_per(t,ct0,alpha)
+
+      ydot(4) = flds(1)*ydot(5)
+
+      !Src @ dt+dtold
+      ydot(7) = skernel_per(t,ct1,alpha)
+
+      ydot(6) = flds(2)*ydot(7)
+
+      !Src @ dt
+      ydot(9) = skernel_per(t,ct0,alpha)/B2
+
+      ydot(8) = flds(3)*ydot(9)
+
+      !Src @ dt+dtold
+      ydot(11) = skernel_per(t,ct1,alpha)/B2
+
+      ydot(10) = flds(3)*ydot(11)
+
+c End program
+
+      end subroutine lsode_2d_bdf2_3eq_dT
+
+c lsode_2d_bdf2_3eq_all
+c #########################################################################
+      subroutine lsode_2d_bdf2_3eq_all(neq,t,y,ydot)
+
+c -------------------------------------------------------------------------
+c     Driver routine for LSODE integration: ydot = ff(y,t)
+c -------------------------------------------------------------------------
+
+      use par_int
+
+      implicit none
+
+c Call variables
+
+      integer :: neq
+      real(8) :: t,y(neq),ydot(neq)
+
+c Local variables
+
+      integer :: ierror
+      real(8) :: x1,y1,z1,s1,it_max=0d0,flds(size(sp_coef,4)),B2
+     .          ,sk,sk2
+      save :: it_max
+
+c Begin program
+
+      if (neq /= 11) then
+        call pstop('lsode_2d_bdf2_3eq','Wrong number of equations')
+      endif
+
+c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
+
+      call lsode_orbit_f_3eq(3,t,y(1:3),ydot(1:3),xx1=x1,yy1=y1,zz1=z1
+     .                      ,B2=B2)
+
+      if (.not.bwgt) B2=1d0
+
+c Call additional integrators
+
+      flds = evalFlds(x1,y1,z1,sp_coef)
+
+      !Tn
+      ydot(4) = flds(1)*tkernel_per(t,ct0,alpha)
+
+      !Tnm
+      ydot(5) = flds(2)*tkernel_per(t,ct1,alpha)
+
+      !Src @ dt
+      sk = skernel_per(t,ct0,alpha)
+      ydot(6) = flds(4)*sk/B2
+
+      !Src @ dt+dtold
+      sk2 = skernel_per(t,ct1,alpha)
+      ydot(7) = flds(4)*sk2/B2
+
+      !DT @ dt
+      ydot(8) = flds(3)*sk
+
+      !DT @ dt+dtold
+      ydot(9) = flds(3)*sk2
+
+      !DT/B^2 @dt
+      ydot(10) = flds(3)*sk/B2
+
+      !DTb^2 @ dt+dtold
+      ydot(11) = flds(3)*sk2/B2
+
+cc      !Beta
+cc      ydot(12) = sk/B2
+
+c End program
+
+      end subroutine lsode_2d_bdf2_3eq_all
 
 c lsode_2d_cn_3eq
 c #########################################################################
