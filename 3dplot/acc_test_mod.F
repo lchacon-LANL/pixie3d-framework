@@ -406,7 +406,7 @@ c diag ****
         open(unit=110,file=debugfile,form='unformatted'
      .      ,status='replace')
 
-        call contour(asol(0:nx+1,0:ny+1,1),nx+2,ny+2
+        call contour(asol(1:nx,1:ny,1),nx,ny
      .              ,0d0,1d0,0d0,1d0,0,110)
 
         close(110)
