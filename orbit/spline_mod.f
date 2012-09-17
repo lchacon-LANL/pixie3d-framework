@@ -4,7 +4,7 @@ c #####################################################################
 
         use xdraw_io
 
-        use grid, ONLY:pstop,my_rank
+        use grid, ONLY:pstop,my_rank,grid_params
 
         use bc_def, bcond2 => bcond
 
@@ -70,8 +70,10 @@ c     Begin program
         nn = size(x)
 
         if (bc == PER) then  !Ghost cell is at x(1)
-          xmin = x(2)
-          xmax = x(nn)
+cc          xmin = x(2)
+cc          xmax = x(nn)
+          xmin = 5d-1*(x(1)+x(2))
+          xmax = 5d-1*(x(nn-1)+x(nn))
         else
           xmin = x(1)
           xmax = x(nn)
@@ -232,9 +234,18 @@ c     Initialize spline domain arrays
         ys = yy
         zs = zz
 
-        call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-        call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-        call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+cc        call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+cc        call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+cc        call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+
+        xsmin = grid_params%gxmin
+        xsmax = grid_params%gxmax
+          
+        ysmin = grid_params%gymin
+        ysmax = grid_params%gymax
+          
+        zsmin = grid_params%gzmin
+        zsmax = grid_params%gzmax
 
         xmin = xsmin
         xmax = xsmax
@@ -1579,6 +1590,7 @@ c       * mat  (real array): block matrix
 c       * icol (integer) : number of columns of rhs
 c       * rhs  (real array): rhs of equation
 c       * x    ( "     "   ): solution (output)
+c       * ret_inv (logical): return inverse in mat
 c     -----------------------------------------------------------------
 
         implicit none
