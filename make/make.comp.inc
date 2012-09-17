@@ -77,7 +77,7 @@ ifeq ($(FC),gfortran)
   ADDMODFLAG   = -I
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)gfortran
-  FFLAGS      += -fno-realloc-lhs #$(STATIC)
+  FFLAGS      += #$(STATIC)
   FOPENMP      = -fopenmp
 endif
 
