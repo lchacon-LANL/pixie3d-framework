@@ -1095,7 +1095,6 @@ c     Output
       dump_diff = anal_map.and.numerical_grid
 cc      dump_diff = .false.
 
-      write (*,*) dump_diff,anal_map,numerical_grid
       if (dump_diff) then
         write(*    ,*)'Analytical mapping available; dumping diffs...'
         write(funit,*)'Analytical mapping available; dumping diffs...'

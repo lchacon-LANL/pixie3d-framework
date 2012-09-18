@@ -75,7 +75,6 @@ c Evaluate nonlinear function Fi(Uj) at time level (n+1)
         enddo
       enddo
 
-
 c Deallocate structures
 
 c End program
@@ -156,4 +155,4 @@ c Deallocate variables
 
 c End program
 
-      end subroutine
+      end subroutine evaluateNonlinearFunction

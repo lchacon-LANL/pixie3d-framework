@@ -37,8 +37,6 @@ c Begin program
       gmetric => gv%gparams%gmetric
       u_0 => gv%u_0
 
-      call setVectorDimensions
-
 c Check for autoinitializing parameters
 
       pi = acos(-1d0)
@@ -47,21 +45,17 @@ c Allocate global variable
 
       call allocateGlobalVar(gv)
 
-c Initialize MG and create grid
-
-      call createGrid(nxd,nyd,nzd,gv%gparams)
-
-c Initialize vector dimensions for global and local problems
-
-      call setVectorDimensions
-
-c Create nonlinear solver
-
-      call allocateStructures
-
-c Create nonlinear function
-
-cc      call createNonlinearFunction
+ccc Initialize MG and create grid
+cc
+cc      call createGrid(nxd,nyd,nzd,gv%gparams)
+cc
+ccc Initialize vector dimensions for global and local problems
+cc
+cc      call setVectorDimensions
+cc
+ccc Create nonlinear solver
+cc
+cc      call allocateStructures
 
       end subroutine createGridStructures
 
@@ -96,9 +90,9 @@ c      use generalPurposeFunctions
       type(patch), TARGET :: patch_var
 
       INTERFACE
-         subroutine setEquilibrium(igx,igy,igz,varray)
+         subroutine setEquilibrium(igx,varray)
          use variable_setup
-         integer :: igx,igy,igz
+         integer :: igx
          type(var_array),pointer :: varray
          end subroutine setEquilibrium
       END INTERFACE
@@ -116,7 +110,7 @@ c Begin program
 
 c Create equilibrium u_0
 
-      call setEquilibrium(1,1,1,u_0)  !External
+      call setEquilibrium(1,u_0)  !External
 
 c End program
  

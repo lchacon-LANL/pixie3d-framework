@@ -3,8 +3,8 @@
 
 #include "pixie3dApplicationParameters.h"
 
-namespace SAMRAI
-{
+namespace SAMRAI{
+namespace Pixie3d{
 
 class ImplicitPixie3dApplicationParameters: public pixie3dApplicationParameters
 {
@@ -14,5 +14,6 @@ class ImplicitPixie3dApplicationParameters: public pixie3dApplicationParameters
   ~ImplicitPixie3dApplicationParameters();    
 };  
 
+}
 }
 #endif
