@@ -34,7 +34,7 @@ c ######################################################################
         integer :: iiout
 
         !ORBIT private variables
-        type,private :: ode_solver
+        type :: ode_solver
           integer :: niter     !Number of nonlinear iterations
           integer :: order     !Order of integration (1,2)
           real(8) :: atol      !Absolute convergence tolerance
@@ -51,13 +51,13 @@ c ######################################################################
           integer :: lsode_neq !Number of equations for LSODE
         end type ode_solver
 
-        type,private :: splines
+        type :: splines
           integer :: order  !Order of splines
           integer :: a_gauge!Gauge for vector potential (1,2)
           logical :: input_is_A !Whether input is vector potential instead of magnetic field
         end type splines
 
-        type,private :: orbit_def
+        type :: orbit_def
           type(ode_solver) :: ode_conf
           type(splines)    :: spline_conf
         end type orbit_def
