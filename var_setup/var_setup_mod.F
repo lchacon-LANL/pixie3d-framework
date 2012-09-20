@@ -222,9 +222,9 @@ c     Allocate structures
 
 c     Allocate auxiliary variables
 
-        if (NAUXS > 0 .or. NAUXV > 0) then
+cc        if (NAUXS > 0 .or. NAUXV > 0) then
           call allocateAuxStruct(gv%aux)
-        endif
+cc        endif
 
 c     Allocate fluxes and sources (if flux form)
 
@@ -301,7 +301,7 @@ c     Begin program
           aux%nvar = nvar
           aux%nvec = nvec
 
-          if (nvar > 0) then
+cc          if (nvar > 0) then
             allocate(aux%var_list(nvar))
 
             do ieq=1,nvar
@@ -316,9 +316,9 @@ c     Begin program
               allocate(aux%var_list(ieq)%dom_dep_list(nvar+nvec+neqd,3))
               aux%var_list(ieq)%dom_dep_list = 0
             enddo
-          endif
+cc          endif
 
-          if (nvec > 0) then
+cc          if (nvec > 0) then
             allocate(aux%vec_list(nvec))
 
             do ieq=1,nvec
@@ -335,7 +335,7 @@ c     Begin program
               allocate(aux%vec_list(ieq)%dom_dep_list(nvar+nvec+neqd,3))
               aux%vec_list(ieq)%dom_dep_list = 0
             enddo
-          endif
+cc          endif
         endif
 
 c     End program

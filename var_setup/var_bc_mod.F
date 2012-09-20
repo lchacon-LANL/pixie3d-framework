@@ -405,6 +405,7 @@ c     Add the dependencies for the scalar dependent variables
             k = get_dep_index( dep_list(j,:), n_var )
             bc_dep(i,k) = dep_list(j,3)+1
             j = j+1
+            if (j > N) exit
          enddo
          j = 1
          dep_list => u%array_var(i)%dom_dep_list
@@ -412,6 +413,7 @@ c     Add the dependencies for the scalar dependent variables
             k = get_dep_index( dep_list(j,:), n_var )
             dom_dep(i,k) = dep_list(j,3)+1
             j = j+1
+            if (j > N) exit
          enddo
       enddo
 c     Add the dependencies for the vector dependent variables
@@ -897,7 +899,7 @@ c     ################################################################
 
       check_dep_list = 0
       i = 1
-      do while ( dep_list(i,1).ne.0 ) 
+      do while ( dep_list(i,1).ne.0) 
          if ( dep_list(i,1)>0 ) then
             if ( dep_list(i,2).ne.0 ) then
                check_dep_list = 1       ! Invalid entry found
@@ -914,6 +916,7 @@ c     ################################################################
             endif
          enddo
          i = i+1
+         if (i > N) exit
       enddo
 
       end function check_dep_list
