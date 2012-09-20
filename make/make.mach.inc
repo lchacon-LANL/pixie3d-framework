@@ -27,7 +27,6 @@ MACHINE ?=HaveNoIdea
 FC=gfortran
 HDF5 = f
 ADIOS= f
-LIBS += -llapack -lblas -lgfortran
 
 ###############################
 # lap0086227 (Mark Berrill's) #

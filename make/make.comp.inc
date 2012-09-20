@@ -33,7 +33,10 @@ ifeq ($(FC),lf95)
   ADDMODFLAG   = -I
   VERBOSE      = --verbose
   CPPFLAGS    += $(PREPROC)lf95 
+#  FFLAGS      += --quiet --li -Wa,--32
   FFLAGS      += --quiet --li
+  LIBS         = -llapackmt -lblasmt
+#  LDFLAGS      = -L/usr/lib32 -m32
 
   ifdef BOPT
     FFLAGS    += --ml cdecl
@@ -79,6 +82,7 @@ ifeq ($(FC),gfortran)
   CPPFLAGS    += $(PREPROC)gfortran
   FFLAGS      += #$(STATIC)
   FOPENMP      = -fopenmp
+  LIBS         = -llapack -lblas -lgfortran
 endif
 
 ifeq ($(FC),vtf77)
@@ -91,6 +95,7 @@ ifeq ($(FC),vtf77)
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)gfortran
   FFLAGS      += #$(STATIC)
+  LIBS         = -llapack -lblas -lgfortran
 endif
 
 # Flags for Portland Group f90
@@ -105,6 +110,7 @@ ifeq ($(FC),pgf95)
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)pgf90
   FOPENMP      = -mp
+  LIBS         = -llapack -lblas
 endif
 
 #Assemble compiler options
