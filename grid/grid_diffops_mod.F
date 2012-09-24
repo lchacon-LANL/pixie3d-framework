@@ -4115,7 +4115,7 @@ c     Local variables
 
 c     Begin program
 
-      if (coords /= 'car') then
+      if (.not.no_map) then
         hess = gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
 
         jac = gmetric%grid(igr)%jac(i,j,k)
@@ -4313,29 +4313,29 @@ cc      dxx = grid_params%dxh(ig)
 cc      dyy = grid_params%dyh(jg)
 cc      dzz = grid_params%dzh(kg)
 cc
-cc      if (coords /= 'car') then
+cc      if (.not.no_map) then
 cc        hess = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
 cc      endif
 cc
 cc      call tsrx(i ,j,k,nx,ny,nz,igx,igy,igz,alt_eom,t11p,t12p,t13p, 1)
 cc      call tsrx(im,j,k,nx,ny,nz,igx,igy,igz,alt_eom,t11m,t12m,t13m,-1)
-cc      if (coords /= 'car')
+cc      if (.not.no_map)
 cc     .    call tsrx(i,j,k,nx,ny,nz,igx,igy,igz,alt_eom,t11o,t12o,t13o,0)
 cc
 cc      call tsry(i,j ,k,nx,ny,nz,igx,igy,igz,alt_eom,t21p,t22p,t23p, 1)
 cc      call tsry(i,jm,k,nx,ny,nz,igx,igy,igz,alt_eom,t21m,t22m,t23m,-1)
-cc      if (coords /= 'car')
+cc      if (.not.no_map)
 cc     .    call tsry(i,j,k,nx,ny,nz,igx,igy,igz,alt_eom,t21o,t22o,t23o,0)
 cc
 cc      call tsrz(i,j,k ,nx,ny,nz,igx,igy,igz,alt_eom,t31p,t32p,t33p, 1)
 cc      call tsrz(i,j,km,nx,ny,nz,igx,igy,igz,alt_eom,t31m,t32m,t33m,-1)
-cc      if (coords /= 'car')
+cc      if (.not.no_map)
 cc     .    call tsrz(i,j,k,nx,ny,nz,igx,igy,igz,alt_eom,t31o,t32o,t33o,0)
 cc
 cc      msource = 0d0
 cc
 cc      !Component 1
-cc      if (coords /= 'car') then
+cc      if (.not.no_map) then
 cc        msource =  (t11o*hess(1,1,1)+t12o*hess(1,1,2)+t13o*hess(1,1,3)
 cc     .             +t21o*hess(1,2,1)+t22o*hess(1,2,2)+t23o*hess(1,2,3)
 cc     .             +t31o*hess(1,3,1)+t32o*hess(1,3,2)+t33o*hess(1,3,3))
@@ -4349,7 +4349,7 @@ cc
 cc      !Component 2
 cc      coeff = 1d0
 cc
-cc      if (coords /= 'car') then
+cc      if (.not.no_map) then
 cc        if (alt_eom) then
 cc
 cc          msource=  (t11o*hess(2,1,1)+t12o*hess(2,1,2)+t13o*hess(2,1,3)
@@ -4375,7 +4375,7 @@ cc     .           +(t22p - t22m)/dyy
 cc     .           +(t32p - t32m)/dzz)*coeff  + msource
 cc
 cc      !Component 3
-cc      if (coords /= 'car') then
+cc      if (.not.no_map) then
 cc        msource = (t11o*hess(3,1,1)+t12o*hess(3,1,2)+t13o*hess(3,1,3)
 cc     .            +t21o*hess(3,2,1)+t22o*hess(3,2,2)+t23o*hess(3,2,3)
 cc     .            +t31o*hess(3,3,1)+t32o*hess(3,3,2)+t33o*hess(3,3,3))
@@ -4454,7 +4454,7 @@ c     Local variables
 
 c     Begin program
 
-      if (coords /= 'car') then
+      if (.not.no_map) then
         hess = gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
 
 cc        call flxx(i,j,k,nx,ny,nz,igr,igr,igr,t11o,t12o,t13o,0)
@@ -4645,29 +4645,29 @@ cc      dzz = grid_params%dzh(kg)
 cc
 cc      dvol = dxx*dyy*dzz
 cc
-cc      if (coords /= 'car') then
+cc      if (.not.no_map) then
 cc        hess = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
 cc      endif
 cc
 cc      call tsrx(i ,j,k,nx,ny,nz,igx,igy,igz,t11p,t12p,t13p, 1)
 cc      call tsrx(im,j,k,nx,ny,nz,igx,igy,igz,t11m,t12m,t13m,-1)
-cc      if (coords /= 'car')
+cc      if (.not.no_map)
 cc     .    call tsrx(i,j,k,nx,ny,nz,igx,igy,igz,t11o,t12o,t13o,0)
 cc
 cc      call tsry(i,j ,k,nx,ny,nz,igx,igy,igz,t21p,t22p,t23p, 1)
 cc      call tsry(i,jm,k,nx,ny,nz,igx,igy,igz,t21m,t22m,t23m,-1)
-cc      if (coords /= 'car')
+cc      if (.not.no_map)
 cc     .    call tsry(i,j,k,nx,ny,nz,igx,igy,igz,t21o,t22o,t23o,0)
 cc
 cc      call tsrz(i,j,k ,nx,ny,nz,igx,igy,igz,t31p,t32p,t33p, 1)
 cc      call tsrz(i,j,km,nx,ny,nz,igx,igy,igz,t31m,t32m,t33m,-1)
-cc      if (coords /= 'car')
+cc      if (.not.no_map)
 cc     .    call tsrz(i,j,k,nx,ny,nz,igx,igy,igz,t31o,t32o,t33o,0)
 cc
 cc      msource = 0d0
 cc
 cc      !Component 1
-cc      if (coords /= 'car') then
+cc      if (.not.no_map) then
 cc        msource =  (t11o*hess(1,1,1)+t12o*hess(2,1,1)+t13o*hess(3,1,1)
 cc     .             +t21o*hess(1,2,1)+t22o*hess(2,2,1)+t23o*hess(3,2,1)
 cc     .             +t31o*hess(1,3,1)+t32o*hess(2,3,1)+t33o*hess(3,3,1))
@@ -4678,7 +4678,7 @@ cc     .          +(t21p - t21m)/dyy
 cc     .          +(t31p - t31m)/dzz - msource
 cc
 cc      !Component 2
-cc      if (coords /= 'car') then
+cc      if (.not.no_map) then
 cc        msource=  (t11o*hess(1,1,2)+t12o*hess(2,1,2)+t13o*hess(3,1,2)
 cc     .            +t21o*hess(1,2,2)+t22o*hess(2,2,2)+t23o*hess(3,2,2)
 cc     .            +t31o*hess(1,3,2)+t32o*hess(2,3,2)+t33o*hess(3,3,2))
@@ -4689,7 +4689,7 @@ cc     .          +(t22p - t22m)/dyy
 cc     .          +(t32p - t32m)/dzz  - msource
 cc
 cc      !Component 3
-cc      if (coords /= 'car') then
+cc      if (.not.no_map) then
 cc        msource = (t11o*hess(1,1,3)+t12o*hess(2,1,3)+t13o*hess(3,1,3)
 cc     .            +t21o*hess(1,2,3)+t22o*hess(2,2,3)+t23o*hess(3,2,3)
 cc     .            +t31o*hess(1,3,3)+t32o*hess(2,3,3)+t33o*hess(3,3,3))
@@ -4746,7 +4746,7 @@ cc
 cc      vol_wgt = .true.
 cc      if (PRESENT(vol)) vol_wgt = vol
 cc
-cc      if (coords == 'car') then
+cc      if (no_map) then
 cc        do icomp=1,3
 cc          vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
 cc     .                           ,vcnv(:,:,:,icomp)
@@ -4802,7 +4802,7 @@ c     Begin program
       alt_eom = .false.
       if (PRESENT(alteom)) alt_eom = alteom
 
-      if (coords == 'car') then
+      if (no_map) then
         do icomp=1,3
           vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
      .                           ,vfield(:,:,:,icomp),diff
@@ -4857,7 +4857,7 @@ c     Begin program
       alt_eom = .false.
       if (PRESENT(alteom)) alt_eom = alteom
 
-      if (coords == 'car') then
+      if (no_map) then
         do icomp=1,3
           vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
      .                           ,vfield(:,:,:,icomp)
@@ -5115,7 +5115,7 @@ c     Begin program
       vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
-      if (coords == 'car') then
+      if (no_map) then
         do icomp=1,3
           vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
      .                         ,vfield(:,:,:,icomp),vol=vol_wgt)
@@ -5167,7 +5167,7 @@ c     Begin program
       vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
-      if (coords == 'car') then
+      if (no_map) then
         do icomp=1,3
           vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
      .                         ,vfield(:,:,:,icomp),diff

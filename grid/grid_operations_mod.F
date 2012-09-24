@@ -456,7 +456,7 @@ c     Begin program
 
 c     Special case of cartesian coords
 
-        if (coords == 'car') then
+        if (no_map) then
 
           if (tocnv) then
             cnv1 = cov1
