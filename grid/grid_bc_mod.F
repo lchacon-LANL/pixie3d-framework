@@ -956,11 +956,11 @@ c     Impose BCs
 
 c     Fill edges
 
-      call fillEdges(array,array0,bcnd)
+      call fillEdges(array,array0,bcnd,order)
 
 c     Fill corners
 
-      call fillCorners(array,bcnd)
+      call fillCorners(array,bcnd,order)
 
 c     Periodic boundary synchronizing
 
@@ -1299,16 +1299,16 @@ c     Fill edges (for both cnv and cov components)
 
       do ivar=1,ncomp
         call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar))
+     .                ,bcnd(:,ivar),order)
         call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar))
+     .                ,bcnd(:,ivar),order)
       enddo
 
 c     Fill corners (for both cnv and cov components)
 
       do ivar=1,ncomp
-        call fillCorners(v_cov(:,:,:,ivar),bcnd(:,ivar))
-        call fillCorners(v_cnv(:,:,:,ivar),bcnd(:,ivar))
+        call fillCorners(v_cov(:,:,:,ivar),bcnd(:,ivar),order)
+        call fillCorners(v_cnv(:,:,:,ivar),bcnd(:,ivar),order)
       enddo
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
@@ -2209,7 +2209,7 @@ c     Select face
         do j=jmin,jmax
           do k=kmin,kmax
             call extrapolateToCorner(ibcl,ito,j,k,imn,j,k
-     .                ,imx,j,k,array(imn:imx,j:j,k:k),bcond)
+     .                ,imx,j,k,array(imn:imx,j:j,k:k),bcond,order)
           enddo
         enddo
 
@@ -2226,7 +2226,7 @@ c     Select face
         do j=jmin,jmax
           do k=kmin,kmax
             call extrapolateToCorner(ibcl,ito,j,k,imn,j,k
-     .                ,imx,j,k,array(imn:imx,j:j,k:k),bcond)
+     .                ,imx,j,k,array(imn:imx,j:j,k:k),bcond,order)
           enddo
         enddo
 
@@ -2243,7 +2243,7 @@ c     Select face
         do k=kmin,kmax
           do i=imin,imax
               call extrapolateToCorner(ibcl,i,jto,k,i,jmn,k
-     .                ,i,jmx,k,array(i:i,jmn:jmx,k:k),bcond)
+     .                ,i,jmx,k,array(i:i,jmn:jmx,k:k),bcond,order)
           enddo
         enddo
 
@@ -2260,7 +2260,7 @@ c     Select face
         do k=kmin,kmax
           do i=imin,imax
             call extrapolateToCorner(ibcl,i,jto,k,i,jmn,k
-     .                ,i,jmx,k,array(i:i,jmn:jmx,k:k),bcond)
+     .                ,i,jmx,k,array(i:i,jmn:jmx,k:k),bcond,order)
           enddo
         enddo
 
@@ -2277,7 +2277,7 @@ c     Select face
         do j=jmin,jmax
           do i=imin,imax
             call extrapolateToCorner(ibcl,i,j,kto,i,j,kmn
-     .                ,i,j,kmx,array(i:i,j:j,kmn:kmx),bcond)
+     .                ,i,j,kmx,array(i:i,j:j,kmn:kmx),bcond,order)
           enddo
         enddo
 
@@ -2294,7 +2294,7 @@ c     Select face
         do j=jmin,jmax
           do i=imin,imax
             call extrapolateToCorner(ibcl,i,j,kto,i,j,kmn
-     .                ,i,j,kmx,array(i:i,j:j,kmn:kmx),bcond)
+     .                ,i,j,kmx,array(i:i,j:j,kmn:kmx),bcond,order)
           enddo
         enddo
 
@@ -2647,20 +2647,20 @@ cc      end subroutine fillEdges
 
 c     fillEdges
 c     #################################################################
-      subroutine fillEdges(array,array0,bcond)
+      subroutine fillEdges(array,array0,bcond,order)
 c     -----------------------------------------------------------------
 c     Fills ghost cells in edges (12 in 3D). On input:
 c        * array  -> 3D array to impose BC's on.
 c        * array0 -> 3D array containing equilibrium BCs
-c        * dim    -> dimension (1 -> X, 2 -> Y, 3 -> Z)
-c        * loc    -> location in dimension (0 -> right, 1 -> left)
+c        * bcond  -> boundary condition array
+c        * order  -> order of extrapolation
 c     -----------------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-      integer    :: bcond(6)
+      integer    :: bcond(6),order
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
      .             ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
 
@@ -2719,7 +2719,7 @@ c     Select edge
               else
                 ibcl = (/1,3,0/)
                 call extrapolateToCorner(ibcl,ito,jto,k,imn,jmn,k
-     .                  ,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond)
+     .                ,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order)
               endif
             enddo
           endif
@@ -2737,7 +2737,7 @@ c     Select edge
               else
                 ibcl = (/1,4,0/)
                 call extrapolateToCorner(ibcl,ito,jto,k,imn,jmn,k
-     .                  ,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond)
+     .                ,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order)
               endif
             enddo
           endif
@@ -2766,7 +2766,7 @@ c     Select edge
               else
                 ibcl = (/2,3,0/)
                 call extrapolateToCorner(ibcl,ito,jto,k,imn,jmn,k
-     .                  ,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond)
+     .                ,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order)
               endif
             enddo
           endif
@@ -2784,7 +2784,7 @@ c     Select edge
               else
                 ibcl = (/2,4,0/)
                 call extrapolateToCorner(ibcl,ito,jto,k,imn,jmn,k
-     .                  ,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond)
+     .                ,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order)
               endif
             enddo
           endif
@@ -2815,7 +2815,7 @@ c     Select edge
               else
                 ibcl = (/0,3,5/)
                 call extrapolateToCorner(ibcl,i,jto,kto,i,jmn,kmn
-     .                  ,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond)
+     .                ,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order)
               endif
             enddo
           endif
@@ -2834,7 +2834,7 @@ c     Select edge
               else
                 ibcl = (/0,3,6/)
                 call extrapolateToCorner(ibcl,i,jto,kto,i,jmn,kmn
-     .                  ,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond)
+     .                ,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order)
               endif
             enddo
           endif
@@ -2865,7 +2865,7 @@ c     Select edge
               else
                 ibcl = (/0,4,5/)
                 call extrapolateToCorner(ibcl,i,jto,kto,i,jmn,kmn
-     .                  ,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond)
+     .                ,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order)
               endif
             enddo
           endif
@@ -2884,7 +2884,7 @@ c     Select edge
               else
                 ibcl = (/0,4,6/)
                 call extrapolateToCorner(ibcl,i,jto,kto,i,jmn,kmn
-     .                  ,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond)
+     .               ,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order)
               endif
             enddo
           endif
@@ -2915,7 +2915,7 @@ c     Select edge
               else
                 ibcl = (/1,0,5/)
                 call extrapolateToCorner(ibcl,ito,j,kto,imn,j,kmn
-     .                  ,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond)
+     .                ,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order)
               endif
             enddo
           endif
@@ -2934,7 +2934,7 @@ c     Select edge
               else
                 ibcl = (/2,0,5/)
                 call extrapolateToCorner(ibcl,ito,j,kto,imn,j,kmn
-     .                  ,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond)
+     .               ,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order)
               endif
             enddo
           endif
@@ -2965,7 +2965,7 @@ c     Select edge
               else
                 ibcl = (/1,0,6/)
                 call extrapolateToCorner(ibcl,ito,j,kto,imn,j,kmn
-     .                  ,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond)
+     .               ,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order)
               endif
             enddo
           endif
@@ -2984,7 +2984,7 @@ c     Select edge
               else
                 ibcl = (/2,0,6/)
                 call extrapolateToCorner(ibcl,ito,j,kto,imn,j,kmn
-     .                  ,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond)
+     .               ,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order)
               endif
             enddo
           endif
@@ -3002,7 +3002,7 @@ c     End program
 
 c     fillCorners
 c     #################################################################
-      subroutine fillCorners(array,bcond)
+      subroutine fillCorners(array,bcond,order)
 c     -----------------------------------------------------------------
 c     Imposes ghost cells in corners (8 in 3D). On input:
 c        * array -> 3D array to impose BC's on.
@@ -3015,7 +3015,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: bcond(6)
+      integer    :: bcond(6),order
       real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
 
 c     Local variables
@@ -3107,7 +3107,7 @@ c     Begin program
 
         call extrapolateToCorner(ibcl,ito,jto,kto
      .                   ,imn,jmn,kmn,imx,jmx,kmx
-     .             ,array(imn:imx,jmn:jmx,kmn:kmx),bcond)
+     .             ,array(imn:imx,jmn:jmx,kmn:kmx),bcond,order)
 
       endif
 
@@ -3118,7 +3118,7 @@ c     Begin program
 c     extrapolateToCorner
 c     #################################################################
       subroutine extrapolateToCorner(ibcl,ito,jto,kto,imn,jmn,kmn
-     .                              ,imx,jmx,kmx,array,bcnd,array0)
+     .                             ,imx,jmx,kmx,array,bcnd,order,array0)
 c     -----------------------------------------------------------------
 c     Routine that extrapolates information to edge or vertex corners.
 c     It is the workhorse of the fillEdge and fillCorner routines.
@@ -3131,7 +3131,7 @@ c        * imx,jmx,kmx: node coordinates identifying end of interpolation
 c                       region (integer)
 c        * array: local array defined on interpolation region, including
 c                 ghost cell (ito,jto,kto) (real)
-c     The order of extrapolation 'order' is defined in the module header.
+c        * order: order of extrapolation 
 c     -----------------------------------------------------------------
 
       implicit none
@@ -3139,6 +3139,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer :: ibcl(3),ito,jto,kto,imn,jmn,kmn,imx,jmx,kmx,bcnd(6)
+     .          ,order
       real(8) :: array(imn:imx,jmn:jmx,kmn:kmx)
       real(8),optional,intent(IN) :: array0(imn:imx,jmn:jmx,kmn:kmx)
 
@@ -3178,7 +3179,7 @@ cc     .    .or.(bcnd(ibcl(3))==SP)) return
      .    .or. bcSP(ibc=ibcl(2),bcnd=bcnd)
      .    .or. bcSP(ibc=ibcl(3),bcnd=bcnd)) return
 
-c     Do nothing for SYM boundary faces, edges, and corners
+c     Do nothing for SYM (not FSYM!!) boundary faces, edges, and corners
 
 cc      if (.not.face
 cc     .    .and.(    bcSYM(ibcl(1))
@@ -3187,9 +3188,12 @@ cc     .         .or. bcSYM(ibcl(3)))) return
 cc      if (     abs(bcnd(ibcl(1)))==SYM
 cc     .    .or. abs(bcnd(ibcl(2)))==SYM
 cc     .    .or. abs(bcnd(ibcl(3)))==SYM) return
-      if (     bcSYM(ibc=ibcl(1),bcnd=bcnd)
-     .    .or. bcSYM(ibc=ibcl(2),bcnd=bcnd)
-     .    .or. bcSYM(ibc=ibcl(3),bcnd=bcnd)) return
+cc      if (     bcSYM(ibc=ibcl(1),bcnd=bcnd)
+cc     .    .or. bcSYM(ibc=ibcl(2),bcnd=bcnd)
+cc     .    .or. bcSYM(ibc=ibcl(3),bcnd=bcnd)) return
+      if (     bcSYM(ibc=ibcl(1))
+     .    .or. bcSYM(ibc=ibcl(2))
+     .    .or. bcSYM(ibc=ibcl(3))) return
 
 c     Identify directions for extrapolation.
 
@@ -3272,12 +3276,11 @@ cc     .                 .or.(abs(bcnd(i_bc)) == NEU .and. order /= 0)
         if (i_bc <= 0) cycle
         select_bc(i) =(    (    bcnd(i_bc)  == PER)
 cc 6/1/12     .                .or. (abs(bcnd(i_bc)) == SYM)
-     .                .or. (abs(bcnd(i_bc)) == NEU .and. order == 0)
+cc     .                 .or.(abs(bcond(i_bc))== FSYM)  !Use "bcond", not "bcnd"
+     .                 .or.(abs(bcnd(i_bc)) == NEU .and. order == 0)
      .                ).and.selectFace(i_bc)
       enddo
 
-cc      if (edge) write (*,*)  'DIAG -- extrapolateToCorner, select_bc'
-cc     .                       ,select_bc
       call select_across
 
 c     Check some direction for interpolation exists
