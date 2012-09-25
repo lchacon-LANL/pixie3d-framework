@@ -26,8 +26,8 @@ c #####################################################################
 
         implicit none
         
-        integer :: NAUXS=0,NAUXV=0  !Number of auxiliary scalars, vectors
-                                    !(defined by application)
+        integer :: NDEPV=0,NDEPS=0    !Number of scalars, vectors in dep. var. (not operational)
+     .            ,NAUXS=0,NAUXV=0    !Number of auxiliary scalars, vectors (defined by application)
 
         type :: var_def
           integer :: bconds(6)          !Boundary conditions
@@ -123,6 +123,39 @@ c #####################################################################
      .                            ,u_0  => null()
 
       contains
+
+c     setDepVarDims
+c     ################################################################
+      subroutine setDepVarDims(nscl,nvec)
+
+      integer :: nscl,nvec
+
+c     ----------------------------------------------------------------
+c     Define number of scalars and vectors in dependent-variable struc
+c     ----------------------------------------------------------------
+
+      NDEPV = nvec   !Number of dependent var. vectors
+      NDEPS = nscl   !Number of dependent var. scalars
+
+      neqd = 3*NDEPV + NDEPS
+
+      end subroutine setDepVarDims
+
+c     setAuxVarDims
+c     ################################################################
+      subroutine setAuxVarDims(nscl,nvec)
+
+      integer :: nscl,nvec
+
+c     ----------------------------------------------------------------
+c     Define number of scalars and vectors in auxiliary struc
+c     ----------------------------------------------------------------
+
+      NAUXV=nvec  !Number of auxiliary vectors
+
+      NAUXS=nscl  !Number of auxiliary scalars
+
+      end subroutine setAuxVarDims
 
 c     setVectorDimensions
 c     #################################################################
