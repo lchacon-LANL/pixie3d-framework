@@ -7865,8 +7865,7 @@ c     Integrate
         do k = 1,nz
           do j = 1,ny
             do i = 1,nx
-              dvol = gmetric%grid(igx)%dvol(i,j,k)
-     .              /gmetric%grid(igx)%jac (i,j,k)
+              dvol = gmetric%grid(igx)%dlvol(i,j,k)
 
               if (isSYM(i,igx,dim=1,loc=0)
      .        .or.isSYM(i,igx,dim=1,loc=1)
