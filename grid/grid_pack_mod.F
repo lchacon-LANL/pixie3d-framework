@@ -14,7 +14,7 @@
 
         type(grid_pack),dimension(3),save :: g_pack
 
-        logical :: map_grid_pack=.false.
+        logical :: map_grid_pack=.false.,no_map=.false.
 
         real(8) :: gp_config(6)
 

@@ -214,10 +214,14 @@ c     Create fortran PETSc parallel grid hierarchy (parallel version)
 
 c     Store grid metric parameters in grid metric structure
 
-cc        if (checkAnalMapDatabase() .or. coords == 'pck') then
-        if (checkAnalMapDatabase()) then
+        if (checkAnalMapDatabase() .or. coords == 'lpk') then
+cc        if (checkAnalMapDatabase()) then
           call defineGridMetric(gdef)
           gmetric => gdef%gmetric  !For backward compatibility
+        else
+          if (my_rank == 0) then
+            write (*,*) 'WARNING: Map "',coords,'" not in database'
+          endif
         endif
 
       contains
@@ -617,7 +621,8 @@ c     Coordinate-specific checks
 
         select case (coords)
         case ('car')
-          numerical_grid = .false.
+          no_map = .not.map_grid_pack
+          if (no_map) numerical_grid = .false.
         case ('cyl','hel','hl2')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
