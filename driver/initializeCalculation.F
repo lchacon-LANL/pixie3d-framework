@@ -68,7 +68,7 @@ c Check for autoinitializing parameters
 
       pi = acos(-1d0)
 
-      if (maxitnwt.eq.0) 
+      if (maxitnwt < 0) 
      .      maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
 
       alpha = 1. - cnfactor
