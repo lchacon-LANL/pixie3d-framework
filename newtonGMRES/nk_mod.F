@@ -104,7 +104,7 @@ c     Local variables
 
 c     jfnk
 c     ###############################################################
-      subroutine jfnk(neq,ntot,x,iguess,out,ierr)
+      subroutine jfnk(neq,ntot,x,iguess,out,ierr,matvec)
 c     ---------------------------------------------------------------
 c     Performs Jacobian-free inexact Newton iteration on res(x) = 0, 
 c     where res is calculated in 'evaluateNonlinearResidual' (provided
@@ -130,6 +130,7 @@ c              ierr = 1 --> No Newton convergence to prescribed tolerance in
 c                           prescribed number of iterations (ntit_max_rej)
 c              ierr = 2 --> Newton converged, but took too many iterations
 c                           (>  ntit_max_acc)
+c       * matvec: optional matrix-vector multiplication routine
 c
 c     Configuration parameters (input via nk_options type):
 c       * etak_meth: specifies method to determine inexact Newton forcing 
@@ -174,6 +175,15 @@ c     Local variables
       real(8) :: f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
 
       logical :: convergence,failure
+
+      optional :: matvec
+
+      INTERFACE
+        subroutine matvec(nn,z,y)
+        integer    :: nn
+        real(8)    :: z(nn),y(nn)
+        end subroutine matvec
+      END INTERFACE
 
 c     Begin program
 
@@ -309,8 +319,17 @@ c     Jacobian-free solve
           ddx = -ddx
         else
 #endif
-          call gmresDriver(ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+
+          ddx = 0d0
+          if (PRESENT(matvec)) then
+            call gmresDriver(matvec
+     .                    ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
      .                    ,iguess,iout,ierr)
+          else
+            call gmresDriver(matrixFreeMatVec
+     .                    ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+     .                    ,iguess,iout,ierr)
+          endif
 #if defined(FPA)
         endif
 #endif
@@ -416,7 +435,7 @@ c     Check error in Newton convergence
      $       write (*,*) 'Damping parameter too small'
         ierr = 1
       !Accept solution, but warn user
-      elseif ((jit-1).ge.ntit_max_acc) then 
+      elseif (((jit-1).ge.ntit_max_acc).and.(ntit_max_acc > 0)) then 
         if (prnt) write (*,240) ntit_max_acc
         ierr = 2
       endif
@@ -666,7 +685,7 @@ c     End program
 
 c     gmresDriver
 c     ################################################################
-      subroutine gmresDriver(nn,b,x,itk,etak,ksmax,maxitgm,iguess
+      subroutine gmresDriver(matvec,nn,b,x,itk,etak,ksmax,maxitgm,iguess
      .                      ,iout,ierr)
 c     ----------------------------------------------------------------
 c     This subroutine solves the linear system
@@ -686,6 +705,8 @@ c     Call variables
       integer    :: itk,ierr,nn,ksmax,iguess,iout,maxitgm
       real(8)    :: b(nn),x(nn),etak
 
+      external   :: matvec
+
 c     Local variables
 
       integer    :: iiout
@@ -698,8 +719,8 @@ c     Compute the initial guess x
       if (iguess.eq.1) then
         iiout = iout - 2
         call applyPC(nn,b,x,iiout)
-      else
-        x = 0d0
+cc      else
+cc        x = 0d0
       endif
 
 c     Initialize the GMRES(k) algorithm
@@ -709,9 +730,9 @@ c     Initialize the GMRES(k) algorithm
 c     Call the preconditioned GMRES(k) algorithm
 
       if (nk_conf%krylov_method=='fg') then
-        call fgmres(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
+        call fgmres(matvec,nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
       else
-        call  gmres(nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
+        call  gmres(matvec,nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
       endif
 
 c     End program
@@ -720,7 +741,7 @@ c     End program
 
 c     fgmres
 c     #######################################################################
-      subroutine fgmres(ntot,rhs,sol,eps,im,maxits,iout,ierr,its)
+      subroutine fgmres(matvec,ntot,rhs,sol,eps,im,maxits,iout,ierr,its)
 c     ----------------------------------------------------------------------*
 c                                                                           *
 c                    *** Preconditioned Flexible GMRES ***                  *
@@ -735,6 +756,7 @@ c     -----------                                                           *
 c      on entry:                                                            *
 c     ==========                                                            *
 c                                                                           *
+c      matvec== matrix-free routine                                         *
 c      ntot  == integer. The dimension of the matrix.                       *
 c      rhs   == real vector of length n containing the right hand side.     *
 c               Destroyed on return.                                        *
@@ -777,6 +799,8 @@ c     Call variables
       integer    :: ntot,im,maxits,iout,ierr,its
       real(8)    :: rhs(ntot),sol(ntot),eps
 
+      external   matvec
+
 c     Local variables
 
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
@@ -806,7 +830,7 @@ c     Calculate magnitude of nonlinear residual
 
 c     Compute initial residual vector
 
-      call matrixFreeMatVec(ntot,sol,vv(:,1))
+      call matvec(ntot,sol,vv(:,1))
 
       vv(:,1) = rhs(:) - vv(:,1)
 
@@ -854,7 +878,7 @@ c       FGMRES iteration
 
           call applyPC(ntot,vv(:,i),zz(:,i),precout)
 
-          call matrixFreeMatVec(ntot,zz(:,i),vv(:,i1))
+          call matvec(ntot,zz(:,i),vv(:,i1))
 
 c       Modified gram - schmidt.
 
@@ -998,7 +1022,7 @@ c     Update solution
 c diag *****
 cc        if (sing_mat) then
 cc          write (*,*)
-cc          call matrixFreeMatVec(ntot,sol,dum)
+cc          call matvec(ntot,sol,dum)
 cc          write (*,*) 'FGMRES diag: Residual=',sqrt(sum((dum-rhs)**2))
 cc          write (*,*) 'FGMRES diag: Sol. update=',sqrt(sum(sol**2))
 cccc          write (*,*) 'Solution coeffs=',rs
@@ -1038,14 +1062,14 @@ c     Restart outer loop
 
 c     End program
 
- 199  format(' FGMRES its =', i4,';  Res =',1p,d10.2
-     .      ,';  Ratio =', d10.2)
+ 199  format(' FGMRES its =', i4,';  Res =',1p,d10.4
+     .      ,';  Ratio =', d10.4)
 
       end subroutine fgmres
 
 c     gmres
 c     ######################################################################
-      subroutine gmres(ntot,rhs,sol,eps,im,maxits,iout,ierr,its)
+      subroutine gmres(matvec,ntot,rhs,sol,eps,im,maxits,iout,ierr,its)
 c     ----------------------------------------------------------------------*
 c                                                                           *
 c                    *** Preconditioned GMRES ***                  *
@@ -1060,6 +1084,7 @@ c     -----------                                                           *
 c      on entry:                                                            *
 c     ==========                                                            *
 c                                                                           *
+c      matvec== matrix-free routine                                         *
 c      ntot  == integer. The dimension of the matrix.                       *
 c      rhs   == real vector of length n containing the right hand side.     *
 c               Destroyed on return.                                        *
@@ -1100,6 +1125,8 @@ c     Call variables
       integer    :: ntot,im,maxits,iout,ierr,its
       real(8)    :: rhs(ntot),sol(ntot),eps
 
+      external   matvec
+
 c     Local variables
 
       real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
@@ -1129,7 +1156,7 @@ c     Calculate magnitude of nonlinear residual
 
 c     Compute initial residual vector
 
-      call matrixFreeMatVec(ntot,sol,vv(:,1))
+      call matvec(ntot,sol,vv(:,1))
 
       vv(:,1) = rhs(:) - vv(:,1)
 
@@ -1173,7 +1200,7 @@ c     FGMRES iteration
 
           call applyPC(ntot,vv(1,i),rhs,precout)
 
-          call matrixFreeMatVec(ntot,rhs,vv(1,i1))
+          call matvec(ntot,rhs,vv(1,i1))
 
 c       Modified gram - schmidt.
 
