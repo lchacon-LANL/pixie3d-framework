@@ -2684,7 +2684,7 @@ c     Determine boundary limits
       call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
-      ord = max(order,1)  !Does not affect order of interpolation in extrapolateToCorner
+      ord = max(order,1)+1  !Does not affect order of interpolation in extrapolateToCorner
 
       if (bc_debug) then
         write(*,111) '   fillEdges: Proc',my_rank
@@ -3061,7 +3061,7 @@ c     Local variables
 
 c     Begin program
 
-      ord = max(order,1)   !Does not affect order of interpolation in extrapolateToCorner
+      ord = max(order,1)+1   !Does not affect order of interpolation in extrapolateToCorner
 
       ito = icor
       if (icor == 0) then
@@ -3148,7 +3148,8 @@ c     Local variables
       integer :: i,j,k,ig,jg,kg,inx,iny,inz,order_int(3),offset
      .          ,imni,imxi,jmni,jmxi,kmni,kmxi,num,i_bc,i1,i2
 
-      real(8) :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1),smooth(3)
+      real(8) :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1),curv(3)
+     $          ,dx,dy,dz
 
       logical :: flg(3),select_bc(3),have_equ,face,edge,corner
 
@@ -3207,34 +3208,58 @@ c     Identify directions for extrapolation.
       order_int(2) = min(order,max(iny-1,0))
       order_int(3) = min(order,max(inz-1,0))
 
-      !Smoothness indicator
-      smooth = 0d0
-      if (order >= 2) then
-        if (order_int(1) == order) then
+      !Smoothness (curvature) indicator
+      curv = 1d10
+cc      if (order >= 2) then
+      if (order >= 1) then
+        call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
+
+cc        if (order_int(1) == order) then
+        if (inx > 2) then
           if (ito == imn) then
-            smooth(1) = array(ito+1,jto,kto)-array(ito+2,jto,kto)
+            dx = grid_params%dx(ig+2)
+            curv(1) = (  array(ito+1,jto,kto)
+     $                -2*array(ito+2,jto,kto)
+     $                  +array(ito+3,jto,kto))/dx**2
           else
-            smooth(1) = array(ito-1,jto,kto)-array(ito-2,jto,kto)
+            dx = grid_params%dx(ig-2)
+            curv(1) = (  array(ito-1,jto,kto)
+     $                -2*array(ito-2,jto,kto)
+     $                  +array(ito-3,jto,kto))/dx**2
           endif
         endif
 
-        if (order_int(2) == order) then
+cc        if (order_int(2) == order) then
+        if (iny > 2) then
           if (jto == jmn) then
-            smooth(2) = array(ito,jto+1,kto)-array(ito,jto+2,kto)
+            dy = grid_params%dy(jg+2)
+            curv(2) = (  array(ito,jto+1,kto)
+     $                -2*array(ito,jto+2,kto)
+     $                  +array(ito,jto+3,kto))/dy**2
           else                                              
-            smooth(2) = array(ito,jto-1,kto)-array(ito,jto-2,kto)
+            dy = grid_params%dy(jg-2)
+            curv(2) = (  array(ito,jto-1,kto)
+     $                -2*array(ito,jto-2,kto)
+     $                  +array(ito,jto-3,kto))/dy**2
           endif
         endif
 
-        if (order_int(3) == order) then
+cc        if (order_int(3) == order) then
+        if (inz > 2) then
           if (kto == kmn) then
-            smooth(3) = array(ito,jto,kto+1)-array(ito,jto,kto+2)
+            dz = grid_params%dz(kg+2)
+            curv(3) = (  array(ito,jto,kto+1)
+     $                -2*array(ito,jto,kto+2)
+     $                  +array(ito,jto,kto+3))/dz**2
           else                                                  
-            smooth(3) = array(ito,jto,kto-1)-array(ito,jto,kto-2)
+            dz = grid_params%dz(kg-2)
+            curv(3) = (  array(ito,jto,kto-1)
+     $                -2*array(ito,jto,kto-2)
+     $                  +array(ito,jto,kto-3))/dz**2
           endif
         endif
 
-        smooth = abs(smooth)
+        curv = abs(curv)
       endif
 
       !Do not interpolate **along** direction if not enough points,
@@ -3283,14 +3308,22 @@ cc     .                 .or.(abs(bcond(i_bc))== FSYM)  !Use "bcond", not "bcnd"
 
       call select_across
 
+c     Check smoothness if various interpolation directions are selected
+
+      call select_smooth
+
 c     Check some direction for interpolation exists
 
-      if ((.not.flg(1)).and.(.not.flg(2)).and.(.not.flg(3))) then
+      if (    (.not.flg(1)).and.(.not.flg(2)).and.(.not.flg(3))
+     .    .or. bc_debug) then
         write (*,*) 'Extrapolation directions',flg
         write (*,*) 'Boundary type: Face=',face,' Edge=',edge
      .             ,' Corner=',corner
         write (*,*) 'Boundaries involved',ibcl
-        call pstop('extrapolateToCorner'
+        write (*,*) 'Order of extrapolation',order
+        write (*,*) 'Smoothness indicators',curv
+        if (.not.bc_debug)
+     .     call pstop('extrapolateToCorner'
      .            ,'No extrapolation directions left')
       endif
 
@@ -3496,7 +3529,7 @@ cc            endif
 cc          endif
 
           if (select_bc(i1).and.select_bc(i2)) then
-            if (smooth(i1) <= smooth(i2)) then
+            if (curv(i1) <= curv(i2)) then
               select_bc(i1) = .false.
             else
               select_bc(i2) = .false.
@@ -3504,13 +3537,13 @@ cc          endif
           endif
 
           if (select_bc(i1)) then
-            if (smooth(i) <= smooth(i1)) then
+            if (curv(i) <= curv(i1)) then
               cycle
             else
               flg(i) = .not.select_bc(i)
             endif
           else
-            if (smooth(i) <= smooth(i2)) then
+            if (curv(i) <= curv(i2)) then
               cycle
             else
               flg(i) = .not.select_bc(i)
@@ -3549,6 +3582,39 @@ c     -----------------------------------------------------------------------
       enddo
 
       end subroutine select_across
+
+c     select_smooth
+c     ######################################################################
+      subroutine select_smooth
+
+      implicit none
+
+c     -----------------------------------------------------------------------
+c     Selects interpolation directions so that interpolation occurs along
+c     boundaries with comparable smoothness
+c     -----------------------------------------------------------------------
+
+      do i=1,3
+
+        !Identify other directions
+        i1 = mod(i+1,3)
+        i2 = mod(i+2,3)
+        if (i1 == 0) i1 = 3
+        if (i2 == 0) i2 = 3
+
+        !Identify cases in which an edge has two or more directions
+        !flagged for inclusion, and check for smoothness
+        if (flg(i1).and.flg(i2)) then
+          if (curv(i1) > 5*curv(i2)) then
+            flg(i1) = .false.
+          elseif (curv(i2) > 5*curv(i1)) then
+            flg(i2) = .false.
+          endif
+        endif
+
+      enddo
+
+      end subroutine select_smooth
 
       end subroutine extrapolateToCorner
 

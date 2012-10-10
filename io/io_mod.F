@@ -11,6 +11,17 @@ c ########################################################################
      .       qp = (1+sign(1,qp_preferred))/2*qp_preferred
      .           +(1-sign(1,qp_preferred))/2*dp
 
+#if defined(Darwin)
+        character(4) :: sed='gsed'
+#else
+        character(4) :: sed='sed'
+#endif
+
+#if defined(RFX)
+        character(30) :: sed_options=' -i'
+#else
+        character(30) :: sed_options=' -i --follow-symlinks'
+#endif
       contains 
 
 c     command_files
@@ -152,18 +163,13 @@ c     --------------------------------------------------------------------
 
 c     Begin program
 
-#if defined(RFX)
         command=
-     .       'sed -i -e"/'//trim(text)//'/{" -e' // achar(39)
-#else
-        command=
-     .       'sed -i --follow-symlinks -e"/'
-     .                    //trim(text)//'/{" -e' // achar(39)
-#endif
+     .       sed //' '//trim(sed_options)//' -e"/'
+     .                //trim(text)//'/{" -e' // achar(39)
 #if defined(pgf90) || defined(xlf)
      .       // 'a\\' // achar(39) //' -e"'
 #else
-     .       // 'a\' // achar(39) //' -e"'
+     .       // 'a\'  // achar(39) //' -e"'
 #endif
      .       // trim(line)   // '" -e"}" '
      .       // trim(file)
@@ -188,16 +194,12 @@ c     --------------------------------------------------------------------
 
 c     Begin program
 
-#if defined(RFX)
-          command='sed -i -e"/'//trim(text)//'/{" -e' // achar(39)
-#else
-          command='sed -i --follow-symlinks -e"/'
-     .                         //trim(text)//'/{" -e' // achar(39)
-#endif
+          command=sed //' '//trim(sed_options)//' -e"/'
+     .                     //trim(text)//'/{" -e' // achar(39)
 #if defined(pgf90) || defined(xlf)
      .       // 'c\\' // achar(39) //' -e"'
 #else
-     .       // 'c\' // achar(39) //' -e"'
+     .       // 'c\'  // achar(39) //' -e"'
 #endif
      .       // trim(line)   // '" -e"}" '
      .       // trim(file)
@@ -222,12 +224,8 @@ c     --------------------------------------------------------------------
 
 c     Begin program
 
-#if defined(RFX)
-        command='sed -i /'                  //trim(text)//'/d '
-#else
-        command='sed -i --follow-symlinks /'//trim(text)//'/d '
-#endif
-     .       // trim(file)
+        command=sed //' '// trim(sed_options)//' /'//trim(text)//'/d '
+     $                   // trim(file)
 
         ierr = shellcmd(trim(command))
 

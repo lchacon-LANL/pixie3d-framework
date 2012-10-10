@@ -113,7 +113,6 @@ endif
 
 contrib_setup: ;
 	-@tar xzf common_contrib.tgz
-	$(MAKE) --no-print-directory -e -C contrib/slatec setup
 
 #Define dependencies
 
