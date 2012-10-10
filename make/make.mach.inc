@@ -18,7 +18,9 @@ endif
 
 HOST ?= $(shell hostname -s)
 
-MACHINE ?=HaveNoIdea
+ARCH ?= $(shell uname -s)
+
+CPPFLAGS += $(PREPROC)$(ARCH)
 
 ############
 # DEFAULTS #
@@ -79,7 +81,6 @@ endif
 ################
 
 ifeq ($(HOST),jetta)
-  MACHINE=quevedo
 
   FC = gfortran
 
@@ -143,7 +144,6 @@ endif
 ##################
 
 ifeq ($(HOST),quevedo)
-  MACHINE=quevedo
 
   FC = gfortran
 
@@ -221,11 +221,8 @@ endif
 ###########
 
 ifeq ($(HOST),gongora)
-  MACHINE=gongora
 
   FC=gfortran
-
-  LIBS += -L/usr/lib -llapack -lblas
 
   NETCDF=f
   NETCDF_LIBS = -lnetcdff -lnetcdf
@@ -237,34 +234,34 @@ ifeq ($(HOST),gongora)
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = linux_openmpi
+      PETSC_ARCH = macosx_openmpi_O
     else
-      PETSC_ARCH = linux_openmpi_g
+      PETSC_ARCH = macosx_openmpi_g
     endif
 
     HDF5 = t
 
-    HDF5_HOME =/usr/lib/openmpi/lib
-    HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)
-    HDF5_INC  = $/usr/include/openmpi-i386
+    HDF5_HOME =/opt/local
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
 
-    ADIOS = f
-#    ADIOS = t
+#    ADIOS = f
+    ADIOS = t
 
-#    ADIOS_HOME = $(HOME)/lib/adios-1.2.1
-#    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
-#    ADIOS_VER  = 1.21
+    ADIOS_HOME = $(HOME)/lib/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
+    ADIOS_VER  = 1.31
 
   else
     LIBS += -L/usr/lib -llapack -lblas
 
     HDF5 = t
 
-    HDF5_HOME =/usr/lib
-    HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
-    HDF5_INC  = /usr/include
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.5/gfortran/serial
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  =$(HDF5_HOME)/include
+    HDF5_INC  =$(HDF5_HOME)/include
 
     ADIOS = f
 
@@ -277,7 +274,6 @@ endif
 ##########
 
 ifeq ($(HOST),siesta)
-  MACHINE=siesta
 
   FC=gfortran
 
@@ -337,7 +333,6 @@ endif
 ########
 
 ifeq ($(HOST),swim)
-  MACHINE=swim
 
   FC=gfortran
 
@@ -384,7 +379,6 @@ endif
 ##############
 
 ifeq ($(HOST),ra22)
-  MACHINE=ra22
 
   CPPFLAGS += $(PREPROC)RFX
 
@@ -424,8 +418,6 @@ endif
 ############
 
 ifeq ($(HOST),franklin)
-  MACHINE=franklin
-
   FC = pgf95
   HDF5_HOME = $(HDF5_PAR_DIR)
 #  HDF5_LIBS:= $(HDF5)
@@ -438,8 +430,6 @@ endif
 #########
 
 ifeq ($(findstring smoky,$(HOST)),smoky)
-  MACHINE=smoky
-
   FC = pgf95
 #  HDF5_HOME = $(HDF5_PAR_DIR)
   HDF5_LIBS = $(HDF5_FLIB)
@@ -468,8 +458,6 @@ ifeq ($(findstring jaguar,$(HOST)),jaguar)
   ADIOS_HOME = $(ADIOS_DIR)
   ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) 
   ADIOS_VER  = 1.3
-
-  MACHINE = jaguar
 endif
 
 ########
@@ -493,8 +481,6 @@ ifeq ($(findstring sith,$(HOST)),sith)
   ADIOS_HOME = $(ADIOS_DIR)
   ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) 
   ADIOS_VER  = 1.3
-
-  MACHINE = sith
 endif
 
 ###########
@@ -518,8 +504,6 @@ ifeq ($(findstring chester,$(HOST)),chester)
   ADIOS_HOME = $(ADIOS_DIR)
   ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB)
   ADIOS_VER  = 1.3
-
-  MACHINE = chester
 endif
 
 ########
@@ -547,7 +531,6 @@ ifeq ($(findstring ewok,$(HOST)),ewok)
   OPTIMIZATION = -O2 -Mbounds
   DEBUG = -g -Mbounds -Mchkptr
   BOPT = t
-  MACHINE = ewok
 endif
 
 ###########################
@@ -555,8 +538,6 @@ endif
 ###########################
 
 ifeq ($(HOST),chenshp)
-    MACHINE=chenshp
-
     LIBS += -L/usr/lib64/atlas -llapack -lblas
     HDF5=f
 endif
@@ -564,7 +545,6 @@ endif
 #dlg-hp overrides 
 
 ifeq ($(HOSTNAME),dlg-hp.ornl.gov)
-    MACHINE=dlghp
 	PETSC_DIR ?=/home/dg6/code/petsc/petsc-3.1-p7
 	HDF5_HOME ?= /usr/lib64/openmpi/lib 
 	FC =gfortran
@@ -607,6 +587,4 @@ ifeq ($(findstring jf,$(HOST)),jf)
     ADIOS = f
     LIBS += -llapack -lblas
   endif
-
-  MACHINE = juelich
 endif
