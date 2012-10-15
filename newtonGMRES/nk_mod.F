@@ -66,6 +66,7 @@ c ###################################################################
         character(2) :: krylov_method='gm'
         logical      :: vol_wgt=.true.
         logical      :: fpa=.false.
+        integer      :: fpa_it=5
 #if defined(FPA)
         type (fpa_state) :: fpas
 #endif
@@ -295,7 +296,8 @@ c     Start Newton iteration
       etak  = eta0
 
 #if defined(FPA)
-      if (nk_conf%fpa) call fpa_create(nk_conf%fpas,nk_conf%rk,maxv=5) !Hardwire maxv to 5
+      if (nk_conf%fpa) call fpa_create(nk_conf%fpas,nk_conf%rk
+     .                                ,maxv=nk_conf%fpa_it)
 #endif
       do jit = 1,ntit_max_rej
 

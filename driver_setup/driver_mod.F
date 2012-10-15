@@ -9,6 +9,7 @@ c ######################################################################
         real(8) :: tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
 
         logical :: fpa=.false.
+        integer :: fpa_it=5
 
         !PC setup
         integer :: pc_iter        = 1     !Number of SI iterations in preconditioner
