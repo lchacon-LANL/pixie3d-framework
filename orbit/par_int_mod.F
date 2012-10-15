@@ -2394,7 +2394,7 @@ c     Local variables
 c     Begin program
 
       if (.not.init_lag) then
-        call pstop('lag_update'
+        call pstop('lag_residual'
      .            ,'Lagrangian integrator uninitialized')
       endif
 
