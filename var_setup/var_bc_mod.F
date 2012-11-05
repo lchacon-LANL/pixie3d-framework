@@ -18,7 +18,7 @@ c     Hardwired BC configuration parameters
 
 #if !defined(samrai)
 
-c applyBC
+c     applyBC
 c     ###############################################################
       subroutine applyBC(igr,varray,it)
 c     ---------------------------------------------------------------
