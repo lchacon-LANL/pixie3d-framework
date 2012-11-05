@@ -16,7 +16,7 @@ c     Hardwired BC configuration parameters
 
       contains
 
-#if !defined(samrai)
+#if !defined(samrai) || defined(OLD_BC)
 
 c     applyBC
 c     ###############################################################
