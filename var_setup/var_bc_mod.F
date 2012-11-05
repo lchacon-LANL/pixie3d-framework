@@ -230,6 +230,35 @@ c     Impose BCs
 c     End program
 
       end subroutine applyBCplot
+
+#elseif defined(OLD_BC)
+
+c     applyBC
+c     ###############################################################
+      subroutine applyBC(igr,varray,it)
+c     ---------------------------------------------------------------
+c     Sets adequate boundary conditions on array structure varray.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igr
+      integer,optional :: it
+
+      type(var_array),pointer :: varray
+
+c     Local variables
+
+c     Begin program
+
+      call apply_App_BC(igr,varray)
+
+c     End program
+
+      end subroutine applyBC
+
 #endif
 
 c     setBCsched
