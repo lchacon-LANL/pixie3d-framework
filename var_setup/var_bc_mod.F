@@ -231,7 +231,9 @@ c     End program
 
       end subroutine applyBCplot
 
-#elseif defined(OLD_BC)
+#else
+
+#if defined(OLD_BC)
 
 c     applyBC
 c     ###############################################################
@@ -251,6 +253,15 @@ c     Call variables
 
 c     Local variables
 
+c     Interfaces
+      INTERFACE
+        subroutine apply_App_BC(igr,varray)
+          use variable_setup
+          integer    :: igr
+          type(var_array),pointer :: varray
+        end subroutine apply_App_BC
+      END INTERFACE
+
 c     Begin program
 
       call apply_App_BC(igr,varray)
@@ -259,6 +270,7 @@ c     End program
 
       end subroutine applyBC
 
+#endif
 #endif
 
 c     setBCsched
