@@ -251,6 +251,14 @@ c     Call variables
 
 c     Local variables
 
+      INTERFACE
+        subroutine apply_App_BC (igr,varray)
+        use variable_setup
+        integer    :: igr
+        type(var_array),pointer :: varray
+        end subroutine apply_App_BC
+      END INTERFACE
+
 c     Begin program
 
       call apply_App_BC(igr,varray)
