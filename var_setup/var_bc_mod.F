@@ -231,7 +231,9 @@ c     End program
 
       end subroutine applyBCplot
 
-#elseif defined(OLD_BC)
+#else
+
+#if defined(OLD_BC)
 
 c     applyBC
 c     ###############################################################
@@ -266,6 +268,7 @@ c     Begin program
 c     End program
 
       end subroutine applyBC
+#endif
 
 #endif
 
