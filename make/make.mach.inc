@@ -108,6 +108,7 @@ ifeq ($(HOST),jetta)
 
       HDF5 = t
 
+      #Determined via modules
       HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(PHDF5_LIB)
       HDF5_INC  = $(PHDF5_INC)
@@ -128,6 +129,66 @@ ifeq ($(HOST),jetta)
       HDF5_INC  = $(SHDF5_INC)
 
       ADIOS = f
+    endif
+
+    NETCDF=f
+    NETCDF_LIBS = -lnetcdff -lnetcdf
+    NETCDF_INC  = -I/usr/include
+
+#    ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+  endif
+
+endif
+
+################
+# mavis (LANL) #
+################
+
+ifeq ($(HOST),mavis)
+
+  FC = gfortran
+
+  ifdef SAMR
+
+    CC = mpicc
+    CXX = mpicxx
+    F77 = gfortran
+    override PETSC_DIR  =
+#    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/debug
+    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/optimized
+    HDF5 = f
+    HDF5_LIBS =
+    LDFLAGS    += -lgfortran
+
+  else
+    ifdef BOPT
+      PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
+
+      PETSC_ARCH = linux64_openmpi
+
+      #Determined via modules
+      HDF5 = t
+      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(PHDF5_LIB)
+      HDF5_INC  = $(PHDF5_INC)
+
+      #Determined via modules
+      ADIOS = t
+      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
+
+    else
+      LIBS += -L~/lib -llapack -lblas
+
+      ifeq ($(FC),gfortran)
+
+        #Determined via modules
+        HDF5 = t
+        HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+        HDF5_MOD  = $(SHDF5_LIB)
+        HDF5_INC  = $(SHDF5_INC)
+
+        ADIOS = f
+      endif
     endif
 
     NETCDF=f
