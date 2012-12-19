@@ -214,12 +214,12 @@ c     Create fortran PETSc parallel grid hierarchy (parallel version)
 
 c     Store grid metric parameters in grid metric structure
 
-        if (checkAnalMapDatabase() .or. coords == 'lpk') then
-cc        if (checkAnalMapDatabase()) then
+cc        if (checkAnalMapDatabase() .or. coords == 'lpk') then
+        if (checkAnalMapDatabase()) then
           call defineGridMetric(gdef)
           gmetric => gdef%gmetric  !For backward compatibility
         else
-          if (my_rank == 0) then
+          if (my_rank == 0 .and. coords /= 'ext') then
             write (*,*) 'WARNING: Map "',coords,'" not in database'
           endif
         endif
@@ -592,9 +592,10 @@ c     Grid packing processing
         if (    gdef%g_pack(1)%pack
      .      .or.gdef%g_pack(2)%pack
      .      .or.gdef%g_pack(3)%pack) then
-          numerical_grid = .true.
 
-          map_grid_pack = (coords /= 'lpk')  !Do not pack via map if logical packing ("lpk")
+          map_grid_pack = (coords /= 'lpk')  !Do not pack via map if packing logical mesh ("lpk")
+
+          if (map_grid_pack) numerical_grid = .true.
 
           !Save packing configuration
           gp_config = 0d0
