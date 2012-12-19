@@ -148,6 +148,8 @@ ifeq ($(HOST),mavis)
 
   FC = gfortran
 
+  CPPFLAGS += $(PREPROC)sed_nosymlinks
+
   ifdef SAMR
 
     CC = mpicc
@@ -174,10 +176,10 @@ ifeq ($(HOST),mavis)
 
       #Determined via modules
       ADIOS = t
-      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
+      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
 
     else
-      LIBS += -L~/lib -llapack -lblas
+      LIBS += -L$(HOME)/lib -llapack -lblas
 
       ifeq ($(FC),gfortran)
 
@@ -441,7 +443,7 @@ endif
 
 ifeq ($(HOST),ra22)
 
-  CPPFLAGS += $(PREPROC)RFX
+  CPPFLAGS += $(PREPROC)RFX $(PREPROC)sed_nosymlinks
 
   FC = pgf95
 
