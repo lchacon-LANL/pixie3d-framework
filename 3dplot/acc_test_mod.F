@@ -402,6 +402,7 @@ c     Calculate difference
         asol = abs(asol-aref)
 
 c diag ****
+        write (*,*) 'DIAG -- acc_test_time'
         debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
         open(unit=110,file=debugfile,form='unformatted'
      .      ,status='replace')
