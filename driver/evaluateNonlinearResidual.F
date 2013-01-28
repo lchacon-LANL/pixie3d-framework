@@ -28,33 +28,15 @@ c Local variables
       integer :: i,j,k,ieq,ii,ig,jg,kg,igrid
       real(8) :: dvol,src(neqd),dfdt(neqd)
 
-      type(var_array),pointer :: varray => null()
-
       real(8),pointer,dimension(:,:,:) :: jac
-
-c Interfaces
-
-      INTERFACE
-        subroutine evaluateNonlinearFunction(igr,varray,fi)
-        use parameters
-        use variable_setup
-        integer :: igr
-        real(8) :: fi(ntotd)
-        type(var_array),pointer :: varray
-        end subroutine evaluateNonlinearFunction
-      END INTERFACE
 
 c Begin program
 
       igrid = 1
 
-c Unpack vector x
-
-      call mapVectorToStructure(varray,x,igr=igrid)
-
 c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
-      call evaluateNonlinearFunction(igrid,varray,f)
+      call evaluateNonlinearFunction(ntot,x,f)
 
 c Calculate residuals
 
@@ -121,17 +103,74 @@ c Calculate residuals
 
       nullify(jac)
 
-c Deallocate structure
-
-      call deallocateDerivedType(varray)
-
 c End program
 
       end subroutine evaluateNonlinearResidual
 
 c evaluateNonlinearFunction
 c####################################################################
-      subroutine evaluateNonlinearFunction(igr,varray,fi)
+      subroutine evaluateNonlinearFunction(ntot,xi,fi)
+c--------------------------------------------------------------------
+c     Stores evaluation of nonlinear function Fi(Uj) in vector fi.
+c     The Uj's are given in varray.
+c--------------------------------------------------------------------
+
+      use parameters
+
+      use variable_setup
+
+#if defined(MK)
+      use mk
+#endif
+
+      implicit none
+
+c Call variables
+
+      integer :: ntot
+      real(8) :: xi(ntot),fi(ntot)
+
+c Local variables
+
+      integer :: igr
+
+      type(var_array),pointer :: varray => null()
+
+c Interfaces
+
+      INTERFACE
+        subroutine evaluate_NLF(igr,varray,fi)
+        use parameters
+        use variable_setup
+        integer :: igr
+        real(8) :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluate_NLF
+      END INTERFACE
+
+c Begin program
+
+      igr = 1
+
+c Prepare auxiliar quantities
+
+      call mapVectorToStructure(varray,xi,igr=igr)
+
+c Evaluate nonlinear function
+
+      call evaluate_NLF(igr,varray,fi)
+
+c Deallocate variables
+
+      call deallocateDerivedType(varray)
+
+c End program
+
+      end subroutine evaluateNonlinearFunction
+
+c evaluate_NLF
+c####################################################################
+      subroutine evaluate_NLF(igr,varray,fi)
 c--------------------------------------------------------------------
 c     Stores evaluation of nonlinear function Fi(Uj) in vector fi.
 c     The Uj's are given in varray.
@@ -272,7 +311,7 @@ c Deallocate variables
 
 c End program
 
-      end subroutine evaluateNonlinearFunction
+      end subroutine evaluate_NLF
 
 c setup_NLF
 c#################################################################
