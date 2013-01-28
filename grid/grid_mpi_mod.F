@@ -12,6 +12,11 @@ c ######################################################################
           module procedure find_global_field_vec,find_global_field_scl
         END INTERFACE
 
+        INTERFACE find_global_nobc
+          module procedure find_global_field_vec_nobc
+     .                    ,find_global_field_scl_nobc
+        END INTERFACE
+
 #if defined(petsc)
 
 #include "finclude/petscdef.h"
@@ -1430,7 +1435,7 @@ c     End program
 
 c     find_global_field_vec
 c     ##############################################################
-      subroutine find_global_field_vec(lf,gf,dump)
+      subroutine find_global_field_vec(lf,gf,dump,map_bc)
 
       use xdraw_io
 
@@ -1444,14 +1449,14 @@ c     Call variables
 
       real(8),dimension(0:,0:,0:,:) :: lf,gf
 
-      logical,optional :: dump
+      logical,optional :: dump,map_bc
 
 c     Local variables
 
-      integer :: i,j,k,dl(4),dg(4),lsize,gsize,ibc,ieq
+      integer :: i,j,k,dl(4),dg(4),lsize,gsize,ibc,ieq,dim,loc
       real(8),pointer,dimension(:) :: local_x,global_x
 
-      logical :: dmp
+      logical :: dmp,mapbc
 
 c     Begin program
 
@@ -1459,6 +1464,12 @@ c     Begin program
         dmp=dump
       else
         dmp=.false.
+      endif
+
+      if (PRESENT(map_bc)) then
+         mapbc = map_bc
+      else
+         mapbc = .true.
       endif
 
 c     Calculate array sizes
@@ -1508,13 +1519,27 @@ c     Communicate
 
 c     Synchronize global periodic boundaries
 
-      do ibc =1,6
-        if (bcond(ibc) == PER) then
-          do ieq=1,dg(4)
-            call per_bc(ibc,gf(:,:,:,ieq))
+      if (mapbc) then
+        do dim =1,3
+          do loc=0,1
+            ibc = (1+loc)+2*(dim-1)
+            if (bcond(ibc) == PER) then
+              do ieq=1,dg(4)
+                if (ieq == dim) cycle
+                call per_bc(ibc,gf(:,:,:,ieq))
+              enddo
+            endif
           enddo
-        endif
-      enddo
+        enddo
+      else
+        do ibc =1,6
+          if (bcond(ibc) == PER) then
+            do ieq=1,dg(4)
+              call per_bc(ibc,gf(:,:,:,ieq))
+            enddo
+          endif
+        enddo
+      endif
 
 c     Dump global array
 
@@ -1539,6 +1564,78 @@ cc          enddo
 c     End program
 
       end subroutine find_global_field_vec
+
+c     find_global_field_vec_nobc
+c     ##############################################################
+      subroutine find_global_field_vec_nobc(lf,gf)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs parallel reduction to find global field.
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      real(8),dimension(:,:,:,:) :: lf,gf
+
+c     Local variables
+
+      integer :: i,j,k,dl(4),dg(4),lsize,gsize,ibc,ieq,dim,loc
+      real(8),pointer,dimension(:) :: local_x,global_x
+
+      logical :: dmp,mapbc
+
+c     Begin program
+
+c     Calculate array sizes
+
+      dl = shape(lf)
+
+      dg = shape(gf)
+
+      lsize = dl(1)*dl(2)*dl(3)*dl(4)
+
+      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz*dl(4)
+
+c     Communicate
+
+#if defined(petsc)
+      allocate(local_x(lsize),global_x(gsize))
+
+      local_x = reshape(lf, (/ lsize /))
+
+      call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
+     .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
+     .                  ,MPI_COMM_WORLD,mpierr)
+
+
+      do k=1,npz
+        do j=1,npy
+          do i=1,npx
+
+            gf(dl(1)*(i-1)+1:dl(1)*i
+     .        ,dl(2)*(j-1)+1:dl(2)*j
+     .        ,dl(3)*(k-1)+1:dl(3)*k,1:dg(4))
+     .        = reshape(global_x(1+lsize*(        (i-1)
+     .                                   +npx    *(j-1)
+     .                                   +npx*npy*(k-1))
+     .                          :  lsize*(         i
+     .                                   +npx    *(j-1)
+     .                                   +npx*npy*(k-1)) )
+     .                 ,dl )
+          enddo
+        enddo
+      enddo
+
+      deallocate(local_x,global_x)
+#else
+      gf = lf
+#endif
+
+c     End program
+
+      end subroutine find_global_field_vec_nobc
 
 c     find_global_field_scl
 c     ##############################################################
@@ -1639,6 +1736,74 @@ c     Dump global array
 c     End program
 
       end subroutine find_global_field_scl
+
+c     find_global_field_scl_nobc
+c     ##############################################################
+      subroutine find_global_field_scl_nobc(lf,gf)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs parallel reduction to find global field with no BCs.
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      real(8),dimension(:,:,:) :: lf,gf
+
+c     Local variables
+
+      integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc
+      real(8),pointer,dimension(:) :: local_x,global_x
+
+c     Begin program
+
+c     Calculate array sizes
+
+      dl = shape(lf)
+
+      dg = shape(gf)
+
+      lsize = dl(1)*dl(2)*dl(3)
+
+      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz
+
+c     Communicate
+
+#if defined(petsc)
+      allocate(local_x(lsize),global_x(gsize))
+
+      local_x = reshape(lf, (/ lsize /))
+
+      call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
+     .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
+     .                  ,MPI_COMM_WORLD,mpierr)
+
+      do k=1,npz
+        do j=1,npy
+          do i=1,npx
+            gf(dl(1)*(i-1)+1:dl(1)*i
+     .        ,dl(2)*(j-1)+1:dl(2)*j
+     .        ,dl(3)*(k-1)+1:dl(3)*k)
+     .        = reshape(global_x(1+lsize*(        (i-1)
+     .                                   +npx    *(j-1)
+     .                                   +npx*npy*(k-1))
+     .                          :  lsize*(         i
+     .                                   +npx    *(j-1)
+     .                                   +npx*npy*(k-1)) )
+     .                 ,dl )
+          enddo
+        enddo
+      enddo
+
+      deallocate(local_x,global_x)
+#else
+      gf = lf
+#endif
+
+c     End program
+
+      end subroutine find_global_field_scl_nobc
 
 c     per_BC
 c     #################################################################
