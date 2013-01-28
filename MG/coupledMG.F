@@ -760,7 +760,6 @@ c     End program
 
       end subroutine equateMGArray
 
-
 c     mapArrayToMGVector
 c     ##################################################################
       subroutine mapArrayToMGVector(neq,nx,ny,nz,array,mgvector,igr)
