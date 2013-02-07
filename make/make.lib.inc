@@ -43,6 +43,11 @@ ifeq ($(FPA),t)
   MODPATH     += $(ADDMODFLAG)$(PWD)/common/contrib/fpa/lib
 endif
 
+# SDC setup
+
+CONTRIBLIBS += -L$(PWD)/common/contrib/sdc/lib -lsdc
+MODPATH     += $(ADDMODFLAG)$(PWD)/common/contrib/sdc/lib
+
 # PETSC setup
 
 ifdef BOPT

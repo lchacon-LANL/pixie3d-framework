@@ -634,13 +634,13 @@ c Local variables
       integer :: ieq,igr
 
       INTERFACE
-        subroutine evaluateNonlinearFunction(igr,varray,fi)
+        subroutine evaluate_NLF(igr,varray,fi)
         use parameters
         use variable_setup
         integer :: igr
         real(8) :: fi(ntotd)
         type(var_array),pointer :: varray
-        end subroutine evaluateNonlinearFunction
+        end subroutine evaluate_NLF
       END INTERFACE
 
 c Begin program
@@ -650,7 +650,7 @@ c Begin program
       source_eval = .true.   !This informs nlfunction that we are processing the source
 
       !This not only evaluates fsrc, but defines BCs on varray
-      call evaluateNonlinearFunction(igr,varray,fsrc)
+      call evaluate_NLF(igr,varray,fsrc)
 
       !Spline unperturbed equilibrium if moving mesh
 #if defined(MK)

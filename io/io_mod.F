@@ -17,7 +17,7 @@ c ########################################################################
         character(4) :: sed='sed'
 #endif
 
-#if defined(RFX)
+#if defined(sed_nosymlinks)
         character(30) :: sed_options=' -i'
 #else
         character(30) :: sed_options=' -i --follow-symlinks'

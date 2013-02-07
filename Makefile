@@ -100,6 +100,7 @@ endif
 ifdef FPA
 	$(MAKE) --no-print-directory -e -C contrib/fpa/src lib
 endif
+	$(MAKE) --no-print-directory -e -C contrib/sdc/src lib
 
 contrib_clean: ;
 	$(MAKE) --no-print-directory -e -C contrib/lsode clean
@@ -110,6 +111,7 @@ endif
 ifdef FPA
 	$(MAKE) --no-print-directory -e -C contrib/fpa/src distclean
 endif
+	$(MAKE) --no-print-directory -e -C contrib/sdc/src distclean
 
 contrib_setup: ;
 	-@tar xzf common_contrib.tgz

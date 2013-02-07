@@ -73,7 +73,7 @@ endif
 # Flags for gfortran
 ifeq ($(FC),gfortran)
   OPTIMIZATION = -O3 #-march=native
-  DEBUG        = -ggdb -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv
+  DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv
   PROFILE      = -pg
   STATIC       = -fno-automatic
   MODFLAG      = -I
@@ -82,7 +82,7 @@ ifeq ($(FC),gfortran)
   CPPFLAGS    += $(PREPROC)gfortran
   FFLAGS      += #$(STATIC)
   FOPENMP      = -fopenmp
-  LIBS         = -llapack -lblas -lgfortran
+  LDFLAGS     += -lgfortran
 endif
 
 ifeq ($(FC),vtf77)
@@ -95,7 +95,7 @@ ifeq ($(FC),vtf77)
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)gfortran
   FFLAGS      += #$(STATIC)
-  LIBS         = -llapack -lblas -lgfortran
+  LDFLAGS     += -lgfortran
 endif
 
 # Flags for Portland Group f90
@@ -110,7 +110,6 @@ ifeq ($(FC),pgf95)
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)pgf90
   FOPENMP      = -mp
-  LIBS         = -llapack -lblas
 endif
 
 #Assemble compiler options

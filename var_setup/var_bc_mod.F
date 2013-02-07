@@ -5,22 +5,13 @@ c #########################################################################
         use BCS_variables
         use variable_setup
 
-c     Hardwired BC configuration parameters
-
-        !Order of BC interpolation
-#if defined(vec_pot)
-        integer :: bc_order=1
-#else
-        integer :: bc_order=1
-#endif
-
       contains
 
 #if !defined(samrai) && !defined(OLD_BC)
 
 c     applyBC
 c     ###############################################################
-      subroutine applyBC(igr,varray,it)
+      subroutine applyBC(igr,varray,it,bc_order)
 c     ---------------------------------------------------------------
 c     Sets adequate boundary conditions on array structure varray.
 c     ---------------------------------------------------------------
@@ -30,7 +21,7 @@ c     ---------------------------------------------------------------
 c     Call variables
 
       integer :: igr
-      integer,optional :: it
+      integer,optional :: it,bc_order
 
       type(var_array),pointer :: varray
 
@@ -94,7 +85,11 @@ c     Begin program
         itm = 0
       endif
 
-      order = bc_order
+      if (PRESENT(bc_order))  then
+        order = bc_order
+      else
+        order = 1
+      endif
 
 c     Set application BCs (external)
 
@@ -142,7 +137,7 @@ c     End program
 
 c     applyBCplot
 c     ##############################################################
-      subroutine applyBCplot(igr,varray,it)
+      subroutine applyBCplot(igr,varray,it,bc_order)
 c     ---------------------------------------------------------------
 c     Sets adequate boundary conditions on array structure varray.
 c     ---------------------------------------------------------------
@@ -153,7 +148,7 @@ c     Call variables
 
       integer :: igr
       type(var_array),pointer :: varray
-      integer, optional :: it
+      integer, optional :: it,bc_order
 
 c     Local variables
 
@@ -196,7 +191,11 @@ c     Begin program
         itm = 0
       endif
 
-      order = bc_order          !Order of extrapolation in BCs (defined in imposeBC_mod.F)
+      if (PRESENT(bc_order))  then
+        order = bc_order
+      else
+        order = 1
+      endif
 
 c     Set application BCs (external)
 
@@ -254,6 +253,7 @@ c     Call variables
 c     Local variables
 
 c     Interfaces
+
       INTERFACE
         subroutine apply_App_BC(igr,varray)
           use variable_setup
@@ -269,8 +269,8 @@ c     Begin program
 c     End program
 
       end subroutine applyBC
-
 #endif
+
 #endif
 
 c     setBCsched
@@ -1052,6 +1052,10 @@ c #####################################################################
       module variables
 
         use variables_bc
+
+#if defined(samrai)
+        integer :: bc_order = 1
+#endif
 
       end module variables
 

@@ -396,7 +396,7 @@ c     Begin program
           nvar = aux%nvar
           nvec = aux%nvec
 
-          if (nvar > 0) then
+cc          if (nvar > 0) then
             do ieq=1,nvar
               deallocate(aux%var_list(ieq)%array)
               deallocate(aux%var_list(ieq)%bc_dep_list)
@@ -404,9 +404,9 @@ c     Begin program
             enddo
 
             deallocate(aux%var_list)
-          endif
+cc          endif
 
-          if (nvec > 0) then
+cc          if (nvec > 0) then
             do ieq=1,nvec
               deallocate(aux%vec_list(ieq)%vec)
               deallocate(aux%vec_list(ieq)%bc_dep_list)
@@ -414,7 +414,7 @@ c     Begin program
             enddo
 
             deallocate(aux%vec_list)
-          endif
+cc          endif
 
           deallocate(aux)
 
@@ -803,15 +803,14 @@ c     End program
 
 c     scaleVector_by_vol
 c     ###################################################################
-      function scaleVector_by_vol(igr,neq,vec1,op) result(vec2)
+      subroutine scaleVector_by_vol(igr,neq,vec1,op)
 
 c     -------------------------------------------------------------------
-c     Scales vec1 by volume ( vec2=vec1/vol on the mesh. In call:
+c     Scales vec1 by volume (vec1=>vec1/vol) on the mesh. In call:
 c       * igr: grid level
 c       * neq: number of variables contained in vectors.
 c       * vec1: input vector
 c       * op: operation ('mul','div')
-c       * vec2: return vector
 c     -------------------------------------------------------------------
 
       implicit none
@@ -819,7 +818,7 @@ c     -------------------------------------------------------------------
 c     Call variables
 
       integer :: igr,neq
-      real(8) :: vec1(:),vec2(size(vec1))
+      real(8) :: vec1(:)
       character(3) :: op
 
 c     Local variables
@@ -839,7 +838,7 @@ c     Begin program
             do i=1,nnx
               do ieq=1,neq
                 iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
-                vec2(iii) = vec1(iii)*gmetric%grid(igr)%dlvol(i,j,k)
+                vec1(iii) = vec1(iii)*gmetric%grid(igr)%dlvol(i,j,k)
               enddo
             enddo
           enddo
@@ -850,14 +849,72 @@ c     Begin program
             do i=1,nnx
               do ieq=1,neq
                 iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
-                vec2(iii) = vec1(iii)/gmetric%grid(igr)%dlvol(i,j,k)
+                vec1(iii) = vec1(iii)/gmetric%grid(igr)%dlvol(i,j,k)
               enddo
             enddo
           enddo
         enddo
       end select
 
-      end function scaleVector_by_vol
+      end subroutine scaleVector_by_vol
+
+ccc     scaleVector_by_vol
+ccc     ###################################################################
+cc      function scaleVector_by_vol(igr,neq,vec1,op) result(vec2)
+cc
+ccc     -------------------------------------------------------------------
+ccc     Scales vec1 by volume ( vec2=vec1/vol on the mesh. In call:
+ccc       * igr: grid level
+ccc       * neq: number of variables contained in vectors.
+ccc       * vec1: input vector
+ccc       * op: operation ('mul','div')
+ccc       * vec2: return vector
+ccc     -------------------------------------------------------------------
+cc
+cc      implicit none
+cc
+ccc     Call variables
+cc
+cc      integer :: igr,neq
+cc      real(8) :: vec1(:),vec2(size(vec1))
+cc      character(3) :: op
+cc
+ccc     Local variables
+cc
+cc      integer :: i,j,k,iii,ieq,nnx,nny,nnz
+cc
+ccc     Begin program
+cc
+cc      nnx = grid_params%nxv(igr)
+cc      nny = grid_params%nyv(igr)
+cc      nnz = grid_params%nzv(igr)
+cc
+cc      select case(op)
+cc      case('mul')
+cc        do k=1,nnz
+cc          do j=1,nny
+cc            do i=1,nnx
+cc              do ieq=1,neq
+cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
+cc                vec2(iii) = vec1(iii)*gmetric%grid(igr)%dlvol(i,j,k)
+cc              enddo
+cc            enddo
+cc          enddo
+cc        enddo
+cc      case('div')
+cc        do k=1,nnz
+cc          do j=1,nny
+cc            do i=1,nnx
+cc              do ieq=1,neq
+cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
+cc                vec2(iii) = vec1(iii)/gmetric%grid(igr)%dlvol(i,j,k)
+cc              enddo
+cc            enddo
+cc          enddo
+cc        enddo
+cc      end select
+cc
+cc      end function scaleVector_by_vol
 
 c     allocateStructures
 c     #################################################################

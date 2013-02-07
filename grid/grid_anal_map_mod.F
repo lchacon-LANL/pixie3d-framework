@@ -34,7 +34,7 @@ c     Input variables
 c     Begin program
 
         select case(coords)
-        case('car','cyl','hel','hl2','tor','sin')
+        case('car','cyl','hel','hl2','tor','sin','lpk')
 
           anal_map = .true.
 
@@ -118,7 +118,7 @@ c     Begin program
         gp = grid_params%params
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           car = xlog
 cc          xx = x1
 cc          yy = x2
@@ -233,7 +233,7 @@ c     Begin program
         endif
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           jac = 1d0
         case ('cyl')
           jac = x1
@@ -310,7 +310,7 @@ c     Begin program
         endif
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           select case (comp)
             case (1)
               vec = (/ 1d0,0d0,0d0 /)
@@ -491,7 +491,7 @@ c     Begin program
         endif
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           select case (comp)
             case (1)
               vec = (/ 1d0,0d0,0d0 /)
@@ -657,7 +657,7 @@ c     Begin program
         gp = grid_params%params
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           vec = (/ 0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0 /)
         case ('cyl')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
@@ -967,7 +967,7 @@ c     Begin program
         gp = grid_params%params
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           vec = (/ 0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0 /)
         case ('cyl')
           select case (k)
@@ -1131,7 +1131,7 @@ c     Begin program
         endif
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           vec = (/ 1d0, 0d0, 0d0
      .            ,0d0, 1d0, 0d0
      .            ,0d0, 0d0, 1d0 /)
@@ -1300,7 +1300,7 @@ c     Begin program
         endif
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           vec = (/ 1d0, 0d0, 0d0
      .            ,0d0, 1d0, 0d0
      .            ,0d0, 0d0, 1d0 /)

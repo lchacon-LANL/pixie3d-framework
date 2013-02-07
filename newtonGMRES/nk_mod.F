@@ -77,32 +77,6 @@ c ###################################################################
 
       contains
 
-c     findRoundOff
-c     ###############################################################
-      subroutine findRoundOff ()
-
-      implicit none
-
-c     ---------------------------------------------------------------
-c     Finds machine round-off constant epsmac
-c     ---------------------------------------------------------------
-
-c     Call variables
-
-c     Local variables
-
-      real(8) :: mag,mag2
-
-      mag = 1d0
-      do
-        epsmac = mag
-        mag = mag/2
-        mag2 = 1d0 + mag
-        if (.not.(mag2 > 1d0)) exit
-      enddo
-
-      end subroutine findRoundOff
-
 c     jfnk
 c     ###############################################################
       subroutine jfnk(neq,ntot,x,iguess,out,ierr,matvec)
@@ -192,7 +166,7 @@ c     Begin program
 
 c     Find machine round-off
 
-      if (epsmac == 0d0) call findRoundOff
+      if (epsmac == 0d0) call findRoundOff(epsmac)
 
       roundoff = sqrt(1d0*ntot)*epsmac
 

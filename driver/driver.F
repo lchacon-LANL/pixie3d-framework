@@ -316,7 +316,7 @@ c Final statistics
 
         write(*,300) 
 
-        if (itime-inewtime > 0) then
+        if (itime-inewtime > 0 .and. newt_tot > 0) then
           write(*,310) (itime-1),float(newt_tot )/(itime-inewtime)
      .                          ,float(gmres_tot)/(itime-inewtime)
      .                          ,float(gmres_tot)/newt_tot
@@ -378,13 +378,13 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine evaluateNonlinearFunction(igr,varray,fi)
+        subroutine evaluate_NLF(igr,varray,fi)
         use parameters
         use variable_setup
         integer :: igr
         real(8) :: fi(ntotd)
         type(var_array),pointer :: varray
-        end subroutine evaluateNonlinearFunction
+        end subroutine evaluate_NLF
       END INTERFACE
 
       INTERFACE
@@ -404,7 +404,7 @@ c Evaluate nonlinear function at old time for theta scheme
       old_time_eval = .true.     !This informs nlfunction that we are processing
                                  !  n time level info
 
-      call evaluateNonlinearFunction(1,vn,fold)
+      call evaluate_NLF(1,vn,fold)
 
       old_time_eval = .false.
  
@@ -536,13 +536,13 @@ c Local variables
 c Interfaces
 
       INTERFACE
-        subroutine evaluateNonlinearFunction(igr,varray,fi)
+        subroutine evaluate_NLF(igr,varray,fi)
         use parameters
         use variable_setup
         integer :: igr
         real(8) :: fi(ntotd)
         type(var_array),pointer :: varray
-        end subroutine evaluateNonlinearFunction
+        end subroutine evaluate_NLF
       END INTERFACE
 
       INTERFACE
@@ -561,7 +561,7 @@ c Evaluate nonlinear function at old time for theta scheme
       old_time_eval = .true.     !This informs nlfunction that we are processing
                                  !  n time level info
 
-      call evaluateNonlinearFunction(1,vn,fold)
+      call evaluate_NLF(1,vn,fold)
 
       old_time_eval = .false.
 

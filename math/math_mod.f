@@ -20,6 +20,34 @@ cc      END INTERFACE
 
       contains
 
+c     findRoundOff
+c     ###############################################################
+      subroutine findRoundOff (eps)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Finds machine round-off constant epsmac
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      real(8) :: eps
+
+c     Local variables
+
+      real(8) :: mag,mag2
+
+      mag = 1d0
+      do
+        eps = mag
+        mag = mag/2
+        mag2 = 1d0 + mag
+        if (.not.(mag2 > 1d0)) exit
+      enddo
+
+      end subroutine findRoundOff
+
 c     determ3
 c     #################################################################
       function determ3(tensor)
@@ -156,8 +184,8 @@ c     Begin program
 
       else
 
-        root(1) = (-b + sqrt(b**2-4*a*c))/2./a
-        root(2) = (-b - sqrt(b**2-4*a*c))/2./a
+        root(1) = 0.5*(-b + sqrt(b**2-4*a*c))/a
+        root(2) = 0.5*(-b - sqrt(b**2-4*a*c))/a
 
       endif
 

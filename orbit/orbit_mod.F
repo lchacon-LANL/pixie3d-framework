@@ -105,7 +105,7 @@ c ######################################################################
 !LSODE private variables
 
         INTEGER :: LSODE_ACC_DIM
-        PARAMETER (LSODE_ACC_DIM=10)
+        PARAMETER (LSODE_ACC_DIM=30)
         INTEGER,PRIVATE :: LIW, LRW, NEQ
         PARAMETER  (NEQ=20,LIW = 20,LRW = LIW + 16*NEQ)
 
