@@ -1419,7 +1419,7 @@ c             Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
                 gsupp=jacp*gdef%gmetric%grid(igrid)%gsup(i+1,j,k,:,:)
                 gsupm=jacm*gdef%gmetric%grid(igrid)%gsup(i-1,j,k,:,:)
 
-                summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
+               summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
 
                 dh = 2*gdef%dyh(jg)
                 if (alt_eom) then
@@ -1455,8 +1455,8 @@ c             Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
                   enddo
                 enddo
 
-                write(funit,*) '  Zero force cancellation for i=',ii,':'
-     .                     ,summ+summ2
+                write(funit,'(a,i1,a,e10.3)')
+     .              '  Zero force cancellation for i=',ii,':',summ+summ2
               enddo
 
             enddo

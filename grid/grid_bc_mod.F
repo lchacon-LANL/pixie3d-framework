@@ -106,7 +106,7 @@ c     -----------------------------------------------------------------
 
 c     isBC
 c     #################################################################
-      function isBC(i,igr,ibc,BC)
+      function isBC(i,igr,ibc,BC,bcnd)
 
 c     -----------------------------------------------------------------
 c     Checks whether point i at grid level igr, boundary location
@@ -115,10 +115,25 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-        integer    :: i,igr,ibc,BC
-        logical    :: isBC
+c     Call variables
 
-        isBC = (isBdry(i,igr,ibc) .and. abs(bcond(ibc)) == BC)
+        integer :: i,igr,ibc,BC
+        logical :: isBC
+        integer,optional :: bcnd(6)
+
+c     Local variables
+
+        integer :: bcc(6)
+
+c     Begin program
+
+        if (PRESENT(bcnd)) then
+          bcc = bcnd
+        else
+          bcc = bcond
+        endif
+
+        isBC = (isBdry(i,igr,ibc) .and. abs(bcc(ibc)) == BC)
 
       end function isBC
 
@@ -224,7 +239,7 @@ c####################################################################
 
         integer :: nxbc,nybc,nzbc,igxbc,igybc,igzbc
 
-        logical :: symm=.false.,bc_debug=.false.
+        logical :: bc_debug=.false.
 
         integer,parameter :: VECTOR=1,SCALAR=0,AUX=-1
 
@@ -773,6 +788,7 @@ c     Determine ASM BCs
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
 
+            !Select logical and periodic boundaries
             dn=do__nothing(dim,loc,igmin,igmax,jgmin,jgmax,kgmin,kgmax
      .                    ,asm_bc=.false.)
 cc     .         .or.((bcond(ibc)==PER).and.asm_dir(dim))  !Deal with interrupted periodic boundaries
@@ -946,9 +962,7 @@ c     Impose BCs
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
             if (abs(bcnd(ibc)) == bctype) then
-              symm = (bcond(ibc) == SYM)
               call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
-              symm = .false.
             endif
           enddo
         enddo
@@ -1233,27 +1247,6 @@ c     Find complete curvilinear representation at boundaries
         else
           call XformVector_BC(igxbc,v_cnv,v_cov,to_cnv)
         endif
-cc#if defined(petsc) || defined(samrai)
-cc        call fromGlobalToLocalLimits(iimin,jjmin,kkmin,ilmin,jlmin,klmin
-cc     $                             ,igxbc,igybc,igzbc)
-cc        call fromGlobalToLocalLimits(iimax,jjmax,kkmax,ilmax,jlmax,klmax
-cc     $                             ,igxbc,igybc,igzbc)
-cc
-cc        do k=klmin-1,klmax+1
-cc          do j=jlmin-1,jlmax+1
-cc            do i=ilmin-1,ilmax+1
-cc#else
-cc        do k=kkmin-1,kkmax+1
-cc          do j=jjmin-1,jjmax+1
-cc            do i=iimin-1,iimax+1
-cc#endif
-cc              call transformFromCurvToCurv(i,j,k,igxbc,igybc,igzbc
-cc     .            ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-cc     .            ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3),to_cnv)
-cc            enddo
-cc          enddo
-cc        enddo
-
       endif
 
 c     Impose BCs
@@ -1270,8 +1263,6 @@ c     Impose BCs
 
               if (abs(bcnd(ibc,ivar)) == bctype) then
 
-                symm = (bcond(ibc) == SYM)
-
                 if (bcnd(ibc,ivar) < 0 .and. is__vec) then
                   call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
      .                               ,v_cov,var0,cnv=.false.)
@@ -1280,8 +1271,6 @@ c     Impose BCs
                   call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
      .                               ,v_cnv,var0)
                 endif
-
-                symm = .false.
 
               endif
 
@@ -1760,7 +1749,7 @@ c     Extrapolate
      .                               ,kkmin-1,kkmax+1
      .                       ,imin ,imax ,jmin ,jmax ,kmin ,kmax )
 
-        if (.not.symm) then
+        if (.not.bcSYM(ibc)) then
 
           !Safeguards to prevent stepping out of domain
           if (order_int(dim) <= 1) then
@@ -1880,119 +1869,6 @@ c     Extrapolate
           end select
 
         endif
-
-cc        rhs = 0d0
-cc
-cc        if (.not.symm) then
-cc
-cc          if (order == 1) two = one           !To prevent stepping over domain
-cc
-cc          do k=kmin,kmax
-cc            do j=jmin,jmax
-cc              do i=imin,imax
-cc
-cc                call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-cc
-cc                select case (ibc)
-cc                case (1)
-cc
-cc                  rhs(j,k) = 
-cc     .              quad_int(0.5*(xx(ig-one)+xx(ig)),xx(ig)
-cc     .                       ,xx(ig+one),xx(ig+two)
-cc     .                       ,array0(i-one,j,k),array(i    ,j,k)
-cc     .                       ,array (i+one,j,k),array(i+two,j,k)
-cc     .                       ,xx(ig-one),order )
-cc                case (2)
-cc
-cc                  rhs(j,k) =
-cc     .              quad_int(0.5*(xx(ig+one)+xx(ig)),xx(ig)
-cc     .                        ,xx(ig-one),xx(ig-two)
-cc     .                        ,array0(i+one,j,k),array(i,j    ,k)
-cc     .                        ,array (i-one,j,k),array(i-two,j,k)
-cc     .                        ,xx(ig+one),order )
-cc                case (3)
-cc
-cc                  rhs(i,k) =
-cc     .              quad_int(0.5*(yy(jg-one)+yy(jg)),yy(jg)
-cc     .                        ,yy(jg+one),yy(jg+two)
-cc     .                        ,array0(i,j-one,k),array(i,j    ,k)
-cc     .                        ,array (i,j+one,k),array(i,j+two,k)
-cc     .                        ,yy(jg-one),order )
-cc                case (4)
-cc
-cc                  rhs(i,k) =
-cc     .              quad_int(0.5*(yy(jg+one)+yy(jg)),yy(jg)
-cc     .                        ,yy(jg-one),yy(jg-two)
-cc     .                        ,array0(i,j+one,k),array(i,j    ,k)
-cc     .                        ,array (i,j-one,k),array(i,j-two,k)
-cc     .                        ,yy(jg+one),order )
-cc                case (5)
-cc
-cc                  rhs(i,j) =
-cc     .              quad_int(0.5*(zz(kg-one)+zz(kg)),zz(kg)
-cc     .                        ,zz(kg+one),zz(kg+one)
-cc     .                        ,array0(i,j,k-one),array(i,j,k    )
-cc     .                        ,array (i,j,k+one),array(i,j,k+two)
-cc     .                        ,zz(kg-one),order )
-cc                case (6)
-cc
-cc                  rhs(i,j) =
-cc     .              quad_int(0.5*(zz(kg+one)+zz(kg)),zz(kg)
-cc     .                        ,zz(kg-one),zz(kg-two)
-cc     .                        ,array0(i,j,k+one),array(i,j,k    )
-cc     .                        ,array (i,j,k-one),array(i,j,k-two)
-cc     .                        ,zz(kg+one),order )
-cc                end select
-cc              enddo
-cc            enddo
-cc          enddo
-cc
-cc        else
-cc
-cc          do k=kmin,kmax
-cc            do j=jmin,jmax
-cc              do i=imin,imax
-cc
-cc                call getMGmap(i,j,k,igxbc,igybc,igzbc,ig,jg,kg)
-cc
-cc                select case (ibc)
-cc                case (1)
-cc                  rhs(j,k) = -array(i+1,j,k)
-cc                case (2)
-cc                  rhs(j,k) = -array(i-1,j,k)
-cc                case (3)
-cc                  rhs(i,k) = -array(i,j+1,k)
-cc                case (4)
-cc                  rhs(i,k) = -array(i,j-1,k)
-cc                case (5)
-cc                  rhs(i,j) = -array(i,j,k+1)
-cc                case (6)
-cc                  rhs(i,j) = -array(i,j,k-1)
-cc                end select
-cc
-cc              enddo
-cc            enddo
-cc          enddo
-cc
-ccc       Update BC ghost nodes
-cc
-cc        select case (ibc)
-cc        case (1)                !x0
-cc          array(0     ,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
-cc        case (2)               !x1
-cc          array(nxbc+1,jmin:jmax,kmin:kmax) = rhs(jmin:jmax,kmin:kmax)
-cc        case (3)                !y0
-cc          array(imin:imax,0     ,kmin:kmax) = rhs(imin:imax,kmin:kmax)
-cc        case (4)                !y1
-cc          array(imin:imax,nybc+1,kmin:kmax) = rhs(imin:imax,kmin:kmax)
-cc        case (5)                !z0
-cc          array(imin:imax,jmin:jmax,0     ) = rhs(imin:imax,jmin:jmax)
-cc        case (6)                !z1
-cc          array(imin:imax,jmin:jmax,nzbc+1) = rhs(imin:imax,jmin:jmax)
-cc        case default
-cc          messg = 'Boundary '//int2char(ibc)//' non existent'
-cc          call pstop('extrapolate',messg)
-cc        end select
 
       end subroutine extrapolateBC
 
@@ -3170,31 +3046,22 @@ c     Initialize variables
 c     Do nothing for SP boundary faces, edges, and corners
 
 cc      if (.not.face
-cc     .    .and.(     bcSP(ibc=ibcl(1))
-cc     .          .or. bcSP(ibc=ibcl(2))
-cc     .          .or. bcSP(ibc=ibcl(3)))) return
-cc      if (    (bcnd(ibcl(1))==SP)
-cc     .    .or.(bcnd(ibcl(2))==SP)
-cc     .    .or.(bcnd(ibcl(3))==SP)) return
-      if (     bcSP(ibc=ibcl(1),bcnd=bcnd)
-     .    .or. bcSP(ibc=ibcl(2),bcnd=bcnd)
-     .    .or. bcSP(ibc=ibcl(3),bcnd=bcnd)) return
+cc     .    .and.(bcSP(ibc=ibcl(1),bcnd=bcnd)
+cc     .      .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
+cc     .      .or.bcSP(ibc=ibcl(3),bcnd=bcnd))) return
+      if (   (bcSP(ibc=ibcl(1),bcnd=bcnd)
+     .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
+     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))) return
 
 c     Do nothing for SYM (not FSYM!!) boundary faces, edges, and corners
 
 cc      if (.not.face
-cc     .    .and.(    bcSYM(ibcl(1))
-cc     .         .or. bcSYM(ibcl(2))
-cc     .         .or. bcSYM(ibcl(3)))) return
-cc      if (     abs(bcnd(ibcl(1)))==SYM
-cc     .    .or. abs(bcnd(ibcl(2)))==SYM
-cc     .    .or. abs(bcnd(ibcl(3)))==SYM) return
-cc      if (     bcSYM(ibc=ibcl(1),bcnd=bcnd)
-cc     .    .or. bcSYM(ibc=ibcl(2),bcnd=bcnd)
-cc     .    .or. bcSYM(ibc=ibcl(3),bcnd=bcnd)) return
-      if (     bcSYM(ibc=ibcl(1))
-     .    .or. bcSYM(ibc=ibcl(2))
-     .    .or. bcSYM(ibc=ibcl(3))) return
+cc     .    .and.(bcSYM(ibc=ibcl(1),bcnd=bcnd)
+cc     .      .or.bcSYM(ibc=ibcl(2),bcnd=bcnd)
+cc     .      .or.bcSYM(ibc=ibcl(3),bcnd=bcnd))) return
+cc      if (   (bcSYM(ibc=ibcl(1),bcnd=bcnd)
+cc     .    .or.bcSYM(ibc=ibcl(2),bcnd=bcnd)
+cc     .    .or.bcSYM(ibc=ibcl(3),bcnd=bcnd))) return
 
 c     Identify directions for extrapolation.
 
@@ -3300,7 +3167,6 @@ cc     .                 .or.(abs(bcnd(i_bc)) == NEU .and. order /= 0)
         i_bc = ibcl(i)
         if (i_bc <= 0) cycle
         select_bc(i) =(    (    bcnd(i_bc)  == PER)
-cc 6/1/12     .                .or. (abs(bcnd(i_bc)) == SYM)
 cc     .                 .or.(abs(bcond(i_bc))== FSYM)  !Use "bcond", not "bcnd"
      .                 .or.(abs(bcnd(i_bc)) == NEU .and. order == 0)
      .                ).and.selectFace(i_bc)
@@ -3356,14 +3222,8 @@ c     X extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         xto = grid_params%xx(ig)
 
-        if (isSYM(ito+1,igxbc,ibc=ibcl(1))) then
-          valx(1) = sign(1,bcnd(ibcl(1)))*array(ito+2,jto,kto)
-        elseif (isSYM(ito-1,igxbc,ibc=ibcl(1))) then
-          valx(1) = sign(1,bcnd(ibcl(1)))*array(ito-2,jto,kto)
-        else
-          call IntDriver1d(inx,xx,array(imni:imxi,jto,kto)
-     .                    ,1,xto,valx,order_int(1))
-        endif
+        call IntDriver1d(inx,xx,array(imni:imxi,jto,kto)
+     .                  ,1,xto,valx,order_int(1))
 
         num = num + 1
 
@@ -3391,14 +3251,8 @@ c     Y extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         yto = grid_params%yy(jg)
 
-        if (isSYM(jto+1,igybc,ibc=ibcl(2))) then
-          valy(1) = sign(1,bcnd(ibcl(2)))*array(ito,jto+2,kto)
-        elseif (isSYM(jto-1,igybc,ibc=ibcl(2))) then
-          valy(1) = sign(1,bcnd(ibcl(2)))*array(ito,jto-2,kto)
-        else
-          call IntDriver1d(iny,yy,array(ito,jmni:jmxi,kto)
-     .                    ,1,yto,valy,order_int(2))
-        endif
+        call IntDriver1d(iny,yy,array(ito,jmni:jmxi,kto)
+     .                  ,1,yto,valy,order_int(2))
 
         num = num + 1
 
@@ -3427,14 +3281,8 @@ c     Z extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         zto = grid_params%zz(kg)
 
-        if (isSYM(kto+1,igzbc,ibc=ibcl(3))) then
-          valz(1) = sign(1,bcnd(ibcl(3)))*array(ito,jto,kto+2)
-        elseif (isSYM(kto-1,igzbc,ibc=ibcl(3))) then
-          valz(1) = sign(1,bcnd(ibcl(3)))*array(ito,jto,kto-2)
-        else
-          call IntDriver1d(inz,zz,array(ito,jto,kmni:kmxi)
-     .                    ,1,zto,valz,order_int(3))
-        endif
+        call IntDriver1d(inz,zz,array(ito,jto,kmni:kmxi)
+     .                  ,1,zto,valz,order_int(3))
 
         num = num + 1
 

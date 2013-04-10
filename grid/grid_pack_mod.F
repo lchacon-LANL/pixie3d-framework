@@ -249,31 +249,32 @@ c     Begin program
           LL = xmax-xmin
           bb = eta/LL**2
 
-          if (lambda < 1d0) then   !Pack at x0
+          !Pack at x0
+          if (lambda < 1d0) then
             xibar = 0.5*(xmax+xmin)
 
             xi0 = xibar + sign(1d0,x0-xibar)
      .                   *LL*sqrt(4d0*(1d0-lambda)-eta)/sqrt(12.*eta)
 
-            !To ensure periodicity of map
-cc            if (xi > xmax) then
-cc              dx = xi - xmax
-cc              x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
-cc              x = 2*xmax - x
-cc            elseif (xi < xmin) then
-cc              dx = xmin - xi
-cc              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
-cc              x = 2*xmin - x
-cc            else
+            !Linear extrapolation to ensure equal mesh spacing at ghost points
+            if (xi > xmax) then
+              dx = xi - xmax
+              x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
+              x = 2*xmax - x
+            elseif (xi < xmin) then
+              dx = xmin - xi
+              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
+              x = 2*xmin - x
+            else
               x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
-cc            endif
+            endif
 
-cc            write (*,*) xi0,eta,LL,xmin,xmax,lambda,xi,x
-          else                    !Pack at edges
+          !Pack at edges
+          else
 
             xi0 = xmin - (xmin-x0)/lambda - bb*(xmin-x0)**exp
 
-            !To ensure periodicity of map
+            !Linear extrapolation to ensure equal mesh spacing at ghost points
 cc            if (xi > xmax) then
 cc              dx = xi - xmax
 cc            elseif (xi < xmin) then

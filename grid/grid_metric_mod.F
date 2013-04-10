@@ -794,9 +794,6 @@ c     Call variables
 c     Local variables
 
         real(8),pointer,dimension(:,:,:,:) :: xf,xc
-        real(8),pointer,dimension(:) :: xg,yg,zg
-
-        integer,save :: c_rat_x,c_rat_y,c_rat_z
 
 c     Begin program
 
@@ -824,85 +821,6 @@ c     Begin program
               enddo
             enddo
 
-cc          elseif (coords == 'pck') then
-cc
-cc            !X coordinate
-cc            allocate(xg(0:gparams%nxgl(igx)+1))
-cc
-cc            if (igx == 1) then
-cc              c_rat_x = 1
-cc            else
-cc              c_rat_x = c_rat_x*gparams%mg_ratio_x(igx-1)
-cc            endif
-cc
-cc            call findGlobalGrid(gparams%gxmin,gparams%gxmax
-cc     .                         ,bcond(1),bcond(2),xg
-cc     .                         ,gparams%g_pack(1),c_rat_x)
-cc
-cc            do i = ilom,ihip
-cc              xc(i,:,:,1) = xg(gparams%ilo(igx)+i-1)
-cc            enddo
-cc
-cc            deallocate(xg)
-cc
-cc            !Y coordinate
-cc            allocate(yg(0:gparams%nygl(igy)+1))
-cc
-cc            if (igy == 1) then
-cc              c_rat_y = 1
-cc            else
-cc              c_rat_y = c_rat_y*gparams%mg_ratio_y(igy-1)
-cc            endif
-cc
-cc            call findGlobalGrid(gparams%gymin,gparams%gymax
-cc     .                         ,bcond(3),bcond(4),yg
-cc     .                         ,gparams%g_pack(2),c_rat_y)
-cc
-cc            do j = jlom,jhip
-cc              xc(:,j,:,2) = yg(gparams%jlo(igy)+j-1)
-cc            enddo
-cc
-cc            deallocate(yg)
-cc
-cc            !Z coordinate
-cc            allocate(zg(0:gparams%nzgl(igz)+1))
-cc
-cc            if (igz == 1) then
-cc              c_rat_z = 1
-cc            else
-cc              c_rat_z = c_rat_z*gparams%mg_ratio_z(igz-1)
-cc            endif
-cc
-cc            call findGlobalGrid(gparams%gzmin,gparams%gzmax
-cc     .                         ,bcond(5),bcond(6),zg
-cc     .                         ,gparams%g_pack(3),c_rat_z)
-cc
-cc            do k = klom,khip
-cc              xc(:,:,k,3) = zg(gparams%klo(igz)+k-1)
-cc            enddo
-cc
-cc            deallocate(zg)
-
-cc#if defined(vmec)
-cc          elseif (coords == 'vmc') then
-cc
-cc            vmec_met = .false.   !Whether to use VMEC metric quantities or not
-cc            vmec_mets = vmec_met .and. (igrid == 1)
-cc
-cc            nxf=ihi-ilo+1
-cc            nyf=jhi-jlo+1
-cc            nzf=khi-klo+1
-cc
-cc            call vmec_map(igrid,nxf,nyf,nzf,xc,vmec_mets) !External
-cc
-cc            if (vmec_mets) then
-cc              call vmec_metrics(igrid,nxf,nyf,nzf         !External
-cc     .                         ,gparams%gmetric%grid(igrid)%jac
-cc     .                         ,gparams%gmetric%grid(igrid)%gsub
-cc     .                         ,gparams%gmetric%grid(igrid)%gsup)
-cc            endif
-cc#endif
-          
           else
             call pstop('findCellMap','Map not available')
           endif
@@ -1011,14 +929,6 @@ c     Evaluate dr=dx/dxi vectors at vertices
             enddo
           enddo
         enddo
-
-c     Enforce topological constraints
-
-cc        do i=1,3
-cc          do j=1,3
-cc            call topol_bc_vrtx(igrid,nx,ny,nz,dr(:,:,:,i,j))
-cc          enddo
-cc        enddo
 
 c     Evaluate grid quantities (at vertices)
 
@@ -1376,33 +1286,18 @@ c     Evaluate dr=dx/dxi vectors at cell centers from vertex map
           enddo
         enddo
 
-cc        !OLD
-cc        xc => gparams%gmetric%grid(igrid)%car
-cc
-cc        do k = kmin,kmax
-cc          do j = jmin,jmax
-cc            do i = imin,imax
-cc              dr(i,j,k,:,:) = find_dr(i,j,k,igrid,gparams,xc)
-cc            enddo
-cc          enddo
-cc        enddo
-cc
-cc        nullify(xc)
-
 c     Enforce topological constraints on dr (including SP) and extrapolate otherwise
 
         bc_dr = bcond
         where (bc_dr == DEF ) bc_dr = EXT
         where (bc_dr == FSYM) bc_dr = NEU
+        where (bc_dr ==  SYM) bc_dr = EXT
         where (bc_dr == SP  ) bc_dr = DEF
 
         do j=1,3
           do i=1,3
             call setBC(0,nx,ny,nz,dr(:,:,:,i,j),zeros,bc_dr
-     .                ,igrid,igrid,igrid,iorder=1)
-
-cc            !Periodic BCs (OLD)
-cc            call topol_bc(igrid,nx,ny,nz,dr(:,:,:,i,j))
+     .                ,igrid,igrid,igrid,iorder=2)
 
             !Singular point BCs
             if (bcSP()) then
@@ -1484,19 +1379,6 @@ c     Evaluate grid quantities
      .                          gparams%gmetric%grid(igrid)%jac(i,j,k)
      .                         *gparams%gmetric%grid(igrid)%dlvol(i,j,k)
 
-cc              !Christoffel symbols (OLD) <<<<<<<<<<<<<<<<<<
-cc              do l=1,3
-cc                do m=1,3
-cc                  do n=1,3
-cc                    d2r = find_dr(i,j,k,igrid,gparams,dr(:,:,:,:,m))
-cc                    gamma(l,m,n) = dot_product(d2r(:,n),cov(:,l))
-cc                  enddo
-cc                enddo
-cc                gamma(l,:,:) =0.5*(gamma(l,:,:)+transpose(gamma(l,:,:))) !Symmetrize
-cc              enddo
-cc
-cc              gparams%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
-
             enddo
           enddo
         enddo
@@ -1508,9 +1390,6 @@ c     Enforce zero-force condition and topological constraints on Christoffle sy
         do i=1,3
           do j=1,3
             do k=1,3
-cc              !OLD
-cc              call topol_bc(igrid,nx,ny,nz
-cc     .           ,gparams%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k))
               call setBC(0,nx,ny,nz
      .                  ,gparams%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k)
      .                  ,zeros,bc_dr,igrid,igrid,igrid,iorder=1)
@@ -1541,11 +1420,11 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: i,j,k,ii,ll,kk,mm,jj,ig,jg,kg
-        real(8)    :: x1,y1,z1,summ,summ2,dh,jac,jacp,jacm,const,hlf
-        real(8)    :: hess(3,3,3),table(3,3,3),gsub(3,3)
-     .               ,gsup(3,3),gsupp(3,3),gsupm(3,3),gamma(3,3,3)
-        logical    :: alt_eom
+        integer :: i,j,k,ii,ll,kk,mm,jj,ig,jg,kg
+        real(8) :: x1,y1,z1,summ,summ2,dh,jac,jacp,jacm,const,hlf
+        real(8) :: hess(3,3,3),table(3,3,3),gamma(3,3,3)
+     .            ,gsub(3,3),gsup(3,3),gsupp(3,3),gsupm(3,3)
+        logical :: alt_eom
 
 c     Begin program
 

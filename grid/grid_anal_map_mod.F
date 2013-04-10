@@ -120,16 +120,10 @@ c     Begin program
         select case (coords)
         case ('car','lpk')
           car = xlog
-cc          xx = x1
-cc          yy = x2
-cc          zz = x3
         case ('cyl')
           car(1) = xlog(1)*cos(xlog(2))
           car(2) = xlog(1)*sin(xlog(2))
           car(3) = xlog(3)
-cc          xx = x1*cos(x2)
-cc          yy = x1*sin(x2)
-cc          zz = x3
         case ('hel')
           mm = gp(1)
           kk = gp(2)
@@ -138,8 +132,9 @@ cc          phi = (x2-aa*x3)
 cc          xx = x1*cos(phi)
 cc          yy = x1*sin(phi)
 cc          zz = x3
-          car(1) = xlog(1)*cos(xlog(2)-aa*xlog(3))
-          car(2) = xlog(1)*sin(xlog(2)-aa*xlog(3))
+          phi = xlog(2)-aa*xlog(3)
+          car(1) = xlog(1)*cos(phi)
+          car(2) = xlog(1)*sin(phi)
           car(3) = xlog(3)
         case ('hl2')
           mm = gp(1)
@@ -150,10 +145,9 @@ cc
 cc          xx = sign(sqrt(2*abs(x1)),x1)*cos(phi)
 cc          yy = sign(sqrt(2*abs(x1)),x1)*sin(phi)
 cc          zz = x3
-          car(1) = sign(sqrt(2*abs(xlog(1))),xlog(1))
-     .            *cos(xlog(2)-aa*xlog(3))
-          car(2) = sign(sqrt(2*abs(xlog(1))),xlog(1))
-     .            *sin(xlog(2)-aa*xlog(3))
+          phi = xlog(2)-aa*xlog(3)
+          car(1) = sign(sqrt(2*abs(xlog(1))),xlog(1))*cos(phi)
+          car(2) = sign(sqrt(2*abs(xlog(1))),xlog(1))*sin(phi)
           car(3) = xlog(3)
         case ('tor')
           major_r = gp(1)  !Major radius
@@ -183,8 +177,6 @@ cc          zz = x3
           write (*,*) 'Aborting...'
           stop
         end select
-
-cc        car = (/ xx,yy,zz /)
 
       end function x_xi
 

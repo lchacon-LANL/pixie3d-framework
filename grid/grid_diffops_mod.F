@@ -6798,7 +6798,6 @@ c     Begin program
 
 c     Set defaults
 
-cc      bc_safe = (method <=2)
       bc_safe = .not.(method > 2 .and. method <= 6)
 
       if (PRESENT(vol)) then
@@ -6877,7 +6876,7 @@ c     Grid info
 
       jac = gmetric%grid(igrid)%jac(i,j,k)
 
-c     Find non-conservative fluxes
+c     Find DEFAULT non-conservative fluxes (central differences)
 
       !X flux
       flxip = 0.5*(arr(i,j,k) + arr(ip,j,k))*v(i,j,k,1)
@@ -6891,7 +6890,7 @@ c     Find non-conservative fluxes
       flxkp = 0.5*(arr(i,j,k) + arr(i,j,kp))*v(i,j,k,3)
       flxkm = 0.5*(arr(i,j,k) + arr(i,j,km))*v(i,j,k,3)
 
-c     Find velocities at faces from ZIP fluxes
+c     Find specialized non-conservative fluxes (reverts to CD at logical domain boundaries)
 
       if (method /= 2) then
 
@@ -6904,14 +6903,13 @@ c     Find velocities at faces from ZIP fluxes
         vzp = sgn*v(i,j,k,3)
         vzm = sgn*v(i,j,k,3)
 
-c     Find advected quantity at faces
-
+        !Find advected quantity at faces 
         if ((i == nx).and.(.not.bc_safe)) then
           qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
      .             ,grid_params%xx(igp ),arr(ip ,j,k)
      .             ,grid_params%xx(ig  ),arr(i  ,j,k)
      .             ,grid_params%xx(igm ),arr(im ,j,k)
-     .             ,vxp,1)
+     .             ,vxp,2)
         else
           qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
      .             ,grid_params%xx(igp ),arr(ip ,j,k)
@@ -6925,7 +6923,7 @@ c     Find advected quantity at faces
      .             ,grid_params%xx(ig  ),arr(i  ,j,k)
      .             ,grid_params%xx(igm ),arr(im ,j,k)
      .             ,grid_params%xx(igmm),arr(imm,j,k)
-     .             ,vxm,1)
+     .             ,vxm,2)
         else
           qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
      .             ,grid_params%xx(ig  ),arr(i  ,j,k)
@@ -6939,7 +6937,7 @@ c     Find advected quantity at faces
      .             ,grid_params%yy(jgp ),arr(i,jp ,k)
      .             ,grid_params%yy(jg  ),arr(i,j  ,k)
      .             ,grid_params%yy(jgm ),arr(i,jm ,k)
-     .             ,vyp,1)
+     .             ,vyp,2)
         else
           qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
      .             ,grid_params%yy(jgp ),arr(i,jp ,k)
@@ -6953,7 +6951,7 @@ c     Find advected quantity at faces
      .             ,grid_params%yy(jg  ),arr(i,j  ,k)
      .             ,grid_params%yy(jgm ),arr(i,jm ,k)
      .             ,grid_params%yy(jgmm),arr(i,jmm,k)
-     .             ,vym,1)
+     .             ,vym,2)
         else
           qjm=inter(grid_params%yy(jgp ),arr(i,jp,k )
      .             ,grid_params%yy(jg  ),arr(i,j  ,k)
@@ -6967,7 +6965,7 @@ c     Find advected quantity at faces
      .             ,grid_params%zz(kgp ),arr(i,j,kp )
      .             ,grid_params%zz(kg  ),arr(i,j,k  )
      .             ,grid_params%zz(kgm ),arr(i,j,km )
-     .             ,vzp,1)
+     .             ,vzp,2)
         else
           qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
      .             ,grid_params%zz(kgp ),arr(i,j,kp )
@@ -6981,7 +6979,7 @@ c     Find advected quantity at faces
      .             ,grid_params%zz(kg  ),arr(i,j,k  )
      .             ,grid_params%zz(kgm ),arr(i,j,km )
      .             ,grid_params%zz(kgmm),arr(i,j,kmm)
-     .             ,vzm,1)
+     .             ,vzm,2)
         else
           qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
      .             ,grid_params%zz(kg  ),arr(i,j,k  )
@@ -6990,8 +6988,7 @@ c     Find advected quantity at faces
      .             ,vzm,method)
         endif
 
-c     Setup fluxes
-
+        !Setup fluxes
         if (.not.isBdry(i,igx,2).or.bc_safe) flxip=vxp*qip
         if (.not.isBdry(i,igx,1).or.bc_safe) flxim=vxm*qim
                                             
