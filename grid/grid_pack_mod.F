@@ -27,10 +27,10 @@ c     #################################################################
       function scale_coord(xmin,xmax,x1,dim) result(xlog)
 
 c     -----------------------------------------------------------------
-c     Finds global grid xg(0:ng+1) in domain (lmin,lmax) with boundary
-c     conditions bcs1, bcs2, according to specifications in dpack.
-c     The input variable crse_ratio is used to adjust the packing provided
-c     in dpack for the fine mesh to coarser grid levels.
+c     Scales coordinate along dimension dim with limits xmin, xmax and
+c     evaluates coordinate at logical coordinatet x1. Packing
+c     configuration (location and slope of packing) is computed in
+c     grid_create_mod, and passed via array gp_config in module.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -44,17 +44,16 @@ c     Local variables
 
         integer :: ibc,exp=3
 
-        real(8) :: gp(2),bbx
+        real(8) :: gp(2)
 
-cc        real(8),save :: aax=0d0,aay=0d0,aaz=0d0
-cc     .                 ,bbx=0d0,bby=0d0,bbz=0d0
-cc     .                 ,lbx=0d0,lby=0d0,lbz=0d0
+        real(8), save :: bbx=0d0,bby=0d0,bbz=0d0
 
 c     Begin program
 
         ibc = 1+2*(dim-1)
 
-        !Recover grid packing configuration: slope gp(2) at given position gp(1)
+c     Recover grid packing configuration: slope gp(2) at given position gp(1)
+
         gp = gp_config(ibc:ibc+1)
 
         if (gp(1) == 0d0 .and. gp(2) == 0d0) then
@@ -62,19 +61,7 @@ c     Begin program
           return
         endif
 
-cc        write (*,*) 'Dim=',dim,'gp=',gp
-
-cc          !Find monotonic atanh profile with given slope (gp(2,4,6)
-cc          !  for X, Y, Z) at given position (gp(1,3,5) for X, Y, Z).
-cc          if (aax == 0d0) aax = find_a(xmin,xmax,gp(2),gp(1))
-cc          if (aay == 0d0) aay = find_a(ymin,ymax,gp(4),gp(3))
-cc          if (aaz == 0d0) aaz = find_a(zmin,zmax,gp(6),gp(5))
-cc
-cc          xx = scl_coord(x1,aax,xmin,xmax,gp(2),gp(1))
-cc          yy = scl_coord(x2,aay,ymin,ymax,gp(4),gp(3))
-cc          zz = scl_coord(x3,aaz,zmin,zmax,gp(6),gp(5))
-
-c       Packing
+c     Packing
 
         if (bcond(ibc) == PER) then !cosine jacobian
           bbx = (1.-gp(2))  !Slope is in gp(2) (see grid_create_mod.F)
@@ -83,133 +70,26 @@ c       Packing
             write (*,*) 'Aborting...'
             stop
           endif
+
           xlog = x1+(xmax-xmin)/2/pi*bbx*sin(2*pi*(x1-xmin)/(xmax-xmin))
         else  !monotonic cubic polynomial
-          bbx= find_eta(xmin,xmax,gp(1),gp(2))
-          xlog = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
+          select case(dim)
+          case(1)
+            if (bbx == 0d0) bbx= find_eta(xmin,xmax,gp(1),gp(2))
+            xlog = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
+          case(2)
+            if (bby == 0d0) bby= find_eta(xmin,xmax,gp(1),gp(2))
+            xlog = scl_coord(x1,bby,xmin,xmax,gp(1),gp(2))
+          case(3)
+            if (bbz == 0d0) bbz= find_eta(xmin,xmax,gp(1),gp(2))
+            xlog = scl_coord(x1,bbz,xmin,xmax,gp(1),gp(2))
+          end select
+
+cc          bbx= find_eta(xmin,xmax,gp(1),gp(2))
+cc          xlog = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
         endif
 
       contains
-
-ccc     scl_coord
-ccc     #################################################################
-cc      function scl_coord(xi,aa,xmin,xmax,x0,lambda) result(x)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Packs coordinate according to x0 (location) and lambda (slope).
-ccc     Note:
-ccc       * lambda <= 1d0; dx0 ~ dxi*dlambda
-ccc       * lambda = 0 --> No packing
-ccc     -----------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Global variables
-cc
-cc        real(8) :: aa,xmin,xmax,x0,lambda,xi,x
-cc
-ccc     Local variables
-cc
-cc        real(8) :: bb,xi0
-cc
-ccc     Begin program
-cc
-cc        if (lambda == 0d0) then
-cc          x = xi
-cc        else
-cc          bb = aa/lambda
-cc          xi0 = xmax - bb*tanh((xmax-x0)/aa)
-cc
-cc          if (xi > xmax) then
-cc            x = 2*xmax -(x0 + aa*atanh((2*xmax-xi-xi0)/bb))
-cc          elseif (xi < xmin) then
-cc            x = 2*xmin -(x0 + aa*atanh((2*xmin-xi-xi0)/bb))
-cc          else
-cc            x = x0 + aa*atanh((xi-xi0)/bb)
-cc          endif
-cccc          write (*,*) xi,x,aa,bb,(xi-xi0)/bb
-cc        endif
-cc
-ccc     End program
-cc
-cc      end function scl_coord
-cc
-ccc     find_a
-ccc     #################################################################
-cc      function find_a(xmin,xmax,x0,cc) result(aa)
-cc
-cc        implicit none
-cc
-ccc     Global variables
-cc
-cc        real(8) :: xmin,xmax,x0,cc,aa
-cc
-ccc     Local variables
-cc
-cc        integer,parameter :: nit=20
-cc
-cc        integer :: i
-cc        real(8) :: ijac,dxi(nit),res(nit)
-cc        real(8) :: ll,l0m,l0p,dd,ee,ff,bb
-cc
-ccc     Begin program
-cc
-cc        if (cc == 0d0) return
-cc
-cc        ll  = xmax-xmin
-cc        l0m = x0  -xmin
-cc        l0p = xmax - x0
-cc
-cc        dd = cc*ll
-cc
-cc        if (cc > 1d0) then
-cccc          call pstop('find_a in grid_mod.F',
-cccc     .               'Slope has to <= 1')
-cc          write (*,*) 'find_a in grid_anal_map_mod.F: Slope has to <= 1'
-cc          write (*,*) 'Aborting...'
-cc          stop
-cc        endif
-cc
-ccc     Initial guess
-cc
-cc        aa = 0.5*ll
-cc
-ccc     Newton iteration
-cc
-cc        do i=1,nit
-cc          ff = dd/aa
-cc
-cc          res(i) = dd - aa*(tanh(l0m/aa) + tanh(l0p/aa))
-cc          ijac = 1./(-tanh(l0m/aa)-tanh(l0p/aa)
-cc     .              +l0m/aa/cosh(l0m/aa)**2
-cc     .              +l0p/aa/cosh(l0p/aa)**2)
-cc
-cc          dxi(i) = -res(i)*ijac
-cc          aa = abs(aa + dxi(i))  !Want to find positive root
-cc
-cccc          write (*,*) abs(res(i)),dxi(i),ijac,aa
-cc
-cc          if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
-cc        enddo
-cc
-ccc     Convergence check
-cc
-cc        if (i >= nit) then
-cc          write (*,*)
-cc          write (*,*) 'Newton it. in grid-packing routine find_a'
-cc     .               ,' did not converge'
-cc          write (*,*)
-cc          write (*,*) 'Convergence history:'
-cc          do i=1,nit
-cc            write (*,*) 'Newton it.',i,' residual',abs(res(i))
-cc     .                 ,'update',abs(dxi(i))
-cc          enddo
-cc          write (*,*)
-cc          write (*,*) 'Aborting...'
-cc          stop
-cc        endif
-cc
-cc      end function find_a
 
 c     scl_coord
 c     #################################################################

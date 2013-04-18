@@ -311,8 +311,8 @@ c     Begin program
       call create_bc_schedule(varray,vaux,gv%nbc_grp,gv%bc_grp
      .                       ,.true.,.false.,.false.,.false.)
 #else
-cc      call setbcsched_app  !Application-specific scheduler
-cc      return
+c$$$      call setbcsched_app  !Application-specific scheduler
+c$$$      return
       call create_bc_schedule(varray,vaux,gv%nbc_grp,gv%bc_grp
      .                       ,.false.,.false.,.false.,.false.)
 cc     .                       ,.false.,.false.,(it==0),.false.)

@@ -462,7 +462,7 @@ c     Begin program
 
         lpack = dpack
 
-        lpack%pack = lpack%pack.and.(coords == 'lpk')  !Logical grid packing
+        lpack%pack = lpack%pack.and.(coords=='lpk')  !Logical grid packing
 
 c     Find grid quantities
 
@@ -696,6 +696,8 @@ c     Begin program
         call graphicsCheck
 
         call hessianZeroForceCheck(1)
+
+cc        call symmCheck(1)
 
         close(funit)
 
@@ -1466,6 +1468,116 @@ c             Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
 c     End program
 
       end subroutine hessianZeroForceCheck
+
+c     symmCheck
+c     #################################################################
+      subroutine symmCheck(dim)
+
+c     -----------------------------------------------------------------
+c     Symmetry test on map (only for applicable cases).
+c     -----------------------------------------------------------------
+
+      use grid_debug
+
+      implicit none
+
+c     Call variables
+
+      integer :: dim
+
+c     Local variables
+
+      integer    :: nx,ny,nz,i,j,k,l,m,n,igrid,ivar
+      real(8)    :: tensor(3,3,3),vec(3)
+      character(30) :: debugfile,drawfile
+
+      integer   ,parameter :: nvar=50
+      character(30) :: descr(nvar)
+
+      logical :: dump_diff
+
+c     Begin program
+
+c     Output
+
+      write(funit,*)
+      write(funit,*) '**********************************'
+      write(funit,*) 'Dumping symmetry test graphics...'
+      write(funit,*) '**********************************'
+      write(funit,*)
+
+      write(*    ,*)
+      write(*    ,*) '**********************************'
+      write(*    ,*) 'Dumping symmetry test graphics...'
+      write(*    ,*) '**********************************'
+      write(*    ,*)
+
+c     Dump quantities
+
+      do igrid=1,gdef%ngrid
+
+        nx = gdef%nxv(igrid)
+        ny = gdef%nyv(igrid)
+        nz = gdef%nzv(igrid)
+
+        do k=0,nz+1
+
+        write(funit,*)
+        write(funit,*) '   ******************************'
+        write(funit,*) '   Grid level',igrid,'on slice k=',k
+        write(funit,*) '   ******************************'
+        write(funit,*)
+
+        !Open .bin file
+        debugfile = 'symm_grid_gl'//trim(int2char(igrid))
+     .                 //'k='//trim(int2char(k))
+     .                 //'p' //trim(int2char(my_rank))//'.bin'
+        drawfile = 'drawsymm_gl'//trim(int2char(igrid))
+     .              //'_k='//trim(int2char(k))
+     .               //'_p'//trim(int2char(my_rank))//'.in'
+        open(unit=110,file=trim(debugfile),form='unformatted'
+     .    ,status='replace')
+
+        !Allocate dummy array
+        allocate(dbg(0:nx+1,0:ny+1,1,1))
+
+        !Compare map along dimension dim
+        select case(dim)
+        case(1)
+          do j=0,ny+1
+            do i=0,nx+1
+              dbg(i,j,1,1)=
+     .             (gdef%gmetric%grid(igrid)%car(i     ,j,k,dim)
+     .             +gdef%gmetric%grid(igrid)%car(nx+1-i,j,k,dim))
+     .             -(xmax-xmin)
+            enddo
+          enddo
+
+          write(funit,*) '   Dumping SYMM test along X'
+          ivar = 1
+          descr(ivar) = 'X symm test'
+          call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,0,110)
+
+        case default
+          call pstop('symmCheck','Dimension not implemented')
+        end select
+
+        deallocate(dbg)
+        close(110)
+
+        !Create draw*.in file
+        call createDrawInCfile(ivar,debugfile,'Grid debug'
+     .                        ,'t','x','y',descr,'-c -X0 -L57'
+     .                        ,drawfile)
+
+        enddo
+      enddo
+
+      write(funit,*)
+      write(funit,*) 'Done!'
+      write(funit,*) 
+
+      end subroutine symmCheck
 
       end subroutine checkGrid
 

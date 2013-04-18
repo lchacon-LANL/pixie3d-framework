@@ -94,32 +94,32 @@ c     Time level plots (xdraw)
 
         plot = .false.
 
+#if defined(MK)
+        !Setup MK grid
+        if(mk_grid) then
+
+          old_time_eval = .false.
+          xnm  = xold
+          xold = xnew
+
+          call MK_setup_grid(igx,u_np%array_var(neqd)%array)
+
+cc          !Grid velocity in Cartesian geometry
+cc          if (bdf2) then
+cc            gvel =-(cnp*xnew+cn*xold+cnm*xnm)/dt
+cc          else
+cc            gvel =-(xnew-xold)/dt
+cc          endif
+
+          call MK_xfer_equ(igx,u_ic)
+        endif
+#endif
+        !Post-process solution for diagnostics
+        call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
+
         if (    nplot        == ndplot
      .     .or.(time-tmplot) >= dplot-0.9*dt
      .     .or. time         == 0d0) then
-
-#if defined(MK)
-          !Setup MK grid
-          if(mk_grid) then
-
-            old_time_eval = .false.
-            xnm  = xold
-            xold = xnew
-
-            call MK_setup_grid(igx,u_np%array_var(neqd)%array)
-
-cc            !Grid velocity in Cartesian geometry
-cc            if (bdf2) then
-cc              gvel =-(cnp*xnew+cn*xold+cnm*xnm)/dt
-cc            else
-cc              gvel =-(xnew-xold)/dt
-cc            endif
-
-            call MK_xfer_equ(igx,u_ic)
-          endif
-#endif
-          !Post-process solution for diagnostics
-          call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
           !Dump time step plots
           plot  = .true.
@@ -127,10 +127,10 @@ cc            endif
           if (itime.gt.0) tmplot = time
           call dumpTimeStepPlots
 
-          !Store previous record (for time derivatives in diagnostics)
-          call equateDerivedType(u_n,u_np)
-
         endif
+
+        !Store previous record (for time derivatives in diagnostics)
+        call equateDerivedType(u_n,u_np)
 
 c     Output per time step
 

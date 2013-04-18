@@ -128,10 +128,7 @@ c     Begin program
           mm = gp(1)
           kk = gp(2)
           aa = kk/mm
-cc          phi = (x2-aa*x3)
-cc          xx = x1*cos(phi)
-cc          yy = x1*sin(phi)
-cc          zz = x3
+
           phi = xlog(2)-aa*xlog(3)
           car(1) = xlog(1)*cos(phi)
           car(2) = xlog(1)*sin(phi)
@@ -140,11 +137,7 @@ cc          zz = x3
           mm = gp(1)
           kk = gp(2)
           aa = kk/mm
-cc          phi = (x2-aa*x3)
-cc
-cc          xx = sign(sqrt(2*abs(x1)),x1)*cos(phi)
-cc          yy = sign(sqrt(2*abs(x1)),x1)*sin(phi)
-cc          zz = x3
+
           phi = xlog(2)-aa*xlog(3)
           car(1) = sign(sqrt(2*abs(xlog(1))),xlog(1))*cos(phi)
           car(2) = sign(sqrt(2*abs(xlog(1))),xlog(1))*sin(phi)
@@ -154,9 +147,6 @@ cc          zz = x3
           aa      = gp(2)  !Horizontal minor radius
           bb      = gp(3)  !Vertical   minor radius
 
-cc          xx = (major_r + aa*x1*cos(x2))*cos(-x3)
-cc          yy = (major_r + aa*x1*cos(x2))*sin(-x3)
-cc          zz = bb*x1*sin(x2)
           car(1) = (major_r + aa*xlog(1)*cos(xlog(2)))*cos(-xlog(3))
           car(2) = (major_r + aa*xlog(1)*cos(xlog(2)))*sin(-xlog(3))
           car(3) = bb*xlog(1)*sin(xlog(2))
@@ -164,9 +154,6 @@ cc          zz = bb*x1*sin(x2)
           pi = acos(-1d0)
           eps = gp(1)
 
-cc          xx = x1 + eps*sin(2*pi*x1/xmax)*sin(2*pi*x2/ymax)
-cc          yy = x2 + eps*sin(2*pi*x1/xmax)*sin(2*pi*x2/ymax)
-cc          zz = x3
           car(1) = xlog(1) + eps*sin(2*pi*xlog(1)/xmax)
      .                          *sin(2*pi*xlog(2)/ymax)
           car(2) = xlog(2) + eps*sin(2*pi*xlog(1)/xmax)

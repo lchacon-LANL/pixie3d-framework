@@ -681,7 +681,7 @@ c     ###############################################################
       function grad_mesh(igrid,arr) result(cov)
 
 c     ---------------------------------------------------------------
-c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c     Calculates grad(A) in general non-orthogonal coordinates. Is
 c     boundary-ready (can extrapolate). The vector A is
 c     covariant, and returns the contravariant component "comp".
 c     ---------------------------------------------------------------
@@ -2756,10 +2756,20 @@ c ######################################################################
 
         INTERFACE veclaplacian
           module procedure veclap_diff,veclap_ndiff
+     .                    ,veclap_diff_mesh,veclap_ndiff_mesh
         end INTERFACE
 
         INTERFACE veclap_cov
           module procedure veclap_cov_diff,veclap_cov_ndiff
+     .                    ,veclap_cov_ndiff_mesh,veclap_cov_diff_mesh
+        end INTERFACE
+
+        INTERFACE curlcurl
+          module procedure curlcurl_ijk,curlcurl_mesh
+        end INTERFACE
+
+        INTERFACE curlcurl_cov
+          module procedure curlcurl_cov_ijk,curlcurl_cov_mesh
         end INTERFACE
 
         real(8),pointer,dimension(:,:,:,:) :: vec => null()
@@ -4764,6 +4774,96 @@ ccc     End program
 cc
 cc      end function veclap2
 
+c     veclap_diff_mesh
+c     ###############################################################
+      function veclap_diff_mesh(igrid,diff,cnv) result(cnv_out)
+
+c     ---------------------------------------------------------------
+c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is
+c     covariant, and returns the contravariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igrid
+
+      real(8) :: cnv(0:,0:,0:,:),diff(0:,0:,0:)
+     .          ,cnv_out(0:size(cnv,1)-1
+     $                  ,0:size(cnv,2)-1
+     $                  ,0:size(cnv,3)-1,3)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            cnv_out(i,j,k,:)=veclap_diff(i,j,k,nx,ny,nz
+     $                                  ,igrid,igrid,igrid,cnv
+     .                                  ,alt__eom(),diff)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function veclap_diff_mesh
+
+c     veclap_ndiff_mesh
+c     ###############################################################
+      function veclap_ndiff_mesh(igrid,cnv) result(cnv_out)
+
+c     ---------------------------------------------------------------
+c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is
+c     covariant, and returns the contravariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igrid
+
+      real(8) :: cnv(0:,0:,0:,:)
+     .          ,cnv_out(0:size(cnv,1)-1
+     $                  ,0:size(cnv,2)-1
+     $                  ,0:size(cnv,3)-1,3)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            cnv_out(i,j,k,:)=veclap_ndiff(i,j,k,nx,ny,nz
+     $                                   ,igrid,igrid,igrid,cnv
+     .                                   ,alt__eom())
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function veclap_ndiff_mesh
+
 c     veclap_diff
 c     ###############################################################
       function veclap_diff(i,j,k,nx,ny,nz,igx,igy,igz,vfield
@@ -4895,7 +4995,7 @@ c     Local variables
 
         integer    :: ig,jg,kg,ip,igrid
         real(8)    :: x,y,z,jac,jac0,jacp,ijac
-        real(8)    :: nabla_v_cnv(3,3),gsuper(3,3),dd
+        real(8)    :: nabla_v_cnv(3,3),dd
 
 c     Begin program
 
@@ -4906,8 +5006,6 @@ c     Begin program
 
         jac    = 0.5*(gmetric%grid(igrid)%jac (ip,j,k)
      .               +gmetric%grid(igrid)%jac (i ,j,k))
-        gsuper = 0.5*(gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-     .               +gmetric%grid(igrid)%gsup(i ,j,k,:,:))
 
         if (isSP(i+1,j,k,igx,igy,igz)) jac = SP_flsv
         ijac = 1d0/jac
@@ -5080,6 +5178,95 @@ c     Begin program
 c     End program
 
       end subroutine nabtensor_z
+
+c     veclap_cov_ndiff_mesh
+c     ###############################################################
+      function veclap_cov_ndiff_mesh(igrid,cov) result(cov_out)
+
+c     ---------------------------------------------------------------
+c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is both covariant
+c     and contravariant, and returns the covariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igrid
+
+      real(8) :: cov(0:,0:,0:,:)
+     .          ,cov_out(0:size(cov,1)-1
+     $                  ,0:size(cov,2)-1
+     $                  ,0:size(cov,3)-1,3)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            cov_out(i,j,k,:)=veclap_cov_ndiff(i,j,k,nx,ny,nz
+     $                                       ,igrid,igrid,igrid,cov)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function veclap_cov_ndiff_mesh
+
+c     veclap_cov_diff_mesh
+c     ###############################################################
+      function veclap_cov_diff_mesh(igrid,diff,cov) result(cov_out)
+
+c     ---------------------------------------------------------------
+c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is both covariant
+c     and contravariant, and returns the covariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igrid
+
+      real(8) :: cov(0:,0:,0:,:)
+     .          ,diff(0:,0:,0:)
+     .          ,cov_out(0:size(cov,1)-1
+     $                  ,0:size(cov,2)-1
+     $                  ,0:size(cov,3)-1,3)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            cov_out(i,j,k,:)=veclap_cov_diff(i,j,k,nx,ny,nz
+     $                                      ,igrid,igrid,igrid,cov,diff)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function veclap_cov_diff_mesh
 
 c     veclap_cov_ndiff
 c     ###############################################################
@@ -5392,9 +5579,319 @@ c     End program
 
       end subroutine nabtensor_cov_z
 
-c     curlcurl
+c     curlcurl_cov_mesh
 c     ###############################################################
-      function curlcurl(i,j,k,nx,ny,nz,igx,igy,igz,a,vol) result(cnv)
+      function curlcurl_cov_mesh(igrid,cov) result(cov_out)
+
+c     ---------------------------------------------------------------
+c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is both covariant
+c     and contravariant, and returns the covariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igrid
+
+      real(8) :: cov(0:,0:,0:,:)
+     .          ,cov_out(0:size(cov,1)-1
+     $                  ,0:size(cov,2)-1
+     $                  ,0:size(cov,3)-1,3)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            cov_out(i,j,k,:)=curlcurl_cov_ijk(i,j,k,nx,ny,nz
+     $                                       ,igrid,igrid,igrid,cov)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function curlcurl_cov_mesh
+
+c     curlcurl_cov_ijk
+c     ###############################################################
+      function curlcurl_cov_ijk(i,j,k,nx,ny,nz,igx,igy,igz,acov,vol)
+     .         result(cov)
+
+c     ---------------------------------------------------------------
+c     Calculates curl(curl(A)) in general non-orthogonal coordinates,
+c     preserving the SPD property. The vector A is both in covariant and
+c     contravariant representations, and returns covariant components.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+      real(8) :: cov(3)
+
+      real(8),target :: acov(0:nx+1,0:ny+1,0:nz+1,3)
+
+      logical,optional,intent(IN) :: vol
+
+c     Local variables
+
+c     Begin program
+
+      vec => acov
+
+      cov = div_tensor_cov(i,j,k,nx,ny,nz,igx,igy,igz
+     .                ,curlcurl_cov_x,curlcurl_cov_y,curlcurl_cov_z
+     .                ,vol=vol)
+
+      nullify(vec)
+
+c     End program
+
+      end function curlcurl_cov_ijk
+
+c     curlcurl_cov_x
+c     #############################################################
+      subroutine curlcurl_cov_x(i,j,k,nx,ny,nz,igx,igy,igz
+     .                         ,t11,t12,t13,flag)
+c     -------------------------------------------------------------
+c     Calculates mixed representation tensor components t11-t13 for
+c     nabla(vec), [nab(vec))^l_m.
+c     -------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+        real(8)    :: t11,t12,t13
+
+c     Local variables
+
+        integer    :: ig,jg,kg,ip,igrid
+        real(8)    :: nabla_v(3,3),gsuper(3,3)
+
+c     Begin program
+
+        igrid = igx
+
+        ip = i+1
+        if (flag == 0) ip = i
+
+        gsuper = 0.5*(gmetric%grid(igrid)%gsup(ip,j,k,:,:)
+     .               +gmetric%grid(igrid)%gsup(i ,j,k,:,:))
+
+        if (flag /= 0) then
+          nabla_v = fnabla_v_cov(i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),1)
+        else
+          nabla_v = fnabla_v_cov(i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),0)
+        endif
+
+        nabla_v =-nabla_v + transpose(nabla_v)
+
+        t11 =( gsuper(1,1)*nabla_v(1,1)
+     .        +gsuper(1,2)*nabla_v(2,1)
+     .        +gsuper(1,3)*nabla_v(3,1) )
+
+        t12 =( gsuper(1,1)*nabla_v(1,2)
+     .        +gsuper(1,2)*nabla_v(2,2)
+     .        +gsuper(1,3)*nabla_v(3,2) )
+
+        t13 =( gsuper(1,1)*nabla_v(1,3)
+     .        +gsuper(1,2)*nabla_v(2,3)
+     .        +gsuper(1,3)*nabla_v(3,3) )
+
+c     End program
+
+      end subroutine curlcurl_cov_x
+
+c     curlcurl_cov_y
+c     #############################################################
+      subroutine curlcurl_cov_y(i,j,k,nx,ny,nz,igx,igy,igz
+     .                      ,t21,t22,t23,flag)
+c     -------------------------------------------------------------
+c     Calculates mixed representation tensor components t21-t23 for
+c     nabla(vec), [nab(vec))^l_m.
+c     -------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+        real(8)    :: t21,t22,t23
+
+c     Local variables
+
+        integer    :: ig,jg,kg,jp,igrid
+        real(8)    :: nabla_v(3,3),gsuper(3,3)
+
+c     Begin program
+
+        igrid = igx
+
+        jp = j+1
+        if (flag == 0) jp = j
+
+        gsuper = 0.5*(gmetric%grid(igrid)%gsup(i,jp,k,:,:)
+     .               +gmetric%grid(igrid)%gsup(i,j ,k,:,:))
+
+        if (flag /= 0) then
+          nabla_v = fnabla_v_cov(i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),2)
+        else
+          nabla_v = fnabla_v_cov(i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),0)
+        endif
+
+        nabla_v =-nabla_v + transpose(nabla_v)
+
+        t21 =( gsuper(2,1)*nabla_v(1,1)
+     .        +gsuper(2,2)*nabla_v(2,1)
+     .        +gsuper(2,3)*nabla_v(3,1) )
+
+        t22 =( gsuper(2,1)*nabla_v(1,2)
+     .        +gsuper(2,2)*nabla_v(2,2)
+     .        +gsuper(2,3)*nabla_v(3,2) )
+
+        t23 =( gsuper(2,1)*nabla_v(1,3)
+     .        +gsuper(2,2)*nabla_v(2,3)
+     .        +gsuper(2,3)*nabla_v(3,3) )
+
+c     End program
+
+      end subroutine curlcurl_cov_y
+
+c     curlcurl_cov_z
+c     #############################################################
+      subroutine curlcurl_cov_z(i,j,k,nx,ny,nz,igx,igy,igz
+     .                      ,t31,t32,t33,flag)
+c     -------------------------------------------------------------
+c     Calculates mixed representation tensor components t31-t33 for
+c     nabla(vec), [nab(vec))^l_m.
+c     -------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+        real(8)    :: t31,t32,t33
+
+c     Local variables
+
+        integer    :: ig,jg,kg,kp,igrid
+        real(8)    :: nabla_v(3,3),gsuper(3,3)
+
+c     Begin program
+
+        igrid = igx
+
+        kp=k+1
+        if (flag == 0) kp = k
+
+        gsuper = 0.5*(gmetric%grid(igrid)%gsup(i,j,kp,:,:)
+     .               +gmetric%grid(igrid)%gsup(i,j,k ,:,:))
+
+        if (flag /= 0) then
+          nabla_v = fnabla_v_cov(i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),3)
+        else
+          nabla_v = fnabla_v_cov(i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),0)
+        endif
+
+        nabla_v = -nabla_v + transpose(nabla_v)
+
+        t31 =( gsuper(3,1)*nabla_v(1,1)
+     .        +gsuper(3,2)*nabla_v(2,1)
+     .        +gsuper(3,3)*nabla_v(3,1) )
+
+        t32 =( gsuper(3,1)*nabla_v(1,2)
+     .        +gsuper(3,2)*nabla_v(2,2)
+     .        +gsuper(3,3)*nabla_v(3,2) )
+
+        t33 =( gsuper(3,1)*nabla_v(1,3)
+     .        +gsuper(3,2)*nabla_v(2,3)
+     .        +gsuper(3,3)*nabla_v(3,3) )
+
+c     End program
+
+      end subroutine curlcurl_cov_z
+
+c     curlcurl_mesh
+c     ###############################################################
+      function curlcurl_mesh(igrid,cnv) result(cnv_out)
+
+c     ---------------------------------------------------------------
+c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is
+c     covariant, and returns the contravariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igrid
+
+      real(8) :: cnv(0:,0:,0:,:)
+     .          ,cnv_out(0:size(cnv,1)-1
+     $                  ,0:size(cnv,2)-1
+     $                  ,0:size(cnv,3)-1,3)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            cnv_out(i,j,k,:)=curlcurl_ijk(i,j,k,nx,ny,nz
+     $                                   ,igrid,igrid,igrid,cnv)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function curlcurl_mesh
+
+c     curlcurl_ijk
+c     ###############################################################
+      function curlcurl_ijk(i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol)
+     $         result(cnv)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(curl(A)) in general non-orthogonal
@@ -5406,9 +5903,10 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+      real(8) :: cnv(3)
 
-      real(8)    :: a(0:nx+1,0:ny+1,0:nz+1,3),cnv(3)
+      real(8),target :: acnv(0:nx+1,0:ny+1,0:nz+1,3)
 
       logical,optional,intent(IN) :: vol
 
@@ -5416,12 +5914,253 @@ c     Local variables
 
 c     Begin program
 
-      cnv=-veclaplacian(i,j,k,nx,ny,nz,igx,igy,igz,a,vol=vol)
-     .    +gradDiv(i,j,k,nx,ny,nz,igx,igy,igz,a,vol=vol,cnv=.true.)
+      cnv=-veclaplacian(i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol)
+     .    +gradDiv     (i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol
+     .                 ,cnv=.true.)
+
+cc      vec1 => acnv
+cc
+cc      cnv = div_tensor(i,j,k,nx,ny,nz,igx,igy,igz,alt__eom()
+cc     .                ,curlcurl_x,curlcurl_y,curlcurl_z
+cc     .                ,vol=vol)
+cc
+cc      nullify(vec1)
 
 c     End program
 
-      end function curlcurl
+      end function curlcurl_ijk
+
+c     curlcurl_x
+c     #############################################################
+      subroutine curlcurl_x(i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+     .                     ,t11,t12,t13,flag)
+c     -------------------------------------------------------------
+c     Calculates tensor components t11-t13 for curl(curl), computed
+c     as div(grad - transpose(grad)). In the call sequence:
+c       * i,j,k: grid position
+c       * nx,ny,nz: grid size
+c       * igx,igy,igz: grid level (for MG evaluations)
+c       * alt_eom: whether to use alternate curl(curl) in singular coord.
+c                  systems or not.
+c       * t11,t12,t13: tensor components.
+c       * flag: whether evaluation is a cell center i,j,k (flag=0)
+c               or at cell face i+1/2,j,k (flag /= 0)
+c     This routine assumes vec1->v (velocity), vec2->p (momentum).
+c     -------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+        real(8)    :: t11,t12,t13
+        logical    :: alt_eom
+
+c     Local variables
+
+        integer    :: ig,jg,kg,ip,im,ipp,igpp,igp,igm
+        real(8)    :: nabla_v_cnv(3,3)
+        real(8)    :: jac,ijac
+
+c     Begin program
+
+        if (.not.associated(vec1)) then
+          call pstop('curlcurl_x','Pointers not associated')
+        endif
+
+        ip = i+1
+        if (flag == 0) ip = i
+
+        jac    = 0.5*(gmetric%grid(igx)%jac (ip,j,k)
+     .               +gmetric%grid(igx)%jac (i ,j,k))
+
+        if (isSP(i+1,j,k,igx,igy,igz)) jac = SP_flsv
+
+        if (flag /= 0) then
+          nabla_v_cnv = fnabla_v(i,j,k,nx,ny,nz,igx,igy,igz
+     .                    ,vec1(:,:,:,1)
+     .                    ,vec1(:,:,:,2)
+     .                    ,vec1(:,:,:,3),1,cnv=.true.)
+        else
+          nabla_v_cnv = fnabla_v(i,j,k,nx,ny,nz,igx,igy,igz
+     .                    ,vec1(:,:,:,1)
+     .                    ,vec1(:,:,:,2)
+     .                    ,vec1(:,:,:,3),0,cnv=.true.)
+        endif
+
+        nabla_v_cnv = nabla_v_cnv - transpose(nabla_v_cnv)
+
+        t11 = -nabla_v_cnv(1,1)
+        t12 = -nabla_v_cnv(1,2)
+        t13 = -nabla_v_cnv(1,3)
+
+c       Postprocessing
+
+        if (flag /= 0) then
+          ijac = 1d0/jac
+
+          t11 = t11*ijac
+          if (.not.alt_eom) t12 = t12*ijac
+          t13 = t13*ijac
+        endif
+
+c     End program
+
+      end subroutine curlcurl_x
+
+c     curlcurl_y
+c     #############################################################
+      subroutine curlcurl_y(i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+     .                     ,t21,t22,t23,flag)
+c     -------------------------------------------------------------
+c     Calculates tensor components t21-t23 for curl(curl). In the call
+c     sequence:
+c       * i,j,k: grid position
+c       * nx,ny,nz: grid size
+c       * igx,igy,igz: grid level (for MG evaluations)
+c       * alt_eom: whether to use alternate curl(curl) in singular coord.
+c                  systems or not.
+c       * t21,t22,t23: tensor components.
+c       * flag: whether evaluation is a cell center i,j,k (flag=0)
+c               or at cell face i+1/2,j,k (flag /= 0)
+c     -------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+        real(8)    :: t21,t22,t23
+        logical    :: alt_eom
+
+c     Local variables
+
+        integer    :: ig,jg,kg,jp,jm,jpp,jgpp,jgp,jgm
+        real(8)    :: nabla_v_cnv(3,3)
+        real(8)    :: jac,ijac
+
+c     Begin program
+
+        if (.not.associated(vec1)) then
+          call pstop('curlcurl_y','Pointers not associated')
+        endif
+
+        jp = j+1
+        if (flag == 0) jp = j
+
+        jac    = 0.5*(gmetric%grid(igx)%jac (i,jp,k)
+     .               +gmetric%grid(igx)%jac (i,j ,k))
+
+c       Diffusive part
+
+        if (flag /= 0) then
+          nabla_v_cnv = fnabla_v(i,j,k,nx,ny,nz,igx,igy,igz
+     .                    ,vec1(:,:,:,1)
+     .                    ,vec1(:,:,:,2)
+     .                    ,vec1(:,:,:,3),2,cnv=.true.)
+        else
+          nabla_v_cnv = fnabla_v(i,j,k,nx,ny,nz,igx,igy,igz
+     .                    ,vec1(:,:,:,1)
+     .                    ,vec1(:,:,:,2)
+     .                    ,vec1(:,:,:,3),0,cnv=.true.)
+        endif
+
+        nabla_v_cnv = nabla_v_cnv - transpose(nabla_v_cnv)
+
+        t21 = -nabla_v_cnv(2,1)
+        t22 = -nabla_v_cnv(2,2)
+        t23 = -nabla_v_cnv(2,3)
+
+c       Postprocessing
+
+        if (flag /= 0) then
+          ijac = 1d0/jac
+
+          t21 = t21*ijac
+          if (.not.alt_eom) t22 = t22*ijac
+          t23 = t23*ijac
+        endif
+
+c     End program
+
+      end subroutine curlcurl_y
+
+c     curlcurl_z
+c     #############################################################
+      subroutine curlcurl_z(i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+     .                     ,t31,t32,t33,flag)
+c     -------------------------------------------------------------
+c     Calculates tensor components t31-t33 for curl(curl). In the call
+c     sequence:
+c       * i,j,k: grid position
+c       * nx,ny,nz: grid size
+c       * igx,igy,igz: grid level (for MG evaluations)
+c       * alt_eom: whether to use alternate curl(curl) in singular coord.
+c                  systems or not.
+c       * t31,t32,t33: tensor components.
+c       * flag: whether evaluation is a cell center i,j,k (flag=0)
+c               or at cell face i+1/2,j,k (flag /= 0)
+c     -------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+        real(8)    :: t31,t32,t33
+        logical    :: alt_eom
+
+c     Local variables
+
+        integer    :: ig,jg,kg,kp,km,kpp,kgpp,kgp,kgm
+        real(8)    :: nabla_v_cnv(3,3)
+        real(8)    :: jac,ijac
+
+c     Begin program
+
+        if (.not.associated(vec1)) then
+          call pstop('curlcurl_z','Pointers not associated')
+        endif
+
+        kp = k+1
+        if (flag == 0) kp = k
+
+        jac    = 0.5*(gmetric%grid(igx)%jac (i,j,kp)
+     .               +gmetric%grid(igx)%jac (i,j,k ))
+
+c       Diffusive part
+
+        if (flag /= 0) then
+          nabla_v_cnv = fnabla_v(i,j,k,nx,ny,nz,igx,igy,igz
+     .                    ,vec1(:,:,:,1)
+     .                    ,vec1(:,:,:,2)
+     .                    ,vec1(:,:,:,3),3,cnv=.true.)
+        else
+          nabla_v_cnv = fnabla_v(i,j,k,nx,ny,nz,igx,igy,igz
+     .                    ,vec1(:,:,:,1)
+     .                    ,vec1(:,:,:,2)
+     .                    ,vec1(:,:,:,3),0,cnv=.true.)
+        endif
+
+        nabla_v_cnv = nabla_v_cnv - transpose(nabla_v_cnv)
+
+        t31 = -nabla_v_cnv(3,1)
+        t32 = -nabla_v_cnv(3,2)
+        t33 = -nabla_v_cnv(3,3)
+
+c       Postprocessing
+
+        if (flag /= 0) then
+          ijac = 1d0/jac
+
+          t31 = t31*ijac
+          if (.not.alt_eom) t32 = t32*ijac
+          t33 = t33*ijac
+        endif
+
+c     End program
+
+      end subroutine curlcurl_z
 
       end module grid_tensor_ops
 
@@ -7104,12 +7843,12 @@ c     #############################################################
       subroutine tnsr_advc_x(i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
      .                    ,t11,t12,t13,flag)
 c     -------------------------------------------------------------
-c     Calculates tensor components t11-t13 for EOM. In the call
+c     Calculates tensor components t11-t13 for tensor adv. In the call
 c     sequence:
 c       * i,j,k: grid position
 c       * nx,ny,nz: grid size
 c       * igx,igy,igz: grid level (for MG evaluations)
-c       * alt_eom: whether to use alternate EOM in singular coord.
+c       * alt_eom: whether to use alternate tensor adv in singular coord.
 c                  systems or not.
 c       * t11,t12,t13: tensor components.
 c       * flag: whether evaluation is a cell center i,j,k (flag=0)
@@ -7233,7 +7972,7 @@ c     sequence:
 c       * i,j,k: grid position
 c       * nx,ny,nz: grid size
 c       * igx,igy,igz: grid level (for MG evaluations)
-c       * alt_eom: whether to use alternate EOM in singular coord.
+c       * alt_eom: whether to use alternate tensor adv in singular coord.
 c                  systems or not.
 c       * t21,t22,t23: tensor components.
 c       * flag: whether evaluation is a cell center i,j,k (flag=0)
@@ -7324,12 +8063,12 @@ c     #############################################################
       subroutine tnsr_advc_z(i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
      .                    ,t31,t32,t33,flag)
 c     -------------------------------------------------------------
-c     Calculates tensor components t31-t33 for EOM. In the call
+c     Calculates tensor components t31-t33 for tensor adv. In the call
 c     sequence:
 c       * i,j,k: grid position
 c       * nx,ny,nz: grid size
 c       * igx,igy,igz: grid level (for MG evaluations)
-c       * alt_eom: whether to use alternate EOM in singular coord.
+c       * alt_eom: whether to use alternate tensor adv in singular coord.
 c                  systems or not.
 c       * t31,t32,t33: tensor components.
 c       * flag: whether evaluation is a cell center i,j,k (flag=0)

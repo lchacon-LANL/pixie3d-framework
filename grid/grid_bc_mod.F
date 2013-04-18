@@ -3167,7 +3167,7 @@ cc     .                 .or.(abs(bcnd(i_bc)) == NEU .and. order /= 0)
         i_bc = ibcl(i)
         if (i_bc <= 0) cycle
         select_bc(i) =(    (    bcnd(i_bc)  == PER)
-cc     .                 .or.(abs(bcond(i_bc))== FSYM)  !Use "bcond", not "bcnd"
+cc     .                 .or.(abs(bcond(i_bc))== FSYM .and. abs(bcnd(i_bc)) == NEU)
      .                 .or.(abs(bcnd(i_bc)) == NEU .and. order == 0)
      .                ).and.selectFace(i_bc)
       enddo
@@ -3177,6 +3177,16 @@ cc     .                 .or.(abs(bcond(i_bc))== FSYM)  !Use "bcond", not "bcnd"
 c     Check smoothness if various interpolation directions are selected
 
       call select_smooth
+
+c     Enforce symmetry extrapolation at corners
+
+      do i=1,3
+        i_bc = ibcl(i)
+        if (i_bc <= 0) cycle
+        select_bc(i)=(abs(bcond(i_bc))==FSYM.and.abs(bcnd(i_bc))==NEU)
+     .               .and.selectFace(i_bc)
+        if (select_bc(i)) order_int(i) = 0
+      enddo
 
 c     Check some direction for interpolation exists
 

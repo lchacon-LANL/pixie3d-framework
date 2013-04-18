@@ -122,6 +122,10 @@ c #####################################################################
      .                            ,u_ic => null()
      .                            ,u_0  => null()
 
+        INTERFACE scaleVec
+          module procedure scaleVector_by_vol1,scaleVector_by_vol2
+        end INTERFACE
+
       contains
 
 c     setDepVarDims
@@ -801,9 +805,9 @@ c     End program
 
       end subroutine scatterVector
 
-c     scaleVector_by_vol
+c     scaleVector_by_vol1
 c     ###################################################################
-      subroutine scaleVector_by_vol(igr,neq,vec1,op)
+      subroutine scaleVector_by_vol1(igr,neq,vec1,op)
 
 c     -------------------------------------------------------------------
 c     Scales vec1 by volume (vec1=>vec1/vol) on the mesh. In call:
@@ -856,7 +860,60 @@ c     Begin program
         enddo
       end select
 
-      end subroutine scaleVector_by_vol
+      end subroutine scaleVector_by_vol1
+
+c     scaleVector_by_vol
+c     ###################################################################
+      subroutine scaleVector_by_vol2(igr,neq,vec1,op)
+
+c     -------------------------------------------------------------------
+c     Scales vec1 by volume (vec1=>vec1/vol) on the mesh. In call:
+c       * igr: grid level
+c       * neq: number of variables contained in vectors.
+c       * vec1: input vector
+c       * op: operation ('mul','div')
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igr,neq
+      real(8) :: vec1(:,:)
+      character(3) :: op
+
+c     Local variables
+
+      integer :: i,j,k,iii,ieq,nnx,nny,nnz
+
+c     Begin program
+
+      nnx = grid_params%nxv(igr)
+      nny = grid_params%nyv(igr)
+      nnz = grid_params%nzv(igr)
+
+      select case(op)
+      case('mul')
+        do k=1,nnz
+          do j=1,nny
+            do i=1,nnx
+              iii= i + nnx*(j-1) + nnx*nny*(k-1)
+              vec1(iii,:) = vec1(iii,:)*gmetric%grid(igr)%dlvol(i,j,k)
+            enddo
+          enddo
+        enddo
+      case('div')
+        do k=1,nnz
+          do j=1,nny
+            do i=1,nnx
+              iii= i + nnx*(j-1) + nnx*nny*(k-1)
+              vec1(iii,:) = vec1(iii,:)/gmetric%grid(igr)%dlvol(i,j,k)
+            enddo
+          enddo
+        enddo
+      end select
+
+      end subroutine scaleVector_by_vol2
 
 ccc     scaleVector_by_vol
 ccc     ###################################################################

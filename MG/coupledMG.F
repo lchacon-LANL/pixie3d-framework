@@ -1870,7 +1870,12 @@ c     Gather variables for coupled solve
 
           bi = 0d0
 
-          call random_number(xi)
+cc          call random_number(xi)
+          xi = 1d0
+
+          if (guess == 0) then
+            call pstop('cSolver','guess must be =1 for cvrgnce test')
+          endif
 
 cc          write (*,*) 'DIAG -- cSolver: JB/GS solve'
 cc
@@ -6348,6 +6353,7 @@ c       Find column vector corresponding to grid node ii and equation ieq
           x1(ii) = 1d0
 
           call MGmatvec(0,neq,nn,x1,dummy,igr,bbcnd,matvec)
+cc          call matvec(0,neq,nn,x1,dummy,igr,bbcnd)
 
           x1(ii) = 0d0
 

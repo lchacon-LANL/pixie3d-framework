@@ -1387,9 +1387,9 @@ c     Enforce zero-force condition and topological constraints on Christoffle sy
 
         if (igrid == 1) call hessianZeroForceCorr(igrid)
 
-        do i=1,3
+        do k=1,3
           do j=1,3
-            do k=1,3
+            do i=1,3
               call setBC(0,nx,ny,nz
      .                  ,gparams%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k)
      .                  ,zeros,bc_dr,igrid,igrid,igrid,iorder=1)
@@ -1525,9 +1525,9 @@ cc              endif
             enddo
 
             !Symmetrize
-            do ii=1,3
-              do ll=1,3             !cycle through tensor components
-                do kk=1,3
+            do kk=1,3
+              do ll=1,3
+                do ii=1,3
                   gparams%gmetric%grid(igrid)%Gamma(i,j,k,ii,ll,kk)
      $                        = 0.5*( table(ii,ll,kk)+table(ii,kk,ll) )
                 enddo
