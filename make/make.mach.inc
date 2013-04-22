@@ -332,6 +332,61 @@ ifeq ($(HOST),gongora)
 
 endif
 
+#######################
+# Maria's Macbook Air #
+#######################
+
+ifeq ($(HOST),Marias-MacBook-Air)
+
+  FC=gfortran
+
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  WORKDIR = $(HOME)/work
+
+  ifdef BOPT
+    PETSC_DIR =$(WORKDIR)/lib/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = macosx_openmpi_O
+    else
+      PETSC_ARCH = macosx_openmpi_g
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME =/opt/local
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+#    ADIOS = f
+    ADIOS = t
+
+    ADIOS_HOME = $(WORKDIR)/lib/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(WORKDIR)/lib/mxml-2.7/lib -lmxml
+    ADIOS_VER  = 1.31
+
+  else
+    LIBS += -L/usr/lib -llapack -lblas
+
+    HDF5 = t
+
+    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gfortran/serial
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  =$(HDF5_HOME)/include
+    HDF5_INC  =$(HDF5_HOME)/include
+
+    ADIOS = f
+
+  endif
+
+endif
+
 ##########
 # siesta #
 ##########

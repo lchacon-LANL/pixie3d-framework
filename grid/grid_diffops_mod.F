@@ -981,10 +981,6 @@ c ######################################################################
 
         use grid_create
 
-        INTERFACE laplacian
-          module procedure lap_diff,lap_ndiff,lap_tnsr
-        end INTERFACE
-
       contains
 
 c     gradDiv
@@ -1827,68 +1823,68 @@ cc
 ccc     End program
 cc
 cc      end function lap_ndiff
-
-c     lap_ndiff
-c     ###############################################################
-      function lap_ndiff(i,j,k,nx,ny,nz,igx,igy,igz,arr,vol
-     .                  ,vertex_metrics)
-c     ---------------------------------------------------------------
-c     Calculates lap(arr) at cell centers in general non-orthog.
-c     coordinates, preserving the SPD property.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-
-      real(8)    :: arr (0:nx+1,0:ny+1,0:nz+1),lap_ndiff
-
-      logical,optional,intent(IN) :: vol,vertex_metrics
-
-c     Local variables
-
-      integer :: ip,jp,kp,im,jm,km,ig,jg,kg
-      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
-
-      real(8),dimension(:,:,:,:,:),pointer :: gsup
-
-      logical  :: vol_wgt,vrtx_met
-
-c     Begin program
-
-      if (PRESENT(vol)) then
-        vol_wgt = vol
-      else
-        vol_wgt = .false.
-      endif
-
-      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-
-      im = i-1
-      jm = j-1
-      km = k-1
-
-      flxip = lap_flx_x_ijk(i ,j,k,igx,arr,vertex=vertex_metrics)
-      flxim = lap_flx_x_ijk(im,j,k,igx,arr,vertex=vertex_metrics)
-
-      flxjp = lap_flx_y_ijk(i,j ,k,igx,arr,vertex=vertex_metrics)
-      flxjm = lap_flx_y_ijk(i,jm,k,igx,arr,vertex=vertex_metrics)
-
-      flxkp = lap_flx_z_ijk(i,j,k ,igx,arr,vertex=vertex_metrics)
-      flxkm = lap_flx_z_ijk(i,j,km,igx,arr,vertex=vertex_metrics)
-
-      lap_ndiff= ((flxip -flxim)/grid_params%dxh(ig)
-     .           +(flxjp -flxjm)/grid_params%dyh(jg)
-     .           +(flxkp -flxkm)/grid_params%dzh(kg))
-     .           /gmetric%grid(igx)%jac(i,j,k)
-
-      if (vol_wgt) lap_ndiff=lap_ndiff*gmetric%grid(igx)%dvol(i,j,k)
-
-c     End program
-
-      end function lap_ndiff
+c$$$
+c$$$c     lap_ndiff
+c$$$c     ###############################################################
+c$$$      function lap_ndiff(i,j,k,nx,ny,nz,igx,igy,igz,arr,vol
+c$$$     .                  ,vertex_metrics)
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates lap(arr) at cell centers in general non-orthog.
+c$$$c     coordinates, preserving the SPD property.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+c$$$
+c$$$      real(8)    :: arr (0:nx+1,0:ny+1,0:nz+1),lap_ndiff
+c$$$
+c$$$      logical,optional,intent(IN) :: vol,vertex_metrics
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer :: ip,jp,kp,im,jm,km,ig,jg,kg
+c$$$      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+c$$$
+c$$$      real(8),dimension(:,:,:,:,:),pointer :: gsup
+c$$$
+c$$$      logical  :: vol_wgt,vrtx_met
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      if (PRESENT(vol)) then
+c$$$        vol_wgt = vol
+c$$$      else
+c$$$        vol_wgt = .false.
+c$$$      endif
+c$$$
+c$$$      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+c$$$
+c$$$      im = i-1
+c$$$      jm = j-1
+c$$$      km = k-1
+c$$$
+c$$$      flxip = lap_flx_x_ijk(i ,j,k,igx,arr,vertex=vertex_metrics)
+c$$$      flxim = lap_flx_x_ijk(im,j,k,igx,arr,vertex=vertex_metrics)
+c$$$
+c$$$      flxjp = lap_flx_y_ijk(i,j ,k,igx,arr,vertex=vertex_metrics)
+c$$$      flxjm = lap_flx_y_ijk(i,jm,k,igx,arr,vertex=vertex_metrics)
+c$$$
+c$$$      flxkp = lap_flx_z_ijk(i,j,k ,igx,arr,vertex=vertex_metrics)
+c$$$      flxkm = lap_flx_z_ijk(i,j,km,igx,arr,vertex=vertex_metrics)
+c$$$
+c$$$      lap_ndiff= ((flxip -flxim)/grid_params%dxh(ig)
+c$$$     .           +(flxjp -flxjm)/grid_params%dyh(jg)
+c$$$     .           +(flxkp -flxkm)/grid_params%dzh(kg))
+c$$$     .           /gmetric%grid(igx)%jac(i,j,k)
+c$$$
+c$$$      if (vol_wgt) lap_ndiff=lap_ndiff*gmetric%grid(igx)%dvol(i,j,k)
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function lap_ndiff
 
 ccc     lap_diff
 ccc     ###############################################################
@@ -2212,10 +2208,70 @@ ccc     End program
 cc
 cc      end function lap_diff
 
-c     lap_diff
+c$$$c     lap_diff
+c$$$c     ###############################################################
+c$$$      function lap_diff(i,j,k,nx,ny,nz,igx,igy,igz,arr,dff,vol
+c$$$     .                 ,vertex_metrics) result (laplacian)
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates div(dff grad(arr)) at cell centers in general non-orthog.
+c$$$c     coordinates, preserving the SPD property.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+c$$$
+c$$$      real(8)    :: arr(0:nx+1,0:ny+1,0:nz+1),laplacian
+c$$$
+c$$$      real(8)    :: dff(0:nx+1,0:ny+1,0:nz+1)
+c$$$
+c$$$      logical,optional,intent(IN) :: vol,vertex_metrics
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
+c$$$
+c$$$      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+c$$$
+c$$$      logical    :: vol_wgt,vrtx_met
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      vol_wgt = .false.
+c$$$      if (PRESENT(vol)) vol_wgt = vol
+c$$$
+c$$$      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+c$$$
+c$$$      im = i-1
+c$$$      jm = j-1
+c$$$      km = k-1
+c$$$
+c$$$      flxip=lap_flx_x_ijk(i ,j,k,igx,arr,diff=dff,vertex=vertex_metrics)
+c$$$      flxim=lap_flx_x_ijk(im,j,k,igx,arr,diff=dff,vertex=vertex_metrics)
+c$$$
+c$$$      flxjp=lap_flx_y_ijk(i,j ,k,igx,arr,diff=dff,vertex=vertex_metrics)
+c$$$      flxjm=lap_flx_y_ijk(i,jm,k,igx,arr,diff=dff,vertex=vertex_metrics)
+c$$$
+c$$$      flxkp=lap_flx_z_ijk(i,j,k ,igx,arr,diff=dff,vertex=vertex_metrics)
+c$$$      flxkm=lap_flx_z_ijk(i,j,km,igx,arr,diff=dff,vertex=vertex_metrics)
+c$$$
+c$$$      laplacian = ((flxip -flxim)/grid_params%dxh(ig)
+c$$$     .            +(flxjp -flxjm)/grid_params%dyh(jg)
+c$$$     .            +(flxkp -flxkm)/grid_params%dzh(kg))
+c$$$     .            /gmetric%grid(igx)%jac(i,j,k)
+c$$$
+c$$$      if (vol_wgt) laplacian=laplacian*gmetric%grid(igx)%dvol(i,j,k)
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function lap_diff
+
+c     lap
 c     ###############################################################
-      function lap_diff(i,j,k,nx,ny,nz,igx,igy,igz,arr,dff,vol
-     .                 ,vertex_metrics) result (laplacian)
+      function lap(i,j,k,nx,ny,nz,igx,igy,igz,arr,dff,vol
+     .            ,vertex_metrics) result (laplacian)
 c     ---------------------------------------------------------------
 c     Calculates div(dff grad(arr)) at cell centers in general non-orthog.
 c     coordinates, preserving the SPD property.
@@ -2225,21 +2281,21 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
 
-      real(8)    :: arr(0:nx+1,0:ny+1,0:nz+1),laplacian
+      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1),laplacian
 
-      real(8)    :: dff(0:nx+1,0:ny+1,0:nz+1)
+      real(8),optional :: dff(0:nx+1,0:ny+1,0:nz+1)
 
       logical,optional,intent(IN) :: vol,vertex_metrics
 
 c     Local variables
 
-      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
+      integer :: ip,im,jp,jm,kp,km,ig,jg,kg
 
-      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
 
-      logical    :: vol_wgt,vrtx_met
+      logical :: vol_wgt,vrtx_met
 
 c     Begin program
 
@@ -2270,7 +2326,7 @@ c     Begin program
 
 c     End program
 
-      end function lap_diff
+      end function lap
 
 c     lap_tnsr_flx_x_ijk
 c     ###############################################################
@@ -2754,15 +2810,13 @@ c ######################################################################
 
         use grid_nabla2_ops
 
-        INTERFACE veclaplacian
-          module procedure veclap_diff,veclap_ndiff
-     .                    ,veclap_diff_mesh,veclap_ndiff_mesh
-        end INTERFACE
+c$$$        INTERFACE veclaplacian
+c$$$          module procedure veclap!,veclap_diff,veclap_ndiff
+c$$$        end INTERFACE
 
-        INTERFACE veclap_cov
-          module procedure veclap_cov_diff,veclap_cov_ndiff
-     .                    ,veclap_cov_ndiff_mesh,veclap_cov_diff_mesh
-        end INTERFACE
+c$$$        INTERFACE veclap_cov
+c$$$          module procedure veclap_cov_diff,veclap_cov_ndiff
+c$$$        end INTERFACE
 
         INTERFACE curlcurl
           module procedure curlcurl_ijk,curlcurl_mesh
@@ -4586,242 +4640,9 @@ c     End program
 
       end function div_tensor_cov
 
-ccc     div_tensor_cov
-ccc     ###############################################################
-cc      function div_tensor_cov(i,j,k,nx,ny,nz,igx,igy,igz
-cc     .                       ,tsrx,tsry,tsrz,vol) result (divt)
-cc
-ccc     ---------------------------------------------------------------
-ccc     Calculates covariant components of div(tensor) at cell centers in
-ccc     general non-orthogonal coordinates, which is given by:
-ccc
-ccc         div(T)_i = jac^(-1)*[ partial_j(T^j_i)-T^l_m Gamma(m)_il) ]
-ccc
-ccc     The routinex tsrx,tsry,tsrz must provide mixed representation 
-ccc     tensor components T^l_m.
-ccc     ---------------------------------------------------------------
-cc
-cc      implicit none           !For safe fortran
-cc
-ccc     Call variables
-cc
-cc      real(8)    :: divt(3)
-cc
-cc      integer    :: i,j,k,igx,igy,igz,nx,ny,nz
-cc
-cc      external   tsrx,tsry,tsrz
-cc
-cc      logical,optional,intent(IN) :: vol
-cc
-ccc     Local variables
-cc
-cc      integer    :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid
-cc
-cc      real(8)    :: jac,dvol,dS1,dS2,dS3,dxx,dyy,dzz
-cc
-cccc      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
-cc
-cc      real(8)    :: t11p,t12p,t13p,t11m,t12m,t13m,t11o,t12o,t13o
-cc     .             ,t21p,t22p,t23p,t21m,t22m,t23m,t21o,t22o,t23o
-cc     .             ,t31p,t32p,t33p,t31m,t32m,t33m,t31o,t32o,t33o
-cc
-cc      real(8)    :: hess(3,3,3),msource,dx1,dx2,ll
-cc
-cc      logical    :: vol_wgt
-cc
-cc      real(8)    :: dum1,dum2
-cc
-ccc     Begin program
-cc
-cc      vol_wgt = .false.
-cc      if (PRESENT(vol)) vol_wgt = vol
-cc
-cc      igrid = igx
-cc
-cc      ip = i+1
-cc      im = i-1
-cc      jp = j+1
-cc      jm = j-1
-cc      kp = k+1
-cc      km = k-1
-cc
-cc      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-cc
-cc      jac = gmetric%grid(igrid)%jac(i,j,k)
-cc
-cc      dxx = grid_params%dxh(ig)
-cc      dyy = grid_params%dyh(jg)
-cc      dzz = grid_params%dzh(kg)
-cc
-cc      dvol = dxx*dyy*dzz
-cc
-cc      if (.not.no_map) then
-cc        hess = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-cc      endif
-cc
-cc      call tsrx(i ,j,k,nx,ny,nz,igx,igy,igz,t11p,t12p,t13p, 1)
-cc      call tsrx(im,j,k,nx,ny,nz,igx,igy,igz,t11m,t12m,t13m,-1)
-cc      if (.not.no_map)
-cc     .    call tsrx(i,j,k,nx,ny,nz,igx,igy,igz,t11o,t12o,t13o,0)
-cc
-cc      call tsry(i,j ,k,nx,ny,nz,igx,igy,igz,t21p,t22p,t23p, 1)
-cc      call tsry(i,jm,k,nx,ny,nz,igx,igy,igz,t21m,t22m,t23m,-1)
-cc      if (.not.no_map)
-cc     .    call tsry(i,j,k,nx,ny,nz,igx,igy,igz,t21o,t22o,t23o,0)
-cc
-cc      call tsrz(i,j,k ,nx,ny,nz,igx,igy,igz,t31p,t32p,t33p, 1)
-cc      call tsrz(i,j,km,nx,ny,nz,igx,igy,igz,t31m,t32m,t33m,-1)
-cc      if (.not.no_map)
-cc     .    call tsrz(i,j,k,nx,ny,nz,igx,igy,igz,t31o,t32o,t33o,0)
-cc
-cc      msource = 0d0
-cc
-cc      !Component 1
-cc      if (.not.no_map) then
-cc        msource =  (t11o*hess(1,1,1)+t12o*hess(2,1,1)+t13o*hess(3,1,1)
-cc     .             +t21o*hess(1,2,1)+t22o*hess(2,2,1)+t23o*hess(3,2,1)
-cc     .             +t31o*hess(1,3,1)+t32o*hess(2,3,1)+t33o*hess(3,3,1))
-cc      endif
-cc
-cc      divt(1) =  (t11p - t11m)/dxx
-cc     .          +(t21p - t21m)/dyy
-cc     .          +(t31p - t31m)/dzz - msource
-cc
-cc      !Component 2
-cc      if (.not.no_map) then
-cc        msource=  (t11o*hess(1,1,2)+t12o*hess(2,1,2)+t13o*hess(3,1,2)
-cc     .            +t21o*hess(1,2,2)+t22o*hess(2,2,2)+t23o*hess(3,2,2)
-cc     .            +t31o*hess(1,3,2)+t32o*hess(2,3,2)+t33o*hess(3,3,2))
-cc      endif
-cc
-cc      divt(2) =  (t12p - t12m)/dxx
-cc     .          +(t22p - t22m)/dyy
-cc     .          +(t32p - t32m)/dzz  - msource
-cc
-cc      !Component 3
-cc      if (.not.no_map) then
-cc        msource = (t11o*hess(1,1,3)+t12o*hess(2,1,3)+t13o*hess(3,1,3)
-cc     .            +t21o*hess(1,2,3)+t22o*hess(2,2,3)+t23o*hess(3,2,3)
-cc     .            +t31o*hess(1,3,3)+t32o*hess(2,3,3)+t33o*hess(3,3,3))
-cc      endif
-cc
-cc      divt(3) =  (t13p - t13m)/dxx
-cc     .          +(t23p - t23m)/dyy
-cc     .          +(t33p - t33m)/dzz - msource
-cc
-cc      divt = divt/jac
-cc
-cc      !Volume factor
-cc      if (vol_wgt) divt=divt*gmetric%grid(igrid)%dvol(i,j,k)
-cc
-ccc     End program
-cc
-cc      end function div_tensor_cov
-
-ccc     veclap2
-ccc     ###############################################################
-cc      function veclap2(i,j,k,nx,ny,nz,igx,igy,igz,vcnv,vcov,vol)
-cc     .         result (vlap)
-cc
-ccc     ---------------------------------------------------------------
-ccc     Calculates dvol*lap(vector) at cell centers in general non-orthog.
-ccc     coordinates using
-ccc                  lap(vector)=grad(div(v)-curl(curl(v)). 
-ccc     Returns lap(vector) in contravariant components.
-ccc     ---------------------------------------------------------------
-cc
-cc      implicit none           !For safe fortran
-cc
-ccc     Call variables
-cc
-cc      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-cc
-cc      real(8),target :: vcnv(0:nx+1,0:ny+1,0:nz+1,3)
-cc     .                 ,vcov(0:nx+1,0:ny+1,0:nz+1,3)
-cc
-cc      real(8)    :: vlap(3)
-cc
-cc      logical,optional,intent(IN) :: vol
-cc
-ccc     Local variables
-cc
-cc      integer    :: icomp
-cc
-cc      real(8)    :: cov(3)
-cc
-cc      logical    :: vol_wgt
-cc
-ccc     Begin program
-cc
-cc      vol_wgt = .true.
-cc      if (PRESENT(vol)) vol_wgt = vol
-cc
-cc      if (no_map) then
-cc        do icomp=1,3
-cc          vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
-cc     .                           ,vcnv(:,:,:,icomp)
-cc     .                           ,vol=vol_wgt)
-cc        enddo
-cc      else
-cc        cov = graddiv(i,j,k,nx,ny,nz,igx,igy,igz,vcnv,vol=vol_wgt)
-cc        vlap = matmul(gmetric%grid(igx)%gsup(i,j,k,:,:),cov) !Xforms to cnv
-cc
-cc        vlap = vlap - curlcurl(i,j,k,nx,ny,nz,igx,igy,igz
-cc     .                        ,vcov,vol=vol_wgt)
-cc      endif
-cc
-ccc     End program
-cc
-cc      end function veclap2
-
-c     veclap_diff_mesh
+c     veclap_mesh
 c     ###############################################################
-      function veclap_diff_mesh(igrid,diff,cnv) result(cnv_out)
-
-c     ---------------------------------------------------------------
-c     Calculates curl(A) in general non-orthogonal coordinates. Is
-c     boundary-ready (can extrapolate). The vector A is
-c     covariant, and returns the contravariant component "comp".
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      integer :: igrid
-
-      real(8) :: cnv(0:,0:,0:,:),diff(0:,0:,0:)
-     .          ,cnv_out(0:size(cnv,1)-1
-     $                  ,0:size(cnv,2)-1
-     $                  ,0:size(cnv,3)-1,3)
-
-c     Local variables
-
-      integer :: nx,ny,nz,i,j,k
-
-c     Begin program
-
-      nx = grid_params%nxv(igrid)
-      ny = grid_params%nyv(igrid)
-      nz = grid_params%nzv(igrid)
-
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            cnv_out(i,j,k,:)=veclap_diff(i,j,k,nx,ny,nz
-     $                                  ,igrid,igrid,igrid,cnv
-     .                                  ,alt__eom(),diff)
-          enddo
-        enddo
-      enddo
-
-c     End program
-
-      end function veclap_diff_mesh
-
-c     veclap_ndiff_mesh
-c     ###############################################################
-      function veclap_ndiff_mesh(igrid,cnv) result(cnv_out)
+      function veclap_mesh(igrid,cnv,diff) result(cnv_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -4840,6 +4661,8 @@ c     Call variables
      $                  ,0:size(cnv,2)-1
      $                  ,0:size(cnv,3)-1,3)
 
+      real(8),optional :: diff(0:,0:,0:)
+
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
@@ -4853,21 +4676,21 @@ c     Begin program
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            cnv_out(i,j,k,:)=veclap_ndiff(i,j,k,nx,ny,nz
-     $                                   ,igrid,igrid,igrid,cnv
-     .                                   ,alt__eom())
+            cnv_out(i,j,k,:)=veclap(i,j,k,nx,ny,nz
+     .                             ,igrid,igrid,igrid,cnv
+     .                             ,diff=diff,alteom=alt__eom())
           enddo
         enddo
       enddo
 
 c     End program
 
-      end function veclap_ndiff_mesh
+      end function veclap_mesh
 
-c     veclap_diff
+c     veclap
 c     ###############################################################
-      function veclap_diff(i,j,k,nx,ny,nz,igx,igy,igz,vfield
-     .                     ,alteom,diff,vol) result (vlap)
+      function veclap(i,j,k,nx,ny,nz,igx,igy,igz,vfield
+     .               ,diff,alteom,vol) result (vlap)
 
 c     ---------------------------------------------------------------
 c     Calculates dvol*div(diff grad(vector)) at cell centers in general
@@ -4882,7 +4705,7 @@ c     Call variables
       integer    :: i,j,k,nx,ny,nz,igx,igy,igz
 
       real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
-     .                 ,diff   (0:nx+1,0:ny+1,0:nz+1)
+      real(8),target,optional :: diff(0:nx+1,0:ny+1,0:nz+1)
 
       real(8)    :: vlap(3)
 
@@ -4904,76 +4727,133 @@ c     Begin program
 
       if (no_map) then
         do icomp=1,3
-          vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
-     .                           ,vfield(:,:,:,icomp),diff
-     .                           ,vol=vol_wgt)
+          vlap(icomp)=lap(i,j,k,nx,ny,nz,igx,igy,igz
+     .                   ,vfield(:,:,:,icomp),dff=diff
+     .                   ,vol=vol_wgt)
         enddo
       else
         vec  => vfield !Pointer passed to nabtensor routines
-        coef => diff   !Pointer passed to nabtensor routines
-        vlap = div_tensor(i,j,k,nx,ny,nz,igx,igy,igz,alteom
-     .                   ,nabtensor_x,nabtensor_y,nabtensor_z
-     $                   ,vol=vol_wgt)
-        nullify(coef)
-      endif
-
-c     End program
-
-      end function veclap_diff
-
-c     veclap_ndiff
-c     ###############################################################
-      function veclap_ndiff(i,j,k,nx,ny,nz,igx,igy,igz,vfield
-     .                     ,alteom,vol) result (vlap)
-
-c     ---------------------------------------------------------------
-c     Calculates dvol*lap(vector) at cell centers in contravariant
-c     representation. Vector vfield is contravariant.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-
-      real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
-
-      real(8)    :: vlap(3)
-
-      logical,optional,intent(IN) :: vol,alteom
-
-c     Local variables
-
-      integer    :: icomp
-
-      logical    :: vol_wgt,alt_eom
-
-c     Begin program
-
-      vol_wgt = .false.
-      if (PRESENT(vol)) vol_wgt = vol
-
-      alt_eom = .false.
-      if (PRESENT(alteom)) alt_eom = alteom
-
-      if (no_map) then
-        do icomp=1,3
-          vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
-     .                           ,vfield(:,:,:,icomp)
-     .                           ,vol=vol_wgt)
-        enddo
-      else
-        vec  => vfield !Pointer passed to nabtensor routines
-        nullify(coef)
+        if (PRESENT(diff)) coef => diff   !Pointer passed to nabtensor routines
         vlap = div_tensor(i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
      .                   ,nabtensor_x,nabtensor_y,nabtensor_z
-     .                   ,vol=vol_wgt)
+     $                   ,vol=vol_wgt)
+        if (PRESENT(diff)) nullify(coef)
       endif
 
 c     End program
 
-      end function veclap_ndiff
+      end function veclap
+
+c$$$c     veclap_diff
+c$$$c     ###############################################################
+c$$$      function veclap_diff(i,j,k,nx,ny,nz,igx,igy,igz,vfield
+c$$$     .                    ,diff,alteom,vol) result (vlap)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates dvol*div(diff grad(vector)) at cell centers in general
+c$$$c     non-orthog.  coordinates. Vector is assumed in contravariant
+c$$$c     representation.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+c$$$
+c$$$      real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
+c$$$     .                 ,diff   (0:nx+1,0:ny+1,0:nz+1)
+c$$$
+c$$$      real(8)    :: vlap(3)
+c$$$
+c$$$      logical,optional,intent(IN) :: vol,alteom
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer    :: icomp
+c$$$
+c$$$      logical    :: vol_wgt,alt_eom
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      vol_wgt = .false.
+c$$$      if (PRESENT(vol)) vol_wgt = vol
+c$$$
+c$$$      alt_eom = .false.
+c$$$      if (PRESENT(alteom)) alt_eom = alteom
+c$$$
+c$$$      if (no_map) then
+c$$$        do icomp=1,3
+c$$$          vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .                           ,vfield(:,:,:,icomp),diff
+c$$$     .                           ,vol=vol_wgt)
+c$$$        enddo
+c$$$      else
+c$$$        vec  => vfield !Pointer passed to nabtensor routines
+c$$$        coef => diff   !Pointer passed to nabtensor routines
+c$$$        vlap = div_tensor(i,j,k,nx,ny,nz,igx,igy,igz,alteom
+c$$$     .                   ,nabtensor_x,nabtensor_y,nabtensor_z
+c$$$     $                   ,vol=vol_wgt)
+c$$$        nullify(coef)
+c$$$      endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function veclap_diff
+c$$$
+c$$$c     veclap_ndiff
+c$$$c     ###############################################################
+c$$$      function veclap_ndiff(i,j,k,nx,ny,nz,igx,igy,igz,vfield
+c$$$     .                     ,alteom,vol) result (vlap)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates dvol*lap(vector) at cell centers in contravariant
+c$$$c     representation. Vector vfield is contravariant.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+c$$$
+c$$$      real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
+c$$$
+c$$$      real(8)    :: vlap(3)
+c$$$
+c$$$      logical,optional,intent(IN) :: vol,alteom
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer    :: icomp
+c$$$
+c$$$      logical    :: vol_wgt,alt_eom
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      vol_wgt = .false.
+c$$$      if (PRESENT(vol)) vol_wgt = vol
+c$$$
+c$$$      alt_eom = .false.
+c$$$      if (PRESENT(alteom)) alt_eom = alteom
+c$$$
+c$$$      if (no_map) then
+c$$$        do icomp=1,3
+c$$$          vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .                           ,vfield(:,:,:,icomp)
+c$$$     .                           ,vol=vol_wgt)
+c$$$        enddo
+c$$$      else
+c$$$        vec  => vfield !Pointer passed to nabtensor routines
+c$$$        nullify(coef)
+c$$$        vlap = div_tensor(i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+c$$$     .                   ,nabtensor_x,nabtensor_y,nabtensor_z
+c$$$     .                   ,vol=vol_wgt)
+c$$$      endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function veclap_ndiff
 
 c     nabtensor_x
 c     #############################################################
@@ -5179,9 +5059,98 @@ c     End program
 
       end subroutine nabtensor_z
 
-c     veclap_cov_ndiff_mesh
+c$$$c     veclap_cov_ndiff_mesh
+c$$$c     ###############################################################
+c$$$      function veclap_cov_ndiff_mesh(igrid,cov) result(cov_out)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c$$$c     boundary-ready (can extrapolate). The vector A is both covariant
+c$$$c     and contravariant, and returns the covariant component "comp".
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      integer :: igrid
+c$$$
+c$$$      real(8) :: cov(0:,0:,0:,:)
+c$$$     .          ,cov_out(0:size(cov,1)-1
+c$$$     $                  ,0:size(cov,2)-1
+c$$$     $                  ,0:size(cov,3)-1,3)
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer :: nx,ny,nz,i,j,k
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      nx = grid_params%nxv(igrid)
+c$$$      ny = grid_params%nyv(igrid)
+c$$$      nz = grid_params%nzv(igrid)
+c$$$
+c$$$      do k=1,nz
+c$$$        do j=1,ny
+c$$$          do i=1,nx
+c$$$            cov_out(i,j,k,:)=veclap_cov_ndiff(i,j,k,nx,ny,nz
+c$$$     $                                       ,igrid,igrid,igrid,cov)
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function veclap_cov_ndiff_mesh
+c$$$
+c$$$c     veclap_cov_diff_mesh
+c$$$c     ###############################################################
+c$$$      function veclap_cov_diff_mesh(igrid,diff,cov) result(cov_out)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c$$$c     boundary-ready (can extrapolate). The vector A is both covariant
+c$$$c     and contravariant, and returns the covariant component "comp".
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      integer :: igrid
+c$$$
+c$$$      real(8) :: cov(0:,0:,0:,:)
+c$$$     .          ,diff(0:,0:,0:)
+c$$$     .          ,cov_out(0:size(cov,1)-1
+c$$$     $                  ,0:size(cov,2)-1
+c$$$     $                  ,0:size(cov,3)-1,3)
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer :: nx,ny,nz,i,j,k
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      nx = grid_params%nxv(igrid)
+c$$$      ny = grid_params%nyv(igrid)
+c$$$      nz = grid_params%nzv(igrid)
+c$$$
+c$$$      do k=1,nz
+c$$$        do j=1,ny
+c$$$          do i=1,nx
+c$$$            cov_out(i,j,k,:)=veclap_cov_diff(i,j,k,nx,ny,nz
+c$$$     $                                      ,igrid,igrid,igrid,cov,diff)
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function veclap_cov_diff_mesh
+
+c     veclap_cov_mesh
 c     ###############################################################
-      function veclap_cov_ndiff_mesh(igrid,cov) result(cov_out)
+      function veclap_cov_mesh(igrid,cov,diff) result(cov_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -5200,50 +5169,7 @@ c     Call variables
      $                  ,0:size(cov,2)-1
      $                  ,0:size(cov,3)-1,3)
 
-c     Local variables
-
-      integer :: nx,ny,nz,i,j,k
-
-c     Begin program
-
-      nx = grid_params%nxv(igrid)
-      ny = grid_params%nyv(igrid)
-      nz = grid_params%nzv(igrid)
-
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            cov_out(i,j,k,:)=veclap_cov_ndiff(i,j,k,nx,ny,nz
-     $                                       ,igrid,igrid,igrid,cov)
-          enddo
-        enddo
-      enddo
-
-c     End program
-
-      end function veclap_cov_ndiff_mesh
-
-c     veclap_cov_diff_mesh
-c     ###############################################################
-      function veclap_cov_diff_mesh(igrid,diff,cov) result(cov_out)
-
-c     ---------------------------------------------------------------
-c     Calculates curl(A) in general non-orthogonal coordinates. Is
-c     boundary-ready (can extrapolate). The vector A is both covariant
-c     and contravariant, and returns the covariant component "comp".
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      integer :: igrid
-
-      real(8) :: cov(0:,0:,0:,:)
-     .          ,diff(0:,0:,0:)
-     .          ,cov_out(0:size(cov,1)-1
-     $                  ,0:size(cov,2)-1
-     $                  ,0:size(cov,3)-1,3)
+      real(8),optional :: diff(0:,0:,0:)
 
 c     Local variables
 
@@ -5258,20 +5184,20 @@ c     Begin program
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            cov_out(i,j,k,:)=veclap_cov_diff(i,j,k,nx,ny,nz
-     $                                      ,igrid,igrid,igrid,cov,diff)
+            cov_out(i,j,k,:)=veclap_cov(i,j,k,nx,ny,nz
+     $                                 ,igrid,igrid,igrid,cov,diff=diff)
           enddo
         enddo
       enddo
 
 c     End program
 
-      end function veclap_cov_diff_mesh
+      end function veclap_cov_mesh
 
-c     veclap_cov_ndiff
+c     veclap_cov
 c     ###############################################################
-      function veclap_cov_ndiff(i,j,k,nx,ny,nz,igx,igy,igz,vfield
-     .                         ,vol) result (vlap)
+      function veclap_cov(i,j,k,nx,ny,nz,igx,igy,igz,vfield,diff,vol)
+     $         result (vlap)
 
 c     ---------------------------------------------------------------
 c     Calculates covariant components of dvol*lap(vfield) at cell
@@ -5286,6 +5212,7 @@ c     Call variables
       integer    :: i,j,k,nx,ny,nz,igx,igy,igz
 
       real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
+      real(8),target,optional :: diff(0:nx+1,0:ny+1,0:nz+1)
 
       real(8)    :: vlap(3)
 
@@ -5304,74 +5231,127 @@ c     Begin program
 
       if (no_map) then
         do icomp=1,3
-          vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
-     .                         ,vfield(:,:,:,icomp),vol=vol_wgt)
-        enddo
-      else
-        vec => vfield !Pointer passed to nabtensor routines
-        nullify(coef)
-        vlap = div_tensor_cov(i,j,k,nx,ny,nz,igx,igy,igz
-     .             ,nabtensor_cov_x,nabtensor_cov_y,nabtensor_cov_z
-     $             ,vol=vol_wgt)
-      endif
-
-c     End program
-
-      end function veclap_cov_ndiff
-
-c     veclap_cov_diff
-c     ###############################################################
-      function veclap_cov_diff(i,j,k,nx,ny,nz,igx,igy,igz,vfield,diff
-     .                         ,vol) result (vlap)
-
-c     ---------------------------------------------------------------
-c     Calculates covariant components of dvol*lap(vfield) at cell
-c     centers in general non-orthogonal coordinates. Vector vfield
-c     in covariant representation.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-
-      real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
-     .                 ,diff   (0:nx+1,0:ny+1,0:nz+1)
-
-      real(8)    :: vlap(3)
-
-      logical,optional,intent(IN) :: vol
-
-c     Local variables
-
-      integer    :: icomp
-
-      logical    :: vol_wgt
-
-c     Begin program
-
-      vol_wgt = .false.
-      if (PRESENT(vol)) vol_wgt = vol
-
-      if (no_map) then
-        do icomp=1,3
-          vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
-     .                         ,vfield(:,:,:,icomp),diff
-     .                         ,vol=vol_wgt)
+          vlap(icomp)=lap(i,j,k,nx,ny,nz,igx,igy,igz
+     .                   ,vfield(:,:,:,icomp),dff=diff
+     .                   ,vol=vol_wgt)
         enddo
       else
         vec  => vfield !Pointer passed to nabtensor routines
-        coef => diff   !Pointer passed to nabtensor routines
+        if (PRESENT(diff)) coef => diff   !Pointer passed to nabtensor routines
         vlap = div_tensor_cov(i,j,k,nx,ny,nz,igx,igy,igz
      .             ,nabtensor_cov_x,nabtensor_cov_y,nabtensor_cov_z
      $             ,vol=vol_wgt)
-        nullify(coef)
+        if (PRESENT(diff)) nullify(coef)
       endif
 
 c     End program
 
-      end function veclap_cov_diff
+      end function veclap_cov
+
+c$$$c     veclap_cov_ndiff
+c$$$c     ###############################################################
+c$$$      function veclap_cov_ndiff(i,j,k,nx,ny,nz,igx,igy,igz,vfield
+c$$$     .                         ,vol) result (vlap)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates covariant components of dvol*lap(vfield) at cell
+c$$$c     centers in general non-orthogonal coordinates. Vector vfield
+c$$$c     in covariant representation.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+c$$$
+c$$$      real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
+c$$$
+c$$$      real(8)    :: vlap(3)
+c$$$
+c$$$      logical,optional,intent(IN) :: vol
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer    :: icomp
+c$$$
+c$$$      logical    :: vol_wgt
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      vol_wgt = .false.
+c$$$      if (PRESENT(vol)) vol_wgt = vol
+c$$$
+c$$$      if (no_map) then
+c$$$        do icomp=1,3
+c$$$          vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .                         ,vfield(:,:,:,icomp),vol=vol_wgt)
+c$$$        enddo
+c$$$      else
+c$$$        vec => vfield !Pointer passed to nabtensor routines
+c$$$        nullify(coef)
+c$$$        vlap = div_tensor_cov(i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .             ,nabtensor_cov_x,nabtensor_cov_y,nabtensor_cov_z
+c$$$     $             ,vol=vol_wgt)
+c$$$      endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function veclap_cov_ndiff
+
+c$$$c     veclap_cov_diff
+c$$$c     ###############################################################
+c$$$      function veclap_cov_diff(i,j,k,nx,ny,nz,igx,igy,igz,vfield,diff
+c$$$     .                         ,vol) result (vlap)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates covariant components of dvol*lap(vfield) at cell
+c$$$c     centers in general non-orthogonal coordinates. Vector vfield
+c$$$c     in covariant representation.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+c$$$
+c$$$      real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
+c$$$     .                 ,diff   (0:nx+1,0:ny+1,0:nz+1)
+c$$$
+c$$$      real(8)    :: vlap(3)
+c$$$
+c$$$      logical,optional,intent(IN) :: vol
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer    :: icomp
+c$$$
+c$$$      logical    :: vol_wgt
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      vol_wgt = .false.
+c$$$      if (PRESENT(vol)) vol_wgt = vol
+c$$$
+c$$$      if (no_map) then
+c$$$        do icomp=1,3
+c$$$          vlap(icomp)=laplacian(i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .                         ,vfield(:,:,:,icomp),diff
+c$$$     .                         ,vol=vol_wgt)
+c$$$        enddo
+c$$$      else
+c$$$        vec  => vfield !Pointer passed to nabtensor routines
+c$$$        coef => diff   !Pointer passed to nabtensor routines
+c$$$        vlap = div_tensor_cov(i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .             ,nabtensor_cov_x,nabtensor_cov_y,nabtensor_cov_z
+c$$$     $             ,vol=vol_wgt)
+c$$$        nullify(coef)
+c$$$      endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function veclap_cov_diff
 
 c     nabtensor_cov_x
 c     #############################################################
@@ -5846,7 +5826,7 @@ c     End program
 
 c     curlcurl_mesh
 c     ###############################################################
-      function curlcurl_mesh(igrid,cnv) result(cnv_out)
+      function curlcurl_mesh(igrid,cnv,diff) result(cnv_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -5865,6 +5845,10 @@ c     Call variables
      $                  ,0:size(cnv,2)-1
      $                  ,0:size(cnv,3)-1,3)
 
+      real(8), optional :: diff(0:size(cnv,1)-1
+     $                         ,0:size(cnv,2)-1
+     $                         ,0:size(cnv,3)-1)
+
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
@@ -5879,7 +5863,8 @@ c     Begin program
         do j=1,ny
           do i=1,nx
             cnv_out(i,j,k,:)=curlcurl_ijk(i,j,k,nx,ny,nz
-     $                                   ,igrid,igrid,igrid,cnv)
+     $                                   ,igrid,igrid,igrid,cnv
+     $                                   ,diff=diff)
           enddo
         enddo
       enddo
@@ -5890,7 +5875,7 @@ c     End program
 
 c     curlcurl_ijk
 c     ###############################################################
-      function curlcurl_ijk(i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol)
+      function curlcurl_ijk(i,j,k,nx,ny,nz,igx,igy,igz,acnv,diff,vol)
      $         result(cnv)
 
 c     ---------------------------------------------------------------
@@ -5907,6 +5892,7 @@ c     Call variables
       real(8) :: cnv(3)
 
       real(8),target :: acnv(0:nx+1,0:ny+1,0:nz+1,3)
+      real(8),target,optional :: diff(0:nx+1,0:ny+1,0:nz+1)
 
       logical,optional,intent(IN) :: vol
 
@@ -5914,17 +5900,20 @@ c     Local variables
 
 c     Begin program
 
-      cnv=-veclaplacian(i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol)
-     .    +gradDiv     (i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol
-     .                 ,cnv=.true.)
+c$$$      cnv=-veclap (i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol)
+c$$$     .    +gradDiv(i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol,cnv=.true.)
 
-cc      vec1 => acnv
-cc
-cc      cnv = div_tensor(i,j,k,nx,ny,nz,igx,igy,igz,alt__eom()
-cc     .                ,curlcurl_x,curlcurl_y,curlcurl_z
-cc     .                ,vol=vol)
-cc
-cc      nullify(vec1)
+      vec1 => acnv
+      if (PRESENT(diff)) then
+         coef => diff
+      endif
+
+      cnv = div_tensor(i,j,k,nx,ny,nz,igx,igy,igz,alt__eom()
+     .                ,curlcurl_x,curlcurl_y,curlcurl_z
+     .                ,vol=vol)
+
+      if (associated(coef)) nullify(coef)
+      nullify(vec1)
 
 c     End program
 
@@ -5989,6 +5978,10 @@ c     Begin program
         endif
 
         nabla_v_cnv = nabla_v_cnv - transpose(nabla_v_cnv)
+
+        if (associated(coef)) nabla_v_cnv = nabla_v_cnv
+     $                                     *0.5*(coef(ip,j,k)
+     $                                          +coef(i ,j,k))
 
         t11 = -nabla_v_cnv(1,1)
         t12 = -nabla_v_cnv(1,2)
@@ -6067,6 +6060,10 @@ c       Diffusive part
 
         nabla_v_cnv = nabla_v_cnv - transpose(nabla_v_cnv)
 
+        if (associated(coef)) nabla_v_cnv = nabla_v_cnv
+     $                                     *0.5*(coef(i,jp,k)
+     $                                          +coef(i,j ,k))
+
         t21 = -nabla_v_cnv(2,1)
         t22 = -nabla_v_cnv(2,2)
         t23 = -nabla_v_cnv(2,3)
@@ -6143,6 +6140,10 @@ c       Diffusive part
         endif
 
         nabla_v_cnv = nabla_v_cnv - transpose(nabla_v_cnv)
+
+        if (associated(coef)) nabla_v_cnv = nabla_v_cnv
+     $                                     *0.5*(coef(i,j,kp)
+     $                                          +coef(i,j,k ))
 
         t31 = -nabla_v_cnv(3,1)
         t32 = -nabla_v_cnv(3,2)
