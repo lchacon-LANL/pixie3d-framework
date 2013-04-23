@@ -685,7 +685,9 @@ endif
 ifeq ($(findstring jf,$(HOST)),jf)
   FC = ifort
 
-  BOPT = O
+#  BOPT = O
+
+  CPPFLAGS += $(PREPROC)RFX
 
   ifdef BOPT
     PETSC_ARCH ?= juropa-basic
@@ -705,4 +707,42 @@ ifeq ($(findstring jf,$(HOST)),jf)
     ADIOS = f
     LIBS += -llapack -lblas
   endif
+endif
+
+####################
+# helios #
+####################
+
+ifeq ($(findstring helios,$(HOST)),helios)
+  FC = ifort
+
+  CPPFLAGS += $(PREPROC)RFX
+
+  ifdef BOPT
+    PETSC_DIR =/csc/project/ENEATEST/PIXIE3D/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_intelmpi
+    else
+      PETSC_ARCH = linux64_intelmpi_g
+    endif
+
+    HDF5 = f
+    #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+    #HDF5_HOME = $(CRAY_HDF5_DIR)
+    #HDF5_LIBS = $(HDF5_FLIB)
+    #HDF5_MOD  = $(HDF5_HOME)/lib
+
+    ADIOS = t
+    ADIOS_HOME = /csc/softs/nccs/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml -llustreapi
+    ADIOS_VER  = 1.31
+  else
+    HDF5 = f
+    ADIOS = f
+#    LIBS += -llapack -lblas
+    LIBS += -mkl
+  endif
+
+  MACHINE = helios
 endif

@@ -333,77 +333,77 @@ c     End program
 
       end function lap_vrtx
 
-c     curlcurl_vrtx_ndiff
+c$$$c     curlcurl_vrtx_ndiff
+c$$$c     ###############################################################
+c$$$      function curlcurl_vrtx_ndiff(i,j,k,nx,ny,nz,igx,igy,igz,aa,vol)
+c$$$     .         result(cnv)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates curl(curl(A)) in general non-orthogonal
+c$$$c     coordinates, preserving the SPD property. The vector A is
+c$$$c     covariant, and returns contravariant components.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+c$$$
+c$$$      real(8)    :: aa(0:nx+1,0:ny+1,0:nz+1,3),cnv(3)
+c$$$
+c$$$      logical,optional,intent(IN) :: vol
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer    :: il,jl,kl,ii,jj,kk
+c$$$
+c$$$      real(8)    :: crl(2,2,2,3),cov(3)
+c$$$
+c$$$      logical    :: vol_wgt
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      vol_wgt = .false.
+c$$$      if (PRESENT(vol)) vol_wgt = vol
+c$$$
+c$$$c     Curl at vertices
+c$$$
+c$$$      do kl=1,2
+c$$$        do jl=1,2
+c$$$          do il=1,2
+c$$$            ii = i+il-2
+c$$$            jj = j+jl-2
+c$$$            kk = k+kl-2
+c$$$            cnv = curl_vrtx(ii,jj,kk,igx,igy,igz
+c$$$     .                     ,aa(ii:ii+1,jj:jj+1,kk:kk+1,:)
+c$$$     .                     ,.true.)
+c$$$
+c$$$            call transformFromCurvToCurv(ii,jj,kk,igx,igy,igz
+c$$$     .                                  ,cov(1),cov(2),cov(3)
+c$$$     .                                  ,cnv(1),cnv(2),cnv(3)
+c$$$     .                                  ,.false.
+c$$$     .                                  ,hex=1,hey=1,hez=1)
+c$$$
+c$$$            crl(il,jl,kl,:) = cov
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$c     Curl at cell center
+c$$$
+c$$$      cnv = curl_vrtx(i,j,k,igx,igy,igz,crl,.false.)
+c$$$
+c$$$      if (vol_wgt) cnv=cnv*gmetric%grid(igx)%dvol(i,j,k)
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function curlcurl_vrtx_ndiff
+
+c     curlcurl_vrtx
 c     ###############################################################
-      function curlcurl_vrtx_ndiff(i,j,k,nx,ny,nz,igx,igy,igz,aa,vol)
-     .         result(cnv)
-
-c     ---------------------------------------------------------------
-c     Calculates curl(curl(A)) in general non-orthogonal
-c     coordinates, preserving the SPD property. The vector A is
-c     covariant, and returns contravariant components.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-
-      real(8)    :: aa(0:nx+1,0:ny+1,0:nz+1,3),cnv(3)
-
-      logical,optional,intent(IN) :: vol
-
-c     Local variables
-
-      integer    :: il,jl,kl,ii,jj,kk
-
-      real(8)    :: crl(2,2,2,3),cov(3)
-
-      logical    :: vol_wgt
-
-c     Begin program
-
-      vol_wgt = .false.
-      if (PRESENT(vol)) vol_wgt = vol
-
-c     Curl at vertices
-
-      do kl=1,2
-        do jl=1,2
-          do il=1,2
-            ii = i+il-2
-            jj = j+jl-2
-            kk = k+kl-2
-            cnv = curl_vrtx(ii,jj,kk,igx,igy,igz
-     .                     ,aa(ii:ii+1,jj:jj+1,kk:kk+1,:)
-     .                     ,.true.)
-
-            call transformFromCurvToCurv(ii,jj,kk,igx,igy,igz
-     .                                  ,cov(1),cov(2),cov(3)
-     .                                  ,cnv(1),cnv(2),cnv(3)
-     .                                  ,.false.
-     .                                  ,hex=1,hey=1,hez=1)
-
-            crl(il,jl,kl,:) = cov
-          enddo
-        enddo
-      enddo
-
-c     Curl at cell center
-
-      cnv = curl_vrtx(i,j,k,igx,igy,igz,crl,.false.)
-
-      if (vol_wgt) cnv=cnv*gmetric%grid(igx)%dvol(i,j,k)
-
-c     End program
-
-      end function curlcurl_vrtx_ndiff
-
-c     curlcurl_vrtx_diff
-c     ###############################################################
-      function curlcurl_vrtx_diff(i,j,k,nx,ny,nz,igx,igy,igz,aa,diff
-     .                           ,vol) result(cnv)
+      function curlcurl_vrtx(i,j,k,nx,ny,nz,igx,igy,igz,aa,diff,vol)
+     $         result(cnv)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(D*curl(A)) in general non-orthogonal
@@ -415,27 +415,34 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
 
-      real(8)    :: aa(0:nx+1,0:ny+1,0:nz+1,3),cnv(3)
-     .             ,diff(0:nx+1,0:ny+1,0:nz+1)
+      real(8) :: aa(0:nx+1,0:ny+1,0:nz+1,3),cnv(3)
+      real(8),optional,target :: diff(0:nx+1,0:ny+1,0:nz+1)
 
       logical,optional,intent(IN) :: vol
 
 c     Local variables
 
-      integer    :: il,jl,kl,ii,jj,kk
+      integer :: il,jl,kl,ii,jj,kk
 
-      real(8)    :: crl(2,2,2,3),cov(3),dff
+      real(8) :: crl(2,2,2,3),cov(3),dff
 
-      logical    :: vol_wgt
+      logical :: vol_wgt,have_coef
+
+      real(8),pointer,dimension(:,:,:) :: coef => null()
 
 c     Begin program
 
       vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
+      have_coef = PRESENT(diff)
+      if (have_coef) coef => diff
+
 c     Curl at vertices
+
+      dff = 1d0
 
       do kl=1,2
         do jl=1,2
@@ -453,12 +460,14 @@ c     Curl at vertices
      .                                  ,.false.
      .                                  ,hex=1,hey=1,hez=1)
 
-            dff = 0.125*sum(diff(ii:ii+1,jj:jj+1,kk:kk+1))
+            if (have_coef) dff=0.125*sum(coef(ii:ii+1,jj:jj+1,kk:kk+1))
 
             crl(il,jl,kl,:) = cov*dff
           enddo
         enddo
       enddo
+
+      nullify(coef)
 
 c     Curl at cell center
 
@@ -468,7 +477,7 @@ c     Curl at cell center
 
 c     End program
 
-      end function curlcurl_vrtx_diff
+      end function curlcurl_vrtx
 
       end module grid_vertex_ops
 

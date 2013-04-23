@@ -100,7 +100,8 @@ endif
 
 # Flags for Portland Group f90
 ifeq ($(FC),pgf95)
-  OPTIMIZATION = -fastsse -Mipa=fast
+  OPTIMIZATION = -fastsse
+#  OPTIMIZATION = -fastsse -Mipa=fast
 #  DEBUG        = -g -Mbounds -Mchkptr -Ktrap=fp
   DEBUG        = -g -Mbounds -Mchkptr -Ktrap=divz -traceback
   PROFILE      = -pg
