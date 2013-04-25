@@ -1252,8 +1252,6 @@ c     Call variables
 
 c     Local variables
 
-      real(8) :: bx1,by1,bz1,bx2,by2,bz2
-
 c     Begin program
 
       if (car) then
