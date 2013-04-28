@@ -646,7 +646,7 @@ c     Local variables
 
 	integer :: iterror,itime,np
         real(8) :: temp_s,xh,yh,zh,sh
-        logical :: chk_ss,integral
+        logical :: chk_ss,integral,non_fatal_err
 
 c     Begin program
 
@@ -769,15 +769,23 @@ c     Orbit integral
           !Find new LOGICAL positions, new time, new arc length
           call orbit_step(x,y,z,iterror,forward=fwd,lsode_f=lsode_f)
 
+          exit_loop = orbit_error(iterror)
+          non_fatal_err = (iterror<=0)
+
           xhist(1) = x
           yhist(1) = y
           zhist(1) = z
           thist(1) = time
           shist(1) = ss
 
+cc          write (*,*) 'xhist',xhist
+cc          write (*,*)
+cc          write (*,*) yhist
+cc          write (*,*) zhist
+cc          write (*,*) shist
           !Check for orbit end and interpolate quantities
           if (smax /= 0d0) then
-            exit_loop = (abs(ss) >= smax)
+            exit_loop = exit_loop.or.(abs(ss) >= smax)
 
             if (abs(ss) > smax) then !4th order interpolation of orbit end points
               ss = sign(1d0,ss)*smax
@@ -788,7 +796,7 @@ cc              z = zold + (smax-abs(sold))/abs(ss-sold)*(z-zold)
 cc              ss = sign(1d0,ss)*smax
             endif
           elseif (tmax /= 0d0) then
-            exit_loop = (abs(time) >= tmax)
+            exit_loop = exit_loop.or.(abs(time) >= tmax)
 
             if (abs(time) > tmax) then !4th order interpolation of orbit end points
               time = sign(1d0,time)*tmax
@@ -801,13 +809,13 @@ cc              time = sign(1d0,time)*tmax
           endif
 
           !Line-orbit integration
-          if (integral.and.iterror <= 0) then
-            exit_loop = (line_int(fwd,xold,x,yold,y,zold,z,sold,ss))
-     .                  .or.(exit_loop)
+          if (integral.and.non_fatal_err) then
+            exit_loop = exit_loop
+     .              .or.(line_int(fwd,xold,x,yold,y,zold,z,sold,ss))
           endif
 
           !Check for intersection with surface of section
-          if (iterror <= 0 .and. itime > 2 .and. chk_ss) then
+          if (non_fatal_err .and. itime > 2 .and. chk_ss) then
             if (smax /= 0d0) then
               call sschk(svold,sold,ss
      .                  ,xvold,xold,x,yvold,yold,y
@@ -826,7 +834,7 @@ cc              time = sign(1d0,time)*tmax
             call orbit_progress(time,tmax,fwd,exit_loop)
           endif
 
-          if (exit_loop .or. orbit_error(iterror)) then
+          if (exit_loop) then
             if (iiout >=0) write (*,*)
             exit
           endif
