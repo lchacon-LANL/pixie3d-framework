@@ -3430,7 +3430,7 @@ cc      end subroutine lagrangian_init_from_file
 
 c     per_orbit_init
 c     ###############################################################
-      subroutine per_orbit_init(x0,x,y0,y,z0,z)
+      subroutine per_orbit_init(x0,x,y0,y,z0,z,order)
 
 c     ---------------------------------------------------------------
 c     Initializes periodic orbit check.
@@ -3441,12 +3441,21 @@ c     ---------------------------------------------------------------
 c     Call variables
 
         real(8) :: x0,x,y0,y,z0,z
+        integer, optional :: order
 
 c     Local variables
+
+        integer :: iorder
 
 c     Begin program
 
         orb_init = .false.
+
+        if (PRESENT(order)) then
+           iorder = order
+        else
+           iorder = 4
+        endif
 
 c       Determine initial orbit updates
 
@@ -3467,7 +3476,8 @@ c       Select periodic direction based on largest displacement from surface
 
 c       Set logic to compute lengths using surface of sections with high-order interpolation
 
-        call ss_init(4,x_per,x0,y_per,y0,z_per,z0)
+cc        call ss_init(4,x_per,x0,y_per,y0,z_per,z0)
+        call ss_init(iorder,x_per,x0,y_per,y0,z_per,z0)
 
       end subroutine per_orbit_init
 
