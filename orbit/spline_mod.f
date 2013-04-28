@@ -14,9 +14,9 @@ c #####################################################################
         integer :: istep=0
 
         !Error codes
-        integer, parameter :: ORB_OK=0,ORB_ADJ_DT=-1,ORB_CAR_ST=-2
-     .                       ,ORB_SML_DT=1,ORB_OUT_DOM=2,ORB_NEG_J=4
-     .                       ,ORB_SP_ERR=6,ORB_MAP_INV=5
+        integer, parameter :: ORB_OK=0,ORB_ADJ_DT=-1,ORB_CAR_ST=-2  !Non fatal
+     .                       ,ORB_SML_DT=1,ORB_OUT_DOM=2,ORB_NEG_J=4!Fatal
+     .                       ,ORB_MAP_INV=5,ORB_SP_ERR=6            !Fatal
      
         !OPENMP
         integer :: thr_tot=1,thr_num=0
