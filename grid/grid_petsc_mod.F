@@ -93,6 +93,53 @@ c     Begin program
 
       end function bcSP
 
+c     bcPER
+c     #################################################################
+      function bcPER(ibc,bcnd) result(per_bc)
+
+c     -----------------------------------------------------------------
+c     Detects whether boundary is of SP type. Boundary is identified
+c     by ibc, with the following convention:
+c        * ibc = 1, 2 (xmin,xmax)
+c        * ibc = 3, 4 (ymin,ymax)
+c        * ibc = 5, 6 (zmin,zmax)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer,optional :: ibc
+        logical :: per_bc
+        integer :: iibc
+        integer,optional :: bcnd(6)
+
+c     Local variables
+
+        integer :: bc(6)
+
+c     Begin program
+
+        if (PRESENT(ibc)) then
+          iibc = ibc
+        else
+          iibc = 1
+        endif
+
+        if (PRESENT(bcnd)) then
+          bc = bcnd
+        else
+          bc = bcond
+        endif
+
+        if (iibc < 1 .or. iibc > 6) then
+          per_bc = .false.
+        else
+          per_bc = (abs(bc(iibc)) == PER)
+        endif
+
+      end function bcPER
+
       end module bc_def
 
 c module grid_petsc
