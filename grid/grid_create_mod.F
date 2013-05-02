@@ -49,6 +49,8 @@ c     Initialize global quantities (from gdef, if existing) and MPI
         else
           call initFortranMPI(MPI_COMM_WORLD,nx,ny,nz)
           mpi_comm = MPI_COMM_WORLD
+#else
+          npx = 1 ; npy = 1 ; npz = 1
 #endif
         endif
 
