@@ -164,13 +164,9 @@ c--------------------------------------------------------------------
 
       implicit none
 
-c Call variables
-
-cc      type(var_array),pointer :: varrayn,varraynp
-
 c Local variables
 
-      integer ::  ieq,nx,ny,nz,igrid
+      integer :: ieq,nx,ny,nz,igrid
 
 c Interfaces
 
@@ -226,7 +222,6 @@ c Perturb equilibrium
       if (.not.relax_init_grid) call perturbEquilibrium(u_np)
 
       time     = 0d0
-cc      itime    = 1   !Needed for BC logic
       inewtime = 1
 
 c Impose BC (to initialize all auxiliary variables)
@@ -330,6 +325,9 @@ c     Local variables
 
 c     Begin program
 
+      tnm = 0d0
+      tn  = 0d0
+
 c     Open restart files and check mesh sizes
 
       call openBinFile(urecord,recordfile,status='old')
@@ -366,6 +364,8 @@ c     Read equilibrium
 
 c     Read files
 
+      tnm = tn
+      tn = time
       ierr = readRecordFile(urecord,itime,time,dt,u_n)
 
       if (ierr /= 0) then
@@ -375,6 +375,8 @@ c     Read files
       call equateDerivedType(u_np,u_n)
 
       do
+        tnm = tn
+        tn = time
         ierr = readRecordFile(urecord,itime,time,dt,vmed)
 
         if (ierr /= 0) then
@@ -386,6 +388,8 @@ c     Read files
       enddo
 
       if (my_rank == 0) write (*,*) ' Done!'
+
+      dtold = tn - tnm
 
 c     End
 

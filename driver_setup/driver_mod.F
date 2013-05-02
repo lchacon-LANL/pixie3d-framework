@@ -102,8 +102,8 @@ c ######################################################################
         integer    :: numtime,ndstep,nrstep,inewtime,nrst
 
         real(8)    :: tmrst,dt,dtbase,cnfactor,alpha,gammat,dt_n
-        real(8)    :: tmax,dstep,rstep,time,dfreq,dtexp,damp,dt0,dtold
-     .               ,eig_dt
+        real(8)    :: tmax,dstep,rstep,time,tn,tnm
+     $               ,dfreq,dtexp,damp,dt0,dtold,eig_dt
 
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
      .                                     ,bdfp,bdfn,bdfnm
@@ -507,8 +507,13 @@ c     Local variables
 
 c     Begin program
 
-      dtold = dt
-      dt_n  = dt
+      if (tn == tnm) then
+         dtold = dt
+         dt_n  = dt
+      else
+         dtold = tn-tnm
+         dt_n  = tn-tnm
+      endif
 
       if (PRESENT(dt_exp)) then
         dt = dt_exp
@@ -613,13 +618,17 @@ c     #######################################################################
         cnfactor = 0d0
 
         bdf2 = (itm > 1 .and. (.not.timecorr) )
-     .    .or. (itm > 2 .and.       timecorr  )
+     .    .or. (itm > 2 .and.       timecorr  .and. ierr == 0)
 
         if (bdf2) then
           !All these are affected by factor 1/dt (done in evaluateNLF)
           cnp = (2*dt+dtold)/(dt+dtold)
           cn  = -(dt+dtold)/dtold
           cnm = -cnp-cn    !Sum should be zero identically
+        else
+          cnp = 1d0
+          cn  =-1d0
+          cnm = 0d0
         endif
 
       endif

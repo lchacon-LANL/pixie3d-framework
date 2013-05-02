@@ -201,7 +201,11 @@ c     Time update
         call PetscLogStagePush(prof_stage(2),perr)
 #endif
 
-        if (.not.relax_init_grid) time = time + dt
+        if (.not.relax_init_grid) then
+          tnm = tn
+          tn  = time
+          time = tn + dt
+        endif
 
         if (eigen) then
           !Eigenvalue solver
@@ -225,7 +229,9 @@ c     Check for error in time stepping
           call equateDerivedType(u_n ,u_nm)
 
           itime = itime - 1
-          time  = time - dt
+
+          time  = tn
+          tn    = tnm
 
           if (timecorr) then
             cycle
