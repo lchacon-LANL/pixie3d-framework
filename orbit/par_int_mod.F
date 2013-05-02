@@ -2590,7 +2590,7 @@ c     Local variables
 c     Begin program
 
       if (.not.init_lag) then
-        call pstop('lag_update'
+        call pstop('lag_update_bdf2'
      .            ,'Lagrangian integrator uninitialized')
       endif
 
@@ -2758,7 +2758,7 @@ c     Local variables
 c     Begin program
 
       if (.not.init_lag) then
-        call pstop('lag_update'
+        call pstop('lag_update_theta'
      .            ,'Lagrangian integrator uninitialized')
       endif
 
@@ -2980,7 +2980,7 @@ c     Free workspace
 c     lag_init
 c     ##############################################################
       subroutine lag_init(igr,nx,ny,nz,bb,alp,iout,G_tol,s_order
-     .                   ,B_wgt,three_d,psi,chi,poinc_file)
+     .                   ,B_wgt,force_three_d,psi,chi,poinc_file)
 
       implicit none
 
@@ -2995,7 +2995,7 @@ c     Call variables
       real(8) :: G_tol,alp
       real(8),INTENT(IN) :: bb(0:nx+1,0:ny+1,0:nz+1,3)
 
-      logical :: B_wgt,three_d
+      logical :: B_wgt,force_three_d
 
       real(8),INTENT(IN),optional :: psi(0:nx+1,0:ny+1,0:nz+1)
      .                              ,chi(0:nx+1,0:ny+1,0:nz+1)
@@ -3014,7 +3014,7 @@ c     Begin program
       nzg = grid_params%nzgl(igr)
 
       lag3d = (nxg > 1 .and. nyg > 1 .and. nzg > 1)
-     .       .or.(three_d)
+     .       .or.(force_three_d)
      .       .or.PRESENT(poinc_file)
 
       if (lag3d) then
