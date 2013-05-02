@@ -1253,7 +1253,7 @@ c     Free up orbit integral work space
 c     lag_2d_new
 c     ##############################################################
       subroutine lag_2d_new(igrid,nx,ny,nz,vec_in,vec_out,chi,iout
-     .                 ,lsode_f)
+     .                     ,lsode_f)
 
       implicit none
 
@@ -1276,6 +1276,8 @@ c     Call variables
         real(8) :: vec_in(0:,0:,0:,:),vec_out(0:,0:,0:,:)
 
         !Interface for optional LSODE function evaluation
+        optional :: lsode_f
+
         INTERFACE
           subroutine lsode_f(neq,t,y,ydot)
           integer :: neq
@@ -1483,24 +1485,24 @@ c     Computation of periodic orbit quantities (length, beta)
         endif
 
 c diag ****
-cc        if (np == 1) then
-cc          write (*,*) 'DIAG -- lag_2d_init, dumping plots'
-cc          open(unit=110,file='per-orbits-qtys.bin',form='unformatted'
-cc     .        ,status='replace')
-cc          call contour(ll(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,0,110)
-cc          call contour(log10(b0(1:nx,1:ny,1)),nx,ny,0d0,xmax,0d0,ymax,1
-cc     .                ,110)
-cc          b0 = b0*sum(bcar(:,:,:,:)**2,dim=4)
-cc          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
-cc          if (have_chi) then
-cc            b0 = chi*dt/b0*sum(bcar(:,:,:,:)**2,dim=4)
-cc          else
-cc            b0 = sum(bcar(:,:,:,:)**2,dim=4)
-cc          endif
-cc          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
-cc          close(110)
-cc          stop
-cc        endif
+c$$$        if (np == 1) then
+c$$$          write (*,*) 'DIAG -- lag_2d_init, dumping plots'
+c$$$          open(unit=110,file='per-orbits-qtys.bin',form='unformatted'
+c$$$     .        ,status='replace')
+c$$$          call contour(ll(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,0,110)
+c$$$          call contour(log10(b0(1:nx,1:ny,1)),nx,ny,0d0,xmax,0d0,ymax,1
+c$$$     .                ,110)
+c$$$          b0 = b0*sum(bcar(:,:,:,:)**2,dim=4)
+c$$$          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
+c$$$          if (have_chi) then
+c$$$            b0 = chi*dt/b0*sum(bcar(:,:,:,:)**2,dim=4)
+c$$$          else
+c$$$            b0 = sum(bcar(:,:,:,:)**2,dim=4)
+c$$$          endif
+c$$$          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
+c$$$          close(110)
+c$$$          stop
+c$$$        endif
 c diag ****
 
 c     Setup periodic integrator
@@ -2615,7 +2617,7 @@ c     Lagrangian step
       rhs = 0d0
 
 c     Find rhs of delta_T iteration
-      
+
       flds(:,:,:,1) = tn
       flds(:,:,:,2) = tnm
       flds(:,:,:,3) = cnp*tnp + cn*tn + cnm*tnm
