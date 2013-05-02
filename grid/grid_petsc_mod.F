@@ -95,36 +95,27 @@ c     Begin program
 
 c     bcPER
 c     #################################################################
-      function bcPER(ibc,bcnd) result(per_bc)
+      function bcPER(dim,bcnd) result(per_bc)
 
 c     -----------------------------------------------------------------
-c     Detects whether boundary is of SP type. Boundary is identified
-c     by ibc, with the following convention:
-c        * ibc = 1, 2 (xmin,xmax)
-c        * ibc = 3, 4 (ymin,ymax)
-c        * ibc = 5, 6 (zmin,zmax)
+c     Detects whether dimension dim is of PER type.
 c     -----------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer,optional :: ibc
+        integer :: dim 
         logical :: per_bc
-        integer :: iibc
         integer,optional :: bcnd(6)
 
 c     Local variables
 
-        integer :: bc(6)
+        integer :: bc(6),iibc
 
 c     Begin program
 
-        if (PRESENT(ibc)) then
-          iibc = ibc
-        else
-          iibc = 1
-        endif
+        iibc = 1+2*(dim-1)
 
         if (PRESENT(bcnd)) then
           bc = bcnd
@@ -132,7 +123,7 @@ c     Begin program
           bc = bcond
         endif
 
-        if (iibc < 1 .or. iibc > 6) then
+        if (iibc < 1 .or. iibc > 3) then
           per_bc = .false.
         else
           per_bc = (abs(bc(iibc)) == PER)
