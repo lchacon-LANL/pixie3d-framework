@@ -934,6 +934,16 @@ c     Call variables
 
       logical,optional :: forward
 
+      optional :: lsode_f
+
+      !Interface for optional LSODE function evaluation
+      INTERFACE
+        subroutine lsode_f(neq,t,y,ydot)
+        integer :: neq
+        real(8) :: t,y(neq),ydot(neq)
+        end subroutine lsode_f
+      END INTERFACE
+
 c     Local Variables
 
       real(8) :: x0,y0,z0,x1,y1,z1,half,jach,dt=10.
@@ -946,16 +956,6 @@ c     Local Variables
 
       save dt
 !$OMP THREADPRIVATE(dt)
-
-      optional :: lsode_f
-
-      !Interface for optional LSODE function evaluation
-      INTERFACE
-        subroutine lsode_f(neq,t,y,ydot)
-        integer :: neq
-        real(8) :: t,y(neq),ydot(neq)
-        end subroutine lsode_f
-      END INTERFACE
 
 c     Begin program
 
