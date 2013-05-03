@@ -2823,9 +2823,9 @@ c$$$        INTERFACE veclaplacian
 c$$$          module procedure veclap!,veclap_diff,veclap_ndiff
 c$$$        end INTERFACE
 
-c$$$        INTERFACE veclap_cov
-c$$$          module procedure veclap_cov_diff,veclap_cov_ndiff
-c$$$        end INTERFACE
+        INTERFACE veclap_cov
+          module procedure veclap_cov_mesh,veclap_cov_ijk
+        end INTERFACE
 
         INTERFACE curlcurl
           module procedure curlcurl_ijk,curlcurl_mesh
@@ -4811,8 +4811,9 @@ c     Begin program
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            cov_out(i,j,k,:)=veclap_cov(i,j,k,nx,ny,nz
-     $                                 ,igrid,igrid,igrid,cov,diff=diff)
+            cov_out(i,j,k,:)=veclap_cov_ijk(i,j,k,nx,ny,nz
+     .                                     ,igrid,igrid,igrid
+     .                                     ,cov,dff=diff)
           enddo
         enddo
       enddo
@@ -4821,9 +4822,9 @@ c     End program
 
       end function veclap_cov_mesh
 
-c     veclap_cov
+c     veclap_cov_ijk
 c     ###############################################################
-      function veclap_cov(i,j,k,nx,ny,nz,igx,igy,igz,vfield,diff,vol)
+      function veclap_cov_ijk(i,j,k,nx,ny,nz,igx,igy,igz,vfield,dff,vol)
      $         result (vlap)
 
 c     ---------------------------------------------------------------
@@ -4839,7 +4840,7 @@ c     Call variables
       integer    :: i,j,k,nx,ny,nz,igx,igy,igz
 
       real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
-      real(8),target,optional :: diff(0:nx+1,0:ny+1,0:nz+1)
+      real(8),target,optional :: dff(0:nx+1,0:ny+1,0:nz+1)
 
       real(8)    :: vlap(3)
 
@@ -4859,21 +4860,21 @@ c     Begin program
       if (no_map) then
         do icomp=1,3
           vlap(icomp)=lap(i,j,k,nx,ny,nz,igx,igy,igz
-     .                   ,vfield(:,:,:,icomp),dff=diff
+     .                   ,vfield(:,:,:,icomp),dff=dff
      .                   ,vol=vol_wgt)
         enddo
       else
         vec  => vfield !Pointer passed to nabtensor routines
-        if (PRESENT(diff)) coef => diff   !Pointer passed to nabtensor routines
+        if (PRESENT(dff)) coef => dff   !Pointer passed to nabtensor routines
         vlap = div_tensor_cov(i,j,k,nx,ny,nz,igx,igy,igz
      .             ,nabtensor_cov_x,nabtensor_cov_y,nabtensor_cov_z
      $             ,vol=vol_wgt)
-        if (PRESENT(diff)) nullify(coef)
+        if (PRESENT(dff)) nullify(coef)
       endif
 
 c     End program
 
-      end function veclap_cov
+      end function veclap_cov_ijk
 
 c$$$c     veclap_cov_ndiff
 c$$$c     ###############################################################
