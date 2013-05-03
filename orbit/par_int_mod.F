@@ -1027,7 +1027,7 @@ c     Output
           if (iout == 1) then
             write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 3D: '
           elseif (iout <= 0) then
-            write (*,*) '     Lagrangian step in 3D...'
+            write (*,*) '--> Lagrangian step in 3D...'
           endif
         endif
 
@@ -1309,7 +1309,7 @@ c     Output
           if (iout == 1) then
             write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 2D: '
           elseif (iout <= 0) then
-            write (*,*) '     LSODE lagrangian step in 2D...'
+            write (*,*) '--> LSODE lagrangian step in 2D...'
           endif
         endif
 
