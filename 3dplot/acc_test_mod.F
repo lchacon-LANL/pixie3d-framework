@@ -402,15 +402,15 @@ c     Calculate difference
         asol = abs(asol-aref)
 
 c diag ****
-        write (*,*) 'DIAG -- acc_test_time'
-        debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
-        open(unit=110,file=debugfile,form='unformatted'
-     .      ,status='replace')
-
-        call contour(asol(1:nx,1:ny,1),nx,ny
-     .              ,0d0,1d0,0d0,1d0,0,110)
-
-        close(110)
+cc        write (*,*) 'DIAG -- acc_test_time'
+cc        debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
+cc        open(unit=110,file=debugfile,form='unformatted'
+cc     .      ,status='replace')
+cc
+cc        call contour(asol(1:nx,1:ny,1),nx,ny
+cc     .              ,0d0,1d0,0d0,1d0,0,110)
+cc
+cc        close(110)
 c diag ****
 
         !L1 norm
