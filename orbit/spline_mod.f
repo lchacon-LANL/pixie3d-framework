@@ -816,6 +816,7 @@ c     Begin program
 
       call db3ink(xs,nx,ys,ny,zs,nz
      .           ,bz,nx,ny,kx,ky,kz,tx,ty,tz,bcarcoef(:,:,:,3),work,flg)
+
       end subroutine splineBcar
 
 c     splineJ
