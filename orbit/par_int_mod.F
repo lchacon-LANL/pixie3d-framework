@@ -36,8 +36,8 @@ c     ---------------------------------------------------------------
         T_cutoff2 = 1d0
         S_cutoff2 = 1d0
         do i=1,10
-          T_cutoff2 = abs(log(  sqrt(pi)*t_tol*sqrt(T_cutoff2)))
-          S_cutoff2 = abs(log(2*sqrt(pi)*t_tol*     S_cutoff2 ))
+          T_cutoff2 = abs(log(    sqrt(pi)*t_tol*sqrt(T_cutoff2)))
+          S_cutoff2 = abs(log(2d0*sqrt(pi)*t_tol*     S_cutoff2 ))
         enddo
       endif
 
@@ -92,7 +92,7 @@ cc           tkernel = 1d0
 cc        elseif (ct0 == 0d0) then
 cc           tkernel = 0d0
 cc        else
-           tkernel = 0.5/sqrt(pi*ct0)*exp(-0.25*ss*ss/ct0) !ct0=chi_par*t0
+           tkernel = 0.5d0/sqrt(pi*ct0)*exp(-0.25*ss*ss/ct0) !ct0=chi_par*t0
 cc        endif
 
         ex_loop = (abs(ss) > sqrt(4*T_cutoff2*ct0))
@@ -1275,9 +1275,6 @@ c     Call variables
 
         real(8) :: vec_in(0:,0:,0:,:),vec_out(0:,0:,0:,:)
 
-        !Interface for optional LSODE function evaluation
-        optional :: lsode_f
-
         INTERFACE
           subroutine lsode_f(neq,t,y,ydot)
           integer :: neq
@@ -1285,12 +1282,14 @@ c     Call variables
           end subroutine lsode_f
         END INTERFACE
 
+        !Interface for optional LSODE function evaluation
+        optional :: lsode_f
+
 c     Local variables
 
         integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nints
 
-        real(8) :: x0,y0,z0,temp_n,gkernel_dt,temp_nm,gkernel_2dt,src_dt
-     .            ,pkernel_dt,src_2dt,pkernel_2dt
+        real(8) :: x0,y0,z0
 
         real(8),pointer,dimension(:,:,:,:) :: vg
 
@@ -1562,7 +1561,6 @@ c     Setup periodic integrator
      .                    ,spline_order=spline_order
      .                    ,solen=.false.
      .                    ,ds_is_Bds=bwgt       !Use B.ds as integration variable
-cc     .                    ,lsode_neq = 3+nints  !3 fields + number of field integrals
      .                    ,lsode_to_smax=.true. !LSODE integrates full orbit (and s is indep. var)
      .                    )
 
@@ -1922,7 +1920,6 @@ c     Orbit initialization on global array
      .                  ,rtol=orbit_rtol  !Field line integration relative tolerance
      .                  ,spline_order=spline_order
      .                  ,solen=.false.
-cc     .                  ,lsode_neq=5 + nints  !5 field eqs + number of field integrals
      .                  ,ds_is_Bds=bwgt   !Use B.ds as integration variable
      .                  )
 
