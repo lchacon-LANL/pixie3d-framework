@@ -260,7 +260,7 @@ c     Begin program
 
         !PDF diagnostic
         bin = sign(1d0,xs-x0)
-     .       *floor(0.5*abs(x0**2-xs**2)*nbins+0.5)
+     .       *floor(0.5d0*abs(x0**2-xs**2)*nbins+0.5)
         fpos(bin,icross) = fpos(bin,icross)+1
 
         !Add quasilinear diffusion diagnostic
@@ -301,7 +301,7 @@ c     Begin program
         vol   = 0d0
 
         do slice=-nbins/2,nbins/2
-          rr = (1.*slice)/(nbins+1)
+          rr = (1d0*slice)/(nbins+1)
           vol   = vol   +       fpos(slice,1:icross)
           mean  = mean  + rr   *fpos(slice,1:icross)
           sigma = sigma + rr**2*fpos(slice,1:icross)
@@ -357,7 +357,7 @@ c     ----------------------------------------------------------------------
       !ODE solver
       orbit_conf%ode_conf%tmax   = 0d0    !Maximum orbit pseudotime
       orbit_conf%ode_conf%smax   = 0d0    !Maximum orbit arc length
-      orbit_conf%ode_conf%dtime  = 0.01   !Maximum time step
+      orbit_conf%ode_conf%dtime  = 1d-2   !Maximum time step
 
       orbit_conf%ode_conf%solen  = .true. !Whether to use solenoidal ODE int.
       orbit_conf%ode_conf%order  = 1      !Order of integration in solenoidal int. (1,2)
@@ -934,8 +934,6 @@ c     Call variables
 
       logical,optional :: forward
 
-      optional :: lsode_f
-
       !Interface for optional LSODE function evaluation
       INTERFACE
         subroutine lsode_f(neq,t,y,ydot)
@@ -944,9 +942,11 @@ c     Call variables
         end subroutine lsode_f
       END INTERFACE
 
+      optional :: lsode_f
+
 c     Local Variables
 
-      real(8) :: x0,y0,z0,x1,y1,z1,half,jach,dt=10.
+      real(8) :: x0,y0,z0,x1,y1,z1,half,jach,dt=10d0
       real(8) :: vx,vy,vz,error(ode_conf%niter),atol,rtol,dtime
       real(8) :: xh,yh,zh,xnew,ynew,znew,xc,yc,zc,ds,cc
       integer :: iter,order,niter
@@ -954,10 +954,14 @@ c     Local Variables
 
       character(5) :: solver
 
+      logical  :: external_f
+
       save dt
 !$OMP THREADPRIVATE(dt)
 
 c     Begin program
+
+      external_f = PRESENT(lsode_f) !LSODE function is external
 
 c     ODE configuration
 
@@ -1056,8 +1060,6 @@ c     Local variables
       real(8) :: xc,yc,zc
       real(8) :: xh,yh,zh,jach
 
-      logical  :: external_f
-
 c     Interfaces
 
       INTERFACE
@@ -1070,7 +1072,6 @@ c     Interfaces
 c     Begin program
 
       if (cartesian .and. (.not.sing_point)) ISTATE=1 !Restart LSODE for cartesian step
-      external_f = PRESENT(lsode_f)                   !LSODE function is external
 
       sing_point = cartesian
 
@@ -1234,8 +1235,6 @@ c     Local variables
       real(8) :: xc,yc,zc
       real(8) :: xh,yh,zh,jach
 
-      logical  :: external_f
-
 c     Interfaces
 
       INTERFACE
@@ -1248,7 +1247,6 @@ c     Interfaces
 c     Begin program
 
       if (cartesian .and. (.not.sing_point)) ISTATE=1 !Restart LSODE for cartesian step
-      external_f = PRESENT(lsode_f)                   !LSODE function is external
 
       sing_point = cartesian
 
@@ -1314,17 +1312,21 @@ cc        write (*,*) 'LSODE -- limiting time step'
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
 
-cc      write (*,*)'Number of equations',NEQD
-cc      write (*,*)'Input state=',YY(1:NEQD(1))
-cc      write (*,*)'Current time=',T
-cc      write (*,*)'Next time=',TOUT
-cc      write (*,*)'Tolerances=',ITOL,LS_RTOL,LS_ATOL
-cc      write (*,*)'LSODE task=',ITASK
-cc      write (*,*)'LSODE state=',ISTATE
-cc      write (*,*)'Optional inputs required?',IOPT
-cc      write (*,*)'Real work array size=',size(RWORK),' declared=',LRW
-cc      write (*,*)'Integer work array size=',size(IWORK),' declared=',LIW
-cc      write (*,*)'LSODE method=',MF
+c$$$      if (external_f) then
+c$$$      write (*,*)'Number of equations',NEQD
+c$$$      write (*,*)'Input state=',YY(1:NEQD(1))
+c$$$      write (*,*)'Current time=',T
+c$$$      write (*,*)'Next time=',TOUT
+c$$$      write (*,*)'Tolerances=',ITOL,LS_RTOL,LS_ATOL
+c$$$      write (*,*)'LSODE task=',ITASK
+c$$$      write (*,*)'LSODE state=',ISTATE
+c$$$      write (*,*)'Optional inputs required?',IOPT
+c$$$      write (*,*)'Real work array size=',size(RWORK),' declared=',LRW
+c$$$      write (*,*)'Integer work array size=',size(IWORK),' declared=',LIW
+c$$$      write (*,*)'LSODE method=',MF
+c$$$      write (*,*)'External function=',external_f
+c$$$      write (*,*)'====================================================='
+c$$$      endif
 
       if (external_f) then
         CALL LSODE (lsode_f,NEQD(1),YY(1:NEQD(1)),T,TOUT
@@ -2555,12 +2557,12 @@ c     Lower order of interpolation for SS if derivatives are too different
 
         if (to > tv) then
           if (tt > to) then
-            if(    (   abs(xold-xvold)/(to-tv)
-     .              >5*abs(x    -xold)/(tt-to))
-     .         .or.(   abs(yold-yvold)/(to-tv)
-     .              >5*abs(y    -yold)/(tt-to))
-     .         .or.(   abs(zold-zvold)/(to-tv)
-     .              >5*abs(z    -zold)/(tt-to)) ) iwhich = 1
+            if(    (     abs(xold-xvold)/(to-tv)
+     .              >5d0*abs(x    -xold)/(tt-to))
+     .         .or.(     abs(yold-yvold)/(to-tv)
+     .              >5d0*abs(y    -yold)/(tt-to))
+     .         .or.(     abs(zold-zvold)/(to-tv)
+     .              >5d0*abs(z    -zold)/(tt-to)) ) iwhich = 1
           else
             iwhich = 1
           endif
@@ -2698,7 +2700,7 @@ c       Careful if time stepping is made nonuniform!
 
         det=a11*a22-a12*a21
 
-        if (abs(det) < 1e-15) then
+        if (abs(det) < 1d-15) then
           write (*,*) 'z0,z1,z2=',z0,z1,z2
           write (*,*) 'Singular Vandermonde matrix'
           write (*,*) 'Aborting in routine sursec'
