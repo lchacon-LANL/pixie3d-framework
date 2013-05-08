@@ -79,10 +79,10 @@ int main( int argc, char *argv[] )
     SAMRAI::tbox::PIO::logAllNodes(log_file);
 
     // Create input database and parse all data in input file.
-    SAMRAI::tbox::Pointer<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
+    boost::shared_ptr<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
     SAMRAI::tbox::InputManager::getManager()->parseInputFile(input_file, input_db);
-    SAMRAI::tbox::Pointer<SAMRAI::tbox::Database> main_db = input_db->getDatabase("Main");
-    SAMRAI::tbox::Pointer<SAMRAI::tbox::Database>  tag_db = input_db->getDatabase("StandardTagAndInitialize");
+    boost::shared_ptr<SAMRAI::tbox::Database> main_db = input_db->getDatabase("Main");
+    boost::shared_ptr<SAMRAI::tbox::Database>  tag_db = input_db->getDatabase("StandardTagAndInitialize");
 
     // Get the output parameters
     bool use_visit = main_db->getBool("use_visit");
@@ -118,17 +118,17 @@ int main( int argc, char *argv[] )
 
     // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
     const SAMRAI::tbox::Dimension dim(3);
-    tbox::Pointer<SAMRAI::pixie3dApplication> application( new SAMRAI::pixie3dApplication() );
+    boost::shared_ptr<SAMRAI::pixie3dApplication> application( new SAMRAI::pixie3dApplication() );
 
     // Create the patch hierarchy
-    SAMRAI::tbox::Pointer<SAMRAI::mesh::StandardTagAndInitStrategy> object = application;
-    SAMRAI::tbox::Pointer<SAMRAI::mesh::GriddingAlgorithm> gridding_algorithm;
-    SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRUtils::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
+    boost::shared_ptr<SAMRAI::mesh::StandardTagAndInitStrategy> object = application;
+    boost::shared_ptr<SAMRAI::mesh::GriddingAlgorithm> gridding_algorithm;
+    boost::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRUtils::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
     TBOX_ASSERT(dim==hierarchy->getDim());
 
     // Check the initial hierarchy to see the patch distribution
     for ( int ln=0; ln<hierarchy->getNumberOfLevels(); ln++ ) {
-        SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel> level = hierarchy->getPatchLevel(ln);
+        boost::shared_ptr<SAMRAI::hier::PatchLevel> level = hierarchy->getPatchLevel(ln);
         int N_local = level->getLocalNumberOfPatches();
         int N_global = level->getGlobalNumberOfPatches();
         SAMRAI::tbox::plog << ln << ": " << N_local << " of " << N_global << std::endl;
@@ -140,7 +140,7 @@ int main( int argc, char *argv[] )
 
 
     // Initialize the application
-    tbox::Pointer< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
+    boost::shared_ptr< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
     SAMRAI::pixie3dApplicationParameters* application_parameters = new SAMRAI::pixie3dApplicationParameters(pixie3d_db);
     application_parameters->d_hierarchy = hierarchy;
     application_parameters->d_VizWriter = visit_writer;
@@ -153,8 +153,8 @@ int main( int argc, char *argv[] )
     // Perform a regrid to make sure the tagging is all set correctly
     tbox::Array<int> tag_buffer(20,2);
     if ( regrid_interval > 0 ) {
-        tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
-        TBOX_ASSERT(!error_detector.isNull());
+        boost::shared_ptr<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
+        TBOX_ASSERT(!error_detector.get()==NULL);
         error_detector->turnOnGradientDetector();
         error_detector->turnOffRefineBoxes();
         tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
@@ -166,7 +166,7 @@ int main( int argc, char *argv[] )
     }
 
     // initialize a time integrator parameters object
-    tbox::Pointer<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");
+    boost::shared_ptr<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");
     SAMRSolvers::TimeIntegratorParameters *timeIntegratorParameters = new SAMRSolvers::TimeIntegratorParameters(ti_db);
     timeIntegratorParameters->d_operator = application;
     timeIntegratorParameters->d_ic_vector = application->get_ic();
@@ -177,7 +177,7 @@ int main( int argc, char *argv[] )
     std::auto_ptr<SAMRSolvers::TimeIntegrator> timeIntegrator = tiFactory->createTimeIntegrator(timeIntegratorParameters);
 
     // Create x(t)
-    tbox::Pointer< solv::SAMRAIVectorReal<double> > x_t;
+    boost::shared_ptr< solv::SAMRAIVectorReal<double> > x_t;
     x_t = timeIntegrator->getCurrentSolution();
 
     // Write the data
@@ -268,7 +268,7 @@ int main( int argc, char *argv[] )
     delete tiFactory;
     delete timeIntegratorParameters;
     // Delete the application
-    application.setNull();
+    application.reset();
     delete application_parameters;
     PROFILE_STOP("MAIN");
     PROFILE_SAVE(timer_results);

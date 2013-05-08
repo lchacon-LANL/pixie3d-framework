@@ -29,7 +29,7 @@ public:
    *        A MultilevelOperatorParameters class used to provide arguments
    *        to initialize the CellDiffusionMultilevelOperator class
    */
-   PCDiagonalMultilevelOperator(SAMRSolvers::MultilevelOperatorParameters *parameters);
+   PCDiagonalMultilevelOperator(boost::shared_ptr<SAMRSolvers::MultilevelOperatorParameters> parameters);
   
    /**
    * destructor
@@ -161,8 +161,8 @@ public:
    * \param refine_op
    *        name of refine operator to use
    */
-   void interpolate(const tbox::Pointer<hier::PatchLevel> &flevel,
-		    const tbox::Pointer<hier::PatchLevel> &clevel,
+   void interpolate(const boost::shared_ptr<hier::PatchLevel> &flevel,
+		    const boost::shared_ptr<hier::PatchLevel> &clevel,
 		    const int *dst_id,
 		    const int *src_id,
 		    const int *scratch_id,
@@ -171,17 +171,18 @@ public:
    /**
     * Register class that performs interpolation at coarse/fine boundaries.
     */
-   virtual void setRefinementBoundaryInterpolant(SAMRAI::RefinementBoundaryInterpolation *cf_interpolant){d_cf_interpolant=cf_interpolant;}
+   virtual void setRefinementBoundaryInterpolant(boost::shared_ptr<SAMRAI::RefinementBoundaryInterpolation> cf_interpolant ) {
+        d_cf_interpolant=cf_interpolant; }
 
    /**
    * Returns a pointer to the cached SAMRAI::RefinementBoundaryInterpolation object
    */
-   virtual SAMRAI::RefinementBoundaryInterpolation *getRefinementBoundaryInterpolant(void) { return d_cf_interpolant; }
+   virtual boost::shared_ptr<SAMRAI::RefinementBoundaryInterpolation> getRefinementBoundaryInterpolant(void) { return d_cf_interpolant; }
 
    /**
    * return a pointer to a level linear operator object, can't use a Pointer here thanks to the Pointer semantics being messed up
    */
-   SAMRSolvers::LevelOperator *getLevelOperator(const int ln);
+   boost::shared_ptr<SAMRSolvers::LevelOperator> getLevelOperator(const int ln);
 
    /**
    * This routine controls whether ghost cell values are reset either by interpolation on
@@ -200,10 +201,10 @@ public:
    */
    void reset(SAMRSolvers::DiscreteOperatorParameters *parameters=NULL);
 
-   void initializeBoundaryConditionStrategy(tbox::Pointer<tbox::Database> &db);
+   void initializeBoundaryConditionStrategy(boost::shared_ptr<tbox::Database> &db);
 
 
-   tbox::Pointer< xfer::RefineSchedule > getRefineSchedule(const int ln,
+   boost::shared_ptr< xfer::RefineSchedule > getRefineSchedule(const int ln,
 							   const int var_id);
 
    /**
@@ -232,8 +233,8 @@ public:
    *        and the interlaced versions CCELL, CNODE etc provided by MLUtilities
    */
    int getVariableIndex(std::string &name, 
-			tbox::Pointer<hier::VariableContext> &context,
-			tbox::Pointer<hier::Variable> &variable,
+			boost::shared_ptr<hier::VariableContext> &context,
+			boost::shared_ptr<hier::Variable> &variable,
 			hier::IntVector nghosts,
 			int depth = 1,
 			bool bOverride = false,
@@ -254,7 +255,7 @@ protected:
    */
    void initializeInternalVariableData(void);
 
-   void getFromInput(tbox::Pointer<tbox::Database> db);
+   void getFromInput(boost::shared_ptr<tbox::Database> db);
 
 
    /**
@@ -303,7 +304,7 @@ protected:
     */
    PCDiagonalMultilevelOperator();
 
-   void initializeLevelOperators(SAMRSolvers::MultilevelOperatorParameters *parameters);
+   void initializeLevelOperators(boost::shared_ptr<SAMRSolvers::MultilevelOperatorParameters> parameters);
 
    int d_flux_id;
 
@@ -322,18 +323,18 @@ protected:
 
    int *d_bdry_types;
 
-   tbox::Pointer< pdat::FaceVariable<double> > d_flux;
+   boost::shared_ptr< pdat::FaceVariable<double> > d_flux;
 
-   tbox::Array< tbox::Pointer<xfer::CoarsenSchedule > > d_flux_coarsen_schedule;
-   tbox::Array< tbox::Pointer<xfer::CoarsenSchedule > > d_src_coarsen_schedule;
+   tbox::Array< boost::shared_ptr<xfer::CoarsenSchedule > > d_flux_coarsen_schedule;
+   tbox::Array< boost::shared_ptr<xfer::CoarsenSchedule > > d_src_coarsen_schedule;
 
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule > > d_var_refine_schedule;
-   tbox::Array< tbox::Pointer<xfer::RefineSchedule > > d_interpolate_schedule;
+   tbox::Array< boost::shared_ptr<xfer::RefineSchedule > > d_var_refine_schedule;
+   tbox::Array< boost::shared_ptr<xfer::RefineSchedule > > d_interpolate_schedule;
 
    SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme d_tangent_interp_scheme;
    SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme d_normal_interp_scheme;
 
-   tbox::Array< tbox::Pointer<SAMRSolvers::LevelOperator> > d_level_operators;
+   tbox::Array< boost::shared_ptr<SAMRSolvers::LevelOperator> > d_level_operators;
 
 };
   

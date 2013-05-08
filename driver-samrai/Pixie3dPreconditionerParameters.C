@@ -5,21 +5,21 @@ namespace Pixie3d {
 
 Pixie3dPreconditionerParameters::Pixie3dPreconditionerParameters()
 {
-   d_db.setNull();
-   d_hierarchy.setNull();
-   d_cf_interpolant          = NULL;
+   d_db.reset();
+   d_hierarchy.reset();
+   d_cf_interpolant.reset();
 }
 
-Pixie3dPreconditionerParameters::Pixie3dPreconditionerParameters(const tbox::Pointer<tbox::Database> &db)
+Pixie3dPreconditionerParameters::Pixie3dPreconditionerParameters(const boost::shared_ptr<tbox::Database> &db)
    :d_db(db)
 {
-   d_hierarchy.setNull();
-   d_cf_interpolant          = NULL;
+   d_hierarchy.reset();
+   d_cf_interpolant.reset();
 }
 
 Pixie3dPreconditionerParameters::~Pixie3dPreconditionerParameters()
 {
-   d_cf_interpolant          = NULL;
+   d_cf_interpolant.reset();
 }
 
 }

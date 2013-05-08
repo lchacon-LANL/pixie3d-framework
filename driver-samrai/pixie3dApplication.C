@@ -43,12 +43,15 @@
 #include "SAMRAI/geom/CartesianPatchGeometry.h"
 #include "SAMRAI/geom/CartesianCellDoubleWeightedAverage.h"
 #include "SAMRAI/hier/CoarsenOperator.h"
-#include "SAMRAI/hier/NeighborhoodSet.h"
 #include "SAMRAI/hier/Box.h"
 #include "SAMRAI/hier/BoxContainer.h"
 #include "SAMRAI/xfer/PatchLevelFillPattern.h"
 #include "SAMRAI/xfer/PatchLevelBorderFillPattern.h"
 #include "SAMRAI/xfer/PatchLevelFullFillPattern.h"
+#include "SAMRAI/pdat/CellData.h"
+#include "SAMRAI/pdat/CellVariable.h"
+#include "SAMRAI/pdat/SideData.h"
+#include "SAMRAI/pdat/SideVariable.h"
 
 //#include "HierarchyCellDataOpsReal.h"
 //#include "BoundaryConditionStrategy.h"
@@ -119,7 +122,7 @@ namespace SAMRAI{
 pixie3dApplication::pixie3dApplication():
     dim(3)
 {
-    d_hierarchy = NULL;
+    d_hierarchy.reset();
     for (int i=0; i<MAX_LEVELS; i++)
         level_container_array[i] = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
@@ -131,6 +134,8 @@ pixie3dApplication::pixie3dApplication():
     d_RefineSchedulesGenerated=false;
     d_vectorsCloned = false;
     d_problem_data = hier::ComponentSelector(false);
+    flux_id = -1;
+    flux_src_id = -1;
 }
 
 
@@ -139,11 +144,11 @@ pixie3dApplication::pixie3dApplication():
 * Construct from parameter list.  Calls initialize.                    *
 *                                                                      *
 ***********************************************************************/
-pixie3dApplication::pixie3dApplication(  pixie3dApplicationParameters* parameters ): 
-    SAMRSolvers::DiscreteOperator(parameters),
-    dim(parameters-> d_hierarchy->getDim())
+pixie3dApplication::pixie3dApplication( boost::shared_ptr<pixie3dApplicationParameters> parameters ): 
+    SAMRSolvers::DiscreteOperator(parameters.get()),
+    dim(parameters->d_hierarchy->getDim())
 {
-    d_hierarchy = NULL;
+    d_hierarchy.reset();
     for (int i=0; i<MAX_LEVELS; i++)
         level_container_array[i] = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
@@ -180,7 +185,7 @@ pixie3dApplication::~pixie3dApplication()
     for (int i=0; i<MAX_LEVELS; i++) {
         if ( refineSchedule[i] != NULL ) {
             for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
-                refineSchedule[i][j].setNull();
+                refineSchedule[i][j].reset();
             delete [] refineSchedule[i];
         }
     }
@@ -194,7 +199,6 @@ pixie3dApplication::~pixie3dApplication()
     delete [] auxs_tmp_id;
     delete [] auxv_tmp_id;
     delete [] f_id;
-    delete d_refine_strategy;
     d_initial->freeVectorComponents();
     d_x_tmp->freeVectorComponents();
     d_x->freeVectorComponents();
@@ -216,15 +220,13 @@ pixie3dApplication::~pixie3dApplication()
 *                                                                      *
 ***********************************************************************/
 void
-pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
+pixie3dApplication::initialize( boost::shared_ptr<pixie3dApplicationParameters> parameters )
 {
     d_coarsen_op_str = "CONSERVATIVE_COARSEN";
     //d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
 
     // Load basic information from the parameters
-    #ifdef DEBUG_CHECK_ASSERTIONS
-        assert( parameters != (pixie3dApplicationParameters*) NULL );
-    #endif
+    TBOX_ASSERT(parameters!=NULL);
     d_hierarchy = parameters->d_hierarchy;
     if ( dim!=d_hierarchy->getDim() )
         TBOX_ERROR("Error in dimension");
@@ -234,7 +236,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     d_VizWriter = parameters->d_VizWriter;
     
     // Get info from the database
-    TBOX_ASSERT(!parameters->d_db.isNull());
+    TBOX_ASSERT(parameters->d_db.get()!=NULL);
     d_db = parameters->d_db;
     if ( d_db->keyExists("print_info_level") ) 
         d_debug_print_info_level = d_db->getInteger("print_info_level");
@@ -334,7 +336,8 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     f_id = new int[input_data->nvar];
    
     // Check for consistency between domain sizes
-    tbox::Pointer<hier::GridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
+    boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
+        boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
     const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
@@ -364,22 +367,22 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
      */
     
     hier::VariableDatabase* var_db = hier::VariableDatabase::getDatabase();
-    tbox::Pointer<hier::VariableContext> context_x = var_db->getContext("pixie3d-x");
-    tbox::Pointer<hier::VariableContext> context_xr = var_db->getContext("pixie3d-x_r");
-    tbox::Pointer<hier::VariableContext> context_ic = var_db->getContext("pixie3d-x_ic");
-    tbox::Pointer<hier::VariableContext> context_xt = var_db->getContext("pixie3d-x_tmp");
-    tbox::Pointer<hier::VariableContext> context_in = var_db->getContext("pixie3d-initial");
-    tbox::Pointer<hier::VariableContext> context_f = var_db->getContext("pixie3d-source");
-    tbox::Pointer< pdat::CellVariable<double> > var;
+    boost::shared_ptr<hier::VariableContext> context_x = var_db->getContext("pixie3d-x");
+    boost::shared_ptr<hier::VariableContext> context_xr = var_db->getContext("pixie3d-x_r");
+    boost::shared_ptr<hier::VariableContext> context_ic = var_db->getContext("pixie3d-x_ic");
+    boost::shared_ptr<hier::VariableContext> context_xt = var_db->getContext("pixie3d-x_tmp");
+    boost::shared_ptr<hier::VariableContext> context_in = var_db->getContext("pixie3d-initial");
+    boost::shared_ptr<hier::VariableContext> context_f = var_db->getContext("pixie3d-source");
+    boost::shared_ptr< pdat::CellVariable<double> > var;
     hier::IntVector ghost0 = hier::IntVector(dim,0);
     hier::IntVector ghost1 = hier::IntVector(dim,1);
     hier::IntVector ghost2 = hier::IntVector(dim,GHOST);
    
-    var = new pdat::CellVariable<double>(dim, "weight", 1);
+    var.reset( new pdat::CellVariable<double>(dim, "weight", 1) );
     d_weight_id = var_db->registerVariableAndContext(var, context_xt, ghost0);
 
     for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++) {
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
         level->allocatePatchData(d_weight_id);
     }
 
@@ -390,16 +393,16 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         ghost2(2) = 1;
     int var_id;
     std::string var_name;
-    d_x = new solv::SAMRAIVectorReal<double>("xVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-    d_x_r = new solv::SAMRAIVectorReal<double>("xVec_r",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-    d_x_ic = new solv::SAMRAIVectorReal<double>("xVecIC",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-    d_x_tmp = new solv::SAMRAIVectorReal<double>("xTmpVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-    d_initial = new solv::SAMRAIVectorReal<double>("xInitialVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
+    d_x.reset( new solv::SAMRAIVectorReal<double>("xVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber()) );
+    d_x_r.reset( new solv::SAMRAIVectorReal<double>("xVec_r",d_hierarchy,0,d_hierarchy->getFinestLevelNumber()) );
+    d_x_ic.reset( new solv::SAMRAIVectorReal<double>("xVecIC",d_hierarchy,0,d_hierarchy->getFinestLevelNumber()) );
+    d_x_tmp.reset( new solv::SAMRAIVectorReal<double>("xTmpVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber()) );
+    d_initial.reset( new solv::SAMRAIVectorReal<double>("xInitialVec",d_hierarchy,0,d_hierarchy->getFinestLevelNumber()) );
     for (int i=0; i<input_data->nvar; i++) {
        std::stringstream stream;
        stream << "x(" << i << ")"; 
        var_name = stream.str();
-       var = new pdat::CellVariable<double>( dim, var_name, 1 );
+       var.reset( new pdat::CellVariable<double>( dim, var_name, 1 ) );
        var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
        d_problem_data.setFlag(var_id);
        d_x->addComponent( var, var_id, d_weight_id );
@@ -429,16 +432,16 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     //d_registeredVectors.push_back( d_x );
 
     // Allocate data for auxillary variables
-    tbox::Pointer<hier::VariableContext> context_aux = var_db->getContext("pixie3d-aux");
-    d_aux_scalar = new solv::SAMRAIVectorReal<double>("auxs",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-    d_aux_vector = new solv::SAMRAIVectorReal<double>("auxv",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-    d_aux_scalar_tmp = new solv::SAMRAIVectorReal<double>("auxs",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
-    d_aux_vector_tmp = new solv::SAMRAIVectorReal<double>("auxv",d_hierarchy,0,d_hierarchy->getFinestLevelNumber());
+    boost::shared_ptr<hier::VariableContext> context_aux = var_db->getContext("pixie3d-aux");
+    d_aux_scalar.reset( new solv::SAMRAIVectorReal<double>("auxs",d_hierarchy,0,d_hierarchy->getFinestLevelNumber()) );
+    d_aux_vector.reset( new solv::SAMRAIVectorReal<double>("auxv",d_hierarchy,0,d_hierarchy->getFinestLevelNumber()) );
+    d_aux_scalar_tmp.reset( new solv::SAMRAIVectorReal<double>("auxs",d_hierarchy,0,d_hierarchy->getFinestLevelNumber()) );
+    d_aux_vector_tmp.reset( new solv::SAMRAIVectorReal<double>("auxv",d_hierarchy,0,d_hierarchy->getFinestLevelNumber()) );
     for (int i=0; i<input_data->nauxs; i++) {
         std::stringstream stream;
         stream << "auxs(" << i << ")"; 
         var_name = stream.str();
-        var = new pdat::CellVariable<double>( dim, var_name, 1 );
+        var.reset( new pdat::CellVariable<double>( dim, var_name, 1 ) );
         var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
         d_problem_data.setFlag(var_id);
         d_aux_scalar->addComponent( var, var_id, d_weight_id );
@@ -450,7 +453,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         std::stringstream stream;
         stream << "auxv(" << i << ")"; 
         var_name = stream.str();
-        var = new pdat::CellVariable<double>( dim, var_name, dim.getValue() );
+        var.reset( new pdat::CellVariable<double>( dim, var_name, dim.getValue() ) );
         var_id = var_db->registerVariableAndContext(var, context_x, ghost1);
         d_problem_data.setFlag(var_id);
         d_aux_vector->addComponent( var, var_id, d_weight_id );
@@ -468,20 +471,35 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     d_aux_vector_tmp->setToScalar( 0.0, false );
    
     // Allocate data for f_src
-    d_f_src = new pdat::CellVariable<double>( dim, "fsrc", input_data->nvar );
+    d_f_src.reset( new pdat::CellVariable<double>( dim, "fsrc", input_data->nvar ) );
     f_src_id = var_db ->registerVariableAndContext(d_f_src, context_f, ghost0);
     d_problem_data.setFlag(f_src_id);
     for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++) {
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
         level->allocatePatchData(f_src_id);
+    }   
+
+    // Allocate data for the flux data
+    boost::shared_ptr<pdat::SideVariable<double> > flux;
+    boost::shared_ptr<pdat::CellVariable<double> > flux_src;
+    flux.reset( new pdat::SideVariable<double>( dim, "flux", input_data->nvar ) );
+    flux_src.reset( new pdat::CellVariable<double>( dim, "flux_src", input_data->nvar ) );
+    flux_id = var_db ->registerVariableAndContext(flux, context_x, ghost0);
+    flux_src_id = var_db ->registerVariableAndContext(flux_src, context_x, ghost0);
+    d_problem_data.setFlag(flux_id);
+    d_problem_data.setFlag(flux_src_id);
+    for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++) {
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
+        level->allocatePatchData(flux_id);
+        level->allocatePatchData(flux_src_id);
     }   
     
     // Allocate data for divergence of B
-    d_div_B = new pdat::CellVariable<double>( dim, "div_B", 1 );
+    d_div_B.reset( new pdat::CellVariable<double>( dim, "div_B", 1 ) );
     div_B_id = var_db ->registerVariableAndContext(d_div_B, context_f, ghost0);
     d_problem_data.setFlag(div_B_id);
     for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++) {
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
         level->allocatePatchData(div_B_id);
     }   
    
@@ -508,10 +526,10 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
         std::stringstream stream1, stream2;
         stream1 << "d_x_grad(" << i << ")"; 
         stream2 << "d_x0_grad(" << i << ")"; 
-        var = new pdat::CellVariable<double>( dim, stream1.str(), dim.getValue() );
+        var.reset( new pdat::CellVariable<double>( dim, stream1.str(), dim.getValue() ) );
         d_x_grad_ids[i] = var_db->registerVariableAndContext(var, context_x, ghost2);
         d_problem_data.setFlag(d_x_grad_ids[i]);
-        var = new pdat::CellVariable<double>( dim, stream2.str(), dim.getValue() );
+        var.reset( new pdat::CellVariable<double>( dim, stream2.str(), dim.getValue() ) );
         d_x0_grad_ids[i] = var_db->registerVariableAndContext(var, context_x, ghost0);
         d_problem_data.setFlag(d_x0_grad_ids[i]);
     }
@@ -519,7 +537,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     for (int i=0; i<input_data->nauxs; i++) {
         std::stringstream stream;
         stream << "d_auxs_grad(" << i << ")"; 
-        var = new pdat::CellVariable<double>( dim, stream.str(), dim.getValue() );
+        var.reset( new pdat::CellVariable<double>( dim, stream.str(), dim.getValue() ) );
         d_auxs_grad_ids[i] = var_db->registerVariableAndContext(var, context_x, ghost2);
         d_problem_data.setFlag(d_auxs_grad_ids[i]);
     }
@@ -527,23 +545,23 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     for (int i=0; i<input_data->nauxv; i++) {
         std::stringstream stream;
         stream << "d_auxv_grad(" << i << ")"; 
-        var = new pdat::CellVariable<double>( dim, stream.str(), dim.getValue()*dim.getValue() );
+        var.reset( new pdat::CellVariable<double>( dim, stream.str(), dim.getValue()*dim.getValue() ) );
         d_auxv_grad_ids[i] = var_db->registerVariableAndContext(var, context_x, ghost2);
         d_problem_data.setFlag(d_auxv_grad_ids[i]);
     }
 
 
     // Setup pixie3dRefinePatchStrategy
-    d_refine_strategy = new pixie3dRefinePatchStrategy(dim);
+    d_refine_strategy.reset( new pixie3dRefinePatchStrategy(dim) );
     (d_refine_strategy)->setHierarchy(d_hierarchy);
     (d_refine_strategy)->setGridGeometry(grid_geometry);
     (d_refine_strategy)->setPixie3dHierarchyData((void **)level_container_array);
     if ( GHOST == 1 ) {
         (d_refine_strategy)->setPixie3dDataIDs(0, input_data->nvar, input_data->nauxs, input_data->nauxv,
-                                      u0_id, u_id, u_tmp_id, auxs_id, auxs_tmp_id, auxv_id, auxv_tmp_id );
+                                      u0_id, u_id, u_tmp_id, auxs_id, auxs_tmp_id, auxv_id, auxv_tmp_id, flux_id, flux_src_id );
     } else {
         (d_refine_strategy)->setPixie3dDataIDs(1, input_data->nvar, input_data->nauxs, input_data->nauxv,
-                                        u0_id, u_id, u_tmp_id, auxs_id, auxs_tmp_id, auxv_id, auxv_tmp_id );
+                                        u0_id, u_id, u_tmp_id, auxs_id, auxs_tmp_id, auxv_id, auxv_tmp_id, flux_id, flux_src_id );
     }
    
     // Reset the Hierarchy Configuration (this will create the level container and initialize the communication schedules)
@@ -558,10 +576,10 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
     const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
     int rank = comm.getRank();
     int size = comm.getSize();
-    tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(0);
+    boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(0);
     LevelContainer *level_container = (LevelContainer *) level_container_array[0];
     void *pixiePatchData = NULL;
-    for (hier::PatchLevel::Iterator p(level); p; p++)
+    for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++)
         pixiePatchData = level_container->getPtr(*p);
     int root = size;
     if ( pixiePatchData!=NULL )
@@ -634,7 +652,7 @@ pixie3dApplication::initialize( pixie3dApplicationParameters* parameters )
 /***********************************************************************
 * Register a solution vector                                           *
 ***********************************************************************/
-void pixie3dApplication::registerVector( tbox::Pointer< solv::SAMRAIVectorReal<double> > x )
+void pixie3dApplication::registerVector( boost::shared_ptr< solv::SAMRAIVectorReal<double> > x )
 {
     bool found = false;
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
@@ -665,13 +683,14 @@ void pixie3dApplication::setInitialConditions( const double )
     // Form initial conditions
     // Loop through hierarchy
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
         // Get the Level container
         LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
         // Loop through the different patches
-        for (hier::PatchLevel::Iterator p(level); p; p++) {
-            tbox::Pointer<hier::Patch> patch = *p;
-            tbox::Pointer< pdat::CellData<double> > tmp = patch->getPatchData(f_src_id);
+        for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++) {
+            boost::shared_ptr<hier::Patch> patch = *p;
+            boost::shared_ptr<pdat::CellData<double> > tmp = 
+                boost::dynamic_pointer_cast<pdat::CellData<double> >(patch->getPatchData(f_src_id));
             double *fsrc = tmp->getPointer();
             int n_elem = tmp->getGhostBox().size()*tmp->getDepth();
             double *data = tmp->getPointer();
@@ -710,7 +729,7 @@ void pixie3dApplication::setInitialConditions( const double )
 *                                                                      *
 ***********************************************************************/
 void
-pixie3dApplication::setInitialConditions( tbox::Pointer< solv::SAMRAIVectorReal<double> > )
+pixie3dApplication::setInitialConditions( boost::shared_ptr< solv::SAMRAIVectorReal<double> > )
 {
 }
 
@@ -719,7 +738,7 @@ pixie3dApplication::setInitialConditions( tbox::Pointer< solv::SAMRAIVectorReal<
 * Empty implementation.                                                *
 *                                                                      *
 ***********************************************************************/
-void pixie3dApplication::setValuesOnNewLevel( tbox::Pointer<hier::PatchLevel> )
+void pixie3dApplication::setValuesOnNewLevel( boost::shared_ptr<hier::PatchLevel> )
 {
 }
 
@@ -741,9 +760,9 @@ pixie3dApplication::apply(const int *,
  *                                                                      *
  ***********************************************************************/
 void
-pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
-               tbox::Pointer< solv::SAMRAIVectorReal<double> >  &x,
-               tbox::Pointer< solv::SAMRAIVectorReal<double> >  &r,
+pixie3dApplication::apply( boost::shared_ptr< solv::SAMRAIVectorReal<double> >  &,
+               boost::shared_ptr< solv::SAMRAIVectorReal<double> >  &x,
+               boost::shared_ptr< solv::SAMRAIVectorReal<double> >  &r,
                double, double)
 {
     PROFILE_START("apply");
@@ -757,8 +776,8 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
         TBOX_ERROR("x is ouside valid range or contains NaNs");
 
     // Copy x
-    if(d_x.isNull())  TBOX_ERROR( "d_x is Null");
-    if(x.isNull())  TBOX_ERROR( "x is Null");
+    if(d_x==NULL)  TBOX_ERROR( "d_x is Null");
+    if(x==NULL)  TBOX_ERROR( "x is Null");
     d_x->copyVector(x);
 
     // Coarsen and Refine x, fill auxillary variables and apply boundary conditions
@@ -784,13 +803,14 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
         f_id[i] = d_x_r->getComponentDescriptorIndex(i);
     // Loop through hierarchy
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
         // Get the Level container
         LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
         // Loop through the different patches
-        for (hier::PatchLevel::Iterator p(level); p; p++) {
+        for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++) {
             // Get fsrc
-            tbox::Pointer< pdat::CellData<double> > tmp = (*p)->getPatchData(f_src_id);
+            boost::shared_ptr< pdat::CellData<double> > tmp = 
+                boost::dynamic_pointer_cast<pdat::CellData<double> >( (*p)->getPatchData(f_src_id) );
             double *fsrc = tmp->getPointer();
             int n_elem = (*p)->getBox().size()*tmp->getDepth();
             double *data = tmp->getPointer();
@@ -810,7 +830,7 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
             PROFILE_STOP("Call evaluatenonlinearresidual");
             // Check f for nans
             for (int i=0; i<input_data->nvar; i++) {
-                tmp = d_x_r->getComponentPatchData( i, *(*p) );
+                tmp = boost::dynamic_pointer_cast<pdat::CellData<double> >( d_x_r->getComponentPatchData( i, *(*p) ) );
                 int depth = tmp->getDepth();
                 hier::Box gbox = tmp->getGhostBox();
                 data = tmp->getPointer();
@@ -852,10 +872,11 @@ pixie3dApplication::apply( tbox::Pointer< solv::SAMRAIVectorReal<double> >  &,
 
     // Get the divergence of the magnetic field
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
         LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
-        for (hier::PatchLevel::Iterator p(level); p; p++) {
-            tbox::Pointer< pdat::CellData<double> > tmp = (*p)->getPatchData(div_B_id);
+        for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++) {
+            boost::shared_ptr< pdat::CellData<double> > tmp = 
+                boost::dynamic_pointer_cast<pdat::CellData<double> >( (*p)->getPatchData(div_B_id) );
             double *div_B = tmp->getPointer();
             hier::IntVector size = (*p)->getBox().numberCells();
             PROFILE_START("Call calcDivergence");
@@ -881,7 +902,7 @@ pixie3dApplication::printObjectName( std::ostream& os )
 * Print the data for variables on a patch hierarchy. This function is  *
 * just to ensure that I am accessing the data correctly.               *
 ***********************************************************************/
-void pixie3dApplication::printVector( const tbox::Pointer< solv::SAMRAIVectorReal<double> >)
+void pixie3dApplication::printVector( const boost::shared_ptr< solv::SAMRAIVectorReal<double> >)
 {
    TBOX_ERROR( "printVector not yet programmed" );
 }
@@ -905,10 +926,11 @@ void pixie3dApplication::coarsenVariables(void)
 void  pixie3dApplication::refineVariables(void)
 {
     PROFILE_START("refineVariables");
-    tbox::Pointer< hier::Variable > var0;
-    tbox::Pointer< geom::CartesianGridGeometry > grid_geometry = d_hierarchy->getGridGeometry();
-    tbox::Pointer< hier::Variable > var;
-    tbox::Pointer<hier::PatchLevel > level;
+    boost::shared_ptr< hier::Variable > var0;
+    boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
+        boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
+    boost::shared_ptr< hier::Variable > var;
+    boost::shared_ptr<hier::PatchLevel > level;
     LevelContainer *level_container;
     void *pixiePatchData;
 
@@ -930,7 +952,7 @@ void  pixie3dApplication::refineVariables(void)
             // initialize the aux variable on all patches on the level before interpolating
             // coarse values up and sync-ing periodic boundaries
             PROFILE_START("Call initializeauxvar");
-            for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
+            for (hier::PatchLevel::Iterator ip=level->begin(); ip!=level->end(); ip++) {
                 pixiePatchData = level_container->getPtr(*ip);
                 assert(pixiePatchData!=NULL);
                 int iSeq2 = iSeq+1;     // The Fortran code starts indexing at 1
@@ -944,8 +966,8 @@ void  pixie3dApplication::refineVariables(void)
             PROFILE_STOP("refineSchedule fillData");
             // Fill the interior patches
             PROFILE_START("Fill interiors");
-            for (hier::PatchLevel::Iterator ip(level); ip; ip++) {
-                tbox::Pointer<hier::Patch> patch = *ip;
+            for (hier::PatchLevel::Iterator ip=level->begin(); ip!=level->end(); ip++) {
+                boost::shared_ptr<hier::Patch> patch = *ip;
                 bool touches_boundary = (d_refine_strategy)->checkPhysicalBoundary(*patch);
                 if ( !touches_boundary )
                     (d_refine_strategy)->applyBC(patch);
@@ -990,8 +1012,9 @@ pixie3dApplication::generateTransferSchedules(void)
 {
 
     // Add refinement operator
-    tbox::Pointer< geom::CartesianGridGeometry > grid_geometry = d_hierarchy->getGridGeometry();
-    tbox::Pointer< hier::RefineOperator > refine_op;
+    boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
+        boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
+    boost::shared_ptr< hier::RefineOperator > refine_op;
     if (d_refine_op_str=="CELL_DOUBLE_CUBIC_REFINE") {
         TBOX_ERROR("Not Implemented");
        /*// Create the CartesianCellDoubleCubicRefine operator
@@ -1012,7 +1035,7 @@ pixie3dApplication::generateTransferSchedules(void)
     } 
    
     // Add coarsen operator
-    tbox::Pointer<hier::CoarsenOperator> coarsen_op;
+    boost::shared_ptr<hier::CoarsenOperator> coarsen_op;
     if (d_coarsen_op_str=="CELL_DOUBLE_INJECTION_COARSEN") {
         TBOX_ERROR("Not Implimented");
         //coarsen_op = new CartesianCellDoubleInjectionCoarsen();
@@ -1043,7 +1066,7 @@ void pixie3dApplication::writeCellData( FILE *fp, int var_id ) {
         TBOX_ERROR( "File pointer is NULL" );
     // Loop through the levels
     for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
-        tbox::Pointer<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
+        boost::shared_ptr<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
         const hier::IntVector ratio = level->getRatioToLevelZero();
         // Gather all data to processor 0
         std::vector<commPatchData> patch_data = collectAllPatchData(level,var_id,0);
@@ -1082,7 +1105,8 @@ void pixie3dApplication::writeGlobalCellData( FILE *fp, int var_id ) {
     if ( rank==0 && fp==NULL )
         TBOX_ERROR( "File pointer is NULL" );
     // Get the physical domain
-    tbox::Pointer<hier::GridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
+    boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
+        boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
     const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
@@ -1095,7 +1119,7 @@ void pixie3dApplication::writeGlobalCellData( FILE *fp, int var_id ) {
     int Ngy = upper(1)-lower(1)+1;
     int Ngz = upper(2)-lower(2)+1;
     // Gather all data to processor 0
-    tbox::Pointer<hier::PatchLevel > level = d_hierarchy->getPatchLevel(0);
+    boost::shared_ptr<hier::PatchLevel > level = d_hierarchy->getPatchLevel(0);
     std::vector<commPatchData> patch_data = collectAllPatchData(level,var_id,0);
     if ( rank == 0 ) {
         // Create the global patch
@@ -1141,7 +1165,8 @@ void pixie3dApplication::writeGlobalCellData( FILE *fp, int var_id ) {
 **************************************************************************/
 void pixie3dApplication::writeDebugData( FILE *fp, const int it, const double time, int type ) {
     // Print some information about the time and the domain size
-    tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
+    boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
+        boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
     const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
@@ -1204,12 +1229,12 @@ void pixie3dApplication::writeDebugData( FILE *fp, const int it, const double ti
 * Initialize level data.                                               *
 * Function overloaded from mesh::StandardTagAndInitStrategy.           *
 ***********************************************************************/
-void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHierarchy > hierarchy,
+void pixie3dApplication::initializeLevelData( const boost::shared_ptr<hier::PatchHierarchy>& hierarchy,
     const int level_number, const double time, const bool can_be_refined, const bool initial_time,
-    const tbox::Pointer<hier::PatchLevel > old_level, const bool allocate_data )
+    const boost::shared_ptr<hier::PatchLevel>& old_level, const bool allocate_data )
 {
     // Check if the application has been initialized
-    if ( d_hierarchy.isNull() )
+    if ( d_hierarchy==NULL )
         return;
     tbox::SAMRAI_MPI mpi = SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld();
     mpi.Barrier();
@@ -1217,13 +1242,13 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
 
     // Get the new level
     #ifdef DEBUG_CHECK_ASSERTIONS
-        assert(!hierarchy.isNull());
+        assert(hierarchy!=NULL);
         assert( (level_number >= 0) && (level_number <= hierarchy->getFinestLevelNumber()) );
-        if ( !(old_level.isNull()) )
+        if ( old_level!=NULL )
             assert( level_number == old_level->getLevelNumber() );
-        assert(!(hierarchy->getPatchLevel(level_number)).isNull());
+        assert(hierarchy->getPatchLevel(level_number)!=NULL);
     #endif
-    tbox::Pointer<hier::PatchLevel> level = hierarchy->getPatchLevel(level_number);
+    boost::shared_ptr<hier::PatchLevel> level = hierarchy->getPatchLevel(level_number);
 
     // Check the new level for overlapping boxes
     if ( pixie3dApplication::overlappingBoxes(level) )
@@ -1263,12 +1288,13 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
         }
     }
     // Initialize the new level data to 0
-    for (hier::PatchLevel::Iterator p(level); p; p++) {
-        tbox::Pointer<hier::Patch> patch = *p;
-        tbox::Pointer<pdat::CellData<double> > data;
+    for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++) {
+        boost::shared_ptr<hier::Patch> patch = *p;
+        boost::shared_ptr<pdat::CellData<double> > data;
         for (size_t i=0; i<d_registeredVectors.size(); i++) {
             for (int j=0; j<input_data->nvar; j++) {
-                data = d_registeredVectors[i]->getComponentPatchData( j, *patch );
+                data = boost::dynamic_pointer_cast<pdat::CellData<double> >( 
+                    d_registeredVectors[i]->getComponentPatchData( j, *patch ) );
                 data->fillAll(0.0);
             }
         }
@@ -1281,13 +1307,21 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
         std::vector<int> ids(input_data->nvar);
         for (int j=0; j<input_data->nvar; j++)
             ids[j] = d_registeredVectors[i]->getComponentDescriptorIndex(j);
-        tbox::Pointer<hier::PatchLevel > coarse_level;
+        boost::shared_ptr<hier::PatchLevel > coarse_level;
         if ( level_number>0 )
             coarse_level = hierarchy->getPatchLevel(level_number-1);
-        xfer::TriangleRefineSchedule* refine;       // Keep the refine schedule off the stack
-        refine = new xfer::TriangleRefineSchedule( old_level, coarse_level, level, ids, ids, d_x0_grad_ids, d_regrid_op_str );
+        boost::shared_ptr<xfer::TriangleRefineScheduleParameters> params(new xfer::TriangleRefineScheduleParameters);
+        params->d_method = d_regrid_op_str;
+        params->d_dst_level = old_level;
+        params->d_coarse_level = coarse_level;
+        params->d_src_level = level;
+        params->d_src_id = ids;
+        params->d_dst_id = ids;
+        params->d_grad_id = d_x0_grad_ids;
+        params->d_fill_physical = true;
+        params->d_fill_corners = true;
+        boost::shared_ptr<xfer::TriangleRefineSchedule> refine( new xfer::TriangleRefineSchedule(params) );
         refine->fillData(0.0);
-        delete refine;
     }
     // Check the new level data
     for (size_t i=0; i<d_registeredVectors.size(); i++) {
@@ -1310,27 +1344,28 @@ void pixie3dApplication::initializeLevelData( const tbox::Pointer<hier::PatchHie
 * threshold.                                                            *
 *                                                                       *
 ************************************************************************/
-void pixie3dApplication::applyGradientDetector(const tbox::Pointer<hier::PatchHierarchy> hierarchy,
+void pixie3dApplication::applyGradientDetector(const boost::shared_ptr<hier::PatchHierarchy>& hierarchy,
                               const int level_number,
                               const double time,
                               const int tag_index,
                               const bool initial_time,
                               const bool uses_richardson_extrapolation_too)
 {
-   if ( d_hierarchy.isNull() )
+   if ( d_hierarchy==NULL )
       return;
-   tbox::Pointer<hier::PatchLevel> level = hierarchy->getPatchLevel(level_number);
+   boost::shared_ptr<hier::PatchLevel> level = hierarchy->getPatchLevel(level_number);
    // Loop through the patches on the level
-   for (hier::PatchLevel::Iterator p(level); p; p++) {
+   for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++) {
       // Get the patch and the patch properties
-      tbox::Pointer<hier::Patch> patch = *p;
-      tbox::Pointer<hier::PatchGeometry> patch_geom = patch->getPatchGeometry();
-      assert(!patch.isNull());
+      boost::shared_ptr<hier::Patch> patch = *p;
+      boost::shared_ptr<hier::PatchGeometry> patch_geom = patch->getPatchGeometry();
+      assert(patch.get()!=NULL);
       const SAMRAI::hier::Index ifirst = patch->getBox().lower();
       const SAMRAI::hier::Index ilast  = patch->getBox().upper();
       // Get the tag_array
-      tbox::Pointer< pdat::CellData<int> > tag_array = patch->getPatchData(tag_index);
-      assert(!tag_array.isNull());
+      boost::shared_ptr< pdat::CellData<int> > tag_array = 
+         boost::dynamic_pointer_cast<pdat::CellData<int> >( patch->getPatchData(tag_index) );
+      assert(tag_array!=NULL);
       const hier::IntVector gcw_tag_array = tag_array->getGhostCellWidth();
       int *tag_data = tag_array->getPointer();
       tag_array->fillAll(0);
@@ -1343,8 +1378,9 @@ void pixie3dApplication::applyGradientDetector(const tbox::Pointer<hier::PatchHi
          }
          if ( index_J==-1 )
             TBOX_ERROR("Current not found");
-         tbox::Pointer< pdat::CellData<double> > J = patch->getPatchData(index_J);
-         assert(!J.isNull());
+         boost::shared_ptr< pdat::CellData<double> > J = 
+            boost::dynamic_pointer_cast<pdat::CellData<double> >( patch->getPatchData(index_J) );
+         assert(J!=NULL);
          const hier::IntVector gcw = J->getGhostCellWidth();
          double *J_data = J->getPointer();
          tag_cells_( &ifirst(0), &ilast(0), &gcw(0), &gcw_tag_array(0), J_data, d_J_level[level_number], tag_data );
@@ -1358,11 +1394,11 @@ void pixie3dApplication::applyGradientDetector(const tbox::Pointer<hier::PatchHi
 * Function overloaded from mesh::StandardTagAndInitStrategy.           *
 ***********************************************************************/
 void pixie3dApplication::resetHierarchyConfiguration(
-    const tbox::Pointer<hier::PatchHierarchy> hierarchy,
+    const boost::shared_ptr<hier::PatchHierarchy>& hierarchy,
     const int coarsest_level, const int finest_level )
 {
     // Check if the application has been initialized
-    if ( d_hierarchy.isNull() )
+    if ( d_hierarchy==NULL )
         return;
     tbox::SAMRAI_MPI mpi = SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld();
     mpi.Barrier();
@@ -1379,7 +1415,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
     for (int i=coarsest_level; i<=finest_level; i++) {
         if ( refineSchedule[i] != NULL ) {
             for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
-                refineSchedule[i][j].setNull();
+                refineSchedule[i][j].reset();
             delete [] refineSchedule[i];
             refineSchedule[i] = NULL;
         }
@@ -1393,15 +1429,15 @@ void pixie3dApplication::resetHierarchyConfiguration(
     // Create the refineSchedules
     mpi.Barrier();
     tbox::pout << "     create refine schedules" << std::endl;
-    tbox::Pointer<hier::Variable> var0;
-    //tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelBorderFillPattern());
-    tbox::Pointer<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelFullFillPattern());     // This may reduce performance
+    boost::shared_ptr<hier::Variable> var0;
+    //boost::shared_ptr<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelBorderFillPattern());
+    boost::shared_ptr<xfer::PatchLevelFillPattern> fill_pattern(new xfer::PatchLevelFullFillPattern());     // This may reduce performance
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-        tbox::Pointer<hier::PatchLevel> coarse_level;
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        boost::shared_ptr<hier::PatchLevel> coarse_level;
         if ( ln>0 )
             coarse_level = d_hierarchy->getPatchLevel(ln-1);
-        refineSchedule[ln] = new tbox::Pointer< xfer::TriangleRefineSchedule >[d_BoundarySequenceGroups.size()];
+        refineSchedule[ln] = new boost::shared_ptr< xfer::TriangleRefineSchedule >[d_BoundarySequenceGroups.size()];
         for(size_t iSeq=0; iSeq<d_BoundarySequenceGroups.size(); iSeq++) {
             xfer::RefineAlgorithm refineVariableAlgorithm(d_hierarchy->getDim());
             // Register the variables in the current squence
@@ -1453,15 +1489,26 @@ void pixie3dApplication::resetHierarchyConfiguration(
                 grad_ids[i] = grad_id;
             }
             // Create the schedules
-            refineSchedule[ln][iSeq] = tbox::Pointer<xfer::TriangleRefineSchedule>(
-                new xfer::TriangleRefineSchedule( coarse_level, level, ids, ids, grad_ids, d_refine_op_str, d_refine_strategy ) );
+            boost::shared_ptr<xfer::TriangleRefineScheduleParameters> params(new xfer::TriangleRefineScheduleParameters);
+            params->d_method = d_regrid_op_str;
+            params->d_dst_level = level;
+            params->d_src_level = level;
+            params->d_coarse_level = coarse_level;
+            params->d_src_id = ids;
+            params->d_dst_id = ids;
+            params->d_grad_id = grad_ids;
+            params->d_refine_strategy = d_refine_strategy;
+            params->d_fill_physical = true;
+            params->d_fill_corners = true;
+            refineSchedule[ln][iSeq].reset( new xfer::TriangleRefineSchedule(params) );
         }
     }
 
     // Create the coarsenSchedule
     mpi.Barrier();
     tbox::pout << "     create coarsen schedules" << std::endl;
-    tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
+    boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
+        boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         if (ln==0) continue;
         xfer::CoarsenAlgorithm coarsenAlgorithm(d_hierarchy->getDim());
@@ -1480,13 +1527,13 @@ void pixie3dApplication::resetHierarchyConfiguration(
             coarsenAlgorithm.registerCoarsen( auxv_id[i], auxv_id[i],
                 grid_geometry->lookupCoarsenOperator(var0,d_coarsen_op_str) );
         }
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln-1);    
-        tbox::Pointer<hier::PatchLevel> flevel = d_hierarchy->getPatchLevel(ln);    
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln-1);    
+        boost::shared_ptr<hier::PatchLevel> flevel = d_hierarchy->getPatchLevel(ln);    
         coarsenSchedule[ln-1] = coarsenAlgorithm.createSchedule(level,flevel);
     }
 
     // Create RefinementBoundaryInterpolation.
-    d_coarseFineInterp = tbox::Pointer<RefinementBoundaryInterpolation>( new SAMRAI::RefinementBoundaryInterpolation( d_hierarchy ) );
+    d_coarseFineInterp = boost::shared_ptr<RefinementBoundaryInterpolation>( new SAMRAI::RefinementBoundaryInterpolation( d_hierarchy ) );
 
     // Reset the vectors
     mpi.Barrier();
@@ -1509,22 +1556,26 @@ void pixie3dApplication::resetHierarchyConfiguration(
 
     // Initialize the auxillary data to 0
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-        for (hier::PatchLevel::Iterator p(level); p; p++) {
-            tbox::Pointer<hier::Patch> patch = *p;
-            tbox::Pointer<pdat::CellData<double> > data;
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++) {
+            boost::shared_ptr<hier::Patch> patch = *p;
+            boost::shared_ptr<pdat::CellData<double> > data;
             for (int j=0; j<input_data->nvar; j++) {
-                data = d_x_ic->getComponentPatchData( j, *patch );
+                data = boost::dynamic_pointer_cast<pdat::CellData<double> >( 
+                    d_x_ic->getComponentPatchData( j, *patch ) );
                 data->fillAll(0.0);
-                data = d_initial->getComponentPatchData( j, *patch );
+                data = boost::dynamic_pointer_cast<pdat::CellData<double> >( 
+                    d_initial->getComponentPatchData( j, *patch ) );
                 data->fillAll(0.0);
             }
             for (int j=0; j<input_data->nauxs; j++) {
-                data = d_aux_scalar->getComponentPatchData( j, *patch );
+                data = boost::dynamic_pointer_cast<pdat::CellData<double> >( 
+                    d_aux_scalar->getComponentPatchData( j, *patch ) );
                 data->fillAll(0.0);
             }
             for (int j=0; j<input_data->nauxv; j++) {
-                data = d_aux_vector->getComponentPatchData( j, *patch );
+                data = boost::dynamic_pointer_cast<pdat::CellData<double> >( 
+                    d_aux_vector->getComponentPatchData( j, *patch ) );
                 data->fillAll(0.0);
             }
         }
@@ -1539,9 +1590,9 @@ void pixie3dApplication::resetHierarchyConfiguration(
             delete level_container;
             level_container_array[ln] = NULL;
         }
-        tbox::Pointer<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
-        level_container_array[ln] = new LevelContainer(d_hierarchy,level,
-            input_data->nvar,u0_id,u_id,input_data->nauxs,auxs_id,input_data->nauxv,auxv_id);
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        level_container_array[ln] = new LevelContainer(d_hierarchy,level,input_data->nvar,
+            u0_id,u_id,input_data->nauxs,auxs_id,input_data->nauxv,auxv_id,flux_id,flux_src_id);
     }
 
     // Call setInitialConditions to fill d_ic and the src vector
@@ -1556,7 +1607,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
 /****************************************************************************
 * Collect the data for a given id for all patches onto a single processor   *
 ****************************************************************************/
-std::vector<commPatchData> pixie3dApplication::collectAllPatchData(tbox::Pointer<hier::PatchLevel> level, int id, int root)
+std::vector<commPatchData> pixie3dApplication::collectAllPatchData(boost::shared_ptr<hier::PatchLevel> level, int id, int root)
 {
     // First get the number of patches per processor
     const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
@@ -1576,7 +1627,7 @@ std::vector<commPatchData> pixie3dApplication::collectAllPatchData(tbox::Pointer
     // Create the local patch data objects
     std::vector<commPatchData> patch_data_local(NpatchesLocal,commPatchData(level->getDim()));
     int k=0;
-    for (hier::PatchLevel::Iterator p(level); p; p++) {
+    for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++) {
         patch_data_local[k] = commPatchData(*p,id);
         k++;
     }
@@ -1640,7 +1691,8 @@ std::vector<commPatchData> pixie3dApplication::collectAllPatchData(tbox::Pointer
 std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> pixie3dApplication::getBCgroup()
 {
     // Get the dimensions of the domain
-    tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
+    boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
+        boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
     const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
@@ -1651,18 +1703,18 @@ std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> pixie3dApplication::getBCg
     hier::Index lower(dim,0);
     hier::Index upper(dim,2);
     upper.min( physicalDomain.upper() );
-    hier::Box box(lower,upper);
+    hier::Box box(lower,upper,hier::BlockId(0));
     hier::Index one(dim,1);
     hier::PatchGeometry::TwoDimBool boundary(dim,false);
-    tbox::Pointer<hier::PatchGeometry> geometry(new hier::PatchGeometry(one, boundary, boundary) );
-    tbox::Pointer<hier::PatchDescriptor> descriptor = d_hierarchy->getPatchDescriptor();
-    tbox::Pointer<hier::Patch> patch(new hier::Patch( box, descriptor ) );
+    boost::shared_ptr<hier::PatchGeometry> geometry(new hier::PatchGeometry(one, boundary, boundary) );
+    boost::shared_ptr<hier::PatchDescriptor> descriptor = d_hierarchy->getPatchDescriptor();
+    boost::shared_ptr<hier::Patch> patch(new hier::Patch( box, descriptor ) );
     patch->setPatchGeometry(geometry);
     // Allocate the data on the patch
     patch->allocatePatchData(d_problem_data,0.0);
     // Create a pixie patch
     PatchContainer* pixiePatch = new PatchContainer( d_hierarchy, patch, input_data->nvar, 
-        u0_id, u_id,input_data->nauxs, auxs_id, input_data->nauxv, auxv_id );
+        u0_id, u_id,input_data->nauxs, auxs_id, input_data->nauxv, auxv_id, flux_id, flux_src_id );
     void* pixiePatchData = pixiePatch->getPtr();
     // Get the boundary condition groups
     int N_groups=0;
@@ -1690,7 +1742,7 @@ std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> pixie3dApplication::getBCg
 /****************************************************************************
 * Function to test if any boxes overlap                                     *
 ****************************************************************************/
-bool pixie3dApplication::overlappingBoxes( const tbox::Pointer<hier::PatchLevel> level )
+bool pixie3dApplication::overlappingBoxes( const boost::shared_ptr<hier::PatchLevel> level )
 {
     const hier::BoxLevel box_level = level->getGlobalizedBoxLevel();
     const hier::BoxContainer box_set = box_level.getBoxes();
@@ -1698,8 +1750,8 @@ bool pixie3dApplication::overlappingBoxes( const tbox::Pointer<hier::PatchLevel>
     hier::IntVector zero(level->getDim(),0);
     hier::Connector connector = persistentOverlap.createConnector(box_level,zero);
     bool overlap = false;
-    for (hier::PatchLevel::Iterator p(level); p; p++) {
-        tbox::Pointer<SAMRAI::hier::Patch> patch = *p;
+    for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++) {
+        boost::shared_ptr<SAMRAI::hier::Patch> patch = *p;
         hier::BoxContainer neighbors;
         connector.getNeighborBoxes( patch->getBox().getId(), neighbors );
         if ( neighbors.size() != 1 )

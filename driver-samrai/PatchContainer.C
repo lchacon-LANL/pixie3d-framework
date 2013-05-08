@@ -1,5 +1,9 @@
 #include "PatchContainer.h"
 #include <iostream>
+
+#include "SAMRAI/pdat/CellData.h"
+#include "SAMRAI/pdat/CellVariable.h"
+#include "SAMRAI/pdat/SideData.h"
 #include "SAMRAI/geom/CartesianGridGeometry.h"
 #include "SAMRAI/geom/CartesianPatchGeometry.h"
 
@@ -21,12 +25,13 @@ extern "C"{
    void fill_var_array_(void *p_data, int &, double *, int &, int &, int &, int &, int &, int &);
    void fill_aux_array_var_(void *p_data, int &, double *, int &, int &, int &, int &, int &, int &);
    void fill_aux_array_vec_(void *p_data, int &, double *, int &, int &, int &, int &, int &, int &);
+   void fill_flux_vec_(void*,int&,int&,int&,int&,double*,double*,double*,double*);
 }
 
 
 // Function to get which boundaries of a patch touch a periodic boundary
-static void touchesPeriodicBoundary( SAMRAI::tbox::Pointer<SAMRAI::hier::Patch >& patch, 
-    SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel>& level, bool* periodic )
+static void touchesPeriodicBoundary( boost::shared_ptr<SAMRAI::hier::Patch >& patch, 
+    boost::shared_ptr<SAMRAI::hier::PatchLevel>& level, bool* periodic )
 {
     const short int dim = level->getDim().getValue();
     const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = level->getPhysicalDomainArray();
@@ -65,18 +70,19 @@ PatchContainer::PatchContainer()
 
 
 // Constructor to create and initialize the patch container object
-PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, tbox::Pointer<hier::Patch> &patch, 
-    int n_var, int *u0_id, int *u_id, int n_auxs, int *auxs_id, int n_auxv, int *auxv_id)
+PatchContainer::PatchContainer(boost::shared_ptr<hier::PatchHierarchy> d_hierarchy, boost::shared_ptr<hier::Patch> &patch, 
+    int n_var, int *u0_id, int *u_id, int n_auxs, int *auxs_id, int n_auxv, int *auxv_id, int flux_id, int src_id )
 {
     tbox::Dimension dim(patch->getDim());
     tmp_mem = NULL;
-    assert(!patch.isNull());
+    assert(patch.get()!=NULL);
     int gcw = 1;
     hier::IntVector gcwc(dim,0);
     double *u_ptr[n_var], *u0_ptr[n_var], *auxs_ptr[n_auxs], *auxv_ptr[n_auxv];
-    tbox::Pointer< pdat::CellData<double> > tmp;
+    boost::shared_ptr< pdat::CellData<double> > tmp;
     // Get the dimensions of the domain
-    tbox::Pointer<geom::CartesianGridGeometry> grid_geometry = d_hierarchy->getGridGeometry();
+    boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
+        boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
     const double *lowerX = grid_geometry->getXLower();
     const double *upperX = grid_geometry->getXUpper();
     double lower[10], upper[10];
@@ -99,7 +105,7 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
     int xe = ilast(0)+1;
     int ye = ilast(1)+1;
     int ze = ilast(2)+1;
-    tbox::Pointer<hier::PatchGeometry> patch_geometry = patch->getPatchGeometry();
+    boost::shared_ptr<hier::PatchGeometry> patch_geometry = patch->getPatchGeometry();
     const hier::IntVector ratio = patch_geometry->getRatio();
     int nbox[10];
     for (int i=0; i<10; i++)
@@ -119,8 +125,8 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
     // Get the pointers to u_0, u_n
     for (int i=0; i<n_var; i++)  {
         // Get the pointers to u_0
-        tmp = patch->getPatchData(u0_id[i]);
-        if ( tmp.isNull() ) {
+        tmp = boost::dynamic_pointer_cast<pdat::CellData<double> >(patch->getPatchData(u0_id[i]));
+        if ( tmp.get()==NULL ) {
             // u0[i] is missing
             if ( patch->inHierarchy() )
                 TBOX_ERROR("u0 is missing in patch"); 
@@ -135,8 +141,8 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
     	    }
         }
         // Get the pointers to u_n
-        tmp = patch->getPatchData(u_id[i]);
-        if ( tmp.isNull() ) {
+        tmp = boost::dynamic_pointer_cast<pdat::CellData<double> >(patch->getPatchData(u_id[i]));
+        if ( tmp.get()==NULL ) {
             // u[i] is missing
             if ( patch->inHierarchy() )
                 TBOX_ERROR("u is missing in patch"); 
@@ -155,8 +161,8 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
     // Get the pointers to the auxillary variables
     for (int i=0; i<n_auxs; i++) {
         // Get the pointers to scalar variables
-        tmp = patch->getPatchData(auxs_id[i]);
-        if ( tmp.isNull() ) {
+        tmp = boost::dynamic_pointer_cast<pdat::CellData<double> >(patch->getPatchData(auxs_id[i]));
+        if ( tmp.get()==NULL ) {
             // auxs[i] is missing
             if ( patch->inHierarchy() )
                 TBOX_ERROR("auxs is missing in patch"); 
@@ -173,8 +179,8 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
     }
     for (int i=0; i<n_auxv; i++) {
         // Get the pointers to vector variables
-        tmp = patch->getPatchData(auxv_id[i]);
-        if ( tmp.isNull() ) {
+        tmp = boost::dynamic_pointer_cast<pdat::CellData<double> >(patch->getPatchData(auxv_id[i]));
+        if ( tmp.get()==NULL ) {
             // auxs[i] is missing
             if ( patch->inHierarchy() )
                 TBOX_ERROR("auxv is missing in patch"); 
@@ -189,6 +195,29 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
             }
         }
     }
+
+    // Get the pointers to the flux and src variables
+    double *src_ptr=NULL, *flux_ptr[3]={NULL,NULL,NULL};
+    tmp = boost::dynamic_pointer_cast<pdat::CellData<double> >(patch->getPatchData(src_id));
+    if ( tmp.get()==NULL ) {
+        if ( patch->inHierarchy() )
+            TBOX_ERROR("src is missing in patch"); 
+    } else {
+        src_ptr = tmp->getPointer();
+        TBOX_ASSERT(tmp->getDepth()==n_var);
+        TBOX_ASSERT(tmp->getGhostCellWidth().max()==0);
+    }
+    boost::shared_ptr< pdat::SideData<double> >  tmp2 = boost::dynamic_pointer_cast<pdat::SideData<double> >(patch->getPatchData(flux_id));
+    if ( tmp2.get()==NULL ) {
+        if ( patch->inHierarchy() )
+            TBOX_ERROR("flux is missing in patch"); 
+    } else {
+        for (int j=0; j<dim.getValue(); j++)
+            flux_ptr[j] = tmp2->getPointer(j);
+        TBOX_ASSERT(tmp2->getDepth()==n_var);
+        TBOX_ASSERT(tmp2->getGhostCellWidth().max()==0);
+    }
+
 
     // Check the patch range
     if ( xs>=1 && ys>=1 && zs>=1 && xe<=nbox[0] && ye<=nbox[1] && ze<=nbox[2] ) {
@@ -214,10 +243,10 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
             upper[2] += upper[2]-lower[2];
         }
         // Shift the domain as necessary to cover the patch
-        SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel> level = d_hierarchy->getPatchLevel(patch->getPatchLevelNumber());
+        boost::shared_ptr<SAMRAI::hier::PatchLevel> level = d_hierarchy->getPatchLevel(patch->getPatchLevelNumber());
         bool is_periodic[6];
         touchesPeriodicBoundary( patch, level, is_periodic );
-        tbox::Pointer<hier::PatchGeometry> PatchGeom = patch->getPatchGeometry();
+        boost::shared_ptr<hier::PatchGeometry> PatchGeom = patch->getPatchGeometry();
         int shift[10];
         for (int i=0; i<10; i++)
             shift[i] = 0;
@@ -257,7 +286,7 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
     }
 
     // Create the patch object
-    CreatePatchFortran(lower,upper,nbox,xs,ys,zs,xe,ye,ze,gcw,n_var,u0_ptr,u_ptr,n_auxs,auxs_ptr,n_auxv,auxv_ptr);
+    CreatePatchFortran(lower,upper,nbox,xs,ys,zs,xe,ye,ze,gcw,n_var,u0_ptr,u_ptr,n_auxs,auxs_ptr,n_auxv,auxv_ptr,flux_ptr,src_ptr);
 
 }
 
@@ -265,24 +294,25 @@ PatchContainer::PatchContainer(tbox::Pointer<hier::PatchHierarchy> d_hierarchy, 
 // Function to initialize the fortran side of the patch
 void PatchContainer::CreatePatchFortran( const double *lowerCoordinates,const double *upperCoordinates, const int *ng, 
     int xs, int ys, int zs, int xe, int ye, int ze, int gcw, int n_var, double **u0_ptr, double **u_ptr, int n_auxs, 
-    double **auxs_ptr, int n_auxv, double **auxv_ptr)
+    double **auxs_ptr, int n_auxv, double **auxv_ptr, double *flux_ptr[3], double* src_ptr )
 {
     if ( xs<1 || ys<1 || zs<1 || xe>ng[0] || ye>ng[1] || ze>ng[2] )
         TBOX_ERROR("Bad index"); 
-    int xsg, ysg, zsg, xeg, yeg, zeg;
-    xsg = xs-gcw;
-    ysg = ys-gcw;
-    zsg = zs-gcw;
-    xeg = xe+gcw;
-    yeg = ye+gcw;
-    zeg = ze+gcw;
-    int xsgt, ysgt, zsgt, xegt, yegt, zegt;
-    xsgt = xsg-xs+1;
-    xegt = xeg-xs+1;
-    ysgt = ysg-ys+1;
-    yegt = yeg-ys+1;
-    zsgt = zsg-zs+1;
-    zegt = zeg-zs+1;
+    int nx = xe-xs+1;
+    int ny = ye-ys+1;
+    int nz = ze-zs+1;
+    int xsg = xs-gcw;
+    int ysg = ys-gcw;
+    int zsg = zs-gcw;
+    int xeg = xe+gcw;
+    int yeg = ye+gcw;
+    int zeg = ze+gcw;
+    int xsgt = xsg-xs+1;
+    int xegt = xeg-xs+1;
+    int ysgt = ysg-ys+1;
+    int yegt = yeg-ys+1;
+    int zsgt = zsg-zs+1;
+    int zegt = zeg-zs+1;
    
     // Set global number of points for the level
     int nglx = ng[0];
@@ -328,6 +358,14 @@ void PatchContainer::CreatePatchFortran( const double *lowerCoordinates,const do
 
     // Create the grid structures (moved from setInitialConditions)
     creategridstructures_(data);
+
+    // Add the flux variables
+    int N_null = 0;
+    for (int i=0; i<3; i++)
+        N_null += (flux_ptr[i]==NULL)?1:0;
+    TBOX_ASSERT(N_null==0||N_null==3);
+    if ( N_null==0 )
+        fill_flux_vec_(data,n_var,nx,ny,nz,flux_ptr[0],flux_ptr[1],flux_ptr[2],src_ptr);
 
     // Initilize the fortran data
     formequilibrium_(data);

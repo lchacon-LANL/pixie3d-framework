@@ -23,14 +23,14 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication(): pixie3dApplication()
   d_new_time                    = tbox::IEEE::getSignalingNaN();
   d_initial_dt                  = tbox::IEEE::getSignalingNaN();
 
-  d_newSolutionVector.setNull();
-  d_currentSolutionVector.setNull();
-  d_previousSolutionVector.setNull();
-  d_scratchVector.setNull();
+  d_newSolutionVector.reset();
+  d_currentSolutionVector.reset();
+  d_previousSolutionVector.reset();
+  d_scratchVector.reset();
   d_vectorsCloned = false;
 }
   
-ImplicitPixie3dApplication::ImplicitPixie3dApplication(ImplicitPixie3dApplicationParameters *parameters):
+ImplicitPixie3dApplication::ImplicitPixie3dApplication(boost::shared_ptr<ImplicitPixie3dApplicationParameters> parameters):
   pixie3dApplication(parameters)
 {  
   /*
@@ -43,27 +43,27 @@ ImplicitPixie3dApplication::ImplicitPixie3dApplication(ImplicitPixie3dApplicatio
   d_new_time                    = tbox::IEEE::getSignalingNaN();
   d_initial_dt                  = tbox::IEEE::getSignalingNaN();
 
-  d_newSolutionVector.setNull();
-  d_currentSolutionVector.setNull();
-  d_previousSolutionVector.setNull();
-  d_scratchVector.setNull();
+  d_newSolutionVector.reset();
+  d_currentSolutionVector.reset();
+  d_previousSolutionVector.reset();
+  d_scratchVector.reset();
   d_vectorsCloned = false;
 
   initialize(parameters);
 }
   
 void
-ImplicitPixie3dApplication::initialize(ImplicitPixie3dApplicationParameters *parameters)
+ImplicitPixie3dApplication::initialize(boost::shared_ptr<ImplicitPixie3dApplicationParameters> parameters)
 {
 
   //  tbox::pout << "Begin: Initializing implicit run" << std::endl;
   
   pixie3dApplication::initialize(parameters);
 
-  tbox::Pointer<tbox::Database> db = parameters->d_db;
+  boost::shared_ptr<tbox::Database> db = parameters->d_db;
 
 #ifdef DEBUG_CHECK_ASSERTIONS
-  assert(!db.isNull());
+  assert(db.get()!=NULL);
 #endif
   
   if (db->keyExists("initial_timestep")) {
@@ -89,10 +89,10 @@ ImplicitPixie3dApplication::initialize(ImplicitPixie3dApplicationParameters *par
   
   // the initial condition vector is assumed to have all the necessary information
   // about components
-  tbox::Pointer< solv::SAMRAIVectorReal<double> > ic_vector = this->get_ic();
+  boost::shared_ptr< solv::SAMRAIVectorReal<double> > ic_vector = this->get_ic();
   
 #ifdef DEBUG_CHECK_ASSERTIONS
-  assert(!ic_vector.isNull());
+  assert(ic_vector.get()!=NULL);
 #endif
   
   // Initialize them to have the same values as the initial condition vector
@@ -109,12 +109,12 @@ ImplicitPixie3dApplication::initialize(ImplicitPixie3dApplicationParameters *par
 }
 
 void
-ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hier::PatchHierarchy> hierarchy,
+ImplicitPixie3dApplication::resetHierarchyConfiguration( const boost::shared_ptr<hier::PatchHierarchy>& hierarchy,
 							 const int coarsest_level,
 							 const int finest_level )
 {
   // Check if the application has been initialized
-  if ( d_hierarchy.isNull() )
+  if ( d_hierarchy.get()==NULL )
         return;
   //  tbox::pout << "Begin: implicit resetHierarchyConfiguration" << std::endl;
   // call the base class function
@@ -122,10 +122,10 @@ ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hie
   
   // the initial condition vector is assumed to have all the necessary information
   // about components
-  tbox::Pointer< solv::SAMRAIVectorReal<double> > ic_vector = this->get_ic();
+  boost::shared_ptr< solv::SAMRAIVectorReal<double> > ic_vector = this->get_ic();
   
 #ifdef DEBUG_CHECK_ASSERTIONS
-  assert(!ic_vector.isNull());
+  assert(ic_vector.get()!=NULL);
 #endif
   
 
@@ -148,9 +148,9 @@ ImplicitPixie3dApplication::resetHierarchyConfiguration( const tbox::Pointer<hie
       d_vectorsCloned = true;
     }
 #ifdef DEBUG_CHECK_ASSERTIONS
-  assert(!d_currentSolutionVector.isNull());
-  assert(!d_previousSolutionVector.isNull());
-  assert(!d_scratchVector.isNull());
+  assert(d_currentSolutionVector.get()!=NULL);
+  assert(d_previousSolutionVector.get()!=NULL);
+  assert(d_scratchVector.get()!=NULL);
 #endif
 
   //  tbox::pout << "Middle: implicit resetHierarchyConfiguration" << std::endl;
@@ -186,9 +186,9 @@ ImplicitPixie3dApplication::~ImplicitPixie3dApplication()
 */
 int ImplicitPixie3dApplication::evaluateNonlinearFunction(Vec xcur, Vec fcur)
 {
-  tbox::Pointer< solv::SAMRAIVectorReal<double> > x =
+  boost::shared_ptr< solv::SAMRAIVectorReal<double> > x =
     solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(xcur);
-  tbox::Pointer< solv::SAMRAIVectorReal<double> > f =
+  boost::shared_ptr< solv::SAMRAIVectorReal<double> > f =
     solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(fcur);
   
   return ( evaluateNonlinearFunction(x, f) );
@@ -210,8 +210,8 @@ ImplicitPixie3dApplication::applyPreconditioner(Vec r, Vec z)
    assert(z != NULL);
 #endif
 
-   tbox::Pointer< solv::SAMRAIVectorReal<double> > rhs  = solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(r);
-   tbox::Pointer< solv::SAMRAIVectorReal<double> > soln = solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(z);
+   boost::shared_ptr< solv::SAMRAIVectorReal<double> > rhs  = solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(r);
+   boost::shared_ptr< solv::SAMRAIVectorReal<double> > soln = solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(z);
 
   // this->applyPreconditioner(rhs, soln);
 
@@ -228,18 +228,18 @@ ImplicitPixie3dApplication::applyPreconditioner(Vec r, Vec z)
 int
 ImplicitPixie3dApplication::setupPreconditioner(Vec xcur)
 {
-  tbox::Pointer< solv::SAMRAIVectorReal<double> > soln = solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(xcur);  
+  boost::shared_ptr< solv::SAMRAIVectorReal<double> > soln = solv::PETSc_SAMRAIVectorReal<double>::getSAMRAIVector(xcur);  
   
   return(setupPreconditioner(soln));
   
 }
  
 int
-ImplicitPixie3dApplication::evaluateNonlinearFunction(tbox::Pointer< solv::SAMRAIVectorReal<double> > x,
-						      tbox::Pointer< solv::SAMRAIVectorReal<double> > f)
+ImplicitPixie3dApplication::evaluateNonlinearFunction(boost::shared_ptr< solv::SAMRAIVectorReal<double> > x,
+						      boost::shared_ptr< solv::SAMRAIVectorReal<double> > f)
 {
   //  tbox::pout << "Begin: evaluateNonlinearFunction" << std::endl;
-  tbox::Pointer< solv::SAMRAIVectorReal<double> > nullVector;
+  boost::shared_ptr< solv::SAMRAIVectorReal<double> > nullVector;
 
   //  tbox::pout << "Begin: Calling f(u)" << std::endl;
   // compute f(u^{n+1})
@@ -299,15 +299,15 @@ void
 ImplicitPixie3dApplication::destroyPreconditioner()
 {
   TBOX_ERROR("STOP");
-  /*Pixie3dPreconditioner *ptr = d_preconditioner.getPointer();
+  /*Pixie3dPreconditioner *ptr = d_preconditioner.get();
 
    delete ptr;
 
-   d_preconditioner.setNull();*/
+   d_preconditioner.reset();*/
 }
 
 Pixie3d::Pixie3dPreconditionerParameters *
-ImplicitPixie3dApplication::createPreconditionerParameters( tbox::Pointer<tbox::Database> &db )
+ImplicitPixie3dApplication::createPreconditionerParameters( boost::shared_ptr<tbox::Database> &db )
 {
   TBOX_ERROR("STOP");
   return NULL;
@@ -325,10 +325,10 @@ ImplicitPixie3dApplication::createPreconditionerParameters( tbox::Pointer<tbox::
 
   
 int
-ImplicitPixie3dApplication::setupPreconditioner(tbox::Pointer< solv::SAMRAIVectorReal<double> > x)
+ImplicitPixie3dApplication::setupPreconditioner(boost::shared_ptr< solv::SAMRAIVectorReal<double> > x)
 {
   TBOX_ERROR("STOP");
-/*  tbox::Pointer<tbox::Database> db( new tbox::InputDatabase("null db"));
+/*  boost::shared_ptr<tbox::Database> db( new tbox::InputDatabase("null db"));
 
   // BP: add code in here necessary to setup the parameters object
   
@@ -340,8 +340,8 @@ ImplicitPixie3dApplication::setupPreconditioner(tbox::Pointer< solv::SAMRAIVecto
 }
 
 int
-ImplicitPixie3dApplication::applyPreconditioner(tbox::Pointer< solv::SAMRAIVectorReal<double> > r,
-						tbox::Pointer< solv::SAMRAIVectorReal<double> > z)
+ImplicitPixie3dApplication::applyPreconditioner(boost::shared_ptr< solv::SAMRAIVectorReal<double> > r,
+						boost::shared_ptr< solv::SAMRAIVectorReal<double> > z)
 {  
   TBOX_ERROR("STOP");
   return 0;
@@ -350,10 +350,10 @@ ImplicitPixie3dApplication::applyPreconditioner(tbox::Pointer< solv::SAMRAIVecto
 
 
 void
-ImplicitPixie3dApplication::setupSolutionVector(tbox::Pointer< solv::SAMRAIVectorReal<double> > solution)
+ImplicitPixie3dApplication::setupSolutionVector(const boost::shared_ptr< solv::SAMRAIVectorReal<double> >& solution)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
-  assert(!solution.isNull());
+  assert(solution.get()!=NULL);
 #endif
   registerVector( solution );
   d_newSolutionVector = solution;
@@ -367,23 +367,23 @@ ImplicitPixie3dApplication::setupSolutionVector(tbox::Pointer< solv::SAMRAIVecto
    */
   hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
   
-  tbox::Pointer< hier::VariableContext > solverContext      = variable_db->getContext("SolverContext");
+  boost::shared_ptr< hier::VariableContext > solverContext      = variable_db->getContext("SolverContext");
   
   // the initial condition vector is assumed to have all the necessary information
   // about components
-  tbox::Pointer< solv::SAMRAIVectorReal<double> > ic_vector = this->get_ic();
+  boost::shared_ptr< solv::SAMRAIVectorReal<double> > ic_vector = this->get_ic();
   
 #ifdef DEBUG_CHECK_ASSERTIONS
-  assert(!ic_vector.isNull());
+  assert(ic_vector.get()!=NULL);
 #endif
 
   for(int component=0; component<ic_vector->getNumberOfComponents(); component++)
     {
       // get the variable associated with the component
-      tbox::Pointer< hier::Variable > var = ic_vector->getComponentVariable(component);
+      boost::shared_ptr< hier::Variable > var = ic_vector->getComponentVariable(component);
       
 #ifdef DEBUG_CHECK_ASSERTIONS
-      assert(!var.isNull());
+      assert(var.get()!=NULL);
 #endif
       // get the control volume id for the component
       const int controlVolId = ic_vector->getControlVolumeIndex(component);
@@ -450,10 +450,10 @@ ImplicitPixie3dApplication::setInitialGuess(const bool first_step,
   
   // the initial condition vector is assumed to have all the necessary information
   // about components
-  tbox::Pointer< solv::SAMRAIVectorReal<double> > ic_vector = this->get_ic();
+  boost::shared_ptr< solv::SAMRAIVectorReal<double> > ic_vector = this->get_ic();
   
 #ifdef DEBUG_CHECK_ASSERTIONS
-  assert(!ic_vector.isNull());
+  assert(ic_vector.get()!=NULL);
 #endif
 
   if(d_first_step)
@@ -500,7 +500,7 @@ ImplicitPixie3dApplication::updateSolution(const double new_time)
 }
   
 void
-ImplicitPixie3dApplication::putToDatabase(tbox::Pointer<tbox::Database> db)
+ImplicitPixie3dApplication::putToDatabase(const boost::shared_ptr<tbox::Database>& db) const
 {
   abort();
 }

@@ -29,7 +29,7 @@ PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator()
    d_cell_coarsen_op_str          = "CONSERVATIVE_COARSEN";
    d_cell_refine_op_str           = "CONSTANT_REFINE";
    d_face_refine_op_str           = "CONSTANT_REFINE";
-   d_flux.setNull();
+   d_flux.reset();
 
    const int hierarchy_size       = d_hierarchy->getNumberOfLevels();
 
@@ -40,7 +40,8 @@ PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator()
    d_interpolate_schedule.resizeArray(hierarchy_size);
 }
 
-PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator(SAMRSolvers::MultilevelOperatorParameters *parameters):MultilevelOperator(parameters)
+PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator(boost::shared_ptr<SAMRSolvers::MultilevelOperatorParameters> parameters):
+    MultilevelOperator(parameters.get())
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(parameters!=NULL);
@@ -55,7 +56,7 @@ PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator(SAMRSolvers::Multilev
    d_cell_coarsen_op_str          = "CONSERVATIVE_COARSEN";
    d_cell_refine_op_str           = "CONSTANT_REFINE";
    d_face_refine_op_str           = "CONSTANT_REFINE";
-   d_flux.setNull();
+   d_flux.reset();
 
    d_bdry_types                   = new int[2*d_hierarchy->getDim().getValue()];
 
@@ -89,7 +90,7 @@ PCDiagonalMultilevelOperator::~PCDiagonalMultilevelOperator()
 
    for(int ln=0; ln<=d_hierarchy->getFinestLevelNumber(); ln++)
    {
-     tbox::Pointer<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
+     boost::shared_ptr<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
 
      if(level->checkAllocated(d_flux_id))
        {
@@ -107,7 +108,7 @@ PCDiagonalMultilevelOperator::~PCDiagonalMultilevelOperator()
 }
 
 void
-PCDiagonalMultilevelOperator::initializeLevelOperators( SAMRSolvers::MultilevelOperatorParameters *parameters)
+PCDiagonalMultilevelOperator::initializeLevelOperators( boost::shared_ptr<SAMRSolvers::MultilevelOperatorParameters> parameters)
 {
 
    for(int ln=0; ln<=d_hierarchy->getFinestLevelNumber(); ln++)
@@ -122,12 +123,12 @@ PCDiagonalMultilevelOperator::initializeLevelOperators( SAMRSolvers::MultilevelO
        parameters->d_db->putBool("isPartOfMultilevelOp", true);
        parameters->d_db->putInteger("number_of_variables", d_number_of_variables);
 
-       tbox::Pointer<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
+       boost::shared_ptr<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
        
        params->d_level               = level;
        params->d_cf_interpolant      = parameters->d_cf_interpolant;
        params->d_set_boundary_ghosts = d_set_boundary_ghosts;
-       tbox::Pointer<SAMRSolvers::LevelOperator> levelOp(new PCDiagonalLevelOperator(params));
+       boost::shared_ptr<SAMRSolvers::LevelOperator> levelOp(new PCDiagonalLevelOperator(params));
        d_level_operators[ln]         = levelOp;
        delete params;
      }
@@ -141,7 +142,7 @@ PCDiagonalMultilevelOperator::initializeInternalVariableData()
    const tbox::Dimension &dim = d_hierarchy->getDim();
    const hier::IntVector zero_ghosts = hier::IntVector::getZero(dim);
 
-   const tbox::Pointer< hier::VariableContext > scratch_cxt = variable_db->getContext("SCRATCH");
+   const boost::shared_ptr< hier::VariableContext > scratch_cxt = variable_db->getContext("SCRATCH");
 
    std::ostringstream ibuffer;
    ibuffer<<(long)d_object_id;
@@ -150,11 +151,11 @@ PCDiagonalMultilevelOperator::initializeInternalVariableData()
    std::string cellFlux("PCDiagonalMultilevelOperator_InternalFlux");
    cellFlux+=object_str;
 
-   d_flux = variable_db->getVariable(cellFlux);
+   d_flux = boost::dynamic_pointer_cast<pdat::FaceVariable<double> >(variable_db->getVariable(cellFlux));
 
    if (!d_flux) 
    {
-     d_flux = new pdat::FaceVariable<double>(dim,cellFlux,d_number_of_variables);
+     d_flux.reset( new pdat::FaceVariable<double>(dim,cellFlux,d_number_of_variables) );
    }
 
    d_flux_id = variable_db->registerVariableAndContext(d_flux,
@@ -163,7 +164,7 @@ PCDiagonalMultilevelOperator::initializeInternalVariableData()
 
    for(int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++)
    {
-      tbox::Pointer<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
+      boost::shared_ptr<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
       // allocate storage space
       if(!level->checkAllocated(d_flux_id))
       {
@@ -178,10 +179,10 @@ PCDiagonalMultilevelOperator::initializeInternalVariableData()
 }
 
 void 
-PCDiagonalMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
+PCDiagonalMultilevelOperator::getFromInput(boost::shared_ptr<tbox::Database> db)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
-   assert(!db.isNull());
+   assert(db.get()!=NULL);
 #endif
 
    if (db->keyExists("coarsen_diffusive_fluxes")) 
@@ -299,8 +300,8 @@ PCDiagonalMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
       // get the database object for boundary conditions
       db->getIntegerArray("boundary_conditions", d_bdry_types, 2*dim);
       
-      tbox::Pointer<geom::CartesianGridGeometry > grid_geometry = 
-         d_hierarchy->getGridGeometry();
+      boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
+         boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
       hier::IntVector shift = grid_geometry->getPeriodicShift(hier::IntVector::getOne(d_hierarchy->getDim()));
       
       for (int d=0; d<dim; d++) 
@@ -323,7 +324,7 @@ PCDiagonalMultilevelOperator::getFromInput(tbox::Pointer<tbox::Database> db)
 
 }
 
-tbox::Pointer< xfer::RefineSchedule > 
+boost::shared_ptr< xfer::RefineSchedule > 
 PCDiagonalMultilevelOperator::getRefineSchedule(const int ln, 
 					       const int var_id)
 {
@@ -334,17 +335,18 @@ PCDiagonalMultilevelOperator::getRefineSchedule(const int ln,
 #endif
    
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
-   tbox::Pointer< hier::Variable > var;
+   boost::shared_ptr< hier::Variable > var;
    variable_db->mapIndexToVariable(var_id, var);
    
 #ifdef DEBUG_CHECK_ASSERTIONS
-   assert(!var.isNull());      
+   assert(var.get()!=NULL);      
 #endif
    
-   tbox::Pointer< hier::GridGeometry > geometry = d_hierarchy->getGridGeometry();
+   boost::shared_ptr<geom::CartesianGridGeometry> geometry = 
+         boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
    
 #ifdef DEBUG_CHECK_ASSERTIONS
-   assert(!geometry.isNull());      
+   assert(geometry.get()!=NULL);      
 #endif
    
    xfer::RefineAlgorithm refine_alg(d_hierarchy->getDim());
@@ -353,26 +355,26 @@ PCDiagonalMultilevelOperator::getRefineSchedule(const int ln,
                              geometry->lookupRefineOperator(var, 
                                                             d_cell_refine_op_str));
    
-   tbox::Pointer<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln);
+   boost::shared_ptr<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln);
 
    if(ln>0)
    {
-     tbox::Pointer<hier::PatchLevel > clevel = d_hierarchy->getPatchLevel(ln-1);
+     boost::shared_ptr<hier::PatchLevel > clevel = d_hierarchy->getPatchLevel(ln-1);
    }
    
-   if(d_var_refine_schedule[ln].isNull()||(!refine_alg.checkConsistency(d_var_refine_schedule[ln])))
+   if(d_var_refine_schedule[ln].get()==NULL||(!refine_alg.checkConsistency(d_var_refine_schedule[ln])))
      {
        if(ln==0)
 	 {
 	   d_var_refine_schedule[ln]=refine_alg.createSchedule(flevel,
-							       d_set_boundary_ghosts.getPointer());
+							       d_set_boundary_ghosts.get());
 	 }
        else
 	 {
 	   d_var_refine_schedule[ln]=refine_alg.createSchedule(flevel,
 							       ln-1,
 							       d_hierarchy,
-							       d_set_boundary_ghosts.getPointer());
+							       d_set_boundary_ghosts.get());
 	 }
      }
    else
@@ -381,7 +383,7 @@ PCDiagonalMultilevelOperator::getRefineSchedule(const int ln,
      }
    
 #ifdef DEBUG_CHECK_ASSERTIONS
-   assert(!d_var_refine_schedule[ln].isNull());
+   assert(d_var_refine_schedule[ln].get()!=NULL);
 #endif
    
    return d_var_refine_schedule[ln];
@@ -396,7 +398,7 @@ PCDiagonalMultilevelOperator::applyBoundaryCondition(const int ln,
 						    const bool reset_ghost_values)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS   
-  assert(!d_level_operators[ln].isNull());
+  assert(d_level_operators[ln].get()!=NULL);
    assert(var_id!=NULL);
    assert(var_components==NULL);
 #endif
@@ -406,15 +408,15 @@ PCDiagonalMultilevelOperator::applyBoundaryCondition(const int ln,
    // if ghost values have already been initialized then don't do it again
    // else reinitialize the values in ghost cells
    // get a pointer to the refine strategy object
-   tbox::Pointer< xfer::RefinePatchStrategy > refine_strategy;
+   boost::shared_ptr< xfer::RefinePatchStrategy > refine_strategy;
    refine_strategy=d_set_boundary_ghosts;
    
    PCDiagonalRefinePatchStrategy *ptr=NULL;
 
-   if(!refine_strategy.isNull())
+   if(refine_strategy.get()!=NULL)
    {
       // set the index to fill for the refine patch strategy
-      ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(refine_strategy.getPointer());
+      ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(refine_strategy.get());
 #ifdef DEBUG_CHECK_ASSERTIONS
       assert(ptr!=NULL);
 #endif
@@ -424,7 +426,7 @@ PCDiagonalMultilevelOperator::applyBoundaryCondition(const int ln,
    if(reset_ghost_values)
    {
       // get the refine schedule for the level and fill data
-      tbox::Pointer< xfer::RefineSchedule > refineSchedule;
+      boost::shared_ptr< xfer::RefineSchedule > refineSchedule;
       refineSchedule=this->getRefineSchedule(ln, var_id[0]);
       refineSchedule->fillData(0.0);
    }
@@ -475,7 +477,7 @@ PCDiagonalMultilevelOperator::apply(const int ln,
   assert(f_id!=NULL);
   assert(u_id!=NULL);
   assert(r_id!=NULL);
-  assert(!d_level_operators[ln].isNull());
+  assert(d_level_operators[ln].get()!=NULL);
 #endif
   
   d_level_operators[ln]->apply(f_id , u_id , r_id ,
@@ -484,30 +486,30 @@ PCDiagonalMultilevelOperator::apply(const int ln,
   
 }
 
-SAMRSolvers::LevelOperator *
+boost::shared_ptr<SAMRSolvers::LevelOperator>
 PCDiagonalMultilevelOperator::getLevelOperator(const int ln)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
-  assert(!d_level_operators[ln].isNull());
+  assert(d_level_operators[ln].get()!=NULL);
 #endif
   
-  return d_level_operators[ln].getPointer();
+  return d_level_operators[ln];
 }
   
 
 void 
-PCDiagonalMultilevelOperator::initializeBoundaryConditionStrategy(tbox::Pointer<tbox::Database> &db)
+PCDiagonalMultilevelOperator::initializeBoundaryConditionStrategy(boost::shared_ptr<tbox::Database> &db)
 {
   if(d_internal_refine_strategy)
     {
       BoundaryConditionParameters *parameters = new BoundaryConditionParameters(db);
-      d_set_boundary_ghosts = new PCDiagonalRefinePatchStrategy(d_hierarchy->getDim(), parameters);
+      d_set_boundary_ghosts.reset( new PCDiagonalRefinePatchStrategy(d_hierarchy->getDim(), parameters) );
       delete parameters;
     }
   
-  if(!d_set_boundary_ghosts.isNull())
+  if(d_set_boundary_ghosts.get()!=NULL)
     {
-      PCDiagonalRefinePatchStrategy *ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(d_set_boundary_ghosts.getPointer());
+      PCDiagonalRefinePatchStrategy *ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(d_set_boundary_ghosts.get());
 #ifdef DEBUG_CHECK_ASSERTIONS
       assert(ptr!=NULL);
       assert(d_bdry_types!=NULL);
@@ -544,7 +546,7 @@ PCDiagonalMultilevelOperator::apply(const int coarse_ln,
     {
       for(int ln=fine_ln; ln>=coarse_ln; ln--)
 	{
-	  PCDiagonalLevelOperator *pcDiagonalLevelOp = dynamic_cast<PCDiagonalLevelOperator *>(this->getLevelOperator(ln));
+	  boost::shared_ptr<PCDiagonalLevelOperator> pcDiagonalLevelOp = boost::dynamic_pointer_cast<PCDiagonalLevelOperator>(this->getLevelOperator(ln));
 	  
 #ifdef DEBUG_CHECK_ASSERTIONS
 	  assert(pcDiagonalLevelOp!=NULL);
@@ -561,14 +563,14 @@ PCDiagonalMultilevelOperator::apply(const int coarse_ln,
 	  
 #ifdef DEBUG_CHECK_ASSERTIONS
 	  assert(d_schedules_initialized==true);
-         assert(!d_flux_coarsen_schedule[ln].isNull());
+         assert(d_flux_coarsen_schedule[ln].get()!=NULL);
 #endif
          d_flux_coarsen_schedule[ln]->coarsenData();
       }
       
       for(int ln=fine_ln; ln>=coarse_ln; ln--)
 	{
-	  PCDiagonalLevelOperator *pcDiagonalLevelOp = dynamic_cast<PCDiagonalLevelOperator *>(this->getLevelOperator(ln));
+	  boost::shared_ptr<PCDiagonalLevelOperator> pcDiagonalLevelOp = boost::dynamic_pointer_cast<PCDiagonalLevelOperator>(this->getLevelOperator(ln));
 	  
 #ifdef DEBUG_CHECK_ASSERTIONS
 	  assert(pcDiagonalLevelOp!=NULL);
@@ -584,7 +586,7 @@ PCDiagonalMultilevelOperator::apply(const int coarse_ln,
     {
       for(int ln=fine_ln; ln>=coarse_ln; ln--)
 	{
-	  PCDiagonalLevelOperator *pcDiagonalLevelOp = dynamic_cast<PCDiagonalLevelOperator *>(this->getLevelOperator(ln));
+	  boost::shared_ptr<PCDiagonalLevelOperator> pcDiagonalLevelOp = boost::dynamic_pointer_cast<PCDiagonalLevelOperator>(this->getLevelOperator(ln));
 	  
 #ifdef DEBUG_CHECK_ASSERTIONS
 	  assert(pcDiagonalLevelOp!=NULL);
@@ -602,7 +604,7 @@ PCDiagonalMultilevelOperator::apply(const int coarse_ln,
 	    {
 #ifdef DEBUG_CHECK_ASSERTIONS
 	      assert(d_schedules_initialized==true);
-	      assert(!d_flux_coarsen_schedule[ln].isNull());
+	      assert(d_flux_coarsen_schedule[ln].get()!=NULL);
 #endif
 	      d_flux_coarsen_schedule[ln]->coarsenData();
 	    } 
@@ -626,7 +628,7 @@ void
 PCDiagonalMultilevelOperator::setupTransferSchedules(void)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
-   assert(!d_hierarchy.isNull());
+   assert(d_hierarchy.get()!=NULL);
    assert(d_flux_id>=0);
 #endif
 
@@ -634,10 +636,10 @@ PCDiagonalMultilevelOperator::setupTransferSchedules(void)
    
    if(!d_schedules_initialized)
    {
-      tbox::Pointer<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(0);
-      tbox::Pointer<hier::PatchLevel > clevel;
+      boost::shared_ptr<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(0);
+      boost::shared_ptr<hier::PatchLevel > clevel;
 
-      tbox::Pointer<hier::GridGeometry > geometry = flevel->getGridGeometry();
+      boost::shared_ptr<geom::GridGeometry> geometry = boost::dynamic_pointer_cast<geom::GridGeometry>(flevel->getGridGeometry());
 
       xfer::CoarsenAlgorithm flux_coarsen_alg(d_hierarchy->getDim());
 
@@ -664,18 +666,18 @@ PCDiagonalMultilevelOperator::coarsenSolutionAndSourceTerm(const int ln,
 							  const bool coarsen_rhs)
 {
   hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
-  tbox::Pointer< hier::Variable > f;
+  boost::shared_ptr< hier::Variable > f;
   variable_db->mapIndexToVariable(f_id, f);
   
 #ifdef DEBUG_CHECK_ASSERTIONS
-  assert(!f.isNull());      
+  assert(f.get()!=NULL);      
   assert(ln<d_hierarchy->getFinestLevelNumber());
 #endif
   
-  tbox::Pointer< hier::GridGeometry > geometry = d_hierarchy->getGridGeometry();
+  boost::shared_ptr<geom::GridGeometry> geometry = boost::dynamic_pointer_cast<geom::GridGeometry>(d_hierarchy->getGridGeometry());
   
 #ifdef DEBUG_CHECK_ASSERTIONS
-  assert(!geometry.isNull());      
+  assert(geometry.get()!=NULL);      
 #endif
   
   xfer::CoarsenAlgorithm coarsen_alg(d_hierarchy->getDim());
@@ -692,10 +694,10 @@ PCDiagonalMultilevelOperator::coarsenSolutionAndSourceTerm(const int ln,
     }
   
   // if a schedule does not currently exist create it
-  if(d_src_coarsen_schedule[ln].isNull())
+  if(d_src_coarsen_schedule[ln].get()==NULL)
     {
-      tbox::Pointer<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln+1);
-      tbox::Pointer<hier::PatchLevel > clevel = d_hierarchy->getPatchLevel(ln);
+      boost::shared_ptr<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln+1);
+      boost::shared_ptr<hier::PatchLevel > clevel = d_hierarchy->getPatchLevel(ln);
       d_src_coarsen_schedule[ln]=coarsen_alg.createSchedule(clevel, flevel); 
     }
   else
@@ -709,15 +711,15 @@ PCDiagonalMultilevelOperator::coarsenSolutionAndSourceTerm(const int ln,
 	}
       else
 	{
-	  tbox::Pointer<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln+1);
-	  tbox::Pointer<hier::PatchLevel > clevel = d_hierarchy->getPatchLevel(ln);
+	  boost::shared_ptr<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln+1);
+	  boost::shared_ptr<hier::PatchLevel > clevel = d_hierarchy->getPatchLevel(ln);
 	  d_src_coarsen_schedule[ln]=coarsen_alg.createSchedule(clevel, flevel); 
 	  tbox::pout << "PCDiagonalMultilevelOperator::coarsenSolutionAndSourceTerm()::Forced to recreate schedule " << std::endl;
 	}
     }
   
 #ifdef DEBUG_CHECK_ASSERTIONS
-  assert(!d_src_coarsen_schedule[ln].isNull());      
+  assert(d_src_coarsen_schedule[ln].get()!=NULL);      
 #endif
   
   d_src_coarsen_schedule[ln]->coarsenData();   
@@ -737,7 +739,8 @@ PCDiagonalMultilevelOperator::setFlux(const int coarse_ln,
 
    for(int ln=fine_ln; ln>=coarse_ln; ln--)
    {
-	PCDiagonalLevelOperator *pcDiagonalLevelOp = dynamic_cast<PCDiagonalLevelOperator *>(this->getLevelOperator(ln));
+	boost::shared_ptr<PCDiagonalLevelOperator> pcDiagonalLevelOp = 
+        boost::dynamic_pointer_cast<PCDiagonalLevelOperator>(this->getLevelOperator(ln));
 
 #ifdef DEBUG_CHECK_ASSERTIONS
 	assert(pcDiagonalLevelOp!=NULL);
@@ -749,7 +752,7 @@ PCDiagonalMultilevelOperator::setFlux(const int coarse_ln,
        {
 #ifdef DEBUG_CHECK_ASSERTIONS
          assert(d_schedules_initialized==true);
-         assert(!d_flux_coarsen_schedule[ln].isNull());
+         assert(d_flux_coarsen_schedule[ln].get()!=NULL);
 #endif
          d_flux_coarsen_schedule[ln]->coarsenData();
       } 
@@ -757,8 +760,8 @@ PCDiagonalMultilevelOperator::setFlux(const int coarse_ln,
 }
 
 void
-PCDiagonalMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel > &flevel,
-					 const tbox::Pointer<hier::PatchLevel > &clevel,
+PCDiagonalMultilevelOperator::interpolate(const boost::shared_ptr<hier::PatchLevel > &flevel,
+					 const boost::shared_ptr<hier::PatchLevel > &clevel,
 					 const int *dst_id,
 					 const int *src_id,
 					 const int *scratch_id,
@@ -770,10 +773,10 @@ PCDiagonalMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel >
    assert(scratch_id!=NULL);
 #endif
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
-   tbox::Pointer< hier::Variable > dstvar;
+   boost::shared_ptr< hier::Variable > dstvar;
    variable_db->mapIndexToVariable(scratch_id[0], dstvar);
 
-   tbox::Pointer< hier::GridGeometry > geometry = d_hierarchy->getGridGeometry();
+   boost::shared_ptr<geom::GridGeometry> geometry = boost::dynamic_pointer_cast<geom::GridGeometry>(d_hierarchy->getGridGeometry());
 
    xfer::RefineAlgorithm refine_alg(d_hierarchy->getDim());
 
@@ -783,18 +786,18 @@ PCDiagonalMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel >
    
    const int ln = flevel->getLevelNumber();
 
-   tbox::Pointer< xfer::RefinePatchStrategy > refine_strategy = d_set_boundary_ghosts;
+   boost::shared_ptr< xfer::RefinePatchStrategy > refine_strategy = d_set_boundary_ghosts;
 
    PCDiagonalRefinePatchStrategy *ptr=NULL;
 
-   if(!refine_strategy.isNull())
+   if(refine_strategy.get()!=NULL)
    {
 
 #ifdef DEBUG_CHECK_ASSERTIONS
-      assert(!refine_strategy.isNull());      
+      assert(refine_strategy.get()!=NULL);      
 #endif
       // set the index to fill for the refine patch strategy
-      ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(refine_strategy.getPointer());
+      ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(refine_strategy.get());
 
 #ifdef DEBUG_CHECK_ASSERTIONS
       assert(ptr!=NULL);
@@ -804,7 +807,7 @@ PCDiagonalMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel >
 
    }
 
-   if(d_interpolate_schedule[ln].isNull()||(!refine_alg.checkConsistency(d_interpolate_schedule[ln])))
+   if(d_interpolate_schedule[ln].get()==NULL||(!refine_alg.checkConsistency(d_interpolate_schedule[ln])))
    {
       if(ln==0)
       {
@@ -813,7 +816,7 @@ PCDiagonalMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel >
       }
       else
 	{
-	  tbox::Pointer<hier::PatchLevel> nullLevelPtr;
+	  boost::shared_ptr<hier::PatchLevel> nullLevelPtr;
 	  d_interpolate_schedule[ln]=refine_alg.createSchedule(flevel,
 							       nullLevelPtr,
 							       ln-1,
@@ -827,15 +830,15 @@ PCDiagonalMultilevelOperator::interpolate(const tbox::Pointer<hier::PatchLevel >
    }
 
 #ifdef DEBUG_CHECK_ASSERTIONS
-   assert(!d_interpolate_schedule[ln].isNull());
+   assert(d_interpolate_schedule[ln].get()!=NULL);
 #endif
    d_interpolate_schedule[ln]->fillData(0.0);
 }
 
 int
 PCDiagonalMultilevelOperator::getVariableIndex(std::string &name, 
-					      tbox::Pointer<hier::VariableContext> &context,
-					      tbox::Pointer<hier::Variable > &var,
+					      boost::shared_ptr<hier::VariableContext> &context,
+					      boost::shared_ptr<hier::Variable > &var,
 					      hier::IntVector nghosts,
 					      int depth,
 					      bool bOverride,
@@ -851,12 +854,10 @@ PCDiagonalMultilevelOperator::getVariableIndex(std::string &name,
       
       if(!var)
 	{
-	  var = new pdat::CellVariable< double>(d_hierarchy->getDim(), name, depth);         
+	  var.reset( new pdat::CellVariable< double>(d_hierarchy->getDim(), name, depth) ); 
 	}
       
-      var_id = variable_db->registerVariableAndContext(var,
-                                                       context,
-                                                       nghosts);
+      var_id = variable_db->registerVariableAndContext(var,context,nghosts);
     }
   else
     {
@@ -878,7 +879,7 @@ PCDiagonalMultilevelOperator::reset(SAMRSolvers::DiscreteOperatorParameters *par
   for (int ln = 0; ln <= d_hierarchy->getFinestLevelNumber(); ln++) 
     {
 #ifdef DEBUG_CHECK_ASSERTIONS
-      assert(!d_level_operators[ln].isNull());
+      assert(d_level_operators[ln].get()!=NULL);
 #endif
       
       d_level_operators[ln]->reset(params);
