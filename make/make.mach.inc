@@ -41,11 +41,11 @@ ifeq ($(HOST),lap0086227)
     ifndef SAMR
         HDF5_HOME =/usr
         LIBS += -L/packages/lapack-3.2.2/ -llapack -lblas
+        HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+        HDF5_MOD  = $(HDF5_HOME)/lib
+        HDF5_INC  =-I$(HDF5_HOME)/include
     endif
-    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)/lib
-    HDF5_INC  =$(HDF5_HOME)/include
-    LIBS += -L/packages/acml-4-4-0/gfortran64/lib -llapack -lblas -lgfortran
+    LIBS += -L/packages/acml-4-4-0/gfortran64/lib -lgfortran
 endif
 
 ###############################

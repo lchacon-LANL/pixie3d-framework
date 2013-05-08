@@ -37,7 +37,7 @@ PCDiagonalRefinePatchStrategy::~PCDiagonalRefinePatchStrategy()
 }
 
 void
-PCDiagonalRefinePatchStrategy::getFromInput(const tbox::Pointer<tbox::Database> &db)
+PCDiagonalRefinePatchStrategy::getFromInput(const boost::shared_ptr<tbox::Database> &db)
 {
    if (db->keyExists("extrapolation_order")) {
       d_extrapolation_order = db->getInteger("extrapolation_order");
@@ -111,11 +111,11 @@ void PCDiagonalRefinePatchStrategy::setPhysicalBoundaryConditions(
 #ifdef DEBUG_CHECK_ASSERTIONS
       assert(patch.checkAllocated(d_data_id));
 #endif 
-      tbox::Pointer< pdat::CellData<double> > u;
+      boost::shared_ptr< pdat::CellData<double> > u;
 
       if(patch.checkAllocated(d_data_id))
       {
-         u = patch.getPatchData(d_data_id);
+         u = boost::dynamic_pointer_cast<pdat::CellData<double> >(patch.getPatchData(d_data_id));
          if(d_debug_print_info_level>4)
          {
             tbox:: pout << d_data_id << " is allocated " << std::endl;
@@ -130,7 +130,7 @@ void PCDiagonalRefinePatchStrategy::setPhysicalBoundaryConditions(
          abort();
       }
 
-      tbox::Pointer< pdat::FaceData<double> > d;
+      boost::shared_ptr< pdat::FaceData<double> > d;
 
       hier::IntVector gcw = u->getGhostCellWidth();
 
@@ -141,8 +141,8 @@ void PCDiagonalRefinePatchStrategy::setPhysicalBoundaryConditions(
        * Determine boxes that touch the physical boundary.
        */
 
-      const tbox::Pointer<geom::CartesianPatchGeometry > patch_geom = 
-         patch.getPatchGeometry();
+      boost::shared_ptr<geom::CartesianPatchGeometry> patch_geom = 
+         boost::dynamic_pointer_cast<geom::CartesianPatchGeometry>(patch.getPatchGeometry());
       const double* dx = patch_geom->getDx();
       const tbox::Array<hier::BoundaryBox > boundary = patch_geom->getCodimensionBoundaries(1);
 
@@ -166,10 +166,10 @@ void PCDiagonalRefinePatchStrategy::setPhysicalBoundaryConditions(
          {
             hier::BoxContainer physical;
             AMRUtilities::getPhysicalBoxes(physical, patch, axis, side);
-            for (hier::BoxContainerIterator l=physical.begin(); l!=physical.end(); l++) 
+            for (hier::BoxContainer::BoxContainerIterator l=physical.begin(); l!=physical.end(); l++) 
             {
-               hier::Index pfirst = l().lower();
-               hier::Index plast = l().upper();
+               hier::Index pfirst = l->lower();
+               hier::Index plast = l->upper();
 
                for(int i=0; i<dim; i++)
                {
@@ -280,7 +280,7 @@ void PCDiagonalRefinePatchStrategy::setPhysicalBoundaryConditions(
 ************************************************************************
 */
 void PCDiagonalRefinePatchStrategy::extrapolateCornerGhostCells(
-        tbox::Pointer<hier::PatchHierarchy > hierarchy,
+        boost::shared_ptr<hier::PatchHierarchy > hierarchy,
         const int ln,
         const int var_id,
         const int var_idx)
@@ -289,20 +289,21 @@ void PCDiagonalRefinePatchStrategy::extrapolateCornerGhostCells(
    int *ilo = new int[dim];
    int *ihi = new int[dim];
 
-   tbox::Pointer<hier::PatchLevel > level = hierarchy->getPatchLevel(ln);
+   boost::shared_ptr<hier::PatchLevel > level = hierarchy->getPatchLevel(ln);
 
-   for (hier::PatchLevel::Iterator p(level); p; p++) 
+   for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++) 
    {
-      tbox::Pointer<hier::Patch > patch = *p;  
+      boost::shared_ptr<hier::Patch > patch = *p;  
 
       const hier::Index ifirst = patch->getBox().lower();
       const hier::Index ilast =  patch->getBox().upper();
-      tbox::Pointer< pdat::CellData<double> > data = 
-         patch->getPatchData(var_id);
+      boost::shared_ptr< pdat::CellData<double> > data = 
+         boost::dynamic_pointer_cast<pdat::CellData<double> >(patch->getPatchData(var_id));
 
       hier::IntVector gcw = data->getGhostCellWidth();
 
-      const tbox::Pointer<geom::CartesianPatchGeometry > patch_geometry = patch->getPatchGeometry();
+      const boost::shared_ptr<geom::CartesianPatchGeometry > patch_geometry = 
+         boost::dynamic_pointer_cast<geom::CartesianPatchGeometry>(patch->getPatchGeometry());
 
       if(dim==2)
       {

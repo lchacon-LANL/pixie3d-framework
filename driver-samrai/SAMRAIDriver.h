@@ -15,7 +15,7 @@
 
 #include "SAMRAI/tbox/Database.h"
 #include "SAMRAI/hier/PatchHierarchy.h"
-#include "SAMRAI/tbox/Pointer.h"
+#include "boost/shared_ptr.hpp"
 #include "SAMRAI/mesh/StandardTagAndInitStrategy.h"
 
 /**

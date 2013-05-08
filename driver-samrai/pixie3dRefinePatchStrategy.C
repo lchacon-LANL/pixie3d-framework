@@ -14,8 +14,8 @@
 #include "SAMRAI/geom/CartesianPatchGeometry.h"
 #include "SAMRAI/geom/CartesianGridGeometry.h"
 #include "SAMRAI/pdat/CellData.h"
-#include "SAMRAI/tbox/Pointer.h"
-#include "SAMRAI/hier/GridGeometry.h"
+#include "boost/shared_ptr.hpp"
+#include "SAMRAI/geom/GridGeometry.h"
 
 #include "LevelContainer.h"
 #include "PatchContainer.h"
@@ -39,6 +39,9 @@ extern "C" {
 #endif
 }
 namespace SAMRAI{
+
+
+struct NullDeleter{template<typename T> void operator()(T*){}};
 
 
 /***********************************************************************
@@ -190,7 +193,7 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch& patch,
     }
 
     // Apply the BC (and interior fill) on the patch
-    tbox::Pointer<hier::Patch> patch_ptr = tbox::Pointer<hier::Patch>(&patch,false);
+    boost::shared_ptr<hier::Patch> patch_ptr = boost::shared_ptr<hier::Patch>(&patch,NullDeleter());
     applyBC( patch_ptr );
 
     //double stop = MPI_Wtime();
@@ -231,9 +234,9 @@ void pixie3dRefinePatchStrategy::postprocessRefine( hier::Patch& patch,
 *                                                                      *
 ***********************************************************************/
 void
-pixie3dRefinePatchStrategy::setPixie3dDataIDs(bool copy, 
-					      int nvar, int nauxs, int nauxv,
-					      int *u0, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp )
+pixie3dRefinePatchStrategy::setPixie3dDataIDs( bool copy, 
+    int nvar, int nauxs, int nauxv, int *u0, int *u, int *u_tmp, 
+    int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp, int flux, int src )
 {
     // Copy some basic information
     d_nvar = nvar;
@@ -278,6 +281,8 @@ pixie3dRefinePatchStrategy::setPixie3dDataIDs(bool copy,
         auxv_id[i] = auxv[i];
         auxv_tmp_id[i] = auxv_tmp[i];
 	}
+    flux_id = flux;
+    src_id = src;
 }
 
 
@@ -288,7 +293,7 @@ pixie3dRefinePatchStrategy::setPixie3dDataIDs(bool copy,
 ***********************************************************************/
 bool pixie3dRefinePatchStrategy::checkPhysicalBoundary( hier::Patch& patch)
 {
-    tbox::Pointer<hier::PatchGeometry> patchGeom = patch.getPatchGeometry();
+    boost::shared_ptr<hier::PatchGeometry> patchGeom = patch.getPatchGeometry();
     return patchGeom->getTouchesRegularBoundary();
     /*const hier::Box box = patch.getBox();
     const hier::IntVector ratio = patch.getPatchGeometry()->getRatio();
@@ -315,11 +320,13 @@ bool pixie3dRefinePatchStrategy::checkPhysicalBoundary( hier::Patch& patch)
 * Copy data from src_id to dst_id on the given patch                   *
 ***********************************************************************/
 void pixie3dRefinePatchStrategy::copy_data_patch( hier::Patch& patch, int src_id, int dst_id ) {
-    tbox::Pointer< pdat::CellData<double> > src_data = patch.getPatchData(src_id);
-    tbox::Pointer< pdat::CellData<double> > dst_data = patch.getPatchData(dst_id);
-    if ( dst_data.isNull() )
+    boost::shared_ptr< pdat::CellData<double> > src_data = 
+        boost::dynamic_pointer_cast<pdat::CellData<double> >( patch.getPatchData(src_id) );
+    boost::shared_ptr< pdat::CellData<double> > dst_data = 
+        boost::dynamic_pointer_cast<pdat::CellData<double> >( patch.getPatchData(dst_id) );
+    if ( dst_data==NULL )
         return;
-    assert(!src_data.isNull());
+    assert(src_data!=NULL);
     dst_data->copy(*src_data);
 }
 
@@ -328,7 +335,7 @@ void pixie3dRefinePatchStrategy::copy_data_patch( hier::Patch& patch, int src_id
 * Apply the boundary conditions to a patch                             *
 * Note: this will also fill the trivial relations for the interiors    *
 ***********************************************************************/
-void pixie3dRefinePatchStrategy::applyBC( tbox::Pointer<hier::Patch> patch )
+void pixie3dRefinePatchStrategy::applyBC( boost::shared_ptr<hier::Patch> patch )
 {
 
     // Some basic error checking
@@ -359,7 +366,7 @@ void pixie3dRefinePatchStrategy::applyBC( tbox::Pointer<hier::Patch> patch )
         pixie3d_data = level_container->getPtr(patch);
     } else {
         // Patch is not in the hierarchy, create a temporary pixie patch
-        pixie_patch = new PatchContainer(d_hierarchy,patch,d_nvar,u0_id,u_id,d_nauxs,auxs_id,d_nauxv,auxv_id);        
+        pixie_patch = new PatchContainer(d_hierarchy,patch,d_nvar,u0_id,u_id,d_nauxs,auxs_id,d_nauxv,auxv_id,flux_id,src_id);        
         pixie3d_data = pixie_patch->getPtr();
     }
     assert(pixie3d_data!=NULL);

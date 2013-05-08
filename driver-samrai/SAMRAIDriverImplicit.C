@@ -4,11 +4,13 @@
 // $Date: 2005-08-23 15:10:00 -0600 (Tue, 23 Aug 2005) $
 //
 
+#include <stdio.h>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <fstream>
 #include <sys/stat.h>
+#include <stdexcept>
 
 // Application header.
 #include "SAMRAIDriver.h"
@@ -25,6 +27,7 @@
 // SAMRUTILS headers
 #include "testutils/SAMRBuilder.h"
 #include "utilities/ProfilerApp.h"
+#include "utilities/Utilities.h"
 
 // SAMRSOLVERS headers
 #include "SAMRAI/algs/ImplicitIntegrator.h"
@@ -60,6 +63,8 @@ int main( int argc, char *argv[] )
   //PetscInitializeNoArguments();
   //PetscInitializeFortran();
 
+  Utilities::setAllErrorHandlers( );
+
   // This extra code block is used to scope some temporaries that are
   // created, it forces the destruction before the manager is shutdown.
   {
@@ -78,10 +83,10 @@ int main( int argc, char *argv[] )
     SAMRAI::tbox::PIO::logAllNodes(log_file);
 
     // Create input database and parse all data in input file.
-    SAMRAI::tbox::Pointer<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
+    boost::shared_ptr<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
     SAMRAI::tbox::InputManager::getManager()->parseInputFile(input_file, input_db);
-    SAMRAI::tbox::Pointer<SAMRAI::tbox::Database> main_db = input_db->getDatabase("Main");
-    SAMRAI::tbox::Pointer<SAMRAI::tbox::Database>  tag_db = input_db->getDatabase("StandardTagAndInitialize");
+    boost::shared_ptr<SAMRAI::tbox::Database> main_db = input_db->getDatabase("Main");
+    boost::shared_ptr<SAMRAI::tbox::Database>  tag_db = input_db->getDatabase("StandardTagAndInitialize");
 
     // Get the output parameters
     bool use_visit = main_db->getBool("use_visit");
@@ -125,30 +130,31 @@ int main( int argc, char *argv[] )
 
     // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
     const SAMRAI::tbox::Dimension dim(3);
-    tbox::Pointer<SAMRAI::Pixie3d::ImplicitPixie3dApplication> application( new SAMRAI::Pixie3d::ImplicitPixie3dApplication() );
+    boost::shared_ptr<SAMRAI::Pixie3d::ImplicitPixie3dApplication> application( new SAMRAI::Pixie3d::ImplicitPixie3dApplication() );
 
     // Create the patch hierarchy
-    SAMRAI::tbox::Pointer<SAMRAI::mesh::StandardTagAndInitStrategy> object = application;
-    SAMRAI::tbox::Pointer<SAMRAI::mesh::GriddingAlgorithm> gridding_algorithm;
-    SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRUtils::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
+    boost::shared_ptr<SAMRAI::mesh::StandardTagAndInitStrategy> object = application;
+    boost::shared_ptr<SAMRAI::mesh::GriddingAlgorithm> gridding_algorithm;
+    boost::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRUtils::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
     TBOX_ASSERT(dim==hierarchy->getDim());
 
     // Check the initial hierarchy to see the patch distribution
     for ( int ln=0; ln<hierarchy->getNumberOfLevels(); ln++ ) {
-        SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel> level = hierarchy->getPatchLevel(ln);
+        boost::shared_ptr<SAMRAI::hier::PatchLevel> level = hierarchy->getPatchLevel(ln);
         int N_local = level->getLocalNumberOfPatches();
         int N_global = level->getGlobalNumberOfPatches();
         SAMRAI::tbox::plog << ln << ": " << N_local << " of " << N_global << std::endl;
     }
 
     // Initialize the writer
-    appu::VisItDataWriter* visit_writer;
-    visit_writer = new appu::VisItDataWriter( dim, "pixie3d visualizer", write_path );
+    boost::shared_ptr<appu::VisItDataWriter> visit_writer(
+        new appu::VisItDataWriter( dim, "pixie3d visualizer", write_path ) );
 
 
     // Initialize the application
-    tbox::Pointer< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
-    SAMRAI::Pixie3d::ImplicitPixie3dApplicationParameters* application_parameters = new SAMRAI::Pixie3d::ImplicitPixie3dApplicationParameters(pixie3d_db);
+    boost::shared_ptr< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
+    boost::shared_ptr<SAMRAI::Pixie3d::ImplicitPixie3dApplicationParameters> application_parameters(
+        new SAMRAI::Pixie3d::ImplicitPixie3dApplicationParameters(pixie3d_db) );
     application_parameters->d_hierarchy = hierarchy;
     application_parameters->d_VizWriter = visit_writer;
     application->initialize( application_parameters );
@@ -160,8 +166,9 @@ int main( int argc, char *argv[] )
     // Perform a regrid to make sure the tagging is all set correctly
     tbox::Array<int> tag_buffer(20,2);
     if ( regrid_interval > 0 ) {
-        tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
-        TBOX_ASSERT(!error_detector.isNull());
+        boost::shared_ptr<mesh::StandardTagAndInitialize> error_detector = 
+            boost::dynamic_pointer_cast<mesh::StandardTagAndInitialize>( gridding_algorithm->getTagAndInitializeStrategy() );
+        TBOX_ASSERT(error_detector!=NULL);
         error_detector->turnOnGradientDetector();
         error_detector->turnOffRefineBoxes();
         tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
@@ -174,22 +181,21 @@ int main( int argc, char *argv[] )
 
     //application->createPreconditioner();
     
-    solv::SNES_SAMRAIContext* snes_solver = NULL;
-    
-    snes_solver = new solv::SNES_SAMRAIContext("SNESSolver",
+    boost::shared_ptr<solv::SNES_SAMRAIContext> snes_solver(
+        new solv::SNES_SAMRAIContext("SNESSolver",
                            input_db->getDatabase("SNESSolver"),
-                           application);
+                           application.get()) );
 
     tbox::pout << "Created nonlinear solver " << std::endl;
     
     input_db->getDatabase("SNESSolver")->printClassData(tbox::plog);
 
-    algs::ImplicitIntegrator* timeIntegrator = 
+    boost::shared_ptr<algs::ImplicitIntegrator> timeIntegrator(
         new algs::ImplicitIntegrator("ImplicitIntegrator",
                    input_db->getDatabase("ImplicitIntegrator"),
-                   application,
-                   snes_solver,
-                   hierarchy);
+                   application.get(),
+                   snes_solver.get(),
+                   hierarchy) );
 
     tbox::pout << "Created implicit time integrator " << std::endl;
     input_db->getDatabase("ImplicitIntegrator")->printClassData(tbox::plog);
@@ -281,7 +287,7 @@ int main( int argc, char *argv[] )
             first_step = false;
 
             // If desired, regrid patch hierarchy and reset vector weights.
-            if ( (regrid_interval > 0)  && ((timestep+1 % regrid_interval) == 0) ) {
+            if ( regrid_interval>0 && ((timestep+1)%regrid_interval)==0 ) {
 
                 tbox::pout << " Regridding ..." << std::endl;
                 gridding_algorithm->regridAllFinerLevels( 0, current_time, tag_buffer );
@@ -361,9 +367,6 @@ int main( int argc, char *argv[] )
 
     // Barrier to make sure all processors have finished
     mpi.Barrier();
-    // Delete the application
-    application.setNull();
-    delete application_parameters;
     PROFILE_STOP("MAIN");
     PROFILE_SAVE(timer_results);
     

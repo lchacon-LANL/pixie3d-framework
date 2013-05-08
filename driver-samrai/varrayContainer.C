@@ -13,7 +13,7 @@ varrayContainer::varrayContainer()
    data = NULL;
 }
 
-varrayContainer::varrayContainer(tbox::Pointer<hier::Patch> patch, int n_var, int *u_id)
+varrayContainer::varrayContainer(boost::shared_ptr<hier::Patch> patch, int n_var, int *u_id)
 {
    tbox::Dimension dim(patch->getDim());
    int gcw = 1;
@@ -29,11 +29,11 @@ varrayContainer::varrayContainer(tbox::Pointer<hier::Patch> patch, int n_var, in
    ye = ilast(1)+1;
    ze = ilast(2)+1;
    double *u_ptr[n_var];
-   tbox::Pointer< pdat::CellData<double> > tmp;
+   boost::shared_ptr< pdat::CellData<double> > tmp;
    // Get the pointers to u
    for (int i=0; i<n_var; i++) {
       // Get the pointers to u
-      tmp = patch->getPatchData(u_id[i]);
+      tmp = boost::dynamic_pointer_cast<pdat::CellData<double> >( patch->getPatchData(u_id[i]) );
       u_ptr[i] = tmp->getPointer();
       // Check ghost cell width
       gcwc = tmp->getGhostCellWidth();

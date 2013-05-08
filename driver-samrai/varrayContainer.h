@@ -2,7 +2,7 @@
 #define included_varraycontainer
 
 #include <vector>
-#include "SAMRAI/tbox/Pointer.h"
+#include "boost/shared_ptr.hpp"
 #include "SAMRAI/hier/Patch.h"
 
 #ifndef LACKS_NAMESPACE
@@ -11,7 +11,7 @@ using namespace SAMRAI;
 
 class varrayContainer{
 public:
-   varrayContainer(tbox::Pointer<hier::Patch> patch, int n_var, int *u_id);
+   varrayContainer(boost::shared_ptr<hier::Patch> patch, int n_var, int *u_id);
    ~varrayContainer();
    
    void *getPtr(){return data;}
