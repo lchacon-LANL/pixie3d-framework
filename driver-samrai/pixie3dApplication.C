@@ -101,7 +101,6 @@ extern void FORTRAN_NAME(formequilibrium) (void*);
 extern void FORTRAN_NAME(initialize_u_n) (void*);
 extern void FORTRAN_NAME(forminitialcondition) (void*, int*, double*);
 extern void FORTRAN_NAME(evaluatenonlinearresidual) (void*, int*, double*, void*);
-extern void FORTRAN_NAME(setupvarinitseq)(void*, int*);
 extern void FORTRAN_NAME(getnumberofbcgroups)(void*, int*);
 extern void FORTRAN_NAME(getbcsequence)(void*, int*, int*, int**);
 extern void FORTRAN_NAME(initializeauxvar)(void*, int*);
@@ -480,19 +479,19 @@ pixie3dApplication::initialize( boost::shared_ptr<pixie3dApplicationParameters> 
     }   
 
     // Allocate data for the flux data
-    boost::shared_ptr<pdat::SideVariable<double> > flux;
-    boost::shared_ptr<pdat::CellVariable<double> > flux_src;
-    flux.reset( new pdat::SideVariable<double>( dim, "flux", input_data->nvar ) );
-    flux_src.reset( new pdat::CellVariable<double>( dim, "flux_src", input_data->nvar ) );
-    flux_id = var_db ->registerVariableAndContext(flux, context_x, ghost0);
-    flux_src_id = var_db ->registerVariableAndContext(flux_src, context_x, ghost0);
+    d_flux.reset( new pdat::SideVariable<double>( dim, "flux", input_data->nvar ) );
+    d_flux_src.reset( new pdat::CellVariable<double>( dim, "flux_src", input_data->nvar ) );
+    flux_id = var_db ->registerVariableAndContext(d_flux, context_x, ghost0);
+    flux_src_id = var_db ->registerVariableAndContext(d_flux_src, context_x, ghost0);
     d_problem_data.setFlag(flux_id);
     d_problem_data.setFlag(flux_src_id);
     for (int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++) {
         boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);       
         level->allocatePatchData(flux_id);
         level->allocatePatchData(flux_src_id);
-    }   
+    }
+    SAMRAI::AMRUtilities::fillAll(d_hierarchy,flux_id,0.0);
+    SAMRAI::AMRUtilities::fillAll(d_hierarchy,flux_src_id,0.0);
     
     // Allocate data for divergence of B
     d_div_B.reset( new pdat::CellVariable<double>( dim, "div_B", 1 ) );
@@ -993,14 +992,28 @@ void  pixie3dApplication::refineVariables(void)
 ***********************************************************************/
 void pixie3dApplication::synchronizeVariables(void)
 {
-  if(!d_RefineSchedulesGenerated)
+    // Create the schedules if necessary
+    if(!d_RefineSchedulesGenerated)
     {
-      generateTransferSchedules();
-      d_RefineSchedulesGenerated=true;
+        generateTransferSchedules();
+        d_RefineSchedulesGenerated=true;
     }
-  
-   coarsenVariables();
-   refineVariables();
+    // Coarse x
+    coarsenVariables();
+    // Zero out old flux values
+    SAMRAI::AMRUtilities::fillAll(d_hierarchy,flux_id,0.0);
+    SAMRAI::AMRUtilities::fillAll(d_hierarchy,flux_src_id,0.0);
+    // Refine x and fill auxillary and flux variables
+    refineVariables();
+    // Coarse the flux variables
+
+    // Print the flux norms (temporary)
+    int N_levels = d_hierarchy->getNumberOfLevels();
+    double l2_flux, max_flux, l2_src, max_src;
+    SAMRAI::AMRUtilities::computeNorms(d_hierarchy,0,N_levels-1,flux_id,-1,l2_flux,max_flux);
+    SAMRAI::AMRUtilities::computeNorms(d_hierarchy,0,N_levels-1,flux_src_id,-1,l2_src,max_src);
+    //if ( SAMRUtils::SAMR_MPI(SAMR_COMM_WORLD).getRank()==0 )
+    //    printf("flux_norms = %e %e %e %e\n",l2_flux,max_flux,l2_src,max_src);
 }
 
 
@@ -1311,6 +1324,7 @@ void pixie3dApplication::initializeLevelData( const boost::shared_ptr<hier::Patc
         if ( level_number>0 )
             coarse_level = hierarchy->getPatchLevel(level_number-1);
         boost::shared_ptr<xfer::TriangleRefineScheduleParameters> params(new xfer::TriangleRefineScheduleParameters);
+        params->d_comm = SAMRUtils::SAMR_MPI(SAMR_COMM_WORLD);
         params->d_method = d_regrid_op_str;
         params->d_dst_level = old_level;
         params->d_coarse_level = coarse_level;
@@ -1490,6 +1504,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
             }
             // Create the schedules
             boost::shared_ptr<xfer::TriangleRefineScheduleParameters> params(new xfer::TriangleRefineScheduleParameters);
+            params->d_comm = SAMRUtils::SAMR_MPI(SAMR_COMM_WORLD);
             params->d_method = d_regrid_op_str;
             params->d_dst_level = level;
             params->d_src_level = level;

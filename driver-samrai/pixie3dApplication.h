@@ -259,6 +259,9 @@ protected:
    boost::shared_ptr< solv::SAMRAIVectorReal<double> > d_aux_vector_tmp;
    boost::shared_ptr< pdat::CellVariable<double> > d_f_src;
    boost::shared_ptr< pdat::CellVariable<double> > d_div_B;
+   boost::shared_ptr<pdat::SideVariable<double> > d_flux;
+   boost::shared_ptr<pdat::CellVariable<double> > d_flux_src;
+
 
    // Data used for storage for the gradient
    std::vector<int> d_x_grad_ids;       // storage for d_x

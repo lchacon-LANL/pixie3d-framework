@@ -59,6 +59,10 @@ int main( int argc, char *argv[] )
   SAMRAI::tbox::SAMRAIManager::setMaxNumberPatchDataEntries(maxPatchDataEntries);
   const SAMRAI::tbox::SAMRAI_MPI& mpi(SAMRAI::tbox::SAMRAI_MPI::getSAMRAIWorld());
 
+  PROFILE_ENABLE(1);
+  //PROFILE_ENABLE_TRACE();
+  //PROFILE_ENABLE_MEMORY();
+
   int ierr = PetscInitialize(&argc, &argv, PETSC_NULL,PETSC_NULL);
   //PetscInitializeNoArguments();
   //PetscInitializeFortran();

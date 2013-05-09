@@ -307,16 +307,11 @@ c     Local variables
 
 c     Begin program
 
-#if defined(samrai)
-      call create_bc_schedule(varray,vaux,gv%nbc_grp,gv%bc_grp
-     .                       ,.true.,.false.,.false.,.false.)
-#else
 c$$$      call setbcsched_app  !Application-specific scheduler
 c$$$      return
       call create_bc_schedule(varray,vaux,gv%nbc_grp,gv%bc_grp
      .                       ,.false.,.false.,.false.,.false.)
 cc     .                       ,.false.,.false.,(it==0),.false.)
-#endif
 
 c     End program
 
@@ -1291,7 +1286,7 @@ cc      call deallocAuxVariables(gv%aux)
 
 c     setupVarInitSeq
 c     #################################################################
-      subroutine setupVarInitSeq(patch_var,it)
+      subroutine setupVarInitSeq(patch_var,it,inherit)
 c     -----------------------------------------------------------------
 c     Sets up application BC for SAMRAI
 c     -----------------------------------------------------------------
@@ -1303,8 +1298,8 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer :: it
-
       type(patch), TARGET :: patch_var
+      logical*1 :: inherit
 
 c     Local variables
 
@@ -1326,7 +1321,8 @@ c     Set application BCs (external)
 
 c     Set BC schedule
 
-      call setBCsched(gv%u_n,gv%aux,it)
+      call create_bc_schedule(gv%u_n,gv%aux,gv%nbc_grp,gv%bc_grp
+     .            ,logical(inherit),.false.,.false.,.false.)
 
 c     End program
 
