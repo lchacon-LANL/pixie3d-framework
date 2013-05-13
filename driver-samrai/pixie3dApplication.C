@@ -53,26 +53,13 @@
 #include "SAMRAI/pdat/SideData.h"
 #include "SAMRAI/pdat/SideVariable.h"
 
-//#include "HierarchyCellDataOpsReal.h"
-//#include "BoundaryConditionStrategy.h"
-//#include "RefineOperator.h"
 
+// SAMRUtils headers
 #include "utilities/ProfilerApp.h"
 #include "source/AMRUtilities.h"
-//#include "test_utilities.h"
+#include "transfer/TriangleRefineSchedule.h"
+#include "transfer/SAMRAICoarsenSchedule.h"
 
-//#include "RefinementBoundaryInterpolation.h"
-//#include "CoarsenAlgorithm.h"
-//#include "CCellVariable.h"
-//#include "CartesianCellDoubleCubicRefine.h"
-//#include "CartesianCellDoubleLinearRefine.h"
-
-
-
-
-extern "C" {
-#include "assert.h"
-}
 
 extern "C"{
 #include <assert.h>
@@ -94,6 +81,7 @@ extern void FORTRAN_NAME(FORMEQUILIBRIUM) (void*);
 extern void FORTRAN_NAME(INITIALIZE_U_N) (void*);
 extern void FORTRAN_NAME(FORMINITIALCONDITION) (void*, int*, double*);
 extern void FORTRAN_NAME(EVALUATENONLINEARRESIDUAL) (void*, int*, double*, void*);
+extern void FORTRAN_NAME(EVALUATENONLINEARRESIDUALFLUX) (void*);
 #else
 extern void FORTRAN_NAME(readinputfile) (input_CTX*);
 extern void FORTRAN_NAME(creategridstructures) (void*);
@@ -101,6 +89,7 @@ extern void FORTRAN_NAME(formequilibrium) (void*);
 extern void FORTRAN_NAME(initialize_u_n) (void*);
 extern void FORTRAN_NAME(forminitialcondition) (void*, int*, double*);
 extern void FORTRAN_NAME(evaluatenonlinearresidual) (void*, int*, double*, void*);
+extern void FORTRAN_NAME(evaluatenonlinearresidualflux) (void*);
 extern void FORTRAN_NAME(getnumberofbcgroups)(void*, int*);
 extern void FORTRAN_NAME(getbcsequence)(void*, int*, int*, int**);
 extern void FORTRAN_NAME(initializeauxvar)(void*, int*);
@@ -124,13 +113,9 @@ pixie3dApplication::pixie3dApplication():
     d_hierarchy.reset();
     for (int i=0; i<MAX_LEVELS; i++)
         level_container_array[i] = NULL;
-    for (int i=0; i<MAX_LEVELS; i++) {
-        refineSchedule[i] = NULL;
-    }
     dt_exp = 1.0;
     d_weight_id = -1;
     d_debug_print_info_level = 0;
-    d_RefineSchedulesGenerated=false;
     d_vectorsCloned = false;
     d_problem_data = hier::ComponentSelector(false);
     flux_id = -1;
@@ -151,13 +136,12 @@ pixie3dApplication::pixie3dApplication( boost::shared_ptr<pixie3dApplicationPara
     for (int i=0; i<MAX_LEVELS; i++)
         level_container_array[i] = NULL;
     for (int i=0; i<MAX_LEVELS; i++) {
-        refineSchedule[i] = NULL;
+        d_refineSchedule[i].clear();
     }
     dt_exp = 1.0;
     d_weight_id = -1;
 
     d_vectorsCloned = false;
-    d_RefineSchedulesGenerated=false;
 
     initialize( parameters );
 }
@@ -182,11 +166,9 @@ pixie3dApplication::~pixie3dApplication()
     }
     // Delete the refine/coarsen schedules
     for (int i=0; i<MAX_LEVELS; i++) {
-        if ( refineSchedule[i] != NULL ) {
-            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
-                refineSchedule[i][j].reset();
-            delete [] refineSchedule[i];
-        }
+        d_refineSchedule[i].clear();
+        d_xCoarsenSchedule[i].reset();
+        d_fluxCoarsenSchedule[i].reset();
     }
     // Delete misc variables
     delete input_data;
@@ -795,6 +777,28 @@ pixie3dApplication::apply( boost::shared_ptr< solv::SAMRAIVectorReal<double> >  
         tbox::pout << "*****************************************" << std::endl; 
     }
 
+    // Compute the fluxes
+    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln);
+        // Get the Level container
+        LevelContainer *level_container = (LevelContainer *) level_container_array[ln];
+        // Loop through the different patches
+        for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++) {
+            // Create f
+            PROFILE_START("Call evaluateNonlinearResidualFlux");
+            #ifdef absoft
+                FORTRAN_NAME(EVALUATENONLINEARRESIDUALFLUX)(level_container->getPtr(*p));
+            #else
+                FORTRAN_NAME(evaluatenonlinearresidualflux)(level_container->getPtr(*p));
+            #endif
+            PROFILE_STOP("Call evaluateNonlinearResidualFlux");
+        }
+    }
+
+    // Coarse the flux variables
+    for ( int ln=d_hierarchy->getFinestLevelNumber()-1; ln>=0; ln-- )
+        d_fluxCoarsenSchedule[ln]->fillData(0);
+
     // Call EvaluateFunction
     dt_exp = 1e10;
     d_x_r->setToScalar( 0.0, false );
@@ -912,9 +916,8 @@ void pixie3dApplication::printVector( const boost::shared_ptr< solv::SAMRAIVecto
 void pixie3dApplication::coarsenVariables(void)
 {
     PROFILE_START("coarsenVariables");
-    for ( int ln=d_hierarchy->getFinestLevelNumber()-1; ln>=0; ln-- ) {
-        coarsenSchedule[ln]->coarsenData();
-    }
+    for ( int ln=d_hierarchy->getFinestLevelNumber()-1; ln>=0; ln-- )
+        d_xCoarsenSchedule[ln]->fillData(0);
     PROFILE_STOP("coarsenVariables");
 }
 
@@ -961,7 +964,7 @@ void  pixie3dApplication::refineVariables(void)
             // Fill the ghost cells and apply the boundary conditions
             PROFILE_START("refineSchedule fillData");
             (d_refine_strategy)->setRefineStrategySequence(d_BoundarySequenceGroups[iSeq]);
-            refineSchedule[ln][iSeq]->fillData(0.0);
+            d_refineSchedule[ln][iSeq]->fillData(0.0);
             PROFILE_STOP("refineSchedule fillData");
             // Fill the interior patches
             PROFILE_START("Fill interiors");
@@ -992,12 +995,6 @@ void  pixie3dApplication::refineVariables(void)
 ***********************************************************************/
 void pixie3dApplication::synchronizeVariables(void)
 {
-    // Create the schedules if necessary
-    if(!d_RefineSchedulesGenerated)
-    {
-        generateTransferSchedules();
-        d_RefineSchedulesGenerated=true;
-    }
     // Coarse x
     coarsenVariables();
     // Zero out old flux values
@@ -1005,61 +1002,9 @@ void pixie3dApplication::synchronizeVariables(void)
     SAMRAI::AMRUtilities::fillAll(d_hierarchy,flux_src_id,0.0);
     // Refine x and fill auxillary and flux variables
     refineVariables();
-    // Coarse the flux variables
-
-    // Print the flux norms (temporary)
-    int N_levels = d_hierarchy->getNumberOfLevels();
-    double l2_flux, max_flux, l2_src, max_src;
-    SAMRAI::AMRUtilities::computeNorms(d_hierarchy,0,N_levels-1,flux_id,-1,l2_flux,max_flux);
-    SAMRAI::AMRUtilities::computeNorms(d_hierarchy,0,N_levels-1,flux_src_id,-1,l2_src,max_src);
-    //if ( SAMRUtils::SAMR_MPI(SAMR_COMM_WORLD).getRank()==0 )
-    //    printf("flux_norms = %e %e %e %e\n",l2_flux,max_flux,l2_src,max_src);
 }
 
 
-/***********************************************************************
-* Create the refinement and coarsen schedules                          *
-***********************************************************************/
-void
-pixie3dApplication::generateTransferSchedules(void)
-{
-
-    // Add refinement operator
-    boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
-        boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
-    boost::shared_ptr< hier::RefineOperator > refine_op;
-    if (d_refine_op_str=="CELL_DOUBLE_CUBIC_REFINE") {
-        TBOX_ERROR("Not Implemented");
-       /*// Create the CartesianCellDoubleCubicRefine operator
-       CartesianCellDoubleCubicRefine* temp = new CartesianCellDoubleCubicRefine();
-       // manually set the refinement ratio and stencil width for the CartesianCellDoubleCubicRefine
-       hier::IntVector width = hier::IntVector(dim,2);
-       hier::IntVector ratio = hier::IntVector(dim,3);
-       if ( IS2D == 1 ){
-          width(2) = 0;
-          ratio(2) = 1;
-       }
-      
-       temp->setStencilWidth(width);
-       temp->setRefinementRatio(ratio);
-       // Add the refinement operator
-       refine_op = temp;
-       grid_geometry->addSpatialRefineOperator ( refine_op ) ;*/
-    } 
-   
-    // Add coarsen operator
-    boost::shared_ptr<hier::CoarsenOperator> coarsen_op;
-    if (d_coarsen_op_str=="CELL_DOUBLE_INJECTION_COARSEN") {
-        TBOX_ERROR("Not Implimented");
-        //coarsen_op = new CartesianCellDoubleInjectionCoarsen();
-        //grid_geometry->addSpatialCoarsenOperator ( coarsen_op ) ;
-    } else if(d_coarsen_op_str=="CELL_DOUBLE_CUBIC_COARSEN") {
-        TBOX_ERROR("Not Implimented");
-        //coarsen_op = new CartesianCellDoubleCubicCoarsen();
-        //grid_geometry->addSpatialCoarsenOperator ( coarsen_op ) ;      
-    } 
- 
-}
 
 int pixie3dApplication::getNumberOfDependentVariables()
 {
@@ -1427,12 +1372,9 @@ void pixie3dApplication::resetHierarchyConfiguration(
 
     // Reset the communication schedules
     for (int i=coarsest_level; i<=finest_level; i++) {
-        if ( refineSchedule[i] != NULL ) {
-            for (size_t j=0; j<d_BoundarySequenceGroups.size(); j++)
-                refineSchedule[i][j].reset();
-            delete [] refineSchedule[i];
-            refineSchedule[i] = NULL;
-        }
+        d_refineSchedule[i].clear();
+        d_xCoarsenSchedule[i].reset();
+        d_fluxCoarsenSchedule[i].reset();
     }
 
     // Get the number of boundary condition groups and the sequence for each group
@@ -1451,7 +1393,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
         boost::shared_ptr<hier::PatchLevel> coarse_level;
         if ( ln>0 )
             coarse_level = d_hierarchy->getPatchLevel(ln-1);
-        refineSchedule[ln] = new boost::shared_ptr< xfer::TriangleRefineSchedule >[d_BoundarySequenceGroups.size()];
+        d_refineSchedule[ln].resize(d_BoundarySequenceGroups.size());
         for(size_t iSeq=0; iSeq<d_BoundarySequenceGroups.size(); iSeq++) {
             xfer::RefineAlgorithm refineVariableAlgorithm(d_hierarchy->getDim());
             // Register the variables in the current squence
@@ -1515,37 +1457,44 @@ void pixie3dApplication::resetHierarchyConfiguration(
             params->d_refine_strategy = d_refine_strategy;
             params->d_fill_physical = true;
             params->d_fill_corners = true;
-            refineSchedule[ln][iSeq].reset( new xfer::TriangleRefineSchedule(params) );
+            d_refineSchedule[ln][iSeq].reset( new xfer::TriangleRefineSchedule(params) );
         }
     }
 
-    // Create the coarsenSchedule
+    // Create the coarsenSchedules 
     mpi.Barrier();
     tbox::pout << "     create coarsen schedules" << std::endl;
-    boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
-        boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
     for ( int ln=coarsest_level; ln<=finest_level; ln++ ) {
         if (ln==0) continue;
-        xfer::CoarsenAlgorithm coarsenAlgorithm(d_hierarchy->getDim());
+        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln-1);
+        boost::shared_ptr<hier::PatchLevel> flevel = d_hierarchy->getPatchLevel(ln);
+        // Create the coarsen schedule for x
+        boost::shared_ptr<xfer::SAMRAICoarsenScheduleParameters> params(new xfer::SAMRAICoarsenScheduleParameters());
+        params->d_comm = SAMRUtils::SAMR_MPI(SAMR_COMM_WORLD);
+        params->d_hierarchy = d_hierarchy;
+        params->d_fine_level = flevel;
+        params->d_coarse_level = level;
+        params->d_method = std::vector<std::string>(input_data->nvar);
+        params->d_src_id = std::vector<int>(input_data->nvar);
+        params->d_dst_id = std::vector<int>(input_data->nvar);
         for (int i=0; i<input_data->nvar; i++) {
-            var0 = d_x->getComponentVariable(i);
-            coarsenAlgorithm.registerCoarsen( u_id[i], u_id[i],
-                grid_geometry->lookupCoarsenOperator(var0,d_coarsen_op_str) );
+            params->d_method[i] = d_coarsen_op_str;
+            params->d_src_id[i] = u_id[i];
+            params->d_dst_id[i] = u_id[i];
         }
-        for (int i=0; i<input_data->nauxs; i++) {
-            var0 = d_aux_scalar->getComponentVariable(i);
-            coarsenAlgorithm.registerCoarsen( auxs_id[i], auxs_id[i],
-                grid_geometry->lookupCoarsenOperator(var0,d_coarsen_op_str) );
-        }
-        for (int i=0; i<input_data->nauxv; i++) {
-            var0 = d_aux_vector->getComponentVariable(i);
-            coarsenAlgorithm.registerCoarsen( auxv_id[i], auxv_id[i],
-                grid_geometry->lookupCoarsenOperator(var0,d_coarsen_op_str) );
-        }
-        boost::shared_ptr<hier::PatchLevel> level = d_hierarchy->getPatchLevel(ln-1);    
-        boost::shared_ptr<hier::PatchLevel> flevel = d_hierarchy->getPatchLevel(ln);    
-        coarsenSchedule[ln-1] = coarsenAlgorithm.createSchedule(level,flevel);
-    }
+        d_xCoarsenSchedule[ln-1].reset( new xfer::SAMRAICoarsenSchedule(params) );
+        // Create the coarsen schedule for flux
+        params->d_method = std::vector<std::string>(2);
+        params->d_src_id = std::vector<int>(2);
+        params->d_dst_id = std::vector<int>(2);
+        params->d_method[0] = d_coarsen_op_str;
+        params->d_src_id[0] = flux_id;
+        params->d_dst_id[0] = flux_id;
+        params->d_method[1] = d_coarsen_op_str;
+        params->d_src_id[1] = flux_src_id;
+        params->d_dst_id[1] = flux_src_id;
+        d_fluxCoarsenSchedule[ln-1].reset( new xfer::SAMRAICoarsenSchedule(params) );
+    };
 
     // Create RefinementBoundaryInterpolation.
     d_coarseFineInterp = boost::shared_ptr<RefinementBoundaryInterpolation>( new SAMRAI::RefinementBoundaryInterpolation( d_hierarchy ) );

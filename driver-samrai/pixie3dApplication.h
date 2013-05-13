@@ -34,7 +34,7 @@
 #include "SAMRAI/mesh/StandardTagAndInitStrategy.h"
 
 // SAMRUTILS headers
-#include "transfer/TriangleRefineSchedule.h"
+#include "transfer/TransactionSchedule.h"
 #include "interpolation/RefinementBoundaryInterpolation.h"
 
 // SAMRSOLVERS headers
@@ -224,8 +224,6 @@ protected:
 
    void printVector( const boost::shared_ptr< solv::SAMRAIVectorReal<double> > vector);
 
-   void generateTransferSchedules( void );
-
    void coarsenVariables(void);
 
    void refineVariables(void);
@@ -274,8 +272,6 @@ protected:
    int div_B_id;
 
    int d_weight_id;
-   
-   bool d_RefineSchedulesGenerated;
 
    bool d_vectorsCloned;
    
@@ -300,11 +296,12 @@ protected:
    std::string d_refine_op_str;
    boost::shared_ptr<pixie3dRefinePatchStrategy> d_refine_strategy; 
    std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> d_BoundarySequenceGroups;
-   boost::shared_ptr<xfer::TriangleRefineSchedule> *refineSchedule[MAX_LEVELS];
+   std::vector<boost::shared_ptr<xfer::TransactionSchedule> > d_refineSchedule[MAX_LEVELS];
 
    // Data for the coarsen schedules
    std::string d_coarsen_op_str;
-   boost::shared_ptr<xfer::CoarsenSchedule> coarsenSchedule[MAX_LEVELS];
+   boost::shared_ptr<xfer::TransactionSchedule> d_xCoarsenSchedule[MAX_LEVELS];
+   boost::shared_ptr<xfer::TransactionSchedule> d_fluxCoarsenSchedule[MAX_LEVELS];
    boost::shared_ptr<RefinementBoundaryInterpolation> d_coarseFineInterp;
     
    // Data for regrid

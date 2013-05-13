@@ -49,14 +49,26 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine evaluateNonlinearFunction(varray,fi)
-        use parameters
-        use variable_setup
-        use grid
-        implicit none
-        type(var_array),pointer :: varray
-        real(8)          :: fi(ntotd)
-        end subroutine evaluateNonlinearFunction
+c        Initialize the fluxes
+         subroutine evaluateNonlinearResidualFlux(patch_var)
+           use parameters
+           use grid
+           use variables
+           implicit none
+           type(patch), TARGET :: patch_var
+         end subroutine evaluateNonlinearResidualFlux
+      END INTERFACE
+
+      INTERFACE
+c        evaluate the nonlinearRHS
+         subroutine evaluateNonlinearFunction(varray,ff)
+           use parameters
+           use variable_setup
+           use grid
+           implicit none
+           type (var_array),pointer :: varray
+           real(8)          :: ff(ntotd)
+         end subroutine evaluateNonlinearFunction
       END INTERFACE
 
 c Initialize gv
@@ -74,6 +86,7 @@ c Initialize gv
 c Set unperturbed forcing fields
 
       !This not only evaluates fsrc, but defines BCs on u_n
+      call evaluateNonlinearResidualFlux(patch_var)
       call evaluateNonlinearFunction(u_n,fsrc)
 
       if (.not.source) fsrc = 0d0
