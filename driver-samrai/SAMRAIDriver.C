@@ -135,13 +135,14 @@ int main( int argc, char *argv[] )
     }
 
     // Initialize the writer
-    appu::VisItDataWriter* visit_writer;
-    visit_writer = new appu::VisItDataWriter( dim, "pixie3d visualizer", write_path );
+    boost::shared_ptr<SAMRAI::appu::VisItDataWriter> visit_writer(
+        new SAMRAI::appu::VisItDataWriter(dim,"pixie3d visualizer",write_path) );
 
 
     // Initialize the application
-    boost::shared_ptr< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
-    SAMRAI::pixie3dApplicationParameters* application_parameters = new SAMRAI::pixie3dApplicationParameters(pixie3d_db);
+    boost::shared_ptr<SAMRAI::tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
+    boost::shared_ptr<SAMRAI::pixie3dApplicationParameters> application_parameters(
+        new SAMRAI::pixie3dApplicationParameters(pixie3d_db) );
     application_parameters->d_hierarchy = hierarchy;
     application_parameters->d_VizWriter = visit_writer;
     application->initialize( application_parameters );
@@ -153,8 +154,9 @@ int main( int argc, char *argv[] )
     // Perform a regrid to make sure the tagging is all set correctly
     tbox::Array<int> tag_buffer(20,2);
     if ( regrid_interval > 0 ) {
-        boost::shared_ptr<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
-        TBOX_ASSERT(!error_detector.get()==NULL);
+        boost::shared_ptr<mesh::StandardTagAndInitialize> error_detector = 
+            boost::dynamic_pointer_cast<mesh::StandardTagAndInitialize>(gridding_algorithm->getTagAndInitializeStrategy());
+        TBOX_ASSERT(error_detector!=NULL);
         error_detector->turnOnGradientDetector();
         error_detector->turnOffRefineBoxes();
         tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
@@ -168,13 +170,13 @@ int main( int argc, char *argv[] )
     // initialize a time integrator parameters object
     boost::shared_ptr<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");
     SAMRSolvers::TimeIntegratorParameters *timeIntegratorParameters = new SAMRSolvers::TimeIntegratorParameters(ti_db);
-    timeIntegratorParameters->d_operator = application;
+    timeIntegratorParameters->d_operator = application.get();
     timeIntegratorParameters->d_ic_vector = application->get_ic();
-    timeIntegratorParameters->d_vizWriter = visit_writer;
+    timeIntegratorParameters->d_vizWriter = visit_writer.get();
    
     // create a time integrator
     SAMRSolvers::TimeIntegratorFactory *tiFactory = new SAMRSolvers::TimeIntegratorFactory();
-    std::auto_ptr<SAMRSolvers::TimeIntegrator> timeIntegrator = tiFactory->createTimeIntegrator(timeIntegratorParameters);
+    boost::shared_ptr<SAMRSolvers::TimeIntegrator> timeIntegrator = tiFactory->createTimeIntegrator(timeIntegratorParameters);
 
     // Create x(t)
     boost::shared_ptr< solv::SAMRAIVectorReal<double> > x_t;
@@ -269,7 +271,7 @@ int main( int argc, char *argv[] )
     delete timeIntegratorParameters;
     // Delete the application
     application.reset();
-    delete application_parameters;
+    application_parameters.reset();
     PROFILE_STOP("MAIN");
     PROFILE_SAVE(timer_results);
     
