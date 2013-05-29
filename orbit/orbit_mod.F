@@ -32,6 +32,7 @@ c ######################################################################
 !$OMP THREADPRIVATE(sln)
 
         integer :: iiout
+!$OMP THREADPRIVATE(iiout)
 
         !ORBIT private variables
         type :: ode_solver
@@ -515,18 +516,18 @@ cc        endif
 
 c     Allocate orbit history arrays
 
-        HIST_LIM = max(20,ssorder+1)
-        allocate(xhist(HIST_LIM)
-     .          ,yhist(HIST_LIM)
-     .          ,zhist(HIST_LIM)
-     .          ,thist(HIST_LIM)
-     .          ,shist(HIST_LIM))
-
-        xhist = UNDEF_DP
-        yhist = UNDEF_DP
-        zhist = UNDEF_DP
-        thist = UNDEF_DP
-        shist = UNDEF_DP
+cc        HIST_LIM = max(20,ssorder+1)
+cc        allocate(xhist(HIST_LIM)
+cc     .          ,yhist(HIST_LIM)
+cc     .          ,zhist(HIST_LIM)
+cc     .          ,thist(HIST_LIM)
+cc     .          ,shist(HIST_LIM))
+cc
+cc        xhist = UNDEF_DP
+cc        yhist = UNDEF_DP
+cc        zhist = UNDEF_DP
+cc        thist = UNDEF_DP
+cc        shist = UNDEF_DP
 
 c     Do splines
 
@@ -563,11 +564,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: alloc_stat
-
 c     Begin program
-
-        deallocate(xhist,yhist,zhist,thist,shist,STAT=alloc_stat)
 
 c     Close SS output
 
@@ -845,7 +842,7 @@ cc              time = sign(1d0,time)*tmax
 
         if (PRESENT(lsode_sum)) lsode_sum = LSODE_ACC
 
-c       Write orbit separator in XDRAW file
+c     Write orbit separator in XDRAW file
 
         if (chk_ss) then
           if (lssx) write(nunitx(thr_num))
@@ -853,6 +850,10 @@ c       Write orbit separator in XDRAW file
           if (lssz) write(nunitz(thr_num))
           if (rzss) write(nunitrz(thr_num))
         endif
+
+c     End orbit
+
+        call orbit_end
 
       end subroutine orbit_find
 
@@ -888,6 +889,12 @@ c     Begin program
         ss   = 0d0  !Initialize arc-length along line
         sold = 0d0
 
+        allocate(xhist(HIST_LIM)
+     .          ,yhist(HIST_LIM)
+     .          ,zhist(HIST_LIM)
+     .          ,thist(HIST_LIM)
+     .          ,shist(HIST_LIM))
+
         xhist = UNDEF_DP  !Initialize orbit history accumulators
         yhist = UNDEF_DP
         zhist = UNDEF_DP
@@ -915,6 +922,19 @@ c     Begin program
         endif
 
       end subroutine orbit_init
+
+c     orbit_end
+c     ######################################################################
+      subroutine orbit_end
+c     ----------------------------------------------------------------------
+c     Finalizes orbit integrator
+c     ----------------------------------------------------------------------
+
+        integer :: alloc_stat
+
+        deallocate(xhist,yhist,zhist,thist,shist,STAT=alloc_stat)
+
+      end subroutine orbit_end
 
 c     orbit_step
 c     ##################################################################
