@@ -684,6 +684,7 @@ endif
 
 ifeq ($(findstring jf,$(HOST)),jf)
   FC = ifort
+  OPTIMIZATION = -O2
 
 #  BOPT = O
 
@@ -715,6 +716,7 @@ endif
 
 ifeq ($(findstring helios,$(HOST)),helios)
   FC = ifort
+  OPTIMIZATION = -O3 -xavx
 
   CPPFLAGS += $(PREPROC)RFX
 
