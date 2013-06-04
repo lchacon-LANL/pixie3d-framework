@@ -8,7 +8,7 @@ PREPROC ?= -D
 
 # Flags for Absoft f90
 ifeq ($(FC),f90)
-  OPTIMIZATION = -O3 -cpu:host
+  OPTIMIZATION ?= -O3 -cpu:host
   DEBUG        = -g
 #  DEBUG        = -g -en -et -trap=DIVBYZERO,INVALID
   PROFILE      = -P
@@ -24,7 +24,7 @@ endif
 
 # Flags for Lahey lf95
 ifeq ($(FC),lf95)
-  OPTIMIZATION = --nap --nchk --fast --npca --nsav --ntrace
+  OPTIMIZATION ?= --nap --nchk --fast --npca --nsav --ntrace
   DEBUG        = -g --chk aseu --warn --f95 --trace --trap
 #  DEBUG        = -g --chkglobal --warn --f95 --trace
   PROFILE      =
@@ -45,7 +45,7 @@ endif
 
 # Flags for Intel ifort
 ifeq ($(FC),ifort)
-  OPTIMIZATION = -O3 -ipo -axW
+  OPTIMIZATION ?= -O3 -ipo -axW
   DEBUG        = -g -check all -traceback
 #  DEBUG        = -g -check -traceback
   PROFILE      = -p
@@ -59,7 +59,7 @@ endif
 
 # Flags for g95
 ifeq ($(FC),g95)
-  OPTIMIZATION = -O2
+  OPTIMIZATION ?= -O2
   DEBUG        = -g -fbounds-check -ftrace=full
   PROFILE      = -pg
   STATIC       = -fstatic
@@ -72,7 +72,7 @@ endif
 
 # Flags for gfortran
 ifeq ($(FC),gfortran)
-  OPTIMIZATION = -O3 #-march=native
+  OPTIMIZATION ?= -O3 #-march=native
   DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv
   PROFILE      = -pg
   STATIC       = -fno-automatic
@@ -86,7 +86,7 @@ ifeq ($(FC),gfortran)
 endif
 
 ifeq ($(FC),vtf77)
-  OPTIMIZATION = -O3 -march=native
+  OPTIMIZATION ?= -O3 -march=native
   DEBUG        = -ggdb -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv
   PROFILE      = -pg
   STATIC       = -fno-automatic
@@ -100,8 +100,8 @@ endif
 
 # Flags for Portland Group f90
 ifeq ($(FC),pgf95)
-  OPTIMIZATION = -fastsse
-#  OPTIMIZATION = -fastsse -Mipa=fast
+  OPTIMIZATION ?= -fastsse
+#  OPTIMIZATION ?= -fastsse -Mipa=fast
 #  DEBUG        = -g -Mbounds -Mchkptr -Ktrap=fp
   DEBUG        = -g -Mbounds -Mchkptr -Ktrap=divz -traceback
   PROFILE      = -pg
