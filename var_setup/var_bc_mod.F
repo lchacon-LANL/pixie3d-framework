@@ -305,17 +305,17 @@ c     Call variables
 
 c     Local variables
 
+      logical :: dump=.false.
+
 c     Begin program
 
 #if defined(samrai)
       call create_bc_schedule(varray,vaux,gv%nbc_grp,gv%bc_grp
-     .                       ,.true.,.false.,.false.,.false.)
+     .                       ,.true.,.false.,dump,.false.)
 #else
-c$$$      call setbcsched_app  !Application-specific scheduler
-c$$$      return
+cc      dump = (it==0).and.(my_rank==0)
       call create_bc_schedule(varray,vaux,gv%nbc_grp,gv%bc_grp
-     .                       ,.false.,.false.,.false.,.false.)
-cc     .                       ,.false.,.false.,(it==0),.false.)
+     .                       ,.false.,.false.,dump,.false.)
 #endif
 
 c     End program
