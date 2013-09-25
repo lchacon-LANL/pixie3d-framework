@@ -28,7 +28,7 @@ c       generic constants
 
 c       ADIOS function call variables
         integer        :: num_open    ! first create, then append file
-        character(20)  :: adios_fname ! set in ./plot/defineGraphics.F
+        character(20)  :: adios_fname="adios.bp" ! set in ./plot/defineGraphics.F
         integer        :: adios_rank  ! ?=? my_rank ???
 
         logical,private :: adios_debug=.false.

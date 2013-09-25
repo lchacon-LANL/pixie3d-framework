@@ -20,6 +20,8 @@ c ######################################################################
 
 #if defined(adios)
         !!! ADIOS variables
+        !!! Used to dump main record file (to be postprocessed)
+        !!! Does NOT use "adios_config.xml" file
         character*(10) :: adiosfile='record.bp'
         ! ADIOS needs a variable containing the MPI_WORLD_COMM communicator
         integer        :: adios_world_comm
