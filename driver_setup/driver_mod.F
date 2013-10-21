@@ -605,11 +605,13 @@ c     #######################################################################
 
       if (sm_flag == 1) then      !Rannacher
 
-        if (itm.eq.1) then
+        if (itm == 1.and.timecorr) then
           cnfactor = .5
-        elseif (itm.le.sm_pass+1) then
+        elseif (    (itm <= sm_pass+1 .and.      timecorr )
+     .          .or.(itm <= sm_pass   .and.(.not.timecorr)))then
           cnfactor = .3
-        else
+        elseif (    (itm >= sm_pass+1.and.(.not.timecorr))
+     .          .or.(itm >= sm_pass+2.and.      timecorr )) then
           cnfactor = max(.5 - gammat/12.*dt,0d0)
         endif
 
