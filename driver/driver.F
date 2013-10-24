@@ -84,10 +84,6 @@ c Interfaces
 
 c Begin program
 
-c Allocate global variable
-
-cc      call allocateGlobalVar(gv)
-      
 c Initialize PETSc and MPI (parallel version)
 
 #if defined(petsc)
@@ -280,7 +276,7 @@ c     Time level data dump
      .      .or.relax_init_grid) then
           if (.not.relax_init_grid) nrst  = 0
           if(itime-offset > 0) tmrst=tmrst-dstep
-          call writeRecordFile(urecord,itime,time,dt,u_np)
+          call writeRecordFile(recordfile,itime,time,dt,u_np)
         endif
 
         if (eigen) exit

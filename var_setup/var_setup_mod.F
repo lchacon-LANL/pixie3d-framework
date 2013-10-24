@@ -165,33 +165,37 @@ c     setVectorDimensions
 c     #################################################################
       subroutine setVectorDimensions
 
-        !Ghost cell width
-        gcw = gv%gparams%gcw
+        if (associated(gv)) then
+          !Ghost cell width
+          gcw = gv%gparams%gcw
 
-        !Global problem info
-        nxdp = gv%gparams%nglx + gcw
-        nydp = gv%gparams%ngly + gcw
-        nzdp = gv%gparams%nglz + gcw
+          !Global problem info
+          nxdp = gv%gparams%nglx + gcw
+          nydp = gv%gparams%ngly + gcw
+          nzdp = gv%gparams%nglz + gcw
 
-        !Define offset quantities (global grid)
-        ihig = gv%gparams%ihig
-        ilog = gv%gparams%ilog
-        jhig = gv%gparams%jhig
-        jlog = gv%gparams%jlog
-        khig = gv%gparams%khig
-        klog = gv%gparams%klog
+          !Define offset quantities (global grid)
+          ihig = gv%gparams%ihig
+          ilog = gv%gparams%ilog
+          jhig = gv%gparams%jhig
+          jlog = gv%gparams%jlog
+          khig = gv%gparams%khig
+          klog = gv%gparams%klog
 
-        ihipg = gv%gparams%ihig + gcw
-        ilomg = gv%gparams%ilog - gcw
-        jhipg = gv%gparams%jhig + gcw
-        jlomg = gv%gparams%jlog - gcw
-        khipg = gv%gparams%khig + gcw
-        klomg = gv%gparams%klog - gcw
+          ihipg = gv%gparams%ihig + gcw
+          ilomg = gv%gparams%ilog - gcw
+          jhipg = gv%gparams%jhig + gcw
+          jlomg = gv%gparams%jlog - gcw
+          khipg = gv%gparams%khig + gcw
+          klomg = gv%gparams%klog - gcw
 
-        !Local problem info
-        nxl  = gv%gparams%nlx
-        nyl  = gv%gparams%nly
-        nzl  = gv%gparams%nlz
+          !Local problem info
+          nxl  = gv%gparams%nlx
+          nyl  = gv%gparams%nly
+          nzl  = gv%gparams%nlz
+        else
+          gcw = 1
+        endif
 
         !Define local limits
         ilo  = 1

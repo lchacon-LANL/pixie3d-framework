@@ -87,6 +87,7 @@ c Check for autoinitializing parameters
       itime = 0
 
 c Allocate global variables
+
       call allocateGlobalVar(gv)
 
 #if defined(petsc)
@@ -299,7 +300,6 @@ c End program
 
       contains
 
-#if !defined(adios)
 c     readRestartFile
 c     #################################################################
       subroutine readRestartFile(itime,time)
@@ -328,22 +328,9 @@ c     Begin program
       tnm = 0d0
       tn  = 0d0
 
-c     Open restart files and check mesh sizes
+c     Open restart files
 
-      call openBinFile(urecord,recordfile,status='old')
-
-      read (urecord) nx,ilog,ihig
-      read (urecord) ny,jlog,jhig
-      read (urecord) nz,klog,khig
-
-#if defined(petsc) 
-      if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
-#else
-      if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
-#endif
-        call pstop('initializeCalculation'
-     $            ,'Grid meshes do not agree; cannot restart')
-      endif
+      call openRestartFileForRead
 
 c     Allocate intermediate variable
 
@@ -393,98 +380,11 @@ c     Read files
 
 c     End
 
-      close(urecord)
-
       call deallocateDerivedType(vmed)
 
-      end subroutine readRestartFile
-
-#else
-
-c     readRestartFile
-c     #################################################################
-      subroutine readRestartFile(itime,time)
-
-c     -----------------------------------------------------------------
-c     Reads restart file
-c     -----------------------------------------------------------------
-
-      use variables
-
-      implicit none
-
-c     Call variables
-
-      integer   ,intent(OUT) :: itime
-      real(8),intent(OUT)    :: time
-
-c     Local variables
-
-      integer :: nx,ny,nz,ierr
-
-      type(var_array),pointer :: vmed => null()
-
-c     Begin program
-
-      call allocateDerivedType(vmed)
-
-      call adios_init_noxml (adios_err)
-
-      ! allocate 100MB buffer for ADIOS
-      call adios_allocate_buffer (100,adios_err)
-
-      if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
-
-      call openRecordFileAdiosForRead(adios_err)
-
-      if (adios_err /= 0) then
-        call pstop('readRestartFile'
-     $            ,'Error reading ADIOS restart file')
-      endif
-
-      ierr = readRecordFile(urecord,itime,time,dt,u_0)
-
-      if (ierr /= 0) then
-        call pstop('readCurrentState','Unable to restart')
-      else
-        call equateDerivedType(u_n,u_0)
-        call get_src(u_n)
-      endif
-
-      ierr = readRecordFile(urecord,itime,time,dt,u_n)
-
-      if (ierr /= 0) then
-        call pstop('readCurrentState','Unable to restart')
-      endif
-
-      call equateDerivedType(u_np,u_n)
-
-      do
-        ierr = readRecordFile(urecord,itime,time,dt,vmed)
-
-        if (ierr /= 0) then
-          exit
-        else
-          call equateDerivedType(u_n ,u_np)
-          call equateDerivedType(u_np,vmed)
-        endif
-      enddo
-
-      call closeRecordFileAdiosForRead(adios_err)
-
-      if (adios_err /= 0) then
-        call pstop('readRestartFile'
-     $            ,'Error closing ADIOS restart file')
-      endif
-
-      if (my_rank == 0) write (*,*) ' Done!'
-
-c     End
-
-      call deallocateDerivedType(vmed)
+      call closeRestartFileForRead
 
       end subroutine readRestartFile
-#endif
 
       end subroutine readCurrentState
 
@@ -542,16 +442,6 @@ c Open record file
 
       if (.not.restart) then
 
-        !PC debugging
-cc        if (chk_src) then
-cc          call mapVectorToStructure(u_graph,fsrc)
-cc        else
-cccc         if (debug) then
-cccc           write (*,*) 'DIAG -- Dumping graphs for PC testing'
-cccc           u_graph = u_n
-cccc         endif
-cc        endif
-
         !Impose BC's on u_graph <- u_0
         !(do not overwrite u_0, since it contains equil. BCs;
         ! do nothing at EQU boundaries, to preserve EQU BCs)
@@ -563,50 +453,19 @@ cc        endif
         if (mk_grid)call MK_applyBC(igrid,u_graph%array_var(neqd)%array)
 #endif
 
-#if !defined(adios)
-        !Initialize POSIX files
-        call init_POSIX
-#endif
-
         !Dump initial data
-        call writeRecordFile(urecord,0,0d0,dt,u_graph)
-        call writeRecordFile(urecord,0,0d0,dt,u_np)
+        call writeRecordFile(recordfile,0,0d0,dt,u_graph)
+        call writeRecordFile(recordfile,0,0d0,dt,u_np)
 
         call deallocateDerivedType(u_graph)
 
       else
 
-#if defined(adios)
-        adios_open_num = 1  !Set ADIOS file to append
-#else
-        call openBinFile(urecord,recordfile,status='old'
-     .                  ,position='append'
-     .                  ,check=.true.)
-#endif
+        call setRecordfileToAppend
+
       endif
 
 c End programs
-
-      contains
-
-c     init_POSIX
-c     ##############################################################
-      subroutine init_POSIX
-
-        if (my_rank == 0) ierr = rm_files(recordfile)
-
-#if defined(petsc) 
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-#endif
-
-        !Initialize record file
-        call openBinFile(urecord,recordfile,status='unknown')
-
-        write (urecord) nxl,ilog,ihig
-        write (urecord) nyl,jlog,jhig
-        write (urecord) nzl,klog,khig
-
-      end subroutine init_POSIX
 
       end subroutine initializeRecordFile
 
