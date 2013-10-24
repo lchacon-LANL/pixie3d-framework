@@ -2,8 +2,18 @@
 
 -include make.inc
 
+# Read local configuration
+
+ifndef ARCH
+-include $(COMMONDIR)/make/make.mach.inc
+endif
+
 ifndef MODFLAG 
 -include $(COMMONDIR)/make/make.comp.inc
+endif
+
+ifndef CONTRIBLIBS
+-include $(COMMONDIR)/make/make.lib.inc
 endif
 
 # GENERAL PURPOSE MAKEFILE

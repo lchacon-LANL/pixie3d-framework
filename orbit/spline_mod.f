@@ -171,7 +171,7 @@ c     Begin program
         endif
       endif
 
-      if (.not.PRESENT(ierr)) then
+cc      if (.not.PRESENT(ierr)) then
         if (ierror /= 0) then
           write (*,*) 
           write (*,*) 'Error in chk_pos: out of domain!'
@@ -183,11 +183,17 @@ c     Begin program
           write (*,*) 'Z domain limits=',zsmin,zsmax
           write (*,*)
           write (*,*) 'BCs',sbcnd
-          stop
+cc          stop
         endif
-      else
-        ierr = ierror
-      endif
+cc      else
+cc        ierr = ierror
+cc      endif
+
+        if (PRESENT(ierr)) then
+          ierr = ierror
+        else
+          if (ierror /= 0) stop
+        endif
 
 c     End program
 
@@ -234,18 +240,22 @@ c     Initialize spline domain arrays
         ys = yy
         zs = zz
 
-cc        call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-cc        call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-cc        call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+c     Define domain limits
 
-        xsmin = grid_params%gxmin
-        xsmax = grid_params%gxmax
+        if (associated(grid_params)) then
+          xsmin = grid_params%gxmin
+          xsmax = grid_params%gxmax
           
-        ysmin = grid_params%gymin
-        ysmax = grid_params%gymax
+          ysmin = grid_params%gymin
+          ysmax = grid_params%gymax
           
-        zsmin = grid_params%gzmin
-        zsmax = grid_params%gzmax
+          zsmin = grid_params%gzmin
+          zsmax = grid_params%gzmax
+        else
+          call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+          call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+          call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+        endif
 
         xmin = xsmin
         xmax = xsmax

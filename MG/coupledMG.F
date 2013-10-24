@@ -660,9 +660,7 @@ c ######################################################################
           type(garray),pointer,dimension(:) :: grid
         end type mg_array
 
-        logical :: is__cnv,is__vec,have_equl,res_is_vec
-
-        type(mg_array) :: equl
+        logical :: is__cnv,is__vec,res_is_vec
 
         INTERFACE ASSIGNMENT (=)
           module procedure equateMGArray
@@ -891,21 +889,22 @@ c     #################################################################
       subroutine restrictMGArray(icmp,neq,mgarray,bcnd,igrid,order
      .                          ,iscnv,isvec,result_is_vec,equilb)
 c     -----------------------------------------------------------------
-c     Restricts MG array in all grids with ghost nodes.
+c     Restricts MG array in all grids with ghost nodes. If equilibrium
+c     is not provided, then extrapolation is done at EQU boundaries.
 c     -----------------------------------------------------------------
 
       implicit none    !For safe fortran
 
 c     Call variables
 
-      integer        :: neq,icmp,bcnd(6,neq),order,igrid
+      integer :: neq,icmp,bcnd(6,neq),order,igrid
       type(mg_array) :: mgarray
       logical,optional,intent(IN) :: iscnv,isvec,result_is_vec
       type(mg_array),optional,intent(IN) :: equilb
 
 c     Local variables
 
-      integer        :: igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
+      integer :: igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
 
 c     Begin program
 
@@ -926,14 +925,7 @@ c     Begin program
       else
         res_is_vec = is__vec   !Contravariant representation by default
       endif
-
-      if (PRESENT(equilb)) then
-        have_equl = .true.
-        equl = equilb
-      else
-        have_equl = .false.
-      endif
-        
+       
 c     Consistency check
 
       if (size(mgarray%grid(igrid)%array,4) /= neq) then
@@ -959,11 +951,9 @@ c     Restrict array
         call restrictArrayToArray(icmp,neq
      .       ,igf,nxf,nyf,nzf,mgarray%grid(igf)%array
      .       ,igc,nxc,nyc,nzc,mgarray%grid(igc)%array
-     .       ,order,.false.,bcnd)
+     .       ,order,.false.,bcnd,equilb=equilb)
 
       enddo
-
-      if (have_equl) call deallocateMGArray(equl)
 
 c     End program
 
@@ -973,7 +963,7 @@ c     restrictArrayToArray
 c     #################################################################
       subroutine restrictArrayToArray(icmp,neq,igf,nxf,nyf,nzf,arrayf
      .                                        ,igc,nxc,nyc,nzc,arrayc
-     .                               ,order,volf,bcnd)
+     .                               ,order,volf,bcnd,equilb)
 c     -----------------------------------------------------------------
 c     Restricts array to array in all grids (with ghost nodes),
 c     starting at grid igf.
@@ -991,6 +981,7 @@ c     Call variables
       real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1,neq)
      .             ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
       logical    :: volf
+      type(mg_array),optional,intent(IN) :: equilb
 
 c     Local variables
 
@@ -999,12 +990,14 @@ c     Local variables
      .             ,bcmod(6,neq),icmp2(max(neq/3,1))
 
       real(8),allocatable,dimension(:) :: vecf,vecc
-      logical    :: fpointers
+      logical    :: fpointers,have_equl
 
 c     Begin program
 
       call allocPointers(neq,fpointers)
 
+      have_equl = PRESENT(equilb)
+ 
 c     Consistency check
 
       nxxf = nxv(igf)
@@ -1079,12 +1072,12 @@ c     Map vector to array
         icmp2 = icmp
         if (have_equl) then
           call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
-     .                ,arr0=equl%grid(igc)%array
+     .                ,arr0=equilb%grid(igc)%array
      .                ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
      .                ,result_is_vec=res_is_vec,iorder=order)
         else
           bcmod = bcnd
-          where (bcmod == EQU) bcmod = EXT
+          where (abs(bcmod) == EQU) bcmod = EXT
           call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
      .                ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
      .                ,result_is_vec=res_is_vec,iorder=order)

@@ -1,6 +1,6 @@
 #Define message
 
-MESSAGE = "Compiling setup modules"
+MESSAGE = "Compiling VARIABLE SETUP modules"
 
 #Define subdirectories for common code
 
