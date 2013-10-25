@@ -343,7 +343,7 @@ c     Read equilibrium
       ierr = readRecordFile(urecord,itime,time,dt,u_0)
 
       if (ierr /= 0) then
-        call pstop('readCurrentState','Unable to restart')
+        call pstop('readCurrentState','Unable to read u_0')
       else
         call equateDerivedType(u_n,u_0)
         call get_src(u_n)
@@ -356,7 +356,7 @@ c     Read files
       ierr = readRecordFile(urecord,itime,time,dt,u_n)
 
       if (ierr /= 0) then
-        call pstop('readCurrentState','Unable to restart')
+        call pstop('readCurrentState','Unable to read u_n')
       endif
 
       call equateDerivedType(u_np,u_n)
