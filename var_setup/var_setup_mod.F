@@ -195,6 +195,15 @@ c     #################################################################
           nzl  = gv%gparams%nlz
         else
           gcw = 1
+
+          !This is read from recordfile
+cc          ihipg = ihig + gcw
+cc          ilomg = ilog - gcw
+cc          jhipg = jhig + gcw
+cc          jlomg = jlog - gcw
+cc          khipg = khig + gcw
+cc          klomg = klog - gcw
+
         endif
 
         !Define local limits

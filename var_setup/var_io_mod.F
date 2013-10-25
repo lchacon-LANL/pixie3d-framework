@@ -324,35 +324,35 @@ c     Local variables
 
 c     Begin program
 
-        ierr = 0
+          ierr = 0
 
 c     Set offsets to include ghosts
 c     1. internal processes: no ghost cells will be read in
-        iloghost = 0 ! gcw
-        jloghost = 0 ! gcw
-        kloghost = 0 ! gcw
-        ihighost = 0 ! gcw
-        jhighost = 0 ! gcw
-        khighost = 0 ! gcw
+          iloghost = 0          ! gcw
+          jloghost = 0          ! gcw
+          kloghost = 0          ! gcw
+          ihighost = 0          ! gcw
+          jhighost = 0          ! gcw
+          khighost = 0          ! gcw
       
 c     2. processes that has some face have ghost cells 
 c       x=0 face
-        if (ilomg == 0) iloghost = 0
+          if (ilomg == 0) iloghost = 0
 
 c       x=1 face
-        if (ihipg == nxd+1) ihighost = 0
+          if (ihipg == nxd+1) ihighost = 0
 
 c       y=0 face
-        if (jlomg == 0) jloghost = 0
+          if (jlomg == 0) jloghost = 0
 
 c       y=1 face
-        if (jhipg == nyd+1) jhighost = 0
+          if (jhipg == nyd+1) jhighost = 0
 
 c       z=0 face
-        if (klomg == 0) kloghost = 0
+          if (klomg == 0) kloghost = 0
 
 c       z=1 face
-        if (khipg == nzd+1) khighost = 0
+          if (khipg == nzd+1) khighost = 0
 
 
 c        write (*,"(a,i1,a,i4,i4,i4,i4,i4,i4)") "rank=",my_rank,
@@ -438,7 +438,7 @@ c     End program
 
 c     openRestartFileForRead
 c     #################################################################
-      subroutine openRestartFileForRead(file,lnx,lny,lnz,lneq)
+      subroutine openRestartFileForRead(file,lneq)
 
 c     -----------------------------------------------------------------
 c     Opens restart file (either POSIX, or ADIOS).
@@ -449,7 +449,7 @@ c     -----------------------------------------------------------------
 c     Global variables
 
       character(*),optional :: file
-      integer,optional,intent(out) :: lnx,lny,lnz,lneq
+      integer,optional,intent(out) :: lneq
 
 c     Local variables
 
@@ -477,11 +477,7 @@ cc         lneq = neq
       read (urecord) ny,jlog,jhig
       read (urecord) nz,klog,khig
 
-      if (PRESENT(lnx)) lnx = nx
-      if (PRESENT(lny)) lny = ny
-      if (PRESENT(lnz)) lnz = nz
-
-      if (.not.(PRESENT(lnx).or.PRESENT(lny).or.PRESENT(lnz))) then
+      if (associated(gv)) then
 #if defined(petsc) 
          if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
 #else
@@ -491,6 +487,10 @@ cc         lneq = neq
      $            ,'Grid meshes do not agree; cannot restart')
          endif
       endif
+
+      nxl = nx
+      nyl = ny
+      nzl = nz
 
 #else
 
@@ -1231,10 +1231,16 @@ c     Begin program
 #if defined(petsc)
           read (unit,*,iostat=ierr,end=100)
      .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
+c$$$          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
+c$$$     .                                ,1,1,1)
+c$$$          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
+c$$$     .                                ,1,1,1)
+          ihip = ihipg - ilog + 1 !ilog known from recordfile header
+          jhip = jhipg - jlog + 1 !jlog known from recordfile header
+          khip = khipg - klog + 1 !klog known from recordfile header
+          ilom = ilomg - ilog + 1 !ilog known from recordfile header
+          jlom = jlomg - jlog + 1 !jlog known from recordfile header
+          klom = klomg - klog + 1 !klog known from recordfile header
 #else
           read (unit,*,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
 #endif
@@ -1259,10 +1265,16 @@ c     Begin program
 #if defined(petsc)
           read (unit,iostat=ierr,end=100)
      .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
+c$$$          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
+c$$$     .                                ,1,1,1)
+c$$$          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
+c$$$     .                                ,1,1,1)
+          ihip = ihipg - ilog + 1 !ilog known from recordfile header
+          jhip = jhipg - jlog + 1 !jlog known from recordfile header
+          khip = khipg - klog + 1 !klog known from recordfile header
+          ilom = ilomg - ilog + 1 !ilog known from recordfile header
+          jlom = jlomg - jlog + 1 !jlog known from recordfile header
+          klom = klomg - klog + 1 !klog known from recordfile header
 #else
           read (unit,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
 #endif
@@ -1369,27 +1381,20 @@ c     #################################################################
 c     Call variables
 
         real(8),dimension(:,:,:,:) :: vec
-        integer          :: unit
-        logical          :: frmt
+        integer :: unit
+        logical :: frmt
 
 c     Local variables
 
 c     Begin program
 
         if (frmt) then
-cc#if defined(petsc)
           write (unit,*) ilomg,ihipg,jlomg,jhipg,klomg,khipg
-cc#else
-cc          write (unit,*) ilom,ihip,jlom,jhip,klom,khip
-cc#endif
+
           write (unit,*) vec
         else
-cc#if defined(petsc)
           write (unit) ilomg,ihipg,jlomg,jhipg,klomg,khipg
-cc          write (*,*) ilomg,ihipg,jlomg,jhipg,klomg,khipg
-cc#else
-cc          write (unit) ilom,ihip,jlom,jhip,klom,khip
-cc#endif
+
           write (unit) vec
         endif
 
@@ -1412,38 +1417,21 @@ c     Call variables
 c     Local variables
 
         integer :: ieq,ilom,ihip,jlom,jhip,klom,khip
-cc     .            ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
 
 c     Begin program
 
         ierr = 0
 
         if (format) then
-cc#if defined(petsc)
-cc          read (unit,*,iostat=ierr,end=100)
-cc     .           ilomg,ihipg,jlomg,jhipg,klomg,khipg
-cc          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-cc     .                                ,1,1,1)
-cc          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-cc     .                                ,1,1,1)
-cc#else
-          read (unit,*,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
-cc#endif
-          read (unit,*,iostat=ierr,end=100)
+          read(unit,*,iostat=ierr,end=100) ilom,ihip,jlom,jhip,klom,khip
+
+          read(unit,*,iostat=ierr,end=100)
      .         vec(ilom:ihip,jlom:jhip,klom:khip,:)
           if (ierr /= 0) goto 200
         else
-cc#if defined(petsc)
-cc          read (unit,iostat=ierr,end=100)
-cc     .         ilomg,ihipg,jlomg,jhipg,klomg,khipg
-cc          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-cc     .                                ,1,1,1)
-cc          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-cc     .                                ,1,1,1)
-cc#else
-          read (unit,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
-cc#endif
-          read (unit,iostat=ierr,end=100)
+          read(unit,iostat=ierr,end=100) ilom,ihip,jlom,jhip,klom,khip
+
+          read(unit,iostat=ierr,end=100)
      .         vec(ilom:ihip,jlom:jhip,klom:khip,:)
           if (ierr /= 0) goto 200
         endif
