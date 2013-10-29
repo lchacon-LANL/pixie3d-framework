@@ -245,45 +245,8 @@ cc          if (associated(mg_ctx_temp)) mg_ctx_sv => mg_ctx_temp  !Save old mg_
           call allocMGPointers(neq,fpointers,mg_ctx_temp)
         endif
 
-cc        if (.not.associated(mgctx)) then
-cc          call allocMGPointers(neq,fpointers,mgctx)
-cc        endif
-cc
-cc        istart  => mgctx%istart
-cc        istartp => mgctx%istartp
-cc        istartb => mgctx%istartb
-cc        ntotv   => mgctx%ntotv
-cc        ntotvp  => mgctx%ntotvp
-cc        ntotb   => mgctx%ntotb
-cc        nxv     => mgctx%nxv
-cc        nyv     => mgctx%nyv
-cc        nzv     => mgctx%nzv
-cc        nblock  => mgctx%nblock
-cc        mg_ratio_x => mgctx%mg_ratio_x
-cc        mg_ratio_y => mgctx%mg_ratio_y
-cc        mg_ratio_z => mgctx%mg_ratio_z
-cc
-cc        ngrid = mgctx%ngrid
-
       else
         call allocMGPointers(neq,fpointers,mg_ctx_temp)
-
-cc        istart  => mg_ctx_temp%istart
-cc        istartp => mg_ctx_temp%istartp
-cc        istartb => mg_ctx_temp%istartb
-cc        ntotv   => mg_ctx_temp%ntotv
-cc        ntotvp  => mg_ctx_temp%ntotvp
-cc        ntotb   => mg_ctx_temp%ntotb
-cc        nxv     => mg_ctx_temp%nxv
-cc        nyv     => mg_ctx_temp%nyv
-cc        nzv     => mg_ctx_temp%nzv
-cc        nblock  => mg_ctx_temp%nblock
-cc        mg_ratio_x => mg_ctx_temp%mg_ratio_x
-cc        mg_ratio_y => mg_ctx_temp%mg_ratio_y
-cc        mg_ratio_z => mg_ctx_temp%mg_ratio_z
-cc
-cc        ngrid = mg_ctx_temp%ngrid
-
       endif
 
       istart  => mg_ctx_temp%istart
@@ -352,11 +315,11 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: elem,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax,igr
+      integer :: elem,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax,igr
 
 c     Local variables
 
-      integer    :: el1
+      integer :: el1
 
 c     Begin program
 
