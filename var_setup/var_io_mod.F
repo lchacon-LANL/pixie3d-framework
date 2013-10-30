@@ -483,14 +483,15 @@ cc         lneq = neq
 #else
          if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
 #endif
-            call pstop('initializeCalculation'
+           call pstop('initializeCalculation'
      $            ,'Grid meshes do not agree; cannot restart')
-         endif
-      endif
 
-      nxl = nx
-      nyl = ny
-      nzl = nz
+         endif
+      else
+        nxl = nx
+        nyl = ny
+        nzl = nz
+      endif
 
 #else
 
@@ -1085,9 +1086,9 @@ c     Consistency check
           call pstop('openRecordFiles','Grid meshes do not agree')
         endif
       else
-        send_buf = (/ nxl,nyl,nzl /)
+        send_buf = (/ ihg,jhg,khg /)
         call MPI_Allreduce(send_buf,rec_buf,3
-     .                ,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,mpierr)
+     .                ,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,mpierr)
 
         nxd = rec_buf(1)
         nyd = rec_buf(2)
@@ -1096,6 +1097,13 @@ c     Consistency check
 #else
       !Set global limits (NOT a parallel run)
       if (associated(gv%gparams)) then
+
+        if (    (nxd /= maxval(ihg_)-minval(ilg_)+1)
+     .      .or.(nyd /= maxval(jhg_)-minval(jlg_)+1)
+     .      .or.(nzd /= maxval(khg_)-minval(klg_)+1) ) then
+          call pstop('openRecordFiles','Grid size does not agree')
+        endif
+
         ihg = nxd
         ilg = 1
         jhg = nyd
@@ -1103,12 +1111,8 @@ c     Consistency check
         khg = nzd
         klg = 1
 
-        if (nf == 1) then
-          if (nx(1) /= nxd .or. ny(1) /= nyd .or. nz(1) /= nzd) then
-            call pstop('openRecordFiles','Grid size does not agree')
-          endif
-        endif
       else
+
         nxd = maxval(ihg_)-minval(ilg_)+1
         nyd = maxval(jhg_)-minval(jlg_)+1
         nzd = maxval(khg_)-minval(klg_)+1
@@ -1119,6 +1123,7 @@ c     Consistency check
         jlg = 1
         khg = nzd
         klg = 1
+
       endif
 #endif
 
@@ -1222,6 +1227,7 @@ c     Call variables
 c     Local variables
 
         integer :: ieq,ilom,ihip,jlom,jhip,klom,khip
+     .            ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
 
 c     Begin program
 
@@ -1231,10 +1237,7 @@ c     Begin program
 #if defined(petsc)
           read (unit,*,iostat=ierr,end=100)
      .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
-c$$$          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-c$$$     .                                ,1,1,1)
-c$$$          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-c$$$     .                                ,1,1,1)
+
           ihip = ihipg - ilog + 1 !ilog known from recordfile header
           jhip = jhipg - jlog + 1 !jlog known from recordfile header
           khip = khipg - klog + 1 !klog known from recordfile header
@@ -1265,10 +1268,7 @@ c$$$     .                                ,1,1,1)
 #if defined(petsc)
           read (unit,iostat=ierr,end=100)
      .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
-c$$$          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-c$$$     .                                ,1,1,1)
-c$$$          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-c$$$     .                                ,1,1,1)
+
           ihip = ihipg - ilog + 1 !ilog known from recordfile header
           jhip = jhipg - jlog + 1 !jlog known from recordfile header
           khip = khipg - klog + 1 !klog known from recordfile header
@@ -1307,6 +1307,8 @@ c$$$     .                                ,1,1,1)
         write (*,*) 'readDerivedType: Error reading file unit',unit
 
 c     End program
+
+      contains
 
       end subroutine readDerivedType
 
