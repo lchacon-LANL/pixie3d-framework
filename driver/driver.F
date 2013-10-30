@@ -104,7 +104,7 @@ c Initialize ADIOS for componentized I/O
         call pstop('driver_3d','ADIOS config file not present')
       else
         call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
-        call adios_init('adios_config.xml', adios_err)
+        call ADIOS_init('adios_config.xml', adios_err)
       endif
 #endif
 
@@ -336,6 +336,16 @@ c Formats
 c End program
 
       call fortranDestroy
+
+#if defined(petsc)
+      call PetscLogStagePop(perr)
+
+      call PetscFinalize(perr)
+#endif
+
+#if defined(adios)
+      call ADIOS_finalize(my_rank, adios_err)
+#endif
 
       end
 
