@@ -324,6 +324,9 @@ ifeq ($(HOST),quadrivium)
 
   FC=gfortran
 
+  PIT=t
+  VECPOT=t
+
   NETCDF=f
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include/netcdf
@@ -339,9 +342,9 @@ ifeq ($(HOST),quadrivium)
       PETSC_ARCH = linux64_openmpi_g
     endif
 
-    HDF5 = f
+    HDF5 = t
 
-    HDF5_HOME =/opt/local
+    HDF5_HOME = $(HOME)/local
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
@@ -358,9 +361,9 @@ ifeq ($(HOST),quadrivium)
 
     LIBS += -L/state/partition1/apps/lapack/lib -llapack -lrefblas
 
-    HDF5 = f
+    HDF5 = t
 
-    HDF5_HOME = $(HOME)/lib/hdf5-1.8.5/gfortran/serial
+    HDF5_HOME = $(HOME)/local2
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  =$(HDF5_HOME)/include
     HDF5_INC  =$(HDF5_HOME)/include
