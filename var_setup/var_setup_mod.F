@@ -2,17 +2,9 @@ c module parameters
 c #####################################################################
       module parameters
 
-      integer    :: neqd
-     .             ,nxd,nyd,nzd,nxdp,nydp,nzdp
-     .             ,nxl,nyl,nzl,nxlp,nylp,nzlp
+      use grid
 
-      integer    :: ilo ,ihi ,jlo ,jhi ,klo ,khi
-     .             ,ilom,ihip,jlom,jhip,klom,khip
-     $             ,ilog ,ihig ,jlog ,jhig ,klog ,khig
-     .             ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
-     .             ,gcw
-
-      integer    :: ntotd,ntotdp,ntimemax
+      integer :: neqd,ntotd,ntotdp
 
       end module parameters
 
@@ -193,17 +185,6 @@ c     #################################################################
           nxl  = gv%gparams%nlx
           nyl  = gv%gparams%nly
           nzl  = gv%gparams%nlz
-        else
-          gcw = 1
-
-          !This is read from recordfile
-cc          ihipg = ihig + gcw
-cc          ilomg = ilog - gcw
-cc          jhipg = jhig + gcw
-cc          jlomg = jlog - gcw
-cc          khipg = khig + gcw
-cc          klomg = klog - gcw
-
         endif
 
         !Define local limits
@@ -520,7 +501,7 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq,ierr,istat
+        integer :: ieq,ierr,istat
 
 c     Begin program
 

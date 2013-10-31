@@ -8,10 +8,6 @@ c######################################################################
 
         integer    :: ngrdx,ngrdy,ngrdz,ngrid,igmax
 
-cc        integer   ,dimension(:),allocatable ::
-cc     .                     istart,ntotv,istartp,ntotvp
-cc     .                    ,istartb,ntotb,nxv,nyv,nzv,nblock
-cc     .                    ,mg_ratio_x,mg_ratio_y,mg_ratio_z
         integer   ,dimension(:),pointer ::
      .                     istart,ntotv,istartp,ntotvp
      .                    ,istartb,ntotb,nxv,nyv,nzv,nblock

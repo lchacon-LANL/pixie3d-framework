@@ -38,22 +38,6 @@ c Free memory
 
       call deallocateGlobalVar(gv)
 
-c Close record files
-
-#if !defined(adios)
-      close(urecord)
-#else
-      call ADIOS_finalize(my_rank, adios_err)
-#endif
-
-c Destroy PETSc
-
-#if defined(petsc)
-      call PetscLogStagePop(ierr)
-
-      call PetscFinalize(ierr)
-#endif
-
 c End program
 
       end subroutine fortranDestroy

@@ -99,7 +99,7 @@ c ######################################################################
 
         use iosetup
 
-        integer    :: numtime,ndstep,nrstep,inewtime,nrst
+        integer    :: numtime,ndstep,nrstep,inewtime,nrst,ntimemax
 
         real(8)    :: tmrst,dt,dtbase,cnfactor,alpha,gammat,dt_n
         real(8)    :: tmax,dstep,rstep,time,tn,tnm

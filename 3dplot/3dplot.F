@@ -318,15 +318,6 @@ c Read user initializations
 c Allocate global variable
 
       call allocateGlobalVar(gv)
-cc      allocate(gv)
-cc      nullify(gv%bc_grp)
-cc      nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0)
-cc      nullify(gv%gparams)
-cc      nullify(gv%aux)
-cc
-ccc Initialize MG and create grid
-cc
-cc      call createGrid(nxd,nyd,nzd,gv%gparams)
 
 c Open graphics files (this initializes local limits, among other things)
 
