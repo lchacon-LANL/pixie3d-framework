@@ -1,238 +1,151 @@
-c module nk_setup
+
+c module ts_if
 c ######################################################################
-      module nk_setup
+      module ts_if
 
-        use grid, ONLY: np
+      use ts_setup
 
-        integer :: maxitnwt,maxitgm,iguess,maxksp,method,global
+      use nk, ONLY: nk_conf,matrixFreeMatVec,jfnk,evaluateNewtonResidual
+     .             ,NOERR,CUTDT
 
-        real(8) :: tolgm=0d0,rtol=0d0,atol=0d0,stol=0d0,mf_eps=1d-8
-
-        logical :: fpa=.false.
-        integer :: fpa_it=5
-
-        !PC setup
-        integer :: pc_iter        = 1     !Number of SI iterations in preconditioner
-     .            ,mg_ores        = 0     !Restriction order for MG
-     .            ,mg_oprol       = 2     !Prolongation order for MG
-     .            ,mg_coarse_size = 2     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
-     .            ,mg_vcyc        = 1     !Maximum number of MG V-cycles
-     .            ,sm_zebra_it    = 1     !Number of relaxations in ZEBRA smoothing
-     .            ,sm_zebra_dir   = 0     !Preferred smoothing direction in ZEBRA smoothing (all if zero)
-     .            ,sm_ncolors     = 8     !Number of colors for diagonal calc., smoothing
-     .            ,sm_iter        = 5     !Number of MG smoothing passes
-
-        real(8) :: pc_tol        = 1d-3   !PC solvers convergence tolerance
-     .            ,sm_omega      = 0.7    !Damping for MG smoother (only when 'jb' is chosen)
-     .            ,sm_zebra_omg  = 1d0    !Damping for ZEBRA smoothing
-
-        character(2) :: pc_type  = 'id'   !Type of preconditioner (application dependent)
-     .                 ,sm_type  = 'jb'   !Type of smoother ('jg','gs','gm')
-
-        logical :: mg_glrkin     =.false. !Whether to use Galerking MG
-     .            ,mg_gm_coarse  =.false. !Whether to use GMRES as the coarse solve
-     .            ,sm_line_relax =.false. !Whether to perform line relaxation in MG
-     .            ,sm_zebra_relax=.false. !Whether to perform ZEBRA line relaxation in MG
-     .            ,mg_debug      =.false. !Whether to go into debugging mode in MG
-     .            ,mg_cvrg_test  =.false. !Whether to perform convergence test of smoother
-     .            ,pc_asm        =.false. !Whether to do additive Schwartz PC
-     .            ,pc_debug      =.false. !PC debugging flag
-     .            ,pc_id         =.false. !Whether we are doing identity PC
-     .            ,pc_gm_driver  =.false. !whether GMRES drives PC solves or not
-
-cc        type :: pcsetup
-cc          integer :: sm_iter,maxvcyc,pc_max_iter,debug_it
-cc
-cc          integer :: pc_iter,ores,oprol,mg_coarse_size,ncolors
-cc
-cc          real(8) :: mgtol,omeg_smth
-cc
-cc          character(2) :: smooth
-cc          character(10):: pc_type
-cc
-cc          logical :: gm_smooth
-cc     .              ,mg_glrkin
-cc     .              ,gm_coarse
-cc     .              ,line_relax
-cc     .              ,zebra_relax
-cc     .              ,inv_B
-cc     .              ,v_solve
-cc     .              ,mg_debug
-cc     .              ,cvrg_test
-cc     .              ,asm_PC
-cc        end type pcsetup
-cc
-cc        type(pcsetup) :: pc__setup
+      integer :: gmres_tot,newt_tot,itnewt,itgmres
 
       contains
 
-c     nk_setup_consistency
-c     ##################################################################
-      subroutine nk_setup_consistency
-
-      implicit none
-
-      pc_id = (pc_type == 'id')
-
-cc      if (pc_id) iguess = 0
-
-      if (np > 1) mg_gm_coarse = .false.       !Do not perform GMRES coarse solve in parallel
-
-      if (sm_type /= 'jb') sm_omega = 1d0
-
-      end subroutine nk_setup_consistency
-
-      end module nk_setup
-
-c module counters
-c ######################################################################
-      module counters
-
-        integer    :: itnewt,itgmres
-        integer    :: gmres_tot,newt_tot
-
-      end module counters
-
-c module ts_setup
-c ######################################################################
-      module ts_setup
-
-        use iosetup
-
-        integer    :: numtime,ndstep,nrstep,inewtime,nrst,ntimemax
-
-        real(8)    :: tmrst,dt,dtbase,cnfactor,alpha,gammat,dt_n
-        real(8)    :: tmax,dstep,rstep,time,tn,tnm
-     $               ,dfreq,dtexp,damp,dt0,dtold,eig_dt
-
-        real(8),allocatable,dimension(:) :: cnf,one_over_dt
-     .                                     ,bdfp,bdfn,bdfnm
-
-#if !defined(samrai)
-        real(8),allocatable,dimension(:)   :: fold,fsrc,x_old
-#endif
-        real(8),allocatable,dimension(:,:) :: old_f
-
-        !Initialized variables
-        integer    :: itime=0,sm_pass=2,sm_flag=0
-
-        logical    :: timecorr=.false.,restart=.false.,source=.true.
-     .               ,predictor=.false.,postprocess=.false.
-     .               ,preprocess=.false.
-     .               ,chk_src=.false.,source_eval=.false.
-     .               ,old_time_eval=.false.,vol_wgt=.true.
-     .               ,bdf2=.false.,eigen=.false.
-     .               ,relax_init_grid=.false.
-
-        real(8)    :: cnp=1d0,cn=-1d0,cnm=0d0
-
-      contains
-
-#if !defined(samrai)
-c     createTS
+c     implicit_ts
 c     #################################################################
-      subroutine createTS
+      function implicit_ts(neq,x,nlit,lit,iout) result(ierr)
 
 c     -----------------------------------------------------------------
-c     Allocates time-stepping arrays
+c     Performs implicit advance of solution x (on input, x=xold)
 c     -----------------------------------------------------------------
 
       implicit none
 
 c     Call variables
+
+      integer :: neq,ierr,nlit,lit,iout
+
+      real(8) :: x(:)
 
 c     Local variables
 
+      integer :: nn
+
 c     Begin program
 
-      allocate(fold(ntotd),fsrc(ntotd),x_old(ntotd))
+      ierr = NOERR
 
-      allocate(cnf(neqd),one_over_dt(neqd)
-     .        ,bdfp(neqd),bdfn(neqd),bdfnm(neqd))
+      nn = size(x)
 
-c     Initialization
+      x_old = x
 
-      bdfp  =  1d0
-      bdfn  = -1d0
-      bdfnm =  0d0
+c     Evaluate nonlinear function at old time for theta scheme
+
+      old_time_eval = .true.     !This informs nlfunction that we are processing
+                                 !  n time level info
+
+      if (.not.bdf2) call evaluateNonlinearFunction(nn,x,fold)
+
+      old_time_eval = .false.
+
+c     Newton-Krylov iteration
+
+      nk_conf%etak_meth      = method
+      nk_conf%ksmax          = maxksp
+      nk_conf%gmmax          = maxitgm
+      nk_conf%nwt_max_it_acc = 0.7*maxitnwt
+      nk_conf%nwt_max_it_rej = maxitnwt
+      nk_conf%global_meth    = global
+
+      nk_conf%eta0   = tolgm
+      nk_conf%damp   = damp
+      nk_conf%pdt0   = dt0
+      if (atol  > 0d0) nk_conf%atol   = atol
+      if (rtol  > 0d0) nk_conf%rtol   = rtol
+      if (stol  > 0d0) nk_conf%stol   = stol
+      if (mf_eps> 0d0) nk_conf%mf_eps = mf_eps
+
+      nk_conf%krylov_method='fg'
+cc      nk_conf%krylov_method='gm'
+      nk_conf%fpa=fpa
+      nk_conf%fpa_it=fpa_it
+
+      nk_conf%vol_wgt = vol_wgt
+
+      call jfnk(neq,nn,x,iguess,iout,ierr)
+
+c     Store convergence info
+
+      lit  = nk_conf%gm_it_out
+      nlit = nk_conf%nwt_it_out
 
 c     End program
 
-      end subroutine createTS
+      end function implicit_ts
 
-c     destroyTS
+c     explicit_ts
 c     #################################################################
-      subroutine destroyTS
+      function explicit_ts(x) result(ierr)
 
 c     -----------------------------------------------------------------
-c     Deallocates time-stepping arrays
+c     Performs explicit advance of solution x (on input, x=xold)
 c     -----------------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-c     Local variables
-
-c     Begin program
-
-      deallocate(fold,fsrc,x_old)
-
-      deallocate(cnf,one_over_dt,bdfp,bdfn,bdfnm)
-
-c     End program
-
-      end subroutine destroyTS
-#endif
-
-c     readTimeStep
-c     #################################################################
-      subroutine readTimeStep(varray,ierr)
-
-c     -----------------------------------------------------------------
-c     Reads time step info from single or multiple files.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type(var_array),pointer :: varray
       integer :: ierr
 
+      real(8) :: x(:)
+
 c     Local variables
 
-      integer :: ifile
+      integer :: nn
 
 c     Begin program
 
-      if (associated(murecord)) then
-        do ifile=1,size(murecord)
-          ierr = readRecordFile(murecord(ifile),itime,time,dt,varray)
-          if (ierr == -1) cycle !Error, but not EOF
-          if (ierr == -2) cycle !EOF
-        enddo
-      else
-        ierr = readRecordFile(urecord,itime,time,dt,varray)
-      endif
+      ierr = NOERR
+
+      nn = size(x)
+
+      x_old = x
+
+c     Predictor step
+
+      old_time_eval = .true. !This informs nlfunction that we are processing
+                             !  n time level info
+
+      call evaluateNonlinearFunction(nn,x,fold)
+
+      old_time_eval = .false.
+
+      x = x_old - 0.7*dt*(fold-fsrc)
+
+c     Corrector step
+
+      call evaluateNonlinearFunction(nn,x,fold)
+
+      x = x_old -     dt*(fold-fsrc)
 
 c     End program
 
-      end subroutine readTimeStep
+      end function explicit_ts
 
-      end module ts_setup
+      end module ts_if
 
 c module timeStepping
 c ######################################################################
       module timeStepping
 
-        use parameters
+        use ts_if
 
-        use variables
+        use variables 
 
-        use iosetup
-
-        use ts_setup
+#if defined(MK)
+        use mk
+#endif
 
 #if !defined(petsc_c)
         type(var_array),pointer :: dn,dnm,dnp
@@ -417,8 +330,6 @@ c     correctTimeStepPetsc
 c     ######################################################################
       subroutine correctTimeStepPetsc(dn,dnh,dnp,ierr,dt_to_c)
 
-      use counters
-
       use parameters
 
       implicit none
@@ -542,7 +453,7 @@ c     #######################################################################
           if (dt < 1d-3*dtbase) then
             call pstop('adapt_dt','Time step too small')
           endif
-          if (my_rank == 0 .and. ierr == 2) write (*,240)
+          if (my_rank == 0 .and. ierr == CUTDT) write (*,240)
           if (my_rank == 0) write (*,400) dt
 
         else                 !No error in time stepping
@@ -620,7 +531,7 @@ c     #######################################################################
         cnfactor = 0d0
 
         bdf2 = (itm > 1 .and. (.not.timecorr) )
-     .    .or. (itm > 2 .and.       timecorr  .and. ierr == 0)
+     .    .or. (itm > 2 .and.       timecorr  .and. ierr == NOERR)
 
         if (bdf2) then
           !All these are affected by factor 1/dt (done in evaluateNLF)
@@ -638,5 +549,183 @@ c     #######################################################################
       end subroutine calculate_cnfactor
 
       end subroutine findNewTimeStep
+
+c     updateSolution
+c     ######################################################################
+      function updateSolution(ddt,vnp,iout) result(ierr)
+
+c     ----------------------------------------------------------------------
+c     Performs time advance of solution from vn to vnp
+c     ----------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ierr,iout
+      real(8) :: ddt
+
+      type(var_array),pointer :: vnp
+
+c     Local variables
+
+      real(8) :: x(ntotd)
+
+c     Begin program
+
+      ierr = NOERR
+
+      call mapStructureToVector(x,vnp)
+
+c     Define TS parameters
+
+      dt = ddt
+
+      if (bdf2) then
+        bdfp  = cnp
+        bdfn  = cn
+        bdfnm = cnm
+        cnf   = 0d0
+      else
+        bdfp  = 1d0
+        bdfn  =-1d0
+        bdfnm = 0d0
+        cnf   = cnfactor
+      endif
+
+      if (dt == 0d0) call pstop('updateSolution','dt=0!!!')
+
+c     Time step update
+
+      if (cnfactor.lt.1d0) then
+        ierr = implicit_ts(neqd,x,itnewt,itgmres,iout)
+      else
+        ierr = explicit_ts(x)
+        itnewt  = 1
+        itgmres = 0
+      endif
+
+c     Map solution to vnp (if no error)
+
+      if (ierr == NOERR .or. ierr == CUTDT) then
+        call mapVectorToStructure(vnp,x)
+
+        call applyBC(1,vnp,it=itime)
+
+#if defined(MK)
+        if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
+#endif
+      endif
+
+c     Update counters
+
+      gmres_tot = gmres_tot + itgmres
+      newt_tot  = newt_tot  + itnewt
+
+c     End program
+
+      end function updateSolution
+
+c     eigenSolution
+c     ######################################################################
+      function eigenSolution(vnp,iout) result(ierr)
+
+c     ----------------------------------------------------------------------
+c     Performs Eigen solution of Jacobian system. In call:
+c       - v0: equilibrium state
+c       - vnp: on input, initial guess; on output, eigenfunction
+c     ----------------------------------------------------------------------
+
+      use eigen_mod
+
+      implicit none
+
+c     Call variables
+
+      integer :: ierr,iout
+
+      type(var_array),pointer :: vnp
+
+c     Local variables
+
+      real(8) :: x(ntotd)
+
+      INTERFACE
+        subroutine applyPC(n,x,y,out)
+        integer :: n,out
+        real(8),dimension(n) :: x,y
+        end subroutine
+      END INTERFACE
+
+c     Begin program
+
+      ierr = NOERR
+
+      call mapStructureToVector(x ,vnp)
+
+c     Setup vectors
+
+      !Setup matrix-free vectors (xk, rk)
+      allocate(nk_conf%xk(ntotd),nk_conf%rk(ntotd))
+
+      call mapStructureToVector(nk_conf%xk,u_0)
+
+      call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
+
+      !Setup preconditioner
+      call setupPC(ntotd,nk_conf%xk,1)
+
+      !Setup initial guess for eigenfunction
+      x = x - nk_conf%xk
+
+c     Eigensolve
+
+cc#if defined(arpack)
+cc        call arnoldi_eig(neqd,ntotd,x,iout)
+cc#endif
+      eigen_conf%my_rank = my_rank
+
+      eigen_conf%ksmax   = maxksp
+      eigen_conf%armax   = maxitgm
+      if (rtol > 0d0) eigen_conf%rtol = rtol
+      if (atol > 0d0) eigen_conf%atol = atol
+      eigen_conf%step    = eig_dt
+
+      iguess = 1
+      call lehoucq_eig(ntotd,x,iguess,iout,ierr
+     .                ,matrixFreeMatVec
+     .                ,applyPC
+     .                ,ldot=dot2)
+
+      select case(ierr)
+      case(1)
+        call pstop('lehoucq_eig','Matrix not positive definite')
+      end select
+
+c     Output
+
+      if (my_rank == 0) then
+         write (*,*)
+         write (*,*) '**************************************'
+         write (*,'(a,1p,1e10.3,a)') ' ****** Eigenvalue is='
+     $           ,1d0/dt-eigen_conf%eigv,' ******' 
+         write (*,*) '**************************************'
+      endif
+
+      itgmres = eigen_conf%iter_out
+
+c     Map eigenvector
+
+      x = x + nk_conf%xk
+
+c     Free memory
+
+      deallocate(nk_conf%xk,nk_conf%rk)
+ 
+      call mapVectorToStructure(vnp,x)
+
+c     End program
+
+      end function eigenSolution
 
       end module timeStepping

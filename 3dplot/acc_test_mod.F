@@ -6,7 +6,7 @@ c ###########################################################################
 
         use variables
 
-        use iosetup
+        use var_io
 
         use timeStepping
 
@@ -98,7 +98,7 @@ c     Read reference grid info
       call allocateDerivedType(vref)
 
       do
-        call readTimeStep(vref,ierr)
+        call readTimeStep(itime,time,dt,vref,ierr)
         if (ierr /= 0) exit
       enddo
 
@@ -165,7 +165,7 @@ c Initialize current grid info and read current grid solution
       call allocateDerivedType(vsol)
 
       do
-        call readTimeStep(vsol,ierr)
+        call readTimeStep(itime,time,dt,vsol,ierr)
         if (ierr /= 0) exit
       enddo
 
@@ -326,7 +326,7 @@ c     Read reference field
       call allocateDerivedType(vref)
 
       do
-        call readTimeStep(vref,ierr)
+        call readTimeStep(itime,time,dt,vref,ierr)
         if (ierr /= 0 .or. abs(time-tmax)<1d-8 ) exit
       enddo
 
@@ -357,7 +357,7 @@ c     Read current solution
       call allocateDerivedType(vsol)
 
       do
-        call readTimeStep(vsol,ierr)
+        call readTimeStep(itime,time,dt,vsol,ierr)
         if (ierr /= 0 .or. abs(time-tmax)<1d-10) exit
       enddo
 

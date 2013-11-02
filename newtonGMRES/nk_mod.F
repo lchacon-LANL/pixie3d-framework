@@ -39,6 +39,8 @@ c ###################################################################
       use fixed_point_accelerator
 #endif
 
+      integer, parameter :: NOERR=0,EXACT=-1,NOCONV=1,CUTDT=2
+
       real(8) :: pdt,check
 
       real(8) :: epsmac=0d-15,roundoff
@@ -99,12 +101,12 @@ c              out = 3 --> Previous plus residual information output
 c              out > 4 --> Previous plus preconditioner output (controlled
 c                          in preconditioner routine).
 c       * ierr: error flag:
-c              ierr =-1 --> Initial guess is exact solution
-c              ierr = 0 --> No error
-c              ierr = 1 --> No Newton convergence to prescribed tolerance in
-c                           prescribed number of iterations (ntit_max_rej)
-c              ierr = 2 --> Newton converged, but took too many iterations
-c                           (>  ntit_max_acc)
+c              ierr = EXACT  --> Initial guess is exact solution
+c              ierr = NOERR  --> No error
+c              ierr = NOCONV --> No Newton convergence to prescribed tolerance in
+c                                prescribed number of iterations (ntit_max_rej)
+c              ierr = CUTDT  --> Newton converged, but took too many iterations
+c                                (>  ntit_max_acc)
 c       * matvec: optional matrix-vector multiplication routine
 c
 c     Configuration parameters (input via nk_options type):

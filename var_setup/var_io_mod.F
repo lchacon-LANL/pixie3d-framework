@@ -1,7 +1,7 @@
 
-c module iosetup
+c module var_io
 c ######################################################################
-      module iosetup
+      module var_io
 
         use io
 
@@ -483,7 +483,7 @@ cc         lneq = neq
 #else
          if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
 #endif
-           call pstop('initializeCalculation'
+           call pstop('openRestartFileForRead'
      $            ,'Grid meshes do not agree; cannot restart')
 
          endif
@@ -503,7 +503,7 @@ cc         lneq = neq
       call openRecordFileAdiosForRead(adios_err,file=file,nvar=lneq)
 
       if (adios_err /= 0) then
-        call pstop('readRestartFile'
+        call pstop('openRestartFileForRead'
      $            ,'Error reading ADIOS restart file')
       endif
 
@@ -533,7 +533,7 @@ c     Begin program
       call closeRecordFileAdiosForRead(adios_err)
 
       if (adios_err /= 0) then
-        call pstop('readRestartFile'
+        call pstop('closeRestartFileForRead'
      $            ,'Error closing ADIOS restart file')
       endif
 #endif
@@ -1125,6 +1125,7 @@ c     Consistency check
         klg = 1
 
       endif
+
 #endif
 
       deallocate(nx,ny,nz
@@ -1167,12 +1168,12 @@ c     #################################################################
 c     Call variables
 
         type(var_array),pointer  :: varray
-        integer          :: unit
-        logical          :: frmt
+        integer :: unit
+        logical :: frmt
 
 c     Local variables
 
-        integer          :: ieq
+        integer :: ieq
 
 c     Begin program
 
@@ -1227,7 +1228,6 @@ c     Call variables
 c     Local variables
 
         integer :: ieq,ilom,ihip,jlom,jhip,klom,khip
-     .            ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
 
 c     Begin program
 
@@ -1235,7 +1235,7 @@ c     Begin program
 
         if (format) then
 #if defined(petsc)
-          read (unit,*,iostat=ierr,end=100)
+          read(unit,*,iostat=ierr,end=100)
      .               ilomg,ihipg,jlomg,jhipg,klomg,khipg
 
           ihip = ihipg - ilog + 1 !ilog known from recordfile header
@@ -1245,7 +1245,7 @@ c     Begin program
           jlom = jlomg - jlog + 1 !jlog known from recordfile header
           klom = klomg - klog + 1 !klog known from recordfile header
 #else
-          read (unit,*,iostat=ierr,end=100)ilom,ihip,jlom,jhip,klom,khip
+          read(unit,*,iostat=ierr,end=100) ilom,ihip,jlom,jhip,klom,khip
 #endif
           read (unit,*,iostat=ierr,end=100)varray%nvar
           if (ierr /= 0) goto 200
@@ -1452,4 +1452,40 @@ c     End program
 
       end function readVectorFromFiles
 
-      end module iosetup
+c     readTimeStep
+c     #################################################################
+      subroutine readTimeStep(itime,time,dt,varray,ierr)
+
+c     -----------------------------------------------------------------
+c     Reads time step info from single or multiple files.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(var_array),pointer :: varray
+      integer :: ierr,itime
+      real(8) :: time,dt
+
+c     Local variables
+
+      integer :: ifile
+
+c     Begin program
+
+      if (associated(murecord)) then
+        do ifile=1,size(murecord)
+          ierr = readRecordFile(murecord(ifile),itime,time,dt,varray)
+          if (ierr == -1) cycle !Error, but not EOF
+          if (ierr == -2) cycle !EOF
+        enddo
+      else
+        ierr = readRecordFile(urecord,itime,time,dt,varray)
+      endif
+
+c     End program
+
+      end subroutine readTimeStep
+
+      end module var_io

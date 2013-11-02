@@ -10,13 +10,11 @@ c----------------------------------------------------------------------
 
       use grid
 
-      use variables
-
       use timeStepping
 
-      use newtongm
+      use nk
 
-      use iosetup
+      use var_io
 
 #if defined(MK)
       use mk
@@ -153,11 +151,9 @@ c--------------------------------------------------------------------
 
       use grid
 
-      use variable_setup
-
       use timeStepping
 
-      use iosetup
+      use var_io
 
 #if defined(MK)
       use mk
@@ -173,7 +169,7 @@ c Interfaces
 
       INTERFACE
         subroutine setEquilibrium(igx,varray)
-        use variable_setup
+        use var_setup
         integer :: igx
         type(var_array),pointer :: varray
         end subroutine setEquilibrium
@@ -181,14 +177,14 @@ c Interfaces
 
       INTERFACE
         subroutine perturbEquilibrium(varray)
-        use variable_setup
+        use var_setup
         type(var_array),pointer :: varray
         end subroutine perturbEquilibrium
       END INTERFACE
 
       INTERFACE
         subroutine get_src(varray)
-        use variable_setup
+        use var_setup
         type(var_array),pointer :: varray
         end subroutine get_src
       END INTERFACE
@@ -247,11 +243,9 @@ c--------------------------------------------------------------------
 
       use grid
 
-      use variable_setup
-
       use timeStepping
 
-      use iosetup
+      use var_io
 
 #if defined(MK)
       use mk
@@ -269,7 +263,7 @@ c Interfaces
 
       INTERFACE
         subroutine get_src(varray)
-        use variable_setup
+        use var_setup
         type(var_array),pointer :: varray
         end subroutine get_src
       END INTERFACE
@@ -398,9 +392,7 @@ c----------------------------------------------------------------------
 
       use timeStepping
 
-      use variables
-
-      use iosetup
+      use var_io
 
 #if defined(MK)
       use mk
@@ -478,7 +470,7 @@ c     Set initial conditions for initial value calculation. Variables
 c     are stored in u_np
 c--------------------------------------------------------------------
 
-      use variable_setup
+      use var_setup
 
       use timeStepping
 
@@ -499,7 +491,7 @@ c Local variables
       INTERFACE
         subroutine evaluate_NLF(igr,varray,fi)
         use parameters
-        use variable_setup
+        use var_setup
         integer :: igr
         real(8) :: fi(ntotd)
         type(var_array),pointer :: varray

@@ -26,9 +26,10 @@ c Call variables
 c Local variables
 
       integer :: i,j,k,ieq,ii,ig,jg,kg,igrid
-      real(8) :: dvol,src(neqd),dfdt(neqd)
+      real(8) :: dvol!,src(neqd),dfdt(neqd)
 
-      real(8),pointer,dimension(:,:,:) :: jac
+cc      real(8),pointer,dimension(:,:,:) :: jac
+      real(8),pointer,dimension(:) :: src
 
 c Begin program
 
@@ -38,72 +39,125 @@ c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
       call evaluateNonlinearFunction(ntot,x,f)
 
-c Calculate residuals
+cc      do k = klo,khi
+cc        do j = jlo,jhi
+cc          do i = ilo,ihi
+cc
+cc            call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+cc
+cc            ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
+cc
+cc#if defined(MK)
+cc            if (source.and.mk_grid) then
+cc              if (relax_init_grid) then
+cc                src = 0d0
+cc              else
+cc                src(ii+1:ii+neqd) = MK_eval_src(igrid,i,j,k) !Interpolate source on current MK mesh
+cc              endif
+cc            else
+cc              src(ii+1:ii+neqd) = fsrc(ii+1:ii+neqd)
+cc            endif
+cc#else
+cc            src(ii+1:ii+neqd) = fsrc(ii+1:ii+neqd)
+cc#endif
+cc
+cc#if defined(MK)
+cc            jac => gmetric%grid(igrid)%jac
+cc
+cc            if (mk_grid.and.(.not.mk_nc)) then
+cc              do ieq=1,neqd
+cc                dfdt(ieq) = one_over_dt(ieq)*
+cc     .        (bdfp (ieq)*jac(i,j,k)*varray%array_var(ieq)%array(i,j,k)
+cc     .        +bdfn (ieq)*jacn (i,j,k)*u_n %array_var(ieq)%array(i,j,k)
+cc     .        +bdfnm(ieq)*jacnm(i,j,k)*u_nm%array_var(ieq)%array(i,j,k))
+cc              enddo
+cc            else
+cc              dfdt=cnp*(x(ii+1:ii+neqd)-x_old(ii+1:ii+neqd))*one_over_dt
+cc            endif
+cc#else
+cc            dfdt = cnp*(x(ii+1:ii+neqd)-x_old(ii+1:ii+neqd))*one_over_dt
+cc#endif
+cc
+cc            f(ii+1:ii+neqd) = dfdt + (1d0-cnf)*f   (ii+1:ii+neqd)
+cc     .                             +      cnf *fold(ii+1:ii+neqd) - src
 
-      jac => gmetric%grid(igrid)%jac
+cc            if (vol_wgt) then
+cc#if defined(MK)
+cc              if (mk_grid.and.(.not.mk_nc)) then
+cc              !Moving grid case
+cc                dvol = gmetric%grid(igrid)%dlvol(i,j,k) !Logical volume
+cc              else
+cc              !Fixed grid case
+cc                dvol = gmetric%grid(igrid)%dvol(i,j,k)
+cc              endif
+cc#else
+cc              dvol = gmetric%grid(igrid)%dlvol(i,j,k)  !Logical volume
+cc#endif
+cc              f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*dvol
+cc            endif
+cc
+cc          enddo
+cc        enddo
+cc      enddo
+cc
+cc      nullify(jac)
+
+c Compute source
+
+#if defined(MK)
+      if (source.and.mk_grid) then
+        allocate(src(ntot))
+
+        if (relax_init_grid) then
+          src = 0d0
+        else
+          do k = klo,khi
+            do j = jlo,jhi
+              do i = ilo,ihi
+                ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
+                src(ii+1:ii+neqd) = MK_eval_src(igrid,i,j,k) !Interpolate source on current MK mesh
+              enddo
+            enddo
+          enddo
+        endif
+      else
+        src => fsrc
+      endif
+#else
+      src => fsrc
+#endif
+
+c Temporal update
 
       do k = klo,khi
         do j = jlo,jhi
           do i = ilo,ihi
-
-            call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
-
             ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
 
-#if defined(MK)
-            if (source.and.mk_grid) then
-              if (relax_init_grid) then
-                src = 0d0
-              else
-                src = MK_eval_src(igrid,i,j,k) !Interpolate source on current MK mesh
-              endif
-            else
-              src = fsrc(ii+1:ii+neqd)
-            endif
-#else
-            src = fsrc(ii+1:ii+neqd)
-#endif
-
-#if defined(MK)
-            if (mk_grid.and.(.not.mk_nc)) then
-              do ieq=1,neqd
-                dfdt(ieq) = one_over_dt(ieq)*
-     .        (bdfp (ieq)*jac(i,j,k)*varray%array_var(ieq)%array(i,j,k)
-     .        +bdfn (ieq)*jacn (i,j,k)*u_n %array_var(ieq)%array(i,j,k)
-     .        +bdfnm(ieq)*jacnm(i,j,k)*u_nm%array_var(ieq)%array(i,j,k))
-              enddo
-            else
-              dfdt=cnp*(x(ii+1:ii+neqd)-x_old(ii+1:ii+neqd))*one_over_dt
-            endif
-#else
-            dfdt = cnp*(x(ii+1:ii+neqd)-x_old(ii+1:ii+neqd))*one_over_dt
-#endif
-
-            f(ii+1:ii+neqd) = dfdt + (1d0-cnf)*f   (ii+1:ii+neqd)
-     .                             +      cnf *fold(ii+1:ii+neqd) - src
-
-            if (vol_wgt) then
-#if defined(MK)
-              if (mk_grid.and.(.not.mk_nc)) then
-              !Moving grid case
-                dvol = gmetric%grid(igrid)%dlvol(i,j,k) !Logical volume
-              else
-              !Fixed grid case
-                dvol = gmetric%grid(igrid)%dvol(i,j,k)
-              endif
-#else
-              dvol = gmetric%grid(igrid)%dlvol(i,j,k)  !Logical volume
-#endif
-              f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*dvol
-            endif
-
+            f(ii+1:ii+neqd) = cnp*(x(ii+1:ii+neqd)-x_old(ii+1:ii+neqd))
+     .                            *one_over_dt
+     .                      + (1d0-cnf)*f   (ii+1:ii+neqd)
+     .                      +      cnf *fold(ii+1:ii+neqd)
+     .                      - src(ii+1:ii+neqd)
           enddo
         enddo
       enddo
 
-      nullify(jac)
+c Scale by volume
+
+      if (vol_wgt) call scaleVector_by_vol1(igrid,neqd,f,'mul')
 
 c End program
+
+#if defined(MK)
+      if (source.and.mk_grid) then
+        deallocate(src)
+      else
+        nullify(src)
+      endif
+#else
+      nullify(src)
+#endif
 
       end subroutine evaluateNonlinearResidual
 
@@ -117,7 +171,7 @@ c--------------------------------------------------------------------
 
       use parameters
 
-      use variable_setup
+      use var_setup
 
 #if defined(MK)
       use mk
@@ -141,7 +195,7 @@ c Interfaces
       INTERFACE
         subroutine evaluate_NLF(igr,varray,fi)
         use parameters
-        use variable_setup
+        use var_setup
         integer :: igr
         real(8) :: fi(ntotd)
         type(var_array),pointer :: varray
@@ -178,7 +232,7 @@ c--------------------------------------------------------------------
 
       use parameters
 
-      use variable_setup
+      use var_setup
 
 #if defined(MK)
       use mk
@@ -200,7 +254,7 @@ c Interfaces
 
       INTERFACE
          subroutine setup_NLF(igx,varray)
-           use variable_setup
+           use var_setup
            integer :: igx
            type(var_array),pointer :: varray
          end subroutine setup_NLF
@@ -208,7 +262,7 @@ c Interfaces
 
       INTERFACE
          subroutine nonlinearRHS(i,j,k,igx,igy,igz,varray,ff)
-           use variable_setup
+           use var_setup
            real(8) :: ff(neqd)
            integer :: i,j,k,igx,igy,igz
            type(var_array),pointer :: varray
@@ -342,7 +396,7 @@ c Interfaces
 
       INTERFACE
          subroutine setupNonlinearFunction(igx,igy,igz,varray)
-           use variable_setup
+           use var_setup
            integer :: igx,igy,igz
            type(var_array),pointer :: varray
          end subroutine setupNonlinearFunction

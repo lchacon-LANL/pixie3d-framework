@@ -97,7 +97,7 @@ ifeq ($(HOST),jetta)
       HDF5_MOD  = $(PHDF5_LIB)
       HDF5_INC  = $(PHDF5_INC)
 
-      ADIOS = t
+      ADIOS = f
 
       #Determined via modules
       ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
@@ -293,8 +293,8 @@ ifeq ($(HOST),gongora)
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
-#    ADIOS = f
-    ADIOS = t
+    ADIOS = f
+#    ADIOS = t
 
     ADIOS_HOME = $(HOME)/lib/adios-1.3.1
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
