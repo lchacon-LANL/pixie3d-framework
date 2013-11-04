@@ -30,7 +30,7 @@ c Local variables
       integer        :: i,j,k,ig,jg,kg
       integer        :: ierr,gierr,nplot,igx,igy,igz
       character*(40) :: command
-      logical        :: exitloop
+      logical        :: exitloop,petsc_flg
 
 c Interfaces
 
