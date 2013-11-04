@@ -29,14 +29,6 @@ c Local variables
 
 c Interfaces
 
-cc      INTERFACE
-cc        subroutine timeStep(vn,vnp,ierr)
-cc        use var_setup
-cc        integer          :: ierr
-cc        type(var_array),pointer :: vnp,vn
-cc        end subroutine timeStep
-cc      END INTERFACE
-
       INTERFACE
         subroutine output(varr)
         use var_setup
@@ -154,7 +146,7 @@ cc        if (tmax.gt.0d0.and.time.gt.tmax)  exit
 
 c     Find new time step
 
-        if (    cnfactor == 1d0                            !Explicit
+        if (    cnfactor > 5d-1                            !Explicit
      .     .or.(timecorr.and.ierr==0.and.itime-offset==1)  !First explicit step if timecorr
      .     ) then
           call findExplicitDt(dt)
@@ -187,6 +179,9 @@ c     Time update
         call PetscLogStagePush(prof_stage(2),perr)
 #endif
 
+        itgmres = 0
+        itnewt = 0
+
         if (.not.relax_init_grid) then
           tnm = tn
           tn  = time
@@ -196,10 +191,11 @@ c     Time update
         if (eigen) then
           !Eigenvalue solver
           ierr = eigenSolution(u_np,ilevel)
+        elseif (prj_int_ts) then
+          ierr = prj_int_update(u_np,prj_int_k,prj_int_M,ilevel)
         else
           !Time step
-          ierr = updateSolution(dt,u_np,ilevel)
-cc          call timeStep(u_n,u_np,ierr)
+          ierr = updateSolution(u_np,ilevel)
         endif
 
 c     Check for error in time stepping
@@ -283,7 +279,7 @@ cc          if (source) call get_src(u_np,.true.)  !Update source with interpola
 
 c Average explicit time step
 
-      if (cnfactor.eq.1d0.and.my_rank == 0.and.(itime > inewtime)) then
+      if (cnfactor > 5d-1.and.my_rank == 0.and.(itime > inewtime)) then
         dtexp = dtexp/(itime - inewtime)
         write (*,'(a,1pe10.4)') 'Average explicit time step: ',dtexp
       endif
@@ -381,159 +377,3 @@ c Free memory
 c End program
 
       end subroutine fortranDestroy
-
-ccc timeStep
-ccc######################################################################
-cc      subroutine timeStep(vn,vnp,ierr)
-cc
-ccc----------------------------------------------------------------------
-ccc     Performs time advance of solution from vn to vnp
-ccc----------------------------------------------------------------------
-cc
-cc      use parameters
-cc
-cc      use var_setup
-cc
-cc      use timeStepping
-cc
-cc      use nk
-cc
-cc      use var_io
-cc
-cc      use eigen_mod
-cc
-cc#if defined(MK)
-cc      use mk
-cc#endif
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer :: ierr
-cc
-cc      type(var_array),pointer :: vnp,vn
-cc
-ccc Local variables
-cc
-cc      real(8) :: x(ntotd)
-cc
-ccc Interfaces
-cc
-cc      INTERFACE
-cc        subroutine evaluate_NLF(igr,varray,fi)
-cc        use parameters
-cc        use var_setup
-cc        integer :: igr
-cc        real(8) :: fi(ntotd)
-cc        type(var_array),pointer :: varray
-cc        end subroutine evaluate_NLF
-cc      END INTERFACE
-cc
-cccc      INTERFACE
-cccc        subroutine explicit(vnp,iter,iout)
-cccc        use var_setup
-cccc        integer :: iter,iout
-cccc        type(var_array),pointer :: vnp
-cccc        end subroutine explicit
-cccc      END INTERFACE
-cc
-ccc Begin program
-cc
-cc      ierr = 0
-cc
-ccc Evaluate nonlinear function at old time for theta scheme
-cc
-cc      old_time_eval = .true.     !This informs nlfunction that we are processing
-cc                                 !  n time level info
-cc
-cc      call evaluate_NLF(1,vn,fold)
-cc
-cc      old_time_eval = .false.
-cc 
-ccc Map old solution (use vnp in case we are doing BDF2)
-cc
-cc      call mapStructureToVector(x_old,vnp)
-cc
-ccc Implicit update (Newton)
-cc
-cc      if (cnfactor.lt.1d0) then
-cc
-ccc     Initial guess
-cc
-cc        if (predictor.and.(.not.bdf2)) then
-cc          call findGuess(vn,vnp)
-cc          call mapStructureToVector(x,vnp)
-cc        else
-cc          x = x_old
-cc        endif
-cc
-ccc     Newton-Krylov iteration
-cc
-cc        nk_conf%etak_meth      = method
-cc        nk_conf%ksmax          = maxksp
-cc        nk_conf%gmmax          = maxitgm
-cc        nk_conf%nwt_max_it_acc = 0.7*maxitnwt
-cc        nk_conf%nwt_max_it_rej = maxitnwt
-cc        nk_conf%global_meth    = global
-cc
-cc        nk_conf%eta0   = tolgm
-cc        nk_conf%damp   = damp
-cc        nk_conf%pdt0   = dt0
-cc        if (atol  > 0d0) nk_conf%atol   = atol
-cc        if (rtol  > 0d0) nk_conf%rtol   = rtol
-cc        if (stol  > 0d0) nk_conf%stol   = stol
-cc        if (mf_eps> 0d0) nk_conf%mf_eps = mf_eps
-cc
-cc        nk_conf%krylov_method='fg'
-cccc        nk_conf%krylov_method='gm'
-cc        nk_conf%fpa=fpa
-cc        nk_conf%fpa_it=fpa_it
-cc
-cc        nk_conf%vol_wgt = vol_wgt
-cc
-cc        call jfnk(neqd,ntotd,x,iguess,ilevel,ierr)
-cc
-cc        itgmres = nk_conf%gm_it_out
-cc        itnewt  = nk_conf%nwt_it_out
-cc
-ccc     Map Newton solution to vnp (if no error)
-cc
-cc        if (ierr.eq.0.or.ierr.eq.2) then
-cc          call mapVectorToStructure(vnp,x)
-cc
-cc          call applyBC(1,vnp,it=itime)
-cc
-cc#if defined(MK)
-cc          if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
-cc#endif
-cc
-cc          if (predictor) call storeTSinfo(vn,vnp)
-cc        endif
-cc
-cc      else
-cc
-ccc Explicit update
-cc
-cc        itgmres = maxitgm
-cc
-cccc        call explicit(vnp,itgmres,ilevel)
-cc
-cc        call applyBC(1,vnp,it=itime)
-cc
-cc#if defined(MK)
-cc        if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
-cc#endif
-cc
-cc        itnewt = 1
-cc
-cc      endif
-cc
-ccc Update counters
-cc
-cc      gmres_tot = gmres_tot + itgmres
-cc      newt_tot  = newt_tot  + itnewt
-cc
-ccc End program
-cc
-cc      end subroutine timeStep
