@@ -16,9 +16,9 @@ SUBDIRS = $(COMMONDIR)/math\
 
 # Module order
 
-#MODS = nksetup_mod.F ts_setup_mod.F ts_mod.F
-
 #Define dependencies
 
 ts_setup_mod.o: nksetup_mod.o
-ts_mod.o: ts_setup_mod.o
+ts_base_mod.o: ts_setup_mod.o
+proj_int_mod.o: ts_base_mod.o
+ts_mod.o: proj_int_mod.o
