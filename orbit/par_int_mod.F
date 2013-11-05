@@ -1811,7 +1811,7 @@ c     lag_3d_init
 c     ##############################################################
       subroutine lag_3d_init(igrid,nx,ny,nz,bb,alp,iout,G_tol
      .                      ,spline_order,B_wgt,chi,poinc_file)
-      use iosetup
+      use var_io
 
       implicit none
 
@@ -3063,7 +3063,7 @@ cc      subroutine lagrangian_init_from_file(file,igrid,nx,ny,nz,bb,alp
 cc     .                                    ,G_tol,spline_order,nints
 cc     .                                    ,B_wgt,chi)
 cc
-cc      use iosetup
+cc      use var_io
 cc
 cc      implicit none
 cc

@@ -9,7 +9,8 @@ PCComponentFACSolver ::PCComponentFACSolver( SAMRSolvers::MultilevelSolverParame
   
   if(d_operator!=NULL)
     {
-      SAMRSolvers::MultilevelOperator *mlOperator = dynamic_cast<SAMRSolvers::MultilevelOperator *>(d_operator);
+      boost::shared_ptr<SAMRSolvers::MultilevelOperator> mlOperator = 
+        boost::dynamic_pointer_cast<SAMRSolvers::MultilevelOperator>(d_operator);
 #ifdef DEBUG_CHECK_ASSERTIONS
       TBOX_ASSERT(mlOperator!=NULL);
 #endif
@@ -22,7 +23,7 @@ PCComponentFACSolver ::~PCComponentFACSolver()
 }
 
 void
-PCComponentFACSolver::initializeLevelSolvers( tbox::Pointer<tbox::Database> db )
+PCComponentFACSolver::initializeLevelSolvers( boost::shared_ptr<tbox::Database> db )
 {
   tbox::pout << "Reached here" << std::endl;
 }

@@ -652,6 +652,8 @@ c ######################################################################
 
         use mg_ops
 
+        use variables
+
         type :: garray
           real(8),pointer,dimension(:,:,:,:) :: array
         end type garray
@@ -660,9 +662,7 @@ c ######################################################################
           type(garray),pointer,dimension(:) :: grid
         end type mg_array
 
-        logical :: is__cnv,is__vec,have_equl,res_is_vec
-
-        type(mg_array) :: equl
+        logical :: is__cnv,is__vec,res_is_vec
 
         INTERFACE ASSIGNMENT (=)
           module procedure equateMGArray
@@ -891,21 +891,22 @@ c     #################################################################
       subroutine restrictMGArray(icmp,neq,mgarray,bcnd,igrid,order
      .                          ,iscnv,isvec,result_is_vec,equilb)
 c     -----------------------------------------------------------------
-c     Restricts MG array in all grids with ghost nodes.
+c     Restricts MG array in all grids with ghost nodes. If equilibrium
+c     is not provided, then extrapolation is done at EQU boundaries.
 c     -----------------------------------------------------------------
 
       implicit none    !For safe fortran
 
 c     Call variables
 
-      integer        :: neq,icmp,bcnd(6,neq),order,igrid
+      integer :: neq,icmp,bcnd(6,neq),order,igrid
       type(mg_array) :: mgarray
       logical,optional,intent(IN) :: iscnv,isvec,result_is_vec
       type(mg_array),optional,intent(IN) :: equilb
 
 c     Local variables
 
-      integer        :: igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
+      integer :: igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
 
 c     Begin program
 
@@ -926,14 +927,7 @@ c     Begin program
       else
         res_is_vec = is__vec   !Contravariant representation by default
       endif
-
-      if (PRESENT(equilb)) then
-        have_equl = .true.
-        equl = equilb
-      else
-        have_equl = .false.
-      endif
-        
+       
 c     Consistency check
 
       if (size(mgarray%grid(igrid)%array,4) /= neq) then
@@ -956,31 +950,163 @@ c     Restrict array
         nyc = grid_params%nyv(igc)
         nzc = grid_params%nzv(igc)
 
-        call restrictArrayToArray(icmp,neq
+        call restrictArray_w_BCs(icmp,neq
      .       ,igf,nxf,nyf,nzf,mgarray%grid(igf)%array
      .       ,igc,nxc,nyc,nzc,mgarray%grid(igc)%array
-     .       ,order,.false.,bcnd)
+     .       ,order,.false.,bcnd,equilb=equilb)
 
       enddo
-
-      if (have_equl) call deallocateMGArray(equl)
 
 c     End program
 
       end subroutine restrictMGArray
 
-c     restrictArrayToArray
+ccc     restrictArray_w_BCs
+ccc     #################################################################
+cc      subroutine restrictArray_w_BCs(icmp,neq,igf,nxf,nyf,nzf,arrayf
+cc     .                                        ,igc,nxc,nyc,nzc,arrayc
+cc     .                               ,order,volf,bcnd,equilb)
+ccc     -----------------------------------------------------------------
+ccc     Restricts array to array in all grids (with ghost nodes),
+ccc     starting at grid igf.
+ccc     -----------------------------------------------------------------
+cc
+cc      use setMGBC_interface
+cccc      use imposeBCinterface
+cc
+cc      implicit none    !For safe fortran
+cc
+ccc     Call variables
+cc
+cc      integer    :: neq,igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
+cc     .             ,order,bcnd(6,neq),icmp
+cc      real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1,neq)
+cc     .             ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
+cc      logical    :: volf
+cc      type(mg_array),optional,intent(IN) :: equilb
+cc
+ccc     Local variables
+cc
+cc      integer    :: igridf,igridc,isigf,isigc,i,j,k,ii,ieq
+cc     .             ,nxxf,nyyf,nzzf,nxxc,nyyc,nzzc,ntotc,ntotf
+cc     .             ,bcmod(6,neq),icmp2(max(neq/3,1))
+cc
+cc      real(8),allocatable,dimension(:) :: vecf,vecc
+cc      logical    :: fpointers,have_equl
+cc
+ccc     Begin program
+cc
+cc      call allocPointers(neq,fpointers)
+cc
+cc      have_equl = PRESENT(equilb)
+cc 
+ccc     Consistency check
+cc
+cc      nxxf = nxv(igf)
+cc      nyyf = nyv(igf)
+cc      nzzf = nzv(igf)
+cc
+cc      if (nxf /= nxxf .or. nyf /= nyyf .or. nzf /= nzzf) then
+cc        write (*,*) 'Grid mismatch in restrictArray_w_BCs:'
+cc        write (*,*) 'Aborting...'
+cc        stop
+cc      endif
+cc
+ccc     Allocate vectors
+cc
+cc      nxxc = nxxf
+cc      nyyc = nyyf
+cc      nzzc = nzzf
+cc
+cc      ntotf = neq*nxxf*nyyf*nzzf
+cc      ntotc = ntotf
+cc
+cc      allocate(vecf(ntotf))
+cc      allocate(vecc(ntotc))
+cc
+ccc     Map arrays onto MG vector
+cc
+cc      !Set igrid=1 since vecf is NOT a MG vector
+cc      call mapArrayToMGVector(neq,nxxf,nyyf,nzzf,arrayf,vecc,1)
+cc
+ccc     Restrict MG vectors
+cc
+cc      do igridc = igf+1,igc
+cc
+cc        igridf = igridc-1
+cc
+ccc       Characterize coarse and fine grids
+cc
+cc        nxxf = grid_params%nxv(igridf)
+cc        nyyf = grid_params%nyv(igridf)
+cc        nzzf = grid_params%nzv(igridf)
+cc
+cc        nxxc = grid_params%nxv(igridc)
+cc        nyyc = grid_params%nyv(igridc)
+cc        nzzc = grid_params%nzv(igridc)
+cc
+cc        ntotf = neq*nxxf*nyyf*nzzf
+cc        ntotc = neq*nxxc*nyyc*nzzc
+cc
+ccc       Allocate coarse mesh vector
+cc
+cc        deallocate(vecf)
+cc        allocate(vecf(ntotf))
+cc
+cc        vecf = vecc
+cc
+cc        deallocate(vecc)
+cc        allocate(vecc(ntotc))
+cc
+ccc       Restrict vector
+cc
+cc        call crestrict(neq,vecc,ntotc,nxxc,nyyc,nzzc
+cc     .                    ,vecf,ntotf,nxxf,nyyf,nzzf
+cc     .                ,order,igridf,volf)
+cc
+cc      enddo
+cc
+ccc     Map vector to array
+cc
+cc      call mapMGVectorToArray(0,neq,vecc,nxc,nyc,nzc,arrayc,igc,.false.)
+cc
+cc      if (icmp /= 0) then
+cc        icmp2 = icmp
+cc        if (have_equl) then
+cc          call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+cc     .                ,arr0=equilb%grid(igc)%array
+cc     .                ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+cc     .                ,result_is_vec=res_is_vec,iorder=order)
+cc        else
+cc          bcmod = bcnd
+cc          where (abs(bcmod) == EQU) bcmod = EXT
+cc          call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
+cc     .                ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+cc     .                ,result_is_vec=res_is_vec,iorder=order)
+cc        endif
+cc      endif
+cc
+ccc     Deallocate vectors
+cc
+cc      deallocate(vecf,vecc)
+cc
+cc      call deallocPointers(fpointers)
+cc
+ccc     End program
+cc
+cc      end subroutine restrictArray_w_BCs
+
+c     restrictArray_w_BCs
 c     #################################################################
-      subroutine restrictArrayToArray(icmp,neq,igf,nxf,nyf,nzf,arrayf
-     .                                        ,igc,nxc,nyc,nzc,arrayc
-     .                               ,order,volf,bcnd)
+      subroutine restrictArray_w_BCs(icmp,neq,igf,nxf,nyf,nzf,arrayf
+     .                                       ,igc,nxc,nyc,nzc,arrayc
+     .                              ,order,volf,bcnd,equilb)
 c     -----------------------------------------------------------------
 c     Restricts array to array in all grids (with ghost nodes),
 c     starting at grid igf.
 c     -----------------------------------------------------------------
 
       use setMGBC_interface
-cc      use imposeBCinterface
 
       implicit none    !For safe fortran
 
@@ -991,50 +1117,29 @@ c     Call variables
       real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1,neq)
      .             ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
       logical    :: volf
+      type(mg_array),optional,intent(IN) :: equilb
 
 c     Local variables
 
-      integer    :: igridf,igridc,isigf,isigc,i,j,k,ii,ieq
-     .             ,nxxf,nyyf,nzzf,nxxc,nyyc,nzzc,ntotc,ntotf
+      integer    :: igridf,igridc,ieq,ierr
+     .             ,nxxf,nyyf,nzzf,nxxc,nyyc,nzzc
      .             ,bcmod(6,neq),icmp2(max(neq/3,1))
 
-      real(8),allocatable,dimension(:) :: vecf,vecc
-      logical    :: fpointers
+      real(8),allocatable,dimension(:,:,:,:) :: arrf,arrc
+      logical    :: fpointers,have_equl
 
 c     Begin program
 
       call allocPointers(neq,fpointers)
 
-c     Consistency check
-
-      nxxf = nxv(igf)
-      nyyf = nyv(igf)
-      nzzf = nzv(igf)
-
-      if (nxf /= nxxf .or. nyf /= nyyf .or. nzf /= nzzf) then
-        write (*,*) 'Grid mismatch in restrictArrayToArray:'
-        write (*,*) 'Aborting...'
-        stop
-      endif
-
-c     Allocate vectors
-
-      nxxc = nxxf
-      nyyc = nyyf
-      nzzc = nzzf
-
-      ntotf = neq*nxxf*nyyf*nzzf
-      ntotc = ntotf
-
-      allocate(vecf(ntotf))
-      allocate(vecc(ntotc))
-
-c     Map arrays onto MG vector
-
-      !Set igrid=1 since vecf is NOT a MG vector
-      call mapArrayToMGVector(neq,nxxf,nyyf,nzzf,arrayf,vecc,1)
+      have_equl = PRESENT(equilb)
 
 c     Restrict MG vectors
+
+      allocate(arrf(0:nxf+1,0:nyf+1,0:nzf+1,neq))
+      allocate(arrc(0:nxf+1,0:nyf+1,0:nzf+1,neq))
+
+      arrc = arrayf
 
       do igridc = igf+1,igc
 
@@ -1050,41 +1155,42 @@ c       Characterize coarse and fine grids
         nyyc = grid_params%nyv(igridc)
         nzzc = grid_params%nzv(igridc)
 
-        ntotf = neq*nxxf*nyyf*nzzf
-        ntotc = neq*nxxc*nyyc*nzzc
-
 c       Allocate coarse mesh vector
 
-        deallocate(vecf)
-        allocate(vecf(ntotf))
+        deallocate(arrf)
+        allocate(arrf(0:nxxf+1,0:nyyf+1,0:nzzf+1,neq))
 
-        vecf = vecc
+        arrf = arrc
 
-        deallocate(vecc)
-        allocate(vecc(ntotc))
+        deallocate(arrc)
+        allocate(arrc(0:nxxc+1,0:nyyc+1,0:nzzc+1,neq))
 
 c       Restrict vector
 
-        call crestrict(neq,vecc,ntotc,nxxc,nyyc,nzzc
-     .                    ,vecf,ntotf,nxxf,nyyf,nzzf
-     .                ,order,igridf,volf)
+        do ieq = 1,neq
+          call restrictArray(nxxc,nyyc,nzzc,arrc(:,:,:,ieq)
+     .                      ,nxxf,nyyf,nzzf,arrf(:,:,:,ieq)
+     .                      ,order,igridf,volf)
+        enddo
 
       enddo
 
-c     Map vector to array
+      arrayc = arrc
 
-      call mapMGVectorToArray(0,neq,vecc,nxc,nyc,nzc,arrayc,igc,.false.)
+      deallocate(arrf,arrc)
+
+c     Impose BCs
 
       if (icmp /= 0) then
         icmp2 = icmp
         if (have_equl) then
           call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
-     .                ,arr0=equl%grid(igc)%array
+     .                ,arr0=equilb%grid(igc)%array
      .                ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
      .                ,result_is_vec=res_is_vec,iorder=order)
         else
           bcmod = bcnd
-          where (bcmod == EQU) bcmod = EXT
+          where (abs(bcmod) == EQU) bcmod = EXT
           call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
      .                ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
      .                ,result_is_vec=res_is_vec,iorder=order)
@@ -1093,13 +1199,11 @@ c     Map vector to array
 
 c     Deallocate vectors
 
-      deallocate(vecf,vecc)
-
       call deallocPointers(fpointers)
 
 c     End program
 
-      end subroutine restrictArrayToArray
+      end subroutine restrictArray_w_BCs
 
 c     restrictArrayToMGVector
 c     #################################################################
@@ -1314,6 +1418,115 @@ c       Prolong MG vector
       call deallocPointers(fpointers)
 
       end subroutine prolongMGVector
+
+c     restrictDerivedType
+c     #################################################################
+      subroutine restrictDerivedType(igf,vf,igc,vc,order)
+c     -----------------------------------------------------------------
+c     Restricts array to array in all grids (with ghost nodes),
+c     starting at grid igf.
+c     -----------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      integer :: order,igf,igc
+
+      type(var_array),pointer :: vf
+      type(var_array),pointer :: vc
+
+c     Local variables
+
+      integer :: nxf,nyf,nzf,nxc,nyc,nzc,ieq
+
+      real(8),pointer,dimension(:,:,:) :: arrayf,arrayc
+      integer,pointer,dimension(:) :: bcnd
+
+      logical :: fpointers,have_equl
+
+c     Begin program
+
+c     Find grid sizes
+
+      nxf = size(vf%array_var(1)%array,1)-2
+      nyf = size(vf%array_var(1)%array,2)-2
+      nzf = size(vf%array_var(1)%array,3)-2
+
+      nxc = size(vc%array_var(1)%array,1)-2
+      nyc = size(vc%array_var(1)%array,2)-2
+      nzc = size(vc%array_var(1)%array,3)-2
+      
+c     Restrict
+
+      do ieq=1,vf%nvar
+        arrayf => vf%array_var(ieq)%array
+        arrayc => vc%array_var(ieq)%array
+        bcnd   => vf%array_var(ieq)%bconds
+        call restrictArray_w_BCs(ieq,1,igf,nxf,nyf,nzf,arrayf
+     .                                ,igc,nxc,nyc,nzc,arrayc
+     .                          ,order,.false.,bcnd)
+      enddo
+
+      nullify(arrayf,arrayc,bcnd)
+
+c     End program
+
+      end subroutine restrictDerivedType
+
+c     prolongDerivedType
+c     #################################################################
+      subroutine prolongDerivedType(igc,vc,igf,vf,order)
+c     -----------------------------------------------------------------
+c     Prolongs array to array in all grids (with ghost nodes),
+c     starting at grid igf.
+c     -----------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      integer :: order,igf,igc
+
+      type(var_array),pointer :: vf
+      type(var_array),pointer :: vc
+
+c     Local variables
+
+      integer :: nxf,nyf,nzf,nxc,nyc,nzc,ieq
+
+      real(8),pointer,dimension(:,:,:) :: arrayf,arrayc
+      integer,pointer,dimension(:) :: bcnd
+
+      logical :: fpointers,have_equl
+
+c     Begin program
+
+c     Find grid sizes
+
+      nxf = size(vf%array_var(1)%array,1)-2
+      nyf = size(vf%array_var(1)%array,2)-2
+      nzf = size(vf%array_var(1)%array,3)-2
+
+      nxc = size(vc%array_var(1)%array,1)-2
+      nyc = size(vc%array_var(1)%array,2)-2
+      nzc = size(vc%array_var(1)%array,3)-2
+      
+c     Prolong
+
+      do ieq=1,vf%nvar
+        arrayf => vf%array_var(ieq)%array
+        arrayc => vc%array_var(ieq)%array
+cc        bcnd   => vf%array_var(ieq)%bconds
+        call prolongArray(igc,nxc,nyc,nzc,arrayc
+     .                   ,igf,nxf,nyf,nzf,arrayf,order)
+      enddo
+
+      nullify(arrayf,arrayc,bcnd)
+
+c     End program
+
+      end subroutine prolongDerivedType
 
       end module mg_Xfer
 
@@ -3974,6 +4187,323 @@ cc        call deallocateGridStructure(MGgrid)
 
       end subroutine mg
 
+cc*deck cprolong
+ccc######################################################################
+cc      subroutine cprolong(neq,xf,ntotf,nxf,nyf,nzf
+cc     .                       ,xc,ntotc,nxc,nyc,nzc
+cc     .                   ,order,igc,bcnd)
+ccc----------------------------------------------------------------------
+ccc     This is a prolongation routine for system MG, with arbitrary order
+ccc     of interpolation.
+ccc
+ccc     In call sequence, we have:
+ccc       * neq (int): number of equations
+ccc       * xf (real): vector in fine grid (not a MG vector)
+ccc       * ntotf (int): dimension of xf.
+ccc       * nxf,nyf,nzf(int): dimensions of fine grid
+ccc       * xc (real): vector in coarse grid (not a MG vector)
+ccc       * ntotc (int): dimension of xc.
+ccc       * nxc,nyc,nzc(int): dimensions of coarse grid
+ccc       * order (int): order of interpolation (0-arbitrary)
+ccc           If order = 0, it employs simple injection.
+ccc           If order > 0, it employs spline interpolation.
+ccc       * igc (int): coarse grid level identifier
+ccc       * bcnd (int array): boundary condition info.
+ccc----------------------------------------------------------------------
+cc
+cc      use mg_Xfer
+cc
+cc      use setMGBC_interface
+cc
+cc      implicit none            ! For safe Fortran
+cc
+ccc Call variables
+cc
+cc      integer :: neq,ntotc,nxc,nyc,nzc,ntotf,nxf,nyf,nzf,order,igc
+cc     .          ,bcnd(6,neq)
+cc      real(8) :: xc(ntotc),xf(ntotf)
+cc
+ccc Local variables
+cc 
+cc      real(8) :: xxf(ntotf/neq,neq),car(3)
+cc     .          ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
+cc
+cc      real(8),allocatable :: arrayf(:,:,:,:),sp_sum(:,:)
+cc     .                      ,dv_sum(:,:),l_sum(:,:)
+cc
+cc      integer :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg
+cc     .          ,ieq,nntotc,nntotf,igf
+cc
+cc      logical :: cartesian,isvec,iscnv
+cc
+ccc Begin program
+cc
+cc      nntotc = ntotc/neq
+cc      nntotf = ntotf/neq
+cc
+ccc Unpack vector into array
+cc
+cc      call mapMGVectorToArray(0,neq,xc,nxc,nyc,nzc,arrayc,igc,.false.)
+cc
+ccc Impose boundary conditions (external)
+cc
+cc      isvec = (neq > 1)                 !Initialize isvec (may be modified by setMGBC)
+cc
+cc      cartesian = (bcSP() .and. isvec)  !Return Cartesian variables for prolongation
+cc
+cc      if (order > 0 .or. cartesian) then
+cc        call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+cc     .              ,iorder=min(order,3)
+cc     .              ,result_is_vec=(.not.cartesian)
+cc     .              ,out_isvec=isvec,out_iscnv=iscnv)  !<= These define whether quantities are
+cc                                                       !   vectors or scalars.
+cc      endif
+cc
+ccc Perform average along azimuthal direction for SP configurations
+cc
+cc      if (isSP2(1,igc) .and. isvec) then
+cc
+cc        allocate(sp_sum(0:nzc+1,neq),dv_sum(0:nzc+1,neq))
+cc
+cc        do ieq=1,neq
+cc          do k=0,nzc+1
+cc            sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,ieq)
+cc     .                        *gmetric%grid(igc)%dlvol(1,1:nyc,k))
+cc            dv_sum(k,ieq)= sum(gmetric%grid(igc)%dlvol(1,1:nyc,k))
+cc          enddo
+cc        enddo
+cc
+cc#if defined(petsc)
+cc        allocate(l_sum(0:nzc+1,neq))
+cc        l_sum = sp_sum
+cc        call MPI_Allreduce(l_sum,sp_sum,neq*(nzc+2)
+cc     .                    ,MPI_DOUBLE_PRECISION
+cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+cc
+cc        l_sum = dv_sum
+cc        call MPI_Allreduce(l_sum,dv_sum,neq*(nzc+2)
+cc     .                    ,MPI_DOUBLE_PRECISION
+cc     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+cc
+cc        deallocate(l_sum)
+cc#endif
+cc
+cc        do ieq=1,neq
+cc          do k=0,nzc+1
+cc            arrayc(1,:,k,ieq) = sp_sum(k,ieq)/dv_sum(k,ieq)
+cc            arrayc(0,:,k,ieq) = sp_sum(k,ieq)/dv_sum(k,ieq)
+cc          enddo
+cc        enddo
+cc
+cc        deallocate(sp_sum,dv_sum)
+cc      endif
+cc
+ccc Prolong arrays (use scalar prolongation)
+cc
+cc      xxf = 0d0
+cc
+cc      do ieq=1,neq
+cc
+cc        call prolong(xxf   (:    ,ieq),nxf,nyf,nzf
+cc     .              ,arrayc(:,:,:,ieq),nxc,nyc,nzc
+cc     .              ,order,igc)
+cc
+cccc        !Repack prolonged vector
+cccc        do i=1,nntotf
+cccc          xf(neq*(i-1)+ieq)=xxf(i,ieq)
+cccc        enddo
+cc
+cc      enddo
+cc
+ccc Transform back to curvilinear (if isvec=.true. and cartesian=.true.)
+cc
+cc      if (isvec .and. cartesian) then
+cc
+cc        igf = igc - 1
+cc
+cc        do k = 1,nzf
+cc          do j = 1,nyf
+cc            do i = 1,nxf
+cc              do ieq=1,neq/3
+cc                iif = vecPos(1,i,j,k,igf,igf,igf)+1
+cc
+cc                car = xxf(iif,(ieq-1)*3+1:ieq*3)
+cc
+cc                call transformVectorToCurvilinear
+cc     .             (i,j,k,igf,igf,igf
+cc     .             ,car(1),car(2),car(3)
+cc     .             ,iscnv
+cc     .             ,xxf(iif,(ieq-1)*3+1)
+cc     .             ,xxf(iif,(ieq-1)*3+2)
+cc     .             ,xxf(iif,(ieq-1)*3+3))
+cc              enddo
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+cc      endif
+cc
+ccc Repack prolonged vector
+cc
+cc      do ieq=1,neq
+cc        do i=1,nntotf
+cc          xf(neq*(i-1)+ieq)=xxf(i,ieq)
+cc        enddo
+cc      enddo
+cc
+ccc End program
+cc
+cc      end subroutine cprolong
+
+cc*deck prolong
+ccc######################################################################
+cc      subroutine prolong(xf,nxf,nyf,nzf,arrayc,nxc,nyc,nzc,order,igc)
+ccc----------------------------------------------------------------------
+ccc     This is a prolongation routine for a single quantity, with
+ccc     arbitrary order of interpolation.
+ccc
+ccc     In call sequence, we have:
+ccc       * xf (real): vector in fine grid
+ccc       * nxf,nyf,nzf(int): dimensions of fine grid
+ccc       * arrayc (real): array of values in coarse grid
+ccc       * nxc,nyc,nzc(int): dimensions of coarse grid
+ccc       * order (int): order of interpolation (0-arbitrary)
+ccc           If order = 0, it employs simple injection.
+ccc           If order > 0, it employs spline interpolation.
+ccc       * igc (int): coarse grid level identifier
+ccc----------------------------------------------------------------------
+cc
+cc      use mg_Xfer
+cc
+cc      implicit none            ! For safe Fortran
+cc
+ccc Call variables
+cc
+cc      integer    :: nxc,nyc,nzc,nxf,nyf,nzf,order,igc
+cc      real(8)    :: arrayc(0:nxc+1,0:nyc+1,0:nzc+1),xf(nxf*nyf*nzf)
+cc
+ccc Local variables
+cc
+cc      integer    :: ic,if,jc,jf,kc,kf,igf,iic,iif
+cc     .             ,icg,jcg,kcg,ifg,jfg,kfg
+cc      integer    :: iminc,imaxc,jminc,jmaxc,kminc,kmaxc
+cc     .             ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf
+cc      real(8)    :: mag,vol
+cc
+cc      logical    :: fpointers
+cc
+ccc Extrapolation
+cc
+cc      real(8)    :: xxf,yyf,zzf,ff
+cc
+cc      real(8),allocatable,dimension(:) :: xx,yy,zz
+cc
+cc      integer    :: kx,ky,kz,nx,ny,nz,dim,flg
+cc      real(8), dimension(:),allocatable:: tx,ty,tz,work
+cc      real(8), dimension(:,:,:),allocatable:: bcoef
+cc
+cc      real(8)    :: db3val
+cc      external      db3val
+cc
+ccc Begin program
+cc
+cc      call allocPointers(1,fpointers)
+cc
+ccc Define fine grid
+cc
+cc      igf = igc - 1
+cc
+cc      call limits(0,nxc,nyc,nzc,igc,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
+cc
+ccc Injection
+cc
+cc      if (order.eq.0) then
+cc
+cc        do kc = kminc,kmaxc
+cc          do jc = jminc,jmaxc
+cc            do ic = iminc,imaxc
+cc
+cc              do kf = mg_ratio_z(igf)*(kc-1)+1,mg_ratio_z(igf)*kc
+cc                do jf = mg_ratio_y(igf)*(jc-1)+1,mg_ratio_y(igf)*jc
+cc                  do if = mg_ratio_x(igf)*(ic-1)+1,mg_ratio_x(igf)*ic
+cc                    iif = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+cc                    xf(iif) = arrayc(ic,jc,kc)
+cc                  enddo
+cc                enddo
+cc              enddo
+cc
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+cc      else
+cc
+ccc Interpolation
+cc
+ccc     Setup dimension vectors
+cc
+cc        allocate(xx(1:imaxc-iminc+3)
+cc     .          ,yy(1:jmaxc-jminc+3)
+cc     .          ,zz(1:kmaxc-kminc+3))
+cc
+cc        call getMGmap(iminc,jminc,kminc,igc,igc,igc,icg,jcg,kcg)
+cc        xx = grid_params%xx(icg-1:icg+imaxc-iminc+1)
+cc        yy = grid_params%yy(jcg-1:jcg+jmaxc-jminc+1)
+cc        zz = grid_params%zz(kcg-1:kcg+kmaxc-kminc+1)
+cc
+ccc     Prepare 3d spline interpolation
+cc
+cc        flg = 0
+cc        nx = imaxc-iminc+3
+cc        ny = jmaxc-jminc+3
+cc        nz = kmaxc-kminc+3
+cc        kx = min(order+1,nx-1)
+cc        ky = min(order+1,ny-1)
+cc        kz = min(order+1,nz-1)
+cc
+cc        dim = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
+cc
+cc        allocate(tx(nx+kx))
+cc        allocate(ty(ny+ky))
+cc        allocate(tz(nz+kz))
+cc        allocate(work(dim))
+cc        allocate(bcoef(nx,ny,nz))
+cc
+cc        call db3ink(xx,nx,yy,ny,zz,nz
+cc     .        ,arrayc(iminc-1:imaxc+1,jminc-1:jmaxc+1,kminc-1:kmaxc+1)
+cc     .        ,nx,ny,kx,ky,kz,tx,ty,tz,bcoef,work,flg)
+cc
+ccc     Interpolate
+cc
+cc        call limits(0,nxf,nyf,nzf,igf
+cc     .             ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf)
+cc
+cc        do kf = kminf,kmaxf
+cc          do jf = jminf,jmaxf
+cc            do if = iminf,imaxf
+cc              iif = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+cc
+cc              call getMGmap(if,jf,kf,igf,igf,igf,ifg,jfg,kfg)
+cc              xxf = grid_params%xx(ifg)
+cc              yyf = grid_params%yy(jfg)
+cc              zzf = grid_params%zz(kfg)
+cc
+cc              xf(iif) = db3val(xxf,yyf,zzf,0,0,0,tx,ty,tz,nx,ny,nz
+cc     .                        ,kx,ky,kz,bcoef,work)
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+cc        deallocate(tx,ty,tz,work,bcoef,xx,yy,zz)
+cc
+cc      endif
+cc
+ccc End program
+cc
+cc      call deallocPointers(fpointers)
+cc
+cc      end subroutine prolong
+
 *deck cprolong
 c######################################################################
       subroutine cprolong(neq,xf,ntotf,nxf,nyf,nzf
@@ -4000,8 +4530,6 @@ c----------------------------------------------------------------------
 
       use mg_Xfer
 
-      use setMGBC_interface
-
       implicit none            ! For safe Fortran
 
 c Call variables
@@ -4012,29 +4540,77 @@ c Call variables
 
 c Local variables
  
-      real(8) :: xxf(ntotf/neq,neq),car(3)
-     .          ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
-
-      real(8),allocatable :: arrayf(:,:,:,:),sp_sum(:,:)
-     .                      ,dv_sum(:,:),l_sum(:,:)
-
-      integer :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg
-     .          ,ieq,nntotc,nntotf,igf
-
-      logical :: cartesian,isvec,iscnv
+      real(8) :: arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
+     .          ,arrayf(0:nxf+1,0:nyf+1,0:nzf+1,neq)
 
 c Begin program
-
-      nntotc = ntotc/neq
-      nntotf = ntotf/neq
 
 c Unpack vector into array
 
       call mapMGVectorToArray(0,neq,xc,nxc,nyc,nzc,arrayc,igc,.false.)
 
+c Prolong array
+
+      call cprolongArray(neq,nxc,nyc,nzc,arrayc
+     .                      ,nxf,nyf,nzf,arrayf
+     .                  ,order,igc,bcnd)
+
+c Repack prolonged vector
+
+      call mapArrayToMGVector(neq,nxf,nyf,nzf,arrayf,xf,1)
+
+c End program
+
+      end subroutine cprolong
+
+*deck cprolongArray
+c######################################################################
+      subroutine cprolongArray(neq,nxc,nyc,nzc,arrayc
+     .                            ,nxf,nyf,nzf,arrayf
+     .                        ,order,igc,bcnd)
+c----------------------------------------------------------------------
+c     This is a prolongation routine for system MG, with arbitrary order
+c     of interpolation.
+c
+c     In call sequence, we have:
+c       * neq (int): number of equations
+c       * arrayf (real): array in fine grid (not a MG vector)
+c       * nxf,nyf,nzf(int): dimensions of fine grid
+c       * arrayc (real): array in coarse grid (not a MG vector)
+c       * nxc,nyc,nzc(int): dimensions of coarse grid
+c       * order (int): order of interpolation (0-arbitrary)
+c           If order = 0, it employs simple injection.
+c           If order > 0, it employs spline interpolation.
+c       * igc (int): coarse grid level identifier
+c       * bcnd (int array): boundary condition info.
+c----------------------------------------------------------------------
+
+      use setMGBC_interface
+
+      implicit none            ! For safe Fortran
+
+c Call variables
+
+      integer :: neq,nxc,nyc,nzc,nxf,nyf,nzf,order,igc,bcnd(6,neq)
+
+      real(8) :: arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
+     .          ,arrayf(0:nxf+1,0:nyf+1,0:nzf+1,neq)
+
+c Local variables
+ 
+      real(8),allocatable :: sp_sum(:,:),dv_sum(:,:),l_sum(:,:)
+
+      integer :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg,ieq,igf
+
+      logical :: cartesian,isvec,iscnv
+
+c Begin program
+
+      igf = igc - 1
+
 c Impose boundary conditions (external)
 
-      isvec = (neq > 1)                 !Initialize isvec (may be modified by setMGBC)
+      isvec = (neq == 3)                 !Initialize isvec (may be modified by setMGBC)
 
       cartesian = (bcSP() .and. isvec)  !Return Cartesian variables for prolongation
 
@@ -4087,70 +4663,34 @@ c Perform average along azimuthal direction for SP configurations
 
 c Prolong arrays (use scalar prolongation)
 
-      xxf = 0d0
+      arrayf = 0d0
 
       do ieq=1,neq
-
-        call prolong(xxf   (:    ,ieq),nxf,nyf,nzf
-     .              ,arrayc(:,:,:,ieq),nxc,nyc,nzc
-     .              ,order,igc)
-
-cc        !Repack prolonged vector
-cc        do i=1,nntotf
-cc          xf(neq*(i-1)+ieq)=xxf(i,ieq)
-cc        enddo
-
+        call prolongArray(igc,nxc,nyc,nzc,arrayc(:,:,:,ieq)
+     .                   ,igf,nxf,nyf,nzf,arrayf(:,:,:,ieq)
+     .                   ,order)
       enddo
 
 c Transform back to curvilinear (if isvec=.true. and cartesian=.true.)
 
       if (isvec .and. cartesian) then
-
-        igf = igc - 1
-
-        do k = 1,nzf
-          do j = 1,nyf
-            do i = 1,nxf
-              do ieq=1,neq/3
-                iif = vecPos(1,i,j,k,igf,igf,igf)+1
-
-                car = xxf(iif,(ieq-1)*3+1:ieq*3)
-
-                call transformVectorToCurvilinear
-     .             (i,j,k,igf,igf,igf
-     .             ,car(1),car(2),car(3)
-     .             ,iscnv
-     .             ,xxf(iif,(ieq-1)*3+1)
-     .             ,xxf(iif,(ieq-1)*3+2)
-     .             ,xxf(iif,(ieq-1)*3+3))
-              enddo
-            enddo
-          enddo
-        enddo
-
+        call XformToCurv_mesh2(igf,arrayf,iscnv)
       endif
-
-c Repack prolonged vector
-
-      do ieq=1,neq
-        do i=1,nntotf
-          xf(neq*(i-1)+ieq)=xxf(i,ieq)
-        enddo
-      enddo
 
 c End program
 
-      end subroutine cprolong
+      end subroutine cprolongArray
 
-*deck prolong
+*deck prolongArray
 c######################################################################
-      subroutine prolong(xf,nxf,nyf,nzf,arrayc,nxc,nyc,nzc,order,igc)
+      subroutine prolongArray(igc,nxc,nyc,nzc,arrayc
+     .                       ,igf,nxf,nyf,nzf,arrayf,order)
 c----------------------------------------------------------------------
 c     This is a prolongation routine for a single quantity, with
 c     arbitrary order of interpolation.
 c
 c     In call sequence, we have:
-c       * xf (real): vector in fine grid
+c       * arrayf (real): array in fine grid
 c       * nxf,nyf,nzf(int): dimensions of fine grid
 c       * arrayc (real): array of values in coarse grid
 c       * nxc,nyc,nzc(int): dimensions of coarse grid
@@ -4158,6 +4698,7 @@ c       * order (int): order of interpolation (0-arbitrary)
 c           If order = 0, it employs simple injection.
 c           If order > 0, it employs spline interpolation.
 c       * igc (int): coarse grid level identifier
+c       * igf (int): fine grid level identifier
 c----------------------------------------------------------------------
 
       use mg_Xfer
@@ -4166,18 +4707,19 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer    :: nxc,nyc,nzc,nxf,nyf,nzf,order,igc
-      real(8)    :: arrayc(0:nxc+1,0:nyc+1,0:nzc+1),xf(nxf*nyf*nzf)
+      integer :: nxc,nyc,nzc,nxf,nyf,nzf,order,igc,igf
+      real(8) :: arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
+     .          ,arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
 
 c Local variables
 
-      integer    :: ic,if,jc,jf,kc,kf,igf,iic,iif
-     .             ,icg,jcg,kcg,ifg,jfg,kfg
-      integer    :: iminc,imaxc,jminc,jmaxc,kminc,kmaxc
-     .             ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf
-      real(8)    :: mag,vol
+      integer :: ic,if,jc,jf,kc,kf 
+     .          ,icg,jcg,kcg,ifg,jfg,kfg
+      integer :: iminc,imaxc,jminc,jmaxc,kminc,kmaxc
+     .          ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf
+      real(8) :: mag,vol
 
-      logical    :: fpointers
+      logical :: fpointers
 
 c Extrapolation
 
@@ -4196,15 +4738,18 @@ c Begin program
 
       call allocPointers(1,fpointers)
 
-c Define fine grid
-
-      igf = igc - 1
+cc      igf = igc - 1
 
       call limits(0,nxc,nyc,nzc,igc,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
 
 c Injection
 
       if (order.eq.0) then
+
+        if (igf /= igc - 1) then
+           call pstop('prolongArray'
+     $               ,'Cannot perform injection: igf /= igc -1')
+        endif
 
         do kc = kminc,kmaxc
           do jc = jminc,jmaxc
@@ -4213,8 +4758,7 @@ c Injection
               do kf = mg_ratio_z(igf)*(kc-1)+1,mg_ratio_z(igf)*kc
                 do jf = mg_ratio_y(igf)*(jc-1)+1,mg_ratio_y(igf)*jc
                   do if = mg_ratio_x(igf)*(ic-1)+1,mg_ratio_x(igf)*ic
-                    iif = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-                    xf(iif) = arrayc(ic,jc,kc)
+                    arrayf(if,jf,kf) = arrayc(ic,jc,kc)
                   enddo
                 enddo
               enddo
@@ -4268,15 +4812,13 @@ c     Interpolate
         do kf = kminf,kmaxf
           do jf = jminf,jmaxf
             do if = iminf,imaxf
-              iif = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-
               call getMGmap(if,jf,kf,igf,igf,igf,ifg,jfg,kfg)
               xxf = grid_params%xx(ifg)
               yyf = grid_params%yy(jfg)
               zzf = grid_params%zz(kfg)
 
-              xf(iif) = db3val(xxf,yyf,zzf,0,0,0,tx,ty,tz,nx,ny,nz
-     .                        ,kx,ky,kz,bcoef,work)
+              arrayf(if,jf,kf) = db3val(xxf,yyf,zzf,0,0,0,tx,ty,tz
+     .                                 ,nx,ny,nz,kx,ky,kz,bcoef,work)
             enddo
           enddo
         enddo
@@ -4289,82 +4831,82 @@ c End program
 
       call deallocPointers(fpointers)
 
-      end subroutine prolong
+      end subroutine prolongArray
 
-*deck crestrict
-c######################################################################
-      subroutine crestrict(neq,xc,ntotc,nxc,nyc,nzc
-     .                        ,xf,ntotf,nxf,nyf,nzf
-     .                    ,order,igf,volw)
-c----------------------------------------------------------------------
-c     This is a restriction routine for system MG, with arbitrary order
-c     of interpolation.
-c
-c     In call sequence, we have:
-c       * neq (int): number of equations
-c       * xc (real): vector in coarse grid
-c       * nxc,nyc,nzc(int): dimensions of coarse grid
-c       * xf (real): vector in fine grid
-c       * nxf,nyf,nzf(int): dimensions of fine grid
-c       * order (int): order of interpolation (0-arbitrary)
-c           If order = 0, it employs simple injection.
-c           If order > 0, it employs spline interpolation.
-c       * igf (int): fine grid level identifier
-c       * bcnd (int array): boundary condition info.
-c       * volw (logical): whether vectors contain volume fractions.
-c----------------------------------------------------------------------
-
-      use mg_ops
-
-      implicit none        !For safe fortran
-
-c Call variables
-
-      integer    :: ntotc,nxc,nyc,nzc,ntotf,nxf,nyf,nzf,order,igf,neq
-
-      real(8)    :: xc(ntotc),xf(ntotf)
-
-      logical    :: volw
-
-c Local variables
- 
-      real(8)    :: xxc(ntotc/neq),xxf(ntotf/neq)
-
-      integer    :: ic,jc,if,jf,iic,iif,i,ieq,nntotc,nntotf
-
-c Begin program
-
-      nntotc = ntotc/neq
-      nntotf = ntotf/neq
-
-c Restrict arrays
-
-      do ieq = 1,neq
-
-c     Unpack vector
-
-        do i = 1,nntotf
-          xxf(i) = xf(neq*(i-1)+ieq)
-        enddo
-
-c     Use scalar restriction (xxf -> xxc)
-
-        xxc = 0d0
-        call restrict(xxc,nxc,nyc,nzc
-     .               ,xxf,nxf,nyf,nzf
-     .               ,order,igf,volw)
-
-c     Repack restricted vector
-
-        do i=1,nntotc
-          xc(neq*(i-1)+ieq)=xxc(i)
-        enddo
-
-      enddo
-
-c End program
-
-      end subroutine crestrict
+cc*deck crestrict
+ccc######################################################################
+cc      subroutine crestrict(neq,xc,ntotc,nxc,nyc,nzc
+cc     .                        ,xf,ntotf,nxf,nyf,nzf
+cc     .                    ,order,igf,volw)
+ccc----------------------------------------------------------------------
+ccc     This is a restriction routine for system MG, with arbitrary order
+ccc     of interpolation.
+ccc
+ccc     In call sequence, we have:
+ccc       * neq (int): number of equations
+ccc       * xc (real): vector in coarse grid
+ccc       * nxc,nyc,nzc(int): dimensions of coarse grid
+ccc       * xf (real): vector in fine grid
+ccc       * nxf,nyf,nzf(int): dimensions of fine grid
+ccc       * order (int): order of interpolation (0-arbitrary)
+ccc           If order = 0, it employs simple injection.
+ccc           If order > 0, it employs spline interpolation.
+ccc       * igf (int): fine grid level identifier
+ccc       * bcnd (int array): boundary condition info.
+ccc       * volw (logical): whether vectors contain volume fractions.
+ccc----------------------------------------------------------------------
+cc
+cc      use mg_ops
+cc
+cc      implicit none        !For safe fortran
+cc
+ccc Call variables
+cc
+cc      integer    :: ntotc,nxc,nyc,nzc,ntotf,nxf,nyf,nzf,order,igf,neq
+cc
+cc      real(8)    :: xc(ntotc),xf(ntotf)
+cc
+cc      logical    :: volw
+cc
+ccc Local variables
+cc 
+cc      real(8)    :: xxc(ntotc/neq),xxf(ntotf/neq)
+cc
+cc      integer    :: ic,jc,if,jf,iic,iif,i,ieq,nntotc,nntotf
+cc
+ccc Begin program
+cc
+cc      nntotc = ntotc/neq
+cc      nntotf = ntotf/neq
+cc
+ccc Restrict arrays
+cc
+cc      do ieq = 1,neq
+cc
+ccc     Unpack vector
+cc
+cc        do i = 1,nntotf
+cc          xxf(i) = xf(neq*(i-1)+ieq)
+cc        enddo
+cc
+ccc     Use scalar restriction (xxf -> xxc)
+cc
+cc        xxc = 0d0
+cc        call restrict(xxc,nxc,nyc,nzc
+cc     .               ,xxf,nxf,nyf,nzf
+cc     .               ,order,igf,volw)
+cc
+ccc     Repack restricted vector
+cc
+cc        do i=1,nntotc
+cc          xc(neq*(i-1)+ieq)=xxc(i)
+cc        enddo
+cc
+cc      enddo
+cc
+ccc End program
+cc
+cc      end subroutine crestrict
 
 *deck restrict
 c######################################################################
@@ -4630,6 +5172,317 @@ c End program
       call deallocPointers(fpointers)
 
       end subroutine restrict
+
+*deck crestrict
+c######################################################################
+      subroutine crestrict(neq,xc,ntotc,nxc,nyc,nzc
+     .                        ,xf,ntotf,nxf,nyf,nzf
+     .                    ,order,igf,volw)
+c----------------------------------------------------------------------
+c     This is a restriction routine for system MG, with arbitrary order
+c     of interpolation.
+c
+c     In call sequence, we have:
+c       * neq (int): number of equations
+c       * xc (real): vector in coarse grid
+c       * nxc,nyc,nzc(int): dimensions of coarse grid
+c       * xf (real): vector in fine grid
+c       * nxf,nyf,nzf(int): dimensions of fine grid
+c       * order (int): order of interpolation (0-arbitrary)
+c           If order = 0, it employs simple injection.
+c           If order > 0, it employs spline interpolation.
+c       * igf (int): fine grid level identifier
+c       * bcnd (int array): boundary condition info.
+c       * volw (logical): whether vectors contain volume fractions.
+c----------------------------------------------------------------------
+
+      use mg_Xfer
+
+      implicit none        !For safe fortran
+
+c Call variables
+
+      integer :: ntotc,nxc,nyc,nzc,ntotf,nxf,nyf,nzf,order,igf,neq
+
+      real(8) :: xc(ntotc),xf(ntotf)
+
+      logical :: volw
+
+c Local variables
+ 
+      real(8) :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1,neq)
+     .          ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
+
+      integer :: ic,jc,if,jf,iic,iif,i,ieq,nntotc,nntotf
+
+c Begin program
+
+c Map vector to array
+
+      call mapMGVectorToArray(0,neq,xf,nxf,nyf,nzf,arrayf,igf,.false.)
+
+c Restrict array(s)
+
+      arrayc = 0d0
+
+      do ieq = 1,neq
+        call restrictArray(nxc,nyc,nzc,arrayc(:,:,:,ieq)
+     .                    ,nxf,nyf,nzf,arrayf(:,:,:,ieq)
+     .                    ,order,igf,volw)
+      enddo
+
+c Map arrays to vector
+
+      call mapArrayToMGVector(neq,nxc,nyc,nzc,arrayc,xc,1)
+
+c End program
+
+      end subroutine crestrict
+
+*deck restrictArray
+c######################################################################
+      subroutine restrictArray(nxc,nyc,nzc,arrayc
+     .                        ,nxf,nyf,nzf,arrayf,order,igf,volw)
+c----------------------------------------------------------------------
+c     This is a restriction routine for a single quantity, with
+c     arbitrary order of interpolation.
+c
+c     In call sequence, we have:
+c       * arrayc (real): array in coarse grid
+c       * nxc,nyc,nzc(int): dimensions of coarse grid
+c       * arrayf (real): array in fine grid
+c       * nxf,nyf,nzf(int): dimensions of fine grid
+c       * order (int): order of interpolation (0-arbitrary)
+c           If order = 0, it employs simple injection.
+c           If order > 0, it employs spline interpolation.
+c       * igf (int): fine grid level identifier
+c       * volw (logical): whether values are volume-weighed.
+c----------------------------------------------------------------------
+
+      use mg_Xfer
+
+      implicit none        !For safe fortran
+
+c Call variables
+
+      integer :: nxc,nyc,nzc,nxf,nyf,nzf,order,igf
+
+      real(8) :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
+     .          ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
+
+      logical :: volw
+
+c Local variables
+ 
+      integer :: ic,if,jc,jf,kc,kf,igc,inbv
+     .          ,icg,jcg,kcg,ifg,jfg,kfg
+      integer :: iminc,imaxc,jminc,jmaxc,kminc,kmaxc
+     .          ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf
+
+      real(8) :: volt,vol,xc
+
+      logical :: fpointers
+
+c Interpolation
+
+      real(8) :: xxc,yyc,zzc,ff
+
+      real(8),allocatable,dimension(:) :: xx,yy,zz
+
+      integer ::  kx,ky,kz,nx,ny,nz,dim,flg
+      real(8), dimension(:),allocatable:: tx,ty,tz,work,q
+      real(8), dimension(:,:,:),allocatable:: bcoef
+
+      real(8) :: dbvalu,db2val,db3val
+      external   dbvalu,db2val,db3val
+
+c Begin program
+
+      call allocPointers(1,fpointers)
+
+      igc = igf + 1
+
+      arrayc = 0d0
+
+c Agglomeration
+
+      if (order.eq.0) then
+
+        call limits(0,nxc,nyc,nzc,igc
+     .             ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
+
+        do kc = kminc,kmaxc
+          do jc = jminc,jmaxc
+            do ic = iminc,imaxc
+
+              volt   = 0d0
+
+              do kf = mg_ratio_z(igf)*(kc-1)+1,mg_ratio_z(igf)*kc
+                do jf = mg_ratio_y(igf)*(jc-1)+1,mg_ratio_y(igf)*jc
+                  do if = mg_ratio_x(igf)*(ic-1)+1,mg_ratio_x(igf)*ic
+
+                    if (.not.volw) then
+                      vol = gmetric%grid(igf)%dlvol(if,jf,kf)  !Logical volume
+                      arrayc(ic,jc,kc) = arrayc(ic,jc,kc)
+     .                                 + arrayf(if,jf,kf)*vol
+                      volt = volt + vol
+                    else
+                      arrayc(ic,jc,kc) = arrayc(ic,jc,kc)
+     .                                 + arrayf(if,jf,kf)
+                    endif
+
+                  enddo
+                enddo
+              enddo
+
+              if (.not.volw) arrayc(ic,jc,kc) = arrayc(ic,jc,kc)
+     .                                /gmetric%grid(igc)%dlvol(ic,jc,kc)
+
+            enddo
+          enddo
+        enddo
+
+c Interpolation
+
+      else
+
+        call limits(0,nxf,nyf,nzf,igf
+     .             ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf)
+
+c     Map vectors into arrays
+
+        allocate(xx(1:imaxf-iminf+1)
+     .          ,yy(1:jmaxf-jminf+1)
+     .          ,zz(1:kmaxf-kminf+1))
+
+        call getMGmap(iminf,jminf,kminf,igf,igf,igf,ifg,jfg,kfg)
+
+        xx = grid_params%xx(ifg:ifg+imaxf-iminf)
+        yy = grid_params%yy(jfg:jfg+jmaxf-jminf)
+        zz = grid_params%zz(kfg:kfg+kmaxf-kminf)
+
+c     Renormalize without volume fractions
+
+        if (volw) then
+
+          do kf = kminf,kmaxf
+            do jf = jminf,jmaxf
+              do if = iminf,imaxf
+                call getMGmap(if,jf,kf,igf,igf,igf,ifg,jfg,kfg)
+
+                arrayf(if,jf,kf) = arrayf(if,jf,kf)
+     .                            /gmetric%grid(igf)%dlvol(if,jf,kf)
+              enddo
+            enddo
+          enddo
+        endif
+
+c     Calculate interpolation
+
+        flg = 0
+        nx = imaxf-iminf+1
+        ny = jmaxf-jminf+1
+        nz = kmaxf-kminf+1
+        kx = min(order+1,nx-1)
+        ky = min(order+1,ny-1)
+        kz = min(order+1,nz-1)
+
+        dim = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
+
+        allocate(tx(nx+kx))
+        allocate(ty(ny+ky))
+        allocate(tz(nz+kz))
+        allocate(work(dim))
+        allocate(bcoef(nx,ny,nz))
+
+        if (nx == 1 .and. ny == 1) then
+          allocate(q((2*kz-1)*nz))
+          inbv=1
+          call dbknot(zz,nz,kz,tz)
+          call dbintk(zz,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+     .               ,tz,nz,kz,bcoef(1,1,:),q,work)
+          deallocate(q)
+        elseif (nx == 1 .and. nz == 1) then
+          allocate(q((2*ky-1)*ny))
+          inbv=1
+          call dbknot(yy,ny,ky,ty)
+          call dbintk(yy,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+     .               ,ty,ny,ky,bcoef(1,:,1),q,work)
+          deallocate(q)
+        elseif (ny == 1 .and. nz == 1) then
+          allocate(q((2*kx-1)*nx))
+          inbv=1
+          call dbknot(xx,nx,kx,tx)
+          call dbintk(xx,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+     .               ,tx,nx,kx,bcoef(:,1,1),q,work)
+          deallocate(q)
+        elseif (nx == 1) then
+          call db2ink(yy,ny,zz,nz
+     .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+     .               ,ny,ky,kz,ty,tz,bcoef(1,:,:),work,flg)
+        elseif (ny == 1) then
+          call db2ink(xx,nx,zz,nz
+     .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+     .               ,nx,kx,kz,tx,tz,bcoef(:,1,:),work,flg)
+        elseif (nz == 1) then
+          call db2ink(xx,nx,yy,ny
+     .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+     .               ,nx,kx,ky,tx,ty,bcoef(:,:,1),work,flg)
+        else
+          call db3ink(xx,nx,yy,ny,zz,nz
+     .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+     .               ,nx,ny,kx,ky,kz,tx,ty,tz,bcoef,work,flg)
+        endif
+
+        call limits(0,nxc,nyc,nzc,igc
+     .             ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
+
+        do kc = kminc,kmaxc
+          do jc = jminc,jmaxc
+            do ic = iminc,imaxc
+
+              call getMGmap(ic,jc,kc,igc,igc,igc,icg,jcg,kcg)
+              xxc = grid_params%xx(icg)
+              yyc = grid_params%yy(jcg)
+              zzc = grid_params%zz(kcg)
+
+              if (nx == 1 .and. ny == 1) then
+                xc = dbvalu(tz,bcoef(1,1,:),nz,kz,0,zzc,inbv,work)
+              elseif (nx == 1 .and. nz == 1) then
+                xc = dbvalu(ty,bcoef(1,:,1),ny,ky,0,yyc,inbv,work)
+              elseif (ny == 1 .and. nz == 1) then
+                xc = dbvalu(tx,bcoef(:,1,1),nx,kx,0,xxc,inbv,work)
+              elseif (nx == 1) then
+                xc=db2val(yyc,zzc,0,0,ty,tz,ny,nz,ky,kz
+     .                        ,bcoef(1,:,:),work)
+              elseif (ny == 1) then
+                xc=db2val(xxc,zzc,0,0,tx,tz,nx,nz,kx,kz
+     .                        ,bcoef(:,1,:),work)
+              elseif (nz == 1) then
+                xc=db2val(xxc,yyc,0,0,tx,ty,nx,ny,kx,ky
+     .                        ,bcoef(:,:,1),work)
+              else
+                xc=db3val(xxc,yyc,zzc,0,0,0,tx,ty,tz,nx,ny,nz
+     .                        ,kx,ky,kz,bcoef,work)
+              endif
+
+              if(volw) xc=xc*gmetric%grid(igc)%dlvol(ic,jc,kc)
+
+              arrayc(ic,jc,kc) = xc
+
+            enddo
+          enddo
+        enddo
+
+        deallocate(tx,ty,tz,work,bcoef,xx,yy,zz)
+
+      endif
+
+c End program
+
+      call deallocPointers(fpointers)
+
+      end subroutine restrictArray
 
 c jb
 c#######################################################################

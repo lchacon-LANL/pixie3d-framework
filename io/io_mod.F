@@ -66,7 +66,7 @@ c     --------------------------------------------------------------------
          use iso_c_binding
          character(kind=c_char), dimension(*) :: sysin
          end function system
-         end interface
+      end interface
 #endif
       
 c     Call variables

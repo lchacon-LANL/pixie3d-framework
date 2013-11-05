@@ -7,7 +7,7 @@ ImplicitPixie3dApplicationParameters::ImplicitPixie3dApplicationParameters():pix
 {
 }
   
-ImplicitPixie3dApplicationParameters::ImplicitPixie3dApplicationParameters(tbox::Pointer<tbox::Database> database):pixie3dApplicationParameters(database)
+ImplicitPixie3dApplicationParameters::ImplicitPixie3dApplicationParameters(boost::shared_ptr<tbox::Database> database):pixie3dApplicationParameters(database)
 {
 }
   

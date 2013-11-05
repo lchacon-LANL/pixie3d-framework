@@ -10,7 +10,7 @@ class ImplicitPixie3dApplicationParameters: public pixie3dApplicationParameters
 {
  public:
   ImplicitPixie3dApplicationParameters();
-  ImplicitPixie3dApplicationParameters(tbox::Pointer<tbox::Database> database);
+  ImplicitPixie3dApplicationParameters(boost::shared_ptr<tbox::Database> database);
   ~ImplicitPixie3dApplicationParameters();    
 };  
 

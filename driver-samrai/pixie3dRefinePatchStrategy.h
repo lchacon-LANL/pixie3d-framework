@@ -18,7 +18,7 @@
 #include "SAMRAI/hier/Patch.h"
 #include "SAMRAI/hier/PatchHierarchy.h"
 #include "SAMRAI/xfer/RefinePatchStrategy.h"
-#include "SAMRAI/hier/GridGeometry.h"
+#include "SAMRAI/geom/GridGeometry.h"
 
 
 
@@ -69,16 +69,17 @@ public:
 
 
     // Set the hierarchy
-    void setHierarchy(tbox::Pointer<hier::PatchHierarchy> hierarchy) { d_hierarchy=hierarchy; }
+    void setHierarchy(boost::shared_ptr<hier::PatchHierarchy> hierarchy) { d_hierarchy=hierarchy; }
 
     // Set the grid geometry
-    void setGridGeometry(tbox::Pointer<hier::GridGeometry> grid_geometry) { d_grid_geometry=grid_geometry; }
+    void setGridGeometry(boost::shared_ptr<geom::GridGeometry> grid_geometry) { d_grid_geometry=grid_geometry; }
 
     // Set the level contanier data
     void setPixie3dHierarchyData(void **hierarchy_data) { d_level_container_array = hierarchy_data; }
 
     // Set the ids of the data
-    void setPixie3dDataIDs(bool copy, int nvar, int nauxs, int nauxv, int *u0, int *u, int *u_tmp, int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp );
+    void setPixie3dDataIDs(bool copy, int nvar, int nauxs, int nauxv, int *u0, int *u, int *u_tmp, 
+        int *auxs, int *auxs_tmp, int *auxv, int *auxv_tmp, int flux, int src );
 
     // Check the physical boundaries
     bool checkPhysicalBoundary( hier::Patch& patch);
@@ -103,7 +104,7 @@ public:
     void setRefineStrategySequence( const bcgrp_struct bc_grp ) { d_bc_grp = bc_grp; }
 
     // Function to apply boundary conditions to a patch
-    void applyBC( tbox::Pointer<hier::Patch> patch );
+    void applyBC( boost::shared_ptr<hier::Patch> patch );
 
 
 private:
@@ -115,16 +116,16 @@ private:
     void copy_data_patch( hier::Patch& patch, int src_id, int dst_id );
     
     // Information about the hierarchy
-    tbox::Pointer<hier::PatchHierarchy> d_hierarchy;
-    tbox::Pointer<hier::GridGeometry> d_grid_geometry;
+    boost::shared_ptr<hier::PatchHierarchy> d_hierarchy;
+    boost::shared_ptr<geom::GridGeometry> d_grid_geometry;
 
     // The number of variables and their ids
     int d_nvar;
     int d_nauxs;
     int d_nauxv;
     bool copy_data;
-    int *u0_id, *u_id, *auxs_id, *auxv_id;
-    int *u_tmp_id, *auxs_tmp_id, *auxv_tmp_id;
+    int *u0_id, *u_id, *auxs_id, *auxv_id, *u_tmp_id;
+    int *auxs_tmp_id, *auxv_tmp_id, flux_id, src_id;
    
     // The level contanier array
     void **d_level_container_array;

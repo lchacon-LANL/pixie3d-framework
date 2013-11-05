@@ -2,8 +2,18 @@
 
 -include make.inc
 
+# Read local configuration
+
+ifndef ARCH
+-include $(COMMONDIR)/make/make.mach.inc
+endif
+
 ifndef MODFLAG 
 -include $(COMMONDIR)/make/make.comp.inc
+endif
+
+ifndef CONTRIBLIBS
+-include $(COMMONDIR)/make/make.lib.inc
 endif
 
 # GENERAL PURPOSE MAKEFILE
@@ -91,27 +101,33 @@ endif
 contrib: ;
 	$(MAKE) --no-print-directory -e -C contrib/lsode lib
 	$(MAKE) --no-print-directory -e -C contrib/slatec lib
-ifdef ARPACK
+ifeq ($(ARPACK),t)
 	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack lib
 ifdef BOPT
 	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack plib
 endif
 endif
-ifdef FPA
+ifeq ($(FPA),t)
 	$(MAKE) --no-print-directory -e -C contrib/fpa/src lib
 endif
 	$(MAKE) --no-print-directory -e -C contrib/sdc/src lib
+ifeq ($(PIT),t)
+	$(MAKE) --no-print-directory -e -C contrib/parareal all	
+endif
 
 contrib_clean: ;
 	$(MAKE) --no-print-directory -e -C contrib/lsode clean
 	$(MAKE) --no-print-directory -e -C contrib/slatec distclean
-ifdef ARPACK
+ifeq ($(ARPACK),t)
 	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack clean
 endif
-ifdef FPA
+ifeq ($(FPA),t)
 	$(MAKE) --no-print-directory -e -C contrib/fpa/src distclean
 endif
 	$(MAKE) --no-print-directory -e -C contrib/sdc/src distclean
+ifeq ($(PIT),t)
+	$(MAKE) --no-print-directory -e -C contrib/parareal clean	
+endif
 
 contrib_setup: ;
 	-@tar xzf common_contrib.tgz

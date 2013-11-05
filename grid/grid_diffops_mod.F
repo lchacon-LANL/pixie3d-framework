@@ -1933,6 +1933,10 @@ c$$$        INTERFACE veclaplacian
 c$$$          module procedure veclap!,veclap_diff,veclap_ndiff
 c$$$        end INTERFACE
 
+        INTERFACE veclap
+          module procedure veclap_mesh,veclap_ijk
+        end INTERFACE
+
         INTERFACE veclap_cov
           module procedure veclap_cov_mesh,veclap_cov_ijk
         end INTERFACE
@@ -3259,10 +3263,10 @@ c     End program
 
       end function veclap_mesh
 
-c     veclap
+c     veclap_ijk
 c     ###############################################################
-      function veclap(i,j,k,nx,ny,nz,igx,igy,igz,vfield
-     .               ,diff,alteom,vol) result (vlap)
+      function veclap_ijk(i,j,k,nx,ny,nz,igx,igy,igz,vfield
+     .                   ,diff,alteom,vol) result (vlap)
 
 c     ---------------------------------------------------------------
 c     Calculates dvol*div(diff grad(vector)) at cell centers in general
@@ -3314,7 +3318,7 @@ c     Begin program
 
 c     End program
 
-      end function veclap
+      end function veclap_ijk
 
 c     nabtensor_x
 c     #############################################################
@@ -4176,7 +4180,7 @@ c$$$     .    +gradDiv(i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol,cnv=.true.)
          coef => diff
       endif
 
-      cnv = div_tensor(i,j,k,nx,ny,nz,igx,igy,igz,alt__eom()
+      cnv = div_tensor(i,j,k,nx,ny,nz,igx,igy,igz,.false.
      .                ,curlcurl_x,curlcurl_y,curlcurl_z
      .                ,vol=vol)
 

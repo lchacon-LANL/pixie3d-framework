@@ -37,6 +37,8 @@ c Begin program
       gmetric => gv%gparams%gmetric
       u_0 => gv%u_0
 
+      call setVectorDimensions
+
 c Check for autoinitializing parameters
 
       pi = acos(-1d0)
@@ -45,17 +47,21 @@ c Allocate global variable
 
       call allocateGlobalVar(gv)
 
-ccc Initialize MG and create grid
-cc
-cc      call createGrid(nxd,nyd,nzd,gv%gparams)
-cc
-ccc Initialize vector dimensions for global and local problems
-cc
-cc      call setVectorDimensions
-cc
-ccc Create nonlinear solver
-cc
-cc      call allocateStructures
+c Initialize MG and create grid
+
+      call createGrid(nxd,nyd,nzd,gv%gparams)
+
+c Initialize vector dimensions for global and local problems
+
+      call setVectorDimensions
+
+c Create nonlinear solver
+
+      call allocateStructures
+
+c Create nonlinear function
+
+cc      call createNonlinearFunction
 
       end subroutine createGridStructures
 
