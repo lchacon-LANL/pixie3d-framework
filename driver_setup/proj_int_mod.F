@@ -110,8 +110,9 @@ c     Read initialization parameters
 
       read(uinput,prj_int,iostat=ioerr)
 
-      if (ioerr/=0)
-     $     call pstop('readGridInput','Problem reading "prj_int"')
+cc      if (ioerr/=0.and.my_rank == 0.and.(.not.test)) then
+cc        write (*,*) 'No PROJECTIVE INTEGRATION config present; using default'
+cc      endif
 
       close(unit=uinput)
 
@@ -119,7 +120,7 @@ c     Consistency check
 
 c     Write initialization parameters to standard output
 
-      if (my_rank == 0) then
+      if (my_rank == 0.and.ioerr == 0) then
         write (*,*) '---------------------'
         write (*,*) 'PRJ_INT configuration'
         write (*,*) '---------------------'
