@@ -5,7 +5,7 @@ c ##################################################################
 
         use graphics_io
 
-        use variables
+        use var_io
 
         use ts_setup
 

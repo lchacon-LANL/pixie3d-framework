@@ -20,16 +20,13 @@ c ######################################################################
      $            ,tst_flg=.false.
      $            ,append_recordfile=.false.
 
-cc        ! number of opens -> first create, then append file
-cc        integer :: record_open_num=0
-
 #if defined(adios)
         !!! ADIOS variables
         !!! Used to dump main record file (to be postprocessed)
         !!! Does NOT use "adios_config.xml" file
         character*(1024) :: recordfile='record.bp'
         ! ADIOS needs a variable containing the MPI_WORLD_COMM communicator
-        integer         :: adios_world_comm
+        integer :: adios_world_comm
 
         !!! variables for reading 
         integer*8 :: adios_fh, adios_gh   ! file handler and group handler

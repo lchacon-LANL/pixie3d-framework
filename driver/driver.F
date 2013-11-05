@@ -324,14 +324,14 @@ c End program
 
       call fortranDestroy
 
+#if defined(adios)
+      call ADIOS_finalize(my_rank, adios_err)
+#endif
+
 #if defined(petsc)
       call PetscLogStagePop(perr)
 
       call PetscFinalize(perr)
-#endif
-
-#if defined(adios)
-      call ADIOS_finalize(my_rank, adios_err)
 #endif
 
       end program

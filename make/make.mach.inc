@@ -97,7 +97,11 @@ ifeq ($(HOST),jetta)
       HDF5_MOD  = $(PHDF5_LIB)
       HDF5_INC  = $(PHDF5_INC)
 
-      ADIOS = f
+      ifeq ($(PIT),t)
+        ADIOS = f      !ADIOS not ready for parallel-in-time yet
+      else
+        ADIOS = t
+      endif
 
       #Determined via modules
       ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
