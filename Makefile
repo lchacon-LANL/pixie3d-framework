@@ -1,3 +1,4 @@
+
 # Read application specific variables
 
 -include make.inc
@@ -43,6 +44,10 @@ COMMON_OBJS = $(filter %.o, $(patsubst %.f,%.o,$(COMMON_SRC))\
 LIBS :=
 
 prefix = .
+
+FRMWRK_REL1=3
+FRMWRK_REL2=1
+override CPPFLAGS += $(PREPROC)FRMWRK_REL1=$(FRMWRK_REL1) $(PREPROC)FRMWRK_REL2=$(FRMWRK_REL2)
 
 #Module search path
 
