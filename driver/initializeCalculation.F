@@ -60,6 +60,19 @@ c Read PETSc runtime options
      .                       ,petsc_flg,ierr)
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-tmax',tmax
      .                       ,petsc_flg,ierr)
+#else
+!!$  n_args = COMMAND_ARGUMENT_COUNT()
+!!$
+!!$  if (n_args < 4) then
+!!$     call pstop('parareal_advance','Wrong call sequence')
+!!$  endif
+!!$
+!!$  if (debug) write (*,*) "Reading command arguments"
+!!$
+!!$  call get_command_argument(1, ifile1)
+!!$  call get_command_argument(2, ifile2)
+!!$  call get_command_argument(3, ifile3)
+!!$  call get_command_argument(4, ofile)
 #endif
 
 c Check for autoinitializing parameters
