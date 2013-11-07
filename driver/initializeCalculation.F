@@ -140,14 +140,13 @@ c Initialize record file
 c Check time limits
 
       if (tmax.gt.0d0.and.(tmax-time).le.0d0) then
-        if (my_rank == 0) then
-          write(*,*)
-          write(*,*) 'Tmax is less or equal than restarting time'
-          write(*,*) 'Aborting'
-        endif
-
-        call fortranDestroy
-        stop
+c$$$        if (my_rank == 0) then
+c$$$          write(*,*)
+c$$$          write(*,*) 'Tmax is less or equal than restarting time'
+c$$$          write(*,*) 'Aborting'
+c$$$        endif
+        call pstop("initializeCalculation"
+     $            ,"Tmax is less or equal than restarting time")
       endif
 
 c End program
