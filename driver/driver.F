@@ -66,36 +66,21 @@ c Interfaces
 
 c Begin program
 
-c Initialize PETSc and MPI (parallel version)
+      call Init
+
+c Setup profiling
 
 #if defined(petsc)
-      call PetscInitialize(PETSC_NULL_CHARACTER,perr)
-
-      call initMPI(MPI_COMM_WORLD,np,my_rank)
-
       !Set profiling stages
       call PetscLogStageRegister('Initial setup'  ,prof_stage(1),perr)
       call PetscLogStageRegister('Nonlinear solve',prof_stage(2),perr)
       call PetscLogStageRegister('Sol. processing',prof_stage(3),perr)  
-#endif
 
-c Initialize ADIOS for componentized I/O
-
-#if defined(adios) && defined(petsc)
-      if (.not.is_file('adios_config.xml')) then
-        call pstop('driver_3d','ADIOS config file not present')
-      else
-        call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
-        call ADIOS_init('adios_config.xml', adios_err)
-      endif
-#endif
-
-c Initialize calculation
-
-#if defined(petsc)
       !Profiling stage 1
       call PetscLogStagePush(prof_stage(1),perr)
 #endif
+
+c Initialize calculation
 
       call initializeCalculation
 
@@ -322,23 +307,60 @@ c Formats
 
 c End program
 
-      call fortranDestroy
-
-#if defined(adios)
-      call ADIOS_finalize(my_rank, adios_err)
-#endif
-
-#if defined(petsc)
-      call PetscLogStagePop(perr)
-
-      call PetscFinalize(perr)
-#endif
+      call Destroy
 
       end program
 
-c fortranDestroy
+c Init
 c ######################################################################
-      subroutine fortranDestroy
+      subroutine Init
+
+      use var_io
+
+      use grid
+
+      use ts_setup
+
+#if defined(MK)
+      use mk
+#endif
+
+      implicit none
+
+c Call variables
+
+c Local variables
+
+      integer :: ierr
+
+c Begin program
+
+c Initialize PETSc and MPI (parallel version)
+
+#if defined(petsc)
+      call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
+
+      call initMPI(MPI_COMM_WORLD,np,my_rank)
+#endif
+
+c Initialize ADIOS for componentized I/O
+
+#if defined(adios) && defined(petsc)
+      if (.not.is_file('adios_config.xml')) then
+        call pstop('driver_3d','ADIOS config file not present')
+      else
+        call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
+        call ADIOS_init('adios_config.xml', adios_err)
+      endif
+#endif
+
+c End program
+
+      end subroutine Init
+
+c Destroy
+c ######################################################################
+      subroutine Destroy
 
       use var_io
 
@@ -374,6 +396,16 @@ c Free memory
 
       call deallocateGlobalVar(gv)
 
+#if defined(adios)
+      call ADIOS_finalize(my_rank, adios_err)
+#endif
+
+#if defined(petsc)
+      call PetscLogStagePop(ierr)
+
+      call PetscFinalize(ierr)
+#endif
+
 c End program
 
-      end subroutine fortranDestroy
+      end subroutine Destroy
