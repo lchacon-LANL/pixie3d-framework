@@ -437,7 +437,7 @@ c     End program
 
 c     openRestartFileForRead
 c     #################################################################
-      subroutine openRestartFileForRead(file,lneq)
+      subroutine openRestartFileForRead(file)
 
 c     -----------------------------------------------------------------
 c     Opens restart file (either POSIX, or ADIOS).
@@ -448,11 +448,11 @@ c     -----------------------------------------------------------------
 c     Global variables
 
       character(*),optional :: file
-      integer,optional,intent(out) :: lneq
+cc      integer,optional,intent(out) :: lneq
 
 c     Local variables
 
-      integer :: nx,ny,nz,ierr,neq
+      integer :: nx,ny,nz,ierr,neq,ndepvl,ndepsl,nauxvl,nauxsl
       character(len=1024) :: rfile
 
 c     Begin program
@@ -465,12 +465,53 @@ c     Begin program
         rfile = recordfile
       endif
 
-      if (PRESENT(lneq)) then
-         call probe_recordfile_nvar(trim(rfile),lneq)
-cc         lneq = neq
-      endif
-
       call openPOSIXBinFile(urecord,trim(rfile),status='old')
+
+      read (urecord,iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
+      if (ierr == 0) then
+
+        if (NDEPV == 0) then
+           NDEPV=ndepvl
+        elseif (NDEPV /= ndepvl) then
+           call pstop('openRestartFileForRead'
+     $            ,'# Dep. vec. variables do not agree; cannot restart')
+        endif
+
+        if (NDEPS == 0) then
+           NDEPS=ndepsl
+        elseif (NDEPS /= ndepsl) then
+           call pstop('openRestartFileForRead'
+     $            ,'# Dep. scl. variables do not agree; cannot restart')
+        endif
+
+        if (NAUXV == 0) then
+           NAUXV=nauxvl
+        elseif (NAUXV /= nauxvl) then
+           call pstop('openRestartFileForRead'
+     $            ,'# Aux. vec. variables do not agree; cannot restart')
+        endif
+
+        if (NAUXS == 0) then
+           NAUXS=nauxsl
+        elseif (NAUXS /= nauxsl) then
+           call pstop('openRestartFileForRead'
+     $            ,'# Aux. scl. variables do not agree; cannot restart')
+        endif
+  
+cc        if (PRESENT(lneq)) lneq = 3*NDEPV + NDEPS
+
+      else  !COMPATIBILITY MODE
+
+        rewind(urecord)
+c$$$        close (urecord)
+c$$$
+c$$$        if (PRESENT(lneq)) then
+c$$$          call probe_recordfile_nvar(trim(rfile),lneq)
+c$$$        endif
+c$$$
+c$$$        call openPOSIXBinFile(urecord,trim(rfile),status='old')
+
+      endif
 
       read (urecord) nx,ilog,ihig
       read (urecord) ny,jlog,jhig
@@ -499,7 +540,7 @@ cc         lneq = neq
       ! allocate 100MB buffer for ADIOS
       call adios_allocate_buffer (100,adios_err)
 
-      call openRecordFileAdiosForRead(adios_err,file=file,nvar=lneq)
+      call openRecordFileAdiosForRead(adios_err,file=file)
 
       if (adios_err /= 0) then
         call pstop('openRestartFileForRead'
@@ -633,6 +674,8 @@ c       Local variables
 
         !Initialize record file
         call openPOSIXBinFile(unit,file,status='unknown')
+
+        write (unit) NDEPV,NDEPS,NAUXV,NAUXS
 
         write (unit) nxl,ilog,ihig
         write (unit) nyl,jlog,jhig
@@ -1350,8 +1393,7 @@ c     Read preamble
         read (unit,iostat=ierr,end=100) i1,i2,j1,j2,k1,k2
         if (ierr /= 0) goto 200
 
-c     Read number of variables
-
+        !Read number of variables
         read (unit) nvar
 
 c     Close file
