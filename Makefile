@@ -112,13 +112,9 @@ ifdef BOPT
 	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack plib
 endif
 endif
-ifeq ($(FPA),t)
 	$(MAKE) --no-print-directory -e -C contrib/fpa/src lib
-endif
 	$(MAKE) --no-print-directory -e -C contrib/sdc/src lib
-ifeq ($(PIT),t)
 	$(MAKE) --no-print-directory -e -C contrib/parareal all	
-endif
 
 contrib_clean: ;
 	$(MAKE) --no-print-directory -e -C contrib/lsode clean
@@ -126,13 +122,9 @@ contrib_clean: ;
 ifeq ($(ARPACK),t)
 	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack clean
 endif
-ifeq ($(FPA),t)
 	$(MAKE) --no-print-directory -e -C contrib/fpa/src distclean
-endif
 	$(MAKE) --no-print-directory -e -C contrib/sdc/src distclean
-ifeq ($(PIT),t)
 	$(MAKE) --no-print-directory -e -C contrib/parareal clean	
-endif
 
 contrib_setup: ;
 	-@tar xzf common_contrib.tgz
