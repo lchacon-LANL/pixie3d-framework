@@ -605,8 +605,8 @@ c     Time step update
         ierr = implicit_ts(neqd,x,itnw,itgm,iout)
       else
         ierr = explicit_ts(x)
-        itnewt  = 1
-        itgmres = 0
+        itnw = 1
+        itgm = 0
       endif
 
 c     Map solution to vnp (if no error)
