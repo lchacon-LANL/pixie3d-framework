@@ -384,6 +384,10 @@ c     Read files
 
       dtold = tn - tnm
 
+#if defined(pit)
+      dt = dtbase  !Reset time step with parallel-in-time
+#endif
+
 c     End
 
       call deallocateDerivedType(vmed)
