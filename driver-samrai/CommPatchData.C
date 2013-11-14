@@ -19,12 +19,13 @@ commPatchData::commPatchData(tbox::Dimension dim):
 /************************************************************************
 *  Initializing constructor                                             *
 ************************************************************************/
-commPatchData::commPatchData( const tbox::Pointer<hier::Patch>& patch, const int var_id ):
+commPatchData::commPatchData( const boost::shared_ptr<hier::Patch>& patch, const int var_id ):
     box(hier::Box(patch->getDim())),
     gcw(hier::IntVector(patch->getDim()))
 { 
     box = patch->getBox();
-    tbox::Pointer< pdat::CellData<double> > pdat = patch->getPatchData(var_id);
+    boost::shared_ptr<pdat::CellData<double> > pdat = 
+        boost::dynamic_pointer_cast<pdat::CellData<double> >(patch->getPatchData(var_id));
     gcw = pdat->getGhostCellWidth();
     depth = pdat->getDepth();
     data = pdat->getPointer();
@@ -137,7 +138,7 @@ void commPatchData::getFromIntBuffer(int *buffer)
     tbox::Dimension Dim(dim);
     hier::IntVector ifirst = hier::Index(hier::IntVector(Dim,&buffer[1]));
     hier::IntVector ilast = hier::Index(hier::IntVector(Dim,&buffer[1+dim]));
-    box = hier::Box(hier::Index(ifirst),hier::Index(ilast));
+    box = hier::Box(hier::Index(ifirst),hier::Index(ilast),hier::BlockId(0));
     // Unpack gcw
     gcw = hier::IntVector(Dim,&buffer[1+2*dim]);
     // Unpack the depth

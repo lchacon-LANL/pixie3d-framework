@@ -6,7 +6,7 @@
 #include "SAMRAI/solv/SNESAbstractFunctions.h"
 #include "pixie3dApplication.h"
 #include "ImplicitPixie3dApplicationParameters.h"
-#include "Pixie3dPreconditioner.h"
+#include "Pixie3dPreconditionerParameters.h"
 
 namespace SAMRAI{
 namespace Pixie3d{
@@ -27,17 +27,17 @@ public:
   /*!
    * Constructor that takes a parameter list.  Calls initialize.
    */
-  ImplicitPixie3dApplication(ImplicitPixie3dApplicationParameters *parameters);
+  ImplicitPixie3dApplication( boost::shared_ptr<ImplicitPixie3dApplicationParameters> parameters );
 
   /*!
    * Destructor
    */
-  ~ImplicitPixie3dApplication();  
+  virtual ~ImplicitPixie3dApplication();  
   
   /**
    * Initialize application using specified parameters.
    */
-  void initialize(ImplicitPixie3dApplicationParameters *parameters);
+  void initialize( boost::shared_ptr<ImplicitPixie3dApplicationParameters> parameters );
   
   /*
    * Interface functions overloaded from solv::SNESAbstractFunctions.
@@ -52,7 +52,7 @@ public:
   /*
    * Interface functions overloaded from solv::SNESAbstractFunctions.
    */
-   int applyPreconditioner(Vec r, Vec z);
+  int applyPreconditioner(Vec r, Vec z);
   
   /*
    * Interface functions overloaded from solv::SNESAbstractFunctions.
@@ -84,7 +84,7 @@ public:
    *
    * Function overloaded from SAMRAI::solv::SNESAbstractFunctions.
    */
-  int evaluateNonlinearFunction(tbox::Pointer< solv::SAMRAIVectorReal<double> > x, tbox::Pointer< solv::SAMRAIVectorReal<double> > f);  
+  int evaluateNonlinearFunction(boost::shared_ptr< solv::SAMRAIVectorReal<double> > x, boost::shared_ptr< solv::SAMRAIVectorReal<double> > f);  
   
   /*!
    * User-supplied preconditioner setup function.  The setup
@@ -98,7 +98,7 @@ public:
    *
    * Function overloaded from SAMRAI::solv::SNESAbstractFunctions.
    */
-  int setupPreconditioner(tbox::Pointer< solv::SAMRAIVectorReal<double> > x);
+  int setupPreconditioner(boost::shared_ptr< solv::SAMRAIVectorReal<double> > x);
   
    /*!
     * User-supplied preconditioner solve function.  This function must
@@ -114,7 +114,7 @@ public:
     *
     * Function overloaded from SAMRAI::solv::SNESAbstractFunctions.
     */
-  int applyPreconditioner(tbox::Pointer< solv::SAMRAIVectorReal<double> > r,  tbox::Pointer< solv::SAMRAIVectorReal<double> > z);
+  int applyPreconditioner(boost::shared_ptr< solv::SAMRAIVectorReal<double> > r,  boost::shared_ptr< solv::SAMRAIVectorReal<double> > z);
   
   /**
    * Set the nonlinear solution vector so that the new solution data is
@@ -126,7 +126,7 @@ public:
    * Function overloaded from algs::ImplicitEquationStrategy.
    *
    */
-  void setupSolutionVector(tbox::Pointer< solv::SAMRAIVectorReal<double> > solution);
+  void setupSolutionVector(const boost::shared_ptr< solv::SAMRAIVectorReal<double> >& solution);
   
   /**
    * Return time increment for advancing the solution at the first timestep.
@@ -187,7 +187,7 @@ public:
     *
     * Overloaded from tbox::Serializable.
     */
-   void putToDatabase(tbox::Pointer<tbox::Database> db);
+   void putToDatabase(const boost::shared_ptr<tbox::Database>& db) const;
 
    /**
     * Reset cached information that depends on the hierarchy configuration.  
@@ -195,7 +195,7 @@ public:
     * Function overloaded from mesh::StandardTagAndInitStrategy.
     */
    void resetHierarchyConfiguration(
-           const tbox::Pointer<hier::PatchHierarchy> hierarchy,
+           const boost::shared_ptr<hier::PatchHierarchy>& hierarchy,
            const int coarsest_level,
            const int finest_level );
 
@@ -212,41 +212,41 @@ public:
  private:
     
    Pixie3dPreconditionerParameters *
-   createPreconditionerParameters( tbox::Pointer<tbox::Database> &db );
+   createPreconditionerParameters( boost::shared_ptr<tbox::Database> &db );
 
    /*
     * The nonlinear solution process requires a solution vector; we cache
     * a pointer to it here.
     */
-   tbox::Pointer< solv::SAMRAIVectorReal<double> > d_newSolutionVector;
+   boost::shared_ptr< solv::SAMRAIVectorReal<double> > d_newSolutionVector;
 
    /*
     * We are hard coding the BDF2 solution scheme for now as the time integration
     * scheme. This vector will store the current computed solution
     */
-   tbox::Pointer< solv::SAMRAIVectorReal<double> > d_currentSolutionVector;
+   boost::shared_ptr< solv::SAMRAIVectorReal<double> > d_currentSolutionVector;
 
    /*
     * We are hard coding the BDF2 solution scheme for now as the time integration
     * scheme. This vector will store the solution at the previous time level
     */
-   tbox::Pointer< solv::SAMRAIVectorReal<double> > d_previousSolutionVector;
+   boost::shared_ptr< solv::SAMRAIVectorReal<double> > d_previousSolutionVector;
 
    /*
     * We are hard coding the BDF2 solution scheme for now as the time integration
     * scheme. This vector will be used to store intermediate quantities
     */
-   tbox::Pointer< solv::SAMRAIVectorReal<double> > d_scratchVector;
+   boost::shared_ptr< solv::SAMRAIVectorReal<double> > d_scratchVector;
 
    /**
     * Pointer to pixie preconditioner
     */
-   tbox::Pointer< Pixie3dPreconditioner > d_preconditioner;
+   //boost::shared_ptr< Pixie3dPreconditioner > d_preconditioner;
    
    /**
     * Pointer to database with preconditioner parameters
     */
-   tbox::Pointer<tbox::Database> d_pc_db;
+   boost::shared_ptr<tbox::Database> d_pc_db;
 
    /*
     * Current solution time and time increment used in the solution process.

@@ -2,23 +2,15 @@ c module parameters
 c #####################################################################
       module parameters
 
-      integer    :: neqd
-     .             ,nxd,nyd,nzd,nxdp,nydp,nzdp
-     .             ,nxl,nyl,nzl,nxlp,nylp,nzlp
+      use grid
 
-      integer    :: ilo ,ihi ,jlo ,jhi ,klo ,khi
-     .             ,ilom,ihip,jlom,jhip,klom,khip
-     $             ,ilog ,ihig ,jlog ,jhig ,klog ,khig
-     .             ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
-     .             ,gcw
-
-      integer    :: ntotd,ntotdp,ntimemax
+      integer :: neqd,ntotd,ntotdp
 
       end module parameters
 
-c module variable_setup
+c module var_setup
 c #####################################################################
-      module variable_setup
+      module var_setup
 
         use parameters
 
@@ -51,9 +43,9 @@ c #####################################################################
                                 !      auxiliary (<0) or dependent (>0) variable.
                                 !  + Second component indicates scalar (0) or vector (1)
                                 !  + Third component indicates trivial (0) or non-trivial (1)
-          logical :: time_0             !Whether this is a time=0 variable
-          logical :: time_n             !Whether this is a previous time step variable
-        end type var_def
+c$$$          logical :: time_0     ! Whether this is a time=0 variable
+c$$$          logical :: time_n     ! Whether this is a previous time step variable
+       end type var_def
 
         type :: vec_def
           integer :: bconds(6,3)        !Boundary conditions, 3 refers to the 3 components
@@ -78,8 +70,8 @@ c #####################################################################
                                 !      auxiliary (<0) or dependent (>0) variable.
                                 !  + Second component indicates scalar (0) or vector (1)
                                 !  + Third component indicates trivial (0) or non-trivial (1)
-          logical :: time_0             !Whether this is a time=0 variable
-          logical :: time_n             !Whether this is a previous time step variable
+c$$$          logical :: time_0             !Whether this is a time=0 variable
+c$$$          logical :: time_n             !Whether this is a previous time step variable
         end type vec_def
 
         type :: var_array
@@ -165,33 +157,35 @@ c     setVectorDimensions
 c     #################################################################
       subroutine setVectorDimensions
 
-        !Ghost cell width
-        gcw = gv%gparams%gcw
+        if (associated(gv)) then
+          !Ghost cell width
+          gcw = gv%gparams%gcw
 
-        !Global problem info
-        nxdp = gv%gparams%nglx + gcw
-        nydp = gv%gparams%ngly + gcw
-        nzdp = gv%gparams%nglz + gcw
+          !Global problem info
+          nxdp = gv%gparams%nglx + gcw
+          nydp = gv%gparams%ngly + gcw
+          nzdp = gv%gparams%nglz + gcw
 
-        !Define offset quantities (global grid)
-        ihig = gv%gparams%ihig
-        ilog = gv%gparams%ilog
-        jhig = gv%gparams%jhig
-        jlog = gv%gparams%jlog
-        khig = gv%gparams%khig
-        klog = gv%gparams%klog
+          !Define offset quantities (global grid)
+          ihig = gv%gparams%ihig
+          ilog = gv%gparams%ilog
+          jhig = gv%gparams%jhig
+          jlog = gv%gparams%jlog
+          khig = gv%gparams%khig
+          klog = gv%gparams%klog
 
-        ihipg = gv%gparams%ihig + gcw
-        ilomg = gv%gparams%ilog - gcw
-        jhipg = gv%gparams%jhig + gcw
-        jlomg = gv%gparams%jlog - gcw
-        khipg = gv%gparams%khig + gcw
-        klomg = gv%gparams%klog - gcw
+          ihipg = gv%gparams%ihig + gcw
+          ilomg = gv%gparams%ilog - gcw
+          jhipg = gv%gparams%jhig + gcw
+          jlomg = gv%gparams%jlog - gcw
+          khipg = gv%gparams%khig + gcw
+          klomg = gv%gparams%klog - gcw
 
-        !Local problem info
-        nxl  = gv%gparams%nlx
-        nyl  = gv%gparams%nly
-        nzl  = gv%gparams%nlz
+          !Local problem info
+          nxl  = gv%gparams%nlx
+          nyl  = gv%gparams%nly
+          nzl  = gv%gparams%nlz
+        endif
 
         !Define local limits
         ilo  = 1
@@ -488,6 +482,9 @@ c     Begin program
             allocate(varray%array_var(ieq)
      .                     %dom_dep_list(NAUXS+NAUXV+neqd,3))
             varray%array_var(ieq)%dom_dep_list = 0
+
+c$$$            varray%array_var(ieq)%time_0 = .false.
+c$$$            varray%array_var(ieq)%time_n = .false.
            enddo
         endif
 
@@ -507,7 +504,7 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq,ierr,istat
+        integer :: ieq,ierr,istat
 
 c     Begin program
 
@@ -542,14 +539,9 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ieq
+        integer :: ieq
 
 c     Begin program
-
-cc        if (associated(varray2)) then
-cccc           if (varray2%nvar /= neqd) nullify(varray2)
-cc           if (varray2%nvar /= neqd) call deallocateDerivedType(varray2)
-cc        endif
 
         call allocateDerivedType(varray2)
 
@@ -564,6 +556,10 @@ cc        endif
      .                              =varray1%array_var(ieq)%bc_dep_list
           varray2%array_var(ieq)%dom_dep_list
      .                              =varray1%array_var(ieq)%dom_dep_list
+c$$$          varray2%array_var(ieq)%time_0
+c$$$     .                              =varray1%array_var(ieq)%time_0
+c$$$          varray2%array_var(ieq)%time_n
+c$$$     .                              =varray1%array_var(ieq)%time_n
         enddo
 
 c     End program
@@ -617,13 +613,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(var_array),pointer :: varray3
-        type(var_array),pointer :: varray1,varray2
+        type(var_array),pointer :: varray3,varray1,varray2
         real(8) :: alpha1,alpha2
 
 c     Local variables
 
-        integer          :: ieq
+        integer :: ieq
 
 c     Begin program
 
@@ -632,16 +627,22 @@ c     Begin program
         varray3%nvar = varray2%nvar
 
         do ieq=1,varray3%nvar
-          varray3%array_var(ieq)%bconds =varray2%array_var(ieq)%bconds
-          varray3%array_var(ieq)%array  =
-     .          alpha2*varray2%array_var(ieq)%array
-     .         +alpha1*varray1%array_var(ieq)%array
-          varray3%array_var(ieq)%descr  =varray2%array_var(ieq)%descr
+          varray3%array_var(ieq)%bconds = varray2%array_var(ieq)%bconds
+
+          varray3%array_var(ieq)%array
+     .         = alpha2*varray2%array_var(ieq)%array
+     .          +alpha1*varray1%array_var(ieq)%array
+
+          varray3%array_var(ieq)%descr  = varray2%array_var(ieq)%descr
 
           varray3%array_var(ieq)%bc_dep_list
      .                              =varray2%array_var(ieq)%bc_dep_list
           varray3%array_var(ieq)%dom_dep_list
      .                              =varray2%array_var(ieq)%dom_dep_list
+c$$$          varray3%array_var(ieq)%time_0
+c$$$     .                              =varray2%array_var(ieq)%time_0
+c$$$          varray3%array_var(ieq)%time_n
+c$$$     .                              =varray2%array_var(ieq)%time_n
         enddo
 
 c     End program
@@ -827,7 +828,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,iii,ieq,nnx,nny,nnz
+      integer :: i,j,k,ii,iii,ieq,nnx,nny,nnz
 
 c     Begin program
 
@@ -840,10 +841,13 @@ c     Begin program
         do k=1,nnz
           do j=1,nny
             do i=1,nnx
-              do ieq=1,neq
-                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
-                vec1(iii) = vec1(iii)*gmetric%grid(igr)%dlvol(i,j,k)
-              enddo
+              ii=vecPos(neq,i,j,k,igr,igr,igr)
+              vec1(ii+1:ii+neq) = vec1(ii+1:ii+neq)
+     .                           *gmetric%grid(igr)%dlvol(i,j,k)
+cc              do ieq=1,neq
+cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
+cc                vec1(iii) = vec1(iii)*gmetric%grid(igr)%dlvol(i,j,k)
+cc              enddo
             enddo
           enddo
         enddo
@@ -851,10 +855,13 @@ c     Begin program
         do k=1,nnz
           do j=1,nny
             do i=1,nnx
-              do ieq=1,neq
-                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
-                vec1(iii) = vec1(iii)/gmetric%grid(igr)%dlvol(i,j,k)
-              enddo
+              ii=vecPos(neq,i,j,k,igr,igr,igr)
+              vec1(ii+1:ii+neq) = vec1(ii+1:ii+neq)
+     .                           /gmetric%grid(igr)%dlvol(i,j,k)
+cc              do ieq=1,neq
+cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
+cc                vec1(iii) = vec1(iii)/gmetric%grid(igr)%dlvol(i,j,k)
+cc              enddo
             enddo
           enddo
         enddo
@@ -1023,4 +1030,4 @@ c     End program
 
       end subroutine deallocateStructures
 
-      end module variable_setup
+      end module var_setup

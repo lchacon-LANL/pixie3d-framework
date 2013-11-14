@@ -41,15 +41,15 @@ public:
 
    // Construct and initialize a parameter list according to input
    // data.  See Application for a list of required and optional keywords.
-   pixie3dApplicationParameters( tbox::Pointer<tbox::Database> database );
+   pixie3dApplicationParameters( boost::shared_ptr<tbox::Database> database );
 
    // Destructor.
    virtual ~pixie3dApplicationParameters();
 
    // Computational grid where problem is solved.
-   tbox::Pointer<hier::PatchHierarchy> d_hierarchy;
+   boost::shared_ptr<hier::PatchHierarchy> d_hierarchy;
 
-   SAMRAI::appu::VisItDataWriter* d_VizWriter;
+   boost::shared_ptr<SAMRAI::appu::VisItDataWriter> d_VizWriter;
 };
 }
 

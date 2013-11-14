@@ -4,7 +4,7 @@
 
 #include "SAMRAI/SAMRAI_config.h"
 #include "SAMRAI/hier/PatchLevel.h"
-#include "SAMRAI/tbox/Pointer.h"
+#include "boost/shared_ptr.hpp"
 #include "SAMRAI/xfer/RefineSchedule.h"
 
 #ifdef DEBUG_CHECK_ASSERTIONS
@@ -180,7 +180,7 @@ public:
    * \param k
    *        index of third variable
    */
-   tbox::Pointer< hier::PatchData > getStencilBlock(tbox::Pointer<hier::Patch> p, 
+   boost::shared_ptr< hier::PatchData > getStencilBlock(boost::shared_ptr<hier::Patch> p, 
 						    const int i=0, 
 						    const int j=0,
 						    const int k=0);
@@ -219,7 +219,7 @@ public:
    * \param parameters
    *        LevelOperatorParameters object that should contain a pointer to a valid PatchLevel object
    */
-   SAMRSolvers::LevelOperator *constructOperator(SAMRSolvers::LevelOperatorParameters *parameters);
+   boost::shared_ptr<SAMRSolvers::LevelOperator> constructOperator(SAMRSolvers::LevelOperatorParameters *parameters);
 
    /**
     * Get information describing physical boundary conditions.  The
@@ -229,8 +229,8 @@ public:
    const int* getPhysicalBoundaryConditions(void) const{ return d_bdry_types; }
 
    int getVariableIndex(std::string &name, 
-                        tbox::Pointer<hier::VariableContext> &context,
-                        tbox::Pointer<hier::Variable > &var,
+                        boost::shared_ptr<hier::VariableContext> &context,
+                        boost::shared_ptr<hier::Variable > &var,
                         hier::IntVector nghosts,
                         int depth=1,
                         bool bOverride=false,
@@ -241,7 +241,7 @@ public:
    
 protected:
    
-   void getFromInput(const tbox::Pointer<tbox::Database> &db);
+   void getFromInput(const boost::shared_ptr<tbox::Database> &db);
 
    void initializeInternalVariableData(void);
 
@@ -249,7 +249,7 @@ protected:
    * Internal function used to populate entries of a database object which
    * will then be used in creating a  LevelOperator
    */
-   void initializeDatabase(tbox::Pointer<tbox::Database> db);
+   void initializeDatabase(boost::shared_ptr<tbox::Database> db);
 
 private:
    PCDiagonalLevelOperator();
@@ -266,9 +266,9 @@ private:
 
    int d_flux_id;
 
-   tbox::Pointer<xfer::RefineSchedule > d_sibling_fill_schedule;
+   boost::shared_ptr<xfer::RefineSchedule > d_sibling_fill_schedule;
 
-   tbox::Pointer<pdat::FaceVariable<double> > d_flux;
+   boost::shared_ptr<pdat::FaceVariable<double> > d_flux;
 
    SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme d_tangent_interp_scheme;
    SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme d_normal_interp_scheme;

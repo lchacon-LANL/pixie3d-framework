@@ -463,32 +463,26 @@ cc            dx0 = alphal*dx0  !Modify initial interval for coarser grids
 
         else  !Uniform grid
 
-cc          if (bcs1 == PER .and. bcs2 == PER) then  !Need to change setGraphicsRange routine as well
-cc            dh = length/ng
-cc            lstart = lmin
-cc            lend   = lmax
-cc          elseif (bcs1 == SYM .and. bcs2 == SYM) then
-          if (bcs1 == SYM .and. bcs2 == SYM) then
+          if (bcs1 == PER.and.bcs2 == PER.and.ng == 1) then !Single layer dimension
+            dh = length/ng
+            lstart = lmin
+          elseif (bcs1 == SYM .and. bcs2 == SYM) then
+cc          if (bcs1 == SYM .and. bcs2 == SYM) then
             dh = length/(ng-1)
             lstart = lmin
-cc            lend   = lmax
           elseif (bcs1 == SYM .and. bcs2 /= SYM) then
-            dh = length/(ng - 0.5)
+            dh = length/(ng - 0.5d0)
             lstart = lmin
-cc            lend   = lmax-dh/2.
           elseif (bcs1 /= SYM .and. bcs2 == SYM) then
-            dh = length/(ng - 0.5)
-            lstart = lmin+dh/2.
-cc            lend   = lmax
+            dh = length/(ng - 0.5d0)
+            lstart = lmin+0.5d0*dh
           else
             dh = length/ng
-            if (bcs1 == PER .and. bcs2 == PER.and.ng == 1) then
-              lstart = lmin
-cc              lend   = lmax
-            else
-              lstart = lmin+dh/2.
-cc              lend   = lmax-dh/2.
-            endif
+cc            if (bcs1 == PER.and.bcs2 == PER.and.ng == 1) then 
+cc              lstart = lmin
+cc            else
+              lstart = lmin+0.5d0*dh
+cc            endif
           endif
 
           xg(1) = lstart

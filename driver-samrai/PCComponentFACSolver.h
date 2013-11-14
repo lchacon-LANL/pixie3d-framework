@@ -20,7 +20,7 @@ protected:
    * initialization of the level smoothers/solvers with pixie specific smoothers
    */
 
-  void initializeLevelSolvers( tbox::Pointer<tbox::Database> db );
+  void initializeLevelSolvers( boost::shared_ptr<tbox::Database> db );
 private:  
 
 };

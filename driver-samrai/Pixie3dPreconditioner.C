@@ -42,12 +42,9 @@ Pixie3dPreconditioner::~Pixie3dPreconditioner()
 }
 
 void
-Pixie3dPreconditioner::getFromInput( tbox::Pointer<tbox::Database> &db,
+Pixie3dPreconditioner::getFromInput( boost::shared_ptr<tbox::Database> &db,
 				     bool is_from_restart)
 {
-#ifdef DEBUG_CHECK_ASSERTIONS
-  //   assert(!db.isNull());
-#endif
    if (!is_from_restart)
    {
      
@@ -55,7 +52,7 @@ Pixie3dPreconditioner::getFromInput( tbox::Pointer<tbox::Database> &db,
    else
    {
      // currently there is nothing to be read in
-     if(db.isNull())
+     if(db==NULL)
        {
 	 tbox::pout << "WARNING::currently a NULL database is being passed to the preconditioner" << std::endl;
        }
@@ -64,7 +61,7 @@ Pixie3dPreconditioner::getFromInput( tbox::Pointer<tbox::Database> &db,
 
 
 void
-Pixie3dPreconditioner::initializeOperators(tbox::Pointer<tbox::Database> &db)
+Pixie3dPreconditioner::initializeOperators(boost::shared_ptr<tbox::Database> &db)
 {
   
   // first read in the names of the M Operators and construct the M Operators
@@ -79,22 +76,22 @@ Pixie3dPreconditioner::initializeOperators(tbox::Pointer<tbox::Database> &db)
 	  
 	  if (db->keyExists(MOperatorNames[i]))
 	    {
-	      tbox::Pointer<tbox::Database> MOperatorDB = db->getDatabase(MOperatorNames[i]);
+	      boost::shared_ptr<tbox::Database> MOperatorDB = db->getDatabase(MOperatorNames[i]);
 
 #ifdef DEBUG_CHECK_ASSERTIONS
-	      assert(!MOperatorDB.isNull());
+	      assert(MOperatorDB!=NULL);
 #endif
 
-	      tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(MOperatorDB) );
+	      boost::shared_ptr<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(MOperatorDB) );
 
-	      mlParams->d_hierarchy                = d_hierarchy;
-	      mlParams->d_cf_interpolant           = d_cf_interpolant;
-	      mlParams->d_set_boundary_ghosts      = NULL;
+	      mlParams->d_hierarchy      = d_hierarchy;
+	      mlParams->d_cf_interpolant = d_cf_interpolant;
+	      mlParams->d_set_boundary_ghosts.reset();
 
 	      d_MOperators[i].reset( new PCDiagonalMultilevelOperator(mlParams) );
 	      
 #ifdef DEBUG_CHECK_ASSERTIONS
-	      assert(!d_MOperators[i].isNull());
+	      assert(d_MOperators[i]!=NULL);
 #endif
 
 	    }
@@ -116,22 +113,22 @@ Pixie3dPreconditioner::initializeOperators(tbox::Pointer<tbox::Database> &db)
   // next construct the U Operator
   if (db->keyExists("UOperator"))
     {
-      tbox::Pointer<tbox::Database> UOperatorDB = db->getDatabase("UOperator");
+      boost::shared_ptr<tbox::Database> UOperatorDB = db->getDatabase("UOperator");
       
 #ifdef DEBUG_CHECK_ASSERTIONS
-      assert(!UOperatorDB.isNull());
+      assert(UOperatorDB!=NULL);
 #endif
       
-      tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(UOperatorDB) );
+      boost::shared_ptr<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(UOperatorDB) );
       
-      mlParams->d_hierarchy                = d_hierarchy;
-      mlParams->d_cf_interpolant           = d_cf_interpolant;
-      mlParams->d_set_boundary_ghosts      = NULL;
+      mlParams->d_hierarchy      = d_hierarchy;
+      mlParams->d_cf_interpolant = d_cf_interpolant;
+      mlParams->d_set_boundary_ghosts.reset();
       
       d_UOperator.reset( new PCDiagonalMultilevelOperator(mlParams) );
       
 #ifdef DEBUG_CHECK_ASSERTIONS
-      assert(!d_UOperator.isNull());
+      assert(d_UOperator!=NULL);
 #endif      
       
     }  
@@ -145,22 +142,22 @@ Pixie3dPreconditioner::initializeOperators(tbox::Pointer<tbox::Database> &db)
   // next construct the L Operator
   if (db->keyExists("LOperator"))
     {
-      tbox::Pointer<tbox::Database> LOperatorDB = db->getDatabase("LOperator");
+      boost::shared_ptr<tbox::Database> LOperatorDB = db->getDatabase("LOperator");
       
 #ifdef DEBUG_CHECK_ASSERTIONS
-      assert(!LOperatorDB.isNull());
+      assert(LOperatorDB!=NULL);
 #endif
       
-      tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(LOperatorDB) );
+      boost::shared_ptr<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(LOperatorDB) );
       
-      mlParams->d_hierarchy                = d_hierarchy;
-      mlParams->d_cf_interpolant           = d_cf_interpolant;
-      mlParams->d_set_boundary_ghosts      = NULL;
+      mlParams->d_hierarchy      = d_hierarchy;
+      mlParams->d_cf_interpolant = d_cf_interpolant;
+      mlParams->d_set_boundary_ghosts.reset();
       
       d_LOperator.reset( new PCDiagonalMultilevelOperator(mlParams) );
       
 #ifdef DEBUG_CHECK_ASSERTIONS
-      assert(!d_LOperator.isNull());
+      assert(d_LOperator!=NULL);
 #endif      
       
     }  
@@ -175,22 +172,22 @@ Pixie3dPreconditioner::initializeOperators(tbox::Pointer<tbox::Database> &db)
   // next construct the PSchur Operator
   if (db->keyExists("PSchurOperator"))
     {
-      tbox::Pointer<tbox::Database> PSchurOperatorDB = db->getDatabase("PSchurOperator");
+      boost::shared_ptr<tbox::Database> PSchurOperatorDB = db->getDatabase("PSchurOperator");
       
 #ifdef DEBUG_CHECK_ASSERTIONS
-      assert(!PSchurOperatorDB.isNull());
+      assert(PSchurOperatorDB!=NULL);
 #endif
       
-      tbox::Pointer<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(PSchurOperatorDB) );
+      boost::shared_ptr<SAMRSolvers::MultilevelOperatorParameters> mlParams ( new SAMRSolvers::MultilevelOperatorParameters(PSchurOperatorDB) );
       
-      mlParams->d_hierarchy                = d_hierarchy;
-      mlParams->d_cf_interpolant           = d_cf_interpolant;
-      mlParams->d_set_boundary_ghosts      = NULL;
+      mlParams->d_hierarchy      = d_hierarchy;
+      mlParams->d_cf_interpolant = d_cf_interpolant;
+      mlParams->d_set_boundary_ghosts.reset();
       
       d_PSchurOperator.reset( new PCDiagonalMultilevelOperator(mlParams) );
       
 #ifdef DEBUG_CHECK_ASSERTIONS
-      assert(!d_PSchurOperator.isNull());
+      assert(d_PSchurOperator!=NULL);
 #endif      
       
     }  
@@ -204,10 +201,10 @@ Pixie3dPreconditioner::initializeOperators(tbox::Pointer<tbox::Database> &db)
 }
 
 void
-Pixie3dPreconditioner::initializeSolvers(tbox::Pointer<tbox::Database> &db)
+Pixie3dPreconditioner::initializeSolvers(boost::shared_ptr<tbox::Database> &db)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
-   assert(!d_hierarchy.isNull());
+   assert(d_hierarchy!=NULL);
 #endif
   // first read in the names of the M Operators and construct the M Operators
   if (db->keyExists("MSolvers"))
@@ -221,10 +218,10 @@ Pixie3dPreconditioner::initializeSolvers(tbox::Pointer<tbox::Database> &db)
 	  
 	  if (db->keyExists(MSolverNames[i]))
 	    {
-	      tbox::Pointer<tbox::Database> MSolverDB = db->getDatabase(MSolverNames[i]);
+	      boost::shared_ptr<tbox::Database> MSolverDB = db->getDatabase(MSolverNames[i]);
 
 #ifdef DEBUG_CHECK_ASSERTIONS
-	      assert(!MSolverDB.isNull());
+	      assert(MSolverDB!=NULL);
 #endif
 
 	      SAMRSolvers::MultilevelSolverParameters *mlParams = new SAMRSolvers::MultilevelSolverParameters(MSolverDB) ;
@@ -236,7 +233,7 @@ Pixie3dPreconditioner::initializeSolvers(tbox::Pointer<tbox::Database> &db)
 	      delete mlParams;
 	      
 #ifdef DEBUG_CHECK_ASSERTIONS
-	      assert(!d_MSolvers[i].isNull());
+	      assert(d_MSolvers[i]!=NULL);
 #endif
 
 	    }
@@ -258,10 +255,10 @@ Pixie3dPreconditioner::initializeSolvers(tbox::Pointer<tbox::Database> &db)
   // next construct the PSchur Solver
   if (db->keyExists("PSchurSolver"))
     {
-      tbox::Pointer<tbox::Database> PSchurSolverDB = db->getDatabase("PSchurSolver");
+      boost::shared_ptr<tbox::Database> PSchurSolverDB = db->getDatabase("PSchurSolver");
       
 #ifdef DEBUG_CHECK_ASSERTIONS
-      assert(!PSchurSolverDB.isNull());
+      assert(PSchurSolverDB!=NULL);
 #endif
       
       SAMRSolvers::MultilevelSolverParameters *mlParams = new SAMRSolvers::MultilevelSolverParameters(PSchurSolverDB) ;
@@ -271,7 +268,7 @@ Pixie3dPreconditioner::initializeSolvers(tbox::Pointer<tbox::Database> &db)
       d_PSchurSolver.reset( new PCComponentFACSolver(mlParams) );
       
 #ifdef DEBUG_CHECK_ASSERTIONS
-      assert(!d_PSchurSolver.isNull());
+      assert(d_PSchurSolver!=NULL);
 #endif      
 
       delete mlParams;
@@ -287,7 +284,7 @@ Pixie3dPreconditioner::initializeSolvers(tbox::Pointer<tbox::Database> &db)
 }
 
 void
-Pixie3dPreconditioner::setRefinementBoundaryInterpolant(RefinementBoundaryInterpolation *cf_interpolant)
+Pixie3dPreconditioner::setRefinementBoundaryInterpolant(boost::shared_ptr<RefinementBoundaryInterpolation> cf_interpolant)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(cf_interpolant!=NULL);
@@ -308,12 +305,12 @@ Pixie3dPreconditioner::setRefinementBoundaryInterpolant(RefinementBoundaryInterp
 */
 int
 Pixie3dPreconditioner::applyPreconditioner(
-   tbox::Pointer< solv::SAMRAIVectorReal<double> > r,
-   tbox::Pointer< solv::SAMRAIVectorReal<double> > z)
+   boost::shared_ptr< solv::SAMRAIVectorReal<double> > r,
+   boost::shared_ptr< solv::SAMRAIVectorReal<double> > z)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
-   assert(!r.isNull());
-   assert(!z.isNull());
+   assert(r!=NULL);
+   assert(z!=NULL);
 #endif
 
    // First try out the identity preconditioner
@@ -325,7 +322,7 @@ Pixie3dPreconditioner::applyPreconditioner(
 int
 Pixie3dPreconditioner::setupPreconditioner( SAMRSolvers::PreconditionerParameters *parameters )
 {
-   static tbox::Pointer<tbox::Timer> t_setup_pc = tbox::TimerManager::getManager()->getTimer("rd2t::Pixie3dPreconditioner::setupPreconditioner");
+   static boost::shared_ptr<tbox::Timer> t_setup_pc = tbox::TimerManager::getManager()->getTimer("rd2t::Pixie3dPreconditioner::setupPreconditioner");
    t_setup_pc->start();
 
    Pixie3dPreconditionerParameters *ptr = dynamic_cast<Pixie3dPreconditionerParameters *>(parameters);
@@ -344,9 +341,10 @@ Pixie3dPreconditioner::coarsenVariable( const int var_id,
                                      std::string coarsen_op_str)
 {
   xfer::CoarsenAlgorithm coarsen_var(d_hierarchy->getDim());
-   tbox::Pointer<hier::CoarsenOperator > soln_coarsen_op;
-   tbox::Pointer< hier::Variable > cvar;
-   tbox::Pointer<hier::GridGeometry > grid_geometry = d_hierarchy->getGridGeometry();
+   boost::shared_ptr<hier::CoarsenOperator > soln_coarsen_op;
+   boost::shared_ptr< hier::Variable > cvar;
+   boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
+      boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
 
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
 
@@ -361,34 +359,34 @@ Pixie3dPreconditioner::coarsenVariable( const int var_id,
          ln-- )
    {
 
-      tbox::Pointer<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
+      boost::shared_ptr<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
 
       if(ln<d_hierarchy->getFinestLevelNumber())
       {
-         tbox::Pointer< xfer::CoarsenSchedule > coarsen_schedule = getCoarsenSchedule(ln, coarsen_var);
+         boost::shared_ptr< xfer::CoarsenSchedule > coarsen_schedule = getCoarsenSchedule(ln, coarsen_var);
          coarsen_schedule->coarsenData();
       }
    }
 }
 
-tbox::Pointer<xfer::CoarsenSchedule >
+boost::shared_ptr<xfer::CoarsenSchedule >
 Pixie3dPreconditioner::getCoarsenSchedule(int ln, xfer::CoarsenAlgorithm &crs_fill_alg)
 {
-   tbox::Pointer<xfer::CoarsenSchedule > crs_fill_schedule;
+   boost::shared_ptr<xfer::CoarsenSchedule > crs_fill_schedule;
 
-   tbox::Pointer<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
-   tbox::Pointer<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln+1);
+   boost::shared_ptr<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
+   boost::shared_ptr<hier::PatchLevel > flevel = d_hierarchy->getPatchLevel(ln+1);
 
    crsList* coarsen_fill_schedules = getCoarsenSchedules(ln);
 
    bool found_compatible_schedule = false;
 
-   for (crsList::Iterator crs(*coarsen_fill_schedules); crs; crs++)
+   for (crsList::iterator crs=coarsen_fill_schedules->begin(); crs!=coarsen_fill_schedules->end(); crs++)
    {
-      if (crs_fill_alg.checkConsistency(crs()))
+      if (crs_fill_alg.checkConsistency(*crs))
       {
-         crs_fill_alg.resetSchedule(crs());
-         crs_fill_schedule = crs();
+         crs_fill_alg.resetSchedule(*crs);
+         crs_fill_schedule = *crs;
          found_compatible_schedule = true;
       }
 
@@ -398,7 +396,7 @@ Pixie3dPreconditioner::getCoarsenSchedule(int ln, xfer::CoarsenAlgorithm &crs_fi
    if (!found_compatible_schedule)
    {
       crs_fill_schedule = crs_fill_alg.createSchedule(level, flevel);
-      coarsen_fill_schedules->appendItem(crs_fill_schedule);
+      coarsen_fill_schedules->push_back(crs_fill_schedule);
    }
 
    return crs_fill_schedule;

@@ -24,7 +24,7 @@ PCDiagonalLevelOperator::PCDiagonalLevelOperator()
    d_reset_ghost_cells            = true;
    d_use_cf_interpolant           = false;
    
-   d_sibling_fill_schedule.setNull();
+   d_sibling_fill_schedule.reset();
 }
 
 PCDiagonalLevelOperator::PCDiagonalLevelOperator(SAMRSolvers::LevelOperatorParameters *parameters):LevelOperator(parameters)
@@ -40,7 +40,7 @@ PCDiagonalLevelOperator::PCDiagonalLevelOperator(SAMRSolvers::LevelOperatorParam
    d_reset_ghost_cells            = true;
    d_use_cf_interpolant           = false;
    
-   d_sibling_fill_schedule.setNull();
+   d_sibling_fill_schedule.reset();
 
    const int dim = d_level->getDim().getValue();
 
@@ -74,7 +74,7 @@ PCDiagonalLevelOperator::~PCDiagonalLevelOperator()
        variable_db->removePatchDataIndex(d_flux_id);
      }
    
-   d_sibling_fill_schedule.setNull();
+   d_sibling_fill_schedule.reset();
 
    delete [] d_bdry_types;
    d_bdry_types = NULL;
@@ -95,7 +95,7 @@ PCDiagonalLevelOperator::initializeInternalVariableData()
 
    const hier::IntVector zero_ghosts(hier::IntVector::getZero(d_level->getDim()));
 
-   const tbox::Pointer< hier::VariableContext > scratch_cxt = variable_db->getContext("SCRATCH");
+   const boost::shared_ptr< hier::VariableContext > scratch_cxt = variable_db->getContext("SCRATCH");
 
    std::ostringstream ibuffer;
    ibuffer<<d_object_id;
@@ -119,11 +119,11 @@ PCDiagonalLevelOperator::initializeInternalVariableData()
 	 }
 #endif
        
-       d_flux = variable_db->getVariable(cellFlux);
+       d_flux = boost::dynamic_pointer_cast<pdat::FaceVariable<double> >(variable_db->getVariable(cellFlux));
        
        if (!d_flux)
 	 {
-	   d_flux = new pdat::FaceVariable<double>(d_level->getDim(), cellFlux,1);
+	   d_flux.reset( new pdat::FaceVariable<double>(d_level->getDim(), cellFlux,1) );
 	 }
        
        d_flux_id = variable_db->registerVariableAndContext(d_flux,
@@ -139,12 +139,12 @@ PCDiagonalLevelOperator::initializeInternalVariableData()
 }
 
 void
-PCDiagonalLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
+PCDiagonalLevelOperator::getFromInput(const boost::shared_ptr<tbox::Database> &db)
 {
    LevelOperator::getFromInput(db);
 
 #ifdef DEBUG_CHECK_ASSERTIONS
-   assert(!db.isNull());
+   assert(db.get()!=NULL);
 #endif
 
    // if this operator is part of a multilevel operator the multilevel operator
@@ -247,7 +247,8 @@ PCDiagonalLevelOperator::getFromInput(const tbox::Pointer<tbox::Database> &db)
        // get the database object for boundary conditions
        db->getIntegerArray("boundary_conditions", d_bdry_types, 2*(d_level->getDim().getValue()));
        
-       tbox::Pointer<geom::CartesianGridGeometry > grid_geometry = d_level->getGridGeometry();
+       boost::shared_ptr<geom::CartesianGridGeometry> grid_geometry = 
+          boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_level->getGridGeometry());
        hier::IntVector shift = grid_geometry->getPeriodicShift(hier::IntVector::getOne(d_level->getDim()));
        
        for (int d=0; d<d_level->getDim().getValue(); d++)
@@ -285,11 +286,11 @@ PCDiagonalLevelOperator::setExtrapolationOrder(const int extrapolation_order)
       // order has changed then the stencils at that boundary will be
       // wrong and will need to be recomputed. For now we recompute
       // the stencil at all points
-      for (hier::PatchLevel::Iterator p(d_level); p; p++)
+      for (hier::PatchLevel::Iterator p=d_level->begin(); p!=d_level->end(); p++)
       {
-         const tbox::Pointer<hier::Patch > &patch = *p;
+         const boost::shared_ptr<hier::Patch > &patch = *p;
 #ifdef DEBUG_CHECK_ASSERTIONS
-         assert(!patch.isNull());
+         assert(patch.get()!=NULL);
 #endif
 	 const hier::Box &mappedBox = patch->getBox();
 
@@ -333,14 +334,14 @@ PCDiagonalLevelOperator::getStencilOffsets(const int i,
    return offsets;
 }
 
-tbox::Pointer< hier::PatchData >
-PCDiagonalLevelOperator::getStencilBlock(const tbox::Pointer<hier::Patch> patch,
+boost::shared_ptr< hier::PatchData >
+PCDiagonalLevelOperator::getStencilBlock(const boost::shared_ptr<hier::Patch> patch,
 					const int i,
 					const int j,
 					const int k)
 {
-   tbox::Pointer< hier::PatchData > stencilBlock;
-   stencilBlock.setNull();
+   boost::shared_ptr< hier::PatchData > stencilBlock;
+   stencilBlock.reset();
 
    return stencilBlock;
 }
@@ -359,13 +360,13 @@ PCDiagonalLevelOperator::applyBoundaryCondition(const int *var_id,
    // if this operator was created using createOperator
    // the coefficients need to be initialized from a level in
    // the hierarchy before we proceed
-   if((!d_copy_schedule.isNull())&&d_coefficients_changed)
+   if((d_copy_schedule.get()!=NULL)&&d_coefficients_changed)
    {
       d_copy_schedule->fillData(0.0);
       d_coefficients_changed=false;
    }
 
-   tbox::Pointer< hier::RefineOperator > nullRefineOp;
+   boost::shared_ptr< hier::RefineOperator > nullRefineOp;
 
    if(d_reset_ghost_cells)
    {
@@ -374,9 +375,9 @@ PCDiagonalLevelOperator::applyBoundaryCondition(const int *var_id,
 
       PCDiagonalRefinePatchStrategy *ptr=NULL;
 
-      if(!d_set_boundary_ghosts.isNull())
+      if(d_set_boundary_ghosts.get()!=NULL)
       {
-         ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(d_set_boundary_ghosts.getPointer());
+         ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(d_set_boundary_ghosts.get());
 
 #ifdef DEBUG_CHECK_ASSERTIONS
          assert(ptr!=NULL);
@@ -453,27 +454,27 @@ PCDiagonalLevelOperator::setFlux(const int flux_id,
 
    const int dim = d_level->getDim().getValue();
 
-   for (hier::PatchLevel::Iterator p(d_level); p; p++)
+   for (hier::PatchLevel::Iterator p=d_level->begin(); p!=d_level->end(); p++)
    {
-      tbox::Pointer<hier::Patch > patch = *p;
+      boost::shared_ptr<hier::Patch > patch = *p;
 
       const hier::Box box = patch->getBox();
 
-      tbox::Pointer< pdat::FaceData<double> > b_data;
-      tbox::Pointer< pdat::CellData<double> > u_data;
-      tbox::Pointer< pdat::FaceData<double> > flux_data;
+      boost::shared_ptr< pdat::FaceData<double> > b_data;
+      boost::shared_ptr< pdat::CellData<double> > u_data;
+      boost::shared_ptr< pdat::FaceData<double> > flux_data;
 
-      u_data = patch->getPatchData(u_id[0]);
+      u_data = boost::dynamic_pointer_cast<pdat::CellData<double> >(patch->getPatchData(u_id[0]));
 
       hier::IntVector ghost_cell_width = u_data->getGhostCellWidth();
       const int gcw=ghost_cell_width(0);
 #ifdef DEBUG_CHECK_ASSERTIONS
       assert(gcw>=0);
 #endif
-      flux_data = patch->getPatchData(flux_id);
+      flux_data = boost::dynamic_pointer_cast<pdat::FaceData<double> >(patch->getPatchData(flux_id));
 
-      const tbox::Pointer<geom::CartesianPatchGeometry >
-         geometry = patch->getPatchGeometry();
+      const boost::shared_ptr<geom::CartesianPatchGeometry> geometry =
+         boost::dynamic_pointer_cast<geom::CartesianPatchGeometry>(patch->getPatchGeometry());
 
       const hier::Index ifirst = box.lower();
       const hier::Index ilast = box.upper();
@@ -532,9 +533,9 @@ PCDiagonalLevelOperator::apply(const int flux_id,
    const int uidx=(u_idx==NULL)?0:u_idx[0];
    const int ridx=(r_idx==NULL)?0:r_idx[0];
    
-   for (hier::PatchLevel::Iterator p(d_level); p; p++)
+   for (hier::PatchLevel::Iterator p=d_level->begin(); p!=d_level->end(); p++)
      {
-       tbox::Pointer<hier::Patch > patch = *p;
+       boost::shared_ptr<hier::Patch > patch = *p;
        const hier::Box interior(patch->getBox());
        const hier::Index ifirst  = interior.lower();
        const hier::Index ilast   = interior.upper();
@@ -544,25 +545,27 @@ PCDiagonalLevelOperator::apply(const int flux_id,
        assert(patch->checkAllocated(r_id[0]));
 #endif
        
-       tbox::Pointer< pdat::CellData<double> > f_data;
+       boost::shared_ptr< pdat::CellData<double> > f_data;
        
        if(f_id[0]>=0)
 	 {
-	   f_data = patch->getPatchData(f_id[0]);
+	   f_data = boost::dynamic_pointer_cast<pdat::CellData<double> >(patch->getPatchData(f_id[0]));
 	   
 #ifdef DEBUG_CHECK_ASSERTIONS
 	   assert(patch->checkAllocated(f_id[0]));
 #endif
 	 }
        
-       tbox::Pointer< pdat::FaceData<double> > flux_data = patch->getPatchData(flux_id);
-       tbox::Pointer< pdat::CellData<double> > r_data = patch->getPatchData(r_id[0]);
+       boost::shared_ptr<pdat::FaceData<double> > flux_data = 
+          boost::dynamic_pointer_cast<pdat::FaceData<double> >(patch->getPatchData(flux_id));
+       boost::shared_ptr<pdat::CellData<double> > r_data = 
+          boost::dynamic_pointer_cast<pdat::CellData<double> >(patch->getPatchData(r_id[0]));
        
        
        hier::IntVector ghost_cell_width(d_level->getDim());
        int fgcw;
        
-       if(!f_data.isNull())
+       if(f_data.get()!=NULL)
 	 {
 	   ghost_cell_width = f_data->getGhostCellWidth();
 	   fgcw=ghost_cell_width(0);
@@ -579,13 +582,13 @@ PCDiagonalLevelOperator::apply(const int flux_id,
        assert(rgcw>=0);
 #endif
        
-       const tbox::Pointer<geom::CartesianPatchGeometry >
-         patch_geometry = patch->getPatchGeometry();
+       const boost::shared_ptr<geom::CartesianPatchGeometry> patch_geometry = 
+         boost::dynamic_pointer_cast<geom::CartesianPatchGeometry>(patch->getPatchGeometry());
      }
 }
   
 void
-PCDiagonalLevelOperator::initializeDatabase(tbox::Pointer<tbox::Database> db)
+PCDiagonalLevelOperator::initializeDatabase(boost::shared_ptr<tbox::Database> db)
   {
     // initialize any required base class entries
    LevelOperator::initializeDatabase(db);
@@ -629,14 +632,14 @@ PCDiagonalLevelOperator::initializeDatabase(tbox::Pointer<tbox::Database> db)
    }
 }
 
-SAMRSolvers::LevelOperator *
+boost::shared_ptr<SAMRSolvers::LevelOperator>
 PCDiagonalLevelOperator::constructOperator(SAMRSolvers::LevelOperatorParameters *parameters)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
-   assert(!parameters->d_level.isNull());
+   assert(parameters->d_level.get()!=NULL);
 #endif
 
-   parameters->d_cf_interpolant = NULL;
+   parameters->d_cf_interpolant.reset();
    parameters->d_set_boundary_ghosts = d_set_boundary_ghosts;
 
    // populate the database with entries that are required for initialization
@@ -644,11 +647,11 @@ PCDiagonalLevelOperator::constructOperator(SAMRSolvers::LevelOperatorParameters 
    // exist
    initializeDatabase(parameters->d_db);
 
-   tbox::Pointer<hier::PatchLevel > level = parameters->d_level;
+   boost::shared_ptr<hier::PatchLevel > level = parameters->d_level;
 
    xfer::RefineAlgorithm level_copy_alg(d_level->getDim());
 
-   tbox::Pointer< hier::RefineOperator > nullRefineOp;
+   boost::shared_ptr< hier::RefineOperator > nullRefineOp;
 
 #if 0
    // initialize d_a_index, d_b_index on the level by copies if necessary
@@ -673,15 +676,15 @@ PCDiagonalLevelOperator::constructOperator(SAMRSolvers::LevelOperatorParameters 
 #endif
    
    // create the new operator and cache a pointer to it
-   d_constructed_op = new PCDiagonalLevelOperator(parameters);
+   d_constructed_op.reset( new PCDiagonalLevelOperator(parameters) );
 
    return d_constructed_op;
 }
 
 int
 PCDiagonalLevelOperator::getVariableIndex(std::string &name,
-					 tbox::Pointer<hier::VariableContext> &context,
-					 tbox::Pointer<hier::Variable > &var,
+					 boost::shared_ptr<hier::VariableContext> &context,
+					 boost::shared_ptr<hier::Variable > &var,
 					 hier::IntVector nghosts,
 					 int depth,
 					 bool bOverride,
@@ -697,7 +700,7 @@ PCDiagonalLevelOperator::getVariableIndex(std::string &name,
        
        if(!var)
 	 {
-	   var = new pdat::CellVariable< double>(d_level->getDim(), name, depth);
+	   var.reset( new pdat::CellVariable< double>(d_level->getDim(), name, depth) );
 	 }
        
        var_id = variable_db->registerVariableAndContext(var,

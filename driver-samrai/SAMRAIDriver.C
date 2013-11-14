@@ -25,6 +25,7 @@
 // SAMRUTILS headers
 #include "testutils/SAMRBuilder.h"
 #include "utilities/ProfilerApp.h"
+#include "utilities/Utilities.h"
 
 // SAMRSOLVERS headers
 #include "time_integrators/TimeIntegratorParameters.h"
@@ -55,6 +56,8 @@ int main( int argc, char *argv[] )
   //PetscInitializeNoArguments();
   //PetscInitializeFortran();
 
+  Utilities::setAllErrorHandlers( );
+
   // This extra code block is used to scope some temporaries that are
   // created, it forces the destruction before the manager is shutdown.
   {
@@ -76,10 +79,10 @@ int main( int argc, char *argv[] )
     SAMRAI::tbox::PIO::logAllNodes(log_file);
 
     // Create input database and parse all data in input file.
-    SAMRAI::tbox::Pointer<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
+    boost::shared_ptr<SAMRAI::tbox::MemoryDatabase> input_db(new SAMRAI::tbox::MemoryDatabase("input_db"));
     SAMRAI::tbox::InputManager::getManager()->parseInputFile(input_file, input_db);
-    SAMRAI::tbox::Pointer<SAMRAI::tbox::Database> main_db = input_db->getDatabase("Main");
-    SAMRAI::tbox::Pointer<SAMRAI::tbox::Database>  tag_db = input_db->getDatabase("StandardTagAndInitialize");
+    boost::shared_ptr<SAMRAI::tbox::Database> main_db = input_db->getDatabase("Main");
+    boost::shared_ptr<SAMRAI::tbox::Database>  tag_db = input_db->getDatabase("StandardTagAndInitialize");
 
     // Get the output parameters
     bool use_visit = main_db->getBool("use_visit");
@@ -108,32 +111,38 @@ int main( int argc, char *argv[] )
     if ( main_db->keyExists("debug_name") )
         debug_name = main_db->getString("debug_name");
 
+    // Options for regridding
+    int regrid_interval = 0;
+    if (main_db->keyExists("regrid_interval"))
+        regrid_interval = main_db->getInteger("regrid_interval");
+
     // Create an empty pixie3dApplication (needed to create the StandardTagAndInitialize)
     const SAMRAI::tbox::Dimension dim(3);
-    tbox::Pointer<SAMRAI::pixie3dApplication> application( new SAMRAI::pixie3dApplication() );
+    boost::shared_ptr<SAMRAI::pixie3dApplication> application( new SAMRAI::pixie3dApplication() );
 
     // Create the patch hierarchy
-    SAMRAI::tbox::Pointer<SAMRAI::mesh::StandardTagAndInitStrategy> object = application;
-    SAMRAI::tbox::Pointer<SAMRAI::mesh::GriddingAlgorithm> gridding_algorithm;
-    SAMRAI::tbox::Pointer<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRUtils::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
+    boost::shared_ptr<SAMRAI::mesh::StandardTagAndInitStrategy> object = application;
+    boost::shared_ptr<SAMRAI::mesh::GriddingAlgorithm> gridding_algorithm;
+    boost::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy = SAMRUtils::SAMRBuilder::buildHierarchy(input_db,object,gridding_algorithm);
     TBOX_ASSERT(dim==hierarchy->getDim());
 
     // Check the initial hierarchy to see the patch distribution
     for ( int ln=0; ln<hierarchy->getNumberOfLevels(); ln++ ) {
-        SAMRAI::tbox::Pointer<SAMRAI::hier::PatchLevel> level = hierarchy->getPatchLevel(ln);
+        boost::shared_ptr<SAMRAI::hier::PatchLevel> level = hierarchy->getPatchLevel(ln);
         int N_local = level->getLocalNumberOfPatches();
         int N_global = level->getGlobalNumberOfPatches();
         SAMRAI::tbox::plog << ln << ": " << N_local << " of " << N_global << std::endl;
     }
 
     // Initialize the writer
-    appu::VisItDataWriter* visit_writer;
-    visit_writer = new appu::VisItDataWriter( dim, "pixie3d visualizer", write_path );
+    boost::shared_ptr<SAMRAI::appu::VisItDataWriter> visit_writer(
+        new SAMRAI::appu::VisItDataWriter(dim,"pixie3d visualizer",write_path) );
 
 
     // Initialize the application
-    tbox::Pointer< tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
-    SAMRAI::pixie3dApplicationParameters* application_parameters = new SAMRAI::pixie3dApplicationParameters(pixie3d_db);
+    boost::shared_ptr<SAMRAI::tbox::Database > pixie3d_db = input_db->getDatabase("pixie3d");
+    boost::shared_ptr<SAMRAI::pixie3dApplicationParameters> application_parameters(
+        new SAMRAI::pixie3dApplicationParameters(pixie3d_db) );
     application_parameters->d_hierarchy = hierarchy;
     application_parameters->d_VizWriter = visit_writer;
     application->initialize( application_parameters );
@@ -143,31 +152,34 @@ int main( int argc, char *argv[] )
     application->setInitialConditions(t0);
 
     // Perform a regrid to make sure the tagging is all set correctly
-    tbox::Pointer<mesh::StandardTagAndInitialize> error_detector = gridding_algorithm->getTagAndInitializeStrategy();
-    TBOX_ASSERT(!error_detector.isNull());
-    error_detector->turnOnGradientDetector();
-    error_detector->turnOffRefineBoxes();
-    tbox::Array<int> tag_buffer;
-    if ( error_detector->refineUserBoxInputOnly() )
-        tag_buffer = tbox::Array<int>(20,0);    // Only user-defined refinement boxes are used, no tag buffer is necessary
-    else
+    tbox::Array<int> tag_buffer(20,2);
+    if ( regrid_interval > 0 ) {
+        boost::shared_ptr<mesh::StandardTagAndInitialize> error_detector = 
+            boost::dynamic_pointer_cast<mesh::StandardTagAndInitialize>(gridding_algorithm->getTagAndInitializeStrategy());
+        TBOX_ASSERT(error_detector!=NULL);
+        error_detector->turnOnGradientDetector();
+        error_detector->turnOffRefineBoxes();
         tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
-    gridding_algorithm->regridAllFinerLevels(0,t0,tag_buffer);
-    application->setInitialConditions(t0);
+        for (int ln = 0; hierarchy->levelCanBeRefined(ln); ln++) {
+            tbox::pout << "Regridding from level " << ln << std::endl;
+            gridding_algorithm->regridAllFinerLevels(ln,t0,tag_buffer);
+            application->setInitialConditions(t0);
+        }
+    }
 
     // initialize a time integrator parameters object
-    tbox::Pointer<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");
+    boost::shared_ptr<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");
     SAMRSolvers::TimeIntegratorParameters *timeIntegratorParameters = new SAMRSolvers::TimeIntegratorParameters(ti_db);
-    timeIntegratorParameters->d_operator = application;
+    timeIntegratorParameters->d_operator = application.get();
     timeIntegratorParameters->d_ic_vector = application->get_ic();
-    timeIntegratorParameters->d_vizWriter = visit_writer;
+    timeIntegratorParameters->d_vizWriter = visit_writer.get();
    
     // create a time integrator
     SAMRSolvers::TimeIntegratorFactory *tiFactory = new SAMRSolvers::TimeIntegratorFactory();
-    std::auto_ptr<SAMRSolvers::TimeIntegrator> timeIntegrator = tiFactory->createTimeIntegrator(timeIntegratorParameters);
+    boost::shared_ptr<SAMRSolvers::TimeIntegrator> timeIntegrator = tiFactory->createTimeIntegrator(timeIntegratorParameters);
 
     // Create x(t)
-    tbox::Pointer< solv::SAMRAIVectorReal<double> > x_t;
+    boost::shared_ptr< solv::SAMRAIVectorReal<double> > x_t;
     x_t = timeIntegrator->getCurrentSolution();
 
     // Write the data
@@ -229,10 +241,20 @@ int main( int argc, char *argv[] )
                 last_save_time = current_time;
             }
 
+            // If desired, regrid patch hierarchy and reset vector weights.
+            if ( regrid_interval>0 && ((timestep+1)%regrid_interval)==0 ) {
+                tbox::pout << " Regridding ..." << std::endl;
+                application->registerVector( x_t );
+                gridding_algorithm->regridAllFinerLevels( 0, current_time, tag_buffer );
+                first_step = false;
+                tbox::pout << "************************* Finished regrid *********************************" << std::endl;
+            }
+
             //dt = timeIntegrator->getNextDt(solnAcceptable);
             dt = application->getExpdT();
         
             tbox::pout << "Estimating next time step : " << dt << std::endl;
+
         } else {
             tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
 			TBOX_ERROR("Error advancing solution");
@@ -248,8 +270,8 @@ int main( int argc, char *argv[] )
     delete tiFactory;
     delete timeIntegratorParameters;
     // Delete the application
-    application.setNull();
-    delete application_parameters;
+    application.reset();
+    application_parameters.reset();
     PROFILE_STOP("MAIN");
     PROFILE_SAVE(timer_results);
     

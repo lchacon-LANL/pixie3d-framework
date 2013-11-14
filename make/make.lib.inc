@@ -5,12 +5,12 @@
 
 # LSODE setup
 
-CONTRIBLIBS += -L$(PWD)/common/contrib/lsode -llsode
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/lsode -llsode
 
 # SLATEC setup
 
-CONTRIBLIBS += -L$(PWD)/common/contrib/slatec/lib -lslatec
-MODPATH     += $(ADDMODFLAG)$(PWD)/common/contrib/slatec/lib
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/slatec/lib -lslatec
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/slatec/lib
 
 # ADIOS setup
 
@@ -38,15 +38,15 @@ endif
 # FPA setup
 
 ifeq ($(FPA),t)
-  CONTRIBLIBS += -L$(PWD)/common/contrib/fpa/lib -lfpa
+  CONTRIBLIBS += -L$(COMMONDIR)/contrib/fpa/lib -lfpa
   CPPFLAGS    += $(PREPROC)FPA
-  MODPATH     += $(ADDMODFLAG)$(PWD)/common/contrib/fpa/lib
+  MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
 endif
 
 # SDC setup
 
-CONTRIBLIBS += -L$(PWD)/common/contrib/sdc/lib -lsdc
-MODPATH     += $(ADDMODFLAG)$(PWD)/common/contrib/sdc/lib
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/sdc/lib -lsdc
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/sdc/lib
 
 # PETSC setup
 
