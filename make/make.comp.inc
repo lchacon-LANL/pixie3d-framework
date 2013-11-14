@@ -45,7 +45,7 @@ endif
 
 # Flags for Intel ifort
 ifeq ($(FC),ifort)
-  OPTIMIZATION = -O3 -ipo -axW
+  OPTIMIZATION ?= -O3 -ipo -axW
   DEBUG        = -g -check all -traceback
 #  DEBUG        = -g -check -traceback
   PROFILE      = -p

@@ -684,6 +684,7 @@ endif
 
 ifeq ($(findstring jf,$(HOST)),jf)
   FC = ifort
+  OPTIMIZATION = -O2
 
 #  BOPT = O
 
@@ -715,6 +716,7 @@ endif
 
 ifeq ($(findstring helios,$(HOST)),helios)
   FC = ifort
+  OPTIMIZATION = -O3 -xavx
 
   CPPFLAGS += $(PREPROC)RFX
 
@@ -734,9 +736,11 @@ ifeq ($(findstring helios,$(HOST)),helios)
     #HDF5_MOD  = $(HDF5_HOME)/lib
 
     ADIOS = t
-    ADIOS_HOME = /csc/softs/nccs/adios-1.3.1
+    #ADIOS_HOME = /csc/softs/nccs/adios-1.3.1
+    ADIOS_HOME = $(ADIOS_DIR)
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml -llustreapi
     ADIOS_VER  = 1.31
+    #ADIOS_VER  = 1.50 da errore in fase di link
   else
     HDF5 = f
     ADIOS = f
