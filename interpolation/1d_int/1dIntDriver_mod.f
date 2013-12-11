@@ -28,7 +28,7 @@ c     Call variables
 
 c     Local variables
 
-      real(8)    ::  dxx,dummy(nv)
+      real(8)    ::  dxx
       integer    ::  i,j
 
 c     Cubic splines
@@ -36,8 +36,9 @@ c     Cubic splines
       integer   ,parameter :: incfd = 1  !Stride to take for input vectors in spline routine
 
       integer    :: ic(2),nwk,ierr,derv
-      real(8)    :: vc(2),f(incfd,nx),d(incfd,nx)
-      real(8), allocatable, dimension(:) :: wk
+      real(8)    :: vc(2)!,f(incfd,nx),d(incfd,nx),dummy(nv)
+      real(8), allocatable, dimension(:) :: wk,dummy
+      real(8), allocatable, dimension(:,:) :: f,d
       logical    :: skip
 
 c     Begin program
@@ -56,8 +57,8 @@ c     Begin program
             call locatep (x,nx,x1(i),j)
             if (j == 0) then
               j = 1 !Extrapolation on the left
-            elseif (j == nx) then
-              j = nx !Extrapolation on the right
+cc            elseif (j == nx) then
+cc              j = nx !Extrapolation on the right
             endif
             vec1(i) = vec(j)
           enddo
@@ -71,8 +72,8 @@ c     Begin program
           call locatep (x,nx,x1(i),j)
           if (j == 0) then
             j = 1 !Extrapolation on the left
-          elseif (j == nx) then
-            j = nx !Extrapolation on the right
+cc          elseif (j == nx) then
+cc            j = nx !Extrapolation on the right
           endif
           vec1(i) = l_int (nx,vec,x,x1(i),j,derv)
         enddo
@@ -83,20 +84,21 @@ c     Begin program
           call locatep (x,nx,x1(i),j)
           if (j == 0) then
             j = 1 !Extrapolation on the left
-          elseif (j == nx) then
-            j = nx !Extrapolation on the right
+cc          elseif (j == nx) then
+cc            j = nx !Extrapolation on the right
           endif
           vec1(i) = q_int (nx,vec,x,x1(i),j,derv)
         enddo
         
       case (3) !Cubic splines
 
+        nwk = 2*nx
+        allocate(wk(nwk),f(incfd,nx),d(incfd,nx),dummy(nv))
+
         ic(1) = 0  !Default boundary condition on left
         ic(2) = 0  !Default boundary condition of right
         f(incfd,:) = vec(:)
-        nwk = 2*nx
 
-        allocate(wk(nwk))
         call dpchsp(ic,vc,nx,x,f,d,incfd,wk,nwk,ierr)
 
         if (ierr.ne.0) then
@@ -125,7 +127,7 @@ c$$$          write (*,*) 'Warning: extrapolation in cubic spline in'
 c$$$     .                ,ierr,' points'
         endif
 
-        deallocate(wk)
+        deallocate(wk,f,d,dummy)
 
       case default
 
