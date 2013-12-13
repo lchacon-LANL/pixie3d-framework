@@ -497,19 +497,10 @@ c     Begin program
            call pstop('openRestartFileForRead'
      $            ,'# Aux. scl. variables do not agree; cannot restart')
         endif
-  
-cc        if (PRESENT(lneq)) lneq = 3*NDEPV + NDEPS
 
       else  !COMPATIBILITY MODE
 
         rewind(urecord)
-c$$$        close (urecord)
-c$$$
-c$$$        if (PRESENT(lneq)) then
-c$$$          call probe_recordfile_nvar(trim(rfile),lneq)
-c$$$        endif
-c$$$
-c$$$        call openPOSIXBinFile(urecord,trim(rfile),status='old')
 
       endif
 
@@ -1047,6 +1038,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer :: base_unit,ilg,ihg,jlg,jhg,klg,khg
+     .          ,ndepvl,ndepsl,nauxvl,nauxsl
       character(*),INTENT(IN) :: base_fname
       integer,pointer,dimension(:) :: munit
 
@@ -1087,6 +1079,9 @@ c     Read init info
      .        ,klg_(nf),khg_(nf))
 
       do ifl=1,nf
+        read (munit(ifl),iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
+        if (ierr /= 0) rewind(munit(ifl))
+
         read (munit(ifl)) nx(ifl),ilg_(ifl),ihg_(ifl)
         read (munit(ifl)) ny(ifl),jlg_(ifl),jhg_(ifl)
         read (munit(ifl)) nz(ifl),klg_(ifl),khg_(ifl)
@@ -1143,6 +1138,13 @@ c     Consistency check
         if (    (nxd /= maxval(ihg_)-minval(ilg_)+1)
      .      .or.(nyd /= maxval(jhg_)-minval(jlg_)+1)
      .      .or.(nzd /= maxval(khg_)-minval(klg_)+1) ) then
+cc          write (*,*) ihg_
+cc          write (*,*) jhg_
+cc          write (*,*) khg_
+cc
+cc          write (*,*) maxval(ihg_)-minval(ilg_)+1
+cc     .               ,maxval(jhg_)-minval(jlg_)+1
+cc     .               ,maxval(khg_)-minval(klg_)+1
           call pstop('openRecordFiles','Grid size does not agree')
         endif
 
