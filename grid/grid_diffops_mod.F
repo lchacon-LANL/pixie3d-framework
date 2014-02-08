@@ -6359,8 +6359,6 @@ cc      enddo
 
 c     End program
 
-      contains
-
       end subroutine par_flux_2nd
 
 ccc     iso_flux_2nd
