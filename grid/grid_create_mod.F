@@ -161,6 +161,8 @@ c     Find adequate number of grid levels (for MG)
           if (npx == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in X')
 
+          if (npx > nxg) call pstop('initGridSt','Too many procs in X')
+
           nxx = nxg/npx
           ngrdx = MG_levels(nxx,mg_ratio)
         else
@@ -171,6 +173,8 @@ c     Find adequate number of grid levels (for MG)
           if (npy == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in Y')
 
+          if (npy > nyg) call pstop('initGridSt','Too many procs in Y')
+
           nyy = nyg/npy
           ngrdy = MG_levels(nyy,mg_ratio)
         else
@@ -180,6 +184,8 @@ c     Find adequate number of grid levels (for MG)
         if (cz) then
           if (npz == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in Z')
+
+          if (npz > nzg) call pstop('initGridSt','Too many procs in Z')
 
           nzz = nzg/npz
           ngrdz = MG_levels(nzz,mg_ratio)

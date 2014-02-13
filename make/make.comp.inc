@@ -74,7 +74,7 @@ endif
 ifeq ($(FC),gfortran)
   OPTIMIZATION ?= -O3 #-march=native
   DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv
-  PROFILE      = -pg
+  PROFILE      = -pg -g
   STATIC       = -fno-automatic
   MODFLAG      = -I
   ADDMODFLAG   = -I

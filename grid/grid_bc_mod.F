@@ -518,42 +518,32 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-      integer   ,intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
-      integer   ,intent(OUT):: imn,imx,jmn,jmx,kmn,kmx
+      integer,intent(IN)  :: dim,loc,i1,i2,j1,j2,k1,k2
+      integer,intent(OUT) :: imn,imx,jmn,jmx,kmn,kmx
 
 c     Begin program
+
+      imn = i1 - grid_params%ilo(igxbc) + 1
+      imx = i2 - grid_params%ilo(igxbc) + 1
+
+      jmn = j1 - grid_params%jlo(igybc) + 1
+      jmx = j2 - grid_params%jlo(igybc) + 1
+
+      kmn = k1 - grid_params%klo(igzbc) + 1
+      kmx = k2 - grid_params%klo(igzbc) + 1
 
       select case(dim)
       case (1)
 
-        call selectLimits(i1,i2,grid_params%ilo(igxbc)
-     .                   ,nxbc,grid_params%nxgl(igxbc),imn,imx)
-
-        jmn = j1 - grid_params%jlo(igybc) + 1
-        jmx = j2 - grid_params%jlo(igybc) + 1
-
-        kmn = k1 - grid_params%klo(igzbc) + 1
-        kmx = k2 - grid_params%klo(igzbc) + 1
+        call selectLimits(loc,nxbc,imn,imx)
 
       case(2)
-        imn = i1 - grid_params%ilo(igxbc) + 1
-        imx = i2 - grid_params%ilo(igxbc) + 1
 
-        call selectLimits(j1,j2,grid_params%jlo(igybc)
-     .                   ,nybc,grid_params%nygl(igybc),jmn,jmx)
-
-        kmn = k1 - grid_params%klo(igzbc) + 1
-        kmx = k2 - grid_params%klo(igzbc) + 1
+        call selectLimits(loc,nybc,jmn,jmx)
 
       case(3)
-        imn = i1 - grid_params%ilo(igxbc) + 1
-        imx = i2 - grid_params%ilo(igxbc) + 1
 
-        jmn = j1 - grid_params%jlo(igybc) + 1
-        jmx = j2 - grid_params%jlo(igybc) + 1
-
-        call selectLimits(k1,k2,grid_params%klo(igzbc)
-     .                   ,nzbc,grid_params%nzgl(igzbc),kmn,kmx)
+        call selectLimits(loc,nzbc,kmn,kmx)
 
       end select
 
@@ -563,28 +553,26 @@ c     End program
 
 c     selectLimits
 c     #####################################################################
-      subroutine selectLimits(igl,igr,igmin,nxl,nxg,ill,ilr)
+      subroutine selectLimits(loc,nl,ill,ilr)
 
 c     ---------------------------------------------------------------------
 c     Selects LOCAL limits for BC treatment at boundary location determined
-c     by (dim,loc).
+c     by loc.
 c     ---------------------------------------------------------------------
 
         implicit none
 
-        integer    :: igl,igr,igmin,nxl,nxg,ill,ilr
+        integer :: loc,nl,ill,ilr
 
 c     Begin program
 
         select case(loc)
         case(0)
-          ill = min(igl - igmin + 1,1)
-cc          ill = max(igl - igmin + 1,1)
+          ill = min(ill,1)
           ilr = ill
         case(1)
-cc          ill = min(igr - igmin + 1,nxl)
-          ill = max(igr - igmin + 1,nxl)
-          ilr = ill
+          ilr = max(ilr,nl)
+          ill = ilr
         end select
 
       end subroutine selectLimits
@@ -1329,10 +1317,11 @@ c     End program
 
 c     synchronize
 c     #################################################################
-      subroutine synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv,dim,loc)
+      subroutine synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv,dim
+     $                          ,loc,log_bcs)
 c     -----------------------------------------------------------------
-c     Finds all contravariant components at boundaries with BC in terms
-c     of covariant components.
+c     Finds all vector components at either physical (log_bcs=.false,
+c     default) or logical (log_bcs=.true.) boundaries.
 c
 c     On input, tangential covariant components and normal contravariant
 c     components are known at ghost cells. On output, all contravariant
@@ -1347,7 +1336,7 @@ c     Call variables
       real(8)    :: v_cnv(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
      .             ,v_cov(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
       logical    :: cov_to_cnv(6,3)
-      integer,optional :: dim,loc
+      integer,optional :: dim,loc,log_bcs
 
 c     Local variables
 
@@ -1378,6 +1367,8 @@ c     Begin program
         do il = ll,hl
           ibc = (1+il)+2*(id-1)
 
+          if (.not.selectFace(ibc)) cycle !Do nothing for logical boundaries
+
           !Do NOT change: SAMRAI depends on it
           call findBCLoopLimits(id,il,iimin-1,iimax+1
      .                               ,jjmin-1,jjmax+1
@@ -1404,6 +1395,8 @@ c     Begin program
 
           else   !Synchronize (assumes normal component is contravariant)
 
+cc            if (.not.selectFace(ibc)) cycle !Do nothing for logical boundaries
+
             do ivar = 1,ncomp
 
               if (ivar == id) then !Do nothing for normal component
@@ -1412,7 +1405,7 @@ c     Begin program
 
               else
 
-                if (.not.selectFace(ibc)) cycle
+cc                if (.not.selectFace(ibc)) cycle
 
                 ic1 = mod(id+1,3)
                 if (ic1 == 0) ic1 = 3
@@ -1453,7 +1446,7 @@ c     Begin program
 
                         v_cnv(i,j,k,ic2) =
      .                       -(gsub(ic2,ic1)*v_cnv(i,j,k,ic1)
-     .                        +gsub(ic2,id)*v_cnv(i,j,k,id)
+     .                        +gsub(ic2,id )*v_cnv(i,j,k,id)
      .                        -v_cov(i,j,k,ic2))/gsub(ic2,ic2)
 
                         call transformFromCurvToCurv(i,j,k
@@ -1476,7 +1469,7 @@ c     Begin program
 
                         v_cnv(i,j,k,ic1) =
      .                       -(gsub(ic1,ic2)*v_cnv(i,j,k,ic2)
-     .                        +gsub(ic1,id)*v_cnv(i,j,k,id)
+     .                        +gsub(ic1,id )*v_cnv(i,j,k,id)
      .                        -v_cov(i,j,k,ic1))/gsub(ic1,ic1)
 
                         call transformFromCurvToCurv(i,j,k
@@ -3031,7 +3024,7 @@ c     Local variables
 
 c     Extrapolation
 
-      real(8),allocatable,dimension(:) :: xx,yy,zz
+      real(8),dimension(10) :: xx,yy,zz
 
 c     Begin program
 
@@ -3045,23 +3038,9 @@ c     Initialize variables
 
 c     Do nothing for SP boundary faces, edges, and corners
 
-cc      if (.not.face
-cc     .    .and.(bcSP(ibc=ibcl(1),bcnd=bcnd)
-cc     .      .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
-cc     .      .or.bcSP(ibc=ibcl(3),bcnd=bcnd))) return
       if (   (bcSP(ibc=ibcl(1),bcnd=bcnd)
      .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
      .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))) return
-
-c     Do nothing for SYM (not FSYM!!) boundary faces, edges, and corners
-
-cc      if (.not.face
-cc     .    .and.(bcSYM(ibc=ibcl(1),bcnd=bcnd)
-cc     .      .or.bcSYM(ibc=ibcl(2),bcnd=bcnd)
-cc     .      .or.bcSYM(ibc=ibcl(3),bcnd=bcnd))) return
-cc      if (   (bcSYM(ibc=ibcl(1),bcnd=bcnd)
-cc     .    .or.bcSYM(ibc=ibcl(2),bcnd=bcnd)
-cc     .    .or.bcSYM(ibc=ibcl(3),bcnd=bcnd))) return
 
 c     Identify directions for extrapolation.
 
@@ -3077,52 +3056,49 @@ c     Identify directions for extrapolation.
 
       !Smoothness (curvature) indicator
       curv = 1d10
-cc      if (order >= 2) then
+
       if (order >= 1) then
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
 
-cc        if (order_int(1) == order) then
         if (inx > 2) then
           if (ito == imn) then
             dx = grid_params%dx(ig+2)
             curv(1) = (  array(ito+1,jto,kto)
      $                -2*array(ito+2,jto,kto)
-     $                  +array(ito+3,jto,kto))/dx**2
+     $                  +array(ito+3,jto,kto))*dx**(-2)
           else
             dx = grid_params%dx(ig-2)
             curv(1) = (  array(ito-1,jto,kto)
      $                -2*array(ito-2,jto,kto)
-     $                  +array(ito-3,jto,kto))/dx**2
+     $                  +array(ito-3,jto,kto))*dx**(-2)
           endif
         endif
 
-cc        if (order_int(2) == order) then
         if (iny > 2) then
           if (jto == jmn) then
             dy = grid_params%dy(jg+2)
             curv(2) = (  array(ito,jto+1,kto)
      $                -2*array(ito,jto+2,kto)
-     $                  +array(ito,jto+3,kto))/dy**2
+     $                  +array(ito,jto+3,kto))*dy**(-2)
           else                                              
             dy = grid_params%dy(jg-2)
             curv(2) = (  array(ito,jto-1,kto)
      $                -2*array(ito,jto-2,kto)
-     $                  +array(ito,jto-3,kto))/dy**2
+     $                  +array(ito,jto-3,kto))*dy**(-2)
           endif
         endif
 
-cc        if (order_int(3) == order) then
         if (inz > 2) then
           if (kto == kmn) then
             dz = grid_params%dz(kg+2)
             curv(3) = (  array(ito,jto,kto+1)
      $                -2*array(ito,jto,kto+2)
-     $                  +array(ito,jto,kto+3))/dz**2
+     $                  +array(ito,jto,kto+3))*dz**(-2)
           else                                                  
             dz = grid_params%dz(kg-2)
             curv(3) = (  array(ito,jto,kto-1)
      $                -2*array(ito,jto,kto-2)
-     $                  +array(ito,jto,kto-3))/dz**2
+     $                  +array(ito,jto,kto-3))*dz**(-2)
           endif
         endif
 
@@ -3215,16 +3191,14 @@ c     X extrapolation
 
       if (flg(1)) then
 
-        allocate(xx(inx))
-
         if (ito == imn) then
           call getMGmap(imn+1,jmn,kmn,igxbc,igybc,igzbc,ig,jg,kg)
-          xx = grid_params%xx(ig:ig+inx-1)
+          xx(1:inx) = grid_params%xx(ig:ig+inx-1)
           imni = imn+1
           imxi = imx
         else
           call getMGmap(imx-1,jmn,kmn,igxbc,igybc,igzbc,ig,jg,kg)
-          xx = grid_params%xx(ig-(inx-1):ig)
+          xx(1:inx) = grid_params%xx(ig-(inx-1):ig)
           imni = imn
           imxi = imx-1
         endif
@@ -3232,28 +3206,25 @@ c     X extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         xto = grid_params%xx(ig)
 
-        call IntDriver1d(inx,xx,array(imni:imxi,jto,kto)
+        call IntDriver1d(inx,xx(1:inx),array(imni:imxi,jto,kto)
      .                  ,1,xto,valx,order_int(1))
 
         num = num + 1
 
-        deallocate(xx)
       endif
 
 c     Y extrapolation
 
       if (flg(2)) then
 
-        allocate(yy(iny))
-
         if (jto == jmn) then
           call getMGmap(imn,jmn+1,kmn,igxbc,igybc,igzbc,ig,jg,kg)
-          yy = grid_params%yy(jg:jg+iny-1)
+          yy(1:iny) = grid_params%yy(jg:jg+iny-1)
           jmni = jmn+1
           jmxi = jmx
         else
           call getMGmap(imn,jmx-1,kmn,igxbc,igybc,igzbc,ig,jg,kg)
-          yy = grid_params%yy(jg-(iny-1):jg)
+          yy(1:iny) = grid_params%yy(jg-(iny-1):jg)
           jmni = jmn
           jmxi = jmx-1
         endif
@@ -3261,12 +3232,10 @@ c     Y extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         yto = grid_params%yy(jg)
 
-        call IntDriver1d(iny,yy,array(ito,jmni:jmxi,kto)
+        call IntDriver1d(iny,yy(1:iny),array(ito,jmni:jmxi,kto)
      .                  ,1,yto,valy,order_int(2))
 
         num = num + 1
-
-        deallocate(yy)
 
       endif
 
@@ -3274,16 +3243,14 @@ c     Z extrapolation
 
       if (flg(3)) then
 
-        allocate(zz(inz))
-
         if (kto == kmn) then
           call getMGmap(imn,jmn,kmn+1,igxbc,igybc,igzbc,ig,jg,kg)
-          zz = grid_params%zz(kg:kg+inz-1)
+          zz(1:inz) = grid_params%zz(kg:kg+inz-1)
           kmni = kmn+1
           kmxi = kmx
         else
           call getMGmap(imn,jmn,kmx-1,igxbc,igybc,igzbc,ig,jg,kg)
-          zz = grid_params%zz(kg-(inz-1):kg)
+          zz(1:inz) = grid_params%zz(kg-(inz-1):kg)
           kmni = kmn
           kmxi = kmx-1
         endif
@@ -3291,12 +3258,11 @@ c     Z extrapolation
         call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
         zto = grid_params%zz(kg)
 
-        call IntDriver1d(inz,zz,array(ito,jto,kmni:kmxi)
+        call IntDriver1d(inz,zz(1:inz),array(ito,jto,kmni:kmxi)
      .                  ,1,zto,valz,order_int(3))
 
         num = num + 1
 
-        deallocate(zz)
       endif
 
 c     Average extrapolation results and fill ghost cell

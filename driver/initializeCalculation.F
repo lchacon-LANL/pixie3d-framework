@@ -113,7 +113,7 @@ c Create nonlinear solver
 
 c Create nonlinear function
 
-      call createNonlinearFunction    !External
+      call createNLF    !External
 
 c Initialize MK variables
 
@@ -235,7 +235,7 @@ c Perturb equilibrium
 
 c Impose BC (to initialize all auxiliary variables)
 
-      call applyBC(igrid,u_np,it=1)
+      call applyBC(igrid,u_np,gv%aux,it=1)
 
 #if defined(MK)
       if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
@@ -296,7 +296,7 @@ c Begin program
 
 c Impose BCs (to initialize all auxiliary variables)
 
-      call applyBC(igrid,u_np,it=itime)
+      call applyBC(igrid,u_np,gv%aux,it=itime)
 
 #if defined(MK)
       if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
@@ -455,7 +455,7 @@ c Open record file
         ! do nothing at EQU boundaries, to preserve EQU BCs)
         call equateDerivedType(u_graph,u_0)
 
-        call applyBC(igrid,u_graph,it=1)
+        call applyBC(igrid,u_graph,gv%aux,it=1)
 
 #if defined(MK)
         if (mk_grid)call MK_applyBC(igrid,u_graph%array_var(neqd)%array)

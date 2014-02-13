@@ -2209,21 +2209,27 @@ c     Call variables
 c     Local variables
 
         integer    :: l,m
-        real(8)    :: cnv(3)
+        real(8)    :: cnv(3),dum(3)
 
 c     Begin program
 
         cnv = (/ ax(i,j,k),ay(i,j,k),az(i,j,k) /)
 
+        dum = gmetric%grid(igrid)%Gamma(i,j,k,1,1,:)
+     .       +gmetric%grid(igrid)%Gamma(i,j,k,2,2,:)
+     .       +gmetric%grid(igrid)%Gamma(i,j,k,3,3,:)
+
         do l=1,3
           do m=1,3
             tensor(l,m) =
-     .           cnv(1)* gmetric%grid(igrid)%Gamma(i,j,k,m,1,l)
-     .          +cnv(2)* gmetric%grid(igrid)%Gamma(i,j,k,m,2,l)
-     .          +cnv(3)* gmetric%grid(igrid)%Gamma(i,j,k,m,3,l)
-     .          -cnv(m)*(gmetric%grid(igrid)%Gamma(i,j,k,1,1,l)
-     .                  +gmetric%grid(igrid)%Gamma(i,j,k,2,2,l)
-     .                  +gmetric%grid(igrid)%Gamma(i,j,k,3,3,l))
+     .           dot_product(cnv,gmetric%grid(igrid)%Gamma(i,j,k,m,:,l))
+     .          -cnv(m)*dum(l)
+cc     .           cnv(1)* gmetric%grid(igrid)%Gamma(i,j,k,m,1,l)
+cc     .          +cnv(2)* gmetric%grid(igrid)%Gamma(i,j,k,m,2,l)
+cc     .          +cnv(3)* gmetric%grid(igrid)%Gamma(i,j,k,m,3,l)
+cc     .          -cnv(m)*(gmetric%grid(igrid)%Gamma(i,j,k,1,1,l)
+cc     .                  +gmetric%grid(igrid)%Gamma(i,j,k,2,2,l)
+cc     .                  +gmetric%grid(igrid)%Gamma(i,j,k,3,3,l))
           enddo
         enddo
 
@@ -6352,8 +6358,6 @@ cc      enddo
       endif
 
 c     End program
-
-      contains
 
       end subroutine par_flux_2nd
 

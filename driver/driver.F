@@ -388,7 +388,7 @@ c Free memory
 
       call destroyTS
 
-      call destroyNonlinearFunction   !External
+      call destroyNLF   !External
 
 #if defined(MK)
       if (mk_grid) call MK_dealloc
