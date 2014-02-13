@@ -141,6 +141,15 @@ c     Call variables
 
       real(8) :: x(ntot)
 
+      optional :: matvec
+
+      INTERFACE
+        subroutine matvec(nn,z,y)
+        integer    :: nn
+        real(8)    :: z(nn),y(nn)
+        end subroutine matvec
+      END INTERFACE
+
 c     Local variables
 
       integer :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
@@ -152,15 +161,6 @@ c     Local variables
       real(8) :: f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
 
       logical :: convergence,failure
-
-      optional :: matvec
-
-      INTERFACE
-        subroutine matvec(nn,z,y)
-        integer    :: nn
-        real(8)    :: z(nn),y(nn)
-        end subroutine matvec
-      END INTERFACE
 
 c     Begin program
 
@@ -206,7 +206,15 @@ c     Initialize variables
       ierr     = 0
       itk      = 0
 
-      if (out.ge.1 .and. prnt) write (*,200)
+#if defined(FPA)
+      if (.not.(nk_conf%fpa)) then
+#endif
+         if (out.ge.1 .and. prnt) write (*,200)
+#if defined(FPA)
+      else
+         if (out.ge.1 .and. prnt) write (*,205)
+      endif
+#endif
 
       if (global == 2) then   !Activate pseudo-transient
         pseudo_dt = .true.
@@ -230,10 +238,8 @@ cc        pdt0      = 1d30
 
 c     Evaluate rhs and norms
 
-cc      allocate (xx0(ntot),xk(ntot),rk(ntot))
       allocate (nk_conf%xk(ntot),nk_conf%rk(ntot))
 
-cc      xx0 = x    !Save initial guess
       nk_conf%xk = x    !Save previous Newton state
 
       call evaluateNewtonResidual(ntot,x,nk_conf%rk)
@@ -250,8 +256,18 @@ cc        deallocate(xx0)
 
 c     Initial output
 
-      if (out.ge.1 .and. prnt)
-     $     write (*,210) 0,0d0,f0,1d0,1d0,pdt0,eta0,0
+#if defined(FPA)
+        if (.not.(nk_conf%fpa)) then
+#endif
+           if (out.ge.1 .and. prnt)
+     $       write (*,210) 0,0d0,f0,1d0,1d0,pdt0,eta0,0
+#if defined(FPA)
+        else
+           if (out.ge.1 .and. prnt)
+     $       write (*,215) 0,0d0,f0,1d0,1d0,pdt0
+        endif
+#endif
+
 
       if (out.ge.3) then
         call calculateResidualNorms(neq,ntot,-nk_conf%rk,residuals)
@@ -279,7 +295,13 @@ c     Start Newton iteration
 
 c     Determine inexact Newton constant
 
-        call find_etak(fk,fkm,flimit,eta0,etak,etakm,etak_meth)
+#if defined(FPA)
+        if (.not.(nk_conf%fpa)) then
+#endif
+           call find_etak(fk,fkm,flimit,eta0,etak,etakm,etak_meth)
+#if defined(FPA)
+        endif
+#endif
 
 c     Setup preconditioner
 
@@ -334,6 +356,7 @@ c     Check for error in GMRES
             ierr = 0
             exit !Do not continue Newton iteration
           endif
+
 #if defined(FPA)
         endif
 #endif
@@ -359,8 +382,17 @@ c     Check Newton convergence/failure
 
         check = fkp/f0
 
-        if (out.ge.1 .and. prnt)
+#if defined(FPA)
+        if (.not.(nk_conf%fpa)) then
+#endif
+           if (out.ge.1 .and. prnt)
      $       write(*,210)jit,dxnorm,fkp,check,damp,pdt,etak,itk
+#if defined(FPA)
+        else
+           if (out.ge.1 .and. prnt)
+     $       write(*,215)jit,dxnorm,fkp,check,damp,pdt
+        endif
+#endif
 
         if (out.ge.3) then
           call calculateResidualNorms(neq,ntot,-nk_conf%rk,residuals)
@@ -426,7 +458,11 @@ cc      deallocate (xx0)
  200  format 
      .   (/,' New_it   Av_updt    Abs_res   Rel_res     Damping'
      .     ,'      pdt_n      eta_k     GMRES')
+ 205  format 
+     .   (/,' FPA_it   Av_updt    Abs_res   Rel_res     Damping'
+     .     ,'      pdt_n')
  210  format (i4,3x,1p,6e11.3,3x,i4)
+ 215  format (i4,3x,1p,5e11.3)
  220  format ('    Max newton its. exceeded; rel. residual: ',1p,1e10.2)
  230  format ('    Relative residual =',f7.2,' >',f7.2)
  240  format ('    Newton converged in too many iterations (>',i2,')')
