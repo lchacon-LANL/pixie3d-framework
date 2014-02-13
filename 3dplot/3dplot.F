@@ -162,7 +162,7 @@ c     Check for tmax
 
 cc        if ((tmax > 0d0 .and. time.ge.tmax*0.99999)
 cc     .      .or. (tmax < 0d0 .and. itime == numtime))  exit
-        if ((tmax > 0d0 .and. time.ge.tmax*0.99999))  exit
+        if ((tmax > 0d0 .and. time.ge.tmax))  exit
 
       enddo       !End of time loop
 
