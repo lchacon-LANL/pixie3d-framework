@@ -12,6 +12,17 @@ CONTRIBLIBS += -L$(COMMONDIR)/contrib/lsode -llsode
 CONTRIBLIBS += -L$(COMMONDIR)/contrib/slatec/lib -lslatec
 MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/slatec/lib
 
+# FPA setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/fpa/lib -lfpa
+#CPPFLAGS    += $(PREPROC)FPA
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
+
+# SDC setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/sdc/lib -lsdc
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/sdc/lib
+
 # ADIOS setup
 
 ifeq ($(ADIOS),t)
@@ -34,19 +45,6 @@ ifeq ($(ARPACK),t)
   CONTRIBLIBS += $(ARPACK_LIBS)
   CPPFLAGS    += $(PREPROC)arpack
 endif
-
-# FPA setup
-
-ifeq ($(FPA),t)
-  CONTRIBLIBS += -L$(COMMONDIR)/contrib/fpa/lib -lfpa
-  CPPFLAGS    += $(PREPROC)FPA
-  MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
-endif
-
-# SDC setup
-
-CONTRIBLIBS += -L$(COMMONDIR)/contrib/sdc/lib -lsdc
-MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/sdc/lib
 
 # PETSC setup
 

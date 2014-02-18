@@ -112,9 +112,7 @@ ifdef BOPT
 	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack plib
 endif
 endif
-ifeq ($(FPA),t)
 	$(MAKE) --no-print-directory -e -C contrib/fpa/src lib
-endif
 	$(MAKE) --no-print-directory -e -C contrib/sdc/src lib
 ifeq ($(PIT),t)
 	$(MAKE) --no-print-directory -e -C contrib/parareal all	
