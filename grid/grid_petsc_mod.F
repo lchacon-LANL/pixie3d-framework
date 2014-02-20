@@ -46,6 +46,46 @@ c     -----------------------------------------------------------------
 
       contains
 
+c     initBCs
+c     #################################################################
+      function initBCs(bcs) result(ierr)
+
+c     -----------------------------------------------------------------
+c     Initializes BCs according to character codes in bcs variable
+c     On error, it returns ierr =/ 0. Otherwise, ierr == 0.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: ierr
+        character*(3) :: bcs(6)
+
+c     Local variables
+
+c     Begin program
+
+        ierr = 0
+
+        bcond = -1
+
+        where (bcs == 'def')
+          bcond = DEF
+        elsewhere (bcs == 'per')
+          bcond = PER
+        elsewhere (bcs == 'spt')
+          bcond = SP
+        elsewhere (bcs == 'sym')
+          bcond = SYM
+        elsewhere (bcs == 'equ')
+          bcond = EQU
+        end where
+
+        if (minval(bcond) < 0) ierr = 1
+
+      end function initBCs
+
 c     bcSP
 c     #################################################################
       function bcSP(ibc,bcnd) result(sing_bc)
