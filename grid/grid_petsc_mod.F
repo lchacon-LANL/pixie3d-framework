@@ -78,6 +78,8 @@ c     Begin program
           bcond = SP
         elsewhere (bcs == 'sym')
           bcond = SYM
+        elsewhere (bcs == 'fsm')
+          bcond = FSYM
         elsewhere (bcs == 'equ')
           bcond = EQU
         end where
