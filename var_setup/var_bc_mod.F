@@ -554,6 +554,7 @@ c                       We only need to fill the interior domain
             endif
          enddo
       enddo
+
 c     Remove self-dependencies (this can create issues when we do the sorting)
       do i = 1,N
          tot_dep(i,i) = 0
@@ -604,6 +605,14 @@ c LC 1/25/11, small bug:            if ( used(i)==2 ) then
                call print_var_name(u,aux,i)
             endif
          enddo
+         write (*,*) 'Variables that are used but have no deps: '
+         do i = SUM(n_var(1:2)),N
+            if (  MAXVAL(tot_dep(i,:))==0 .AND. used(i)>0 .AND. 
+     &        bc_dep(i,i)==0 .AND. tot_dep(i,i)==0 ) then
+               call print_var_name(u,aux,i)
+            endif
+         enddo
+
          deallocate ( tmp1 )
       endif
 
