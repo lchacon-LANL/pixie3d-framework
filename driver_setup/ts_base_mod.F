@@ -45,7 +45,7 @@ c     Evaluate nonlinear function at old time for theta scheme
       old_time_eval = .true.     !This informs nlfunction that we are processing
                                  !  n time level info
 
-      if (.not.bdf2) call evaluateNonlinearFunction(nn,x,fold)
+      if (.not.(bdf2.or.bdf1)) call evaluateNonlinearFunction(nn,x,fold)
 
       old_time_eval = .false.
 
@@ -434,8 +434,6 @@ c     Begin program
         call calculate_cnfactor
       endif
 
-      alpha = 1d0 - cnfactor
-
 c     End program
 
       contains
@@ -544,7 +542,13 @@ c     #######################################################################
           cnm = 0d0
         endif
 
+      else  !Theta scheme
+
+        bdf1 = (cnfactor == 0d0)
+
       endif
+
+      alpha = 1d0 - cnfactor
 
       end subroutine calculate_cnfactor
 

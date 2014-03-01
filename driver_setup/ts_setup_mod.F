@@ -35,6 +35,7 @@ c ######################################################################
      .               ,source_eval=.false.
      .               ,old_time_eval=.false.
      .               ,bdf2=.false.
+     .               ,bdf1=.false.
      .               ,eigen=.false.
      .               ,relax_init_grid=.false.
 
