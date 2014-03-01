@@ -26,8 +26,6 @@ c######################################################################
 
         integer, parameter :: BOX=1,STAR=2
 
-        logical :: vbr_mg,galerkin=.false.,prnt=.true.,volf=.false.
-
       contains
 
 c     getMGvcomp
@@ -1657,7 +1655,12 @@ c     module mg_solver
 c     ##################################################################
       module mg_solver
 
+        use mg_io, ONLY: MGplot
         use mg_Xfer
+
+        logical :: vbr_mg
+     .            ,galerkin=.false.
+     .            ,volf=.false.
 
       contains
 
@@ -1917,7 +1920,7 @@ c     Local variables
 
 c     Begin program
 
-        volf = vol_wgt          !Initialize volume-weighing variable
+cluis        volf = vol_wgt          !Initialize volume-weighing variable
 
 c     Process optional arguments
 
@@ -2187,6 +2190,7 @@ c       MG solver options
         solverOptions%orderprol= iorder_prol
         solverOptions%mg_mu    = mu_cyc
         solverOptions%mg_galerkin = glkin
+        solverOptions%vol_res  = vol_wgt
 
         if (PRESENT(mg_debug)) solverOptions%mg_debug = mg_debug
 
@@ -2327,6 +2331,811 @@ c     End program
 
       end subroutine cSolver
 
+c     MGmatvec
+c     ###############################################################
+      subroutine MGmatvec(gposc,neq,ntotc,x,y,igc,bcnd,matvec)
+c     ---------------------------------------------------------------
+c     This subroutine calculates the matrix vector product defined
+c     symbolically in matvec, in two ways:
+c       * Rediscretizing (i.e., using matvec straight)
+c       * Galerkin (preprocessing w/ prolongation, and postprocessing
+c                   w/ restriction).
+c
+c     In call:
+c      * gposc: vector index of position on the numerical grid:
+c            + If gposc = i + nx*(j-1) + ny*nx*(k-1), then only 
+c              surrounding stencil is filled (9-pt stencil in 2D
+c              , 27-pt stencil in 3D).
+c            + If gposc = 0, all the grid is considered.
+c            + If gposc < 0, all grid is mapped, but operations are 
+c              restricted to stencil of abs(gposc) (useful for
+c              matrix-light GS)
+c      * neq: number of coupled equations
+c      * ntotc: total number of unknowns: neq*nx*ny*nz
+c      * x(ntotc): input vector
+c      * y(ntotc): output vector
+c      * igc: grid level
+c      * bcnd: boundary conditions on x vector.
+c      * matvec: external with symbolic matrix-vector code.
+c      * volw: whether residuals are volume weighed
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c Call variables
+
+      integer :: neq,ntotc,igc,gposc,bcnd(6,neq)
+      real(8) :: x(ntotc),y(ntotc),minv,idx,idy,idz,
+     .           idxcnv,idycnv,idzcnv,vxx,vyy,vzz
+
+      external   matvec
+
+c Local variables
+
+      integer :: nxf,nyf,nzf,ntotf,igf,gposf,if,jf,kf
+     .          ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf
+      integer :: nxc,nyc,nzc,isigc,ic,jc,kc
+     .          ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc
+      integer :: mgrx,mgry,mgrz,ig
+      real(8),allocatable,dimension(:) :: MGx,MGy
+
+      logical :: fpointers
+
+c Begin program
+
+      call allocPointers(neq,fpointers)
+
+      if (igc > 1 .and. galerkin) then
+
+        isigc  = istart(igc)
+
+cc        nxc = mg_ctx_temp%nxv(igc)
+cc        nyc = mg_ctx_temp%nyv(igc)
+cc        nzc = mg_ctx_temp%nzv(igc)
+        nxc = grid_params%nxv(igc)
+        nyc = grid_params%nyv(igc)
+        nzc = grid_params%nzv(igc)
+
+c     Allocate MG vector
+
+        igf = 1
+
+cc        nxf = mg_ctx_temp%nxv(igf)
+cc        nyf = mg_ctx_temp%nyv(igf)
+cc        nzf = mg_ctx_temp%nzv(igf)
+        nxf = grid_params%nxv(igf)
+        nyf = grid_params%nyv(igf)
+        nzf = grid_params%nzv(igf)
+
+        ntotf = neq*nxf*nyf*nzf
+
+        allocate(MGx(2*ntotf),MGy(2*ntotf))
+
+c     Prolong vector to finest grid
+
+        MGx(isigc:isigc+ntotc-1) = x
+
+        call prolongMGVector(neq,MGx,igc,igf,0,bcnd)
+
+c     Perform matvec in finest grid
+
+        if (gposc == 0) then
+
+          call matvec(0,neq,ntotf,MGx(1:ntotf),MGy(1:ntotf),igf,bcnd)
+
+        else
+
+          !Find coarse cell position (ic,jc,jc)
+          call limits(gposc,nxc,nyc,nzc,igc
+     .               ,ic,imaxc,jc,jmaxc,kc,kmaxc)
+
+          !Define finest grid stencil
+          mgrx = product(mg_ratio_x(igf:igc-1))
+          mgry = product(mg_ratio_y(igf:igc-1))
+          mgrz = product(mg_ratio_z(igf:igc-1))
+
+          iminf = mgrx*(ic-1)+1
+          imaxf = mgrx* ic
+
+          jminf = mgry*(jc-1)+1
+          jmaxf = mgry* jc
+
+          kminf = mgrz*(kc-1)+1
+          kmaxf = mgrz* kc
+
+cc          write (*,*) 'DIAG -- MGmatvec',igf,igc,mgrx,mgry,mgrz
+cc          write (*,*) 'DIAG -- MGmatvec',ic,jc,kc
+cc          write (*,*) 'DIAG -- MGmatvec',iminf,imaxf,jminf,jmaxf
+cc     .                                  ,kminf,kmaxf
+cc          write (*,*)
+
+          !Perform matvec on fine grid stencil
+          do kf = kminf,kmaxf
+            do jf = jminf,jmaxf
+              do if = iminf,imaxf
+                gposf = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+                call matvec(gposf,neq,ntotf,MGx(1:ntotf),MGy(1:ntotf)
+     .                     ,igf,bcnd)
+              enddo
+            enddo
+          enddo
+          
+        endif
+
+c     Restrict residual
+
+        call restrictMGVector(neq,MGy,igf,igc,0,volf)
+
+c     Map coarse grid residual
+
+        y = MGy(isigc:isigc+ntotc-1)
+
+c     Deallocate MG vectors
+
+        deallocate(MGx,MGy)
+
+      else
+
+        call matvec(gposc,neq,ntotc,x,y,igc,bcnd)
+
+      endif
+
+      call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine MGmatvec
+
+c     find_mf_diag_std
+c     ###############################################################
+      subroutine find_mf_diag_std(neq,ntot,matvec,igrid,bbcnd,diag1)
+c     ---------------------------------------------------------------
+c     Finds diagonal elements matrix-free using subroutine matvec
+c     for all grids, commencing with grid "igrid".
+c     ---------------------------------------------------------------
+
+      implicit none      !For safe fortran
+
+c     Call variables
+
+      integer    :: neq,ntot,bbcnd(6,neq),igrid
+
+      real(8)    :: diag1(neq,2*ntot)
+
+      external      matvec
+
+c     Local variables
+
+      real(8)    :: x1(ntot),dummy(ntot),mat(neq,neq),mat2(neq,neq)
+     $             ,idet
+      integer    :: ii,jj,nn,ig,iig,isig
+      integer    :: igr,ieq,alloc_stat
+      logical    :: fpointers
+
+c     Begin program
+
+c     Allocate MG pointers
+
+      call allocPointers(neq,fpointers)
+
+      if (fpointers) igmax=grid_params%ngrid  !Routine not called from JB,GS,MG
+
+c     Consistency check
+
+      nn  = ntotv(igrid)
+
+      if (nn /= ntot) then
+        call pstop('find_mf_diag_std'
+     .            ,'Error in input of find_mf_diag_stc')
+      endif
+
+c     Form diagonal
+
+      do igr = igrid,igmax
+
+c     Form diagonal terms for smoother
+
+        nn  = ntotv(igr)
+
+        isig = istart(igr)
+
+        x1(1:nn) = 0d0
+        dummy(1:nn) = 0d0
+
+c     Finds block diagonals for neq equations.
+
+        do ii = 1,ntotvp(igr)
+
+          jj  = (ii-1)*neq + isig - 1
+
+          do ieq = 1,neq
+
+c         Find column vector corresponding to grid node ii and equation ieq
+
+            x1(neq*(ii-1) + ieq) = 1d0
+
+            call MGmatvec(ii,neq,nn,x1,dummy,igr,bbcnd,matvec)
+
+            x1(neq*(ii-1) + ieq) = 0d0
+
+c         Fill diagonal
+
+            diag1(ieq,jj+1:jj+neq) = dummy((ii-1)*neq+1:ii*neq)
+
+          enddo
+
+        enddo
+
+c     Invert diagonal and store in diag1
+
+        select case (neq)
+        case (1)
+
+          do ii = 1,ntotvp(igr)
+            ig = ii + isig - 1
+            diag1(neq,ig) = 1d0/diag1(neq,ig)
+          enddo
+
+cc        case (2)
+cc
+cc          do ii = 1,ntotvp(igr)
+cc            iig = neq*(ii - 1) + isig - 1
+cc            idet = 1d0/(diag1(1,iig+1)*diag1(2,iig+2)
+cc     .                 -diag1(2,iig+1)*diag1(1,iig+2))
+cc            mat(1,1) = diag1(2,iig+2)*idet
+cc            mat(1,2) =-diag1(2,iig+1)*idet
+cc            mat(2,1) =-diag1(1,iig+2)*idet
+cc            mat(2,2) = diag1(1,iig+1)*idet
+cc
+cc            diag1(:,iig+1:iig+neq) = mat
+cc          enddo
+
+        case default
+
+          !Invert
+          do ii = 1,ntotvp(igr)
+            iig = neq*(ii - 1) + isig - 1
+            call blockInv(neq,diag1(:,iig+1:iig+neq))
+          enddo
+
+        end select
+
+      enddo
+
+c     Deallocate pointers
+
+      call deallocPointers(fpointers)
+
+c End program
+
+      end subroutine find_mf_diag_std
+
+c     find_mf_diag_colored
+c     ###############################################################
+      subroutine find_mf_diag_colored(neq,ntot,matvec,igrid,bbcnd,diag1
+     .                               ,ncolors)
+c     ---------------------------------------------------------------
+c     Finds diagonal elements matrix-free using subroutine matvec
+c     for all grids, commencing with grid "igrid". This routine
+c     employs a colored arrangement of the grid that allows one
+c     to find the diagonal using full-vector matvecs, instead of
+c     point-wise matvecs.
+c     ---------------------------------------------------------------
+
+      implicit none      !For safe fortran
+
+c     Call variables
+
+      integer    :: neq,ntot,bbcnd(6,neq),igrid,ncolors
+
+      real(8)    :: diag1(neq,2*ntot)
+
+      external      matvec
+
+c     Local variables
+
+      real(8)    :: x1(ntot),dummy(ntot),mat(neq,neq),mat2(neq,neq)
+     .             ,idet,coeff
+      integer    :: ii,jj,nn,ig,iig,isig,bbcnd2(6,neq)
+      integer    :: igr,ieq,alloc_stat
+      logical    :: fpointers
+
+      integer    :: i,j,k,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
+      integer    :: i1,j1,k1,i1min,i1max,j1min,j1max,k1min,k1max
+
+c     Begin program
+
+c     Allocate MG pointers
+
+      call allocPointers(neq,fpointers)
+
+      if (fpointers) igmax=grid_params%ngrid  !Routine not called from JB,GS,MG
+
+c     Consistency check
+
+      nn  = ntotv(igrid)
+
+      if (nn /= ntot) then
+        call pstop('find_mf_diag_colored'
+     .            ,'Error in input of find_mf_diag_colored')
+      endif
+
+c     Form diagonal
+
+      diag1 = 0d0
+
+      if (ncolors == 1) then
+
+        call find_mf_diag_std(neq,ntot,matvec,igrid,bbcnd,diag1)
+
+      else
+
+        do igr = igrid,igmax
+
+c       Form diagonal terms for smoother
+
+          nn  = ntotv(igr)
+
+          isig = istart(igr)
+
+          x1   (1:nn) = 0d0
+          dummy(1:nn) = 0d0
+
+          bbcnd2 = bbcnd
+          where (bbcnd == SP) bbcnd2 = DEF !Avoid SP bc's for forming diagonal (they're nonlocal)
+
+c       Finds block diagonals for neq equations.
+
+          call scheduleColors(igr,ncolors,nrbg1,nrbg2,nrbg3
+     .                       ,i1min,i1max,j1min,j1max,k1min,k1max)
+
+          do ieq = 1,neq
+
+            do irbg3 = 1,nrbg3
+              do irbg2 = 1,nrbg2
+                do irbg1 = 1,nrbg1
+
+                  do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
+                    do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2
+                      do i1=i1min+mod(j1+k1+irbg1-1,nrbg1),i1max,nrbg1
+
+                        call scheduleIndices(igr,i1,j1,k1,i,j,k)
+
+                        ii = i +nxv(igr)*(j-1) +nxv(igr)*nyv(igr)*(k-1)
+
+                        x1((ii-1)*neq+ieq) = 1d0
+                      enddo
+                    enddo
+                  enddo
+
+                  call MGmatvec(0,neq,nn,x1,dummy,igr,bbcnd2,matvec)
+
+                  do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
+                    do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2
+                      do i1=i1min+mod(j1+k1+irbg1-1,nrbg1),i1max,nrbg1
+
+                        call scheduleIndices(igr,i1,j1,k1,i,j,k)
+
+                        ii = i +nxv(igr)*(j-1) +nxv(igr)*nyv(igr)*(k-1)
+
+                        jj = (ii-1)*neq + isig - 1
+
+                        x1((ii-1)*neq+ieq) = 0d0
+
+                        diag1(ieq,jj+1:jj+neq)
+     .                                     = dummy((ii-1)*neq+1:ii*neq)
+                      enddo
+                    enddo
+                  enddo
+
+                enddo
+              enddo
+            enddo
+
+          enddo
+
+c       Take care of points around singular point
+
+cccc          if (isSP(1,1,1,igr,igr,igr)) then
+cc          if (bcSP()) then
+cc
+cc#if defined(petsc)
+cccc            call pstop('find_mf_diag_colored'
+cccc     .                ,'Does not work in parallel')
+cc#endif
+cc
+cc            !Concentrate around singular point
+cc            i = 1
+cc            coeff = 0d0
+cc            if (isSP2(i,igr)) coeff = 1d0
+cc
+cccc            MGgrid%iline(igr) = i !Set line smoothing around SP
+cccc
+cccc            call scheduleColors(igr,ncolors,nrbg1,nrbg2,nrbg3
+cccc     .                         ,i1min,i1max,j1min,j1max,k1min,k1max)
+cc
+cccc            call limits(0,nxv(igr),nyv(igr),nzv(igr),igr
+cccc     .                 ,i1min,i1max,j1min,j1max,k1min,k1max)
+cc
+cc            do ieq = 1,neq
+cc
+cc              do k=k1min,k1max  !Need to do 2 colors in k; not yet implemented
+cc                do j=j1min,j1max
+cc
+cccc              do irbg3 = 1,nrbg3
+cccc                do irbg2 = 1,nrbg2
+cccc                  do irbg1 = 1,nrbg1
+cccc
+cccc                  do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
+cccc                    do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2
+cccc                      do i1=i1min+mod(j1+k1+irbg1-1,nrbg1),i1max,nrbg1
+cc
+cc                  ii = i +nxv(igr)*(j-1) +nxv(igr)*nyv(igr)*(k-1)
+cc
+cc                  !Perform matvec
+cc
+cc                  x1(neq*(ii-1) + ieq) = coeff
+cc
+cc                  call MGmatvec(ii,neq,nn,x1,dummy,igr,bbcnd,matvec)
+cc
+cc                  x1(neq*(ii-1) + ieq) = 0d0
+cc
+cc                  !Fill diagonal
+cc
+cc                  jj  = (ii-1)*neq + isig - 1
+cc
+cc                  if (coeff == 1d0)
+cc     .               diag1(ieq,jj+1:jj+neq) = dummy((ii-1)*neq+1:ii*neq)
+cc
+cc                enddo
+cc              enddo
+cc
+cc            enddo
+cc
+cc          endif
+
+c       Invert diagonal and store in diag1
+
+          select case (neq)
+          case (1)
+
+            do ii = 1,ntotvp(igr)
+              ig = ii + isig - 1
+              diag1(neq,ig) = 1d0/diag1(neq,ig)
+            enddo
+
+cc        case (2)
+cc
+cc          do ii = 1,ntotvp(igr)
+cc            iig = neq*(ii - 1) + isig - 1
+cc            idet = 1d0/(diag1(1,iig+1)*diag1(2,iig+2)
+cc     .                 -diag1(2,iig+1)*diag1(1,iig+2))
+cc            mat(1,1) = diag1(2,iig+2)*idet
+cc            mat(1,2) =-diag1(2,iig+1)*idet
+cc            mat(2,1) =-diag1(1,iig+2)*idet
+cc            mat(2,2) = diag1(1,iig+1)*idet
+cc
+cc            diag1(:,iig+1:iig+neq) = mat
+cc          enddo
+
+          case default
+
+            !Invert
+            do ii = 1,ntotvp(igr)
+              iig = neq*(ii - 1) + isig - 1
+              call blockInv(neq,diag1(:,iig+1:iig+neq))
+            enddo
+
+          end select
+
+        enddo
+
+      endif
+
+c     Deallocate pointers
+
+      call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine find_mf_diag_colored
+
+c     find_mf_diag
+c     ###############################################################
+      subroutine find_mf_diag(neq,nblk,ntot,matvec,igrid,bbcnd
+     .                       ,diag1,ncolors,volw,glrkin)
+c     ---------------------------------------------------------------
+c     Finds diagonal elements for relaxation. This is done matrix-free
+c     using subroutine matvec for all grids, commencing with grid "igrid".
+c     
+c     Careful: for vertex-based relax., diagonal not formed for coarsest
+c     grid since no additional grid levels are available.
+c     MG needs additional coarsest level solver (such as GMRES).
+c
+c     In call sequence:
+c       * neq: number of coupled equations
+c       * nblk: number of fine grid cells per coarse cell.
+c           If nblk=1, we use standard single-node relaxation.
+c           Otherwise, we use vertex-based relaxation.
+c       * ntot: dimension of vectors (neq*nx*ny*nz)
+c       * matvec: external indicating matrix-vector routine.
+c       * igrid: current grid level
+c       * bbcnd: boundary condition information (passed on to matvec)
+c       * diag1: returns inverse of diagonal.
+c       * ncolors: number of colors for colored algorithm
+c       * volw: whether residuals are volume-weighed
+c       * glrkin: whether we use galerkin coarsening
+c     ---------------------------------------------------------------
+
+      implicit none      !For safe fortran
+
+c     Call variables
+
+      integer    :: neq,nblk,ntot,bbcnd(6,neq),igrid,ncolors
+
+      real(8)    :: diag1(neq*nblk,2*ntot*nblk)
+
+      logical    :: volw,glrkin
+
+      external      matvec
+
+c     Local variables
+
+      real(8)    :: x1(ntot),dummy(ntot),mag(3)
+      integer    :: ii,jj,nn,ig,isig,size
+      integer    :: iv,jv,kv,if,jf,kf,nxf,nyf,nzf
+      integer    :: iii,icolb,irowb,icol,iiv,iig,ivg,irowmin,irowmax
+     .             ,iblock ,jblock ,kblock
+     .             ,iblock2,jblock2,kblock2,nblkg
+
+      integer    :: igr,igc,ieq,alloc_stat
+      logical    :: fpointers
+
+c     Begin program
+
+      volf = volw
+      galerkin = glrkin
+
+c     Allocate MG pointers
+
+      call allocPointers(neq,fpointers)
+
+      if (fpointers) igmax=grid_params%ngrid  !Routine not called from JB,GS,MG
+
+c     Consistency check
+
+      nn  = ntotv(igrid)
+
+      if (nn /= ntot) then
+        call pstop('find_mf_diag'
+     .            ,'Error in input of find_mf_diag')
+      endif
+
+c     Form diagonal
+
+c     STANDARD RELAXATION
+      if (nblk == 1) then
+
+        call find_mf_diag_colored(neq,ntot,matvec,igrid,bbcnd,diag1
+     .                           ,ncolors)
+
+C     VERTEX-BASED RELAXATION
+      else
+
+        diag1 = 0d0
+
+        do igr = igrid,igmax
+
+          nxf = nxv(igr)
+          nyf = nyv(igr)
+          nzf = nzv(igr)
+
+          nblkg = nblock(igr)
+
+          nn    = ntotv(igr)
+
+          isig  = istartb(igr)
+
+          size  = neq*nblkg
+
+          x1(1:nn) = 0d0
+
+c       Sample vertices
+
+          do kv=1,max(nzf-mg_ratio_z(igr)+1,1)
+            do jv=1,max(nyf-mg_ratio_y(igr)+1,1)
+              do iv=1,max(nxf-mg_ratio_x(igr)+1,1)
+
+              !This defines vertex numbers (lexicographic)
+              iiv = iv + nxf*(jv-1) + nxf*nyf*(kv-1)
+              ivg  = (iiv-1)*neq*nblkg + isig -1
+
+              !Sample columns in diagonal block
+              do kblock=1,mg_ratio_z(igr)
+                do jblock=1,mg_ratio_y(igr)
+                  do iblock=1,mg_ratio_x(igr)
+
+                    !This defines block column index (lexicographic)
+                    icolb = iblock + mg_ratio_x(igr)*(jblock-1)
+     .                             + mg_ratio_x(igr)
+     .                              *mg_ratio_y(igr)*(kblock-1)
+
+                    !This defines cell positions around vertex (iv,jv,kv) (lexicographic)
+                    if = iv-1 + iblock
+                    jf = jv-1 + jblock
+                    kf = kv-1 + kblock
+
+                    ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                    !Sample rows in diagonal block
+                    do kblock2=1,mg_ratio_z(igr)
+                      do jblock2=1,mg_ratio_y(igr)
+                        do iblock2=1,mg_ratio_x(igr)
+ 
+                          !This defines block row index
+                          irowb =iblock2 + mg_ratio_x(igr)*(jblock2-1)
+     .                                   + mg_ratio_x(igr)
+     .                                    *mg_ratio_y(igr)*(kblock2-1)
+
+                          !This defines cell position around vertex (iv,jv,kv) (lexicographic)
+                          if = iv-1 + iblock2
+                          jf = jv-1 + jblock2
+                          kf = kv-1 + kblock2
+
+                          jj  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                          !Sample equations
+                          do ieq = 1,neq
+
+                            !This defines column index of system matrix
+                            iii  = neq*(ii   -1) + ieq
+                            !This defines column index in diagonal block
+                            icol = neq*(icolb-1) + ieq
+                            !This defines min and max row indices in diagonal block
+                            irowmin = ivg + neq*(irowb-1)+1
+                            irowmax = ivg + neq* irowb
+
+                            !Set column vector corresponding to grid node ii and equation ieq
+                            x1(iii) = 1d0
+
+                            !Find matrix components corresponding to column iii and rows
+                            !((jj-1)*neq+1) to (jj*neq)
+                            call MGmatvec(jj,neq,nn,x1,dummy,igr,bbcnd
+     .                                   ,matvec)
+
+                            !Reset vector x1 to zero
+                            x1(iii) = 0d0
+
+                            !Store results in diagonal
+                            diag1(icol,irowmin:irowmax)
+     .                                = dummy((jj-1)*neq+1:jj*neq)
+                          enddo
+
+                        enddo
+                      enddo
+                    enddo
+
+                  enddo
+                enddo
+              enddo
+
+c             Invert diagonal and store in diag1
+
+              call blockInv(size,diag1(1:size,ivg+1:ivg+size))
+
+              enddo
+            enddo
+          enddo
+
+        enddo
+
+      endif
+
+c     Deallocate pointers
+
+      call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine find_mf_diag
+
+c     find_mf_mat
+c     ###############################################################
+      subroutine find_mf_mat(neq,ntot,matvec,igrid,bbcnd,mat)
+c     ---------------------------------------------------------------
+c     Finds all matrix elements matrix-free using subroutine matvec
+c     for all grids, commencing with grid "igrid".
+c     ---------------------------------------------------------------
+
+      implicit none      !For safe fortran
+
+c     Call variables
+
+      integer    :: neq,ntot,bbcnd(6,neq),igrid
+
+      real(8)    :: mat(ntot,ntot)
+
+      external      matvec
+
+c     Local variables
+
+      real(8)    :: x1(ntot),dummy(ntot)
+      integer    :: ii,jj,nn
+      integer    :: igr,ieq,alloc_stat
+      logical    :: fpointers
+
+c     Begin program
+
+      igr = igrid
+
+c     Allocate MG pointers
+
+      call allocPointers(neq,fpointers)
+
+c     Consistency check
+
+      nn  = ntotv(igr)
+
+      if (nn /= ntot) then
+        call pstop('find_mf_mat'
+     .            ,'Error in input of find_mf_mat')
+      endif
+
+c     Form diagonal 
+
+      x1 = 0d0
+
+      do ii = 1,nn
+
+c       Find column vector corresponding to grid node ii and equation ieq
+
+          x1(ii) = 1d0
+
+          call MGmatvec(0,neq,nn,x1,dummy,igr,bbcnd,matvec)
+cc          call matvec(0,neq,nn,x1,dummy,igr,bbcnd)
+
+          x1(ii) = 0d0
+
+c       Fill matrix
+
+          mat(:,ii) = dummy
+
+      enddo
+
+c     Deallocate pointers
+
+      call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine find_mf_mat
+
+c     findBaseVector
+c     ###############################################################
+      subroutine findBaseVector(ii,ieq,neq,ntot,x1,coef)
+c     ---------------------------------------------------------------
+c     Finds base vector corresponding to grid node ii and equation ieq.
+c     Assumes that x1 has been initialized to zero elsewhere.
+c     ---------------------------------------------------------------
+
+      implicit none      !For safe fortran
+
+c     Call variables
+
+      integer    :: neq,ii,ieq,ntot
+
+      real(8)    :: x1(ntot),coef
+
+c     Local variables
+
+c     Begin program
+
+      x1(neq*(ii-1) + ieq) = coef
+
+c     End program
+
+      end subroutine findBaseVector
+
       end module mg_solver
 
 c mg
@@ -2352,7 +3161,7 @@ c    Grid convention: finest grid has igrid=1, coarsest has igrid=ngrid
 c
 c--------------------------------------------------------------------
 
-      use mg_io
+      use mg_solver
 
       implicit none       !For safe fortran
 
@@ -2382,7 +3191,7 @@ c Local variables
       real(8), pointer, dimension(:,:) :: diag
 
       logical    :: fdiag,line_relax,fpointers,line_x,line_y,line_z
-     .             ,mg_debug
+     .             ,mg_debug,prnt
 
       character(2) :: line_solve
 
@@ -2408,7 +3217,7 @@ c Assign options
       orderres        = options%orderres
       orderprol       = options%orderprol
       fdiag           = options%fdiag
-cc      volf            = options%vol_res
+      volf            = options%vol_res
       crsedpth        = options%mg_coarse_solver_depth
       mu              = options%mg_mu
       vbr_mg          = options%mg_vertex_relax
@@ -2551,8 +3360,7 @@ c     Perform mu-cycle recursively
 
 c     Check MG convergence
 
-        call MGmatvec(0,neq,ntot,xx(istart(igrid)),rr,igrid,bcnd
-     .               ,matvec)
+        call MGmatvec(0,neq,ntot,xx(istart(igrid)),rr,igrid,bcnd,matvec)
 
         call MGvecadd(igrid,neq,ntot,-1d0,rr,1d0,y)
 
@@ -2731,10 +3539,10 @@ c     Setup debugging plots
 c     Relax error/solution on grid number igr/igrid (find new xx)
 
         if (igr == igmax-1.and.mg_debug) then
-          write (*,*) 'Plotting here at level',igr
-          call MGmatvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd,matvec)
-          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
-          call MGplot(neq,wrk,igr,0,'fineres.bin')
+         write (*,*) 'Plotting here at level',igr
+         call MGmatvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd,matvec)
+         call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+         call MGplot(neq,wrk,igr,0,'fineres.bin')
         endif
 
         call smooth(igr)
@@ -3629,7 +4437,7 @@ c     Configure recursive plane/line JB solve
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
-cc        options%vol_res                     = volf        
+        options%vol_res                     = volf        
 
         options%mg_coarse_solver_depth      = line_crse_depth
         options%mg_line_relax               = .false.
@@ -4097,7 +4905,7 @@ c     Configure recursive plane/line MG solve
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
-cc        options%vol_res                     = volf        
+        options%vol_res                     = volf        
         options%mg_line_relax               = .false.
         options%mg_coarse_solver_depth      = crsedpth 
         options%mg_vertex_relax             = vbr_mg
@@ -5502,7 +6310,7 @@ c       * depth: integer specifying solver depth in solver_queue
 c                definitions
 c--------------------------------------------------------------------
 
-      use mg_ops
+      use mg_solver
 
       implicit none       !For safe fortran
 
@@ -5520,7 +6328,7 @@ c Local variables
       integer    :: iter,alloc_stat,isig,itr,nn,ieq,irbg1,nrbg1,igridc
       integer    :: imin,imax,jmin,jmax,kmin,kmax,iming,itr2
       real(8)    :: omega0,omega10,omega01,tol
-      logical    :: fdiag,fpointers,vbr
+      logical    :: fdiag,fpointers,vbr,prnt
 
       integer    :: i,j,k,iv,jv,kv,if,jf,kf,nxf,nyf,nzf,iiv,ivg,ncolors
       integer    :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblk,i1
@@ -5899,7 +6707,7 @@ c       * depth: integer specifying solver depth in solver_queue
 c                definitions
 c--------------------------------------------------------------------
 
-      use mg_ops
+      use mg_solver
 
       implicit none       !For safe fortran
 
@@ -5920,7 +6728,7 @@ c Local variables
       integer    :: i1,j1,k1,i1min,i1max,j1min,j1max,k1min,k1max
 
       real(8)    :: omega0,tol,zebra_omg
-      logical    :: fdiag,fpointers,vbr,zebra
+      logical    :: fdiag,fpointers,vbr,zebra,prnt
 
       integer    :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf
       integer    :: ii,iii,iib,iiib,iiv,ivg,iblock,jblock,kblock,nblk
@@ -6592,638 +7400,6 @@ cc            enddo
 
       end subroutine gs
 
-c find_mf_diag_std
-c####################################################################
-      subroutine find_mf_diag_std(neq,ntot,matvec,igrid,bbcnd,diag1)
-c--------------------------------------------------------------------
-c     Finds diagonal elements matrix-free using subroutine matvec
-c     for all grids, commencing with grid "igrid".
-c--------------------------------------------------------------------
-
-      use mg_solver
-
-      implicit none      !For safe fortran
-
-c Call variables
-
-      integer    :: neq,ntot,bbcnd(6,neq),igrid
-
-      real(8)    :: diag1(neq,2*ntot)
-
-      external      matvec
-
-c Local variables
-
-      real(8)    :: x1(ntot),dummy(ntot),mat(neq,neq),mat2(neq,neq)
-     $             ,idet
-      integer    :: ii,jj,nn,ig,iig,isig
-      integer    :: igr,ieq,alloc_stat
-      logical    :: fpointers
-
-c Begin program
-
-c Allocate MG pointers
-
-      call allocPointers(neq,fpointers)
-
-      if (fpointers) igmax=grid_params%ngrid  !Routine not called from JB,GS,MG
-
-c Consistency check
-
-      nn  = ntotv(igrid)
-
-      if (nn /= ntot) then
-        call pstop('find_mf_diag_std'
-     .            ,'Error in input of find_mf_diag_stc')
-      endif
-
-c Form diagonal
-
-      do igr = igrid,igmax
-
-c     Form diagonal terms for smoother
-
-        nn  = ntotv(igr)
-
-        isig = istart(igr)
-
-        x1(1:nn) = 0d0
-        dummy(1:nn) = 0d0
-
-c     Finds block diagonals for neq equations.
-
-        do ii = 1,ntotvp(igr)
-
-          jj  = (ii-1)*neq + isig - 1
-
-          do ieq = 1,neq
-
-c         Find column vector corresponding to grid node ii and equation ieq
-
-            x1(neq*(ii-1) + ieq) = 1d0
-
-            call MGmatvec(ii,neq,nn,x1,dummy,igr,bbcnd,matvec)
-
-            x1(neq*(ii-1) + ieq) = 0d0
-
-c         Fill diagonal
-
-            diag1(ieq,jj+1:jj+neq) = dummy((ii-1)*neq+1:ii*neq)
-
-          enddo
-
-        enddo
-
-c     Invert diagonal and store in diag1
-
-        select case (neq)
-        case (1)
-
-          do ii = 1,ntotvp(igr)
-            ig = ii + isig - 1
-            diag1(neq,ig) = 1d0/diag1(neq,ig)
-          enddo
-
-cc        case (2)
-cc
-cc          do ii = 1,ntotvp(igr)
-cc            iig = neq*(ii - 1) + isig - 1
-cc            idet = 1d0/(diag1(1,iig+1)*diag1(2,iig+2)
-cc     .                 -diag1(2,iig+1)*diag1(1,iig+2))
-cc            mat(1,1) = diag1(2,iig+2)*idet
-cc            mat(1,2) =-diag1(2,iig+1)*idet
-cc            mat(2,1) =-diag1(1,iig+2)*idet
-cc            mat(2,2) = diag1(1,iig+1)*idet
-cc
-cc            diag1(:,iig+1:iig+neq) = mat
-cc          enddo
-
-        case default
-
-          !Invert
-          do ii = 1,ntotvp(igr)
-            iig = neq*(ii - 1) + isig - 1
-            call blockInv(neq,diag1(:,iig+1:iig+neq))
-          enddo
-
-        end select
-
-      enddo
-
-c Deallocate pointers
-
-      call deallocPointers(fpointers)
-
-c End program
-
-      end subroutine find_mf_diag_std
-
-c find_mf_diag_colored
-c####################################################################
-      subroutine find_mf_diag_colored(neq,ntot,matvec,igrid,bbcnd,diag1
-     .                               ,ncolors)
-c--------------------------------------------------------------------
-c     Finds diagonal elements matrix-free using subroutine matvec
-c     for all grids, commencing with grid "igrid". This routine
-c     employs a colored arrangement of the grid that allows one
-c     to find the diagonal using full-vector matvecs, instead of
-c     point-wise matvecs.
-c--------------------------------------------------------------------
-
-      use mg_solver
-
-      implicit none      !For safe fortran
-
-c Call variables
-
-      integer    :: neq,ntot,bbcnd(6,neq),igrid,ncolors
-
-      real(8)    :: diag1(neq,2*ntot)
-
-      external      matvec
-
-c Local variables
-
-      real(8)    :: x1(ntot),dummy(ntot),mat(neq,neq),mat2(neq,neq)
-     .             ,idet,coeff
-      integer    :: ii,jj,nn,ig,iig,isig,bbcnd2(6,neq)
-      integer    :: igr,ieq,alloc_stat
-      logical    :: fpointers
-
-      integer    :: i,j,k,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
-      integer    :: i1,j1,k1,i1min,i1max,j1min,j1max,k1min,k1max
-
-c Begin program
-
-c Allocate MG pointers
-
-      call allocPointers(neq,fpointers)
-
-      if (fpointers) igmax=grid_params%ngrid  !Routine not called from JB,GS,MG
-
-c Consistency check
-
-      nn  = ntotv(igrid)
-
-      if (nn /= ntot) then
-        call pstop('find_mf_diag_colored'
-     .            ,'Error in input of find_mf_diag_colored')
-      endif
-
-c Form diagonal
-
-      diag1 = 0d0
-
-      if (ncolors == 1) then
-
-        call find_mf_diag_std(neq,ntot,matvec,igrid,bbcnd,diag1)
-
-      else
-
-        do igr = igrid,igmax
-
-c       Form diagonal terms for smoother
-
-          nn  = ntotv(igr)
-
-          isig = istart(igr)
-
-          x1   (1:nn) = 0d0
-          dummy(1:nn) = 0d0
-
-          bbcnd2 = bbcnd
-          where (bbcnd == SP) bbcnd2 = DEF !Avoid SP bc's for forming diagonal (they're nonlocal)
-
-c       Finds block diagonals for neq equations.
-
-          call scheduleColors(igr,ncolors,nrbg1,nrbg2,nrbg3
-     .                       ,i1min,i1max,j1min,j1max,k1min,k1max)
-
-          do ieq = 1,neq
-
-            do irbg3 = 1,nrbg3
-              do irbg2 = 1,nrbg2
-                do irbg1 = 1,nrbg1
-
-                  do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
-                    do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2
-                      do i1=i1min+mod(j1+k1+irbg1-1,nrbg1),i1max,nrbg1
-
-                        call scheduleIndices(igr,i1,j1,k1,i,j,k)
-
-                        ii = i +nxv(igr)*(j-1) +nxv(igr)*nyv(igr)*(k-1)
-
-                        x1((ii-1)*neq+ieq) = 1d0
-                      enddo
-                    enddo
-                  enddo
-
-                  call MGmatvec(0,neq,nn,x1,dummy,igr,bbcnd2,matvec)
-
-                  do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
-                    do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2
-                      do i1=i1min+mod(j1+k1+irbg1-1,nrbg1),i1max,nrbg1
-
-                        call scheduleIndices(igr,i1,j1,k1,i,j,k)
-
-                        ii = i +nxv(igr)*(j-1) +nxv(igr)*nyv(igr)*(k-1)
-
-                        jj = (ii-1)*neq + isig - 1
-
-                        x1((ii-1)*neq+ieq) = 0d0
-
-                        diag1(ieq,jj+1:jj+neq)
-     .                                     = dummy((ii-1)*neq+1:ii*neq)
-                      enddo
-                    enddo
-                  enddo
-
-                enddo
-              enddo
-            enddo
-
-          enddo
-
-c       Take care of points around singular point
-
-cccc          if (isSP(1,1,1,igr,igr,igr)) then
-cc          if (bcSP()) then
-cc
-cc#if defined(petsc)
-cccc            call pstop('find_mf_diag_colored'
-cccc     .                ,'Does not work in parallel')
-cc#endif
-cc
-cc            !Concentrate around singular point
-cc            i = 1
-cc            coeff = 0d0
-cc            if (isSP2(i,igr)) coeff = 1d0
-cc
-cccc            MGgrid%iline(igr) = i !Set line smoothing around SP
-cccc
-cccc            call scheduleColors(igr,ncolors,nrbg1,nrbg2,nrbg3
-cccc     .                         ,i1min,i1max,j1min,j1max,k1min,k1max)
-cc
-cccc            call limits(0,nxv(igr),nyv(igr),nzv(igr),igr
-cccc     .                 ,i1min,i1max,j1min,j1max,k1min,k1max)
-cc
-cc            do ieq = 1,neq
-cc
-cc              do k=k1min,k1max  !Need to do 2 colors in k; not yet implemented
-cc                do j=j1min,j1max
-cc
-cccc              do irbg3 = 1,nrbg3
-cccc                do irbg2 = 1,nrbg2
-cccc                  do irbg1 = 1,nrbg1
-cccc
-cccc                  do k1=k1min+mod(irbg3-1,nrbg3),k1max,nrbg3
-cccc                    do j1=j1min+mod(k1+irbg2+irbg1-1,nrbg2),j1max,nrbg2
-cccc                      do i1=i1min+mod(j1+k1+irbg1-1,nrbg1),i1max,nrbg1
-cc
-cc                  ii = i +nxv(igr)*(j-1) +nxv(igr)*nyv(igr)*(k-1)
-cc
-cc                  !Perform matvec
-cc
-cc                  x1(neq*(ii-1) + ieq) = coeff
-cc
-cc                  call MGmatvec(ii,neq,nn,x1,dummy,igr,bbcnd,matvec)
-cc
-cc                  x1(neq*(ii-1) + ieq) = 0d0
-cc
-cc                  !Fill diagonal
-cc
-cc                  jj  = (ii-1)*neq + isig - 1
-cc
-cc                  if (coeff == 1d0)
-cc     .               diag1(ieq,jj+1:jj+neq) = dummy((ii-1)*neq+1:ii*neq)
-cc
-cc                enddo
-cc              enddo
-cc
-cc            enddo
-cc
-cc          endif
-
-c       Invert diagonal and store in diag1
-
-          select case (neq)
-          case (1)
-
-            do ii = 1,ntotvp(igr)
-              ig = ii + isig - 1
-              diag1(neq,ig) = 1d0/diag1(neq,ig)
-            enddo
-
-cc        case (2)
-cc
-cc          do ii = 1,ntotvp(igr)
-cc            iig = neq*(ii - 1) + isig - 1
-cc            idet = 1d0/(diag1(1,iig+1)*diag1(2,iig+2)
-cc     .                 -diag1(2,iig+1)*diag1(1,iig+2))
-cc            mat(1,1) = diag1(2,iig+2)*idet
-cc            mat(1,2) =-diag1(2,iig+1)*idet
-cc            mat(2,1) =-diag1(1,iig+2)*idet
-cc            mat(2,2) = diag1(1,iig+1)*idet
-cc
-cc            diag1(:,iig+1:iig+neq) = mat
-cc          enddo
-
-          case default
-
-            !Invert
-            do ii = 1,ntotvp(igr)
-              iig = neq*(ii - 1) + isig - 1
-              call blockInv(neq,diag1(:,iig+1:iig+neq))
-            enddo
-
-          end select
-
-        enddo
-
-      endif
-
-c Deallocate pointers
-
-      call deallocPointers(fpointers)
-
-c End program
-
-      end subroutine find_mf_diag_colored
-
-c find_mf_diag
-c####################################################################
-      subroutine find_mf_diag(neq,nblk,ntot,matvec,igrid,bbcnd
-     .                       ,diag1,ncolors,volw,glrkin)
-c--------------------------------------------------------------------
-c     Finds diagonal elements for relaxation. This is done matrix-free
-c     using subroutine matvec for all grids, commencing with grid "igrid".
-c     
-c     Careful: for vertex-based relax., diagonal not formed for coarsest
-c     grid since no additional grid levels are available.
-c     MG needs additional coarsest level solver (such as GMRES).
-c
-c     In call sequence:
-c       * neq: number of coupled equations
-c       * nblk: number of fine grid cells per coarse cell.
-c           If nblk=1, we use standard single-node relaxation.
-c           Otherwise, we use vertex-based relaxation.
-c       * ntot: dimension of vectors (neq*nx*ny*nz)
-c       * matvec: external indicating matrix-vector routine.
-c       * igrid: current grid level
-c       * bbcnd: boundary condition information (passed on to matvec)
-c       * diag1: returns inverse of diagonal.
-c       * ncolors: number of colors for colored algorithm
-c       * volw: whether residuals are volume-weighed
-c       * glrkin: whether we use galerkin coarsening
-c--------------------------------------------------------------------
-
-      use mg_solver
-
-      implicit none      !For safe fortran
-
-c Call variables
-
-      integer    :: neq,nblk,ntot,bbcnd(6,neq),igrid,ncolors
-
-      real(8)    :: diag1(neq*nblk,2*ntot*nblk)
-
-      logical    :: volw,glrkin
-
-      external      matvec
-
-c Local variables
-
-      real(8)    :: x1(ntot),dummy(ntot),mag(3)
-      integer    :: ii,jj,nn,ig,isig,size
-      integer    :: iv,jv,kv,if,jf,kf,nxf,nyf,nzf
-      integer    :: iii,icolb,irowb,icol,iiv,iig,ivg,irowmin,irowmax
-     .             ,iblock ,jblock ,kblock
-     .             ,iblock2,jblock2,kblock2,nblkg
-
-      integer    :: igr,igc,ieq,alloc_stat
-      logical    :: fpointers
-
-c Begin program
-
-      volf = volw
-      galerkin = glrkin
-
-c Allocate MG pointers
-
-      call allocPointers(neq,fpointers)
-
-      if (fpointers) igmax=grid_params%ngrid  !Routine not called from JB,GS,MG
-
-c Consistency check
-
-      nn  = ntotv(igrid)
-
-      if (nn /= ntot) then
-        call pstop('find_mf_diag'
-     .            ,'Error in input of find_mf_diag')
-      endif
-
-c Form diagonal
-
-c     STANDARD RELAXATION
-      if (nblk == 1) then
-
-        call find_mf_diag_colored(neq,ntot,matvec,igrid,bbcnd,diag1
-     .                           ,ncolors)
-
-C     VERTEX-BASED RELAXATION
-      else
-
-        diag1 = 0d0
-
-        do igr = igrid,igmax
-
-          nxf = nxv(igr)
-          nyf = nyv(igr)
-          nzf = nzv(igr)
-
-          nblkg = nblock(igr)
-
-          nn    = ntotv(igr)
-
-          isig  = istartb(igr)
-
-          size  = neq*nblkg
-
-          x1(1:nn) = 0d0
-
-c       Sample vertices
-
-          do kv=1,max(nzf-mg_ratio_z(igr)+1,1)
-            do jv=1,max(nyf-mg_ratio_y(igr)+1,1)
-              do iv=1,max(nxf-mg_ratio_x(igr)+1,1)
-
-              !This defines vertex numbers (lexicographic)
-              iiv = iv + nxf*(jv-1) + nxf*nyf*(kv-1)
-              ivg  = (iiv-1)*neq*nblkg + isig -1
-
-              !Sample columns in diagonal block
-              do kblock=1,mg_ratio_z(igr)
-                do jblock=1,mg_ratio_y(igr)
-                  do iblock=1,mg_ratio_x(igr)
-
-                    !This defines block column index (lexicographic)
-                    icolb = iblock + mg_ratio_x(igr)*(jblock-1)
-     .                             + mg_ratio_x(igr)
-     .                              *mg_ratio_y(igr)*(kblock-1)
-
-                    !This defines cell positions around vertex (iv,jv,kv) (lexicographic)
-                    if = iv-1 + iblock
-                    jf = jv-1 + jblock
-                    kf = kv-1 + kblock
-
-                    ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-
-                    !Sample rows in diagonal block
-                    do kblock2=1,mg_ratio_z(igr)
-                      do jblock2=1,mg_ratio_y(igr)
-                        do iblock2=1,mg_ratio_x(igr)
- 
-                          !This defines block row index
-                          irowb =iblock2 + mg_ratio_x(igr)*(jblock2-1)
-     .                                   + mg_ratio_x(igr)
-     .                                    *mg_ratio_y(igr)*(kblock2-1)
-
-                          !This defines cell position around vertex (iv,jv,kv) (lexicographic)
-                          if = iv-1 + iblock2
-                          jf = jv-1 + jblock2
-                          kf = kv-1 + kblock2
-
-                          jj  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-
-                          !Sample equations
-                          do ieq = 1,neq
-
-                            !This defines column index of system matrix
-                            iii  = neq*(ii   -1) + ieq
-                            !This defines column index in diagonal block
-                            icol = neq*(icolb-1) + ieq
-                            !This defines min and max row indices in diagonal block
-                            irowmin = ivg + neq*(irowb-1)+1
-                            irowmax = ivg + neq* irowb
-
-                            !Set column vector corresponding to grid node ii and equation ieq
-                            x1(iii) = 1d0
-
-                            !Find matrix components corresponding to column iii and rows
-                            !((jj-1)*neq+1) to (jj*neq)
-                            call MGmatvec(jj,neq,nn,x1,dummy,igr,bbcnd
-     .                                   ,matvec)
-
-                            !Reset vector x1 to zero
-                            x1(iii) = 0d0
-
-                            !Store results in diagonal
-                            diag1(icol,irowmin:irowmax)
-     .                                = dummy((jj-1)*neq+1:jj*neq)
-                          enddo
-
-                        enddo
-                      enddo
-                    enddo
-
-                  enddo
-                enddo
-              enddo
-
-c             Invert diagonal and store in diag1
-
-              call blockInv(size,diag1(1:size,ivg+1:ivg+size))
-
-              enddo
-            enddo
-          enddo
-
-        enddo
-
-      endif
-
-c Deallocate pointers
-
-      call deallocPointers(fpointers)
-
-c End program
-
-      end subroutine find_mf_diag
-
-c find_mf_mat
-c####################################################################
-      subroutine find_mf_mat(neq,ntot,matvec,igrid,bbcnd,mat)
-c--------------------------------------------------------------------
-c     Finds all matrix elements matrix-free using subroutine matvec
-c     for all grids, commencing with grid "igrid".
-c--------------------------------------------------------------------
-
-      use mg_solver
-
-      implicit none      !For safe fortran
-
-c Call variables
-
-      integer    :: neq,ntot,bbcnd(6,neq),igrid
-
-      real(8)    :: mat(ntot,ntot)
-
-      external      matvec
-
-c Local variables
-
-      real(8)    :: x1(ntot),dummy(ntot)
-      integer    :: ii,jj,nn
-      integer    :: igr,ieq,alloc_stat
-      logical    :: fpointers
-
-c Begin program
-
-      igr = igrid
-
-c Allocate MG pointers
-
-      call allocPointers(neq,fpointers)
-
-c Consistency check
-
-      nn  = ntotv(igr)
-
-      if (nn /= ntot) then
-        call pstop('find_mf_mat'
-     .            ,'Error in input of find_mf_mat')
-      endif
-
-c Form diagonal 
-
-      x1 = 0d0
-
-      do ii = 1,nn
-
-c       Find column vector corresponding to grid node ii and equation ieq
-
-          x1(ii) = 1d0
-
-          call MGmatvec(0,neq,nn,x1,dummy,igr,bbcnd,matvec)
-cc          call matvec(0,neq,nn,x1,dummy,igr,bbcnd)
-
-          x1(ii) = 0d0
-
-c       Fill matrix
-
-          mat(:,ii) = dummy
-
-      enddo
-
-c Deallocate pointers
-
-      call deallocPointers(fpointers)
-
-c End program
-
-      end subroutine find_mf_mat
-
 c     symm_test
 c     ###############################################################
       subroutine symm_test(neq,igrid,matvec,bcnd)
@@ -7349,159 +7525,3 @@ c Begin program
 c End program
 
       end subroutine findBaseVector
-
-c MGmatvec
-c####################################################################
-      subroutine MGmatvec(gposc,neq,ntotc,x,y,igc,bcnd,matvec)
-c--------------------------------------------------------------------
-c     This subroutine calculates the matrix vector product defined
-c     symbolically in matvec, in two ways:
-c       * Rediscretizing (i.e., using matvec straight)
-c       * Galerkin (preprocessing w/ prolongation, and postprocessing
-c                   w/ restriction).
-c
-c     In call:
-c      * gposc: vector index of position on the numerical grid:
-c            + If gposc = i + nx*(j-1) + ny*nx*(k-1), then only 
-c              surrounding stencil is filled (9-pt stencil in 2D
-c              , 27-pt stencil in 3D).
-c            + If gposc = 0, all the grid is considered.
-c            + If gposc < 0, all grid is mapped, but operations are 
-c              restricted to stencil of abs(gposc) (useful for
-c              matrix-light GS)
-c      * neq: number of coupled equations
-c      * ntotc: total number of unknowns: neq*nx*ny*nz
-c      * x(ntotc): input vector
-c      * y(ntotc): output vector
-c      * igc: grid level
-c      * bcnd: boundary conditions on x vector.
-c      * matvec: external with symbolic matrix-vector code.
-c--------------------------------------------------------------------
-
-      use mg_Xfer
-
-      implicit none
-
-c Call variables
-
-      integer    :: neq,ntotc,igc,gposc,bcnd(6,neq)
-      real(8)    :: x(ntotc),y(ntotc),minv,idx,idy,idz,
-     .              idxcnv,idycnv,idzcnv,vxx,vyy,vzz
-
-      external      matvec
-
-c Local variables
-
-      integer    :: nxf,nyf,nzf,ntotf,igf,gposf,if,jf,kf
-     .             ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf
-      integer    :: nxc,nyc,nzc,isigc,ic,jc,kc
-     .             ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc
-      integer    :: mgrx,mgry,mgrz,ig
-      real(8),allocatable,dimension(:) :: MGx,MGy
-
-      logical    :: fpointers
-
-c Begin program
-
-      call allocPointers(neq,fpointers)
-
-      if (igc > 1 .and. galerkin) then
-
-        isigc  = istart(igc)
-
-cc        nxc = mg_ctx_temp%nxv(igc)
-cc        nyc = mg_ctx_temp%nyv(igc)
-cc        nzc = mg_ctx_temp%nzv(igc)
-        nxc = grid_params%nxv(igc)
-        nyc = grid_params%nyv(igc)
-        nzc = grid_params%nzv(igc)
-
-c     Allocate MG vector
-
-        igf = 1
-
-cc        nxf = mg_ctx_temp%nxv(igf)
-cc        nyf = mg_ctx_temp%nyv(igf)
-cc        nzf = mg_ctx_temp%nzv(igf)
-        nxf = grid_params%nxv(igf)
-        nyf = grid_params%nyv(igf)
-        nzf = grid_params%nzv(igf)
-
-        ntotf = neq*nxf*nyf*nzf
-
-        allocate(MGx(2*ntotf),MGy(2*ntotf))
-
-c     Prolong vector to finest grid
-
-        MGx(isigc:isigc+ntotc-1) = x
-
-        call prolongMGVector(neq,MGx,igc,igf,0,bcnd)
-
-c     Perform matvec in finest grid
-
-        if (gposc == 0) then
-
-          call matvec(0,neq,ntotf,MGx(1:ntotf),MGy(1:ntotf),igf,bcnd)
-
-        else
-
-          !Find coarse cell position (ic,jc,jc)
-          call limits(gposc,nxc,nyc,nzc,igc
-     .               ,ic,imaxc,jc,jmaxc,kc,kmaxc)
-
-          !Define finest grid stencil
-          mgrx = product(mg_ratio_x(igf:igc-1))
-          mgry = product(mg_ratio_y(igf:igc-1))
-          mgrz = product(mg_ratio_z(igf:igc-1))
-
-          iminf = mgrx*(ic-1)+1
-          imaxf = mgrx* ic
-
-          jminf = mgry*(jc-1)+1
-          jmaxf = mgry* jc
-
-          kminf = mgrz*(kc-1)+1
-          kmaxf = mgrz* kc
-
-cc          write (*,*) 'DIAG -- MGmatvec',igf,igc,mgrx,mgry,mgrz
-cc          write (*,*) 'DIAG -- MGmatvec',ic,jc,kc
-cc          write (*,*) 'DIAG -- MGmatvec',iminf,imaxf,jminf,jmaxf
-cc     .                                  ,kminf,kmaxf
-cc          write (*,*)
-
-          !Perform matvec on fine grid stencil
-          do kf = kminf,kmaxf
-            do jf = jminf,jmaxf
-              do if = iminf,imaxf
-                gposf = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-                call matvec(gposf,neq,ntotf,MGx(1:ntotf),MGy(1:ntotf)
-     .                     ,igf,bcnd)
-              enddo
-            enddo
-          enddo
-          
-        endif
-
-c     Restrict residual
-
-        call restrictMGVector(neq,MGy,igf,igc,0,volf)
-
-c     Map coarse grid residual
-
-        y = MGy(isigc:isigc+ntotc-1)
-
-c     Deallocate MG vectors
-
-        deallocate(MGx,MGy)
-
-      else
-
-        call matvec(gposc,neq,ntotc,x,y,igc,bcnd)
-
-      endif
-
-      call deallocPointers(fpointers)
-
-c     End program
-
-      end subroutine MGmatvec
