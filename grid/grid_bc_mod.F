@@ -127,6 +127,11 @@ c     Local variables
 
 c     Begin program
 
+        if (ibc < 1 .or. ibc > 6) then
+          isBC = .false.
+          return
+        endif
+
         if (PRESENT(bcnd)) then
           bcc = bcnd
         else
@@ -3000,7 +3005,9 @@ c        * imx,jmx,kmx: node coordinates identifying end of interpolation
 c                       region (integer)
 c        * array: local array defined on interpolation region, including
 c                 ghost cell (ito,jto,kto) (real)
-c        * order: order of extrapolation 
+c        * bcnd: array specifying BCs
+c        * order: order of extrapolation
+c        * array0: array specifying EQU BCs
 c     -----------------------------------------------------------------
 
       implicit none
@@ -3041,6 +3048,12 @@ c     Do nothing for SP boundary faces, edges, and corners
       if (   (bcSP(ibc=ibcl(1),bcnd=bcnd)
      .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
      .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))) return
+
+c     Do nothing for DEF boundary faces, edges, and corners
+
+      if (   (bcChk(ibcl(1),DEF,bcnd=bcnd)
+     .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
+     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))) return
 
 c     Identify directions for extrapolation.
 
@@ -3127,7 +3140,6 @@ c     Treat special boundaries
         select_bc(i) =(    (abs(bcnd(i_bc)) == SP )
      .                 .or.(abs(bcnd(i_bc)) == IFC)
      .                 .or.(abs(bcnd(i_bc)) == EQU)
-cc     .                 .or.(abs(bcnd(i_bc)) == NEU .and. order /= 0)
      .                ).and.selectFace(i_bc)
       enddo
 
