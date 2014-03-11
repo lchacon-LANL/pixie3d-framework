@@ -1074,17 +1074,6 @@ c     Perform spline interpolation
      .       .or. yy > y1(ny)
      .       .or. zz < z1(1)
      .       .or. zz > z1(nz) ) cycle
-cc            if (  xx < x1(1)
-cc     .       .or. xx > x1(nx)
-cc     .       .or. yy < y1(1)
-cc     .       .or. yy > y1(ny)
-cc     .       .or. zz < z1(1)
-cc     .       .or. zz > z1(nz) ) then
-cc              write (*,*) 'x ',nx2,xx,x1(1),x1(nx)
-cc              write (*,*) 'y ',ny2,yy,y1(1),y1(ny)
-cc              write (*,*) 'z ',nz2,zz,z1(1),z1(nz)
-cc              write (*,*) xx > x1(nx)
-cc            endif
 
             if (nx == 1 .and. ny == 1) then
               val = dbvalu(tz,bcoef(1,1,:),nz,kz,0,zz,inbv,work)
