@@ -41,6 +41,13 @@ c     Cubic splines
       real(8), allocatable, dimension(:,:) :: f,d
       logical    :: skip
 
+      integer ::  kx,dim,flg,inbv
+      real(8), dimension(:),allocatable :: tx,work,q
+      real(8), dimension(:),allocatable :: bcoef
+
+      real(8) :: dbvalu
+      external   dbvalu
+      
 c     Begin program
 
       if (PRESENT(deriv)) then
@@ -90,50 +97,71 @@ cc            j = nx !Extrapolation on the right
           vec1(i) = q_int (nx,vec,x,x1(i),j,derv)
         enddo
         
-      case (3) !Cubic splines
-
-        nwk = 2*nx
-        allocate(wk(nwk),f(incfd,nx),d(incfd,nx),dummy(nv))
-
-        ic(1) = 0  !Default boundary condition on left
-        ic(2) = 0  !Default boundary condition of right
-        f(incfd,:) = vec(:)
-
-        call dpchsp(ic,vc,nx,x,f,d,incfd,wk,nwk,ierr)
-
-        if (ierr.ne.0) then
-          write (*,*) 'Errors in cubic spline preparation'
-          write (*,*) 'Aborting..'
-          stop
-        endif
-
-        skip = .false.
-        if (derv == 0) then
-          call dpchfe(nx,x,f,d,incfd,skip,nv,x1,vec1,ierr)
-        elseif (derv == 1) then
-          call dpchfd(nx,x,f,d,incfd,skip,nv,x1,dummy,vec1,ierr)
-        else
-          write (*,*) 'Cannot provide derivatives of this order'
-          write (*,*) 'Aborting...'
-          stop
-        endif
-
-        if (ierr.lt.0) then
-          write (*,*) 'Error',ierr,' in cubic spline interpolation'
-          write (*,*) 'Aborting..'
-          stop
-c$$$        elseif (ierr.gt.0) then
-c$$$          write (*,*) 'Warning: extrapolation in cubic spline in'
-c$$$     .                ,ierr,' points'
-        endif
-
-        deallocate(wk,f,d,dummy)
+cc      case (3) !Cubic splines
+cc
+cc        nwk = 2*nx
+cc        allocate(wk(nwk),f(incfd,nx),d(incfd,nx),dummy(nv))
+cc
+cc        ic(1) = 0  !Default boundary condition on left
+cc        ic(2) = 0  !Default boundary condition of right
+cc        f(incfd,:) = vec(:)
+cc
+cc        call dpchsp(ic,vc,nx,x,f,d,incfd,wk,nwk,ierr)
+cc
+cc        if (ierr.ne.0) then
+cc          write (*,*) 'Errors in cubic spline preparation'
+cc          write (*,*) 'Aborting..'
+cc          stop
+cc        endif
+cc
+cc        skip = .false.
+cc        if (derv == 0) then
+cc          call dpchfe(nx,x,f,d,incfd,skip,nv,x1,vec1,ierr)
+cc        elseif (derv == 1) then
+cc          call dpchfd(nx,x,f,d,incfd,skip,nv,x1,dummy,vec1,ierr)
+cc        else
+cc          write (*,*) 'Cannot provide derivatives of this order'
+cc          write (*,*) 'Aborting...'
+cc          stop
+cc        endif
+cc
+cc        if (ierr.lt.0) then
+cc          write (*,*) 'Error',ierr,' in cubic spline interpolation'
+cc          write (*,*) 'Aborting..'
+cc          stop
+ccc$$$        elseif (ierr.gt.0) then
+ccc$$$          write (*,*) 'Warning: extrapolation in cubic spline in'
+ccc$$$     .                ,ierr,' points'
+cc        endif
+cc
+cc        deallocate(wk,f,d,dummy)
 
       case default
 
-        write (*,*) 'Order of interpolation not available'
-        write (*,*) 'Aborting...'
-        stop
+cc        write (*,*) 'Order of interpolation not available'
+cc        write (*,*) 'Aborting...'
+cc        stop
+
+        flg = 0
+
+        kx = min(order+1,nx-1)
+        dim = nx + 2*kx*(nx+1)
+
+        allocate(tx(nx+kx))
+        allocate(q((2*kx-1)*nx))
+        allocate(work(dim))
+        allocate(bcoef(nx))
+
+        inbv=1
+        call dbknot(x,nx,kx,tx)
+        call dbintk(x,vec,tx,nx,kx,bcoef,q,work)
+        deallocate(q)
+
+        do i=1,nv
+          vec1(i) = dbvalu(tx,bcoef,nx,kx,derv,x1(i),inbv,work)
+        enddo
+
+        deallocate(tx,work,bcoef)
 
       end select
 
