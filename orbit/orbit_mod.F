@@ -11,12 +11,6 @@ c ######################################################################
 
         use file_io
 
-#if defined(use_mpi)
-        use mpi
-        integer :: mpierr
-!$OMP THREADPRIVATE(mpierr)
-#endif
-
         !Diagnostics
         integer,private :: nunitd(4)
         logical,private :: flux = .false.
