@@ -5,6 +5,8 @@ c #########################################################################
         use BCS_variables
         use var_setup
 
+        integer, private :: var_bc_order=-1
+
       contains
 
 #if !defined(samrai) && !defined(OLD_BC)
@@ -86,10 +88,19 @@ c     Begin program
         itm = 0
       endif
 
+cc      if (PRESENT(bc_order))  then
+cc        order = bc_order
+cc      else
+cc        order = 1
+cc      endif
       if (PRESENT(bc_order))  then
+        var_bc_order = bc_order
         order = bc_order
       else
-        order = 1
+        if (var_bc_order < 0) then
+          call pstop('applyBC','BC order not specified')
+        endif
+        order = var_bc_order
       endif
 
 c     Set application BCs (external)
@@ -199,9 +210,13 @@ c     Begin program
       endif
 
       if (PRESENT(bc_order))  then
+        var_bc_order = bc_order
         order = bc_order
       else
-        order = 1
+        if (var_bc_order < 0) then
+          call pstop('applyBC','BC order not specified')
+        endif
+        order = var_bc_order
       endif
 
 c     Set application BCs (external)
