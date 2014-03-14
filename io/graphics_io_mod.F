@@ -87,7 +87,7 @@ c     Call variables
 
 c     Local variables
 
-      namelist /plotting/ sel_diag,sel_graph
+      namelist /graphics/ sel_diag,sel_graph
      .                   ,ndplot,dplot
      .                   ,hdf_plot,xdraw_plot
      .                   ,prof_conf,cont_conf
@@ -105,7 +105,7 @@ c     Graphics defaults
 c     Read graphics initialization parameters
 
       open(unit=25,file=trim(file),status='old')
-      read(25,plotting)
+      read(25,graphics)
       close(unit=25)
 
 c     End program
