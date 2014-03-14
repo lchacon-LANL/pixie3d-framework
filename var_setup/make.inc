@@ -1,6 +1,6 @@
 #Define message
 
-MESSAGE = "Compiling setup modules"
+MESSAGE = "Compiling VARIABLE SETUP modules"
 
 #Define subdirectories for common code
 
@@ -13,5 +13,6 @@ SUBDIRS = $(COMMONDIR)/math\
 
 #Define dependencies
 
-var_io_mod.o: var_setup_mod.o
 var_bc_mod.o: var_setup_mod.o
+var_mod.o: var_bc_mod.o
+var_io_mod.o: var_mod.o

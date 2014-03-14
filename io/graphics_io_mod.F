@@ -62,11 +62,54 @@ c ######################################################################
 
         !Contour conf
         type :: cont_info
-          integer        :: plane = 3
+          integer        :: plane = 0
           character(3)   :: label(2) = (/'x  ','y  '/)
           integer        :: coords(3)= (/1,1,1/)
         end type cont_info
 
         type(cont_info),save :: cont_conf
+
+      contains
+
+c     readGraphicsConfig
+c     ######################################################################
+      subroutine readGraphicsConfig(file)
+
+c     -----------------------------------------------------------------
+c     Initializes grid parameters
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      character(*) :: file
+
+c     Local variables
+
+      namelist /graphics/ sel_diag,sel_graph
+     .                   ,ndplot,dplot
+     .                   ,hdf_plot,xdraw_plot
+     .                   ,prof_conf,cont_conf
+     .                   ,iplot,jplot,kplot
+
+c     Graphics defaults
+
+      ndplot = 0     !Plotting interval (integer units)
+      dplot  = 0d0   !Plotting interval (time units)
+
+      iplot = 1
+      jplot = 1
+      kplot = 1
+
+c     Read graphics initialization parameters
+
+      open(unit=25,file=trim(file),status='old')
+      read(25,graphics)
+      close(unit=25)
+
+c     End program
+
+      end subroutine readGraphicsConfig
 
       end module graphics_io

@@ -3,7 +3,7 @@
 
 
 #include "SAMRAI/tbox/Database.h"
-#include "SAMRAI/tbox/Pointer.h"
+#include "boost/shared_ptr.hpp"
 #include "SAMRAI/hier/PatchHierarchy.h"
 
 #include "preconditioner_base/PreconditionerParameters.h"
@@ -18,7 +18,7 @@ class Pixie3dPreconditionerParameters: public SAMRSolvers::PreconditionerParamet
 public:
    Pixie3dPreconditionerParameters();
 
-   Pixie3dPreconditionerParameters( const tbox::Pointer<tbox::Database>& database);
+   Pixie3dPreconditionerParameters( const boost::shared_ptr<tbox::Database>& database);
 
    ~Pixie3dPreconditionerParameters();
 
@@ -27,17 +27,17 @@ public:
    *  Documentation for parameters required by each preconditioner can be found in the
    *  documentation for the preconditioner.
    */
-   tbox::Pointer<tbox::Database> d_db;
+   boost::shared_ptr<tbox::Database> d_db;
 
    /**
    * Pointer to the patch hierarchy object used by the preconditioner.
    */
-   tbox::Pointer<hier::PatchHierarchy> d_hierarchy;
+   boost::shared_ptr<hier::PatchHierarchy> d_hierarchy;
 
    /**
    * Pointer to the RefinementBoundaryInterpolation object used by the preconditioner to initialize and set coarse-fine boundary values.
    */
-   SAMRAI::RefinementBoundaryInterpolation *d_cf_interpolant;      // object storing refinement boundary geometry and ghost value info.
+   boost::shared_ptr<RefinementBoundaryInterpolation> d_cf_interpolant;      // object storing refinement boundary geometry and ghost value info.
    
 protected:
 

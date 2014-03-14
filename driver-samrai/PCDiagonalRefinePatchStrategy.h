@@ -6,7 +6,7 @@
 #include "SAMRAI/xfer/RefinePatchStrategy.h"
 #include "SAMRAI/hier/PatchHierarchy.h"
 #include "SAMRAI/hier/Patch.h"
-#include "SAMRAI/tbox/Pointer.h"
+#include "boost/shared_ptr.hpp"
 #include "SAMRAI/hier/IntVector.h"
 #include "SAMRAI/hier/Box.h"
 #include "SAMRAI/tbox/Dimension.h"
@@ -56,7 +56,7 @@ public:
     * Re-do extrapolation of corner ghost cells after interpolation.
     */
    void extrapolateCornerGhostCells(
-      tbox::Pointer<hier::PatchHierarchy > hierarchy, 
+      boost::shared_ptr<hier::PatchHierarchy > hierarchy, 
       const int ln,
       const int var_id,
       const int var_idx=0);
@@ -120,7 +120,7 @@ public:
        return(hier::IntVector::getZero(getDim()));
      }
 
-   void getFromInput(const tbox::Pointer<tbox::Database> &db);
+   void getFromInput(const boost::shared_ptr<tbox::Database> &db);
 
    /**
    * Specify level of diagnostic information printed during iterations.
@@ -146,7 +146,7 @@ private:
    int d_extrapolation_order;
    int d_debug_print_info_level;
 
-   tbox::Pointer<hier::PatchHierarchy> d_hierarchy;
+   boost::shared_ptr<hier::PatchHierarchy> d_hierarchy;
 
 };
 }

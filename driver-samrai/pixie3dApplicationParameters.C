@@ -15,13 +15,13 @@ namespace SAMRAI{
   
 pixie3dApplicationParameters::pixie3dApplicationParameters()
 {
-   d_hierarchy.setNull();
+   d_hierarchy.reset();
 }
 
-pixie3dApplicationParameters::pixie3dApplicationParameters(tbox::Pointer<tbox::Database> database)
+pixie3dApplicationParameters::pixie3dApplicationParameters(boost::shared_ptr<tbox::Database> database)
 {
     d_db = database;
-   d_hierarchy.setNull();
+   d_hierarchy.reset();
 }
 
 pixie3dApplicationParameters::~pixie3dApplicationParameters()

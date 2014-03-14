@@ -5,7 +5,7 @@ c ##################################################################
 
         use graphics_io
 
-        use variables
+        use var_io
 
         use ts_setup
 
@@ -28,7 +28,7 @@ c       generic constants
 
 c       ADIOS function call variables
         integer        :: num_open    ! first create, then append file
-        character(20)  :: adios_fname ! set in ./plot/defineGraphics.F
+        character(20)  :: adios_fname="adios.bp" ! set in ./plot/defineGraphics.F
         integer        :: adios_rank  ! ?=? my_rank ???
 
         logical,private :: adios_debug=.false.
@@ -102,8 +102,6 @@ c     Define adios group and transport method
       !! FIXME: after adios 1.2.1, adios_declare_group has one more
        ! argument: (ADIOS_FLAG stats), 1 for true, 2 for false
       if (ADIOS_VER <= 1.21) then
-        write (*,*) 'Here'
-        stop
         call adios_declare_group (grp,grp_name,"iter",ierr);
       else
         call adios_declare_group (grp,grp_name,"iter",1,ierr);
@@ -475,7 +473,6 @@ c End of temporary fix
           deallocate(cell,node)
 
       endif ! first or all writes (coordinate data)
-
 
 c     Write the actual data
 

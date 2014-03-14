@@ -4,7 +4,6 @@
 #include "SAMRAI/pdat/FaceVariable.h"
 #include "SAMRAI/xfer/CoarsenSchedule.h"
 #include "SAMRAI/xfer/CoarsenAlgorithm.h"
-#include "SAMRAI/tbox/List.h"
 
 #include "preconditioner_base/PreconditionerStrategy.h"
 #include "interpolation/RefinementBoundaryInterpolation.h"
@@ -17,7 +16,7 @@
 
 #include <vector>
 
-typedef SAMRAI::tbox::List< SAMRAI::tbox::Pointer<SAMRAI::xfer::CoarsenSchedule > > crsList;
+typedef std::list< boost::shared_ptr<SAMRAI::xfer::CoarsenSchedule > > crsList;
 
 namespace SAMRAI{
 
@@ -36,8 +35,8 @@ public:
    
    int setupPreconditioner( SAMRSolvers::PreconditionerParameters *parameters );
    
-   int applyPreconditioner( tbox::Pointer< solv::SAMRAIVectorReal<double> > r,
-                            tbox::Pointer< solv::SAMRAIVectorReal<double> > z );
+   int applyPreconditioner( boost::shared_ptr< solv::SAMRAIVectorReal<double> > r,
+                            boost::shared_ptr< solv::SAMRAIVectorReal<double> > z );
 
    /**
     * Functions to read data from input and restart databases. If the
@@ -49,10 +48,10 @@ public:
     * If assertion checking is enabled, an unrecoverable exception
     * results if the database pointer is null.
    */
-   void getFromInput( tbox::Pointer<tbox::Database> &db,
+   void getFromInput( boost::shared_ptr<tbox::Database> &db,
                       bool is_from_restart = false);
    
-   void setRefinementBoundaryInterpolant(SAMRAI::RefinementBoundaryInterpolation *cf_interpolant);
+   void setRefinementBoundaryInterpolant(boost::shared_ptr<SAMRAI::RefinementBoundaryInterpolation> cf_interpolant);
 
 protected:
 
@@ -70,67 +69,48 @@ private:
                              SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme tangential_interp_scheme,
                              SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme normal_interp_scheme );
 
-   void initializeSolvers(tbox::Pointer<tbox::Database> &db);
+   void initializeSolvers(boost::shared_ptr<tbox::Database> &db);
 
-   void initializeOperators(tbox::Pointer<tbox::Database> &db);
+   void initializeOperators(boost::shared_ptr<tbox::Database> &db);
 
    void coarsenVariable( const int var_id,
                          std::string coarsen_op_str);
-   /*
-    * Retrieve list of potentially usable sibling fill schedules for a level.
-    */
+   // Retrieve list of potentially usable sibling fill schedules for a level.
    crsList* getCoarsenSchedules(int ln) { return( &d_coarsen_fill_schedules[ln] ); }
 
-   /*
-    * Retrieve list of potentially usable sibling fill schedules for a level.
-    */
-    tbox::Pointer<xfer::CoarsenSchedule > getCoarsenSchedule(int ln, xfer::CoarsenAlgorithm &);
+   // Retrieve list of potentially usable sibling fill schedules for a level.
+    boost::shared_ptr<xfer::CoarsenSchedule > getCoarsenSchedule(int ln, xfer::CoarsenAlgorithm &);
 
    bool  d_preconditioner_print_flag;
 
    double d_dt;
 
-   /*
-    * Cached list of fill schedules, to avoid creating one for every
-    * sibling fill.
-    */
-   std::vector< crsList > d_coarsen_fill_schedules;
+   // Cached list of fill schedules, to avoid creating one for every sibling fill.
+   std::vector< crsList> d_coarsen_fill_schedules;
 
-   tbox::Pointer<hier::PatchHierarchy > d_hierarchy;
+   boost::shared_ptr<hier::PatchHierarchy > d_hierarchy;
 
-   SAMRAI::RefinementBoundaryInterpolation *d_cf_interpolant;
+   boost::shared_ptr<SAMRAI::RefinementBoundaryInterpolation> d_cf_interpolant;
 
    int d_numberOfMOperators;
    
-   /**
-    * array of operators to represent the M operators
-    */
-   tbox::Array< tbox::Pointer<PCDiagonalMultilevelOperator> > d_MOperators;
+   // array of operators to represent the M operators
+   tbox::Array< boost::shared_ptr<PCDiagonalMultilevelOperator> > d_MOperators;
 
-   /**
-    * U operator from paper
-    */
-   tbox::Pointer<PCDiagonalMultilevelOperator> d_UOperator;
+   // U operator from paper
+   boost::shared_ptr<PCDiagonalMultilevelOperator> d_UOperator;
 
-   /**
-    * L operator from paper
-    */
-   tbox::Pointer<PCDiagonalMultilevelOperator> d_LOperator;
+   // L operator from paper
+   boost::shared_ptr<PCDiagonalMultilevelOperator> d_LOperator;
 
-   /**
-    * Pschur operator from paper
-    */
-   tbox::Pointer<PCDiagonalMultilevelOperator> d_PSchurOperator;
+   // Pschur operator from paper
+   boost::shared_ptr<PCDiagonalMultilevelOperator> d_PSchurOperator;
 
-   /**
-    * array of solvers used to invert components of M
-    */
-   tbox::Array< tbox::Pointer<SAMRSolvers::MultilevelSolver> > d_MSolvers;
+   // array of solvers used to invert components of M
+   tbox::Array< boost::shared_ptr<SAMRSolvers::MultilevelSolver> > d_MSolvers;
 
-   /**
-    * solver for Schur complement inversion
-    */
-   tbox::Pointer<SAMRSolvers::MultilevelSolver> d_PSchurSolver;
+   // solver for Schur complement inversion
+   boost::shared_ptr<SAMRSolvers::MultilevelSolver> d_PSchurSolver;
 
 };
 

@@ -186,6 +186,10 @@ c######################################################################
       nullify(patch_data%u_nm)
       nullify(patch_data%gparams)
       nullify(patch_data%aux)
+      nullify(patch_data%flux_x)
+      nullify(patch_data%flux_y)
+      nullify(patch_data%flux_z)
+      nullify(patch_data%src)
 
       call setup_patch(patch_data,u_0,u_n,aux,gparams)
       call setup_f90c_ptrlinks(c_patch_ptr, patch_data)
@@ -267,6 +271,45 @@ c      use grid_mgmt
       call setup_aux_vec(fauxvec,i,c_array,xs,ys,zs,xe,ye,ze)
 
       end subroutine fill_aux_array_vec
+
+
+c fill_flux
+c######################################################################
+      subroutine fill_flux_vec(patch_var,nvar,nx,ny,nz,fx,fy,fz,src)
+         use variables
+         type(patch), TARGET :: patch_var
+         integer,INTENT(IN) :: nvar,nx,ny,nz
+         REAL*8, INTENT(IN) :: fx(nx+1,ny,nz,nvar) 
+         REAL*8, INTENT(IN) :: fy(nx,ny+1,nz,nvar)
+         REAL*8, INTENT(IN) :: fz(nx,ny,nz+1,nvar)
+         REAL*8, INTENT(IN) :: src(nx,ny,nz,nvar)
+         INTERFACE
+         subroutine setup_flux_vec(patch_var,nvar,nx,ny,nz,fx,fy,fz,src)
+            use variables
+            type(patch), TARGET :: patch_var
+            integer    :: nvar,nx,ny,nz
+            REAL*8, TARGET :: fx(nx+1,ny,nz,nvar)
+            REAL*8, TARGET :: fy(nx,ny+1,nz,nvar)
+            REAL*8, TARGET :: fz(nx,ny,nz+1,nvar)
+            REAL*8, TARGET :: src(nx,ny,nz,nvar)
+         end subroutine setup_flux_vec
+         END INTERFACE
+         call setup_flux_vec(patch_var,nvar,nx,ny,nz,fx,fy,fz,src)
+      end subroutine fill_flux_vec
+
+      subroutine setup_flux_vec(patch_var,nvar,nx,ny,nz,fx,fy,fz,src)
+         use variables
+         type(patch), TARGET :: patch_var
+         integer,INTENT(IN) :: nvar,nx,ny,nz
+         REAL*8, TARGET :: fx(nx+1,ny,nz,nvar)
+         REAL*8, TARGET :: fy(nx,ny+1,nz,nvar)
+         REAL*8, TARGET :: fz(nx,ny,nz+1,nvar)
+         REAL*8, TARGET :: src(nx,ny,nz,nvar)
+         patch_var%flux_x => fx
+         patch_var%flux_y => fy
+         patch_var%flux_z => fz
+         patch_var%src => src
+      end subroutine setup_flux_vec
 
 
 c f_delete_var_array

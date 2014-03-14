@@ -5,7 +5,7 @@
 #include "SAMRAI/hier/Box.h"
 #include "SAMRAI/hier/IntVector.h"
 #include "SAMRAI/hier/Patch.h"
-#include "SAMRAI/tbox/Pointer.h"
+#include "boost/shared_ptr.hpp"
 #include "SAMRAI/tbox/Dimension.h"
 
 using namespace SAMRAI;
@@ -21,7 +21,7 @@ class commPatchData {
         commPatchData( tbox::Dimension dim );
 
         // Constructor that initializes patch data
-        commPatchData( const tbox::Pointer<hier::Patch>& patch, const int var_id );
+        commPatchData( const boost::shared_ptr<hier::Patch>& patch, const int var_id );
 
         // De-constructor
         ~commPatchData();

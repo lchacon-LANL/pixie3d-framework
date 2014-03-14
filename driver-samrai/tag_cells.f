@@ -19,9 +19,6 @@ c  Tag cells for refinement
       
       integer i, j, k
       double precision J_mag, J_tol2
-
-c  Initialize the tag_array
-      tag_array(:,:,:) = 0
       
 c  Set the tag_array
       J_tol2 = J_tol*J_tol

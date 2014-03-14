@@ -1657,15 +1657,12 @@ c     --------------------------------------------------------------
 c     Finds periodic orbit beta and stores in b0 array
 c     --------------------------------------------------------------
 
-#if defined(FPA)
         use fixed_point_accelerator
-#endif
 
         real(8) :: beta_err,lberr
 
-#if defined(FPA)
         type (fpa_state) :: fpav
-#endif
+
         INTERFACE
           subroutine lsode_2d_beta(neq,t,y,ydot)
           integer :: neq
@@ -1722,14 +1719,12 @@ cc        end where
 cc          b0 = 1d0 !Normalization test
 
         !Iteration
-#if defined(FPA)
         !Create fixed-point accelerator
         call fpa_create(fpav,x,maxv=5)
 
         if (my_rank == 0) then
           write (*,*) '  Using FPA acceleration...'
         endif
-#endif
 
         beta_err = 1d0
 
@@ -1781,7 +1776,6 @@ cc                endif
 
           if (my_rank == 0) write (*,*) '  >> Beta error=',beta_err
 
-#if defined(FPA)
           !Apply fixed-point accelerator
           call fpa_correction(fpav,r,dp=dot2)
 
@@ -1789,19 +1783,15 @@ cc                endif
           x = x - r
 
           b0(1:nx,1:ny,1:nz) = reshape(x,shape(b0(1:nx,1:ny,1:nz)))
-#else
-          x = reshape(b0(1:nx,1:ny,1:nz),shape(x))
-#endif
+cc          x = reshape(b0(1:nx,1:ny,1:nz),shape(x))
         enddo
 
 c     Destroy orbit
 
         call orbit_destroy
 
-#if defined(FPA)
         !Destroy fixed-point accelerator
         call fpa_destroy(fpav)
-#endif
 
       end subroutine find_beta
 
@@ -1811,7 +1801,7 @@ c     lag_3d_init
 c     ##############################################################
       subroutine lag_3d_init(igrid,nx,ny,nz,bb,alp,iout,G_tol
      .                      ,spline_order,B_wgt,chi,poinc_file)
-      use iosetup
+      use var_io
 
       implicit none
 
@@ -2101,15 +2091,12 @@ c     --------------------------------------------------------------
 c     Finds periodic orbit beta and stores in b0 array
 c     --------------------------------------------------------------
 
-#if defined(FPA)
         use fixed_point_accelerator
-#endif
 
         real(8) :: beta_err,lberr
 
-#if defined(FPA)
         type (fpa_state) :: fpav
-#endif
+
         INTERFACE
           subroutine lsode_3d_beta(neq,t,y,ydot)
           integer :: neq
@@ -2166,15 +2153,13 @@ cc        end where
 
 cc          b0 = 1d0 !Normalization test
 
-        !Iteration
-#if defined(FPA)
+
         !Create fixed-point accelerator
         call fpa_create(fpav,x,maxv=5)
 
         if (my_rank == 0) then
           write (*,*) '  Using FPA acceleration...'
         endif
-#endif
 
         beta_err = 1d0
 
@@ -2230,7 +2215,6 @@ cc                if (b_wgt) b0(i,j,k) = b0_s/length_s  !Find beta
 
           if (my_rank == 0) write (*,*) '  >> Beta error=',beta_err
 
-#if defined(FPA)
           !Apply fixed-point accelerator
           call fpa_correction(fpav,r,dp=dot2)
 
@@ -2238,19 +2222,16 @@ cc                if (b_wgt) b0(i,j,k) = b0_s/length_s  !Find beta
           x = x - r
 
           b0(1:nx,1:ny,1:nz) = reshape(x,shape(b0(1:nx,1:ny,1:nz)))
-#else
-          x = reshape(b0(1:nx,1:ny,1:nz),shape(x))
-#endif
+cc          x = reshape(b0(1:nx,1:ny,1:nz),shape(x))
+
         enddo
 
 c     Destroy orbit
 
         call orbit_destroy
 
-#if defined(FPA)
         !Destroy fixed-point accelerator
         call fpa_destroy(fpav)
-#endif
 
       end subroutine find_beta_3d
 
@@ -3063,7 +3044,7 @@ cc      subroutine lagrangian_init_from_file(file,igrid,nx,ny,nz,bb,alp
 cc     .                                    ,G_tol,spline_order,nints
 cc     .                                    ,B_wgt,chi)
 cc
-cc      use iosetup
+cc      use var_io
 cc
 cc      implicit none
 cc
