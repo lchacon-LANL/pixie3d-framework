@@ -1,248 +1,122 @@
 
-c module ts_if
-c ######################################################################
-      module ts_if
-
-      use ts_setup
-
-      use nk, ONLY: nk_conf,matrixFreeMatVec,jfnk,evaluateNewtonResidual
-     .             ,NOERR,CUTDT
-
-      integer :: gmres_tot,newt_tot,itnewt,itgmres
-
-      contains
-
-c     implicit_ts
-c     #################################################################
-      function implicit_ts(neq,x,nlit,lit,iout) result(ierr)
-
-c     -----------------------------------------------------------------
-c     Performs implicit advance of solution x (on input, x=xold)
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: neq,ierr,nlit,lit,iout
-
-      real(8) :: x(:)
-
-c     Local variables
-
-      integer :: nn
-
-c     Begin program
-
-      ierr = NOERR
-
-      nn = size(x)
-
-      x_old = x
-
-c     Evaluate nonlinear function at old time for theta scheme
-
-      old_time_eval = .true.     !This informs nlfunction that we are processing
-                                 !  n time level info
-
-      if (.not.bdf2) call evaluateNonlinearFunction(nn,x,fold)
-
-      old_time_eval = .false.
-
-c     Newton-Krylov iteration
-
-      nk_conf%etak_meth      = method
-      nk_conf%ksmax          = maxksp
-      nk_conf%gmmax          = maxitgm
-      nk_conf%nwt_max_it_acc = 0.7*maxitnwt
-      nk_conf%nwt_max_it_rej = maxitnwt
-      nk_conf%global_meth    = global
-
-      nk_conf%eta0   = tolgm
-      nk_conf%damp   = damp
-      nk_conf%pdt0   = dt0
-      if (atol  > 0d0) nk_conf%atol   = atol
-      if (rtol  > 0d0) nk_conf%rtol   = rtol
-      if (stol  > 0d0) nk_conf%stol   = stol
-      if (mf_eps> 0d0) nk_conf%mf_eps = mf_eps
-
-      nk_conf%krylov_method='fg'
-cc      nk_conf%krylov_method='gm'
-      nk_conf%fpa=fpa
-      nk_conf%fpa_it=fpa_it
-
-      nk_conf%vol_wgt = vol_wgt
-
-      call jfnk(neq,nn,x,iguess,iout,ierr)
-
-c     Store convergence info
-
-      lit  = nk_conf%gm_it_out
-      nlit = nk_conf%nwt_it_out
-
-c     End program
-
-      end function implicit_ts
-
-c     explicit_ts
-c     #################################################################
-      function explicit_ts(x) result(ierr)
-
-c     -----------------------------------------------------------------
-c     Performs explicit advance of solution x (on input, x=xold)
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: ierr
-
-      real(8) :: x(:)
-
-c     Local variables
-
-      integer :: nn
-
-c     Begin program
-
-      ierr = NOERR
-
-      nn = size(x)
-
-      x_old = x
-
-c     Predictor step
-
-      old_time_eval = .true. !This informs nlfunction that we are processing
-                             !  n time level info
-
-      call evaluateNonlinearFunction(nn,x,fold)
-
-      old_time_eval = .false.
-
-      x = x_old - dt*(fold-fsrc)*cnfactor
-
-c     Corrector step
-
-      call evaluateNonlinearFunction(nn,x,fold)
-
-      x = x_old - dt*(fold-fsrc)
-
-c     End program
-
-      end function explicit_ts
-
-      end module ts_if
-
 c module ts_base
 c ######################################################################
       module ts_base
 
-        use ts_if
+        use ts_setup
 
         use variables 
+
+        use nk, ONLY: NOERR,CUTDT
 
 #if defined(MK)
         use mk
 #endif
 
-#if !defined(petsc_c)
-        type(var_array),pointer :: dn,dnm,dnp
-        real(8) :: l_np,l_n,et1,et2
+        integer :: nrstep,inewtime,nrst
+        integer :: itnewt,itgmres,gmres_tot,newt_tot
 
+        real(8) :: tmrst,dtbase,alpha,gammat
+        real(8) :: rstep,dfreq,dtexp
+
+cc        real(8),pointer,dimension(:,:) :: old_f
+
+c$$$#if !defined(petsc_c)
+c$$$        type(var_array),pointer :: dn,dnm,dnp
+c$$$        real(8) :: l_np,l_n,et1,et2
+c$$$
       contains
-
-c     findGuess
-c     ###############################################################
-      subroutine findGuess(vn,vnp)
-
-c     ---------------------------------------------------------------
-c     Correct time step
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type(var_array),pointer :: vn,vnp
-
-c     Local variables
-
-c     Begin program
-
-      if (itime <= 2) then
-        !Previous time step
-        vnp = vn
-cc      elseif (itime == 2) then
-cc        !Linear extrapolation
-cc        l_np = dt/dt_n
-cc        call AXPYDerivedType(1d0,vn,l_np,dn,vnp)
-cc        dnp = dn   !Initialize recursion relation
-      else
-        !Quadratic extrapolation
-        l_np = dt/dt_n
-        et1 = l_np*(1d0+l_n*(1+l_np)/(1+l_n))
-        et2 =-l_np*l_n**2*(1+l_np)/(1+l_n)
-        call AXPYDerivedType(et1,dn,et2,dnm,dnp) !Recursion relation
-        call AXPYDerivedType(1d0,vn,1d0,dnp,vnp) !vnp = vn + dnp
-      endif
-
-cc      write (*,*) itime,l_np,l_n,et1,et2
-
-cc      if (itime <= 2) then
-cc        !Previous time step
-cc        vnp = vn
-cccc      elseif (itime == 2) then
-cccc        !FE predictor
-cccc        dn = dt*old_f(:,1)
-cccc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp)
-cc      else
-cc        !AB@ predictor
-cc        old_f(:,2) = 0.5*dt*(3*old_f(:,1)-old_f(:,2))
-cc        dn = old_f(:,2)
-cc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp) !vnp = vn - dt/2*(3*f_n - f_n-1)
-cc      endif
-
-c     End program
-
-      end subroutine findGuess
-
-c     storeTSinfo
-c     ###############################################################
-      subroutine storeTSinfo(vn,vnp)
-
-c     ---------------------------------------------------------------
-c     Advance recursion relation
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type(var_array),pointer :: vn,vnp
-
-c     Local variables
-
-c     Begin program
-
-      l_n = l_np
-
-      call AXPYDerivedType(1d0,vnp,-1d0,vn,dnp)
-
-      dnm = dn
-      dn  = dnp
-
-cc      old_f(:,2) = old_f(:,1)
-cc      call evaluateNonlinearFunction(vnp,old_f(:,1))
-
-c     End program
-
-      end subroutine storeTSinfo
+c$$$
+c$$$c     findGuess
+c$$$c     ###############################################################
+c$$$      subroutine findGuess(vn,vnp)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Correct time step
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      type(var_array),pointer :: vn,vnp
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      if (itime <= 2) then
+c$$$        !Previous time step
+c$$$        vnp = vn
+c$$$cc      elseif (itime == 2) then
+c$$$cc        !Linear extrapolation
+c$$$cc        l_np = dt/dt_n
+c$$$cc        call AXPYDerivedType(1d0,vn,l_np,dn,vnp)
+c$$$cc        dnp = dn   !Initialize recursion relation
+c$$$      else
+c$$$        !Quadratic extrapolation
+c$$$        l_np = dt/dt_n
+c$$$        et1 = l_np*(1d0+l_n*(1+l_np)/(1+l_n))
+c$$$        et2 =-l_np*l_n**2*(1+l_np)/(1+l_n)
+c$$$        call AXPYDerivedType(et1,dn,et2,dnm,dnp) !Recursion relation
+c$$$        call AXPYDerivedType(1d0,vn,1d0,dnp,vnp) !vnp = vn + dnp
+c$$$      endif
+c$$$
+c$$$cc      write (*,*) itime,l_np,l_n,et1,et2
+c$$$
+c$$$cc      if (itime <= 2) then
+c$$$cc        !Previous time step
+c$$$cc        vnp = vn
+c$$$cccc      elseif (itime == 2) then
+c$$$cccc        !FE predictor
+c$$$cccc        dn = dt*old_f(:,1)
+c$$$cccc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp)
+c$$$cc      else
+c$$$cc        !AB@ predictor
+c$$$cc        old_f(:,2) = 0.5*dt*(3*old_f(:,1)-old_f(:,2))
+c$$$cc        dn = old_f(:,2)
+c$$$cc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp) !vnp = vn - dt/2*(3*f_n - f_n-1)
+c$$$cc      endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine findGuess
+c$$$
+c$$$c     storeTSinfo
+c$$$c     ###############################################################
+c$$$      subroutine storeTSinfo(vn,vnp)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Advance recursion relation
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      type(var_array),pointer :: vn,vnp
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      l_n = l_np
+c$$$
+c$$$      call AXPYDerivedType(1d0,vnp,-1d0,vn,dnp)
+c$$$
+c$$$      dnm = dn
+c$$$      dn  = dnp
+c$$$
+c$$$cc      old_f(:,2) = old_f(:,1)
+c$$$cc      call evaluateNonlinearFunction(vnp,old_f(:,1))
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine storeTSinfo
 
 c     correctTimeStep
 c     ###############################################################
-      subroutine correctTimeStep(itm,ierr,dt_exp)
+      subroutine correctTimeStep(itm,ierr)
 
 c     ---------------------------------------------------------------
 c     Correct time step
@@ -252,8 +126,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer          :: ierr,itm
-      real(8),optional :: dt_exp
+      integer :: ierr,itm
 
 c     Local variables
 
@@ -265,7 +138,13 @@ c     Estimate local growth rate
 
 c     Find new time step
 
-      call findNewTimeStep(itm,ierr,dt_exp=dt_exp)
+      call findNewTimeStep(itm,ierr)
+
+c     Update counters
+
+      tnm  = tn
+      tn   = time
+      time = tn + dt
 
 c     End program
 
@@ -277,11 +156,11 @@ c     #######################################################################
 
 c     Calculation of local growth rate for CN
 
-        integer     :: ieq
+        integer :: ieq
 
-        real(8)     :: dmag1,dmag2,dpert,mag(neqd)
+        real(8) :: dmag1,dmag2,dpert,mag(neqd)
 
-        real(8)     :: array(ilom:ihip,jlom:jhip,klom:khip)
+        real(8) :: array(ilom:ihip,jlom:jhip,klom:khip)
 
 c     Begin program
 
@@ -322,86 +201,142 @@ c     Begin program
 
       end subroutine correctTimeStep
 
-#else
+c$$$#else
+c$$$
+c$$$      contains
+c$$$
+c$$$c     correctTimeStepPetsc
+c$$$c     ######################################################################
+c$$$      subroutine correctTimeStepPetsc(dn,dnh,dnp,ierr,dt_to_c)
+c$$$
+c$$$      use parameters
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      integer     :: ierr
+c$$$      real(8)     :: dn(neqd),dnh(neqd),dnp(neqd),dt_to_c
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$c     Estimate local growth rate
+c$$$
+c$$$      if (sm_flag == 1) call calculate_gammat
+c$$$
+c$$$c     Find new time step
+c$$$
+c$$$      call findNewTimeStep(itime+1,ierr)
+c$$$
+c$$$c     Update counters (only if timeStep is successful)
+c$$$
+c$$$      itime  = itime + 1
+c$$$
+c$$$      time   = time  + dt
+c$$$      tmrst  = tmrst + dt
+c$$$      nrst   = nrst  + 1
+c$$$
+c$$$      dt_to_c = dt
+c$$$
+c$$$c     End program
+c$$$
+c$$$      contains
+c$$$
+c$$$c     calculate_gammat
+c$$$c     #######################################################################
+c$$$      subroutine calculate_gammat
+c$$$
+c$$$c     -----------------------------------------------------------------------
+c$$$c     Calculation of local growth rate for CN
+c$$$c    ------------------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer     :: ieq
+c$$$
+c$$$        real(8)     :: mag(neqd)
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        where (dnp /= dn .and. dnh /= 0d0)
+c$$$          mag = dt*dnh/(dnp-dn)
+c$$$        elsewhere
+c$$$          mag = 1e30
+c$$$        end where
+c$$$
+c$$$        gammat = 1./minval(abs(mag))
+c$$$
+c$$$      end subroutine calculate_gammat
+c$$$
+c$$$      end subroutine correctTimeStepPetsc
+c$$$
+c$$$#endif
 
-      contains
+c     TS_initCounters
+c     ####################################################################
+      subroutine TS_initCounters
 
-c     correctTimeStepPetsc
-c     ######################################################################
-      subroutine correctTimeStepPetsc(dn,dnh,dnp,ierr,dt_to_c)
-
-      use parameters
+c     --------------------------------------------------------------------
+c     Initialize time stepping counters
+c     --------------------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-      integer     :: ierr
-      real(8)     :: dn(neqd),dnh(neqd),dnp(neqd),dt_to_c
-
 c     Local variables
 
 c     Begin program
 
-c     Estimate local growth rate
+      gmres_tot = 0
+      newt_tot  = 0
 
-      if (sm_flag == 1) call calculate_gammat
+      itime     = inewtime - 1
 
-c     Find new time step
+      nrst      = 0
+      tmrst     = 0d0
 
-      call findNewTimeStep(itime+1,ierr)
-
-c     Update counters (only if timeStep is successful)
-
-      itime  = itime + 1
-
-      time   = time  + dt
-      tmrst  = tmrst + dt
-      nrst   = nrst  + 1
-
-      dt_to_c = dt
+      dtexp     = 0d0
 
 c     End program
 
-      contains
+      end subroutine TS_initCounters
 
-c     calculate_gammat
-c     #######################################################################
-      subroutine calculate_gammat
+c     TS_updateCounters
+c     ####################################################################
+      subroutine TS_updateCounters
 
-c     -----------------------------------------------------------------------
-c     Calculation of local growth rate for CN
-c    ------------------------------------------------------------------------
+c     --------------------------------------------------------------------
+c     Update time stepping counters
+c     --------------------------------------------------------------------
 
-        implicit none
+      implicit none
 
 c     Call variables
 
 c     Local variables
 
-        integer     :: ieq
-
-        real(8)     :: mag(neqd)
-
 c     Begin program
 
-        where (dnp /= dn .and. dnh /= 0d0)
-          mag = dt*dnh/(dnp-dn)
-        elsewhere
-          mag = 1e30
-        end where
+      tmrst  = tmrst + dt
+      nrst   = nrst  + 1
 
-        gammat = 1./minval(abs(mag))
+      gmres_tot = gmres_tot + itgmres
+      newt_tot  = newt_tot  + itnewt
 
-      end subroutine calculate_gammat
+c     End program
 
-      end subroutine correctTimeStepPetsc
-
-#endif
+      end subroutine TS_updateCounters
 
 c     findNewTimeStep
 c     ####################################################################
-      subroutine findNewTimeStep(itm,ierr,dt_exp)
+      subroutine findNewTimeStep(itm,ierr)
 
 c     --------------------------------------------------------------------
 c     Find new time step
@@ -412,22 +347,31 @@ c     --------------------------------------------------------------------
 c     Call variables
 
       integer    ::  ierr,itm
-      real(8),optional :: dt_exp
 
 c     Local variables
 
+      external findExplicitDt
+
 c     Begin program
+
+c     Store old time step
 
       if (tn == tnm) then
          dtold = dt
          dt_n  = dt
       else
-         dtold = tn-tnm
-         dt_n  = tn-tnm
+         dtold = time-tn
+         dt_n  = time-tn
       endif
 
-      if (PRESENT(dt_exp)) then
-        dt = dt_exp
+c     Find new time step
+
+      if (    cnfactor > 5d-1                   !Explicit
+     .   .or.(timecorr.and.ierr==0.and.itm==1)  !First explicit step if timecorr
+     .   ) then
+        call findExplicitDt(dt)
+  
+        if (cnfactor > 5d-1) dtexp = dtexp + dt
       else
         call adapt_dt
 
@@ -549,192 +493,5 @@ c     #######################################################################
       end subroutine calculate_cnfactor
 
       end subroutine findNewTimeStep
-
-c     updateSolution
-c     ######################################################################
-      function updateSolution(vnp,iout,ddt) result(ierr)
-
-c     ----------------------------------------------------------------------
-c     Performs time advance of solution from vn (input in vnp) to vnp
-c     ----------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: ierr,iout
-      real(8),optional :: ddt
-
-      type(var_array),pointer :: vnp
-
-c     Local variables
-
-      integer :: itnw,itgm
-      real(8) :: x(ntotd),dt_save
-
-c     Begin program
-
-      if (PRESENT(ddt)) then
-        dt_save = dt
-        dt = ddt
-      endif
-
-      ierr = NOERR
-
-      call mapStructureToVector(x,vnp)
-
-c     Define TS parameters
-
-      if (bdf2) then
-        bdfp  = cnp
-        bdfn  = cn
-        bdfnm = cnm
-        cnf   = 0d0
-      else
-        bdfp  = 1d0
-        bdfn  =-1d0
-        bdfnm = 0d0
-        cnf   = cnfactor
-      endif
-
-      if (dt == 0d0) call pstop('updateSolution','dt=0!!!')
-
-c     Time step update
-
-      if (cnfactor <= 5d-1) then
-        ierr = implicit_ts(neqd,x,itnw,itgm,iout)
-      else
-        ierr = explicit_ts(x)
-        itnw = 1
-        itgm = 0
-      endif
-
-c     Map solution to vnp (if no error)
-
-      if (ierr == NOERR .or. ierr == CUTDT) then
-        call mapVectorToStructure(vnp,x)
-
-        call applyBC(1,vnp,gv%aux,it=itime)
-
-#if defined(MK)
-        if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)
-#endif
-      endif
-
-c     Update counters
-
-      itgmres = itgmres + itgm
-      itnewt  = itnewt  + itnw
-
-      gmres_tot = gmres_tot + itgmres
-      newt_tot  = newt_tot  + itnewt
-
-c     End program
-
-      if (PRESENT(ddt)) dt = dt_save
-
-      end function updateSolution
-
-c     eigenSolution
-c     ######################################################################
-      function eigenSolution(vnp,iout) result(ierr)
-
-c     ----------------------------------------------------------------------
-c     Performs Eigen solution of Jacobian system. In call:
-c       - v0: equilibrium state
-c       - vnp: on input, initial guess; on output, eigenfunction
-c     ----------------------------------------------------------------------
-
-      use eigen_mod
-
-      implicit none
-
-c     Call variables
-
-      integer :: ierr,iout
-
-      type(var_array),pointer :: vnp
-
-c     Local variables
-
-      real(8) :: x(ntotd)
-
-      INTERFACE
-        subroutine applyPC(n,x,y,out)
-        integer :: n,out
-        real(8),dimension(n) :: x,y
-        end subroutine
-      END INTERFACE
-
-c     Begin program
-
-      ierr = NOERR
-
-      call mapStructureToVector(x ,vnp)
-
-c     Setup vectors
-
-      !Setup matrix-free vectors (xk, rk)
-      allocate(nk_conf%xk(ntotd),nk_conf%rk(ntotd))
-
-      call mapStructureToVector(nk_conf%xk,u_0)
-
-      call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
-
-      !Setup preconditioner
-      call setupPC(ntotd,nk_conf%xk,1)
-
-      !Setup initial guess for eigenfunction
-      x = x - nk_conf%xk
-
-c     Eigensolve
-
-cc#if defined(arpack)
-cc        call arnoldi_eig(neqd,ntotd,x,iout)
-cc#endif
-      eigen_conf%my_rank = my_rank
-
-      eigen_conf%ksmax   = maxksp
-      eigen_conf%armax   = maxitgm
-      if (rtol > 0d0) eigen_conf%rtol = rtol
-      if (atol > 0d0) eigen_conf%atol = atol
-      eigen_conf%step    = eig_dt
-
-      iguess = 1
-      call lehoucq_eig(ntotd,x,iguess,iout,ierr
-     .                ,matrixFreeMatVec
-     .                ,applyPC
-     .                ,ldot=dot2)
-
-      select case(ierr)
-      case(1)
-        call pstop('lehoucq_eig','Matrix not positive definite')
-      end select
-
-c     Output
-
-      if (my_rank == 0) then
-         write (*,*)
-         write (*,*) '**************************************'
-         write (*,'(a,1p,1e10.3,a)') ' ****** Eigenvalue is='
-     $           ,1d0/dt-eigen_conf%eigv,' ******' 
-         write (*,*) '**************************************'
-      endif
-
-      itgmres = eigen_conf%iter_out
-
-c     Map eigenvector
-
-      x = x + nk_conf%xk
-
-c     Free memory
-
-      deallocate(nk_conf%xk,nk_conf%rk)
- 
-      call mapVectorToStructure(vnp,x)
-
-c     End program
-
-      end function eigenSolution
 
       end module ts_base

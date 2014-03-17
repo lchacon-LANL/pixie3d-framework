@@ -358,7 +358,7 @@ c     Read equilibrium
 c     Read files
 
       tnm = tn
-      tn = time
+      tn  = time
       ierr = readRecordFile(urecord,itime,time,dt,u_n)
 
       if (ierr /= 0) then
@@ -368,13 +368,16 @@ c     Read files
       call equateDerivedType(u_np,u_n)
 
       do
-        tnm = tn
-        tn = time
         ierr = readRecordFile(urecord,itime,time,dt,vmed)
 
-        if (ierr /= 0) then
+        if (ierr /= 0) then !Backtrack counters and exit
+          time = tn
+          tn   = tnm
+          tnm  = 0d0
           exit
         else
+          tnm = tn
+          tn  = time
           call equateDerivedType(u_n ,u_np)
           call equateDerivedType(u_np,vmed)
         endif
@@ -382,7 +385,7 @@ c     Read files
 
       if (my_rank == 0) write (*,*) ' Done!'
 
-      dtold = tn - tnm
+cc      dtold = tn - tnm
 
 #if defined(pit)
       dt = dtbase  !Reset time step with parallel-in-time

@@ -24,7 +24,7 @@ c Common variables
 
 c Local variables
 
-      integer :: prec_tot,ierr,perr,prof_stage(3),offset,ieq
+      integer :: ierr=0,perr,prof_stage(3),offset
       real(8) :: time1,time2,time3,time4
 
 c Interfaces
@@ -88,20 +88,11 @@ c Initialize calculation
 
 c Initialize counters
 
-      gmres_tot = 0
-      newt_tot  = 0
-      ierr      = 0
-
-      itime     = inewtime - 1
-
-      nrst      = 0
-      tmrst     = 0d0
-
-      dtexp     = 0d0
+      call TS_initCounters
 
 c Initial output
 
-      call output(u_np)
+      call output(u_np)  !External
 
 #if defined(MK)
       if (mk_grid) call MK_output
@@ -129,19 +120,11 @@ c Time loop
 cc        if (tmax.gt.0d0.and.time.gt.tmax)  exit
         if (numtime.ge.0.and.itime.ge.(numtime+inewtime)) exit
 
-c     Find new time step
+c     Find new time step and update time counters
 
-        if (    cnfactor > 5d-1                            !Explicit
-     .     .or.(timecorr.and.ierr==0.and.itime-offset==1)  !First explicit step if timecorr
-     .     ) then
-          call findExplicitDt(dt)
-          call correctTimeStep(itime-offset,ierr,dt_exp=dt)
-cc        elseif (timecorr) then
-        else
-          call correctTimeStep(itime-offset,ierr)
-        endif
+        call correctTimeStep(itime-offset,ierr)
 
-c     Assign old time solution
+c     Store old time solution
 
         call equateDerivedType(u_nm,u_n)
         call equateDerivedType(u_n ,u_np)
@@ -152,9 +135,7 @@ c     Preprocess old solution (for e.g. splitting)
 
 c     Store BDF2 old-time solution (in u_np)
 
-        if (bdf2) then
-          call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,u_np)
-        endif
+        if (bdf2) call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,u_np)
 
 c     Time update
 
@@ -164,20 +145,11 @@ c     Time update
         call PetscLogStagePush(prof_stage(2),perr)
 #endif
 
-        itgmres = 0
-        itnewt = 0
-
-        if (.not.relax_init_grid) then
-          tnm = tn
-          tn  = time
-          time = tn + dt
-        endif
-
         if (eigen) then
           !Eigenvalue solver
-          ierr = eigenSolution(u_np,ilevel)
+          ierr = eigenSolution (u_np,ilevel)
         elseif (prj_int_ts) then
-          ierr = prj_int_update(u_np,prj_int_k,prj_int_M,ilevel)
+          ierr = prj_int_update(u_np,ilevel)
         else
           !Time step
           ierr = updateSolution(u_np,ilevel)
@@ -223,12 +195,9 @@ c     Postprocess solution
 
         if (postprocess) call postProcessSol(u_np)  !External
 
-c     Update counters (only if timeStep is successful)
+c     Update other counters (only if timeStep is successful)
 
-        if (.not.relax_init_grid) then
-          tmrst  = tmrst + dt
-          nrst   = nrst  + 1
-        endif
+        if (.not.relax_init_grid) call TS_updateCounters
 
 c     Output per time step
 
@@ -286,7 +255,7 @@ c Final statistics
 #endif
 
       if (my_rank == 0) then
-        prec_tot = gmres_tot + iguess*newt_tot
+cc        prec_tot = gmres_tot + iguess*newt_tot
 
         write(*,300) 
 

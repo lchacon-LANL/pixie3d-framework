@@ -10,35 +10,34 @@ c ######################################################################
      .                                     ,bdfp,bdfn,bdfnm
 
 #if !defined(samrai)
-        real(8),pointer,dimension(:)   :: fold,fsrc,x_old
+        real(8),pointer,dimension(:) :: fold,fsrc,x_old
 #endif
-        real(8),pointer,dimension(:,:) :: old_f
 
-        integer    :: numtime,ndstep,nrstep,inewtime,nrst,ntimemax
+        integer :: numtime,ndstep,ntimemax
 
-        real(8)    :: tmrst,dt,dtbase,cnfactor,alpha,gammat,dt_n
-        real(8)    :: tmax,dstep,rstep,time,tn,tnm
-     $               ,dfreq,dtexp,dtold,eig_dt
+        real(8) :: cnfactor,dstep,eig_dt
+
+        real(8) :: dt,dt_n,dtold,tmax,time,tn,tnm
 
         !Initialized variables
-        integer    :: itime=0
-     .               ,sm_pass=2
-     .               ,sm_flag=0
+        integer :: itime=0
+     .            ,sm_pass=2
+     .            ,sm_flag=0
 
-        logical    :: timecorr=.false.
-     .               ,restart=.false.
-     .               ,source=.true.
-     .               ,predictor=.false.
-     .               ,postprocess=.false.
-     .               ,preprocess=.false.
-     .               ,chk_src=.false.
-     .               ,source_eval=.false.
-     .               ,old_time_eval=.false.
-     .               ,bdf2=.false.
-     .               ,eigen=.false.
-     .               ,relax_init_grid=.false.
+        logical :: timecorr=.false.
+     .            ,restart=.false.
+     .            ,source=.true.
+     .            ,predictor=.false.
+     .            ,postprocess=.false.
+     .            ,preprocess=.false.
+     .            ,chk_src=.false.
+     .            ,source_eval=.false.
+     .            ,old_time_eval=.false.
+     .            ,bdf2=.false.
+     .            ,eigen=.false.
+     .            ,relax_init_grid=.false.
 
-        real(8)    :: cnp=1d0,cn=-1d0,cnm=0d0
+        real(8) :: cnp=1d0,cn=-1d0,cnm=0d0
 
       contains
 

@@ -20,5 +20,6 @@ SUBDIRS = $(COMMONDIR)/math\
 
 ts_setup_mod.o: nksetup_mod.o
 ts_base_mod.o: ts_setup_mod.o
-proj_int_mod.o: ts_base_mod.o
+ts_if_mod.o: ts_base_mod.o
+proj_int_mod.o: ts_if_mod.o
 ts_mod.o: proj_int_mod.o
