@@ -16,7 +16,7 @@ c ######################################################################
         integer :: nrstep,inewtime,nrst
         integer :: itnewt,itgmres,gmres_tot,newt_tot
 
-        real(8) :: tmrst,dtbase,alpha,gammat
+        real(8) :: tmrst,dtbase
         real(8) :: rstep,dfreq,dtexp
 
 cc        real(8),pointer,dimension(:,:) :: old_f

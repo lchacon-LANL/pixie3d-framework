@@ -17,7 +17,7 @@ c ######################################################################
 
         real(8) :: cnfactor,dstep,eig_dt
 
-        real(8) :: dt,dt_n,dtold,tmax,time,tn,tnm
+        real(8) :: dt,dt_n,dtold,tmax,time,tn,tnm,alpha,gammat
 
         !Initialized variables
         integer :: itime=0
