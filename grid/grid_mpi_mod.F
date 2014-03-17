@@ -1418,8 +1418,8 @@ c     #################################################################
 
 c     Call variables
 
-        integer    :: igl,jgl,kgl,igx,igy,igz
-        logical    :: inProc
+        integer :: igl,jgl,kgl,igx,igy,igz
+        logical :: inProc
 
 c     Local variables
 
@@ -1435,7 +1435,7 @@ c     End program
 
 c     find_global_field_vec
 c     ##############################################################
-      subroutine find_global_field_vec(lf,gf,dump,map_bc)
+      subroutine find_global_field_vec(lf,gf,dump,map_bc,mpi_comm)
 
       use xdraw_io
 
@@ -1451,12 +1451,16 @@ c     Call variables
 
       logical,optional :: dump,map_bc
 
+      integer,optional :: mpi_comm
+
 c     Local variables
 
       integer :: i,j,k,dl(4),dg(4),lsize,gsize,ibc,ieq,dim,loc
       real(8),pointer,dimension(:) :: local_x,global_x
 
       logical :: dmp,mapbc
+
+      integer :: mpicomm
 
 c     Begin program
 
@@ -1471,6 +1475,14 @@ c     Begin program
       else
          mapbc = .true.
       endif
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+#endif
 
 c     Calculate array sizes
 
@@ -1491,7 +1503,7 @@ c     Communicate
 
       call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
-     .                  ,MPI_COMM_WORLD,mpierr)
+     .                  ,mpicomm,mpierr)
 
 
       do k=1,npz
@@ -1567,7 +1579,7 @@ c     End program
 
 c     find_global_field_vec_nobc
 c     ##############################################################
-      subroutine find_global_field_vec_nobc(lf,gf)
+      subroutine find_global_field_vec_nobc(lf,gf,mpi_comm)
 
       implicit none
 
@@ -1577,6 +1589,7 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
+      integer,optional :: mpi_comm
       real(8),dimension(:,:,:,:) :: lf,gf
 
 c     Local variables
@@ -1586,7 +1599,17 @@ c     Local variables
 
       logical :: dmp,mapbc
 
+      integer :: mpicomm
+
 c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+#endif
 
 c     Calculate array sizes
 
@@ -1607,7 +1630,7 @@ c     Communicate
 
       call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
-     .                  ,MPI_COMM_WORLD,mpierr)
+     .                  ,mpicomm,mpierr)
 
 
       do k=1,npz
@@ -1639,7 +1662,7 @@ c     End program
 
 c     find_global_field_scl
 c     ##############################################################
-      subroutine find_global_field_scl(lf,gf,dump)
+      subroutine find_global_field_scl(lf,gf,dump,mpi_comm)
 
       use xdraw_io
 
@@ -1654,10 +1677,11 @@ c     Call variables
       real(8),dimension(0:,0:,0:) :: lf,gf
 
       logical,optional :: dump
+      integer,optional :: mpi_comm
 
 c     Local variables
 
-      integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc
+      integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc,mpicomm
       real(8),pointer,dimension(:) :: local_x,global_x
 
       logical :: dmp
@@ -1669,6 +1693,14 @@ c     Begin program
       else
         dmp=.false.
       endif
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+#endif
 
 c     Calculate array sizes
 
@@ -1689,7 +1721,7 @@ c     Communicate
 
       call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
-     .                  ,MPI_COMM_WORLD,mpierr)
+     .                  ,mpicomm,mpierr)
 
       do k=1,npz
         do j=1,npy
@@ -1709,15 +1741,14 @@ c     Communicate
       enddo
 
       deallocate(local_x,global_x)
-#else
-      gf = lf
-#endif
 
-c     Synchronize global periodic boundaries
-
+      !Synchronize global periodic boundaries
       do ibc =1,6
         if (bcond(ibc) == PER) call per_bc(ibc,gf)
       enddo
+#else
+      gf = lf
+#endif
 
 c     Dump global array
 
@@ -1739,7 +1770,7 @@ c     End program
 
 c     find_global_field_scl_nobc
 c     ##############################################################
-      subroutine find_global_field_scl_nobc(lf,gf)
+      subroutine find_global_field_scl_nobc(lf,gf,mpi_comm)
 
       implicit none
 
@@ -1750,13 +1781,23 @@ c     --------------------------------------------------------------
 c     Call variables
 
       real(8),dimension(:,:,:) :: lf,gf
+      integer,optional :: mpi_comm
 
 c     Local variables
 
       integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc
       real(8),pointer,dimension(:) :: local_x,global_x
+      integer :: mpicomm
 
 c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+#endif
 
 c     Calculate array sizes
 
@@ -1777,7 +1818,7 @@ c     Communicate
 
       call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
-     .                  ,MPI_COMM_WORLD,mpierr)
+     .                  ,mpicomm,mpierr)
 
       do k=1,npz
         do j=1,npy

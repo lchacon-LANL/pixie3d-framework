@@ -23,15 +23,13 @@ c #####################################################################
 
       contains
 
-c     readGridInput
+c     readGridConfig
 c     #################################################################
-      subroutine readGridInput(file)
+      subroutine readGridConfig(file)
 
 c     -----------------------------------------------------------------
 c     Initializes grid parameters
 c     -----------------------------------------------------------------
-
-cc      use iosetup
 
       implicit none
 
@@ -165,6 +163,6 @@ c     Write initialization parameters to standard output
 
 c     End program
 
-      end subroutine readGridInput
+      end subroutine readGridConfig
 
       end module grid

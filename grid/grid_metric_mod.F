@@ -712,8 +712,11 @@ c       ANALYTICAL QUANTITIES **********************************
                 !Cell volume
                 call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
+                gparams%gmetric%grid(igrid)%dlvol(i,j,k) = 1d0
+
                 if (gparams%nxgl(igrid) > 1)
      .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+     .               gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
      .                           gparams%dxh(ig)
 
                 if (gparams%nygl(igrid) > 1)
@@ -1361,8 +1364,11 @@ c     Evaluate grid quantities
               !Cell volume <<<<<<<<<<<<<<<<<<
               call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
 
+              gparams%gmetric%grid(igrid)%dlvol(i,j,k) = 1d0
+
               if (gparams%nxgl(igrid) > 1)
      .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
      .                         gparams%dxh(ig)
 
               if (gparams%nygl(igrid) > 1)

@@ -12,9 +12,37 @@ c ###########################################################################
 
         logical :: temp_acc=.false.,spat_acc=.false.
 
-        character(200) :: acc_ref_file
+        character(200) :: acc_ref_file=''
 
       contains
+
+c     readAccTestConfig
+c     ######################################################################
+      subroutine readAccTestConfig(file)
+
+c     -----------------------------------------------------------------
+c     Initializes grid parameters
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      character(*) :: file
+
+c     Local variables
+
+      namelist /acc_test/ temp_acc,spat_acc,acc_ref_file
+
+c     Read graphics initialization parameters
+
+      open(unit=25,file=trim(file),status='old')
+      read(25,acc_test)
+      close(unit=25)
+
+c     End program
+
+      end subroutine readAccTestConfig
 
 c     acc_test_space
 c     #######################################################################

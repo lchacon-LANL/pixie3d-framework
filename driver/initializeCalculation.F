@@ -594,10 +594,10 @@ c     ###############################################################
 
         do ieq=1,neqd
           call C_contour(u_graph%array_var(ieq)%array(1:nx,1:ny,1:nz)
-     .                ,grid_params%gxmin,grid_params%gxmax
-     .                ,grid_params%gymin,grid_params%gymax
-     .                ,grid_params%gzmin,grid_params%gzmax
-     .                ,ieq-1,nunit)
+     .                  ,grid_params%gxmin,grid_params%gxmax
+     .                  ,grid_params%gymin,grid_params%gymax
+     .                  ,grid_params%gzmin,grid_params%gzmax
+     .                  ,ieq-1,nunit)
         enddo
 
         close (nunit)

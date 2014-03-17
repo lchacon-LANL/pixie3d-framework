@@ -88,6 +88,46 @@ c     Begin program
 
       end function initBCs
 
+c     bcChk
+c     #################################################################
+      function bcChk(ibc,bctype,bcnd) 
+
+c     -----------------------------------------------------------------
+c     Detects whether boundary is of SP type. Boundary is identified
+c     by ibc, with the following convention:
+c        * ibc = 1, 2 (xmin,xmax)
+c        * ibc = 3, 4 (ymin,ymax)
+c        * ibc = 5, 6 (zmin,zmax)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        logical :: bcChk
+        integer :: ibc,bctype
+        integer,optional :: bcnd(6)
+
+c     Local variables
+
+        integer :: bc(6)
+
+c     Begin program
+
+        if (PRESENT(bcnd)) then
+          bc = bcnd
+        else
+          bc = bcond
+        endif
+
+        if (ibc < 1 .or. ibc > 6) then
+          bcChk = .false.
+        else
+          bcChk = (abs(bc(ibc)) == bctype)
+        endif
+
+      end function bcChk
+
 c     bcSP
 c     #################################################################
       function bcSP(ibc,bcnd) result(sing_bc)
@@ -111,7 +151,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: bc(6)
+cc        integer :: bc(6)
 
 c     Begin program
 
@@ -121,17 +161,19 @@ c     Begin program
           iibc = 1
         endif
 
-        if (PRESENT(bcnd)) then
-          bc = bcnd
-        else
-          bc = bcond
-        endif
+        sing_bc = bcChk(iibc,SP,bcnd=bcnd)
 
-        if (iibc < 1 .or. iibc > 6) then
-          sing_bc = .false.
-        else
-          sing_bc = (abs(bc(iibc)) == SP)
-        endif
+cc        if (PRESENT(bcnd)) then
+cc          bc = bcnd
+cc        else
+cc          bc = bcond
+cc        endif
+cc
+cc        if (iibc < 1 .or. iibc > 6) then
+cc          sing_bc = .false.
+cc        else
+cc          sing_bc = (abs(bc(iibc)) == SP)
+cc        endif
 
       end function bcSP
 
@@ -159,17 +201,19 @@ c     Begin program
 
         iibc = 1+2*(dim-1)
 
-        if (PRESENT(bcnd)) then
-          bc = bcnd
-        else
-          bc = bcond
-        endif
+        per_bc = bcChk(iibc,PER,bcnd=bcnd)
 
-        if (iibc < 1 .or. iibc > 3) then
-          per_bc = .false.
-        else
-          per_bc = (abs(bc(iibc)) == PER)
-        endif
+cc        if (PRESENT(bcnd)) then
+cc          bc = bcnd
+cc        else
+cc          bc = bcond
+cc        endif
+cc
+cc        if (iibc < 1 .or. iibc > 3) then
+cc          per_bc = .false.
+cc        else
+cc          per_bc = (abs(bc(iibc)) == PER)
+cc        endif
 
       end function bcPER
 

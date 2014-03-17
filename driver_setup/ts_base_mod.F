@@ -378,8 +378,6 @@ c     Find new time step
         call calculate_cnfactor
       endif
 
-      alpha = 1d0 - cnfactor
-
 c     End program
 
       contains
@@ -488,7 +486,13 @@ c     #######################################################################
           cnm = 0d0
         endif
 
+      else  !Theta scheme
+
+        bdf1 = (cnfactor == 0d0)
+
       endif
+
+      alpha = 1d0 - cnfactor
 
       end subroutine calculate_cnfactor
 
