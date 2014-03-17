@@ -17,37 +17,21 @@ c     order (order=0), first order (order=1), second order (2) and cubic
 c     splines (3). The derivative of order "deriv" is returned.
 c
 c     This routine requires linking with cubic spline routines dpchsp
-c     (spline preparation) and dpchfe (interpolant evaluation).
+c     (spline preparation) and dpchfe (interpolant evaluation), and
+c     other SLATEC routines.
 c     ******************************************************************
 
 c     Call variables
 
-      integer    :: nx,nv,order
-      real(8)    :: x(nx),vec(nx),x1(nv),vec1(nv)
-      integer   ,optional :: deriv
+      integer :: nx,nv,order
+      real(8) :: x(nx),vec(nx),x1(nv),vec1(nv)
+      integer,optional :: deriv
 
 c     Local variables
 
-      real(8)    ::  dxx
-      integer    ::  i,j
+      real(8) :: dxx
+      integer :: i,j,derv
 
-c     Cubic splines
-
-      integer   ,parameter :: incfd = 1  !Stride to take for input vectors in spline routine
-
-      integer    :: ic(2),nwk,ierr,derv
-      real(8)    :: vc(2)!,f(incfd,nx),d(incfd,nx),dummy(nv)
-      real(8), allocatable, dimension(:) :: wk,dummy
-      real(8), allocatable, dimension(:,:) :: f,d
-      logical    :: skip
-
-      integer ::  kx,dim,flg,inbv
-      real(8), dimension(:),allocatable :: tx,work,q
-      real(8), dimension(:),allocatable :: bcoef
-
-      real(8) :: dbvalu
-      external   dbvalu
-      
 c     Begin program
 
       if (PRESENT(deriv)) then
@@ -97,75 +81,142 @@ cc            j = nx !Extrapolation on the right
           vec1(i) = q_int (nx,vec,x,x1(i),j,derv)
         enddo
         
-cc      case (3) !Cubic splines
-cc
-cc        nwk = 2*nx
-cc        allocate(wk(nwk),f(incfd,nx),d(incfd,nx),dummy(nv))
-cc
-cc        ic(1) = 0  !Default boundary condition on left
-cc        ic(2) = 0  !Default boundary condition of right
-cc        f(incfd,:) = vec(:)
-cc
-cc        call dpchsp(ic,vc,nx,x,f,d,incfd,wk,nwk,ierr)
-cc
-cc        if (ierr.ne.0) then
-cc          write (*,*) 'Errors in cubic spline preparation'
-cc          write (*,*) 'Aborting..'
-cc          stop
-cc        endif
-cc
-cc        skip = .false.
-cc        if (derv == 0) then
-cc          call dpchfe(nx,x,f,d,incfd,skip,nv,x1,vec1,ierr)
-cc        elseif (derv == 1) then
-cc          call dpchfd(nx,x,f,d,incfd,skip,nv,x1,dummy,vec1,ierr)
-cc        else
-cc          write (*,*) 'Cannot provide derivatives of this order'
-cc          write (*,*) 'Aborting...'
-cc          stop
-cc        endif
-cc
-cc        if (ierr.lt.0) then
-cc          write (*,*) 'Error',ierr,' in cubic spline interpolation'
-cc          write (*,*) 'Aborting..'
-cc          stop
-ccc$$$        elseif (ierr.gt.0) then
-ccc$$$          write (*,*) 'Warning: extrapolation in cubic spline in'
-ccc$$$     .                ,ierr,' points'
-cc        endif
-cc
-cc        deallocate(wk,f,d,dummy)
+      case (3) !Cubic splines
+
+        if (   maxval(x1) > maxval(x)
+     .     .or.minval(x1) < minval(x)) then  !Extrapolation needed
+          if (derv > 1) then
+            write (*,*) 'Cannot compute this order derivative'
+            write (*,*) 'Aborting IntDriver1d...'
+            stop
+          else
+            call cubic_int
+          endif
+        else
+          call slatec
+        endif
 
       case default
 
-cc        write (*,*) 'Order of interpolation not available'
-cc        write (*,*) 'Aborting...'
-cc        stop
-
-        flg = 0
-
-        kx = min(order+1,nx-1)
-        dim = nx + 2*kx*(nx+1)
-
-        allocate(tx(nx+kx))
-        allocate(q((2*kx-1)*nx))
-        allocate(work(dim))
-        allocate(bcoef(nx))
-
-        inbv=1
-        call dbknot(x,nx,kx,tx)
-        call dbintk(x,vec,tx,nx,kx,bcoef,q,work)
-        deallocate(q)
-
-        do i=1,nv
-          vec1(i) = dbvalu(tx,bcoef,nx,kx,derv,x1(i),inbv,work)
-        enddo
-
-        deallocate(tx,work,bcoef)
+        if (   maxval(x1) > maxval(x)
+     .     .or.minval(x1) < minval(x)) then  !Extrapolation needed
+          write (*,*) 'Cannot extrapolate at this order'
+          write (*,*) 'Aborting IntDriver1d...'
+          stop
+        else
+          call slatec
+        endif
 
       end select
 
 c     End program
+
+      contains
+
+c     slatec
+c     #################################################################
+      subroutine slatec
+
+c     -----------------------------------------------------------------
+c     Slatec arbitrary-order spline interpolation
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Local variables
+
+      integer ::  kx,dim,flg,inbv
+      real(8), dimension(:),allocatable :: tx,work,q
+      real(8), dimension(:),allocatable :: bcoef
+
+      real(8) :: dbvalu
+      external   dbvalu
+
+c     Begin program
+
+      flg = 0
+
+      kx = min(order+1,nx-1)
+      dim = nx + 2*kx*(nx+1)
+
+      allocate(tx(nx+kx))
+      allocate(q((2*kx-1)*nx))
+      allocate(work(dim))
+      allocate(bcoef(nx))
+
+      inbv=1
+      call dbknot(x,nx,kx,tx)
+      call dbintk(x,vec,tx,nx,kx,bcoef,q,work)
+      deallocate(q)
+
+      do i=1,nv
+        vec1(i) = dbvalu(tx,bcoef,nx,kx,derv,x1(i),inbv,work)
+      enddo
+
+      deallocate(tx,work,bcoef)
+
+      end subroutine slatec
+
+c     cubic_int
+c     #################################################################
+      subroutine cubic_int
+
+c     -----------------------------------------------------------------
+c     Cubic spline interpolation (can extrapolate)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Local variables
+
+      integer,parameter :: incfd = 1  !Stride to take for input vectors in spline routine
+
+      integer    :: ic(2),nwk,ierr
+      real(8)    :: vc(2)!,f(incfd,nx),d(incfd,nx),dummy(nv)
+      real(8), allocatable, dimension(:) :: wk,dummy
+      real(8), allocatable, dimension(:,:) :: f,d
+      logical    :: skip
+
+c     Begin program
+
+      nwk = 2*nx
+      allocate(wk(nwk),f(incfd,nx),d(incfd,nx),dummy(nv))
+
+      ic(1) = 0  !Default boundary condition on left
+      ic(2) = 0  !Default boundary condition of right
+      f(incfd,:) = vec(:)
+
+      call dpchsp(ic,vc,nx,x,f,d,incfd,wk,nwk,ierr)
+
+      if (ierr.ne.0) then
+        write (*,*) 'Errors in cubic spline preparation'
+        write (*,*) 'Aborting..'
+        stop
+      endif
+
+      skip = .false.
+      if (derv == 0) then
+        call dpchfe(nx,x,f,d,incfd,skip,nv,x1,vec1,ierr)
+      elseif (derv == 1) then
+        call dpchfd(nx,x,f,d,incfd,skip,nv,x1,dummy,vec1,ierr)
+      else
+        write (*,*) 'Cannot provide derivatives of this order'
+        write (*,*) 'Aborting...'
+        stop
+      endif
+
+      if (ierr.lt.0) then
+        write (*,*) 'Error',ierr,' in cubic spline interpolation'
+        write (*,*) 'Aborting..'
+        stop
+c$$$      elseif (ierr.gt.0) then
+c$$$        write (*,*) 'Warning: extrapolation in cubic spline in'
+c$$$   .                ,ierr,' points'
+      endif
+
+      deallocate(wk,f,d,dummy)
+
+      end subroutine cubic_int
 
       end subroutine IntDriver1d
 
