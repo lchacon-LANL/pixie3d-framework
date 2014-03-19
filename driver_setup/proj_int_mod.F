@@ -2,7 +2,7 @@ c module prj_int
 c ######################################################################
       module prj_int
 
-        use ts_base
+        use ts_if
 
         logical :: prj_int_ts=.false.
 
@@ -16,7 +16,7 @@ c ######################################################################
 
 c     prj_int_update
 c     ######################################################################
-      function prj_int_update(vnp,k,M,iout) result(ierr)
+      function prj_int_update(vnp,iout) result(ierr)
 
 c     ----------------------------------------------------------------------
 c     Performs time advance of solution from vn to vnp using projective
@@ -27,19 +27,22 @@ c     ----------------------------------------------------------------------
 
 c     Call variables
 
-      integer :: k,M,ierr,iout
+      integer :: ierr,iout
 
       type(var_array),pointer :: vnp
 
 c     Local variables
 
-      integer :: it
+      integer :: k,M,it
       real(8) :: x(ntotd),h,alpha1,alpha2,cnf_save
       type(var_array),pointer :: vk=>null(),vkp=>null()
 
 c     Begin program
 
       debug = debug.and.(my_rank == 0).and.(iout > 0)
+
+      k = prj_int_k
+      M = prj_int_M
 
       cnf_save = cnfactor
       cnfactor = prj_int_cnf

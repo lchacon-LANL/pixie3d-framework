@@ -990,6 +990,10 @@ c ######################################################################
 
         use grid_create
 
+        INTERFACE lap
+          module procedure lap_mesh,lap_ijk
+        end INTERFACE
+
       contains
 
 c     gradDiv
@@ -1581,10 +1585,10 @@ c     End program
 
       end function lap_flx_z_ijk
 
-c     lap
+c     lap_ijk
 c     ###############################################################
-      function lap(i,j,k,nx,ny,nz,igx,igy,igz,arr,dff,vol
-     .            ,vertex_metrics) result (laplacian)
+      function lap_ijk(i,j,k,nx,ny,nz,igx,igy,igz,arr,dff,vol
+     .                ,vertex_metrics) result (laplacian)
 c     ---------------------------------------------------------------
 c     Calculates div(dff grad(arr)) at cell centers in general non-orthog.
 c     coordinates, preserving the SPD property.
@@ -1639,7 +1643,55 @@ c     Begin program
 
 c     End program
 
-      end function lap
+      end function lap_ijk
+
+c     lap_mesh
+c     ###############################################################
+      function lap_mesh(igr,arr,dff,vol,vertex_metrics) result (lap)
+c     ---------------------------------------------------------------
+c     Calculates div(dff grad(arr)) at cell centers in general non-orthog.
+c     coordinates, preserving the SPD property.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igr
+
+      real(8) :: arr(0:,0:,0:)
+     $          ,lap(0:size(arr,1)-1
+     $              ,0:size(arr,2)-1
+     $              ,0:size(arr,3)-1)
+
+      real(8),optional :: dff(0:size(arr,1)-1
+     $                       ,0:size(arr,2)-1
+     $                       ,0:size(arr,3)-1)
+
+      logical,optional,intent(IN) :: vol,vertex_metrics
+
+c     Local variables
+
+      integer :: i,j,k,nx,ny,nz
+
+c     Begin program
+
+      nx = size(arr,1)-2
+      ny = size(arr,2)-2
+      nz = size(arr,3)-2
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            lap(i,j,k) = lap_ijk(i,j,k,nx,ny,nz,igr,igr,igr,arr
+     $              ,dff=dff,vol=vol,vertex_metrics=vertex_metrics)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function lap_mesh
 
 c     lap_tnsr_flx_x_ijk
 c     ###############################################################

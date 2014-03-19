@@ -652,6 +652,8 @@ c ######################################################################
 
         use variables
 
+        real(8),private :: eps=0d0
+
         type :: garray
           real(8),pointer,dimension(:,:,:,:) :: array
         end type garray
@@ -1059,6 +1061,8 @@ c     Perform spline interpolation
       ny2 = size(array2,2)
       nz2 = size(array2,3)
 
+      if (eps == 0d0) eps = 10*findRoundOff()
+
       do k = 1,nz2
         do j = 1,ny2
           do i = 1,nx2
@@ -1068,12 +1072,20 @@ c     Perform spline interpolation
             zz = z2(k)
 
             !Do nothing if outside of original domain (otherwise --> error in spliners)
-            if (  xx < x1(1)
-     .       .or. xx > x1(nx)
-     .       .or. yy < y1(1)
-     .       .or. yy > y1(ny)
-     .       .or. zz < z1(1)
-     .       .or. zz > z1(nz) ) cycle
+            if (  xx < x1(1) - eps
+     .       .or. xx > x1(nx)+ eps
+     .       .or. yy < y1(1) - eps
+     .       .or. yy > y1(ny)+ eps
+     .       .or. zz < z1(1) - eps
+     .       .or. zz > z1(nz)+ eps ) then
+cc              if (  xx < x1(1).or. xx > x1(nx))
+cc     .              write (*,*) 'x ',xx,nx,x1(1),x1(nx)
+cc              if (  yy < y1(1).or. yy > y1(ny))
+cc     .              write (*,*) 'y ',yy,ny,y1(1),y1(ny)
+cc              if (  zz < z1(1).or. zz > z1(nz))
+cc     .              write (*,*) 'z ',zz,nz,z1(1),z1(nz)
+              cycle
+            endif
 
             if (nx == 1 .and. ny == 1) then
               val = dbvalu(tz,bcoef(1,1,:),nz,kz,0,zz,inbv,work)
@@ -1930,7 +1942,7 @@ c     Local variables
 
 c     Begin program
 
-cluis        volf = vol_wgt          !Initialize volume-weighing variable
+cc        volf = vol_wgt          !Initialize volume-weighing variable
 
 c     Process optional arguments
 
@@ -3227,7 +3239,7 @@ c Assign options
       orderres        = options%orderres
       orderprol       = options%orderprol
       fdiag           = options%fdiag
-      volf            = options%vol_res
+cc      volf            = options%vol_res
       crsedpth        = options%mg_coarse_solver_depth
       mu              = options%mg_mu
       vbr_mg          = options%mg_vertex_relax
@@ -3549,10 +3561,10 @@ c     Setup debugging plots
 c     Relax error/solution on grid number igr/igrid (find new xx)
 
         if (igr == igmax-1.and.mg_debug) then
-         write (*,*) 'Plotting here at level',igr
-         call MGmatvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd,matvec)
-         call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
-         call MGplot(neq,wrk,igr,0,'fineres.bin')
+          write (*,*) 'Plotting here at level',igr
+          call MGmatvec(0,neq,nn,xx(isig),wrk(isig),igr,bcnd,matvec)
+          call MGvecadd(igr,neq,nn,-1d0,wrk(isig),1d0,yy(isig))
+          call MGplot(neq,wrk,igr,0,'fineres.bin')
         endif
 
         call smooth(igr)
@@ -5545,12 +5557,11 @@ c Begin program
 
       call allocPointers(1,fpointers)
 
+      call limits(0,nxc,nyc,nzc,igc,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
+
 c Injection
 
       if (order.eq.0) then
-
-        call limits(0,nxc,nyc,nzc,igc
-     .             ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
 
         if (igf /= igc - 1) then
            call pstop('prolongArray'
@@ -5578,9 +5589,6 @@ c Injection
 c Interpolation
 
 c     Setup dimension vectors
-
-        call limits(0,nxc,nyc,nzc,igc
-     .             ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
 
         allocate(xx(1:imaxc-iminc+3)
      .          ,yy(1:jmaxc-jminc+3)
@@ -6026,6 +6034,251 @@ c End program
 
       end subroutine crestrict
 
+cc*deck restrictArray
+ccc######################################################################
+cc      subroutine restrictArray(nxc,nyc,nzc,arrayc
+cc     .                        ,nxf,nyf,nzf,arrayf,order,igf,volw)
+ccc----------------------------------------------------------------------
+ccc     This is a restriction routine for a single quantity, with
+ccc     arbitrary order of interpolation.
+ccc
+ccc     In call sequence, we have:
+ccc       * arrayc (real): array in coarse grid
+ccc       * nxc,nyc,nzc(int): dimensions of coarse grid
+ccc       * arrayf (real): array in fine grid
+ccc       * nxf,nyf,nzf(int): dimensions of fine grid
+ccc       * order (int): order of interpolation (0-arbitrary)
+ccc           If order = 0, it employs simple injection.
+ccc           If order > 0, it employs spline interpolation.
+ccc       * igf (int): fine grid level identifier
+ccc       * volw (logical): whether values are volume-weighed.
+ccc----------------------------------------------------------------------
+cc
+cc      use mg_Xfer
+cc
+cc      implicit none        !For safe fortran
+cc
+ccc Call variables
+cc
+cc      integer :: nxc,nyc,nzc,nxf,nyf,nzf,order,igf
+cc
+cc      real(8) :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1)
+cc     .          ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1)
+cc
+cc      logical :: volw
+cc
+ccc Local variables
+cc 
+cc      integer :: ic,if,jc,jf,kc,kf,igc,inbv
+cc     .          ,icg,jcg,kcg,ifg,jfg,kfg
+cc      integer :: iminc,imaxc,jminc,jmaxc,kminc,kmaxc
+cc     .          ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf
+cc
+cc      real(8) :: volt,vol,xc
+cc
+cc      logical :: fpointers
+cc
+ccc Interpolation
+cc
+cc      real(8) :: xxc,yyc,zzc,ff
+cc
+cc      real(8),allocatable,dimension(:) :: xx,yy,zz
+cc
+cc      integer ::  kx,ky,kz,nx,ny,nz,dim,flg
+cc      real(8), dimension(:),allocatable:: tx,ty,tz,work,q
+cc      real(8), dimension(:,:,:),allocatable:: bcoef
+cc
+cc      real(8) :: dbvalu,db2val,db3val
+cc      external   dbvalu,db2val,db3val
+cc
+ccc Begin program
+cc
+cc      call allocPointers(1,fpointers)
+cc
+cc      igc = igf + 1
+cc
+cc      arrayc = 0d0
+cc
+ccc Agglomeration
+cc
+cc      if (order.eq.0) then
+cc
+cc        call limits(0,nxc,nyc,nzc,igc
+cc     .             ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
+cc
+cc        do kc = kminc,kmaxc
+cc          do jc = jminc,jmaxc
+cc            do ic = iminc,imaxc
+cc
+cc              volt   = 0d0
+cc
+cc              do kf = mg_ratio_z(igf)*(kc-1)+1,mg_ratio_z(igf)*kc
+cc                do jf = mg_ratio_y(igf)*(jc-1)+1,mg_ratio_y(igf)*jc
+cc                  do if = mg_ratio_x(igf)*(ic-1)+1,mg_ratio_x(igf)*ic
+cc
+cc                    if (.not.volw) then
+cc                      vol = gmetric%grid(igf)%dlvol(if,jf,kf)  !Logical volume
+cc                      arrayc(ic,jc,kc) = arrayc(ic,jc,kc)
+cc     .                                 + arrayf(if,jf,kf)*vol
+cc                      volt = volt + vol
+cc                    else
+cc                      arrayc(ic,jc,kc) = arrayc(ic,jc,kc)
+cc     .                                 + arrayf(if,jf,kf)
+cc                    endif
+cc
+cc                  enddo
+cc                enddo
+cc              enddo
+cc
+cc              if (.not.volw) arrayc(ic,jc,kc) = arrayc(ic,jc,kc)
+cc     .                                /gmetric%grid(igc)%dlvol(ic,jc,kc)
+cc
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+ccc Interpolation
+cc
+cc      else
+cc
+cc        call limits(0,nxf,nyf,nzf,igf
+cc     .             ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf)
+cc
+ccc     Map vectors into arrays
+cc
+cc        allocate(xx(1:imaxf-iminf+1)
+cc     .          ,yy(1:jmaxf-jminf+1)
+cc     .          ,zz(1:kmaxf-kminf+1))
+cc
+cc        call getMGmap(iminf,jminf,kminf,igf,igf,igf,ifg,jfg,kfg)
+cc
+cc        xx = grid_params%xx(ifg:ifg+imaxf-iminf)
+cc        yy = grid_params%yy(jfg:jfg+jmaxf-jminf)
+cc        zz = grid_params%zz(kfg:kfg+kmaxf-kminf)
+cc
+ccc     Renormalize without volume fractions
+cc
+cc        if (volw) then
+cc
+cc          do kf = kminf,kmaxf
+cc            do jf = jminf,jmaxf
+cc              do if = iminf,imaxf
+cc                call getMGmap(if,jf,kf,igf,igf,igf,ifg,jfg,kfg)
+cc
+cc                arrayf(if,jf,kf) = arrayf(if,jf,kf)
+cc     .                            /gmetric%grid(igf)%dlvol(if,jf,kf)
+cc              enddo
+cc            enddo
+cc          enddo
+cc        endif
+cc
+ccc     Calculate interpolation
+cc
+cc        flg = 0
+cc        nx = imaxf-iminf+1
+cc        ny = jmaxf-jminf+1
+cc        nz = kmaxf-kminf+1
+cc        kx = min(order+1,nx-1)
+cc        ky = min(order+1,ny-1)
+cc        kz = min(order+1,nz-1)
+cc
+cc        dim = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
+cc
+cc        allocate(tx(nx+kx))
+cc        allocate(ty(ny+ky))
+cc        allocate(tz(nz+kz))
+cc        allocate(work(dim))
+cc        allocate(bcoef(nx,ny,nz))
+cc
+cc        if (nx == 1 .and. ny == 1) then
+cc          allocate(q((2*kz-1)*nz))
+cc          inbv=1
+cc          call dbknot(zz,nz,kz,tz)
+cc          call dbintk(zz,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+cc     .               ,tz,nz,kz,bcoef(1,1,:),q,work)
+cc          deallocate(q)
+cc        elseif (nx == 1 .and. nz == 1) then
+cc          allocate(q((2*ky-1)*ny))
+cc          inbv=1
+cc          call dbknot(yy,ny,ky,ty)
+cc          call dbintk(yy,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+cc     .               ,ty,ny,ky,bcoef(1,:,1),q,work)
+cc          deallocate(q)
+cc        elseif (ny == 1 .and. nz == 1) then
+cc          allocate(q((2*kx-1)*nx))
+cc          inbv=1
+cc          call dbknot(xx,nx,kx,tx)
+cc          call dbintk(xx,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+cc     .               ,tx,nx,kx,bcoef(:,1,1),q,work)
+cc          deallocate(q)
+cc        elseif (nx == 1) then
+cc          call db2ink(yy,ny,zz,nz
+cc     .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+cc     .               ,ny,ky,kz,ty,tz,bcoef(1,:,:),work,flg)
+cc        elseif (ny == 1) then
+cc          call db2ink(xx,nx,zz,nz
+cc     .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+cc     .               ,nx,kx,kz,tx,tz,bcoef(:,1,:),work,flg)
+cc        elseif (nz == 1) then
+cc          call db2ink(xx,nx,yy,ny
+cc     .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+cc     .               ,nx,kx,ky,tx,ty,bcoef(:,:,1),work,flg)
+cc        else
+cc          call db3ink(xx,nx,yy,ny,zz,nz
+cc     .                     ,arrayf(iminf:imaxf,jminf:jmaxf,kminf:kmaxf)
+cc     .               ,nx,ny,kx,ky,kz,tx,ty,tz,bcoef,work,flg)
+cc        endif
+cc
+cc        call limits(0,nxc,nyc,nzc,igc
+cc     .             ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
+cc
+cc        do kc = kminc,kmaxc
+cc          do jc = jminc,jmaxc
+cc            do ic = iminc,imaxc
+cc
+cc              call getMGmap(ic,jc,kc,igc,igc,igc,icg,jcg,kcg)
+cc              xxc = grid_params%xx(icg)
+cc              yyc = grid_params%yy(jcg)
+cc              zzc = grid_params%zz(kcg)
+cc
+cc              if (nx == 1 .and. ny == 1) then
+cc                xc = dbvalu(tz,bcoef(1,1,:),nz,kz,0,zzc,inbv,work)
+cc              elseif (nx == 1 .and. nz == 1) then
+cc                xc = dbvalu(ty,bcoef(1,:,1),ny,ky,0,yyc,inbv,work)
+cc              elseif (ny == 1 .and. nz == 1) then
+cc                xc = dbvalu(tx,bcoef(:,1,1),nx,kx,0,xxc,inbv,work)
+cc              elseif (nx == 1) then
+cc                xc=db2val(yyc,zzc,0,0,ty,tz,ny,nz,ky,kz
+cc     .                        ,bcoef(1,:,:),work)
+cc              elseif (ny == 1) then
+cc                xc=db2val(xxc,zzc,0,0,tx,tz,nx,nz,kx,kz
+cc     .                        ,bcoef(:,1,:),work)
+cc              elseif (nz == 1) then
+cc                xc=db2val(xxc,yyc,0,0,tx,ty,nx,ny,kx,ky
+cc     .                        ,bcoef(:,:,1),work)
+cc              else
+cc                xc=db3val(xxc,yyc,zzc,0,0,0,tx,ty,tz,nx,ny,nz
+cc     .                        ,kx,ky,kz,bcoef,work)
+cc              endif
+cc
+cc              if(volw) xc=xc*gmetric%grid(igc)%dlvol(ic,jc,kc)
+cc
+cc              arrayc(ic,jc,kc) = xc
+cc
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+cc        deallocate(tx,ty,tz,work,bcoef,xx,yy,zz)
+cc
+cc      endif
+cc
+ccc End program
+cc
+cc      call deallocPointers(fpointers)
+cc
+cc      end subroutine restrictArray
+
 *deck restrictArray
 c######################################################################
       subroutine restrictArray(nxc,nyc,nzc,arrayc
@@ -6182,10 +6435,8 @@ c       Apply volume factors
           do kc = kminc,kmaxc
             do jc = jminc,jmaxc
               do ic = iminc,imaxc
-                call getMGmap(ic,jc,kc,igc,igc,igc,icg,jcg,kcg)
-
                 arrayc(ic,jc,kc) = arrayc(ic,jc,kc)
-     .                            /gmetric%grid(igc)%dlvol(ic,jc,kc)
+     .                            *gmetric%grid(igc)%dlvol(ic,jc,kc)
               enddo
             enddo
           enddo
@@ -7408,29 +7659,3 @@ c     End program
  20   format (/,'Total error:',1pe10.3)
 
       end subroutine symm_test
-
-c findBaseVector
-c####################################################################
-      subroutine findBaseVector(ii,ieq,neq,ntot,x1,coef)
-c--------------------------------------------------------------------
-c     Finds base vector corresponding to grid node ii and equation ieq.
-c     Assumes that x1 has been initialized to zero elsewhere.
-c--------------------------------------------------------------------
-
-      implicit none      !For safe fortran
-
-c Call variables
-
-      integer    :: neq,ii,ieq,ntot
-
-      real(8)    :: x1(ntot),coef
-
-c Local variables
-
-c Begin program
-
-      x1(neq*(ii-1) + ieq) = coef
-
-c End program
-
-      end subroutine findBaseVector

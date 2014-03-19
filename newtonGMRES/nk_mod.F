@@ -168,7 +168,7 @@ c     Begin program
 
 c     Find machine round-off
 
-      if (epsmac == 0d0) call findRoundOff(epsmac)
+      if (epsmac == 0d0) epsmac = findRoundOff()
 
       roundoff = sqrt(1d0*ntot)*epsmac
 

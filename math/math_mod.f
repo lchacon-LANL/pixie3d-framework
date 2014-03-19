@@ -22,7 +22,7 @@ cc      END INTERFACE
 
 c     findRoundOff
 c     ###############################################################
-      subroutine findRoundOff (eps)
+      function findRoundOff() result(eps)
 
       implicit none
 
@@ -46,7 +46,7 @@ c     Local variables
         if (.not.(mag2 > 1d0)) exit
       enddo
 
-      end subroutine findRoundOff
+      end function findRoundOff
 
 c     determ3
 c     #################################################################
