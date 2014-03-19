@@ -1330,6 +1330,7 @@ c     Call variables
 
 c     Local variables
 
+      integer :: ierror
       real(8),pointer :: lxcoef(:,:,:,:)
 
 c     Begin program
@@ -1340,9 +1341,11 @@ c     Begin program
         lxcoef => xcoef
       endif
 
-      call chk_pos(x1,x2,x3,ierr=ierr)
+      call chk_pos(x1,x2,x3,ierr=ierror)
 
-      if (ierr /= ORB_OK) return
+      if (PRESENT(ierr)) ierr = ierror
+
+      if (ierror /= ORB_OK) return
 
       x = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,1)
