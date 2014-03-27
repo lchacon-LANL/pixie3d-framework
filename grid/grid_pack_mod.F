@@ -464,10 +464,10 @@ cc            dx0 = alphal*dx0  !Modify initial interval for coarser grids
         else  !Uniform grid
 
           if (bcs1 == PER.and.bcs2 == PER.and.ng == 1) then !Single layer dimension
+cc          if (bcs1 == PER.and.bcs2 == PER) then !Sets angle origin at zero
             dh = length/ng
             lstart = lmin
           elseif (bcs1 == SYM .and. bcs2 == SYM) then
-cc          if (bcs1 == SYM .and. bcs2 == SYM) then
             dh = length/(ng-1)
             lstart = lmin
           elseif (bcs1 == SYM .and. bcs2 /= SYM) then
@@ -478,11 +478,7 @@ cc          if (bcs1 == SYM .and. bcs2 == SYM) then
             lstart = lmin+0.5d0*dh
           else
             dh = length/ng
-cc            if (bcs1 == PER.and.bcs2 == PER.and.ng == 1) then 
-cc              lstart = lmin
-cc            else
-              lstart = lmin+0.5d0*dh
-cc            endif
+            lstart = lmin+0.5d0*dh
           endif
 
           xg(1) = lstart
