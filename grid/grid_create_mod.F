@@ -9,7 +9,7 @@ c #####################################################################
         integer :: mg_ratio
 
         private :: initGridSt,createLogicalGrid
-     $            ,consistencyCheck,checkGrid
+     $            ,consistencyCheck!,checkGrid
 
       contains
 
@@ -69,7 +69,7 @@ c     Initialize grid structure
 
 c     Perform grid check
 
-        if (check_grid) call checkGrid(gdef)
+        if (check_grid.and.checkAnalMapDatabase()) call checkGrid(gdef)
 
       end subroutine createGrid
 
@@ -1144,8 +1144,8 @@ c     Dump quantities
 
         !Open .bin file
         debugfile = 'grid_gl'//trim(int2char(igrid))
-     .                 //'k='//trim(int2char(k))
-     .                 //'p' //trim(int2char(my_rank))//'.bin'
+     .                 //'_k='//trim(int2char(k))
+     .                 //'_p' //trim(int2char(my_rank))//'.bin'
         drawfile = 'drawgl'//trim(int2char(igrid))
      .              //'_k='//trim(int2char(k))
      .               //'_p'//trim(int2char(my_rank))//'.in'
