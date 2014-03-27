@@ -108,12 +108,34 @@ c     Begin program
 
       INQUIRE(FILE=trim(file),exist=is_file)
 
-cc      ierr = shellcmd('test -f '//trim(file))
-cc      is_file = (ierr == 0)
-
 c     End program
 
       end function is_file
+
+c     is_open
+c     ####################################################################
+      function is_open(file)
+
+c     --------------------------------------------------------------------
+c     Checks whether "file" has been opened.
+c     --------------------------------------------------------------------
+
+c     Call variables
+
+      logical :: is_open
+      character(*) :: file
+
+c     Local variables
+
+      integer :: ierr
+
+c     Begin program
+
+      INQUIRE(FILE=trim(file),opened=is_open)
+
+c     End program
+
+      end function is_open
 
 c     rm_files
 c     ####################################################################
