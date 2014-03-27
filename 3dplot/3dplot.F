@@ -328,6 +328,10 @@ c Open graphics files (this initializes local limits, among other things)
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
 #endif
 
+c Read geometry (if appropriate)
+
+      if (coords == 'ext') call readExtMap
+
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
       call readTimeStep(itime,time,dt,u_0,ierr)
