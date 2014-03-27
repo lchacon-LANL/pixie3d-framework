@@ -224,6 +224,10 @@ c Create equilibrium u_0
 
       call get_src(u_n)  !This also imposes BCs
 
+c Write geometry when applicable
+
+      if (coords == 'ext') call writeExtMap
+
 c Perturb equilibrium
 
       call equateDerivedType(u_np,u_n)
@@ -283,6 +287,12 @@ c Interfaces
 c Begin program
 
       igrid = 1
+
+c Read geometry when applicable
+
+      if (coords == 'ext') call readExtMap
+
+c Read restart file
 
       call readRestartFile(itime,time)
 
