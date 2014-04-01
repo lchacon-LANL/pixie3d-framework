@@ -697,22 +697,11 @@ ifeq ($(findstring ewok,$(HOST)),ewok)
   BOPT = t
 endif
 
-###########################
-# chenhp (Guangye Chen's) #
-###########################
+##########################
+# Guangye Chen's desktop #
+##########################
 
-ifeq ($(HOST),chenshp)
-    LIBS += -L/usr/lib64/atlas -llapack -lblas
-    HDF5=f
-endif
-
-#dlg-hp overrides 
-
-ifeq ($(HOSTNAME),dlg-hp.ornl.gov)
-	PETSC_DIR ?=/home/dg6/code/petsc/petsc-3.1-p7
-	HDF5_HOME ?= /usr/lib64/openmpi/lib 
-	FC =gfortran
-    LIBS += -L ~/code/goto_blas/GotoBLAS2 ~/code/lapack/lapack-3.1.1/lapack_LINUX.a -lgoto2
+ifeq ($(HOSTNAME),t1243055)
     HDF5=f
 endif
 
