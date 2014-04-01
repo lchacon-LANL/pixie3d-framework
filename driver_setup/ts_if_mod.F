@@ -154,6 +154,16 @@ c     Local variables
       integer :: itnw,itgm
       real(8) :: x(ntotd),dt_save
 
+#if defined(OLD_EXPLICIT)
+      INTERFACE
+        function app_explicit(x,iter,iout)
+        use parameters
+        real(8) :: x(ntotd)
+        integer :: iter,iout,app_explicit
+        end function app_explicit
+      END INTERFACE
+#endif
+
 c     Begin program
 
       if (PRESENT(ddt)) then
@@ -189,7 +199,11 @@ c     Time step update
       if (cnfactor <= 5d-1) then
         ierr = implicit_ts(neqd,x,itnw,itgm,iout)
       else
+#if defined(OLD_EXPLICIT)
+        ierr = app_explicit(x,itgm,iout)
+#else
         ierr = explicit_ts(x)
+#endif
         itnw = 1
         itgm = 0
       endif
