@@ -114,6 +114,7 @@ endif
 endif
 	$(MAKE) --no-print-directory -e -C contrib/fpa/src lib
 	$(MAKE) --no-print-directory -e -C contrib/sdc/src lib
+	$(MAKE) --no-print-directory -e -C contrib/rng/src lib
 ifeq ($(PIT),t)
 	$(MAKE) --no-print-directory -e -C contrib/parareal all	
 endif
@@ -127,6 +128,7 @@ endif
 	@$(MAKE) -e -C contrib/fpa/src distclean
 	@$(MAKE) -e -C contrib/sdc/src distclean
 	@$(MAKE) -e -C contrib/parareal clean	
+	@$(MAKE) -e -C contrib/rng/src clean
 
 contrib_setup: ;
 	-@tar xzf common_contrib.tgz
