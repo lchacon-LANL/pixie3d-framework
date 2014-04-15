@@ -5440,13 +5440,13 @@ c Begin program
 
 c Impose boundary conditions (external)
 
-      isvec = (neq == 3)                 !Initialize isvec (may be modified by setMGBC)
+      isvec = (neq == 3)                !Initialize isvec (may be modified by setMGBC)
 
       cartesian = (bcSP() .and. isvec)  !Return Cartesian variables for prolongation
 
       if (order > 0 .or. cartesian) then
         call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
-     .              ,iorder=min(order,3)
+cc     .              ,iorder=min(order,3)             !now inherited from previous calls
      .              ,result_is_vec=(.not.cartesian)
      .              ,out_isvec=isvec,out_iscnv=iscnv)  !<= These define whether quantities are
                                                        !   vectors or scalars.
