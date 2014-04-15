@@ -139,8 +139,8 @@ cc          endif
         !Post-process solution for diagnostics
         call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
-        if (    nplot        == ndplot
-     .     .or.(time-tmplot) >= dplot-0.9*dt
+        if (   ( nplot        == ndplot       .and. nplot > 0)
+     .     .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
      .     .or. time         == 0d0) then
 
           !Dump time step plots
