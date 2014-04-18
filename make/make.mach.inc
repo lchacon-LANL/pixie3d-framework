@@ -703,6 +703,7 @@ endif
 
 ifeq ($(HOSTNAME),t1243055)
     HDF5=f
+    LIBS += -llapack -lblas
 endif
 
 ifeq ($(PIC_CUDA),t) 
