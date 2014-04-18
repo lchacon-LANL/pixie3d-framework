@@ -230,12 +230,12 @@ c Write geometry when applicable
 
 c Perturb equilibrium
 
+      time     = 0d0
+      inewtime = 1
+
       call equateDerivedType(u_np,u_n)
 
       if (.not.relax_init_grid) call perturbEquilibrium(u_np)
-
-      time     = 0d0
-      inewtime = 1
 
 c Impose BC (to initialize all auxiliary variables)
 
