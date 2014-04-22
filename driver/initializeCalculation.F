@@ -466,16 +466,17 @@ c Open record file
         !Impose BC's on u_graph <- u_0
         !(do not overwrite u_0, since it contains equil. BCs;
         ! do nothing at EQU boundaries, to preserve EQU BCs)
-        call equateDerivedType(u_graph,u_0)
+cc        call equateDerivedType(u_graph,u_0)
 
-        call applyBC(igrid,u_graph,gv%aux,it=1)
+cc        call applyBC(igrid,u_graph,gv%aux,it=1)
 
 #if defined(MK)
         if (mk_grid)call MK_applyBC(igrid,u_graph%array_var(neqd)%array)
 #endif
 
         !Dump initial data
-        call writeRecordFile(recordfile,0,0d0,dt,u_graph)
+cc        call writeRecordFile(recordfile,0,0d0,dt,u_graph)
+        call writeRecordFile(recordfile,0,0d0,dt,u_0)
         call writeRecordFile(recordfile,0,0d0,dt,u_np)
 
         call deallocateDerivedType(u_graph)
