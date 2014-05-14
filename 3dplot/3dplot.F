@@ -139,8 +139,8 @@ cc          endif
         !Post-process solution for diagnostics
         call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
-        if (    nplot        == ndplot
-     .     .or.(time-tmplot) >= dplot-0.9*dt
+        if (   ( nplot        == ndplot       .and. nplot > 0)
+     .     .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
      .     .or. time         == 0d0) then
 
           !Dump time step plots
@@ -327,6 +327,10 @@ c Open graphics files (this initializes local limits, among other things)
       call openRecordFiles(urecord,recordfile,murecord
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
 #endif
+
+c Read geometry (if appropriate)
+
+      if (coords == 'ext') call readExtMap
 
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 

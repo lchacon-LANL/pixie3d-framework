@@ -144,14 +144,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer,optional :: ibc
+        integer,optional :: ibc,bcnd(6)
         logical :: sing_bc
-        integer :: iibc
-        integer,optional :: bcnd(6)
 
 c     Local variables
 
-cc        integer :: bc(6)
+        integer :: iibc
 
 c     Begin program
 
@@ -162,18 +160,6 @@ c     Begin program
         endif
 
         sing_bc = bcChk(iibc,SP,bcnd=bcnd)
-
-cc        if (PRESENT(bcnd)) then
-cc          bc = bcnd
-cc        else
-cc          bc = bcond
-cc        endif
-cc
-cc        if (iibc < 1 .or. iibc > 6) then
-cc          sing_bc = .false.
-cc        else
-cc          sing_bc = (abs(bc(iibc)) == SP)
-cc        endif
 
       end function bcSP
 
@@ -202,18 +188,6 @@ c     Begin program
         iibc = 1+2*(dim-1)
 
         per_bc = bcChk(iibc,PER,bcnd=bcnd)
-
-cc        if (PRESENT(bcnd)) then
-cc          bc = bcnd
-cc        else
-cc          bc = bcond
-cc        endif
-cc
-cc        if (iibc < 1 .or. iibc > 3) then
-cc          per_bc = .false.
-cc        else
-cc          per_bc = (abs(bc(iibc)) == PER)
-cc        endif
 
       end function bcPER
 

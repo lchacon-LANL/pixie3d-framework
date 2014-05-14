@@ -1033,205 +1033,9 @@ c     End program
 
       end subroutine findVertexMetrics
 
-ccc     findCellMetrics
-ccc     #################################################################
-cc      subroutine findCellMetrics
-cc
-ccc     -----------------------------------------------------------------
-ccc     Finds metrics at cell centers.
-ccc     -----------------------------------------------------------------
-cc
-cc        implicit  none
-cc
-ccc     Call variables
-cc
-ccc     Local variables
-cc
-cc        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
-cc
-cc        real(8) :: r(3,3),car0(3),carp(3),carm(3),jac,ijac
-cc     .            ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
-cc     .            ,gamma(3,3,3),mag,dhh,dhm,dhp,d2r(3,3)
-cc
-cc        real(8),pointer,dimension(:,:,:,:,:) :: dr
-cc        real(8),pointer,dimension(:,:,:,:)   :: xc
-cc
-ccc     Begin program
-cc
-cc        imin = ilom
-cc        imax = ihip
-cc
-cc        jmin = jlom
-cc        jmax = jhip
-cc
-cc        kmin = klom
-cc        kmax = khip
-cc
-ccc     Local grid size
-cc
-cc        nx = ihi-ilo+1
-cc        ny = jhi-jlo+1
-cc        nz = khi-klo+1
-cc
-ccc     Evaluate dr=dx/dxi vectors
-cc
-cc        xc => gparams%gmetric%grid(igrid)%car
-cc
-cc        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
-cc
-cc        dr = 0d0
-cc
-cc        if (igrid == 1) then  !Second order for finest grid
-cc          do k = kmin,kmax
-cc            do j = jmin,jmax
-cc              do i = imin,imax
-cc                dr(i,j,k,:,:) = find_dr(i,j,k,igrid,gparams,xc)
-cc              enddo
-cc            enddo
-cc          enddo
-cc        else                  !First order in coarser grids (to avoid negative jacobians)
-cc          do k = kmin,kmax
-cc            do j = jmin,jmax
-cc              do i = imin,imax
-cc                dr(i,j,k,:,:) = find_dr(i,j,k,igrid,0,0,0,gparams,xc)
-cc              enddo
-cc            enddo
-cc          enddo
-cc        endif
-cc
-ccc     Enforce topological constraints on dr (including SP)
-cc
-cc        do i=1,3
-cc          do j=1,3
-cc            call topol_bc(igrid,nx,ny,nz,dr(:,:,:,i,j))
-cc            if (bcSP()) then
-cc              igxbc = igrid
-cc              igybc = igrid
-cc              igzbc = igrid
-cc
-cc              nxbc = nx
-cc              nybc = ny
-cc              nzbc = nz
-cc              !dr behaves like a covariant vector
-cc              call vectorSingularBC(j,dr(:,:,:,i,j),.true.)
-cc            endif
-cc          enddo
-cc        enddo
-cc
-ccc     Evaluate grid quantities
-cc
-cc        do k = kmin,kmax
-cc          do j = jmin,jmax
-cc            do i = imin,imax
-cc              r = dr(i,j,k,:,:)
-cc
-cc              !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-cc              jac = triple_product(r(:,1),r(:,2),r(:,3))
-cc              gparams%gmetric%grid(igrid)%jac(i,j,k) = jac
-cc
-cc              if (jac <= 0d0 .and.(.not.isSP2(i+1,igrid,ibc=1))) then
-cc                write (*,*) 'Grid level',igrid
-cc                write (*,*) 'Grid position=',i,j,k
-cc                write (*,*) 'dr/dxi_1=',r(:,1)
-cc                write (*,*) 'dr/dxi_2=',r(:,2)
-cc                write (*,*) 'dr/dxi_3=',r(:,3)
-cc                write (*,*) 'Jacobian=',jac
-cc                if (.not.check_grid)
-cc     .             call pstop('findCellMetrics','Inverted jacobian')
-cc              endif
-cc
-cc              ijac = 1d0/jac
-cc
-cc              !Contravariant vectors <<<<<<<<<<<<<<<<<<<
-cc              cnv(:,:) = r(:,:)*ijac
-cc
-cc              gparams%gmetric%grid(igrid)%cnv(i,j,k,:,:) =transpose(cnv)
-cc
-cc              !Covariant vectors <<<<<<<<<<<<<<<<<<<<<<
-cc              cov(:,1) = cross_product(r(:,2),r(:,3))
-cc              cov(:,2) = cross_product(r(:,3),r(:,1))
-cc              cov(:,3) = cross_product(r(:,1),r(:,2))
-cc
-cc              cov = cov*ijac
-cc
-cc              gparams%gmetric%grid(igrid)%cov(i,j,k,:,:) =transpose(cov)
-cc
-cc              !Metric tensors <<<<<<<<<<<<<<<<<<<<<<<<
-cc              do m=1,3
-cc                do l=m,3
-cc                  gsub(l,m) = jac*dot_product(cnv(:,l),cnv(:,m))
-cc                  gsub(m,l) = gsub(l,m) !Symmetry
-cc                  gsup(l,m) = jac*dot_product(cov(:,l),cov(:,m))
-cc                  gsup(m,l) = gsup(l,m) !Symmetry
-cc                enddo
-cc              enddo
-cc              gparams%gmetric%grid(igrid)%gsub(i,j,k,:,:) = gsub
-cc              gparams%gmetric%grid(igrid)%gsup(i,j,k,:,:) = gsup
-cc
-cc              !Cell volume <<<<<<<<<<<<<<<<<<
-cc              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
-cc
-cc              if (gparams%nxgl(igrid) > 1)
-cc     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) =
-cc     .                         gparams%dxh(ig)
-cc
-cc              if (gparams%nygl(igrid) > 1)
-cc     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) =
-cc     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) *
-cc     .                         gparams%dyh(jg)
-cc
-cc              if (gparams%nzgl(igrid) > 1)
-cc     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) =
-cc     .             gparams%gmetric%grid(igrid)%dvol(i,j,k) *
-cc     .                         gparams%dzh(kg)
-cc
-cc              gparams%gmetric%grid(igrid)%dvol(i,j,k)=
-cc     .                           gparams%gmetric%grid(igrid)%jac(i,j,k)
-cc     .                          *gparams%gmetric%grid(igrid)%dvol(i,j,k)
-cccc     .                          *gparams%dxh(ig)
-cccc     .                          *gparams%dyh(jg)
-cccc     .                          *gparams%dzh(kg)
-cc
-cc              !Christoffel symbols <<<<<<<<<<<<<<<<<<
-cc              do l=1,3
-cc                do m=1,3
-cc                  do n=1,3
-cc                    d2r = find_dr(i,j,k,igrid,gparams,dr(:,:,:,:,m))
-cc                    gamma(l,m,n) = dot_product(d2r(:,n),cov(:,l))
-cc                  enddo
-cc                enddo
-cc                gamma(l,:,:) =0.5*(gamma(l,:,:)+transpose(gamma(l,:,:))) !Symmetrize
-cc              enddo
-cc
-cc              gparams%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
-cc
-cc            enddo
-cc          enddo
-cc        enddo
-cc
-cc        !Zero-force condition on Christoffle symbols 
-cc        if (igrid == 1) call hessianZeroForceCorr(igrid)
-cc
-cc        !Enforce topological constraints on Christoffel symbols
-cc        do i=1,3
-cc          do j=1,3
-cc            do k=1,3
-cc              call topol_bc(igrid,nx,ny,nz
-cc     .           ,gparams%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k))
-cc            enddo
-cc          enddo
-cc        enddo
-cc
-cc        deallocate(dr)
-cc        nullify(xc)
-cc
-ccc     End program
-cc
-cc      end subroutine findCellMetrics
-
 c     findCellMetrics
 c     #################################################################
-      subroutine findCellMetrics
+      subroutine findCellMetrics  !OLD version
 
 c     -----------------------------------------------------------------
 c     Finds metrics at cell centers.
@@ -1244,15 +1048,13 @@ c     Call variables
 c     Local variables
 
         integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
-     .            ,bc_dr(6)
 
         real(8) :: r(3,3),car0(3),carp(3),carm(3),jac,ijac
      .            ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
      .            ,gamma(3,3,3),mag,dhh,dhm,dhp,d2r(3,3)
 
         real(8),pointer,dimension(:,:,:,:,:) :: dr
-        real(8),pointer,dimension(:,:,:,:)   :: xv!,xc
-        real(8),pointer,dimension(:,:,:)     :: zeros
+        real(8),pointer,dimension(:,:,:,:)   :: xc
 
 c     Begin program
 
@@ -1271,51 +1073,56 @@ c     Local grid size
         ny = jhi-jlo+1
         nz = khi-klo+1
 
-        xv => gparams%gmetric%grid(igrid)%car_v
+c     Evaluate dr=dx/dxi vectors
 
-c     Evaluate dr=dx/dxi vectors at cell centers from vertex map
+        xc => gparams%gmetric%grid(igrid)%car
 
-        allocate(dr   (ilom:ihip,jlom:jhip,klom:khip,3,3)
-     .          ,zeros(ilom:ihip,jlom:jhip,klom:khip))
+        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
 
         dr = 0d0
-        zeros = 0d0
 
-        do k = klo,khi
-          do j = jlo,jhi
-            do i = ilo,ihi
-              dr(i,j,k,:,:)=find_dr(i-1,j-1,k-1,igrid,1,1,1,gparams,xv)
+        if (igrid == 1) then  !Second order for finest grid
+          do k = kmin,kmax
+            do j = jmin,jmax
+              do i = imin,imax
+                dr(i,j,k,:,:) = find_dr(i,j,k,igrid,gparams,xc)
+              enddo
             enddo
           enddo
-        enddo
+        else                  !First order in coarser grids (to avoid negative jacobians)
+          do k = kmin,kmax
+            do j = jmin,jmax
+              do i = imin,imax
+                dr(i,j,k,:,:) = find_dr(i,j,k,igrid,0,0,0,gparams,xc)
+              enddo
+            enddo
+          enddo
+        endif
 
-c     Enforce topological constraints on dr (including SP) and extrapolate otherwise
+c     Enforce topological constraints on dr (including SP)
 
-        bc_dr = bcond
-        where (bc_dr == DEF ) bc_dr = EXT
-        where (bc_dr == FSYM) bc_dr = NEU
-        where (bc_dr ==  SYM) bc_dr = EXT
-        where (bc_dr == SP  ) bc_dr = DEF
-
-        do j=1,3
-          do i=1,3
-            call setBC(0,nx,ny,nz,dr(:,:,:,i,j),zeros,bc_dr
-     .                ,igrid,igrid,igrid,iorder=2)
-
-            !Singular point BCs
+        do i=1,3
+          do j=1,3
+            call topol_bc(igrid,nx,ny,nz,dr(:,:,:,i,j))
             if (bcSP()) then
+              igxbc = igrid
+              igybc = igrid
+              igzbc = igrid
+
+              nxbc = nx
+              nybc = ny
+              nzbc = nz
               !dr behaves like a covariant vector
               call vectorSingularBC(j,dr(:,:,:,i,j),.true.)
             endif
-
           enddo
         enddo
 
 c     Evaluate grid quantities
 
-        do k = klom,khip
-          do j = jlom,jhip
-            do i = ilom,ihip
+        do k = kmin,kmax
+          do j = jmin,jmax
+            do i = imin,imax
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -1382,32 +1189,225 @@ c     Evaluate grid quantities
      .                         gparams%dzh(kg)
 
               gparams%gmetric%grid(igrid)%dvol(i,j,k)=
-     .                          gparams%gmetric%grid(igrid)%jac(i,j,k)
-     .                         *gparams%gmetric%grid(igrid)%dlvol(i,j,k)
+     .                         gparams%gmetric%grid(igrid)%jac(i,j,k)
+     .                        *gparams%gmetric%grid(igrid)%dlvol(i,j,k)
+
+              !Christoffel symbols <<<<<<<<<<<<<<<<<<
+              do l=1,3
+                do m=1,3
+                  do n=1,3
+                    d2r = find_dr(i,j,k,igrid,gparams,dr(:,:,:,:,m))
+                    gamma(l,m,n) = dot_product(d2r(:,n),cov(:,l))
+                  enddo
+                enddo
+                gamma(l,:,:) =0.5*(gamma(l,:,:)+transpose(gamma(l,:,:))) !Symmetrize
+              enddo
+
+              gparams%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
 
             enddo
           enddo
         enddo
 
-c     Enforce zero-force condition and topological constraints on Christoffle symbols 
-
+        !Zero-force condition on Christoffle symbols 
         if (igrid == 1) call hessianZeroForceCorr(igrid)
 
-        do k=1,3
+        !Enforce topological constraints on Christoffel symbols
+        do i=1,3
           do j=1,3
-            do i=1,3
-              call setBC(0,nx,ny,nz
-     .                  ,gparams%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k)
-     .                  ,zeros,bc_dr,igrid,igrid,igrid,iorder=1)
+            do k=1,3
+              call topol_bc(igrid,nx,ny,nz
+     .           ,gparams%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k))
             enddo
           enddo
         enddo
+
+        deallocate(dr)
+        nullify(xc)
 
 c     End program
 
-        deallocate(dr,zeros)
-
       end subroutine findCellMetrics
+
+ccc     findCellMetrics
+ccc     #################################################################
+cc      subroutine findCellMetrics
+cc
+ccc     -----------------------------------------------------------------
+ccc     Finds metrics at cell centers.
+ccc     -----------------------------------------------------------------
+cc
+cc        implicit  none
+cc
+ccc     Call variables
+cc
+ccc     Local variables
+cc
+cc        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+cc     .            ,bc_dr(6)
+cc
+cc        real(8) :: r(3,3),car0(3),carp(3),carm(3),jac,ijac
+cc     .            ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
+cc     .            ,gamma(3,3,3),mag,dhh,dhm,dhp,d2r(3,3)
+cc
+cc        real(8),pointer,dimension(:,:,:,:,:) :: dr
+cc        real(8),pointer,dimension(:,:,:,:)   :: xv!,xc
+cc        real(8),pointer,dimension(:,:,:)     :: zeros
+cc
+ccc     Begin program
+cc
+cc        imin = ilom
+cc        imax = ihip
+cc
+cc        jmin = jlom
+cc        jmax = jhip
+cc
+cc        kmin = klom
+cc        kmax = khip
+cc
+ccc     Local grid size
+cc
+cc        nx = ihi-ilo+1
+cc        ny = jhi-jlo+1
+cc        nz = khi-klo+1
+cc
+cc        xv => gparams%gmetric%grid(igrid)%car_v
+cc
+ccc     Evaluate dr=dx/dxi vectors at cell centers from vertex map
+cc
+cc        allocate(dr   (ilom:ihip,jlom:jhip,klom:khip,3,3)
+cc     .          ,zeros(ilom:ihip,jlom:jhip,klom:khip))
+cc
+cc        dr = 0d0
+cc        zeros = 0d0
+cc
+cc        do k = klo,khi
+cc          do j = jlo,jhi
+cc            do i = ilo,ihi
+cc              dr(i,j,k,:,:)=find_dr(i-1,j-1,k-1,igrid,1,1,1,gparams,xv)
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+ccc     Enforce topological constraints on dr (including SP) and extrapolate otherwise
+cc
+cc        bc_dr = bcond
+cc        where (bc_dr == DEF ) bc_dr = EXT
+cc        where (bc_dr == FSYM) bc_dr = NEU
+cc        where (bc_dr ==  SYM) bc_dr = EXT
+cc        where (bc_dr == SP  ) bc_dr = DEF
+cc
+cc        do j=1,3
+cc          do i=1,3
+cc            call setBC(0,nx,ny,nz,dr(:,:,:,i,j),zeros,bc_dr
+cc     .                ,igrid,igrid,igrid,iorder=2)
+cc
+cc            !Singular point BCs
+cc            if (bcSP()) then
+cc              !dr behaves like a covariant vector
+cc              call vectorSingularBC(j,dr(:,:,:,i,j),.true.)
+cc            endif
+cc
+cc          enddo
+cc        enddo
+cc
+ccc     Evaluate grid quantities
+cc
+cc        do k = klom,khip
+cc          do j = jlom,jhip
+cc            do i = ilom,ihip
+cc              r = dr(i,j,k,:,:)
+cc
+cc              !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+cc              jac = triple_product(r(:,1),r(:,2),r(:,3))
+cc              gparams%gmetric%grid(igrid)%jac(i,j,k) = jac
+cc
+cc              if (jac <= 0d0 .and.(.not.isSP2(i+1,igrid,ibc=1))) then
+cc                write (*,*) 'Grid level',igrid
+cc                write (*,*) 'Grid position=',i,j,k
+cc                write (*,*) 'dr/dxi_1=',r(:,1)
+cc                write (*,*) 'dr/dxi_2=',r(:,2)
+cc                write (*,*) 'dr/dxi_3=',r(:,3)
+cc                write (*,*) 'Jacobian=',jac
+cc                if (.not.check_grid)
+cc     .             call pstop('findCellMetrics','Inverted jacobian')
+cc              endif
+cc
+cc              ijac = 1d0/jac
+cc
+cc              !Contravariant vectors <<<<<<<<<<<<<<<<<<<
+cc              cnv(:,:) = r(:,:)*ijac
+cc
+cc              gparams%gmetric%grid(igrid)%cnv(i,j,k,:,:) =transpose(cnv)
+cc
+cc              !Covariant vectors <<<<<<<<<<<<<<<<<<<<<<
+cc              cov(:,1) = cross_product(r(:,2),r(:,3))
+cc              cov(:,2) = cross_product(r(:,3),r(:,1))
+cc              cov(:,3) = cross_product(r(:,1),r(:,2))
+cc
+cc              cov = cov*ijac
+cc
+cc              gparams%gmetric%grid(igrid)%cov(i,j,k,:,:) =transpose(cov)
+cc
+cc              !Metric tensors <<<<<<<<<<<<<<<<<<<<<<<<
+cc              do m=1,3
+cc                do l=m,3
+cc                  gsub(l,m) = jac*dot_product(cnv(:,l),cnv(:,m))
+cc                  gsub(m,l) = gsub(l,m) !Symmetry
+cc                  gsup(l,m) = jac*dot_product(cov(:,l),cov(:,m))
+cc                  gsup(m,l) = gsup(l,m) !Symmetry
+cc                enddo
+cc              enddo
+cc              gparams%gmetric%grid(igrid)%gsub(i,j,k,:,:) = gsub
+cc              gparams%gmetric%grid(igrid)%gsup(i,j,k,:,:) = gsup
+cc
+cc              !Cell volume <<<<<<<<<<<<<<<<<<
+cc              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+cc
+cc              gparams%gmetric%grid(igrid)%dlvol(i,j,k) = 1d0
+cc
+cc              if (gparams%nxgl(igrid) > 1)
+cc     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+cc     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
+cc     .                         gparams%dxh(ig)
+cc
+cc              if (gparams%nygl(igrid) > 1)
+cc     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+cc     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
+cc     .                         gparams%dyh(jg)
+cc
+cc              if (gparams%nzgl(igrid) > 1)
+cc     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) =
+cc     .             gparams%gmetric%grid(igrid)%dlvol(i,j,k) *
+cc     .                         gparams%dzh(kg)
+cc
+cc              gparams%gmetric%grid(igrid)%dvol(i,j,k)=
+cc     .                          gparams%gmetric%grid(igrid)%jac(i,j,k)
+cc     .                         *gparams%gmetric%grid(igrid)%dlvol(i,j,k)
+cc
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+ccc     Enforce zero-force condition and topological constraints on Christoffle symbols 
+cc
+cc        if (igrid == 1) call hessianZeroForceCorr(igrid)
+cc
+cc        do k=1,3
+cc          do j=1,3
+cc            do i=1,3
+cc              call setBC(0,nx,ny,nz
+cc     .                  ,gparams%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k)
+cc     .                  ,zeros,bc_dr,igrid,igrid,igrid,iorder=1)
+cc            enddo
+cc          enddo
+cc        enddo
+cc
+ccc     End program
+cc
+cc        deallocate(dr,zeros)
+cc
+cc      end subroutine findCellMetrics
 
 c     hessianZeroForceCorr
 c     #################################################################

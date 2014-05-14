@@ -11,8 +11,9 @@ c ######################################################################
 
         integer :: ilevel
 
-        integer :: urecord=10000,usave=20000,uinput=25
-        character*(1024) :: recordsave,inputfile
+        integer :: urecord=10000,usave=20000,uinput=25,u_mapf=3000
+        character(1024) :: recordsave,inputfile
+        character(30) :: map_file="mapfile"
 
         integer,pointer,dimension(:) :: murecord,musave
 
@@ -1528,5 +1529,101 @@ c     Begin program
 c     End program
 
       end subroutine readTimeStep
+
+c     readExtMap
+c     ###############################################################
+      subroutine readExtMap
+
+c     -----------------------------------------------------------------
+c     Reads external map using POSIX files
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+c     Local variables
+
+        real(8),pointer,dimension(:,:,:,:) :: ext_map
+
+        integer,pointer,dimension(:) :: mumap
+
+        integer :: nxg,nyg,nzg,ierr,ifile,igrid
+
+c     Begin program
+
+        igrid = 1
+
+        nxg = grid_params%nxgl(igrid)
+        nyg = grid_params%nygl(igrid)
+        nzg = grid_params%nzgl(igrid)
+
+        if (len(trim(map_file)) == 0) then
+          call pstop('readExtMap'
+     .              ,'Map file not specified')
+        endif
+
+        ierr = openFiles(my_rank,np,u_mapf,map_file,mumap)
+
+        if (ierr /= 0) then
+          call pstop('readExtMap'
+     .              ,'Problem reading map files')
+        endif
+
+c     Fill GLOBAL map
+
+        allocate(ext_map(0:nxg+1,0:nyg+1,0:nzg+1,3))
+
+        do ifile=1,size(mumap)
+          ierr=readVectorFromFiles(mumap(ifile),ext_map,.false.)
+        enddo
+
+        call closeFiles(mumap)
+
+c     Fill LOCAL map and related metrics
+
+        call defineGridMetric(grid_params,igr=igrid
+     .           ,xcar=ext_map(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
+
+        deallocate(ext_map)
+
+        gmetric => grid_params%gmetric
+
+      end subroutine readExtMap
+
+c     writeExtMap
+c     ###############################################################
+      subroutine writeExtMap
+
+c     -----------------------------------------------------------------
+c     Writes external map using POSIX files
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+c     Local variables
+
+        integer :: ierr
+
+c     Begin program
+
+        if (len(trim(map_file)) == 0) then
+          call pstop('writeExtMap'
+     .              ,'Map file not specified')
+        endif
+
+        if (my_rank == 0) ierr=rm_files(map_file)
+
+#if defined(petsc)
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
+
+        call openPOSIXBinFile(u_mapf,map_file,'unknown')
+        call dumpVectorToFile(u_mapf,gmetric%grid(1)%car,.false.)
+        close(u_mapf)
+
+      end subroutine writeExtMap
 
       end module var_io
