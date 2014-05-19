@@ -3,7 +3,8 @@
 namespace SAMRAI{
 namespace Pixie3d{
 
-PCComponentFACSolver ::PCComponentFACSolver( SAMRSolvers::MultilevelSolverParameters *parameters ):SAMRSolvers::CellFACPreconditioner(parameters)
+PCComponentFACSolver ::PCComponentFACSolver( boost::shared_ptr<SAMRSolvers::MultilevelSolverParameters> parameters ):
+    SAMRSolvers::CellFACPreconditioner(parameters)
 {
   initializeLevelSolvers(parameters->d_db);
   

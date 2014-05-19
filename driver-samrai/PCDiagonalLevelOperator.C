@@ -27,7 +27,8 @@ PCDiagonalLevelOperator::PCDiagonalLevelOperator()
    d_sibling_fill_schedule.reset();
 }
 
-PCDiagonalLevelOperator::PCDiagonalLevelOperator(SAMRSolvers::LevelOperatorParameters *parameters):LevelOperator(parameters)
+PCDiagonalLevelOperator::PCDiagonalLevelOperator( boost::shared_ptr<SAMRSolvers::LevelOperatorParameters> parameters ):
+    LevelOperator(parameters)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(parameters!=NULL);
@@ -294,7 +295,7 @@ PCDiagonalLevelOperator::setExtrapolationOrder(const int extrapolation_order)
 #endif
 	 const hier::Box &mappedBox = patch->getBox();
 
-         if(d_level->patchTouchesRegularBoundary(mappedBox.getId()))
+         if(d_level->patchTouchesRegularBoundary(mappedBox.getBoxId()))
          {
 	   //            d_stencil_initialized=false; // reset this to false so that stencils are recomputed
          }
@@ -370,14 +371,14 @@ PCDiagonalLevelOperator::applyBoundaryCondition(const int *var_id,
 
    if(d_reset_ghost_cells)
    {
-      xfer::RefineAlgorithm ghost_cell_fill(d_level->getDim());
+      xfer::RefineAlgorithm ghost_cell_fill;
       ghost_cell_fill.registerRefine(var_id[0], var_id[0], var_id[0], nullRefineOp);
 
-      PCDiagonalRefinePatchStrategy *ptr=NULL;
+      boost::shared_ptr<PCDiagonalRefinePatchStrategy> ptr;
 
       if(d_set_boundary_ghosts.get()!=NULL)
       {
-         ptr=dynamic_cast<PCDiagonalRefinePatchStrategy*>(d_set_boundary_ghosts.get());
+         ptr = boost::dynamic_pointer_cast<PCDiagonalRefinePatchStrategy>(d_set_boundary_ghosts);
 
 #ifdef DEBUG_CHECK_ASSERTIONS
          assert(ptr!=NULL);
@@ -388,7 +389,7 @@ PCDiagonalLevelOperator::applyBoundaryCondition(const int *var_id,
 
       if(!d_sibling_fill_cached)
       {
-         d_sibling_fill_schedule = ghost_cell_fill.createSchedule(d_level, ptr);
+         d_sibling_fill_schedule = ghost_cell_fill.createSchedule( d_level, ptr.get() );
          d_sibling_fill_cached=true;
       }
       else
@@ -451,8 +452,6 @@ PCDiagonalLevelOperator::setFlux(const int flux_id,
    d_reset_ghost_cells                  = cached_reset_ghost_cells;
 
    const hier::IntVector no_ghosts(hier::IntVector::getZero(d_level->getDim()));
-
-   const int dim = d_level->getDim().getValue();
 
    for (hier::PatchLevel::Iterator p=d_level->begin(); p!=d_level->end(); p++)
    {
@@ -527,11 +526,9 @@ PCDiagonalLevelOperator::apply(const int flux_id,
    assert(r_id!=NULL);
 #endif
 
-   const int dim = d_level->getDim().getValue();
-   
-   const int fidx=(f_idx==NULL)?0:f_idx[0];
-   const int uidx=(u_idx==NULL)?0:u_idx[0];
-   const int ridx=(r_idx==NULL)?0:r_idx[0];
+   //const int fidx=(f_idx==NULL)?0:f_idx[0];
+   //const int uidx=(u_idx==NULL)?0:u_idx[0];
+   //const int ridx=(r_idx==NULL)?0:r_idx[0];
    
    for (hier::PatchLevel::Iterator p=d_level->begin(); p!=d_level->end(); p++)
      {
@@ -633,7 +630,7 @@ PCDiagonalLevelOperator::initializeDatabase(boost::shared_ptr<tbox::Database> db
 }
 
 boost::shared_ptr<SAMRSolvers::LevelOperator>
-PCDiagonalLevelOperator::constructOperator(SAMRSolvers::LevelOperatorParameters *parameters)
+PCDiagonalLevelOperator::constructOperator( boost::shared_ptr<SAMRSolvers::LevelOperatorParameters> parameters )
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(parameters->d_level.get()!=NULL);
@@ -649,7 +646,7 @@ PCDiagonalLevelOperator::constructOperator(SAMRSolvers::LevelOperatorParameters 
 
    boost::shared_ptr<hier::PatchLevel > level = parameters->d_level;
 
-   xfer::RefineAlgorithm level_copy_alg(d_level->getDim());
+   xfer::RefineAlgorithm level_copy_alg();
 
    boost::shared_ptr< hier::RefineOperator > nullRefineOp;
 

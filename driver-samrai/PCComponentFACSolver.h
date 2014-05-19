@@ -11,7 +11,7 @@ class PCComponentFACSolver: public SAMRSolvers::CellFACPreconditioner
 
 public:  
 
-  PCComponentFACSolver( SAMRSolvers::MultilevelSolverParameters *parameters );
+  PCComponentFACSolver( boost::shared_ptr<SAMRSolvers::MultilevelSolverParameters> parameters );
 
   ~PCComponentFACSolver();
 

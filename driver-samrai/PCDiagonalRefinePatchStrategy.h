@@ -37,7 +37,7 @@ public:
    /**
     * Blank constructor for PCDiagonalRefinePatchStrategy.
     */
-   PCDiagonalRefinePatchStrategy(const tbox::Dimension &dim, BoundaryConditionParameters *parameters);
+   PCDiagonalRefinePatchStrategy( boost::shared_ptr<BoundaryConditionParameters> parameters);
 
    /**
     * Virtual destructor for PCDiagonalRefinePatchStrategy
@@ -115,9 +115,9 @@ public:
     * data interpolation operations.  Default is to return 
     * zero, assuming no user-defined operations provided.
     */
-   hier::IntVector getRefineOpStencilWidth() const 
+   hier::IntVector getRefineOpStencilWidth(const tbox::Dimension &dim) const 
      {
-       return(hier::IntVector::getZero(getDim()));
+       return(hier::IntVector::getZero(dim));
      }
 
    void getFromInput(const boost::shared_ptr<tbox::Database> &db);
@@ -142,7 +142,7 @@ private:
 
    int d_data_id;
    int d_data_idx;
-   int *d_bdry_types;
+   std::vector<int> d_bdry_types;
    int d_extrapolation_order;
    int d_debug_print_info_level;
 

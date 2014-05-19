@@ -15,25 +15,21 @@ namespace SAMRAI {
 namespace Pixie3d {
 
 PCDiagonalRefinePatchStrategy::PCDiagonalRefinePatchStrategy(
-      const tbox::Dimension & dim,
-      BoundaryConditionParameters *parameters)
-   :xfer::RefinePatchStrategy(dim)
+    boost::shared_ptr<BoundaryConditionParameters> parameters ):
+    xfer::RefinePatchStrategy()
 {
+   d_hierarchy = parameters->d_hierarchy;
    d_data_id = -1;
    d_data_idx = -1;
    d_extrapolation_order = 1;
    d_debug_print_info_level   = 0;
-   d_bdry_types = new int[2*dim.getValue()];
-
-   d_hierarchy = parameters->d_hierarchy;
+   d_bdry_types = std::vector<int>(2*d_hierarchy->getDim().getValue(),0);
 
    getFromInput(parameters->d_db);
 }
- 
+
 PCDiagonalRefinePatchStrategy::~PCDiagonalRefinePatchStrategy()
 {
-  delete [] d_bdry_types;
-  d_bdry_types = NULL;
 }
 
 void
@@ -50,12 +46,7 @@ PCDiagonalRefinePatchStrategy::getFromInput(const boost::shared_ptr<tbox::Databa
    if (db->keyExists("boundary_conditions")) 
    {
       // get the database object for boundary conditions
-      db->getIntegerArray("boundary_conditions", d_bdry_types, 2*getDim().getValue());
-
-      for (int d=0; d<getDim().getValue(); d++) 
-      {
-         //	 tbox::pout << "Boundary conditions in direction " << d << " are " << d_bdry_types[2*d] << ", " << d_bdry_types[2*d+1] << std::endl; 	  
-      }
+      d_bdry_types = db->getIntegerVector("boundary_conditions");
    } 
    else 
    {
@@ -68,9 +59,9 @@ PCDiagonalRefinePatchStrategy::getFromInput(const boost::shared_ptr<tbox::Databa
 void 
 PCDiagonalRefinePatchStrategy::setBoundaryTypes(int* bdry_types)
 {
-   const int dim = getDim().getValue();
+   const int dim = d_hierarchy->getDim().getValue();
 
-   TBOX_ASSERT(d_bdry_types!=NULL);
+   TBOX_ASSERT((int)d_bdry_types.size()==2*dim);
 
    for (int k=0; k<2*dim; k++) 
    {
@@ -143,8 +134,7 @@ void PCDiagonalRefinePatchStrategy::setPhysicalBoundaryConditions(
 
       boost::shared_ptr<geom::CartesianPatchGeometry> patch_geom = 
          boost::dynamic_pointer_cast<geom::CartesianPatchGeometry>(patch.getPatchGeometry());
-      const double* dx = patch_geom->getDx();
-      const tbox::Array<hier::BoundaryBox > boundary = patch_geom->getCodimensionBoundaries(1);
+      const std::vector<hier::BoundaryBox> boundary = patch_geom->getCodimensionBoundaries(1);
 
       /* 
        * Walk the list of boxes that describe the boundary, and apply
@@ -155,7 +145,7 @@ void PCDiagonalRefinePatchStrategy::setPhysicalBoundaryConditions(
       int face;
       int type;
 
-      const int dim = getDim().getValue();
+      const int dim = d_hierarchy->getDim().getValue();
 
       int *ilo = new int[dim];
       int *ihi = new int[dim];
@@ -198,9 +188,9 @@ void PCDiagonalRefinePatchStrategy::setPhysicalBoundaryConditions(
        */
       if (dim==2)
       {
-         const tbox::Array<hier::BoundaryBox > corners = patch_geom->getNodeBoundaries();
+         const std::vector<hier::BoundaryBox> corners = patch_geom->getNodeBoundaries();
 
-         for (int i=0; i<corners.getSize(); i++) 
+         for (size_t i=0; i<corners.size(); i++) 
          {
             hier::Box bbox = corners[i].getBox();
             hier::Index pfirst = bbox.lower();
@@ -229,9 +219,9 @@ void PCDiagonalRefinePatchStrategy::setPhysicalBoundaryConditions(
       }
       else if (dim==3)
       {
-         const tbox::Array<hier::BoundaryBox > edges = patch_geom->getEdgeBoundaries();
+         const std::vector<hier::BoundaryBox > edges = patch_geom->getEdgeBoundaries();
 
-         for (int i=0; i<edges.getSize(); i++) 
+         for (size_t i=0; i<edges.size(); i++) 
          {
             hier::Box bbox = edges[i].getBox();
             hier::Index pfirst = bbox.lower();
@@ -247,9 +237,9 @@ void PCDiagonalRefinePatchStrategy::setPhysicalBoundaryConditions(
 
          }
 
-         const tbox::Array<hier::BoundaryBox > corners = patch_geom->getNodeBoundaries();
+         const std::vector<hier::BoundaryBox> corners = patch_geom->getNodeBoundaries();
 
-         for (int i=0; i<corners.getSize(); i++) 
+         for (size_t i=0; i<corners.size(); i++) 
          {
             hier::Box bbox = corners[i].getBox();
             hier::Index pfirst = bbox.lower();
@@ -285,7 +275,7 @@ void PCDiagonalRefinePatchStrategy::extrapolateCornerGhostCells(
         const int var_id,
         const int var_idx)
 {
-   const int dim = getDim().getValue();
+   int dim = hierarchy->getDim().getValue();
    int *ilo = new int[dim];
    int *ihi = new int[dim];
 
@@ -307,10 +297,9 @@ void PCDiagonalRefinePatchStrategy::extrapolateCornerGhostCells(
 
       if(dim==2)
       {
-         const tbox::Array<hier::BoundaryBox > corners = patch_geometry->getNodeBoundaries();
-         const double* dx = patch_geometry->getDx();
+         const std::vector<hier::BoundaryBox> corners = patch_geometry->getNodeBoundaries();
 
-         for (int i=0; i<corners.getSize(); i++)
+         for (size_t i=0; i<corners.size(); i++)
          {
             hier::Box bbox = patch_geometry->getBoundaryFillBox(corners[i],
                   patch->getBox(),
@@ -323,17 +312,16 @@ void PCDiagonalRefinePatchStrategy::extrapolateCornerGhostCells(
                ilo[j] = pfirst[j];
                ihi[j] = plast[j];
             }
-            int face = corners[i].getLocationIndex();
-            int type = corners[i].getBoundaryType();
+            //int face = corners[i].getLocationIndex();
+            //int type = corners[i].getBoundaryType();
 
          }      
       }
       else if(dim==3)
       {
-         const tbox::Array<hier::BoundaryBox > edges =  patch_geometry->getEdgeBoundaries();
-         const double* dx = patch_geometry->getDx();
+         const std::vector<hier::BoundaryBox> edges =  patch_geometry->getEdgeBoundaries();
 
-         for (int i=0; i<edges.getSize(); i++) 
+         for (size_t i=0; i<edges.size(); i++) 
 	   {
 	     hier::Box bbox = patch_geometry->getBoundaryFillBox(edges[i],
 								 patch->getBox(),
@@ -347,14 +335,14 @@ void PCDiagonalRefinePatchStrategy::extrapolateCornerGhostCells(
 		 ihi[j] = plast[j];
 	       }
 	     
-	     int face = edges[i].getLocationIndex();
-	     int type = edges[i].getBoundaryType();
+	     //int face = edges[i].getLocationIndex();
+	     //int type = edges[i].getBoundaryType();
 	     
 	   }      
 	 
-         const tbox::Array<hier::BoundaryBox > corners =  patch_geometry->getNodeBoundaries();
+         const std::vector<hier::BoundaryBox> corners =  patch_geometry->getNodeBoundaries();
 
-         for (int i=0; i<corners.getSize(); i++)
+         for (size_t i=0; i<corners.size(); i++)
          {
             hier::Box bbox = patch_geometry->getBoundaryFillBox(corners[i],
                   patch->getBox(),
@@ -367,8 +355,8 @@ void PCDiagonalRefinePatchStrategy::extrapolateCornerGhostCells(
                ilo[j] = pfirst[j];
                ihi[j] = plast[j];
             }
-            int face = corners[i].getLocationIndex();
-            int type = corners[i].getBoundaryType();
+            //int face = corners[i].getLocationIndex();
+            //int type = corners[i].getBoundaryType();
 
          }      
       }

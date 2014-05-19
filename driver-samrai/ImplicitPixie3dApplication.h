@@ -211,8 +211,12 @@ public:
 
  private:
     
-   Pixie3dPreconditionerParameters *
-   createPreconditionerParameters( boost::shared_ptr<tbox::Database> &db );
+   // Inherited from Serializable
+   virtual void putToRestart(const boost::shared_ptr<SAMRAI::tbox::Database>&) const {}
+
+
+   boost::shared_ptr<Pixie3dPreconditionerParameters>
+      createPreconditionerParameters( boost::shared_ptr<tbox::Database> &db );
 
    /*
     * The nonlinear solution process requires a solution vector; we cache

@@ -88,7 +88,7 @@ int main( int argc, char *argv[] )
     bool use_visit = main_db->getBool("use_visit");
     double dt_save = 1e100;             // Default maximum time between saves
     int plot_interval = 0x7FFFFFFF;     // Default maximum number of iterators between saves
-    tbox::Array<double> save_times;     // Default times to force a save
+    std::vector<double> save_times;     // Default times to force a save
     std::string write_path = "output";  // Default path to save the data
     long int max_saves = 10000;         // Default maximum number of saves
     if ( use_visit ) {
@@ -97,7 +97,7 @@ int main( int argc, char *argv[] )
         if ( main_db->keyExists("plot_interval") )
             plot_interval = main_db->getInteger("plot_interval");
         if ( main_db->keyExists("save_times") )
-            save_times = main_db->getDoubleArray("save_times");
+            save_times = main_db->getDoubleVector("save_times");
         if ( main_db->keyExists("dt_save") )
             dt_save = main_db->getDouble("dt_save");
         if ( main_db->keyExists("max_saves") )
@@ -152,30 +152,33 @@ int main( int argc, char *argv[] )
     application->setInitialConditions(t0);
 
     // Perform a regrid to make sure the tagging is all set correctly
-    tbox::Array<int> tag_buffer(20,2);
+    std::vector<int> tag_buffer(20,2);
     if ( regrid_interval > 0 ) {
         boost::shared_ptr<mesh::StandardTagAndInitialize> error_detector = 
             boost::dynamic_pointer_cast<mesh::StandardTagAndInitialize>(gridding_algorithm->getTagAndInitializeStrategy());
         TBOX_ASSERT(error_detector!=NULL);
-        error_detector->turnOnGradientDetector();
-        error_detector->turnOffRefineBoxes();
-        tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
+        error_detector->turnOnGradientDetector(t0);
+        error_detector->turnOffRefineBoxes(t0);
+        tag_buffer = std::vector<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
         for (int ln = 0; hierarchy->levelCanBeRefined(ln); ln++) {
             tbox::pout << "Regridding from level " << ln << std::endl;
-            gridding_algorithm->regridAllFinerLevels(ln,t0,tag_buffer);
+            gridding_algorithm->regridAllFinerLevels(ln,tag_buffer,t0,0);
             application->setInitialConditions(t0);
         }
     }
 
     // initialize a time integrator parameters object
     boost::shared_ptr<tbox::Database> ti_db = input_db->getDatabase("TimeIntegrator");
-    SAMRSolvers::TimeIntegratorParameters *timeIntegratorParameters = new SAMRSolvers::TimeIntegratorParameters(ti_db);
-    timeIntegratorParameters->d_operator = application.get();
+    boost::shared_ptr<SAMRSolvers::TimeIntegratorParameters> timeIntegratorParameters(
+       new SAMRSolvers::TimeIntegratorParameters(ti_db) );
+    timeIntegratorParameters->d_operator = application;
     timeIntegratorParameters->d_ic_vector = application->get_ic();
-    timeIntegratorParameters->d_vizWriter = visit_writer.get();
+    timeIntegratorParameters->d_vizWriter = visit_writer;
+    double dt_min = ti_db->getDoubleWithDefault("min_dt",0.0);
+    double dt_max = ti_db->getDoubleWithDefault("max_dt",1e100);
    
     // create a time integrator
-    SAMRSolvers::TimeIntegratorFactory *tiFactory = new SAMRSolvers::TimeIntegratorFactory();
+    boost::shared_ptr<SAMRSolvers::TimeIntegratorFactory> tiFactory( new SAMRSolvers::TimeIntegratorFactory() );
     boost::shared_ptr<SAMRSolvers::TimeIntegrator> timeIntegrator = tiFactory->createTimeIntegrator(timeIntegratorParameters);
 
     // Create x(t)
@@ -225,7 +228,7 @@ int main( int argc, char *argv[] )
                 save_now = true;
             if ( current_time-last_save_time >= dt_save )
                 save_now = true;
-            if ( save_times.size() > it_save_time ) {
+            if ( (int) save_times.size() > it_save_time ) {
                 if ( current_time >= save_times[it_save_time] ) {
                     save_now = true;
                     it_save_time++;
@@ -245,18 +248,21 @@ int main( int argc, char *argv[] )
             if ( regrid_interval>0 && ((timestep+1)%regrid_interval)==0 ) {
                 tbox::pout << " Regridding ..." << std::endl;
                 application->registerVector( x_t );
-                gridding_algorithm->regridAllFinerLevels( 0, current_time, tag_buffer );
+                gridding_algorithm->regridAllFinerLevels( 0, tag_buffer, current_time, 0 );
                 first_step = false;
                 tbox::pout << "************************* Finished regrid *********************************" << std::endl;
             }
 
             //dt = timeIntegrator->getNextDt(solnAcceptable);
             dt = application->getExpdT();
+            dt = std::max(dt,dt_min);
+            dt = std::min(dt,dt_max);
         
             tbox::pout << "Estimating next time step : " << dt << std::endl;
 
         } else {
-            tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
+            tbox::pout << "Failed to advance solution past time : " << timeIntegrator->getCurrentTime() << 
+                ", current time step: " << timeIntegrator->getCurrentDt() << ", recomputing timestep ..." << std::endl;
 			TBOX_ERROR("Error advancing solution");
         }
 
@@ -267,8 +273,8 @@ int main( int argc, char *argv[] )
     // Barrier to make sure all processors have finished
     mpi.Barrier();
     // Delete the time integrator
-    delete tiFactory;
-    delete timeIntegratorParameters;
+    tiFactory.reset();
+    timeIntegratorParameters.reset();
     // Delete the application
     application.reset();
     application_parameters.reset();

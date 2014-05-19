@@ -96,7 +96,7 @@ int main( int argc, char *argv[] )
     bool use_visit = main_db->getBool("use_visit");
     double dt_save = 1e100;             // Default maximum time between saves
     int plot_interval = 0x7FFFFFFF;     // Default maximum number of iterators between saves
-    tbox::Array<double> save_times;     // Default times to force a save
+    std::vector<double> save_times;     // Default times to force a save
     std::string write_path = "output";  // Default path to save the data
     long int max_saves = 10000;         // Default maximum number of saves
     if ( use_visit ) {
@@ -105,7 +105,7 @@ int main( int argc, char *argv[] )
         if ( main_db->keyExists("plot_interval") )
             plot_interval = main_db->getInteger("plot_interval");
         if ( main_db->keyExists("save_times") )
-            save_times = main_db->getDoubleArray("save_times");
+            save_times = main_db->getDoubleVector("save_times");
         if ( main_db->keyExists("dt_save") )
             dt_save = main_db->getDouble("dt_save");
         if ( main_db->keyExists("max_saves") )
@@ -168,17 +168,18 @@ int main( int argc, char *argv[] )
     application->setInitialConditions(t0);
 
     // Perform a regrid to make sure the tagging is all set correctly
-    tbox::Array<int> tag_buffer(20,2);
+    std::vector<int> tag_buffer(20,2);
     if ( regrid_interval > 0 ) {
         boost::shared_ptr<mesh::StandardTagAndInitialize> error_detector = 
-            boost::dynamic_pointer_cast<mesh::StandardTagAndInitialize>( gridding_algorithm->getTagAndInitializeStrategy() );
+            boost::dynamic_pointer_cast<mesh::StandardTagAndInitialize>( 
+            gridding_algorithm->getTagAndInitializeStrategy() );
         TBOX_ASSERT(error_detector!=NULL);
-        error_detector->turnOnGradientDetector();
-        error_detector->turnOffRefineBoxes();
-        tag_buffer = tbox::Array<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
+        error_detector->turnOnGradientDetector(t0);
+        error_detector->turnOffRefineBoxes(t0);
+        tag_buffer = std::vector<int>(20,2);    // GradientDetector or RichardsonExtrapolation is used, use a default tag buffer of 2
         for (int ln = 0; hierarchy->levelCanBeRefined(ln); ln++) {
             tbox::pout << "Regridding from level " << ln << std::endl;
-            gridding_algorithm->regridAllFinerLevels(ln,t0,tag_buffer);
+            gridding_algorithm->regridAllFinerLevels(ln,tag_buffer,0,t0);
             application->setInitialConditions(t0);
         }
     }
@@ -186,9 +187,8 @@ int main( int argc, char *argv[] )
     //application->createPreconditioner();
     
     boost::shared_ptr<solv::SNES_SAMRAIContext> snes_solver(
-        new solv::SNES_SAMRAIContext("SNESSolver",
-                           input_db->getDatabase("SNESSolver"),
-                           application.get()) );
+        new solv::SNES_SAMRAIContext( "SNESSolver",
+        application.get(), input_db->getDatabase("SNESSolver") ) );
 
     tbox::pout << "Created nonlinear solver " << std::endl;
     
@@ -294,7 +294,7 @@ int main( int argc, char *argv[] )
             if ( regrid_interval>0 && ((timestep+1)%regrid_interval)==0 ) {
 
                 tbox::pout << " Regridding ..." << std::endl;
-                gridding_algorithm->regridAllFinerLevels( 0, current_time, tag_buffer );
+                gridding_algorithm->regridAllFinerLevels( 0, tag_buffer, 0, current_time );
                 tbox::pout << "************************* Finished regrid *********************************" << std::endl;
    
                 snes_solver->resetSolver(0, hierarchy->getFinestLevelNumber());

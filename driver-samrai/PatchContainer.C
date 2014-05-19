@@ -34,7 +34,7 @@ static void touchesPeriodicBoundary( boost::shared_ptr<SAMRAI::hier::Patch >& pa
     boost::shared_ptr<SAMRAI::hier::PatchLevel>& level, bool* periodic )
 {
     const short int dim = level->getDim().getValue();
-    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = level->getPhysicalDomainArray();
+    const std::vector<SAMRAI::hier::BoxContainer> domain_array = level->getPhysicalDomainArray();
     if ( domain_array.size() != 1 ) 
         TBOX_ERROR("Only 1 domain box is supported");
     const SAMRAI::hier::Index ifirst_global = domain_array[0].getBoundingBox().lower();
@@ -92,7 +92,7 @@ PatchContainer::PatchContainer(boost::shared_ptr<hier::PatchHierarchy> d_hierarc
     }
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    const std::vector<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
     if ( domain_array.size() != 1 ) 
         TBOX_ERROR("Only 1 domain box is supported");
     const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();

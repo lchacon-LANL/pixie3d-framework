@@ -1,6 +1,8 @@
 #ifndef included_commPatchData
 #define included_commPatchData
 
+#include <vector>
+
 // SAMRAI headers
 #include "SAMRAI/hier/Box.h"
 #include "SAMRAI/hier/IntVector.h"
@@ -29,17 +31,20 @@ class commPatchData {
         // Copy constructor
         commPatchData(const commPatchData& rhs);
 
+        // Copy constructor
+        commPatchData& operator=(const commPatchData& rhs);
+
         // Function to get the patch box
-        hier::Box getBox() { return box; }
+        hier::Box getBox() { return d_box; }
 
         // Function to get the gcw
-        hier::IntVector getGCW() { return gcw; }
+        hier::IntVector getGCW() { return d_gcw; }
 
         // Function to get the variable depth
-        int getDepth() { return depth; }
+        int getDepth() { return d_depth; }
 
         // Function to get the data
-        double* getData() { return data; }
+        double* getData(int i) { return d_data[i]; }
 
         // Function to calculate the size of an int vector required to store the data
         size_t commBufferSize();
@@ -48,14 +53,14 @@ class commPatchData {
         void putToIntBuffer(int *buffer);
 
         // Unpack the data from an int array
-        void getFromIntBuffer(int *buffer);
+        void getFromIntBuffer(const int *buffer);
 
     private:
-        hier::Box box;
-        hier::IntVector gcw;
-        int depth;
-        double *data;
-        bool allocated_data;
+        hier::Box d_box;
+        hier::IntVector d_gcw;
+        int d_depth;
+        std::vector<double*> d_data;
+        std::vector<size_t>  d_size;
 };
 
 #endif

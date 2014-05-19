@@ -33,15 +33,16 @@ PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator()
 
    const int hierarchy_size       = d_hierarchy->getNumberOfLevels();
 
-   d_level_operators.resizeArray(hierarchy_size);
-   d_flux_coarsen_schedule.resizeArray(hierarchy_size-1);
-   d_src_coarsen_schedule.resizeArray(hierarchy_size-1);
-   d_var_refine_schedule.resizeArray(hierarchy_size);
-   d_interpolate_schedule.resizeArray(hierarchy_size);
+   d_level_operators.resize(hierarchy_size);
+   d_flux_coarsen_schedule.resize(hierarchy_size-1);
+   d_src_coarsen_schedule.resize(hierarchy_size-1);
+   d_var_refine_schedule.resize(hierarchy_size);
+   d_interpolate_schedule.resize(hierarchy_size);
 }
 
-PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator(boost::shared_ptr<SAMRSolvers::MultilevelOperatorParameters> parameters):
-    MultilevelOperator(parameters.get())
+PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator( 
+    boost::shared_ptr<SAMRSolvers::MultilevelOperatorParameters> parameters ):
+    MultilevelOperator(parameters)
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(parameters!=NULL);
@@ -62,11 +63,11 @@ PCDiagonalMultilevelOperator::PCDiagonalMultilevelOperator(boost::shared_ptr<SAM
 
    const int hierarchy_size       = d_hierarchy->getNumberOfLevels();
 
-   d_level_operators.resizeArray(hierarchy_size);
-   d_flux_coarsen_schedule.resizeArray(hierarchy_size-1);
-   d_src_coarsen_schedule.resizeArray(hierarchy_size-1);
-   d_var_refine_schedule.resizeArray(hierarchy_size);
-   d_interpolate_schedule.resizeArray(hierarchy_size);
+   d_level_operators.resize(hierarchy_size);
+   d_flux_coarsen_schedule.resize(hierarchy_size-1);
+   d_src_coarsen_schedule.resize(hierarchy_size-1);
+   d_var_refine_schedule.resize(hierarchy_size);
+   d_interpolate_schedule.resize(hierarchy_size);
 
    // read in parameters from database
    getFromInput(parameters->d_db);
@@ -113,7 +114,8 @@ PCDiagonalMultilevelOperator::initializeLevelOperators( boost::shared_ptr<SAMRSo
 
    for(int ln=0; ln<=d_hierarchy->getFinestLevelNumber(); ln++)
      {
-       SAMRSolvers::LevelOperatorParameters *params = new SAMRSolvers::LevelOperatorParameters(parameters->d_db);
+       boost::shared_ptr<SAMRSolvers::LevelOperatorParameters> params(
+          new SAMRSolvers::LevelOperatorParameters(parameters->d_db) );
        // The next call is important
        // It lets the level operators know what object_id to use as a suffix
        // when creating internal data to minimize the number of variables created
@@ -130,7 +132,6 @@ PCDiagonalMultilevelOperator::initializeLevelOperators( boost::shared_ptr<SAMRSo
        params->d_set_boundary_ghosts = d_set_boundary_ghosts;
        boost::shared_ptr<SAMRSolvers::LevelOperator> levelOp(new PCDiagonalLevelOperator(params));
        d_level_operators[ln]         = levelOp;
-       delete params;
      }
 }
   
@@ -349,7 +350,7 @@ PCDiagonalMultilevelOperator::getRefineSchedule(const int ln,
    assert(geometry.get()!=NULL);      
 #endif
    
-   xfer::RefineAlgorithm refine_alg(d_hierarchy->getDim());
+   xfer::RefineAlgorithm refine_alg;
 
    refine_alg.registerRefine(var_id, var_id, var_id,
                              geometry->lookupRefineOperator(var, 
@@ -502,9 +503,8 @@ PCDiagonalMultilevelOperator::initializeBoundaryConditionStrategy(boost::shared_
 {
   if(d_internal_refine_strategy)
     {
-      BoundaryConditionParameters *parameters = new BoundaryConditionParameters(db);
-      d_set_boundary_ghosts.reset( new PCDiagonalRefinePatchStrategy(d_hierarchy->getDim(), parameters) );
-      delete parameters;
+      boost::shared_ptr<BoundaryConditionParameters> parameters( new BoundaryConditionParameters(db) );
+      d_set_boundary_ghosts.reset( new PCDiagonalRefinePatchStrategy(parameters) );
     }
   
   if(d_set_boundary_ghosts.get()!=NULL)
@@ -778,7 +778,7 @@ PCDiagonalMultilevelOperator::interpolate(const boost::shared_ptr<hier::PatchLev
 
    boost::shared_ptr<geom::GridGeometry> geometry = boost::dynamic_pointer_cast<geom::GridGeometry>(d_hierarchy->getGridGeometry());
 
-   xfer::RefineAlgorithm refine_alg(d_hierarchy->getDim());
+   xfer::RefineAlgorithm refine_alg;
 
    refine_alg.registerRefine(dst_id[0], src_id[0], scratch_id[0],
                              geometry->lookupRefineOperator(dstvar, 
@@ -868,7 +868,7 @@ PCDiagonalMultilevelOperator::getVariableIndex(std::string &name,
 }
 
 void
-PCDiagonalMultilevelOperator::reset(SAMRSolvers::DiscreteOperatorParameters *params)
+PCDiagonalMultilevelOperator::reset( boost::shared_ptr<SAMRSolvers::DiscreteOperatorParameters> params )
 {
   
   SAMRSolvers::MultilevelOperator::reset(params);

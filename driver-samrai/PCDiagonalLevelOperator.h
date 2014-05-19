@@ -63,7 +63,7 @@ namespace Pixie3d {
 class PCDiagonalLevelOperator: public SAMRSolvers::LevelOperator
 {
 public:
-   PCDiagonalLevelOperator(SAMRSolvers::LevelOperatorParameters *parameters);
+   PCDiagonalLevelOperator( boost::shared_ptr<SAMRSolvers::LevelOperatorParameters> parameters );
 
    ~PCDiagonalLevelOperator();
 
@@ -219,7 +219,8 @@ public:
    * \param parameters
    *        LevelOperatorParameters object that should contain a pointer to a valid PatchLevel object
    */
-   boost::shared_ptr<SAMRSolvers::LevelOperator> constructOperator(SAMRSolvers::LevelOperatorParameters *parameters);
+   boost::shared_ptr<SAMRSolvers::LevelOperator> constructOperator(
+      boost::shared_ptr<SAMRSolvers::LevelOperatorParameters> parameters );
 
    /**
     * Get information describing physical boundary conditions.  The
@@ -266,7 +267,7 @@ private:
 
    int d_flux_id;
 
-   boost::shared_ptr<xfer::RefineSchedule > d_sibling_fill_schedule;
+   boost::shared_ptr<xfer::RefineSchedule> d_sibling_fill_schedule;
 
    boost::shared_ptr<pdat::FaceVariable<double> > d_flux;
 

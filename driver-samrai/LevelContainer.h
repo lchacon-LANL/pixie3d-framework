@@ -3,7 +3,6 @@
 
 #include <vector>
 #include <map>
-#include "SAMRAI/tbox/Array.h"
 #include "boost/shared_ptr.hpp"
 #include "SAMRAI/pdat/CellData.h"
 #include "SAMRAI/pdat/CellVariable.h"

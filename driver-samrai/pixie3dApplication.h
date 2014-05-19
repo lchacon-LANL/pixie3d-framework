@@ -17,7 +17,6 @@
 #include <vector>
 
 // SAMRAI headers
-#include "SAMRAI/tbox/Array.h"
 #include "boost/shared_ptr.hpp"
 #include "SAMRAI/pdat/CellVariable.h"
 #include "SAMRAI/pdat/FaceVariable.h"
@@ -232,13 +231,13 @@ protected:
 
    void writeCellData( FILE *fp, int var_id );
    void writeGlobalCellData( FILE *fp, int var_id );
+   void writeSideData( FILE *fp, int var_id );
 
    // Name of application
    std::string d_object_name;
 
    // Hierarchy
    boost::shared_ptr<hier::PatchHierarchy> d_hierarchy;
-   tbox::Dimension dim;
    
    // Solution vectors
    boost::shared_ptr< solv::SAMRAIVectorReal<double> > d_initial;
@@ -292,21 +291,24 @@ protected:
    static const int MAX_LEVELS = 20;
    LevelContainer *level_container_array[MAX_LEVELS];
 
-   // Data for applying the boundary conditions and the refine schedules
+   // Refine/coarsen methods
    std::string d_refine_op_str;
+   std::string d_regrid_op_str;
+   std::string d_coarsen_op_str;
+   std::string d_flux_coarsen_op_str;
+
+   // Data for applying the boundary conditions and the refine schedules
    boost::shared_ptr<pixie3dRefinePatchStrategy> d_refine_strategy; 
    std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> d_BoundarySequenceGroups;
    std::vector<boost::shared_ptr<xfer::TransactionSchedule> > d_refineSchedule[MAX_LEVELS];
 
    // Data for the coarsen schedules
-   std::string d_coarsen_op_str;
    boost::shared_ptr<xfer::TransactionSchedule> d_xCoarsenSchedule[MAX_LEVELS];
    boost::shared_ptr<xfer::TransactionSchedule> d_fluxCoarsenSchedule[MAX_LEVELS];
    boost::shared_ptr<RefinementBoundaryInterpolation> d_coarseFineInterp;
     
    // Data for regrid
    std::vector<double> d_J_level;
-   std::string d_regrid_op_str;
 
    // The names of the primary and auxillary variables
    std::string *depVarLabels;

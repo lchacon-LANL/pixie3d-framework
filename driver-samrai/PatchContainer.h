@@ -2,7 +2,6 @@
 #define included_patchcontainer
 
 #include <vector>
-#include "SAMRAI/tbox/Array.h"
 #include "boost/shared_ptr.hpp"
 #include "SAMRAI/hier/ComponentSelector.h"
 #include "SAMRAI/hier/PatchHierarchy.h"

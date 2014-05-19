@@ -3,7 +3,6 @@
 
 
 #include "SAMRAI/SAMRAI_config.h"
-#include "SAMRAI/tbox/Array.h"
 #include "SAMRAI/xfer/CoarsenSchedule.h"
 
 #include <vector>
@@ -199,7 +198,8 @@ public:
    * \param parameters
    *        MultilevelSolverParameters object that is NULL by default
    */
-   void reset(SAMRSolvers::DiscreteOperatorParameters *parameters=NULL);
+   void reset( boost::shared_ptr<SAMRSolvers::DiscreteOperatorParameters> parameters=
+      boost::shared_ptr<SAMRSolvers::DiscreteOperatorParameters>() );
 
    void initializeBoundaryConditionStrategy(boost::shared_ptr<tbox::Database> &db);
 
@@ -325,16 +325,16 @@ protected:
 
    boost::shared_ptr< pdat::FaceVariable<double> > d_flux;
 
-   tbox::Array< boost::shared_ptr<xfer::CoarsenSchedule > > d_flux_coarsen_schedule;
-   tbox::Array< boost::shared_ptr<xfer::CoarsenSchedule > > d_src_coarsen_schedule;
+   std::vector< boost::shared_ptr<xfer::CoarsenSchedule > > d_flux_coarsen_schedule;
+   std::vector< boost::shared_ptr<xfer::CoarsenSchedule > > d_src_coarsen_schedule;
 
-   tbox::Array< boost::shared_ptr<xfer::RefineSchedule > > d_var_refine_schedule;
-   tbox::Array< boost::shared_ptr<xfer::RefineSchedule > > d_interpolate_schedule;
+   std::vector< boost::shared_ptr<xfer::RefineSchedule > > d_var_refine_schedule;
+   std::vector< boost::shared_ptr<xfer::RefineSchedule > > d_interpolate_schedule;
 
    SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme d_tangent_interp_scheme;
    SAMRAI::RefinementBoundaryInterpolation::InterpolationScheme d_normal_interp_scheme;
 
-   tbox::Array< boost::shared_ptr<SAMRSolvers::LevelOperator> > d_level_operators;
+   std::vector< boost::shared_ptr<SAMRSolvers::LevelOperator> > d_level_operators;
 
 };
   

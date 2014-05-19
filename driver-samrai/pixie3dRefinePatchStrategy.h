@@ -30,7 +30,7 @@ public:
 
 
     // Constructor.
-    pixie3dRefinePatchStrategy(const tbox::Dimension &);
+    pixie3dRefinePatchStrategy();
 
     // Virtual destructor.
     virtual ~pixie3dRefinePatchStrategy();
@@ -65,7 +65,7 @@ public:
      * data interpolation operations.  Default is to return 
      * zero, assuming no user-defined operations provided.
      */
-    hier::IntVector getRefineOpStencilWidth( void ) const  { return(hier::IntVector(dim,0)); }
+    hier::IntVector getRefineOpStencilWidth( const tbox::Dimension &dim ) const  { return(hier::IntVector(dim,0)); }
 
 
     // Set the hierarchy
@@ -108,9 +108,6 @@ public:
 
 
 private:
-   
-    // Dimension
-    tbox::Dimension dim;
 
     // Private function to copy data on a patch from one variable to another
     void copy_data_patch( hier::Patch& patch, int src_id, int dst_id );

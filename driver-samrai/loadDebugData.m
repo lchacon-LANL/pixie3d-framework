@@ -50,31 +50,49 @@ while 1
             for k = 1:data(i).N_levels
                 tline = fgetl(fid);
                 index = find(tline=='=');
-                level = str2num(tline(index(1)+1:index(2)-9)); %#ok<ST2NM>
+                level = str2num(tline(index(1)+1:index(2)-9))+1; %#ok<ST2NM>
                 data(i).ratio{i} = str2num(tline(index(2)+3:index(3)-12)); %#ok<ST2NM>
                 n_patch = str2num(tline(index(3)+1:length(tline))); %#ok<ST2NM>
                 for m = 1:n_patch
                     t0 = ftell(fid);
                     tline = fgetl(fid);
                     fseek(fid,t0+length(tline)+1,'bof');
-                    index = find(tline=='=');
-                    patch_num = str2num(tline(index(1)+1:index(2)-10)); %#ok<ST2NM>
-                    ifirst = str2num(tline(index(2)+3:index(3)-10)); %#ok<ST2NM>
-                    ilast = str2num(tline(index(3)+3:index(4)-8)); %#ok<ST2NM>
-                    gcw = str2num(tline(index(4)+3:index(5)-10)); %#ok<ST2NM>
-                    depth = str2num(tline(index(5)+1:length(tline))); %#ok<ST2NM>
-                    N = prod(ilast-ifirst+1+2*gcw)*depth;
-                    data_read = fread(fid,N,'double');
-                    tline = fgetl(fid);
-                    if ~isempty(tline)
-                        fseek(fid,-length(tline),'cof');
+                    header = convert_patch_header(tline);
+                    N = [header.ilast-header.ifirst+1+2*header.gcw, header.depth];
+                    patch = header.patch_num+1;
+                    if strcmp(header.type,'cell')
+                        % Reading cell-centered data
+                        data_read = fread(fid,prod(N),'double');
+                        tline = fgetl(fid);
+                        if ~isempty(tline)
+                            fseek(fid,-length(tline),'cof');
+                        end
+                        data_read = reshape(data_read,N);
+                        data(i).var(j).gcw = header.gcw;
+                        data(i).var(j).depth = header.depth;
+                        data(i).var(j).ifirst{level,patch} = header.ifirst;
+                        data(i).var(j).ilast{level,patch} = header.ilast;
+                        data(i).var(j).data{level,patch} = data_read;
+                    elseif strfind(header.type,'side')==1
+                        % Reading cell-centered data
+                        data(i).var(j).gcw = header.gcw;
+                        data(i).var(j).depth = header.depth;
+                        data(i).var(j).ifirst{level,patch} = header.ifirst;
+                        data(i).var(j).ilast{level,patch} = header.ilast;
+                        for d = 1:3
+                            N2 = N;
+                            N2(d) = N2(d)+1;
+                            data_read = fread(fid,prod(N2),'double');
+                            tline = fgetl(fid);
+                            if ~isempty(tline)
+                                fseek(fid,-length(tline),'cof');
+                            end
+                            data_read = reshape(data_read,N2);
+                            data(i).var(j).data{level,patch}{d} = data_read;
+                        end
+                    else
+                        error('Unknown data format');
                     end
-                    data_read = reshape(data_read,[ilast-ifirst+1+2*gcw,depth]);
-                    data(i).var(j).gcw = gcw;
-                    data(i).var(j).depth = depth;
-                    data(i).var(j).ifirst{level+1,patch_num+1} = ifirst;
-                    data(i).var(j).ilast{level+1,patch_num+1} = ilast;
-                    data(i).var(j).data{level+1,patch_num+1} = data_read;
                 end
             end
         else
@@ -102,4 +120,35 @@ while 1
     i = i+1;
 end
 fclose(fid);
+
+
+function header = convert_patch_header(tline)
+% Get the patch number
+index = strfind(tline,'patch_num');
+tline2 = tline(index:length(tline));
+tline2 = tline2(find(tline=='=',1)+1:length(tline2));
+header.patch_num = str2double(tline2(1:find(tline2==',',1)-1));
+% Get ifirst
+index = strfind(tline,'ifirst');
+tline2 = tline(index:length(tline));
+tline2 = tline2(find(tline2=='(',1)+1:find(tline2==')',1)-1);
+header.ifirst = str2num(tline2); %#ok<ST2NM>
+% Get ilast
+index = strfind(tline,'ilast');
+tline2 = tline(index:length(tline));
+tline2 = tline2(find(tline2=='(',1)+1:find(tline2==')',1)-1);
+header.ilast = str2num(tline2); %#ok<ST2NM>
+% Get gcw
+index = strfind(tline,'gcw');
+tline2 = tline(index:length(tline));
+tline2 = tline2(find(tline2=='(',1)+1:find(tline2==')',1)-1);
+header.gcw = str2num(tline2); %#ok<ST2NM>
+% Get depth
+index = strfind(tline,'depth');
+tline2 = tline(index:length(tline));
+tline2 = tline2(find(tline2=='=',1)+1:length(tline2));
+header.depth = str2double(tline2(1:min([find(tline2==',',1)-1,length(tline2)])));
+% Get type
+tline2 = tline(find(tline==',',1,'last')+1:length(tline));
+header.type = strtrim(tline2(1:min([find(tline2==',',1)-1,length(tline2)])));
 

@@ -15,7 +15,7 @@
 namespace SAMRAI{
 namespace Pixie3d{
 
-Pixie3dPreconditioner::Pixie3dPreconditioner(Pixie3dPreconditionerParameters *parameters)
+Pixie3dPreconditioner::Pixie3dPreconditioner( boost::shared_ptr<Pixie3dPreconditionerParameters> parameters )
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(parameters!=NULL);
@@ -67,11 +67,11 @@ Pixie3dPreconditioner::initializeOperators(boost::shared_ptr<tbox::Database> &db
   // first read in the names of the M Operators and construct the M Operators
   if (db->keyExists("MOperators"))
     {
-      tbox::Array<std::string> MOperatorNames = db->getStringArray("MOperators");
+      std::vector<std::string> MOperatorNames = db->getStringVector("MOperators");
 
-      d_MOperators.resizeArray(MOperatorNames.getSize());
+      d_MOperators.resize(MOperatorNames.size());
       
-      for(int i=0; i<MOperatorNames.getSize(); i++)
+      for(size_t i=0; i<MOperatorNames.size(); i++)
 	{
 	  
 	  if (db->keyExists(MOperatorNames[i]))
@@ -209,11 +209,11 @@ Pixie3dPreconditioner::initializeSolvers(boost::shared_ptr<tbox::Database> &db)
   // first read in the names of the M Operators and construct the M Operators
   if (db->keyExists("MSolvers"))
     {
-      tbox::Array<std::string> MSolverNames = db->getStringArray("MSolvers");
+      std::vector<std::string> MSolverNames = db->getStringVector("MSolvers");
 
-      d_MSolvers.resizeArray(MSolverNames.getSize());
+      d_MSolvers.resize(MSolverNames.size());
       
-      for(int i=0; i<MSolverNames.getSize(); i++)
+      for(size_t i=0; i<MSolverNames.size(); i++)
 	{
 	  
 	  if (db->keyExists(MSolverNames[i]))
@@ -224,13 +224,12 @@ Pixie3dPreconditioner::initializeSolvers(boost::shared_ptr<tbox::Database> &db)
 	      assert(MSolverDB!=NULL);
 #endif
 
-	      SAMRSolvers::MultilevelSolverParameters *mlParams = new SAMRSolvers::MultilevelSolverParameters(MSolverDB) ;
+	      boost::shared_ptr<SAMRSolvers::MultilevelSolverParameters> mlParams(
+             new SAMRSolvers::MultilevelSolverParameters(MSolverDB) );
 
 	      mlParams->d_hierarchy                = d_hierarchy;
 
 	      d_MSolvers[i].reset( new PCComponentFACSolver(mlParams) );
-
-	      delete mlParams;
 	      
 #ifdef DEBUG_CHECK_ASSERTIONS
 	      assert(d_MSolvers[i]!=NULL);
@@ -261,7 +260,8 @@ Pixie3dPreconditioner::initializeSolvers(boost::shared_ptr<tbox::Database> &db)
       assert(PSchurSolverDB!=NULL);
 #endif
       
-      SAMRSolvers::MultilevelSolverParameters *mlParams = new SAMRSolvers::MultilevelSolverParameters(PSchurSolverDB) ;
+      boost::shared_ptr<SAMRSolvers::MultilevelSolverParameters> mlParams( 
+         new SAMRSolvers::MultilevelSolverParameters(PSchurSolverDB) );
       
       mlParams->d_hierarchy                = d_hierarchy;
       
@@ -270,8 +270,6 @@ Pixie3dPreconditioner::initializeSolvers(boost::shared_ptr<tbox::Database> &db)
 #ifdef DEBUG_CHECK_ASSERTIONS
       assert(d_PSchurSolver!=NULL);
 #endif      
-
-      delete mlParams;
       
     }  
   else
@@ -320,12 +318,13 @@ Pixie3dPreconditioner::applyPreconditioner(
 }
 
 int
-Pixie3dPreconditioner::setupPreconditioner( SAMRSolvers::PreconditionerParameters *parameters )
+Pixie3dPreconditioner::setupPreconditioner( boost::shared_ptr<SAMRSolvers::PreconditionerParameters> parameters )
 {
    static boost::shared_ptr<tbox::Timer> t_setup_pc = tbox::TimerManager::getManager()->getTimer("rd2t::Pixie3dPreconditioner::setupPreconditioner");
    t_setup_pc->start();
 
-   Pixie3dPreconditionerParameters *ptr = dynamic_cast<Pixie3dPreconditionerParameters *>(parameters);
+   boost::shared_ptr<Pixie3dPreconditionerParameters> ptr = 
+      boost::dynamic_pointer_cast<Pixie3dPreconditionerParameters>(parameters);
 
 #ifdef DEBUG_CHECK_ASSERTIONS
    assert(ptr!=NULL);

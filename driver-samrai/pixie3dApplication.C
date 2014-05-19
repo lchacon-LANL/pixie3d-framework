@@ -59,11 +59,11 @@
 #include "source/AMRUtilities.h"
 #include "transfer/TriangleRefineSchedule.h"
 #include "transfer/SAMRAICoarsenSchedule.h"
+#include "transfer/NullTransactionSchedule.h"
 
 
 extern "C"{
 #include <assert.h>
-
 }
 
 
@@ -102,13 +102,22 @@ extern void FORTRAN_NAME(tag_cells)(const int*, const int*, const int*, const in
 
 
 namespace SAMRAI{
+
+
+// Inline function to convert a string to lower case
+static inline std::string lower(const std::string& s) {
+    std::string data = s;
+    std::transform(data.begin(), data.end(), data.begin(), ::tolower);
+    return data;
+}
+
+
 /***********************************************************************
 *                                                                      *
 * Constructor sets some bad values.                                    *
 *                                                                      *
 ***********************************************************************/
-pixie3dApplication::pixie3dApplication():
-    dim(3)
+pixie3dApplication::pixie3dApplication()
 {
     d_hierarchy.reset();
     for (int i=0; i<MAX_LEVELS; i++)
@@ -129,8 +138,7 @@ pixie3dApplication::pixie3dApplication():
 *                                                                      *
 ***********************************************************************/
 pixie3dApplication::pixie3dApplication( boost::shared_ptr<pixie3dApplicationParameters> parameters ): 
-    SAMRSolvers::DiscreteOperator(parameters.get()),
-    dim(parameters->d_hierarchy->getDim())
+    SAMRSolvers::DiscreteOperator(parameters)
 {
     d_hierarchy.reset();
     for (int i=0; i<MAX_LEVELS; i++)
@@ -200,17 +208,12 @@ pixie3dApplication::~pixie3dApplication()
 * Initialize object.                                                   *
 *                                                                      *
 ***********************************************************************/
-void
-pixie3dApplication::initialize( boost::shared_ptr<pixie3dApplicationParameters> parameters )
+void pixie3dApplication::initialize( boost::shared_ptr<pixie3dApplicationParameters> parameters )
 {
-    d_coarsen_op_str = "CONSERVATIVE_COARSEN";
-    //d_coarsen_op_str = "CELL_DOUBLE_INJECTION_COARSEN";
-
     // Load basic information from the parameters
     TBOX_ASSERT(parameters!=NULL);
     d_hierarchy = parameters->d_hierarchy;
-    if ( dim!=d_hierarchy->getDim() )
-        TBOX_ERROR("Error in dimension");
+    SAMRAI::tbox::Dimension dim = d_hierarchy->getDim();
     if ( dim.getValue() != 3 )
         TBOX_ERROR("Only programmed for dimension == 3");
     d_object_name = "pixie3d";
@@ -219,64 +222,27 @@ pixie3dApplication::initialize( boost::shared_ptr<pixie3dApplicationParameters> 
     // Get info from the database
     TBOX_ASSERT(parameters->d_db.get()!=NULL);
     d_db = parameters->d_db;
-    if ( d_db->keyExists("print_info_level") ) 
-        d_debug_print_info_level = d_db->getInteger("print_info_level");
-    else
-        d_debug_print_info_level = 0;
-    if ( d_db->keyExists("refine_method") ) {
-        if ( d_db->getString("refine_method") == "CONSTANT" ) {
-            // Use triangle-based constant interpolation
-            d_refine_op_str  = "constant";
-        } else if ( d_db->getString("refine_method") == "LINEAR" ) {
-            // Use triangle-based linear interpolation
-            d_refine_op_str  = "linear";
-        } else if ( d_db->getString("refine_method") == "CUBIC" ) {
-            // Use triangle-based cubic interpolation
-            d_refine_op_str  = "cubic";
-        } else {
-            TBOX_ERROR("Unknown interpolation");
-        }
-        /*if ( d_db->getString("refine_method") == "CONSTANT" ) {
-            // Use SAMRAI's linear interpolation
-            d_refine_op_str  = "CONSTANT_REFINE";
-            d_tangentScheme = RefinementBoundaryInterpolation::piecewiseConstant;
-            d_normalScheme = RefinementBoundaryInterpolation::piecewiseConstant;
-        } else if ( d_db->getString("refine_method") == "COARSE_LINEAR" ) {
-            // Use SAMRAI's linear interpolation
-            d_refine_op_str  = "LINEAR_REFINE";
-            d_tangentScheme = RefinementBoundaryInterpolation::piecewiseConstant;
-            d_normalScheme = RefinementBoundaryInterpolation::piecewiseConstant;
-        } else if ( d_db->getString("refine_method") == "FINE_LINEAR" ) {
-            // Use SAMRUTILS coarse-fine interpolation
-            d_refine_op_str  = "CONSTANT_REFINE";
-            d_tangentScheme = RefinementBoundaryInterpolation::linear;
-            d_normalScheme = RefinementBoundaryInterpolation::linear;
-        } else {
-            TBOX_ERROR("Unknown interpolation");
-        }*/
-    } else {
+    d_debug_print_info_level = d_db->getIntegerWithDefault("print_info_level",0);
+    if ( !d_db->keyExists("refine_method") )
         TBOX_ERROR("key refine_method must exist in database");
-    }
-    if ( d_db->keyExists("regrid_method") ) {
-        if ( d_db->getString("regrid_method") == "CONSTANT" ) {
-            // Use triangle-based constant interpolation
-            d_regrid_op_str  = "constant";
-        } else if ( d_db->getString("regrid_method") == "LINEAR" ) {
-            // Use triangle-based linear interpolation
-            d_regrid_op_str  = "linear";
-        } else if ( d_db->getString("refine_method") == "CUBIC" ) {
-            // Use triangle-based cubic interpolation
-            d_regrid_op_str  = "cubic";
-        } else {
-            TBOX_ERROR("Unknown interpolation");
-        }
-    } else {
-        TBOX_ERROR("key refine_method must exist in database");
-    }
+    if ( !d_db->keyExists("regrid_method") )
+        TBOX_ERROR("key regrid_method must exist in database");
+    if ( !d_db->keyExists("coarsen_method") )
+        TBOX_ERROR("key coarsen_method must exist in database");
+    if ( !d_db->keyExists("flux_coarsen_method") )
+        TBOX_ERROR("key flux_coarsen_method must exist in database");
+    d_refine_op_str = lower(d_db->getString("refine_method"));
+    d_regrid_op_str = lower(d_db->getString("regrid_method"));
+    d_coarsen_op_str = lower(d_db->getString("coarsen_method"));
+    d_flux_coarsen_op_str = lower(d_db->getString("flux_coarsen_method"));
+    if ( d_coarsen_op_str=="conservative" )
+        d_coarsen_op_str = "CONSERVATIVE_COARSEN";
+    if ( d_flux_coarsen_op_str=="conservative" )
+        d_flux_coarsen_op_str = "CONSERVATIVE_COARSEN";
     if ( d_db->keyExists("J_regrid") ) {
-        tbox::Array<double> array = d_db->getDoubleArray("J_regrid");
+        std::vector<double> array = d_db->getDoubleVector("J_regrid");
         d_J_level.resize(array.size());
-        for (int i=0; i<array.size(); i++)
+        for (size_t i=0; i<array.size(); i++)
             d_J_level[i] = array[i];
     } else {
         d_J_level.resize(4);
@@ -321,7 +287,7 @@ pixie3dApplication::initialize( boost::shared_ptr<pixie3dApplicationParameters> 
         boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    const std::vector<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
     if ( domain_array.size() != 1 ) 
         TBOX_ERROR("Only 1 domain box is supported");
     const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
@@ -533,7 +499,7 @@ pixie3dApplication::initialize( boost::shared_ptr<pixie3dApplicationParameters> 
 
 
     // Setup pixie3dRefinePatchStrategy
-    d_refine_strategy.reset( new pixie3dRefinePatchStrategy(dim) );
+    d_refine_strategy.reset( new pixie3dRefinePatchStrategy() );
     (d_refine_strategy)->setHierarchy(d_hierarchy);
     (d_refine_strategy)->setGridGeometry(grid_geometry);
     (d_refine_strategy)->setPixie3dHierarchyData((void **)level_container_array);
@@ -989,7 +955,6 @@ void  pixie3dApplication::refineVariables(void)
 }
 
 
-
 /***********************************************************************
 * Apply the coarse and refine operators                                *
 ***********************************************************************/
@@ -1005,7 +970,9 @@ void pixie3dApplication::synchronizeVariables(void)
 }
 
 
-
+/***********************************************************************
+* Get the number of dependent variables                                *
+***********************************************************************/
 int pixie3dApplication::getNumberOfDependentVariables()
 {
     //  assert(data!=NULL);
@@ -1013,10 +980,12 @@ int pixie3dApplication::getNumberOfDependentVariables()
 }
 
 
-
-// Write a single variable to a file for all patches, all levels, including ghostcells
+/***********************************************************************
+* Write a cell variable to a file for all patches, all levels,         *
+* including ghostcells                                                 *
+***********************************************************************/
 void pixie3dApplication::writeCellData( FILE *fp, int var_id ) {
-    if ( dim.getValue() != 3 )
+    if ( d_hierarchy->getDim().getValue() != 3 )
         TBOX_ERROR("Not programmed for dimensions other than 3");
     const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
     int rank = comm.getRank();
@@ -1041,9 +1010,9 @@ void pixie3dApplication::writeCellData( FILE *fp, int var_id ) {
                 hier::Index ilast  = box.upper();
                 size_t N = (ilast(0)-ifirst(0)+1+2*gcw(0))*(ilast(1)-ifirst(1)+1+2*gcw(1))*(ilast(2)-ifirst(2)+1+2*gcw(2))*depth;
                 // Write the patch
-                fprintf(fp,"patch_num = %i, ifirst = (%i,%i,%i), ilast = (%i,%i,%i), gcw = (%i,%i,%i), depth = %i\n",
+                fprintf(fp,"patch_num = %i, ifirst = (%i,%i,%i), ilast = (%i,%i,%i), gcw = (%i,%i,%i), depth = %i, cell\n",
                     (int) i,ifirst(0),ifirst(1),ifirst(2),ilast(0),ilast(1),ilast(2),gcw(0),gcw(1),gcw(2),depth);
-                double *data = patch_data[i].getData();
+                double *data = patch_data[i].getData(0);
                 fwrite(data,sizeof(double),N,fp);
                 fprintf(fp,"\n");
             }
@@ -1054,9 +1023,12 @@ void pixie3dApplication::writeCellData( FILE *fp, int var_id ) {
 }
 
 
-// Write a single variable to a file using only the coarse level as a single patch
+/***********************************************************************
+* Write a cell variable to a file using only the coarse level as a     *
+* single patch                                                         *
+***********************************************************************/
 void pixie3dApplication::writeGlobalCellData( FILE *fp, int var_id ) {
-    if ( dim.getValue() != 3 )
+    if ( d_hierarchy->getDim().getValue() != 3 )
         TBOX_ERROR("Not programed for dimensions other than 3");
     const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
     int rank = comm.getRank();
@@ -1067,7 +1039,7 @@ void pixie3dApplication::writeGlobalCellData( FILE *fp, int var_id ) {
         boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    const std::vector<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
     if ( domain_array.size() != 1 ) 
         TBOX_ERROR("Only 1 domain box is supported");
     const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
@@ -1092,7 +1064,7 @@ void pixie3dApplication::writeGlobalCellData( FILE *fp, int var_id ) {
             int Ny = ilast(1)-ifirst(1)+1+2*gcw(1);
             int Nz = ilast(2)-ifirst(2)+1+2*gcw(2);
             // Copy the data to the local patch
-            double *tmp_data = patch_data[i].getData();
+            double *tmp_data = patch_data[i].getData(0);
             for (int i=0; i<Nx-2*gcw(0); i++) {
                 for (int j=0; j<Ny-2*gcw(1); j++) {
                     for (int k=0; k<Nz-2*gcw(2); k++) {
@@ -1116,6 +1088,57 @@ void pixie3dApplication::writeGlobalCellData( FILE *fp, int var_id ) {
 }
 
 
+/***********************************************************************
+* Write a side variable to a file for all patches, all levels,         *
+* including ghostcells                                                 *
+***********************************************************************/
+void pixie3dApplication::writeSideData( FILE *fp, int var_id ) {
+    if ( d_hierarchy->getDim().getValue() != 3 )
+        TBOX_ERROR("Not programmed for dimensions other than 3");
+    const tbox::SAMRAI_MPI comm = tbox::SAMRAI_MPI::getSAMRAIWorld();
+    int rank = comm.getRank();
+    if ( rank==0 && fp==NULL )
+        TBOX_ERROR( "File pointer is NULL" );
+    // Loop through the levels
+    for ( int ln=0; ln<d_hierarchy->getNumberOfLevels(); ln++ ) {
+        boost::shared_ptr<hier::PatchLevel > level = d_hierarchy->getPatchLevel(ln);
+        const hier::IntVector ratio = level->getRatioToLevelZero();
+        // Gather all data to processor 0
+        std::vector<commPatchData> patch_data = collectAllPatchData(level,var_id,0);
+        // Save the data
+        if ( rank==0 ) {
+            // Save the header info
+            fprintf(fp,"level = %i, ratio = (%i,%i,%i), n_patch = %i\n",ln,ratio(0),ratio(1),ratio(2),level->getNumberOfPatches());
+            // Loop through the patches
+            for (size_t i=0; i<patch_data.size(); i++) {
+                hier::Box box = patch_data[i].getBox();
+                hier::IntVector gcw = patch_data[i].getGCW();
+                int depth = patch_data[i].getDepth();
+                hier::Index ifirst = box.lower();
+                hier::Index ilast  = box.upper();
+                // Write the patch
+                fprintf(fp,"patch_num = %i, ifirst = (%i,%i,%i), ilast = (%i,%i,%i), gcw = (%i,%i,%i), depth = %i, side\n",
+                    (int) i,ifirst(0),ifirst(1),ifirst(2),ilast(0),ilast(1),ilast(2),gcw(0),gcw(1),gcw(2),depth);
+                for (int d=0; d<3; d++) {
+                    size_t N = 0;
+                    if ( d==0 ) 
+                        N = (ilast(0)-ifirst(0)+2+2*gcw(0))*(ilast(1)-ifirst(1)+1+2*gcw(1))*(ilast(2)-ifirst(2)+1+2*gcw(2))*depth;
+                    else if ( d==1 ) 
+                        N = (ilast(0)-ifirst(0)+1+2*gcw(0))*(ilast(1)-ifirst(1)+2+2*gcw(1))*(ilast(2)-ifirst(2)+1+2*gcw(2))*depth;
+                    else if ( d==2 ) 
+                        N = (ilast(0)-ifirst(0)+1+2*gcw(0))*(ilast(1)-ifirst(1)+1+2*gcw(1))*(ilast(2)-ifirst(2)+2+2*gcw(2))*depth;
+                    double *data = patch_data[i].getData(d);
+                    fwrite(data,sizeof(double),N,fp);
+                    fprintf(fp,"\n");
+                }
+            }
+        }
+        patch_data.clear();
+        comm.Barrier();
+    }
+}
+
+
 /**************************************************************************
 * Write the primary and auxillary variables.                              *
 * type = 1:  Write each patch with ghost cells for all levels             *
@@ -1127,14 +1150,14 @@ void pixie3dApplication::writeDebugData( FILE *fp, const int it, const double ti
         boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    const std::vector<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
     if ( domain_array.size() != 1 ) 
         TBOX_ERROR("Only 1 domain box is supported");
     const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
     const hier::Index ilower = physicalDomain.lower();
     const hier::Index iupper = physicalDomain.upper();
     int nbox[3];
-    for (int i=0; i<dim.getValue(); i++)
+    for (int i=0; i<d_hierarchy->getDim().getValue(); i++)
         nbox[i] = iupper(i)-ilower(i)+1;
     const double *lower = grid_geometry->getXLower();
     const double *upper = grid_geometry->getXUpper();
@@ -1148,7 +1171,10 @@ void pixie3dApplication::writeDebugData( FILE *fp, const int it, const double ti
             fprintf(fp,"N_levels = %i\n",d_hierarchy->getNumberOfLevels());
         else if ( type == 2 )
             fprintf(fp,"N_levels = %i\n",-1);
-        fprintf(fp,"N_vars = %i\n",input_data->nvar+input_data->nauxs+input_data->nauxv);
+        int N_vars = input_data->nvar + input_data->nauxs + input_data->nauxv;
+        if ( type == 1 )
+            N_vars += 2;
+        fprintf(fp,"N_vars = %i\n",N_vars);
     }
     // Save the dependent variables
     for (int i=0; i<input_data->nvar; i++) {
@@ -1176,6 +1202,15 @@ void pixie3dApplication::writeDebugData( FILE *fp, const int it, const double ti
             writeCellData(fp,auxv_id[i]);
         else if ( type == 2 ) 
             writeGlobalCellData(fp,auxv_id[i]);
+    }
+    // Save the flux variables
+    if ( type == 1 ) {
+        if ( fp != NULL )
+            fprintf(fp,"var_name = flux\n");
+        writeSideData(fp,flux_id);
+        if ( fp != NULL )
+            fprintf(fp,"var_name = flux_src\n");
+        writeCellData(fp,flux_src_id);
     }
     if ( fp != NULL )
         fprintf(fp,"\n");
@@ -1383,6 +1418,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
     d_BoundarySequenceGroups = getBCgroup();
 
     // Create the refineSchedules
+    int dim = d_hierarchy->getDim().getValue();
     mpi.Barrier();
     tbox::pout << "     create refine schedules" << std::endl;
     boost::shared_ptr<hier::Variable> var0;
@@ -1395,7 +1431,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
             coarse_level = d_hierarchy->getPatchLevel(ln-1);
         d_refineSchedule[ln].resize(d_BoundarySequenceGroups.size());
         for(size_t iSeq=0; iSeq<d_BoundarySequenceGroups.size(); iSeq++) {
-            xfer::RefineAlgorithm refineVariableAlgorithm(d_hierarchy->getDim());
+            xfer::RefineAlgorithm refineVariableAlgorithm;
             // Register the variables in the current squence
             std::vector<int> ids(d_BoundarySequenceGroups[iSeq].nbc_seq,-1);
             std::vector<int> grad_ids(d_BoundarySequenceGroups[iSeq].nbc_seq,-1);
@@ -1415,7 +1451,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
                     grad_id = d_x_grad_ids[idx];
                 } else if ( d_BoundarySequenceGroups[iSeq].bc_seq[i]<0 && d_BoundarySequenceGroups[iSeq].vector[i]==0 ) {
                     // Auxillary scalar variable
-                    for(int j=0; j<dim.getValue(); j++) {
+                    for(int j=0; j<dim; j++) {
                         if ( GHOST == 1 ) {
                             var0 = d_aux_scalar->getComponentVariable(idx);
                             data_id = d_aux_scalar->getComponentDescriptorIndex(idx);
@@ -1427,7 +1463,7 @@ void pixie3dApplication::resetHierarchyConfiguration(
                     grad_id = d_auxs_grad_ids[idx];
                 } else if ( d_BoundarySequenceGroups[iSeq].bc_seq[i]<0 && d_BoundarySequenceGroups[iSeq].vector[i]==1 ) {
                     // Auxillary vector variable
-                    for(int j=0; j<dim.getValue(); j++) {
+                    for(int j=0; j<dim; j++) {
                         if ( GHOST == 1 ) {
                             var0 = d_aux_vector->getComponentVariable(idx);
                             data_id = d_aux_vector->getComponentDescriptorIndex(idx);
@@ -1487,13 +1523,16 @@ void pixie3dApplication::resetHierarchyConfiguration(
         params->d_method = std::vector<std::string>(2);
         params->d_src_id = std::vector<int>(2);
         params->d_dst_id = std::vector<int>(2);
-        params->d_method[0] = d_coarsen_op_str;
+        params->d_method[0] = d_flux_coarsen_op_str;
         params->d_src_id[0] = flux_id;
         params->d_dst_id[0] = flux_id;
-        params->d_method[1] = d_coarsen_op_str;
+        params->d_method[1] = d_flux_coarsen_op_str;
         params->d_src_id[1] = flux_src_id;
         params->d_dst_id[1] = flux_src_id;
-        d_fluxCoarsenSchedule[ln-1].reset( new xfer::SAMRAICoarsenSchedule(params) );
+        if ( d_flux_coarsen_op_str=="none" )
+            d_fluxCoarsenSchedule[ln-1].reset( new xfer::NullTransactionSchedule(params) );
+        else
+            d_fluxCoarsenSchedule[ln-1].reset( new xfer::SAMRAICoarsenSchedule(params) );
     };
 
     // Create RefinementBoundaryInterpolation.
@@ -1659,11 +1698,12 @@ std::vector<pixie3dRefinePatchStrategy::bcgrp_struct> pixie3dApplication::getBCg
         boost::dynamic_pointer_cast<geom::CartesianGridGeometry>(d_hierarchy->getGridGeometry());
     if ( grid_geometry->getNumberBlocks() != 1 )
         TBOX_ERROR("Multiblock domains are not supported");
-    const SAMRAI::tbox::Array<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
+    const std::vector<SAMRAI::hier::BoxContainer> domain_array = d_hierarchy->getPatchLevel(0)->getPhysicalDomainArray();
     if ( domain_array.size() != 1 ) 
         TBOX_ERROR("Only 1 domain box is supported");
     const SAMRAI::hier::Box physicalDomain = domain_array[0].getBoundingBox();
     // Create a local temporary patch
+    tbox::Dimension dim = d_hierarchy->getDim();
     hier::Index lower(dim,0);
     hier::Index upper(dim,2);
     upper.min( physicalDomain.upper() );
@@ -1710,14 +1750,13 @@ bool pixie3dApplication::overlappingBoxes( const boost::shared_ptr<hier::PatchLe
 {
     const hier::BoxLevel box_level = level->getGlobalizedBoxLevel();
     const hier::BoxContainer box_set = box_level.getBoxes();
-    hier::PersistentOverlapConnectors persistentOverlap = box_level.getPersistentOverlapConnectors();
     hier::IntVector zero(level->getDim(),0);
-    hier::Connector connector = persistentOverlap.createConnector(box_level,zero);
+    SAMRAI::hier::Connector connector = box_level.findConnector(box_level,zero,hier::CONNECTOR_CREATE,true);
     bool overlap = false;
     for (hier::PatchLevel::Iterator p=level->begin(); p!=level->end(); p++) {
         boost::shared_ptr<SAMRAI::hier::Patch> patch = *p;
         hier::BoxContainer neighbors;
-        connector.getNeighborBoxes( patch->getBox().getId(), neighbors );
+        connector.getNeighborBoxes( patch->getBox().getBoxId(), neighbors );
         if ( neighbors.size() != 1 )
             overlap = true;
     }

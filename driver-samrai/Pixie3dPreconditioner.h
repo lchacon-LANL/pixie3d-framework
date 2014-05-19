@@ -7,7 +7,7 @@
 
 #include "preconditioner_base/PreconditionerStrategy.h"
 #include "interpolation/RefinementBoundaryInterpolation.h"
-#include "solvers/multilevel/MultilevelSolverFactory.h"
+#include "solvers/SolverFactory.h"
 #include "solvers/MultilevelSolver.h"
 #include "operators/MultilevelOperatorFactory.h"
 
@@ -29,11 +29,11 @@ namespace Pixie3d{
 class Pixie3dPreconditioner: public SAMRSolvers::PreconditionerStrategy
 {
 public:
-   Pixie3dPreconditioner(Pixie3dPreconditionerParameters *parameters);
+   Pixie3dPreconditioner( boost::shared_ptr<Pixie3dPreconditionerParameters> parameters );
 
    ~Pixie3dPreconditioner();
    
-   int setupPreconditioner( SAMRSolvers::PreconditionerParameters *parameters );
+   int setupPreconditioner( boost::shared_ptr<SAMRSolvers::PreconditionerParameters> parameters );
    
    int applyPreconditioner( boost::shared_ptr< solv::SAMRAIVectorReal<double> > r,
                             boost::shared_ptr< solv::SAMRAIVectorReal<double> > z );
@@ -95,7 +95,7 @@ private:
    int d_numberOfMOperators;
    
    // array of operators to represent the M operators
-   tbox::Array< boost::shared_ptr<PCDiagonalMultilevelOperator> > d_MOperators;
+   std::vector< boost::shared_ptr<PCDiagonalMultilevelOperator> > d_MOperators;
 
    // U operator from paper
    boost::shared_ptr<PCDiagonalMultilevelOperator> d_UOperator;
@@ -107,7 +107,7 @@ private:
    boost::shared_ptr<PCDiagonalMultilevelOperator> d_PSchurOperator;
 
    // array of solvers used to invert components of M
-   tbox::Array< boost::shared_ptr<SAMRSolvers::MultilevelSolver> > d_MSolvers;
+   std::vector< boost::shared_ptr<SAMRSolvers::MultilevelSolver> > d_MSolvers;
 
    // solver for Schur complement inversion
    boost::shared_ptr<SAMRSolvers::MultilevelSolver> d_PSchurSolver;

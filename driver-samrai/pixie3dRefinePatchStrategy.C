@@ -140,9 +140,8 @@ void pixie3dRefinePatchStrategy::bcgrp_struct::unpack(int *buffer) {
 * Constructor.                                                         *
 *                                                                      *
 ***********************************************************************/
-pixie3dRefinePatchStrategy::pixie3dRefinePatchStrategy(const tbox::Dimension &dim_in):
-    RefinePatchStrategy(dim_in),
-    dim(dim_in)
+pixie3dRefinePatchStrategy::pixie3dRefinePatchStrategy():
+    RefinePatchStrategy()
 {
     u0_id = NULL;
     u_id = NULL;
@@ -182,7 +181,7 @@ pixie3dRefinePatchStrategy::setPhysicalBoundaryConditions( hier::Patch& patch,
                                                            const hier::IntVector& ghost_width_to_fill)
 {
     //double start = MPI_Wtime();
-    if ( ghost_width_to_fill==hier::IntVector(dim,0) ) {
+    if ( ghost_width_to_fill==hier::IntVector(patch.getDim(),0) ) {
         // We don't need to fill the ghost cells, return
         // This can happen with temporary patches
         return;
@@ -300,7 +299,7 @@ bool pixie3dRefinePatchStrategy::checkPhysicalBoundary( hier::Patch& patch)
     hier::BoxArray physicalDomain = d_grid_geometry->getPhysicalDomain();
     physicalDomain.refine(ratio);
     hier::Box physicalBox = physicalDomain[0];
-    for (int i=0; i<dim->getValue(); i++) {
+    for (int i=0; i<patch.getDim().getValue(); i++) {
         if (patchGeom->getTouchesRegularBoundary(i,0)) {
             const int patch_lower = box.lower(i);
             if ( patch_lower <= 0 )
