@@ -35,8 +35,9 @@ c     -----------------------------------------------------------------
      .                      ,SP =7   !Polar singular point (do not change: NEMATO depends on it)
      .                      ,SYM=8   !Symmetry (even > 0, odd < 0)
      .                      ,FSYM=9  !Symmetry (at faces; even > 0, odd < 0)
+     .                      ,OPN=10  !Open boundary conditions
 
-        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,FSYM)
+        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,FSYM,OPN)
 
         logical :: asm_dir(3)=.false.,asm=.false.
 
