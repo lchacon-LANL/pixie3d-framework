@@ -35,9 +35,9 @@ c ###################################################################
 
       use math
 
-#if defined(FPA)
       use fixed_point_accelerator
-#endif
+
+      integer, parameter :: NOERR=0,EXACT=-1,NOCONV=1,CUTDT=2
 
       real(8) :: pdt,check
 
@@ -67,9 +67,11 @@ c ###################################################################
         logical      :: vol_wgt=.true.
         logical      :: fpa=.false.
         integer      :: fpa_it=5
-#if defined(FPA)
+
+        !FPA setup
         type (fpa_state) :: fpas
-#endif
+
+        !Newton vectors
         real(8),pointer,dimension(:) :: xk,rk
       end type nk_options
 
@@ -99,12 +101,12 @@ c              out = 3 --> Previous plus residual information output
 c              out > 4 --> Previous plus preconditioner output (controlled
 c                          in preconditioner routine).
 c       * ierr: error flag:
-c              ierr =-1 --> Initial guess is exact solution
-c              ierr = 0 --> No error
-c              ierr = 1 --> No Newton convergence to prescribed tolerance in
-c                           prescribed number of iterations (ntit_max_rej)
-c              ierr = 2 --> Newton converged, but took too many iterations
-c                           (>  ntit_max_acc)
+c              ierr = EXACT  --> Initial guess is exact solution
+c              ierr = NOERR  --> No error
+c              ierr = NOCONV --> No Newton convergence to prescribed tolerance in
+c                                prescribed number of iterations (ntit_max_rej)
+c              ierr = CUTDT  --> Newton converged, but took too many iterations
+c                                (>  ntit_max_acc)
 c       * matvec: optional matrix-vector multiplication routine
 c
 c     Configuration parameters (input via nk_options type):
@@ -139,6 +141,15 @@ c     Call variables
 
       real(8) :: x(ntot)
 
+      optional :: matvec
+
+      INTERFACE
+        subroutine matvec(nn,z,y)
+        integer    :: nn
+        real(8)    :: z(nn),y(nn)
+        end subroutine matvec
+      END INTERFACE
+
 c     Local variables
 
       integer :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
@@ -151,22 +162,13 @@ c     Local variables
 
       logical :: convergence,failure
 
-      optional :: matvec
-
-      INTERFACE
-        subroutine matvec(nn,z,y)
-        integer    :: nn
-        real(8)    :: z(nn),y(nn)
-        end subroutine matvec
-      END INTERFACE
-
 c     Begin program
 
       prnt = (my_rank == 0)
 
 c     Find machine round-off
 
-      if (epsmac == 0d0) call findRoundOff(epsmac)
+      if (epsmac == 0d0) epsmac = findRoundOff()
 
       roundoff = sqrt(1d0*ntot)*epsmac
 
@@ -194,17 +196,19 @@ c     Initialize variables
      $            ,'Error in Newton input: ntit_max_acc > ntit_max_rej')
       endif
 
-#if defined(FPA)
       if (nk_conf%fpa) then
         ntit_max_rej =  ntit_max_rej*2
         ntit_max_acc =  ntit_max_rej/2
       endif
-#endif
 
       ierr     = 0
       itk      = 0
 
-      if (out.ge.1 .and. prnt) write (*,200)
+      if (.not.(nk_conf%fpa)) then
+         if (out.ge.1 .and. prnt) write (*,200)
+      else
+         if (out.ge.1 .and. prnt) write (*,205)
+      endif
 
       if (global == 2) then   !Activate pseudo-transient
         pseudo_dt = .true.
@@ -228,10 +232,8 @@ cc        pdt0      = 1d30
 
 c     Evaluate rhs and norms
 
-cc      allocate (xx0(ntot),xk(ntot),rk(ntot))
       allocate (nk_conf%xk(ntot),nk_conf%rk(ntot))
 
-cc      xx0 = x    !Save initial guess
       nk_conf%xk = x    !Save previous Newton state
 
       call evaluateNewtonResidual(ntot,x,nk_conf%rk)
@@ -248,8 +250,13 @@ cc        deallocate(xx0)
 
 c     Initial output
 
-      if (out.ge.1 .and. prnt)
+      if (.not.(nk_conf%fpa)) then
+         if (out.ge.1 .and. prnt)
      $     write (*,210) 0,0d0,f0,1d0,1d0,pdt0,eta0,0
+      else
+         if (out.ge.1 .and. prnt)
+     $     write (*,215) 0,0d0,f0,1d0,1d0,pdt0
+      endif
 
       if (out.ge.3) then
         call calculateResidualNorms(neq,ntot,-nk_conf%rk,residuals)
@@ -269,33 +276,28 @@ c     Start Newton iteration
       etakm = eta0
       etak  = eta0
 
-#if defined(FPA)
       if (nk_conf%fpa) call fpa_create(nk_conf%fpas,nk_conf%rk
      .                                ,maxv=nk_conf%fpa_it)
-#endif
+
       do jit = 1,ntit_max_rej
 
-c     Determine inexact Newton constant
+        !Determine inexact Newton constant
+        if (.not.(nk_conf%fpa)) then
+           call find_etak(fk,fkm,flimit,eta0,etak,etakm,etak_meth)
+        endif
 
-        call find_etak(fk,fkm,flimit,eta0,etak,etakm,etak_meth)
-
-c     Setup preconditioner
-
+        !Setup preconditioner
         call setupPC(ntot,x,jit)
 
-c     Jacobian-free solve
-
+        !Jacobian-free solve
         iout = out - 1
 
-#if defined(FPA)
         if (nk_conf%fpa) then
           call applyPC(ntot,nk_conf%rk,ddx,iout)
 
           call fpa_correction(nk_conf%fpas,ddx,dp=dot2)
           ddx = -ddx
         else
-#endif
-
           ddx = 0d0
           if (PRESENT(matvec)) then
             call gmresDriver(matvec
@@ -306,24 +308,17 @@ c     Jacobian-free solve
      .                    ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
      .                    ,iguess,iout,ierr)
           endif
-#if defined(FPA)
         endif
-#endif
 
-c     Kill preconditioner
-
+        !Kill preconditioner
         call killPC
 
-c     Update counters
-
+        !Update counters
         nk_conf%gm_it_out  = nk_conf%gm_it_out + itk
         nk_conf%nwt_it_out = jit
 
-c     Check for error in GMRES
-
-#if defined(FPA)
+        !Check for error in GMRES
         if (.not.(nk_conf%fpa)) then
-#endif
           if (ierr.eq.1) then
             if (prnt) write(*,*) 
      .            '   Exceeded maximum GMRES iterations (',gmmax,')'
@@ -332,33 +327,32 @@ c     Check for error in GMRES
             ierr = 0
             exit !Do not continue Newton iteration
           endif
-#if defined(FPA)
         endif
-#endif
 
-c     Globalization procedure: damping coefficient
-
+        !Globalization procedure: damping coefficient
         if (global >= 1) call findDamping (ntot,x,ddx,etak,fk,damp)
 cc        if (global == 1) call findDamping (ntot,x,ddx,etak,fk,damp)
 
-c     Update solution (x = x + ddx)
-
+        !Update solution (x = x + ddx)
         call updateNewtonSolution(ntot,x,ddx,damp,dxnorm)
 
         nk_conf%xk = x   !Save current Newton state
 
-c     Evaluate rhs and norms
-
+        !Evaluate rhs and norms
         call evaluateNewtonResidual(ntot,x,nk_conf%rk)
 
         fkp = sqrt(dot(ntot,nk_conf%rk,nk_conf%rk))
 
-c     Check Newton convergence/failure
-
+        !Check Newton convergence/failure
         check = fkp/f0
 
-        if (out.ge.1 .and. prnt)
+        if (nk_conf%fpa) then
+          if (out.ge.1 .and. prnt)
+     $       write(*,215)jit,dxnorm,fkp,check,damp,pdt
+        else
+          if (out.ge.1 .and. prnt)
      $       write(*,210)jit,dxnorm,fkp,check,damp,pdt,etak,itk
+        endif
 
         if (out.ge.3) then
           call calculateResidualNorms(neq,ntot,-nk_conf%rk,residuals)
@@ -377,15 +371,13 @@ c     Check Newton convergence/failure
 
         if (convergence .or. failure) exit
 
-c     Store magnitude of residual
-
+        !Store magnitude of residual
         fkm   = fk
         fk    = fkp
 
         etakm = etak
 
-c     Change pseudo-transient time step
-
+        !Change pseudo-transient time step
 cc        if (pseudo_dt) then
 cccc          pdt = min(pdt/check,1d30)
 cc          pdt = min(pdt0/sqrt(check),1d30)
@@ -397,9 +389,7 @@ cc        endif
 
       enddo       !End of Newton loop
 
-#if defined(FPA)
       if (nk_conf%fpa) call fpa_destroy(nk_conf%fpas)
-#endif
 
 c     Check error in Newton convergence
 
@@ -424,7 +414,11 @@ cc      deallocate (xx0)
  200  format 
      .   (/,' New_it   Av_updt    Abs_res   Rel_res     Damping'
      .     ,'      pdt_n      eta_k     GMRES')
+ 205  format 
+     .   (/,' FPA_it   Av_updt    Abs_res   Rel_res     Damping'
+     .     ,'      pdt_n')
  210  format (i4,3x,1p,6e11.3,3x,i4)
+ 215  format (i4,3x,1p,5e11.3)
  220  format ('    Max newton its. exceeded; rel. residual: ',1p,1e10.2)
  230  format ('    Relative residual =',f7.2,' >',f7.2)
  240  format ('    Newton converged in too many iterations (>',i2,')')

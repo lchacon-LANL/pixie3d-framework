@@ -1,9 +1,20 @@
+
 # Read application specific variables
 
 -include make.inc
 
+# Read local configuration
+
+ifndef ARCH
+-include $(COMMONDIR)/make/make.mach.inc
+endif
+
 ifndef MODFLAG 
 -include $(COMMONDIR)/make/make.comp.inc
+endif
+
+ifndef CONTRIBLIBS
+-include $(COMMONDIR)/make/make.lib.inc
 endif
 
 # GENERAL PURPOSE MAKEFILE
@@ -34,6 +45,10 @@ LIBS :=
 
 prefix = .
 
+#FRMWRK_REL1=3
+#FRMWRK_REL2=1
+#override CPPFLAGS += $(PREPROC)FRMWRK_REL1=$(FRMWRK_REL1) $(PREPROC)FRMWRK_REL2=$(FRMWRK_REL2)
+
 #Module search path
 
 MODDIRS = $(MODPATH) $(patsubst $(COMMONDIR)%,$(ADDMODFLAG)$(COMMONDIR)%,$(SUBDIRS))
@@ -58,7 +73,7 @@ $(SUBDIRS):
 #Cleaning targets
 
 clean: ;
-	-rm -f *.o *.mod *.a
+	-@rm -f *.o *.mod *.a
 
 distclean: clean
 	-@for subdir in $(SUBDIRS) ; do \
@@ -91,30 +106,36 @@ endif
 contrib: ;
 	$(MAKE) --no-print-directory -e -C contrib/lsode lib
 	$(MAKE) --no-print-directory -e -C contrib/slatec lib
-ifdef ARPACK
+ifeq ($(ARPACK),t)
 	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack lib
 ifdef BOPT
 	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack plib
 endif
 endif
-ifdef FPA
 	$(MAKE) --no-print-directory -e -C contrib/fpa/src lib
-endif
 	$(MAKE) --no-print-directory -e -C contrib/sdc/src lib
+	$(MAKE) --no-print-directory -e -C contrib/rng/src lib
+ifeq ($(PIT),t)
+	$(MAKE) --no-print-directory -e -C contrib/parareal all	
+endif
 
 contrib_clean: ;
-	$(MAKE) --no-print-directory -e -C contrib/lsode clean
-	$(MAKE) --no-print-directory -e -C contrib/slatec distclean
-ifdef ARPACK
-	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack clean
+	@$(MAKE) -e -C contrib/lsode clean
+	@$(MAKE) -e -C contrib/slatec distclean
+ifeq ($(ARPACK),t)
+	@$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack clean
 endif
-ifdef FPA
-	$(MAKE) --no-print-directory -e -C contrib/fpa/src distclean
-endif
-	$(MAKE) --no-print-directory -e -C contrib/sdc/src distclean
+	@$(MAKE) -e -C contrib/fpa/src distclean
+	@$(MAKE) -e -C contrib/sdc/src distclean
+	@$(MAKE) -e -C contrib/parareal clean	
+	@$(MAKE) -e -C contrib/rng/src clean
 
 contrib_setup: ;
 	-@tar xzf common_contrib.tgz
+
+contrib_pack: ;
+	-@rm -f common_contrib.tgz > /dev/null
+	-@tar czf common_contrib.tgz contrib
 
 #Define dependencies
 

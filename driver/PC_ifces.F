@@ -33,7 +33,7 @@ c Local variables
 
       INTERFACE
         subroutine setup_app_PC(igrid,varray,nwt_it)
-        use variable_setup
+        use var_setup
         integer    :: igrid,nwt_it
         type(var_array),pointer :: varray
         end subroutine setup_app_PC
@@ -81,9 +81,7 @@ c       * iout <= 0 --> No output
 c       * iout >  0 --> Level of output design by user.
 c-------------------------------------------------------------------
 
-      use iosetup
-
-      use variables
+      use var_io
 
       use timeStepping
 

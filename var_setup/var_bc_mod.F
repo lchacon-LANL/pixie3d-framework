@@ -1,9 +1,11 @@
-c module variables_bc
+c module var_bc
 c #########################################################################
-      module variables_bc
+      module var_bc
 
         use BCS_variables
-        use variable_setup
+        use var_setup
+
+        integer, private :: var_bc_order=-1
 
       contains
 
@@ -11,7 +13,7 @@ c #########################################################################
 
 c     applyBC
 c     ###############################################################
-      subroutine applyBC(igr,varray,it,bc_order)
+      subroutine applyBC(igr,varray,vaux,it,bc_order)
 c     ---------------------------------------------------------------
 c     Sets adequate boundary conditions on array structure varray.
 c     ---------------------------------------------------------------
@@ -24,6 +26,7 @@ c     Call variables
       integer,optional :: it,bc_order
 
       type(var_array),pointer :: varray
+      type(aux_array),pointer :: vaux
 
 c     Local variables
 
@@ -33,7 +36,7 @@ c     Interfaces
 
       INTERFACE
         subroutine applyDepVarBC(igr,bc_inf,varray,order)
-          use variable_setup
+          use var_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           integer,optional :: order
@@ -42,7 +45,7 @@ c     Interfaces
 
       INTERFACE
         subroutine applyAuxVarBC(igr,bc_inf,varray,vaux,order)
-          use variable_setup
+          use var_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
@@ -52,7 +55,7 @@ c     Interfaces
 
       INTERFACE
         subroutine preproc_AuxVar(igr,bc_inf,varray,vaux,order)
-          use variable_setup
+          use var_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
@@ -62,7 +65,7 @@ c     Interfaces
 
       INTERFACE
         subroutine postproc_AuxVar(igr,bc_inf,varray,vaux)
-          use variable_setup
+          use var_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
@@ -71,7 +74,7 @@ c     Interfaces
 
       INTERFACE
         subroutine setAppBCs(varray,vaux)
-          use variable_setup
+          use var_setup
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
         end subroutine setAppBCs
@@ -86,18 +89,23 @@ c     Begin program
       endif
 
       if (PRESENT(bc_order))  then
-        order = bc_order
+        var_bc_order = bc_order
       else
-        order = 1
+        var_bc_order = 1
+cc        if (var_bc_order < 0) then
+cc          call pstop('applyBC','BC order not specified')
+cc        endif
       endif
+
+      order = var_bc_order
 
 c     Set application BCs (external)
 
-      call setAppBCs(varray,gv%aux)
+      call setAppBCs(varray,vaux)
 
 c     Set BC schedule
 
-      call setBCsched(varray,gv%aux,itm)
+      call setBCsched(varray,vaux,itm)
 
 c     Impose BCs
 
@@ -106,7 +114,7 @@ c     Impose BCs
         do i = 1,gv%bc_grp(igrp)%nbc_seq
           if (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then
             call preproc_AuxVar(igr,gv%bc_grp(igrp)%bc_seq(i,:),varray
-     .                         ,gv%aux,order=order)
+     .                         ,vaux,order=order)
           endif
         enddo
 
@@ -117,7 +125,7 @@ c     Impose BCs
      .                        ,order=order)
           elseif (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then !Process aux. variables
             call applyAuxVarBC(igr,gv%bc_grp(igrp)%bc_seq(i,:),varray
-     .                        ,gv%aux,order=order)
+     .                        ,vaux,order=order)
           endif
         enddo
 
@@ -125,11 +133,15 @@ c     Impose BCs
         do i = 1,gv%bc_grp(igrp)%nbc_seq
           if (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then
             call postproc_AuxVar(igr,gv%bc_grp(igrp)%bc_seq(i,:),varray
-     .                          ,gv%aux)
+     .                          ,vaux)
           endif
         enddo
 
       enddo
+
+c     Destroy pointers
+
+cc      call destroyAppBCs    !External
 
 c     End program
 
@@ -137,7 +149,7 @@ c     End program
 
 c     applyBCplot
 c     ##############################################################
-      subroutine applyBCplot(igr,varray,it,bc_order)
+      subroutine applyBCplot(igr,varray,vaux,it,bc_order)
 c     ---------------------------------------------------------------
 c     Sets adequate boundary conditions on array structure varray.
 c     ---------------------------------------------------------------
@@ -147,8 +159,10 @@ c     ---------------------------------------------------------------
 c     Call variables
 
       integer :: igr
-      type(var_array),pointer :: varray
       integer, optional :: it,bc_order
+
+      type(var_array),pointer :: varray
+      type(aux_array),pointer :: vaux
 
 c     Local variables
 
@@ -158,7 +172,7 @@ c     Interfaces
 
       INTERFACE
         subroutine preproc_AuxVar(igr,bc_inf,varray,vaux,order)
-          use variable_setup
+          use var_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
@@ -168,7 +182,7 @@ c     Interfaces
 
       INTERFACE
         subroutine postproc_AuxVar(igr,bc_inf,varray,vaux)
-          use variable_setup
+          use var_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
@@ -177,7 +191,7 @@ c     Interfaces
 
       INTERFACE
         subroutine setAppBCs(varray,vaux)
-          use variable_setup
+          use var_setup
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
         end subroutine setAppBCs
@@ -192,18 +206,22 @@ c     Begin program
       endif
 
       if (PRESENT(bc_order))  then
+        var_bc_order = bc_order
         order = bc_order
       else
-        order = 1
+        if (var_bc_order < 0) then
+          call pstop('applyBC','BC order not specified')
+        endif
+        order = var_bc_order
       endif
 
 c     Set application BCs (external)
 
-      call setAppBCs(varray,gv%aux)
+      call setAppBCs(varray,vaux)
 
 c     Set BC schedule
 
-      call setBCsched(varray,gv%aux,itm)
+      call setBCsched(varray,vaux,itm)
 
 c     Impose BCs
 
@@ -212,7 +230,7 @@ c     Impose BCs
         do i = 1,gv%bc_grp(igrp)%nbc_seq
           if (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then
             call preproc_AuxVar(igr,gv%bc_grp(igrp)%bc_seq(i,:),varray
-     .                         ,gv%aux,order=order)
+     .                         ,vaux,order=order)
           endif
         enddo
 
@@ -220,7 +238,7 @@ c     Impose BCs
         do i = 1,gv%bc_grp(igrp)%nbc_seq
           if (gv%bc_grp(igrp)%bc_seq(i,1)*AUX > 0) then
             call postproc_AuxVar(igr,gv%bc_grp(igrp)%bc_seq(i,:),varray
-     .                          ,gv%aux)
+     .                          ,vaux)
           endif
         enddo
 
@@ -236,7 +254,7 @@ c     End program
 
 c     applyBC
 c     ###############################################################
-      subroutine applyBC(igr,varray,it)
+      subroutine applyBC(igr,varray,vaux,it)
 c     ---------------------------------------------------------------
 c     Sets adequate boundary conditions on array structure varray.
 c     ---------------------------------------------------------------
@@ -249,6 +267,7 @@ c     Call variables
       integer,optional :: it
 
       type(var_array),pointer :: varray
+      type(aux_array),pointer :: vaux
 
 c     Local variables
 
@@ -256,7 +275,7 @@ c     Interfaces
 
       INTERFACE
         subroutine apply_App_BC(igr,varray)
-          use variable_setup
+          use var_setup
           integer    :: igr
           type(var_array),pointer :: varray
         end subroutine apply_App_BC
@@ -305,13 +324,13 @@ c     Call variables
 
 c     Local variables
 
+      logical :: dump=.false.
+
 c     Begin program
 
-c$$$      call setbcsched_app  !Application-specific scheduler
-c$$$      return
+cc      dump = (it==0).and.(my_rank==0)
       call create_bc_schedule(varray,vaux,gv%nbc_grp,gv%bc_grp
-     .                       ,.false.,.false.,.false.,.false.)
-cc     .                       ,.false.,.false.,(it==0),.false.)
+     .                       ,.false.,.false.,dump,.false.)
 
 c     End program
 
@@ -546,6 +565,7 @@ c                       We only need to fill the interior domain
             endif
          enddo
       enddo
+
 c     Remove self-dependencies (this can create issues when we do the sorting)
       do i = 1,N
          tot_dep(i,i) = 0
@@ -596,6 +616,14 @@ c LC 1/25/11, small bug:            if ( used(i)==2 ) then
                call print_var_name(u,aux,i)
             endif
          enddo
+         write (*,*) 'Variables that are used but have no deps: '
+         do i = SUM(n_var(1:2)),N
+            if (  MAXVAL(tot_dep(i,:))==0 .AND. used(i)>0 .AND. 
+     &        bc_dep(i,i)==0 .AND. tot_dep(i,i)==0 ) then
+               call print_var_name(u,aux,i)
+            endif
+         enddo
+
          deallocate ( tmp1 )
       endif
 
@@ -990,7 +1018,7 @@ c     print_var_name
 c     ################################################################
       subroutine print_var_name(u,aux,k)
 
-      use variable_setup, only: var_array, aux_array
+      use var_setup, only: var_array, aux_array
 
       implicit none
       type(var_array) :: u
@@ -1040,19 +1068,7 @@ c     Begin program
 
       end subroutine create_bc_schedule
 
-      end module variables_bc
-
-c module variables
-c #####################################################################
-      module variables
-
-        use variables_bc
-
-#if defined(samrai)
-        integer :: bc_order = 1
-#endif
-
-      end module variables
+      end module var_bc
 
 #if defined(samrai)
 c     applybc
@@ -1081,7 +1097,7 @@ c     Interfaces
 
       INTERFACE
         subroutine applyDepVarBC(igr,bc_inf,varray,order)
-          use variable_setup
+          use var_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           integer,optional :: order
@@ -1090,7 +1106,7 @@ c     Interfaces
 
       INTERFACE
         subroutine applyAuxVarBC(igr,bc_inf,varray,vaux,order)
-          use variable_setup
+          use var_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
@@ -1100,7 +1116,7 @@ c     Interfaces
 
       INTERFACE
         subroutine setAppBCs(varray,vaux)
-          use variable_setup
+          use var_setup
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
         end subroutine setAppBCs
@@ -1118,8 +1134,7 @@ c     Setup pointers
       varray => gv%u_n
       u_0    => gv%u_0
 
-      call setAppBCs(varray,gv%aux)
-cc      call allocAuxVariables(gv%aux)
+      call setAppBCs(varray,gv%aux)  !External
 
 c     Set boundary conditions
 
@@ -1135,8 +1150,7 @@ c     Set boundary conditions
 
 c     Nullify aux pointers
 
-cc      call deallocLocalAuxVars
-      call destroyAppBCs
+      call destroyAppBCs    !External
 
 c     End program
 
@@ -1168,7 +1182,7 @@ c     Interfaces
 
       INTERFACE
         subroutine postproc_AuxVar(igr,bc_inf,varray,vaux)
-          use variable_setup
+          use var_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
@@ -1177,7 +1191,7 @@ c     Interfaces
 
       INTERFACE
         subroutine setAppBCs(varray,vaux)
-          use variable_setup
+          use var_setup
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
         end subroutine setAppBCs
@@ -1237,7 +1251,7 @@ c     Local variables
 
       INTERFACE
         subroutine preproc_AuxVar(igr,bc_inf,varray,vaux,order)
-          use variable_setup
+          use var_setup
           integer    :: igr,bc_inf(2)
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
@@ -1247,7 +1261,7 @@ c     Local variables
 
       INTERFACE
         subroutine setAppBCs(varray,vaux)
-          use variable_setup
+          use var_setup
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
         end subroutine setAppBCs
@@ -1305,7 +1319,7 @@ c     Local variables
 
       INTERFACE
         subroutine setAppBCs(varray,vaux)
-          use variable_setup
+          use var_setup
           type(var_array),pointer :: varray
           type(aux_array),pointer :: vaux
         end subroutine setAppBCs

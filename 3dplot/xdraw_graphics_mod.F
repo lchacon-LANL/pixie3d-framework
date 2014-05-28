@@ -2,7 +2,7 @@ c module xdraw_graphics
 c #####################################################################
       module xdraw_graphics
 
-        use iosetup
+        use var_io
 
         use xdraw_io
 

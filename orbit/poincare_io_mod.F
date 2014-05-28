@@ -478,9 +478,9 @@ c     Read setup info
 
         enddo
 
-#if defined(use_mpi)
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-#endif
+cc#if defined(use_mpi)
+cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+cc#endif
         if (my_rank == 0) then
           write (*,*) '*****************************************'
           write (*,*)

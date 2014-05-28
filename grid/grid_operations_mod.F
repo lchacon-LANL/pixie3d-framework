@@ -324,9 +324,9 @@ c     #################################################################
       function XformToCurv_mesh(igrid,car,tocnv) result(curv)
 
 c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector to Cartesian 
-c     over the whole mesh. Curvilinear vector is covariant if
-c     covariant=.true., and contravariant otherwise.
+c     Transforms a Cartesian vector to curvilinear
+c     over the whole mesh. Curvilinear vector is contravariant if
+c     tocnv=.true., and covariant otherwise.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -359,24 +359,47 @@ c     Begin program
           enddo
         enddo
 
-cc        curv = car
-cc        if (tocnv) then
-cc          call transformVector(igrid,igrid,igrid
-cc     .                      ,0,nxl+1,0,nyl+1,0,nzl+1
-cc     .                      ,curv(:,:,:,1)
-cc     .                      ,curv(:,:,:,2)
-cc     .                      ,curv(:,:,:,3)
-cc     .                      ,'car','cnv')
-cc        else
-cc          call transformVector(igrid,igrid,igrid
-cc     .                      ,0,nxl+1,0,nyl+1,0,nzl+1
-cc     .                      ,curv(:,:,:,1)
-cc     .                      ,curv(:,:,:,2)
-cc     .                      ,curv(:,:,:,3)
-cc     .                      ,'car','cov')
-cc        endif
-
       end function XformToCurv_mesh
+
+c     XformToCurv_mesh2
+c     #################################################################
+      subroutine XformToCurv_mesh2(igrid,vec,tocnv)
+
+c     -----------------------------------------------------------------
+c     Transforms a Cartesian vector vec to curvilinear
+c     over the whole mesh. Curvilinear vector is contravariant if
+c     tocnv=.true., and covariant otherwise. Result is returned in vec.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: vec(0:,0:,0:,:)
+        logical :: tocnv
+
+c     Local variables
+
+        integer :: nxl,nyl,nzl
+        real(8) :: dum(size(vec,4))
+
+c     Begin program
+
+        nxl = grid_params%nxv(igrid)
+        nyl = grid_params%nyv(igrid)
+        nzl = grid_params%nzv(igrid)
+
+        do k=0,nzl+1
+          do j=0,nyl+1
+            do i=0,nxl+1
+              dum = vec(i,j,k,:)
+              vec(i,j,k,:) = XformToCurv_ijk(i,j,k,igrid,dum,tocnv)
+            enddo
+          enddo
+        enddo
+
+      end subroutine XformToCurv_mesh2
 
 c     transformVectorToCurvilinear
 c     #################################################################

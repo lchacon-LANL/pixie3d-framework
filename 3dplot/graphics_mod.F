@@ -109,9 +109,9 @@ c     Initialize ADIOS
         if (adios_plot) call initializeADIOSPlot
 #endif
 
-c     Define application I/O (external)
-
-      call defineGraphicsIO
+ccc     Define application I/O (external)
+cc
+cc      call defineGraphicsIO
 
 c     End program
 

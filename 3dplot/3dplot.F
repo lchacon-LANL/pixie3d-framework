@@ -15,7 +15,7 @@ c##########################################################################
 
       use grid
 
-      use iosetup
+      use var_io
 
       use acc_tests
 
@@ -30,13 +30,13 @@ c Local variables
       integer        :: i,j,k,ig,jg,kg
       integer        :: ierr,gierr,nplot,igx,igy,igz
       character*(40) :: command
-      logical        :: exitloop
+      logical        :: exitloop,petsc_flg
 
 c Interfaces
 
       INTERFACE
         subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
-        use variable_setup
+        use var_setup
         integer    :: iigx,iigy,iigz
         logical    :: init
         type(var_array),pointer :: varray
@@ -49,7 +49,29 @@ c Begin program
       igy = 1
       igz = 1
 
-c Initialize 
+c Initialize PETSc (parallel version)
+
+#if defined(petsc)
+      call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
+
+      !Read PETSc runtime options
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
+     .                       ,petsc_flg,ierr)
+#endif
+
+c Initialize ADIOS (parallel version)
+
+#if defined(adios) && defined(petsc)
+      call adios_init_noxml (adios_err)
+      ! allocate 100MB buffer for ADIOS
+      call adios_allocate_buffer (100,adios_err)
+#endif
+
+c Initialize computation
 
       call initializeCalculation(igx,igy,igz)
 
@@ -70,7 +92,7 @@ c diag *****
 
 c     Read next record
 
-        call readTimeStep(u_np,ierr)
+        call readTimeStep(itime,time,dt,u_np,ierr)
 
 c     Gather error info
 
@@ -117,8 +139,8 @@ cc          endif
         !Post-process solution for diagnostics
         call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
-        if (    nplot        == ndplot
-     .     .or.(time-tmplot) >= dplot-0.9*dt
+        if (   ( nplot        == ndplot       .and. nplot > 0)
+     .     .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
      .     .or. time         == 0d0) then
 
           !Dump time step plots
@@ -140,7 +162,7 @@ c     Check for tmax
 
 cc        if ((tmax > 0d0 .and. time.ge.tmax*0.99999)
 cc     .      .or. (tmax < 0d0 .and. itime == numtime))  exit
-        if ((tmax > 0d0 .and. time.ge.tmax*0.99999))  exit
+        if ((tmax > 0d0 .and. time.ge.tmax))  exit
 
       enddo       !End of time loop
 
@@ -245,7 +267,7 @@ c----------------------------------------------------------------------
 
       use ts_setup
 
-      use iosetup
+      use var_io
 
       use graphics
 
@@ -268,44 +290,22 @@ c Interfaces
 
       INTERFACE
         subroutine initializeDiagnostics(varray,iigx,iigy,iigz)
-        use variable_setup
-        integer          :: iigx,iigy,iigz
+        use var_setup
+        integer :: iigx,iigy,iigz
         type(var_array),pointer :: varray
         end subroutine initializeDiagnostics
       END INTERFACE
 
       INTERFACE
         subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
-        use variable_setup
-        integer    :: iigx,iigy,iigz
-        logical    :: init
+        use var_setup
+        integer :: iigx,iigy,iigz
+        logical :: init
         type(var_array),pointer :: varray
         end subroutine evaluateDiagnostics
       END INTERFACE
 
 c Begin program
-
-c Initialize PETSc (parallel version)
-
-#if defined(petsc)
-      call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
-
-      !Read PETSc runtime options
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
-     .                       ,petsc_flg,ierr)
-#endif
-
-c Initialize ADIOS
-
-#if defined(adios) && defined(petsc)
-      call adios_init_noxml (adios_err)
-      ! allocate 100MB buffer for ADIOS
-      call adios_allocate_buffer (100,adios_err)
-#endif
 
 c Read user initializations
 
@@ -318,15 +318,6 @@ c Read user initializations
 c Allocate global variable
 
       call allocateGlobalVar(gv)
-cc      allocate(gv)
-cc      nullify(gv%bc_grp)
-cc      nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0)
-cc      nullify(gv%gparams)
-cc      nullify(gv%aux)
-cc
-ccc Initialize MG and create grid
-cc
-cc      call createGrid(nxd,nyd,nzd,gv%gparams)
 
 c Open graphics files (this initializes local limits, among other things)
 
@@ -337,9 +328,13 @@ c Open graphics files (this initializes local limits, among other things)
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
 #endif
 
+c Read geometry (if appropriate)
+
+      if (coords == 'ext') call readExtMap
+
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
-      call readTimeStep(u_0,ierr)
+      call readTimeStep(itime,time,dt,u_0,ierr)
 
       if (ierr /= 0) call pstop('initializeCalculation',
      .                          'Unable to read equilibrium')
@@ -394,3 +389,45 @@ c Initialize graphics
 c End program
 
       end subroutine initializeCalculation
+
+c fortranDestroy
+c ######################################################################
+      subroutine fortranDestroy
+
+      use variables
+
+      use var_io
+
+      use grid
+
+      use graphics
+
+#if defined(MK)
+      use mk
+#endif
+
+      implicit none
+
+c Call variables
+
+c Local variables
+
+      integer :: ierr,igr
+
+c Begin program
+
+      call deallocateStructures
+
+      call deallocateDerivedType(u_ic)
+
+      call deallocateApplicationVariables   !External
+
+#if defined(MK)
+      if (mk_grid) call MK_dealloc
+#endif
+
+      call deallocateGlobalVar(gv)
+
+c End program
+
+      end subroutine fortranDestroy

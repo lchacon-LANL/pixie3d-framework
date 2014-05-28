@@ -6,15 +6,43 @@ c ###########################################################################
 
         use variables
 
-        use iosetup
+        use var_io
 
         use timeStepping
 
         logical :: temp_acc=.false.,spat_acc=.false.
 
-        character(200) :: acc_ref_file
+        character(200) :: acc_ref_file=''
 
       contains
+
+c     readAccTestConfig
+c     ######################################################################
+      subroutine readAccTestConfig(file)
+
+c     -----------------------------------------------------------------
+c     Initializes grid parameters
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      character(*) :: file
+
+c     Local variables
+
+      namelist /acc_test/ temp_acc,spat_acc,acc_ref_file
+
+c     Read graphics initialization parameters
+
+      open(unit=25,file=trim(file),status='old')
+      read(25,acc_test)
+      close(unit=25)
+
+c     End program
+
+      end subroutine readAccTestConfig
 
 c     acc_test_space
 c     #######################################################################
@@ -98,7 +126,7 @@ c     Read reference grid info
       call allocateDerivedType(vref)
 
       do
-        call readTimeStep(vref,ierr)
+        call readTimeStep(itime,time,dt,vref,ierr)
         if (ierr /= 0) exit
       enddo
 
@@ -165,7 +193,7 @@ c Initialize current grid info and read current grid solution
       call allocateDerivedType(vsol)
 
       do
-        call readTimeStep(vsol,ierr)
+        call readTimeStep(itime,time,dt,vsol,ierr)
         if (ierr /= 0) exit
       enddo
 
@@ -326,7 +354,7 @@ c     Read reference field
       call allocateDerivedType(vref)
 
       do
-        call readTimeStep(vref,ierr)
+        call readTimeStep(itime,time,dt,vref,ierr)
         if (ierr /= 0 .or. abs(time-tmax)<1d-8 ) exit
       enddo
 
@@ -357,7 +385,7 @@ c     Read current solution
       call allocateDerivedType(vsol)
 
       do
-        call readTimeStep(vsol,ierr)
+        call readTimeStep(itime,time,dt,vsol,ierr)
         if (ierr /= 0 .or. abs(time-tmax)<1d-10) exit
       enddo
 

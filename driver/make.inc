@@ -1,6 +1,6 @@
 # Define message
 
-MESSAGE = "Compiling f90 driver"
+MESSAGE = "Compiling program driver"
 
 # Define subdirectories for common code
 
@@ -21,10 +21,6 @@ SUBDIRS = $(COMMONDIR)/math \
 ifeq ($(MK),t)
   SUBDIRS += $(COMMONDIR)/mk
 endif
-
-# Module order
-
-MODS = newtongm_mod.F
 
 #Setup defs.
 

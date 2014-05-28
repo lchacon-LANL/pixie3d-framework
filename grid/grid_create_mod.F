@@ -9,7 +9,7 @@ c #####################################################################
         integer :: mg_ratio
 
         private :: initGridSt,createLogicalGrid
-     $            ,consistencyCheck,checkGrid
+     $            ,consistencyCheck!,checkGrid
 
       contains
 
@@ -69,7 +69,7 @@ c     Initialize grid structure
 
 c     Perform grid check
 
-        if (check_grid) call checkGrid(gdef)
+        if (check_grid.and.checkAnalMapDatabase()) call checkGrid(gdef)
 
       end subroutine createGrid
 
@@ -161,6 +161,8 @@ c     Find adequate number of grid levels (for MG)
           if (npx == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in X')
 
+          if (npx > nxg) call pstop('initGridSt','Too many procs in X')
+
           nxx = nxg/npx
           ngrdx = MG_levels(nxx,mg_ratio)
         else
@@ -171,6 +173,8 @@ c     Find adequate number of grid levels (for MG)
           if (npy == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in Y')
 
+          if (npy > nyg) call pstop('initGridSt','Too many procs in Y')
+
           nyy = nyg/npy
           ngrdy = MG_levels(nyy,mg_ratio)
         else
@@ -180,6 +184,8 @@ c     Find adequate number of grid levels (for MG)
         if (cz) then
           if (npz == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in Z')
+
+          if (npz > nzg) call pstop('initGridSt','Too many procs in Z')
 
           nzz = nzg/npz
           ngrdz = MG_levels(nzz,mg_ratio)
@@ -1138,8 +1144,8 @@ c     Dump quantities
 
         !Open .bin file
         debugfile = 'grid_gl'//trim(int2char(igrid))
-     .                 //'k='//trim(int2char(k))
-     .                 //'p' //trim(int2char(my_rank))//'.bin'
+     .                 //'_k='//trim(int2char(k))
+     .                 //'_p' //trim(int2char(my_rank))//'.bin'
         drawfile = 'drawgl'//trim(int2char(igrid))
      .              //'_k='//trim(int2char(k))
      .               //'_p'//trim(int2char(my_rank))//'.in'

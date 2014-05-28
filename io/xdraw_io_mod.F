@@ -68,10 +68,16 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: i,j,k,imn,imx,jmn,jmx,kmn,kmx,plt(3)
-        logical    :: cut(3)
+        integer :: i,j,k,imn,imx,jmn,jmx,kmn,kmx,plt(3)
+        logical :: cut(3)
 
 c     Begin program
+
+        if (cont_conf%plane == 0) then
+          write (*,*) '--> Plotting plane undefined in C_contour'
+          write (*,*) '--> Aborting plot...'
+          return
+        endif
 
 c     Select 2D cuts
 
@@ -97,7 +103,7 @@ c     Perform 2d cuts
         elseif (cut(2)) then
           call twodcut(plt(2),imn,imx,plt(2),plt(2),kmn,kmx
      .                ,'XDRAW Y-slice contour at j=')
-        else
+        elseif (cut(3)) then
           call twodcut(plt(3),imn,imx,jmn,jmx,plt(3),plt(3)
      .                ,'XDRAW Z-slice contour at k=')
         endif

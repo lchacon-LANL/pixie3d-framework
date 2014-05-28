@@ -1,19 +1,3 @@
-# Buildtype configuration
-
-BUILDTYPE?=$(shell echo "`uname -m`-`uname -s`")
-
-ifeq "$(BUILDTYPE)" "i386-Darwin"
-  FC=gfortran
-#  ifdef SAMR
-    HDF5_HOME =${HDF_HOME}
-    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)/lib
-    HDF5_INC  = $(HDF5_HOME)/include
-    PETSC_DIR = /opt/petsc-3.0.0-p9-gcc-4.4.1-debug
-    PETSC_ARCH = darwin9.8.0-c-debug
-#  endif
-endif
-
 # Machine configuration
 
 HOST ?= $(shell hostname -s)
@@ -113,7 +97,11 @@ ifeq ($(HOST),jetta)
       HDF5_MOD  = $(PHDF5_LIB)
       HDF5_INC  = $(PHDF5_INC)
 
-      ADIOS = t
+      ifeq ($(PIT),t)
+        ADIOS = f      !ADIOS not ready for parallel-in-time yet
+      else
+        ADIOS = t
+      endif
 
       #Determined via modules
       ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
@@ -322,6 +310,64 @@ ifeq ($(HOST),gongora)
     HDF5 = t
 
     HDF5_HOME = $(HOME)/lib/hdf5-1.8.5/gfortran/serial
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  =$(HDF5_HOME)/include
+    HDF5_INC  =$(HDF5_HOME)/include
+
+    ADIOS = f
+
+  endif
+
+endif
+
+##############
+# quadrivium #
+##############
+
+ifeq ($(HOST),quadrivium)
+
+  FC=gfortran
+
+  PIT=t
+  VECPOT=t
+
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  ifdef BOPT
+    PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_openmpi
+    else
+      PETSC_ARCH = linux64_openmpi_g
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME = $(HOME)/local
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = f
+
+    ADIOS_HOME = $(HOME)/lib/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
+    ADIOS_VER  = 1.31
+
+  else
+
+    override LDFLAGS=
+
+    LIBS += -L/state/partition1/apps/lapack/lib -llapack -lrefblas
+
+    HDF5 = t
+
+    HDF5_HOME = $(HOME)/local2
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  =$(HDF5_HOME)/include
     HDF5_INC  =$(HDF5_HOME)/include
@@ -651,23 +697,13 @@ ifeq ($(findstring ewok,$(HOST)),ewok)
   BOPT = t
 endif
 
-###########################
-# chenhp (Guangye Chen's) #
-###########################
+##########################
+# Guangye Chen's desktop #
+##########################
 
-ifeq ($(HOST),chenshp)
-    LIBS += -L/usr/lib64/atlas -llapack -lblas
+ifeq ($(HOSTNAME),t1243055)
     HDF5=f
-endif
-
-#dlg-hp overrides 
-
-ifeq ($(HOSTNAME),dlg-hp.ornl.gov)
-	PETSC_DIR ?=/home/dg6/code/petsc/petsc-3.1-p7
-	HDF5_HOME ?= /usr/lib64/openmpi/lib 
-	FC =gfortran
-    LIBS += -L ~/code/goto_blas/GotoBLAS2 ~/code/lapack/lapack-3.1.1/lapack_LINUX.a -lgoto2
-    HDF5=f
+    LIBS += -llapack -lblas
 endif
 
 ifeq ($(PIC_CUDA),t) 
@@ -684,6 +720,7 @@ endif
 
 ifeq ($(findstring jf,$(HOST)),jf)
   FC = ifort
+  OPTIMIZATION = -O2
 
 #  BOPT = O
 
@@ -715,6 +752,7 @@ endif
 
 ifeq ($(findstring helios,$(HOST)),helios)
   FC = ifort
+  OPTIMIZATION = -O3 -xavx
 
   CPPFLAGS += $(PREPROC)RFX
 
@@ -734,9 +772,11 @@ ifeq ($(findstring helios,$(HOST)),helios)
     #HDF5_MOD  = $(HDF5_HOME)/lib
 
     ADIOS = t
-    ADIOS_HOME = /csc/softs/nccs/adios-1.3.1
+    #ADIOS_HOME = /csc/softs/nccs/adios-1.3.1
+    ADIOS_HOME = $(ADIOS_DIR)
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml -llustreapi
     ADIOS_VER  = 1.31
+    #ADIOS_VER  = 1.50 da errore in fase di link
   else
     HDF5 = f
     ADIOS = f
