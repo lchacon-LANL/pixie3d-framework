@@ -1,10 +1,10 @@
-
 c module ts_if
 c ######################################################################
       module ts_if
 
       use ts_base
 
+#if !defined(samrai)
       use nk, ONLY: nk_conf,matrixFreeMatVec,jfnk,evaluateNewtonResidual
      .             ,NOERR,CUTDT
 
@@ -332,5 +332,6 @@ c     Free memory
 c     End program
 
       end function eigenSolution
+#endif
 
       end module ts_if

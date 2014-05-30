@@ -1,4 +1,3 @@
-
 c module ts_base
 c ######################################################################
       module ts_base
@@ -18,6 +17,8 @@ c ######################################################################
 
         real(8) :: tmrst,dtbase
         real(8) :: rstep,dfreq,dtexp
+
+#if !defined(samrai)
 
 cc        real(8),pointer,dimension(:,:) :: old_f
 
@@ -506,5 +507,6 @@ c     #######################################################################
       end subroutine calculate_cnfactor
 
       end subroutine findNewTimeStep
+#endif
 
       end module ts_base
