@@ -3603,7 +3603,7 @@ c     Call variables
      $                  ,0:size(cov,2)-1
      $                  ,0:size(cov,3)-1,3)
 
-      real(8),optional :: diff(0:,0:,0:)
+      real(8),optional,target :: diff(0:,0:,0:)
 
 c     Local variables
 
