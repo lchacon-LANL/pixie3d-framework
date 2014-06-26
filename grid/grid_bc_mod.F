@@ -3780,11 +3780,15 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: i,j,k,stencil_width,order,ieq,neql
+      integer    :: i,j,k,stencil_width,ieq,neql
      .             ,imng,imxg,jmng,jmxg,kmng,kmxg
      .             ,imnl,imxl,jmnl,jmxl,kmnl,kmxl
 
-      integer,save :: ivar(2)  !Needed to "remember' ivar from previous calls
+      integer,save :: order=-1 !Needed to "remember" order of extrapolation at
+                               !boundaries from previous calls when not explicitly
+                               !set (exits with error when unset)
+
+      integer,save :: ivar(2)  !Needed to "remember" ivar from previous calls
                                !when icomp is not provided.
 
       logical,save :: iscnv,isvec !Needed to "remember' these from previous calls
@@ -3806,20 +3810,18 @@ c     Optional arguments
 
       if (PRESENT(icomp))  ivar(1:size(icomp))  = icomp
 
-      if (PRESENT(iorder)) then
-        order = iorder
-      else
-        order = 2
-      endif
+      if (PRESENT(iorder)) order = iorder
 
 c     Consistency check
 
       if (     grid_params%nxv(iig) /= nnx
      .    .or. grid_params%nyv(iig) /= nny
      .    .or. grid_params%nzv(iig) /= nnz) then
-        write (*,*) 'Grid sizes do not agree in setMGBC'
-        write (*,*) 'Aborting...'
-        stop
+        call pstop('setMGBC','Grid sizes do not agree')
+      endif
+
+      if (order < 0) then
+        call pstop('setMGBC','Order of extrapolation not set')
       endif
 
 c     Allocate MG pointers (if not allocated earlier)

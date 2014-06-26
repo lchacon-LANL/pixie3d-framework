@@ -72,3 +72,8 @@ ifdef SAMR
 
   CPPFLAGS += $(PREPROC)samrai
 endif
+
+# RNG setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/rng/lib -lrng
+#MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib

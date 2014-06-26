@@ -437,12 +437,21 @@ c     #######################################################################
             endif
 
           case default   !Default time stepping
-            if (    (itm == 1.and.(.not.timecorr))
-     .          .or.(itm == 2.and.      timecorr )) then
+
+            if     ((itm == 1.and.(.not.timecorr))) then
+              dt = dtbase
+            elseif ((itm == 2.and.      timecorr )) then
+              if (dt < dtbase) then
+                dt = dtbase - dt
+              else
+                dt = dtbase
+              endif
+            elseif ((itm == 3.and.      timecorr )) then
               dt = dtbase
             else
               dt = min(dtbase,dt*coef2)
             endif
+
           end select
 
         endif

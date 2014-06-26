@@ -22,7 +22,6 @@ c #####################################################################
         integer :: thr_tot=1,thr_num=0
 !$OMP THREADPRIVATE(thr_tot,thr_num)
 
-
         !Private variables
         integer,private :: nx,ny,nz,ag,sbcnd(6)
 
@@ -70,10 +69,11 @@ c     Begin program
         nn = size(x)
 
         if (bc == PER) then  !Ghost cell is at x(1)
-cc          xmin = x(2)
-cc          xmax = x(nn)
-          xmin = 5d-1*(x(1)+x(2))
-          xmax = 5d-1*(x(nn-1)+x(nn))
+cc          xmin = 5d-1*(x(1)+x(2))
+cc          xmax = 5d-1*(x(nn-1)+x(nn))
+          x = x - x(2)  !Set angle = 0 at x(2)
+          xmin = x(2)
+          xmax = x(nn)
         else
           xmin = x(1)
           xmax = x(nn)
@@ -1330,6 +1330,7 @@ c     Call variables
 
 c     Local variables
 
+      integer :: ierror
       real(8),pointer :: lxcoef(:,:,:,:)
 
 c     Begin program
@@ -1340,9 +1341,11 @@ c     Begin program
         lxcoef => xcoef
       endif
 
-      call chk_pos(x1,x2,x3,ierr=ierr)
+      call chk_pos(x1,x2,x3,ierr=ierror)
 
-      if (ierr /= ORB_OK) return
+      if (PRESENT(ierr)) ierr = ierror
+
+      if (ierror /= ORB_OK) return
 
       x = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,1)
