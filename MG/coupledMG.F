@@ -1682,7 +1682,7 @@ c     ##################################################################
 
         logical :: vbr_mg
      .            ,galerkin=.false.
-     .            ,volf=.false.
+cc     .            ,volf=.false.
 
       contains
 
@@ -1826,9 +1826,9 @@ c     ##################################################################
      .                  ,vol_wgt
      .                  ,dg,cvrg_tst,tol,iters
      .                  ,gm_driver
-     .                  ,gm_sing_matrix
      .                  ,cg_driver
      .                  ,ks_it
+     .                  ,sing_matrix
      .                  ,mg_order_res
      .                  ,mg_order_prol
      .                  ,mg_vcyc
@@ -1868,9 +1868,9 @@ c       * cvrg_tst: whether we want to perform a convergence test
 c       * tol: relative convergence tolerance
 c       * iters (output): number of iterations
 c       * gm_driver: whether we want GMRES as a driver
-c       * gm_sing_mat: whether GMRES is dealing with a singular matrix or not
 c       * cg_driver: whether we want CG    as a driver
 c       * ks_it: # of krylov subspace iterations
+c       * sing_mat: whether GMRES is dealing with a singular matrix or not
 c
 c       * mg_order_res: restriction order
 c       * mg_order_prol: restriction order
@@ -1920,7 +1920,7 @@ c     Call variables
      .                                ,mg_galerkin
      .                                ,mg_debug
      .                                ,gm_driver
-     .                                ,gm_sing_matrix
+     .                                ,sing_matrix
      .                                ,cg_driver
      .                                ,cvrg_tst
         integer,optional,intent(OUT) :: iters
@@ -1936,13 +1936,13 @@ c     Local variables
         real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,rtol,zomg
         real(8), target :: ddg(neq,2*neq*ntotp)
         logical    :: gm_crse_solve,cvrg_test,lrelax,zrelax
-     .               ,gm_drvr,gm_smat,cg_drvr,glkin
+     .               ,gm_drvr,smat,cg_drvr,glkin
 
         character(2) :: smth
 
 c     Begin program
 
-cc        volf = vol_wgt          !Initialize volume-weighing variable
+        res_vol_wgt = vol_wgt          !Initialize volume-weighing variable
 
 c     Process optional arguments
 
@@ -1956,10 +1956,10 @@ c     Process optional arguments
           gm_drvr = .false.
         endif
 
-        if (PRESENT(gm_sing_matrix)) then
-          gm_smat = gm_sing_matrix
+        if (PRESENT(sing_matrix)) then
+          smat = sing_matrix
         else
-          gm_smat = .false.
+          smat = .false.
         endif
 
         if (PRESENT(cg_driver)) then
@@ -2143,7 +2143,7 @@ cc            call assembleSolverHierarchy('gs')
 cc          case('gm')
 cc            solverOptions%stp_test = 1 
 cc            solverOptions%krylov_subspace = solverOptions%iter 
-cc            solverOptions%singular_matrix = gm_smat
+cc            solverOptions%singular_matrix = smat
 cc            call assembleSolverHierarchy('gm')
 cc            call assembleSolverHierarchy('id')
 cc          case default !JB
@@ -2180,6 +2180,7 @@ c       Initialize solver
 c       Check whether GMRES is driving solve
 
         if (gm_drvr .or. cg_drvr) then
+
           call solverOptionsInit
 
           solverOptions%iter    = gmit
@@ -2189,11 +2190,12 @@ c       Check whether GMRES is driving solve
           solverOptions%krylov_subspace = solverOptions%iter 
 
           if (gm_drvr) then
-            solverOptions%singular_matrix = gm_smat
+            solverOptions%singular_matrix = smat
             call assembleSolverHierarchy('gm')
           else
             call assembleSolverHierarchy('cg')
           endif
+
         endif
 
 c       MG solver options
@@ -2212,7 +2214,7 @@ c       MG solver options
         solverOptions%orderprol= iorder_prol
         solverOptions%mg_mu    = mu_cyc
         solverOptions%mg_galerkin = glkin
-        solverOptions%vol_res  = vol_wgt
+cc        solverOptions%vol_res  = vol_wgt
 
         if (PRESENT(mg_debug)) solverOptions%mg_debug = mg_debug
 
@@ -2264,8 +2266,9 @@ c       MG smoother
 
         call solverOptionsInit
 
-        solverOptions%iter    = smit
-        solverOptions%tol     = rtol
+        solverOptions%iter            = smit
+        solverOptions%tol             = rtol
+        solverOptions%singular_matrix = smat
 
         if (lrelax) then
           solverOptions%iter  = 2
@@ -2288,7 +2291,6 @@ cc          solverOptions%iter=ceiling(1.*smit/solverOptions%mg_zebra_it)
         case('gm')
           solverOptions%stp_test        = 1 
           solverOptions%krylov_subspace = solverOptions%iter 
-          solverOptions%singular_matrix = gm_smat
 
           call assembleSolverHierarchy('gm')
 
@@ -2307,7 +2309,7 @@ c       MG coarsest grid solve
         solverOptions%iter            = 100
         solverOptions%stp_test        = 1 
         solverOptions%omega           = 1d0
-        solverOptions%singular_matrix = gm_smat
+        solverOptions%singular_matrix = smat
 
         call assembleSolverHierarchy('gm')
         call assembleSolverHierarchy('id') !GMRES preconditioner
@@ -2465,12 +2467,6 @@ c     Perform matvec in finest grid
           kminf = mgrz*(kc-1)+1
           kmaxf = mgrz* kc
 
-cc          write (*,*) 'DIAG -- MGmatvec',igf,igc,mgrx,mgry,mgrz
-cc          write (*,*) 'DIAG -- MGmatvec',ic,jc,kc
-cc          write (*,*) 'DIAG -- MGmatvec',iminf,imaxf,jminf,jmaxf
-cc     .                                  ,kminf,kmaxf
-cc          write (*,*)
-
           !Perform matvec on fine grid stencil
           do kf = kminf,kmaxf
             do jf = jminf,jmaxf
@@ -2486,7 +2482,7 @@ cc          write (*,*)
 
 c     Restrict residual
 
-        call restrictMGVector(neq,MGy,igf,igc,0,volf)
+        call restrictMGVector(neq,MGy,igf,igc,0,res_vol_wgt)
 
 c     Map coarse grid residual
 
@@ -2915,7 +2911,9 @@ c     Local variables
 
 c     Begin program
 
-      volf = volw
+c     Set internal flags
+
+      res_vol_wgt = volw
       galerkin = glrkin
 
 c     Allocate MG pointers
@@ -3317,7 +3315,7 @@ cc      endif
         if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
         allocate(diag(neq*nblk,2*ntot*nblk))
         call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                   ,ncolors,volf,galerkin)
+     .                   ,ncolors,res_vol_wgt,galerkin)
         if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         fdiag = .true.
       endif
@@ -3594,7 +3592,7 @@ c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
         call crestrict(neq
      .                ,yy(isigc),ntotv(igc),nxv(igc),nyv(igc),nzv(igc)
      .                ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
-     .                ,orderres,igr,volf)
+     .                ,orderres,igr,res_vol_wgt)
 
         !Debugging plots
         if (igc == igmax.and.mg_debug) then
@@ -4459,7 +4457,7 @@ c     Configure recursive plane/line JB solve
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
-        options%vol_res                     = volf        
+cc        options%vol_res                     = volf        
 
         options%mg_coarse_solver_depth      = line_crse_depth
         options%mg_line_relax               = .false.
@@ -4927,7 +4925,7 @@ c     Configure recursive plane/line MG solve
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
-        options%vol_res                     = volf        
+cc        options%vol_res                     = volf        
         options%mg_line_relax               = .false.
         options%mg_coarse_solver_depth      = crsedpth 
         options%mg_vertex_relax             = vbr_mg
@@ -6488,7 +6486,7 @@ c Local variables
       integer    :: iter,alloc_stat,isig,itr,nn,ieq,irbg1,nrbg1,igridc
       integer    :: imin,imax,jmin,jmax,kmin,kmax,iming,itr2
       real(8)    :: omega0,omega10,omega01,tol
-      logical    :: fdiag,fpointers,vbr,prnt
+      logical    :: fdiag,fpointers,vbr,prnt,smat
 
       integer    :: i,j,k,iv,jv,kv,if,jf,kf,nxf,nyf,nzf,iiv,ivg,ncolors
       integer    :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblk,i1
@@ -6518,6 +6516,7 @@ c Read solver configuration
       ncolors= options%ncolors
       diag   => options%diag
       mgctx  => options%mgctx
+      smat   = options%singular_matrix
 
 c Allocate pointers
 
@@ -6560,7 +6559,7 @@ c Find diagonal for smoothers
         if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
         allocate(diag(neq*nblk,2*ntot*nblk))
         call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                   ,ncolors,volf,galerkin)
+     .                   ,ncolors,res_vol_wgt,galerkin)
         if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         fdiag = .true.
       endif
@@ -6754,6 +6753,8 @@ cc          endif
 
         endif
 
+        if (smat) zz = zz - sum(zz)/size(zz)
+
 c     Check convergence
 
 #if defined(petsc)
@@ -6888,7 +6889,7 @@ c Local variables
       integer    :: i1,j1,k1,i1min,i1max,j1min,j1max,k1min,k1max
 
       real(8)    :: omega0,tol,zebra_omg
-      logical    :: fdiag,fpointers,vbr,zebra,prnt
+      logical    :: fdiag,fpointers,vbr,zebra,prnt,smat
 
       integer    :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf
       integer    :: ii,iii,iib,iiib,iiv,ivg,iblock,jblock,kblock,nblk
@@ -6971,7 +6972,7 @@ c Find diagonal for smoothers
         if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
         allocate(diag(neq*nblk,2*ntot*nblk))
         call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                   ,ncolors,volf,galerkin)
+     .                   ,ncolors,res_vol_wgt,galerkin)
         if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         fdiag = .true.
       endif
@@ -7055,6 +7056,8 @@ c         STANDARD RELAXATION
            call lexic_GS
 
           endif
+
+          if (smat) zz = zz - sum(zz)/size(zz)
 
         endif
 

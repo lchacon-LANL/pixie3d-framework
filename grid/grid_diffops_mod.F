@@ -614,9 +614,9 @@ cc     .          -arr(i-1,j,k)*dx2/dx1/(dx1+dx2))
           gx = (arr(i+1,j,k)-arr(i-1,j,k))/(dx1+dx2)
         endif
       case(1)
-        gx = (arr(i+1,j,k)-arr(i  ,j,k))/grid_params%dx(ig  )
+        if (i<nx+1) gx =(arr(i+1,j,k)-arr(i  ,j,k))/grid_params%dx(ig)
       case(-1)
-        gx = (arr(i  ,j,k)-arr(i-1,j,k))/grid_params%dx(ig-1)
+        if (i>0   ) gx =(arr(i  ,j,k)-arr(i-1,j,k))/grid_params%dx(ig-1)
       end select
 
       !Y comp
@@ -644,9 +644,9 @@ cc     .          -arr(i,j-1,k)*dy2/dy1/(dy1+dy2))
           gy = (arr(i,j+1,k)-arr(i,j-1,k))/(dy1+dy2)
         endif
       case(1)
-        gy = (arr(i,j+1,k)-arr(i,j  ,k))/grid_params%dy(jg  )
+        if (j<ny+1) gy =(arr(i,j+1,k)-arr(i,j  ,k))/grid_params%dy(jg  )
       case(-1)
-        gy = (arr(i,j  ,k)-arr(i,j-1,k))/grid_params%dy(jg-1)
+        if (j>0   ) gy =(arr(i,j  ,k)-arr(i,j-1,k))/grid_params%dy(jg-1)
       end select
 
       !Z comp
@@ -674,9 +674,9 @@ cc     .          -arr(i,j,k-1)*dz2/dz1/(dz1+dz2))
           gz = (arr(i,j,k+1)-arr(i,j,k-1))/(dz1+dz2)
         endif
       case(1)
-        gz = (arr(i,j,k+1)-arr(i,j,k  ))/grid_params%dz(kg  )
+        if (k<nz+1) gz =(arr(i,j,k+1)-arr(i,j,k  ))/grid_params%dz(kg  )
       case(-1)
-        gz = (arr(i,j,k  )-arr(i,j,k-1))/grid_params%dz(kg-1)
+        if (k>0   ) gz =(arr(i,j,k  )-arr(i,j,k-1))/grid_params%dz(kg-1)
       end select
 
       cov = (/ gx,gy,gz /)
@@ -687,7 +687,7 @@ c     End program
 
 c     grad_mesh
 c     ###############################################################
-      function grad_mesh(igrid,arr) result(cov)
+      function grad_mesh(igrid,arr,hex,hey,hez) result(cov)
 
 c     ---------------------------------------------------------------
 c     Calculates grad(A) in general non-orthogonal coordinates. Is
@@ -704,6 +704,8 @@ c     Call variables
       real(8) :: arr(0:,0:,0:)
      .          ,cov(0:size(arr,1)-1,0:size(arr,2)-1,0:size(arr,3)-1,3)
 
+      integer,optional :: hex,hey,hez
+
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
@@ -717,7 +719,8 @@ c     Begin program
       do k=0,nz+1
         do j=0,ny+1
           do i=0,nx+1
-            cov(i,j,k,:)=grad_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,arr)
+            cov(i,j,k,:)=grad_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,arr
+     .                           ,hex=hex,hey=hey,hez=hez)
           enddo
         enddo
       enddo
