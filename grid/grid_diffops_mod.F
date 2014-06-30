@@ -3628,9 +3628,15 @@ c     Begin program
       do k=1,nz
         do j=1,ny
           do i=1,nx
+#if defined(samrai)
             cov_out(i,j,k,:)=veclap_cov_ijk(i,j,k,nx,ny,nz
      .                                     ,igrid,igrid,igrid
      .                                     ,cov,dff=dff)
+#else
+            cov_out(i,j,k,:)=veclap_cov_ijk(i,j,k,nx,ny,nz
+     .                                     ,igrid,igrid,igrid
+     .                                     ,cov,dff=diff)
+#endif
           enddo
         enddo
       enddo
