@@ -89,7 +89,7 @@ c     Local variables
 
       namelist /graphics/ sel_diag,sel_graph
      .                   ,ndplot,dplot
-     .                   ,hdf_plot,xdraw_plot
+     .                   ,hdf_plot,xdraw_plot,adios_plot
      .                   ,prof_conf,cont_conf
      .                   ,iplot,jplot,kplot
 

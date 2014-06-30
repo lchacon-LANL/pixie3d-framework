@@ -807,15 +807,16 @@ cc              time = sign(1d0,time)*tmax
 
           !Check for intersection with surface of section
           if (non_fatal_err .and. itime > 2 .and. chk_ss) then
-            if (smax /= 0d0) then
-              call sschk(svold,sold,ss
-     .                  ,xvold,xold,x,yvold,yold,y
-     .                  ,zvold,zold,z,xss,yss,zss,tss)
-            else
-              call sschk(tvold,told,time
-     .                  ,xvold,xold,x,yvold,yold,y
-     .                  ,zvold,zold,z,xss,yss,zss,tss)
-            endif
+            call sschk_ho(xss,yss,zss,tss)
+cc            if (smax /= 0d0) then
+cc              call sschk(svold,sold,ss
+cc     .                  ,xvold,xold,x,yvold,yold,y
+cc     .                  ,zvold,zold,z,xss,yss,zss,tss)
+cc            else
+cc              call sschk(tvold,told,time
+cc     .                  ,xvold,xold,x,yvold,yold,y
+cc     .                  ,zvold,zold,z,xss,yss,zss,tss)
+cc            endif
           endif
 
           !Show progress
@@ -2829,21 +2830,6 @@ c     Lower order of interpolation for SS if derivatives are too different
         endif
 
         iwhich = ssorder
-
-cc        if (to > tv) then
-cc          if (tt > to) then
-cc            if(    (   abs(xold-xvold)/(to-tv)
-cc     .              >5*abs(x    -xold)/(tt-to))
-cc     .         .or.(   abs(yold-yvold)/(to-tv)
-cc     .              >5*abs(y    -yold)/(tt-to))
-cc     .         .or.(   abs(zold-zvold)/(to-tv)
-cc     .              >5*abs(z    -zold)/(tt-to)) ) iwhich = 1
-cc          else
-cc            iwhich = 1
-cc          endif
-cc        else
-cc          iwhich = 1
-cc        endif
 
 c     Check for intersection with X surface of section
 
