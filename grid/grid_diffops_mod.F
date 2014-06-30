@@ -3611,6 +3611,13 @@ c     Local variables
 
 c     Begin program
 
+#if defined(samrai)
+      real(8),dimension(:,:,:),pointer :: dff
+      if (PRESENT(diff)) then
+         dff => diff
+      endif
+#endif
+
       nx = grid_params%nxv(igrid)
       ny = grid_params%nyv(igrid)
       nz = grid_params%nzv(igrid)
@@ -3620,7 +3627,7 @@ c     Begin program
           do i=1,nx
             cov_out(i,j,k,:)=veclap_cov_ijk(i,j,k,nx,ny,nz
      .                                     ,igrid,igrid,igrid
-     .                                     ,cov,dff=diff)
+     .                                     ,cov,dff=dff)
           enddo
         enddo
       enddo
