@@ -6,9 +6,9 @@ c######################################################################
 
         use grid_operations
 
-        integer    :: ngrdx,ngrdy,ngrdz,ngrid,igmax
+        integer :: ngrdx,ngrdy,ngrdz,ngrid,igmax
 
-        integer   ,dimension(:),pointer ::
+        integer,dimension(:),pointer ::
      .                     istart,ntotv,istartp,ntotvp
      .                    ,istartb,ntotb,nxv,nyv,nzv,nblock
      .                    ,mg_ratio_x,mg_ratio_y,mg_ratio_z
@@ -28,6 +28,8 @@ c######################################################################
         end type mg_ctx
 
         type(mg_ctx),pointer :: mg_ctx_temp
+
+        logical :: res_vol_wgt  !Whether residual is volume weighed
 
       contains
 

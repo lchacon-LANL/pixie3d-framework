@@ -3,6 +3,7 @@ c ######################################################################
       module prj_int
 
         use ts_if
+#if !defined(samrai)
 
         logical :: prj_int_ts=.false.
 
@@ -133,5 +134,6 @@ c     Write initialization parameters to standard output
 c     End program
 
       end subroutine read_PrjInt_Input
+#endif
 
       end module prj_int

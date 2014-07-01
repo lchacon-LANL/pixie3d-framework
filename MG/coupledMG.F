@@ -1682,7 +1682,7 @@ c     ##################################################################
 
         logical :: vbr_mg
      .            ,galerkin=.false.
-     .            ,volf=.false.
+cc     .            ,volf=.false.
 
       contains
 
@@ -1826,9 +1826,9 @@ c     ##################################################################
      .                  ,vol_wgt
      .                  ,dg,cvrg_tst,tol,iters
      .                  ,gm_driver
-     .                  ,gm_sing_matrix
      .                  ,cg_driver
      .                  ,ks_it
+     .                  ,sing_matrix
      .                  ,mg_order_res
      .                  ,mg_order_prol
      .                  ,mg_vcyc
@@ -1868,9 +1868,9 @@ c       * cvrg_tst: whether we want to perform a convergence test
 c       * tol: relative convergence tolerance
 c       * iters (output): number of iterations
 c       * gm_driver: whether we want GMRES as a driver
-c       * gm_sing_mat: whether GMRES is dealing with a singular matrix or not
 c       * cg_driver: whether we want CG    as a driver
 c       * ks_it: # of krylov subspace iterations
+c       * sing_mat: whether GMRES is dealing with a singular matrix or not
 c
 c       * mg_order_res: restriction order
 c       * mg_order_prol: restriction order
@@ -1920,7 +1920,7 @@ c     Call variables
      .                                ,mg_galerkin
      .                                ,mg_debug
      .                                ,gm_driver
-     .                                ,gm_sing_matrix
+     .                                ,sing_matrix
      .                                ,cg_driver
      .                                ,cvrg_tst
         integer,optional,intent(OUT) :: iters
@@ -1936,13 +1936,13 @@ c     Local variables
         real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,rtol,zomg
         real(8), target :: ddg(neq,2*neq*ntotp)
         logical    :: gm_crse_solve,cvrg_test,lrelax,zrelax
-     .               ,gm_drvr,gm_smat,cg_drvr,glkin
+     .               ,gm_drvr,smat,cg_drvr,glkin
 
         character(2) :: smth
 
 c     Begin program
 
-cc        volf = vol_wgt          !Initialize volume-weighing variable
+        res_vol_wgt = vol_wgt          !Initialize volume-weighing variable
 
 c     Process optional arguments
 
@@ -1956,10 +1956,10 @@ c     Process optional arguments
           gm_drvr = .false.
         endif
 
-        if (PRESENT(gm_sing_matrix)) then
-          gm_smat = gm_sing_matrix
+        if (PRESENT(sing_matrix)) then
+          smat = sing_matrix
         else
-          gm_smat = .false.
+          smat = .false.
         endif
 
         if (PRESENT(cg_driver)) then
@@ -2143,7 +2143,7 @@ cc            call assembleSolverHierarchy('gs')
 cc          case('gm')
 cc            solverOptions%stp_test = 1 
 cc            solverOptions%krylov_subspace = solverOptions%iter 
-cc            solverOptions%singular_matrix = gm_smat
+cc            solverOptions%singular_matrix = smat
 cc            call assembleSolverHierarchy('gm')
 cc            call assembleSolverHierarchy('id')
 cc          case default !JB
@@ -2180,6 +2180,7 @@ c       Initialize solver
 c       Check whether GMRES is driving solve
 
         if (gm_drvr .or. cg_drvr) then
+
           call solverOptionsInit
 
           solverOptions%iter    = gmit
@@ -2189,11 +2190,12 @@ c       Check whether GMRES is driving solve
           solverOptions%krylov_subspace = solverOptions%iter 
 
           if (gm_drvr) then
-            solverOptions%singular_matrix = gm_smat
+            solverOptions%singular_matrix = smat
             call assembleSolverHierarchy('gm')
           else
             call assembleSolverHierarchy('cg')
           endif
+
         endif
 
 c       MG solver options
@@ -2212,7 +2214,7 @@ c       MG solver options
         solverOptions%orderprol= iorder_prol
         solverOptions%mg_mu    = mu_cyc
         solverOptions%mg_galerkin = glkin
-        solverOptions%vol_res  = vol_wgt
+cc        solverOptions%vol_res  = vol_wgt
 
         if (PRESENT(mg_debug)) solverOptions%mg_debug = mg_debug
 
@@ -2264,8 +2266,9 @@ c       MG smoother
 
         call solverOptionsInit
 
-        solverOptions%iter    = smit
-        solverOptions%tol     = rtol
+        solverOptions%iter            = smit
+        solverOptions%tol             = rtol
+        solverOptions%singular_matrix = smat
 
         if (lrelax) then
           solverOptions%iter  = 2
@@ -2288,7 +2291,6 @@ cc          solverOptions%iter=ceiling(1.*smit/solverOptions%mg_zebra_it)
         case('gm')
           solverOptions%stp_test        = 1 
           solverOptions%krylov_subspace = solverOptions%iter 
-          solverOptions%singular_matrix = gm_smat
 
           call assembleSolverHierarchy('gm')
 
@@ -2307,7 +2309,7 @@ c       MG coarsest grid solve
         solverOptions%iter            = 100
         solverOptions%stp_test        = 1 
         solverOptions%omega           = 1d0
-        solverOptions%singular_matrix = gm_smat
+        solverOptions%singular_matrix = smat
 
         call assembleSolverHierarchy('gm')
         call assembleSolverHierarchy('id') !GMRES preconditioner
@@ -2465,12 +2467,6 @@ c     Perform matvec in finest grid
           kminf = mgrz*(kc-1)+1
           kmaxf = mgrz* kc
 
-cc          write (*,*) 'DIAG -- MGmatvec',igf,igc,mgrx,mgry,mgrz
-cc          write (*,*) 'DIAG -- MGmatvec',ic,jc,kc
-cc          write (*,*) 'DIAG -- MGmatvec',iminf,imaxf,jminf,jmaxf
-cc     .                                  ,kminf,kmaxf
-cc          write (*,*)
-
           !Perform matvec on fine grid stencil
           do kf = kminf,kmaxf
             do jf = jminf,jmaxf
@@ -2486,7 +2482,7 @@ cc          write (*,*)
 
 c     Restrict residual
 
-        call restrictMGVector(neq,MGy,igf,igc,0,volf)
+        call restrictMGVector(neq,MGy,igf,igc,0,res_vol_wgt)
 
 c     Map coarse grid residual
 
@@ -2915,7 +2911,9 @@ c     Local variables
 
 c     Begin program
 
-      volf = volw
+c     Set internal flags
+
+      res_vol_wgt = volw
       galerkin = glrkin
 
 c     Allocate MG pointers
@@ -3317,7 +3315,7 @@ cc      endif
         if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
         allocate(diag(neq*nblk,2*ntot*nblk))
         call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                   ,ncolors,volf,galerkin)
+     .                   ,ncolors,res_vol_wgt,galerkin)
         if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         fdiag = .true.
       endif
@@ -3594,7 +3592,7 @@ c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
         call crestrict(neq
      .                ,yy(isigc),ntotv(igc),nxv(igc),nyv(igc),nzv(igc)
      .                ,wrk(isig),ntotv(igr),nxv(igr),nyv(igr),nzv(igr)
-     .                ,orderres,igr,volf)
+     .                ,orderres,igr,res_vol_wgt)
 
         !Debugging plots
         if (igc == igmax.and.mg_debug) then
@@ -4459,7 +4457,7 @@ c     Configure recursive plane/line JB solve
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
-        options%vol_res                     = volf        
+cc        options%vol_res                     = volf        
 
         options%mg_coarse_solver_depth      = line_crse_depth
         options%mg_line_relax               = .false.
@@ -4927,7 +4925,7 @@ c     Configure recursive plane/line MG solve
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
-        options%vol_res                     = volf        
+cc        options%vol_res                     = volf        
         options%mg_line_relax               = .false.
         options%mg_coarse_solver_depth      = crsedpth 
         options%mg_vertex_relax             = vbr_mg
@@ -6486,13 +6484,14 @@ c Call variables
 c Local variables
 
       integer    :: iter,alloc_stat,isig,itr,nn,ieq,irbg1,nrbg1,igridc
-      integer    :: imin,imax,jmin,jmax,kmin,kmax,iming,itr2
+      integer    :: imin,imax,jmin,jmax,kmin,kmax,iming,itr2,ng
       real(8)    :: omega0,omega10,omega01,tol
-      logical    :: fdiag,fpointers,vbr,prnt
+      logical    :: fdiag,fpointers,vbr,prnt,smat
 
       integer    :: i,j,k,iv,jv,kv,if,jf,kf,nxf,nyf,nzf,iiv,ivg,ncolors
       integer    :: ii,iii,iib,iiib,iic,iig,iblock,jblock,kblock,nblk,i1
-      real(8)    :: mag0=1d0,mag1,mag,lmag,yy(ntot),magsp,magsp0
+      real(8)    :: mag0=1d0,mag1,mag,magsp,magsp0
+     $             ,lmag(1+neq),yy(ntot),ones(ntot)
 
       real(8),allocatable, dimension(:)  :: dummy,rhs
 
@@ -6518,6 +6517,7 @@ c Read solver configuration
       ncolors= options%ncolors
       diag   => options%diag
       mgctx  => options%mgctx
+      smat   = options%singular_matrix
 
 c Allocate pointers
 
@@ -6560,7 +6560,7 @@ c Find diagonal for smoothers
         if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
         allocate(diag(neq*nblk,2*ntot*nblk))
         call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                   ,ncolors,volf,galerkin)
+     .                   ,ncolors,res_vol_wgt,galerkin)
         if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         fdiag = .true.
       endif
@@ -6571,117 +6571,154 @@ c Preparation for iteration
 
       if (guess.eq.0) zz = 0d0
 
+      ones = 1d0
+
 c Jacobi iteration
 
       allocate(dummy(neq*nblk),rhs(neq*nblk))
 
       do itr=1,iter
 
-        mag  = 0d0
+        mag1 = mag
 
         call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
 
 c       VERTEX-BASED RELAXATION
         if (vbr) then
 
-          !Vertex sampling
-          do kv=1,max(nzf-mg_ratio_z(igrid)+1,1)
-            do jv=1,max(nyf-mg_ratio_y(igrid)+1,1)
-              do iv=1,max(nxf-mg_ratio_x(igrid)+1,1)
-
-              !Find new residual
-              do kblock=1,mg_ratio_z(igrid)
-                do jblock=1,mg_ratio_y(igrid)
-                  do iblock=1,mg_ratio_x(igrid)
-
-                    iib = iblock + mg_ratio_x(igrid)*(jblock-1)
-     .                           + mg_ratio_x(igrid)
-     .                            *mg_ratio_y(igrid)*(kblock-1)
-
-                    if = iv-1 + iblock
-                    jf = jv-1 + jblock
-                    kf = kv-1 + kblock
-
-                    ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-
-                    do ieq = 1,neq
-                      iii  = neq*(ii -1) + ieq
-                      iiib = neq*(iib-1) + ieq
-                      rhs(iiib) = rr(iii) - yy(iii)
-                    enddo
-
-                  enddo
-                enddo
-              enddo
-
-             !Multiply by D^-1 (stored in diag)
-              iiv = iv + nxf*(jv-1) + nxf*nyf*(kv-1)
-              ivg  = (iiv-1)*neq*nblk + isig -1
-              dummy = matmul(transpose(diag(:,ivg+1:ivg+neq*nblk)),rhs)
-
-             !Update zz
-              do kblock=1,mg_ratio_z(igrid)
-                do jblock=1,mg_ratio_y(igrid)
-                  do iblock=1,mg_ratio_x(igrid)
-
-                    iib = iblock + mg_ratio_x(igrid)*(jblock-1)
-     .                           + mg_ratio_x(igrid)
-     .                            *mg_ratio_y(igrid)*(kblock-1)
-
-                    if = iv-1 + iblock
-                    jf = jv-1 + jblock
-                    kf = kv-1 + kblock
-
-                    ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
-
-                    do ieq = 1,neq
-                      iii  = neq*(ii -1) + ieq
-                      iiib = neq*(iib-1) + ieq
-                      zz(iii) = zz(iii) + omega0*dummy(iiib)
-                    enddo
-
-                  enddo
-                enddo
-              enddo
-
-              mag = mag + sum(rhs*rhs)
-
-              enddo
-            enddo
-          enddo
+          call vertex_JB
 
 c       STANDARD RELAXATION
         else
 
-          call limits(0,nxf,nyf,nzf,igrid,imin,imax,jmin,jmax,kmin,kmax)
+          call std_JB
 
-          do k=kmin,kmax
-            do j=jmin,jmax
-              do i=imin,imax
+        endif
 
-                ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+c     Eliminate null space
 
-                iii = neq*(ii-1)
+cc        if (smat) zz = zz - dot2(zz,ones)/dot2(ones,ones)*ones
 
-                !Find new residual
-                do ieq = 1,neq
-                  rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-                enddo
+c     Check convergence
 
-                !Multiply by D^-1 (stored in diag)
-                iig = iii + isig - 1
-                dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
+c$$$        if (itr.eq.1) then
+c$$$          mag0 = mag
+c$$$          if (mag.lt.1d-20*nn) then
+c$$$            mag0 = 1d0
+c$$$            mag1 = 1d0
+c$$$            exit
+c$$$          endif
+c$$$          if (out.ge.2.and.prnt) write (*,10)itr-1,mag,mag/mag0
+c$$$        else
+c$$$          if (out.ge.2.and.prnt) write (*,20)itr-1,mag,mag/mag0,mag/mag1
+c$$$          mag1 = mag
+c$$$          if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
+c$$$        endif
 
-                !Update zz
-                do ieq=1,neq
-                  zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
-                enddo
+        if (out.ge.2.and.prnt) write(*,20) itr,mag,mag/mag0,mag/mag1
 
-                mag = mag + sum(rhs*rhs)
+        if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
 
-              enddo
+      enddo
+
+c Calculate final residual and output info
+
+      itr = min(itr,iter)
+
+c$$$      if (out.ge.1) then
+c$$$        call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+c$$$        call MGvecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
+c$$$        mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
+c$$$
+c$$$        if (itr.eq.0) then
+c$$$          mag0 = mag
+c$$$          mag1 = mag
+c$$$        endif
+c$$$      endif
+c$$$
+c$$$      if (out.ge.2.and.prnt) then
+c$$$        write (*,20) itr,mag,mag/mag0,mag/mag1
+c$$$        write (*,*)
+c$$$      elseif (out.eq.1.and.prnt) then
+c$$$        write (*,10) itr,mag,mag/mag0
+c$$$      endif
+
+      if (out.ge.2.and.prnt) then
+cc        write (*,20) itr,mag,mag/mag0,mag/mag1
+        write (*,*)
+      elseif (out.eq.1.and.prnt) then
+        write (*,10) itr,mag,mag/mag0
+      endif
+
+      options%iter_out = itr
+      options%tol_out  = mag/mag0
+
+c End program
+
+      deallocate (dummy,rhs)
+
+      if (fdiag) then
+        deallocate(diag)
+      else
+        nullify(diag)
+      endif
+
+      call deallocPointers(fpointers)
+
+ 10   format (' JB Iteration:',i4,'; Residual:',1p,1e10.2,
+     .        '; Ratio:',1e10.2)
+ 20   format (' JB Iteration:',i4,'; Residual:',1p,1e10.2,
+     .        '; Ratio:',1e10.2,'; Damping:',1e10.2)
+
+      contains
+
+c     optionsConsistencyCheck
+c     ###################################################################
+      subroutine optionsConsistencyCheck
+
+        if (options%mg_vertex_relax .and. options%mg_line_relax) then
+          if (prnt)
+     .       write (*,*) 'Invalid setting for JB relaxation: cannot do'
+          if (prnt)
+     .       write (*,*) 'vertex-based and line-based relaxation',
+     .                  ' simultaneously!'
+          call pstop('optionsConsistencyCheck in jb','Aborting...')
+        endif
+          
+      end subroutine optionsConsistencyCheck
+
+c     std_JB
+c     ###################################################################
+      subroutine std_JB
+
+        mag  = 0d0
+
+        call limits(0,nxf,nyf,nzf,igrid,imin,imax,jmin,jmax,kmin,kmax)
+
+        do k=kmin,kmax
+          do j=jmin,jmax
+            do i=imin,imax
+
+              ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+
+              iii = neq*(ii-1)
+
+              !Find new residual
+              yy(iii+1:iii+neq) = rr(iii+1:iii+neq) - yy(iii+1:iii+neq)
+
+              !Multiply by D^-1 (stored in diag)
+              iig = iii + isig - 1
+              dummy = matmul(transpose(diag(:,iig+1:iig+neq))
+     $                                ,yy(iii+1:iii+neq))
+
+              !Update zz
+              zz(iii+1:iii+neq) = zz(iii+1:iii+neq) + omega0*dummy
+
             enddo
           enddo
+        enddo
+
+        mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
 
 cc          !Take care of points around singular point
 cc          if (isSP(1,1,1,igrid,igrid,igrid)) then
@@ -6752,100 +6789,91 @@ cc            mg_ctx_temp%iline(igrid) = 0 !Unset line smoothing
 cc
 cc          endif
 
-        endif
+      end subroutine std_JB
 
-c     Check convergence
+c     vertex_JB
+c     ###################################################################
+      subroutine vertex_JB
+
+        mag  = 0d0
+
+        !Vertex sampling
+        do kv=1,max(nzf-mg_ratio_z(igrid)+1,1)
+          do jv=1,max(nyf-mg_ratio_y(igrid)+1,1)
+            do iv=1,max(nxf-mg_ratio_x(igrid)+1,1)
+
+            !Find new residual
+            do kblock=1,mg_ratio_z(igrid)
+              do jblock=1,mg_ratio_y(igrid)
+                do iblock=1,mg_ratio_x(igrid)
+
+                  iib = iblock + mg_ratio_x(igrid)*(jblock-1)
+     .                         + mg_ratio_x(igrid)
+     .                          *mg_ratio_y(igrid)*(kblock-1)
+
+                  if = iv-1 + iblock
+                  jf = jv-1 + jblock
+                  kf = kv-1 + kblock
+
+                  ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                  do ieq = 1,neq
+                    iii  = neq*(ii -1) + ieq
+                    iiib = neq*(iib-1) + ieq
+                    rhs(iiib) = rr(iii) - yy(iii)
+                  enddo
+
+                enddo
+              enddo
+            enddo
+
+           !Multiply by D^-1 (stored in diag)
+            iiv = iv + nxf*(jv-1) + nxf*nyf*(kv-1)
+            ivg  = (iiv-1)*neq*nblk + isig -1
+            dummy = matmul(transpose(diag(:,ivg+1:ivg+neq*nblk)),rhs)
+
+           !Update zz
+            do kblock=1,mg_ratio_z(igrid)
+              do jblock=1,mg_ratio_y(igrid)
+                do iblock=1,mg_ratio_x(igrid)
+
+                  iib = iblock + mg_ratio_x(igrid)*(jblock-1)
+     .                         + mg_ratio_x(igrid)
+     .                          *mg_ratio_y(igrid)*(kblock-1)
+
+                  if = iv-1 + iblock
+                  jf = jv-1 + jblock
+                  kf = kv-1 + kblock
+
+                  ii  = if + nxf*(jf-1) + nxf*nyf*(kf-1)
+
+                  do ieq = 1,neq
+                    iii  = neq*(ii -1) + ieq
+                    iiib = neq*(iib-1) + ieq
+                    zz(iii) = zz(iii) + omega0*dummy(iiib)
+                  enddo
+
+                enddo
+              enddo
+            enddo
+
+            mag = mag + sum(rhs*rhs)
+
+            enddo
+          enddo
+        enddo
 
 #if defined(petsc)
-cc        if (.not.asm .and. out >= 1) then  !Do reduction only for debugging
         if (.not.asm) then
           lmag = mag
           call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
      .                       ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-cc        else
-cc          mag = mag0                 !Do NOT do reduction in parallel (convergence is set by #its)
         endif
 #endif
 
         mag = sqrt(mag)
 
-        if (itr.eq.1) then
-          mag0 = mag
-          mag1 = mag
-          if (mag.lt.1d-20*nn) then
-            mag0 = 1d0
-            mag1 = 1d0
-            exit
-          endif
-          if (out.ge.2.and.prnt) write (*,10)itr-1,mag,mag/mag0
-        else
-          if (out.ge.2.and.prnt) write (*,20)itr-1,mag,mag/mag0,mag/mag1
-          mag1 = mag
-          if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
-        endif
-
-      enddo
-
-c Calculate final residual and output info
-
-      itr = min(itr,iter)
-
-      if (out.ge.1) then
-        call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-        call MGvecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
-        mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
-
-        if (itr.eq.0) then
-          mag0 = mag
-          mag1 = mag
-        endif
-      endif
-
-      if (out.ge.2.and.prnt) then
-        write (*,20) itr,mag,mag/mag0,mag/mag1
-        write (*,*)
-      elseif (out.eq.1.and.prnt) then
-        write (*,10) itr,mag,mag/mag0
-      endif
-
-      options%iter_out = itr
-      options%tol_out  = mag/mag0
-
-c End program
-
-      deallocate (dummy,rhs)
-
-      if (fdiag) then
-        deallocate(diag)
-      else
-        nullify(diag)
-      endif
-
-      call deallocPointers(fpointers)
-
-      return
-
- 10   format (' JB Iteration:',i4,'; Residual:',1p,1e10.2,
-     .        '; Ratio:',1e10.2)
- 20   format (' JB Iteration:',i4,'; Residual:',1p,1e10.2,
-     .        '; Ratio:',1e10.2,'; Damping:',1e10.2)
-
-      contains
-
-c     optionsConsistencyCheck
-c     ###################################################################
-        subroutine optionsConsistencyCheck
-
-        if (options%mg_vertex_relax .and. options%mg_line_relax) then
-          if (prnt)
-     .       write (*,*) 'Invalid setting for JB relaxation: cannot do'
-          if (prnt)
-     .       write (*,*) 'vertex-based and line-based relaxation',
-     .                  ' simultaneously!'
-          call pstop('optionsConsistencyCheck in jb','Aborting...')
-        endif
-          
-        end subroutine optionsConsistencyCheck
+      end subroutine vertex_JB
 
       end subroutine jb
 
@@ -6883,16 +6911,17 @@ c Call variables
 c Local variables
 
       integer    :: iter,alloc_stat,isig,itr,itr2,nn,ieq,iig
-     .             ,zebra_dir,minzd,maxzd,zebra_it,zd,zit
+     .             ,zebra_dir,minzd,maxzd,zebra_it,zd,zit,ng
       integer    :: i,j,k,imin,imax,jmin,jmax,kmin,kmax
       integer    :: i1,j1,k1,i1min,i1max,j1min,j1max,k1min,k1max
 
       real(8)    :: omega0,tol,zebra_omg
-      logical    :: fdiag,fpointers,vbr,zebra,prnt
+      logical    :: fdiag,fpointers,vbr,zebra,prnt,smat
 
       integer    :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf
       integer    :: ii,iii,iib,iiib,iiv,ivg,iblock,jblock,kblock,nblk
-      real(8)    :: mag0,mag1,magsp,magsp0,mag,lmag,yy(ntot),magz,magz0
+      real(8)    :: mag0,mag1,magsp,magsp0,mag,lmag,magz,magz0
+     $             ,yy(ntot),ones(ntot)
 
       integer    :: ncolors,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
 
@@ -6971,7 +7000,7 @@ c Find diagonal for smoothers
         if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
         allocate(diag(neq*nblk,2*ntot*nblk))
         call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                   ,ncolors,volf,galerkin)
+     .                   ,ncolors,res_vol_wgt,galerkin)
         if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         fdiag = .true.
       endif
@@ -6999,6 +7028,8 @@ c Preparation for iteration
         iter = 0
       endif
 
+      ones = 1d0
+
 c GS iteration
 
       allocate(dummy(neq*nblk),rhs(neq*nblk))
@@ -7006,7 +7037,6 @@ c GS iteration
       do itr=1,iter
 
         mag1 = mag
-        mag  = 0d0
 
 c       ----------
 c       Colored GS
@@ -7058,23 +7088,14 @@ c         STANDARD RELAXATION
 
         endif
 
+c     Eliminate null space
+
+cc        if (smat) zz = zz - dot2(zz,ones)/dot2(ones,ones)*ones
+
 c     Check convergence
 
-#if defined(petsc)
-cc        if (.not.asm .and. out >= 1) then   !Do reduction only for debugging
-        if (.not.asm) then
-           lmag = mag
-           call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
-     .                       ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-cc        else
-cc          mag = mag0                  !Do NOT do reduction in parallel (convergence is set by #its)
-        endif
-#endif
-
-        mag = sqrt(mag)
-
-        if (out.ge.2.and.prnt) write(*,20) gs_type,itr,mag,mag/mag0
-     .                                     ,mag/mag1
+        if (out.ge.2.and.prnt)
+     $       write(*,20) gs_type,itr,mag,mag/mag0,mag/mag1
 
         if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
 
@@ -7137,6 +7158,8 @@ cccc          options%omega = 1.
 c     zebra_GS
 c     ###################################################################
       subroutine zebra_GS
+
+        mag = 0d0
 
         if (zebra_dir == 0) then
           minzd = 1
@@ -7227,6 +7250,8 @@ c diag ****
 
                     magz = magz + sum(rhs*rhs)  !Zebra color accumulator (sum over same color)
 
+cc                    summ = summ + zz(iii+1:iii+neq)
+
                   enddo
                  enddo
                 enddo
@@ -7263,11 +7288,23 @@ c diag ****
 
         enddo
 
+#if defined(petsc)
+        if (.not.asm) then
+          lmag = mag
+          call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
+     .                       ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+        endif
+#endif
+
+        mag = sqrt(mag)
+
       end subroutine zebra_GS
 
 c     colored_vrtx_GS
 c     ###################################################################
       subroutine colored_vrtx_GS
+
+        mag = 0d0
 
         call scheduleColors(igrid,ncolors,nrbg1,nrbg2,nrbg3
      .                     ,i1min,i1max,j1min,j1max,k1min,k1max)
@@ -7352,15 +7389,26 @@ c     ###################################################################
           enddo
         enddo
 
+#if defined(petsc)
+        if (.not.asm) then
+          lmag = mag
+          call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
+     .                       ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+        endif
+#endif
+
+        mag = sqrt(mag)
+
       end subroutine colored_vrtx_GS
 
 c     colored_GS
 c     ###################################################################
       subroutine colored_GS
 
+        mag = 0d0
+
         call scheduleColors(igrid,ncolors,nrbg1,nrbg2,nrbg3
      .                     ,i1min,i1max,j1min,j1max,k1min,k1max)
-
 
         if (out.ge.3.and.prnt) then
           write (*,*) '  colors=',nrbg1,nrbg2,nrbg3
@@ -7385,21 +7433,16 @@ c     ###################################################################
                   iii = neq*(i-1 + nxf*(j-1) + nxf*nyf*(k-1))
 
                   !Find new residual
-                  do ieq = 1,neq
-                    rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-                  enddo
+                  yy(iii+1:iii+neq) = rr(iii+1:iii+neq)
+     $                              - yy(iii+1:iii+neq)
 
                   !Multiply by D^-1 (stored in diag)
                   iig = iii + isig - 1
                   dummy=matmul(transpose(diag(:,iig+1:iig+neq))
-     .                        ,rhs)
+     .                        ,yy(iii+1:iii+neq))
 
                   !Update zz (except around SP)
-                  do ieq=1,neq
-                    zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
-                  enddo
-
-                  mag = mag + sum(rhs*rhs)
+                  zz(iii+1:iii+neq) = zz(iii+1:iii+neq) + omega0*dummy
 
                 enddo
               enddo
@@ -7410,11 +7453,15 @@ c     ###################################################################
           enddo
         enddo
 
+        mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))
+
       end subroutine colored_GS
 
 c     vertex_GS
 c     ###################################################################
       subroutine vertex_GS
+
+        mag = 0d0
 
         !Vertex sampling
         do kv=1,max(nzf-mg_ratio_z(igrid)+1,1)
@@ -7484,15 +7531,28 @@ c     ###################################################################
           enddo
         enddo
 
+#if defined(petsc)
+        if (.not.asm) then
+          lmag = mag
+          call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
+     .                       ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+        endif
+#endif
+
+        mag = sqrt(mag)
+
       end subroutine vertex_GS
 
 c     lexic_GS
 c     ###################################################################
       subroutine lexic_GS
 
-c       Forward pass
+        mag = 0d0
+
         call limits(0,nxf,nyf,nzf,igrid
      .             ,imin,imax,jmin,jmax,kmin,kmax)
+
+c       Forward pass
 
         do k=kmin,kmax
           do j=jmin,jmax
@@ -7506,55 +7566,48 @@ c       Forward pass
               iii = neq*(ii-1)
 
               !Find new residual
-              do ieq = 1,neq
-                rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-              enddo
+              yy(iii+1:iii+neq) = rr(iii+1:iii+neq) - yy(iii+1:iii+neq)
 
               !Multiply by D^-1 (stored in diag)
               iig = iii + isig - 1
-              dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
+              dummy = matmul(transpose(diag(:,iig+1:iig+neq))
+     $                                ,yy(iii+1:iii+neq))
 
               !Update solution zz
-              do ieq=1,neq
-                zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
-              enddo
+              zz(iii+1:iii+neq) = zz(iii+1:iii+neq) + omega0*dummy
 
-              mag = mag + sum(rhs*rhs)
+            enddo
+          enddo
+        enddo
+        
+c       Backward pass
+
+        do k=kmax,kmin,-1
+          do j=jmax,jmin,-1
+            do i=imax,imin,-1
+
+              ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+
+              call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
+
+              iii = neq*(ii-1)
+
+              !Find new residual
+              yy(iii+1:iii+neq) = rr(iii+1:iii+neq) - yy(iii+1:iii+neq)
+
+              !Multiply by D^-1
+              iig = iii + isig - 1
+              dummy = matmul(transpose(diag(:,iig+1:iig+neq))
+     $                                ,yy(iii+1:iii+neq))
+
+              !Update solution zz
+              zz(iii+1:iii+neq) = zz(iii+1:iii+neq) + omega0*dummy
 
             enddo
           enddo
         enddo
 
-ccc           Backward pass
-cc            do k=kmax,kmin,-1
-cc              do j=jmax,jmin,-1
-cc                do i=imax,imin,-1
-cc
-cc                  ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-cc
-cc                  call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
-cc
-cc                  iii = neq*(ii-1)
-cc
-cc                  !Find new residual
-cc                  do ieq = 1,neq
-cc                    rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-cc                  enddo
-cc
-cc                  !Multiply by D^-1
-cc                  iig = iii + isig - 1
-cc                  dummy = matmul(transpose(diag(:,iig+1:iig+neq)),rhs)
-cc
-cc                  !Update solution zz
-cc                  do ieq=1,neq
-cc                    zz(iii+ieq) = zz(iii+ieq) + omega0*dummy(ieq)
-cc                  enddo
-cc
-cc                  mag = mag + sum(rhs*rhs)
-cc
-cc                enddo
-cc              enddo
-cc            enddo
+        mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))
 
       end subroutine lexic_GS
 

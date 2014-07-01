@@ -10,7 +10,7 @@ c######################################################################
           !Global quantities
           integer    :: iter
           real(8)    :: tol,atol,stol
-          logical    :: vol_res
+cc          logical    :: vol_res
 
           !Stationary iterative methods quantities
           real(8)    :: omega
@@ -139,7 +139,7 @@ c       Initializes solver options
           solverOptions%orderprol= 0               !Interpolation order in prolongation (MG)
           solverOptions%fdiag    = .true.          !Whether to form matrix diagonal
                                                    !  for smoothing
-          solverOptions%vol_res  = .true.          !Whether residual contains volume information
+cc          solverOptions%vol_res  = .true.          !Whether residual contains volume information
           nullify(solverOptions%diag)              !Diagonal not provided externally
           solverOptions%omega = 1d0                !Relaxation parameter
           solverOptions%omega10= 0d0               !Weighed Jacobi relaxation parameter

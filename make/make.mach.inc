@@ -292,7 +292,11 @@ ifeq ($(HOST),gongora)
 
     HDF5 = t
 
-    HDF5_HOME =/opt/local
+#    HDF5_HOME =/opt/local
+#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#    HDF5_MOD  = $(HDF5_HOME)/include
+#    HDF5_INC  = $(HDF5_MOD)
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gfortran/parallel
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
@@ -309,10 +313,10 @@ ifeq ($(HOST),gongora)
 
     HDF5 = t
 
-    HDF5_HOME = $(HOME)/lib/hdf5-1.8.5/gfortran/serial
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gfortran/serial
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  =$(HDF5_HOME)/include
-    HDF5_INC  =$(HDF5_HOME)/include
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
 
     ADIOS = f
 

@@ -290,9 +290,9 @@ c     #################################################################
       function XformToCurv_ijk(i,j,k,igrid,car,tocnv) result(curv)
 
 c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
-c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
-c     covariant=.true., and contravariant otherwise.
+c     Transforms a Cartesian vector to curvilinear representation at
+c     grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     tocnv=.false., and contravariant otherwise.
 c     -----------------------------------------------------------------
 
         implicit none
