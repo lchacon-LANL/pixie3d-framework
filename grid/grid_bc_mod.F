@@ -1558,7 +1558,8 @@ c     Find BC update
         case(PER)
           call periodicBC(array(:,:,:,nvar),dim,loc)
         case(EQU)
-          call extrapolateBC(array(:,:,:,nvar),array0(:,:,:,nvar)
+          call extrapolateBC(array (:,:,:,nvar)
+     $                      ,array0(:,:,:,nvar)
      .                      ,dim,loc,order)
         case(DIR)
           allocate(zeros(0:nxbc+1,0:nybc+1,0:nzbc+1,nvar))
@@ -1640,62 +1641,9 @@ c     Begin program
 
         ibc = (1+loc)+2*(dim-1)
 
-cc#if !defined(PER_BC_SYNC)
-cc
-cccc      call findBCLoopLimits(dim,loc,iimnm,iimxp,jjmnm,jjmxp,kkmnm,kkmxp
-cc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
-cc     .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
-cc
-cc      select case (ibc)
-cc      case (1)                  !x0
-cc       if (.not.asm_dir(1))
-cc     . array(0     ,jmin:jmax,kmin:kmax)=array(nxbc,jmin:jmax,kmin:kmax)
-cc      case (2)                  !x1                                       
-cc       if (.not.asm_dir(1))
-cc     . array(nxbc+1,jmin:jmax,kmin:kmax)=array(1   ,jmin:jmax,kmin:kmax)
-cc      case (3)                  !y0                                       
-cc       if (.not.asm_dir(2))
-cc     . array(imin:imax,0     ,kmin:kmax)=array(imin:imax,nybc,kmin:kmax)
-cc      case (4)                  !y1                                       
-cc       if (.not.asm_dir(2))
-cc     . array(imin:imax,nybc+1,kmin:kmax)=array(imin:imax,1   ,kmin:kmax)
-cc      case (5)                  !z0                                       
-cc       if (.not.asm_dir(3))
-cc     . array(imin:imax,jmin:jmax,0     )=array(imin:imax,jmin:jmax,nzbc)
-cc      case (6)                  !z1                                       
-cc       if (.not.asm_dir(3))
-cc     . array(imin:imax,jmin:jmax,nzbc+1)=array(imin:imax,jmin:jmax,1   )
-cc      case default
-cc       call pstop('periodicBC'
-cc     .           ,'Boundary '//int2char(ibc)//' non existent')
-cc      end select
-cc
-cc#else
-
         call per_BC(ibc,array)
-cc
-cc         select case (ibc)
-cc         case (1)                  !x0
-cc           array(0     ,:,:)=array(nxbc,:,:)
-cc         case (2)                  !x1
-cc           array(nxbc+1,:,:)=array(1   ,:,:)
-cc         case (3)                  !y0
-cc           array(:,0     ,:)=array(:,nybc,:)
-cc         case (4)                  !y1
-cc           array(:,nybc+1,:)=array(:,1   ,:)
-cc         case (5)                  !z0
-cc           array(:,:,0     )=array(:,:,nzbc)
-cc         case (6)                  !z1
-cc           array(:,:,nzbc+1)=array(:,:,1   )
-cc         case default
-cc           call pstop('periodicBC'
-cc     .               ,'Boundary '//int2char(ibc)//' non existent')
-cc         end select
-
-cc#endif
 
       endif
-
 #endif
 
 c     End program
