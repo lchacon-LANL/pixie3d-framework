@@ -1682,7 +1682,8 @@ c     ##################################################################
 
         logical :: vbr_mg
      .            ,galerkin=.false.
-cc     .            ,volf=.false.
+
+        private :: find_mf_diag_std,find_mf_diag_colored
 
       contains
 
