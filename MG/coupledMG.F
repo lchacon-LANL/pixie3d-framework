@@ -6534,10 +6534,6 @@ c Allocate pointers
 c Initialize auxiliary variables
 
       !Global dimensions
-cc      nxf = nxv(igrid)
-cc      nyf = nyv(igrid)
-cc      nzf = nzv(igrid)
-
       nxf = grid_params%nxv(igrid)
       nyf = grid_params%nyv(igrid)
       nzf = grid_params%nzv(igrid)
@@ -6569,9 +6565,26 @@ c Preparation for iteration
 
       nn = ntot
 
-      if (guess.eq.0) zz = 0d0
-
       ones = 1d0
+
+      if (guess.eq.0) then
+        zz = 0d0
+        mag0 = sqrt(MGdot(igrid,neq,ntot,rr,rr)) !sqrt(yy*yy)
+      else
+        call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
+        call MGvecadd(igrid,neq,ntot,-1d0,yy,1d0,rr) !yy=rr-yy
+        mag0 = sqrt(MGdot(igrid,neq,ntot,yy,yy)) !sqrt(yy*yy)
+       endif
+
+      mag = mag0
+
+      if (out.ge.2.and.prnt) write(*,10) 0,mag,1d0
+
+      if (mag0.lt.1d-20*nn) then
+        mag0 = 1d0
+        mag1 = 1d0
+        iter = 0
+      endif
 
 c Jacobi iteration
 
@@ -6601,20 +6614,6 @@ cc        if (smat) zz = zz - dot2(zz,ones)/dot2(ones,ones)*ones
 
 c     Check convergence
 
-c$$$        if (itr.eq.1) then
-c$$$          mag0 = mag
-c$$$          if (mag.lt.1d-20*nn) then
-c$$$            mag0 = 1d0
-c$$$            mag1 = 1d0
-c$$$            exit
-c$$$          endif
-c$$$          if (out.ge.2.and.prnt) write (*,10)itr-1,mag,mag/mag0
-c$$$        else
-c$$$          if (out.ge.2.and.prnt) write (*,20)itr-1,mag,mag/mag0,mag/mag1
-c$$$          mag1 = mag
-c$$$          if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
-c$$$        endif
-
         if (out.ge.2.and.prnt) write(*,20) itr,mag,mag/mag0,mag/mag1
 
         if (mag/mag0.lt.tol.or.mag.lt.1d-20*nn) exit
@@ -6625,26 +6624,7 @@ c Calculate final residual and output info
 
       itr = min(itr,iter)
 
-c$$$      if (out.ge.1) then
-c$$$        call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-c$$$        call MGvecadd(igrid,neq,ntot,-1d0,yy,1d0,rr)  !yy=rr-yy
-c$$$        mag = sqrt(MGdot(igrid,neq,ntot,yy,yy))       !sqrt(yy*yy)
-c$$$
-c$$$        if (itr.eq.0) then
-c$$$          mag0 = mag
-c$$$          mag1 = mag
-c$$$        endif
-c$$$      endif
-c$$$
-c$$$      if (out.ge.2.and.prnt) then
-c$$$        write (*,20) itr,mag,mag/mag0,mag/mag1
-c$$$        write (*,*)
-c$$$      elseif (out.eq.1.and.prnt) then
-c$$$        write (*,10) itr,mag,mag/mag0
-c$$$      endif
-
       if (out.ge.2.and.prnt) then
-cc        write (*,20) itr,mag,mag/mag0,mag/mag1
         write (*,*)
       elseif (out.eq.1.and.prnt) then
         write (*,10) itr,mag,mag/mag0
@@ -6929,8 +6909,6 @@ c Local variables
 
       real(8),allocatable, dimension(:) :: dummy,rhs
 
-cc      type(grid_mg_def),pointer :: line_mg_grid
-
       type(mg_ctx),pointer :: mgctx
 
       character(7) :: gs_type
@@ -6975,9 +6953,6 @@ c Set pointers
 c Initialize auxiliary variables
 
       !Global grid size
-cc      nxf = nxv(igrid)
-cc      nyf = nyv(igrid)
-cc      nzf = nzv(igrid)
       nxf = grid_params%nxv(igrid)
       nyf = grid_params%nyv(igrid)
       nzf = grid_params%nzv(igrid)
@@ -7106,8 +7081,6 @@ c Calculate final residual and output info
       itr = min(itr,iter)
 
       if (out.ge.2.and.prnt) then
-cc        write (*,20) gs_type,itr,mag,mag/mag0,mag/mag1
-cc        write (*,10) gs_type,itr,mag,mag/mag0
         write (*,*)
       elseif (out.eq.1.and.prnt) then
         write (*,10) gs_type,itr,mag,mag/mag0
