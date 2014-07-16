@@ -534,18 +534,22 @@ c     Begin program
           coarse_rat = 1
         else
           coarse_rat = coarse_rat*mgr(ig-1)
+          !Failsafe to avoid overextending domain
+          if (lpack%dx0*coarse_rat > lmax-lmin) then
+            coarse_rat = coarse_rat/mgr(ig-1)
+          endif
         endif
 
 c     Find global grid
 
         call findGlobalGrid(lmin,lmax,bcs1,bcs2,xxg,lpack,coarse_rat)
 
-cc        write (*,*) 'Coarsening ratios=',mgr
-cc        write (*,*) 'Grid level=',ig
-cc        write (*,*) 'Domain limits=',lmin,lmax
-cc        write (*,*) xxg
-cc        write (*,*)
-cc        pause
+c$$$        write (*,*) 'Coarsening ratios=',mgr
+c$$$        write (*,*) 'Grid level=',ig
+c$$$        write (*,*) 'Domain limits=',lmin,lmax
+c$$$        write (*,*) xxg
+c$$$        write (*,*)
+c$$$        pause
 
 c     Assign global grid
 
