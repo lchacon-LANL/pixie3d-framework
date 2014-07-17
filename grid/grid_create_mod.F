@@ -398,6 +398,21 @@ c     Set grid parameters
           zmin = 0d0
         endif
 
+        if (gdef%nglx == 1) then
+          xmax = 1d0
+          xmin = 0d0
+        endif
+
+        if (gdef%ngly == 1) then
+          ymax = 1d0
+          ymin = 0d0
+        endif
+
+        if (gdef%nglz == 1) then
+          zmax = 1d0
+          zmin = 0d0
+        endif
+
         if (gdef%gxmin == UNDEF_DP) gdef%gxmin = xmin
         if (gdef%gxmax == UNDEF_DP) gdef%gxmax = xmax
         if (gdef%gymin == UNDEF_DP) gdef%gymin = ymin
