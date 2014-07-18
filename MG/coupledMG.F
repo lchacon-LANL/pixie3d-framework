@@ -2109,8 +2109,8 @@ c     Gather variables for coupled solve
 
           bi = 0d0
 
-cc          call random_number(xi)
-          xi = 1d0
+          call random_number(xi)
+cc          xi = 1d0
 
           if (guess == 0) then
             call pstop('cSolver','guess must be =1 for cvrgnce test')
