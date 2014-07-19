@@ -1937,13 +1937,25 @@ c     Local variables
         real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,rtol,zomg
         real(8), target :: ddg(neq,2*neq*ntotp)
         logical    :: gm_crse_solve,cvrg_test,lrelax,zrelax
-     .               ,gm_drvr,smat,cg_drvr,glkin
+     .               ,gm_drvr,smat,cg_drvr,glkin,bc_chk
 
         character(2) :: smth
 
 c     Begin program
 
         res_vol_wgt = vol_wgt          !Initialize volume-weighing variable
+
+c     Check input integrity
+
+        bc_chk = .false.
+
+        do i=1,6
+          do ieq=1,neq
+            bc_chk = (bcnd(i,ieq) < 0 .or. bcnd(i,ieq) > BCTOT)
+          enddo
+        enddo
+
+        if (bc_chk) call pstop('cSolver','Wrong BC input')
 
 c     Process optional arguments
 

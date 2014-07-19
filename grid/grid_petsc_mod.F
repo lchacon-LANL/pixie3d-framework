@@ -38,6 +38,7 @@ c     -----------------------------------------------------------------
      .                      ,OPN=10  !Open boundary conditions
 
         integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,FSYM,OPN)
+     .                      ,BCTOT=10!Total number of BC defs
 
         logical :: asm_dir(3)=.false.,asm=.false.
 
