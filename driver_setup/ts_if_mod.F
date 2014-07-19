@@ -105,6 +105,8 @@ c     Local variables
 
 c     Begin program
 
+      vol_wgt = .false.
+
       ierr = NOERR
 
       nn = size(x)

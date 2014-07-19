@@ -10,7 +10,7 @@ c ######################################################################
      .                                     ,bdfp,bdfn,bdfnm
 
 #if !defined(samrai)
-        real(8),pointer,dimension(:) :: fold,fsrc,x_old
+        real(8),pointer,dimension(:) :: fold,fsrc,x_old,x0
 #endif
 
         integer :: numtime,ndstep,ntimemax
@@ -59,7 +59,7 @@ c     Local variables
 
 c     Begin program
 
-      allocate(fold(ntotd),fsrc(ntotd),x_old(ntotd))
+      allocate(fold(ntotd),fsrc(ntotd),x_old(ntotd),x0(ntotd))
 
       allocate(cnf(neqd),one_over_dt(neqd)
      .        ,bdfp(neqd),bdfn(neqd),bdfnm(neqd))
@@ -70,9 +70,10 @@ c     Initialization
       bdfn  = -1d0
       bdfnm =  0d0
 
-      fold = 0d0
-      fsrc = 0d0
+      fold  = 0d0
+      fsrc  = 0d0
       x_old = 0d0
+      x0    = 0d0
 
 c     End program
 
@@ -94,7 +95,7 @@ c     Local variables
 
 c     Begin program
 
-      deallocate(fold,fsrc,x_old)
+      deallocate(fold,fsrc,x_old,x0)
 
       deallocate(cnf,one_over_dt,bdfp,bdfn,bdfnm)
 

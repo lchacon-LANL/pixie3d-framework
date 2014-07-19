@@ -224,6 +224,8 @@ c Create equilibrium u_0
 
       call get_src(u_n)  !This also imposes BCs
 
+      call mapStructureToVector(x0,u_n)
+
 c Write geometry when applicable
 
       if (coords == 'ext') call writeExtMap
