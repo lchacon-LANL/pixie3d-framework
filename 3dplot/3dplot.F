@@ -137,11 +137,15 @@ cc          endif
         endif
 #endif
         !Post-process solution for diagnostics
-        call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
+        if (.not.skip_diag)
+     .       call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
         if (   ( nplot        == ndplot       .and. nplot > 0)
      .     .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
      .     .or. time         == 0d0) then
+
+          if (skip_diag) 
+     .       call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
           !Dump time step plots
           plot  = .true.
