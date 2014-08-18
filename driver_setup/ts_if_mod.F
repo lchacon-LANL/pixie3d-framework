@@ -187,6 +187,7 @@ c     Define TS parameters
         bdfnm = 0d0
         cnf   = cnfactor
       endif
+      one_over_dt = 1d0/dt
 
       call app_TS_Parameters(dt,one_over_dt,cnf)  !External
 
