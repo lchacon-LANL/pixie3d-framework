@@ -36,17 +36,9 @@ c     Begin program
 
       nn = size(x)
 
+c     Store old-time solution
+
       x_old = x
-
-c     Evaluate nonlinear function at old time for theta scheme
-
-      old_time_eval = .true.     !This informs nlfunction that we are processing
-                                 !  n time level info (also needed for BDF2)
-
-cc      if (.not.(bdf2.or.bdf1)) call evaluateNonlinearFunction(nn,x,fold)
-      call evaluateNonlinearFunction(nn,x_old,fold)
-
-      old_time_eval = .false.
 
 c     Newton-Krylov iteration
 
@@ -173,6 +165,8 @@ c     Begin program
         dt = ddt
       endif
 
+      if (dt == 0d0) call pstop('updateSolution','dt=0!!!')
+
       ierr = NOERR
 
       itgmres = 0
@@ -194,7 +188,25 @@ c     Define TS parameters
         cnf   = cnfactor
       endif
 
-      if (dt == 0d0) call pstop('updateSolution','dt=0!!!')
+      call app_TS_Parameters(dt,one_over_dt,cnf)  !External
+
+#if defined(MK)
+      if (mk_grid) then
+        if (relax_init_grid) then
+          cnf = 0d0
+          bdfp = 0d0
+          bdfn = 0d0
+          bdfnm = 0d0
+          one_over_dt = 0d0
+        else
+          cnf  (neqd) = -tau/dt
+          bdfp (neqd) = 0d0
+          bdfn (neqd) = 0d0
+          bdfnm(neqd) = 0d0
+          one_over_dt(neqd) = 0d0
+        endif
+      endif
+#endif
 
 c     Time step update
 
