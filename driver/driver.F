@@ -37,23 +37,23 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine preProcessSol(v_n,v_nm)
+        subroutine preProcessSol(vn,vnm)
         use var_setup
-        type(var_array),pointer :: v_n,v_nm
+        type(var_array),pointer :: vn,vnm
         end subroutine preProcessSol
       END INTERFACE
 
       INTERFACE
-        subroutine postProcessSol(v_arr)
+        subroutine postProcessSol(vnm,vn,vnp)
         use var_setup
-        type(var_array),pointer :: v_arr
+        type(var_array),pointer :: vnm,vn,vnp
         end subroutine postProcessSol
       END INTERFACE
 
       INTERFACE
-        subroutine setInitialCondition(varrayn,varraynp)
+        subroutine setInitialCondition(vn,vnp)
         use var_setup
-        type(var_array),pointer :: varrayn,varraynp
+        type(var_array),pointer :: vn,vnp
         end subroutine setInitialCondition
       END INTERFACE
 
@@ -62,6 +62,16 @@ c Interfaces
         use var_setup
         type(var_array),pointer :: varray
         end subroutine perturbEquilibrium
+      END INTERFACE
+
+      INTERFACE
+        subroutine evaluate_NLF(igr,varray,fi)
+        use parameters
+        use var_setup
+        integer :: igr
+        real(8) :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluate_NLF
       END INTERFACE
 
 c Begin program
@@ -133,6 +143,15 @@ c     Preprocess old solution (for e.g. splitting)
 
         if (preprocess) call preProcessSol(u_nm,u_n) !External
 
+c     Evaluate old-time NLF
+
+        old_time_eval = .true.  !This informs nlfunction that we are processing
+                                !  n time level info
+
+        call evaluate_NLF(1,u_n,fold)
+
+        old_time_eval = .false.
+
 c     Store BDF2 old-time solution (in u_np)
 
         if (bdf2) call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,u_np)
@@ -193,7 +212,7 @@ c     Postprocess solution
         call PetscLogStagePush(prof_stage(3),perr)
 #endif
 
-        if (postprocess) call postProcessSol(u_np)  !External
+        if (postprocess) call postProcessSol(u_nm,u_n,u_np)  !External
 
 c     Update other counters (only if timeStep is successful)
 
