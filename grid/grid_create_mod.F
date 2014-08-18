@@ -398,20 +398,20 @@ c     Set grid parameters
           zmin = 0d0
         endif
 
-        if (gdef%nglx == 1) then
-          xmax = 1d0
-          xmin = 0d0
-        endif
-
-        if (gdef%ngly == 1) then
-          ymax = 1d0
-          ymin = 0d0
-        endif
-
-        if (gdef%nglz == 1) then
-          zmax = 1d0
-          zmin = 0d0
-        endif
+cc        if (gdef%nglx == 1) then
+cc          xmax = 1d0
+cc          xmin = 0d0
+cc        endif
+cc
+cc        if (gdef%ngly == 1) then
+cc          ymax = 1d0
+cc          ymin = 0d0
+cc        endif
+cc
+cc        if (gdef%nglz == 1) then
+cc          zmax = 1d0
+cc          zmin = 0d0
+cc        endif
 
         if (gdef%gxmin == UNDEF_DP) gdef%gxmin = xmin
         if (gdef%gxmax == UNDEF_DP) gdef%gxmax = xmax
@@ -680,6 +680,8 @@ c     Coordinate-specific checks
           if    ((nxx == 1 .and. ((xmax-xmin)>1d-3))
      .       .or.(nyy == 1 .and. ((ymax-ymin)>1d-3))
      .       .or.(nzz == 1 .and. ((zmax-zmin)>1d-3))) then
+            write (*,*) nxx,nyy,nzz
+            write (*,*) xmax,xmin,ymax,ymin,zmax,zmin
             call pstop('consistencyCheck'
      .                ,'Error: large grid spacing in'//
      .                 ' ignorable direction')
