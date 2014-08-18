@@ -271,28 +271,6 @@ c Interfaces
 
 c Begin program
 
-c Define time-step parameters
-
-      call defineTSParameters
-
-#if defined(MK)
-      if (mk_grid) then
-        if (relax_init_grid) then
-          cnf = 0d0
-          bdfp = 0d0
-          bdfn = 0d0
-          bdfnm = 0d0
-          one_over_dt = 0d0
-        else
-          cnf  (neqd) = -tau/dt
-          bdfp (neqd) = 0d0
-          bdfn (neqd) = 0d0
-          bdfnm(neqd) = 0d0
-          one_over_dt(neqd) = 0d0
-        endif
-      endif
-#endif
-
 c Setup parallel BC flags to indicate BCs require communication
 
       call setup_petsc_BC
