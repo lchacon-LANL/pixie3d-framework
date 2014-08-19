@@ -287,7 +287,7 @@ c     Begin program
 
 c     XformToCurv_ijk
 c     #################################################################
-      function XformToCurv_ijk(i,j,k,igrid,car,tocnv) result(curv)
+      function XformToCurv_ijk(i,j,k,igrid,car,tocnv,nojac) result(curv)
 
 c     -----------------------------------------------------------------
 c     Transforms a Cartesian vector to curvilinear representation at
@@ -303,13 +303,26 @@ c     Input variables
         real(8) :: car(3),curv(3)
         logical :: tocnv
 
+        logical,optional :: nojac
+
 c     Local variables
 
         real(8) :: jac
+        logical :: nj
 
 c     Begin program
 
-        jac = gmetric%grid(igrid)%jac(i,j,k)
+        if (PRESENT(nojac)) then
+          nj = nojac
+        else
+          nj = .false.
+        endif
+
+        if (nj) then
+          jac = 1d0
+        else
+          jac = gmetric%grid(igrid)%jac(i,j,k)
+        endif
 
         if (.not.tocnv) then
           curv = jac*matmul(gmetric%grid(igrid)%cnv(i,j,k,:,:),car)
