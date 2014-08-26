@@ -774,7 +774,7 @@ c     End program
 
 c     curl_mesh
 c     ###############################################################
-      function curl_mesh(igrid,cov) result(cnv)
+      function curl_mesh(igrid,cov,hex,hey,hez) result(cnv)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -791,6 +791,8 @@ c     Call variables
       real(8) :: cov(0:,0:,0:,:)
      .          ,cnv(0:size(cov,1)-1,0:size(cov,2)-1,0:size(cov,3)-1,3)
 
+      integer,optional :: hex,hey,hez
+
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
@@ -804,7 +806,8 @@ c     Begin program
       do k=0,nz+1
         do j=0,ny+1
           do i=0,nx+1
-            cnv(i,j,k,:)=curl_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,cov)
+            cnv(i,j,k,:)=curl_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,cov
+     .                           ,hex=hex,hey=hey,hez=hez)
           enddo
         enddo
       enddo
