@@ -18,6 +18,14 @@ cc      END INTERFACE
         module procedure fmed_scl,fmed_vec
       END INTERFACE
 
+      INTERFACE ellipticK
+        module procedure ellipticK_scl,ellipticK_vec
+      END INTERFACE
+
+      INTERFACE ellipticE
+        module procedure ellipticE_scl,ellipticE_vec
+      END INTERFACE
+
       contains
 
 c     findRoundOff
@@ -553,5 +561,162 @@ c     Begin program
 c     End
 
       end function fmed_vec
+
+c     ellipticK_vec
+c     ####################################################################
+      function ellipticK_vec(eta,pole) result(ellK)
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: eta(:),ellK(size(eta))
+      logical,optional :: pole(size(eta))
+
+c     Local variables
+
+      real(8) :: alc0,alc1,alc2,alc3,alc4
+     .          ,blc0,blc1,blc2,blc3,blc4
+      logical :: ple(size(eta))
+
+c     Begin program
+
+      if (PRESENT(pole)) then
+        ple = pole
+      else
+        ple = .false.
+      endif
+
+      alc0 = 1.38629436112d0
+      alc1 = 0.09666344259d0
+      alc2 = 0.03590092383d0
+      alc3 = 0.03742563713d0
+      alc4 = 0.01451196212d0
+                                                 
+      blc0 = 0.5d0          
+      blc1 = 0.12498593597d0
+      blc2 = 0.06880248576d0
+      blc3 = 0.03328355346d0
+      blc4 = 0.00441787012d0
+
+      where (ple)  !Substract logarithmic singularity
+        ellK = alc0+eta*(alc1+eta*(alc2+eta*(alc3+eta*alc4)))
+     .       -(    +eta*(blc1+eta*(blc2+eta*(blc3+eta*blc4))))
+     .       *log(eta)
+      elsewhere
+        ellK = alc0+eta*(alc1+eta*(alc2+eta*(alc3+eta*alc4)))
+     .       -(blc0+eta*(blc1+eta*(blc2+eta*(blc3+eta*blc4))))
+     .       *log(eta)
+      end where
+
+c     End program
+
+      end function ellipticK_vec
+
+c     ellipticE_vec
+c     ####################################################################
+      function ellipticE_vec(eta) result(ellE)
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: eta(:),ellE(size(eta))
+
+c     Local variables
+
+      real(8) :: alk1,alk2,alk3,alk4
+     .          ,blk1,blk2,blk3,blk4
+
+c     Begin program
+                                    
+      alk1 = 0.44325141463d0
+      alk2 = 0.06260601220d0
+      alk3 = 0.04757383546d0
+      alk4 = 0.01736506451d0
+                                                 
+      blk1 = 0.24998368310d0
+      blk2 = 0.09200180037d0
+      blk3 = 0.04069697526d0
+      blk4 = 0.00526449639d0
+
+      ellE = 1d0 
+     .      +eta*(alk1+eta*(alk2+eta*(alk3+eta*alk4)))
+     .      -eta*(blk1+eta*(blk2+eta*(blk3+eta*blk4)))*log(eta)
+
+c     End program
+
+      end function ellipticE_vec
+
+c     ellipticK_scl
+c     ####################################################################
+      function ellipticK_scl(eta) result(ellK)
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: eta,ellK
+
+c     Local variables
+
+      real(8) :: alc0,alc1,alc2,alc3,alc4
+     .          ,blc0,blc1,blc2,blc3,blc4
+
+c     Begin program
+
+      alc0 = 1.38629436112d0
+      alc1 = 0.09666344259d0
+      alc2 = 0.03590092383d0
+      alc3 = 0.03742563713d0
+      alc4 = 0.01451196212d0
+                                                 
+      blc0 = 0.5d0          
+      blc1 = 0.12498593597d0
+      blc2 = 0.06880248576d0
+      blc3 = 0.03328355346d0
+      blc4 = 0.00441787012d0
+
+      ellK = alc0+eta*(alc1+eta*(alc2+eta*(alc3+eta*alc4)))
+     .     -(blc0+eta*(blc1+eta*(blc2+eta*(blc3+eta*blc4))))*log(eta)
+
+c     End program
+
+      end function ellipticK_scl
+
+c     ellipticE_scl
+c     ####################################################################
+      function ellipticE_scl(eta) result(ellE)
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: eta,ellE
+
+c     Local variables
+
+      real(8) :: alk1,alk2,alk3,alk4
+     .          ,blk1,blk2,blk3,blk4
+
+c     Begin program
+                                    
+      alk1 = 0.44325141463d0
+      alk2 = 0.06260601220d0
+      alk3 = 0.04757383546d0
+      alk4 = 0.01736506451d0
+                                                 
+      blk1 = 0.24998368310d0
+      blk2 = 0.09200180037d0
+      blk3 = 0.04069697526d0
+      blk4 = 0.00526449639d0
+
+      ellE = 1d0 
+     .      +eta*(alk1+eta*(alk2+eta*(alk3+eta*alk4)))
+     .      -eta*(blk1+eta*(blk2+eta*(blk3+eta*blk4)))*log(eta)
+
+c     End program
+
+      end function ellipticE_scl
 
       end module math
