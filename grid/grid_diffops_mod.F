@@ -3593,9 +3593,9 @@ c     ###############################################################
       function veclap_cov_mesh(igrid,cov,diff) result(cov_out)
 
 c     ---------------------------------------------------------------
-c     Calculates curl(A) in general non-orthogonal coordinates. Is
-c     boundary-ready (can extrapolate). The vector A is both covariant
-c     and contravariant, and returns the covariant component "comp".
+c     Calculates covariant components of lap(vfield) at cell
+c     centers in general non-orthogonal coordinates. Vector vfield
+c     in covariant representation, and returns covariant components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -3654,7 +3654,7 @@ c     ###############################################################
      $         result (vlap)
 
 c     ---------------------------------------------------------------
-c     Calculates covariant components of dvol*lap(vfield) at cell
+c     Calculates covariant components of lap(vfield) at cell
 c     centers in general non-orthogonal coordinates. Vector vfield
 c     in covariant representation.
 c     ---------------------------------------------------------------
