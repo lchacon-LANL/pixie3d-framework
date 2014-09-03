@@ -120,6 +120,49 @@ c     End program
 
       end function curl_vrtx
 
+c     curl_vrtx_mesh
+c     ##################################################################
+      function curl_vrtx_mesh(igrid,vv,vrtx) result(cnv)
+
+c     ------------------------------------------------------------------
+c     Calculates curl of vv (covariant) from nearest neighbors. Returns
+c     contravariant components.
+c
+c     If vrtx is true, it finds curl at (i+1/2,j+1/2,k+1/2) from (i,j,k)
+c     If vrtx is false, it finds curl at (i,j,k) from (i+1/2,j+1/2,k+1/2)
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igrid
+      logical :: vrtx
+      real(8) :: vv(0:,0:,0:,1:)
+     $          ,cnv(1:size(vv,1)-2,1:size(vv,2)-2,1:size(vv,3)-2,3)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      nx = size(vv,1)-2
+      ny = size(vv,2)-2
+      nz = size(vv,3)-2
+
+      do k=0,nz
+        do j=0,ny
+          do i=0,nx
+            cnv(i,j,k,:) = curl_vrtx(i,j,k,igrid,igrid,igrid,vv,vrtx)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function curl_vrtx_mesh
+
 c     div_vrtx
 c     ##################################################################
       function div_vrtx(i,j,k,igx,igy,igz,v,vrtx) result(div)
@@ -7018,6 +7061,8 @@ c     Integrate
      .        .or.isSYM(k,igz,dim=3,loc=1)) dvol = 0.5*dvol
 
               integral = integral + array(i,j,k)*dvol
+              !Averages in logical volume don't make sense
+cc              dvol = gmetric%grid(igx)%dvol(i,j,k)
               volume = volume + dvol
             enddo
           enddo
