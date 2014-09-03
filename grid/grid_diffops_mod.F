@@ -120,6 +120,49 @@ c     End program
 
       end function curl_vrtx
 
+c     curl_vrtx_mesh
+c     ##################################################################
+      function curl_vrtx_mesh(igrid,vv,vrtx) result(cnv)
+
+c     ------------------------------------------------------------------
+c     Calculates curl of vv (covariant) from nearest neighbors. Returns
+c     contravariant components.
+c
+c     If vrtx is true, it finds curl at (i+1/2,j+1/2,k+1/2) from (i,j,k)
+c     If vrtx is false, it finds curl at (i,j,k) from (i+1/2,j+1/2,k+1/2)
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igrid
+      logical :: vrtx
+      real(8) :: vv(0:,0:,0:,1:)
+     $          ,cnv(1:size(vv,1)-2,1:size(vv,2)-2,1:size(vv,3)-2,3)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      nx = size(vv,1)-2
+      ny = size(vv,2)-2
+      nz = size(vv,3)-2
+
+      do k=0,nz
+        do j=0,ny
+          do i=0,nx
+            cnv(i,j,k,:) = curl_vrtx(i,j,k,igrid,igrid,igrid,vv,vrtx)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function curl_vrtx_mesh
+
 c     div_vrtx
 c     ##################################################################
       function div_vrtx(i,j,k,igx,igy,igz,v,vrtx) result(div)
@@ -774,7 +817,7 @@ c     End program
 
 c     curl_mesh
 c     ###############################################################
-      function curl_mesh(igrid,cov) result(cnv)
+      function curl_mesh(igrid,cov,hex,hey,hez) result(cnv)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -791,6 +834,8 @@ c     Call variables
       real(8) :: cov(0:,0:,0:,:)
      .          ,cnv(0:size(cov,1)-1,0:size(cov,2)-1,0:size(cov,3)-1,3)
 
+      integer,optional :: hex,hey,hez
+
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
@@ -804,7 +849,8 @@ c     Begin program
       do k=0,nz+1
         do j=0,ny+1
           do i=0,nx+1
-            cnv(i,j,k,:)=curl_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,cov)
+            cnv(i,j,k,:)=curl_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,cov
+     .                           ,hex=hex,hey=hey,hez=hez)
           enddo
         enddo
       enddo
@@ -3590,9 +3636,9 @@ c     ###############################################################
       function veclap_cov_mesh(igrid,cov,diff) result(cov_out)
 
 c     ---------------------------------------------------------------
-c     Calculates curl(A) in general non-orthogonal coordinates. Is
-c     boundary-ready (can extrapolate). The vector A is both covariant
-c     and contravariant, and returns the covariant component "comp".
+c     Calculates covariant components of lap(vfield) at cell
+c     centers in general non-orthogonal coordinates. Vector vfield
+c     in covariant representation, and returns covariant components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -3651,7 +3697,7 @@ c     ###############################################################
      $         result (vlap)
 
 c     ---------------------------------------------------------------
-c     Calculates covariant components of dvol*lap(vfield) at cell
+c     Calculates covariant components of lap(vfield) at cell
 c     centers in general non-orthogonal coordinates. Vector vfield
 c     in covariant representation.
 c     ---------------------------------------------------------------
@@ -7015,6 +7061,8 @@ c     Integrate
      .        .or.isSYM(k,igz,dim=3,loc=1)) dvol = 0.5*dvol
 
               integral = integral + array(i,j,k)*dvol
+              !Averages in logical volume don't make sense
+cc              dvol = gmetric%grid(igx)%dvol(i,j,k)
               volume = volume + dvol
             enddo
           enddo

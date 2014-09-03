@@ -676,7 +676,7 @@ c     Coordinate-specific checks
 
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
-        if (numerical_grid) then
+        if (numerical_grid .and. coords /= 'car') then
           if    ((nxx == 1 .and. ((xmax-xmin)>1d-3))
      .       .or.(nyy == 1 .and. ((ymax-ymin)>1d-3))
      .       .or.(nzz == 1 .and. ((zmax-zmin)>1d-3))) then
