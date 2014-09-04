@@ -154,7 +154,8 @@ c     Begin program
       do k=0,nz
         do j=0,ny
           do i=0,nx
-            cnv(i,j,k,:) = curl_vrtx(i,j,k,igrid,igrid,igrid,vv,vrtx)
+            cnv(i,j,k,:) = curl_vrtx(i,j,k,igrid,igrid,igrid
+     .                              ,vv(i:i+1,j:j+1,k:k+1,:),vrtx)
           enddo
         enddo
       enddo
