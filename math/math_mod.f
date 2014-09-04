@@ -719,4 +719,156 @@ c     End program
 
       end function ellipticE_scl
 
+c     simpson_scl
+c     ####################################################################
+      recursive function simpson_scl(f,a,b,epsilon,level,level_max,iout)
+     .          result (simpson_result)
+
+      implicit none
+
+c     --------------------------------------------------------------------
+c     Computes integral of f to tolerance epsilon by adaptive simpson rule
+c     --------------------------------------------------------------------
+
+c     Call variables
+
+      interface
+        function f(x)   result (f_result)
+        real(8), intent (in) :: x
+        real(8) :: f_result
+        end function f
+      end interface
+
+      real(8), intent(in) :: a, b, epsilon
+      real(8) :: simpson_result
+      integer :: level,level_max,iout
+
+c     Local variables
+
+      real(8) :: h, c, d, e
+      real(8) :: one_simpson, two_simpson
+      real(8) :: left_simpson, right_simpson
+
+c     Begin program
+
+      level = level + 1
+
+      h = b - a
+      c = (a+b)/2.0
+
+c     Perform two-level integral
+
+      if (iout > 0) then
+        print *,"a, b", a, b      
+        print *, "level", level
+      endif
+
+      one_simpson = h*(f(a) + 4d0*f(c) + f(b))/6d0
+      d = 0.5d0*(a+c)
+      e = 0.5d0*(c+b)		
+      two_simpson = h*(f(a) + 4d0*f(d) + 2d0*f(c)
+     .                      + 4d0*f(e) + f(b))/12d0
+
+c     Check convergence
+
+      if (level >= level_max) then
+         simpson_result = two_simpson
+      else   
+         if ( abs(two_simpson - one_simpson) <= 15.0*epsilon ) then
+            simpson_result = two_simpson
+            if (iout > 0) then
+              print *, "simpson NO SPLIT; a, b=", a, b,'level=',level
+     .               ,"Result=", simpson_result
+            endif
+         else
+            left_simpson
+     .          = simpson_scl(f,a,c,0.5*epsilon,level,level_max,iout)
+            right_simpson
+     .          = simpson_scl(f,c,b,0.5*epsilon,level,level_max,iout)
+            simpson_result = left_simpson + right_simpson
+            if (iout > 0) then
+               print *, "Simpson SPLIT; a, b", a, b,'level=',level
+     .               ,"Result=", simpson_result
+            endif
+         end if
+      end if   
+
+      end function simpson_scl
+
+ccc     simpson_vec
+ccc     ####################################################################
+cc      recursive function simpson_vec(n,f,a,b,eps,level,level_max,iout)
+cc     .          result (simpson_result)
+cc
+cc      implicit none
+cc
+ccc     --------------------------------------------------------------------
+ccc     Computes integral of f to tolerance eps by adaptive simpson rule
+ccc     --------------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc      integer :: level,level_max,iout,n
+cc
+cc      interface
+cc        function f(n,x) result (f_result)
+cc          integer :: n
+cc          real(8), intent (in) :: x
+cc          real(8) :: f_result(n)
+cc        end function f
+cc      end interface
+cc
+cc      real(8), intent(in) :: a, b, eps
+cc      real(8) :: simpson_result(n)
+cc
+ccc     Local variables
+cc
+cc      real(8) :: h, c, d, e
+cc      real(8) :: one_simpson(n), two_simpson(n)
+cc      real(8) :: left_simpson(n), right_simpson(n)
+cc
+ccc     Begin program
+cc
+cc      level = level + 1
+cc
+cc      h = b - a
+cc      c = (a+b)/2.0
+cc
+ccc     Perform two-level integral
+cc
+cc      if (iout > 0) then
+cc        print *,"a, b", a, b      
+cc        print *, "level", level
+cc      endif
+cc
+cc      one_simpson = h*(f(n,a) + 4d0*f(n,c) + f(n,b))/6d0
+cc      d = 0.5d0*(a+c)
+cc      e = 0.5d0*(c+b)		
+cc      two_simpson = h*(f(n,a) + 4d0*f(n,d) + 2d0*f(n,c)
+cc     .                      + 4d0*f(n,e) + f(n,b))/12d0
+cc
+ccc     Check convergence
+cc
+cc      if (level >= level_max) then
+cc         simpson_result = two_simpson
+cc      else   
+cc         if ( abs(two_simpson - one_simpson) <= 15.0*eps ) then
+cc            simpson_result = two_simpson
+cc            if (iout > 0) then
+cc              print *, "simpson NO SPLIT; a, b=", a, b,'level=',level
+cc     .               ,"Result=", simpson_result
+cc            endif
+cc         else
+cc            left_simpson  = simpson(f,a,c,0.5*eps,level,level_max)
+cc            right_simpson = simpson(f,c,b,0.5*eps,level,level_max)
+cc            simpson_result = left_simpson + right_simpson
+cc            if (iout > 0) then
+cc               print *, "Simpson SPLIT; a, b", a, b,'level=',level
+cc     .               ,"Result=", simpson_result
+cc            endif
+cc         end if
+cc      end if   
+cc
+cc      end function simpson_vec
+
       end module math
