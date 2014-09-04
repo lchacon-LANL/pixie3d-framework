@@ -139,7 +139,7 @@ c     Call variables
       integer :: igrid
       logical :: vrtx
       real(8) :: vv(0:,0:,0:,1:)
-     $          ,cnv(1:size(vv,1)-2,1:size(vv,2)-2,1:size(vv,3)-2,3)
+     $          ,cnv(0:size(vv,1)-1,0:size(vv,2)-1,0:size(vv,3)-1,3)
 
 c     Local variables
 
