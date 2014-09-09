@@ -924,6 +924,308 @@ c     End program
 
       end subroutine XformVector_BC
 
+c     XformToCnv_stg_ijk
+c     #################################################################
+      function XformToCnv_stg_ijk(i,j,k,igrid,cov) result(cnv)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered covariant vector to another contravariant
+c     representation at faces (i,j,k).
+c
+c     CURRENTLY WORKS ONLY IN 2D
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: cov(0:,0:,0:,:)
+     .            ,cnv(3)
+
+c     Local variables
+
+        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsup11,gsup22
+        real(8),pointer,dimension(:,:,:,:,:) :: gsup_v
+
+c     Begin program
+
+        ip = i+1
+        im = max(i-1,0)
+
+        jp = j+1
+        jm = max(j-1,0)
+
+        kp = k+1
+        km = max(k-1,0)
+
+        gsup_v => gmetric%grid(igrid)%gsup_v
+
+        gsup11 = 0.5*(gsup_v(i,jm,k,1,1)
+     .               +gsup_v(i,j ,k,1,1))
+
+        cnv(1) = gsup11*cov(i,j,k,1)
+     .                +0.25*(gsup_v(i,j ,k,1,2)*(cov(i ,j ,k,2)
+     .                                          +cov(ip,j ,k,2))
+     .                      +gsup_v(i,jm,k,1,2)*(cov(i ,jm,k,2)
+     .                                          +cov(ip,jm,k,2)))
+
+        gsup22 = 0.5*(gsup_v(im,j,k,2,2)
+     .               +gsup_v(i ,j,k,2,2))
+
+        cnv(2) = gsup22*cov(i,j,k,2)
+     .                +0.25*(gsup_v(i ,j,k,2,1)*(cov(i ,j ,k,1)
+     .                                          +cov(i ,jp,k,1))
+     .                      +gsup_v(im,j,k,2,1)*(cov(im,j ,k,1)
+     .                                          +cov(im,jp,k,1)))
+
+        cnv(3) = cov(i,j,k,3)
+
+      end function XformToCnv_stg_ijk
+
+c     XformToCov_stg_ijk
+c     #################################################################
+      function XformToCov_stg_ijk(i,j,k,igrid,cnv) result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered contravariant vector to a covariant
+c     representation at faces for cell (i,j,k).
+c
+c     CURRENTLY WORKS ONLY IN 2D
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: cnv(0:,0:,0:,:)
+     .            ,cov(3)
+
+c     Local variables
+
+        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsub11,gsub22
+        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
+
+c     Begin program
+
+        ip = i+1
+        im = max(i-1,0)
+
+        jp = j+1
+        jm = max(j-1,0)
+
+        kp = k+1
+        km = max(k-1,0)
+
+        gsub_v => gmetric%grid(igrid)%gsub_v
+
+        gsub11 = 0.5*(gsub_v(i,jm,k,1,1)
+     .               +gsub_v(i,j ,k,1,1))
+
+        cov(1) = gsub11*cnv(i,j,k,1)
+     .                +0.25*(gsub_v(i,j ,k,1,2)*(cnv(i ,j ,k,2)
+     .                                          +cnv(ip,j ,k,2))
+     .                      +gsub_v(i,jm,k,1,2)*(cnv(i ,jm,k,2)
+     .                                          +cnv(ip,jm,k,2)))
+
+        gsub22 = 0.5*(gsub_v(im,j,k,2,2)
+     .               +gsub_v(i ,j,k,2,2))
+
+        cov(2) = gsub22*cnv(i,j,k,2)
+     .                +0.25*(gsub_v(i ,j,k,2,1)*(cnv(i ,j ,k,1)
+     .                                          +cnv(i ,jp,k,1))
+     .                      +gsub_v(im,j,k,2,1)*(cnv(im,j ,k,1)
+     .                                          +cnv(im,jp,k,1)))
+
+        cov(3) = cnv(i,j,k,3)
+
+      end function XformToCov_stg_ijk
+
+c     XformToCnv_stg_mesh
+c     #################################################################
+      function XformToCnv_stg_mesh(igrid,cov) result(cnv)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered covariant vector to a contravariant
+c     representation at faces everywhere on the mesh.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: igrid
+        real(8) :: cov(0:,0:,0:,:)
+     .            ,cnv(0:size(cov,1)-1
+     .                ,0:size(cov,2)-1
+     .                ,0:size(cov,3)-1,3)
+
+c     Local variables
+
+        integer :: i,j,k,nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsup11,gsup22
+        real(8),pointer,dimension(:,:,:,:,:) :: gsup_v
+
+c     Begin program
+
+        nx = grid_params%nxv(igrid)
+        ny = grid_params%nyv(igrid)
+        nz = grid_params%nzv(igrid)
+
+        do k=0,nz
+          do j=0,ny
+            do i=0,nx
+              cnv(i,j,k,:) = XformToCnv_stg_ijk(i,j,k,igrid,cov)
+            enddo
+          enddo
+        enddo
+
+      end function XformToCnv_stg_mesh
+
+c     XformToCov_stg_mesh
+c     #################################################################
+      function XformToCov_stg_mesh(igrid,cnv) result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered contravariant vector to a covariant
+c     representation at faces everywhere on the mesh.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: igrid
+        real(8) :: cnv(0:,0:,0:,:)
+     .            ,cov(0:size(cnv,1)-1
+     .                ,0:size(cnv,2)-1
+     .                ,0:size(cnv,3)-1,3)
+
+c     Local variables
+
+        integer :: i,j,k,nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsup11,gsup22
+        real(8),pointer,dimension(:,:,:,:,:) :: gsup_v
+
+c     Begin program
+
+        nx = grid_params%nxv(igrid)
+        ny = grid_params%nyv(igrid)
+        nz = grid_params%nzv(igrid)
+
+        do k=0,nz
+          do j=0,ny
+            do i=0,nx
+              cov(i,j,k,:) = XformToCov_stg_ijk(i,j,k,igrid,cnv)
+            enddo
+          enddo
+        enddo
+
+      end function XformToCov_stg_mesh
+
+ccc     XformVector_stg_BC
+ccc     ###################################################################
+cc      subroutine XformVector_stg_BC(igrid,vec1,vec2,tocnv)
+cc
+cc      implicit none
+cc
+ccc     -------------------------------------------------------------------
+ccc     Routine to transfer ghost cell values form vec1 to vec2
+ccc     -------------------------------------------------------------------
+cc
+ccc     Input variables
+cc
+cc      integer :: igrid
+cc      real(8) :: vec1(0:,0:,0:,:)
+cc      real(8) :: vec2(0:,0:,0:,:)
+cc      logical :: tocnv
+cc
+ccc     Local variables
+cc
+cc      integer :: nxp,nyp,nzp,i,j,k
+cc
+ccc     Begin program
+cc
+cc      nxp = size(vec1,1)-1
+cc      nyp = size(vec1,2)-1
+cc      nzp = size(vec1,3)-1
+cc
+cc      if (tocnv) then
+cc
+cc        !X boundaries
+cc        do k= 0,nzp
+cc          do j= 0,nyp
+cc            vec2(0  ,j,k,:) = XformToCnv_stg_ijk(0  ,j,k,igrid,vec1)
+cc            vec2(nxp,j,k,:) = XformToCnv_stg_ijk(nxp,j,k,igrid,vec1)
+cc          enddo
+cc        enddo
+cc
+cc        !Y boundaries
+cc        do k= 0,nzp
+cc          do i=0,nxp
+cc            vec2(i,0  ,k,:) = XformToCnv_stg_ijk(i,0  ,k,igrid,vec1)
+cc            vec2(i,nyp,k,:) = XformToCnv_stg_ijk(i,nyp,k,igrid,vec1)
+cc          enddo
+cc        enddo
+cc
+cc        !Z boundaries
+cc        do j= 0,nyp
+cc          do i= 0,nxp
+cc            vec2(i,j,0  ,:) = XformToCnv_stg_ijk(i,j,0  ,igrid,vec1)
+cc            vec2(i,j,nzp,:) = XformToCnv_stg_ijk(i,j,nzp,igrid,vec1)
+cc          enddo
+cc        enddo
+cc
+cc      else
+cc        call pstop("XformVector_stg_BC","Option not implemented")
+cc      endif
+cc
+ccc     End program
+cc
+cc      end subroutine XformVector_stg_BC
+
+c     Xfer_stg_to_cell_mesh
+c     #################################################################
+      function Xfer_stg_to_cell_mesh(stg) result(cell)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered covariant vector to another contravariant
+c     representation at faces (i,j,k).
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: igrid
+        real(8) :: stg(0:,0:,0:,:)
+     .            ,cell(0:size(stg,1)-1
+     .                 ,0:size(stg,2)-1
+     .                 ,0:size(stg,3)-1
+     .                 ,  size(stg,4)  )
+
+c     Local variables
+
+        integer :: i,j,k,nx,ny,nz,neq
+
+c     Begin program
+
+        nx = size(stg,1)-2
+        ny = size(stg,2)-2
+        nz = size(stg,3)-2
+        neq= size(stg,4)
+
+        cell = 0d0
+
+        cell(1:nx,:,:,1) = 0.5*(stg(0:nx-1,:,:,1)+stg(1:nx,:,:,1))
+        cell(:,1:ny,:,2) = 0.5*(stg(:,0:ny-1,:,2)+stg(:,1:ny,:,2))
+        cell(:,:,1:nz,3) = 0.5*(stg(:,:,0:nz-1,3)+stg(:,:,1:nz,3))
+
+      end function Xfer_stg_to_cell_mesh
+
 c     vectorNorm_ijk
 c     ################################################################
       function vectorNorm_ijk(i,j,k,igrid,vec,covar) result(norm)

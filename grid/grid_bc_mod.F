@@ -507,7 +507,7 @@ c #####################################################################
         integer,private :: order=1
 
         private :: setASMflags,interpolateToFace
-cc     .            ,fillEdges,fillCorners
+     .            ,fillEdges,fillCorners
 
       contains
 
@@ -1500,6 +1500,426 @@ cc                if (.not.selectFace(ibc)) cycle
 c     End program
 
       end subroutine synchronize
+
+c     imposeBConVector_stg
+c     #################################################################
+      subroutine imposeBConVector_stg(fcomp,ncomp,nx,ny,nz,v_cnv,v_cov
+     .                     ,var0,bcnd,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
+     .                     ,iorder,is_cnv,is_vec)
+c     -----------------------------------------------------------------
+c     Imposes BC on staggered vector field
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ncomp,bcnd(6,ncomp),fcomp,nx,ny,nz,iigx,iigy,iigz
+      real(8) :: v_cnv(0:nx+1,0:ny+1,0:nz+1,ncomp)
+     .          ,var0 (0:nx+1,0:ny+1,0:nz+1,ncomp)
+     .          ,v_cov(0:nx+1,0:ny+1,0:nz+1,ncomp)
+      integer,optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
+      logical,optional,intent(IN) :: is_cnv,is_vec
+
+c     Local variables
+
+      integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin!,order
+      integer :: ivar,ieq,ibc,loc,dim,bctype
+     .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
+      logical :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
+
+#if defined(petsc)
+      type(petsc_da_ctx),pointer :: da_ctx
+#endif
+
+c     Begin program
+
+      !By default, we assume input are vector components
+      if (PRESENT(is_vec)) then
+        is__vec = is_vec
+      else
+        is__vec = .true.
+      endif
+
+      if (is__vec .and. ncomp < 3) then
+        call pstop('imposeBConVector'
+     .            ,'Cannot impose BC on vector; # components < 3')
+      endif
+
+      !By default, we assume input is in cnv representation
+      if (PRESENT(is_cnv)) then
+        to_cnv = .not.is_cnv
+      else
+        to_cnv = .false.
+      endif
+
+c     Initialize interpolation order (else use last set)
+
+      if (PRESENT(iorder)) then
+        order = iorder
+cc      else
+cc        order = 1
+      endif
+
+c     Initialize BC grid quantities
+
+      igxbc = iigx
+      igybc = iigy
+      igzbc = iigz
+
+      nxbc = nx
+      nybc = ny
+      nzbc = nz
+
+c     Initialize GLOBAL limits
+
+      if (     PRESENT(i1).and.PRESENT(i2)
+     .    .and.PRESENT(j1).and.PRESENT(j2)
+     .    .and.PRESENT(k1).and.PRESENT(k2)) then
+        iimin = i1
+        iimax = i2
+        jjmin = j1
+        jjmax = j2
+        kkmin = k1
+        kkmax = k2
+      else
+        iimin = grid_params%ilo(iigx)
+        iimax = grid_params%ihi(iigx)
+        jjmin = grid_params%jlo(iigy)
+        jjmax = grid_params%jhi(iigy)
+        kkmin = grid_params%klo(iigz)
+        kkmax = grid_params%khi(iigz)
+      endif
+
+#if defined(samrai)
+      iimnm =  iimin 
+      iimxp =  iimax
+      jjmnm =  jjmin
+      jjmxp =  jjmax
+      kkmnm =  kkmin
+      kkmxp =  kkmax
+#else
+      iimnm =  max(iimin - 1,0)  
+      iimxp =  min(iimax + 1,grid_params%nxgl(iigx)+1)
+      jjmnm =  max(jjmin - 1,0)  
+      jjmxp =  min(jjmax + 1,grid_params%nygl(iigy)+1)
+      kkmnm =  max(kkmin - 1,0)  
+      kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz)+1)
+#endif
+
+c     Fill PETSc ghost cells
+
+#if defined(petsc) && !defined(samrai)
+      !Determine whether we need to fill ghost cells using PETSc
+      petsc__bc = (np > 1).and.(.not.asm)
+
+      !Fill ghost cells
+      if (petsc__bc) then
+        da_ctx => grid_params%dactx(igxbc)
+        do ieq=1,ncomp
+          call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
+          call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
+        enddo
+      endif
+#endif
+
+ccc     Find complete curvilinear representation at boundaries
+cc
+cc      if (is__vec) then
+cc        if (to_cnv) then
+cc          call XformVector_stg_BC(igxbc,v_cov,v_cnv,to_cnv)
+cc        else
+cc          call XformVector_stg_BC(igxbc,v_cnv,v_cov,to_cnv)
+cc        endif
+cc      endif
+
+c     Impose BCs
+
+      cov_to_cnv = .false.
+
+      do bctype=1,BCLIM             !Enforces a particular order in the BCs
+        do dim=1,3
+          do loc=0,1
+            ibc = (1+loc)+2*(dim-1)
+
+            do ivar = 1,ncomp
+              ieq = ivar + fcomp - 1
+
+              if (abs(bcnd(ibc,ivar)) == bctype) then
+
+                if (bcnd(ibc,ivar) < 0 .and. is__vec) then
+                  call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
+     .                               ,v_cov,var0,cnv=.false.)
+                  cov_to_cnv(ibc,ivar) = .true.
+                else
+                  call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype
+     .                               ,v_cnv,var0)
+                endif
+
+              endif
+
+            enddo
+
+          enddo
+        enddo
+      enddo
+
+c     Synchronize covariant and contravariant components
+
+      call synchronize_stg(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv)
+
+c     Fill edges (for both cnv and cov components)
+
+      do ivar=1,ncomp
+        call fillEdges(v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+     .                ,bcnd(:,ivar),order)
+        call fillEdges(v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
+     .                ,bcnd(:,ivar),order)
+      enddo
+
+c     Fill corners (for both cnv and cov components)
+
+      do ivar=1,ncomp
+        call fillCorners(v_cov(:,:,:,ivar),bcnd(:,ivar),order)
+        call fillCorners(v_cnv(:,:,:,ivar),bcnd(:,ivar),order)
+      enddo
+
+#if defined(PER_BC_SYNC) && !defined(samrai)
+c     Periodic boundary synchronizing
+
+      bctype=PER
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            ieq = ivar + fcomp - 1
+
+            if (abs(bcnd(ibc,ivar)) == bctype) then
+              call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cnv
+     .                         ,var0)
+              call FillGhostNodes(ieq,ivar,ncomp,dim,loc,bctype,v_cov
+     .                         ,var0,cnv=.false.)
+            endif
+          enddo
+
+        enddo
+      enddo
+#endif
+
+c     End program
+
+      end subroutine imposeBConVector_stg
+
+c     synchronize_stg
+c     #################################################################
+      subroutine synchronize_stg(ncomp,v_cnv,v_cov,bcond,cov_to_cnv,dim
+     $                          ,loc,log_bcs)
+c     -----------------------------------------------------------------
+c     Finds all vector components at either physical (log_bcs=.false,
+c     default) or logical (log_bcs=.true.) boundaries.
+c
+c     On input, tangential covariant components and normal contravariant
+c     components are known at ghost cells. On output, all contravariant
+c     and covariant components are known at ghost cells.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ncomp,bcond(6,ncomp)
+      real(8) :: v_cnv(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
+     .          ,v_cov(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
+      logical :: cov_to_cnv(6,3)
+      integer,optional :: dim,loc,log_bcs
+
+c     Local variables
+
+      integer :: imax,imin,jmax,jmin,kmax,kmin
+      integer :: i,j,k,ig,jg,kg,ivar,ibc,ic1,ic2
+     .          ,ld,hd,ll,hl,id,il,im,jm,km
+      real(8) :: x1,x2,x3,gsup,gsub,cnv(3),cov(3)
+
+c     Begin program
+
+      if (PRESENT(dim)) then
+        ld = dim
+        hd = dim
+      else
+        ld = 1
+        hd = 3
+      endif
+
+      if (PRESENT(loc)) then
+        ll = loc
+        hl = loc
+      else
+        ll = 0
+        hl = 1
+      endif
+
+      do id = ld,hd
+        do il = ll,hl
+          ibc = (1+il)+2*(id-1)
+
+          if (.not.selectFace(ibc)) cycle !Do nothing for logical boundaries
+
+          !Do NOT change: SAMRAI depends on it
+          call findBCLoopLimits(id,il,iimin-1,iimax!+1 !Staggered
+     .                               ,jjmin-1,jjmax!+1 !Staggered
+     .                               ,kkmin-1,kkmax!+1 !Staggered
+     .                               ,imin,imax
+     .                               ,jmin,jmax
+     .                               ,kmin,kmax)
+
+          if (     (.not.cov_to_cnv(ibc,1))
+     .        .and.(.not.cov_to_cnv(ibc,2))
+     .        .and.(.not.cov_to_cnv(ibc,3))) then  !All contravariant: find covariant
+
+            do k=kmin,kmax
+              do j=jmin,jmax
+                do i=imin,imax
+                  v_cov(i,j,k,:)= XformToCov_stg_ijk(i,j,k,igxbc,v_cnv)
+                enddo
+              enddo
+            enddo
+
+          else   !Synchronize (assumes normal component is contravariant)
+
+cc            if (.not.selectFace(ibc)) cycle !Do nothing for logical boundaries
+
+            do ivar = 1,ncomp
+
+              if (ivar == id) then !Do nothing for normal component
+
+                cycle
+
+              else
+
+cc                if (.not.selectFace(ibc)) cycle
+
+                ic1 = mod(id+1,3)
+                if (ic1 == 0) ic1 = 3
+
+                ic2 = mod(id+2,3)
+                if (ic2 == 0) ic2 = 3
+
+                if ( cov_to_cnv(ibc,ic1).and.cov_to_cnv(ibc,ic2) ) then  !Both are covariant
+
+                  do k=kmin,kmax
+                    do j=jmin,jmax
+                      do i=imin,imax
+
+                        im = max(i-1,0)
+                        jm = max(j-1,0)
+                        km = max(k-1,0)
+
+                        select case(id)
+                        case(1)
+                          gsup =
+     .                    0.5*(gmetric%grid(igxbc)%gsup_v(i,j ,k,id,id)
+     .                        +gmetric%grid(igxbc)%gsup_v(i,jm,k,id,id))
+                        case(2)
+                          gsup =
+     .                    0.5*(gmetric%grid(igxbc)%gsup_v(im,j,k,id,id)
+     .                        +gmetric%grid(igxbc)%gsup_v(i ,j,k,id,id))
+                        case(3)
+                          gsup = 1d0
+                        end select
+
+                        v_cov(i,j,k,id) = 0d0
+                        cnv = XformToCnv_stg_ijk(i,j,k,igxbc,v_cov)
+                        v_cov(i,j,k,id) =-cnv(id) - v_cnv(i,j,k,id)/gsup
+
+                        v_cnv(i,j,k,:) = XformToCnv_stg_ijk(i,j,k,igxbc
+     .                                                     ,v_cov)
+
+                      enddo
+                    enddo
+                  enddo
+
+                elseif (.not.cov_to_cnv(ibc,ic1)) then   !ic1 is contravariant, ic2 is covariant
+
+                  do k=kmin,kmax
+                    do j=jmin,jmax
+                      do i=imin,imax
+
+                        im = max(i-1,0)
+                        jm = max(j-1,0)
+                        km = max(k-1,0)
+
+                        select case(ic2)
+                        case(1)
+                          gsub =
+     .                   .5*(gmetric%grid(igxbc)%gsub_v(i,j ,k,ic2,ic2)
+     .                      +gmetric%grid(igxbc)%gsub_v(i,jm,k,ic2,ic2))
+                        case(2)
+                          gsub =
+     .                   .5*(gmetric%grid(igxbc)%gsub_v(im,j,k,ic2,ic2)
+     .                      +gmetric%grid(igxbc)%gsub_v(i ,j,k,ic2,ic2))
+                        case(3)
+                          gsub = 1d0
+                        end select
+
+                        v_cnv(i,j,k,ic2) = 0d0
+                        cov = XformToCov_stg_ijk(i,j,k,igxbc,v_cnv)
+                        v_cnv(i,j,k,ic2)=-cov(ic2)-v_cov(i,j,k,ic2)/gsub
+
+                        v_cov(i,j,k,:) = XformToCov_stg_ijk(i,j,k,igxbc
+     .                                                     ,v_cnv)
+
+                      enddo
+                    enddo
+                  enddo
+
+                elseif (.not.cov_to_cnv(ibc,ic2)) then   !ic2 is contravariant, ic1 is covariant
+
+                  do k=kmin,kmax
+                    do j=jmin,jmax
+                      do i=imin,imax
+
+                        im = max(i-1,0)
+                        jm = max(j-1,0)
+                        km = max(k-1,0)
+
+                        select case(ic1)
+                        case(1)
+                          gsub =
+     .                   .5*(gmetric%grid(igxbc)%gsub_v(i,j ,k,ic1,ic1)
+     .                      +gmetric%grid(igxbc)%gsub_v(i,jm,k,ic1,ic1))
+                        case(2)
+                          gsub =
+     .                   .5*(gmetric%grid(igxbc)%gsub_v(im,j,k,ic1,ic1)
+     .                      +gmetric%grid(igxbc)%gsub_v(i ,j,k,ic1,ic1))
+                        case(3)
+                          gsub = 1d0
+                        end select
+
+                        v_cnv(i,j,k,ic1) = 0d0
+                        cov = XformToCov_stg_ijk(i,j,k,igxbc,v_cnv)
+                        v_cnv(i,j,k,ic1)=-cov(ic1)-v_cov(i,j,k,ic1)/gsub
+
+                        v_cov(i,j,k,:) = XformToCov_stg_ijk(i,j,k,igxbc
+     .                                                     ,v_cnv)
+
+                      enddo
+                    enddo
+                  enddo
+
+                endif
+
+             endif
+            enddo
+
+          endif
+
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine synchronize_stg
 
 c     fillGhostNodes
 c     ###############################################################

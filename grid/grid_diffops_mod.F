@@ -543,6 +543,10 @@ c ######################################################################
           module procedure div_ijk,div_mesh
         end INTERFACE
 
+        INTERFACE div_stg
+          module procedure div_stg_ijk,div_stg_mesh
+        end INTERFACE
+
       contains
 
 c     grad_ijk
@@ -1031,6 +1035,124 @@ c     Begin program
 c     End program
 
       end function div_mesh
+
+c     div_stg_ijk
+c     ###############################################################
+      function div_stg_ijk(i,j,k,nx,ny,nz,igx,igy,igz,cnv)
+     .         result(div)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Calculates divergence of vector field at cell centers in
+c     general non-orthogonal geometry.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+      real(8) :: cnv(0:nx+1,0:ny+1,0:nz+1,3),div
+
+c     Local variables
+
+      integer :: ig,jg,kg,igrid,ip,im,jp,jm,kp,km,hx,hy,hz
+      real(8) :: dxx,dyy,dzz
+
+c     Begin program
+
+      igrid = igx
+
+      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+      im = i-1
+      jm = j-1
+      km = k-1
+
+      dxx = grid_params%dxh(ig)
+      dyy = grid_params%dyh(jg)
+      dzz = grid_params%dzh(kg)
+
+      div =  (cnv(i,j,k,1)-cnv(im,j ,k ,1))/dxx
+     .      +(cnv(i,j,k,2)-cnv(i ,jm,k ,2))/dyy
+     .      +(cnv(i,j,k,3)-cnv(i ,j ,km,3))/dzz
+
+      div = div/gmetric%grid(igrid)%jac(i,j,k)
+      
+c     End 
+
+      end function div_stg_ijk
+
+c     div_stg_mesh
+c     ###############################################################
+      function div_stg_mesh(igrid,curv,iscnv) result(scl)
+
+c     ---------------------------------------------------------------
+c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is
+c     covariant, and returns the contravariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igrid
+
+      real(8) :: curv(0:,0:,0:,:)
+     .          ,scl(0:size(curv,1)-1,0:size(curv,2)-1,0:size(curv,3)-1)
+
+      logical,optional :: iscnv
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+      real(8) :: cnv(0:size(curv,1)-1,0:size(curv,2)-1,0:size(curv,3)-1
+     .              ,size(curv,4))
+      logical :: is_cnv
+
+c     Begin program
+
+      if (PRESENT(iscnv)) then
+        is_cnv = iscnv
+      else
+        is_cnv = .true.
+      endif
+
+      scl = 0d0
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
+
+      if (is_cnv) then
+
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              scl(i,j,k)=div_stg_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid
+     .                              ,curv)
+            enddo
+          enddo
+        enddo
+
+      else
+
+        cnv = XformToCnv_stg_mesh(igrid,curv)
+
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              scl(i,j,k)=div_stg_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid
+     .                              ,cnv)
+            enddo
+          enddo
+        enddo
+
+      endif
+
+c     End program
+
+      end function div_stg_mesh
 
       end module grid_nabla_ops
 
