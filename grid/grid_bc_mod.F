@@ -507,7 +507,7 @@ c #####################################################################
         integer,private :: order=1
 
         private :: setASMflags,interpolateToFace
-     .            ,fillEdges,fillCorners
+cc     .            ,fillEdges,fillCorners
 
       contains
 
