@@ -68,6 +68,8 @@ ifeq ($(HOST),jetta)
 
   FC = gfortran
 
+  OMP_NUM_THREADS = 32
+
   ifdef SAMR
 
     CC = mpicc
@@ -278,6 +280,8 @@ ifeq ($(HOST),gongora)
   NETCDF=f
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include/netcdf
+
+  OMP_NUM_THREADS = 4
 
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
