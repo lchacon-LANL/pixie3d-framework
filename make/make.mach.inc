@@ -281,7 +281,7 @@ ifeq ($(HOST),gongora)
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include/netcdf
 
-  OMP_NUM_THREADS = 4
+  OMP_NUM_THREADS = 8
 
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
@@ -401,6 +401,8 @@ ifeq ($(HOST),Marias-MacBook-Air)
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
   WORKDIR = $(HOME)/work
+
+  OMP_NUM_THREADS = 4
 
   ifdef BOPT
     PETSC_DIR =$(WORKDIR)/lib/petsc-3.0.0-p7
