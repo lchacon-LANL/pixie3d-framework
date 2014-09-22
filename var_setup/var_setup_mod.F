@@ -43,8 +43,8 @@ c #####################################################################
                                 !      auxiliary (<0) or dependent (>0) variable.
                                 !  + Second component indicates scalar (0) or vector (1)
                                 !  + Third component indicates trivial (0) or non-trivial (1)
-c$$$          logical :: time_0     ! Whether this is a time=0 variable
-c$$$          logical :: time_n     ! Whether this is a previous time step variable
+          logical :: time_0     ! Whether this is a time=0 variable
+          logical :: time_n     ! Whether this is a previous time step variable
        end type var_def
 
         type :: vec_def
@@ -70,8 +70,8 @@ c$$$          logical :: time_n     ! Whether this is a previous time step varia
                                 !      auxiliary (<0) or dependent (>0) variable.
                                 !  + Second component indicates scalar (0) or vector (1)
                                 !  + Third component indicates trivial (0) or non-trivial (1)
-c$$$          logical :: time_0             !Whether this is a time=0 variable
-c$$$          logical :: time_n             !Whether this is a previous time step variable
+          logical :: time_0             !Whether this is a time=0 variable
+          logical :: time_n             !Whether this is a previous time step variable
         end type vec_def
 
         type :: var_array
@@ -346,6 +346,8 @@ cc          if (nvar > 0) then
               aux%var_list(ieq)%bc_dep_list = 0
               allocate(aux%var_list(ieq)%dom_dep_list(nvar+nvec+neqd,3))
               aux%var_list(ieq)%dom_dep_list = 0
+              aux%var_list(ieq)%time_0 = .false.
+              aux%var_list(ieq)%time_n = .false.
             enddo
 cc          endif
 
@@ -365,6 +367,8 @@ cc          if (nvec > 0) then
               aux%vec_list(ieq)%bc_dep_list = 0
               allocate(aux%vec_list(ieq)%dom_dep_list(nvar+nvec+neqd,3))
               aux%vec_list(ieq)%dom_dep_list = 0
+              aux%vec_list(ieq)%time_0 = .false.
+              aux%vec_list(ieq)%time_n = .false.
             enddo
 cc          endif
         endif
@@ -483,8 +487,8 @@ c     Begin program
      .                     %dom_dep_list(NAUXS+NAUXV+neqd,3))
             varray%array_var(ieq)%dom_dep_list = 0
 
-c$$$            varray%array_var(ieq)%time_0 = .false.
-c$$$            varray%array_var(ieq)%time_n = .false.
+            varray%array_var(ieq)%time_0 = .false.
+            varray%array_var(ieq)%time_n = .false.
            enddo
         endif
 
@@ -556,10 +560,10 @@ c     Begin program
      .                              =varray1%array_var(ieq)%bc_dep_list
           varray2%array_var(ieq)%dom_dep_list
      .                              =varray1%array_var(ieq)%dom_dep_list
-c$$$          varray2%array_var(ieq)%time_0
-c$$$     .                              =varray1%array_var(ieq)%time_0
-c$$$          varray2%array_var(ieq)%time_n
-c$$$     .                              =varray1%array_var(ieq)%time_n
+          varray2%array_var(ieq)%time_0
+     .                              =varray1%array_var(ieq)%time_0
+          varray2%array_var(ieq)%time_n
+     .                              =varray1%array_var(ieq)%time_n
         enddo
 
 c     End program
@@ -639,10 +643,10 @@ c     Begin program
      .                              =varray2%array_var(ieq)%bc_dep_list
           varray3%array_var(ieq)%dom_dep_list
      .                              =varray2%array_var(ieq)%dom_dep_list
-c$$$          varray3%array_var(ieq)%time_0
-c$$$     .                              =varray2%array_var(ieq)%time_0
-c$$$          varray3%array_var(ieq)%time_n
-c$$$     .                              =varray2%array_var(ieq)%time_n
+          varray3%array_var(ieq)%time_0
+     .                              =varray2%array_var(ieq)%time_0
+          varray3%array_var(ieq)%time_n
+     .                              =varray2%array_var(ieq)%time_n
         enddo
 
 c     End program
