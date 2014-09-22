@@ -87,6 +87,8 @@ c     Call variables
 
 c     Local variables
 
+      integer :: i
+
       namelist /graphics/ sel_diag,sel_graph
      .                   ,ndplot,dplot
      .                   ,hdf_plot,xdraw_plot,adios_plot
@@ -101,6 +103,9 @@ c     Graphics defaults
       iplot = 1
       jplot = 1
       kplot = 1
+
+      sel_diag  =(/ (i,i=1,xdraw_cont_lim) /)
+      sel_graph =(/ (i,i=1,xdraw_cont_lim) /)
 
 c     Read graphics initialization parameters
 
