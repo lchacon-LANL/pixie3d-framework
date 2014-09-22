@@ -120,6 +120,50 @@ c     End program
 
       end function curl_vrtx
 
+c     curl_vrtx_mesh
+c     ##################################################################
+      function curl_vrtx_mesh(igrid,vv,vrtx) result(cnv)
+
+c     ------------------------------------------------------------------
+c     Calculates curl of vv (covariant) from nearest neighbors. Returns
+c     contravariant components.
+c
+c     If vrtx is true, it finds curl at (i+1/2,j+1/2,k+1/2) from (i,j,k)
+c     If vrtx is false, it finds curl at (i,j,k) from (i+1/2,j+1/2,k+1/2)
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igrid
+      logical :: vrtx
+      real(8) :: vv(0:,0:,0:,1:)
+     $          ,cnv(0:size(vv,1)-1,0:size(vv,2)-1,0:size(vv,3)-1,3)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      nx = size(vv,1)-2
+      ny = size(vv,2)-2
+      nz = size(vv,3)-2
+
+      do k=0,nz
+        do j=0,ny
+          do i=0,nx
+            cnv(i,j,k,:) = curl_vrtx(i,j,k,igrid,igrid,igrid
+     .                              ,vv(i:i+1,j:j+1,k:k+1,:),vrtx)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function curl_vrtx_mesh
+
 c     div_vrtx
 c     ##################################################################
       function div_vrtx(i,j,k,igx,igy,igz,v,vrtx) result(div)
@@ -499,6 +543,10 @@ c ######################################################################
           module procedure div_ijk,div_mesh
         end INTERFACE
 
+        INTERFACE div_stg
+          module procedure div_stg_ijk,div_stg_mesh
+        end INTERFACE
+
       contains
 
 c     grad_ijk
@@ -774,7 +822,7 @@ c     End program
 
 c     curl_mesh
 c     ###############################################################
-      function curl_mesh(igrid,cov) result(cnv)
+      function curl_mesh(igrid,cov,hex,hey,hez) result(cnv)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -791,6 +839,8 @@ c     Call variables
       real(8) :: cov(0:,0:,0:,:)
      .          ,cnv(0:size(cov,1)-1,0:size(cov,2)-1,0:size(cov,3)-1,3)
 
+      integer,optional :: hex,hey,hez
+
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
@@ -804,7 +854,8 @@ c     Begin program
       do k=0,nz+1
         do j=0,ny+1
           do i=0,nx+1
-            cnv(i,j,k,:)=curl_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,cov)
+            cnv(i,j,k,:)=curl_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid,cov
+     .                           ,hex=hex,hey=hey,hez=hez)
           enddo
         enddo
       enddo
@@ -984,6 +1035,124 @@ c     Begin program
 c     End program
 
       end function div_mesh
+
+c     div_stg_ijk
+c     ###############################################################
+      function div_stg_ijk(i,j,k,nx,ny,nz,igx,igy,igz,cnv)
+     .         result(div)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Calculates divergence of vector field at cell centers in
+c     general non-orthogonal geometry.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+      real(8) :: cnv(0:nx+1,0:ny+1,0:nz+1,3),div
+
+c     Local variables
+
+      integer :: ig,jg,kg,igrid,ip,im,jp,jm,kp,km,hx,hy,hz
+      real(8) :: dxx,dyy,dzz
+
+c     Begin program
+
+      igrid = igx
+
+      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+      im = i-1
+      jm = j-1
+      km = k-1
+
+      dxx = grid_params%dxh(ig)
+      dyy = grid_params%dyh(jg)
+      dzz = grid_params%dzh(kg)
+
+      div =  (cnv(i,j,k,1)-cnv(im,j ,k ,1))/dxx
+     .      +(cnv(i,j,k,2)-cnv(i ,jm,k ,2))/dyy
+     .      +(cnv(i,j,k,3)-cnv(i ,j ,km,3))/dzz
+
+      div = div/gmetric%grid(igrid)%jac(i,j,k)
+      
+c     End 
+
+      end function div_stg_ijk
+
+c     div_stg_mesh
+c     ###############################################################
+      function div_stg_mesh(igrid,curv,iscnv) result(scl)
+
+c     ---------------------------------------------------------------
+c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is
+c     covariant, and returns the contravariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igrid
+
+      real(8) :: curv(0:,0:,0:,:)
+     .          ,scl(0:size(curv,1)-1,0:size(curv,2)-1,0:size(curv,3)-1)
+
+      logical,optional :: iscnv
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+      real(8) :: cnv(0:size(curv,1)-1,0:size(curv,2)-1,0:size(curv,3)-1
+     .              ,size(curv,4))
+      logical :: is_cnv
+
+c     Begin program
+
+      if (PRESENT(iscnv)) then
+        is_cnv = iscnv
+      else
+        is_cnv = .true.
+      endif
+
+      scl = 0d0
+
+      nx = grid_params%nxv(igrid)
+      ny = grid_params%nyv(igrid)
+      nz = grid_params%nzv(igrid)
+
+      if (is_cnv) then
+
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              scl(i,j,k)=div_stg_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid
+     .                              ,curv)
+            enddo
+          enddo
+        enddo
+
+      else
+
+        cnv = XformToCnv_stg_mesh(igrid,curv)
+
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              scl(i,j,k)=div_stg_ijk(i,j,k,nx,ny,nz,igrid,igrid,igrid
+     .                              ,cnv)
+            enddo
+          enddo
+        enddo
+
+      endif
+
+c     End program
+
+      end function div_stg_mesh
 
       end module grid_nabla_ops
 
@@ -3590,9 +3759,9 @@ c     ###############################################################
       function veclap_cov_mesh(igrid,cov,diff) result(cov_out)
 
 c     ---------------------------------------------------------------
-c     Calculates curl(A) in general non-orthogonal coordinates. Is
-c     boundary-ready (can extrapolate). The vector A is both covariant
-c     and contravariant, and returns the covariant component "comp".
+c     Calculates covariant components of lap(vfield) at cell
+c     centers in general non-orthogonal coordinates. Vector vfield
+c     in covariant representation, and returns covariant components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -3651,7 +3820,7 @@ c     ###############################################################
      $         result (vlap)
 
 c     ---------------------------------------------------------------
-c     Calculates covariant components of dvol*lap(vfield) at cell
+c     Calculates covariant components of lap(vfield) at cell
 c     centers in general non-orthogonal coordinates. Vector vfield
 c     in covariant representation.
 c     ---------------------------------------------------------------
@@ -7015,6 +7184,8 @@ c     Integrate
      .        .or.isSYM(k,igz,dim=3,loc=1)) dvol = 0.5*dvol
 
               integral = integral + array(i,j,k)*dvol
+              !Averages in logical volume don't make sense
+cc              dvol = gmetric%grid(igx)%dvol(i,j,k)
               volume = volume + dvol
             enddo
           enddo

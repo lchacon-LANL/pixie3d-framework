@@ -2209,6 +2209,9 @@ c       Check whether GMRES is driving solve
             call assembleSolverHierarchy('cg')
           endif
 
+          if (vcyc == 0) then !Identity preconditioner
+            call assembleSolverHierarchy('id')
+          endif
         endif
 
 c       MG solver options

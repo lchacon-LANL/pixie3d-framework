@@ -68,6 +68,8 @@ ifeq ($(HOST),jetta)
 
   FC = gfortran
 
+  OMP_NUM_THREADS = 32
+
   ifdef SAMR
 
     CC = mpicc
@@ -279,6 +281,8 @@ ifeq ($(HOST),gongora)
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include/netcdf
 
+  OMP_NUM_THREADS = 8
+
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
   ifdef BOPT
@@ -397,6 +401,8 @@ ifeq ($(HOST),Marias-MacBook-Air)
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
   WORKDIR = $(HOME)/work
+
+  OMP_NUM_THREADS = 4
 
   ifdef BOPT
     PETSC_DIR =$(WORKDIR)/lib/petsc-3.0.0-p7
@@ -789,4 +795,63 @@ ifeq ($(findstring helios,$(HOST)),helios)
   endif
 
   MACHINE = helios
+endif
+
+################
+# Will Taitano's Desktop(LANL) #
+################
+
+ifeq ($(HOST),t1243000)
+
+  FC = gfortran
+
+  ifdef SAMR
+
+    CC = mpicc
+    CXX = mpicxx
+    F77 = gfortran
+    override PETSC_DIR  =
+#    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/debug
+    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/optimized
+    HDF5 = f
+    HDF5_LIBS = 
+    LDFLAGS    += -lgfortran
+
+  else
+    ifdef BOPT
+      PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
+
+      ifeq ($(BOPT),O)
+        PETSC_ARCH = linux64_openmpi
+      else
+        PETSC_ARCH = linux64_openmpi_g
+      endif
+
+      HDF5 = t
+
+      #Determined via modules
+      HDF5_LIBS =-L/usr/lib64/openmpi/lib -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = /usr/include/openmpi-x86_64
+      HDF5_INC  = /usr/include/openmpi-x86_64
+
+      ADIOS = t
+
+      ADIOS_HOME = $(HOME)/lib/adios-1.31
+      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+      ADIOS_VER  = 1.31
+
+      #Determined via modules
+      HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = /usr/local/gfortran/
+      HDF5_INC  = /usr/include
+
+    endif
+
+    NETCDF=f
+    NETCDF_LIBS = -lnetcdff -lnetcdf
+    NETCDF_INC  = -I/usr/include
+
+#    ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+  endif
+
 endif
