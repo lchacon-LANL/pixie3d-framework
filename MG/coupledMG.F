@@ -721,7 +721,7 @@ c     Local variables
 c     Begin program
 
         if (associated(mgarray%grid)) then
-          do igrid=1,MGgrid%ngrid
+          do igrid=1,size(mgarray%grid)
             if (associated(mgarray%grid(igrid)%array)) then
               deallocate(mgarray%grid(igrid)%array)
             endif
