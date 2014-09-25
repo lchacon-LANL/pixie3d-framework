@@ -1766,9 +1766,9 @@ c     Begin program
           if (.not.selectFace(ibc)) cycle !Do nothing for logical boundaries
 
           !Do NOT change: SAMRAI depends on it
-          call findBCLoopLimits(id,il,iimin-1,iimax!+1 !Staggered
-     .                               ,jjmin-1,jjmax!+1 !Staggered
-     .                               ,kkmin-1,kkmax!+1 !Staggered
+          call findBCLoopLimits(id,il,iimin-1,iimax+1
+     .                               ,jjmin-1,jjmax+1
+     .                               ,kkmin-1,kkmax+1
      .                               ,imin,imax
      .                               ,jmin,jmax
      .                               ,kmin,kmax)
@@ -1815,6 +1815,8 @@ cc                if (.not.selectFace(ibc)) cycle
                         jm = max(j-1,0)
                         km = max(k-1,0)
 
+                        if(id/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc)) cycle
+
                         select case(id)
                         case(1)
                           gsup =
@@ -1829,6 +1831,7 @@ cc                if (.not.selectFace(ibc)) cycle
                         end select
 
                         v_cov(i,j,k,id) = 0d0
+
                         cnv = XformToCnv_stg_ijk(i,j,k,igxbc,v_cov)
                         v_cov(i,j,k,id) =-cnv(id) - v_cnv(i,j,k,id)/gsup
 
@@ -1848,6 +1851,8 @@ cc                if (.not.selectFace(ibc)) cycle
                         im = max(i-1,0)
                         jm = max(j-1,0)
                         km = max(k-1,0)
+
+                        if(ic2/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle
 
                         select case(ic2)
                         case(1)
@@ -1882,6 +1887,8 @@ cc                if (.not.selectFace(ibc)) cycle
                         im = max(i-1,0)
                         jm = max(j-1,0)
                         km = max(k-1,0)
+
+                        if(ic1/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle
 
                         select case(ic1)
                         case(1)
@@ -4101,7 +4108,7 @@ c
 c     Optional parameters:
 c       *arr_cov: covariant components of vector components.
 c       *arr0: array containing dirichlet BCs (zero by default)
-c       *icomp: integer specifying magnitude of interest (if not
+c       *icomp: integer array specifying magnitude of interest (if not
 c               provided, use last used value).
 c       *is_cnv: logical variable indicating whether array
 c                contains covariant or contravariant components
