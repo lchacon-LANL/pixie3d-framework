@@ -951,13 +951,13 @@ c     Local variables
 
 c     Begin program
 
-        ip = i+1
+        ip = min(i+1,size(cov,1)-1)
         im = max(i-1,0)
 
-        jp = j+1
+        jp = min(j+1,size(cov,2)-1)
         jm = max(j-1,0)
 
-        kp = k+1
+        kp = min(k+1,size(cov,3)-1)
         km = max(k-1,0)
 
         gsup_v => gmetric%grid(igrid)%gsup_v
@@ -1011,13 +1011,13 @@ c     Local variables
 
 c     Begin program
 
-        ip = i+1
+        ip = min(i+1,size(cnv,1)-1)
         im = max(i-1,0)
 
-        jp = j+1
+        jp = min(j+1,size(cnv,2)-1)
         jm = max(j-1,0)
 
-        kp = k+1
+        kp = min(k+1,size(cnv,3)-1)
         km = max(k-1,0)
 
         gsub_v => gmetric%grid(igrid)%gsub_v
