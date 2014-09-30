@@ -972,9 +972,10 @@ c     End program
 
       end subroutine restrictMGArray
 
-c     interpArray
+c     interpArray_setup
 c     #################################################################
-      subroutine interpArray(order,x1,y1,z1,array1,x2,y2,z2,array2)
+      subroutine interpArray_setup(x1,y1,z1,array1
+     .                            ,tx,ty,tz,work,bcoef)
 c     -----------------------------------------------------------------
 c     This is a restriction routine for a single quantity, with
 c     arbitrary order of interpolation.
@@ -983,72 +984,45 @@ c     In call sequence, we have:
 c       * order (input): order of interpolation
 c       * x1,y1,z1 (input): source interpolation nodes (1D)
 c       * array1 (input): source data (3D)
-c       * x2,y2,z2 (input): target interpolation nodes (1D)
-c       * array2 (output): target interpolated data (3D)
+c       * tx,ty,tz,work,bcoef (out): spline arrays
 c     -----------------------------------------------------------------
 
       implicit none        !For safe fortran
 
 c     Call variables
 
-      integer :: order
-
-      real(8) :: x1(:),y1(:),z1(:),x2(:),y2(:),z2(:)
-
-      real(8) :: array1(:,:,:),array2(:,:,:)
+      real(8) :: x1(:),y1(:),z1(:),array1(:,:,:)
+      real(8) :: tx(:),ty(:),tz(:),work(:),bcoef(:,:,:)
 
 c     Local variables
 
-      integer :: i,j,k,nx,ny,nz,nx2,ny2,nz2
-
-      real(8) :: xx,yy,zz,val
-
-      integer ::  kx,ky,kz,dim,flg,inbv
-      real(8), dimension(:),allocatable:: tx,ty,tz,work,q
-      real(8), dimension(:,:,:),allocatable:: bcoef
-
-      real(8) :: dbvalu,db2val,db3val
-      external   dbvalu,db2val,db3val
+      integer :: nx,ny,nz,kx,ky,kz,flg
+      real(8),allocatable,dimension(:) :: q
 
 c     Begin program
 
       flg = 0
 
-c     Compute storage based on source data
+      nx = size(bcoef,1)
+      ny = size(bcoef,2)
+      nz = size(bcoef,3)
 
-      nx = size(array1,1)
-      ny = size(array1,2)
-      nz = size(array1,3)
-
-      kx = min(order+1,nx-1)
-      ky = min(order+1,ny-1)
-      kz = min(order+1,nz-1)
-
-      dim = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
-
-      allocate(tx(nx+kx))
-      allocate(ty(ny+ky))
-      allocate(tz(nz+kz))
-      allocate(work(dim))
-      allocate(bcoef(nx,ny,nz))
-
-c     Setup up spline coeffs working array
+      kx = size(tx)-nx
+      ky = size(ty)-ny
+      kz = size(tz)-nz
 
       if (nx == 1 .and. ny == 1) then
         allocate(q((2*kz-1)*nz))
-        inbv=1
         call dbknot(z1,nz,kz,tz)
         call dbintk(z1,array1(1,1,:),tz,nz,kz,bcoef(1,1,:),q,work)
         deallocate(q)
       elseif (nx == 1 .and. nz == 1) then
         allocate(q((2*ky-1)*ny))
-        inbv=1
         call dbknot(y1,ny,ky,ty)
         call dbintk(y1,array1(1,:,1),ty,ny,ky,bcoef(1,:,1),q,work)
         deallocate(q)
       elseif (ny == 1 .and. nz == 1) then
         allocate(q((2*kx-1)*nx))
-        inbv=1
         call dbknot(x1,nx,kx,tx)
         call dbintk(x1,array1(:,1,1),tx,nx,kx,bcoef(:,1,1),q,work)
         deallocate(q)
@@ -1065,6 +1039,57 @@ c     Setup up spline coeffs working array
         call db3ink(x1,nx,y1,ny,z1,nz,array1
      .             ,nx,ny,kx,ky,kz,tx,ty,tz,bcoef,work,flg)
       endif
+
+c     End program
+
+      end subroutine interpArray_setup
+
+c     interpArray_spline
+c     #################################################################
+      subroutine interpArray_spline(x1,y1,z1,tx,ty,tz,work,bcoef
+     .                             ,x2,y2,z2,array2)
+c     -----------------------------------------------------------------
+c     This is a restriction routine for a single quantity, with
+c     arbitrary order of interpolation.
+c
+c     In call sequence, we have:
+c       * tx,ty,tz,work,bcoef (input): spline arrays
+c       * x1,y1,z1 (input): source interpolation nodes (1D)
+c       * x2,y2,z2 (output): target interpolation nodes (1D)
+c       * array2 (output): target interpolated data (3D)
+c     -----------------------------------------------------------------
+
+      implicit none        !For safe fortran
+
+c     Call variables
+
+      real(8) :: tx(:),ty(:),tz(:),work(:)
+      real(8) :: bcoef(:,:,:)
+
+      real(8) :: x1(:),y1(:),z1(:),x2(:),y2(:),z2(:),array2(:,:,:)
+
+c     Local variables
+
+      integer :: i,j,k,nx,ny,nz,nx2,ny2,nz2
+
+      real(8) :: xx,yy,zz,val
+
+      integer :: kx,ky,kz,inbv
+
+      real(8) :: dbvalu,db2val,db3val
+      external   dbvalu,db2val,db3val
+
+c     Begin program
+
+c     Compute storage based on source data
+
+      nx = size(bcoef,1)
+      ny = size(bcoef,2)
+      nz = size(bcoef,3)
+
+      kx = size(tx)-nx
+      ky = size(ty)-ny
+      kz = size(tz)-nz
 
 c     Perform spline interpolation
 
@@ -1099,10 +1124,13 @@ cc     .              write (*,*) 'z ',zz,nz,z1(1),z1(nz)
             endif
 
             if (nx == 1 .and. ny == 1) then
+              inbv=1
               val = dbvalu(tz,bcoef(1,1,:),nz,kz,0,zz,inbv,work)
             elseif (nx == 1 .and. nz == 1) then
+              inbv=1
               val = dbvalu(ty,bcoef(1,:,1),ny,ky,0,yy,inbv,work)
             elseif (ny == 1 .and. nz == 1) then
+              inbv=1
               val = dbvalu(tx,bcoef(:,1,1),nx,kx,0,xx,inbv,work)
             elseif (nx == 1) then
               val=db2val(yy,zz,0,0,ty,tz,ny,nz,ky,kz,bcoef(1,:,:),work)
@@ -1120,6 +1148,72 @@ cc     .              write (*,*) 'z ',zz,nz,z1(1),z1(nz)
           enddo
         enddo
       enddo
+
+c     End program
+
+      end subroutine interpArray_spline
+
+c     interpArray
+c     #################################################################
+      subroutine interpArray(order,x1,y1,z1,array1,x2,y2,z2,array2)
+c     -----------------------------------------------------------------
+c     This is a restriction routine for a single quantity, with
+c     arbitrary order of interpolation.
+c
+c     In call sequence, we have:
+c       * order (input): order of interpolation
+c       * x1,y1,z1 (input): source interpolation nodes (1D)
+c       * array1 (input): source data (3D)
+c       * x2,y2,z2 (input): target interpolation nodes (1D)
+c       * array2 (output): target interpolated data (3D)
+c     -----------------------------------------------------------------
+
+      implicit none        !For safe fortran
+
+c     Call variables
+
+      integer :: order
+
+      real(8) :: x1(:),y1(:),z1(:),x2(:),y2(:),z2(:)
+
+      real(8) :: array1(:,:,:),array2(:,:,:)
+
+c     Local variables
+
+      integer :: nx,ny,nz
+
+      integer :: kx,ky,kz,dim
+      real(8), dimension(:),allocatable:: tx,ty,tz,work
+      real(8), dimension(:,:,:),allocatable:: bcoef
+
+c     Begin program
+
+c     Compute storage based on source data
+
+      nx = size(array1,1)
+      ny = size(array1,2)
+      nz = size(array1,3)
+
+      kx = min(order+1,nx-1)
+      ky = min(order+1,ny-1)
+      kz = min(order+1,nz-1)
+
+      dim = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
+
+      allocate(tx(nx+kx))
+      allocate(ty(ny+ky))
+      allocate(tz(nz+kz))
+      allocate(work(dim))
+      allocate(bcoef(nx,ny,nz))
+
+c     Setup up spline coeffs working array
+
+      call interpArray_setup(x1,y1,z1,array1,tx,ty,tz,work,bcoef)
+
+c     Perform spline interpolation
+
+      call interpArray_spline(x1,y1,z1,tx,ty,tz,work,bcoef
+     .                       ,x2,y2,z2,array2)
 
       deallocate(tx,ty,tz,work,bcoef)
 
