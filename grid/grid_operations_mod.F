@@ -1189,11 +1189,13 @@ cc      end subroutine XformVector_stg_BC
 
 c     Xfer_stg_to_cell_mesh
 c     #################################################################
-      function Xfer_stg_to_cell_mesh(stg) result(cell)
+      function Xfer_stg_to_cell_mesh(stg,vrtx) result(cell)
 
 c     -----------------------------------------------------------------
-c     Transforms a staggered covariant vector to another contravariant
-c     representation at faces (i,j,k).
+c     Averages staggered vector to cell centers. The variable vrtx
+c     determines whether vector is cell-based (components orthogonal to
+c     cell-center volumes) or vertex-based (components orthogonal to
+c     vertex-centered volumes)
 c     -----------------------------------------------------------------
 
         implicit none
@@ -1207,11 +1209,20 @@ c     Input variables
      .                 ,0:size(stg,3)-1
      .                 ,  size(stg,4)  )
 
+        logical,optional :: vrtx
+
 c     Local variables
 
         integer :: i,j,k,nx,ny,nz,neq
+        logical :: vertex
 
 c     Begin program
+
+        if (PRESENT(vrtx)) then
+          vertex = vrtx
+        else
+          vertex = .false.
+        endif
 
         nx = size(stg,1)-2
         ny = size(stg,2)-2
@@ -1220,9 +1231,24 @@ c     Begin program
 
         cell = 0d0
 
-        cell(1:nx,:,:,1) = 0.5*(stg(0:nx-1,:,:,1)+stg(1:nx,:,:,1))
-        cell(:,1:ny,:,2) = 0.5*(stg(:,0:ny-1,:,2)+stg(:,1:ny,:,2))
-        cell(:,:,1:nz,3) = 0.5*(stg(:,:,0:nz-1,3)+stg(:,:,1:nz,3))
+        if (.not.vertex) then
+          cell(1:nx,:,:,1) = 0.5*(stg(0:nx-1,:,:,1)+stg(1:nx,:,:,1))
+          cell(:,1:ny,:,2) = 0.5*(stg(:,0:ny-1,:,2)+stg(:,1:ny,:,2))
+          cell(:,:,1:nz,3) = 0.5*(stg(:,:,0:nz-1,3)+stg(:,:,1:nz,3))
+        else
+          cell(1:nx,1:ny,1:nz,1) = 0.25*(stg(1:nx,0:ny-1,0:nz-1,1)
+     .                                  +stg(1:nx,0:ny-1,1:nz  ,1)
+     .                                  +stg(1:nx,1:ny  ,1:nz  ,1)
+     .                                  +stg(1:nx,1:ny  ,0:nz-1,1))
+          cell(1:nx,1:ny,1:nz,2) = 0.25*(stg(0:nx-1,1:ny,0:nz-1,2)
+     .                                  +stg(0:nx-1,1:ny,1:nz  ,2)
+     .                                  +stg(1:nx  ,1:ny,1:nz  ,2)
+     .                                  +stg(1:nx  ,1:ny,0:nz-1,2))
+          cell(1:nx,1:ny,1:nz,3) = 0.25*(stg(0:nx-1,0:ny-1,1:nz,3)
+     .                                  +stg(0:nx-1,1:ny  ,1:nz,3)
+     .                                  +stg(1:nx  ,1:ny  ,1:nz,3)
+     .                                  +stg(1:nx  ,0:ny-1,1:nz,3))
+        endif
 
       end function Xfer_stg_to_cell_mesh
 
