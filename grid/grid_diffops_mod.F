@@ -1154,6 +1154,99 @@ c     End program
 
       end function div_stg_mesh
 
+c     curl_stg_mesh
+c     ###############################################################
+      function curl_stg_mesh(igr,cov) result(cnv)
+
+c     ---------------------------------------------------------------
+c     Calculates curl(A) in general non-orthogonal coordinates for a
+c     staggered vector A.  The vector A is covariant, and returns a
+c     contravariant vector, also staggered.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igr
+
+      real(8) :: cov(0:,0:,0:,:)
+     .          ,cnv(0:size(cov,1)-1
+     .              ,0:size(cov,2)-1
+     .              ,0:size(cov,3)-1
+     .                ,size(cov,4))
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      cnv = 0d0
+
+      nx = size(cov,1)-2
+      ny = size(cov,2)-2
+      nz = size(cov,3)-2
+
+      do k=0,nz
+        do j=0,ny
+          do i=0,nx
+            cnv(i,j,k,:)=curl_stg_ijk(i,j,k,nx,ny,nz,igr,igr,igr,cov)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function curl_stg_mesh
+
+c     curl_stg_ijk
+c     ###############################################################
+      function curl_stg_ijk(i,j,k,nx,ny,nz,igx,igy,igz,cov)
+     .         result(curl)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Calculates curl of staggered covariant vector field to find
+c     staggered contravariant field in general non-orthogonal geometry.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+      real(8) :: cov(0:nx+1,0:ny+1,0:nz+1,3),curl(3)
+
+c     Local variables
+
+      integer :: ig,jg,kg,igrid,ip,jp,kp,km,hx,hy,hz
+      real(8) :: dxx,dyy,dzz
+
+c     Begin program
+
+      igrid = igx
+
+      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+      ip = min(i+1,nx+1)
+      jp = min(j+1,ny+1)
+      kp = min(k+1,nz+1)
+
+      dxx = grid_params%dx(ig)
+      dyy = grid_params%dy(jg)
+      dzz = grid_params%dz(kg)
+
+      curl(1) = (cov(i,jp,k ,3)-cov(i,j,k,3))/dyy
+     .         -(cov(i,j ,kp,2)-cov(i,j,k,2))/dzz !@(i,j+1/2,k+1/2)
+      curl(2) = (cov(i ,j,kp,1)-cov(i,j,k,1))/dzz
+     .         -(cov(ip,j,k ,3)-cov(i,j,k,3))/dxx !@(i+1/2,j,k+1/2)
+      curl(3) = (cov(ip,j ,k,2)-cov(i,j,k,2))/dxx
+     .         -(cov(i ,jp,k,1)-cov(i,j,k,1))/dyy !@(i+1/2,j+1/2,k)
+      
+c     End 
+
+      end function curl_stg_ijk
+
       end module grid_nabla_ops
 
 c grid_nabla2_ops
