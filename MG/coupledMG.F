@@ -1047,7 +1047,7 @@ c     End program
 c     interpArray_spline
 c     #################################################################
       subroutine interpArray_spline(x1,y1,z1,tx,ty,tz,work,bcoef
-     .                             ,x2,y2,z2,array2)
+     .                             ,x2,y2,z2,array2,d_x,d_y,d_z)
 c     -----------------------------------------------------------------
 c     This is a restriction routine for a single quantity, with
 c     arbitrary order of interpolation.
@@ -1057,6 +1057,7 @@ c       * tx,ty,tz,work,bcoef (input): spline arrays
 c       * x1,y1,z1 (input): source interpolation nodes (1D)
 c       * x2,y2,z2 (output): target interpolation nodes (1D)
 c       * array2 (output): target interpolated data (3D)
+c       * d_x,d_y,d_z (optional input): order of derivatives in X,Y,Z
 c     -----------------------------------------------------------------
 
       implicit none        !For safe fortran
@@ -1068,18 +1069,38 @@ c     Call variables
 
       real(8) :: x1(:),y1(:),z1(:),x2(:),y2(:),z2(:),array2(:,:,:)
 
+      integer, optional :: d_x,d_y,d_z
+
 c     Local variables
 
       integer :: i,j,k,nx,ny,nz,nx2,ny2,nz2
 
       real(8) :: xx,yy,zz,val
 
-      integer :: kx,ky,kz,inbv
+      integer :: kx,ky,kz,inbv,derx,dery,derz
 
       real(8) :: dbvalu,db2val,db3val
       external   dbvalu,db2val,db3val
 
 c     Begin program
+
+      if (PRESENT(d_x)) then
+        derx = d_x
+      else
+        derx = 0
+      endif
+
+      if (PRESENT(d_y)) then
+        dery = d_y
+      else
+        dery = 0
+      endif
+
+      if (PRESENT(d_z)) then
+        derz = d_z
+      else
+        derz = 0
+      endif
 
 c     Compute storage based on source data
 
@@ -1125,21 +1146,24 @@ cc     .              write (*,*) 'z ',zz,nz,z1(1),z1(nz)
 
             if (nx == 1 .and. ny == 1) then
               inbv=1
-              val = dbvalu(tz,bcoef(1,1,:),nz,kz,0,zz,inbv,work)
+              val = dbvalu(tz,bcoef(1,1,:),nz,kz,derz,zz,inbv,work)
             elseif (nx == 1 .and. nz == 1) then
               inbv=1
-              val = dbvalu(ty,bcoef(1,:,1),ny,ky,0,yy,inbv,work)
+              val = dbvalu(ty,bcoef(1,:,1),ny,ky,dery,yy,inbv,work)
             elseif (ny == 1 .and. nz == 1) then
               inbv=1
-              val = dbvalu(tx,bcoef(:,1,1),nx,kx,0,xx,inbv,work)
+              val = dbvalu(tx,bcoef(:,1,1),nx,kx,derx,xx,inbv,work)
             elseif (nx == 1) then
-              val=db2val(yy,zz,0,0,ty,tz,ny,nz,ky,kz,bcoef(1,:,:),work)
+              val=db2val(yy,zz,dery,derz,ty,tz,ny,nz,ky,kz,bcoef(1,:,:)
+     .                  ,work)
             elseif (ny == 1) then
-              val=db2val(xx,zz,0,0,tx,tz,nx,nz,kx,kz,bcoef(:,1,:),work)
+              val=db2val(xx,zz,derx,derz,tx,tz,nx,nz,kx,kz,bcoef(:,1,:)
+     .                  ,work)
             elseif (nz == 1) then
-              val=db2val(xx,yy,0,0,tx,ty,nx,ny,kx,ky,bcoef(:,:,1),work)
+              val=db2val(xx,yy,derx,dery,tx,ty,nx,ny,kx,ky,bcoef(:,:,1)
+     .                  ,work)
             else
-              val=db3val(xx,yy,zz,0,0,0,tx,ty,tz,nx,ny,nz
+              val=db3val(xx,yy,zz,derx,dery,derz,tx,ty,tz,nx,ny,nz
      .                      ,kx,ky,kz,bcoef,work)
             endif
 
