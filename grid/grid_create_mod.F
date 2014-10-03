@@ -8,8 +8,8 @@ c #####################################################################
 
         integer :: mg_ratio
 
-        private :: initGridSt,createLogicalGrid
-     $            ,consistencyCheck!,checkGrid
+        private :: createLogicalGrid
+     $            ,consistencyCheck!,initGridSt,checkGrid
 
       contains
 
@@ -26,12 +26,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+        integer :: nx,ny,nz
         type(grid_mg_def),pointer :: gdef
 
 c     Local variables
 
         integer :: imin,imax,jmin,jmax,kmin,kmax
-        integer :: nx,ny,nz,mpi_comm
+        integer :: mpi_comm
 
 c     Begin program
 
@@ -66,6 +67,26 @@ c     Initialize grid structure
      .                 ,coarsen_in_z=.false.
 #endif
      .                 )
+
+        grid_params => gdef  !Backward compatibility
+
+c     Create MPI communicators (requires grid_params; needed by defineGridMetric)
+
+#if defined(petsc)
+        call create_MPI_comms
+#endif
+
+c     Store grid metric parameters in grid metric structure
+
+cc        if (checkAnalMapDatabase() .or. coords == 'lpk') then
+        if (checkAnalMapDatabase()) then
+          call defineGridMetric(gdef)
+          gmetric => gdef%gmetric  !For backward compatibility
+        else
+          if (my_rank == 0 .and. coords /= 'ext') then
+            write (*,*) 'WARNING: Map "',coords,'" not in database'
+          endif
+        endif
 
 c     Perform grid check
 
@@ -205,32 +226,12 @@ c     Create MG grid hierarchy
 
         call createMGgrid(gdef)
 
-        grid_params => gdef  !For backward compatibility
-
-c     Create MPI communicators (requires grid_params; needed by defineGridMetric)
-
-#if defined(petsc)
-        call create_MPI_comms
-#endif
-
 c     Create fortran PETSc parallel grid hierarchy (parallel version)
 
 #if defined(petsc)
         call createPETScGrid(gdef,0)
         call setup_petsc_BC   !Set PETSc BC flags
 #endif
-
-c     Store grid metric parameters in grid metric structure
-
-cc        if (checkAnalMapDatabase() .or. coords == 'lpk') then
-        if (checkAnalMapDatabase()) then
-          call defineGridMetric(gdef)
-          gmetric => gdef%gmetric  !For backward compatibility
-        else
-          if (my_rank == 0 .and. coords /= 'ext') then
-            write (*,*) 'WARNING: Map "',coords,'" not in database'
-          endif
-        endif
 
       contains
 

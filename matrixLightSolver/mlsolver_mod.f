@@ -56,7 +56,6 @@ cc          logical    :: vol_res
           logical      :: mg_galerkin
           logical      :: mg_debug
 
-
           type(grid_mg_def),pointer  :: mg_grid_def
 
           type(mg_ctx),pointer :: mgctx
@@ -174,10 +173,9 @@ cc          solverOptions%vol_res  = .true.          !Whether residual contains 
                                                    !  or rediscretization (false)
           solverOptions%mg_debug       =.false.    !Whether to turn on MG graphic debugging
 
-cc          solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
-          solverOptions%mg_grid_def => grid_params  !Defines default MG grid levels def.
-cc          call equateGridStructure(solverOptions%mg_grid_def
-cc     .                            ,grid_params)    !Defines default MG grid levels def.
+          solverOptions%mg_grid_def => grid_params !Defines default MG grid levels def.
+
+          solverOptions%mgctx => null()            !Nullify MG context
 
           !Krylov methods options
           solverOptions%stp_test = 0               !Stopping criterion (CG, GMRES)
