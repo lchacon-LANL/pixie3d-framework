@@ -73,7 +73,7 @@ c ######################################################################
 
 c     readGraphicsConfig
 c     ######################################################################
-      subroutine readGraphicsConfig(file)
+      function readGraphicsConfig(file) result(ioerr)
 
 c     -----------------------------------------------------------------
 c     Initializes grid parameters
@@ -82,6 +82,8 @@ c     -----------------------------------------------------------------
       implicit none
 
 c     Call variables
+
+      integer :: ioerr
 
       character(*) :: file
 
@@ -105,11 +107,11 @@ c     Graphics defaults
 c     Read graphics initialization parameters
 
       open(unit=25,file=trim(file),status='old')
-      read(25,graphics)
+      read(25,graphics,iostat=ioerr)
       close(unit=25)
 
 c     End program
 
-      end subroutine readGraphicsConfig
+      end function readGraphicsConfig
 
       end module graphics_io
