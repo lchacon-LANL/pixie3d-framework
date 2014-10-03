@@ -4298,11 +4298,11 @@ c     Select operation
           if (iscnv) then
             v_cnv => array
             allocate(v_cov(0:nnx+1,0:nny+1,0:nnz+1,neql))
-cc            v_cov = 0d0
+            v_cov = 0d0
           else
             v_cov => array
             allocate(v_cnv(0:nnx+1,0:nny+1,0:nnz+1,neql))
-cc            v_cnv = 0d0
+            v_cnv = 0d0
           endif
         endif
 
