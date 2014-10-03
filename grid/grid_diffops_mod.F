@@ -3775,7 +3775,7 @@ c     Call variables
      $                  ,0:size(cov,2)-1
      $                  ,0:size(cov,3)-1,3)
 
-      real(8),optional,target :: diff(0:,0:,0:)
+      real(8),target,optional,dimension(:,:,:) :: diff
 
 c     Local variables
 
@@ -3783,32 +3783,49 @@ c     Local variables
 
 c     Begin program
 
-#if defined(samrai)
-      real(8),dimension(:,:,:),pointer :: dff
+cc#if defined(samrai)
+cc      real(8),dimension(:,:,:),pointer :: dff
+cc      if (PRESENT(diff)) then
+cc        dff => diff
+cc      endif
+cc#endif
+
+      nx = size(cov,1)-2
+      ny = size(cov,2)-2
+      nz = size(cov,3)-2
+
+cc#if defined(samrai)
+cc      do k=1,nz
+cc        do j=1,ny
+cc          do i=1,nx
+cc            cov_out(i,j,k,:)=veclap_cov_ijk(i,j,k,nx,ny,nz
+cc     .                                     ,igrid,igrid,igrid
+cc     .                                     ,cov,dff=dff)
+cc          enddo
+cc        enddo
+cc      enddo
+cc#else
       if (PRESENT(diff)) then
-         dff => diff
-      endif
-#endif
-
-      nx = grid_params%nxv(igrid)
-      ny = grid_params%nyv(igrid)
-      nz = grid_params%nzv(igrid)
-
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-#if defined(samrai)
-            cov_out(i,j,k,:)=veclap_cov_ijk(i,j,k,nx,ny,nz
-     .                                     ,igrid,igrid,igrid
-     .                                     ,cov,dff=dff)
-#else
-            cov_out(i,j,k,:)=veclap_cov_ijk(i,j,k,nx,ny,nz
-     .                                     ,igrid,igrid,igrid
-     .                                     ,cov,dff=diff)
-#endif
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              cov_out(i,j,k,:)=veclap_cov_ijk(i,j,k,nx,ny,nz
+     .                                       ,igrid,igrid,igrid
+     .                                       ,cov,dff=diff)
+            enddo
           enddo
         enddo
-      enddo
+      else
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              cov_out(i,j,k,:)=veclap_cov_ijk(i,j,k,nx,ny,nz
+     .                                       ,igrid,igrid,igrid,cov)
+            enddo
+          enddo
+        enddo
+      endif
+cc#endif
 
 c     End program
 
@@ -3829,20 +3846,20 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
 
       real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
       real(8),target,optional :: dff(0:nx+1,0:ny+1,0:nz+1)
 
-      real(8)    :: vlap(3)
+      real(8) :: vlap(3)
 
       logical,optional,intent(IN) :: vol
 
 c     Local variables
 
-      integer    :: icomp
+      integer :: icomp
 
-      logical    :: vol_wgt
+      logical :: vol_wgt
 
 c     Begin program
 
