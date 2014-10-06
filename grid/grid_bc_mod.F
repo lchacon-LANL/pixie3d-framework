@@ -4092,8 +4092,8 @@ c######################################################################
 c     setMGBC
 c     ###############################################################
       subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,arr_cov
-     .                  ,arr0,icomp,is_cnv,is_vec,result_is_vec
-     .                  ,out_iscnv,out_isvec,iorder)
+     .                  ,arr0,icomp,is_cnv,is_vec,is_curv,result_is_curv
+     .                  ,out_iscnv,out_iscurv,iorder)
 c     ---------------------------------------------------------------
 c     Interfaces BC routines with MG code, for preconditioning.
 c     On input:
@@ -4110,22 +4110,23 @@ c       *arr_cov: covariant components of vector components.
 c       *arr0: array containing dirichlet BCs (zero by default)
 c       *icomp: integer array specifying magnitude of interest (if not
 c               provided, use last used value).
-c       *is_cnv: logical variable indicating whether array
-c                contains covariant or contravariant components
-c                (if not provided, use last used value).
 c       *is_vec: logical variable specifying whether array
 c          represents a curvilinear vector or a set of scalars
 c          (if not provided, use last used value):
 c             -If is_vec=.true., array is taken as curvilinear vector
 c              components (covariant or contravariant, according
 c              to variable is_cnv).
-c             -If is_vec=.false., array is taken as coupled scalars
-c              (also Cartesian vector components).
-c       *result_is_vec: logical variable specifying whether output
-c                       in array should be curvilinear (.true.) or
-c                       not (default=is_vec)
-c       *out_isvec (intent OUT): specifies whether input is curvilinear
-c                                vector (needed when is_vec is inherited
+c             -If is_vec=.false., array is taken as scalars.
+c       *is_curv: whether vector is provided in Cartesian (.false.) or
+c                 curvilinear representation
+c       *is_cnv: logical variable indicating whether array
+c                contains covariant or contravariant components
+c                (if not provided, use last used value).
+c       *result_is_curv: logical variable specifying whether output
+c                        in array should be curvilinear (.true.) or
+c                        not (default=is_curv)
+c       *out_iscurv (intent OUT): specifies whether output is curvilinear
+c                                vector (needed when is_curv is inherited
 c                                from a previous call).
 c       *out_iscnv (intent OUT): specifies representation of output
 c                                vector (needed when is_cnv is inherited
@@ -4152,14 +4153,14 @@ c     Call variables
 
       integer,optional,intent(IN) :: icomp(max(neq,3)/3),iorder
 
-      logical,optional,intent(IN) :: is_cnv,is_vec,result_is_vec
-      logical,optional,intent(OUT):: out_iscnv,out_isvec
+      logical,optional,intent(IN) ::is_cnv,is_vec,is_curv,result_is_curv
+      logical,optional,intent(OUT)::out_iscnv,out_iscurv
 
 c     Local variables
 
-      integer    :: i,j,k,stencil_width,ieq,neql
-     .             ,imng,imxg,jmng,jmxg,kmng,kmxg
-     .             ,imnl,imxl,jmnl,jmxl,kmnl,kmxl
+      integer :: i,j,k,stencil_width,ieq,neql
+     .          ,imng,imxg,jmng,jmxg,kmng,kmxg
+     .          ,imnl,imxl,jmnl,jmxl,kmnl,kmxl
 
       integer,save :: order=-1 !Needed to "remember" order of extrapolation at
                                !boundaries from previous calls when not explicitly
@@ -4168,10 +4169,10 @@ c     Local variables
       integer,save :: ivar(2)  !Needed to "remember" ivar from previous calls
                                !when icomp is not provided.
 
-      logical,save :: iscnv,isvec !Needed to "remember' these from previous calls
-                                  !when they are not provided.
+      logical,save :: iscnv,iscurv !Needed to "remember' these from previous calls
+                                   !when they are not provided.
 
-      logical      :: res_is_vec,fpointers
+      logical      :: res_is_curv,fpointers,vector,isvec
 
       real(8)      :: car(3),curv(3)
 
@@ -4226,54 +4227,32 @@ c     Find GLOBAL limits (required for BC routine setBC)
 
 c     Select operation
 
-      select case (neql)
-      case(1)
+      if (PRESENT(is_vec)) then
+        isvec = is_vec
+      else
+        isvec = (neql == 3 .or. neql == 6) !Backward compatibility with previous
+                                           ! versions of this routine
+      endif
 
-        if (PRESENT(arr0)) then
-          vv0 => arr0
+      vector = (neql == 3 .or. neql == 6).and.isvec
+
+      if (vector) then
+
+        if (PRESENT(is_cnv )) iscnv = is_cnv
+
+        if (PRESENT(is_curv)) then
+          iscurv = is_curv
         else
-          allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,neq))
-          vv0 = 0d0
+          iscurv = .true.
         endif
 
-        call setBC(ivar(1),nnx,nny,nnz,array(:,:,:,1),vv0(:,:,:,1)
-     .            ,bcnd(:,neql),iig,iig,iig
-     .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
-     .            ,iorder=order)
-
-        if (.not.PRESENT(arr0)) deallocate(vv0)
-
-      case(2)
-
-        if (PRESENT(arr0)) then
-          vv0 => arr0
+        if (PRESENT(result_is_curv)) then
+          res_is_curv = result_is_curv
         else
-          allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,neq))
-          vv0 = 0d0
+          res_is_curv = iscurv
         endif
 
-        do ieq=1,neql
-          call setBC(ivar(1),nnx,nny,nnz,array(:,:,:,ieq),vv0(:,:,:,ieq)
-     .            ,bcnd(:,ieq),iig,iig,iig
-     .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
-     .            ,iorder=order)
-        enddo
-
-        if (.not.PRESENT(arr0)) deallocate(vv0)
-
-      case(3,6)
-
-        if (PRESENT(is_cnv)) iscnv = is_cnv
-
-        if (PRESENT(is_vec)) isvec = is_vec
-
-        if (PRESENT(result_is_vec)) then
-          res_is_vec = result_is_vec
-        else
-          res_is_vec = isvec
-        endif
-
-        if (.not.isvec) iscnv=.true.
+        if (.not.iscurv) iscnv=.true.
 
         cvec = 'cov'
         if (iscnv) cvec = 'cnv'
@@ -4285,7 +4264,7 @@ c     Select operation
           vv0 = 0d0
         endif
 
-        if (.not.isvec) then
+        if (.not.iscurv) then  !Transform to curvilinear
 
           do ieq=1,neql/3
             call transformVector(iig,iig,iig
@@ -4348,7 +4327,7 @@ c     Select operation
           endif
         endif
 
-        if (.not.res_is_vec) then  !Overrule isvec when res_is_vec is specified
+        if (.not.res_is_curv) then
 
           do ieq=1,neql/3
             call transformVector(iig,iig,iig
@@ -4362,15 +4341,175 @@ c     Select operation
         endif
 
         !For output
-        if (PRESENT(out_iscnv)) out_iscnv=iscnv
-        if (PRESENT(out_isvec)) out_isvec=isvec
+        if (PRESENT(out_iscnv )) out_iscnv =iscnv
+        if (PRESENT(out_iscurv)) out_iscurv=iscurv
 
-      case default
-        write (*,*) 'Number of equations',neql
-     .             ,'not implemented in setMGBC'
-        write (*,*) 'Aborting...'
-        stop
-      end select
+      else
+
+        if (PRESENT(arr0)) then
+          vv0 => arr0
+        else
+          allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,neql))
+          vv0 = 0d0
+        endif
+
+        do ieq=1,neql
+          call setBC(ivar(1),nnx,nny,nnz
+     $              ,array(:,:,:,ieq),vv0(:,:,:,ieq)
+     .              ,bcnd(:,ieq),iig,iig,iig
+     .              ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
+     .              ,iorder=order)
+        enddo
+
+        if (.not.PRESENT(arr0)) deallocate(vv0)
+
+      endif
+
+c$$$      select case (neql)
+c$$$      case(1)
+c$$$
+c$$$        if (PRESENT(arr0)) then
+c$$$          vv0 => arr0
+c$$$        else
+c$$$          allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,neql))
+c$$$          vv0 = 0d0
+c$$$        endif
+c$$$
+c$$$        call setBC(ivar(1),nnx,nny,nnz,array(:,:,:,1),vv0(:,:,:,1)
+c$$$     .            ,bcnd(:,neql),iig,iig,iig
+c$$$     .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
+c$$$     .            ,iorder=order)
+c$$$
+c$$$        if (.not.PRESENT(arr0)) deallocate(vv0)
+c$$$
+c$$$      case(2)
+c$$$
+c$$$        if (PRESENT(arr0)) then
+c$$$          vv0 => arr0
+c$$$        else
+c$$$          allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,neql))
+c$$$          vv0 = 0d0
+c$$$        endif
+c$$$
+c$$$        do ieq=1,neql
+c$$$          call setBC(ivar(1),nnx,nny,nnz,array(:,:,:,ieq),vv0(:,:,:,ieq)
+c$$$     .            ,bcnd(:,ieq),iig,iig,iig
+c$$$     .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
+c$$$     .            ,iorder=order)
+c$$$        enddo
+c$$$
+c$$$        if (.not.PRESENT(arr0)) deallocate(vv0)
+c$$$
+c$$$      case(3,6)
+c$$$
+c$$$        if (PRESENT(is_cnv)) iscnv = is_cnv
+c$$$
+c$$$        if (PRESENT(is_vec)) isvec = is_vec
+c$$$
+c$$$        if (PRESENT(result_is_vec)) then
+c$$$          res_is_curv = result_is_vec
+c$$$        else
+c$$$          res_is_curv = isvec
+c$$$        endif
+c$$$
+c$$$        if (.not.isvec) iscnv=.true.
+c$$$
+c$$$        cvec = 'cov'
+c$$$        if (iscnv) cvec = 'cnv'
+c$$$
+c$$$        if (PRESENT(arr0)) then
+c$$$          vv0 => arr0
+c$$$        else
+c$$$          allocate(vv0(0:nnx+1,0:nny+1,0:nnz+1,neql))
+c$$$          vv0 = 0d0
+c$$$        endif
+c$$$
+c$$$        if (.not.isvec) then
+c$$$
+c$$$          do ieq=1,neql/3
+c$$$            call transformVector(iig,iig,iig
+c$$$     .           ,imnl-1,imxl+1,jmnl-1,jmxl+1,kmnl-1,kmxl+1
+c$$$     .     ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,1+3*(ieq-1))
+c$$$     .     ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,2+3*(ieq-1))
+c$$$     .     ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,3+3*(ieq-1))
+c$$$     .                            ,'car',cvec)
+c$$$          enddo
+c$$$
+c$$$        endif
+c$$$
+c$$$        if (PRESENT(arr_cov)) then
+c$$$          v_cnv => array
+c$$$          v_cov => arr_cov
+c$$$        else
+c$$$          if (iscnv) then
+c$$$            v_cnv => array
+c$$$            allocate(v_cov(0:nnx+1,0:nny+1,0:nnz+1,neql))
+c$$$cc            v_cov = 0d0
+c$$$          else
+c$$$            v_cov => array
+c$$$            allocate(v_cnv(0:nnx+1,0:nny+1,0:nnz+1,neql))
+c$$$cc            v_cnv = 0d0
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (iscnv) then
+c$$$          do ieq=1,neql/3
+c$$$            v_cov(:,:,:,1+3*(ieq-1):3*ieq)
+c$$$     .           = XformVector(iig,v_cnv(:,:,:,1+3*(ieq-1):3*ieq)
+c$$$     .                        ,.not.iscnv)
+c$$$          enddo
+c$$$        else
+c$$$          do ieq=1,neql/3
+c$$$            v_cnv(:,:,:,1+3*(ieq-1):3*ieq)
+c$$$     .           = XformVector(iig,v_cov(:,:,:,1+3*(ieq-1):3*ieq)
+c$$$     .                        ,.not.iscnv)
+c$$$          enddo
+c$$$        endif
+c$$$
+c$$$        do ieq=1,neql/3
+c$$$          call setBC(ivar(ieq),3,nnx,nny,nnz
+c$$$     .            ,v_cnv(:,:,:,1+3*(ieq-1):3*ieq)
+c$$$     .            ,v_cov(:,:,:,1+3*(ieq-1):3*ieq)
+c$$$     .            ,vv0  (:,:,:,1+3*(ieq-1):3*ieq)
+c$$$     .            ,bcnd (:    ,1+3*(ieq-1):3*ieq)
+c$$$     .            ,iig,iig,iig
+c$$$     .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
+c$$$     .            ,is_cnv=iscnv,is_vec=.true.,iorder=order)
+c$$$        enddo
+c$$$
+c$$$        if (.not.PRESENT(arr0)) deallocate(vv0)
+c$$$
+c$$$        if (.not.PRESENT(arr_cov)) then
+c$$$          if (iscnv) then
+c$$$            deallocate(v_cov)
+c$$$          else
+c$$$            deallocate(v_cnv)
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (.not.res_is_curv) then  !Overrule isvec when res_is_curv is specified
+c$$$
+c$$$          do ieq=1,neql/3
+c$$$            call transformVector(iig,iig,iig
+c$$$     .           ,imnl-1,imxl+1,jmnl-1,jmxl+1,kmnl-1,kmxl+1
+c$$$     .     ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,1+3*(ieq-1))
+c$$$     .     ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,2+3*(ieq-1))
+c$$$     .     ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,3+3*(ieq-1))
+c$$$     .                          ,cvec,'car')
+c$$$          enddo
+c$$$
+c$$$        endif
+c$$$
+c$$$        !For output
+c$$$        if (PRESENT(out_iscnv)) out_iscnv=iscnv
+c$$$        if (PRESENT(out_isvec)) out_isvec=isvec
+c$$$
+c$$$      case default
+c$$$        write (*,*) 'Number of equations',neql
+c$$$     .             ,'not implemented in setMGBC'
+c$$$        write (*,*) 'Aborting...'
+c$$$        stop
+c$$$      end select
 
 c     Deallocate MG pointers (if allocated in this routine)
 

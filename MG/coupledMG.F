@@ -920,7 +920,7 @@ c     Begin program
         if (PRESENT(mgvcov)) then
           is__vec = .true.
         else
-          is__vec = (neq /= 1)
+          is__vec = (neq == 3 .or. neq == 6)
         endif
       endif
 
@@ -1345,12 +1345,12 @@ c     Impose BCs
      .                  ,arr0=equilb%grid(igc)%array
      .                  ,arr_cov=mgvcov%grid(igc)%array
      .                  ,icomp=(/icmp2/),is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_vec=res_is_vec,iorder=order)
+     .                  ,result_is_curv=res_is_vec,iorder=order)
           else
             call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
      .                  ,arr0=equilb%grid(igc)%array
      .                  ,icomp=(/icmp2/),is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_vec=res_is_vec,iorder=order)
+     .                  ,result_is_curv=res_is_vec,iorder=order)
           endif
         else
           bcmod = bcnd
@@ -1359,11 +1359,11 @@ c     Impose BCs
             call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
      .                  ,arr_cov=mgvcov%grid(igc)%array
      .                  ,icomp=(/icmp2/),is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_vec=res_is_vec,iorder=order)
+     .                  ,result_is_curv=res_is_vec,iorder=order)
           else
             call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
      .                  ,icomp=(/icmp2/),is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_vec=res_is_vec,iorder=order)
+     .                  ,result_is_curv=res_is_vec,iorder=order)
           endif
         endif
       endif
@@ -5291,9 +5291,9 @@ c Impose boundary conditions (external)
       if (order > 0 .or. cartesian) then
         call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
 cc     .              ,iorder=min(order,3)             !now inherited from previous calls
-     .              ,result_is_vec=(.not.cartesian)
-     .              ,out_isvec=isvec,out_iscnv=iscnv)  !<= These define whether quantities are
-                                                       !   vectors or scalars.
+     .              ,result_is_curv=(.not.cartesian)
+     .              ,out_iscurv=isvec,out_iscnv=iscnv)  !<= These define whether quantities are
+                                                        !   vectors or scalars.
       endif
 
 c Perform average along azimuthal direction for SP configurations
