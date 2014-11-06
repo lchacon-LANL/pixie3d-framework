@@ -106,14 +106,21 @@ c     Graphics defaults
       jplot = 1
       kplot = 1
 
-      sel_diag  =(/ (i,i=1,xdraw_cont_lim) /)
-      sel_graph =(/ (i,i=1,xdraw_cont_lim) /)
+cc      sel_diag  =(/ (i,i=1,xdraw_cont_lim) /)
+cc      sel_graph =(/ (i,i=1,xdraw_cont_lim) /)
+      sel_diag  = 0
+      sel_graph = 0
 
 c     Read graphics initialization parameters
 
       open(unit=25,file=trim(file),status='old')
       read(25,graphics,iostat=ioerr)
       close(unit=25)
+
+c     Initialize if not set
+
+      if (maxval(sel_diag) == 0) sel_diag =(/ (i,i=1,xdraw_cont_lim) /)
+      if (maxval(sel_graph)== 0) sel_graph=(/ (i,i=1,xdraw_cont_lim) /)
 
 c     End program
 
