@@ -1765,9 +1765,9 @@ c     Dump plots
         call mapMGVectorToArray(0,neq,mgv,nx,ny,nz,debug,igr,.true.)
         do ieq=1,neq
           call C_contour(debug(1:nx,1:ny,1:nz,ieq)
-     .                ,MGgrid%gxmin,MGgrid%gxmax
-     .                ,MGgrid%gymin,MGgrid%gymax
-     .                ,MGgrid%gzmin,MGgrid%gzmax
+     .                ,MGgrid%lxmin,MGgrid%lxmax
+     .                ,MGgrid%lymin,MGgrid%lymax
+     .                ,MGgrid%lzmin,MGgrid%lzmax
      .                ,iflag+ieq-1,nunit)
         enddo
 

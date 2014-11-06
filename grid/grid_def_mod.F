@@ -62,6 +62,10 @@ c #####################################################################
           real(8) :: gymin,gymax        !Physical dim. of global domain in Y
           real(8) :: gzmin,gzmax        !Physical dim. of global domain in Z
 
+          real(8) :: lxmin,lxmax        !Physical dim. of LOCAL domain in X
+          real(8) :: lymin,lymax        !Physical dim. of LOCAL domain in Y
+          real(8) :: lzmin,lzmax        !Physical dim. of LOCAL domain in Z
+
           integer :: mpi_comm,np,rank   !MPI info
 
           integer :: aligner            !Ghost cell width
@@ -175,6 +179,13 @@ c     Begin program
           grid_st%gymax = UNDEF_DP
           grid_st%gzmin = UNDEF_DP
           grid_st%gzmax = UNDEF_DP
+
+          grid_st%lxmin = UNDEF_DP    !Indicates it is provided by input file
+          grid_st%lxmax = UNDEF_DP
+          grid_st%lymin = UNDEF_DP
+          grid_st%lymax = UNDEF_DP
+          grid_st%lzmin = UNDEF_DP
+          grid_st%lzmax = UNDEF_DP
 
 #if defined(petsc) && !defined(samrai)
           if (PRESENT(mpi_comm)) then
@@ -412,6 +423,13 @@ c     Deallocate MG storage variables
         grid_st%gzmin = UNDEF_DP
         grid_st%gzmax = UNDEF_DP
 
+        grid_st%lxmin = UNDEF_DP
+        grid_st%lxmax = UNDEF_DP
+        grid_st%lymin = UNDEF_DP
+        grid_st%lymax = UNDEF_DP
+        grid_st%lzmin = UNDEF_DP
+        grid_st%lzmax = UNDEF_DP
+
         if (associated(grid_st%xx)) then
           deallocate(grid_st%xg)
           deallocate(grid_st%yg)
@@ -560,6 +578,12 @@ c       Copy values
         grid_st2%gymax      = grid_st1%gymax
         grid_st2%gzmin      = grid_st1%gzmin
         grid_st2%gzmax      = grid_st1%gzmax
+        grid_st2%lxmin      = grid_st1%lxmin
+        grid_st2%lxmax      = grid_st1%lxmax
+        grid_st2%lymin      = grid_st1%lymin
+        grid_st2%lymax      = grid_st1%lymax
+        grid_st2%lzmin      = grid_st1%lzmin
+        grid_st2%lzmax      = grid_st1%lzmax
 
         grid_st2%g_pack     = grid_st1%g_pack
         grid_st2%params     = grid_st1%params

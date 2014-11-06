@@ -435,6 +435,9 @@ c     Define uniform logical LOCAL grid on ALL grid levels
      .                     ,gdef%gxmin,gdef%gxmax,bcond(1),bcond(2)
      .                     ,gdef%g_pack(1))
 
+        gdef%lxmin = gdef%xx(1)
+        gdef%lxmax = gdef%xx(gdef%nxv(1)+2)
+
         call createLogicalGrid(gdef%nygl,gdef%mg_ratio_y
      .                     ,gdef%yg,gdef%yy,gdef%dy
      .                     ,gdef%dyh,gdef%nyv
@@ -443,6 +446,9 @@ c     Define uniform logical LOCAL grid on ALL grid levels
      .                     ,gdef%gymin,gdef%gymax,bcond(3),bcond(4)
      .                     ,gdef%g_pack(2))
 
+        gdef%lymin = gdef%yy(1)
+        gdef%lymax = gdef%yy(gdef%nyv(1)+2)
+
         call createLogicalGrid(gdef%nzgl,gdef%mg_ratio_z
      .                     ,gdef%zg,gdef%zz,gdef%dz
      .                     ,gdef%dzh,gdef%nzv
@@ -450,6 +456,9 @@ c     Define uniform logical LOCAL grid on ALL grid levels
      .                     ,gdef%klo,gdef%khi
      .                     ,gdef%gzmin,gdef%gzmax,bcond(5),bcond(6)
      .                     ,gdef%g_pack(3))
+
+        gdef%lzmin = gdef%zz(1)
+        gdef%lzmax = gdef%zz(gdef%nzv(1)+2)
 
       end subroutine createMGgrid
 
