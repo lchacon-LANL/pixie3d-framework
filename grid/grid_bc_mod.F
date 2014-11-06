@@ -10,47 +10,6 @@ c     -----------------------------------------------------------------
 
       contains
 
-c     bcSYM
-c     #################################################################
-      function bcSYM(ibc,bcnd) result(sym_bc)
-
-c     -----------------------------------------------------------------
-c     Detects whether boundary is of SYM or FSYM type. Boundary is
-c     identified by ibc, with the following convention:
-c        * ibc = 1, 2 (xmin,xmax)
-c        * ibc = 3, 4 (ymin,ymax)
-c        * ibc = 5, 6 (zmin,zmax)
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer :: ibc
-        logical :: sym_bc
-        integer,optional :: bcnd(6)
-
-c     Local variables
-
-        integer :: bc(6)
-
-c     Begin program
-
-        if (PRESENT(bcnd)) then
-          bc = bcnd
-        else
-          bc = bcond
-        endif
-
-        if (ibc < 1 .or. ibc > 6) then
-          sym_bc = .false.
-        else
-          sym_bc =    (abs(bc(ibc)) ==  SYM)
-cc     .            .or.(abs(bc(ibc)) == FSYM)
-        endif
-
-      end function bcSYM
-
 c     isBdry
 c     #################################################################
       function isBdry(i,igr,ibc)

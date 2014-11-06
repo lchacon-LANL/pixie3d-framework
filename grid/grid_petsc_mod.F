@@ -193,6 +193,49 @@ c     Begin program
 
       end function bcPER
 
+c     bcSYM
+c     #################################################################
+      function bcSYM(ibc,bcnd) result(sym_bc)
+
+c     -----------------------------------------------------------------
+c     Detects whether boundary is of SYM or FSYM type. Boundary is
+c     identified by ibc, with the following convention:
+c        * ibc = 1, 2 (xmin,xmax)
+c        * ibc = 3, 4 (ymin,ymax)
+c        * ibc = 5, 6 (zmin,zmax)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: ibc
+        logical :: sym_bc
+        integer,optional :: bcnd(6)
+
+c     Local variables
+
+        integer :: bc(6)
+
+c     Begin program
+
+        sym_bc = bcChk(ibc,SYM,bcnd=bcnd)
+
+cc        if (PRESENT(bcnd)) then
+cc          bc = bcnd
+cc        else
+cc          bc = bcond
+cc        endif
+cc
+cc        if (ibc < 1 .or. ibc > 6) then
+cc          sym_bc = .false.
+cc        else
+cc          sym_bc =    (abs(bc(ibc)) ==  SYM)
+cccc     .            .or.(abs(bc(ibc)) == FSYM)
+cc        endif
+
+      end function bcSYM
+
       end module bc_def
 
 c module grid_petsc
