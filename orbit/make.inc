@@ -14,6 +14,7 @@ SUBDIRS = $(COMMONDIR)/math\
           $(COMMONDIR)/io\
           $(COMMONDIR)/grid\
           $(COMMONDIR)/interpolation/1d_int\
+	  $(COMMONDIR)/newtonGMRES\
 	  $(COMMONDIR)/var_setup\
 	  $(COMMONDIR)/driver_setup
 

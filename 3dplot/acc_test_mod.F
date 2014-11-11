@@ -8,7 +8,7 @@ c ###########################################################################
 
         use var_io
 
-        use timeStepping
+        use ts_setup
 
         logical :: temp_acc=.false.,spat_acc=.false.
 
