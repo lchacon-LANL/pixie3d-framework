@@ -637,6 +637,8 @@ cc      return
 
 c     2nd order formulas
 
+      gx = 0d0 ; gy = 0d0 ; gz = 0d0
+
       !X comp
       select case(hx)
       case(0)
