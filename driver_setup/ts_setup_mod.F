@@ -6,6 +6,35 @@ c ######################################################################
 
         use nk_setup
 
+        use io
+
+        !Default TS variables
+        real(8) :: cnfactor=0.5        ! Crank-Nicolson factor (implicit if <= 0.5)
+     .            ,dstep=0d0           ! Time interval between plots (if zero,
+                                       !        dstep is calculated in code)
+     .            ,eig_dt=1d0          ! Time step for eigenvalue dynamical system
+     .            ,dt      = 1d0       ! Time step (if zero, dt is calculated in code)
+     .            ,tmax    =-1d0       ! Target time, in Alfven times (not active if negative)
+
+        integer :: sm_pass=2           ! Number of initial smoother passes for Rannacher TS
+     .            ,sm_flag=0           ! Time smoothing flag:
+                                       !   0 -> Theta scheme
+                                       !   1 -> Rannacher time stepping
+                                       !   2 -> BDF2
+     .            ,numtime=-1          ! Number of time steps
+     .            ,ndstep=0            ! # time steps between plots (if zero,
+                                       !        ndstep is calculated in code)
+
+        logical :: timecorr=.true.     ! Time adaptive algorithm (based on Newton convergence)
+     .            ,restart=.false.     ! Restarting flag
+     .            ,source=.true.       ! Impose source to provide equilibrium
+     .            ,predictor=.false.   ! Whether to extrapolate in time to find first guess (not active)
+     .            ,postprocess=.false. ! Whether to run solution postprocessing after time step
+     .            ,preprocess=.false.  ! Whether to run solution preprocessing before time step
+     .            ,eigen=.false.       ! Whether to run framework in eigensolver mode
+     .            ,perturb_restart=.false.! Whether to apply perturbation after restart
+
+        !TS working variables
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
      .                                     ,bdfp,bdfn,bdfnm
 
@@ -13,32 +42,19 @@ c ######################################################################
         real(8),pointer,dimension(:) :: fold,fsrc,x_old,x0
 #endif
 
-        integer :: numtime,ndstep,ntimemax
+        integer :: ntimemax,itime=0
 
-        real(8) :: cnfactor,dstep,eig_dt
+        real(8) :: dt_n,dtold,time,tn,tnm,alpha,gammat
 
-        real(8) :: dt,dt_n,dtold,tmax,time,tn,tnm,alpha,gammat
+        real(8) :: cnp=1d0,cn=-1d0,cnm=0d0
 
-        !Initialized variables
-        integer :: itime=0
-     .            ,sm_pass=2
-     .            ,sm_flag=0
-
-        logical :: timecorr=.false.
-     .            ,restart=.false.
-     .            ,source=.true.
-     .            ,predictor=.false.
-     .            ,postprocess=.false.
-     .            ,preprocess=.false.
-     .            ,chk_src=.false.
+        logical :: chk_src=.false.
      .            ,source_eval=.false.
      .            ,old_time_eval=.false.
      .            ,bdf2=.false.
      .            ,bdf1=.false.
-     .            ,eigen=.false.
      .            ,relax_init_grid=.false.
 
-        real(8) :: cnp=1d0,cn=-1d0,cnm=0d0
 
       contains
 
@@ -106,7 +122,7 @@ c     End program
 
 c     readTSInput
 c     #################################################################
-      subroutine readTSInput(file)
+      function readTSInput(file,dump) result(ioerr)
 
 c     -----------------------------------------------------------------
 c     Initializes grid parameters
@@ -116,56 +132,66 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+      integer :: ioerr
       character(*) :: file
+      logical :: dump
 
 c     Local variables
 
-      integer :: ioerr,uinput=1234
+      integer :: uinput=1234
 
 c     Namelists
 
       !Temporal discretization
       namelist /ts/ dt,tmax,dstep,numtime,ndstep,source,restart,timecorr
      .                ,cnfactor,sm_flag,sm_pass,predictor,postprocess
-     .                ,eigen,eig_dt
+     .                ,preprocess,eigen,eig_dt,perturb_restart
 
 c     Begin program
 
-c     Set defaults
+c     Set defaults (set in module)
 
-      dt       = 5.            ! Time step (if zero, dt is calculated in code)
-      tmax     = -1d0          ! Target time, in Alfven times.
-      numtime  = -1            ! Number of time steps
-      ndstep   = 0             ! # time steps between plots (if zero,
-                               !        ndstep is calculated in code)
-      dstep    = 0.            ! Time interval between plots (if zero,
-                               !        dstep is calculated in code)
-
-      restart  = .false.       ! Restarting flag
-      timecorr = .true.        ! Time adaptive algorithm (based on Newton convergence)
-      postprocess = .false.    ! Whether to run solution postprocessing after time step
-      source   = .true.        ! Impose source to provide equilibrium
-      predictor= .false.       ! Whether to extrapolate in time to find first guess (not active)
-
-      eigen    = .false.       ! Whether to run PIXIE3D in eigensolver mode
-      eig_dt   = 1d0           ! Time step for eigenvalue dynamical system
-
-      cnfactor = 0.5           ! Crank-Nicolson factor (implicit if <= 0.5)
-      sm_flag  = 0             ! Time smoothing flag:
-                               !   0 -> Theta scheme
-                               !   1 -> Rannacher time stepping
-                               !   2 -> BDF2
-      sm_pass  = 2             ! Number of initial smoother passes for Rannacher TS
+cc      dt       = 5.            ! Time step (if zero, dt is calculated in code)
+cc      tmax     = -1d0          ! Target time, in Alfven times.
+cc      numtime  = -1            ! Number of time steps
+cc      ndstep   = 0             ! # time steps between plots (if zero,
+cc                               !        ndstep is calculated in code)
+cc      dstep    = 0.            ! Time interval between plots (if zero,
+cc                               !        dstep is calculated in code)
+cc
+cc      restart  = .false.       ! Restarting flag
+cc      perturb_restart = .false.! Whether to apply perturbation after restart
+cc
+cc      timecorr = .true.        ! Time adaptive algorithm (based on Newton convergence)
+cc      postprocess = .false.    ! Whether to run solution postprocessing after time step
+cc      preprocess = .false.     ! Whether to run solution preprocessing before time step
+cc      source   = .true.        ! Impose source to provide equilibrium
+cc      predictor= .false.       ! Whether to extrapolate in time to find first guess (not active)
+cc
+cc      eigen    = .false.       ! Whether to run framework in eigensolver mode
+cc      eig_dt   = 1d0           ! Time step for eigenvalue dynamical system
+cc
+cc      cnfactor = 0.5           ! Crank-Nicolson factor (implicit if <= 0.5)
+cc      sm_flag  = 0             ! Time smoothing flag:
+cc                               !   0 -> Theta scheme
+cc                               !   1 -> Rannacher time stepping
+cc                               !   2 -> BDF2
+cc      sm_pass  = 2             ! Number of initial smoother passes for Rannacher TS
 
 c     Read initialization parameters
+
+      do while(is_open_unit(uinput))
+        uinput = uinput + 1
+      enddo
 
       open(unit=uinput,file=trim(file),status='old')
 
       read(uinput,ts,iostat=ioerr)
 
-      if (ioerr/=0) call pstop('readGridInput','Problem reading "ts"')
-
       close(unit=uinput)
+
+cc      if (ioerr/=0) call pstop('readGridInput','Problem reading "ts"')
+      if (ioerr/=0) return
 
 c     Consistency check
 
@@ -181,7 +207,7 @@ c     Consistency check
 
 c     Write initialization parameters to standard output
 
-      if (my_rank == 0) then
+      if (my_rank == 0.and.dump) then
         write (*,*) '------------------'
         write (*,*) 'TS configuration'
         write (*,*) '------------------'
@@ -190,6 +216,6 @@ c     Write initialization parameters to standard output
 
 c     End program
 
-      end subroutine readTSInput
+      end function readTSInput
 
       end module ts_setup
