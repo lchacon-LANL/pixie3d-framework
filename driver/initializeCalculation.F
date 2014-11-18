@@ -304,7 +304,11 @@ c Read restart file
       if(mk_grid.and.mk_init_relax.and.itime==1) itime = 0
 #endif
 
+c Introduce perturbation at restart
+
       inewtime = itime+1
+
+      if (perturb_restart) call perturbEquilibrium(u_np)
 
 c Impose BCs (to initialize all auxiliary variables)
 
