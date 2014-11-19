@@ -286,6 +286,13 @@ c Interfaces
         end subroutine get_src
       END INTERFACE
 
+      INTERFACE
+        subroutine perturbEquilibrium(varray)
+        use var_setup
+        type(var_array),pointer :: varray
+        end subroutine perturbEquilibrium
+      END INTERFACE
+
 c Begin program
 
       igrid = 1
