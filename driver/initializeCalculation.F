@@ -315,7 +315,7 @@ c Introduce perturbation at restart
 
       inewtime = itime+1
 
-      if (perturb_restart) call perturbEquilibrium(u_np)
+      if (perturb_rstrt) call perturbEquilibrium(u_np)
 
 c Impose BCs (to initialize all auxiliary variables)
 
