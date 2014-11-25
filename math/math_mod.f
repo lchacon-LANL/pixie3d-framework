@@ -221,7 +221,7 @@ c$$$END
 !     MATHEMATICAL TABLES, VOL.5, 1962.
 !
       PARAMETER (IACC = 40,BIGNO = 1.D10, BIGNI = 1.D-10)
-      REAL *8 X,BESSI,TOX,BIM,BI,BIP
+      REAL(8) :: X,BESSI,TOX,BIM,BI,BIP
       IF (N.EQ.0) THEN
       BESSI = BESSI0(X)
       RETURN
@@ -252,11 +252,11 @@ c$$$END
  12    CONTINUE
       BESSI = BESSI*BESSI0(X)/BI
       RETURN
-      END
+      END FUNCTION
 ! ----------------------------------------------------------------------
 ! Auxiliary Bessel functions for N=0, N=1
       FUNCTION BESSI0(X)
-      REAL *8 X,BESSI0,Y,P1,P2,P3,P4,P5,P6,P7,
+      REAL(8) :: X,BESSI0,Y,P1,P2,P3,P4,P5,P6,P7,
      .     Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,AX,BX
       DATA P1,P2,P3,P4,P5,P6,P7/1.D0,3.5156229D0,3.0899424D0,
      .     1.2067492D0,0.2659732D0,0.360768D-1,0.45813D-2/
@@ -274,10 +274,10 @@ c$$$END
       BESSI0=AX*BX
       ENDIF
       RETURN
-      END
+      END FUNCTION
 ! ----------------------------------------------------------------------
       FUNCTION BESSI1(X)
-      REAL *8 X,BESSI1,Y,P1,P2,P3,P4,P5,P6,P7,
+      REAL(8) :: X,BESSI1,Y,P1,P2,P3,P4,P5,P6,P7,
      .     Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,AX,BX
       DATA P1,P2,P3,P4,P5,P6,P7/0.5D0,0.87890594D0,0.51498869D0,
      .     0.15084934D0,0.2658733D-1,0.301532D-2,0.32411D-3/
@@ -295,7 +295,7 @@ c$$$END
       BESSI1=AX*BX
       ENDIF
       RETURN
-      END
+      END FUNCTION
 ! ----------------------------------------------------------------------
 
 c     solve_quadratic_real
