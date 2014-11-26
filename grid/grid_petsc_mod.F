@@ -247,6 +247,7 @@ c ######################################################################
        integer, parameter :: iSTUP=1,iNL=2,iPCSTP=3,iPCSLV=4,iPOST=5
        logical :: prof_init=.true.
 
+#if defined(petsc)
       contains
 
 c     init_petsc_profile
@@ -312,6 +313,7 @@ c     ##################################################################
       call PetscLogStagePop(prof_err)
 
       end subroutine end_petsc_profile
+#endif
 
       end module profile_petsc
 
