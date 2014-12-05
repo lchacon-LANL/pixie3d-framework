@@ -8,6 +8,8 @@ c     -----------------------------------------------------------------
 
         use grid_def
 
+        type(grid_mg_def),pointer :: gbc_def => null()
+
       contains
 
 c     isBdry
@@ -24,38 +26,52 @@ c     -----------------------------------------------------------------
 
         implicit none
 
-        integer    :: i,igr,ibc
-        logical    :: isBdry
+c     Call variables
 
-        integer    :: ilog,itst,diml,locl
+        integer :: i,igr,ibc
+        logical :: isBdry
+
+c     Local variables
+
+        integer :: ilog,itst,diml,locl
+
+        type(grid_mg_def),pointer :: gl_def
+
+c     Begin program
 
         locl = abs(mod(ibc,2)-2)-1
         diml = 1 + (ibc-1-locl)/2
 
+        if (associated(gbc_def)) then
+          gl_def => gbc_def
+        else
+          gl_def => grid_params
+        endif
+
         select case(diml)
         case(1)
-          ilog = grid_params%ilo(igr)
+          ilog = gl_def%ilo(igr)
           select case(locl)
           case (0)
             itst = 1
           case (1)
-            itst = grid_params%nxgl(igr)
+            itst = gl_def%nxgl(igr)
           end select
         case(2)
-          ilog = grid_params%jlo(igr)
+          ilog = gl_def%jlo(igr)
           select case(locl)
           case (0)
             itst = 1
           case (1)
-            itst = grid_params%nygl(igr)
+            itst = gl_def%nygl(igr)
           end select
         case(3)
-          ilog = grid_params%klo(igr)
+          ilog = gl_def%klo(igr)
           select case(locl)
           case (0)
             itst = 1
           case (1)
-            itst = grid_params%nzgl(igr)
+            itst = gl_def%nzgl(igr)
           end select
         end select
 
@@ -110,7 +126,19 @@ c     #################################################################
         integer    :: i,j,k,igx,igy,igz
         logical    :: sing_point
 
-        sing_point = (i+grid_params%ilo(igx)-1==1).and.bcSP()
+c     Local variables
+
+        type(grid_mg_def),pointer :: gl_def
+
+c     Begin program
+
+        if (associated(gbc_def)) then
+          gl_def => gbc_def
+        else
+          gl_def => grid_params
+        endif
+
+        sing_point = (i+gl_def%ilo(igx)-1==1).and.bcSP()
 
       end function isSP
 
@@ -243,10 +271,18 @@ c     Local variables
       real(8),allocatable,dimension(:,:) :: garray
 #endif
 
+cc      type(grid_mg_def),pointer :: gl_def
+
 c     Begin program
 
-      ilog = grid_params%ilo(igxbc)
-      jlog = grid_params%jlo(igybc)
+cc      if (associated(gbc_def)) then
+cc        gl_def => gbc_def
+cc      else
+cc        gl_def => grid_params
+cc      endif
+
+      ilog = gbc_def%ilo(igxbc)
+      jlog = gbc_def%jlo(igybc)
 
       if (npy < 1) call pstop('scalarSingularBC','npy < 1')
 
@@ -333,12 +369,12 @@ c     External
 
 c     Begin program
 
-      ilog = grid_params%ilo(igxbc)
-      jlog = grid_params%jlo(igybc)
+      ilog = gbc_def%ilo(igxbc)
+      jlog = gbc_def%jlo(igybc)
 
       if (npy < 1) call pstop('vectorSingularBC','npy < 1')
 
-      nyg = grid_params%nygl(igybc)
+      nyg = gbc_def%nygl(igybc)
 
 c     Check that we are domain adjacent to singular point
 
@@ -487,14 +523,14 @@ c     Call variables
 
 c     Begin program
 
-      imn = i1 - grid_params%ilo(igxbc) + 1
-      imx = i2 - grid_params%ilo(igxbc) + 1
+      imn = i1 - gbc_def%ilo(igxbc) + 1
+      imx = i2 - gbc_def%ilo(igxbc) + 1
 
-      jmn = j1 - grid_params%jlo(igybc) + 1
-      jmx = j2 - grid_params%jlo(igybc) + 1
+      jmn = j1 - gbc_def%jlo(igybc) + 1
+      jmx = j2 - gbc_def%jlo(igybc) + 1
 
-      kmn = k1 - grid_params%klo(igzbc) + 1
-      kmx = k2 - grid_params%klo(igzbc) + 1
+      kmn = k1 - gbc_def%klo(igzbc) + 1
+      kmx = k2 - gbc_def%klo(igzbc) + 1
 
       select case(dim)
       case (1)
@@ -579,11 +615,11 @@ c     Begin program
 
         select case(dim)
         case(1)
-          call checkLimits(i1,i2,grid_params%nxgl(igxbc))
+          call checkLimits(i1,i2,gbc_def%nxgl(igxbc))
         case(2)
-          call checkLimits(j1,j2,grid_params%nygl(igybc))
+          call checkLimits(j1,j2,gbc_def%nygl(igybc))
         case(3)
-          call checkLimits(k1,k2,grid_params%nzgl(igzbc))
+          call checkLimits(k1,k2,gbc_def%nzgl(igzbc))
         end select
 
 c     End program
@@ -726,12 +762,12 @@ c     Reset BC grid level
 
 c     Find global limits of local domain
 
-      igmin = grid_params%ilo(igx)
-      igmax = grid_params%ihi(igx)
-      jgmin = grid_params%jlo(igy)
-      jgmax = grid_params%jhi(igy)
-      kgmin = grid_params%klo(igz)
-      kgmax = grid_params%khi(igz)
+      igmin = gbc_def%ilo(igx)
+      igmax = gbc_def%ihi(igx)
+      jgmin = gbc_def%jlo(igy)
+      jgmax = gbc_def%jhi(igy)
+      kgmin = gbc_def%klo(igz)
+      kgmax = gbc_def%khi(igz)
 
 c     Determine ASM BCs 
 
@@ -815,7 +851,7 @@ c     imposeBConScalar
 c     #################################################################
       subroutine imposeBConScalar(ieq,nx,ny,nz,array,array0,bcnd
      .                           ,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
-     .                           ,iorder)
+     .                           ,iorder,g_def)
 c     -----------------------------------------------------------------
 c     Imposes BC on scalar quantities.
 c     -----------------------------------------------------------------
@@ -828,6 +864,8 @@ c     Call variables
       real(8)    :: array (0:nx+1,0:ny+1,0:nz+1)
      .             ,array0(0:nx+1,0:ny+1,0:nz+1)
       integer   ,optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
+
+      type(grid_mg_def),optional,pointer :: g_def
 
 c     Local variables
 
@@ -850,6 +888,12 @@ cc        order = 1
 
 c     Initialize BC grid quantities
 
+      if (PRESENT(g_def)) then
+        gbc_def => g_def
+      else
+        gbc_def => grid_params
+      endif
+
       igxbc = iigx
       igybc = iigy
       igzbc = iigz
@@ -870,12 +914,12 @@ c     Initialize GLOBAL limits
         kkmin = k1
         kkmax = k2
       else
-        iimin = grid_params%ilo(iigx)
-        iimax = grid_params%ihi(iigx)
-        jjmin = grid_params%jlo(iigy)
-        jjmax = grid_params%jhi(iigy)
-        kkmin = grid_params%klo(iigz)
-        kkmax = grid_params%khi(iigz)
+        iimin = gbc_def%ilo(iigx)
+        iimax = gbc_def%ihi(iigx)
+        jjmin = gbc_def%jlo(iigy)
+        jjmax = gbc_def%jhi(iigy)
+        kkmin = gbc_def%klo(iigz)
+        kkmax = gbc_def%khi(iigz)
       endif
 
 #if defined(samrai)
@@ -887,11 +931,11 @@ c     Initialize GLOBAL limits
       kkmxp =  kkmax
 #else
       iimnm =  max(iimin - 1,0)  
-      iimxp =  min(iimax + 1,grid_params%nxgl(iigx)+1)
+      iimxp =  min(iimax + 1,gbc_def%nxgl(iigx)+1)
       jjmnm =  max(jjmin - 1,0)  
-      jjmxp =  min(jjmax + 1,grid_params%nygl(iigy)+1)
+      jjmxp =  min(jjmax + 1,gbc_def%nygl(iigy)+1)
       kkmnm =  max(kkmin - 1,0)  
-      kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz)+1)
+      kkmxp =  min(kkmax + 1,gbc_def%nzgl(iigz)+1)
 #endif
 
 c     Fill PETSc ghost cells
@@ -902,7 +946,8 @@ c     Fill PETSc ghost cells
 
       !Fill ghost cells
       if (petsc__bc) then
-        da_ctx => grid_params%dactx(igxbc)
+        da_ctx => gbc_def%dactx(igxbc)
+cc        da_ctx => grid_params%dactx(igxbc)
         call fillPetscGhostCells(da_ctx,array)
       endif
 #endif
@@ -935,6 +980,8 @@ c     Periodic boundary synchronizing
 #endif
 
 c     End program
+
+      nullify(gbc_def)
 
       contains
 
@@ -1068,7 +1115,7 @@ c     imposeBConVector
 c     #################################################################
       subroutine imposeBConVector(fcomp,ncomp,nx,ny,nz,v_cnv,v_cov,var0
      .                          ,bcnd,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
-     .                          ,iorder,is_cnv,is_vec)
+     .                          ,iorder,is_cnv,is_vec,g_def)
 c     -----------------------------------------------------------------
 c     Imposes BC on vector field
 c     -----------------------------------------------------------------
@@ -1083,6 +1130,8 @@ c     Call variables
      .             ,v_cov(0:nx+1,0:ny+1,0:nz+1,ncomp)
       integer   ,optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
       logical   ,optional,intent(IN) :: is_cnv,is_vec
+
+      type(grid_mg_def),optional,pointer :: g_def
 
 c     Local variables
 
@@ -1126,6 +1175,12 @@ cc        order = 1
 
 c     Initialize BC grid quantities
 
+      if (PRESENT(g_def)) then
+        gbc_def => g_def
+      else
+        gbc_def => grid_params
+      endif
+
       igxbc = iigx
       igybc = iigy
       igzbc = iigz
@@ -1146,12 +1201,12 @@ c     Initialize GLOBAL limits
         kkmin = k1
         kkmax = k2
       else
-        iimin = grid_params%ilo(iigx)
-        iimax = grid_params%ihi(iigx)
-        jjmin = grid_params%jlo(iigy)
-        jjmax = grid_params%jhi(iigy)
-        kkmin = grid_params%klo(iigz)
-        kkmax = grid_params%khi(iigz)
+        iimin = gbc_def%ilo(iigx)
+        iimax = gbc_def%ihi(iigx)
+        jjmin = gbc_def%jlo(iigy)
+        jjmax = gbc_def%jhi(iigy)
+        kkmin = gbc_def%klo(iigz)
+        kkmax = gbc_def%khi(iigz)
       endif
 
 #if defined(samrai)
@@ -1163,11 +1218,11 @@ c     Initialize GLOBAL limits
       kkmxp =  kkmax
 #else
       iimnm =  max(iimin - 1,0)  
-      iimxp =  min(iimax + 1,grid_params%nxgl(iigx)+1)
+      iimxp =  min(iimax + 1,gbc_def%nxgl(iigx)+1)
       jjmnm =  max(jjmin - 1,0)  
-      jjmxp =  min(jjmax + 1,grid_params%nygl(iigy)+1)
+      jjmxp =  min(jjmax + 1,gbc_def%nygl(iigy)+1)
       kkmnm =  max(kkmin - 1,0)  
-      kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz)+1)
+      kkmxp =  min(kkmax + 1,gbc_def%nzgl(iigz)+1)
 #endif
 
 c     Fill PETSc ghost cells
@@ -1178,7 +1233,7 @@ c     Fill PETSc ghost cells
 
       !Fill ghost cells
       if (petsc__bc) then
-        da_ctx => grid_params%dactx(igxbc)
+        da_ctx => gbc_def%dactx(igxbc)
         if (is__vec .and. to_cnv) then
           do ieq=1,ncomp
             call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
@@ -1276,6 +1331,8 @@ c     Periodic boundary synchronizing
 #endif
 
 c     End program
+
+      nullify(gbc_def)
 
       end subroutine imposeBConVector
 
@@ -1464,7 +1521,7 @@ c     imposeBConVector_stg
 c     #################################################################
       subroutine imposeBConVector_stg(fcomp,ncomp,nx,ny,nz,v_cnv,v_cov
      .                     ,var0,bcnd,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
-     .                     ,iorder,is_cnv,is_vec)
+     .                     ,iorder,is_cnv,is_vec,g_def)
 c     -----------------------------------------------------------------
 c     Imposes BC on staggered vector field
 c     -----------------------------------------------------------------
@@ -1479,6 +1536,8 @@ c     Call variables
      .          ,v_cov(0:nx+1,0:ny+1,0:nz+1,ncomp)
       integer,optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
       logical,optional,intent(IN) :: is_cnv,is_vec
+
+      type(grid_mg_def),optional,pointer :: g_def
 
 c     Local variables
 
@@ -1522,6 +1581,12 @@ cc        order = 1
 
 c     Initialize BC grid quantities
 
+      if (PRESENT(g_def)) then
+        gbc_def => g_def
+      else
+        gbc_def => grid_params
+      endif
+
       igxbc = iigx
       igybc = iigy
       igzbc = iigz
@@ -1542,12 +1607,12 @@ c     Initialize GLOBAL limits
         kkmin = k1
         kkmax = k2
       else
-        iimin = grid_params%ilo(iigx)
-        iimax = grid_params%ihi(iigx)
-        jjmin = grid_params%jlo(iigy)
-        jjmax = grid_params%jhi(iigy)
-        kkmin = grid_params%klo(iigz)
-        kkmax = grid_params%khi(iigz)
+        iimin = gbc_def%ilo(iigx)
+        iimax = gbc_def%ihi(iigx)
+        jjmin = gbc_def%jlo(iigy)
+        jjmax = gbc_def%jhi(iigy)
+        kkmin = gbc_def%klo(iigz)
+        kkmax = gbc_def%khi(iigz)
       endif
 
 #if defined(samrai)
@@ -1559,11 +1624,11 @@ c     Initialize GLOBAL limits
       kkmxp =  kkmax
 #else
       iimnm =  max(iimin - 1,0)  
-      iimxp =  min(iimax + 1,grid_params%nxgl(iigx)+1)
+      iimxp =  min(iimax + 1,gbc_def%nxgl(iigx)+1)
       jjmnm =  max(jjmin - 1,0)  
-      jjmxp =  min(jjmax + 1,grid_params%nygl(iigy)+1)
+      jjmxp =  min(jjmax + 1,gbc_def%nygl(iigy)+1)
       kkmnm =  max(kkmin - 1,0)  
-      kkmxp =  min(kkmax + 1,grid_params%nzgl(iigz)+1)
+      kkmxp =  min(kkmax + 1,gbc_def%nzgl(iigz)+1)
 #endif
 
 c     Fill PETSc ghost cells
@@ -1574,7 +1639,7 @@ c     Fill PETSc ghost cells
 
       !Fill ghost cells
       if (petsc__bc) then
-        da_ctx => grid_params%dactx(igxbc)
+        da_ctx => gbc_def%dactx(igxbc)
         do ieq=1,ncomp
           call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
           call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
@@ -1667,6 +1732,8 @@ c     Periodic boundary synchronizing
 #endif
 
 c     End program
+
+      nullify(gbc_def)
 
       end subroutine imposeBConVector_stg
 
@@ -2071,9 +2138,9 @@ c     Begin program
 
 c     Setup grid aliases
 
-        xx => grid_params%xx
-        yy => grid_params%yy
-        zz => grid_params%zz
+        xx => gbc_def%xx
+        yy => gbc_def%yy
+        zz => gbc_def%zz
 
 c     Extrapolate
 
@@ -2098,7 +2165,8 @@ c     Extrapolate
 
             i = imin
 
-            call getMGmap(i,1,1,igxbc,igybc,igzbc,ig,jg,kg)
+            call getMGmap(i,1,1,igxbc,igybc,igzbc,ig,jg,kg
+     .                   ,g_def=gbc_def)
 
             array(i,:,:) = 
      .              quad_int(0.5*(xx(ig+one)+xx(ig)),xx(ig+one)
@@ -2111,7 +2179,8 @@ c     Extrapolate
 
             i = imax
 
-            call getMGmap(i,1,1,igxbc,igybc,igzbc,ig,jg,kg)
+            call getMGmap(i,1,1,igxbc,igybc,igzbc,ig,jg,kg
+     .                   ,g_def=gbc_def)
 
             array(i,:,:) =
      .              quad_int(0.5*(xx(ig-one)+xx(ig)),xx(ig-one)
@@ -2124,7 +2193,8 @@ c     Extrapolate
 
             j = jmin
 
-            call getMGmap(1,j,1,igxbc,igybc,igzbc,ig,jg,kg)
+            call getMGmap(1,j,1,igxbc,igybc,igzbc,ig,jg,kg
+     .                   ,g_def=gbc_def)
 
             array(:,j,:) = quad_int(0.5*(yy(jg+one)+yy(jg)),yy(jg+one)
      .                      ,yy(jg+two),yy(jg+thr)
@@ -2136,7 +2206,8 @@ c     Extrapolate
 
             j = jmax
 
-            call getMGmap(1,j,1,igxbc,igybc,igzbc,ig,jg,kg)
+            call getMGmap(1,j,1,igxbc,igybc,igzbc,ig,jg,kg
+     .                   ,g_def=gbc_def)
 
             array(:,j,:) = quad_int(0.5*(yy(jg-one)+yy(jg)),yy(jg-one)
      .                      ,yy(jg-two),yy(jg-thr)
@@ -2148,7 +2219,8 @@ c     Extrapolate
 
             k = kmin
 
-            call getMGmap(1,1,k,igxbc,igybc,igzbc,ig,jg,kg)
+            call getMGmap(1,1,k,igxbc,igybc,igzbc,ig,jg,kg
+     .                   ,g_def=gbc_def)
 
             array(:,:,k) = quad_int(0.5*(zz(kg+one)+zz(kg)),zz(kg+one)
      .                      ,zz(kg+two),zz(kg+thr)
@@ -2160,7 +2232,8 @@ c     Extrapolate
 
             k = kmax
 
-            call getMGmap(1,1,k,igxbc,igybc,igzbc,ig,jg,kg)
+            call getMGmap(1,1,k,igxbc,igybc,igzbc,ig,jg,kg
+     .                   ,g_def=gbc_def)
 
             array(:,:,k) =
      .              quad_int(0.5*(zz(kg-one)+zz(kg)),zz(kg-one)
@@ -2231,6 +2304,8 @@ c     Local variables
         integer :: i,j,k,ig,jg,kg,one,two,thr
         real(8),pointer,dimension(:) :: xx,yy,zz
 
+cc        type(grid_mg_def),pointer :: gl_def
+
 c     Begin program
 
         ibc = (1+loc)+2*(dim-1)
@@ -2251,9 +2326,15 @@ c     Begin program
 
 c     Setup grid aliases
 
-        xx => grid_params%xx
-        yy => grid_params%yy
-        zz => grid_params%zz
+cc        if (associated(gbc_def)) then
+cc          gl_def => gbc_def
+cc        else
+cc          gl_def => grid_params
+cc        endif
+
+        xx => gbc_def%xx
+        yy => gbc_def%yy
+        zz => gbc_def%zz
 
 c     Extrapolate
 
@@ -2268,7 +2349,7 @@ c     Extrapolate
 
           i = imin
 
-          call getMGmap(i,1,1,igxbc,igybc,igzbc,ig,jg,kg)
+          call getMGmap(i,1,1,igxbc,igybc,igzbc,ig,jg,kg,g_def=gbc_def)
 
           array(i,:,:) = quad_int(xx(ig    ),xx(ig+one)
      .                      ,xx(ig+two),xx(ig+thr)
@@ -2281,7 +2362,7 @@ cc     .                      ,xx(ig)+dxh(ig),order )
 
           i = imax
 
-          call getMGmap(i,1,1,igxbc,igybc,igzbc,ig,jg,kg)
+          call getMGmap(i,1,1,igxbc,igybc,igzbc,ig,jg,kg,g_def=gbc_def)
 
           array(i,:,:) =
      .              quad_int(xx(ig    ),xx(ig-one)
@@ -2295,7 +2376,7 @@ cc     .                      ,xx(ig)-dxh(ig),order )
 
           j = jmin
 
-          call getMGmap(1,j,1,igxbc,igybc,igzbc,ig,jg,kg)
+          call getMGmap(1,j,1,igxbc,igybc,igzbc,ig,jg,kg,g_def=gbc_def)
 
           array(:,j,:) = quad_int(yy(jg    ),yy(jg+one)
      .                      ,yy(jg+two),yy(jg+thr)
@@ -2308,7 +2389,7 @@ cc     .                      ,yy(jg)+dyh(jg),order )
 
           j = jmax
 
-          call getMGmap(1,j,1,igxbc,igybc,igzbc,ig,jg,kg)
+          call getMGmap(1,j,1,igxbc,igybc,igzbc,ig,jg,kg,g_def=gbc_def)
 
           array(:,j,:) = quad_int(yy(jg    ),yy(jg-one)
      .                      ,yy(jg-two),yy(jg-thr)
@@ -2321,7 +2402,7 @@ cc     .                      ,yy(jg)-dyh(jg),order )
 
           k = kmin
 
-          call getMGmap(1,1,k,igxbc,igybc,igzbc,ig,jg,kg)
+          call getMGmap(1,1,k,igxbc,igybc,igzbc,ig,jg,kg,g_def=gbc_def)
 
           array(:,:,k) = quad_int(zz(kg    ),zz(kg+one)
      .                      ,zz(kg+two),zz(kg+thr)
@@ -2334,7 +2415,7 @@ cc     .                      ,zz(kg)+dzh(kg),order )
 
           k = kmax
 
-          call getMGmap(1,1,k,igxbc,igybc,igzbc,ig,jg,kg)
+          call getMGmap(1,1,k,igxbc,igybc,igzbc,ig,jg,kg,g_def=gbc_def)
 
           array(:,:,k) = quad_int(zz(kg    ),zz(kg-one)
      .                      ,zz(kg-two),zz(kg-thr)
@@ -3365,11 +3446,19 @@ c     Local variables
 
       logical :: flg(3),select_bc(3),have_equ,face,edge,corner
 
+cc      type(grid_mg_def),pointer :: gl_def
+
 c     Extrapolation
 
       real(8),dimension(10) :: xx,yy,zz
 
 c     Begin program
+
+cc      if (associated(gbc_def)) then
+cc        gl_def => gbc_def
+cc      else
+cc        gl_def => grid_params
+cc      endif
 
 c     Initialize variables
 
@@ -3407,16 +3496,17 @@ c     Identify directions for extrapolation.
       curv = 1d10
 
       if (order >= 1) then
-        call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
+        call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg
+     .               ,g_def=gbc_def)
 
         if (inx > 2) then
           if (ito == imn) then
-            dx = grid_params%dx(ig+2)
+            dx = gbc_def%dx(ig+2)
             curv(1) = (  array(ito+1,jto,kto)
      $                -2*array(ito+2,jto,kto)
      $                  +array(ito+3,jto,kto))*dx**(-2)
           else
-            dx = grid_params%dx(ig-2)
+            dx = gbc_def%dx(ig-2)
             curv(1) = (  array(ito-1,jto,kto)
      $                -2*array(ito-2,jto,kto)
      $                  +array(ito-3,jto,kto))*dx**(-2)
@@ -3425,12 +3515,12 @@ c     Identify directions for extrapolation.
 
         if (iny > 2) then
           if (jto == jmn) then
-            dy = grid_params%dy(jg+2)
+            dy = gbc_def%dy(jg+2)
             curv(2) = (  array(ito,jto+1,kto)
      $                -2*array(ito,jto+2,kto)
      $                  +array(ito,jto+3,kto))*dy**(-2)
           else                                              
-            dy = grid_params%dy(jg-2)
+            dy = gbc_def%dy(jg-2)
             curv(2) = (  array(ito,jto-1,kto)
      $                -2*array(ito,jto-2,kto)
      $                  +array(ito,jto-3,kto))*dy**(-2)
@@ -3439,12 +3529,12 @@ c     Identify directions for extrapolation.
 
         if (inz > 2) then
           if (kto == kmn) then
-            dz = grid_params%dz(kg+2)
+            dz = gbc_def%dz(kg+2)
             curv(3) = (  array(ito,jto,kto+1)
      $                -2*array(ito,jto,kto+2)
      $                  +array(ito,jto,kto+3))*dz**(-2)
           else                                                  
-            dz = grid_params%dz(kg-2)
+            dz = gbc_def%dz(kg-2)
             curv(3) = (  array(ito,jto,kto-1)
      $                -2*array(ito,jto,kto-2)
      $                  +array(ito,jto,kto-3))*dz**(-2)
@@ -3540,19 +3630,22 @@ c     X extrapolation
       if (flg(1)) then
 
         if (ito == imn) then
-          call getMGmap(imn+1,jmn,kmn,igxbc,igybc,igzbc,ig,jg,kg)
-          xx(1:inx) = grid_params%xx(ig:ig+inx-1)
+          call getMGmap(imn+1,jmn,kmn,igxbc,igybc,igzbc,ig,jg,kg
+     .                 ,g_def=gbc_def)
+          xx(1:inx) = gbc_def%xx(ig:ig+inx-1)
           imni = imn+1
           imxi = imx
         else
-          call getMGmap(imx-1,jmn,kmn,igxbc,igybc,igzbc,ig,jg,kg)
-          xx(1:inx) = grid_params%xx(ig-(inx-1):ig)
+          call getMGmap(imx-1,jmn,kmn,igxbc,igybc,igzbc,ig,jg,kg
+     .                 ,g_def=gbc_def)
+          xx(1:inx) = gbc_def%xx(ig-(inx-1):ig)
           imni = imn
           imxi = imx-1
         endif
 
-        call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
-        xto = grid_params%xx(ig)
+        call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg
+     .               ,g_def=gbc_def)
+        xto = gbc_def%xx(ig)
 
         call IntDriver1d(inx,xx(1:inx),array(imni:imxi,jto,kto)
      .                  ,1,xto,valx,order_int(1))
@@ -3566,19 +3659,22 @@ c     Y extrapolation
       if (flg(2)) then
 
         if (jto == jmn) then
-          call getMGmap(imn,jmn+1,kmn,igxbc,igybc,igzbc,ig,jg,kg)
-          yy(1:iny) = grid_params%yy(jg:jg+iny-1)
+          call getMGmap(imn,jmn+1,kmn,igxbc,igybc,igzbc,ig,jg,kg
+     .                 ,g_def=gbc_def)
+          yy(1:iny) = gbc_def%yy(jg:jg+iny-1)
           jmni = jmn+1
           jmxi = jmx
         else
-          call getMGmap(imn,jmx-1,kmn,igxbc,igybc,igzbc,ig,jg,kg)
-          yy(1:iny) = grid_params%yy(jg-(iny-1):jg)
+          call getMGmap(imn,jmx-1,kmn,igxbc,igybc,igzbc,ig,jg,kg
+     .                 ,g_def=gbc_def)
+          yy(1:iny) = gbc_def%yy(jg-(iny-1):jg)
           jmni = jmn
           jmxi = jmx-1
         endif
 
-        call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
-        yto = grid_params%yy(jg)
+        call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg
+     .               ,g_def=gbc_def)
+        yto = gbc_def%yy(jg)
 
         call IntDriver1d(iny,yy(1:iny),array(ito,jmni:jmxi,kto)
      .                  ,1,yto,valy,order_int(2))
@@ -3592,19 +3688,22 @@ c     Z extrapolation
       if (flg(3)) then
 
         if (kto == kmn) then
-          call getMGmap(imn,jmn,kmn+1,igxbc,igybc,igzbc,ig,jg,kg)
-          zz(1:inz) = grid_params%zz(kg:kg+inz-1)
+          call getMGmap(imn,jmn,kmn+1,igxbc,igybc,igzbc,ig,jg,kg
+     .                 ,g_def=gbc_def)
+          zz(1:inz) = gbc_def%zz(kg:kg+inz-1)
           kmni = kmn+1
           kmxi = kmx
         else
-          call getMGmap(imn,jmn,kmx-1,igxbc,igybc,igzbc,ig,jg,kg)
-          zz(1:inz) = grid_params%zz(kg-(inz-1):kg)
+          call getMGmap(imn,jmn,kmx-1,igxbc,igybc,igzbc,ig,jg,kg
+     .                 ,g_def=gbc_def)
+          zz(1:inz) = gbc_def%zz(kg-(inz-1):kg)
           kmni = kmn
           kmxi = kmx-1
         endif
 
-        call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg)
-        zto = grid_params%zz(kg)
+        call getMGmap(ito,jto,kto,igxbc,igybc,igzbc,ig,jg,kg
+     .               ,g_def=gbc_def)
+        zto = gbc_def%zz(kg)
 
         call IntDriver1d(inz,zz(1:inz),array(ito,jto,kmni:kmxi)
      .                  ,1,zto,valz,order_int(3))
@@ -4052,7 +4151,7 @@ c     setMGBC
 c     ###############################################################
       subroutine setMGBC(gpos,neq,nnx,nny,nnz,iig,array,bcnd,arr_cov
      .                  ,arr0,icomp,is_cnv,is_vec,is_curv,result_is_curv
-     .                  ,out_iscnv,out_iscurv,iorder)
+     .                  ,out_iscnv,out_iscurv,iorder,g_def)
 c     ---------------------------------------------------------------
 c     Interfaces BC routines with MG code, for preconditioning.
 c     On input:
@@ -4092,6 +4191,7 @@ c                                vector (needed when is_cnv is inherited
 c                                from a previous call).
 c       *iorder: order of inter/extrapolation in BC routines (quadratic
 c                by default).
+c       *g_def: grid definitions for MG
 c
 c     On output, array is returned either in the same curvilinear
 c     representation or in Cartesian, if specified by "result_is_vec".
@@ -4114,6 +4214,8 @@ c     Call variables
 
       logical,optional,intent(IN) ::is_cnv,is_vec,is_curv,result_is_curv
       logical,optional,intent(OUT)::out_iscnv,out_iscurv
+
+      type(grid_mg_def),optional,pointer :: g_def
 
 c     Local variables
 
@@ -4149,11 +4251,20 @@ c     Optional arguments
 
       if (PRESENT(iorder)) order = iorder
 
+      if (PRESENT(g_def)) then
+        gbc_def => g_def
+      else
+        gbc_def => grid_params
+      endif
+
 c     Consistency check
 
-      if (     grid_params%nxv(iig) /= nnx
-     .    .or. grid_params%nyv(iig) /= nny
-     .    .or. grid_params%nzv(iig) /= nnz) then
+      if (     gbc_def%nxv(iig) /= nnx
+     .    .or. gbc_def%nyv(iig) /= nny
+     .    .or. gbc_def%nzv(iig) /= nnz) then
+        write (*,*) gbc_def%nxv(iig), nnx
+        write (*,*) gbc_def%nyv(iig), nny
+        write (*,*) gbc_def%nzv(iig), nnz
         call pstop('setMGBC','Grid sizes do not agree')
       endif
 
@@ -4163,7 +4274,7 @@ c     Consistency check
 
 c     Allocate MG pointers (if not allocated earlier)
 
-      call allocPointers(neql,fpointers)
+      call allocPointers(neql,fpointers,g_def=gbc_def)
 
 c     Find grid node LOCAL position (if gpos > 0, else return local domain limits)
 
@@ -4177,12 +4288,12 @@ c     Check LOCAL limits (return if not close to local domain boundaries)
 
 c     Find GLOBAL limits (required for BC routine setBC)
 
-      imng = imnl + grid_params%ilo(iig)-1
-      imxg = imxl + grid_params%ilo(iig)-1
-      jmng = jmnl + grid_params%jlo(iig)-1
-      jmxg = jmxl + grid_params%jlo(iig)-1
-      kmng = kmnl + grid_params%klo(iig)-1
-      kmxg = kmxl + grid_params%klo(iig)-1
+      imng = imnl + gbc_def%ilo(iig)-1
+      imxg = imxl + gbc_def%ilo(iig)-1
+      jmng = jmnl + gbc_def%jlo(iig)-1
+      jmxg = jmxl + gbc_def%jlo(iig)-1
+      kmng = kmnl + gbc_def%klo(iig)-1
+      kmxg = kmxl + gbc_def%klo(iig)-1
 
 c     Select operation
 
@@ -4273,7 +4384,8 @@ c     Select operation
      .            ,bcnd (:    ,1+3*(ieq-1):3*ieq)
      .            ,iig,iig,iig
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
-     .            ,is_cnv=iscnv,is_vec=.true.,iorder=order)
+     .            ,is_cnv=iscnv,is_vec=.true.,iorder=order
+     $            ,g_def=g_def)
         enddo
 
         if (.not.PRESENT(arr0)) deallocate(vv0)
@@ -4317,7 +4429,7 @@ c     Select operation
      $              ,array(:,:,:,ieq),vv0(:,:,:,ieq)
      .              ,bcnd(:,ieq),iig,iig,iig
      .              ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
-     .              ,iorder=order)
+     .              ,iorder=order,g_def=g_def)
         enddo
 
         if (.not.PRESENT(arr0)) deallocate(vv0)
@@ -4473,6 +4585,8 @@ c$$$      end select
 c     Deallocate MG pointers (if allocated in this routine)
 
       call deallocPointers(fpointers)
+
+      nullify(gbc_def)
 
 c     End
 

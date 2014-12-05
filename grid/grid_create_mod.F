@@ -8,6 +8,10 @@ c #####################################################################
 
         integer :: mg_ratio
 
+        logical :: coarsen_X=.true.
+     .            ,coarsen_Y=.true.
+     .            ,coarsen_Z=.true.
+
         private :: createLogicalGrid
      $            ,consistencyCheck!,initGridSt,checkGrid
 
@@ -45,15 +49,24 @@ c     Initialize global quantities (from gdef, if existing) and MPI
           ny = gdef%ngly
           nz = gdef%nglz
 #if defined(petsc)
-          call initFortranMPI(gdef%mpi_comm,nx,ny,nz)
           mpi_comm = gdef%mpi_comm
+          call processorAlloc(nx,ny,nz,gdef%mx,gdef%my,gdef%mz)
+#endif
         else
-          call initFortranMPI(MPI_COMM_WORLD,nx,ny,nz)
+cc          nx = nxd
+cc          ny = nyd
+cc          nz = nzd
+#if defined(petsc)
           mpi_comm = MPI_COMM_WORLD
-#else
-          npx = 1 ; npy = 1 ; npz = 1
 #endif
         endif
+
+ccc     Allocate processors
+cc
+cc#if defined(petsc)
+cc        call initFortranMPI(mpi_comm,nx,ny,nz,npx,npy,npz)
+cc        call processorAlloc(nx,ny,nz,npx,npy,npz)
+cc#endif
 
 c     Initialize grid structure
 
@@ -110,16 +123,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: imin,imax,jmin,jmax,kmin,kmax
-        integer :: nx,ny,nz
-
 c     Begin program
-
-ccc     Destroy metrics storage
-cc
-cc        call deallocateGridMetric(gdef%gmetric)
-cc
-ccc     Destroy MG grid hierarchy
 
         call deallocateGridStructure(gdef)
 
@@ -127,14 +131,19 @@ ccc     Destroy MG grid hierarchy
 
 c     initGridSt
 c     #################################################################
-      subroutine initGridSt(nxg,nyg,nzg,gdef,mpi_comm
+      subroutine initGridSt(nxg,nyg,nzg,gdef,mpi_comm,np_x,np_y,np_z
      .                     ,coarsen_in_x,coarsen_in_y,coarsen_in_z)
 
 c     -----------------------------------------------------------------
 c     Initializes grid structure, including MG pointers and PETSc
 c     hierarchical mesh. On input:
-c       * nx,ny,nz: global grid size
+c       * nxg,nyg,nzg: global grid size
 c       * gdef (type grid_mg_def): variable that stores grid definition.
+c     Optional parameters:
+c       * mpi_comm: MPI communicator
+c       * np_x,np_y,np_z: processor distribution
+c       * coarsen_in_x,coarsen_in_y,coarsen_in_z: whether to coarsen
+c         mesh in a given axis
 c     In parallel, local grid sizes are read from PETSc's DA context.
 c     -----------------------------------------------------------------
 
@@ -146,12 +155,12 @@ c     Call variables
 
         type(grid_mg_def),pointer :: gdef
 
-        integer,optional :: mpi_comm
+        integer,optional :: mpi_comm,np_x,np_y,np_z
         logical,optional :: coarsen_in_x,coarsen_in_y,coarsen_in_z
 
 c     Local variables
 
-        integer :: i,n1,n2,n3,nxx,nyy,nzz
+        integer :: i,n1,n2,n3,nxx,nyy,nzz,mx,my,mz
         integer :: ngrdx,ngrdy,ngrdz
         logical :: cx,cy,cz
 
@@ -176,39 +185,57 @@ cc          cx = .not.bcSP()
           cz = .true.
         endif
 
+        if (PRESENT(np_x)) then
+          mx = np_x
+        else
+          mx = npx
+        endif
+
+        if (PRESENT(np_y)) then
+          my = np_y
+        else
+          my = npy
+        endif
+
+        if (PRESENT(np_z)) then
+          mz = np_z
+        else
+          mz = npz
+        endif
+
 c     Find adequate number of grid levels (for MG)
 
         if (cx) then
-          if (npx == 0)
+          if (mx == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in X')
 
-          if (npx > nxg) call pstop('initGridSt','Too many procs in X')
+          if (mx > nxg) call pstop('initGridSt','Too many procs in X')
 
-          nxx = nxg/npx
+          nxx = nxg/mx
           ngrdx = MG_levels(nxx,mg_ratio)
         else
           ngrdx = 1
         endif
 
         if (cy) then
-          if (npy == 0)
+          if (my == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in Y')
 
-          if (npy > nyg) call pstop('initGridSt','Too many procs in Y')
+          if (my > nyg) call pstop('initGridSt','Too many procs in Y')
 
-          nyy = nyg/npy
+          nyy = nyg/my
           ngrdy = MG_levels(nyy,mg_ratio)
         else
           ngrdy = 1
         endif
 
         if (cz) then
-          if (npz == 0)
+          if (mz == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in Z')
 
-          if (npz > nzg) call pstop('initGridSt','Too many procs in Z')
+          if (mz > nzg) call pstop('initGridSt','Too many procs in Z')
 
-          nzz = nzg/npz
+          nzz = nzg/mz
           ngrdz = MG_levels(nzz,mg_ratio)
         else
           ngrdz = 1
@@ -216,7 +243,7 @@ c     Find adequate number of grid levels (for MG)
 
 c     Allocate grid storage structure
 
-        call allocateGridStructure(ngrdx,ngrdy,ngrdz
+        call allocateGridStructure(ngrdx,ngrdy,ngrdz,mx,my,mz
      .                            ,nxg,nyg,nzg,gdef,mpi_comm=mpi_comm)
 
 c     Create MG grid hierarchy

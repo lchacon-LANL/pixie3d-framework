@@ -66,7 +66,7 @@ c #####################################################################
           real(8) :: lymin,lymax        !Physical dim. of LOCAL domain in Y
           real(8) :: lzmin,lzmax        !Physical dim. of LOCAL domain in Z
 
-          integer :: mpi_comm,np,rank   !MPI info
+          integer :: mpi_comm,np,rank,mx,my,mz   !MPI info
 
           integer :: aligner            !Ghost cell width
           integer :: gcw                !Ghost cell width
@@ -141,7 +141,7 @@ c #####################################################################
 
 c     allocateGridStructure
 c     #################################################################
-      subroutine allocateGridStructure(ngridx,ngridy,ngridz
+      subroutine allocateGridStructure(ngridx,ngridy,ngridz,mx,my,mz
      .                                ,nglx,ngly,nglz,grid_st,mpi_comm)
 c     -----------------------------------------------------------------
 c     Allocates grid structure
@@ -151,7 +151,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer :: ngridx,ngridy,ngridz,nglx,ngly,nglz
+        integer :: ngridx,ngridy,ngridz,nglx,ngly,nglz,mx,my,mz
         type(grid_mg_def),pointer :: grid_st
         integer,optional :: mpi_comm
 
@@ -193,6 +193,10 @@ c     Begin program
           else
             grid_st%mpi_comm = MPI_COMM_NULL
           endif
+
+          grid_st%mx = mx
+          grid_st%my = my
+          grid_st%mz = mz
 
           call MPI_Comm_rank(grid_st%mpi_comm,grid_st%rank,mpierr)
           call MPI_Comm_size(grid_st%mpi_comm,grid_st%np  ,mpierr)
@@ -492,9 +496,9 @@ c     Call variables
 
 c     Local variables
 
-        integer        :: ngridx,ngridy,ngridz,nx,ny,nz
-     .                   ,nglx,ngly,nglz
-     .                   ,ilog,ihig,jlog,jhig,klog,khig
+        integer :: ngridx,ngridy,ngridz,nx,ny,nz
+     .            ,nglx,ngly,nglz,mx,my,mz
+     .            ,ilog,ihig,jlog,jhig,klog,khig
 
 c     Begin program
 
@@ -509,6 +513,10 @@ c     Begin program
         nglx = grid_st1%nglx
         ngly = grid_st1%ngly
         nglz = grid_st1%nglz
+
+        mx = grid_st1%mx
+        my = grid_st1%my
+        mz = grid_st1%mz
 
         ilog = grid_st1%ilog
         ihig = grid_st1%ihig
@@ -532,7 +540,7 @@ c     Begin program
 
 c       Create basic structure
 
-        call allocateGridStructure(ngridx,ngridy,ngridz
+        call allocateGridStructure(ngridx,ngridy,ngridz,mx,my,mz
      .                            ,nglx,ngly,nglz,grid_st2)
 
 c       Copy values
@@ -631,6 +639,9 @@ c     Begin program
         write (*,*) 'nglx',grid_st%nglx
         write (*,*) 'ngly',grid_st%ngly
         write (*,*) 'nglz',grid_st%nglz
+        write (*,*) 'mx',grid_st%mx
+        write (*,*) 'my',grid_st%my
+        write (*,*) 'mz',grid_st%mz
         write (*,*) 'xg',grid_st%xg
         write (*,*) 'yg',grid_st%yg        
         write (*,*) 'zg',grid_st%zg        
@@ -859,43 +870,61 @@ c     Create PETSc DA MG hierachy
         select case(igr)
         case(1)
 
-          nxgl = gparams%nglx
-          nygl = gparams%ngly
-          nzgl = gparams%nglz
-
           da_ctx => gparams%dactx(igr)
 
           da_ctx%MPI_COMM_DA = mpi_comm
 
-          call createPETScFortranDA(igr,nxgl,nygl,nzgl,da_ctx)
+          da_ctx%igrid = igr
+
+          da_ctx%mx = gparams%mx
+          da_ctx%my = gparams%my
+          da_ctx%mz = gparams%mz
+
+          da_ctx%nxgl = gparams%nglx
+          da_ctx%nygl = gparams%ngly
+          da_ctx%nzgl = gparams%nglz
+
+          call createPETScFortranDA(da_ctx)
 
         case(0)
 
           do igrid=2,gparams%ngrid
 
-            nxgl = gparams%nxgl(igrid)
-            nygl = gparams%nygl(igrid)
-            nzgl = gparams%nzgl(igrid)
-
             da_ctx => gparams%dactx(igrid)
 
             da_ctx%MPI_COMM_DA = mpi_comm
 
-            call createPETScFortranDA(igrid,nxgl,nygl,nzgl,da_ctx)
+            da_ctx%igrid = igrid
+
+            da_ctx%mx = gparams%mx
+            da_ctx%my = gparams%my
+            da_ctx%mz = gparams%mz
+
+            da_ctx%nxgl = gparams%nxgl(igrid)
+            da_ctx%nygl = gparams%nygl(igrid)
+            da_ctx%nzgl = gparams%nzgl(igrid)
+
+            call createPETScFortranDA(da_ctx)
 
           enddo
 
         case default
 
-          nxgl = gparams%nxgl(igr)
-          nygl = gparams%nygl(igr)
-          nzgl = gparams%nzgl(igr)
-
           da_ctx => gparams%dactx(igr)
 
           da_ctx%MPI_COMM_DA = mpi_comm
 
-          call createPETScFortranDA(igr,nxgl,nygl,nzgl,da_ctx)
+          da_ctx%igrid = igr
+
+          da_ctx%mx = gparams%mx
+          da_ctx%my = gparams%my
+          da_ctx%mz = gparams%mz
+
+          da_ctx%nxgl = gparams%nxgl(igr)
+          da_ctx%nygl = gparams%nygl(igr)
+          da_ctx%nzgl = gparams%nzgl(igr)
+
+          call createPETScFortranDA(da_ctx)
 
         end select
 

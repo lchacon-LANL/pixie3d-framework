@@ -238,6 +238,13 @@ c     Nullify pointers
           nullify(gv%gparams)
           nullify(gv%aux)
         endif
+
+c     Initialize MPI
+
+#if defined(petsc)
+        call initMPI(MPI_COMM_WORLD,np,my_rank)
+        call processorAlloc(nxd,nyd,nzd,npx,npy,npz)
+#endif
  
 c     Initialize MG and create grid
 

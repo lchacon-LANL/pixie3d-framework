@@ -57,7 +57,7 @@ cc     .            ,transformFromCurvToCurv
 
 c     getMGmap
 c     #################################################################
-      subroutine getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+      subroutine getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def)
 
 c     -----------------------------------------------------------------
 c     Gets MG vector components (ig,jg,kg) for grid quantities
@@ -68,22 +68,32 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
+        integer :: i,j,k,igx,igy,igz,ig,jg,kg
+
+        type(grid_mg_def),optional,pointer :: g_def
 
 c     Local variables
 
+        type(grid_mg_def),pointer :: gl_def
+
 c     Begin program
 
-        ig = i + grid_params%istartx(igx)
-        jg = j + grid_params%istarty(igy)
-        kg = k + grid_params%istartz(igz)
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        ig = i + gl_def%istartx(igx)
+        jg = j + gl_def%istarty(igy)
+        kg = k + gl_def%istartz(igz)
 
       end subroutine getMGmap
 
 c     getCurvilinearCoordinates
 c     #################################################################
       subroutine getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                    ,x1,y1,z1)
+     .                                    ,x1,y1,z1,g_def)
 
 c     -----------------------------------------------------------------
 c     Finds curvilinear coordinates for position (i,j,k)
@@ -96,24 +106,34 @@ c     Input variables
         integer    :: i,j,k,igx,igy,igz,ig,jg,kg
         real(8)    :: x1,y1,z1
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
         integer    :: ii,jj,ny
 
+        type(grid_mg_def),pointer :: gl_def
+
 c     Begin program
 
-        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
 
-        x1 = grid_params%xx(ig)
-        y1 = grid_params%yy(jg)
-        z1 = grid_params%zz(kg)
+        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+
+        x1 = gl_def%xx(ig)
+        y1 = gl_def%yy(jg)
+        z1 = gl_def%zz(kg)
 
       end subroutine getCurvilinearCoordinates
 
 c     getCartesianCoordinates
 c     #################################################################
       subroutine getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,y1,z1)
+     .                                  ,x1,y1,z1,g_def)
 
 c     -----------------------------------------------------------------
 c     Returns Cartesian coordinates.
@@ -126,16 +146,26 @@ c     Input variables
         integer    :: i,j,k,igx,igy,igz,ig,jg,kg
         real(8)    :: x1,y1,z1
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
+
+        type(grid_mg_def),pointer :: gl_def
 
         real(8)    :: car(3)
 
 c     Begin program
 
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
         !Find coordinates
-        x1 = gmetric%grid(igx)%car(i,j,k,1)
-        y1 = gmetric%grid(igy)%car(i,j,k,2)
-        z1 = gmetric%grid(igz)%car(i,j,k,3)
+        x1 = gl_def%gmetric%grid(igx)%car(i,j,k,1)
+        y1 = gl_def%gmetric%grid(igy)%car(i,j,k,2)
+        z1 = gl_def%gmetric%grid(igz)%car(i,j,k,3)
 
       end subroutine getCartesianCoordinates
 

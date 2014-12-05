@@ -268,20 +268,21 @@ c ######################################################################
           integer    :: lzs,lze,lgzs,lgze
           integer    :: il ,ih ,jl ,jh ,kl ,kh
           integer    :: ilm,ihp,jlm,jhp,klm,khp
-          integer    :: mx,my,mz
+          integer    :: mx,my,mz        !Number of processors
+          integer    :: nxgl,nygl,nzgl  !Global number of mesh points
           integer    :: igrid
           integer    :: MPI_COMM_DA,np,rank
         end type petsc_da_ctx
 
         integer :: npx=0,npy=0,npz=0  !Processor allocation
 
-        integer :: debug_par=0        !For parallel debuggin
+        integer :: debug_par=0        !For parallel debugging
 
       contains
 
 c     createPETScFortranDA
 c     #################################################################
-      subroutine createPETScFortranDA(igrid,nxgl,nygl,nzgl,dactx)
+      subroutine createPETScFortranDA(dactx)
 
 c     -----------------------------------------------------------------
 c     Creates PETSc distributed array (DA) for boundary communication
@@ -292,18 +293,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer :: igrid,nxgl,nygl,nzgl
         type(petsc_da_ctx),pointer :: dactx
 
 c     Local variables
 
-        integer    :: BC,ierr,nxg,nyg,nzg,mpierr
+        integer :: BC,ierr,mpierr
 
 c     Begin program
-
-        nxg = nxgl
-        nyg = nygl
-        nzg = nzgl
 
         if     (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)==PER) then
           BC = DA_XYZPERIODIC
@@ -323,12 +319,16 @@ c     Begin program
           BC = DA_NONPERIODIC
         endif
 
-        if (npx == 0) npx = PETSC_DECIDE
-        if (npy == 0) npy = PETSC_DECIDE
-        if (npz == 0) npz = PETSC_DECIDE
+c$$$        if (npx == 0) npx = PETSC_DECIDE
+c$$$        if (npy == 0) npy = PETSC_DECIDE
+c$$$        if (npz == 0) npz = PETSC_DECIDE
+        if (dactx%mx == 0) dactx%mx = PETSC_DECIDE
+        if (dactx%my == 0) dactx%my = PETSC_DECIDE
+        if (dactx%mz == 0) dactx%mz = PETSC_DECIDE
 
-        call DACreate3d(dactx%MPI_COMM_DA,BC,DA_STENCIL_BOX,nxg,nyg,nzg
-     &                 ,npx,npy,npz,1,1
+        call DACreate3d(dactx%MPI_COMM_DA,BC,DA_STENCIL_BOX
+     $                 ,dactx%nxgl,dactx%nygl,dactx%nzgl
+     &                 ,dactx%mx,dactx%my,dactx%mz,1,1
      &                 ,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER
      &                 ,PETSC_NULL_INTEGER,dactx%da,ierr)
 
@@ -387,10 +387,6 @@ c       Get local grid boundaries in global grid
         dactx%jhp = dactx%jh+1
         dactx%klm = dactx%kl-1
         dactx%khp = dactx%kh+1
-
-c     Store grid level
-
-        dactx%igrid = igrid
 
 c     Store MPI info
 

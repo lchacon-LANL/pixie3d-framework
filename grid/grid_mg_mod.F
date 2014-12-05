@@ -6,7 +6,7 @@ c######################################################################
 
         use grid_operations
 
-        integer :: ngrdx,ngrdy,ngrdz,ngrid,igmax
+        integer :: ngrdx,ngrdy,ngrdz,ngrid
 
         integer,dimension(:),pointer ::
      .                     istart,ntotv,istartp,ntotvp
@@ -17,7 +17,9 @@ c######################################################################
      $                              ,MGgrid_sv => null()
 
         type :: mg_ctx
-          integer :: ngrdx,ngrdy,ngrdz,ngrid,igmax
+          type(grid_mg_def),pointer :: g_def
+          integer :: mpi_comm
+          integer :: neq,ngrdx,ngrdy,ngrdz,ngrid,igmax
      .              ,imin,imax,jmin,jmax,kmin,kmax
           integer,pointer,dimension(:) ::
      .                     istart,ntotv,istartp,ntotvp
@@ -26,6 +28,7 @@ c######################################################################
           integer   ,pointer,dimension(:)  :: iline       !Restrict ops. to i=iline in MG
           integer   ,pointer,dimension(:)  :: jline       !Restrict ops. to j=jline in MG
           integer   ,pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
+          real(8) :: lxmin,lxmax,lymin,lymax,lzmin,lzmax
         end type mg_ctx
 
         type(mg_ctx),pointer :: mg_ctx_temp => null()
@@ -36,7 +39,7 @@ c######################################################################
 
 c     allocPointers
 c     #################################################################
-      subroutine allocPointers(neq,fpointers,mgctx)
+      subroutine allocPointers(neq,fpointers,mgctx,g_def)
 
 c     -----------------------------------------------------------------
 c     Initializes pointers for block MG. In call sequence:
@@ -52,33 +55,35 @@ c     Call variables
       integer :: neq
       logical,intent(OUT) :: fpointers
       type(mg_ctx),pointer,optional :: mgctx
+      type(grid_mg_def),pointer,optional :: g_def
 
 c     Local variables
 
 c     Begin program
 
-      if (.not.associated(MGgrid)) MGgrid => grid_params
+      if (.not.associated(MGgrid)) then
+        if (PRESENT(g_def)) then
+          MGgrid => g_def
+        else
+          MGgrid => grid_params
+        endif
+      endif
 
       if (PRESENT(mgctx)) then
 
         if (associated(mgctx)) then
           fpointers = .false.
+
+          MGgrid => mgctx%g_def
         else
           call allocMGPointers(neq,fpointers,mgctx)
         endif
+
         mg_ctx_temp => mgctx
 
       else
         call allocMGPointers(neq,fpointers,mg_ctx_temp)
       endif
-
-cc      if (PRESENT(mgctx)) then
-cc        mg_ctx_temp => mgctx
-ccc$$$      else
-ccc$$$        nullify(mg_ctx_temp)
-cc      endif
-cc
-cc      call allocMGPointers(neq,fpointers,mg_ctx_temp)
 
       istart  => mg_ctx_temp%istart
       istartp => mg_ctx_temp%istartp
@@ -102,7 +107,7 @@ c     End program
 
 c     deallocPointers
 c     #################################################################
-      subroutine deallocPointers(fpointers)
+      subroutine deallocPointers(fpointers,mgctx)
 
 c     -----------------------------------------------------------------
 c     Deallocates pointers for block MG if fpointers (in, logical) is
@@ -112,9 +117,15 @@ c     -----------------------------------------------------------------
       implicit none        !For safe fortran
 
       logical :: fpointers
+      type(mg_ctx),pointer,optional :: mgctx
 
       if (fpointers) then
-        call deallocMGPointers(fpointers,mg_ctx_temp)
+        if (PRESENT(mgctx)) then
+          call deallocMGPointers(fpointers,mgctx)
+          nullify(mg_ctx_temp)
+        else
+          call deallocMGPointers(fpointers,mg_ctx_temp)
+        endif
 
         nullify(istart,ntotv,istartp,ntotvp
      .         ,istartb,ntotb,nxv,nyv,nzv,nblock
@@ -122,45 +133,6 @@ c     -----------------------------------------------------------------
       endif
 
       end subroutine deallocPointers
-
-c     limits
-c     ###############################################################
-      subroutine limits(elem,nx,ny,nz,igr,imin,imax,jmin,jmax,kmin,kmax)
-      implicit none
-c     ---------------------------------------------------------------
-c     Finds limits on loops for matvec routines. In call sequence:
-c       * elem: if positive, defines lexicographic position of a
-c          grid node.
-c       * nx,ny,nz (in): grid dimensions
-c       * imin,imax,jmin,jmax,kmin,kmax: loop limits.
-c          If elem <=0, these sample the whole grid.
-c          If elem > 0, these sample stencil around grid node defined
-c             by elem.
-c     ---------------------------------------------------------------
-
-c     Call variables
-
-      integer :: elem,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax,igr
-
-c     Local variables
-
-      integer :: el1
-
-c     Begin program
-
-      call MGlimits(elem,igr,mg_ctx_temp)
-
-      imin = mg_ctx_temp%imin
-      jmin = mg_ctx_temp%jmin
-      kmin = mg_ctx_temp%kmin
-
-      imax = mg_ctx_temp%imax
-      jmax = mg_ctx_temp%jmax
-      kmax = mg_ctx_temp%kmax
-
-c     End program
-
-      end subroutine limits
 
 c     allocMGPointers
 c     #################################################################
@@ -200,7 +172,22 @@ c     Check if MG pointers are allocated
       if (fpointers) then  !Defaults
         allocate(mgctx)
 
+        mgctx%g_def => MGgrid
+
+        mgctx%neq = neq
+
         mgctx%ngrid = MGgrid%ngrid
+
+        mgctx%igmax = mgctx%ngrid
+
+        mgctx%mpi_comm = MGgrid%mpi_comm
+
+        mgctx%lxmin = MGgrid%lxmin
+        mgctx%lxmax = MGgrid%lxmax
+        mgctx%lymin = MGgrid%lymin
+        mgctx%lymax = MGgrid%lymax
+        mgctx%lzmin = MGgrid%lzmin
+        mgctx%lzmax = MGgrid%lzmax
 
         allocate(mgctx%istart    (mgctx%ngrid+1)
      .          ,mgctx%istartb   (mgctx%ngrid+1)
@@ -275,6 +262,7 @@ c     -----------------------------------------------------------------
       type(mg_ctx),pointer :: mgctx
 
       if (fpointers .and. associated(mgctx)) then
+        nullify(mgctx%g_def)
         deallocate(mgctx%istart ,mgctx%ntotv
      .            ,mgctx%istartp,mgctx%ntotvp
      .            ,mgctx%istartb,mgctx%ntotb ,mgctx%nblock
@@ -294,21 +282,21 @@ c     ---------------------------------------------------------------
 c     Finds limits on loops for matvec routines. In call sequence:
 c       * elem: if positive, defines lexicographic position of a
 c          grid node.
-c       * nx,ny,nz (in): grid dimensions
-c       * imin,imax,jmin,jmax,kmin,kmax: loop limits.
 c          If elem <=0, these sample the whole grid.
 c          If elem > 0, these sample stencil around grid node defined
 c             by elem.
+c       * igr: grid level
+c       * mgctx: MG context
 c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: elem,igr
+      integer :: elem,igr
       type(mg_ctx),pointer :: mgctx
 
 c     Local variables
 
-      integer    :: el1,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax
+      integer :: el1,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax
 
 c     Begin program
 
@@ -364,5 +352,44 @@ c       Check for plane/line definitions
 c     End program
 
       end subroutine MGlimits
+
+c     limits
+c     ###############################################################
+      subroutine limits(elem,nx,ny,nz,igr,imin,imax,jmin,jmax,kmin,kmax)
+      implicit none
+c     ---------------------------------------------------------------
+c     Finds limits on loops for matvec routines. In call sequence:
+c       * elem: if positive, defines lexicographic position of a
+c          grid node.
+c       * nx,ny,nz (in): grid dimensions
+c       * imin,imax,jmin,jmax,kmin,kmax: loop limits.
+c          If elem <=0, these sample the whole grid.
+c          If elem > 0, these sample stencil around grid node defined
+c             by elem.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: elem,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax,igr
+
+c     Local variables
+
+      integer :: el1
+
+c     Begin program
+
+      call MGlimits(elem,igr,mg_ctx_temp)
+
+      imin = mg_ctx_temp%imin
+      jmin = mg_ctx_temp%jmin
+      kmin = mg_ctx_temp%kmin
+
+      imax = mg_ctx_temp%imax
+      jmax = mg_ctx_temp%jmax
+      kmax = mg_ctx_temp%kmax
+
+c     End program
+
+      end subroutine limits
 
       end module grid_mg

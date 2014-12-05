@@ -54,31 +54,32 @@ cc     $            ,createPETScFortranDA,destroyPETScFortranDA
 
       contains
 
-c     initFortranMPI
-c     #####################################################################
-      subroutine initFortranMPI(mpi_comm,nxg,nyg,nzg)
-
-c     ---------------------------------------------------------------------
-c     Initializes MPI variables.
-c     ---------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer    :: nxg,nyg,nzg,mpi_comm
-
-c     Local variables
-
-c     Begin program
-
-        call initMPI(mpi_comm,np,my_rank)
-
-c     Allocate processors
-
-        call processorAlloc(nxg,nyg,nzg)
-
-      end subroutine initFortranMPI
+ccc     initFortranMPI
+ccc     #####################################################################
+cc      subroutine initFortranMPI(mpi_comm,nxg,nyg,nzg,mx,my,mz)
+cc
+ccc     ---------------------------------------------------------------------
+ccc     Initializes MPI variables.
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer,INTENT(IN) :: nxg,nyg,nzg,mpi_comm
+cc        integer,INTENT(OUT):: mx,my,mz
+cc
+ccc     Local variables
+cc
+ccc     Begin program
+cc
+cc        call initMPI(mpi_comm,np,my_rank)
+cc
+ccc     Allocate processors
+cc
+cc        call processorAlloc(nxg,nyg,nzg,mx,my,mz)
+cc
+cc      end subroutine initFortranMPI
 
 c     create_MPI_comms
 c     #################################################################
@@ -446,13 +447,13 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: MPI_COMM
+        integer :: MPI_COMM
 
         external   selProc
 
 c     Local variables
 
-        integer    :: split_key,my_sp_rank,np_sp
+        integer :: split_key,my_sp_rank,np_sp
 
 c     Begin program
 
@@ -1896,7 +1897,7 @@ c     End program
 
 c     processorAlloc
 c     ######################################################################
-      subroutine processorAlloc(nx1,ny1,nz1)
+      subroutine processorAlloc(nx1,ny1,nz1,npx,npy,npz)
 
 c     ----------------------------------------------------------------------
 c     Finds processor allocation (npx,npy,npz; defined in module) in the
@@ -1909,7 +1910,7 @@ c     ----------------------------------------------------------------------
 
 c     Call variables
 
-      integer :: nx1,ny1,nz1
+      integer :: nx1,ny1,nz1,npx,npy,npz
 
 c     Local variables
 
