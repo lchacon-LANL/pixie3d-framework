@@ -45,6 +45,12 @@ c Begin program
 
       igrid = 1
 
+c Change profiling stage
+
+#if defined(petsc)
+      call switch_profile_stage(iPCSTP)
+#endif
+
 c Copy solution state info
 
       call mapVectorToStructure(varray,x)
@@ -65,6 +71,12 @@ c Setup application PC
 c Free memory
 
       call deallocateDerivedType(varray)
+
+c End PC setup profiling
+
+#if defined(petsc)
+      call switch_profile_stage(iNL)
+#endif
 
 c End program
 
@@ -95,6 +107,8 @@ c-------------------------------------------------------------------
 
       use mg_io
 
+      use profile_petsc
+
       implicit none
 
 c Call variables
@@ -119,6 +133,11 @@ c Begin program
       nz = grid_params%nzv(igrid)
 
       nn = nx*ny*nz
+
+#if defined(petsc)
+      !Profiling stage PC
+      call switch_profile_stage(iPCSLV)
+#endif
 
 c *******************************************************************
 c     Identity preconditioner
@@ -228,6 +247,13 @@ c     PC diagnostics
 #endif
         if (pc_diag) call PCdiagnostics
       endif
+
+c     End PC profiling
+
+#if defined(petsc)
+      !Begin profiling NL solver
+      call switch_profile_stage(iNL)
+#endif
 
 c End program
 

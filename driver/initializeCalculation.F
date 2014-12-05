@@ -286,6 +286,13 @@ c Interfaces
         end subroutine get_src
       END INTERFACE
 
+      INTERFACE
+        subroutine perturbEquilibrium(varray)
+        use var_setup
+        type(var_array),pointer :: varray
+        end subroutine perturbEquilibrium
+      END INTERFACE
+
 c Begin program
 
       igrid = 1
@@ -304,7 +311,11 @@ c Read restart file
       if(mk_grid.and.mk_init_relax.and.itime==1) itime = 0
 #endif
 
+c Introduce perturbation at restart
+
       inewtime = itime+1
+
+      if (perturb_rstrt) call perturbEquilibrium(u_np)
 
 c Impose BCs (to initialize all auxiliary variables)
 

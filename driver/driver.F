@@ -24,8 +24,7 @@ c Common variables
 
 c Local variables
 
-      integer :: ierr=0,perr,prof_stage(3),offset
-      real(8) :: time1,time2,time3,time4
+      integer :: ierr=0,offset
 
 c Interfaces
 
@@ -81,13 +80,10 @@ c Begin program
 c Setup profiling
 
 #if defined(petsc)
-      !Set profiling stages
-      call PetscLogStageRegister('Initial setup'  ,prof_stage(1),perr)
-      call PetscLogStageRegister('Nonlinear solve',prof_stage(2),perr)
-      call PetscLogStageRegister('Sol. processing',prof_stage(3),perr)  
+      call init_petsc_profile
 
       !Profiling stage 1
-      call PetscLogStagePush(prof_stage(1),perr)
+      call switch_profile_stage(iSTUP)
 #endif
 
 c Initialize calculation
@@ -111,12 +107,11 @@ c Initial output
 c Time loop
 
 #if defined(petsc)
-      call PetscGetTime(time1,perr)
-      call PetscGetCPUTime(time2,perr)
+      call PetscGetTime   (prof_time(1),prof_err)
+      call PetscGetCPUTime(prof_time(2),prof_err)
 
       !Begin profiling third stage
-      call PetscLogStagePop(perr)
-      call PetscLogStagePush(prof_stage(3),perr)
+      call switch_profile_stage(iPOST)
 #endif
 
       offset = 0
@@ -159,9 +154,8 @@ c     Store BDF2 old-time solution (in u_np)
 c     Time update
 
 #if defined(petsc)
-        !Begin profiling second stage
-        call PetscLogStagePop(perr)
-        call PetscLogStagePush(prof_stage(2),perr)
+        !Begin profiling NL solver
+        call switch_profile_stage(iNL)
 #endif
 
         if (eigen) then
@@ -208,8 +202,7 @@ c     Postprocess solution
 
 #if defined(petsc)
         !Begin profiling third stage
-        call PetscLogStagePop(perr)
-        call PetscLogStagePush(prof_stage(3),perr)
+        call switch_profile_stage(iPOST)
 #endif
 
         if (postprocess) call postProcessSol(u_nm,u_n,u_np)  !External
@@ -260,16 +253,17 @@ c Average explicit time step
 c Final statistics
 
 #if defined(petsc)
-      call PetscGetTime(time3,perr)
-      call PetscGetCPUTime(time4,perr)
+      call PetscGetTime   (prof_time(3),prof_err)
+      call PetscGetCPUTime(prof_time(4),prof_err)
 
       if (my_rank == 0 .and. .not.(tst_flg)) then
         write (*,*) 'CPU statistics'
         write (*,*)
-        write (*,*) 'Elapsed time =', time3-time1
-        write (*,*) 'CPU time     =',(time4-time2)*1d4
-        write (*,*) 'COMM % time  =',(time3-time1-(time4-time2)*1d4)
-     .                              /(time3-time1)*100
+        write (*,*) 'Elapsed time =', prof_time(3)-prof_time(1)
+        write (*,*) 'CPU time     =',(prof_time(4)-prof_time(2))*1d4
+        write (*,*) 'COMM % time  ='
+     .      ,(prof_time(3)-prof_time(1)-(prof_time(4)-prof_time(2))*1d4)
+     .      /(prof_time(3)-prof_time(1))*100
       endif
 #endif
 
@@ -389,7 +383,7 @@ c Free memory
 #endif
 
 #if defined(petsc)
-      call PetscLogStagePop(ierr)
+      call end_petsc_profile
 
       call PetscFinalize(ierr)
 #endif

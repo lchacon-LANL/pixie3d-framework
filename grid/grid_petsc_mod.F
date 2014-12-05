@@ -238,9 +238,90 @@ cc        endif
 
       end module bc_def
 
+c module profile_petsc
+c ######################################################################
+      module profile_petsc
+
+       integer :: prof_err,prof_stage(10),iprofile
+       real(8) :: prof_time(10)
+       integer, parameter :: iSTUP=1,iNL=2,iPCSTP=3,iPCSLV=4,iPOST=5
+       logical :: prof_init=.true.
+
+#if defined(petsc)
+      contains
+
+c     init_petsc_profile
+c     ##################################################################
+      subroutine init_petsc_profile
+
+      implicit none
+
+      !Set profiling stages
+      call PetscLogStageRegister('Setup'   ,prof_stage(iSTUP) ,prof_err)
+      call PetscLogStageRegister('NL solve',prof_stage(iNL)   ,prof_err)
+      call PetscLogStageRegister('PC setup',prof_stage(iPCSTP),prof_err)  
+      call PetscLogStageRegister('PC solve',prof_stage(iPCSLV),prof_err)  
+      call PetscLogStageRegister('Postproc',prof_stage(iPOST) ,prof_err)  
+
+      iprofile = 5
+
+      end subroutine init_petsc_profile
+
+c     add_profile_stage
+c     ##################################################################
+      function add_profile_stage(name) result(handle)
+
+      implicit none
+
+      character(*) :: name
+      integer :: handle
+
+      !Set profiling stages
+      iprofile = iprofile + 1
+
+      call PetscLogStageRegister(trim(name),prof_stage(iprofile)
+     .                          ,prof_err)
+
+      handle = iprofile
+
+      end function add_profile_stage
+
+c     switch_profile_stage
+c     ##################################################################
+      subroutine switch_profile_stage(handle)
+
+      implicit none
+
+      integer :: handle
+
+      if (.not.prof_init) then
+        call PetscLogStagePop(prof_err)
+      else
+        prof_init = .false.
+      endif
+
+      call PetscLogStagePush(handle,prof_err)
+
+      end subroutine switch_profile_stage
+
+c     end_petsc_profile
+c     ##################################################################
+      subroutine end_petsc_profile
+
+      implicit none
+
+      call PetscLogStagePop(prof_err)
+
+      end subroutine end_petsc_profile
+#endif
+
+      end module profile_petsc
+
 c module grid_petsc
 c ######################################################################
       module grid_petsc
+
+        use profile_petsc
 
         use bc_def
 
