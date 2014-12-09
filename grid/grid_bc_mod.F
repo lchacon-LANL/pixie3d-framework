@@ -271,18 +271,18 @@ c     Local variables
       real(8),allocatable,dimension(:,:) :: garray
 #endif
 
-cc      type(grid_mg_def),pointer :: gl_def
+      type(grid_mg_def),pointer :: gl_def
 
 c     Begin program
 
-cc      if (associated(gbc_def)) then
-cc        gl_def => gbc_def
-cc      else
-cc        gl_def => grid_params
-cc      endif
+      if (associated(gbc_def)) then
+        gl_def => gbc_def
+      else
+        gl_def => grid_params
+      endif
 
-      ilog = gbc_def%ilo(igxbc)
-      jlog = gbc_def%jlo(igybc)
+      ilog = gl_def%ilo(igxbc)
+      jlog = gl_def%jlo(igybc)
 
       if (npy < 1) call pstop('scalarSingularBC','npy < 1')
 
@@ -338,6 +338,8 @@ c     End program
       deallocate(garray)
 #endif
 
+      nullify(gl_def)
+
       end subroutine scalarSingularBC
 
 c     vectorSingularBC
@@ -365,16 +367,24 @@ c     Local variables
       real(8),allocatable,dimension(:,:) :: garray
 #endif
 
+      type(grid_mg_def),pointer :: gl_def
+
 c     External
 
 c     Begin program
 
-      ilog = gbc_def%ilo(igxbc)
-      jlog = gbc_def%jlo(igybc)
+      if (associated(gbc_def)) then
+        gl_def => gbc_def
+      else
+        gl_def => grid_params
+      endif
+
+      ilog = gl_def%ilo(igxbc)
+      jlog = gl_def%jlo(igybc)
 
       if (npy < 1) call pstop('vectorSingularBC','npy < 1')
 
-      nyg = gbc_def%nygl(igybc)
+      nyg = gl_def%nygl(igybc)
 
 c     Check that we are domain adjacent to singular point
 
@@ -468,6 +478,8 @@ c     End program
 #if defined(petsc)
       deallocate(garray)
 #endif
+
+      nullify(gl_def)
 
       end subroutine vectorSingularBC
 
@@ -601,7 +613,15 @@ c     Local variables
         integer :: ibc
         logical :: sing_face,asmbc
 
+        type(grid_mg_def),pointer :: gl_def
+
 c     Begin program
+
+        if (associated(gbc_def)) then
+          gl_def => gbc_def
+        else
+          gl_def => grid_params
+        endif
 
         do__nothing = .false.
 
@@ -615,11 +635,11 @@ c     Begin program
 
         select case(dim)
         case(1)
-          call checkLimits(i1,i2,gbc_def%nxgl(igxbc))
+          call checkLimits(i1,i2,gl_def%nxgl(igxbc))
         case(2)
-          call checkLimits(j1,j2,gbc_def%nygl(igybc))
+          call checkLimits(j1,j2,gl_def%nygl(igybc))
         case(3)
-          call checkLimits(k1,k2,gbc_def%nzgl(igzbc))
+          call checkLimits(k1,k2,gl_def%nzgl(igzbc))
         end select
 
 c     End program
@@ -743,7 +763,15 @@ c     Local variables
 
       logical :: dn
 
+      type(grid_mg_def),pointer :: gl_def
+
 c     Begin program
+
+      if (associated(gbc_def)) then
+        gl_def => gbc_def
+      else
+        gl_def => grid_params
+      endif
 
 c     Reset Additive-Schwarz-Method flags
 
@@ -762,12 +790,12 @@ c     Reset BC grid level
 
 c     Find global limits of local domain
 
-      igmin = gbc_def%ilo(igx)
-      igmax = gbc_def%ihi(igx)
-      jgmin = gbc_def%jlo(igy)
-      jgmax = gbc_def%jhi(igy)
-      kgmin = gbc_def%klo(igz)
-      kgmax = gbc_def%khi(igz)
+      igmin = gl_def%ilo(igx)
+      igmax = gl_def%ihi(igx)
+      jgmin = gl_def%jlo(igy)
+      jgmax = gl_def%jhi(igy)
+      kgmin = gl_def%klo(igz)
+      kgmax = gl_def%khi(igz)
 
 c     Determine ASM BCs 
 
@@ -802,6 +830,8 @@ cc            if (bcond(ibc) == PER.and.asm_dir(dim)) then !Take care of PER bou
           enddo
         enddo
       endif
+
+      nullify(gl_def)
 
       end subroutine setASM_PC_BC
 

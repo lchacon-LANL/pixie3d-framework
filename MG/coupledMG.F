@@ -697,7 +697,11 @@ c ######################################################################
           module procedure equateMGArray
         END INTERFACE
 
-        private :: restrictArray,restrictArray_w_BCs
+        INTERFACE fillArray
+          module procedure fillArray1,fillArray2
+        END INTERFACE
+
+        private :: restrictArray,restrictArray_w_BCs!,mapMGVectorToArray
 
       contains
 
@@ -786,7 +790,7 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: igrid,neq
+        integer :: igrid,neq
 
 c     Begin program
 
@@ -796,7 +800,7 @@ c     Begin program
 
         mg2%g_def => mg1%g_def
 
-        do igrid=1,MGgrid%ngrid
+        do igrid=1,mg1%g_def%ngrid
           mg2%grid(igrid)%array = mg1%grid(igrid)%array
         enddo
 
@@ -829,7 +833,7 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,ii,ieq,neq,nx,ny,nz,igptr
-      logical :: fpointers
+cc      logical :: fpointers
 
 c     Begin program
 
@@ -1639,8 +1643,7 @@ c     End program
 
 c     restrictArrayToMGVector
 c     #################################################################
-      subroutine restrictArrayToMGVector(mgctx,array,mgvector
-     .                                  ,igr0,order,volf)
+      subroutine restrictArrayToMGVector(array,mgvector,igr0,order,volf)
 c     -----------------------------------------------------------------
 c     Restricts array to mgvector in all grids (without ghost nodes),
 c     starting at grid igr0.
@@ -1649,8 +1652,6 @@ c     -----------------------------------------------------------------
       implicit none    !For safe fortran
 
 c     Call variables
-
-      type(mg_ctx),pointer :: mgctx
 
       integer    :: order,igr0
       real(8)    :: array(0:,0:,0:,:)
@@ -1670,13 +1671,13 @@ c     Begin program
       nz  = size(array,3)-2
       neq = size(array,4)
 
-      call allocPointers(neq,fpointers,mgctx=mgctx)
+      call allocPointers(neq,fpointers)
 
 c     Consistency check
 
-      nxf = mgctx%nxv(igr0)
-      nyf = mgctx%nyv(igr0)
-      nzf = mgctx%nzv(igr0)
+      nxf = mg_ctx_temp%nxv(igr0)
+      nyf = mg_ctx_temp%nyv(igr0)
+      nzf = mg_ctx_temp%nzv(igr0)
 
       if (nxf /= nx .or. nyf /= ny .or. nzf /= nz) then
         write (*,*) 'Grid mismatch in restrictArray:'
@@ -1686,38 +1687,38 @@ c     Consistency check
 
 c     Map array in initial grid onto MG vector
 
-      call mapArrayToMGVector(mgctx,array,mgvector,igr0,.true.)
+      call mapArrayToMGVector(mg_ctx_temp,array,mgvector,igr0,.true.)
 
 c     Restrict array to coarser grids
 
-      do igridc = igr0+1,mgctx%ngrid
+      do igridc = igr0+1,mg_ctx_temp%ngrid
 
         igridf = igridc-1
 
 c       Characterize coarse and fine grids
 
-        nxf = mgctx%nxv(igridf)
-        nyf = mgctx%nyv(igridf)
-        nzf = mgctx%nzv(igridf)
+        nxf = mg_ctx_temp%nxv(igridf)
+        nyf = mg_ctx_temp%nyv(igridf)
+        nzf = mg_ctx_temp%nzv(igridf)
 
-        nxc = mgctx%nxv(igridc)
-        nyc = mgctx%nyv(igridc)
-        nzc = mgctx%nzv(igridc)
+        nxc = mg_ctx_temp%nxv(igridc)
+        nyc = mg_ctx_temp%nyv(igridc)
+        nzc = mg_ctx_temp%nzv(igridc)
 
-        isigc = mgctx%istart(igridc)
-        isigf = mgctx%istart(igridf)
+        isigc = mg_ctx_temp%istart(igridc)
+        isigf = mg_ctx_temp%istart(igridf)
 
         ntotf = neq*nxf*nyf*nzf
         ntotc = neq*nxc*nyc*nzc
 
 c       Restrict MG vector
 
-        call crestrict(mgctx,mgvector(isigf:isigf+ntotf-1)
+        call crestrict(mg_ctx_temp,mgvector(isigf:isigf+ntotf-1)
      .                      ,mgvector(isigc:isigc+ntotc-1)
      .                ,order,igridf,volf)
       enddo
 
-      call deallocPointers(fpointers,mgctx=mgctx)
+      call deallocPointers(fpointers)
 
       end subroutine restrictArrayToMGVector
 
@@ -2355,6 +2356,191 @@ c End program
       call deallocPointers(fpointers,mgctx=mgctx)
 
       end subroutine prolongArray
+
+c     fillArray1
+c     ###################################################################
+      subroutine fillArray1(igrid,neq,x,arr,bcs,iorder,arr_cov
+     .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        use setMGBC_interface
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,neq,iorder,bcs(:,:)
+        real(8),dimension(:,:) :: x
+        real(8),dimension(:,:,:,:) :: arr
+
+        integer,optional :: gpos,icomp(:)
+        real(8),optional,dimension(:,:,:,:) :: arr_cov,arr0
+        logical,optional :: is_vec,is_cnv,result_is_curv
+
+c     Local variables
+
+        integer :: ieq,nx,ny,nz,gps
+        logical :: isvec,iscnv
+        logical :: fpointers
+
+c     Begin program
+
+        call allocPointers(1,fpointers)
+
+        nx = MGgrid%nxv(igrid)
+        ny = MGgrid%nyv(igrid)
+        nz = MGgrid%nzv(igrid)
+
+        if (PRESENT(is_vec)) then
+          isvec = is_vec
+        else
+          isvec = (neq == 3 .or. neq == 6)
+        endif
+
+        if (PRESENT(is_cnv)) then
+          iscnv = is_cnv
+        else
+          iscnv = .true.
+        endif
+
+        if (PRESENT(gpos)) then
+          gps = max(0,gpos)
+        else
+          gps = 0
+        endif
+
+        if (PRESENT(arr_cov).and.(.not.iscnv)) then
+          do ieq=1,neq
+            call mapMGVectorToArray(mg_ctx_temp,gps,x(:,ieq)
+     .                           ,arr_cov(:,:,:,ieq:ieq),igrid,.false.)
+          enddo
+        else
+          do ieq=1,neq
+            call mapMGVectorToArray(mg_ctx_temp,gps,x(:,ieq)
+     .                           ,arr(:,:,:,ieq:ieq),igrid,.false.)
+          enddo
+        endif
+
+        if (PRESENT(arr0).and.PRESENT(arr_cov)) then
+          call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr_cov=arr_cov,arr0=arr0
+     .              ,result_is_curv=result_is_curv)
+        elseif (PRESENT(arr_cov)) then
+          call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr_cov=arr_cov
+     .              ,result_is_curv=result_is_curv)
+        elseif (PRESENT(arr0)) then
+          call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr0=arr0
+     .              ,result_is_curv=result_is_curv)
+        else
+          call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder
+     .              ,result_is_curv=result_is_curv)
+        endif
+
+      call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillArray1
+
+c     fillArray2
+c     ###################################################################
+      subroutine fillArray2(igrid,neq,x,arr,bcs,iorder,arr_cov
+     .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        use setMGBC_interface
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,neq,iorder,bcs(:,:)
+        real(8),dimension(:) :: x
+        real(8),dimension(:,:,:,:) :: arr
+
+        integer,optional :: gpos,icomp(:)
+        real(8),optional,dimension(:,:,:,:) :: arr_cov,arr0
+        logical,optional :: is_vec,is_cnv,result_is_curv
+
+c     Local variables
+
+        integer :: ieq,nx,ny,nz,gps
+        logical :: isvec,iscnv
+        logical :: fpointers
+
+c     Begin program
+
+        call allocPointers(neq,fpointers)
+
+        nx = MGgrid%nxv(igrid)
+        ny = MGgrid%nyv(igrid)
+        nz = MGgrid%nzv(igrid)
+
+        if (PRESENT(is_vec)) then
+          isvec = is_vec
+        else
+          isvec = (neq == 3 .or. neq == 6)
+        endif
+
+        if (PRESENT(is_cnv)) then
+          iscnv = is_cnv
+        else
+          iscnv = .true.
+        endif
+
+        if (PRESENT(gpos)) then
+          gps = max(0,gpos)
+        else
+          gps = 0
+        endif
+
+        if (PRESENT(arr_cov).and.(.not.iscnv)) then
+          call mapMGVectorToArray(mg_ctx_temp,gps,x,arr_cov,igrid
+     .                           ,.false.)
+        else
+          call mapMGVectorToArray(mg_ctx_temp,gps,x,arr,igrid,.false.)
+        endif
+
+        if (PRESENT(arr0).and.PRESENT(arr_cov)) then
+          call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr_cov=arr_cov,arr0=arr0
+     .              ,result_is_curv=result_is_curv)
+        elseif (PRESENT(arr_cov)) then
+          call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr_cov=arr_cov
+     .              ,result_is_curv=result_is_curv)
+        elseif (PRESENT(arr0)) then
+          call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr0=arr0
+     .              ,result_is_curv=result_is_curv)
+        else
+          call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder
+     .              ,result_is_curv=result_is_curv)
+        endif
+
+      call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillArray2
 
       end module mg_Xfer
 
