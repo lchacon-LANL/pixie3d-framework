@@ -233,8 +233,8 @@ cc        pdt0      = 1d30
 
       pdt = pdt0
 
-      if (atol == 0d0) atol = 1d4*epsmac !Set absolute tolerance to roundoff
-      if (stol == 0d0) stol = 1d4*epsmac !Set update tolerance to roundoff
+      if (atol == 0d0) atol = 1d2*epsmac !Set absolute tolerance to roundoff
+      if (stol == 0d0) stol = 1d2*epsmac !Set update tolerance to roundoff
 
       convergence = .false.
       failure     = .false.
