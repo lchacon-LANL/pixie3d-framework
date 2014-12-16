@@ -77,3 +77,9 @@ endif
 
 CONTRIBLIBS += -L$(COMMONDIR)/contrib/rng/lib -lrng
 #MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
+
+# PTRIDIAG setup
+
+ifeq ($(PTRID),t)
+  CONTRIBLIBS += -L$(COMMONDIR)/contrib/ptridiag/lib -lptrid
+endif

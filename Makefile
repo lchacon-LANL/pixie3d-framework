@@ -118,6 +118,11 @@ endif
 ifeq ($(PIT),t)
 	$(MAKE) --no-print-directory -e -C contrib/parareal all	
 endif
+ifeq ($(PTRID),t)
+ifdef BOPT
+	$(MAKE) --no-print-directory -e -C contrib/ptridiag lib
+endif
+endif
 
 contrib_clean: ;
 	@$(MAKE) -e -C contrib/lsode clean
@@ -129,6 +134,9 @@ endif
 	@$(MAKE) -e -C contrib/sdc/src distclean
 	@$(MAKE) -e -C contrib/parareal clean	
 	@$(MAKE) -e -C contrib/rng/src clean
+ifeq ($(PTRID),t)
+	@$(MAKE) -e -C contrib/ptridiag clean
+endif
 
 contrib_setup: ;
 	-@tar xzf common_contrib.tgz
