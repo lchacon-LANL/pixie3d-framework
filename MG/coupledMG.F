@@ -50,9 +50,9 @@ c     Local variables
 
 c     Begin program
 
-        nx = mgctx%nxv(igr)
-        ny = mgctx%nyv(igr)
-        nz = mgctx%nzv(igr)
+        nx = mgctx%g_def%nxv(igr)
+        ny = mgctx%g_def%nyv(igr)
+        nz = mgctx%g_def%nzv(igr)
 
         ijkg = mgctx%neq*(i-1 + nx*(j-1) + nx*ny*(k-1)) + ieq
      .       + mgctx%istart(igptr) - 1
@@ -95,9 +95,9 @@ cc      nnz = MGgrid%nzv(igr)
 cc
 cc      call limits(0,nnx,nny,nnz,igr,imin,imax,jmin,jmax,kmin,kmax)
 
-      nx = mgctx%nxv(igr)
-      ny = mgctx%nyv(igr)
-      nz = mgctx%nzv(igr)
+      nx = mgctx%g_def%nxv(igr)
+      ny = mgctx%g_def%nyv(igr)
+      nz = mgctx%g_def%nzv(igr)
 
       call MGlimits(0,igr,mgctx)
 
@@ -153,9 +153,9 @@ cc      call limits(0,nnx,nny,nnz,igr,imin,imax,jmin,jmax,kmin,kmax)
 cc      write (*,*) 'DIAG -- MGdot',nnx,nny,nnz
 cc     .         ,imin,imax,jmin,jmax,kmin,kmax
 
-      nx = mgctx%nxv(igr)
-      ny = mgctx%nyv(igr)
-      nz = mgctx%nzv(igr)
+      nx = mgctx%g_def%nxv(igr)
+      ny = mgctx%g_def%nyv(igr)
+      nz = mgctx%g_def%nzv(igr)
 
       call MGlimits(0,igr,mgctx)
 
@@ -564,7 +564,7 @@ c     Begin program
         zb_dir = 0
       endif
 
-      !Local grid size
+      !Local grid size (different than global in line smoothing)
       nxl = mgctx%nxv(igrid)
       nyl = mgctx%nyv(igrid)
       nzl = mgctx%nzv(igrid)
@@ -904,9 +904,6 @@ c     Local variables
 
 c     Begin program
 
-cc      call allocPointers(neq,fpointers)
-cc
-cc      call limits(gpos,nx,ny,nz,igr,imin,imax,jmin,jmax,kmin,kmax)
       call MGlimits(gpos,igr,mgctx)
 
       imin = mgctx%imin
@@ -921,9 +918,9 @@ cc      call limits(gpos,nx,ny,nz,igr,imin,imax,jmin,jmax,kmin,kmax)
 
 c     Define stencil
 
-      nx = mgctx%nxv(igr)
-      ny = mgctx%nyv(igr)
-      nz = mgctx%nzv(igr)
+      nx = mgctx%g_def%nxv(igr)
+      ny = mgctx%g_def%nyv(igr)
+      nz = mgctx%g_def%nzv(igr)
 
       offset = 1
 
@@ -956,8 +953,6 @@ c     Map vector to array
         enddo
       enddo
 
-cc      call deallocPointers(fpointers)
-
 c     End program
 
       end subroutine mapMGVectorToArray
@@ -965,7 +960,8 @@ c     End program
 c     restrictMGArray
 c     #################################################################
       subroutine restrictMGArray(icmp,neq,mgarray,bcnd,igrid,order
-     .                         ,iscnv,isvec,result_is_vec,equilb,mgvcov)
+     .                          ,order_bc,iscnv,isvec,result_is_vec
+     .                          ,equilb,mgvcov)
 c     -----------------------------------------------------------------
 c     Restricts MG array in all grids with ghost nodes. If equilibrium
 c     is not provided, then extrapolation is done at EQU boundaries.
@@ -977,6 +973,8 @@ c     Call variables
 
       integer :: neq,icmp,bcnd(6,neq),order,igrid
       type(mg_array) :: mgarray
+
+      integer,optional :: order_bc
       logical,optional,intent(IN) :: iscnv,isvec,result_is_vec
       type(mg_array),optional,intent(IN)  :: equilb
       type(mg_array),optional,intent(OUT) :: mgvcov
@@ -1009,7 +1007,7 @@ c     Begin program
       else
         res_is_vec = is__vec   !Contravariant representation by default
       endif
-       
+
 c     Consistency check
 
       if (size(mgarray%grid(igrid)%array,4) /= neq) then
@@ -1036,6 +1034,7 @@ c     Restrict array
      .       ,igf,nxf,nyf,nzf,mgarray%grid(igf)%array
      .       ,igc,nxc,nyc,nzc,mgarray%grid(igc)%array
      .       ,order,.false.,bcnd
+     .       ,order_bc=order_bc
      .       ,equilb=equilb
      .       ,mgvcov=mgvcov
      .       ,g_def=mgarray%g_def)
@@ -1192,7 +1191,7 @@ c     Perform spline interpolation
       ny2 = size(array2,2)
       nz2 = size(array2,3)
 
-      if (eps == 0d0) eps = 10*findRoundOff()
+      if (eps == 0d0) eps = 1d4*findRoundOff()
 
       do k = 1,nz2
         do j = 1,ny2
@@ -1209,12 +1208,6 @@ c     Perform spline interpolation
      .       .or. yy > y1(ny)+ eps
      .       .or. zz < z1(1) - eps
      .       .or. zz > z1(nz)+ eps ) then
-cc              if (  xx < x1(1).or. xx > x1(nx))
-cc     .              write (*,*) 'x ',xx,nx,x1(1),x1(nx)
-cc              if (  yy < y1(1).or. yy > y1(ny))
-cc     .              write (*,*) 'y ',yy,ny,y1(1),y1(ny)
-cc              if (  zz < z1(1).or. zz > z1(nz))
-cc     .              write (*,*) 'z ',zz,nz,z1(1),z1(nz)
               cycle
             endif
 
@@ -1323,7 +1316,8 @@ c     restrictArray_w_BCs
 c     #################################################################
       subroutine restrictArray_w_BCs(icmp,neq,igf,nxf,nyf,nzf,arrayf
      .                                       ,igc,nxc,nyc,nzc,arrayc
-     .                             ,order,volf,bcnd,equilb,mgvcov,g_def)
+     .                              ,order,volf,bcnd,order_bc,equilb
+     $                              ,mgvcov,g_def)
 c     -----------------------------------------------------------------
 c     Restricts array to array in all grids (with ghost nodes),
 c     starting at grid igf.
@@ -1335,20 +1329,20 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-cc      type(mg_ctx),pointer :: mgctx
-
       integer    :: neq,igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
      .             ,order,bcnd(6,neq),icmp
       real(8)    :: arrayf(0:nxf+1,0:nyf+1,0:nzf+1,neq)
      .             ,arrayc(0:nxc+1,0:nyc+1,0:nzc+1,neq)
       logical    :: volf
+
+      integer,optional :: order_bc
       type(mg_array),optional,intent(IN)  :: equilb
       type(mg_array),optional,intent(OUT) :: mgvcov
       type(grid_mg_def),pointer,optional :: g_def
 
 c     Local variables
 
-      integer    :: igridf,igridc,ieq,ierr
+      integer    :: igridf,igridc,ieq,ierr,ord_bc
      .             ,nxxf,nyyf,nzzf,nxxc,nyyc,nzzc
      .             ,bcmod(6,neq),icmp2(max(neq/3,1))
 
@@ -1357,12 +1351,16 @@ c     Local variables
 
 c     Begin program
 
-cc      neq = mgctx%neq
-
       call allocPointers(neq,fpointers,g_def=g_def)
 
       have_equl = PRESENT(equilb)
       have_cov = PRESENT(mgvcov)
+
+      if (PRESENT(order_bc)) then
+        ord_bc = order_bc
+      else
+        ord_bc = order
+      endif
 
 c     Restrict MG vectors
 
@@ -1422,29 +1420,29 @@ c     Impose BCs
             call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
      .                  ,arr0=equilb%grid(igc)%array
      .                  ,arr_cov=mgvcov%grid(igc)%array
-     .                  ,icomp=(/icmp2/),is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_curv=res_is_vec,iorder=order
+     .                  ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                  ,result_is_curv=res_is_vec,iorder=ord_bc
      .                  ,g_def=g_def)
           else
             call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
      .                  ,arr0=equilb%grid(igc)%array
-     .                  ,icomp=(/icmp2/),is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_curv=res_is_vec,iorder=order
+     .                  ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                  ,result_is_curv=res_is_vec,iorder=ord_bc
      .                  ,g_def=g_def)
           endif
         else
           bcmod = bcnd
           where (abs(bcmod) == EQU) bcmod = EXT
           if (have_cov) then
-            call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+            call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
      .                  ,arr_cov=mgvcov%grid(igc)%array
-     .                  ,icomp=(/icmp2/),is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_curv=res_is_vec,iorder=order
+     .                  ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                  ,result_is_curv=res_is_vec,iorder=ord_bc
      .                  ,g_def=g_def)
           else
             call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
-     .                  ,icomp=(/icmp2/),is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_curv=res_is_vec,iorder=order
+     .                  ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                  ,result_is_curv=res_is_vec,iorder=ord_bc
      .                  ,g_def=g_def)
           endif
         endif
@@ -1527,8 +1525,17 @@ c     Agglomeration
 
       if (order.eq.0) then
 
-        call limits(0,nxc,nyc,nzc,igc
-     .             ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
+c$$$        call limits(0,nxc,nyc,nzc,igc
+c$$$     .             ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc)
+        call MGlimits(0,igc,mgctx)
+
+        iminc = mgctx%imin
+        jminc = mgctx%jmin
+        kminc = mgctx%kmin
+
+        imaxc = mgctx%imax
+        jmaxc = mgctx%jmax
+        kmaxc = mgctx%kmax
 
         do kc = kminc,kmaxc
           do jc = jminc,jmaxc
@@ -1567,8 +1574,17 @@ c       Interpolation
 
 c       Define interpolation nodes
 
-        call limits(0,nxf,nyf,nzf,igf
-     .             ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf)
+c$$$        call limits(0,nxf,nyf,nzf,igf
+c$$$     .             ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf)
+        call MGlimits(0,igf,mgctx)
+
+        iminf = mgctx%imin
+        jminf = mgctx%jmin
+        kminf = mgctx%kmin
+
+        imaxf = mgctx%imax
+        jmaxf = mgctx%jmax
+        kmaxf = mgctx%kmax
 
         allocate(xx(1:imaxf-iminf+1)
      .          ,yy(1:jmaxf-jminf+1)
@@ -1675,9 +1691,9 @@ c     Begin program
 
 c     Consistency check
 
-      nxf = mg_ctx_temp%nxv(igr0)
-      nyf = mg_ctx_temp%nyv(igr0)
-      nzf = mg_ctx_temp%nzv(igr0)
+      nxf = mg_ctx_temp%g_def%nxv(igr0)
+      nyf = mg_ctx_temp%g_def%nyv(igr0)
+      nzf = mg_ctx_temp%g_def%nzv(igr0)
 
       if (nxf /= nx .or. nyf /= ny .or. nzf /= nz) then
         write (*,*) 'Grid mismatch in restrictArray:'
@@ -1697,13 +1713,13 @@ c     Restrict array to coarser grids
 
 c       Characterize coarse and fine grids
 
-        nxf = mg_ctx_temp%nxv(igridf)
-        nyf = mg_ctx_temp%nyv(igridf)
-        nzf = mg_ctx_temp%nzv(igridf)
+        nxf = mg_ctx_temp%g_def%nxv(igridf)
+        nyf = mg_ctx_temp%g_def%nyv(igridf)
+        nzf = mg_ctx_temp%g_def%nzv(igridf)
 
-        nxc = mg_ctx_temp%nxv(igridc)
-        nyc = mg_ctx_temp%nyv(igridc)
-        nzc = mg_ctx_temp%nzv(igridc)
+        nxc = mg_ctx_temp%g_def%nxv(igridc)
+        nyc = mg_ctx_temp%g_def%nyv(igridc)
+        nzc = mg_ctx_temp%g_def%nzv(igridc)
 
         isigc = mg_ctx_temp%istart(igridc)
         isigf = mg_ctx_temp%istart(igridf)
@@ -1751,9 +1767,9 @@ cc      call allocPointers(neq,fpointers)
 
 c     Consistency check
 
-      nxf = mgctx%nxv(igr0)
-      nyf = mgctx%nyv(igr0)
-      nzf = mgctx%nzv(igr0)
+      nxf = mgctx%g_def%nxv(igr0)
+      nyf = mgctx%g_def%nyv(igr0)
+      nzf = mgctx%g_def%nzv(igr0)
 
       neq = mgctx%neq
 
@@ -1770,13 +1786,13 @@ c     Restrict vector to coarser grids
 
 c       Characterize coarse and fine grids
 
-        nxf = mgctx%nxv(igridf)
-        nyf = mgctx%nyv(igridf)
-        nzf = mgctx%nzv(igridf)
+        nxf = mgctx%g_def%nxv(igridf)
+        nyf = mgctx%g_def%nyv(igridf)
+        nzf = mgctx%g_def%nzv(igridf)
 
-        nxc = mgctx%nxv(igridc)
-        nyc = mgctx%nyv(igridc)
-        nzc = mgctx%nzv(igridc)
+        nxc = mgctx%g_def%nxv(igridc)
+        nyc = mgctx%g_def%nyv(igridc)
+        nzc = mgctx%g_def%nzv(igridc)
 
         isigc = mgctx%istart(igridc)
         isigf = mgctx%istart(igridf)
@@ -1823,9 +1839,9 @@ cc      call allocPointers(neq,fpointers)
 
 c     Consistency check
 
-      nxc = mgctx%nxv(igr0)
-      nyc = mgctx%nyv(igr0)
-      nzc = mgctx%nzv(igr0)
+      nxc = mgctx%g_def%nxv(igr0)
+      nyc = mgctx%g_def%nyv(igr0)
+      nzc = mgctx%g_def%nzv(igr0)
 
       neq = mgctx%neq
 
@@ -1842,13 +1858,13 @@ c     Prolong vector to coarser grids
 
 c       Characterize coarse and fine grids
 
-        nxf = mgctx%nxv(igridf)
-        nyf = mgctx%nyv(igridf)
-        nzf = mgctx%nzv(igridf)
+        nxf = mgctx%g_def%nxv(igridf)
+        nyf = mgctx%g_def%nyv(igridf)
+        nzf = mgctx%g_def%nzv(igridf)
 
-        nxc = mgctx%nxv(igridc)
-        nyc = mgctx%nyv(igridc)
-        nzc = mgctx%nzv(igridc)
+        nxc = mgctx%g_def%nxv(igridc)
+        nyc = mgctx%g_def%nyv(igridc)
+        nzc = mgctx%g_def%nzv(igridc)
 
         isigc = mgctx%istart(igridc)
         isigf = mgctx%istart(igridf)
@@ -1952,22 +1968,11 @@ c     Local variables
 
 c     Begin program
 
-c     Find grid sizes
-
-cc      nxf = size(vf%array_var(1)%array,1)-2
-cc      nyf = size(vf%array_var(1)%array,2)-2
-cc      nzf = size(vf%array_var(1)%array,3)-2
-cc
-cc      nxc = size(vc%array_var(1)%array,1)-2
-cc      nyc = size(vc%array_var(1)%array,2)-2
-cc      nzc = size(vc%array_var(1)%array,3)-2
-      
 c     Prolong
 
       do ieq=1,vf%nvar
         arrayf => vf%array_var(ieq)%array
         arrayc => vc%array_var(ieq)%array
-cc        bcnd   => vf%array_var(ieq)%bconds
         call prolongArray(mgctx,igc,arrayc,igf,arrayf,order)
       enddo
 
@@ -2017,13 +2022,13 @@ c     Begin program
 
       igc = igf + 1
 
-      nxf = mgctx%nxv(igf)
-      nyf = mgctx%nyv(igf)
-      nzf = mgctx%nzv(igf)
+      nxf = mgctx%g_def%nxv(igf)
+      nyf = mgctx%g_def%nyv(igf)
+      nzf = mgctx%g_def%nzv(igf)
 
-      nxc = mgctx%nxv(igc)
-      nyc = mgctx%nyv(igc)
-      nzc = mgctx%nzv(igc)
+      nxc = mgctx%g_def%nxv(igc)
+      nyc = mgctx%g_def%nyv(igc)
+      nzc = mgctx%g_def%nzv(igc)
 
       neq = mgctx%neq
 
@@ -2092,13 +2097,13 @@ c     Begin program
 
       igf = igc - 1
 
-      nxf = mgctx%nxv(igf)
-      nyf = mgctx%nyv(igf)
-      nzf = mgctx%nzv(igf)
+      nxf = mgctx%g_def%nxv(igf)
+      nyf = mgctx%g_def%nyv(igf)
+      nzf = mgctx%g_def%nzv(igf)
 
-      nxc = mgctx%nxv(igc)
-      nyc = mgctx%nyv(igc)
-      nzc = mgctx%nzv(igc)
+      nxc = mgctx%g_def%nxv(igc)
+      nyc = mgctx%g_def%nyv(igc)
+      nzc = mgctx%g_def%nzv(igc)
 
       neq = mgctx%neq
 
@@ -2428,22 +2433,26 @@ c     Begin program
           call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr_cov=arr_cov,arr0=arr0
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
         elseif (PRESENT(arr_cov)) then
           call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr_cov=arr_cov
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
         elseif (PRESENT(arr0)) then
           call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr0=arr0
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
         else
           call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
         endif
 
       call deallocPointers(fpointers)
@@ -2518,22 +2527,26 @@ c     Begin program
           call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr_cov=arr_cov,arr0=arr0
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
         elseif (PRESENT(arr_cov)) then
           call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr_cov=arr_cov
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
         elseif (PRESENT(arr0)) then
           call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr0=arr0
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
         else
           call setMGBC(gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
         endif
 
       call deallocPointers(fpointers)
@@ -2585,13 +2598,13 @@ c     Local variables
 
 c     Begin program
 
-        nunit = 110
+        nunit = find_unit(110)
 
         neq= mgctx%neq
 
-        nx = mgctx%nxv(igr)
-        ny = mgctx%nyv(igr)
-        nz = mgctx%nzv(igr)
+        nx = mgctx%g_def%nxv(igr)
+        ny = mgctx%g_def%nyv(igr)
+        nz = mgctx%g_def%nzv(igr)
 
 c     Dump plots
 
@@ -2609,9 +2622,9 @@ c     Dump plots
 
         do ieq=1,neq
           call C_contour(debug(1:nx,1:ny,1:nz,ieq)
-     .                ,mgctx%lxmin,mgctx%lxmax
-     .                ,mgctx%lymin,mgctx%lymax
-     .                ,mgctx%lzmin,mgctx%lzmax
+     .                ,mgctx%g_def%lxmin,mgctx%g_def%lxmax
+     .                ,mgctx%g_def%lymin,mgctx%g_def%lymax
+     .                ,mgctx%g_def%lzmin,mgctx%g_def%lzmax
      .                ,iflag+ieq-1,nunit)
         enddo
 
@@ -2671,6 +2684,140 @@ c     Begin program
 c     End program
 
       end subroutine vec_plot
+
+c     MGplot_gl
+c     #################################################################
+      subroutine MGplot_gl(mgctx,igr,mgv,iflag,ofile)
+
+c     -----------------------------------------------------------------
+c     Plots MG vector using xdraw. In call:
+c       * neq: number of variables contained in MG vector
+c       * mgv: MG vector
+c       * igr: grid level to be plotted.
+c       * iflag: whether to initialize output file (iflag=0) or not.
+c       * ofile: output file.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(mg_ctx),pointer :: mgctx
+        integer :: iflag,igr
+        real(8) :: mgv(:)
+        character*(*) :: ofile
+
+c     Local variables
+
+        integer :: nx,ny,nz,nxg,nyg,nzg,ieq,nunit,neq
+        real(8),allocatable,dimension(:,:,:,:) :: debugl
+        real(8),allocatable,dimension(:,:,:)   :: debugg
+
+c     Begin program
+
+        nunit = find_unit(110)
+
+        neq= mgctx%neq
+
+        nx = mgctx%g_def%nxv(igr)
+        ny = mgctx%g_def%nyv(igr)
+        nz = mgctx%g_def%nzv(igr)
+
+        nxg = mgctx%g_def%nxgl(igr)
+        nyg = mgctx%g_def%nygl(igr)
+        nzg = mgctx%g_def%nzgl(igr)
+
+c     Dump plots
+
+        allocate(debugg(0:nxg+1,0:nyg+1,0:nzg+1)
+     .          ,debugl(0:nx +1,0:ny +1,0:nz +1,neq))
+
+        call mapMGVectorToArray(mgctx,0,mgv,debugl,igr,.true.)
+
+        if (my_rank == 0) then
+
+          if (iflag == 0) then
+            open(nunit,file=trim(ofile),form='unformatted'
+     .          ,status='replace')
+          else
+            open(nunit,file=trim(ofile),form='unformatted'
+     .          ,status='old',position='append')
+          endif
+
+        endif
+
+        do ieq=1,neq
+          call find_global_nobc(debugl(1:nx ,1:ny ,1:nz ,ieq)
+     .                         ,debugg(1:nxg,1:nyg,1:nzg))
+
+          if (my_rank == 0) then  
+            call C_contour(debugg(1:nxg,1:nyg,1:nzg)
+     .                  ,mgctx%g_def%gxmin,mgctx%g_def%gxmax
+     .                  ,mgctx%g_def%gymin,mgctx%g_def%gymax
+     .                  ,mgctx%g_def%gzmin,mgctx%g_def%gzmax
+     .                  ,iflag+ieq-1,nunit)
+          endif
+        enddo
+
+c     End program
+
+        deallocate(debugg,debugl)
+        close(nunit)
+
+      end subroutine MGplot_gl
+
+c     vec_plot_gl
+c     #####################################################################
+      subroutine vec_plot_gl(nvar,vec,igrid,file,title)
+
+c     ---------------------------------------------------------------------
+c     Plots vector with nvar variables.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,nvar
+        real(8) :: vec(:)
+        character(*) :: file,title
+
+c     Local variables
+
+        character(4)  :: dbg_desc(nvar)
+        character(50) :: binfile,drawfile
+
+        integer :: i,ieq
+        logical :: fpointers
+
+        type(mg_ctx),pointer:: mgctx => null()
+
+c     Begin program
+
+        binfile =trim(file)//'.bin'
+        drawfile='draw'//trim(file)//'.in'
+
+        do i=1,nvar
+          dbg_desc(i) = trim(file)//trim(int2char(i))
+        enddo
+
+        if (my_rank == 0) then
+          call createDrawInCfile(nvar,trim(binfile),trim(title)
+     .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
+     .          ,trim(drawfile))
+        endif
+
+        call allocPointers(nvar,fpointers,mgctx=mgctx)
+
+        call MGplot_gl(mgctx,igrid,vec,0,binfile)
+
+        call deallocPointers(fpointers,mgctx=mgctx)
+
+cc        call MGplot_gl(nvar,vec,igrid,0,binfile)
+
+c     End program
+
+      end subroutine vec_plot_gl
 
       end module mg_io
 
@@ -3078,7 +3225,7 @@ c     Process optional arguments
         if (PRESENT(sm_zebra_it)) then
           zit = sm_zebra_it
         else
-          zit = 1
+          zit = 3
         endif
 
         if (PRESENT(sm_zebra_dir)) then
@@ -3090,7 +3237,7 @@ c     Process optional arguments
         if(PRESENT(sm_it)) then
           smit = sm_it
         else
-          smit = 3
+          smit = 2
         endif
 
         if(PRESENT(sm_omega)) then
@@ -3435,11 +3582,11 @@ c Begin program
 
       neq = mgctx%neq
 
-      nxc = mgctx%nxv(igc)
-      nyc = mgctx%nyv(igc)
-      nzc = mgctx%nzv(igc)
+      nxc = mgctx%g_def%nxv(igc)
+      nyc = mgctx%g_def%nyv(igc)
+      nzc = mgctx%g_def%nzv(igc)
 
-      ntotc = neq*nxc*nyc*nzc
+      ntotc = size(x)
 
       call allocPointers(neq,fpointers,mgctx=mgctx)
 
@@ -3451,9 +3598,9 @@ c     Allocate MG vector
 
         igf = 1
 
-        nxf = mgctx%nxv(igf)
-        nyf = mgctx%nyv(igf)
-        nzf = mgctx%nzv(igf)
+        nxf = mgctx%g_def%nxv(igf)
+        nyf = mgctx%g_def%nyv(igf)
+        nzf = mgctx%g_def%nzv(igf)
 
         ntotf = neq*nxf*nyf*nzf
 
@@ -3991,9 +4138,9 @@ C     VERTEX-BASED RELAXATION
 
         do igr = igrid,igmax
 
-          nxf = nxv(igr)
-          nyf = nyv(igr)
-          nzf = nzv(igr)
+          nxf = mgctx%g_def%nxv(igr)
+          nyf = mgctx%g_def%nyv(igr)
+          nzf = mgctx%g_def%nzv(igr)
 
           nblkg = nblock(igr)
 
@@ -4835,13 +4982,14 @@ c     Local variables
 
         type(mg_ctx),pointer :: line_mg_ctx,mg_ctx_sv
 
-        logical        :: fpointers
+        logical :: fpointers
 
 c     Begin program
 
         nn   = ntotv (igr)
         isig = istart(igr)
 
+        !Line smoothing dimensions
         nxl = mgctx%nxv(igr)
         nyl = mgctx%nyv(igr)
         nzl = mgctx%nzv(igr)
@@ -5187,6 +5335,7 @@ c     Begin program
 
         nn = size(b)
 
+        !Line smoothing dimensions
         nxl = mgctx%nxv(igr)
         nyl = mgctx%nyv(igr)
         nzl = mgctx%nzv(igr)
@@ -6161,7 +6310,7 @@ c Allocate pointers
 
 c Initialize auxiliary variables
 
-      !Global dimensions
+      !Grid dimensions
       nxf = mgctx%g_def%nxv(igrid)
       nyf = mgctx%g_def%nyv(igrid)
       nzf = mgctx%g_def%nzv(igrid)
@@ -6579,7 +6728,7 @@ c Set pointers
 
 c Initialize auxiliary variables
 
-      !Global grid size
+      !Grid size
       nxf = mgctx%g_def%nxv(igrid)
       nyf = mgctx%g_def%nyv(igrid)
       nzf = mgctx%g_def%nzv(igrid)
@@ -6823,8 +6972,8 @@ c     ###################################################################
                     call scheduleIndices(mgctx,igrid,i1,j1,k1,i,j,k
      .                                  ,zebra_dir=zd)
 
-cc                    if (out.ge.4.and.prnt)
-                    if (prnt)
+                    if (out.ge.4.and.prnt)
+cc                    if (prnt)
      .                 write (*,'(a,i4,a,i2,a,3i4)')
      .                         'DIAG -- zebra GS: it= ',zit
      .                        ,', dir=',zd
