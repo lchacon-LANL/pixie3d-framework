@@ -4,24 +4,36 @@ c ######################################################################
 
         use grid, ONLY: np,my_rank,pstop
 
-        integer :: maxitnwt
-     .            ,maxitgm
-     .            ,iguess
-     .            ,maxksp
-     .            ,method
-     .            ,global
+        !NKS setup
+        integer :: maxitnwt = 20          !Maximum number of Newton its. (if zero, maxitnwt
+                                          !  is determined in code)
+     .            ,maxitgm  = 15          !Maximum GMRES iterations
+     .            ,iguess   = 0           !Whether preconditioner is used to give initial
+                                          !  guess to GMRES (when =1)
+     .
+     .            ,maxksp   = 15          !Maximum krylov subspace dimension
+     .            ,method   = 1           !Inexact Newton method:
+                                          !  + 0: constant forcing
+                                          !  + other: adaptive (Eisenstat-Walker)
+     .
+     .            ,global   = 0           !Newton's globalization method:
+                                          !  + 0 --> no globalization
+                                          !  + 1 --> linesearch backtracking 
+                                          !  + 2 --> pseudo-transient
 
-        real(8) :: tolgm=0d0
-     .            ,rtol=0d0
-     .            ,atol=0d0
-     .            ,stol=0d0
-     .            ,mf_eps=1d-8
-     .            ,damp=1d0
-     .            ,dt0=1d30
+        real(8) :: tolgm=0d0              !Inexact Newton parameter                 
+     .            ,rtol=0d0               !Newton relative convergence tolerance    
+     .            ,atol=0d0               !Newton absolute convergence tolerance    
+     .            ,stol=0d0               !Newton update convergence tolerance      
+     .            ,mf_eps=1d-8            !Newtom matrix-free differencing parameter
+     .            ,damp=1d0               !Damping parameter in Newton
+     .            ,dt0=1d30               !Initial pseudo-transient time step
+
+        logical :: mf_first_order=.true.  !Whether to use first or second-order MF formula
 
         !FPA configuration
-        logical :: fpa=.false.
-        integer :: fpa_it=5
+        logical :: fpa=.false.            !Whether to use Carlson's Fixed-Point-Accelerator instead of JFNK
+        integer :: fpa_it=5               !Number of FPA iterations
 
         !PC setup
         integer :: pc_iter        = 1     !Number of SI iterations in preconditioner
@@ -74,21 +86,26 @@ cc      if (pc_id) iguess = 0
 
 c     readNKS_PCInput
 c     #################################################################
-      subroutine readNKS_PCInput(file)
+      function readNKS_PCInput(file) result(ioerr)
 
 c     -----------------------------------------------------------------
-c     Initializes grid parameters
+c     Initializes NK & PC parameters. On output,
+c       ioerr = 0 if successful
+c       ioerr = -1 if problems with NKS
+c       ioerr = -2 if problems with PC
+c       ioerr = -3 if problems with both
 c     -----------------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
+      integer :: ioerr
       character(*) :: file
 
 c     Local variables
 
-      integer :: ioerr,uinput=1234
+      integer :: uinput=1234
 
 c     Namelists
 
@@ -104,65 +121,71 @@ c     Namelists
 
 c     Begin program
 
-c     Set defaults
-
-      !NK parameters
-      tolgm    = 8d-1          ! Inexact Newton parameter
-      rtol     = 1d-4          ! Newton relative convergence tolerance
-      atol     = 0d0           ! Newton absolute convergence tolerance
-      stol     = 0d0           ! Newton update convergence tolerance
-      mf_eps   = 1d-6          ! Newtom matrix-free differencing parameter
-      maxitnwt = 20            ! Maximum number of Newton its. (if zero, maxitnwt
-                               !        is determined in code)
-      maxksp   = 15            ! Maximum krylov subspace dimension
-      maxitgm  = maxksp        ! Maximum GMRES iterations
-      method   = 1             ! Inexact Newton method:
-                               !   + 0: constant forcing
-                               !   + other: adaptive (Eisenstat-Walker)
-
-      global   = 0             ! Newton's globalization method:
-                               !   + 0 --> no globalization
-                               !   + 1 --> linesearch backtracking 
-                               !   + 2 --> pseudo-transient
-
-      damp     = 1d0           ! Damping parameter in Newton (see nk_mod.f doc))
-      dt0      = 1d30          ! Initial pseudo-transient time step (" " ")
-      iguess   = 0             ! Whether preconditioner is used to give initial
-                               !   guess to GMRES (when =1) 
-
-      pc_as_solver= .false.    ! Whether we use PC as solver, instead of preconditioned GMRES
-
-      vol_wgt  = .true.        ! Whether residual is volume weighed or not
-
-      fpa      = .false.       ! Whether to use Carlson's Fixed-Point-Accelerator instead of JFNK
-
-      !Preconditioner parameters
-      pc_type  = 'id'          ! Type of preconditioner. Currently:
-                               !   - 'id': identity (default)
-                               !   - 's1': SI without flow
-                               !   - 's2': SI with flow
-      pc_iter  = 1             ! Number of SI iterations in preconditioner
-      pc_tol   = 1d-3          ! PC solvers convergence tolerance
-
-      pc_asm   = .false.       ! Whether we are doing additive Schwartz PC (in parallel)
-      pc_debug = .false.       ! PC debugging flag
-
-      mg_vcyc  = 1             ! Maximum number of MG V-cycles
-      mg_ores  = 0             ! Restriction order for MG
-      mg_oprol = 2             ! Prolongation order for MG
-
-      sm_iter  = 5             ! Number of MG smoothing passes
-      sm_zebra_relax = .false. ! Whether to use ZEBRA relaxation
+ccc     Set defaults (set in module now)
+cc
+cc      !NK parameters
+cc      tolgm    = 8d-1          ! Inexact Newton parameter
+cc      rtol     = 1d-4          ! Newton relative convergence tolerance
+cc      atol     = 0d0           ! Newton absolute convergence tolerance
+cc      stol     = 0d0           ! Newton update convergence tolerance
+cc      mf_eps   = 1d-6          ! Newtom matrix-free differencing parameter
+cc      maxitnwt = 20            ! Maximum number of Newton its. (if zero, maxitnwt
+cc                               !        is determined in code)
+cc      maxksp   = 15            ! Maximum krylov subspace dimension
+cc      maxitgm  = maxksp        ! Maximum GMRES iterations
+cc      method   = 1             ! Inexact Newton method:
+cc                               !   + 0: constant forcing
+cc                               !   + other: adaptive (Eisenstat-Walker)
+cc
+cc      global   = 0             ! Newton's globalization method:
+cc                               !   + 0 --> no globalization
+cc                               !   + 1 --> linesearch backtracking 
+cc                               !   + 2 --> pseudo-transient
+cc
+cc      damp     = 1d0           ! Damping parameter in Newton (see nk_mod.f doc))
+cc      dt0      = 1d30          ! Initial pseudo-transient time step (" " ")     
+cc      iguess   = 0             ! Whether preconditioner is used to give initial
+cc                               !   guess to GMRES (when =1) 
+cc
+cc      pc_as_solver= .false.    ! Whether we use PC as solver, instead of preconditioned GMRES
+cc
+cc      vol_wgt  = .true.        ! Whether residual is volume weighed or not
+cc
+cc      fpa      = .false.       ! Whether to use Carlson's Fixed-Point-Accelerator instead of JFNK
+cc
+cc      !Preconditioner parameters
+cc      pc_type  = 'id'          ! Type of preconditioner. Currently:
+cc                               !   - 'id': identity (default)
+cc                               !   - 's1': SI without flow
+cc                               !   - 's2': SI with flow
+cc      pc_iter  = 1             ! Number of SI iterations in preconditioner
+cc      pc_tol   = 1d-3          ! PC solvers convergence tolerance
+cc
+cc      pc_asm   = .false.       ! Whether we are doing additive Schwartz PC (in parallel)
+cc      pc_debug = .false.       ! PC debugging flag
+cc
+cc      mg_vcyc  = 1             ! Maximum number of MG V-cycles
+cc      mg_ores  = 0             ! Restriction order for MG
+cc      mg_oprol = 2             ! Prolongation order for MG
+cc
+cc      sm_iter  = 5             ! Number of MG smoothing passes
+cc      sm_zebra_relax = .false. ! Whether to use ZEBRA relaxation
 
 c     Read initialization parameters
 
       open(unit=uinput,file=trim(file),status='old')
 
       read(uinput,nks,iostat=ioerr)
-      if (ioerr/=0) call pstop('readInput','Problem reading "nks"')
+      if (ioerr/=0) then
+        ioerr = -1
+cc        call pstop('readInput','Problem reading "nks"')
+      endif
 
       read(uinput,pc,iostat=ioerr)
-      if (ioerr/=0) call pstop('readInput','Problem reading "pc"')
+      if (ioerr/=0) then
+        ioerr = ioerr-2
+cc        call pstop('readInput','Problem reading "pc"')
+      endif
 
       close(unit=uinput)
 
@@ -177,22 +200,22 @@ cc         maxitnwt = 10
 
       call nk_setup_consistency
 
-c     Write initialization parameters to standard output
-
-      if (my_rank == 0) then
-        write (*,*) '----------------- '
-        write (*,*) 'NKS configuration'
-        write (*,*) '----------------- '
-        write (*,nks)
-
-        write (*,*) '----------------- '
-        write (*,*) 'PC  configuration'
-        write (*,*) '----------------- '
-        write (*,pc)
-      endif
+ccc     Write initialization parameters to standard output
+cc
+cc      if (my_rank == 0) then
+cc        write (*,*) '----------------- '
+cc        write (*,*) 'NKS configuration'
+cc        write (*,*) '----------------- '
+cc        write (*,nks)
+cc
+cc        write (*,*) '----------------- '
+cc        write (*,*) 'PC  configuration'
+cc        write (*,*) '----------------- '
+cc        write (*,pc)
+cc      endif
 
 c     End program
 
-      end subroutine readNKS_PCInput
+      end function readNKS_PCInput
 
       end module nk_setup

@@ -56,6 +56,7 @@ c     Newton-Krylov iteration
       if (rtol  > 0d0) nk_conf%rtol   = rtol
       if (stol  > 0d0) nk_conf%stol   = stol
       if (mf_eps> 0d0) nk_conf%mf_eps = mf_eps
+      nk_conf%mf_first_order = mf_first_order
 
       nk_conf%krylov_method='fg'
 cc      nk_conf%krylov_method='gm'
