@@ -1433,7 +1433,7 @@ c     Local variables
 
       logical :: dmp,mapbc
 
-      integer :: mpicomm
+      integer :: mpicomm,npxl,npyl,npzl,npl
 
 c     Begin program
 
@@ -1465,7 +1465,20 @@ c     Calculate array sizes
 
       lsize = dl(1)*dl(2)*dl(3)*dl(4)
 
-      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz*dl(4)
+      npxl = (dg(1)-2)/(dl(1)-2)
+      npyl = (dg(2)-2)/(dl(2)-2)
+      npzl = (dg(3)-2)/(dl(3)-2)
+
+      gsize = dl(1)*npxl*dl(2)*npyl*dl(3)*npzl*dl(4)
+
+#if defined(petsc)
+      call MPI_Comm_size(mpicomm,npl,mpierr)
+
+      if (npl /= npxl*npyl*npzl) then
+        call pstop('find_global_field_scl_nobc'
+     .            ,'Processor number does not agree')
+      endif
+#endif
 
 c     Communicate
 
@@ -1478,20 +1491,19 @@ c     Communicate
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
      .                  ,mpicomm,mpierr)
 
-
-      do k=1,npz
-        do j=1,npy
-          do i=1,npx
+      do k=1,npzl
+        do j=1,npyl
+          do i=1,npxl
 
             gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
      .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
      .        ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1,1:dg(4))
-     .        = reshape(global_x(1+lsize*(        (i-1)
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1))
-     .                          :  lsize*(         i
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1)) )
+     .        = reshape(global_x(1+lsize*(          (i-1)
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1))
+     .                          :  lsize*(           i
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1)) )
      .                 ,dl )
           enddo
         enddo
@@ -1572,7 +1584,7 @@ c     Local variables
 
       logical :: dmp,mapbc
 
-      integer :: mpicomm
+      integer :: mpicomm,npxl,npyl,npzl,npl
 
 c     Begin program
 
@@ -1592,7 +1604,21 @@ c     Calculate array sizes
 
       lsize = dl(1)*dl(2)*dl(3)*dl(4)
 
-      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz*dl(4)
+cc      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz*dl(4)
+      gsize = dg(1)*dg(2)*dg(3)*dg(4)
+
+      npxl = dg(1)/dl(1)
+      npyl = dg(2)/dl(2)
+      npzl = dg(3)/dl(3)
+
+#if defined(petsc)
+      call MPI_Comm_size(mpicomm,npl,mpierr)
+
+      if (npl /= npxl*npyl*npzl) then
+        call pstop('find_global_field_scl_nobc'
+     .            ,'Processor number does not agree')
+      endif
+#endif
 
 c     Communicate
 
@@ -1606,19 +1632,19 @@ c     Communicate
      .                  ,mpicomm,mpierr)
 
 
-      do k=1,npz
-        do j=1,npy
-          do i=1,npx
+      do k=1,npzl
+        do j=1,npyl
+          do i=1,npxl
 
             gf(dl(1)*(i-1)+1:dl(1)*i
      .        ,dl(2)*(j-1)+1:dl(2)*j
      .        ,dl(3)*(k-1)+1:dl(3)*k,1:dg(4))
-     .        = reshape(global_x(1+lsize*(        (i-1)
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1))
-     .                          :  lsize*(         i
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1)) )
+     .        = reshape(global_x(1+lsize*(          (i-1)
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1))
+     .                          :  lsize*(           i
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1)) )
      .                 ,dl )
           enddo
         enddo
@@ -1654,10 +1680,12 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc,mpicomm
+      integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc
       real(8),pointer,dimension(:) :: local_x,global_x
 
       logical :: dmp
+
+      integer :: mpicomm,npxl,npyl,npzl,npl
 
 c     Begin program
 
@@ -1683,7 +1711,20 @@ c     Calculate array sizes
 
       lsize = dl(1)*dl(2)*dl(3)
 
-      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz
+      npxl = (dg(1)-2)/(dl(1)-2)
+      npyl = (dg(2)-2)/(dl(2)-2)
+      npzl = (dg(3)-2)/(dl(3)-2)
+
+      gsize = dl(1)*npxl*dl(2)*npyl*dl(3)*npzl
+
+#if defined(petsc)
+      call MPI_Comm_size(mpicomm,npl,mpierr)
+
+      if (npl /= npxl*npyl*npzl) then
+        call pstop('find_global_field_scl_nobc'
+     .            ,'Processor number does not agree')
+      endif
+#endif
 
 c     Communicate
 
@@ -1696,18 +1737,18 @@ c     Communicate
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
      .                  ,mpicomm,mpierr)
 
-      do k=1,npz
-        do j=1,npy
-          do i=1,npx
+      do k=1,npzl
+        do j=1,npyl
+          do i=1,npxl
             gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
      .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
      .        ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1)
-     .        = reshape(global_x(1+lsize*(        (i-1)
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1))
-     .                          :  lsize*(         i
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1)) )
+     .        = reshape(global_x(1+lsize*(          (i-1)
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1))
+     .                          :  lsize*(           i
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1)) )
      .                 ,dl )
           enddo
         enddo
@@ -1760,7 +1801,7 @@ c     Local variables
 
       integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc
       real(8),pointer,dimension(:) :: local_x,global_x
-      integer :: mpicomm
+      integer :: mpicomm,npxl,npyl,npzl,npl
 
 c     Begin program
 
@@ -1780,7 +1821,21 @@ c     Calculate array sizes
 
       lsize = dl(1)*dl(2)*dl(3)
 
-      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz
+cc      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz
+      gsize = dg(1)*dg(2)*dg(3)
+
+      npxl = dg(1)/dl(1)
+      npyl = dg(2)/dl(2)
+      npzl = dg(3)/dl(3)
+
+#if defined(petsc)
+      call MPI_Comm_size(mpicomm,npl,mpierr)
+
+      if (npl /= npxl*npyl*npzl) then
+        call pstop('find_global_field_scl_nobc'
+     .            ,'Processor number does not agree')
+      endif
+#endif
 
 c     Communicate
 
@@ -1793,18 +1848,18 @@ c     Communicate
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
      .                  ,mpicomm,mpierr)
 
-      do k=1,npz
-        do j=1,npy
-          do i=1,npx
+      do k=1,npzl
+        do j=1,npyl
+          do i=1,npxl
             gf(dl(1)*(i-1)+1:dl(1)*i
      .        ,dl(2)*(j-1)+1:dl(2)*j
      .        ,dl(3)*(k-1)+1:dl(3)*k)
-     .        = reshape(global_x(1+lsize*(        (i-1)
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1))
-     .                          :  lsize*(         i
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1)) )
+     .        = reshape(global_x(1+lsize*(          (i-1)
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1))
+     .                          :  lsize*(           i
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1)) )
      .                 ,dl )
           enddo
         enddo
