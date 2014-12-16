@@ -275,36 +275,35 @@ c     Begin program
 
 c     Plot PC solution
 
-        call vec_plot(neqd,x,igrid,'sol','Solution')
+        call vec_plot_gl(neqd,x,igrid,'sol','Solution')
 
 c     Plot PC RHS
 
-        call vec_plot(neqd,y,igrid,'rhs','RHS')
+        call vec_plot_gl(neqd,y,igrid,'rhs','RHS')
 
 c     Plot corresponding linear residual to PC solution
 
 #if !defined(petsc_c)
-        mag0 = sqrt(dot2(y,y))
+        mag0 = rms(y)
 
         call matrixFreeMatVec(ntot,x,rr)
         y = y - rr
-        mag = sqrt(dot2(y,y))
+        mag = rms(y)
 
-        call vec_plot(neqd,y,igrid,'res','Residual')
+        call vec_plot_gl(neqd,y,igrid,'res','Residual')
 
         if (my_rank == 0) then
            write (*,*)
            write (*,*) 'LINEAR RESIDUAL'
-           write (*,*) 'abs res=',mag
-           write (*,*) 'abs res (per node)=',mag/ntot
-     $                ,', rel res=',mag/mag0
+           write (*,*) 'RMS res=',mag
+           write (*,*) 'Rel res=',mag/mag0
         endif
 
         !Compute magnitude of individual residual eqs
         call scatterVector(yyy,y)
         do ieq=1,neqd
-          mag = sqrt(dot2(yyy(:,ieq),yyy(:,ieq)))
-          if (my_rank == 0) write (*,*) 'Res. eqn',ieq,':',mag
+          mag = rms(yyy(:,ieq))
+          if (my_rank == 0) write (*,*) 'RMS residual eqn',ieq,':',mag
         enddo
 #endif
 
