@@ -154,7 +154,7 @@ c     ####################################################################
       function is_open_unit(ufile)
 
 c     --------------------------------------------------------------------
-c     Checks whether "file" has been opened.
+c     Checks whether unit "ufile" has been opened.
 c     --------------------------------------------------------------------
 
       implicit none
@@ -166,8 +166,6 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ierr
-
 c     Begin program
 
       INQUIRE(unit=ufile,opened=is_open_unit)
@@ -175,6 +173,34 @@ c     Begin program
 c     End program
 
       end function is_open_unit
+
+c     find_unit
+c     ####################################################################
+      function find_unit(seed) result(ufile)
+
+c     --------------------------------------------------------------------
+c     Finds available file unit to open.
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: seed
+      integer :: ufile
+
+c     Local variables
+
+c     Begin program
+
+      ufile = seed
+      do while(is_open_unit(ufile))
+        ufile = ufile+1
+      enddo
+
+c     End program
+
+      end function find_unit
 
 c     rm_files
 c     ####################################################################
