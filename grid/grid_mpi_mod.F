@@ -273,108 +273,12 @@ c     End program
 
       end subroutine fillPetscGhostCells
 
-c     pstop
-c     ################################################################
-      subroutine pstop(routine,message)
-
-c     ---------------------------------------------------------------
-c     Stops program at "routine" with "message"
-c     ---------------------------------------------------------------
-
-        implicit none
-
-        character(*)  :: routine, message
-
-c     Begin program
-
-        if (my_rank == 0) then
-          write (*,*)
-          write (*,*) trim(message)
-          write (*,*) 'Program stopped at routine ',trim(routine)
-        endif
-
-        call PetscEnd(mpierr)
-
-        stop
-
-      end subroutine pstop
-
-c     dot2
-c     ###################################################################
-      function dot2(vec1,vec2)
-
-c     -------------------------------------------------------------------
-c     Performs parallel scalar product (vec1,vec2). In call:
-c       * vec1: vector, first term of scalar product.
-c       * vec2: vector, second term of scalar product.
-c     -------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer    :: ntot
-      real(8)    :: dot2
-      real(8),INTENT(IN) :: vec1(:),vec2(:)
-
-c     Local variables
-
-      real(8)    :: ldot
-
-c     Begin program
-
-      dot2 = dot_product(vec1,vec2)
-
-      if (.not.asm) then
-        ldot = dot2
-        call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
-
-      end function dot2
-
-c     dot
-c     ###################################################################
-      function dot(ntot,vec1,vec2)
-
-c     -------------------------------------------------------------------
-c     Performs parallel scalar product (vec1,vec2). In call:
-c       * ntot: vector dimension
-c       * vec1: vector, first term of scalar product.
-c       * vec2: vector, second term of scalar product.
-c     -------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer    :: ntot
-      real(8)    :: vec1(ntot),vec2(ntot),dot
-
-c     Local variables
-
-      integer    :: imin,imax,jmin,jmax,kmin,kmax
-     .             ,i,j,k,iii,ieq
-      real(8)    :: ldot
-
-c     Begin program
-
-      dot = dot_product(vec1,vec2)
-
-      if (.not.asm) then
-        ldot = dot
-        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
-
-      end function dot
-
 c     psum
 c     ###################################################################
       function psum(vec1,mpi_comm)
 
 c     -------------------------------------------------------------------
-c     Performs parallel sum of element of a 1d-array using communicator
+c     Performs parallel sum of elements of a 1d-array using communicator
 c     mpi_comm. On input:
 c       * vec1: vector
 c       * mpi_comm: MPI communicator
@@ -1315,6 +1219,8 @@ c     End program
 
       contains
 
+#endif
+
 c     pstop
 c     ################################################################
       subroutine pstop(routine,message)
@@ -1329,13 +1235,56 @@ c     ---------------------------------------------------------------
 
 c     Begin program
 
-        write (*,*)
-        write (*,*) trim(message)
-        write (*,*) 'Program stopped at routine ',trim(routine)
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) trim(message)
+          write (*,*) 'Program stopped at routine ',trim(routine)
+        endif
 
+#if defined(petsc)
+        call PetscEnd(mpierr)
+#endif
         stop
 
       end subroutine pstop
+
+c     dot
+c     ###################################################################
+      function dot(ntot,vec1,vec2)
+
+c     -------------------------------------------------------------------
+c     Performs parallel scalar product (vec1,vec2). In call:
+c       * ntot: vector dimension
+c       * vec1: vector, first term of scalar product.
+c       * vec2: vector, second term of scalar product.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: ntot
+      real(8)    :: vec1(ntot),vec2(ntot),dot
+
+c     Local variables
+
+      integer    :: imin,imax,jmin,jmax,kmin,kmax
+     .             ,i,j,k,iii,ieq
+      real(8)    :: ldot
+
+c     Begin program
+
+      dot = dot_product(vec1,vec2)
+
+#if defined(petsc)
+      if (.not.asm) then
+        ldot = dot
+        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+#endif
+
+      end function dot
 
 c     dot2
 c     ###################################################################
@@ -1352,43 +1301,66 @@ c     -------------------------------------------------------------------
 c     Call variables
 
       real(8) :: dot2
-      real(8), INTENT(IN) :: vec1(:),vec2(:)
+      real(8),INTENT(IN) :: vec1(:),vec2(:)
 
 c     Local variables
+
+      integer :: nn,lnn
+      real(8) :: ldot
 
 c     Begin program
 
       dot2 = dot_product(vec1,vec2)
 
+#if defined(petsc)
+      if (.not.asm) then
+        ldot = dot2
+        call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+#endif
+
       end function dot2
 
-c     dot
+c     rms
 c     ###################################################################
-      function dot(ntot,vec1,vec2)
+      function rms(vec1)
 
 c     -------------------------------------------------------------------
-c     Performs scalar product (vec1,vec2). In call:
-c       * ntot: vector dimension
-c       * vec1: vector, first term of scalar product.
-c       * vec2: vector, second term of scalar product.
+c     Performs parallel root mean square. In call:
+c       * vec1: vector
 c     -------------------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-      integer    :: ntot
-      real(8)    :: vec1(ntot),vec2(ntot),dot
+      real(8) :: rms
+      real(8),INTENT(IN) :: vec1(:)
 
 c     Local variables
 
+      integer :: nn,lnn
+      real(8) :: lrms
+
 c     Begin program
 
-      dot = dot_product(vec1,vec2)
+      nn = size(vec1)*npx*npy*npz
+      rms = dot_product(vec1,vec1)
 
-      end function dot
-
+#if defined(petsc)
+      lrms = rms
+      call MPI_Allreduce(lrms,rms,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+cc
+cc      lnn = nn
+cc      call MPI_Allreduce(lnn,nn,1,MPI_INTEGER
+cc     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
+
+      rms=sqrt(rms/nn)
+
+      end function rms
 
 c     isProc
 c     #################################################################
