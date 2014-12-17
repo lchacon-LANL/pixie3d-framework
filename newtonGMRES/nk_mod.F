@@ -301,10 +301,10 @@ c     Start Newton iteration
         iout = out - 1
 
         if (nk_conf%fpa) then
-          call applyPC(ntot,nk_conf%rk,ddx,iout-1)
+          call applyPC(ntot,-nk_conf%rk,ddx,iout-1)
 
           call fpa_correction(nk_conf%fpas,ddx,dp=dot2)
-          ddx = -ddx
+cc          ddx = -ddx
         else
           ddx = 0d0
           if (PRESENT(matvec)) then

@@ -1322,9 +1322,52 @@ c     Begin program
 
       end function dot2
 
+#if defined(petsc)
+c     dot3
+c     ###################################################################
+      function dot3(vec1,vec2,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel scalar product (vec1,vec2). In call:
+c       * vec1: vector, first term of scalar product.
+c       * vec2: vector, second term of scalar product.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: dot3
+      real(8),INTENT(IN) :: vec1(:),vec2(:)
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: mpicomm
+      real(8) :: ldot
+
+c     Begin program
+
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+
+      dot3 = dot_product(vec1,vec2)
+
+      if (.not.asm) then
+        ldot = dot3
+        call MPI_Allreduce(ldot,dot3,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,mpicomm,mpierr)
+      endif
+
+      end function dot3
+#endif
+
 c     rms
 c     ###################################################################
-      function rms(vec1)
+      function rms(vec1,mpi_comm)
 
 c     -------------------------------------------------------------------
 c     Performs parallel root mean square. In call:
@@ -1337,25 +1380,36 @@ c     Call variables
 
       real(8) :: rms
       real(8),INTENT(IN) :: vec1(:)
+      integer,optional :: mpi_comm
 
 c     Local variables
 
-      integer :: nn,lnn
+      integer :: nn,lnn,mpicomm
       real(8) :: lrms
 
 c     Begin program
 
-      nn = size(vec1)*npx*npy*npz
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+#if defined(petsc)
+        mpicomm = MPI_COMM_WORLD
+#endif
+      endif
+
+      nn = size(vec1)
       rms = dot_product(vec1,vec1)
 
 #if defined(petsc)
-      lrms = rms
-      call MPI_Allreduce(lrms,rms,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-cc
-cc      lnn = nn
-cc      call MPI_Allreduce(lnn,nn,1,MPI_INTEGER
-cc     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      if (.not.asm) then
+        lrms = rms
+        call MPI_Allreduce(lrms,rms,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,mpicomm,mpierr)
+
+        lnn = nn
+        call MPI_Allreduce(lnn,nn,1,MPI_INTEGER
+     .                    ,MPI_SUM,mpicomm,mpierr)
+      endif
 #endif
 
       rms=sqrt(rms/nn)
