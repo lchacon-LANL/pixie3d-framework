@@ -447,7 +447,7 @@ c     Input variables
 
         type(grid_mg_def),pointer :: g_def
 
-        integer,optional :: bcs(6,3)
+        integer,optional :: bcs(6,size(xf,4))
 
 c     Local variables
 
@@ -474,7 +474,7 @@ c     Begin program
      .                           ,bcs=bcs(:,ii))
           enddo
         else
-          do ii=1,3
+          do ii=1,neq
             call crse_map_comp(ii,xf(:,:,:,ii)
      .                           ,xc(:,:,:,ii))
           enddo
@@ -642,7 +642,7 @@ c     End program
 
 c     findGridMetrics
 c     #################################################################
-      subroutine findGridMetrics(g_def,igrid,coarsen)
+      subroutine findGridMetrics(g_def,igrid,coarsen,ierr)
 
 c     -----------------------------------------------------------------
 c     Find grid metrics at grid level igrid.
@@ -659,11 +659,20 @@ c     Input variables
 
         logical :: coarsen
 
+        integer,optional :: ierr
+
 c     Local variables
 
         integer :: ii,nxf,nyf,nzf,nxc,nyc,nzc,nx,ny,nz,ig,jg,kg,m,l
+     .            ,lerr
+
+        logical :: return_error
 
 c     Begin program
+
+        return_error = PRESENT(ierr)
+
+        if (return_error) lerr = 0
 
         igx = igrid
         igy = igrid
@@ -792,6 +801,8 @@ c       NUMERICAL QUANTITIES ***********************************
           call findCellMetrics
 
         endif
+
+        if (return_error) ierr = lerr
 
 c     End program
 
@@ -960,15 +971,19 @@ c     Evaluate grid quantities (at vertices)
               g_def%gmetric%grid(igrid)%jac_v(i,j,k) = jac
 
               if (jac <= 0d0 .and. (.not.isSP2(i+1,igrid,ibc=1))) then
-                write (*,*) 'Negative Jacobian in half mesh'
-                write (*,*) 'Grid level',igrid
-                write (*,*) 'Grid position=',i,j,k
-                write (*,*) 'dr/dxi_1=',r(:,1)
-                write (*,*) 'dr/dxi_2=',r(:,2)
-                write (*,*) 'dr/dxi_3=',r(:,3)
-                write (*,*) 'Jacobian=',jac
-                if (.not.check_grid)
-     .             call pstop('findVertexMetrics','Inverted jacobian')
+                if (.not.check_grid .and. (.not.return_error)) then
+                  write (*,*) 'Negative Jacobian in half mesh'
+                  write (*,*) 'Grid level',igrid
+                  write (*,*) 'Grid position=',i,j,k
+                  write (*,*) 'dr/dxi_1=',r(:,1)
+                  write (*,*) 'dr/dxi_2=',r(:,2)
+                  write (*,*) 'dr/dxi_3=',r(:,3)
+                  write (*,*) 'Jacobian=',jac
+
+                  call pstop('findVertexMetrics','Inverted jacobian')
+                elseif (return_error) then
+                  lerr = 1 ; exit
+                endif
               elseif (isSP2(i+1,igrid,ibc=1)) then
 cc              if (isSP2(i+1,igrid,ibc=1)) then
                 ijac = 0d0
@@ -1145,14 +1160,19 @@ c     Evaluate grid quantities
               g_def%gmetric%grid(igrid)%jac(i,j,k) = jac
 
               if (jac <= 0d0 .and.(.not.isSP2(i+1,igrid,ibc=1))) then
-                write (*,*) 'Grid level',igrid
-                write (*,*) 'Grid position=',i,j,k
-                write (*,*) 'dr/dxi_1=',r(:,1)
-                write (*,*) 'dr/dxi_2=',r(:,2)
-                write (*,*) 'dr/dxi_3=',r(:,3)
-                write (*,*) 'Jacobian=',jac
-                if (.not.check_grid)
-     .             call pstop('findCellMetrics','Inverted jacobian')
+                if (.not.check_grid .and. (.not.return_error)) then
+                  write (*,*) 'Negative Jacobian in integer mesh'
+                  write (*,*) 'Grid level',igrid
+                  write (*,*) 'Grid position=',i,j,k
+                  write (*,*) 'dr/dxi_1=',r(:,1)
+                  write (*,*) 'dr/dxi_2=',r(:,2)
+                  write (*,*) 'dr/dxi_3=',r(:,3)
+                  write (*,*) 'Jacobian=',jac
+
+                  call pstop('findCellMetrics','Inverted jacobian')
+                elseif (return_error) then
+                  lerr = 2 ; exit
+                endif
               endif
 
               ijac = 1d0/jac
@@ -1885,7 +1905,7 @@ cc      end subroutine topol_bc_vrtx
 
 c     defineGridMetric
 c     #################################################################
-      subroutine defineGridMetric(g_def,xcar,xcarv,igr)
+      subroutine defineGridMetric(g_def,xcar,xcarv,igr,ierr)
 
 c     -----------------------------------------------------------------
 c     This routine calculates all grid metric quantities required for
@@ -1903,11 +1923,11 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
         real(8),optional,intent(IN),dimension(:,:,:,:) :: xcar,xcarv
-        integer,optional :: igr
+        integer,optional :: igr,ierr
 
 c     Local variables
 
-        integer :: igrmin,igrmax,igrid,istat
+        integer :: igrmin,igrmax,igrid,istat,lerr
 
 c     Begin program
 
@@ -1938,8 +1958,16 @@ c     Allocate arrays
 c     Find grid metrics
 
         do igrid=igrmin,igrmax
-          call findGridMetrics(g_def,igrid,.not.PRESENT(igr))
+          call findGridMetrics(g_def,igrid,.not.PRESENT(igr),ierr=ierr)
         enddo
+
+#if defined(petsc)
+        if (PRESENT(ierr)) then
+          lerr = ierr
+          call MPI_Allreduce(lerr,ierr,1,MPI_INTEGER
+     .                      ,MPI_MAX,g_def%mpi_comm,mpierr)
+        endif
+#endif
 
 c     End program
 

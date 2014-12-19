@@ -260,42 +260,6 @@ c     Create fortran PETSc parallel grid hierarchy (parallel version)
         call setup_petsc_BC   !Set PETSc BC flags
 #endif
 
-      contains
-
-c     MG_levels
-c     #################################################################
-      function MG_levels(nx,mgr) result(ngrd)
-
-c     -----------------------------------------------------------------
-c     Determines available MG levels based on fine grid resolution nx
-c     and MG ratio mgr
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: nx,mgr,ngrd
-
-c     Local variables
-
-      integer :: nl,i
-
-c     Begin program
-
-      nl = int(dlog(1d0*nx)/dlog(1d0*mgr)+0.001)
-
-      ngrd = max(nl-1,1)
-
-      do i = ngrd,1,-1
-        nl = nx/mgr**(i-1)
-        if (nl*mgr**(i-1) == nx) exit
-      enddo
-
-      ngrd = i
-
-      end function MG_levels
-
       end subroutine initGridSt
 
 c     createMGgrid
@@ -312,7 +276,6 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
         type(grid_mg_def),pointer :: gdef
 
 c     Local variables
