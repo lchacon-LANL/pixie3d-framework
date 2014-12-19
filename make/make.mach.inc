@@ -767,7 +767,8 @@ ifeq ($(findstring helios,$(HOST)),helios)
   CPPFLAGS += $(PREPROC)RFX
 
   ifdef BOPT
-    PETSC_DIR =/csc/project/ENEATEST/PIXIE3D/petsc-3.0.0-p7
+#    PETSC_DIR =/csc/project/ENEATEST/PIXIE3D/petsc-3.0.0-p7
+    PETSC_DIR =/csc/project/PIXIE3D/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
       PETSC_ARCH = linux64_intelmpi
@@ -782,11 +783,12 @@ ifeq ($(findstring helios,$(HOST)),helios)
     #HDF5_MOD  = $(HDF5_HOME)/lib
 
     ADIOS = t
-    #ADIOS_HOME = /csc/softs/nccs/adios-1.3.1
-    ADIOS_HOME = $(ADIOS_DIR)
+    ADIOS_HOME = /csc/softs/nccs/adios-1.3.1/intel-12.0.5.220/intelmpi-4.0.3/default/
+    #ADIOS_HOME = $(ADIOS_DIR)
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml -llustreapi
     ADIOS_VER  = 1.31
-    #ADIOS_VER  = 1.50 da errore in fase di link
+    #ADIOS_VER  = 1.50 # error at link time
+    #ADIOS_VER  = 1.70 # error at link time
   else
     HDF5 = f
     ADIOS = f
