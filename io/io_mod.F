@@ -65,8 +65,6 @@ c     --------------------------------------------------------------------
 c     Runs shell command from fortran.
 c     --------------------------------------------------------------------
 
-      implicit none
-
 #if defined(samrai)
       use iso_c_binding
       interface
@@ -75,6 +73,8 @@ c     --------------------------------------------------------------------
          character(kind=c_char), dimension(*) :: sysin
          end function system
       end interface
+#else
+      implicit none
 #endif
       
 c     Call variables
