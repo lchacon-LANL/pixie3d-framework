@@ -105,8 +105,9 @@ c     Read reference grid info
       nullify(grid_params)
       call destroyGrid(gv%gparams)
 
-      call openRecordFiles(urecord,acc_ref_file,murecord
-     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+      call openRestartFileForRead(file=acc_ref_file)
+cc      call openRecordFiles(urecord,acc_ref_file,murecord
+cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
 
       nx = ihig-ilog+1
       ny = jhig-jlog+1
@@ -133,7 +134,8 @@ c     Read reference grid info
 
       tref = time
 
-      call closeRecordFiles
+cc      call closeRecordFiles
+      call closeRestartFileForRead
 
 c Spline reference solution
 
@@ -349,8 +351,9 @@ c     Read reference field
         write (*,*) '>>>>> Reading reference file...'
       endif
 
-      call openRecordFiles(urecord,acc_ref_file,murecord
-     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+      call openRestartFileForRead(file=acc_ref_file)
+cc      call openRecordFiles(urecord,acc_ref_file,murecord
+cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
 
       call allocateDerivedType(vref)
 
@@ -369,7 +372,8 @@ c     Read reference field
         write (*,*)
       endif
 
-      call closeRecordFiles
+      call closeRestartFileForRead
+cc      call closeRecordFiles
 
       tref = time
 
