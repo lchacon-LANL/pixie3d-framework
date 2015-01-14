@@ -3677,9 +3677,9 @@ c     Begin program
         jac    = 0.5*(gmetric%grid(igrid)%jac (ip,j,k)
      .               +gmetric%grid(igrid)%jac (i ,j,k))
 
-        if (isSP(i+1,j,k,igx,igy,igz)) jac = SP_flsv
+cc        if (isSP(i+1,j,k,igx,igy,igz)) jac = SP_flsv
         ijac = 1d0/jac
-cc        if (isSP2(i+1,igx)) ijac = 0d0
+        if (isSP2(i+1,igx).and. flag /= 0) ijac = 0d0
 
         if (flag /= 0) then
           nabla_v_cnv = fnabla_v(i,j,k,nx,ny,nz,igx,igy,igz
