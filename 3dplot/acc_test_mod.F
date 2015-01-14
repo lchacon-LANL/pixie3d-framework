@@ -176,8 +176,9 @@ c Initialize current grid info and read current grid solution
       igy = 1
       igz = 1
 
-      call openRecordFiles(urecord,recordfile,murecord
-     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+      call openRestartFileForRead(file=recordfile)
+cc      call openRecordFiles(urecord,recordfile,murecord
+cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
 
       nx = ihig-ilog+1
       ny = jhig-jlog+1
@@ -202,7 +203,8 @@ c Initialize current grid info and read current grid solution
 
       tsol = time
 
-      call closeRecordFiles
+cc      call closeRecordFiles
+      call closeRestartFileForRead
 
 c Calculate difference
 
@@ -384,8 +386,9 @@ c     Read current solution
         write (*,*) '>>>>> Reading solution file...'
       endif
 
-      call openRecordFiles(urecord,recordfile,murecord
-     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+      call openRestartFileForRead(file=recordfile)
+cc      call openRecordFiles(urecord,recordfile,murecord
+cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
 
       call allocateDerivedType(vsol)
 
@@ -404,7 +407,8 @@ c     Read current solution
         write (*,*)
       endif
 
-      call closeRecordFiles
+cc      call closeRecordFiles
+      call closeRestartFileForRead
 
       tsol = time
 
