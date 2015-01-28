@@ -6,6 +6,10 @@ c ######################################################################
 
         use xdraw_io, ONLY: contour
 
+#if defined(use_pic_mpi)
+        use mpi
+#endif
+
         implicit none
 
         INTERFACE find_global
@@ -16,6 +20,10 @@ c ######################################################################
           module procedure find_global_field_vec_nobc
      .                    ,find_global_field_scl_nobc
         END INTERFACE
+
+#if defined(use_pic_mpi)
+        integer :: mpierr
+#endif
 
 #if defined(petsc)
 
