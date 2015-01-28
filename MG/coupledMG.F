@@ -701,6 +701,15 @@ c ######################################################################
           module procedure fillArray1,fillArray2
         END INTERFACE
 
+        INTERFACE fillArray_nobc
+          module procedure fillArray1_nobc,fillArray2_nobc
+     .                    ,fillArray3_nobc
+        END INTERFACE
+
+        INTERFACE fillVec
+          module procedure fillVec1,fillVec2,fillVec3
+        END INTERFACE
+
         private :: restrictArray,restrictArray_w_BCs!,mapMGVectorToArray
 
       contains
@@ -827,7 +836,8 @@ c     Call variables
 
       type(mg_ctx),pointer :: mgctx
       integer :: igr
-      real(8) :: mgvector(:),array(0:,0:,0:,:)
+      real(8) :: mgvector(:)
+     .          ,array(0:,0:,0:,:)
       logical :: ismgv
 
 c     Local variables
@@ -2250,7 +2260,7 @@ c     Call variables
       type(mg_ctx),pointer :: mgctx
 
       integer :: igc,igf,order
-      real(8) :: arrayc(:,:,:),arrayf(:,:,:)
+      real(8) :: arrayc(0:,0:,0:),arrayf(0:,0:,0:)
 
 c     Local variables
 
@@ -2364,7 +2374,7 @@ c End program
 
 c     fillArray1
 c     ###################################################################
-      subroutine fillArray1(igrid,neq,x,arr,bcs,iorder,arr_cov
+      subroutine fillArray1(igrid,neq,x,arr,bcs,iorder,arr_cov,bc
      .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
 
 c     -------------------------------------------------------------------
@@ -2383,12 +2393,12 @@ c     Call variables
 
         integer,optional :: gpos,icomp(:)
         real(8),optional,dimension(:,:,:,:) :: arr_cov,arr0
-        logical,optional :: is_vec,is_cnv,result_is_curv
+        logical,optional :: is_vec,is_cnv,result_is_curv,bc
 
 c     Local variables
 
         integer :: ieq,nx,ny,nz,gps
-        logical :: isvec,iscnv
+        logical :: isvec,iscnv,apply_bc
         logical :: fpointers
 
 c     Begin program
@@ -2415,6 +2425,12 @@ c     Begin program
           gps = max(0,gpos)
         else
           gps = 0
+        endif
+
+        if (PRESENT(bc)) then
+          apply_bc = bc
+        else
+          apply_bc = .true.
         endif
 
         if (PRESENT(arr_cov).and.(.not.iscnv)) then
@@ -2463,7 +2479,7 @@ c     End program
 
 c     fillArray2
 c     ###################################################################
-      subroutine fillArray2(igrid,neq,x,arr,bcs,iorder,arr_cov
+      subroutine fillArray2(igrid,neq,x,arr,bcs,iorder,arr_cov,bc
      .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
 
 c     -------------------------------------------------------------------
@@ -2482,12 +2498,12 @@ c     Call variables
 
         integer,optional :: gpos,icomp(:)
         real(8),optional,dimension(:,:,:,:) :: arr_cov,arr0
-        logical,optional :: is_vec,is_cnv,result_is_curv
+        logical,optional :: is_vec,is_cnv,result_is_curv,bc
 
 c     Local variables
 
         integer :: ieq,nx,ny,nz,gps
-        logical :: isvec,iscnv
+        logical :: isvec,iscnv,apply_bc
         logical :: fpointers
 
 c     Begin program
@@ -2514,6 +2530,12 @@ c     Begin program
           gps = max(0,gpos)
         else
           gps = 0
+        endif
+
+        if (PRESENT(bc)) then
+          apply_bc = bc
+        else
+          apply_bc = .true.
         endif
 
         if (PRESENT(arr_cov).and.(.not.iscnv)) then
@@ -2549,11 +2571,217 @@ c     Begin program
      $              ,g_def=MGgrid)
         endif
 
-      call deallocPointers(fpointers)
+        call deallocPointers(fpointers)
 
 c     End program
 
       end subroutine fillArray2
+
+c     fillArray1_nobc
+c     ###################################################################
+      subroutine fillArray1_nobc(igrid,neq,x,arr,gpos)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,gpos,neq
+        real(8),dimension(:,:) :: x
+        real(8),dimension(:,:,:,:) :: arr
+
+c     Local variables
+
+        integer :: ieq
+        logical :: fpointers
+
+c     Begin program
+
+        call allocPointers(1,fpointers)
+
+        do ieq=1,neq
+          call mapMGVectorToArray(mg_ctx_temp,gpos,x(:,ieq)
+     .                           ,arr(:,:,:,ieq:ieq),igrid,.false.)
+        enddo
+
+        call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillArray1_nobc
+
+c     fillArray2_nobc
+c     ###################################################################
+      subroutine fillArray2_nobc(igrid,neq,x,arr,gpos)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,gpos,neq
+        real(8),dimension(:) :: x
+        real(8),dimension(:,:,:,:) :: arr
+
+c     Local variables
+
+        integer :: ieq
+
+        logical :: fpointers
+
+c     Begin program
+
+        call allocPointers(neq,fpointers)
+
+        call mapMGVectorToArray(mg_ctx_temp,gpos,x,arr,igrid,.false.)
+
+        call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillArray2_nobc
+
+c     fillArray3_nobc
+c     ###################################################################
+      subroutine fillArray3_nobc(igrid,x,arr,gpos)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,gpos,neq
+        real(8),dimension(:) :: x
+        real(8),dimension(:,:,:) :: arr
+
+c     Local variables
+
+        logical :: fpointers
+        real(8),dimension(size(arr,1),size(arr,2),size(arr,3),1) :: arr1
+
+c     Begin program
+
+        call allocPointers(1,fpointers)
+
+        call mapMGVectorToArray(mg_ctx_temp,gpos,x,arr1,igrid,.false.)
+        arr = arr1(:,:,:,1)
+
+        call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillArray3_nobc
+
+c     fillVec1
+c     ###################################################################
+      subroutine fillVec1(igrid,neq,arr,x)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,neq
+        real(8),dimension(:) :: x
+        real(8),dimension(:,:,:,:) :: arr
+
+c     Local variables
+
+        logical :: fpointers
+
+c     Begin program
+
+        call allocPointers(neq,fpointers)
+
+        call mapArrayToMGVector(mg_ctx_temp,arr,x,igrid,.false.)
+
+        call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillVec1
+
+c     fillVec2
+c     ###################################################################
+      subroutine fillVec2(igrid,neq,arr,x)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,neq
+        real(8),dimension(:,:) :: x
+        real(8),dimension(:,:,:,:) :: arr
+
+c     Local variables
+
+        integer :: ieq
+        logical :: fpointers
+
+c     Begin program
+
+        call allocPointers(1,fpointers)
+
+        do ieq=1,neq
+          call mapArrayToMGVector(mg_ctx_temp,arr(:,:,:,ieq:ieq)
+     .                           ,x(:,ieq),igrid,.false.)
+        enddo
+
+        call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillVec2
+
+c     fillVec3
+c     ###################################################################
+      subroutine fillVec3(igrid,arr,x)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,neq
+        real(8),dimension(:) :: x
+        real(8),dimension(:,:,:) :: arr
+
+c     Local variables
+
+        logical :: fpointers
+        real(8),dimension(size(arr,1),size(arr,2),size(arr,3),1) :: arr1
+
+c     Begin program
+
+        call allocPointers(1,fpointers)
+
+        arr1(:,:,:,1) = arr
+        call mapArrayToMGVector(mg_ctx_temp,arr1,x,igrid,.false.)
+
+        call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillVec3
 
       end module mg_Xfer
 
