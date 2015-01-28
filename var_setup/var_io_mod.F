@@ -576,8 +576,7 @@ c     End program
 
 c     openPOSIXBinFile
 c     #################################################################
-      subroutine openPOSIXBinFile(unit,file,status,position,check
-     .                           ,suffix)
+      subroutine openPOSIXBinFile(unit,file,status,position,suffix)
 
 c     -----------------------------------------------------------------
 c     Opens POSIX binary file.
@@ -590,7 +589,7 @@ c     Call variables
       integer,INTENT(IN) :: unit
       character(*),INTENT(IN) :: file
       character(*),optional,INTENT(IN) :: status,position
-      logical,optional :: check,suffix
+      logical,optional :: suffix!,check
 
 c     Local variables
 
@@ -609,11 +608,12 @@ cc      unit1 = unit + my_rank
         stat='unknown'
       endif
 
-      if (PRESENT(check)) then
-        chk = check
-      else
-        chk = .false.
-      endif
+      chk = (trim(stat) == 'old')
+cc      if (PRESENT(check)) then
+cc        chk = check
+cc      else
+cc        chk = .false.
+cc      endif
 
       if (PRESENT(suffix)) then
         sffx = suffix
@@ -660,12 +660,12 @@ c       Local variables
 
         if (my_rank == 0) ierr = rm_files(file)
 
-#if defined(petsc) 
+#if defined(petsc) || defined(use_pic_mpi)
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
 #endif
 
         !Initialize record file
-        call openPOSIXBinFile(unit,file,status='unknown')
+        call openPOSIXBinFile(unit,file)!,status='unknown',check=.false.)
 
         write (unit) NDEPV,NDEPS,NAUXV,NAUXS
 
@@ -1003,9 +1003,10 @@ c     Close adios file which starts I/O writing from the buffer
         call initPOSIXBinFile(unit,file)
         append_recordfile = .true.
       else
-        call openPOSIXBinFile(unit,file,status='old'
-     .                       ,position='append'
-     .                       ,check=.true.)
+        call openPOSIXBinFile(unit,file
+     .                       ,status='old'
+     .                       ,position='append')
+cc     .                       ,check=.true.)
       endif
 
       write (unit) time
@@ -1061,7 +1062,7 @@ c     Open graphics files
           call pstop('openRecordFiles'
      .              ,'Cannot find record files')
       else
-#if defined(petsc)
+#if defined(petsc) || defined(use_pic_mpi)
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
 #endif
         if (my_rank == 0) then
@@ -1616,11 +1617,11 @@ c     Begin program
 
         if (my_rank == 0) ierr=rm_files(map_file)
 
-#if defined(petsc)
+#if defined(petsc) || defined(use_pic_mpi)
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
 #endif
 
-        call openPOSIXBinFile(u_mapf,map_file,'unknown')
+        call openPOSIXBinFile(u_mapf,map_file)!,status='unknown')
         call dumpVectorToFile(u_mapf,gmetric%grid(1)%car,.false.)
         close(u_mapf)
 
