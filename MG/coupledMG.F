@@ -2479,8 +2479,8 @@ c     End program
 
 c     fillArray2
 c     ###################################################################
-      subroutine fillArray2(igrid,neq,x,arr,bcs,iorder,arr_cov,bc
-     .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
+      subroutine fillArray2(igrid,neq,x,arr,bcs,iorder,arr_cov,arr0
+     .                     ,is_vec,is_cnv,gpos,icomp,result_is_curv)
 
 c     -------------------------------------------------------------------
 c     Fills array arr (with BCs) using vector x.
@@ -2498,12 +2498,12 @@ c     Call variables
 
         integer,optional :: gpos,icomp(:)
         real(8),optional,dimension(:,:,:,:) :: arr_cov,arr0
-        logical,optional :: is_vec,is_cnv,result_is_curv,bc
+        logical,optional :: is_vec,is_cnv,result_is_curv
 
 c     Local variables
 
         integer :: ieq,nx,ny,nz,gps
-        logical :: isvec,iscnv,apply_bc
+        logical :: isvec,iscnv
         logical :: fpointers
 
 c     Begin program
@@ -2530,12 +2530,6 @@ c     Begin program
           gps = max(0,gpos)
         else
           gps = 0
-        endif
-
-        if (PRESENT(bc)) then
-          apply_bc = bc
-        else
-          apply_bc = .true.
         endif
 
         if (PRESENT(arr_cov).and.(.not.iscnv)) then

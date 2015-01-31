@@ -977,7 +977,6 @@ c     Fill PETSc ghost cells
       !Fill ghost cells
       if (petsc__bc) then
         da_ctx => gbc_def%dactx(igxbc)
-cc        da_ctx => grid_params%dactx(igxbc)
         call fillPetscGhostCells(da_ctx,array)
       endif
 #endif
@@ -1033,109 +1032,115 @@ c     Local variables
 
 c     Begin program
 
-#if defined(petsc)
-      do dim=1,3
-        if (MPI_COMM_PER(dim) /= MPI_COMM_NULL) then
-          call MPI_Comm_size(MPI_COMM_PER(dim),np_l     ,mpierr)
-          call MPI_Comm_rank(MPI_COMM_PER(dim),my_rank_l,mpierr)
+      if (np == 1) then
 
-          if (np_l > 2) then
-            call pstop('sync_PER','Periodic comm has rank > 2')
-          endif
-
-          dest = np_l - 1 -my_rank_l
-cc          src  = dest
-          src  = my_rank_l
-
-          write (*,*) 'DIAG -- sync_PER'
-     .              ,dim,np_l,my_rank_l,dest,isBdry(1,1,1+2*(dim-1))
-
-          select case(dim)
-          case(1)
-
-            if (np_l == 1) then
-              array(0     ,:,:)=array(nxbc,:,:)
-              array(nxbc+1,:,:)=array(1   ,:,:)
-            else
-              allocate(rhs(size(array,2),size(array,3)))
-              if (isBdry(1,1,1+2*(dim-1))) then
-                rhs = array(1,:,:)
-                call MPI_Sendrecv_replace(rhs,(nybc+2)*(nzbc+2)
-     .                    ,MPI_DOUBLE_PRECISION,dest,tag,src,MPI_ANY_TAG
-     .                    ,MPI_COMM_PER(dim),mpierr)
-                array(0,:,:) = rhs
-              else
-                rhs = array(nxbc  ,:,:)
-                call MPI_Sendrecv_replace(rhs,(nybc+2)*(nzbc+2)
-     .                    ,MPI_DOUBLE_PRECISION,dest,tag,src,MPI_ANY_TAG
-     .                    ,MPI_COMM_PER(dim),mpierr)
-                array(nxbc+1,:,:) = rhs
-              endif
-              deallocate(rhs)
+        bctype=PER
+        do dim=1,3
+          do loc=0,1
+            ibc = (1+loc)+2*(dim-1)
+            if (bcnd(ibc) == bctype) then
+              call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
             endif
-
-          case(2)
-
-            if (np_l == 1) then
-              array(:,0     ,:)=array(:,nybc,:)
-              array(:,nybc+1,:)=array(:,1   ,:)
-            else
-              allocate(rhs(size(array,1),size(array,3)))
-              if (isBdry(1,1,1+2*(dim-1))) then
-                rhs = array(:,1,:)
-                call MPI_Sendrecv_replace(rhs,(nxbc+2)*(nzbc+2)
-cc     .                    ,MPI_DOUBLE_PRECISION,dest,tag,src,MPI_ANY_TAG
-     .                    ,MPI_DOUBLE_PRECISION,dest,0,src,1
-     .                    ,MPI_COMM_PER(dim),mpierr)
-                array(:,0,:) = rhs
-              else
-                rhs = array(:,nybc  ,:)
-                call MPI_Sendrecv_replace(rhs,(nxbc+2)*(nzbc+2)
-cc     .                    ,MPI_DOUBLE_PRECISION,dest,tag,src,MPI_ANY_TAG
-     .                    ,MPI_DOUBLE_PRECISION,dest,1,src,0
-     .                    ,MPI_COMM_PER(dim),mpierr)
-                array(:,nybc+1,:) = rhs
-              endif
-              deallocate(rhs)
-            endif
-
-          case(3)
-
-            if (np_l == 1) then
-              array(:,:,0     )=array(:,:,nzbc)
-              array(:,:,nzbc+1)=array(:,:,1   )
-            else
-              allocate(rhs(size(array,1),size(array,2)))
-              if (isBdry(1,1,1+2*(dim-1))) then
-                rhs = array(:,:,1)
-                call MPI_Sendrecv_replace(rhs,(nxbc+2)*(nybc+2)
-     .                    ,MPI_DOUBLE_PRECISION,dest,tag,src,MPI_ANY_TAG
-     .                    ,MPI_COMM_PER(dim),mpierr)
-                array(:,:,0) = rhs
-              else
-                rhs = array(:,:,nzbc  )
-                call MPI_Sendrecv_replace(rhs,(nxbc+2)*(nybc+2)
-     .                    ,MPI_DOUBLE_PRECISION,dest,tag,src,MPI_ANY_TAG
-     .                    ,MPI_COMM_PER(dim),mpierr)
-                array(:,:,nzbc+1) = rhs
-              endif
-              deallocate(rhs)
-            endif
-
-          end select
-        endif
-      enddo
-#else
-      bctype=PER
-      do dim=1,3
-        do loc=0,1
-          ibc = (1+loc)+2*(dim-1)
-          if (bcnd(ibc) == bctype) then
-            call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
-          endif
+          enddo
         enddo
-      enddo
+
+      else
+
+#if defined(petsc)
+cc        do dim=1,3
+cc          if (MPI_COMM_PER(dim) /= MPI_COMM_NULL) then
+cc            call MPI_Comm_size(MPI_COMM_PER(dim),np_l     ,mpierr)
+cc            call MPI_Comm_rank(MPI_COMM_PER(dim),my_rank_l,mpierr)
+cc
+cc            if (np_l > 2) then
+cc              call pstop('sync_PER','Periodic comm has rank > 2')
+cc            endif
+cc
+cc            dest = np_l - 1 -my_rank_l
+cccc            src  = dest
+cc            src  = my_rank_l
+cc
+cc            write (*,*) 'DIAG -- sync_PER'
+cc     .                ,dim,np_l,my_rank_l,dest,isBdry(1,1,1+2*(dim-1))
+cc
+cc            select case(dim)
+cc            case(1)
+cc
+cc              if (np_l == 1) then
+cc                array(0     ,:,:)=array(nxbc,:,:)
+cc                array(nxbc+1,:,:)=array(1   ,:,:)
+cc              else
+cc                allocate(rhs(size(array,2),size(array,3)))
+cc                if (isBdry(1,1,1+2*(dim-1))) then
+cc                  rhs = array(1,:,:)
+cc                  call MPI_Sendrecv_replace(rhs,(nybc+2)*(nzbc+2)
+cc     .                      ,MPI_DOUBLE_PRECISION,dest,tag,src
+cc     .                      ,MPI_ANY_TAG,MPI_COMM_PER(dim),mpierr)
+cc                  array(0,:,:) = rhs
+cc                else
+cc                  rhs = array(nxbc  ,:,:)
+cc                  call MPI_Sendrecv_replace(rhs,(nybc+2)*(nzbc+2)
+cc     .                      ,MPI_DOUBLE_PRECISION,dest,tag,src
+cc     .                      ,MPI_ANY_TAG,MPI_COMM_PER(dim),mpierr)
+cc                  array(nxbc+1,:,:) = rhs
+cc                endif
+cc                deallocate(rhs)
+cc              endif
+cc
+cc            case(2)
+cc
+cc              if (np_l == 1) then
+cc                array(:,0     ,:)=array(:,nybc,:)
+cc                array(:,nybc+1,:)=array(:,1   ,:)
+cc              else
+cc                allocate(rhs(size(array,1),size(array,3)))
+cc                if (isBdry(1,1,1+2*(dim-1))) then
+cc                  rhs = array(:,1,:)
+cc                  call MPI_Sendrecv_replace(rhs,(nxbc+2)*(nzbc+2)
+cccc       .                    ,MPI_DOUBLE_PRECISION,dest,tag,src,MPI_ANY_TAG
+cc     .                      ,MPI_DOUBLE_PRECISION,dest,0,src,1
+cc     .                      ,MPI_COMM_PER(dim),mpierr)
+cc                  array(:,0,:) = rhs
+cc                else
+cc                  rhs = array(:,nybc  ,:)
+cc                  call MPI_Sendrecv_replace(rhs,(nxbc+2)*(nzbc+2)
+cccc       .                    ,MPI_DOUBLE_PRECISION,dest,tag,src,MPI_ANY_TAG
+cc     .                      ,MPI_DOUBLE_PRECISION,dest,1,src,0
+cc     .                      ,MPI_COMM_PER(dim),mpierr)
+cc                  array(:,nybc+1,:) = rhs
+cc                endif
+cc                deallocate(rhs)
+cc              endif
+cc
+cc            case(3)
+cc
+cc              if (np_l == 1) then
+cc                array(:,:,0     )=array(:,:,nzbc)
+cc                array(:,:,nzbc+1)=array(:,:,1   )
+cc              else
+cc                allocate(rhs(size(array,1),size(array,2)))
+cc                if (isBdry(1,1,1+2*(dim-1))) then
+cc                  rhs = array(:,:,1)
+cc                  call MPI_Sendrecv_replace(rhs,(nxbc+2)*(nybc+2)
+cc     .                      ,MPI_DOUBLE_PRECISION,dest,tag,src
+cc     .                      ,MPI_ANY_TAG,MPI_COMM_PER(dim),mpierr)
+cc                  array(:,:,0) = rhs
+cc                else
+cc                  rhs = array(:,:,nzbc  )
+cc                  call MPI_Sendrecv_replace(rhs,(nxbc+2)*(nybc+2)
+cc     .                      ,MPI_DOUBLE_PRECISION,dest,tag,src
+cc     .                      ,MPI_ANY_TAG,MPI_COMM_PER(dim),mpierr)
+cc                  array(:,:,nzbc+1) = rhs
+cc                endif
+cc                deallocate(rhs)
+cc              endif
+cc
+cc            end select
+cc          endif
+cc        enddo
 #endif
+
+      endif
 
       end subroutine sync_PER
 

@@ -2,7 +2,7 @@ c module grid_mpi
 c ######################################################################
       module grid_mpi
 
-        use grid_def
+        use grid_operations
 
         use xdraw_io, ONLY: contour
 
@@ -21,9 +21,11 @@ c ######################################################################
      .                    ,find_global_field_scl_nobc
         END INTERFACE
 
-#if defined(use_pic_mpi)
+        INTERFACE find_local
+          module procedure find_local_field_vec,find_local_field_scl
+        END INTERFACE
+
         integer :: mpierr
-#endif
 
 #if defined(petsc)
 
@@ -31,7 +33,7 @@ c ######################################################################
 #include "finclude/petscvecdef.h"
 #include "finclude/petscdadef.h"
 
-        integer    :: np,inp,my_rank,mpierr,group_world
+        integer    :: np,inp,my_rank,group_world
      .               ,group_sp,tag=0,dest=0,root=0
      .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
@@ -1511,13 +1513,13 @@ c     Begin program
          mapbc = .true.
       endif
 
-#if defined(petsc)
       if (PRESENT(mpi_comm)) then
         mpicomm = mpi_comm
       else
+#if defined(petsc)
         mpicomm = MPI_COMM_WORLD
-      endif
 #endif
+      endif
 
 c     Calculate array sizes
 
@@ -1537,7 +1539,7 @@ c     Calculate array sizes
       call MPI_Comm_size(mpicomm,npl,mpierr)
 
       if (npl /= npxl*npyl*npzl) then
-        call pstop('find_global_field_scl_nobc'
+        call pstop('find_global_field_vec'
      .            ,'Processor number does not agree')
       endif
 #endif
@@ -1677,7 +1679,7 @@ cc      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz*dl(4)
       call MPI_Comm_size(mpicomm,npl,mpierr)
 
       if (npl /= npxl*npyl*npzl) then
-        call pstop('find_global_field_scl_nobc'
+        call pstop('find_global_field_vec_nobc'
      .            ,'Processor number does not agree')
       endif
 #endif
@@ -1783,7 +1785,7 @@ c     Calculate array sizes
       call MPI_Comm_size(mpicomm,npl,mpierr)
 
       if (npl /= npxl*npyl*npzl) then
-        call pstop('find_global_field_scl_nobc'
+        call pstop('find_global_field_scl'
      .            ,'Processor number does not agree')
       endif
 #endif
@@ -1935,6 +1937,95 @@ c     Communicate
 c     End program
 
       end subroutine find_global_field_scl_nobc
+
+c     find_local_field_vec
+c     ##############################################################
+      subroutine find_local_field_vec(igrid,lf,gf)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs parallel reduction to find global field.
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      integer :: igrid
+      real(8),dimension(0:,0:,0:,:) :: lf,gf
+
+c     Local variables
+
+      integer :: i,j,k,dl(4),igl(3),ilc(3)
+
+c     Begin program
+
+c     Calculate array sizes
+
+      dl = shape(lf)
+
+c     Transfer field to local mesh
+
+      do k=0,dl(3)-1
+        do j=0,dl(2)-1
+          do i=0,dl(1)-1
+
+            !Find global limits
+            ilc = (/i,j,k/)
+            igl = globalIndex(igrid,ilc)
+
+            !Map field
+            lf(i,j,k,:) = gf(igl(1),igl(2),igl(3),:)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine find_local_field_vec
+
+c     find_local_field_scl
+c     ##############################################################
+      subroutine find_local_field_scl(igrid,gf,lf)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs parallel reduction to find global field.
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      integer :: igrid
+      real(8),dimension(0:,0:,0:) :: lf,gf
+
+c     Local variables
+
+      integer :: i,j,k,dl(3),igl(3)
+
+c     Begin program
+
+c     Calculate array sizes
+
+      dl = shape(lf)
+
+c     Transfer field to local mesh
+
+      do k=0,dl(3)-1
+        do j=0,dl(2)-1
+          do i=0,dl(1)-1
+
+            !Find global limits
+            igl = globalIndex(igrid,(/i,j,k/))
+
+            !Map field
+            lf(i,j,k) = gf(igl(1),igl(2),igl(3))
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine find_local_field_scl
 
 c     per_BC
 c     #################################################################
