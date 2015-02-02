@@ -1387,7 +1387,7 @@ c
 c     where J(xk) is the Jacobian matrix at the previous Newton iterate.
 c     A finite difference approximation is used to compute this product,
 c
-c       y ~ (F(xk+ez) - F(xk))/e
+c       y = (F(xk+e*z) - F(xk))/e
 c
 c     where e is some small perturbation constant
 c     -------------------------------------------------------------
