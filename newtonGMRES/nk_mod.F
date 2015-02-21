@@ -80,6 +80,16 @@ c ###################################################################
 
       contains
 
+c     current_Newton_iteration
+c     ###############################################################
+      function current_Newton_iteration() result(nw_it)
+
+      integer :: nw_it
+
+      nw_it = jit
+      
+      end function current_Newton_iteration
+
 c     jfnk
 c     ###############################################################
       subroutine jfnk(neq,ntot,x,iguess,out,ierr,matvec)
