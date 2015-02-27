@@ -664,7 +664,7 @@ c     representation of the input vector). Possible representations are:
 c     'car','cnv',and 'cov'.
 c     ----------------------------------------------------------------------
 
-      implicit none
+        implicit none
 
 c     Input variables
 
@@ -963,8 +963,8 @@ c     #################################################################
       function XformToCnv_stg_ijk(i,j,k,igrid,cov) result(cnv)
 
 c     -----------------------------------------------------------------
-c     Transforms a staggered covariant vector to another contravariant
-c     representation at faces (i,j,k).
+c     Transforms a staggered covariant vector to contravariant
+c     representation at faces for cell (i,j,k).
 c
 c     CURRENTLY WORKS ONLY IN 2D
 c     -----------------------------------------------------------------
