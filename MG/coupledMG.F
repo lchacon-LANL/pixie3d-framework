@@ -3052,6 +3052,7 @@ c     ##################################################################
 
         logical :: vbr_mg
      .            ,galerkin=.false.
+     .            ,mg_coarse_solve=.false.
 
         private :: find_mf_diag_std,find_mf_diag_colored
 
@@ -6192,6 +6193,8 @@ cc     .                ,guess2,outc,depth1)
 cc
 cccc        endif
 cc#else
+        mg_coarse_solve = .true.
+
         nn   = ntotv(igr)
         isig = istart(igr)
 
@@ -6203,6 +6206,8 @@ cc#else
 
         call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcnd
      .                ,guess2,outc,depth1)
+
+        mg_coarse_solve = .false.
 cc#endif
 
       end subroutine coarseSolve
