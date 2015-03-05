@@ -266,7 +266,7 @@ cc        endif
 
 c     Allocate fluxes and sources (if flux form)
 
-#if defined(flux_rhs)
+#if defined(flux_rhs) && !defined(samrai)
         allocate(gv%flux_x(ilo:ihip,jlo:jhi ,klo:khi ,neqd)
      .          ,gv%flux_y(ilo:ihi ,jlo:jhip,klo:khi ,neqd)
      .          ,gv%flux_z(ilo:ihi ,jlo:jhi ,klo:khip,neqd)
