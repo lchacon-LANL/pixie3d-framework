@@ -213,6 +213,74 @@ c     -----------------------------------------------------------------
 
       end function isSYM
 
+c     isSYMBdry
+c     #################################################################
+      function isSYMBdry(dim,loc,ibc)
+
+c     -----------------------------------------------------------------
+c     Checks whether boundary at dimension dim(=1,2,3)
+c     and location loc(=0,1) is a SYM boundary
+c     -----------------------------------------------------------------
+
+        implicit none
+
+        logical    :: isSYMBdry
+        integer,optional :: dim,loc,ibc
+
+        integer    :: ibcl,ilog,itst,diml,locl,igr
+
+        type(grid_mg_def),pointer :: gl_def
+
+        if (PRESENT(dim) .and.PRESENT(loc)) then
+          diml = dim
+          locl = loc
+          ibcl = (1+locl)+2*(diml-1)
+        elseif (PRESENT(ibc)) then
+          ibcl = ibc
+          locl = abs(mod(ibcl,2)-2)-1
+          diml = 1 + (ibcl-1-locl)/2
+        else
+          write (*,*) 'Error in isSYMBdry'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
+        if (associated(gbc_def)) then
+          gl_def => gbc_def
+        else
+          gl_def => grid_params
+        endif
+
+        igr = 1 !Use fine grid for test
+
+        select case(diml)
+        case(1)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = gl_def%nxv(igr)
+          end select
+        case(2)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = gl_def%nyv(igr)
+          end select
+        case(3)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = gl_def%nzv(igr)
+          end select
+        end select
+
+        isSYMBdry = isBC(itst,igr,ibcl,SYM)
+
+      end function isSYMBdry
+
       end module bc_ops
 
 c module BCS_variables
@@ -2299,7 +2367,7 @@ c     Extrapolate
 
           end select
 
-        else
+        else  !Extrapolate for ODD BCs
 
           select case (ibc)
           case (1)
@@ -3529,6 +3597,13 @@ c     Do nothing for DEF boundary faces, edges, and corners
       if (   (bcChk(ibcl(1),DEF,bcnd=bcnd)
      .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
      .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))) return
+
+c     Do nothing for SYM (not FSYM) boundary faces, edges, and corners
+c     (taken care of by scalarNeumann and scalarDirichlet routines)
+
+      if (    isSYMBdry(ibc=ibcl(1))
+     .    .or.isSYMBdry(ibc=ibcl(2))
+     .    .or.isSYMBdry(ibc=ibcl(3))) return
 
 c     Identify directions for extrapolation.
 

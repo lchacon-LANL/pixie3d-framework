@@ -857,3 +857,57 @@ ifeq ($(HOST),t1243000)
   endif
 
 endif
+
+###################
+# Adam on mustang #
+###################
+
+ifeq ($(HOST),mu-fe1.lanl.gov)
+
+  FC=gfortran
+
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  ifdef BOPT
+    PETSC_DIR =/usr/projects/magnetic/stanier/soft/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = turquoise_ompi165_gcc472_o
+    else
+#      PETSC_ARCH = turquoise_openmpi_g
+# NOT INSTALLED DEBUG.
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME = /usr/projects/magnetic/stanier/soft/
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = t
+
+    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/usr/projects/magnetic/stanier/soft/mxml-2.5/lib -lmxml
+    ADIOS_VER  = 1.31
+
+  else
+#    LIBS += -llapack -lblas
+
+#    HDF5 = t
+
+#    HDF5_HOME = $(HOME)/Software/shdf5-1.8.11
+#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#    HDF5_MOD  =$(HDF5_HOME)/include
+#    HDF5_INC  =$(HDF5_HOME)/include
+
+#    ADIOS = f
+
+  endif
+
+endif
+

@@ -80,6 +80,16 @@ c ###################################################################
 
       contains
 
+c     current_Newton_iteration
+c     ###############################################################
+      function current_Newton_iteration() result(nw_it)
+
+      integer :: nw_it
+
+      nw_it = jit
+      
+      end function current_Newton_iteration
+
 c     jfnk
 c     ###############################################################
       subroutine jfnk(neq,ntot,x,iguess,out,ierr,matvec)
@@ -167,11 +177,12 @@ c     Begin program
 
       prnt = (my_rank == 0)
 
-      ntgl = ntot*npx*npy*npz
+      ntgl = 1
+      if (nk_conf%vol_wgt) ntgl = ntot*npx*npy*npz
 
 c     Find machine round-off
 
-      if (epsmac == 0d0) epsmac = findRoundOff()
+      if (epsmac == 0d0) epsmac = findRoundOff()  !Used for RMS norm measures
 
 #if defined(petsc)
       leps = epsmac
@@ -179,7 +190,7 @@ c     Find machine round-off
      .                  ,MPI_MAX,MPI_COMM_WORLD,mpierr)
 #endif
 
-      roundoff = sqrt(1d0*ntgl)*epsmac
+      roundoff = sqrt(1d0*ntot*npx*npy*npz)*epsmac  !Used for standard norm measures
 
 c     Initialize variables
 
@@ -249,9 +260,7 @@ c     Evaluate rhs and norms
 
       call evaluateNewtonResidual(ntot,x,nk_conf%rk)
 
-      f0 = rms(nk_conf%rk)
-
-      if (vol_wgt) f0 = ntgl*f0
+      f0 = ntgl*rms(nk_conf%rk)
 
       !Check if initial guess is exact, and if so exit Newton step
       if (f0.lt.atol) then
@@ -351,9 +360,7 @@ cc        call updateNewtonSolution(ntot,x,ddx,damp,dxnorm)
         !Evaluate rhs and norms
         call evaluateNewtonResidual(ntot,x,nk_conf%rk)
 
-        fkp = rms(nk_conf%rk)
-
-        if (vol_wgt) fkp = ntgl*fkp
+        fkp = ntgl*rms(nk_conf%rk)
 
         !Check Newton convergence/failure
         check = fkp/f0
@@ -602,12 +609,15 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: idamp
+      integer    :: idamp,ntgl
       real(8)    :: dampm,theta,etak0,dxnorm,fkp,fm,df,ddf
       real(8)    :: b(ntot),dummy(ntot)
       real(8)    :: alpha,sigma0,sigma1
 
 c     Begin program
+
+      ntgl = 1
+      if (nk_conf%vol_wgt) ntgl=ntot*npx*npy*npz
 
 c     Initialize parameters
 
@@ -626,8 +636,7 @@ c     Start quadratic linesearch backtracking
         !Find residual norm |F(xk+dxk)| --> fkp
         dummy = x + damp*ddx
         call evaluateNewtonResidual(ntot,dummy,b)
-cc        fkp = sqrt(dot(ntot,b,b))
-        fkp = rms(b)
+        fkp = ntgl*rms(b)
 
         !Check residual minimation condition
         if (fkp.lt.(1.-alpha*damp)*fk) then
@@ -641,8 +650,7 @@ cc        fkp = sqrt(dot(ntot,b,b))
           !Evaluate residual norm |F(xk+lambda*dxk)| --> fm
           dummy = x + dampm*ddx
           call evaluateNewtonResidual(ntot,dummy,b)
-cc          fm = sqrt(dot(ntot,b,b))
-          fm = rms(b)
+          fm = ntgl*rms(b)
 
           !Check convergence
           if (fm.lt.(1.-alpha*dampm)*fk) then   !Good enough
@@ -1387,7 +1395,7 @@ c
 c     where J(xk) is the Jacobian matrix at the previous Newton iterate.
 c     A finite difference approximation is used to compute this product,
 c
-c       y ~ (F(xk+ez) - F(xk))/e
+c       y = (F(xk+e*z) - F(xk))/e
 c
 c     where e is some small perturbation constant
 c     -------------------------------------------------------------

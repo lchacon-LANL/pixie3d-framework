@@ -304,7 +304,7 @@ c     Begin program
           deallocate(gv%bc_grp,STAT=ierr)
         endif
 
-#if defined(flux_rhs)
+#if defined(flux_rhs) && !defined(samrai)
         deallocate(gv%flux_x,gv%flux_y,gv%flux_z,gv%src,STAT=ierr)
 #endif
 

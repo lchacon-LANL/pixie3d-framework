@@ -485,6 +485,8 @@ c     #######################################################################
         bdf2 = (itm > 1 .and. (.not.timecorr) )
      .    .or. (itm > 2 .and.       timecorr  .and. ierr == NOERR)
 
+        bdf2 = bdf2.and.(.not.restart)
+
         if (bdf2) then
           !All these are affected by factor 1/dt (done in evaluateNLF)
           cnp = (2*dt+dtold)/(dt+dtold)
@@ -494,6 +496,8 @@ c     #######################################################################
           cnp = 1d0
           cn  =-1d0
           cnm = 0d0
+
+          restart = .false.
         endif
 
       else  !Theta scheme
