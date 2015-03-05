@@ -1046,9 +1046,10 @@ c     Fill PETSc ghost cells
       if (petsc__bc) then
         da_ctx => gbc_def%dactx(igxbc)
         call fillPetscGhostCells(da_ctx,array)
+
+        if (bcPER(1).and.bcPER(2).and.bcPER(3)) return !PETSc deals with all periodic domains
       endif
 
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return  !PETSc deals with all periodic domains
 #endif
 
 c     Impose BCs
@@ -1348,9 +1349,10 @@ c     Fill PETSc ghost cells
             call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
           enddo
         endif
+
+        if (bcPER(1).and.bcPER(2).and.bcPER(3)) return !PETSc deals with all periodic domains
       endif
 
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return  !PETSc deals with all periodic domains
 #endif
 
 c     Find complete curvilinear representation at boundaries
@@ -1760,9 +1762,10 @@ c     Fill PETSc ghost cells
           call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
           call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
         enddo
+
+        if (bcPER(1).and.bcPER(2).and.bcPER(3)) return !PETSc deals with all periodic domains
       endif
 
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return  !PETSc deals with all periodic domains
 #endif
 
 ccc     Find complete curvilinear representation at boundaries
