@@ -244,7 +244,7 @@ c ######################################################################
 
        integer :: prof_err,prof_stage(10),iprofile
        real(8) :: prof_time(10)
-       integer, parameter :: iSTUP=1,iNL=2,iPCSTP=3,iPCSLV=4,iPOST=5
+       integer,parameter:: iSTUP=1,iNL=2,iPCSTP=3,iPCSLV=4,iPOST=6,iMG=5
        logical :: prof_init=.true.
 
 #if defined(petsc)
@@ -260,10 +260,11 @@ c     ##################################################################
       call PetscLogStageRegister('Setup'   ,prof_stage(iSTUP) ,prof_err)
       call PetscLogStageRegister('NL solve',prof_stage(iNL)   ,prof_err)
       call PetscLogStageRegister('PC setup',prof_stage(iPCSTP),prof_err)  
-      call PetscLogStageRegister('PC solve',prof_stage(iPCSLV),prof_err)  
+      call PetscLogStageRegister('PC main ',prof_stage(iPCSLV),prof_err)  
       call PetscLogStageRegister('Postproc',prof_stage(iPOST) ,prof_err)  
+      call PetscLogStageRegister('MG solve',prof_stage(iMG)   ,prof_err)  
 
-      iprofile = 5
+      iprofile = 6
 
       end subroutine init_petsc_profile
 
