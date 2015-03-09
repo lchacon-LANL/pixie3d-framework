@@ -140,6 +140,11 @@ c     Preprocess old solution (for e.g. splitting)
 
 c     Evaluate old-time NLF
 
+#if defined(petsc)
+        !Begin profiling NL solver
+        call switch_profile_stage(iNL)
+#endif
+
         old_time_eval = .true.  !This informs nlfunction that we are processing
                                 !  n time level info
 
@@ -152,11 +157,6 @@ c     Store BDF2 old-time solution (in u_np)
         if (bdf2) call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,u_np)
 
 c     Time update
-
-#if defined(petsc)
-        !Begin profiling NL solver
-        call switch_profile_stage(iNL)
-#endif
 
         if (eigen) then
           !Eigenvalue solver
