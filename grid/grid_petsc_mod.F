@@ -244,7 +244,7 @@ c ######################################################################
 
        integer :: prof_err,prof_stage(10),iprofile
        real(8) :: prof_time(10)
-       integer,parameter:: iSTUP=1,iNL=2,iPCSTP=3,iPCSLV=4,iPOST=6,iMG=5
+       integer,parameter:: iSTUP=1,iNL=2,iPCSTP=3,iPCSLV=4,iPOST=5,iMG=6
        logical :: prof_init=.true.
 
 #if defined(petsc)
