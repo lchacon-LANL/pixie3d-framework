@@ -27,6 +27,54 @@ c$$$        type(var_array),pointer :: dn,dnm,dnp
 c$$$        real(8) :: l_np,l_n,et1,et2
 c$$$
       contains
+
+c     ts_rollback_timecounters
+c     ###############################################################
+      subroutine ts_rollback_timecounters()
+
+c     ---------------------------------------------------------------
+c     Performs rollback of time counters when subcycling/restarting
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Begin program
+
+      dtold = tn - tnm
+      dt_n  = dtold
+
+      time  = tn
+      tn    = tnm
+      tnm   = 0d0
+
+c     End program
+
+      end subroutine ts_rollback_timecounters
+
+c     ts_update_timecounters
+c     ###############################################################
+      subroutine ts_update_timecounters(itime)
+
+c     ---------------------------------------------------------------
+c     Performs update of time counters
+c     ---------------------------------------------------------------
+
+      implicit none
+
+      real(8) :: itime
+
+c     Begin program
+
+      tnm = tn
+      tn  = itime
+
+      dtold = tn - tnm
+      dt_n  = dtold
+
+c     End program
+
+      end subroutine ts_update_timecounters
+
 c$$$
 c$$$c     findGuess
 c$$$c     ###############################################################

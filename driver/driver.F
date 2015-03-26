@@ -177,9 +177,10 @@ c     Check for error in time stepping
 
           itime = itime - 1
 
-          time  = tn
-          tn    = tnm
-          tnm   = 0d0
+          call ts_rollback_timecounters()
+cc          time  = tn
+cc          tn    = tnm
+cc          tnm   = 0d0
 
           if (timecorr) then
             cycle

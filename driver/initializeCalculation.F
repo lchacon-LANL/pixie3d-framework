@@ -397,14 +397,16 @@ c     Read files
       do
         ierr = readRecordFile(urecord,itime,time,dt,vmed)
 
-        if (ierr /= 0) then !Backtrack counters and exit
-          time = tn
-          tn   = tnm
-          tnm  = 0d0
+        if (ierr /= 0) then !Rollback counters and exit
+          call ts_rollback_timecounters()
+cc          time = tn
+cc          tn   = tnm
+cc          tnm  = 0d0
           exit
         else
-          tnm = tn
-          tn  = time
+          call ts_update_timecounters(time)
+cc          tnm = tn
+cc          tn  = time
           call equateDerivedType(u_n ,u_np)
           call equateDerivedType(u_np,vmed)
         endif
@@ -412,9 +414,6 @@ c     Read files
       enddo
 
       if (my_rank == 0) write (*,*) ' Done!'
-
-      dtold = tn - tnm
-      dt_n  = dtold
 
 #if defined(pit)
       dt = dtbase  !Reset time step with parallel-in-time
