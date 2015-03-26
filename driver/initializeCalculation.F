@@ -408,11 +408,13 @@ c     Read files
           call equateDerivedType(u_n ,u_np)
           call equateDerivedType(u_np,vmed)
         endif
+
       enddo
 
       if (my_rank == 0) write (*,*) ' Done!'
 
-cc      dtold = tn - tnm
+      dtold = tn - tnm
+      dt_n  = dtold
 
 #if defined(pit)
       dt = dtbase  !Reset time step with parallel-in-time

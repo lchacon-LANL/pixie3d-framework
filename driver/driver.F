@@ -179,6 +179,7 @@ c     Check for error in time stepping
 
           time  = tn
           tn    = tnm
+          tnm   = 0d0
 
           if (timecorr) then
             cycle
