@@ -325,6 +325,10 @@ c Impose BCs (to initialize all auxiliary variables)
       if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
 #endif
 
+c Reset restart flag
+
+      if (restart) restart = .false. 
+
 c End program
 
       contains
