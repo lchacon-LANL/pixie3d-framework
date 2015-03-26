@@ -462,23 +462,19 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: i,j,ntot,ntgl
+      integer    :: i,j,ntot,nn,lnn
       real(8)    :: ravg(neq),lravg(neq)
 
 c     Begin program
 
       ntot = size(b)
 
-      ntgl = ntot*npx*npy*npz
+      nn = ntot/neq
 
-c     Calculate residuals
+c     Calculate partial residuals
 
-      ravg = 0d0
-
-      do i = 1,ntot-neq,neq
-        do j = 1,neq
-          ravg(j) = ravg(j) + b(i - 1 + j)**2
-        enddo
+      do j=1,neq
+        ravg(j) = sum(b(j:ntot-neq+j:neq)**2)
       enddo
 
 c     Calculate magnitude of residuals
@@ -488,12 +484,16 @@ c     Calculate magnitude of residuals
         lravg = ravg
         call MPI_Allreduce(lravg,ravg,neq,MPI_DOUBLE_PRECISION
      .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+
+        lnn = nn
+        call MPI_Allreduce(lnn,nn,1,MPI_INTEGER
+     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
       endif
 #endif
 
-      ravg = sqrt(ravg/ntgl)
+      ravg = sqrt(ravg/nn)
 
-      if (vw) ravg=ravg*ntgl
+      if (vw) ravg=ravg*nn
 
       if (my_rank == 0) then
         do i = 1,neq

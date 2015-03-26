@@ -1940,7 +1940,7 @@ c     End program
 
 c     find_local_field_vec
 c     ##############################################################
-      subroutine find_local_field_vec(igrid,lf,gf)
+      subroutine find_local_field_vec(igrid,gf,lf)
 
       implicit none
 

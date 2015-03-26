@@ -698,12 +698,12 @@ c ######################################################################
         END INTERFACE
 
         INTERFACE fillArray
-          module procedure fillArray1,fillArray2
+          module procedure fillVecArray1,fillVecArray2
         END INTERFACE
 
         INTERFACE fillArray_nobc
-          module procedure fillArray1_nobc,fillArray2_nobc
-     .                    ,fillArray3_nobc
+          module procedure fillVecArray1_nobc,fillVecArray2_nobc
+     .                    ,fillSclArray_nobc
         END INTERFACE
 
         INTERFACE fillVec
@@ -2372,9 +2372,9 @@ c End program
 
       end subroutine prolongArray
 
-c     fillArray1
+c     fillVecArray1
 c     ###################################################################
-      subroutine fillArray1(igrid,neq,x,arr,bcs,iorder,arr_cov,bc
+      subroutine fillVecArray1(igrid,neq,x,arr,bcs,iorder,arr_cov,bc
      .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
 
 c     -------------------------------------------------------------------
@@ -2475,12 +2475,12 @@ c     Begin program
 
 c     End program
 
-      end subroutine fillArray1
+      end subroutine fillVecArray1
 
-c     fillArray2
+c     fillVecArray2
 c     ###################################################################
-      subroutine fillArray2(igrid,neq,x,arr,bcs,iorder,arr_cov,arr0
-     .                     ,is_vec,is_cnv,gpos,icomp,result_is_curv)
+      subroutine fillVecArray2(igrid,neq,x,arr,bcs,iorder,arr_cov,arr0
+     .                       ,is_vec,is_cnv,gpos,icomp,result_is_curv)
 
 c     -------------------------------------------------------------------
 c     Fills array arr (with BCs) using vector x.
@@ -2569,11 +2569,105 @@ c     Begin program
 
 c     End program
 
-      end subroutine fillArray2
+      end subroutine fillVecArray2
 
-c     fillArray1_nobc
+c     fillVecArray_stg
 c     ###################################################################
-      subroutine fillArray1_nobc(igrid,neq,x,arr,gpos)
+      subroutine fillVecArray_stg(igrid,neq,x,arr,bcs,iorder,arr_cov
+     .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        use setMGBC_interface
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,neq,iorder,bcs(:,:)
+        real(8),dimension(:) :: x
+        real(8),dimension(:,:,:,:) :: arr
+
+        integer,optional :: gpos,icomp(:)
+        real(8),optional,dimension(:,:,:,:) :: arr_cov,arr0
+        logical,optional :: is_vec,is_cnv,result_is_curv
+
+c     Local variables
+
+        integer :: ieq,nx,ny,nz,gps
+        logical :: isvec,iscnv
+        logical :: fpointers
+
+c     Begin program
+
+        call allocPointers(neq,fpointers)
+
+        nx = MGgrid%nxv(igrid)
+        ny = MGgrid%nyv(igrid)
+        nz = MGgrid%nzv(igrid)
+
+        if (PRESENT(is_vec)) then
+          isvec = is_vec
+        else
+          isvec = (neq == 3 .or. neq == 6)
+        endif
+
+        if (PRESENT(is_cnv)) then
+          iscnv = is_cnv
+        else
+          iscnv = .true.
+        endif
+
+        if (PRESENT(gpos)) then
+          gps = max(0,gpos)
+        else
+          gps = 0
+        endif
+
+        if (PRESENT(arr_cov).and.(.not.iscnv)) then
+          call mapMGVectorToArray(mg_ctx_temp,gps,x,arr_cov,igrid
+     .                           ,.false.)
+        else
+          call mapMGVectorToArray(mg_ctx_temp,gps,x,arr,igrid,.false.)
+        endif
+
+        if (PRESENT(arr0).and.PRESENT(arr_cov)) then
+          call setMGBC_stg(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr_cov=arr_cov,arr0=arr0
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
+        elseif (PRESENT(arr_cov)) then
+          call setMGBC_stg(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr_cov=arr_cov
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
+        elseif (PRESENT(arr0)) then
+          call setMGBC_stg(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr0=arr0
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
+        else
+          call setMGBC_stg(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
+        endif
+
+        call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillVecArray_stg
+
+c     fillVecArray1_nobc
+c     ###################################################################
+      subroutine fillVecArray1_nobc(igrid,neq,x,arr,gpos)
 
 c     -------------------------------------------------------------------
 c     Fills array arr (with BCs) using vector x.
@@ -2605,11 +2699,11 @@ c     Begin program
 
 c     End program
 
-      end subroutine fillArray1_nobc
+      end subroutine fillVecArray1_nobc
 
-c     fillArray2_nobc
+c     fillVecArray2_nobc
 c     ###################################################################
-      subroutine fillArray2_nobc(igrid,neq,x,arr,gpos)
+      subroutine fillVecArray2_nobc(igrid,neq,x,arr,gpos)
 
 c     -------------------------------------------------------------------
 c     Fills array arr (with BCs) using vector x.
@@ -2639,11 +2733,11 @@ c     Begin program
 
 c     End program
 
-      end subroutine fillArray2_nobc
+      end subroutine fillVecArray2_nobc
 
-c     fillArray3_nobc
+c     fillSclArray_nobc
 c     ###################################################################
-      subroutine fillArray3_nobc(igrid,x,arr,gpos)
+      subroutine fillSclArray_nobc(igrid,x,arr,gpos)
 
 c     -------------------------------------------------------------------
 c     Fills array arr (with BCs) using vector x.
@@ -2673,14 +2767,14 @@ c     Begin program
 
 c     End program
 
-      end subroutine fillArray3_nobc
+      end subroutine fillSclArray_nobc
 
 c     fillVec1
 c     ###################################################################
       subroutine fillVec1(igrid,neq,arr,x)
 
 c     -------------------------------------------------------------------
-c     Fills array arr (with BCs) using vector x.
+c     Fills vector x from VECTOR array arr
 c     -------------------------------------------------------------------
 
         implicit none
@@ -2712,7 +2806,7 @@ c     ###################################################################
       subroutine fillVec2(igrid,neq,arr,x)
 
 c     -------------------------------------------------------------------
-c     Fills array arr (with BCs) using vector x.
+c     Fills vector x from VECTOR array arr
 c     -------------------------------------------------------------------
 
         implicit none
@@ -2748,7 +2842,7 @@ c     ###################################################################
       subroutine fillVec3(igrid,arr,x)
 
 c     -------------------------------------------------------------------
-c     Fills array arr (with BCs) using vector x.
+c     Fills vector x from SCALAR array arr
 c     -------------------------------------------------------------------
 
         implicit none
