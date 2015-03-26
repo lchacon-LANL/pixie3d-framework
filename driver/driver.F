@@ -173,8 +173,8 @@ c     Check for error in time stepping
 
           call TS_rollback_timecounters()
 
-          itime = itime - 1
-
+cc          itime = itime - 1
+cc
 cc          time  = tn
 cc          tn    = tnm
 cc          tnm   = 0d0

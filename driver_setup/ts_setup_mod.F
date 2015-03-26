@@ -87,7 +87,7 @@ c     End program
 
 c     TS_rollback_timecounters
 c     ###############################################################
-      subroutine TS_rollback_timecounters()
+      subroutine TS_rollback_timecounters(exclude_itime)
 
 c     ---------------------------------------------------------------
 c     Performs rollback of time counters when subcycling/restarting
@@ -95,9 +95,23 @@ c     ---------------------------------------------------------------
 
       implicit none
 
+c     Call variables
+
+      logical,optional :: exclude_itime
+
+c     Local variables
+
+      logical :: ex_it
+
 c     Begin program
 
-cc      itime = itime - 1
+      if (PRESENT(exclude_itime)) then
+        ex_it = exclude_itime
+      else
+        ex_it = .false.
+      endif
+
+      if (.not.ex_it) itime = itime - 1
 
       dtold = tn - tnm
       dt_n  = dtold
@@ -112,7 +126,7 @@ c     End program
 
 c     TS_update_timecounters
 c     ###############################################################
-      subroutine TS_update_timecounters(time)
+      subroutine TS_update_timecounters(time,exclude_itime)
 
 c     ---------------------------------------------------------------
 c     Performs update of time counters
@@ -120,11 +134,25 @@ c     ---------------------------------------------------------------
 
       implicit none
 
+c     Call variables
+
       real(8) :: time
+
+      logical,optional :: exclude_itime
+
+c     Local variables
+
+      logical :: ex_it
 
 c     Begin program
 
-cc      itime = itime + 1
+      if (PRESENT(exclude_itime)) then
+        ex_it = exclude_itime
+      else
+        ex_it = .false.
+      endif
+
+      if (.not.ex_it) itime = itime + 1
 
       tnm = tn
       tn  = time

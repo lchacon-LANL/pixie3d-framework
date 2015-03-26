@@ -168,7 +168,7 @@ c     Update counters
 
       call TS_update_timecounters(time)
 
-      itime = itime + 1
+cc      itime = itime + 1
 
 c     Find new time step
 

@@ -325,10 +325,6 @@ c Impose BCs (to initialize all auxiliary variables)
       if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
 #endif
 
-c Reset restart flag
-
-      if (restart) restart = .false. 
-
 c End program
 
       contains
@@ -384,7 +380,7 @@ c     Read equilibrium
 
 cc      tnm = tn
 cc      tn  = time
-      call TS_update_timecounters(time)
+      call TS_update_timecounters(time,exclude_itime=.true.)
 
 c     Read files
 
@@ -400,13 +396,13 @@ c     Read files
         ierr = readRecordFile(urecord,itime,time,dt,vmed)
 
         if (ierr /= 0) then !EOF: Rollback counters and exit
-          call TS_rollback_timecounters()
+          call TS_rollback_timecounters(exclude_itime=.true.)
 cc          time = tn
 cc          tn   = tnm
 cc          tnm  = 0d0
           exit
         else
-          call TS_update_timecounters(time)
+          call TS_update_timecounters(time,exclude_itime=.true.)
 cc          tnm = tn
 cc          tn  = time
           call equateDerivedType(u_n ,u_np)
