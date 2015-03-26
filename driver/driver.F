@@ -94,7 +94,7 @@ c Initialize calculation
 
 c Initialize counters
 
-      call TS_initCounters
+      call TS_init_otherCounters
 
 c Initial output
 
@@ -119,15 +119,11 @@ c Time loop
 
       do
 
-        itime = itime + 1
-
-        if (tmax.gt.0d0.and.time.ge.(tmax-1d-9*dt))  exit
-cc        if (tmax.gt.0d0.and.time.gt.tmax)  exit
-        if (numtime.ge.0.and.itime.ge.(numtime+inewtime)) exit
+        if (TS_chk_end()) exit
 
 c     Find new time step and update time counters
 
-        call correctTimeStep(itime-offset,ierr)
+        call TS_correct_dt(offset,ierr)
 
 c     Store old time solution
 
@@ -175,9 +171,10 @@ c     Check for error in time stepping
           call equateDerivedType(u_np,u_n )
           call equateDerivedType(u_n ,u_nm)
 
+          call TS_rollback_timecounters()
+
           itime = itime - 1
 
-          call ts_rollback_timecounters()
 cc          time  = tn
 cc          tn    = tnm
 cc          tnm   = 0d0
@@ -211,7 +208,7 @@ c     Postprocess solution
 
 c     Update other counters (only if timeStep is successful)
 
-        if (.not.relax_init_grid) call TS_updateCounters
+        if (.not.relax_init_grid) call TS_update_otherCounters
 
 c     Output per time step
 
@@ -247,8 +244,8 @@ cc          if (source) call get_src(u_np,.true.)  !Update source with interpola
 
 c Average explicit time step
 
-      if (cnfactor > 5d-1.and.my_rank == 0.and.(itime > inewtime)) then
-        dtexp = dtexp/(itime - inewtime)
+      if (cnfactor > 5d-1.and.my_rank == 0.and.(itime > inewtime-1))then
+        dtexp = dtexp/(itime - inewtime+1)
         write (*,'(a,1pe10.4)') 'Average explicit time step: ',dtexp
       endif
 
@@ -274,10 +271,10 @@ cc        prec_tot = gmres_tot + iguess*newt_tot
 
         write(*,300) 
 
-        if (itime-inewtime > 0 .and. newt_tot > 0) then
-          write(*,310) (itime-1),float(newt_tot )/(itime-inewtime)
-     .                          ,float(gmres_tot)/(itime-inewtime)
-     .                          ,float(gmres_tot)/newt_tot
+        if (itime-inewtime+1 > 0 .and. newt_tot > 0) then
+          write(*,310) itime,float(newt_tot )/(itime-inewtime+1)
+     .                      ,float(gmres_tot)/(itime-inewtime+1)
+     .                      ,float(gmres_tot)/newt_tot
         else
           write(*,310) 0,0d0,0d0,0d0
         endif
