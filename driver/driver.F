@@ -24,7 +24,8 @@ c Common variables
 
 c Local variables
 
-      integer :: ierr=0,offset
+      integer :: ierr=0,offset,omp_threads
+!$    integer :: omp_get_num_threads
 
 c Interfaces
 
@@ -198,6 +199,10 @@ c     Check for error in time stepping
 
         endif
 
+c     Update other counters (only if timeStep is successful)
+
+        if (.not.relax_init_grid) call TS_updateCounters
+
 c     Postprocess solution
 
 #if defined(petsc)
@@ -206,10 +211,6 @@ c     Postprocess solution
 #endif
 
         if (postprocess) call postProcessSol(u_nm,u_n,u_np)  !External
-
-c     Update other counters (only if timeStep is successful)
-
-        if (.not.relax_init_grid) call TS_updateCounters
 
 c     Output per time step
 
@@ -256,13 +257,20 @@ c Final statistics
       call PetscGetTime   (prof_time(3),prof_err)
       call PetscGetCPUTime(prof_time(4),prof_err)
 
+      omp_threads = 1
+!!!$      omp_threads = omp_get_num_threads()  !Not working
+
+cc      write (*,*) omp_threads
+
       if (my_rank == 0 .and. .not.(tst_flg)) then
         write (*,*) 'CPU statistics'
         write (*,*)
         write (*,*) 'Elapsed time =', prof_time(3)-prof_time(1)
         write (*,*) 'CPU time     =',(prof_time(4)-prof_time(2))*1d4
+     .                              /omp_threads
         write (*,*) 'COMM % time  ='
-     .      ,(prof_time(3)-prof_time(1)-(prof_time(4)-prof_time(2))*1d4)
+     .      ,(prof_time(3)-prof_time(1)
+     .      -(prof_time(4)-prof_time(2))*1d4/omp_threads)
      .      /(prof_time(3)-prof_time(1))*100
       endif
 #endif
