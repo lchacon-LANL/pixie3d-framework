@@ -12,10 +12,10 @@ c ######################################################################
         use mk
 #endif
 
-        integer :: nrstep,inewtime,nrst
+        integer :: nrstep,nrst
         integer :: itnewt,itgmres,gmres_tot,newt_tot
 
-        real(8) :: tmrst,dtbase
+        real(8) :: tmrst
         real(8) :: rstep,dfreq,dtexp
 
 #if !defined(samrai)
@@ -115,9 +115,34 @@ c$$$c     End program
 c$$$
 c$$$      end subroutine storeTSinfo
 
-c     correctTimeStep
+c     TS_chk_end
 c     ###############################################################
-      subroutine correctTimeStep(itm,ierr)
+      function TS_chk_end() result(exit_tloop)
+
+c     ---------------------------------------------------------------
+c     Check for end of time loop
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: exit_tloop
+
+c     Local variables
+
+c     Begin program
+
+      exit_tloop = (tmax.gt.0d0.and.time.ge.(tmax-1d-9*dt))
+     .         .or.(numtime.ge.0.and.itime+1.ge.(numtime+inewtime))
+
+c     End program
+
+      end function TS_chk_end
+
+c     TS_correct_dt
+c     ###############################################################
+      subroutine TS_correct_dt(offset,ierr)
 
 c     ---------------------------------------------------------------
 c     Correct time step
@@ -127,9 +152,11 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer :: ierr,itm
+      integer,INTENT(IN) :: ierr,offset
 
 c     Local variables
+
+      integer :: itm
 
 c     Begin program
 
@@ -137,15 +164,18 @@ c     Estimate local growth rate
 
       if (sm_flag == 1) call calculate_gammat
 
-c     Find new time step
-
-      call findNewTimeStep(itm,ierr)
-
 c     Update counters
 
-      tnm  = tn
-      tn   = time
-      time = tn + dt
+      call TS_update_timecounters(time)
+
+cc      itime = itime + 1
+
+c     Find new time step
+
+      itm = itime-offset
+      call findNewTimeStep(itm,ierr)
+
+      time = time + dt
 
 c     End program
 
@@ -200,7 +230,7 @@ c     Begin program
 
       end subroutine calculate_gammat
 
-      end subroutine correctTimeStep
+      end subroutine TS_correct_dt
 
 c$$$#else
 c$$$
@@ -279,9 +309,9 @@ c$$$      end subroutine correctTimeStepPetsc
 c$$$
 c$$$#endif
 
-c     TS_initCounters
+c     TS_init_otherCounters
 c     ####################################################################
-      subroutine TS_initCounters
+      subroutine TS_init_otherCounters
 
 c     --------------------------------------------------------------------
 c     Initialize time stepping counters
@@ -307,11 +337,11 @@ c     Begin program
 
 c     End program
 
-      end subroutine TS_initCounters
+      end subroutine TS_init_otherCounters
 
-c     TS_updateCounters
+c     TS_update_otherCounters
 c     ####################################################################
-      subroutine TS_updateCounters
+      subroutine TS_update_otherCounters
 
 c     --------------------------------------------------------------------
 c     Update time stepping counters
@@ -333,7 +363,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine TS_updateCounters
+      end subroutine TS_update_otherCounters
 
 c     findNewTimeStep
 c     ####################################################################
@@ -347,7 +377,7 @@ c     --------------------------------------------------------------------
 
 c     Call variables
 
-      integer    ::  ierr,itm
+      integer,INTENT(IN) ::  ierr,itm
 
 c     Local variables
 
@@ -355,15 +385,15 @@ c     Local variables
 
 c     Begin program
 
-c     Store old time step
-
-      if (tn == tnm) then
-         dtold = dt
-         dt_n  = dt
-      else
-         dtold = time-tn
-         dt_n  = time-tn
-      endif
+ccc     Store old time step
+cc
+cc      if (tn == tnm) then
+cc         dtold = dt
+cc         dt_n  = dt
+cc      else
+cc         dtold = time-tn
+cc         dt_n  = time-tn
+cc      endif
 
 c     Find new time step
 

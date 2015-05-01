@@ -82,20 +82,20 @@ c Check for autoinitializing parameters
       if (maxitnwt < 0) 
      .      maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
 
-      alpha = 1. - cnfactor
-
-      dtbase = dt
-
-      !Time smoothing
-      if (sm_flag == 0) then
-        sm_pass= 0
-        if (cnfactor > 1d0 .or. cnfactor < 0d0) then
-          call pstop('initializeCalculation'
-     .              ,'cnfactor out of range')
-        endif
-      endif
-
-      itime = 0
+cc      alpha = 1. - cnfactor
+cc
+cc      dtbase = dt
+cc
+cc      !Time smoothing
+cc      if (sm_flag == 0) then
+cc        sm_pass= 0
+cc        if (cnfactor > 1d0 .or. cnfactor < 0d0) then
+cc          call pstop('initializeCalculation'
+cc     .              ,'cnfactor out of range')
+cc        endif
+cc      endif
+cc
+cc      itime = 0
 
 c Allocate global variables
 
@@ -107,7 +107,7 @@ c Allocate global variables
      .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
 #endif
 
-c Create nonlinear solver
+c Create Time Stepping variables
 
       call createTS
 
@@ -207,7 +207,7 @@ c Begin program
 
 c Create equilibrium u_0
 
-      itime = 0 !Needed for BC logic
+cc      itime = 0 !Needed for BC logic
 
       call setEquilibrium(igrid,u_0)  !External
 
@@ -232,8 +232,8 @@ c Write geometry when applicable
 
 c Perturb equilibrium
 
-      time     = 0d0
-      inewtime = 1
+cc      time     = 0d0
+cc      inewtime = 1
 
       call equateDerivedType(u_np,u_n)
 
@@ -354,8 +354,8 @@ c     Local variables
 
 c     Begin program
 
-      tnm = 0d0
-      tn  = 0d0
+cc      tnm = 0d0
+cc      tn  = 0d0
 
 c     Open restart files
 
@@ -378,10 +378,12 @@ c     Read equilibrium
         call get_src(u_n)
       endif
 
+cc      tnm = tn
+cc      tn  = time
+      call TS_update_timecounters(time,exclude_itime=.true.)
+
 c     Read files
 
-      tnm = tn
-      tn  = time
       ierr = readRecordFile(urecord,itime,time,dt,u_n)
 
       if (ierr /= 0) then
@@ -393,22 +395,23 @@ c     Read files
       do
         ierr = readRecordFile(urecord,itime,time,dt,vmed)
 
-        if (ierr /= 0) then !Backtrack counters and exit
-          time = tn
-          tn   = tnm
-          tnm  = 0d0
+        if (ierr /= 0) then !EOF: Rollback counters and exit
+          call TS_rollback_timecounters(exclude_itime=.true.)
+cc          time = tn
+cc          tn   = tnm
+cc          tnm  = 0d0
           exit
         else
-          tnm = tn
-          tn  = time
+          call TS_update_timecounters(time,exclude_itime=.true.)
+cc          tnm = tn
+cc          tn  = time
           call equateDerivedType(u_n ,u_np)
           call equateDerivedType(u_np,vmed)
         endif
+
       enddo
 
       if (my_rank == 0) write (*,*) ' Done!'
-
-cc      dtold = tn - tnm
 
 #if defined(pit)
       dt = dtbase  !Reset time step with parallel-in-time

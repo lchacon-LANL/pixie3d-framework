@@ -42,9 +42,9 @@ c ######################################################################
         real(8),pointer,dimension(:) :: fold,fsrc,x_old,x0
 #endif
 
-        integer :: ntimemax,itime=0
+        integer :: ntimemax,itime=0,inewtime
 
-        real(8) :: dt_n,dtold,time,tn,tnm,alpha,gammat
+        real(8) :: dt_n,dtold,time,dtbase,tn,tnm,alpha,gammat
 
         real(8) :: cnp=1d0,cn=-1d0,cnm=0d0
 
@@ -57,6 +57,114 @@ c ######################################################################
 
 
       contains
+
+c     TS_init_timecounters
+c     ###############################################################
+      subroutine TS_init_timecounters()
+
+c     ---------------------------------------------------------------
+c     Performs update of time counters
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Begin program
+
+      itime = 0
+
+      inewtime = 1
+
+      tnm  = 0d0
+      tn   = 0d0
+      time = 0d0
+
+      dtold = dt
+      dt_n  = dt
+
+c     End program
+
+      end subroutine TS_init_timecounters
+
+c     TS_rollback_timecounters
+c     ###############################################################
+      subroutine TS_rollback_timecounters(exclude_itime)
+
+c     ---------------------------------------------------------------
+c     Performs rollback of time counters when subcycling/restarting
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical,optional :: exclude_itime
+
+c     Local variables
+
+      logical :: ex_it
+
+c     Begin program
+
+      if (PRESENT(exclude_itime)) then
+        ex_it = exclude_itime
+      else
+        ex_it = .false.
+      endif
+
+      if (.not.ex_it) itime = itime - 1
+
+      dtold = tn - tnm
+      dt_n  = dtold
+
+      time  = tn
+      tn    = tnm
+      tnm   = 0d0
+
+c     End program
+
+      end subroutine TS_rollback_timecounters
+
+c     TS_update_timecounters
+c     ###############################################################
+      subroutine TS_update_timecounters(time,exclude_itime)
+
+c     ---------------------------------------------------------------
+c     Performs update of time counters
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: time
+
+      logical,optional :: exclude_itime
+
+c     Local variables
+
+      logical :: ex_it
+
+c     Begin program
+
+      if (PRESENT(exclude_itime)) then
+        ex_it = exclude_itime
+      else
+        ex_it = .false.
+      endif
+
+      if (.not.ex_it) itime = itime + 1
+
+      tnm = tn
+      tn  = time
+
+      dtold = tn - tnm
+      if (dtold == 0d0) dtold = dt
+
+      dt_n  = dtold
+
+c     End program
+
+      end subroutine TS_update_timecounters
 
 #if !defined(samrai)
 c     createTS
@@ -90,6 +198,20 @@ c     Initialization
       fsrc  = 0d0
       x_old = 0d0
       x0    = 0d0
+
+      call TS_init_timecounters()
+
+      alpha = 1. - cnfactor
+
+      dtbase = dt
+
+      !Time smoothing
+      if (sm_flag == 0) then
+        sm_pass= 0
+        if (cnfactor > 1d0 .or. cnfactor < 0d0) then
+          call pstop('createTS','cnfactor out of range')
+        endif
+      endif
 
 c     End program
 
