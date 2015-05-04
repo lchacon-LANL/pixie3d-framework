@@ -15,7 +15,7 @@ MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/slatec/lib
 # FPA setup
 
 CONTRIBLIBS += -L$(COMMONDIR)/contrib/fpa/lib -lfpa
-#CPPFLAGS    += $(PREPROC)FPA
+CPPFLAGS    += $(PREPROC)FPA
 MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
 
 # SDC setup
