@@ -332,7 +332,7 @@ endif
 # quevedo #
 ###########
 
-ifeq ($(HOST),quevedolanlgov)
+ifeq ($(HOST),quevedo)
 
   FC=gfortran
 

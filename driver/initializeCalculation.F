@@ -60,6 +60,8 @@ c Read PETSc runtime options
      .                       ,petsc_flg,ierr)
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-tmax',tmax
      .                       ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
+     .                       ,petsc_flg,ierr)
 #else
 !!$  n_args = COMMAND_ARGUMENT_COUNT()
 !!$

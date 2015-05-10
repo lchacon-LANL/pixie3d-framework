@@ -12,10 +12,15 @@ c ######################################################################
         use mk
 #endif
 
-        integer :: nrstep,nrst
-        integer :: itnewt,itgmres,gmres_tot,newt_tot
+        integer :: nrstep
+     .            ,nrst
+        integer :: itnewt
+     .            ,itgmres
+     .            ,gmres_tot
+     .            ,newt_tot
 
-        real(8) :: tmrst
+        real(8) :: tmrst       !Dump time for restart
+     .            ,quota=1d30  !Max CPU time (in seconds)
         real(8) :: rstep,dfreq,dtexp
 
 #if !defined(samrai)

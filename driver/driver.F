@@ -25,8 +25,9 @@ c Common variables
 c Local variables
 
       integer :: ierr=0,offset,omp_threads
-!$    integer :: omp_get_num_threads
-
+!$      integer :: omp_get_num_threads
+      real(8) :: e_time=0d0
+      
 c Interfaces
 
       INTERFACE
@@ -221,10 +222,16 @@ c     Output per time step
 
 c     Time level data dump
 
+#if defined(petsc)
+        call PetscGetTime   (prof_time(3),prof_err)
+        e_time = prof_time(3)-prof_time(1)
+cc        if (my_rank == 0) write (*,*) e_time, quota
+#endif
+
 #if defined(RFX)
-        if (nrst.eq.ndstep.or.tmrst.ge.dstep
+        if (nrst.eq.ndstep.or.tmrst.ge.dstep         .or.e_time > quota
 #else
-        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep
+        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep.or.e_time > quota
 #endif
      .      .or.relax_init_grid) then
           if (.not.relax_init_grid) nrst  = 0
@@ -232,7 +239,7 @@ c     Time level data dump
           call writeRecordFile(recordfile,itime,time,dt,u_np)
         endif
 
-        if (eigen) exit
+        if (eigen .or. e_time > quota) exit
 
         if (relax_init_grid) then
           relax_init_grid = .false.
