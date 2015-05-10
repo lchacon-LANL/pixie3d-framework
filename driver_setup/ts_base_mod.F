@@ -4,7 +4,7 @@ c ######################################################################
 
         use ts_setup
 
-        use variables 
+        use var_io
 
         use nk, ONLY: NOERR,CUTDT
 
@@ -18,6 +18,7 @@ c ######################################################################
      .            ,itgmres
      .            ,gmres_tot
      .            ,newt_tot
+     .            ,offset
 
         real(8) :: tmrst       !Dump time for restart
      .            ,quota=1d30  !Max CPU time (in seconds)
@@ -147,7 +148,7 @@ c     End program
 
 c     TS_correct_dt
 c     ###############################################################
-      subroutine TS_correct_dt(offset,ierr)
+      subroutine TS_correct_dt(ierr)
 
 c     ---------------------------------------------------------------
 c     Correct time step
@@ -157,7 +158,7 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer,INTENT(IN) :: ierr,offset
+      integer,INTENT(IN) :: ierr
 
 c     Local variables
 
@@ -339,6 +340,19 @@ c     Begin program
       tmrst     = 0d0
 
       dtexp     = 0d0
+      
+      offset = 0
+      if (relax_init_grid) offset = 1
+
+c     PETSc CPU counters and profiling
+      
+#if defined(petsc)
+      call PetscGetTime   (prof_time(1),prof_err)
+      call PetscGetCPUTime(prof_time(2),prof_err)
+
+      !Begin profiling postprocessing stage
+      call switch_profile_stage(iPOST)
+#endif
 
 c     End program
 
@@ -360,11 +374,18 @@ c     Local variables
 
 c     Begin program
 
+      if (relax_init_grid) return
+
       tmrst  = tmrst + dt
       nrst   = nrst  + 1
 
       gmres_tot = gmres_tot + itgmres
       newt_tot  = newt_tot  + itnewt
+      
+#if defined(petsc)
+      !Begin profiling postprocessing stage
+      call switch_profile_stage(iPOST)
+#endif
 
 c     End program
 

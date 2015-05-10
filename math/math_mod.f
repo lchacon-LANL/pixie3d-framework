@@ -8,7 +8,7 @@
         module procedure solve_cubic_real,solve_cubic_cmplx
       END INTERFACE
 
-      real(8) :: pi
+      real(8) :: pi=acos(-1d0)
 
 cc      INTERFACE determ
 cc        module procedure determ3

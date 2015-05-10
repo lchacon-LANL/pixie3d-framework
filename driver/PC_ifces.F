@@ -16,7 +16,7 @@ c--------------------------------------------------------------------
       use variables
 #endif
 
-      use nk_setup
+      use ts_setup
 
       implicit none
 
@@ -102,8 +102,6 @@ c-------------------------------------------------------------------
 #else
       use nk
 #endif
-
-      use nk_setup
 
       use mg_io
 
@@ -321,8 +319,10 @@ c###########################################################################
       use mk_pc
 #endif
 
-      use nk_setup
+      use ts_setup
 
+      implicit none
+      
 c     Deallocate variables
 
       if (pc_id) return

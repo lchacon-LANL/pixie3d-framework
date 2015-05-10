@@ -1,6 +1,6 @@
-c module nk_setup
+c module TS_solver_setup
 c ######################################################################
-      module nk_setup
+      module TS_solver_setup
 
         use grid, ONLY: np,my_rank,pstop
 
@@ -68,9 +68,9 @@ c ######################################################################
 
       contains
 
-c     nk_setup_consistency
+c     TS_solver_consistency_chk
 c     ##################################################################
-      subroutine nk_setup_consistency
+      subroutine TS_solver_consistency_chk
 
       implicit none
 
@@ -78,11 +78,13 @@ c     ##################################################################
 
 cc      if (pc_id) iguess = 0
 
-      if (np > 1) mg_gm_coarse = .false.       !Do not perform GMRES coarse solve in parallel
+cc      if (np > 1) mg_gm_coarse = .false.       !Do not perform GMRES coarse solve in parallel
 
       if (sm_type /= 'jb') sm_omega = 1d0
 
-      end subroutine nk_setup_consistency
+      if (maxitnwt<0) maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
+
+      end subroutine TS_solver_consistency_chk
 
 c     readNKS_PCInput
 c     #################################################################
@@ -198,7 +200,7 @@ cc         maxitnwt = 10
          rtol = 1d-1
       endif
 
-      call nk_setup_consistency
+      call TS_solver_consistency_chk
 
 ccc     Write initialization parameters to standard output
 cc
@@ -218,4 +220,4 @@ c     End program
 
       end function readNKS_PCInput
 
-      end module nk_setup
+      end module TS_solver_setup

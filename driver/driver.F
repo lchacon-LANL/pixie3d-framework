@@ -24,9 +24,7 @@ c Common variables
 
 c Local variables
 
-      integer :: ierr=0,offset,omp_threads
-!$      integer :: omp_get_num_threads
-      real(8) :: e_time=0d0
+      integer :: ierr=0
       
 c Interfaces
 
@@ -51,48 +49,20 @@ c Interfaces
         end subroutine postProcessSol
       END INTERFACE
 
-      INTERFACE
-        subroutine setInitialCondition(vn,vnp)
-        use var_setup
-        type(var_array),pointer :: vn,vnp
-        end subroutine setInitialCondition
-      END INTERFACE
-
-      INTERFACE
-        subroutine perturbEquilibrium(varray)
-        use var_setup
-        type(var_array),pointer :: varray
-        end subroutine perturbEquilibrium
-      END INTERFACE
-
-      INTERFACE
-        subroutine evaluate_NLF(igr,varray,fi)
-        use parameters
-        use var_setup
-        integer :: igr
-        real(8) :: fi(ntotd)
-        type(var_array),pointer :: varray
-        end subroutine evaluate_NLF
-      END INTERFACE
+cc      INTERFACE
+cc        subroutine setInitialCondition(vn,vnp)
+cc        use var_setup
+cc        type(var_array),pointer :: vn,vnp
+cc        end subroutine setInitialCondition
+cc      END INTERFACE
 
 c Begin program
 
-      call Init
-
-c Setup profiling
-
-#if defined(petsc)
-      call init_petsc_profile
-
-      !Profiling stage 1
-      call switch_profile_stage(iSTUP)
-#endif
+      call DR_init
 
 c Initialize calculation
 
       call initializeCalculation
-
-      call nk_setup_consistency
 
 c Initialize counters
 
@@ -108,24 +78,13 @@ c Initial output
 
 c Time loop
 
-#if defined(petsc)
-      call PetscGetTime   (prof_time(1),prof_err)
-      call PetscGetCPUTime(prof_time(2),prof_err)
-
-      !Begin profiling third stage
-      call switch_profile_stage(iPOST)
-#endif
-
-      offset = 0
-      if (relax_init_grid) offset = 1
-
       do
 
         if (TS_chk_end()) exit
 
 c     Find new time step and update time counters
 
-        call TS_correct_dt(offset,ierr)
+        call TS_correct_dt(ierr)
 
 c     Store old time solution
 
@@ -136,50 +95,19 @@ c     Preprocess old solution (for e.g. splitting)
 
         if (preprocess) call preProcessSol(u_nm,u_n) !External
 
-c     Evaluate old-time NLF
-
-#if defined(petsc)
-        !Begin profiling NL solver
-        call switch_profile_stage(iNL)
-#endif
-
-        old_time_eval = .true.  !This informs nlfunction that we are processing
-                                !  n time level info
-
-        call evaluate_NLF(1,u_n,fold)
-
-        old_time_eval = .false.
-
-c     Store BDF2 old-time solution (in u_np)
-
-        if (bdf2) call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,u_np)
-
 c     Time update
 
-        if (eigen) then
-          !Eigenvalue solver
-          ierr = eigenSolution (u_np,ilevel)
-        elseif (prj_int_ts) then
-          ierr = prj_int_update(u_np,ilevel)
-        else
-          !Time step
-          ierr = updateSolution(u_np,ilevel)
-        endif
+        ierr = TS_update(u_np,ilevel)
 
 c     Check for error in time stepping
 
-        if (ierr == NOCONV) then     !Restart time step
+        select case(ierr)
+        case(NOCONV)    !Restart time step
 
           call equateDerivedType(u_np,u_n )
           call equateDerivedType(u_n ,u_nm)
 
           call TS_rollback_timecounters()
-
-cc          itime = itime - 1
-cc
-cc          time  = tn
-cc          tn    = tnm
-cc          tnm   = 0d0
 
           if (timecorr) then
             cycle
@@ -187,7 +115,7 @@ cc          tnm   = 0d0
             exit
           endif
 
-        elseif (ierr == EXACT) then !Initial guess is exact
+        case(EXACT)     !Initial guess is exact
 
           if (my_rank == 0) then
             write(*,*)
@@ -197,18 +125,13 @@ cc          tnm   = 0d0
 
           exit
 
-        endif
+        end select
 
-c     Update other counters (only if timeStep is successful)
+c     Update other TS counters
 
-        if (.not.relax_init_grid) call TS_update_otherCounters
+        call TS_update_otherCounters
 
 c     Postprocess solution
-
-#if defined(petsc)
-        !Begin profiling third stage
-        call switch_profile_stage(iPOST)
-#endif
 
         if (postprocess) call postProcessSol(u_nm,u_n,u_np)  !External
 
@@ -222,94 +145,23 @@ c     Output per time step
 
 c     Time level data dump
 
-#if defined(petsc)
-        call PetscGetTime   (prof_time(3),prof_err)
-        e_time = prof_time(3)-prof_time(1)
-cc        if (my_rank == 0) write (*,*) e_time, quota
-#endif
-
-#if defined(RFX)
-        if (nrst.eq.ndstep.or.tmrst.ge.dstep         .or.e_time > quota
-#else
-        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep.or.e_time > quota
-#endif
-     .      .or.relax_init_grid) then
-          if (.not.relax_init_grid) nrst  = 0
-          if(itime-offset > 0) tmrst=tmrst-dstep
-          call writeRecordFile(recordfile,itime,time,dt,u_np)
-        endif
-
-        if (eigen .or. e_time > quota) exit
-
-        if (relax_init_grid) then
-          relax_init_grid = .false.
-cc          if (source) call get_src(u_np,.true.)  !Update source with interpolated equilibrium
-          call equateDerivedType (u_n,u_np)     !Save interpolated (unperturbed) equilibrium
-          call perturbEquilibrium(u_np)         !Perturb interpolated equilibrium
-        endif
+        if (TS_dump(u_np)) exit
 
       enddo       !End of time loop
 
-c Average explicit time step
+c Final I/O
 
-      if (cnfactor > 5d-1.and.my_rank == 0.and.(itime > inewtime-1))then
-        dtexp = dtexp/(itime - inewtime+1)
-        write (*,'(a,1pe10.4)') 'Average explicit time step: ',dtexp
-      endif
-
-c Final statistics
-
-#if defined(petsc)
-      call PetscGetTime   (prof_time(3),prof_err)
-      call PetscGetCPUTime(prof_time(4),prof_err)
-
-      omp_threads = 1
-!!!$      omp_threads = omp_get_num_threads()  !Not working
-
-cc      write (*,*) omp_threads
-
-      if (my_rank == 0 .and. .not.(tst_flg)) then
-        write (*,*) 'CPU statistics'
-        write (*,*)
-        write (*,*) 'Elapsed time =', prof_time(3)-prof_time(1)
-        write (*,*) 'CPU time     =',(prof_time(4)-prof_time(2))*1d4
-     .                              /omp_threads
-        write (*,*) 'COMM % time  ='
-     .      ,(prof_time(3)-prof_time(1)
-     .      -(prof_time(4)-prof_time(2))*1d4/omp_threads)
-     .      /(prof_time(3)-prof_time(1))*100
-      endif
-#endif
-
-      if (my_rank == 0) then
-cc        prec_tot = gmres_tot + iguess*newt_tot
-
-        write(*,300) 
-
-        if (itime-inewtime+1 > 0 .and. newt_tot > 0) then
-          write(*,310) itime,float(newt_tot )/(itime-inewtime+1)
-     .                      ,float(gmres_tot)/(itime-inewtime+1)
-     .                      ,float(gmres_tot)/newt_tot
-        else
-          write(*,310) 0,0d0,0d0,0d0
-        endif
-      endif
-
-c Formats
-
- 300  format (/,'Final statistics',/,/,
-     .          ' itime  Newt/ndt  GMRES/ndt  GMRES/Newt')
- 310  format (i5,3x,f7.1,4x,f7.1,4x,f7.1)
+      call TS_final_io
 
 c End program
 
-      call Destroy
+      call DR_destroy
 
       end program
 
-c Init
+c DR_init
 c ######################################################################
-      subroutine Init
+      subroutine DR_init
 
       use var_io
 
@@ -352,11 +204,11 @@ c Initialize ADIOS for componentized I/O
 
 c End program
 
-      end subroutine Init
+      end subroutine DR_init
 
-c Destroy
+c DR_destroy
 c ######################################################################
-      subroutine Destroy
+      subroutine DR_destroy
 
       use var_io
 
@@ -382,7 +234,7 @@ c Free memory
 
       call deallocateStructures
 
-      call destroyTS
+      call TS_destroy
 
       call destroyNLF   !External
 
@@ -404,4 +256,4 @@ c Free memory
 
 c End program
 
-      end subroutine Destroy
+      end subroutine DR_destroy

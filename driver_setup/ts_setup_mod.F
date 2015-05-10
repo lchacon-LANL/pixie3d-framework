@@ -4,7 +4,7 @@ c ######################################################################
 
         use parameters
 
-        use nk_setup
+        use ts_solver_setup
 
         use io
 
@@ -167,9 +167,9 @@ c     End program
       end subroutine TS_update_timecounters
 
 #if !defined(samrai)
-c     createTS
+c     TS_create
 c     #################################################################
-      subroutine createTS
+      subroutine TS_create
 
 c     -----------------------------------------------------------------
 c     Allocates time-stepping arrays
@@ -199,7 +199,7 @@ c     Initialization
       x_old = 0d0
       x0    = 0d0
 
-      call TS_init_timecounters()
+      call TS_init_timecounters
 
       alpha = 1. - cnfactor
 
@@ -213,13 +213,23 @@ c     Initialization
         endif
       endif
 
+      call ts_solver_consistency_chk
+
+      !Setup profiling
+#if defined(petsc)
+      call init_petsc_profile
+
+      !Profiling stage 1
+      call switch_profile_stage(iSTUP)
+#endif
+
 c     End program
 
-      end subroutine createTS
+      end subroutine TS_create
 
-c     destroyTS
+c     TS_destroy
 c     #################################################################
-      subroutine destroyTS
+      subroutine TS_destroy
 
 c     -----------------------------------------------------------------
 c     Deallocates time-stepping arrays
@@ -239,7 +249,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine destroyTS
+      end subroutine TS_destroy
 #endif
 
 c     readTSInput

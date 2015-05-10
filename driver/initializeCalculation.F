@@ -77,27 +77,9 @@ c Read PETSc runtime options
 !!$  call get_command_argument(4, ofile)
 #endif
 
-c Check for autoinitializing parameters
-
-      pi = acos(-1d0)
-
-      if (maxitnwt < 0) 
-     .      maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
-
-cc      alpha = 1. - cnfactor
+ccc Check for autoinitializing parameters
 cc
-cc      dtbase = dt
-cc
-cc      !Time smoothing
-cc      if (sm_flag == 0) then
-cc        sm_pass= 0
-cc        if (cnfactor > 1d0 .or. cnfactor < 0d0) then
-cc          call pstop('initializeCalculation'
-cc     .              ,'cnfactor out of range')
-cc        endif
-cc      endif
-cc
-cc      itime = 0
+cc      pi = acos(-1d0)
 
 c Allocate global variables
 
@@ -111,7 +93,7 @@ c Allocate global variables
 
 c Create Time Stepping variables
 
-      call createTS
+      call TS_create
 
 c Create nonlinear function
 
@@ -142,11 +124,6 @@ c Initialize record file
 c Check time limits
 
       if (tmax.gt.0d0.and.(tmax-time).le.0d0) then
-c$$$        if (my_rank == 0) then
-c$$$          write(*,*)
-c$$$          write(*,*) 'Tmax is less or equal than restarting time'
-c$$$          write(*,*) 'Aborting'
-c$$$        endif
         call pstop("initializeCalculation"
      $            ,"Tmax is less or equal than restarting time")
       endif
