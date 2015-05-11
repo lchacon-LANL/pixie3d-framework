@@ -491,7 +491,7 @@ c #############################################################################
 
         use grid
 
-        use timestepping,ONLY: dt,dtold,cnp,cn,cnm,bdf2,time,dtbase
+        use ts_setup,ONLY: dt,dtold,cnp,cn,cnm,bdf2,time,dtbase
 
         use kernels
 

@@ -2400,8 +2400,6 @@ c     Begin program
           rzss = .false.
         endif
 
-        ierr = rm_files('*'//trim(file))
-
 c     Define surface of section files (one per OMP thread and MPI job)
 
         cpos = index(trim(file),'.bin') - 1
