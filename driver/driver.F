@@ -191,17 +191,6 @@ c Initialize PETSc and MPI (parallel version)
       call initMPI(MPI_COMM_WORLD,np,my_rank)
 #endif
 
-c Initialize ADIOS for componentized I/O
-
-#if defined(adios) && defined(petsc)
-      if (.not.is_file('adios_config.xml')) then
-        call pstop('driver_3d','ADIOS config file not present')
-      else
-        call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
-        call ADIOS_init('adios_config.xml', adios_err)
-      endif
-#endif
-
 c End program
 
       end subroutine DR_init
@@ -244,9 +233,7 @@ c Free memory
 
       call deallocateGlobalVar(gv)
 
-#if defined(adios)
-      call ADIOS_finalize(my_rank, adios_err)
-#endif
+      call finalize_IO
 
 #if defined(petsc)
       call end_petsc_profile

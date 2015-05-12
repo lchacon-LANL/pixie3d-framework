@@ -114,7 +114,7 @@ c Initialize computation
       if (.not.restart) then
         call setInitialState
       else
-        call readCurrentState
+        call readCurrentState(recordfile)
       endif
 
 c Initialize record file
@@ -232,7 +232,7 @@ c End program
 
 c readCurrentState
 c####################################################################
-      subroutine readCurrentState
+      subroutine readCurrentState(file)
 
 c--------------------------------------------------------------------
 c     Read current state from restart file.
@@ -252,6 +252,8 @@ c--------------------------------------------------------------------
 
 c Call variables
 
+      character(*) :: file
+      
 c Local variables
 
       integer :: ieq,igrid
@@ -327,18 +329,15 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nx,ny,nz,ierr
+      integer :: nx,ny,nz,ierr,ufile
 
       type(var_array),pointer :: vmed => null()
 
 c     Begin program
 
-cc      tnm = 0d0
-cc      tn  = 0d0
-
 c     Open restart files
 
-      call openRestartFileForRead
+      ufile = openRestartFileForRead(file=file)
 
 c     Allocate intermediate variable
 
@@ -348,7 +347,7 @@ c     Read equilibrium
 
       if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
 
-      ierr = readRecordFile(urecord,itime,time,dt,u_0)
+      ierr = readRecordFile(ufile,itime,time,dt,u_0)
 
       if (ierr /= 0) then
         call pstop('readCurrentState','Unable to read u_0')
@@ -357,13 +356,11 @@ c     Read equilibrium
         call get_src(u_n)
       endif
 
-cc      tnm = tn
-cc      tn  = time
       call TS_update_timecounters(time,exclude_itime=.true.)
 
 c     Read files
 
-      ierr = readRecordFile(urecord,itime,time,dt,u_n)
+      ierr = readRecordFile(ufile,itime,time,dt,u_n)
 
       if (ierr /= 0) then
         call pstop('readCurrentState','Unable to read u_n')
@@ -372,18 +369,13 @@ c     Read files
       call equateDerivedType(u_np,u_n)
 
       do
-        ierr = readRecordFile(urecord,itime,time,dt,vmed)
+        ierr = readRecordFile(ufile,itime,time,dt,vmed)
 
         if (ierr /= 0) then !EOF: Rollback counters and exit
           call TS_rollback_timecounters(exclude_itime=.true.)
-cc          time = tn
-cc          tn   = tnm
-cc          tnm  = 0d0
           exit
         else
           call TS_update_timecounters(time,exclude_itime=.true.)
-cc          tnm = tn
-cc          tn  = time
           call equateDerivedType(u_n ,u_np)
           call equateDerivedType(u_np,vmed)
         endif
@@ -400,7 +392,7 @@ c     End
 
       call deallocateDerivedType(vmed)
 
-      call closeRestartFileForRead
+      call closeRestartFileForRead(ufile)
 
       end subroutine readRestartFile
 
@@ -438,6 +430,8 @@ c Begin program
 
       igrid = 1
 
+      ierr = setupIOForWrite()
+      
 c Set data dumping intervals
 
       dfreq = 8d0
