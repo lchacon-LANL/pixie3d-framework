@@ -587,7 +587,7 @@ c       * x0,y0,z0: starting point of orbit
 c       * fwd: whether to go forward or backward
 c     Optional input:
 c       * line_int: external routine to perform line integrals
-c       * ode_line_int: external routine to perform line integrals using LSODE
+c       * line_f: external routine to perform line integrals using LSODE
 c       * ss_check: check for surface of section (default: not when
 c                   performing integrals along line)
 c       * ss_order: order of interpolation for SS (default: 1)
@@ -760,7 +760,7 @@ c     Orbit integral
           !Find new LOGICAL positions, new time, new arc length
           call orbit_step(x,y,z,iterror,forward=fwd,lsode_f=lsode_f)
 
-          exit_loop = orbit_error(iterror)
+          exit_loop = (orbit_error(iterror).or.exit_loop) !Last determined in orbit_step
           non_fatal_err = (iterror<=0)
 
           xhist(1) = x
@@ -925,11 +925,24 @@ c     ----------------------------------------------------------------------
 c     Finalizes orbit integrator
 c     ----------------------------------------------------------------------
 
-        integer :: alloc_stat
+      integer :: alloc_stat
 
-        deallocate(xhist,yhist,zhist,thist,shist,STAT=alloc_stat)
+      deallocate(xhist,yhist,zhist,thist,shist,STAT=alloc_stat)
 
       end subroutine orbit_end
+
+c     orbit_exit
+c     ######################################################################
+      subroutine orbit_exit(exit)
+c     ----------------------------------------------------------------------
+c     Finalizes orbit integrator
+c     ----------------------------------------------------------------------
+
+      logical :: exit
+
+      exit_loop = exit
+
+      end subroutine orbit_exit
 
 c     orbit_step
 c     ##################################################################

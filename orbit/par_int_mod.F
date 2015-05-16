@@ -4044,6 +4044,7 @@ c Local variables
       integer :: ierror
       real(8) :: x1,y1,z1,s1,tt,it_max=0d0
       save :: it_max
+      logical :: exloop
 
 c Begin program
 
@@ -4057,10 +4058,12 @@ c Call additional integrators
 
       tt = evalFld(x1,y1,z1,ierror)
 
-      ydot(7) = tkernel_3d(s1,ieps*dt,exit_loop)*ydot(5)  !To normalize
+      ydot(7) = tkernel_3d(s1,ieps*dt,exloop)*ydot(5)  !To normalize
 
       ydot(6) = tt*ydot(7)
 
+      call orbit_exit(exloop)
+      
 c End program
 
       end subroutine lsode_3d_T
@@ -4129,6 +4132,7 @@ c Local variables
       integer :: ierror
       real(8) :: x1,y1,z1,s1,tt,it_max=0d0
       save :: it_max
+      logical :: exloop
 
 c Begin program
 
@@ -4142,9 +4146,11 @@ c Call additional integrators
 
       tt = evalFld(x1,y1,z1,ierror)
 
-      ydot(7) = skernel_3d(s1,ieps*dt,exit_loop)*ydot(5)  !To normalize
+      ydot(7) = skernel_3d(s1,ieps*dt,exloop)*ydot(5)  !To normalize
 
       ydot(6) = tt*ydot(7)
+
+      call orbit_exit(exloop)
 
 c End program
 
@@ -4245,7 +4251,8 @@ cc      ydot(8) = flds(3)*tk
 
 c Are we done?
 
-      exit_loop = exl1.and.exl2
+cc      exit_loop = exl1.and.exl2
+      call orbit_exit(exl1.and.exl2)
 
 c End program
 
@@ -4361,7 +4368,8 @@ c Call additional integrators
 
 c Are we done?
 
-      exit_loop = exl1
+cc      exit_loop = exl1
+      call orbit_exit(exl1)
 
 c End program
 
@@ -4497,7 +4505,8 @@ c Call additional integrators
 
 c Are we done?
 
-      exit_loop = exl1.and.exl2.and.exl3.and.exl4
+cc      exit_loop = exl1.and.exl2.and.exl3.and.exl4
+      call orbit_exit(exl1.and.exl2.and.exl3.and.exl4)
 
 c End program
 
@@ -4633,8 +4642,9 @@ c Call additional integrators
 
 c Are we done?
 
-      exit_loop = exl1.and.exl2
-
+cc      exit_loop = exl1.and.exl2
+      call orbit_exit(exl1.and.exl2)
+      
 c End program
 
       end subroutine lsode_3d_bdf2_dT
@@ -4713,7 +4723,8 @@ c Call additional integrators
 
 c Are we done?
 
-      exit_loop = exl1.and.exl2.and.exl3.and.exl4
+cc      exit_loop = exl1.and.exl2.and.exl3.and.exl4
+      call orbit_exit(exl1.and.exl2.and.exl3.and.exl4)
 
 c End program
 
@@ -5279,7 +5290,8 @@ c Local variables
 
       integer :: ierror
       real(8) :: B2
-
+      logical :: exloop
+      
 c Begin program
 
       if (neq /= 4) then
@@ -5292,10 +5304,12 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      ydot(4) = skernel_3d(t,ieps*dt,exit_loop)/B2
+      ydot(4) = skernel_3d(t,ieps*dt,exloop)/B2
 cc      ydot(4) = skernel_per(t,ieps*dt)/sqrt(B2)
 cc      ydot(4) = skernel_per(t,ieps*dt)  !Normalization test
 
+      call orbit_exit(exloop)
+      
 c End program
 
       end subroutine lsode_3d_beta
