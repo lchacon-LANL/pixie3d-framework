@@ -10,7 +10,9 @@
         use grid, ONLY: np,my_rank,pstop,messg
 
         use file_io
-
+     
+        use lyapn
+   
 #if defined(use_mpi)
         use mpi
         integer :: mpierr
@@ -64,7 +66,6 @@
         type(ode_solver),private :: ode_conf
 
         integer,private :: ssorder,obcnd(6)!,iterror,itime
-
         real(8),private :: tmax,smax
 !$OMP THREADPRIVATE(tmax,smax)
         real(8),private :: xss0,yss0,zss0
@@ -77,8 +78,7 @@
 	!Global variables >>> THREADPRIVATE
         integer, dimension(:), allocatable :: nunitx,nunity,
      .                                        nunitz,nunitrz
-!!!!$OMP THREADPRIVATE(nunitx,nunity,nunitz,nunitrz)
-	real(8) :: xold,yold,zold,lsode_out(10)
+        real(8) :: xold,yold,zold,lsode_out(10)
 !$OMP THREADPRIVATE(xold,yold,zold,lsode_out)
         logical :: sing_point=.false.,exit_loop,orb_init
 !$OMP THREADPRIVATE(sing_point,exit_loop,orb_init)
@@ -530,7 +530,7 @@
 
 !     Close SS output
 
-	call ss_io_end
+	if (ss_io) call ss_io_end
 
 !     Kill spline info
 
@@ -602,7 +602,7 @@
 
         iiout = iout
 
-	iterror = 0
+        iterror = 0
 
         integral = PRESENT(line_int)
         chk_ss = (.not.integral).and.ss_io  !Do SS only if not integrating and if IO has been set up
@@ -644,8 +644,6 @@
 
         call orbit_init(x0,y0,z0)
        
-!     Daniele,23/03/2009: dump the initial point of the orbit
-
         if (chk_ss) then
 
           if(lssx .and. x0 == xss0) then
@@ -669,11 +667,18 @@
           endif
 
         endif
+    
+!#! lyapunov
+        if (lyap) call lyap_io_init
 
+!#! auto_corr
+        if (auto_corr) then
+          call auto_corr_io_init(deltass, ss_min, x0,y0,z0,ss_check)
+        endif
 
 !     Orbit integral
 
-	itime = 0 
+        itime = 0 
 
         do
 
@@ -693,12 +698,27 @@
           xold  = x
           yold  = y
           zold  = z
+        
+          if (lyap) call lyap_write(x,ss)
+
+          if (auto_corr) then
+            call auto_corr_write(x,y,z,atc_tol,deltass,ss_check)
+          endif
 
           call orbit_step(x,y,z,iterror,forward=fwd,lsode_f=lsode_f)
+
+          if (connect .and. x .gt. cnctth) then
+            call connect_write(x0,y0,z0,ss,thr_num)
+          endif
 
           !Check for orbit end and interpolate quantities
           if (smax /= 0d0) then
             exit_loop = (abs(ss) >= smax)
+!#!Marco, qui per smax in connect
+            if (exit_loop .and. connect) then
+              write(*,*) 'over thr ',thr_num,big_n
+              call connect_write(x0,y0,z0,big_n,thr_num)
+            endif
 
             if (exit_loop) then
               x = xold + (smax-abs(sold))/abs(ss-sold)*(x-xold)
@@ -725,11 +745,6 @@
      .                  .or.(exit_loop)
           endif
 
-!          if (exit_loop .or. orbit_error(iterror)) then
-!            if (iiout >=0) write (*,*)
-!            exit
-!          endif
-
           !Check for intersection with surface of section
           if (iterror /= 2 .and. itime > 2 .and. chk_ss) then
             if (smax /= 0d0) then
@@ -742,23 +757,28 @@
      .                  ,zvold,zold,z,xss,yss,zss,tss)
             endif
           endif
-
+          
           !Show progress
           if (smax /= 0d0) then
             call orbit_progress(ss  ,smax,fwd,exit_loop)
           elseif (tmax /= 0d0) then
             call orbit_progress(time,tmax,fwd,exit_loop)
-!          else
-!            exit_loop = .false.
           endif
 
           if (exit_loop .or. orbit_error(iterror)) then
-!          if (exit_loop) then
             if (iiout >=0) write (*,*)
             exit
           endif
 
+          !stop orbit integration if # of intersections > prescribed number
+          if (auto_corr.and.auto_corr_inters_stop(lssx,lssy,lssz)) exit
+
         enddo
+
+        if (auto_corr) call auto_corr_io_end(lssx,lssy,lssz,rzss
+     $                                     ,x0,y0,z0,ss)
+
+        if (lyap) call lyap_io_end
 
 !       Write orbit separator in XDRAW file
 
@@ -809,6 +829,8 @@
         npointy=0
         npointz=0
 
+        if (auto_corr) call auto_corr_counters_init
+
         exit_loop = .false.
 
         orb_init = .true.
@@ -844,7 +866,6 @@
       logical,optional :: forward
 
 !     Local Variables
-
       real(8) :: x0,y0,z0,x1,y1,z1,half,jach,dt=10.
       real(8) :: vx,vy,vz,error(ode_conf%niter),atol,rtol,dtime
       real(8) :: xh,yh,zh,xnew,ynew,znew,xc,yc,zc,ds,cc
@@ -853,7 +874,6 @@
 
       save dt
 !$OMP THREADPRIVATE(dt)
-
       optional :: lsode_f
 
       !Interface for optional LSODE function evaluation
@@ -913,7 +933,6 @@
           call lsode_step    (atol,rtol,x,y,z,ierror)
         endif
       endif
-
 !     Output
 
       if (iiout > 0) then
@@ -1036,11 +1055,6 @@
 !      write (*,*)'Integer work array size=',size(IWORK),' declared=',LIW
 !      write (*,*)'LSODE method=',MF
 
-!!# Marco, to restore the contents of the DLS001 lsode's common block
-!      if (time .gt. 0d0) then
-!       CALL DSRCOM(RSAV,ISAV,2)
-!      endif
-
       if (external_f) then
 	CALL LSODE (lsode_f,NEQD(1),YY(1:NEQD(1)),T,TOUT
      .             ,ITOL,LS_RTOL,LS_ATOL
@@ -1050,9 +1064,6 @@
      .             ,ITOL,LS_RTOL,LS_ATOL
      .             ,ITASK,ISTATE,IOPT,RWORK,LRW,IWORK,LIW,ff      ,MF)
       endif
-
-!!# Marco, to save the contents of the DLS001 lsode's common block
-!      CALL DSRCOM(RSAV,ISAV,1)
 
       select case(ISTATE)
       case(2)       !Uneventful
@@ -1418,7 +1429,6 @@
 
         call updt_measures(xh,yh,zh,jach*dt,iterr)
         if (iterr /= 0) ierror = iterr
-       
       end subroutine vp_solver
 
 !     updt_measures
@@ -1919,13 +1929,13 @@
         zss0 = zsurf
 
 !     Consistency check
-
         if (lssx .and. lssy .and. lssz) then
           call pstop('ss_init'
      .              ,'Cannot select all 3 surfaces of section!!')
         endif
 
-        if ((.not. lssx) .and. (.not. lssy) .and. (.not. lssz)) then
+        if ((.not. lssx) .and. (.not. lssy) .and. (.not. lssz)
+     $      .and.(.not.(lyap .or. auto_corr .or. connect))) then
           call pstop('ss_init'
      .              ,'Did not select any surface of section!!')
         endif
@@ -2320,8 +2330,8 @@ cc            ierr = rm_files(dummy)
         allocate(nunitz(0:thr_tot-1),nunitrz(0:thr_tot-1))
 
         if (lssx) then
-	 do ic = 0, thr_tot - 1
-	  ifile = ic + thr_tot*my_rank 
+        do ic = 0, thr_tot - 1
+         ifile = ic + thr_tot*my_rank 
           nunitx(ic) = 6027+ic
           open(unit=nunitx(ic),file=trim(ssx(ifile))
      .        ,form='unformatted')
@@ -2329,8 +2339,8 @@ cc            ierr = rm_files(dummy)
         endif
 
         if (lssy) then
-	 do ic = 0, thr_tot - 1
-	  ifile = ic + thr_tot*my_rank 
+        do ic = 0, thr_tot - 1
+         ifile = ic + thr_tot*my_rank 
           nunity(ic) = 7027+ic
           open(unit=nunity(ic),file=trim(ssy(ifile))
      .        ,form='unformatted')
@@ -2338,8 +2348,8 @@ cc            ierr = rm_files(dummy)
         endif
 
         if (lssz) then
-	 do ic = 0, thr_tot - 1
-	  ifile = ic + thr_tot*my_rank 
+        do ic = 0, thr_tot - 1
+         ifile = ic + thr_tot*my_rank 
           nunitz(ic) = 8027+ic
           open(unit=nunitz(ic),file=trim(ssz(ifile))
      .        ,form='unformatted')
@@ -2347,8 +2357,8 @@ cc            ierr = rm_files(dummy)
         endif
 
         if (rzss) then
-	 do ic = 0, thr_tot - 1
-	  ifile = ic + thr_tot*my_rank 
+        do ic = 0, thr_tot - 1
+         ifile = ic + thr_tot*my_rank 
           nunitrz(ic) = 9027+ic
           open(unit=nunitrz(ic),file=trim(ssrz(ifile))
      .        ,form='unformatted')
@@ -2377,7 +2387,7 @@ cc            ierr = rm_files(dummy)
 
 !     Begin program
 
-	do ith=0,thr_tot-1
+        do ith=0,thr_tot-1
           if (lssx) close(nunitx(ith))
           if (lssy) close(nunity(ith))
           if (lssz) close(nunitz(ith))
@@ -2446,6 +2456,12 @@ cc            ierr = rm_files(dummy)
      .               ,xss,npointx,yss,zss,tss,iwhich)
 
           if (ss_io) then
+
+            if (auto_corr) then
+             !update number of intersections
+             call auto_corr_intersx_update(intersect_x)
+            endif
+
             call chk_pos(xss,yss,zss) !this resets logical coords
             write(nunitx(thr_num)) real(yss),real(zss)
           endif
@@ -2465,6 +2481,12 @@ cc            ierr = rm_files(dummy)
      .               ,yss,npointy,zss,xss,tss,iwhich)
 
           if (ss_io) then
+
+            if (auto_corr) then
+             !update number of intersections
+             call auto_corr_intersy_update(intersect_y)
+            endif
+
             call chk_pos(xss,yss,zss) !this resets logical coords
             
             if (flux) then
@@ -2489,7 +2511,19 @@ cc            ierr = rm_files(dummy)
      .               ,zss,npointz,xss,yss,tss,iwhich)
 
           if (ss_io) then
+
+            if (auto_corr) then
+             !update number of intersections
+             call auto_corr_intersz_update(intersect_z)
+            endif
+
             if (rzss) then   !Find R-Z plane positions
+
+             if (auto_corr) then
+              !update number of intersections
+              call auto_corr_interstor_update(intersect_tor)
+             endif
+
               call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
               rr = sqrt(xcar**2+ycar**2)
               write(nunitrz(thr_num)) real(rr),real(zcar)

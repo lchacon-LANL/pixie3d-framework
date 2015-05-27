@@ -6,7 +6,7 @@
 
         use grid
 
-	use grid_mpi
+        use grid_mpi
 
         use orbit
 
@@ -250,8 +250,9 @@ c     Orbit initialization on global array
      .                  ,spline_order=sporder
      .                  ,gauge=a_gauge
      .                  ,lsode_neq=5
-cc     .                  ,lsode_dt_lim=.true.
-     .                  )
+!#! Marco, 06/05/2013, limited the maximum time step that can be
+!performed. It's maximum value will be set to dtime.
+     .                  ,lsode_dt_lim=.true.)
 
 c     Deallocate memory
 

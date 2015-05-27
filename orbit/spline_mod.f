@@ -4,6 +4,9 @@ c #####################################################################
 
         use xdraw_io
 
+!#! Marco
+        use lyapn
+
         use grid, ONLY:pstop,my_rank
 
         use bc_def, bcond2 => bcond
@@ -13,9 +16,9 @@ c #####################################################################
 
         integer :: istep=0
 
-        !OPENMP
-        integer :: thr_tot=1,thr_num=0
-!$OMP THREADPRIVATE(thr_tot,thr_num)
+!        !OPENMP, !#! Marco, now declared in lyapn_mod.F
+!        integer :: thr_tot=1,thr_num=0
+!!$OMP THREADPRIVATE(thr_tot,thr_num)
 
         !Private variables
         integer,private :: nx,ny,nz,ag,sbcnd(6)
