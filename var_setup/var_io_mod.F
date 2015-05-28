@@ -434,11 +434,67 @@ c     End program
 
       end subroutine readDerivedTypeAdios
 
-#endif 
+#endif
+      
+c     setupIOForWrite
+c     #################################################################
+      function setupIOForWrite() result(ierr)
+
+c     -----------------------------------------------------------------
+c     Initializes IO for write
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Global variables
+
+      integer :: ierr
+      
+c     Local variables
+
+c     Begin program
+
+#if defined(adios)
+
+c     Initialize ADIOS for componentized I/O
+
+      if (.not.is_file('adios_config.xml')) then
+        call pstop('setupRecordFileForWrite'
+     .            ,'ADIOS config file not present')
+      else
+        call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
+        call ADIOS_init('adios_config.xml', ierr)
+      endif
+
+#endif
+
+      end function setupIOForWrite
+
+c     finalize_IO
+c     #################################################################
+      subroutine finalize_IO
+
+c     -----------------------------------------------------------------
+c     Initializes IO for write
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Global variables
+
+c     Local variables
+
+#if defined(adios)
+      call ADIOS_finalize(my_rank, adios_err)
+#endif
+
+c     Begin program
+
+      end subroutine finalize_IO
 
 c     openRestartFileForRead
 c     #################################################################
-      subroutine openRestartFileForRead(file)
+      function openRestartFileForRead(file) result(ufile)
 
 c     -----------------------------------------------------------------
 c     Opens restart file (either POSIX, or ADIOS).
@@ -448,6 +504,7 @@ c     -----------------------------------------------------------------
 
 c     Global variables
 
+      integer :: ufile
       character(*),optional :: file
 cc      integer,optional,intent(out) :: lneq
 
@@ -466,9 +523,11 @@ c     Begin program
         rfile = recordfile
       endif
 
-      call openPOSIXBinFile(urecord,trim(rfile),status='old')
+      ufile = find_unit(urecord)
+      
+      call openPOSIXBinFile(ufile,trim(rfile),status='old')
 
-      read (urecord,iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
+      read (ufile,iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
       if (ierr == 0) then
 
         if (NDEPV == 0) then
@@ -501,13 +560,13 @@ c     Begin program
 
       else  !COMPATIBILITY MODE
 
-        rewind(urecord)
+        rewind(ufile)
 
       endif
 
-      read (urecord) nx,ilog,ihig
-      read (urecord) ny,jlog,jhig
-      read (urecord) nz,klog,khig
+      read (ufile) nx,ilog,ihig
+      read (ufile) ny,jlog,jhig
+      read (ufile) nz,klog,khig
 
       if (associated(gv)) then
 #if defined(petsc) 
@@ -515,6 +574,7 @@ c     Begin program
 #else
          if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
 #endif
+           write (*,*) nx,nxd,ny,nyd,nz,nzd
            call pstop('openRestartFileForRead'
      $            ,'Grid meshes do not agree; cannot restart')
 
@@ -541,11 +601,11 @@ c     Begin program
 
 #endif
 
-      end subroutine openRestartFileForRead
+      end function openRestartFileForRead
 
 c     closeRestartFileForRead
 c     #################################################################
-      subroutine closeRestartFileForRead
+      subroutine closeRestartFileForRead(ufile)
 
 c     -----------------------------------------------------------------
 c     Close restart file (either POSIX, or ADIOS).
@@ -553,14 +613,16 @@ c     -----------------------------------------------------------------
 
       implicit none
 
-c     Global variables
+c     Call variables
+
+      integer :: ufile
 
 c     Local variables
 
 c     Begin program
 
 #if !defined(adios)
-      close(urecord)
+      close(ufile)
 #else
       call closeRecordFileAdiosForRead(adios_err)
 
@@ -939,7 +1001,7 @@ cc      record_open_num = record_open_num+1
 
       if (adios_debug.and.my_rank==0) then
         write (*,*) 'ADIOS file access mode=',mode
-        write (*,*) 'ADIOS open: adios_file=',file
+        write (*,*) 'ADIOS open: adios_file=',trim(file)
       endif
 
       if (adios_debug) then
@@ -1497,7 +1559,7 @@ c     End program
 
 c     readTimeStep
 c     #################################################################
-      subroutine readTimeStep(itime,time,dt,varray,ierr)
+      subroutine readTimeStep(unit,itime,time,dt,varray,ierr)
 
 c     -----------------------------------------------------------------
 c     Reads time step info from single or multiple files.
@@ -1508,7 +1570,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       type(var_array),pointer :: varray
-      integer :: ierr,itime
+      integer :: ierr,itime,unit
       real(8) :: time,dt
 
 c     Local variables
@@ -1524,7 +1586,7 @@ c     Begin program
           if (ierr == -2) cycle !EOF
         enddo
       else
-        ierr = readRecordFile(urecord,itime,time,dt,varray)
+        ierr = readRecordFile(unit,itime,time,dt,varray)
       endif
 
 c     End program

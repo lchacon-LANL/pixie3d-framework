@@ -2175,30 +2175,33 @@ c     Find dimensionality
       navg = int((1d0*(nx*ny*nz)/nprocs)**(1./nd))
 
       npt = (/nx,ny,nz/)
-      exp = int(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
+      exp = log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3
 
 cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
-cc     .           ,' sum_exp=',sum_exp
+cc     .           ,' sum_exp 0=',sum(exp)
 
       !Consistency check (1st layer)
       if (sum(exp) /= sum_exp) then
         if (exp(1) /= maxval(exp).and. nx > 1) then
-          exp(1) = sum_exp - exp(2) - exp(3)
+          exp(1) = max(sum_exp - exp(2) - exp(3),0)
         elseif (exp(2) /= maxval(exp).and. ny > 1) then
-          exp(2) = sum_exp - exp(1) - exp(3)
+          exp(2) = max(sum_exp - exp(1) - exp(3),0)
         elseif (exp(3) /= maxval(exp).and. nz > 1) then
-          exp(3) = sum_exp - exp(1) - exp(2)
+          exp(3) = max(sum_exp - exp(1) - exp(2),0)
         endif
       endif
+
+cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
+cc     .           ,' sum_exp 1=',sum(exp)
 
       !Consistency check (2nd layer)
       if (sum(exp) /= sum_exp) then
         if (nx >= ny .and. nx >= nz) then
-          exp(1) = sum_exp - exp(2) - exp(3)
+          exp(1) = max(sum_exp - exp(2) - exp(3),0)
         elseif (ny >= nx .and. ny >= nz) then
-          exp(2) = sum_exp - exp(1) - exp(3)
+          exp(2) = max(sum_exp - exp(1) - exp(3),0)
         else
-          exp(3) = sum_exp - exp(1) - exp(2)
+          exp(3) = max(sum_exp - exp(1) - exp(2),0)
         endif
       endif
 

@@ -2,7 +2,7 @@ c module oned_int
 c ######################################################################
       module oned_int
 
-      private :: l_int,q_int
+cc      private :: l_int,q_int
 
       contains
 
@@ -60,25 +60,25 @@ cc              j = nx !Extrapolation on the right
       case (1) !Linear interpolation
 
         do i = 1,nv
-          call locatep (x,nx,x1(i),j)
-          if (j == 0) then
-            j = 1 !Extrapolation on the left
-cc          elseif (j == nx) then
-cc            j = nx !Extrapolation on the right
-          endif
-          vec1(i) = l_int (nx,vec,x,x1(i),j,derv)
+cc          call locatep (x,nx,x1(i),j)
+cc          if (j == 0) then
+cc            j = 1 !Extrapolation on the left
+cccc          elseif (j == nx) then
+cccc            j = nx !Extrapolation on the right
+cc          endif
+          vec1(i) = lin_int(nx,vec,x,x1(i),derv)
         enddo
 
       case (2) !Quadratic interpolation
 
         do i = 1,nv
-          call locatep (x,nx,x1(i),j)
-          if (j == 0) then
-            j = 1 !Extrapolation on the left
-cc          elseif (j == nx) then
-cc            j = nx !Extrapolation on the right
-          endif
-          vec1(i) = q_int (nx,vec,x,x1(i),j,derv)
+cc          call locatep (x,nx,x1(i),j)
+cc          if (j == 0) then
+cc            j = 1 !Extrapolation on the left
+cccc          elseif (j == nx) then
+cccc            j = nx !Extrapolation on the right
+cc          endif
+          vec1(i) = q_int(nx,vec,x,x1(i),derv)
         enddo
         
       case (3) !Cubic splines
@@ -270,7 +270,7 @@ c     End
 
 c     q_int
 c     ##################################################################
-      function q_int (nx,vec,x,x1,j,derv)
+      function q_int (nx,vec,x,x1,derv)
       implicit      none                          ! for safe FORTRAN
 c     ------------------------------------------------------------------
 c     Interpolate vec(x) at x1 using the nodes (j-1),j,(j+1).
@@ -278,15 +278,17 @@ c     ------------------------------------------------------------------
 
 c     Variables in call
 
-      integer    :: nx,j,derv
+      integer    :: nx,derv
       real(8)    :: x1,x(nx),vec(nx),q_int
  
 c     Local variables
 
-      integer    :: jm,jp,jj
+      integer    :: jm,jp,jj,j
       real(8)    :: den1,den2,den3
 
 c     Begin program
+
+      call locatep (x,nx,x1,j)
 
       j = max(2,min(j,nx-1))  !Extrapolation on both sides
 
@@ -299,6 +301,16 @@ c     Begin program
       den3 = 1./((x(jm)-x(jj))*(x(jm)-x(jp)))
 
       select case(derv)
+      case(-1)                  !Integral
+        q_int =   vec(j )*den1*(x1**3/3
+     .                        -(x(jm)+x(jp))*x1**2/2
+     .                         +x(jm)*x(jp) *x1)
+     .          + vec(jp)*den2*(x1**3/3
+     .                        -(x(jm)+x(jj))*x1**2/2
+     .                         +x(jm)*x(jj) *x1)
+     .          + vec(jm)*den3*(x1**3/3
+     .                        -(x(jp)+x(jj))*x1**2/2
+     .                         +x(jp)*x(jj) *x1)
       case(0)
         q_int =   vec(j )*den1*(x1 -x(jm))*(x1 - x(jp))
      .          + vec(jp)*den2*(x1 -x(jm))*(x1 - x(jj))
@@ -319,9 +331,9 @@ c     End
 
       end function q_int
 
-c     l_int
+c     lin_int
 c     ##################################################################
-      function l_int (nx,vec,x,x1,j,derv)
+      function lin_int (nx,vec,x,x1,derv)
       implicit      none                          ! for safe FORTRAN
 c     ------------------------------------------------------------------
 c     Interpolate vec(x) at x1 using the nodes j,(j+1).
@@ -329,33 +341,45 @@ c     ------------------------------------------------------------------
 
 c     Variables in call
 
-      integer    :: nx,j,derv
-      real(8)    :: x1,x(nx),vec(nx),l_int
+      integer    :: nx,derv
+      real(8)    :: x1,x(nx),vec(nx),lin_int
  
 c     Local variables
 
-      integer    :: jp,jj
+      integer    :: jp,jj,j
 
 c     Begin program
 
-      if (j == nx) j = nx - 1  !Extrapolation on the right
+      call locatep (x,nx,x1,j)
+      
+      if (j == 0) then
+        j = 1                   !Extrapolation on the left
+      elseif (j == nx) then
+        j = nx -1               !Extrapolation on the right
+      endif
+
+cc      if (j == nx) j = nx - 1  !Extrapolation on the right
 
       jj = j
       jp = j+1
 
-      if (derv == 0) then
-        l_int = vec(j) *(x1 - x(jp))/(x(jj)-x(jp))
-     .        + vec(jp)*(x1 - x(jj))/(x(jp)-x(jj))
-      elseif (derv == 1) then
-        l_int = vec(j) /(x(jj)-x(jp))
-     .        + vec(jp)/(x(jp)-x(jj))
-      else
-        l_int = 0d0
-      endif
+      select case(derv)
+      case(-1)                  !Integral
+        lin_int = vec(j) *(x1 - x(jp))**2/(x(jj)-x(jp))*0.5
+     .          + vec(jp)*(x1 - x(jj))**2/(x(jp)-x(jj))*0.5
+      case(0)
+        lin_int = vec(j) *(x1 - x(jp))/(x(jj)-x(jp))
+     .          + vec(jp)*(x1 - x(jj))/(x(jp)-x(jj))
+      case(1)
+        lin_int = vec(j) /(x(jj)-x(jp))
+     .          + vec(jp)/(x(jp)-x(jj))
+      case(2)
+        lin_int = 0d0
+      end select
 
 c     End
 
-      end function l_int
+      end function lin_int
 
       end module oned_int
 

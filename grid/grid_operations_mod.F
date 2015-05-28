@@ -1333,9 +1333,9 @@ c     Local variables
 c     Begin program
 
       if (tocnv) then
-        vec1 = XformToCnv_stg_mesh(igrid,vec1)
+        vec2 = XformToCnv_stg_mesh(igrid,vec1)
       else
-        vec1 = XformToCov_stg_mesh(igrid,vec1)
+        vec2 = XformToCov_stg_mesh(igrid,vec1)
       endif
 
 c     End program

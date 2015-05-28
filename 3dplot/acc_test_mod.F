@@ -73,7 +73,7 @@ c     Interpolation
       real(8)    :: xp,yp,zp,interp
       real(8),allocatable,dimension(:) :: xx,yy,zz
 
-      integer    :: kx,ky,kz,nxs,nys,nzs,dim,flg,order
+      integer    :: kx,ky,kz,nxs,nys,nzs,dim,flg,order,ufile
 
       real(8), dimension(:),allocatable:: tx,ty,tz,work
       real(8), dimension(:,:,:),allocatable:: bcoef
@@ -105,9 +105,7 @@ c     Read reference grid info
       nullify(grid_params)
       call destroyGrid(gv%gparams)
 
-      call openRestartFileForRead(file=acc_ref_file)
-cc      call openRecordFiles(urecord,acc_ref_file,murecord
-cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+      ufile=openRestartFileForRead(file=acc_ref_file)
 
       nx = ihig-ilog+1
       ny = jhig-jlog+1
@@ -128,14 +126,13 @@ cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
       call allocateDerivedType(vref)
 
       do
-        call readTimeStep(itime,time,dt,vref,ierr)
+        call readTimeStep(ufile,itime,time,dt,vref,ierr)
         if (ierr /= 0) exit
       enddo
 
       tref = time
 
-cc      call closeRecordFiles
-      call closeRestartFileForRead
+      call closeRestartFileForRead(ufile)
 
 c Spline reference solution
 
@@ -176,9 +173,7 @@ c Initialize current grid info and read current grid solution
       igy = 1
       igz = 1
 
-      call openRestartFileForRead(file=recordfile)
-cc      call openRecordFiles(urecord,recordfile,murecord
-cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+      ufile=openRestartFileForRead(file=recordfile)
 
       nx = ihig-ilog+1
       ny = jhig-jlog+1
@@ -197,14 +192,13 @@ cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
       call allocateDerivedType(vsol)
 
       do
-        call readTimeStep(itime,time,dt,vsol,ierr)
+        call readTimeStep(ufile,itime,time,dt,vsol,ierr)
         if (ierr /= 0) exit
       enddo
 
       tsol = time
 
-cc      call closeRecordFiles
-      call closeRestartFileForRead
+      call closeRestartFileForRead(ufile)
 
 c Calculate difference
 
@@ -317,7 +311,7 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,ig,jg,kg,nx,ny,nz,ivar,nxs,nys,nzs
-      integer :: ierr,system,nplot,igx,igy,igz
+      integer :: ierr,system,nplot,igx,igy,igz,ufile
 
       real(8) :: mag,mag0,jac,tref,tsol,lmax
       real(8),allocatable,dimension(:,:,:,:) :: pos 
@@ -353,14 +347,12 @@ c     Read reference field
         write (*,*) '>>>>> Reading reference file...'
       endif
 
-      call openRestartFileForRead(file=acc_ref_file)
-cc      call openRecordFiles(urecord,acc_ref_file,murecord
-cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+      ufile=openRestartFileForRead(file=acc_ref_file)
 
       call allocateDerivedType(vref)
 
       do
-        call readTimeStep(itime,time,dt,vref,ierr)
+        call readTimeStep(ufile,itime,time,dt,vref,ierr)
         if (ierr /= 0 .or. abs(time-tmax)<1d-8 ) exit
       enddo
 
@@ -374,8 +366,7 @@ cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
         write (*,*)
       endif
 
-      call closeRestartFileForRead
-cc      call closeRecordFiles
+      call closeRestartFileForRead(ufile)
 
       tref = time
 
@@ -386,14 +377,12 @@ c     Read current solution
         write (*,*) '>>>>> Reading solution file...'
       endif
 
-      call openRestartFileForRead(file=recordfile)
-cc      call openRecordFiles(urecord,recordfile,murecord
-cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+      ufile=openRestartFileForRead(file=recordfile)
 
       call allocateDerivedType(vsol)
 
       do
-        call readTimeStep(itime,time,dt,vsol,ierr)
+        call readTimeStep(ufile,itime,time,dt,vsol,ierr)
         if (ierr /= 0 .or. abs(time-tmax)<1d-10) exit
       enddo
 
@@ -407,8 +396,7 @@ cc     .                    ,ilog,ihig,jlog,jhig,klog,khig)
         write (*,*)
       endif
 
-cc      call closeRecordFiles
-      call closeRestartFileForRead
+      call closeRestartFileForRead(ufile)
 
       tsol = time
 

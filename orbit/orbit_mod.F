@@ -589,7 +589,7 @@ c       * x0,y0,z0: starting point of orbit
 c       * fwd: whether to go forward or backward
 c     Optional input:
 c       * line_int: external routine to perform line integrals
-c       * ode_line_int: external routine to perform line integrals using LSODE
+c       * line_f: external routine to perform line integrals using LSODE
 c       * ss_check: check for surface of section (default: not when
 c                   performing integrals along line)
 c       * ss_order: order of interpolation for SS (default: 1)
@@ -780,7 +780,7 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
             call connect_write(x0,y0,z0,ss,thr_num)
           endif
 
-          exit_loop = orbit_error(iterror)
+          exit_loop = (orbit_error(iterror).or.exit_loop) !Last determined in orbit_step
           non_fatal_err = (iterror<=0)
 
           xhist(1) = x
@@ -960,11 +960,24 @@ c     ----------------------------------------------------------------------
 c     Finalizes orbit integrator
 c     ----------------------------------------------------------------------
 
-        integer :: alloc_stat
+      integer :: alloc_stat
 
-        deallocate(xhist,yhist,zhist,thist,shist,STAT=alloc_stat)
+      deallocate(xhist,yhist,zhist,thist,shist,STAT=alloc_stat)
 
       end subroutine orbit_end
+
+c     orbit_exit
+c     ######################################################################
+      subroutine orbit_exit(exit)
+c     ----------------------------------------------------------------------
+c     Finalizes orbit integrator
+c     ----------------------------------------------------------------------
+
+      logical :: exit
+
+      exit_loop = exit
+
+      end subroutine orbit_exit
 
 c     orbit_step
 c     ##################################################################
@@ -1072,6 +1085,7 @@ c     Time integration
         solver = 'LSODE'
 
       endif
+
 c     Output
 
       if (iiout > 0) then
@@ -2090,6 +2104,7 @@ c     Set position of SS
         zss0 = zsurf
 
 c     Consistency check
+
         if (lssx .and. lssy .and. lssz) then
           call pstop('ss_init'
      .              ,'Cannot select all 3 surfaces of section!!')

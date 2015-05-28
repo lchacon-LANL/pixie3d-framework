@@ -63,14 +63,6 @@ c Initialize PETSc (parallel version)
      .                       ,petsc_flg,ierr)
 #endif
 
-c Initialize ADIOS (parallel version)
-
-#if defined(adios) && defined(petsc)
-      call adios_init_noxml (adios_err)
-      ! allocate 100MB buffer for ADIOS
-      call adios_allocate_buffer (100,adios_err)
-#endif
-
 c Initialize computation
 
       call initializeCalculation(igx,igy,igz)
@@ -92,7 +84,7 @@ c diag *****
 
 c     Read next record
 
-        call readTimeStep(itime,time,dt,u_np,ierr)
+        call readTimeStep(urecord,itime,time,dt,u_np,ierr)
 
 c     Gather error info
 
@@ -326,6 +318,10 @@ c Allocate global variable
 c Open graphics files (this initializes local limits, among other things)
 
 #if defined(adios)
+      call adios_init_noxml (adios_err)
+      ! allocate 100MB buffer for ADIOS
+      call adios_allocate_buffer (100,adios_err)
+
       call openRecordFileAdiosForRead(adios_err)
 #else
       call openRecordFiles(urecord,recordfile,murecord
@@ -338,7 +334,7 @@ c Read geometry (if appropriate)
 
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
-      call readTimeStep(itime,time,dt,u_0,ierr)
+      call readTimeStep(urecord,itime,time,dt,u_0,ierr)
 
       if (ierr /= 0) call pstop('initializeCalculation',
      .                          'Unable to read equilibrium')
