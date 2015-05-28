@@ -10,13 +10,11 @@ c----------------------------------------------------------------------
 
       use grid
 
-      use variables
-
       use timeStepping
 
-      use newtongm
+      use nk
 
-      use iosetup
+      use var_io
 
 #if defined(MK)
       use mk
@@ -28,46 +26,12 @@ c Call variables
 
 c Local variables
 
-      integer    :: ierr
+      integer :: ierr
 
-      logical    :: petsc_flg
-
-c Interfaces
-
-      INTERFACE
-        subroutine setInitialCondition(varrayn,varraynp)
-        use variable_setup
-        type(var_array),pointer :: varrayn,varraynp
-        end subroutine setInitialCondition
-      END INTERFACE
-
-cc      INTERFACE
-cc        subroutine evaluateNonlinearFunction(igr,varray,fi)
-cc        use parameters
-cc        use variable_setup
-cc        integer :: igr
-cc        real(8) :: fi(ntotd)
-cc        type(var_array),pointer :: varray
-cc        end subroutine evaluateNonlinearFunction
-cc      END INTERFACE
-
-      INTERFACE
-        subroutine setEquilibrium(igx,igy,igz,varray)
-        use variable_setup
-        integer :: igx,igy,igz
-        type(var_array),pointer :: varray
-        end subroutine setEquilibrium
-      END INTERFACE
-
-      INTERFACE
-        subroutine get_src(varray)
-        use variable_setup
-        type(var_array),pointer :: varray
-        end subroutine get_src
-      END INTERFACE
+      logical :: petsc_flg
 
 c Begin program
-
+     
 c Read user initializations
 
       call readInput
@@ -89,55 +53,51 @@ c Read PETSc runtime options
      .                       ,petsc_flg,ierr)
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-test',tst_flg
      .                       ,petsc_flg,ierr)
+
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ilevel',ilevel
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nmax',numtime
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-tmax',tmax
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
+     .                       ,petsc_flg,ierr)
+#else
+!!$  n_args = COMMAND_ARGUMENT_COUNT()
+!!$
+!!$  if (n_args < 4) then
+!!$     call pstop('parareal_advance','Wrong call sequence')
+!!$  endif
+!!$
+!!$  if (debug) write (*,*) "Reading command arguments"
+!!$
+!!$  call get_command_argument(1, ifile1)
+!!$  call get_command_argument(2, ifile2)
+!!$  call get_command_argument(3, ifile3)
+!!$  call get_command_argument(4, ofile)
 #endif
 
-c Check for autoinitializing parameters
+ccc Check for autoinitializing parameters
+cc
+cc      pi = acos(-1d0)
 
-      pi = acos(-1d0)
+c Allocate global variables
 
-      if (maxitnwt.eq.0) 
-     .      maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
-
-      alpha = 1. - cnfactor
-
-      dtbase = dt
-
-      !Time smoothing
-      if (sm_flag == 0) then
-        sm_pass= 0
-        if (cnfactor > 1d0 .or. cnfactor < 0d0) then
-          call pstop('initializeCalculation'
-     .              ,'cnfactor out of range')
-        endif
-      endif
-
-      itime = 0
-
-c Initialize MG and create grid
-
-      call createGrid(nxd,nyd,nzd,gv%gparams)
-
-c Initialize global domain limits
-
-      call setVectorDimensions
+      call allocateGlobalVar(gv)
 
 #if defined(petsc)
-      if (.not.tst_flg)
-     .   write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
+        if (.not.tst_flg)
+     .       write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
      .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
 #endif
 
-c Allocate structures
+c Create Time Stepping variables
 
-      call allocateStructures
-
-c Create nonlinear solver
-
-      call createTS
+      call TS_create
 
 c Create nonlinear function
 
-      call createNonlinearFunction    !External
+      call createNLF    !External
 
 c Initialize MK variables
 
@@ -145,43 +105,17 @@ c Initialize MK variables
       if (mk_grid) call MK_alloc
 #endif
 
-c Create equilibrium u_0
-
-      call setEquilibrium(1,1,1,u_0)  !External
-
-c Initialize MK mesh quantities
-
-#if defined(MK)
-      if (mk_grid) then
-        u_0%array_var(neqd)%descr = 'MK phi'
-        u_0%array_var(neqd)%array = 0d0
-
-        call MK_initGrid(1,bcs=bcond)  !Change also in 3dplot.F
-cc        call MK_initGrid(1)
-      endif
-#endif
-
-c Initialize old time solution
-
-      call equateDerivedType(u_n,u_0)
-
-c Set unperturbed forcing fields
-
-      call get_src(u_n)
-
-c Spline unperturbed equilibrium and source if moving mesh
-
 #if defined(MK)
       relax_init_grid = mk_grid.and.mk_init_relax.and.(.not.restart)
-
-      if (relax_init_grid) call MK_spline_equ(1,u_n)
-
-      if (mk_grid) call MK_spline_src(1,fsrc)
 #endif
 
-c Set initial condition
+c Initialize computation
 
-      call setInitialCondition(u_n,u_np)
+      if (.not.restart) then
+        call setInitialState
+      else
+        call readCurrentState
+      endif
 
 c Initialize record file
 
@@ -190,36 +124,125 @@ c Initialize record file
 c Check time limits
 
       if (tmax.gt.0d0.and.(tmax-time).le.0d0) then
-        if (my_rank == 0) then
-          write(*,*)
-          write(*,*) 'Tmax is less or equal than restarting time'
-          write(*,*) 'Aborting'
-        endif
-
-        call fortranDestroy
-        stop
+        call pstop("initializeCalculation"
+     $            ,"Tmax is less or equal than restarting time")
       endif
 
 c End program
 
       end subroutine initializeCalculation
 
-c setInitialCondition
+c setInitialState
 c####################################################################
-      subroutine setInitialCondition(varrayn,varraynp)
+      subroutine setInitialState
 
 c--------------------------------------------------------------------
-c     Set initial conditions for initial value calculation. Variables
-c     are stored in u_np
+c     Set initial state for initial value calculation.
 c--------------------------------------------------------------------
 
       use grid
 
-      use variable_setup
+      use timeStepping
+
+      use var_io
+
+#if defined(MK)
+      use mk
+#endif
+
+      implicit none
+
+c Local variables
+
+      integer :: ieq,nx,ny,nz,igrid
+
+c Interfaces
+
+      INTERFACE
+        subroutine setEquilibrium(igx,varray)
+        use var_setup
+        integer :: igx
+        type(var_array),pointer :: varray
+        end subroutine setEquilibrium
+      END INTERFACE
+
+      INTERFACE
+        subroutine perturbEquilibrium(varray)
+        use var_setup
+        type(var_array),pointer :: varray
+        end subroutine perturbEquilibrium
+      END INTERFACE
+
+      INTERFACE
+        subroutine get_src(varray)
+        use var_setup
+        type(var_array),pointer :: varray
+        end subroutine get_src
+      END INTERFACE
+
+c Begin program
+
+      igrid = 1
+
+c Create equilibrium u_0
+
+cc      itime = 0 !Needed for BC logic
+
+      call setEquilibrium(igrid,u_0)  !External
+
+#if defined(MK)
+      if (mk_grid) then
+        u_0%array_var(neqd)%descr = 'MK phi'
+        u_0%array_var(neqd)%array = 0d0
+
+        call MK_initGrid(igrid,bcs=bcond)  !Change also in 3dplot.F
+      endif
+#endif
+
+      call equateDerivedType(u_n,u_0)
+
+      call get_src(u_n)  !This also imposes BCs
+
+      call mapStructureToVector(x0,u_n)
+
+c Write geometry when applicable
+
+      if (coords == 'ext') call writeExtMap
+
+c Perturb equilibrium
+
+cc      time     = 0d0
+cc      inewtime = 1
+
+      call equateDerivedType(u_np,u_n)
+
+      if (.not.relax_init_grid) call perturbEquilibrium(u_np)
+
+c Impose BC (to initialize all auxiliary variables)
+
+      call applyBC(igrid,u_np,gv%aux,it=1)
+
+#if defined(MK)
+      if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
+#endif
+
+c End program
+
+      end subroutine setInitialState
+
+c readCurrentState
+c####################################################################
+      subroutine readCurrentState
+
+c--------------------------------------------------------------------
+c     Read current state from restart file.
+c--------------------------------------------------------------------
+
+      use grid
 
       use timeStepping
 
-      use iosetup
+      use var_io
 
 #if defined(MK)
       use mk
@@ -229,75 +252,65 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      type(var_array),pointer :: varrayn,varraynp
-
 c Local variables
 
-      integer    ::  ieq,nx,ny,nz
+      integer :: ieq,igrid
 
 c Interfaces
 
       INTERFACE
-        subroutine applyBC (varray,iigx,iigy,iigz,obc)
-        use variable_setup
-        integer    :: iigx,iigy,iigz
-        integer,optional :: obc
+        subroutine get_src(varray)
+        use var_setup
         type(var_array),pointer :: varray
-        end subroutine applyBC
+        end subroutine get_src
       END INTERFACE
 
       INTERFACE
         subroutine perturbEquilibrium(varray)
-        use variable_setup
+        use var_setup
         type(var_array),pointer :: varray
         end subroutine perturbEquilibrium
       END INTERFACE
 
 c Begin program
 
-c Perturb equilibrium
+      igrid = 1
 
-      if (.not.restart) then
+c Read geometry when applicable
 
-        !Equate to varraynp
-        call equateDerivedType(varraynp,varrayn)
+      if (coords == 'ext') call readExtMap
 
-        if (.not.relax_init_grid) call perturbEquilibrium(varraynp)
+c Read restart file
 
-        time     = 0d0
-        itime    = 1   !Needed for BC logic
-        inewtime = 1
-
-      else
-
-        call readRestartFile(nx,ny,nz,itime,time,varrayn,varraynp)
+      call readRestartFile(itime,time)
 
 #if defined(MK)
-        if(mk_grid) call MK_setup_grid(1,varraynp%array_var(neqd)%array)
+      if(mk_grid) call MK_setup_grid(igrid,u_np%array_var(neqd)%array)
 
-        if(mk_grid.and.mk_init_relax.and.itime==1) itime = 0
+      if(mk_grid.and.mk_init_relax.and.itime==1) itime = 0
 #endif
 
-        inewtime = itime+1
+c Introduce perturbation at restart
 
-      endif
+      inewtime = itime+1
 
-c Impose BC on varrayn
+      if (perturb_rstrt) call perturbEquilibrium(u_np)
 
-      call applyBC(varraynp,1,1,1)
+c Impose BCs (to initialize all auxiliary variables)
+
+      call applyBC(igrid,u_np,gv%aux,it=itime)
 
 #if defined(MK)
-      if (mk_grid) call MK_applyBC(1,varraynp%array_var(neqd)%array)
+      if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
 #endif
 
 c End program
 
       contains
 
-#if !defined(adios)
 c     readRestartFile
 c     #################################################################
-      subroutine readRestartFile(nx,ny,nz,itime,time,vn,vnp)
+      subroutine readRestartFile(itime,time)
 
 c     -----------------------------------------------------------------
 c     Reads restart file
@@ -309,141 +322,89 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer   ,intent(OUT) :: nx,ny,nz,itime
-      real(8),intent(OUT)    :: time
-
-      type(var_array),pointer :: vn,vnp
+      integer,intent(OUT) :: itime
+      real(8),intent(OUT) :: time
 
 c     Local variables
 
-      integer    :: ierr
+      integer :: nx,ny,nz,ierr
 
       type(var_array),pointer :: vmed => null()
 
 c     Begin program
 
-c     Open restart files and check mesh sizes
+cc      tnm = 0d0
+cc      tn  = 0d0
 
-      call openBinFile(urecord,recordfile,status='old')
+c     Open restart files
 
-      read (urecord) nx,ilog,ihig
-      read (urecord) ny,jlog,jhig
-      read (urecord) nz,klog,khig
-
-#if defined(petsc) 
-      if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
-#else
-      if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
-#endif
-        call pstop('initializeCalculation'
-     $            ,'Grid meshes do not agree; cannot restart')
-      endif
+      call openRestartFileForRead
 
 c     Allocate intermediate variable
 
       call allocateDerivedType(vmed)
 
-c     Read files
+c     Read equilibrium
 
       if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
 
-      ierr = readRecordFile(urecord,itime,time,dt,vn)
+      ierr = readRecordFile(urecord,itime,time,dt,u_0)
 
-      call equateDerivedType(vnp,vn)
-
-      do
-        ierr = readRecordFile(urecord,itime,time,dt,vmed)
-
-        if (ierr /= 0) then
-          exit
-        else
-          call equateDerivedType(vn ,vnp)
-          call equateDerivedType(vnp,vmed)
-        endif
-      enddo
-
-      if (my_rank == 0) write (*,*) ' Done!'
-
-c     End
-
-      close(urecord)
-
-      call deallocateDerivedType(vmed)
-
-      end subroutine readRestartFile
-
-#else
-
-c     readRestartFile
-c     #################################################################
-      subroutine readRestartFile(nx,ny,nz,itime,time,vn,vnp)
-
-c     -----------------------------------------------------------------
-c     Reads restart file
-c     -----------------------------------------------------------------
-
-      use variables
-
-      implicit none
-
-c     Call variables
-
-      integer   ,intent(OUT) :: nx,ny,nz,itime
-      real(8),intent(OUT)    :: time
-
-      type(var_array),pointer :: vn,vnp
-
-c     Local variables
-
-      integer    :: ierr
-
-      type(var_array),pointer :: vmed => null()
-
-c     Begin program
-
-      call allocateDerivedType(vmed)
-
-      call adios_init_noxml (adios_err)
-
-      ! allocate 100MB buffer for ADIOS
-      call adios_allocate_buffer (100,adios_err)
-
-      if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
-
-      call openRecordFileAdiosForRead(adios_err)
-
-      if (adios_err /= 0) then
-        call pstop('readRestartFile'
-     $            ,'Error reading ADIOS restart file')
+      if (ierr /= 0) then
+        call pstop('readCurrentState','Unable to read u_0')
+      else
+        call equateDerivedType(u_n,u_0)
+        call get_src(u_n)
       endif
 
-      ierr = readRecordFile(urecord,itime,time,dt,vn)
+cc      tnm = tn
+cc      tn  = time
+      call TS_update_timecounters(time,exclude_itime=.true.)
 
-      call equateDerivedType(vnp,vn)
+c     Read files
+
+      ierr = readRecordFile(urecord,itime,time,dt,u_n)
+
+      if (ierr /= 0) then
+        call pstop('readCurrentState','Unable to read u_n')
+      endif
+
+      call equateDerivedType(u_np,u_n)
 
       do
         ierr = readRecordFile(urecord,itime,time,dt,vmed)
 
-        if (ierr /= 0) then
+        if (ierr /= 0) then !EOF: Rollback counters and exit
+          call TS_rollback_timecounters(exclude_itime=.true.)
+cc          time = tn
+cc          tn   = tnm
+cc          tnm  = 0d0
           exit
         else
-          call equateDerivedType(vn ,vnp)
-          call equateDerivedType(vnp,vmed)
+          call TS_update_timecounters(time,exclude_itime=.true.)
+cc          tnm = tn
+cc          tn  = time
+          call equateDerivedType(u_n ,u_np)
+          call equateDerivedType(u_np,vmed)
         endif
+
       enddo
 
-      call closeRecordFileAdiosForRead(adios_err)
-
       if (my_rank == 0) write (*,*) ' Done!'
+
+#if defined(pit)
+      dt = dtbase  !Reset time step with parallel-in-time
+#endif
 
 c     End
 
       call deallocateDerivedType(vmed)
 
-      end subroutine readRestartFile
-#endif
+      call closeRestartFileForRead
 
-      end subroutine setInitialCondition
+      end subroutine readRestartFile
+
+      end subroutine readCurrentState
 
 c initializeRecordFile
 c######################################################################
@@ -455,9 +416,7 @@ c----------------------------------------------------------------------
 
       use timeStepping
 
-      use variables
-
-      use iosetup
+      use var_io
 
 #if defined(MK)
       use mk
@@ -469,20 +428,15 @@ c Call variables
 
 c Local variables
 
-      integer    :: ierr,ieq
+      integer :: ierr,ieq,igrid
+
+      type(var_array),pointer :: u_graph => null()
 
 c Interfaces
 
-      INTERFACE
-        subroutine applyBC (varray,iigx,iigy,iigz,obc)
-        use variable_setup
-        integer    :: iigx,iigy,iigz
-        integer,optional :: obc
-        type(var_array),pointer :: varray
-        end subroutine applyBC
-      END INTERFACE
-
 c Begin program
+
+      igrid = 1
 
 c Set data dumping intervals
 
@@ -504,70 +458,31 @@ c Open record file
 
       if (.not.restart) then
 
-        !PC debugging
-cc        if (chk_src) then
-cc          call mapVectorToStructure(u_graph,fsrc)
-cc        else
-cccc         if (debug) then
-cccc           write (*,*) 'DIAG -- Dumping graphs for PC testing'
-cccc           u_graph = u_n
-cccc         endif
-cc        endif
-
         !Impose BC's on u_graph <- u_0
         !(do not overwrite u_0, since it contains equil. BCs;
         ! do nothing at EQU boundaries, to preserve EQU BCs)
-        call equateDerivedType(u_graph,u_0)
+cc        call equateDerivedType(u_graph,u_0)
 
-        call applyBC(u_graph,1,1,1,obc=0)
-cc        call applyBC(u_graph,1,1,1)
+cc        call applyBC(igrid,u_graph,gv%aux,it=1)
 
 #if defined(MK)
-        if (mk_grid) call MK_applyBC(1,u_graph%array_var(neqd)%array)
-#endif
-
-#if !defined(adios)
-        !Initialize POSIX files
-        call init_POSIX
+        if (mk_grid)call MK_applyBC(igrid,u_graph%array_var(neqd)%array)
 #endif
 
         !Dump initial data
-        call writeRecordFile(urecord,0,0d0,dt,u_graph)
-        call writeRecordFile(urecord,0,0d0,dt,u_np)
+cc        call writeRecordFile(recordfile,0,0d0,dt,u_graph)
+        call writeRecordFile(recordfile,0,0d0,dt,u_0)
+        call writeRecordFile(recordfile,0,0d0,dt,u_np)
+
+        call deallocateDerivedType(u_graph)
 
       else
 
-#if defined(adios)
-        adios_open_num = 1  !Set ADIOS file to append
-#else
-        call openBinFile(urecord,recordfile,status='old'
-     .                  ,position='append'
-     .                  ,check=.true.)
-#endif
+        call setRecordfileToAppend
+
       endif
 
 c End programs
-
-      contains
-
-c     init_POSIX
-c     ##############################################################
-      subroutine init_POSIX
-
-        if (my_rank == 0) ierr = rm_files(recordfile)
-
-#if defined(petsc) 
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-#endif
-
-        !Initialize record file
-        call openBinFile(urecord,recordfile,status='unknown')
-
-        write (urecord) nxl,ilog,ihig
-        write (urecord) nyl,jlog,jhig
-        write (urecord) nzl,klog,khig
-
-      end subroutine init_POSIX
 
       end subroutine initializeRecordFile
 
@@ -580,7 +495,7 @@ c     Set initial conditions for initial value calculation. Variables
 c     are stored in u_np
 c--------------------------------------------------------------------
 
-      use variable_setup
+      use var_setup
 
       use timeStepping
 
@@ -599,13 +514,13 @@ c Local variables
       integer :: ieq,igr
 
       INTERFACE
-        subroutine evaluateNonlinearFunction(igr,varray,fi)
+        subroutine evaluate_NLF(igr,varray,fi)
         use parameters
-        use variable_setup
+        use var_setup
         integer :: igr
         real(8) :: fi(ntotd)
         type(var_array),pointer :: varray
-        end subroutine evaluateNonlinearFunction
+        end subroutine evaluate_NLF
       END INTERFACE
 
 c Begin program
@@ -615,7 +530,12 @@ c Begin program
       source_eval = .true.   !This informs nlfunction that we are processing the source
 
       !This not only evaluates fsrc, but defines BCs on varray
-      call evaluateNonlinearFunction(igr,varray,fsrc)
+      call evaluate_NLF(igr,varray,fsrc)
+
+      !Spline unperturbed equilibrium if moving mesh
+#if defined(MK)
+      if (relax_init_grid) call MK_spline_equ(igr,varray)
+#endif
 
       !Dump source
       if (chk_src) call dump_src
@@ -623,6 +543,11 @@ c Begin program
       if (.not.source) fsrc = 0d0
 
       source_eval = .false.
+
+      !Spline source if moving mesh
+#if defined(MK)
+      if (mk_grid) call MK_spline_src(igr,fsrc)
+#endif
 
 c End program
 
@@ -639,6 +564,8 @@ c     ###############################################################
         character(10) :: srcf
         character(4)  :: dbg_desc(neqd)
         character(3)  :: xlabel,ylabel
+
+        type(var_array),pointer :: u_graph => null()
 
         if (my_rank == 0) then
           write (*,*)
@@ -673,13 +600,15 @@ c     ###############################################################
 
         do ieq=1,neqd
           call C_contour(u_graph%array_var(ieq)%array(1:nx,1:ny,1:nz)
-     .                ,grid_params%gxmin,grid_params%gxmax
-     .                ,grid_params%gymin,grid_params%gymax
-     .                ,grid_params%gzmin,grid_params%gzmax
-     .                ,ieq-1,nunit)
+     .                  ,grid_params%gxmin,grid_params%gxmax
+     .                  ,grid_params%gymin,grid_params%gymax
+     .                  ,grid_params%gzmin,grid_params%gzmax
+     .                  ,ieq-1,nunit)
         enddo
 
         close (nunit)
+
+        call deallocateDerivedType(u_graph)
 
       end subroutine dump_src
 

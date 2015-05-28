@@ -2,23 +2,15 @@ c module parameters
 c #####################################################################
       module parameters
 
-      integer    :: neqd
-     .             ,nxd,nyd,nzd,nxdp,nydp,nzdp
-     .             ,nxl,nyl,nzl,nxlp,nylp,nzlp
+      use grid
 
-      integer    :: ilo ,ihi ,jlo ,jhi ,klo ,khi
-     .             ,ilom,ihip,jlom,jhip,klom,khip
-     $             ,ilog ,ihig ,jlog ,jhig ,klog ,khig
-     .             ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
-     .             ,gcw
-
-      integer    :: ntotd,ntotdp,ntimemax
+      integer :: neqd,ntotd,ntotdp
 
       end module parameters
 
-c module variable_setup
+c module var_setup
 c #####################################################################
-      module variable_setup
+      module var_setup
 
         use parameters
 
@@ -26,54 +18,58 @@ c #####################################################################
 
         implicit none
         
-        integer :: NAUXS=0,NAUXV=0  !Number of auxiliary scalars, vectors
-                                    !(defined by application)
+        integer :: NDEPV=0,NDEPS=0    !Number of scalars, vectors in dep. var. (not operational)
+     .            ,NAUXS=0,NAUXV=0    !Number of auxiliary scalars, vectors (defined by application)
 
         type :: var_def
           integer :: bconds(6)          !Boundary conditions
           real(8),pointer,dimension(:,:,:) :: array ! contains values at grid points
           character(20) :: descr
-          integer,pointer,dimension(:,:):: bc_dep_list ! Array indicating inter-variable dependencies;
-                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
-                                                       ! First dimension cycles over number of deps.
-                                                       ! Second dimension provides information about coupling:
-                                                       !  + First component identifies variable; its sign indicates
-                                                       !      auxiliary (<0) or dependent (>0) variable.
-                                                       !  + Second component indicates scalar (0) or vector (1)
-                                                       !  + Third component indicates trivial (0) or non-trivial (1)
-          integer,pointer,dimension(:,:):: dom_dep_list! Array indicating inter-variable dependencies;
-                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
-                                                       ! First dimension cycles over number of deps.
-                                                       ! Second dimension provides information about coupling:
-                                                       !  + First component identifies variable; its sign indicates
-                                                       !      auxiliary (<0) or dependent (>0) variable.
-                                                       !  + Second component indicates scalar (0) or vector (1)
-                                                       !  + Third component indicates trivial (0) or non-trivial (1)
-          logical :: time_0             !Whether this is a time=0 variable
-          logical :: time_n             !Whether this is a previous time step variable
-        end type var_def
+          integer,pointer,dimension(:,:)::
+     .         bc_dep_list      ! Array indicating inter-variable dependencies;
+                                !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                ! First dimension cycles over number of deps.
+                                ! Second dimension provides information about coupling:
+                                !  + First component identifies variable; its sign indicates
+                                !      auxiliary (<0) or dependent (>0) variable.
+                                !  + Second component indicates scalar (0) or vector (1)
+                                !  + Third component indicates trivial (0) or non-trivial (1)
+          integer,pointer,dimension(:,:)::
+     .         dom_dep_list     ! Array indicating inter-variable dependencies;
+                                !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                ! First dimension cycles over number of deps.
+                                ! Second dimension provides information about coupling:
+                                !  + First component identifies variable; its sign indicates
+                                !      auxiliary (<0) or dependent (>0) variable.
+                                !  + Second component indicates scalar (0) or vector (1)
+                                !  + Third component indicates trivial (0) or non-trivial (1)
+          logical :: time_0     ! Whether this is a time=0 variable
+          logical :: time_n     ! Whether this is a previous time step variable
+       end type var_def
 
         type :: vec_def
           integer :: bconds(6,3)        !Boundary conditions, 3 refers to the 3 components
           real(8),pointer,dimension(:,:,:,:) :: vec ! vector (i,j,k,d), d being the component
           character(20) :: descr        !Description
           logical       :: cnv          !Whether it is contravariant or not
-          integer,pointer,dimension(:,:):: bc_dep_list ! Array indicating inter-variable dependencies;
-                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
-                                                       ! First dimension cycles over number of deps.
-                                                       ! Second dimension provides information about coupling:
-                                                       !  + First component identifies variable; its sign indicates
-                                                       !      auxiliary (<0) or dependent (>0) variable.
-                                                       !  + Second component indicates scalar (0) or vector (1)
-                                                       !  + Third component indicates trivial (0) or non-trivial (1)
-          integer,pointer,dimension(:,:):: dom_dep_list! Array indicating inter-variable dependencies;
-                                                       !   dimensioned (NAUXS+NAUXV+NEQD,3).
-                                                       ! First dimension cycles over number of deps.
-                                                       ! Second dimension provides information about coupling:
-                                                       !  + First component identifies variable; its sign indicates
-                                                       !      auxiliary (<0) or dependent (>0) variable.
-                                                       !  + Second component indicates scalar (0) or vector (1)
-                                                       !  + Third component indicates trivial (0) or non-trivial (1)
+          integer,pointer,dimension(:,:)::
+     .         bc_dep_list      ! Array indicating inter-variable dependencies;
+                                !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                ! First dimension cycles over number of deps.
+                                ! Second dimension provides information about coupling:
+                                !  + First component identifies variable; its sign indicates
+                                !      auxiliary (<0) or dependent (>0) variable.
+                                !  + Second component indicates scalar (0) or vector (1)
+                                !  + Third component indicates trivial (0) or non-trivial (1)
+          integer,pointer,dimension(:,:)::
+     .         dom_dep_list     ! Array indicating inter-variable dependencies;
+                                !   dimensioned (NAUXS+NAUXV+NEQD,3).
+                                ! First dimension cycles over number of deps.
+                                ! Second dimension provides information about coupling:
+                                !  + First component identifies variable; its sign indicates
+                                !      auxiliary (<0) or dependent (>0) variable.
+                                !  + Second component indicates scalar (0) or vector (1)
+                                !  + Third component indicates trivial (0) or non-trivial (1)
           logical :: time_0             !Whether this is a time=0 variable
           logical :: time_n             !Whether this is a previous time step variable
         end type vec_def
@@ -105,43 +101,91 @@ c #####################################################################
 
           type(aux_array)  ,pointer :: aux        ! auxiliary variables
           type(grid_mg_def),pointer :: gparams    ! contains all grid info
+#if defined(flux_rhs)
+          real(8),pointer,dimension(:,:,:,:) :: flux_x,flux_y,flux_z,src
+#endif
         end type patch
 
         type (patch),pointer :: gv => null()
 
+        type(var_array),pointer :: u_np => null()
+     .                            ,u_n  => null()
+     .                            ,u_nm => null()
+     .                            ,u_ic => null()
+     .                            ,u_0  => null()
+
+        INTERFACE scaleVec
+          module procedure scaleVector_by_vol1,scaleVector_by_vol2
+        end INTERFACE
+
       contains
+
+c     setDepVarDims
+c     ################################################################
+      subroutine setDepVarDims(nscl,nvec)
+
+      integer :: nscl,nvec
+
+c     ----------------------------------------------------------------
+c     Define number of scalars and vectors in dependent-variable struc
+c     ----------------------------------------------------------------
+
+      NDEPV = nvec   !Number of dependent var. vectors
+      NDEPS = nscl   !Number of dependent var. scalars
+
+      neqd = 3*NDEPV + NDEPS
+
+      end subroutine setDepVarDims
+
+c     setAuxVarDims
+c     ################################################################
+      subroutine setAuxVarDims(nscl,nvec)
+
+      integer :: nscl,nvec
+
+c     ----------------------------------------------------------------
+c     Define number of scalars and vectors in auxiliary struc
+c     ----------------------------------------------------------------
+
+      NAUXV=nvec  !Number of auxiliary vectors
+
+      NAUXS=nscl  !Number of auxiliary scalars
+
+      end subroutine setAuxVarDims
 
 c     setVectorDimensions
 c     #################################################################
       subroutine setVectorDimensions
 
-        !Ghost cell width
-        gcw = gv%gparams%gcw
+        if (associated(gv)) then
+          !Ghost cell width
+          gcw = gv%gparams%gcw
 
-        !Global problem info
-        nxdp = gv%gparams%nglx + gcw
-        nydp = gv%gparams%ngly + gcw
-        nzdp = gv%gparams%nglz + gcw
+          !Global problem info
+          nxdp = gv%gparams%nglx + gcw
+          nydp = gv%gparams%ngly + gcw
+          nzdp = gv%gparams%nglz + gcw
 
-        !Define offset quantities (global grid)
-        ihig = gv%gparams%ihig
-        ilog = gv%gparams%ilog
-        jhig = gv%gparams%jhig
-        jlog = gv%gparams%jlog
-        khig = gv%gparams%khig
-        klog = gv%gparams%klog
+          !Define offset quantities (global grid)
+          ihig = gv%gparams%ihig
+          ilog = gv%gparams%ilog
+          jhig = gv%gparams%jhig
+          jlog = gv%gparams%jlog
+          khig = gv%gparams%khig
+          klog = gv%gparams%klog
 
-        ihipg = gv%gparams%ihig + gcw
-        ilomg = gv%gparams%ilog - gcw
-        jhipg = gv%gparams%jhig + gcw
-        jlomg = gv%gparams%jlog - gcw
-        khipg = gv%gparams%khig + gcw
-        klomg = gv%gparams%klog - gcw
+          ihipg = gv%gparams%ihig + gcw
+          ilomg = gv%gparams%ilog - gcw
+          jhipg = gv%gparams%jhig + gcw
+          jlomg = gv%gparams%jlog - gcw
+          khipg = gv%gparams%khig + gcw
+          klomg = gv%gparams%klog - gcw
 
-        !Local problem info
-        nxl  = gv%gparams%nlx
-        nyl  = gv%gparams%nly
-        nzl  = gv%gparams%nlz
+          !Local problem info
+          nxl  = gv%gparams%nlx
+          nyl  = gv%gparams%nly
+          nzl  = gv%gparams%nlz
+        endif
 
         !Define local limits
         ilo  = 1
@@ -181,9 +225,11 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq
+        integer :: ieq
 
 c     Begin program
+
+c     Nullify pointers
 
         if (.not.associated(gv)) then
           allocate(gv)
@@ -192,6 +238,40 @@ c     Begin program
           nullify(gv%gparams)
           nullify(gv%aux)
         endif
+
+c     Initialize MPI
+
+#if defined(petsc)
+        call initMPI(MPI_COMM_WORLD,np,my_rank)
+        call processorAlloc(nxd,nyd,nzd,npx,npy,npz)
+#endif
+ 
+c     Initialize MG and create grid
+
+        call createGrid(nxd,nyd,nzd,gv%gparams)
+
+c     Initialize global domain limits
+
+        call setVectorDimensions
+
+c     Allocate structures
+
+        call allocateStructures
+
+c     Allocate auxiliary variables
+
+cc        if (NAUXS > 0 .or. NAUXV > 0) then
+          call allocateAuxStruct(gv%aux)
+cc        endif
+
+c     Allocate fluxes and sources (if flux form)
+
+#if defined(flux_rhs) && !defined(samrai)
+        allocate(gv%flux_x(ilo:ihip,jlo:jhi ,klo:khi ,neqd)
+     .          ,gv%flux_y(ilo:ihi ,jlo:jhip,klo:khi ,neqd)
+     .          ,gv%flux_z(ilo:ihi ,jlo:jhi ,klo:khip,neqd)
+     .          ,gv%src   (ilo:ihi ,jlo:jhi ,klo:khi ,neqd))
+#endif
 
 c     End program
 
@@ -224,6 +304,10 @@ c     Begin program
           deallocate(gv%bc_grp,STAT=ierr)
         endif
 
+#if defined(flux_rhs) && !defined(samrai)
+        deallocate(gv%flux_x,gv%flux_y,gv%flux_z,gv%src,STAT=ierr)
+#endif
+
         deallocate(gv,STAT=ierr)
 
 c     End program
@@ -255,7 +339,7 @@ c     Begin program
           aux%nvar = nvar
           aux%nvec = nvec
 
-          if (nvar > 0) then
+cc          if (nvar > 0) then
             allocate(aux%var_list(nvar))
 
             do ieq=1,nvar
@@ -269,10 +353,12 @@ c     Begin program
               aux%var_list(ieq)%bc_dep_list = 0
               allocate(aux%var_list(ieq)%dom_dep_list(nvar+nvec+neqd,3))
               aux%var_list(ieq)%dom_dep_list = 0
+              aux%var_list(ieq)%time_0 = .false.
+              aux%var_list(ieq)%time_n = .false.
             enddo
-          endif
+cc          endif
 
-          if (nvec > 0) then
+cc          if (nvec > 0) then
             allocate(aux%vec_list(nvec))
 
             do ieq=1,nvec
@@ -288,8 +374,10 @@ c     Begin program
               aux%vec_list(ieq)%bc_dep_list = 0
               allocate(aux%vec_list(ieq)%dom_dep_list(nvar+nvec+neqd,3))
               aux%vec_list(ieq)%dom_dep_list = 0
+              aux%vec_list(ieq)%time_0 = .false.
+              aux%vec_list(ieq)%time_n = .false.
             enddo
-          endif
+cc          endif
         endif
 
 c     End program
@@ -317,7 +405,7 @@ c     Begin program
           nvar = aux%nvar
           nvec = aux%nvec
 
-          if (nvar > 0) then
+cc          if (nvar > 0) then
             do ieq=1,nvar
               deallocate(aux%var_list(ieq)%array)
               deallocate(aux%var_list(ieq)%bc_dep_list)
@@ -325,9 +413,9 @@ c     Begin program
             enddo
 
             deallocate(aux%var_list)
-          endif
+cc          endif
 
-          if (nvec > 0) then
+cc          if (nvec > 0) then
             do ieq=1,nvec
               deallocate(aux%vec_list(ieq)%vec)
               deallocate(aux%vec_list(ieq)%bc_dep_list)
@@ -335,7 +423,7 @@ c     Begin program
             enddo
 
             deallocate(aux%vec_list)
-          endif
+cc          endif
 
           deallocate(aux)
 
@@ -405,6 +493,9 @@ c     Begin program
             allocate(varray%array_var(ieq)
      .                     %dom_dep_list(NAUXS+NAUXV+neqd,3))
             varray%array_var(ieq)%dom_dep_list = 0
+
+            varray%array_var(ieq)%time_0 = .false.
+            varray%array_var(ieq)%time_n = .false.
            enddo
         endif
 
@@ -424,7 +515,7 @@ c     Call variables
 
 c     Local variables
 
-        integer          :: ieq,ierr,istat
+        integer :: ieq,ierr,istat
 
 c     Begin program
 
@@ -459,14 +550,9 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ieq
+        integer :: ieq
 
 c     Begin program
-
-cc        if (associated(varray2)) then
-cccc           if (varray2%nvar /= neqd) nullify(varray2)
-cc           if (varray2%nvar /= neqd) call deallocateDerivedType(varray2)
-cc        endif
 
         call allocateDerivedType(varray2)
 
@@ -481,6 +567,10 @@ cc        endif
      .                              =varray1%array_var(ieq)%bc_dep_list
           varray2%array_var(ieq)%dom_dep_list
      .                              =varray1%array_var(ieq)%dom_dep_list
+          varray2%array_var(ieq)%time_0
+     .                              =varray1%array_var(ieq)%time_0
+          varray2%array_var(ieq)%time_n
+     .                              =varray1%array_var(ieq)%time_n
         enddo
 
 c     End program
@@ -534,13 +624,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(var_array),pointer :: varray3
-        type(var_array),pointer :: varray1,varray2
+        type(var_array),pointer :: varray3,varray1,varray2
         real(8) :: alpha1,alpha2
 
 c     Local variables
 
-        integer          :: ieq
+        integer :: ieq
 
 c     Begin program
 
@@ -549,77 +638,27 @@ c     Begin program
         varray3%nvar = varray2%nvar
 
         do ieq=1,varray3%nvar
-          varray3%array_var(ieq)%bconds =varray2%array_var(ieq)%bconds
-          varray3%array_var(ieq)%array  =
-     .          alpha2*varray2%array_var(ieq)%array
-     .         +alpha1*varray1%array_var(ieq)%array
-          varray3%array_var(ieq)%descr  =varray2%array_var(ieq)%descr
+          varray3%array_var(ieq)%bconds = varray2%array_var(ieq)%bconds
+
+          varray3%array_var(ieq)%array
+     .         = alpha2*varray2%array_var(ieq)%array
+     .          +alpha1*varray1%array_var(ieq)%array
+
+          varray3%array_var(ieq)%descr  = varray2%array_var(ieq)%descr
 
           varray3%array_var(ieq)%bc_dep_list
      .                              =varray2%array_var(ieq)%bc_dep_list
           varray3%array_var(ieq)%dom_dep_list
      .                              =varray2%array_var(ieq)%dom_dep_list
+          varray3%array_var(ieq)%time_0
+     .                              =varray2%array_var(ieq)%time_0
+          varray3%array_var(ieq)%time_n
+     .                              =varray2%array_var(ieq)%time_n
         enddo
 
 c     End program
 
       end subroutine AXPYDerivedType
-
-ccc     varPack
-ccc     #################################################################
-cc      subroutine varPack(array,bcs,desc,veq,varray)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Fills structure fields of varray with pertinent data corresponding
-ccc     to variable veq: boundary conditions, bcs; variable description,
-ccc     desc; numerical data, array).
-ccc     -----------------------------------------------------------------
-cc
-ccc     Call variables
-cc
-cc        integer      :: veq,bcs(6)
-cc        real(8)      :: array(ilom:ihip,jlom:jhip,klom:khip)
-cc        character(*) :: desc
-cc
-cc        type(var_array),pointer :: varray
-cc
-ccc     Local variables
-cc
-cc        call allocateDerivedType(varray)
-cc
-ccc     Begin program
-cc
-cc        varray%array_var(veq)%bconds = bcs
-cc        varray%array_var(veq)%array  = array
-cc        varray%array_var(veq)%descr  = desc
-cc
-ccc     End program
-cc
-cc      end subroutine varPack
-cc
-ccc     varUnPack
-ccc     #################################################################
-cc      subroutine varUnPack(varray,veq,array,bcs,desc)
-cc
-ccc     Call variables
-cc
-cc        integer       :: nx,ny,nz,veq,bcs(6)
-cc        real(8)       :: array(ilom:ihip,jlom:jhip,klom:khip)
-cc        character(20) :: desc
-cc
-cc        type(var_array),pointer :: varray
-cc
-ccc     Local variables
-cc
-ccc     Begin program
-cc
-cc        bcs   = varray%array_var(veq)%bconds
-cc        array = varray%array_var(veq)%array
-cc        desc  = trim(varray%array_var(veq)%descr)
-cc
-ccc     End program
-cc
-cc      end subroutine varUnPack
 
 c     mapStructureToVector
 c     #################################################################
@@ -778,22 +817,179 @@ c     End program
 
       end subroutine scatterVector
 
-      end module variable_setup
+c     scaleVector_by_vol1
+c     ###################################################################
+      subroutine scaleVector_by_vol1(igr,neq,vec1,op)
 
-c module variables
-c #####################################################################
-      module variables
+c     -------------------------------------------------------------------
+c     Scales vec1 by volume (vec1=>vec1/vol) on the mesh. In call:
+c       * igr: grid level
+c       * neq: number of variables contained in vectors.
+c       * vec1: input vector
+c       * op: operation ('mul','div')
+c     -------------------------------------------------------------------
 
-        use variable_setup
+      implicit none
 
-        type(var_array),pointer :: u_np => null()
-     .                            ,u_n  => null()
-     .                            ,u_nm => null()
-     .                            ,u_ic => null()
-     .                            ,u_0  => null()
+c     Call variables
 
-        type(var_array),pointer :: u_graph
-      contains
+      integer :: igr,neq
+      real(8) :: vec1(:)
+      character(3) :: op
+
+c     Local variables
+
+      integer :: i,j,k,ii,iii,ieq,nnx,nny,nnz
+
+c     Begin program
+
+      nnx = grid_params%nxv(igr)
+      nny = grid_params%nyv(igr)
+      nnz = grid_params%nzv(igr)
+
+      select case(op)
+      case('mul')
+        do k=1,nnz
+          do j=1,nny
+            do i=1,nnx
+              ii=vecPos(neq,i,j,k,igr,igr,igr)
+              vec1(ii+1:ii+neq) = vec1(ii+1:ii+neq)
+     .                           *gmetric%grid(igr)%dlvol(i,j,k)
+cc              do ieq=1,neq
+cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
+cc                vec1(iii) = vec1(iii)*gmetric%grid(igr)%dlvol(i,j,k)
+cc              enddo
+            enddo
+          enddo
+        enddo
+      case('div')
+        do k=1,nnz
+          do j=1,nny
+            do i=1,nnx
+              ii=vecPos(neq,i,j,k,igr,igr,igr)
+              vec1(ii+1:ii+neq) = vec1(ii+1:ii+neq)
+     .                           /gmetric%grid(igr)%dlvol(i,j,k)
+cc              do ieq=1,neq
+cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
+cc                vec1(iii) = vec1(iii)/gmetric%grid(igr)%dlvol(i,j,k)
+cc              enddo
+            enddo
+          enddo
+        enddo
+      end select
+
+      end subroutine scaleVector_by_vol1
+
+c     scaleVector_by_vol
+c     ###################################################################
+      subroutine scaleVector_by_vol2(igr,neq,vec1,op)
+
+c     -------------------------------------------------------------------
+c     Scales vec1 by volume (vec1=>vec1/vol) on the mesh. In call:
+c       * igr: grid level
+c       * neq: number of variables contained in vectors.
+c       * vec1: input vector
+c       * op: operation ('mul','div')
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igr,neq
+      real(8) :: vec1(:,:)
+      character(3) :: op
+
+c     Local variables
+
+      integer :: i,j,k,iii,ieq,nnx,nny,nnz
+
+c     Begin program
+
+      nnx = grid_params%nxv(igr)
+      nny = grid_params%nyv(igr)
+      nnz = grid_params%nzv(igr)
+
+      select case(op)
+      case('mul')
+        do k=1,nnz
+          do j=1,nny
+            do i=1,nnx
+              iii= i + nnx*(j-1) + nnx*nny*(k-1)
+              vec1(iii,:) = vec1(iii,:)*gmetric%grid(igr)%dlvol(i,j,k)
+            enddo
+          enddo
+        enddo
+      case('div')
+        do k=1,nnz
+          do j=1,nny
+            do i=1,nnx
+              iii= i + nnx*(j-1) + nnx*nny*(k-1)
+              vec1(iii,:) = vec1(iii,:)/gmetric%grid(igr)%dlvol(i,j,k)
+            enddo
+          enddo
+        enddo
+      end select
+
+      end subroutine scaleVector_by_vol2
+
+ccc     scaleVector_by_vol
+ccc     ###################################################################
+cc      function scaleVector_by_vol(igr,neq,vec1,op) result(vec2)
+cc
+ccc     -------------------------------------------------------------------
+ccc     Scales vec1 by volume ( vec2=vec1/vol on the mesh. In call:
+ccc       * igr: grid level
+ccc       * neq: number of variables contained in vectors.
+ccc       * vec1: input vector
+ccc       * op: operation ('mul','div')
+ccc       * vec2: return vector
+ccc     -------------------------------------------------------------------
+cc
+cc      implicit none
+cc
+ccc     Call variables
+cc
+cc      integer :: igr,neq
+cc      real(8) :: vec1(:),vec2(size(vec1))
+cc      character(3) :: op
+cc
+ccc     Local variables
+cc
+cc      integer :: i,j,k,iii,ieq,nnx,nny,nnz
+cc
+ccc     Begin program
+cc
+cc      nnx = grid_params%nxv(igr)
+cc      nny = grid_params%nyv(igr)
+cc      nnz = grid_params%nzv(igr)
+cc
+cc      select case(op)
+cc      case('mul')
+cc        do k=1,nnz
+cc          do j=1,nny
+cc            do i=1,nnx
+cc              do ieq=1,neq
+cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
+cc                vec2(iii) = vec1(iii)*gmetric%grid(igr)%dlvol(i,j,k)
+cc              enddo
+cc            enddo
+cc          enddo
+cc        enddo
+cc      case('div')
+cc        do k=1,nnz
+cc          do j=1,nny
+cc            do i=1,nnx
+cc              do ieq=1,neq
+cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
+cc                vec2(iii) = vec1(iii)/gmetric%grid(igr)%dlvol(i,j,k)
+cc              enddo
+cc            enddo
+cc          enddo
+cc        enddo
+cc      end select
+cc
+cc      end function scaleVector_by_vol
 
 c     allocateStructures
 c     #################################################################
@@ -814,7 +1010,6 @@ c     Begin program
 #if !defined(samrai)
         call allocateDerivedType(gv%u_np)
         call allocateDerivedType(gv%u_nm)
-        call allocateDerivedType(u_graph)
 
         u_np    => gv%u_np
         u_nm    => gv%u_nm
@@ -840,11 +1035,10 @@ c     Begin program
 #if !defined(samrai)
         call deallocateDerivedType(gv%u_np)
         call deallocateDerivedType(gv%u_nm)
-        call deallocateDerivedType(u_graph)
 #endif
 
 c     End program
 
       end subroutine deallocateStructures
 
-      end module variables
+      end module var_setup

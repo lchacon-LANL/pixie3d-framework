@@ -34,7 +34,7 @@ c     Input variables
 c     Begin program
 
         select case(coords)
-        case('car','scl','cyl','hel','hl2','tor','sin')
+        case('car','cyl','hel','hl2','tor','sin','lpk')
 
           anal_map = .true.
 
@@ -48,7 +48,7 @@ c     Begin program
 
 c     map
 c     #################################################################
-      function map(i,j,k,igx,igy,igz,ig,jg,kg) result(car)
+      function map(i,j,k,igx,igy,igz,ig,jg,kg,g_def) result(car)
 
 c     -----------------------------------------------------------------
 c     Give Cartesian coordinates corresponding to node (i,j,k) at grid
@@ -63,6 +63,8 @@ c     Input variables
         real(8)    :: car(3)
         integer   ,optional,intent(OUT) :: ig,jg,kg
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
         integer    :: ig1,jg1,kg1
@@ -74,9 +76,9 @@ c     External routines
 c     Begin program
         
         call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig1,jg1,kg1
-     .                                ,x1,y1,z1)
+     .                                ,x1,y1,z1,g_def=g_def)
 
-        car = x_xi(x1,y1,z1)
+        car = x_xi(x1,y1,z1,g_def=g_def)
 
         if (PRESENT(ig)) ig = ig1
         if (PRESENT(jg)) jg = jg1
@@ -86,7 +88,7 @@ c     Begin program
 
 c     x_xi
 c     #################################################################
-      function x_xi(x1,x2,x3) result(car)
+      function x_xi(x1,x2,x3,g_def) result(car)
 
 c     -----------------------------------------------------------------
 c     Gives Cartesian coordinates from curvilinear coordinates
@@ -98,416 +100,88 @@ c     Input variables
 
         real(8) :: x1,x2,x3,car(3)
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
-        integer :: inewt,ic,exp=3
+        integer :: inewt,ic
         real(8) :: xx,yy,zz,jac_mat(3,3),rhs(3),dx(3),rr,rr0,dd
      .            ,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
+     .            ,xlog(3)
 
-        real(8),save :: aax=0d0,aay=0d0,aaz=0d0
-     .                 ,bbx=0d0,bby=0d0,bbz=0d0
-     .                 ,lbx=0d0,lby=0d0,lbz=0d0
+        type(grid_mg_def),pointer :: gl_def
 
 c     Begin program
 
-        gp = grid_params%params
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        if (map_grid_pack) then
+          xlog(1) = scale_coord(xmin,xmax,x1,1)
+          xlog(2) = scale_coord(ymin,ymax,x2,2)
+          xlog(3) = scale_coord(zmin,zmax,x3,3)
+        else
+          xlog = (/ x1, x2, x3 /)
+        endif
+
+        gp = gl_def%params
 
         select case (coords)
-        case ('car')
-          xx = x1
-          yy = x2
-          zz = x3
-        case ('scl')
-cc          !Find monotonic atanh profile with given slope (gp(2,4,6)
-cc          !  for X, Y, Z) at given position (gp(1,3,5) for X, Y, Z).
-cc          if (aax == 0d0) aax = find_a(xmin,xmax,gp(2),gp(1))
-cc          if (aay == 0d0) aay = find_a(ymin,ymax,gp(4),gp(3))
-cc          if (aaz == 0d0) aaz = find_a(zmin,zmax,gp(6),gp(5))
-cc
-cc          xx = scl_coord(x1,aax,xmin,xmax,gp(2),gp(1))
-cc          yy = scl_coord(x2,aay,ymin,ymax,gp(4),gp(3))
-cc          zz = scl_coord(x3,aaz,zmin,zmax,gp(6),gp(5))
-
-          !Find monotonic cubic polynomial with given slope (gp(2,4,6)
-          !  for X, Y, Z) at given position (gp(1,3,5) for X, Y, Z).
-          if (bbx == 0d0) bbx=find_eta(xmin,xmax,gp(1),gp(2))
-          if (bby == 0d0) bby=find_eta(ymin,ymax,gp(3),gp(4))
-          if (bbz == 0d0) bbz=find_eta(zmin,zmax,gp(5),gp(6))
-
-          xx = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
-          yy = scl_coord(x2,bby,ymin,ymax,gp(3),gp(4))
-          zz = scl_coord(x3,bbz,zmin,zmax,gp(5),gp(6))
+        case ('car','lpk')
+          car = xlog
         case ('cyl')
-          xx = x1*cos(x2)
-          yy = x1*sin(x2)
-          zz = x3
+          car(1) = xlog(1)*cos(xlog(2))
+          car(2) = xlog(1)*sin(xlog(2))
+          car(3) = xlog(3)
         case ('hel')
           mm = gp(1)
           kk = gp(2)
           aa = kk/mm
-          phi = (x2-aa*x3)
 
-          xx = x1*cos(phi)
-          yy = x1*sin(phi)
-          zz = x3
+          phi = xlog(2)-aa*xlog(3)
+          car(1) = xlog(1)*cos(phi)
+          car(2) = xlog(1)*sin(phi)
+          car(3) = xlog(3)
         case ('hl2')
           mm = gp(1)
           kk = gp(2)
           aa = kk/mm
-          phi = (x2-aa*x3)
 
-          xx = sign(sqrt(2*abs(x1)),x1)*cos(phi)
-          yy = sign(sqrt(2*abs(x1)),x1)*sin(phi)
-          zz = x3
+          phi = xlog(2)-aa*xlog(3)
+          car(1) = sign(sqrt(2*abs(xlog(1))),xlog(1))*cos(phi)
+          car(2) = sign(sqrt(2*abs(xlog(1))),xlog(1))*sin(phi)
+          car(3) = xlog(3)
         case ('tor')
           major_r = gp(1)  !Major radius
           aa      = gp(2)  !Horizontal minor radius
           bb      = gp(3)  !Vertical   minor radius
 
-          xx = (major_r + aa*x1*cos(x2))*cos(-x3)
-          yy = (major_r + aa*x1*cos(x2))*sin(-x3)
-          zz = bb*x1*sin(x2)
+          car(1) = (major_r + aa*xlog(1)*cos(xlog(2)))*cos(-xlog(3))
+          car(2) = (major_r + aa*xlog(1)*cos(xlog(2)))*sin(-xlog(3))
+          car(3) = bb*xlog(1)*sin(xlog(2))
         case ('sin')
           pi = acos(-1d0)
           eps = gp(1)
 
-          xx = x1 + eps*sin(2*pi*x1/xmax)*sin(2*pi*x2/ymax)
-          yy = x2 + eps*sin(2*pi*x1/xmax)*sin(2*pi*x2/ymax)
-          zz = x3
+          car(1) = xlog(1) + eps*sin(2*pi*xlog(1)/xmax)
+     .                          *sin(2*pi*xlog(2)/ymax)
+          car(2) = xlog(2) + eps*sin(2*pi*xlog(1)/xmax)
+     .                          *sin(2*pi*xlog(2)/ymax)
+          car(3) = xlog(3)
         case default
           write (*,*) 'Grid not implemented in x_xi'
           write (*,*) 'Aborting...'
           stop
         end select
 
-        car = (/ xx,yy,zz /)
-
-      contains
-
-ccc     scl_coord
-ccc     #################################################################
-cc      function scl_coord(xi,aa,xmin,xmax,x0,lambda) result(x)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Packs coordinate according to x0 (location) and lambda (slope).
-ccc     Note:
-ccc       * lambda <= 1d0; dx0 ~ dxi*dlambda
-ccc       * lambda = 0 --> No packing
-ccc     -----------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Global variables
-cc
-cc        real(8) :: aa,xmin,xmax,x0,lambda,xi,x
-cc
-ccc     Local variables
-cc
-cc        real(8) :: bb,xi0
-cc
-ccc     Begin program
-cc
-cc        if (lambda == 0d0) then
-cc          x = xi
-cc        else
-cc          bb = aa/lambda
-cc          xi0 = xmax - bb*tanh((xmax-x0)/aa)
-cc
-cc          if (xi > xmax) then
-cc            x = 2*xmax -(x0 + aa*atanh((2*xmax-xi-xi0)/bb))
-cc          elseif (xi < xmin) then
-cc            x = 2*xmin -(x0 + aa*atanh((2*xmin-xi-xi0)/bb))
-cc          else
-cc            x = x0 + aa*atanh((xi-xi0)/bb)
-cc          endif
-cccc          write (*,*) xi,x,aa,bb,(xi-xi0)/bb
-cc        endif
-cc
-ccc     End program
-cc
-cc      end function scl_coord
-cc
-ccc     find_a
-ccc     #################################################################
-cc      function find_a(xmin,xmax,x0,cc) result(aa)
-cc
-cc        implicit none
-cc
-ccc     Global variables
-cc
-cc        real(8) :: xmin,xmax,x0,cc,aa
-cc
-ccc     Local variables
-cc
-cc        integer,parameter :: nit=20
-cc
-cc        integer :: i
-cc        real(8) :: ijac,dxi(nit),res(nit)
-cc        real(8) :: ll,l0m,l0p,dd,ee,ff,bb
-cc
-ccc     Begin program
-cc
-cc        if (cc == 0d0) return
-cc
-cc        ll  = xmax-xmin
-cc        l0m = x0  -xmin
-cc        l0p = xmax - x0
-cc
-cc        dd = cc*ll
-cc
-cc        if (cc > 1d0) then
-cccc          call pstop('find_a in grid_mod.F',
-cccc     .               'Slope has to <= 1')
-cc          write (*,*) 'find_a in grid_anal_map_mod.F: Slope has to <= 1'
-cc          write (*,*) 'Aborting...'
-cc          stop
-cc        endif
-cc
-ccc     Initial guess
-cc
-cc        aa = 0.5*ll
-cc
-ccc     Newton iteration
-cc
-cc        do i=1,nit
-cc          ff = dd/aa
-cc
-cc          res(i) = dd - aa*(tanh(l0m/aa) + tanh(l0p/aa))
-cc          ijac = 1./(-tanh(l0m/aa)-tanh(l0p/aa)
-cc     .              +l0m/aa/cosh(l0m/aa)**2
-cc     .              +l0p/aa/cosh(l0p/aa)**2)
-cc
-cc          dxi(i) = -res(i)*ijac
-cc          aa = abs(aa + dxi(i))  !Want to find positive root
-cc
-cccc          write (*,*) abs(res(i)),dxi(i),ijac,aa
-cc
-cc          if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
-cc        enddo
-cc
-ccc     Convergence check
-cc
-cc        if (i >= nit) then
-cc          write (*,*)
-cc          write (*,*) 'Newton it. in grid-packing routine find_a'
-cc     .               ,' did not converge'
-cc          write (*,*)
-cc          write (*,*) 'Convergence history:'
-cc          do i=1,nit
-cc            write (*,*) 'Newton it.',i,' residual',abs(res(i))
-cc     .                 ,'update',abs(dxi(i))
-cc          enddo
-cc          write (*,*)
-cc          write (*,*) 'Aborting...'
-cc          stop
-cc        endif
-cc
-cc      end function find_a
-
-c     scl_coord
-c     #################################################################
-      function scl_coord(xi,eta,xmin,xmax,x0,lambda) result(x)
-
-c     -----------------------------------------------------------------
-c     Packs coordinate according to x0 (location) and lambda (slope).
-c     Note:
-c       * lambda <> 1d0 --> dx0 ~ dxi*dlambda
-c       * lambda == 0d0 --> No packing
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Global variables
-
-        real(8),INTENT(IN) :: eta,xmin,xmax,x0,lambda,xi
-        real(8) :: x
-
-c     Local variables
-
-        real(8) :: xi0,xibar,LL,bb,dx
-
-        integer,parameter :: nit=100
-
-        integer :: i
-        real(8) :: ijac,dxi(nit),res(nit)
-
-c     Begin program
-
-        if (eta == 0d0) then
-
-          x = xi
-
-        else
-
-          LL = xmax-xmin
-          bb = eta/LL**2
-
-          if (lambda < 1d0) then   !Pack at x0
-            xibar = 0.5*(xmax+xmin)
-
-            xi0 = xibar + sign(1d0,x0-xibar)
-     .                   *LL*sqrt(4d0*(1d0-lambda)-eta)/sqrt(12.*eta)
-
-            !To ensure periodicity of map
-cc            if (xi > xmax) then
-cc              dx = xi - xmax
-cc              x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
-cc              x = 2*xmax - x
-cc            elseif (xi < xmin) then
-cc              dx = xmin - xi
-cc              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
-cc              x = 2*xmin - x
-cc            else
-              x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
-cc            endif
-
-cc            write (*,*) xi0,eta,LL,xmin,xmax,lambda,xi,x
-          else                    !Pack at edges
-
-            xi0 = xmin - (xmin-x0)/lambda - bb*(xmin-x0)**exp
-
-            !To ensure periodicity of map
-cc            if (xi > xmax) then
-cc              dx = xi - xmax
-cc            elseif (xi < xmin) then
-cc              dx = xi - xmin
-cc            else
-cc              dx = 0d0
-cc            endif
-
-            !Initial guess
-            x = xi! - 2*dx
-
-            !Newton iteration to find x(xi)
-            do i=1,nit
-              res(i) = xi-2*dx-(xi0 + (x-x0)/lambda + bb*(x-x0)**exp)
-
-              ijac = -1d0/lambda -exp*bb*(x-x0)**(exp-1)
-
-              dxi(i) = -res(i)/ijac
-              x = x + dxi(i)
-
-cc              write (*,*) abs(res(i)),dxi(i),x
-
-              if (abs(res(i)) < 1d-8 .or. (abs(dxi(i)) < 1d-14) ) exit
-            enddo
-
-            !Convergence check
-            if (i > nit) then
-              write (*,*)
-              write (*,*)'Newton it. in grid-packing routine',
-     .                   ' scl_coord did not converge'
-              write (*,*)
-              write (*,*) 'Convergence history:'
-              do i=1,nit
-                write (*,*) 'Newton it.',i,' residual',abs(res(i))
-     .                     ,'update',abs(dxi(i))
-              enddo
-              write (*,*)
-              write (*,*) 'Aborting...'
-              stop
-            endif
-
-cc            !To ensure periodicity of map
-cc            if (xi > xmax) then
-cc              x = 2*xmax - x
-cc            elseif (xi < xmin) then
-cc              x = 2*xmin - x
-cc            endif
-
-          endif
-
-        endif
-
-c     End program
-
-      end function scl_coord
-
-c     find_eta
-c     #################################################################
-      function find_eta(xmin,xmax,x0,lambda) result(eta)
-
-        implicit none
-
-c     Global variables
-
-        real(8) :: xmin,xmax,x0,lambda,eta
-
-c     Local variables
-
-        integer,parameter :: nit=20
-
-        integer :: i
-        real(8) :: ijac,dxi(nit),res(nit)
-        real(8) :: ll,dd,xbar,dx
-
-c     Begin program
-
-        if (lambda == 0d0 .or. lambda == 1d0) then
-          eta = 0d0
-          return
-        endif
-
-        LL  = xmax-xmin
-
-        if (lambda > 1d0) then  !Pack at edges
-
-cc          eta = LL**3*(1d0-1d0/lambda)/((xmax-x0)**3-(xmin-x0)**3)
-          eta = LL**exp*(1d0-1d0/lambda)/((xmax-x0)**exp-(xmin-x0)**exp)
-
-        else                    !Pack at x0
-
-          xbar= 0.5*(xmax+xmin)
-          dx  = xbar - x0
-          dd  = (dx/LL)**2
-
-c         Initial guess
-
-          eta = 4d0*(1d0-lambda)
-
-c         Newton iteration
-
-          if (dx == 0d0) return
-
-          do i=1,nit
-            res(i)=(1+2*(eta+lambda))**2*(1-lambda-0.25*eta) -27.*dd*eta
-            ijac = 4*(1+2*(eta+lambda)) *(1-lambda-0.25*eta)
-     .         -0.25*(1+2*(eta+lambda))**2                   -27.*dd
-
-            dxi(i) = -res(i)/ijac
-            eta = abs(eta + dxi(i)) !Want to find positive root
-
-cc            write (*,*) abs(res(i)),dxi(i),ijac,eta
-
-            if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
-          enddo
-
-c         Convergence check
-
-          if (i >= nit) then
-            write (*,*)
-            write (*,*) 'Newton it. in grid-packing routine find_a'
-     .                 ,' did not converge'
-            write (*,*)
-            write (*,*) 'Convergence history:'
-            do i=1,nit
-              write (*,*) 'Newton it.',i,' residual',abs(res(i))
-     .                   ,'update',abs(dxi(i))
-            enddo
-            write (*,*)
-            write (*,*) 'Aborting...'
-            stop
-          endif
-
-        endif
-
-      end function find_eta
-
       end function x_xi
 
 c     jacobian
 c     #################################################################
-      function jacobian(i,j,k,igx,igy,igz,vertex) result(jac)
+      function jacobian(i,j,k,igx,igy,igz,vertex,g_def) result(jac)
 
 c     -----------------------------------------------------------------
 c     Calculates Jacobian of curvilinear coordinate system
@@ -521,12 +195,16 @@ c     Input variables
         real(8) :: jac
         logical,optional :: vertex
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
         integer :: ig,jg,kg
         real(8) :: x1,x2,x3,car(3),curv(3),aa,bb,major_r,mm,kk,eps
      .            ,gp(ngparams),x1p,x2p,x3p
         logical :: vrtx
+
+        type(grid_mg_def),pointer :: gl_def
 
 c     Begin program
 
@@ -536,39 +214,29 @@ c     Begin program
           vrtx = .false.
         endif
 
-        gp = grid_params%params
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        gp = gl_def%params
 
         call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,x2,x3)
+     .                                ,x1,x2,x3,g_def=g_def)
 
         if (vrtx) then
           call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
-     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+     .                                  ,ig,jg,kg,x1p,x2p,x3p
+     .                                  ,g_def=g_def)
           x1 = 0.5*(x1+x1p)
           x2 = 0.5*(x2+x2p)
           x3 = 0.5*(x3+x3p)
         endif
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           jac = 1d0
-        case ('scl')
-          jac = 0d0
-cc          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-cc     .                                  ,x1,x2,x3)
-cc
-cc          curv = (/ x1,x2,x3 /)
-cc
-cc          lambda = gp(1)
-cc
-cc          if (lambda /= 0d0) then
-cc            cc = 0.5/lambda
-cc            cc = 1./tanh(cc)
-cc          else
-cc            cc = 1d0
-cc          endif
-cc          ypp = (2*curv(2)/ymax-1.)
-cc          jac = cc*lambda/(cc**2-ypp**2)
         case ('cyl')
           jac = x1
         case ('hel')
@@ -599,7 +267,7 @@ cc          jac = cc*lambda/(cc**2-ypp**2)
 
 c     covariantVector
 c     #################################################################
-      function covariantVector(comp,i,j,k,igx,igy,igz,vertex)
+      function covariantVector(comp,i,j,k,igx,igy,igz,vertex,g_def)
      .         result(vec)
 
 c     -----------------------------------------------------------------
@@ -614,6 +282,8 @@ c     Input variables
         integer :: comp,i,j,k,igx,igy,igz
         logical,optional :: vertex
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
         integer :: ig,jg,kg
@@ -622,7 +292,15 @@ c     Local variables
         real(8) :: car(3),curv(3),vec(3),gp(ngparams)
         logical :: vrtx
 
+        type(grid_mg_def),pointer :: gl_def
+
 c     Begin program
+
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
 
         if (PRESENT(vertex)) then
           vrtx = vertex
@@ -630,21 +308,22 @@ c     Begin program
           vrtx = .false.
         endif
 
-        gp = grid_params%params
+        gp = gl_def%params
 
         call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,x2,x3)
+     .                                ,x1,x2,x3,g_def=g_def)
 
         if (vrtx) then
           call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
-     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+     .                                  ,ig,jg,kg,x1p,x2p,x3p
+     .                                  ,g_def=g_def)
           x1 = 0.5*(x1+x1p)
           x2 = 0.5*(x2+x2p)
           x3 = 0.5*(x3+x3p)
         endif
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           select case (comp)
             case (1)
               vec = (/ 1d0,0d0,0d0 /)
@@ -653,25 +332,6 @@ c     Begin program
             case (3)
               vec = (/ 0d0,0d0,1d0 /)
           end select
-        case ('scl')
-          vec = 0d0
-cc          lambda = gp(1)
-cc
-cc          curv = (/ x1,x2,x3 /)
-cc
-cc          cc = 0.5/lambda
-cc          cc = 1./tanh(cc)
-cc          ypp = (2*curv(2)/ymax-1.)
-cc          jac = cc*lambda/(cc**2-ypp**2)
-cc          jac = 1./jac
-cc          select case (comp)
-cc            case (1)
-cc              vec = (/ 1d0,0d0,0d0 /)
-cc            case (2)
-cc              vec = (/ 0d0,jac,0d0 /)
-cc            case (3)
-cc              vec = (/ 0d0,0d0,1d0 /)
-cc          end select
         case ('cyl')
           if (x1 == 0d0) then
             vec = 0d0
@@ -798,7 +458,7 @@ cc          end select
 
 c     contravariantVector
 c     #################################################################
-      function contravariantVector(comp,i,j,k,igx,igy,igz,vertex)
+      function contravariantVector(comp,i,j,k,igx,igy,igz,vertex,g_def)
      .         result (vec)
 
 c     -----------------------------------------------------------------
@@ -814,6 +474,8 @@ c     Input variables
         real(8) :: vec(3)
         logical,optional :: vertex
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
         integer :: ig,jg,kg
@@ -821,6 +483,8 @@ c     Local variables
         real(8) :: x1,x2,x3,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
      .            ,x1p,x2p,x3p
         logical :: vrtx
+
+        type(grid_mg_def),pointer :: gl_def
 
 c     Begin program
 
@@ -830,21 +494,28 @@ c     Begin program
           vrtx = .false.
         endif
 
-        gp = grid_params%params
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        gp = gl_def%params
 
         call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,x2,x3)
+     .                                ,x1,x2,x3,g_def=g_def)
 
         if (vrtx) then
           call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
-     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+     .                                  ,ig,jg,kg,x1p,x2p,x3p
+     .                                  ,g_def=g_def)
           x1 = 0.5*(x1+x1p)
           x2 = 0.5*(x2+x2p)
           x3 = 0.5*(x3+x3p)
         endif
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           select case (comp)
             case (1)
               vec = (/ 1d0,0d0,0d0 /)
@@ -853,24 +524,6 @@ c     Begin program
             case (3)
               vec = (/ 0d0,0d0,1d0 /)
           end select
-       case ('scl')
-         vec = 0d0
-cc          curv = (/ x1,x2,x3 /)
-cc
-cc          lambda = gp(1)
-cc          cc = 0.5/lambda
-cc          cc = 1./tanh(cc)
-cc          ypp = (2*curv(2)/ymax-1.)
-cc          jac = cc*lambda/(cc**2-ypp**2)
-cc          jac = 1./jac
-cc          select case (comp)
-cc            case (1)
-cc              vec = (/ jac,0d0,0d0 /)
-cc            case (2)
-cc              vec = (/ 0d0,1d0,0d0 /)
-cc            case (3)
-cc              vec = (/ 0d0,0d0,jac /)
-cc          end select
         case ('cyl')
           if (x1 == 0d0) then
             vec = 0d0
@@ -1002,7 +655,7 @@ cc          end select
 
 c     hessian22
 c     #################################################################
-      function hessian22(l,i,j,k,igx,igy,igz) result (tensor)
+      function hessian22(l,i,j,k,igx,igy,igz,g_def) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates hessian elements of curvilinear coordinate system in
@@ -1016,6 +669,8 @@ c     Input variables
 
         integer    :: l,i,j,k,igx,igy,igz
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
         integer    :: ig,jg,kg
@@ -1023,62 +678,24 @@ c     Local variables
         real(8)    :: x1,x2,x3,tensor(3,3),aa,bb,major_r,mm,kk,eps,phi
      .               ,gp(ngparams)
 
+        type(grid_mg_def),pointer :: gl_def
+
 c     Begin program
 
-        gp = grid_params%params
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        gp = gl_def%params
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           vec = (/ 0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0 /)
-        case ('scl')
-          vec = 0d0
-cc          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-cc     .                                  ,x1,x2,x3)
-cc          curv = (/ x1,x2,x3 /)
-cc
-cc          lambda = gp(1)
-cc          cc = 0.5/lambda
-cc          cc = 1./tanh(cc)
-cc          ypp = (2*curv(2)/ymax-1.)
-cc
-cc          select case (l)
-cc            case (1)
-cc              vec(1) = 0d0
-cc              vec(2) = 0d0
-cc              vec(3) = 0d0
-cc              vec(4) = vec(2)
-cc              vec(5) = 0d0
-cc              vec(6) = 0d0
-cc              vec(7) = vec(3)
-cc              vec(8) = vec(6)
-cc              vec(9) = 0d0
-cc            case (2)
-cc              vec(1) = 0d0
-cc              vec(2) = 0d0
-cc              vec(3) = 0d0
-cc              vec(4) = vec(2)
-cc              vec(5) = 2.*ypp/(ypp**2-cc**2)
-cc              vec(6) = 0d0
-cc              vec(7) = vec(3)
-cc              vec(8) = vec(6)
-cc              vec(9) = 0d0
-cc            case (3)
-cc              vec(1) = 0d0
-cc              vec(2) = 0d0
-cc              vec(3) = 0d0
-cc              vec(4) = vec(2)
-cc              vec(5) = 0d0
-cc              vec(6) = 0d0
-cc              vec(7) = vec(3)
-cc              vec(8) = vec(6)
-cc              vec(9) = 0d0
-cc          end select
-cc
-cc          vec = -vec
-
         case ('cyl')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
+     .                                  ,x1,x2,x3,g_def=g_def)
           curv = (/ x1,x2,x3 /)
 
           select case (l)
@@ -1118,7 +735,7 @@ cc          vec = -vec
 
         case ('hel')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
+     .                                  ,x1,x2,x3,g_def=g_def)
           curv = (/ x1,x2,x3 /)
 
           mm = gp(1)
@@ -1162,7 +779,7 @@ cc          vec = -vec
 
         case ('hl2')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
+     .                                  ,x1,x2,x3,g_def=g_def)
           curv = (/ abs(2*x1),x2,x3 /)
 
           mm = gp(1)
@@ -1204,7 +821,7 @@ cc          vec = -vec
 
         case ('tor')
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
+     .                                  ,x1,x2,x3,g_def=g_def)
           curv = (/ x1,x2,x3 /)
 
           major_r = gp(1)
@@ -1251,7 +868,7 @@ cc          vec = -vec
           pi = acos(-1d0)
 
           call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3)
+     .                                  ,x1,x2,x3,g_def=g_def)
           curv = (/ x1,x2,x3 /)
 
           eps = gp(1)
@@ -1331,7 +948,7 @@ cc          vec = -vec
 
 c     christ_2knd
 c     #################################################################
-      function christ_2knd(i,j,k,igx,igy,igz) result (tensor)
+      function christ_2knd(i,j,k,igx,igy,igz,g_def) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates elements of Christoffel symbol of the second kind,
@@ -1346,13 +963,15 @@ c     Input variables
         integer    :: l,i,j,k,igx,igy,igz
         real(8)    :: tensor(3,3,3)
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
 c     Begin program
 
-        tensor(1,:,:) = hessian22(1,i,j,k,igx,igy,igz)
-        tensor(2,:,:) = hessian22(2,i,j,k,igx,igy,igz)
-        tensor(3,:,:) = hessian22(3,i,j,k,igx,igy,igz)
+        tensor(1,:,:) = hessian22(1,i,j,k,igx,igy,igz,g_def=g_def)
+        tensor(2,:,:) = hessian22(2,i,j,k,igx,igy,igz,g_def=g_def)
+        tensor(3,:,:) = hessian22(3,i,j,k,igx,igy,igz,g_def=g_def)
 
 c     End program
 
@@ -1360,7 +979,7 @@ c     End program
 
 c     hessian_cnv
 c     #################################################################
-      function hessian_cnv(k,x1,x2,x3) result (tensor)
+      function hessian_cnv(k,x1,x2,x3,g_def) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates elements of tensor grad(cnv) in a mixed coordinate 
@@ -1375,55 +994,27 @@ c     Input variables
         integer    :: k
         real(8)    :: x1,x2,x3,tensor(3,3)
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
         real(8)    :: vec(9),car(3),aa,bb,major_r,mm,kk,eps,gp(ngparams)
 
+        type(grid_mg_def),pointer :: gl_def
+
 c     Begin program
 
-        gp = grid_params%params
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        gp = gl_def%params
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           vec = (/ 0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0 /)
-        case ('scl')
-          vec = 0d0
-cc          lambda = gp(1)
-cc          cc = 0.5/lambda
-cc          cc = 1./tanh(cc)
-cc          ypp = (2*x2/ymax-1.)
-cc          select case (k)
-cc            case (1)
-cc              vec(1) = 0d0
-cc              vec(2) = 0d0
-cc              vec(3) = 0d0
-cc              vec(4) = 2.*ypp/(ypp**2-cc**2)
-cc              vec(5) = 0d0
-cc              vec(6) = 0d0
-cc              vec(7) = 0d0
-cc              vec(8) = 0d0
-cc              vec(9) = 0d0
-cc            case (2)
-cc              vec(1) = 0d0
-cc              vec(2) = 0d0
-cc              vec(3) = 0d0
-cc              vec(4) = 0d0
-cc              vec(5) = 0d0
-cc              vec(6) = 0d0
-cc              vec(7) = 0d0
-cc              vec(8) = 0d0
-cc              vec(9) = 0d0
-cc            case (3)
-cc              vec(1) = 0d0
-cc              vec(2) = 0d0
-cc              vec(3) = 0d0
-cc              vec(4) = 0d0
-cc              vec(5) = 0d0
-cc              vec(6) = 2.*ypp/(ypp**2-cc**2)
-cc              vec(7) = 0d0
-cc              vec(8) = 0d0
-cc              vec(9) = 0d0
-cc          end select
         case ('cyl')
           select case (k)
             case (1)
@@ -1541,7 +1132,7 @@ cc          end select
 
 c     g_sub
 c     #################################################################
-      function g_sub(i,j,k,igx,igy,igz,vertex) result (tensor)
+      function g_sub(i,j,k,igx,igy,igz,vertex,g_def) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates contravariant metric tensor of curvilinear coordinate 
@@ -1556,6 +1147,8 @@ c     Input variables
         real(8) :: tensor(3,3)
         logical,optional :: vertex
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
         integer :: ig,jg,kg
@@ -1563,6 +1156,8 @@ c     Local variables
         real(8) :: x1,x2,x3,aa,bb,major_r,mm,kk,eps,gp(ngparams)
      .            ,x1p,x2p,x3p,i_x1
         logical :: vrtx
+
+        type(grid_mg_def),pointer :: gl_def
 
 c     Begin program
 
@@ -1572,36 +1167,31 @@ c     Begin program
           vrtx = .false.
         endif
 
-        gp = grid_params%params
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        gp = gl_def%params
 
         call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,x2,x3)
+     .                                ,x1,x2,x3,g_def=g_def)
 
         if (vrtx) then
           call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
-     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+     .                                  ,ig,jg,kg,x1p,x2p,x3p
+     .                                  ,g_def=g_def)
           x1 = 0.5*(x1+x1p)
           x2 = 0.5*(x2+x2p)
           x3 = 0.5*(x3+x3p)
         endif
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           vec = (/ 1d0, 0d0, 0d0
      .            ,0d0, 1d0, 0d0
      .            ,0d0, 0d0, 1d0 /)
-        case ('scl')
-          vec = 0d0
-cccc          curv = (/ x1,x2,x3 /)
-cc
-cc          lambda = gp(1)
-cc          cc = 0.5/lambda
-cc          cc = 1./tanh(cc)
-cc          ypp = (2*curv(2)/ymax-1.)
-cc          jac = cc*lambda/(cc**2-ypp**2)
-cc          vec = (/ 1d0/jac, 0d0, 0d0
-cc     .            ,0d0    , jac, 0d0
-cc     .            ,0d0    , 0d0, 1d0/jac /)
         case ('cyl')
           if (x1 == 0d0) then
             vec = 0d0
@@ -1722,7 +1312,7 @@ cc     .            ,0d0    , 0d0, 1d0/jac /)
 
 c     g_sup
 c     #################################################################
-      function g_sup(i,j,k,igx,igy,igz,vertex) result (tensor)
+      function g_sup(i,j,k,igx,igy,igz,vertex,g_def) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates covariant metric tensor of curvilinear coordinate 
@@ -1737,6 +1327,8 @@ c     Input variables
         real(8) :: tensor(3,3)
         logical,optional :: vertex
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
         integer :: ig,jg,kg
@@ -1744,6 +1336,8 @@ c     Local variables
         real(8) :: x1,x2,x3,aa,bb,major_r,mm,kk,eps,gp(ngparams)
      .            ,x1p,x2p,x3p
         logical :: vrtx
+
+        type(grid_mg_def),pointer :: gl_def
 
 c     Begin program
 
@@ -1753,36 +1347,31 @@ c     Begin program
           vrtx = .false.
         endif
 
-        gp = grid_params%params
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        gp = gl_def%params
 
         call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,x2,x3)
+     .                                ,x1,x2,x3,g_def=g_def)
 
         if (vrtx) then
           call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
-     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+     .                                  ,ig,jg,kg,x1p,x2p,x3p
+     .                                  ,g_def=g_def)
           x1 = 0.5*(x1+x1p)
           x2 = 0.5*(x2+x2p)
           x3 = 0.5*(x3+x3p)
         endif
 
         select case (coords)
-        case ('car')
+        case ('car','lpk')
           vec = (/ 1d0, 0d0, 0d0
      .            ,0d0, 1d0, 0d0
      .            ,0d0, 0d0, 1d0 /)
-        case ('scl')
-          vec = 0d0
-cc          curv = (/ x1,x2,x3 /)
-cc
-cc          lambda = gp(1)
-cc          cc = 0.5/lambda
-cc          cc = 1./tanh(cc)
-cc          ypp = (2*curv(2)/ymax-1.)
-cc          jac = cc*lambda/(cc**2-ypp**2)
-cc          vec = (/ jac, 0d0    , 0d0
-cc     .            ,0d0, 1d0/jac, 0d0
-cc     .            ,0d0, 0d0    , jac /)
         case ('cyl')
           if (x1 == 0d0) then
             vec = 0d0

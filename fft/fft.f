@@ -161,19 +161,8 @@ c Smooth initial data (Hanning)
 
 c Check for power of 2 in signal
 
-cc      if (   ceiling(log(1d0*nx)/log(2d0)) 
-cc     .    /= int    (log(1d0*nx)/log(2d0))) then
-
-cc        nv = 2**ceiling(log(1d0*nx)/log(2d0))
-
-cc        inter = 1
-cc      else
-cc        nv = nx
-cc      endif
-
-cc      if (   ceiling(log(1d0*nv)/log(2d0)) 
-cc     .    /= int    (log(1d0*nv)/log(2d0))) then
-      if (2**ceiling(log(1d0*nv)/log(2d0)) /= nv) then
+cc      if (2**ceiling(log(1d0*nv)/log(2d0)) /= nv) then
+      if (iand(nv,nv-1).ne.0) then
         write (*,*) 'FFT vectors sizes are not a power of 2.'
         write (*,*) 'Aborting...'
         stop

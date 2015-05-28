@@ -37,7 +37,7 @@ c       variables for parallel HDF5
         integer(hid_t) :: hs_dataspace_id
         integer(hid_t) :: p_dataspace_id,p_node_dataspace_id
 
-        integer        :: hdferr,igrp
+        integer        :: hdferr
 
 c       generic HDF5 variables
         integer   , parameter :: ARRAY_RANK = 3
@@ -251,7 +251,7 @@ cc      integer            :: step
 
 c     Local variables
 
-      integer :: ieq
+      integer :: ieq,igrp
       integer(hsize_t) :: attr_dim(1)
       character(strlength) :: attr_name
 
@@ -633,6 +633,8 @@ c     Dumps simulation data to HDF5 file
 c     ---------------------------------------------------------------------
 
       implicit none
+
+      integer :: igrp
 
       if (.not.moving_mesh) then
         call h5gopen_f(file_id,timestep,group_id,hdferr)

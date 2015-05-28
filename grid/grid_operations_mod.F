@@ -45,6 +45,10 @@ c ---------------------------------------------------------------------
           module procedure XformVector_mesh!,XformVector_mesh2
         end INTERFACE
 
+        INTERFACE XformVector_stg
+          module procedure XformVector_stg_mesh
+        end INTERFACE
+
 cc        private :: transformVectorToCartesian
 cc     .            ,transformVectorToCurvilinear
 cc     .            ,transformFromCurvToCurv
@@ -53,7 +57,7 @@ cc     .            ,transformFromCurvToCurv
 
 c     getMGmap
 c     #################################################################
-      subroutine getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+      subroutine getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def)
 
 c     -----------------------------------------------------------------
 c     Gets MG vector components (ig,jg,kg) for grid quantities
@@ -64,22 +68,32 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: i,j,k,igx,igy,igz,ig,jg,kg
+        integer :: i,j,k,igx,igy,igz,ig,jg,kg
+
+        type(grid_mg_def),optional,pointer :: g_def
 
 c     Local variables
 
+        type(grid_mg_def),pointer :: gl_def
+
 c     Begin program
 
-        ig = i + grid_params%istartx(igx)
-        jg = j + grid_params%istarty(igy)
-        kg = k + grid_params%istartz(igz)
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        ig = i + gl_def%istartx(igx)
+        jg = j + gl_def%istarty(igy)
+        kg = k + gl_def%istartz(igz)
 
       end subroutine getMGmap
 
 c     getCurvilinearCoordinates
 c     #################################################################
       subroutine getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                    ,x1,y1,z1)
+     .                                    ,x1,y1,z1,g_def)
 
 c     -----------------------------------------------------------------
 c     Finds curvilinear coordinates for position (i,j,k)
@@ -92,24 +106,34 @@ c     Input variables
         integer    :: i,j,k,igx,igy,igz,ig,jg,kg
         real(8)    :: x1,y1,z1
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
         integer    :: ii,jj,ny
 
+        type(grid_mg_def),pointer :: gl_def
+
 c     Begin program
 
-        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
 
-        x1 = grid_params%xx(ig)
-        y1 = grid_params%yy(jg)
-        z1 = grid_params%zz(kg)
+        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+
+        x1 = gl_def%xx(ig)
+        y1 = gl_def%yy(jg)
+        z1 = gl_def%zz(kg)
 
       end subroutine getCurvilinearCoordinates
 
 c     getCartesianCoordinates
 c     #################################################################
       subroutine getCartesianCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,y1,z1)
+     .                                  ,x1,y1,z1,g_def)
 
 c     -----------------------------------------------------------------
 c     Returns Cartesian coordinates.
@@ -122,16 +146,26 @@ c     Input variables
         integer    :: i,j,k,igx,igy,igz,ig,jg,kg
         real(8)    :: x1,y1,z1
 
+        type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
+
+        type(grid_mg_def),pointer :: gl_def
 
         real(8)    :: car(3)
 
 c     Begin program
 
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
         !Find coordinates
-        x1 = gmetric%grid(igx)%car(i,j,k,1)
-        y1 = gmetric%grid(igy)%car(i,j,k,2)
-        z1 = gmetric%grid(igz)%car(i,j,k,3)
+        x1 = gl_def%gmetric%grid(igx)%car(i,j,k,1)
+        y1 = gl_def%gmetric%grid(igy)%car(i,j,k,2)
+        z1 = gl_def%gmetric%grid(igz)%car(i,j,k,3)
 
       end subroutine getCartesianCoordinates
 
@@ -287,12 +321,12 @@ c     Begin program
 
 c     XformToCurv_ijk
 c     #################################################################
-      function XformToCurv_ijk(i,j,k,igrid,car,tocnv) result(curv)
+      function XformToCurv_ijk(i,j,k,igrid,car,tocnv,nojac) result(curv)
 
 c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
-c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
-c     covariant=.true., and contravariant otherwise.
+c     Transforms a Cartesian vector to curvilinear representation at
+c     grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     tocnv=.false., and contravariant otherwise.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -303,13 +337,26 @@ c     Input variables
         real(8) :: car(3),curv(3)
         logical :: tocnv
 
+        logical,optional :: nojac
+
 c     Local variables
 
         real(8) :: jac
+        logical :: nj
 
 c     Begin program
 
-        jac = gmetric%grid(igrid)%jac(i,j,k)
+        if (PRESENT(nojac)) then
+          nj = nojac
+        else
+          nj = .false.
+        endif
+
+        if (nj) then
+          jac = 1d0
+        else
+          jac = gmetric%grid(igrid)%jac(i,j,k)
+        endif
 
         if (.not.tocnv) then
           curv = jac*matmul(gmetric%grid(igrid)%cnv(i,j,k,:,:),car)
@@ -324,9 +371,9 @@ c     #################################################################
       function XformToCurv_mesh(igrid,car,tocnv) result(curv)
 
 c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector to Cartesian 
-c     over the whole mesh. Curvilinear vector is covariant if
-c     covariant=.true., and contravariant otherwise.
+c     Transforms a Cartesian vector to curvilinear
+c     over the whole mesh. Curvilinear vector is contravariant if
+c     tocnv=.true., and covariant otherwise.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -359,24 +406,47 @@ c     Begin program
           enddo
         enddo
 
-cc        curv = car
-cc        if (tocnv) then
-cc          call transformVector(igrid,igrid,igrid
-cc     .                      ,0,nxl+1,0,nyl+1,0,nzl+1
-cc     .                      ,curv(:,:,:,1)
-cc     .                      ,curv(:,:,:,2)
-cc     .                      ,curv(:,:,:,3)
-cc     .                      ,'car','cnv')
-cc        else
-cc          call transformVector(igrid,igrid,igrid
-cc     .                      ,0,nxl+1,0,nyl+1,0,nzl+1
-cc     .                      ,curv(:,:,:,1)
-cc     .                      ,curv(:,:,:,2)
-cc     .                      ,curv(:,:,:,3)
-cc     .                      ,'car','cov')
-cc        endif
-
       end function XformToCurv_mesh
+
+c     XformToCurv_mesh2
+c     #################################################################
+      subroutine XformToCurv_mesh2(igrid,vec,tocnv)
+
+c     -----------------------------------------------------------------
+c     Transforms a Cartesian vector vec to curvilinear
+c     over the whole mesh. Curvilinear vector is contravariant if
+c     tocnv=.true., and covariant otherwise. Result is returned in vec.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: vec(0:,0:,0:,:)
+        logical :: tocnv
+
+c     Local variables
+
+        integer :: nxl,nyl,nzl
+        real(8) :: dum(size(vec,4))
+
+c     Begin program
+
+        nxl = grid_params%nxv(igrid)
+        nyl = grid_params%nyv(igrid)
+        nzl = grid_params%nzv(igrid)
+
+        do k=0,nzl+1
+          do j=0,nyl+1
+            do i=0,nxl+1
+              dum = vec(i,j,k,:)
+              vec(i,j,k,:) = XformToCurv_ijk(i,j,k,igrid,dum,tocnv)
+            enddo
+          enddo
+        enddo
+
+      end subroutine XformToCurv_mesh2
 
 c     transformVectorToCurvilinear
 c     #################################################################
@@ -456,7 +526,7 @@ c     Begin program
 
 c     Special case of cartesian coords
 
-        if (coords == 'car') then
+        if (no_map) then
 
           if (tocnv) then
             cnv1 = cov1
@@ -594,7 +664,7 @@ c     representation of the input vector). Possible representations are:
 c     'car','cnv',and 'cov'.
 c     ----------------------------------------------------------------------
 
-      implicit none
+        implicit none
 
 c     Input variables
 
@@ -887,6 +957,455 @@ c     Begin program
 c     End program
 
       end subroutine XformVector_BC
+
+c     XformToCnv_stg_ijk
+c     #################################################################
+      function XformToCnv_stg_ijk(i,j,k,igrid,cov) result(cnv)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered covariant vector to contravariant
+c     representation at faces for cell (i,j,k).
+c
+c     CURRENTLY WORKS ONLY IN 2D
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: cov(0:,0:,0:,:)
+     .            ,cnv(3)
+
+c     Local variables
+
+        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsup11,gsup22
+        real(8),pointer,dimension(:,:,:,:,:) :: gsup_v
+
+c     Begin program
+
+        ip = min(i+1,size(cov,1)-1)
+        im = max(i-1,0)
+
+        jp = min(j+1,size(cov,2)-1)
+        jm = max(j-1,0)
+
+        kp = min(k+1,size(cov,3)-1)
+        km = max(k-1,0)
+
+        gsup_v => gmetric%grid(igrid)%gsup_v
+
+        gsup11 = 0.5*(gsup_v(i,jm,k,1,1)
+     .               +gsup_v(i,j ,k,1,1))
+
+        cnv(1) = gsup11*cov(i,j,k,1)
+     .                +0.25*(gsup_v(i,j ,k,1,2)*(cov(i ,j ,k,2)
+     .                                          +cov(ip,j ,k,2))
+     .                      +gsup_v(i,jm,k,1,2)*(cov(i ,jm,k,2)
+     .                                          +cov(ip,jm,k,2)))
+
+        gsup22 = 0.5*(gsup_v(im,j,k,2,2)
+     .               +gsup_v(i ,j,k,2,2))
+
+        cnv(2) = gsup22*cov(i,j,k,2)
+     .                +0.25*(gsup_v(i ,j,k,2,1)*(cov(i ,j ,k,1)
+     .                                          +cov(i ,jp,k,1))
+     .                      +gsup_v(im,j,k,2,1)*(cov(im,j ,k,1)
+     .                                          +cov(im,jp,k,1)))
+
+        cnv(3) = cov(i,j,k,3)
+
+      end function XformToCnv_stg_ijk
+
+c     XformToCov_stg_ijk
+c     #################################################################
+      function XformToCov_stg_ijk(i,j,k,igrid,cnv) result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered contravariant vector to a covariant
+c     representation at faces for cell (i,j,k).
+c
+c     CURRENTLY WORKS ONLY IN 2D
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: cnv(0:,0:,0:,:)
+     .            ,cov(3)
+
+c     Local variables
+
+        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsub11,gsub22
+        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
+
+c     Begin program
+
+        ip = min(i+1,size(cnv,1)-1)
+        im = max(i-1,0)
+
+        jp = min(j+1,size(cnv,2)-1)
+        jm = max(j-1,0)
+
+        kp = min(k+1,size(cnv,3)-1)
+        km = max(k-1,0)
+
+        gsub_v => gmetric%grid(igrid)%gsub_v
+
+        gsub11 = 0.5*(gsub_v(i,jm,k,1,1)
+     .               +gsub_v(i,j ,k,1,1))
+
+        cov(1) = gsub11*cnv(i,j,k,1)
+     .                +0.25*(gsub_v(i,j ,k,1,2)*(cnv(i ,j ,k,2)
+     .                                          +cnv(ip,j ,k,2))
+     .                      +gsub_v(i,jm,k,1,2)*(cnv(i ,jm,k,2)
+     .                                          +cnv(ip,jm,k,2)))
+
+        gsub22 = 0.5*(gsub_v(im,j,k,2,2)
+     .               +gsub_v(i ,j,k,2,2))
+
+        cov(2) = gsub22*cnv(i,j,k,2)
+     .                +0.25*(gsub_v(i ,j,k,2,1)*(cnv(i ,j ,k,1)
+     .                                          +cnv(i ,jp,k,1))
+     .                      +gsub_v(im,j,k,2,1)*(cnv(im,j ,k,1)
+     .                                          +cnv(im,jp,k,1)))
+
+        cov(3) = cnv(i,j,k,3)
+
+      end function XformToCov_stg_ijk
+
+c     Xform_From_VrtxCnv_To_CellCov_stg_ijk
+c     #################################################################
+      function Xform_From_VrtxCnv_To_CellCov_stg_ijk(i,j,k,igr,cnv_vrtx)
+     .         result(cov_cell)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered contravariant vector to a covariant
+c     representation at faces for cell (i,j,k).
+c
+c     CURRENTLY WORKS ONLY IN 2D
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igr
+        real(8) :: cnv_vrtx(0:,0:,0:,:)
+     .            ,cov_cell(3)
+
+c     Local variables
+
+        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsub12,gsub21
+        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
+
+c     Begin program
+
+        ip = min(i+1,size(cnv_vrtx,1)-1)
+        im = max(i-1,0)
+
+        jp = min(j+1,size(cnv_vrtx,2)-1)
+        jm = max(j-1,0)
+
+        kp = min(k+1,size(cnv_vrtx,3)-1)
+        km = max(k-1,0)
+
+        gsub_v => gmetric%grid(igr)%gsub_v
+
+        gsub12 = 0.5*(gsub_v(i,jm,k,1,2)
+     .               +gsub_v(i,j ,k,1,2))
+
+        cov_cell(1) = gsub12*cnv_vrtx(i,j,k,2)
+     .          +0.25*(gsub_v(i,j ,k,1,1)*(cnv_vrtx(i ,j ,k,1)
+     .                                    +cnv_vrtx(ip,j ,k,1))
+     .                +gsub_v(i,jm,k,1,1)*(cnv_vrtx(i ,jm,k,1)
+     .                                    +cnv_vrtx(ip,jm,k,1)))
+
+        gsub21 = 0.5*(gsub_v(im,j,k,2,1)
+     .               +gsub_v(i ,j,k,2,1))
+
+        cov_cell(2) = gsub21*cnv_vrtx(i,j,k,1)
+     .          +0.25*(gsub_v(i ,j,k,2,2)*(cnv_vrtx(i ,j ,k,2)
+     .                                    +cnv_vrtx(i ,jp,k,2))
+     .                +gsub_v(im,j,k,2,2)*(cnv_vrtx(im,j ,k,2)
+     .                                    +cnv_vrtx(im,jp,k,2)))
+
+        cov_cell(3) = 0.25*(cnv_vrtx(im,jm,k,3)
+     .                     +cnv_vrtx(im,j ,k,3)
+     .                     +cnv_vrtx(i ,j ,k,3)
+     .                     +cnv_vrtx(i ,jm,k,3))
+
+      end function Xform_From_VrtxCnv_To_CellCov_stg_ijk
+
+c     XformToCnv_stg_mesh
+c     #################################################################
+      function XformToCnv_stg_mesh(igrid,cov) result(cnv)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered covariant vector to a contravariant
+c     representation at faces everywhere on the mesh.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: igrid
+        real(8) :: cov(0:,0:,0:,:)
+     .            ,cnv(0:size(cov,1)-1
+     .                ,0:size(cov,2)-1
+     .                ,0:size(cov,3)-1,3)
+
+c     Local variables
+
+        integer :: i,j,k,nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsup11,gsup22
+        real(8),pointer,dimension(:,:,:,:,:) :: gsup_v
+
+c     Begin program
+
+        nx = grid_params%nxv(igrid)
+        ny = grid_params%nyv(igrid)
+        nz = grid_params%nzv(igrid)
+
+        cnv = 0d0
+
+        do k=0,nz
+          do j=0,ny
+            do i=0,nx
+              cnv(i,j,k,:) = XformToCnv_stg_ijk(i,j,k,igrid,cov)
+            enddo
+          enddo
+        enddo
+
+      end function XformToCnv_stg_mesh
+
+c     XformToCov_stg_mesh
+c     #################################################################
+      function XformToCov_stg_mesh(igrid,cnv,vertex) result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered contravariant vector (vertex-based if
+c     vertex=.true.) to a cell-based covariant staggered representation
+c     everywhere on the mesh.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: igrid
+        real(8),INTENT(IN) :: cnv(0:,0:,0:,:)
+        real(8) :: cov(0:size(cnv,1)-1
+     .                ,0:size(cnv,2)-1
+     .                ,0:size(cnv,3)-1,3)
+        logical, optional :: vertex
+
+c     Local variables
+
+        integer :: i,j,k,nx,ny,nz
+        logical :: vrtx
+
+c     Begin program
+
+        if (PRESENT(vertex)) then
+          vrtx = vertex
+        else
+          vrtx = .false.
+        endif
+
+        nx = size(cnv,1)-2
+        ny = size(cnv,2)-2
+        nz = size(cnv,3)-2
+
+        cov = 0d0
+
+        if (vrtx) then
+          do k=0,nz
+            do j=0,ny
+              do i=0,nx
+                cov(i,j,k,:) =
+     .            Xform_From_VrtxCnv_To_CellCov_stg_ijk(i,j,k,igrid,cnv)
+              enddo
+            enddo
+          enddo
+        else
+          do k=0,nz
+            do j=0,ny
+              do i=0,nx
+                cov(i,j,k,:) = XformToCov_stg_ijk(i,j,k,igrid,cnv)
+              enddo
+            enddo
+          enddo
+        endif
+
+      end function XformToCov_stg_mesh
+
+ccc     XformVector_stg_BC
+ccc     ###################################################################
+cc      subroutine XformVector_stg_BC(igrid,vec1,vec2,tocnv)
+cc
+cc      implicit none
+cc
+ccc     -------------------------------------------------------------------
+ccc     Routine to transfer ghost cell values form vec1 to vec2
+ccc     -------------------------------------------------------------------
+cc
+ccc     Input variables
+cc
+cc      integer :: igrid
+cc      real(8) :: vec1(0:,0:,0:,:)
+cc      real(8) :: vec2(0:,0:,0:,:)
+cc      logical :: tocnv
+cc
+ccc     Local variables
+cc
+cc      integer :: nxp,nyp,nzp,i,j,k
+cc
+ccc     Begin program
+cc
+cc      nxp = size(vec1,1)-1
+cc      nyp = size(vec1,2)-1
+cc      nzp = size(vec1,3)-1
+cc
+cc      if (tocnv) then
+cc
+cc        !X boundaries
+cc        do k= 0,nzp
+cc          do j= 0,nyp
+cc            vec2(0  ,j,k,:) = XformToCnv_stg_ijk(0  ,j,k,igrid,vec1)
+cc            vec2(nxp,j,k,:) = XformToCnv_stg_ijk(nxp,j,k,igrid,vec1)
+cc          enddo
+cc        enddo
+cc
+cc        !Y boundaries
+cc        do k= 0,nzp
+cc          do i=0,nxp
+cc            vec2(i,0  ,k,:) = XformToCnv_stg_ijk(i,0  ,k,igrid,vec1)
+cc            vec2(i,nyp,k,:) = XformToCnv_stg_ijk(i,nyp,k,igrid,vec1)
+cc          enddo
+cc        enddo
+cc
+cc        !Z boundaries
+cc        do j= 0,nyp
+cc          do i= 0,nxp
+cc            vec2(i,j,0  ,:) = XformToCnv_stg_ijk(i,j,0  ,igrid,vec1)
+cc            vec2(i,j,nzp,:) = XformToCnv_stg_ijk(i,j,nzp,igrid,vec1)
+cc          enddo
+cc        enddo
+cc
+cc      else
+cc        call pstop("XformVector_stg_BC","Option not implemented")
+cc      endif
+cc
+ccc     End program
+cc
+cc      end subroutine XformVector_stg_BC
+
+c     XformVector_stg_mesh
+c     #################################################################
+      function XformVector_stg_mesh(igrid,vec1,tocnv) result(vec2)
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector from covariant to contravariant 
+c     (tocnv=.true.) or viceversa at cell centers on all mesh.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Input variables
+
+      integer    :: igrid
+      real(8)    :: vec1(0:,0:,0:,:)
+      real(8)    :: vec2(0:size(vec1,1)-1
+     .                  ,0:size(vec1,2)-1
+     .                  ,0:size(vec1,3)-1
+     .                  ,size(vec1,4))
+
+      logical    :: tocnv
+
+c     Local variables
+
+c     Begin program
+
+      if (tocnv) then
+        vec1 = XformToCnv_stg_mesh(igrid,vec1)
+      else
+        vec1 = XformToCov_stg_mesh(igrid,vec1)
+      endif
+
+c     End program
+
+      end function XformVector_stg_mesh
+
+c     Xfer_stg_to_cell_mesh
+c     #################################################################
+      function Xfer_stg_to_cell_mesh(stg,vrtx) result(cell)
+
+c     -----------------------------------------------------------------
+c     Averages staggered vector to cell centers. The variable vrtx
+c     determines whether vector is cell-based (components orthogonal to
+c     cell-center volumes) or vertex-based (components orthogonal to
+c     vertex-centered volumes)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: igrid
+        real(8) :: stg(0:,0:,0:,:)
+     .            ,cell(0:size(stg,1)-1
+     .                 ,0:size(stg,2)-1
+     .                 ,0:size(stg,3)-1
+     .                 ,  size(stg,4)  )
+
+        logical,optional :: vrtx
+
+c     Local variables
+
+        integer :: i,j,k,nx,ny,nz,neq
+        logical :: vertex
+
+c     Begin program
+
+        if (PRESENT(vrtx)) then
+          vertex = vrtx
+        else
+          vertex = .false.
+        endif
+
+        nx = size(stg,1)-2
+        ny = size(stg,2)-2
+        nz = size(stg,3)-2
+        neq= size(stg,4)
+
+        cell = 0d0
+
+        if (.not.vertex) then
+          cell(1:nx,:,:,1) = 0.5*(stg(0:nx-1,:,:,1)+stg(1:nx,:,:,1))
+          cell(:,1:ny,:,2) = 0.5*(stg(:,0:ny-1,:,2)+stg(:,1:ny,:,2))
+          cell(:,:,1:nz,3) = 0.5*(stg(:,:,0:nz-1,3)+stg(:,:,1:nz,3))
+        else
+          cell(1:nx,1:ny,1:nz,1) = 0.25*(stg(1:nx,0:ny-1,0:nz-1,1)
+     .                                  +stg(1:nx,0:ny-1,1:nz  ,1)
+     .                                  +stg(1:nx,1:ny  ,1:nz  ,1)
+     .                                  +stg(1:nx,1:ny  ,0:nz-1,1))
+          cell(1:nx,1:ny,1:nz,2) = 0.25*(stg(0:nx-1,1:ny,0:nz-1,2)
+     .                                  +stg(0:nx-1,1:ny,1:nz  ,2)
+     .                                  +stg(1:nx  ,1:ny,1:nz  ,2)
+     .                                  +stg(1:nx  ,1:ny,0:nz-1,2))
+          cell(1:nx,1:ny,1:nz,3) = 0.25*(stg(0:nx-1,0:ny-1,1:nz,3)
+     .                                  +stg(0:nx-1,1:ny  ,1:nz,3)
+     .                                  +stg(1:nx  ,1:ny  ,1:nz,3)
+     .                                  +stg(1:nx  ,0:ny-1,1:nz,3))
+        endif
+
+      end function Xfer_stg_to_cell_mesh
 
 c     vectorNorm_ijk
 c     ################################################################

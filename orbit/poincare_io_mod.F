@@ -462,11 +462,6 @@ c     Setup files
 
 c     Read setup info
 
-        if (my_rank == 0) then
-          write (*,*)
-          write (*,*) '*****************************************'
-        endif
-
         do ifl=1,nfiles
 
           write (*,'(a,i4,3a)') ' Proc ',my_rank,' opening file '
@@ -478,14 +473,6 @@ c     Read setup info
           read (mupixie(ifl)) nxg,nyg,nzg,bcnd,tor
 
         enddo
-
-#if defined(use_mpi)
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-#endif
-        if (my_rank == 0) then
-          write (*,*) '*****************************************'
-          write (*,*)
-        endif
 
 cc        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
 cc          do ifl=1,nfiles

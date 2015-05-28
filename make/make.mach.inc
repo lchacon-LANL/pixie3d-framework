@@ -1,24 +1,18 @@
-# Buildtype configuration
-
-BUILDTYPE?=$(shell echo "`uname -m`-`uname -s`")
-
-ifeq "$(BUILDTYPE)" "i386-Darwin"
-  FC=gfortran
-#  ifdef SAMR
-    HDF5_HOME =${HDF_HOME}
-    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)/lib
-    HDF5_INC  =-I$(HDF5_HOME)/include
-    PETSC_DIR = /opt/petsc-3.0.0-p9-gcc-4.4.1-debug
-    PETSC_ARCH = darwin9.8.0-c-debug
-#  endif
-endif
-
 # Machine configuration
 
 HOST ?= $(shell hostname -s)
 
-MACHINE ?=HaveNoIdea
+ARCH ?= $(shell uname -s)
+
+CPPFLAGS += $(PREPROC)$(ARCH)
+
+############
+# DEFAULTS #
+############
+
+FC=gfortran
+HDF5 = f
+ADIOS= f
 
 ###############################
 # lap0086227 (Mark Berrill's) #
@@ -31,10 +25,22 @@ ifeq ($(HOST),lap0086227)
     ifndef SAMR
         HDF5_HOME =/usr
         LIBS += -L/packages/lapack-3.2.2/ -llapack -lblas
+        HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+        HDF5_MOD  = $(HDF5_HOME)/lib
+        HDF5_INC  =-I$(HDF5_HOME)/include
     endif
-    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)/lib
-    HDF5_INC  =-I$(HDF5_HOME)/include
+    LIBS += -L/packages/acml-4-4-0/gfortran64/lib -lgfortran
+endif
+
+###############################
+# cray2 (CSU cray cluster)    #
+###############################
+
+ifeq ($(HOST),cray2)
+    FC=gfortran
+    OPT=g
+    HDF5 = f
+    SAMRSOLVERS_HOME=/home/mberrill/lustrefs/samrsolvers-v3/build/optimized
 endif
 
 ###############################
@@ -46,30 +52,162 @@ ifeq ($(HOST),vayu)
     #FC=mpif90
     #CC=mpicc
     #CXX=mpic++
-    OPT=g
+    OPT=O
     HDF5 = t
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/lib
-    HDF5_INC  =-I$(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_HOME)/include
     LIBS += -L${ACML_DIR} -llapack -lblas
 endif
 
-###########
-# quevedo #
-###########
+################
+# jetta (LANL) #
+################
+
+ifeq ($(HOST),jetta)
+
+  FC = gfortran
+
+  OMP_NUM_THREADS = 32
+
+  ifdef SAMR
+
+    CC = mpicc
+    CXX = mpicxx
+    F77 = gfortran
+    override PETSC_DIR  =
+#    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/debug
+    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/optimized
+    HDF5 = f
+    HDF5_LIBS = 
+    LDFLAGS    += -lgfortran
+
+  else
+    ifdef BOPT
+      PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
+
+      ifeq ($(BOPT),O)
+        PETSC_ARCH = $(PETSC_ARCH_O)
+      else
+        PETSC_ARCH = $(PETSC_ARCH_g)
+      endif
+
+      HDF5 = t
+
+      #Determined via modules
+      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(PHDF5_LIB)
+      HDF5_INC  = $(PHDF5_INC)
+
+      ifeq ($(PIT),t)
+        ADIOS = f      !ADIOS not ready for parallel-in-time yet
+      else
+        ADIOS = t
+      endif
+
+      #Determined via modules
+      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
+
+    else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = t
+
+      #Determined via modules
+      HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(SHDF5_LIB)
+      HDF5_INC  = $(SHDF5_INC)
+
+      ADIOS = f
+    endif
+
+    NETCDF=f
+    NETCDF_LIBS = -lnetcdff -lnetcdf
+    NETCDF_INC  = -I/usr/include
+
+#    ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+  endif
+
+endif
+
+################
+# mavis (LANL) #
+################
+
+ifeq ($(HOST),mavis)
+
+  FC = gfortran
+
+  CPPFLAGS += $(PREPROC)sed_nosymlinks
+
+  ifdef SAMR
+
+    CC = mpicc
+    CXX = mpicxx
+    F77 = gfortran
+    override PETSC_DIR  =
+#    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/debug
+    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/optimized
+    HDF5 = f
+    HDF5_LIBS =
+    LDFLAGS    += -lgfortran
+
+  else
+    ifdef BOPT
+      PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
+
+      PETSC_ARCH = linux64_openmpi
+
+      #Determined via modules
+      HDF5 = t
+      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(PHDF5_LIB)
+      HDF5_INC  = $(PHDF5_INC)
+
+      #Determined via modules
+      ADIOS = t
+      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
+
+    else
+      LIBS += -L$(HOME)/lib -llapack -lblas
+
+      ifeq ($(FC),gfortran)
+
+        #Determined via modules
+        HDF5 = t
+        HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+        HDF5_MOD  = $(SHDF5_LIB)
+        HDF5_INC  = $(SHDF5_INC)
+
+        ADIOS = f
+      endif
+    endif
+
+    NETCDF=f
+    NETCDF_LIBS = -lnetcdff -lnetcdf
+    NETCDF_INC  = -I/usr/include
+
+#    ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+  endif
+
+endif
+
+##################
+# quevedo (ORNL) #
+##################
 
 ifeq ($(HOST),quevedo)
-  MACHINE=quevedo
 
   FC = gfortran
 
   ifdef SAMR
 
-    CC=mpiccCC = /usr/lib64/openmpi/bin/mpicc
-    CXX = /usr/lib64/openmpi/bin/mpicxx
+    CC = mpicc
+    CXX = mpicxx
     F77 = gfortran
     override PETSC_DIR  =
-    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/debug
+#    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/debug
+    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/optimized
     HDF5 = f
     HDF5_LIBS = 
     LDFLAGS    += -lgfortran
@@ -88,10 +226,11 @@ ifeq ($(HOST),quevedo)
 
       HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(PHDF5_LIB)
-      HDF5_INC  =-I$(PHDF5_INC)
+      HDF5_INC  = $(PHDF5_INC)
 
       ADIOS = t
 
+      #Determined via modules
 #      ADIOS_HOME = $(HOME)/lib/adios-1.3
 #      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
 #      ADIOS_VER  = 1.3
@@ -106,7 +245,7 @@ ifeq ($(HOST),quevedo)
         HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
         HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
         HDF5_MOD  = $(HDF5_HOME)/lib
-        HDF5_INC  =-I$(HDF5_HOME)/include
+        HDF5_INC  = $(HDF5_HOME)/include
 
       endif
       ifeq ($(FC),gfortran)
@@ -115,7 +254,7 @@ ifeq ($(HOST),quevedo)
         HDF5_HOME =/usr/lib64
         HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
         HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
-        HDF5_INC  =-I/usr/include
+        HDF5_INC  = /usr/include
 
         ADIOS = f
       endif
@@ -135,11 +274,129 @@ endif
 ###########
 
 ifeq ($(HOST),gongora)
-  MACHINE=gongora
 
   FC=gfortran
 
-  LIBS += -L/usr/lib -llapack -lblas
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
+
+  OMP_NUM_THREADS = 8
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  ifdef BOPT
+    PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = macosx_openmpi_O
+    else
+      PETSC_ARCH = macosx_openmpi_g
+    endif
+
+    HDF5 = t
+
+#    HDF5_HOME =/opt/local
+#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#    HDF5_MOD  = $(HDF5_HOME)/include
+#    HDF5_INC  = $(HDF5_MOD)
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gfortran/parallel
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+#    ADIOS = f
+    ADIOS = t
+
+    ADIOS_HOME = $(HOME)/lib/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
+    ADIOS_VER  = 1.31
+
+  else
+    LIBS += -L/usr/lib -llapack -lblas
+
+    HDF5 = t
+
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gfortran/serial
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = f
+
+  endif
+
+endif
+
+###########
+# quevedo #
+###########
+
+ifeq ($(HOST),quevedo)
+
+  FC=gfortran
+
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
+
+  OMP_NUM_THREADS = 8
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  ifdef BOPT
+    PETSC_DIR =$(HOME)/Software/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = macosx_openmpi_O
+    else
+      PETSC_ARCH = macosx_openmpi_g
+    endif
+
+    HDF5 = t
+
+#    HDF5_HOME =/opt/local
+#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#    HDF5_MOD  = $(HDF5_HOME)/include
+#    HDF5_INC  = $(HDF5_MOD)
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gfortran/parallel
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+#    ADIOS = f
+    ADIOS = t
+
+    ADIOS_HOME = $(HOME)/lib/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
+    ADIOS_VER  = 1.31
+
+  else
+    LIBS += -llapack -lblas
+
+    HDF5 = t
+
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gfortran/serial
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = f
+
+  endif
+
+endif
+
+##############
+# quadrivium #
+##############
+
+ifeq ($(HOST),quadrivium)
+
+  FC=gfortran
+
+  PIT=t
+  VECPOT=t
 
   NETCDF=f
   NETCDF_LIBS = -lnetcdff -lnetcdf
@@ -151,34 +408,93 @@ ifeq ($(HOST),gongora)
     PETSC_DIR =$(HOME)/lib/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = linux_openmpi
+      PETSC_ARCH = linux64_openmpi
     else
-      PETSC_ARCH = linux_openmpi_g
+      PETSC_ARCH = linux64_openmpi_g
     endif
 
     HDF5 = t
 
-    HDF5_HOME =/usr/lib/openmpi/lib
-    HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)
-    HDF5_INC  =-I$/usr/include/openmpi-i386
+    HDF5_HOME = $(HOME)/local
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
 
     ADIOS = f
-#    ADIOS = t
 
-#    ADIOS_HOME = $(HOME)/lib/adios-1.2.1
-#    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
-#    ADIOS_VER  = 1.21
+    ADIOS_HOME = $(HOME)/lib/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
+    ADIOS_VER  = 1.31
+
+  else
+
+    override LDFLAGS=
+
+    LIBS += -L/state/partition1/apps/lapack/lib -llapack -lrefblas
+
+    HDF5 = t
+
+    HDF5_HOME = $(HOME)/local2
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  =$(HDF5_HOME)/include
+    HDF5_INC  =$(HDF5_HOME)/include
+
+    ADIOS = f
+
+  endif
+
+endif
+
+#######################
+# Maria's Macbook Air #
+#######################
+
+ifeq ($(HOST),Marias-MacBook-Air)
+
+  FC=gfortran
+
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  WORKDIR = $(HOME)/work
+
+  OMP_NUM_THREADS = 4
+
+  ifdef BOPT
+    PETSC_DIR =$(WORKDIR)/lib/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = macosx_openmpi_O
+    else
+      PETSC_ARCH = macosx_openmpi_g
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME =/opt/local
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+#    ADIOS = f
+    ADIOS = t
+
+    ADIOS_HOME = $(WORKDIR)/lib/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(WORKDIR)/lib/mxml-2.7/lib -lmxml
+    ADIOS_VER  = 1.31
 
   else
     LIBS += -L/usr/lib -llapack -lblas
 
     HDF5 = t
 
-    HDF5_HOME =/usr/lib
-    HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
-    HDF5_INC  =-I/usr/include
+    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gfortran/serial
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  =$(HDF5_HOME)/include
+    HDF5_INC  =$(HDF5_HOME)/include
 
     ADIOS = f
 
@@ -191,7 +507,6 @@ endif
 ##########
 
 ifeq ($(HOST),siesta)
-  MACHINE=siesta
 
   FC=gfortran
 
@@ -208,7 +523,7 @@ ifeq ($(HOST),siesta)
     HDF5_HOME = /usr/lib64/openmpi
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = /usr/include/openmpi-x86_64
-    HDF5_INC  =-I/usr/include/openmpi-x86_64
+    HDF5_INC  = /usr/include/openmpi-x86_64
 
     ADIOS = f
 
@@ -223,18 +538,18 @@ ifeq ($(HOST),siesta)
       HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  = $(HDF5_HOME)/lib
-      HDF5_INC  =-I$(HDF5_HOME)/include
+      HDF5_INC  = $(HDF5_HOME)/include
       HDF5 = t
     endif
     ifeq ($(FC),gfortran)
       HDF5_HOME =/usr/lib64
       HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
       HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
-      HDF5_INC  =-I/usr/include
+      HDF5_INC  = /usr/include
 #      HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/gfortran/serial
 #      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
 #      HDF5_MOD  = $(HDF5_HOME)/lib
-#      HDF5_INC  =-I$(HDF5_HOME)/include
+#      HDF5_INC  = $(HDF5_HOME)/include
       HDF5 = t
     endif
   endif
@@ -251,7 +566,6 @@ endif
 ########
 
 ifeq ($(HOST),swim)
-  MACHINE=swim
 
   FC=gfortran
 
@@ -268,7 +582,7 @@ ifeq ($(HOST),swim)
 
     HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(PHDF5_LIB)
-    HDF5_INC  =-I$(PHDF5_INC)
+    HDF5_INC  = $(PHDF5_INC)
 
     ADIOS = t
     ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
@@ -280,7 +594,7 @@ ifeq ($(HOST),swim)
     HDF5_HOME =/usr/lib64
     HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
-    HDF5_INC  =-I/usr/include
+    HDF5_INC  = /usr/include
     HDF5 = t
 
     ADIOS = f
@@ -298,9 +612,8 @@ endif
 ##############
 
 ifeq ($(HOST),ra22)
-  MACHINE=ra22
 
-  CPPFLAGS += $(PREPROC)RFX
+  CPPFLAGS += $(PREPROC)RFX $(PREPROC)sed_nosymlinks
 
   FC = pgf95
 
@@ -317,9 +630,9 @@ ifeq ($(HOST),ra22)
     endif
 
     ADIOS = t
-    ADIOS_HOME = /ricercatori/ft/adios-1.2.1
+    ADIOS_HOME = /ricercatori/ft/adios-1.3
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/ricercatori/ft/mxml-2.6/lib -lmxml
-    ADIOS_VER  = 1.21
+    ADIOS_VER  = 1.3
 
   else
     LIBS     += -llapack -lblas
@@ -338,8 +651,6 @@ endif
 ############
 
 ifeq ($(HOST),franklin)
-  MACHINE=franklin
-
   FC = pgf95
   HDF5_HOME = $(HDF5_PAR_DIR)
 #  HDF5_LIBS:= $(HDF5)
@@ -352,8 +663,6 @@ endif
 #########
 
 ifeq ($(findstring smoky,$(HOST)),smoky)
-  MACHINE=smoky
-
   FC = pgf95
 #  HDF5_HOME = $(HDF5_PAR_DIR)
   HDF5_LIBS = $(HDF5_FLIB)
@@ -382,8 +691,6 @@ ifeq ($(findstring jaguar,$(HOST)),jaguar)
   ADIOS_HOME = $(ADIOS_DIR)
   ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) 
   ADIOS_VER  = 1.3
-
-  MACHINE = jaguar
 endif
 
 ########
@@ -393,7 +700,7 @@ endif
 ifeq ($(findstring sith,$(HOST)),sith)
   FC = pgf95
 
-  BOPT = t
+  BOPT = O
   PETSC_DIR ?= /sw/sith/petsc/3.0.0/centos5.5_pgi10.9_opt/petsc-3.0.0-p10
   PETSC_ARCH ?= sith-opt
 
@@ -407,8 +714,6 @@ ifeq ($(findstring sith,$(HOST)),sith)
   ADIOS_HOME = $(ADIOS_DIR)
   ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) 
   ADIOS_VER  = 1.3
-
-  MACHINE = sith
 endif
 
 ###########
@@ -432,8 +737,6 @@ ifeq ($(findstring chester,$(HOST)),chester)
   ADIOS_HOME = $(ADIOS_DIR)
   ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB)
   ADIOS_VER  = 1.3
-
-  MACHINE = chester
 endif
 
 ########
@@ -461,29 +764,15 @@ ifeq ($(findstring ewok,$(HOST)),ewok)
   OPTIMIZATION = -O2 -Mbounds
   DEBUG = -g -Mbounds -Mchkptr
   BOPT = t
-  MACHINE = ewok
 endif
 
-###########################
-# chenhp (Guangye Chen's) #
-###########################
+##########################
+# Guangye Chen's desktop #
+##########################
 
-ifeq ($(HOST),chenshp)
-    MACHINE=chenshp
-
-    LIBS += -L/usr/lib64/atlas -llapack -lblas
+ifeq ($(HOSTNAME),t1243055)
     HDF5=f
-endif
-
-#dlg-hp overrides 
-
-ifeq ($(HOSTNAME),dlg-hp.ornl.gov)
-    MACHINE=dlghp
-	PETSC_DIR ?=/home/dg6/code/petsc/petsc-3.1-p7
-	HDF5_HOME ?= /usr/lib64/openmpi/lib 
-	FC =gfortran
-    LIBS += -L ~/code/goto_blas/GotoBLAS2 ~/code/lapack/lapack-3.1.1/lapack_LINUX.a -lgoto2
-    HDF5=f
+    LIBS += -llapack -lblas
 endif
 
 ifeq ($(PIC_CUDA),t) 
@@ -493,3 +782,191 @@ ifeq ($(PIC_CUDA),t)
 	CUDA_OPT = -L/usr/local/cuda/lib64 /usr/local/cuda/lib64/libcudart.so  -lcuda -I/usr/local/cuda/include/ 
 	CUDA_INCLUDE =  # -I/home/gcc/NVIDIA_GPU_Computing_SDK/C/common/inc
 endif
+
+####################
+# juelich (JUROPA) #
+####################
+
+ifeq ($(findstring jf,$(HOST)),jf)
+  FC = ifort
+  OPTIMIZATION = -O2
+
+#  BOPT = O
+
+  CPPFLAGS += $(PREPROC)RFX
+
+  ifdef BOPT
+    PETSC_ARCH ?= juropa-basic
+
+    HDF5 = f
+    #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+    #HDF5_HOME = $(CRAY_HDF5_DIR)
+    #HDF5_LIBS = $(HDF5_FLIB)
+    #HDF5_MOD  = $(HDF5_HOME)/lib
+
+    ADIOS = t
+    ADIOS_HOME = $(HOME)/lib/adios-1.3
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml -llustreapi
+    ADIOS_VER  = 1.3
+  else
+    HDF5 = f
+    ADIOS = f
+    LIBS += -llapack -lblas
+  endif
+endif
+
+####################
+# helios #
+####################
+
+ifeq ($(findstring helios,$(HOST)),helios)
+  FC = ifort
+  OPTIMIZATION = -O3 -xavx
+
+  CPPFLAGS += $(PREPROC)RFX
+
+  ifdef BOPT
+#    PETSC_DIR =/csc/project/ENEATEST/PIXIE3D/petsc-3.0.0-p7
+    PETSC_DIR =/csc/project/PIXIE3D/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_intelmpi
+    else
+      PETSC_ARCH = linux64_intelmpi_g
+    endif
+
+    HDF5 = f
+    #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+    #HDF5_HOME = $(CRAY_HDF5_DIR)
+    #HDF5_LIBS = $(HDF5_FLIB)
+    #HDF5_MOD  = $(HDF5_HOME)/lib
+
+    ADIOS = t
+    ADIOS_HOME = /csc/softs/nccs/adios-1.3.1/intel-12.0.5.220/intelmpi-4.0.3/default/
+    #ADIOS_HOME = $(ADIOS_DIR)
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml -llustreapi
+    ADIOS_VER  = 1.31
+    #ADIOS_VER  = 1.50 # error at link time
+    #ADIOS_VER  = 1.70 # error at link time
+  else
+    HDF5 = f
+    ADIOS = f
+#    LIBS += -llapack -lblas
+    LIBS += -mkl
+  endif
+
+  MACHINE = helios
+endif
+
+################
+# Will Taitano's Desktop(LANL) #
+################
+
+ifeq ($(HOST),t1243000)
+
+  FC = gfortran
+
+  ifdef SAMR
+
+    CC = mpicc
+    CXX = mpicxx
+    F77 = gfortran
+    override PETSC_DIR  =
+#    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/debug
+    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/optimized
+    HDF5 = f
+    HDF5_LIBS = 
+    LDFLAGS    += -lgfortran
+
+  else
+    ifdef BOPT
+      PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
+
+      ifeq ($(BOPT),O)
+        PETSC_ARCH = linux64_openmpi
+      else
+        PETSC_ARCH = linux64_openmpi_g
+      endif
+
+      HDF5 = t
+
+      #Determined via modules
+      HDF5_LIBS =-L/usr/lib64/openmpi/lib -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = /usr/include/openmpi-x86_64
+      HDF5_INC  = /usr/include/openmpi-x86_64
+
+      ADIOS = t
+
+      ADIOS_HOME = $(HOME)/lib/adios-1.31
+      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
+      ADIOS_VER  = 1.31
+
+      #Determined via modules
+      HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = /usr/local/gfortran/
+      HDF5_INC  = /usr/include
+
+    endif
+
+    NETCDF=f
+    NETCDF_LIBS = -lnetcdff -lnetcdf
+    NETCDF_INC  = -I/usr/include
+
+#    ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+  endif
+
+endif
+
+###################
+# Adam on mustang #
+###################
+
+ifeq ($(HOST),mu-fe1.lanl.gov)
+
+  FC=gfortran
+
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  ifdef BOPT
+    PETSC_DIR =/usr/projects/magnetic/stanier/soft/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = turquoise_ompi165_gcc472_o
+    else
+#      PETSC_ARCH = turquoise_openmpi_g
+# NOT INSTALLED DEBUG.
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME = /usr/projects/magnetic/stanier/soft/
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = t
+
+    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/usr/projects/magnetic/stanier/soft/mxml-2.5/lib -lmxml
+    ADIOS_VER  = 1.31
+
+  else
+#    LIBS += -llapack -lblas
+
+#    HDF5 = t
+
+#    HDF5_HOME = $(HOME)/Software/shdf5-1.8.11
+#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#    HDF5_MOD  =$(HDF5_HOME)/include
+#    HDF5_INC  =$(HDF5_HOME)/include
+
+#    ADIOS = f
+
+  endif
+
+endif
+

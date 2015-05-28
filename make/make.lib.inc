@@ -5,12 +5,23 @@
 
 # LSODE setup
 
-CONTRIBLIBS += -L$(PWD)/common/contrib/lsode -llsode
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/lsode -llsode
 
 # SLATEC setup
 
-CONTRIBLIBS += -L$(PWD)/common/contrib/slatec/lib -lslatec
-MODPATH     += $(ADDMODFLAG)$(PWD)/common/contrib/slatec/lib
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/slatec/lib -lslatec
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/slatec/lib
+
+# FPA setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/fpa/lib -lfpa
+CPPFLAGS    += $(PREPROC)FPA
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
+
+# SDC setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/sdc/lib -lsdc
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/sdc/lib
 
 # ADIOS setup
 
@@ -24,7 +35,7 @@ endif
 
 ifeq ($(HDF5),t)
   CONTRIBLIBS += $(HDF5_LIBS) 
-  CPPFLAGS    += $(PREPROC)hdf5 $(PREPROC)H5_USE_16_API $(HDF5_INC)
+  CPPFLAGS    += $(PREPROC)hdf5 $(PREPROC)H5_USE_16_API -I$(HDF5_INC)
   MODPATH     += $(ADDMODFLAG)$(HDF5_MOD)
 endif
 
@@ -33,14 +44,6 @@ endif
 ifeq ($(ARPACK),t)
   CONTRIBLIBS += $(ARPACK_LIBS)
   CPPFLAGS    += $(PREPROC)arpack
-endif
-
-# FPA setup
-
-ifeq ($(FPA),t)
-  CONTRIBLIBS += -L$(PWD)/common/contrib/fpa/lib -lfpa
-  CPPFLAGS    += $(PREPROC)FPA
-  MODPATH     += $(ADDMODFLAG)$(PWD)/common/contrib/fpa/lib
 endif
 
 # PETSC setup
@@ -59,26 +62,24 @@ endif
 #SAMRAI setup
 
 ifdef SAMR
-   include ${SAMRAI}/config/Makefile.config
+  ifdef SAMRSOLVERS_HOME
+     include ${SAMRSOLVERS_HOME}/Makefile.config
+  else
+     $(error error SAMRSOLVERS_HOME must be set)
+  endif
 
-   PDIM = 3
-   OBJECT=${SAMRAI}
-   CXXFLAGS_EXTRA += -DNDIM=$(PDIM)
+  OBJECT=${SAMRAI}
 
-   TARGET = samrai
-   CPPFLAGS += -Dsamrai
+  CPPFLAGS += $(PREPROC)samrai
+endif
 
-   SUBDIRS += common/driver-samrai
+# RNG setup
 
-   CPPFLAGS_EXTRA += -I${AMRUTILITIES_HOME}/include
-   CPPFLAGS_EXTRA += -I${SAMRSOLVERS_HOME}/include
-   CXXFLAGS_EXTRA += -I${AMRUTILITIES_HOME}/include
-   CXXFLAGS_EXTRA += -I${SAMRSOLVERS_HOME}/include
-   LDFLAGS_EXTRA += -L${AMRUTILITIES_HOME}/lib   
-   LDLIBS_EXTRA += ${AMRUTILITIES_HOME}/lib/libAMRUtils3d.a
-   LDLIBS_EXTRA += ${SAMRSOLVERS_HOME}/lib/liblinearops3d.a
-   LDLIBS_EXTRA += ${SAMRSOLVERS_HOME}/lib/libmlsolvers3d.a
-   LDFLAGS_EXTRA += -L${SAMRSOLVERS_HOME}/lib   
-   LDLIBS_EXTRA += ${SAMRSOLVERS_HOME}/lib/libtimeintegrators3d.a
-   #LDLIBS_EXTRA += -lAMRUtils${PDIM}d
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/rng/lib -lrng
+#MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
+
+# PTRIDIAG setup
+
+ifeq ($(PTRID),t)
+  CONTRIBLIBS += -L$(COMMONDIR)/contrib/ptridiag/lib -lptrid
 endif

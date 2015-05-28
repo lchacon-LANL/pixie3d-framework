@@ -16,7 +16,7 @@ c--------------------------------------------------------------------
       use variables
 #endif
 
-      use nk_setup
+      use ts_setup
 
       implicit none
 
@@ -33,7 +33,7 @@ c Local variables
 
       INTERFACE
         subroutine setup_app_PC(igrid,varray,nwt_it)
-        use variable_setup
+        use var_setup
         integer    :: igrid,nwt_it
         type(var_array),pointer :: varray
         end subroutine setup_app_PC
@@ -44,6 +44,12 @@ c Begin program
       if (pc_id) return
 
       igrid = 1
+
+c Change profiling stage
+
+#if defined(petsc)
+      call switch_profile_stage(iPCSTP)
+#endif
 
 c Copy solution state info
 
@@ -66,6 +72,12 @@ c Free memory
 
       call deallocateDerivedType(varray)
 
+c End PC setup profiling
+
+#if defined(petsc)
+      call switch_profile_stage(iNL)
+#endif
+
 c End program
 
       end subroutine setupPC
@@ -81,9 +93,7 @@ c       * iout <= 0 --> No output
 c       * iout >  0 --> Level of output design by user.
 c-------------------------------------------------------------------
 
-      use iosetup
-
-      use variables
+      use var_io
 
       use timeStepping
 
@@ -93,7 +103,9 @@ c-------------------------------------------------------------------
       use nk
 #endif
 
-      use nk_setup
+      use mg_io
+
+      use profile_petsc
 
       implicit none
 
@@ -120,11 +132,20 @@ c Begin program
 
       nn = nx*ny*nz
 
+#if defined(petsc)
+      !Profiling stage PC
+      call switch_profile_stage(iPCSLV)
+#endif
+
 c *******************************************************************
 c     Identity preconditioner
 c *******************************************************************
 
       if (pc_id) then
+
+        if (iout > 1 .and. my_rank == 0) then
+          write (*,*) '--> Performing IDENTITY PC'
+        endif
 
         do k = 1,nz
           do j = 1,ny
@@ -136,7 +157,7 @@ c *******************************************************************
                   x(iii) = y(iii)
                 else
                   if (vol_wgt) then
-                    x(iii) = y(iii)*dt/gmetric%grid(igrid)%dvol(i,j,k)
+                    x(iii) = y(iii)*dt/gmetric%grid(igrid)%dlvol(i,j,k)
                   else
                     x(iii) = y(iii)*dt
                   endif
@@ -186,9 +207,7 @@ c     Application PC
                   if (mk_nc) then
                     dvol = gmetric%grid(igrid)%dvol(i,j,k)
                   else
-                    dvol = grid_params%dxh(ig)
-     .                    *grid_params%dyh(jg)
-     .                    *grid_params%dzh(kg)
+                    dvol = gmetric%grid(igrid)%dlvol(i,j,k)
                   endif
                 else
                   dvol = 1d0
@@ -227,6 +246,13 @@ c     PC diagnostics
         if (pc_diag) call PCdiagnostics
       endif
 
+c     End PC profiling
+
+#if defined(petsc)
+      !Begin profiling NL solver
+      call switch_profile_stage(iNL)
+#endif
+
 c End program
 
       contains
@@ -239,8 +265,6 @@ c     --------------------------------------------------------------
 c     Performs diagnostics on PC
 c     --------------------------------------------------------------
 
-        use mg_io
-
         implicit none
 
         real(8) :: mag,mag0,rr(ntot)
@@ -249,36 +273,35 @@ c     Begin program
 
 c     Plot PC solution
 
-        call vec_plot(neqd,x,igrid,'sol','Solution')
+        call vec_plot_gl(neqd,x,igrid,'sol','Solution')
 
 c     Plot PC RHS
 
-        call vec_plot(neqd,y,igrid,'rhs','RHS')
+        call vec_plot_gl(neqd,y,igrid,'rhs','RHS')
 
 c     Plot corresponding linear residual to PC solution
 
 #if !defined(petsc_c)
-        mag0 = sqrt(dot2(y,y))
+        mag0 = rms(y)
 
         call matrixFreeMatVec(ntot,x,rr)
         y = y - rr
-        mag = sqrt(dot2(y,y))
+        mag = rms(y)
 
-        call vec_plot(neqd,y,igrid,'res','Residual')
+        call vec_plot_gl(neqd,y,igrid,'res','Residual')
 
         if (my_rank == 0) then
            write (*,*)
            write (*,*) 'LINEAR RESIDUAL'
-           write (*,*) 'abs res=',mag
-           write (*,*) 'abs res (per node)=',mag/ntot
-     $                ,', rel res=',mag/mag0
+           write (*,*) 'RMS res=',mag
+           write (*,*) 'Rel res=',mag/mag0
         endif
 
         !Compute magnitude of individual residual eqs
         call scatterVector(yyy,y)
         do ieq=1,neqd
-          mag = sqrt(dot2(yyy(:,ieq),yyy(:,ieq)))
-          if (my_rank == 0) write (*,*) 'Res. eqn',ieq,':',mag
+          mag = rms(yyy(:,ieq))
+          if (my_rank == 0) write (*,*) 'RMS residual eqn',ieq,':',mag
         enddo
 #endif
 
@@ -296,8 +319,10 @@ c###########################################################################
       use mk_pc
 #endif
 
-      use nk_setup
+      use ts_setup
 
+      implicit none
+      
 c     Deallocate variables
 
       if (pc_id) return

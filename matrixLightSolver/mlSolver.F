@@ -40,10 +40,10 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer    ::  neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
-      real(8)    ::  x(ntot),b(ntot)
+      integer :: neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
+      real(8) :: x(ntot),b(ntot)
 
-      external       matvec
+      external    matvec
 
 c Local variables
 
@@ -472,10 +472,10 @@ c      GMRES iteration
 
 c        Call preconditioner
 
-          call getSolver(neq,ntot,vv(1,i),zz(1,i),matvec,igrid,bcnd,0
+          call getSolver(neq,ntot,vv(:,i),zz(:,i),matvec,igrid,bcnd,0
      .                  ,precout,depth1)
 
-          call matvec(0,neq,ntot,zz(1,i),vv(1,i1),igrid,bcnd)
+          call matvec(0,neq,ntot,zz(:,i),vv(:,i1),igrid,bcnd)
 
 c        Modified gram - schmidt.
 
@@ -700,9 +700,9 @@ c End program
 
       call killgm
 
- 10   format ('   GMRES Iteration:',i4,'; Residual:',1p,1e12.4,
+ 10   format ('   FGMRES Iteration:',i4,'; Residual:',1p,1e12.4,
      .        '; Ratio:',1e12.4)
- 20   format ('   GMRES Iteration:',i4,'; Residual:',1p,1e12.4,
+ 20   format ('   FGMRES Iteration:',i4,'; Residual:',1p,1e12.4,
      .        '; Ratio:',1e12.4,'; # restarts:',i2)
 
       contains

@@ -17,7 +17,8 @@ c #####################################################################
           sequence
 #endif
           real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
-          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell volume
+          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell physical volume
+          real(8),pointer,dimension(:,:,:)       :: dlvol !Local cell logical volume
           real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
           real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
@@ -46,25 +47,29 @@ c #####################################################################
 !!          Variables below have changed from earlier PIXIE3D version!!!
 #endif
           !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
-          integer :: nglx                                 !Global number of mesh points in X, over global domain, not local patch
-          integer :: ngly                                 !Global number of mesh points in Y, over global domain, not local patch
-          integer :: nglz                                 !Global number of mesh points in Z, over global domain, not local patch
+          integer :: nglx    !Global number of mesh points in X, over global domain, not local patch
+          integer :: ngly    !Global number of mesh points in Y, over global domain, not local patch
+          integer :: nglz    !Global number of mesh points in Z, over global domain, not local patch
 
-          integer :: ilog                                 !Global lower  limit in X, patch indices relative to global index space, no ghosts
-          integer :: ihig                                 !Global higher limit in X, patch indices relative to global index space
-          integer :: jlog                                 !Global lower  limit in Y, patch indices relative to global index space
-          integer :: jhig                                 !Global higher limit in Y, patch indices relative to global index space
-          integer :: klog                                 !Global lower  limit in Z, patch indices relative to global index space
-          integer :: khig                                 !Global higher limit in Z, patch indices relative to global index space
+          integer :: ilog    !Global lower  limit in X, patch indices relative to global index space, no ghosts
+          integer :: ihig    !Global higher limit in X, patch indices relative to global index space
+          integer :: jlog    !Global lower  limit in Y, patch indices relative to global index space
+          integer :: jhig    !Global higher limit in Y, patch indices relative to global index space
+          integer :: klog    !Global lower  limit in Z, patch indices relative to global index space
+          integer :: khig    !Global higher limit in Z, patch indices relative to global index space
 
-          real(8) :: gxmin,gxmax                          !Physical dim. of global domain in X
-          real(8) :: gymin,gymax                          !Physical dim. of global domain in Y
-          real(8) :: gzmin,gzmax                          !Physical dim. of global domain in Z
+          real(8) :: gxmin,gxmax        !Physical dim. of global domain in X
+          real(8) :: gymin,gymax        !Physical dim. of global domain in Y
+          real(8) :: gzmin,gzmax        !Physical dim. of global domain in Z
 
-          integer :: mpi_comm,np,rank                     !MPI info
+          real(8) :: lxmin,lxmax        !Physical dim. of LOCAL domain in X
+          real(8) :: lymin,lymax        !Physical dim. of LOCAL domain in Y
+          real(8) :: lzmin,lzmax        !Physical dim. of LOCAL domain in Z
 
-          integer :: aligner                              !Ghost cell width
-          integer :: gcw                                  !Ghost cell width
+          integer :: mpi_comm,np,rank,mx,my,mz   !MPI info
+
+          integer :: aligner            !Ghost cell width
+          integer :: gcw                !Ghost cell width
           !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
 
           integer :: ngrdx                                !Grid levels in X, MG specific
@@ -136,7 +141,7 @@ c #####################################################################
 
 c     allocateGridStructure
 c     #################################################################
-      subroutine allocateGridStructure(ngridx,ngridy,ngridz
+      subroutine allocateGridStructure(ngridx,ngridy,ngridz,mx,my,mz
      .                                ,nglx,ngly,nglz,grid_st,mpi_comm)
 c     -----------------------------------------------------------------
 c     Allocates grid structure
@@ -146,7 +151,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer :: ngridx,ngridy,ngridz,nglx,ngly,nglz
+        integer :: ngridx,ngridy,ngridz,nglx,ngly,nglz,mx,my,mz
         type(grid_mg_def),pointer :: grid_st
         integer,optional :: mpi_comm
 
@@ -175,12 +180,23 @@ c     Begin program
           grid_st%gzmin = UNDEF_DP
           grid_st%gzmax = UNDEF_DP
 
+          grid_st%lxmin = UNDEF_DP    !Indicates it is provided by input file
+          grid_st%lxmax = UNDEF_DP
+          grid_st%lymin = UNDEF_DP
+          grid_st%lymax = UNDEF_DP
+          grid_st%lzmin = UNDEF_DP
+          grid_st%lzmax = UNDEF_DP
+
 #if defined(petsc) && !defined(samrai)
           if (PRESENT(mpi_comm)) then
             grid_st%mpi_comm = mpi_comm
           else
-            grid_st%mpi_comm = MPI_COMM_WORLD
+            grid_st%mpi_comm = MPI_COMM_NULL
           endif
+
+          grid_st%mx = mx
+          grid_st%my = my
+          grid_st%mz = mz
 
           call MPI_Comm_rank(grid_st%mpi_comm,grid_st%rank,mpierr)
           call MPI_Comm_size(grid_st%mpi_comm,grid_st%np  ,mpierr)
@@ -411,6 +427,13 @@ c     Deallocate MG storage variables
         grid_st%gzmin = UNDEF_DP
         grid_st%gzmax = UNDEF_DP
 
+        grid_st%lxmin = UNDEF_DP
+        grid_st%lxmax = UNDEF_DP
+        grid_st%lymin = UNDEF_DP
+        grid_st%lymax = UNDEF_DP
+        grid_st%lzmin = UNDEF_DP
+        grid_st%lzmax = UNDEF_DP
+
         if (associated(grid_st%xx)) then
           deallocate(grid_st%xg)
           deallocate(grid_st%yg)
@@ -473,9 +496,9 @@ c     Call variables
 
 c     Local variables
 
-        integer        :: ngridx,ngridy,ngridz,nx,ny,nz
-     .                   ,nglx,ngly,nglz
-     .                   ,ilog,ihig,jlog,jhig,klog,khig
+        integer :: ngridx,ngridy,ngridz,nx,ny,nz
+     .            ,nglx,ngly,nglz,mx,my,mz
+     .            ,ilog,ihig,jlog,jhig,klog,khig
 
 c     Begin program
 
@@ -490,6 +513,10 @@ c     Begin program
         nglx = grid_st1%nglx
         ngly = grid_st1%ngly
         nglz = grid_st1%nglz
+
+        mx = grid_st1%mx
+        my = grid_st1%my
+        mz = grid_st1%mz
 
         ilog = grid_st1%ilog
         ihig = grid_st1%ihig
@@ -513,7 +540,7 @@ c     Begin program
 
 c       Create basic structure
 
-        call allocateGridStructure(ngridx,ngridy,ngridz
+        call allocateGridStructure(ngridx,ngridy,ngridz,mx,my,mz
      .                            ,nglx,ngly,nglz,grid_st2)
 
 c       Copy values
@@ -559,6 +586,12 @@ c       Copy values
         grid_st2%gymax      = grid_st1%gymax
         grid_st2%gzmin      = grid_st1%gzmin
         grid_st2%gzmax      = grid_st1%gzmax
+        grid_st2%lxmin      = grid_st1%lxmin
+        grid_st2%lxmax      = grid_st1%lxmax
+        grid_st2%lymin      = grid_st1%lymin
+        grid_st2%lymax      = grid_st1%lymax
+        grid_st2%lzmin      = grid_st1%lzmin
+        grid_st2%lzmax      = grid_st1%lzmax
 
         grid_st2%g_pack     = grid_st1%g_pack
         grid_st2%params     = grid_st1%params
@@ -606,6 +639,9 @@ c     Begin program
         write (*,*) 'nglx',grid_st%nglx
         write (*,*) 'ngly',grid_st%ngly
         write (*,*) 'nglz',grid_st%nglz
+        write (*,*) 'mx',grid_st%mx
+        write (*,*) 'my',grid_st%my
+        write (*,*) 'mz',grid_st%mz
         write (*,*) 'xg',grid_st%xg
         write (*,*) 'yg',grid_st%yg        
         write (*,*) 'zg',grid_st%zg        
@@ -679,6 +715,8 @@ c     Begin program
             allocate(gmetric%grid(igrid)
      $           %dvol (ilom:ihip,jlom:jhip,klom:khip))
             allocate(gmetric%grid(igrid)
+     $           %dlvol(ilom:ihip,jlom:jhip,klom:khip))
+            allocate(gmetric%grid(igrid)
      $           %jac  (ilom:ihip,jlom:jhip,klom:khip))
             allocate(gmetric%grid(igrid)
      $           %gsub (ilom:ihip,jlom:jhip,klom:khip,3,3))
@@ -738,6 +776,7 @@ c     Begin program
         do igrid=1,gparams%ngrid
           gmetric2%grid(igrid)%car  = gmetric1%grid(igrid)%car  
           gmetric2%grid(igrid)%dvol = gmetric1%grid(igrid)%dvol 
+          gmetric2%grid(igrid)%dlvol= gmetric1%grid(igrid)%dlvol 
           gmetric2%grid(igrid)%jac  = gmetric1%grid(igrid)%jac  
           gmetric2%grid(igrid)%gsub = gmetric1%grid(igrid)%gsub 
           gmetric2%grid(igrid)%gsup = gmetric1%grid(igrid)%gsup 
@@ -777,6 +816,7 @@ c     Begin program
           do igrid=1,size(gmetric%grid)
             deallocate(gmetric%grid(igrid)%car)
             deallocate(gmetric%grid(igrid)%dvol)
+            deallocate(gmetric%grid(igrid)%dlvol)
             deallocate(gmetric%grid(igrid)%jac)
             deallocate(gmetric%grid(igrid)%gsub)
             deallocate(gmetric%grid(igrid)%gsup)
@@ -830,43 +870,61 @@ c     Create PETSc DA MG hierachy
         select case(igr)
         case(1)
 
-          nxgl = gparams%nglx
-          nygl = gparams%ngly
-          nzgl = gparams%nglz
-
           da_ctx => gparams%dactx(igr)
 
           da_ctx%MPI_COMM_DA = mpi_comm
 
-          call createPETScFortranDA(igr,nxgl,nygl,nzgl,da_ctx)
+          da_ctx%igrid = igr
+
+          da_ctx%mx = gparams%mx
+          da_ctx%my = gparams%my
+          da_ctx%mz = gparams%mz
+
+          da_ctx%nxgl = gparams%nglx
+          da_ctx%nygl = gparams%ngly
+          da_ctx%nzgl = gparams%nglz
+
+          call createPETScFortranDA(da_ctx)
 
         case(0)
 
           do igrid=2,gparams%ngrid
 
-            nxgl = gparams%nxgl(igrid)
-            nygl = gparams%nygl(igrid)
-            nzgl = gparams%nzgl(igrid)
-
             da_ctx => gparams%dactx(igrid)
 
             da_ctx%MPI_COMM_DA = mpi_comm
 
-            call createPETScFortranDA(igrid,nxgl,nygl,nzgl,da_ctx)
+            da_ctx%igrid = igrid
+
+            da_ctx%mx = gparams%mx
+            da_ctx%my = gparams%my
+            da_ctx%mz = gparams%mz
+
+            da_ctx%nxgl = gparams%nxgl(igrid)
+            da_ctx%nygl = gparams%nygl(igrid)
+            da_ctx%nzgl = gparams%nzgl(igrid)
+
+            call createPETScFortranDA(da_ctx)
 
           enddo
 
         case default
 
-          nxgl = gparams%nxgl(igr)
-          nygl = gparams%nygl(igr)
-          nzgl = gparams%nzgl(igr)
-
           da_ctx => gparams%dactx(igr)
 
           da_ctx%MPI_COMM_DA = mpi_comm
 
-          call createPETScFortranDA(igr,nxgl,nygl,nzgl,da_ctx)
+          da_ctx%igrid = igr
+
+          da_ctx%mx = gparams%mx
+          da_ctx%my = gparams%my
+          da_ctx%mz = gparams%mz
+
+          da_ctx%nxgl = gparams%nxgl(igr)
+          da_ctx%nygl = gparams%nygl(igr)
+          da_ctx%nzgl = gparams%nzgl(igr)
+
+          call createPETScFortranDA(da_ctx)
 
         end select
 

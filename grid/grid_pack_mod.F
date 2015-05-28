@@ -1,5 +1,8 @@
+c module grid_packing
+c #####################################################################
       module grid_packing
 
+        use math
         use grid_petsc
 
         type :: grid_pack
@@ -13,7 +16,282 @@
 
         type(grid_pack),dimension(3),save :: g_pack
 
+        logical :: map_grid_pack=.false.,no_map=.false.
+
+        real(8) :: gp_config(6)
+
       contains
+
+c     scale_coord
+c     #################################################################
+      function scale_coord(xmin,xmax,x1,dim) result(xlog)
+
+c     -----------------------------------------------------------------
+c     Scales coordinate along dimension dim with limits xmin, xmax and
+c     evaluates coordinate at logical coordinatet x1. Packing
+c     configuration (location and slope of packing) is computed in
+c     grid_create_mod, and passed via array gp_config in module.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: dim
+        real(8) :: xlog,x1,xmin,xmax
+
+c     Local variables
+
+        integer :: ibc,exp=3
+
+        real(8) :: gp(2)
+
+        real(8), save :: bbx=0d0,bby=0d0,bbz=0d0
+
+c     Begin program
+
+        ibc = 1+2*(dim-1)
+
+c     Recover grid packing configuration: slope gp(2) at given position gp(1)
+
+        gp = gp_config(ibc:ibc+1)
+
+        if (gp(1) == 0d0 .and. gp(2) == 0d0) then
+          xlog = x1
+          return
+        endif
+
+c     Packing
+
+        if (bcond(ibc) == PER) then !cosine jacobian
+          bbx = (1.-gp(2))  !Slope is in gp(2) (see grid_create_mod.F)
+          if (bbx <=-1d0) then
+            write (*,*) 'Slope too small along ',dim,' coordinate'
+            write (*,*) 'Aborting...'
+            stop
+          endif
+
+          xlog = x1+(xmax-xmin)/2/pi*bbx*sin(2*pi*(x1-xmin)/(xmax-xmin))
+        else  !monotonic cubic polynomial
+          select case(dim)
+          case(1)
+            if (bbx == 0d0) bbx= find_eta(xmin,xmax,gp(1),gp(2))
+            xlog = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
+          case(2)
+            if (bby == 0d0) bby= find_eta(xmin,xmax,gp(1),gp(2))
+            xlog = scl_coord(x1,bby,xmin,xmax,gp(1),gp(2))
+          case(3)
+            if (bbz == 0d0) bbz= find_eta(xmin,xmax,gp(1),gp(2))
+            xlog = scl_coord(x1,bbz,xmin,xmax,gp(1),gp(2))
+          end select
+
+cc          bbx= find_eta(xmin,xmax,gp(1),gp(2))
+cc          xlog = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
+        endif
+
+      contains
+
+c     scl_coord
+c     #################################################################
+      function scl_coord(xi,eta,xmin,xmax,x0,lambda) result(x)
+
+c     -----------------------------------------------------------------
+c     Packs coordinate according to x0 (location) and lambda (slope).
+c     Note:
+c       * lambda <> 1d0 --> dx0 ~ dxi*dlambda
+c       * lambda == 0d0 --> No packing
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Global variables
+
+        real(8),INTENT(IN) :: eta,xmin,xmax,x0,lambda,xi
+        real(8) :: x
+
+c     Local variables
+
+        real(8) :: xi0,xibar,LL,bb,dx
+
+        integer,parameter :: nit=100
+
+        integer :: i
+        real(8) :: ijac,dxi(nit),res(nit)
+
+c     Begin program
+
+        if (eta == 0d0) then
+
+          x = xi
+
+        else
+
+          LL = xmax-xmin
+          bb = eta/LL**2
+
+          !Pack at x0
+          if (lambda < 1d0) then
+            xibar = 0.5*(xmax+xmin)
+
+            xi0 = xibar + sign(1d0,x0-xibar)
+     .                   *LL*sqrt(4d0*(1d0-lambda)-eta)/sqrt(12.*eta)
+
+            !Linear extrapolation to ensure equal mesh spacing at ghost points
+            if (xi > xmax) then
+              dx = xi - xmax
+              x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
+              x = 2*xmax - x
+            elseif (xi < xmin) then
+              dx = xmin - xi
+              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
+              x = 2*xmin - x
+            else
+              x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
+            endif
+
+          !Pack at edges
+          else
+
+            xi0 = xmin - (xmin-x0)/lambda - bb*(xmin-x0)**exp
+
+            !Linear extrapolation to ensure equal mesh spacing at ghost points
+cc            if (xi > xmax) then
+cc              dx = xi - xmax
+cc            elseif (xi < xmin) then
+cc              dx = xi - xmin
+cc            else
+cc              dx = 0d0
+cc            endif
+
+            !Initial guess
+            x = xi! - 2*dx
+
+            !Newton iteration to find x(xi)
+            do i=1,nit
+              res(i) = xi-2*dx-(xi0 + (x-x0)/lambda + bb*(x-x0)**exp)
+
+              ijac = -1d0/lambda -exp*bb*(x-x0)**(exp-1)
+
+              dxi(i) = -res(i)/ijac
+              x = x + dxi(i)
+
+cc              write (*,*) abs(res(i)),dxi(i),x
+
+              if (abs(res(i)) < 1d-8 .or. (abs(dxi(i)) < 1d-14) ) exit
+            enddo
+
+            !Convergence check
+            if (i > nit) then
+              write (*,*)
+              write (*,*)'Newton it. in grid-packing routine',
+     .                   ' scl_coord did not converge'
+              write (*,*)
+              write (*,*) 'Convergence history:'
+              do i=1,nit
+                write (*,*) 'Newton it.',i,' residual',abs(res(i))
+     .                     ,'update',abs(dxi(i))
+              enddo
+              write (*,*)
+              write (*,*) 'Aborting...'
+              stop
+            endif
+
+cc            !To ensure periodicity of map
+cc            if (xi > xmax) then
+cc              x = 2*xmax - x
+cc            elseif (xi < xmin) then
+cc              x = 2*xmin - x
+cc            endif
+
+          endif
+
+        endif
+
+c     End program
+
+      end function scl_coord
+
+c     find_eta
+c     #################################################################
+      function find_eta(xmin,xmax,x0,lambda) result(eta)
+
+        implicit none
+
+c     Global variables
+
+        real(8) :: xmin,xmax,x0,lambda,eta
+
+c     Local variables
+
+        integer,parameter :: nit=20
+
+        integer :: i
+        real(8) :: ijac,dxi(nit),res(nit)
+        real(8) :: ll,dd,xbar,dx
+
+c     Begin program
+
+        if (lambda == 0d0 .or. lambda == 1d0) then
+          eta = 0d0
+          return
+        endif
+
+        LL  = xmax-xmin
+
+        if (lambda > 1d0) then  !Pack at edges
+
+cc          eta = LL**3*(1d0-1d0/lambda)/((xmax-x0)**3-(xmin-x0)**3)
+          eta = LL**exp*(1d0-1d0/lambda)/((xmax-x0)**exp-(xmin-x0)**exp)
+
+        else                    !Pack at x0
+
+          xbar= 0.5*(xmax+xmin)
+          dx  = xbar - x0
+          dd  = (dx/LL)**2
+
+c         Initial guess
+
+          eta = 4d0*(1d0-lambda)
+
+c         Newton iteration
+
+          if (dx == 0d0) return
+
+          do i=1,nit
+            res(i)=(1+2*(eta+lambda))**2*(1-lambda-0.25*eta) -27.*dd*eta
+            ijac = 4*(1+2*(eta+lambda)) *(1-lambda-0.25*eta)
+     .         -0.25*(1+2*(eta+lambda))**2                   -27.*dd
+
+            dxi(i) = -res(i)/ijac
+            eta = abs(eta + dxi(i)) !Want to find positive root
+
+cc            write (*,*) abs(res(i)),dxi(i),ijac,eta
+
+            if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
+          enddo
+
+c         Convergence check
+
+          if (i >= nit) then
+            write (*,*)
+            write (*,*) 'Newton it. in grid-packing routine find_a'
+     .                 ,' did not converge'
+            write (*,*)
+            write (*,*) 'Convergence history:'
+            do i=1,nit
+              write (*,*) 'Newton it.',i,' residual',abs(res(i))
+     .                   ,'update',abs(dxi(i))
+            enddo
+            write (*,*)
+            write (*,*) 'Aborting...'
+            stop
+          endif
+
+        endif
+
+      end function find_eta
+
+      end function scale_coord
 
 c     findGlobalGrid
 c     #################################################################
@@ -35,7 +313,6 @@ c     Call variables
         real(8) :: xg(0:),lmin,lmax
 
         type(grid_pack) :: dpack
-cc        type(dim_pack) :: dpack
 
 c     Local variables
 
@@ -83,28 +360,12 @@ cc          endif
 
             n2 = ng - n1
 
-cc            if (crse_ratio > 1 .and. xil /= 1d0) then
-cc              alphal = alphal*(xil**crse_ratio-1d0)/(xil-1d0)
-cc            else
-cc              alphal = alphal
-cc            endif
-cc
-cc            dxl = alphal*dxl  !Modify initial interval for coarser grids
-
             if (n1 > 1) then
               call packGrid(n1,lstart,xp-0.5*dxl,-dxl,xg(1:n1),xil,fv_l)
             else
               xg(1) = xp-0.5*dxl
               xil = 1d0
             endif
-
-cc            if (crse_ratio > 1 .and. xir /= 1d0) then
-cc              alphar = alphar*(xir**crse_ratio-1d0)/(xir-1d0)
-cc            else
-cc              alphar = alphar
-cc            endif
-cc
-cc            dxr = alphar*dxr  !Modify initial interval for coarser grids
 
             if (n2 > 1) then
               call packGrid(n2,xp+0.5*dxr,lend,dxr,xg(n1+1:ng),xir,fv_r)
@@ -113,23 +374,7 @@ cc            dxr = alphar*dxr  !Modify initial interval for coarser grids
               xir = 1d0
             endif
 
-cc            write (*,*) 'alphar,alphal=',alphar,alphal
-
-            if (abs(bcs1) == SP) then
-cc              dxl = alphar*dxl
-              dxl = crse_ratio*dxl
-              dpack%xp = lstart + dxl
-            endif
-
           else
-
-cc            if (crse_ratio > 1 .and. xi /= 1d0) then
-cc              alphal = alphal*(xi**crse_ratio-1d0)/(xi-1d0)
-cc            else
-cc              alphal = alphal
-cc            endif
-cc
-cc            dx0 = alphal*dx0  !Modify initial interval for coarser grids
 
             if (xp == lstart) then  !Pack to the right
               pack_r = .true.
@@ -186,28 +431,22 @@ cc            dx0 = alphal*dx0  !Modify initial interval for coarser grids
 
         else  !Uniform grid
 
-          dh = length/ng
-
-          if (bcs1 == PER .and. bcs2 == PER) then
+          if (bcs1 == PER.and.bcs2 == PER.and.ng == 1) then !Single layer dimension
+cc          if (bcs1 == PER.and.bcs2 == PER) then !Sets angle origin at zero
             dh = length/ng
             lstart = lmin
-            lend   = lmax
           elseif (bcs1 == SYM .and. bcs2 == SYM) then
             dh = length/(ng-1)
             lstart = lmin
-            lend   = lmax
           elseif (bcs1 == SYM .and. bcs2 /= SYM) then
-            dh = length/(ng - 0.5)
+            dh = length/(ng - 0.5d0)
             lstart = lmin
-            lend   = lmax-dh/2.
           elseif (bcs1 /= SYM .and. bcs2 == SYM) then
-            dh = length/(ng - 0.5)
-            lstart = lmin+dh/2.
-            lend   = lmax
+            dh = length/(ng - 0.5d0)
+            lstart = lmin+0.5d0*dh
           else
             dh = length/ng
-            lstart = lmin+dh/2.
-            lend   = lmax-dh/2.
+            lstart = lmin+0.5d0*dh
           endif
 
           xg(1) = lstart

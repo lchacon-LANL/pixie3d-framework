@@ -10,6 +10,7 @@ c######################################################################
           !Global quantities
           integer    :: iter
           real(8)    :: tol,atol,stol
+cc          logical    :: vol_res
 
           !Stationary iterative methods quantities
           real(8)    :: omega
@@ -23,7 +24,6 @@ c######################################################################
           integer    :: stp_test
           logical    :: sym_test
           integer    :: ngrd_tst
-          logical    :: vol_res
           integer    :: krylov_subspace
           logical    :: singular_matrix
 
@@ -55,7 +55,6 @@ c######################################################################
 
           logical      :: mg_galerkin
           logical      :: mg_debug
-
 
           type(grid_mg_def),pointer  :: mg_grid_def
 
@@ -139,7 +138,7 @@ c       Initializes solver options
           solverOptions%orderprol= 0               !Interpolation order in prolongation (MG)
           solverOptions%fdiag    = .true.          !Whether to form matrix diagonal
                                                    !  for smoothing
-          solverOptions%vol_res  = .true.          !Whether residual contains volume information
+cc          solverOptions%vol_res  = .true.          !Whether residual contains volume information
           nullify(solverOptions%diag)              !Diagonal not provided externally
           solverOptions%omega = 1d0                !Relaxation parameter
           solverOptions%omega10= 0d0               !Weighed Jacobi relaxation parameter
@@ -174,10 +173,9 @@ c       Initializes solver options
                                                    !  or rediscretization (false)
           solverOptions%mg_debug       =.false.    !Whether to turn on MG graphic debugging
 
-cc          solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
-          solverOptions%mg_grid_def => grid_params  !Defines default MG grid levels def.
-cc          call equateGridStructure(solverOptions%mg_grid_def
-cc     .                            ,grid_params)    !Defines default MG grid levels def.
+          solverOptions%mg_grid_def => grid_params !Defines default MG grid levels def.
+
+          solverOptions%mgctx => null()            !Nullify MG context
 
           !Krylov methods options
           solverOptions%stp_test = 0               !Stopping criterion (CG, GMRES)
