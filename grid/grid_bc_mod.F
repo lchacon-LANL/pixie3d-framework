@@ -1365,7 +1365,7 @@ c     Find complete curvilinear representation at boundaries
 c     Exit if all periodic domains (PETSc deals with all periodic domains)
 
 #if defined(petsc)
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
+      if (petsc__bc.and.bcPER(1).and.bcPER(2).and.bcPER(3)) return
 #endif
 
 c     Impose BCs
@@ -1781,7 +1781,7 @@ cc      endif
 c     Exit if all periodic domains (PETSc deals with all periodic domains)
 
 #if defined(petsc)
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
+      if (petsc__bc.and.bcPER(1).and.bcPER(2).and.bcPER(3)) return
 #endif
 
 c     Impose BCs
