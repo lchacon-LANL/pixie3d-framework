@@ -637,12 +637,14 @@ cc        integer,optional,INTENT(IN) :: ss_order
 
 c     Local variables
 
-	integer :: iterror,itime,np
+	integer :: iterror,itime,np,get_omp_numthreads
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral,non_fatal_err
 
 c     Begin program
 
+        thr_tot = get_omp_numthreads()
+        
         iiout = iout
 
         iterror = 0
@@ -1469,7 +1471,7 @@ c     Call variables
 c     Local variables
 
         integer :: iterr
-        integer :: omp_get_thread_num,omp_get_num_threads
+!$      integer :: omp_get_thread_num,omp_get_num_threads
 
 c     Begin program
 
@@ -2427,11 +2429,14 @@ c     Call variables
 c     Local variables
 
         integer :: cpos,nfiles,ifile,ith,iproc,ierr,ic
+     $            ,get_omp_numthreads
         character(50) :: drawin,dummy
 
         character(50),dimension(:),allocatable :: ssx,ssy,ssz,ssrz
 
 c     Begin program
+
+        thr_tot = get_omp_numthreads()
 
         ss_io = .true.   !Turn on SS XDRAW IO
   
@@ -2503,43 +2508,43 @@ cc            ierr = rm_files(dummy)
 
 c     Open output files (one per thread and MPI process)
 
-        allocate(nunitx(0:thr_tot-1),nunity(0:thr_tot-1))
+        allocate(nunitx(0:thr_tot-1),nunity (0:thr_tot-1))
         allocate(nunitz(0:thr_tot-1),nunitrz(0:thr_tot-1))
 
         if (lssx) then
-        do ic = 0, thr_tot - 1
-         ifile = ic + thr_tot*my_rank 
-          nunitx(ic) = 6027+ic
-          open(unit=nunitx(ic),file=trim(ssx(ifile))
-     .        ,form='unformatted')
-	 enddo
+          do ic = 0, thr_tot - 1
+            ifile = ic + thr_tot*my_rank 
+            nunitx(ic) = 6027+ic
+            open(unit=nunitx(ic),file=trim(ssx(ifile))
+     .           ,form='unformatted')
+          enddo
         endif
 
         if (lssy) then
-        do ic = 0, thr_tot - 1
-         ifile = ic + thr_tot*my_rank 
-          nunity(ic) = 7027+ic
-          open(unit=nunity(ic),file=trim(ssy(ifile))
-     .        ,form='unformatted')
-	 enddo
+          do ic = 0, thr_tot - 1
+            ifile = ic + thr_tot*my_rank 
+            nunity(ic) = 7027+ic
+            open(unit=nunity(ic),file=trim(ssy(ifile))
+     .           ,form='unformatted')
+          enddo
         endif
 
         if (lssz) then
-        do ic = 0, thr_tot - 1
-         ifile = ic + thr_tot*my_rank 
-          nunitz(ic) = 8027+ic
-          open(unit=nunitz(ic),file=trim(ssz(ifile))
-     .        ,form='unformatted')
-	 enddo
+          do ic = 0, thr_tot - 1
+            ifile = ic + thr_tot*my_rank 
+            nunitz(ic) = 8027+ic
+            open(unit=nunitz(ic),file=trim(ssz(ifile))
+     .           ,form='unformatted')
+          enddo
         endif
 
         if (rzss) then
-        do ic = 0, thr_tot - 1
-         ifile = ic + thr_tot*my_rank 
-          nunitrz(ic) = 9027+ic
-          open(unit=nunitrz(ic),file=trim(ssrz(ifile))
-     .        ,form='unformatted')
-	 enddo
+          do ic = 0, thr_tot - 1
+            ifile = ic + thr_tot*my_rank 
+            nunitrz(ic) = 9027+ic
+            open(unit=nunitrz(ic),file=trim(ssrz(ifile))
+     .           ,form='unformatted')
+          enddo
         endif
 
         deallocate(ssx,ssy,ssz,ssrz)

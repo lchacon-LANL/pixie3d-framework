@@ -34,7 +34,7 @@
 !$OMP THREADPRIVATE(cnctth)
        real(8) :: slyp, slyp_old
 !$OMP THREADPRIVATE(slyp,slyp_old)
-       real(8), parameter :: big_n=100000000.d0
+       real(8) :: big_n=100000000.d0
 !$OMP THREADPRIVATE(big_n)
 
 !#! Marco, attention
@@ -162,7 +162,11 @@
 
         character(50),dimension(:),allocatable :: cnct_file
 
+        integer :: get_omp_numthreads
+
 !     Begin program
+
+        thr_tot = get_omp_numthreads()
 
         cpos = index(trim(file),'.bin') - 1
 
@@ -643,3 +647,15 @@
 	ilup = ilop
 
       end subroutine set_lyapn_counter
+
+      function get_omp_numthreads() result(thr_tot)
+
+        integer :: thr_tot
+        character*10 :: ev
+
+        thr_tot = 1
+        
+!$      call getenv('OMP_NUM_THREADS',ev)
+!$      read(ev,'(i2)') thr_tot
+
+      end function get_omp_numthreads
