@@ -1040,31 +1040,6 @@ c     ################################################################
       endif
       end subroutine print_var_name
 
-#if defined(samrai)
-c     pstop
-c     ################################################################
-      subroutine pstop(routine,message)
-
-c     ---------------------------------------------------------------
-c     Stops program at "routine" with "message"
-c     ---------------------------------------------------------------
-
-        implicit none
-
-        character(*)  :: routine, message
-
-c     Begin program
-
-          write (*,*)
-          write (*,*) trim(message)
-          write (*,*) 'Program stopped at routine ',trim(routine)
-
-        call abort
-
-        stop
-
-      end subroutine pstop
-#endif
 
       end subroutine create_bc_schedule
 

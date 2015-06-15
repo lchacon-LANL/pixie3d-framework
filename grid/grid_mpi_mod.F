@@ -1245,6 +1245,18 @@ c     ---------------------------------------------------------------
 
 c     Begin program
 
+#if defined(samrai)
+c     Call SAMRAI's error handler
+        interface
+           subroutine pstop_samrai(fun,msg) 
+     .                bind(C, name="pstop_samrai")
+              use iso_c_binding, only: c_char
+              character(kind=c_char) :: fun(*), msg(*)
+           end subroutine pstop_samrai
+        end interface
+        call pstop_samrai(trim(routine),trim(message))
+#endif
+
         if (my_rank == 0) then
           write (*,*)
           write (*,*) trim(message)
