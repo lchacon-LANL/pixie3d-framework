@@ -65,17 +65,7 @@ c     --------------------------------------------------------------------
 c     Runs shell command from fortran.
 c     --------------------------------------------------------------------
 
-#if defined(samrai)
-      use iso_c_binding
-      interface
-         integer(c_int) function system(sysin) bind(c)
-         use iso_c_binding
-         character(kind=c_char), dimension(*) :: sysin
-         end function system
-      end interface
-#else
       implicit none
-#endif
       
 c     Call variables
          

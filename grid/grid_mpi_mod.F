@@ -1246,7 +1246,7 @@ c     ---------------------------------------------------------------
 c     Begin program
 
 #if defined(samrai)
-c     Call SAMRAI's error handler
+     Call SAMRAI's error handler
         interface
            subroutine pstop_samrai(fun,msg) 
      .                bind(C, name="pstop_samrai")
@@ -1255,7 +1255,7 @@ c     Call SAMRAI's error handler
            end subroutine pstop_samrai
         end interface
         call pstop_samrai(trim(routine),trim(message))
-#endif
+#else
 
         if (my_rank == 0) then
           write (*,*)
@@ -1266,7 +1266,10 @@ c     Call SAMRAI's error handler
 #if defined(petsc)
         call PetscEnd(mpierr)
 #endif
+        call abort
         stop
+
+#endif
 
       end subroutine pstop
 
