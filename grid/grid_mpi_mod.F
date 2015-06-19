@@ -1246,7 +1246,7 @@ c     ---------------------------------------------------------------
 c     Begin program
 
 #if defined(samrai)
-     Call SAMRAI's error handler
+c     Call SAMRAI's error handler
         interface
            subroutine pstop_samrai(fun,msg) 
      .                bind(C, name="pstop_samrai")
