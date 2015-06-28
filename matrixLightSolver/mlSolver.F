@@ -227,6 +227,7 @@ c     For zero initial guess
 
 c     For arbitrary initial guess (rr = b - Ax)
 
+        MGgrid => options%mg_grid_def
         call matvec(0,neq,ntot,x,rr,igrid,bcnd)
 
         rr = b - rr
@@ -265,6 +266,7 @@ c     CG step
 
         rho0 = rho1
 
+        MGgrid => options%mg_grid_def
         call matvec(0,neq,ntot,pp,qq,igrid,bcnd)
 
         alpha = rho0/dot2(pp,qq)
@@ -418,6 +420,7 @@ c     For zero initial guess
 
 c     For arbitrary initial guess (vv(:,1) = b - Ax)
 
+        MGgrid => options%mg_grid_def
         call matvec(0,neq,ntot,x,vv(:,1),igrid,bcnd)
 
         vv(:,1) = b(:) - vv(:,1)
@@ -475,6 +478,7 @@ c        Call preconditioner
           call getSolver(neq,ntot,vv(:,i),zz(:,i),matvec,igrid,bcnd,0
      .                  ,precout,depth1)
 
+          MGgrid => options%mg_grid_def
           call matvec(0,neq,ntot,zz(:,i),vv(:,i1),igrid,bcnd)
 
 c        Modified gram - schmidt.

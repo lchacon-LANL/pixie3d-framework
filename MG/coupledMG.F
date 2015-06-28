@@ -3672,6 +3672,8 @@ c       Check whether GMRES is driving solve
           solverOptions%stp_test = 1 
           solverOptions%krylov_subspace = solverOptions%iter 
 
+          if(PRESENT(mg_grid_def))solverOptions%mg_grid_def=>mg_grid_def
+
           if (gm_drvr) then
             solverOptions%singular_matrix = smat
             call assembleSolverHierarchy('gm')
