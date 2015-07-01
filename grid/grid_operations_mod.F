@@ -974,8 +974,7 @@ c     -----------------------------------------------------------------
 c     Input variables
 
         integer :: i,j,k,igrid
-        real(8) :: cov(0:,0:,0:,:)
-     .            ,cnv(3)
+        real(8) :: cov(0:,0:,0:,:),cnv(3)
 
 c     Local variables
 
@@ -1014,7 +1013,7 @@ c     Begin program
      .                      +gsup_v(im,j,k,2,1)*(cov(im,j ,k,1)
      .                                          +cov(im,jp,k,1)))
 
-        cnv(3) = cov(i,j,k,3)
+        cnv(3) = gmetric%grid(igrid)%jac(i,j,k)*cov(i,j,k,3)
 
       end function XformToCnv_stg_ijk
 
@@ -1034,8 +1033,7 @@ c     -----------------------------------------------------------------
 c     Input variables
 
         integer :: i,j,k,igrid
-        real(8) :: cnv(0:,0:,0:,:)
-     .            ,cov(3)
+        real(8) :: cnv(0:,0:,0:,:),cov(3)
 
 c     Local variables
 
@@ -1074,7 +1072,7 @@ c     Begin program
      .                      +gsub_v(im,j,k,2,1)*(cnv(im,j ,k,1)
      .                                          +cnv(im,jp,k,1)))
 
-        cov(3) = cnv(i,j,k,3)
+        cov(3) = cnv(i,j,k,3)/gmetric%grid(igrid)%jac(i,j,k)
 
       end function XformToCov_stg_ijk
 
@@ -1103,6 +1101,7 @@ c     Local variables
         integer :: nx,ny,nz,ip,im,jp,jm,kp,km
         real(8) :: gsub12,gsub21
         real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
+        real(8),pointer,dimension(:,:,:)     :: jac_v
 
 c     Begin program
 
@@ -1116,6 +1115,7 @@ c     Begin program
         km = max(k-1,0)
 
         gsub_v => gmetric%grid(igr)%gsub_v
+        jac_v  => gmetric%grid(igr)%jac_v
 
         gsub12 = 0.5*(gsub_v(i,jm,k,1,2)
      .               +gsub_v(i,j ,k,1,2))
@@ -1135,10 +1135,10 @@ c     Begin program
      .                +gsub_v(im,j,k,2,2)*(cnv_vrtx(im,j ,k,2)
      .                                    +cnv_vrtx(im,jp,k,2)))
 
-        cov_cell(3) = 0.25*(cnv_vrtx(im,jm,k,3)
-     .                     +cnv_vrtx(im,j ,k,3)
-     .                     +cnv_vrtx(i ,j ,k,3)
-     .                     +cnv_vrtx(i ,jm,k,3))
+        cov_cell(3) = 0.25*(cnv_vrtx(im,jm,k,3)/jac_v(im,jm,k)
+     .                     +cnv_vrtx(im,j ,k,3)/jac_v(im,j ,k)
+     .                     +cnv_vrtx(i ,j ,k,3)/jac_v(i ,j ,k)
+     .                     +cnv_vrtx(i ,jm,k,3)/jac_v(i ,jm,k))
 
       end function Xform_From_VrtxCnv_To_CellCov_stg_ijk
 
