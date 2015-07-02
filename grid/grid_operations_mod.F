@@ -1013,7 +1013,7 @@ c     Begin program
      .                      +gsup_v(im,j,k,2,1)*(cov(im,j ,k,1)
      .                                          +cov(im,jp,k,1)))
 
-        cnv(3) = gmetric%grid(igrid)%gsup(3,3)*cov(i,j,k,3)
+        cnv(3) = gmetric%grid(igrid)%gsup(i,j,k,3,3)*cov(i,j,k,3)
 
       end function XformToCnv_stg_ijk
 
@@ -1135,11 +1135,11 @@ c     Begin program
      .                +gsub_v(im,j,k,2,2)*(cnv_vrtx(im,j ,k,2)
      .                                    +cnv_vrtx(im,jp,k,2)))
 
-        cov_cell(3) = gmetric%grid(igrid)%gsub(i,j,k,3,3)
-     .               *0.25*(cnv_vrtx(im,jm,k,3))
-     .                     +cnv_vrtx(im,j ,k,3))
-     .                     +cnv_vrtx(i ,j ,k,3))
-     .                     +cnv_vrtx(i ,jm,k,3)))
+        cov_cell(3) = gmetric%grid(igr)%gsub(i,j,k,3,3)
+     .               *0.25*(cnv_vrtx(im,jm,k,3)
+     .                     +cnv_vrtx(im,j ,k,3)
+     .                     +cnv_vrtx(i ,j ,k,3)
+     .                     +cnv_vrtx(i ,jm,k,3))
 
       end function Xform_From_VrtxCnv_To_CellCov_stg_ijk
 
