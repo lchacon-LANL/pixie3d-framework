@@ -319,6 +319,118 @@ c     Begin program
 
       end function XformToCar_mesh
 
+c     XformToCar_stg_ijk
+c     #################################################################
+      function XformToCar_stg_ijk(i,j,k,igrid,curv,covariant)result(car)
+
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
+c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer    :: i,j,k,igrid
+        real(8)    :: curv(3),car(3)
+        logical    :: covariant
+
+c     Local variables
+
+        integer    :: im,jm,km
+        real(8)    :: cov(3),cnv(3)
+
+c     Begin program
+
+        im = max(i-1,0)
+        jm = max(j-1,0)
+        km = max(k-1,0)
+
+        if (covariant) then
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,:,1)
+     $               +gmetric%grid(igrid)%cov_v(i,j ,k ,:,1)
+     $               +gmetric%grid(igrid)%cov_v(i,jm,km,:,1)
+     $               +gmetric%grid(igrid)%cov_v(i,j ,km,:,1))
+          car(1) = dot_product(curv,cov)
+
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,:,2)
+     $               +gmetric%grid(igrid)%cov_v(i ,j,k ,:,2)
+     $               +gmetric%grid(igrid)%cov_v(im,j,km,:,2)
+     $               +gmetric%grid(igrid)%cov_v(i ,j,km,:,2))
+          car(2) = dot_product(curv,cov)
+
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,:,3)
+     $               +gmetric%grid(igrid)%cov_v(i ,j ,k,:,3)
+     $               +gmetric%grid(igrid)%cov_v(im,jm,k,:,3)
+     $               +gmetric%grid(igrid)%cov_v(i ,jm,k,:,3))
+          car(3) = dot_product(curv,cov)
+        else
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,:,1)
+     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,:,1)
+     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,:,1)
+     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,:,1))
+          car(1) = dot_product(curv,cnv)
+
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k ,:,2)
+     $               +gmetric%grid(igrid)%cnv_v(i ,j,k ,:,2)
+     $               +gmetric%grid(igrid)%cnv_v(im,j,km,:,2)
+     $               +gmetric%grid(igrid)%cnv_v(i ,j,km,:,2))
+          car(2) = dot_product(curv,cnv)
+
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,:,3)
+     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,:,3)
+     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,:,3)
+     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,:,3))
+          car(3) = dot_product(curv,cnv)
+        endif
+
+      end function XformToCar_stg_ijk
+
+c     XformToCar_stg_mesh
+c     #################################################################
+      function XformToCar_stg_mesh(igrid,curv,covariant) result(car)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered curvilinear vector to Cartesian 
+c     over the whole mesh. Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: curv(0:,0:,0:,:)
+     .            ,car(0:size(curv,1)-1
+     .                ,0:size(curv,2)-1
+     .                ,0:size(curv,3)-1,size(curv,4))
+        logical :: covariant
+
+c     Local variables
+
+        integer :: nxl,nyl,nzl
+
+c     Begin program
+
+        nxl = size(curv,1)-2
+        nyl = size(curv,2)-2
+        nzl = size(curv,3)-2
+
+        do k = 0,nzl
+          do j = 0,nyl
+            do i = 0,nxl
+              car(i,j,k,:) = XformToCar_stg_ijk(i,j,k,igrid
+     $                                         ,curv(i,j,k,:)
+     .                                         ,covariant)
+            enddo
+          enddo
+        enddo
+
+      end function XformToCar_stg_mesh
+
 c     XformToCurv_ijk
 c     #################################################################
       function XformToCurv_ijk(i,j,k,igrid,car,tocnv,nojac) result(curv)
@@ -447,6 +559,142 @@ c     Begin program
         enddo
 
       end subroutine XformToCurv_mesh2
+
+c     XformToCurv_stg_ijk
+c     #################################################################
+      function XformToCurv_stg_ijk(i,j,k,igrid,car,tocnv) result(curv)
+
+c     -----------------------------------------------------------------
+c     Transforms a cartesian staggered vector (cx,cy,cz) to curvilinear
+c     (c1,c2,c3) at grid coordinates (i,j,k). Cartesian vector is
+c     contravariant if tocnv=.true., and covariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer    :: i,j,k,igrid
+        real(8)    :: curv(3),car(3)
+        logical    :: tocnv
+
+c     Local variables
+
+        integer    :: im,jm,km
+        real(8)    :: cov(3),cnv(3)
+        
+c     Begin program
+
+        im = max(i-1,0)
+        jm = max(j-1,0)
+        km = max(k-1,0)
+
+        if (tocnv) then
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,1,:)
+     $               *gmetric%grid(igrid)%jac_v(i,jm,k  )
+     $               +gmetric%grid(igrid)%cov_v(i,j ,k ,1,:)
+     $               *gmetric%grid(igrid)%jac_v(i,j ,k  )
+     $               +gmetric%grid(igrid)%cov_v(i,jm,km,1,:)
+     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
+     $               +gmetric%grid(igrid)%cov_v(i,j ,km,1,:)
+     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
+          curv(1) = dot_product(cov,car)
+
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,2,:)
+     $               *gmetric%grid(igrid)%jac_v(im,j,k )
+     $               +gmetric%grid(igrid)%cov_v(i ,j,k ,2,:)
+     $               *gmetric%grid(igrid)%jac_v(i ,j,k )
+     $               +gmetric%grid(igrid)%cov_v(im,j,km,2,:)
+     $               *gmetric%grid(igrid)%jac_v(im,j,km)
+     $               +gmetric%grid(igrid)%cov_v(i ,j,km,2,:)
+     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
+          curv(2) = dot_product(cov,car)
+
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,3,:)
+     $               *gmetric%grid(igrid)%jac_v(im,j ,k )
+     $               +gmetric%grid(igrid)%cov_v(i ,j ,k,3,:)
+     $               *gmetric%grid(igrid)%jac_v(i ,j ,k )
+     $               +gmetric%grid(igrid)%cov_v(im,jm,k,3,:)
+     $               *gmetric%grid(igrid)%jac_v(im,jm,k )
+     $               +gmetric%grid(igrid)%cov_v(i ,jm,k,3,:))
+     $               *gmetric%grid(igrid)%jac_v(i ,jm,k )
+          curv(3) = dot_product(cov,car)
+        else
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,1,:)
+     $               *gmetric%grid(igrid)%jac_v(i,jm,k )
+     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,1,:)
+     $               *gmetric%grid(igrid)%jac_v(i,j ,k )
+     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,1,:)
+     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
+     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,1,:)
+     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
+          curv(1) = dot_product(cnv,car)
+
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k ,2,:)
+     $               *gmetric%grid(igrid)%jac_v(im,j,k )
+     $               +gmetric%grid(igrid)%cnv_v(i ,j,k ,2,:)
+     $               *gmetric%grid(igrid)%jac_v(i ,j,k )
+     $               +gmetric%grid(igrid)%cnv_v(im,j,km,2,:)
+     $               *gmetric%grid(igrid)%jac_v(im,j,km)
+     $               +gmetric%grid(igrid)%cnv_v(i ,j,km,2,:)
+     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
+          curv(2) = dot_product(cnv,car)
+
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,3,:)
+     $               *gmetric%grid(igrid)%jac_v(im,j ,k  )
+     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,3,:)
+     $               *gmetric%grid(igrid)%jac_v(i ,j ,k  )
+     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,3,:)
+     $               *gmetric%grid(igrid)%jac_v(im,jm,k  )
+     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,3,:))
+     $               *gmetric%grid(igrid)%jac_v(i ,jm,k  )
+          curv(3) = dot_product(cnv,car)
+        endif
+
+      end function XformToCurv_stg_ijk
+
+c     XformToCurv_stg_mesh
+c     #################################################################
+      function XformToCurv_stg_mesh(igrid,car,tocnv) result(curv)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered Cartesian vector to curvilinear
+c     over the whole mesh. Curvilinear vector is contravariant if
+c     tocnv=.true., and covariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: igrid
+        real(8) :: car(0:,0:,0:,:)
+     .            ,curv(0:size(car,1)-1
+     .                 ,0:size(car,2)-1
+     .                 ,0:size(car,3)-1,size(car,4))
+        logical :: tocnv
+
+c     Local variables
+
+        integer :: i,j,k,nxl,nyl,nzl
+
+c     Begin program
+
+        nxl = size(car,1)-2
+        nyl = size(car,2)-2
+        nzl = size(car,3)-2
+
+        do k = 0,nzl
+          do j = 0,nyl
+            do i = 0,nxl
+              curv(i,j,k,:) = XformToCurv_stg_ijk(i,j,k,igrid
+     $                                           ,car(i,j,k,:)
+     $                                           ,tocnv)
+            enddo
+          enddo
+        enddo
+
+      end function XformToCurv_stg_mesh
 
 c     transformVectorToCurvilinear
 c     #################################################################
