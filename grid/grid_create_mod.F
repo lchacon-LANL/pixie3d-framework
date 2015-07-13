@@ -1129,7 +1129,7 @@ c     Output
       write(*    ,*) '**********************************'
       write(*    ,*)
 
-      dump_diff = anal_map.and.numerical_grid
+      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
 cc      dump_diff = .false.
 
       if (dump_diff) then

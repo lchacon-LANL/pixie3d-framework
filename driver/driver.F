@@ -112,6 +112,8 @@ c     Check for error in time stepping
           if (timecorr) then
             cycle
           else
+            call pstop('Main'
+     .   ,'ERROR: Solver failed to converge; rerun with "timecorr = t"')
             exit
           endif
 

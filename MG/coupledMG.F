@@ -6615,9 +6615,11 @@ c Read solver configuration
       tol    = options%tol
       fdiag  = options%fdiag
       vbr    = options%mg_vertex_relax
+
       ncolors= options%ncolors
       diag   => options%diag
       mgctx  => options%mgctx
+
       smat   = options%singular_matrix
 
 c Allocate pointers
@@ -7103,6 +7105,8 @@ c Preparation for iteration
       endif
 
       ones = 1d0
+
+      gs_type = 'Skipped'
 
 c GS iteration
 

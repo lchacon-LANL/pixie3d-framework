@@ -95,7 +95,7 @@ ifeq ($(HOST),jetta)
       HDF5 = t
 
       #Determined via modules
-      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm 
       HDF5_MOD  = $(PHDF5_LIB)
       HDF5_INC  = $(PHDF5_INC)
 
@@ -114,7 +114,7 @@ ifeq ($(HOST),jetta)
       HDF5 = t
 
       #Determined via modules
-      HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_f90cstub -lhdf5_hl -lhdf5 -lz -lszip -lm -ldl
       HDF5_MOD  = $(SHDF5_LIB)
       HDF5_INC  = $(SHDF5_INC)
 

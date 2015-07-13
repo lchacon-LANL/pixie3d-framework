@@ -84,9 +84,6 @@ c     Packing
             if (bbz == 0d0) bbz= find_eta(xmin,xmax,gp(1),gp(2))
             xlog = scl_coord(x1,bbz,xmin,xmax,gp(1),gp(2))
           end select
-
-cc          bbx= find_eta(xmin,xmax,gp(1),gp(2))
-cc          xlog = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
         endif
 
       contains

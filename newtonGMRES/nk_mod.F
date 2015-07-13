@@ -338,7 +338,7 @@ cc          ddx = -ddx
         if (.not.(nk_conf%fpa)) then
           if (ierr.eq.1) then
             if (prnt) write(*,*) 
-     .            '   Exceeded maximum GMRES iterations (',gmmax,')'
+     .       '   WARNING: Exceeded maximum GMRES iterations (',gmmax,')'
             ierr = 0  !Use GMRES solution for Newton update regardless
           elseif (ierr.eq.-1) then !Got to atol in the Newton residual
             ierr = 0
@@ -438,7 +438,8 @@ cc      deallocate (xx0)
      .     ,'      pdt_n')
  210  format (i4,3x,1p,6e11.3,3x,i4)
  215  format (i4,3x,1p,5e11.3)
- 220  format ('    Max newton its. exceeded; rel. residual: ',1p,1e10.2)
+ 220  format ('    WARNING: Max newton its. exceeded; rel. residual: '
+     .       ,1p,1e10.2)
  230  format ('    Relative residual =',f7.2,' >',f7.2)
  240  format ('    Newton converged in too many iterations (>',i2,')')
 

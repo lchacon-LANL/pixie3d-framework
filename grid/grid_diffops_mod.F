@@ -5703,15 +5703,17 @@ c     -------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8)    :: t11,t12,t13
-        logical    :: alt_eom
+        integer :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+        real(8) :: t11,t12,t13
+        logical :: alt_eom
 
 c     Local variables
 
-        integer    :: ig,jg,kg,ip,im,ipp,igpp,igp,igm,icomp,adv__meth
-        real(8)    :: vxp,qp(3),t1(3)
-        real(8)    :: jac,jac0,jacp,ijac,ijac0,ijacp
+        integer :: ig,jg,kg,ip,im,ipp,igpp,igp,igm,icomp,adv__meth
+        real(8) :: vxp,qp(3),t1(3)
+        real(8) :: jac,jac0,jacp,ijac,ijac0,ijacp
+
+        logical :: bc_safe
 
 c     Begin program
 
@@ -5758,11 +5760,12 @@ c     ZIP advective fluxes
 
 c     Flux limiting
 
+        bc_safe = .not.(adv_meth > 2 .and. adv_meth <= 6)
+
         if (adv_meth /= 2 .and. flag /= 0) then
 
           !Revert extended support methods to upwinding at processor boundaries
-          if ((i == nx .or. i == 0)
-     .       .and.(adv_meth > 2 .and. adv_meth <= 6)) then
+          if ((i == nx .or. i == 0).and.(.not.bc_safe))then
             adv__meth = bc_adv_meth
           else
             adv__meth = adv_meth
@@ -5836,6 +5839,8 @@ c     Local variables
         integer :: ig,jg,kg,jp,jm,jpp,jgpp,jgp,jgm,adv__meth
         real(8) :: vyp,qp(3),jac,ijac,t2(3)
 
+        logical :: bc_safe
+
 c     Begin program
 
         jp = j+1
@@ -5853,11 +5858,12 @@ c     ZIP advective fluxes
 
 c     Flux limiting
 
+        bc_safe = .not.(adv_meth > 2 .and. adv_meth <= 6)
+
         if (adv_meth /= 2 .and. flag /= 0) then
 
           !Revert extended support methods to upwinding at processor boundaries
-          if ((j == ny .or. j == 0)
-     .       .and.(adv_meth > 2 .and. adv_meth <= 6)) then
+          if ((j == ny .or. j == 0).and.(.not.bc_safe))then
             adv__meth = bc_adv_meth
           else
             adv__meth = adv_meth
@@ -5932,6 +5938,8 @@ c     Local variables
         integer :: ig,jg,kg,kp,km,kpp,kgpp,kgp,kgm,adv__meth
         real(8) :: vzp,qp(3),jac,ijac,t3(3)
 
+        logical :: bc_safe
+
 c     Begin program
 
         kp = k+1
@@ -5949,11 +5957,12 @@ c     ZIP advective fluxes
 
 c     Flux limiting
 
+        bc_safe = .not.(adv_meth > 2 .and. adv_meth <= 6)
+
         if (adv_meth /= 2 .and. flag /= 0) then
 
          !Revert extended support methods to upwinding at processor boundaries
-          if ((k == nz .or. k == 0)
-     .       .and.(adv_meth > 2 .and. adv_meth <= 6)) then
+          if ((k == nz .or. k == 0).and.(.not.bc_safe))then
             adv__meth = bc_adv_meth
           else
             adv__meth = adv_meth
