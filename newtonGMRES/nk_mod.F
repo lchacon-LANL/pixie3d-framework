@@ -45,7 +45,8 @@ c ###################################################################
 
       integer,private :: jit=0
 
-      logical :: pseudo_dt,prnt,is_residual=.true.
+      logical :: pseudo_dt,prnt,is_matvec
+     .          ,is_residual=.true.
 
       type :: nk_options  !Explanation below
         integer      :: etak_meth=0
@@ -66,6 +67,7 @@ c ###################################################################
         logical      :: mf_first_order=.true.
         character(2) :: krylov_method='gm'
         logical      :: vol_wgt=.true.
+        logical      :: deferred_correction=.false.
 
         !FPA setup
         type (fpa_state) :: fpas
@@ -73,7 +75,7 @@ c ###################################################################
         integer      :: fpa_it=5
 
         !Newton vectors
-        real(8),pointer,dimension(:) :: xk,rk
+        real(8),pointer,dimension(:) :: xk,rk,rkstar
       end type nk_options
 
       type(nk_options),save :: nk_conf
@@ -254,7 +256,7 @@ cc        pdt0      = 1d30
 
 c     Evaluate rhs and norms
 
-      allocate (nk_conf%xk(ntot),nk_conf%rk(ntot))
+      allocate (nk_conf%xk(ntot),nk_conf%rk(ntot),nk_conf%rkstar(ntot))
 
       nk_conf%xk = x    !Save previous Newton state
 
@@ -266,7 +268,7 @@ c     Evaluate rhs and norms
       if (f0.lt.atol) then
         ierr = -1
 cc        deallocate(xx0)
-        deallocate(nk_conf%xk,nk_conf%rk)
+        deallocate(nk_conf%xk,nk_conf%rk,nk_conf%rkstar)
         return
       endif
 
@@ -293,7 +295,8 @@ c     Start Newton iteration
       etakm = eta0
       etak  = eta0
 
-      if (nk_conf%fpa) call fpa_create(nk_conf%fpas,nk_conf%rk
+      if (nk_conf%fpa) call fpa_create(nk_conf%fpas
+     .                                ,nk_conf%rk
      .                                ,maxv=nk_conf%fpa_it)
 
       do jit = 1,ntit_max_rej
@@ -315,15 +318,25 @@ c     Start Newton iteration
           call fpa_correction(nk_conf%fpas,ddx,dp=dot2)
 cc          ddx = -ddx
         else
+
+          if (nk_conf%deferred_correction) then
+            is_matvec = .true.
+            call evaluateNewtonResidual(ntot,x,nk_conf%rkstar)
+            is_matvec = .false.
+          else
+            nk_conf%rkstar = nk_conf%rk
+          endif
+
           ddx = 0d0
+
           if (PRESENT(matvec)) then
             call gmresDriver(matvec
-     .                    ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
-     .                    ,iguess,iout,ierr)
+     .                      ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+     .                      ,iguess,iout,ierr)
           else
             call gmresDriver(matrixFreeMatVec
-     .                    ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
-     .                    ,iguess,iout,ierr)
+     .                      ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+     .                      ,iguess,iout,ierr)
           endif
         endif
 
@@ -427,7 +440,7 @@ c     Check error in Newton convergence
 
 c     End program
 
-      deallocate (nk_conf%rk,nk_conf%xk)
+      deallocate (nk_conf%rk,nk_conf%xk,nk_conf%rkstar)
 cc      deallocate (xx0)
 
  200  format 
@@ -1415,6 +1428,8 @@ c     Local variables
 
 c     Begin program
 
+      is_matvec = .true.
+
       modz = dot2(z,z)
 
 c     Calculate J.x
@@ -1451,7 +1466,7 @@ c       Compute the product J.x
 cc        ipert = 1d0/pert
 
         if (nk_conf%mf_first_order) then  ! using a first-order matrix-free approx
-          y = (y-nk_conf%rk)/pert
+          y = (y-nk_conf%rkstar)/pert
         else                      ! Second order formula
           dummy = nk_conf%xk - pert*z
           call evaluateNewtonResidual(nn,dummy,yk)
@@ -1459,6 +1474,8 @@ cc        ipert = 1d0/pert
         endif
 
       endif
+
+      is_matvec = .false.
 
 c     End
 

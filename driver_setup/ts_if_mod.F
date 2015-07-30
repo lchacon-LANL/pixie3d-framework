@@ -58,6 +58,8 @@ c     Newton-Krylov iteration
       if (mf_eps> 0d0) nk_conf%mf_eps = mf_eps
       nk_conf%mf_first_order = mf_first_order
 
+      nk_conf%deferred_correction = nk_def_corr
+
       nk_conf%krylov_method='fg'
 cc      nk_conf%krylov_method='gm'
       nk_conf%fpa=fpa
