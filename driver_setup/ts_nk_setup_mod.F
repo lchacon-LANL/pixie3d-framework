@@ -31,6 +31,8 @@ c ######################################################################
 
         logical :: mf_first_order=.true.  !Whether to use first or second-order MF formula
 
+        logical :: nk_def_corr=.false. !Whether we use deferred correction or not
+
         !FPA configuration
         logical :: fpa=.false.            !Whether to use Carlson's Fixed-Point-Accelerator instead of JFNK
         integer :: fpa_it=5               !Number of FPA iterations
@@ -114,7 +116,7 @@ c     Namelists
       !Newton-Krylov
       namelist /nks/   rtol,atol,stol,mf_eps,maxitnwt,tolgm,maxksp
      .                   ,maxitgm,global,method,damp,dt0,vol_wgt,fpa
-     .                   ,iguess,pc_as_solver
+     .                   ,iguess,pc_as_solver,nk_def_corr
 
       !Preconditioner
       namelist /pc/    pc_type,mg_vcyc,sm_iter,pc_tol,pc_iter

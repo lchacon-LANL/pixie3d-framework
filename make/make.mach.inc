@@ -263,7 +263,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include/netcdf
 
-  OMP_NUM_THREADS = 8
+  OMP_NUM_THREADS = 4
 
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
