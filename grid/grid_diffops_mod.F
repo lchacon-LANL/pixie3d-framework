@@ -6650,6 +6650,8 @@ c     Asymmetric discretization
 
         !Add co-derivative terms: standard centered
         do ii = i-1,i
+          if (isSP2(ii+1,igx)) cycle
+
           call getMGmap(ii,j,k,igx,igy,igz,ig,jg,kg)
 
 cc          bx2 = (0.5*(bx(ii+1,j,k)/jac(ii+1,j,k)
