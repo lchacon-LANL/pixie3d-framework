@@ -178,8 +178,15 @@ c     Begin program
         nz = grid_params%nzv(igz)
 
         if (bcond(1) == PER) then
-          iming = 1
-          imaxg = nx+1
+cc          iming = 1  !This is when PER domains start at angle 0
+cc          imaxg = nx+1
+          if (nx == 1) then
+            iming = 1
+            imaxg = nx+1
+          else
+            iming = 0
+            imaxg = nx
+          endif
         elseif (bcSP()) then
           iming = 0
           imaxg = nx+1

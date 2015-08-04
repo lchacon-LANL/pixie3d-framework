@@ -339,7 +339,7 @@ c     Input variables
 
 c     Local variables
 
-        integer    :: im,jm,km
+        integer    :: im,jm,km,ip,jp,kp
         real(8)    :: cov(3),cnv(3)
 
 c     Begin program
@@ -347,6 +347,9 @@ c     Begin program
         im = max(i-1,0)
         jm = max(j-1,0)
         km = max(k-1,0)
+        ip = i+1
+        jp = j+1
+        kp = k+1
 
         if (covariant) then
           cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,:,1)
@@ -367,22 +370,67 @@ c     Begin program
      $               +gmetric%grid(igrid)%cov_v(i ,jm,k,:,3))
           car(3) = dot_product(curv,cov)
         else
-          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,:,1)
-     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,:,1)
-     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,:,1)
-     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,:,1))
+cc          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,:,1)
+cc     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,:,1)
+cc     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,:,1)
+cc     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,:,1))
+          cnv = 0.5d0*(gmetric%grid(igrid)%cnv(i ,j ,k ,:,1)
+     .                +gmetric%grid(igrid)%cnv(ip,j ,k ,:,1))
+
+cc          cnv =      (gmetric%grid(igrid)%cnv_v(i,jm,k ,:,1)
+cc     $               *gmetric%grid(igrid)%jac_v(i,jm,k  )
+cc     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,:,1)
+cc     $               *gmetric%grid(igrid)%jac_v(i,j ,k  )
+cc     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,:,1)
+cc     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
+cc     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,:,1)
+cc     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
+cc     $              /(gmetric%grid(igrid)%jac_v(i,jm,k  )
+cc     $               +gmetric%grid(igrid)%jac_v(i,j ,k  )
+cc     $               +gmetric%grid(igrid)%jac_v(i,jm,km)
+cc     $               +gmetric%grid(igrid)%jac_v(i,j ,km))           
           car(1) = dot_product(curv,cnv)
 
-          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k ,:,2)
-     $               +gmetric%grid(igrid)%cnv_v(i ,j,k ,:,2)
-     $               +gmetric%grid(igrid)%cnv_v(im,j,km,:,2)
-     $               +gmetric%grid(igrid)%cnv_v(i ,j,km,:,2))
+cc          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k ,:,2)
+cc     $               +gmetric%grid(igrid)%cnv_v(i ,j,k ,:,2)
+cc     $               +gmetric%grid(igrid)%cnv_v(im,j,km,:,2)
+cc     $               +gmetric%grid(igrid)%cnv_v(i ,j,km,:,2))
+          cnv = 0.5d0*(gmetric%grid(igrid)%cnv(i ,j ,k ,:,2)
+     .                +gmetric%grid(igrid)%cnv(i ,jp,k ,:,2))
+
+cc          cnv =      (gmetric%grid(igrid)%cnv_v(im,j,k  ,:,2)
+cc     $               *gmetric%grid(igrid)%jac_v(im,j,k )  
+cc     $               +gmetric%grid(igrid)%cnv_v(i ,j,k  ,:,2)
+cc     $               *gmetric%grid(igrid)%jac_v(i ,j,k )  
+cc     $               +gmetric%grid(igrid)%cnv_v(im,j,km ,:,2)
+cc     $               *gmetric%grid(igrid)%jac_v(im,j,km)  
+cc     $               +gmetric%grid(igrid)%cnv_v(i ,j,km ,:,2)
+cc     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
+cc     $              /(gmetric%grid(igrid)%jac_v(im,j,k )
+cc     $               +gmetric%grid(igrid)%jac_v(i ,j,k )
+cc     $               +gmetric%grid(igrid)%jac_v(im,j,km)
+cc     $               +gmetric%grid(igrid)%jac_v(i ,j,km))          
           car(2) = dot_product(curv,cnv)
 
-          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,:,3)
-     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,:,3)
-     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,:,3)
-     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,:,3))
+cc          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,:,3)
+cc     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,:,3)
+cc     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,:,3)
+cc     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,:,3))
+          cnv = 0.5d0*(gmetric%grid(igrid)%cnv(i ,j ,k ,:,3)
+     .                +gmetric%grid(igrid)%cnv(i ,j ,kp,:,3))
+
+cc          cnv =      (gmetric%grid(igrid)%cnv_v(im,j ,k,:,3)
+cc     $               *gmetric%grid(igrid)%jac_v(im,j ,k   )
+cc     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,:,3)
+cc     $               *gmetric%grid(igrid)%jac_v(i ,j ,k   )
+cc     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,:,3)
+cc     $               *gmetric%grid(igrid)%jac_v(im,jm,k   )
+cc     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,:,3))
+cc     $               *gmetric%grid(igrid)%jac_v(i ,jm,k )
+cc     $              /(gmetric%grid(igrid)%jac_v(im,j ,k )
+cc     $               +gmetric%grid(igrid)%jac_v(i ,j ,k )
+cc     $               +gmetric%grid(igrid)%jac_v(im,jm,k )
+cc     $               +gmetric%grid(igrid)%jac_v(i ,jm,k ))
           car(3) = dot_product(curv,cnv)
         endif
 
@@ -430,6 +478,102 @@ c     Begin program
         enddo
 
       end function XformToCar_stg_mesh
+
+c     XformToJCar_stg_ijk
+c     #################################################################
+      function XformToJCar_stg_ijk(i,j,k,igrid,car)result(Jcar)
+
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector (c1,c2,c3) to Jac*Cartesian (cx,cy,cz)
+c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer    :: i,j,k,igrid
+        real(8)    :: car(3),Jcar(3)
+        logical    :: covariant
+
+c     Local variables
+
+        integer    :: im,jm,km,ip,jp,kp
+        real(8)    :: cov(3),jac(3)
+
+c     Begin program
+
+        im = max(i-1,0)
+        jm = max(j-1,0)
+        km = max(k-1,0)
+        ip = i+1
+        jp = j+1
+        kp = k+1
+
+ 
+        jac(1) = 0.25*(gmetric%grid(igrid)%jac_v(i,jm,k )
+     $                +gmetric%grid(igrid)%jac_v(i,j ,k )
+     $                +gmetric%grid(igrid)%jac_v(i,jm,km)
+     $                +gmetric%grid(igrid)%jac_v(i,j ,km))
+
+
+        jac(2) = 0.25*(gmetric%grid(igrid)%jac_v(im,j,k )
+     $                +gmetric%grid(igrid)%jac_v(i ,j,k )
+     $                +gmetric%grid(igrid)%jac_v(im,j,km)
+     $                +gmetric%grid(igrid)%jac_v(i ,j,km))
+
+        jac(3) = 0.25*(gmetric%grid(igrid)%jac_v(im,j ,k)
+     $                +gmetric%grid(igrid)%jac_v(i ,j ,k)
+     $                +gmetric%grid(igrid)%jac_v(im,jm,k)
+     $                +gmetric%grid(igrid)%jac_v(i ,jm,k))
+
+
+        Jcar = car*jac
+
+      end function XformToJCar_stg_ijk
+
+c     XformToJcar_stg_mesh
+c     #################################################################
+      function XformToJCar_stg_mesh(igrid,car) result(Jcar)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered curvilinear vector to Jac*Cartesian 
+c     over the whole mesh. Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: car(0:,0:,0:,:)
+     .            ,Jcar(0:size(car,1)-1
+     .                ,0:size(car,2)-1
+     .                ,0:size(car,3)-1,size(car,4))
+
+
+c     Local variables
+
+        integer :: nxl,nyl,nzl
+
+c     Begin program
+
+        nxl = size(car,1)-2
+        nyl = size(car,2)-2
+        nzl = size(car,3)-2
+
+        do k = 0,nzl
+          do j = 0,nyl
+            do i = 0,nxl
+               Jcar(i,j,k,:) = XformToJCar_stg_ijk(i,j,k,igrid,car(i,j
+     $              ,k,:))
+            enddo
+          enddo
+        enddo
+
+      end function XformToJCar_stg_mesh
 
 c     XformToCurv_ijk
 c     #################################################################
@@ -590,64 +734,115 @@ c     Begin program
         km = max(k-1,0)
 
         if (tocnv) then
+c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,k  )
+c$$$     $               +gmetric%grid(igrid)%cov_v(i,j ,k ,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,k  )
+c$$$     $               +gmetric%grid(igrid)%cov_v(i,jm,km,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
+c$$$     $               +gmetric%grid(igrid)%cov_v(i,j ,km,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
           cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,1,:)
-     $               *gmetric%grid(igrid)%jac_v(i,jm,k  )
      $               +gmetric%grid(igrid)%cov_v(i,j ,k ,1,:)
-     $               *gmetric%grid(igrid)%jac_v(i,j ,k  )
      $               +gmetric%grid(igrid)%cov_v(i,jm,km,1,:)
-     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
-     $               +gmetric%grid(igrid)%cov_v(i,j ,km,1,:)
-     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
+     $               +gmetric%grid(igrid)%cov_v(i,j ,km,1,:))
+     $         *0.25*(gmetric%grid(igrid)%jac_v(i,jm,k  )
+     $               +gmetric%grid(igrid)%jac_v(i,j ,k  )
+     $               +gmetric%grid(igrid)%jac_v(i,jm,km)
+     $               +gmetric%grid(igrid)%jac_v(i,j ,km))
+
           curv(1) = dot_product(cov,car)
 
+c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,k )
+c$$$     $               +gmetric%grid(igrid)%cov_v(i ,j,k ,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,k )
+c$$$     $               +gmetric%grid(igrid)%cov_v(im,j,km,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,km)
+c$$$     $               +gmetric%grid(igrid)%cov_v(i ,j,km,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
           cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,2,:)
-     $               *gmetric%grid(igrid)%jac_v(im,j,k )
      $               +gmetric%grid(igrid)%cov_v(i ,j,k ,2,:)
-     $               *gmetric%grid(igrid)%jac_v(i ,j,k )
      $               +gmetric%grid(igrid)%cov_v(im,j,km,2,:)
-     $               *gmetric%grid(igrid)%jac_v(im,j,km)
-     $               +gmetric%grid(igrid)%cov_v(i ,j,km,2,:)
-     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
+     $               +gmetric%grid(igrid)%cov_v(i ,j,km,2,:))
+     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j,k )
+     $               +gmetric%grid(igrid)%jac_v(i ,j,k )
+     $               +gmetric%grid(igrid)%jac_v(im,j,km)
+     $               +gmetric%grid(igrid)%jac_v(i ,j,km))
           curv(2) = dot_product(cov,car)
 
+c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j ,k )
+c$$$     $               +gmetric%grid(igrid)%cov_v(i ,j ,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j ,k )
+c$$$     $               +gmetric%grid(igrid)%cov_v(im,jm,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,jm,k )
+c$$$     $               +gmetric%grid(igrid)%cov_v(i ,jm,k,3,:))
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,jm,k )
           cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,3,:)
-     $               *gmetric%grid(igrid)%jac_v(im,j ,k )
      $               +gmetric%grid(igrid)%cov_v(i ,j ,k,3,:)
-     $               *gmetric%grid(igrid)%jac_v(i ,j ,k )
      $               +gmetric%grid(igrid)%cov_v(im,jm,k,3,:)
-     $               *gmetric%grid(igrid)%jac_v(im,jm,k )
      $               +gmetric%grid(igrid)%cov_v(i ,jm,k,3,:))
-     $               *gmetric%grid(igrid)%jac_v(i ,jm,k )
+     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j ,k )
+     $               +gmetric%grid(igrid)%jac_v(i ,j ,k )
+     $               +gmetric%grid(igrid)%jac_v(im,jm,k )
+     $               +gmetric%grid(igrid)%jac_v(i ,jm,k ))
           curv(3) = dot_product(cov,car)
         else
+c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,k )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,k )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
           cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,1,:)
-     $               *gmetric%grid(igrid)%jac_v(i,jm,k )
      $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,1,:)
-     $               *gmetric%grid(igrid)%jac_v(i,j ,k )
      $               +gmetric%grid(igrid)%cnv_v(i,jm,km,1,:)
-     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
-     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,1,:)
-     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
+     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,1,:))
+     $         *0.25*(gmetric%grid(igrid)%jac_v(i,jm,k )
+     $               +gmetric%grid(igrid)%jac_v(i,j ,k )
+     $               +gmetric%grid(igrid)%jac_v(i,jm,km)
+     $               +gmetric%grid(igrid)%jac_v(i,j ,km))
+
           curv(1) = dot_product(cnv,car)
 
+c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k ,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,k )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,j,k ,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,k )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(im,j,km,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,km)
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,j,km,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
           cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k ,2,:)
-     $               *gmetric%grid(igrid)%jac_v(im,j,k )
      $               +gmetric%grid(igrid)%cnv_v(i ,j,k ,2,:)
-     $               *gmetric%grid(igrid)%jac_v(i ,j,k )
      $               +gmetric%grid(igrid)%cnv_v(im,j,km,2,:)
-     $               *gmetric%grid(igrid)%jac_v(im,j,km)
-     $               +gmetric%grid(igrid)%cnv_v(i ,j,km,2,:)
-     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
+     $               +gmetric%grid(igrid)%cnv_v(i ,j,km,2,:))
+     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j,k )
+     $               +gmetric%grid(igrid)%jac_v(i ,j,k )
+     $               +gmetric%grid(igrid)%jac_v(im,j,km)
+     $               +gmetric%grid(igrid)%jac_v(i ,j,km))
+
           curv(2) = dot_product(cnv,car)
 
+c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j ,k  )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j ,k  )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,jm,k  )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,3,:))
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,jm,k  )
           cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,3,:)
-     $               *gmetric%grid(igrid)%jac_v(im,j ,k  )
      $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,3,:)
-     $               *gmetric%grid(igrid)%jac_v(i ,j ,k  )
      $               +gmetric%grid(igrid)%cnv_v(im,jm,k,3,:)
-     $               *gmetric%grid(igrid)%jac_v(im,jm,k  )
      $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,3,:))
-     $               *gmetric%grid(igrid)%jac_v(i ,jm,k  )
+     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j ,k  )
+     $               +gmetric%grid(igrid)%jac_v(i ,j ,k  )
+     $               +gmetric%grid(igrid)%jac_v(im,jm,k  )
+     $               +gmetric%grid(igrid)%jac_v(i ,jm,k  ))
           curv(3) = dot_product(cnv,car)
         endif
 
@@ -683,6 +878,8 @@ c     Begin program
         nxl = size(car,1)-2
         nyl = size(car,2)-2
         nzl = size(car,3)-2
+
+cc        curv = 0d0
 
         do k = 0,nzl
           do j = 0,nyl

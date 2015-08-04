@@ -2670,7 +2670,7 @@ c     ###################################################################
       subroutine fillVecArray1_nobc(igrid,neq,x,arr,gpos)
 
 c     -------------------------------------------------------------------
-c     Fills array arr (with BCs) using vector x.
+c     Fills array arr (without BCs) using vector x.
 c     -------------------------------------------------------------------
 
         implicit none
@@ -2706,7 +2706,7 @@ c     ###################################################################
       subroutine fillVecArray2_nobc(igrid,neq,x,arr,gpos)
 
 c     -------------------------------------------------------------------
-c     Fills array arr (with BCs) using vector x.
+c     Fills array arr (without BCs) using vector x.
 c     -------------------------------------------------------------------
 
         implicit none
