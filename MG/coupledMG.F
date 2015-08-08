@@ -3148,9 +3148,35 @@ c     ##################################################################
      .            ,galerkin=.false.
      .            ,mg_coarse_solve=.false.
 
+        logical,private :: res_vol_wgt=.true.  !Whether residual is volume weighed
+
         private :: find_mf_diag_std,find_mf_diag_colored
 
       contains
+
+c     MG_set_res_vol_wgt
+c     #################################################################
+      subroutine MG_set_res_vol_wgt(vol_wgt)
+
+      implicit none
+
+      logical :: vol_wgt
+
+      res_vol_wgt = vol_wgt
+      
+      end subroutine MG_set_res_vol_wgt
+
+c     MG_get_res_vol_wgt
+c     #################################################################
+      function MG_get_res_vol_wgt() result(vw)
+
+      implicit none
+
+      logical :: vw
+
+      vw = res_vol_wgt
+      
+      end function MG_get_res_vol_wgt
 
 c     blockSolve
 c     #################################################################
@@ -3413,7 +3439,7 @@ c     Local variables
 
 c     Begin program
 
-        res_vol_wgt = vol_wgt          !Initialize volume-weighing variable
+        call MG_set_res_vol_wgt(vol_wgt) !Initialize volume-weighing variable
 
 c     Check input integrity
 
@@ -3972,7 +3998,7 @@ c     Perform matvec in finest grid
 
 c     Restrict residual
 
-        call restrictMGVector(mgctx,MGy,igf,igc,0,res_vol_wgt)
+        call restrictMGVector(mgctx,MGy,igf,igc,0,MG_get_res_vol_wgt())
 
 c     Map coarse grid residual
 
@@ -4423,7 +4449,8 @@ c     Begin program
 
 c     Set internal flags
 
-      res_vol_wgt = volw
+      call MG_set_res_vol_wgt(volw)  !Initialize volume weighing variable
+      
       galerkin = glrkin
 
 c     Allocate MG pointers
@@ -4829,7 +4856,8 @@ cc      endif
         if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
         allocate(diag(neq*nblk,2*ntot*nblk))
         call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                   ,ncolors,res_vol_wgt,galerkin,mgctx=mgctx)
+     .                   ,ncolors,MG_get_res_vol_wgt(),galerkin
+     $                   ,mgctx=mgctx)
         if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         fdiag = .true.
       endif
@@ -5110,7 +5138,7 @@ c     Restrict residual( i.e. yy_c = R * yy_f = R * wrk ) to a coarser grid
 
         call crestrict(mgctx,wrk(isig :isig +nn -1)
      .                      ,yy (isigc:isigc+nnc-1)
-     .                ,orderres,igr,res_vol_wgt)
+     .                ,orderres,igr,MG_get_res_vol_wgt())
 
         !Debugging plots
         if (igc == igmax.and.mg_debug) then
@@ -6658,7 +6686,8 @@ c Find diagonal for smoothers
         if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
         allocate(diag(neq*nblk,2*ntot*nblk))
         call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                   ,ncolors,res_vol_wgt,galerkin,mgctx=mgctx)
+     .                   ,ncolors,MG_get_res_vol_wgt(),galerkin
+     $                   ,mgctx=mgctx)
         if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         fdiag = .true.
       endif
@@ -7076,7 +7105,8 @@ c Find diagonal for smoothers
         if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
         allocate(diag(neq*nblk,2*ntot*nblk))
         call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-     .                   ,ncolors,res_vol_wgt,galerkin,mgctx=mgctx)
+     .                   ,ncolors,MG_get_res_vol_wgt(),galerkin
+     $                   ,mgctx=mgctx)
         if (out.ge.2.and.prnt) write (*,*) 'Finished!'
         fdiag = .true.
       endif

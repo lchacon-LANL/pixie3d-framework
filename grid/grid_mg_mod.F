@@ -33,8 +33,6 @@ c######################################################################
 
         type(mg_ctx),pointer :: mg_ctx_temp => null()
 
-        logical :: res_vol_wgt  !Whether residual is volume weighed
-
       contains
 
 c     MG_levels
