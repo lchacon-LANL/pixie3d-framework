@@ -434,7 +434,13 @@ c     Check error in Newton convergence
         ierr = 1
       !Accept solution, but warn user
       elseif (((jit-1).ge.ntit_max_acc).and.(ntit_max_acc > 0)) then 
-        if (prnt) write (*,240) ntit_max_acc
+        if (prnt) then
+          if (nk_conf%fpa) then
+            write (*,250) ntit_max_acc
+          else
+            write (*,240) ntit_max_acc
+          endif
+        endif
         ierr = 2
       endif
 
@@ -454,7 +460,8 @@ cc      deallocate (xx0)
  220  format ('    WARNING: Max newton its. exceeded; rel. residual: '
      .       ,1p,1e10.2)
  230  format ('    Relative residual =',f7.2,' >',f7.2)
- 240  format ('    Newton converged in too many iterations (>',i2,')')
+ 240  format ('    Newton converged in too many iterations (>',i3,')')
+ 250  format ('    FPA converged in too many iterations (>',i3,')')
 
       end subroutine jfnk
 
