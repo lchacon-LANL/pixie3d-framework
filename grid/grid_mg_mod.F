@@ -58,7 +58,7 @@ c     Begin program
 
       nl = int(dlog(1d0*nx)/dlog(1d0*mgr)+0.001)
 
-      ngrd = max(nl-1,1)
+      ngrd = max(nl-1,1)  !Back off one level
 
       do i = ngrd,1,-1
         nl = nx/mgr**(i-1)

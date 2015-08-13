@@ -3327,6 +3327,7 @@ c     ##################################################################
      .                  ,mg_vcyc
      .                  ,mg_cycle
      .                  ,mg_coarse_grid_size
+     .                  ,mg_coarse_grid_level
      .                  ,mg_gm_coarse_solve
      .                  ,mg_smooth
      .                  ,mg_galerkin
@@ -3375,6 +3376,7 @@ c       * mg_galerkin: whether to do Galerkin coarsening of operator
 c                  (true) or rediscretization (default: false)
 c       * mg_coarse_grid_size: minimum coarse mesh (roughly mg_ratio^mg_cgs per
 c                 direction).
+c       * mg_coarse_grid_level: grid level considered coarsest
 c       * mg_gm_coarse_solve: whether we do GMRES at the coarsest grid
 c       * mg_debug: turn on debugging in MG
 c
@@ -3404,6 +3406,7 @@ c     Call variables
      .                                ,mg_order_prol
      .                                ,mg_vcyc,mg_cycle
      .                                ,mg_coarse_grid_size
+     .                                ,mg_coarse_grid_level
      .                                ,sm_it
      .                                ,sm_zebra_it
      .                                ,sm_zebra_dir
@@ -3429,7 +3432,7 @@ c     Call variables
 c     Local variables
 
         integer    :: ntot,iorder_res,iorder_prol,vcyc,mu_cyc,nclrs,smit
-     .               ,mgmin,i,ieq,gmit,zit,zdir
+     .               ,mgmin,mgminl,i,ieq,gmit,zit,zdir
         real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,rtol,zomg
         real(8), target :: ddg(neq,2*neq*ntotp)
         logical    :: gm_crse_solve,cvrg_test,lrelax,zrelax
@@ -3537,6 +3540,12 @@ c     Process optional arguments
           mgmin = mg_coarse_grid_size
         else
           mgmin = 2
+        endif
+
+        if (PRESENT(mg_coarse_grid_level)) then
+          mgminl = mg_coarse_grid_level
+        else
+          mgminl = 0
         endif
 
         if (PRESENT(mg_gm_coarse_solve)) then
@@ -3723,7 +3732,8 @@ c       MG solver options
         else
           solverOptions%vcyc   = vcyc
         endif
-        solverOptions%mg_gmin  = mgmin
+        solverOptions%mg_coarse_grid_res  = mgmin
+        solverOptions%mg_coarse_grid_level= mgminl
         solverOptions%orderres = iorder_res
         solverOptions%orderprol= iorder_prol
         solverOptions%mg_mu    = mu_cyc
@@ -3760,7 +3770,7 @@ cc        solverOptions%vertex_based_relax = .true.
 
         !Plane/line relaxation
         if (lrelax) then
-cc          solverOptions%mg_gmin         = mgmin
+cc          solverOptions%mg_coarse_grid_res = mgmin
 cc          solverOptions%orderres        = ores
 cc          solverOptions%orderprol       = oprol
 cc          solverOptions%mg_mu           = mu_cyc
@@ -4735,7 +4745,7 @@ c Call variables
 
 c Local variables
 
-      integer :: iter,igridmin,vcyc,crsedpth,isig,ncolors
+      integer :: iter,igmin,vcyc,crsedpth,isig,ncolors
       integer :: orderres,orderprol,alloc_stat
      .          ,line_nsweep,line_crse_depth,line_vcyc
 
@@ -4770,7 +4780,8 @@ c Consistency check
 
 c Assign options
 
-      igridmin        = options%mg_gmin
+      igmin           = options%mg_coarse_grid_res   !Resolution=mgratio^(igmin)
+      igmax           = options%mg_coarse_grid_level !1-level, 2-level, 3-level, etc
       vcyc            = options%vcyc
       mgtol           = options%tol
       orderres        = options%orderres
@@ -4809,12 +4820,17 @@ c Set pointers and find ngrid
 
 c Check limits
 
-      mgctx%igmax = ngrid - igridmin + 2  !Determines minimum resolution
+      if (igmax == 0) then
+        igmax = (ngrid+1) - (igmin-1)  !Determines maximum # of grid levels
+                                       !  (ngrid+1): total number of levels
+                                       !  igmin: coarsest level from below
+      endif
+      
+      mgctx%igmax = igmax
 
-      igmax = mgctx%igmax
-
-      if (igmax.lt.igrid) then
-        call pstop('mg',' Grid chosen is below minimum grid resolution')
+      if (igrid.gt.igmax) then
+        call pstop('mg'
+     $          ,' Grid level is below minimum grid resolution needed')
       endif
 
       if (out.ge.2.and.igmax.gt.igrid.and.prnt) write (*,5)
@@ -5929,7 +5945,7 @@ cc        options%omega                       = 1.0
 cc
 cc        options%tol                         = line_tol
 cc        options%vcyc                        = line_vcyc
-cc        options%mg_gmin                     = igridmin
+cc        options%mg_coarse_grid_res          = igmin
 cc        options%orderres                    = orderres
 cc        options%orderprol                   = orderprol
 cc        options%mg_mu                       = mu
@@ -6015,7 +6031,7 @@ c     Configure recursive plane/line JB solve
 
         options%tol                         = line_tol
         options%vcyc                        = line_vcyc
-        options%mg_gmin                     = igridmin
+        options%mg_coarse_grid_res          = igmin
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
@@ -6128,7 +6144,7 @@ ccc     Configure recursive plane/line MG solve
 cc
 cc        options%tol                         = line_tol
 cc        options%vcyc                        = line_vcyc
-cc        options%mg_gmin                     = igridmin
+cc        options%mg_coarse_grid_res          = igmin
 cc        if (oned_slv) then
 cc          options%orderres                  = 0
 cc          options%orderprol                 = 0
@@ -6487,7 +6503,7 @@ ccc     Configure recursive plane/line MG solve
 cc
 cc        options%tol                         = mgtol
 cc        options%vcyc                        = vcyc
-cc        options%mg_gmin                     = igridmin
+cc        options%mg_coarse_grid_res          = igmin
 cc        options%orderres                    = orderres
 cc        options%orderprol                   = orderprol
 cc        options%mg_mu                       = mu
