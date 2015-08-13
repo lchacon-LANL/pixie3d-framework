@@ -82,15 +82,25 @@ c ###################################################################
 
       contains
 
-c     current_Newton_iteration
+c     NK_current_Newton_iteration
 c     ###############################################################
-      function current_Newton_iteration() result(nw_it)
+      function nk_current_Newton_iteration() result(nw_it)
 
       integer :: nw_it
 
       nw_it = jit
       
-      end function current_Newton_iteration
+      end function nk_current_Newton_iteration
+
+c     NK_current_Newton_residual
+c     ###############################################################
+      function nk_current_Newton_residual() result(nw_rk)
+
+      real(8) :: nw_rk(size(nk_conf%rk))
+
+      nw_rk = nk_conf%rk
+      
+      end function nk_current_Newton_residual
 
 c     jfnk
 c     ###############################################################
