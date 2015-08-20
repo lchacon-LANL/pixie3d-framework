@@ -456,6 +456,142 @@ c     Begin program
 
       end function covariantVector
 
+c     cov_vector_anal
+c     #################################################################
+      function cov_vector_anal(curv,g_def) result(vec)
+
+c     -----------------------------------------------------------------
+c     Calculates covariant vectors of curvilinear coordinate system
+c     in Cartesian coordinates
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        real(8) :: curv(3),vec(3,3)
+
+        type(grid_mg_def),optional,pointer :: g_def
+
+c     Local variables
+
+        real(8) :: aa,bb,major_r,mm,kk,eps,phi,jac,r
+     .            ,x1,x2,x3
+        real(8) :: gp(ngparams)
+
+        type(grid_mg_def),pointer :: gl_def
+
+c     Begin program
+
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        gp = gl_def%params
+
+        select case (coords)
+        case ('car','lpk')
+          vec(1,:) = (/ 1d0,0d0,0d0 /)
+          vec(2,:) = (/ 0d0,1d0,0d0 /)
+          vec(3,:) = (/ 0d0,0d0,1d0 /)
+        case ('cyl')
+          if (curv(1) == 0d0) then
+            vec = 0d0
+            return
+          endif
+
+          vec(1,:) = (/ cos(curv(2)),sin(curv(2)),0d0 /)
+          vec(2,:) = (/-sin(curv(2)),cos(curv(2)),0d0 /)/curv(1)
+          vec(3,:) = (/ 0d0,0d0,1d0 /)
+        case ('hel')
+          if (curv(1) == 0d0) then
+            vec = 0d0
+            return
+          endif
+
+          mm = gp(1)
+          kk = gp(2)
+          aa = kk/mm
+          phi = (curv(2)-aa*curv(3))
+
+          vec(1,:) = (/ cos(phi),sin(phi),0d0 /)
+          vec(2,:) = (/-sin(phi)/curv(1),cos(phi)/curv(1),aa /)
+          vec(3,:) = (/ 0d0,0d0,1d0 /)
+cc        case ('hl2')
+cc          curv = (/ sign(sqrt(2*abs(x1)),x1),x2,x3 /)
+cc
+cc          mm = gp(1)
+cc          kk = gp(2)
+cc          aa = kk/mm
+cc          phi = (curv(2)-aa*curv(3))
+cc
+cc          vec(1,:) = (/ cos(phi),sin(phi),0d0 /)*curv(1)
+cc          vec(2,:) = (/-sin(phi)/curv(1),cos(phi)/curv(1),aa /)
+cc          vec(3,:) = (/ 0d0,0d0,1d0 /)
+        case ('tor')
+          if (curv(1) == 0d0) then
+            vec = 0d0
+            return
+          endif
+
+          major_r = gp(1)
+          aa      = gp(2)
+          bb      = gp(3)
+
+          vec(1,:) = (/  cos(curv(2))*cos(curv(3))/aa
+     .                 ,-cos(curv(2))*sin(curv(3))/aa
+     .                 , sin(curv(2))/bb             /)
+          vec(2,:) = (/-sin(curv(2))*cos(curv(3))/aa
+     .                 ,sin(curv(2))*sin(curv(3))/aa
+     .                 ,cos(curv(2))/bb             /)/curv(1)
+          vec(3,:) = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)
+     .                /(major_r + aa*curv(1)*cos(curv(2)))
+        case ('sin')
+
+          pi = acos(-1d0)
+
+          eps = gp(1)
+
+          x1 = curv(1)
+          x2 = curv(2)
+          x3 = curv(3)
+          vec(1,:) = (/(xmax*(ymax + 2*eps*Pi*Cos((2*Pi*x2)/ymax)*
+     -                                        Sin((2*Pi*x1)/xmax)))/
+     -                 (xmax*ymax + eps*Pi*(xmax - ymax)
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                            + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              , (-2*eps*Pi*xmax*Cos((2*Pi*x2)/ymax)
+     .                               *Sin((2*Pi*x1)/xmax))/
+     -                (xmax*ymax + eps*Pi*(xmax - ymax)
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))  
+     -                           + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              , 0d0 /)
+          vec(2,:) = (/(-2*eps*Pi*ymax*Cos((2*Pi*x1)/xmax)
+     .                                *Sin((2*Pi*x2)/ymax))/
+     -                 (xmax*ymax + eps*Pi*(xmax - ymax)
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                            + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              , (ymax*(xmax + 2*eps*Pi*Cos((2*Pi*x1)/xmax)
+     .                                      *Sin((2*Pi*x2)/ymax)))/
+     -                (xmax*ymax + eps*Pi*(xmax - ymax)
+     -                         *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                           + eps*Pi*(xmax + ymax)
+     .                         *Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .              ,0d0 /)
+          vec(3,:) = (/ 0d0,0d0,1d0 /)
+        case default
+          write (*,*) 'Grid not implemented in covariantVector'
+          write (*,*) 'Aborting...'
+          stop
+        end select
+
+      end function cov_vector_anal
+
 c     contravariantVector
 c     #################################################################
       function contravariantVector(comp,i,j,k,igx,igy,igz,vertex,g_def)
