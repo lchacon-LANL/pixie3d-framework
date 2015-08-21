@@ -874,6 +874,10 @@ ifeq ($(HOST),t1243000)
       HDF5_MOD  = /usr/local/gfortran/
       HDF5_INC  = /usr/include
 
+    else
+      HDF5 = f
+      ADIOS = f
+      LIBS += -llapack -lblas
     endif
 
     NETCDF=f
