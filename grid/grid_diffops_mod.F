@@ -4002,7 +4002,7 @@ c     Call variables
 c     Local variables
 
         integer    :: ig,jg,kg,ip,igrid
-        real(8)    :: x,y,z,jac,jac0,jacp
+        real(8)    :: x,y,z
         real(8)    :: nabla_v(3,3),gsuper(3,3),dd
 
 c     Begin program
@@ -4012,12 +4012,8 @@ c     Begin program
         ip = i+1
         if (flag == 0) ip = i
 
-        jac    = 0.5*(gmetric%grid(igrid)%jac (ip,j,k)
-     .               +gmetric%grid(igrid)%jac (i ,j,k))
         gsuper = 0.5*(gmetric%grid(igrid)%gsup(ip,j,k,:,:)
      .               +gmetric%grid(igrid)%gsup(i ,j,k,:,:))
-
-        if (isSP(i+1,j,k,igx,igy,igz)) jac = SP_flsv
 
         if (flag /= 0) then
           nabla_v = fnabla_v_cov(i,j,k,nx,ny,nz,igx,igy,igz
