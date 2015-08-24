@@ -40,6 +40,9 @@ c ######################################################################
         integer   :: adios_tstart, adios_tend, adios_ntsteps ! timesteps available
         integer   :: adios_tread          ! 0 ... ntsteps-1
         integer   :: adios_err            ! error handler
+        integer   :: adios_attrtype,adios_attrsize,adios_vartype
+     .              ,adios_ndim,adios_tdim
+        integer*8,dimension(3) :: adios_vardims
 
         logical,private :: adios_debug=.false.
 #else
@@ -104,6 +107,11 @@ c     Begin program
         do i=1,adios_varcount
             if (index(adios_varlist(i),"/var/") == 1) then
                 adios_nvar = adios_nvar+1
+                !Check problem size
+                call adios_inq_var(adios_gh,trim(adios_varlist(i))
+     .               ,adios_vartype,adios_ndim,adios_vardims,adios_tdim
+     .               ,ierr)
+
 cc                ! get rid of trailing char(0) in names
 cc                nullidx=index(adios_varlist(i),char(0))
 cc                if (nullidx == 0) nullidx=len(trim(adios_varlist(i)))+1
@@ -112,6 +120,12 @@ cc     .                    adios_varlist(i)(1:nullidx-1)
             endif
         enddo
         
+cc        do i=1,adios_attrcount
+cc          call adios_inq_attr(adios_gh,adios_attrlist(i),adios_attrtype
+cc     .                       ,adios_attrsize,ierr)
+cc          write (*,*) adios_attrlist(i),adios_attrtype,adios_attrsize
+cc        enddo
+
         adios_tread = 0  ! next time read first timestep
 
         write (*,"(a,i0,a,a)")
@@ -128,6 +142,9 @@ cc     .                    adios_varlist(i)(1:nullidx-1)
         endif
 
         if (PRESENT(nvar)) nvar = adios_nvar
+        if (PRESENT(nx)) nx = adios_vardims(1)-2
+        if (PRESENT(ny)) ny = adios_vardims(2)-2
+        if (PRESENT(nz)) nz = adios_vardims(3)-2
 
       end subroutine openRecordFileAdiosForRead
 
@@ -583,6 +600,16 @@ c     Begin program
         nxl = nx
         nyl = ny
         nzl = nz
+
+#if defined(petsc)
+        nxd = nx*npx
+        nyd = ny*npy
+        nzd = nz*npz
+#else
+        nxd = nx
+        nyd = ny
+        nzd = nz
+#endif
       endif
 
 #else
@@ -592,7 +619,12 @@ c     Begin program
       ! allocate 100MB buffer for ADIOS
       call adios_allocate_buffer (100,adios_err)
 
-      call openRecordFileAdiosForRead(adios_err,file=file)
+      if (associated(gv)) then
+        call openRecordFileAdiosForRead(adios_err,file=file)
+      else
+        call openRecordFileAdiosForRead(adios_err,file=file
+     .                                 ,nx=nxd,ny=nyd,nz=nzd)
+      endif
 
       if (adios_err /= 0) then
         call pstop('openRestartFileForRead'
