@@ -529,7 +529,6 @@ c     Local variables
 
       integer :: nx,ny,nz,ierr,neq,ndepvl,ndepsl,nauxvl,nauxsl
       character(len=1024) :: rfile
-      logical :: rstrt
 
 c     Begin program
 
@@ -539,12 +538,6 @@ c     Begin program
         rfile = file
       else
         rfile = recordfile
-      endif
-
-      if (PRESENT(restart)) then
-        rstrt = restart
-      else
-        rstrt = .true.
       endif
 
       ufile = find_unit(urecord)
