@@ -3762,7 +3762,7 @@ cc        solverOptions%vol_res  = vol_wgt
         else
           solverOptions%mg_coarse_solver_depth = 0 !Use smoother as coarse solver
 cc          write (*,*) 'DIAG -- cSolver'
-cc          solverOptions%mg_coarse_solver_depth = 5
+cc          solverOptions%mg_coarse_solver_depth = 6
         endif
 
         !Vertex relaxation
@@ -3830,9 +3830,9 @@ c       MG coarsest grid solve
 
         call solverOptionsInit
 
-        solverOptions%tol             = 1d-5
+        solverOptions%tol             = 1d-1!1d-5
         solverOptions%krylov_subspace = min(100,2*neq*ntotp)
-        solverOptions%iter            = 100
+        solverOptions%iter            = min(100,2*neq*ntotp)
         solverOptions%stp_test        = 1 
         solverOptions%omega           = 1d0
         solverOptions%singular_matrix = smat
@@ -3851,8 +3851,10 @@ cc        if (PRESENT(dg)) solverOptions%diag => ddg
         solverOptions%tol     = 1d-4
         solverOptions%ncolors = nclrs
 
-cc        call assembleSolverHierarchy('jb')
-        call assembleSolverHierarchy('gs')
+        solverOptions%omega   = 0.7
+        call assembleSolverHierarchy('jb')
+cc        solverOptions%omega   = 1d0
+cc        call assembleSolverHierarchy('gs')
 
 c       Invoke solver
 
@@ -3928,12 +3930,14 @@ c Local variables
      .          ,iminf,imaxf,jminf,jmaxf,kminf,kmaxf
       integer :: ntotc,nxc,nyc,nzc,isigc,ic,jc,kc
      .          ,iminc,imaxc,jminc,jmaxc,kminc,kmaxc
-      integer :: mgrx,mgry,mgrz,ig
+      integer :: mgrx,mgry,mgrz,ig,order
       real(8),allocatable,dimension(:) :: MGx,MGy
 
       logical :: fpointers
 
 c Begin program
+
+      order = 1
 
       neq = mgctx%neq
 
@@ -3965,7 +3969,7 @@ c     Prolong vector to finest grid
 
         MGx(isigc:isigc+ntotc-1) = x
 
-        call prolongMGVector(mgctx,MGx,igc,igf,0,bcnd)
+        call prolongMGVector(mgctx,MGx,igc,igf,order,bcnd)
 
 c     Perform matvec in finest grid
 
@@ -4008,7 +4012,8 @@ c     Perform matvec in finest grid
 
 c     Restrict residual
 
-        call restrictMGVector(mgctx,MGy,igf,igc,0,MG_get_res_vol_wgt())
+        call restrictMGVector(mgctx,MGy,igf,igc,order
+     .                       ,MG_get_res_vol_wgt())
 
 c     Map coarse grid residual
 
