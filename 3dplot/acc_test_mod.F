@@ -194,8 +194,6 @@ c Initialize current grid info and read current grid solution
 
       tsol = time
 
-      call closeRestartFileForRead(ufile)
-
 c Calculate difference
 
       if (abs(tref- tsol)>1d-8) then
@@ -395,8 +393,6 @@ c     Read current solution
         write (*,*) 'Final time=',time
         write (*,*)
       endif
-
-      call closeRestartFileForRead(ufile)
 
       tsol = time
 
