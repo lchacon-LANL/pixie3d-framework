@@ -175,10 +175,6 @@ c Initialize current grid info and read current grid solution
 
       ufile=openRestartFileForRead(file=recordfile)
 
-      nx = ihig-ilog+1
-      ny = jhig-jlog+1
-      nz = khig-klog+1
-
       if (my_rank == 0) then
         write (*,*)
         write (*,*) ' Reading solution file...'
@@ -209,6 +205,10 @@ c Calculate difference
       endif
 
       if (my_rank == 0) write (*,*)
+
+      nx = ihig-ilog+1
+      ny = jhig-jlog+1
+      nz = khig-klog+1
 
       do ivar=1,vref%nvar
 
