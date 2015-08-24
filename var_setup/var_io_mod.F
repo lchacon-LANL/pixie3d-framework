@@ -529,6 +529,7 @@ c     Local variables
 
       integer :: nx,ny,nz,ierr,neq,ndepvl,ndepsl,nauxvl,nauxsl
       character(len=1024) :: rfile
+      logical :: rstrt
 
 c     Begin program
 
@@ -538,6 +539,12 @@ c     Begin program
         rfile = file
       else
         rfile = recordfile
+      endif
+
+      if (PRESENT(restart)) then
+        rstrt = restart
+      else
+        rstrt = .true.
       endif
 
       ufile = find_unit(urecord)
@@ -585,7 +592,7 @@ c     Begin program
       read (ufile) ny,jlog,jhig
       read (ufile) nz,klog,khig
 
-      if (associated(gv)) then
+      if (associated(gv%grid_params)) then
 #if defined(petsc) 
          if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
 #else
@@ -619,7 +626,7 @@ c     Begin program
       ! allocate 100MB buffer for ADIOS
       call adios_allocate_buffer (100,adios_err)
 
-      if (associated(gv)) then
+      if (associated(gv%grid_params)) then
         call openRecordFileAdiosForRead(adios_err,file=file)
       else
         call openRecordFileAdiosForRead(adios_err,file=file
