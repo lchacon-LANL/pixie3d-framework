@@ -69,6 +69,7 @@ c     Local variables
         integer :: gcnt, vcnt, acnt, nullidx, ts, lastts,i
         character (len=20), dimension(1)  :: gnamelist  ! list of groups (=1)
         character(len=1024) :: rfile
+        logical :: inq_adios_var
 
 c     Begin program
 
@@ -94,7 +95,7 @@ c     Begin program
      .                   ,adios_varcount,adios_attrcount,ierr)
 
         !Inquire ADIOS group
-        if (ADIOS_VER > 1.21) then
+        if (ADIOS_VER == 1.31) then
           call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
      .                        ,ts,lastts,ierr)
         else
@@ -103,15 +104,17 @@ c     Begin program
         endif
 
         ! count /var/ variables
+        inq_adios_var = (PRESENT(nx).or.PRESENT(ny).or.PRESENT(nz))
         adios_nvar=0
         do i=1,adios_varcount
             if (index(adios_varlist(i),"/var/") == 1) then
                 adios_nvar = adios_nvar+1
                 !Check problem size
-                call adios_inq_var(adios_gh,trim(adios_varlist(i))
+                if (inq_adios_var.and.(ADIOS_VER == 1.31)) then
+                  call adios_inq_var(adios_gh,trim(adios_varlist(i))
      .               ,adios_vartype,adios_ndim,adios_vardims,adios_tdim
      .               ,ierr)
-
+                endif
 cc                ! get rid of trailing char(0) in names
 cc                nullidx=index(adios_varlist(i),char(0))
 cc                if (nullidx == 0) nullidx=len(trim(adios_varlist(i)))+1
