@@ -531,7 +531,6 @@ cc      integer,optional,intent(out) :: lneq
 c     Local variables
 
       integer :: nx,ny,nz,ierr,neq,ndepvl,ndepsl,nauxvl,nauxsl
-     .          ,ilg,ihg,jlg,jhg,klg,khg
       character(len=1024) :: rfile
 
 c     Begin program
@@ -547,11 +546,11 @@ c     Begin program
       ufile = find_unit(urecord)
       
       call openRecordFiles(ufile,trim(rfile)
-     .                    ,ilg,ihg,jlg,jhg,klg,khg)
+     .                    ,ilog,ihig,jlog,jhig,klog,khig)
 
-      nx = ihg-ilg+1
-      ny = jhg-jlg+1
-      nz = khg-klg+1
+      nx = ihig-ilog+1
+      ny = jhig-jlog+1
+      nz = khig-klog+1
 
 cc      call openPOSIXBinFile(ufile,trim(rfile),status='old')
 cc
