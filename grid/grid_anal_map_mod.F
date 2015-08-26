@@ -1226,6 +1226,276 @@ c     Begin program
 
       end function hessian22
 
+c     gamma_anal
+c     #################################################################
+      function gamma_anal(curv,g_def) result(gamma)
+
+c     -----------------------------------------------------------------
+c     Calculates covariant vectors of curvilinear coordinate system
+c     in Cartesian coordinates
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        real(8) :: curv(3),gamma(3,3,3)
+
+        type(grid_mg_def),optional,pointer :: g_def
+
+c     Local variables
+
+        real(8) :: aa,bb,major_r,mm,kk,eps,phi,jac,r
+     .            ,vec(3,3,3),x1,x2,x3
+        real(8) :: gp(ngparams)
+
+        type(grid_mg_def),pointer :: gl_def
+
+c     Begin program
+
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        gp = gl_def%params
+
+        select case (coords)
+        case ('car','lpk')
+          vec = 0d0
+        case ('cyl')
+
+          vec(1,1,1) = 0d0
+          vec(1,1,2) = 0d0
+          vec(1,1,3) = 0d0
+          vec(1,2,1) = vec(1,1,2)
+          vec(1,2,2) = curv(1)
+          vec(1,2,3) = 0d0
+          vec(1,3,1) = vec(1,1,3)
+          vec(1,3,2) = vec(1,2,3)
+          vec(1,3,3) = 0d0
+
+          vec(2,1,1) = 0d0
+          vec(2,1,2) = -1./curv(1)
+          vec(2,1,3) = 0d0
+          vec(2,2,1) = vec(2,1,2)
+          vec(2,2,2) = 0d0
+          vec(2,2,3) = 0d0
+          vec(2,3,1) = vec(2,1,3)
+          vec(2,3,2) = vec(2,2,3)
+          vec(2,3,3) = 0d0
+
+          vec(3,1,1) = 0d0
+          vec(3,1,2) = 0d0
+          vec(3,1,3) = 0d0
+          vec(3,2,1) = vec(3,1,2)
+          vec(3,2,2) = 0d0
+          vec(3,2,3) = 0d0
+          vec(3,3,1) = vec(3,1,3)
+          vec(3,3,2) = vec(3,2,3)
+          vec(3,3,3) = 0d0
+
+          vec = -vec
+
+        case ('hel')
+
+          mm = gp(1)
+          kk = gp(2)
+          aa = kk/mm
+          phi = (curv(2)-aa*curv(3))
+
+          vec(1,1,1) = 0d0
+          vec(1,1,2) = 0d0
+          vec(1,1,3) = 0d0
+          vec(1,2,1) = vec(1,1,2)
+          vec(1,2,2) = curv(1)
+          vec(1,2,3) = -aa*curv(1)
+          vec(1,3,1) = vec(1,1,3)
+          vec(1,3,2) = vec(1,2,3)
+          vec(1,3,3) = aa**2*curv(1)
+                    
+          vec(2,1,1) = 0d0
+          vec(2,1,2) = -1./curv(1)
+          vec(2,1,3) = aa/curv(1)
+          vec(2,2,1) = vec(2,1,2)
+          vec(2,2,2) = 0d0
+          vec(2,2,3) = 0d0
+          vec(2,3,1) = vec(2,1,3)
+          vec(2,3,2) = vec(2,2,3)
+          vec(2,3,3) = 0d0
+                    
+          vec(3,1,1) = 0d0
+          vec(3,1,2) = 0d0
+          vec(3,1,3) = 0d0
+          vec(3,2,1) = vec(3,1,2)
+          vec(3,2,2) = 0d0
+          vec(3,2,3) = 0d0
+          vec(3,3,1) = vec(3,1,3)
+          vec(3,3,2) = vec(3,2,3)
+          vec(3,3,3) = 0d0
+
+          vec = -vec
+
+cc        case ('hl2')
+cc
+cc          curv = (/ abs(2*x1),x2,x3 /)
+cc
+cc          mm = gp(1)
+cc          kk = gp(2)
+cc          aa = kk/mm
+cc          phi = (curv(2)-aa*curv(3))
+cc          select case (l)
+cc            case (1)
+cc              vec(1) = -1d0/curv(1)
+cc              vec(2) = 0d0
+cc              vec(3) = 0d0
+cc              vec(4) = vec(2)
+cc              vec(5) = -curv(1)
+cc              vec(6) = aa*curv(1)
+cc              vec(7) = vec(3)
+cc              vec(8) = vec(6)
+cc              vec(9) = -aa**2*curv(1)
+cc            case (2)
+cc              vec(1) = 0d0
+cc              vec(2) = 1./curv(1)
+cc              vec(3) = -aa/curv(1)
+cc              vec(4) = vec(2)
+cc              vec(5) = 0d0
+cc              vec(6) = 0d0
+cc              vec(7) = vec(3)
+cc              vec(8) = vec(6)
+cc              vec(9) = 0d0
+cc            case (3)
+cc              vec(1) = 0d0
+cc              vec(2) = 0d0
+cc              vec(3) = 0d0
+cc              vec(4) = vec(2)
+cc              vec(5) = 0d0
+cc              vec(6) = 0d0
+cc              vec(7) = vec(3)
+cc              vec(8) = vec(6)
+cc              vec(9) = 0d0
+cc          end select
+
+        case ('tor')
+
+          major_r = gp(1)
+          aa      = gp(2)
+          bb      = gp(3)
+
+          vec(1,1,1) = 0d0
+          vec(1,1,2) = 0d0
+          vec(1,1,3) = 0d0
+          vec(1,2,1) = vec(1,1,2)
+          vec(1,2,2) =-curv(1)
+          vec(1,2,3) = 0d0
+          vec(1,3,1) = vec(1,1,3)
+          vec(1,3,2) = vec(1,2,3)
+          vec(1,3,3) =-cos(curv(2))*(major_r+aa*curv(1)*cos(curv(2)))/aa
+                    
+          vec(2,1,1) = 0d0
+          vec(2,1,2) = 1./curv(1)
+          vec(2,1,3) = 0d0
+          vec(2,2,1) = vec(2,1,2)
+          vec(2,2,2) = 0d0
+          vec(2,2,3) = 0d0
+          vec(2,3,1) = vec(2,1,3)
+          vec(2,3,2) = vec(2,2,3)
+          vec(2,3,3) = (major_r + aa*curv(1)*cos(curv(2)))*sin(curv(2))
+     .                 /curv(1)/aa
+                    
+          vec(3,1,1) = 0d0
+          vec(3,1,2) = 0d0
+          vec(3,1,3) = aa*cos(curv(2))/(major_r+aa*curv(1)*cos(curv(2)))
+          vec(3,2,1) = vec(3,2,1)
+          vec(3,2,2) = 0d0
+          vec(3,2,3) = -aa*curv(1)*sin(curv(2))
+     .                 /(major_r + aa*curv(1)*cos(curv(2)))
+          vec(3,3,1) = vec(3,3,1)
+          vec(3,3,2) = vec(3,3,2)
+          vec(3,3,3) = 0d0
+
+        case ('sin')
+
+          pi = acos(-1d0)
+
+          eps = gp(1)
+
+          x1 = curv(1)
+          x2 = curv(2)
+          x3 = curv(3)
+
+          vec(1,1,1) = (-4*eps*Pi**2*ymax*Sin((2*Pi*x1)/xmax)*
+     -                                    Sin((2*Pi*x2)/ymax))/
+     -          (xmax*(xmax*ymax + eps*Pi*(xmax - ymax)*
+     -           Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -           eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))
+          vec(1,1,2) = (4*eps*Pi**2*Cos((2*Pi*x1)/xmax)
+     .                             *Cos((2*Pi*x2)/ymax))/
+     -            (xmax*ymax + eps*Pi*(xmax - ymax)*
+     -              Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -            eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax)))
+          vec(1,1,3) = 0d0
+          vec(1,2,1) = vec(1,1,2)
+          vec(1,2,2) = (-4*eps*Pi**2*xmax*Sin((2*Pi*x1)/xmax)
+     .                                   *Sin((2*Pi*x2)/ymax))/
+     -            (ymax*(xmax*ymax + eps*Pi*(xmax - ymax)*
+     -            Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -            eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))
+          vec(1,2,3) = 0d0
+          vec(1,3,1) = vec(1,1,3)
+          vec(1,3,2) = vec(1,2,3)
+          vec(1,3,3) = 0d0
+
+          vec(2,1,1) = (-4*eps*Pi**2*ymax*Sin((2*Pi*x1)/xmax)
+     -                                   *Sin((2*Pi*x2)/ymax))/
+     -                 (xmax*(xmax*ymax
+     .                 + eps*Pi*(xmax - ymax)
+     -                     *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                 + eps*Pi*(xmax + ymax)
+     .                     *Sin(2*Pi*(x1/xmax + x2/ymax))))
+          vec(2,1,2) = (4*eps*Pi**2*Cos((2*Pi*x1)/xmax)
+     .                             *Cos((2*Pi*x2)/ymax))/
+     -                 (xmax*ymax
+     .                 + eps*Pi*(xmax - ymax)
+     -                     *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                 + eps*Pi*(xmax + ymax)
+     .                     *Sin(2*Pi*(x1/xmax + x2/ymax)))
+          vec(2,1,3) = 0d0
+          vec(2,2,1) = vec(2,1,2)
+          vec(2,2,2) = (-4*eps*Pi**2*xmax*Sin((2*Pi*x1)/xmax)
+     .                                   *Sin((2*Pi*x2)/ymax))/
+     -                  (ymax*(xmax*ymax
+     .                  + eps*Pi*(xmax - ymax)
+     -                      *Sin(Pi*((2*x1)/xmax - (2*x2)/ymax))
+     -                  + eps*Pi*(xmax + ymax)
+     .                      *Sin(2*Pi*(x1/xmax + x2/ymax))))
+          vec(2,2,3) = 0d0
+          vec(2,3,1) = vec(2,1,3)
+          vec(2,3,2) = vec(2,2,3)
+          vec(2,3,3) = 0d0
+
+          vec(3,1,1) = 0d0
+          vec(3,1,2) = 0d0
+          vec(3,1,3) = 0d0
+          vec(3,2,1) = vec(3,1,2)
+          vec(3,2,2) = 0d0
+          vec(3,2,3) = 0d0
+          vec(3,3,1) = vec(3,1,3)
+          vec(3,3,2) = vec(3,2,3)
+          vec(3,3,3) = 0d0
+
+        case default
+          write (*,*) 'Grid not implemented in hessian'
+          write (*,*) 'Aborting...'
+          stop
+        end select
+
+        gamma = vec
+
+      end function gamma_anal
+
 c     christ_2knd
 c     #################################################################
       function christ_2knd(i,j,k,igx,igy,igz,g_def) result (tensor)
@@ -1777,5 +2047,174 @@ c     Begin program
         tensor = reshape(vec,(/3,3/))
 
       end function g_sup
+
+c     gsup_anal
+c     #################################################################
+      function gsup_anal(curv,g_def) result(tensor)
+
+c     -----------------------------------------------------------------
+c     Calculates covariant vectors of curvilinear coordinate system
+c     in Cartesian coordinates
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        real(8) :: curv(3),tensor(3,3)
+
+        type(grid_mg_def),optional,pointer :: g_def
+
+c     Local variables
+
+        real(8) :: aa,bb,major_r,mm,kk,eps,phi,jac,x1,x2,x3
+        real(8) :: gp(ngparams),vec(9)
+
+        type(grid_mg_def),pointer :: gl_def
+
+c     Begin program
+
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        gp = gl_def%params
+
+        x1 = curv(1)
+        x2 = curv(2)
+        x3 = curv(3)
+
+        select case (coords)
+        case ('car','lpk')
+          vec = (/ 1d0, 0d0, 0d0
+     .            ,0d0, 1d0, 0d0
+     .            ,0d0, 0d0, 1d0 /)
+        case ('cyl')
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+            vec = (/ x1 , 0d0   , 0d0
+     .              ,0d0, 1d0/x1, 0d0
+     .              ,0d0, 0d0   , x1 /)
+          endif
+        case ('hel')
+          mm = gp(1)
+          kk = gp(2)
+          aa = kk/mm
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+            vec = (/  x1  , 0d0              , 0d0
+     .              , 0d0 , 1./x1 + aa**2*x1 , aa*x1
+     .              , 0d0 , aa*x1            , x1 /)
+          endif
+        case ('hl2')
+          mm = gp(1)
+          kk = gp(2)
+          aa = kk/mm
+
+          x1 = abs(2*x1)
+
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+            vec = (/ x1 , 0d0          , 0d0
+     .              ,0d0, 1./x1 + aa**2, aa
+     .              ,0d0, aa           , 1d0 /)
+          endif
+        case ('tor')
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+            major_r = gp(1)
+            aa      = gp(2)
+            bb      = gp(3)
+
+            vec(1) = -(x1*(major_r + aa*x1*Cos(x2))*
+     .               (-aa**2 - bb**2 + (aa**2 - bb**2)*Cos(2*x2)))
+     .               /(2.*aa*bb)
+
+            vec(2) = ((aa**2 - bb**2)*Cos(x2)
+     .               *(major_r + aa*x1*Cos(x2))*Sin(x2))
+     .               /(aa*bb)
+
+            vec(3) = 0d0
+
+            vec(4) = vec(2)
+
+            vec(5) = ((major_r + aa*x1*Cos(x2))
+     .              *(aa**2 + bb**2 + (aa**2 - bb**2)*Cos(2*x2)))
+     .              /(2.*aa*bb*x1)
+
+            vec(6) = 0d0
+
+            vec(7) = vec(3)
+            vec(8) = vec(6)
+            vec(9) = (aa*bb*x1)/(major_r + aa*x1*Cos(x2))
+          endif
+        case ('sin')
+
+          pi = acos(-1d0)
+
+          eps = gp(1)
+
+          vec(1) =
+     .         (xmax*(2*eps**2*Pi**2 + ymax**2 - 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x1)/xmax) - 
+     -        eps**2*Pi**2*Cos(Pi*((4*x1)/xmax - (4*x2)/ymax)) - 
+     -        eps**2*Pi**2*Cos(4*Pi*(x1/xmax + x2/ymax)) + 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x2)/ymax) + 
+     -        2*eps*Pi*ymax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        2*eps*Pi*ymax*Sin(2*Pi*(x1/xmax + x2/ymax))))/
+     -    (ymax*(xmax*ymax + eps*Pi*(xmax - ymax)*
+     -         Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))
+
+          vec(2) =
+     .         -((eps*Pi*(eps*Pi*Cos(Pi*((4*x1)/xmax - (4*x2)/ymax)) - 
+     -          eps*Pi*Cos(4*Pi*(x1/xmax + x2/ymax)) + 
+     -          xmax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) - 
+     -          ymax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -          xmax*Sin(2*Pi*(x1/xmax + x2/ymax)) + 
+     -          ymax*Sin(2*Pi*(x1/xmax + x2/ymax))))/
+     -      (xmax*ymax + eps*Pi*(xmax - ymax)*
+     -         Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))
+
+          vec(3) = 0d0
+          vec(4) = vec(2)
+
+          vec(5) =
+     .         (ymax*(2*eps**2*Pi**2 + xmax**2 + 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x1)/xmax) - 
+     -        eps**2*Pi**2*Cos(Pi*((4*x1)/xmax - (4*x2)/ymax)) - 
+     -        eps**2*Pi**2*Cos(4*Pi*(x1/xmax + x2/ymax)) - 
+     -        2*eps**2*Pi**2*Cos((4*Pi*x2)/ymax) - 
+     -        2*eps*Pi*xmax*Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        2*eps*Pi*xmax*Sin(2*Pi*(x1/xmax + x2/ymax))))/
+     -    (xmax*(xmax*ymax + eps*Pi*(xmax - ymax)*
+     -         Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -        eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax))))
+
+          vec(6) = 0d0
+          vec(7) = vec(3)
+          vec(8) = vec(6)
+
+          vec(9) = (xmax*ymax + eps*Pi*(xmax - ymax)*
+     -       Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
+     -      eps*Pi*(xmax + ymax)*Sin(2*Pi*(x1/xmax + x2/ymax)))
+     .         /(xmax*ymax)
+
+        case default
+          write (*,*) 'Grid not implemented in g_sup'
+          write (*,*) 'Aborting...'
+          stop
+        end select
+
+        tensor = reshape(vec,(/3,3/))
+
+      end function gsup_anal
 
       end module grid_anal_map

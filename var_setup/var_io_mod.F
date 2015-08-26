@@ -1249,6 +1249,7 @@ c     End program
 
       contains
 
+#if defined(petsc)
 c     setParallelLimits
 c     ################################################################
       subroutine setParallelLimits
@@ -1296,6 +1297,7 @@ c     ################################################################
       endif
 
       end subroutine setParallelLimits
+#endif
 
 c     setSerialLimits
 c     ################################################################
