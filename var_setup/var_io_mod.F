@@ -531,6 +531,7 @@ cc      integer,optional,intent(out) :: lneq
 c     Local variables
 
       integer :: nx,ny,nz,ierr,neq,ndepvl,ndepsl,nauxvl,nauxsl
+     .          ,ilg,ihg,jlg,jhg,klg,khg
       character(len=1024) :: rfile
 
 c     Begin program
@@ -545,48 +546,55 @@ c     Begin program
 
       ufile = find_unit(urecord)
       
-      call openPOSIXBinFile(ufile,trim(rfile),status='old')
+      call openRecordFiles(ufile,trim(rfile)
+     .                    ,ilg,ihg,jlg,jhg,klg,khg)
 
-      read (ufile,iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
-      if (ierr == 0) then
+      nx = ihg-ilg+1
+      ny = jhg-jlg+1
+      nz = khg-klg+1
 
-        if (NDEPV == 0) then
-           NDEPV=ndepvl
-        elseif (NDEPV /= ndepvl) then
-           call pstop('openRestartFileForRead'
-     $            ,'# Dep. vec. variables do not agree; cannot restart')
-        endif
-
-        if (NDEPS == 0) then
-           NDEPS=ndepsl
-        elseif (NDEPS /= ndepsl) then
-           call pstop('openRestartFileForRead'
-     $            ,'# Dep. scl. variables do not agree; cannot restart')
-        endif
-
-        if (NAUXV == 0) then
-           NAUXV=nauxvl
-        elseif (NAUXV /= nauxvl) then
-           call pstop('openRestartFileForRead'
-     $            ,'# Aux. vec. variables do not agree; cannot restart')
-        endif
-
-        if (NAUXS == 0) then
-           NAUXS=nauxsl
-        elseif (NAUXS /= nauxsl) then
-           call pstop('openRestartFileForRead'
-     $            ,'# Aux. scl. variables do not agree; cannot restart')
-        endif
-
-      else  !COMPATIBILITY MODE
-
-        rewind(ufile)
-
-      endif
-
-      read (ufile) nx,ilog,ihig
-      read (ufile) ny,jlog,jhig
-      read (ufile) nz,klog,khig
+cc      call openPOSIXBinFile(ufile,trim(rfile),status='old')
+cc
+cc      read (ufile,iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
+cc      if (ierr == 0) then
+cc
+cc        if (NDEPV == 0) then
+cc           NDEPV=ndepvl
+cc        elseif (NDEPV /= ndepvl) then
+cc           call pstop('openRestartFileForRead'
+cc     $            ,'# Dep. vec. variables do not agree; cannot restart')
+cc        endif
+cc
+cc        if (NDEPS == 0) then
+cc           NDEPS=ndepsl
+cc        elseif (NDEPS /= ndepsl) then
+cc           call pstop('openRestartFileForRead'
+cc     $            ,'# Dep. scl. variables do not agree; cannot restart')
+cc        endif
+cc
+cc        if (NAUXV == 0) then
+cc           NAUXV=nauxvl
+cc        elseif (NAUXV /= nauxvl) then
+cc           call pstop('openRestartFileForRead'
+cc     $            ,'# Aux. vec. variables do not agree; cannot restart')
+cc        endif
+cc
+cc        if (NAUXS == 0) then
+cc           NAUXS=nauxsl
+cc        elseif (NAUXS /= nauxsl) then
+cc           call pstop('openRestartFileForRead'
+cc     $            ,'# Aux. scl. variables do not agree; cannot restart')
+cc        endif
+cc
+cc      else  !COMPATIBILITY MODE
+cc
+cc        rewind(ufile)
+cc
+cc      endif
+cc
+cc      read (ufile) nx,ilog,ihig
+cc      read (ufile) ny,jlog,jhig
+cc      read (ufile) nz,klog,khig
 
       if (associated(gv%gparams)) then
 #if defined(petsc) 
@@ -1125,11 +1133,11 @@ c     End
 
 c     openRecordFiles
 c     #################################################################
-      subroutine openRecordFiles(base_unit,base_fname,munit
+      subroutine openRecordFiles(base_unit,base_fname
      .                          ,ilg,ihg,jlg,jhg,klg,khg)
 
 c     -----------------------------------------------------------------
-c     Opens input binary files, one per processor.
+c     Opens input binary files.
 c     -----------------------------------------------------------------
 
       implicit none
@@ -1139,7 +1147,6 @@ c     Call variables
       integer :: base_unit,ilg,ihg,jlg,jhg,klg,khg
      .          ,ndepvl,ndepsl,nauxvl,nauxsl
       character(*),INTENT(IN) :: base_fname
-      integer,pointer,dimension(:) :: munit
 
 c     Local variables
 
@@ -1153,7 +1160,7 @@ c     Begin program
 
 c     Open graphics files
 
-      ierr = openFiles(my_rank,np,base_unit,base_fname,munit)
+      ierr = openFiles(my_rank,np,base_unit,base_fname,murecord)
 
       if (ierr /= 0) then
           call pstop('openRecordFiles'
@@ -1170,7 +1177,7 @@ c     Open graphics files
 
 c     Read init info
 
-      nf = size(munit)
+      nf = size(murecord)
 
       allocate(nx(nf),ny(nf),nz(nf)
      .        ,ilg_(nf),ihg_(nf)
@@ -1178,12 +1185,47 @@ c     Read init info
      .        ,klg_(nf),khg_(nf))
 
       do ifl=1,nf
-        read (munit(ifl),iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
-        if (ierr /= 0) rewind(munit(ifl))
+        read (murecord(ifl),iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
 
-        read (munit(ifl)) nx(ifl),ilg_(ifl),ihg_(ifl)
-        read (munit(ifl)) ny(ifl),jlg_(ifl),jhg_(ifl)
-        read (munit(ifl)) nz(ifl),klg_(ifl),khg_(ifl)
+        if (ierr == 0) then
+
+          if (NDEPV == 0) then
+             NDEPV=ndepvl
+          elseif (NDEPV /= ndepvl) then
+             call pstop('openRecordFiles'
+     $            ,'# Dep. vec. variables do not agree; cannot proceed')
+          endif
+
+          if (NDEPS == 0) then
+             NDEPS=ndepsl
+          elseif (NDEPS /= ndepsl) then
+             call pstop('openRecordFiles'
+     $            ,'# Dep. scl. variables do not agree; cannot proceed')
+          endif
+
+          if (NAUXV == 0) then
+             NAUXV=nauxvl
+          elseif (NAUXV /= nauxvl) then
+             call pstop('openRecordFiles'
+     $            ,'# Aux. vec. variables do not agree; cannot proceed')
+          endif
+
+          if (NAUXS == 0) then
+             NAUXS=nauxsl
+          elseif (NAUXS /= nauxsl) then
+             call pstop('openRecordFiles'
+     $            ,'# Aux. scl. variables do not agree; cannot proceed')
+          endif
+
+        else  !COMPATIBILITY MODE
+
+          rewind(murecord(ifl))
+
+        endif
+
+        read (murecord(ifl)) nx(ifl),ilg_(ifl),ihg_(ifl)
+        read (murecord(ifl)) ny(ifl),jlg_(ifl),jhg_(ifl)
+        read (murecord(ifl)) nz(ifl),klg_(ifl),khg_(ifl)
       enddo
 
 c     Consistency check

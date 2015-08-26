@@ -324,7 +324,7 @@ c Open graphics files (this initializes local limits, among other things)
 
       call openRecordFileAdiosForRead(adios_err)
 #else
-      call openRecordFiles(urecord,recordfile,murecord
+      call openRecordFiles(urecord,recordfile
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
 #endif
 
