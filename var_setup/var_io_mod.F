@@ -110,11 +110,11 @@ c     Begin program
             if (index(adios_varlist(i),"/var/") == 1) then
                 adios_nvar = adios_nvar+1
                 !Check problem size
-                if (inq_adios_var.and.(ADIOS_VER == 1.31)) then
+cc                if (inq_adios_var.and.(ADIOS_VER == 1.31)) then
                   call adios_inq_var(adios_gh,trim(adios_varlist(i))
      .               ,adios_vartype,adios_ndim,adios_vardims,adios_tdim
      .               ,ierr)
-                endif
+cc                endif
 cc                ! get rid of trailing char(0) in names
 cc                nullidx=index(adios_varlist(i),char(0))
 cc                if (nullidx == 0) nullidx=len(trim(adios_varlist(i)))+1
@@ -1189,6 +1189,28 @@ c     Read init info
 c     Consistency check
 
 #if defined(petsc)
+      if (np > 1) then
+        call setParallelLimits
+      else
+        call setSerialLimits
+      endif
+#else
+      call setSerialLimits
+#endif
+
+      deallocate(nx,ny,nz
+     .          ,ilg_,ihg_
+     .          ,jlg_,jhg_
+     .          ,klg_,khg_)
+ 
+c     End program
+
+      contains
+
+c     setParallelLimits
+c     ################################################################
+      subroutine setParallelLimits
+
       if (nf /= 1) then
           call pstop('openRecordfiles'
      .          ,'Cannot deal with multiple record files in parallel')
@@ -1230,7 +1252,13 @@ c     Consistency check
         nyd = rec_buf(2)
         nzd = rec_buf(3)
       endif
-#else
+
+      end subroutine setParallelLimits
+
+c     setSerialLimits
+c     ################################################################
+      subroutine setSerialLimits
+
       !Set global limits (NOT a parallel run)
       if (associated(gv%gparams)) then
 
@@ -1269,14 +1297,7 @@ cc     .               ,maxval(khg_)-minval(klg_)+1
 
       endif
 
-#endif
-
-      deallocate(nx,ny,nz
-     .          ,ilg_,ihg_
-     .          ,jlg_,jhg_
-     .          ,klg_,khg_)
- 
-c     End program
+      end subroutine setSerialLimits
 
       end subroutine openRecordFiles
 
