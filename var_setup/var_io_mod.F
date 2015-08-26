@@ -630,12 +630,12 @@ cc      read (ufile) nz,klog,khig
       ! allocate 100MB buffer for ADIOS
       call adios_allocate_buffer (100,adios_err)
 
-      if (associated(gv%gparams)) then
-        call openRecordFileAdiosForRead(adios_err,file=file)
-      else
+cc      if (associated(gv%gparams)) then
+cc        call openRecordFileAdiosForRead(adios_err,file=file)
+cc      else
         call openRecordFileAdiosForRead(adios_err,file=file
      .                                 ,nx=nxd,ny=nyd,nz=nzd)
-      endif
+cc      endif
 
       if (adios_err /= 0) then
         call pstop('openRestartFileForRead'

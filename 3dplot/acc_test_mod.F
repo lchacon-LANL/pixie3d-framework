@@ -334,6 +334,10 @@ c     Begin program
       igy = 1
       igz = 1
 
+      nxs = nxd
+      nys = nyd
+      nzs = nzd
+
       call closeRecordFiles
 
       time = 0d0
@@ -345,21 +349,26 @@ c     Read reference field
         write (*,*) '>>>>> Reading reference file...'
       endif
 
+      !This redefines nxd,nyd,nzd
       ufile=openRestartFileForRead(file=acc_ref_file)
+
+      !Consistency check
+      if (nxd /= nxs .or. nyd /= nys .or. nzd /= nzs) then
+         call pstop('acc_test_time'
+     .   ,'Reference and solution are at different spatial resolutions')
+      endif
 
       call allocateDerivedType(vref)
 
       do
         call readTimeStep(ufile,itime,time,dt,vref,ierr)
-        if (ierr /= 0 .or. abs(time-tmax)<1d-8 ) exit
+        if (ierr /= 0
+     .     .or. (abs(time-tmax)<1d-10.and.tmax > 0d0)
+     .     .or. (numtime == itime.and.numtime > 0)) exit
       enddo
 
-      nx = ihig-ilog+1
-      ny = jhig-jlog+1
-      nz = khig-klog+1
-
       if (my_rank == 0) then
-        write (*,*) 'Grid size =',nx,ny,nz
+        write (*,*) 'Grid size =',nxd,nyd,nzd
         write (*,*) 'Final time=',time
         write (*,*)
       endif
@@ -375,21 +384,20 @@ c     Read current solution
         write (*,*) '>>>>> Reading solution file...'
       endif
 
+      !This redefines nxd,nyd,nzd
       ufile=openRestartFileForRead(file=recordfile)
 
       call allocateDerivedType(vsol)
 
       do
         call readTimeStep(ufile,itime,time,dt,vsol,ierr)
-        if (ierr /= 0 .or. abs(time-tmax)<1d-10) exit
+        if (ierr /= 0
+     .     .or. (abs(time-tmax)<1d-10.and.tmax > 0d0)
+     .     .or. (numtime == itime.and.numtime > 0)) exit
       enddo
 
-      nxs = ihig-ilog+1
-      nys = jhig-jlog+1
-      nzs = khig-klog+1
-
       if (my_rank == 0) then
-        write (*,*) 'Grid size =',nxs,nys,nzs
+        write (*,*) 'Grid size =',nxd,nyd,nzd
         write (*,*) 'Final time=',time
         write (*,*)
       endif
@@ -398,10 +406,10 @@ c     Read current solution
 
 c     Consistency checks
 
-      if (nx /= nxs .or. ny /= nys .or. nz /= nzs) then
-         call pstop('acc_test_time'
-     .   ,'Reference and solution are at different spatial resolutions')
-      endif
+cc      if (nx /= nxs .or. ny /= nys .or. nz /= nzs) then
+cc         call pstop('acc_test_time'
+cc     .   ,'Reference and solution are at different spatial resolutions')
+cc      endif
 
       if (abs(tref-tsol)>1d-10) then
         if (my_rank == 0) write (*,*) 'T_ref-T_sol=',tref-tsol
@@ -409,7 +417,11 @@ c     Consistency checks
      .            ,'Reference and solution are not at same time')
       endif
 
-c     Calculate difference
+c     Calculate solution differences
+
+      nx = ihig-ilog+1
+      ny = jhig-jlog+1
+      nz = khig-klog+1
 
       if (my_rank == 0) then
         write (*,*) '>>>>> Temporal errors...'
