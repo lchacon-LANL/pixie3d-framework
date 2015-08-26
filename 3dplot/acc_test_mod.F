@@ -107,10 +107,6 @@ c     Read reference grid info
 
       ufile=openRestartFileForRead(file=acc_ref_file)
 
-      nx = ihig-ilog+1
-      ny = jhig-jlog+1
-      nz = khig-klog+1
-
       if (my_rank == 0) then
         write (*,*)
         write (*,*) ' Reading reference file...'
@@ -135,6 +131,10 @@ c     Read reference grid info
       call closeRestartFileForRead(ufile)
 
 c Spline reference solution
+
+      nx = ihig-ilog+1
+      ny = jhig-jlog+1
+      nz = khig-klog+1
 
       order = 2  !Order of interpolation of ref solution
 
