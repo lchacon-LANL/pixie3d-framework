@@ -44,7 +44,7 @@ c ######################################################################
 
         integer :: ntimemax,itime=0,inewtime
 
-        real(8) :: dt_n,dtold,time,dtbase,tn,tnm,alpha,gammat
+        real(8) :: dt_nm,dt_n,dtold,time,dtbase,tn,tnm,alpha,gammat
 
         real(8) :: cnp=1d0,cn=-1d0,cnm=0d0
 
@@ -80,6 +80,7 @@ c     Begin program
 
       dtold = dt
       dt_n  = dt
+      dt_nm = dt
 
 c     End program
 
@@ -115,6 +116,7 @@ c     Begin program
 
       dtold = tn - tnm
       dt_n  = dtold
+      dt_nm = 0d0
 
       time  = tn
       tn    = tnm
@@ -160,6 +162,7 @@ c     Begin program
       dtold = tn - tnm
       if (dtold == 0d0) dtold = dt
 
+      dt_nm = dt_n
       dt_n  = dtold
 
 c     End program
