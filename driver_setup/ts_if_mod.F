@@ -36,9 +36,14 @@ c     Begin program
 
       nn = size(x)
 
-c     Store old-time solution
+c     Evaluate old-time NLF
 
-      x_old = x
+      old_time_eval = .true. !This informs nlfunction that we are processing
+                             !  n time level info
+
+      call evaluateNonlinearFunction(nn,x,fold)
+
+      old_time_eval = .false.
 
 c     Newton-Krylov iteration
 
@@ -105,8 +110,6 @@ c     Begin program
       ierr = NOERR
 
       nn = size(x)
-
-      x_old = x
 
 c     Predictor step
 
@@ -175,8 +178,6 @@ c     Begin program
       itgmres = 0
       itnewt = 0
 
-      call mapStructureToVector(x,vnp)
-
 c     Define TS parameters
 
       if (bdf2) then
@@ -214,9 +215,17 @@ c     Define TS parameters
 
 c     Time step update
 
+      call mapStructureToVector(x,vnp)  !Old time info
+
       if (cnfactor <= 5d-1) then
+        call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
+
+        call mapStructureToVector(x_old,vnp) !BDF2 ref
+
         ierr = implicit_ts(neqd,x,itnw,itgm,iout)
       else
+        x_old = x
+
 #if defined(EXT_EXPLICIT)
         ierr = app_explicit(x,itgm,iout)
 #else

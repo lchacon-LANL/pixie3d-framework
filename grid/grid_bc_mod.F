@@ -1049,7 +1049,6 @@ c     Fill PETSc ghost cells
 
         if (bcPER(1).and.bcPER(2).and.bcPER(3)) return !PETSc deals with all periodic domains
       endif
-
 #endif
 
 c     Impose BCs
@@ -1109,7 +1108,7 @@ c     Begin program
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
-            if (bcnd(ibc) == bctype) then
+            if (abs(bcnd(ibc)) == bctype) then
               call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
             endif
           enddo
