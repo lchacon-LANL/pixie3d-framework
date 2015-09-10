@@ -43,7 +43,7 @@ cc        if (my_rank == 0) write (*,*) e_time, quota
 #endif
      .      .or.relax_init_grid) then
           if (.not.relax_init_grid) nrst  = 0
-          if(itime-offset > 0) tmrst=tmrst-dstep
+          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
           call writeRecordFile(recordfile,itime,time,dt,varray)
         endif
 

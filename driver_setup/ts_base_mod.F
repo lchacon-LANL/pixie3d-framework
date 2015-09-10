@@ -18,7 +18,8 @@ c ######################################################################
      .            ,itgmres
      .            ,gmres_tot
      .            ,newt_tot
-     .            ,offset
+     .            ,init_grid_offset=0
+     .            ,bdf2_init_offset=1
 
         real(8) :: tmrst       !Dump time for restart
      .            ,quota=1d30  !Max CPU time (in seconds)
@@ -121,6 +122,30 @@ c$$$c     End program
 c$$$
 c$$$      end subroutine storeTSinfo
 
+c     TS_set_bdf2_init_offset
+c     ###############################################################
+      subroutine TS_set_bdf2_init_offset(offset)
+
+c     ---------------------------------------------------------------
+c     Check for end of time loop
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: offset
+
+c     Local variables
+
+c     Begin program
+
+      bdf2_init_offset = offset
+
+c     End program
+
+      end subroutine TS_set_bdf2_init_offset
+
 c     TS_chk_end
 c     ###############################################################
       function TS_chk_end() result(exit_tloop)
@@ -174,12 +199,11 @@ c     Update counters
 
       call TS_update_timecounters(time)
 
-cc      itime = itime + 1
-
 c     Find new time step
 
-      itm = itime-offset
-      call findNewTimeStep(itm,ierr)
+      itm = itime-init_grid_offset
+
+      call findNewTimeStep(itm,ierr,dt)
 
       time = time + dt
 
@@ -341,8 +365,7 @@ c     Begin program
 
       dtexp     = 0d0
       
-      offset = 0
-      if (relax_init_grid) offset = 1
+      if (relax_init_grid) init_grid_offset = 1
 
 c     PETSc CPU counters and profiling
       
@@ -393,7 +416,7 @@ c     End program
 
 c     findNewTimeStep
 c     ####################################################################
-      subroutine findNewTimeStep(itm,ierr)
+      subroutine findNewTimeStep(itm,ierr,dt)
 
 c     --------------------------------------------------------------------
 c     Find new time step
@@ -403,6 +426,7 @@ c     --------------------------------------------------------------------
 
 c     Call variables
 
+      real(8) :: dt
       integer,INTENT(IN) ::  ierr,itm
 
 c     Local variables
@@ -410,18 +434,6 @@ c     Local variables
       external findExplicitDt
 
 c     Begin program
-
-ccc     Store old time step
-cc
-cc      if (tn == tnm) then
-cc         dtold = dt
-cc         dt_n  = dt
-cc      else
-cc         dtold = time-tn
-cc         dt_n  = time-tn
-cc      endif
-
-c     Find new time step
 
       if (    cnfactor > 5d-1                   !Explicit
      .   .or.(timecorr.and.ierr==0.and.itm==1)  !First explicit step if timecorr
@@ -481,12 +493,12 @@ c     #######################################################################
                 dt = min(dtbase,dt*coef2)
               endif
             else
-              if  (itm == 1) then
+              if  (itm <= bdf2_init_offset) then
                 dt = 0.1*dtbase
                 dtold = dt
-              elseif (itm == 2) then
-                dt = dtbase - dt
-              elseif (itm == 3) then
+              elseif (itm == 1+bdf2_init_offset) then
+                dt = dtbase - bdf2_init_offset*dt
+              elseif (itm == 2+bdf2_init_offset) then
                 dt = dtbase
               else
                 dt = min(dtbase,dt*coef2)
