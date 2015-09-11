@@ -12,7 +12,7 @@ c ######################################################################
 
 c     implicit_ts
 c     #################################################################
-      function implicit_ts(neq,x,nlit,lit,iout) result(ierr)
+      function implicit_ts(x,nlit,lit,iout) result(ierr)
 
 c     -----------------------------------------------------------------
 c     Performs implicit advance of solution x (on input, x=xold)
@@ -22,7 +22,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer :: neq,ierr,nlit,lit,iout
+      integer :: ierr,nlit,lit,iout
 
       real(8) :: x(:)
 
@@ -72,7 +72,7 @@ cc      nk_conf%krylov_method='gm'
 
       nk_conf%vol_wgt = vol_wgt
 
-      call jfnk(neq,nn,x,iguess,iout,ierr)
+      call jfnk(neqd,nn,x,iguess,iout,ierr)
 
 c     Store convergence info
 
@@ -85,7 +85,7 @@ c     End program
 
 c     explicit_ts
 c     #################################################################
-      function explicit_ts(x) result(ierr)
+      function explicit_ts(x,itgm,iout) result(ierr)
 
 c     -----------------------------------------------------------------
 c     Performs explicit advance of solution x (on input, x=xold)
@@ -95,7 +95,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer :: ierr
+      integer :: ierr,iout,itgm
 
       real(8) :: x(:)
 
@@ -128,6 +128,8 @@ c     Corrector step
 
       x = x_old - dt*(fold-fsrc)
 
+      itgm = 0
+
 c     End program
 
       end function explicit_ts
@@ -156,10 +158,10 @@ c     Local variables
 
 #if defined(EXT_EXPLICIT)
       INTERFACE
-        function app_explicit(x,iter,iout)
+        function app_explicit(x,itgm,iout)
         use parameters
         real(8) :: x(ntotd)
-        integer :: iter,iout,app_explicit
+        integer :: itgm,iout,app_explicit
         end function app_explicit
       END INTERFACE
 #endif
@@ -222,17 +224,16 @@ c     Time step update
 
         call mapStructureToVector(x_old,vnp) !BDF2 ref
 
-        ierr = implicit_ts(neqd,x,itnw,itgm,iout)
+        ierr = implicit_ts(x,itnw,itgm,iout)
       else
         x_old = x
 
 #if defined(EXT_EXPLICIT)
         ierr = app_explicit(x,itgm,iout)
 #else
-        ierr = explicit_ts(x)
+        ierr = explicit_ts (x,itgm,iout)
 #endif
-        itnw = 1
-        itgm = 0
+        itnw = 0
       endif
 
 c     Map solution to vnp (if no error)
