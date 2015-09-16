@@ -1040,7 +1040,7 @@ c     Fill PETSc ghost cells
 
 #if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc =  (np > 1)  .and. (.not.asm)
+      petsc__bc =  (.not.asm)
 
       !Fill ghost cells
       if (petsc__bc) then
@@ -1102,21 +1102,19 @@ c     Local variables
 
 c     Begin program
 
-      if (np == 1) then
+#if !defined(petsc)
 
-        bctype=PER
-        do dim=1,3
-          do loc=0,1
-            ibc = (1+loc)+2*(dim-1)
-            if (abs(bcnd(ibc)) == bctype) then
-              call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
-            endif
-          enddo
+      bctype=PER
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+          if (abs(bcnd(ibc)) == bctype) then
+            call FillGhostNodes(ieq,1,1,dim,loc,bctype,array,array0)
+          endif
         enddo
+      enddo
 
-      else
-
-#if defined(petsc)
+#else
 cc        do dim=1,3
 cc          if (MPI_COMM_PER(dim) /= MPI_COMM_NULL) then
 cc            call MPI_Comm_size(MPI_COMM_PER(dim),np_l     ,mpierr)
@@ -1209,8 +1207,6 @@ cc            end select
 cc          endif
 cc        enddo
 #endif
-
-      endif
 
       end subroutine sync_PER
 
@@ -1334,7 +1330,7 @@ c     Fill PETSc ghost cells
 
 #if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc = (np > 1).and.(.not.asm)
+      petsc__bc = (.not.asm)
 
       !Fill ghost cells
       if (petsc__bc) then
@@ -1449,11 +1445,9 @@ c     End program
 
 c     synchronize
 c     #################################################################
-      subroutine synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv,dim
-     $                          ,loc,log_bcs)
+      subroutine synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv,dim,loc)
 c     -----------------------------------------------------------------
-c     Finds all vector components at either physical (log_bcs=.false,
-c     default) or logical (log_bcs=.true.) boundaries.
+c     Finds all vector components at physical boundaries.
 c
 c     On input, tangential covariant components and normal contravariant
 c     components are known at ghost cells. On output, all contravariant
@@ -1468,7 +1462,7 @@ c     Call variables
       real(8)    :: v_cnv(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
      .             ,v_cov(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
       logical    :: cov_to_cnv(6,3)
-      integer,optional :: dim,loc,log_bcs
+      integer,optional :: dim,loc
 
 c     Local variables
 
@@ -1744,20 +1738,21 @@ c     Initialize GLOBAL limits
 
 c     Fill PETSc ghost cells
 
+      !Fill GC of staggered components to ensure proper update
+      v_cov(nxbc+1,:,:,1) = v_cov(nxbc,:,:,1)
+      v_cov(:,nybc+1,:,2) = v_cov(:,nybc,:,2)
+      v_cov(:,:,nzbc+1,3) = v_cov(:,:,nzbc,3)
+
+      v_cnv(nxbc+1,:,:,1) = v_cnv(nxbc,:,:,1)
+      v_cnv(:,nybc+1,:,2) = v_cnv(:,nybc,:,2)
+      v_cnv(:,:,nzbc+1,3) = v_cnv(:,:,nzbc,3)
+
 #if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc = (np > 1).and.(.not.asm)
+      petsc__bc = (.not.asm)
 
       !Fill ghost cells
       if (petsc__bc) then
-        !Fill GC of staggered components to ensure proper update
-        v_cov(nxbc+1,:,:,1) = v_cov(nxbc,:,:,1)
-        v_cov(:,nybc+1,:,2) = v_cov(:,nybc,:,2)
-        v_cov(:,:,nzbc+1,3) = v_cov(:,:,nzbc,3)
-
-        v_cnv(nxbc+1,:,:,1) = v_cnv(nxbc,:,:,1)
-        v_cnv(:,nybc+1,:,2) = v_cnv(:,nybc,:,2)
-        v_cnv(:,:,nzbc+1,3) = v_cnv(:,:,nzbc,3)
 
         da_ctx => gbc_def%dactx(igxbc)
         do ieq=1,ncomp
@@ -1766,16 +1761,6 @@ c     Fill PETSc ghost cells
         enddo
       endif
 #endif
-
-ccc     Find complete curvilinear representation at boundaries
-cc
-cc      if (is__vec) then
-cc        if (to_cnv) then
-cc          call XformVector_stg_BC(igxbc,v_cov,v_cnv,to_cnv)
-cc        else
-cc          call XformVector_stg_BC(igxbc,v_cnv,v_cov,to_cnv)
-cc        endif
-cc      endif
 
 c     Exit if all periodic domains (PETSc deals with all periodic domains)
 
@@ -1866,10 +1851,9 @@ c     End program
 c     synchronize_stg
 c     #################################################################
       subroutine synchronize_stg(ncomp,v_cnv,v_cov,bcond,cov_to_cnv,dim
-     $                          ,loc,log_bcs)
+     $                          ,loc)
 c     -----------------------------------------------------------------
-c     Finds all vector components at either physical (log_bcs=.false,
-c     default) or logical (log_bcs=.true.) boundaries.
+c     Finds all vector components at physical boundaries.
 c
 c     On input, tangential covariant components and normal contravariant
 c     components are known at ghost cells. On output, all contravariant
@@ -1884,7 +1868,7 @@ c     Call variables
       real(8) :: v_cnv(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
      .          ,v_cov(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
       logical :: cov_to_cnv(6,3)
-      integer,optional :: dim,loc,log_bcs
+      integer,optional :: dim,loc
 
 c     Local variables
 
@@ -1915,24 +1899,25 @@ c     Begin program
         do il = ll,hl
           ibc = (1+il)+2*(id-1)
 
-          if (.not.selectFace(ibc)) cycle !Do nothing for logical boundaries
+          if (.not.selectFace(ibc).or.bcPER(id)) cycle !Do nothing for logical or periodic boundaries
 
           !Do NOT change: SAMRAI depends on it
           call findBCLoopLimits(id,il,iimin-1,iimax+1
      .                               ,jjmin-1,jjmax+1
      .                               ,kkmin-1,kkmax+1
-     .                               ,imin,imax
-     .                               ,jmin,jmax
-     .                               ,kmin,kmax)
+     .                               ,imin   ,imax
+     .                               ,jmin   ,jmax
+     .                               ,kmin   ,kmax)
 
           if (     (.not.cov_to_cnv(ibc,1))
      .        .and.(.not.cov_to_cnv(ibc,2))
-     .        .and.(.not.cov_to_cnv(ibc,3))) then  !All contravariant: find covariant
+     .        .and.(.not.cov_to_cnv(ibc,3))) then           !All contravariant: find covariant
 
+            !This code is suspect
             do k=kmin,kmax
               do j=jmin,jmax
                 do i=imin,imax
-                  v_cov(i,j,k,:)= XformToCov_stg_ijk(i,j,k,igxbc,v_cnv)
+                   v_cov(i,j,k,:)= XformToCov_stg_ijk(i,j,k,igxbc,v_cnv)
                 enddo
               enddo
             enddo
@@ -1967,7 +1952,7 @@ cc                if (.not.selectFace(ibc)) cycle
                         jm = max(j-1,0)
                         km = max(k-1,0)
 
-                        if(id/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc)) cycle
+                        if(id/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc)) cycle  !2D fix for now
 
                         select case(id)
                         case(1)
@@ -2004,7 +1989,7 @@ cc                if (.not.selectFace(ibc)) cycle
                         jm = max(j-1,0)
                         km = max(k-1,0)
 
-                        if(ic2/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle
+                        if(ic2/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle  !2D fix for now
 
                         select case(ic2)
                         case(1)
@@ -2215,14 +2200,10 @@ c     Local variables
 
 c     Begin program
 
-#if !defined(samrai)
-      if (np == 1) then
+#if !defined(petsc) && !defined(samrai)
+      ibc = (1+loc)+2*(dim-1)
 
-        ibc = (1+loc)+2*(dim-1)
-
-        call per_BC(ibc,array)
-
-      endif
+      call per_BC(ibc,array)
 #endif
 
 c     End program
