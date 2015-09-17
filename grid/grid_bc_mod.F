@@ -1738,21 +1738,21 @@ c     Initialize GLOBAL limits
 
 c     Fill PETSc ghost cells
 
-      !Fill GC of staggered components to ensure proper update
-      v_cov(nxbc+1,:,:,1) = v_cov(nxbc,:,:,1)
-      v_cov(:,nybc+1,:,2) = v_cov(:,nybc,:,2)
-      v_cov(:,:,nzbc+1,3) = v_cov(:,:,nzbc,3)
-
-      v_cnv(nxbc+1,:,:,1) = v_cnv(nxbc,:,:,1)
-      v_cnv(:,nybc+1,:,2) = v_cnv(:,nybc,:,2)
-      v_cnv(:,:,nzbc+1,3) = v_cnv(:,:,nzbc,3)
-
 #if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
       petsc__bc = (.not.asm)
 
       !Fill ghost cells
       if (petsc__bc) then
+
+        !Fill GC of staggered components to ensure proper update
+        v_cov(nxbc+1,:,:,1) = v_cov(nxbc,:,:,1)
+        v_cov(:,nybc+1,:,2) = v_cov(:,nybc,:,2)
+        v_cov(:,:,nzbc+1,3) = v_cov(:,:,nzbc,3)
+
+        v_cnv(nxbc+1,:,:,1) = v_cnv(nxbc,:,:,1)
+        v_cnv(:,nybc+1,:,2) = v_cnv(:,nybc,:,2)
+        v_cnv(:,:,nzbc+1,3) = v_cnv(:,:,nzbc,3)
 
         da_ctx => gbc_def%dactx(igxbc)
         do ieq=1,ncomp
