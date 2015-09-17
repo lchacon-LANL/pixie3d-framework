@@ -116,8 +116,17 @@ cc        prec_tot = gmres_tot + iguess*newt_tot
           write(*,310) itime,float(newt_tot )/(itime-inewtime+1)
      .                      ,float(gmres_tot)/(itime-inewtime+1)
      .                      ,float(gmres_tot)/newt_tot
+        elseif (itime-inewtime+1 == 0) then
+          write(*,310) itime,0d0
+     .                      ,0d0
+     .                      ,float(gmres_tot)/newt_tot
+
+        elseif (newt_tot == 0) then
+          write(*,310) itime,float(newt_tot )/(itime-inewtime+1)
+     .                      ,float(gmres_tot)/(itime-inewtime+1)
+     .                      ,0d0
         else
-          write(*,310) 0,0d0,0d0,0d0
+          write(*,310) itime,0d0,0d0,0d0
         endif
       endif
 

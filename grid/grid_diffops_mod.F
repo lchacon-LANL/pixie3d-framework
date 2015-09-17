@@ -4799,9 +4799,20 @@ c ######################################################################
 
         use grid_tensor_ops
 
+c     Options:
+c       * advect = 1 => First-order upwind
+c       * advect = 2 => Centered
+c       * advect = 3 => High-order upwind (QUICK)
+c       * advect = 4 => Monotone high-order upwind (SMART)
+c       * advect = 5 => SMART with smooth transition
+c       * advect = 6 => Centered, high-order
+c       * advect = 7 => Gamma (modification of SMART; not operational)
+
+        integer,parameter :: UPWD=1,ZIP=2,QUICK=3,SMART=4,SSMART=5,CHO=6
+
         integer :: adv_meth
 
-        integer,private :: bc_adv_meth=2
+        integer,private :: bc_adv_meth=ZIP   !Advective method at boundaries
 
         !Smooth SMART config
         real(8),private :: ssmart_xp1=0.25 !0.3
@@ -4816,6 +4827,22 @@ c ######################################################################
         end INTERFACE
 
       contains
+
+c     set_bc_advc_meth
+c     ###############################################################
+      subroutine set_bc_advc_meth(bcmth)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Sets advective method at boundaries
+c     ---------------------------------------------------------------
+
+      integer :: bcmth
+
+      bc_adv_meth = bcmth
+
+      end subroutine set_bc_advc_meth
 
 ccc     advec
 ccc     ###############################################################
@@ -5357,7 +5384,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: igrid,half_elem,su,bc_meth
+      integer :: igrid,half_elem,su
 
       integer :: im,ip,ipp,imm,igm,igp,igpp,igmm
      .          ,jm,jp,jpp,jmm,jgm,jgp,jgpp,jgmm
@@ -5374,7 +5401,7 @@ c     Begin program
 
 c     Set defaults
 
-      bc_safe = .not.(method > 2 .and. method <= 6)
+      bc_safe = .not.(method > ZIP .and. method <= 6)
 
       if (PRESENT(vol)) then
         vw = vol
@@ -5396,8 +5423,6 @@ c     Set defaults
 
       sgn = 1d0
       if (rev_sgn) sgn=-1d0  !Takes (-v) instead of v
-
-      bc_meth = 2  !Advective method at boundaries
 
 c     General setup
 
@@ -5470,7 +5495,7 @@ c     Find DEFAULT non-conservative fluxes (central differences)
 
 c     Find specialized non-conservative fluxes (reverts to CD at logical domain boundaries)
 
-      if (method /= 2) then
+      if (method /= ZIP) then
 
         vxp = sgn*v(i,j,k,1)
         vxm = sgn*v(i,j,k,1)
@@ -5487,7 +5512,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%xx(igp ),arr(ip ,j,k)
      .             ,grid_params%xx(ig  ),arr(i  ,j,k)
      .             ,grid_params%xx(igm ),arr(im ,j,k)
-     .             ,vxp,bc_meth)
+     .             ,vxp,bc_adv_meth)
         else
           qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
      .             ,grid_params%xx(igp ),arr(ip ,j,k)
@@ -5501,7 +5526,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%xx(ig  ),arr(i  ,j,k)
      .             ,grid_params%xx(igm ),arr(im ,j,k)
      .             ,grid_params%xx(igmm),arr(imm,j,k)
-     .             ,vxm,bc_meth)
+     .             ,vxm,bc_adv_meth)
         else
           qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
      .             ,grid_params%xx(ig  ),arr(i  ,j,k)
@@ -5515,7 +5540,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%yy(jgp ),arr(i,jp ,k)
      .             ,grid_params%yy(jg  ),arr(i,j  ,k)
      .             ,grid_params%yy(jgm ),arr(i,jm ,k)
-     .             ,vyp,bc_meth)
+     .             ,vyp,bc_adv_meth)
         else
           qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
      .             ,grid_params%yy(jgp ),arr(i,jp ,k)
@@ -5529,7 +5554,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%yy(jg  ),arr(i,j  ,k)
      .             ,grid_params%yy(jgm ),arr(i,jm ,k)
      .             ,grid_params%yy(jgmm),arr(i,jmm,k)
-     .             ,vym,bc_meth)
+     .             ,vym,bc_adv_meth)
         else
           qjm=inter(grid_params%yy(jgp ),arr(i,jp,k )
      .             ,grid_params%yy(jg  ),arr(i,j  ,k)
@@ -5543,7 +5568,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%zz(kgp ),arr(i,j,kp )
      .             ,grid_params%zz(kg  ),arr(i,j,k  )
      .             ,grid_params%zz(kgm ),arr(i,j,km )
-     .             ,vzp,bc_meth)
+     .             ,vzp,bc_adv_meth)
         else
           qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
      .             ,grid_params%zz(kgp ),arr(i,j,kp )
@@ -5557,7 +5582,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%zz(kg  ),arr(i,j,k  )
      .             ,grid_params%zz(kgm ),arr(i,j,km )
      .             ,grid_params%zz(kgmm),arr(i,j,kmm)
-     .             ,vzm,bc_meth)
+     .             ,vzm,bc_adv_meth)
         else
           qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
      .             ,grid_params%zz(kg  ),arr(i,j,k  )
@@ -6009,14 +6034,7 @@ c     ###############################################################
 
 c     ---------------------------------------------------------------
 c     This function computes the advection interpolation at control
-c     volume face based of face velocity "vel". Options:
-c       * advect = 1 => First-order upwind
-c       * advect = 2 => Centered
-c       * advect = 3 => High-order upwind (QUICK)
-c       * advect = 4 => Monotone high-order upwind (SMART)
-c       * advect = 5 => SMART with smooth transition
-c       * advect = 6 => Centered, high-order
-c       * advect = 7 => Gamma (modification of SMART; not operational)
+c     volume face based of face velocity "vel".
 c
 c     Convention:
 c
@@ -6042,7 +6060,7 @@ c     Local variables
 c     Begin program
 
       select case(advect)
-      case(1)
+      case(UPWD)
 
 c     Upwind
 
@@ -6052,13 +6070,13 @@ c     Upwind
           inter = q3
         endif
 
-      case(2)
+      case(ZIP)
 
 c     Centered
 
         inter = 0.5*(q3+q2)
 
-      case(3)
+      case(QUICK)
 
 c     QUICK [Leonard, Comput. Meth. Appl. Mech. Eng. 19, p. 59 (1979)]
 
@@ -6070,7 +6088,7 @@ c     QUICK [Leonard, Comput. Meth. Appl. Mech. Eng. 19, p. 59 (1979)]
 
         inter = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
 
-      case(4)
+      case(SMART)
 
 c     SMART [Gaskell and Lau, Int. J. Num. Meth. Fluids 8, p 617-641 (1988)]
 
@@ -6092,7 +6110,7 @@ c     SMART [Gaskell and Lau, Int. J. Num. Meth. Fluids 8, p 617-641 (1988)]
           inter = fmed(q3,qt4,qt1)
         endif
 
-      case(5)
+      case(SSMART)
 
 c     Smooth SMART
 
@@ -6138,7 +6156,7 @@ c     Smooth SMART
           endif
         endif
 
-      case(6)
+      case(CHO)
 
 c     Centered high-order
 
@@ -6186,14 +6204,6 @@ c     ###############################################################
 c     ---------------------------------------------------------------
 c     This function computes the advection interpolation of vector
 c     quantity at control volume face based of face velocity "vel".
-c     Options:
-c       * advect = 1 => First-order upwind
-c       * advect = 2 => Centered
-c       * advect = 3 => High-order upwind (QUICK)
-c       * advect = 4 => Monotone high-order upwind (SMART)
-c       * advect = 5 => SMART with smooth transition
-c       * advect = 6 => Centered, high-order
-c       * advect = 7 => Gamma (modification of SMART; not operational)
 c
 c     Convention:
 c
@@ -6223,7 +6233,7 @@ c     Local variables
 c     Begin program
 
       select case(advect)
-      case(1)
+      case(UPWD)
 
 c     Upwind
 
@@ -6233,13 +6243,13 @@ c     Upwind
           inter = q3
         endif
 
-      case(2)
+      case(ZIP)
 
 c     Centered
 
         inter = 0.5*(q3+q2)
 
-      case(3)
+      case(QUICK)
 
 c     QUICK [Leonard, Comput. Meth. Appl. Mech. Eng. 19, p. 59 (1979)]
 
@@ -6251,7 +6261,7 @@ c     QUICK [Leonard, Comput. Meth. Appl. Mech. Eng. 19, p. 59 (1979)]
 
         inter = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
 
-      case(4)
+      case(SMART)
 
 c     SMART [Gaskell and Lau, Int. J. Num. Meth. Fluids 8, p 617-641 (1988)]
 
@@ -6274,7 +6284,7 @@ c     SMART [Gaskell and Lau, Int. J. Num. Meth. Fluids 8, p 617-641 (1988)]
           inter = fmed(q3,qt4,qt1)
         endif
 
-      case(5)
+      case(SSMART)
 
 c     Smooth SMART
 
@@ -6320,7 +6330,7 @@ c     Smooth SMART
           end where
         endif
 
-      case(6)
+      case(CHO)
 
 c     Centered high-order
 
