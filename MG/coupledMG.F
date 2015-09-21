@@ -3361,7 +3361,10 @@ c     cSolver
 c     ##################################################################
       subroutine cSolver(neq,ntotp,b,x,bcnd,igrid,out,guess,matvec
      .                  ,vol_wgt
-     .                  ,dg,cvrg_tst,tol,iters
+     .                  ,dg
+     .                  ,cvrg_tst
+     .                  ,tol
+     .                  ,iters
      .                  ,gm_driver
      .                  ,cg_driver
      .                  ,ks_it
