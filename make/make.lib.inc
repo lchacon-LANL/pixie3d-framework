@@ -82,3 +82,11 @@ CONTRIBLIBS += -L$(COMMONDIR)/contrib/rng/lib -lrng
 ifeq ($(PTRID),t)
   CONTRIBLIBS += -L$(COMMONDIR)/contrib/ptridiag/lib -lptrid
 endif
+
+# SPRNG setup
+
+ifeq ($(SPRNG),t)
+  CONTRIBLIBS += $(SPRNG_LIBS) 
+  CPPFLAGS    += $(PREPROC)_sprng -I$(SPRNG_INC)
+#  MODPATH     += $(ADDMODFLAG)$(SPRNG_MOD)
+endif
