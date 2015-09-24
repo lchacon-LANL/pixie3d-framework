@@ -86,7 +86,7 @@ endif
 # SPRNG setup
 
 ifeq ($(SPRNG),t)
-  CONTRIBLIBS += $(SPRNG_LIBS) 
-  CPPFLAGS    += $(PREPROC)_sprng -I$(SPRNG_INC)
+  CONTRIBLIBS += -L$(SPRNG_LIBS) -lsprng -lstdc++ -lm
+  CPPFLAGS    += $(PREPROC)_SPRNG -I$(SPRNG_INC) -DHAVE_CONFIG_H -DPOINTER_SIZE=8 -DLONG64=long -DINTEGER_STAR_8
 #  MODPATH     += $(ADDMODFLAG)$(SPRNG_MOD)
 endif

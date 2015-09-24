@@ -727,11 +727,11 @@ ifeq ($(HOST),t1243055)
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(WORKDIR)/lib/mxml-2.7/lib -lmxml
     ADIOS_VER  = 1.31
 
-    SPRNG = f
+    SPRNG = t
 
-    SPRNG_HOME =
-    SPRNG_LIBS =
-    SPRNG_INC =
+    SPRNG_HOME = /home/gchen/Research/example/sprng/sprng5/parallel
+    SPRNG_LIBS = $(SPRNG_HOME)/lib
+    SPRNG_INC  = $(SPRNG_HOME)/include
   else
     LIBS += -llapack -lblas
 
@@ -744,11 +744,11 @@ ifeq ($(HOST),t1243055)
 
     ADIOS = f
 
-    SPRNG = f
+    SPRNG = t
 
-    SPRNG_HOME =
-    SPRNG_LIBS =
-    SPRNG_INC =
+    SPRNG_HOME = /home/gchen/Research/example/sprng/sprng5/serial
+    SPRNG_LIBS = $(SPRNG_HOME)/lib
+    SPRNG_INC = $(SPRNG_HOME)/include
   endif
 
 endif
