@@ -219,7 +219,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: alloc_stat,i,get_omp_numthreads
+        integer :: alloc_stat,i!,get_omp_numthreads
 
 c     Begin program
 
@@ -279,9 +279,10 @@ c     Prepare 3d spline interpolation
         allocate(ty(ny+ky),stat=alloc_stat)
         allocate(tz(nz+kz),stat=alloc_stat)
 
-        thr_tot = get_omp_numthreads()
-        
-	dime = kx*kz + 3*max(kx,ky,kz) + kz
+cc        thr_tot = get_omp_numthreads()
+        call set_omp_thread_id()
+
+	dime = ky*kz + 3*max(kx,ky,kz) + kz
 	allocate(worke(dime*thr_tot),stat=alloc_stat)
 
 c     End program

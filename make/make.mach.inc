@@ -108,6 +108,8 @@ ifeq ($(HOST),jetta)
       #Determined via modules
       ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
 
+      SPRNG = f
+
     else
       LIBS += -L/usr/lib -llapack -lblas
 
@@ -119,6 +121,9 @@ ifeq ($(HOST),jetta)
       HDF5_INC  = $(SHDF5_INC)
 
       ADIOS = f
+
+      SPRNG = f
+
     endif
 
     NETCDF=f
