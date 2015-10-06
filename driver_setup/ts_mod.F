@@ -45,19 +45,6 @@ c     Begin program
         call switch_profile_stage(iNL)
 #endif
 
-c     Evaluate old-time NLF
-
-      old_time_eval = .true.    !This informs nlfunction that we are processing
-                                !  n time level info
-
-      call evaluate_NLF(1,u_n,fold)
-
-      old_time_eval = .false.
-
-c     Store BDF2 old-time solution (in u_np)
-
-      if (bdf2) call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
-
 c     Perform TS update
 
       if (eigen) then

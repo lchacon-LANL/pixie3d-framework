@@ -26,106 +26,24 @@ c Call variables
 c Local variables
 
       integer :: i,j,k,ieq,ii,ig,jg,kg,igrid
-      real(8) :: dvol!,src(neqd),dfdt(neqd)
 
-cc      real(8),pointer,dimension(:,:,:) :: jac
-      real(8),pointer,dimension(:) :: src
+      real(8),pointer,dimension(:) :: src,xdot
 
 c Begin program
 
       igrid = 1
 
+      allocate(src(ntot),xdot(ntot))
+
 c Evaluate nonlinear function Fi(Uj) at time level (n+1)
+
+      xdot = cnp*(x-x_old)/dt
 
       call evaluateNonlinearFunction(ntot,x,f)
 
-cc      do k = klo,khi
-cc        do j = jlo,jhi
-cc          do i = ilo,ihi
-cc
-cc            call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
-cc
-cc            ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
-cc
-cc#if defined(MK)
-cc            if (source.and.mk_grid) then
-cc              if (relax_init_grid) then
-cc                src = 0d0
-cc              else
-cc                src(ii+1:ii+neqd) = MK_eval_src(igrid,i,j,k) !Interpolate source on current MK mesh
-cc              endif
-cc            else
-cc              src(ii+1:ii+neqd) = fsrc(ii+1:ii+neqd)
-cc            endif
-cc#else
-cc            src(ii+1:ii+neqd) = fsrc(ii+1:ii+neqd)
-cc#endif
-cc
-cc#if defined(MK)
-cc            jac => gmetric%grid(igrid)%jac
-cc
-cc            if (mk_grid.and.(.not.mk_nc)) then
-cc              do ieq=1,neqd
-cc                dfdt(ieq) = one_over_dt(ieq)*
-cc     .        (bdfp (ieq)*jac(i,j,k)*varray%array_var(ieq)%array(i,j,k)
-cc     .        +bdfn (ieq)*jacn (i,j,k)*u_n %array_var(ieq)%array(i,j,k)
-cc     .        +bdfnm(ieq)*jacnm(i,j,k)*u_nm%array_var(ieq)%array(i,j,k))
-cc              enddo
-cc            else
-cc              dfdt=cnp*(x(ii+1:ii+neqd)-x_old(ii+1:ii+neqd))*one_over_dt
-cc            endif
-cc#else
-cc            dfdt = cnp*(x(ii+1:ii+neqd)-x_old(ii+1:ii+neqd))*one_over_dt
-cc#endif
-cc
-cc            f(ii+1:ii+neqd) = dfdt + (1d0-cnf)*f   (ii+1:ii+neqd)
-cc     .                             +      cnf *fold(ii+1:ii+neqd) - src
-
-cc            if (vol_wgt) then
-cc#if defined(MK)
-cc              if (mk_grid.and.(.not.mk_nc)) then
-cc              !Moving grid case
-cc                dvol = gmetric%grid(igrid)%dlvol(i,j,k) !Logical volume
-cc              else
-cc              !Fixed grid case
-cc                dvol = gmetric%grid(igrid)%dvol(i,j,k)
-cc              endif
-cc#else
-cc              dvol = gmetric%grid(igrid)%dlvol(i,j,k)  !Logical volume
-cc#endif
-cc              f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*dvol
-cc            endif
-cc
-cc          enddo
-cc        enddo
-cc      enddo
-cc
-cc      nullify(jac)
-
 c Compute source
 
-#if defined(MK)
-      if (source.and.mk_grid) then
-        allocate(src(ntot))
-
-        if (relax_init_grid) then
-          src = 0d0
-        else
-          do k = klo,khi
-            do j = jlo,jhi
-              do i = ilo,ihi
-                ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
-                src(ii+1:ii+neqd) = MK_eval_src(igrid,i,j,k) !Interpolate source on current MK mesh
-              enddo
-            enddo
-          enddo
-        endif
-      else
-        src => fsrc
-      endif
-#else
-      src => fsrc
-#endif
+      call evaluateSource(ntot,src)
 
 c Temporal update
 
@@ -134,8 +52,7 @@ c Temporal update
           do i = ilo,ihi
             ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
 
-            f(ii+1:ii+neqd) = cnp*(x(ii+1:ii+neqd)-x_old(ii+1:ii+neqd))
-     .                            *one_over_dt
+            f(ii+1:ii+neqd) = xdot(ii+1:ii+neqd)*dt*one_over_dt
      .                      + (1d0-cnf)*f   (ii+1:ii+neqd)
      .                      +      cnf *fold(ii+1:ii+neqd)
      .                      - src(ii+1:ii+neqd)
@@ -149,15 +66,7 @@ c Scale by volume
 
 c End program
 
-#if defined(MK)
-      if (source.and.mk_grid) then
-        deallocate(src)
-      else
-        nullify(src)
-      endif
-#else
-      nullify(src)
-#endif
+      deallocate(src,xdot)
 
       end subroutine evaluateNonlinearResidual
 
@@ -275,7 +184,7 @@ c Setup parallel BC flags to indicate BCs require communication
 
       call setup_petsc_BC
 
-c Prepare auxiliar quantities
+c Prepare auxiliary quantities
 
       call setup_NLF(igr,varray)
 
@@ -401,3 +310,142 @@ c Setup MK monitor function
 c End program
 
       end subroutine setup_NLF
+
+c evaluateSource
+c####################################################################
+      subroutine evaluateSource(ntot,src)
+c--------------------------------------------------------------------
+c     Calculates residual source, including future IMEX terms.
+c--------------------------------------------------------------------
+
+      use grid
+
+      use variables
+
+      use timeStepping
+
+#if defined(MK)
+      use mk
+#endif
+
+      implicit none
+
+c Call variables
+
+      integer :: ntot
+      real(8) :: src(ntot)
+
+c Local variables
+
+      integer :: i,j,k,ieq,ii,ig,jg,kg,igrid
+
+c Begin program
+
+      igrid = 1
+
+#if defined(MK)
+      if (source.and.mk_grid) then
+
+        if (relax_init_grid) then
+          src = 0d0
+        else
+          do k = klo,khi
+            do j = jlo,jhi
+              do i = ilo,ihi
+                ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
+                src(ii+1:ii+neqd) = MK_eval_src(igrid,i,j,k) !Interpolate source on current MK mesh
+              enddo
+            enddo
+          enddo
+        endif
+      else
+        src = fsrc
+      endif
+#else
+      src = fsrc
+#endif
+
+c End program
+
+      end subroutine evaluateSource
+      
+c$$$c evaluate_IMEX_NLF
+c$$$c####################################################################
+c$$$      subroutine evaluate_IMEX_NLF(igr,varray,fi)
+c$$$c--------------------------------------------------------------------
+c$$$c     Stores evaluation of nonlinear function Fi(Uj) in vector fi.
+c$$$c     The Uj's are given in varray.
+c$$$c--------------------------------------------------------------------
+c$$$
+c$$$      use parameters
+c$$$
+c$$$      use var_setup
+c$$$
+c$$$#if defined(MK)
+c$$$      use mk
+c$$$#endif
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c Call variables
+c$$$
+c$$$      integer :: igr
+c$$$      real(8) :: fi(ntotd)
+c$$$      type(var_array),pointer :: varray
+c$$$
+c$$$c Local variables
+c$$$
+c$$$      integer :: i,j,k,ii,ieq,nx,ny,nz
+c$$$
+c$$$c Interfaces
+c$$$
+c$$$      INTERFACE
+c$$$         subroutine setup_IMEX_NLF(igx,varray)
+c$$$           use var_setup
+c$$$           integer :: igx
+c$$$           type(var_array),pointer :: varray
+c$$$         end subroutine setup_IMEX_NLF
+c$$$      END INTERFACE
+c$$$
+c$$$      INTERFACE
+c$$$         subroutine IMEX_RHS(i,j,k,igx,igy,igz,varray,ff)
+c$$$           use var_setup
+c$$$           real(8) :: ff(neqd)
+c$$$           integer :: i,j,k,igx,igy,igz
+c$$$           type(var_array),pointer :: varray
+c$$$         end subroutine IMEX_RHS
+c$$$      END INTERFACE
+c$$$
+c$$$c Begin program
+c$$$
+c$$$c Setup parallel BC flags to indicate BCs require communication
+c$$$
+c$$$      call setup_petsc_BC
+c$$$
+c$$$c Prepare auxiliar quantities
+c$$$
+c$$$      call setup_IMEX_NLF(igr,varray)
+c$$$
+c$$$c Store function evaluation
+c$$$
+c$$$      nx = grid_params%nxv(igr)
+c$$$      ny = grid_params%nyv(igr)
+c$$$      nz = grid_params%nzv(igr)
+c$$$
+c$$$      do k = 1,nz
+c$$$        do j = 1,ny
+c$$$          do i = 1,nx
+c$$$            ii = vecPos(neqd,i,j,k,igr,igr,igr)
+c$$$
+c$$$            call IMEX_RHS(i,j,k,igr,igr,igr,varray,fi(ii+1:ii+neqd))
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$c Deallocate variables
+c$$$
+c$$$      call kill_IMEX_NLF
+c$$$
+c$$$c End program
+c$$$
+c$$$      end subroutine evaluate_IMEX_NLF

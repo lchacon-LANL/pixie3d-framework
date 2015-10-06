@@ -971,7 +971,7 @@ c     restrictMGArray
 c     #################################################################
       subroutine restrictMGArray(icmp,neq,mgarray,bcnd,igrid,order
      .                          ,order_bc,iscnv,isvec,result_is_vec
-     .                          ,equilb,mgvcov)
+     .                          ,equilb,mgvcov,is_stgvec)
 c     -----------------------------------------------------------------
 c     Restricts MG array in all grids with ghost nodes. If equilibrium
 c     is not provided, then extrapolation is done at EQU boundaries.
@@ -985,7 +985,7 @@ c     Call variables
       type(mg_array) :: mgarray
 
       integer,optional :: order_bc
-      logical,optional,intent(IN) :: iscnv,isvec,result_is_vec
+      logical,optional,intent(IN) :: iscnv,isvec,result_is_vec,is_stgvec
       type(mg_array),optional,intent(IN)  :: equilb
       type(mg_array),optional,intent(OUT) :: mgvcov
 
@@ -1047,7 +1047,8 @@ c     Restrict array
      .       ,order_bc=order_bc
      .       ,equilb=equilb
      .       ,mgvcov=mgvcov
-     .       ,g_def=mgarray%g_def)
+     .       ,g_def=mgarray%g_def
+     .       ,staggered=is_stgvec)
 
       enddo
 
@@ -1327,7 +1328,7 @@ c     #################################################################
       subroutine restrictArray_w_BCs(icmp,neq,igf,nxf,nyf,nzf,arrayf
      .                                       ,igc,nxc,nyc,nzc,arrayc
      .                              ,order,volf,bcnd,order_bc,equilb
-     $                              ,mgvcov,g_def)
+     $                              ,mgvcov,g_def,staggered)
 c     -----------------------------------------------------------------
 c     Restricts array to array in all grids (with ghost nodes),
 c     starting at grid igf.
@@ -1349,6 +1350,7 @@ c     Call variables
       type(mg_array),optional,intent(IN)  :: equilb
       type(mg_array),optional,intent(OUT) :: mgvcov
       type(grid_mg_def),pointer,optional :: g_def
+      logical,optional :: staggered
 
 c     Local variables
 
@@ -1357,7 +1359,7 @@ c     Local variables
      .             ,bcmod(6,neq),icmp2(max(neq/3,1))
 
       real(8),allocatable,dimension(:,:,:,:) :: arrf,arrc
-      logical    :: fpointers,have_equl,have_cov
+      logical    :: fpointers,have_equl,have_cov,is_stg
 
 c     Begin program
 
@@ -1370,6 +1372,12 @@ c     Begin program
         ord_bc = order_bc
       else
         ord_bc = order
+      endif
+
+      if (PRESENT(staggered)) then
+        is_stg = staggered
+      else
+        is_stg = .false.
       endif
 
 c     Restrict MG vectors
@@ -1423,37 +1431,74 @@ cc      deallocate(arrf,arrc)
 
 c     Impose BCs
 
-      if (icmp /= 0) then
-        icmp2 = icmp
-        if (have_equl) then
-          if (have_cov) then
-            call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
-     .                  ,arr0=equilb%grid(igc)%array
-     .                  ,arr_cov=mgvcov%grid(igc)%array
-     .                  ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_curv=res_is_vec,iorder=ord_bc
-     .                  ,g_def=g_def)
+      if (is_stg) then
+        if (icmp /= 0) then
+          icmp2 = icmp
+          if (have_equl) then
+            if (have_cov) then
+              call setMGBC_stg(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+     .                    ,arr0=equilb%grid(igc)%array
+     .                    ,arr_cov=mgvcov%grid(igc)%array
+     .                    ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                    ,result_is_curv=res_is_vec,iorder=ord_bc
+     .                    ,g_def=g_def)
+            else
+              call setMGBC_stg(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+     .                    ,arr0=equilb%grid(igc)%array
+     .                    ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                    ,result_is_curv=res_is_vec,iorder=ord_bc
+     .                    ,g_def=g_def)
+            endif
           else
-            call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
-     .                  ,arr0=equilb%grid(igc)%array
-     .                  ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_curv=res_is_vec,iorder=ord_bc
-     .                  ,g_def=g_def)
+            bcmod = bcnd
+            where (abs(bcmod) == EQU) bcmod = EXT
+            if (have_cov) then
+              call setMGBC_stg(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
+     .                    ,arr_cov=mgvcov%grid(igc)%array
+     .                    ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                    ,result_is_curv=res_is_vec,iorder=ord_bc
+     .                    ,g_def=g_def)
+            else
+              call setMGBC_stg(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
+     .                    ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                    ,result_is_curv=res_is_vec,iorder=ord_bc
+     .                    ,g_def=g_def)
+            endif
           endif
-        else
-          bcmod = bcnd
-          where (abs(bcmod) == EQU) bcmod = EXT
-          if (have_cov) then
-            call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
-     .                  ,arr_cov=mgvcov%grid(igc)%array
-     .                  ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_curv=res_is_vec,iorder=ord_bc
-     .                  ,g_def=g_def)
+        endif
+      else
+        if (icmp /= 0) then
+          icmp2 = icmp
+          if (have_equl) then
+            if (have_cov) then
+              call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+     .                    ,arr0=equilb%grid(igc)%array
+     .                    ,arr_cov=mgvcov%grid(igc)%array
+     .                    ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                    ,result_is_curv=res_is_vec,iorder=ord_bc
+     .                    ,g_def=g_def)
+            else
+              call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+     .                    ,arr0=equilb%grid(igc)%array
+     .                    ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                    ,result_is_curv=res_is_vec,iorder=ord_bc
+     .                    ,g_def=g_def)
+            endif
           else
-            call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
-     .                  ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
-     .                  ,result_is_curv=res_is_vec,iorder=ord_bc
-     .                  ,g_def=g_def)
+            bcmod = bcnd
+            where (abs(bcmod) == EQU) bcmod = EXT
+            if (have_cov) then
+              call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
+     .                    ,arr_cov=mgvcov%grid(igc)%array
+     .                    ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                    ,result_is_curv=res_is_vec,iorder=ord_bc
+     .                    ,g_def=g_def)
+            else
+              call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcmod
+     .                    ,icomp=icmp2,is_cnv=is__cnv,is_vec=is__vec
+     .                    ,result_is_curv=res_is_vec,iorder=ord_bc
+     .                    ,g_def=g_def)
+            endif
           endif
         endif
       endif
@@ -3316,7 +3361,10 @@ c     cSolver
 c     ##################################################################
       subroutine cSolver(neq,ntotp,b,x,bcnd,igrid,out,guess,matvec
      .                  ,vol_wgt
-     .                  ,dg,cvrg_tst,tol,iters
+     .                  ,dg
+     .                  ,cvrg_tst
+     .                  ,tol
+     .                  ,iters
      .                  ,gm_driver
      .                  ,cg_driver
      .                  ,ks_it

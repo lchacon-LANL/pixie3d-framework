@@ -12,7 +12,7 @@
         use file_io
 
       !OPENMP
-      integer :: thr_tot=1,thr_num=0,ilup=0
+      integer :: thr_tot=-1,thr_num=-1,ilup=0
 !$OMP THREADPRIVATE(thr_tot,thr_num,ilup)
       integer :: itot
 !$OMP THREADPRIVATE(itot)
@@ -635,12 +635,52 @@
      $           .or.(lssz .and. (intersect_z .ge. max_inter_z))
  
       end function auto_corr_inters_stop
+      
+      subroutine set_omp_thread_id(thrnum,thrtot)
+
+        implicit none
+
+        integer,optional :: thrnum,thrtot
+        integer :: get_omp_numthreads
+     $            ,omp_get_thread_num
+     $            ,omp_get_num_threads
+
+        if (PRESENT(thrtot)) then
+          thr_tot = thrtot
+        else
+          thr_tot = get_omp_numthreads()
+cc!$      thr_tot = omp_get_num_threads()
+        endif
+
+        if (PRESENT(thrnum)) then
+          thr_num = thrnum
+        else
+!$        thr_num = omp_get_thread_num()
+          thr_num = max(thr_num,0)
+        endif
+
+cc        write (*,*) 'set_omp_thread_id',thr_num,thr_tot
+      end subroutine set_omp_thread_id
+
+      subroutine check_omp_thread_id()
+
+        implicit none
+
+        if (thr_tot < 0 .or. thr_num < 0) then
+          write (*,*) "Thread ID not initialized"
+          write (*,*) "Aborting"
+          stop
+        endif
+        
+      end subroutine check_omp_thread_id
 
       end module lyapn
 
       subroutine set_lyapn_counter(ilop)
 
- 	use lyapn
+       	use lyapn
+
+        implicit none
 
 	integer :: ilop
 
@@ -649,6 +689,8 @@
       end subroutine set_lyapn_counter
 
       function get_omp_numthreads() result(thr_tot)
+
+        implicit none
 
         integer :: thr_tot
         character*10 :: ev

@@ -219,7 +219,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: alloc_stat,i,get_omp_numthreads
+        integer :: alloc_stat,i!,get_omp_numthreads
 
 c     Begin program
 
@@ -279,9 +279,10 @@ c     Prepare 3d spline interpolation
         allocate(ty(ny+ky),stat=alloc_stat)
         allocate(tz(nz+kz),stat=alloc_stat)
 
-        thr_tot = get_omp_numthreads()
-        
-	dime = kx*kz + 3*max(kx,ky,kz) + kz
+cc        thr_tot = get_omp_numthreads()
+        call set_omp_thread_id()
+
+	dime = ky*kz + 3*max(kx,ky,kz) + kz
 	allocate(worke(dime*thr_tot),stat=alloc_stat)
 
 c     End program
@@ -1312,7 +1313,7 @@ c     Begin program
 
 c     evalX
 c     #################################################################
-      subroutine evalX(x1,x2,x3,x,y,z,ierr,xcoef_ext)
+      subroutine evalX(x1,x2,x3,x,y,z,ierr,xcoef_ext,xder,yder,zder)
 c     -----------------------------------------------------------------
 c     This evaluates cartesian position (x,y,z) at logical position
 c     (x1,x2,x3).
@@ -1323,12 +1324,12 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       real(8) :: x,y,z,x1,x2,x3
-      integer,optional :: ierr
+      integer,optional :: ierr,xder,yder,zder
       real(8),optional,pointer :: xcoef_ext(:,:,:,:)
 
 c     Local variables
 
-      integer :: ierror
+      integer :: ierror,xd,yd,zd
       real(8),pointer :: lxcoef(:,:,:,:)
 
 c     Begin program
@@ -1339,23 +1340,41 @@ c     Begin program
         lxcoef => xcoef
       endif
 
+      if (PRESENT(xder)) then
+        xd = xder
+      else
+        xd = 0
+      endif
+
+      if (PRESENT(xder)) then
+        yd = yder
+      else
+        yd = 0
+      endif
+
+      if (PRESENT(xder)) then
+        zd = zder
+      else
+        zd = 0
+      endif
+
       call chk_pos(x1,x2,x3,ierr=ierror)
 
       if (PRESENT(ierr)) ierr = ierror
 
       if (ierror /= ORB_OK) return
 
-      x = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
+      x = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,1)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
-      y = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
+      y = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,2)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
-      z = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
+      z = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,3)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))

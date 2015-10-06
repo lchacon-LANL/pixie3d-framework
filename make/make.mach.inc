@@ -108,6 +108,8 @@ ifeq ($(HOST),jetta)
       #Determined via modules
       ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
 
+      SPRNG = f
+
     else
       LIBS += -L/usr/lib -llapack -lblas
 
@@ -119,6 +121,9 @@ ifeq ($(HOST),jetta)
       HDF5_INC  = $(SHDF5_INC)
 
       ADIOS = f
+
+      SPRNG = f
+
     endif
 
     NETCDF=f
@@ -727,6 +732,11 @@ ifeq ($(HOST),t1243055)
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(WORKDIR)/lib/mxml-2.7/lib -lmxml
     ADIOS_VER  = 1.31
 
+    SPRNG = t
+
+    SPRNG_HOME = /home/gchen/Research/example/sprng/sprng5/parallel
+    SPRNG_LIBS = $(SPRNG_HOME)/lib
+    SPRNG_INC  = $(SPRNG_HOME)/include
   else
     LIBS += -llapack -lblas
 
@@ -739,6 +749,11 @@ ifeq ($(HOST),t1243055)
 
     ADIOS = f
 
+    SPRNG = t
+
+    SPRNG_HOME = /home/gchen/Research/example/sprng/sprng5/serial
+    SPRNG_LIBS = $(SPRNG_HOME)/lib
+    SPRNG_INC = $(SPRNG_HOME)/include
   endif
 
 endif

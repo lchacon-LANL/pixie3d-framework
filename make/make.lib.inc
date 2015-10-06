@@ -15,7 +15,6 @@ MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/slatec/lib
 # FPA setup
 
 CONTRIBLIBS += -L$(COMMONDIR)/contrib/fpa/lib -lfpa
-CPPFLAGS    += $(PREPROC)FPA
 MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
 
 # SDC setup
@@ -82,4 +81,12 @@ CONTRIBLIBS += -L$(COMMONDIR)/contrib/rng/lib -lrng
 
 ifeq ($(PTRID),t)
   CONTRIBLIBS += -L$(COMMONDIR)/contrib/ptridiag/lib -lptrid
+endif
+
+# SPRNG setup
+
+ifeq ($(SPRNG),t)
+  CONTRIBLIBS += -L$(SPRNG_LIBS) -lsprng -lstdc++ -lm
+  CPPFLAGS    += $(PREPROC)_SPRNG -I$(SPRNG_INC) -DHAVE_CONFIG_H -DPOINTER_SIZE=8 -DLONG64=long -DINTEGER_STAR_8
+#  MODPATH     += $(ADDMODFLAG)$(SPRNG_MOD)
 endif

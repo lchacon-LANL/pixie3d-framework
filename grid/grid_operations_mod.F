@@ -1451,8 +1451,8 @@ c     #################################################################
      .         result(cov_cell)
 
 c     -----------------------------------------------------------------
-c     Transforms a staggered contravariant vector to a covariant
-c     representation at faces for cell (i,j,k).
+c     Transforms a staggered VERTEX contravariant vector to a staggered
+c     CELL covariant representation for cell (i,j,k).
 c
 c     CURRENTLY WORKS ONLY IN 2D
 c     -----------------------------------------------------------------
