@@ -253,6 +253,23 @@ c     Create MG grid hierarchy
 
         call createMGgrid(gdef)
 
+c     Adjust grid spacings for collapsed dimensions
+
+        if (mx == 1 .and. (.not.cx)) then
+          gdef%dx  = gdef%dx /npx
+          gdef%dxh = gdef%dxh/npx
+        endif
+
+        if (my == 1 .and. (.not.cy)) then
+          gdef%dy  = gdef%dy /npy
+          gdef%dyh = gdef%dyh/npy
+        endif
+
+        if (mz == 1 .and. (.not.cz)) then
+          gdef%dz  = gdef%dz /npz
+          gdef%dzh = gdef%dzh/npz
+        endif
+
 c     Create fortran PETSc parallel grid hierarchy (parallel version)
 
 #if defined(petsc)
@@ -418,12 +435,13 @@ c     Consistency checks
 c     Define uniform logical LOCAL grid on ALL grid levels
 
         call createLogicalGrid(gdef%nxgl,gdef%mg_ratio_x
-     .                     ,gdef%xg,gdef%xx,gdef%dx
-     .                     ,gdef%dxh,gdef%nxv
-     .                     ,gdef%ngrid,gdef%istartx
-     .                     ,gdef%ilo,gdef%ihi
-     .                     ,gdef%gxmin,gdef%gxmax,bcond(1),bcond(2)
-     .                     ,gdef%g_pack(1))
+     .                        ,gdef%xg,gdef%xx,gdef%dx
+     .                        ,gdef%dxh,gdef%nxv
+     .                        ,gdef%ngrid,gdef%istartx
+     .                        ,gdef%ilo,gdef%ihi
+     .                        ,gdef%gxmin,gdef%gxmax
+     .                        ,bcond(1),bcond(2)
+     .                        ,gdef%g_pack(1))
 
         gdef%lxmin = gdef%xx(1)
         gdef%lxmax = gdef%xx(gdef%nxv(1)+2)
