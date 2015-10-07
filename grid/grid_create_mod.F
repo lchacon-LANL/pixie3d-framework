@@ -13,6 +13,7 @@ c #####################################################################
      .            ,coarsen_Z=.true.
 
         private :: createLogicalGrid
+     .            ,createMGgrid
      $            ,consistencyCheck!,initGridSt,checkGrid
 
       contains
@@ -246,29 +247,50 @@ c     Allocate grid storage structure
         call allocateGridStructure(ngrdx,ngrdy,ngrdz,mx,my,mz
      .                            ,nxg,nyg,nzg,gdef,mpi_comm=mpi_comm)
 
+c     Adjust domain size
+
+        !Default sizes
+        if (xmax == 0d0) then
+          xmax = 2*pi
+          xmin = 0d0
+        endif
+        if (ymax == 0d0) then
+          ymax = 2*pi
+          ymin = 0d0
+        endif
+        if (zmax == 0d0) then
+          zmax = 2*pi
+          zmin = 0d0
+        endif
+
+        if (mx == 1 .and. (.not.cx)) then
+          gdef%gxmin = xmin
+          gdef%gxmax = xmax/npx
+        endif
+
+        if (my == 1 .and. (.not.cy)) then
+          gdef%gymin = ymin
+          gdef%gymax = ymax/npy
+        endif
+
+        if (mz == 1 .and. (.not.cz)) then
+          gdef%gzmin = zmin
+          gdef%gzmax = zmax/npz
+        endif
+
+        if (gdef%gxmin == UNDEF_DP) gdef%gxmin = xmin
+        if (gdef%gxmax == UNDEF_DP) gdef%gxmax = xmax
+        if (gdef%gymin == UNDEF_DP) gdef%gymin = ymin
+        if (gdef%gymax == UNDEF_DP) gdef%gymax = ymax
+        if (gdef%gzmin == UNDEF_DP) gdef%gzmin = zmin
+        if (gdef%gzmax == UNDEF_DP) gdef%gzmax = zmax
+
 c     Create MG grid hierarchy
 
         gdef%g_pack = g_pack
         gdef%params = gparams
 
         call createMGgrid(gdef)
-
-c     Adjust grid spacings for collapsed dimensions
-
-        if (mx == 1 .and. (.not.cx)) then
-          gdef%dx  = gdef%dx /npx
-          gdef%dxh = gdef%dxh/npx
-        endif
-
-        if (my == 1 .and. (.not.cy)) then
-          gdef%dy  = gdef%dy /npy
-          gdef%dyh = gdef%dyh/npy
-        endif
-
-        if (mz == 1 .and. (.not.cz)) then
-          gdef%dz  = gdef%dz /npz
-          gdef%dzh = gdef%dzh/npz
-        endif
 
 c     Create fortran PETSc parallel grid hierarchy (parallel version)
 
@@ -389,44 +411,6 @@ c     Initialize MG pointer arrays
      .                            *gdef%nyv(i-1)
      .                            *gdef%nzv(i-1)
         enddo
-
-c     Set grid parameters
-
-        !Default sizes
-        if (xmax == 0d0) then
-          xmax = 2*pi
-          xmin = 0d0
-        endif
-        if (ymax == 0d0) then
-          ymax = 2*pi
-          ymin = 0d0
-        endif
-        if (zmax == 0d0) then
-          zmax = 2*pi
-          zmin = 0d0
-        endif
-
-cc        if (gdef%nglx == 1) then
-cc          xmax = 1d0
-cc          xmin = 0d0
-cc        endif
-cc
-cc        if (gdef%ngly == 1) then
-cc          ymax = 1d0
-cc          ymin = 0d0
-cc        endif
-cc
-cc        if (gdef%nglz == 1) then
-cc          zmax = 1d0
-cc          zmin = 0d0
-cc        endif
-
-        if (gdef%gxmin == UNDEF_DP) gdef%gxmin = xmin
-        if (gdef%gxmax == UNDEF_DP) gdef%gxmax = xmax
-        if (gdef%gymin == UNDEF_DP) gdef%gymin = ymin
-        if (gdef%gymax == UNDEF_DP) gdef%gymax = ymax
-        if (gdef%gzmin == UNDEF_DP) gdef%gzmin = zmin
-        if (gdef%gzmax == UNDEF_DP) gdef%gzmax = zmax
 
 c     Consistency checks
 
