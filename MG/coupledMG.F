@@ -20,7 +20,7 @@ c######################################################################
 
         use bc_ops
 
-        use grid_create, ONLY: grid_pack,g_pack,createMGgrid
+        use grid_create, ONLY: grid_pack,g_pack
 
         use mlsolverSetup
 
