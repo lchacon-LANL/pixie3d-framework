@@ -5001,7 +5001,7 @@ c     Check MG convergence
         mag1 = mag/rr1
 
         x0 = xx(istart(igrid):istart(igrid)+ntot-1)-x0
-        mag2 = sqrt(MGdot(mgctx,igrid,x0,x0)/ntot)
+        mag2 = sqrt(MGdot(mgctx,igrid,x0,x0))
 
         if (out.ge.3.and.prnt) then
           write (*,10) mag,mag1
