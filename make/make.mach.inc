@@ -264,9 +264,9 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
   FC=gfortran
 
-  NETCDF=f
-  NETCDF_LIBS = -lnetcdff -lnetcdf
-  NETCDF_INC  = -I/usr/include/netcdf
+  NETCDF=t
+  NETCDF_LIBS = -L/opt/local/lib -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/opt/local/include
 
   OMP_NUM_THREADS = 4
 
@@ -283,24 +283,20 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
     HDF5 = t
 
-#    HDF5_HOME =/opt/local
-#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-#    HDF5_MOD  = $(HDF5_HOME)/include
-#    HDF5_INC  = $(HDF5_MOD)
     HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gfortran/parallel
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
-#    ADIOS = f
     ADIOS = t
 
     ADIOS_HOME = $(HOME)/lib/adios-1.3.1
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
     ADIOS_VER  = 1.31
 
+    LIBS += -L/opt/local/lib -latlas
   else
-    LIBS += -llapack -lblas
+    LIBS += -L/opt/local/lib -llapack -lblas -latlas
 
     HDF5 = t
 
