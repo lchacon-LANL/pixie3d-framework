@@ -596,7 +596,8 @@ cc      read (ufile) nx,ilog,ihig
 cc      read (ufile) ny,jlog,jhig
 cc      read (ufile) nz,klog,khig
 
-      if (associated(gv%gparams)) then
+cc      if (associated(gv%gparams)) then
+      if (associated(gv)) then
 #if defined(petsc) 
          if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
 #else
@@ -1270,7 +1271,8 @@ c     ################################################################
       nyl = jhg-jlg+1
       nzl = khg-klg+1
 
-      if (associated(gv%gparams)) then
+cc      if (associated(gv%gparams)) then
+      if (associated(gv)) then
         check =(     nxl /= gv%gparams%nlx
      .          .or. nyl /= gv%gparams%nly
      .          .or. nzl /= gv%gparams%nlz )
@@ -1304,7 +1306,8 @@ c     ################################################################
       subroutine setSerialLimits
 
       !Set global limits (NOT a parallel run)
-      if (associated(gv%gparams)) then
+cc      if (associated(gv%gparams)) then
+      if (associated(gv)) then
 
         if (    (nxd /= maxval(ihg_)-minval(ilg_)+1)
      .      .or.(nyd /= maxval(jhg_)-minval(jlg_)+1)
@@ -1316,15 +1319,8 @@ cc
 cc          write (*,*) maxval(ihg_)-minval(ilg_)+1
 cc     .               ,maxval(jhg_)-minval(jlg_)+1
 cc     .               ,maxval(khg_)-minval(klg_)+1
-          call pstop('openRecordFiles','Grid size does not agree')
+          call pstop('openRecordFiles','Grid sizes do not agree')
         endif
-
-        ihg = nxd
-        ilg = 1
-        jhg = nyd
-        jlg = 1
-        khg = nzd
-        klg = 1
 
       else
 
@@ -1332,14 +1328,14 @@ cc     .               ,maxval(khg_)-minval(klg_)+1
         nyd = maxval(jhg_)-minval(jlg_)+1
         nzd = maxval(khg_)-minval(klg_)+1
 
-        ihg = nxd
-        ilg = 1
-        jhg = nyd
-        jlg = 1
-        khg = nzd
-        klg = 1
-
       endif
+      
+      ihg = nxd
+      ilg = 1
+      jhg = nyd
+      jlg = 1
+      khg = nzd
+      klg = 1
 
       end subroutine setSerialLimits
 
