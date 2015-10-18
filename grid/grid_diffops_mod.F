@@ -4799,9 +4799,20 @@ c ######################################################################
 
         use grid_tensor_ops
 
+c     Options:
+c       * advect = 1 => First-order upwind
+c       * advect = 2 => Centered
+c       * advect = 3 => High-order upwind (QUICK)
+c       * advect = 4 => Monotone high-order upwind (SMART)
+c       * advect = 5 => SMART with smooth transition
+c       * advect = 6 => Centered, high-order
+c       * advect = 7 => Gamma (modification of SMART; not operational)
+
+        integer,parameter :: UPWD=1,ZIP=2,QUICK=3,SMART=4,SSMART=5,CHO=6
+
         integer :: adv_meth
 
-        integer,private :: bc_adv_meth=2
+        integer,private :: bc_adv_meth=ZIP   !Advective method at boundaries
 
         !Smooth SMART config
         real(8),private :: ssmart_xp1=0.25 !0.3
@@ -4813,9 +4824,26 @@ c ######################################################################
 
         INTERFACE inter
           module procedure in2face_scl,in2face_vec
+cc     .                    ,in2face_scl_new,in2face_vec_new
         end INTERFACE
 
       contains
+
+c     set_bc_advc_meth
+c     ###############################################################
+      subroutine set_bc_advc_meth(bcmth)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Sets advective method at boundaries
+c     ---------------------------------------------------------------
+
+      integer :: bcmth
+
+      bc_adv_meth = bcmth
+
+      end subroutine set_bc_advc_meth
 
 ccc     advec
 ccc     ###############################################################
@@ -5357,7 +5385,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: igrid,half_elem,su,bc_meth
+      integer :: igrid,half_elem,su
 
       integer :: im,ip,ipp,imm,igm,igp,igpp,igmm
      .          ,jm,jp,jpp,jmm,jgm,jgp,jgpp,jgmm
@@ -5374,7 +5402,7 @@ c     Begin program
 
 c     Set defaults
 
-      bc_safe = .not.(method > 2 .and. method <= 6)
+      bc_safe = .not.(method > ZIP .and. method <= 6)
 
       if (PRESENT(vol)) then
         vw = vol
@@ -5396,8 +5424,6 @@ c     Set defaults
 
       sgn = 1d0
       if (rev_sgn) sgn=-1d0  !Takes (-v) instead of v
-
-      bc_meth = 2  !Advective method at boundaries
 
 c     General setup
 
@@ -5470,7 +5496,7 @@ c     Find DEFAULT non-conservative fluxes (central differences)
 
 c     Find specialized non-conservative fluxes (reverts to CD at logical domain boundaries)
 
-      if (method /= 2) then
+      if (method /= ZIP) then
 
         vxp = sgn*v(i,j,k,1)
         vxm = sgn*v(i,j,k,1)
@@ -5487,7 +5513,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%xx(igp ),arr(ip ,j,k)
      .             ,grid_params%xx(ig  ),arr(i  ,j,k)
      .             ,grid_params%xx(igm ),arr(im ,j,k)
-     .             ,vxp,bc_meth)
+     .             ,vxp,bc_adv_meth)
         else
           qip=inter(grid_params%xx(igpp),arr(ipp,j,k)
      .             ,grid_params%xx(igp ),arr(ip ,j,k)
@@ -5501,7 +5527,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%xx(ig  ),arr(i  ,j,k)
      .             ,grid_params%xx(igm ),arr(im ,j,k)
      .             ,grid_params%xx(igmm),arr(imm,j,k)
-     .             ,vxm,bc_meth)
+     .             ,vxm,bc_adv_meth)
         else
           qim=inter(grid_params%xx(igp ),arr(ip ,j,k)
      .             ,grid_params%xx(ig  ),arr(i  ,j,k)
@@ -5515,7 +5541,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%yy(jgp ),arr(i,jp ,k)
      .             ,grid_params%yy(jg  ),arr(i,j  ,k)
      .             ,grid_params%yy(jgm ),arr(i,jm ,k)
-     .             ,vyp,bc_meth)
+     .             ,vyp,bc_adv_meth)
         else
           qjp=inter(grid_params%yy(jgpp),arr(i,jpp,k)
      .             ,grid_params%yy(jgp ),arr(i,jp ,k)
@@ -5529,7 +5555,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%yy(jg  ),arr(i,j  ,k)
      .             ,grid_params%yy(jgm ),arr(i,jm ,k)
      .             ,grid_params%yy(jgmm),arr(i,jmm,k)
-     .             ,vym,bc_meth)
+     .             ,vym,bc_adv_meth)
         else
           qjm=inter(grid_params%yy(jgp ),arr(i,jp,k )
      .             ,grid_params%yy(jg  ),arr(i,j  ,k)
@@ -5543,7 +5569,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%zz(kgp ),arr(i,j,kp )
      .             ,grid_params%zz(kg  ),arr(i,j,k  )
      .             ,grid_params%zz(kgm ),arr(i,j,km )
-     .             ,vzp,bc_meth)
+     .             ,vzp,bc_adv_meth)
         else
           qkp=inter(grid_params%zz(kgpp),arr(i,j,kpp)
      .             ,grid_params%zz(kgp ),arr(i,j,kp )
@@ -5557,7 +5583,7 @@ c     Find specialized non-conservative fluxes (reverts to CD at logical domain 
      .             ,grid_params%zz(kg  ),arr(i,j,k  )
      .             ,grid_params%zz(kgm ),arr(i,j,km )
      .             ,grid_params%zz(kgmm),arr(i,j,kmm)
-     .             ,vzm,bc_meth)
+     .             ,vzm,bc_adv_meth)
         else
           qkm=inter(grid_params%zz(kgp ),arr(i,j,kp )
      .             ,grid_params%zz(kg  ),arr(i,j,k  )
@@ -5589,6 +5615,435 @@ c     Find advective term
 c     End 
 
       end function flx_nc_advec
+
+c     scl_advc_flx_x_new
+c     ###############################################################
+      function scl_advc_flx_x_new(i,j,k,nx,ny,nz,igr,v,arr,darr
+     .                           ,method,sp,zip_vel) result(flxip)
+      implicit none
+c     ---------------------------------------------------------------
+c     Calculates advective flux (v.arr)_1 of scalar arr at face
+c     (i+1/2,j,k) in general non-orthogonal geometry.
+c
+c     method: specifies the advective scheme (see int2face)
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: i,j,k,nx,ny,nz,igr,method
+
+      real(8) :: arr (0:nx+1,0:ny+1,0:nz+1)
+     .          ,darr(0:nx+1,0:ny+1,0:nz+1)
+     .          ,v   (0:nx+1,0:ny+1,0:nz+1),flxip
+
+      logical,optional :: sp,zip_vel
+
+c     Local variables
+
+      integer :: im,ip,igp,ig,jg,kg,admth,nxgl
+
+      real(8) :: jacip,jacim,jac,qip,vxp
+
+      logical :: spoint,zv,at_bdry
+
+c     Begin program
+
+      if (PRESENT(sp)) then
+        spoint = sp
+      else
+        spoint = .false.
+      endif
+
+      if (PRESENT(zip_vel)) then
+        zv = zip_vel
+      else
+        zv = .true.
+      endif
+
+c     Update grid indices
+
+      nxgl = grid_params%nxgl(igr)
+
+      call getMGmap(i,j,k,igr,igr,igr,ig,jg,kg)
+
+      ip  = i+1
+      im  = max(i-1,0)
+
+      igp  = ig + (ip-i)
+
+c     Grid info
+
+      jac = gmetric%grid(igr)%jac(i,j,k)
+
+      if (spoint) then
+        jacip = gmetric%grid(igr)%jac(ip,j,k)
+      else
+        jacip = jac
+      endif
+
+c     Find X ZIP flux (used even if method /= ZIP)
+
+      flxip = 0d0
+
+      at_bdry = isBdry(i,igr,2) .or. isBdry(i+1,igr,1)
+
+      if (.not.at_bdry) then               !Not at boundary
+        flxip = 0.25*(v(ip,j,k)*arr(i ,j,k)/jacip
+     .              + v(i ,j,k)*arr(ip,j,k)/jac  )*(jac+jacip)
+      else
+        if (   (v(ip,j,k) == -v(i,j,k))
+     .     .or.(isSP2(i+1,igr,ibc=1).and.spoint)) then
+          flxip = 0d0    !Shut off flux for vn=0 BC
+        else
+          flxip = 0.5*(v(ip,j,k)*arr(i,j,k)+v(i,j,k)*arr(ip,j,k))
+        endif
+      endif
+
+c     Other advective methods
+
+      if (method /= 2) then
+
+        !Find velocities at faces from ZIP fluxes
+        if (zv) then
+          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k)+1d-12)
+        else
+          vxp = 0.5*(v(ip,j,k)+v(i,j,k))
+        endif
+
+        !Find advected quantity at faces
+c$$$        if ((ig == nxgl .or. ig == 0).and.) then
+c$$$          admth = bc_adv_meth
+c$$$        else
+          admth = method
+c$$$        endif
+
+c$$$        qip=in2face_scl(grid_params%xx(igpp),arr(ipp,j,k)
+c$$$     .                 ,grid_params%xx(igp ),arr(ip ,j,k)
+c$$$     .                 ,grid_params%xx(ig  ),arr(i  ,j,k)
+c$$$     .                 ,grid_params%xx(igm ),arr(im ,j,k)
+c$$$     .                 ,vxp,admth)
+        qip=in2face_scl_new(grid_params%xx(ig ),arr(i ,j,k)
+     .                     ,grid_params%xx(igp),arr(ip,j,k)
+     .                     ,2*grid_params%dxh(ig ),darr(i ,j,k)
+     .                     ,2*grid_params%dxh(igp),darr(ip,j,k)
+     .                     ,vxp,admth)
+
+c$$$        !Setup fluxes (ZIP at boundaries by default for conservation)
+c$$$        if (.not.(at_bdry).or.bc_safe) flxip=vxp*qip
+
+      endif
+
+c     End program
+
+      end function scl_advc_flx_x_new
+
+c     scl_advc_flx_y_new
+c     ###############################################################
+      function scl_advc_flx_y_new(i,j,k,nx,ny,nz,igr,v,arr,darr
+     .                           ,method,zip_vel) result(flxjp)
+      implicit none
+c     ---------------------------------------------------------------
+c     Calculates advective flux (v.arr)_2 of scalar arr at face
+c     (i,j+1/2,k) in general non-orthogonal geometry.
+c
+c     method: specifies the advective scheme (see int2face)
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: i,j,k,nx,ny,nz,igr,method
+
+      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1)
+     .          ,darr(0:nx+1,0:ny+1,0:nz+1)
+     .          ,v  (0:nx+1,0:ny+1,0:nz+1),flxjp
+
+      logical,optional :: zip_vel
+
+c     Local variables
+
+      integer :: jm,jp,jgp,ig,jg,kg,admth
+
+      real(8) :: jac,qjp,vyp
+
+      logical :: zv,at_bdry
+
+c     Begin program
+
+      if (PRESENT(zip_vel)) then
+        zv = zip_vel
+      else
+        zv = .true.
+      endif
+
+c     Update grid indices
+
+      call getMGmap(i,j,k,igr,igr,igr,ig,jg,kg)
+
+      jp  = j+1
+      jm  = max(j-1,0)
+
+      jgp  = jg + (jp-j)
+
+c     Grid info
+
+      jac = gmetric%grid(igr)%jac(i,j,k)
+
+c     Find X ZIP flux (used even if method /= ZIP)
+
+      at_bdry = isBdry(j,igr,4) .or. isBdry(j+1,igr,3)
+
+      flxjp = 0.5*(v(i,jp,k)*arr(i,j,k) + v(i,j,k)*arr(i,jp,k))
+
+c     Other advective methods
+
+      if (method /= 2) then
+
+        !Find velocities at faces from ZIP fluxes
+        if (zv) then
+          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k)+1d-12)
+        else
+          vyp = 0.5*(v(i,jp,k)+v(i,j,k))
+        endif
+
+        !Find advected quantity at faces
+c$$$        if ((j == ny .or. j == 0).and.(.not.bc_safe)) then
+c$$$          admth = bc_adv_meth
+c$$$        else
+          admth = method
+c$$$        endif
+
+c$$$        qjp=in2face_scl(grid_params%yy(jgpp),arr(i,jpp,k)
+c$$$     .                 ,grid_params%yy(jgp ),arr(i,jp ,k)
+c$$$     .                 ,grid_params%yy(jg  ),arr(i,j  ,k)
+c$$$     .                 ,grid_params%yy(jgm ),arr(i,jm ,k)
+c$$$     .                 ,vyp,admth)
+        qjp=in2face_scl_new(grid_params%yy(jg ),arr(i,j ,k)
+     .                     ,grid_params%yy(jgp),arr(i,jp,k)
+     .                     ,2*grid_params%dyh(jg ),darr(i,j ,k)
+     .                     ,2*grid_params%dyh(jgp),darr(i,jp,k)
+     .                     ,vyp,admth)
+
+c$$$        !Setup fluxes (ZIP at boundaries by default for conservation)
+c$$$        if (.not.(at_bdry).or.bc_safe) flxjp=vyp*qjp
+
+      endif
+
+c     End program
+
+      end function scl_advc_flx_y_new
+
+c     scl_advc_flx_z_new
+c     ###############################################################
+      function scl_advc_flx_z_new(i,j,k,nx,ny,nz,igr,v,arr,darr
+     .                       ,method,zip_vel) result(flxkp)
+      implicit none
+c     ---------------------------------------------------------------
+c     Calculates advective flux (v.arr)_3 of scalar arr at face
+c     (i,j,k+1/2) in general non-orthogonal geometry.
+c
+c     method: specifies the advective scheme (see int2face)
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: i,j,k,nx,ny,nz,igr,method
+
+      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1)
+     .          ,darr(0:nx+1,0:ny+1,0:nz+1)
+     .          ,v  (0:nx+1,0:ny+1,0:nz+1),flxkp
+
+      logical,optional :: zip_vel
+
+c     Local variables
+
+      integer :: km,kp,kgp,ig,jg,kg,admth
+
+      real(8) :: jac,qkp,vzp
+
+      logical :: zv,at_bdry
+
+c     Begin program
+
+      if (PRESENT(zip_vel)) then
+        zv = zip_vel
+      else
+        zv = .true.
+      endif
+
+c     Update grid indices
+
+      call getMGmap(i,j,k,igr,igr,igr,ig,jg,kg)
+
+      kp  = k+1
+      km  = max(k-1,0)
+
+      kgp = kg + (kp-k)
+
+c     Grid info
+
+      jac = gmetric%grid(igr)%jac(i,j,k)
+
+c     Find X ZIP flux (used even if method /= ZIP)
+
+      at_bdry = isBdry(k,igr,6) .or. isBdry(k+1,igr,5)
+
+      flxkp = 0.5*(v(i,j,kp)*arr(i,j,k) + v(i,j,k)*arr(i,j,kp))
+
+c     Other advective methods
+
+      if (method /= 2) then
+
+        !Find velocities at faces from ZIP fluxes
+        if (zv) then
+          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k)+1d-12)
+        else
+          vzp = 0.5*(v(i,j,kp)+v(i,j,k))
+        endif
+
+c$$$        !Find advected quantity at faces
+c$$$        if ((k == nz .or. k == 0).and.(.not.bc_safe)) then
+c$$$          admth = bc_adv_meth
+c$$$        else
+          admth = method
+c$$$        endif
+
+c$$$        qkp=in2face_scl(grid_params%zz(kgpp),arr(i,j,kpp)
+c$$$     .                 ,grid_params%zz(kgp ),arr(i,j,kp )
+c$$$     .                 ,grid_params%zz(kg  ),arr(i,j,k  )
+c$$$     .                 ,grid_params%zz(kgm ),arr(i,j,km )
+c$$$     .                 ,vzp,admth)
+        qkp=in2face_scl_new(grid_params%zz(kg ),arr(i,j,k )
+     .                     ,grid_params%zz(kgp),arr(i,j,kp)
+     .                     ,2*grid_params%dzh(kg ),darr(i,j,k )
+     .                     ,2*grid_params%dzh(kgp),darr(i,j,kp)
+     .                     ,vzp,admth)
+c$$$        !Setup fluxes (ZIP at boundaries by default for conservation)
+c$$$        if (.not.(at_bdry).or.bc_safe) flxkp=vzp*qkp
+
+      endif
+
+c     End program
+
+      end function scl_advc_flx_z_new
+
+c     flx_advec_mesh
+c     ###############################################################
+      function flx_advec_mesh(igrid,v,arr,method,sp,vol,zip_vel)
+     $         result(advec)
+      implicit none
+c     ---------------------------------------------------------------
+c     Calculates divergence of vector field (v.arr) at cell centers in
+c     general non-orthogonal geometry.
+c
+c     method: specifies the advective scheme (see int2face)
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: igrid,method
+
+      real(8) :: arr(0:,0:,0:)
+     .          ,v  (0:,0:,0:,:)
+     $          ,advec(0:size(v,1)-1
+     $                ,0:size(v,2)-1
+     $                ,0:size(v,3)-1)
+
+      logical,optional :: sp,vol,zip_vel
+
+c     Local variables
+
+      integer :: i,j,k,nx,ny,nz,ig,jg,kg,bcnd(6,3),ivar
+
+      real(8) :: dxx,dyy,dzz
+      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+      real(8),pointer,dimension(:,:,:,:) :: darr
+      logical :: vw
+
+c     Begin program
+
+      nx = size(arr,1)-2
+      ny = size(arr,2)-2
+      nz = size(arr,3)-2
+
+      allocate(darr(0:nx+1,0:ny+1,0:nz+1,3))
+
+      if (PRESENT(vol)) then
+        vw = vol
+      else
+        vw = .false.
+      endif
+
+c     Compute difference arrays and communicate BCs
+
+      darr(1:nx,:,:,1) = arr(2:nx+1,:,:)-arr(0:nx-1,:,:)
+      darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
+      darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
+
+      bcnd(:,1) = (/bcond(1),bcond(2),DEF,DEF,DEF,DEF/)
+      where (bcnd(1:2,1) == DEF) bcnd(1:2,1) = NEU
+      bcnd(:,2) = (/DEF,DEF,bcond(3),bcond(4),DEF,DEF/)
+      where (bcnd(3:4,2) == DEF) bcnd(3:4,2) = NEU
+      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcond(5),bcond(6)/)
+      where (bcnd(5:6,3) == DEF) bcnd(5:6,3) = NEU
+
+      do ivar=1,3
+        call setMGBC(0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)
+     $              ,bcnd(:,ivar),icomp=(/1/),iorder=1)
+      enddo
+
+c     Compute advection
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            
+            !Grid info
+            call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+            dxx = grid_params%dxh(ig)
+            dyy = grid_params%dyh(jg)
+            dzz = grid_params%dzh(kg)
+
+            !Find fluxes
+            flxip = scl_advc_flx_x_new(i  ,j,k,nx,ny,nz,igrid,v(:,:,:,1)
+     $                                ,arr,darr(:,:,:,1)
+     .                                ,method,sp=sp,zip_vel=zip_vel)
+            flxim = scl_advc_flx_x_new(i-1,j,k,nx,ny,nz,igrid,v(:,:,:,1)
+     $                                ,arr,darr(:,:,:,1)
+     .                                ,method,sp=sp,zip_vel=zip_vel)
+
+            flxjp = scl_advc_flx_y_new(i,j  ,k,nx,ny,nz,igrid,v(:,:,:,2)
+     $                                ,arr,darr(:,:,:,2)
+     .                                ,method,zip_vel=zip_vel)
+            flxjm = scl_advc_flx_y_new(i,j-1,k,nx,ny,nz,igrid,v(:,:,:,2)
+     $                                ,arr,darr(:,:,:,2)
+     .                                ,method,zip_vel=zip_vel)
+
+            flxkp = scl_advc_flx_z_new(i,j,k  ,nx,ny,nz,igrid,v(:,:,:,3)
+     $                                ,arr,darr(:,:,:,3)
+     .                                ,method,zip_vel=zip_vel)
+            flxkm = scl_advc_flx_z_new(i,j,k-1,nx,ny,nz,igrid,v(:,:,:,3)
+     $                                ,arr,darr(:,:,:,3)
+     .                                ,method,zip_vel=zip_vel)
+
+            !Find advective term
+
+            advec(i,j,k) =( (flxip - flxim)/dxx
+     .                    + (flxjp - flxjm)/dyy
+     .                    + (flxkp - flxkm)/dzz )
+
+          enddo
+        enddo
+      enddo
+
+      advec = advec/gmetric%grid(igrid)%jac
+      if (vw) advec = advec*gmetric%grid(igrid)%dvol
+
+      deallocate(darr)
+
+c     End 
+
+      end function flx_advec_mesh
 
 c     tensor_nc_advc
 c     #####################################################################
@@ -6009,14 +6464,7 @@ c     ###############################################################
 
 c     ---------------------------------------------------------------
 c     This function computes the advection interpolation at control
-c     volume face based of face velocity "vel". Options:
-c       * advect = 1 => First-order upwind
-c       * advect = 2 => Centered
-c       * advect = 3 => High-order upwind (QUICK)
-c       * advect = 4 => Monotone high-order upwind (SMART)
-c       * advect = 5 => SMART with smooth transition
-c       * advect = 6 => Centered, high-order
-c       * advect = 7 => Gamma (modification of SMART; not operational)
+c     volume face based of face velocity "vel".
 c
 c     Convention:
 c
@@ -6038,11 +6486,20 @@ c     Call variables
 c     Local variables
 
       real(8)    :: qt1,qt2,qt3,qt4,slp1,slp2,a,b,c,xp1,xp2,curv
+     $             ,dq1,dq2,dq3,dx1,dx2,dx3
 
 c     Begin program
 
+      dq1 = q2-q1
+      dq2 = q3-q2
+      dq3 = q4-q3
+
+      dx1 = x2-x1
+      dx2 = x3-x2
+      dx3 = x4-x3
+
       select case(advect)
-      case(1)
+      case(UPWD)
 
 c     Upwind
 
@@ -6052,97 +6509,117 @@ c     Upwind
           inter = q3
         endif
 
-      case(2)
+      case(ZIP)
 
 c     Centered
 
         inter = 0.5*(q3+q2)
 
-      case(3)
+      case(QUICK)
 
 c     QUICK [Leonard, Comput. Meth. Appl. Mech. Eng. 19, p. 59 (1979)]
 
         if (vel.gt.0d0) then
-          curv = 2d0*((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/(x3-x1)
+cc          curv = 2d0*((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/(x3-x1)
+          curv = 2d0*(dq2/dx2-dq1/dx1)/(dx2+dx1)
         else
-          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
+cc          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
+          curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
         endif
 
-        inter = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+cc        inter = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+        inter = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
 
-      case(4)
+      case(SMART)
 
 c     SMART [Gaskell and Lau, Int. J. Num. Meth. Fluids 8, p 617-641 (1988)]
 
         slp1 = smart_slp1
         slp2 = smart_slp2
         if (vel.gt.0d0) then
-          curv = 2d0*((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/(x3-x1)
-          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
-          qt2 = slp1*q2 + (1.-slp1)*q1
-          qt3 = slp2*q2 + (1.-slp2)*q3
+c$$$          curv = 2d0*((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/(x3-x1)
+c$$$          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+c$$$          qt2 = slp1*q2 + (1.-slp1)*q1
+c$$$          qt3 = slp2*q2 + (1.-slp2)*q3
+          curv = 2d0*(dq2/dx2-dq1/dx1)/(dx2+dx1)
+          qt1 = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+          qt2 = q2 + (slp1-1.)*dq1
+          qt3 = q2 - (slp2-1.)*dq2
           qt4 = fmed(q2,qt2,qt3)
           inter = fmed(q2,qt4,qt1)
         else
-          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
-          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(x3-x2)**2
-          qt2 = slp1*q3 + (1.-slp1)*q4
-          qt3 = slp2*q3 + (1.-slp2)*q2
+c$$$          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
+c$$$          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(x3-x2)**2
+c$$$          qt2 = slp1*q3 + (1.-slp1)*q4
+c$$$          qt3 = slp2*q3 + (1.-slp2)*q2
+          curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
+          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(dx2)**2
+          qt2 = q3 - (slp1-1.)*dq3
+          qt3 = q3 + (slp2-1.)*dq2
           qt4 = fmed(q3,qt2,qt3)
           inter = fmed(q3,qt4,qt1)
         endif
 
-      case(5)
+      case(SSMART)
 
-c     Smooth SMART
+c     Smooth SMART (uniform mesh only)
 
         xp1 = ssmart_xp1
         xp2 = ssmart_xp2
 
         if (vel.gt.0d0) then
-          qt1  = (q2-q1)/(q3-q1)
+cc          qt1  = (q2-q1)/(q3-q1)
+          qt1  = dq1/(dq2+dq1)
           if (qt1.lt.xp1.and.qt1.ge.0.) then
             a = .25d0*(xp1-3d0)*xp1**(-3)
             b = (1.125d0-0.5d0*xp1)*xp1**(-2)
             qt2 = qt1*(a*qt1**2 + b*qt1 + 1d0)
-            inter = q1 + qt2*(q3-q1)
+cc            inter = q1 + qt2*(q3-q1)
+            inter = q3 + (qt2-1.)*(dq2+dq1)
           elseif (qt1.ge.xp2.and.qt1.lt.1d0) then
             a = (0.25d0*xp2-.5d0)/(xp2-1d0)**3
             b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
             c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
             qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
-            inter = q1 + qt2*(q3-q1)
+cc            inter = q1 + qt2*(q3-q1)
+            inter = q3 + (qt2-1.)*(dq2+dq1)
           elseif (qt1.ge.xp1.and.qt1.lt.xp2) then
-            inter = 0.375d0*q3 + 0.75d0*q2 - 0.125d0*q1
+cc            inter = 0.375d0*q3 + 0.75d0*q2 - 0.125d0*q1
+            inter = (3*q3 + 5*q2 + dq1)/8.
           else
             inter = q2
           endif
         else
-          qt1  = (q3-q4)/(q2-q4)
+cc          qt1  = (q3-q4)/(q2-q4)
+          qt1  = dq3/(dq3+dq2)
           if (qt1.lt.xp1.and.qt1.ge.0d0) then
             a = .25d0*(xp1-3d0)*xp1**(-3)
             b = (1.125d0-0.5d0*xp1)*xp1**(-2)
             c = 1d0
             qt2 = qt1*(a*qt1**2 + b*qt1 + c)
-            inter = q4 + qt2*(q2-q4)
+cc            inter = q4 + qt2*(q2-q4)
+            inter = q2 - (qt2-1.)*(dq2+dq3)
           elseif (qt1.ge.xp2.and.qt1.lt.1d0) then
             a = (0.25d0*xp2-.5d0)*(xp2-1d0)**(-3)
             b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
             c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
             qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
-            inter = q4 + qt2*(q2-q4)
+cc            inter = q4 + qt2*(q2-q4)
+            inter = q2 - (qt2-1.)*(dq3+dq2)
           elseif (qt1.ge.xp1.and.qt1.lt.xp2) then
-            inter = 0.375d0*q2 + 0.75d0*q3- 0.125d0*q4
+cc            inter = 0.375d0*q2 + 0.75d0*q3- 0.125d0*q4
+            inter = (3*q2 + 5*q3 - dq3)/8.
           else
             inter = q3
           endif
         endif
 
-      case(6)
+      case(CHO)
 
 c     Centered high-order
 
-        inter = 0.0625d0*(-q1 + 9.*q2 + 9.*q3 - q4)
+cc        inter = 0.0625d0*(-q1 + 9.*q2 + 9.*q3 - q4)
+        inter = 0.0625d0*(dq1-dq3) + 0.5*(q2 + q3)
 
 cc      case(7)
 cc
@@ -6178,6 +6655,207 @@ c     End
 
       end function in2face_scl
 
+c     in2face_scl_new
+c     ###############################################################
+      function in2face_scl_new(x2,q2,x3,q3,dcx2,dcq2,dcx3,dcq3,vel,advc)
+     .         result(inter)
+
+c     ---------------------------------------------------------------
+c     This function computes the advection interpolation at control
+c     volume face based of face velocity "vel".
+c
+c     Convention:
+c                  dcq3,dcx3
+c                /-----^-----\
+c            dcq2,dcx2
+c          /-----^-----\
+c       ---x-----x--o--x-----x---->
+c                q2 ^  q3
+c                   ^
+c           Location of face
+c     ---------------------------------------------------------------
+
+      use oned_int
+
+      implicit none                !For safe fortran
+
+c     Call variables
+
+      real(8)    :: x2,x3,q2,q3,dcx2,dcq2,dcx3,dcq3,vel,inter
+      integer    :: advc
+
+c     Local variables
+
+      real(8)    :: qt1,qt2,qt3,qt4,slp1,slp2,a,b,c,xp1,xp2,curv
+     $             ,dq1,dq2,dq3,dx1,dx2,dx3
+
+c     Begin program
+
+      dx2 = x3-x2
+      dx1 = dcx2 - dx2
+      dx3 = dcx3 - dx2
+
+      dq2 = q3-q2
+      dq1 = dcq2 - dq2
+      dq3 = dcq3 - dq2
+      
+      select case(advc)
+      case(UPWD)
+
+c     Upwind
+
+        if (vel.gt.0d0) then
+          inter = q2
+        else
+          inter = q3
+        endif
+
+      case(ZIP)
+
+c     Centered
+
+        inter = 0.5*(q3+q2)
+
+      case(QUICK)
+
+c     QUICK [Leonard, Comput. Meth. Appl. Mech. Eng. 19, p. 59 (1979)]
+
+        if (vel.gt.0d0) then
+cc          curv = 2d0*((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/(x3-x1)
+          curv = 2d0*(dq2/dx2-dq1/dx1)/(dx2+dx1)
+        else
+cc          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
+          curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
+        endif
+
+cc        inter = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+        inter = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+
+      case(SMART)
+
+c     SMART [Gaskell and Lau, Int. J. Num. Meth. Fluids 8, p 617-641 (1988)]
+
+        slp1 = smart_slp1
+        slp2 = smart_slp2
+        if (vel.gt.0d0) then
+c$$$          curv = 2d0*((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/(x3-x1)
+c$$$          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+c$$$          qt2 = slp1*q2 + (1.-slp1)*q1
+c$$$          qt3 = slp2*q2 + (1.-slp2)*q3
+          curv = 2d0*(dq2/dx2-dq1/dx1)/(dx2+dx1)
+          qt1 = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+          qt2 = q2 + (slp1-1.)*dq1
+          qt3 = q2 - (slp2-1.)*dq2
+          qt4 = fmed(q2,qt2,qt3)
+          inter = fmed(q2,qt4,qt1)
+        else
+c$$$          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
+c$$$          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(x3-x2)**2
+c$$$          qt2 = slp1*q3 + (1.-slp1)*q4
+c$$$          qt3 = slp2*q3 + (1.-slp2)*q2
+          curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
+          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(dx2)**2
+          qt2 = q3 - (slp1-1.)*dq3
+          qt3 = q3 + (slp2-1.)*dq2
+          qt4 = fmed(q3,qt2,qt3)
+          inter = fmed(q3,qt4,qt1)
+        endif
+
+      case(SSMART)
+
+c     Smooth SMART (uniform mesh only)
+
+        xp1 = ssmart_xp1
+        xp2 = ssmart_xp2
+
+        if (vel.gt.0d0) then
+cc          qt1  = (q2-q1)/(q3-q1)
+          qt1  = dq1/(dq2+dq1)
+          if (qt1.lt.xp1.and.qt1.ge.0.) then
+            a = .25d0*(xp1-3d0)*xp1**(-3)
+            b = (1.125d0-0.5d0*xp1)*xp1**(-2)
+            qt2 = qt1*(a*qt1**2 + b*qt1 + 1d0)
+cc            inter = q1 + qt2*(q3-q1)
+            inter = q3 + (qt2-1.)*(dq2+dq1)
+          elseif (qt1.ge.xp2.and.qt1.lt.1d0) then
+            a = (0.25d0*xp2-.5d0)/(xp2-1d0)**3
+            b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
+            c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
+            qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
+cc            inter = q1 + qt2*(q3-q1)
+            inter = q3 + (qt2-1.)*(dq2+dq1)
+          elseif (qt1.ge.xp1.and.qt1.lt.xp2) then
+cc            inter = 0.375d0*q3 + 0.75d0*q2 - 0.125d0*q1
+            inter = (3*q3 + 5*q2 + dq1)/8.
+          else
+            inter = q2
+          endif
+        else
+cc          qt1  = (q3-q4)/(q2-q4)
+          qt1  = dq3/(dq3+dq2)
+          if (qt1.lt.xp1.and.qt1.ge.0d0) then
+            a = .25d0*(xp1-3d0)*xp1**(-3)
+            b = (1.125d0-0.5d0*xp1)*xp1**(-2)
+            c = 1d0
+            qt2 = qt1*(a*qt1**2 + b*qt1 + c)
+cc            inter = q4 + qt2*(q2-q4)
+            inter = q2 - (qt2-1.)*(dq2+dq3)
+          elseif (qt1.ge.xp2.and.qt1.lt.1d0) then
+            a = (0.25d0*xp2-.5d0)*(xp2-1d0)**(-3)
+            b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
+            c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
+            qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
+cc            inter = q4 + qt2*(q2-q4)
+            inter = q2 - (qt2-1.)*(dq3+dq2)
+          elseif (qt1.ge.xp1.and.qt1.lt.xp2) then
+cc            inter = 0.375d0*q2 + 0.75d0*q3- 0.125d0*q4
+            inter = (3*q2 + 5*q3 - dq3)/8.
+          else
+            inter = q3
+          endif
+        endif
+
+      case(CHO)
+
+c     Centered high-order
+
+cc        inter = 0.0625d0*(-q1 + 9.*q2 + 9.*q3 - q4)
+        inter = 0.0625d0*(dq1-dq3) + 0.5*(q2 + q3)
+
+cc      case(7)
+cc
+ccc     Gamma [Jasak, Weller, and Gosman, Int. J. Numer. Meth. Fluids, 32, p431 (1999)]
+cc
+cc        slp1 = 1.5
+cc        slp2 = .5
+cc        if (vel.gt.0d0) then
+cc          curv = ((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/0.5/(x3-x1)
+cc          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+cccc          qt1 = 3.*q3/8. + 3.*q2/4.- q1/8.
+cc          qt2 = slp1*q2 + (1.-slp1)*q1
+cc          qt3 = slp2*q2 + (1.-slp2)*q3
+cc          qt4 = fmed(q2,qt2,qt3)
+cc          inter = fmed(q2,qt4,qt1)
+cc        else
+cc          curv = ((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/0.5/(x4-x2)
+cc          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+cccc          qt1 = 3.*q2/8. + 3.*q3/4.- q4/8.
+cc          qt2 = slp1*q3 + (1.-slp1)*q4
+cc          qt3 = slp2*q3 + (1.-slp2)*q2
+cc          qt4 = fmed(q3,qt2,qt3)
+cc          inter = fmed(q3,qt4,qt1)
+cc        endif
+
+      case default
+
+        call pstop('in2face_scl','Advection scheme not available')
+
+      end select
+
+c     End
+
+      end function in2face_scl_new
+
 c     in2face_vec
 c     ###############################################################
       function in2face_vec(x4,q4,x3,q3,x2,q2,x1,q1,vel,advect)
@@ -6186,14 +6864,6 @@ c     ###############################################################
 c     ---------------------------------------------------------------
 c     This function computes the advection interpolation of vector
 c     quantity at control volume face based of face velocity "vel".
-c     Options:
-c       * advect = 1 => First-order upwind
-c       * advect = 2 => Centered
-c       * advect = 3 => High-order upwind (QUICK)
-c       * advect = 4 => Monotone high-order upwind (SMART)
-c       * advect = 5 => SMART with smooth transition
-c       * advect = 6 => Centered, high-order
-c       * advect = 7 => Gamma (modification of SMART; not operational)
 c
 c     Convention:
 c
@@ -6219,11 +6889,21 @@ c     Local variables
      .          ,qt3(size(q1)),qt4(size(q1))
      .          ,slp1,slp2,a(size(q1)),b(size(q1)),c(size(q1))
      .          ,xp1,xp2,curv(size(q1))
+     $          ,dq1(size(q1)),dq2(size(q1)),dq3(size(q1))
+     .          ,dx1,dx2,dx3
 
 c     Begin program
 
+      dq1 = q2-q1
+      dq2 = q3-q2
+      dq3 = q4-q3
+
+      dx1 = x2-x1
+      dx2 = x3-x2
+      dx3 = x4-x3
+
       select case(advect)
-      case(1)
+      case(UPWD)
 
 c     Upwind
 
@@ -6233,25 +6913,27 @@ c     Upwind
           inter = q3
         endif
 
-      case(2)
+      case(ZIP)
 
 c     Centered
 
         inter = 0.5*(q3+q2)
 
-      case(3)
+      case(QUICK)
 
 c     QUICK [Leonard, Comput. Meth. Appl. Mech. Eng. 19, p. 59 (1979)]
 
         if (vel.gt.0d0) then
-          curv = ((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/0.5/(x3-x1)
+cc          curv = 2d0*((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/(x3-x1)
+          curv = 2d0*(dq2/dx2-dq1/dx1)/(dx2+dx1)
         else
-          curv = ((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/0.5/(x4-x2)
+cc          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
+          curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
         endif
 
-        inter = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+        inter = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
 
-      case(4)
+      case(SMART)
 
 c     SMART [Gaskell and Lau, Int. J. Num. Meth. Fluids 8, p 617-641 (1988)]
 
@@ -6259,22 +6941,30 @@ c     SMART [Gaskell and Lau, Int. J. Num. Meth. Fluids 8, p 617-641 (1988)]
         slp2 = smart_slp2
 
         if (vel.gt.0d0) then
-          curv = 2d0*((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/(x3-x1)
-          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
-          qt2 = slp1*q2 + (1.-slp1)*q1
-          qt3 = slp2*q2 + (1.-slp2)*q3
+c$$$          curv = 2d0*((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/(x3-x1)
+c$$$          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+c$$$          qt2 = slp1*q2 + (1.-slp1)*q1
+c$$$          qt3 = slp2*q2 + (1.-slp2)*q3
+          curv = 2d0*(dq2/dx2-dq1/dx1)/(dx2+dx1)
+          qt1 = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+          qt2 = q2 + (slp1-1.)*dq1
+          qt3 = q2 - (slp2-1.)*dq2
           qt4 = fmed(q2,qt2,qt3)
           inter = fmed(q2,qt4,qt1)
         else
-          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
-          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
-          qt2 = slp1*q3 + (1.-slp1)*q4
-          qt3 = slp2*q3 + (1.-slp2)*q2
+c$$$          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
+c$$$          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(x3-x2)**2
+c$$$          qt2 = slp1*q3 + (1.-slp1)*q4
+c$$$          qt3 = slp2*q3 + (1.-slp2)*q2
+          curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
+          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(dx2)**2
+          qt2 = q3 - (slp1-1.)*dq3
+          qt3 = q3 + (slp2-1.)*dq2
           qt4 = fmed(q3,qt2,qt3)
           inter = fmed(q3,qt4,qt1)
         endif
 
-      case(5)
+      case(SSMART)
 
 c     Smooth SMART
 
@@ -6282,49 +6972,58 @@ c     Smooth SMART
         xp2 = ssmart_xp2
 
         if (vel.gt.0d0) then
-          qt1  = (q2-q1)/(q3-q1)
+cc          qt1  = (q2-q1)/(q3-q1)
+          qt1  = dq1/(dq2+dq1)
           where (qt1.lt.xp1.and.qt1.ge.0d0)
-            a = .25*(xp1-3d0)*xp1**(-3)
-            b = (1.125d0-.5d0*xp1)*xp1**(-2)
+            a = .25d0*(xp1-3d0)*xp1**(-3)
+            b = (1.125d0-0.5d0*xp1)*xp1**(-2)
             qt2 = qt1*(a*qt1**2 + b*qt1 + 1d0)
-            inter = q1 + qt2*(q3-q1)
+cc            inter = q1 + qt2*(q3-q1)
+            inter = q3 + (qt2-1.)*(dq2+dq1)
           elsewhere (qt1.ge.xp2.and.qt1.lt.1d0)
-            a = (0.25d0*xp2-.5d0)*(xp2-1d0)**(-3)
+            a = (0.25d0*xp2-.5d0)/(xp2-1d0)**3
             b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
             c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
             qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
-            inter = q1 + qt2*(q3-q1)
+cc            inter = q1 + qt2*(q3-q1)
+            inter = q3 + (qt2-1.)*(dq2+dq1)
           elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
-            inter = 0.375d0*q3 + 0.75d0*q2- 0.125d0*q1
+cc            inter = 0.375d0*q3 + 0.75d0*q2 - 0.125d0*q1
+            inter = (3*q3 + 5*q2 + dq1)/8.
           elsewhere
             inter = q2
           end where
         else
-          qt1  = (q3-q4)/(q2-q4)
+cc          qt1  = (q3-q4)/(q2-q4)
+          qt1  = dq3/(dq3+dq2)
           where (qt1.lt.xp1.and.qt1.ge.0d0)
             a = .25d0*(xp1-3d0)*xp1**(-3)
             b = (1.125d0-0.5d0*xp1)*xp1**(-2)
             c = 1d0
             qt2 = qt1*(a*qt1**2 + b*qt1 + c)
-            inter = q4 + qt2*(q2-q4)
+cc            inter = q4 + qt2*(q2-q4)
+            inter = q2 - (qt2-1.)*(dq2+dq3)
           elsewhere (qt1.ge.xp2.and.qt1.lt.1d0)
             a = (0.25d0*xp2-.5d0)*(xp2-1d0)**(-3)
             b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
             c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
             qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
-            inter = q4 + qt2*(q2-q4)
+cc            inter = q4 + qt2*(q2-q4)
+            inter = q2 - (qt2-1.)*(dq3+dq2)
           elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
-            inter = 0.375d0*q2 + 0.75d0*q3 - 0.125d0*q4
+cc            inter = 0.375d0*q2 + 0.75d0*q3- 0.125d0*q4
+            inter = (3*q2 + 5*q3 - dq3)/8.
           elsewhere
             inter = q3
           end where
         endif
 
-      case(6)
+      case(CHO)
 
 c     Centered high-order
 
-        inter = 0.0625d0*(-q1 + 9.*q2 + 9.*q3 - q4)
+cc        inter = 0.0625d0*(-q1 + 9.*q2 + 9.*q3 - q4)
+        inter = 0.0625d0*(dq1-dq3) + 0.5*(q2 + q3)
 
 cc      case(7)
 cc
@@ -6359,6 +7058,202 @@ cc        endif
 c     End
 
       end function in2face_vec
+
+c     in2face_vec_new
+c     ###############################################################
+      function in2face_vec_new(q2,q3,dx1,dq1,dx2,dq2,dx3,dq3,vel,advect)
+     .         result(inter)
+
+c     ---------------------------------------------------------------
+c     This function computes the advection interpolation at control
+c     volume face based of face velocity "vel".
+c
+c     Convention:
+c
+c            dq1   dq2   dq3
+c       ---x-----x--o--x-----x---->
+c                q2 ^  q3
+c                   ^
+c           Location of face
+c     ---------------------------------------------------------------
+
+      use oned_int
+
+      implicit none                !For safe fortran
+
+c     Call variables
+
+      real(8) :: q2(:),q3(:),vel
+     $          ,dq1(:),dq2(:),dq3(:),dx1,dx2,dx3
+      real(8) :: inter(size(q2))
+      integer :: advect
+
+c     Local variables
+
+      real(8) :: qt1(size(q2)),qt2(size(q2))
+     .          ,qt3(size(q2)),qt4(size(q2))
+     .          ,slp1,slp2,a(size(q2)),b(size(q2)),c(size(q2))
+     .          ,xp1,xp2,curv(size(q2))
+
+c     Begin program
+
+      select case(advect)
+      case(UPWD)
+
+c     Upwind
+
+        if (vel.gt.0d0) then
+          inter = q2
+        else
+          inter = q3
+        endif
+
+      case(ZIP)
+
+c     Centered
+
+        inter = 0.5*(q3+q2)
+
+      case(QUICK)
+
+c     QUICK [Leonard, Comput. Meth. Appl. Mech. Eng. 19, p. 59 (1979)]
+
+        if (vel.gt.0d0) then
+cc          curv = 2d0*((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/(x3-x1)
+          curv = 2d0*(dq2/dx2-dq1/dx1)/(dx2+dx1)
+        else
+cc          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
+          curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
+        endif
+
+        inter = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+
+      case(SMART)
+
+c     SMART [Gaskell and Lau, Int. J. Num. Meth. Fluids 8, p 617-641 (1988)]
+
+        slp1 = smart_slp1
+        slp2 = smart_slp2
+
+        if (vel.gt.0d0) then
+c$$$          curv = 2d0*((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/(x3-x1)
+c$$$          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+c$$$          qt2 = slp1*q2 + (1.-slp1)*q1
+c$$$          qt3 = slp2*q2 + (1.-slp2)*q3
+          curv = 2d0*(dq2/dx2-dq1/dx1)/(dx2+dx1)
+          qt1 = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+          qt2 = q2 + (slp1-1.)*dq1
+          qt3 = q2 - (slp2-1.)*dq2
+          qt4 = fmed(q2,qt2,qt3)
+          inter = fmed(q2,qt4,qt1)
+        else
+c$$$          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
+c$$$          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(x3-x2)**2
+c$$$          qt2 = slp1*q3 + (1.-slp1)*q4
+c$$$          qt3 = slp2*q3 + (1.-slp2)*q2
+          curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
+          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(dx2)**2
+          qt2 = q3 - (slp1-1.)*dq3
+          qt3 = q3 + (slp2-1.)*dq2
+          qt4 = fmed(q3,qt2,qt3)
+          inter = fmed(q3,qt4,qt1)
+        endif
+
+      case(SSMART)
+
+c     Smooth SMART
+
+        xp1 = ssmart_xp1
+        xp2 = ssmart_xp2
+
+        if (vel.gt.0d0) then
+cc          qt1  = (q2-q1)/(q3-q1)
+          qt1  = dq1/(dq2+dq1)
+          where (qt1.lt.xp1.and.qt1.ge.0d0)
+            a = .25d0*(xp1-3d0)*xp1**(-3)
+            b = (1.125d0-0.5d0*xp1)*xp1**(-2)
+            qt2 = qt1*(a*qt1**2 + b*qt1 + 1d0)
+cc            inter = q1 + qt2*(q3-q1)
+            inter = q3 + (qt2-1.)*(dq2+dq1)
+          elsewhere (qt1.ge.xp2.and.qt1.lt.1d0)
+            a = (0.25d0*xp2-.5d0)/(xp2-1d0)**3
+            b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
+            c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
+            qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
+cc            inter = q1 + qt2*(q3-q1)
+            inter = q3 + (qt2-1.)*(dq2+dq1)
+          elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
+cc            inter = 0.375d0*q3 + 0.75d0*q2 - 0.125d0*q1
+            inter = (3*q3 + 5*q2 + dq1)/8.
+          elsewhere
+            inter = q2
+          end where
+        else
+cc          qt1  = (q3-q4)/(q2-q4)
+          qt1  = dq3/(dq3+dq2)
+          where (qt1.lt.xp1.and.qt1.ge.0d0)
+            a = .25d0*(xp1-3d0)*xp1**(-3)
+            b = (1.125d0-0.5d0*xp1)*xp1**(-2)
+            c = 1d0
+            qt2 = qt1*(a*qt1**2 + b*qt1 + c)
+cc            inter = q4 + qt2*(q2-q4)
+            inter = q2 - (qt2-1.)*(dq2+dq3)
+          elsewhere (qt1.ge.xp2.and.qt1.lt.1d0)
+            a = (0.25d0*xp2-.5d0)*(xp2-1d0)**(-3)
+            b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
+            c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
+            qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
+cc            inter = q4 + qt2*(q2-q4)
+            inter = q2 - (qt2-1.)*(dq3+dq2)
+          elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
+cc            inter = 0.375d0*q2 + 0.75d0*q3- 0.125d0*q4
+            inter = (3*q2 + 5*q3 - dq3)/8.
+          elsewhere
+            inter = q3
+          end where
+        endif
+
+      case(CHO)
+
+c     Centered high-order
+
+cc        inter = 0.0625d0*(-q1 + 9.*q2 + 9.*q3 - q4)
+        inter = 0.0625d0*(dq1-dq3) + 0.5*(q2 + q3)
+
+cc      case(7)
+cc
+ccc     Gamma [Jasak, Weller, and Gosman, Int. J. Numer. Meth. Fluids, 32, p431 (1999)]
+cc
+cc        slp1 = 1.5
+cc        slp2 = .5
+cc        if (vel.gt.0d0) then
+cc          curv = ((q3-q2)/(x3-x2)-(q2-q1)/(x2-x1))/0.5/(x3-x1)
+cc          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+cccc          qt1 = 3.*q3/8. + 3.*q2/4.- q1/8.
+cc          qt2 = slp1*q2 + (1.-slp1)*q1
+cc          qt3 = slp2*q2 + (1.-slp2)*q3
+cc          qt4 = fmed(q2,qt2,qt3)
+cc          inter = fmed(q2,qt4,qt1)
+cc        else
+cc          curv = ((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/0.5/(x4-x2)
+cc          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
+cccc          qt1 = 3.*q2/8. + 3.*q3/4.- q4/8.
+cc          qt2 = slp1*q3 + (1.-slp1)*q4
+cc          qt3 = slp2*q3 + (1.-slp2)*q2
+cc          qt4 = fmed(q3,qt2,qt3)
+cc          inter = fmed(q3,qt4,qt1)
+cc        endif
+
+      case default
+
+        call pstop('in2face_vec','Advection scheme not available')
+
+      end select
+
+
+c     End
+
+      end function in2face_vec_new
 
       end module grid_advec_ops
 
