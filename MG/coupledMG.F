@@ -3365,6 +3365,7 @@ c     ##################################################################
      .                  ,cvrg_tst
      .                  ,tol
      .                  ,iters
+     .                  ,conv_tol
      .                  ,gm_driver
      .                  ,cg_driver
      .                  ,ks_it
@@ -3408,7 +3409,8 @@ c     Optional variables:
 c       * dg: matrix neq*neq diagonal block (for stationary its).
 c       * cvrg_tst: whether we want to perform a convergence test
 c       * tol: relative convergence tolerance
-c       * iters (output): number of iterations
+c       * iters (output): number of iterations at convergence
+c       * conv_tol (output): convergence tolerance
 c       * gm_driver: whether we want GMRES as a driver
 c       * cg_driver: whether we want CG    as a driver
 c       * ks_it: # of krylov subspace iterations
@@ -3469,8 +3471,10 @@ c     Call variables
      .                                ,sing_matrix
      .                                ,cg_driver
      .                                ,cvrg_tst
-        integer,optional,intent(OUT) :: iters
 
+        integer,optional,intent(OUT) :: iters
+        real(8),optional,intent(OUT) :: conv_tol
+        
         character(2),optional :: mg_smooth
 
         type(grid_mg_def),optional,pointer :: mg_grid_def
@@ -3914,7 +3918,8 @@ c       Get output data
         call getSolverOptions(1)
 
         if(PRESENT(iters)) iters = solverOptions%iter_out
-
+        if(PRESENT(conv_tol)) conv_tol = solverOptions%tol_out
+        
 c       Kill solver
 
         call solverKill
