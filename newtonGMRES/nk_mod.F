@@ -843,7 +843,7 @@ c     Call variables
 
 c     Local variables
 
-      real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1)
+      real(8)    :: hh(im+1,im), c(im), s(im), rs(im+1), irv
       real(8)    :: vv(ntot,im+1),zz(ntot,im+1),dsol(ntot),dum(ntot)
       real(8)    :: rold,ro,eps1,gam,t,xsvmx(im+1),xsvmn(im+1)
      .             ,smx_est,smn_est,smx_new,smn_new,snmx,snmn,csmx,csmn
@@ -856,6 +856,10 @@ c     Begin program
       precout = iout - 2
 
       its = 0
+
+      !Compute grid volume correction factor for norms
+      irv = sqrt(1d0*ntot*npx*npy*npz)
+      if (.not.nk_conf%vol_wgt) irv = 1d0/irv
 
 c     Calculate magnitude of nonlinear residual
 
@@ -894,7 +898,7 @@ c     Restarted FGMRES loop
 
         if (iout .gt. 0 .and. prnt) then
           if (its .eq. 0) then
-            write (*,199) its, ro, ro/rold
+            write (*,199) its, ro*irv, ro/rold
           else
             write (*,*) 'Restarting FGMRES... (',irstrt-1,')'
           endif
@@ -1020,7 +1024,7 @@ c       Determine residual norm and test for convergence
           ro = abs(rs(i1))
 
           if (iout .gt. 0 .and. prnt) then
-            write(*, 199) its, ro, ro/rold
+            write(*, 199) its, ro*irv, ro/rold
           endif
 
           !The i=im condition below is necessary because i is used afterwards
