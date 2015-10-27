@@ -323,9 +323,8 @@ c     Start Newton iteration
         iout = out - 1
 
         if (nk_conf%fpa) then
-cc          call applyPC(ntot,-nk_conf%rk,ddx,iout-1)
-          call applyPC(ntot,nk_conf%rk,ddx,iout-1)
-
+          call applyPC(ntot,-nk_conf%rk,ddx,iout-1)
+          ddx = -ddx  !Minus sign important for Anderson
           call fpa_correction(nk_conf%fpas,ddx,dp=dot2)
           ddx = -ddx
         else
