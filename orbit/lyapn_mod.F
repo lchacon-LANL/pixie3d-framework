@@ -690,6 +690,8 @@ cc        write (*,*) 'set_omp_thread_id',thr_num,thr_tot
 
       function get_omp_numthreads() result(thr_tot)
 
+        use grid, ONLY: pstop
+      
         implicit none
 
         integer :: thr_tot
@@ -699,5 +701,11 @@ cc        write (*,*) 'set_omp_thread_id',thr_num,thr_tot
         
 !$      call getenv('OMP_NUM_THREADS',ev)
 !$      read(ev,'(i2)') thr_tot
+
+        if (thr_tot == 0) then
+          call pstop("get_omp_numthreads"
+     .         ,"Define OMP_NUM_THREADS environment variable")
+        endif
+cc        thr_tot = max(thr_tot,1)
 
       end function get_omp_numthreads

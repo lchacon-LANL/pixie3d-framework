@@ -325,9 +325,9 @@ c     #################################################################
      .         result(car)
 
 c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
-c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
-c     covariant=.true., and contravariant otherwise.
+c     Transforms a STAGGERED curvilinear vector (c1,c2,c3) to Cartesian
+c     (cx,cy,cz) at grid coordinates (i,j,k). Curvilinear vector is
+c     covariant if covariant=.true., and contravariant otherwise.
 c     -----------------------------------------------------------------
 
         implicit none
