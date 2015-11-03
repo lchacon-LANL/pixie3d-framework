@@ -3539,7 +3539,7 @@ c       * bcnd: boundary condition defs.
 c       * igrid: MG grid level (igrid=1 is finest level)
 c       * out: level of output information
 c       * guess: whether a non-trivial initial guess is provided
-c               (iguess=1) or not (iguess=0)
+c               (guess=1) or not (guess=0)
 c       * matvec (external): matrix-vector product definition.
 c       * vol_wgt: whether residuals are volume-weighed or not.
 c
