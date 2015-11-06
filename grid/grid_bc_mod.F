@@ -1102,7 +1102,7 @@ c     Local variables
 
 c     Begin program
 
-#if !defined(petsc)
+cc#if !defined(petsc)
 
       bctype=PER
       do dim=1,3
@@ -1114,7 +1114,7 @@ c     Begin program
         enddo
       enddo
 
-#else
+cc#else
 cc        do dim=1,3
 cc          if (MPI_COMM_PER(dim) /= MPI_COMM_NULL) then
 cc            call MPI_Comm_size(MPI_COMM_PER(dim),np_l     ,mpierr)
@@ -1206,7 +1206,7 @@ cc
 cc            end select
 cc          endif
 cc        enddo
-#endif
+cc#endif
 
       end subroutine sync_PER
 
@@ -1414,8 +1414,21 @@ c     Fill corners (for both cnv and cov components)
         call fillCorners(v_cnv(:,:,:,ivar),bcnd(:,ivar),order)
       enddo
 
-#if defined(PER_BC_SYNC) && !defined(samrai)
 c     Periodic boundary synchronizing
+
+#if defined(PER_BC_SYNC) && !defined(samrai)
+      call sync_PER
+#endif
+
+c     End program
+
+      nullify(gbc_def)
+
+      contains
+
+c     sync_PER
+c     #################################################################
+      subroutine sync_PER
 
       bctype=PER
       do dim=1,3
@@ -1435,11 +1448,8 @@ c     Periodic boundary synchronizing
 
         enddo
       enddo
-#endif
 
-c     End program
-
-      nullify(gbc_def)
+      end subroutine sync_PER
 
       end subroutine imposeBConVector
 
@@ -2196,7 +2206,7 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: imax,imin,jmax,jmin,kmax,kmin,ibc
+      integer    :: ibc
 
 c     Begin program
 
@@ -3594,6 +3604,13 @@ c     (taken care of by scalarNeumann and scalarDirichlet routines)
      .    .or.isSYMBdry(ibc=ibcl(2))
      .    .or.isSYMBdry(ibc=ibcl(3))) return
 
+c     Do nothing for periodic edges and faces
+
+cc      if ((face.or.edge)
+cc     .     .and.(bcChk(ibcl(1),PER,bcnd=bcnd)
+cc     .       .or.bcChk(ibcl(2),PER,bcnd=bcnd)
+cc     .       .or.bcChk(ibcl(3),PER,bcnd=bcnd))) return
+
 c     Identify directions for extrapolation.
 
       inx = imx-imn
@@ -3668,37 +3685,7 @@ c     Identify directions for extrapolation.
 
 c     Treat special boundaries
 
-      !Identify special boundaries to interpolate **along**
-      !   1) SP boundary
-      !   2) Interpolate-to-face boundary
-      !   3) Equilibrium boundary (Removed 12/13/06, added back 11/10/08)
-      !   4) Discard internal processor boundaries (not real boundaries)
-      select_bc = .false.
-      do i=1,3
-        i_bc = ibcl(i)
-        if (i_bc <= 0) cycle
-        select_bc(i) =(    (abs(bcnd(i_bc)) == SP )
-     .                 .or.(abs(bcnd(i_bc)) == IFC)
-     .                 .or.(abs(bcnd(i_bc)) == EQU)
-     .                ).and.selectFace(i_bc)
-      enddo
-
       call select_along
-
-      !Identify special boundaries to interpolate **across**
-      !   1) Periodic boundary
-      !   2) Symmetry boundary (NEU+order=0; SYM removed on 6/1/12)
-      !   3) Equilibrium boundary (Removed 11/10/08; was interfering with parallelization)
-      !   4) Discard internal processor boundaries (not real boundaries)
-      select_bc = .false.
-      do i=1,3
-        i_bc = ibcl(i)
-        if (i_bc <= 0) cycle
-        select_bc(i) =(    (    bcnd(i_bc)  == PER)
-cc     .                 .or.(abs(bcond(i_bc))== FSYM .and. abs(bcnd(i_bc)) == NEU)
-     .                 .or.(abs(bcnd(i_bc)) == NEU .and. order == 0)
-     .                ).and.selectFace(i_bc)
-      enddo
 
       call select_across
 
@@ -3875,7 +3862,23 @@ c     ######################################################################
 c     -----------------------------------------------------------------------
 c     Selects interpolation directions so that interpolation occurs ALONG
 c     selected boundary only.
+c         1) SP boundary
+c         2) Interpolate-to-face boundary
+c         3) Equilibrium boundary (Removed 12/13/06, added back 11/10/08)
+c         4) Discard internal processor boundaries (not real boundaries)
+c         5) Periodic boundary (added 11/4/15, to ensure periodicity in
+c            parallel)
 c     -----------------------------------------------------------------------
+
+      select_bc = .false.
+      do i=1,3
+        i_bc = ibcl(i)
+        if (i_bc <= 0) cycle
+        select_bc(i) =(    (abs(bcnd(i_bc)) == SP )
+     .                 .or.(abs(bcnd(i_bc)) == IFC)
+     .                 .or.(abs(bcnd(i_bc)) == EQU)
+     .                ).and.selectFace(i_bc)
+      enddo
 
       do i=1,3
 
@@ -3946,10 +3949,27 @@ cc          endif
 c     select_across
 c     ######################################################################
       subroutine select_across
+      implicit none
 c     -----------------------------------------------------------------------
 c     Selects interpolation directions so that interpolation occurs ACROSS
 c     selected boundary only.
+c         1) Periodic boundary (Removed 11/4/15, to ensure periodicity in
+c            parallel)
+c         2) Symmetry boundary (NEU+order=0; SYM removed on 6/1/12)
+c         3) Equilibrium boundary (Removed 11/10/08; was interfering with
+c            parallelization)
+c         4) Discard internal processor boundaries (not real boundaries)
 c     -----------------------------------------------------------------------
+
+      select_bc = .false.
+      do i=1,3
+        i_bc = ibcl(i)
+        if (i_bc <= 0) cycle
+        select_bc(i) =(     (abs(bcnd(i_bc)) == NEU .and. order == 0)
+cc     .                 .or.(abs(bcond(i_bc))== FSYM .and. abs(bcnd(i_bc)) == NEU)
+     .                 .or. (    bcnd(i_bc)  == PER)
+     .                ).and.selectFace(i_bc)
+      enddo
 
       do i=1,3
 

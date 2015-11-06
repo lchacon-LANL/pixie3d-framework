@@ -57,68 +57,6 @@ c     #################################################################
 
       end function alt__eom
 
-c     cross_product
-c     #################################################################
-      function cross_product(vec1,vec2) result(vec3)
-
-c     -----------------------------------------------------------------
-c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
-c     where the vectors are in Cartesian coordinates.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        real(8)    :: vec1(3),vec2(3),vec3(3)
-
-c     Local variables
-
-c     Begin program
-
-        vec3(1) = vec1(2)*vec2(3)-vec1(3)*vec2(2)
-        vec3(2) = vec1(3)*vec2(1)-vec1(1)*vec2(3)
-        vec3(3) = vec1(1)*vec2(2)-vec1(2)*vec2(1)
-
-      end function cross_product
-
-c     triple_product
-c     #################################################################
-      function triple_product(vec1,vec2,vec3) result(scalar)
-
-c     -----------------------------------------------------------------
-c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
-c     where the vectors are in Cartesian coordinates.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        real(8)    :: vec1(3),vec2(3),vec3(3),scalar
-
-c     Local variables
-
-c     Begin program
-
-        scalar = dot_product(vec1,cross_product(vec2,vec3))
-
-      end function triple_product
-
-c     delta
-c     #################################################################
-      function delta(i,j)
-
-        integer    :: i,j
-        real(8)    :: delta
-
-        if (i == j) then
-          delta = 1d0
-        else
-          delta = 0d0
-        endif
-
-      end function delta
 
 c     checkMapDatabase
 c     #################################################################

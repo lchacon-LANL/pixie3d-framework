@@ -108,8 +108,10 @@ ifeq ($(HOST),jetta)
       #Determined via modules
       ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
 
-      SPRNG = f
+      SPRNG = t
 
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib
+      SPRNG_INC  = $(SPRNG_PAR_HOME)/include
     else
       LIBS += -L/usr/lib -llapack -lblas
 
@@ -124,6 +126,8 @@ ifeq ($(HOST),jetta)
 
       SPRNG = f
 
+      SPRNG_LIBS = $(SPRNG_SER_HOME)/lib
+      SPRNG_INC = $(SPRNG_SER_HOME)/include
     endif
 
     NETCDF=f
