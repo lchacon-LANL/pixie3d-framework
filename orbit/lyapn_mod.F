@@ -223,6 +223,8 @@
 
       end subroutine connect_io_end
 
+c     auto_corr_io_init
+c     ###############################################################
       subroutine auto_corr_io_init(deltass, ss_min, x00,y00,z00
      .                             ,ss_check)
 
@@ -298,6 +300,8 @@
 
       end subroutine auto_corr_io_init
 
+c     auto_corr_read_ext
+c     ###############################################################
       subroutine auto_corr_read_ext(init_cond_file,temp4,itot)
 
 !     -----------------------------------------------------------------
@@ -354,6 +358,8 @@
 
       end subroutine auto_corr_read_ext
 
+c     auto_corr_io_end
+c     ###############################################################
       subroutine auto_corr_io_end(lssx,lssy,lssz,rzss,x0,y0,z0,ss)
 
 !     -----------------------------------------------------------------
@@ -406,6 +412,8 @@
 
 !#! Lyapunov routines
 
+c     lyap_write
+c     ###############################################################
       subroutine lyap_write(x,ss)
 
 !     ------------------------------------------------------------------------
@@ -432,6 +440,8 @@
 
       end subroutine lyap_write
 
+c     connect_write
+c     ###############################################################
       subroutine connect_write(x_0,y_0,z_0,ss_0,thr_num)
 
 !     ------------------------------------------------------------------------
@@ -452,6 +462,8 @@
 
       end subroutine connect_write
 
+c     auto_corr_write
+c     ###############################################################
       subroutine auto_corr_write(x,y,z,atc_tol,deltass,ss_chk)
 
 !     ------------------------------------------------------------------------
@@ -533,6 +545,8 @@
 	   endif
       end subroutine auto_corr_write
 
+c     auto_corr_counters_init
+c     ###############################################################
       subroutine auto_corr_counters_init()
       
 !     ------------------------------------------------------------------------
@@ -548,6 +562,8 @@
 
       end subroutine auto_corr_counters_init
 
+c     auto_corr_intersx_update
+c     ###############################################################
       subroutine auto_corr_intersx_update(intersect_x)
 
 !     ------------------------------------------------------------------------
@@ -565,6 +581,8 @@
 
       end subroutine auto_corr_intersx_update
 
+c     auto_corr_intersy_update
+c     ###############################################################
       subroutine auto_corr_intersy_update(intersect_y)
 
 !     ------------------------------------------------------------------------
@@ -582,6 +600,8 @@
 
       end subroutine auto_corr_intersy_update
 
+c     auto_corr_intersz_update
+c     ###############################################################
       subroutine auto_corr_intersz_update(intersect_z)
 
 !     ------------------------------------------------------------------------
@@ -599,6 +619,8 @@
 
       end subroutine auto_corr_intersz_update
 
+c     auto_corr_interstor_update
+c     ###############################################################
       subroutine auto_corr_interstor_update(intersect_tor)
 
 !     ------------------------------------------------------------------------
@@ -616,6 +638,8 @@
 
       end subroutine auto_corr_interstor_update
 
+c     auto_corr_inters_stop
+c     ###############################################################
       function auto_corr_inters_stop(lssx,lssy,lssz) result(orbit_exit)
 
 !     ------------------------------------------------------------------------
@@ -635,20 +659,37 @@
      $           .or.(lssz .and. (intersect_z .ge. max_inter_z))
  
       end function auto_corr_inters_stop
-      
-      subroutine set_omp_thread_id(thrnum,thrtot)
+
+c     set_omp_thread_id
+c     ###############################################################
+      subroutine set_omp_thread_id(thrnum,thrtot,io)
 
         implicit none
 
+c     Call variables
+
         integer,optional :: thrnum,thrtot
+        logical,optional :: io
+
+c     Local variables
+
+        logical :: io_l
         integer :: get_omp_numthreads
      $            ,omp_get_thread_num
      $            ,omp_get_num_threads
 
+c     Begin program
+
+        if (PRESENT(io)) then
+          io_l = io
+        else
+          io_l = .false.
+        endif
+
         if (PRESENT(thrtot)) then
           thr_tot = thrtot
         else
-          thr_tot = get_omp_numthreads()
+          thr_tot = get_omp_numthreads(io_l)
 cc!$      thr_tot = omp_get_num_threads()
         endif
 
@@ -662,6 +703,8 @@ cc!$      thr_tot = omp_get_num_threads()
 cc        write (*,*) 'set_omp_thread_id',thr_num,thr_tot
       end subroutine set_omp_thread_id
 
+c     check_omp_thread_id
+c     ###############################################################
       subroutine check_omp_thread_id()
 
         implicit none
@@ -676,6 +719,8 @@ cc        write (*,*) 'set_omp_thread_id',thr_num,thr_tot
 
       end module lyapn
 
+c     set_lyapn_counter
+c     ###############################################################
       subroutine set_lyapn_counter(ilop)
 
        	use lyapn
@@ -688,14 +733,24 @@ cc        write (*,*) 'set_omp_thread_id',thr_num,thr_tot
 
       end subroutine set_lyapn_counter
 
-      function get_omp_numthreads() result(thr_tot)
+c     get_omp_numthreads
+c     ###############################################################
+      function get_omp_numthreads(io) result(thr_tot)
 
         use grid, ONLY: pstop
       
         implicit none
 
+c     Global variables
+
         integer :: thr_tot
+        logical :: io
+
+c     Local variables
+
         character*10 :: ev
+
+c     Begin program
 
         thr_tot = 1
         
@@ -705,6 +760,12 @@ cc        write (*,*) 'set_omp_thread_id',thr_num,thr_tot
         if (thr_tot == 0) then
           call pstop("get_omp_numthreads"
      .         ,"Define OMP_NUM_THREADS environment variable")
+        else
+          if (io) then
+            write (*,*)          '******************'
+            write (*,'(a,i3,a)') ' Using ',thr_tot,' threads'
+            write (*,*)          '******************'
+          endif
         endif
 cc        thr_tot = max(thr_tot,1)
 
