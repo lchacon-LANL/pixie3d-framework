@@ -110,7 +110,7 @@ ifeq ($(HOST),jetta)
 
       SPRNG = t
 
-      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib -lsprng -lstdc++ -lm -lmpi_cxx
       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
     else
       LIBS += -L/usr/lib -llapack -lblas
@@ -126,7 +126,7 @@ ifeq ($(HOST),jetta)
 
       SPRNG = f
 
-      SPRNG_LIBS = $(SPRNG_SER_HOME)/lib
+      SPRNG_LIBS = $(SPRNG_SER_HOME)/lib -lsprng -lstdc++ -lm -lmpi_cxx
       SPRNG_INC = $(SPRNG_SER_HOME)/include
     endif
 
@@ -735,7 +735,7 @@ ifeq ($(HOST),t1243055)
     SPRNG = t
 
     SPRNG_HOME = /home/gchen/Research/example/sprng/sprng5/parallel
-    SPRNG_LIBS = $(SPRNG_HOME)/lib
+    SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
     SPRNG_INC  = $(SPRNG_HOME)/include
   else
     LIBS += -llapack -lblas
@@ -752,7 +752,7 @@ ifeq ($(HOST),t1243055)
     SPRNG = t
 
     SPRNG_HOME = /home/gchen/Research/example/sprng/sprng5/serial
-    SPRNG_LIBS = $(SPRNG_HOME)/lib
+    SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
     SPRNG_INC = $(SPRNG_HOME)/include
   endif
 
