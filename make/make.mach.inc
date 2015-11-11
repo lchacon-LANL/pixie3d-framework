@@ -126,7 +126,7 @@ ifeq ($(HOST),jetta)
 
       SPRNG = f
 
-      SPRNG_LIBS = $(SPRNG_SER_HOME)/lib -lsprng -lstdc++ -lm -lmpi_cxx
+      SPRNG_LIBS = $(SPRNG_SER_HOME)/lib -lsprng -lstdc++ -lm 
       SPRNG_INC = $(SPRNG_SER_HOME)/include
     endif
 
