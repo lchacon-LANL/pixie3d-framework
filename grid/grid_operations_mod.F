@@ -1545,9 +1545,9 @@ c     Begin program
 
         cnv = 0d0
 
-        do k=0,nz
-          do j=0,ny
-            do i=0,nx
+        do k=0,nz+1
+          do j=0,ny+1
+            do i=0,nx+1
               cnv(i,j,k,:) = XformToCnv_stg_ijk(i,j,k,igrid,cov)
             enddo
           enddo
@@ -1596,18 +1596,18 @@ c     Begin program
         cov = 0d0
 
         if (vrtx) then
-          do k=0,nz
-            do j=0,ny
-              do i=0,nx
+          do k=0,nz+1
+            do j=0,ny+1
+              do i=0,nx+1
                 cov(i,j,k,:) =
      .            Xform_From_VrtxCnv_To_CellCov_stg_ijk(i,j,k,igrid,cnv)
               enddo
             enddo
           enddo
         else
-          do k=0,nz
-            do j=0,ny
-              do i=0,nx
+          do k=0,nz+1
+            do j=0,ny+1
+              do i=0,nx+1
                 cov(i,j,k,:) = XformToCov_stg_ijk(i,j,k,igrid,cnv)
               enddo
             enddo

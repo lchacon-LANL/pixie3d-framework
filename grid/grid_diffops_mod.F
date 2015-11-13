@@ -1046,8 +1046,8 @@ c     ###############################################################
       implicit none
 
 c     ---------------------------------------------------------------
-c     Calculates divergence of vector field at cell centers in
-c     general non-orthogonal geometry.
+c     Calculates divergence of a staggered vector field at cell centers
+c     in general non-orthogonal geometry.
 c     ---------------------------------------------------------------
 
 c     Call variables
@@ -1089,9 +1089,9 @@ c     ###############################################################
       function div_stg_mesh(igrid,curv,iscnv) result(scl)
 
 c     ---------------------------------------------------------------
-c     Calculates curl(A) in general non-orthogonal coordinates. Is
-c     boundary-ready (can extrapolate). The vector A is
-c     covariant, and returns the contravariant component "comp".
+c     Calculates div of a staggered vector field in general
+c     non-orthogonal coordinates. The vector A can be covariant or
+c     contravariant.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran

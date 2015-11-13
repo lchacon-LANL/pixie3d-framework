@@ -3632,17 +3632,39 @@ c     (taken care of by scalarNeumann and scalarDirichlet routines)
      .    .or.isSYMBdry(ibc=ibcl(2))
      .    .or.isSYMBdry(ibc=ibcl(3))) return
 
-c     Do nothing for periodic edges and faces if synchronizing PER boundaries
+c     Do nothing for doubly-periodic edges (PETSc does it)
 
-#if defined(PER_BC_SYNC)
-cc      if ((face.or.edge)
-cc     .     .and.(bcChk(ibcl(1),PER,bcnd=bcnd)
-cc     .       .or.bcChk(ibcl(2),PER,bcnd=bcnd)
-cc     .       .or.bcChk(ibcl(3),PER,bcnd=bcnd))) return
-cc      if (   (bcChk(ibcl(1),PER)
-cc     .    .or.bcChk(ibcl(2),PER)
-cc     .    .or.bcChk(ibcl(3),PER))) return
-#endif
+      if (edge) then
+        if ((ibcl(1) == 0)
+     .      .and.(bcChk(ibcl(2),PER).and.bcChk(ibcl(3),PER))) return
+        if ((ibcl(2) == 0)
+     .      .and.(bcChk(ibcl(3),PER).and.bcChk(ibcl(1),PER))) return
+        if ((ibcl(3) == 0)
+     .      .and.(bcChk(ibcl(1),PER).and.bcChk(ibcl(2),PER))) return
+      endif
+
+c     Do nothing for homogeneous Dirichlet edges and corners (extrapolateBC does it)
+
+      if (edge) then
+        if ((ibcl(1) == 0)
+     .  .and.((selectFace(ibcl(3)).and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
+     .                              .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+     .    .or.(selectFace(ibcl(2)).and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
+     .                              .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
+     .       return
+        if ((ibcl(2) == 0)
+     .  .and.((selectFace(ibcl(3)).and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
+     .                              .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+     .    .or.(selectFace(ibcl(1)).and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
+     .                              .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
+     .       return
+        if ((ibcl(3) == 0)
+     .  .and.((selectFace(ibcl(1)).and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
+     .                              .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
+     .    .or.(selectFace(ibcl(2)).and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
+     .                              .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
+     .       return
+      endif
 
 c     Identify directions for extrapolation.
 
@@ -3897,10 +3919,8 @@ c     Selects interpolation directions so that interpolation occurs ALONG
 c     selected boundary only.
 c         1) SP boundary
 c         2) Interpolate-to-face boundary
-c         3) Equilibrium boundary (Removed 12/13/06, added back 11/10/08)
+c         3) Equilibrium boundary (removed 12/13/06, added back 11/10/08)
 c         4) Discard internal processor boundaries (not real boundaries)
-c         5) Periodic boundary (added 11/4/15, to ensure periodicity in
-c            parallel)
 c     -----------------------------------------------------------------------
 
       select_bc = .false.
@@ -3986,10 +4006,9 @@ c     ######################################################################
 c     -----------------------------------------------------------------------
 c     Selects interpolation directions so that interpolation occurs ACROSS
 c     selected boundary only.
-c         1) Periodic boundary (Removed 11/4/15, to ensure periodicity in
-c            parallel)
+c         1) Periodic boundary
 c         2) Symmetry boundary (NEU+order=0; SYM removed on 6/1/12)
-c         3) Equilibrium boundary (Removed 11/10/08; was interfering with
+c         3) Equilibrium boundary (removed 11/10/08; was interfering with
 c            parallelization)
 c         4) Discard internal processor boundaries (not real boundaries)
 c     -----------------------------------------------------------------------

@@ -696,7 +696,7 @@ c ######################################################################
         END INTERFACE
 
         INTERFACE fillArray
-          module procedure fillVecArray1,fillVecArray2
+          module procedure fillVecArray1,fillVecArray2,fillSclArray
         END INTERFACE
 
         INTERFACE fillArray_stg
@@ -2950,6 +2950,47 @@ c     Begin program
 c     End program
 
       end subroutine fillSclArray_nobc
+
+c     fillSclArray
+c     ###################################################################
+      subroutine fillSclArray(igrid,x,arr,gpos,bcs,iorder)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,gpos,neq,iorder,bcs(6)
+        real(8),dimension(:) :: x
+        real(8),dimension(:,:,:) :: arr
+
+c     Local variables
+
+        integer :: nx,ny,nz
+        logical :: fpointers
+        real(8),dimension(size(arr,1),size(arr,2),size(arr,3),1) :: arr1
+
+c     Begin program
+
+        nx = size(arr,1)-2
+        ny = size(arr,2)-2
+        nz = size(arr,3)-2
+
+        call allocPointers(1,fpointers)
+
+        call mapMGVectorToArray(mg_ctx_temp,gpos,x,arr1,igrid,.false.)
+        arr = arr1(:,:,:,1)
+
+        call setMGBC(gpos,1,nx,ny,nz,igrid,arr,bcs,iorder=iorder)
+
+        call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillSclArray
 
 c     fillVec1
 c     ###################################################################
