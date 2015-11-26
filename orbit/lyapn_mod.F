@@ -166,7 +166,7 @@
 
 !     Begin program
 
-        thr_tot = get_omp_numthreads()
+        thr_tot = get_omp_numthreads(.false.)
 
         cpos = index(trim(file),'.bin') - 1
 
