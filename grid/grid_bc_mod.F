@@ -1359,8 +1359,6 @@ c     #################################################################
 
       end subroutine sync_PER
 
-      end subroutine imposeBConVector
-
 c     synchronize
 c     #################################################################
       subroutine synchronize(ncomp,v_cnv,v_cov,bcond,cov_to_cnv,dim,loc)
@@ -1539,6 +1537,8 @@ cc                if (.not.selectFace(ibc)) cycle
 c     End program
 
       end subroutine synchronize
+
+      end subroutine imposeBConVector
 
 c     imposeBConVector_stg
 c     #################################################################
@@ -1787,8 +1787,6 @@ c     #################################################################
 
       end subroutine sync_PER
 
-      end subroutine imposeBConVector_stg
-
 c     synchronize_stg
 c     #################################################################
       subroutine synchronize_stg(ncomp,v_cnv,v_cov,bcond,cov_to_cnv,dim
@@ -2005,6 +2003,8 @@ cc                if (.not.selectFace(ibc)) cycle
 c     End program
 
       end subroutine synchronize_stg
+
+      end subroutine imposeBConVector_stg
 
 c     fillGhostNodes
 c     ###############################################################

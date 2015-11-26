@@ -119,6 +119,36 @@ c     Local variables
 
       end function findRoundOff
 
+c     chkRoundOff
+c     ###############################################################
+      function chkRoundOff(test,var) result(eps)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Finds machine round-off constant epsmac
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      logical :: test
+      real(8) :: var,eps
+
+c     Local variables
+
+      real(8),save :: roundoff=0d0
+
+c     Begin program
+
+      eps = var
+      if (.not.test) return
+      
+      if (roundoff == 0d0) roundoff=findRoundOff()
+
+      if (abs(var) < 1000*roundoff) eps = 0d0
+
+      end function chkRoundOff
+
 c     determ3
 c     #################################################################
       function determ3(tensor)
