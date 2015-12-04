@@ -680,8 +680,6 @@ c ######################################################################
 
         use variables
 
-        real(8),private :: eps=0d0
-
         type :: garray
           real(8),pointer,dimension(:,:,:,:) :: array
         end type garray
@@ -698,7 +696,11 @@ c ######################################################################
         END INTERFACE
 
         INTERFACE fillArray
-          module procedure fillVecArray1,fillVecArray2
+          module procedure fillVecArray1,fillVecArray2,fillSclArray
+        END INTERFACE
+
+        INTERFACE fillArray_stg
+          module procedure fillVecArray1_stg,fillVecArray2_stg
         END INTERFACE
 
         INTERFACE fillArray_nobc
@@ -710,9 +712,38 @@ c ######################################################################
           module procedure fillVec1,fillVec2,fillVec3
         END INTERFACE
 
-        private :: restrictArray,restrictArray_w_BCs!,mapMGVectorToArray
+        !PRIVATE variables
+        real(8),private :: eps=0d0
+
+        logical,private :: is__stg = .false.  !Unstaggered vectors by default
+
+        private :: restrictArray,restrictArray_w_BCs !,mapMGVectorToArray
 
       contains
+
+c     MG_set_vector_type
+c     #################################################################
+      subroutine MG_set_vector_type(staggered)
+
+      implicit none
+
+      logical :: staggered
+
+      is__stg = staggered
+      
+      end subroutine MG_set_vector_type
+
+c     MG_get_vector_type
+c     #################################################################
+      function MG_get_vector_type() result(staggered)
+
+      implicit none
+
+      logical :: staggered
+
+      staggered = is__stg
+      
+      end function MG_get_vector_type
 
 c     allocateMGArray
 c     #################################################################
@@ -1012,6 +1043,12 @@ c     Begin program
         is__cnv = is__vec   !Contravariant representation by default
       endif
 
+      if (PRESENT(is_stgvec)) then
+        is__stg = is_stgvec
+      else
+        is__stg = .false.
+      endif
+
       if (PRESENT(result_is_vec)) then
         res_is_vec = result_is_vec
       else
@@ -1047,8 +1084,7 @@ c     Restrict array
      .       ,order_bc=order_bc
      .       ,equilb=equilb
      .       ,mgvcov=mgvcov
-     .       ,g_def=mgarray%g_def
-     .       ,staggered=is_stgvec)
+     .       ,g_def=mgarray%g_def)
 
       enddo
 
@@ -1328,7 +1364,7 @@ c     #################################################################
       subroutine restrictArray_w_BCs(icmp,neq,igf,nxf,nyf,nzf,arrayf
      .                                       ,igc,nxc,nyc,nzc,arrayc
      .                              ,order,volf,bcnd,order_bc,equilb
-     $                              ,mgvcov,g_def,staggered)
+     $                              ,mgvcov,g_def)
 c     -----------------------------------------------------------------
 c     Restricts array to array in all grids (with ghost nodes),
 c     starting at grid igf.
@@ -1350,7 +1386,6 @@ c     Call variables
       type(mg_array),optional,intent(IN)  :: equilb
       type(mg_array),optional,intent(OUT) :: mgvcov
       type(grid_mg_def),pointer,optional :: g_def
-      logical,optional :: staggered
 
 c     Local variables
 
@@ -1359,7 +1394,7 @@ c     Local variables
      .             ,bcmod(6,neq),icmp2(max(neq/3,1))
 
       real(8),allocatable,dimension(:,:,:,:) :: arrf,arrc
-      logical    :: fpointers,have_equl,have_cov,is_stg
+      logical    :: fpointers,have_equl,have_cov
 
 c     Begin program
 
@@ -1372,12 +1407,6 @@ c     Begin program
         ord_bc = order_bc
       else
         ord_bc = order
-      endif
-
-      if (PRESENT(staggered)) then
-        is_stg = staggered
-      else
-        is_stg = .false.
       endif
 
 c     Restrict MG vectors
@@ -1431,7 +1460,7 @@ cc      deallocate(arrf,arrc)
 
 c     Impose BCs
 
-      if (is_stg) then
+      if (is__stg) then
         if (icmp /= 0) then
           icmp2 = icmp
           if (have_equl) then
@@ -2210,11 +2239,20 @@ c     Impose boundary conditions (external)
       cartesian = (bcSP() .and. isvec)  !Return Cartesian variables for prolongation
 
       if (order > 0 .or. cartesian) then
-        call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+        if (isvec.and.is__stg) then
+          call setMGBC_stg(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
 cc     .              ,iorder=min(order,3)             !now inherited from previous calls
      .              ,result_is_curv=(.not.cartesian)
      .              ,out_iscurv=isvec,out_iscnv=iscnv  !<= These define whether quantities are 
      .              ,g_def=mgctx%g_def)                !   vectors or scalars. 
+
+        else
+          call setMGBC(0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
+cc     .              ,iorder=min(order,3)             !now inherited from previous calls
+     .              ,result_is_curv=(.not.cartesian)
+     .              ,out_iscurv=isvec,out_iscnv=iscnv  !<= These define whether quantities are 
+     .              ,g_def=mgctx%g_def)                !   vectors or scalars. 
+        endif
       endif
 
 c     Perform average along azimuthal direction for SP configurations
@@ -2616,9 +2654,9 @@ c     End program
 
       end subroutine fillVecArray2
 
-c     fillVecArray_stg
+c     fillVecArray1_stg
 c     ###################################################################
-      subroutine fillVecArray_stg(igrid,neq,x,arr,bcs,iorder,arr_cov
+      subroutine fillVecArray1_stg(igrid,neq,x,arr,bcs,iorder,arr_cov
      .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
 
 c     -------------------------------------------------------------------
@@ -2708,7 +2746,106 @@ c     Begin program
 
 c     End program
 
-      end subroutine fillVecArray_stg
+      end subroutine fillVecArray1_stg
+
+c     fillVecArray2_stg
+c     ###################################################################
+      subroutine fillVecArray2_stg(igrid,neq,x,arr,bcs,iorder,arr_cov
+     .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        use setMGBC_interface
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,neq,iorder,bcs(:,:)
+        real(8),dimension(:,:) :: x
+        real(8),dimension(:,:,:,:) :: arr
+
+        integer,optional :: gpos,icomp(:)
+        real(8),optional,dimension(:,:,:,:) :: arr_cov,arr0
+        logical,optional :: is_vec,is_cnv,result_is_curv
+
+c     Local variables
+
+        integer :: ieq,nx,ny,nz,gps
+        logical :: isvec,iscnv
+        logical :: fpointers
+
+c     Begin program
+
+        call allocPointers(1,fpointers)
+
+        nx = MGgrid%nxv(igrid)
+        ny = MGgrid%nyv(igrid)
+        nz = MGgrid%nzv(igrid)
+
+        if (PRESENT(is_vec)) then
+          isvec = is_vec
+        else
+          isvec = (neq == 3 .or. neq == 6)
+        endif
+
+        if (PRESENT(is_cnv)) then
+          iscnv = is_cnv
+        else
+          iscnv = .true.
+        endif
+
+        if (PRESENT(gpos)) then
+          gps = max(0,gpos)
+        else
+          gps = 0
+        endif
+
+        if (PRESENT(arr_cov).and.(.not.iscnv)) then
+          do ieq=1,neq
+            call mapMGVectorToArray(mg_ctx_temp,gps,x(:,ieq)
+     .                           ,arr_cov(:,:,:,ieq:ieq),igrid,.false.)
+          enddo
+        else
+          do ieq=1,neq
+            call mapMGVectorToArray(mg_ctx_temp,gps,x(:,ieq)
+     .                           ,arr(:,:,:,ieq:ieq),igrid,.false.)
+          enddo
+        endif
+
+        if (PRESENT(arr0).and.PRESENT(arr_cov)) then
+          call setMGBC_stg(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr_cov=arr_cov,arr0=arr0
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
+        elseif (PRESENT(arr_cov)) then
+          call setMGBC_stg(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr_cov=arr_cov
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
+        elseif (PRESENT(arr0)) then
+          call setMGBC_stg(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder,arr0=arr0
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
+        else
+          call setMGBC_stg(gps,neq,nx,ny,nz,igrid,arr,bcs
+     .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
+     .              ,iorder=iorder
+     .              ,result_is_curv=result_is_curv
+     $              ,g_def=MGgrid)
+        endif
+
+        call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillVecArray2_stg
 
 c     fillVecArray1_nobc
 c     ###################################################################
@@ -2813,6 +2950,47 @@ c     Begin program
 c     End program
 
       end subroutine fillSclArray_nobc
+
+c     fillSclArray
+c     ###################################################################
+      subroutine fillSclArray(igrid,x,arr,gpos,bcs,iorder)
+
+c     -------------------------------------------------------------------
+c     Fills array arr (with BCs) using vector x.
+c     -------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: igrid,gpos,neq,iorder,bcs(6)
+        real(8),dimension(:) :: x
+        real(8),dimension(:,:,:) :: arr
+
+c     Local variables
+
+        integer :: nx,ny,nz
+        logical :: fpointers
+        real(8),dimension(size(arr,1),size(arr,2),size(arr,3),1) :: arr1
+
+c     Begin program
+
+        nx = size(arr,1)-2
+        ny = size(arr,2)-2
+        nz = size(arr,3)-2
+
+        call allocPointers(1,fpointers)
+
+        call mapMGVectorToArray(mg_ctx_temp,gpos,x,arr1,igrid,.false.)
+        arr = arr1(:,:,:,1)
+
+        call setMGBC(gpos,1,nx,ny,nz,igrid,arr,bcs,iorder=iorder)
+
+        call deallocPointers(fpointers)
+
+c     End program
+
+      end subroutine fillSclArray
 
 c     fillVec1
 c     ###################################################################
@@ -3361,6 +3539,7 @@ c     cSolver
 c     ##################################################################
       subroutine cSolver(neq,ntotp,b,x,bcnd,igrid,out,guess,matvec
      .                  ,vol_wgt
+     .                  ,staggered
      .                  ,dg
      .                  ,cvrg_tst
      .                  ,tol
@@ -3401,11 +3580,13 @@ c       * bcnd: boundary condition defs.
 c       * igrid: MG grid level (igrid=1 is finest level)
 c       * out: level of output information
 c       * guess: whether a non-trivial initial guess is provided
-c               (iguess=1) or not (iguess=0)
+c               (guess=1) or not (guess=0)
 c       * matvec (external): matrix-vector product definition.
 c       * vol_wgt: whether residuals are volume-weighed or not.
 c
 c     Optional variables:
+c       * staggered: whether we are dealing with staggered vectors
+c
 c       * dg: matrix neq*neq diagonal block (for stationary its).
 c       * cvrg_tst: whether we want to perform a convergence test
 c       * tol: relative convergence tolerance
@@ -3462,7 +3643,8 @@ c     Call variables
      .                                ,sm_zebra_dir
      .                                ,sm_ncolors
      .                                ,ks_it
-        logical,optional,intent(IN) :: sm_line_relax
+        logical,optional,intent(IN) :: staggered
+     $                                ,sm_line_relax
      .                                ,sm_zebra_relax
      .                                ,mg_gm_coarse_solve
      .                                ,mg_galerkin
@@ -3495,6 +3677,8 @@ c     Local variables
 c     Begin program
 
         call MG_set_res_vol_wgt(vol_wgt) !Initialize volume-weighing variable
+
+        if (PRESENT(staggered)) call MG_set_vector_type(staggered)
 
 c     Check input integrity
 

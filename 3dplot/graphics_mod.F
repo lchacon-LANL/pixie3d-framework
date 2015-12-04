@@ -191,8 +191,13 @@ cc          imaxg = nx+1
           iming = 0
           imaxg = nx+1
         else
+#if defined(PLOT_STG)
+          iming = 0
+          imaxg = nx
+#else
           iming = 0
           imaxg = nx+1
+#endif
         endif
 
         if (bcond(3) == PER) then
@@ -206,8 +211,13 @@ cc          jmaxg = ny+1
             jmaxg = ny
           endif
         else
+#if defined(PLOT_STG)
+          jming = 0
+          jmaxg = ny
+#else
           jming = 0
           jmaxg = ny+1
+#endif
         endif
 
         if (bcond(5) == PER) then
@@ -221,23 +231,14 @@ cc          kmaxg = nz+1
             kmaxg = nz
           endif
         else
+#if defined(PLOT_STG)
+          kming = 0
+          kmaxg = nz
+#else
           kming = 0
           kmaxg = nz+1
+#endif
         endif
-
-cc        iming = 0
-cc        imaxg = nx+1
-cc        jming = 0
-cc        jmaxg = ny+1
-cc        kming = 0
-cc        kmaxg = nz+1
-
-cc        iming = ilo
-cc        imaxg = ihi
-cc        jming = jlo
-cc        jmaxg = jhi
-cc        kming = klo
-cc        kmaxg = khi
 
 c     End program
 

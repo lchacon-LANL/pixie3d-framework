@@ -643,7 +643,7 @@ c     Local variables
 
 c     Begin program
 
-        thr_tot = get_omp_numthreads()
+        thr_tot = get_omp_numthreads(.false.)
         
         iiout = iout
 
@@ -2436,7 +2436,7 @@ c     Local variables
 
 c     Begin program
 
-        thr_tot = get_omp_numthreads()
+        thr_tot = get_omp_numthreads(.false.)
 
         ss_io = .true.   !Turn on SS XDRAW IO
   
