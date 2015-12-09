@@ -3372,6 +3372,7 @@ c     ##################################################################
      .            ,mg_coarse_solve=.false.
 
         logical,private :: res_vol_wgt=.true.  !Whether residual is volume weighed
+     .                    ,mg_find_diag=.false.!Whether we are finding diagonal or not
 
         private :: find_mf_diag_std,find_mf_diag_colored
 
@@ -3400,6 +3401,30 @@ c     #################################################################
       vw = res_vol_wgt
       
       end function MG_get_res_vol_wgt
+
+c     MG_set_find_diag
+c     #################################################################
+      subroutine MG_set_find_diag(fd)
+
+      implicit none
+
+      logical :: fd
+
+      mg_find_diag = fd
+      
+      end subroutine MG_set_find_diag
+
+c     MG_get_find_diag
+c     #################################################################
+      function MG_get_find_diag() result(fd)
+
+      implicit none
+
+      logical :: fd
+
+      fd = mg_find_diag
+      
+      end function MG_get_find_diag
 
 c     blockSolve
 c     #################################################################
@@ -4701,6 +4726,7 @@ c     Begin program
 
 c     Set internal flags
 
+      call MG_set_find_diag(.true.)
       call MG_set_res_vol_wgt(volw)  !Initialize volume weighing variable
       
       galerkin = glrkin
@@ -4842,6 +4868,8 @@ c             Invert diagonal and store in dg
       endif
 
 c     Deallocate pointers
+
+      call MG_set_find_diag(.false.)
 
       call deallocPointers(fpointers,mgctx=mgctx)
 
@@ -5009,6 +5037,8 @@ c Local variables
       type(mg_ctx),pointer :: mgctx
 
 c Begin program
+
+      xx = 0d0 ; yy = 0d0; wrk = 0d0; rr = 0d0 ; x0 = 0d0
 
       if (epsmac == 0d0) epsmac = find_mach_eps()
 

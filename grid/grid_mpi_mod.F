@@ -2056,7 +2056,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer :: ibc
-      real(8) :: array (0:,0:,0:)
+      real(8) :: array(0:,0:,0:)
 
 c     Local variables
 

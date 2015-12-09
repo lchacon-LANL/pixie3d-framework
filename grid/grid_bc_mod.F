@@ -576,6 +576,8 @@ c #####################################################################
 
         integer,private :: bctype
 
+        logical,private :: skip_corners=.false.
+
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
         ! important for colored diagonal formation)
@@ -585,6 +587,28 @@ c #####################################################################
      .            ,fillEdges,fillCorners
 
       contains
+
+c     set_skip_corners
+c     ##############################################################
+      subroutine set_skip_corners(sc)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Whether to skip corners in BC treatment
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      logical :: sc
+
+c     Begin program
+
+      skip_corners = sc
+
+c     End program
+
+      end subroutine set_skip_corners
 
 c     findBCLoopLimits
 c     ##############################################################
@@ -1662,16 +1686,6 @@ c     Fill PETSc ghost cells
 
       !Fill ghost cells
       if (petsc__bc) then
-
-        !Fill GC of staggered components to ensure proper update
-        v_cov(nxbc+1,:,:,1) = v_cov(nxbc,:,:,1)
-        v_cov(:,nybc+1,:,2) = v_cov(:,nybc,:,2)
-        v_cov(:,:,nzbc+1,3) = v_cov(:,:,nzbc,3)
-
-        v_cnv(nxbc+1,:,:,1) = v_cnv(nxbc,:,:,1)
-        v_cnv(:,nybc+1,:,2) = v_cnv(:,nybc,:,2)
-        v_cnv(:,:,nzbc+1,3) = v_cnv(:,:,nzbc,3)
-
         da_ctx => gbc_def%dactx(igxbc)
         do ieq=1,ncomp
           call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
@@ -1756,15 +1770,6 @@ c     End program
 c     sync_PER
 c     #################################################################
       subroutine sync_PER
-
-      !Fill GC of staggered components to ensure proper update
-      v_cov(nxbc+1,:,:,1) = v_cov(nxbc,:,:,1)
-      v_cov(:,nybc+1,:,2) = v_cov(:,nybc,:,2)
-      v_cov(:,:,nzbc+1,3) = v_cov(:,:,nzbc,3)
-
-      v_cnv(nxbc+1,:,:,1) = v_cnv(nxbc,:,:,1)
-      v_cnv(:,nybc+1,:,2) = v_cnv(:,nybc,:,2)
-      v_cnv(:,:,nzbc+1,3) = v_cnv(:,:,nzbc,3)
 
       bctype=PER
       do dim=1,3
@@ -3612,6 +3617,8 @@ c     Initialize variables
       face   = (count(ibcl /= 0) == 1)
       edge   = (count(ibcl /= 0) == 2)
       corner = (count(ibcl /= 0) == 3)
+
+      if (skip_corners.and.(.not.face)) return
 
 c     Do nothing for SP boundary faces, edges, and corners
 

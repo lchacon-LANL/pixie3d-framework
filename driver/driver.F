@@ -49,13 +49,6 @@ c Interfaces
         end subroutine postProcessSol
       END INTERFACE
 
-cc      INTERFACE
-cc        subroutine setInitialCondition(vn,vnp)
-cc        use var_setup
-cc        type(var_array),pointer :: vn,vnp
-cc        end subroutine setInitialCondition
-cc      END INTERFACE
-
 c Begin program
 
       call DR_init
