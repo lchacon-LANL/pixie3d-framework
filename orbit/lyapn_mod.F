@@ -162,17 +162,20 @@
 
         character(50),dimension(:),allocatable :: cnct_file
 
-        integer :: get_omp_numthreads
+        integer :: omp_get_num_threads
 
 !     Begin program
 
-        thr_tot = get_omp_numthreads(.false.)
+        thr_tot = 1
+
+!$omp parallel
+!$      thr_tot = omp_get_num_threads()
+!$omp end parallel                                                             
 
         cpos = index(trim(file),'.bin') - 1
 
         nfiles = np*thr_tot
         allocate(cnct_file(0:nfiles-1))
-
 
         do ith=0,thr_tot-1
           do iproc=0,np-1
@@ -662,35 +665,26 @@ c     ###############################################################
 
 c     set_omp_thread_id
 c     ###############################################################
-      subroutine set_omp_thread_id(thrnum,thrtot,io)
+      subroutine set_omp_thread_id(thrnum,thrtot)
 
         implicit none
 
 c     Call variables
 
         integer,optional :: thrnum,thrtot
-        logical,optional :: io
 
 c     Local variables
 
-        logical :: io_l
-        integer :: get_omp_numthreads
-     $            ,omp_get_thread_num
+        logical :: io_l=.false.
+        integer :: omp_get_thread_num
      $            ,omp_get_num_threads
 
 c     Begin program
 
-        if (PRESENT(io)) then
-          io_l = io
-        else
-          io_l = .false.
-        endif
-
         if (PRESENT(thrtot)) then
           thr_tot = thrtot
         else
-          thr_tot = get_omp_numthreads(io_l)
-cc!$      thr_tot = omp_get_num_threads()
+!$        thr_tot = omp_get_num_threads()
         endif
 
         if (PRESENT(thrnum)) then
@@ -700,7 +694,6 @@ cc!$      thr_tot = omp_get_num_threads()
           thr_num = max(thr_num,0)
         endif
 
-cc        write (*,*) 'set_omp_thread_id',thr_num,thr_tot
       end subroutine set_omp_thread_id
 
 c     check_omp_thread_id
@@ -733,9 +726,9 @@ c     ###############################################################
 
       end subroutine set_lyapn_counter
 
-c     get_omp_numthreads
+c     check_omp_numthreads
 c     ###############################################################
-      function get_omp_numthreads(io) result(thr_tot)
+      subroutine check_omp_numthreads(io)
 
         use grid, ONLY: pstop
       
@@ -743,22 +736,26 @@ c     ###############################################################
 
 c     Global variables
 
-        integer :: thr_tot
         logical :: io
 
 c     Local variables
 
+        integer :: thr_tot
         character*10 :: ev
+        integer :: omp_get_num_threads
 
 c     Begin program
 
         thr_tot = 1
         
-!$      call getenv('OMP_NUM_THREADS',ev)
-!$      read(ev,'(i2)') thr_tot
+c$$$!$      call getenv('OMP_NUM_THREADS',ev)
+c$$$!$      read(ev,'(i2)') thr_tot
+!$omp parallel
+!$      thr_tot = omp_get_num_threads()
+!$omp end parallel                                                             
 
         if (thr_tot == 0) then
-          call pstop("get_omp_numthreads"
+          call pstop("check_omp_numthreads"
      .         ,"Define OMP_NUM_THREADS environment variable")
         else
           if (io) then
@@ -767,6 +764,5 @@ c     Begin program
             write (*,*)          '******************'
           endif
         endif
-cc        thr_tot = max(thr_tot,1)
 
-      end function get_omp_numthreads
+      end subroutine check_omp_numthreads
