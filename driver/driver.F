@@ -183,6 +183,9 @@ c Initialize PETSc and MPI (parallel version)
 #if defined(petsc)
       call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
 
+      !Setup profiling
+      call init_petsc_profile
+
       call initMPI(MPI_COMM_WORLD,np,my_rank)
 #endif
 
