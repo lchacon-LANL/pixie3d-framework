@@ -1887,7 +1887,7 @@ c     Begin program
      .        .and.(.not.cov_to_cnv(ibc,3))) then           !All contravariant: find covariant
 
             !This code is suspect
-            call pstop('sync_stg','Code is suspect')
+cc            call pstop('sync_stg','Code is suspect')
             do k=kmin,kmax
               do j=jmin,jmax
                 do i=imin,imax
