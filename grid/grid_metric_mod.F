@@ -694,9 +694,9 @@ c       ANALYTICAL QUANTITIES **********************************
           enddo
 
           !Vertex metrics
-          do k = klom,khi
-            do j = jlom,jhi
-              do i = ilom,ihi
+          do k = klom,khip
+            do j = jlom,jhip
+              do i = ilom,ihip
                 g_def%gmetric%grid(igrid)%jac_v(i,j,k)
      .                    = jacobian(i,j,k,igx,igy,igz,vertex=.true.
      .                              ,g_def=g_def)
@@ -853,7 +853,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz,bcs(6)
 
         real(8) :: r(3,3),cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),jac,ijac
      .            ,gamma(3,3,3),d2r(3,3)
@@ -864,13 +864,13 @@ c     Local variables
 c     Begin program
 
         imin = ilom
-        imax = ihi
+        imax = ihip
 
         jmin = jlom
-        jmax = jhi
+        jmax = jhip
 
         kmin = klom
-        kmax = khi
+        kmax = khip
 
         he = 1
 
@@ -888,14 +888,32 @@ c     Evaluate dr=dx/dxi vectors at vertices
 
         dr = 0d0
 
-        do k = kmin,kmax
-          do j = jmin,jmax
-            do i = imin,imax
+        do k = klom,khi
+          do j = jlom,jhi
+            do i = ilom,ihi
               dr(i,j,k,:,:)
      .             = find_dr(i,j,k,igrid,he,he,he,g_def,xc)
             enddo
           enddo
         enddo
+
+        bcs = bcond
+        !Do no overwrite i=j=k=0
+        if (bcs(2) == DEF) bcs(2) = EXT
+        if (bcs(4) == DEF) bcs(4) = EXT 
+        if (bcs(6) == DEF) bcs(6) = EXT 
+
+        call set_force_corners(.true.)
+
+        do i=1,3
+          do j=1,3
+            call setMGBC(0,1,nx,ny,nz,igrid,dr(:,:,:,i,j),bcs
+     .                  ,iorder=1,g_def=g_def)
+cc            call topol_bc(g_def,igrid,nx,ny,nz,dr(:,:,:,i,j))
+          enddo
+        enddo
+
+        call set_force_corners(.false.)
 
 c     Evaluate grid quantities (at vertices)
 

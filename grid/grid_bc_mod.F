@@ -577,6 +577,7 @@ c #####################################################################
         integer,private :: bctype
 
         logical,private :: skip_corners=.false.
+     .                    ,force_corners=.false.
 
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
@@ -609,6 +610,28 @@ c     Begin program
 c     End program
 
       end subroutine set_skip_corners
+
+c     set_force_corners
+c     ##############################################################
+      subroutine set_force_corners(fc)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Whether to force corners in BC treatment
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      logical :: fc
+
+c     Begin program
+
+      force_corners = fc
+
+c     End program
+
+      end subroutine set_force_corners
 
 c     findBCLoopLimits
 c     ##############################################################
@@ -1000,6 +1023,8 @@ c     Local variables
 
 c     Begin program
 
+      call set_skip_corners(.false.) !Skip BC corner treatment
+
 c     Initialize interpolation order (else use last set)
 
       if (PRESENT(iorder)) then
@@ -1174,6 +1199,8 @@ c     Local variables
 #endif
 
 c     Begin program
+
+      call set_skip_corners(.false.) !Skip BC corner treatment
 
       !By default, we assume input are vector components
       if (PRESENT(is_vec)) then
@@ -1618,6 +1645,8 @@ c     Begin program
         to_cnv = .false.
       endif
 
+      call set_skip_corners(.true.) !Skip BC corner treatment
+
 c     Initialize interpolation order (else use last set)
 
       if (PRESENT(iorder)) then
@@ -1858,6 +1887,7 @@ c     Begin program
      .        .and.(.not.cov_to_cnv(ibc,3))) then           !All contravariant: find covariant
 
             !This code is suspect
+            call pstop('sync_stg','Code is suspect')
             do k=kmin,kmax
               do j=jmin,jmax
                 do i=imin,imax
@@ -1896,7 +1926,7 @@ cc                if (.not.selectFace(ibc)) cycle
                         jm = max(j-1,0)
                         km = max(k-1,0)
 
-                        if(id/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc)) cycle  !2D fix for now
+cc                        if(id/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc)) cycle  !2D fix for now
 
                         select case(id)
                         case(1)
@@ -1925,6 +1955,8 @@ cc                if (.not.selectFace(ibc)) cycle
 
                 elseif (.not.cov_to_cnv(ibc,ic1)) then   !ic1 is contravariant, ic2 is covariant
 
+                  call pstop('sync_stg','Code untested')
+
                   do k=kmin,kmax
                     do j=jmin,jmax
                       do i=imin,imax
@@ -1933,7 +1965,7 @@ cc                if (.not.selectFace(ibc)) cycle
                         jm = max(j-1,0)
                         km = max(k-1,0)
 
-                        if(ic2/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle  !2D fix for now
+cc                        if(ic2/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle  !2D fix for now
 
                         select case(ic2)
                         case(1)
@@ -1961,6 +1993,8 @@ cc                if (.not.selectFace(ibc)) cycle
 
                 elseif (.not.cov_to_cnv(ibc,ic2)) then   !ic2 is contravariant, ic1 is covariant
 
+                  call pstop('sync_stg','Code untested')
+
                   do k=kmin,kmax
                     do j=jmin,jmax
                       do i=imin,imax
@@ -1969,7 +2003,7 @@ cc                if (.not.selectFace(ibc)) cycle
                         jm = max(j-1,0)
                         km = max(k-1,0)
 
-                        if(ic1/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle
+cc                        if(ic1/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle
 
                         select case(ic1)
                         case(1)
@@ -3594,7 +3628,7 @@ c     Local variables
       real(8) :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1),curv(3)
      $          ,dx,dy,dz
 
-      logical :: flg(3),select_bc(3),have_equ,face,edge,corner
+      logical :: flg(3),select_bc(3),face,edge,corner
 
 cc      type(grid_mg_def),pointer :: gl_def
 
@@ -3612,8 +3646,6 @@ cc      endif
 
 c     Initialize variables
 
-      have_equ = PRESENT(array0)
-
       face   = (count(ibcl /= 0) == 1)
       edge   = (count(ibcl /= 0) == 2)
       corner = (count(ibcl /= 0) == 3)
@@ -3624,20 +3656,23 @@ c     Do nothing for SP boundary faces, edges, and corners
 
       if (   (bcSP(ibc=ibcl(1),bcnd=bcnd)
      .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
-     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))) return
+     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))
+     .    .and.(.not.force_corners)) return
 
 c     Do nothing for DEF boundary faces, edges, and corners
 
       if (   (bcChk(ibcl(1),DEF,bcnd=bcnd)
      .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
-     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))) return
+     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))
+     .    .and.(.not.force_corners)) return
 
 c     Do nothing for SYM (not FSYM) boundary faces, edges, and corners
 c     (taken care of by scalarNeumann and scalarDirichlet routines)
 
       if (    isSYMBdry(ibc=ibcl(1))
      .    .or.isSYMBdry(ibc=ibcl(2))
-     .    .or.isSYMBdry(ibc=ibcl(3))) return
+     .    .or.isSYMBdry(ibc=ibcl(3))
+     .    .and.(.not.force_corners)) return
 
 c     Do nothing for doubly-periodic edges (PETSc does it)
 
@@ -3650,7 +3685,7 @@ c     Do nothing for doubly-periodic edges (PETSc does it)
      .      .and.(bcChk(ibcl(1),PER).and.bcChk(ibcl(2),PER))) return
       endif
 
-c     Do nothing for homogeneous Dirichlet edges and corners (extrapolateBC does it)
+c     Do nothing for Dirichlet edges (extrapolateBC does it)
 
       if (edge) then
         if ((ibcl(1) == 0)

@@ -296,8 +296,6 @@ c Introduce perturbation at restart
 
       inewtime = itime+1
 
-      if (perturb_rstrt) call perturbEquilibrium(u_np)
-
 c Impose BCs (to initialize all auxiliary variables)
 
       call applyBC(igrid,u_np,gv%aux,it=itime)
@@ -351,9 +349,6 @@ c     Read equilibrium
 
       if (ierr /= 0) then
         call pstop('readCurrentState','Unable to read u_0')
-      else
-        call equateDerivedType(u_n,u_0)
-        call get_src(u_n)
       endif
 
       call TS_update_timecounters(time,exclude_itime=.true.)
@@ -381,6 +376,13 @@ c     Read files
         endif
 
       enddo
+
+c     Setup source
+
+      call equateDerivedType(vmed,u_0)
+      call get_src(vmed)
+
+c     Exit
 
       if (my_rank == 0) write (*,*) ' Done!'
 
