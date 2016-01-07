@@ -741,7 +741,7 @@ c     Global variables
 c     Local variables
 
         integer :: thr_tot
-        character*10 :: ev
+cc        character*10 :: ev
         integer :: omp_get_num_threads
 
 c     Begin program

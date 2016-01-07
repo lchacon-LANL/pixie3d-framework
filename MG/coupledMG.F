@@ -5015,26 +5015,30 @@ c Call variables
 
 c Local variables
 
-      integer :: iter,igmin,vcyc,crsedpth,isig,ncolors
-      integer :: orderres,orderprol,alloc_stat
-     .          ,line_nsweep,line_crse_depth,line_vcyc
+      integer :: iter=0,isig=0,alloc_stat=0
 
-      integer :: guess2,outc,mu
-      integer :: izero,i,j,k,ii,ivcyc,nblk,igmax
+      integer :: guess2=0,outc=0
+      integer :: i,j,k,ii,ivcyc,nblk
 
-      real(8) :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot),x0(ntot)
-      real(8) :: rr0,rr1,mag,mag1,mag2,mgtol,line_tol,line_omega
+      real(8) :: rr0=0d0,rr1=0d0,mag=0d0,mag1=0d0,mag2=0d0,epsmac=0d0
 
-      real(8) :: epsmac=0d0,abstol
+      real(8),pointer,dimension(:,:) :: diag
 
-      real(8), pointer, dimension(:,:) :: diag
-
-      logical :: fdiag,line_relax,fpointers,line_x,line_y,line_z
-     .          ,mg_debug,prnt
-
-      character(2) :: line_solve
+      logical :: fpointers=.false.
 
       type(mg_ctx),pointer :: mgctx
+
+      !Initialized from outside
+      integer :: orderres,orderprol,igmin,igmax,vcyc,crsedpth,mu,ncolors
+      real(8) :: mgtol,abstol
+      real(8) :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot),x0(ntot)
+      logical :: fdiag,mg_debug,prnt
+
+      integer :: line_vcyc,line_nsweep,line_crse_depth
+      logical :: line_relax,line_x,line_y,line_z
+      real(8) :: line_tol,line_omega
+
+      character(2) :: line_solve
 
 c Begin program
 
