@@ -202,79 +202,61 @@ ifeq ($(HOST),mavis)
 
 endif
 
-##################
-# quevedo (ORNL) #
-##################
+###########
+# quevedo #
+###########
 
-ifeq ($(HOST),quevedo)
+ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
-  FC = gfortran
+  FC=gfortran
 
-  ifdef SAMR
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
 
-    CC = mpicc
-    CXX = mpicxx
-    F77 = gfortran
-    override PETSC_DIR  =
-#    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/debug
-    SAMRSOLVERS_HOME =/opt/samrsolvers-v3/build/optimized
-    HDF5 = f
-    HDF5_LIBS = 
-    LDFLAGS    += -lgfortran
+  OMP_NUM_THREADS = 8
 
-  else
-    ifdef BOPT
-      PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
-      ifeq ($(BOPT),O)
-        PETSC_ARCH = $(PETSC_ARCH_O)
-      else
-        PETSC_ARCH = $(PETSC_ARCH_g)
-      endif
+  ifdef BOPT
+    PETSC_DIR =$(HOME)/Software/petsc-3.0.0-p7
 
-      HDF5 = t
-
-      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(PHDF5_LIB)
-      HDF5_INC  = $(PHDF5_INC)
-
-      ADIOS = t
-
-      #Determined via modules
-#      ADIOS_HOME = $(HOME)/lib/adios-1.3
-#      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
-#      ADIOS_VER  = 1.3
-      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
-
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = macosx_openmpi_O
     else
-      LIBS += -L/usr/lib64 -llapack -lblas
-      HDF5 = f
-      ifeq ($(FC),f90)
-        HDF5 = t
-
-        HDF5_HOME =$(HOME)/lib/hdf5-1.6.7/absoft_/serial
-        HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-        HDF5_MOD  = $(HDF5_HOME)/lib
-        HDF5_INC  = $(HDF5_HOME)/include
-
-      endif
-      ifeq ($(FC),gfortran)
-        HDF5 = t
-
-        HDF5_HOME =/usr/lib64
-        HDF5_LIBS =-L$(HDF5_HOME) -lhdf5_fortran -lhdf5 -lz -lm
-        HDF5_MOD  =$(HDF5_HOME)/gfortran/modules
-        HDF5_INC  = /usr/include
-
-        ADIOS = f
-      endif
+      PETSC_ARCH = macosx_openmpi_g
     endif
 
-    NETCDF=f
-    NETCDF_LIBS = -lnetcdff -lnetcdf
-    NETCDF_INC  = -I/usr/include
+    HDF5 = t
 
-#    ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+#    HDF5_HOME =/opt/local
+#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#    HDF5_MOD  = $(HDF5_HOME)/include
+#    HDF5_INC  = $(HDF5_MOD)
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gfortran/parallel
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+#    ADIOS = f
+    ADIOS = t
+
+    ADIOS_HOME = $(HOME)/lib/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
+    ADIOS_VER  = 1.31
+
+  else
+    LIBS += -llapack -lblas
+
+    HDF5 = t
+
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gfortran/serial
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = f
+
   endif
 
 endif

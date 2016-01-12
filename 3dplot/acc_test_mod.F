@@ -54,13 +54,15 @@ c     Interpolation
 
 c     Debug
 
-      character(13) :: debugfile
+      character(20) :: debugfile
 
 c     Begin program
 
-      if(my_rank == 0) then
+      if (my_rank == 0) then
         write (*,*)
-        write (*,*) ' Starting spatial convergence test...'
+        write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+        write (*,*) 'Starting temporal convergence test...'
+        write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
       endif
 
       igx = 1
@@ -76,6 +78,11 @@ c     Read reference grid info
       nullify(grid_params)
       call destroyGrid(gv%gparams)
 
+      if (my_rank == 0) then
+        write (*,*)
+        write (*,*) ' Reading reference file...'
+      endif
+
       call openRecordFiles(urecord,acc_ref_file,murecord
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
 
@@ -84,8 +91,6 @@ c     Read reference grid info
       nz = khig-klog+1
 
       if (my_rank == 0) then
-        write (*,*)
-        write (*,*) ' Reading reference file...'
         write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
       endif
 
@@ -145,6 +150,11 @@ c Initialize current grid info and read current grid solution
       igy = 1
       igz = 1
 
+      if (my_rank == 0) then
+        write (*,*)
+        write (*,*) ' Reading solution file...'
+      endif
+
       call openRecordFiles(urecord,recordfile,murecord
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
 
@@ -153,8 +163,6 @@ c Initialize current grid info and read current grid solution
       nz = khig-klog+1
 
       if (my_rank == 0) then
-        write (*,*)
-        write (*,*) ' Reading solution file...'
         write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
       endif
 
@@ -212,12 +220,15 @@ c Calculate difference
         enddo
 
 c diag ****
-        debugfile = 'debug_var'//trim(int2char(ivar))//'.bin'
+        write (*,*) 'DIAG -- dumping error file'
+        debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
         open(unit=110,file=debugfile,form='unformatted'
      .      ,status='replace')
 
-        call contour(log10(array(1:nx,1:ny,1)),nx,ny
+        call contour(array(1:nx,1:ny,1),nx,ny
      .              ,0d0,1d0,0d0,1d0,0,110)
+        call contour(log10(array(1:nx,1:ny,1)),nx,ny
+     .              ,0d0,1d0,0d0,1d0,1,110)
 
         close(110)
 c diag ****

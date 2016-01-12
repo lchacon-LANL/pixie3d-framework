@@ -506,8 +506,8 @@ cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
         !Private variables
 cc        real(8),private :: orbit_atol=1e-10    !Orbit integrator absolute tolerance
 cc     .                    ,orbit_rtol=1e-8     !Orbit integrator relative tolerance
-        real(8),private :: orbit_atol=1d-12    !Orbit integrator absolute tolerance
-     .                    ,orbit_rtol=1d-12    !Orbit integrator relative tolerance
+        real(8),private :: orbit_atol=1d-14    !Orbit integrator absolute tolerance
+     .                    ,orbit_rtol=1d-14    !Orbit integrator relative tolerance
      .                    ,orbit_dt  =1d-2     !Orbit integrator time step
      .                    ,CHI_LIMIT =1d-4     !Lower bound for chi*dt (delta-function limit)
 
@@ -2785,7 +2785,7 @@ c     Find rhs of delta_T iteration
 
       call lag_xport_theta(igrid,flds,integrals,chi_local,iout)
 
-      where (chi_local /= 0d0) 
+      where (chi_local(1:nx,1:ny,1:nz) /= 0d0) 
 cc        tnp (1:nx,1:ny,1:nz)
 cc     .      = integrals(1:nx,1:ny,1:nz,1)
 cc     .      + integrals(1:nx,1:ny,1:nz,2)/b0(1:nx,1:ny,1:nz)
@@ -3469,9 +3469,9 @@ c       Determine initial orbit updates
 
 c       Select periodic direction based on largest displacement from surface
 
-        x_per = (abs(dx0) > abs(dy0)) .and. (abs(dx0) > abs(dz0))
-        y_per = (abs(dy0) > abs(dx0)) .and. (abs(dy0) > abs(dz0))
-        z_per = (abs(dz0) > abs(dy0)) .and. (abs(dz0) > abs(dx0))
+        x_per = (abs(dx0) >= abs(dy0)) .and. (abs(dx0) >= abs(dz0))
+        y_per = (abs(dy0) >= abs(dx0)) .and. (abs(dy0) >= abs(dz0))
+        z_per = (abs(dz0) >= abs(dy0)) .and. (abs(dz0) >= abs(dx0))
 
 c       Set logic to compute lengths using surface of sections with high-order interpolation
 

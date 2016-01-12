@@ -828,7 +828,7 @@ c     Restarted FGMRES loop
 
         ro = sqrt(dot(ntot,vv(:,1),vv(:,1)))
 
-        if (iout .gt. 0 .and. prnt) then
+        if (iout .gt. 1 .and. prnt) then
           if (its .eq. 0) then
             write (*,199) its, ro, ro/rold
           else
@@ -955,7 +955,7 @@ c       Determine residual norm and test for convergence
 
           ro = abs(rs(i1))
 
-          if (iout .gt. 0 .and. prnt) then
+          if (iout .gt. 1 .and. prnt) then
             write(*, 199) its, ro, ro/rold
           endif
 
@@ -963,6 +963,10 @@ c       Determine residual norm and test for convergence
           if (ro <= eps1.or.its >= maxits.or.i.eq.im) exit
 
         enddo
+
+        if (iout .gt. 0 .and. prnt) then
+          write(*, 199) its, ro, ro/rold
+        endif
 
 c     Now compute solution. First solve upper triangular system
 
