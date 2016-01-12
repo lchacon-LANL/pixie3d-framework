@@ -296,6 +296,8 @@ c Introduce perturbation at restart
 
       inewtime = itime+1
 
+      if (perturb_rstrt) call perturbEquilibrium(u_np)
+
 c Impose BCs (to initialize all auxiliary variables)
 
       call applyBC(igrid,u_np,gv%aux,it=itime)

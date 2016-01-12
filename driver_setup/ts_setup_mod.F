@@ -32,6 +32,7 @@ c ######################################################################
      .            ,postprocess=.false. ! Whether to run solution postprocessing after time step
      .            ,preprocess=.false.  ! Whether to run solution preprocessing before time step
      .            ,eigen=.false.       ! Whether to run framework in eigensolver mode
+     .            ,perturb_rstrt=.false.! Whether to apply perturbation after restart
 
         !TS working variables
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
@@ -279,7 +280,7 @@ c     Namelists
       !Temporal discretization
       namelist /ts/ dt,tmax,dstep,numtime,ndstep,source,restart,timecorr
      .                ,cnfactor,sm_flag,sm_pass,predictor,postprocess
-     .                ,preprocess,eigen,eig_dt
+     .                ,preprocess,eigen,eig_dt,perturb_rstrt
 
 c     Begin program
 

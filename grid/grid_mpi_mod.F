@@ -1257,21 +1257,43 @@ c     Call SAMRAI's error handler
         call pstop_samrai(trim(routine),trim(message))
 #else
 
+#if defined(petsc)
         if (my_rank == 0) then
           write (*,*)
           write (*,*) trim(message)
           write (*,*) 'Program stopped at routine ',trim(routine)
         endif
-
-#if defined(petsc)
         call PetscEnd(mpierr)
 #endif
-        call abort
-        stop
-
+        call sstop(routine, message)
 #endif
 
       end subroutine pstop
+
+c     sstop
+c     ################################################################
+      subroutine sstop(routine,message)
+
+c     ---------------------------------------------------------------
+c     Stops program at "routine" with "message"
+c     ---------------------------------------------------------------
+
+        implicit none
+
+        character(*)  :: routine, message
+
+c     Begin program
+
+        write (*,*)
+        write (*,*) trim(message)
+        write (*,*) 'Program stopped at routine ',trim(routine)
+
+        call abort
+        stop
+
+c     End program
+
+      end subroutine sstop
 
 c     dot
 c     ###################################################################
