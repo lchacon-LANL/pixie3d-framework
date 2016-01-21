@@ -335,7 +335,7 @@ c     -----------------------------------------------------------------
 c     Input variables
 
         integer    :: i,j,k,igrid
-        real(8)    :: curv(3),car(3)
+        real(8)    :: curv(0:,0:,0:,:),car(3)
         logical    :: covariant
 
         logical,optional :: mul_by_jac
@@ -343,7 +343,7 @@ c     Input variables
 c     Local variables
 
         integer    :: im,jm,km
-        real(8)    :: cov(3),cnv(3),jac
+        real(8)    :: cov(3),cnv(3),jac,curv_l(3)
         logical    :: muljac
 
 c     Begin program
@@ -359,6 +359,17 @@ c     Begin program
         km = max(k-1,0)
 
         if (covariant) then
+          !i+1/2,j,k
+          curv_l(1) = curv(i,j,k,1)
+          curv_l(2) = 0.25*(curv(i  ,jm,k,2)
+     $                     +curv(i  ,j ,k,2)
+     $                     +curv(i+1,jm,k,2)
+     $                     +curv(i+1,j ,k,2))
+          curv_l(3) = 0.25*(curv(i  ,j,km,3)
+     $                     +curv(i  ,j,k ,3)
+     $                     +curv(i+1,j,km,3)
+     $                     +curv(i+1,j,k ,3))
+
           cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,:,1)
      $               +gmetric%grid(igrid)%cov_v(i,j ,k ,:,1)
      $               +gmetric%grid(igrid)%cov_v(i,jm,km,:,1)
@@ -370,8 +381,18 @@ c     Begin program
      $                 +gmetric%grid(igrid)%jac_v(i,j ,km))
             cov = cov*jac
           endif
-          car(1) = dot_product(curv,cov)
+          car(1) = dot_product(curv_l,cov)
 
+          !i,j+1/2,k
+          curv_l(1) = 0.25*(curv(i ,j+1,k,1)
+     $                     +curv(i ,j  ,k,1)
+     $                     +curv(im,j+1,k,1)
+     $                     +curv(im,j  ,k,1))
+          curv_l(2) = curv(i,j,k,2)
+          curv_l(3) = 0.25*(curv(i,j+1,k ,3)
+     $                     +curv(i,j  ,k ,3)
+     $                     +curv(i,j+1,km,3)
+     $                     +curv(i,j  ,km,3))
           cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,:,2)
      $               +gmetric%grid(igrid)%cov_v(i ,j,k ,:,2)
      $               +gmetric%grid(igrid)%cov_v(im,j,km,:,2)
@@ -383,8 +404,18 @@ c     Begin program
      $                 +gmetric%grid(igrid)%jac_v(i ,j,km))
             cov = cov*jac
           endif
-          car(2) = dot_product(curv,cov)
+          car(2) = dot_product(curv_l,cov)
 
+          !i,j,k+1/2
+          curv_l(1) = 0.25*(curv(i ,j,k+1,1)
+     $                     +curv(i ,j,k  ,1)
+     $                     +curv(im,j,k+1,1)
+     $                     +curv(im,j,k  ,1))
+          curv_l(2) = 0.25*(curv(i,j ,k+1,2)
+     $                     +curv(i,j ,k  ,2)
+     $                     +curv(i,jm,k+1,2)
+     $                     +curv(i,jm,k  ,2))
+          curv_l(3) = curv(i,j,k,3)
           cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,:,3)
      $               +gmetric%grid(igrid)%cov_v(i ,j ,k,:,3)
      $               +gmetric%grid(igrid)%cov_v(im,jm,k,:,3)
@@ -396,8 +427,18 @@ c     Begin program
      $                 +gmetric%grid(igrid)%jac_v(i ,jm,k ))
             cov = cov*jac
           endif
-          car(3) = dot_product(curv,cov)
+          car(3) = dot_product(curv_l,cov)
         else
+          !i+1/2,j,k
+          curv_l(1) = curv(i,j,k,1)
+          curv_l(2) = 0.25*(curv(i  ,jm,k,2)
+     $                     +curv(i  ,j ,k,2)
+     $                     +curv(i+1,jm,k,2)
+     $                     +curv(i+1,j ,k,2))
+          curv_l(3) = 0.25*(curv(i  ,j,km,3)
+     $                     +curv(i  ,j,k ,3)
+     $                     +curv(i+1,j,km,3)
+     $                     +curv(i+1,j,k ,3))
           cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,:,1)
      $               *gmetric%grid(igrid)%jac_v(i,jm,k  )
      $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,:,1)
@@ -413,8 +454,18 @@ c     Begin program
      $                 +gmetric%grid(igrid)%jac_v(i,j ,km))
             cnv = cnv/jac
           endif
-          car(1) = dot_product(curv,cnv)
+          car(1) = dot_product(curv_l,cnv)
 
+          !i,j+1/2,k
+          curv_l(1) = 0.25*(curv(i ,j+1,k,1)
+     $                     +curv(i ,j  ,k,1)
+     $                     +curv(im,j+1,k,1)
+     $                     +curv(im,j  ,k,1))
+          curv_l(2) = curv(i,j,k,2)
+          curv_l(3) = 0.25*(curv(i,j+1,k ,3)
+     $                     +curv(i,j  ,k ,3)
+     $                     +curv(i,j+1,km,3)
+     $                     +curv(i,j  ,km,3))
           cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k  ,:,2)
      $               *gmetric%grid(igrid)%jac_v(im,j,k )  
      $               +gmetric%grid(igrid)%cnv_v(i ,j,k  ,:,2)
@@ -430,8 +481,18 @@ c     Begin program
      $                 +gmetric%grid(igrid)%jac_v(i ,j,km))
             cnv = cnv/jac
           endif
-          car(2) = dot_product(curv,cnv)
+          car(2) = dot_product(curv_l,cnv)
 
+          !i,j,k+1/2
+          curv_l(1) = 0.25*(curv(i ,j,k+1,1)
+     $                     +curv(i ,j,k  ,1)
+     $                     +curv(im,j,k+1,1)
+     $                     +curv(im,j,k  ,1))
+          curv_l(2) = 0.25*(curv(i,j ,k+1,2)
+     $                     +curv(i,j ,k  ,2)
+     $                     +curv(i,jm,k+1,2)
+     $                     +curv(i,jm,k  ,2))
+          curv_l(3) = curv(i,j,k,3)
           cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,:,3)
      $               *gmetric%grid(igrid)%jac_v(im,j ,k    )
      $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,:,3)
@@ -447,7 +508,7 @@ c     Begin program
      $                 +gmetric%grid(igrid)%jac_v(i ,jm,k ))
             cnv = cnv/jac
           endif
-          car(3) = dot_product(curv,cnv)
+          car(3) = dot_product(curv_l,cnv)
         endif
 
       end function XformToCar_stg_ijk
@@ -479,6 +540,7 @@ c     Input variables
 c     Local variables
 
         integer :: nxl,nyl,nzl
+        real(8) :: curv_l(3),cov_v(3,3),car_l(3)
 
 c     Begin program
 
@@ -489,13 +551,49 @@ c     Begin program
         do k = 0,nzl
           do j = 0,nyl
             do i = 0,nxl
-              car(i,j,k,:) = XformToCar_stg_ijk(i,j,k,igrid
-     .                                         ,curv(i,j,k,:)
+              car(i,j,k,:) = XformToCar_stg_ijk(i,j,k,igrid,curv
      .                                         ,covariant
      .                                         ,mul_by_jac=mul_by_jac)
+c$$$              !Average to vertex
+c$$$              curv_l(1) = 0.25*(curv(i,j  ,k  ,1)
+c$$$     .                         +curv(i,j+1,k  ,1)
+c$$$     .                         +curv(i,j  ,k+1,1)
+c$$$     .                         +curv(i,j+1,k+1,1))
+c$$$              curv_l(2) = 0.25*(curv(i  ,j,k  ,1)
+c$$$     .                         +curv(i+1,j,k  ,1)
+c$$$     .                         +curv(i  ,j,k+1,1)
+c$$$     .                         +curv(i+1,j,k+1,1))
+c$$$              curv_l(3) = 0.25*(curv(i  ,j  ,k,1)
+c$$$     .                         +curv(i+1,j  ,k,1)
+c$$$     .                         +curv(i  ,j+1,k,1)
+c$$$     .                         +curv(i+1,j+1,k,1))
+c$$$
+c$$$              !Transform at vertex
+c$$$              if (covariant) then
+c$$$                car(i,j,k,:) =
+c$$$     .               matmul(curv_l,gmetric%grid(igrid)%cov_v(i,j,k,:,:))
+c$$$              else
+c$$$                car(i,j,k,:) =
+c$$$     .               matmul(curv_l,gmetric%grid(igrid)%cnv_v(i,j,k,:,:))
+c$$$              endif
+
             enddo
           enddo
         enddo
+
+c$$$        !Average to faces
+c$$$        car(0:nxl,1:nyl,1:nzl,1) = 0.25*(car(0:nxl,0:nyl-1,0:nzl-1,1)
+c$$$     .                                  +car(0:nxl,1:nyl  ,0:nzl-1,1)
+c$$$     .                                  +car(0:nxl,0:nyl-1,1:nzl  ,1)
+c$$$     .                                  +car(0:nxl,1:nyl  ,1:nzl  ,1))
+c$$$        car(1:nxl,0:nyl,1:nzl,2) = 0.25*(car(0:nxl-1,0:nyl,0:nzl-1,2)
+c$$$     .                                  +car(1:nxl  ,0:nyl,0:nzl-1,2)
+c$$$     .                                  +car(0:nxl-1,0:nyl,1:nzl  ,2)
+c$$$     .                                  +car(1:nxl  ,0:nyl,1:nzl  ,2))
+c$$$        car(1:nxl,1:nyl,0:nzl,3) = 0.25*(car(0:nxl-1,0:nyl-1,0:nzl,3)
+c$$$     .                                  +car(1:nxl  ,0:nyl-1,0:nzl,3)
+c$$$     .                                  +car(0:nxl-1,1:nyl  ,0:nzl,3)
+c$$$     .                                  +car(1:nxl  ,1:nyl  ,0:nzl,3))
 
       end function XformToCar_stg_mesh
 
@@ -643,13 +741,13 @@ c     -----------------------------------------------------------------
 c     Input variables
 
         integer    :: i,j,k,igrid
-        real(8)    :: curv(3),car(3)
+        real(8)    :: curv(3),car(0:,0:,0:,:)
         logical    :: tocnv
 
 c     Local variables
 
         integer    :: im,jm,km
-        real(8)    :: cov(3),cnv(3)
+        real(8)    :: cov(3),cnv(3),car_l(3)
         
 c     Begin program
 
@@ -658,6 +756,16 @@ c     Begin program
         km = max(k-1,0)
 
         if (tocnv) then
+          !i+1/2,j,k
+          car_l(1) = car(i,j,k,1)
+          car_l(2) = 0.25*(car(i  ,jm,k,2)
+     $                    +car(i  ,j ,k,2)
+     $                    +car(i+1,jm,k,2)
+     $                    +car(i+1,j ,k,2))
+          car_l(3) = 0.25*(car(i  ,j,km,3)
+     $                    +car(i  ,j,k ,3)
+     $                    +car(i+1,j,km,3)
+     $                    +car(i+1,j,k ,3))
 c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,1,:)
 c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,k  )
 c$$$     $               +gmetric%grid(igrid)%cov_v(i,j ,k ,1,:)
@@ -675,8 +783,18 @@ c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
      $               +gmetric%grid(igrid)%jac_v(i,jm,km)
      $               +gmetric%grid(igrid)%jac_v(i,j ,km))
 
-          curv(1) = dot_product(cov,car)
+          curv(1) = dot_product(cov,car_l)
 
+          !i,j+1/2,k
+          car_l(1) = 0.25*(car(i ,j+1,k,1)
+     $                    +car(i ,j  ,k,1)
+     $                    +car(im,j+1,k,1)
+     $                    +car(im,j  ,k,1))
+          car_l(2) = car(i,j,k,2)
+          car_l(3) = 0.25*(car(i,j+1,k ,3)
+     $                    +car(i,j  ,k ,3)
+     $                    +car(i,j+1,km,3)
+     $                    +car(i,j  ,km,3))
 c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,2,:)
 c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,k )
 c$$$     $               +gmetric%grid(igrid)%cov_v(i ,j,k ,2,:)
@@ -693,8 +811,18 @@ c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
      $               +gmetric%grid(igrid)%jac_v(i ,j,k )
      $               +gmetric%grid(igrid)%jac_v(im,j,km)
      $               +gmetric%grid(igrid)%jac_v(i ,j,km))
-          curv(2) = dot_product(cov,car)
+          curv(2) = dot_product(cov,car_l)
 
+          !i,j,k+1/2
+          car_l(1) = 0.25*(car(i ,j,k+1,1)
+     $                    +car(i ,j,k  ,1)
+     $                    +car(im,j,k+1,1)
+     $                    +car(im,j,k  ,1))
+          car_l(2) = 0.25*(car(i,j ,k+1,2)
+     $                    +car(i,j ,k  ,2)
+     $                    +car(i,jm,k+1,2)
+     $                    +car(i,jm,k  ,2))
+          car_l(3) = car(i,j,k,3)
 c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,3,:)
 c$$$     $               *gmetric%grid(igrid)%jac_v(im,j ,k )
 c$$$     $               +gmetric%grid(igrid)%cov_v(i ,j ,k,3,:)
@@ -711,8 +839,18 @@ c$$$     $               *gmetric%grid(igrid)%jac_v(i ,jm,k )
      $               +gmetric%grid(igrid)%jac_v(i ,j ,k )
      $               +gmetric%grid(igrid)%jac_v(im,jm,k )
      $               +gmetric%grid(igrid)%jac_v(i ,jm,k ))
-          curv(3) = dot_product(cov,car)
+          curv(3) = dot_product(cov,car_l)
         else
+          !i+1/2,j,k
+          car_l(1) = car(i,j,k,1)
+          car_l(2) = 0.25*(car(i  ,jm,k,2)
+     $                    +car(i  ,j ,k,2)
+     $                    +car(i+1,jm,k,2)
+     $                    +car(i+1,j ,k,2))
+          car_l(3) = 0.25*(car(i  ,j,km,3)
+     $                    +car(i  ,j,k ,3)
+     $                    +car(i+1,j,km,3)
+     $                    +car(i+1,j,k ,3))
 c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,1,:)
 c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,k )
 c$$$     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,1,:)
@@ -730,8 +868,18 @@ c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
      $               +gmetric%grid(igrid)%jac_v(i,jm,km)
      $               +gmetric%grid(igrid)%jac_v(i,j ,km))
 
-          curv(1) = dot_product(cnv,car)
+          curv(1) = dot_product(cnv,car_l)
 
+          !i,j+1/2,k
+          car_l(1) = 0.25*(car(i ,j+1,k,1)
+     $                    +car(i ,j  ,k,1)
+     $                    +car(im,j+1,k,1)
+     $                    +car(im,j  ,k,1))
+          car_l(2) = car(i,j,k,2)
+          car_l(3) = 0.25*(car(i,j+1,k ,3)
+     $                    +car(i,j  ,k ,3)
+     $                    +car(i,j+1,km,3)
+     $                    +car(i,j  ,km,3))
 c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k ,2,:)
 c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,k )
 c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,j,k ,2,:)
@@ -749,8 +897,18 @@ c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
      $               +gmetric%grid(igrid)%jac_v(im,j,km)
      $               +gmetric%grid(igrid)%jac_v(i ,j,km))
 
-          curv(2) = dot_product(cnv,car)
+          curv(2) = dot_product(cnv,car_l)
 
+          !i,j,k+1/2
+          car_l(1) = 0.25*(car(i ,j,k+1,1)
+     $                    +car(i ,j,k  ,1)
+     $                    +car(im,j,k+1,1)
+     $                    +car(im,j,k  ,1))
+          car_l(2) = 0.25*(car(i,j ,k+1,2)
+     $                    +car(i,j ,k  ,2)
+     $                    +car(i,jm,k+1,2)
+     $                    +car(i,jm,k  ,2))
+          car_l(3) = car(i,j,k,3)
 c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,3,:)
 c$$$     $               *gmetric%grid(igrid)%jac_v(im,j ,k  )
 c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,3,:)
@@ -767,7 +925,7 @@ c$$$     $               *gmetric%grid(igrid)%jac_v(i ,jm,k  )
      $               +gmetric%grid(igrid)%jac_v(i ,j ,k  )
      $               +gmetric%grid(igrid)%jac_v(im,jm,k  )
      $               +gmetric%grid(igrid)%jac_v(i ,jm,k  ))
-          curv(3) = dot_product(cnv,car)
+          curv(3) = dot_product(cnv,car_l)
         endif
 
       end function XformToCurv_stg_ijk
@@ -808,9 +966,7 @@ cc        curv = 0d0
         do k = 0,nzl
           do j = 0,nyl
             do i = 0,nxl
-              curv(i,j,k,:) = XformToCurv_stg_ijk(i,j,k,igrid
-     $                                           ,car(i,j,k,:)
-     $                                           ,tocnv)
+              curv(i,j,k,:) = XformToCurv_stg_ijk(i,j,k,igrid,car,tocnv)
             enddo
           enddo
         enddo

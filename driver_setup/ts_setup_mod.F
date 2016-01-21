@@ -221,10 +221,7 @@ c     Initialization
 
       call ts_solver_consistency_chk
 
-      !Setup profiling
 #if defined(petsc)
-      call init_petsc_profile
-
       !Profiling stage 1
       call switch_profile_stage(iSTUP)
 #endif

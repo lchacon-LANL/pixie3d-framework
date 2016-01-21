@@ -279,7 +279,9 @@ c     Prepare 3d spline interpolation
         allocate(ty(ny+ky),stat=alloc_stat)
         allocate(tz(nz+kz),stat=alloc_stat)
 
+!$omp parallel
         call set_omp_thread_id()
+!$omp end parallel                                                             
 
 	dime = ky*kz + 3*max(kx,ky,kz) + kz
 	allocate(worke(dime*thr_tot),stat=alloc_stat)

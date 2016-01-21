@@ -742,6 +742,21 @@ c     Begin program
             allocate(gmetric%grid(igrid)
      $           %cnv_v (ilom:ihip,jlom:jhip,klom:khip,3,3))
 
+            gmetric%grid(igrid)%car   = 0d0
+            gmetric%grid(igrid)%dvol  = 0d0
+            gmetric%grid(igrid)%dlvol = 0d0
+            gmetric%grid(igrid)%jac   = 0d0
+            gmetric%grid(igrid)%gsub  = 0d0
+            gmetric%grid(igrid)%gsup  = 0d0
+            gmetric%grid(igrid)%cov   = 0d0
+            gmetric%grid(igrid)%cnv   = 0d0
+            gmetric%grid(igrid)%Gamma = 0d0
+            gmetric%grid(igrid)%car_v = 0d0
+            gmetric%grid(igrid)%jac_v = 0d0
+            gmetric%grid(igrid)%gsub_v= 0d0
+            gmetric%grid(igrid)%gsup_v= 0d0
+            gmetric%grid(igrid)%cov_v = 0d0
+            gmetric%grid(igrid)%cnv_v = 0d0
           enddo
         endif
 

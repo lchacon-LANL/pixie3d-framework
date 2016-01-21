@@ -299,12 +299,46 @@ c####################################################################
 
         integer :: nxbc,nybc,nzbc,igxbc,igybc,igzbc
 
+        integer :: bc_debug_unit
         logical :: bc_debug=.false.
 
         integer,parameter :: VECTOR=1,SCALAR=0,AUX=-1
 
         real(8),pointer,private,dimension(:,:,:)   :: zeros
         real(8),pointer,private,dimension(:,:,:,:) :: vzeros
+
+      contains
+
+c     set_BC_debug
+c     ##############################################################
+      subroutine set_BC_debug(bcdebug)
+
+      use io
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Whether to skip corners in BC treatment
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      logical :: bcdebug
+
+c     Begin program
+
+      bc_debug = bcdebug
+
+      if (bc_debug) then
+        bc_debug_unit=find_unit(2222+my_rank)
+        open(unit=bc_debug_unit
+     .      ,file='bc_debug_p'//trim(int2char(my_rank))//'.txt'
+     .      ,status='unknown')
+      endif
+
+c     End program
+
+      end subroutine set_BC_debug
 
       end module BCS_variables
 
@@ -576,6 +610,9 @@ c #####################################################################
 
         integer,private :: bctype
 
+        logical,private :: skip_corners=.false.
+     .                    ,force_corners=.false.
+
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
         ! important for colored diagonal formation)
@@ -585,6 +622,50 @@ c #####################################################################
      .            ,fillEdges,fillCorners
 
       contains
+
+c     set_skip_corners
+c     ##############################################################
+      subroutine set_skip_corners(sc)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Whether to skip corners in BC treatment
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      logical :: sc
+
+c     Begin program
+
+      skip_corners = sc
+
+c     End program
+
+      end subroutine set_skip_corners
+
+c     set_force_corners
+c     ##############################################################
+      subroutine set_force_corners(fc)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Whether to force corners in BC treatment
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      logical :: fc
+
+c     Begin program
+
+      force_corners = fc
+
+c     End program
+
+      end subroutine set_force_corners
 
 c     findBCLoopLimits
 c     ##############################################################
@@ -789,8 +870,8 @@ c     -----------------------------------------------------------------
       asm_dir(3) = asm.and.(npz > 1)
 
       if (bc_debug) then
-        write (*,*) 'Proc ',my_rank,': asm    =',asm
-        write (*,*) 'Proc ',my_rank,': asm_dir=',asm_dir
+        write (bc_debug_unit,*) 'Proc ',my_rank,': asm    =',asm
+        write (bc_debug_unit,*) 'Proc ',my_rank,': asm_dir=',asm_dir
       endif
 
       end subroutine setASMflags
@@ -976,6 +1057,8 @@ c     Local variables
 
 c     Begin program
 
+      call set_skip_corners(.false.) !Do not skip BC corner treatment
+
 c     Initialize interpolation order (else use last set)
 
       if (PRESENT(iorder)) then
@@ -1150,6 +1233,8 @@ c     Local variables
 #endif
 
 c     Begin program
+
+      call set_skip_corners(.false.) !Do no skip BC corner treatment
 
       !By default, we assume input are vector components
       if (PRESENT(is_vec)) then
@@ -1583,7 +1668,7 @@ c     Begin program
       endif
 
       if (is__vec .and. ncomp < 3) then
-        call pstop('imposeBConVector'
+        call pstop('imposeBConVector_stg'
      .            ,'Cannot impose BC on vector; # components < 3')
       endif
 
@@ -1593,6 +1678,8 @@ c     Begin program
       else
         to_cnv = .false.
       endif
+
+      call set_skip_corners(.true.) !Skip BC corner treatment
 
 c     Initialize interpolation order (else use last set)
 
@@ -1662,16 +1749,6 @@ c     Fill PETSc ghost cells
 
       !Fill ghost cells
       if (petsc__bc) then
-
-        !Fill GC of staggered components to ensure proper update
-        v_cov(nxbc+1,:,:,1) = v_cov(nxbc,:,:,1)
-        v_cov(:,nybc+1,:,2) = v_cov(:,nybc,:,2)
-        v_cov(:,:,nzbc+1,3) = v_cov(:,:,nzbc,3)
-
-        v_cnv(nxbc+1,:,:,1) = v_cnv(nxbc,:,:,1)
-        v_cnv(:,nybc+1,:,2) = v_cnv(:,nybc,:,2)
-        v_cnv(:,:,nzbc+1,3) = v_cnv(:,:,nzbc,3)
-
         da_ctx => gbc_def%dactx(igxbc)
         do ieq=1,ncomp
           call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
@@ -1756,15 +1833,6 @@ c     End program
 c     sync_PER
 c     #################################################################
       subroutine sync_PER
-
-      !Fill GC of staggered components to ensure proper update
-      v_cov(nxbc+1,:,:,1) = v_cov(nxbc,:,:,1)
-      v_cov(:,nybc+1,:,2) = v_cov(:,nybc,:,2)
-      v_cov(:,:,nzbc+1,3) = v_cov(:,:,nzbc,3)
-
-      v_cnv(nxbc+1,:,:,1) = v_cnv(nxbc,:,:,1)
-      v_cnv(:,nybc+1,:,2) = v_cnv(:,nybc,:,2)
-      v_cnv(:,:,nzbc+1,3) = v_cnv(:,:,nzbc,3)
 
       bctype=PER
       do dim=1,3
@@ -1853,6 +1921,7 @@ c     Begin program
      .        .and.(.not.cov_to_cnv(ibc,3))) then           !All contravariant: find covariant
 
             !This code is suspect
+cc            call pstop('sync_stg','Code is suspect')
             do k=kmin,kmax
               do j=jmin,jmax
                 do i=imin,imax
@@ -1891,7 +1960,7 @@ cc                if (.not.selectFace(ibc)) cycle
                         jm = max(j-1,0)
                         km = max(k-1,0)
 
-                        if(id/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc)) cycle  !2D fix for now
+cc                        if(id/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc)) cycle  !2D fix for now
 
                         select case(id)
                         case(1)
@@ -1920,6 +1989,8 @@ cc                if (.not.selectFace(ibc)) cycle
 
                 elseif (.not.cov_to_cnv(ibc,ic1)) then   !ic1 is contravariant, ic2 is covariant
 
+                  call pstop('sync_stg','Code untested')
+
                   do k=kmin,kmax
                     do j=jmin,jmax
                       do i=imin,imax
@@ -1928,7 +1999,7 @@ cc                if (.not.selectFace(ibc)) cycle
                         jm = max(j-1,0)
                         km = max(k-1,0)
 
-                        if(ic2/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle  !2D fix for now
+cc                        if(ic2/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle  !2D fix for now
 
                         select case(ic2)
                         case(1)
@@ -1956,6 +2027,8 @@ cc                if (.not.selectFace(ibc)) cycle
 
                 elseif (.not.cov_to_cnv(ibc,ic2)) then   !ic2 is contravariant, ic1 is covariant
 
+                  call pstop('sync_stg','Code untested')
+
                   do k=kmin,kmax
                     do j=jmin,jmax
                       do i=imin,imax
@@ -1964,7 +2037,7 @@ cc                if (.not.selectFace(ibc)) cycle
                         jm = max(j-1,0)
                         km = max(k-1,0)
 
-                        if(ic1/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle
+cc                        if(ic1/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle
 
                         select case(ic1)
                         case(1)
@@ -2623,7 +2696,7 @@ c     Determine boundary limits
      .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
 
       if (bc_debug) then
-        write(*,111) '   fillFaces: Proc',my_rank
+        write(bc_debug_unit,111) '   fillFaces: Proc',my_rank
      .            ,'; Boundary: dim =',dim,' loc =',loc
      .            ,'; Local limits:',imin,imax,jmin,jmax,kmin,kmax
  111    format (a,i4,a,i4,a,i4,a,6i4)
@@ -2740,347 +2813,6 @@ c     End program
 
       end subroutine fillFaces
 
-ccc     fillEdges
-ccc     #################################################################
-cc      subroutine fillEdges(array,array0,dim,loc,bcond)
-ccc     -----------------------------------------------------------------
-ccc     Fills ghost cells in edges (12 in 3D). On input:
-ccc        * array  -> 3D array to impose BC's on.
-ccc        * array0 -> 3D array containing equilibrium BCs
-ccc        * dim    -> dimension (1 -> X, 2 -> Y, 3 -> Z)
-ccc        * loc    -> location in dimension (0 -> right, 1 -> left)
-ccc     -----------------------------------------------------------------
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer    :: dim,loc,bcond(6)
-cc      real(8)    :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
-cc     .             ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
-cc
-ccc     Local variables
-cc
-cc      integer    :: i,j,k,imax,imin,jmax,jmin,kmax,kmin
-cc
-cc      integer    :: ito,jto,kto,ifrom,jfrom,kfrom
-cc     .             ,imn,imx,jmn,jmx,kmn,kmx,ibc,ord
-cc
-ccc     Begin program
-cc
-cc      ibc = (1+loc)+2*(dim-1)
-cc
-ccc     Determine boundary limits
-cc
-cccc      if (.not.selectFace(ibc)) return
-cc
-cc      call findBCLoopLimits(dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax
-cc     .                             ,imin ,imax ,jmin ,jmax ,kmin ,kmax)
-cc
-cc      ord = max(order,1)  !Does not affect order of interpolation in extrapolateToCorner
-cc
-cc      if (bc_debug) then
-cc        write(*,111) '   fillEdges: Proc',my_rank
-cc     .            ,'; Boundary: dim =',dim,' loc =',loc
-cc     .            ,'; Local limits:',imin,imax,jmin,jmax,kmin,kmax
-cc     .            ,'; Order =',order
-cc 111    format (a,i4,a,i4,a,i4,a,6i4,a,i4)
-cc      endif
-cc
-ccc     Select edge
-cc
-cc      select case (ibc)
-cc      case (1) !On face #1, fill edges y=jmin-1,y=jmax+1, vary z
-cc
-cc        if (imin == 1) then
-cc          ito   = imin-1
-cc          ifrom = min(imin+ord,nxbc)
-cc
-cc          imn   = min(ito,ifrom)
-cc          imx   = max(ito,ifrom)
-cc
-cc          if (jmin == 1.and.(selectFace(ibc).or.selectFace(3))) then  !Check faces #1,#3
-cc            jto   = jmin-1
-cc            jfrom = min(jmin+ord,nybc)
-cc
-cc            jmn   = min(jto,jfrom)
-cc            jmx   = max(jto,jfrom)
-cc
-cc            do k=kmin,kmax
-cc              if ((bcond(1)==EQU.or.bcond(3)==EQU) .and.order == 0) then
-cc                array(ito,jto,k) = array0(ito,jto,k)
-cc              else
-cccc                write (*,*)
-cccc                write (*,*) order,ito,ifrom,jto,jfrom,kto,kfrom
-cccc                write (*,*) nxbc,nybc
-cc                call extrapolateToCorner(ibc,ito,jto,k,imn,jmn,k
-cc     .                  ,imx,jmx,k,array(imn:imx,jmn:jmx,k),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc          if (jmax == nybc.and.(selectFace(ibc).or.selectFace(4))) then  !Check faces #1,#4
-cc            jto   = jmax+1
-cc            jfrom = max(jmax-ord,1)
-cc
-cc            jmn   = min(jto,jfrom)
-cc            jmx   = max(jto,jfrom)
-cc
-cc            do k=kmin,kmax
-cc              if ((bcond(1)==EQU.or.bcond(4)==EQU).and.order == 0) then
-cc                array(ito,jto,k) = array0(ito,jto,k)
-cc              else
-cc                call extrapolateToCorner(ibc,ito,jto,k,imn,jmn,k
-cc     .                  ,imx,jmx,k,array(imn:imx,jmn:jmx,k),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc        endif
-cc
-cc      case (2) !On face #2, fill edges y=jmin-1,y=jmax+1, vary z
-cc
-cc        if (imax == nxbc) then
-cc          ito   = imax+1
-cc          ifrom = max(imax-ord,1)
-cc
-cc          imn   = min(ito,ifrom)
-cc          imx   = max(ito,ifrom)
-cc
-cc          if (jmin == 1.and.(selectFace(ibc).or.selectFace(3))) then  !Check faces #2,#3
-cc            jto   = jmin-1
-cc            jfrom = min(jmin+ord,nybc)
-cc
-cc            jmn   = min(jto,jfrom)
-cc            jmx   = max(jto,jfrom)
-cc
-cc            do k=kmin,kmax
-cc              if ((bcond(2)==EQU.or.bcond(3)==EQU).and.order == 0) then
-cc                array(ito,jto,k) = array0(ito,jto,k)
-cc              else
-cc                call extrapolateToCorner(ibc,ito,jto,k,imn,jmn,k
-cc     .                  ,imx,jmx,k,array(imn:imx,jmn:jmx,k),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc          if (jmax == nybc.and.(selectFace(ibc).or.selectFace(4))) then  !Check faces #2,#4
-cc            jto   = jmax+1
-cc            jfrom = max(jmax-ord,1)
-cc
-cc            jmn   = min(jto,jfrom)
-cc            jmx   = max(jto,jfrom)
-cc
-cc            do k=kmin,kmax
-cc              if ((bcond(2)==EQU.or.bcond(4)==EQU).and.order == 0) then
-cc                array(ito,jto,k) = array0(ito,jto,k)
-cc              else
-cc                call extrapolateToCorner(ibc,ito,jto,k,imn,jmn,k
-cc     .                  ,imx,jmx,k,array(imn:imx,jmn:jmx,k),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc        endif
-cc
-cc      case (3) !On face #3, fill edges z=kmin-1,z=kmax+1, vary x
-cc
-cc        if (jmin == 1) then
-cc
-cc          jto   = jmin-1
-cc          jfrom = min(jmin+ord,nybc)
-cc
-cc          jmn   = min(jto,jfrom)
-cc          jmx   = max(jto,jfrom)
-cc
-cc          if (kmin == 1.and.(selectFace(ibc).or.selectFace(5))) then  !Check faces #3,#5
-cc
-cc            kto   = kmin-1
-cc            kfrom = min(kmin+ord,nzbc)
-cc
-cc            kmn   = min(kto,kfrom)
-cc            kmx   = max(kto,kfrom)
-cc
-cc            do i=imin,imax
-cc              if ((bcond(3)==EQU.or.bcond(5)==EQU).and.order == 0) then
-cc                array(i,jto,kto) = array0(i,jto,kto)
-cc              else
-cc                call extrapolateToCorner(ibc,i,jto,kto,i,jmn,kmn
-cc     .                  ,i,jmx,kmx,array(i,jmn:jmx,kmn:kmx),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc          if (kmax == nzbc.and.(selectFace(ibc).or.selectFace(6))) then  !Check faces #3,#6
-cc
-cc            kto   = kmax+1
-cc            kfrom = max(kmax-ord,1)
-cc
-cc            kmn   = min(kto,kfrom)
-cc            kmx   = max(kto,kfrom)
-cc
-cc            do i=imin,imax
-cc              if ((bcond(3)==EQU.or.bcond(6)==EQU).and.order == 0) then
-cc                array(i,jto,kto) = array0(i,jto,kto)
-cc              else
-cc                call extrapolateToCorner(ibc,i,jto,kto,i,jmn,kmn
-cc     .                  ,i,jmx,kmx,array(i,jmn:jmx,kmn:kmx),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc        endif
-cc
-cc      case (4) !On face #4, fill edges z=kmin-1,z=kmax+1, vary x
-cc
-cc        if (jmax == nybc) then
-cc
-cc          jto   = jmax+1
-cc          jfrom = max(jmax-ord,1)
-cc
-cc          jmn   = min(jto,jfrom)
-cc          jmx   = max(jto,jfrom)
-cc
-cc          if (kmin == 1.and.(selectFace(ibc).or.selectFace(5))) then  !Check faces #4,#5
-cc
-cc            kto   = kmin-1
-cc            kfrom = min(kmin+ord,nzbc)
-cc
-cc            kmn   = min(kto,kfrom)
-cc            kmx   = max(kto,kfrom)
-cc
-cc            do i=imin,imax
-cc              if ((bcond(4)==EQU.or.bcond(5)==EQU).and.order == 0) then
-cc                array(i,jto,kto) = array0(i,jto,kto)
-cc              else
-cc                call extrapolateToCorner(ibc,i,jto,kto,i,jmn,kmn
-cc     .                  ,i,jmx,kmx,array(i,jmn:jmx,kmn:kmx),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc          if (kmax == nzbc.and.(selectFace(ibc).or.selectFace(6))) then  !Check faces #4,#6
-cc
-cc            kto   = kmax+1
-cc            kfrom = max(kmax-ord,1)
-cc
-cc            kmn   = min(kto,kfrom)
-cc            kmx   = max(kto,kfrom)
-cc
-cc            do i=imin,imax
-cc              if ((bcond(4)==EQU.or.bcond(6)==EQU).and.order == 0) then
-cc                array(i,jto,kto) = array0(i,jto,kto)
-cc              else
-cc                call extrapolateToCorner(ibc,i,jto,kto,i,jmn,kmn
-cc     .                  ,i,jmx,kmx,array(i,jmn:jmx,kmn:kmx),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc        endif
-cc
-cc      case (5) !On face #5, fill edges x=imin-1,x=imax+1, vary y
-cc
-cc        if (kmin == 1) then
-cc
-cc          kto   = kmin-1
-cc          kfrom = min(kmin+ord,nzbc)
-cc
-cc          kmn   = min(kto,kfrom)
-cc          kmx   = max(kto,kfrom)
-cc
-cc          if (imin == 1.and.(selectFace(ibc).or.selectFace(1))) then  !Check faces #5,#1
-cc
-cc            ito   = imin-1
-cc            ifrom = min(imin+ord,nxbc)
-cc
-cc            imn   = min(ito,ifrom)
-cc            imx   = max(ito,ifrom)
-cc
-cc            do j=jmin,jmax
-cc              if ((bcond(5)==EQU.or.bcond(1)==EQU).and.order == 0) then
-cc                array(ito,j,kto) = array0(ito,j,kto)
-cc              else
-cc                call extrapolateToCorner(ibc,ito,j,kto,imn,j,kmn
-cc     .                  ,imx,j,kmx,array(imn:imx,j,kmn:kmx),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc          if (imax == nxbc.and.(selectFace(ibc).or.selectFace(2))) then  !Check faces #5,#2
-cc
-cc            ito   = imax+1
-cc            ifrom = max(imax-ord,1)
-cc
-cc            imn   = min(ito,ifrom)
-cc            imx   = max(ito,ifrom)
-cc
-cc            do j=jmin,jmax
-cc              if ((bcond(5)==EQU.or.bcond(2)==EQU).and.order == 0) then
-cc                array(ito,j,kto) = array0(ito,j,kto)
-cc              else
-cc                call extrapolateToCorner(ibc,ito,j,kto,imn,j,kmn
-cc     .                  ,imx,j,kmx,array(imn:imx,j,kmn:kmx),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc        endif
-cc
-cc      case (6) !On face #6, fill edges x=imin-1,x=imax+1, vary y
-cc
-cc        if (kmax == nzbc) then
-cc
-cc          kto   = kmax+1
-cc          kfrom = max(kmax-ord,1)
-cc
-cc          kmn   = min(kto,kfrom)
-cc          kmx   = max(kto,kfrom)
-cc
-cc          if (imin == 1.and.(selectFace(ibc).or.selectFace(1))) then  !Check faces #6,#1
-cc
-cc            ito   = imin-1
-cc            ifrom = min(imin+ord,nxbc)
-cc
-cc            imn   = min(ito,ifrom)
-cc            imx   = max(ito,ifrom)
-cc
-cc            do j=jmin,jmax
-cc              if ((bcond(6)==EQU.or.bcond(1)==EQU).and.order == 0) then
-cc                array(ito,j,kto) = array0(ito,j,kto)
-cc              else
-cc                call extrapolateToCorner(ibc,ito,j,kto,imn,j,kmn
-cc     .                  ,imx,j,kmx,array(imn:imx,j,kmn:kmx),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc          if (imax == nxbc.and.(selectFace(ibc).or.selectFace(2))) then  !Check faces #6,#2
-cc
-cc            ito   = imax+1
-cc            ifrom = max(imax-ord,1)
-cc
-cc            imn   = min(ito,ifrom)
-cc            imx   = max(ito,ifrom)
-cc
-cc            do j=jmin,jmax
-cc              if ((bcond(6)==EQU.or.bcond(2)==EQU).and.order == 0) then
-cc                array(ito,j,kto) = array0(ito,j,kto)
-cc              else
-cc                call extrapolateToCorner(ibc,ito,j,kto,imn,j,kmn
-cc     .                  ,imx,j,kmx,array(imn:imx,j,kmn:kmx),bcond)
-cc              endif
-cc            enddo
-cc          endif
-cc
-cc        endif
-cc
-cc      end select
-cc
-ccc     End program
-cc
-cc      end subroutine fillEdges
-
 c     fillEdges
 c     #################################################################
       subroutine fillEdges(array,array0,bcond,order)
@@ -3123,7 +2855,7 @@ c     Determine boundary limits
       ord = max(order,1)+1  !Does not affect order of interpolation in extrapolateToCorner
 
       if (bc_debug) then
-        write(*,111) '   fillEdges: Proc',my_rank
+        write(bc_debug_unit,111) '>>> fillEdges: Proc',my_rank
      .            ,'; Boundary: dim =',dim,' loc =',loc
      .            ,'; Local limits:',imin,imax,jmin,jmax,kmin,kmax
      .            ,'; Order =',order
@@ -3531,7 +3263,7 @@ c     Begin program
         kmx   = max(kto,kfrom)
 
         if ( bc_debug ) then
-          write (*,111) '   fillCorners: Proc',my_rank
+          write (bc_debug_unit,111) '>>> fillCorners: Proc',my_rank
      .                 ,'; Corner =',ito,jto,kto
      .                 ,'; From =',ifrom,jfrom,kfrom
      .                 ,'; Order =',order
@@ -3589,7 +3321,7 @@ c     Local variables
       real(8) :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1),curv(3)
      $          ,dx,dy,dz
 
-      logical :: flg(3),select_bc(3),have_equ,face,edge,corner
+      logical :: flg(3),select_bc(3),face,edge,corner
 
 cc      type(grid_mg_def),pointer :: gl_def
 
@@ -3607,30 +3339,74 @@ cc      endif
 
 c     Initialize variables
 
-      have_equ = PRESENT(array0)
-
       face   = (count(ibcl /= 0) == 1)
       edge   = (count(ibcl /= 0) == 2)
       corner = (count(ibcl /= 0) == 3)
 
+c     Check for "do nothing" conditions
+
+      if (bc_debug) then
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner - face, Proc='
+     .      ,my_rank,' Check for "do nothing" conditions'
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner - face, Proc='
+     .      ,my_rank,' Skip corners',(skip_corners.and.(.not.face))
+      endif
+
+      if (skip_corners.and.(.not.face)) return
+
 c     Do nothing for SP boundary faces, edges, and corners
+
+      if (bc_debug) then
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner - face, Proc='
+     .      ,my_rank,' SP boundaries',
+     .       (bcSP(ibc=ibcl(1),bcnd=bcnd)
+     .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
+     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))
+     .    .and.(.not.force_corners)
+      endif
 
       if (   (bcSP(ibc=ibcl(1),bcnd=bcnd)
      .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
-     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))) return
+     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))
+     .    .and.(.not.force_corners)) return
 
 c     Do nothing for DEF boundary faces, edges, and corners
 
+      if (bc_debug) then
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner - face, Proc='
+     .      ,my_rank,' DEF boundaries',
+     .       (bcChk(ibcl(1),DEF,bcnd=bcnd)
+     .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
+     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))
+     .    .and.(.not.force_corners)
+      endif
+
       if (   (bcChk(ibcl(1),DEF,bcnd=bcnd)
      .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
-     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))) return
+     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))
+     .    .and.(.not.force_corners)) return
 
 c     Do nothing for SYM (not FSYM) boundary faces, edges, and corners
 c     (taken care of by scalarNeumann and scalarDirichlet routines)
 
-      if (    isSYMBdry(ibc=ibcl(1))
+      if (bc_debug) then
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner - face, Proc='
+     .      ,my_rank,' SYM boundaries',
+     .        (isSYMBdry(ibc=ibcl(1))
+     .     .or.isSYMBdry(ibc=ibcl(2))
+     .     .or.isSYMBdry(ibc=ibcl(3)))
+     .    .and.(.not.force_corners)
+      endif
+
+      if (   (isSYMBdry(ibc=ibcl(1))
      .    .or.isSYMBdry(ibc=ibcl(2))
-     .    .or.isSYMBdry(ibc=ibcl(3))) return
+     .    .or.isSYMBdry(ibc=ibcl(3)))
+     .    .and.(.not.force_corners)) return
 
 c     Do nothing for doubly-periodic edges (PETSc does it)
 
@@ -3643,7 +3419,7 @@ c     Do nothing for doubly-periodic edges (PETSc does it)
      .      .and.(bcChk(ibcl(1),PER).and.bcChk(ibcl(2),PER))) return
       endif
 
-c     Do nothing for homogeneous Dirichlet edges and corners (extrapolateBC does it)
+c     Do nothing for Dirichlet edges (extrapolateBC does it)
 
       if (edge) then
         if ((ibcl(1) == 0)
@@ -3667,6 +3443,12 @@ c     Do nothing for homogeneous Dirichlet edges and corners (extrapolateBC does
       endif
 
 c     Identify directions for extrapolation.
+
+      if (bc_debug) then
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner - face, Proc='
+     .      ,my_rank,' Identifying directions extrap'
+      endif
 
       inx = imx-imn
       iny = jmx-jmn
@@ -3740,6 +3522,12 @@ c     Identify directions for extrapolation.
 
 c     Treat special boundaries
 
+      if (bc_debug) then
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner - face, Proc='
+     .      ,my_rank,' Treating special boundaries'
+      endif
+
       call select_along
 
       call select_across
@@ -3762,12 +3550,14 @@ c     Check some direction for interpolation exists
 
       if (    (.not.flg(1)).and.(.not.flg(2)).and.(.not.flg(3))
      .    .or. bc_debug) then
-        write (*,*) 'Extrapolation directions',flg
-        write (*,*) 'Boundary type: Face=',face,' Edge=',edge
-     .             ,' Corner=',corner
-        write (*,*) 'Boundaries involved',ibcl
-        write (*,*) 'Order of extrapolation',order
-        write (*,*) 'Smoothness indicators',curv
+        write (bc_debug_unit,*)
+        write (bc_debug_unit,*) '>>> ExtrapolateToCorner, Proc=',my_rank
+        write (bc_debug_unit,*) '    Extrapolation directions',flg
+        write (bc_debug_unit,*) '    Boundary type: Face=',face
+     .                         ,'      Edge=',edge,' Corner=',corner
+        write (bc_debug_unit,*) '    Boundaries involved',ibcl
+        write (bc_debug_unit,*) '    Order of extrapolation',order
+        write (bc_debug_unit,*) '    Smoothness indicators',curv
         if (.not.bc_debug)
      .     call pstop('extrapolateToCorner'
      .            ,'No extrapolation directions left')
@@ -3873,11 +3663,14 @@ c     Average extrapolation results and fill ghost cell
       array(ito,jto,kto) = (valx(1) + valy(1) + valz(1))/num
 
       if (bc_debug) then
-       if(face) write(*,222)'DIAG -- extrapolateToCorner - face, Proc='
+       if(face) write(bc_debug_unit,222)
+     .                      '>>> extrapolateToCorner - face, Proc='
      .                      ,my_rank,num,flg,ito,jto,kto,valx,valy,valz
-       if(edge) write(*,222)'DIAG -- extrapolateToCorner - edge, Proc='
+       if(edge) write(bc_debug_unit,222)
+     .                      '>>> extrapolateToCorner - edge, Proc='
      .                      ,my_rank,num,flg,ito,jto,kto,valx,valy,valz
-       if(corner)write(*,222)'DIAG -- extrapolateToCorner -corner,Proc='
+       if(corner)write(bc_debug_unit,222)
+     .                      '>>> extrapolateToCorner - corner,Proc='
      .                      ,my_rank,num,flg,ito,jto,kto,valx,valy,valz
  222   format(a,2i3,3l2,3i3,3e14.5)
       endif
