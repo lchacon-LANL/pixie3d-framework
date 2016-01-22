@@ -215,8 +215,8 @@ c Extract options
       if (atol == 0d0) atol = find_mach_eps()*sqrt(1.*nn)
 
 #if defined(petsc)
-      if (associated(options%mgctx)) then
-        mpi_comm = options%mgctx%mpi_comm
+      if (associated(options%mg_grid_def)) then
+        mpi_comm = options%mg_grid_def%mpi_comm
       else
         mpi_comm = MPI_COMM_WORLD
       endif
@@ -409,8 +409,8 @@ c Extract options
       if (atol == 0d0) atol = epsmac*sqrt(1.*nn)
 
 #if defined(petsc)
-      if (associated(options%mgctx)) then
-        mpi_comm = options%mgctx%mpi_comm
+      if (associated(options%mg_grid_def)) then
+        mpi_comm = options%mg_grid_def%mpi_comm
       else
         mpi_comm = MPI_COMM_WORLD
       endif
