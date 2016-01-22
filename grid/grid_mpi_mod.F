@@ -1369,7 +1369,6 @@ c     Begin program
 
       end function dot2
 
-#if defined(petsc)
 c     dot3
 c     ###################################################################
       function dot3(vec1,vec2,mpi_comm)
@@ -1395,22 +1394,23 @@ c     Local variables
 
 c     Begin program
 
+      dot3 = dot_product(vec1,vec2)
+
+#if defined(petsc)
       if (PRESENT(mpi_comm)) then
         mpicomm = mpi_comm
       else
         mpicomm = MPI_COMM_WORLD
       endif
 
-      dot3 = dot_product(vec1,vec2)
-
       if (.not.asm) then
         ldot = dot3
         call MPI_Allreduce(ldot,dot3,1,MPI_DOUBLE_PRECISION
      .                    ,MPI_SUM,mpicomm,mpierr)
       endif
+#endif
 
       end function dot3
-#endif
 
 c     rms
 c     ###################################################################

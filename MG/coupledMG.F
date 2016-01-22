@@ -7033,7 +7033,7 @@ c       STANDARD RELAXATION
 
 c     Eliminate null space
 
-cc        if (smat) zz = zz - dot2(zz,ones)/dot2(ones,ones)*ones
+cc        if (smat) zz = zz - dot2(zz,ones)/dot2(ones,ones)*ones  !Use dot3
 
 c     Check convergence
 
@@ -7490,7 +7490,7 @@ c         STANDARD RELAXATION
 
 c     Eliminate null space
 
-cc        if (smat) zz = zz - dot2(zz,ones)/dot2(ones,ones)*ones
+cc        if (smat) zz = zz - dot2(zz,ones)/dot2(ones,ones)*ones !Use dot3
 
 c     Check convergence
 
