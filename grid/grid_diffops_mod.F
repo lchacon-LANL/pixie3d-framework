@@ -1257,6 +1257,8 @@ c ######################################################################
 
         use grid_create
 
+        use grid_nabla_ops
+
         INTERFACE lap
           module procedure lap_mesh,lap_ijk
         end INTERFACE
@@ -4788,6 +4790,155 @@ c       Postprocessing
 c     End program
 
       end subroutine curlcurl_z
+
+c     veclap_stg_mesh
+c     ###############################################################
+      function veclap_stg_mesh(igrid,cov,vol) result(veclap)
+c     ---------------------------------------------------------------
+c     Calculates contravariant components of vector Laplacian for
+c     covariant vector representation satisfying div(lap(A)) =
+c     lap(div(A)) at faces everywhere on the mesh.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igrid
+
+      real(8) :: cov(0:,0:,0:,:)
+     .          ,veclap(0:size(cov,1)-1
+     .                 ,0:size(cov,2)-1
+     .                 ,0:size(cov,3)-1
+     .                 ,3)
+
+      logical,optional,intent(IN) :: vol
+
+c     Local variables
+
+      integer :: bcs(6),nx,ny,nz,i,j,k
+      logical :: vol_wgt
+      real(8) :: divA(0:size(cov,1)-1
+     .               ,0:size(cov,2)-1
+     .               ,0:size(cov,3)-1)
+     .          ,zero(0:size(cov,1)-1
+     .               ,0:size(cov,2)-1
+     .               ,0:size(cov,3)-1)
+
+c     Begin program
+
+      nx = size(cov,1)-2
+      ny = size(cov,2)-2
+      nz = size(cov,3)-2
+
+      vol_wgt = .false.
+      if (PRESENT(vol)) vol_wgt = vol
+
+      !Old way
+cc      veclap(:,:,:,1) = lap(igrid,cov(:,:,:,1),vol=vol_wgt)
+cc      veclap(:,:,:,2) = lap(igrid,cov(:,:,:,2),vol=vol_wgt)
+cc      veclap(:,:,:,3) = lap(igrid,cov(:,:,:,3),vol=vol_wgt)
+cc      return
+
+      !Compute div(cov)
+      divA = 0d0
+      divA = div_stg_mesh(igrid,cov,.false.)
+
+      !Apply topological BCs to divergence
+      bcs = bcond
+      where(bcs == DEF) bcs = DIR
+      zero = 0d0
+      call setBC(1,nx,ny,nz,divA,zero,bcs
+     .          ,igrid,igrid,igrid,iorder=1)
+
+      !Assemble on the mesh
+      veclap = 0d0
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            !Compute scalar laplacian fluxes
+            veclap(i,j,k,1) = lap_flx_x_ijk(i,j,k,igrid,divA)
+            veclap(i,j,k,2) = lap_flx_y_ijk(i,j,k,igrid,divA)
+            veclap(i,j,k,3) = lap_flx_z_ijk(i,j,k,igrid,divA)
+
+            !Compute symmetrized remainder
+            veclap(i,j,k,:) = veclap(i,j,k,:)
+     .                      + curlcurl_stg_ijk(i,j,k,nx,ny,nz
+     .                                        ,igrid,igrid,igrid,cov)
+
+            if (vol_wgt)veclap(i,j,k,:)
+     .                 =veclap(i,j,k,:)*gmetric%grid(igrid)%dlvol(i,j,k)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function veclap_stg_mesh
+
+c     curlcurl_stg_ijk
+c     ###############################################################
+      function curlcurl_stg_ijk(i,j,k,nx,ny,nz,igx,igy,igz,cov,vol)
+     $         result (curlcurl)
+c     ---------------------------------------------------------------
+c     Calculates contravariant components of curl(curl) operator for
+c     covariant vector representation at faces on a per-cell basis.
+c
+c     NOTE: ONLY WORKS IN 2D FOR NOW
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+
+      real(8) :: cov(0:nx+1,0:ny+1,0:nz+1,3),curlcurl(3)
+
+      logical,optional,intent(IN) :: vol
+
+c     Local variables
+
+      integer :: ig,jg,kg
+      logical :: vol_wgt
+      real(8),pointer,dimension(:,:,:,:,:) :: gsupv
+      real(8),pointer,dimension(:,:,:)     :: jacv
+
+c     Begin program
+
+      vol_wgt = .false.
+      if (PRESENT(vol)) vol_wgt = vol
+
+      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+      !Code for tensor-product mesh
+      gsupv => gmetric%grid(igx)%gsup_v
+      jacv  => gmetric%grid(igx)%jac_v
+
+      curlcurl(1)=(1d0/jacv(i,j  ,k)
+     .          *((cov(i  ,j+1,k,1)-cov(i,j,k,1))/grid_params%dy(jg)
+     .           -(cov(i+1,j  ,k,2)-cov(i,j,k,2))/grid_params%dx(ig))
+     .          -1d0/jacv(i,j-1,k)
+     .          *((cov(i  ,j  ,k,1)-cov(i,j-1,k,1))/grid_params%dy(jg)
+     .           -(cov(i+1,j-1,k,2)-cov(i,j-1,k,2))/grid_params%dx(ig)))
+     .          /grid_params%dy(jg)
+
+      curlcurl(2)=(1d0/jacv(i  ,j,k)
+     .          *((cov(i+1,j  ,k,2)-cov(i,j,k,2))/grid_params%dx(ig)
+     .           -(cov(i  ,j+1,k,1)-cov(i,j,k,1))/grid_params%dy(jg))
+     .          -1d0/jacv(i-1,j,k)
+     .          *((cov(i  ,j  ,k,2)-cov(i-1,j,k,2))/grid_params%dx(ig)
+     .           -(cov(i-1,j+1,k,1)-cov(i-1,j,k,1))/grid_params%dy(jg)))
+     .          /grid_params%dx(ig)
+
+      curlcurl(3) = lap(i,j,k,nx,ny,nz,igx,igy,igz,cov(:,:,:,3))
+     .           *gmetric%grid(igx)%jac(i,j,k)
+
+      if (vol_wgt) curlcurl=curlcurl*gmetric%grid(igx)%dlvol(i,j,k)
+
+c     End program
+
+      end function curlcurl_stg_ijk
 
       end module grid_tensor_ops
 
