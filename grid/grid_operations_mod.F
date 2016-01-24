@@ -2062,6 +2062,202 @@ c     End
 
       end function scalarProduct_mesh
 
+c     crossProduct_stg_mesh
+c     ###############################################################
+      function crossProduct_stg_mesh(igrid,vec1,vertex1,vec2,vertex2
+     .                              ,cnv_in)
+     .         result(vec3)
+c     ---------------------------------------------------------------
+c     Calculates cross product of staggered vectors, and returns a
+c     staggered vector at cell faces. Staggered input vectors can be
+c     cell-based (vertex=.false.) or vertex-based (vertex=.true.). Also,
+c     they can be contravariant (cnv_in=.true.) or covariant
+c     (cnv_in=.false.). If the former, they return a covariant vector,
+c     and contravariant otherwise.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igrid
+
+      real(8) :: vec1(0:,0:,0:,:)
+     .          ,vec2(0:,0:,0:,:)
+     .          ,vec3(0:size(vec1,1)-1
+     .               ,0:size(vec1,2)-1
+     .               ,0:size(vec1,3)-1
+     .               ,  size(vec1,4))
+
+      logical :: vertex1,vertex2,cnv_in
+
+c     Local variables
+
+      integer :: nx,ny,nz
+
+c     Begin program
+
+      nx = size(vec1,1)-2
+      ny = size(vec1,2)-2
+      nz = size(vec1,3)-2
+
+      vec3 = 0d0
+
+      if (.not.vertex1.and.vertex2) then
+        !At (i+1/2,j,k)
+        vec3(1:nx,1:ny,1:nz,1) =(0.25*(vec1(1:nx  ,1:ny  ,1:nz,2)
+     .                                +vec1(2:nx+1,1:ny  ,1:nz,2)
+     .                                +vec1(1:nx  ,0:ny-1,1:nz,2)
+     .                                +vec1(2:nx+1,0:ny-1,1:nz,2))
+     .                          * 0.5*(vec2(1:nx,1:ny  ,1:nz,3)
+     .                                +vec2(1:nx,0:ny-1,1:nz,3))
+     .                         -  0.5*(vec1(1:nx  ,1:ny,1:nz,3)
+     .                                +vec1(2:nx+1,1:ny,1:nz,3))
+     .                               * vec2(1:nx  ,1:ny,1:nz,2)   )
+
+        !At (i,j+1/2,k)
+        vec3(1:nx,1:ny,1:nz,2) = (0.5*(vec1(1:nx,1:ny  ,1:nz,3)
+     .                                +vec1(1:nx,2:ny+1,1:nz,3))
+     .                               * vec2(1:nx,1:ny  ,1:nz,1)
+     .                           -.25*(vec1(1:nx  ,1:ny  ,1:nz,1)
+     .                                +vec1(1:nx  ,2:ny+1,1:nz,1)
+     .                                +vec1(0:nx-1,1:ny  ,1:nz,1)
+     .                                +vec1(0:nx-1,2:ny+1,1:nz,1))
+     .                           *0.5*(vec2(1:nx  ,1:ny,1:nz,3)
+     .                                +vec2(0:nx-1,1:ny,1:nz,3)))
+
+        !At (i,j,k)
+        vec3(1:nx,1:ny,1:nz,3) =(0.5*(vec1(1:nx  ,1:ny,1:nz,1)
+     .                               +vec1(0:nx-1,1:ny,1:nz,1))
+     .                          *0.5*(vec2(1:nx  ,1:ny,1:nz,2)
+     .                               +vec2(0:nx-1,1:ny,1:nz,2))
+     .                          -0.5*(vec1(1:nx,1:ny  ,1:nz,2)
+     .                               +vec1(1:nx,0:ny-1,1:nz,2))
+     .                          *0.5*(vec2(1:nx,1:ny  ,1:nz,1)
+     .                               +vec2(1:nx,0:ny-1,1:nz,1)))
+      else
+        write (*,*) 'Case not implemented yet'
+        write (*,*) 'Aborting in crossProduct_stg_mesh'
+        stop
+c$$$        call pstop("crossProduct_stg_mesh"
+c$$$     .            ,"Case not implemented yet")
+      endif
+
+      !Apply Jacobian factor
+      if (cnv_in) then
+        vec3(:,:,:,1) = vec3(:,:,:,1)/gmetric%grid(igrid)%jac
+        vec3(:,:,:,2) = vec3(:,:,:,2)/gmetric%grid(igrid)%jac
+        vec3(:,:,:,3) = vec3(:,:,:,3)/gmetric%grid(igrid)%jac
+      endif
+
+c     End program
+
+      end function crossProduct_stg_mesh
+
+c     scalarProduct_stg_mesh
+c     ###############################################################
+      function scalarProduct_stg_mesh(igrid,vec1,vertex1,vec2,vertex2)
+     .         result(scl)
+c     ---------------------------------------------------------------
+c     Calculates dot product of staggered vectors, and returns a
+c     three scalar values at cell faces. Staggered input vectors can be
+c     cell-based (vertex=.false.) or vertex-based (vertex=.true.).
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      integer :: igrid
+
+      real(8) :: vec1(0:,0:,0:,:)
+     .          ,vec2(0:,0:,0:,:)
+     .          ,scl (0:size(vec1,1)-1
+     .               ,0:size(vec1,2)-1
+     .               ,0:size(vec1,3)-1
+     .               ,3)
+
+      logical :: vertex1,vertex2
+
+c     Local variables
+
+      integer :: nx,ny,nz
+
+c     Begin program
+
+      nx = size(vec1,1)-2
+      ny = size(vec1,2)-2
+      nz = size(vec1,3)-2
+
+      scl = 0d0
+
+      if (.not.vertex1.and.vertex2) then
+!     At (i+1/2,j,k)
+         scl(1:nx,1:ny,1:nz,1) = vec1(1:nx  ,1:ny  ,1:nz,1)*
+     .                   0.25d0*(vec2(1:nx  ,1:ny  ,1:nz,1)+
+     .                           vec2(1:nx  ,0:ny-1,1:nz,1)+         
+     .                           vec2(2:nx+1,0:ny-1,1:nz,1)+         
+     .                           vec2(2:nx+1,1:ny  ,1:nz,1)) +
+     .                           vec2(1:nx  ,1:ny  ,1:nz,2)*
+     .                   0.25d0*(vec1(1:nx  ,1:ny  ,1:nz,2)+
+     .                           vec1(1:nx  ,0:ny-1,1:nz,2)+         
+     .                           vec1(2:nx+1,0:ny-1,1:nz,2)+         
+     .                           vec1(2:nx+1,1:ny  ,1:nz,2)) + 
+     .                    0.5d0*(vec1(1:nx  ,1:ny  ,1:nz,3)+
+     .                           vec1(2:nx+1,1:ny  ,1:nz,3))*
+     .                    0.5d0*(vec2(1:nx  ,1:ny  ,1:nz,3)+
+     .                           vec2(1:nx  ,0:ny-1,1:nz,3))
+
+!     At (i,j+1/2,k)
+         scl(1:nx,1:ny,1:nz,2) = vec2(1:nx  ,1:ny  ,1:nz,1)*
+     .                   0.25d0*(vec1(1:nx  ,1:ny  ,1:nz,1)+
+     .                           vec1(1:nx  ,2:ny+1,1:nz,1)+
+     .                           vec1(0:nx-1,2:ny+1,1:nz,1)+
+     .                           vec1(0:nx-1,1:ny  ,1:nz,1)) +
+     .                           vec1(1:nx  ,1:ny  ,1:nz,2)*
+     .                   0.25d0*(vec2(1:nx  ,1:ny  ,1:nz,2)+
+     .                           vec2(1:nx  ,2:ny+1,1:nz,2)+ 
+     .                           vec2(0:nx-1,2:ny+1,1:nz,2)+ 
+     .                           vec2(0:nx-1,1:ny  ,1:nz,2)) +
+     .                    0.5d0*(vec2(1:nx  ,1:ny  ,1:nz,3)+
+     .                           vec2(0:nx-1,1:ny  ,1:nz,3))*
+     .                    0.5d0*(vec1(1:nx  ,1:ny  ,1:nz,3)+
+     .                           vec1(1:nx  ,2:ny+1,1:nz,3))
+
+
+!     At (i,j,k)
+         scl(1:nx,1:ny,1:nz,3) = 
+     .                    0.5d0*(vec2(1:nx  ,1:ny  ,1:nz,1)+
+     .                           vec2(1:nx  ,0:ny-1,1:nz,1))*
+     .                    0.5d0*(vec1(1:nx  ,1:ny  ,1:nz,1)+
+     .                           vec1(0:nx-1,1:ny  ,1:nz,1)) +
+     .                    0.5d0*(vec1(1:nx  ,1:ny  ,1:nz,2)+
+     .                           vec1(1:nx  ,0:ny-1,1:nz,2))*
+     .                    0.5d0*(vec2(1:nx  ,1:ny  ,1:nz,2)+
+     .                           vec2(0:nx-1,1:ny  ,1:nz,2)) +
+     .                           vec1(1:nx  ,1:ny  ,1:nz,3)*
+     .                   0.25d0*(vec2(1:nx  ,1:ny  ,1:nz,3)+
+     .                           vec2(0:nx-1,1:ny  ,1:nz,3)+ 
+     .                           vec2(0:nx-1,0:ny-1,1:nz,3)+ 
+     .                           vec2(1:nx  ,0:ny-1,1:nz,3)) 
+
+      else
+        write (*,*) 'Case not implemented yet'
+        write (*,*) 'Aborting in scalarProduct_stg_mesh'
+        stop
+c$$$        call pstop("scalarProduct_stg_mesh"
+c$$$     .            ,"Case not implemented yet")
+      endif
+
+      !Apply Jacobian factor
+      scl(:,:,:,1) = scl(:,:,:,1)/gmetric%grid(igrid)%jac
+      scl(:,:,:,2) = scl(:,:,:,2)/gmetric%grid(igrid)%jac
+      scl(:,:,:,3) = scl(:,:,:,3)/gmetric%grid(igrid)%jac
+
+c     End program
+
+      end function scalarProduct_stg_mesh
+
 c     tensorScalarProduct
 c     ################################################################
       function tensorScalarProduct(i,j,k,igrid,tnsr1,tnsr2)
