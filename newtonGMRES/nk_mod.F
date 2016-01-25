@@ -964,7 +964,7 @@ c       Determine residual norm and test for convergence
 
         enddo
 
-        if (iout .gt. 0 .and. prnt) then
+        if (iout == 1 .and. prnt) then
           write(*, 199) its, ro, ro/rold
         endif
 

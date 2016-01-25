@@ -20,6 +20,36 @@ cc      END INTERFACE
 
       contains
 
+c     factorial
+c     ###############################################################
+      recursive function factorial(n,m) result(fac)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Finds n!/m!
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      real(8) :: fac
+      integer :: n,m
+
+c     Local variables
+
+c     Begin program
+
+      if (n == m) then
+        fac = 1d0
+        return
+      elseif (n > m) then
+        fac = n*factorial(n-1,m)
+      else
+        fac = factorial(n,m-1)/m
+      endif
+
+      end function factorial
+
 c     findRoundOff
 c     ###############################################################
       subroutine findRoundOff (eps)

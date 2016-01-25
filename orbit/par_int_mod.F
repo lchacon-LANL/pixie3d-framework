@@ -4,6 +4,8 @@ c #############################################################################
 
         use orbit
 
+        use math, ONLY: factorial
+
         integer,private :: kmax=100      !Maximum number of Fourier modes in Fourier Green's f. form
         real(8),private :: t_tol,T_cutoff2,S_cutoff2,alpha=0d0
      .                    ,aa(0:10,0:10),cc(0:10)
@@ -398,28 +400,69 @@ c     Begin program
 
       else
 
-        if (my_rank == 0) write (*,*) 'sdc_kernel_per: not working'
-        stop
+c$$$        if (my_rank == 0) write (*,*) 'sdc_kernel_per: not working'
+c$$$        stop
 
-cc        !Compute iteration limit
-cc        k0 = ceiling((2d0/t_tol/eta)**(1d0/alpha))
-cc        k0 = min(k0,kmax) !To avoid aliasing errors
-cc
-cc        !Accumulate periodic Green's function
-cc        skernel = 1d0
-cc
-cc        do kk=1,k0
-cc          eta = sig*(twopi_L*kk)**alpha
-cc          dtk = (1d0-exp(-eta))/eta
-cc
-cc          skernel = skernel + 2d0*dtk*cos(twopi_L*kk*ss)
-cc        enddo
-cc
-cc        skernel = skernel*ismax
+        !Compute iteration limit
+        k0 = ceiling((2d0/t_tol/eta)**(1d0/alpha))
+        k0 = min(k0,kmax) !To avoid aliasing errors
+
+        !Accumulate periodic Green's function
+        skernel = 1d0
+
+        do kk=1,k0
+          eta = sig*(twopi_L*kk)**alpha
+          dtk = sdc_kernel_hat(eta,jj)
+
+          skernel = skernel + 2d0*dtk*cos(twopi_L*kk*ss)
+        enddo
+
+        skernel = skernel*ismax
 
       endif
 
 c     End program
+
+      contains
+
+c     sdc_kernel_hat
+c     #################################################################
+      function sdc_kernel_hat(eta,jj) result(uhat)
+
+c     -----------------------------------------------------------------
+c     Fourier transform of kernel Uj
+c     -----------------------------------------------------------------
+
+      !Call variables
+      real(8) :: eta,uhat
+      integer :: jj
+
+      !Local variables
+      real(8) :: ieta,e_eta,uhat1,uhat2,factor
+      integer :: k,m
+
+      !Begin
+      ieta = 1d0/eta
+      e_eta= exp(-eta)
+
+      uhat1 = 1d0
+      uhat2 = 0d0
+      do k=1,jj
+        uhat1 = uhat1*k*ieta  ! j!/eta^(j)
+
+        factor = 1d0
+        do m=jj-k+2,jj
+          factor = factor*m
+        enddo
+cc        uhat2 = uhat2 + factorial(jj,jj-k+1)*ieta**k  !sum(j!/(j-k+1)!/eta^k)
+        uhat2 = uhat2 + factor*ieta**k  !sum(j!/(j-k+1)!/eta^k)
+      enddo
+
+      uhat = (1d0-e_eta)*ieta*uhat1 - e_eta*uhat2
+
+      if (mod(jj,2) /= 0) uhat = -uhat  !(-1)^j
+
+      end function sdc_kernel_hat
 
       end function sdc_kernel_per
 
@@ -1026,7 +1069,7 @@ c     Output
         if (my_rank == 0) then
           if (iout == 1) then
             write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 3D: '
-          elseif (iout <= 0) then
+          elseif (iout == 0) then
             write (*,*) '--> Lagrangian step in 3D...'
           endif
         endif
@@ -1308,7 +1351,7 @@ c     Output
         if (my_rank == 0) then
           if (iout == 1) then
             write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 2D: '
-          elseif (iout <= 0) then
+          elseif (iout == 0) then
             write (*,*) '--> LSODE lagrangian step in 2D...'
           endif
         endif
@@ -1465,6 +1508,7 @@ c     Output
         if (my_rank == 0) then
           write (*,*)
           write (*,*) '2D Lagrangian initialization...'
+          write (*,*)
         endif
 
 c     Computation of periodic orbit quantities (length, beta)
@@ -1619,7 +1663,8 @@ c     Setup orbit integrator
 c     Integrate length
 
         ll = 0d0
-        if (my_rank == 0) write (*,*) '--> LSODE 2D length integral...'
+        if (my_rank == 0.and.iout > 0)
+     .       write (*,*) '--> LSODE 2D length integral...'
 
         do k=1,nz
           do j=1,ny
@@ -2293,10 +2338,10 @@ c     Local variables
         END INTERFACE
 
         INTERFACE
-          subroutine lsode_3d_cn(neq,t,y,ydot)
+          subroutine lsode_3d_cn_norm(neq,t,y,ydot)
           integer :: neq
           real(8) :: t,y(neq),ydot(neq)
-          end subroutine lsode_3d_cn
+          end subroutine lsode_3d_cn_norm
         END INTERFACE
 
 c     Begin program
@@ -2308,10 +2353,11 @@ c     Begin program
         if (l2d) then
           call lag_2d_new(igrid,nx,ny,nz,in_flds,out_flds
 cc     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq)
-     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq_norm)
+     .                   ,chi,iout,lsode_f=lsode_2d_cn_3eq_norm)
         else
           call lag_3d_new(igrid,nx,ny,nz,in_flds,out_flds
-     .               ,chi,iout,lsode_f=lsode_3d_cn)
+cc     .               ,chi,iout,lsode_f=lsode_3d_cn)
+     .                   ,chi,iout,lsode_f=lsode_3d_cn_norm)
         endif
 
       end subroutine lag_xport_theta
@@ -4063,6 +4109,7 @@ c Local variables
       integer :: ierror
       real(8) :: x1,y1,z1,s1,tt,it_max=0d0
       save :: it_max
+      logical :: exl1
 
 c Begin program
 
@@ -4076,9 +4123,11 @@ c Call additional integrators
 
       tt = evalFld(x1,y1,z1,ierror)
 
-      ydot(7) = tkernel_3d(s1,ieps*dt,exit_loop)*ydot(5)  !To normalize
+      ydot(7) = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)  !To normalize
 
       ydot(6) = tt*ydot(7)
+
+      call set_orbit_exit(exl1)
 
 c End program
 
@@ -4145,6 +4194,7 @@ c Call variables
 
 c Local variables
 
+      logical :: exl1
       integer :: ierror
       real(8) :: x1,y1,z1,s1,tt,it_max=0d0
       save :: it_max
@@ -4161,9 +4211,11 @@ c Call additional integrators
 
       tt = evalFld(x1,y1,z1,ierror)
 
-      ydot(7) = skernel_3d(s1,ieps*dt,exit_loop)*ydot(5)  !To normalize
+      ydot(7) = skernel_3d(s1,ieps*dt,exl1)*ydot(5)  !To normalize
 
       ydot(6) = tt*ydot(7)
+
+      call set_orbit_exit(exl1)
 
 c End program
 
@@ -4235,6 +4287,7 @@ c Local variables
 c Begin program
 
       if (neq /= 7) then
+        if (my_rank == 0) write (*,*) neq
         call pstop('lsode_3d_cn','Wrong number of equations')
       endif
 
@@ -4264,11 +4317,77 @@ cc      ydot(8) = flds(3)*tk
 
 c Are we done?
 
-      exit_loop = exl1.and.exl2
+      call set_orbit_exit(exl1.and.exl2)
 
 c End program
 
       end subroutine lsode_3d_cn
+
+c lsode_3d_cn_norm
+c #########################################################################
+      subroutine lsode_3d_cn_norm(neq,t,y,ydot)
+
+c -------------------------------------------------------------------------
+c     Driver routine for LSODE integration: ydot = ff(y,t)
+c -------------------------------------------------------------------------
+
+      use par_int
+
+      implicit none
+
+c Call variables
+
+      integer :: neq
+      real(8) :: t,y(neq),ydot(neq)
+
+c Local variables
+
+      integer :: ierror
+      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,tk,sk
+      logical :: exl1,exl2
+
+c Begin program
+
+      if (neq /= 9) then
+        if (my_rank == 0) write (*,*) neq
+        call pstop('lsode_3d_cn','Wrong number of equations')
+      endif
+
+c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
+
+      call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1
+     .                  ,B2=B2)
+
+      if (.not.bwgt) B2=1d0
+
+c Call additional integrators
+
+      s1 = abs(y(5))
+
+      flds = evalFlds(x1,y1,z1,sp_coef)
+
+      !Tn
+      tk = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      ydot(6) = flds(1)*tk
+
+      !Src @ dt
+      sk = skernel_3d(s1,ieps*dt,exl2)*ydot(5)/B2
+      ydot(7) = flds(2)*sk
+
+      !Normalization 
+      ydot(8) = tk
+      ydot(9) = sk
+
+cc      !Taux
+cc      ydot(8) = flds(3)*tk
+
+c Are we done?
+
+       call set_orbit_exit(exl1.and.exl2)
+
+c End program
+
+      end subroutine lsode_3d_cn_norm
 
 ccc lsode_3d_cn_dT
 ccc #########################################################################
@@ -4380,7 +4499,7 @@ c Call additional integrators
 
 c Are we done?
 
-      exit_loop = exl1
+      call set_orbit_exit(exl1)
 
 c End program
 
@@ -4516,7 +4635,7 @@ c Call additional integrators
 
 c Are we done?
 
-      exit_loop = exl1.and.exl2.and.exl3.and.exl4
+      call set_orbit_exit(exl1.and.exl2.and.exl3.and.exl4)
 
 c End program
 
@@ -4652,7 +4771,7 @@ c Call additional integrators
 
 c Are we done?
 
-      exit_loop = exl1.and.exl2
+      call set_orbit_exit(exl1.and.exl2)
 
 c End program
 
@@ -4732,7 +4851,7 @@ c Call additional integrators
 
 c Are we done?
 
-      exit_loop = exl1.and.exl2.and.exl3.and.exl4
+      call set_orbit_exit(exl1.and.exl2.and.exl3.and.exl4)
 
 c End program
 
@@ -5296,6 +5415,7 @@ c Call variables
 
 c Local variables
 
+      logical :: exl1
       integer :: ierror
       real(8) :: B2
 
@@ -5311,9 +5431,11 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      ydot(4) = skernel_3d(t,ieps*dt,exit_loop)/B2
+      ydot(4) = skernel_3d(t,ieps*dt,exl1)/B2
 cc      ydot(4) = skernel_per(t,ieps*dt)/sqrt(B2)
 cc      ydot(4) = skernel_per(t,ieps*dt)  !Normalization test
+
+      call set_orbit_exit(exl1)
 
 c End program
 

@@ -593,10 +593,10 @@ c       * x0,y0,z0: starting point of orbit
 c       * fwd: whether to go forward or backward
 c     Optional input:
 c       * line_int: external routine to perform line integrals
-c       * ode_line_int: external routine to perform line integrals using LSODE
+c       * lsode_f: external routine to perform line integrals using LSODE
 c       * ss_check: check for surface of section (default: not when
 c                   performing integrals along line)
-c       * ss_order: order of interpolation for SS (default: 1)
+ccc       * ss_order: order of interpolation for SS (default: 1)
 c       * t_max,s_max: override maximum orbit lengths, measured in pseudotime
 c                      units (t_max, for solenoidal int), or arclength (s_max)
 c     Optional output:
@@ -766,7 +766,7 @@ c     Orbit integral
           !Find new LOGICAL positions, new time, new arc length
           call orbit_step(x,y,z,iterror,forward=fwd,lsode_f=lsode_f)
 
-          exit_loop = orbit_error(iterror)
+          exit_loop = (orbit_error(iterror).or.get_orbit_exit())
           non_fatal_err = (iterror<=0)
 
           xhist(1) = x
@@ -907,7 +907,7 @@ c     Begin program
         npointy=0   !Poincare points accumulator for Y surface of section
         npointz=0   !Poincare points accumulator for Z surface of section
 
-        exit_loop = .false.
+        call set_orbit_exit(.false.)
 
         orb_init = .true.
 
@@ -935,6 +935,37 @@ c     ----------------------------------------------------------------------
         deallocate(xhist,yhist,zhist,thist,shist,STAT=alloc_stat)
 
       end subroutine orbit_end
+
+c     set_orbit_exit
+c     ######################################################################
+      subroutine set_orbit_exit(exitl)
+
+c     ----------------------------------------------------------------------
+c     Sets orbit exit control variable
+c     ----------------------------------------------------------------------
+
+        implicit none
+
+        logical :: exitl
+
+        exit_loop = exitl
+
+      end subroutine set_orbit_exit
+
+c     get_orbit_exit
+c     ######################################################################
+      function get_orbit_exit() result(exitl)
+c     ----------------------------------------------------------------------
+c     Gets orbit exit control variable
+c     ----------------------------------------------------------------------
+
+        implicit none
+
+        logical :: exitl
+
+        exitl = exit_loop
+
+      end function get_orbit_exit
 
 c     orbit_step
 c     ##################################################################
@@ -1007,7 +1038,7 @@ c     ODE configuration
         fwd = .true.
       endif
 
-      ierror = ORB_OK    !Initialize domain bounds error flag
+      ierror = ORB_OK   !Initialize domain bounds error flag
 
       restart = .false. !Initialize restarting status flag
 
