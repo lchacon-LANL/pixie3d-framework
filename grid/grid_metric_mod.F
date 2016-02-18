@@ -923,7 +923,7 @@ c     Evaluate dr=dx/dxi vectors at vertices
         do i=1,3
           do j=1,3
             call setMGBC(0,1,nx,ny,nz,igrid,dr(:,:,:,i,j),bcs
-     .                  ,iorder=1,g_def=g_def)
+     .                  ,iorder=2,g_def=g_def)
           enddo
         enddo
 
