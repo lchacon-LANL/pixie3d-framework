@@ -4856,14 +4856,14 @@ cc      return
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            !Compute scalar laplacian fluxes
+            !Compute grad(div) term
             veclap(i,j,k,1) = lap_flx_x_ijk(i,j,k,igrid,divA)
             veclap(i,j,k,2) = lap_flx_y_ijk(i,j,k,igrid,divA)
             veclap(i,j,k,3) = lap_flx_z_ijk(i,j,k,igrid,divA)
 
-            !Compute symmetrized remainder
+            !Add curlcurl term
             veclap(i,j,k,:) = veclap(i,j,k,:)
-     .                      + curlcurl_stg_ijk(i,j,k,nx,ny,nz
+     .                      - curlcurl_stg_ijk(i,j,k,nx,ny,nz
      .                                        ,igrid,igrid,igrid,cov)
 
             if (vol_wgt)veclap(i,j,k,:)
@@ -4915,7 +4915,7 @@ c     Begin program
       gsupv => gmetric%grid(igx)%gsup_v
       jacv  => gmetric%grid(igx)%jac_v
 
-      curlcurl(1)=(1d0/jacv(i,j  ,k)
+      curlcurl(1)=-(1d0/jacv(i,j  ,k)
      .          *((cov(i  ,j+1,k,1)-cov(i,j,k,1))/grid_params%dy(jg)
      .           -(cov(i+1,j  ,k,2)-cov(i,j,k,2))/grid_params%dx(ig))
      .          -1d0/jacv(i,j-1,k)
@@ -4923,7 +4923,7 @@ c     Begin program
      .           -(cov(i+1,j-1,k,2)-cov(i,j-1,k,2))/grid_params%dx(ig)))
      .          /grid_params%dy(jg)
 
-      curlcurl(2)=(1d0/jacv(i  ,j,k)
+      curlcurl(2)=-(1d0/jacv(i  ,j,k)
      .          *((cov(i+1,j  ,k,2)-cov(i,j,k,2))/grid_params%dx(ig)
      .           -(cov(i  ,j+1,k,1)-cov(i,j,k,1))/grid_params%dy(jg))
      .          -1d0/jacv(i-1,j,k)
@@ -4931,7 +4931,7 @@ c     Begin program
      .           -(cov(i-1,j+1,k,1)-cov(i-1,j,k,1))/grid_params%dy(jg)))
      .          /grid_params%dx(ig)
 
-      curlcurl(3) = lap(i,j,k,nx,ny,nz,igx,igy,igz,cov(:,:,:,3))
+      curlcurl(3) =-lap(i,j,k,nx,ny,nz,igx,igy,igz,cov(:,:,:,3))
      .           *gmetric%grid(igx)%jac(i,j,k)
 
       if (vol_wgt) curlcurl=curlcurl*gmetric%grid(igx)%dlvol(i,j,k)
