@@ -15,7 +15,7 @@ c ######################################################################
 
 c     initializeGraphics
 c     ###############################################################
-      subroutine initializeGraphics (igx,igy,igz,bcs)
+      subroutine initializeGraphics
 c     ---------------------------------------------------------------
 c     Set graphics files and dumping intervals
 c     ---------------------------------------------------------------
@@ -24,17 +24,21 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: igx,igy,igz,bcs(6)
-
 c     Local variables
 
-        integer    :: nx,ny,nz,isx,isy,isz
+        integer :: igx,igy,igz,bcs(6)
 
-        integer    :: i,j,k,nplots
+        integer :: nx,ny,nz,isx,isy,isz
+
+        integer :: i,j,k,nplots
         
         character*(30) :: prof_label
 
 c     Begin program
+
+        igx = 1 ; igy = 1 ; igz = 1
+
+        bcs = bcond
 
         nx = grid_params%nxv(igx)
         ny = grid_params%nyv(igy)
@@ -155,7 +159,7 @@ c     End program
 
 c     setGraphicsRange
 c     #################################################################
-      subroutine setGraphicsRange(igx,igy,igz)
+      subroutine setGraphicsRange
 
 c     ---------------------------------------------------------------
 c     Find graphics plotting range according to boundary conditions
@@ -165,13 +169,13 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-        integer :: igx,igy,igz
-
 c     Local variables
  
-        integer :: nx,ny,nz
+        integer :: igx,igy,igz,nx,ny,nz
 
 c     Begin program
+
+        igx = 1 ; igy = 1 ; igz = 1
 
         nx = grid_params%nxv(igx)
         ny = grid_params%nyv(igy)

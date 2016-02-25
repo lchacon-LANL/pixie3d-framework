@@ -65,7 +65,7 @@ c Initialize PETSc (parallel version)
 
 c Initialize computation
 
-      call initializeCalculation(igx,igy,igz)
+      call initializeCalculation
 
 c Initialize counters
 
@@ -75,12 +75,6 @@ c Initialize counters
 c Time loop
 
       do
-
-c diag ***** Redefine perturbations for preconditioner debugging
-cc        write (*,*) 'Redefined perts for PC debugging in 3dplot'
-cc        call equateDerivedType(u_ic,u_n)
-cc        call applyBC(u_ic,igx,igy,igz)
-c diag *****
 
 c     Read next record
 
@@ -249,7 +243,7 @@ c End program
 
 c initializeCalculation
 c######################################################################
-      subroutine initializeCalculation(igx,igy,igz)
+      subroutine initializeCalculation
 
 c----------------------------------------------------------------------
 c     Initializes MG and creates grid
@@ -275,12 +269,10 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer    :: igx,igy,igz
-
 c Local variables
 
-      integer    :: ierr
-      logical    :: petsc_flg
+      integer :: ierr,igx,igy,igz
+      logical :: petsc_flg
 
 c Interfaces
 
@@ -302,6 +294,8 @@ c Interfaces
       END INTERFACE
 
 c Begin program
+
+      igx = 1 ; igy = 1 ; igz = 1
 
 c Read user initializations
 
@@ -355,11 +349,15 @@ cc        call MK_initGrid(1)
 
 c Set plotting range
 
-      call setGraphicsRange(igx,igy,igz)
+      call setGraphicsRange
 
-c Initialize diagnostics and related variables
+c Read perturbed solution u_ic
 
       call equateDerivedType(u_ic,u_0)
+
+      call readTimeStep(urecord,itime,time,dt,u_ic,ierr)
+
+c Initialize diagnostics and related variables
 
 #if defined(MK)
       if (mk_grid) then
@@ -368,7 +366,7 @@ c Initialize diagnostics and related variables
       endif
 #endif
 
-      call equateDerivedType(u_n ,u_0)
+      call equateDerivedType(u_n,u_ic)
 
 #if defined(MK)
       if (mk_grid) u_ic%nvar = u_ic%nvar-1
@@ -380,11 +378,10 @@ c Initialize diagnostics and related variables
 #endif
 
       call equateDerivedType(u_np,u_ic)
-      call equateDerivedType(u_n ,u_ic)
 
 c Initialize graphics
 
-      call initializeGraphics(igx,igy,igz,bcond)
+      call initializeGraphics
 
 c End program
 

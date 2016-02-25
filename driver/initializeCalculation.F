@@ -186,8 +186,6 @@ c Begin program
 
 c Create equilibrium u_0
 
-cc      itime = 0 !Needed for BC logic
-
       call setEquilibrium(igrid,u_0)  !External
 
 #if defined(MK)
@@ -210,9 +208,6 @@ c Write geometry when applicable
       if (coords == 'ext') call writeExtMap
 
 c Perturb equilibrium
-
-cc      time     = 0d0
-cc      inewtime = 1
 
       call equateDerivedType(u_np,u_n)
 
@@ -414,10 +409,6 @@ c----------------------------------------------------------------------
 
       use var_io
 
-#if defined(MK)
-      use mk
-#endif
-
       implicit none
 
 c Call variables
@@ -455,29 +446,11 @@ c Set data dumping intervals
 c Open record file
 
       if (.not.restart) then
-
-        !Impose BC's on u_graph <- u_0
-        !(do not overwrite u_0, since it contains equil. BCs;
-        ! do nothing at EQU boundaries, to preserve EQU BCs)
-cc        call equateDerivedType(u_graph,u_0)
-
-cc        call applyBC(igrid,u_graph,gv%aux,it=1)
-
-#if defined(MK)
-        if (mk_grid)call MK_applyBC(igrid,u_graph%array_var(neqd)%array)
-#endif
-
         !Dump initial data
-cc        call writeRecordFile(recordfile,0,0d0,dt,u_graph)
         call writeRecordFile(recordfile,0,0d0,dt,u_0)
         call writeRecordFile(recordfile,0,0d0,dt,u_np)
-
-        call deallocateDerivedType(u_graph)
-
       else
-
         call setRecordfileToAppend
-
       endif
 
 c End programs
