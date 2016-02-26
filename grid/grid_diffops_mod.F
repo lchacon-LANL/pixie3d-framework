@@ -8392,5 +8392,156 @@ c     End
 
       end function integral
 
+c     integral_stg
+c     ################################################################
+      function integral_stg(igx,igy,igz,nx,ny,nz,array,average
+     .                     ,logical_dom) result(integral)
+
+c     ---------------------------------------------------------------
+c     Integrates array(i,j,k) on domain (nx)x(ny)x(nz).
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c    Call variables
+
+      integer :: igx,igy,igz,nx,ny,nz
+      real(8) :: array(0:nx+1,0:ny+1,0:nz+1),integral
+      logical,optional :: average,logical_dom
+
+c     Local variables
+
+      integer :: i,j,k
+
+      real(8) :: volume,dvol,send_buf(2),rec_buf(2)
+
+      logical :: avg,log_dom
+
+c     Begin program
+
+      avg = .false.
+      if (PRESENT(average)) avg = average
+
+      log_dom = .false.
+      if (PRESENT(logical_dom)) log_dom = logical_dom
+
+c     Integrate
+
+      integral = 0d0
+      volume   = 0d0
+
+      do k = 1,nz
+        do j = 1,ny
+          do i = 1,nx
+            if (log_dom) then
+              dvol = gmetric%grid(igx)%dlvol(i,j,k)
+            else
+              dvol = gmetric%grid(igx)%dvol (i,j,k)
+            endif
+
+            if (isSYM(i,igx,dim=1,loc=0)
+     .      .or.isSYM(i,igx,dim=1,loc=1)
+     .      .or.isSYM(j,igy,dim=2,loc=0)
+     .      .or.isSYM(j,igy,dim=2,loc=1)
+     .      .or.isSYM(k,igz,dim=3,loc=0)
+     .      .or.isSYM(k,igz,dim=3,loc=1)) dvol = 0.5*dvol
+
+            integral = integral + array(i,j,k)*dvol
+            !Averages in logical volume don't make sense
+cc            dvol = gmetric%grid(igx)%dvol(i,j,k)
+            volume = volume + dvol
+          enddo
+        enddo
+      enddo
+
+      if (isBdry(1,igx,1).and.(.not.bcPER(1))) then
+        i = 0
+        do k = 1,nz
+          do j = 1,ny
+            if (log_dom) then
+              dvol = gmetric%grid(igx)%dlvol(i,j,k)
+            else
+              dvol = gmetric%grid(igx)%dvol (i,j,k)
+            endif
+
+            if (isSYM(i,igx,dim=1,loc=0)
+     .      .or.isSYM(i,igx,dim=1,loc=1)
+     .      .or.isSYM(j,igy,dim=2,loc=0)
+     .      .or.isSYM(j,igy,dim=2,loc=1)
+     .      .or.isSYM(k,igz,dim=3,loc=0)
+     .      .or.isSYM(k,igz,dim=3,loc=1)) dvol = 0.5*dvol
+
+            integral = integral + array(i,j,k)*dvol
+            !Averages in logical volume don't make sense
+cc            dvol = gmetric%grid(igx)%dvol(i,j,k)
+            volume = volume + dvol
+          enddo
+        enddo
+      endif
+
+      if (isBdry(1,igy,3).and.(.not.bcPER(2))) then
+        j = 0
+        do k = 1,nz
+          do i = 1,nx
+            if (log_dom) then
+              dvol = gmetric%grid(igx)%dlvol(i,j,k)
+            else
+              dvol = gmetric%grid(igx)%dvol (i,j,k)
+            endif
+
+            if (isSYM(i,igx,dim=1,loc=0)
+     .      .or.isSYM(i,igx,dim=1,loc=1)
+     .      .or.isSYM(j,igy,dim=2,loc=0)
+     .      .or.isSYM(j,igy,dim=2,loc=1)
+     .      .or.isSYM(k,igz,dim=3,loc=0)
+     .      .or.isSYM(k,igz,dim=3,loc=1)) dvol = 0.5*dvol
+
+            integral = integral + array(i,j,k)*dvol
+            !Averages in logical volume don't make sense
+cc            dvol = gmetric%grid(igx)%dvol(i,j,k)
+            volume = volume + dvol
+          enddo
+        enddo
+      endif
+
+      if (isBdry(1,igz,5).and.(.not.bcPER(3))) then
+        k = 0
+        do j = 1,ny
+          do i = 1,nx
+            if (log_dom) then
+              dvol = gmetric%grid(igx)%dlvol(i,j,k)
+            else
+              dvol = gmetric%grid(igx)%dvol (i,j,k)
+            endif
+
+            if (isSYM(i,igx,dim=1,loc=0)
+     .      .or.isSYM(i,igx,dim=1,loc=1)
+     .      .or.isSYM(j,igy,dim=2,loc=0)
+     .      .or.isSYM(j,igy,dim=2,loc=1)
+     .      .or.isSYM(k,igz,dim=3,loc=0)
+     .      .or.isSYM(k,igz,dim=3,loc=1)) dvol = 0.5*dvol
+
+            integral = integral + array(i,j,k)*dvol
+            !Averages in logical volume don't make sense
+cc            dvol = gmetric%grid(igx)%dvol(i,j,k)
+            volume = volume + dvol
+          enddo
+        enddo
+      endif
+
+#if defined(petsc)
+      send_buf = (/ integral, volume /)
+      call MPI_Allreduce(send_buf,rec_buf,2,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      integral = rec_buf(1)
+      volume = rec_buf(2)
+#endif
+
+      if (avg) integral = integral/volume
+
+c     End 
+
+      end function integral_stg
+
       end module grid_diff_ops
 
