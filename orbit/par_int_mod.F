@@ -530,6 +530,8 @@ c module par_int
 c #############################################################################
       module par_int
 
+!$      use omp_lib
+
         use orbit
 
         use grid
@@ -545,19 +547,20 @@ c #############################################################################
 cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
         real(8) :: ieps
         real(8) :: temp_s,kernel_s,length_s,b0_s
+!$OMP THREADPRIVATE(ieps,temp_s,kernel_s,length_s,b0_s)
 
         !Private variables
 cc        real(8),private :: orbit_atol=1e-10    !Orbit integrator absolute tolerance
 cc     .                    ,orbit_rtol=1e-8     !Orbit integrator relative tolerance
-        real(8),private :: orbit_atol=1d-14    !Orbit integrator absolute tolerance
-     .                    ,orbit_rtol=1d-14    !Orbit integrator relative tolerance
+        real(8),private :: orbit_atol=1d-12    !Orbit integrator absolute tolerance
+     .                    ,orbit_rtol=1d-10    !Orbit integrator relative tolerance
      .                    ,orbit_dt  =1d-2     !Orbit integrator time step
      .                    ,CHI_LIMIT =1d-4     !Lower bound for chi*dt (delta-function limit)
 
         real(8),private :: lsode_out(LSODE_ACC_DIM),dx0,dy0,dz0
 
-        logical,private :: x_per,y_per,z_per
-     .                    ,solenoidal
+        logical,private :: x_per,y_per,z_per,solenoidal
+!$OMP THREADPRIVATE(x_per,y_per,z_per)
 
         real(8),pointer,dimension(:,:,:) :: ll,b0
 
@@ -1107,6 +1110,15 @@ c     Orbit integration
 
         b0_diag = 0d0
 
+c-----------------------------------------------
+c BEGIN OMP PARALLEL REGION
+c-----------------------------------------------
+!$OMP PARALLEL
+!$      thr_tot = omp_get_num_threads()
+!$      thr_num = omp_get_thread_num()
+
+!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
+!$OMP.     SCHEDULE(DYNAMIC)
         do k=1,nz
           do j=1,ny
             do i=1,nx
@@ -1138,6 +1150,11 @@ c     Orbit integration
             enddo
           enddo
         enddo
+!$OMP END DO
+c-----------------------------------------------
+c END OMP PARALLEL REGION
+c-----------------------------------------------
+!$OMP END PARALLEL
 
         if ((my_rank == 0).and.(iout == 1)) write (*,*)
 
@@ -1377,6 +1394,15 @@ c     Spline fields
 
 c     LSODE orbit integration
 
+c-----------------------------------------------
+c BEGIN OMP PARALLEL REGION
+c-----------------------------------------------
+!$OMP PARALLEL
+!$      thr_tot = omp_get_num_threads()
+!$      thr_num = omp_get_thread_num()
+
+!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
+!$OMP.     SCHEDULE(DYNAMIC)
         do k=1,nz
           do j=1,ny
             do i=1,nx
@@ -1403,6 +1429,11 @@ c     LSODE orbit integration
             enddo
           enddo
         enddo
+!$OMP END DO
+c-----------------------------------------------
+c END OMP PARALLEL REGION
+c-----------------------------------------------
+!$OMP END PARALLEL
 
         if ((my_rank == 0).and.(iout == 1)) write (*,*)
 
@@ -2974,6 +3005,8 @@ c     Find rhs
       chi_local = 0d0
       where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
 
+      integrals = 0d0
+
       call lag_xport_res(igrid,flds,integrals,chi_local,iout)
 
       if (bdf2) then
@@ -3000,7 +3033,7 @@ c     Find rhs
 
 c     Divide by dt to provide RHS to temporal term
 
-      src = src/dt
+      where (chi_local /= 0d0) src = src/dt
 
 ccc     Update beta for next time step
 cc
