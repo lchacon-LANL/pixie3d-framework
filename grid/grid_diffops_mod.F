@@ -1163,7 +1163,7 @@ c     ###############################################################
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates for a
 c     staggered vector A.  The vector A is covariant, and returns a
-c     contravariant vector, also staggered.
+c     contravariant vector, also staggered on the dual mesh.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran

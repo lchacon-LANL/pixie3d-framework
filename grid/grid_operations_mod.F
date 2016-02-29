@@ -1509,34 +1509,40 @@ c     Local variables
 
 c     Begin program
 
+        cnv = 0d0
+
         ip = min(i+1,size(cov,1)-1)
-        im = max(i-1,0)
+        im = i-1
 
         jp = min(j+1,size(cov,2)-1)
-        jm = max(j-1,0)
+        jm = j-1
 
         kp = min(k+1,size(cov,3)-1)
-        km = max(k-1,0)
+        km = k-1
 
         gsup_v => gmetric%grid(igrid)%gsup_v
 
-        gsup11 = 0.5*(gsup_v(i,jm,k,1,1)
-     .               +gsup_v(i,j ,k,1,1))
+        if (jm >= 0) then
+          gsup11 = 0.5*(gsup_v(i,jm,k,1,1)
+     .                 +gsup_v(i,j ,k,1,1))
 
-        cnv(1) = gsup11*cov(i,j,k,1)
+          cnv(1) = gsup11*cov(i,j,k,1)
      .                +0.25*(gsup_v(i,j ,k,1,2)*(cov(i ,j ,k,2)
      .                                          +cov(ip,j ,k,2))
      .                      +gsup_v(i,jm,k,1,2)*(cov(i ,jm,k,2)
      .                                          +cov(ip,jm,k,2)))
+        endif
 
-        gsup22 = 0.5*(gsup_v(im,j,k,2,2)
-     .               +gsup_v(i ,j,k,2,2))
+        if (im >= 0) then
+          gsup22 = 0.5*(gsup_v(im,j,k,2,2)
+     .                 +gsup_v(i ,j,k,2,2))
 
-        cnv(2) = gsup22*cov(i,j,k,2)
+          cnv(2) = gsup22*cov(i,j,k,2)
      .                +0.25*(gsup_v(i ,j,k,2,1)*(cov(i ,j ,k,1)
      .                                          +cov(i ,jp,k,1))
      .                      +gsup_v(im,j,k,2,1)*(cov(im,j ,k,1)
      .                                          +cov(im,jp,k,1)))
+        endif
 
         cnv(3) = gmetric%grid(igrid)%gsup(i,j,k,3,3)*cov(i,j,k,3)
 
@@ -1568,38 +1574,109 @@ c     Local variables
 
 c     Begin program
 
+        cov = 0d0
+
         ip = min(i+1,size(cnv,1)-1)
-        im = max(i-1,0)
+        im = i-1
 
         jp = min(j+1,size(cnv,2)-1)
-        jm = max(j-1,0)
+        jm = j-1
 
         kp = min(k+1,size(cnv,3)-1)
-        km = max(k-1,0)
+        km = k-1
 
         gsub_v => gmetric%grid(igrid)%gsub_v
 
-        gsub11 = 0.5*(gsub_v(i,jm,k,1,1)
-     .               +gsub_v(i,j ,k,1,1))
+        if (jm >= 0) then
+          gsub11 = 0.5*(gsub_v(i,jm,k,1,1)
+     .                 +gsub_v(i,j ,k,1,1))
 
-        cov(1) = gsub11*cnv(i,j,k,1)
+          cov(1) = gsub11*cnv(i,j,k,1)
      .                +0.25*(gsub_v(i,j ,k,1,2)*(cnv(i ,j ,k,2)
      .                                          +cnv(ip,j ,k,2))
      .                      +gsub_v(i,jm,k,1,2)*(cnv(i ,jm,k,2)
      .                                          +cnv(ip,jm,k,2)))
+        endif
 
-        gsub22 = 0.5*(gsub_v(im,j,k,2,2)
-     .               +gsub_v(i ,j,k,2,2))
+        if (im >= 0) then
+          gsub22 = 0.5*(gsub_v(im,j,k,2,2)
+     .                 +gsub_v(i ,j,k,2,2))
 
-        cov(2) = gsub22*cnv(i,j,k,2)
+          cov(2) = gsub22*cnv(i,j,k,2)
      .                +0.25*(gsub_v(i ,j,k,2,1)*(cnv(i ,j ,k,1)
      .                                          +cnv(i ,jp,k,1))
      .                      +gsub_v(im,j,k,2,1)*(cnv(im,j ,k,1)
      .                                          +cnv(im,jp,k,1)))
+        endif
 
         cov(3) = gmetric%grid(igrid)%gsup(i,j,k,3,3)*cnv(i,j,k,3)
 
       end function XformToCov_stg_ijk
+
+c     XformToCov_vrtx_stg_ijk
+c     #################################################################
+      function XformToCov_vrtx_stg_ijk(i,j,k,igrid,cnv) result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a vertex staggered contravariant vector to a covariant
+c     representation at faces for cell (i,j,k).
+c
+c     CURRENTLY WORKS ONLY IN 2D
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        integer :: i,j,k,igrid
+        real(8) :: cnv(0:,0:,0:,:),cov(3)
+
+c     Local variables
+
+        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsub11,gsub22
+        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
+
+c     Begin program
+
+        cov = 0d0
+
+        ip = min(i+1,size(cnv,1)-1)
+        im = i-1
+
+        jp = min(j+1,size(cnv,2)-1)
+        jm = j-1
+
+        kp = min(k+1,size(cnv,3)-1)
+        km = k-1
+
+        gsub_v => gmetric%grid(igrid)%gsub_v
+
+        if (im >= 0) then
+          gsub11 = 0.5*(gsub_v(im,j,k,1,1)
+     .                 +gsub_v(i ,j,k,1,1))
+
+          cov(1) = gsub11*cnv(i,j,k,1)
+     .                +0.25*(gsub_v(i ,j,k,1,2)*(cnv(i ,j ,k,2)
+     .                                          +cnv(i ,jp,k,2))
+     .                      +gsub_v(im,j,k,1,2)*(cnv(im,j ,k,2)
+     .                                          +cnv(im,jp,k,2)))
+        endif
+
+        if (jm >= 0) then
+          gsub22 = 0.5*(gsub_v(i,jm,k,2,2)
+     .                 +gsub_v(i,j ,k,2,2))
+
+          cov(2) = gsub22*cnv(i,j,k,2)
+     .                +0.25*(gsub_v(i,j ,k,2,1)*(cnv(i ,j ,k,1)
+     .                                          +cnv(ip,j ,k,1))
+     .                      +gsub_v(i,jm,k,2,1)*(cnv(i ,jm,k,1)
+     .                                          +cnv(ip,jm,k,1)))
+        endif
+
+        cov(3) = gmetric%grid(igrid)%gsup_v(i,j,k,3,3)*cnv(i,j,k,3)
+
+      end function XformToCov_vrtx_stg_ijk
 
 c     Xform_From_VrtxCnv_To_CellCov_stg_ijk
 c     #################################################################
@@ -1713,7 +1790,8 @@ c     Begin program
 
 c     XformToCov_stg_mesh
 c     #################################################################
-      function XformToCov_stg_mesh(igrid,cnv,vertex) result(cov)
+      function XformToCov_stg_mesh(igrid,cnv,vertex_in,vertex_out)
+     .         result(cov)
 
 c     -----------------------------------------------------------------
 c     Transforms a staggered contravariant vector (vertex-based if
@@ -1730,19 +1808,25 @@ c     Input variables
         real(8) :: cov(0:size(cnv,1)-1
      .                ,0:size(cnv,2)-1
      .                ,0:size(cnv,3)-1,3)
-        logical, optional :: vertex
+        logical, optional :: vertex_in,vertex_out
 
 c     Local variables
 
         integer :: i,j,k,nx,ny,nz
-        logical :: vrtx
+        logical :: vrtx_in,vrtx_out
 
 c     Begin program
 
-        if (PRESENT(vertex)) then
-          vrtx = vertex
+        if (PRESENT(vertex_in)) then
+          vrtx_in = vertex_in
         else
-          vrtx = .false.
+          vrtx_in = .false.
+        endif
+
+        if (PRESENT(vertex_out)) then
+          vrtx_out = vertex_out
+        else
+          vrtx_out = .false.
         endif
 
         nx = size(cnv,1)-2
@@ -1751,7 +1835,7 @@ c     Begin program
 
         cov = 0d0
 
-        if (vrtx) then
+        if (vrtx_in.and.(.not.vrtx_out)) then
           do k=0,nz+1
             do j=0,ny+1
               do i=0,nx+1
@@ -1760,7 +1844,7 @@ c     Begin program
               enddo
             enddo
           enddo
-        else
+        elseif ((.not.vrtx_in).and.(.not.vrtx_out)) then
           do k=0,nz+1
             do j=0,ny+1
               do i=0,nx+1
@@ -1768,6 +1852,18 @@ c     Begin program
               enddo
             enddo
           enddo
+        elseif (vrtx_in.and.vrtx_out) then
+          do k=0,nz+1
+            do j=0,ny+1
+              do i=0,nx+1
+                cov(i,j,k,:) = XformToCov_vrtx_stg_ijk(i,j,k,igrid,cnv)
+              enddo
+            enddo
+          enddo
+        elseif ((.not.vrtx_in).and.vrtx_out) then
+          write (*,*) 'Case not implemented yet'
+          write (*,*) 'Aborting in XformToCov_stg_mesh'
+          stop
         endif
 
       end function XformToCov_stg_mesh
