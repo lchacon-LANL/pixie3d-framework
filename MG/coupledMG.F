@@ -3176,7 +3176,7 @@ c     End program
 
 c     vec_plot
 c     #####################################################################
-      subroutine vec_plot(nvar,vec,igrid,file,title)
+      subroutine vec_plot(nvar,vec,igrid,file,title,mgctx)
 
 c     ---------------------------------------------------------------------
 c     Plots vector with nvar variables.
@@ -3190,6 +3190,8 @@ c     Call variables
         real(8) :: vec(:)
         character(*) :: file,title
 
+        type(mg_ctx),pointer,optional :: mgctx
+
 c     Local variables
 
         character(4)  :: dbg_desc(nvar)
@@ -3197,8 +3199,6 @@ c     Local variables
 
         integer :: i,ieq
         logical :: fpointers
-
-        type(mg_ctx),pointer:: mgctx => null()
 
 c     Begin program
 
@@ -3248,7 +3248,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: nx,ny,nz,nxg,nyg,nzg,ieq,nunit,neq
+        integer :: nx,ny,nz,nxg,nyg,nzg,ieq,nunit,neq,rank=0
         real(8),allocatable,dimension(:,:,:,:) :: debugl
         real(8),allocatable,dimension(:,:,:)   :: debugg
 
@@ -3273,7 +3273,10 @@ c     Dump plots
 
         call mapMGVectorToArray(mgctx,0,mgv,debugl,igr,.true.)
 
-        if (my_rank == 0) then
+#if defined(petsc)
+        call MPI_Comm_Rank(mgctx%mpi_comm,rank,mpierr)
+#endif
+        if (rank == 0) then
 
           if (iflag == 0) then
             open(nunit,file=trim(ofile),form='unformatted'
@@ -3287,9 +3290,10 @@ c     Dump plots
 
         do ieq=1,neq
           call find_global_nobc(debugl(1:nx ,1:ny ,1:nz ,ieq)
-     .                         ,debugg(1:nxg,1:nyg,1:nzg))
+     .                         ,debugg(1:nxg,1:nyg,1:nzg)
+     .                         ,mpi_comm=mgctx%mpi_comm)
 
-          if (my_rank == 0) then  
+          if (rank == 0) then  
             call C_contour(debugg(1:nxg,1:nyg,1:nzg)
      .                  ,mgctx%g_def%gxmin,mgctx%g_def%gxmax
      .                  ,mgctx%g_def%gymin,mgctx%g_def%gymax
@@ -3307,7 +3311,7 @@ c     End program
 
 c     vec_plot_gl
 c     #####################################################################
-      subroutine vec_plot_gl(nvar,vec,igrid,file,title)
+      subroutine vec_plot_gl(nvar,vec,igrid,file,title,mgctx)
 
 c     ---------------------------------------------------------------------
 c     Plots vector with nvar variables.
@@ -3321,15 +3325,17 @@ c     Call variables
         real(8) :: vec(:)
         character(*) :: file,title
 
+        type(mg_ctx),pointer,optional :: mgctx
+
 c     Local variables
 
-        character(4)  :: dbg_desc(nvar)
+        character(50)  :: dbg_desc(nvar)
         character(50) :: binfile,drawfile
 
-        integer :: i,ieq
+        integer :: i,ieq,rank=0
         logical :: fpointers
 
-        type(mg_ctx),pointer:: mgctx => null()
+        type(mg_ctx),pointer :: mgctx_l => null()
 
 c     Begin program
 
@@ -3340,19 +3346,27 @@ c     Begin program
           dbg_desc(i) = trim(file)//trim(int2char(i))
         enddo
 
-        if (my_rank == 0) then
+        if (PRESENT(mgctx)) then
+          mgctx_l => mgctx
+        else
+          nullify(mgctx_l)
+        endif
+
+        call allocPointers(nvar,fpointers,mgctx=mgctx_l)
+
+#if defined(petsc)
+        call MPI_Comm_Rank(mgctx_l%mpi_comm,rank,mpierr)
+#endif
+
+        if (rank == 0) then
           call createDrawInCfile(nvar,trim(binfile),trim(title)
      .          ,'t','x','y',dbg_desc,'-c -X0 -L57'
      .          ,trim(drawfile))
         endif
 
-        call allocPointers(nvar,fpointers,mgctx=mgctx)
+        call MGplot_gl(mgctx_l,igrid,vec,0,binfile)
 
-        call MGplot_gl(mgctx,igrid,vec,0,binfile)
-
-        call deallocPointers(fpointers,mgctx=mgctx)
-
-cc        call MGplot_gl(nvar,vec,igrid,0,binfile)
+        call deallocPointers(fpointers,mgctx=mgctx_l)
 
 c     End program
 
@@ -3364,15 +3378,15 @@ c     module mg_solver
 c     ##################################################################
       module mg_solver
 
-        use mg_io, ONLY: MGplot
+        use mg_io, ONLY: MGplot,MGplot_gl,vec_plot,vec_plot_gl
         use mg_Xfer
 
         logical :: vbr_mg
      .            ,galerkin=.false.
-     .            ,mg_coarse_solve=.false.
 
         logical,private :: res_vol_wgt=.true.  !Whether residual is volume weighed
      .                    ,mg_find_diag=.false.!Whether we are finding diagonal or not
+     .                    ,mg_coarse_solve=.false.!Whether we are performing coarse solve
 
         private :: find_mf_diag_std,find_mf_diag_colored
 
@@ -3425,6 +3439,30 @@ c     #################################################################
       fd = mg_find_diag
       
       end function MG_get_find_diag
+
+c     MG_set_coarse_solve
+c     #################################################################
+      subroutine MG_set_coarse_solve(mgcs)
+
+      implicit none
+
+      logical :: mgcs
+
+      mg_coarse_solve = mgcs
+      
+      end subroutine MG_set_coarse_solve
+
+c     MG_get_coarse_solve
+c     #################################################################
+      function MG_get_coarse_solve() result(mgcs)
+
+      implicit none
+
+      logical :: mgcs
+
+      mgcs = mg_coarse_solve
+      
+      end function MG_get_coarse_solve
 
 c     blockSolve
 c     #################################################################
@@ -4743,6 +4781,7 @@ c     Consistency check
       nn  = ntotv(igrid)
 
       if (nn /= ntot) then
+        write (*,*) igrid,nn,ntot
         call pstop('find_mf_diag'
      .            ,'Error in input of find_mf_diag')
       endif
@@ -5006,12 +5045,12 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer    :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
-      real(8)    :: x(ntot),y(ntot)
+      integer :: neq,ntot,igrid,guess,out,depth,bcnd(6,neq)
+      real(8) :: x(ntot),y(ntot)
 
       type (solver_options) :: options
 
-      external     matvec
+      external matvec
 
 c Local variables
 
@@ -5020,7 +5059,7 @@ c Local variables
       integer :: guess2=0,outc=0
       integer :: i,j,k,ii,ivcyc,nblk
 
-      real(8) :: rr0=0d0,rr1=0d0,mag=0d0,mag1=0d0,mag2=0d0,epsmac=0d0
+      real(8) :: rr0,rr1,mag,mag1,mag2,epsmac
 
       real(8),pointer,dimension(:,:) :: diag
 
@@ -5041,6 +5080,8 @@ c Local variables
       character(2) :: line_solve
 
 c Begin program
+
+      rr0=0d0 ; rr1=0d0 ; mag=0d0 ; mag1=0d0 ; mag2=0d0 ; epsmac=0d0
 
       xx = 0d0 ; yy = 0d0; wrk = 0d0; rr = 0d0 ; x0 = 0d0
 
@@ -5069,7 +5110,6 @@ cc      volf            = options%vol_res
       vbr_mg          = options%mg_vertex_relax
       galerkin        = options%mg_galerkin
       diag            => options%diag
-      mgctx           => options%mgctx
       MGgrid          => options%mg_grid_def
 
       line_relax      = options%mg_line_relax
@@ -5089,7 +5129,9 @@ cc      volf            = options%vol_res
 
 c Set pointers and find ngrid
 
-      call allocPointers(neq,fpointers,mgctx=mgctx)
+      call allocPointers(neq,fpointers,mgctx=options%mgctx)
+
+      mgctx => options%mgctx
 
       if (fpointers.and.out.ge.2.and.my_rank==0)
      .     write (*,*) 'Allocating pointers...'
@@ -5444,27 +5486,7 @@ c     Initialize solution on coarse grid
 
 c     If on coarsest grid, solve for error, else descend a grid level
 
-cc#if defined(petsc)
-cc        if ((np > 1)
-cc     .      .and. (    MGgrid%ngrdx == igc    !Grid-level based criterion
-cc     .             .or.MGgrid%ngrdy == igc
-cc     .             .or.MGgrid%ngrdz == igc)
-cccc     .      .and. (    MGgrid%nxgl(igc) >= 32 !Coarse grid size criterion
-cccc     .             .or.MGgrid%nygl(igc) >= 32
-cccc     .             .or.MGgrid%nzgl(igc) >= 32
-cccc     .             .or.MGgrid%nxgl(igc)
-cccc     .                *MGgrid%nygl(igc)
-cccc     .                *MGgrid%nzgl(igc) >= 1024)
-cc     .  ) then
-cc
-cc          write (*,*) 'DIAG -- mcycle at coarseGridSolve: proc=',my_rank
-cc
-cc          call coarseGridSolve(igc)     !Perform parallel coarse grid solve
-cc
-cc        elseif (igc.eq.igmax) then
-cc#else
         if (igc.eq.igmax) then
-cc#endif
           call coarseSolve(igc)         !Perform coarse grid solve
         else
           do imu = 1,mu
@@ -6581,50 +6603,183 @@ c     Call variables
 
 c     Local variables
 
-        integer :: nn,isig,depth1
+        integer :: nn,ng,isig,depth1,nxg,nyg,nzg,ii,iig,ig,jg,kg
+     .            ,igv(3),ilv(3),nxl,nyl,nzl,i,j,k
+
+        type(solver_unit) :: solver
+
+        type(mg_ctx),pointer :: mgctx_crse => null()
+     .                         ,mgctx_sav  => null()
+
+        type(grid_mg_def),pointer :: g_crse_def => null()
+
+        real(8),pointer,dimension(:) :: xg,yg
+        real(8),pointer,dimension(:,:) :: diag_sav
+        real(8),pointer,dimension(:,:,:,:) :: carg,array,arrayg
+        
+        logical :: fpointers
 
 c     Begin program
 
-        if (outc.ge.1.and.prnt) write (*,*) 'Grid Level',igr
-
-cc#if defined(petsc)
-cccc        if ((np > 1) .and.
-cccc     .      (    MGgrid%ngrdx == igr
-cccc     .       .or.MGgrid%ngrdy == igr
-cccc     .       .or.MGgrid%ngrdz == igr)) then   !Perform coarse grid solve
-cccc
-cccc        else
-cc
-cc          nn   = ntotv(igr)
-cc          isig = istart(igr)
-cc
-cc          if (crsedpth /= 0) then
-cc            depth1 = crsedpth
-cc          else
-cc            depth1 = depth + 1
-cc          endif
-cc
-cc          call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcnd
-cc     .                ,guess2,outc,depth1)
-cc
-cccc        endif
-cc#else
-        mg_coarse_solve = .true.
-
-        nn   = ntotv(igr)
         isig = istart(igr)
+        nn   = ntotv (igr)
 
-        if (crsedpth /= 0) then
-          depth1 = crsedpth
-        else
-          depth1 = depth + 1
+#if defined(petsc)
+        if ((np > 1) .and.(mgctx%g_def%ngrid == igr)
+     .      .and.mgctx%mpi_comm /= MPI_COMM_SELF) then             !At PROCESSOR coarse mesh
+
+          if (outc.ge.1.and.prnt) then
+            write (*,*)
+            write (*,*) 'BEGIN solution of COARSE MG problem'
+            write (*,*) 'Grid Level',igr
+          endif
+
+          !Reset diagonals
+          diag_sav => options%diag
+          options%diag => null() !Reform diagonals in coarse mesh
+
+          !Total coarse mesh grid sizes
+          nxl = mgctx%g_def%nxv(igr)
+          nyl = mgctx%g_def%nyv(igr)
+          nzl = mgctx%g_def%nzv(igr)
+          nxg = mgctx%g_def%nxgl(igr)
+          nyg = mgctx%g_def%nygl(igr)
+          nzg = mgctx%g_def%nzgl(igr)
+
+          ng = neq*nxg*nyg*nzg
+
+          !Initialize SERIAL grid structure over COARSE mesh
+          call initGridSt(nxg,nyg,nzg,g_crse_def,np_x=1,np_y=1,np_z=1
+     .                   ,mpi_comm=MPI_COMM_SELF)
+
+          if (.not.checkAnalMapDatabase()) then
+            allocate(carg(0:nxg+1,0:nyg+1,0:nzg+1,3))
+
+            call find_global(mgctx%g_def%gmetric%grid(igr)%car,carg
+     .                      ,map_bc=.true.,mpi_comm=mgctx%mpi_comm)
+
+            call defineGridMetric(g_crse_def,xcar=carg)
+
+            deallocate(carg)
+          else
+            call defineGridMetric(g_crse_def)
+          endif
+
+          !Gather MG vectors
+          allocate(xg(ng),yg(ng)
+     .            ,array (0:nxl+1,0:nyl+1,0:nzl+1,neq)
+     .            ,arrayg(0:nxg+1,0:nyg+1,0:nzg+1,neq))
+
+          !Residual
+          call mapMGVectorToArray(mgctx,0,yy,array,igr,.true.)
+
+          call find_global_nobc(array (1:nxl,1:nyl,1:nzl,:)
+     .                         ,arrayg(1:nxg,1:nyg,1:nzg,:)
+     .                         ,mpi_comm=mgctx%mpi_comm)
+
+          do kg = 1,nzg
+            do jg = 1,nyg
+              do ig = 1,nxg
+                !Local limits
+                igv = (/ig,jg,kg/)
+                !Vector location
+                iig = neq*vPos(1,igv,g_def=g_crse_def)
+                !Vector assignment
+                yg(iig+1:iig+neq) = arrayg(ig,jg,kg,:)
+              enddo
+            enddo
+          enddo
+
+          deallocate(array,arrayg)
+
+          !Solution is initialized to zero (consistently with mcycle routine)
+          xg = 0d0
+
+          !Set MG context 
+          mgctx_sav => mgctx
+          nullify(MGgrid)
+          call allocPointers(neq,fpointers,mgctx=mgctx_crse
+     .                      ,g_def=g_crse_def)
+          options%mgctx => mgctx_crse
+          options%mg_grid_def => g_crse_def
+
+          !Call MG with new solver context
+          call mg(neq,ng,yg,xg,matvec,options,1,bcnd,guess2,out,depth)
+
+          !Scatter GLOBAL solution vectors
+          do kg = mgctx_sav%g_def%klo(igr),mgctx_sav%g_def%khi(igr)
+            do jg = mgctx_sav%g_def%jlo(igr),mgctx_sav%g_def%jhi(igr)
+              do ig = mgctx_sav%g_def%ilo(igr),mgctx_sav%g_def%ihi(igr)
+                !Local limits
+                igv = (/ig,jg,kg/)
+                ilv = localIndex(igr,igv,g_def=mgctx_sav%g_def)
+                !Vector location
+                ii  = neq*vPos(igr,ilv,g_def=mgctx_sav%g_def) + isig - 1
+                iig = neq*vPos(1  ,igv,g_def=g_crse_def)
+                !Vector assignment
+                xx(ii+1:ii+neq) = xg(iig+1:iig+neq)
+              enddo
+            enddo
+          enddo
+
+c diag ****
+c$$$          call vec_plot_gl(neq,yy,igr,"local_res","Coarse MG solution"
+c$$$     .                    ,mgctx=mgctx_sav)
+c$$$          call vec_plot_gl(neq,xx,igr,"local_sol","Coarse MG solution"
+c$$$     .                    ,mgctx=mgctx_sav)
+c$$$          call pstop("","")
+cdiag ****
+
+          !Free space
+          deallocate(xg,yg)
+          call deallocPointers(fpointers,mgctx=mgctx_crse)
+          call deallocateGridStructure(g_crse_def)
+
+          !Recover old MG config
+          nullify(MGgrid)
+          options%diag => diag_sav
+          options%mgctx => mgctx_sav
+          call allocPointers(neq,fpointers,mgctx=options%mgctx)
+          mgctx => options%mgctx
+
+          if (outc.ge.1.and.prnt) then
+            write (*,*)
+            write (*,*) 'END solution of COARSE MG problem'
+            write (*,*)
+          endif
+
+        else  !Really at GRID coarse mesh
+#endif
+          if (outc.ge.1.and.prnt) then
+            write (*,*) 'Grid Level',igr
+          endif
+
+          if (crsedpth /= 0) then
+            depth1 = crsedpth
+          else
+            depth1 = depth + 1
+          endif
+
+          call MG_set_coarse_solve(.true.)
+
+          call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcnd
+     .                  ,guess2,outc,depth1)
+
+          call MG_set_coarse_solve(.false.)
+
+c diag
+c$$$          if (np == 1) then
+c$$$          call vec_plot_gl(neq,yy,igr,"local_res_serial"
+c$$$     .                    ,"Coarse MG solution")
+c$$$          call vec_plot_gl(neq,xx,igr,"local_sol_serial"
+c$$$     .                    ,"Coarse MG solution")
+c$$$          call pstop("","")
+c$$$          endif
+c diag
+
+#if defined(petsc)
         endif
-
-        call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcnd
-     .                ,guess2,outc,depth1)
-
-        mg_coarse_solve = .false.
-cc#endif
+#endif
 
       end subroutine coarseSolve
 
@@ -6938,13 +7093,14 @@ c Read solver configuration
 
       ncolors= options%ncolors
       diag   => options%diag
-      mgctx  => options%mgctx
 
       smat   = options%singular_matrix
 
 c Allocate pointers
 
-      call allocPointers(neq,fpointers,mgctx=mgctx)
+      call allocPointers(neq,fpointers,mgctx=options%mgctx)
+
+      mgctx  => options%mgctx
 
       if (fpointers) then          !JB is NOT called from MG
         vbr_mg = .false.
@@ -7359,11 +7515,12 @@ c Read solver configuration
 
       ncolors= options%ncolors
       diag   => options%diag
-      mgctx  => options%mgctx
 
 c Set pointers
 
-      call allocPointers(neq,fpointers,mgctx=mgctx)
+      call allocPointers(neq,fpointers,mgctx=options%mgctx)
+
+      mgctx  => options%mgctx
 
       if (fpointers) then          !GS is NOT called from MG
         vbr_mg = .false.

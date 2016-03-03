@@ -115,6 +115,7 @@ c     Begin program
 
       else
         call allocMGPointers(neq,fpointers,mg_ctx_temp)
+        if (PRESENT(mgctx)) mgctx => mg_ctx_temp
       endif
 
       istart  => mg_ctx_temp%istart
@@ -173,9 +174,6 @@ c     #################################################################
 c     -----------------------------------------------------------------
 c     Initializes pointers for block MG. In call sequence:
 c       * neq (in), integer: number of coupled equations to be solved
-c       * ngrid: number of grid levels
-c       * mgx,mgy,mgz: mg coarsening ratios
-c       * nxv,nyv,nzv: dimensions for grids in all levels
 c       * fpointers (out), logical: indicates if pointers were allocated
 c            or not.
 c       * mgctx: MG context

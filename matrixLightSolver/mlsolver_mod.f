@@ -258,7 +258,7 @@ c     ###################################################################
 c       Reads TOP solver definition from solver hierarchy
 
           type (solver_unit) :: solver_def
-          integer               :: depth
+          integer            :: depth
 
         !Begin
 

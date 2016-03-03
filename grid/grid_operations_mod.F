@@ -191,6 +191,38 @@ c     #################################################################
       
       end function vecPos
 
+c     vPos
+c     #################################################################
+      function vPos(igr,ilv,g_def) result (ijk)
+
+        implicit none
+
+        integer :: igr,ilv(3),ijk
+
+        integer :: nxl,nyl,nzl,ilo,jlo,klo
+
+        type(grid_mg_def),pointer,optional :: g_def
+
+        type(grid_mg_def),pointer :: gl
+
+        if (PRESENT(g_def)) then
+          gl => g_def
+        else
+          gl => grid_params
+        endif
+
+        ilo = 1
+        jlo = 1
+        klo = 1
+
+        nxl = gl%nxv(igr)
+        nyl = gl%nyv(igr)
+        nzl = gl%nzv(igr)
+
+        ijk = ilv(1)-ilo + nxl*(ilv(2)-jlo) + nxl*nyl*(ilv(3)-klo)
+      
+      end function vPos
+
 c     fromGlobalToLocalLimits
 c     #################################################################
       subroutine fromGlobalToLocalLimits(ig,jg,kg,il,jl,kl,igx,igy,igz)
@@ -221,29 +253,49 @@ c     #################################################################
 
 c     localIndex
 c     #################################################################
-      function localIndex(igrid,gindex) result(lindex)
+      function localIndex(igrid,gindex,g_def) result(lindex)
 
         implicit none
 
         integer  :: igrid,lindex(3),gindex(3)
 
-        lindex(1) = gindex(1) - grid_params%ilo(igrid) + 1
-        lindex(2) = gindex(2) - grid_params%jlo(igrid) + 1
-        lindex(3) = gindex(3) - grid_params%klo(igrid) + 1
+        type(grid_mg_def),pointer,optional :: g_def
+
+        type(grid_mg_def),pointer :: gl
+
+        if (PRESENT(g_def)) then
+          gl => g_def
+        else
+          gl => grid_params
+        endif
+
+        lindex(1) = gindex(1) - gl%ilo(igrid) + 1
+        lindex(2) = gindex(2) - gl%jlo(igrid) + 1
+        lindex(3) = gindex(3) - gl%klo(igrid) + 1
 
       end function localIndex
 
 c     globalIndex
 c     #################################################################
-      function globalIndex(igrid,lindex) result(gindex)
+      function globalIndex(igrid,lindex,g_def) result(gindex)
 
         implicit none
 
         integer  :: igrid,lindex(3),gindex(3)
 
-        gindex(1) = lindex(1) + grid_params%ilo(igrid) - 1
-        gindex(2) = lindex(2) + grid_params%jlo(igrid) - 1
-        gindex(3) = lindex(3) + grid_params%klo(igrid) - 1
+        type(grid_mg_def),pointer,optional :: g_def
+
+        type(grid_mg_def),pointer :: gl
+
+        if (PRESENT(g_def)) then
+          gl => g_def
+        else
+          gl => grid_params
+        endif
+
+        gindex(1) = lindex(1) + gl%ilo(igrid) - 1
+        gindex(2) = lindex(2) + gl%jlo(igrid) - 1
+        gindex(3) = lindex(3) + gl%klo(igrid) - 1
 
       end function globalIndex
 

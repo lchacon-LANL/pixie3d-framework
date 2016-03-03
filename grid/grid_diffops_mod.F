@@ -1385,7 +1385,8 @@ c     Calculate gradient
 
 c     lap_flx_x_ijk
 c     ###############################################################
-      function lap_flx_x_ijk(i,j,k,igrid,arr,diff,vertex) result(flx)
+      function lap_flx_x_ijk(i,j,k,igrid,arr,diff,vertex,g_def)
+     .         result(flx)
 c     ---------------------------------------------------------------
 c     Calculates X-flux for scalar laplacian at faces (i+1/2,j,k)
 c     in general non-orthogonal coordinates, preserving the SPD property.
@@ -1402,6 +1403,8 @@ c     Call variables
       real(8),optional,target :: diff(0:,0:,0:)
       logical,optional,intent(IN) :: vertex
 
+      type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
       integer :: im,jm,km,ip,jp,kp,ig,jg,kg
@@ -1415,6 +1418,8 @@ c     Local variables
       real(8),dimension(:,:,:),pointer :: dff
 
       logical  :: vrtx_met,have_diff
+
+      type(grid_mg_def),pointer :: g_def_l
 
 c     Begin program
 
@@ -1430,7 +1435,13 @@ c     Begin program
         have_diff = .true.
       endif
 
-      call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+      if (PRESENT(g_def)) then
+        g_def_l => g_def
+      else
+        g_def_l => grid_params
+      endif
+
+      call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg,g_def=g_def)
 
       ip = i+1
       im = i-1
@@ -1441,7 +1452,7 @@ c     Begin program
 
       if (vrtx_met) then
         !Vertex metrics
-        gsup => gmetric%grid(igrid)%gsup_v
+        gsup => g_def_l%gmetric%grid(igrid)%gsup_v
 
         d_xx_ip = 0.25*(gsup(i,j ,k ,1,1)
      .                 +gsup(i,jm,k ,1,1)
@@ -1480,7 +1491,7 @@ c     Begin program
 
       else
         !Cell-centered metrics
-        gsup => gmetric%grid(igrid)%gsup
+        gsup => g_def_l%gmetric%grid(igrid)%gsup
 
         if (have_diff) then
           d_xx_ip = 0.5*(dff(i ,j,k)*gsup(i ,j,k,1,1)
@@ -1524,16 +1535,16 @@ c     Begin program
      .                     +gsup(ip,j,km,1,3))
         endif
       endif
-                                                                       
-      flx   = d_xx_ip  *(arr(ip,j ,k)-arr(i,j ,k))/grid_params%dx(ig)
+
+      flx   = d_xx_ip  *(arr(ip,j ,k)-arr(i,j ,k))/g_def_l%dx(ig)
      .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
-     .                  -arr(ip,j ,k)-arr(i,j ,k))/grid_params%dy(jg)
+     .                  -arr(ip,j ,k)-arr(i,j ,k))/g_def_l%dy(jg)
      .  +     d_xy_ipjm*(arr(ip,j ,k)+arr(i,j ,k)               
-     .                  -arr(ip,jm,k)-arr(i,jm,k))/grid_params%dy(jg-1)
+     .                  -arr(ip,jm,k)-arr(i,jm,k))/g_def_l%dy(jg-1)
      .  +     d_xz_ipkp*(arr(ip,j,kp)+arr(i,j,kp)               
-     .                  -arr(ip,j,k )-arr(i,j,k ))/grid_params%dz(kg)
+     .                  -arr(ip,j,k )-arr(i,j,k ))/g_def_l%dz(kg)
      .  +     d_xz_ipkm*(arr(ip,j,k )+arr(i,j,k )               
-     .                  -arr(ip,j,km)-arr(i,j,km))/grid_params%dz(kg-1))
+     .                  -arr(ip,j,km)-arr(i,j,km))/g_def_l%dz(kg-1))
 
 c     End program
 
@@ -1541,7 +1552,8 @@ c     End program
 
 c     lap_flx_y_ijk
 c     ###############################################################
-      function lap_flx_y_ijk(i,j,k,igrid,arr,diff,vertex) result(flx)
+      function lap_flx_y_ijk(i,j,k,igrid,arr,diff,vertex,g_def)
+     .         result(flx)
 c     ---------------------------------------------------------------
 c     Calculates Y-flux for scalar laplacian at faces (i,j+1/2,k)
 c     in general non-orthogonal coordinates, preserving the SPD property.
@@ -1558,6 +1570,8 @@ c     Call variables
       real(8),optional,target :: diff(0:,0:,0:)
       logical,optional,intent(IN) :: vertex
 
+      type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
       integer :: ip,im,jp,jm,kp,km,ig,jg,kg
@@ -1570,6 +1584,8 @@ c     Local variables
       real(8),dimension(:,:,:),pointer :: dff
 
       logical  :: vrtx_met,have_diff
+
+      type(grid_mg_def),pointer :: g_def_l
 
 c     Begin program
 
@@ -1585,7 +1601,13 @@ c     Begin program
         have_diff = .true.
       endif
 
-      call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+      if (PRESENT(g_def)) then
+        g_def_l => g_def
+      else
+        g_def_l => grid_params
+      endif
+
+      call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg,g_def=g_def)
 
       ip = i+1
       im = i-1
@@ -1596,7 +1618,7 @@ c     Begin program
 
       if (vrtx_met) then
         !Vertex metrics
-        gsup => gmetric%grid(igrid)%gsup_v
+        gsup => g_def_l%gmetric%grid(igrid)%gsup_v
 
         d_xy_ipjp = 0.5*(gsup(i ,j,k ,1,2)
      .                  +gsup(i ,j,km,1,2))
@@ -1610,7 +1632,7 @@ c     Begin program
 
         !To fix singularity with gsup(2,2)
         if (isSP2(i,igrid)) then
-          gsup => gmetric%grid(igrid)%gsup
+          gsup => g_def_l%gmetric%grid(igrid)%gsup
           d_yy_jp = 0.5*(gsup(i,j ,k,2,2)
      .                  +gsup(i,jp,k,2,2))
         else
@@ -1641,7 +1663,7 @@ c     Begin program
         endif
       else
         !Cell-centered metrics
-        gsup => gmetric%grid(igrid)%gsup
+        gsup => g_def_l%gmetric%grid(igrid)%gsup
 
         if (have_diff) then
           d_yy_jp = 0.5*(dff(i,j ,k)*gsup(i,j ,k,2,2)
@@ -1686,15 +1708,15 @@ c     Begin program
         endif
       endif
                                                                        
-      flx =   d_yy_jp  *(arr(i ,jp,k)-arr(i ,j,k))/grid_params%dy(jg)
+      flx =   d_yy_jp  *(arr(i ,jp,k)-arr(i ,j,k))/g_def_l%dy(jg)
      .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(ip,j,k)               
-     .                  -arr(i ,jp,k)-arr(i ,j,k))/grid_params%dx(ig)
+     .                  -arr(i ,jp,k)-arr(i ,j,k))/g_def_l%dx(ig)
      .  +     d_xy_imjp*(arr(i ,jp,k)+arr(i ,j,k)               
-     .                  -arr(im,jp,k)-arr(im,j,k))/grid_params%dx(ig-1)
+     .                  -arr(im,jp,k)-arr(im,j,k))/g_def_l%dx(ig-1)
      .  +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,j,kp)               
-     .                  -arr(i,jp,k )-arr(i,j,k ))/grid_params%dz(kg)
+     .                  -arr(i,jp,k )-arr(i,j,k ))/g_def_l%dz(kg)
      .  +     d_yz_jpkm*(arr(i,jp,k )+arr(i,j,k )               
-     .                  -arr(i,jp,km)-arr(i,j,km))/grid_params%dz(kg-1))
+     .                  -arr(i,jp,km)-arr(i,j,km))/g_def_l%dz(kg-1))
 
 c     End program
 
@@ -1702,7 +1724,8 @@ c     End program
 
 c     lap_flx_z_ijk
 c     ###############################################################
-      function lap_flx_z_ijk(i,j,k,igrid,arr,diff,vertex) result(flx)
+      function lap_flx_z_ijk(i,j,k,igrid,arr,diff,vertex,g_def)
+     .         result(flx)
 c     ---------------------------------------------------------------
 c     Calculates Z-flux for scalar laplacian at faces (i,j,k-1/2)
 c     in general non-orthogonal coordinates, preserving the SPD property.
@@ -1719,6 +1742,8 @@ c     Call variables
       real(8),optional,target :: diff(0:,0:,0:)
       logical,optional,intent(IN) :: vertex
 
+      type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
       integer :: ip,im,jp,jm,kp,km,ig,jg,kg
@@ -1731,6 +1756,8 @@ c     Local variables
       real(8),dimension(:,:,:),pointer :: dff
 
       logical  :: vrtx_met,have_diff
+
+      type(grid_mg_def),pointer :: g_def_l
 
 c     Begin program
 
@@ -1746,7 +1773,13 @@ c     Begin program
         have_diff = .true.
       endif
 
-      call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+      if (PRESENT(g_def)) then
+        g_def_l => g_def
+      else
+        g_def_l => grid_params
+      endif
+
+      call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg,g_def=g_def)
 
       ip = i+1
       im = i-1
@@ -1757,7 +1790,7 @@ c     Begin program
 
       if (vrtx_met) then
         !Vertex metrics
-        gsup => gmetric%grid(igrid)%gsup_v
+        gsup => g_def_l%gmetric%grid(igrid)%gsup_v
 
         d_zz_kp = 0.25*(gsup(i ,j ,k,3,3)
      .                 +gsup(im,j ,k,3,3)
@@ -1795,7 +1828,7 @@ c     Begin program
         endif
       else
         !Cell-centered metrics
-        gsup => gmetric%grid(igrid)%gsup
+        gsup => g_def_l%gmetric%grid(igrid)%gsup
 
         if (have_diff) then
           d_zz_kp = 0.5*(dff(i,j,k )*gsup(i,j,k ,3,3)
@@ -1840,15 +1873,15 @@ c     Begin program
         endif
       endif
                                                                        
-      flx   = d_zz_kp  *(arr(i ,j,kp)-arr(i ,j,k))/grid_params%dz(kg)
+      flx   = d_zz_kp  *(arr(i ,j,kp)-arr(i ,j,k))/g_def_l%dz(kg)
      .  +.25*(d_xz_ipkp*(arr(ip,j,kp)+arr(ip,j,k)               
-     .                  -arr(i ,j,kp)-arr(i ,j,k))/grid_params%dx(ig)
+     .                  -arr(i ,j,kp)-arr(i ,j,k))/g_def_l%dx(ig)
      .  +     d_xz_imkp*(arr(i ,j,kp)+arr(i ,j,k)               
-     .                  -arr(im,j,kp)-arr(im,j,k))/grid_params%dx(ig-1)
+     .                  -arr(im,j,kp)-arr(im,j,k))/g_def_l%dx(ig-1)
      .  +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,jp,k)               
-     .                  -arr(i,j ,kp)-arr(i,j ,k))/grid_params%dy(jg)
+     .                  -arr(i,j ,kp)-arr(i,j ,k))/g_def_l%dy(jg)
      .  +     d_yz_jmkp*(arr(i,j ,kp)+arr(i,j ,k)               
-     .                  -arr(i,jm,kp)-arr(i,jm,k))/grid_params%dy(jg-1))
+     .                  -arr(i,jm,kp)-arr(i,jm,k))/g_def_l%dy(jg-1))
 
 c     End program
 
@@ -1857,7 +1890,7 @@ c     End program
 c     lap_ijk
 c     ###############################################################
       function lap_ijk(i,j,k,nx,ny,nz,igx,igy,igz,arr,dff,vol
-     .                ,vertex_metrics) result (laplacian)
+     .                ,vertex_metrics,g_def) result (laplacian)
 c     ---------------------------------------------------------------
 c     Calculates div(dff grad(arr)) at cell centers in general non-orthog.
 c     coordinates, preserving the SPD property.
@@ -1875,6 +1908,8 @@ c     Call variables
 
       logical,optional,intent(IN) :: vol,vertex_metrics
 
+      type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
       integer :: ip,im,jp,jm,kp,km,ig,jg,kg
@@ -1883,32 +1918,47 @@ c     Local variables
 
       logical :: vol_wgt,vrtx_met
 
+      type(grid_mg_def),pointer :: g_def_l
+
 c     Begin program
 
       vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
-      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+      if (PRESENT(g_def)) then
+        g_def_l => g_def
+      else
+        g_def_l => grid_params
+      endif
+        
+      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
 
       im = i-1
       jm = j-1
       km = k-1
 
-      flxip=lap_flx_x_ijk(i ,j,k,igx,arr,diff=dff,vertex=vertex_metrics)
-      flxim=lap_flx_x_ijk(im,j,k,igx,arr,diff=dff,vertex=vertex_metrics)
+      flxip=lap_flx_x_ijk(i ,j,k,igx,arr,diff=dff,vertex=vertex_metrics
+     .                   ,g_def=g_def)
+      flxim=lap_flx_x_ijk(im,j,k,igx,arr,diff=dff,vertex=vertex_metrics
+     .                   ,g_def=g_def)
 
-      flxjp=lap_flx_y_ijk(i,j ,k,igx,arr,diff=dff,vertex=vertex_metrics)
-      flxjm=lap_flx_y_ijk(i,jm,k,igx,arr,diff=dff,vertex=vertex_metrics)
+      flxjp=lap_flx_y_ijk(i,j ,k,igy,arr,diff=dff,vertex=vertex_metrics
+     .                   ,g_def=g_def)
+      flxjm=lap_flx_y_ijk(i,jm,k,igy,arr,diff=dff,vertex=vertex_metrics
+     .                   ,g_def=g_def)
 
-      flxkp=lap_flx_z_ijk(i,j,k ,igx,arr,diff=dff,vertex=vertex_metrics)
-      flxkm=lap_flx_z_ijk(i,j,km,igx,arr,diff=dff,vertex=vertex_metrics)
+      flxkp=lap_flx_z_ijk(i,j,k ,igz,arr,diff=dff,vertex=vertex_metrics
+     .                   ,g_def=g_def)
+      flxkm=lap_flx_z_ijk(i,j,km,igz,arr,diff=dff,vertex=vertex_metrics
+     .                   ,g_def=g_def)
 
-      laplacian = ((flxip -flxim)/grid_params%dxh(ig)
-     .            +(flxjp -flxjm)/grid_params%dyh(jg)
-     .            +(flxkp -flxkm)/grid_params%dzh(kg))
-     .            /gmetric%grid(igx)%jac(i,j,k)
+      laplacian = ((flxip -flxim)/g_def_l%dxh(ig)
+     .            +(flxjp -flxjm)/g_def_l%dyh(jg)
+     .            +(flxkp -flxkm)/g_def_l%dzh(kg))
+     .            /g_def_l%gmetric%grid(igx)%jac(i,j,k)
 
-      if (vol_wgt) laplacian=laplacian*gmetric%grid(igx)%dvol(i,j,k)
+      if (vol_wgt) laplacian=laplacian
+     .                      *g_def_l%gmetric%grid(igx)%dvol(i,j,k)
 
 c     End program
 

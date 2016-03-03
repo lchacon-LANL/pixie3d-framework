@@ -905,15 +905,15 @@ c     Evaluate dr=dx/dxi vectors at vertices
         if (bcs(2) == DEF) bcs(2) = EXT
         if (bcs(4) == DEF) bcs(4) = EXT 
         if (bcs(6) == DEF) bcs(6) = EXT 
-        if (bcs(2) == FSYM) then
+        if (bcs(2) == FSYM .or. bcs(2) == SYM) then
           bcs  (2) = NEU
           bcond(2) = SYM  !Set BCs to do NEU across face
         endif
-        if (bcs(4) == FSYM) then
+        if (bcs(4) == FSYM .or. bcs(4) == SYM) then
           bcs  (4) = NEU 
           bcond(4) = SYM  !Set BCs to do NEU across face
         endif
-        if (bcs(6) == FSYM) then
+        if (bcs(6) == FSYM .or. bcs(6) == SYM) then
           bcs  (6) = NEU
           bcond(6) = SYM  !Set BCs to do NEU across face
         endif
@@ -1753,6 +1753,8 @@ c     Find grid metrics
         do igrid=igrmin,igrmax
           call findGridMetrics(g_def,igrid,.not.PRESENT(igr),ierr=ierr)
         enddo
+
+c     Gather error flags
 
 #if defined(petsc)
         if (PRESENT(ierr)) then
