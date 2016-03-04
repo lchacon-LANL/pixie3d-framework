@@ -223,13 +223,6 @@ c       Deallocates solver queue
             solver_queue%front => temp
           enddo
 
-cc          if (associated(solver_queue%front) )
-cc     .             deallocate(solver_queue%front)
-cc          if (associated(solver_queue%rear ) )
-cc     .             deallocate(solver_queue%rear)
-
-cc          deallocate (solver_queue%front,solver_queue%rear)
-
         end subroutine solverKill
      
 c     assembleSolverHierarchy

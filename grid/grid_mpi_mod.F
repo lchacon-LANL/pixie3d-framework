@@ -52,15 +52,11 @@ c ######################################################################
      .               ,MPI_COMM_XY    =MPI_COMM_NULL
      .               ,MPI_COMM_YZ    =MPI_COMM_NULL
      .               ,MPI_COMM_PER(3)=MPI_COMM_NULL
-cc        integer   ,allocatable,dimension(:) :: MPI_COMM_PER
-        integer   ,allocatable,dimension(:) :: MPI_COMM_NBRS
+cc        integer   ,allocatable,dimension(:) :: MPI_COMM_NBRS
 
         character(80) :: messg
 
-cc        private :: createMPIComm,selectRank_SP,selectRank_POL
-cc     .            ,checkProc,processorAlloc
-cc     $            ,fillLocalVec,emptyLocalVec
-cc     $            ,createPETScFortranDA,destroyPETScFortranDA
+        type(grid_mg_def),pointer,private :: g_mpi_def
 
       contains
 
@@ -93,7 +89,7 @@ cc      end subroutine initFortranMPI
 
 c     create_MPI_comms
 c     #################################################################
-      subroutine create_MPI_comms
+      subroutine create_MPI_comms(g_def)
 
 c     -----------------------------------------------------------------
 c     Creates required MPI communicators
@@ -103,62 +99,69 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+        type(grid_mg_def),pointer,INTENT(IN)  :: g_def
+
 c     Local variables
 
         integer :: my_sp_rank,np_sp
 
 c     Begin program
 
+        g_mpi_def => g_def
+
+        if (g_mpi_def%mpi_comm == MPI_COMM_SELF) return
+
 c     Singular-point boundary MPI communicator
 
-        if (bcSP()) call createMPIComm(MPI_COMM_SP,selectRank_SP)
-cc        call check_MPI_COMM(MPI_COMM_SP,'MPI_COMM_SP')
+        if (bcSP())
+     .       call createMPIComm(g_mpi_def%MPI_COMM_SP,selectRank_SP)
+cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_SP,'MPI_COMM_SP')
 
 c     X MPI communicator (domains that share the same Y, Z  slices)
 
-        call createMPIComm(MPI_COMM_X,selectRank_X)
+        call createMPIComm(g_mpi_def%MPI_COMM_X,selectRank_X)
 
-        if (bcSP()) MPI_COMM_RAD = MPI_COMM_X
-cc        call check_MPI_COMM(MPI_COMM_X,'MPI_COMM_X')
+        if (bcSP()) g_mpi_def%MPI_COMM_RAD = g_mpi_def%MPI_COMM_X
+cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_X,'MPI_COMM_X')
 
 c     Y MPI communicator (domains that share same X, Z slices)
 
-        call createMPIComm(MPI_COMM_Y,selectRank_Y)
+        call createMPIComm(g_mpi_def%MPI_COMM_Y,selectRank_Y)
 
-        if (bcSP()) MPI_COMM_POL = MPI_COMM_Y
-cc        call check_MPI_COMM(MPI_COMM_Y,'MPI_COMM_Y')
+        if (bcSP()) g_mpi_def%MPI_COMM_POL = g_mpi_def%MPI_COMM_Y
+cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_Y,'MPI_COMM_Y')
 
 c     Z MPI communicator (domains that share same X, Z slices)
 
-        call createMPIComm(MPI_COMM_Z,selectRank_Z)
-cc        call check_MPI_COMM(MPI_COMM_Z,'MPI_COMM_Z')
+        call createMPIComm(g_mpi_def%MPI_COMM_Z,selectRank_Z)
+cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_Z,'MPI_COMM_Z')
 
 c     XY MPI communicator (domains that share same Z slices)
 
-        call createMPIComm(MPI_COMM_XY,selectRank_XY)
-cc        call check_MPI_COMM(MPI_COMM_XY,'MPI_COMM_XY')
+        call createMPIComm(g_mpi_def%MPI_COMM_XY,selectRank_XY)
+cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_XY,'MPI_COMM_XY')
 
 c     YZ MPI communicator (domains that share same X slices)
 
-        call createMPIComm(MPI_COMM_YZ,selectRank_YZ)
-cc        call check_MPI_COMM(MPI_COMM_YZ,'MPI_COMM_YZ')
+        call createMPIComm(g_mpi_def%MPI_COMM_YZ,selectRank_YZ)
+cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_YZ,'MPI_COMM_YZ')
 
 c     Periodic BCs communicators
 
         if (bcond(1) == PER) then
-          call createMPIComm(MPI_COMM_PER(1),selectRank_PER_X)
+          call createMPIComm(g_mpi_def%MPI_COMM_PER(1),selectRank_PER_X)
         endif
-cc        call check_MPI_COMM(MPI_COMM_PER(1),'MPI_COMM_PERx')
+cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(1),'MPI_COMM_PERx')
 
         if (bcond(3) == PER) then
-          call createMPIComm(MPI_COMM_PER(2),selectRank_PER_Y)
+          call createMPIComm(g_mpi_def%MPI_COMM_PER(2),selectRank_PER_Y)
         endif
-cc        call check_MPI_COMM(MPI_COMM_PER(2),'MPI_COMM_PERy')
+cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(2),'MPI_COMM_PERy')
 
         if (bcond(5) == PER) then
-          call createMPIComm(MPI_COMM_PER(3),selectRank_PER_Z)
+          call createMPIComm(g_mpi_def%MPI_COMM_PER(3),selectRank_PER_Z)
         endif
-cc        call check_MPI_COMM(MPI_COMM_PER(3),'MPI_COMM_PERz')
+cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(3),'MPI_COMM_PERz')
 
 c     End program
 
@@ -414,21 +417,21 @@ c     Begin program
 
 c     Set global limits of local domain l_lim(dim,loc)
 
-        l_lim(1,0) = grid_params%ilo(1)
-        l_lim(2,0) = grid_params%jlo(1)
-        l_lim(3,0) = grid_params%klo(1)
-        l_lim(1,1) = grid_params%ihi(1)
-        l_lim(2,1) = grid_params%jhi(1)
-        l_lim(3,1) = grid_params%khi(1)
+        l_lim(1,0) = g_mpi_def%ilo(1)
+        l_lim(2,0) = g_mpi_def%jlo(1)
+        l_lim(3,0) = g_mpi_def%klo(1)
+        l_lim(1,1) = g_mpi_def%ihi(1)
+        l_lim(2,1) = g_mpi_def%jhi(1)
+        l_lim(3,1) = g_mpi_def%khi(1)
 
 c     Set global limits of global domain g_lim(dim,loc)
 
         g_lim(1,0) = 1
         g_lim(2,0) = 1
         g_lim(3,0) = 1
-        g_lim(1,1) = grid_params%nxgl(1)
-        g_lim(2,1) = grid_params%nygl(1)
-        g_lim(3,1) = grid_params%nzgl(1)
+        g_lim(1,1) = g_mpi_def%nxgl(1)
+        g_lim(2,1) = g_mpi_def%nygl(1)
+        g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Select rank
 
@@ -480,21 +483,21 @@ cc        BC = PER
 cc
 ccc     Set global limits of local domain l_lim(dim,loc)
 cc
-cc        l_lim(1,0) = grid_params%ilo(1)
-cc        l_lim(2,0) = grid_params%jlo(1)
-cc        l_lim(3,0) = grid_params%klo(1)
-cc        l_lim(1,1) = grid_params%ihi(1)
-cc        l_lim(2,1) = grid_params%jhi(1)
-cc        l_lim(3,1) = grid_params%khi(1)
+cc        l_lim(1,0) = g_mpi_def%ilo(1)
+cc        l_lim(2,0) = g_mpi_def%jlo(1)
+cc        l_lim(3,0) = g_mpi_def%klo(1)
+cc        l_lim(1,1) = g_mpi_def%ihi(1)
+cc        l_lim(2,1) = g_mpi_def%jhi(1)
+cc        l_lim(3,1) = g_mpi_def%khi(1)
 cc
 ccc     Set global limits of global domain g_lim(dim,loc)
 cc
 cc        g_lim(1,0) = 1
 cc        g_lim(2,0) = 1
 cc        g_lim(3,0) = 1
-cc        g_lim(1,1) = grid_params%nxgl(1)
-cc        g_lim(2,1) = grid_params%nygl(1)
-cc        g_lim(3,1) = grid_params%nzgl(1)
+cc        g_lim(1,1) = g_mpi_def%nxgl(1)
+cc        g_lim(2,1) = g_mpi_def%nygl(1)
+cc        g_lim(3,1) = g_mpi_def%nzgl(1)
 cc
 ccc     Select rank
 cc
@@ -555,21 +558,21 @@ c     Begin program
 
 c     Set global limits of local domain l_lim(dim,loc)
 
-        l_lim(1,0) = grid_params%ilo(1)
-        l_lim(2,0) = grid_params%jlo(1)
-        l_lim(3,0) = grid_params%klo(1)
-        l_lim(1,1) = grid_params%ihi(1)
-        l_lim(2,1) = grid_params%jhi(1)
-        l_lim(3,1) = grid_params%khi(1)
+        l_lim(1,0) = g_mpi_def%ilo(1)
+        l_lim(2,0) = g_mpi_def%jlo(1)
+        l_lim(3,0) = g_mpi_def%klo(1)
+        l_lim(1,1) = g_mpi_def%ihi(1)
+        l_lim(2,1) = g_mpi_def%jhi(1)
+        l_lim(3,1) = g_mpi_def%khi(1)
 
 c     Set global limits of global domain g_lim(dim,loc)
 
         g_lim(1,0) = 1
         g_lim(2,0) = 1
         g_lim(3,0) = 1
-        g_lim(1,1) = grid_params%nxgl(1)
-        g_lim(2,1) = grid_params%nygl(1)
-        g_lim(3,1) = grid_params%nzgl(1)
+        g_lim(1,1) = g_mpi_def%nxgl(1)
+        g_lim(2,1) = g_mpi_def%nygl(1)
+        g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Check whether proc is at boundary of appropriate type
 
@@ -623,21 +626,21 @@ c     Begin program
 
 c     Set global limits of local domain l_lim(dim,loc)
 
-        l_lim(1,0) = grid_params%ilo(1)
-        l_lim(2,0) = grid_params%jlo(1)
-        l_lim(3,0) = grid_params%klo(1)
-        l_lim(1,1) = grid_params%ihi(1)
-        l_lim(2,1) = grid_params%jhi(1)
-        l_lim(3,1) = grid_params%khi(1)
+        l_lim(1,0) = g_mpi_def%ilo(1)
+        l_lim(2,0) = g_mpi_def%jlo(1)
+        l_lim(3,0) = g_mpi_def%klo(1)
+        l_lim(1,1) = g_mpi_def%ihi(1)
+        l_lim(2,1) = g_mpi_def%jhi(1)
+        l_lim(3,1) = g_mpi_def%khi(1)
 
 c     Set global limits of global domain g_lim(dim,loc)
 
         g_lim(1,0) = 1
         g_lim(2,0) = 1
         g_lim(3,0) = 1
-        g_lim(1,1) = grid_params%nxgl(1)
-        g_lim(2,1) = grid_params%nygl(1)
-        g_lim(3,1) = grid_params%nzgl(1)
+        g_lim(1,1) = g_mpi_def%nxgl(1)
+        g_lim(2,1) = g_mpi_def%nygl(1)
+        g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Check whether proc is at boundary of appropriate type
 
@@ -691,21 +694,21 @@ c     Begin program
 
 c     Set global limits of local domain l_lim(dim,loc)
 
-        l_lim(1,0) = grid_params%ilo(1)
-        l_lim(2,0) = grid_params%jlo(1)
-        l_lim(3,0) = grid_params%klo(1)
-        l_lim(1,1) = grid_params%ihi(1)
-        l_lim(2,1) = grid_params%jhi(1)
-        l_lim(3,1) = grid_params%khi(1)
+        l_lim(1,0) = g_mpi_def%ilo(1)
+        l_lim(2,0) = g_mpi_def%jlo(1)
+        l_lim(3,0) = g_mpi_def%klo(1)
+        l_lim(1,1) = g_mpi_def%ihi(1)
+        l_lim(2,1) = g_mpi_def%jhi(1)
+        l_lim(3,1) = g_mpi_def%khi(1)
 
 c     Set global limits of global domain g_lim(dim,loc)
 
         g_lim(1,0) = 1
         g_lim(2,0) = 1
         g_lim(3,0) = 1
-        g_lim(1,1) = grid_params%nxgl(1)
-        g_lim(2,1) = grid_params%nygl(1)
-        g_lim(3,1) = grid_params%nzgl(1)
+        g_lim(1,1) = g_mpi_def%nxgl(1)
+        g_lim(2,1) = g_mpi_def%nygl(1)
+        g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Select rank
 
@@ -761,21 +764,21 @@ c     Begin program
 
 c     Set global limits of local domain l_lim(dim,loc)
 
-        l_lim(1,0) = grid_params%ilo(1)
-        l_lim(2,0) = grid_params%jlo(1)
-        l_lim(3,0) = grid_params%klo(1)
-        l_lim(1,1) = grid_params%ihi(1)
-        l_lim(2,1) = grid_params%jhi(1)
-        l_lim(3,1) = grid_params%khi(1)
+        l_lim(1,0) = g_mpi_def%ilo(1)
+        l_lim(2,0) = g_mpi_def%jlo(1)
+        l_lim(3,0) = g_mpi_def%klo(1)
+        l_lim(1,1) = g_mpi_def%ihi(1)
+        l_lim(2,1) = g_mpi_def%jhi(1)
+        l_lim(3,1) = g_mpi_def%khi(1)
 
 c     Set global limits of global domain g_lim(dim,loc)
 
         g_lim(1,0) = 1
         g_lim(2,0) = 1
         g_lim(3,0) = 1
-        g_lim(1,1) = grid_params%nxgl(1)
-        g_lim(2,1) = grid_params%nygl(1)
-        g_lim(3,1) = grid_params%nzgl(1)
+        g_lim(1,1) = g_mpi_def%nxgl(1)
+        g_lim(2,1) = g_mpi_def%nygl(1)
+        g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Select rank
 
@@ -818,21 +821,21 @@ c     Begin program
 
 c     Set global limits of local domain l_lim(dim,loc)
 
-        l_lim(1,0) = grid_params%ilo(1)
-        l_lim(2,0) = grid_params%jlo(1)
-        l_lim(3,0) = grid_params%klo(1)
-        l_lim(1,1) = grid_params%ihi(1)
-        l_lim(2,1) = grid_params%jhi(1)
-        l_lim(3,1) = grid_params%khi(1)
+        l_lim(1,0) = g_mpi_def%ilo(1)
+        l_lim(2,0) = g_mpi_def%jlo(1)
+        l_lim(3,0) = g_mpi_def%klo(1)
+        l_lim(1,1) = g_mpi_def%ihi(1)
+        l_lim(2,1) = g_mpi_def%jhi(1)
+        l_lim(3,1) = g_mpi_def%khi(1)
 
 c     Set global limits of global domain g_lim(dim,loc)
 
         g_lim(1,0) = 1
         g_lim(2,0) = 1
         g_lim(3,0) = 1
-        g_lim(1,1) = grid_params%nxgl(1)
-        g_lim(2,1) = grid_params%nygl(1)
-        g_lim(3,1) = grid_params%nzgl(1)
+        g_lim(1,1) = g_mpi_def%nxgl(1)
+        g_lim(2,1) = g_mpi_def%nygl(1)
+        g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Select rank
 
@@ -875,21 +878,21 @@ c     Begin program
 
 c     Set global limits of local domain l_lim(dim,loc)
 
-        l_lim(1,0) = grid_params%ilo(1)
-        l_lim(2,0) = grid_params%jlo(1)
-        l_lim(3,0) = grid_params%klo(1)
-        l_lim(1,1) = grid_params%ihi(1)
-        l_lim(2,1) = grid_params%jhi(1)
-        l_lim(3,1) = grid_params%khi(1)
+        l_lim(1,0) = g_mpi_def%ilo(1)
+        l_lim(2,0) = g_mpi_def%jlo(1)
+        l_lim(3,0) = g_mpi_def%klo(1)
+        l_lim(1,1) = g_mpi_def%ihi(1)
+        l_lim(2,1) = g_mpi_def%jhi(1)
+        l_lim(3,1) = g_mpi_def%khi(1)
 
 c     Set global limits of global domain g_lim(dim,loc)
 
         g_lim(1,0) = 1
         g_lim(2,0) = 1
         g_lim(3,0) = 1
-        g_lim(1,1) = grid_params%nxgl(1)
-        g_lim(2,1) = grid_params%nygl(1)
-        g_lim(3,1) = grid_params%nzgl(1)
+        g_lim(1,1) = g_mpi_def%nxgl(1)
+        g_lim(2,1) = g_mpi_def%nygl(1)
+        g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Select rank
 
@@ -931,21 +934,21 @@ c     Begin program
 
 c     Set global limits of local domain l_lim(dim,loc)
 
-        l_lim(1,0) = grid_params%ilo(1)
-        l_lim(2,0) = grid_params%jlo(1)
-        l_lim(3,0) = grid_params%klo(1)
-        l_lim(1,1) = grid_params%ihi(1)
-        l_lim(2,1) = grid_params%jhi(1)
-        l_lim(3,1) = grid_params%khi(1)
+        l_lim(1,0) = g_mpi_def%ilo(1)
+        l_lim(2,0) = g_mpi_def%jlo(1)
+        l_lim(3,0) = g_mpi_def%klo(1)
+        l_lim(1,1) = g_mpi_def%ihi(1)
+        l_lim(2,1) = g_mpi_def%jhi(1)
+        l_lim(3,1) = g_mpi_def%khi(1)
 
 c     Set global limits of global domain g_lim(dim,loc)
 
         g_lim(1,0) = 1
         g_lim(2,0) = 1
         g_lim(3,0) = 1
-        g_lim(1,1) = grid_params%nxgl(1)
-        g_lim(2,1) = grid_params%nygl(1)
-        g_lim(3,1) = grid_params%nzgl(1)
+        g_lim(1,1) = g_mpi_def%nxgl(1)
+        g_lim(2,1) = g_mpi_def%nygl(1)
+        g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Select rank
 
@@ -986,21 +989,21 @@ c     Begin program
 
 c     Set global limits of local domain l_lim(dim,loc)
 
-        l_lim(1,0) = grid_params%ilo(1)
-        l_lim(2,0) = grid_params%jlo(1)
-        l_lim(3,0) = grid_params%klo(1)
-        l_lim(1,1) = grid_params%ihi(1)
-        l_lim(2,1) = grid_params%jhi(1)
-        l_lim(3,1) = grid_params%khi(1)
+        l_lim(1,0) = g_mpi_def%ilo(1)
+        l_lim(2,0) = g_mpi_def%jlo(1)
+        l_lim(3,0) = g_mpi_def%klo(1)
+        l_lim(1,1) = g_mpi_def%ihi(1)
+        l_lim(2,1) = g_mpi_def%jhi(1)
+        l_lim(3,1) = g_mpi_def%khi(1)
 
 c     Set global limits of global domain g_lim(dim,loc)
 
         g_lim(1,0) = 1
         g_lim(2,0) = 1
         g_lim(3,0) = 1
-        g_lim(1,1) = grid_params%nxgl(1)
-        g_lim(2,1) = grid_params%nygl(1)
-        g_lim(3,1) = grid_params%nzgl(1)
+        g_lim(1,1) = g_mpi_def%nxgl(1)
+        g_lim(2,1) = g_mpi_def%nygl(1)
+        g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Select rank
 
@@ -1486,7 +1489,7 @@ c     End program
 
 c     inProc
 c     #################################################################
-      function inProc(igl,jgl,kgl,igx,igy,igz)
+      function inProc(igl,jgl,kgl,igx,igy,igz,g_def)
 
         implicit none
 
@@ -1495,13 +1498,23 @@ c     Call variables
         integer :: igl,jgl,kgl,igx,igy,igz
         logical :: inProc
 
+        type(grid_mg_def),pointer,optional  :: g_def
+
 c     Local variables
+
+        type(grid_mg_def),pointer  :: gl_def => null()
 
 c     Begin program
 
-        inProc =igl>=grid_params%ilo(igx).and.igl<=grid_params%ihi(igx)
-     .     .and.jgl>=grid_params%jlo(igy).and.jgl<=grid_params%jhi(igy)
-     .     .and.kgl>=grid_params%klo(igz).and.kgl<=grid_params%khi(igz)
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        else
+          gl_def => grid_params
+        endif
+
+        inProc =igl>=gl_def%ilo(igx).and.igl<=gl_def%ihi(igx)
+     .     .and.jgl>=gl_def%jlo(igy).and.jgl<=gl_def%jhi(igy)
+     .     .and.kgl>=gl_def%klo(igz).and.kgl<=gl_def%khi(igz)
 
 c     End program
 
@@ -2063,6 +2076,104 @@ c     Transfer field to local mesh
 c     End program
 
       end subroutine find_local_field_scl
+
+c$$$c     find_global_vec
+c$$$c     ##############################################################
+c$$$      subroutine find_global_vec(neq,lv,gv,mpi_comm)
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c     --------------------------------------------------------------
+c$$$c     Performs parallel reduction to find global field.
+c$$$c     --------------------------------------------------------------
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      integer :: neq
+c$$$      integer,optional :: mpi_comm
+c$$$      real(8),dimension(:) :: lv,gv
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer :: i,j,k,dl(4),dg(4),lsize,gsize,ibc,ieq,dim,loc
+c$$$      real(8),pointer,dimension(:) :: local_x,global_x
+c$$$
+c$$$      logical :: dmp,mapbc
+c$$$
+c$$$      integer :: mpicomm,npxl,npyl,npzl,npl
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$#if defined(petsc)
+c$$$      if (PRESENT(mpi_comm)) then
+c$$$        mpicomm = mpi_comm
+c$$$      else
+c$$$        mpicomm = MPI_COMM_WORLD
+c$$$      endif
+c$$$#endif
+c$$$
+c$$$c     Calculate array sizes
+c$$$
+c$$$      dl = shape(lf)
+c$$$
+c$$$      dg = shape(gf)
+c$$$
+c$$$      lsize = dl(1)*dl(2)*dl(3)*dl(4)
+c$$$
+c$$$cc      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz*dl(4)
+c$$$      gsize = dg(1)*dg(2)*dg(3)*dg(4)
+c$$$
+c$$$      npxl = dg(1)/dl(1)
+c$$$      npyl = dg(2)/dl(2)
+c$$$      npzl = dg(3)/dl(3)
+c$$$
+c$$$#if defined(petsc)
+c$$$      call MPI_Comm_size(mpicomm,npl,mpierr)
+c$$$
+c$$$      if (npl /= npxl*npyl*npzl) then
+c$$$        call pstop('find_global_field_vec_nobc'
+c$$$     .            ,'Processor number does not agree')
+c$$$      endif
+c$$$#endif
+c$$$
+c$$$c     Communicate
+c$$$
+c$$$#if defined(petsc)
+c$$$      allocate(local_x(lsize),global_x(gsize))
+c$$$
+c$$$      local_x = reshape(lf, (/ lsize /))
+c$$$
+c$$$      call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
+c$$$     .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
+c$$$     .                  ,mpicomm,mpierr)
+c$$$
+c$$$
+c$$$      do k=1,npzl
+c$$$        do j=1,npyl
+c$$$          do i=1,npxl
+c$$$
+c$$$            gf(dl(1)*(i-1)+1:dl(1)*i
+c$$$     .        ,dl(2)*(j-1)+1:dl(2)*j
+c$$$     .        ,dl(3)*(k-1)+1:dl(3)*k,1:dg(4))
+c$$$     .        = reshape(global_x(1+lsize*(          (i-1)
+c$$$     .                                   +npxl     *(j-1)
+c$$$     .                                   +npxl*npyl*(k-1))
+c$$$     .                          :  lsize*(           i
+c$$$     .                                   +npxl     *(j-1)
+c$$$     .                                   +npxl*npyl*(k-1)) )
+c$$$     .                 ,dl )
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$      deallocate(local_x,global_x)
+c$$$#else
+c$$$      gf = lf
+c$$$#endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine find_global_vec
 
 c     per_BC
 c     #################################################################

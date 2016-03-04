@@ -14,7 +14,7 @@ c     -----------------------------------------------------------------
 
 c     isBdry
 c     #################################################################
-      function isBdry(i,igr,ibc)
+      function isBdry(i,igr,ibc,g_def)
 
 c     -----------------------------------------------------------------
 c     Detects whether we are at a PHYSICAL boundary or not. Boundary is
@@ -31,21 +31,31 @@ c     Call variables
         integer :: i,igr,ibc
         logical :: isBdry
 
+        type(grid_mg_def),pointer,optional :: g_def
+
 c     Local variables
 
         integer :: ilog,itst,diml,locl
 
-        type(grid_mg_def),pointer :: gl_def
+        type(grid_mg_def),pointer :: gl_def => null()
 
 c     Begin program
 
         locl = abs(mod(ibc,2)-2)-1
         diml = 1 + (ibc-1-locl)/2
 
-        if (associated(gbc_def)) then
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        elseif(associated(gbc_def)) then
           gl_def => gbc_def
         else
           gl_def => grid_params
+        endif
+
+        if (.not.associated(gl_def)) then
+          write (*,*) 'Grid def struct not associated'
+          write (*,*) 'Aborting in routine isBdry'
+          stop
         endif
 
         select case(diml)
@@ -81,7 +91,7 @@ c     Begin program
 
 c     isBC
 c     #################################################################
-      function isBC(i,igr,ibc,BC,bcnd)
+      function isBC(i,igr,ibc,BC,bcnd,g_def)
 
 c     -----------------------------------------------------------------
 c     Checks whether point i at grid level igr, boundary location
@@ -95,6 +105,8 @@ c     Call variables
         integer :: i,igr,ibc,BC
         logical :: isBC
         integer,optional :: bcnd(6)
+
+        type(grid_mg_def),pointer,optional :: g_def
 
 c     Local variables
 
@@ -113,29 +125,39 @@ c     Begin program
           bcc = bcond
         endif
 
-        isBC = (isBdry(i,igr,ibc) .and. abs(bcc(ibc)) == BC)
+        isBC = (isBdry(i,igr,ibc,g_def=g_def) .and. abs(bcc(ibc)) == BC)
 
       end function isBC
 
 c     isSP
 c     #################################################################
-      function isSP(i,j,k,igx,igy,igz) result(sing_point)
+      function isSP(i,j,k,igx,igy,igz,g_def) result(sing_point)
 
         implicit none
 
         integer    :: i,j,k,igx,igy,igz
         logical    :: sing_point
 
+        type(grid_mg_def),pointer,optional :: g_def
+
 c     Local variables
 
-        type(grid_mg_def),pointer :: gl_def
+        type(grid_mg_def),pointer :: gl_def => null()
 
 c     Begin program
 
-        if (associated(gbc_def)) then
+        if (PRESENT(g_def)) then
+          gl_def => g_def
+        elseif(associated(gbc_def)) then
           gl_def => gbc_def
         else
           gl_def => grid_params
+        endif
+
+        if (.not.associated(gl_def)) then
+          write (*,*) 'Grid def struct not associated'
+          write (*,*) 'Aborting in routine isBdry'
+          stop
         endif
 
         sing_point = (i+gl_def%ilo(igx)-1==1).and.bcSP()
@@ -144,7 +166,7 @@ c     Begin program
 
 c     isSP2
 c     #################################################################
-      function isSP2(i,igr,dim,loc,ibc)
+      function isSP2(i,igr,dim,loc,ibc,g_def)
 
 c     -----------------------------------------------------------------
 c     Checks whether point at grid level igr, dimension dim(=1,2,3)
@@ -156,6 +178,8 @@ c     -----------------------------------------------------------------
         integer    :: i,igr
         logical    :: isSP2
         integer,optional :: dim,loc,ibc
+
+        type(grid_mg_def),pointer,optional :: g_def
 
         integer    :: ibcl,ilog,itst,diml,locl
 
@@ -173,7 +197,7 @@ c     -----------------------------------------------------------------
           isSP2 = .false.
           return
         else
-          isSP2 = isBC(i,igr,ibcl,SP)
+          isSP2 = isBC(i,igr,ibcl,SP,g_def=g_def)
         endif
 
       end function isSP2
@@ -405,7 +429,7 @@ c     Parallel Allgather in SP communicator
       call MPI_Allgather(array(i,1:nybc,0:nzbc+1)
      .                           ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
      .                  ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
-     .                  ,MPI_COMM_SP,mpierr)
+     .                  ,gl_def%MPI_COMM_SP,mpierr)
       do k=1,npy
         garray(1+nybc*(k-1):nybc*k,:)
      .     = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
@@ -503,7 +527,7 @@ c     Parallel Allgather in SP communicator
       call MPI_Allgather(vec(i,1:nybc,0:nzbc+1)
      .                           ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
      .                  ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
-     .                  ,MPI_COMM_SP,mpierr)
+     .                  ,gl_def%MPI_COMM_SP,mpierr)
       do k=1,npy
         garray(1+nybc*(k-1):nybc*k,:)
      .     = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
@@ -2226,9 +2250,14 @@ c     Begin program
 
 #else
 
-      if (MPI_COMM_PER(dim) /= MPI_COMM_NULL) then
-        call MPI_Comm_size(MPI_COMM_PER(dim),np_l     ,mpierr)
-        call MPI_Comm_rank(MPI_COMM_PER(dim),my_rank_l,mpierr)
+      if (.not.associated(gbc_def)) then
+        call pstop("periodicBC"
+     .            ,"This routine should not be called stanalone")
+      endif
+
+      if (gbc_def%MPI_COMM_PER(dim) /= MPI_COMM_NULL) then
+        call MPI_Comm_size(gbc_def%MPI_COMM_PER(dim),np_l     ,mpierr)
+        call MPI_Comm_rank(gbc_def%MPI_COMM_PER(dim),my_rank_l,mpierr)
 
         if (np_l > 2.or.np_l < 1) then
           call pstop('sync_PER'
@@ -2256,7 +2285,8 @@ cc     .         ,'Source=',my_rank_l,'Dest=',dest,'left'
               rhs = array(1,:,:)
               call MPI_Sendrecv_replace(rhs,size(array,2)*size(array,3)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,MPI_COMM_PER(dim),MPI_STATUS_IGNORE,mpierr)
+     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+     .                   ,mpierr)
               array(0,:,:) = rhs
             elseif (loc==1.and.isBdry(nxbc,igxbc,ibc)) then
 cc              write (*,*) 'DIAG -- sync_PER   ;   '
@@ -2266,7 +2296,8 @@ cc     .         ,'Source=',my_rank_l,'Dest=',dest,'right'
               rhs = array(nxbc,:,:)
               call MPI_Sendrecv_replace(rhs,size(array,2)*size(array,3)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,MPI_COMM_PER(dim),MPI_STATUS_IGNORE,mpierr)
+     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+     .                   ,mpierr)
               array(nxbc+1,:,:) = rhs
             endif
 
@@ -2280,13 +2311,15 @@ cc     .         ,'Source=',my_rank_l,'Dest=',dest,'right'
               rhs = array(:,1,:)
               call MPI_Sendrecv_replace(rhs,size(array,1)*size(array,3)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,MPI_COMM_PER(dim),MPI_STATUS_IGNORE,mpierr)
+     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+     .                   ,mpierr)
               array(:,0,:) = rhs
             elseif (loc==1.and.isBdry(nybc,igybc,ibc)) then
               rhs = array(:,nybc,:)
               call MPI_Sendrecv_replace(rhs,size(array,1)*size(array,3)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,MPI_COMM_PER(dim),MPI_STATUS_IGNORE,mpierr)
+     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+     .                   ,mpierr)
               array(:,nybc+1,:) = rhs
             endif
 
@@ -2300,13 +2333,15 @@ cc     .         ,'Source=',my_rank_l,'Dest=',dest,'right'
               rhs = array(:,:,1)
               call MPI_Sendrecv_replace(rhs,size(array,1)*size(array,2)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,MPI_COMM_PER(dim),MPI_STATUS_IGNORE,mpierr)
+     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+     .                   ,mpierr)
               array(:,:,0) = rhs
             elseif (loc==1.and.isBdry(nzbc,igzbc,ibc)) then
               rhs = array(:,:,nzbc)
               call MPI_Sendrecv_replace(rhs,size(array,1)*size(array,2)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,MPI_COMM_PER(dim),MPI_STATUS_IGNORE,mpierr)
+     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+     .                   ,mpierr)
               array(:,:,nzbc+1) = rhs
             endif
 

@@ -687,6 +687,7 @@ c ######################################################################
         type :: mg_array
           type(grid_mg_def),pointer :: g_def
           type(garray),pointer,dimension(:) :: grid
+          type(mg_array),pointer :: mg_crse_array => null()
         end type mg_array
 
         logical :: is__cnv,is__vec,res_is_vec
@@ -754,13 +755,15 @@ c     #################################################################
 c     Call variables
 
         integer :: neq
-        type(mg_array)  :: mgarray
+        type(mg_array) :: mgarray
         type(grid_mg_def),pointer,optional :: g_def
 
 c     Local variables
 
         integer :: igrid,nxp,nyp,nzp
-        type(grid_mg_def),pointer :: gl_def
+        type(mg_array),pointer :: mg_temp
+        type(grid_mg_def),pointer :: gl_def => null()
+     .                              ,gl_crse_def => null()
 
 c     Begin program
 
@@ -769,11 +772,13 @@ c     Begin program
         else
           gl_def => grid_params
         endif
-cc        if (.not.associated(MGgrid)) MGgrid => grid_params
+
+c     Allocate MG array
 
         if (.not.associated(mgarray%grid)) then
-          allocate(mgarray%grid(gl_def%ngrid))
+          !Main mesh
           mgarray%g_def => gl_def
+          allocate(mgarray%grid(gl_def%ngrid))
           do igrid=1,gl_def%ngrid
             nxp = gl_def%nxv(igrid)+1
             nyp = gl_def%nyv(igrid)+1
@@ -781,6 +786,25 @@ cc        if (.not.associated(MGgrid)) MGgrid => grid_params
             allocate(mgarray%grid(igrid)%array(0:nxp,0:nyp,0:nzp,neq))
             mgarray%grid(igrid)%array = 0d0
           enddo
+
+          !Sub-meshes
+          gl_crse_def => gl_def%g_crse_def
+          mg_temp => mgarray%mg_crse_array
+
+          do while (associated(gl_crse_def)) 
+            allocate(mg_temp)
+            allocate(mg_temp%grid(gl_crse_def%ngrid))
+            do igrid=1,gl_crse_def%ngrid
+              nxp = gl_crse_def%nxv(igrid)+1
+              nyp = gl_crse_def%nyv(igrid)+1
+              nzp = gl_crse_def%nzv(igrid)+1
+              allocate(mg_temp%grid(igrid)%array(0:nxp,0:nyp,0:nzp,neq))
+              mg_temp%grid(igrid)%array = 0d0
+            enddo
+            gl_crse_def => gl_crse_def%g_crse_def
+            mg_temp => mg_temp%mg_crse_array
+          end do
+
         endif
 
 c     End program
@@ -800,8 +824,20 @@ c     Call variables
 c     Local variables
 
         integer          :: igrid
+        type(mg_array),pointer  :: mg_arr,temp
 
 c     Begin program
+
+c     Deallocate sub-meshes
+
+        mg_arr => mgarray%mg_crse_array
+        do while (associated(mg_arr))
+          temp => mg_arr%mg_crse_array
+          call dealloc_mg_array(temp)
+          mg_arr => temp%mg_crse_array
+        enddo
+
+c     Deallocate main mesh
 
         if (associated(mgarray%grid)) then
           nullify(mgarray%g_def)
@@ -814,6 +850,27 @@ c     Begin program
         endif
 
 c     End program
+
+      contains
+
+      subroutine dealloc_mg_array(mgarray)
+
+        type(mg_array),pointer  :: mgarray
+
+        if (associated(mgarray)) then
+          nullify(mgarray%g_def)
+          nullify(mgarray%mg_crse_array)
+          do igrid=1,size(mgarray%grid)
+            if (associated(mgarray%grid(igrid)%array)) then
+              deallocate(mgarray%grid(igrid)%array)
+            endif
+          enddo
+          deallocate(mgarray%grid)
+        else
+          nullify(mgarray)
+        endif
+
+      end subroutine dealloc_mg_array
 
       end subroutine deallocateMGArray
 
@@ -1013,7 +1070,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer :: neq,icmp,bcnd(6,neq),order,igrid
-      type(mg_array) :: mgarray
+      type(mg_array),target :: mgarray
 
       integer,optional :: order_bc
       logical,optional,intent(IN) :: iscnv,isvec,result_is_vec,is_stgvec
@@ -1024,6 +1081,8 @@ c     Local variables
 
       integer :: igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
       logical :: fpointers
+
+      type(mg_array),pointer :: mg_temp,mg_old
 
 c     Begin program
 
@@ -1065,7 +1124,7 @@ c     Consistency check
         stop
       endif
 
-c     Restrict array
+c     Restrict PARALLEL array
 
       do igc=igrid+1,mgarray%g_def%ngrid
         igf = igc-1
@@ -1085,8 +1144,50 @@ c     Restrict array
      .       ,equilb=equilb
      .       ,mgvcov=mgvcov
      .       ,g_def=mgarray%g_def)
-
       enddo
+
+c     Take care of COARSER meshes
+
+      igf = mgarray%g_def%ngrid
+      mg_old  => mgarray
+      mg_temp => mgarray%mg_crse_array
+
+      do while (associated(mg_temp))
+        !Xfer to next mesh
+        call find_global(mg_old %grid(igf)%array
+     .                  ,mg_temp%grid(1  )%array
+#if defined(petsc)
+     .                  ,mpi_comm=mg_old%g_def%mpi_comm
+#endif
+     .                  )
+
+        !Restrict COARSE array
+        do igc=2,mg_temp%g_def%ngrid
+          igf = igc-1
+
+          nxf = mg_temp%g_def%nxv(igf)
+          nyf = mg_temp%g_def%nyv(igf)
+          nzf = mg_temp%g_def%nzv(igf)
+          nxc = mg_temp%g_def%nxv(igc)
+          nyc = mg_temp%g_def%nyv(igc)
+          nzc = mg_temp%g_def%nzv(igc)
+
+          call restrictArray_w_BCs(icmp,neq
+     .      ,igf,nxf,nyf,nzf,mg_temp%grid(igf)%array
+     .      ,igc,nxc,nyc,nzc,mg_temp%grid(igc)%array
+     .      ,order,.false.,bcnd
+     .      ,order_bc=order_bc
+     .      ,equilb=equilb
+     .      ,mgvcov=mgvcov
+     .      ,g_def=mg_temp%g_def)
+        enddo
+
+        igf = mg_temp%g_def%ngrid
+        mg_old  => mg_temp
+        mg_temp => mg_old%mg_crse_array
+      enddo
+
+      nullify(mg_old,mg_temp)
 
 c     End program
 
@@ -2257,7 +2358,7 @@ cc     .              ,iorder=min(order,3)             !now inherited from previ
 
 c     Perform average along azimuthal direction for SP configurations
 
-      if (isSP2(1,igc) .and. isvec) then
+      if (isSP2(1,igc,g_def=mgctx%g_def) .and. isvec) then
 
         allocate(sp_sum(0:nzc+1,neq),dv_sum(0:nzc+1,neq))
 
@@ -6626,7 +6727,10 @@ c     Begin program
 
 #if defined(petsc)
         if ((np > 1) .and.(mgctx%g_def%ngrid == igr)
-     .      .and.mgctx%mpi_comm /= MPI_COMM_SELF) then             !At PROCESSOR coarse mesh
+     .      .and.associated(mgctx%g_def%g_crse_def)
+     .      .and.mgctx%mpi_comm /= MPI_COMM_SELF) then !At PROCESSOR coarse mesh
+
+          g_crse_def => mgctx%g_def%g_crse_def
 
           if (outc.ge.1.and.prnt) then
             write (*,*)
@@ -6649,21 +6753,7 @@ c     Begin program
           ng = neq*nxg*nyg*nzg
 
           !Initialize SERIAL grid structure over COARSE mesh
-          call initGridSt(nxg,nyg,nzg,g_crse_def,np_x=1,np_y=1,np_z=1
-     .                   ,mpi_comm=MPI_COMM_SELF)
-
-          if (.not.checkAnalMapDatabase()) then
-            allocate(carg(0:nxg+1,0:nyg+1,0:nzg+1,3))
-
-            call find_global(mgctx%g_def%gmetric%grid(igr)%car,carg
-     .                      ,map_bc=.true.,mpi_comm=mgctx%mpi_comm)
-
-            call defineGridMetric(g_crse_def,xcar=carg)
-
-            deallocate(carg)
-          else
-            call defineGridMetric(g_crse_def)
-          endif
+cc          call create_coarse_proc_gdef(mgctx%g_def,g_crse_def)
 
           !Gather MG vectors
           allocate(xg(ng),yg(ng)
@@ -6733,7 +6823,8 @@ cdiag ****
           !Free space
           deallocate(xg,yg)
           call deallocPointers(fpointers,mgctx=mgctx_crse)
-          call deallocateGridStructure(g_crse_def)
+cc          call deallocateGridStructure(g_crse_def)
+          nullify(g_crse_def)
 
           !Recover old MG config
           nullify(MGgrid)

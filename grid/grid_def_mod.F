@@ -66,12 +66,24 @@ c #####################################################################
           real(8) :: lymin,lymax        !Physical dim. of LOCAL domain in Y
           real(8) :: lzmin,lzmax        !Physical dim. of LOCAL domain in Z
 
-          integer :: mpi_comm,np,rank,mx,my,mz   !MPI info
+          !MPI info
+          integer :: np,rank,mx,my,mz
 
           integer :: aligner            !Ghost cell width
           integer :: gcw                !Ghost cell width
           !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
-
+#if defined(petsc)
+          integer :: mpi_comm       =MPI_COMM_NULL
+          integer :: MPI_COMM_SP    =MPI_COMM_NULL
+     .              ,MPI_COMM_POL   =MPI_COMM_NULL
+     .              ,MPI_COMM_RAD   =MPI_COMM_NULL
+     .              ,MPI_COMM_X     =MPI_COMM_NULL
+     .              ,MPI_COMM_Y     =MPI_COMM_NULL
+     .              ,MPI_COMM_Z     =MPI_COMM_NULL
+     .              ,MPI_COMM_XY    =MPI_COMM_NULL
+     .              ,MPI_COMM_YZ    =MPI_COMM_NULL
+     .              ,MPI_COMM_PER(3)=MPI_COMM_NULL
+#endif
           integer :: ngrdx                                !Grid levels in X, MG specific
           integer :: ngrdy                                !Grid levels in Y, MG specific
           integer :: ngrdz                                !Grid levels in Z, MG specific
@@ -130,6 +142,8 @@ c #####################################################################
 #if defined(petsc) && !defined(samrai)
           type(petsc_da_ctx),pointer,dimension(:)::dactx  !PETSc DA context
 #endif
+
+          type(grid_mg_def),pointer :: g_crse_def => null()
 
         end type grid_mg_def
 
@@ -402,6 +416,10 @@ c     Deallocate PETSC DA context
         endif
 #endif
 
+c     Nullify coarse grid pointer
+
+        nullify(grid_st%g_crse_def)
+
 c     Deallocate MG storage variables
 
         grid_st%ngrdx = 0
@@ -580,6 +598,8 @@ c       Copy values
         grid_st2%iline      = grid_st1%iline
         grid_st2%jline      = grid_st1%jline
         grid_st2%kline      = grid_st1%kline
+
+        !Grid info
         grid_st2%gxmin      = grid_st1%gxmin
         grid_st2%gxmax      = grid_st1%gxmax
         grid_st2%gymin      = grid_st1%gymin
@@ -596,6 +616,25 @@ c       Copy values
         grid_st2%g_pack     = grid_st1%g_pack
         grid_st2%params     = grid_st1%params
 
+        !MPI info
+#if defined(petsc)
+        grid_st2%mpi_comm   = grid_st1%mpi_comm
+        grid_st2%np         = grid_st1%np
+        grid_st2%rank       = grid_st1%rank
+        grid_st2%mx         = grid_st1%mx
+        grid_st2%my         = grid_st1%my
+        grid_st2%mz         = grid_st1%mz
+        grid_st2%MPI_COMM_SP  = grid_st1%MPI_COMM_SP    
+        grid_st2%MPI_COMM_POL = grid_st1%MPI_COMM_POL   
+        grid_st2%MPI_COMM_RAD = grid_st1%MPI_COMM_RAD   
+        grid_st2%MPI_COMM_X   = grid_st1%MPI_COMM_X     
+        grid_st2%MPI_COMM_Y   = grid_st1%MPI_COMM_Y     
+        grid_st2%MPI_COMM_Z   = grid_st1%MPI_COMM_Z     
+        grid_st2%MPI_COMM_XY  = grid_st1%MPI_COMM_XY    
+        grid_st2%MPI_COMM_YZ  = grid_st1%MPI_COMM_YZ    
+        grid_st2%MPI_COMM_PER = grid_st2%MPI_COMM_PER
+#endif
+
 c       Create and copy grid metric
 
         if (associated(grid_st1%gmetric)) then
@@ -603,6 +642,12 @@ c       Create and copy grid metric
      .                         ,grid_st1%gmetric,grid_st1)
         else
           nullify(grid_st2%gmetric)
+        endif
+
+c       Create and copy coarse grid metric
+
+        if (associated(grid_st1%g_crse_def)) then
+          grid_st2%g_crse_def => grid_st1%g_crse_def
         endif
 
 c       Create fortran PETSc parallel grid hierarchy (parallel version)

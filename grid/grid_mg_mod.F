@@ -210,7 +210,9 @@ c     Check if MG pointers are allocated
 
         mgctx%igmax = mgctx%ngrid
 
+#if defined(petsc)
         mgctx%mpi_comm = MGgrid%mpi_comm
+#endif
 
         mgctx%lxmin = MGgrid%lxmin
         mgctx%lxmax = MGgrid%lxmax

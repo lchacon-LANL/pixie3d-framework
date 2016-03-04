@@ -730,13 +730,13 @@ c       NUMERICAL QUANTITIES ***********************************
 
           numerical_grid = .true.
 
-          call findCellMap
+          call findCellMap(g_def)
 
-          call findVertexMap
+          call findVertexMap(g_def)
 
-          call findVertexMetrics
+          call findVertexMetrics(g_def)
 
-          call findCellMetrics
+          call findCellMetrics(g_def)
 
         endif
 
@@ -748,7 +748,7 @@ c     End program
 
 c     findCellMap
 c     #################################################################
-      subroutine findCellMap
+      subroutine findCellMap(g_def)
 
 c     -----------------------------------------------------------------
 c     Finds Cartesian map at cell centers.
@@ -757,6 +757,8 @@ c     -----------------------------------------------------------------
         implicit  none
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -783,7 +785,7 @@ c     Begin program
             do k = klom,khip
               do j = jlom,jhip
                 do i = ilom,ihip
-                  xc(i,j,k,:) = map(i,j,k,igx,igy,igz)
+                  xc(i,j,k,:) = map(i,j,k,igx,igy,igz,g_def=g_def)
                 enddo
               enddo
             enddo
@@ -800,7 +802,7 @@ c     End program
 
 c     findVertexMap
 c     #################################################################
-      subroutine findVertexMap
+      subroutine findVertexMap(g_def)
 
 c     -----------------------------------------------------------------
 c     Finds Cartesian map at vertices.
@@ -809,6 +811,8 @@ c     -----------------------------------------------------------------
         implicit  none
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -841,7 +845,7 @@ c     End program
 
 c     findVertexMetrics
 c     #################################################################
-      subroutine findVertexMetrics
+      subroutine findVertexMetrics(g_def)
 
 c     -----------------------------------------------------------------
 c     Finds metrics at vertices (i+1/2,j+1/2,k+1/2) (stored at (i,j,k))
@@ -850,6 +854,8 @@ c     -----------------------------------------------------------------
         implicit  none
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -875,6 +881,8 @@ c     Begin program
 
         he = 1
 
+        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
+
 c     Local grid size
 
         nx = ihi-ilo+1
@@ -884,8 +892,6 @@ c     Local grid size
 c     Evaluate dr=dx/dxi vectors at vertices
 
         xc => g_def%gmetric%grid(igrid)%car
-
-        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
 
         dr = 0d0
 
@@ -957,7 +963,7 @@ c     Evaluate grid quantities (at vertices)
                 elseif (return_error) then
                   lerr = 1 ; exit
                 endif
-              elseif (isSP2(i+1,igrid,ibc=1)) then
+              elseif (isSP2(i+1,igrid,ibc=1,g_def=g_def)) then
 cc              if (isSP2(i+1,igrid,ibc=1)) then
                 ijac = 0d0
               else
@@ -1038,7 +1044,7 @@ c     End program
 
 c     findCellMetrics
 c     #################################################################
-      subroutine findCellMetrics  !OLD version
+      subroutine findCellMetrics(g_def)  !OLD version
 
 c     -----------------------------------------------------------------
 c     Finds metrics at cell centers.
@@ -1047,6 +1053,8 @@ c     -----------------------------------------------------------------
         implicit  none
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
