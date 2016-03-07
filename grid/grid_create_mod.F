@@ -74,7 +74,7 @@ c     Create grid structures (only two levels for now)
         call create_gdef(nx,ny,nz,gdef,mpi_comm)
 
 #if defined(petsc)
-cc        call create_coarse_gdef(gdef,gdef%g_crse_def,MPI_COMM_SELF)
+        call create_coarse_gdef(gdef,gdef%g_crse_def,MPI_COMM_SELF)
 #endif
 
 c$$$        call initGridSt(nx,ny,nz,gdef

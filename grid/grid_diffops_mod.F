@@ -1419,7 +1419,7 @@ c     Local variables
 
       logical  :: vrtx_met,have_diff
 
-      type(grid_mg_def),pointer :: g_def_l
+      type(grid_mg_def),pointer :: g_def_l => null()
 
 c     Begin program
 
@@ -1585,7 +1585,7 @@ c     Local variables
 
       logical  :: vrtx_met,have_diff
 
-      type(grid_mg_def),pointer :: g_def_l
+      type(grid_mg_def),pointer :: g_def_l => null()
 
 c     Begin program
 
@@ -1757,7 +1757,7 @@ c     Local variables
 
       logical  :: vrtx_met,have_diff
 
-      type(grid_mg_def),pointer :: g_def_l
+      type(grid_mg_def),pointer :: g_def_l => null()
 
 c     Begin program
 
@@ -1918,7 +1918,7 @@ c     Local variables
 
       logical :: vol_wgt,vrtx_met
 
-      type(grid_mg_def),pointer :: g_def_l
+      type(grid_mg_def),pointer :: g_def_l => null()
 
 c     Begin program
 
@@ -1931,26 +1931,26 @@ c     Begin program
         g_def_l => grid_params
       endif
         
-      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+      call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def_l)
 
       im = i-1
       jm = j-1
       km = k-1
 
       flxip=lap_flx_x_ijk(i ,j,k,igx,arr,diff=dff,vertex=vertex_metrics
-     .                   ,g_def=g_def)
+     .                   ,g_def=g_def_l)
       flxim=lap_flx_x_ijk(im,j,k,igx,arr,diff=dff,vertex=vertex_metrics
-     .                   ,g_def=g_def)
+     .                   ,g_def=g_def_l)
 
       flxjp=lap_flx_y_ijk(i,j ,k,igy,arr,diff=dff,vertex=vertex_metrics
-     .                   ,g_def=g_def)
+     .                   ,g_def=g_def_l)
       flxjm=lap_flx_y_ijk(i,jm,k,igy,arr,diff=dff,vertex=vertex_metrics
-     .                   ,g_def=g_def)
+     .                   ,g_def=g_def_l)
 
       flxkp=lap_flx_z_ijk(i,j,k ,igz,arr,diff=dff,vertex=vertex_metrics
-     .                   ,g_def=g_def)
+     .                   ,g_def=g_def_l)
       flxkm=lap_flx_z_ijk(i,j,km,igz,arr,diff=dff,vertex=vertex_metrics
-     .                   ,g_def=g_def)
+     .                   ,g_def=g_def_l)
 
       laplacian = ((flxip -flxim)/g_def_l%dxh(ig)
      .            +(flxjp -flxjm)/g_def_l%dyh(jg)
@@ -1966,7 +1966,7 @@ c     End program
 
 c     lap_mesh
 c     ###############################################################
-      function lap_mesh(igr,arr,dff,vol,vertex_metrics) result (lap)
+      function lap_mesh(igr,arr,dff,vol,vertex_metrics,g_def)result(lap)
 c     ---------------------------------------------------------------
 c     Calculates div(dff grad(arr)) at cell centers in general non-orthog.
 c     coordinates, preserving the SPD property.
@@ -1989,6 +1989,8 @@ c     Call variables
 
       logical,optional,intent(IN) :: vol,vertex_metrics
 
+      type(grid_mg_def),optional,pointer :: g_def
+
 c     Local variables
 
       integer :: i,j,k,nx,ny,nz
@@ -2003,7 +2005,8 @@ c     Begin program
         do j=1,ny
           do i=1,nx
             lap(i,j,k) = lap_ijk(i,j,k,nx,ny,nz,igr,igr,igr,arr
-     $              ,dff=dff,vol=vol,vertex_metrics=vertex_metrics)
+     $              ,dff=dff,vol=vol,vertex_metrics=vertex_metrics
+     .              ,g_def=g_def)
           enddo
         enddo
       enddo

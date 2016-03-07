@@ -4255,6 +4255,8 @@ c     Local variables
 
       character(3) :: cvec
 
+      type(mg_ctx),pointer :: mgctx => null()
+
 c     Begin program
 
       neql = neq !To avoid problems if neq is hardwired
@@ -4288,11 +4290,11 @@ c     Consistency check
 
 c     Allocate MG pointers (if not allocated earlier)
 
-      call allocPointers(neql,fpointers,g_def=gbc_def)
+      call allocPointers(neql,gbc_def,fpointers,mgctx=mgctx)
 
 c     Find grid node LOCAL position (if gpos > 0, else return local domain limits)
 
-      call limits(gpos,nnx,nny,nnz,iig,imnl,imxl,jmnl,jmxl,kmnl,kmxl)
+      call limits(mgctx,gpos,iig,imnl,imxl,jmnl,jmxl,kmnl,kmxl)
 
 c     Check LOCAL limits (return if not close to local domain boundaries)
 
@@ -4452,7 +4454,7 @@ c     Select operation
 
 c     Deallocate MG pointers (if allocated in this routine)
 
-      call deallocPointers(fpointers)
+      call deallocPointers(fpointers,mgctx=mgctx)
 
       nullify(gbc_def)
 
@@ -4556,6 +4558,8 @@ c     Local variables
 
       character(3) :: cvec
 
+      type(mg_ctx),pointer :: mgctx => null()
+
 c     Begin program
 
       neql = neq !To avoid problems if neq is hardwired
@@ -4602,11 +4606,11 @@ c     Consistency check
 
 c     Allocate MG pointers (if not allocated earlier)
 
-      call allocPointers(neql,fpointers,g_def=gbc_def)
+      call allocPointers(neql,gbc_def,fpointers,mgctx=mgctx)
 
 c     Find grid node LOCAL position (if gpos > 0, else return local domain limits)
 
-      call limits(gpos,nnx,nny,nnz,iig,imnl,imxl,jmnl,jmxl,kmnl,kmxl)
+      call limits(mgctx,gpos,iig,imnl,imxl,jmnl,jmxl,kmnl,kmxl)
 
 c     Check LOCAL limits (return if not close to local domain boundaries)
 
@@ -4738,7 +4742,7 @@ c$$$        enddo
 
 c     Deallocate MG pointers (if allocated in this routine)
 
-      call deallocPointers(fpointers)
+      call deallocPointers(fpointers,mgctx=mgctx)
 
       nullify(gbc_def)
 

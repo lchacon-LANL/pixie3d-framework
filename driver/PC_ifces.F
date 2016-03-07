@@ -273,11 +273,11 @@ c     Begin program
 
 c     Plot PC solution
 
-        call vec_plot_gl(neqd,x,igrid,'sol','Solution')
+        call vec_plot_gl(grid_params,neqd,x,igrid,'sol','Solution')
 
 c     Plot PC RHS
 
-        call vec_plot_gl(neqd,y,igrid,'rhs','RHS')
+        call vec_plot_gl(grid_params,neqd,y,igrid,'rhs','RHS')
 
 c     Plot corresponding linear residual to PC solution
 
@@ -288,7 +288,7 @@ c     Plot corresponding linear residual to PC solution
         y = y - rr
         mag = rms(y)
 
-        call vec_plot_gl(neqd,y,igrid,'res','Residual')
+        call vec_plot_gl(grid_params,neqd,y,igrid,'res','Residual')
 
         if (my_rank == 0) then
            write (*,*)

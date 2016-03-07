@@ -13,8 +13,8 @@ c######################################################################
      .                    ,istartb,ntotb,nxv,nyv,nzv,nblock
      .                    ,mg_ratio_x,mg_ratio_y,mg_ratio_z
 
-        type(grid_mg_def),pointer :: MGgrid    => null()
-     $                              ,MGgrid_sv => null()
+c$$$        type(grid_mg_def),pointer :: MGgrid    => null()
+c$$$     $                              ,MGgrid_sv => null()
 
         type :: mg_ctx
           type(grid_mg_def),pointer :: g_def
@@ -71,7 +71,7 @@ c     Begin program
 
 c     allocPointers
 c     #################################################################
-      subroutine allocPointers(neq,fpointers,mgctx,g_def)
+      subroutine allocPointers(neq,g_def,fpointers,mgctx)
 
 c     -----------------------------------------------------------------
 c     Initializes pointers for block MG. In call sequence:
@@ -87,37 +87,28 @@ c     Call variables
       integer :: neq
       logical,intent(OUT) :: fpointers
       type(mg_ctx),pointer,optional :: mgctx
-      type(grid_mg_def),pointer,optional :: g_def
+      type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
 c     Begin program
 
-      if (.not.associated(MGgrid)) then
-        if (PRESENT(g_def)) then
-          MGgrid => g_def
-        else
-          MGgrid => grid_params
-        endif
-      endif
+c$$$      if (.not.associated(MGgrid)) then
+c$$$        if (PRESENT(g_def)) then
+c$$$          MGgrid => g_def
+c$$$        else
+c$$$          MGgrid => grid_params
+c$$$        endif
+c$$$      endif
 
       if (PRESENT(mgctx)) then
-
-        if (associated(mgctx)) then
-          fpointers = .false.
-
-          MGgrid => mgctx%g_def
-        else
-          call allocMGPointers(neq,fpointers,mgctx)
-        endif
-
+        call allocMGPointers(neq,g_def,mgctx,fpointers)
         mg_ctx_temp => mgctx
-
       else
-        call allocMGPointers(neq,fpointers,mg_ctx_temp)
-        if (PRESENT(mgctx)) mgctx => mg_ctx_temp
+        call allocMGPointers(neq,g_def,mg_ctx_temp,fpointers)
       endif
 
+      ---> Issue here with mg_ctx_temp
       istart  => mg_ctx_temp%istart
       istartp => mg_ctx_temp%istartp
       istartb => mg_ctx_temp%istartb
@@ -159,17 +150,17 @@ c     -----------------------------------------------------------------
         else
           call deallocMGPointers(fpointers,mg_ctx_temp)
         endif
-
-        nullify(istart,ntotv,istartp,ntotvp
-     .         ,istartb,ntotb,nxv,nyv,nzv,nblock
-     .         ,mg_ratio_x,mg_ratio_y,mg_ratio_z,MGgrid)
       endif
+
+      nullify(istart,ntotv,istartp,ntotvp
+     .       ,istartb,ntotb,nxv,nyv,nzv,nblock
+     .       ,mg_ratio_x,mg_ratio_y,mg_ratio_z)
 
       end subroutine deallocPointers
 
 c     allocMGPointers
 c     #################################################################
-      subroutine allocMGPointers(neq,fpointers,mgctx)
+      subroutine allocMGPointers(neq,g_def,mgctx,fpointers)
 
 c     -----------------------------------------------------------------
 c     Initializes pointers for block MG. In call sequence:
@@ -183,10 +174,11 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer             :: neq
+      integer,intent(IN)  :: neq
       logical,intent(OUT) :: fpointers
 
-      type(mg_ctx),pointer:: mgctx
+      type(mg_ctx),pointer,intent(OUT):: mgctx
+      type(grid_mg_def),pointer,intent(IN) :: g_def
 
 c     Local variables
 
@@ -202,24 +194,24 @@ c     Check if MG pointers are allocated
       if (fpointers) then  !Defaults
         allocate(mgctx)
 
-        mgctx%g_def => MGgrid
+        mgctx%g_def => g_def
 
         mgctx%neq = neq
 
-        mgctx%ngrid = MGgrid%ngrid
+        mgctx%ngrid = g_def%ngrid
 
         mgctx%igmax = mgctx%ngrid
 
 #if defined(petsc)
-        mgctx%mpi_comm = MGgrid%mpi_comm
+        mgctx%mpi_comm = g_def%mpi_comm
 #endif
 
-        mgctx%lxmin = MGgrid%lxmin
-        mgctx%lxmax = MGgrid%lxmax
-        mgctx%lymin = MGgrid%lymin
-        mgctx%lymax = MGgrid%lymax
-        mgctx%lzmin = MGgrid%lzmin
-        mgctx%lzmax = MGgrid%lzmax
+        mgctx%lxmin = g_def%lxmin
+        mgctx%lxmax = g_def%lxmax
+        mgctx%lymin = g_def%lymin
+        mgctx%lymax = g_def%lymax
+        mgctx%lzmin = g_def%lzmin
+        mgctx%lzmax = g_def%lzmax
 
         allocate(mgctx%istart    (mgctx%ngrid+1)
      .          ,mgctx%istartb   (mgctx%ngrid+1)
@@ -238,17 +230,17 @@ c     Check if MG pointers are allocated
      .          ,mgctx%mg_ratio_y(mgctx%ngrid)
      .          ,mgctx%mg_ratio_z(mgctx%ngrid))
 
-        mgctx%iline = MGgrid%iline
-        mgctx%jline = MGgrid%jline
-        mgctx%kline = MGgrid%kline
+        mgctx%iline = g_def%iline
+        mgctx%jline = g_def%jline
+        mgctx%kline = g_def%kline
 
-        mgctx%mg_ratio_x = MGgrid%mg_ratio_x
-        mgctx%mg_ratio_y = MGgrid%mg_ratio_y
-        mgctx%mg_ratio_z = MGgrid%mg_ratio_z
+        mgctx%mg_ratio_x = g_def%mg_ratio_x
+        mgctx%mg_ratio_y = g_def%mg_ratio_y
+        mgctx%mg_ratio_z = g_def%mg_ratio_z
 
-        mgctx%nxv = MGgrid%nxv
-        mgctx%nyv = MGgrid%nyv
-        mgctx%nzv = MGgrid%nzv
+        mgctx%nxv = g_def%nxv
+        mgctx%nyv = g_def%nyv
+        mgctx%nzv = g_def%nzv
 
         mgctx%istartp(1) = 1
         mgctx%istart (1) = 1
@@ -387,7 +379,7 @@ c     End program
 
 c     limits
 c     ###############################################################
-      subroutine limits(elem,nx,ny,nz,igr,imin,imax,jmin,jmax,kmin,kmax)
+      subroutine limits(mgctx,elem,igr,imin,imax,jmin,jmax,kmin,kmax)
       implicit none
 c     ---------------------------------------------------------------
 c     Finds limits on loops for matvec routines. In call sequence:
@@ -402,7 +394,9 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer :: elem,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax,igr
+      integer :: elem,imin,imax,jmin,jmax,kmin,kmax,igr
+
+      type(mg_ctx),pointer :: mgctx
 
 c     Local variables
 
@@ -410,15 +404,15 @@ c     Local variables
 
 c     Begin program
 
-      call MGlimits(elem,igr,mg_ctx_temp)
+      call MGlimits(elem,igr,mgctx)
 
-      imin = mg_ctx_temp%imin
-      jmin = mg_ctx_temp%jmin
-      kmin = mg_ctx_temp%kmin
+      imin = mgctx%imin
+      jmin = mgctx%jmin
+      kmin = mgctx%kmin
 
-      imax = mg_ctx_temp%imax
-      jmax = mg_ctx_temp%jmax
-      kmax = mg_ctx_temp%kmax
+      imax = mgctx%imax
+      jmax = mgctx%jmax
+      kmax = mgctx%kmax
 
 c     End program
 
