@@ -329,11 +329,7 @@ c ######################################################################
 
         implicit none
 
-#if !defined(petsc)
-
-        integer :: npx=1,npy=1,npz=1  !Serial processor allocation
-
-#else
+#if defined(petsc)
 
 #include "finclude/petsc.h"
 #include "finclude/petscvec.h"
@@ -356,8 +352,6 @@ c ######################################################################
           integer    :: igrid
           integer    :: MPI_COMM_DA,np,rank
         end type petsc_da_ctx
-
-        integer :: npx=0,npy=0,npz=0  !Processor allocation
 
         integer :: debug_par=0        !For parallel debugging
 
@@ -402,9 +396,6 @@ c     Begin program
           BC = DA_NONPERIODIC
         endif
 
-c$$$        if (npx == 0) npx = PETSC_DECIDE
-c$$$        if (npy == 0) npy = PETSC_DECIDE
-c$$$        if (npz == 0) npz = PETSC_DECIDE
         if (dactx%mx == 0) dactx%mx = PETSC_DECIDE
         if (dactx%my == 0) dactx%my = PETSC_DECIDE
         if (dactx%mz == 0) dactx%mz = PETSC_DECIDE

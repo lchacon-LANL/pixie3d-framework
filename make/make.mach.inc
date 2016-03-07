@@ -298,9 +298,9 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
     ADIOS_VER  = 1.31
 
-    LIBS += -L/opt/local/lib -latlas
+#    LIBS += -L/opt/local/lib -latlas
   else
-    LIBS += -L/opt/local/lib -llapack -lblas -latlas
+    LIBS += -L/opt/local/lib -llapack -lblas
 
     HDF5 = t
 

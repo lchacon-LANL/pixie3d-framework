@@ -410,9 +410,9 @@ c     Begin program
       ilog = gl_def%ilo(igxbc)
       jlog = gl_def%jlo(igybc)
 
-      if (npy < 1) call pstop('scalarSingularBC','npy < 1')
+      if (gl_def%my < 1) call pstop('scalarSingularBC','npy < 1')
 
-      nyg = nybc*npy
+      nyg = nybc*gl_def%my
 
 c     Check that we are domain adjacent to singular point
 
@@ -430,7 +430,7 @@ c     Parallel Allgather in SP communicator
      .                           ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
      .                  ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
      .                  ,gl_def%MPI_COMM_SP,mpierr)
-      do k=1,npy
+      do k=1,gl_def%my
         garray(1+nybc*(k-1):nybc*k,:)
      .     = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
      .              , (/ nybc,nzbc+2 /))
@@ -508,7 +508,7 @@ c     Begin program
       ilog = gl_def%ilo(igxbc)
       jlog = gl_def%jlo(igybc)
 
-      if (npy < 1) call pstop('vectorSingularBC','npy < 1')
+      if (gl_def%my < 1) call pstop('vectorSingularBC','npy < 1')
 
       nyg = gl_def%nygl(igybc)
 
@@ -528,7 +528,7 @@ c     Parallel Allgather in SP communicator
      .                           ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
      .                  ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
      .                  ,gl_def%MPI_COMM_SP,mpierr)
-      do k=1,npy
+      do k=1,gl_def%my
         garray(1+nybc*(k-1):nybc*k,:)
      .     = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
      .              , (/ nybc,nzbc+2 /))
@@ -889,9 +889,9 @@ c     -----------------------------------------------------------------
 
       asm = asm_flag
 
-      asm_dir(1) = asm.and.(npx > 1)
-      asm_dir(2) = asm.and.(npy > 1)
-      asm_dir(3) = asm.and.(npz > 1)
+      asm_dir(1) = asm.and.(grid_params%mx > 1)
+      asm_dir(2) = asm.and.(grid_params%my > 1)
+      asm_dir(3) = asm.and.(grid_params%mz > 1)
 
       if (bc_debug) then
         write (bc_debug_unit,*) 'Proc ',my_rank,': asm    =',asm
@@ -4290,8 +4290,8 @@ c     Consistency check
 
 c     Allocate MG pointers (if not allocated earlier)
 
-      call allocPointers(neql,gbc_def,fpointers,mgctx=mgctx)
-
+      call allocMGPointers(neql,gbc_def,mgctx,fpointers)
+      
 c     Find grid node LOCAL position (if gpos > 0, else return local domain limits)
 
       call limits(mgctx,gpos,iig,imnl,imxl,jmnl,jmxl,kmnl,kmxl)
@@ -4454,7 +4454,7 @@ c     Select operation
 
 c     Deallocate MG pointers (if allocated in this routine)
 
-      call deallocPointers(fpointers,mgctx=mgctx)
+      call deallocMGPointers(fpointers,mgctx)
 
       nullify(gbc_def)
 
@@ -4606,7 +4606,7 @@ c     Consistency check
 
 c     Allocate MG pointers (if not allocated earlier)
 
-      call allocPointers(neql,gbc_def,fpointers,mgctx=mgctx)
+      call allocMGPointers(neql,gbc_def,mgctx,fpointers)
 
 c     Find grid node LOCAL position (if gpos > 0, else return local domain limits)
 
@@ -4742,7 +4742,7 @@ c$$$        enddo
 
 c     Deallocate MG pointers (if allocated in this routine)
 
-      call deallocPointers(fpointers,mgctx=mgctx)
+      call deallocMGPointers(fpointers,mgctx)
 
       nullify(gbc_def)
 

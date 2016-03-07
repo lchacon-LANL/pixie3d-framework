@@ -406,7 +406,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: dim,loc,lrank,BC
+        integer :: dim,loc,lrank,BC,npz
 
         logical :: cp(0:1)
 
@@ -434,6 +434,8 @@ c     Set global limits of global domain g_lim(dim,loc)
         g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Select rank
+
+        npz = g_mpi_def%mz
 
         split_key = MPI_UNDEFINED
 
@@ -752,9 +754,7 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: loc,lrank
-
-        logical    :: cp(0:1)
+        integer :: npx,npy,npz
 
 c     Begin program
 
@@ -781,6 +781,10 @@ c     Set global limits of global domain g_lim(dim,loc)
         g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Select rank
+
+        npx = g_mpi_def%mx
+        npy = g_mpi_def%my
+        npz = g_mpi_def%mz
 
         !Group processors based on location in y and z directions
         !(x direction is shared; 
@@ -809,9 +813,7 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: loc,lrank
-
-        logical    :: cp(0:1)
+        integer :: npx,npy,npz
 
 c     Begin program
 
@@ -839,6 +841,10 @@ c     Set global limits of global domain g_lim(dim,loc)
 
 c     Select rank
 
+        npx = g_mpi_def%mx
+        npy = g_mpi_def%my
+        npz = g_mpi_def%mz
+        
         !Group processors based on location in x and z directions
         !(y direction is shared; 
         ! organize in 2D processor mesh: k + nz*(i-1))
@@ -866,9 +872,7 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: loc,lrank
-
-        logical    :: cp(0:1)
+        integer :: npx,npy,npz
 
 c     Begin program
 
@@ -895,6 +899,10 @@ c     Set global limits of global domain g_lim(dim,loc)
         g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Select rank
+
+        npx = g_mpi_def%mx
+        npy = g_mpi_def%my
+        npz = g_mpi_def%mz
 
         !Group processors based on location in x and y directions
         !(z direction is shared; 
@@ -922,9 +930,7 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: loc,lrank
-
-        logical    :: cp(0:1)
+        integer :: npx,npy,npz
 
 c     Begin program
 
@@ -951,6 +957,10 @@ c     Set global limits of global domain g_lim(dim,loc)
         g_lim(3,1) = g_mpi_def%nzgl(1)
 
 c     Select rank
+
+        npx = g_mpi_def%mx
+        npy = g_mpi_def%my
+        npz = g_mpi_def%mz
 
         !Group processors based on location in x direction
         !(y and z directions are shared; 
@@ -977,9 +987,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: loc,lrank
-
-        logical :: cp(0:1)
+        integer :: npx,npy,npz
 
 c     Begin program
 
@@ -1007,6 +1015,10 @@ c     Set global limits of global domain g_lim(dim,loc)
 
 c     Select rank
 
+        npx = g_mpi_def%mx
+        npy = g_mpi_def%my
+        npz = g_mpi_def%mz
+
         !Group processors based on location in x direction
         !(y and z directions are shared; 
         ! organize in 1D processor mesh: i
@@ -1015,6 +1027,75 @@ c     Select rank
 c     End program
 
       end subroutine selectRank_YZ
+
+c$$$c     selectRank_MG
+c$$$c     #####################################################################
+c$$$      subroutine selectRank_MG(split_key)
+c$$$
+c$$$c     ---------------------------------------------------------------------
+c$$$c     Groups processors in slices COARSE MG domains.
+c$$$c     ---------------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        integer,INTENT(INOUT) :: split_key
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer :: npx_new,npy_new,npz_new,ip,jp,kp
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        if (split_key == MPI_UNDEFINED) then
+c$$$          split_key = 1
+c$$$        endif
+c$$$
+c$$$c     Set global limits of local domain l_lim(dim,loc)
+c$$$
+c$$$        l_lim(1,0) = g_mpi_def%ilo(1)
+c$$$        l_lim(2,0) = g_mpi_def%jlo(1)
+c$$$        l_lim(3,0) = g_mpi_def%klo(1)
+c$$$        l_lim(1,1) = g_mpi_def%ihi(1)
+c$$$        l_lim(2,1) = g_mpi_def%jhi(1)
+c$$$        l_lim(3,1) = g_mpi_def%khi(1)
+c$$$
+c$$$c     Set global limits of global domain g_lim(dim,loc)
+c$$$
+c$$$        g_lim(1,0) = 1
+c$$$        g_lim(2,0) = 1
+c$$$        g_lim(3,0) = 1
+c$$$        g_lim(1,1) = g_mpi_def%nxgl(1)
+c$$$        g_lim(2,1) = g_mpi_def%nygl(1)
+c$$$        g_lim(3,1) = g_mpi_def%nzgl(1)
+c$$$
+c$$$c     Find coarse domain config
+c$$$
+c$$$        npx = g_mpi_def%mx
+c$$$        npy = g_mpi_def%my
+c$$$        npz = g_mpi_def%mz
+c$$$        
+c$$$        !New processor count
+c$$$        npx_new = npx/cf
+c$$$        npy_new = npy/cf
+c$$$        npz_new = npz/cf
+c$$$
+c$$$        !Coordinates in new processor mesh
+c$$$        ip = npx_new*l_lim(1,1)/g_lim(1,1) + 1
+c$$$        jp = npy_new*l_lim(2,1)/g_lim(2,1) + 1
+c$$$        kp = npz_new*l_lim(3,1)/g_lim(3,1) + 1
+c$$$
+c$$$c     Select rank
+c$$$
+c$$$        !Group processors based on location in x, y and z directions
+c$$$        !Organize in 3D COARSE processor mesh: i-1 + ny*(j-1) + ny*nz*(k-1)
+c$$$        split_key = split_key + ip - 1 + npy_new*(jp-1)
+c$$$     .                                 + npy_new*npz_new*(kp-1)
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine selectRank_MG
 
 c     checkProc
 c     #####################################################################
@@ -2238,7 +2319,8 @@ c     ----------------------------------------------------------------------
 
 c     Call variables
 
-      integer :: nx1,ny1,nz1,npx,npy,npz
+      integer,INTENT(IN) :: nx1,ny1,nz1
+      integer,INTENT(INOUT) :: npx,npy,npz
 
 c     Local variables
 

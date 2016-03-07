@@ -16,6 +16,12 @@ c #####################################################################
      .            ,createMGgrid
      $            ,consistencyCheck!,initGridSt,checkGrid
 
+#if !defined(petsc)
+        integer :: npx=1,npy=1,npz=1  !Serial processor allocation
+#else
+        integer :: npx=0,npy=0,npz=0  !Parallel processor allocation
+#endif
+        
       contains
 
 c     createGrid
@@ -41,8 +47,6 @@ c     Local variables
 
 c     Begin program
 
-        pi = acos(-1d0)
-
 c     Initialize global quantities (from gdef, if existing) and MPI
 
         if (associated(gdef)) then
@@ -54,78 +58,34 @@ c     Initialize global quantities (from gdef, if existing) and MPI
           call processorAlloc(nx,ny,nz,gdef%mx,gdef%my,gdef%mz)
 #endif
         else
-cc          nx = nxd
-cc          ny = nyd
-cc          nz = nzd
 #if defined(petsc)
           mpi_comm = MPI_COMM_WORLD
+          call processorAlloc(nx,ny,nz,npx,npy,npz)
 #endif
         endif
 
-ccc     Allocate processors
-cc
-cc#if defined(petsc)
-cc        call initFortranMPI(mpi_comm,nx,ny,nz,npx,npy,npz)
-cc        call processorAlloc(nx,ny,nz,npx,npy,npz)
-cc#endif
-
-c     Create grid structures (only two levels for now)
+c     Create grid structures
 
         call create_gdef(nx,ny,nz,gdef,mpi_comm)
 
-#if defined(petsc)
-        call create_coarse_gdef(gdef,gdef%g_crse_def,MPI_COMM_SELF)
-#endif
-
-c$$$        call initGridSt(nx,ny,nz,gdef
-c$$$#if defined(petsc) || defined(samrai)
-c$$$     .                 ,mpi_comm=mpi_comm
-c$$$#endif
-c$$$#if defined(samrai)
-c$$$     .                 ,coarsen_in_x=.false.
-c$$$     .                 ,coarsen_in_y=.false.
-c$$$     .                 ,coarsen_in_z=.false.
-c$$$#endif
-c$$$     .                 )
-c$$$
-c$$$c     Create MPI communicators (requires grid_params; needed by defineGridMetric)
-c$$$
-c$$$#if defined(petsc)
-c$$$        call create_MPI_comms
-c$$$#endif
-c$$$
-c$$$c     Store grid metric parameters in grid metric structure
-c$$$
-c$$$cc        if (checkAnalMapDatabase() .or. coords == 'lpk') then
-c$$$        if (checkAnalMapDatabase()) then
-c$$$          call defineGridMetric(gdef)
-c$$$          gmetric => gdef%gmetric  !For backward compatibility
-c$$$        else
-c$$$          if (my_rank == 0 .and. coords /= 'ext') then
-c$$$            write (*,*) 'WARNING: Map "',coords,'" not in database'
-c$$$          endif
-c$$$        endif
-c$$$
-c$$$c     Perform grid check
-c$$$
-c$$$        if (check_grid.and.checkAnalMapDatabase()) call checkGrid(gdef)
-
-c     Legacy assignments (Backward compatibility)
+c     Legacy assignments (backward compatibility)
 
         gmetric => gdef%gmetric !For backward compatibility
 
         grid_params => gdef 
 
 #if defined(petsc)
-        MPI_COMM_SP    = grid_params%MPI_COMM_SP 
-        MPI_COMM_POL   = grid_params%MPI_COMM_POL
-        MPI_COMM_RAD   = grid_params%MPI_COMM_RAD
-        MPI_COMM_X     = grid_params%MPI_COMM_X  
-        MPI_COMM_Y     = grid_params%MPI_COMM_Y  
-        MPI_COMM_Z     = grid_params%MPI_COMM_Z  
-        MPI_COMM_XY    = grid_params%MPI_COMM_XY 
-        MPI_COMM_YZ    = grid_params%MPI_COMM_YZ 
-        MPI_COMM_PER   = grid_params%MPI_COMM_PER
+        call initMPI(mpi_comm,np,my_rank)
+
+        MPI_COMM_SP  = gdef%MPI_COMM_SP 
+        MPI_COMM_POL = gdef%MPI_COMM_POL
+        MPI_COMM_RAD = gdef%MPI_COMM_RAD
+        MPI_COMM_X   = gdef%MPI_COMM_X  
+        MPI_COMM_Y   = gdef%MPI_COMM_Y  
+        MPI_COMM_Z   = gdef%MPI_COMM_Z  
+        MPI_COMM_XY  = gdef%MPI_COMM_XY 
+        MPI_COMM_YZ  = gdef%MPI_COMM_YZ 
+        MPI_COMM_PER = gdef%MPI_COMM_PER
 #endif
 
       end subroutine createGrid
@@ -146,23 +106,142 @@ c     Call variables
 
 c     Local variables
 
-        type(grid_mg_def),pointer :: temp => null()
-     .                              ,gl_crse_def => null()
+        type(grid_mg_def),pointer :: gdef_tmp1 => null()
+     .                              ,gdef_tmp2 => null()
 
 c     Begin program
 
-        gl_crse_def => gdef%g_crse_def
-        do while (associated(gl_crse_def))
-          temp => gl_crse_def%g_crse_def
+        gdef_tmp1 => gdef%g_crse_def
+        do while (associated(gdef_tmp1))
+          gdef_tmp2 => gdef_tmp1%g_crse_def
         
-          call deallocateGridStructure(gl_crse_def)
+          call deallocateGridStructure(gdef_tmp1)
 
-          gl_crse_def => temp%g_crse_def
+          gdef_tmp1 => gdef_tmp2
         enddo
 
         call deallocateGridStructure(gdef)
 
       end subroutine destroyGrid
+
+c     create_gdef
+c     ######################################################################
+      subroutine create_gdef(nx,ny,nz,g_def,mpi_comm)
+ 
+      implicit none
+
+c     ----------------------------------------------------------------------
+c     Initialize PARALLEL grid structure
+c     ----------------------------------------------------------------------
+     
+c     Call variables
+
+      integer :: nx,ny,nz,mpi_comm
+      type(grid_mg_def),pointer,INTENT(IN)  :: g_def
+
+c     Local variables
+
+      real(8),pointer,dimension(:,:,:,:) :: carg
+
+c     Begin program
+
+c     Initialize grid structure
+
+      call initGridSt(nx,ny,nz,g_def
+#if defined(petsc) || defined(samrai)
+     .               ,mpi_comm=mpi_comm
+#endif
+#if defined(samrai)
+     .               ,coarsen_in_x=.false.
+     .               ,coarsen_in_y=.false.
+     .               ,coarsen_in_z=.false.
+#endif
+     .               )
+
+c     Create MPI communicators
+
+#if defined(petsc)
+      call create_MPI_comms(g_def)
+#endif
+
+c     Store grid metric parameters in grid metric structure
+
+      if (checkAnalMapDatabase()) then
+        call defineGridMetric(g_def)
+      else
+        if (my_rank == 0 .and. coords /= 'ext') then
+          write (*,*) 'WARNING: Map "',coords,'" not in database'
+        endif
+      endif
+
+c     Perform grid check
+
+      if (check_grid.and.checkAnalMapDatabase()) call checkGrid(g_def)
+
+c     Create beyond-processor sub-grids
+      
+#if defined(petsc)
+        call create_coarse_gdef(g_def,g_def%g_crse_def,MPI_COMM_SELF)
+#endif
+
+c     End program
+        
+      end subroutine create_gdef
+
+c     create_coarse_gdef
+c     ######################################################################
+      subroutine create_coarse_gdef(g_def,g_crse_def,mpi_comm)
+ 
+      implicit none
+
+c     ----------------------------------------------------------------------
+c     Initialize SERIAL grid structure over COARSE mesh
+c     ----------------------------------------------------------------------
+     
+c     Call variables
+
+      type(grid_mg_def),pointer,INTENT(IN)  :: g_def
+      type(grid_mg_def),pointer,INTENT(OUT) :: g_crse_def
+      integer :: mpi_comm
+
+c     Local variables
+
+      integer :: igr,nxg,nyg,nzg
+      real(8),pointer,dimension(:,:,:,:) :: carg
+
+c     Begin program
+
+      igr = g_def%ngrid
+
+      nxg = g_def%nxgl(igr)
+      nyg = g_def%nygl(igr)
+      nzg = g_def%nzgl(igr)
+
+      call initGridSt(nxg,nyg,nzg,g_crse_def,np_x=1,np_y=1,np_z=1
+#if defined(petsc) || defined(samrai)
+     .               ,mpi_comm=mpi_comm
+#endif
+     .               )
+
+      if (.not.checkAnalMapDatabase()) then
+        allocate(carg(0:nxg+1,0:nyg+1,0:nzg+1,3))
+
+        call find_global(g_def%gmetric%grid(igr)%car,carg
+#if defined(petsc) || defined(samrai)
+     .                  ,map_bc=.true.,mpi_comm=mpi_comm
+#endif
+     .                  )
+
+        call defineGridMetric(g_crse_def,xcar=carg)
+
+        deallocate(carg)
+      else
+        call defineGridMetric(g_crse_def)
+      endif
+
+c     End program
+        
+      end subroutine create_coarse_gdef
 
 c     initGridSt
 c     #################################################################
@@ -1645,118 +1724,5 @@ c     Dump quantities
       end subroutine symmCheck
 
       end subroutine checkGrid
-
-c     create_gdef
-c     ######################################################################
-      subroutine create_gdef(nx,ny,nz,g_def,mpi_comm)
- 
-      implicit none
-
-c     ----------------------------------------------------------------------
-c     Initialize PARALLEL grid structure
-c     ----------------------------------------------------------------------
-     
-c     Call variables
-
-      integer :: nx,ny,nz,mpi_comm
-      type(grid_mg_def),pointer,INTENT(IN)  :: g_def
-
-c     Local variables
-
-      real(8),pointer,dimension(:,:,:,:) :: carg
-
-c     Begin program
-
-c     Initialize grid structure
-
-      call initGridSt(nx,ny,nz,g_def
-#if defined(petsc) || defined(samrai)
-     .                 ,mpi_comm=mpi_comm
-#endif
-#if defined(samrai)
-     .                 ,coarsen_in_x=.false.
-     .                 ,coarsen_in_y=.false.
-     .                 ,coarsen_in_z=.false.
-#endif
-     .               )
-
-c     Create MPI communicators (needed by defineGridMetric)
-
-#if defined(petsc)
-      call create_MPI_comms(g_def)
-#endif
-
-c     Store grid metric parameters in grid metric structure
-
-      if (checkAnalMapDatabase()) then
-        call defineGridMetric(g_def)
-      else
-        if (my_rank == 0 .and. coords /= 'ext') then
-          write (*,*) 'WARNING: Map "',coords,'" not in database'
-        endif
-      endif
-
-c     Perform grid check
-
-      if (check_grid.and.checkAnalMapDatabase()) call checkGrid(g_def)
-
-c     End program
-        
-      end subroutine create_gdef
-
-c     create_coarse_gdef
-c     ######################################################################
-      subroutine create_coarse_gdef(g_def,g_crse_def,mpi_comm)
- 
-      implicit none
-
-c     ----------------------------------------------------------------------
-c     Initialize SERIAL grid structure over COARSE mesh
-c     ----------------------------------------------------------------------
-     
-c     Call variables
-
-      type(grid_mg_def),pointer,INTENT(IN)  :: g_def
-      type(grid_mg_def),pointer,INTENT(OUT) :: g_crse_def
-      integer :: mpi_comm
-
-c     Local variables
-
-      integer :: igr,nxg,nyg,nzg
-      real(8),pointer,dimension(:,:,:,:) :: carg
-
-c     Begin program
-
-      igr = g_def%ngrid
-
-      nxg = g_def%nxgl(igr)
-      nyg = g_def%nygl(igr)
-      nzg = g_def%nzgl(igr)
-
-      call initGridSt(nxg,nyg,nzg,g_crse_def,np_x=1,np_y=1,np_z=1
-#if defined(petsc) || defined(samrai)
-     .               ,mpi_comm=mpi_comm
-#endif
-     .               )
-
-      if (.not.checkAnalMapDatabase()) then
-        allocate(carg(0:nxg+1,0:nyg+1,0:nzg+1,3))
-
-        call find_global(g_def%gmetric%grid(igr)%car,carg
-#if defined(petsc) || defined(samrai)
-     .                  ,map_bc=.true.,mpi_comm=mpi_comm
-#endif
-     .                  )
-
-        call defineGridMetric(g_crse_def,xcar=carg)
-
-        deallocate(carg)
-      else
-        call defineGridMetric(g_crse_def)
-      endif
-
-c     End program
-        
-      end subroutine create_coarse_gdef
 
       end module grid_create

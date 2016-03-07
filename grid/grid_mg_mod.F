@@ -6,16 +6,6 @@ c######################################################################
 
         use grid_operations
 
-        integer :: ngrdx,ngrdy,ngrdz,ngrid
-
-        integer,dimension(:),pointer ::
-     .                     istart,ntotv,istartp,ntotvp
-     .                    ,istartb,ntotb,nxv,nyv,nzv,nblock
-     .                    ,mg_ratio_x,mg_ratio_y,mg_ratio_z
-
-c$$$        type(grid_mg_def),pointer :: MGgrid    => null()
-c$$$     $                              ,MGgrid_sv => null()
-
         type :: mg_ctx
           type(grid_mg_def),pointer :: g_def
           integer :: mpi_comm
@@ -30,8 +20,6 @@ c$$$     $                              ,MGgrid_sv => null()
           integer   ,pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
           real(8) :: lxmin,lxmax,lymin,lymax,lzmin,lzmax
         end type mg_ctx
-
-        type(mg_ctx),pointer :: mg_ctx_temp => null()
 
       contains
 
@@ -68,95 +56,6 @@ c     Begin program
       ngrd = i
 
       end function MG_levels
-
-c     allocPointers
-c     #################################################################
-      subroutine allocPointers(neq,g_def,fpointers,mgctx)
-
-c     -----------------------------------------------------------------
-c     Initializes pointers for block MG. In call sequence:
-c       * neq (in): number of coupled equations to be solved
-c       * fpointers (out): indicates if pointers were allocated or not.
-c       * mgctx (in/out): contains definition of MG grid level structure.
-c     -----------------------------------------------------------------
-
-      implicit none        !For safe fortran
-
-c     Call variables
-
-      integer :: neq
-      logical,intent(OUT) :: fpointers
-      type(mg_ctx),pointer,optional :: mgctx
-      type(grid_mg_def),pointer :: g_def
-
-c     Local variables
-
-c     Begin program
-
-c$$$      if (.not.associated(MGgrid)) then
-c$$$        if (PRESENT(g_def)) then
-c$$$          MGgrid => g_def
-c$$$        else
-c$$$          MGgrid => grid_params
-c$$$        endif
-c$$$      endif
-
-      if (PRESENT(mgctx)) then
-        call allocMGPointers(neq,g_def,mgctx,fpointers)
-        mg_ctx_temp => mgctx
-      else
-        call allocMGPointers(neq,g_def,mg_ctx_temp,fpointers)
-      endif
-
-      ---> Issue here with mg_ctx_temp
-      istart  => mg_ctx_temp%istart
-      istartp => mg_ctx_temp%istartp
-      istartb => mg_ctx_temp%istartb
-      ntotv   => mg_ctx_temp%ntotv
-      ntotvp  => mg_ctx_temp%ntotvp
-      ntotb   => mg_ctx_temp%ntotb
-      nxv     => mg_ctx_temp%nxv
-      nyv     => mg_ctx_temp%nyv
-      nzv     => mg_ctx_temp%nzv
-      nblock  => mg_ctx_temp%nblock
-      mg_ratio_x => mg_ctx_temp%mg_ratio_x
-      mg_ratio_y => mg_ctx_temp%mg_ratio_y
-      mg_ratio_z => mg_ctx_temp%mg_ratio_z
-
-      ngrid = mg_ctx_temp%ngrid
-
-c     End program
-
-      end subroutine allocPointers
-
-c     deallocPointers
-c     #################################################################
-      subroutine deallocPointers(fpointers,mgctx)
-
-c     -----------------------------------------------------------------
-c     Deallocates pointers for block MG if fpointers (in, logical) is
-c     true.
-c     -----------------------------------------------------------------
-
-      implicit none        !For safe fortran
-
-      logical :: fpointers
-      type(mg_ctx),pointer,optional :: mgctx
-
-      if (fpointers) then
-        if (PRESENT(mgctx)) then
-          call deallocMGPointers(fpointers,mgctx)
-          nullify(mg_ctx_temp)
-        else
-          call deallocMGPointers(fpointers,mg_ctx_temp)
-        endif
-      endif
-
-      nullify(istart,ntotv,istartp,ntotvp
-     .       ,istartb,ntotb,nxv,nyv,nzv,nblock
-     .       ,mg_ratio_x,mg_ratio_y,mg_ratio_z)
-
-      end subroutine deallocPointers
 
 c     allocMGPointers
 c     #################################################################
@@ -285,7 +184,8 @@ c     -----------------------------------------------------------------
       logical :: fpointers
       type(mg_ctx),pointer :: mgctx
 
-      if (fpointers .and. associated(mgctx)) then
+cc      if (fpointers .and. associated(mgctx)) then
+      if (fpointers) then
         nullify(mgctx%g_def)
         deallocate(mgctx%istart ,mgctx%ntotv
      .            ,mgctx%istartp,mgctx%ntotvp

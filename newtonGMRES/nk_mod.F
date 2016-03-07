@@ -31,7 +31,7 @@ c module nk
 c ###################################################################
       module nk
 
-      use grid_mpi
+      use grid
 
       use math
 
