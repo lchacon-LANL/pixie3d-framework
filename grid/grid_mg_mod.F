@@ -329,7 +329,7 @@ c     End program
 #if defined(petsc) && defined(coarse_MG)
 c     MG_set_proc_coarsen_factor
 c     #################################################################
-      function MG_set_proc_coarsen_factor() result(mgcf)
+      subroutine MG_set_proc_coarsen_factor(mgcf)
 
 c     -----------------------------------------------------------------
 c     Determines available MG levels based on grid resolution nx
@@ -348,7 +348,7 @@ c     Begin program
 
       mg_proc_coarsen_factor = mgcf
 
-      end function MG_set_proc_coarsen_factor
+      end subroutine MG_set_proc_coarsen_factor
 
 c     MG_get_proc_coarsen_factor
 c     #################################################################
