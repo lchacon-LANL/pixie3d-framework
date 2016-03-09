@@ -185,7 +185,7 @@ c     Perform grid check
 
 c     Create beyond-processor sub-grids for coarse MG solve
 
-#if defined(petsc) &&  defined(coarse_MG)
+#if defined(petsc) && defined(coarse_MG)
       g_def%mpi_comm_crse = MPI_COMM_WORLD
 
 c$$$      il = 0
@@ -234,6 +234,7 @@ c     End program
         
       end subroutine create_gdef
 
+#if defined(petsc) && defined(coarse_MG)
 c     create_coarse_gdef
 c     ######################################################################
       function create_coarse_gdef(g_def,g_crse_def) result(exit_loop)
@@ -312,6 +313,7 @@ c$$$     .     ' create_coarse_gdef Size =',nxg,nyg,nzg,igr
 c     End program
         
       end function create_coarse_gdef
+#endif
 
 c     initGridSt
 c     #################################################################

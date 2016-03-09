@@ -325,6 +325,7 @@ c     End program
 
       end subroutine limits
 
+#if defined(petsc) && defined(coarse_MG)
 c     selectRank_MG_coarse
 c     #####################################################################
       subroutine selectRank_MG_coarse(split_key)
@@ -497,5 +498,6 @@ c$$$        call check_MPI_COMM(mpi_comm_splt,'MPI_COMM_MG_SPLT')
 c     End program
 
       end function create_MG_comms
+#endif
 
       end module grid_mg
