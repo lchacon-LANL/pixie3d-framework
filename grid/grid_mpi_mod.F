@@ -114,58 +114,58 @@ c     Begin program
 c     Singular-point boundary MPI communicator
 
         if (bcSP())
-     .       call createMPIComm(g_mpi_def%MPI_COMM_SP,selectRank_SP)
+     .       call splitMPIComm(g_mpi_def%MPI_COMM_SP,selectRank_SP)
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_SP,'MPI_COMM_SP')
 
 c     X MPI communicator (domains that share the same Y, Z  slices)
 
-        call createMPIComm(g_mpi_def%MPI_COMM_X,selectRank_X)
+        call splitMPIComm(g_mpi_def%MPI_COMM_X,selectRank_X)
 
         if (bcSP()) g_mpi_def%MPI_COMM_RAD = g_mpi_def%MPI_COMM_X
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_X,'MPI_COMM_X')
 
 c     Y MPI communicator (domains that share same X, Z slices)
 
-        call createMPIComm(g_mpi_def%MPI_COMM_Y,selectRank_Y)
+        call splitMPIComm(g_mpi_def%MPI_COMM_Y,selectRank_Y)
 
         if (bcSP()) g_mpi_def%MPI_COMM_POL = g_mpi_def%MPI_COMM_Y
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_Y,'MPI_COMM_Y')
 
 c     Z MPI communicator (domains that share same X, Z slices)
 
-        call createMPIComm(g_mpi_def%MPI_COMM_Z,selectRank_Z)
+        call splitMPIComm(g_mpi_def%MPI_COMM_Z,selectRank_Z)
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_Z,'MPI_COMM_Z')
 
 c     XY MPI communicator (domains that share same Z slices)
 
-        call createMPIComm(g_mpi_def%MPI_COMM_XY,selectRank_XY)
+        call splitMPIComm(g_mpi_def%MPI_COMM_XY,selectRank_XY)
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_XY,'MPI_COMM_XY')
 
 c     YZ MPI communicator (domains that share same X slices)
 
-        call createMPIComm(g_mpi_def%MPI_COMM_YZ,selectRank_YZ)
+        call splitMPIComm(g_mpi_def%MPI_COMM_YZ,selectRank_YZ)
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_YZ,'MPI_COMM_YZ')
 
 c     Periodic BCs communicators
 
         if (bcond(1) == PER) then
-          call createMPIComm(g_mpi_def%MPI_COMM_PER(1),selectRank_PER_X)
+          call splitMPIComm(g_mpi_def%MPI_COMM_PER(1),selectRank_PER_X)
         endif
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(1),'MPI_COMM_PERx')
 
         if (bcond(3) == PER) then
-          call createMPIComm(g_mpi_def%MPI_COMM_PER(2),selectRank_PER_Y)
+          call splitMPIComm(g_mpi_def%MPI_COMM_PER(2),selectRank_PER_Y)
         endif
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(2),'MPI_COMM_PERy')
 
         if (bcond(5) == PER) then
-          call createMPIComm(g_mpi_def%MPI_COMM_PER(3),selectRank_PER_Z)
+          call splitMPIComm(g_mpi_def%MPI_COMM_PER(3),selectRank_PER_Z)
         endif
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(3),'MPI_COMM_PERz')
 
 c     End program
 
-      contains
+      end subroutine create_MPI_comms
 
 c     check_MPI_COMM
 c     ###################################################################
@@ -198,15 +198,13 @@ c     Begin program
      .                ,'; my_rank_global=',my_rank
       endif
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-      call MPI_Finalize(mpierr)
-      stop
+c$$$      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+c$$$      call MPI_Finalize(mpierr)
+c$$$      stop
 
 c     End program
 
       end subroutine check_MPI_COMM
-
-      end subroutine create_MPI_comms
 
 c     fillPetscGhostCells
 c     #################################################################
@@ -352,9 +350,9 @@ c     Rank and number of processors
 
       end subroutine initMPI
 
-c     createMPIComm
+c     splitMPIComm
 c     #####################################################################
-      subroutine createMPIComm(MPI_COMM,selProc)
+      subroutine splitMPIComm(MPI_COMM,selProc,MPI_COMM_ORIG)
 
 c     ---------------------------------------------------------------------
 c     Creates MPI communicator MPI_COMM according to routine selProc.
@@ -365,14 +363,21 @@ c     ---------------------------------------------------------------------
 c     Call variables
 
         integer :: MPI_COMM
+        integer, optional :: MPI_COMM_ORIG
 
         external   selProc
 
 c     Local variables
 
-        integer :: split_key,my_sp_rank,np_sp
+        integer :: split_key,my_rank_l,mpi_orig
 
 c     Begin program
+
+        if (PRESENT(MPI_COMM_ORIG)) then
+          mpi_orig = MPI_COMM_ORIG
+        else
+          mpi_orig = MPI_COMM_WORLD
+        endif
 
 c     Find split key
 
@@ -382,12 +387,14 @@ c     Find split key
 
 c     Create communicator
 
-        call MPI_Comm_split(MPI_COMM_WORLD,split_key,my_rank
+        call MPI_Comm_rank(mpi_orig,my_rank_l,mpierr)
+
+        call MPI_Comm_split(mpi_orig,split_key,my_rank_l
      .                     ,MPI_COMM,mpierr)
 
 c     End program
 
-      end subroutine createMPIComm
+      end subroutine splitMPIComm
 
 c     selectRank_SP
 c     #####################################################################
@@ -1027,75 +1034,6 @@ c     Select rank
 c     End program
 
       end subroutine selectRank_YZ
-
-c$$$c     selectRank_MG
-c$$$c     #####################################################################
-c$$$      subroutine selectRank_MG(split_key)
-c$$$
-c$$$c     ---------------------------------------------------------------------
-c$$$c     Groups processors in slices COARSE MG domains.
-c$$$c     ---------------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        integer,INTENT(INOUT) :: split_key
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        integer :: npx_new,npy_new,npz_new,ip,jp,kp
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        if (split_key == MPI_UNDEFINED) then
-c$$$          split_key = 1
-c$$$        endif
-c$$$
-c$$$c     Set global limits of local domain l_lim(dim,loc)
-c$$$
-c$$$        l_lim(1,0) = g_mpi_def%ilo(1)
-c$$$        l_lim(2,0) = g_mpi_def%jlo(1)
-c$$$        l_lim(3,0) = g_mpi_def%klo(1)
-c$$$        l_lim(1,1) = g_mpi_def%ihi(1)
-c$$$        l_lim(2,1) = g_mpi_def%jhi(1)
-c$$$        l_lim(3,1) = g_mpi_def%khi(1)
-c$$$
-c$$$c     Set global limits of global domain g_lim(dim,loc)
-c$$$
-c$$$        g_lim(1,0) = 1
-c$$$        g_lim(2,0) = 1
-c$$$        g_lim(3,0) = 1
-c$$$        g_lim(1,1) = g_mpi_def%nxgl(1)
-c$$$        g_lim(2,1) = g_mpi_def%nygl(1)
-c$$$        g_lim(3,1) = g_mpi_def%nzgl(1)
-c$$$
-c$$$c     Find coarse domain config
-c$$$
-c$$$        npx = g_mpi_def%mx
-c$$$        npy = g_mpi_def%my
-c$$$        npz = g_mpi_def%mz
-c$$$        
-c$$$        !New processor count
-c$$$        npx_new = npx/cf
-c$$$        npy_new = npy/cf
-c$$$        npz_new = npz/cf
-c$$$
-c$$$        !Coordinates in new processor mesh
-c$$$        ip = npx_new*l_lim(1,1)/g_lim(1,1) + 1
-c$$$        jp = npy_new*l_lim(2,1)/g_lim(2,1) + 1
-c$$$        kp = npz_new*l_lim(3,1)/g_lim(3,1) + 1
-c$$$
-c$$$c     Select rank
-c$$$
-c$$$        !Group processors based on location in x, y and z directions
-c$$$        !Organize in 3D COARSE processor mesh: i-1 + ny*(j-1) + ny*nz*(k-1)
-c$$$        split_key = split_key + ip - 1 + npy_new*(jp-1)
-c$$$     .                                 + npy_new*npz_new*(kp-1)
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine selectRank_MG
 
 c     checkProc
 c     #####################################################################

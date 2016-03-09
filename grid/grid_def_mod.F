@@ -73,7 +73,8 @@ c #####################################################################
           integer :: gcw                !Ghost cell width
           !!!!!!!!!External grid manager (e.g. SAMRAI) needs to define these!!!!!!!!
 #if defined(petsc)
-          integer :: mpi_comm       =MPI_COMM_NULL
+          integer :: mpi_comm       =MPI_COMM_NULL  !Current communicator
+          !Various group communicators
           integer :: MPI_COMM_SP    =MPI_COMM_NULL
      .              ,MPI_COMM_POL   =MPI_COMM_NULL
      .              ,MPI_COMM_RAD   =MPI_COMM_NULL
@@ -83,6 +84,7 @@ c #####################################################################
      .              ,MPI_COMM_XY    =MPI_COMM_NULL
      .              ,MPI_COMM_YZ    =MPI_COMM_NULL
      .              ,MPI_COMM_PER(3)=MPI_COMM_NULL
+     .              ,MPI_COMM_CRSE  =MPI_COMM_NULL  !Groups procs for coarse MG solve
 #endif
           integer :: ngrdx                                !Grid levels in X, MG specific
           integer :: ngrdy                                !Grid levels in Y, MG specific
@@ -214,6 +216,13 @@ c     Begin program
 
           call MPI_Comm_rank(grid_st%mpi_comm,grid_st%rank,mpierr)
           call MPI_Comm_size(grid_st%mpi_comm,grid_st%np  ,mpierr)
+
+          if (mx*my*mz /= grid_st%np) then
+            write (*,*)
+     .           "Processor distribution does not match total # procs"
+            write (*,*) "Aborting in allocateGridStructure"
+            stop
+          endif
 
           allocate(grid_st%dactx(ngrid))
 
@@ -633,6 +642,7 @@ c       Copy values
         grid_st2%MPI_COMM_XY  = grid_st1%MPI_COMM_XY    
         grid_st2%MPI_COMM_YZ  = grid_st1%MPI_COMM_YZ    
         grid_st2%MPI_COMM_PER = grid_st2%MPI_COMM_PER
+        grid_st2%MPI_COMM_CRSE= grid_st2%MPI_COMM_CRSE
 #endif
 
 c       Create and copy grid metric

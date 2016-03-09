@@ -141,7 +141,12 @@ c     Call variables
 
 c     Local variables
 
+      integer :: il
+      logical :: exit_loop
+
       real(8),pointer,dimension(:,:,:,:) :: carg
+
+      type(grid_mg_def),pointer :: g_def_sav => null()
 
 c     Begin program
 
@@ -178,10 +183,51 @@ c     Perform grid check
 
       if (check_grid.and.checkAnalMapDatabase()) call checkGrid(g_def)
 
-c     Create beyond-processor sub-grids
-      
-#if defined(petsc)
-        call create_coarse_gdef(g_def,g_def%g_crse_def,MPI_COMM_SELF)
+c     Create beyond-processor sub-grids for coarse MG solve
+
+#if defined(petsc) &&  defined(coarse_MG)
+      g_def%mpi_comm_crse = MPI_COMM_WORLD
+
+c$$$      il = 0
+      g_def_sav => g_def
+      do
+        exit_loop = create_coarse_gdef(g_def_sav,g_def_sav%g_crse_def)
+c$$$        il = il + 1
+c$$$        if (my_rank == 0) then
+c$$$          write (*,*) "************************"
+c$$$          write (*,*) "Level "//trim(int2char(il))//" created"
+c$$$          write (*,*) "************************"
+c$$$        endif
+        if (exit_loop) exit
+        g_def_sav => g_def_sav%g_crse_def
+      enddo
+
+c$$$      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+c$$$
+c$$$      if (my_rank == 0) then
+c$$$        write (*,*) '-------------'
+c$$$        write (*,*) 'Final summary'
+c$$$        write (*,*) '-------------'
+c$$$      endif
+c$$$      il = 0
+c$$$      g_def_sav => g_def
+c$$$       if (my_rank == 0) write (*,*) 'Fine levels',g_def_sav%ngrid
+c$$$      do while(associated(g_def_sav%g_crse_def))
+c$$$        il = il + 1
+c$$$        if (my_rank == 0) then
+c$$$          write (*,*) "************************"
+c$$$          write (*,*) "Level "//trim(int2char(il))//" associated"
+c$$$          write (*,*) "************************"
+c$$$        endif
+c$$$        g_def_sav => g_def_sav%g_crse_def
+c$$$        if (my_rank == 0) write (*,*) 'coarse levels',g_def_sav%ngrid
+c$$$        if (my_rank == 0) write (*,*) "coarse X dims",g_def_sav%nxv
+c$$$        if (my_rank == 0) write (*,*) "coarse Y dims",g_def_sav%nyv
+c$$$
+c$$$cc        if (il == 1) call checkGrid(g_def)
+c$$$      enddo
+c$$$
+c$$$      call pstop("","")
 #endif
 
 c     End program
@@ -190,7 +236,7 @@ c     End program
 
 c     create_coarse_gdef
 c     ######################################################################
-      subroutine create_coarse_gdef(g_def,g_crse_def,mpi_comm)
+      function create_coarse_gdef(g_def,g_crse_def) result(exit_loop)
  
       implicit none
 
@@ -200,35 +246,59 @@ c     ----------------------------------------------------------------------
      
 c     Call variables
 
-      type(grid_mg_def),pointer,INTENT(IN)  :: g_def
+      logical :: exit_loop
+      type(grid_mg_def),pointer,INTENT(INOUT)  :: g_def
       type(grid_mg_def),pointer,INTENT(OUT) :: g_crse_def
-      integer :: mpi_comm
 
 c     Local variables
 
-      integer :: igr,nxg,nyg,nzg
+      integer :: mpi_comm_splt,mpi_comm_crse
+      integer :: igr,nxg,nyg,nzg,nxl,nyl,nzl,npx,npy,npz
       real(8),pointer,dimension(:,:,:,:) :: carg
 
 c     Begin program
 
-      igr = g_def%ngrid
+      exit_loop = create_MG_comms(g_def,mpi_comm_splt,mpi_comm_crse)
 
+      igr = g_def%ngrid  !Last grid level
+
+      !Compute # procs involved
+      npx = max(g_def%mx/mg_proc_coarsen_factor,1)
+      npy = max(g_def%my/mg_proc_coarsen_factor,1)
+      npz = max(g_def%mz/mg_proc_coarsen_factor,1)
+
+      !Global mesh
       nxg = g_def%nxgl(igr)
       nyg = g_def%nygl(igr)
       nzg = g_def%nzgl(igr)
 
-      call initGridSt(nxg,nyg,nzg,g_crse_def,np_x=1,np_y=1,np_z=1
+c$$$      if (my_rank == 0) write (*,*)
+c$$$     .     ' create_coarse_gdef fine grid levels =',igr
+c$$$      if (my_rank == 0) write (*,*)
+c$$$     .     ' create_coarse_gdef Procs=',npx,npy,npz
+c$$$      if (my_rank == 0) write (*,*)
+c$$$     .     ' create_coarse_gdef Size =',nxg,nyg,nzg,igr
+
+      !Init coarse mesh structure
+      call initGridSt(nxg,nyg,nzg,g_crse_def,np_x=npx,np_y=npy,np_z=npz
 #if defined(petsc) || defined(samrai)
-     .               ,mpi_comm=mpi_comm
+     .               ,mpi_comm=mpi_comm_splt
 #endif
      .               )
 
-      if (.not.checkAnalMapDatabase()) then
-        allocate(carg(0:nxg+1,0:nyg+1,0:nzg+1,3))
+      g_crse_def%mpi_comm_crse = mpi_comm_crse
 
+      !Gather map and define grid metrics
+      if (.not.checkAnalMapDatabase()) then
+        nxl = g_crse_def%nxv(1)
+        nyl = g_crse_def%nyv(1)
+        nzl = g_crse_def%nzv(1)
+        allocate(carg(0:nxl+1,0:nyl+1,0:nzl+1,3))
+
+        !Gather over sub-procs
         call find_global(g_def%gmetric%grid(igr)%car,carg
 #if defined(petsc) || defined(samrai)
-     .                  ,map_bc=.true.,mpi_comm=mpi_comm
+     .                  ,map_bc=.true.,mpi_comm=mpi_comm_crse
 #endif
      .                  )
 
@@ -241,7 +311,7 @@ c     Begin program
 
 c     End program
         
-      end subroutine create_coarse_gdef
+      end function create_coarse_gdef
 
 c     initGridSt
 c     #################################################################

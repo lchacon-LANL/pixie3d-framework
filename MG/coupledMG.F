@@ -1215,7 +1215,7 @@ c     Take care of COARSER meshes
         call find_global(mg_old %grid(igf)%array
      .                  ,mg_temp%grid(1  )%array
 #if defined(petsc)
-     .                  ,mpi_comm=mg_old%g_def%mpi_comm
+     .                  ,mpi_comm=mg_temp%g_def%mpi_comm_crse
 #endif
      .                  )
 
@@ -5332,9 +5332,9 @@ c Local variables
 
       logical :: fpointers=.false.
 
-      type(mg_ctx),pointer :: mgctx
+      type(mg_ctx),pointer :: mgctx => null()
 
-      type(grid_mg_def),pointer :: MGgrid
+      type(grid_mg_def),pointer :: MGgrid => null()
 
       !Initialized from outside
       integer :: orderres,orderprol,igmin,igmax,vcyc,crsedpth,mu,ncolors
@@ -5516,12 +5516,16 @@ c Start mu-cycle
 
 c     Perform mu-cycle recursively
 
+#if !defined(coarse_MG)
         if (igrid.eq.igmax) then
-          call smooth (igrid)
+          call smooth(igrid)
           exit
         else
           call mcycle(igrid)
         endif
+#else
+        call mcycle(igrid)
+#endif
 
 c     Check MG convergence
 
@@ -6883,6 +6887,7 @@ c     Local variables
 
         type(grid_mg_def),pointer :: g_def_sav => null()
      .                              ,g_crse_def => null()
+     .                              ,g_fine_def => null()
 
         real(8),pointer,dimension(:) :: xg,yg
         real(8),pointer,dimension(:,:) :: diag_sav => null()
@@ -6895,11 +6900,15 @@ c     Begin program
         isig = mgctx%istart(igr)
         nn   = mgctx%ntotv (igr)
 
-#if defined(petsc)
-        if ((np > 1) .and.(mgctx%g_def%ngrid == igr)
-     .      .and.associated(mgctx%g_def%g_crse_def)
-     .      .and.mgctx%mpi_comm /= MPI_COMM_SELF) then !At PROCESSOR coarse mesh
+#if defined(petsc) && defined(coarse_MG)
+c$$$        write (*,*) 'diag',(np > 1),(mgctx%g_def%ngrid == igr)
+c$$$     .       ,associated(mgctx%g_def%g_crse_def)
+        if (  (np > 1)                           !Parallel
+     .   .and.(mgctx%g_def%ngrid == igr)         !Lowest level in grid hierarchy
+     .   .and.associated(mgctx%g_def%g_crse_def) !Coarse grid defs are defined
+     .      ) then !At PROCESSOR coarse mesh
 
+          g_fine_def => mgctx%g_def
           g_crse_def => mgctx%g_def%g_crse_def
 
           if (outc.ge.1.and.prnt) then
@@ -6912,13 +6921,20 @@ c     Begin program
           diag_sav => options%diag
           options%diag => null() !Reform diagonals in coarse mesh
 
-          !Total coarse mesh grid sizes
-          nxl = mgctx%g_def%nxv(igr)
-          nyl = mgctx%g_def%nyv(igr)
-          nzl = mgctx%g_def%nzv(igr)
-          nxg = mgctx%g_def%nxgl(igr)
-          nyg = mgctx%g_def%nygl(igr)
-          nzg = mgctx%g_def%nzgl(igr)
+          !Local mesh in last level of fine grid
+          nxl = g_fine_def%nxv(igr)
+          nyl = g_fine_def%nyv(igr)
+          nzl = g_fine_def%nzv(igr)
+c$$$          nxg = mgctx%g_def%nxgl(igr)
+c$$$          nyg = mgctx%g_def%nygl(igr)
+c$$$          nzg = mgctx%g_def%nzgl(igr)
+c$$$          nxl = g_crse_def%nxv(1)
+c$$$          nyl = g_crse_def%nyv(1)
+c$$$          nzl = g_crse_def%nzv(1)
+          !Local mesh in first level of coarse grid
+          nxg = g_crse_def%nxv(1)
+          nyg = g_crse_def%nyv(1)
+          nzg = g_crse_def%nzv(1)
 
           ng = neq*nxg*nyg*nzg
 
@@ -6935,7 +6951,7 @@ cc          call create_coarse_proc_gdef(mgctx%g_def,g_crse_def)
 
           call find_global_nobc(array (1:nxl,1:nyl,1:nzl,:)
      .                         ,arrayg(1:nxg,1:nyg,1:nzg,:)
-     .                         ,mpi_comm=mgctx%mpi_comm)
+     .                         ,mpi_comm=g_crse_def%MPI_COMM_CRSE)
 
           do kg = 1,nzg
             do jg = 1,nyg
@@ -7042,7 +7058,7 @@ c$$$          call pstop("","")
 c$$$          endif
 c diag
 
-#if defined(petsc)
+#if defined(petsc) && defined(coarse_MG)
         endif
 #endif
 

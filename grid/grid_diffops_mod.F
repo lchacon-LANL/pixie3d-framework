@@ -1631,7 +1631,7 @@ c     Begin program
      .                  +gsup(im,j,km,2,3))
 
         !To fix singularity with gsup(2,2)
-        if (isSP2(i,igrid)) then
+        if (isSP2(i,igrid,g_def=g_def_l)) then
           gsup => g_def_l%gmetric%grid(igrid)%gsup
           d_yy_jp = 0.5*(gsup(i,j ,k,2,2)
      .                  +gsup(i,jp,k,2,2))

@@ -21,6 +21,13 @@ c######################################################################
           real(8) :: lxmin,lxmax,lymin,lymax,lzmin,lzmax
         end type mg_ctx
 
+        integer :: mg_proc_coarsen_factor=4  !Coarsening ratio in # procs
+                                             !in parallel MG solve
+
+        type(grid_mg_def),pointer,private :: g_mg_def
+
+        integer, private :: MPI_COMM_SAV
+
       contains
 
 c     MG_levels
@@ -317,5 +324,178 @@ c     Begin program
 c     End program
 
       end subroutine limits
+
+c     selectRank_MG_coarse
+c     #####################################################################
+      subroutine selectRank_MG_coarse(split_key)
+
+c     ---------------------------------------------------------------------
+c     Groups processors in slices COARSE MG domains.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer,INTENT(INOUT) :: split_key
+
+c     Local variables
+
+        integer :: npx_new,npy_new,npz_new,ip,jp,kp,npx,npy,npz
+
+c     Begin program
+
+        if (split_key == MPI_UNDEFINED) then
+          split_key = 1
+        endif
+
+c     Set global limits of local domain l_lim(dim,loc)
+
+        l_lim(1,0) = g_mg_def%ilo(1)
+        l_lim(2,0) = g_mg_def%jlo(1)
+        l_lim(3,0) = g_mg_def%klo(1)
+        l_lim(1,1) = g_mg_def%ihi(1)
+        l_lim(2,1) = g_mg_def%jhi(1)
+        l_lim(3,1) = g_mg_def%khi(1)
+
+c     Set global limits of global domain g_lim(dim,loc)
+
+        g_lim(1,0) = 1
+        g_lim(2,0) = 1
+        g_lim(3,0) = 1
+        g_lim(1,1) = g_mg_def%nxgl(1)
+        g_lim(2,1) = g_mg_def%nygl(1)
+        g_lim(3,1) = g_mg_def%nzgl(1)
+
+c     Find coarse domain config
+
+        npx = g_mg_def%mx
+        npy = g_mg_def%my
+        npz = g_mg_def%mz
+        
+        !New processor count
+        npx_new = max(npx/mg_proc_coarsen_factor,1)
+        npy_new = max(npy/mg_proc_coarsen_factor,1)
+        npz_new = max(npz/mg_proc_coarsen_factor,1)
+
+        !Coordinates in new processor mesh
+        ip = (npx_new*l_lim(1,0)/g_lim(1,1))
+        jp = (npy_new*l_lim(2,0)/g_lim(2,1))
+        kp = (npz_new*l_lim(3,0)/g_lim(3,1))
+
+c$$$        !At bottom of hierarchy separate all procs (SELF)
+c$$$        if (npx_new == 1.and.npx /= 1) ip = my_rank
+c$$$        if (npy_new == 1.and.npy /= 1) jp = my_rank
+c$$$        if (npz_new == 1.and.npz /= 1) kp = my_rank
+
+c     Select rank
+
+        !Group processors based on location in x, y and z directions
+        !Organize in 3D COARSE processor mesh: i-1 + ny*(j-1) + ny*nz*(k-1)
+        split_key = split_key + ip  + npy_new*jp
+     .                              + npy_new*npz_new*kp
+
+        !At bottom of hierarchy consider SELF
+c$$$        if (npx_new == 1.and.npy_new == 1.and.npz_new == 1) then
+c$$$          split_key = my_rank
+c$$$        endif
+
+c$$$        write(*,*) 'Proc=',my_rank,'mpi_comm_crse X'
+c$$$     .             ,npx_new,npx,l_lim(1,0),g_lim(1,1),ip,split_key
+
+c     End program
+
+      end subroutine selectRank_MG_coarse
+
+c     selectRank_MG_split
+c     #####################################################################
+      subroutine selectRank_MG_split(split_key)
+
+c     ---------------------------------------------------------------------
+c     Groups processors in checkerboard pattern over coarse MG domains.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer,INTENT(INOUT) :: split_key
+
+c     Local variables
+
+        integer :: my_rank_l,np_l
+
+c     Begin program
+
+        if (split_key == MPI_UNDEFINED) then
+          split_key = 1
+        endif
+
+c     Select rank
+
+        !Group processors based on RANK in COARSE MG communicator
+        call MPI_Comm_size(MPI_COMM_SAV,np_l,mpierr)
+        call MPI_Comm_rank(MPI_COMM_SAV,my_rank_l,mpierr)
+
+        split_key = split_key + my_rank_l
+
+        !At bottom of hierarchy consider SELF
+        if (np_l == 1) split_key = my_rank
+
+c$$$        write(*,*) 'Proc=',my_rank,'mpi_comm_split X',split_key
+
+c     End program
+
+      end subroutine selectRank_MG_split
+
+c     create_MG_comms
+c     #################################################################
+      function create_MG_comms(g_def,mpi_comm_splt,mpi_comm_crse)
+     .         result(end_of_hierarchy)
+
+c     -----------------------------------------------------------------
+c     Creates recursive coarse-proc MG MPI communicators
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        logical :: end_of_hierarchy
+
+        integer,INTENT(OUT) :: mpi_comm_splt,mpi_comm_crse
+
+        type(grid_mg_def),pointer,INTENT(IN)  :: g_def
+
+c     Local variables
+
+        integer :: npx,npy,npz,np_l
+
+c     Begin program
+
+        g_mg_def => g_def
+
+        end_of_hierarchy=.false.
+
+        !Create CRSE comm (for gather within domains)
+        call splitMPIComm  (mpi_comm_crse,selectRank_MG_coarse
+     .                     ,MPI_COMM_ORIG=g_mg_def%mpi_comm)
+c$$$        call check_MPI_COMM(mpi_comm_crse,'MPI_COMM_MG_CRSE')
+
+        MPI_COMM_SAV = mpi_comm_crse
+
+        !Create SPLIT comm (for concurrent solve across domains)
+        call splitMPIComm  (mpi_comm_splt,selectRank_MG_split
+     .                     ,MPI_COMM_ORIG=g_mg_def%mpi_comm)
+c$$$        call check_MPI_COMM(mpi_comm_splt,'MPI_COMM_MG_SPLT')
+
+        !Check for termination (when no more splitting is possible)
+        call MPI_Comm_size(MPI_COMM_SPLT,np_l,mpierr)
+
+        end_of_hierarchy = (np_l == 1)
+
+c     End program
+
+      end function create_MG_comms
 
       end module grid_mg
