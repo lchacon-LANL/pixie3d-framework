@@ -253,7 +253,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: mpi_comm_splt,mpi_comm_crse
+      integer :: mpi_comm_splt,mpi_comm_crse,mgcf
       integer :: igr,nxg,nyg,nzg,nxl,nyl,nzl,npx,npy,npz
       real(8),pointer,dimension(:,:,:,:) :: carg
 
@@ -264,9 +264,11 @@ c     Begin program
       igr = g_def%ngrid  !Last grid level
 
       !Compute # procs involved
-      npx = max(g_def%mx/mg_proc_coarsen_factor,1)
-      npy = max(g_def%my/mg_proc_coarsen_factor,1)
-      npz = max(g_def%mz/mg_proc_coarsen_factor,1)
+      mgcf = MG_get_proc_coarsen_factor()
+
+      npx = max(g_def%mx/mgcf,1)
+      npy = max(g_def%my/mgcf,1)
+      npz = max(g_def%mz/mgcf,1)
 
       !Global mesh
       nxg = g_def%nxgl(igr)

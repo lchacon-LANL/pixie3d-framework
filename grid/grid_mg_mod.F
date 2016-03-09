@@ -21,12 +21,13 @@ c######################################################################
           real(8) :: lxmin,lxmax,lymin,lymax,lzmin,lzmax
         end type mg_ctx
 
-        integer :: mg_proc_coarsen_factor=4  !Coarsening ratio in # procs
-                                             !in parallel MG solve
-
         type(grid_mg_def),pointer,private :: g_mg_def
 
-        integer, private :: MPI_COMM_SAV
+#if defined(coarse_MG)
+        integer,private :: mg_proc_coarsen_factor=8  !Coarsening ratio in # procs/dim
+                                                     !in parallel MG solve
+        integer,private :: MPI_COMM_SAV
+#endif
 
       contains
 
@@ -326,6 +327,52 @@ c     End program
       end subroutine limits
 
 #if defined(petsc) && defined(coarse_MG)
+c     MG_set_proc_coarsen_factor
+c     #################################################################
+      function MG_set_proc_coarsen_factor() result(mgcf)
+
+c     -----------------------------------------------------------------
+c     Determines available MG levels based on grid resolution nx
+c     and MG ratio mgr
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: mgcf
+
+c     Local variables
+
+c     Begin program
+
+      mg_proc_coarsen_factor = mgcf
+
+      end function MG_set_proc_coarsen_factor
+
+c     MG_get_proc_coarsen_factor
+c     #################################################################
+      function MG_get_proc_coarsen_factor() result(mgcf)
+
+c     -----------------------------------------------------------------
+c     Determines available MG levels based on grid resolution nx
+c     and MG ratio mgr
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: mgcf
+
+c     Local variables
+
+c     Begin program
+
+      mgcf = mg_proc_coarsen_factor
+
+      end function MG_get_proc_coarsen_factor
+
 c     selectRank_MG_coarse
 c     #####################################################################
       subroutine selectRank_MG_coarse(split_key)
