@@ -28,7 +28,7 @@ c######################################################################
                                                      !in parallel MG solve
         integer,private :: MPI_COMM_SAV
 
-        logical :: coarse_mg_debug=.true.
+        logical :: coarse_mg_debug=.false.
 #endif
 
       contains
