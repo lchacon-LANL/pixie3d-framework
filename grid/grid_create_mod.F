@@ -188,46 +188,58 @@ c     Create beyond-processor sub-grids for coarse MG solve
 #if defined(petsc) && defined(coarse_MG)
       g_def%mpi_comm_crse = MPI_COMM_WORLD
 
-c$$$      il = 0
+      il = 0
       g_def_sav => g_def
       do
         exit_loop = create_coarse_gdef(g_def_sav,g_def_sav%g_crse_def)
-c$$$        il = il + 1
-c$$$        if (my_rank == 0) then
-c$$$          write (*,*) "************************"
-c$$$          write (*,*) "Level "//trim(int2char(il))//" created"
-c$$$          write (*,*) "************************"
-c$$$        endif
+
+        if (coarse_mg_debug) then
+          il = il + 1
+
+          call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+          if (my_rank == 0) then
+            write (*,*) "************************"
+            write (*,*) "Level "//trim(int2char(il))//" created"
+            write (*,*) "************************"
+          endif
+          call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+        endif
+
         if (exit_loop) exit
         g_def_sav => g_def_sav%g_crse_def
+
       enddo
 
-c$$$      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-c$$$
-c$$$      if (my_rank == 0) then
-c$$$        write (*,*) '-------------'
-c$$$        write (*,*) 'Final summary'
-c$$$        write (*,*) '-------------'
-c$$$      endif
-c$$$      il = 0
-c$$$      g_def_sav => g_def
-c$$$       if (my_rank == 0) write (*,*) 'Fine levels',g_def_sav%ngrid
-c$$$      do while(associated(g_def_sav%g_crse_def))
-c$$$        il = il + 1
-c$$$        if (my_rank == 0) then
-c$$$          write (*,*) "************************"
-c$$$          write (*,*) "Level "//trim(int2char(il))//" associated"
-c$$$          write (*,*) "************************"
-c$$$        endif
-c$$$        g_def_sav => g_def_sav%g_crse_def
-c$$$        if (my_rank == 0) write (*,*) 'coarse levels',g_def_sav%ngrid
-c$$$        if (my_rank == 0) write (*,*) "coarse X dims",g_def_sav%nxv
-c$$$        if (my_rank == 0) write (*,*) "coarse Y dims",g_def_sav%nyv
-c$$$
-c$$$cc        if (il == 1) call checkGrid(g_def)
-c$$$      enddo
-c$$$
-c$$$      call pstop("","")
+      if (coarse_mg_debug) then
+        if (my_rank == 0) then
+          write (*,*) '-------------'
+          write (*,*) 'Final summary'
+          write (*,*) '-------------'
+        endif
+        il = 0
+        g_def_sav => g_def
+        if (my_rank == 0) write (*,*) 'Fine levels',g_def_sav%ngrid
+        if (my_rank == 0) write (*,*) "Fine X dims",g_def_sav%nxv
+        if (my_rank == 0) write (*,*) "Fine Y dims",g_def_sav%nyv
+        do while(associated(g_def_sav%g_crse_def))
+          il = il + 1
+          if (my_rank == 0) then
+            write (*,*) "************************"
+            write (*,*) "Level "//trim(int2char(il))//" associated"
+            write (*,*) "************************"
+          endif
+          g_def_sav => g_def_sav%g_crse_def
+          if (my_rank == 0) write (*,*) 'Coarse levels',g_def_sav%ngrid
+          if (my_rank == 0) write (*,*) "Coarse X dims",g_def_sav%nxv
+          if (my_rank == 0) write (*,*) "Coarse Y dims",g_def_sav%nyv
+
+          call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+
+cc          if (il == 1) call checkGrid(g_def)
+        enddo
+
+cc        call pstop("create_gdef","Coarse MG diagnostics")
+      endif
 #endif
 
 c     End program

@@ -5027,8 +5027,7 @@ c     Consistency check
 
       if (nn /= ntot) then
         write (*,*) igrid,nn,ntot
-        call pstop('find_mf_diag'
-     .            ,'Error in input of find_mf_diag')
+        call pstop('find_mf_diag','Error in input of find_mf_diag')
       endif
 
 c     Form diagonal
@@ -6880,29 +6879,22 @@ c     Local variables
         integer :: nn,ng,isig,depth1,nxg,nyg,nzg,ii,iig,ig,jg,kg
      .            ,igv(3),ilv(3),nxl,nyl,nzl,i,j,k
 
-        type(solver_unit) :: solver
+        type (solver_options) :: optns_new
 
         type(mg_ctx),pointer :: mgctx_crse => null()
-     .                         ,mgctx_sav  => null()
 
-        type(grid_mg_def),pointer :: g_def_sav => null()
-     .                              ,g_crse_def => null()
+        type(grid_mg_def),pointer :: g_crse_def => null()
      .                              ,g_fine_def => null()
 
         real(8),pointer,dimension(:) :: xg,yg
-        real(8),pointer,dimension(:,:) :: diag_sav => null()
         real(8),pointer,dimension(:,:,:,:) :: carg,array,arrayg
         
-        logical :: fpointers
-
 c     Begin program
 
         isig = mgctx%istart(igr)
         nn   = mgctx%ntotv (igr)
 
 #if defined(petsc) && defined(coarse_MG)
-c$$$        write (*,*) 'diag',(np > 1),(mgctx%g_def%ngrid == igr)
-c$$$     .       ,associated(mgctx%g_def%g_crse_def)
         if (  (np > 1)                           !Parallel
      .   .and.(mgctx%g_def%ngrid == igr)         !Lowest level in grid hierarchy
      .   .and.associated(mgctx%g_def%g_crse_def) !Coarse grid defs are defined
@@ -6917,29 +6909,17 @@ c$$$     .       ,associated(mgctx%g_def%g_crse_def)
             write (*,*) 'Grid Level',igr
           endif
 
-          !Reset diagonals
-          diag_sav => options%diag
-          options%diag => null() !Reform diagonals in coarse mesh
-
           !Local mesh in last level of fine grid
           nxl = g_fine_def%nxv(igr)
           nyl = g_fine_def%nyv(igr)
           nzl = g_fine_def%nzv(igr)
-c$$$          nxg = mgctx%g_def%nxgl(igr)
-c$$$          nyg = mgctx%g_def%nygl(igr)
-c$$$          nzg = mgctx%g_def%nzgl(igr)
-c$$$          nxl = g_crse_def%nxv(1)
-c$$$          nyl = g_crse_def%nyv(1)
-c$$$          nzl = g_crse_def%nzv(1)
+
           !Local mesh in first level of coarse grid
           nxg = g_crse_def%nxv(1)
           nyg = g_crse_def%nyv(1)
           nzg = g_crse_def%nzv(1)
 
           ng = neq*nxg*nyg*nzg
-
-          !Initialize SERIAL grid structure over COARSE mesh
-cc          call create_coarse_proc_gdef(mgctx%g_def,g_crse_def)
 
           !Gather MG vectors
           allocate(xg(ng),yg(ng)
@@ -6971,26 +6951,31 @@ cc          call create_coarse_proc_gdef(mgctx%g_def,g_crse_def)
           !Solution is initialized to zero (consistently with mcycle routine)
           xg = 0d0
 
+          !Save MG config
+          call backupSolverOptions(optns_new,options)
+
           !Set MG context 
-          g_def_sav => options%mg_grid_def
-          mgctx_sav => mgctx
-cc          nullify(MGgrid)
-          call allocMGPointers(neq,g_crse_def,mgctx_crse,fpointers)
-          options%mgctx => mgctx_crse
-          options%mg_grid_def => g_crse_def
+          optns_new%mgctx => null()
+          optns_new%mg_grid_def => g_crse_def
+          optns_new%diag => null() !Reform diagonals in coarse mesh
+          optns_new%mg_mu = 2 !W-cycle
 
           !Call MG with new solver context
-          call mg(neq,ng,yg,xg,matvec,options,1,bcnd,guess2,out,depth)
+          call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,out,depth)
+
+          !Recover MG pointers
+          mgctx => options%mgctx
+          MGgrid=> options%mg_grid_def
 
           !Scatter GLOBAL solution vectors
-          do kg = mgctx_sav%g_def%klo(igr),mgctx_sav%g_def%khi(igr)
-            do jg = mgctx_sav%g_def%jlo(igr),mgctx_sav%g_def%jhi(igr)
-              do ig = mgctx_sav%g_def%ilo(igr),mgctx_sav%g_def%ihi(igr)
+          do kg = g_fine_def%klo(igr),g_fine_def%khi(igr)
+            do jg = g_fine_def%jlo(igr),g_fine_def%jhi(igr)
+              do ig = g_fine_def%ilo(igr),g_fine_def%ihi(igr)
                 !Local limits
                 igv = (/ig,jg,kg/)
-                ilv = localIndex(igr,igv,g_def=mgctx_sav%g_def)
+                ilv = localIndex(igr,igv,g_def=g_fine_def)
                 !Vector location
-                ii  = neq*vPos(igr,ilv,g_def=mgctx_sav%g_def) + isig - 1
+                ii  = neq*vPos(igr,ilv,g_def=g_fine_def) + isig - 1
                 iig = neq*vPos(1  ,igv,g_def=g_crse_def)
                 !Vector assignment
                 xx(ii+1:ii+neq) = xg(iig+1:iig+neq)
@@ -6999,29 +6984,15 @@ cc          nullify(MGgrid)
           enddo
 
 c diag ****
-c$$$          call vec_plot_gl(neq,yy,igr,"local_res","Coarse MG solution"
-c$$$     .                    ,mgctx=mgctx_sav)
-c$$$          call vec_plot_gl(neq,xx,igr,"local_sol","Coarse MG solution"
-c$$$     .                    ,mgctx=mgctx_sav)
-c$$$          call pstop("","")
-cdiag ****
+c$$$          call vec_plot_gl(mgctx%g_def,neq,yy,igr,"local_res"
+c$$$     .                    ,"Coarse MG solution")
+c$$$          call vec_plot_gl(mgctx%g_def,neq,xx,igr,"local_sol"
+c$$$     .                    ,"Coarse MG solution")
+c$$$          call pstop("coarseSolve","Coarse PARALLEL solution")
+c diag ****
 
           !Free space
           deallocate(xg,yg)
-          call deallocMGPointers(fpointers,mgctx_crse)
-cc          call deallocateGridStructure(g_crse_def)
-          nullify(g_crse_def,mgctx_crse)
-
-          !Recover old MG config
-cc          nullify(MGgrid)
-          options%diag => diag_sav
-          options%mgctx => mgctx_sav
-          options%mg_grid_def => g_def_sav
-          call allocMGPointers(neq,options%mg_grid_def,options%mgctx
-     .                        ,fpointers)
-          mgctx => options%mgctx
-
-          nullify(mgctx_sav,diag_sav)
 
           if (outc.ge.1.and.prnt) then
             write (*,*)
@@ -7048,15 +7019,15 @@ cc          nullify(MGgrid)
 
           call MG_set_coarse_solve(.false.)
 
-c diag
-c$$$          if (np == 1) then
-c$$$          call vec_plot_gl(neq,yy,igr,"local_res_serial"
+c diag ****
+c$$$cc          if (np == 1) then
+c$$$          call vec_plot_gl(mgctx%g_def,neq,yy,igr,"local_res_serial"
 c$$$     .                    ,"Coarse MG solution")
-c$$$          call vec_plot_gl(neq,xx,igr,"local_sol_serial"
+c$$$          call vec_plot_gl(mgctx%g_def,neq,xx,igr,"local_sol_serial"
 c$$$     .                    ,"Coarse MG solution")
-c$$$          call pstop("","")
-c$$$          endif
-c diag
+c$$$          call pstop("coarseSolve","Coarse SERIAL solution")
+c$$$cc          endif
+c diag ****
 
 #if defined(petsc) && defined(coarse_MG)
         endif
@@ -7302,7 +7273,7 @@ c     ###################################################################
         endif
 
         call deallocMGPointers(fpointers,options%mgctx)
-        nullify(mgctx)
+        nullify(mgctx,MGgrid)
 
       end subroutine killmg
 
