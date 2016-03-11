@@ -1834,6 +1834,15 @@ c     sync_PER
 c     #################################################################
       subroutine sync_PER
 
+      !Fill GC of staggered components to ensure proper update
+c$$$      v_cov(nxbc+1,:,:,1) = v_cov(nxbc,:,:,1)
+c$$$      v_cov(:,nybc+1,:,2) = v_cov(:,nybc,:,2)
+c$$$      v_cov(:,:,nzbc+1,3) = v_cov(:,:,nzbc,3)
+c$$$
+c$$$      v_cnv(nxbc+1,:,:,1) = v_cnv(nxbc,:,:,1)
+c$$$      v_cnv(:,nybc+1,:,2) = v_cnv(:,nybc,:,2)
+c$$$      v_cnv(:,:,nzbc+1,3) = v_cnv(:,:,nzbc,3)
+
       bctype=PER
       do dim=1,3
         do loc=0,1
