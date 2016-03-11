@@ -1674,7 +1674,7 @@ c     Begin program
      .                                          +cnv(ip,jm,k,1)))
         endif
 
-        cov(3) = gmetric%grid(igrid)%gsup_v(i,j,k,3,3)*cnv(i,j,k,3)
+        cov(3) = gmetric%grid(igrid)%gsub_v(i,j,k,3,3)*cnv(i,j,k,3)
 
       end function XformToCov_vrtx_stg_ijk
 
@@ -1853,13 +1853,16 @@ c     Begin program
             enddo
           enddo
         elseif (vrtx_in.and.vrtx_out) then
-          do k=0,nz+1
-            do j=0,ny+1
-              do i=0,nx+1
+          do k=1,nz+1
+            do j=1,ny+1
+              do i=1,nx+1
                 cov(i,j,k,:) = XformToCov_vrtx_stg_ijk(i,j,k,igrid,cnv)
               enddo
             enddo
           enddo
+          cov(0,:,:,:) = cov(1,:,:,:)
+          cov(:,0,:,:) = cov(:,1,:,:)
+          cov(:,:,0,:) = cov(:,:,1,:)
         elseif ((.not.vrtx_in).and.vrtx_out) then
           write (*,*) 'Case not implemented yet'
           write (*,*) 'Aborting in XformToCov_stg_mesh'
@@ -2278,6 +2281,12 @@ c     Call variables
 c     Local variables
 
       integer :: nx,ny,nz
+      real(8) :: B1(1:size(vec1,1)-2
+     .             ,1:size(vec1,2)-2
+     .             ,1:size(vec1,3)-2)
+     .          ,B2(1:size(vec1,1)-2
+     .             ,1:size(vec1,2)-2
+     .             ,1:size(vec1,3)-2)
 
 c     Begin program
 
@@ -2338,15 +2347,101 @@ c     Begin program
      .                           vec2(1:nx  ,0:ny-1,1:nz,3)) 
 
       else
-        write (*,*) 'Case not implemented yet'
-        write (*,*) 'Aborting in scalarProduct_stg_mesh'
-        stop
+c$$$        write (*,*) 'Case not implemented yet'
+c$$$        write (*,*) 'Aborting in scalarProduct_stg_mesh'
+c$$$        stop
 c$$$        call pstop("scalarProduct_stg_mesh"
 c$$$     .            ,"Case not implemented yet")
-      endif
+!     At (i+1/2,j,k)
+!     Bx
+         B1 = (vec1(1:nx  ,1:ny  ,1:nz,1)+
+     .         vec1(2:nx+1,1:ny  ,1:nz,1)+
+     .         vec1(2:nx+1,0:ny-1,1:nz,1)+
+     .         vec1(1:nx  ,0:ny-1,1:nz,1))*0.25d0
+         B2 = (vec2(1:nx  ,1:ny  ,1:nz,1)+       
+     .         vec2(2:nx+1,1:ny  ,1:nz,1)+       
+     .         vec2(2:nx+1,0:ny-1,1:nz,1)+       
+     .         vec2(1:nx  ,0:ny-1,1:nz,1))*0.25d0                                                 
+         scl(1:nx,1:ny,1:nz,1) = scl(1:nx,1:ny,1:nz,1) + B1*B2
+                                                 
+!     By
+         B1 = vec1(1:nx  ,1:ny  ,1:nz,2)
+         B2 = vec2(1:nx  ,1:ny  ,1:nz,2)
+         scl(1:nx,1:ny,1:nz,1) = scl(1:nx,1:ny,1:nz,1) + B1*B2
+
+!     Bz
+         B1 =(vec1(1:nx  ,1:ny  ,1:nz  ,3)+
+     .        vec1(1:nx  ,1:ny  ,0:nz-1,3)+
+     .        vec1(1:nx  ,0:ny-1,0:nz-1,3)+
+     .        vec1(1:nx  ,0:ny-1,1:nz  ,3))*0.25d0
+         B2 =(vec2(1:nx  ,1:ny  ,1:nz  ,3)+         
+     .        vec2(1:nx  ,1:ny  ,0:nz-1,3)+         
+     .        vec2(1:nx  ,0:ny-1,0:nz-1,3)+         
+     .        vec2(1:nx  ,0:ny-1,1:nz  ,3))*0.25d0
+         scl(1:nx,1:ny,1:nz,1) = scl(1:nx,1:ny,1:nz,1) + B1*B2
+                                                  
+
+!     At (i,j+1/2,k)
+!     Bx
+         B1 = vec1(1:nx  ,1:ny  ,1:nz,1)
+         B2 = vec2(1:nx  ,1:ny  ,1:nz,1)
+         scl(1:nx,1:ny,1:nz,2) = scl(1:nx,1:ny,1:nz,2) + B1*B2
+                                                 
+!     By
+         B1 =(vec1(1:nx  ,1:ny  ,1:nz,2)+
+     .        vec1(0:nx-1,1:ny  ,1:nz,2)+
+     .        vec1(0:nx-1,2:ny+1,1:nz,2)+
+     .        vec1(1:nx  ,2:ny+1,1:nz,2))*0.25d0
+         B2 =(vec2(1:nx  ,1:ny  ,1:nz,2)+
+     .        vec2(0:nx-1,1:ny  ,1:nz,2)+
+     .        vec2(0:nx-1,2:ny+1,1:nz,2)+
+     .        vec2(1:nx  ,2:ny+1,1:nz,2))*0.25d0
+         scl(1:nx,1:ny,1:nz,2) = scl(1:nx,1:ny,1:nz,2) + B1*B2
+
+!     Bz
+         B1 =(vec1(1:nx  ,1:ny  ,1:nz  ,3)+
+     .        vec1(0:nx-1,1:ny  ,1:nz  ,3)+
+     .        vec1(0:nx-1,1:ny  ,0:nz-1,3)+
+     .        vec1(1:nx  ,1:ny  ,0:nz-1,3))*0.25d0
+         B2 =(vec2(1:nx  ,1:ny  ,1:nz  ,3)+
+     .        vec2(0:nx-1,1:ny  ,1:nz  ,3)+
+     .        vec2(0:nx-1,1:ny  ,0:nz-1,3)+
+     .        vec2(1:nx  ,1:ny  ,0:nz-1,3))*0.25d0
+         scl(1:nx,1:ny,1:nz,2) = scl(1:nx,1:ny,1:nz,2) + B1*B2
+
+
+!     At (i,j,k)
+!     Bx
+         B1 =(vec1(1:nx  ,1:ny  ,1:nz,1)+
+     .        vec1(1:nx  ,0:ny-1,1:nz,1))*0.5d0
+         B2 =(vec2(1:nx  ,1:ny  ,1:nz,1)+
+     .        vec2(1:nx  ,0:ny-1,1:nz,1))*0.5d0
+         scl(1:nx,1:ny,1:nz,3) = scl(1:nx,1:ny,1:nz,3) + B1*B2
+                                                 
+!     By
+         B1 =(vec1(1:nx  ,1:ny  ,1:nz,2)+
+     .        vec1(0:nx-1,1:ny  ,1:nz,2))*0.5d0
+         B2 =(vec2(1:nx  ,1:ny  ,1:nz,2)+
+     .        vec2(0:nx-1,1:ny  ,1:nz,2))*0.5d0
+         scl(1:nx,1:ny,1:nz,3) = scl(1:nx,1:ny,1:nz,3) + B1*B2
+
+!     Bz
+         B1 =(vec1(1:nx  ,1:ny  ,1:nz  ,3)+
+     .        vec1(1:nx  ,0:ny-1,1:nz  ,3)+
+     .        vec1(0:nx-1,0:ny-1,1:nz  ,3)+
+     .        vec1(0:nx-1,1:ny  ,1:nz  ,3))*0.25d0
+         B2 =(vec2(1:nx  ,1:ny  ,1:nz  ,3)+
+     .        vec2(1:nx  ,0:ny-1,1:nz  ,3)+
+     .        vec2(0:nx-1,0:ny-1,1:nz  ,3)+
+     .        vec2(0:nx-1,1:ny  ,1:nz  ,3))*0.25d0
+         scl(1:nx,1:ny,1:nz,3) = scl(1:nx,1:ny,1:nz,3) + B1*B2
+
+
+                                                  
+      endif                                       
 
       !Apply Jacobian factor
-      scl(:,:,:,1) = scl(:,:,:,1)/gmetric%grid(igrid)%jac
+      scl(:,:,:,1) = scl(:,:,:,1)/gmetric%grid(igrid)%jac_v !careful
       scl(:,:,:,2) = scl(:,:,:,2)/gmetric%grid(igrid)%jac
       scl(:,:,:,3) = scl(:,:,:,3)/gmetric%grid(igrid)%jac
 
