@@ -26,6 +26,13 @@
         module procedure ellipticE_scl,ellipticE_vec
       END INTERFACE
 
+#ifdef _SPRNG
+#include "sprng_f.h"
+
+        integer ::junk
+        SPRNG_POINTER stream
+#endif
+
       contains
 
 c     cross_product
@@ -1096,5 +1103,157 @@ cc         end if
 cc      end if   
 cc
 cc      end function simpson_vec
+
+c     gauss2 (Box-Muller transformation)
+c     #################################################################
+      SUBROUTINE gauss2(y1)
+
+      implicit none
+
+c     arguments      
+
+      real(8), intent(out) :: y1
+      
+c     local variables
+
+      real(8) :: x1,x2,w,r
+      integer, save :: seed = 1 !careful
+
+c     Begin program
+
+cc         CALL RANDOM_NUMBER(r)
+#ifdef _SPRNG
+      r = sprng(stream)         
+#else
+      r = randlcg(seed)         !careful
+#endif
+      x1 = 2d0*r - 1d0      
+#ifdef _SPRNG
+      r = sprng(stream)         
+#else
+      r = randlcg(seed)         !careful
+#endif
+cc         CALL RANDOM_NUMBER(r)
+      x2 = 2d0*r - 1d0
+      w = x1*x1 + x2*x2
+
+      do while(w>1d0)
+cc         CALL RANDOM_NUMBER(r)
+#ifdef _SPRNG
+        r = sprng(stream)         
+#else
+        r = randlcg(seed)       !careful
+#endif
+        x1 = 2d0*r - 1d0
+cc            CALL RANDOM_NUMBER(r) 
+#ifdef _SPRNG
+        r = sprng(stream)         
+#else
+        r = randlcg(seed)
+#endif
+        x2 = 2d0*r - 1d0
+        w = x1*x1 + x2*x2
+      end do
+      
+      w = sqrt((-2d0*log(w) ) / w )
+      
+      y1 = x2*w
+c$$$         y2 = x2*w
+c$$$         use_last = .true.
+c$$$      end if
+
+c     End program
+      
+      end subroutine gauss2
+
+c     unif_rng
+c     #################################################################
+      SUBROUTINE unif_rng(r)
+
+      implicit none
+
+c     arguments      
+
+      real(8), intent(out) :: r
+      
+c     local variables
+
+c     Begin program
+
+#ifdef _SPRNG
+      r = sprng(stream)         
+#else
+cc      r = randlcg(seed)         !careful
+      call random_number(r)
+#endif
+
+c     End program
+      
+      end subroutine unif_rng
+
+c     randlcg
+c     ##################################################################
+      function randlcg(seed)
+
+      implicit none
+
+      integer :: seed
+      real(8) :: randlcg
+
+      seed = int(mod(16807d0*dble(seed), 2147483647d0))
+      randlcg = dble(seed)/2147483647d0      
+
+      end function randlcg
+
+c     init_random_seed
+c     #########################################################################
+      SUBROUTINE init_random_seed(nproc,streamnum,output)
+
+        implicit none
+        integer,INTENT(IN) :: streamnum,nproc
+        logical,INTENT(IN) :: output
+
+#ifdef _SPRNG
+        integer :: nstreams, junk,seed
+        integer :: gtype
+        real(8) :: rn
+
+        gtype = 1       !lcg
+        seed = 985456376      
+        nstreams = nproc
+        
+        stream = init_sprng(gtype,streamnum,nstreams,seed,SPRNG_DEFAULT)   
+
+        if (output) junk = print_sprng(stream)
+#else
+        INTEGER :: i, n, clock
+        INTEGER, DIMENSION(:), ALLOCATABLE :: seed
+
+        CALL RANDOM_SEED(size = n)
+        ALLOCATE(seed(n))
+          
+c$$$        CALL SYSTEM_CLOCK(COUNT=clock)
+c$$$          
+c$$$        seed = clock + 37 * (/ (i - 1, i = 1, n) /)
+        seed = streamnum + 37 * (/ (i - 1, i = 1, n) /)
+        CALL RANDOM_SEED(PUT = seed)
+          
+        DEALLOCATE(seed)
+#endif
+        end subroutine init_random_seed
+  
+c     free_random_seed
+c     #########################################################################
+      SUBROUTINE free_random_seed()
+
+        implicit none
+
+#ifdef _SPRNG
+        integer ::junk
+
+        junk = free_sprng(stream)
+#endif
+
+      END SUBROUTINE free_random_seed
 
       end module math
