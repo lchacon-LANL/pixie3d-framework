@@ -496,7 +496,7 @@ c #############################################################################
         use kernels
 
         !Configuration
-        logical :: bwgt,l2d,init_lag=.false.
+        logical :: bwgt,l2d,init_lag=.false.,ignorable_dir(3)
 
         !Field line accumulators
 cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
@@ -605,9 +605,9 @@ cc        endif
 cc
 ccc     Assemble global temperature field
 cc
-cc        nxg = grid_params%nxgl(igrid)
-cc        nyg = grid_params%nygl(igrid)
-cc        nzg = grid_params%nzgl(igrid)
+cc        nxg = g_def%nxgl(igrid)
+cc        nyg = g_def%nygl(igrid)
+cc        nzg = g_def%nzgl(igrid)
 cc
 cc        allocate(tg(0:nxg+1,0:nyg+1,0:nzg+1))
 cc
@@ -629,15 +629,15 @@ cc              do i=1,nx
 cc
 cc                call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
 cc
-cc                x0 = grid_params%xx(ig)
-cc                y0 = grid_params%yy(jg)
-cc                z0 = grid_params%zz(kg)
+cc                x0 = g_def%xx(ig)
+cc                y0 = g_def%yy(jg)
+cc                z0 = g_def%zz(kg)
 cccc                call fromLocalToGlobalLimits(i,j,k,ig,jg,kg
 cccc     .                                      ,igrid,igrid,igrid)
 cccc
-cccc                x0 = grid_params%xg(ig)
-cccc                y0 = grid_params%yg(jg)
-cccc                z0 = grid_params%zg(kg)
+cccc                x0 = g_def%xg(ig)
+cccc                y0 = g_def%yg(jg)
+cccc                z0 = g_def%zg(kg)
 cc
 cc                temp_s   = 0d0        !Initialize temperature
 cc                kernel_s = 0d0        !Initialize kernel integral (for normalization)
@@ -663,15 +663,15 @@ cc              do i=1,nx
 cc
 cc                call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
 cc
-cc                x0 = grid_params%xx(ig)
-cc                y0 = grid_params%yy(jg)
-cc                z0 = grid_params%zz(kg)
+cc                x0 = g_def%xx(ig)
+cc                y0 = g_def%yy(jg)
+cc                z0 = g_def%zz(kg)
 cccc                call fromLocalToGlobalLimits(i,j,k,ig,jg,kg
 cccc     .                                      ,igrid,igrid,igrid)
 cccc
-cccc                x0 = grid_params%xg(ig)
-cccc                y0 = grid_params%yg(jg)
-cccc                z0 = grid_params%zg(kg)
+cccc                x0 = g_def%xg(ig)
+cccc                y0 = g_def%yg(jg)
+cccc                z0 = g_def%zg(kg)
 cc
 cc                temp_s   = 0d0        !Initialize temperature
 cc                kernel_s = 0d0        !Initialize kernel integral (for normalization)
@@ -766,9 +766,9 @@ cc        endif
 cc
 ccc     Assemble global temperature field
 cc
-cc        nxg = grid_params%nxgl(igrid)
-cc        nyg = grid_params%nygl(igrid)
-cc        nzg = grid_params%nzgl(igrid)
+cc        nxg = g_def%nxgl(igrid)
+cc        nyg = g_def%nygl(igrid)
+cc        nzg = g_def%nzgl(igrid)
 cc
 cc        allocate(tg(0:nxg+1,0:nyg+1,0:nzg+1))
 cc
@@ -789,15 +789,15 @@ cc
 cc              !Find location on global mesh
 cc              call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
 cc
-cc              x0 = grid_params%xx(ig)
-cc              y0 = grid_params%yy(jg)
-cc              z0 = grid_params%zz(kg)
+cc              x0 = g_def%xx(ig)
+cc              y0 = g_def%yy(jg)
+cc              z0 = g_def%zz(kg)
 cccc              call fromLocalToGlobalLimits(i,j,k,ig,jg,kg
 cccc     .                                    ,igrid,igrid,igrid)
 cccc
-cccc              x0 = grid_params%xg(ig)
-cccc              y0 = grid_params%yg(jg)
-cccc              z0 = grid_params%zg(kg)
+cccc              x0 = g_def%xg(ig)
+cccc              y0 = g_def%yg(jg)
+cccc              z0 = g_def%zg(kg)
 cc
 cc              temp_s   = 0d0    !Initialize temperature
 cc              kernel_s = 0d0    !Initialize kernel integral (for normalization)
@@ -835,7 +835,7 @@ cc      end subroutine lagrangian_3d_scl
 
 c     lag_3d
 c     ##############################################################
-      subroutine lag_3d(igrid,nx,ny,nz,vec_in,vec_out,nints,chi,iout
+      subroutine lag_3d(g_def,igrid,vec_in,vec_out,nints,chi,iout
      .                 ,lsode_f)
 
       implicit none
@@ -847,7 +847,9 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz,igrid,iout,nints
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid,iout,nints
 
         real(8) :: chi(0:,0:,0:)
 
@@ -863,7 +865,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq
+        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nx,ny,nz
 
         real(8) :: x0,y0,z0,temp_n,gkernel_dt,temp_nm,gkernel_2dt,src_dt
      .            ,pkernel_dt,src_2dt,pkernel_2dt,b0_diag,lb0_diag
@@ -886,10 +888,14 @@ c     Output
 
 c     Assemble global temperature field
 
-        nxg = grid_params%nxgl(igrid)
-        nyg = grid_params%nygl(igrid)
-        nzg = grid_params%nzgl(igrid)
+        nxg = g_def%nxgl(igrid)
+        nyg = g_def%nygl(igrid)
+        nzg = g_def%nzgl(igrid)
 
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+        
         neq = size(vec_in,4)
 
         if (neq /= 3) then
@@ -905,8 +911,11 @@ c     Assemble global temperature field
         allocate(vg(0:nxg+1,0:nyg+1,0:nzg+1,neq)
      .          ,sp_coef (nxg+2,nyg+2,nzg+2,neq))
 
+#if defined(petcs)
+        call find_global(vec_in,vg,mpi_comm=g_def%mpi_comm)
+#else
         call find_global(vec_in,vg)
-
+#endif
 c     Spline temperature field
 
         call splineFlds(vg,fldcoef=sp_coef)
@@ -923,11 +932,11 @@ c     Orbit integration
 
 cc              if (chi(i,j,k) == 0d0) cycle
 
-              call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+              call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
-              x0 = grid_params%xx(ig)
-              y0 = grid_params%yy(jg)
-              z0 = grid_params%zz(kg)
+              x0 = g_def%xx(ig)
+              y0 = g_def%yy(jg)
+              z0 = g_def%zz(kg)
 
               ieps = chi(i,j,k)
 
@@ -977,8 +986,7 @@ c     Free up orbit integral work space
 
 c     lag_3d_new
 c     ##############################################################
-      subroutine lag_3d_new(igrid,nx,ny,nz,vec_in,vec_out,chi,iout
-     .                 ,lsode_f)
+      subroutine lag_3d_new(g_def,igrid,vec_in,vec_out,chi,iout,lsode_f)
 
       implicit none
 
@@ -989,7 +997,9 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz,igrid,iout
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid,iout
 
         real(8) :: chi(0:,0:,0:)
 
@@ -1005,7 +1015,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nints
+        integer :: nx,ny,nz,i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nints
 
         real(8) :: x0,y0,z0,temp_n,gkernel_dt,temp_nm,gkernel_2dt,src_dt
      .            ,pkernel_dt,src_2dt,pkernel_2dt,b0_diag,lb0_diag
@@ -1033,9 +1043,13 @@ c     Output
 
 c     Assemble global temperature field
 
-        nxg = grid_params%nxgl(igrid)
-        nyg = grid_params%nygl(igrid)
-        nzg = grid_params%nzgl(igrid)
+        nxg = g_def%nxgl(igrid)
+        nyg = g_def%nygl(igrid)
+        nzg = g_def%nzgl(igrid)
+
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
 
         neq = size(vec_in,4)
 
@@ -1052,8 +1066,11 @@ cc        endif
         allocate(vg(0:nxg+1,0:nyg+1,0:nzg+1,neq)
      .          ,sp_coef (nxg+2,nyg+2,nzg+2,neq))
 
+#if defined(petcs)
+        call find_global(vec_in,vg,mpi_comm=g_def%mpi_comm)
+#else
         call find_global(vec_in,vg)
-
+#endif
 c     Spline temperature field
 
         call splineFlds(vg,fldcoef=sp_coef)
@@ -1070,11 +1087,11 @@ c     Orbit integration
 
               if (chi(i,j,k) == 0d0) cycle
 
-              call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+              call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
-              x0 = grid_params%xx(ig)
-              y0 = grid_params%yy(jg)
-              z0 = grid_params%zz(kg)
+              x0 = g_def%xx(ig)
+              y0 = g_def%yy(jg)
+              z0 = g_def%zz(kg)
 
               ieps = chi(i,j,k)
 
@@ -1106,7 +1123,7 @@ c     Free up orbit integral work space
 
 c     lag_2d
 c     ##############################################################
-      subroutine lag_2d(igrid,nx,ny,nz,vec_in,vec_out,nints,chi,iout
+      subroutine lag_2d(g_def,igrid,vec_in,vec_out,nints,chi,iout
      .                 ,lsode_f)
 
       implicit none
@@ -1121,7 +1138,9 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz,igrid,iout,nints
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid,iout,nints
 
         real(8) :: chi(0:,0:,0:)
 
@@ -1137,7 +1156,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq
+        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nx,ny,nz
 
         real(8) :: x0,y0,z0,temp_n,gkernel_dt,temp_nm,gkernel_2dt,src_dt
      .            ,pkernel_dt,src_2dt,pkernel_2dt
@@ -1160,9 +1179,13 @@ c     Output
 
 c     Assemble global temperature field
 
-        nxg = grid_params%nxgl(igrid)
-        nyg = grid_params%nygl(igrid)
-        nzg = grid_params%nzgl(igrid)
+        nxg = g_def%nxgl(igrid)
+        nyg = g_def%nygl(igrid)
+        nzg = g_def%nzgl(igrid)
+
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
 
         neq = size(vec_in,4)
 
@@ -1179,8 +1202,11 @@ c     Assemble global temperature field
         allocate(vg(0:nxg+1,0:nyg+1,0:nzg+1,neq)
      .          ,sp_coef (nxg+2,nyg+2,nzg+2,neq))
 
+#if defined(petcs)
+        call find_global(vec_in,vg,mpi_comm=g_def%mpi_comm)
+#else
         call find_global(vec_in,vg)
-
+#endif
 c     Spline fields
 
         call splineFlds(vg,fldcoef=sp_coef)
@@ -1195,11 +1221,11 @@ c     LSODE orbit integration
 
 cc              if (chi(i,j,k) == 0d0) cycle
 
-              call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+              call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
-              x0 = grid_params%xx(ig)
-              y0 = grid_params%yy(jg)
-              z0 = grid_params%zz(kg)
+              x0 = g_def%xx(ig)
+              y0 = g_def%yy(jg)
+              z0 = g_def%zz(kg)
 
               ieps = chi(i,j,k)
 
@@ -1252,7 +1278,7 @@ c     Free up orbit integral work space
 
 c     lag_2d_new
 c     ##############################################################
-      subroutine lag_2d_new(igrid,nx,ny,nz,vec_in,vec_out,chi,iout
+      subroutine lag_2d_new(g_def,igrid,vec_in,vec_out,chi,iout
      .                     ,lsode_f)
 
       implicit none
@@ -1269,7 +1295,9 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz,igrid,iout
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid,iout
 
         real(8) :: chi(0:,0:,0:)
 
@@ -1287,7 +1315,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nints
+        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nints,nx,ny,nz
 
         real(8) :: x0,y0,z0
 
@@ -1315,16 +1343,24 @@ c     Output
 
 c     Assemble global temperature field
 
-        nxg = grid_params%nxgl(igrid)
-        nyg = grid_params%nygl(igrid)
-        nzg = grid_params%nzgl(igrid)
+        nxg = g_def%nxgl(igrid)
+        nyg = g_def%nygl(igrid)
+        nzg = g_def%nzgl(igrid)
+
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
 
         neq = size(vec_in,4)
 
         allocate(vg(0:nxg+1,0:nyg+1,0:nzg+1,neq)
      .          ,sp_coef (nxg+2,nyg+2,nzg+2,neq))
 
+#if defined(petcs)
+        call find_global(vec_in,vg,mpi_comm=g_def%mpi_comm)
+#else
         call find_global(vec_in,vg)
+#endif
 
 c     Spline fields
 
@@ -1340,11 +1376,11 @@ c     LSODE orbit integration
 
               if (chi(i,j,k) == 0d0) cycle
 
-              call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+              call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
-              x0 = grid_params%xx(ig)
-              y0 = grid_params%yy(jg)
-              z0 = grid_params%zz(kg)
+              x0 = g_def%xx(ig)
+              y0 = g_def%yy(jg)
+              z0 = g_def%zz(kg)
 
               ieps = chi(i,j,k)
 
@@ -1371,7 +1407,7 @@ c     Free up orbit integral work space
 
 c     lag_2d_init
 c     ##############################################################
-      subroutine lag_2d_init(igrid,nx,ny,nz,bb,alp,iout
+      subroutine lag_2d_init(g_def,igrid,bb,alp,iout
      .                      ,G_tol,spline_order,B_wgt
      .                      ,psi,chi)
 
@@ -1383,20 +1419,22 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz,igrid,iout,spline_order
+        type(grid_mg_def),pointer :: g_def
 
-        real(8),INTENT(IN) :: bb (0:nx+1,0:ny+1,0:nz+1,3)
+        integer :: igrid,iout,spline_order
+
+        real(8),INTENT(IN) :: bb (0:,0:,0:,:)
 
         real(8) :: G_tol,alp
 
         logical :: B_wgt
 
-        real(8),INTENT(IN),optional :: psi(0:nx+1,0:ny+1,0:nz+1)
-     .                                ,chi(0:nx+1,0:ny+1,0:nz+1)
+        real(8),INTENT(IN),optional :: psi(0:,0:,0:)
+     .                                ,chi(0:,0:,0:)
 
 c     Local variables
 
-        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg
+        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg,nx,ny,nz
 
         real(8) :: x0,y0,z0,beta_err
 
@@ -1424,9 +1462,17 @@ c     Begin program
 
         have_chi = PRESENT(chi)
 
-        nxg = grid_params%nxgl(igrid)
-        nyg = grid_params%nygl(igrid)
-        nzg = grid_params%nzgl(igrid)
+        nxg = g_def%nxgl(igrid)
+        nyg = g_def%nygl(igrid)
+        nzg = g_def%nzgl(igrid)
+
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+
+        ignorable_dir(1) = (g_def%nxgl(1) == 1)
+        ignorable_dir(2) = (g_def%nygl(1) == 1)
+        ignorable_dir(3) = (g_def%nzgl(1) == 1)
 
         bwgt = B_wgt
 
@@ -1440,7 +1486,7 @@ c     Find local cartesian components
 
         bcar = bb
 
-        call transformVector(igrid,igrid,igrid
+        call transformVector(g_def,igrid,igrid,igrid
      .                      ,0,nx+1,0,ny+1,0,nz+1
      .                      ,bcar(:,:,:,1)
      .                      ,bcar(:,:,:,2)
@@ -1453,12 +1499,24 @@ c     Fill global arrays
      .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
      .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
 
+#if defined(petsc)
+        call find_global(bb,bg,mpi_comm=g_def%mpi_comm)
+
+        call find_global(bcar,bcarg,mpi_comm=g_def%mpi_comm)
+
+        call find_global(g_def%gmetric%grid(igrid)%jac,jacg
+     .                  ,mpi_comm=g_def%mpi_comm)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg
+     .                  ,map_bc=.true.,mpi_comm=g_def%mpi_comm)
+#else
         call find_global(bb,bg)
 
         call find_global(bcar,bcarg)
 
-        call find_global(gmetric%grid(igrid)%jac,jacg)
-        call find_global(gmetric%grid(igrid)%car,carg,map_bc=.true.)
+        call find_global(g_def%gmetric%grid(igrid)%jac,jacg)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg
+     .                  ,map_bc=.true.)
+#endif
 
 c     Output
 
@@ -1512,15 +1570,15 @@ c     Setup periodic integrator
      .            ,psig(0:nxg+1,0:nyg+1,0:nzg+1))
 
           psil = psi
+#if defined(petsc)
+          call find_global(psil,psig,mpi_comm=g_def%mpi_comm)
+#else
           call find_global(psil,psig)
-
+#endif
           bg(:,:,:,1:2) = 0d0
           bg(:,:,:,3  ) = -psig
 
-          call orbit_setup(nxg+2,nyg+2,nzg+2
-     .                    ,grid_params%xg
-     .                    ,grid_params%yg
-     .                    ,grid_params%zg
+          call orbit_setup(g_def,igrid
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1542,10 +1600,7 @@ c     Setup periodic integrator
 
         else
 
-          call orbit_setup(nxg+2,nyg+2,nzg+2
-     .                    ,grid_params%xg
-     .                    ,grid_params%yg
-     .                    ,grid_params%zg
+          call orbit_setup(g_def,igrid
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1590,10 +1645,7 @@ c     Setup orbit integrator
 
         else
 
-          call orbit_setup(nxg+2,nyg+2,nzg+2
-     .                    ,grid_params%xg
-     .                    ,grid_params%yg
-     .                    ,grid_params%zg
+          call orbit_setup(g_def,igrid
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1625,11 +1677,11 @@ c     Integrate length
           do j=1,ny
             do i=1,nx
 
-              call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+              call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
-              x0 = grid_params%xx(ig)
-              y0 = grid_params%yy(jg)
-              z0 = grid_params%zz(kg)
+              x0 = g_def%xx(ig)
+              y0 = g_def%yy(jg)
+              z0 = g_def%zz(kg)
 
               length_s = 0d0    !Initialize orbit length
               b0_s     = 0d0
@@ -1685,10 +1737,7 @@ c     Begin program
 
 c     Setup orbits
 
-        call orbit_setup(nxg+2,nyg+2,nzg+2
-     .                  ,grid_params%xg
-     .                  ,grid_params%yg
-     .                  ,grid_params%zg
+        call orbit_setup(g_def,igrid
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -1745,11 +1794,11 @@ cc                if (ct0 < CHI_LIMIT) then  !Delta function
 cc                  b0_s = 1d0/sum(bcar(i,j,k,:)**2)
 cc                  cycle
 cc                else
-                  call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+                  call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
-                  x0 = grid_params%xx(ig)
-                  y0 = grid_params%yy(jg)
-                  z0 = grid_params%zz(kg)
+                  x0 = g_def%xx(ig)
+                  y0 = g_def%yy(jg)
+                  z0 = g_def%zz(kg)
 
                   call orbit_find(iout-2,x0,y0,z0,.true.
      .                           ,s_max=ll(i,j,k)
@@ -1799,7 +1848,7 @@ c     Destroy orbit
 
 c     lag_3d_init
 c     ##############################################################
-      subroutine lag_3d_init(igrid,nx,ny,nz,bb,alp,iout,G_tol
+      subroutine lag_3d_init(g_def,igrid,bb,alp,iout,G_tol
      .                      ,spline_order,B_wgt,chi,poinc_file)
       use var_io
 
@@ -1811,20 +1860,22 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz,igrid,spline_order,iout
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid,spline_order,iout
  
         real(8) :: G_tol,alp
         real(8),dimension(0:,0:,0:,:) :: bb
 
         logical :: B_wgt
 
-        real(8),INTENT(IN),optional :: chi(0:nx+1,0:ny+1,0:nz+1)
+        real(8),INTENT(IN),optional :: chi(0:,0:,0:)
 
         character(*),optional :: poinc_file
 
 c     Local variables
 
-        integer :: nxg,nyg,nzg,i,j,k,ig,jg,kg
+        integer :: nxg,nyg,nzg,i,j,k,ig,jg,kg,nx,ny,nz
         real(8) :: x0,y0,z0
 
         real(8),pointer,dimension(:)       :: xx,yy,zz
@@ -1846,9 +1897,13 @@ c     Begin program
 
         have_chi = PRESENT(chi)
 
-        nxg = grid_params%nxgl(igrid)
-        nyg = grid_params%nygl(igrid)
-        nzg = grid_params%nzgl(igrid)
+        nxg = g_def%nxgl(igrid)
+        nyg = g_def%nygl(igrid)
+        nzg = g_def%nzgl(igrid)
+
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
 
         bwgt = B_wgt
 
@@ -1892,10 +1947,7 @@ c diag ****
 
 c     Orbit initialization on global array
 
-        call orbit_setup(nxg+2,nyg+2,nzg+2
-     .                  ,xx
-     .                  ,yy
-     .                  ,zz
+        call orbit_setup(g_def,igrid
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -1935,7 +1987,7 @@ c     Find local cartesian components
 
         bcar = bb
 
-        call transformVector(igrid,igrid,igrid
+        call transformVector(g_def,igrid,igrid,igrid
      .                      ,0,nx+1,0,ny+1,0,nz+1
      .                      ,bcar(:,:,:,1)
      .                      ,bcar(:,:,:,2)
@@ -1950,15 +2002,25 @@ c     Fill global arrays
      .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
      .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
 
-        call find_global(bb  ,bg)
+#if defined(petsc)
+        call find_global(bb  ,bg   ,mpi_comm=g_def%mpi_comm)
+        call find_global(bcar,bcarg,mpi_comm=g_def%mpi_comm)
+
+        call find_global(g_def%gmetric%grid(igrid)%jac,jacg
+     .                  ,mpi_comm=g_def%mpi_comm)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg
+     .                  ,map_bc=.true.,mpi_comm=g_def%mpi_comm)
+#else
+        call find_global(bb  ,bg   )
         call find_global(bcar,bcarg)
 
-        call find_global(gmetric%grid(igrid)%jac,jacg)
-        call find_global(gmetric%grid(igrid)%car,carg,map_bc=.true.)
-
-        xx = grid_params%xg
-        yy = grid_params%yg
-        zz = grid_params%zg
+        call find_global(g_def%gmetric%grid(igrid)%jac,jacg)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg
+     .                  ,map_bc=.true.)
+#endif
+        xx = g_def%xg
+        yy = g_def%yg
+        zz = g_def%zg
 
       end subroutine get_global_data
 
@@ -2070,10 +2132,10 @@ c     Update grid metrics
         nyl = jhipg-jlomg-1
         nzl = khipg-klomg-1
 
-        call defineGridMetric(grid_params
+        call defineGridMetric(g_def
      .           ,xcar=carg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
 
-        gmetric => grid_params%gmetric
+cc        gmetric => g_def%gmetric
 
 c     Close files
 
@@ -2120,10 +2182,7 @@ c     Begin program
 c     Setup orbits
 
           !Orbit initialization
-          call orbit_setup(nxg+2,nyg+2,nzg+2
-     .                    ,xx
-     .                    ,yy
-     .                    ,zz
+          call orbit_setup(g_def,igrid
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -2174,11 +2233,11 @@ cc          b0 = 1d0 !Normalization test
             do j=1,ny
               do i=1,nx
 
-                call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+                call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
-                x0 = grid_params%xx(ig)
-                y0 = grid_params%yy(jg)
-                z0 = grid_params%zz(kg)
+                x0 = g_def%xx(ig)
+                y0 = g_def%yy(jg)
+                z0 = g_def%zz(kg)
 
                 ieps = chi(i,j,k)/b0(i,j,k)
 
@@ -2239,7 +2298,7 @@ c     Destroy orbit
 
 c     lag_xport_theta
 c     ##############################################################
-      subroutine lag_xport_theta(igrid,in_flds,out_flds,chi,iout)
+      subroutine lag_xport_theta(g_def,igrid,in_flds,out_flds,chi,iout)
 
       implicit none
 
@@ -2249,6 +2308,8 @@ c     field (bx,by,bz).
 c     --------------------------------------------------------------
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
         integer :: igrid,iout
 
@@ -2282,16 +2343,12 @@ c     Local variables
 
 c     Begin program
 
-        nx = grid_params%nxv(igrid)
-        ny = grid_params%nyv(igrid)
-        nz = grid_params%nzv(igrid)
-
         if (l2d) then
-          call lag_2d_new(igrid,nx,ny,nz,in_flds,out_flds
+          call lag_2d_new(g_def,igrid,in_flds,out_flds
 cc     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq)
      .               ,chi,iout,lsode_f=lsode_2d_cn_3eq_norm)
         else
-          call lag_3d_new(igrid,nx,ny,nz,in_flds,out_flds
+          call lag_3d_new(g_def,igrid,in_flds,out_flds
      .               ,chi,iout,lsode_f=lsode_3d_cn)
         endif
 
@@ -2299,7 +2356,7 @@ cc     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq)
 
 c     lag_xport_bdf2
 c     ##############################################################
-      subroutine lag_xport_bdf2(igrid,in_flds,out_flds,chi,iout)
+      subroutine lag_xport_bdf2(g_def,igrid,in_flds,out_flds,chi,iout)
 
       implicit none
 
@@ -2310,13 +2367,15 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
+        type(grid_mg_def),pointer :: g_def
+
         integer :: igrid,iout
 
         real(8) :: chi(:,:,:),in_flds(:,:,:,:),out_flds(:,:,:,:)
 
 c     Local variables
 
-        integer ::  nx,ny,nz,nints
+        integer ::  nints
 
         !Interface for optional LSODE function evaluation
         INTERFACE
@@ -2335,24 +2394,11 @@ c     Local variables
 
 c     Begin program
 
-        nx = grid_params%nxv(igrid)
-        ny = grid_params%nyv(igrid)
-        nz = grid_params%nzv(igrid)
-
-cc        nints = 8  !Number of LSODE integrals (needs to be consistent with lsode_f routine)
-cc
-cc        if (l2d) then
-cc          call lag_2d(igrid,nx,ny,nz,in_flds,out_flds,nints
-cc     .               ,chi,iout,lsode_f=lsode_2d_bdf2_3eq)
-cc        else
-cc          call lag_3d(igrid,nx,ny,nz,in_flds,out_flds,nints
-cc     .               ,chi,iout,lsode_f=lsode_3d_bdf2)
-cc        endif
         if (l2d) then
-          call lag_2d_new(igrid,nx,ny,nz,in_flds,out_flds
+          call lag_2d_new(g_def,igrid,in_flds,out_flds
      .               ,chi,iout,lsode_f=lsode_2d_bdf2_3eq)
         else
-          call lag_3d_new(igrid,nx,ny,nz,in_flds,out_flds
+          call lag_3d_new(g_def,igrid,in_flds,out_flds
      .               ,chi,iout,lsode_f=lsode_3d_bdf2)
         endif
 
@@ -2360,7 +2406,8 @@ cc        endif
 
 c     lag_xport_dT_bdf2
 c     ##############################################################
-      subroutine lag_xport_dT_bdf2(igrid,in_flds,out_flds,chi,iout)
+      subroutine lag_xport_dT_bdf2(g_def,igrid,in_flds,out_flds,chi
+     .                            ,iout)
 
       implicit none
 
@@ -2371,13 +2418,15 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
+        type(grid_mg_def),pointer :: g_def
+
         integer :: igrid,iout
 
         real(8) :: chi(:,:,:),in_flds(:,:,:,:),out_flds(:,:,:,:)
 
 c     Local variables
 
-        integer ::  nx,ny,nz,nints
+        integer ::  nints
 
         !Interface for optional LSODE function evaluation
         INTERFACE
@@ -2396,24 +2445,11 @@ c     Local variables
 
 c     Begin program
 
-        nx = grid_params%nxv(igrid)
-        ny = grid_params%nyv(igrid)
-        nz = grid_params%nzv(igrid)
-
-cc        nints = 8  !Number of LSODE integrals
-cc
-cc        if (l2d) then
-cc          call lag_2d(igrid,nx,ny,nz,in_flds,out_flds,nints
-cc     .               ,chi,iout,lsode_f=lsode_2d_bdf2_3eq_dT)
-cc        else
-cc          call lag_3d(igrid,nx,ny,nz,in_flds,out_flds,nints
-cc     .               ,chi,iout,lsode_f=lsode_3d_bdf2_dT)
-cc        endif
         if (l2d) then
-          call lag_2d_new(igrid,nx,ny,nz,in_flds,out_flds
+          call lag_2d_new(g_def,igrid,in_flds,out_flds
      .               ,chi,iout,lsode_f=lsode_2d_bdf2_3eq_dT)
         else
-          call lag_3d_new(igrid,nx,ny,nz,in_flds,out_flds
+          call lag_3d_new(g_def,igrid,in_flds,out_flds
      .               ,chi,iout,lsode_f=lsode_3d_bdf2_dT)
         endif
 
@@ -2421,7 +2457,8 @@ cc        endif
 
 c     lag_xport_dT_theta
 c     ##############################################################
-      subroutine lag_xport_dT_theta(igrid,in_flds,out_flds,chi,iout)
+      subroutine lag_xport_dT_theta(g_def,igrid,in_flds,out_flds,chi
+     .                             ,iout)
 
       implicit none
 
@@ -2431,6 +2468,8 @@ c     field (bx,by,bz).
 c     --------------------------------------------------------------
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
         integer :: igrid,iout
 
@@ -2459,15 +2498,11 @@ c     Begin program
 
         nints = 4  !Number of additional LSODE integrals
 
-        nx = grid_params%nxv(igrid)
-        ny = grid_params%nyv(igrid)
-        nz = grid_params%nzv(igrid)
-
         if (l2d) then
-          call lag_2d(igrid,nx,ny,nz,in_flds,out_flds,nints
+          call lag_2d(g_def,igrid,in_flds,out_flds,nints
      .               ,chi,iout,lsode_f=lsode_2d_cn_3eq_dT)
         else
-          call lag_3d(igrid,nx,ny,nz,in_flds,out_flds,nints
+          call lag_3d(g_def,igrid,in_flds,out_flds,nints
      .               ,chi,iout,lsode_f=lsode_3d_cn_dT)
         endif
 
@@ -2475,7 +2510,7 @@ c     Begin program
 
 c     lag_xport_res
 c     ##############################################################
-      subroutine lag_xport_res(igrid,in_flds,out_flds,chi,iout)
+      subroutine lag_xport_res(g_def,igrid,in_flds,out_flds,chi,iout)
 
       implicit none
 
@@ -2486,13 +2521,13 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
+        type(grid_mg_def),pointer :: g_def
+
         integer :: igrid,iout
 
         real(8) :: chi(:,:,:),in_flds(:,:,:,:),out_flds(:,:,:,:)
 
 c     Local variables
-
-        integer ::  nx,ny,nz
 
         INTERFACE
           subroutine lsode_2d_bdf2_3eq_all(neq,t,y,ydot)
@@ -2510,15 +2545,11 @@ c     Local variables
 
 c     Begin program
 
-        nx = grid_params%nxv(igrid)
-        ny = grid_params%nyv(igrid)
-        nz = grid_params%nzv(igrid)
-
         if (l2d) then
-          call lag_2d_new(igrid,nx,ny,nz,in_flds,out_flds,chi,iout
+          call lag_2d_new(g_def,igrid,in_flds,out_flds,chi,iout
      .                   ,lsode_2d_bdf2_3eq_all)
         else
-          call lag_3d_new(igrid,nx,ny,nz,in_flds,out_flds,chi,iout
+          call lag_3d_new(g_def,igrid,in_flds,out_flds,chi,iout
      .                   ,lsode_3d_bdf2_all)
         endif
 
@@ -2530,7 +2561,8 @@ c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 c     lag_update_bdf2
 c     ###############################################################
-      subroutine lag_update_bdf2(igrid,ivar,bcnd,tnm,tn,tnp,chi,iout)
+      subroutine lag_update_bdf2(g_def,igrid,ivar,bcnd,tnm,tn,tnp,chi
+     .                          ,iout)
 
 c     ---------------------------------------------------------------
 c     Performs Lagrangian update of temperature at time n+1 (returned
@@ -2554,6 +2586,8 @@ c     ---------------------------------------------------------------
       implicit none
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
 
       integer :: igrid,iout,bcnd(6),ivar
       real(8),dimension(0:,0:,0:) :: tnm,tn,tnp,chi
@@ -2602,7 +2636,7 @@ c     Find rhs of delta_T iteration
 
       where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
 
-      call lag_xport_bdf2(igrid,flds,integrals,chi_local,iout)
+      call lag_xport_bdf2(g_def,igrid,flds,integrals,chi_local,iout)
 
       if (bdf2) then
         sgamma = dt/(dt+dtold)
@@ -2641,13 +2675,13 @@ cc      if (my_rank == 0) write (*,*) sgamma,cnp,cn,cnm
 
       dT_error = 1d0
       do while (dT_error > 1e-6) 
-        call setBC(ivar,nx,ny,nz,delta_T,zeros,bcnd
+        call setBC(g_def,ivar,nx,ny,nz,delta_T,zeros,bcnd
      .            ,igrid,igrid,igrid)
 
         flds(:,:,:,1) = delta_T
 
-        call lag_xport_dT_bdf2(igrid,flds(:,:,:,1:1),integrals,chi_local
-     .                        ,iout)
+        call lag_xport_dT_bdf2(g_def,igrid,flds(:,:,:,1:1),integrals
+     .                        ,chi_local,iout)
       
         if (bdf2) then
           where (chi_local /= 0d0) 
@@ -2668,7 +2702,7 @@ cc      if (my_rank == 0) write (*,*) sgamma,cnp,cn,cnm
         !Compute error
         flds(:,:,:,1) = (delta_T - flds(:,:,:,1))**2
 
-        dT_error = integral(igrid,igrid,igrid,nx,ny,nz,flds(:,:,:,1))
+        dT_error = integral(g_def,igrid,flds(:,:,:,1))
         dT_error = sqrt(dT_error)
 
         if (my_rank ==0) write (*,*) 'Delta_T error=',dT_error
@@ -2680,7 +2714,7 @@ c     Update beta for next time step
 
       if (bwgt) then
         where (b0 > 0d0) b0 = (1 - integrals(:,:,:,5)/b0)**2
-        b0_diag = integral(igrid,igrid,igrid,nx,ny,nz,b0)
+        b0_diag = integral(g_def,igrid,b0)
         b0_diag = sqrt(b0_diag)
 
         if (my_rank == 0) then
@@ -2698,7 +2732,7 @@ c     Free workspace
 
 c     lag_update_theta
 c     ###############################################################
-      subroutine lag_update_theta(igrid,ivar,bcnd,tn,tnp,chi,iout)
+      subroutine lag_update_theta(g_def,igrid,ivar,bcnd,tn,tnp,chi,iout)
 
 c     ---------------------------------------------------------------
 c     Performs Lagrangian update of temperature at time n+1 (returned
@@ -2722,6 +2756,8 @@ c     ---------------------------------------------------------------
       implicit none
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
 
       integer :: igrid,iout,bcnd(6),ivar
       real(8),dimension(0:,0:,0:) :: tn,tnp,chi
@@ -2764,7 +2800,7 @@ c     Find rhs of delta_T iteration
 
       where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
 
-      call lag_xport_theta(igrid,flds,integrals,chi_local,iout)
+      call lag_xport_theta(g_def,igrid,flds,integrals,chi_local,iout)
 
       where (chi_local /= 0d0) 
 cc        tnp (1:nx,1:ny,1:nz)
@@ -2797,12 +2833,12 @@ cc      if (my_rank == 0) write (*,*) sgamma,cnp,cn,cnm
 
       dT_error = 1d0
       do while (dT_error > 1e-6) 
-        call setBC(ivar,nx,ny,nz,delta_T,zeros,bcnd
+        call setBC(g_def,ivar,nx,ny,nz,delta_T,zeros,bcnd
      .            ,igrid,igrid,igrid)
 
         flds(:,:,:,1) = delta_T
 
-        call lag_xport_dT_theta(igrid,flds(:,:,:,1:1)
+        call lag_xport_dT_theta(g_def,igrid,flds(:,:,:,1:1)
      .               ,integrals(:,:,:,1:2),chi_local,iout)
       
         where (chi_local /= 0d0) 
@@ -2813,7 +2849,7 @@ cc      if (my_rank == 0) write (*,*) sgamma,cnp,cn,cnm
         !Compute error
         flds(:,:,:,1) = (delta_T - flds(:,:,:,1))**2
 
-        dT_error = integral(igrid,igrid,igrid,nx,ny,nz,flds(:,:,:,1))
+        dT_error = integral(g_def,igrid,flds(:,:,:,1))
         dT_error = sqrt(dT_error)
 
         if (my_rank ==0) write (*,*) 'Delta_T error=',dT_error
@@ -2825,7 +2861,7 @@ c     Update beta for next time step
 
       if (bwgt) then
         where (b0 > 0d0) b0 = (1 - integrals(:,:,:,5)/b0)**2
-        b0_diag = integral(igrid,igrid,igrid,nx,ny,nz,b0)
+        b0_diag = integral(g_def,igrid,b0)
         b0_diag = sqrt(b0_diag)
 
         if (my_rank == 0) then
@@ -2843,7 +2879,7 @@ c     Free workspace
 
 c     lag_residual
 c     ###############################################################
-      subroutine lag_residual(igrid,tnm,tn,tnp,src,chi,iout)
+      subroutine lag_residual(g_def,igrid,tnm,tn,tnp,src,chi,iout)
 
 c     ---------------------------------------------------------------
 c     Computes residual of lagrangian integro-differential formulation
@@ -2866,6 +2902,8 @@ c     ---------------------------------------------------------------
       implicit none
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
 
       integer :: igrid,iout
       real(8),dimension(0:,0:,0:) :: tnm,tn,tnp,chi,src
@@ -2909,7 +2947,7 @@ c     Find rhs
       chi_local = 0d0
       where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
 
-      call lag_xport_res(igrid,flds,integrals,chi_local,iout)
+      call lag_xport_res(g_def,igrid,flds,integrals,chi_local,iout)
 
       if (bdf2) then
         sgamma = dt/(dt+dtold)
@@ -2959,7 +2997,7 @@ c     Free workspace
 
 c     lag_init
 c     ##############################################################
-      subroutine lag_init(igr,nx,ny,nz,bb,alp,iout,G_tol,s_order
+      subroutine lag_init(g_def,igr,bb,alp,iout,G_tol,s_order
      .                   ,B_wgt,force_three_d,psi,chi,poinc_file)
 
       implicit none
@@ -2970,39 +3008,45 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
-      integer :: nx,ny,nz,igr,s_order,iout
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igr,s_order,iout
  
       real(8) :: G_tol,alp
-      real(8),INTENT(IN) :: bb(0:nx+1,0:ny+1,0:nz+1,3)
+      real(8),INTENT(IN) :: bb(0:,0:,0:,:)
 
       logical :: B_wgt,force_three_d
 
-      real(8),INTENT(IN),optional :: psi(0:nx+1,0:ny+1,0:nz+1)
-     .                              ,chi(0:nx+1,0:ny+1,0:nz+1)
+      real(8),INTENT(IN),optional :: psi(0:,0:,0:)
+     .                              ,chi(0:,0:,0:)
 
       character(*),optional :: poinc_file
 
 c     Local variables
 
-      integer :: nxg,nyg,nzg
+      integer :: nxg,nyg,nzg,nx,ny,nz
       logical :: lag3d
 
 c     Begin program
 
-      nxg = grid_params%nxgl(igr)
-      nyg = grid_params%nygl(igr)
-      nzg = grid_params%nzgl(igr)
+      nxg = g_def%nxgl(igr)
+      nyg = g_def%nygl(igr)
+      nzg = g_def%nzgl(igr)
+
+      nx = g_def%nxv(igr)
+      ny = g_def%nyv(igr)
+      nz = g_def%nzv(igr)
 
       lag3d = (nxg > 1 .and. nyg > 1 .and. nzg > 1)
      .       .or.(force_three_d)
      .       .or.PRESENT(poinc_file)
 
       if (lag3d) then
-        call lag_3d_init(igr,nx,ny,nz,bb,alp,iout
+        call lag_3d_init(g_def,igr,bb,alp,iout
      .                  ,G_tol,s_order,B_wgt,chi=chi
      .                  ,poinc_file=poinc_file)
       else
-        call lag_2d_init(igr,nx,ny,nz,bb,alp,iout
+        call lag_2d_init(g_def,igr,bb,alp,iout
      .                  ,G_tol,s_order,B_wgt,psi=psi
      .                  ,chi=chi)
       endif
@@ -3148,9 +3192,9 @@ cc
 ccc     Orbit initialization on global array
 cc
 cc        call orbit_setup(nxg+2,nyg+2,nzg+2
-cc     .                  ,grid_params%xg
-cc     .                  ,grid_params%yg
-cc     .                  ,grid_params%zg
+cc     .                  ,g_def%xg
+cc     .                  ,g_def%yg
+cc     .                  ,g_def%zg
 cc     .                  ,bg(:,:,:,1)
 cc     .                  ,bg(:,:,:,2)
 cc     .                  ,bg(:,:,:,3)
@@ -3288,9 +3332,9 @@ cc        call find_global(car,carg,map_bc=.true.)
 cc
 ccc     Update grid metrics
 cc
-cc        call defineGridMetric(grid_params,xcar=car)
+cc        call defineGridMetric(g_def,xcar=car)
 cc
-cc        gmetric => grid_params%gmetric
+cc        gmetric => g_def%gmetric
 cc
 ccc     Deallocate memory
 cc
@@ -3397,10 +3441,10 @@ cc        nxl = ihipg-ilomg-1
 cc        nyl = jhipg-jlomg-1
 cc        nzl = khipg-klomg-1
 cc
-cc        call defineGridMetric(grid_params
+cc        call defineGridMetric(g_def
 cc     .           ,xcar=carg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
 cc
-cc        gmetric => grid_params%gmetric
+cc        gmetric => g_def%gmetric
 cc
 ccc     Deallocate memory
 cc
@@ -3444,9 +3488,12 @@ c       Determine initial orbit updates
         dz0 = z-z0 !Determines initial direction of orbit
 
         !Exclude ignorable directions
-        if (grid_params%nxgl(1) == 1) dx0 = 0d0
-        if (grid_params%nygl(1) == 1) dy0 = 0d0
-        if (grid_params%nzgl(1) == 1) dz0 = 0d0
+c$$$        if (g_def%nxgl(1) == 1) dx0 = 0d0
+c$$$        if (g_def%nygl(1) == 1) dy0 = 0d0
+c$$$        if (g_def%nzgl(1) == 1) dz0 = 0d0
+        if (ignorable_dir(1)) dx0 = 0d0
+        if (ignorable_dir(2)) dy0 = 0d0
+        if (ignorable_dir(3)) dz0 = 0d0
 
 c       Select periodic direction based on largest displacement from surface
 
@@ -3538,9 +3585,9 @@ cc        END INTERFACE
 cc
 ccc     Begin program
 cc
-cc        nx = grid_params%nxv(igrid)
-cc        ny = grid_params%nyv(igrid)
-cc        nz = grid_params%nzv(igrid)
+cc        nx = g_def%nxv(igrid)
+cc        ny = g_def%nyv(igrid)
+cc        nz = g_def%nzv(igrid)
 cc
 cc        if (l2d) then
 cc          if (solenoidal) then
@@ -3602,9 +3649,9 @@ cc        END INTERFACE
 cc
 ccc     Begin program
 cc
-cc        nx = grid_params%nxv(igrid)
-cc        ny = grid_params%nyv(igrid)
-cc        nz = grid_params%nzv(igrid)
+cc        nx = g_def%nxv(igrid)
+cc        ny = g_def%nyv(igrid)
+cc        nz = g_def%nzv(igrid)
 cc
 cc        if (l2d) then
 cc          if (solenoidal) then

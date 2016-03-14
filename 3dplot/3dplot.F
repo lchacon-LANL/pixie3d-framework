@@ -194,9 +194,7 @@ c----------------------------------------------------------------------
 
       use ts_setup
 
-      use parameters
-
-      use grid
+      use variables
 
       implicit none
 
@@ -212,7 +210,7 @@ c Begin program
 
       if (my_rank == 0) then
 
-        ngrd =(/grid_params%ngrdx,grid_params%ngrdy,grid_params%ngrdz/)
+        ngrd =(/gv%gparams%ngrdx,gv%gparams%ngrdy,gv%gparams%ngrdz/)
 
         if (itime.eq.0) then
 
@@ -324,7 +322,7 @@ c Open graphics files (this initializes local limits, among other things)
 
 c Read geometry (if appropriate)
 
-      if (coords == 'ext') call readExtMap
+      if (coords == 'ext') call readExtMap(gv%gparams)
 
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 

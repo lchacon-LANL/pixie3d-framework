@@ -120,7 +120,7 @@ c     Begin program
         kp=min(k+1,nz+1)
         km=max(k-1,0)
 
-        call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg,g_def=g_def)
+        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
 c     Exceptions
 
@@ -274,7 +274,7 @@ c     Exceptions
         ip = i0+1
         im = i0-1
 
-        call getMGmap(i0,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+        call getMGmap(g_def,i0,j,k,igx,igy,igz,ig,jg,kg)
 
         igp = ig+1
         igm = ig-1
@@ -293,7 +293,7 @@ c     Exceptions
         jp = j0+1
         jm = j0-1
 
-        call getMGmap(i,j0,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+        call getMGmap(g_def,i,j0,k,igx,igy,igz,ig,jg,kg)
 
         jgp = jg+1
         jgm = jg-1
@@ -312,7 +312,7 @@ c     Exceptions
         kp = k0+1
         km = k0-1
 
-        call getMGmap(i,j,k0,igx,igy,igz,ig,jg,kg,g_def=g_def)
+        call getMGmap(g_def,i,j,k0,igx,igy,igz,ig,jg,kg)
 
         kgp = kg+1
         kgm = kg-1
@@ -571,8 +571,8 @@ c     Setup boundary conditions
 
 c     Impose BCs
 
-        call setMGBC(0,1,nxl,nyl,nzl,igrid,x_j,bcnd
-     .              ,arr0=x0_j,iorder=order,g_def=g_def)
+        call setMGBC(g_def,0,1,nxl,nyl,nzl,igrid,x_j,bcnd
+     .              ,arr0=x0_j,iorder=order)
 
 c     End program
 
@@ -643,31 +643,24 @@ c       ANALYTICAL QUANTITIES **********************************
             do j = jlom,jhip
               do i = ilom,ihip
                 g_def%gmetric%grid(igrid)%car  (i,j,k,:)
-     .                    = map     (i,j,k,igx,igy,igz
-     .                              ,g_def=g_def)
+     .                    = map     (g_def,i,j,k,igx,igy,igz)
                 g_def%gmetric%grid(igrid)%jac  (i,j,k)
-     .                    = jacobian(i,j,k,igx,igy,igz
-     .                              ,g_def=g_def)
+     .                    = jacobian(g_def,i,j,k,igx,igy,igz)
                 g_def%gmetric%grid(igrid)%gsub (i,j,k,:,:)
-     .                    = g_sub   (i,j,k,igx,igy,igz
-     .                              ,g_def=g_def)
+     .                    = g_sub   (g_def,i,j,k,igx,igy,igz)
                 g_def%gmetric%grid(igrid)%gsup (i,j,k,:,:)
-     .                    = g_sup   (i,j,k,igx,igy,igz
-     .                              ,g_def=g_def)
+     .                    = g_sup   (g_def,i,j,k,igx,igy,igz)
                 g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-     .                    = christ_2knd(i,j,k,igx,igy,igz
-     .                                 ,g_def=g_def)
+     .                    = christ_2knd(g_def,i,j,k,igx,igy,igz)
                 do l=1,3
                   g_def%gmetric%grid(igrid)%cov(i,j,k,l,:)
-     .                    = covariantVector    (l,i,j,k,igx,igy,igz
-     .                                         ,g_def=g_def)
+     .                 = covariantVector    (g_def,l,i,j,k,igx,igy,igz)
                   g_def%gmetric%grid(igrid)%cnv(i,j,k,l,:)
-     .                    = contravariantVector(l,i,j,k,igx,igy,igz
-     .                                         ,g_def=g_def)
+     .                 = contravariantVector(g_def,l,i,j,k,igx,igy,igz)
                 enddo
 
                 !Cell volume
-                call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+                call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
                 g_def%gmetric%grid(igrid)%dlvol(i,j,k) = 1d0
 
@@ -698,23 +691,18 @@ c       ANALYTICAL QUANTITIES **********************************
             do j = jlom,jhip
               do i = ilom,ihip
                 g_def%gmetric%grid(igrid)%jac_v(i,j,k)
-     .                    = jacobian(i,j,k,igx,igy,igz,vertex=.true.
-     .                              ,g_def=g_def)
+     .                 = jacobian(g_def,i,j,k,igx,igy,igz,vertex=.true.)
                 g_def%gmetric%grid(igrid)%gsub_v(i,j,k,:,:)
-     .                    = g_sub   (i,j,k,igx,igy,igz,vertex=.true.
-     .                              ,g_def=g_def)
+     .                 = g_sub   (g_def,i,j,k,igx,igy,igz,vertex=.true.)
                 g_def%gmetric%grid(igrid)%gsup_v (i,j,k,:,:)
-     .                    = g_sup   (i,j,k,igx,igy,igz,vertex=.true.
-     .                              ,g_def=g_def)
+     .                 = g_sup   (g_def,i,j,k,igx,igy,igz,vertex=.true.)
                 do l=1,3
                   g_def%gmetric%grid(igrid)%cov_v(i,j,k,l,:)
-     .                    = covariantVector    (l,i,j,k,igx,igy,igz
-     .                                         ,vertex=.true.
-     .                                         ,g_def=g_def)
+     .                 = covariantVector    (g_def,l,i,j,k,igx,igy,igz
+     .                                         ,vertex=.true.)
                   g_def%gmetric%grid(igrid)%cnv_v(i,j,k,l,:)
-     .                    = contravariantVector(l,i,j,k,igx,igy,igz
-     .                                         ,vertex=.true.
-     .                                         ,g_def=g_def)
+     .                 = contravariantVector(g_def,l,i,j,k,igx,igy,igz
+     .                                         ,vertex=.true.)
                 enddo
 
               enddo
@@ -785,7 +773,7 @@ c     Begin program
             do k = klom,khip
               do j = jlom,jhip
                 do i = ilom,ihip
-                  xc(i,j,k,:) = map(i,j,k,igx,igy,igz,g_def=g_def)
+                  xc(i,j,k,:) = map(g_def,i,j,k,igx,igy,igz)
                 enddo
               enddo
             enddo
@@ -928,8 +916,8 @@ c     Evaluate dr=dx/dxi vectors at vertices
 
         do i=1,3
           do j=1,3
-            call setMGBC(0,1,nx,ny,nz,igrid,dr(:,:,:,i,j),bcs
-     .                  ,iorder=2,g_def=g_def)
+            call setMGBC(g_def,0,1,nx,ny,nz,igrid,dr(:,:,:,i,j),bcs
+     .                  ,iorder=2)
           enddo
         enddo
 
@@ -948,7 +936,8 @@ c     Evaluate grid quantities (at vertices)
               jac = triple_product(r(:,1),r(:,2),r(:,3))
               g_def%gmetric%grid(igrid)%jac_v(i,j,k) = jac
 
-              if (jac <= 0d0 .and. (.not.isSP2(i+1,igrid,ibc=1))) then
+              if (jac <= 0d0
+     .           .and. (.not.isSP2(g_def,i+1,igrid,ibc=1))) then
                 if (.not.check_grid .and. (.not.return_error)) then
                   write (*,*) 'Negative Jacobian in half mesh'
                   write (*,*) 'Grid level',igrid
@@ -963,7 +952,7 @@ c     Evaluate grid quantities (at vertices)
                 elseif (return_error) then
                   lerr = 1 ; exit
                 endif
-              elseif (isSP2(i+1,igrid,ibc=1,g_def=g_def)) then
+              elseif (isSP2(g_def,i+1,igrid,ibc=1)) then
 cc              if (isSP2(i+1,igrid,ibc=1)) then
                 ijac = 0d0
               else
@@ -1124,7 +1113,7 @@ c     Enforce topological constraints on dr (including SP)
               nybc = ny
               nzbc = nz
               !dr behaves like a covariant vector
-              call vectorSingularBC(j,dr(:,:,:,i,j),.true.)
+              call vectorSingularBC(g_def,j,dr(:,:,:,i,j),.true.)
             endif
           enddo
         enddo
@@ -1140,7 +1129,8 @@ c     Evaluate grid quantities
               jac = triple_product(r(:,1),r(:,2),r(:,3))
               g_def%gmetric%grid(igrid)%jac(i,j,k) = jac
 
-              if (jac <= 0d0 .and.(.not.isSP2(i+1,igrid,ibc=1))) then
+              if (jac <= 0d0
+     .           .and.(.not.isSP2(g_def,i+1,igrid,ibc=1))) then
                 if (.not.check_grid .and. (.not.return_error)) then
                   write (*,*) 'Negative Jacobian in integer mesh'
                   write (*,*) 'Grid level',igrid
@@ -1185,7 +1175,7 @@ c     Evaluate grid quantities
               g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:) = gsup
 
               !Cell volume <<<<<<<<<<<<<<<<<<
-              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+              call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
               g_def%gmetric%grid(igrid)%dlvol(i,j,k) = 1d0
 
@@ -1278,7 +1268,7 @@ c     Begin program
             gsub  = g_def%gmetric%grid(igrid)%gsub(i,j,k,:,:)
             gsup  = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
 
-            call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+            call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
             do ii=1,3 !cycle through Chistoffel symbols
 

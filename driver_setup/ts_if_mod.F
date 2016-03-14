@@ -217,12 +217,12 @@ c     Define TS parameters
 
 c     Time step update
 
-      call mapStructureToVector(x,vnp)  !Old time info
+      call mapStructureToVector(gv%gparams,x,vnp)  !Old time info
 
       if (cnfactor <= 5d-1) then
         call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
 
-        call mapStructureToVector(x_old,vnp) !BDF2 ref
+        call mapStructureToVector(gv%gparams,x_old,vnp) !BDF2 ref
 
         ierr = implicit_ts(x,itnw,itgm,iout)
       else
@@ -239,7 +239,7 @@ c     Time step update
 c     Map solution to vnp (if no error)
 
       if (ierr == NOERR .or. ierr == CUTDT) then
-        call mapVectorToStructure(vnp,x)
+        call mapVectorToStructure(gv%gparams,vnp,x)
 
         call applyBC(1,vnp,gv%aux,it=itime)
 
@@ -294,14 +294,14 @@ c     Begin program
 
       ierr = NOERR
 
-      call mapStructureToVector(x ,vnp)
+      call mapStructureToVector(gv%gparams,x ,vnp)
 
 c     Setup vectors
 
       !Setup matrix-free vectors (xk, rk)
       allocate(nk_conf%xk(ntotd),nk_conf%rk(ntotd))
 
-      call mapStructureToVector(nk_conf%xk,u_0)
+      call mapStructureToVector(gv%gparams,nk_conf%xk,u_0)
 
       call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
 
@@ -355,7 +355,7 @@ c     Free memory
 
       deallocate(nk_conf%xk,nk_conf%rk)
  
-      call mapVectorToStructure(vnp,x)
+      call mapVectorToStructure(gv%gparams,vnp,x)
 
 c     End program
 

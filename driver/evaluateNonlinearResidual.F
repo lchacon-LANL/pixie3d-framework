@@ -50,7 +50,8 @@ c Temporal update
       do k = klo,khi
         do j = jlo,jhi
           do i = ilo,ihi
-            ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
+cc            ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
+            ii = neqd*vPos(gv%gparams,igrid,(/i,j,k/))
 
             f(ii+1:ii+neqd) = xdot(ii+1:ii+neqd)*dt*one_over_dt
      .                      + (1d0-cnf)*f   (ii+1:ii+neqd)
@@ -62,7 +63,8 @@ c Temporal update
 
 c Scale by volume
 
-      if (vol_wgt) call scaleVector_by_vol1(igrid,neqd,f,'mul')
+      if (vol_wgt)
+     .     call scaleVector_by_vol1(gv%gparams,igrid,neqd,f,'mul')
 
 c End program
 
@@ -117,7 +119,7 @@ c Begin program
 
 c Prepare auxiliar quantities
 
-      call mapVectorToStructure(varray,xi,igr=igr)
+      call mapVectorToStructure(gv%gparams,varray,xi,igr=igr)
 
 c Evaluate nonlinear function
 
@@ -182,7 +184,7 @@ c Begin program
 
 c Setup parallel BC flags to indicate BCs require communication
 
-      call setup_petsc_BC
+      call setup_petsc_BC(gv%gparams)
 
 c Prepare auxiliary quantities
 
@@ -190,14 +192,15 @@ c Prepare auxiliary quantities
 
 c Store function evaluation
 
-      nx = grid_params%nxv(igr)
-      ny = grid_params%nyv(igr)
-      nz = grid_params%nzv(igr)
+      nx = gv%gparams%nxv(igr)
+      ny = gv%gparams%nyv(igr)
+      nz = gv%gparams%nzv(igr)
 
       do k = 1,nz
         do j = 1,ny
           do i = 1,nx
-            ii = vecPos(neqd,i,j,k,igr,igr,igr)
+cc            ii = vecPos(neqd,i,j,k,igr,igr,igr)
+            ii = neqd*vPos(gv%gparams,igr,(/i,j,k/))
 
 #if defined(MK)
             !Compute MK residual, add grid velocity,
@@ -352,7 +355,8 @@ c Begin program
           do k = klo,khi
             do j = jlo,jhi
               do i = ilo,ihi
-                ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
+cc                ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
+                ii = neqd*vPos(gv%gparams,igrid,(/i,j,k/))
                 src(ii+1:ii+neqd) = MK_eval_src(igrid,i,j,k) !Interpolate source on current MK mesh
               enddo
             enddo
@@ -428,9 +432,9 @@ c$$$      call setup_IMEX_NLF(igr,varray)
 c$$$
 c$$$c Store function evaluation
 c$$$
-c$$$      nx = grid_params%nxv(igr)
-c$$$      ny = grid_params%nyv(igr)
-c$$$      nz = grid_params%nzv(igr)
+c$$$      nx = gv%gparams%nxv(igr)
+c$$$      ny = gv%gparams%nyv(igr)
+c$$$      nz = gv%gparams%nzv(igr)
 c$$$
 c$$$      do k = 1,nz
 c$$$        do j = 1,ny

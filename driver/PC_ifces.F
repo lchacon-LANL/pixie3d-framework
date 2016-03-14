@@ -53,7 +53,7 @@ c Change profiling stage
 
 c Copy solution state info
 
-      call mapVectorToStructure(varray,x)
+      call mapVectorToStructure(gv%gparams,varray,x)
 
 c Setup MK preconditioner
 
@@ -126,9 +126,9 @@ c Begin program
 
       igrid = 1
 
-      nx = grid_params%nxv(igrid)
-      ny = grid_params%nyv(igrid)
-      nz = grid_params%nzv(igrid)
+      nx = gv%gparams%nxv(igrid)
+      ny = gv%gparams%nyv(igrid)
+      nz = gv%gparams%nzv(igrid)
 
       nn = nx*ny*nz
 
@@ -157,7 +157,8 @@ c *******************************************************************
                   x(iii) = y(iii)
                 else
                   if (vol_wgt) then
-                    x(iii) = y(iii)*dt/gmetric%grid(igrid)%dlvol(i,j,k)
+                    x(iii) = y(iii)*dt
+     .                   /gv%gparams%gmetric%grid(igrid)%dlvol(i,j,k)
                   else
                     x(iii) = y(iii)*dt
                   endif
@@ -177,7 +178,7 @@ c *******************************************************************
           neq = neqd
         endif
 #else
-        neq = neqd
+       neq = neqd
 #endif
 
         xxx = 0d0
@@ -201,13 +202,14 @@ c     Application PC
               do i = 1,nx
                 ii  = i + nx*(j-1) + nx*ny*(k-1)
 
-                call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+                call getMGmap(gv%gparams,i,j,k,igrid,igrid,igrid
+     .                       ,ig,jg,kg)
 
                 if (vol_wgt) then
                   if (mk_nc) then
-                    dvol = gmetric%grid(igrid)%dvol(i,j,k)
+                    dvol = gv%gparams%gmetric%grid(igrid)%dvol(i,j,k)
                   else
-                    dvol = gmetric%grid(igrid)%dlvol(i,j,k)
+                    dvol = gv%gparams%gmetric%grid(igrid)%dlvol(i,j,k)
                   endif
                 else
                   dvol = 1d0
@@ -273,11 +275,11 @@ c     Begin program
 
 c     Plot PC solution
 
-        call vec_plot_gl(grid_params,neqd,x,igrid,'sol','Solution')
+        call vec_plot_gl(gv%gparams,neqd,x,igrid,'sol','Solution')
 
 c     Plot PC RHS
 
-        call vec_plot_gl(grid_params,neqd,y,igrid,'rhs','RHS')
+        call vec_plot_gl(gv%gparams,neqd,y,igrid,'rhs','RHS')
 
 c     Plot corresponding linear residual to PC solution
 
@@ -288,7 +290,7 @@ c     Plot corresponding linear residual to PC solution
         y = y - rr
         mag = rms(y)
 
-        call vec_plot_gl(grid_params,neqd,y,igrid,'res','Residual')
+        call vec_plot_gl(gv%gparams,neqd,y,igrid,'res','Residual')
 
         if (my_rank == 0) then
            write (*,*)

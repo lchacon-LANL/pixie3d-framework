@@ -21,6 +21,10 @@ c #####################################################################
 #else
         integer :: npx=0,npy=0,npz=0  !Parallel processor allocation
 #endif
+
+cc        type(grid_mg_def),pointer :: grid_params => null()
+
+cc        type(MG_grid_metrics),pointer :: gmetric => null()
         
       contains
 
@@ -70,9 +74,9 @@ c     Create grid structures
 
 c     Legacy assignments (backward compatibility)
 
-        gmetric => gdef%gmetric !For backward compatibility
+cc        gmetric => gdef%gmetric !For backward compatibility
 
-        grid_params => gdef 
+cc        grid_params => gdef 
 
 #if defined(petsc)
         call initMPI(mpi_comm,np,my_rank)
@@ -188,46 +192,58 @@ c     Create beyond-processor sub-grids for coarse MG solve
 #if defined(petsc) && defined(coarse_MG)
       g_def%mpi_comm_crse = MPI_COMM_WORLD
 
-c$$$      il = 0
+      il = 0
       g_def_sav => g_def
       do
         exit_loop = create_coarse_gdef(g_def_sav,g_def_sav%g_crse_def)
-c$$$        il = il + 1
-c$$$        if (my_rank == 0) then
-c$$$          write (*,*) "************************"
-c$$$          write (*,*) "Level "//trim(int2char(il))//" created"
-c$$$          write (*,*) "************************"
-c$$$        endif
+
+        if (coarse_mg_debug) then
+          il = il + 1
+
+          call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+          if (my_rank == 0) then
+            write (*,*) "************************"
+            write (*,*) "Level "//trim(int2char(il))//" created"
+            write (*,*) "************************"
+          endif
+          call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+        endif
+
         if (exit_loop) exit
         g_def_sav => g_def_sav%g_crse_def
+
       enddo
 
-c$$$      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-c$$$
-c$$$      if (my_rank == 0) then
-c$$$        write (*,*) '-------------'
-c$$$        write (*,*) 'Final summary'
-c$$$        write (*,*) '-------------'
-c$$$      endif
-c$$$      il = 0
-c$$$      g_def_sav => g_def
-c$$$       if (my_rank == 0) write (*,*) 'Fine levels',g_def_sav%ngrid
-c$$$      do while(associated(g_def_sav%g_crse_def))
-c$$$        il = il + 1
-c$$$        if (my_rank == 0) then
-c$$$          write (*,*) "************************"
-c$$$          write (*,*) "Level "//trim(int2char(il))//" associated"
-c$$$          write (*,*) "************************"
-c$$$        endif
-c$$$        g_def_sav => g_def_sav%g_crse_def
-c$$$        if (my_rank == 0) write (*,*) 'coarse levels',g_def_sav%ngrid
-c$$$        if (my_rank == 0) write (*,*) "coarse X dims",g_def_sav%nxv
-c$$$        if (my_rank == 0) write (*,*) "coarse Y dims",g_def_sav%nyv
-c$$$
-c$$$cc        if (il == 1) call checkGrid(g_def)
-c$$$      enddo
-c$$$
-c$$$      call pstop("","")
+      if (coarse_mg_debug) then
+        if (my_rank == 0) then
+          write (*,*) '-------------'
+          write (*,*) 'Final summary'
+          write (*,*) '-------------'
+        endif
+        il = 0
+        g_def_sav => g_def
+        if (my_rank == 0) write (*,*) 'Fine levels',g_def_sav%ngrid
+        if (my_rank == 0) write (*,*) "Fine X dims",g_def_sav%nxv
+        if (my_rank == 0) write (*,*) "Fine Y dims",g_def_sav%nyv
+        do while(associated(g_def_sav%g_crse_def))
+          il = il + 1
+          if (my_rank == 0) then
+            write (*,*) "************************"
+            write (*,*) "Level "//trim(int2char(il))//" associated"
+            write (*,*) "************************"
+          endif
+          g_def_sav => g_def_sav%g_crse_def
+          if (my_rank == 0) write (*,*) 'Coarse levels',g_def_sav%ngrid
+          if (my_rank == 0) write (*,*) "Coarse X dims",g_def_sav%nxv
+          if (my_rank == 0) write (*,*) "Coarse Y dims",g_def_sav%nyv
+
+          call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+
+cc          if (il == 1) call checkGrid(g_def)
+        enddo
+
+cc        call pstop("create_gdef","Coarse MG diagnostics")
+      endif
 #endif
 
 c     End program
@@ -483,7 +499,7 @@ c     Create fortran PETSc parallel grid hierarchy (parallel version)
 
 #if defined(petsc)
         call createPETScGrid(gdef,0)
-        call setup_petsc_BC   !Set PETSc BC flags
+        call setup_petsc_BC(gdef)   !Set PETSc BC flags
 #endif
 
       end subroutine initGridSt
@@ -1046,17 +1062,17 @@ c     Begin program
           do j = 1,nyv(igy)
             do k = 1,nzv(igz)
 
-              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+              call getMGmap(gdef,i,j,k,igx,igy,igz,ig,jg,kg)
 
               x1 = gdef%xx(ig)
               y1 = gdef%yy(jg)
               z1 = gdef%zz(kg)
 
-              hess = -christ_2knd(i,j,k,igx,igy,igz)
+              hess = -christ_2knd(gdef,i,j,k,igx,igy,igz)
 
-              hess_cnv(1,:,:) = hessian_cnv(1,x1,y1,z1)
-              hess_cnv(2,:,:) = hessian_cnv(2,x1,y1,z1)
-              hess_cnv(3,:,:) = hessian_cnv(3,x1,y1,z1)
+              hess_cnv(1,:,:) = hessian_cnv(gdef,1,x1,y1,z1)
+              hess_cnv(2,:,:) = hessian_cnv(gdef,2,x1,y1,z1)
+              hess_cnv(3,:,:) = hessian_cnv(gdef,3,x1,y1,z1)
 
               do i1=1,3
                 do j1=1,3
@@ -1127,7 +1143,7 @@ c     Begin program
           do j = 1,nyv(igy)
             do i = 1,nxv(igx)   !Start at 2 to avoid singular points
 
-              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+              call getMGmap(gdef,i,j,k,igx,igy,igz,ig,jg,kg)
 
               x1 = gdef%xx(ig)
               y1 = gdef%yy(jg)
@@ -1250,16 +1266,16 @@ c     Begin program
             do i = ilom,ihip
               mag1 = mag1
      .             + (gdef%gmetric%grid(igrid)%jac  (i,j,k)
-     .               -jacobian(i,j,k,igx,igy,igz))**2
+     .               -jacobian(gdef,i,j,k,igx,igy,igz))**2
               mag2 = mag2
      .             + (gdef%gmetric%grid(igrid)%gsub (i,j,k,:,:)
-     .               -g_sub   (i,j,k,igx,igy,igz))**2
+     .               -g_sub   (gdef,i,j,k,igx,igy,igz))**2
               mag3 = mag3
      .             + (gdef%gmetric%grid(igrid)%gsup (i,j,k,:,:)
-     .               -g_sup   (i,j,k,igx,igy,igz))**2
+     .               -g_sup   (gdef,i,j,k,igx,igy,igz))**2
               mag4 = mag4
      .             + (gdef%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-     .               -christ_2knd(i,j,k,igx,igy,igz))**2
+     .               -christ_2knd(gdef,i,j,k,igx,igy,igz))**2
             enddo
           enddo
         enddo
@@ -1371,7 +1387,7 @@ c     Dump quantities
             dbg(i,j,1,1) = gdef%gmetric%grid(igrid)%jac(i,j,k)
 cc            dbg(i,j,1,1) = gdef%gmetric%grid(igrid)%jac_v(i,j,k)
             if (dump_diff) dbg(i,j,1,1) = dbg(i,j,1,1)
-     .                    -jacobian(i,j,k,igrid,igrid,igrid)
+     .                    -jacobian(gdef,i,j,k,igrid,igrid,igrid)
           enddo
         enddo
         write(funit,*) '   Dumping Jacobian'
@@ -1410,10 +1426,10 @@ cc        call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
 cc     .               gdef%gmetric%grid(igrid)%gsub_v(i,j,k,l,m)
 cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
                 if (dump_diff) then
-                  tensor(:,:,1)  = g_sub(i,j,k,igrid,igrid,igrid)
+                  tensor(:,:,1)  = g_sub(gdef,i,j,k,igrid,igrid,igrid)
                   dbg(i,j,1,1) = dbg(i,j,1,1)
      .                    -tensor(l,m,1)
-     .                    *jacobian(i,j,k,igrid,igrid,igrid)
+     .                    *jacobian(gdef,i,j,k,igrid,igrid,igrid)
                 endif
               enddo
             enddo
@@ -1435,10 +1451,10 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
      .               gdef%gmetric%grid(igrid)%gsup(i,j,k,l,m)
      .              *gdef%gmetric%grid(igrid)%jac(i,j,k)
                 if (dump_diff) then
-                  tensor(:,:,1)  = g_sup(i,j,k,igrid,igrid,igrid)
+                  tensor(:,:,1)  = g_sup(gdef,i,j,k,igrid,igrid,igrid)
                   dbg(i,j,1,1) = dbg(i,j,1,1)
      .                        -tensor(l,m,1)
-     .                    *jacobian(i,j,k,igrid,igrid,igrid)
+     .                    *jacobian(gdef,i,j,k,igrid,igrid,igrid)
                 endif
               enddo
             enddo
@@ -1459,8 +1475,9 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
      .               gdef%gmetric%grid(igrid)%cnv(i,j,k,l,m)
      .              *gdef%gmetric%grid(igrid)%jac(i,j,k)
                 if (dump_diff) then
-                  vec = contravariantVector(l,i,j,k,igrid,igrid,igrid)
-     .                 *jacobian(i,j,k,igrid,igrid,igrid)
+                  vec =
+     .               contravariantVector(gdef,l,i,j,k,igrid,igrid,igrid)
+     .                 *jacobian(gdef,i,j,k,igrid,igrid,igrid)
                   dbg(i,j,1,1) = dbg(i,j,1,1)-vec(m)
                 endif
               enddo
@@ -1484,10 +1501,10 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
      .                 gdef%gmetric%grid(igrid)%Gamma(i,j,k,l,m,n)
      .                *gdef%gmetric%grid(igrid)%jac(i,j,k)
                   if (dump_diff) then
-                    tensor  = christ_2knd(i,j,k,igrid,igrid,igrid)
+                    tensor  = christ_2knd(gdef,i,j,k,igrid,igrid,igrid)
                     dbg(i,j,1,1) = dbg(i,j,1,1)
      .                    -tensor(l,m,n)
-     .                    *jacobian(i,j,k,igrid,igrid,igrid)
+     .                    *jacobian(gdef,i,j,k,igrid,igrid,igrid)
                   endif
                 enddo
               enddo
@@ -1560,7 +1577,7 @@ c     Begin program
               write(funit,*)
               write(funit,*) 'Grid:',igrid,'  Grid node:',i,j,k
 
-              call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+              call getMGmap(gdef,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
               gsup  = gdef%gmetric%grid(igrid)%gsup(i,j,k,:,:)
               gsub  = gdef%gmetric%grid(igrid)%gsub(i,j,k,:,:)

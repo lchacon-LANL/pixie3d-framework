@@ -27,6 +27,8 @@ c######################################################################
         integer,private :: mg_proc_coarsen_factor=8  !Coarsening ratio in # procs/dim
                                                      !in parallel MG solve
         integer,private :: MPI_COMM_SAV
+
+        logical :: coarse_mg_debug=.false.
 #endif
 
       contains
@@ -528,14 +530,18 @@ c     Begin program
         !Create CRSE comm (for gather within domains)
         call splitMPIComm  (mpi_comm_crse,selectRank_MG_coarse
      .                     ,MPI_COMM_ORIG=g_mg_def%mpi_comm)
-c$$$        call check_MPI_COMM(mpi_comm_crse,'MPI_COMM_MG_CRSE')
+        if (coarse_mg_debug) then
+          call check_MPI_COMM(mpi_comm_crse,'MPI_COMM_MG_CRSE')
+        endif
 
         MPI_COMM_SAV = mpi_comm_crse
 
         !Create SPLIT comm (for concurrent solve across domains)
         call splitMPIComm  (mpi_comm_splt,selectRank_MG_split
      .                     ,MPI_COMM_ORIG=g_mg_def%mpi_comm)
-c$$$        call check_MPI_COMM(mpi_comm_splt,'MPI_COMM_MG_SPLT')
+        if (coarse_mg_debug) then
+          call check_MPI_COMM(mpi_comm_splt,'MPI_COMM_MG_SPLT')
+        endif
 
         !Check for termination (when no more splitting is possible)
         call MPI_Comm_size(MPI_COMM_SPLT,np_l,mpierr)

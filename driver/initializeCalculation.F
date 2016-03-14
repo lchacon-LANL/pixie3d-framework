@@ -201,11 +201,11 @@ c Create equilibrium u_0
 
       call get_src(u_n)  !This also imposes BCs
 
-      call mapStructureToVector(x0,u_n)
+      call mapStructureToVector(gv%gparams,x0,u_n)
 
 c Write geometry when applicable
 
-      if (coords == 'ext') call writeExtMap
+      if (coords == 'ext') call writeExtMap(gv%gparams)
 
 c Perturb equilibrium
 
@@ -275,7 +275,7 @@ c Begin program
 
 c Read geometry when applicable
 
-      if (coords == 'ext') call readExtMap
+      if (coords == 'ext') call readExtMap(gv%gparams)
 
 c Read restart file
 
@@ -545,9 +545,9 @@ c     ###############################################################
           write (*,*) '>>>>>>>>>>>>>>>>>'
         endif
 
-        nx = grid_params%nxv(1)
-        ny = grid_params%nyv(1)
-        nz = grid_params%nzv(1)
+        nx = gv%gparams%nxv(1)
+        ny = gv%gparams%nyv(1)
+        nz = gv%gparams%nzv(1)
 
         xlabel=cont_conf%label(1)
         ylabel=cont_conf%label(2)
@@ -562,7 +562,7 @@ c     ###############################################################
      .        ,'t',trim(xlabel),trim(ylabel),dbg_desc,'-c -X0 -L57'
      .        ,'drawsrc_p'//trim(int2char(my_rank))//'.in')
 
-        call mapVectorToStructure(u_graph,fsrc)
+        call mapVectorToStructure(gv%gparams,u_graph,fsrc)
 
         nunit = 110
 
@@ -571,9 +571,9 @@ c     ###############################################################
 
         do ieq=1,neqd
           call C_contour(u_graph%array_var(ieq)%array(1:nx,1:ny,1:nz)
-     .                  ,grid_params%gxmin,grid_params%gxmax
-     .                  ,grid_params%gymin,grid_params%gymax
-     .                  ,grid_params%gzmin,grid_params%gzmax
+     .                  ,gv%gparams%gxmin,gv%gparams%gxmax
+     .                  ,gv%gparams%gymin,gv%gparams%gymax
+     .                  ,gv%gparams%gzmin,gv%gparams%gzmax
      .                  ,ieq-1,nunit)
         enddo
 

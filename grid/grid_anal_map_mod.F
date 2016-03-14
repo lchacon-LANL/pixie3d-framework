@@ -48,7 +48,7 @@ c     Begin program
 
 c     map
 c     #################################################################
-      function map(i,j,k,igx,igy,igz,ig,jg,kg,g_def) result(car)
+      function map(g_def,i,j,k,igx,igy,igz,ig,jg,kg) result(car)
 
 c     -----------------------------------------------------------------
 c     Give Cartesian coordinates corresponding to node (i,j,k) at grid
@@ -63,7 +63,7 @@ c     Input variables
         real(8)    :: car(3)
         integer   ,optional,intent(OUT) :: ig,jg,kg
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -75,10 +75,10 @@ c     External routines
 
 c     Begin program
         
-        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig1,jg1,kg1
-     .                                ,x1,y1,z1,g_def=g_def)
+        call getCurvilinearCoordinates(g_def,i,j,k,igx,igy,igz
+     .                                ,ig1,jg1,kg1,x1,y1,z1)
 
-        car = x_xi(x1,y1,z1,g_def=g_def)
+        car = x_xi(g_def,x1,y1,z1)
 
         if (PRESENT(ig)) ig = ig1
         if (PRESENT(jg)) jg = jg1
@@ -88,7 +88,7 @@ c     Begin program
 
 c     x_xi
 c     #################################################################
-      function x_xi(x1,x2,x3,g_def) result(car)
+      function x_xi(gl_def,x1,x2,x3) result(car)
 
 c     -----------------------------------------------------------------
 c     Gives Cartesian coordinates from curvilinear coordinates
@@ -100,7 +100,7 @@ c     Input variables
 
         real(8) :: x1,x2,x3,car(3)
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
@@ -109,15 +109,7 @@ c     Local variables
      .            ,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
      .            ,xlog(3)
 
-        type(grid_mg_def),pointer :: gl_def
-
 c     Begin program
-
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
 
         if (map_grid_pack) then
           xlog(1) = scale_coord(xmin,xmax,x1,1)
@@ -181,7 +173,7 @@ c     Begin program
 
 c     jacobian
 c     #################################################################
-      function jacobian(i,j,k,igx,igy,igz,vertex,g_def) result(jac)
+      function jacobian(gl_def,i,j,k,igx,igy,igz,vertex) result(jac)
 
 c     -----------------------------------------------------------------
 c     Calculates Jacobian of curvilinear coordinate system
@@ -195,7 +187,7 @@ c     Input variables
         real(8) :: jac
         logical,optional :: vertex
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
@@ -203,8 +195,6 @@ c     Local variables
         real(8) :: x1,x2,x3,car(3),curv(3),aa,bb,major_r,mm,kk,eps
      .            ,gp(ngparams),x1p,x2p,x3p
         logical :: vrtx
-
-        type(grid_mg_def),pointer :: gl_def
 
 c     Begin program
 
@@ -214,21 +204,14 @@ c     Begin program
           vrtx = .false.
         endif
 
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
-
         gp = gl_def%params
 
-        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,x2,x3,g_def=g_def)
+        call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz,ig,jg,kg
+     .                                ,x1,x2,x3)
 
         if (vrtx) then
-          call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
-     .                                  ,ig,jg,kg,x1p,x2p,x3p
-     .                                  ,g_def=g_def)
+          call getCurvilinearCoordinates(gl_def,i+1,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
           x1 = 0.5*(x1+x1p)
           x2 = 0.5*(x2+x2p)
           x3 = 0.5*(x3+x3p)
@@ -267,7 +250,7 @@ c     Begin program
 
 c     covariantVector
 c     #################################################################
-      function covariantVector(comp,i,j,k,igx,igy,igz,vertex,g_def)
+      function covariantVector(gl_def,comp,i,j,k,igx,igy,igz,vertex)
      .         result(vec)
 
 c     -----------------------------------------------------------------
@@ -282,7 +265,7 @@ c     Input variables
         integer :: comp,i,j,k,igx,igy,igz
         logical,optional :: vertex
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
@@ -292,15 +275,7 @@ c     Local variables
         real(8) :: car(3),curv(3),vec(3),gp(ngparams)
         logical :: vrtx
 
-        type(grid_mg_def),pointer :: gl_def
-
 c     Begin program
-
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
 
         if (PRESENT(vertex)) then
           vrtx = vertex
@@ -310,13 +285,12 @@ c     Begin program
 
         gp = gl_def%params
 
-        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,x2,x3,g_def=g_def)
+        call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz,ig,jg,kg
+     .                                ,x1,x2,x3)
 
         if (vrtx) then
-          call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
-     .                                  ,ig,jg,kg,x1p,x2p,x3p
-     .                                  ,g_def=g_def)
+          call getCurvilinearCoordinates(gl_def,i+1,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
           x1 = 0.5*(x1+x1p)
           x2 = 0.5*(x2+x2p)
           x3 = 0.5*(x3+x3p)
@@ -458,7 +432,7 @@ c     Begin program
 
 c     cov_vector_anal
 c     #################################################################
-      function cov_vector_anal(curv,g_def) result(vec)
+      function cov_vector_anal(gl_def,curv) result(vec)
 
 c     -----------------------------------------------------------------
 c     Calculates covariant vectors of curvilinear coordinate system
@@ -471,7 +445,7 @@ c     Input variables
 
         real(8) :: curv(3),vec(3,3)
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
@@ -479,15 +453,7 @@ c     Local variables
      .            ,x1,x2,x3
         real(8) :: gp(ngparams)
 
-        type(grid_mg_def),pointer :: gl_def
-
 c     Begin program
-
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
 
         gp = gl_def%params
 
@@ -594,7 +560,7 @@ cc          vec(3,:) = (/ 0d0,0d0,1d0 /)
 
 c     contravariantVector
 c     #################################################################
-      function contravariantVector(comp,i,j,k,igx,igy,igz,vertex,g_def)
+      function contravariantVector(gl_def,comp,i,j,k,igx,igy,igz,vertex)
      .         result (vec)
 
 c     -----------------------------------------------------------------
@@ -610,7 +576,7 @@ c     Input variables
         real(8) :: vec(3)
         logical,optional :: vertex
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
@@ -620,8 +586,6 @@ c     Local variables
      .            ,x1p,x2p,x3p
         logical :: vrtx
 
-        type(grid_mg_def),pointer :: gl_def
-
 c     Begin program
 
         if (PRESENT(vertex)) then
@@ -630,21 +594,14 @@ c     Begin program
           vrtx = .false.
         endif
 
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
-
         gp = gl_def%params
 
-        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,x2,x3,g_def=g_def)
+        call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz,ig,jg,kg
+     .                                ,x1,x2,x3)
 
         if (vrtx) then
-          call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
-     .                                  ,ig,jg,kg,x1p,x2p,x3p
-     .                                  ,g_def=g_def)
+          call getCurvilinearCoordinates(gl_def,i+1,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
           x1 = 0.5*(x1+x1p)
           x2 = 0.5*(x2+x2p)
           x3 = 0.5*(x3+x3p)
@@ -791,7 +748,7 @@ c     Begin program
 
 c     cnv_vector_anal
 c     #################################################################
-      function cnv_vector_anal(curv,g_def) result(vec)
+      function cnv_vector_anal(gl_def,curv) result(vec)
 
 c     -----------------------------------------------------------------
 c     Calculates covariant vectors of curvilinear coordinate system
@@ -804,7 +761,7 @@ c     Input variables
 
         real(8) :: curv(3),vec(3,3)
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
@@ -812,15 +769,7 @@ c     Local variables
      .            ,x1,x2,x3
         real(8) :: gp(ngparams)
 
-        type(grid_mg_def),pointer :: gl_def
-
 c     Begin program
-
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
 
         gp = gl_def%params
 
@@ -935,7 +884,7 @@ cc          vec(3,:) = (/ aa*sin(phi)*curv(1),-aa*cos(phi)*curv(1),1d0 /)
 
 c     hessian22
 c     #################################################################
-      function hessian22(l,i,j,k,igx,igy,igz,g_def) result (tensor)
+      function hessian22(gl_def,l,i,j,k,igx,igy,igz) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates hessian elements of curvilinear coordinate system in
@@ -949,7 +898,7 @@ c     Input variables
 
         integer    :: l,i,j,k,igx,igy,igz
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
@@ -958,15 +907,7 @@ c     Local variables
         real(8)    :: x1,x2,x3,tensor(3,3),aa,bb,major_r,mm,kk,eps,phi
      .               ,gp(ngparams)
 
-        type(grid_mg_def),pointer :: gl_def
-
 c     Begin program
-
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
 
         gp = gl_def%params
 
@@ -974,8 +915,8 @@ c     Begin program
         case ('car','lpk')
           vec = (/ 0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0,0d0 /)
         case ('cyl')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3,g_def=g_def)
+          call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1,x2,x3)
           curv = (/ x1,x2,x3 /)
 
           select case (l)
@@ -1014,8 +955,8 @@ c     Begin program
           vec = -vec
 
         case ('hel')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3,g_def=g_def)
+          call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1,x2,x3)
           curv = (/ x1,x2,x3 /)
 
           mm = gp(1)
@@ -1058,8 +999,8 @@ c     Begin program
           vec = -vec
 
         case ('hl2')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3,g_def=g_def)
+          call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1,x2,x3)
           curv = (/ abs(2*x1),x2,x3 /)
 
           mm = gp(1)
@@ -1100,8 +1041,8 @@ c     Begin program
           end select
 
         case ('tor')
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3,g_def=g_def)
+          call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1,x2,x3)
           curv = (/ x1,x2,x3 /)
 
           major_r = gp(1)
@@ -1147,8 +1088,8 @@ c     Begin program
 
           pi = acos(-1d0)
 
-          call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                  ,x1,x2,x3,g_def=g_def)
+          call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1,x2,x3)
           curv = (/ x1,x2,x3 /)
 
           eps = gp(1)
@@ -1228,7 +1169,7 @@ c     Begin program
 
 c     gamma_anal
 c     #################################################################
-      function gamma_anal(curv,g_def) result(gamma)
+      function gamma_anal(gl_def,curv) result(gamma)
 
 c     -----------------------------------------------------------------
 c     Calculates covariant vectors of curvilinear coordinate system
@@ -1241,7 +1182,7 @@ c     Input variables
 
         real(8) :: curv(3),gamma(3,3,3)
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
@@ -1249,15 +1190,7 @@ c     Local variables
      .            ,vec(3,3,3),x1,x2,x3
         real(8) :: gp(ngparams)
 
-        type(grid_mg_def),pointer :: gl_def
-
 c     Begin program
-
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
 
         gp = gl_def%params
 
@@ -1498,7 +1431,7 @@ cc          end select
 
 c     christ_2knd
 c     #################################################################
-      function christ_2knd(i,j,k,igx,igy,igz,g_def) result (tensor)
+      function christ_2knd(gl_def,i,j,k,igx,igy,igz) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates elements of Christoffel symbol of the second kind,
@@ -1513,15 +1446,15 @@ c     Input variables
         integer    :: l,i,j,k,igx,igy,igz
         real(8)    :: tensor(3,3,3)
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
 c     Begin program
 
-        tensor(1,:,:) = hessian22(1,i,j,k,igx,igy,igz,g_def=g_def)
-        tensor(2,:,:) = hessian22(2,i,j,k,igx,igy,igz,g_def=g_def)
-        tensor(3,:,:) = hessian22(3,i,j,k,igx,igy,igz,g_def=g_def)
+        tensor(1,:,:) = hessian22(gl_def,1,i,j,k,igx,igy,igz)
+        tensor(2,:,:) = hessian22(gl_def,2,i,j,k,igx,igy,igz)
+        tensor(3,:,:) = hessian22(gl_def,3,i,j,k,igx,igy,igz)
 
 c     End program
 
@@ -1529,7 +1462,7 @@ c     End program
 
 c     hessian_cnv
 c     #################################################################
-      function hessian_cnv(k,x1,x2,x3,g_def) result (tensor)
+      function hessian_cnv(gl_def,k,x1,x2,x3) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates elements of tensor grad(cnv) in a mixed coordinate 
@@ -1544,21 +1477,13 @@ c     Input variables
         integer    :: k
         real(8)    :: x1,x2,x3,tensor(3,3)
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
         real(8)    :: vec(9),car(3),aa,bb,major_r,mm,kk,eps,gp(ngparams)
 
-        type(grid_mg_def),pointer :: gl_def
-
 c     Begin program
-
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
 
         gp = gl_def%params
 
@@ -1682,7 +1607,7 @@ c     Begin program
 
 c     g_sub
 c     #################################################################
-      function g_sub(i,j,k,igx,igy,igz,vertex,g_def) result (tensor)
+      function g_sub(gl_def,i,j,k,igx,igy,igz,vertex) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates contravariant metric tensor of curvilinear coordinate 
@@ -1697,7 +1622,7 @@ c     Input variables
         real(8) :: tensor(3,3)
         logical,optional :: vertex
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
@@ -1707,8 +1632,6 @@ c     Local variables
      .            ,x1p,x2p,x3p,i_x1
         logical :: vrtx
 
-        type(grid_mg_def),pointer :: gl_def
-
 c     Begin program
 
         if (PRESENT(vertex)) then
@@ -1717,21 +1640,14 @@ c     Begin program
           vrtx = .false.
         endif
 
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
-
         gp = gl_def%params
 
-        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,x2,x3,g_def=g_def)
+        call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz,ig,jg,kg
+     .                                ,x1,x2,x3)
 
         if (vrtx) then
-          call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
-     .                                  ,ig,jg,kg,x1p,x2p,x3p
-     .                                  ,g_def=g_def)
+          call getCurvilinearCoordinates(gl_def,i+1,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
           x1 = 0.5*(x1+x1p)
           x2 = 0.5*(x2+x2p)
           x3 = 0.5*(x3+x3p)
@@ -1862,7 +1778,7 @@ c     Begin program
 
 c     g_sup
 c     #################################################################
-      function g_sup(i,j,k,igx,igy,igz,vertex,g_def) result (tensor)
+      function g_sup(gl_def,i,j,k,igx,igy,igz,vertex) result (tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates covariant metric tensor of curvilinear coordinate 
@@ -1877,7 +1793,7 @@ c     Input variables
         real(8) :: tensor(3,3)
         logical,optional :: vertex
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
@@ -1887,8 +1803,6 @@ c     Local variables
      .            ,x1p,x2p,x3p
         logical :: vrtx
 
-        type(grid_mg_def),pointer :: gl_def
-
 c     Begin program
 
         if (PRESENT(vertex)) then
@@ -1897,21 +1811,14 @@ c     Begin program
           vrtx = .false.
         endif
 
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
-
         gp = gl_def%params
 
-        call getCurvilinearCoordinates(i,j,k,igx,igy,igz,ig,jg,kg
-     .                                ,x1,x2,x3,g_def=g_def)
+        call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz,ig,jg,kg
+     .                                ,x1,x2,x3)
 
         if (vrtx) then
-          call getCurvilinearCoordinates(i+1,j+1,k+1,igx,igy,igz
-     .                                  ,ig,jg,kg,x1p,x2p,x3p
-     .                                  ,g_def=g_def)
+          call getCurvilinearCoordinates(gl_def,i+1,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
           x1 = 0.5*(x1+x1p)
           x2 = 0.5*(x2+x2p)
           x3 = 0.5*(x3+x3p)
@@ -2050,7 +1957,7 @@ c     Begin program
 
 c     gsup_anal
 c     #################################################################
-      function gsup_anal(curv,g_def) result(tensor)
+      function gsup_anal(gl_def,curv) result(tensor)
 
 c     -----------------------------------------------------------------
 c     Calculates covariant vectors of curvilinear coordinate system
@@ -2063,22 +1970,14 @@ c     Input variables
 
         real(8) :: curv(3),tensor(3,3)
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: gl_def
 
 c     Local variables
 
         real(8) :: aa,bb,major_r,mm,kk,eps,phi,jac,x1,x2,x3
         real(8) :: gp(ngparams),vec(9)
 
-        type(grid_mg_def),pointer :: gl_def
-
 c     Begin program
-
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
 
         gp = gl_def%params
 

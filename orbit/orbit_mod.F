@@ -383,7 +383,7 @@ c     ----------------------------------------------------------------------
 
 c     orbit_setup
 c     ######################################################################
-      subroutine orbit_setup(nx,ny,nz,xx,yy,zz
+      subroutine orbit_setup(g_def,igrid
      .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap,bcnd
      .                      ,tmax,smax,dtime
      .                      ,niter,atol,rtol,order,solen,picard
@@ -399,11 +399,12 @@ c     ----------------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nx,ny,nz,bcnd(6)
-        real(8) :: xx(nx),yy(ny),zz(nz)
-        real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
-        real(8) :: bxcar(nx,ny,nz),bycar(nx,ny,nz),bzcar(nx,ny,nz)
-        real(8) :: xmap(nx,ny,nz,3),jac(nx,ny,nz)
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: bcnd(6),igrid
+        real(8) :: bx(:,:,:),by(:,:,:),bz(:,:,:)
+        real(8) :: bxcar(:,:,:),bycar(:,:,:),bzcar(:,:,:)
+        real(8) :: xmap(:,:,:,:),jac(:,:,:)
 
         !Optional parameters
         real(8),optional :: tmax,smax,dtime,atol,rtol,r_min
@@ -527,7 +528,7 @@ cc        shist = UNDEF_DP
 
 c     Do splines
 
-        call setupSplines(nx,ny,nz,xx,yy,zz
+        call setupSplines(g_def,igrid
      .                   ,orbit_conf%spline_conf%order
      .                   ,xmin,xmax,ymin,ymax,zmin,zmax,obcnd)
 

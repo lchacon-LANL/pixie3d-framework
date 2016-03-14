@@ -284,11 +284,11 @@ c     Calculate/approx. the size of data we will going to write out
 cc      write (node_ldim_str, '(i0,",",i0,",",i0)') nxl+1,nyl+1,nzl+1
 c Temporary fix to ADIOS bug (L. Chacon, 10/6/10)
       nx_temp = nxl
-      if (isBdry(nxl,1,2)) nx_temp = nxl + 1
+      if (isBdry(gv%gparams,nxl,1,2)) nx_temp = nxl + 1
       ny_temp = nyl
-      if (isBdry(nyl,1,4)) ny_temp = nyl + 1
+      if (isBdry(gv%gparams,nyl,1,4)) ny_temp = nyl + 1
       nz_temp = nzl
-      if (isBdry(nzl,1,6)) nz_temp = nzl + 1
+      if (isBdry(gv%gparams,nzl,1,6)) nz_temp = nzl + 1
 
       write (node_ldim_str, '(i0,",",i0,",",i0,",iter")')
      .        nx_temp,ny_temp,nz_temp
@@ -436,8 +436,9 @@ c         Write the coordinate data
           do k=klom,khip
             do j=jlom,jhip
               do i=ilom,ihip
-                call getCartesianCoordinates(i,j,k,iggx,iggy,iggz,
-     .            iig,jjg,kkg,cell(i,j,k,1),cell(i,j,k,2),cell(i,j,k,3))
+                call getCartesianCoordinates(gv%gparams,i,j,k,iggx,iggy
+     .               ,iggz,iig,jjg,kkg,cell(i,j,k,1),cell(i,j,k,2)
+     .               ,cell(i,j,k,3))
               enddo
             enddo
           enddo

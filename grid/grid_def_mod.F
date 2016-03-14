@@ -149,10 +149,6 @@ c #####################################################################
 
         end type grid_mg_def
 
-        type(grid_mg_def),pointer :: grid_params => null()
-
-        type(MG_grid_metrics),pointer :: gmetric => null()
-
       contains
 
 c     allocateGridStructure

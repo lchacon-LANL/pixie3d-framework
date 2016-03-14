@@ -7,7 +7,7 @@ c #####################################################################
 !#! Marco
         use lyapn
 
-        use grid, ONLY:pstop,my_rank,grid_params
+        use grid, ONLY:pstop,my_rank,grid_mg_def
 
         use bc_def, bcond2 => bcond
 
@@ -201,7 +201,7 @@ c     End program
 
 c     setupSplines
 c     #################################################################
-      subroutine setupSplines(nnx,nny,nnz,xx,yy,zz,order
+      subroutine setupSplines(g_def,igrid,order
      .                       ,xmin,xmax,ymin,ymax,zmin,zmax,bcnd)
 c     -----------------------------------------------------------------
 c     This routine sets up 3D splines, including allocation of memory
@@ -212,8 +212,9 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nnx,nny,nnz,order
-        real(8) :: xx(nnx),yy(nny),zz(nnz)
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid,order
         real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
         integer :: bcnd(6)
 
@@ -227,34 +228,40 @@ c     Begin program
 
 c     Initialize private variables
 
-        nx = nnx
-        ny = nny
-        nz = nnz
+c$$$        nx = nnx
+c$$$        ny = nny
+c$$$        nz = nnz
+        nx = g_def%nxgl(igrid) + 2
+        ny = g_def%nygl(igrid) + 2
+        nz = g_def%nzgl(igrid) + 2
 
         allocate(xs(nx),ys(ny),zs(nz))
 
 c     Initialize spline domain arrays
 
-        xs = xx
-        ys = yy
-        zs = zz
+c$$$        xs = xx
+c$$$        ys = yy
+c$$$        zs = zz
+        xs = g_def%xg
+        ys = g_def%yg
+        zs = g_def%zg
 
 c     Define domain limits
 
-        if (associated(grid_params)) then
-          xsmin = grid_params%gxmin
-          xsmax = grid_params%gxmax
+cc        if (associated(g_def)) then
+        xsmin = g_def%gxmin
+        xsmax = g_def%gxmax
           
-          ysmin = grid_params%gymin
-          ysmax = grid_params%gymax
+        ysmin = g_def%gymin
+        ysmax = g_def%gymax
           
-          zsmin = grid_params%gzmin
-          zsmax = grid_params%gzmax
-        else
-          call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-          call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-          call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
-        endif
+        zsmin = g_def%gzmin
+        zsmax = g_def%gzmax
+c$$$        else
+c$$$          call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+c$$$          call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+c$$$          call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+c$$$        endif
 
         xmin = xsmin
         xmax = xsmax
@@ -597,10 +604,10 @@ cccc          if (.not.glbl) call getMGmap(i,1,1,igx,igy,igz,ig,jg,kg)
 cccc
 cccc          if (spoint) then
 cccc            if (.not.glbl) then
-cccc              dxx = grid_params%dxh(ig-1)
+cccc              dxx = g_def%dxh(ig-1)
 cccc            else
-cccccc              dxx = 0.5*(grid_params%xg(i+1)-grid_params%xg(i-1))
-cccc              dxx = grid_params%xg(i)-grid_params%xg(i-1)
+cccccc              dxx = 0.5*(g_def%xg(i+1)-g_def%xg(i-1))
+cccc              dxx = g_def%xg(i)-g_def%xg(i-1)
 cccc            endif
 cccc
 cccc            a(i,:,:,3) = a(i-1,:,:,3) - dxx*b(i,:,:,2)

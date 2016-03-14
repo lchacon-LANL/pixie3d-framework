@@ -55,7 +55,7 @@ c     Initialize contour files
           if (graph(igroup)%cartesian) then
             call M_contour(ugraph(igroup),nqty(igroup)
      .                     ,graph(igroup)%array_graph(1:nqty(igroup))
-     .                     ,0,car=gmetric%grid(iggx)%car)
+     .                     ,0,car=gv%gparams%gmetric%grid(iggx)%car)
           else
             call M_contour(ugraph(igroup),nqty(igroup)
      .                     ,graph(igroup)%array_graph(1:nqty(igroup))
@@ -204,7 +204,7 @@ c     Begin program
           if (graph(igroup)%cartesian) then
             call M_contour(ugraph(igroup),nqty(igroup)
      .                     ,graph(igroup)%array_graph(1:nqty(igroup))
-     .                     ,1,car=gmetric%grid(iggx)%car)
+     .                     ,1,car=gv%gparams%gmetric%grid(iggx)%car)
           else
             call M_contour(ugraph(igroup),nqty(igroup)
      .                     ,graph(igroup)%array_graph(1:nqty(igroup))
@@ -349,14 +349,14 @@ c     Dump plots
           if (cartesian) then
             select case(comp)
             case(1)
-              call getCartesianCoordinates(l,jplt,kplt,iggx,iggy,iggz
-     .                                ,iig,jjg,kkg,car(1),car(2),car(3))
+              call getCartesianCoordinates(gv%gparams,l,jplt,kplt,iggx
+     .             ,iggy,iggz,iig,jjg,kkg,car(1),car(2),car(3))
             case(2)
-              call getCartesianCoordinates(iplt,l,kplt,iggx,iggy,iggz
-     .                                ,iig,jjg,kkg,car(1),car(2),car(3))
+              call getCartesianCoordinates(gv%gparams,iplt,l,kplt,iggx
+     .             ,iggy,iggz,iig,jjg,kkg,car(1),car(2),car(3))
             case(3)
-              call getCartesianCoordinates(iplt,jplt,l,iggx,iggy,iggz
-     .                                ,iig,jjg,kkg,car(1),car(2),car(3))
+              call getCartesianCoordinates(gv%gparams,iplt,jplt,l,iggx
+     .             ,iggy,iggz,iig,jjg,kkg,car(1),car(2),car(3))
             end select
             write(unit) real(car(comp)),real(profiles(l,1:nqty))
           else
@@ -410,7 +410,7 @@ c     ##################################################################
           if (graph(igroup)%cartesian)
      .         call M_contour(ugraph(igroup),nqty(igroup)
      .                    ,graph(igroup)%array_graph(1:nqty(igroup))
-     .                    ,2,car=gmetric%grid(iggx)%car)
+     .                    ,2,car=gv%gparams%gmetric%grid(iggx)%car)
 
           close(unit=ugraph(igroup))
           close(unit=uprofile(igroup))

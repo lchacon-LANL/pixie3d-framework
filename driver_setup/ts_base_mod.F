@@ -231,7 +231,7 @@ c     Begin program
      .            -u_0 %array_var(ieq)%array )
           array = array*array
 
-          dpert = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+          dpert = integral(gv%gparams,1,array,average=.true.)
 
           dpert = sqrt(dpert)
 
@@ -239,14 +239,14 @@ c     Begin program
      .            -u_0%array_var(ieq)%array )
           array = array*array
 
-          dmag1 = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+          dmag1 = integral(gv%gparams,1,array,average=.true.)
 
           array = (u_np%array_var(ieq)%array
      .            +u_n %array_var(ieq)%array
      .         -2.*u_0 %array_var(ieq)%array )
           array = array*array
 
-          dmag2 = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+          dmag2 = integral(gv%gparams,1,array,average=.true.)
 
           if (dpert/=sqrt(dmag1).and.dmag2 /=0d0) then
             mag(ieq) = .5*dt*sqrt(dmag2)/(dpert-sqrt(dmag1))

@@ -102,7 +102,6 @@ c     Close current record files
 
 c     Read reference grid info
 
-      nullify(grid_params)
       call destroyGrid(gv%gparams)
 
       ufile=openRestartFileForRead(file=acc_ref_file)
@@ -144,11 +143,11 @@ c Spline reference solution
 
       allocate(xx(nxs),yy(nys),zz(nzs))
 
-      call getMGmap(1,1,1,igx,igy,igz,ig,jg,kg)
+      call getMGmap(gv%gparams,1,1,1,igx,igy,igz,ig,jg,kg)
 
-      xx(1:nxs) = grid_params%xx(ig-1:ig+nx)
-      yy(1:nys) = grid_params%yy(jg-1:jg+ny)
-      zz(1:nzs) = grid_params%zz(kg-1:kg+nz)
+      xx(1:nxs) = gv%gparams%xx(ig-1:ig+nx)
+      yy(1:nys) = gv%gparams%yy(jg-1:jg+ny)
+      zz(1:nzs) = gv%gparams%zz(kg-1:kg+nz)
 
       flg = 0
 
@@ -166,7 +165,6 @@ c Spline reference solution
 
 c Initialize current grid info and read current grid solution
 
-      nullify(grid_params)
       call destroyGrid(gv%gparams)
 
       igx = 1
@@ -222,11 +220,11 @@ c Calculate difference
         do k = 1,nz
           do j = 1,ny
             do i = 1,nx
-              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+              call getMGmap(gv%gparams,i,j,k,igx,igy,igz,ig,jg,kg)
 
-              xp = grid_params%xx(ig)
-              yp = grid_params%yy(jg)
-              zp = grid_params%zz(kg)
+              xp = gv%gparams%xx(ig)
+              yp = gv%gparams%yy(jg)
+              zp = gv%gparams%zz(kg)
 
               interp = db3val(xp,yp,zp,0,0,0,tx,ty,tz,nxs,nys,nzs
      .                       ,kx,ky,kz,bcoef,work)
@@ -248,13 +246,13 @@ c diag ****
 c diag ****
 
         !L1 norm
-        mag = integral(igx,igy,igz,nx,ny,nz,array,average=.true.)
+        mag = integral(gv%gparams,igx,array,average=.true.)
 
         if (my_rank == 0)
      .    write (*,10) ' L1-norm error, component:',ivar,'=',mag
 
         !L2 norm
-        mag = integral(igx,igy,igz,nx,ny,nz,array**2,average=.true.)
+        mag = integral(gv%gparams,igx,array**2,average=.true.)
         mag = sqrt(mag)
 
         if (my_rank == 0)
@@ -447,13 +445,13 @@ cc        close(110)
 c diag ****
 
         !L1 norm
-        mag = integral(igx,igy,igz,nx,ny,nz,asol,average=.true.)
+        mag = integral(gv%gparams,igx,asol,average=.true.)
 
         if (my_rank == 0)
      .    write (*,10) ' L1-norm time error, component:',ivar,'=',mag
 
         !L2 norm
-        mag = integral(igx,igy,igz,nx,ny,nz,asol**2,average=.true.)
+        mag = integral(gv%gparams,igx,asol**2,average=.true.)
         mag = sqrt(mag)
 
         if (my_rank == 0)

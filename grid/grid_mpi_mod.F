@@ -1508,7 +1508,7 @@ c     End program
 
 c     inProc
 c     #################################################################
-      function inProc(igl,jgl,kgl,igx,igy,igz,g_def)
+      function inProc(gl_def,igl,jgl,kgl,igx,igy,igz)
 
         implicit none
 
@@ -1517,19 +1517,11 @@ c     Call variables
         integer :: igl,jgl,kgl,igx,igy,igz
         logical :: inProc
 
-        type(grid_mg_def),pointer,optional  :: g_def
+        type(grid_mg_def),optional  :: gl_def
 
 c     Local variables
 
-        type(grid_mg_def),pointer  :: gl_def => null()
-
 c     Begin program
-
-        if (PRESENT(g_def)) then
-          gl_def => g_def
-        else
-          gl_def => grid_params
-        endif
 
         inProc =igl>=gl_def%ilo(igx).and.igl<=gl_def%ihi(igx)
      .     .and.jgl>=gl_def%jlo(igy).and.jgl<=gl_def%jhi(igy)
@@ -2009,7 +2001,7 @@ c     End program
 
 c     find_local_field_vec
 c     ##############################################################
-      subroutine find_local_field_vec(igrid,gf,lf)
+      subroutine find_local_field_vec(g_def,igrid,gf,lf)
 
       implicit none
 
@@ -2018,6 +2010,8 @@ c     Performs parallel reduction to find global field.
 c     --------------------------------------------------------------
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
 
       integer :: igrid
       real(8),dimension(0:,0:,0:,:) :: lf,gf
@@ -2040,7 +2034,7 @@ c     Transfer field to local mesh
 
             !Find global limits
             ilc = (/i,j,k/)
-            igl = globalIndex(igrid,ilc)
+            igl = globalIndex(g_def,igrid,ilc)
 
             !Map field
             lf(i,j,k,:) = gf(igl(1),igl(2),igl(3),:)
@@ -2054,7 +2048,7 @@ c     End program
 
 c     find_local_field_scl
 c     ##############################################################
-      subroutine find_local_field_scl(igrid,gf,lf)
+      subroutine find_local_field_scl(g_def,igrid,gf,lf)
 
       implicit none
 
@@ -2063,6 +2057,8 @@ c     Performs parallel reduction to find global field.
 c     --------------------------------------------------------------
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
 
       integer :: igrid
       real(8),dimension(0:,0:,0:) :: lf,gf
@@ -2084,7 +2080,7 @@ c     Transfer field to local mesh
           do i=0,dl(1)-1
 
             !Find global limits
-            igl = globalIndex(igrid,(/i,j,k/))
+            igl = globalIndex(g_def,igrid,(/i,j,k/))
 
             !Map field
             lf(i,j,k) = gf(igl(1),igl(2),igl(3))

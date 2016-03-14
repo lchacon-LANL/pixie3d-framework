@@ -76,33 +76,36 @@ c #####################################################################
 
         type :: var_array
           integer :: nvar               !Number of variables
-          type (var_def),pointer,dimension(:) :: array_var ! array of variables
+          type (var_def),pointer,dimension(:) :: array_var => null() ! array of variables
         end type var_array
 
         type :: aux_array
           integer :: nvar,nvec          !Number of variables, vectors
-          type (vec_def),pointer,dimension(:) :: vec_list   ! vector auxillary components
-          type (var_def),pointer,dimension(:) :: var_list   ! scalar auxillary components
+          type (vec_def),pointer,dimension(:) :: vec_list => null()  ! vector auxillary components
+          type (var_def),pointer,dimension(:) :: var_list => null()  ! scalar auxillary components
         end type aux_array
 
         type :: bcgrp
-          integer  :: nbc_seq                         ! number of variables in bc sequence
-          integer,pointer,dimension(:,:):: bc_seq     ! array showing sequence in which to set bc's 
+          integer  :: nbc_seq                                  ! number of variables in bc sequence
+          integer,pointer,dimension(:,:):: bc_seq => null()    ! array showing sequence in which to set bc's 
         end type bcgrp
 
         type :: patch
           integer  :: nbc_grp                         ! number of BC bundled groups
-          type(bcgrp),pointer,dimension(:):: bc_grp   ! array of bundled variables for BC treatment
+          type(bcgrp),pointer,dimension(:):: bc_grp => null()  ! array of bundled variables for BC treatment
 
-          type(var_array)  ,pointer :: u_0        ! equilibrium data
-          type(var_array)  ,pointer :: u_n        ! data at time n
-          type(var_array)  ,pointer :: u_np       ! data at n+1
-          type(var_array)  ,pointer :: u_nm       ! data at n-1
+          type(var_array)  ,pointer :: u_0     => null()   ! equilibrium data
+          type(var_array)  ,pointer :: u_n     => null()   ! data at time n
+          type(var_array)  ,pointer :: u_np    => null()   ! data at n+1
+          type(var_array)  ,pointer :: u_nm    => null()   ! data at n-1
 
-          type(aux_array)  ,pointer :: aux        ! auxiliary variables
-          type(grid_mg_def),pointer :: gparams    ! contains all grid info
+          type(aux_array)  ,pointer :: aux     => null()   ! auxiliary variables
+          type(grid_mg_def),pointer :: gparams => null()   ! contains all grid info
 #if defined(flux_rhs)
-          real(8),pointer,dimension(:,:,:,:) :: flux_x,flux_y,flux_z,src
+          real(8),pointer,dimension(:,:,:,:) :: flux_x => null()
+     .                                         ,flux_y => null()
+     .                                         ,flux_z => null()
+     .                                         ,src => null()
 #endif
         end type patch
 
@@ -655,7 +658,7 @@ c     End program
 
 c     mapStructureToVector
 c     #################################################################
-      subroutine mapStructureToVector(x,varray,igr)
+      subroutine mapStructureToVector(g_def,x,varray,igr)
 
 c     -----------------------------------------------------------------
 c     Maps structure into vector (without ghost cells)
@@ -664,6 +667,8 @@ c     -----------------------------------------------------------------
       implicit none
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
 
       real(8),intent(out)      :: x(:)
       integer, optional :: igr
@@ -682,10 +687,11 @@ c     Unpack vector x
 
       neq = varray%nvar
 
-      do k = 1,gv%gparams%nzv(iigr)
-        do j = 1,gv%gparams%nyv(iigr)
-          do i = 1,gv%gparams%nxv(iigr)
-            ii = vecPos(neq,i,j,k,iigr,iigr,iigr)
+      do k = 1,g_def%nzv(iigr)
+        do j = 1,g_def%nyv(iigr)
+          do i = 1,g_def%nxv(iigr)
+cc            ii = vecPos(neq,i,j,k,iigr,iigr,iigr)
+            ii = neq*vPos(g_def,iigr,(/i,j,k/))
             do ieq=1,neq
               x(ii+ieq) = varray%array_var(ieq)%array(i,j,k)
             enddo
@@ -699,7 +705,7 @@ c     End program
 
 c     mapVectorToStructure
 c     #################################################################
-      subroutine mapVectorToStructure(varray,x,igr)
+      subroutine mapVectorToStructure(g_def,varray,x,igr)
 
 c     -----------------------------------------------------------------
 c     Maps vector solution into structure.
@@ -708,6 +714,8 @@ c     -----------------------------------------------------------------
       implicit none
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
 
       real(8),dimension(:),intent(in) :: x(:)
       integer, optional :: igr
@@ -730,10 +738,11 @@ c     Unpack vector x
 
       neq = varray%nvar
 
-      do k = 1,gv%gparams%nzv(iigr)
-        do j = 1,gv%gparams%nyv(iigr)
-          do i = 1,gv%gparams%nxv(iigr)
-            ii = vecPos(neq,i,j,k,iigr,iigr,iigr)
+      do k = 1,g_def%nzv(iigr)
+        do j = 1,g_def%nyv(iigr)
+          do i = 1,g_def%nxv(iigr)
+cc            ii = vecPos(neq,i,j,k,iigr,iigr,iigr)
+            ii = neq*vPos(g_def,iigr,(/i,j,k/))
             do ieq=1,neq
               varray%array_var(ieq)%array(i,j,k) = x(ii+ieq)
             enddo
@@ -812,7 +821,7 @@ c     End program
 
 c     scaleVector_by_vol1
 c     ###################################################################
-      subroutine scaleVector_by_vol1(igr,neq,vec1,op)
+      subroutine scaleVector_by_vol1(g_def,igr,neq,vec1,op)
 
 c     -------------------------------------------------------------------
 c     Scales vec1 by volume (vec1=>vec1/vol) on the mesh. In call:
@@ -825,6 +834,8 @@ c     -------------------------------------------------------------------
       implicit none
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
 
       integer :: igr,neq
       real(8) :: vec1(:)
@@ -836,22 +847,19 @@ c     Local variables
 
 c     Begin program
 
-      nnx = grid_params%nxv(igr)
-      nny = grid_params%nyv(igr)
-      nnz = grid_params%nzv(igr)
+      nnx = g_def%nxv(igr)
+      nny = g_def%nyv(igr)
+      nnz = g_def%nzv(igr)
 
       select case(op)
       case('mul')
         do k=1,nnz
           do j=1,nny
             do i=1,nnx
-              ii=vecPos(neq,i,j,k,igr,igr,igr)
+cc              ii=vecPos(neq,i,j,k,igr,igr,igr)
+              ii=neq*vPos(g_def,igr,(/i,j,k/))
               vec1(ii+1:ii+neq) = vec1(ii+1:ii+neq)
-     .                           *gmetric%grid(igr)%dlvol(i,j,k)
-cc              do ieq=1,neq
-cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
-cc                vec1(iii) = vec1(iii)*gmetric%grid(igr)%dlvol(i,j,k)
-cc              enddo
+     .                           *g_def%gmetric%grid(igr)%dlvol(i,j,k)
             enddo
           enddo
         enddo
@@ -859,13 +867,10 @@ cc              enddo
         do k=1,nnz
           do j=1,nny
             do i=1,nnx
-              ii=vecPos(neq,i,j,k,igr,igr,igr)
+cc              ii=vecPos(neq,i,j,k,igr,igr,igr)
+              ii=neq*vPos(g_def,igr,(/i,j,k/))
               vec1(ii+1:ii+neq) = vec1(ii+1:ii+neq)
-     .                           /gmetric%grid(igr)%dlvol(i,j,k)
-cc              do ieq=1,neq
-cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
-cc                vec1(iii) = vec1(iii)/gmetric%grid(igr)%dlvol(i,j,k)
-cc              enddo
+     .                           /g_def%gmetric%grid(igr)%dlvol(i,j,k)
             enddo
           enddo
         enddo
@@ -875,7 +880,7 @@ cc              enddo
 
 c     scaleVector_by_vol
 c     ###################################################################
-      subroutine scaleVector_by_vol2(igr,neq,vec1,op)
+      subroutine scaleVector_by_vol2(g_def,igr,neq,vec1,op)
 
 c     -------------------------------------------------------------------
 c     Scales vec1 by volume (vec1=>vec1/vol) on the mesh. In call:
@@ -889,6 +894,8 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
+      type(grid_mg_def),pointer :: g_def
+
       integer :: igr,neq
       real(8) :: vec1(:,:)
       character(3) :: op
@@ -899,9 +906,9 @@ c     Local variables
 
 c     Begin program
 
-      nnx = grid_params%nxv(igr)
-      nny = grid_params%nyv(igr)
-      nnz = grid_params%nzv(igr)
+      nnx = g_def%nxv(igr)
+      nny = g_def%nyv(igr)
+      nnz = g_def%nzv(igr)
 
       select case(op)
       case('mul')
@@ -909,7 +916,8 @@ c     Begin program
           do j=1,nny
             do i=1,nnx
               iii= i + nnx*(j-1) + nnx*nny*(k-1)
-              vec1(iii,:) = vec1(iii,:)*gmetric%grid(igr)%dlvol(i,j,k)
+              vec1(iii,:) = vec1(iii,:)
+     .                     *g_def%gmetric%grid(igr)%dlvol(i,j,k)
             enddo
           enddo
         enddo
@@ -918,7 +926,8 @@ c     Begin program
           do j=1,nny
             do i=1,nnx
               iii= i + nnx*(j-1) + nnx*nny*(k-1)
-              vec1(iii,:) = vec1(iii,:)/gmetric%grid(igr)%dlvol(i,j,k)
+              vec1(iii,:) = vec1(iii,:)
+     .                     /g_def%gmetric%grid(igr)%dlvol(i,j,k)
             enddo
           enddo
         enddo
@@ -953,9 +962,9 @@ cc      integer :: i,j,k,iii,ieq,nnx,nny,nnz
 cc
 ccc     Begin program
 cc
-cc      nnx = grid_params%nxv(igr)
-cc      nny = grid_params%nyv(igr)
-cc      nnz = grid_params%nzv(igr)
+cc      nnx = g_def%nxv(igr)
+cc      nny = g_def%nyv(igr)
+cc      nnz = g_def%nzv(igr)
 cc
 cc      select case(op)
 cc      case('mul')
@@ -964,7 +973,7 @@ cc          do j=1,nny
 cc            do i=1,nnx
 cc              do ieq=1,neq
 cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
-cc                vec2(iii) = vec1(iii)*gmetric%grid(igr)%dlvol(i,j,k)
+cc                vec2(iii) = vec1(iii)*g_def%gmetric%grid(igr)%dlvol(i,j,k)
 cc              enddo
 cc            enddo
 cc          enddo
@@ -975,7 +984,7 @@ cc          do j=1,nny
 cc            do i=1,nnx
 cc              do ieq=1,neq
 cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
-cc                vec2(iii) = vec1(iii)/gmetric%grid(igr)%dlvol(i,j,k)
+cc                vec2(iii) = vec1(iii)/g_def%gmetric%grid(igr)%dlvol(i,j,k)
 cc              enddo
 cc            enddo
 cc          enddo

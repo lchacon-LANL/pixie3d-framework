@@ -502,8 +502,12 @@ c     ---------------------------------------------------------------------
         do k=klom,khip
           do j=jlom,jhip
             do i=ilom,ihip
-              call getCartesianCoordinates(i,j,k,iggx,iggy,iggz
-     .          ,iig,jjg,kkg,cell(i,j,k,1),cell(i,j,k,2),cell(i,j,k,3))
+              call getCartesianCoordinates(gv%gparams,i,j,k
+     .                                    ,iggx,iggy,iggz
+     .                                    ,iig,jjg,kkg
+     .                                    ,cell(i,j,k,1)
+     .                                    ,cell(i,j,k,2)
+     .                                    ,cell(i,j,k,3))
             enddo
           enddo
         enddo

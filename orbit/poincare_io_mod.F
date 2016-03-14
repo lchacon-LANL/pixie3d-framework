@@ -19,6 +19,8 @@
 
         logical :: tor
 
+        type(grid_mg_def),pointer :: g_poinc => null()
+
         !Global arrays
         real(8),pointer,dimension(:)       :: xx,yy,zz
         real(8),pointer,dimension(:,:,:)   :: jacg
@@ -139,7 +141,20 @@ c     Begin program
         call sp_domain_limits(yy,bcnd(3),ymin,ymax)
         call sp_domain_limits(zz,bcnd(5),zmin,zmax)
 
-        call orbit_setup(nx,ny,nz,xx,yy,zz
+        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
+
+        g_poinc%gxmin = xmin
+        g_poinc%gxmax = xmax
+        g_poinc%gymin = ymin
+        g_poinc%gymax = ymax
+        g_poinc%gzmin = zmin
+        g_poinc%gzmax = zmax
+
+        g_poinc%xg = xx
+        g_poinc%yg = yy
+        g_poinc%zg = zz
+
+        call orbit_setup(g_poinc,1
      .                  ,bx,by,bz,bxcar,bycar,bzcar
      .                  ,jac,xmap,bcnd
      .                  ,tmax=tmax
@@ -162,6 +177,7 @@ c       Deallocate memory
         deallocate(xx,yy,zz)
         deallocate(bx,by,bz)
         deallocate(jac,xmap,bxcar,bycar,bzcar)
+        call deallocateGridStructure(g_poinc)
 
         return
 
@@ -228,7 +244,20 @@ c     Orbit initialization on global array
         call sp_domain_limits(yy,bcnd(3),ymin,ymax)
         call sp_domain_limits(zz,bcnd(5),zmin,zmax)
 
-        call orbit_setup(nx,ny,nz,xx,yy,zz
+        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
+
+        g_poinc%gxmin = xmin
+        g_poinc%gxmax = xmax
+        g_poinc%gymin = ymin
+        g_poinc%gymax = ymax
+        g_poinc%gzmin = zmin
+        g_poinc%gzmax = zmax
+
+        g_poinc%xg = xx
+        g_poinc%yg = yy
+        g_poinc%zg = zz
+
+        call orbit_setup(g_poinc,1
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -589,6 +618,7 @@ c     ##################################################################
       subroutine dealloc_poincare_data
 
         deallocate(bg,bcarg,jacg,carg,xx,yy,zz)
+        call deallocateGridStructure(g_poinc)
 
       end subroutine dealloc_poincare_data
 

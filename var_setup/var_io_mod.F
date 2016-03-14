@@ -379,10 +379,10 @@ c        write (*,"(a,i1,a,i4,i4,i4,i4,i4,i4)") "rank=",my_rank,
 c     .      " global indices again: ",
 c     .      ilomg,ihipg,jlomg,jhipg,klomg,khipg
 
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
+          call fromGlobalToLocalLimits(gv%gparams,1
+     .         ,ilomg,jlomg,klomg,ilom,jlom,klom)
+          call fromGlobalToLocalLimits(gv%gparams,1
+     .         ,ihipg,jhipg,khipg,ihip,jhip,khip)
 
           if (adios_debug)
      .      write (*,"(a,i0,a,i4,i4,i4,i4,i4,i4)") "rank=",my_rank,
@@ -1691,7 +1691,7 @@ c     End program
 
 c     readExtMap
 c     ###############################################################
-      subroutine readExtMap
+      subroutine readExtMap(g_def)
 
 c     -----------------------------------------------------------------
 c     Reads external map using POSIX files
@@ -1700,6 +1700,8 @@ c     -----------------------------------------------------------------
         implicit none
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -1713,9 +1715,9 @@ c     Begin program
 
         igrid = 1
 
-        nxg = grid_params%nxgl(igrid)
-        nyg = grid_params%nygl(igrid)
-        nzg = grid_params%nzgl(igrid)
+        nxg = g_def%nxgl(igrid)
+        nyg = g_def%nygl(igrid)
+        nzg = g_def%nzgl(igrid)
 
         if (len(trim(map_file)) == 0) then
           call pstop('readExtMap'
@@ -1741,18 +1743,18 @@ c     Fill GLOBAL map
 
 c     Fill LOCAL map and related metrics
 
-        call defineGridMetric(grid_params,igr=igrid
+        call defineGridMetric(g_def,igr=igrid
      .           ,xcar=ext_map(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
 
         deallocate(ext_map)
 
-        gmetric => grid_params%gmetric
+cc        gmetric => g_def%gmetric
 
       end subroutine readExtMap
 
 c     writeExtMap
 c     ###############################################################
-      subroutine writeExtMap
+      subroutine writeExtMap(g_def)
 
 c     -----------------------------------------------------------------
 c     Writes external map using POSIX files
@@ -1761,6 +1763,8 @@ c     -----------------------------------------------------------------
         implicit none
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -1780,7 +1784,7 @@ c     Begin program
 #endif
 
         call openPOSIXBinFile(u_mapf,map_file)!,status='unknown')
-        call dumpVectorToFile(u_mapf,gmetric%grid(1)%car,.false.)
+        call dumpVectorToFile(u_mapf,g_def%gmetric%grid(1)%car,.false.)
         close(u_mapf)
 
       end subroutine writeExtMap
