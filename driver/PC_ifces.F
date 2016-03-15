@@ -1,6 +1,6 @@
 c setupPC
 c####################################################################
-      subroutine setupPC(ntot,x,nwt_it)
+      subroutine setupPC(ntot,x)
 
 c--------------------------------------------------------------------
 c     Finds velocity and magnetic field components in all grids
@@ -32,9 +32,9 @@ c Local variables
       type (var_array),pointer :: varray => null()
 
       INTERFACE
-        subroutine setup_app_PC(igrid,varray,nwt_it)
+        subroutine setup_app_PC(igrid,varray)
         use var_setup
-        integer    :: igrid,nwt_it
+        integer    :: igrid
         type(var_array),pointer :: varray
         end subroutine setup_app_PC
       END INTERFACE
@@ -66,7 +66,7 @@ c Setup MK preconditioner
 
 c Setup application PC
 
-      call setup_app_PC(igrid,varray,nwt_it)
+      call setup_app_PC(igrid,varray)
 
 c Free memory
 

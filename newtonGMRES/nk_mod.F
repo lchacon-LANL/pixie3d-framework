@@ -317,7 +317,7 @@ c     Start Newton iteration
         endif
 
         !Setup preconditioner
-        call setupPC(ntot,x,jit)
+        call setupPC(ntot,x)
 
         !Jacobian-free solve
         iout = out - 1

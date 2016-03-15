@@ -3546,10 +3546,10 @@ c     ##################################################################
 
         logical :: vbr_mg
      .            ,galerkin=.false.
+     .            ,mg_coarse_solve=.false.!Whether we are performing coarse solve
 
         logical,private :: res_vol_wgt=.true.  !Whether residual is volume weighed
      .                    ,mg_find_diag=.false.!Whether we are finding diagonal or not
-     .                    ,mg_coarse_solve=.false.!Whether we are performing coarse solve
 
         private :: find_mf_diag_std,find_mf_diag_colored
 
@@ -6863,12 +6863,10 @@ c     Begin program
         nn   = mgctx%ntotv (igr)
 
 #if defined(petsc) && defined(coarse_MG)
-c$$$        write (*,*) 'diag',(np > 1),(mgctx%g_def%ngrid == igr)
-c$$$     .       ,associated(mgctx%g_def%g_crse_def)
         if (  (np > 1)                           !Parallel
      .   .and.(mgctx%g_def%ngrid == igr)         !Lowest level in grid hierarchy
      .   .and.associated(mgctx%g_def%g_crse_def) !Coarse grid defs are defined
-     .      ) then !At PROCESSOR coarse mesh
+     .   .and.MG_coarse_solve) then !At PROCESSOR coarse mesh
 
           g_fine_def => mgctx%g_def
           g_crse_def => mgctx%g_def%g_crse_def
@@ -6924,16 +6922,15 @@ c$$$     .       ,associated(mgctx%g_def%g_crse_def)
           call backupSolverOptions(optns_new,options)
 
           !Set MG context 
-c$$$          g_def_sav => options%mg_grid_def
-c$$$          mgctx_sav => mgctx
-c$$$          nullify(MGgrid)
-c$$$          call allocMGPointers(neq,g_crse_def,mgctx_crse,fpointers)
           optns_new%mgctx => null()
           optns_new%mg_grid_def => g_crse_def
           optns_new%diag => null() !Reform diagonals in coarse mesh
 
           !Call MG with new solver context
-          call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,out,depth)
+          if (outc == 0.and.my_rank ==0)
+     .         write (*,'(a)',advance='no') "Coarse"
+          call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,outc
+     .           ,depth)
 
           !Scatter GLOBAL solution vectors
           mgctx => options%mgctx
@@ -6955,29 +6952,15 @@ c$$$          call allocMGPointers(neq,g_crse_def,mgctx_crse,fpointers)
           enddo
 
 c diag ****
-c$$$          call vec_plot_gl(neq,yy,igr,"local_res","Coarse MG solution"
-c$$$     .                    ,mgctx=mgctx_sav)
-c$$$          call vec_plot_gl(neq,xx,igr,"local_sol","Coarse MG solution"
-c$$$     .                    ,mgctx=mgctx_sav)
+c$$$          call vec_plot_gl(mgctx%g_def,neq,yy,igr,"local_res"
+c$$$     .                    ,"Coarse MG residual")
+c$$$          call vec_plot_gl(mgctx%g_def,neq,xx,igr,"local_sol"
+c$$$     .                    ,"Coarse MG solution")
 c$$$          call pstop("","")
 cdiag ****
 
           !Free space
           deallocate(xg,yg)
-cc          call deallocMGPointers(fpointers,mgctx_crse)
-cc          call deallocateGridStructure(g_crse_def)
-cc          nullify(g_crse_def)
-
-          !Recover old MG config
-c$$$cc          nullify(MGgrid)
-c$$$          options%diag => diag_sav
-c$$$          options%mgctx => mgctx_sav
-c$$$          options%mg_grid_def => g_def_sav
-c$$$          call allocMGPointers(neq,options%mg_grid_def,options%mgctx
-c$$$     .                        ,fpointers)
-c$$$          mgctx => options%mgctx
-c$$$
-c$$$          nullify(mgctx_sav,diag_sav)
 
           if (outc.ge.1.and.prnt) then
             write (*,*)
