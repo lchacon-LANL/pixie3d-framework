@@ -30,7 +30,7 @@ cc        type(MG_grid_metrics),pointer :: gmetric => null()
 
 c     createGrid
 c     #################################################################
-      subroutine createGrid(nx,ny,nz,gdef)
+      subroutine createGrid(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax,gdef)
 
 c     -----------------------------------------------------------------
 c     Defines logical grid and finds grid quantities for global mesh
@@ -43,6 +43,7 @@ c     Call variables
 
         integer :: nx,ny,nz
         type(grid_mg_def),pointer :: gdef
+        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
 
 c     Local variables
 
@@ -70,7 +71,8 @@ c     Initialize global quantities (from gdef, if existing) and MPI
 
 c     Create grid structures
 
-        call create_gdef(nx,ny,nz,gdef,mpi_comm)
+        call create_gdef(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax,gdef
+     .                  ,mpi_comm)
 
 c     Legacy assignments (backward compatibility)
 
@@ -130,7 +132,8 @@ c     Begin program
 
 c     create_gdef
 c     ######################################################################
-      subroutine create_gdef(nx,ny,nz,g_def,mpi_comm)
+      subroutine create_gdef(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax
+     .                      ,g_def,mpi_comm)
  
       implicit none
 
@@ -142,6 +145,7 @@ c     Call variables
 
       integer :: nx,ny,nz,mpi_comm
       type(grid_mg_def),pointer,INTENT(IN)  :: g_def
+      real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
 
 c     Local variables
 
@@ -156,7 +160,8 @@ c     Begin program
 
 c     Initialize grid structure
 
-      call initGridSt(nx,ny,nz,g_def
+      call initGridSt(nx,ny,nz
+     .               ,xmin,xmax,ymin,ymax,zmin,zmax,g_def
 #if defined(petsc) || defined(samrai)
      .               ,mpi_comm=mpi_comm
 #endif
@@ -299,7 +304,12 @@ c$$$      if (my_rank == 0) write (*,*)
 c$$$     .     ' create_coarse_gdef Size =',nxg,nyg,nzg,igr
 
       !Init coarse mesh structure
-      call initGridSt(nxg,nyg,nzg,g_crse_def,np_x=npx,np_y=npy,np_z=npz
+      call initGridSt(nxg,nyg,nzg
+     .               ,g_def%gxmin,g_def%gxmax
+     .               ,g_def%gymin,g_def%gymax
+     .               ,g_def%gzmin,g_def%gzmax
+     .               ,g_crse_def
+     .               ,np_x=npx,np_y=npy,np_z=npz
 #if defined(petsc) || defined(samrai)
      .               ,mpi_comm=mpi_comm_splt
 #endif
@@ -333,15 +343,188 @@ c     End program
       end function create_coarse_gdef
 #endif
 
+c$$$c     initGridSt
+c$$$c     #################################################################
+c$$$      subroutine initGridSt(nxg,nyg,nzg,gdef,mpi_comm,np_x,np_y,np_z
+c$$$     .                     ,coarsen_in_x,coarsen_in_y,coarsen_in_z)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Initializes grid structure, including MG pointers and PETSc
+c$$$c     hierarchical mesh. On input:
+c$$$c       * nxg,nyg,nzg: global grid size
+c$$$c       * gdef (type grid_mg_def): variable that stores grid definition.
+c$$$c     Optional parameters:
+c$$$c       * mpi_comm: MPI communicator
+c$$$c       * np_x,np_y,np_z: processor distribution
+c$$$c       * coarsen_in_x,coarsen_in_y,coarsen_in_z: whether to coarsen
+c$$$c         mesh in a given axis
+c$$$c     In parallel, local grid sizes are read from PETSc's DA context.
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        integer :: nxg,nyg,nzg
+c$$$
+c$$$        type(grid_mg_def),pointer :: gdef
+c$$$
+c$$$        integer,optional :: mpi_comm,np_x,np_y,np_z
+c$$$        logical,optional :: coarsen_in_x,coarsen_in_y,coarsen_in_z
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer :: i,n1,n2,n3,nxx,nyy,nzz,mx,my,mz
+c$$$        integer :: ngrdx,ngrdy,ngrdz
+c$$$        logical :: cx,cy,cz
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        if (PRESENT(coarsen_in_x)) then
+c$$$          cx = coarsen_in_x
+c$$$        else
+c$$$          cx = .true.
+c$$$cc          cx = .not.bcSP()
+c$$$        endif
+c$$$
+c$$$        if (PRESENT(coarsen_in_y)) then
+c$$$          cy = coarsen_in_y
+c$$$        else
+c$$$          cy = .true.
+c$$$        endif
+c$$$
+c$$$        if (PRESENT(coarsen_in_z)) then
+c$$$          cz = coarsen_in_z
+c$$$        else
+c$$$          cz = .true.
+c$$$        endif
+c$$$
+c$$$        if (PRESENT(np_x)) then
+c$$$          mx = np_x
+c$$$        else
+c$$$          mx = npx
+c$$$        endif
+c$$$
+c$$$        if (PRESENT(np_y)) then
+c$$$          my = np_y
+c$$$        else
+c$$$          my = npy
+c$$$        endif
+c$$$
+c$$$        if (PRESENT(np_z)) then
+c$$$          mz = np_z
+c$$$        else
+c$$$          mz = npz
+c$$$        endif
+c$$$
+c$$$c     Find adequate number of grid levels (for MG)
+c$$$
+c$$$        if (cx) then
+c$$$          if (mx == 0)
+c$$$     .         call pstop('initGridSt','Undefined proc. alloc. in X')
+c$$$
+c$$$          if (mx > nxg) call pstop('initGridSt','Too many procs in X')
+c$$$
+c$$$          nxx = nxg/mx
+c$$$          ngrdx = MG_levels(nxx,mg_ratio)
+c$$$        else
+c$$$          ngrdx = 1
+c$$$        endif
+c$$$
+c$$$        if (cy) then
+c$$$          if (my == 0)
+c$$$     .         call pstop('initGridSt','Undefined proc. alloc. in Y')
+c$$$
+c$$$          if (my > nyg) call pstop('initGridSt','Too many procs in Y')
+c$$$
+c$$$          nyy = nyg/my
+c$$$          ngrdy = MG_levels(nyy,mg_ratio)
+c$$$        else
+c$$$          ngrdy = 1
+c$$$        endif
+c$$$
+c$$$        if (cz) then
+c$$$          if (mz == 0)
+c$$$     .         call pstop('initGridSt','Undefined proc. alloc. in Z')
+c$$$
+c$$$          if (mz > nzg) call pstop('initGridSt','Too many procs in Z')
+c$$$
+c$$$          nzz = nzg/mz
+c$$$          ngrdz = MG_levels(nzz,mg_ratio)
+c$$$        else
+c$$$          ngrdz = 1
+c$$$        endif
+c$$$
+c$$$c     Allocate grid storage structure
+c$$$
+c$$$        call allocateGridStructure(ngrdx,ngrdy,ngrdz,mx,my,mz
+c$$$     .                            ,nxg,nyg,nzg,gdef,mpi_comm=mpi_comm)
+c$$$
+c$$$c     Adjust domain size
+c$$$
+c$$$        !Default sizes
+c$$$        if (xmax == 0d0) then
+c$$$          xmax = 2*pi
+c$$$          xmin = 0d0
+c$$$        endif
+c$$$        if (ymax == 0d0) then
+c$$$          ymax = 2*pi
+c$$$          ymin = 0d0
+c$$$        endif
+c$$$        if (zmax == 0d0) then
+c$$$          zmax = 2*pi
+c$$$          zmin = 0d0
+c$$$        endif
+c$$$
+c$$$        if (mx == 1 .and. (.not.cx)) then
+c$$$          gdef%gxmin = xmin
+c$$$          gdef%gxmax = xmax/npx
+c$$$        endif
+c$$$
+c$$$        if (my == 1 .and. (.not.cy)) then
+c$$$          gdef%gymin = ymin
+c$$$          gdef%gymax = ymax/npy
+c$$$        endif
+c$$$
+c$$$        if (mz == 1 .and. (.not.cz)) then
+c$$$          gdef%gzmin = zmin
+c$$$          gdef%gzmax = zmax/npz
+c$$$        endif
+c$$$
+c$$$        if (gdef%gxmin == UNDEF_DP) gdef%gxmin = xmin
+c$$$        if (gdef%gxmax == UNDEF_DP) gdef%gxmax = xmax
+c$$$        if (gdef%gymin == UNDEF_DP) gdef%gymin = ymin
+c$$$        if (gdef%gymax == UNDEF_DP) gdef%gymax = ymax
+c$$$        if (gdef%gzmin == UNDEF_DP) gdef%gzmin = zmin
+c$$$        if (gdef%gzmax == UNDEF_DP) gdef%gzmax = zmax
+c$$$
+c$$$c     Create MG grid hierarchy
+c$$$
+c$$$        gdef%g_pack = g_pack
+c$$$        gdef%params = gparams
+c$$$
+c$$$        call createMGgrid(gdef)
+c$$$
+c$$$c     Create fortran PETSc parallel grid hierarchy (parallel version)
+c$$$
+c$$$#if defined(petsc)
+c$$$        call createPETScGrid(gdef,0)
+c$$$        call setup_petsc_BC(gdef)   !Set PETSc BC flags
+c$$$#endif
+c$$$
+c$$$      end subroutine initGridSt
+
 c     initGridSt
 c     #################################################################
-      subroutine initGridSt(nxg,nyg,nzg,gdef,mpi_comm,np_x,np_y,np_z
-     .                     ,coarsen_in_x,coarsen_in_y,coarsen_in_z)
+      subroutine initGridSt(nxg,nyg,nzg,gxmin,gxmax,gymin,gymax,gzmin
+     .     ,gzmax,gdef,mpi_comm,np_x,np_y,np_z,coarsen_in_x,coarsen_in_y
+     .     ,coarsen_in_z)
 
 c     -----------------------------------------------------------------
 c     Initializes grid structure, including MG pointers and PETSc
 c     hierarchical mesh. On input:
 c       * nxg,nyg,nzg: global grid size
+c       * gxmin,gxmax,gymin,gymax,gzmin,gzmax: global grid size
 c       * gdef (type grid_mg_def): variable that stores grid definition.
 c     Optional parameters:
 c       * mpi_comm: MPI communicator
@@ -361,6 +544,8 @@ c     Call variables
 
         integer,optional :: mpi_comm,np_x,np_y,np_z
         logical,optional :: coarsen_in_x,coarsen_in_y,coarsen_in_z
+
+        real(8) :: gxmin,gxmax,gymin,gymax,gzmin,gzmax
 
 c     Local variables
 
@@ -453,40 +638,42 @@ c     Allocate grid storage structure
 c     Adjust domain size
 
         !Default sizes
-        if (xmax == 0d0) then
-          xmax = 2*pi
-          xmin = 0d0
-        endif
-        if (ymax == 0d0) then
-          ymax = 2*pi
-          ymin = 0d0
-        endif
-        if (zmax == 0d0) then
-          zmax = 2*pi
-          zmin = 0d0
+        if (gxmin == 0d0 .and. gxmax == 0d0) then
+          gxmax = 2*pi
+          gxmin = 0d0
         endif
 
-        if (mx == 1 .and. (.not.cx)) then
-          gdef%gxmin = xmin
-          gdef%gxmax = xmax/npx
+        if (gzmin == 0d0 .and. gymax == 0d0) then
+          gymax = 2*pi
+          gymin = 0d0
         endif
 
-        if (my == 1 .and. (.not.cy)) then
-          gdef%gymin = ymin
-          gdef%gymax = ymax/npy
+        if (gzmin == 0d0 .and. gzmax == 0d0) then
+          gzmax = 2*pi
+          gzmin = 0d0
         endif
 
-        if (mz == 1 .and. (.not.cz)) then
-          gdef%gzmin = zmin
-          gdef%gzmax = zmax/npz
-        endif
+c$$$        if (mx == 1 .and. (.not.cx)) then
+c$$$          gdef%gxmin = xmin
+c$$$          gdef%gxmax = xmax/npx
+c$$$        endif
+c$$$
+c$$$        if (my == 1 .and. (.not.cy)) then
+c$$$          gdef%gymin = ymin
+c$$$          gdef%gymax = ymax/npy
+c$$$        endif
+c$$$
+c$$$        if (mz == 1 .and. (.not.cz)) then
+c$$$          gdef%gzmin = zmin
+c$$$          gdef%gzmax = zmax/npz
+c$$$        endif
 
-        if (gdef%gxmin == UNDEF_DP) gdef%gxmin = xmin
-        if (gdef%gxmax == UNDEF_DP) gdef%gxmax = xmax
-        if (gdef%gymin == UNDEF_DP) gdef%gymin = ymin
-        if (gdef%gymax == UNDEF_DP) gdef%gymax = ymax
-        if (gdef%gzmin == UNDEF_DP) gdef%gzmin = zmin
-        if (gdef%gzmax == UNDEF_DP) gdef%gzmax = zmax
+        if (gdef%gxmin == UNDEF_DP) gdef%gxmin = gxmin
+        if (gdef%gxmax == UNDEF_DP) gdef%gxmax = gxmax
+        if (gdef%gymin == UNDEF_DP) gdef%gymin = gymin
+        if (gdef%gymax == UNDEF_DP) gdef%gymax = gymax
+        if (gdef%gzmin == UNDEF_DP) gdef%gzmin = gzmin
+        if (gdef%gzmax == UNDEF_DP) gdef%gzmax = gzmax
 
 c     Create MG grid hierarchy
 
@@ -913,7 +1100,18 @@ c     Local variables
 
         integer :: funit=11111
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
+
+        xmin = gdef%gxmin
+        xmax = gdef%gxmax
+
+        ymin = gdef%gymin
+        ymax = gdef%gymax
+
+        zmin = gdef%gzmin
+        zmax = gdef%gzmax
 
         if (my_rank == 0) then
           write (*,*)
@@ -1791,7 +1989,7 @@ c     Dump quantities
           write(funit,*) '   Dumping SYMM test along X'
           ivar = 1
           descr(ivar) = 'X symm test'
-          call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,0,110)
+          call contour(dbg(:,:,1,1),nx+2,ny+2,xmin,xmax,ymin,ymax,0,110)
 
         case default
           call pstop('symmCheck','Dimension not implemented')

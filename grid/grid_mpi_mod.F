@@ -1671,7 +1671,7 @@ c     Dump global array
      .        ,form='unformatted',status='replace')
           do i=1,dg(4)
             call contour(gf(0:dg(1)-1,0:dg(2)-1,1,i),dg(1),dg(2)
-     .                ,0d0,xmax,0d0,ymax,i-1,110)
+     .                ,0d0,1d0,0d0,1d0,i-1,110)
           enddo
 cc          do i=1,dl(4)
 cc            call contour(lf(0:dl(1)-1,0:dl(2)-1,1,i),dl(1),dl(2)
@@ -1896,7 +1896,7 @@ c     Dump global array
           open(unit=110,file='debug.bin'
      .        ,form='unformatted',status='replace')
           call contour(gf(0:dg(1)-1,0:dg(2)-1,1),dg(1),dg(2)
-     .                ,0d0,xmax,0d0,ymax,0,110)
+     .                ,0d0,1d0,0d0,1d0,0,110)
           close(110)
         endif
 

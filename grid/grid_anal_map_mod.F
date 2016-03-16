@@ -109,7 +109,18 @@ c     Local variables
      .            ,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
      .            ,xlog(3)
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
+
+        xmin = gl_def%gxmin
+        xmax = gl_def%gxmax
+
+        ymin = gl_def%gymin
+        ymax = gl_def%gymax
+
+        zmin = gl_def%gzmin
+        zmax = gl_def%gzmax
 
         if (map_grid_pack) then
           xlog(1) = scale_coord(xmin,xmax,x1,1)
@@ -196,7 +207,18 @@ c     Local variables
      .            ,gp(ngparams),x1p,x2p,x3p
         logical :: vrtx
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
+
+        xmin = gl_def%gxmin
+        xmax = gl_def%gxmax
+
+        ymin = gl_def%gymin
+        ymax = gl_def%gymax
+
+        zmin = gl_def%gzmin
+        zmax = gl_def%gzmax
 
         if (PRESENT(vertex)) then
           vrtx = vertex
@@ -275,7 +297,18 @@ c     Local variables
         real(8) :: car(3),curv(3),vec(3),gp(ngparams)
         logical :: vrtx
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
+
+        xmin = gl_def%gxmin
+        xmax = gl_def%gxmax
+
+        ymin = gl_def%gymin
+        ymax = gl_def%gymax
+
+        zmin = gl_def%gzmin
+        zmax = gl_def%gzmax
 
         if (PRESENT(vertex)) then
           vrtx = vertex
@@ -453,7 +486,18 @@ c     Local variables
      .            ,x1,x2,x3
         real(8) :: gp(ngparams)
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
+
+        xmin = gl_def%gxmin
+        xmax = gl_def%gxmax
+
+        ymin = gl_def%gymin
+        ymax = gl_def%gymax
+
+        zmin = gl_def%gzmin
+        zmax = gl_def%gzmax
 
         gp = gl_def%params
 
@@ -586,7 +630,18 @@ c     Local variables
      .            ,x1p,x2p,x3p
         logical :: vrtx
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
+
+        xmin = gl_def%gxmin
+        xmax = gl_def%gxmax
+
+        ymin = gl_def%gymin
+        ymax = gl_def%gymax
+
+        zmin = gl_def%gzmin
+        zmax = gl_def%gzmax
 
         if (PRESENT(vertex)) then
           vrtx = vertex
@@ -769,7 +824,18 @@ c     Local variables
      .            ,x1,x2,x3
         real(8) :: gp(ngparams)
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
+
+        xmin = gl_def%gxmin
+        xmax = gl_def%gxmax
+
+        ymin = gl_def%gymin
+        ymax = gl_def%gymax
+
+        zmin = gl_def%gzmin
+        zmax = gl_def%gzmax
 
         gp = gl_def%params
 
@@ -907,7 +973,18 @@ c     Local variables
         real(8)    :: x1,x2,x3,tensor(3,3),aa,bb,major_r,mm,kk,eps,phi
      .               ,gp(ngparams)
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
+
+        xmin = gl_def%gxmin
+        xmax = gl_def%gxmax
+
+        ymin = gl_def%gymin
+        ymax = gl_def%gymax
+
+        zmin = gl_def%gzmin
+        zmax = gl_def%gzmax
 
         gp = gl_def%params
 
@@ -1190,7 +1267,18 @@ c     Local variables
      .            ,vec(3,3,3),x1,x2,x3
         real(8) :: gp(ngparams)
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
+
+        xmin = gl_def%gxmin
+        xmax = gl_def%gxmax
+
+        ymin = gl_def%gymin
+        ymax = gl_def%gymax
+
+        zmin = gl_def%gzmin
+        zmax = gl_def%gzmax
 
         gp = gl_def%params
 
@@ -1632,7 +1720,18 @@ c     Local variables
      .            ,x1p,x2p,x3p,i_x1
         logical :: vrtx
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
+
+        xmin = gl_def%gxmin
+        xmax = gl_def%gxmax
+
+        ymin = gl_def%gymin
+        ymax = gl_def%gymax
+
+        zmin = gl_def%gzmin
+        zmax = gl_def%gzmax
 
         if (PRESENT(vertex)) then
           vrtx = vertex
@@ -1803,7 +1902,18 @@ c     Local variables
      .            ,x1p,x2p,x3p
         logical :: vrtx
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
+
+        xmin = gl_def%gxmin
+        xmax = gl_def%gxmax
+
+        ymin = gl_def%gymin
+        ymax = gl_def%gymax
+
+        zmin = gl_def%gzmin
+        zmax = gl_def%gzmax
 
         if (PRESENT(vertex)) then
           vrtx = vertex
@@ -1977,6 +2087,8 @@ c     Local variables
         real(8) :: aa,bb,major_r,mm,kk,eps,phi,jac,x1,x2,x3
         real(8) :: gp(ngparams),vec(9)
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
 c     Begin program
 
         gp = gl_def%params
@@ -1984,6 +2096,15 @@ c     Begin program
         x1 = curv(1)
         x2 = curv(2)
         x3 = curv(3)
+
+        xmin = gl_def%gxmin
+        xmax = gl_def%gxmax
+
+        ymin = gl_def%gymin
+        ymax = gl_def%gymax
+
+        zmin = gl_def%gzmin
+        zmax = gl_def%gzmax
 
         select case (coords)
         case ('car','lpk')

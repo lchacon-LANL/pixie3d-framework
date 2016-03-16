@@ -11,6 +11,8 @@ c #####################################################################
 
         use grid_diff_ops
 
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin !3D global domain dimensions
+
         integer :: nxd,nyd,nzd,nxdp,nydp,nzdp
      .            ,nxl,nyl,nzl,nxlp,nylp,nzlp
 

@@ -1009,8 +1009,6 @@ c ####################################################################
 
         use grid_def_st
 
-        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin  !3D global domain dimensions
-
         character*(3) :: coords
 
       end module grid_def

@@ -244,7 +244,8 @@ c     Nullify pointers
 
 c     Initialize grid qtys
 
-        call createGrid(nxd,nyd,nzd,gv%gparams)
+        call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax
+     .                 ,gv%gparams)
 
 c     Initialize global domain limits
 

@@ -113,7 +113,8 @@ c     Read reference grid info
       endif
 
       !Create grid
-      call createGrid(nxd,nyd,nzd,gv%gparams)
+      call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax
+     .               ,gv%gparams)
 
       call setVectorDimensions
 
@@ -179,7 +180,8 @@ c Initialize current grid info and read current grid solution
         write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
       endif
 
-      call createGrid(nxd,nyd,nzd,gv%gparams)
+      call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax
+     .               ,gv%gparams)
 
       call setVectorDimensions
 
