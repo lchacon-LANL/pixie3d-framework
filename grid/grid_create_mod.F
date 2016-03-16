@@ -71,7 +71,8 @@ cc#endif
 
 c     Initialize grid structure
 
-        call initGridSt(nx,ny,nz,gdef
+        call initGridSt(nx,ny,nz
+     .                 ,xmin,xmax,ymin,ymax,zmin,zmax,gdef
 #if defined(petsc) || defined(samrai)
      .                 ,mpi_comm=mpi_comm
 #endif
@@ -132,13 +133,15 @@ c     Begin program
 
 c     initGridSt
 c     #################################################################
-      subroutine initGridSt(nxg,nyg,nzg,gdef,mpi_comm,np_x,np_y,np_z
-     .                     ,coarsen_in_x,coarsen_in_y,coarsen_in_z)
+      subroutine initGridSt(nxg,nyg,nzg,gxmin,gxmax,gymin,gymax,gzmin
+     .     ,gzmax,gdef,mpi_comm,np_x,np_y,np_z,coarsen_in_x,coarsen_in_y
+     .     ,coarsen_in_z)
 
 c     -----------------------------------------------------------------
 c     Initializes grid structure, including MG pointers and PETSc
 c     hierarchical mesh. On input:
 c       * nxg,nyg,nzg: global grid size
+c       * gxmin,gxmax,gymin,gymax,gzmin,gzmax: global grid size
 c       * gdef (type grid_mg_def): variable that stores grid definition.
 c     Optional parameters:
 c       * mpi_comm: MPI communicator
@@ -158,6 +161,8 @@ c     Call variables
 
         integer,optional :: mpi_comm,np_x,np_y,np_z
         logical,optional :: coarsen_in_x,coarsen_in_y,coarsen_in_z
+
+        real(8) :: gxmin,gxmax,gymin,gymax,gzmin,gzmax
 
 c     Local variables
 
@@ -250,40 +255,42 @@ c     Allocate grid storage structure
 c     Adjust domain size
 
         !Default sizes
-        if (xmax == 0d0) then
-          xmax = 2*pi
-          xmin = 0d0
-        endif
-        if (ymax == 0d0) then
-          ymax = 2*pi
-          ymin = 0d0
-        endif
-        if (zmax == 0d0) then
-          zmax = 2*pi
-          zmin = 0d0
+        if (gxmin == 0d0 .and. gxmax == 0d0) then
+          gxmax = 2*pi
+          gxmin = 0d0
         endif
 
-        if (mx == 1 .and. (.not.cx)) then
-          gdef%gxmin = xmin
-          gdef%gxmax = xmax/npx
+        if (gzmin == 0d0 .and. gymax == 0d0) then
+          gymax = 2*pi
+          gymin = 0d0
         endif
 
-        if (my == 1 .and. (.not.cy)) then
-          gdef%gymin = ymin
-          gdef%gymax = ymax/npy
+        if (gzmin == 0d0 .and. gzmax == 0d0) then
+          gzmax = 2*pi
+          gzmin = 0d0
         endif
 
-        if (mz == 1 .and. (.not.cz)) then
-          gdef%gzmin = zmin
-          gdef%gzmax = zmax/npz
-        endif
+c$$$        if (mx == 1 .and. (.not.cx)) then
+c$$$          gdef%gxmin = xmin
+c$$$          gdef%gxmax = xmax/npx
+c$$$        endif
+c$$$
+c$$$        if (my == 1 .and. (.not.cy)) then
+c$$$          gdef%gymin = ymin
+c$$$          gdef%gymax = ymax/npy
+c$$$        endif
+c$$$
+c$$$        if (mz == 1 .and. (.not.cz)) then
+c$$$          gdef%gzmin = zmin
+c$$$          gdef%gzmax = zmax/npz
+c$$$        endif
 
-        if (gdef%gxmin == UNDEF_DP) gdef%gxmin = xmin
-        if (gdef%gxmax == UNDEF_DP) gdef%gxmax = xmax
-        if (gdef%gymin == UNDEF_DP) gdef%gymin = ymin
-        if (gdef%gymax == UNDEF_DP) gdef%gymax = ymax
-        if (gdef%gzmin == UNDEF_DP) gdef%gzmin = zmin
-        if (gdef%gzmax == UNDEF_DP) gdef%gzmax = zmax
+        if (gdef%gxmin == UNDEF_DP) gdef%gxmin = gxmin
+        if (gdef%gxmax == UNDEF_DP) gdef%gxmax = gxmax
+        if (gdef%gymin == UNDEF_DP) gdef%gymin = gymin
+        if (gdef%gymax == UNDEF_DP) gdef%gymax = gymax
+        if (gdef%gzmin == UNDEF_DP) gdef%gzmin = gzmin
+        if (gdef%gzmax == UNDEF_DP) gdef%gzmax = gzmax
 
 c     Create MG grid hierarchy
 
