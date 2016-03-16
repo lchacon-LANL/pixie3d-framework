@@ -60,12 +60,12 @@ c     Initialize global quantities (from gdef, if existing) and MPI
           nz = gdef%nglz
 #if defined(petsc)
           mpi_comm = gdef%mpi_comm
-          call processorAlloc(nx,ny,nz,gdef%mx,gdef%my,gdef%mz)
+          call processorAlloc(mpi_comm,nx,ny,nz,gdef%mx,gdef%my,gdef%mz)
 #endif
         else
 #if defined(petsc)
           mpi_comm = MPI_COMM_WORLD
-          call processorAlloc(nx,ny,nz,npx,npy,npz)
+          call processorAlloc(mpi_comm,nx,ny,nz,npx,npy,npz)
 #endif
         endif
 

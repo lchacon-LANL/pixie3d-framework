@@ -33,7 +33,9 @@ c ######################################################################
 #include "finclude/petscvecdef.h"
 #include "finclude/petscdadef.h"
 
-        integer    :: np,inp,my_rank,group_world
+        integer    :: np=1
+     .               ,my_rank=0
+     .               ,group_world
      .               ,group_sp,tag=0,dest=0,root=0
      .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
@@ -2238,9 +2240,10 @@ c     End program
 
       end subroutine per_BC
 
+#if defined(petsc)
 c     processorAlloc
 c     ######################################################################
-      subroutine processorAlloc(nx1,ny1,nz1,npx,npy,npz)
+      subroutine processorAlloc(mpi_comm,nx1,ny1,nz1,npx,npy,npz)
 
 c     ----------------------------------------------------------------------
 c     Finds processor allocation (npx,npy,npz; defined in module) in the
@@ -2253,7 +2256,7 @@ c     ----------------------------------------------------------------------
 
 c     Call variables
 
-      integer,INTENT(IN) :: nx1,ny1,nz1
+      integer,INTENT(IN) :: nx1,ny1,nz1,mpi_comm
       integer,INTENT(INOUT) :: npx,npy,npz
 
 c     Local variables
@@ -2266,9 +2269,9 @@ c     Begin program
       ny = ny1
       nz = nz1
 
-      nprocs = np
-
       exp = 0
+
+      call initMPI(mpi_comm,nprocs,my_rank)
 
 c     Eliminate specified directions
 
@@ -2386,6 +2389,7 @@ cc      stop
 c     End program
 
       end subroutine processorAlloc
+#endif
 
       end module grid_mpi
 
