@@ -4230,9 +4230,9 @@ cc        solverOptions%vol_res  = vol_wgt
             solverOptions%mg_coarse_solver_depth = 3
           endif
         else
-c$$$          solverOptions%mg_coarse_solver_depth = 0 !Use smoother as coarse solver
+          solverOptions%mg_coarse_solver_depth = 0 !Use smoother as coarse solver
 cc          write (*,*) 'DIAG -- cSolver'
-          solverOptions%mg_coarse_solver_depth = 6
+cc          solverOptions%mg_coarse_solver_depth = 6
         endif
 
         !Vertex relaxation
