@@ -193,9 +193,9 @@ cc          solverOptions%vol_res  = .true.          !Whether residual contains 
 
         end subroutine solverOptionsInit
 
-c     backupSolverOptions
+c     xferSolverOptions
 c     ###################################################################
-        subroutine backupSolverOptions(sopts_bckup,sopts)
+        subroutine xferSolverOptions(sopts_bckup,sopts)
 
         type (solver_options) :: sopts_bckup,sopts
 
@@ -271,7 +271,7 @@ cc          sopts_bckup%vol_res  = .true.
           sopts_bckup%iter_out = sopts%iter_out            
           sopts_bckup%tol_out  = sopts%tol_out            
 
-        end subroutine backupSolverOptions
+        end subroutine xferSolverOptions
 
 c     solverInit
 c     ###################################################################
@@ -583,7 +583,10 @@ c       Deletes front node from queue
         !Write solver definition
 
           if (count == depth) then
-            node_ptr%solver_def = buffer
+cc            node_ptr%solver_def = buffer
+            node_ptr%solver_def%solver = buffer%solver
+            call xferSolverOptions(node_ptr%solver_def%options
+     .                            ,buffer%options)
           else
             write (*,*) 'Solver depth =',depth,' unreachable'
             write (*,*) 'Aborting...'

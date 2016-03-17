@@ -6928,7 +6928,7 @@ c$$$     .   ,MG_coarse_solve
           xg = 0d0
 
           !Save MG config
-          call backupSolverOptions(optns_new,options)
+          call xferSolverOptions(optns_new,options)
 
           !Set MG context 
           optns_new%mgctx => null()
@@ -6991,6 +6991,7 @@ cdiag ****
           call readSolverHierarchy (solver,depth1)
           solver%options%diag => diag
           solver%options%mgctx=> mgctx
+          solver%options%mg_grid_def => mgctx%g_def
           call writeSolverHierarchy(solver,depth1)
 
           call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcnd

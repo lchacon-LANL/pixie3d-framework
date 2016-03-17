@@ -69,7 +69,8 @@ c Read solver definition from solver hierarchy
       call readSolverHierarchy (solver_def,depth)
 
       solver  = solver_def%solver
-      options = solver_def%options
+cc      options = solver_def%options
+      call xferSolverOptions(options,solver_def%options)
 
 c Symmetry test
 
