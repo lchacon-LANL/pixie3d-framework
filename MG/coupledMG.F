@@ -3546,7 +3546,7 @@ c     ##################################################################
 
         logical :: vbr_mg
      .            ,galerkin=.false.
-     .            ,mg_coarse_solve=.false.!Whether we are performing coarse solve
+     .            ,mg_coarse_solve=.true.!Whether we are performing coarse solve
 
         logical,private :: res_vol_wgt=.true.  !Whether residual is volume weighed
      .                    ,mg_find_diag=.false.!Whether we are finding diagonal or not
@@ -4230,9 +4230,9 @@ cc        solverOptions%vol_res  = vol_wgt
             solverOptions%mg_coarse_solver_depth = 3
           endif
         else
-          solverOptions%mg_coarse_solver_depth = 0 !Use smoother as coarse solver
+c$$$          solverOptions%mg_coarse_solver_depth = 0 !Use smoother as coarse solver
 cc          write (*,*) 'DIAG -- cSolver'
-cc          solverOptions%mg_coarse_solver_depth = 6
+          solverOptions%mg_coarse_solver_depth = 6
         endif
 
         !Vertex relaxation
@@ -5290,7 +5290,7 @@ c Local variables
 
       integer :: iter=0,isig=0,alloc_stat=0
 
-      integer :: guess2=0,outc=0
+      integer :: guess2,outc
       integer :: i,j,k,ii,ivcyc,nblk
 
       real(8) :: rr0,rr1,mag,mag1,mag2,epsmac
@@ -5326,6 +5326,9 @@ c Begin program
       abstol = epsmac*sqrt(1.*ntot)
 
       prnt = (my_rank == 0) .or. asm
+
+      outc = 0
+      guess2 =0 
 
 c Consistency check
 
@@ -5370,7 +5373,7 @@ c Set pointers and find ngrid
 
       mgctx => options%mgctx
 
-      if (fpointers.and.out.ge.2.and.my_rank==0)
+      if (fpointers.and.out.gt.2.and.my_rank==0)
      .     write (*,*) 'Allocating pointers...'
 
 c Check limits
@@ -5388,7 +5391,7 @@ c Check limits
      $          ,' Grid level is below minimum grid resolution needed')
       endif
 
-      if (out.ge.2.and.igmax.gt.igrid.and.prnt) write (*,5)
+      if (out.gt.2.and.igmax.gt.igrid.and.prnt) write (*,5)
 
       outc = out
       if (igmax.gt.igrid) outc = out - 2
@@ -5421,14 +5424,14 @@ cc
 cc      endif
 
       if (associated(diag)) then !Diagonal provided externally
-        if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
+        if(out.gt.2.and.prnt) write(*,*)'Diagonal externally provided'
         fdiag = .false.
       else                      !Form diagonal
-        if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
+        if (out.gt.2.and.prnt) write (*,*) 'Forming diagonal...'
         allocate(diag(neq*nblk,2*ntot*nblk))
         call find_mf_diag(mgctx%g_def,neq,nblk,ntot,matvec,igrid,bcnd
      .                   ,diag,ncolors,MG_get_res_vol_wgt(),galerkin)
-        if (out.ge.2.and.prnt) write (*,*) 'Finished!'
+        if (out.gt.2.and.prnt) write (*,*) 'Finished!'
         fdiag = .true.
       endif
 
@@ -6845,9 +6848,7 @@ c     Call variables
 c     Local variables
 
         integer :: nn,ng,isig,depth1,nxg,nyg,nzg,ii,iig,ig,jg,kg
-     .            ,igv(3),ilv(3),nxl,nyl,nzl,i,j,k
-
-        type (solver_options) :: optns_new
+     .            ,igv(3),ilv(3),nxl,nyl,nzl,i,j,k,iout
 
         type(mg_ctx),pointer :: mgctx_crse => null()
 
@@ -6856,13 +6857,21 @@ c     Local variables
 
         real(8),pointer,dimension(:) :: xg,yg
         real(8),pointer,dimension(:,:,:,:) :: carg,array,arrayg
-        
+
+        type (solver_unit) :: solver
+
+        type (solver_options) :: optns_new
+
 c     Begin program
 
         isig = mgctx%istart(igr)
         nn   = mgctx%ntotv (igr)
 
 #if defined(petsc) && defined(coarse_MG)
+c$$$        write (*,*) (np > 1)                           !Parallel
+c$$$     .   ,(mgctx%g_def%ngrid == igr)         !Lowest level in grid hierarchy
+c$$$     .   ,associated(mgctx%g_def%g_crse_def) !Coarse grid defs are defined
+c$$$     .   ,MG_coarse_solve
         if (  (np > 1)                           !Parallel
      .   .and.(mgctx%g_def%ngrid == igr)         !Lowest level in grid hierarchy
      .   .and.associated(mgctx%g_def%g_crse_def) !Coarse grid defs are defined
@@ -6927,10 +6936,9 @@ c     Begin program
           optns_new%diag => null() !Reform diagonals in coarse mesh
 
           !Call MG with new solver context
-          if (outc == 0.and.my_rank ==0)
-     .         write (*,'(a)',advance='no') "Coarse"
-          call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,outc
-     .           ,depth)
+          if ((out==1.or.out==2).and.my_rank ==0)
+     .         write (*,'(a)',advance='no') "CP"
+          call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,out,depth)
 
           !Scatter GLOBAL solution vectors
           mgctx => options%mgctx
@@ -6980,12 +6988,13 @@ cdiag ****
             depth1 = depth + 1
           endif
 
-          call MG_set_coarse_solve(.true.)
+          call readSolverHierarchy (solver,depth1)
+          solver%options%diag => diag
+          solver%options%mgctx=> mgctx
+          call writeSolverHierarchy(solver,depth1)
 
           call getSolver(neq,nn,yy(isig),xx(isig),matvec,igr,bcnd
      .                  ,guess2,outc,depth1)
-
-          call MG_set_coarse_solve(.false.)
 
 c diag
 c$$$          if (np == 1) then
