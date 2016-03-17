@@ -26,7 +26,7 @@ c ######################################################################
 
         integer   ,allocatable,dimension(:) :: nqty
 
-        logical    :: plot,skip_diag=.false.
+        logical    :: skip_diag=.false.
 
 #if defined(petsc)
         logical    :: hdf_plot=.true.,xdraw_plot=.true.

@@ -28,26 +28,11 @@ c##########################################################################
 c Local variables
 
       integer        :: i,j,k,ig,jg,kg
-      integer        :: ierr,gierr,nplot,igx,igy,igz
+      integer        :: ierr,gierr,nplot
       character*(40) :: command
       logical        :: exitloop,petsc_flg
 
-c Interfaces
-
-      INTERFACE
-        subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
-        use var_setup
-        integer    :: iigx,iigy,iigz
-        logical    :: init
-        type(var_array),pointer :: varray
-        end subroutine evaluateDiagnostics
-      END INTERFACE
-
 c Begin program
-
-      igx = 1
-      igy = 1
-      igz = 1
 
 c Initialize PETSc (parallel version)
 
@@ -98,9 +83,7 @@ c     Update counters
 
         nplot  = nplot + 1
 
-c     Time level plots (xdraw)
-
-        plot = .false.
+c     MK setup
 
 #if defined(MK)
         !Setup MK grid
@@ -110,7 +93,7 @@ c     Time level plots (xdraw)
           xnm  = xold
           xold = xnew
 
-          call MK_setup_grid(igx,u_np%array_var(neqd)%array)
+          call MK_setup_grid(1,u_np%array_var(neqd)%array)
 
 cc          !Grid velocity in Cartesian geometry
 cc          if (bdf2) then
@@ -119,34 +102,17 @@ cc          else
 cc            gvel =-(xnew-xold)/dt
 cc          endif
 
-          call MK_xfer_equ(igx,u_ic)
+          call MK_xfer_equ(1,u_ic)
         endif
 #endif
-        !Post-process solution for diagnostics
-        if (.not.skip_diag)
-     .       call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
-        if (   ( nplot        == ndplot       .and. nplot > 0)
-     .     .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
-     .     .or. time         == 0d0) then
+c     Store previous record (for time derivatives in diagnostics)
 
-          if (skip_diag) 
-     .       call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
-
-          !Dump time step plots
-          plot  = .true.
-          nplot = 0
-          if (itime.gt.0) tmplot = time
-          call dumpTimeStepPlots
-
-        endif
-
-        !Store previous record (for time derivatives in diagnostics)
         call equateDerivedType(u_n,u_np)
 
 c     Output per time step
 
-        call output(plot)
+        call output(nplot)
 
 c     Check for tmax
 
@@ -186,7 +152,7 @@ c End program
 
 c output
 c######################################################################
-      subroutine output(plot)
+      subroutine output(nplot)
 
 c----------------------------------------------------------------------
 c     Writes program output to standard output
@@ -196,25 +162,62 @@ c----------------------------------------------------------------------
 
       use variables
 
+      use graphics
+
       implicit none
 
 c Call variables
 
-      logical :: plot
+      integer :: nplot
 
 c Local variables
 
-      integer     :: ngrd(3)
+      logical :: plot
+
+c Interfaces
+
+      INTERFACE
+        subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
+        use var_setup
+        integer    :: iigx,iigy,iigz
+        logical    :: init
+        type(var_array),pointer :: varray
+        end subroutine evaluateDiagnostics
+      END INTERFACE
 
 c Begin program
 
+      plot = .false.
+
+c Post-process solution for diagnostics and dump plots
+
+      if (.not.skip_diag)
+     .       call evaluateDiagnostics(u_np,1,1,1,.false.)
+
+      if (   ( nplot        == ndplot       .and. nplot > 0)
+     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
+     .   .or. time         == 0d0) then
+
+        if (skip_diag) 
+     .       call evaluateDiagnostics(u_np,1,1,1,.false.)
+
+       !Dump time step plots
+        plot  = .true.
+        nplot = 0
+        if (itime.gt.0) tmplot = time
+        call dumpTimeStepPlots
+
+      endif
+
+c Information output
+
       if (my_rank == 0) then
 
-        ngrd =(/gv%gparams%ngrdx,gv%gparams%ngrdy,gv%gparams%ngrdz/)
+cc        ngrd =(/gv%gparams%ngrdx,gv%gparams%ngrdy,gv%gparams%ngrdz/)
 
         if (itime.eq.0) then
 
-          write (*,10) nxd,nyd,nzd,ngrd
+          write (*,10) nxd,nyd,nzd!,ngrd
 
           write (*,*) 
           write (*,100)
@@ -231,8 +234,9 @@ c Begin program
 
 c End program
 
- 10   format (/,'  Grid mesh:................',i4,'x',i4,'x',i4
-     .        /,'  Number of grid levels:....',i4,',',i2,',',i2)
+ 10   format (/,'  Grid mesh:................',i4,'x',i4,'x',i4)
+c$$$ 10   format (/,'  Grid mesh:................',i4,'x',i4,'x',i4
+c$$$     .        /,'  Number of grid levels:....',i4,',',i2,',',i2)
  100  format ('   itime      time')
  110  format (i7,2x,1p,e10.2)
  120  format (i7,2x,1p,e10.2,a)
@@ -269,7 +273,7 @@ c Call variables
 
 c Local variables
 
-      integer :: ierr,igx,igy,igz
+      integer :: ierr,igx,igy,igz,nplot
       logical :: petsc_flg
 
 c Interfaces
@@ -380,6 +384,9 @@ c Initialize diagnostics and related variables
 c Initialize graphics
 
       call initializeGraphics
+
+      nplot = 0
+      call output(nplot)
 
 c End program
 

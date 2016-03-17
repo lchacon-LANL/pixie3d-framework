@@ -6,7 +6,7 @@ c ######################################################################
 
 #if !defined(samrai)
       use nk, ONLY: nk_conf,matrixFreeMatVec,jfnk,evaluateNewtonResidual
-     .             ,NOERR,CUTDT
+     .             ,NOERR,CUTDT,anderson
 
       contains
 
@@ -72,7 +72,11 @@ cc      nk_conf%krylov_method='gm'
 
       nk_conf%vol_wgt = vol_wgt
 
-      call jfnk(neqd,nn,x,iguess,iout,ierr)
+      if (fpa) then
+        call anderson(neqd,nn,x,iguess,iout,ierr)
+      else
+        call jfnk(neqd,nn,x,iguess,iout,ierr)
+      endif
 
 c     Store convergence info
 

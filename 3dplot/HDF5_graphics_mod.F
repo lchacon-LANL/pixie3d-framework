@@ -104,7 +104,7 @@ cc      moving_mesh = .not.checkMapDatabase()
 
 c     Exit if not in rank=0
 
-      if (.not.isProc(0)) return
+      if (isProc(0)) then
 
 c     Initialize FORTRAN interface
 
@@ -179,6 +179,12 @@ c     Close fortran interface
 
       call h5close_f(hdferr)
 
+      endif
+
+#if defined(petsc)
+      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
+
 c     End program
 
       contains
@@ -231,8 +237,6 @@ c     -----------------------------------------------------------------
         endif
       enddo
 
-cc      write (*,*) vexp
-
       end subroutine selectExpressions
 
       end subroutine initializeHDF5
@@ -257,7 +261,7 @@ c     Local variables
 
 c     Begin program
 
-      if (.not.isProc(0)) return
+      if (isProc(0)) then
 
 c     Initialize FORTRAN interface
 
@@ -337,6 +341,12 @@ c     Terminate access to the file
       call h5fclose_f(file_id, hdferr)
 
       call h5close_f(hdferr)
+
+      endif
+
+#if defined(petsc)
+      call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
 
 c     End program
 

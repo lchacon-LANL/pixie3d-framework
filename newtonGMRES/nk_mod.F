@@ -102,6 +102,301 @@ c     ###############################################################
       
       end function nk_current_Newton_residual
 
+c     anderson
+c     ###############################################################
+      subroutine anderson(neq,ntot,x,iguess,out,ierr,matvec)
+c     ---------------------------------------------------------------
+c     Performs Jacobian-free inexact Newton iteration on res(x) = 0, 
+c     where res is calculated in 'evaluateNonlinearResidual' (provided
+c     by user). 
+c
+c     Call parameters:
+c       * neq: number of equations
+c       * ntot: dimension of vector of unknowns.
+c       * x: on input, initial guess; on output, solution.
+c       * iguess: whether to use preconditioner to provide initial guess
+c                 (iguess = 1).
+c       * out: level of output:
+c              out = 0 --> No output
+c              out = 1 --> Newton convergence output
+c              out = 2 --> Previous plus GMRES convergence output
+c              out = 3 --> Previous plus residual information output
+c              out > 4 --> Previous plus preconditioner output (controlled
+c                          in preconditioner routine).
+c       * ierr: error flag:
+c              ierr = EXACT  --> Initial guess is exact solution
+c              ierr = NOERR  --> No error
+c              ierr = NOCONV --> No Newton convergence to prescribed tolerance in
+c                                prescribed number of iterations (ntit_max_rej)
+c              ierr = CUTDT  --> Newton converged, but took too many iterations
+c                                (>  ntit_max_acc)
+c       * matvec: optional matrix-vector multiplication routine
+c
+c     Configuration parameters (input via nk_options type):
+c       * etak_meth: specifies method to determine inexact Newton forcing 
+c           parameter. Currently:
+c               etak_meth = 0 --> constant
+c               etak_meth > 0 --> power law adaptive strategy
+c       * damp  : damping parameter for Newton update
+c       * global_meth: determines the globalization procedure:
+c               global_meth = 0 --> no globalization
+c               global_meth = 1 --> linesearch backtracking 
+c               global_meth = 2 --> pseudo-transient
+c       * pdt0: initial time step for pseudo-transient
+c       * eta0: initial inexact Newton parameter (GMRES convergence tolerance)
+c       * ksmax: dimension of krylov subspace for restarted GMRES(Ksmax)
+c       * gmmax: maximum number of GMRES its. (restart if > ksmax)
+c       * rtol: Newton relative convergence tolerance
+c       * atol: Newton absolute convergence tolerance
+c       * stol: Newton update convergence tolerance
+c       * ntit_max_acc: maximum number of Newton its. to accept
+c                       solution without subcycling time step
+c       * ntit_max_rej: maximum number of Newton its. to reject solution
+c       * gmit_out: on output, actual number of gmres its.
+c       * ntit_out: on output, actual number of newton its.
+c     ---------------------------------------------------------------
+
+      implicit none   !For safe fortran
+
+c     Call variables
+
+      integer :: ntot,neq,out,iguess,ierr
+
+      real(8) :: x(ntot)
+
+      optional :: matvec
+
+      INTERFACE
+        subroutine matvec(nn,z,y)
+        integer    :: nn
+        real(8)    :: z(nn),y(nn)
+        end subroutine matvec
+      END INTERFACE
+
+c     Local variables
+
+      integer :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
+     .          ,ntit_max_rej,global,ntgl
+
+      real(8) :: dxnorm,check_lim,y(ntot),ddx(ntot)
+     .          ,eta0,atol,rtol,stol,damp,pdt0,leps
+
+      real(8) :: f0,fkm,fk,fkp,fm,flimit,theta,dampm
+
+      logical :: vol_wgt,convergence,failure
+
+c     Begin program
+
+      prnt = (my_rank == 0)
+
+      ntgl = 1
+      if (nk_conf%vol_wgt) ntgl = ntot*npx*npy*npz
+
+c     Find machine round-off
+
+      if (epsmac == 0d0) epsmac = findRoundOff()  !Used for RMS norm measures
+
+#if defined(petsc)
+      leps = epsmac
+      call MPI_Allreduce(leps,epsmac,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+#endif
+
+      roundoff = sqrt(1d0*ntot*npx*npy*npz)*epsmac  !Used for standard norm measures
+
+c     Initialize variables
+
+      ksmax        = nk_conf%ksmax
+      gmmax        = nk_conf%gmmax
+      ntit_max_acc = nk_conf%nwt_max_it_acc
+      ntit_max_rej = nk_conf%nwt_max_it_rej
+      global       = nk_conf%global_meth
+
+      eta0         = nk_conf%eta0
+      damp         = nk_conf%damp
+      pdt0         = nk_conf%pdt0
+      atol         = nk_conf%atol
+      rtol         = nk_conf%rtol
+      stol         = nk_conf%stol
+
+      vol_wgt      = nk_conf%vol_wgt
+
+      nk_conf%gm_it_out  = 0
+      nk_conf%nwt_it_out = 0
+
+      if (ntit_max_acc > ntit_max_rej) then
+        call pstop('anderson'
+     $            ,'Error in Newton input: ntit_max_acc > ntit_max_rej')
+      endif
+
+      ntit_max_rej =  ntit_max_rej*2
+      ntit_max_acc =  ntit_max_rej/2
+
+      ierr     = 0
+      itk      = 0
+
+      if (out.ge.1 .and. prnt) write (*,205)
+
+      check_lim = 1d30
+
+      if (atol == 0d0) atol = 1d3*epsmac !Set absolute tolerance to roundoff
+      if (stol == 0d0) stol = 1d3*epsmac !Set update tolerance to roundoff
+
+      jit = 0
+
+c     Evaluate rhs and norms
+
+      allocate (nk_conf%xk(ntot),nk_conf%rk(ntot),nk_conf%rkstar(ntot))
+
+      nk_conf%xk = x    !Save previous Newton state
+
+      call evaluateNewtonResidual(ntot,x,nk_conf%rkstar) !Initial residual
+
+      call matrixFreeMatVec(ntot,x,y)  !Initial iterate
+      
+      if (chk_convergence(ddx,nk_conf%rkstar,.true.)) then
+        ierr = -1
+        call destroy_anderson
+        return
+      endif
+
+c     Start Anderson iteration
+
+      f0    = fkp
+      fk    = f0
+      fkm   = f0
+      flimit= atol + rtol*f0
+
+      !Setup Anderson
+      call fpa_create(nk_conf%fpas,nk_conf%rkstar,maxv=nk_conf%fpa_it)
+
+      !Setup preconditioner
+      call setupPC(ntot,x)
+
+      do jit = 1,ntit_max_rej
+
+        !Anderson update ("right PC")
+        iout = out - 1
+
+        call applyPC(ntot,y,x,iout-1)  !Find solution x
+        call evaluateNewtonResidual(ntot,x,nk_conf%rk)
+
+        ddx = x - nk_conf%xk
+        nk_conf%xk = x   !Save current Newton state
+
+        if (chk_convergence(ddx,nk_conf%rk,.false.)) exit
+
+        nk_conf%rk = -nk_conf%rk   !Minus sign important for Anderson
+        call fpa_correction(nk_conf%fpas,nk_conf%rk,dp=dot2)
+
+        !Update solution
+        y = y + damp*nk_conf%rk
+
+        !Update counters
+        nk_conf%nwt_it_out = jit
+
+        !Store magnitude of residual
+        fkm   = fk
+        fk    = fkp
+
+      enddo       !End of iteration
+
+      !Destroy Anderson
+      call fpa_destroy(nk_conf%fpas)
+
+      !Kill preconditioner
+      call killPC
+
+c     Check for errors in Newton convergence
+
+      ierr = chk_err()
+
+c     End program
+
+      call destroy_anderson
+
+ 205  format 
+     .   (/,' FPA_it   Av_updt    Abs_res   Rel_res     Damping')
+ 215  format (i4,3x,1p,4e11.3)
+
+      contains
+
+c     chk_convergence
+c     ###################################################################
+      function chk_convergence(dx,rk,init) result(exit_lp)
+
+        real(8) :: rk(ntot),dx(ntot)
+        logical :: exit_lp,init
+
+c     Check Anderson convergence/failure
+
+        fkp = ntgl*rms(rk)
+
+        if (init) then
+          check = 1d0
+          dxnorm = 1d0
+        else
+          check = fkp/f0
+          dxnorm = rms(dx)
+        endif
+
+        if (out.ge.1.and.prnt) write(*,215) jit,dxnorm,fkp,check,damp
+
+        if (out.ge.3) then
+          call dumpResidualNorms(neq,-rk,vol_wgt)
+        endif
+
+        convergence = (fkp <= flimit.or.dxnorm <= stol)
+        failure     = (check > check_lim .or. jit == ntit_max_rej)
+     .               .and.(.not.convergence)
+
+        exit_lp = (convergence .or. failure)
+
+ 215    format (i4,3x,1p,4e11.3)
+
+      end function chk_convergence
+
+c     chk_err
+c     ###############################################################
+      function chk_err() result(ierr)
+
+      integer :: ierr
+            
+      !No convergence: reject solution
+      if (failure) then 
+        if (jit == ntit_max_rej .and. prnt) write (*,220) check
+        if (check > check_lim .and. prnt) write (*,230) check,check_lim
+        ierr = 1
+      !Accept solution, but warn user
+      elseif (((jit-1).ge.ntit_max_acc).and.(ntit_max_acc > 0)) then 
+        if (prnt) then
+          if (nk_conf%fpa) then
+            write (*,250) ntit_max_acc
+          else
+            write (*,240) ntit_max_acc
+          endif
+        endif
+        ierr = 2
+      endif
+
+ 220  format ('    WARNING: Max FPA its. exceeded; rel. residual: '
+     .       ,1p,1e10.2)
+ 230  format ('    Relative residual =',f7.2,' >',f7.2)
+ 240  format ('    FPA converged in too many iterations (>',i3,')')
+ 250  format ('    FPA converged in too many iterations (>',i3,')')
+
+      end function chk_err
+
+c     destroy_anderson
+c     ###############################################################
+      subroutine destroy_anderson
+
+      deallocate(nk_conf%xk,nk_conf%rk,nk_conf%rkstar)
+
+      end subroutine destroy_anderson
+      
+      end subroutine anderson
+
 c     jfnk
 c     ###############################################################
       subroutine jfnk(neq,ntot,x,iguess,out,ierr,matvec)
