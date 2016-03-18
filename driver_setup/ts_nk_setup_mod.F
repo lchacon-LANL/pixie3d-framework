@@ -36,6 +36,7 @@ c ######################################################################
         !FPA configuration
         logical :: fpa=.false.            !Whether to use Carlson's Fixed-Point-Accelerator instead of JFNK
         integer :: fpa_it=5               !Number of FPA iterations
+        logical :: fpa_left_pc=.true.     !Whether to use left- or right-PC FPA
 
         !PC setup
         integer :: pc_iter        = 1     !Number of SI iterations in preconditioner
