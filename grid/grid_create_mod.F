@@ -21,11 +21,8 @@ c #####################################################################
 #else
         integer :: npx=0,npy=0,npz=0  !Parallel processor allocation
 #endif
+        logical,private :: map_grid_pack=.false.
 
-cc        type(grid_mg_def),pointer :: grid_params => null()
-
-cc        type(MG_grid_metrics),pointer :: gmetric => null()
-        
       contains
 
 c     createGrid
@@ -313,7 +310,7 @@ c$$$     .     ' create_coarse_gdef Size =',nxg,nyg,nzg,igr
 #if defined(petsc) || defined(samrai)
      .               ,mpi_comm=mpi_comm_splt
 #endif
-     .               )
+     .               ,process_packing=.false.)
 
       g_crse_def%mpi_comm_crse = mpi_comm_crse
 
@@ -518,7 +515,7 @@ c     initGridSt
 c     #################################################################
       subroutine initGridSt(nxg,nyg,nzg,gxmin,gxmax,gymin,gymax,gzmin
      .     ,gzmax,gdef,mpi_comm,np_x,np_y,np_z,coarsen_in_x,coarsen_in_y
-     .     ,coarsen_in_z)
+     .     ,coarsen_in_z,process_packing)
 
 c     -----------------------------------------------------------------
 c     Initializes grid structure, including MG pointers and PETSc
@@ -544,6 +541,7 @@ c     Call variables
 
         integer,optional :: mpi_comm,np_x,np_y,np_z
         logical,optional :: coarsen_in_x,coarsen_in_y,coarsen_in_z
+     .                     ,process_packing
 
         real(8) :: gxmin,gxmax,gymin,gymax,gzmin,gzmax
 
@@ -551,7 +549,7 @@ c     Local variables
 
         integer :: i,n1,n2,n3,nxx,nyy,nzz,mx,my,mz
         integer :: ngrdx,ngrdy,ngrdz
-        logical :: cx,cy,cz
+        logical :: cx,cy,cz,ppack
 
 c     Begin program
 
@@ -572,6 +570,12 @@ cc          cx = .not.bcSP()
           cz = coarsen_in_z
         else
           cz = .true.
+        endif
+
+        if (PRESENT(process_packing)) then
+          ppack = process_packing
+        else
+          ppack = .true.
         endif
 
         if (PRESENT(np_x)) then
@@ -1017,24 +1021,21 @@ c     Grid packing processing
           if (map_grid_pack) numerical_grid = .true.
 
           !Save packing configuration
-          gp_config = 0d0
+          call set_pack_slope(gdef)
 
-          if (map_grid_pack) then
-            if (gdef%g_pack(1)%pack) then
-              gp_config(1) = gdef%g_pack(1)%xp
-              gp_config(2) = gdef%g_pack(1)%dx0/(xmax-xmin)*nxx
-            endif
-
-            if (gdef%g_pack(2)%pack) then
-              gp_config(3) = gdef%g_pack(2)%xp
-              gp_config(4) = gdef%g_pack(2)%dx0/(ymax-ymin)*nyy
-            endif
-
-            if (gdef%g_pack(3)%pack) then
-              gp_config(5) = gdef%g_pack(3)%xp
-              gp_config(6) = gdef%g_pack(3)%dx0/(zmax-zmin)*nzz
-            endif
-          endif
+c$$$          if (map_grid_pack) then
+c$$$            if (gdef%g_pack(1)%pack) then
+c$$$              gdef%g_pack(1)%slope = gdef%g_pack(1)%dx0/(xmax-xmin)*nxx
+c$$$            endif
+c$$$
+c$$$            if (gdef%g_pack(2)%pack) then
+c$$$              gdef%g_pack(2)%slope = gdef%g_pack(2)%dx0/(ymax-ymin)*nyy
+c$$$            endif
+c$$$
+c$$$            if (gdef%g_pack(3)%pack) then
+c$$$              gdef%g_pack(3)%slope = gdef%g_pack(3)%dx0/(zmax-zmin)*nzz
+c$$$            endif
+c$$$          endif
         endif
 
 c     Coordinate-specific checks

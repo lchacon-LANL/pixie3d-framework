@@ -5299,9 +5299,9 @@ c Local variables
 
       logical :: fpointers=.false.
 
-      type(mg_ctx),pointer :: mgctx => null()
+      type(mg_ctx),pointer :: mgctx
 
-      type(grid_mg_def),pointer :: MGgrid => null()
+      type(grid_mg_def),pointer :: MGgrid
 
       !Initialized from outside
       integer :: orderres,orderprol,igmin,igmax,vcyc,crsedpth,mu,ncolors
@@ -5313,7 +5313,7 @@ c Local variables
       logical :: line_relax,line_x,line_y,line_z
       real(8) :: line_tol,line_omega
 
-      character(2) :: line_solve
+      character(2) :: line_solve,coarse
 
 c Begin program
 
@@ -5365,6 +5365,12 @@ cc      volf            = options%vol_res
       ncolors         = options%ncolors
 
       mg_debug        = options%mg_debug
+
+      if (options%is_coarse_proc_MG_solve) then
+        coarse="CP"
+      else
+        coarse="->"
+      endif
 
 c Set pointers and find ngrid
 
@@ -5513,10 +5519,10 @@ c     Check MG convergence
         mag2 = sqrt(MGdot(mgctx,igrid,x0,x0)/ntot)
 
         if (out.ge.3.and.prnt) then
-          write (*,10) mag,mag1
+          write (*,10) trim(coarse),mag,mag1
         elseif (out.ge.2.and.prnt) then
-          if (mu == 1) write (*,20) mag,mag2,mag1,ivcyc
-          if (mu == 2) write (*,21) mag,mag2,mag1,ivcyc
+          if (mu == 1) write (*,20) trim(coarse),mag,mag2,mag1,ivcyc
+          if (mu == 2) write (*,21) trim(coarse),mag,mag2,mag1,ivcyc
         endif
 
         rr1 = mag
@@ -5535,13 +5541,17 @@ c MG convergence info
 
       if (igmax.gt.igrid) then
         if (out.eq.1.and.prnt) then
-          if (mu == 1) write (*,20) mag,mag2,mag1,min(ivcyc,vcyc)
-          if (mu == 2) write (*,21) mag,mag2,mag1,min(ivcyc,vcyc)
+          if (mu == 1)
+     .         write (*,20) trim(coarse),mag,mag2,mag1,min(ivcyc,vcyc)
+          if (mu == 2)
+     .         write (*,21) trim(coarse),mag,mag2,mag1,min(ivcyc,vcyc)
         elseif (out.ge.2.and.vcyc.gt.1.and.prnt) then
           write (*,*) 
           write (*,*) 'Final MG convergence info:'
-          if (mu == 1) write (*,20) mag,mag2,mag1,min(ivcyc,vcyc)
-          if (mu == 2) write (*,21) mag,mag2,mag1,min(ivcyc,vcyc)
+          if (mu == 1)
+     .         write (*,20) trim(coarse),mag,mag2,mag1,min(ivcyc,vcyc)
+          if (mu == 2)
+     .         write (*,21) trim(coarse),mag,mag2,mag1,min(ivcyc,vcyc)
           write (*,*)
         endif
       endif
@@ -5557,10 +5567,10 @@ c End program
  5    format (/,' MG method output:')
  7    format (/,' MG V-cycle #:',i3)
  8    format (/,' MG W-cycle #:',i3)
- 10   format (  ' MG residual:',1p,1e12.4,'; Ratio:',1e12.4)
- 20   format (  ' MG residual:',1p,1e12.4,'; MG update:',1e12.4,
+ 10   format ( a,' MG residual:',1p,1e12.4,'; Ratio:',1e12.4)
+ 20   format ( a,' MG residual:',1p,1e12.4,'; MG update:',1e12.4,
      .          '; MG ratio:',1e12.4,'; V-cycle #:',i3)
- 21   format (  ' MG residual:',1p,1e12.4,'; MG update:',1e12.4,
+ 21   format ( a,' MG residual:',1p,1e12.4,'; MG update:',1e12.4,
      .          '; MG ratio:',1e12.4,'; W-cycle #:',i3)
 
       contains
@@ -6848,12 +6858,11 @@ c     Call variables
 c     Local variables
 
         integer :: nn,ng,isig,depth1,nxg,nyg,nzg,ii,iig,ig,jg,kg
-     .            ,igv(3),ilv(3),nxl,nyl,nzl,i,j,k,iout
+     .            ,igv(3),ilv(3),nxl,nyl,nzl,i,j,k,iout,il,jl,kl
+     .            ,imin,jmin,kmin
 
-        type(mg_ctx),pointer :: mgctx_crse => null()
-
-        type(grid_mg_def),pointer :: g_crse_def => null()
-     .                              ,g_fine_def => null()
+        type(grid_mg_def),pointer :: g_crse_def
+     .                              ,g_fine_def
 
         real(8),pointer,dimension(:) :: xg,yg
         real(8),pointer,dimension(:,:,:,:) :: carg,array,arrayg
@@ -6922,8 +6931,6 @@ c$$$     .   ,MG_coarse_solve
             enddo
           enddo
 
-          deallocate(array,arrayg)
-
           !Solution is initialized to zero (consistently with mcycle routine)
           xg = 0d0
 
@@ -6934,30 +6941,75 @@ c$$$     .   ,MG_coarse_solve
           optns_new%mgctx => null()
           optns_new%mg_grid_def => g_crse_def
           optns_new%diag => null() !Reform diagonals in coarse mesh
+          optns_new%is_coarse_proc_MG_solve = .true.
 
           !Call MG with new solver context
-          if ((out==1.or.out==2).and.my_rank ==0)
-     .         write (*,'(a)',advance='no') "CP"
+c$$$          if ((out==1.or.out==2).and.my_rank ==0)
+c$$$     .         write (*,'(a)') "Coarse Proc solve"
           call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,out,depth)
 
-          !Scatter GLOBAL solution vectors
+          !Recover MG context
           mgctx => options%mgctx
           MGgrid=> options%mg_grid_def
 
-          do kg = mgctx%g_def%klo(igr),mgctx%g_def%khi(igr)
-            do jg = mgctx%g_def%jlo(igr),mgctx%g_def%jhi(igr)
-              do ig = mgctx%g_def%ilo(igr),mgctx%g_def%ihi(igr)
+          !Scatter GLOBAL solution vectors
+c$$$          do kg = mgctx%g_def%klo(igr),mgctx%g_def%khi(igr)
+c$$$            do jg = mgctx%g_def%jlo(igr),mgctx%g_def%jhi(igr)
+c$$$              do ig = mgctx%g_def%ilo(igr),mgctx%g_def%ihi(igr)
+c$$$                !Local limits
+c$$$                igv = (/ig,jg,kg/)
+c$$$                ilv = localIndex(mgctx%g_def,igr,igv)
+c$$$                !Vector location
+c$$$                ii  = neq*vPos(mgctx%g_def,igr,ilv) + isig - 1
+c$$$                iig = neq*vPos(g_crse_def ,1  ,igv)
+c$$$                !Vector assignment
+c$$$                xx(ii+1:ii+neq) = xg(iig+1:iig+neq)
+c$$$              enddo
+c$$$            enddo
+c$$$          enddo
+
+c$$$          do kl = 1,nzl
+c$$$            do jl = 1,nyl
+c$$$              do il = 1,nxl
+c$$$                !Local limits and local vector index (coarsest mesh in fine grid st)
+c$$$                ilv = (/il,jl,kl/)
+c$$$                ii  = neq*vPos(mgctx%g_def,igr,ilv) + isig - 1
+c$$$                !Global limits (finest mesh in coarse grid st) and global vector location
+c$$$                igv = globalIndex(g_crse_def,1,ilv)
+c$$$                iig = neq*   vPos(g_crse_def,1,igv)
+c$$$                !Vector assignment
+c$$$                xx(ii+1:ii+neq) = xg(iig+1:iig+neq)
+c$$$              enddo
+c$$$            enddo
+c$$$          enddo
+
+          do kg = 1,nzg
+            do jg = 1,nyg
+              do ig = 1,nxg
                 !Local limits
                 igv = (/ig,jg,kg/)
-                ilv = localIndex(mgctx%g_def,igr,igv)
-                !Vector location
-                ii  = neq*vPos(mgctx%g_def,igr,ilv) + isig - 1
-                iig = neq*vPos(g_crse_def ,1  ,igv)
+                iig = neq*vPos(g_crse_def,1,igv)
                 !Vector assignment
-                xx(ii+1:ii+neq) = xg(iig+1:iig+neq)
+                arrayg(ig,jg,kg,:) = xg(iig+1:iig+neq)
               enddo
             enddo
           enddo
+
+          imin = mod(g_fine_def%ilo(igr)/nxl,nxg/nxl)
+          jmin = mod(g_fine_def%jlo(igr)/nyl,nyg/nyl)
+          kmin = mod(g_fine_def%klo(igr)/nzl,nzg/nzl)
+
+          array(1:nxl,1:nyl,1:nzl,:) =
+     .         arrayg(imin*nxl+1:(imin+1)*nxl
+     .               ,jmin*nyl+1:(jmin+1)*nyl
+     .               ,kmin*nzl+1:(kmin+1)*nzl,:)
+
+
+c$$$          call find_local_field_vec(g_crse_def,1,arrayg,array)
+c$$$
+          call mapArrayToMGVector(mgctx,array,xx,igr,.true.)
+
+          deallocate(array,arrayg)
 
 c diag ****
 c$$$          call vec_plot_gl(mgctx%g_def,neq,yy,igr,"local_res"

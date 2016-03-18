@@ -122,10 +122,10 @@ c     Begin program
         zmin = gl_def%gzmin
         zmax = gl_def%gzmax
 
-        if (map_grid_pack) then
-          xlog(1) = scale_coord(xmin,xmax,x1,1)
-          xlog(2) = scale_coord(ymin,ymax,x2,2)
-          xlog(3) = scale_coord(zmin,zmax,x3,3)
+        if (coords /= 'lpk') then
+          xlog(1) = scale_coord(gl_def,1,x1)
+          xlog(2) = scale_coord(gl_def,2,x2)
+          xlog(3) = scale_coord(gl_def,3,x3)
         else
           xlog = (/ x1, x2, x3 /)
         endif

@@ -17,7 +17,7 @@ c     It is assumed that the grid metric structure gmetric is allocated
 c     and filled.
 c ---------------------------------------------------------------------
 
-        use grid_def
+        use grid_packing
 
         implicit none
 
@@ -52,6 +52,8 @@ c ---------------------------------------------------------------------
 cc        private :: transformVectorToCartesian
 cc     .            ,transformVectorToCurvilinear
 cc     .            ,transformFromCurvToCurv
+
+        logical :: no_map=.false.
 
       contains
 

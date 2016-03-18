@@ -57,6 +57,8 @@ cc          logical    :: vol_res
           logical      :: mg_galerkin
           logical      :: mg_debug
 
+          logical      :: is_coarse_proc_MG_solve
+
           type(grid_mg_def),pointer  :: mg_grid_def
 
           type(mg_ctx),pointer :: mgctx
@@ -179,6 +181,8 @@ cc          solverOptions%vol_res  = .true.          !Whether residual contains 
 
           solverOptions%mgctx => null()            !Nullify MG context
 
+          solverOptions%is_coarse_proc_MG_solve = .false. !Whether we are doing coarse-proc MG solve
+
           !Krylov methods options
           solverOptions%stp_test = 0               !Stopping criterion (CG, GMRES)
                                                    !If one, use initial residual; 
@@ -259,6 +263,9 @@ cc          sopts_bckup%vol_res  = .true.
           sopts_bckup%mg_grid_def    => sopts%mg_grid_def
 
           sopts_bckup%mgctx          => sopts%mgctx   
+
+          sopts_bckup%is_coarse_proc_MG_solve
+     .                               = sopts%is_coarse_proc_MG_solve
 
           !Krylov methods options
           sopts_bckup%stp_test = sopts%stp_test    

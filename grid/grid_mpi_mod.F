@@ -2008,7 +2008,7 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs restriction from global to local field.
 c     --------------------------------------------------------------
 
 c     Call variables

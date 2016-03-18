@@ -3,62 +3,118 @@ c #####################################################################
       module grid_packing
 
         use math
-        use grid_petsc
-
-        type :: grid_pack
-#if defined(samrai)
-          sequence
-#endif
-          logical    :: pack = .false.
-          real(8)    :: xp
-          real(8)    :: dx0
-        end type grid_pack
+        use grid_def_st
 
         type(grid_pack),dimension(3),save :: g_pack
 
-        logical :: map_grid_pack=.false.,no_map=.false.
-
-        real(8) :: gp_config(6)
-
       contains
+
+c     set_pack_var
+c     #################################################################
+      subroutine set_pack_slope(gdef)
+
+      implicit none
+
+      type(grid_mg_def),pointer :: gdef
+
+      integer :: nxx,nyy,nzz
+      real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+
+      nxx = gdef%nglx
+      nyy = gdef%ngly
+      nzz = gdef%nglz
+
+      xmin = gdef%gxmin
+      xmax = gdef%gxmax
+                         
+      ymin = gdef%gymin
+      ymax = gdef%gymax
+                         
+      zmin = gdef%gzmin
+      zmax = gdef%gzmax
+
+      if (gdef%g_pack(1)%pack
+     .   .and.(.not.gdef%g_pack(1)%processed)) then
+        gdef%g_pack(1)%slope = gdef%g_pack(1)%dx0/(xmax-xmin)*nxx
+        gdef%g_pack(1)%processed = .true.
+        g_pack(1) = gdef%g_pack(1)
+      endif
+
+      if (gdef%g_pack(2)%pack
+     .   .and.(.not.gdef%g_pack(2)%processed)) then
+        gdef%g_pack(2)%slope = gdef%g_pack(2)%dx0/(ymax-ymin)*nyy
+        gdef%g_pack(2)%processed = .true.
+        g_pack(2) = gdef%g_pack(2)
+      endif
+
+      if (gdef%g_pack(3)%pack
+     .   .and.(.not.gdef%g_pack(3)%processed)) then
+        gdef%g_pack(3)%slope = gdef%g_pack(3)%dx0/(zmax-zmin)*nzz
+        gdef%g_pack(3)%processed = .true.
+        g_pack(3) = gdef%g_pack(3)
+      endif
+ 
+      end subroutine set_pack_slope
 
 c     scale_coord
 c     #################################################################
-      function scale_coord(xmin,xmax,x1,dim) result(xlog)
+      function scale_coord(gdef,dim,x1) result(xlog)
 
 c     -----------------------------------------------------------------
-c     Scales coordinate along dimension dim with limits xmin, xmax and
-c     evaluates coordinate at logical coordinatet x1. Packing
-c     configuration (location and slope of packing) is computed in
-c     grid_create_mod, and passed via array gp_config in module.
+c     Scales coordinate along dimension dim and evaluates coordinate at
+c     logical coordinate x1. Packing configuration (location and slope
+c     of packing) is taken from g_def.
 c     -----------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
+        type(grid_mg_def),pointer :: gdef
+
         integer :: dim
-        real(8) :: xlog,x1,xmin,xmax
+        real(8) :: xlog,x1
 
 c     Local variables
 
-        integer :: ibc,exp=3
+        integer :: ibc,exp=3,nn
 
-        real(8) :: gp(2)
-
+        real(8) :: gp(2),lmin,lmax
         real(8), save :: bbx=0d0,bby=0d0,bbz=0d0
 
 c     Begin program
 
-        ibc = 1+2*(dim-1)
-
-c     Recover grid packing configuration: slope gp(2) at given position gp(1)
-
-        gp = gp_config(ibc:ibc+1)
-
-        if (gp(1) == 0d0 .and. gp(2) == 0d0) then
+        if (.not.gdef%g_pack(dim)%pack) then
           xlog = x1
           return
+        endif
+
+        ibc = 1+2*(dim-1)
+
+c     Grid packing configuration: slope gp(2) at given position gp(1)
+
+        select case(dim)
+        case(1)
+          nn   = gdef%nglx
+          lmin = gdef%gxmin
+          lmax = gdef%gxmax
+        case(2)
+          nn   = gdef%ngly
+          lmin = gdef%gymin
+          lmax = gdef%gymax
+        case(3)
+          nn   = gdef%nglz
+          lmin = gdef%gzmin
+          lmax = gdef%gzmax
+        end select
+
+        gp(1) = gdef%g_pack(dim)%xp
+        gp(2) = gdef%g_pack(dim)%slope!gdef%g_pack(dim)%dx0/(lmax-lmin)*nn
+
+        if (.not.gdef%g_pack(dim)%processed) then
+          write (*,*) 'Slope not computed in ',dim,' coordinate'
+          write (*,*) 'Aborting...'
+          stop
         endif
 
 c     Packing
@@ -71,18 +127,18 @@ c     Packing
             stop
           endif
 
-          xlog = x1+(xmax-xmin)/2/pi*bbx*sin(2*pi*(x1-xmin)/(xmax-xmin))
+          xlog = x1+(lmax-lmin)/2/pi*bbx*sin(2*pi*(x1-lmin)/(lmax-lmin))
         else  !monotonic cubic polynomial
           select case(dim)
           case(1)
-            if (bbx == 0d0) bbx= find_eta(xmin,xmax,gp(1),gp(2))
-            xlog = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
+            if (bbx == 0d0) bbx= find_eta(lmin,lmax,gp(1),gp(2))
+            xlog = scl_coord(x1,bbx,lmin,lmax,gp(1),gp(2))
           case(2)
-            if (bby == 0d0) bby= find_eta(xmin,xmax,gp(1),gp(2))
-            xlog = scl_coord(x1,bby,xmin,xmax,gp(1),gp(2))
+            if (bby == 0d0) bby= find_eta(lmin,lmax,gp(1),gp(2))
+            xlog = scl_coord(x1,bby,lmin,lmax,gp(1),gp(2))
           case(3)
-            if (bbz == 0d0) bbz= find_eta(xmin,xmax,gp(1),gp(2))
-            xlog = scl_coord(x1,bbz,xmin,xmax,gp(1),gp(2))
+            if (bbz == 0d0) bbz= find_eta(lmin,lmax,gp(1),gp(2))
+            xlog = scl_coord(x1,bbz,lmin,lmax,gp(1),gp(2))
           end select
         endif
 
