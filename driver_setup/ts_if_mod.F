@@ -69,6 +69,7 @@ c     Newton-Krylov iteration
 cc      nk_conf%krylov_method='gm'
       nk_conf%fpa=fpa
       nk_conf%fpa_it=fpa_it
+      nk_conf%fpa_left_pc=fpa_left_pc
 
       nk_conf%vol_wgt = vol_wgt
 
