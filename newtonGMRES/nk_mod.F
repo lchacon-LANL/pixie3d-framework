@@ -392,7 +392,7 @@ c     ###############################################################
       function chk_err() result(ierr)
 
       integer :: ierr
-            
+
       !No convergence: reject solution
       if (failure) then 
         if (jit == ntit_max_rej .and. prnt) write (*,220) check
@@ -408,6 +408,8 @@ c     ###############################################################
           endif
         endif
         ierr = 2
+      else
+        ierr = 0
       endif
 
  220  format ('    WARNING: Max FPA its. exceeded; rel. residual: '
