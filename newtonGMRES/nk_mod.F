@@ -31,7 +31,7 @@ c module nk
 c ###################################################################
       module nk
 
-      use grid_mpi
+      use grid
 
       use math
 
@@ -73,6 +73,7 @@ c ###################################################################
         type (fpa_state) :: fpas
         logical      :: fpa=.false.
         integer      :: fpa_it=5
+        logical      :: fpa_left_pc=.true.
 
         !Newton vectors
         real(8),pointer,dimension(:) :: xk,rk,rkstar
@@ -101,6 +102,331 @@ c     ###############################################################
       nw_rk = nk_conf%rk
       
       end function nk_current_Newton_residual
+
+c     anderson
+c     ###############################################################
+      subroutine anderson(neq,ntot,x,iguess,out,ierr,matvec)
+c     ---------------------------------------------------------------
+c     Performs Jacobian-free inexact Newton iteration on res(x) = 0, 
+c     where res is calculated in 'evaluateNonlinearResidual' (provided
+c     by user). 
+c
+c     Call parameters:
+c       * neq: number of equations
+c       * ntot: dimension of vector of unknowns.
+c       * x: on input, initial guess; on output, solution.
+c       * iguess: whether to use preconditioner to provide initial guess
+c                 (iguess = 1).
+c       * out: level of output:
+c              out = 0 --> No output
+c              out = 1 --> Newton convergence output
+c              out = 2 --> Previous plus GMRES convergence output
+c              out = 3 --> Previous plus residual information output
+c              out > 4 --> Previous plus preconditioner output (controlled
+c                          in preconditioner routine).
+c       * ierr: error flag:
+c              ierr = EXACT  --> Initial guess is exact solution
+c              ierr = NOERR  --> No error
+c              ierr = NOCONV --> No Newton convergence to prescribed tolerance in
+c                                prescribed number of iterations (ntit_max_rej)
+c              ierr = CUTDT  --> Newton converged, but took too many iterations
+c                                (>  ntit_max_acc)
+c       * matvec: optional matrix-vector multiplication routine
+c
+c     Configuration parameters (input via nk_options type):
+c       * etak_meth: specifies method to determine inexact Newton forcing 
+c           parameter. Currently:
+c               etak_meth = 0 --> constant
+c               etak_meth > 0 --> power law adaptive strategy
+c       * damp  : damping parameter for Newton update
+c       * global_meth: determines the globalization procedure:
+c               global_meth = 0 --> no globalization
+c               global_meth = 1 --> linesearch backtracking 
+c               global_meth = 2 --> pseudo-transient
+c       * pdt0: initial time step for pseudo-transient
+c       * eta0: initial inexact Newton parameter (GMRES convergence tolerance)
+c       * ksmax: dimension of krylov subspace for restarted GMRES(Ksmax)
+c       * gmmax: maximum number of GMRES its. (restart if > ksmax)
+c       * rtol: Newton relative convergence tolerance
+c       * atol: Newton absolute convergence tolerance
+c       * stol: Newton update convergence tolerance
+c       * ntit_max_acc: maximum number of Newton its. to accept
+c                       solution without subcycling time step
+c       * ntit_max_rej: maximum number of Newton its. to reject solution
+c       * gmit_out: on output, actual number of gmres its.
+c       * ntit_out: on output, actual number of newton its.
+c     ---------------------------------------------------------------
+
+      implicit none   !For safe fortran
+
+c     Call variables
+
+      integer :: ntot,neq,out,iguess,ierr
+
+      real(8) :: x(ntot)
+
+      optional :: matvec
+
+      INTERFACE
+        subroutine matvec(nn,z,y)
+        integer    :: nn
+        real(8)    :: z(nn),y(nn)
+        end subroutine matvec
+      END INTERFACE
+
+c     Local variables
+
+      integer :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
+     .          ,ntit_max_rej,global,ntgl
+
+      real(8) :: dxnorm,check_lim,y(ntot),ddx(ntot)
+     .          ,eta0,atol,rtol,stol,damp,pdt0,leps
+
+      real(8) :: f0,fkm,fk,fkp,fm,flimit,theta,dampm
+
+      logical :: vol_wgt,convergence,failure,left_pc
+
+c     Begin program
+
+      prnt = (my_rank == 0)
+
+      ntgl = 1
+      if (nk_conf%vol_wgt) ntgl = ntot*npx*npy*npz
+
+c     Find machine round-off
+
+      if (epsmac == 0d0) epsmac = findRoundOff()  !Used for RMS norm measures
+
+#if defined(petsc)
+      leps = epsmac
+      call MPI_Allreduce(leps,epsmac,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+#endif
+
+      roundoff = sqrt(1d0*ntot*npx*npy*npz)*epsmac  !Used for standard norm measures
+
+c     Initialize variables
+
+      ksmax        = nk_conf%ksmax
+      gmmax        = nk_conf%gmmax
+      ntit_max_acc = nk_conf%nwt_max_it_acc
+      ntit_max_rej = nk_conf%nwt_max_it_rej
+      global       = nk_conf%global_meth
+
+      eta0         = nk_conf%eta0
+      damp         = nk_conf%damp
+      pdt0         = nk_conf%pdt0
+      atol         = nk_conf%atol
+      rtol         = nk_conf%rtol
+      stol         = nk_conf%stol
+
+      vol_wgt      = nk_conf%vol_wgt
+
+      left_pc      = nk_conf%fpa_left_pc
+
+      nk_conf%gm_it_out  = 0
+      nk_conf%nwt_it_out = 0
+
+      if (ntit_max_acc > ntit_max_rej) then
+        call pstop('anderson'
+     $            ,'Error in Newton input: ntit_max_acc > ntit_max_rej')
+      endif
+
+      ntit_max_rej =  ntit_max_rej*2
+      ntit_max_acc =  ntit_max_rej/2
+
+      ierr     = 0
+      itk      = 0
+
+      if (out.ge.1 .and. prnt) write (*,205)
+
+      check_lim = 1d30
+
+      if (atol == 0d0) atol = 1d3*epsmac !Set absolute tolerance to roundoff
+      if (stol == 0d0) stol = 1d3*epsmac !Set update tolerance to roundoff
+
+      jit = 0
+
+c     Evaluate rhs and norms
+
+      allocate (nk_conf%xk(ntot),nk_conf%rk(ntot),nk_conf%rkstar(ntot))
+
+      nk_conf%xk = x    !Save previous Newton state
+
+      call evaluateNewtonResidual(ntot,x,nk_conf%rk) !Initial residual
+
+      !Right PC: compute initial iterate
+      if (.not.left_pc) then
+        nk_conf%rkstar = nk_conf%rk
+        call matrixFreeMatVec(ntot,x,y)
+cc        y = 0d0
+      endif
+
+      if (chk_convergence(ddx,nk_conf%rk,.true.)) then
+        ierr = -1
+        call destroy_anderson
+        return
+      endif
+
+c     Start Anderson iteration
+
+      f0    = fkp
+      fk    = f0
+      fkm   = f0
+cc      flimit= atol + rtol*f0
+
+      !Setup Anderson
+      call fpa_create(nk_conf%fpas,nk_conf%rk,maxv=nk_conf%fpa_it)
+
+      do jit = 1,ntit_max_rej
+
+        !Update counters
+        nk_conf%nwt_it_out = jit
+
+        !Anderson update
+        iout = out - 1
+
+        !Setup PC
+        call setupPC(ntot,x)
+
+        if (.not.left_pc) then
+          !Right PC
+          call applyPC(ntot,y,x,iout-1) !Find solution x
+          call evaluateNewtonResidual(ntot,x,nk_conf%rk)
+
+          !Destroy PC
+          call killPC
+
+          ddx = x - nk_conf%xk
+          nk_conf%xk = x        !Save current Newton state
+
+          !Check convergence
+          if (chk_convergence(ddx,nk_conf%rk,.false.)) exit
+
+cc          nk_conf%rk = -nk_conf%rk !Minus sign important for Anderson
+          call fpa_correction(nk_conf%fpas,nk_conf%rk,dp=dot2)
+
+          !Update solution
+          y = y - damp*nk_conf%rk
+        else
+          !Left PC
+          call applyPC(ntot,-nk_conf%rk,ddx,iout-1)
+
+          !Destroy PC
+          call killPC
+
+          ddx = -ddx            !Minus sign important for Anderson
+          call fpa_correction(nk_conf%fpas,ddx,dp=dot2)
+
+          !Update solution
+          x = x - damp*ddx
+          nk_conf%xk = x        !Save current Newton state
+
+          !Evaluate rhs and norms and check convergence
+          call evaluateNewtonResidual(ntot,x,nk_conf%rk)
+
+          !Check convergence
+          if (chk_convergence(ddx,nk_conf%rk,.false.)) exit
+        endif
+
+        !Store magnitude of residual
+        fkm   = fk
+        fk    = fkp
+
+      enddo       !End of iteration
+
+      !Destroy Anderson
+      call fpa_destroy(nk_conf%fpas)
+
+c     Check for errors in Newton convergence
+
+      ierr = chk_err()
+
+c     End program
+
+      call destroy_anderson
+
+ 205  format 
+     .   (/,' FPA_it   Av_updt    Abs_res   Rel_res     Damping')
+
+      contains
+
+c     chk_convergence
+c     ###################################################################
+      function chk_convergence(dx,rk,init) result(exit_lp)
+
+        real(8) :: rk(ntot),dx(ntot)
+        logical :: exit_lp,init
+
+c     Check Anderson convergence/failure
+
+        fkp = ntgl*rms(rk)
+
+        if (init) then
+          check = 1d0
+          dxnorm = 1d0
+          flimit= atol + rtol*fkp
+        else
+          check = fkp/f0
+          dxnorm = rms(dx)
+        endif
+
+        if (out.ge.1.and.prnt) write(*,215) jit,dxnorm,fkp,check,damp
+
+        if (out.ge.3) then
+          call dumpResidualNorms(neq,-rk,vol_wgt)
+        endif
+
+        convergence = (fkp <= flimit.or.dxnorm <= stol)
+        failure     = (check > check_lim .or. jit == ntit_max_rej)
+     .               .and.(.not.convergence)
+
+        exit_lp = (convergence .or. failure)
+
+ 215    format (i4,3x,1p,4e11.3)
+
+      end function chk_convergence
+
+c     chk_err
+c     ###############################################################
+      function chk_err() result(ierr)
+
+      integer :: ierr
+            
+      !No convergence: reject solution
+      if (failure) then 
+        if (jit == ntit_max_rej .and. prnt) write (*,220) check
+        if (check > check_lim .and. prnt) write (*,230) check,check_lim
+        ierr = 1
+      !Accept solution, but warn user
+      elseif (((jit-1).ge.ntit_max_acc).and.(ntit_max_acc > 0)) then 
+        if (prnt) then
+          if (nk_conf%fpa) then
+            write (*,250) ntit_max_acc
+          else
+            write (*,240) ntit_max_acc
+          endif
+        endif
+        ierr = 2
+      endif
+
+ 220  format ('    WARNING: Max FPA its. exceeded; rel. residual: '
+     .       ,1p,1e10.2)
+ 230  format ('    Relative residual =',f7.2,' >',f7.2)
+ 240  format ('    FPA converged in too many iterations (>',i3,')')
+ 250  format ('    FPA converged in too many iterations (>',i3,')')
+
+      end function chk_err
+
+c     destroy_anderson
+c     ###############################################################
+      subroutine destroy_anderson
+
+      deallocate(nk_conf%xk,nk_conf%rk,nk_conf%rkstar)
+
+      end subroutine destroy_anderson
+      
+      end subroutine anderson
 
 c     jfnk
 c     ###############################################################
@@ -230,19 +556,10 @@ c     Initialize variables
      $            ,'Error in Newton input: ntit_max_acc > ntit_max_rej')
       endif
 
-      if (nk_conf%fpa) then
-        ntit_max_rej =  ntit_max_rej*2
-        ntit_max_acc =  ntit_max_rej/2
-      endif
-
       ierr     = 0
       itk      = 0
 
-      if (.not.(nk_conf%fpa)) then
-         if (out.ge.1 .and. prnt) write (*,200)
-      else
-         if (out.ge.1 .and. prnt) write (*,205)
-      endif
+      if (out.ge.1 .and. prnt) write (*,200)
 
       if (global == 2) then   !Activate pseudo-transient
         pseudo_dt = .true.
@@ -259,9 +576,6 @@ cc        pdt0      = 1d30
       if (atol == 0d0) atol = 1d3*epsmac !Set absolute tolerance to roundoff
       if (stol == 0d0) stol = 1d3*epsmac !Set update tolerance to roundoff
 
-      convergence = .false.
-      failure     = .false.
-
       jit = 0
 
 c     Evaluate rhs and norms
@@ -272,82 +586,51 @@ c     Evaluate rhs and norms
 
       call evaluateNewtonResidual(ntot,x,nk_conf%rk)
 
-      f0 = ntgl*rms(nk_conf%rk)
-
-      !Check if initial guess is exact, and if so exit Newton step
-      if (f0.lt.atol) then
+      if (chk_convergence(ddx,nk_conf%rk,.true.)) then
         ierr = -1
-cc        deallocate(xx0)
-        deallocate(nk_conf%xk,nk_conf%rk,nk_conf%rkstar)
+        call destroy_jfnk
         return
-      endif
-
-c     Initial output
-
-      if (.not.(nk_conf%fpa)) then
-         if (out.ge.1 .and. prnt)
-     $     write (*,210) 0,0d0,f0,1d0,1d0,pdt0,eta0,0
-      else
-         if (out.ge.1 .and. prnt)
-     $     write (*,215) 0,0d0,f0,1d0,1d0,pdt0
-      endif
-
-      if (out.ge.3) then
-        call dumpResidualNorms(neq,-nk_conf%rk,vol_wgt)
       endif
 
 c     Start Newton iteration
 
+      f0    = fkp
       fk    = f0
       fkm   = f0
-      flimit= atol + rtol*f0
+cc      flimit= atol + rtol*f0
 
       etakm = eta0
       etak  = eta0
 
-      if (nk_conf%fpa) call fpa_create(nk_conf%fpas
-     .                                ,nk_conf%rk
-     .                                ,maxv=nk_conf%fpa_it)
-
       do jit = 1,ntit_max_rej
 
         !Determine inexact Newton constant
-        if (.not.(nk_conf%fpa)) then
-           call find_etak(fk,fkm,flimit,eta0,etak,etakm,etak_meth)
-        endif
+        call find_etak(fk,fkm,flimit,eta0,etak,etakm,etak_meth)
 
         !Setup preconditioner
-        call setupPC(ntot,x,jit)
+        call setupPC(ntot,x)
 
         !Jacobian-free solve
         iout = out - 1
 
-        if (nk_conf%fpa) then
-          call applyPC(ntot,-nk_conf%rk,ddx,iout-1)
-          ddx = -ddx  !Minus sign important for Anderson
-          call fpa_correction(nk_conf%fpas,ddx,dp=dot2)
-          ddx = -ddx
+        if (nk_conf%deferred_correction) then
+          is_matvec = .true.
+          call evaluateNewtonResidual(ntot,x,nk_conf%rkstar)
+          is_matvec = .false.
         else
+          nk_conf%rkstar = nk_conf%rk
+        endif
 
-          if (nk_conf%deferred_correction) then
-            is_matvec = .true.
-            call evaluateNewtonResidual(ntot,x,nk_conf%rkstar)
-            is_matvec = .false.
-          else
-            nk_conf%rkstar = nk_conf%rk
-          endif
+        ddx = 0d0
 
-          ddx = 0d0
-
-          if (PRESENT(matvec)) then
-            call gmresDriver(matvec
+        if (PRESENT(matvec)) then
+          call gmresDriver(matvec
      .                      ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
      .                      ,iguess,iout,ierr)
-          else
-            call gmresDriver(matrixFreeMatVec
+        else
+          call gmresDriver(matrixFreeMatVec
      .                      ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
      .                      ,iguess,iout,ierr)
-          endif
         endif
 
         !Kill preconditioner
@@ -358,60 +641,28 @@ c     Start Newton iteration
         nk_conf%nwt_it_out = jit
 
         !Check for error in GMRES
-        if (.not.(nk_conf%fpa)) then
-          if (ierr.eq.1) then
-            if (prnt) write(*,*) 
+        if (ierr.eq.1) then
+          if (prnt) write(*,*) 
      .       '   WARNING: Exceeded maximum GMRES iterations (',gmmax,')'
-            ierr = 0  !Use GMRES solution for Newton update regardless
-          elseif (ierr.eq.-1) then !Got to atol in the Newton residual
-            ierr = 0
-            exit !Do not continue Newton iteration
-          endif
+          ierr = 0              !Use GMRES solution for Newton update regardless
+        elseif (ierr.eq.-1) then !Got to atol in the Newton residual
+          ierr = 0
+          exit                  !Do not continue Newton iteration
         endif
 
         !Globalization procedure: damping coefficient
         if (global >= 1) call findDamping (ntot,x,ddx,etak,fk,damp)
-cc        if (global == 1) call findDamping (ntot,x,ddx,etak,fk,damp)
 
         !Update solution
         x = x + damp*ddx
-
-cc        call updateNewtonSolution(ntot,x,ddx,damp,dxnorm)
 
         nk_conf%xk = x   !Save current Newton state
 
         !Evaluate rhs and norms
         call evaluateNewtonResidual(ntot,x,nk_conf%rk)
 
-        fkp = ntgl*rms(nk_conf%rk)
-
         !Check Newton convergence/failure
-        check = fkp/f0
-
-        dxnorm = rms(ddx)
-
-        if (nk_conf%fpa) then
-          if (out.ge.1 .and. prnt)
-     $       write(*,215)jit,dxnorm,fkp,check,damp,pdt
-        else
-          if (out.ge.1 .and. prnt)
-     $       write(*,210)jit,dxnorm,fkp,check,damp,pdt,etak,itk
-        endif
-
-        if (out.ge.3) then
-          call dumpResidualNorms(neq,-nk_conf%rk,vol_wgt)
-        endif
-
-        convergence = (fkp <= flimit .or.dxnorm <= stol)
-        failure     = (check > check_lim .or. jit == ntit_max_rej)
-     .               .and.(.not.convergence)
-cc        if (fkp <= flimit .or.dxnorm <= stol) then
-cc          convergence = .true.
-cc        elseif (check > check_lim .or. jit == ntit_max_rej) then
-cc          failure = .true.
-cc        endif
-
-        if (convergence .or. failure) exit
+        if (chk_convergence(ddx,nk_conf%rk,.false.)) exit
 
         !Store magnitude of residual
         fkm   = fk
@@ -419,150 +670,21 @@ cc        endif
 
         etakm = etak
 
-        !Change pseudo-transient time step
-cc        if (pseudo_dt) then
-cccc          pdt = min(pdt/check,1d30)
-cc          pdt = min(pdt0/sqrt(check),1d30)
-cc          call evaluateNewtonResidual(ntot,x,rk)
-cc
-cccc          if (check < 1d-3) pdt = min(pdt0*jit,1d0)
-cccc          pdt = min(pdt0/check**2,1d30)
-cc        endif
-
       enddo       !End of Newton loop
-
-      if (nk_conf%fpa) call fpa_destroy(nk_conf%fpas)
 
 c     Check error in Newton convergence
 
-      !No convergence: reject solution
-      if (failure) then 
-        if (jit == ntit_max_rej .and. prnt) write (*,220) check
-        if (check > check_lim .and. prnt) write (*,230) check,check_lim
-        if (damp  < 1d-4 .and. prnt)
-     $       write (*,*) 'Damping parameter too small'
-        ierr = 1
-      !Accept solution, but warn user
-      elseif (((jit-1).ge.ntit_max_acc).and.(ntit_max_acc > 0)) then 
-        if (prnt) then
-          if (nk_conf%fpa) then
-            write (*,250) ntit_max_acc
-          else
-            write (*,240) ntit_max_acc
-          endif
-        endif
-        ierr = 2
-      endif
+      ierr = chk_err()
 
 c     End program
 
-      deallocate (nk_conf%rk,nk_conf%xk,nk_conf%rkstar)
-cc      deallocate (xx0)
+      call destroy_jfnk
 
  200  format 
      .   (/,' New_it   Av_updt    Abs_res   Rel_res     Damping'
      .     ,'      pdt_n      eta_k     GMRES')
- 205  format 
-     .   (/,' FPA_it   Av_updt    Abs_res   Rel_res     Damping'
-     .     ,'      pdt_n')
- 210  format (i4,3x,1p,6e11.3,3x,i4)
- 215  format (i4,3x,1p,5e11.3)
- 220  format ('    WARNING: Max newton its. exceeded; rel. residual: '
-     .       ,1p,1e10.2)
- 230  format ('    Relative residual =',f7.2,' >',f7.2)
- 240  format ('    Newton converged in too many iterations (>',i3,')')
- 250  format ('    FPA converged in too many iterations (>',i3,')')
 
-      end subroutine jfnk
-
-c     dumpResidualNorms
-c     ###############################################################
-      subroutine dumpResidualNorms(neq,b,vw)
-
-c     ---------------------------------------------------------------
-c     Calculates RMS of residuals
-c     ---------------------------------------------------------------
-
-      implicit none     !For safe fortran
-
-c     Call variables
-
-      integer    :: neq
-      real(8)    :: b(:)
-      logical    :: vw
-
-c     Local variables
-
-      integer    :: i,j,ntot,nn,lnn
-      real(8)    :: ravg(neq),lravg(neq)
-
-c     Begin program
-
-      ntot = size(b)
-
-      nn = ntot/neq
-
-c     Calculate partial residuals
-
-      do j=1,neq
-        ravg(j) = sum(b(j:ntot-neq+j:neq)**2)
-      enddo
-
-c     Calculate magnitude of residuals
-
-#if defined(petsc)
-      if (.not.asm) then
-        lravg = ravg
-        call MPI_Allreduce(lravg,ravg,neq,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-
-        lnn = nn
-        call MPI_Allreduce(lnn,nn,1,MPI_INTEGER
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
-#endif
-
-      ravg = sqrt(ravg/nn)
-
-      if (vw) ravg=ravg*nn
-
-      if (my_rank == 0) then
-        do i = 1,neq
-          write (*,320) i,ravg(i)
-        enddo
-      endif
-
-c     End program
-
- 320  format (' RMS residual eqn. ',i2,': ',1pe9.2)
-
-      end subroutine dumpResidualNorms
-
-ccc     updateNewtonSolution
-ccc     ###############################################################
-cc      subroutine updateNewtonSolution(ntot,x,ddx,damp,dxnorm)
-cc      implicit none         !For safe fortran
-ccc     ---------------------------------------------------------------
-ccc     Updates solution in Newton iteration
-ccc     ---------------------------------------------------------------
-cc
-ccc     Call variables
-cc
-cc      integer    :: ntot
-cc      real(8)    :: x(ntot),ddx(ntot),damp,dxnorm
-cc
-ccc     Local variables
-cc
-ccc     Begin program
-cc
-cc      x = x + damp*ddx
-cc
-cccc      dxnorm = sqrt(dot(ntot,ddx,ddx))
-cc      dxnorm = rms(ddx)
-cc
-ccc     End program
-cc
-cc      end subroutine updateNewtonSolution
+      contains
 
 c     find_etak
 c     ###############################################################
@@ -721,6 +843,172 @@ cc          write (*,*) 'Damping parameters',dampm,damp
 c     End program
 
       end subroutine findDamping
+
+c     chk_convergence
+c     ###################################################################
+      function chk_convergence(dx,rk,init) result(exit_lp)
+
+        real(8) :: rk(ntot),dx(ntot)
+        logical :: exit_lp,init
+
+c     Check Anderson convergence/failure
+
+        fkp = ntgl*rms(rk)
+
+        if (init) then
+          check = 1d0
+          dxnorm = 1d0
+          flimit= atol + rtol*fkp
+        else
+          check = fkp/f0
+          dxnorm = rms(dx)
+        endif
+
+        if (out.ge.1 .and. prnt)
+     $       write(*,210)jit,dxnorm,fkp,check,damp,pdt,etak,itk
+
+        if (out.ge.3) then
+          call dumpResidualNorms(neq,-rk,vol_wgt)
+        endif
+
+        convergence = (fkp <= flimit.or.dxnorm <= stol)
+        failure     = (check > check_lim .or. jit == ntit_max_rej)
+     .               .and.(.not.convergence)
+
+        exit_lp = (convergence .or. failure)
+
+ 210    format (i4,3x,1p,6e11.3,3x,i4)
+
+      end function chk_convergence
+
+c     chk_err
+c     ###############################################################
+      function chk_err() result(ierr)
+
+      integer :: ierr
+
+      !No convergence: reject solution
+      if (failure) then 
+        if (jit == ntit_max_rej .and. prnt) write (*,220) check
+        if (check > check_lim .and. prnt) write (*,230) check,check_lim
+        if (damp  < 1d-4 .and. prnt)
+     $       write (*,*) 'Damping parameter too small'
+        ierr = 1
+      !Accept solution, but warn user
+      elseif (((jit-1).ge.ntit_max_acc).and.(ntit_max_acc > 0)) then 
+        if (prnt) then
+          write (*,240) ntit_max_acc
+        endif
+        ierr = 2
+      else
+        ierr = 0
+      endif
+
+ 220  format ('    WARNING: Max newton its. exceeded; rel. residual: '
+     .       ,1p,1e10.2)
+ 230  format ('    Relative residual =',f7.2,' >',f7.2)
+ 240  format ('    Newton converged in too many iterations (>',i3,')')
+
+      end function chk_err
+
+c     destroy_jfnk
+c     ###############################################################
+      subroutine destroy_jfnk
+
+      deallocate(nk_conf%xk,nk_conf%rk,nk_conf%rkstar)
+
+      end subroutine destroy_jfnk
+      
+      end subroutine jfnk
+
+c     dumpResidualNorms
+c     ###############################################################
+      subroutine dumpResidualNorms(neq,b,vw)
+
+c     ---------------------------------------------------------------
+c     Calculates RMS of residuals
+c     ---------------------------------------------------------------
+
+      implicit none     !For safe fortran
+
+c     Call variables
+
+      integer    :: neq
+      real(8)    :: b(:)
+      logical    :: vw
+
+c     Local variables
+
+      integer    :: i,j,ntot,nn,lnn
+      real(8)    :: ravg(neq),lravg(neq)
+
+c     Begin program
+
+      ntot = size(b)
+
+      nn = ntot/neq
+
+c     Calculate partial residuals
+
+      do j=1,neq
+        ravg(j) = sum(b(j:ntot-neq+j:neq)**2)
+      enddo
+
+c     Calculate magnitude of residuals
+
+#if defined(petsc)
+      if (.not.asm) then
+        lravg = ravg
+        call MPI_Allreduce(lravg,ravg,neq,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+
+        lnn = nn
+        call MPI_Allreduce(lnn,nn,1,MPI_INTEGER
+     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+#endif
+
+      ravg = sqrt(ravg/nn)
+
+      if (vw) ravg=ravg*nn
+
+      if (my_rank == 0) then
+        do i = 1,neq
+          write (*,320) i,ravg(i)
+        enddo
+      endif
+
+c     End program
+
+ 320  format (' RMS residual eqn. ',i2,': ',1pe9.2)
+
+      end subroutine dumpResidualNorms
+
+ccc     updateNewtonSolution
+ccc     ###############################################################
+cc      subroutine updateNewtonSolution(ntot,x,ddx,damp,dxnorm)
+cc      implicit none         !For safe fortran
+ccc     ---------------------------------------------------------------
+ccc     Updates solution in Newton iteration
+ccc     ---------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc      integer    :: ntot
+cc      real(8)    :: x(ntot),ddx(ntot),damp,dxnorm
+cc
+ccc     Local variables
+cc
+ccc     Begin program
+cc
+cc      x = x + damp*ddx
+cc
+cccc      dxnorm = sqrt(dot(ntot,ddx,ddx))
+cc      dxnorm = rms(ddx)
+cc
+ccc     End program
+cc
+cc      end subroutine updateNewtonSolution
 
 c     gmresDriver
 c     ################################################################
