@@ -365,10 +365,11 @@ c     Check Anderson convergence/failure
         if (init) then
           check = 1d0
           dxnorm = 1d0
-          flimit= atol + rtol*fkp
+          flimit= atol
         else
           check = fkp/f0
           dxnorm = rms(dx)
+          flimit= atol + rtol*f0
         endif
 
         if (out.ge.1.and.prnt) write(*,215) jit,dxnorm,fkp,check,damp
@@ -858,10 +859,11 @@ c     Check Anderson convergence/failure
         if (init) then
           check = 1d0
           dxnorm = 1d0
-          flimit= atol + rtol*fkp
+          flimit= atol
         else
           check = fkp/f0
           dxnorm = rms(dx)
+          flimit= atol + rtol*f0
         endif
 
         if (out.ge.1 .and. prnt)
