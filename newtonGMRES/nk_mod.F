@@ -273,7 +273,7 @@ c     Start Anderson iteration
       f0    = fkp
       fk    = f0
       fkm   = f0
-      flimit= atol + rtol*f0
+cc      flimit= atol + rtol*f0
 
       !Setup Anderson
       call fpa_create(nk_conf%fpas,nk_conf%rk,maxv=nk_conf%fpa_it)
@@ -365,6 +365,7 @@ c     Check Anderson convergence/failure
         if (init) then
           check = 1d0
           dxnorm = 1d0
+          flimit= atol + rtol*fkp
         else
           check = fkp/f0
           dxnorm = rms(dx)
@@ -596,7 +597,7 @@ c     Start Newton iteration
       f0    = fkp
       fk    = f0
       fkm   = f0
-      flimit= atol + rtol*f0
+cc      flimit= atol + rtol*f0
 
       etakm = eta0
       etak  = eta0
@@ -857,6 +858,7 @@ c     Check Anderson convergence/failure
         if (init) then
           check = 1d0
           dxnorm = 1d0
+          flimit= atol + rtol*fkp
         else
           check = fkp/f0
           dxnorm = rms(dx)
