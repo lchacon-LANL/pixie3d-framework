@@ -578,6 +578,9 @@ cc        pdt0      = 1d30
       if (stol == 0d0) stol = 1d3*epsmac !Set update tolerance to roundoff
 
       jit = 0
+      
+      etakm = eta0
+      etak  = eta0
 
 c     Evaluate rhs and norms
 
@@ -599,9 +602,6 @@ c     Start Newton iteration
       fk    = f0
       fkm   = f0
 cc      flimit= atol + rtol*f0
-
-      etakm = eta0
-      etak  = eta0
 
       do jit = 1,ntit_max_rej
 
