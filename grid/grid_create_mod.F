@@ -73,10 +73,6 @@ c     Create grid structures
 
 c     Legacy assignments (backward compatibility)
 
-cc        gmetric => gdef%gmetric !For backward compatibility
-
-cc        grid_params => gdef 
-
 #if defined(petsc)
         call initMPI(mpi_comm,np,my_rank)
 
@@ -313,6 +309,12 @@ c$$$     .     ' create_coarse_gdef Size =',nxg,nyg,nzg,igr
      .               ,process_packing=.false.)
 
       g_crse_def%mpi_comm_crse = mpi_comm_crse
+
+      !Create MPI communicators
+
+#if defined(petsc)
+cc      call create_MPI_comms(g_crse_def)
+#endif
 
       !Gather map and define grid metrics
       if (.not.checkAnalMapDatabase()) then

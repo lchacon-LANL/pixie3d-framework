@@ -6232,8 +6232,8 @@ c     End program
 
 c     flx_advec_mesh
 c     ###############################################################
-      function flx_advec_mesh(g_def,igrid,v,arr,method,sp,vol,zip_vel)
-     $         result(advec)
+      function flx_advec_mesh(g_def,igrid,v,arr,method,bcs,sp,vol
+     .                       ,zip_vel) result(advec)
       implicit none
 c     ---------------------------------------------------------------
 c     Calculates divergence of vector field (v.arr) at cell centers in
@@ -6246,7 +6246,7 @@ c     Call variables
 
       type(grid_mg_def),pointer :: g_def
 
-      integer :: igrid,method
+      integer :: igrid,method,bcs(6)
 
       real(8) :: arr(0:,0:,0:)
      .          ,v  (0:,0:,0:,:)
@@ -6285,13 +6285,18 @@ c     Compute difference arrays and communicate BCs
       darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
       darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
 
-      bcnd(:,1) = (/bcond(1),bcond(2),DEF,DEF,DEF,DEF/)
-      where (bcnd(1:2,1) == DEF) bcnd(1:2,1) = NEU
-      bcnd(:,2) = (/DEF,DEF,bcond(3),bcond(4),DEF,DEF/)
-      where (bcnd(3:4,2) == DEF) bcnd(3:4,2) = NEU
-      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcond(5),bcond(6)/)
-      where (bcnd(5:6,3) == DEF) bcnd(5:6,3) = NEU
+      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
+c$$$      where (bcnd(1:2,1) == DEF) bcnd(1:2,1) = NEU
+c$$$      where (bcnd(1:2,1) == SYM) bcnd(1:2,1) = NEU
 
+      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
+c$$$      where (bcnd(3:4,2) == DEF) bcnd(3:4,2) = NEU
+c$$$      where (bcnd(3:4,2) == SYM) bcnd(3:4,2) = NEU
+
+      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
+c$$$      where (bcnd(5:6,3) == DEF) bcnd(5:6,3) = NEU
+c$$$      where (bcnd(5:6,3) == SYM) bcnd(5:6,3) = NEU
+      
       do ivar=1,3
         call setMGBC(g_def,0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)
      $              ,bcnd(:,ivar),icomp=(/1/),iorder=1)

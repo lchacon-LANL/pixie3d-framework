@@ -3625,10 +3625,10 @@ c     ##################################################################
 
         logical :: vbr_mg
      .            ,galerkin=.false.
-     .            ,mg_coarse_solve=.true.!Whether we are performing coarse solve
 
         logical,private :: res_vol_wgt=.true.  !Whether residual is volume weighed
      .                    ,mg_find_diag=.false.!Whether we are finding diagonal or not
+     .                    ,mg_coarse_solve=.true.!Whether we are performing coarse solve
 
         private :: find_mf_diag_std,find_mf_diag_colored
 
@@ -6963,7 +6963,7 @@ c$$$     .   ,MG_coarse_solve
         if (  (np > 1)                           !Parallel
      .   .and.(mgctx%g_def%ngrid == igr)         !Lowest level in grid hierarchy
      .   .and.associated(mgctx%g_def%g_crse_def) !Coarse grid defs are defined
-     .   .and.MG_coarse_solve) then !At PROCESSOR coarse mesh
+     .   .and.MG_get_coarse_solve()) then !At PROCESSOR coarse mesh
 
           g_fine_def => mgctx%g_def
           g_crse_def => mgctx%g_def%g_crse_def

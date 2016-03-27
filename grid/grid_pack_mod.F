@@ -77,7 +77,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ibc,exp=3,nn
+        integer :: ibc,ibc1,exp=3,nn
 
         real(8) :: gp(2),lmin,lmax
         real(8), save :: bbx=0d0,bby=0d0,bbz=0d0
@@ -90,6 +90,7 @@ c     Begin program
         endif
 
         ibc = 1+2*(dim-1)
+        ibc1 = 2+2*(dim-1)
 
 c     Grid packing configuration: slope gp(2) at given position gp(1)
 
@@ -109,7 +110,7 @@ c     Grid packing configuration: slope gp(2) at given position gp(1)
         end select
 
         gp(1) = gdef%g_pack(dim)%xp
-        gp(2) = gdef%g_pack(dim)%slope!gdef%g_pack(dim)%dx0/(lmax-lmin)*nn
+        gp(2) = gdef%g_pack(dim)%slope
 
         if (.not.gdef%g_pack(dim)%processed) then
           write (*,*) 'Slope not computed in ',dim,' coordinate'
@@ -120,14 +121,23 @@ c     Grid packing configuration: slope gp(2) at given position gp(1)
 c     Packing
 
         if (bcond(ibc) == PER) then !cosine jacobian
-          bbx = (1.-gp(2))  !Slope is in gp(2) (see grid_create_mod.F)
-          if (bbx <=-1d0) then
+          bbx = abs(1.-gp(2))
+          if (bbx >= 1d0) then
             write (*,*) 'Slope too small along ',dim,' coordinate'
             write (*,*) 'Aborting...'
             stop
           endif
 
-          xlog = x1+(lmax-lmin)/2/pi*bbx*sin(2*pi*(x1-lmin)/(lmax-lmin))
+          xlog =x1-(lmax-lmin)/2/pi*bbx*sin(2*pi*(x1-gp(1))/(lmax-lmin))
+        elseif (bcond(ibc) == SYM.and.bcond(ibc1) == SYM) then !sym cosine jacobian
+          bbx = abs(1.-gp(2))
+          if (bbx >= 1d0) then
+            write (*,*) 'Slope too small along ',dim,' coordinate'
+            write (*,*) 'Aborting...'
+            stop
+          endif
+
+          xlog = x1-(lmax-lmin)/2/pi*bbx*sin(2*pi*(x1-lmin)/(lmax-lmin))
         else  !monotonic cubic polynomial
           select case(dim)
           case(1)
