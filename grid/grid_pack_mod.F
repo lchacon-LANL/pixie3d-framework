@@ -5,7 +5,7 @@ c #####################################################################
         use math
         use grid_def_st
 
-        type(grid_pack),dimension(3),save :: g_pack
+        type(grid_pack),dimension(3) :: g_pack
 
       contains
 
@@ -82,6 +82,8 @@ c     Local variables
         real(8) :: gp(2),lmin,lmax
         real(8), save :: bbx=0d0,bby=0d0,bbz=0d0
 
+        logical :: pack_both_bdrys
+
 c     Begin program
 
         if (.not.gdef%g_pack(dim)%pack) then
@@ -112,6 +114,8 @@ c     Grid packing configuration: slope gp(2) at given position gp(1)
         gp(1) = gdef%g_pack(dim)%xp
         gp(2) = gdef%g_pack(dim)%slope
 
+        pack_both_bdrys = gdef%g_pack(dim)%pack_both_bdrys
+
         if (.not.gdef%g_pack(dim)%processed) then
           write (*,*) 'Slope not computed in ',dim,' coordinate'
           write (*,*) 'Aborting...'
@@ -129,7 +133,7 @@ c     Packing
           endif
 
           xlog =x1-(lmax-lmin)/2/pi*bbx*sin(2*pi*(x1-gp(1))/(lmax-lmin))
-        elseif (bcond(ibc) == SYM.and.bcond(ibc1) == SYM) then !sym cosine jacobian
+        elseif (pack_both_bdrys) then !sym cosine jacobian
           bbx = abs(1.-gp(2))
           if (bbx >= 1d0) then
             write (*,*) 'Slope too small along ',dim,' coordinate'

@@ -17,6 +17,7 @@ c #####################################################################
           logical    :: pack = .false.
           real(8)    :: xp
           real(8)    :: dx0
+          logical    :: pack_both_bdrys=.false.
           real(8)    :: slope = 0d0
           logical    :: processed=.false.
         end type grid_pack
