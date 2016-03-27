@@ -594,46 +594,46 @@ c     Begin program
 
 c     Central-difference formulas
 
-cc      dhx = 2.*grid_params%dxh(ig)
-cc      dhy = 2.*grid_params%dyh(jg)
-cc      dhz = 2.*grid_params%dzh(kg)
-cccc      dhx = grid_params%dx(ig-1)+grid_params%dx(ig)
-cccc      dhy = grid_params%dy(jg-1)+grid_params%dy(jg)
-cccc      dhz = grid_params%dz(kg-1)+grid_params%dz(kg)
-cc
-ccc     Exceptions
-cc
-cc      if (hx == 1) then
-cc        im = i
-cc        dhx = grid_params%dx(ig)
-cc      elseif (hx == -1) then
-cc        ip = i
-cc        dhx = grid_params%dx(ig-1)
-cc      endif
-cc
-cc      if (hy == 1) then
-cc        jm = j
-cc        dhy = grid_params%dy(jg)
-cc      elseif (hy == -1) then
-cc        jp = j
-cc        dhy = grid_params%dy(jg-1)
-cc      endif
-cc
-cc      if (hz == 1) then
-cc        km = k
-cc        dhz = grid_params%dz(kg)
-cc      elseif (hz == -1) then
-cc        kp = k
-cc        dhz = grid_params%dz(kg-1)
-cc      endif
-cc
-cc      gx = (arr(ip,j,k)-arr(im,j,k))/dhx
-cc      gy = (arr(i,jp,k)-arr(i,jm,k))/dhy
-cc      gz = (arr(i,j,kp)-arr(i,j,km))/dhz
-cc
-cc      cov = (/ gx,gy,gz /)
-cc
-cc      return
+c$$$      dhx = 2.*grid_params%dxh(ig)
+c$$$      dhy = 2.*grid_params%dyh(jg)
+c$$$      dhz = 2.*grid_params%dzh(kg)
+c$$$cc      dhx = grid_params%dx(ig-1)+grid_params%dx(ig)
+c$$$cc      dhy = grid_params%dy(jg-1)+grid_params%dy(jg)
+c$$$cc      dhz = grid_params%dz(kg-1)+grid_params%dz(kg)
+c$$$
+c$$$c     Exceptions
+c$$$
+c$$$      if (hx == 1) then
+c$$$        im = i
+c$$$        dhx = grid_params%dx(ig)
+c$$$      elseif (hx == -1) then
+c$$$        ip = i
+c$$$        dhx = grid_params%dx(ig-1)
+c$$$      endif
+c$$$
+c$$$      if (hy == 1) then
+c$$$        jm = j
+c$$$        dhy = grid_params%dy(jg)
+c$$$      elseif (hy == -1) then
+c$$$        jp = j
+c$$$        dhy = grid_params%dy(jg-1)
+c$$$      endif
+c$$$
+c$$$      if (hz == 1) then
+c$$$        km = k
+c$$$        dhz = grid_params%dz(kg)
+c$$$      elseif (hz == -1) then
+c$$$        kp = k
+c$$$        dhz = grid_params%dz(kg-1)
+c$$$      endif
+c$$$
+c$$$      gx = (arr(ip,j,k)-arr(im,j,k))/dhx
+c$$$      gy = (arr(i,jp,k)-arr(i,jm,k))/dhy
+c$$$      gz = (arr(i,j,kp)-arr(i,j,km))/dhz
+c$$$
+c$$$      cov = (/ gx,gy,gz /)
+c$$$
+c$$$      return
 
 c     2nd order formulas
 

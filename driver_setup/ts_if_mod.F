@@ -183,7 +183,7 @@ c     Begin program
       ierr = NOERR
 
       itgmres = 0
-      itnewt = 0
+      itnewt  = 0
 
 c     Define TS parameters
 
