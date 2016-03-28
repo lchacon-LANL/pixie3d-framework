@@ -5940,7 +5940,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: im,ip,igp,ig,jg,kg,admth,nxgl
+      integer :: im,ip,igp,ig,jg,kg,nxgl
 
       real(8) :: jacip,jacim,jac,qip,vxp
 
@@ -5985,7 +5985,7 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
       flxip = 0d0
 
-      at_bdry = isBdry(g_def,i,igr,2) .or. isBdry(g_def,i+1,igr,1)
+      at_bdry = isBdry(g_def,i,igr,2).or.isBdry(g_def,i+1,igr,1)
 
       if (.not.at_bdry) then               !Not at boundary
         flxip = 0.25*(v(ip,j,k)*arr(i ,j,k)/jacip
@@ -6010,26 +6010,15 @@ c     Other advective methods
           vxp = 0.5*(v(ip,j,k)+v(i,j,k))
         endif
 
-        !Find advected quantity at faces
-c$$$        if ((ig == nxgl .or. ig == 0).and.) then
-c$$$          admth = bc_adv_meth
-c$$$        else
-          admth = method
-c$$$        endif
-
-c$$$        qip=in2face_scl(g_def%xx(igpp),arr(ipp,j,k)
-c$$$     .                 ,g_def%xx(igp ),arr(ip ,j,k)
-c$$$     .                 ,g_def%xx(ig  ),arr(i  ,j,k)
-c$$$     .                 ,g_def%xx(igm ),arr(im ,j,k)
-c$$$     .                 ,vxp,admth)
         qip=in2face_scl_new(g_def%xx(ig ),arr(i ,j,k)
      .                     ,g_def%xx(igp),arr(ip,j,k)
      .                     ,2*g_def%dxh(ig ),darr(i ,j,k)
      .                     ,2*g_def%dxh(igp),darr(ip,j,k)
-     .                     ,vxp,admth)
+     .                     ,vxp,method)
 
 c$$$        !Setup fluxes (ZIP at boundaries by default for conservation)
-c$$$        if (.not.(at_bdry).or.bc_safe) flxip=vxp*qip
+c$$$        if (.not.at_bdry) flxip=vxp*qip
+        flxip = vxp*qip
 
       endif
 
@@ -6063,11 +6052,11 @@ c     Call variables
 
 c     Local variables
 
-      integer :: jm,jp,jgp,ig,jg,kg,admth
+      integer :: jm,jp,jgp,ig,jg,kg
 
       real(8) :: jac,qjp,vyp
 
-      logical :: zv,at_bdry
+      logical :: zv
 
 c     Begin program
 
@@ -6092,7 +6081,7 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-      at_bdry = isBdry(g_def,j,igr,4) .or. isBdry(g_def,j+1,igr,3)
+cc      at_bdry = isBdry(g_def,j,igr,4) .or. isBdry(g_def,j+1,igr,3)
 
       flxjp = 0.5*(v(i,jp,k)*arr(i,j,k) + v(i,j,k)*arr(i,jp,k))
 
@@ -6107,26 +6096,15 @@ c     Other advective methods
           vyp = 0.5*(v(i,jp,k)+v(i,j,k))
         endif
 
-        !Find advected quantity at faces
-c$$$        if ((j == ny .or. j == 0).and.(.not.bc_safe)) then
-c$$$          admth = bc_adv_meth
-c$$$        else
-          admth = method
-c$$$        endif
-
-c$$$        qjp=in2face_scl(g_def%yy(jgpp),arr(i,jpp,k)
-c$$$     .                 ,g_def%yy(jgp ),arr(i,jp ,k)
-c$$$     .                 ,g_def%yy(jg  ),arr(i,j  ,k)
-c$$$     .                 ,g_def%yy(jgm ),arr(i,jm ,k)
-c$$$     .                 ,vyp,admth)
         qjp=in2face_scl_new(g_def%yy(jg ),arr(i,j ,k)
      .                     ,g_def%yy(jgp),arr(i,jp,k)
      .                     ,2*g_def%dyh(jg ),darr(i,j ,k)
      .                     ,2*g_def%dyh(jgp),darr(i,jp,k)
-     .                     ,vyp,admth)
+     .                     ,vyp,method)
 
 c$$$        !Setup fluxes (ZIP at boundaries by default for conservation)
-c$$$        if (.not.(at_bdry).or.bc_safe) flxjp=vyp*qjp
+c$$$        if (.not.at_bdry) flxjp=vyp*qjp
+        flxjp = vyp*qjp
 
       endif
 
@@ -6160,11 +6138,11 @@ c     Call variables
 
 c     Local variables
 
-      integer :: km,kp,kgp,ig,jg,kg,admth
+      integer :: km,kp,kgp,ig,jg,kg
 
       real(8) :: jac,qkp,vzp
 
-      logical :: zv,at_bdry
+      logical :: zv
 
 c     Begin program
 
@@ -6189,7 +6167,7 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-      at_bdry = isBdry(g_def,k,igr,6) .or. isBdry(g_def,k+1,igr,5)
+cc      at_bdry = isBdry(g_def,k,igr,6) .or. isBdry(g_def,k+1,igr,5)
 
       flxkp = 0.5*(v(i,j,kp)*arr(i,j,k) + v(i,j,k)*arr(i,j,kp))
 
@@ -6204,25 +6182,15 @@ c     Other advective methods
           vzp = 0.5*(v(i,j,kp)+v(i,j,k))
         endif
 
-c$$$        !Find advected quantity at faces
-c$$$        if ((k == nz .or. k == 0).and.(.not.bc_safe)) then
-c$$$          admth = bc_adv_meth
-c$$$        else
-          admth = method
-c$$$        endif
-
-c$$$        qkp=in2face_scl(g_def%zz(kgpp),arr(i,j,kpp)
-c$$$     .                 ,g_def%zz(kgp ),arr(i,j,kp )
-c$$$     .                 ,g_def%zz(kg  ),arr(i,j,k  )
-c$$$     .                 ,g_def%zz(kgm ),arr(i,j,km )
-c$$$     .                 ,vzp,admth)
         qkp=in2face_scl_new(g_def%zz(kg ),arr(i,j,k )
      .                     ,g_def%zz(kgp),arr(i,j,kp)
      .                     ,2*g_def%dzh(kg ),darr(i,j,k )
      .                     ,2*g_def%dzh(kgp),darr(i,j,kp)
-     .                     ,vzp,admth)
+     .                     ,vzp,method)
+
 c$$$        !Setup fluxes (ZIP at boundaries by default for conservation)
-c$$$        if (.not.(at_bdry).or.bc_safe) flxkp=vzp*qkp
+c$$$        if (.not.at_bdry) flxkp=vzp*qkp
+        flxkp = vzp*qkp
 
       endif
 
