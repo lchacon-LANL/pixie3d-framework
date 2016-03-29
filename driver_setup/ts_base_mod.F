@@ -25,6 +25,10 @@ c ######################################################################
      .            ,quota=1d30  !Max CPU time (in seconds)
         real(8) :: rstep,dfreq,dtexp
 
+        logical :: ts_ramp_up_dt = .false.
+        real(8) :: ts_ramp_up_dt_fraction = 1d-1
+     .            ,ts_ramp_up_dt_recovery = 1.05
+
 #if !defined(samrai)
 
 cc        real(8),pointer,dimension(:,:) :: old_f
@@ -122,6 +126,32 @@ c$$$c     End program
 c$$$
 c$$$      end subroutine storeTSinfo
 
+c     TS_set_dt_ramp_up
+c     ###############################################################
+      subroutine TS_set_dt_ramp_up(fraction,recovery)
+
+c     ---------------------------------------------------------------
+c     Check for end of time loop
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: fraction,recovery
+
+c     Local variables
+
+c     Begin program
+
+      ts_ramp_up_dt = .true.
+      ts_ramp_up_dt_fraction = fraction
+      ts_ramp_up_dt_recovery = recovery
+
+c     End program
+
+      end subroutine TS_set_dt_ramp_up
+
 c     TS_set_bdf2_init_offset
 c     ###############################################################
       subroutine TS_set_bdf2_init_offset(offset)
@@ -203,7 +233,7 @@ c     Find new time step
 
       itm = itime-init_grid_offset
 
-      call findNewTimeStep(itm,ierr,dt)
+      call TS_find_new_dt(itm,ierr,dt)
 
       time = time + dt
 
@@ -289,7 +319,7 @@ c$$$      if (sm_flag == 1) call calculate_gammat
 c$$$
 c$$$c     Find new time step
 c$$$
-c$$$      call findNewTimeStep(itime+1,ierr)
+c$$$      call TS_find_new_dt(itime+1,ierr)
 c$$$
 c$$$c     Update counters (only if timeStep is successful)
 c$$$
@@ -414,9 +444,9 @@ c     End program
 
       end subroutine TS_update_otherCounters
 
-c     findNewTimeStep
+c     TS_find_new_dt
 c     ####################################################################
-      subroutine findNewTimeStep(itm,ierr,dt)
+      subroutine TS_find_new_dt(itm,ierr,dt)
 
 c     --------------------------------------------------------------------
 c     Find new time step
@@ -431,14 +461,19 @@ c     Call variables
 
 c     Local variables
 
-      external findExplicitDt
+      external set_explicit_dt,set_user_dt
 
 c     Begin program
 
+#if defined(USER_PROVIDED_DT)
+      call set_user_dt(dt)
+
+      call calculate_cnfactor
+#else
       if (    cnfactor > 5d-1                   !Explicit
      .   .or.(timecorr.and.ierr==0.and.itm==1)  !First explicit step if timecorr
      .   ) then
-        call findExplicitDt(dt)
+        call set_explicit_dt(dt)
   
         if (cnfactor > 5d-1) dtexp = dtexp + dt
       else
@@ -446,6 +481,7 @@ c     Begin program
 
         call calculate_cnfactor
       endif
+#endif
 
 c     End program
 
@@ -484,13 +520,13 @@ c     #######################################################################
 
           case(2)  !BDF time stepping
 
-            if (timecorr) then
+            if (ts_ramp_up_dt.or.timecorr) then
               if  (itm == 2) then
-                dt = 0.1*dtbase
-              elseif (itm == 3) then
-                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
+                dt = ts_ramp_up_dt_fraction*dtbase
+c$$$              elseif (itm == 3) then
+c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
               else
-                dt = min(dtbase,dt*coef2)
+                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
               endif
             else
               if  (itm <= bdf2_init_offset) then
@@ -578,7 +614,7 @@ c     #######################################################################
 
       end subroutine calculate_cnfactor
 
-      end subroutine findNewTimeStep
+      end subroutine TS_find_new_dt
 #endif
 
       end module ts_base
