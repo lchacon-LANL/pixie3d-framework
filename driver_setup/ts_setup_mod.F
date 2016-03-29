@@ -34,6 +34,10 @@ c ######################################################################
      .            ,eigen=.false.       ! Whether to run framework in eigensolver mode
      .            ,perturb_rstrt=.false.! Whether to apply perturbation after restart
 
+        logical :: ts_ramp_up_dt = .false.       !Whether to ramp up dt initially
+        real(8) :: ts_ramp_up_dt_fraction = 1d-1 !Fraction of initial timestep
+     .            ,ts_ramp_up_dt_recovery = 1.05 !Ramp up coefficient
+
         !TS working variables
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
      .                                     ,bdfp,bdfn,bdfnm
@@ -54,7 +58,6 @@ c ######################################################################
      .            ,bdf2=.false.
      .            ,bdf1=.false.
      .            ,relax_init_grid=.false.
-
 
       contains
 
@@ -279,8 +282,9 @@ c     Namelists
 
       !Temporal discretization
       namelist /ts/ dt,tmax,dstep,numtime,ndstep,source,restart,timecorr
-     .                ,cnfactor,sm_flag,sm_pass,predictor,postprocess
-     .                ,preprocess,eigen,eig_dt,perturb_rstrt
+     .               ,cnfactor,sm_flag,sm_pass,predictor,postprocess
+     .               ,preprocess,eigen,eig_dt,perturb_rstrt
+     .               ,ts_ramp_up,ts_ramp_up_fraction,ts_ramp_up_recovery
 
 c     Begin program
 

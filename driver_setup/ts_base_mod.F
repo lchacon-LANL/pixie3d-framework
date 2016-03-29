@@ -25,10 +25,6 @@ c ######################################################################
      .            ,quota=1d30  !Max CPU time (in seconds)
         real(8) :: rstep,dfreq,dtexp
 
-        logical :: ts_ramp_up_dt = .false.
-        real(8) :: ts_ramp_up_dt_fraction = 1d-1
-     .            ,ts_ramp_up_dt_recovery = 1.05
-
 #if !defined(samrai)
 
 cc        real(8),pointer,dimension(:,:) :: old_f
