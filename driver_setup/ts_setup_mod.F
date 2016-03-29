@@ -282,9 +282,10 @@ c     Namelists
 
       !Temporal discretization
       namelist /ts/ dt,tmax,dstep,numtime,ndstep,source,restart,timecorr
-     .               ,cnfactor,sm_flag,sm_pass,predictor,postprocess
-     .               ,preprocess,eigen,eig_dt,perturb_rstrt
-     .               ,ts_ramp_up,ts_ramp_up_fraction,ts_ramp_up_recovery
+     .                ,cnfactor,sm_flag,sm_pass,predictor,postprocess
+     .                ,preprocess,eigen,eig_dt,perturb_rstrt
+     .                ,ts_ramp_up_dt,ts_ramp_up_dt_fraction
+     .                ,ts_ramp_up_dt_recovery
 
 c     Begin program
 
