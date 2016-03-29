@@ -957,3 +957,57 @@ ifeq ($(HOST),mu-fe1.lanl.gov)
 
 endif
 
+################################
+# Taitano on mustang turquoise #
+################################
+
+ifeq ($(findstring mu,$(HOST)),mu)
+#ifeq ($(HOST),mu-fe2.lanl.gov)
+#ifeq ($(HOST),mu1599.localdomain)
+
+  FC=gfortran
+
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  ifdef BOPT
+    PETSC_DIR =/turquoise/usr/projects/icfifp/Applications/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux-gnu-c-opt
+    else
+#      PETSC_ARCH = turquoise_openmpi_g
+# NOT INSTALLED DEBUG.
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME = /turquoise/usr/projects/icfifp/Applications/hdf5-1.8.11/
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = t
+
+    ADIOS_HOME = /turquoise/usr/projects/icfifp/Applications/adios-1.3.1/
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/icfifp/Applications/mxml-2.5/lib/ -lmxml
+    ADIOS_VER  = 1.31
+
+  else
+#    LIBS += -llapack -lblas
+
+#    HDF5 = t
+
+#    HDF5_HOME = $(HOME)/Software/shdf5-1.8.11
+#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#    HDF5_MOD  =$(HDF5_HOME)/include
+#    HDF5_INC  =$(HDF5_HOME)/include
+
+#    ADIOS = f
+
+  endif
+
+endif
