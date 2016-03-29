@@ -365,11 +365,11 @@ c     Check Anderson convergence/failure
         if (init) then
           check = 1d0
           dxnorm = 1d0
-          flimit= atol
+          flimit = atol
         else
           check = fkp/f0
           dxnorm = rms(dx)
-          flimit= atol + rtol*f0
+          flimit = atol + rtol*f0
         endif
 
         if (out.ge.1.and.prnt) write(*,215) jit,dxnorm,fkp,check,damp
@@ -393,7 +393,7 @@ c     ###############################################################
       function chk_err() result(ierr)
 
       integer :: ierr
-
+            
       !No convergence: reject solution
       if (failure) then 
         if (jit == ntit_max_rej .and. prnt) write (*,220) check
@@ -580,7 +580,7 @@ cc        pdt0      = 1d30
       if (stol == 0d0) stol = 1d3*epsmac !Set update tolerance to roundoff
 
       jit = 0
-      
+
       etakm = eta0
       etak  = eta0
 
@@ -861,11 +861,11 @@ c     Check Anderson convergence/failure
         if (init) then
           check = 1d0
           dxnorm = 1d0
-          flimit= atol
+          flimit = atol
         else
           check = fkp/f0
           dxnorm = rms(dx)
-          flimit= atol + rtol*f0
+          flimit = atol + rtol*f0
         endif
 
         if (out.ge.1 .and. prnt)
