@@ -365,10 +365,11 @@ c     Check Anderson convergence/failure
         if (init) then
           check = 1d0
           dxnorm = 1d0
-          flimit= atol + rtol*fkp
+          flimit= atol
         else
           check = fkp/f0
           dxnorm = rms(dx)
+          flimit= atol + rtol*f0
         endif
 
         if (out.ge.1.and.prnt) write(*,215) jit,dxnorm,fkp,check,damp
@@ -578,6 +579,9 @@ cc        pdt0      = 1d30
 
       jit = 0
 
+      etakm = eta0
+      etak  = eta0
+
 c     Evaluate rhs and norms
 
       allocate (nk_conf%xk(ntot),nk_conf%rk(ntot),nk_conf%rkstar(ntot))
@@ -598,9 +602,6 @@ c     Start Newton iteration
       fk    = f0
       fkm   = f0
 cc      flimit= atol + rtol*f0
-
-      etakm = eta0
-      etak  = eta0
 
       do jit = 1,ntit_max_rej
 
@@ -858,10 +859,11 @@ c     Check Anderson convergence/failure
         if (init) then
           check = 1d0
           dxnorm = 1d0
-          flimit= atol + rtol*fkp
+          flimit= atol
         else
           check = fkp/f0
           dxnorm = rms(dx)
+          flimit= atol + rtol*f0
         endif
 
         if (out.ge.1 .and. prnt)
