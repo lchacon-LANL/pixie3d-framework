@@ -908,7 +908,7 @@ c     #####################################################################
       subroutine selectRank_XY(split_key)
 
 c     ---------------------------------------------------------------------
-c     Groups processors based on shared X position in processor mesh.
+c     Groups processors based on shared Z position in processor mesh.
 c     ---------------------------------------------------------------------
 
         implicit none
@@ -949,9 +949,9 @@ c     Set global limits of global domain g_lim(dim,loc)
 
 c     Select rank
 
-        !Group processors based on location in x direction
-        !(y and z directions are shared; 
-        ! organize in 1D processor mesh: i
+        !Group processors based on location in z direction
+        !(y and x directions are shared; 
+        ! organize in 1D processor mesh: k
         split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
 
 c     End program
