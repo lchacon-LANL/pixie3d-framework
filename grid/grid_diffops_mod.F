@@ -5218,11 +5218,11 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
 c     Other advective methods
 
-      if (method /= 2) then
+      if (method /= 2.and.(.not.(at_bdry).or.bc_safe)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv) then
-          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k)+1d-12)
+        if (zv.and.(arr(ip,j,k)*arr(i,j,k)>1d-12)) then
+          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k))
         else
           vxp = 0.5*(v(ip,j,k)+v(i,j,k))
         endif
@@ -5241,7 +5241,7 @@ c     Other advective methods
      .                 ,vxp,admth)
 
         !Setup fluxes (ZIP at boundaries by default for conservation)
-        if (.not.(at_bdry).or.bc_safe) flxip=vxp*qip
+        flxip=vxp*qip
 
       endif
 
@@ -5312,11 +5312,11 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
 c     Other advective methods
 
-      if (method /= 2) then
+      if (method /= 2.and.(.not.(at_bdry).or.bc_safe)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv) then
-          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k)+1d-12)
+        if (zv.and.(arr(i,jp,k)*arr(i,j,k)>1d-12)) then
+          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
         else
           vyp = 0.5*(v(i,jp,k)+v(i,j,k))
         endif
@@ -5335,7 +5335,7 @@ c     Other advective methods
      .                 ,vyp,admth)
 
         !Setup fluxes (ZIP at boundaries by default for conservation)
-        if (.not.(at_bdry).or.bc_safe) flxjp=vyp*qjp
+        flxjp=vyp*qjp
 
       endif
 
@@ -5406,11 +5406,11 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
 c     Other advective methods
 
-      if (method /= 2) then
+      if (method /= 2.and.(.not.(at_bdry).or.bc_safe)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv) then
-          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k)+1d-12)
+        if (zv.and.(arr(i,j,kp)*arr(i,j,k)>1d-12)) then
+          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
         else
           vzp = 0.5*(v(i,j,kp)+v(i,j,k))
         endif
@@ -5429,7 +5429,7 @@ c     Other advective methods
      .                 ,vzp,admth)
 
         !Setup fluxes (ZIP at boundaries by default for conservation)
-        if (.not.(at_bdry).or.bc_safe) flxkp=vzp*qkp
+        flxkp=vzp*qkp
 
       endif
 
@@ -5836,7 +5836,9 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
       flxip = 0d0
 
-      at_bdry = isBdry(i,igr,2) .or. isBdry(i+1,igr,1)
+c$$$      at_bdry = isBdry(i,igr,2) .or. isBdry(i+1,igr,1)
+      at_bdry = (isBdry(i  ,igr,2).and.bcond(2)/=PER)
+     .      .or.(isBdry(i+1,igr,1).and.bcond(1)/=PER)
 
       if (.not.at_bdry) then               !Not at boundary
         flxip = 0.25*(v(ip,j,k)*arr(i ,j,k)/jacip
@@ -5852,11 +5854,11 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
 c     Other advective methods
 
-      if (method /= 2) then
+      if (method /= 2.and.(.not.(at_bdry))) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv) then
-          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k)+1d-12)
+        if (zv.and.(arr(ip,j,k)*arr(i,j,k)>1d-12)) then
+          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k))
         else
           vxp = 0.5*(v(ip,j,k)+v(i,j,k))
         endif
@@ -5869,7 +5871,7 @@ c     Other advective methods
      .                     ,vxp,method)
 
         !Setup fluxes (ZIP at boundaries by default for conservation)
-        if (.not.(at_bdry)) flxip=vxp*qip
+        flxip=vxp*qip
 
       endif
 
@@ -5930,17 +5932,19 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-      at_bdry = isBdry(j,igr,4) .or. isBdry(j+1,igr,3)
+c$$$      at_bdry = isBdry(j,igr,4) .or. isBdry(j+1,igr,3)
+      at_bdry = (isBdry(j  ,igr,4).and.bcond(4)/=PER)
+     .      .or.(isBdry(j+1,igr,3).and.bcond(3)/=PER)
 
       flxjp = 0.5*(v(i,jp,k)*arr(i,j,k) + v(i,j,k)*arr(i,jp,k))
 
 c     Other advective methods
 
-      if (method /= 2) then
+      if (method /= 2.and.(.not.(at_bdry))) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv) then
-          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k)+1d-12)
+        if (zv.and.(arr(i,jp,k)*arr(i,j,k)>1d-12)) then
+          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
         else
           vyp = 0.5*(v(i,jp,k)+v(i,j,k))
         endif
@@ -5953,7 +5957,7 @@ c     Other advective methods
      .                     ,vyp,method)
 
         !Setup fluxes (ZIP at boundaries by default for conservation)
-        if (.not.(at_bdry)) flxjp=vyp*qjp
+        flxjp=vyp*qjp
 
       endif
 
@@ -6014,17 +6018,19 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-      at_bdry = isBdry(k,igr,6) .or. isBdry(k+1,igr,5)
+c$$$      at_bdry = isBdry(k,igr,6) .or. isBdry(k+1,igr,5)
+      at_bdry = (isBdry(k  ,igr,6).and.bcond(6)/=PER)
+     .      .or.(isBdry(k+1,igr,5).and.bcond(5)/=PER)
 
       flxkp = 0.5*(v(i,j,kp)*arr(i,j,k) + v(i,j,k)*arr(i,j,kp))
 
 c     Other advective methods
 
-      if (method /= 2) then
+      if (method /= 2.and.(.not.(at_bdry))) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv) then
-          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k)+1d-12)
+        if (zv.and.(arr(i,j,kp)*arr(i,j,k)>1d-12)) then
+          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
         else
           vzp = 0.5*(v(i,j,kp)+v(i,j,k))
         endif
@@ -6037,7 +6043,7 @@ c     Other advective methods
      .                     ,vzp,method)
 
         !Setup fluxes (ZIP at boundaries by default for conservation)
-        if (.not.(at_bdry)) flxkp=vzp*qkp
+        flxkp=vzp*qkp
 
       endif
 
