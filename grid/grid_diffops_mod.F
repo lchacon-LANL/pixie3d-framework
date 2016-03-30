@@ -5985,7 +5985,9 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
       flxip = 0d0
 
-      at_bdry = isBdry(g_def,i,igr,2).or.isBdry(g_def,i+1,igr,1)
+cc      at_bdry = isBdry(g_def,i,igr,2).or.isBdry(g_def,i+1,igr,1)
+      at_bdry = (isBdry(g_def,i  ,igr,2).and.bcond(2)/=PER)
+     .      .or.(isBdry(g_def,i+1,igr,1).and.bcond(1)/=PER)
 
       if (.not.at_bdry) then               !Not at boundary
         flxip = 0.25*(v(ip,j,k)*arr(i ,j,k)/jacip
@@ -6080,7 +6082,9 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-      at_bdry = isBdry(g_def,j,igr,4) .or. isBdry(g_def,j+1,igr,3)
+c$$$      at_bdry = isBdry(g_def,j,igr,4) .or. isBdry(g_def,j+1,igr,3)
+      at_bdry = (isBdry(g_def,j  ,igr,4).and.bcond(4)/=PER)
+     .      .or.(isBdry(g_def,j+1,igr,3).and.bcond(3)/=PER)
 
       flxjp = 0.5*(v(i,jp,k)*arr(i,j,k) + v(i,j,k)*arr(i,jp,k))
 
@@ -6165,7 +6169,9 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-      at_bdry = isBdry(g_def,k,igr,6) .or. isBdry(g_def,k+1,igr,5)
+c$$$      at_bdry = isBdry(g_def,k,igr,6) .or. isBdry(g_def,k+1,igr,5)
+      at_bdry = (isBdry(g_def,k  ,igr,6).and.bcond(6)/=PER)
+     .      .or.(isBdry(g_def,k+1,igr,5).and.bcond(5)/=PER)
 
       flxkp = 0.5*(v(i,j,kp)*arr(i,j,k) + v(i,j,k)*arr(i,j,kp))
 
