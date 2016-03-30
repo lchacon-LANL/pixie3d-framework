@@ -5,7 +5,7 @@ c #####################################################################
         use math
         use grid_def_st
 
-        type(grid_pack),dimension(3) :: g_pack
+        type(grid_pack),dimension(3),save :: g_pack
 
       contains
 

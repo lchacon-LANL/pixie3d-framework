@@ -6016,9 +6016,8 @@ c     Other advective methods
      .                     ,2*g_def%dxh(igp),darr(ip,j,k)
      .                     ,vxp,method)
 
-c$$$        !Setup fluxes (ZIP at boundaries by default for conservation)
-c$$$        if (.not.at_bdry) flxip=vxp*qip
-        flxip = vxp*qip
+        !Setup fluxes (ZIP at boundaries by default for conservation)
+        if (.not.at_bdry) flxip=vxp*qip
 
       endif
 
@@ -6044,9 +6043,9 @@ c     Call variables
 
       integer :: i,j,k,nx,ny,nz,igr,method
 
-      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1)
+      real(8) :: arr (0:nx+1,0:ny+1,0:nz+1)
      .          ,darr(0:nx+1,0:ny+1,0:nz+1)
-     .          ,v  (0:nx+1,0:ny+1,0:nz+1),flxjp
+     .          ,v   (0:nx+1,0:ny+1,0:nz+1),flxjp
 
       logical,optional :: zip_vel
 
@@ -6056,7 +6055,7 @@ c     Local variables
 
       real(8) :: jac,qjp,vyp
 
-      logical :: zv
+      logical :: zv,at_bdry
 
 c     Begin program
 
@@ -6081,7 +6080,7 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-cc      at_bdry = isBdry(g_def,j,igr,4) .or. isBdry(g_def,j+1,igr,3)
+      at_bdry = isBdry(g_def,j,igr,4) .or. isBdry(g_def,j+1,igr,3)
 
       flxjp = 0.5*(v(i,jp,k)*arr(i,j,k) + v(i,j,k)*arr(i,jp,k))
 
@@ -6102,9 +6101,8 @@ c     Other advective methods
      .                     ,2*g_def%dyh(jgp),darr(i,jp,k)
      .                     ,vyp,method)
 
-c$$$        !Setup fluxes (ZIP at boundaries by default for conservation)
-c$$$        if (.not.at_bdry) flxjp=vyp*qjp
-        flxjp = vyp*qjp
+        !Setup fluxes (ZIP at boundaries by default for conservation)
+        if (.not.at_bdry) flxjp=vyp*qjp
 
       endif
 
@@ -6130,9 +6128,9 @@ c     Call variables
 
       integer :: i,j,k,nx,ny,nz,igr,method
 
-      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1)
+      real(8) :: arr (0:nx+1,0:ny+1,0:nz+1)
      .          ,darr(0:nx+1,0:ny+1,0:nz+1)
-     .          ,v  (0:nx+1,0:ny+1,0:nz+1),flxkp
+     .          ,v   (0:nx+1,0:ny+1,0:nz+1),flxkp
 
       logical,optional :: zip_vel
 
@@ -6142,7 +6140,7 @@ c     Local variables
 
       real(8) :: jac,qkp,vzp
 
-      logical :: zv
+      logical :: zv,at_bdry
 
 c     Begin program
 
@@ -6167,7 +6165,7 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-cc      at_bdry = isBdry(g_def,k,igr,6) .or. isBdry(g_def,k+1,igr,5)
+      at_bdry = isBdry(g_def,k,igr,6) .or. isBdry(g_def,k+1,igr,5)
 
       flxkp = 0.5*(v(i,j,kp)*arr(i,j,k) + v(i,j,k)*arr(i,j,kp))
 
@@ -6188,9 +6186,8 @@ c     Other advective methods
      .                     ,2*g_def%dzh(kgp),darr(i,j,kp)
      .                     ,vzp,method)
 
-c$$$        !Setup fluxes (ZIP at boundaries by default for conservation)
-c$$$        if (.not.at_bdry) flxkp=vzp*qkp
-        flxkp = vzp*qkp
+        !Setup fluxes (ZIP at boundaries by default for conservation)
+        if (.not.at_bdry) flxkp=vzp*qkp
 
       endif
 
