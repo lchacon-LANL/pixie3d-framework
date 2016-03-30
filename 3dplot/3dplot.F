@@ -100,7 +100,9 @@ c     Update counters
 
 c     Time level plots (xdraw)
 
-        plot = .false.
+        plot = ( nplot        == ndplot       .and. nplot > 0)
+     .     .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
+     .     .or. time         == 0d0
 
 #if defined(MK)
         !Setup MK grid
@@ -122,19 +124,17 @@ cc          endif
           call MK_xfer_equ(igx,u_ic)
         endif
 #endif
+
         !Post-process solution for diagnostics
         if (.not.skip_diag)
      .       call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
-        if (   ( nplot        == ndplot       .and. nplot > 0)
-     .     .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
-     .     .or. time         == 0d0) then
+        if (plot) then
 
           if (skip_diag) 
      .       call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
           !Dump time step plots
-          plot  = .true.
           nplot = 0
           if (itime.gt.0) tmplot = time
           call dumpTimeStepPlots
@@ -343,7 +343,6 @@ c Initialize MK grid
       if (mk_grid) then
         call MK_alloc
         call MK_initGrid(igx,bcs=bcond)
-cc        call MK_initGrid(1)
       endif
 #endif
 
@@ -353,9 +352,8 @@ c Set plotting range
 
 c Read perturbed solution u_ic
 
+c$$$      call readTimeStep(urecord,itime,time,dt,u_ic,ierr)
       call equateDerivedType(u_ic,u_0)
-
-      call readTimeStep(urecord,itime,time,dt,u_ic,ierr)
 
 c Initialize diagnostics and related variables
 
