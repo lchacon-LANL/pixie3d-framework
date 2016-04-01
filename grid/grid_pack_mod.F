@@ -79,7 +79,7 @@ c     Local variables
 
         integer :: ibc,ibc1,exp=3,nn
 
-        real(8) :: gp(2),lmin,lmax
+        real(8) :: gp(2),lmin,lmax,TT
         real(8), save :: bbx=0d0,bby=0d0,bbz=0d0
 
         logical :: pack_both_bdrys
@@ -115,6 +115,7 @@ c     Grid packing configuration: slope gp(2) at given position gp(1)
         gp(2) = gdef%g_pack(dim)%slope
 
         pack_both_bdrys = gdef%g_pack(dim)%pack_both_bdrys
+        TT = 2*pi*gdef%g_pack(dim)%modes
 
         if (.not.gdef%g_pack(dim)%processed) then
           write (*,*) 'Slope not computed in ',dim,' coordinate'
@@ -132,7 +133,7 @@ c     Packing
             stop
           endif
 
-          xlog =x1-(lmax-lmin)/2/pi*bbx*sin(2*pi*(x1-gp(1))/(lmax-lmin))
+          xlog =x1-(lmax-lmin)/TT*bbx*sin(TT*(x1-gp(1))/(lmax-lmin))
         elseif (pack_both_bdrys) then !sym cosine jacobian
           bbx = abs(1.-gp(2))
           if (bbx >= 1d0) then
@@ -141,7 +142,7 @@ c     Packing
             stop
           endif
 
-          xlog = x1-(lmax-lmin)/2/pi*bbx*sin(2*pi*(x1-lmin)/(lmax-lmin))
+          xlog = x1-(lmax-lmin)/TT*bbx*sin(TT*(x1-lmin)/(lmax-lmin))
         else  !monotonic cubic polynomial
           select case(dim)
           case(1)

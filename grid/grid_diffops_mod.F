@@ -5110,6 +5110,9 @@ c       * advect = 7 => Gamma (modification of SMART; not operational)
         real(8),private :: smart_slp1= 1.5  !3.0
      .                    ,smart_slp2= 0.5  !0.3
 
+        !ADVECTION positivity threshold for ZIP fluxes
+        real(8),private :: pos_threshold=1d-10
+        
         INTERFACE inter
           module procedure in2face_scl,in2face_vec
 cc     .                    ,in2face_scl_new,in2face_vec_new
@@ -5360,8 +5363,11 @@ c     Other advective methods
       if (method /= 2.and.(.not.(at_bdry).or.bc_safe)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv.and.(arr(ip,j,k)*arr(i,j,k)>1d-12)) then
-          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k))
+c$$$        if (zv.and.(arr(ip,j,k)*arr(i,j,k)>pos_threshold)) then
+c$$$          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k))
+        if (zv) then
+          vxp = 2.*flxip/(         arr(ip,j,k)+arr(i,j,k)
+     .                   +sign(1d0,arr(ip,j,k)+arr(i,j,k))*1d-12)
         else
           vxp = 0.5*(v(ip,j,k)+v(i,j,k))
         endif
@@ -5456,8 +5462,11 @@ c     Other advective methods
       if (method /= 2.and.(.not.(at_bdry).or.bc_safe)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv.and.(arr(i,jp,k)*arr(i,j,k)>1d-12)) then
-          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
+c$$$        if (zv.and.(arr(i,jp,k)*arr(i,j,k)>pos_threshold)) then
+c$$$          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
+        if (zv) then
+          vyp = 2.*flxjp/(         arr(i,jp,k)+arr(i,j,k)
+     .                   +sign(1d0,arr(i,jp,k)+arr(i,j,k))*1d-12)
         else
           vyp = 0.5*(v(i,jp,k)+v(i,j,k))
         endif
@@ -5552,8 +5561,11 @@ c     Other advective methods
       if (method /= 2.and.(.not.(at_bdry).or.bc_safe)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv.and.(arr(i,j,kp)*arr(i,j,k)>1d-12)) then
-          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
+c$$$        if (zv.and.(arr(i,j,kp)*arr(i,j,k)>pos_threshold)) then
+c$$$          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
+        if (zv) then
+          vzp = 2.*flxkp/(         arr(i,j,kp)+arr(i,j,k)
+     .                   +sign(1d0,arr(i,j,kp)+arr(i,j,k))*1d-12)
         else
           vzp = 0.5*(v(i,j,kp)+v(i,j,k))
         endif
@@ -6006,8 +6018,11 @@ c     Other advective methods
       if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv.and.(arr(ip,j,k)*arr(i,j,k)>1d-12)) then
+        if (zv.and.(arr(ip,j,k)*arr(i,j,k)>pos_threshold)) then
           vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k))
+c$$$        if (zv) then
+c$$$          vxp = 2.*flxip/(         arr(ip,j,k)+arr(i,j,k)
+c$$$     .                   +sign(1d0,arr(ip,j,k)+arr(i,j,k))*1d-12)
         else
           vxp = 0.5*(v(ip,j,k)+v(i,j,k))
         endif
@@ -6093,8 +6108,11 @@ c     Other advective methods
       if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv.and.(arr(i,jp,k)*arr(i,j,k)>1d-12)) then
+        if (zv.and.(arr(i,jp,k)*arr(i,j,k)>pos_threshold)) then
           vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
+c$$$        if (zv) then
+c$$$          vyp = 2.*flxjp/(         arr(i,jp,k)+arr(i,j,k)
+c$$$     .                   +sign(1d0,arr(i,jp,k)+arr(i,j,k))*1d-12)
         else
           vyp = 0.5*(v(i,jp,k)+v(i,j,k))
         endif
@@ -6180,8 +6198,11 @@ c     Other advective methods
       if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv.and.(arr(i,j,kp)*arr(i,j,k)>1d-12)) then
+        if (zv.and.(arr(i,j,kp)*arr(i,j,k)>pos_threshold)) then
           vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
+c$$$        if (zv) then
+c$$$          vzp = 2.*flxkp/(         arr(i,j,kp)+arr(i,j,k)
+c$$$     .                   +sign(1d0,arr(i,j,kp)+arr(i,j,k))*1d-12)
         else
           vzp = 0.5*(v(i,j,kp)+v(i,j,k))
         endif
@@ -6256,17 +6277,20 @@ c     Compute difference arrays and communicate BCs
       darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
       darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
 
-      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
-c$$$      where (bcnd(1:2,1) == DEF) bcnd(1:2,1) = NEU
-c$$$      where (bcnd(1:2,1) == SYM) bcnd(1:2,1) = NEU
+c$$$      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
+      bcnd(:,1) = (/bcond(1),bcond(2),DEF,DEF,DEF,DEF/)
+      where (bcnd(1:2,1) == DEF) bcnd(1:2,1) = NEU
+      where (bcnd(1:2,1) == SYM) bcnd(1:2,1) = NEU
 
-      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
-c$$$      where (bcnd(3:4,2) == DEF) bcnd(3:4,2) = NEU
-c$$$      where (bcnd(3:4,2) == SYM) bcnd(3:4,2) = NEU
+c$$$      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
+      bcnd(:,2) = (/DEF,DEF,bcond(3),bcond(4),DEF,DEF/)
+      where (bcnd(3:4,2) == DEF) bcnd(3:4,2) = NEU
+      where (bcnd(3:4,2) == SYM) bcnd(3:4,2) = NEU
 
-      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
-c$$$      where (bcnd(5:6,3) == DEF) bcnd(5:6,3) = NEU
-c$$$      where (bcnd(5:6,3) == SYM) bcnd(5:6,3) = NEU
+c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
+      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcond(5),bcond(6)/)
+      where (bcnd(5:6,3) == DEF) bcnd(5:6,3) = NEU
+      where (bcnd(5:6,3) == SYM) bcnd(5:6,3) = NEU
       
       do ivar=1,3
         call setMGBC(g_def,0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)

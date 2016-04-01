@@ -18,6 +18,8 @@ c #####################################################################
           real(8)    :: xp
           real(8)    :: dx0
           logical    :: pack_both_bdrys=.false.
+          integer    :: modes = 1
+          !Put these last
           real(8)    :: slope = 0d0
           logical    :: processed=.false.
         end type grid_pack
