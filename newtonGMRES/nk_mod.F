@@ -249,6 +249,8 @@ c     Initialize variables
 
 c     Evaluate rhs and norms
 
+      ddx = 0d0
+      
       allocate (nk_conf%xk(ntot),nk_conf%rk(ntot),nk_conf%rkstar(ntot))
 
       nk_conf%xk = x    !Save previous Newton state
@@ -275,6 +277,8 @@ c     Start Anderson iteration
       fkm   = f0
 cc      flimit= atol + rtol*f0
 
+      iout = out - 1
+
       !Setup Anderson
       call fpa_create(nk_conf%fpas,nk_conf%rk,maxv=nk_conf%fpa_it)
 
@@ -283,12 +287,10 @@ cc      flimit= atol + rtol*f0
         !Update counters
         nk_conf%nwt_it_out = jit
 
-        !Anderson update
-        iout = out - 1
-
         !Setup PC
         call setupPC(ntot,x)
 
+        !Anderson update
         if (.not.left_pc) then
           !Right PC
           call applyPC(ntot,y,x,iout-1) !Find solution x
@@ -335,9 +337,6 @@ cc          nk_conf%rk = -nk_conf%rk !Minus sign important for Anderson
 
       enddo       !End of iteration
 
-      !Destroy Anderson
-      call fpa_destroy(nk_conf%fpas)
-
 c     Check for errors in Newton convergence
 
       ierr = chk_err()
@@ -364,13 +363,13 @@ c     Check Anderson convergence/failure
 
         if (init) then
           check = 1d0
-          dxnorm = 1d0
           flimit= atol
         else
           check = fkp/f0
-          dxnorm = rms(dx)
           flimit= atol + rtol*f0
         endif
+
+        dxnorm = rms(dx)
 
         if (out.ge.1.and.prnt) write(*,215) jit,dxnorm,fkp,check,damp
 
@@ -378,7 +377,7 @@ c     Check Anderson convergence/failure
           call dumpResidualNorms(neq,-rk,vol_wgt)
         endif
 
-        convergence = (fkp <= flimit.or.dxnorm <= stol)
+        convergence = (fkp <= flimit.or.(dxnorm<=stol.and.(.not.init)))
         failure     = (check > check_lim .or. jit == ntit_max_rej)
      .               .and.(.not.convergence)
 
@@ -424,6 +423,8 @@ c     ###############################################################
 c     destroy_anderson
 c     ###############################################################
       subroutine destroy_anderson
+
+      call fpa_destroy(nk_conf%fpas)
 
       deallocate(nk_conf%xk,nk_conf%rk,nk_conf%rkstar)
 
@@ -586,6 +587,8 @@ cc        pdt0      = 1d30
 
 c     Evaluate rhs and norms
 
+      ddx = 0d0
+      
       allocate (nk_conf%xk(ntot),nk_conf%rk(ntot),nk_conf%rkstar(ntot))
 
       nk_conf%xk = x    !Save previous Newton state
@@ -605,6 +608,8 @@ c     Start Newton iteration
       fkm   = f0
 cc      flimit= atol + rtol*f0
 
+      iout = out - 1
+
       do jit = 1,ntit_max_rej
 
         !Determine inexact Newton constant
@@ -614,8 +619,6 @@ cc      flimit= atol + rtol*f0
         call setupPC(ntot,x)
 
         !Jacobian-free solve
-        iout = out - 1
-
         if (nk_conf%deferred_correction) then
           is_matvec = .true.
           call evaluateNewtonResidual(ntot,x,nk_conf%rkstar)
@@ -628,12 +631,12 @@ cc      flimit= atol + rtol*f0
 
         if (PRESENT(matvec)) then
           call gmresDriver(matvec
-     .                      ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
-     .                      ,iguess,iout,ierr)
+     .                    ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+     .                    ,iguess,iout,ierr)
         else
           call gmresDriver(matrixFreeMatVec
-     .                      ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
-     .                      ,iguess,iout,ierr)
+     .                    ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+     .                    ,iguess,iout,ierr)
         endif
 
         !Kill preconditioner
@@ -860,13 +863,13 @@ c     Check Anderson convergence/failure
 
         if (init) then
           check = 1d0
-          dxnorm = 1d0
           flimit= atol
         else
           check = fkp/f0
-          dxnorm = rms(dx)
           flimit= atol + rtol*f0
         endif
+
+        dxnorm = rms(dx)
 
         if (out.ge.1 .and. prnt)
      $       write(*,210)jit,dxnorm,fkp,check,damp,pdt,etak,itk
@@ -875,7 +878,7 @@ c     Check Anderson convergence/failure
           call dumpResidualNorms(neq,-rk,vol_wgt)
         endif
 
-        convergence = (fkp <= flimit.or.dxnorm <= stol)
+        convergence = (fkp <= flimit.or.(dxnorm<=stol.and.(.not.init)))
         failure     = (check > check_lim .or. jit == ntit_max_rej)
      .               .and.(.not.convergence)
 
