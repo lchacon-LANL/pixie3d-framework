@@ -7584,7 +7584,7 @@ c ######################################################################
 c     par_diff
 c     ################################################################
       function par_diff(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
-     .                 ,par_order,symmetric,limited,vol) result(par2)
+     .                 ,par_order,method,vol,tmp0) result(par2)
 c     ----------------------------------------------------------------
 c     Calculates div.(BB.grad) in 3D with 2nd or 4th order
 c     accuracy.
@@ -7602,7 +7602,10 @@ c     Call variables
      .           ,By(0:nx+1,0:ny+1,0:nz+1)
      .           ,Bz(0:nx+1,0:ny+1,0:nz+1)
 
-      logical,optional :: symmetric,limited,vol
+      character(*) :: method
+
+      logical,optional :: vol
+      real(8),optional :: tmp0(0:nx+1,0:ny+1,0:nz+1)
 
 c     Local variables
 
@@ -7612,45 +7615,31 @@ c     Local variables
 
       real(8)  :: bx2,by2,bxby,dtx,dty,a1,a2,sgn,bb,flx0,flxp
       integer  :: ii,jj,kk,ig,jg,kg
-      logical  :: limit,symm,vol_wgt
-
-      real(8),dimension(:,:,:),pointer :: jac
+      logical  :: vol_wgt,limited
 
 c     Begin program
 
-      Fluxx=0
-      Fluxy=0
-      Fluxz=0
-
-      if (PRESENT(limited)) then
-        limit = limited
-      else
-        limit = .false.
-      endif
+      Fluxx=0d0
+      Fluxy=0d0
+      Fluxz=0d0
 
       vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
-      if (PRESENT(symmetric)) then
-        symm = symmetric
-      else
-        symm = .false.
-      endif
-
-      jac => g_def%gmetric%grid(igx)%jac
-
 c     Find fluxes
 
       select case(par_order)
-      case(2) !second order
+      case(2)                   !second order
         call par_flux_2nd(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
-     .                 ,Fluxx,Fluxy,Fluxz,symmetric=symm,limited=limit)
-      case(4) !fourth order, 5-pt stencil in co-directed dervs.
+     .                   ,Fluxx,Fluxy,Fluxz,method,tmp0=tmp0)
+      case(4)                   !fourth order, 5-pt stencil in co-directed dervs.
+        limited = (trim(method) == 'sharma')
         call par_flux_4th(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
-     .                 ,Fluxx,Fluxy,Fluxz,limited=limit,stencil=5)
+     .                   ,Fluxx,Fluxy,Fluxz,limited=limited,stencil=5)
       case(-4) !fourth order, 7-pt stencil in co-directed dervs.
+        limited = (trim(method) == 'sharma')
         call par_flux_4th(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
-     .                 ,Fluxx,Fluxy,Fluxz,limited=limit,stencil=7)
+     .                   ,Fluxx,Fluxy,Fluxz,limited=limited,stencil=7)
       case default
         write (*,*) 'Order not implemented'
         stop
@@ -7664,7 +7653,7 @@ c     Assemble fluxes
      .      +(Fluxy(i,j,k)-Fluxy(i,j-1,k))/g_def%dyh(jg)
      .      +(Fluxz(i,j,k)-Fluxz(i,j,k-1))/g_def%dzh(kg)
 
-      par2 = par2/jac(i,j,k)
+      par2 = par2/g_def%gmetric%grid(igx)%jac(i,j,k)
 
       if (vol_wgt) par2=par2*g_def%gmetric%grid(igx)%dvol(i,j,k)
 
@@ -7673,12 +7662,10 @@ c     Assemble fluxes
 c     par_flux_2nd
 c     ################################################################
       subroutine par_flux_2nd(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp
-     .               ,Bx,By,Bz,Fluxx,Fluxy,Fluxz,symmetric,limited)
+     .               ,Bx,By,Bz,Fluxx,Fluxy,Fluxz,method,tmp0)
 c     ----------------------------------------------------------------
 c     Calculates div.(BB.grad) in 3D with 2nd order accuracy
 c     ----------------------------------------------------------------
-
-cc      use transport_params
 
       implicit none
 
@@ -7687,7 +7674,7 @@ c     Call variables
       type(grid_mg_def),pointer :: g_def
 
       integer  :: i,j,k,nx,ny,nz,igx,igy,igz
-      real(8)  :: tmp(0:nx+1,0:ny+1,0:nz+1)
+      real(8),target  :: tmp(0:nx+1,0:ny+1,0:nz+1)
       real(8)  :: Bx(0:nx+1,0:ny+1,0:nz+1)
      .           ,By(0:nx+1,0:ny+1,0:nz+1)
      .           ,Bz(0:nx+1,0:ny+1,0:nz+1)
@@ -7695,7 +7682,9 @@ c     Call variables
      .           ,Fluxy(i-1:i,j-1:j,k-1:k)
      .           ,Fluxz(i-1:i,j-1:j,k-1:k)
 
-      logical,optional :: limited,symmetric
+      character(*) :: method
+
+      real(8),optional,target :: tmp0(0:nx+1,0:ny+1,0:nz+1)
 
 c     Local variables
 
@@ -7707,30 +7696,19 @@ c     Local variables
       real(8),dimension(:,:,:),pointer :: jac
       real(8),dimension(:,:,:,:,:),pointer :: gsup
 
+      real(8),pointer,dimension(:,:,:) :: tmp_0
+
 c     Begin program
 
-      Fluxx=0
-      Fluxy=0
-      Fluxz=0
-
-      if (PRESENT(limited)) then
-        limit = limited
-      else
-        limit = .false.
-      endif
-
-      if (PRESENT(symmetric)) then
-        symm = symmetric
-      else
-        symm = .false.
-      endif
+      Fluxx=0d0
+      Fluxy=0d0
+      Fluxz=0d0
 
       jac  => g_def%gmetric%grid(igx)%jac
       gsup => g_def%gmetric%grid(igx)%gsup
 
-c     Symmetric discretization
-
-      if (symm) then
+      select case(trim(method))
+      case("symm")  !Symmetric discretization
 
         do kk = k-1,k
           do jj = j-1,j
@@ -7791,73 +7769,41 @@ c     Symmetric discretization
         Fluxz(i,j,:) = 0.25*(Fluxz(i,j  ,:)+Fluxz(i-1,j  ,:)
      .                      +Fluxz(i,j-1,:)+Fluxz(i-1,j-1,:))
 
-c     Asymmetric discretization
+      case ("sharma") !Limited differences (Sharma, Hammett, JCP 227 (2007))
+        
+        !X-component cross flux
+        do ii = i-1,i
+          call getMGmap(g_def,ii,j,k,igx,igy,igz,ig,jg,kg)
 
-      else
+          bxby = 0.5*(bx(ii  ,j,k)/jac(ii  ,j,k)
+     .               *by(ii  ,j,k)
+     .               +bx(ii+1,j,k)/jac(ii+1,j,k)
+     .               *by(ii+1,j,k))
 
-        if (limit) then !Limited differences (Sharma, Hammett, JCP 227 (2007))
+          flx0 = mc(tmp(ii  ,j  ,k)-tmp(ii  ,j-1,k)
+     .             ,tmp(ii  ,j+1,k)-tmp(ii  ,j  ,k))
+          flxp = mc(tmp(ii+1,j  ,k)-tmp(ii+1,j-1,k)
+     .             ,tmp(ii+1,j+1,k)-tmp(ii+1,j  ,k))
 
-          !X-component cross flux
-          do ii = i-1,i
-            call getMGmap(g_def,ii,j,k,igx,igy,igz,ig,jg,kg)
+          Fluxx(ii,j,k)= bxby/g_def%dyh(jg)*mc(flx0,flxp)
+        enddo
 
-            bxby = 0.5*(bx(ii  ,j,k)/jac(ii  ,j,k)
-     .                 *by(ii  ,j,k)
-     .                 +bx(ii+1,j,k)/jac(ii+1,j,k)
-     .                 *by(ii+1,j,k))
+        !Y-component cross flux 
+        do jj = j-1,j
+          call getMGmap(g_def,i,jj,k,igx,igy,igz,ig,jg,kg)
 
-            flx0 = mc(tmp(ii  ,j  ,k)-tmp(ii  ,j-1,k)
-     .               ,tmp(ii  ,j+1,k)-tmp(ii  ,j  ,k))
-            flxp = mc(tmp(ii+1,j  ,k)-tmp(ii+1,j-1,k)
-     .               ,tmp(ii+1,j+1,k)-tmp(ii+1,j  ,k))
+          bxby = 0.5*(bx(i,jj  ,k)/jac(i,jj  ,k)
+     .               *by(i,jj  ,k)
+     .               +bx(i,jj+1,k)/jac(i,jj+1,k)
+     .               *by(i,jj+1,k))
 
-            Fluxx(ii,j,k)= bxby/g_def%dyh(jg)*mc(flx0,flxp)
-          enddo
+          flx0 = mc(tmp(i  ,jj  ,k)-tmp(i-1,jj  ,k)
+     .             ,tmp(i+1,jj  ,k)-tmp(i  ,jj  ,k))
+          flxp = mc(tmp(i  ,jj+1,k)-tmp(i-1,jj+1,k)
+     .             ,tmp(i+1,jj+1,k)-tmp(i  ,jj+1,k))
 
-          !Y-component cross flux 
-          do jj = j-1,j
-            call getMGmap(g_def,i,jj,k,igx,igy,igz,ig,jg,kg)
-
-            bxby = 0.5*(bx(i,jj  ,k)/jac(i,jj  ,k)
-     .                 *by(i,jj  ,k)
-     .                 +bx(i,jj+1,k)/jac(i,jj+1,k)
-     .                 *by(i,jj+1,k))
-
-            flx0 = mc(tmp(i  ,jj  ,k)-tmp(i-1,jj  ,k)
-     .               ,tmp(i+1,jj  ,k)-tmp(i  ,jj  ,k))
-            flxp = mc(tmp(i  ,jj+1,k)-tmp(i-1,jj+1,k)
-     .               ,tmp(i+1,jj+1,k)-tmp(i  ,jj+1,k))
-
-            Fluxy(i,jj,k)= bxby/g_def%dxh(ig)*mc(flx0,flxp)
-          enddo
-
-        else !Standard central average
-
-          !X-component cross flux
-          do ii = i-1,i
-            call getMGmap(g_def,ii,j,k,igx,igy,igz,ig,jg,kg)
-
-            bxby = 0.5*(bx(ii  ,j,k)/jac(ii  ,j,k)*by(ii  ,j,k)
-     .                 +bx(ii+1,j,k)/jac(ii+1,j,k)*by(ii+1,j,k))
-
-            Fluxx(ii,j,k)= 0.25/g_def%dyh(jg)*bxby
-     .             *(tmp(ii  ,j+1,k)-tmp(ii  ,j-1,k)
-     .              +tmp(ii+1,j+1,k)-tmp(ii+1,j-1,k))
-          enddo
-
-          !Y-component cross flux 
-          do jj = j-1,j
-            call getMGmap(g_def,i,jj,k,igx,igy,igz,ig,jg,kg)
-
-            bxby = 0.5*(bx(i,jj  ,k)/jac(i,jj  ,k)*by(i,jj  ,k)
-     .                 +bx(i,jj+1,k)/jac(i,jj+1,k)*by(i,jj+1,k))
-
-            Fluxy(i,jj,k)= 0.25/g_def%dxh(ig)*bxby
-     .                   *(tmp(i+1,jj  ,k)-tmp(i-1,jj  ,k)
-     .                    +tmp(i+1,jj+1,k)-tmp(i-1,jj+1,k))
-          enddo
-
-        endif
+          Fluxy(i,jj,k)= bxby/g_def%dxh(ig)*mc(flx0,flxp)
+        enddo
 
         !Add co-derivative terms: standard centered
         do ii = i-1,i
@@ -7904,6 +7850,114 @@ cc     .               +bz(i,j,kk  )/jac(i,j,kk  )))**2
      .                       /g_def%dz(kg)
         enddo
 
+      case ("mimetic") !Lypnikov et al. 2012 Russ J. Numer. Anal. Math. Modeling
+
+        if (PRESENT(tmp0)) then
+          tmp_0 => tmp0
+        else
+          tmp_0 => tmp
+        endif
+
+        do ii = i-1,i
+          Fluxx(ii,j,k) = Mimetic_D_flux_x(g_def,ii,j,k,igx,igy,igz
+     .                 ,bx(ii:ii+1,j,k)*bx(ii:ii+1,j,k)/jac(ii:ii+1,j,k)
+     .                 ,bx(ii:ii+1,j,k)*by(ii:ii+1,j,k)/jac(ii:ii+1,j,k)
+     .                 ,by(ii:ii+1,j,k)*by(ii:ii+1,j,k)/jac(ii:ii+1,j,k)
+     .                 ,tmp,tmp_0)
+        enddo
+
+        do jj = j-1,j
+          Fluxy(i,jj,k) = Mimetic_D_flux_y(g_def,i,jj,k,igx,igy,igz
+     .                 ,bx(i,jj:jj+1,k)*bx(i,jj:jj+1,k)/jac(i,jj:jj+1,k)
+     .                 ,bx(i,jj:jj+1,k)*by(i,jj:jj+1,k)/jac(i,jj:jj+1,k)
+     .                 ,by(i,jj:jj+1,k)*by(i,jj:jj+1,k)/jac(i,jj:jj+1,k)
+     .                 ,tmp,tmp_0)
+        enddo
+
+        do kk = k-1,k
+          Fluxz(i,j,kk) = 0d0
+        enddo
+
+        nullify(tmp_0)
+
+      case ("central") !Standard central average
+
+        !X-component cross flux
+        do ii = i-1,i
+          call getMGmap(g_def,ii,j,k,igx,igy,igz,ig,jg,kg)
+
+          bxby = 0.5*(bx(ii  ,j,k)/jac(ii  ,j,k)*by(ii  ,j,k)
+     .               +bx(ii+1,j,k)/jac(ii+1,j,k)*by(ii+1,j,k))
+
+          Fluxx(ii,j,k)= 0.25/g_def%dyh(jg)*bxby
+     .           *(tmp(ii  ,j+1,k)-tmp(ii  ,j-1,k)
+     .            +tmp(ii+1,j+1,k)-tmp(ii+1,j-1,k))
+        enddo
+
+        !Y-component cross flux 
+        do jj = j-1,j
+          call getMGmap(g_def,i,jj,k,igx,igy,igz,ig,jg,kg)
+
+          bxby = 0.5*(bx(i,jj  ,k)/jac(i,jj  ,k)*by(i,jj  ,k)
+     .               +bx(i,jj+1,k)/jac(i,jj+1,k)*by(i,jj+1,k))
+
+          Fluxy(i,jj,k)= 0.25/g_def%dxh(ig)*bxby
+     .                 *(tmp(i+1,jj  ,k)-tmp(i-1,jj  ,k)
+     .                  +tmp(i+1,jj+1,k)-tmp(i-1,jj+1,k))
+        enddo
+
+        !Add co-derivative terms: standard centered
+        do ii = i-1,i
+          if (isSP2(g_def,ii+1,igx)) cycle
+
+          call getMGmap(g_def,ii,j,k,igx,igy,igz,ig,jg,kg)
+
+cc          bx2 = (0.5*(bx(ii+1,j,k)/jac(ii+1,j,k)
+cc     .               +bx(ii  ,j,k)/jac(ii  ,j,k)))**2
+
+          jac_avg = 0.5*(jac(ii+1,j,k)+jac(ii,j,k))
+          bx2 = (0.5*(bx(ii+1,j,k)+bx(ii  ,j,k)))**2/jac_avg
+
+          Fluxx(ii,j,k) = Fluxx(ii,j,k)
+     .                  + bx2*(tmp(ii+1,j,k)-tmp(ii,j,k))
+     .                       /g_def%dx(ig)
+        enddo
+
+        do jj = j-1,j
+          call getMGmap(g_def,i,jj,k,igx,igy,igz,ig,jg,kg)
+ 
+cc          by2 = (0.5*(by(i,jj+1,k)/jac(i,jj+1,k)
+cc     .               +by(i,jj  ,k)/jac(i,jj  ,k)))**2
+
+          jac_avg = 0.5*(jac(i,jj+1,k)+jac(i,jj,k))
+          by2 = (0.5*(by(i,jj+1,k)+by(i,jj,k)))**2/jac_avg
+
+          Fluxy(i,jj,k) = Fluxy(i,jj,k)
+     .                  + by2*(tmp(i,jj+1,k)-tmp(i,jj,k))
+     .                       /g_def%dy(jg)
+        enddo
+
+        do kk = k-1,k
+          call getMGmap(g_def,i,j,kk,igx,igy,igz,ig,jg,kg)
+
+cc          bz2 = (0.5*(bz(i,j,kk+1)/jac(i,j,kk+1)
+cc     .               +bz(i,j,kk  )/jac(i,j,kk  )))**2
+
+          jac_avg = 0.5*(jac(i,j,kk+1)+jac(i,j,kk))
+          bz2 = (0.5*(bz(i,j,kk+1)+bz(i,j,kk)))**2/jac_avg
+
+          Fluxz(i,j,kk) = Fluxz(i,j,kk)
+     .                  + bz2*(tmp(i,j,kk+1)-tmp(i,j,kk))
+     .                       /g_def%dz(kg)
+        enddo
+
+      case default
+
+        call pstop("par_flux_2nd"
+     .       ,"Wrong flux option; use symm,sharma,mimetic,central")
+
+      end select
+
 cc      !Add co-derivative terms: ZIP
 cc      do i = 0,nx
 cc        call getMGmap(g_def,i,1,1,igx,igy,igz,ig,jg,kg)
@@ -7928,8 +7982,6 @@ cc        Fluxz(1:nx,1:ny,k) = Fluxz(1:nx,1:ny,k)
 cc     .              +bz(1:nx,1:ny,k+1)*bz(1:nx,1:ny,k)
 cc     .                   *(tmp(1:nx,1:ny,k+1)-tmp(1:nx,1:ny,k))/dz(kg)
 cc      enddo
-
-      endif
 
 c     End program
 
@@ -8448,9 +8500,334 @@ c     #################################################################
 
       mc = minmod(2*minmod(a,b),ho_flx)
 
-      chk = (mc /= ho_flx)
+      if (PRESENT(chk)) chk = (mc /= ho_flx)
 
       end function mc
+
+c     G_covector_calc
+c     ##################################################################
+      function G_covector_calc(Dxx,Dyy,Dxy,nr,np) 
+     .result(lvec)
+c     ------------------------------------------------------------------
+c     This function will compute the co-vector between the 
+c     cell centered stress tensor and the cell face in which the
+c     flux is being computed
+c     ------------------------------------------------------------------
+
+      implicit none
+      
+c     Call variables
+      real(8) :: Dxx, Dyy, Dxy, nr, np
+      real(8) :: lvec(2)
+
+c     Local variables
+
+c     Begin program
+
+      lvec(1) = Dxx*nr + Dxy*np
+      lvec(2) = Dxy*nr + Dyy*np
+
+c     End program
+
+      end function G_covector_calc
+
+c     solver_2x2_local
+c     ##################################################################
+      function solver_2x2_local(A,b) result(x)
+c     ------------------------------------------------------------------
+c     This simple routine will perform an exact 2x2 solve. 
+c     I'm doing this because I don't want to call Lapack since it's
+c     a general subroutine and not optimal for a 2x2 (which gets called
+c     awefully a lot for a 2V system in our app)
+c
+c     Inputs: 
+c     A:      A 2x2 matrix that the user inputs
+c     b:      The RHS that the user inputs
+c     x:      The solution vector that gets outputted
+c
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+      real(8) :: A(2,2)
+      real(8) :: b(2), x(2)
+
+c     Local variables
+      real(8) :: A_inv(2,2), A_det
+
+c     Begin program
+
+      ! Compute the determinant
+      A_det        = A(1,1)*A(2,2) - A(1,2)*A(2,1)
+      ! Compute the inverse of matrix
+      A_inv(1,1)   = A(2,2)/A_det
+      A_inv(1,2)   =-A(1,2)/A_det
+      A_inv(2,1)   =-A(2,1)/A_det
+      A_inv(2,2)   = A(1,1)/A_det
+      ! Solve
+      x(1)         = A_inv(1,1)*b(1) + A_inv(1,2)*b(2)
+      x(2)         = A_inv(2,1)*b(1) + A_inv(2,2)*b(2)
+      
+c     End Program
+
+      end function solver_2x2_local
+
+c     Mimetic_D_flux_x
+c     ##################################################################
+      function Mimetic_D_flux_x(g_def,i,j,k,igx,igy,igz
+     .                         ,Dxx,Dxy,Dyy,f_in,f_pc)
+     .result(flux_x)
+c     ------------------------------------------------------------------
+c     This function will compute the X diffusion flux @ (i+1/2,j,k)
+c     ------------------------------------------------------------------
+
+      implicit none
+      
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      real(8) :: f_in(0:,0:,0:), f_pc(0:,0:,0:)
+      real(8) :: Dxx(i:i+1), Dxy(i:i+1), Dyy(i:i+1)
+      integer :: i,j,k,igx,igy,igz,ig,jg,kg
+      real(8) :: flux_x
+
+c     Local variables
+
+      real(8) :: A(2,2), b(2)
+
+      real(8) :: lvec_ij    (2), lvec_ipj  (2)
+      real(8) :: tvec_ij    (2), tvec_ipj  (2)
+     .          ,tvec_ijpm  (2), tvec_ipjpm(2)
+
+      real(8) :: alpha_ij   (2), alpha_ipj (2)
+      real(8) :: mu_R          , mu_L
+      real(8) :: flux_R        , flux_L
+      real(8) :: flux_R_pc     , flux_L_pc
+
+c     Begin program
+
+      ! Get MGmap
+      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+
+      ! Compute covectors
+      lvec_ij = G_covector_calc(Dxx(i  ), Dyy(i  ) 
+     .                         ,Dxy(i  ), 1d0,0d0)
+      lvec_ipj= G_covector_calc(Dxx(i+1), Dyy(i+1)
+     .                         ,Dxy(i+1),-1d0,0d0)
+
+      !===============================================================
+      ! Below is for the homogeneous isotropic medium case
+      !===============================================================
+      ! Compute the displacement vector between cell centers
+      ! Aligned diagonal term
+      tvec_ij  = (/ g_def%dxh(ig), 0d0/)
+      tvec_ipj = (/-g_def%dxh(ig), 0d0/)
+      ! Off-diagonal term
+      if (lvec_ij(2)  > 0d0) then
+         tvec_ijpm  = (/0d0, g_def%dyh(jg)/)
+      else
+         tvec_ijpm  = (/0d0,-g_def%dyh(jg)/)
+      endif
+      if (lvec_ipj(2) > 0d0) then
+         tvec_ipjpm = (/0d0, g_def%dyh(jg)/)
+      else
+         tvec_ipjpm = (/0d0,-g_def%dyh(jg)/)
+      endif
+
+      ! Compute the rotated diffusion coefficients
+      ! For cell j  ,k
+      A(1,1)   = tvec_ij(1); A(1,2) = tvec_ijpm(1)
+      A(2,1)   = tvec_ij(2); A(2,2) = tvec_ijpm(2)
+      b        = lvec_ij
+      alpha_ij = solver_2x2_local(A,b)
+      ! For cell j+1,k
+      A(1,1)   = tvec_ipj(1); A(1,2) = tvec_ipjpm(1)
+      A(2,1)   = tvec_ipj(2); A(2,2) = tvec_ipjpm(2)
+      b        = lvec_ipj
+      alpha_ipj= solver_2x2_local(A,b)
+
+c      if (alpha_jk(1) <= 0d0 .or. alpha_jk(2) <= 0d0 .or.
+c     .    alpha_jpk(1)<= 0d0 .or. alpha_jpk(2)<= 0d0) then
+c         write(*,*) 'alpha_jk = ', alpha_jk, 'alpha_jpk = ', alpha_jpk
+c      endif
+
+      ! Construct the flux from two sides
+      if (lvec_ij(2)  > 0d0) then
+         flux_L   = - alpha_ij (2)*(f_in(i,j+1,k) - f_in(i,j,k) )
+         flux_L_pc= - alpha_ij (2)*(f_pc(i,j+1,k) - f_pc(i,j,k) )
+      else
+         flux_L   = - alpha_ij (2)*(f_in(i,j-1,k) - f_in(i,j,k) )
+         flux_L_pc= - alpha_ij (2)*(f_pc(i,j-1,k) - f_pc(i,j,k) )
+      endif
+
+      if (lvec_ipj(2) > 0d0) then
+         flux_R   = - alpha_ipj(2)*(f_in(i+1,j+1,k) - f_in(i+1,j,k))
+         flux_R_pc= - alpha_ipj(2)*(f_pc(i+1,j+1,k) - f_pc(i+1,j,k))
+      else
+         flux_R   = - alpha_ipj(2)*(f_in(i+1,j-1,k) - f_in(i+1,j,k))
+         flux_R_pc= - alpha_ipj(2)*(f_pc(i+1,j-1,k) - f_pc(i+1,j,k))
+      endif
+
+      !===============================================================      
+      ! Compute the nonlinear weights by checking the 
+      ! conditions of flux_L*flux_R
+      !===============================================================
+      if (abs(flux_R_pc)+abs(flux_L_pc) == 0d0) then           ! Check if the solution is not unique
+         mu_L = 0.5d0
+         mu_R = 0.5d0
+      else                                                     ! Check product
+         mu_L = abs(flux_R_pc)/(abs(flux_L_pc)+abs(flux_R_pc))
+         mu_R = abs(flux_L_pc)/(abs(flux_L_pc)+abs(flux_R_pc))
+      endif
+
+      ! Assemble the flux
+      flux_x  =  mu_L*flux_L     -mu_R*flux_R 
+     .         +(mu_L*alpha_ij(1)+mu_R*alpha_ipj(1))
+     .         *(f_in(i,j,k)-f_in(i+1,j,k))
+
+      flux_x =-flux_x
+
+c     End program
+
+      end function Mimetic_D_flux_x
+
+c     Mimetic_D_flux_y
+c     ##################################################################
+      function Mimetic_D_flux_y(g_def,i,j,k,igx,igy,igz
+     .                         ,Dxx,Dxy,Dyy,f_in,f_pc)
+     .result(flux_y)
+c     ------------------------------------------------------------------
+c     This function will compute the Y diffusion flux @ (i,j+1/2,k)
+c     ------------------------------------------------------------------
+
+      implicit none
+      
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      real(8) :: f_in(0:,0:,0:), f_pc(0:,0:,0:)
+      real(8) :: Dxx(j:j+1), Dxy(j:j+1), Dyy(j:j+1)
+      integer :: i,j,k,igx,igy,igz,ig,jg,kg
+      real(8) :: flux_y
+
+c     Local variables
+
+      real(8) :: A(2,2), b(2)
+
+      real(8) :: lvec_ij    (2), lvec_ijp  (2)
+      real(8) :: tvec_ij    (2), tvec_ijp  (2)
+     .          ,tvec_ipmj  (2), tvec_ipmjp(2)
+
+      real(8) :: alpha_ij   (2), alpha_ijp (2)
+      real(8) :: mu_T          , mu_B
+      real(8) :: flux_T        , flux_B
+      real(8) :: flux_T_pc     , flux_B_pc
+
+c     Begin program
+
+      ! Get MGmap
+      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+
+      ! Compute covectors
+      lvec_ij = G_covector_calc(Dxx(j)  ,Dyy(j)  ,Dxy(j)  , 0d0, 1d0)
+      lvec_ijp= G_covector_calc(Dxx(j+1),Dyy(j+1),Dxy(j+1), 0d0,-1d0)
+      
+      !===============================================================
+      ! Below is for the homogeneous isotropic medium case
+      !===============================================================
+      ! Compute the displacement vector between cell centers
+      ! Aligned diagonal term
+      tvec_ij  = (/ 0d0, g_def%dyh(jg)/)
+      tvec_ijp = (/ 0d0,-g_def%dyh(jg)/)
+      ! Off-diagonal term
+      if (lvec_ij(1)  > 0d0) then
+         tvec_ipmj  = (/ g_def%dxh(ig), 0d0/)
+      else
+         tvec_ipmj  = (/-g_def%dxh(ig), 0d0/)
+      endif
+      if (lvec_ijp(1) > 0d0) then
+         tvec_ipmjp = (/ g_def%dxh(ig), 0d0/)
+      else
+         tvec_ipmjp = (/-g_def%dxh(ig), 0d0/)
+      endif
+
+      ! Compute the rotated diffusion coefficients
+      ! For cell j  ,k
+      A(1,1)   = tvec_ij(1); A(1,2) = tvec_ipmj(1)
+      A(2,1)   = tvec_ij(2); A(2,2) = tvec_ipmj(2)
+      b        = lvec_ij
+      alpha_ij = solver_2x2_local(A,b)
+      ! For cell j  ,k+1
+      A(1,1)   = tvec_ijp(1); A(1,2) = tvec_ipmjp(1)
+      A(2,1)   = tvec_ijp(2); A(2,2) = tvec_ipmjp(2)
+      b        = lvec_ijp
+      alpha_ijp= solver_2x2_local(A,b)
+
+c$$$      if (alpha_ij(1) <= 0d0 .or. alpha_ij(2) <= 0d0 .or.
+c$$$     .    alpha_ijp(1)<= 0d0 .or. alpha_ijp(2)<= 0d0) then
+c$$$         write(*,*) 'j,k=',j,k,'alpha_ij = ', alpha_ij
+c$$$     ., 'alpha_ijp = ', alpha_ijp
+c$$$     .,'lvec_ijp = ',lvec_ijp, 'Drr_ijp=',Dxx(j,k+1)
+c$$$     .,'Dpp_ijp =',Dyy(j,k+1), 'Drp_ijp = ',Dxy(j,k+1)
+c$$$      endif
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!NOTE!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! I don't understand why I have to use alpha_ij(2) 
+      ! and alpha_ijp(2) instead of alpha_ij(1) and alpha_ijp(1).
+      ! If I don't, I get a completely wrong flux. Must understand
+      ! why...
+      !!!!!!!!!!!!!!!!!!!!!!!!!!NOTE!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      ! Construct the flux from two sides
+      if (lvec_ij(1)  > 0d0) then
+         flux_B   = - alpha_ij (2)*(f_in(i+1,j,k) - f_in(i,j,k))
+         flux_B_pc= - alpha_ij (2)*(f_pc(i+1,j,k) - f_pc(i,j,k))
+      else
+         flux_B   = - alpha_ij (2)*(f_in(i-1,j,k) - f_in(i,j,k))
+         flux_B_pc= - alpha_ij (2)*(f_pc(i-1,j,k) - f_pc(i,j,k))
+      endif
+
+      if (lvec_ijp(1) > 0d0) then
+         flux_T   = - alpha_ijp(2)*(f_in(i+1,j+1,k) - f_in(i,j+1,k))
+         flux_T_pc= - alpha_ijp(2)*(f_pc(i+1,j+1,k) - f_pc(i,j+1,k))
+      else
+         flux_T   = - alpha_ijp(2)*(f_in(i-1,j+1,k) - f_in(i,j+1,k))
+         flux_T_pc= - alpha_ijp(2)*(f_pc(i-1,j+1,k) - f_pc(i,j+1,k))
+      endif
+
+      !===============================================================      
+      ! Compute the nonlinear weights by checking the 
+      ! conditions of flux_L*flux_R
+      !===============================================================
+      if (abs(flux_T_pc)+abs(flux_B_pc) == 0d0) then           ! Check if the solution is not unique
+         mu_B = 0.5d0;  mu_T = 0.5d0
+      else                                               ! Check product
+         mu_B = abs(flux_T_pc)/(abs(flux_B_pc)+abs(flux_T_pc))
+         mu_T = abs(flux_B_pc)/(abs(flux_B_pc)+abs(flux_T_pc))
+      endif
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!NOTE!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! I don't understand why I have to use alpha_ij(1) 
+      ! and alpha_ijp(1) instead of alpha_ij(2) and alpha_ijp(2).
+      ! If I don't, I get a completely wrong flux. Must understand
+      ! why...
+      !!!!!!!!!!!!!!!!!!!!!!!!!!NOTE!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      ! Assemble the flux
+      flux_y =  mu_B*flux_B     -mu_T*flux_T 
+     .        +(mu_B*alpha_ij(1)+mu_T*alpha_ijp(1))
+     .        *(f_in(i,j,k)-f_in(i,j+1,k))
+
+      flux_y =-flux_y
+
+c      write(*,*) 'j,k=',j,k,'flux_vp = ', flux_vp
+
+c     End program
+
+      end function Mimetic_D_flux_y
 
       end module grid_pardiff_ops
 

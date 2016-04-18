@@ -3861,6 +3861,7 @@ c     ##################################################################
      .                  ,mg_coarse_grid_size
      .                  ,mg_coarse_grid_level
      .                  ,mg_gm_coarse_solve
+     .                  ,mg_smooth_only
      .                  ,mg_smooth
      .                  ,mg_galerkin
      .                  ,mg_debug
@@ -3904,6 +3905,7 @@ c       * sing_mat: whether GMRES is dealing with a singular matrix or not
 c
 c       * mg_order_res: restriction order
 c       * mg_order_prol: restriction order
+c       * mg_smooth_only: only apply smoother on finest mesh
 c       * mg_smooth: determines smoothing (jb,gs,gm; default jb)
 c       * mg_vcyc: maximum number of MG V-cycles (default 1)
 c       * mg_cycle: number of mu_cycles in MG (default 1)
@@ -3959,6 +3961,7 @@ c     Call variables
      .                                ,sing_matrix
      .                                ,cg_driver
      .                                ,cvrg_tst
+     .                                ,mg_smooth_only
 
         integer,optional,intent(OUT) :: iters
         real(8),optional,intent(OUT) :: conv_tol
@@ -3983,7 +3986,7 @@ c     Local variables
         real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,rtol,zomg
         real(8), target :: ddg(neq,2*neq*ntotp)
         logical    :: gm_crse_solve,cvrg_test,lrelax,zrelax
-     .               ,gm_drvr,smat,cg_drvr,glkin,bc_chk
+     .               ,gm_drvr,smat,cg_drvr,glkin,bc_chk,mg_smth_only
 
         character(2) :: smth
 
@@ -4077,6 +4080,12 @@ c     Process optional arguments
           smth = mg_smooth
         else
           smth = 'jb'
+        endif
+
+        if(PRESENT(mg_smooth_only)) then
+          mg_smth_only = mg_smooth_only
+        else
+          mg_smth_only = .false.
         endif
 
         if(PRESENT(mg_galerkin)) then
@@ -4283,10 +4292,11 @@ c       MG solver options
         endif
         solverOptions%mg_coarse_grid_res  = mgmin
         solverOptions%mg_coarse_grid_level= mgminl
-        solverOptions%orderres = iorder_res
-        solverOptions%orderprol= iorder_prol
-        solverOptions%mg_mu    = mu_cyc
-        solverOptions%mg_galerkin = glkin
+        solverOptions%orderres       = iorder_res
+        solverOptions%orderprol      = iorder_prol
+        solverOptions%mg_mu          = mu_cyc
+        solverOptions%mg_galerkin    = glkin
+        solverOptions%mg_smooth_only = mg_smth_only
 cc        solverOptions%vol_res  = vol_wgt
 
         if (PRESENT(mg_debug)) solverOptions%mg_debug = mg_debug
@@ -5386,7 +5396,7 @@ c Local variables
       integer :: orderres,orderprol,igmin,igmax,vcyc,crsedpth,mu,ncolors
       real(8) :: mgtol,abstol
       real(8) :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot),x0(ntot)
-      logical :: fdiag,mg_debug,prnt
+      logical :: fdiag,mg_debug,prnt,smooth_only
 
       integer :: line_vcyc,line_nsweep,line_crse_depth
       logical :: line_relax,line_x,line_y,line_z
@@ -5444,6 +5454,8 @@ cc      volf            = options%vol_res
       ncolors         = options%ncolors
 
       mg_debug        = options%mg_debug
+
+      smooth_only     = options%mg_smooth_only
 
       if (options%is_coarse_proc_MG_solve) then
         coarse="CP"
@@ -5572,15 +5584,14 @@ c Start mu-cycle
 c     Perform mu-cycle recursively
 
 #if !defined(coarse_MG)
-        if (igrid.eq.igmax) then
+        if (igrid.eq.igmax.or.smooth_only) then
+#else
+        if (smooth_only) then
+#endif
           call smooth(igrid)
-          exit
         else
           call mcycle(igrid)
         endif
-#else
-        call mcycle(igrid)
-#endif
 
 c     Check MG convergence
 
@@ -6963,7 +6974,8 @@ c$$$     .   ,MG_coarse_solve
         if (  (np > 1)                           !Parallel
      .   .and.(mgctx%g_def%ngrid == igr)         !Lowest level in grid hierarchy
      .   .and.associated(mgctx%g_def%g_crse_def) !Coarse grid defs are defined
-     .   .and.MG_get_coarse_solve()) then !At PROCESSOR coarse mesh
+     .   .and.MG_get_coarse_solve()              !Do coarse proc solve
+     .     ) then             !At PROCESSOR coarse mesh
 
           g_fine_def => mgctx%g_def
           g_crse_def => mgctx%g_def%g_crse_def
@@ -7518,7 +7530,7 @@ c Preparation for iteration
       ones = 1d0
 
       if (guess.eq.0) then
-        zz = 0d0
+        zz = 0d0 ; yy = 0d0
         mag0 = sqrt(MGdot(mgctx,igrid,rr,rr)) !sqrt(yy*yy)
       else
         call MGmatvec(mgctx,0,zz,yy,igrid,bcnd,matvec)
@@ -7526,7 +7538,7 @@ c Preparation for iteration
         mag0 = sqrt(MGdot(mgctx,igrid,yy,yy)) !sqrt(yy*yy)
        endif
 
-      mag = mag0
+      mag  = mag0
 
       if (out.ge.2.and.prnt) write(*,10) 0,mag,1d0
 
@@ -7542,27 +7554,29 @@ c Jacobi iteration
 
       do itr=1,iter
 
-        mag1 = mag
+c$$$c       VERTEX-BASED RELAXATION
+c$$$        if (vbr) then
+c$$$
+c$$$          call vertex_JB
+c$$$
+c$$$c       STANDARD RELAXATION
+c$$$        else
 
-        call MGmatvec(mgctx,0,zz,yy,igrid,bcnd,matvec)
+        call std_JB
 
-c       VERTEX-BASED RELAXATION
-        if (vbr) then
-
-          call vertex_JB
-
-c       STANDARD RELAXATION
-        else
-
-          call std_JB
-
-        endif
+c$$$        endif
 
 c     Eliminate null space
 
 cc        if (smat) zz = zz - dot2(zz,ones)/dot2(ones,ones)*ones  !Use dot3
 
 c     Check convergence
+
+        mag1 = mag
+
+        call MGmatvec(mgctx,0,zz,yy,igrid,bcnd,matvec) !yy = A*zz
+        call MGvecadd(mgctx,igrid,-1d0,yy,1d0,rr)      !yy = rr-yy
+        mag = sqrt(MGdot(mgctx,igrid,yy,yy))           !sqrt(yy*yy)
 
         if (out.ge.2.and.prnt) write(*,20) itr,mag,mag/mag0,mag/mag1
 
@@ -7623,8 +7637,6 @@ c     std_JB
 c     ###################################################################
       subroutine std_JB
 
-        mag  = 0d0
-
         call limits(mgctx,0,igrid,imin,imax,jmin,jmax,kmin,kmax)
 
         do k=kmin,kmax
@@ -7634,9 +7646,6 @@ c     ###################################################################
               ii = i + nxf*(j-1) + nxf*nyf*(k-1)
 
               iii = neq*(ii-1)
-
-              !Find new residual
-              yy(iii+1:iii+neq) = rr(iii+1:iii+neq) - yy(iii+1:iii+neq)
 
               !Multiply by D^-1 (stored in diag)
               iig = iii + isig - 1
@@ -7649,8 +7658,6 @@ c     ###################################################################
             enddo
           enddo
         enddo
-
-        mag = sqrt(MGdot(mgctx,igrid,yy,yy))       !sqrt(yy*yy)
 
 cc          !Take care of points around singular point
 cc          if (isSP(1,1,1,igrid,igrid,igrid)) then

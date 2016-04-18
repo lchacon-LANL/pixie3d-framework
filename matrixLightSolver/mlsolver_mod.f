@@ -56,6 +56,7 @@ cc          logical    :: vol_res
 
           logical      :: mg_galerkin
           logical      :: mg_debug
+          logical      :: mg_smooth_only
 
           logical      :: is_coarse_proc_MG_solve
 
@@ -175,6 +176,9 @@ cc          solverOptions%vol_res  = .true.          !Whether residual contains 
 
           solverOptions%mg_galerkin    =.false.    !Whether to do Galerkin coarsening (true)
                                                    !  or rediscretization (false)
+
+          solverOptions%mg_smooth_only =.false.    !Whether to perform only smoothing
+
           solverOptions%mg_debug       =.false.    !Whether to turn on MG graphic debugging
 
           solverOptions%mg_grid_def => null()      !Defines default MG grid levels def.
@@ -257,6 +261,7 @@ cc          sopts_bckup%vol_res  = .true.
           sopts_bckup%mg_zebra_omega = sopts%mg_zebra_omega 
 
           sopts_bckup%mg_galerkin    = sopts%mg_galerkin
+          sopts_bckup%mg_smooth_only = sopts%mg_smooth_only
                                                    
           sopts_bckup%mg_debug       = sopts%mg_debug 
 
