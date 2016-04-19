@@ -26,7 +26,7 @@ c ######################################################################
         real(8) :: rstep,dfreq,dtexp
 
         logical :: ts_ramp_up_dt = .false.
-        real(8) :: ts_ramp_up_dt_fraction = 1d-1
+        real(8) :: ts_ramp_up_dt_fraction = 5d-1
      .            ,ts_ramp_up_dt_recovery = 1.05
 
 #if !defined(samrai)
@@ -523,8 +523,6 @@ c     #######################################################################
             if (ts_ramp_up_dt.or.timecorr) then
               if  (itm == 2) then
                 dt = ts_ramp_up_dt_fraction*dtbase
-c$$$              elseif (itm == 3) then
-c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
               else
                 dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
               endif

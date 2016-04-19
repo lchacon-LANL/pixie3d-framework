@@ -15,15 +15,17 @@ c ######################################################################
      .            ,eig_dt=1d0          ! Time step for eigenvalue dynamical system
      .            ,dt      = 1d0       ! Time step (if zero, dt is calculated in code)
      .            ,tmax    =-1d0       ! Target time, in Alfven times (not active if negative)
+     .            ,trstrt  =-1d0       ! Restart time (not active if negative)
 
         integer :: sm_pass=2           ! Number of initial smoother passes for Rannacher TS
      .            ,sm_flag=0           ! Time smoothing flag:
                                        !   0 -> Theta scheme
                                        !   1 -> Rannacher time stepping
                                        !   2 -> BDF2
-     .            ,numtime=-1          ! Number of time steps
+     .            ,numtime=-1          ! Number of time steps (not active if negative)
      .            ,ndstep=0            ! # time steps between plots (if zero,
                                        !        ndstep is calculated in code)
+     .            ,nrstrt=-1           ! Restart cycle number (not active if negative)
 
         logical :: timecorr=.true.     ! Time adaptive algorithm (based on Newton convergence)
      .            ,restart=.false.     ! Restarting flag
@@ -33,6 +35,8 @@ c ######################################################################
      .            ,preprocess=.false.  ! Whether to run solution preprocessing before time step
      .            ,eigen=.false.       ! Whether to run framework in eigensolver mode
      .            ,perturb_rstrt=.false.! Whether to apply perturbation after restart
+
+        logical, private :: early_restart !Whether restart has happened from intermediate time
 
         !TS working variables
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
@@ -57,6 +61,46 @@ c ######################################################################
 
 
       contains
+
+c     setEarlyTimeRestartFlag
+c     ###############################################################
+      subroutine setEarlyTimeRestartFlag(flag)
+
+c     ---------------------------------------------------------------
+c     Performs update of time counters
+c     ---------------------------------------------------------------
+
+      implicit none
+
+      logical :: flag
+
+c     Begin program
+
+      early_restart = flag
+
+c     End program
+
+      end subroutine setEarlyTimeRestartFlag
+
+c     getEarlyTimeRestartFlag
+c     ###############################################################
+      function getEarlyTimeRestartFlag() result(flag)
+
+c     ---------------------------------------------------------------
+c     Performs update of time counters
+c     ---------------------------------------------------------------
+
+      implicit none
+
+      logical :: flag
+
+c     Begin program
+
+      flag = early_restart
+
+c     End program
+
+      end function getEarlyTimeRestartFlag
 
 c     TS_init_timecounters
 c     ###############################################################

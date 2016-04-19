@@ -456,12 +456,12 @@ c     End program
 
 #endif
       
-c     setupIOForWrite
+c     init_ADIOS_IO
 c     #################################################################
-      function setupIOForWrite() result(ierr)
+      function init_ADIOS_IO() result(ierr)
 
 c     -----------------------------------------------------------------
-c     Initializes IO for write
+c     Initializes ADIOS IO
 c     -----------------------------------------------------------------
 
       implicit none
@@ -474,8 +474,6 @@ c     Local variables
 
 c     Begin program
 
-#if defined(adios)
-
 c     Initialize ADIOS for componentized I/O
 
       if (.not.is_file('adios_config.xml')) then
@@ -486,9 +484,7 @@ c     Initialize ADIOS for componentized I/O
         call ADIOS_init('adios_config.xml', ierr)
       endif
 
-#endif
-
-      end function setupIOForWrite
+      end function init_ADIOS_IO
 
 c     finalize_IO
 c     #################################################################
@@ -695,18 +691,15 @@ c     Call variables
       integer,INTENT(IN) :: unit
       character(*),INTENT(IN) :: file
       character(*),optional,INTENT(IN) :: status,position
-      logical,optional :: suffix!,check
+      logical,optional :: suffix
 
 c     Local variables
 
-cc      integer :: unit1
       character*(len(file)+10) :: file1
       character*(10) :: stat
       logical :: chk,sffx
 
 c     Begin program
-
-cc      unit1 = unit + my_rank
 
       if (PRESENT(status)) then
         stat=status
@@ -715,11 +708,6 @@ cc      unit1 = unit + my_rank
       endif
 
       chk = (trim(stat) == 'old')
-cc      if (PRESENT(check)) then
-cc        chk = check
-cc      else
-cc        chk = .false.
-cc      endif
 
       if (PRESENT(suffix)) then
         sffx = suffix
@@ -781,9 +769,9 @@ c       Local variables
 
       end subroutine initPOSIXBinFile
 
-c     setRecordfileToAppend
+c     setAppendIOMode
 c     ##############################################################
-      subroutine setRecordFileToAppend
+      subroutine setAppendIOMode
 
         implicit none
 
@@ -793,7 +781,7 @@ c       Local variables
 
         append_recordfile = .true. !Set recordfile to append
 
-      end subroutine setRecordfileToAppend
+      end subroutine setAppendIOMode
 
 c     readRecordFile
 c     #################################################################
@@ -1112,7 +1100,6 @@ c     Close adios file which starts I/O writing from the buffer
         call openPOSIXBinFile(unit,file
      .                       ,status='old'
      .                       ,position='append')
-cc     .                       ,check=.true.)
       endif
 
       write (unit) time
@@ -1122,9 +1109,6 @@ cc     .                       ,check=.true.)
       call writeDerivedType(varray,unit,.false.)
 
       close(unit)
-cc#if !defined(absoft_) && !defined(absoft) && !defined(lf95)
-cc      call flush(unit)
-cc#endif
 
 #endif
 

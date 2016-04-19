@@ -119,7 +119,7 @@ c Initialize computation
 
 c Initialize record file
 
-      call initializeRecordFile
+      call initializeRecordFile(recordfile)
 
 c Check time limits
 
@@ -370,6 +370,11 @@ c     Read files
           call TS_update_timecounters(time,exclude_itime=.true.)
           call equateDerivedType(u_n ,u_np)
           call equateDerivedType(u_np,vmed)
+          if (   (itime > nrstrt.and.nrstrt > 0)
+     .       .or.(time  > trstrt.and.trstrt > 0d0)) then
+            call setEarlyTimeRestartFlag(.true.)
+            exit
+          endif
         endif
 
       enddo
@@ -399,7 +404,7 @@ c     End
 
 c initializeRecordFile
 c######################################################################
-      subroutine initializeRecordFile
+      subroutine initializeRecordFile(file)
 
 c----------------------------------------------------------------------
 c     Creates graphics pointers, defines dumping intervals
@@ -413,6 +418,8 @@ c----------------------------------------------------------------------
 
 c Call variables
 
+      character(*) :: file
+      
 c Local variables
 
       integer :: ierr,ieq,igrid
@@ -425,8 +432,10 @@ c Begin program
 
       igrid = 1
 
-      ierr = setupIOForWrite()
-      
+#if defined(adios)
+      ierr = init_ADIOS_IO()
+#endif
+
 c Set data dumping intervals
 
       dfreq = 8d0
@@ -447,10 +456,19 @@ c Open record file
 
       if (.not.restart) then
         !Dump initial data
-        call writeRecordFile(recordfile,0,0d0,dt,u_0)
-        call writeRecordFile(recordfile,0,0d0,dt,u_np)
+        call writeRecordFile(file,0,0d0,dt,u_0)
+        call writeRecordFile(file,0,0d0,dt,u_np)
+      elseif (getEarlyTimeRestartFlag()) then
+        if (index(file,'.bin') /= 0) then
+          file = 'record_t='//trim(int2char(floor(time)))//'.bin'
+        else
+          file = 'record_t='//trim(int2char(floor(time)))//'.bp'
+        endif
+        !Dump initial data
+        call writeRecordFile(file,0,0d0,dt,u_0)
+        call writeRecordFile(file,itime,time,dt,u_np)
       else
-        call setRecordfileToAppend
+        call setAppendIOMode
       endif
 
 c End programs
