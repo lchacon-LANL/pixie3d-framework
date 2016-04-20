@@ -456,6 +456,7 @@ c     End program
 
 #endif
       
+#if defined(adios)
 c     init_ADIOS_IO
 c     #################################################################
       function init_ADIOS_IO() result(ierr)
@@ -485,6 +486,7 @@ c     Initialize ADIOS for componentized I/O
       endif
 
       end function init_ADIOS_IO
+#endif
 
 c     finalize_IO
 c     #################################################################
