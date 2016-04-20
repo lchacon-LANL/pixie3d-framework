@@ -5997,7 +5997,7 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
       flxip = 0d0
 
-cc      at_bdry = isBdry(g_def,i,igr,2).or.isBdry(g_def,i+1,igr,1)
+c$$$      at_bdry = isBdry(g_def,i,igr,2).or.isBdry(g_def,i+1,igr,1)
       at_bdry = (isBdry(g_def,i  ,igr,2).and.bcond(2)/=PER)
      .      .or.(isBdry(g_def,i+1,igr,1).and.bcond(1)/=PER)
 
@@ -6018,11 +6018,11 @@ c     Other advective methods
       if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv.and.(arr(ip,j,k)*arr(i,j,k)>pos_threshold)) then
-          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k))
-c$$$        if (zv) then
-c$$$          vxp = 2.*flxip/(         arr(ip,j,k)+arr(i,j,k)
-c$$$     .                   +sign(1d0,arr(ip,j,k)+arr(i,j,k))*1d-12)
+c$$$        if (zv.and.(arr(ip,j,k)*arr(i,j,k)>pos_threshold)) then
+c$$$          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k))
+        if (zv) then
+          vxp = 2.*flxip/(         arr(ip,j,k)+arr(i,j,k)
+     .                   +sign(1d0,arr(ip,j,k)+arr(i,j,k))*1d-12)
         else
           vxp = 0.5*(v(ip,j,k)+v(i,j,k))
         endif
@@ -6108,11 +6108,11 @@ c     Other advective methods
       if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv.and.(arr(i,jp,k)*arr(i,j,k)>pos_threshold)) then
-          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
-c$$$        if (zv) then
-c$$$          vyp = 2.*flxjp/(         arr(i,jp,k)+arr(i,j,k)
-c$$$     .                   +sign(1d0,arr(i,jp,k)+arr(i,j,k))*1d-12)
+c$$$        if (zv.and.(arr(i,jp,k)*arr(i,j,k)>pos_threshold)) then
+c$$$          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
+        if (zv) then
+          vyp = 2.*flxjp/(         arr(i,jp,k)+arr(i,j,k)
+     .                   +sign(1d0,arr(i,jp,k)+arr(i,j,k))*1d-12)
         else
           vyp = 0.5*(v(i,jp,k)+v(i,j,k))
         endif
@@ -6179,7 +6179,7 @@ c     Update grid indices
       kp  = k+1
       km  = max(k-1,0)
 
-      kgp = kg + (kp-k)
+      kgp  = kg + (kp-k)
 
 c     Grid info
 
@@ -6198,15 +6198,16 @@ c     Other advective methods
       if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
-        if (zv.and.(arr(i,j,kp)*arr(i,j,k)>pos_threshold)) then
-          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
-c$$$        if (zv) then
-c$$$          vzp = 2.*flxkp/(         arr(i,j,kp)+arr(i,j,k)
-c$$$     .                   +sign(1d0,arr(i,j,kp)+arr(i,j,k))*1d-12)
+c$$$        if (zv.and.(arr(i,j,kp)*arr(i,j,k)>pos_threshold)) then
+c$$$          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
+        if (zv) then
+          vzp = 2.*flxkp/(         arr(i,j,kp)+arr(i,j,k)
+     .                   +sign(1d0,arr(i,j,kp)+arr(i,j,k))*1d-12)
         else
           vzp = 0.5*(v(i,j,kp)+v(i,j,k))
         endif
 
+        !Find advected quantity at faces
         qkp=in2face_scl_new(g_def%zz(kg ),arr(i,j,k )
      .                     ,g_def%zz(kgp),arr(i,j,kp)
      .                     ,2*g_def%dzh(kg ),darr(i,j,k )
@@ -6277,21 +6278,27 @@ c     Compute difference arrays and communicate BCs
       darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
       darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
 
+      bcnd(:,1) = bcs
 c$$$      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
-      bcnd(:,1) = (/bcond(1),bcond(2),DEF,DEF,DEF,DEF/)
-      where (bcnd(1:2,1) == DEF) bcnd(1:2,1) = NEU
-      where (bcnd(1:2,1) == SYM) bcnd(1:2,1) = NEU
+c$$$      bcnd(:,1) = (/bcond(1),bcond(2),DEF,DEF,DEF,DEF/)
+      !Change parity (darr is gradient)
+      where (bcnd(1:2,1) == NEU) bcnd(1:2,1) = DIR
+      where (bcnd(1:2,1) == DIR) bcnd(1:2,1) = NEU
 
+      bcnd(:,2) = bcs
 c$$$      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
-      bcnd(:,2) = (/DEF,DEF,bcond(3),bcond(4),DEF,DEF/)
-      where (bcnd(3:4,2) == DEF) bcnd(3:4,2) = NEU
-      where (bcnd(3:4,2) == SYM) bcnd(3:4,2) = NEU
+c$$$      bcnd(:,2) = (/DEF,DEF,bcond(3),bcond(4),DEF,DEF/)
+      !Change parity (darr is gradient)
+      where (bcnd(3:4,2) == DIR) bcnd(3:4,2) = NEU
+      where (bcnd(3:4,2) == NEU) bcnd(3:4,2) = DIR
 
+      bcnd(:,3) = bcs
 c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
-      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcond(5),bcond(6)/)
-      where (bcnd(5:6,3) == DEF) bcnd(5:6,3) = NEU
-      where (bcnd(5:6,3) == SYM) bcnd(5:6,3) = NEU
-      
+c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcond(5),bcond(6)/)
+      !Change parity (darr is gradient)
+      where (bcnd(5:6,3) == DIR) bcnd(5:6,3) = NEU
+      where (bcnd(5:6,3) == NEU) bcnd(5:6,3) = DIR
+
       do ivar=1,3
         call setMGBC(g_def,0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)
      $              ,bcnd(:,ivar),icomp=(/1/),iorder=1)
@@ -7010,6 +7017,9 @@ c     Begin program
       dx2 = x3-x2
       dx1 = dcx2 - dx2
       dx3 = dcx3 - dx2
+
+      if (dx3 == 0d0) dx3 = dx2
+      if (dx1 == 0d0) dx1 = dx2
 
       dq2 = q3-q2
       dq1 = dcq2 - dq2
