@@ -1529,7 +1529,7 @@ c     Initialize 1-st term  of rhs of hessenberg system
 
         rs(1) = ro
 
-c     FGMRES iteration
+c     GMRES iteration
 
         do i = 1,im
 
@@ -1670,7 +1670,7 @@ c     Form linear combination of zz=P*vv to get solution
 
 c     Call preconditioner
 
-       call applyPC(ntot,dsol,vv(1,im+1),precout)
+        call applyPC(ntot,dsol,vv(1,im+1),precout)
 
 c     Update solution
 
