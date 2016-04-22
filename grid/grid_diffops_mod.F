@@ -5111,7 +5111,7 @@ c       * advect = 7 => Gamma (modification of SMART; not operational)
      .                    ,smart_slp2= 0.5  !0.3
 
         !ADVECTION positivity threshold for ZIP fluxes
-        real(8),private :: pos_threshold=1d-10
+        real(8),private :: pos_threshold=1d-8
         
         INTERFACE inter
           module procedure in2face_scl,in2face_vec
@@ -5298,7 +5298,7 @@ c     Local variables
 
       integer :: im,ip,ipp,igm,igp,igpp,ig,jg,kg,admth
 
-      real(8) :: jacip,jacim,jac,qip,vxp
+      real(8) :: jacip,jacim,jac,qip,vxp,vxh
 
       logical :: spoint,bc_safe,zv,at_bdry
 
@@ -5363,11 +5363,10 @@ c     Other advective methods
       if (method /= 2.and.(.not.(at_bdry).or.bc_safe)) then
 
         !Find velocities at faces from ZIP fluxes
-c$$$        if (zv.and.(arr(ip,j,k)*arr(i,j,k)>pos_threshold)) then
-c$$$          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k))
-        if (zv) then
-          vxp = 2.*flxip/(         arr(ip,j,k)+arr(i,j,k)
-     .                   +sign(1d0,arr(ip,j,k)+arr(i,j,k))*1d-12)
+        if (zv
+     .     .and.(arr(ip,j,k)*arr(i,j,k)>0d0)
+     .     .and.(abs(arr(ip,j,k)+arr(i,j,k))>pos_threshold)) then
+          vxp =2.*flxip/(arr(ip,j,k)+arr(i,j,k))
         else
           vxp = 0.5*(v(ip,j,k)+v(i,j,k))
         endif
@@ -5462,11 +5461,10 @@ c     Other advective methods
       if (method /= 2.and.(.not.(at_bdry).or.bc_safe)) then
 
         !Find velocities at faces from ZIP fluxes
-c$$$        if (zv.and.(arr(i,jp,k)*arr(i,j,k)>pos_threshold)) then
-c$$$          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
-        if (zv) then
-          vyp = 2.*flxjp/(         arr(i,jp,k)+arr(i,j,k)
-     .                   +sign(1d0,arr(i,jp,k)+arr(i,j,k))*1d-12)
+        if (zv
+     .     .and.(arr(i,jp,k)*arr(i,j,k)>0d0)
+     .     .and.(abs(arr(i,jp,k)+arr(i,j,k))>pos_threshold)) then
+          vyp =2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
         else
           vyp = 0.5*(v(i,jp,k)+v(i,j,k))
         endif
@@ -5561,11 +5559,10 @@ c     Other advective methods
       if (method /= 2.and.(.not.(at_bdry).or.bc_safe)) then
 
         !Find velocities at faces from ZIP fluxes
-c$$$        if (zv.and.(arr(i,j,kp)*arr(i,j,k)>pos_threshold)) then
-c$$$          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
-        if (zv) then
-          vzp = 2.*flxkp/(         arr(i,j,kp)+arr(i,j,k)
-     .                   +sign(1d0,arr(i,j,kp)+arr(i,j,k))*1d-12)
+        if (zv
+     .      .and.(arr(i,j,kp)*arr(i,j,k)>0d0)
+     .      .and.abs(arr(i,j,kp)+arr(i,j,k))>pos_threshold) then
+          vzp =2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
         else
           vzp = 0.5*(v(i,j,kp)+v(i,j,k))
         endif
@@ -6018,11 +6015,12 @@ c     Other advective methods
       if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
-c$$$        if (zv.and.(arr(ip,j,k)*arr(i,j,k)>pos_threshold)) then
-c$$$          vxp = 2.*flxip/(arr(ip,j,k)+arr(i,j,k))
-        if (zv) then
-          vxp = 2.*flxip/(         arr(ip,j,k)+arr(i,j,k)
-     .                   +sign(1d0,arr(ip,j,k)+arr(i,j,k))*1d-12)
+        if (zv
+     .     .and.(arr(ip,j,k)*arr(i,j,k)>0d0)
+     .     .and.(abs(arr(ip,j,k)+arr(i,j,k))>pos_threshold)) then
+          vxp =2.*flxip/(arr(ip,j,k)+arr(i,j,k))
+c$$$          vxp =2.*flxip/(         arr(ip,j,k)+arr(i,j,k)
+c$$$     .                  +sign(1d0,arr(ip,j,k)+arr(i,j,k))*pos_threshold)
         else
           vxp = 0.5*(v(ip,j,k)+v(i,j,k))
         endif
@@ -6108,11 +6106,12 @@ c     Other advective methods
       if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
-c$$$        if (zv.and.(arr(i,jp,k)*arr(i,j,k)>pos_threshold)) then
-c$$$          vyp = 2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
-        if (zv) then
-          vyp = 2.*flxjp/(         arr(i,jp,k)+arr(i,j,k)
-     .                   +sign(1d0,arr(i,jp,k)+arr(i,j,k))*1d-12)
+        if (zv
+     .     .and.(arr(i,jp,k)*arr(i,j,k)>0d0)
+     .     .and.(abs(arr(i,jp,k)+arr(i,j,k))>pos_threshold)) then
+          vyp =2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
+c$$$          vyp =2.*flxjp/(         arr(i,jp,k)+arr(i,j,k)
+c$$$     .                  +sign(1d0,arr(i,jp,k)+arr(i,j,k))*pos_threshold)
         else
           vyp = 0.5*(v(i,jp,k)+v(i,j,k))
         endif
@@ -6198,11 +6197,12 @@ c     Other advective methods
       if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
-c$$$        if (zv.and.(arr(i,j,kp)*arr(i,j,k)>pos_threshold)) then
-c$$$          vzp = 2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
-        if (zv) then
-          vzp = 2.*flxkp/(         arr(i,j,kp)+arr(i,j,k)
-     .                   +sign(1d0,arr(i,j,kp)+arr(i,j,k))*1d-12)
+        if (zv
+     .      .and.(arr(i,j,kp)*arr(i,j,k)>0d0)
+     .      .and.abs(arr(i,j,kp)+arr(i,j,k))>pos_threshold) then
+          vzp =2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
+c$$$          vzp =2.*flxkp/(         arr(i,j,kp)+arr(i,j,k)
+c$$$     .                  +sign(1d0,arr(i,j,kp)+arr(i,j,k))*pos_threshold)
         else
           vzp = 0.5*(v(i,j,kp)+v(i,j,k))
         endif
