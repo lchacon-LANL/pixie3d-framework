@@ -3356,10 +3356,10 @@ c     Check for "do nothing" conditions
 
       if (bc_debug) then
         write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
+     .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' Check for "do nothing" conditions'
         write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
+     .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' Skip corners',(skip_corners.and.(.not.face))
       endif
 
@@ -3369,7 +3369,7 @@ c     Do nothing for SP boundary faces, edges, and corners
 
       if (bc_debug) then
         write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
+     .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' SP boundaries',
      .       (bcSP(ibc=ibcl(1),bcnd=bcnd)
      .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
@@ -3386,7 +3386,7 @@ c     Do nothing for DEF boundary faces, edges, and corners
 
       if (bc_debug) then
         write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
+     .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' DEF boundaries',
      .       (bcChk(ibcl(1),DEF,bcnd=bcnd)
      .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
@@ -3404,7 +3404,7 @@ c     (taken care of by scalarNeumann and scalarDirichlet routines)
 
       if (bc_debug) then
         write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
+     .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' SYM boundaries',
      .        (isSYMBdry(ibc=ibcl(1))
      .     .or.isSYMBdry(ibc=ibcl(2))
@@ -3428,26 +3428,50 @@ c     Do nothing for doubly-periodic edges (PETSc does it)
      .      .and.(bcChk(ibcl(1),PER).and.bcChk(ibcl(2),PER))) return
       endif
 
-c     Do nothing for Dirichlet edges (extrapolateBC does it)
+c     Do nothing for Dirichlet edges (extrapolateBC does it), except when BOTH are
 
       if (edge) then
         if ((ibcl(1) == 0)
-     .  .and.((selectFace(ibcl(3)).and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
-     .                              .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
-     .    .or.(selectFace(ibcl(2)).and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
-     .                              .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
+     .  .and.((selectFace(ibcl(3))
+     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+     .    .or.(selectFace(ibcl(2))
+     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd))))
+     .  .and.(.not.((selectFace(ibcl(3))
+     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+     .         .and.(selectFace(ibcl(2))
+     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd))))))
      .       return
         if ((ibcl(2) == 0)
-     .  .and.((selectFace(ibcl(3)).and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
-     .                              .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
-     .    .or.(selectFace(ibcl(1)).and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
-     .                              .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
+     .  .and.((selectFace(ibcl(3))
+     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+     .    .or.(selectFace(ibcl(1))
+     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd))))
+     .  .and.(.not.((selectFace(ibcl(3))
+     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+     .         .and.(selectFace(ibcl(1))
+     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd))))))
      .       return
         if ((ibcl(3) == 0)
-     .  .and.((selectFace(ibcl(1)).and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
-     .                              .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
-     .    .or.(selectFace(ibcl(2)).and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
-     .                              .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
+     .  .and.((selectFace(ibcl(1))
+     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
+     .    .or.(selectFace(ibcl(2))
+     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd))))
+     .  .and.(.not.((selectFace(ibcl(1))
+     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
+     .         .and.(selectFace(ibcl(2))
+     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd))))))
      .       return
       endif
 
@@ -4033,20 +4057,35 @@ c     Begin program
       nzp = size(arr1,3)-1
 
       if (average) then
-        arr2(nxp,:,:) = 0.5*(arr1(nxp  ,:,:)
-     .                      +arr1(nxp-1,:,:))
-        arr2(0  ,:,:) = 0.5*(arr1(1    ,:,:)
-     .                      +arr1(0    ,:,:))
+        arr2 = arr1
+        arr2(nxp,:,:) = 0.5*(arr2(nxp  ,:,:)
+     .                      +arr2(nxp-1,:,:))
+        arr2(0  ,:,:) = 0.5*(arr2(1    ,:,:)
+     .                      +arr2(0    ,:,:))
 
-        arr2(:,nyp,:) = 0.5*(arr1(:,nyp  ,:)
-     .                      +arr1(:,nyp-1,:))
-        arr2(:,0  ,:) = 0.5*(arr1(:,1    ,:)
-     .                      +arr1(:,0    ,:))
+        arr2(:,nyp,:) = 0.5*(arr2(:,nyp  ,:)
+     .                      +arr2(:,nyp-1,:))
+        arr2(:,0  ,:) = 0.5*(arr2(:,1    ,:)
+     .                      +arr2(:,0    ,:))
 
-        arr2(:,:,nzp) = 0.5*(arr1(:,:,nzp  )
-     .                      +arr1(:,:,nzp-1))
-        arr2(:,:,0  ) = 0.5*(arr1(:,:,1    )
-     .                      +arr1(:,:,0    ))
+        arr2(:,:,nzp) = 0.5*(arr2(:,:,nzp  )
+     .                      +arr2(:,:,nzp-1))
+        arr2(:,:,0  ) = 0.5*(arr2(:,:,1    )
+     .                      +arr2(:,:,0    ))
+c$$$        arr2(nxp,:,:) = 0.5*(arr1(nxp  ,:,:)
+c$$$     .                      +arr1(nxp-1,:,:))
+c$$$        arr2(0  ,:,:) = 0.5*(arr1(1    ,:,:)
+c$$$     .                      +arr1(0    ,:,:))
+c$$$
+c$$$        arr2(:,nyp,:) = 0.5*(arr1(:,nyp  ,:)
+c$$$     .                      +arr1(:,nyp-1,:))
+c$$$        arr2(:,0  ,:) = 0.5*(arr1(:,1    ,:)
+c$$$     .                      +arr1(:,0    ,:))
+c$$$
+c$$$        arr2(:,:,nzp) = 0.5*(arr1(:,:,nzp  )
+c$$$     .                      +arr1(:,:,nzp-1))
+c$$$        arr2(:,:,0  ) = 0.5*(arr1(:,:,1    )
+c$$$     .                      +arr1(:,:,0    ))
       else
         !X boundaries
         arr2(0  ,:,:) = arr1(0  ,:,:)
@@ -4091,20 +4130,35 @@ c     Begin program
       nzp = size(vec1,3)-1
 
       if (average) then
-        vec2(nxp,:,:,:) = 0.5*(vec1(nxp  ,:,:,:)
-     .                        +vec1(nxp-1,:,:,:))
-        vec2(0  ,:,:,:) = 0.5*(vec1(1    ,:,:,:)
-     .                        +vec1(0    ,:,:,:))
+        vec2 = vec1
+        vec2(nxp,:,:,:) = 0.5*(vec2(nxp  ,:,:,:)
+     .                        +vec2(nxp-1,:,:,:))
+        vec2(0  ,:,:,:) = 0.5*(vec2(1    ,:,:,:)
+     .                        +vec2(0    ,:,:,:))
 
-        vec2(:,nyp,:,:) = 0.5*(vec1(:,nyp  ,:,:)
-     .                        +vec1(:,nyp-1,:,:))
-        vec2(:,0  ,:,:) = 0.5*(vec1(:,1    ,:,:)
-     .                        +vec1(:,0    ,:,:))
+        vec2(:,nyp,:,:) = 0.5*(vec2(:,nyp  ,:,:)
+     .                        +vec2(:,nyp-1,:,:))
+        vec2(:,0  ,:,:) = 0.5*(vec2(:,1    ,:,:)
+     .                        +vec2(:,0    ,:,:))
 
-        vec2(:,:,nzp,:) = 0.5*(vec1(:,:,nzp  ,:)
-     .                        +vec1(:,:,nzp-1,:))
-        vec2(:,:,0  ,:) = 0.5*(vec1(:,:,1    ,:)
-     .                        +vec1(:,:,0    ,:))
+        vec2(:,:,nzp,:) = 0.5*(vec2(:,:,nzp  ,:)
+     .                        +vec2(:,:,nzp-1,:))
+        vec2(:,:,0  ,:) = 0.5*(vec2(:,:,1    ,:)
+     .                        +vec2(:,:,0    ,:))
+c$$$        vec2(nxp,:,:,:) = 0.5*(vec1(nxp  ,:,:,:)
+c$$$     .                        +vec1(nxp-1,:,:,:))
+c$$$        vec2(0  ,:,:,:) = 0.5*(vec1(1    ,:,:,:)
+c$$$     .                        +vec1(0    ,:,:,:))
+c$$$
+c$$$        vec2(:,nyp,:,:) = 0.5*(vec1(:,nyp  ,:,:)
+c$$$     .                        +vec1(:,nyp-1,:,:))
+c$$$        vec2(:,0  ,:,:) = 0.5*(vec1(:,1    ,:,:)
+c$$$     .                        +vec1(:,0    ,:,:))
+c$$$
+c$$$        vec2(:,:,nzp,:) = 0.5*(vec1(:,:,nzp  ,:)
+c$$$     .                        +vec1(:,:,nzp-1,:))
+c$$$        vec2(:,:,0  ,:) = 0.5*(vec1(:,:,1    ,:)
+c$$$     .                        +vec1(:,:,0    ,:))
       else
         !X boundaries
         vec2(0  ,:,:,:) = vec1(0  ,:,:,:)

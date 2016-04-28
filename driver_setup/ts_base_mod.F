@@ -580,8 +580,6 @@ c     #######################################################################
 
       elseif (sm_flag == 2) then  !BDF2
 
-        cnfactor = 0d0
-
         bdf2 = (itm > 1 .and. (.not.timecorr) )
      .    .or. (itm > 2 .and.       timecorr  .and. ierr == NOERR)
 
@@ -592,10 +590,14 @@ c     #######################################################################
           cnp = (2*dt+dtold)/(dt+dtold)
           cn  = -(dt+dtold)/dtold
           cnm = -cnp-cn    !Sum should be zero identically
+
+          cnfactor = 0d0
         else
           cnp = 1d0
           cn  =-1d0
           cnm = 0d0
+
+          cnfactor = 0.5d0
 
           restart = .false.
         endif

@@ -35,7 +35,7 @@ c ######################################################################
      .            ,perturb_rstrt=.false.! Whether to apply perturbation after restart
 
         logical :: ts_ramp_up_dt = .false.       !Whether to ramp up dt initially
-        real(8) :: ts_ramp_up_dt_fraction = 1d-1 !Fraction of initial timestep
+        real(8) :: ts_ramp_up_dt_fraction = 5d-1 !Fraction of initial timestep
      .            ,ts_ramp_up_dt_recovery = 1.05 !Ramp up coefficient
 
         !TS working variables
