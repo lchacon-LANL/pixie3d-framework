@@ -3479,7 +3479,7 @@ c     Identify directions for extrapolation.
 
       if (bc_debug) then
         write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
+     .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' Identifying directions extrap'
       endif
 
