@@ -597,7 +597,7 @@ c     #######################################################################
           cn  =-1d0
           cnm = 0d0
 
-          cnfactor = 0.5d0
+          if (restart) cnfactor = 0.5d0
 
           restart = .false.
         endif
