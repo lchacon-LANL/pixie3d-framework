@@ -268,7 +268,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
   FC=gfortran
 
-  NETCDF=t
+  NETCDF=f
   NETCDF_LIBS = -L/opt/local/lib -lnetcdff -lnetcdf
   NETCDF_INC  = -I/opt/local/include
 
