@@ -467,20 +467,17 @@ c$$$        endif
 
         bdf2 = bdf2.and.(.not.restart)
 
+        cnfactor = 0d0
+
         if (bdf2) then
           !All these are affected by factor 1/dt (done in evaluateNLF)
           cnp = (2*dt+dtold)/(dt+dtold)
           cn  = -(dt+dtold)/dtold
           cnm = -cnp-cn    !Sum should be zero identically
-
-          cnfactor = 0d0
         else
           cnp = 1d0
           cn  =-1d0
           cnm = 0d0
-
-          cnfactor = 0.5d0
-
         endif
 
       else  !Theta scheme
