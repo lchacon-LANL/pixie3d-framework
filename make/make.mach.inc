@@ -626,23 +626,23 @@ endif
 ########
 
 ifeq ($(findstring sith,$(HOST)),sith)
-  FC = pgf95
+   FC = pgf95
 
-  BOPT = O
-  PETSC_DIR ?= /sw/sith/petsc/3.0.0/centos5.5_pgi10.9_opt/petsc-3.0.0-p10
-  PETSC_ARCH ?= sith-opt
+   BOPT = O
+   PETSC_DIR ?= /sw/sith/petsc/3.0.0/rhel6_pgi13.4_debug/petsc-3.0.0-p10
+   PETSC_ARCH ?= sith-debug
 
-  HDF5 = t
-  #HDF5_DIR = /sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2
-  HDF5_HOME = $(HDF5_DIR)
-  HDF5_LIBS = $(HDF5_FLIB)
-  HDF5_MOD  = $(HDF5_HOME)/lib -I$(HDF5_DIR)/include
+   HDF5 = t
+   HDF5_DIR = /sw/sith/hdf5/1.8.10/rhel6_pgi12.8
+   HDF5_HOME = $(HDF5_DIR)
+   HDF5_LIBS = $(HDF5_FLIB)
+   HDF5_MOD  = $(HDF5_HOME)/lib #-I$(HDF5_DIR)/include
 
-  ADIOS = t
-  ADIOS_HOME = $(ADIOS_DIR)
-  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) 
-  ADIOS_VER  = 1.3
-endif
+   ADIOS = t
+   ADIOS_HOME = $(ADIOS_DIR)
+   ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB)
+   ADIOS_VER  = 1.90
+ endif
 
 ###########
 # chester #
@@ -937,7 +937,7 @@ ifeq ($(HOST),mu-fe1.lanl.gov)
 
     ADIOS = t
 
-    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1
+    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1-mustang-new
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/usr/projects/magnetic/stanier/soft/mxml-2.5/lib -lmxml
     ADIOS_VER  = 1.31
 

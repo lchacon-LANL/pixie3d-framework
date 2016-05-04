@@ -342,7 +342,7 @@ c     Read equilibrium
 
       if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
 
-      ierr = readRecordFile(ufile,itime,time,dt,u_0)
+      ierr = readRecordFile(ufile,itime,time,dt,gammat,u_0)
 
       if (ierr /= 0) then
         call pstop('readCurrentState','Unable to read u_0')
@@ -352,7 +352,7 @@ c     Read equilibrium
 
 c     Read files
 
-      ierr = readRecordFile(ufile,itime,time,dt,u_n)
+      ierr = readRecordFile(ufile,itime,time,dt,gammat,u_n)
 
       if (ierr /= 0) then
         call pstop('readCurrentState','Unable to read u_n')
@@ -361,7 +361,7 @@ c     Read files
       call equateDerivedType(u_np,u_n)
 
       do
-        ierr = readRecordFile(ufile,itime,time,dt,vmed)
+        ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
 
         if (ierr /= 0) then !EOF: Rollback counters and exit
           call TS_rollback_timecounters(exclude_itime=.true.)
@@ -456,8 +456,8 @@ c Open record file
 
       if (.not.restart) then
         !Dump initial data
-        call writeRecordFile(file,0,0d0,dt,u_0)
-        call writeRecordFile(file,0,0d0,dt,u_np)
+        call writeRecordFile(file,0,0d0,dt,0d0,u_0)
+        call writeRecordFile(file,0,0d0,dt,0d0,u_np)
       elseif (getEarlyTimeRestartFlag()) then
         if (index(file,'.bin') /= 0) then
           file = 'record_t='//trim(int2char(floor(time)))//'.bin'
@@ -465,8 +465,8 @@ c Open record file
           file = 'record_t='//trim(int2char(floor(time)))//'.bp'
         endif
         !Dump initial data
-        call writeRecordFile(file,0,0d0,dt,u_0)
-        call writeRecordFile(file,itime,time,dt,u_np)
+        call writeRecordFile(file,0,0d0,dt,0d0,u_0)
+        call writeRecordFile(file,itime,time,dt,gammat,u_np)
       else
         call setAppendIOMode
       endif

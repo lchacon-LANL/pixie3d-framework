@@ -63,7 +63,7 @@ c Time loop
 
 c     Read next record
 
-        call readTimeStep(urecord,itime,time,dt,u_np,ierr)
+        call readTimeStep(urecord,itime,time,dt,gammat,u_np,ierr)
 
 c     Gather error info
 
@@ -330,7 +330,7 @@ c Read geometry (if appropriate)
 
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
-      call readTimeStep(urecord,itime,time,dt,u_0,ierr)
+      call readTimeStep(urecord,itime,time,dt,gammat,u_0,ierr)
 
       if (ierr /= 0) call pstop('initializeCalculation',
      .                          'Unable to read equilibrium')
@@ -357,7 +357,7 @@ c Read perturbed solution u_ic
 
       call equateDerivedType(u_ic,u_0)
 
-      call readTimeStep(urecord,itime,time,dt,u_ic,ierr)
+      call readTimeStep(urecord,itime,time,dt,gammat,u_ic,ierr)
 
 c Initialize diagnostics and related variables
 

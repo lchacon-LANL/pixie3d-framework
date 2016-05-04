@@ -221,10 +221,6 @@ c     Local variables
 
 c     Begin program
 
-c     Estimate local growth rate
-
-      if (sm_flag == 1) call calculate_gammat
-
 c     Update counters
 
       call TS_update_timecounters(time)
@@ -237,137 +233,13 @@ c     Find new time step
 
       time = time + dt
 
+c     Turn off restart flag
+
+      restart = .false.
+
 c     End program
 
-      contains
-
-c     calculate_gammat
-c     #######################################################################
-      subroutine calculate_gammat
-
-c     Calculation of local growth rate for CN
-
-        integer :: ieq
-
-        real(8) :: dmag1,dmag2,dpert,mag(neqd)
-
-        real(8) :: array(ilom:ihip,jlom:jhip,klom:khip)
-
-c     Begin program
-
-        do ieq=1,neqd
-
-          array = (u_np%array_var(ieq)%array
-     .            -u_0 %array_var(ieq)%array )
-          array = array*array
-
-          dpert = integral(gv%gparams,1,array,average=.true.)
-
-          dpert = sqrt(dpert)
-
-          array = (u_n%array_var(ieq)%array
-     .            -u_0%array_var(ieq)%array )
-          array = array*array
-
-          dmag1 = integral(gv%gparams,1,array,average=.true.)
-
-          array = (u_np%array_var(ieq)%array
-     .            +u_n %array_var(ieq)%array
-     .         -2.*u_0 %array_var(ieq)%array )
-          array = array*array
-
-          dmag2 = integral(gv%gparams,1,array,average=.true.)
-
-          if (dpert/=sqrt(dmag1).and.dmag2 /=0d0) then
-            mag(ieq) = .5*dt*sqrt(dmag2)/(dpert-sqrt(dmag1))
-          else
-            mag(ieq) = 1e30
-          endif
-
-        enddo
-
-        gammat = 1./minval(abs(mag))
-
-      end subroutine calculate_gammat
-
       end subroutine TS_correct_dt
-
-c$$$#else
-c$$$
-c$$$      contains
-c$$$
-c$$$c     correctTimeStepPetsc
-c$$$c     ######################################################################
-c$$$      subroutine correctTimeStepPetsc(dn,dnh,dnp,ierr,dt_to_c)
-c$$$
-c$$$      use parameters
-c$$$
-c$$$      implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$      integer     :: ierr
-c$$$      real(8)     :: dn(neqd),dnh(neqd),dnp(neqd),dt_to_c
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$c     Estimate local growth rate
-c$$$
-c$$$      if (sm_flag == 1) call calculate_gammat
-c$$$
-c$$$c     Find new time step
-c$$$
-c$$$      call TS_find_new_dt(itime+1,ierr)
-c$$$
-c$$$c     Update counters (only if timeStep is successful)
-c$$$
-c$$$      itime  = itime + 1
-c$$$
-c$$$      time   = time  + dt
-c$$$      tmrst  = tmrst + dt
-c$$$      nrst   = nrst  + 1
-c$$$
-c$$$      dt_to_c = dt
-c$$$
-c$$$c     End program
-c$$$
-c$$$      contains
-c$$$
-c$$$c     calculate_gammat
-c$$$c     #######################################################################
-c$$$      subroutine calculate_gammat
-c$$$
-c$$$c     -----------------------------------------------------------------------
-c$$$c     Calculation of local growth rate for CN
-c$$$c    ------------------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        integer     :: ieq
-c$$$
-c$$$        real(8)     :: mag(neqd)
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        where (dnp /= dn .and. dnh /= 0d0)
-c$$$          mag = dt*dnh/(dnp-dn)
-c$$$        elsewhere
-c$$$          mag = 1e30
-c$$$        end where
-c$$$
-c$$$        gammat = 1./minval(abs(mag))
-c$$$
-c$$$      end subroutine calculate_gammat
-c$$$
-c$$$      end subroutine correctTimeStepPetsc
-c$$$
-c$$$#endif
 
 c     TS_init_otherCounters
 c     ####################################################################
@@ -521,7 +393,7 @@ c     #######################################################################
           case(2)  !BDF time stepping
 
             if (ts_ramp_up_dt.or.timecorr) then
-              if  (itm == 2) then
+              if  (itm == 2.or.restart) then
                 dt = ts_ramp_up_dt_fraction*dtbase
               else
                 dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
@@ -570,6 +442,14 @@ c     #######################################################################
 
       if (sm_flag == 1) then      !Rannacher
 
+c$$$        if (restart) then
+c$$$          gammat = 0d0
+c$$$        else
+c$$$          gammat = calculate_gammat()
+c$$$        endif
+
+        if (.not.restart) gammat = calculate_gammat()
+
         if (itm == 1.and.timecorr) then
           cnfactor = .5
         elseif (    (itm <= sm_pass+1 .and.      timecorr )
@@ -601,7 +481,6 @@ c     #######################################################################
 
           cnfactor = 0.5d0
 
-          restart = .false.
         endif
 
       else  !Theta scheme
@@ -616,5 +495,54 @@ c     #######################################################################
 
       end subroutine TS_find_new_dt
 #endif
+
+c     calculate_gammat
+c     #######################################################################
+      function calculate_gammat() result(gammat)
+
+c     Calculation of local growth rate for CN
+
+        integer :: ieq
+
+        real(8) :: dmag1,dmag2,dpert,mag(neqd),gammat
+
+        real(8) :: array(ilom:ihip,jlom:jhip,klom:khip)
+
+c     Begin program
+
+        do ieq=1,neqd
+
+          array = (u_np%array_var(ieq)%array
+     .            -u_0 %array_var(ieq)%array )
+          array = array*array
+
+          dpert = integral(gv%gparams,1,array,average=.true.)
+
+          dpert = sqrt(dpert)
+
+          array = (u_n%array_var(ieq)%array
+     .            -u_0%array_var(ieq)%array )
+          array = array*array
+
+          dmag1 = integral(gv%gparams,1,array,average=.true.)
+
+          array = (u_np%array_var(ieq)%array
+     .            +u_n %array_var(ieq)%array
+     .         -2.*u_0 %array_var(ieq)%array )
+          array = array*array
+
+          dmag2 = integral(gv%gparams,1,array,average=.true.)
+
+          if (dpert/=sqrt(dmag1).and.dmag2 /=0d0) then
+            mag(ieq) = .5*dt*sqrt(dmag2)/(dpert-sqrt(dmag1))
+          else
+            mag(ieq) = 1e30
+          endif
+
+        enddo
+
+        gammat = 1./minval(abs(mag))
+
+      end function calculate_gammat
 
       end module ts_base

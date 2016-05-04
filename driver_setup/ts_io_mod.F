@@ -44,7 +44,7 @@ cc        if (my_rank == 0) write (*,*) e_time, quota
      .      .or.relax_init_grid) then
           if (.not.relax_init_grid) nrst  = 0
           if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
-          call writeRecordFile(recordfile,itime,time,dt,varray)
+          call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
         endif
 
         exit_tloop = (eigen .or. e_time > quota)

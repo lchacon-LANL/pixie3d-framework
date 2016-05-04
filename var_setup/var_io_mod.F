@@ -787,7 +787,8 @@ c       Local variables
 
 c     readRecordFile
 c     #################################################################
-      function readRecordFile(unit,itime,time,dt,varray) result(ierr)
+      function readRecordFile(unit,itime,time,dt,gammat,varray)
+     .         result(ierr)
 
 c     -----------------------------------------------------------------
 c     Reads record file
@@ -798,7 +799,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer    :: ierr,itime,unit
-      real(8)    :: time,dt
+      real(8)    :: time,dt,gammat
 
       type(var_array),pointer:: varray
 
@@ -848,6 +849,14 @@ c     Begin program
      .           ": read in dt.   start=",start,"count=",readcount
 
           call adios_read_var(adios_gh,"dt",start,readcount,dt,m)
+          start = adios_tread 
+
+          if (adios_debug)
+     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .           ": read in gammat.   start=",start,"count=",readcount
+
+          call adios_read_var(adios_gh,"gammat",start,readcount,gammat
+     .                       ,m)
 
           if (firstread) then
             start = adios_tread 
@@ -912,7 +921,7 @@ c     End
 
 c     writeRecordFile
 c     #################################################################
-      subroutine writeRecordFile(file,itime,time,dt,varray,init)
+      subroutine writeRecordFile(file,itime,time,dt,gammat,varray,init)
 
 c     -----------------------------------------------------------------
 c     Writes record file
@@ -923,7 +932,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer    :: itime
-      real(8)    :: time,dt
+      real(8)    :: time,dt,gammat
       type(var_array),pointer:: varray
       character(*) :: file
       logical,optional :: init
@@ -1071,9 +1080,10 @@ c     Write all variables to buffer
       endif
 
       if (my_rank == 0) then
-        call adios_write(handle,"time" ,time ,err)
-        call adios_write(handle,"itime",itime,err)
-        call adios_write(handle,"dt"   ,dt   ,err)
+        call adios_write(handle,"time"  ,time  ,err)
+        call adios_write(handle,"itime" ,itime ,err)
+        call adios_write(handle,"dt"    ,dt    ,err)
+        call adios_write(handle,"gammat",gammat,err)
       endif
 
       call writeDerivedTypeAdios(handle,varray,addl_write)
@@ -1107,6 +1117,7 @@ c     Close adios file which starts I/O writing from the buffer
       write (unit) time
       write (unit) itime
       write (unit) dt
+      write (unit) gammat
 
       call writeDerivedType(varray,unit,.false.)
 
@@ -1641,7 +1652,7 @@ c     End program
 
 c     readTimeStep
 c     #################################################################
-      subroutine readTimeStep(unit,itime,time,dt,varray,ierr)
+      subroutine readTimeStep(unit,itime,time,dt,gammat,varray,ierr)
 
 c     -----------------------------------------------------------------
 c     Reads time step info from single or multiple files.
@@ -1653,7 +1664,7 @@ c     Call variables
 
       type(var_array),pointer :: varray
       integer :: ierr,itime,unit
-      real(8) :: time,dt
+      real(8) :: time,dt,gammat
 
 c     Local variables
 
@@ -1663,12 +1674,13 @@ c     Begin program
 
       if (associated(murecord)) then
         do ifile=1,size(murecord)
-          ierr = readRecordFile(murecord(ifile),itime,time,dt,varray)
+          ierr = readRecordFile(murecord(ifile),itime,time,dt,gammat
+     .                         ,varray)
           if (ierr == -1) cycle !Error, but not EOF
           if (ierr == -2) cycle !EOF
         enddo
       else
-        ierr = readRecordFile(unit,itime,time,dt,varray)
+        ierr = readRecordFile(unit,itime,time,dt,gammat,varray)
       endif
 
 c     End program

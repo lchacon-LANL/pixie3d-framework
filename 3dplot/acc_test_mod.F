@@ -122,7 +122,7 @@ c     Read reference grid info
       call allocateDerivedType(vref)
 
       do
-        call readTimeStep(ufile,itime,time,dt,vref,ierr)
+        call readTimeStep(ufile,itime,time,dt,gammat,vref,ierr)
         if (ierr /= 0) exit
       enddo
 
@@ -188,7 +188,7 @@ c Initialize current grid info and read current grid solution
       call allocateDerivedType(vsol)
 
       do
-        call readTimeStep(ufile,itime,time,dt,vsol,ierr)
+        call readTimeStep(ufile,itime,time,dt,gammat,vsol,ierr)
         if (ierr /= 0) exit
       enddo
 
@@ -361,7 +361,7 @@ c     Read reference field
       call allocateDerivedType(vref)
 
       do
-        call readTimeStep(ufile,itime,time,dt,vref,ierr)
+        call readTimeStep(ufile,itime,time,dt,gammat,vref,ierr)
         if (ierr /= 0
      .     .or. (abs(time-tmax)<1d-10.and.tmax > 0d0)
      .     .or. (numtime == itime.and.numtime > 0)) exit
@@ -390,7 +390,7 @@ c     Read current solution
       call allocateDerivedType(vsol)
 
       do
-        call readTimeStep(ufile,itime,time,dt,vsol,ierr)
+        call readTimeStep(ufile,itime,time,dt,gammat,vsol,ierr)
         if (ierr /= 0
      .     .or. (abs(time-tmax)<1d-10.and.tmax > 0d0)
      .     .or. (numtime == itime.and.numtime > 0)) exit
