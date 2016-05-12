@@ -544,55 +544,55 @@ c     Begin program
 
       ufile = find_unit(urecord)
       
-      call openRecordFiles(ufile,trim(rfile)
-     .                    ,ilg,ihg,jlg,jhg,klg,khg)
+c$$$      call openRecordFiles(ufile,trim(rfile)
+c$$$     .                    ,ilg,ihg,jlg,jhg,klg,khg)
+c$$$
+c$$$      nx = ihg-ilg+1
+c$$$      ny = jhg-jlg+1
+c$$$      nz = khg-klg+1
 
-      nx = ihg-ilg+1
-      ny = jhg-jlg+1
-      nz = khg-klg+1
+      call openPOSIXBinFile(ufile,trim(rfile),status='old')
 
-cc      call openPOSIXBinFile(ufile,trim(rfile),status='old')
-cc
-cc      read (ufile,iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
-cc      if (ierr == 0) then
-cc
-cc        if (NDEPV == 0) then
-cc           NDEPV=ndepvl
-cc        elseif (NDEPV /= ndepvl) then
-cc           call pstop('openRestartFileForRead'
-cc     $            ,'# Dep. vec. variables do not agree; cannot restart')
-cc        endif
-cc
-cc        if (NDEPS == 0) then
-cc           NDEPS=ndepsl
-cc        elseif (NDEPS /= ndepsl) then
-cc           call pstop('openRestartFileForRead'
-cc     $            ,'# Dep. scl. variables do not agree; cannot restart')
-cc        endif
-cc
-cc        if (NAUXV == 0) then
-cc           NAUXV=nauxvl
-cc        elseif (NAUXV /= nauxvl) then
-cc           call pstop('openRestartFileForRead'
-cc     $            ,'# Aux. vec. variables do not agree; cannot restart')
-cc        endif
-cc
-cc        if (NAUXS == 0) then
-cc           NAUXS=nauxsl
-cc        elseif (NAUXS /= nauxsl) then
-cc           call pstop('openRestartFileForRead'
-cc     $            ,'# Aux. scl. variables do not agree; cannot restart')
-cc        endif
-cc
-cc      else  !COMPATIBILITY MODE
-cc
-cc        rewind(ufile)
-cc
-cc      endif
-cc
-cc      read (ufile) nx,ilog,ihig
-cc      read (ufile) ny,jlog,jhig
-cc      read (ufile) nz,klog,khig
+      read (ufile,iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
+      if (ierr == 0) then
+
+        if (NDEPV == 0) then
+           NDEPV=ndepvl
+        elseif (NDEPV /= ndepvl) then
+           call pstop('openRestartFileForRead'
+     $            ,'# Dep. vec. variables do not agree; cannot restart')
+        endif
+
+        if (NDEPS == 0) then
+           NDEPS=ndepsl
+        elseif (NDEPS /= ndepsl) then
+           call pstop('openRestartFileForRead'
+     $            ,'# Dep. scl. variables do not agree; cannot restart')
+        endif
+
+        if (NAUXV == 0) then
+           NAUXV=nauxvl
+        elseif (NAUXV /= nauxvl) then
+           call pstop('openRestartFileForRead'
+     $            ,'# Aux. vec. variables do not agree; cannot restart')
+        endif
+
+        if (NAUXS == 0) then
+           NAUXS=nauxsl
+        elseif (NAUXS /= nauxsl) then
+           call pstop('openRestartFileForRead'
+     $            ,'# Aux. scl. variables do not agree; cannot restart')
+        endif
+
+      else  !COMPATIBILITY MODE
+
+        rewind(ufile)
+
+      endif
+
+      read (ufile) nx,ilog,ihig
+      read (ufile) ny,jlog,jhig
+      read (ufile) nz,klog,khig
 
 cc      if (associated(gv%gparams)) then
       if (associated(gv)) then
@@ -805,7 +805,7 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: tmp(1)
+      integer    :: tmp(1),lerr(1),gerr(1)
 
 #if defined(adios)
       !ADIOS variables
@@ -903,16 +903,29 @@ c     Begin program
       read (unit,iostat=ierr,end=100) dt
       if (ierr /= 0) goto 200
 
+      read (unit,iostat=ierr,end=100) gammat
+      if (ierr /= 0) goto 200
+
       call readDerivedType(varray,unit,.false.,ierr)
 
-      return
+      goto 300
 
  100  ierr=-2  !EOF
-cc      write (*,*) 'readRecordFile: EOF in file unit',unit
-      return
+
+cc      write (*,*) 'readRecordFile: EOF in rank',my_rank
+      goto 300
 
  200  ierr=-1  !Error, but not EOF
-      write (*,*) 'readRecordFile: Error reading file unit',unit
+cc      write (*,*) 'readRecordFile: Error reading file unit',unit
+
+ 300  continue
+
+#if defined(petsc) || defined(petsc_c)
+      lerr = ierr
+      call MPI_Allreduce(lerr,gerr,1
+     .                ,MPI_INTEGER,MPI_MIN,MPI_COMM_WORLD,mpierr)
+      ierr = gerr(1)
+#endif
 
 c     End
 #endif
