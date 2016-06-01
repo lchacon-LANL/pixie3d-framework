@@ -639,6 +639,7 @@ ifeq ($(findstring sith,$(HOST)),sith)
    HDF5_HOME = $(HDF5_DIR)
    HDF5_LIBS = $(HDF5_FLIB)
    HDF5_MOD  = $(HDF5_HOME)/lib #-I$(HDF5_DIR)/include
+   HDF5_INC  = $(HDF5_DIR)/include
 
    ADIOS = t
    ADIOS_HOME = $(ADIOS_DIR)
