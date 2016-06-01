@@ -1134,7 +1134,7 @@ c     Fill PETSc ghost cells
       call sync_PER
 #endif
 
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return !PETSc deals with all periodic domains
+      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
 
 c     Impose BCs
 
