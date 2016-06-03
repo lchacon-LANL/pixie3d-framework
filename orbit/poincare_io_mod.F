@@ -212,7 +212,7 @@ c     Read POINCARE data
           call pstop('openGraphicsfiles'
      .              ,'Cannot find POINCARE files')
         elseif (nfiles /= np) then
-          call read_poincare_data_async(file,nfiles)
+          call read_poincare_data_async(file)
         else
           call read_poincare_data_sync(file)
         endif
@@ -420,7 +420,7 @@ c     Deallocate memory
 
 c     read_poincare_data_async
 c     ##################################################################
-      subroutine read_poincare_data_async(file,nfiles)
+      subroutine read_poincare_data_async(file)
 
 c     ------------------------------------------------------------------
 c     Reads poincare data from PIXIE3D files in an asynchronous manner
@@ -431,33 +431,40 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-        integer :: nfiles
+cc        integer :: nfiles
 
         character(*) :: file
 
 c     Local variables
 
-        integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,i,j,k
-        integer,allocatable,dimension(:) :: mupixie
-        character(60),allocatable,dimension(:) :: mpixie
+        integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,i,j,k,nfiles,ierr
+        integer,pointer,dimension(:) :: mupixie
+cc        character(60),allocatable,dimension(:) :: mpixie
 
 c     Begin program
 
+        ierr = openFiles(my_rank,np,upixie,trim(file),mupixie)
+
+        if (ierr /= 0) call pstop('read_poincare_data_async'
+     .                           ,'Cannot find files')
+
 c     Setup files
 
-        allocate(mupixie(nfiles),mpixie(nfiles))
-
-        if (nfiles == 1) then
-          mupixie(1) = upixie
-          mpixie (1) = trim(file)
-        else
-          do ifl=1,nfiles
-            mupixie(ifl) = upixie+ifl
-            mpixie (ifl) = trim(file)//'_proc'//trim(int2char(ifl-1))
-            write (*,*) '  => ',trim(mpixie(ifl))
-     $               ,', unit=',mupixie(ifl)
-          enddo
-        endif
+        nfiles = size(mupixie)
+cc
+cc        allocate(mupixie(nfiles),mpixie(nfiles))
+cc
+cc        if (nfiles == 1) then
+cc          mupixie(1) = upixie
+cc          mpixie (1) = trim(file)
+cc        else
+cc          do ifl=1,nfiles
+cc            mupixie(ifl) = upixie+ifl
+cc            mpixie (ifl) = trim(file)//'_proc'//trim(int2char(ifl-1))
+cc            write (*,*) '  => ',trim(mpixie(ifl))
+cc     $               ,', unit=',mupixie(ifl)
+cc          enddo
+cc        endif
 
 c     Read setup info
 
@@ -468,11 +475,11 @@ c     Read setup info
 
         do ifl=1,nfiles
 
-          write (*,'(a,i4,3a)') ' Proc ',my_rank,' opening file '
-     .                ,trim(mpixie(ifl)),'...(async)'
-
-          open(mupixie(ifl),file=trim(mpixie(ifl))
-     $        ,form='unformatted',status='old')
+cc          write (*,'(a,i4,3a)') ' Proc ',my_rank,' opening file '
+cc     .                ,trim(mpixie(ifl)),'...(async)'
+cc
+cc          open(mupixie(ifl),file=trim(mpixie(ifl))
+cc     $        ,form='unformatted',status='old')
 
           read (mupixie(ifl)) nxg,nyg,nzg,bcnd,tor
 
@@ -487,19 +494,21 @@ c     Read setup info
         endif
 
 cc        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
-cc          do ifl=1,nfiles
-cc            close(mupixie(ifl))
-cc          enddo
-cc          call pstop('lagrangian_init','Coordinates are not toroidal')
+cc          call closeFiles(mupixie)
+cc          call pstop('get_global_data_from_file'
+cc     .              ,'Coordinates are not toroidal')
 cc        endif
-
+cc
 cc        if (sum(bcnd-bcond) /= 0) then
-cc          call pstop('lagrangian_init','BC conf. does not agree')
+cc          call closeFiles(mupixie)
+cc          call pstop('get_global_data_from_file'
+cc     .              ,'BC conf. does not agree')
 cc        endif
 cc
 cc        if (nxd /= nxg .or. nyd /= nyg .or. nzd /= nzg) then
+cc          call closeFiles(mupixie)
 cc          write (*,*) 'Grid size=',nxg,nyg,nzg
-cc          call pstop('lagrangian_init'
+cc          call pstop('get_global_data_from_file'
 cc     .              ,'Global grid size does not agree')
 cc        endif
 
@@ -587,9 +596,8 @@ c     Read global arrays
 
 c     Deallocate memory
 
-        deallocate(mupixie,mpixie)
-
-        return
+        deallocate(mupixie)
+cc        deallocate(mpixie)
 
  100    call pstop('read_poincare_data_async'
      .            ,'Problem reading poincare file; aborting')
