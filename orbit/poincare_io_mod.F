@@ -297,7 +297,7 @@ c     Begin program
 
         write (*,*)
         write (*,*) '***********************************************'
-        write (*,*) 'Opening file ',trim(poincfile),'...(read files)'
+        write (*,*) 'Opening file ',trim(poincfile),'...for reading '
         write (*,*) '***********************************************'
         write (*,*)
 

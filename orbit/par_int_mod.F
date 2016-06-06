@@ -552,8 +552,8 @@ cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
         !Private variables
 cc        real(8),private :: orbit_atol=1e-10    !Orbit integrator absolute tolerance
 cc     .                    ,orbit_rtol=1e-8     !Orbit integrator relative tolerance
-        real(8),private :: orbit_atol=1d-12    !Orbit integrator absolute tolerance
-     .                    ,orbit_rtol=1d-10    !Orbit integrator relative tolerance
+        real(8),private :: orbit_atol=1d-14    !Orbit integrator absolute tolerance
+     .                    ,orbit_rtol=1d-14    !Orbit integrator relative tolerance
      .                    ,orbit_dt  =1d-2     !Orbit integrator time step
      .                    ,CHI_LIMIT =1d-4     !Lower bound for chi*dt (delta-function limit)
 
@@ -2183,13 +2183,37 @@ c     --------------------------------------------------------------
 
         implicit none
 
+        integer :: nfiles
+
 c     Begin program
 
         if (my_rank == 0) then
-          write (*,*) 'Asynchronous input in Lagrangian step'
+          write (*,*) 'POINCARE input in Lagrangian step'
         endif
 
-        call read_poincare_data_async(poinc_file)
+c     Check file configuration
+
+        if (.not.is_file(poinc_file)) then     !Multiple files
+          !Find out number of graphics files
+          nfiles = 0
+          do while (is_file(trim(poinc_file)//'_proc'
+     .                    //trim(int2char(nfiles))))
+            nfiles=nfiles+1
+          enddo
+        else
+          nfiles = 1
+        endif
+
+c     Read POINCARE data
+
+        if (nfiles == 0) then
+          call pstop('get_global_data_from_file'
+     .              ,'Cannot find POINCARE files')
+        elseif (nfiles /= np) then
+          call read_poincare_data_async(poinc_file)
+        else
+          call read_poincare_data_sync(poinc_file)
+        endif
 
 c     Assign local B arrays
 
@@ -2202,8 +2226,12 @@ c     Update grid metrics
         nyl = jhipg-jlomg-1
         nzl = khipg-klomg-1
 
-        call defineGridMetric(grid_params
+        if (checkAnalMapDatabase()) then
+          call defineGridMetric(grid_params)
+        else
+          call defineGridMetric(grid_params
      .           ,xcar=carg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
+        endif
 
         gmetric => grid_params%gmetric
 
