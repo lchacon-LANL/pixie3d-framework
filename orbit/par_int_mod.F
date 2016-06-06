@@ -1116,7 +1116,9 @@ c-----------------------------------------------
 !$OMP PARALLEL
 !$      thr_tot = omp_get_num_threads()
 !$      thr_num = omp_get_thread_num()
-
+!$      if (my_rank == 0) write (*,'(a,i3,a1,i3)')
+!$   .     'OMP thread num/tot',thr_num,'/',thr_tot
+        
 !$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
 !$OMP.     SCHEDULE(DYNAMIC)
         do k=1,nz
@@ -1151,10 +1153,10 @@ c-----------------------------------------------
           enddo
         enddo
 !$OMP END DO
+!$OMP END PARALLEL
 c-----------------------------------------------
 c END OMP PARALLEL REGION
 c-----------------------------------------------
-!$OMP END PARALLEL
 
         if ((my_rank == 0).and.(iout == 1)) write (*,*)
 
@@ -1400,7 +1402,9 @@ c-----------------------------------------------
 !$OMP PARALLEL
 !$      thr_tot = omp_get_num_threads()
 !$      thr_num = omp_get_thread_num()
-
+!$      if (my_rank == 0) write (*,'(a,i3,a1,i3)')
+!$   .     'OMP thread num/tot',thr_num,'/',thr_tot
+        
 !$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
 !$OMP.     SCHEDULE(DYNAMIC)
         do k=1,nz
@@ -1430,10 +1434,10 @@ c-----------------------------------------------
           enddo
         enddo
 !$OMP END DO
+!$OMP END PARALLEL
 c-----------------------------------------------
 c END OMP PARALLEL REGION
 c-----------------------------------------------
-!$OMP END PARALLEL
 
         if ((my_rank == 0).and.(iout == 1)) write (*,*)
 
