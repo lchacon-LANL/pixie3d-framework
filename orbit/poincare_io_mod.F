@@ -6,31 +6,38 @@
 
         use grid
 
-	use grid_mpi
-
         use orbit
 
         integer :: upixie=12345,ierr
 
         !Grid configuration
-        integer :: nxg,nyg,nzg
-
-        integer :: bcnd(6)
-
-        logical :: tor
+        real(8),private :: pxmin,pxmax,pymin,pymax,pzmin,pzmax
+        integer,private :: nxg,nyg,nzg
+        integer,private :: bcnd(6)
+        logical,private :: tor
 
         !Global arrays
-        real(8),pointer,dimension(:)       :: xx,yy,zz
-        real(8),pointer,dimension(:,:,:)   :: jacg
-        real(8),pointer,dimension(:,:,:,:) :: bg,bcarg,carg
+        real(8),pointer,private,dimension(:)       :: xx,yy,zz
+        real(8),pointer,private,dimension(:,:,:)   :: jacg
+        real(8),pointer,private,dimension(:,:,:,:) :: bg,bcarg,carg
 
         !Spline configuration
-        integer :: a_gauge,sporder
+        integer :: a_gauge=2   !Gauge (1->A1=0, 2->A2=0)
+     .            ,sporder=3   !Order of splines
 
         !ODE configuration
-        integer :: niter,odeorder
-        real(8) :: dtime,tmax,smax,rtol,atol
-        logical :: forward,solen,picard
+        integer :: niter=8     !# Picard its. to converge in CN
+     .            ,odeorder=1  !Order of ODE integration
+
+        real(8) :: dtime=0.02d0
+     .            ,tmax=0d0    !Maximum time
+     .            ,smax=0d0    !Maximum arc length (in system normalized length units)
+     .            ,rtol=0d-10  !Relative error tolerance in ODE convergence
+     .            ,atol=1d-10  !Absolute error tolerance in CN convergence
+
+        logical :: solen=.true.   !Whether to use A or B formulation
+cc     .            ,forward=.true. !Whether to go forward or backward in field lines integration
+     .            ,picard=.true.  !Whether we use Newton or Picard in CN stepping
 
       contains
 
@@ -63,7 +70,7 @@ c     Begin program
 
         write (*,*)
         write (*,*) '*****************************************'
-        write (*,*) 'Opening file ',trim(file),'...(read_file)'
+        write (*,*) 'Opening file ',trim(file)
         write (*,*) '*****************************************'
         write (*,*)
 
@@ -135,9 +142,12 @@ c     Begin program
 
         !Setup orbit
 
-        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
+cc        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
+cc        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
+cc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
+        call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
+        call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
+        call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
 
         call orbit_setup(nx,ny,nz,xx,yy,zz
      .                  ,bx,by,bz,bxcar,bycar,bzcar
@@ -174,7 +184,7 @@ c     read_poinc_files
 c     ##############################################################
       subroutine read_poinc_files(file)
 
-      implicit none
+        implicit none
 
 c     --------------------------------------------------------------
 c     Read poincare file for grid and field data
@@ -199,17 +209,14 @@ c     Check file configuration
      .                    //trim(int2char(nfiles))))
             nfiles=nfiles+1
           enddo
-
         else
-
           nfiles = 1
-
         endif
 
 c     Read POINCARE data
 
         if (nfiles == 0) then
-          call pstop('openGraphicsfiles'
+          call pstop('read_poinc_files'
      .              ,'Cannot find POINCARE files')
         elseif (nfiles /= np) then
           call read_poincare_data_async(file)
@@ -223,10 +230,6 @@ c     Orbit initialization on global array
         nx = nxg+2
         ny = nyg+2
         nz = nzg+2
-
-        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
 
         call orbit_setup(nx,ny,nz,xx,yy,zz
      .                  ,bg(:,:,:,1)
@@ -297,7 +300,7 @@ c     Begin program
 
         write (*,*)
         write (*,*) '***********************************************'
-        write (*,*) 'Opening file ',trim(poincfile),'...for reading '
+        write (*,*) 'Opening file ',trim(poincfile)
         write (*,*) '***********************************************'
         write (*,*)
 
@@ -321,6 +324,13 @@ c     Read poincare position arrays
         read (upixie) xx
         read (upixie) yy
         read (upixie) zz
+
+cc        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
+cc        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
+cc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
+        call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
+        call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
+        call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
 
 c     Local limits
 
@@ -594,6 +604,15 @@ c     Read global arrays
 
         enddo
 
+c     Set domain limits
+
+cc        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
+cc        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
+cc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
+        call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
+        call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
+        call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
+
 c     Deallocate memory
 
         deallocate(mupixie)
@@ -611,5 +630,73 @@ c     ##################################################################
         deallocate(bg,bcarg,jacg,carg,xx,yy,zz)
 
       end subroutine dealloc_poincare_data
+
+c     poinc_domain_limits
+c     ##################################################################
+      subroutine poinc_domain_limits(x,bc,xmin,xmax)
+
+c     ------------------------------------------------------------------
+c     Set domain limits according to dimension vector x and boundary
+c     condition bc.
+c     ------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: bc
+        real(8) :: x(:),xmin,xmax
+
+c     Local Variables
+
+        integer :: nn
+
+c     Begin program
+
+        nn = size(x)
+
+        if (bc == PER) then  !Ghost cell is at x(1)
+          x = x - 0.5*(x(1)+x(2))          !Set angle = 0 at face
+        endif
+
+        xmin = 5d-1*(x(1)+x(2))
+        xmax = 5d-1*(x(nn-1)+x(nn))
+
+c     End program
+
+      end subroutine poinc_domain_limits
+
+c     get_poinc_domain_config
+c     ##################################################################
+      subroutine get_poinc_domain_ptys(xmin,xmax,ymin,ymax,zmin,zmax
+     .                                ,bcnds)
+
+c     ------------------------------------------------------------------
+c     Extract domain properties from POINCARE file
+c     ------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: bcnds(6)
+        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+
+c     Local Variables
+
+c     Begin program
+
+        xmin = pxmin
+        xmax = pxmax
+        ymin = pymin
+        ymax = pymax
+        zmin = pzmin
+        zmax = pzmax
+
+        bcnds = bcnd
+
+c     End program
+
+      end subroutine get_poinc_domain_ptys
 
       end module poincare_io

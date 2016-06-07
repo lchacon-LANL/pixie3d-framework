@@ -1916,12 +1916,15 @@ c     Call variables
 
 c     Local variables
 
-        integer :: i,j,k,ig,jg,kg
+        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg
         real(8) :: x0,y0,z0
 
-        real(8),pointer,dimension(:,:,:,:) :: bcar
-
         logical :: have_chi
+
+        real(8),pointer,dimension(:,:,:,:) :: bcar
+        real(8),pointer,dimension(:)       :: xx,yy,zz
+        real(8),pointer,dimension(:,:,:)   :: jacg
+        real(8),pointer,dimension(:,:,:,:) :: bg,bcarg,carg
 
 c     Begin program
 
@@ -1942,13 +1945,21 @@ c     Begin program
 
         bwgt = B_wgt
 
+        allocate(bcar(0:nx+1,0:ny+1,0:nz+1,3)
+     .          ,b0  (0:nx+1,0:ny+1,0:nz+1))
+
 c     Compute Green's integral cut-offs
 
         call setup_T_kernels(alp,G_tol)
 
 c     Find global arrays
 
-        allocate(bcar(0:nx+1,0:ny+1,0:nz+1,3))
+        allocate(xx(nxg+2),yy(nyg+2),zz(nzg+2))
+
+        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
 
         if (PRESENT(poinc_file)) then
           call get_global_data_from_file
@@ -1957,8 +1968,6 @@ c     Find global arrays
         endif
 
 c     Find initial beta=1/B^2
-
-        allocate(b0(0:nx+1,0:ny+1,0:nz+1))
 
         call find_beta_3d
 
@@ -2007,9 +2016,7 @@ c     Orbit initialization on global array
 
 c     Deallocate memory
 
-        deallocate(bcar)
-        call dealloc_poincare_data
-cc        deallocate(bg,bcarg,jacg,carg,bcar,xx,yy,zz)
+        deallocate(bcar,bg,bcarg,carg,jacg,xx,yy,zz)
 
 c     End program
 
@@ -2034,13 +2041,6 @@ c     Find local cartesian components
      .                      ,bcar(:,:,:,3),'cnv','car')
 
 c     Fill global arrays
-
-        allocate(xx(nxg+2),yy(nyg+2),zz(nzg+2))
-
-        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
 
         call find_global(bb  ,bg)
         call find_global(bcar,bcarg)
@@ -2187,7 +2187,10 @@ c     --------------------------------------------------------------
 
         implicit none
 
-        integer :: nfiles
+        integer :: nfiles,ig,jg,kg,i,j,k,bcnd(6,3)
+        real(8) :: x1,x2,x3
+
+        real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov
 
 c     Begin program
 
@@ -2210,36 +2213,97 @@ c     Check file configuration
 
 c     Read POINCARE data
 
-        if (nfiles == 0) then
-          call pstop('get_global_data_from_file'
-     .              ,'Cannot find POINCARE files')
-        elseif (nfiles /= np) then
-          call read_poincare_data_async(poinc_file)
-        else
-          call read_poincare_data_sync(poinc_file)
-        endif
+        nullify(grid_params)
+        solen = .false.
+        sporder = spline_order
+        call read_poinc_files(poinc_file) !This sets up orbit and splines
 
-c     Assign local B arrays
-
-        bb   = bg   (ilomg:ihipg,jlomg:jhipg,klomg:khipg,:)
-        bcar = bcarg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:)
-
-c     Update grid metrics
+c     Recreate mesh and grid metrics (using POINCARE file info)
 
         nxl = ihipg-ilomg-1
         nyl = jhipg-jlomg-1
         nzl = khipg-klomg-1
 
-        if (checkAnalMapDatabase()) then
-          call defineGridMetric(grid_params)
-        else
-          call defineGridMetric(grid_params
-     .           ,xcar=carg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
+        call destroyGrid(gv%gparams) !Destroy mesh
+        call get_poinc_domain_ptys(xmin,xmax,ymin,ymax,zmin,zmax,bcond) !Reset domain limits
+        call createGrid(nxg,nyg,nzg,gv%gparams) !Recreate mesh
+
+        xx = grid_params%xg
+        yy = grid_params%yg
+        zz = grid_params%zg
+
+        allocate(car (0:nx+1,0:ny+1,0:nz+1,3)
+     .          ,car0(0:nx+1,0:ny+1,0:nz+1,3)
+     .          ,bcov(0:nx+1,0:ny+1,0:nz+1,3))
+
+        if (.not.checkAnalMapDatabase()) then
+          do k=0,nz+1
+            do j=0,ny+1
+              do i=0,nx+1
+                call getCurvilinearCoordinates(i,j,k,igrid,igrid,igrid
+     .                                        ,ig,jg,kg,x1,x2,x3)
+                x1 = min(max(x1,xmin),xmax)
+                x2 = min(max(x2,ymin),ymax)
+                x3 = min(max(x3,zmin),zmax)
+                call evalX(x1,x2,x3
+     .                    ,car(i,j,k,1)
+     .                    ,car(i,j,k,2)
+     .                    ,car(i,j,k,3),ierr)
+              enddo
+            enddo
+          enddo
+
+          !Map BCs
+          car0 = car !Assign EQU boundary values
+          call map_bc(1,igrid,nx,ny,nz,car(:,:,:,1),car0(:,:,:,1))
+          call map_bc(2,igrid,nx,ny,nz,car(:,:,:,2),car0(:,:,:,2))
+          call map_bc(3,igrid,nx,ny,nz,car(:,:,:,3),car0(:,:,:,3))
+
+          !Rebuild metrics
+          call defineGridMetric(grid_params,xcar=car)
         endif
 
-        gmetric => grid_params%gmetric
+c     Assign LOCAL B by interpolating POINCARE data
 
-c     Close files
+        do k=0,nz+1
+          do j=0,ny+1
+            do i=0,nx+1
+              call getCurvilinearCoordinates(i,j,k,igrid,igrid,igrid
+     .                                      ,ig,jg,kg,x1,x2,x3)
+              x1 = min(max(x1,xmin),xmax)
+              x2 = min(max(x2,ymin),ymax)
+              x3 = min(max(x3,zmin),zmax)
+              call evalB(x1,x2,x3
+     .                  ,bb(i,j,k,1)
+     .                  ,bb(i,j,k,2)
+     .                  ,bb(i,j,k,3),ierr)
+            enddo
+          enddo
+        enddo
+
+        !BCs
+        car0 = bb !Assign EQU boundary values
+        bcnd(:,1) = bcond
+        bcnd(:,2) = bcond
+        bcnd(:,3) = bcond
+        where (bcnd == DEF) bcnd = EQU
+        call setBC(0,3,nx,ny,nz,bb,bcov,car0,bcnd
+     .            ,igrid,igrid,igrid,iorder=1)
+
+        !Cartesian components
+        bcar = XformToCar(igrid,bb,.false.)
+        
+c     Assign GLOBAL arrays
+        
+        call find_global(bb  ,bg)
+        call find_global(bcar,bcarg)
+        call find_global(gmetric%grid(igrid)%jac,jacg)
+        call find_global(gmetric%grid(igrid)%car,carg,map_bc=.true.)
+
+c     Destroy work space
+
+        deallocate(car,car0,bcov)
+        call orbit_destroy !Destroys orbit and splines
 
       end subroutine get_global_data_from_file
 

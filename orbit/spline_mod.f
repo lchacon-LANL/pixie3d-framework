@@ -70,10 +70,11 @@ c     Begin program
         nn = size(x)
 
         if (bc == PER) then  !Ghost cell is at x(1)
-cc          xmin = x(2)
-cc          xmax = x(nn)
-          xmin = 5d-1*(x(1)+x(2))
-          xmax = 5d-1*(x(nn-1)+x(nn))
+cc          xmin = 5d-1*(x(1)+x(2))
+cc          xmax = 5d-1*(x(nn-1)+x(nn))
+          x = x - x(2)          !Set angle = 0 at x(2)
+          xmin = x(2)
+          xmax = x(nn)
         else
           xmin = x(1)
           xmax = x(nn)
@@ -268,7 +269,10 @@ c     Define domain limits
 
 c     Prepare 3d spline interpolation
 
-        flg = 0 !Let spline routine find interpolation knots
+        flg = 0  !Let spline routine find interpolation knots
+
+        if (order == 0) call pstop('setupSplines',"spline order = 0")
+       
         kx = min(order+1,nx-1)
         ky = min(order+1,ny-1)
         kz = min(order+1,nz-1)

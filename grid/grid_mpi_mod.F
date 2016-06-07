@@ -1469,7 +1469,7 @@ c     Begin program
       if (PRESENT(map_bc)) then
          mapbc = map_bc
       else
-         mapbc = .true.
+         mapbc = .false.
       endif
 
 c     Calculate array sizes

@@ -385,39 +385,28 @@ c     ----------------------------------------------------------------------
 
       end subroutine orbit_conf_def
 
-c     orbit_setup
+c     orbit_params
 c     ######################################################################
-      subroutine orbit_setup(nx,ny,nz,xx,yy,zz
-     .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap,bcnd
-     .                      ,tmax,smax,dtime
-     .                      ,niter,atol,rtol,order,solen,picard
-     .                      ,spline_order,gauge,B_input_is_A,r_min
-     .                      ,lsode_neq,lsode_dt_lim,lsode_to_smax
-     .                      ,lsode_s_indep,ds_is_Bds)
+      subroutine orbit_params(tmax,smax,dtime
+     .                       ,niter,atol,rtol,order,solen,picard
+     .                       ,spline_order,gauge,B_input_is_A,r_min
+     .                       ,lsode_neq,lsode_dt_lim,lsode_to_smax
+     .                       ,lsode_s_indep,ds_is_Bds)
 
 c     ----------------------------------------------------------------------
-c     Sets up orbit integrator.
+c     Sets up parameters for orbit integrator.
 c     ----------------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer :: nx,ny,nz,bcnd(6)
-        real(8) :: xx(nx),yy(ny),zz(nz)
-        real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
-        real(8) :: bxcar(nx,ny,nz),bycar(nx,ny,nz),bzcar(nx,ny,nz)
-        real(8) :: xmap(nx,ny,nz,3),jac(nx,ny,nz)
-
-        !Optional parameters
         real(8),optional :: tmax,smax,dtime,atol,rtol,r_min
         integer,optional :: niter,order,spline_order,gauge,lsode_neq
         logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
      .                     ,lsode_to_smax,lsode_s_indep,ds_is_Bds
 
 c     Local variables
-
-        integer :: nn
 
 c     Begin program
 
@@ -499,8 +488,6 @@ c     Begin program
 
         ode_conf => orbit_conf%ode_conf
 
-        obcnd = bcnd
-
 c     Consistency checks
 
         if (ode_conf%lsode_to_smax) then
@@ -513,6 +500,67 @@ cc          ode_conf%lsode_neq = 3 !Number of LSODE equations for field line int
 cc        else
 cc          ode_conf%lsode_neq = 5 !Number of LSODE equations for field line integration
 cc        endif
+
+      end subroutine orbit_params
+
+c     orbit_setup
+c     ######################################################################
+      subroutine orbit_setup(nx,ny,nz,xx,yy,zz
+     .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap,bcnd
+     .                      ,tmax,smax,dtime
+     .                      ,niter,atol,rtol,order,solen,picard
+     .                      ,spline_order,gauge,B_input_is_A,r_min
+     .                      ,lsode_neq,lsode_dt_lim,lsode_to_smax
+     .                      ,lsode_s_indep,ds_is_Bds)
+
+c     ----------------------------------------------------------------------
+c     Sets up orbit integrator.
+c     ----------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: nx,ny,nz,bcnd(6)
+        real(8) :: xx(nx),yy(ny),zz(nz)
+        real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
+        real(8) :: bxcar(nx,ny,nz),bycar(nx,ny,nz),bzcar(nx,ny,nz)
+        real(8) :: xmap(nx,ny,nz,3),jac(nx,ny,nz)
+
+        !Optional parameters
+        real(8),optional :: tmax,smax,dtime,atol,rtol,r_min
+        integer,optional :: niter,order,spline_order,gauge,lsode_neq
+        logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
+     .                     ,lsode_to_smax,lsode_s_indep,ds_is_Bds
+
+c     Local variables
+
+        integer :: nn
+
+c     Begin program
+
+        call orbit_params(
+     .        tmax          =tmax
+     .       ,smax          =smax         
+     .       ,dtime         =dtime        
+     .       ,niter         =niter        
+     .       ,atol          =atol         
+     .       ,rtol          =rtol         
+     .       ,order         =order        
+     .       ,solen         =solen        
+     .       ,picard        =picard       
+     .       ,spline_order  =spline_order 
+     .       ,gauge         =gauge        
+     .       ,B_input_is_A  =B_input_is_A 
+     .       ,r_min         =r_min        
+     .       ,lsode_neq     =lsode_neq    
+     .       ,lsode_dt_lim  =lsode_dt_lim 
+     .       ,lsode_to_smax =lsode_to_smax
+     .       ,lsode_s_indep =lsode_s_indep
+     .       ,ds_is_Bds     =ds_is_Bds    
+     .       )
+
+        obcnd = bcnd
 
 c     Allocate orbit history arrays
 
