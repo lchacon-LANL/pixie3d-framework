@@ -26,8 +26,11 @@ c Common variables
 
 c Local variables
 
-      integer    :: prec_tot,ierr,perr,prof_stage(3),offset,ieq
-      real(8)    :: time1,time2,time3,time4
+      integer :: prec_tot,ierr,perr,prof_stage(3),offset,ieq
+     .          ,omp_thr_tot
+      real(8) :: time1,time2,time3,time4
+
+      integer :: omp_get_num_threads
 
 c Interfaces
 
@@ -304,6 +307,11 @@ c Average explicit time step
 c Final statistics
 
 #if defined(petsc)
+      omp_thr_tot = 1
+!$OMP PARALLEL
+!$    omp_thr_tot = omp_get_num_threads()
+!$OMP END PARALLEL
+
       call PetscGetTime(time3,perr)
       call PetscGetCPUTime(time4,perr)
 
@@ -311,8 +319,9 @@ c Final statistics
         write (*,*) 'CPU statistics'
         write (*,*)
         write (*,*) 'Elapsed time =', time3-time1
-        write (*,*) 'CPU time     =',(time4-time2)*1d4
-        write (*,*) 'COMM % time  =',(time3-time1-(time4-time2)*1d4)
+        write (*,*) 'CPU time     =',(time4-time2)*1d4/omp_thr_tot
+        write (*,*) 'COMM % time  =',(time3-time1
+     .                              -(time4-time2)*1d4/omp_thr_tot)
      .                              /(time3-time1)*100
       endif
 #endif

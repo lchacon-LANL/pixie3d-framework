@@ -1113,12 +1113,15 @@ c     Orbit integration
 c-----------------------------------------------
 c BEGIN OMP PARALLEL REGION
 c-----------------------------------------------
+!$      if (my_rank == 0.and.iout == 1) write (*,*)
 !$OMP PARALLEL
 !$      thr_tot = omp_get_num_threads()
 !$      thr_num = omp_get_thread_num()
-!$      if (my_rank == 0) write (*,'(a,i3,a1,i3)')
-!$   .     'OMP thread num/tot',thr_num,'/',thr_tot
-        
+!$      if (my_rank == 0) then
+!$        write (*,'(a,i3,a1,i3)')
+!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
+!$      endif        
+
 !$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
 !$OMP.     SCHEDULE(DYNAMIC)
         do k=1,nz
@@ -1399,11 +1402,14 @@ c     LSODE orbit integration
 c-----------------------------------------------
 c BEGIN OMP PARALLEL REGION
 c-----------------------------------------------
+!$      if (my_rank == 0.and.iout == 1) write (*,*)
 !$OMP PARALLEL
 !$      thr_tot = omp_get_num_threads()
 !$      thr_num = omp_get_thread_num()
-!$      if (my_rank == 0) write (*,'(a,i3,a1,i3)')
-!$   .     'OMP thread num/tot',thr_num,'/',thr_tot
+!$      if (my_rank == 0) then
+!$        write (*,'(a,i3,a1,i3)')
+!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
+!$      endif
         
 !$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
 !$OMP.     SCHEDULE(DYNAMIC)

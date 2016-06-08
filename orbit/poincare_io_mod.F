@@ -300,7 +300,7 @@ c     Begin program
 
         write (*,*)
         write (*,*) '***********************************************'
-        write (*,*) 'Opening file ',trim(poincfile)
+        write (*,*) 'Opening file ',trim(poincfile),'...(sync)'
         write (*,*) '***********************************************'
         write (*,*)
 
@@ -449,35 +449,42 @@ c     Local variables
 
         integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,i,j,k,nfiles,ierr
         integer,pointer,dimension(:) :: mupixie
-cc        character(60),allocatable,dimension(:) :: mpixie
+        character(60),allocatable,dimension(:) :: mpixie
 
 c     Begin program
 
-        ierr = openFiles(my_rank,np,upixie,trim(file),mupixie)
-
-        if (ierr /= 0) call pstop('read_poincare_data_async'
-     .                           ,'Cannot find files')
-
 c     Setup files
 
-        nfiles = size(mupixie)
-cc
-cc        allocate(mupixie(nfiles),mpixie(nfiles))
-cc
-cc        if (nfiles == 1) then
-cc          mupixie(1) = upixie
-cc          mpixie (1) = trim(file)
-cc        else
-cc          do ifl=1,nfiles
-cc            mupixie(ifl) = upixie+ifl
-cc            mpixie (ifl) = trim(file)//'_proc'//trim(int2char(ifl-1))
-cc            write (*,*) '  => ',trim(mpixie(ifl))
-cc     $               ,', unit=',mupixie(ifl)
-cc          enddo
-cc        endif
+        if (is_file(file)) then !Single file
+          nfiles = 1
+        else
+          !Find out number of graphics files
+          nfiles = 0
+          do while (is_file(trim(file)//'_proc'
+     .                    //trim(int2char(nfiles))))
+            nfiles=nfiles+1
+          enddo
+        endif
+
+        allocate(mupixie(nfiles),mpixie(nfiles))
+
+        if (nfiles == 1) then
+          mupixie(1) = upixie
+          mpixie (1) = trim(file)
+        else
+          do ifl=1,nfiles
+            mupixie(ifl) = upixie+ifl
+            mpixie (ifl) = trim(file)//'_proc'//trim(int2char(ifl-1))
+            write (*,*) '  => ',trim(mpixie(ifl))
+     $                 ,', unit=',mupixie(ifl)
+          enddo
+        endif
 
 c     Read setup info
 
+#if defined(use_mpi)
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
         if (my_rank == 0) then
           write (*,*)
           write (*,*) '*****************************************'
@@ -485,11 +492,11 @@ c     Read setup info
 
         do ifl=1,nfiles
 
-cc          write (*,'(a,i4,3a)') ' Proc ',my_rank,' opening file '
-cc     .                ,trim(mpixie(ifl)),'...(async)'
-cc
-cc          open(mupixie(ifl),file=trim(mpixie(ifl))
-cc     $        ,form='unformatted',status='old')
+          write (*,'(a,i4,3a)') ' Proc ',my_rank,' opening file '
+     .                ,trim(mpixie(ifl)),'...(async)'
+
+          open(mupixie(ifl),file=trim(mpixie(ifl))
+     $        ,form='unformatted',status='old')
 
           read (mupixie(ifl)) nxg,nyg,nzg,bcnd,tor
 
@@ -508,13 +515,13 @@ cc          call closeFiles(mupixie)
 cc          call pstop('get_global_data_from_file'
 cc     .              ,'Coordinates are not toroidal')
 cc        endif
-cc
-cc        if (sum(bcnd-bcond) /= 0) then
-cc          call closeFiles(mupixie)
-cc          call pstop('get_global_data_from_file'
-cc     .              ,'BC conf. does not agree')
-cc        endif
-cc
+
+        if (sum(bcnd-bcond) /= 0) then
+          call closeFiles(mupixie)
+          call pstop('get_global_data_from_file'
+     .              ,'BC conf. does not agree')
+        endif
+
 cc        if (nxd /= nxg .or. nyd /= nyg .or. nzd /= nzg) then
 cc          call closeFiles(mupixie)
 cc          write (*,*) 'Grid size=',nxg,nyg,nzg
@@ -616,7 +623,8 @@ cc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
 c     Deallocate memory
 
         deallocate(mupixie)
-cc        deallocate(mpixie)
+        deallocate(mpixie)
+        return
 
  100    call pstop('read_poincare_data_async'
      .            ,'Problem reading poincare file; aborting')
