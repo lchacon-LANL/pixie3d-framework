@@ -286,6 +286,7 @@ c     Prepare 3d spline interpolation
 
 !$      call getenv('OMP_NUM_THREADS',ev)
 !$      read(ev,'(i2)') thr_tot
+        if (thr_tot == 0) thr_tot = 1  !Failsafe if OMP_NUM_THREADS is not defined
 
 	dime = kx*kz + 3*max(kx,ky,kz) + kz
 	allocate(worke(dime*thr_tot),stat=alloc_stat)
