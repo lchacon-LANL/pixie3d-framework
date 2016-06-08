@@ -684,6 +684,7 @@ c     Begin program
         if (PRESENT(thrtot)) then
           thr_tot = thrtot
         else
+          thr_tot = 1
 !$        thr_tot = omp_get_num_threads()
         endif
 
