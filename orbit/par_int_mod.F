@@ -1114,13 +1114,14 @@ c-----------------------------------------------
 c BEGIN OMP PARALLEL REGION
 c-----------------------------------------------
 !$      if (my_rank == 0.and.iout == 1) write (*,*)
+
 !$OMP PARALLEL
 !$      thr_tot = omp_get_num_threads()
 !$      thr_num = omp_get_thread_num()
-!$      if (my_rank == 0) then
-!$        write (*,'(a,i3,a1,i3)')
-!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
-!$      endif        
+cc!$      if (my_rank == 0) then
+cc!$        write (*,'(a,i3,a1,i3)')
+cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
+cc!$      endif
 
 !$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
 !$OMP.     SCHEDULE(DYNAMIC)
@@ -1406,10 +1407,10 @@ c-----------------------------------------------
 !$OMP PARALLEL
 !$      thr_tot = omp_get_num_threads()
 !$      thr_num = omp_get_thread_num()
-!$      if (my_rank == 0) then
-!$        write (*,'(a,i3,a1,i3)')
-!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
-!$      endif
+cc!$      if (my_rank == 0) then
+cc!$        write (*,'(a,i3,a1,i3)')
+cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
+cc!$      endif
         
 !$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
 !$OMP.     SCHEDULE(DYNAMIC)
@@ -4304,9 +4305,6 @@ c Call additional integrators
 
       ydot(6) = tt*ydot(7)
 
-      !Transform back to arc-length integral
-      ydot(6:neq) = ydot(6:neq)*ydot(5)
-
 c Are we done?
       
       call set_orbit_exit(exl1)
@@ -4396,9 +4394,6 @@ c Call additional integrators
       ydot(7) = skernel_3d(s1,ieps*dt,exl1)*ydot(5)  !To normalize
 
       ydot(6) = tt*ydot(7)
-
-      !Transform back to arc-length integral
-      ydot(6:neq) = ydot(6:neq)*ydot(5)
 
 c Are we done?
       
@@ -4499,9 +4494,6 @@ c Call additional integrators
       !Src @ dt
       ydot(7) = flds(2)*skernel_3d(s1,ieps*dt,exl2)*ydot(5)/B2
 
-      !Transform back to arc-length integral
-      ydot(6:neq) = ydot(6:neq)*ydot(5)
-
 cc      !Taux
 cc      ydot(8) = flds(3)*tk
 
@@ -4568,9 +4560,6 @@ c Call additional integrators
       ydot(8) = tk
       ydot(9) = sk
 
-      !Transform back to arc-length integral
-      ydot(6:neq) = ydot(6:neq)*ydot(5)
-
 cc      !Taux
 cc      ydot(8) = flds(3)*tk
 
@@ -4630,9 +4619,6 @@ c Call additional integrators
       !Src @ dt
       ydot(7) = ydot(6)/B2
 
-      !Transform back to arc-length integral
-      ydot(6:neq) = ydot(6:neq)*ydot(5)
-
 c Are we done?
 
       call set_orbit_exit(exl1)
@@ -4688,16 +4674,16 @@ c Call additional integrators
       flds = evalFlds(x1,y1,z1,sp_coef)
 
       !Tn
-      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)
 
       !Tnm
-      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
+      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)
 
       !Src @ dt
-      ydot(8) = flds(3)*skernel_3d(s1,ieps*dt,exl3)*ydot(5)*iB2
+      ydot(8) = flds(3)*skernel_3d(s1,ieps*dt,exl3)*iB2
 
       !Src @ dt+dtold
-      ydot(9) = flds(3)*skernel_3d(s1,ieps*(dt+dtold),exl4)*ydot(5)*iB2
+      ydot(9) = flds(3)*skernel_3d(s1,ieps*(dt+dtold),exl4)*iB2
 
       !Transform back to arc-length integral
       ydot(6:neq) = ydot(6:neq)*ydot(5)
@@ -4768,9 +4754,6 @@ c Call additional integrators
       !Src @ dt+dtold
       ydot(9) = ydot(7)*iB2
 
-      !Transform back to arc-length integral
-      ydot(6:neq) = ydot(6:neq)*ydot(5)
-
 c Are we done?
 
       call set_orbit_exit(exl1.and.exl2)
@@ -4826,17 +4809,17 @@ c Call additional integrators
       flds = evalFlds(x1,y1,z1,sp_coef)
 
       !Tn
-      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)
+      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
 
       !Tnm
-      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)
+      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
 
       !Src @ dt
-      sk = skernel_3d(s1,ieps*dt,exl3)
+      sk = skernel_3d(s1,ieps*dt,exl3)*ydot(5)
       ydot(8) = flds(4)*sk*iB2
 
       !Src @ dt+dtold
-      sk2 = skernel_3d(s1,ieps*(dt+dtold),exl4)
+      sk2 = skernel_3d(s1,ieps*(dt+dtold),exl4)*ydot(5)
       ydot(9) = flds(4)*sk2*iB2
 
       !DT @ dt
@@ -4850,9 +4833,6 @@ c Call additional integrators
 
       !Src @ dt+dtold
       ydot(13) = flds(3)*sk2*iB2
-
-      !Transform back to arc-length integral
-      ydot(6:neq) = ydot(6:neq)*ydot(5)
 
 c Are we done?
 
