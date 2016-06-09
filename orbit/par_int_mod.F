@@ -4293,10 +4293,10 @@ c Begin program
 c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
       call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1)
+      
+      s1 = abs(y(5))
 
 c Call additional integrators
-
-      s1 = abs(y(5))
 
       tt = evalFld(x1,y1,z1,ierror)
 
@@ -4304,6 +4304,11 @@ c Call additional integrators
 
       ydot(6) = tt*ydot(7)
 
+      !Transform back to arc-length integral
+      ydot(6:neq) = ydot(6:neq)*ydot(5)
+
+c Are we done?
+      
       call set_orbit_exit(exl1)
 
 c End program
@@ -4382,9 +4387,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
       call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1)
 
-c Call additional integrators
-
       s1 = abs(y(5))
+
+c Call additional integrators
 
       tt = evalFld(x1,y1,z1,ierror)
 
@@ -4392,6 +4397,11 @@ c Call additional integrators
 
       ydot(6) = tt*ydot(7)
 
+      !Transform back to arc-length integral
+      ydot(6:neq) = ydot(6:neq)*ydot(5)
+
+c Are we done?
+      
       call set_orbit_exit(exl1)
 
 c End program
@@ -4475,9 +4485,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
       if (.not.bwgt) B2=1d0
 
-c Call additional integrators
-
       s1 = abs(y(5))
+
+c Call additional integrators
 
       flds = evalFlds(x1,y1,z1,sp_coef)
 
@@ -4488,6 +4498,9 @@ c Call additional integrators
 
       !Src @ dt
       ydot(7) = flds(2)*skernel_3d(s1,ieps*dt,exl2)*ydot(5)/B2
+
+      !Transform back to arc-length integral
+      ydot(6:neq) = ydot(6:neq)*ydot(5)
 
 cc      !Taux
 cc      ydot(8) = flds(3)*tk
@@ -4537,9 +4550,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
       if (.not.bwgt) B2=1d0
 
-c Call additional integrators
-
       s1 = abs(y(5))
+
+c Call additional integrators
 
       flds = evalFlds(x1,y1,z1,sp_coef)
 
@@ -4555,6 +4568,9 @@ c Call additional integrators
       ydot(8) = tk
       ydot(9) = sk
 
+      !Transform back to arc-length integral
+      ydot(6:neq) = ydot(6:neq)*ydot(5)
+
 cc      !Taux
 cc      ydot(8) = flds(3)*tk
 
@@ -4565,66 +4581,6 @@ c Are we done?
 c End program
 
       end subroutine lsode_3d_cn_norm
-
-ccc lsode_3d_cn_dT
-ccc #########################################################################
-cc      subroutine lsode_3d_cn_dT(neq,t,y,ydot)
-cc
-ccc -------------------------------------------------------------------------
-ccc     Driver routine for LSODE integration: ydot = ff(y,t)
-ccc -------------------------------------------------------------------------
-cc
-cc      use par_int
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer :: neq
-cc      real(8) :: t,y(neq),ydot(neq)
-cc
-ccc Local variables
-cc
-cc      integer :: ierror
-cc      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2
-cc      logical :: exl1
-cc
-ccc Begin program
-cc
-cc      if (neq /= 9) then
-cc        call pstop('lsode_3d_cn_dT','Wrong number of equations')
-cc      endif
-cc
-ccc Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
-cc
-cc      call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1
-cc     .                  ,B2=B2)
-cc
-cc      if (.not.bwgt) B2=1d0
-cc
-ccc Call additional integrators
-cc
-cc      s1 = abs(y(5))
-cc
-cc      flds = evalFlds(x1,y1,z1,sp_coef)
-cc
-cc      !Src @ dt
-cc      ydot(7) = skernel_3d(s1,ieps*dt,exl1)*ydot(5)
-cc
-cc      ydot(6) = flds(1)*ydot(7)
-cc
-cc      !Src @ dt
-cc      ydot(9) = ydot(7)/B2
-cc
-cc      ydot(8) = flds(3)*ydot(11)
-cc
-ccc Are we done?
-cc
-cc      exit_loop = exl1
-cc
-ccc End program
-cc
-cc      end subroutine lsode_3d_cn_dT
 
 c lsode_3d_cn_dT
 c #########################################################################
@@ -4662,9 +4618,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
       if (.not.bwgt) B2=1d0
 
-c Call additional integrators
-
       s1 = abs(y(5))
+
+c Call additional integrators
 
       flds = evalFlds(x1,y1,z1,sp_coef)
 
@@ -4674,6 +4630,9 @@ c Call additional integrators
       !Src @ dt
       ydot(7) = ydot(6)/B2
 
+      !Transform back to arc-length integral
+      ydot(6:neq) = ydot(6:neq)*ydot(5)
+
 c Are we done?
 
       call set_orbit_exit(exl1)
@@ -4681,76 +4640,6 @@ c Are we done?
 c End program
 
       end subroutine lsode_3d_cn_dT
-
-ccc lsode_3d_bdf2
-ccc #########################################################################
-cc      subroutine lsode_3d_bdf2(neq,t,y,ydot)
-cc
-ccc -------------------------------------------------------------------------
-ccc     Driver routine for LSODE integration: ydot = ff(y,t)
-ccc -------------------------------------------------------------------------
-cc
-cc      use par_int
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer :: neq
-cc      real(8) :: t,y(neq),ydot(neq)
-cc
-ccc Local variables
-cc
-cc      integer :: ierror
-cc      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2
-cc      logical :: exl1,exl2,exl3,exl4
-cc
-ccc Begin program
-cc
-cc      if (neq /= 13) then
-cc        call pstop('lsode_3d_bdf2','Wrong number of equations')
-cc      endif
-cc
-ccc Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
-cc
-cc      call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1
-cc     .                  ,B2=B2)
-cc
-cc      if (.not.bwgt) B2=1d0
-cc
-ccc Call additional integrators
-cc
-cc      s1 = abs(y(5))
-cc
-cc      flds = evalFlds(x1,y1,z1,sp_coef)
-cc
-cc      !Tn
-cc      ydot(7) = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
-cc
-cc      ydot(6) = flds(1)*ydot(7)
-cc
-cc      !Tnm
-cc      ydot(9) = tkernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
-cc
-cc      ydot(8) = flds(2)*ydot(9)
-cc
-cc      !Src @ dt
-cc      ydot(11) = skernel_3d(s1,ieps*dt,exl3)*ydot(5)/B2
-cc
-cc      ydot(10) = flds(3)*ydot(11)
-cc
-cc      !Src @ dt+dtold
-cc      ydot(13) = skernel_3d(s1,ieps*(dt+dtold),exl4)*ydot(5)/B2
-cc
-cc      ydot(12) = flds(3)*ydot(13)
-cc
-ccc Are we done?
-cc
-cc      exit_loop = exl1.and.exl2.and.exl3.and.exl4
-cc
-ccc End program
-cc
-cc      end subroutine lsode_3d_bdf2
 
 c lsode_3d_bdf2
 c #########################################################################
@@ -4792,9 +4681,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
         iB2=1d0/B2
       endif
 
-c Call additional integrators
-
       s1 = abs(y(5))
+
+c Call additional integrators
 
       flds = evalFlds(x1,y1,z1,sp_coef)
 
@@ -4810,6 +4699,9 @@ c Call additional integrators
       !Src @ dt+dtold
       ydot(9) = flds(3)*skernel_3d(s1,ieps*(dt+dtold),exl4)*ydot(5)*iB2
 
+      !Transform back to arc-length integral
+      ydot(6:neq) = ydot(6:neq)*ydot(5)
+
 c Are we done?
 
       call set_orbit_exit(exl1.and.exl2.and.exl3.and.exl4)
@@ -4817,76 +4709,6 @@ c Are we done?
 c End program
 
       end subroutine lsode_3d_bdf2
-
-ccc lsode_3d_bdf2_dT
-ccc #########################################################################
-cc      subroutine lsode_3d_bdf2_dT(neq,t,y,ydot)
-cc
-ccc -------------------------------------------------------------------------
-ccc     Driver routine for LSODE integration: ydot = ff(y,t)
-ccc -------------------------------------------------------------------------
-cc
-cc      use par_int
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer :: neq
-cc      real(8) :: t,y(neq),ydot(neq)
-cc
-ccc Local variables
-cc
-cc      integer :: ierror
-cc      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2
-cc      logical :: exl1,exl2,exl3,exl4
-cc
-ccc Begin program
-cc
-cc      if (neq /= 13) then
-cc        call pstop('lsode_3d_bdf2_dT','Wrong number of equations')
-cc      endif
-cc
-ccc Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
-cc
-cc      call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1
-cc     .                  ,B2=B2)
-cc
-cc      if (.not.bwgt) B2=1d0
-cc
-ccc Call additional integrators
-cc
-cc      s1 = abs(y(5))
-cc
-cc      flds = evalFlds(x1,y1,z1,sp_coef)
-cc
-cc      !Src @ dt
-cc      ydot(7) = skernel_3d(s1,ieps*dt,exl1)*ydot(5)
-cc
-cc      ydot(6) = flds(1)*ydot(7)
-cc
-cc      !Src * dt+dtold
-cc      ydot(9) = skernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
-cc
-cc      ydot(8) = flds(2)*ydot(9)
-cc
-cc      !Src @ dt
-cc      ydot(11) = skernel_3d(s1,ieps*dt,exl3)*ydot(5)/B2
-cc
-cc      ydot(10) = flds(3)*ydot(11)
-cc
-cc      !Src @ dt+dtold
-cc      ydot(13) = skernel_3d(s1,ieps*(dt+dtold),exl4)*ydot(5)/B2
-cc
-cc      ydot(12) = flds(3)*ydot(13)
-cc
-ccc Are we done?
-cc
-cc      exit_loop = exl1.and.exl2.and.exl3.and.exl4
-cc
-ccc End program
-cc
-cc      end subroutine lsode_3d_bdf2_dT
 
 c lsode_3d_bdf2_dT
 c #########################################################################
@@ -4946,6 +4768,9 @@ c Call additional integrators
       !Src @ dt+dtold
       ydot(9) = ydot(7)*iB2
 
+      !Transform back to arc-length integral
+      ydot(6:neq) = ydot(6:neq)*ydot(5)
+
 c Are we done?
 
       call set_orbit_exit(exl1.and.exl2)
@@ -4994,9 +4819,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
         iB2=1d0/B2
       endif
 
-c Call additional integrators
-
       s1 = abs(y(5))
+
+c Call additional integrators
 
       flds = evalFlds(x1,y1,z1,sp_coef)
 
@@ -5026,6 +4851,9 @@ c Call additional integrators
       !Src @ dt+dtold
       ydot(13) = flds(3)*sk2*iB2
 
+      !Transform back to arc-length integral
+      ydot(6:neq) = ydot(6:neq)*ydot(5)
+
 c Are we done?
 
       call set_orbit_exit(exl1.and.exl2.and.exl3.and.exl4)
@@ -5033,70 +4861,6 @@ c Are we done?
 c End program
 
       end subroutine lsode_3d_bdf2_all
-
-ccc lsode_2d_bdf2_3eq
-ccc #########################################################################
-cc      subroutine lsode_2d_bdf2_3eq(neq,t,y,ydot)
-cc
-ccc -------------------------------------------------------------------------
-ccc     Driver routine for LSODE integration: ydot = ff(y,t)
-ccc -------------------------------------------------------------------------
-cc
-cc      use par_int
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer :: neq
-cc      real(8) :: t,y(neq),ydot(neq)
-cc
-ccc Local variables
-cc
-cc      integer :: ierror
-cc      real(8) :: x1,y1,z1,s1,it_max=0d0,flds(size(sp_coef,4)),B2
-cc      save :: it_max
-cc
-ccc Begin program
-cc
-cc      if (neq /= 11) then
-cc        call pstop('lsode_2d_bdf2_3eq','Wrong number of equations')
-cc      endif
-cc
-ccc Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
-cc
-cc      call lsode_orbit_f_3eq(3,t,y(1:3),ydot(1:3),xx1=x1,yy1=y1,zz1=z1
-cc     .                      ,B2=B2)
-cc
-cc      if (.not.bwgt) B2=1d0
-cc
-ccc Call additional integrators
-cc
-cc      flds = evalFlds(x1,y1,z1,sp_coef)
-cc
-cc      !Tn
-cc      ydot(5) = tkernel_per(t,ieps*dt)
-cc
-cc      ydot(4) = flds(1)*ydot(5)
-cc
-cc      !Tnm
-cc      ydot(7) = tkernel_per(t,ieps*(dt+dtold))
-cc
-cc      ydot(6) = flds(2)*ydot(7)
-cc
-cc      !Src @ dt
-cc      ydot(9) = skernel_per(t,ieps*dt)/B2
-cc
-cc      ydot(8) = flds(3)*ydot(9)
-cc
-cc      !Src @ dt+dtold
-cc      ydot(11) = skernel_per(t,ieps*(dt+dtold))/B2
-cc
-cc      ydot(10) = flds(3)*ydot(11)
-cc
-ccc End program
-cc
-cc      end subroutine lsode_2d_bdf2_3eq
 
 c lsode_2d_bdf2_3eq
 c #########################################################################
@@ -5157,70 +4921,6 @@ c Call additional integrators
 c End program
 
       end subroutine lsode_2d_bdf2_3eq
-
-ccc lsode_2d_bdf2_3eq_dT
-ccc #########################################################################
-cc      subroutine lsode_2d_bdf2_3eq_dT(neq,t,y,ydot)
-cc
-ccc -------------------------------------------------------------------------
-ccc     Driver routine for LSODE integration: ydot = ff(y,t)
-ccc -------------------------------------------------------------------------
-cc
-cc      use par_int
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer :: neq
-cc      real(8) :: t,y(neq),ydot(neq)
-cc
-ccc Local variables
-cc
-cc      integer :: ierror
-cc      real(8) :: x1,y1,z1,s1,it_max=0d0,flds(size(sp_coef,4)),B2
-cc      save :: it_max
-cc
-ccc Begin program
-cc
-cc      if (neq /= 11) then
-cc        call pstop('lsode_2d_bdf2_3eq','Wrong number of equations')
-cc      endif
-cc
-ccc Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
-cc
-cc      call lsode_orbit_f_3eq(3,t,y(1:3),ydot(1:3),xx1=x1,yy1=y1,zz1=z1
-cc     .                      ,B2=B2)
-cc
-cc      if (.not.bwgt) B2=1d0
-cc
-ccc Call additional integrators
-cc
-cc      flds = evalFlds(x1,y1,z1,sp_coef)
-cc
-cc      !Src @ dt
-cc      ydot(5) = skernel_per(t,ieps*dt)
-cc
-cc      ydot(4) = flds(1)*ydot(5)
-cc
-cc      !Src @ dt+dtold
-cc      ydot(7) = skernel_per(t,ieps*(dt+dtold))
-cc
-cc      ydot(6) = flds(2)*ydot(7)
-cc
-cc      !Src @ dt
-cc      ydot(9) = ydot(5)/B2
-cc
-cc      ydot(8) = flds(3)*ydot(9)
-cc
-cc      !Src @ dt+dtold
-cc      ydot(11) = ydot(7)/B2
-cc
-cc      ydot(10) = flds(3)*ydot(11)
-cc
-ccc End program
-cc
-cc      end subroutine lsode_2d_bdf2_3eq_dT
 
 c lsode_2d_bdf2_3eq_dT
 c #########################################################################
