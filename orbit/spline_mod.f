@@ -45,9 +45,9 @@ c #####################################################################
 
       contains
 
-c     sp_domain_limits
+c     set_sp_domain_limits
 c     ##################################################################
-      subroutine sp_domain_limits(x,bc,xmin,xmax)
+      subroutine set_sp_domain_limits(x,bc,xmin,xmax)
 
 c     ------------------------------------------------------------------
 c     Set domain limits according to dimension vector x and boundary
@@ -82,7 +82,37 @@ cc          xmax = 5d-1*(x(nn-1)+x(nn))
 
 c     End program
 
-      end subroutine sp_domain_limits
+      end subroutine set_sp_domain_limits
+
+c     get_sp_domain_limits
+c     ##################################################################
+      subroutine get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
+
+c     ------------------------------------------------------------------
+c     Get spline domain limits.
+c     ------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+
+c     Local Variables
+
+c     Begin program
+
+        xmin = xsmin
+        ymin = ysmin
+        zmin = zsmin
+
+        xmax = xsmax
+        ymax = ysmax
+        zmax = zsmax
+
+c     End program
+
+      end subroutine get_sp_domain_limits
 
 c     chk_pos
 c     ##################################################################
@@ -202,8 +232,7 @@ c     End program
 
 c     setupSplines
 c     #################################################################
-      subroutine setupSplines(nnx,nny,nnz,xx,yy,zz,order
-     .                       ,xmin,xmax,ymin,ymax,zmin,zmax,bcnd)
+      subroutine setupSplines(nnx,nny,nnz,xx,yy,zz,order,bcnd)
 c     -----------------------------------------------------------------
 c     This routine sets up 3D splines, including allocation of memory
 c     space.
@@ -215,7 +244,6 @@ c     Call variables
 
         integer :: nnx,nny,nnz,order
         real(8) :: xx(nnx),yy(nny),zz(nnz)
-        real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
         integer :: bcnd(6)
 
 c     Local variables
@@ -241,31 +269,11 @@ c     Initialize spline domain arrays
         ys = yy
         zs = zz
 
-c     Define domain limits
+c     Define spline domain limits
 
-        if (associated(grid_params)) then
-          xsmin = grid_params%gxmin
-          xsmax = grid_params%gxmax
-          
-          ysmin = grid_params%gymin
-          ysmax = grid_params%gymax
-          
-          zsmin = grid_params%gzmin
-          zsmax = grid_params%gzmax
-        else
-          call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-          call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-          call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
-        endif
-
-        xmin = xsmin
-        xmax = xsmax
-                 
-        ymin = ysmin
-        ymax = ysmax
-                 
-        zmin = zsmin
-        zmax = zsmax
+        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
 
 c     Prepare 3d spline interpolation
 

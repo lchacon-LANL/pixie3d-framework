@@ -580,8 +580,20 @@ cc        shist = UNDEF_DP
 c     Do splines
 
         call setupSplines(nx,ny,nz,xx,yy,zz
-     .                   ,orbit_conf%spline_conf%order
-     .                   ,xmin,xmax,ymin,ymax,zmin,zmax,obcnd)
+     .                   ,orbit_conf%spline_conf%order,obcnd)
+
+        if (associated(grid_params)) then
+          xmin = grid_params%gxmin
+          xmax = grid_params%gxmax
+          
+          ymin = grid_params%gymin
+          ymax = grid_params%gymax
+          
+          zmin = grid_params%gzmin
+          zmax = grid_params%gzmax
+        else
+          call get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
+        endif
 
         if (    ode_conf%solen
      .      .or.orbit_conf%spline_conf%input_is_A) then
