@@ -28,7 +28,7 @@ c       generic constants
 
 c       ADIOS function call variables
         integer        :: num_open    ! first create, then append file
-        character(20)  :: adios_fname ! set in ./plot/defineGraphics.F
+        character(20)  :: adios_fname='' ! set in ./plot/defineGraphics.F
         integer        :: adios_rank  ! ?=? my_rank ???
 
         logical,private :: adios_debug=.false.
@@ -94,7 +94,6 @@ cc      moving_mesh = .not.checkMapDatabase()
       ! FIXME: isProc(0) is always equal to adios_rank==0 ??
       !        then we do not need adios_rank at all.
       call MPI_Comm_rank(adios_world_comm,adios_rank,mpierr)
-
 
 c     Define adios group and transport method
       if (adios_debug)
@@ -233,6 +232,10 @@ c     Create the output file and data groups
       endif
 
       slth = len(trim(vexp))
+
+      if (len(trim(adios_fname)) == 0) then
+        call pstop("writeADIOSPlotfile","ADIOS file not specified")
+      endif
 
       call adios_open (handle, grp_name, adios_fname, openmode,
      .                 adios_world_comm, ierr)
