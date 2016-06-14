@@ -1124,11 +1124,12 @@ cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
 cc!$      endif
 
 !$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
-!$OMP.     SCHEDULE(DYNAMIC)
+!$OMP.     COLLAPSE(3) SCHEDULE(DYNAMIC)
         do k=1,nz
           do j=1,ny
             do i=1,nx
 
+              write (*,*)'Orbit=',i+(j-1)*nx+(k-1)*nx*ny,' of',nx*ny*nz
               if (chi(i,j,k) == 0d0) cycle
 
               call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
@@ -1413,7 +1414,7 @@ cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
 cc!$      endif
         
 !$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
-!$OMP.     SCHEDULE(DYNAMIC)
+!$OMP.     COLLAPSE(3) SCHEDULE(DYNAMIC)
         do k=1,nz
           do j=1,ny
             do i=1,nx
