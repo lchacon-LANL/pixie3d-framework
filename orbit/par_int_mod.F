@@ -1129,7 +1129,7 @@ cc!$      endif
           do j=1,ny
             do i=1,nx
 
-              write (*,*)'Orbit=',i+(j-1)*nx+(k-1)*nx*ny,' of',nx*ny*nz
+cc              write (*,*)'Orbit=',i+(j-1)*nx+(k-1)*nx*ny,' of',nx*ny*nz
               if (chi(i,j,k) == 0d0) cycle
 
               call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
