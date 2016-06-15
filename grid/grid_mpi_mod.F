@@ -1454,7 +1454,10 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,dl(4),dg(4),lsize,gsize,ibc,ieq,dim,loc
+     .          ,igmin,igmax,jgmin,jgmax,kgmin,kgmax
+     .          ,ilmin,ilmax,jlmin,jlmax,klmin,klmax
       real(8),pointer,dimension(:) :: local_x,global_x
+      real(8),pointer,dimension(:,:,:,:) :: dum_lx
 
       logical :: dmp,mapbc
 
@@ -1487,6 +1490,8 @@ c     Communicate
 #if defined(petsc)
       allocate(local_x(lsize),global_x(gsize))
 
+      allocate(dum_lx(0:dl(1)-1,0:dl(2)-1,0:dl(3)-1,dl(4)))
+
       local_x = reshape(lf, (/ lsize /))
 
       call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
@@ -1498,9 +1503,10 @@ c     Communicate
         do j=1,npy
           do i=1,npx
 
-            gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
-     .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
-     .        ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1,1:dg(4))
+cc            gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
+cc     .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
+cc     .           ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1,1:dg(4))
+            dum_lx
      .        = reshape(global_x(1+lsize*(        (i-1)
      .                                   +npx    *(j-1)
      .                                   +npx*npy*(k-1))
@@ -1508,11 +1514,50 @@ c     Communicate
      .                                   +npx    *(j-1)
      .                                   +npx*npy*(k-1)) )
      .                 ,dl )
+
+            !Define global and local limits
+            ilmin = 0
+            ilmax = dl(1)-1
+            jlmin = 0
+            jlmax = dl(2)-1
+            klmin = 0
+            klmax = dl(3)-1
+
+            igmin = (dl(1)-2)*(i-1)
+            igmax = (dl(1)-2)*i+1
+            jgmin = (dl(2)-2)*(j-1)
+            jgmax = (dl(2)-2)*j+1
+            kgmin = (dl(3)-2)*(k-1)
+            kgmax = (dl(3)-2)*k+1
+
+            !Exclude boundaries in interior domains
+            if (i>1  ) then
+              igmin = igmin+1 ; ilmin = ilmin + 1
+            endif
+            if (i<npx) then
+              igmax = igmax-1 ; ilmax = ilmax - 1
+            endif
+            if (j>1  ) then
+              jgmin = jgmin+1 ; jlmin = jlmin + 1
+            endif
+            if (j<npy) then
+              jgmax = jgmax-1 ; jlmax = jlmax - 1
+            endif
+            if (k>1  ) then
+              kgmin = kgmin+1 ; klmin = klmin + 1
+            endif
+            if (k<npz) then
+              kgmax = kgmax-1 ; klmax = klmax - 1
+            endif
+
+            gf(igmin:igmax,jgmin:jgmax,kgmin:kgmax,1:dg(4))
+     .           = dum_lx(ilmin:ilmax,jlmin:jlmax,klmin:klmax,1:dg(4))
+            
           enddo
         enddo
       enddo
 
-      deallocate(local_x,global_x)
+      deallocate(local_x,global_x,dum_lx)
 #else
       gf = lf
 #endif
@@ -1658,7 +1703,10 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc
+     .          ,igmin,igmax,jgmin,jgmax,kgmin,kgmax
+     .          ,ilmin,ilmax,jlmin,jlmax,klmin,klmax
       real(8),pointer,dimension(:) :: local_x,global_x
+      real(8),pointer,dimension(:,:,:) :: dum_lx
 
       logical :: dmp
 
@@ -1685,6 +1733,8 @@ c     Communicate
 #if defined(petsc)
       allocate(local_x(lsize),global_x(gsize))
 
+      allocate(dum_lx(0:dl(1)-1,0:dl(2)-1,0:dl(3)-1))
+
       local_x = reshape(lf, (/ lsize /))
 
       call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
@@ -1694,9 +1744,10 @@ c     Communicate
       do k=1,npz
         do j=1,npy
           do i=1,npx
-            gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
-     .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
-     .        ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1)
+cc            gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
+cc     .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
+cc     .        ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1)
+            dum_lx
      .        = reshape(global_x(1+lsize*(        (i-1)
      .                                   +npx    *(j-1)
      .                                   +npx*npy*(k-1))
@@ -1704,11 +1755,50 @@ c     Communicate
      .                                   +npx    *(j-1)
      .                                   +npx*npy*(k-1)) )
      .                 ,dl )
+
+            !Define global and local limits
+            ilmin = 0
+            ilmax = dl(1)-1
+            jlmin = 0
+            jlmax = dl(2)-1
+            klmin = 0
+            klmax = dl(3)-1
+
+            igmin = (dl(1)-2)*(i-1)
+            igmax = (dl(1)-2)*i+1
+            jgmin = (dl(2)-2)*(j-1)
+            jgmax = (dl(2)-2)*j+1
+            kgmin = (dl(3)-2)*(k-1)
+            kgmax = (dl(3)-2)*k+1
+
+            !Exclude boundaries in interior domains
+            if (i>1  ) then
+              igmin = igmin+1 ; ilmin = ilmin + 1
+            endif
+            if (i<npx) then
+              igmax = igmax-1 ; ilmax = ilmax - 1
+            endif
+            if (j>1  ) then
+              jgmin = jgmin+1 ; jlmin = jlmin + 1
+            endif
+            if (j<npy) then
+              jgmax = jgmax-1 ; jlmax = jlmax - 1
+            endif
+            if (k>1  ) then
+              kgmin = kgmin+1 ; klmin = klmin + 1
+            endif
+            if (k<npz) then
+              kgmax = kgmax-1 ; klmax = klmax - 1
+            endif
+
+            gf(igmin:igmax,jgmin:jgmax,kgmin:kgmax)
+     .           = dum_lx(ilmin:ilmax,jlmin:jlmax,klmin:klmax)
+
           enddo
         enddo
       enddo
 
-      deallocate(local_x,global_x)
+      deallocate(local_x,global_x,dum_lx)
 #else
       gf = lf
 #endif

@@ -116,7 +116,7 @@ c     End program
 
 c     chk_pos
 c     ##################################################################
-      subroutine chk_pos(x,y,z,no_per_bc,ierr)
+      subroutine chk_pos(x,y,z,no_per_bc,warning,ierr)
 
 c     ------------------------------------------------------------------
 c     Check whether we are within LOGICAL domain, and if not:
@@ -131,13 +131,13 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       real(8) :: x,y,z
-      logical,optional :: no_per_bc
+      logical,optional :: no_per_bc,warning
       integer,optional :: ierr
 
 c     Local Variables
 
       integer :: ierror
-      logical :: per_bc
+      logical :: per_bc,message
 
 c     Begin program
 
@@ -145,6 +145,12 @@ c     Begin program
         per_bc = .not.no_per_bc
       else
         per_bc = .true.
+      endif
+
+      if (PRESENT(warning)) then
+        message = warning
+      else
+        message = .true.
       endif
 
       ierror = ORB_OK
@@ -203,7 +209,7 @@ c     Begin program
       endif
 
 cc      if (.not.PRESENT(ierr)) then
-        if (ierror /= 0) then
+        if (ierror /= 0.and.message) then
           write (*,*) 
           write (*,*) 'Error in chk_pos: out of domain!'
           write (*,*)

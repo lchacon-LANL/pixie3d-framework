@@ -2200,6 +2200,8 @@ c     --------------------------------------------------------------
 
         real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov
 
+        logical :: impose_bc
+
 c     Begin program
 
         if (my_rank == 0) then
@@ -2273,14 +2275,21 @@ c     Recreate mesh and grid metrics (using POINCARE file info)
 
 c     Assign LOCAL B by interpolating POINCARE data
 
+        impose_bc = .false.
+
         do k=0,nz+1
           do j=0,ny+1
             do i=0,nx+1
               call getCurvilinearCoordinates(i,j,k,igrid,igrid,igrid
      .                                      ,ig,jg,kg,x1,x2,x3)
-              x1 = min(max(x1,xmin),xmax)
-              x2 = min(max(x2,ymin),ymax)
-              x3 = min(max(x3,zmin),zmax)
+              
+              call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
+              if (ierr/=0) x1=min(max(x1,xmin),xmax)
+              if (ierr/=0) x2=min(max(x2,ymin),ymax)
+              if (ierr/=0) x3=min(max(x3,zmin),zmax)
+
+              impose_bc = (ierr/=0).or.impose_bc
+
               call evalB(x1,x2,x3
      .                  ,bb(i,j,k,1)
      .                  ,bb(i,j,k,2)
@@ -2290,13 +2299,15 @@ c     Assign LOCAL B by interpolating POINCARE data
         enddo
 
         !BCs
-        car0 = bb !Assign EQU boundary values
-        bcnd(:,1) = bcond
-        bcnd(:,2) = bcond
-        bcnd(:,3) = bcond
-        where (bcnd == DEF) bcnd = EQU
-        call setBC(0,3,nx,ny,nz,bb,bcov,car0,bcnd
-     .            ,igrid,igrid,igrid,iorder=1)
+        if (impose_bc) then
+          car0 = bb !Assign EQU boundary values
+          bcnd(:,1) = bcond
+          bcnd(:,2) = bcond
+          bcnd(:,3) = bcond
+          where (bcnd == DEF) bcnd = EQU
+          call setBC(0,3,nx,ny,nz,bb,bcov,car0,bcnd
+     .              ,igrid,igrid,igrid,iorder=1)
+        endif
 
         !Cartesian components
         bcar = XformToCar(igrid,bb,.false.)
@@ -2307,6 +2318,11 @@ c     Assign GLOBAL arrays
         call find_global(bcar,bcarg)
         call find_global(gmetric%grid(igrid)%jac,jacg)
         call find_global(gmetric%grid(igrid)%car,carg,map_bc=.true.)
+
+        write (*,*) my_rank,'B',sqrt(sum(bg(:,:,:,:)**2))
+        if (isBdry(nx,1,2)) write (*,*) my_rank,bg(nxd+1,:,2,1)
+
+        stop
 
 c     Destroy work space
 
