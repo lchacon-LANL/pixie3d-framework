@@ -41,144 +41,143 @@ cc     .            ,forward=.true. !Whether to go forward or backward in field 
 
       contains
 
-c     read_poinc_file
-c     #################################################################
-      subroutine read_poinc_file(file)
-
-        implicit none
-
-c     -----------------------------------------------------------------
-c     Read poincare file for grid and field data
-c     -----------------------------------------------------------------
-
-c     Call variables
-
-        character(*) :: file
-
-c     Local variables
-
-        integer :: nx,ny,nz,i,j,k
-
-        integer :: upixie=12345,ierr
-
-        real(8),allocatable,dimension(:)       :: xx,yy,zz
-        real(8),allocatable,dimension(:,:,:)   :: bx,by,bz,jac
-        real(8),allocatable,dimension(:,:,:)   :: bxcar,bycar,bzcar
-        real(8),allocatable,dimension(:,:,:,:) :: xmap
-
-c     Begin program
-
-        write (*,*)
-        write (*,*) '*****************************************'
-        write (*,*) 'Opening file ',trim(file)
-        write (*,*) '*****************************************'
-        write (*,*)
-
-        open(unit=upixie,file=trim(file),status='unknown'
-     .      ,form='unformatted')
-
-        read (upixie) nxg,nyg,nzg,bcnd,tor
-
-        !Add ghost cells
-        nx = nxg+2
-        ny = nyg+2
-        nz = nzg+2
-
-        allocate(xx(nx),yy(ny),zz(nz))
-      
-        allocate(bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz))
-
-        allocate(jac  (nx,ny,nz)
-     .          ,xmap (nx,ny,nz,3)
-     .          ,bxcar(nx,ny,nz)
-     .          ,bycar(nx,ny,nz)
-     .          ,bzcar(nx,ny,nz))
-
-        read (upixie) xx
-        read (upixie) yy
-        read (upixie) zz
-
-        read (upixie,iostat=ierr) bx
-        if (ierr /= 0) goto 100
-        read (upixie,iostat=ierr) by
-        if (ierr /= 0) goto 100
-        read (upixie,iostat=ierr) bz
-        if (ierr /= 0) goto 100
-
-        read (upixie,iostat=ierr) bxcar
-
-        if (ierr /= 0) then  !bxcar not available: assume cylindrical coords
-          do k=1,nz
-            do j=1,ny
-              do i=1,nx
-                bxcar(i,j,k) = bx(i,j,k)*cos(yy(j))
-     .                       - by(i,j,k)*sin(yy(j))
-                bycar(i,j,k) = bx(i,j,k)*sin(yy(j))
-     .                       + by(i,j,k)*cos(yy(j))
-                bzcar(i,j,k) = bz(i,j,k)
-
-                bx(i,j,k)    = xx(i)*bx(i,j,k)
-                bz(i,j,k)    = xx(i)*bz(i,j,k)
-
-                jac(i,j,k)   = xx(i)
-                xmap(i,j,k,1)= xx(i)*cos(yy(j))
-                xmap(i,j,k,2)= xx(i)*sin(yy(j))
-                xmap(i,j,k,3)= zz(k)
-              enddo
-            enddo
-          enddo
-        else
-          read (upixie,iostat=ierr) bycar
-          if (ierr /= 0) goto 100
-          read (upixie,iostat=ierr) bzcar
-          if (ierr /= 0) goto 100
-          read (upixie,iostat=ierr) jac
-          if (ierr /= 0) goto 100
-          read (upixie,iostat=ierr) xmap
-          if (ierr /= 0) goto 100
-        endif
-
-        close(upixie)
-
-        !Setup orbit
-
-cc        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-cc        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-cc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
-        call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
-        call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
-        call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
-
-        call orbit_setup(nx,ny,nz,xx,yy,zz
-     .                  ,bx,by,bz,bxcar,bycar,bzcar
-     .                  ,jac,xmap,bcnd
-     .                  ,tmax=tmax
-     .                  ,smax=smax
-     .                  ,dtime=dtime
-     .                  ,niter=niter
-     .                  ,atol=atol
-     .                  ,rtol=rtol
-     .                  ,order=odeorder
-     .                  ,solen=solen
-     .                  ,picard=picard
-     .                  ,spline_order=sporder
-     .                  ,gauge=a_gauge
-     .                  ,lsode_neq=5
-cc     .                  ,lsode_dt_lim=.true.
-     .                  )
-
-c       Deallocate memory
-
-        deallocate(xx,yy,zz)
-        deallocate(bx,by,bz)
-        deallocate(jac,xmap,bxcar,bycar,bzcar)
-
-        return
-
- 100    write (*,*) 'Problem reading poincare file; aborting'
-        stop
-
-      end subroutine read_poinc_file
+ccc     read_poinc_file
+ccc     #################################################################
+cc      subroutine read_poinc_file(file)
+cc
+cc        implicit none
+cc
+ccc     -----------------------------------------------------------------
+ccc     Read poincare file for grid and field data
+ccc     -----------------------------------------------------------------
+cc
+ccc     Call variables
+cc
+cc        character(*) :: file
+cc
+ccc     Local variables
+cc
+cc        integer :: nx,ny,nz,i,j,k
+cc
+cc        integer :: upixie=12345,ierr
+cc
+cc        real(8),allocatable,dimension(:)       :: xx,yy,zz
+cc        real(8),allocatable,dimension(:,:,:)   :: bx,by,bz,jac
+cc        real(8),allocatable,dimension(:,:,:)   :: bxcar,bycar,bzcar
+cc        real(8),allocatable,dimension(:,:,:,:) :: xmap
+cc
+ccc     Begin program
+cc
+cc        write (*,*)
+cc        write (*,*) '*****************************************'
+cc        write (*,*) 'Opening file ',trim(file)
+cc        write (*,*) '*****************************************'
+cc        write (*,*)
+cc
+cc        open(unit=upixie,file=trim(file),status='unknown'
+cc     .      ,form='unformatted')
+cc
+cc        read (upixie) nxg,nyg,nzg,bcnd,tor
+cc
+cc        !Add ghost cells
+cc        nx = nxg+2
+cc        ny = nyg+2
+cc        nz = nzg+2
+cc
+cc        allocate(xx(nx),yy(ny),zz(nz))
+cc      
+cc        allocate(bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz))
+cc
+cc        allocate(jac  (nx,ny,nz)
+cc     .          ,xmap (nx,ny,nz,3)
+cc     .          ,bxcar(nx,ny,nz)
+cc     .          ,bycar(nx,ny,nz)
+cc     .          ,bzcar(nx,ny,nz))
+cc
+cc        read (upixie) xx
+cc        read (upixie) yy
+cc        read (upixie) zz
+cc
+cc        read (upixie,iostat=ierr) bx
+cc        if (ierr /= 0) goto 100
+cc        read (upixie,iostat=ierr) by
+cc        if (ierr /= 0) goto 100
+cc        read (upixie,iostat=ierr) bz
+cc        if (ierr /= 0) goto 100
+cc
+cc        read (upixie,iostat=ierr) bxcar
+cc
+cc        if (ierr /= 0) then  !bxcar not available: assume cylindrical coords
+cc          do k=1,nz
+cc            do j=1,ny
+cc              do i=1,nx
+cc                bxcar(i,j,k) = bx(i,j,k)*cos(yy(j))
+cc     .                       - by(i,j,k)*sin(yy(j))
+cc                bycar(i,j,k) = bx(i,j,k)*sin(yy(j))
+cc     .                       + by(i,j,k)*cos(yy(j))
+cc                bzcar(i,j,k) = bz(i,j,k)
+cc
+cc                bx(i,j,k)    = xx(i)*bx(i,j,k)
+cc                bz(i,j,k)    = xx(i)*bz(i,j,k)
+cc
+cc                jac(i,j,k)   = xx(i)
+cc                xmap(i,j,k,1)= xx(i)*cos(yy(j))
+cc                xmap(i,j,k,2)= xx(i)*sin(yy(j))
+cc                xmap(i,j,k,3)= zz(k)
+cc              enddo
+cc            enddo
+cc          enddo
+cc        else
+cc          read (upixie,iostat=ierr) bycar
+cc          if (ierr /= 0) goto 100
+cc          read (upixie,iostat=ierr) bzcar
+cc          if (ierr /= 0) goto 100
+cc          read (upixie,iostat=ierr) jac
+cc          if (ierr /= 0) goto 100
+cc          read (upixie,iostat=ierr) xmap
+cc          if (ierr /= 0) goto 100
+cc        endif
+cc
+cc        close(upixie)
+cc
+cc        !Setup orbit
+cc
+cccc        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
+cccc        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
+cccc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
+cc        call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
+cc        call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
+cc        call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
+cc
+cc        call orbit_setup(nx,ny,nz,xx,yy,zz
+cc     .                  ,bx,by,bz,bxcar,bycar,bzcar
+cc     .                  ,jac,xmap,bcnd
+cc     .                  ,tmax=tmax
+cc     .                  ,smax=smax
+cc     .                  ,dtime=dtime
+cc     .                  ,niter=niter
+cc     .                  ,atol=atol
+cc     .                  ,rtol=rtol
+cc     .                  ,order=odeorder
+cc     .                  ,solen=solen
+cc     .                  ,spline_order=sporder
+cc     .                  ,gauge=a_gauge
+cc     .                  ,lsode_neq=5
+cccc     .                  ,lsode_dt_lim=.true.
+cc     .                  )
+cc
+ccc       Deallocate memory
+cc
+cc        deallocate(xx,yy,zz)
+cc        deallocate(bx,by,bz)
+cc        deallocate(jac,xmap,bxcar,bycar,bzcar)
+cc
+cc        return
+cc
+cc 100    write (*,*) 'Problem reading poincare file; aborting'
+cc        stop
+cc
+cc      end subroutine read_poinc_file
 
 c     read_poinc_files
 c     ##############################################################
@@ -241,19 +240,11 @@ c     Orbit initialization on global array
      .                  ,jacg
      .                  ,carg
      .                  ,bcnd
-     .                  ,tmax=tmax
-     .                  ,smax=smax
      .                  ,dtime=dtime
-     .                  ,niter=niter
      .                  ,atol=atol
      .                  ,rtol=rtol
-     .                  ,order=odeorder
      .                  ,solen=solen
-     .                  ,picard=picard
      .                  ,spline_order=sporder
-     .                  ,gauge=a_gauge
-     .                  ,lsode_neq=5
-cc     .                  ,lsode_dt_lim=.true.
      .                  )
 
 c     Deallocate memory
