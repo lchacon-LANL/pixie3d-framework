@@ -2200,7 +2200,7 @@ c     --------------------------------------------------------------
 
         real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov
 
-        logical :: impose_bc
+cc        logical :: impose_bc
 
 c     Begin program
 
@@ -2275,7 +2275,7 @@ c     Recreate mesh and grid metrics (using POINCARE file info)
 
 c     Assign LOCAL B by interpolating POINCARE data
 
-        impose_bc = .false.
+cc        impose_bc = .false.
 
         do k=0,nz+1
           do j=0,ny+1
@@ -2288,7 +2288,7 @@ c     Assign LOCAL B by interpolating POINCARE data
               if (ierr/=0) x2=min(max(x2,ymin),ymax)
               if (ierr/=0) x3=min(max(x3,zmin),zmax)
 
-              impose_bc = (ierr/=0).or.impose_bc
+cc              impose_bc = (ierr/=0).or.impose_bc
 
               call evalB(x1,x2,x3
      .                  ,bb(i,j,k,1)
@@ -2299,7 +2299,7 @@ c     Assign LOCAL B by interpolating POINCARE data
         enddo
 
         !BCs
-        if (impose_bc) then
+cc        if (impose_bc) then
           car0 = bb !Assign EQU boundary values
           bcnd(:,1) = bcond
           bcnd(:,2) = bcond
@@ -2307,7 +2307,7 @@ c     Assign LOCAL B by interpolating POINCARE data
           where (bcnd == DEF) bcnd = EQU
           call setBC(0,3,nx,ny,nz,bb,bcov,car0,bcnd
      .              ,igrid,igrid,igrid,iorder=1)
-        endif
+cc        endif
 
         !Cartesian components
         bcar = XformToCar(igrid,bb,.false.)
@@ -2318,11 +2318,6 @@ c     Assign GLOBAL arrays
         call find_global(bcar,bcarg)
         call find_global(gmetric%grid(igrid)%jac,jacg)
         call find_global(gmetric%grid(igrid)%car,carg,map_bc=.true.)
-
-        write (*,*) my_rank,'B',sqrt(sum(bg(:,:,:,:)**2))
-        if (isBdry(nx,1,2)) write (*,*) my_rank,bg(nxd+1,:,2,1)
-
-        stop
 
 c     Destroy work space
 
