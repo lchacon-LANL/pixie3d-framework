@@ -10,7 +10,7 @@ CPPFLAGS += $(PREPROC)$(ARCH)
 # DEFAULTS #
 ############
 
-FC=gfortran
+FC=ifort
 HDF5 = f
 ADIOS= f
 

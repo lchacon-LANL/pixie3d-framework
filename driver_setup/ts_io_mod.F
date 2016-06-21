@@ -129,6 +129,16 @@ cc        prec_tot = gmres_tot + iguess*newt_tot
         endif
       endif
 
+      write(*,*) 
+      write(*,*), "Timing/Statistics"
+      write(*,*)
+
+      write(*,*), "Total number of particle substeps taken:    ", 
+     .             grid_params%substep_counter
+      
+      write(*,*), "Total time spent in particle pusher(SysClock):    ", 
+     .             grid_params%push_timer
+
 c     End program
 
  300  format (/,'Final statistics',/,/,

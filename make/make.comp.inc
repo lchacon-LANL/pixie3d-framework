@@ -2,7 +2,7 @@
 
 #Defaults
 
-FC  ?= gfortran
+FC  ?= ifort
 OPT ?= O
 PREPROC ?= -D
 
@@ -45,7 +45,7 @@ endif
 
 # Flags for Intel ifort
 ifeq ($(FC),ifort)
-  OPTIMIZATION ?= -O3 -ipo -axW
+  OPTIMIZATION ?= -O3 -ip
   DEBUG        = -g -check all -traceback
 #  DEBUG        = -g -check -traceback
   PROFILE      = -p
@@ -59,7 +59,7 @@ endif
 
 # Flags for g95
 ifeq ($(FC),g95)
-  OPTIMIZATION ?= -O2
+  OPTIMIZATION ?= -O2 -g
   DEBUG        = -g -fbounds-check -ftrace=full
   PROFILE      = -pg
   STATIC       = -fstatic
