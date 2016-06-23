@@ -135,7 +135,10 @@ cc        prec_tot = gmres_tot + iguess*newt_tot
 
       write(*,*), "Total number of particle substeps taken:    ", 
      .             grid_params%substep_counter
-      
+
+      write(*,*), "Average number of Picard iterations per substep", 
+     .             grid_params%pit_sum/grid_params%pit_count
+ 
       write(*,*), "Total time spent in particle pusher(SysClock):    ", 
      .             grid_params%push_timer
 
