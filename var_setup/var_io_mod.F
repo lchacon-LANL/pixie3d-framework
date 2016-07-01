@@ -590,9 +590,9 @@ c$$$      nz = khg-klg+1
 
       endif
 
-      read (ufile) nx,ilog,ihig
-      read (ufile) ny,jlog,jhig
-      read (ufile) nz,klog,khig
+      read (ufile) nx,ilg,ihg
+      read (ufile) ny,jlg,jhg
+      read (ufile) nz,klg,khg
 
 cc      if (associated(gv%gparams)) then
       if (associated(gv)) then
@@ -623,6 +623,8 @@ cc      if (associated(gv%gparams)) then
       endif
 
 #else
+
+      ufile = urecord
 
       call adios_init_noxml (adios_err)
 
