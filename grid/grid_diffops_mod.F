@@ -849,9 +849,9 @@ c     Local variables
 
 c     Begin program
 
-      nx = grid_params%nxv(igrid)
-      ny = grid_params%nyv(igrid)
-      nz = grid_params%nzv(igrid)
+      nx = size(cov,1)-2
+      ny = size(cov,2)-2
+      nz = size(cov,3)-2
 
       do k=0,nz+1
         do j=0,ny+1
@@ -3072,9 +3072,9 @@ cc          endif
 
         end select
 
-        idhx = 1./dhx
-        idhy = 1./dhy
-        idhz = 1./dhz
+        idhx = 1d0/dhx
+        idhy = 1d0/dhy
+        idhz = 1d0/dhz
 
       ! l = 1, m = 1
         tensor(1,1) = (vxip-vxim)*idhx
@@ -3105,7 +3105,7 @@ cc          endif
 
       ! Add geometric source
 
-        tensor = tensor - tsrc
+        tensor = tensor + tsrc
 
 c     End program
 
@@ -3131,49 +3131,49 @@ c     Begin program
         hessian = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
 
       ! l = 1, m = 1
-        tensor(1,1) =+ ax(i,j,k)* hessian(1,1,1)
-     .               + ay(i,j,k)* hessian(2,1,1)
-     .               + az(i,j,k)* hessian(3,1,1)
+        tensor(1,1) =- ax(i,j,k)* hessian(1,1,1)
+     .               - ay(i,j,k)* hessian(2,1,1)
+     .               - az(i,j,k)* hessian(3,1,1)
 
       ! l = 1, m = 2
-        tensor(1,2) =+ ax(i,j,k)* hessian(1,1,2)
-     .               + ay(i,j,k)* hessian(2,1,2)
-     .               + az(i,j,k)* hessian(3,1,2)
+        tensor(1,2) =- ax(i,j,k)* hessian(1,1,2)
+     .               - ay(i,j,k)* hessian(2,1,2)
+     .               - az(i,j,k)* hessian(3,1,2)
 
       ! l = 1, m = 3
-        tensor(1,3) =+ ax(i,j,k)* hessian(1,1,3)
-     .               + ay(i,j,k)* hessian(2,1,3)
-     .               + az(i,j,k)* hessian(3,1,3)
+        tensor(1,3) =- ax(i,j,k)* hessian(1,1,3)
+     .               - ay(i,j,k)* hessian(2,1,3)
+     .               - az(i,j,k)* hessian(3,1,3)
 
       ! l = 2, m = 1
-        tensor(2,1) =+ ax(i,j,k)* hessian(1,2,1)
-     .               + ay(i,j,k)* hessian(2,2,1)
-     .               + az(i,j,k)* hessian(3,2,1)
+        tensor(2,1) =- ax(i,j,k)* hessian(1,2,1)
+     .               - ay(i,j,k)* hessian(2,2,1)
+     .               - az(i,j,k)* hessian(3,2,1)
 
       ! l = 2, m = 2
-        tensor(2,2) =+ ax(i,j,k)* hessian(1,2,2)
-     .               + ay(i,j,k)* hessian(2,2,2)
-     .               + az(i,j,k)* hessian(3,2,2)
+        tensor(2,2) =- ax(i,j,k)* hessian(1,2,2)
+     .               - ay(i,j,k)* hessian(2,2,2)
+     .               - az(i,j,k)* hessian(3,2,2)
 
       ! l = 2, m = 3
-        tensor(2,3) =+ ax(i,j,k)* hessian(1,2,3)
-     .               + ay(i,j,k)* hessian(2,2,3)
-     .               + az(i,j,k)* hessian(3,2,3)
+        tensor(2,3) =- ax(i,j,k)* hessian(1,2,3)
+     .               - ay(i,j,k)* hessian(2,2,3)
+     .               - az(i,j,k)* hessian(3,2,3)
 
       ! l = 3, m = 1
-        tensor(3,1) =+ ax(i,j,k)* hessian(1,3,1)
-     .               + ay(i,j,k)* hessian(2,3,1)
-     .               + az(i,j,k)* hessian(3,3,1)
+        tensor(3,1) =- ax(i,j,k)* hessian(1,3,1)
+     .               - ay(i,j,k)* hessian(2,3,1)
+     .               - az(i,j,k)* hessian(3,3,1)
 
       ! l = 3, m = 2
-        tensor(3,2) =+ ax(i,j,k)* hessian(1,3,2)
-     .               + ay(i,j,k)* hessian(2,3,2)
-     .               + az(i,j,k)* hessian(3,3,2)
+        tensor(3,2) =- ax(i,j,k)* hessian(1,3,2)
+     .               - ay(i,j,k)* hessian(2,3,2)
+     .               - az(i,j,k)* hessian(3,3,2)
 
       ! l = 3, m = 3
-        tensor(3,3) =+ ax(i,j,k)* hessian(1,3,3)
-     .               + ay(i,j,k)* hessian(2,3,3)
-     .               + az(i,j,k)* hessian(3,3,3)
+        tensor(3,3) =- ax(i,j,k)* hessian(1,3,3)
+     .               - ay(i,j,k)* hessian(2,3,3)
+     .               - az(i,j,k)* hessian(3,3,3)
 
 c     End program
 

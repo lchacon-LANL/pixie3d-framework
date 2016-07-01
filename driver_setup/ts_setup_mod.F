@@ -26,7 +26,7 @@ c ######################################################################
                                        !        ndstep is calculated in code)
 
         logical :: timecorr=.true.     ! Time adaptive algorithm (based on Newton convergence)
-     .            ,restart=.false.     ! Restarting flag
+     .            ,ts_restart=.false.  ! Restarting flag
      .            ,source=.true.       ! Impose source to provide equilibrium
      .            ,predictor=.false.   ! Whether to extrapolate in time to find first guess (not active)
      .            ,postprocess=.false. ! Whether to run solution postprocessing after time step
@@ -281,42 +281,14 @@ c     Local variables
 c     Namelists
 
       !Temporal discretization
-      namelist /ts/ dt,tmax,dstep,numtime,ndstep,source,restart,timecorr
-     .                ,cnfactor,sm_flag,sm_pass,predictor,postprocess
-     .                ,preprocess,eigen,eig_dt,perturb_rstrt
-     .                ,ts_ramp_up_dt,ts_ramp_up_dt_fraction
-     .                ,ts_ramp_up_dt_recovery
+      namelist /ts/ dt,tmax,dstep,numtime,ndstep,source,ts_restart
+     .             ,timecorr
+     .             ,cnfactor,sm_flag,sm_pass,predictor,postprocess
+     .             ,preprocess,eigen,eig_dt,perturb_rstrt
+     .             ,ts_ramp_up_dt,ts_ramp_up_dt_fraction
+     .             ,ts_ramp_up_dt_recovery
 
 c     Begin program
-
-c     Set defaults (set in module)
-
-cc      dt       = 5.            ! Time step (if zero, dt is calculated in code)
-cc      tmax     = -1d0          ! Target time, in Alfven times.
-cc      numtime  = -1            ! Number of time steps
-cc      ndstep   = 0             ! # time steps between plots (if zero,
-cc                               !        ndstep is calculated in code)
-cc      dstep    = 0.            ! Time interval between plots (if zero,
-cc                               !        dstep is calculated in code)
-cc
-cc      restart  = .false.       ! Restarting flag
-cc      perturb_rstrt = .false.! Whether to apply perturbation after restart
-cc
-cc      timecorr = .true.        ! Time adaptive algorithm (based on Newton convergence)
-cc      postprocess = .false.    ! Whether to run solution postprocessing after time step
-cc      preprocess = .false.     ! Whether to run solution preprocessing before time step
-cc      source   = .true.        ! Impose source to provide equilibrium
-cc      predictor= .false.       ! Whether to extrapolate in time to find first guess (not active)
-cc
-cc      eigen    = .false.       ! Whether to run framework in eigensolver mode
-cc      eig_dt   = 1d0           ! Time step for eigenvalue dynamical system
-cc
-cc      cnfactor = 0.5           ! Crank-Nicolson factor (implicit if <= 0.5)
-cc      sm_flag  = 0             ! Time smoothing flag:
-cc                               !   0 -> Theta scheme
-cc                               !   1 -> Rannacher time stepping
-cc                               !   2 -> BDF2
-cc      sm_pass  = 2             ! Number of initial smoother passes for Rannacher TS
 
 c     Read initialization parameters
 

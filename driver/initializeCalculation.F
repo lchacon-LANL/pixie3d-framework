@@ -106,12 +106,12 @@ c Initialize MK variables
 #endif
 
 #if defined(MK)
-      relax_init_grid = mk_grid.and.mk_init_relax.and.(.not.restart)
+      relax_init_grid = mk_grid.and.mk_init_relax.and.(.not.ts_restart)
 #endif
 
 c Initialize computation
 
-      if (.not.restart) then
+      if (.not.ts_restart) then
         call setInitialState
       else
         call readCurrentState(recordfile)
@@ -445,7 +445,7 @@ c Set data dumping intervals
 
 c Open record file
 
-      if (.not.restart) then
+      if (.not.ts_restart) then
         !Dump initial data
         call writeRecordFile(recordfile,0,0d0,dt,u_0)
         call writeRecordFile(recordfile,0,0d0,dt,u_np)

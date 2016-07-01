@@ -88,9 +88,9 @@ c     PETSc CPU diagnostics
       call PetscGetCPUTime(prof_time(4),prof_err)
 
       omp_threads = 1
-!!!$      omp_threads = omp_get_num_threads()  !Not working
-
-cc      write (*,*) omp_threads
+!$OMP PARALLEL
+!$      omp_threads = omp_get_num_threads()
+!$OMP END PARALLEL
 
       if (my_rank == 0 .and. .not.(tst_flg)) then
         write (*,*) 'CPU statistics'

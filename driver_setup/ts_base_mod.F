@@ -479,6 +479,8 @@ c     Begin program
       endif
 #endif
 
+      ts_restart = .false.
+
 c     End program
 
       contains
@@ -583,7 +585,7 @@ c     #######################################################################
         bdf2 = (itm > 1 .and. (.not.timecorr) )
      .    .or. (itm > 2 .and.       timecorr  .and. ierr == NOERR)
 
-        bdf2 = bdf2.and.(.not.restart)
+        bdf2 = bdf2.and.(.not.ts_restart)
 
         if (bdf2) then
           !All these are affected by factor 1/dt (done in evaluateNLF)
@@ -597,9 +599,7 @@ c     #######################################################################
           cn  =-1d0
           cnm = 0d0
 
-          if (restart) cnfactor = 0.5d0
-
-          restart = .false.
+          if (ts_restart) cnfactor = 0.3d0
         endif
 
       else  !Theta scheme
