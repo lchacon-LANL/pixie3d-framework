@@ -6,7 +6,7 @@ c #####################################################################
 
         implicit none
 
-        integer :: mg_ratio
+        integer :: mg_ratio=2  !Default MG coarsening ratio
 
         logical :: coarsen_X=.true.
      .            ,coarsen_Y=.true.
