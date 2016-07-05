@@ -16,7 +16,8 @@ SUBDIRS = $(COMMONDIR)/math\
           $(COMMONDIR)/interpolation/1d_int\
 	  $(COMMONDIR)/newtonGMRES\
 	  $(COMMONDIR)/var_setup\
-	  $(COMMONDIR)/driver_setup
+	  $(COMMONDIR)/driver_setup\
+	  $(COMMONDIR)/OMP
 
 #Define dependencies
 

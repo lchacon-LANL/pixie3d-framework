@@ -5,17 +5,11 @@
 
         use xdraw_io
 
-!        use spline_field
-
         use grid, ONLY: np,my_rank,pstop,messg
 
         use file_io
 
-      !OPENMP
-      integer :: thr_tot=-1,thr_num=-1,ilup=0
-!$OMP THREADPRIVATE(thr_tot,thr_num,ilup)
-      integer :: itot
-!$OMP THREADPRIVATE(itot)
+        use OMP
 
 !lyap private variables
       logical :: lyap,connect
@@ -663,54 +657,6 @@ c     ###############################################################
  
       end function auto_corr_inters_stop
 
-c     set_omp_thread_id
-c     ###############################################################
-      subroutine set_omp_thread_id(thrnum,thrtot)
-
-        implicit none
-
-c     Call variables
-
-        integer,optional :: thrnum,thrtot
-
-c     Local variables
-
-        logical :: io_l=.false.
-        integer :: omp_get_thread_num
-     $            ,omp_get_num_threads
-
-c     Begin program
-
-        if (PRESENT(thrtot)) then
-          thr_tot = thrtot
-        else
-          thr_tot = 1
-!$        thr_tot = omp_get_num_threads()
-        endif
-
-        if (PRESENT(thrnum)) then
-          thr_num = thrnum
-        else
-!$        thr_num = omp_get_thread_num()
-          thr_num = max(thr_num,0)
-        endif
-
-      end subroutine set_omp_thread_id
-
-c     check_omp_thread_id
-c     ###############################################################
-      subroutine check_omp_thread_id()
-
-        implicit none
-
-        if (thr_tot < 0 .or. thr_num < 0) then
-          write (*,*) "Thread ID not initialized"
-          write (*,*) "Aborting"
-          stop
-        endif
-        
-      end subroutine check_omp_thread_id
-
       end module lyapn
 
 c     set_lyapn_counter
@@ -727,43 +673,43 @@ c     ###############################################################
 
       end subroutine set_lyapn_counter
 
-c     check_omp_numthreads
-c     ###############################################################
-      subroutine check_omp_numthreads(io)
-
-        use grid, ONLY: pstop
-      
-        implicit none
-
-c     Global variables
-
-        logical :: io
-
-c     Local variables
-
-        integer :: thr_tot
-cc        character*10 :: ev
-        integer :: omp_get_num_threads
-
-c     Begin program
-
-        thr_tot = 1
-        
-c$$$!$      call getenv('OMP_NUM_THREADS',ev)
-c$$$!$      read(ev,'(i2)') thr_tot
-!$omp parallel
-!$      thr_tot = omp_get_num_threads()
-!$omp end parallel                                                             
-
-        if (thr_tot == 0) then
-          call pstop("check_omp_numthreads"
-     .         ,"Define OMP_NUM_THREADS environment variable")
-        else
-          if (io) then
-            write (*,*)          '******************'
-            write (*,'(a,i3,a)') ' Using ',thr_tot,' threads'
-            write (*,*)          '******************'
-          endif
-        endif
-
-      end subroutine check_omp_numthreads
+c$$$c     check_omp_numthreads
+c$$$c     ###############################################################
+c$$$      subroutine check_omp_numthreads(io)
+c$$$
+c$$$        use grid, ONLY: pstop
+c$$$      
+c$$$        implicit none
+c$$$
+c$$$c     Global variables
+c$$$
+c$$$        logical :: io
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer :: thr_tot
+c$$$cc        character*10 :: ev
+c$$$        integer :: omp_get_num_threads
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        thr_tot = 1
+c$$$        
+c$$$c$$$!$      call getenv('OMP_NUM_THREADS',ev)
+c$$$c$$$!$      read(ev,'(i2)') thr_tot
+c$$$!$omp parallel
+c$$$!$      thr_tot = omp_get_num_threads()
+c$$$!$omp end parallel                                                             
+c$$$
+c$$$        if (thr_tot == 0) then
+c$$$          call pstop("check_omp_numthreads"
+c$$$     .         ,"Define OMP_NUM_THREADS environment variable")
+c$$$        else
+c$$$          if (io) then
+c$$$            write (*,*)          '******************'
+c$$$            write (*,'(a,i3,a)') ' Using ',thr_tot,' threads'
+c$$$            write (*,*)          '******************'
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$      end subroutine check_omp_numthreads
