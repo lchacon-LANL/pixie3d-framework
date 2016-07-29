@@ -3181,6 +3181,181 @@ c     End program
 
       end function fnabla_v_cov
 
+c     fnabla_v_upwd_cov
+c     #############################################################
+      function fnabla_v_upwd_cov(i,j,k,nx,ny,nz,igx,igy,igz,ax,ay,az
+     .                          ,hex,hey,hez) result(tensor)
+c     -------------------------------------------------------------
+c     Calculates the tensor components T_lm of nabla(vec v), with
+c     v covariant, and fills tensor(l,m) at the following positions:
+c       + hex,hey,hez = 0 => i,j,k
+c       + hex=+-1 --> i+-1/2
+c       + hey=+-1 --> j+-1/2
+c       + hez=+-1 --> k+-1/2
+c     -------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: i,j,k,hex,hey,hez,nx,ny,nz,igx,igy,igz
+        real(8)    :: tensor(3,3)
+        real(8)    :: ax(0:nx+1,0:ny+1,0:nz+1)
+     .               ,ay(0:nx+1,0:ny+1,0:nz+1)
+     .               ,az(0:nx+1,0:ny+1,0:nz+1)
+
+c     Local variables
+
+        integer    :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid,jpp,jmm
+        real(8)    :: dhx,dhy,dhz,idhx,idhy,idhz
+        real(8)    :: vxx,vyy,vzz
+     .               ,vxip,vxim,vxjp,vxjm,vxkp,vxkm
+     .               ,vyip,vyim,vyjp,vyjm,vykp,vykm
+     .               ,vzip,vzim,vzjp,vzjm,vzkp,vzkm
+        real(8)    :: tsrc(3,3),jacip,jacjp,jacjm,jackp,jackm
+     .               ,jacipkp,jacipkm,jacipjp,jacipjm,jac
+        real(8)    :: cf1,cf2,cf3,cf4,hessian(3,3,3)
+
+        logical    :: spoint
+
+c     Begin program
+
+        igrid = igx
+
+c     Defaults
+
+        ip = i+1
+        im = i-1
+        jp = j+1
+        jm = j-1
+        kp = k+1
+        km = k-1
+
+        call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+
+        dhx = 2.*grid_params%dxh(ig)
+        dhy = 2.*grid_params%dyh(jg)
+        dhz = 2.*grid_params%dzh(kg)
+
+        hessian = gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+
+c     Exceptions
+
+        if (hex == 1) then
+          im = i
+          dhx = grid_params%dx(ig)
+        elseif (hex == -1) then
+          ip = i
+          dhx = grid_params%dx(ig-1)
+        endif
+
+        if (hey == 1) then
+          jm = j
+          dhy = grid_params%dy(jg)
+        elseif (hey == -1) then
+          jp = j
+          dhy = grid_params%dy(jg-1)
+        endif
+
+        if (hez == 1) then
+          km = k
+          dhz = grid_params%dz(kg)
+        elseif (hez == -1) then
+          kp = k
+          dhz = grid_params%dz(kg-1)
+        endif
+
+c     Vectors
+
+        vxx = ax(i,j,k)
+        vyy = ay(i,j,k)
+        vzz = az(i,j,k)
+
+        vxip = ax(ip,j,k)
+        vxim = ax(im,j,k)
+        vyip = ay(ip,j,k)
+        vyim = ay(im,j,k)
+        vzip = az(ip,j,k)
+        vzim = az(im,j,k)
+
+        vxjp = ax(i,jp,k)
+        vxjm = ax(i,jm,k)
+        vyjp = ay(i,jp,k)
+        vyjm = ay(i,jm,k)
+        vzjp = az(i,jp,k)
+        vzjm = az(i,jm,k)
+
+        vxkp = ax(i,j,kp)
+        vxkm = ax(i,j,km)
+        vykp = ay(i,j,kp)
+        vykm = ay(i,j,km)
+        vzkp = az(i,j,kp)
+        vzkm = az(i,j,km)
+
+c     Calculate nabla_v tensor
+        
+        idhx = 1d0/dhx
+        idhy = 1d0/dhy
+        idhz = 1d0/dhz
+
+      ! l = 1, m = 1
+        tensor(1,1) = (vxip-vxim)*idhx
+     .               -(vxx*hessian(1,1,1)
+     .               + vyy*hessian(2,1,1)
+     .               + vzz*hessian(3,1,1))
+
+      ! l = 1, m = 2
+        tensor(1,2) = (vyip-vyim)*idhx
+     .               -(vxx*hessian(1,1,2)
+     .               + vyy*hessian(2,1,2)
+     .               + vzz*hessian(3,1,2))
+
+      ! l = 1, m = 3
+        tensor(1,3) = (vzip-vzim)*idhx
+     .               -(vxx*hessian(1,1,3)
+     .               + vyy*hessian(2,1,3)
+     .               + vzz*hessian(3,1,3))
+
+      ! l = 2, m = 1
+        tensor(2,1) = (vxjp-vxjm)*idhy
+     .               -(vxx*hessian(1,2,1)
+     .               + vyy*hessian(2,2,1)
+     .               + vzz*hessian(3,2,1))
+
+      ! l = 2, m = 2
+        tensor(2,2) = (vyjp-vyjm)*idhy
+     .               -(vxx*hessian(1,2,2)
+     .               + vyy*hessian(2,2,2)
+     .               + vzz*hessian(3,2,2))
+
+      ! l = 2, m = 3
+        tensor(2,3) = (vzjp-vzjm)*idhy
+     .               -(vxx*hessian(1,2,3)
+     .               + vyy*hessian(2,2,3)
+     .               + vzz*hessian(3,2,3))
+
+      ! l = 3, m = 1
+        tensor(3,1) = (vxkp-vxkm)*idhz
+     .               -(vxx*hessian(1,3,1)
+     .               + vyy*hessian(2,3,1)
+     .               + vzz*hessian(3,3,1))
+
+      ! l = 3, m = 2
+        tensor(3,2) = (vykp-vykm)*idhz
+     .               -(vxx*hessian(1,3,2)
+     .               + vyy*hessian(2,3,2)
+     .               + vzz*hessian(3,3,2))
+
+      ! l = 3, m = 3
+        tensor(3,3) = (vzkp-vzkm)*idhz
+     .               -(vxx*hessian(1,3,3)
+     .               + vyy*hessian(2,3,3)
+     .               + vzz*hessian(3,3,3))
+
+c     End program
+
+      end function fnabla_v_upwd_cov
+
 c     dtnsr_flx_ijk
 c     ###############################################################
       function dtnsr_flx_ijk(i,j,k,nx,ny,nz,igrid,alt_eom,flux)
@@ -6211,10 +6386,393 @@ c     End
 
       end function flx_advec_mesh
 
+c     scl_nc_advc_flx_x_new
+c     ###############################################################
+      function scl_nc_advc_flx_x_new(i,j,k,nx,ny,nz,igr,vxp,arr,darr
+     .                              ,method) result(flxip)
+      implicit none
+c     ---------------------------------------------------------------
+c     Calculates advective flux (v.arr)_1 of scalar arr at face
+c     (i+1/2,j,k) in general non-orthogonal geometry.
+c
+c     method: specifies the advective scheme (see int2face)
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: i,j,k,nx,ny,nz,igr,method
+
+      real(8) :: arr (0:nx+1,0:ny+1,0:nz+1)
+     .          ,darr(0:nx+1,0:ny+1,0:nz+1)
+     .          ,vxp,flxip
+
+c     Local variables
+
+      integer :: ip,igp,ig,jg,kg
+
+      real(8) :: qip
+
+      logical :: at_bdry
+
+c     Begin program
+
+c     Update grid indices
+
+      call getMGmap(i,j,k,igr,igr,igr,ig,jg,kg)
+
+      ip  = i+1
+      igp = ig + (ip-i)
+
+c     Find X centered flux
+
+      flxip = vxp*0.5*(arr(i,j,k)+arr(ip,j,k))
+
+c     Other advective methods
+
+c$$$  at_bdry = isBdry(i,igr,2) .or. isBdry(i+1,igr,1)
+      at_bdry = (isBdry(i  ,igr,2).and.bcond(2)/=PER)
+     .      .or.(isBdry(i+1,igr,1).and.bcond(1)/=PER)
+
+      if (method /= 2.and.(.not.(at_bdry))) then
+
+        !Find advected quantity at faces
+        qip=in2face_scl_new(grid_params%xx(ig ),arr(i ,j,k)
+     .                     ,grid_params%xx(igp),arr(ip,j,k)
+     .                     ,2*grid_params%dxh(ig ),darr(i ,j,k)
+     .                     ,2*grid_params%dxh(igp),darr(ip,j,k)
+     .                     ,vxp,method)
+
+        !Setup fluxes (ZIP at boundaries by default for conservation)
+        flxip=vxp*qip
+
+      endif
+
+c     End program
+
+      end function scl_nc_advc_flx_x_new
+
+c     scl_nc_advc_flx_y_new
+c     ###############################################################
+      function scl_nc_advc_flx_y_new(i,j,k,nx,ny,nz,igr,vyp,arr,darr
+     .                              ,method) result(flxjp)
+      implicit none
+c     ---------------------------------------------------------------
+c     Calculates advective flux (v.arr)_2 of scalar arr at face
+c     (i,j+1/2,k) in general non-orthogonal geometry.
+c
+c     method: specifies the advective scheme (see int2face)
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: i,j,k,nx,ny,nz,igr,method
+
+      real(8) :: arr (0:nx+1,0:ny+1,0:nz+1)
+     .          ,darr(0:nx+1,0:ny+1,0:nz+1)
+     .          ,vyp,flxjp
+
+c     Local variables
+
+      integer :: jp,jgp,ig,jg,kg
+
+      real(8) :: qjp
+
+      logical :: at_bdry
+
+c     Begin program
+
+c     Update grid indices
+
+      call getMGmap(i,j,k,igr,igr,igr,ig,jg,kg)
+
+      jp  = j+1
+      jgp = jg + (jp-j)
+
+c     Find Y centered flux
+
+      flxjp = vyp*0.5*(arr(i,j,k) + arr(i,jp,k))
+
+c     Other advective methods
+
+c$$$  at_bdry = isBdry(j,igr,4) .or. isBdry(j+1,igr,3)
+      at_bdry = (isBdry(j  ,igr,4).and.bcond(4)/=PER)
+     .      .or.(isBdry(j+1,igr,3).and.bcond(3)/=PER)
+
+      if (method /= 2.and.(.not.(at_bdry))) then
+
+        !Find advected quantity at faces
+        qjp=in2face_scl_new(grid_params%yy(jg ),arr(i,j ,k)
+     .                     ,grid_params%yy(jgp),arr(i,jp,k)
+     .                     ,2*grid_params%dyh(jg ),darr(i,j ,k)
+     .                     ,2*grid_params%dyh(jgp),darr(i,jp,k)
+     .                     ,vyp,method)
+
+        !Setup fluxes (ZIP at boundaries by default for conservation)
+        flxjp=vyp*qjp
+
+      endif
+
+c     End program
+
+      end function scl_nc_advc_flx_y_new
+
+c     scl_nc_advc_flx_z_new
+c     ###############################################################
+      function scl_nc_advc_flx_z_new(i,j,k,nx,ny,nz,igr,vzp,arr,darr
+     .                              ,method) result(flxkp)
+      implicit none
+c     ---------------------------------------------------------------
+c     Calculates advective flux (v.arr)_3 of scalar arr at face
+c     (i,j,k+1/2) in general non-orthogonal geometry.
+c
+c     method: specifies the advective scheme (see int2face)
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: i,j,k,nx,ny,nz,igr,method
+
+      real(8) :: arr (0:nx+1,0:ny+1,0:nz+1)
+     .          ,darr(0:nx+1,0:ny+1,0:nz+1)
+     .          ,vzp,flxkp
+
+c     Local variables
+
+      integer :: kp,kgp,ig,jg,kg
+
+      real(8) :: qkp
+
+      logical :: at_bdry
+
+c     Begin program
+
+c     Update grid indices
+
+      call getMGmap(i,j,k,igr,igr,igr,ig,jg,kg)
+
+      kp  = k+1
+      kgp = kg + (kp-k)
+
+c     Find Z centered flux
+
+      flxkp = vzp*0.5*(arr(i,j,k) + arr(i,j,kp))
+
+c     Other advective methods
+
+c$$$      at_bdry = isBdry(k,igr,6) .or. isBdry(k+1,igr,5)
+      at_bdry = (isBdry(k  ,igr,6).and.bcond(6)/=PER)
+     .      .or.(isBdry(k+1,igr,5).and.bcond(5)/=PER)
+
+      if (method /= 2.and.(.not.(at_bdry))) then
+
+        !Find advected quantity at faces
+        qkp=in2face_scl_new(grid_params%zz(kg ),arr(i,j,k )
+     .                     ,grid_params%zz(kgp),arr(i,j,kp)
+     .                     ,2*grid_params%dzh(kg ),darr(i,j,k )
+     .                     ,2*grid_params%dzh(kgp),darr(i,j,kp)
+     .                     ,vzp,method)
+
+        !Setup fluxes (ZIP at boundaries by default for conservation)
+        flxkp=vzp*qkp
+
+      endif
+
+c     End program
+
+      end function scl_nc_advc_flx_z_new
+
+c     flx_nc_advec_mesh
+c     ###############################################################
+      function flx_nc_advec_mesh(igrid,v,arr,method,bcs,vol)
+     $         result(advec)
+      implicit none
+c     ---------------------------------------------------------------
+c     Calculates divergence of vector field (v.arr) at cell centers in
+c     general non-orthogonal geometry.
+c
+c     method: specifies the advective scheme (see int2face)
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: igrid,method,bcs(6)
+
+      real(8) :: arr(0:,0:,0:)
+     .          ,v  (0:,0:,0:,:)
+     $          ,advec(0:size(v,1)-1
+     $                ,0:size(v,2)-1
+     $                ,0:size(v,3)-1)
+
+      logical,optional :: vol
+
+c     Local variables
+
+      integer :: i,j,k,nx,ny,nz,ig,jg,kg,bcnd(6,3),ivar
+
+      real(8) :: dxx,dyy,dzz
+      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+      real(8),pointer,dimension(:,:,:,:) :: darr
+      logical :: vw
+
+c     Debug
+
+      real(8),allocatable,dimension(:,:,:) :: debug2
+      character(13) :: debugfile
+
+c     Begin program
+
+      nx = size(arr,1)-2
+      ny = size(arr,2)-2
+      nz = size(arr,3)-2
+
+      allocate(darr(0:nx+1,0:ny+1,0:nz+1,3))
+
+      if (PRESENT(vol)) then
+        vw = vol
+      else
+        vw = .false.
+      endif
+
+c     Compute difference arrays and communicate BCs
+
+      darr(1:nx,:,:,1) = arr(2:nx+1,:,:)-arr(0:nx-1,:,:)
+      darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
+      darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
+
+c$$$      bcnd(:,1) = bcs
+c$$$c$$$      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
+c$$$c$$$      bcnd(:,1) = (/bcond(1),bcond(2),DEF,DEF,DEF,DEF/)
+c$$$      !Change parity (darr is gradient)
+c$$$      where (bcnd(1:2,1) == NEU) bcnd(1:2,1) = DIR
+c$$$      where (bcnd(1:2,1) == DIR) bcnd(1:2,1) = NEU
+c$$$
+c$$$      bcnd(:,2) = bcs
+c$$$c$$$      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
+c$$$c$$$      bcnd(:,2) = (/DEF,DEF,bcond(3),bcond(4),DEF,DEF/)
+c$$$      !Change parity (darr is gradient)
+c$$$      where (bcnd(3:4,2) == DIR) bcnd(3:4,2) = NEU
+c$$$      where (bcnd(3:4,2) == NEU) bcnd(3:4,2) = DIR
+c$$$
+c$$$      bcnd(:,3) = bcs
+c$$$c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
+c$$$c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcond(5),bcond(6)/)
+c$$$      !Change parity (darr is gradient)
+c$$$      where (bcnd(5:6,3) == DIR) bcnd(5:6,3) = NEU
+c$$$      where (bcnd(5:6,3) == NEU) bcnd(5:6,3) = DIR
+c$$$
+c$$$      do ivar=1,3
+c$$$        call setMGBC(0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)
+c$$$     $              ,bcnd(:,ivar),icomp=(/1/),iorder=1)
+c$$$      enddo
+
+      !Setup BCs (do nothing for known BC values)
+      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
+      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
+      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
+
+      !Check for special boundaries
+      where (bcond == SP) bcnd(:,1) = SP
+      where (bcond == SP) bcnd(:,2) = SP
+      where (bcond == SP) bcnd(:,3) = SP
+cc      where (bcnd /= DEF .and. bcnd /= PER .and. bcnd /= SP) bcnd = EXT
+      where (bcnd /= PER .and. bcnd /= SP) bcnd = EXT
+
+      call setMGBC(0,3,nx,ny,nz,igrid,darr,bcnd,icomp=(/1/)
+     .            ,is_cnv=.false.,is_vec=.true.,iorder=1)
+      
+c diag *****
+c$$$      if (my_rank == 0) then
+c$$$        write (*,*) 'comp 1',darr(:,1,1,1)
+c$$$        write (*,*) 'comp 2',darr(:,1,1,1)
+c$$$        write (*,*) 'comp 3',darr(:,1,1,1)
+c$$$      endif
+c$$$
+c$$$      debugfile = 'debug_p'//trim(int2char(my_rank))//'.bin'
+c$$$      open(unit=110,file=debugfile,form='unformatted'
+c$$$     .    ,status='replace')
+c$$$
+c$$$      k   = 1
+c$$$
+c$$$      allocate(debug2(0:nx+1,0:ny+1,0:nz+1))
+c$$$
+c$$$      debug2 = arr
+c$$$      call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2,0d0
+c$$$     .     ,xmax,0d0,ymax,0,110)
+c$$$      debug2 = darr(:,:,:,1)
+c$$$      call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2,0d0
+c$$$     .     ,xmax,0d0,ymax,1,110)
+c$$$      debug2 = darr(:,:,:,2)
+c$$$      call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2,0d0
+c$$$     .     ,xmax,0d0,ymax,1,110)
+c$$$      debug2 = darr(:,:,:,3)
+c$$$      call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2,0d0
+c$$$     .     ,xmax,0d0,ymax,1,110)
+c$$$
+c$$$      deallocate(debug2)
+c$$$      close(110)
+c$$$
+c$$$cc      call pstop('flx_nc_advec_mesh','DIAG')
+c$$$cc      stop
+c$$$cc      pause
+c diag *****
+c     Compute advection
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            
+            !Grid info
+            call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+            dxx = grid_params%dxh(ig)
+            dyy = grid_params%dyh(jg)
+            dzz = grid_params%dzh(kg)
+
+            !Find fluxes
+            flxip = scl_nc_advc_flx_x_new(i  ,j,k,nx,ny,nz,igrid
+     $                                   ,v(i,j,k,1),arr,darr(:,:,:,1)
+     .                                   ,method)
+            flxim = scl_nc_advc_flx_x_new(i-1,j,k,nx,ny,nz,igrid
+     $                                   ,v(i,j,k,1),arr,darr(:,:,:,1)
+     .                                   ,method)
+
+            flxjp = scl_nc_advc_flx_y_new(i,j  ,k,nx,ny,nz,igrid
+     $                                   ,v(i,j,k,2),arr,darr(:,:,:,2)
+     .                                   ,method)
+            flxjm = scl_nc_advc_flx_y_new(i,j-1,k,nx,ny,nz,igrid
+     $                                   ,v(i,j,k,2),arr,darr(:,:,:,2)
+     .                                   ,method)
+
+            flxkp = scl_nc_advc_flx_z_new(i,j,k  ,nx,ny,nz,igrid
+     $                                   ,v(i,j,k,3),arr,darr(:,:,:,3)
+     .                                   ,method)
+            flxkm = scl_nc_advc_flx_z_new(i,j,k-1,nx,ny,nz,igrid
+     $                                   ,v(i,j,k,3),arr,darr(:,:,:,3)
+     .                                   ,method)
+
+            !Find advective term
+
+            advec(i,j,k) =( (flxip - flxim)/dxx
+     .                    + (flxjp - flxjm)/dyy
+     .                    + (flxkp - flxkm)/dzz )
+
+          enddo
+        enddo
+      enddo
+
+      advec = advec/gmetric%grid(igrid)%jac
+      if (vw) advec = advec*gmetric%grid(igrid)%dvol
+
+      deallocate(darr)
+
+c     End 
+
+      end function flx_nc_advec_mesh
+
 c     tensor_nc_advc
 c     #####################################################################
-      function tensor_nc_advc(i,j,k,nxx,nyy,nzz,igx,igy,igz,v0,v1,meth)
-     .         result(cnv)
+      function tensor_nc_advc(i,j,k,nxx,nyy,nzz,igx,igy,igz,v0,v1,meth
+     .                       ,transpose,v1_cov) result(cnv)
 
 c     ---------------------------------------------------------------------
 c     Calculates v0.nabla(v1), with both v0, v1 vector fields.
@@ -6231,12 +6789,28 @@ c     Call variables
       real(8),target :: v1(0:nxx+1,0:nyy+1,0:nzz+1,3)
      .                 ,v0(0:nxx+1,0:nyy+1,0:nzz+1,3)
 
+      logical, optional :: transpose,v1_cov
+      
 c     Local variables
 
-      integer    :: ieq,hex,hey,hez
-      real(8)    :: nabla_v(3,3),jac
+      integer :: ieq,hex,hey,hez
+      real(8) :: nabla_v(3,3),jac
+
+      logical :: transp,v1cov
 
 c     Begin program
+
+      if (PRESENT(transpose)) then
+        transp = transpose
+      else
+        transp = .false.
+      endif
+
+      if (PRESENT(v1_cov)) then
+        v1cov = v1_cov
+      else
+        v1cov = .false.
+      endif
 
       jac = gmetric%grid(igx)%jac(i,j,k)
 
@@ -6246,22 +6820,205 @@ c     Begin program
         hey = int(sign(1d0,-v0(i,j,k,2)))
         hez = int(sign(1d0,-v0(i,j,k,3)))
 
-        nabla_v = fnabla_v_upwd(i,j,k,nxx,nyy,nzz,igx,igy,igz
-     .                         ,v1(:,:,:,1)
-     .                         ,v1(:,:,:,2)
-     .                         ,v1(:,:,:,3),hex,hey,hez)
+        if (v1cov) then
+          nabla_v = fnabla_v_upwd_cov(i,j,k,nxx,nyy,nzz,igx,igy,igz
+     .                           ,v1(:,:,:,1)
+     .                           ,v1(:,:,:,2)
+     .                           ,v1(:,:,:,3),hex,hey,hez)
+        else
+          nabla_v = fnabla_v_upwd(i,j,k,nxx,nyy,nzz,igx,igy,igz
+     .                           ,v1(:,:,:,1)
+     .                           ,v1(:,:,:,2)
+     .                           ,v1(:,:,:,3),hex,hey,hez)
+        endif
       case(2) !Central differences
-        nabla_v = fnabla_v(i,j,k,nxx,nyy,nzz,igx,igy,igz
-     .                    ,v1(:,:,:,1)
-     .                    ,v1(:,:,:,2)
-     .                    ,v1(:,:,:,3),0)
+        if (v1cov) then
+          nabla_v = fnabla_v_cov(i,j,k,nxx,nyy,nzz,igx,igy,igz
+     .                          ,v1(:,:,:,1)
+     .                          ,v1(:,:,:,2)
+     .                          ,v1(:,:,:,3),0)
+        else
+          nabla_v = fnabla_v(i,j,k,nxx,nyy,nzz,igx,igy,igz
+     .                      ,v1(:,:,:,1)
+     .                      ,v1(:,:,:,2)
+     .                      ,v1(:,:,:,3),0)
+        endif
       case default
         call pstop('tensor_nc_advc','Advection option not implemented')
       end select
 
-      cnv = matmul(v0(i,j,k,:),nabla_v)/jac
+      if (transp) then
+        cnv = matmul(nabla_v,v0(i,j,k,:))/jac
+      else
+        cnv = matmul(v0(i,j,k,:),nabla_v)/jac
+      endif
 
       end function tensor_nc_advc
+
+c     tensor_nc_advc_mesh
+c     #####################################################################
+      function tensor_nc_advc_mesh(igr,v0,v1,bcs,meth,cov) result(vec)
+
+c     ---------------------------------------------------------------------
+c     Calculates v0.nabla(v1), with both v0, v1 vector fields, on the whole
+c     mesh. Result can be covariant (cov = .true.) or contravariant.
+c
+c     meth: specifies the advective scheme (only upwind=1 and central=2)
+c     ---------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igr,meth,bcs(6,3)
+      real(8) :: v1(0:,0:,0:,:)
+     .          ,v0(0:,0:,0:,:)
+      real(8) :: vec(0:size(v1,1)-1
+     .              ,0:size(v1,2)-1
+     .              ,0:size(v1,3)-1,size(v1,4))
+
+      logical :: cov
+      
+c     Local variables
+
+      integer :: i,j,k,nx,ny,nz
+      real(8) :: jac,tensor(3,3)
+
+c diag ***
+      integer :: ig,jg,kg
+      real(8) :: dxx,dyy,dzz
+c diag ***
+      
+c     Begin program
+
+      nx = size(v1,1)-2
+      ny = size(v1,2)-2
+      nz = size(v1,3)-2
+
+      !Perform advective step
+      vec(:,:,:,1) = flx_nc_advec_mesh(igr,v0,v1(:,:,:,1),meth,bcs(:,1))
+      vec(:,:,:,2) = flx_nc_advec_mesh(igr,v0,v1(:,:,:,2),meth,bcs(:,2))
+      vec(:,:,:,3) = flx_nc_advec_mesh(igr,v0,v1(:,:,:,3),meth,bcs(:,3))
+
+      !Add geometric source
+      if (cov) then
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              jac = gmetric%grid(igr)%jac(i,j,k)
+              tensor = nabla_v_src_cov(i,j,k,v1(i,j,k,:))
+              vec(i,j,k,:)=vec(i,j,k,:)+matmul(v0(i,j,k,:),tensor)/jac
+            enddo
+          enddo
+        enddo
+      else
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              jac = gmetric%grid(igr)%jac(i,j,k)
+c diag ***
+cc              vec(i,j,k,:)=tensor_nc_advc(i,j,k,nx,ny,nz,igr,igr,igr
+cc     .                                   ,v0,v1,meth)
+cc              cycle
+c diag ***
+cc              tensor = fnabla_v(i,j,k,nx,ny,nz,igr,igr,igr
+cc     .                        ,v1(:,:,:,1)
+cc     .                        ,v1(:,:,:,2)
+cc     .                        ,v1(:,:,:,3),0)
+cc              vec(i,j,k,:) = matmul(v0(i,j,k,:),tensor)/jac
+cc              cycle
+c diag ***
+cc              call getMGmap(i,j,k,igr,igr,igr,ig,jg,kg)
+cc
+cc              dxx = 2*grid_params%dxh(ig)
+cc              dyy = 2*grid_params%dyh(jg)
+cc              dzz = 2*grid_params%dzh(kg)
+cc
+cc              vec(i,j,k,:)=v0(i,j,k,1)*(v1(i+1,j,k,:)-v1(i-1,j,k,:))/dxx
+cc     .                    +v0(i,j,k,2)*(v1(i,j+1,k,:)-v1(i,j-1,k,:))/dyy
+cc     .                    +v0(i,j,k,3)*(v1(i,j,k+1,:)-v1(i,j,k-1,:))/dzz
+cc              vec(i,j,k,:)=vec(i,j,k,:)/jac
+ccc diag ***
+              tensor = nabla_v_src(i,j,k,v1(i,j,k,:))
+              vec(i,j,k,:)=vec(i,j,k,:)+matmul(v0(i,j,k,:),tensor)/jac
+            enddo
+          enddo
+        enddo
+      endif
+
+c     End program
+
+      contains
+
+c     nabla_v_src
+c     #############################################################
+      function nabla_v_src(i,j,k,cnv) result(tensor)
+
+c     -------------------------------------------------------------
+c     Finds geometric source of tensor nabla(v) at cell (i,j,k)
+c     -------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: i,j,k
+        real(8)    :: tensor(3,3),cnv(3)
+
+c     Local variables
+
+        integer    :: l,m
+        real(8)    :: dum(3)
+
+c     Begin program
+
+        dum = gmetric%grid(igr)%Gamma(i,j,k,1,1,:)
+     .       +gmetric%grid(igr)%Gamma(i,j,k,2,2,:)
+     .       +gmetric%grid(igr)%Gamma(i,j,k,3,3,:)
+
+        do l=1,3
+          do m=1,3
+            tensor(l,m) =
+     .           dot_product(cnv,gmetric%grid(igr)%Gamma(i,j,k,m,:,l))
+     .          -cnv(m)*dum(l)
+          enddo
+        enddo
+
+c     End program
+
+      end function nabla_v_src
+
+c     nabla_v_src_cov
+c     #############################################################
+      function nabla_v_src_cov(i,j,k,cov) result(tensor)
+
+c     -------------------------------------------------------------
+c     Finds geometric source of tensor nabla(v) at cell (i,j,k)
+c     -------------------------------------------------------------
+
+        implicit none
+
+        integer    :: i,j,k
+        real(8)    :: tensor(3,3),cov(3)
+
+        integer    :: l,m
+        real(8)    :: hessian(3,3,3)
+
+c     Begin program
+
+        hessian = gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
+
+        do l=1,3
+          do m=1,3
+            tensor(l,m) = -dot_product(cov,hessian(:,l,m))
+          enddo
+        enddo
+
+c     End program
+
+      end function nabla_v_src_cov
+
+      end function tensor_nc_advc_mesh
 
 c     tensor_advc
 c     #####################################################################
