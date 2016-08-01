@@ -106,13 +106,13 @@ cc          endif
         endif
 #endif
 
-c     Store previous record (for time derivatives in diagnostics)
-
-        call equateDerivedType(u_n,u_np)
-
 c     Output per time step
 
         call output(nplot)
+
+c     Store previous record (for time derivatives in diagnostics)
+
+        call equateDerivedType(u_n,u_np)
 
 c     Check for tmax
 
