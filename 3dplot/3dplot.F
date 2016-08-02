@@ -319,12 +319,6 @@ c Open graphics files
 
 #if defined(petsc)
       urecord = openRestartFileForRead()
-c$$$#if defined(adios)
-c$$$      call adios_init_noxml (adios_err)
-c$$$      ! allocate 100MB buffer for ADIOS
-c$$$      call adios_allocate_buffer (100,adios_err)
-c$$$
-c$$$      call openRecordFileAdiosForRead(adios_err)
 #else
       call openRecordFiles(urecord,recordfile
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
