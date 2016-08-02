@@ -403,7 +403,7 @@ c     Begin program
      .            -u_0   %array_var(ieq)%array )
           array = array*array
 
-          dpert = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+          dpert = integral(gv%gparams,1,array)
 
           dpert = sqrt(dpert)
 
@@ -413,7 +413,7 @@ c     Begin program
      .            -u_0%array_var(ieq)%array )
           array = array*array
 
-          dpert_n = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+          dpert_n = integral(gv%gparams,1,array)
 
           dpert_n = sqrt(dpert_n)
 
