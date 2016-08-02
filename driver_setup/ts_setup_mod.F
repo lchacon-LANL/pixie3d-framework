@@ -330,4 +330,72 @@ c     End program
 
       end function readTSInput
 
+c     TS_growth_rate
+c     #######################################################################
+      function TS_growth_rate(varray,d_pert) result(gammat)
+
+        use var_setup
+
+        implicit none
+
+        type(var_array),pointer :: varray
+
+        real(8) :: gammat
+
+        real(8),optional :: d_pert(neqd)
+
+c     Calculation of local growth rate for CN
+
+        integer :: ieq
+
+        real(8) :: dpert,dpert_n,dpert_nh,mag(neqd)
+
+        real(8) :: array(ilom:ihip,jlom:jhip,klom:khip)
+
+c     Begin program
+
+        do ieq=1,neqd
+
+          array = (varray%array_var(ieq)%array
+     .            -u_0   %array_var(ieq)%array )
+          array = array*array
+
+          dpert = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+
+          dpert = sqrt(dpert)
+
+          if (PRESENT(d_pert)) d_pert(ieq) = dpert
+
+          array = (u_n%array_var(ieq)%array
+     .            -u_0%array_var(ieq)%array )
+          array = array*array
+
+          dpert_n = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+
+          dpert_n = sqrt(dpert_n)
+
+c$$$          array = (varray%array_var(ieq)%array
+c$$$     .            +u_n   %array_var(ieq)%array
+c$$$     .         -2.*u_0   %array_var(ieq)%array )
+c$$$          array = array*array
+c$$$
+c$$$          dpert_nh = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+c$$$
+c$$$          dpert_nh = sqrt(dpert_nh)
+
+          if (dpert > 0d0 .and. dpert_n > 0d0 .and. time > tn) then
+            mag(ieq) = (log(dpert)-log(dpert_n))/(time-tn)
+c$$$          if (dpert /= dpert_n.and.dpert_nh /=0d0.and.time > tn) then
+c$$$            mag(ieq) = .5*(time-tn)*dpert_nh/(dpert-dpert_n)
+          else
+            mag(ieq) = 0d0
+          endif
+
+        enddo
+
+c$$$        gammat = 1d0/minval(abs(mag))
+        gammat = maxval(abs(mag))
+
+      end function TS_growth_rate
+
       end module ts_setup

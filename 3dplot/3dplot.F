@@ -76,6 +76,10 @@ c Time loop
 
       do
 
+c     Update counters
+
+        call TS_update_timecounters(time)
+
 c     Read next record
 
         call readTimeStep(urecord,itime,time,dt,u_np,ierr)
@@ -141,12 +145,13 @@ cc          endif
 
         endif
 
-        !Store previous record (for time derivatives in diagnostics)
-        call equateDerivedType(u_n,u_np)
-
 c     Output per time step
 
         call output(plot)
+
+c     Store previous record (for time derivatives in diagnostics)
+
+        call equateDerivedType(u_n,u_np)
 
 c     Check for tmax
 

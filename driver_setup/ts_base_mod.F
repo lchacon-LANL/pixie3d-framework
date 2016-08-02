@@ -219,7 +219,7 @@ c     Begin program
 
 c     Estimate local growth rate
 
-      if (sm_flag == 1) call calculate_gammat
+      if (sm_flag == 1) gammat = TS_growth_rate(u_np)
 
 c     Update counters
 
@@ -234,57 +234,6 @@ c     Find new time step
       time = time + dt
 
 c     End program
-
-      contains
-
-c     calculate_gammat
-c     #######################################################################
-      subroutine calculate_gammat
-
-c     Calculation of local growth rate for CN
-
-        integer :: ieq
-
-        real(8) :: dmag1,dmag2,dpert,mag(neqd)
-
-        real(8) :: array(ilom:ihip,jlom:jhip,klom:khip)
-
-c     Begin program
-
-        do ieq=1,neqd
-
-          array = (u_np%array_var(ieq)%array
-     .            -u_0 %array_var(ieq)%array )
-          array = array*array
-
-          dpert = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
-
-          dpert = sqrt(dpert)
-
-          array = (u_n%array_var(ieq)%array
-     .            -u_0%array_var(ieq)%array )
-          array = array*array
-
-          dmag1 = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
-
-          array = (u_np%array_var(ieq)%array
-     .            +u_n %array_var(ieq)%array
-     .         -2.*u_0 %array_var(ieq)%array )
-          array = array*array
-
-          dmag2 = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
-
-          if (dpert/=sqrt(dmag1).and.dmag2 /=0d0) then
-            mag(ieq) = .5*dt*sqrt(dmag2)/(dpert-sqrt(dmag1))
-          else
-            mag(ieq) = 1e30
-          endif
-
-        enddo
-
-        gammat = 1./minval(abs(mag))
-
-      end subroutine calculate_gammat
 
       end subroutine TS_correct_dt
 
