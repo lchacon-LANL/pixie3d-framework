@@ -61,6 +61,10 @@ c Time loop
 
       do
 
+c     Update counters
+
+        call TS_update_timecounters(time)
+
 c     Read next record
 
         call readTimeStep(urecord,itime,time,dt,gammat,u_np,ierr)

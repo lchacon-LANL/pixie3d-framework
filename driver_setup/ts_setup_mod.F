@@ -28,7 +28,7 @@ c ######################################################################
      .            ,nrstrt=-1           ! Restart cycle number (not active if negative)
 
         logical :: timecorr=.true.     ! Time adaptive algorithm (based on Newton convergence)
-     .            ,restart=.false.     ! Restarting flag
+     .            ,ts_restart=.false.  ! Restarting flag
      .            ,source=.true.       ! Impose source to provide equilibrium
      .            ,predictor=.false.   ! Whether to extrapolate in time to find first guess (not active)
      .            ,postprocess=.false. ! Whether to run solution postprocessing after time step
@@ -37,6 +37,9 @@ c ######################################################################
      .            ,perturb_rstrt=.false.! Whether to apply perturbation after restart
 
         logical, private :: early_restart !Whether restart has happened from intermediate time
+        logical :: ts_ramp_up_dt = .false.       !Whether to ramp up dt initially
+        real(8) :: ts_ramp_up_dt_fraction = 5d-1 !Fraction of initial timestep
+     .            ,ts_ramp_up_dt_recovery = 1.05 !Ramp up coefficient
 
         !TS working variables
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
@@ -58,7 +61,6 @@ c ######################################################################
      .            ,bdf2=.false.
      .            ,bdf1=.false.
      .            ,relax_init_grid=.false.
-
 
       contains
 
@@ -322,40 +324,14 @@ c     Local variables
 c     Namelists
 
       !Temporal discretization
-      namelist /ts/ dt,tmax,dstep,numtime,ndstep,source,restart,timecorr
-     .                ,cnfactor,sm_flag,sm_pass,predictor,postprocess
-     .                ,preprocess,eigen,eig_dt,perturb_rstrt
+      namelist /ts/ dt,tmax,dstep,numtime,ndstep,source,ts_restart
+     .             ,timecorr
+     .             ,cnfactor,sm_flag,sm_pass,predictor,postprocess
+     .             ,preprocess,eigen,eig_dt,perturb_rstrt
+     .             ,ts_ramp_up_dt,ts_ramp_up_dt_fraction
+     .             ,ts_ramp_up_dt_recovery
 
 c     Begin program
-
-c     Set defaults (set in module)
-
-cc      dt       = 5.            ! Time step (if zero, dt is calculated in code)
-cc      tmax     = -1d0          ! Target time, in Alfven times.
-cc      numtime  = -1            ! Number of time steps
-cc      ndstep   = 0             ! # time steps between plots (if zero,
-cc                               !        ndstep is calculated in code)
-cc      dstep    = 0.            ! Time interval between plots (if zero,
-cc                               !        dstep is calculated in code)
-cc
-cc      restart  = .false.       ! Restarting flag
-cc      perturb_rstrt = .false.! Whether to apply perturbation after restart
-cc
-cc      timecorr = .true.        ! Time adaptive algorithm (based on Newton convergence)
-cc      postprocess = .false.    ! Whether to run solution postprocessing after time step
-cc      preprocess = .false.     ! Whether to run solution preprocessing before time step
-cc      source   = .true.        ! Impose source to provide equilibrium
-cc      predictor= .false.       ! Whether to extrapolate in time to find first guess (not active)
-cc
-cc      eigen    = .false.       ! Whether to run framework in eigensolver mode
-cc      eig_dt   = 1d0           ! Time step for eigenvalue dynamical system
-cc
-cc      cnfactor = 0.5           ! Crank-Nicolson factor (implicit if <= 0.5)
-cc      sm_flag  = 0             ! Time smoothing flag:
-cc                               !   0 -> Theta scheme
-cc                               !   1 -> Rannacher time stepping
-cc                               !   2 -> BDF2
-cc      sm_pass  = 2             ! Number of initial smoother passes for Rannacher TS
 
 c     Read initialization parameters
 
@@ -396,5 +372,73 @@ c     Write initialization parameters to standard output
 c     End program
 
       end function readTSInput
+
+c     TS_growth_rate
+c     #######################################################################
+      function TS_growth_rate(varray,d_pert) result(gammat)
+
+        use var_setup
+
+        implicit none
+
+        type(var_array),pointer :: varray
+
+        real(8) :: gammat
+
+        real(8),optional :: d_pert(neqd)
+
+c     Calculation of local growth rate for CN
+
+        integer :: ieq
+
+        real(8) :: dpert,dpert_n,dpert_nh,mag(neqd)
+
+        real(8) :: array(ilom:ihip,jlom:jhip,klom:khip)
+
+c     Begin program
+
+        do ieq=1,neqd
+
+          array = (varray%array_var(ieq)%array
+     .            -u_0   %array_var(ieq)%array )
+          array = array*array
+
+          dpert = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+
+          dpert = sqrt(dpert)
+
+          if (PRESENT(d_pert)) d_pert(ieq) = dpert
+
+          array = (u_n%array_var(ieq)%array
+     .            -u_0%array_var(ieq)%array )
+          array = array*array
+
+          dpert_n = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+
+          dpert_n = sqrt(dpert_n)
+
+c$$$          array = (varray%array_var(ieq)%array
+c$$$     .            +u_n   %array_var(ieq)%array
+c$$$     .         -2.*u_0   %array_var(ieq)%array )
+c$$$          array = array*array
+c$$$
+c$$$          dpert_nh = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+c$$$
+c$$$          dpert_nh = sqrt(dpert_nh)
+
+          if (dpert > 0d0 .and. dpert_n > 0d0 .and. time > tn) then
+            mag(ieq) = (log(dpert)-log(dpert_n))/(time-tn)
+c$$$          if (dpert /= dpert_n.and.dpert_nh /=0d0.and.time > tn) then
+c$$$            mag(ieq) = .5*(time-tn)*dpert_nh/(dpert-dpert_n)
+          else
+            mag(ieq) = 0d0
+          endif
+
+        enddo
+
+c$$$        gammat = 1d0/minval(abs(mag))
+        gammat = maxval(abs(mag))
+
+      end function TS_growth_rate
 
       end module ts_setup

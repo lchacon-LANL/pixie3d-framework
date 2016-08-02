@@ -25,10 +25,6 @@ c ######################################################################
      .            ,quota=1d30  !Max CPU time (in seconds)
         real(8) :: rstep,dfreq,dtexp
 
-        logical :: ts_ramp_up_dt = .false.
-        real(8) :: ts_ramp_up_dt_fraction = 5d-1
-     .            ,ts_ramp_up_dt_recovery = 1.05
-
 #if !defined(samrai)
 
 cc        real(8),pointer,dimension(:,:) :: old_f
@@ -221,6 +217,10 @@ c     Local variables
 
 c     Begin program
 
+c     Estimate local growth rate
+
+      if (sm_flag == 1) gammat = TS_growth_rate(u_np)
+
 c     Update counters
 
       call TS_update_timecounters(time)
@@ -232,10 +232,6 @@ c     Find new time step
       call TS_find_new_dt(itm,ierr,dt)
 
       time = time + dt
-
-c     Turn off restart flag
-
-      restart = .false.
 
 c     End program
 
@@ -355,6 +351,8 @@ c     Begin program
       endif
 #endif
 
+      ts_restart = .false.
+
 c     End program
 
       contains
@@ -393,8 +391,10 @@ c     #######################################################################
           case(2)  !BDF time stepping
 
             if (ts_ramp_up_dt.or.timecorr) then
-              if  (itm == 2.or.restart) then
+              if  (itm == 2) then
                 dt = ts_ramp_up_dt_fraction*dtbase
+c$$$              elseif (itm == 3) then
+c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
               else
                 dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
               endif
@@ -442,14 +442,6 @@ c     #######################################################################
 
       if (sm_flag == 1) then      !Rannacher
 
-c$$$        if (restart) then
-c$$$          gammat = 0d0
-c$$$        else
-c$$$          gammat = calculate_gammat()
-c$$$        endif
-
-        if (.not.restart) gammat = calculate_gammat()
-
         if (itm == 1.and.timecorr) then
           cnfactor = .5
         elseif (    (itm <= sm_pass+1 .and.      timecorr )
@@ -465,19 +457,21 @@ c$$$        endif
         bdf2 = (itm > 1 .and. (.not.timecorr) )
      .    .or. (itm > 2 .and.       timecorr  .and. ierr == NOERR)
 
-        bdf2 = bdf2.and.(.not.restart)
-
-        cnfactor = 0d0
+        bdf2 = bdf2.and.(.not.ts_restart)
 
         if (bdf2) then
           !All these are affected by factor 1/dt (done in evaluateNLF)
           cnp = (2*dt+dtold)/(dt+dtold)
           cn  = -(dt+dtold)/dtold
           cnm = -cnp-cn    !Sum should be zero identically
+
+          cnfactor = 0d0
         else
           cnp = 1d0
           cn  =-1d0
           cnm = 0d0
+
+          if (ts_restart) cnfactor = 0.3d0
         endif
 
       else  !Theta scheme
@@ -492,54 +486,5 @@ c$$$        endif
 
       end subroutine TS_find_new_dt
 #endif
-
-c     calculate_gammat
-c     #######################################################################
-      function calculate_gammat() result(gammat)
-
-c     Calculation of local growth rate for CN
-
-        integer :: ieq
-
-        real(8) :: dmag1,dmag2,dpert,mag(neqd),gammat
-
-        real(8) :: array(ilom:ihip,jlom:jhip,klom:khip)
-
-c     Begin program
-
-        do ieq=1,neqd
-
-          array = (u_np%array_var(ieq)%array
-     .            -u_0 %array_var(ieq)%array )
-          array = array*array
-
-          dpert = integral(gv%gparams,1,array,average=.true.)
-
-          dpert = sqrt(dpert)
-
-          array = (u_n%array_var(ieq)%array
-     .            -u_0%array_var(ieq)%array )
-          array = array*array
-
-          dmag1 = integral(gv%gparams,1,array,average=.true.)
-
-          array = (u_np%array_var(ieq)%array
-     .            +u_n %array_var(ieq)%array
-     .         -2.*u_0 %array_var(ieq)%array )
-          array = array*array
-
-          dmag2 = integral(gv%gparams,1,array,average=.true.)
-
-          if (dpert/=sqrt(dmag1).and.dmag2 /=0d0) then
-            mag(ieq) = .5*dt*sqrt(dmag2)/(dpert-sqrt(dmag1))
-          else
-            mag(ieq) = 1e30
-          endif
-
-        enddo
-
-        gammat = 1./minval(abs(mag))
-
-      end function calculate_gammat
 
       end module ts_base
