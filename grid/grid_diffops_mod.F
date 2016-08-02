@@ -2314,7 +2314,7 @@ c     Local variables
      .               ,vxip,vxim,vxjp,vxjm,vxkp,vxkm
      .               ,vyip,vyim,vyjp,vyjm,vykp,vykm
      .               ,vzip,vzim,vzjp,vzjm,vzkp,vzkm
-        real(8)    :: tsrc(3,3),gsuper(3,3)
+        real(8)    :: tsrc(3,3),gsuper(3,3),nblv(3,3)
      .               ,jacip,jacjp,jacjm,jackp,jackm
      .               ,jacipkp,jacipkm,jacipjp,jacipjm,jac
 
@@ -2344,6 +2344,8 @@ c     Begin program
         jm = j-1
         kp = k+1
         km = k-1
+
+        nblv = nabla_v_src(i,j,k)
 
         !Exceptions
 
@@ -2377,8 +2379,7 @@ c     Begin program
           vzkp = 0.5*(az(i,j,kp)+az(ip,j,kp))
           vzkm = 0.5*(az(i,j,km)+az(ip,j,km))
 
-          tsrc = 0.5*(nabla_v_src(ip,j,k)
-     .               +nabla_v_src(i ,j,k))
+          tsrc = 0.5*(nabla_v_src(ip,j,k)+nblv)
 
         case (2)
           dhy = grid_params%dy(jg)
@@ -2408,8 +2409,7 @@ c     Begin program
           vzkp = 0.5*(az(i,j,kp)+az(i,jp,kp))
           vzkm = 0.5*(az(i,j,km)+az(i,jp,km))
 
-          tsrc = 0.5*(nabla_v_src(i,jp,k)
-     .               +nabla_v_src(i,j ,k))
+          tsrc = 0.5*(nabla_v_src(i,jp,k)+nblv)
 
         case (3)
           dhz = grid_params%dz(kg)
@@ -2439,12 +2439,11 @@ c     Begin program
           vzkp = az(i,j,kp)
           vzkm = az(i,j,k )
 
-          tsrc = 0.5*(nabla_v_src(i,j,kp)
-     .               +nabla_v_src(i,j,k ))
+          tsrc = 0.5*(nabla_v_src(i,j,kp)+nblv)
 
         case default
 
-          if(cntv) gsuper=gmetric%grid(igrid)%gsup(i,j,k ,:,:)
+          if (cntv) gsuper=gmetric%grid(igrid)%gsup(i,j,k ,:,:)
 
           vxip = ax(ip,j,k)
           vxim = ax(im,j,k)
@@ -2467,7 +2466,7 @@ c     Begin program
           vzkp = az(i,j,kp)
           vzkm = az(i,j,km)
 
-          tsrc = nabla_v_src(i,j,k)
+          tsrc = nblv
 
         end select
 
