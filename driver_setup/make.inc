@@ -12,7 +12,8 @@ SUBDIRS = $(COMMONDIR)/math\
           $(COMMONDIR)/grid\
           $(COMMONDIR)/var_setup\
 	  $(COMMONDIR)/newtonGMRES \
-          $(COMMONDIR)/eigen
+          $(COMMONDIR)/eigen \
+          $(COMMONDIR)/OMP
 
 # Module order
 
