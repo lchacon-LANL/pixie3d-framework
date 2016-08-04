@@ -8,7 +8,7 @@ c ######################################################################
 
 c     TS_chk_dump
 c     ###############################################################
-      function TS_chk_dump(etime) result(dump)
+      function TS_chk_dump(etime,reset_counters) result(dump)
 
 c     ---------------------------------------------------------------
 c     Check for end of time loop
@@ -20,33 +20,41 @@ c     Call variables
 
       logical :: dump
       real(8),optional,INTENT(OUT) :: etime
+      logical,optional :: reset_counters
 
 c     Local variables
 
       real(8) :: e_time
+      logical :: reset
 
 c     Begin program
 
+      if (PRESENT(reset_counters)) then
+        reset = reset_counters
+      else
+        reset = .false.
+      endif
+
 #if defined(petsc)
-        call PetscGetTime   (prof_time(3),prof_err)
-        e_time = prof_time(3)-prof_time(1)
+      call PetscGetTime   (prof_time(3),prof_err)
+      e_time = prof_time(3)-prof_time(1)
 cc        if (my_rank == 0) write (*,*) e_time, quota
 #else
-        e_time = 0d0
+      e_time = 0d0
 #endif
 
 #if defined(RFX)
-        dump=(nrst.eq.ndstep.or.tmrst.ge.         dstep.or.e_time>quota)
+      dump = (nrst.eq.ndstep.or.tmrst.ge.         dstep.or.e_time>quota)
 #else
-        dump=(nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep.or.e_time>quota)
+      dump = (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep.or.e_time>quota)
 #endif
 
-        if (dump) nrst = 0
+      if (reset.and.dump) nrst = 0
 
-        dump = dump.or.relax_init_grid
-        if (dump.and.itime-init_grid_offset > 0) tmrst=tmrst-dstep
+      dump = dump.or.relax_init_grid
+      if (reset.and.dump.and.itime>init_grid_offset) tmrst=tmrst-dstep
 
-        if (PRESENT(etime)) etime = e_time
+      if (PRESENT(etime)) etime = e_time
 
 c     End program
 
@@ -76,7 +84,7 @@ c     Local variables
 
 c     Begin program
 
-        if (TS_chk_dump(etime=e_time)) then
+        if (TS_chk_dump(etime=e_time,reset_counters=.true.)) then
 cc          if (.not.relax_init_grid) nrst  = 0
 cc          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
           call writeRecordFile(recordfile,itime,time,dt,varray)
