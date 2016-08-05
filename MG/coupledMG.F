@@ -3973,7 +3973,7 @@ c     Call variables
         INTERFACE
           subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
             use grid
-            type(grid_mg_def),pointer,optional :: g_def
+            type(grid_mg_def),pointer :: g_def
             integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
             real(8) :: x(ntot),y(ntot)
           end subroutine matvec
@@ -4487,7 +4487,7 @@ c Call variables
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
-          type(grid_mg_def),pointer,optional :: g_def
+          type(grid_mg_def),pointer :: g_def
           integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
           real(8) :: x(ntot),y(ntot)
         end subroutine matvec
@@ -4627,7 +4627,7 @@ c     Call variables
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
-          type(grid_mg_def),pointer,optional :: g_def
+          type(grid_mg_def),pointer :: g_def
           integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
           real(8) :: x(ntot),y(ntot)
         end subroutine matvec
@@ -4774,7 +4774,7 @@ c     Call variables
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
-          type(grid_mg_def),pointer,optional :: g_def
+          type(grid_mg_def),pointer :: g_def
           integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
           real(8) :: x(ntot),y(ntot)
         end subroutine matvec
@@ -5040,13 +5040,13 @@ c     Call variables
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
-          type(grid_mg_def),pointer,optional :: g_def
+          type(grid_mg_def),pointer :: g_def
           integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
           real(8) :: x(ntot),y(ntot)
         end subroutine matvec
       END INTERFACE
 
-      type(grid_mg_def),pointer,optional :: g_def
+      type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -5240,7 +5240,7 @@ c     Call variables
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
-          type(grid_mg_def),pointer,optional :: g_def
+          type(grid_mg_def),pointer :: g_def
           integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
           real(8) :: x(ntot),y(ntot)
         end subroutine matvec
@@ -5369,7 +5369,7 @@ c Call variables
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
-          type(grid_mg_def),pointer,optional :: g_def
+          type(grid_mg_def),pointer :: g_def
           integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
           real(8) :: x(ntot),y(ntot)
         end subroutine matvec
@@ -7434,7 +7434,7 @@ c Call variables
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
-          type(grid_mg_def),pointer,optional :: g_def
+          type(grid_mg_def),pointer :: g_def
           integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
           real(8) :: x(ntot),y(ntot)
         end subroutine matvec
@@ -7850,7 +7850,7 @@ c Call variables
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
-          type(grid_mg_def),pointer,optional :: g_def
+          type(grid_mg_def),pointer :: g_def
           integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
           real(8) :: x(ntot),y(ntot)
         end subroutine matvec
@@ -8578,7 +8578,7 @@ c$$$
 c$$$      INTERFACE
 c$$$        subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
 c$$$          use grid
-c$$$          type(grid_mg_def),pointer,optional :: g_def
+c$$$          type(grid_mg_def),pointer :: g_def
 c$$$          integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
 c$$$          real(8) :: x(ntot),y(ntot)
 c$$$        end subroutine matvec

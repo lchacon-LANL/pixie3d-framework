@@ -535,7 +535,7 @@ c     Call variables
         integer,optional,intent(IN) :: iorder
         integer,optional :: bcs(6)
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 

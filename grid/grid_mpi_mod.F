@@ -1520,7 +1520,7 @@ c     Call variables
         integer :: igl,jgl,kgl,igx,igy,igz
         logical :: inProc
 
-        type(grid_mg_def),optional  :: gl_def
+        type(grid_mg_def),pointer  :: gl_def
 
 c     Local variables
 
