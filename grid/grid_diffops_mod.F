@@ -3279,7 +3279,16 @@ c     Call variables
 
       logical :: alt_eom
 
-      external   flux
+      INTERFACE
+        subroutine flux(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+          logical    :: alt_eom
+        end subroutine flux
+      END INTERFACE
 
 c     Local variables
 
@@ -3318,7 +3327,34 @@ c     Call variables
 
       logical :: alt_eom
 
-      external   flxx,flxy,flxz
+      INTERFACE
+        subroutine flxx(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+          logical    :: alt_eom
+        end subroutine flxx
+
+        subroutine flxy(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+          logical    :: alt_eom
+        end subroutine flxy
+
+        subroutine flxz(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+          logical    :: alt_eom
+        end subroutine flxz
+      END INTERFACE
 
 c     Local variables
 
@@ -3387,9 +3423,36 @@ c     Call variables
 
       logical :: alt_eom
 
-      external   flxx,flxy,flxz
-
       logical,optional,intent(IN) :: vol
+
+      INTERFACE
+        subroutine flxx(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+          logical    :: alt_eom
+        end subroutine flxx
+
+        subroutine flxy(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+          logical    :: alt_eom
+        end subroutine flxy
+
+        subroutine flxz(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+          logical    :: alt_eom
+        end subroutine flxz
+      END INTERFACE
 
 c     Local variables
 
@@ -3478,7 +3541,15 @@ c     Call variables
 
       integer :: i,j,k,igrid,nx,ny,nz
 
-      external   flux
+      INTERFACE
+        subroutine flux(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+        end subroutine flux
+      END INTERFACE
 
 c     Local variables
 
@@ -3511,7 +3582,31 @@ c     Call variables
 
       integer :: i,j,k,igr,nx,ny,nz
 
-      external   flxx,flxy,flxz
+      INTERFACE
+        subroutine flxx(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+        end subroutine flxx
+
+        subroutine flxy(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+        end subroutine flxy
+
+        subroutine flxz(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+        end subroutine flxz
+      END INTERFACE
 
 c     Local variables
 
@@ -3569,9 +3664,33 @@ c     Call variables
 
       integer :: i,j,k,igx,igy,igz,nx,ny,nz
 
-      external   flxx,flxy,flxz
-
       logical,optional,intent(IN) :: vol
+
+      INTERFACE
+        subroutine flxx(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+        end subroutine flxx
+
+        subroutine flxy(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+        end subroutine flxy
+
+        subroutine flxz(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                 ,t11,t12,t13,flag)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
+          real(8)    :: t11,t12,t13
+        end subroutine flxz
+      END INTERFACE
 
 c     Local variables
 
