@@ -677,9 +677,9 @@ c ######################################################################
 
         logical :: is__cnv,is__vec,res_is_vec
 
-        INTERFACE ASSIGNMENT (=)
-          module procedure equateMGArray
-        END INTERFACE
+c$$$        INTERFACE ASSIGNMENT (=)
+c$$$          module procedure equateMGArray
+c$$$        END INTERFACE
 
         INTERFACE fillArray
           module procedure fillVecArray1,fillVecArray2,fillSclArray
@@ -883,25 +883,45 @@ c     #################################################################
 
 c     Call variables
 
-        type(mg_array),intent(IN)  :: mg1
-        type(mg_array),intent(OUT) :: mg2
+        type(mg_array),intent(IN),target  :: mg1
+        type(mg_array),target :: mg2
 
 c     Local variables
 
         integer :: igrid,neq
+        type(mg_array),pointer :: mg1_temp,mg2_temp
+
+        type(grid_mg_def),pointer :: gl_def => null()
 
 c     Begin program
 
-        neq = size(mg1%grid(1)%array,4)
-
-        call allocateMGArray(mg1%g_def,neq,mg2)
-
+        if (.not.associated(mg2%grid)) then
+           call pstop("equateMGarray"
+     $               ,"Target MG array not allocated")
+        endif
+        
+        !Main mesh
         mg2%g_def => mg1%g_def
-        mg2%mg_crse_array => mg1%mg_crse_array
-
-        do igrid=1,mg1%g_def%ngrid
+        do igrid=1,mg2%g_def%ngrid
           mg2%grid(igrid)%array = mg1%grid(igrid)%array
         enddo
+
+        !Sub-meshes
+        gl_def => mg1%g_def%g_crse_def
+        mg1_temp => mg1
+        mg2_temp => mg2
+
+        do while (associated(gl_def)) 
+           mg2_temp%mg_crse_array%g_def => gl_def
+           do igrid=1,mg1_temp%mg_crse_array%g_def%ngrid
+              mg2_temp%mg_crse_array%grid(igrid)%array
+     $              = mg1_temp%mg_crse_array%grid(igrid)%array
+           enddo
+
+           gl_def => gl_def%g_crse_def
+           mg1_temp => mg1_temp%mg_crse_array
+           mg2_temp => mg2_temp%mg_crse_array
+        end do
 
 c     End program
 
@@ -1123,7 +1143,7 @@ c     Call variables
       integer,optional :: order_bc
       logical,optional,intent(IN) :: iscnv,isvec,result_is_vec,is_stgvec
       type(mg_array),optional,intent(IN)  :: equilb
-      type(mg_array),optional,intent(OUT) :: mgvcov
+      type(mg_array),optional :: mgvcov
 
 c     Local variables
 
@@ -1613,7 +1633,7 @@ c     Call variables
 
       integer,optional :: order_bc
       type(mg_array),optional,intent(IN)  :: equilb
-      type(mg_array),optional,intent(OUT) :: mgvcov
+      type(mg_array),optional :: mgvcov
 
 c     Local variables
 
