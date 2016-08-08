@@ -41,6 +41,14 @@ c ---------------------------------------------------------------------
           module procedure XformToCurv_ijk,XformToCurv_mesh
         end INTERFACE
 
+        INTERFACE XformToCnv
+          module procedure XformToCnv_ijk!,XformToCnv_mesh
+        end INTERFACE
+
+        INTERFACE XformToCov
+          module procedure XformToCov_ijk!,XformToCov_mesh
+        end INTERFACE
+
         INTERFACE XformVector
           module procedure XformVector_mesh!,XformVector_mesh2
         end INTERFACE
@@ -1520,6 +1528,37 @@ c     End program
 
       end subroutine XformVector_BC
 
+c     XformToCnv_ijk
+c     #################################################################
+      function XformToCnv_ijk(g_def,i,j,k,igrid,cov) result(cnv)
+
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
+c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: i,j,k,igrid
+        real(8)    :: cov(3),cnv(3)
+
+c     Local variables
+
+        type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+        gmetric => g_def%gmetric
+
+        cnv = matmul(cov,gmetric%grid(igrid)%gsup(i,j,k,:,:))
+
+      end function XformToCnv_ijk
+
 c     XformToCnv_stg_ijk
 c     #################################################################
       function XformToCnv_stg_ijk(g_def,i,j,k,igrid,cov) result(cnv)
@@ -1590,6 +1629,37 @@ c     Begin program
         cnv(3) = gmetric%grid(igrid)%gsup(i,j,k,3,3)*cov(i,j,k,3)
 
       end function XformToCnv_stg_ijk
+
+c     XformToCov_ijk
+c     #################################################################
+      function XformToCov_ijk(g_def,i,j,k,igrid,cnv) result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
+c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: i,j,k,igrid
+        real(8)    :: cov(3),cnv(3)
+
+c     Local variables
+
+        type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+        gmetric => g_def%gmetric
+
+        cov = matmul(cnv,gmetric%grid(igrid)%gsub(i,j,k,:,:))
+
+      end function XformToCov_ijk
 
 c     XformToCov_stg_ijk
 c     #################################################################
