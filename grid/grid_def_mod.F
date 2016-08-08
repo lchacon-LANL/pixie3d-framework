@@ -250,6 +250,10 @@ c     Begin program
           grid_st%klog  = 1
           grid_st%khig  = nglz
 
+          grid_st%mx = 1
+          grid_st%my = 1
+          grid_st%mz = 1
+
           grid_st%np    = 1
           grid_st%rank  = 0
 #endif
