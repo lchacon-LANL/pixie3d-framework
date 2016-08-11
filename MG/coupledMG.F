@@ -941,6 +941,7 @@ c     Call variables
 
 c     Local variables
 
+        integer :: ngrid_dum
         type(mg_array),pointer :: mg_temp
 
         logical :: failed
@@ -952,9 +953,10 @@ c     Select MG array from hierarchy
         failed = .false.
 
         mg_temp => mg
-        do while (nx /= mg_temp%g_def%nxv(igrid)
-     $       .or. ny /= mg_temp%g_def%nyv(igrid)
-     $       .or. nz /= mg_temp%g_def%nzv(igrid))
+        do while (igrid > mg_temp%g_def%ngrid
+     $       .or.nx /=mg_temp%g_def%nxv(min(igrid,mg_temp%g_def%ngrid))
+     $       .or.ny /=mg_temp%g_def%nyv(min(igrid,mg_temp%g_def%ngrid))
+     $       .or.nz /=mg_temp%g_def%nzv(min(igrid,mg_temp%g_def%ngrid)))
           mg_temp => mg_temp%mg_crse_array
           failed = .not.associated(mg_temp)
           if (failed) exit
@@ -1136,15 +1138,16 @@ c     Call variables
 
       integer,optional :: order_bc
       logical,optional,intent(IN) :: iscnv,isvec,result_is_vec,is_stgvec
-      type(mg_array),optional,intent(IN)  :: equilb
-      type(mg_array),optional :: mgvcov
+      type(mg_array),optional,target,intent(IN) :: equilb
+      type(mg_array),optional,target :: mgvcov
 
 c     Local variables
 
       integer :: igf,nxf,nyf,nzf,igc,nxc,nyc,nzc
       logical :: fpointers
 
-      type(mg_array),pointer :: mg_temp,mg_old
+      type(mg_array),pointer :: mg_temp,mg_old,mgvcov_temp,mgvcov_old
+     $                         ,equilb_temp,equilb_old
 
 c     Begin program
 
@@ -1210,8 +1213,19 @@ c     Restrict PARALLEL array
 c     Take care of COARSER meshes
 
       igf = mgarray%g_def%ngrid
+
       mg_old  => mgarray
       mg_temp => mgarray%mg_crse_array
+
+      if (PRESENT(mgvcov)) then
+         mgvcov_old  => mgvcov
+         mgvcov_temp => mgvcov%mg_crse_array
+      endif
+
+      if (PRESENT(equilb)) then
+         equilb_old  => equilb
+         equilb_temp => equilb%mg_crse_array
+      endif
 
       do while (associated(mg_temp))
         !Xfer to next mesh
@@ -1233,21 +1247,57 @@ c     Take care of COARSER meshes
           nyc = mg_temp%g_def%nyv(igc)
           nzc = mg_temp%g_def%nzv(igc)
 
-          call restrictArray_w_BCs(mg_temp%g_def,icmp,neq
-     .      ,igf,nxf,nyf,nzf,mg_temp%grid(igf)%array
-     .      ,igc,nxc,nyc,nzc,mg_temp%grid(igc)%array
-     .      ,order,.false.,bcnd
-     .      ,order_bc=order_bc
-     .      ,equilb=equilb
-     .      ,mgvcov=mgvcov)
+          if (PRESENT(mgvcov).and.PRESENT(equilb)) then
+             call restrictArray_w_BCs(mg_temp%g_def,icmp,neq
+     .         ,igf,nxf,nyf,nzf,mg_temp%grid(igf)%array
+     .         ,igc,nxc,nyc,nzc,mg_temp%grid(igc)%array
+     .         ,order,.false.,bcnd
+     .         ,order_bc=order_bc
+     .         ,equilb=equilb_temp
+     .         ,mgvcov=mgvcov_temp)
+          elseif (PRESENT(mgvcov)) then
+             call restrictArray_w_BCs(mg_temp%g_def,icmp,neq
+     .         ,igf,nxf,nyf,nzf,mg_temp%grid(igf)%array
+     .         ,igc,nxc,nyc,nzc,mg_temp%grid(igc)%array
+     .         ,order,.false.,bcnd
+     .         ,order_bc=order_bc
+     .         ,mgvcov=mgvcov_temp)
+          elseif (PRESENT(equilb)) then
+             call restrictArray_w_BCs(mg_temp%g_def,icmp,neq
+     .         ,igf,nxf,nyf,nzf,mg_temp%grid(igf)%array
+     .         ,igc,nxc,nyc,nzc,mg_temp%grid(igc)%array
+     .         ,order,.false.,bcnd
+     .         ,order_bc=order_bc
+     .         ,equilb=equilb_temp)
+          else
+             call restrictArray_w_BCs(mg_temp%g_def,icmp,neq
+     .         ,igf,nxf,nyf,nzf,mg_temp%grid(igf)%array
+     .         ,igc,nxc,nyc,nzc,mg_temp%grid(igc)%array
+     .         ,order,.false.,bcnd
+     .         ,order_bc=order_bc)
+          endif
         enddo
 
         igf = mg_temp%g_def%ngrid
+
         mg_old  => mg_temp
         mg_temp => mg_old%mg_crse_array
+
+        if(PRESENT(mgvcov)) then
+           mgvcov_old  => mgvcov_temp
+           mgvcov_temp => mgvcov_old%mg_crse_array
+        endif
+
+        if(PRESENT(equilb)) then
+           equilb_old  => equilb_temp
+           equilb_temp => equilb_old%mg_crse_array
+        endif
+
       enddo
 
-      nullify(mg_old,mg_temp)
+      nullify(mg_old,mg_temp
+     $       ,mgvcov_old,mgvcov_temp
+     $       ,equilb_old,equilb_temp)
 
 c     End program
 
