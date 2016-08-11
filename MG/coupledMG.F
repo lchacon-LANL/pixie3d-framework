@@ -929,41 +929,35 @@ c     End program
 
 c     point_to_MG_array
 c     #################################################################
-      subroutine point_to_MG_array(ntot,igrid,ptr,mg)
+      subroutine point_to_MG_array(nx,ny,nz,igrid,ptr,mg)
 
         implicit none
 
 c     Call variables
 
-        integer :: igrid,ntot
+        integer :: igrid,nx,ny,nz
         real(8),dimension(:,:,:,:),pointer :: ptr
         type(mg_array),target,intent(IN) :: mg
 
 c     Local variables
 
-        integer :: mesh_size
         type(mg_array),pointer :: mg_temp
 
         logical :: failed
 
 c     Begin program
 
-        mesh_size = (mg%g_def%nxv(igrid))
-     .             *(mg%g_def%nyv(igrid))
-     .             *(mg%g_def%nzv(igrid))
-
 c     Select MG array from hierarchy
 
         failed = .false.
 
         mg_temp => mg
-        do while (ntot /= mesh_size)
+        do while (nx /= mg_temp%g_def%nxv(igrid)
+     $       .or. ny /= mg_temp%g_def%nyv(igrid)
+     $       .or. nz /= mg_temp%g_def%nzv(igrid))
           mg_temp => mg_temp%mg_crse_array
           failed = .not.associated(mg_temp)
           if (failed) exit
-          mesh_size = (mg_temp%g_def%nxv(igrid))
-     .               *(mg_temp%g_def%nyv(igrid))
-     .               *(mg_temp%g_def%nzv(igrid))
         enddo
 
         if (failed) then
