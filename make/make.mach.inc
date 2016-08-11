@@ -908,7 +908,7 @@ endif
 # Adam on mustang #
 ###################
 
-ifeq ($(HOST),mu-fe1.lanl.gov)
+ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
 
   FC=gfortran
 
