@@ -2560,12 +2560,12 @@ c     Perform average along azimuthal direction for SP configurations
         l_sum = sp_sum
         call MPI_Allreduce(l_sum,sp_sum,neq*(nzc+2)
      .                    ,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+     .                    ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
 
         l_sum = dv_sum
         call MPI_Allreduce(l_sum,dv_sum,neq*(nzc+2)
      .                    ,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_SP,mpierr)
+     .                    ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
 
         deallocate(l_sum)
 #endif

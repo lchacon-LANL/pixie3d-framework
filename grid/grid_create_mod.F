@@ -76,15 +76,15 @@ c     Legacy assignments (backward compatibility)
 #if defined(petsc)
         call initMPI(mpi_comm,np,my_rank)
 
-        MPI_COMM_SP  = gdef%MPI_COMM_SP 
-        MPI_COMM_POL = gdef%MPI_COMM_POL
-        MPI_COMM_RAD = gdef%MPI_COMM_RAD
-        MPI_COMM_X   = gdef%MPI_COMM_X  
-        MPI_COMM_Y   = gdef%MPI_COMM_Y  
-        MPI_COMM_Z   = gdef%MPI_COMM_Z  
-        MPI_COMM_XY  = gdef%MPI_COMM_XY 
-        MPI_COMM_YZ  = gdef%MPI_COMM_YZ 
-        MPI_COMM_PER = gdef%MPI_COMM_PER
+c$$$        MPI_COMM_SP  = gdef%MPI_COMM_SP 
+c$$$        MPI_COMM_POL = gdef%MPI_COMM_POL
+c$$$        MPI_COMM_RAD = gdef%MPI_COMM_RAD
+c$$$        MPI_COMM_X   = gdef%MPI_COMM_X  
+c$$$        MPI_COMM_Y   = gdef%MPI_COMM_Y  
+c$$$        MPI_COMM_Z   = gdef%MPI_COMM_Z  
+c$$$        MPI_COMM_XY  = gdef%MPI_COMM_XY 
+c$$$        MPI_COMM_YZ  = gdef%MPI_COMM_YZ 
+c$$$        MPI_COMM_PER = gdef%MPI_COMM_PER
 #endif
 
       end subroutine createGrid
@@ -313,7 +313,7 @@ c$$$     .     ' create_coarse_gdef Size =',nxg,nyg,nzg,igr
       !Create MPI communicators
 
 #if defined(petsc)
-cc      call create_MPI_comms(g_crse_def)
+      call create_MPI_comms(g_crse_def)
 #endif
 
       !Gather map and define grid metrics

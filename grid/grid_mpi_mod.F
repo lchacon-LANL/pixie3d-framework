@@ -45,15 +45,15 @@ c ######################################################################
      .               ,rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
 
-        integer    :: MPI_COMM_SP    =MPI_COMM_NULL
-     .               ,MPI_COMM_POL   =MPI_COMM_NULL
-     .               ,MPI_COMM_RAD   =MPI_COMM_NULL
-     .               ,MPI_COMM_X     =MPI_COMM_NULL
-     .               ,MPI_COMM_Y     =MPI_COMM_NULL
-     .               ,MPI_COMM_Z     =MPI_COMM_NULL
-     .               ,MPI_COMM_XY    =MPI_COMM_NULL
-     .               ,MPI_COMM_YZ    =MPI_COMM_NULL
-     .               ,MPI_COMM_PER(3)=MPI_COMM_NULL
+c$$$        integer    :: MPI_COMM_SP    =MPI_COMM_NULL
+c$$$     .               ,MPI_COMM_POL   =MPI_COMM_NULL
+c$$$     .               ,MPI_COMM_RAD   =MPI_COMM_NULL
+c$$$     .               ,MPI_COMM_X     =MPI_COMM_NULL
+c$$$     .               ,MPI_COMM_Y     =MPI_COMM_NULL
+c$$$     .               ,MPI_COMM_Z     =MPI_COMM_NULL
+c$$$     .               ,MPI_COMM_XY    =MPI_COMM_NULL
+c$$$     .               ,MPI_COMM_YZ    =MPI_COMM_NULL
+c$$$     .               ,MPI_COMM_PER(3)=MPI_COMM_NULL
 cc        integer   ,allocatable,dimension(:) :: MPI_COMM_NBRS
 
         character(80) :: messg
