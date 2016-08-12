@@ -417,9 +417,7 @@ c     Deallocate coarser levels
 
 c     Deallocate gmetric
 
-        if (associated(grid_st%gmetric)) then
-          call deallocateGridMetric(grid_st%gmetric)
-        endif
+        call deallocateGridMetric(grid_st%gmetric)
 
 c     Deallocate PETSC DA context
 
@@ -436,35 +434,35 @@ c     Deallocate PETSC DA context
 
 c     Deallocate MG storage variables
 
-        grid_st%ngrdx = 0
-        grid_st%ngrdy = 0
-        grid_st%ngrdz = 0
-        grid_st%ngrid = 0
-
-        grid_st%nglx = 0
-        grid_st%ngly = 0
-        grid_st%nglz = 0
-
-        grid_st%ilog = 0
-        grid_st%ihig = 0
-        grid_st%jlog = 0
-        grid_st%jhig = 0
-        grid_st%klog = 0
-        grid_st%khig = 0
-
-        grid_st%gxmin = UNDEF_DP
-        grid_st%gxmax = UNDEF_DP
-        grid_st%gymin = UNDEF_DP
-        grid_st%gymax = UNDEF_DP
-        grid_st%gzmin = UNDEF_DP
-        grid_st%gzmax = UNDEF_DP
-
-        grid_st%lxmin = UNDEF_DP
-        grid_st%lxmax = UNDEF_DP
-        grid_st%lymin = UNDEF_DP
-        grid_st%lymax = UNDEF_DP
-        grid_st%lzmin = UNDEF_DP
-        grid_st%lzmax = UNDEF_DP
+c$$$        grid_st%ngrdx = 0
+c$$$        grid_st%ngrdy = 0
+c$$$        grid_st%ngrdz = 0
+c$$$        grid_st%ngrid = 0
+c$$$
+c$$$        grid_st%nglx = 0
+c$$$        grid_st%ngly = 0
+c$$$        grid_st%nglz = 0
+c$$$
+c$$$        grid_st%ilog = 0
+c$$$        grid_st%ihig = 0
+c$$$        grid_st%jlog = 0
+c$$$        grid_st%jhig = 0
+c$$$        grid_st%klog = 0
+c$$$        grid_st%khig = 0
+c$$$
+c$$$        grid_st%gxmin = UNDEF_DP
+c$$$        grid_st%gxmax = UNDEF_DP
+c$$$        grid_st%gymin = UNDEF_DP
+c$$$        grid_st%gymax = UNDEF_DP
+c$$$        grid_st%gzmin = UNDEF_DP
+c$$$        grid_st%gzmax = UNDEF_DP
+c$$$
+c$$$        grid_st%lxmin = UNDEF_DP
+c$$$        grid_st%lxmax = UNDEF_DP
+c$$$        grid_st%lymin = UNDEF_DP
+c$$$        grid_st%lymax = UNDEF_DP
+c$$$        grid_st%lzmin = UNDEF_DP
+c$$$        grid_st%lzmax = UNDEF_DP
 
         if (associated(grid_st%xx)) then
           deallocate(grid_st%xg)

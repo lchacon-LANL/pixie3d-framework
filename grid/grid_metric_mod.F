@@ -6,8 +6,6 @@ c #####################################################################
 c ---------------------------------------------------------------------
 c     This module allocates and fills the grid metric structure gmetric.
 c     It contains the following routines: 
-c        * allocateGridMetric
-c        * deallocateGridMetric
 c        * findGridMetrics
 c           -> gammaZeroForce
 c        * coarsenGridMetrics
