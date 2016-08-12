@@ -1319,6 +1319,7 @@ c     End program
 
       end subroutine sstop
 
+#if defined(petsc)
 c     psum
 c     ###################################################################
       function psum(vec1,mpi_comm)
@@ -1359,6 +1360,7 @@ c     Begin program
       endif
 
       end function psum
+#endif
 
 c     dot
 c     ###################################################################

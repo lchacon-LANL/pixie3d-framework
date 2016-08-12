@@ -324,7 +324,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: nxl,nyl,nzl,igr,ierr
+        integer :: nxl,nyl,nzl,ierr
         real(8),pointer,dimension(:,:,:,:) :: xc
         type(grid_mg_def),pointer :: gc_def => null()
      .                              ,gf_def => null()
@@ -347,8 +347,6 @@ c     Begin program
 
 c     Cycle through grid hierarchies
 
-        igr = g_def%ngrid       !Last grid level of previous hierarchy
-
         gf_def => g_def
         gc_def => g_def%g_crse_def
 
@@ -359,8 +357,8 @@ c     Cycle through grid hierarchies
           nzl = gc_def%nzv(1)
           allocate(xc(0:nxl+1,0:nyl+1,0:nzl+1,3))
 
-          !Gather over sub-procs
-          call find_global(gf_def%gmetric%grid(igr)%car,xc
+          !Gather coarsest mesh over sub-procs
+          call find_global(gf_def%gmetric%grid(gf_def%ngrid)%car,xc
 #if defined(petsc) || defined(samrai)
      .                    ,map_bc=.true.,mpi_comm=gc_def%mpi_comm_crse
 #endif
@@ -371,8 +369,6 @@ c     Cycle through grid hierarchies
           deallocate(xc)
 
           if (ierr /= 0) exit !Check for negative Jac, and if so exit
-
-          igr = gc_def%ngrid     !Last grid level of this hierarchy
 
           gf_def => gc_def
           gc_def => gf_def%g_crse_def
