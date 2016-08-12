@@ -388,7 +388,7 @@ cc        nnmg = (2+ngrdt-ngrd)*nn
 
 c     deallocateGridStructure
 c     #################################################################
-      subroutine deallocateGridStructure(grid_st)
+      recursive subroutine deallocateGridStructure(grid_st)
 c     -----------------------------------------------------------------
 c     Allocates grid structure
 c     -----------------------------------------------------------------
@@ -408,18 +408,17 @@ c     Local variables
 #endif
 
 c     Begin program
+        
+        if (.not.associated(grid_st)) return
 
-        if (.not.associated(grid_st)) then
-          nullify(grid_st)
-          return
-        endif
+c     Deallocate coarser levels
+
+        call deallocateGridStructure(grid_st%g_crse_def)
 
 c     Deallocate gmetric
 
         if (associated(grid_st%gmetric)) then
           call deallocateGridMetric(grid_st%gmetric)
-        else
-          nullify(grid_st%gmetric)
         endif
 
 c     Deallocate PETSC DA context
@@ -432,14 +431,8 @@ c     Deallocate PETSC DA context
           enddo
 
           deallocate(grid_st%dactx)
-        else
-          nullify(grid_st%dactx)
         endif
 #endif
-
-c     Nullify coarse grid pointer
-
-        nullify(grid_st%g_crse_def)
 
 c     Deallocate MG storage variables
 
