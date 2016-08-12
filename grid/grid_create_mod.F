@@ -256,7 +256,7 @@ c     ######################################################################
       implicit none
 
 c     ----------------------------------------------------------------------
-c     Initialize SERIAL grid structure over COARSE mesh
+c     Initialize grid structure over COARSE mesh
 c     ----------------------------------------------------------------------
      
 c     Call variables

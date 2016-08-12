@@ -368,7 +368,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,ig,jg,kg,jj,ilog,jlog,nyg,jglobal
+      integer :: i,j,k,ig,jg,kg,jj,jlog,nyg,jglobal
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
@@ -377,43 +377,48 @@ c     Local variables
 
 c     Begin program
 
-      ilog = gl_def%ilo(igxbc)
-      jlog = gl_def%jlo(igybc)
+c     Check that we are at domain adjacent to singular point
 
-      if (gl_def%my < 1) call pstop('scalarSingularBC','npy < 1')
+      i = 1
 
-      nyg = nybc*gl_def%my
+      if (.not.isSP2(gl_def,i,igxbc)) return
 
-c     Check that we are domain adjacent to singular point
+c     Check that domain size is a power of 2
 
-      if (ilog /= 1) then
-        return
-      else
-        i = ilog
-      endif
-
-c     Parallel Allgather in SP communicator
-
-#if defined(petsc)
-      allocate(global_x(nyg*(nzbc+2)),garray(nyg,0:nzbc+1))
-      call MPI_Allgather(array(i,1:nybc,0:nzbc+1)
-     .                           ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
-     .                  ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
-     .                  ,gl_def%MPI_COMM_SP,mpierr)
-      do k=1,gl_def%my
-        garray(1+nybc*(k-1):nybc*k,:)
-     .     = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
-     .              , (/ nybc,nzbc+2 /))
-      enddo
-      deallocate(global_x)
-#endif
-
-c     Element exchange in poloidal direction
+      nyg = gl_def%nygl(igybc)
 
       if (mod(nyg,2) /= 0 .and. nyg /= 1) then
         call pstop('scalarSingularBC'
      .            ,'Poloidal dimension not a multiple of 2')
       endif
+
+c     Parallel Allgather in SP communicator
+
+#if defined(petsc)
+      allocate(garray(nyg,0:nzbc+1))
+
+      if (gl_def%my < 1) then
+        call pstop('vectorSingularBC','npy < 1')
+      elseif (gl_def%my == 1) then
+        garray = array(i,1:nyg,:)
+      else
+        allocate(global_x(nyg*(nzbc+2)))
+        call MPI_Allgather(array(i,1:nybc,0:nzbc+1)
+     .                             ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
+     .                    ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
+     .                    ,gl_def%MPI_COMM_SP,mpierr)
+        do k=1,gl_def%my
+          garray(1+nybc*(k-1):nybc*k,:)
+     .       = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
+     .                , (/ nybc,nzbc+2 /))
+        enddo
+        deallocate(global_x)
+      endif
+#endif
+
+c     Element exchange in poloidal direction
+
+      jlog = gl_def%jlo(igybc)
 
       do k=0,nzbc+1
         do j=0,nybc+1
@@ -456,55 +461,57 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,jj,ilog,jlog,nyg,jglobal
+      integer :: i,j,k,jj,jlog,nyg,jglobal
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
       real(8),allocatable,dimension(:,:) :: garray
 #endif
 
-c     External
-
 c     Begin program
 
-      ilog = gl_def%ilo(igxbc)
-      jlog = gl_def%jlo(igybc)
+c     Check that we are at domain adjacent to singular point
 
-      if (gl_def%my < 1) call pstop('vectorSingularBC','npy < 1')
+      i = 1
+
+      if (.not.isSP2(gl_def,i,igxbc)) return
+
+c     Check that domain size is a power of 2
 
       nyg = gl_def%nygl(igybc)
-
-c     Check that we are domain adjacent to singular point
-
-      if (ilog /= 1) then
-        return
-      else
-        i = ilog
-      endif
-
-c     Parallel Allgather in SP communicator
-
-#if defined(petsc)
-      allocate(global_x(nyg*(nzbc+2)),garray(nyg,0:nzbc+1))
-      call MPI_Allgather(vec(i,1:nybc,0:nzbc+1)
-     .                           ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
-     .                  ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
-     .                  ,gl_def%MPI_COMM_SP,mpierr)
-      do k=1,gl_def%my
-        garray(1+nybc*(k-1):nybc*k,:)
-     .     = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
-     .              , (/ nybc,nzbc+2 /))
-      enddo
-      deallocate(global_x)
-#endif
-
-c     Element exchange in poloidal direction
 
       if (mod(nyg,2) /= 0 .and. nyg /= 1) then
         call pstop('vectorSingularBC'
      .            ,'Poloidal dimension not a multiple of 2')
       endif
 
+c     Parallel Allgather in SP communicator
+
+#if defined(petsc)
+      allocate(garray(nyg,0:nzbc+1))
+
+      if (gl_def%my < 1) then
+        call pstop('vectorSingularBC','npy < 1')
+      elseif (gl_def%my == 1) then
+        garray = vec(i,1:nyg,:)
+      else
+        allocate(global_x(nyg*(nzbc+2)))
+        call MPI_Allgather(vec(i,1:nybc,0:nzbc+1)
+     .                             ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
+     .                    ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
+     .                    ,gl_def%MPI_COMM_SP,mpierr)
+        do k=1,gl_def%my
+          garray(1+nybc*(k-1):nybc*k,:)
+     .       = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
+     .                , (/ nybc,nzbc+2 /))
+        enddo
+        deallocate(global_x)
+      endif
+#endif
+
+c     Element exchange in poloidal direction
+
+      jlog = gl_def%jlo(igybc)
       if (coords == 'hl2') then
         do k=0,nzbc+1
           do j=0,nybc+1
@@ -2250,7 +2257,8 @@ c     Begin program
 
         if (np_l > 2.or.np_l < 1) then
           call pstop('sync_PER'
-     .         ,'Periodic comm has wrong rank='//int2char(np_l))
+     .         ,'Periodic comm in dimension '//trim(int2char(dim))
+     .       //' has wrong rank='//trim(int2char(np_l)))
         elseif (np_l == 2) then
           dest = 1 - my_rank_l
         endif

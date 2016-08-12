@@ -12,6 +12,10 @@ c ######################################################################
 
         implicit none
 
+c$$$        INTERFACE dot
+c$$$          module procedure dot1,dot2,dot3
+c$$$        END INTERFACE
+
         INTERFACE find_global
           module procedure find_global_field_vec,find_global_field_scl
         END INTERFACE
@@ -115,9 +119,10 @@ c     Begin program
 
 c     Singular-point boundary MPI communicator
 
-        if (bcSP())
-     .       call splitMPIComm(g_mpi_def%MPI_COMM_SP,selectRank_SP)
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_SP,'MPI_COMM_SP')
+        if (bcSP()) then
+          call splitMPIComm(g_mpi_def%MPI_COMM_SP,selectRank_SP)
+cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_SP,'MPI_COMM_SP')
+        endif
 
 c     X MPI communicator (domains that share the same Y, Z  slices)
 
@@ -152,18 +157,18 @@ c     Periodic BCs communicators
 
         if (bcond(1) == PER) then
           call splitMPIComm(g_mpi_def%MPI_COMM_PER(1),selectRank_PER_X)
+cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(1),'MPI_COMM_PERx')
         endif
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(1),'MPI_COMM_PERx')
 
         if (bcond(3) == PER) then
           call splitMPIComm(g_mpi_def%MPI_COMM_PER(2),selectRank_PER_Y)
+cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(2),'MPI_COMM_PERy')
         endif
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(2),'MPI_COMM_PERy')
 
         if (bcond(5) == PER) then
           call splitMPIComm(g_mpi_def%MPI_COMM_PER(3),selectRank_PER_Z)
+cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(3),'MPI_COMM_PERz')
         endif
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(3),'MPI_COMM_PERz')
 
 c     End program
 
@@ -285,47 +290,6 @@ c     Deallocate memory
 c     End program
 
       end subroutine fillPetscGhostCells
-
-c     psum
-c     ###################################################################
-      function psum(vec1,mpi_comm)
-
-c     -------------------------------------------------------------------
-c     Performs parallel sum of elements of a 1d-array using communicator
-c     mpi_comm. On input:
-c       * vec1: vector
-c       * mpi_comm: MPI communicator
-c     -------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer,optional :: mpi_comm
-      real(8)    :: vec1(:),psum
-
-c     Local variables
-
-      real(8)    :: lsum
-      integer    :: mpic
-
-c     Begin program
-
-      if (PRESENT(mpi_comm)) then
-        mpic = mpi_comm
-      else
-        mpic = MPI_COMM_WORLD
-      endif
-
-      psum = sum(vec1)
-
-      if (.not.asm) then
-        lsum = psum
-        call MPI_Allreduce(lsum,psum,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,mpic,mpierr)
-      endif
-
-      end function psum
 
 c     initMPI
 c     #####################################################################
@@ -457,6 +421,10 @@ c     Select rank
         if (bcond(dim) == BC .and. cp(0)) then
           split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
         endif
+
+        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
+
+        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
 
 cc        !Create self-communicator for single-point dimensions
 cc        if (      (l_lim(dim,0) == l_lim(dim,1))
@@ -594,6 +562,10 @@ c     Check whether proc is at boundary of appropriate type
           if (cp(loc)) split_key = BC
         enddo
 
+        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
+
+        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
+
 c     Group communicators based on location in face
 
         if (split_key /= MPI_UNDEFINED) then
@@ -659,8 +631,12 @@ c     Check whether proc is at boundary of appropriate type
 
         do loc=0,1
           cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
-          if (cp(loc)) split_key = BC
+          if (cp(loc)) split_key =BC 
         enddo
+
+        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
+
+        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
 
 c     Group communicators based on location in face
 
@@ -730,6 +706,10 @@ c     Select rank
           cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
           if (cp(loc)) split_key = BC
         enddo
+ 
+        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
+
+        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
 
         !Group communicators based on location in face
         if (split_key /= MPI_UNDEFINED) then
@@ -763,7 +743,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: npx,npy,npz
+        integer :: npx,npy,npz,lrank
 
 c     Begin program
 
@@ -801,6 +781,10 @@ c     Select rank
         split_key = split_key +     npz*l_lim(3,1)/g_lim(3,1)
      .                        + npz*npy*l_lim(2,1)/g_lim(2,1)
 
+        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
+
+        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
+
 c     End program
 
       end subroutine selectRank_X
@@ -822,7 +806,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: npx,npy,npz
+        integer :: npx,npy,npz,lrank
 
 c     Begin program
 
@@ -860,6 +844,10 @@ c     Select rank
         split_key = split_key +     npz*l_lim(3,1)/g_lim(3,1)
      .                        + npz*npx*l_lim(1,1)/g_lim(1,1)
 
+        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
+
+        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
+
 c     End program
 
       end subroutine selectRank_Y
@@ -881,7 +869,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: npx,npy,npz
+        integer :: npx,npy,npz,lrank
 
 c     Begin program
 
@@ -919,6 +907,10 @@ c     Select rank
         split_key = split_key +     npy*l_lim(2,1)/g_lim(2,1)
      .                        + npy*npx*l_lim(1,1)/g_lim(1,1)
 
+        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
+
+        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
+
 c     End program
 
       end subroutine selectRank_Z
@@ -939,7 +931,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: npx,npy,npz
+        integer :: npx,npy,npz,lrank
 
 c     Begin program
 
@@ -976,6 +968,10 @@ c     Select rank
         ! organize in 1D processor mesh: i
         split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
 
+        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
+
+        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
+
 c     End program
 
       end subroutine selectRank_XY
@@ -996,7 +992,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: npx,npy,npz
+        integer :: npx,npy,npz,lrank
 
 c     Begin program
 
@@ -1032,6 +1028,10 @@ c     Select rank
         !(y and z directions are shared; 
         ! organize in 1D processor mesh: i
         split_key = split_key + npx*l_lim(1,1)/g_lim(1,1)
+
+        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
+
+        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
 
 c     End program
 
@@ -1319,9 +1319,50 @@ c     End program
 
       end subroutine sstop
 
+c     psum
+c     ###################################################################
+      function psum(vec1,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel sum of elements of a 1d-array using communicator
+c     mpi_comm. On input:
+c       * vec1: vector
+c       * mpi_comm: MPI communicator
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer,optional :: mpi_comm
+      real(8)    :: vec1(:),psum
+
+c     Local variables
+
+      real(8)    :: lsum
+      integer    :: mpic
+
+c     Begin program
+
+      if (PRESENT(mpi_comm)) then
+        mpic = mpi_comm
+      else
+        mpic = MPI_COMM_WORLD
+      endif
+
+      psum = sum(vec1)
+
+      if (.not.asm) then
+        lsum = psum
+        call MPI_Allreduce(lsum,psum,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,mpic,mpierr)
+      endif
+
+      end function psum
+
 c     dot
 c     ###################################################################
-      function dot(ntot,vec1,vec2)
+      function dot1(ntot,vec1,vec2) result(dot)
 
 c     -------------------------------------------------------------------
 c     Performs parallel scalar product (vec1,vec2). In call:
@@ -1351,11 +1392,11 @@ c     Begin program
       if (.not.asm) then
         ldot = dot
         call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
       endif
 #endif
 
-      end function dot
+      end function dot1
 
 c     dot2
 c     ###################################################################
@@ -1387,7 +1428,7 @@ c     Begin program
       if (.not.asm) then
         ldot = dot2
         call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
       endif
 #endif
 
