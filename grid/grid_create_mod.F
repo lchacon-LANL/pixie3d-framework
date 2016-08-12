@@ -371,7 +371,7 @@ c     Cycle through grid hierarchies
           if (ierr /= 0) then
             if (my_rank == 0)
      .           write (*,*) ' >>> Discarding last mesh due to jac < 0'
-            call deallocateGridStructure(gc_def)
+cc            call deallocateGridStructure(gc_def)
             exit                !Check for negative Jac, and if so exit
           endif
 
