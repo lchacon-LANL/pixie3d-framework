@@ -95,19 +95,7 @@ c     Call variables
 
 c     Local variables
 
-        type(grid_mg_def),pointer :: gdef_tmp1 => null()
-     .                              ,gdef_tmp2 => null()
-
 c     Begin program
-
-        gdef_tmp1 => gdef%g_crse_def
-        do while (associated(gdef_tmp1))
-          gdef_tmp2 => gdef_tmp1%g_crse_def
-        
-          call deallocateGridStructure(gdef_tmp1)
-
-          gdef_tmp1 => gdef_tmp2
-        enddo
 
         call deallocateGridStructure(gdef)
 
