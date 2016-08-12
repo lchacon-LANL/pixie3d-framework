@@ -87,7 +87,7 @@ c     Begin program
         if (TS_chk_dump(etime=e_time,reset_counters=.true.)) then
 cc          if (.not.relax_init_grid) nrst  = 0
 cc          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
-          call writeRecordFile(recordfile,itime,time,dt,varray)
+          call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
         endif
 
         exit_tloop = (eigen .or. e_time > quota)
