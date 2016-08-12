@@ -75,16 +75,6 @@ c     Legacy assignments (backward compatibility)
 
 #if defined(petsc)
         call initMPI(mpi_comm,np,my_rank)
-
-c$$$        MPI_COMM_SP  = gdef%MPI_COMM_SP 
-c$$$        MPI_COMM_POL = gdef%MPI_COMM_POL
-c$$$        MPI_COMM_RAD = gdef%MPI_COMM_RAD
-c$$$        MPI_COMM_X   = gdef%MPI_COMM_X  
-c$$$        MPI_COMM_Y   = gdef%MPI_COMM_Y  
-c$$$        MPI_COMM_Z   = gdef%MPI_COMM_Z  
-c$$$        MPI_COMM_XY  = gdef%MPI_COMM_XY 
-c$$$        MPI_COMM_YZ  = gdef%MPI_COMM_YZ 
-c$$$        MPI_COMM_PER = gdef%MPI_COMM_PER
 #endif
 
       end subroutine createGrid
@@ -268,8 +258,7 @@ c     Call variables
 c     Local variables
 
       integer :: mpi_comm_splt,mpi_comm_crse,mgcf
-      integer :: igr,nxg,nyg,nzg,nxl,nyl,nzl,npx,npy,npz
-      real(8),pointer,dimension(:,:,:,:) :: carg
+      integer :: igr,nxg,nyg,nzg,npx,npy,npz
 
 c     Begin program
 
@@ -288,13 +277,6 @@ c     Begin program
       nxg = g_def%nxgl(igr)
       nyg = g_def%nygl(igr)
       nzg = g_def%nzgl(igr)
-
-c$$$      if (my_rank == 0) write (*,*)
-c$$$     .     ' create_coarse_gdef fine grid levels =',igr
-c$$$      if (my_rank == 0) write (*,*)
-c$$$     .     ' create_coarse_gdef Procs=',npx,npy,npz
-c$$$      if (my_rank == 0) write (*,*)
-c$$$     .     ' create_coarse_gdef Size =',nxg,nyg,nzg,igr
 
       !Init coarse mesh structure
       call initGridSt(nxg,nyg,nzg
@@ -317,30 +299,96 @@ c$$$     .     ' create_coarse_gdef Size =',nxg,nyg,nzg,igr
 #endif
 
       !Gather map and define grid metrics
-      if (.not.checkAnalMapDatabase()) then
-        nxl = g_crse_def%nxv(1)
-        nyl = g_crse_def%nyv(1)
-        nzl = g_crse_def%nzv(1)
-        allocate(carg(0:nxl+1,0:nyl+1,0:nzl+1,3))
-
-        !Gather over sub-procs
-        call find_global(g_def%gmetric%grid(igr)%car,carg
-#if defined(petsc) || defined(samrai)
-     .                  ,map_bc=.true.,mpi_comm=mpi_comm_crse
-#endif
-     .                  )
-
-        call defineGridMetric(g_crse_def,xcar=carg)
-
-        deallocate(carg)
-      else
-        call defineGridMetric(g_crse_def)
-      endif
+      if (checkAnalMapDatabase()) call defineGridMetric(g_crse_def)
 
 c     End program
         
       end function create_coarse_gdef
 #endif
+
+c     createMGMetricHierarchy
+c     #################################################################
+      subroutine createMGMetricHierarchy(g_def,xf)
+
+        implicit none
+
+c     ----------------------------------------------------------------------
+c     Creates grid metric hierarchy in g_def when providing external map xcar
+c     ----------------------------------------------------------------------
+
+c     Call variables
+
+        type(grid_mg_def),pointer,INTENT(INOUT)  :: g_def
+
+        real(8),dimension(:,:,:,:),optional :: xf
+
+c     Local variables
+
+        integer :: nxl,nyl,nzl,igr,ierr
+        real(8),pointer,dimension(:,:,:,:) :: xc
+        type(grid_mg_def),pointer :: gc_def => null()
+     .                              ,gf_def => null()
+
+c     Begin program
+
+        if (.not.associated(g_def)) then
+           call pstop("createGridMetricHierarchy"
+     $               ,"Target Metric not allocated")
+        endif
+        
+        if (PRESENT(xf)) then
+          call defineGridMetric(g_def,xcar=xf,ierr=ierr)
+
+          if (ierr /= 0 .and. my_rank == 0) then
+            write (*,*) ' >>> Discarding last mesh due to jac < 0'
+            return
+          endif
+        endif
+
+c     Cycle through grid hierarchies
+
+        igr = g_def%ngrid       !Last grid level of previous hierarchy
+
+        gf_def => g_def
+        gc_def => g_def%g_crse_def
+
+        do while (associated(gc_def))
+
+          nxl = gc_def%nxv(1)
+          nyl = gc_def%nyv(1)
+          nzl = gc_def%nzv(1)
+          allocate(xc(0:nxl+1,0:nyl+1,0:nzl+1,3))
+
+          !Gather over sub-procs
+          call find_global(gf_def%gmetric%grid(igr)%car,xc
+#if defined(petsc) || defined(samrai)
+     .                    ,map_bc=.true.,mpi_comm=gc_def%mpi_comm_crse
+#endif
+     .                    )
+
+          call defineGridMetric(gc_def,xcar=xc,ierr=ierr)
+
+          deallocate(xc)
+
+          if (ierr /= 0) exit !Check for negative Jac, and if so exit
+
+          igr = gc_def%ngrid     !Last grid level of this hierarchy
+
+          gf_def => gc_def
+          gc_def => gf_def%g_crse_def
+
+        enddo
+
+        nullify(gf_def,gc_def)
+
+        if (ierr /= 0 .and. my_rank == 0) then
+          write (*,*) ' >>> Discarding last mesh due to jac < 0'
+          return
+        endif
+
+c     End program
+
+      end subroutine createMGMetricHierarchy
 
 c$$$c     initGridSt
 c$$$c     #################################################################
