@@ -120,53 +120,62 @@ c     Begin program
 c     Singular-point boundary MPI communicator
 
         if (bcSP()) then
-          call splitMPIComm(g_mpi_def%MPI_COMM_SP,selectRank_SP)
+          call splitMPIComm(g_mpi_def%MPI_COMM_SP,selectRank_SP
+     .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_SP,'MPI_COMM_SP')
         endif
 
 c     X MPI communicator (domains that share the same Y, Z  slices)
 
-        call splitMPIComm(g_mpi_def%MPI_COMM_X,selectRank_X)
+        call splitMPIComm(g_mpi_def%MPI_COMM_X,selectRank_X
+     .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 
         if (bcSP()) g_mpi_def%MPI_COMM_RAD = g_mpi_def%MPI_COMM_X
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_X,'MPI_COMM_X')
 
 c     Y MPI communicator (domains that share same X, Z slices)
 
-        call splitMPIComm(g_mpi_def%MPI_COMM_Y,selectRank_Y)
+        call splitMPIComm(g_mpi_def%MPI_COMM_Y,selectRank_Y
+     .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 
         if (bcSP()) g_mpi_def%MPI_COMM_POL = g_mpi_def%MPI_COMM_Y
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_Y,'MPI_COMM_Y')
 
 c     Z MPI communicator (domains that share same X, Z slices)
 
-        call splitMPIComm(g_mpi_def%MPI_COMM_Z,selectRank_Z)
+        call splitMPIComm(g_mpi_def%MPI_COMM_Z,selectRank_Z
+     .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_Z,'MPI_COMM_Z')
 
 c     XY MPI communicator (domains that share same Z slices)
 
-        call splitMPIComm(g_mpi_def%MPI_COMM_XY,selectRank_XY)
+        call splitMPIComm(g_mpi_def%MPI_COMM_XY,selectRank_XY
+     .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_XY,'MPI_COMM_XY')
 
 c     YZ MPI communicator (domains that share same X slices)
 
-        call splitMPIComm(g_mpi_def%MPI_COMM_YZ,selectRank_YZ)
+        call splitMPIComm(g_mpi_def%MPI_COMM_YZ,selectRank_YZ
+     .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_YZ,'MPI_COMM_YZ')
 
 c     Periodic BCs communicators
 
         if (bcond(1) == PER) then
-          call splitMPIComm(g_mpi_def%MPI_COMM_PER(1),selectRank_PER_X)
+          call splitMPIComm(g_mpi_def%MPI_COMM_PER(1),selectRank_PER_X
+     .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(1),'MPI_COMM_PERx')
         endif
 
         if (bcond(3) == PER) then
-          call splitMPIComm(g_mpi_def%MPI_COMM_PER(2),selectRank_PER_Y)
+          call splitMPIComm(g_mpi_def%MPI_COMM_PER(2),selectRank_PER_Y
+     .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(2),'MPI_COMM_PERy')
         endif
 
         if (bcond(5) == PER) then
-          call splitMPIComm(g_mpi_def%MPI_COMM_PER(3),selectRank_PER_Z)
+          call splitMPIComm(g_mpi_def%MPI_COMM_PER(3),selectRank_PER_Z
+     .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(3),'MPI_COMM_PERz')
         endif
 
@@ -379,7 +388,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: dim,loc,lrank,BC,npz
+        integer :: dim,loc,BC,npz
 
         logical :: cp(0:1)
 
@@ -422,10 +431,6 @@ c     Select rank
           split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
         endif
 
-        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
-
-        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
-
 cc        !Create self-communicator for single-point dimensions
 cc        if (      (l_lim(dim,0) == l_lim(dim,1))
 cc     .      .and. (cp(0)       .eqv. cp(1)     )  ) then
@@ -435,80 +440,6 @@ cc        endif
 c     End program
 
       end subroutine selectRank_SP
-
-ccc     selectRank_PER
-ccc     #####################################################################
-cc      subroutine selectRank_PER(split_key)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     Groups processors for periodic BC transfer along dimension dim.
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer :: split_key(3)
-cc
-ccc     Local variables
-cc
-cc        integer :: dim,loc,lrank,BC
-cc
-cc        logical :: cp(0:1)
-cc
-ccc     Begin program
-cc
-cc        BC = PER
-cc
-ccc     Set global limits of local domain l_lim(dim,loc)
-cc
-cc        l_lim(1,0) = g_mpi_def%ilo(1)
-cc        l_lim(2,0) = g_mpi_def%jlo(1)
-cc        l_lim(3,0) = g_mpi_def%klo(1)
-cc        l_lim(1,1) = g_mpi_def%ihi(1)
-cc        l_lim(2,1) = g_mpi_def%jhi(1)
-cc        l_lim(3,1) = g_mpi_def%khi(1)
-cc
-ccc     Set global limits of global domain g_lim(dim,loc)
-cc
-cc        g_lim(1,0) = 1
-cc        g_lim(2,0) = 1
-cc        g_lim(3,0) = 1
-cc        g_lim(1,1) = g_mpi_def%nxgl(1)
-cc        g_lim(2,1) = g_mpi_def%nygl(1)
-cc        g_lim(3,1) = g_mpi_def%nzgl(1)
-cc
-ccc     Select rank
-cc
-cc        do dim=1,3
-cc          !Check whether proc is at boundary of appropriate type
-cc          do loc=0,1
-cc            cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
-cc            if (cp(loc)) split_key(dim) = BC
-cc          enddo
-cc
-cc          !Group communicators based on location in face
-cc          if (bcond(dim) == BC .and. cp(0)) then
-cc            select case(dim)
-cc            case (1)
-cc              call selectRank_X(split_key(dim))
-cc            case (2)
-cc              call selectRank_Y(split_key(dim))
-cc            case (3)
-cc              call selectRank_Z(split_key(dim))
-cc            end select
-cc          endif
-cc
-cc          !Create self-communicator for single-point dimensions
-cc          if (      (l_lim(dim,0) == l_lim(dim,1))
-cc     .        .and. (cp(0)       .eqv. cp(1)     )  ) then
-cc            split_key(dim)=split_key(dim)+my_rank+1
-cc          endif
-cc        enddo
-cc
-ccc     End program
-cc
-cc      end subroutine selectRank_PER
 
 c     selectRank_PER_X
 c     #####################################################################
@@ -526,7 +457,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: dim,loc,lrank,BC
+        integer :: dim,loc,BC
 
         logical :: cp(0:1)
 
@@ -562,10 +493,6 @@ c     Check whether proc is at boundary of appropriate type
           if (cp(loc)) split_key = BC
         enddo
 
-        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
-
-        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
-
 c     Group communicators based on location in face
 
         if (split_key /= MPI_UNDEFINED) then
@@ -598,7 +525,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: dim,loc,lrank,BC
+        integer :: dim,loc,BC
 
         logical :: cp(0:1)
 
@@ -631,12 +558,8 @@ c     Check whether proc is at boundary of appropriate type
 
         do loc=0,1
           cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
-          if (cp(loc)) split_key =BC 
+          if (cp(loc)) split_key =BC
         enddo
-
-        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
-
-        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
 
 c     Group communicators based on location in face
 
@@ -670,7 +593,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: dim,loc,lrank,BC
+        integer :: dim,loc,BC
 
         logical :: cp(0:1)
 
@@ -706,10 +629,6 @@ c     Select rank
           cp(loc) = checkProc(BC,dim,loc,l_lim,g_lim)
           if (cp(loc)) split_key = BC
         enddo
- 
-        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
-
-        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
 
         !Group communicators based on location in face
         if (split_key /= MPI_UNDEFINED) then
@@ -743,7 +662,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: npx,npy,npz,lrank
+        integer :: npx,npy,npz
 
 c     Begin program
 
@@ -781,10 +700,6 @@ c     Select rank
         split_key = split_key +     npz*l_lim(3,1)/g_lim(3,1)
      .                        + npz*npy*l_lim(2,1)/g_lim(2,1)
 
-        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
-
-        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
-
 c     End program
 
       end subroutine selectRank_X
@@ -806,7 +721,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: npx,npy,npz,lrank
+        integer :: npx,npy,npz
 
 c     Begin program
 
@@ -844,10 +759,6 @@ c     Select rank
         split_key = split_key +     npz*l_lim(3,1)/g_lim(3,1)
      .                        + npz*npx*l_lim(1,1)/g_lim(1,1)
 
-        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
-
-        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
-
 c     End program
 
       end subroutine selectRank_Y
@@ -869,7 +780,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: npx,npy,npz,lrank
+        integer :: npx,npy,npz
 
 c     Begin program
 
@@ -907,10 +818,6 @@ c     Select rank
         split_key = split_key +     npy*l_lim(2,1)/g_lim(2,1)
      .                        + npy*npx*l_lim(1,1)/g_lim(1,1)
 
-        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
-
-        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
-
 c     End program
 
       end subroutine selectRank_Z
@@ -931,7 +838,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: npx,npy,npz,lrank
+        integer :: npx,npy,npz
 
 c     Begin program
 
@@ -968,10 +875,6 @@ c     Select rank
         ! organize in 1D processor mesh: i
         split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
 
-        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
-
-        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
-
 c     End program
 
       end subroutine selectRank_XY
@@ -992,7 +895,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: npx,npy,npz,lrank
+        integer :: npx,npy,npz
 
 c     Begin program
 
@@ -1028,10 +931,6 @@ c     Select rank
         !(y and z directions are shared; 
         ! organize in 1D processor mesh: i
         split_key = split_key + npx*l_lim(1,1)/g_lim(1,1)
-
-        call MPI_Comm_size(g_mpi_def%mpi_comm,lrank,mpierr)
-
-        if (lrank == 1) split_key = my_rank !Create self-communicator for single-proc
 
 c     End program
 
