@@ -45,6 +45,12 @@ c Account for MK equation
 c Read PETSc runtime options
 
 #if defined(petsc) && !defined(petsc_c)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nxd',nxd
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nyd',nyd
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nzd',nzd
+     .                       ,petsc_flg,ierr)
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
      .                       ,petsc_flg,ierr)
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy

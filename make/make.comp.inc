@@ -72,7 +72,12 @@ endif
 
 # Flags for gfortran
 ifeq ($(FC),gfortran)
-  OPTIMIZATION ?= -O3 -march=native
+  ifeq ($(ARCH),Darwin)
+    OPTIMIZATION ?= -O3 -march=native -Wa,-q
+  else
+    OPTIMIZATION ?= -O3 -march=native
+  endif
+#  OPTIMIZATION ?= -O3 -march=native
   DEBUG        = -g -fbacktrace -fbounds-check -ffpe-trap=invalid,zero -ftrapv  #-finit-real=snan #-finit-local-zero 
   PROFILE      = -pg -g
   STATIC       = -fno-automatic
@@ -81,7 +86,7 @@ ifeq ($(FC),gfortran)
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)gfortran
   FFLAGS      += #$(STATIC)
-  FOPENMP      = -fopenmp
+  FOPENMP      = -fopenmp-simd
   LDFLAGS     += -lgfortran
 endif
 
