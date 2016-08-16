@@ -2,7 +2,7 @@
 
 #Defaults
 
-FC  ?= ifort
+FC  ?= gfortran
 OPT ?= O
 PREPROC ?= -D
 
@@ -45,7 +45,7 @@ endif
 
 # Flags for Intel ifort
 ifeq ($(FC),ifort)
-  OPTIMIZATION ?= -O3 -g -ip -xCORE-AVX2 #-march=native
+  OPTIMIZATION ?= -O3 -g -ip -march=core-avx2 -fma #-march=native
   DEBUG        = -g -check all -traceback
 #  DEBUG        = -g -check -traceback
   PROFILE      = -p

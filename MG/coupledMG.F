@@ -7671,7 +7671,7 @@ cc                    summ = summ + zz(iii+1:iii+neq)
               mag = mag + magz !Update outer accumulator (sum over colors)
 
               if (out == 2.and.prnt) then
-                write (*,'(a,i2,a,i4,a,i2,a,1pe10.4)')
+                write (*,'(a,i2,a,i4,a,i2,a,1pe11.4)')
      .                            '   --> Inner zebra GS: dir=',zd
      .                           ,'; it= ',zebra_it
      .                           ,'; color=',irbg1
