@@ -25,7 +25,7 @@ c #####################################################################
 
 c     readGridConfig
 c     #################################################################
-      subroutine readGridConfig(file)
+      subroutine readGridConfig(file,dump)
 
 c     -----------------------------------------------------------------
 c     Initializes grid parameters
@@ -36,6 +36,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       character(*) :: file
+      logical :: dump
 
 c     Local variables
 
@@ -154,7 +155,7 @@ c     Translate boundary conditions
 
 c     Write initialization parameters to standard output
 
-      if (my_rank == 0) then
+      if (my_rank == 0.and.dump) then
         write (*,*) '------------------'
         write (*,*) 'GRID configuration'
         write (*,*) '------------------'
