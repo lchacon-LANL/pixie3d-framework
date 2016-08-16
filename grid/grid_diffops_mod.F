@@ -2383,7 +2383,7 @@ c     Local variables
      .               ,vxip,vxim,vxjp,vxjm,vxkp,vxkm
      .               ,vyip,vyim,vyjp,vyjm,vykp,vykm
      .               ,vzip,vzim,vzjp,vzjm,vzkp,vzkm
-        real(8)    :: tsrc(3,3),gsuper(3,3)
+        real(8)    :: tsrc(3,3),gsuper(3,3),nblv(3,3)
      .               ,jacip,jacjp,jacjm,jackp,jackm
      .               ,jacipkp,jacipkm,jacipjp,jacipjm,jac
 
@@ -2413,6 +2413,8 @@ c     Begin program
         jm = j-1
         kp = k+1
         km = k-1
+
+        nblv = nabla_v_src(i,j,k)
 
         !Exceptions
 
@@ -2446,8 +2448,7 @@ c     Begin program
           vzkp = 0.5*(az(i,j,kp)+az(ip,j,kp))
           vzkm = 0.5*(az(i,j,km)+az(ip,j,km))
 
-          tsrc = 0.5*(nabla_v_src(ip,j,k)
-     .               +nabla_v_src(i ,j,k))
+          tsrc = 0.5*(nabla_v_src(ip,j,k)+nblv)
 
         case (2)
           dhy = g_def%dy(jg)
@@ -2477,8 +2478,7 @@ c     Begin program
           vzkp = 0.5*(az(i,j,kp)+az(i,jp,kp))
           vzkm = 0.5*(az(i,j,km)+az(i,jp,km))
 
-          tsrc = 0.5*(nabla_v_src(i,jp,k)
-     .               +nabla_v_src(i,j ,k))
+          tsrc = 0.5*(nabla_v_src(i,jp,k)+nblv)
 
         case (3)
           dhz = g_def%dz(kg)
@@ -2508,12 +2508,11 @@ c     Begin program
           vzkp = az(i,j,kp)
           vzkm = az(i,j,k )
 
-          tsrc = 0.5*(nabla_v_src(i,j,kp)
-     .               +nabla_v_src(i,j,k ))
+          tsrc = 0.5*(nabla_v_src(i,j,kp)+nblv)
 
         case default
 
-          if(cntv) gsuper=g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:)
+          if (cntv) gsuper=g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:)
 
           vxip = ax(ip,j,k)
           vxim = ax(im,j,k)
@@ -2536,7 +2535,7 @@ c     Begin program
           vzkp = az(i,j,kp)
           vzkm = az(i,j,km)
 
-          tsrc = nabla_v_src(i,j,k)
+          tsrc = nblv
 
         end select
 
@@ -3146,9 +3145,9 @@ cc          endif
 
         end select
 
-        idhx = 1./dhx
-        idhy = 1./dhy
-        idhz = 1./dhz
+        idhx = 1d0/dhx
+        idhy = 1d0/dhy
+        idhz = 1d0/dhz
 
       ! l = 1, m = 1
         tensor(1,1) = (vxip-vxim)*idhx
@@ -3179,7 +3178,7 @@ cc          endif
 
       ! Add geometric source
 
-        tensor = tensor - tsrc
+        tensor = tensor + tsrc
 
 c     End program
 
@@ -3205,55 +3204,232 @@ c     Begin program
         hessian = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
 
       ! l = 1, m = 1
-        tensor(1,1) =+ ax(i,j,k)* hessian(1,1,1)
-     .               + ay(i,j,k)* hessian(2,1,1)
-     .               + az(i,j,k)* hessian(3,1,1)
+        tensor(1,1) =- ax(i,j,k)* hessian(1,1,1)
+     .               - ay(i,j,k)* hessian(2,1,1)
+     .               - az(i,j,k)* hessian(3,1,1)
 
       ! l = 1, m = 2
-        tensor(1,2) =+ ax(i,j,k)* hessian(1,1,2)
-     .               + ay(i,j,k)* hessian(2,1,2)
-     .               + az(i,j,k)* hessian(3,1,2)
+        tensor(1,2) =- ax(i,j,k)* hessian(1,1,2)
+     .               - ay(i,j,k)* hessian(2,1,2)
+     .               - az(i,j,k)* hessian(3,1,2)
 
       ! l = 1, m = 3
-        tensor(1,3) =+ ax(i,j,k)* hessian(1,1,3)
-     .               + ay(i,j,k)* hessian(2,1,3)
-     .               + az(i,j,k)* hessian(3,1,3)
+        tensor(1,3) =- ax(i,j,k)* hessian(1,1,3)
+     .               - ay(i,j,k)* hessian(2,1,3)
+     .               - az(i,j,k)* hessian(3,1,3)
 
       ! l = 2, m = 1
-        tensor(2,1) =+ ax(i,j,k)* hessian(1,2,1)
-     .               + ay(i,j,k)* hessian(2,2,1)
-     .               + az(i,j,k)* hessian(3,2,1)
+        tensor(2,1) =- ax(i,j,k)* hessian(1,2,1)
+     .               - ay(i,j,k)* hessian(2,2,1)
+     .               - az(i,j,k)* hessian(3,2,1)
 
       ! l = 2, m = 2
-        tensor(2,2) =+ ax(i,j,k)* hessian(1,2,2)
-     .               + ay(i,j,k)* hessian(2,2,2)
-     .               + az(i,j,k)* hessian(3,2,2)
+        tensor(2,2) =- ax(i,j,k)* hessian(1,2,2)
+     .               - ay(i,j,k)* hessian(2,2,2)
+     .               - az(i,j,k)* hessian(3,2,2)
 
       ! l = 2, m = 3
-        tensor(2,3) =+ ax(i,j,k)* hessian(1,2,3)
-     .               + ay(i,j,k)* hessian(2,2,3)
-     .               + az(i,j,k)* hessian(3,2,3)
+        tensor(2,3) =- ax(i,j,k)* hessian(1,2,3)
+     .               - ay(i,j,k)* hessian(2,2,3)
+     .               - az(i,j,k)* hessian(3,2,3)
 
       ! l = 3, m = 1
-        tensor(3,1) =+ ax(i,j,k)* hessian(1,3,1)
-     .               + ay(i,j,k)* hessian(2,3,1)
-     .               + az(i,j,k)* hessian(3,3,1)
+        tensor(3,1) =- ax(i,j,k)* hessian(1,3,1)
+     .               - ay(i,j,k)* hessian(2,3,1)
+     .               - az(i,j,k)* hessian(3,3,1)
 
       ! l = 3, m = 2
-        tensor(3,2) =+ ax(i,j,k)* hessian(1,3,2)
-     .               + ay(i,j,k)* hessian(2,3,2)
-     .               + az(i,j,k)* hessian(3,3,2)
+        tensor(3,2) =- ax(i,j,k)* hessian(1,3,2)
+     .               - ay(i,j,k)* hessian(2,3,2)
+     .               - az(i,j,k)* hessian(3,3,2)
 
       ! l = 3, m = 3
-        tensor(3,3) =+ ax(i,j,k)* hessian(1,3,3)
-     .               + ay(i,j,k)* hessian(2,3,3)
-     .               + az(i,j,k)* hessian(3,3,3)
+        tensor(3,3) =- ax(i,j,k)* hessian(1,3,3)
+     .               - ay(i,j,k)* hessian(2,3,3)
+     .               - az(i,j,k)* hessian(3,3,3)
 
 c     End program
 
       end function nabla_v_src
 
       end function fnabla_v_cov
+
+c     fnabla_v_upwd_cov
+c     #############################################################
+      function fnabla_v_upwd_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,ax,ay,az,hex,hey,hez) result(tensor)
+c     -------------------------------------------------------------
+c     Calculates the tensor components T_lm of nabla(vec v), with
+c     v covariant, and fills tensor(l,m) at the following positions:
+c       + hex,hey,hez = 0 => i,j,k
+c       + hex=+-1 --> i+-1/2
+c       + hey=+-1 --> j+-1/2
+c       + hez=+-1 --> k+-1/2
+c     -------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: i,j,k,hex,hey,hez,nx,ny,nz,igx,igy,igz
+        real(8)    :: tensor(3,3)
+        real(8)    :: ax(0:nx+1,0:ny+1,0:nz+1)
+     .               ,ay(0:nx+1,0:ny+1,0:nz+1)
+     .               ,az(0:nx+1,0:ny+1,0:nz+1)
+
+c     Local variables
+
+        integer    :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid,jpp,jmm
+        real(8)    :: dhx,dhy,dhz,idhx,idhy,idhz
+        real(8)    :: vxx,vyy,vzz
+     .               ,vxip,vxim,vxjp,vxjm,vxkp,vxkm
+     .               ,vyip,vyim,vyjp,vyjm,vykp,vykm
+     .               ,vzip,vzim,vzjp,vzjm,vzkp,vzkm
+        real(8)    :: tsrc(3,3),jacip,jacjp,jacjm,jackp,jackm
+     .               ,jacipkp,jacipkm,jacipjp,jacipjm,jac
+        real(8)    :: cf1,cf2,cf3,cf4,hessian(3,3,3)
+
+        logical    :: spoint
+
+c     Begin program
+
+        igrid = igx
+
+c     Defaults
+
+        ip = i+1
+        im = i-1
+        jp = j+1
+        jm = j-1
+        kp = k+1
+        km = k-1
+
+        call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+
+        dhx = 2.*g_def%dxh(ig)
+        dhy = 2.*g_def%dyh(jg)
+        dhz = 2.*g_def%dzh(kg)
+
+        hessian = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+
+c     Exceptions
+
+        if (hex == 1) then
+          im = i
+          dhx = g_def%dx(ig)
+        elseif (hex == -1) then
+          ip = i
+          dhx = g_def%dx(ig-1)
+        endif
+
+        if (hey == 1) then
+          jm = j
+          dhy = g_def%dy(jg)
+        elseif (hey == -1) then
+          jp = j
+          dhy = g_def%dy(jg-1)
+        endif
+
+        if (hez == 1) then
+          km = k
+          dhz = g_def%dz(kg)
+        elseif (hez == -1) then
+          kp = k
+          dhz = g_def%dz(kg-1)
+        endif
+
+c     Vectors
+
+        vxx = ax(i,j,k)
+        vyy = ay(i,j,k)
+        vzz = az(i,j,k)
+
+        vxip = ax(ip,j,k)
+        vxim = ax(im,j,k)
+        vyip = ay(ip,j,k)
+        vyim = ay(im,j,k)
+        vzip = az(ip,j,k)
+        vzim = az(im,j,k)
+
+        vxjp = ax(i,jp,k)
+        vxjm = ax(i,jm,k)
+        vyjp = ay(i,jp,k)
+        vyjm = ay(i,jm,k)
+        vzjp = az(i,jp,k)
+        vzjm = az(i,jm,k)
+
+        vxkp = ax(i,j,kp)
+        vxkm = ax(i,j,km)
+        vykp = ay(i,j,kp)
+        vykm = ay(i,j,km)
+        vzkp = az(i,j,kp)
+        vzkm = az(i,j,km)
+
+c     Calculate nabla_v tensor
+        
+        idhx = 1d0/dhx
+        idhy = 1d0/dhy
+        idhz = 1d0/dhz
+
+      ! l = 1, m = 1
+        tensor(1,1) = (vxip-vxim)*idhx
+     .               -(vxx*hessian(1,1,1)
+     .               + vyy*hessian(2,1,1)
+     .               + vzz*hessian(3,1,1))
+
+      ! l = 1, m = 2
+        tensor(1,2) = (vyip-vyim)*idhx
+     .               -(vxx*hessian(1,1,2)
+     .               + vyy*hessian(2,1,2)
+     .               + vzz*hessian(3,1,2))
+
+      ! l = 1, m = 3
+        tensor(1,3) = (vzip-vzim)*idhx
+     .               -(vxx*hessian(1,1,3)
+     .               + vyy*hessian(2,1,3)
+     .               + vzz*hessian(3,1,3))
+
+      ! l = 2, m = 1
+        tensor(2,1) = (vxjp-vxjm)*idhy
+     .               -(vxx*hessian(1,2,1)
+     .               + vyy*hessian(2,2,1)
+     .               + vzz*hessian(3,2,1))
+
+      ! l = 2, m = 2
+        tensor(2,2) = (vyjp-vyjm)*idhy
+     .               -(vxx*hessian(1,2,2)
+     .               + vyy*hessian(2,2,2)
+     .               + vzz*hessian(3,2,2))
+
+      ! l = 2, m = 3
+        tensor(2,3) = (vzjp-vzjm)*idhy
+     .               -(vxx*hessian(1,2,3)
+     .               + vyy*hessian(2,2,3)
+     .               + vzz*hessian(3,2,3))
+
+      ! l = 3, m = 1
+        tensor(3,1) = (vxkp-vxkm)*idhz
+     .               -(vxx*hessian(1,3,1)
+     .               + vyy*hessian(2,3,1)
+     .               + vzz*hessian(3,3,1))
+
+      ! l = 3, m = 2
+        tensor(3,2) = (vykp-vykm)*idhz
+     .               -(vxx*hessian(1,3,2)
+     .               + vyy*hessian(2,3,2)
+     .               + vzz*hessian(3,3,2))
+
+      ! l = 3, m = 3
+        tensor(3,3) = (vzkp-vzkm)*idhz
+     .               -(vxx*hessian(1,3,3)
+     .               + vyy*hessian(2,3,3)
+     .               + vzz*hessian(3,3,3))
+
+c     End program
+
+      end function fnabla_v_upwd_cov
 
 c     dtnsr_flx_ijk
 c     ###############################################################
@@ -6871,7 +7047,7 @@ c     End
 c     tensor_nc_advc
 c     #####################################################################
       function tensor_nc_advc(g_def,i,j,k,nxx,nyy,nzz,igx,igy,igz,v0,v1
-     .                       ,meth)  result(cnv)
+     .                       ,meth,transpose,v1_cov)  result(cnv)
 
 c     ---------------------------------------------------------------------
 c     Calculates v0.nabla(v1), with both v0, v1 vector fields.
@@ -6890,12 +7066,28 @@ c     Call variables
       real(8),target :: v1(0:nxx+1,0:nyy+1,0:nzz+1,3)
      .                 ,v0(0:nxx+1,0:nyy+1,0:nzz+1,3)
 
+      logical, optional :: transpose,v1_cov
+
 c     Local variables
 
       integer    :: ieq,hex,hey,hez
       real(8)    :: nabla_v(3,3),jac
 
+      logical :: transp,v1cov
+
 c     Begin program
+
+      if (PRESENT(transpose)) then
+        transp = transpose
+      else
+        transp = .false.
+      endif
+
+      if (PRESENT(v1_cov)) then
+        v1cov = v1_cov
+      else
+        v1cov = .false.
+      endif
 
       jac = g_def%gmetric%grid(igx)%jac(i,j,k)
 
@@ -6905,20 +7097,39 @@ c     Begin program
         hey = int(sign(1d0,-v0(i,j,k,2)))
         hez = int(sign(1d0,-v0(i,j,k,3)))
 
-        nabla_v = fnabla_v_upwd(g_def,i,j,k,nxx,nyy,nzz,igx,igy,igz
-     .                         ,v1(:,:,:,1)
-     .                         ,v1(:,:,:,2)
-     .                         ,v1(:,:,:,3),hex,hey,hez)
+        if (v1cov) then
+          nabla_v = fnabla_v_upwd_cov(g_def,i,j,k,nxx,nyy,nzz
+     .                           ,igx,igy,igz
+     .                           ,v1(:,:,:,1)
+     .                           ,v1(:,:,:,2)
+     .                           ,v1(:,:,:,3),hex,hey,hez)
+        else
+          nabla_v = fnabla_v_upwd(g_def,i,j,k,nxx,nyy,nzz,igx,igy,igz
+     .                           ,v1(:,:,:,1)
+     .                           ,v1(:,:,:,2)
+     .                           ,v1(:,:,:,3),hex,hey,hez)
+        endif
       case(2) !Central differences
-        nabla_v = fnabla_v(g_def,i,j,k,nxx,nyy,nzz,igx,igy,igz
-     .                    ,v1(:,:,:,1)
-     .                    ,v1(:,:,:,2)
-     .                    ,v1(:,:,:,3),0)
+        if (v1cov) then
+          nabla_v = fnabla_v_cov(g_def,i,j,k,nxx,nyy,nzz,igx,igy,igz
+     .                          ,v1(:,:,:,1)
+     .                          ,v1(:,:,:,2)
+     .                          ,v1(:,:,:,3),0)
+        else
+          nabla_v = fnabla_v(g_def,i,j,k,nxx,nyy,nzz,igx,igy,igz
+     .                      ,v1(:,:,:,1)
+     .                      ,v1(:,:,:,2)
+     .                      ,v1(:,:,:,3),0)
+        endif
       case default
         call pstop('tensor_nc_advc','Advection option not implemented')
       end select
 
-      cnv = matmul(v0(i,j,k,:),nabla_v)/jac
+      if (transp) then
+        cnv = matmul(nabla_v,v0(i,j,k,:))/jac
+      else
+        cnv = matmul(v0(i,j,k,:),nabla_v)/jac
+      endif
 
       end function tensor_nc_advc
 

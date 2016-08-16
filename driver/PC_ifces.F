@@ -22,7 +22,7 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer :: ntot,nwt_it
+      integer :: ntot
       real(8) :: x(ntot)
 
 c Local variables

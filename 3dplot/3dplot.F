@@ -191,22 +191,21 @@ c Interfaces
 
 c Begin program
 
-      plot = .false.
+      plot = ( nplot        == ndplot       .and. nplot > 0)
+     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
+     .   .or.(time         == 0d0)
 
 c Post-process solution for diagnostics and dump plots
 
       if (.not.skip_diag)
      .       call evaluateDiagnostics(u_np,1,1,1,.false.)
 
-      if (   ( nplot        == ndplot       .and. nplot > 0)
-     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
-     .   .or. time         == 0d0) then
+      if (plot) then
 
         if (skip_diag) 
      .       call evaluateDiagnostics(u_np,1,1,1,.false.)
 
-       !Dump time step plots
-        plot  = .true.
+        !Dump time step plots
         nplot = 0
         if (itime.gt.0) tmplot = time
         call dumpTimeStepPlots
@@ -357,7 +356,7 @@ c Read perturbed solution u_ic
 
       call equateDerivedType(u_ic,u_0)
 
-      call readTimeStep(urecord,itime,time,dt,gammat,u_ic,ierr)
+cc      call readTimeStep(urecord,itime,time,dt,gammat,u_ic,ierr)
 
 c Initialize diagnostics and related variables
 
