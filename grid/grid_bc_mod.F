@@ -1098,7 +1098,7 @@ c     Initialize GLOBAL limits
       kkmxp =  min(kkmax + 1,gbc_def%nzgl(iigz)+1)
 #endif
 
-c     Fill PETSc ghost cells
+c     Fill PETSc ghost cells and PER BCs
 
 #if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
@@ -1108,18 +1108,16 @@ c     Fill PETSc ghost cells
       if (petsc__bc) then
         da_ctx => gbc_def%dactx(igxbc)
         call fillPetscGhostCells(da_ctx,array)
-
-        if (bcPER(1).and.bcPER(2).and.bcPER(3)) return !PETSc deals with all periodic domains
       endif
+#elif !defined(samrai)
+      call sync_PER
 #endif
+
+      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return !PETSc deals with all periodic domains
 
 c     Impose BCs
 
-#if defined(petsc) || defined(samrai)
-      do bctype=2,BCLIM             !Do not do PER=1; already done by PETSc or SAMRAI
-#else
-      do bctype=1,BCLIM             !Enforces a particular order in the BCs
-#endif
+      do bctype=2,BCLIM             !Do not do PER=1; already done
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1289,7 +1287,7 @@ c     Initialize GLOBAL limits
       kkmxp =  min(kkmax + 1,gbc_def%nzgl(iigz)+1)
 #endif
 
-c     Fill PETSc ghost cells
+c     Fill PETSc ghost cells and PER BCs
 
 #if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
@@ -1298,43 +1296,33 @@ c     Fill PETSc ghost cells
       !Fill ghost cells
       if (petsc__bc) then
         da_ctx => gbc_def%dactx(igxbc)
-        if (is__vec .and. to_cnv) then
-          do ieq=1,ncomp
-            call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
-          enddo
-        else
-          do ieq=1,ncomp
-            call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
-          enddo
-        endif
+
+        do ieq=1,ncomp
+          call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
+          call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
+        enddo
       endif
+#elif !defined(samrai)
+      call sync_PER
 #endif
 
-c     Find complete curvilinear representation at boundaries
+      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
 
-      if (is__vec) then
-        if (to_cnv) then
-          call XformVector_BC(gbc_def,igxbc,v_cov,v_cnv,to_cnv)
-        else
-          call XformVector_BC(gbc_def,igxbc,v_cnv,v_cov,to_cnv)
-        endif
-      endif
+c$$$c     Find complete curvilinear representation at boundaries
+c$$$
+c$$$      if (is__vec) then
+c$$$        if (to_cnv) then
+c$$$          call XformVector_BC(gbc_def,igxbc,v_cov,v_cnv,to_cnv)
+c$$$        else
+c$$$          call XformVector_BC(gbc_def,igxbc,v_cnv,v_cov,to_cnv)
+c$$$        endif
+c$$$      endif
 
-c     Exit if all periodic domains (PETSc deals with all periodic domains)
-
-#if defined(petsc)
-      if (petsc__bc.and.bcPER(1).and.bcPER(2).and.bcPER(3)) return
-#endif
-
-c     Impose BCs
+c     Impose physical BCs
 
       cov_to_cnv = .false.
 
-#if defined(petsc) || defined(samrai)
-      do bctype=2,BCLIM             !Do not do PER=1; already done by PETSc or SAMRAI
-#else
-      do bctype=1,BCLIM             !Enforces a particular order in the BCs
-#endif
+      do bctype=2,BCLIM             !Do not do PER=1; already done 
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -3946,14 +3934,14 @@ c     Begin program
 
       select case (order)
       case (3)
-        y = y0*(x-x1)*(x-x2)*(x-x3)/(x0-x1)/(x0-x2)/(x0-x3)
-     .     +y1*(x-x0)*(x-x2)*(x-x3)/(x1-x0)/(x1-x2)/(x1-x3)
-     .     +y2*(x-x0)*(x-x1)*(x-x3)/(x2-x0)/(x2-x1)/(x2-x3)
-     .     +y3*(x-x0)*(x-x1)*(x-x2)/(x3-x0)/(x3-x1)/(x3-x2)
+        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
+     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
+     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
+     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
       case (2)
-        y = y0*(x-x1)*(x-x2)/(x0-x1)/(x0-x2)
-     .     +y1*(x-x0)*(x-x2)/(x1-x0)/(x1-x2)
-     .     +y2*(x-x0)*(x-x1)/(x2-x0)/(x2-x1)
+        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
+     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
+     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
       case (1)
         y = y0*(x-x1)/(x0-x1)
      .     +y1*(x-x0)/(x1-x0)
@@ -3989,14 +3977,14 @@ c     Begin program
 
       select case (order)
       case (3)
-        y = y0*(x-x1)*(x-x2)*(x-x3)/(x0-x1)/(x0-x2)/(x0-x3)
-     .     +y1*(x-x0)*(x-x2)*(x-x3)/(x1-x0)/(x1-x2)/(x1-x3)
-     .     +y2*(x-x0)*(x-x1)*(x-x3)/(x2-x0)/(x2-x1)/(x2-x3)
-     .     +y3*(x-x0)*(x-x1)*(x-x2)/(x3-x0)/(x3-x1)/(x3-x2)
+        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
+     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
+     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
+     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
       case (2)
-        y = y0*(x-x1)*(x-x2)/(x0-x1)/(x0-x2)
-     .     +y1*(x-x0)*(x-x2)/(x1-x0)/(x1-x2)
-     .     +y2*(x-x0)*(x-x1)/(x2-x0)/(x2-x1)
+        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
+     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
+     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
       case (1)
         y = y0*(x-x1)/(x0-x1)
      .     +y1*(x-x0)/(x1-x0)
@@ -4033,14 +4021,14 @@ c     Begin program
 
       select case (order)
       case (3)
-        y = y0*(x-x1)*(x-x2)*(x-x3)/(x0-x1)/(x0-x2)/(x0-x3)
-     .     +y1*(x-x0)*(x-x2)*(x-x3)/(x1-x0)/(x1-x2)/(x1-x3)
-     .     +y2*(x-x0)*(x-x1)*(x-x3)/(x2-x0)/(x2-x1)/(x2-x3)
-     .     +y3*(x-x0)*(x-x1)*(x-x2)/(x3-x0)/(x3-x1)/(x3-x2)
+        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
+     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
+     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
+     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
       case (2)
-        y = y0*(x-x1)*(x-x2)/(x0-x1)/(x0-x2)
-     .     +y1*(x-x0)*(x-x2)/(x1-x0)/(x1-x2)
-     .     +y2*(x-x0)*(x-x1)/(x2-x0)/(x2-x1)
+        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
+     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
+     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
       case (1)
         y = y0*(x-x1)/(x0-x1)
      .     +y1*(x-x0)/(x1-x0)
