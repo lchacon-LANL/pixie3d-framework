@@ -45,7 +45,7 @@ endif
 
 # Flags for Intel ifort
 ifeq ($(FC),ifort)
-  OPTIMIZATION ?= -O3 -g -ip -march=core-avx2 -fma #-march=native
+  OPTIMIZATION ?= -O3 -g -ip -march=core-avx2 -fma
   DEBUG        = -g -check all -traceback
 #  DEBUG        = -g -check -traceback
   PROFILE      = -p
@@ -72,7 +72,11 @@ endif
 
 # Flags for gfortran
 ifeq ($(FC),gfortran)
-  OPTIMIZATION ?= -O3 -g -funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=core-avx2
+  ifeq ($(ARCH),Darwin)
+    OPTIMIZATION ?= -O3 -g -funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=native -Wa,-q #-fopenmp-simd
+  else
+    OPTIMIZATION ?= -O3 -g -funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=native #-march=core-avx2
+  endif
   DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan #-finit-local-zero
   PROFILE      = -pg -g
   STATIC       = -fno-automatic
