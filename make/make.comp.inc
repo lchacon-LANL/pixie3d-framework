@@ -54,7 +54,7 @@ ifeq ($(FC),ifort)
   ADDMODFLAG   = -I
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)ifort
-  FOPENMP      = -qopenmp-simd
+  FOPENMP      = -qopenmp
 endif
 
 # Flags for g95
