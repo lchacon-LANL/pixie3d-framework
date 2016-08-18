@@ -26,6 +26,12 @@
         module procedure ellipticE_scl,ellipticE_vec
       END INTERFACE
 
+      INTERFACE chkRoundOff
+        module procedure chkRoundOff_dp,chkRoundOff_sp
+      END INTERFACE
+
+
+
 #ifdef _SPRNG
 #include "sprng_f.h"
 
@@ -98,6 +104,34 @@ c     #################################################################
 
       end function delta
 
+c     findRoundOff_sp
+c     ###############################################################
+      function findRoundOff_sp() result(eps)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Finds machine round-off constant epsmac
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      real(4) :: eps
+
+c     Local variables
+
+      real(4) :: mag,mag2
+
+      mag = 1d0
+      do
+        eps = mag
+        mag = mag/2
+        mag2 = 1d0 + mag
+        if (.not.(mag2 > 1d0)) exit
+      enddo
+
+      end function findRoundOff_sp
+
 c     findRoundOff
 c     ###############################################################
       function findRoundOff() result(eps)
@@ -126,9 +160,9 @@ c     Local variables
 
       end function findRoundOff
 
-c     chkRoundOff
+c     chkRoundOff_dp
 c     ###############################################################
-      function chkRoundOff(test,var) result(eps)
+      function chkRoundOff_dp(test,var) result(eps)
 
       implicit none
 
@@ -154,7 +188,37 @@ c     Begin program
 
       if (abs(var) < 1000*roundoff) eps = 0d0
 
-      end function chkRoundOff
+      end function chkRoundOff_dp
+
+c     chkRoundOff_sp
+c     ###############################################################
+      function chkRoundOff_sp(test,var) result(eps)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Finds machine round-off constant epsmac
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      logical :: test
+      real(4) :: var,eps
+
+c     Local variables
+
+      real(4),save :: roundoff=0e0
+
+c     Begin program
+
+      eps = var
+      if (.not.test) return
+      
+      if (roundoff == 0d0) roundoff=findRoundOff_sp()
+
+      if (abs(var) < 1000*roundoff) eps = 0d0
+
+      end function chkRoundOff_sp
 
 c     determ3
 c     #################################################################

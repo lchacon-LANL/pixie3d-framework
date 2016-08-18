@@ -45,8 +45,8 @@ endif
 
 # Flags for Intel ifort
 ifeq ($(FC),ifort)
-  OPTIMIZATION ?= -O3 -g -ip -march=core-avx2 -fma
-  DEBUG        = -g -check all -traceback
+  OPTIMIZATION ?= -O3 -g -ip -march=core-avx2 -fma -align all
+  DEBUG        = -g -check bounds -traceback
 #  DEBUG        = -g -check -traceback
   PROFILE      = -p
   STATIC       =
@@ -54,7 +54,7 @@ ifeq ($(FC),ifort)
   ADDMODFLAG   = -I
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)ifort
-  FOPENMP      = -openmp
+  FOPENMP      = -qopenmp-simd
 endif
 
 # Flags for g95

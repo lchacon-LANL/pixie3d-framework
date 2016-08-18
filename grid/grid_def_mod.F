@@ -123,14 +123,6 @@ c #####################################################################
 
           real(8)                          :: params(ngparams)   !Grid configuration parameters
 
-c         Timers and counters (C. Mikida)
-
-          real(8)                          :: push_timer ! For timing the particle pusher (PAPI) (C. Mikida - 05/2016)
-
-          real(8)                          :: pit_count ! For calculating the average no. of PIs per substep (C. Mikida)
-          real(8)                          :: pit_sum ! For calculating the average no. of PIs per substep (C. Mikida)
-
-          integer                          :: substep_counter ! For timing the particle pusher (C. Mikida - 05/2016)
           type(MG_grid_metrics),pointer    :: gmetric     !Grid metrics at all levels
 
           type(grid_pack),dimension(3)     :: g_pack      !Grid packing information
