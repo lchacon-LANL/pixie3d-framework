@@ -960,3 +960,12 @@ ifeq ($(HOST),mu-fe1.lanl.gov)
 
 endif
 
+##########
+# Darwin #
+##########
+
+ifeq ($(findstring cn,$(HOST)),cn)
+  FC = ifort
+  M_ARCH=core-avx2
+  LIBS += -llapack -lblas
+endif
