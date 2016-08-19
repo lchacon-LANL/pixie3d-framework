@@ -8,9 +8,11 @@ MESSAGE = "Compiling OMP modules"
 
 #Define subdirectories for common code
 
-COMMONDIR = $(PWD)/common
+COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/grid
+SUBDIRS = $(COMMONDIR)/math \
+	  $(COMMONDIR)/interpolation/1d_int \
+	  $(COMMONDIR)/grid
 
 #Define dependencies
 

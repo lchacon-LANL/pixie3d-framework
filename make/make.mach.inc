@@ -10,9 +10,9 @@ CPPFLAGS += $(PREPROC)$(ARCH)
 # DEFAULTS #
 ############
 
-FC=ifort
-HDF5 = f
-ADIOS= f
+FC?=gfortran
+HDF5 ?= f
+ADIOS?= f
 
 ###############################
 # lap0086227 (Mark Berrill's) #
@@ -910,7 +910,7 @@ endif
 # Adam on mustang #
 ###################
 
-ifeq ($(HOST),mu-fe1.lanl.gov)
+ifeq ($(findstring helios,$(HOST)),mu-fe)
 
   FC=gfortran
 
@@ -959,3 +959,12 @@ ifeq ($(HOST),mu-fe1.lanl.gov)
 
 endif
 
+##########
+# Darwin #
+##########
+
+ifeq ($(findstring cn,$(HOST)),cn)
+  override FC = ifort
+  M_ARCH = core-avx2
+  LIBS += -llapack -lblas
+endif

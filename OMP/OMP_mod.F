@@ -2,7 +2,9 @@ c OMP
 c ######################################################################    
       module OMP
 
-!$    use omp_lib
+#ifdef _OPENMP
+      use omp_lib
+#endif
 
       use grid, ONLY: pstop
 
@@ -33,13 +35,17 @@ c     Begin program
           thr_tot = thrtot
         else
           thr_tot = 1
-!$        thr_tot = omp_get_num_threads()
+#ifdef _OPENMP
+          thr_tot = omp_get_num_threads()
+#endif
         endif
 
         if (PRESENT(thrnum)) then
           thr_num = thrnum
         else
-!$        thr_num = omp_get_thread_num()
+#ifdef _OPENMP
+           thr_num = omp_get_thread_num()
+#endif
           thr_num = max(thr_num,0)
         endif
 
@@ -81,9 +87,11 @@ c     Begin program
         
 c$$$!$      call getenv('OMP_NUM_THREADS',ev)
 c$$$!$      read(ev,'(i2)') thr_tot
+#ifdef _OPENMP
 !$omp parallel
-!$      thr_tot = omp_get_num_threads()
+        thr_tot = omp_get_num_threads()
 !$omp end parallel                                                             
+#endif
 
         if (thr_tot == 0) then
           call pstop("check_omp_numthreads"
@@ -97,5 +105,12 @@ c$$$!$      read(ev,'(i2)') thr_tot
         endif
 
       end subroutine check_omp_numthreads
+
+c$$$#ifndef _OPENMP
+c$$$      function omp_get_num_threads() result(i)
+c$$$      integer :: i
+c$$$      i = 1
+c$$$      end function omp_get_num_threads
+c$$$#endif
 
       end module OMP
