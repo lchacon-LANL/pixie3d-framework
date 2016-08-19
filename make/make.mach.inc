@@ -964,7 +964,7 @@ endif
 ##########
 
 ifeq ($(findstring cn,$(HOST)),cn)
-  override FC = ifort
+  FC = ifort
   M_ARCH = core-avx2
   LIBS += -llapack -lblas
 endif
