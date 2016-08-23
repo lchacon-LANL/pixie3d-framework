@@ -4,6 +4,8 @@ HOST ?= $(shell hostname -s)
 
 ARCH ?= $(shell uname -s)
 
+M_ARCH ?= native
+
 CPPFLAGS += $(PREPROC)$(ARCH)
 
 ############

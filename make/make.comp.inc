@@ -73,9 +73,10 @@ endif
 # Flags for gfortran
 ifeq ($(FC),gfortran)
   ifeq ($(ARCH),Darwin)
-    OPTIMIZATION ?= -O3 -g -funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=native -Wa,-q #-fopenmp-simd
+#    OPTIMIZATION ?= -O3 -g -funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=$(M_ARCH) -Wa,-q #-fopenmp-simd
+    OPTIMIZATION ?= -O3 -g #-ftree-vectorize -march=native -Wa,-q #-fopenmp-simd
   else
-    OPTIMIZATION ?= -O3 -g -funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=native #-march=$(M_ARCH)
+    OPTIMIZATION ?= -O3 -g #-funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=$(M_ARCH)
   endif
   DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan #-finit-local-zero
   PROFILE      = -pg -g
