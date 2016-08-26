@@ -45,9 +45,9 @@ endif
 
 # Flags for Intel ifort
 ifeq ($(FC),ifort)
-  OPTIMIZATION ?= -O3 -g -ip -march=$(M_ARCH) -fma -align all -qopenmp-simd
-  DEBUG        = -g -check bounds -traceback
-#  DEBUG        = -g -check -traceback
+  OPTIMIZATION ?= -O3 -ip -march=$(M_ARCH) -fma -qopenmp-simd  #-align all
+#  DEBUG        = -g -check bounds -traceback
+  DEBUG        = -g -check noarg_temp_created,bounds,format,pointers,stack -traceback
   PROFILE      = -p
   STATIC       =
   MODFLAG      = -I
