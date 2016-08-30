@@ -8,6 +8,60 @@ c ######################################################################
 
       contains
 
+c     TS_chk_dump
+c     ###############################################################
+      function TS_chk_dump(etime,reset_counters) result(dump)
+
+c     ---------------------------------------------------------------
+c     Check for end of time loop
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: dump
+      real(8),optional,INTENT(OUT) :: etime
+      logical,optional :: reset_counters
+
+c     Local variables
+
+      real(8) :: e_time
+      logical :: reset
+
+c     Begin program
+
+      if (PRESENT(reset_counters)) then
+        reset = reset_counters
+      else
+        reset = .false.
+      endif
+
+#if defined(petsc)
+      call PetscGetTime   (prof_time(3),prof_err)
+      e_time = prof_time(3)-prof_time(1)
+cc        if (my_rank == 0) write (*,*) e_time, quota
+#else
+      e_time = 0d0
+#endif
+
+#if defined(RFX)
+      dump = (nrst.eq.ndstep.or.tmrst.ge.         dstep.or.e_time>quota)
+#else
+      dump = (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep.or.e_time>quota)
+#endif
+
+      if (reset.and.dump) nrst = 0
+
+      dump = dump.or.relax_init_grid
+      if (reset.and.dump.and.itime>init_grid_offset) tmrst=tmrst-dstep
+
+      if (PRESENT(etime)) etime = e_time
+
+c     End program
+
+      end function TS_chk_dump
+
 c     TS_dump
 c     ##################################################################
       function TS_dump(varray) result(exit_tloop)
@@ -20,7 +74,9 @@ c     Call variables
       logical :: exit_tloop
 
 c     Local variables
-      
+
+      real(8) :: e_time
+
       INTERFACE
         subroutine perturbEquilibrium(varray)
         use var_setup
@@ -30,20 +86,9 @@ c     Local variables
 
 c     Begin program
 
-#if defined(petsc)
-        call PetscGetTime   (prof_time(3),prof_err)
-        e_time = prof_time(3)-prof_time(1)
-cc        if (my_rank == 0) write (*,*) e_time, quota
-#endif
-
-#if defined(RFX)
-        if (nrst.eq.ndstep.or.tmrst.ge.dstep         .or.e_time > quota
-#else
-        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep.or.e_time > quota
-#endif
-     .      .or.relax_init_grid) then
-          if (.not.relax_init_grid) nrst  = 0
-          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
+        if (TS_chk_dump(etime=e_time,reset_counters=.true.)) then
+cc          if (.not.relax_init_grid) nrst  = 0
+cc          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
           call writeRecordFile(recordfile,itime,time,dt,varray)
         endif
 
@@ -59,6 +104,58 @@ cc          if (source) call get_src(varray,.true.) !Update source with interpol
 c     End program
       
       end function TS_dump
+
+c$$$c     TS_dump
+c$$$c     ##################################################################
+c$$$      function TS_dump(varray) result(exit_tloop)
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      type(var_array),pointer :: varray
+c$$$      logical :: exit_tloop
+c$$$
+c$$$c     Local variables
+c$$$      
+c$$$      INTERFACE
+c$$$        subroutine perturbEquilibrium(varray)
+c$$$        use var_setup
+c$$$        type(var_array),pointer :: varray
+c$$$        end subroutine perturbEquilibrium
+c$$$      END INTERFACE
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$#if defined(petsc)
+c$$$        call PetscGetTime   (prof_time(3),prof_err)
+c$$$        e_time = prof_time(3)-prof_time(1)
+c$$$cc        if (my_rank == 0) write (*,*) e_time, quota
+c$$$#endif
+c$$$
+c$$$#if defined(RFX)
+c$$$        if (nrst.eq.ndstep.or.tmrst.ge.dstep         .or.e_time > quota
+c$$$#else
+c$$$        if (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep.or.e_time > quota
+c$$$#endif
+c$$$     .      .or.relax_init_grid) then
+c$$$          if (.not.relax_init_grid) nrst  = 0
+c$$$          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
+c$$$          call writeRecordFile(recordfile,itime,time,dt,varray)
+c$$$        endif
+c$$$
+c$$$        exit_tloop = (eigen .or. e_time > quota)
+c$$$
+c$$$        if (relax_init_grid.and.(.not.exit_tloop)) then
+c$$$          relax_init_grid = .false.
+c$$$cc          if (source) call get_src(varray,.true.) !Update source with interpolated equilibrium
+c$$$          call equateDerivedType (u_n,varray)     !Save interpolated (unperturbed) equilibrium
+c$$$          call perturbEquilibrium(varray)         !Perturb interpolated equilibrium
+c$$$        endif
+c$$$
+c$$$c     End program
+c$$$      
+c$$$      end function TS_dump
 
 c     TS_final_io
 c     ##################################################################
