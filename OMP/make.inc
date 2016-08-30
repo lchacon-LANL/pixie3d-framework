@@ -10,7 +10,9 @@ MESSAGE = "Compiling OMP modules"
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/grid
+SUBDIRS = $(COMMONDIR)/math \
+	  $(COMMONDIR)/interpolation/1d_int \
+	  $(COMMONDIR)/grid
 
 #Define dependencies
 

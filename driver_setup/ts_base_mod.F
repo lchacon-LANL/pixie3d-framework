@@ -509,7 +509,7 @@ c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few
         endif
 
  240    format ('    Too many Newton iterations')
- 400    format ('    Subcycling time step... New time step: ',1p,e10.4)
+ 400    format ('    Subcycling time step... New time step: ',1p,e11.4)
 
       end subroutine adapt_dt
 

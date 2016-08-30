@@ -121,7 +121,7 @@ c     Average explicit timestep
 
       if (cnfactor > 5d-1.and.my_rank == 0.and.(itime > inewtime-1))then
         dtexp = dtexp/(itime - inewtime+1)
-        write (*,'(a,1pe10.4)') 'Average explicit time step: ',dtexp
+        write (*,'(a,1pe11.4)') 'Average explicit time step: ',dtexp
       endif
 
 c     PETSc CPU diagnostics

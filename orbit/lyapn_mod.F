@@ -156,15 +156,15 @@
 
         character(50),dimension(:),allocatable :: cnct_file
 
-        integer :: omp_get_num_threads
-
 !     Begin program
 
         thr_tot = 1
 
+#ifdef _OPENMP
 !$omp parallel
-!$      thr_tot = omp_get_num_threads()
+        thr_tot = omp_get_num_threads()
 !$omp end parallel                                                             
+#endif
 
         cpos = index(trim(file),'.bin') - 1
 
@@ -672,44 +672,3 @@ c     ###############################################################
 	ilup = ilop
 
       end subroutine set_lyapn_counter
-
-c$$$c     check_omp_numthreads
-c$$$c     ###############################################################
-c$$$      subroutine check_omp_numthreads(io)
-c$$$
-c$$$        use grid, ONLY: pstop
-c$$$      
-c$$$        implicit none
-c$$$
-c$$$c     Global variables
-c$$$
-c$$$        logical :: io
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        integer :: thr_tot
-c$$$cc        character*10 :: ev
-c$$$        integer :: omp_get_num_threads
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        thr_tot = 1
-c$$$        
-c$$$c$$$!$      call getenv('OMP_NUM_THREADS',ev)
-c$$$c$$$!$      read(ev,'(i2)') thr_tot
-c$$$!$omp parallel
-c$$$!$      thr_tot = omp_get_num_threads()
-c$$$!$omp end parallel                                                             
-c$$$
-c$$$        if (thr_tot == 0) then
-c$$$          call pstop("check_omp_numthreads"
-c$$$     .         ,"Define OMP_NUM_THREADS environment variable")
-c$$$        else
-c$$$          if (io) then
-c$$$            write (*,*)          '******************'
-c$$$            write (*,'(a,i3,a)') ' Using ',thr_tot,' threads'
-c$$$            write (*,*)          '******************'
-c$$$          endif
-c$$$        endif
-c$$$
-c$$$      end subroutine check_omp_numthreads

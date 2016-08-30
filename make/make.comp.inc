@@ -45,16 +45,16 @@ endif
 
 # Flags for Intel ifort
 ifeq ($(FC),ifort)
-  OPTIMIZATION ?= -O3 -ipo -axW
-  DEBUG        = -g -check all -traceback
-#  DEBUG        = -g -check -traceback
+  OPTIMIZATION ?= -O3 -g -ip -march=$(M_ARCH) -fma -qopenmp-simd  -align all
+#  DEBUG        = -g -check bounds -traceback
+  DEBUG        = -g -check noarg_temp_created,bounds,format,pointers,stack -traceback
   PROFILE      = -p
   STATIC       =
   MODFLAG      = -I
   ADDMODFLAG   = -I
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)ifort
-  FOPENMP      = -openmp
+  FOPENMP      = -qopenmp 
 endif
 
 # Flags for g95
@@ -72,7 +72,12 @@ endif
 
 # Flags for gfortran
 ifeq ($(FC),gfortran)
-  OPTIMIZATION ?= -O3 #-march=native
+  ifeq ($(ARCH),Darwin)
+#    OPTIMIZATION ?= -O3 -g -funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=$(M_ARCH) -Wa,-q #-fopenmp-simd
+    OPTIMIZATION ?= -O3 -g #-ftree-vectorize -march=native -Wa,-q #-fopenmp-simd
+  else
+    OPTIMIZATION ?= -O3 -g #-funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=$(M_ARCH)
+  endif
   DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan #-finit-local-zero
   PROFILE      = -pg -g
   STATIC       = -fno-automatic
@@ -82,7 +87,7 @@ ifeq ($(FC),gfortran)
   CPPFLAGS    += $(PREPROC)gfortran
   FFLAGS      += #$(STATIC)
   FOPENMP      = -fopenmp
-  LDFLAGS     += -lgfortran
+  LDFLAGS     += -lgfortran 
 endif
 
 ifeq ($(FC),vtf77)

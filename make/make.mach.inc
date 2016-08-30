@@ -4,15 +4,17 @@ HOST ?= $(shell hostname -s)
 
 ARCH ?= $(shell uname -s)
 
+M_ARCH ?= native
+
 CPPFLAGS += $(PREPROC)$(ARCH)
 
 ############
 # DEFAULTS #
 ############
 
-FC=gfortran
-HDF5 = f
-ADIOS= f
+FC?=gfortran
+HDF5 ?= f
+ADIOS?= f
 
 ###############################
 # lap0086227 (Mark Berrill's) #
@@ -911,7 +913,7 @@ endif
 # Adam on mustang #
 ###################
 
-ifeq ($(HOST),mu-fe1.lanl.gov)
+ifeq ($(findstring helios,$(HOST)),mu-fe)
 
   FC=gfortran
 
@@ -966,6 +968,6 @@ endif
 
 ifeq ($(findstring cn,$(HOST)),cn)
   FC = ifort
-  M_ARCH=core-avx2
+  M_ARCH = core-avx2
   LIBS += -llapack -lblas
 endif
