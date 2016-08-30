@@ -15,6 +15,7 @@ SUBDIRS = $(COMMONDIR)/math \
           $(COMMONDIR)/newtonGMRES\
 	  $(COMMONDIR)/matrixLightSolver\
           $(COMMONDIR)/MG\
+          $(COMMONDIR)/OMP\
           $(COMMONDIR)/orbit\
           $(COMMONDIR)/eigen
 
