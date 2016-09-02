@@ -44,12 +44,31 @@ c     Begin program
           thr_num = thrnum
         else
 #ifdef _OPENMP
-           thr_num = omp_get_thread_num()
+          thr_num = omp_get_thread_num()
 #endif
           thr_num = max(thr_num,0)
         endif
 
       end subroutine set_omp_thread_id
+
+c     get_omp_thread_id
+c     ###############################################################
+      subroutine get_omp_thread_id(thrnum,thrtot)
+
+        implicit none
+
+c     Call variables
+
+        integer :: thrnum,thrtot
+
+c     Local variables
+
+c     Begin program
+
+        thrtot = thr_tot
+        thrnum = thr_num
+
+      end subroutine get_omp_thread_id
 
 c     check_omp_thread_id
 c     ###############################################################

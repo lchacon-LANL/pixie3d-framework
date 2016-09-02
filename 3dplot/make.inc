@@ -15,6 +15,7 @@ SUBDIRS = $(COMMONDIR)/math\
 	  $(COMMONDIR)/driver_setup\
 	  $(COMMONDIR)/matrixLightSolver\
           $(COMMONDIR)/MG\
+          $(COMMONDIR)/OMP\
           $(COMMONDIR)/orbit
 
 ifeq ($(MK),t)
