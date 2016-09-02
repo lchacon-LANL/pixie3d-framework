@@ -74,9 +74,9 @@ endif
 ifeq ($(FC),gfortran)
   ifeq ($(ARCH),Darwin)
 #    OPTIMIZATION ?= -O3 -g -funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=$(M_ARCH) -Wa,-q #-fopenmp-simd
-    OPTIMIZATION ?= -O3 -g #-ftree-vectorize -march=native -Wa,-q #-fopenmp-simd
+    OPTIMIZATION ?= -Wa,-q -O3 -march=$(M_ARCH) -fopenmp-simd -ffast-math #-fopt-info 
   else
-    OPTIMIZATION ?= -O3 -g #-funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=$(M_ARCH)
+    OPTIMIZATION ?= -O3 -march=$(M_ARCH) #Only for gcc > 4.9... -ffast-math -fopenmp-simd -fopt-info -funsafe-math-optimizations -fno-math-errno
   endif
   DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan #-finit-local-zero
   PROFILE      = -pg -g
