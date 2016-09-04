@@ -913,7 +913,7 @@ endif
 # Adam on mustang #
 ###################
 
-ifeq ($(findstring helios,$(HOST)),mu-fe)
+ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
 
   FC=gfortran
 
