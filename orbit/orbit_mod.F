@@ -638,7 +638,7 @@ cc        integer,optional,INTENT(IN) :: ss_order
 
 c     Local variables
 
-	integer :: iterror,itime,np,omp_get_num_threads
+	integer :: iterror,itime,np
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral,non_fatal_err
 
@@ -646,9 +646,11 @@ c     Begin program
 
         thr_tot = 1
 
+#ifdef _OPENMP
 !$omp parallel
-!$      thr_tot = omp_get_num_threads()
+        thr_tot = omp_get_num_threads()
 !$omp end parallel                                                             
+#endif                                                            
 
         iiout = iout
 
@@ -1476,7 +1478,6 @@ c     Call variables
 c     Local variables
 
         integer :: iterr
-!$      integer :: omp_get_thread_num,omp_get_num_threads
 
 c     Begin program
 
@@ -2434,7 +2435,6 @@ c     Call variables
 c     Local variables
 
         integer :: cpos,nfiles,ifile,ith,iproc,ierr,ic
-     $            ,omp_get_num_threads
         character(50) :: drawin,dummy
 
         character(50),dimension(:),allocatable :: ssx,ssy,ssz,ssrz
@@ -2443,10 +2443,11 @@ c     Begin program
 
         thr_tot = 1
 
+#ifdef _OPENMP
 !$omp parallel
-!$      thr_tot = omp_get_num_threads()
+        thr_tot = omp_get_num_threads()
 !$omp end parallel                                                             
-
+#endif
         ss_io = .true.   !Turn on SS XDRAW IO
   
         if (PRESENT(rz_ss)) then

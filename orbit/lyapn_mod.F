@@ -156,16 +156,15 @@
 
         character(50),dimension(:),allocatable :: cnct_file
 
-        integer :: omp_get_num_threads
-
 !     Begin program
 
         thr_tot = 1
 
+#ifdef _OPENMP
 !$omp parallel
-!$      thr_tot = omp_get_num_threads()
+        thr_tot = omp_get_num_threads()
 !$omp end parallel                                                             
-
+#endif
         cpos = index(trim(file),'.bin') - 1
 
         nfiles = np*thr_tot

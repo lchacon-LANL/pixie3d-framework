@@ -15,9 +15,9 @@ SUBDIRS = $(COMMONDIR)/math \
           $(COMMONDIR)/newtonGMRES\
 	  $(COMMONDIR)/matrixLightSolver\
           $(COMMONDIR)/MG\
+          $(COMMONDIR)/OMP\
           $(COMMONDIR)/orbit\
-          $(COMMONDIR)/eigen\
-          $(COMMONDIR)/OMP
+          $(COMMONDIR)/eigen
 
 ifeq ($(MK),t)
   SUBDIRS += $(COMMONDIR)/mk

@@ -4,15 +4,17 @@ HOST ?= $(shell hostname -s)
 
 ARCH ?= $(shell uname -s)
 
+M_ARCH ?= native
+
 CPPFLAGS += $(PREPROC)$(ARCH)
 
 ############
 # DEFAULTS #
 ############
 
-FC=gfortran
-HDF5 = f
-ADIOS= f
+FC?=gfortran
+HDF5 ?= f
+ADIOS?= f
 
 ###############################
 # lap0086227 (Mark Berrill's) #
@@ -268,7 +270,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
   FC=gfortran
 
-  NETCDF=t
+  NETCDF=f
   NETCDF_LIBS = -L/opt/local/lib -lnetcdff -lnetcdf
   NETCDF_INC  = -I/opt/local/include
 
@@ -629,10 +631,12 @@ ifeq ($(findstring sith,$(HOST)),sith)
    FC = pgf95
 
    BOPT = O
-   PETSC_DIR ?= /sw/sith/petsc/3.0.0/rhel6_pgi13.4_debug/petsc-3.0.0-p10
-   PETSC_ARCH ?= sith-debug
+   PETSC_DIR = /sw/sith/petsc/3.0.0/rhel6_pgi13.4_debug/petsc-3.0.0-p10
+ #/sw/sith/petsc/3.0.0/centos5.5_pgi10.9_opt/petsc-3.0.0-p10
+   PETSC_ARCH = sith-debug
 
    HDF5 = t
+ #HDF5_DIR = /sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2
    HDF5_DIR = /sw/sith/hdf5/1.8.10/rhel6_pgi12.8
    HDF5_HOME = $(HDF5_DIR)
    HDF5_LIBS = $(HDF5_FLIB)
@@ -643,7 +647,7 @@ ifeq ($(findstring sith,$(HOST)),sith)
    ADIOS_HOME = $(ADIOS_DIR)
    ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB)
    ADIOS_VER  = 1.90
- endif
+endif
 
 ###########
 # chester #
@@ -938,7 +942,7 @@ ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
 
     ADIOS = t
 
-    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1-mustang-new
+    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/usr/projects/magnetic/stanier/soft/mxml-2.5/lib -lmxml
     ADIOS_VER  = 1.31
 
@@ -958,3 +962,12 @@ ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
 
 endif
 
+##########
+# Darwin #
+##########
+
+ifeq ($(findstring cn,$(HOST)),cn)
+  FC = ifort
+  M_ARCH = core-avx2
+  LIBS += -llapack -lblas
+endif
