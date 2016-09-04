@@ -42,6 +42,10 @@ c #####################################################################
 
         logical, private :: x_is_log,y_is_log,z_is_log
 
+        INTERFACE setupSplines
+          module procedure setupSplines_gst,setupSplines_nogst
+        END INTERFACE
+
       contains
 
 c     sp_domain_limits
@@ -199,9 +203,9 @@ c     End program
 
       end subroutine chk_pos
 
-c     setupSplines
+c     setupSplines_gst
 c     #################################################################
-      subroutine setupSplines(g_def,igrid,order
+      subroutine setupSplines_gst(g_def,igrid,order
      .                       ,xmin,xmax,ymin,ymax,zmin,zmax,bcnd)
 c     -----------------------------------------------------------------
 c     This routine sets up 3D splines, including allocation of memory
@@ -220,7 +224,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: alloc_stat,i!,get_omp_numthreads
+        integer :: alloc_stat,i
 
 c     Begin program
 
@@ -228,9 +232,6 @@ c     Begin program
 
 c     Initialize private variables
 
-c$$$        nx = nnx
-c$$$        ny = nny
-c$$$        nz = nnz
         nx = g_def%nxgl(igrid) + 2
         ny = g_def%nygl(igrid) + 2
         nz = g_def%nzgl(igrid) + 2
@@ -239,16 +240,12 @@ c$$$        nz = nnz
 
 c     Initialize spline domain arrays
 
-c$$$        xs = xx
-c$$$        ys = yy
-c$$$        zs = zz
         xs = g_def%xg
         ys = g_def%yg
         zs = g_def%zg
 
 c     Define domain limits
 
-cc        if (associated(g_def)) then
         xsmin = g_def%gxmin
         xsmax = g_def%gxmax
           
@@ -257,11 +254,6 @@ cc        if (associated(g_def)) then
           
         zsmin = g_def%gzmin
         zsmax = g_def%gzmax
-c$$$        else
-c$$$          call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-c$$$          call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-c$$$          call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
-c$$$        endif
 
         xmin = xsmin
         xmax = xsmax
@@ -295,8 +287,88 @@ c     Prepare 3d spline interpolation
 
 c     End program
 
-      end subroutine setupSplines
+      end subroutine setupSplines_gst
 
+c     setupSplines_nogst
+c     #################################################################
+      subroutine setupSplines_nogst(nnx,nny,nnz,xx,yy,zz,order
+     .                       ,xmin,xmax,ymin,ymax,zmin,zmax,bcnd)
+c     -----------------------------------------------------------------
+c     This routine sets up 3D splines, including allocation of memory
+c     space.
+c     -----------------------------------------------------------------
+
+        implicit none            ! For safe Fortran
+
+c     Call variables
+
+        integer :: nnx,nny,nnz,order
+        real(8) :: xx(nnx),yy(nny),zz(nnz)
+        real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
+        integer :: bcnd(6)
+
+c     Local variables
+
+        integer :: alloc_stat,i!,get_omp_numthreads
+
+c     Begin program
+
+        sbcnd = bcnd
+
+c     Initialize private variables
+
+        nx = nnx
+        ny = nny
+        nz = nnz
+
+        allocate(xs(nx),ys(ny),zs(nz))
+
+c     Initialize spline domain arrays
+
+        xs = xx
+        ys = yy
+        zs = zz
+
+c     Define domain limits
+
+        call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+        call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+        call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+
+        xmin = xsmin
+        xmax = xsmax
+                 
+        ymin = ysmin
+        ymax = ysmax
+                 
+        zmin = zsmin
+        zmax = zsmax
+
+c     Prepare 3d spline interpolation
+
+        flg = 0 !Let spline routine find interpolation knots
+        kx = min(order+1,nx-1)
+        ky = min(order+1,ny-1)
+        kz = min(order+1,nz-1)
+
+        dim  = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
+
+        allocate(work(dim),stat=alloc_stat)
+        allocate(tx(nx+kx),stat=alloc_stat)
+        allocate(ty(ny+ky),stat=alloc_stat)
+        allocate(tz(nz+kz),stat=alloc_stat)
+
+!$omp parallel
+        call set_omp_thread_id()
+!$omp end parallel                                                             
+
+	dime = ky*kz + 3*max(kx,ky,kz) + kz
+	allocate(worke(dime*thr_tot),stat=alloc_stat)
+
+c     End program
+
+      end subroutine setupSplines_nogst
+      
 c     splineA
 c     #################################################################
       subroutine splineA(bx,by,bz,a_gauge,input_is_A)

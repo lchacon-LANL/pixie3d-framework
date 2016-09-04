@@ -288,6 +288,44 @@ c     Begin program
 c     End program
 
       end subroutine applyBC
+
+c     applyBCplot
+c     ###############################################################
+      subroutine applyBCplot(igr,varray,vaux,it)
+c     ---------------------------------------------------------------
+c     Sets adequate boundary conditions on array structure varray.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: igr
+      integer,optional :: it
+
+      type(var_array),pointer :: varray
+      type(aux_array),pointer :: vaux
+
+c     Local variables
+
+c     Interfaces
+
+      INTERFACE
+        subroutine apply_Plot_BC(igr,varray)
+          use var_setup
+          integer :: igr
+          type(var_array),pointer :: varray
+        end subroutine apply_Plot_BC
+      END INTERFACE
+
+c     Begin program
+
+      call apply_Plot_BC(igr,varray)
+
+c     End program
+
+      end subroutine applyBCplot
+
 #endif
 
 #endif

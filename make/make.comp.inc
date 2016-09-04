@@ -73,12 +73,11 @@ endif
 # Flags for gfortran
 ifeq ($(FC),gfortran)
   ifeq ($(ARCH),Darwin)
-#    OPTIMIZATION ?= -O3 -g -funsafe-math-optimizations -fno-math-errno -ftree-vectorize -march=$(M_ARCH) -Wa,-q #-fopenmp-simd
-    OPTIMIZATION ?= -Wa,-q -O3 -march=$(M_ARCH) -fopenmp-simd -ffast-math #-fopt-info 
+    OPTIMIZATION ?= -Wa,-q -O3 -march=$(M_ARCH) -fopenmp-simd #-fopt-info -ffast-math 
   else
-    OPTIMIZATION ?= -O3 -march=$(M_ARCH) #Only for gcc > 4.9... -ffast-math -fopenmp-simd -fopt-info -funsafe-math-optimizations -fno-math-errno
+    OPTIMIZATION ?= -O3 -march=$(M_ARCH) #Only for gcc > 4.9... -ffast-math -fopenmp-simd -fopt-info
   endif
-  DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan #-finit-local-zero
+  DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan -finit-local-zero
   PROFILE      = -pg -g
   STATIC       = -fno-automatic
   MODFLAG      = -I
