@@ -686,7 +686,7 @@ c      Check convergence and restart outer loop if necessary
         if (ro <= tol) then
           if (ro > rtol .and. ro < atol) then
             roundoff_stop = .true.
-            if (iout > 1) write (*,*)
+            if (iout > 1 .and. my_rank == 0) write (*,*)
             if (iout.gt.1.and. my_rank == 0)
      .        write(*,*)'GMRES solution is in round-off. Terminating.'
           endif
