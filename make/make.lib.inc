@@ -75,9 +75,13 @@ endif
 # RNG setup
 
 CONTRIBLIBS += -L$(COMMONDIR)/contrib/rng/lib -lrng
-#MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
 
-# PTRIDIAG setup
+# BTRIDIAG (block tridiagonal solver) setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/btridiag/lib -lbtrid
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/btridiag/lib
+
+# PTRIDIAG (parallel tridiagonal solver) setup
 
 ifeq ($(PTRID),t)
   CONTRIBLIBS += -L$(COMMONDIR)/contrib/ptridiag/lib -lptrid

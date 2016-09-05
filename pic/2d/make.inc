@@ -23,10 +23,10 @@ SUBDIRS = $(COMMONDIR)/math\
 #Size of particle groups
 PCLE_GROUPING=4
 
-#Whether canonical momenta diag are compiled
-PIC_CM_DIAG=t
-
 override CPPFLAGS += $(PREPROC)_Npg=$(PCLE_GROUPING)
+
+#Whether canonical momenta diag are compiled
+PIC_CM_DIAG?=t
 
 ifeq ($(PIC_CM_DIAG),t) 
   override CPPFLAGS += $(PREPROC)PIC_CM_DIAG
@@ -50,6 +50,8 @@ ifeq ($(PIC_CUDA),t)
     ifeq ($(USE_TEX),t) 
        override CPPFLAGS += $(PREPROC)_USE_TEX
     endif    
+    SRC_cu = $(wildcard *.cu)
+    OBJ_cu = $(SRC_cu:.cu=.o)
 endif
 
 #Define dependencies
