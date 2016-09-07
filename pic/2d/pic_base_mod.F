@@ -62,11 +62,6 @@ c     Local variables
 
 c     Begin program
 
-#if defined(use_pic_mpi) || defined(petsc)
-      call MPI_Comm_rank(MPI_COMM_WORLD, my_rank_pic, mpierr)
-      call MPI_Comm_size(MPI_COMM_WORLD, nproc, mpierr)
-#endif
-
 c     Allocate pcle quantities
 
       allocate(spcs(n_sp))
@@ -1810,10 +1805,6 @@ c ######################################################################
 
       use variables, ONLY: gv
 
-#if defined(use_pic_mpi)
-      use mpi
-#endif
-
       !Moments
       integer,parameter:: Ins=0,Ipx=1,Ipy=2,Ipz=3,IS11=4,IS22=5,IS33=6
       integer,private :: order_moms=1
@@ -2306,7 +2297,7 @@ c     Begin program
 
       endif
 
-#if defined(use_pic_mpi) || defined(petsc)
+#if defined(petsc)
       allocate(send_buf(size(mments))
      $        ,rec_buf (size(mments)))
       send_buf = reshape(mments, (/size(mments)/))
@@ -3087,7 +3078,7 @@ c$$$              j = (spcs(isp)%pcles(ipcl)%ijk_n(i_npg)-1)/nxg + 1
       end do
 
       !Wrap GLOBAL mass matrix
-#if defined(use_pic_mpi) || defined(petsc)
+#if defined(petsc)
       allocate(send_buf(size(mm2))
      $        ,rec_buf (size(mm2)))
       send_buf = reshape(mm2, (/size(mm2)/))
@@ -3291,7 +3282,7 @@ c$$$              j = (spcs(isp)%pcles(ipcl)%ijk_n(i_npg)-1)/nxg + 1
       end do
 
       !Wrap GLOBAL mass matrix
-#if defined(use_pic_mpi) || defined(petsc)
+#if defined(petsc)
       allocate(send_buf(size(mm2))
      $        ,rec_buf (size(mm2)))
       send_buf = reshape(mm2, (/size(mm2)/))
@@ -3429,6 +3420,11 @@ c     Begin program
 
       ioerr = 0
 
+#if defined(petsc)
+      call MPI_Comm_rank(MPI_COMM_WORLD, my_rank_pic, mpierr)
+      call MPI_Comm_size(MPI_COMM_WORLD, nproc, mpierr)
+#endif
+
 c     Read initialization parameters
 
       do while(is_open_unit(uinput))
@@ -3462,7 +3458,7 @@ c     Consistency check
         write (*,*) v0_z(1),v0_z(2)
 c$$$        if (v0_z(2) /= v_thz(2)/lam .or. v0_z(1) /= -v0_z(2)
 c$$$     .      .or. v0_z(1) == 0d0 .or. v0_z(2) == 0d0) then
-c$$$          if (my_rank == 0)
+c$$$          if (my_rank_pic == 0)
 c$$$     .         write (*,*) "WARNING: problem with v0_z setup"
 c$$$        endif
       end select
@@ -3538,7 +3534,7 @@ c     Local variables
 
 c     Begin program
 
-#if defined(use_pic_mpi) || defined(petsc)
+#if defined(petsc)
       call MPI_Comm_rank(MPI_COMM_WORLD, my_rank_pic, mpierr)
       call MPI_Comm_size(MPI_COMM_WORLD, nproc, mpierr)
 #endif
@@ -3717,10 +3713,6 @@ c     ##################################################################
       call dealloc_map
 
       if (.not.no_map) call killSplines
-
-#if defined(use_pic_mpi)
-      call MPI_Finalize(mpierr)
-#endif
 
       end subroutine kill_pic
       
@@ -4340,7 +4332,7 @@ c     Begin program
       lm(1) = moments(Ipx)
 
       !Parallel transfer
-#if defined(petsc) || defined(use_pic_mpi)
+#if defined(petsc)
       lm_np(1:3) = lm
       lm_np(4:6) = cm
       lm_np(7:9) = cm_ex
@@ -4670,7 +4662,7 @@ c     Begin program
         end do                  !ip
       end do                    !isp
 
-#if defined(use_pic_mpi) || defined(petsc)
+#if defined(petsc)
       allocate(send_buf(size(T))
      $        ,rec_buf (size(T)))
       send_buf = reshape(T, (/size(T)/))
