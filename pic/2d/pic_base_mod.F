@@ -54,7 +54,8 @@ c     ##################################################################
 
 c     Call variables
 
-      integer :: n_sp,n_p(n_sp)
+      integer :: n_sp
+      integer(8) :: n_p(n_sp)
 
 c     Local variables
 
@@ -151,7 +152,8 @@ c     Call variables
 
 c     Local variables
 
-      integer :: isp,ip,np,ufile,nsp,npcl(nsp_max)
+      integer :: isp,ip,np,ufile,nsp
+      integer(8) :: npcl(nsp_max)
       character(30) :: pcle_rstrt_file
       real(8) :: pcle_time
       logical :: tchk
@@ -2467,7 +2469,8 @@ c ######################################################################
 
       real(8) :: Jnpc_avg(nsp_max)        !average Jac*np/cell
 
-      integer :: npcles(nsp_max)=0        !Number of particles
+      integer(8) :: npcles(nsp_max)=0        !Number of particles
+      integer    :: npcles_cell(nsp_max)=0   !Number of particles/cell
 
       integer,private :: n_sp,nxl,nyl,nzl,nnl,nxg,nyg,nzg,nng
       real(8),private :: ihx,ihy,ihz
@@ -3411,7 +3414,7 @@ c     Local variables
 c     Namelists
 
       namelist /picdef/ npcles,v0_x,v0_y,v0_z,v_thx,v_thy,v_thz
-     .     ,n_sp,omega_p,q_m,min_pcles
+     .     ,n_sp,omega_p,q_m,min_pcles,npcles_cell
      .     ,quiet_start,nsubstep,eps_prop,eps_omg,eps_pic
      .     ,n_b,i_b,r_b,nip,vinject,C_bkgrnd
      .     ,phase_space_plot,mass_matrix_solve,particle_sort
@@ -3443,14 +3446,6 @@ c     Consistency check
 
       !>>Numbers
       if (n_sp == 0) call pstop('readInput','Zero number of species')
-      gnip = nip
-
-      do isp = 1,n_sp
-        if (npcles(isp) <= gnip) then
-          call pstop('readInput'
-     .              ,'Pcle buffer exceeds total pcle budget')
-        endif
-      enddo
 
       select case(test)
       case('tm')
@@ -3613,7 +3608,18 @@ c     Initialize pcle shape f
 
       call setup_pic_shape_f(ihx,ihy,ihz)
 
-c     Find PIC physical quantities
+c     Initialize pcle accounting qtys
+
+      if (sum(npcles) == 0) npcles = npcles_cell*nxg*nyg*nzg
+
+      gnip = nip
+
+      do isp = 1,n_sp
+        if (npcles(isp) <= gnip) then
+          call pstop('readInput'
+     .              ,'Pcle buffer exceeds total pcle budget')
+        endif
+      enddo
 
       if(quiet_start) then
 !     group of Antithetic variables
@@ -3627,6 +3633,8 @@ c     Find PIC physical quantities
       if (_Npg > 8.and.quiet_start) then
         call pstop('setup_pic_2d',' _Npg > 8')
       endif
+
+c     Find PIC physical quantities
 
       allocate(Jns(0:nxg+1,0:nyg+1,n_sp)
      $        ,Jpz(0:nxg+1,0:nyg+1,n_sp)
