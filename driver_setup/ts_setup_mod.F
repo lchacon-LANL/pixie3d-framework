@@ -269,11 +269,6 @@ c     Initialization
 
       call ts_solver_consistency_chk
 
-#if defined(petsc)
-      !Profiling stage 1
-      call switch_profile_stage(iSTUP)
-#endif
-
 c     End program
 
       end subroutine TS_create
