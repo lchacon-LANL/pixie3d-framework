@@ -5654,7 +5654,11 @@ c     Perform mu-cycle recursively
 #endif
           call smooth(igrid)
         else
-          call mcycle(igrid)
+          if (igrid.eq.igmax) then
+            call coarseSolve(igrid) !Perform coarse grid solve
+          else
+            call mcycle(igrid)
+          endif
         endif
 
 c     Check MG convergence
