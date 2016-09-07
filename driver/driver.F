@@ -187,6 +187,9 @@ c Initialize PETSc and MPI (parallel version)
       call init_petsc_profile
 
       call initMPI(MPI_COMM_WORLD,np,my_rank)
+
+      !Profiling stage 1
+      call switch_profile_stage(iSTUP)
 #endif
 
 c End program

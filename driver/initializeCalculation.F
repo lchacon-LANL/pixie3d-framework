@@ -436,6 +436,11 @@ c Interfaces
 
 c Begin program
 
+#if defined(petsc)
+        !Begin profiling IO
+        call switch_profile_stage(iPOST)
+#endif
+
       igrid = 1
 
 #if defined(adios)
@@ -476,6 +481,12 @@ c Open record file
       else
         call setAppendIOMode
       endif
+
+#if defined(petsc)
+        !End profiling IO
+        call switch_profile_stage(iSTUP)
+#endif
+
 
 c End programs
 
@@ -518,7 +529,12 @@ c Local variables
         end subroutine evaluate_NLF
       END INTERFACE
 
-c Begin program
+c Begin program      
+
+#if defined(petsc)
+        !Begin profiling NL solver
+        call switch_profile_stage(iNL)
+#endif
 
       igr = 1
 
@@ -543,6 +559,12 @@ c Begin program
 #if defined(MK)
       if (mk_grid) call MK_spline_src(igr,fsrc)
 #endif
+
+#if defined(petsc)
+        !End profiling NL solver
+        call switch_profile_stage(iSTUP)
+#endif
+
 
 c End program
 

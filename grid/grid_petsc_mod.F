@@ -245,7 +245,7 @@ c ######################################################################
        integer,parameter:: iSTUP=1,iNL=2,iPCSTP=3,iPCSLV=4,iPOST=5,iMG=6
 
        integer :: prof_err,prof_stage(10),iprofile
-       real(8) :: prof_time(10)
+       real(8) :: prof_time(20)
        logical,private :: prof_init=.true.
 
 #if defined(petsc)
@@ -262,7 +262,7 @@ c     ##################################################################
       call PetscLogStageRegister('NL solve',prof_stage(iNL)   ,prof_err)
       call PetscLogStageRegister('PC setup',prof_stage(iPCSTP),prof_err)  
       call PetscLogStageRegister('PC main ',prof_stage(iPCSLV),prof_err)  
-      call PetscLogStageRegister('Postproc',prof_stage(iPOST) ,prof_err)  
+      call PetscLogStageRegister('Post+IO ',prof_stage(iPOST) ,prof_err)  
       call PetscLogStageRegister('MG solve',prof_stage(iMG)   ,prof_err)  
 
       iprofile = 6
