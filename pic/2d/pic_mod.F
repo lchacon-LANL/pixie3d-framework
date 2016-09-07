@@ -368,7 +368,7 @@ c     Apply BCs to moments
 
 c     Output info
 
-#if defined(petsc) || defined(use_pic_mpi)
+#if defined(petsc)
       lacc(1:3) = cml
       lacc(4:6) = pml
       lacc(7:9) = cmex
