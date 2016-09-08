@@ -48,7 +48,7 @@ ifeq ($(FC),ifort)
   OPTIMIZATION ?= -O3 -g -ip -march=$(M_ARCH) -fma -qopenmp-simd  -align all
 #  DEBUG        = -g -check bounds -traceback
   DEBUG        = -g -check noarg_temp_created,bounds,format,pointers,stack -traceback
-  PROFILE      = -p
+  PROFILE      = -O2 -g -p
   STATIC       =
   MODFLAG      = -I
   ADDMODFLAG   = -I
@@ -61,7 +61,7 @@ endif
 ifeq ($(FC),g95)
   OPTIMIZATION ?= -O2
   DEBUG        = -g -fbounds-check -ftrace=full
-  PROFILE      = -pg
+  PROFILE      = -O2 -g -pg
   STATIC       = -fstatic
   MODFLAG      = -I
   ADDMODFLAG   = -I
@@ -78,7 +78,7 @@ ifeq ($(FC),gfortran)
     OPTIMIZATION ?= -O3 -march=$(M_ARCH) #Only for gcc > 4.9... -ffast-math -fopenmp-simd -fopt-info
   endif
   DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan -finit-local-zero
-  PROFILE      = -pg -g
+  PROFILE      = -O2 -pg -g
   STATIC       = -fno-automatic
   MODFLAG      = -I
   ADDMODFLAG   = -I
@@ -92,7 +92,7 @@ endif
 ifeq ($(FC),vtf77)
   OPTIMIZATION ?= -O3 -march=native
   DEBUG        = -ggdb -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv
-  PROFILE      = -pg
+  PROFILE      = -O2 -pg -g
   STATIC       = -fno-automatic
   MODFLAG      = -I
   ADDMODFLAG   = -I
