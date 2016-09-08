@@ -34,7 +34,7 @@ c$$$        type(var_array),pointer :: dn,dnm,dnp
 c$$$        real(8) :: l_np,l_n,et1,et2
 c$$$
       contains
-c$$$
+
 c$$$c     findGuess
 c$$$c     ###############################################################
 c$$$      subroutine findGuess(vn,vnp)
