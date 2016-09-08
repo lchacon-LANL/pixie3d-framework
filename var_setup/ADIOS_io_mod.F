@@ -102,7 +102,7 @@ c     #################################################################
           text = int2char(buffer)
           line = '    <buffer size-MB=\"'//trim(text)
      .          //'\" allocate-time=\"now\"/>'
-          adios_err = replace_line('adios_config.xml',"buffer size-MB"
+          ierr = replace_line('adios_config.xml',"buffer size-MB"
      .                            ,line)
         endif
 
