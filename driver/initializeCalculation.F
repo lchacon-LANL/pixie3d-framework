@@ -469,7 +469,7 @@ c Set data dumping intervals
 
 c Open record file
 
-      if (.not.no_io) then
+      if (.not.no_graphics_io) then
         if (.not.ts_restart) then
           !Dump initial data
            call writeRecordFile(file,0,0d0,dt,0d0,u_0)

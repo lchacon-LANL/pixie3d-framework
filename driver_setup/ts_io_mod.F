@@ -4,7 +4,7 @@ c ######################################################################
 
         use ts_base
 
-        logical :: no_io=.false.
+        use graphics_io, ONLY: no_graphics_io
 
       contains
 
@@ -87,7 +87,7 @@ c     Local variables
 c     Begin program
 
         if (TS_chk_dump(etime=e_time,reset_counters=.true.)
-     .     .and.(.not.no_io)) then
+     .     .and.(.not.no_graphics_io)) then
 cc          if (.not.relax_init_grid) nrst  = 0
 cc          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
           call writeRecordFile(recordfile,itime,time,dt,gammat,varray)

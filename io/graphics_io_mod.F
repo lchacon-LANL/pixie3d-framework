@@ -40,6 +40,8 @@ c ######################################################################
         logical    :: adios_plot=.false.
 #endif
 
+        logical    :: no_graphics_io=.false.
+
         integer    :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
      .               ,iggx,iggy,iggz,iig,jjg,kkg
 
