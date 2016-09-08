@@ -102,8 +102,7 @@ c     #################################################################
           text = int2char(buffer)
           line = '    <buffer size-MB=\"'//trim(text)
      .          //'\" allocate-time=\"now\"/>'
-          ierr = replace_line('adios_config.xml',"buffer size-MB"
-     .                            ,line)
+          ierr = replace_line('adios_config.xml',"buffer size-MB",line)
         endif
 
 #if defined(petsc) || defined(petsc_c)
