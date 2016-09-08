@@ -5649,9 +5649,12 @@ c     Perform mu-cycle recursively
 
 #if !defined(coarse_MG)
         if (igrid.eq.igmax.or.smooth_only) then
+          call smooth(igrid)
+        else
+          call mcycle(igrid)
+        endif
 #else
         if (smooth_only) then
-#endif
           call smooth(igrid)
         else
           if (igrid.eq.igmax) then
@@ -5660,6 +5663,7 @@ c     Perform mu-cycle recursively
             call mcycle(igrid)
           endif
         endif
+#endif
 
 c     Check MG convergence
 
