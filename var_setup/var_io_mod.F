@@ -163,28 +163,28 @@ c$$$      nz = khg-klg+1
         if (NDEPV == 0) then
            NDEPV=ndepvl
         elseif (NDEPV /= ndepvl) then
-           call pstop('openRestartFileForRead'
+           call pstop('openPOSIXRestartFileForRead'
      $            ,'# Dep. vec. variables do not agree; cannot restart')
         endif
 
         if (NDEPS == 0) then
            NDEPS=ndepsl
         elseif (NDEPS /= ndepsl) then
-           call pstop('openRestartFileForRead'
+           call pstop('openPOSIXRestartFileForRead'
      $            ,'# Dep. scl. variables do not agree; cannot restart')
         endif
 
         if (NAUXV == 0) then
            NAUXV=nauxvl
         elseif (NAUXV /= nauxvl) then
-           call pstop('openRestartFileForRead'
+           call pstop('openPOSIXRestartFileForRead'
      $            ,'# Aux. vec. variables do not agree; cannot restart')
         endif
 
         if (NAUXS == 0) then
            NAUXS=nauxsl
         elseif (NAUXS /= nauxsl) then
-           call pstop('openRestartFileForRead'
+           call pstop('openPOSIXRestartFileForRead'
      $            ,'# Aux. scl. variables do not agree; cannot restart')
         endif
 
@@ -206,7 +206,7 @@ cc      if (associated(gv%gparams)) then
          if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
 #endif
            write (*,*) nx,nxd,ny,nyd,nz,nzd
-           call pstop('openRestartFileForRead'
+           call pstop('openPOSIXRestartFileForRead'
      $            ,'Grid meshes do not agree; cannot restart')
 
          endif
@@ -680,7 +680,7 @@ cc      if (associated(gv%gparams)) then
           write (*,*) my_rank,nxl,gv%gparams%nlx
      .               ,nyl,gv%gparams%nly
      .               ,nzl,gv%gparams%nlz
-          call pstop('openRecordFiles','Grid meshes do not agree')
+          call pstop('setParallelLimits','Grid meshes do not agree')
         endif
       else
         send_buf = (/ ihg,jhg,khg /)
@@ -1041,12 +1041,12 @@ c     Begin program
         return
 
  100    ierr=-2  !EOF
-        write (messg,*) 'readVector: EOF in file unit',unit
-        call pstop('readVector',messg)
+        write (messg,*) 'EOF in file unit',unit
+        call pstop('readVectorFromFiles',messg)
 
  200    ierr=-1  !Error, but not EOF
         write (messg,*) 'Error reading file unit',unit
-        call pstop('readVector',messg)
+        call pstop('readVectorFromFiles',messg)
 
 c     End program
 
