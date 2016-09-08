@@ -32,9 +32,10 @@ c ######################################################################
         logical,private :: adios_debug=.false.
      $                    ,adios_append_recordfile=.false.
 
-        !ADIOS IO buffer (for restart, postprocessing; also set in adios_config.xml)
-        integer,private :: ADIOS_BUFFER_MB=1000
-
+#if !defined(ADIOS_BUFFER_MB)
+        !ADIOS IO buffer (for restart, postprocessing; main app set in adios_config.xml)
+        integer,private :: ADIOS_BUFFER_MB=100
+#endif
       contains
 
 c     setADIOSAppendIOMode
@@ -67,6 +68,8 @@ c     Global variables
       
 c     Local variables
 
+      character(50) :: text,line
+
 c     Begin program
 
 c     Initialize ADIOS for componentized I/O
@@ -76,8 +79,38 @@ c     Initialize ADIOS for componentized I/O
      .            ,'ADIOS config file not present')
       else
         call MPI_Comm_dup (MPI_COMM_WORLD,adios_world_comm,adios_err)
+
+        if (set_adios_buffer(ADIOS_BUFFER_MB) /= 0) then
+          call pstop("init_ADIOS_IO"
+     .              ,"Could not setup ADIOS buffer")
+        endif
+
         call ADIOS_init('adios_config.xml',adios_err)
       endif
+
+      contains
+
+c     set_adios_buffer
+c     #################################################################
+      function set_adios_buffer(buffer) result(ierr)
+
+        implicit none
+
+        integer :: buffer,ierr
+
+        if (my_rank == 0) then
+          text = int2char(buffer)
+          line = '    <buffer size-MB=\"'//trim(text)
+     .          //'\" allocate-time=\"now\"/>'
+          adios_err = replace_line('adios_config.xml',"buffer size-MB"
+     .                            ,line)
+        endif
+
+#if defined(petsc) || defined(petsc_c)
+        call MPI_Bcast(ierr,1,MPI_INTEGER,0,ADIOS_WORLD_COMM,mpierr)
+#endif
+
+      end function set_adios_buffer
 
       end function init_ADIOS_IO
 

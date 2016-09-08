@@ -107,6 +107,8 @@ ifeq ($(HOST),jetta)
         ADIOS = t
       endif
 
+      ADIOS_BUFFER_MB = 10
+
       #Determined via modules
       ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
 
@@ -945,6 +947,8 @@ ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
     ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/usr/projects/magnetic/stanier/soft/mxml-2.5/lib -lmxml
     ADIOS_VER  = 1.31
+
+    ADIOS_BUFFER_MB = 1000
 
   else
 #    LIBS += -llapack -lblas

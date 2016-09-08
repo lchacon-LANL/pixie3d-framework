@@ -27,6 +27,9 @@ MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/sdc/lib
 ifeq ($(ADIOS),t)
   CONTRIBLIBS += $(ADIOS_LIBS)
   CPPFLAGS    += $(PREPROC)adios $(PREPROC)ADIOS_VER=$(ADIOS_VER)
+  ifdef ADIOS_BUFFER_MB
+    CPPFLAGS  += $(PREPROC)ADIOS_BUFFER_MB=$(ADIOS_BUFFER_MB)
+  endif
 #  MODPATH     += $(ADDMODFLAG)$(ADIOS_HOME)/include
 endif
 
