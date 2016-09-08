@@ -62,10 +62,14 @@ c Read PETSc runtime options
 
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ilevel',ilevel
      .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nmax',numtime
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-numtime',numtime
      .                       ,petsc_flg,ierr)
+      if (petsc_flg) tmax = 0d0
+
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-tmax',tmax
      .                       ,petsc_flg,ierr)
+      if (petsc_flg) numtime = -1
+
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
      .                       ,petsc_flg,ierr)
 #else
@@ -465,26 +469,28 @@ c Set data dumping intervals
 
 c Open record file
 
-      if (.not.ts_restart) then
-        !Dump initial data
-        call writeRecordFile(file,0,0d0,dt,0d0,u_0)
-        call writeRecordFile(file,0,0d0,dt,0d0,u_np)
-      elseif (getEarlyTimeRestartFlag()) then
-        if (index(file,'.bin') /= 0) then
-          file = 'record_t='//trim(int2char(floor(time)))//'.bin'
+      if (.not.no_io) then
+        if (.not.ts_restart) then
+          !Dump initial data
+           call writeRecordFile(file,0,0d0,dt,0d0,u_0)
+           call writeRecordFile(file,0,0d0,dt,0d0,u_np)
+        elseif (getEarlyTimeRestartFlag()) then
+          if (index(file,'.bin') /= 0) then
+            file = 'record_t='//trim(int2char(floor(time)))//'.bin'
+          else
+            file = 'record_t='//trim(int2char(floor(time)))//'.bp'
+          endif
+          !Dump initial data
+          call writeRecordFile(file,0,0d0,dt,0d0,u_0)
+          call writeRecordFile(file,itime,time,dt,gammat,u_np)
         else
-          file = 'record_t='//trim(int2char(floor(time)))//'.bp'
+          call setAppendIOMode
         endif
-        !Dump initial data
-        call writeRecordFile(file,0,0d0,dt,0d0,u_0)
-        call writeRecordFile(file,itime,time,dt,gammat,u_np)
-      else
-        call setAppendIOMode
       endif
 
 #if defined(petsc)
-        !End profiling IO
-        call switch_profile_stage(iSTUP)
+      !End profiling IO
+      call switch_profile_stage(iSTUP)
 #endif
 
 
