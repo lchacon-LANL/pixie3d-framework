@@ -68,8 +68,6 @@ c     Global variables
       
 c     Local variables
 
-      character(50) :: text,line
-
 c     Begin program
 
 c     Initialize ADIOS for componentized I/O
@@ -97,6 +95,8 @@ c     #################################################################
         implicit none
 
         integer :: buffer,ierr
+
+        character(60) :: text,line
 
         if (my_rank == 0) then
           text = int2char(buffer)
