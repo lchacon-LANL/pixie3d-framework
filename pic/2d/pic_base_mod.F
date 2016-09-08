@@ -3322,7 +3322,7 @@ c ######################################################################
 
       use pic_mass_matrix
 
-cc      use pic_mover
+cc      use pic_io
 
       use grid, ONLY: npx,npy,npz,gparams
 #if defined(petsc)

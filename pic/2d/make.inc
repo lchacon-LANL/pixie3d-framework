@@ -10,6 +10,7 @@ SUBDIRS = $(COMMONDIR)/math\
           $(COMMONDIR)/io \
           $(COMMONDIR)/interpolation/1d_int\
           $(COMMONDIR)/grid\
+          $(COMMONDIR)/matrixLightSolver\
 	  $(COMMONDIR)/MG\
           $(COMMONDIR)/var_setup\
 	  $(COMMONDIR)/driver_setup\

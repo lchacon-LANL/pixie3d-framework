@@ -1400,8 +1400,8 @@ c     Restart outer loop
 
 c     End program
 
- 199  format(' FGMRES its =', i4,';  Res =',1p,d10.4
-     .      ,';  Ratio =', d10.4)
+ 199  format(' FGMRES its =', i4,';  Res =',1p,d11.4
+     .      ,';  Ratio =', d11.4)
 
       end subroutine fgmres
 
@@ -1708,8 +1708,8 @@ c     Restart outer loop
 
 c     End program
 
- 199  format(' GMRES its =', i4,';  Res =',1p,d10.2
-     .      ,';  Ratio =', d10.2)
+ 199  format(' GMRES its =', i4,';  Res =',1p,d11.4
+     .      ,';  Ratio =', d11.4)
 
       end subroutine gmres
 
