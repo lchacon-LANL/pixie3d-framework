@@ -24,7 +24,7 @@ c######################################################################
         type(grid_mg_def),pointer,private :: g_mg_def
 
 #if defined(coarse_MG)
-        integer,private :: mg_proc_coarsen_factor=8  !Coarsening ratio in # procs/dim
+        integer,private :: mg_proc_coarsen_factor=4  !Coarsening ratio in # procs/dim
                                                      !in parallel MG solve
         integer,private :: MPI_COMM_SAV
 
