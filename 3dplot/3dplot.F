@@ -137,12 +137,7 @@ c Finalize graphics
 
       call finalizeDiagnostics
 
-#if defined(adios)
-      call closeRecordFileAdiosForRead(adios_err)
-      call adios_finalize(my_rank,adios_err)
-#else
       call closeRecordFiles
-#endif
 
       call fortranDestroy
 
@@ -216,11 +211,9 @@ c Information output
 
       if (my_rank == 0) then
 
-cc        ngrd =(/gv%gparams%ngrdx,gv%gparams%ngrdy,gv%gparams%ngrdz/)
-
         if (itime.eq.0) then
 
-          write (*,10) nxd,nyd,nzd!,ngrd
+          write (*,10) nxd,nyd,nzd
 
           write (*,*) 
           write (*,100)
@@ -238,8 +231,6 @@ cc        ngrd =(/gv%gparams%ngrdx,gv%gparams%ngrdy,gv%gparams%ngrdz/)
 c End program
 
  10   format (/,'  Grid mesh:................',i4,'x',i4,'x',i4)
-c$$$ 10   format (/,'  Grid mesh:................',i4,'x',i4,'x',i4
-c$$$     .        /,'  Number of grid levels:....',i4,',',i2,',',i2)
  100  format ('   itime      time')
  110  format (i7,2x,1p,e10.2)
  120  format (i7,2x,1p,e10.2,a)
@@ -356,7 +347,7 @@ c Read perturbed solution u_ic
 
       call equateDerivedType(u_ic,u_0)
 
-cc      call readTimeStep(urecord,itime,time,dt,gammat,u_ic,ierr)
+c$$$      call readTimeStep(urecord,itime,time,dt,gammat,u_ic,ierr)
 
 c Initialize diagnostics and related variables
 
@@ -384,8 +375,8 @@ c Initialize graphics
 
       call initializeGraphics
 
-      nplot = 0
-      call output(nplot)
+c$$$      nplot = 0
+c$$$      call output(nplot)
 
 c End program
 
