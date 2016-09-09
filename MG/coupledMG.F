@@ -5645,13 +5645,7 @@ c Start mu-cycle
 
 c     Perform mu-cycle recursively
 
-#if !defined(coarse_MG)
-        if (igrid.eq.igmax.or.smooth_only) then
-          call smooth(igrid)
-        else
-          call mcycle(igrid)
-        endif
-#else
+#if defined(coarse_MG) && defined(petsc) 
         if (smooth_only) then
           call smooth(igrid)
         else
@@ -5660,6 +5654,12 @@ c     Perform mu-cycle recursively
           else
             call mcycle(igrid)
           endif
+        endif
+#else
+        if (igrid.eq.igmax.or.smooth_only) then
+          call smooth(igrid)
+        else
+          call mcycle(igrid)
         endif
 #endif
 
@@ -7729,74 +7729,74 @@ c     ###################################################################
           enddo
         enddo
 
-cc          !Take care of points around singular point
-cc          if (isSP(1,1,1,igrid,igrid,igrid)) then
-cc#if defined(petsc)
-cc            if (np > 1) call pstop('jb','Does not work in parallel')
-cc#endif
-cc            do i1=3,1,-1
-cc
-cc              !plane JB
-cc              mg_ctx_l%iline(igrid) = i1 !Set i for line smoothing around SP
-cc
-cc              call limits(0,nxf,nyf,nzf,igrid
-cc     .             ,imin,imax,jmin,jmax,kmin,kmax)
-cc
-cc              do itr2=1,5 !JB iteration around SP
-cc
-cc                magsp = 0d0
-cc
-cc                call MGmatvec(0,neq,ntot,zz,yy,igrid,bcnd,matvec)
-cc
-cc                do k=kmin,kmax
-cc                  do j=jmin,jmax
-cc                    do i=imin,imax
-cc                      !nxf,nyf,nzf are the original grid's even in line relaxation.
-cc                      ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-cc
-cc                      iii = neq*(ii-1)
-cc
-cc                      !Find new residual
-cc                      do ieq = 1,neq
-cc                        rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
-cc                      enddo
-cc
-cc                      !Multiply by D^-1 (stored in diag)
-cc                      iig = iii + isig - 1
-cc                      dummy =
-cc     .                   matmul(transpose(diag(:,iig+1:iig+neq))
-cc     .                         ,rhs)
-cc
-cc                      !Update solution zz
-cc                      do ieq=1,neq
-cc                        zz(iii+ieq) = zz(iii+ieq) + 0.8*dummy(ieq)
-cc                      enddo
-cc
-cc                      magsp = magsp + sum(rhs*rhs)
-cc                    enddo
-cc                  enddo
-cc                enddo
-cc
-cc                if (itr2 == 1) then
-cc                  magsp0 = magsp
-cc                else
-cc                  if (out.ge.3.and.prnt)
-cc     .              write (*,*) '  SP smoothing in JB, iter=',itr2
-cc     .                             ,' Ratio=',sqrt(magsp/magsp0)
-cc                  if (sqrt(magsp/magsp0) < 0.5) exit
-cc                endif
-cc
-cc              enddo
-cc
-cc              if (out.eq.2.and.prnt)
-cc     .           write (*,*) '  SP smoothing in GS: line = ',i1
-cc     .                       ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
-cc
-cc            enddo
-cc
-cc            mg_ctx_l%iline(igrid) = 0 !Unset line smoothing
-cc
-cc          endif
+c$$$          !Take care of points around singular point
+c$$$          if (isSP2(mgctx%g_def,1,igrid)) then
+c$$$#if defined(petsc)
+c$$$            if (np > 1) call pstop('jb','Does not work in parallel')
+c$$$#endif
+c$$$cc            do i1=3,1,-1
+c$$$            do i1=1,1,-1
+c$$$
+c$$$              !plane JB
+c$$$              mgctx%iline(igrid) = i1 !Set i for line smoothing around SP
+c$$$
+c$$$              call limits(mgctx,0,igrid,imin,imax,jmin,jmax,kmin,kmax)
+c$$$
+c$$$              do itr2=1,5 !JB iteration around SP
+c$$$
+c$$$                magsp = 0d0
+c$$$
+c$$$                call MGmatvec(mgctx,0,zz,yy,igrid,bcnd,matvec)
+c$$$
+c$$$                do k=kmin,kmax
+c$$$                  do j=jmin,jmax
+c$$$                    do i=imin,imax
+c$$$                      !nxf,nyf,nzf are the original grid's even in line relaxation.
+c$$$                      ii = i + nxf*(j-1) + nxf*nyf*(k-1)
+c$$$
+c$$$                      iii = neq*(ii-1)
+c$$$
+c$$$                      !Find new residual
+c$$$                      do ieq = 1,neq
+c$$$                        rhs(ieq) = rr(iii+ieq) - yy(iii+ieq)
+c$$$                      enddo
+c$$$
+c$$$                      !Multiply by D^-1 (stored in diag)
+c$$$                      iig = iii + isig - 1
+c$$$                      dummy =
+c$$$     .                   matmul(transpose(diag(:,iig+1:iig+neq))
+c$$$     .                         ,rhs)
+c$$$
+c$$$                      !Update solution zz
+c$$$                      do ieq=1,neq
+c$$$                        zz(iii+ieq) = zz(iii+ieq) + 0.8*dummy(ieq)
+c$$$                      enddo
+c$$$
+c$$$                      magsp = magsp + sum(rhs*rhs)
+c$$$                    enddo
+c$$$                  enddo
+c$$$                enddo
+c$$$
+c$$$                if (itr2 == 1) then
+c$$$                  magsp0 = magsp
+c$$$                else
+c$$$                  if (out.ge.3.and.prnt)
+c$$$     .              write (*,*) '  SP smoothing in JB, iter=',itr2
+c$$$     .                             ,' Ratio=',sqrt(magsp/magsp0)
+c$$$                  if (sqrt(magsp/magsp0) < 0.5) exit
+c$$$                endif
+c$$$
+c$$$              enddo
+c$$$
+c$$$              if (out.eq.2.and.prnt)
+c$$$     .           write (*,*) '  SP smoothing in GS: line = ',i1
+c$$$     .                       ,'iter=',itr2,'Ratio=',sqrt(magsp/magsp0)
+c$$$
+c$$$            enddo
+c$$$
+c$$$            mgctx%iline(igrid) = 0 !Unset line smoothing
+c$$$
+c$$$          endif
 
       end subroutine std_JB
 
