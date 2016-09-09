@@ -97,7 +97,7 @@ c     Local variables
      .                   ,ndplot,dplot
      .                   ,hdf_plot,xdraw_plot,adios_plot
      .                   ,prof_conf,cont_conf
-     .                   ,iplot,jplot,kplot
+     .                   ,iplot,jplot,kplot,no_graphics_io
 
 c     Graphics defaults
 
