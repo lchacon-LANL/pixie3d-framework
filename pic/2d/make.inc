@@ -57,7 +57,9 @@ endif
 
 #Define dependencies
 
-pic_base_mod.o: pic_defs.h
+INITFILES = $(wildcard problem_init/*.[F,c,cpp,f]) 
+
+pic_base_mod.o: pic_defs.h $(INITFILES)
 pic_mod.o: pic_base_mod.o
 
 ifeq ($(PIC_CUDA),t) 
