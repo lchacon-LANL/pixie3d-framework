@@ -96,9 +96,9 @@ c Allocate global variables
       call allocateGlobalVar(gv)
 
 #if defined(petsc)
-        if (.not.tst_flg)
-     .       write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
-     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
+c$$$        if (.not.tst_flg)
+c$$$     .       write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
+c$$$     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
 #endif
 
 c Create Time Stepping variables

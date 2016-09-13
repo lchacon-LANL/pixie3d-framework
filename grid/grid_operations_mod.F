@@ -2358,11 +2358,7 @@ c     Local variables
 
       integer :: nx,ny,nz
 
-      type(MG_grid_metrics),pointer :: gmetric 
-
 c     Begin program
-
-      gmetric => g_def%gmetric
 
       nx = size(vec1,1)-2
       ny = size(vec1,2)-2
@@ -2412,9 +2408,9 @@ c$$$     .            ,"Case not implemented yet")
 
       !Apply Jacobian factor
       if (cnv_in) then
-        vec3(:,:,:,1) = vec3(:,:,:,1)/gmetric%grid(igrid)%jac
-        vec3(:,:,:,2) = vec3(:,:,:,2)/gmetric%grid(igrid)%jac
-        vec3(:,:,:,3) = vec3(:,:,:,3)/gmetric%grid(igrid)%jac
+        vec3(:,:,:,1) = vec3(:,:,:,1)/g_def%gmetric%grid(igrid)%jac
+        vec3(:,:,:,2) = vec3(:,:,:,2)/g_def%gmetric%grid(igrid)%jac
+        vec3(:,:,:,3) = vec3(:,:,:,3)/g_def%gmetric%grid(igrid)%jac
       endif
 
 c     End program
