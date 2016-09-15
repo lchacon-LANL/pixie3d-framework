@@ -13,19 +13,22 @@ c ######################################################################
       use pic_setup
 
       !Particle orbit iteration counters
-      integer(8) :: substep_counter=0 !Total number of pcle substeps
-     .             ,pit_counter=0     !Total number of picard iterations
+      integer(8) :: pst_counter=0    !Total number of particle substeps
+     .             ,pit_counter=0    !Total number of picard iterations
+     .             ,psh_counter=0    !Total number of particle pushes
 
-      integer :: pit_max=0            !Maximum picard iterations per each substep
-     .          ,pst=0                !Number of particle substeps
-     .          ,pit_sum=0            !Sum of Picard iterations
+      integer :: pit_max=0           !Maximum picard iterations per substep
+     .          ,pst_max=0           !Maximum number of particle substeps per timestep
+     .          ,ntot_pcles=0        !Total number of particles
+
+      real(8) :: pit_avg=0           !Average picard iterations per substep
+     .          ,pst_avg=0           !Average number of particle substeps per timestep
 
       contains
 
 c     pic_mover_2d
 c     ##################################################################
-      subroutine pic_mover_2d(dt,A,phi,DtA,B0
-     .                               ,tfv,tfx,cm,pm,cm_exch)
+      subroutine pic_mover_2d(dt,A,phi,DtA,B0,tfv,tfx,cm,pm,cm_exch)
         
       implicit none
         
@@ -39,8 +42,10 @@ c     Call variables
 c     Local variables
 
       integer :: ipc,isp,i0(_Npg),j0(_Npg),i(_Npg),j(_Npg)
-      integer :: im,substep_count,substeps,pit_count,pits,pitmax,it,k
-      integer :: numpcles, numspcs,nxg,nyg,nzg
+      integer :: im,it,k,psh_sum
+     .          ,pits,pit_sum,pitmax
+     .          ,psts,pst_sum,pstmax
+      integer :: numpcles,numspcs,nxg,nyg,nzg
       real(_prec) :: d_x (_Npg,3)
       real(_prec) :: v_np(_Npg,3)
       real(_prec) :: x_nh(_Npg,3)
@@ -92,14 +97,20 @@ c     Begin program
 
 c     Move particles 
       
-      substep_count = 0
-      pit_count = 0
-      pitmax = 0
+      psh_sum = 0
+      pst_sum = 0
+      pit_sum = 0
+      pitmax  = 0
+      pstmax  = 0
 
       numspcs = size(spcs)
 
+      ntot_pcles = 0
+
       do isp=1, numspcs
          numpcles = size(spcs(isp)%pcles)
+
+         ntot_pcles = ntot_pcles + (numpcles - nip)
 
          garr_n = 0d0
 
@@ -118,7 +129,7 @@ c     Move particles
 !$omp parallel DEFAULT(SHARED) private(ipc,it,x0,v0,v2,dtp,dt_sub
 !$omp.              ,d_x,dx,xp,yp,xfp,yfp,x_nh,dum1,dum2
 !$omp.              ,i,j,k,i0,j0,Mx1,Mx2,My1,My2,Mxy2,w_pcle
-!$omp.              ,substeps,M_w_prod,pits,pcle_nu)
+!$omp.              ,psts,M_w_prod,pits,pcle_nu)
 !$         call set_omp_thread_id()
 !$omp DO SCHEDULE (DYNAMIC,4)
 !$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
@@ -126,8 +137,8 @@ c     Move particles
 #if defined(PIC_CM_DIAG)        
 !$omp.           ,cmex,cml
 #endif
-!$omp.           ,substep_count,pit_count,pit_sum)
-!$omp.reduction(max:pitmax,pst)
+!$omp.           ,pst_sum,psh_sum,pit_sum)
+!$omp.reduction(max:pitmax,pstmax)
          do ipc=nip+1,numpcles
 
            pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
@@ -153,7 +164,7 @@ c     Move particles
      .                                ,spcs(isp)%pcles(ipc),pcle_nu
      $                                ,dt,dtp,dt_sub
      $                                ,DtA,B0,A,phi,dx
-     $                                ,substeps,pits)
+     $                                ,psts,pits)
 
 c$$$             !Check convergence
 c$$$             if(it>200) then
@@ -165,11 +176,12 @@ c$$$                print *,"#",v0,spcs(isp)%pcles(ipc)%v_np,i0,j0
 c$$$             end if
 
              !Update pcle counters
-             pitmax = max(pits,pitmax)
-             pit_count = pit_count + 1
-             pit_sum   = pit_sum + pits
+             pst_sum = pst_sum + 1      !Particle substep counter
 
-             substep_count = substep_count + substeps
+             pitmax  = max(pits,pitmax) !Maximum number of Picard iterations per substep
+
+             pit_sum = pit_sum + pits   !Total number of picard iterations
+             psh_sum = psh_sum + psts   !Total number of particle pushes (including ALL picard iterations)
 
              !Gather moments
 #if defined(PIC_CM_DIAG)
@@ -263,11 +275,9 @@ c$$$             end if
 
            end do               !sub-stepping
 
-           ! Use local registers for performance (C. Mikida)
-           !v_np = pcles(ipc)%v_np
-
-           pst = max(it,pst)
-
+           !Maximum number of substeps per timestep
+           pstmax  = max(it,pstmax)
+             
            !2nd order (for checking charge conservation) careful
            xp = pcle_nu%x_n(:,1)*ihx
            yp = pcle_nu%x_n(:,2)*ihy
@@ -387,9 +397,17 @@ c     Output info
 
 c     Substep counter
 
-      substep_counter = substep_counter + substep_count
-      pit_counter = pit_counter + pit_count
-      pit_max = pitmax
+      pit_counter = pit_counter + pit_sum  !Total number of picard iterations
+      psh_counter = psh_counter + psh_sum  !Total number of particle pushes
+      pst_counter = pst_counter + pst_sum  !Total number of particle substeps
+
+      pit_max = pitmax                     !Maximum number of picard iterations per substep
+      pst_max = pstmax                     !Maximum number of particle substeps per timestep
+
+      pit_avg = 1d0*pit_sum/pst_sum        !Average number of picard iterations per substep
+      pst_avg = 1d0*pst_sum/ntot_pcles     !Average number of substeps per particle
+
+      ntot_pcles = ntot_pcles*_Npg         !Account for pcle grouping for external averages
 
 c     End program
 
