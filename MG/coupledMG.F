@@ -7101,8 +7101,9 @@ c$$$     .   ,MG_coarse_solve
           !Set MG context 
           optns_new%mgctx => null()
           optns_new%mg_grid_def => g_crse_def
-          optns_new%diag => null() !Reform diagonals in coarse mesh
           optns_new%is_coarse_proc_MG_solve = .true.
+          optns_new%diag => null() !Reform diagonals in coarse mesh
+          optns_new%vcyc = 1       !Only one VCYCLE in coarse solve
 
           !Call MG with new solver context
 c$$$          if ((out==1.or.out==2).and.my_rank ==0)

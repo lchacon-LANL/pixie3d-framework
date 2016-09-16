@@ -51,17 +51,26 @@ c Read PETSc runtime options
      .                       ,petsc_flg,ierr)
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nzd',nzd
      .                       ,petsc_flg,ierr)
+
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
      .                       ,petsc_flg,ierr)
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
      .                       ,petsc_flg,ierr)
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
      .                       ,petsc_flg,ierr)
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-test',tst_flg
-     .                       ,petsc_flg,ierr)
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
+     .                         ,ts_restart,petsc_flg,ierr)
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-test'
+     .                         ,tst_flg,petsc_flg,ierr)
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-pc_debug'
+     .                         ,pc_debug,petsc_flg,ierr)
 
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ilevel',ilevel
      .                       ,petsc_flg,ierr)
+
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-numtime',numtime
      .                       ,petsc_flg,ierr)
       if (petsc_flg) tmax = 0d0
