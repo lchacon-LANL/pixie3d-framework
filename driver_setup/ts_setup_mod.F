@@ -29,7 +29,7 @@ c ######################################################################
                                        !        ndstep is calculated in code)
      .            ,nrstrt=-1           ! Restart cycle number (not active if negative)
 
-        logical :: timecorr=.true.     ! Time adaptive algorithm (based on Newton convergence)
+        logical :: ts_adapt_dt=.true.     ! Time adaptive algorithm (based on Newton convergence)
      .            ,ts_restart=.false.  ! Restarting flag
      .            ,source=.true.       ! Impose source to provide equilibrium
      .            ,predictor=.false.   ! Whether to extrapolate in time to find first guess (not active)
@@ -322,7 +322,7 @@ c     Namelists
 
       !Temporal discretization
       namelist /ts/ dt,tmax,dstep,numtime,ndstep,source,ts_restart
-     .             ,timecorr
+     .             ,ts_adapt_dt
      .             ,cnfactor,sm_flag,sm_pass,predictor,postprocess
      .             ,preprocess,eigen,eig_dt,perturb_rstrt
      .             ,ts_ramp_up_dt,ts_ramp_up_dt_fraction

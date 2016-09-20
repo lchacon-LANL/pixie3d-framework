@@ -333,17 +333,15 @@ c     Local variables
 
 c     Begin program
 
-      if (    cnfactor > 5d-1                   !Explicit
-     .   .or.(timecorr.and.ierr==0.and.itm==1)  !First explicit step if timecorr
-     .   ) then
+      if (cnfactor > 5d-1) then  !Explicit
         call set_explicit_dt(dt)
   
-        if (cnfactor > 5d-1) dtexp = dtexp + dt
+        dtexp = dtexp + dt
       else
         call adapt_dt
 
 #if defined(USER_PROVIDED_DT)
-        call set_user_dt(dt)
+        call set_user_dt(dt)  !External
 #endif
 
         call calculate_cnfactor
@@ -362,12 +360,19 @@ c     #######################################################################
         real(8) ::    coef1=0.8   !Time subcycling coefficient
      .               ,coef2=1.05  !Time recovery   coefficient
 
-        if (ierr > 0) then   !Error in time stepping
+        if (ts_ramp_up_dt) then
+          coef1 = ts_ramp_up_dt_fraction
+          coef2 = ts_ramp_up_dt_recovery
+        endif
+
+        if (ierr /= NOERR) then   !Error in time stepping
 
           dt = dt*coef1
+
           if (dt < 1d-3*dtbase) then
             call pstop('adapt_dt','Time step too small')
           endif
+
           if (my_rank == 0 .and. ierr == CUTDT) write (*,240)
           if (my_rank == 0) write (*,400) dt
 
@@ -376,11 +381,11 @@ c     #######################################################################
           select case (sm_flag)
           case(1)  !Rannacher time stepping
 
-            if (   (itm <= sm_pass  .and.(.not.timecorr))
-     .         .or.(itm <= sm_pass+1.and.      timecorr )) then
+            if (   (itm <= sm_pass  .and.(.not.ts_adapt_dt))
+     .         .or.(itm <= sm_pass+1.and.      ts_adapt_dt )) then
               dt = 0.5*dtbase
-            elseif ((itm == sm_pass+1.and.(.not.timecorr))
-     .          .or.(itm == sm_pass+2.and.      timecorr )) then
+            elseif((itm == sm_pass+1.and.(.not.ts_adapt_dt))
+     .         .or.(itm == sm_pass+2.and.      ts_adapt_dt )) then
               dt = dtbase
             else
               dt = min(dtbase,dt*coef2)
@@ -388,13 +393,17 @@ c     #######################################################################
 
           case(2)  !BDF time stepping
 
-            if (ts_ramp_up_dt.or.timecorr) then
-              if  (itm == 2) then
-                dt = ts_ramp_up_dt_fraction*dtbase
+            if (ts_restart) then
+              dt = dt*coef2**(-15) !Quiet BDF2 start to ramp up in a few time steps
+            elseif (ts_adapt_dt) then
+              if (itm == 1) then
+                call set_explicit_dt(dt)
+              elseif (itm == 2) then
+                dt = coef1*dtbase
 c$$$              elseif (itm == 3) then
 c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
               else
-                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
+                dt = min(dtbase,dt*coef2)
               endif
             else
               if  (itm <= bdf2_init_offset) then
@@ -409,20 +418,28 @@ c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few
               endif
             endif
 
-          case default   !Default time stepping
+          case default   !Theta time stepping
 
-            if     ((itm == 1.and.(.not.timecorr))) then
-              dt = dtbase
-            elseif ((itm == 2.and.      timecorr )) then
-              if (dt < dtbase) then
-                dt = dtbase - dt
-              else
+            if (ts_adapt_dt) then
+              if (itm == 1) then
+                call set_explicit_dt(dt)
+              elseif (itm == 2) then
+                if (dt < dtbase) then
+                  dt = dtbase - dt
+                else
+                  dt = dtbase
+                endif
+              elseif (itm == 3) then
                 dt = dtbase
+              else
+                dt = min(dtbase,dt*coef2)
               endif
-            elseif ((itm == 3.and.      timecorr )) then
-              dt = dtbase
             else
-              dt = min(dtbase,dt*coef2)
+              if (itm == 1) then
+                dt = dtbase
+              else
+                dt = min(dtbase,dt*coef2)
+              endif
             endif
 
           end select
@@ -440,20 +457,20 @@ c     #######################################################################
 
       if (sm_flag == 1) then      !Rannacher
 
-        if (itm == 1.and.timecorr) then
+        if (itm == 1.and.ts_adapt_dt) then
           cnfactor = .5
-        elseif (    (itm <= sm_pass+1 .and.      timecorr )
-     .          .or.(itm <= sm_pass   .and.(.not.timecorr)))then
+        elseif (    (itm <= sm_pass+1 .and.      ts_adapt_dt )
+     .          .or.(itm <= sm_pass   .and.(.not.ts_adapt_dt)))then
           cnfactor = .3
-        elseif (    (itm >= sm_pass+1.and.(.not.timecorr))
-     .          .or.(itm >= sm_pass+2.and.      timecorr )) then
+        elseif (    (itm >= sm_pass+1.and.(.not.ts_adapt_dt))
+     .          .or.(itm >= sm_pass+2.and.      ts_adapt_dt )) then
           cnfactor = max(.5 - gammat/12.*dt,0d0)
         endif
 
       elseif (sm_flag == 2) then  !BDF2
 
-        bdf2 = (itm > 1 .and. (.not.timecorr) )
-     .    .or. (itm > 2 .and.       timecorr  .and. ierr == NOERR)
+        bdf2 = (itm > 1 .and. (.not.ts_adapt_dt) )
+     .    .or. (itm > 2 .and.       ts_adapt_dt  .and. ierr == NOERR)
 
         bdf2 = bdf2.and.(.not.ts_restart)
 
@@ -469,7 +486,7 @@ c     #######################################################################
           cn  =-1d0
           cnm = 0d0
 
-          if (ts_restart) cnfactor = 0.3d0
+          if (ts_restart) cnfactor = 0.45d0
         endif
 
       else  !Theta scheme
