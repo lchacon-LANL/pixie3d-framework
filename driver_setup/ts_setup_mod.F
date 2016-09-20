@@ -29,7 +29,7 @@ c ######################################################################
                                        !        ndstep is calculated in code)
      .            ,nrstrt=-1           ! Restart cycle number (not active if negative)
 
-        logical :: ts_adapt_dt=.false. ! Time adaptive algorithm (based on Newton convergence)
+        logical :: ts_adapt_dt=.true.  ! Time adaptive algorithm (based on Newton convergence)
      .            ,ts_restart=.false.  ! Restarting flag
      .            ,source=.true.       ! Impose source to provide equilibrium
      .            ,predictor=.false.   ! Whether to extrapolate in time to find first guess (not active)
