@@ -333,11 +333,6 @@ c     Local variables
 
 c     Begin program
 
-#if defined(USER_PROVIDED_DT)
-      call set_user_dt(dt)
-
-      call calculate_cnfactor
-#else
       if (    cnfactor > 5d-1                   !Explicit
      .   .or.(timecorr.and.ierr==0.and.itm==1)  !First explicit step if timecorr
      .   ) then
@@ -347,9 +342,12 @@ c     Begin program
       else
         call adapt_dt
 
+#if defined(USER_PROVIDED_DT)
+        call set_user_dt(dt)
+#endif
+
         call calculate_cnfactor
       endif
-#endif
 
       ts_restart = .false.
 

@@ -192,10 +192,10 @@ cc        enddo
 
         adios_tread = 0  ! next time read first timestep
 
-        write (*,"(a,i0,a,a)")
+        if (adios_debug) then
+          write (*,"(a,i0,a,a)")
      .       " Proc=",my_rank,": opened ",trim(rfile)
 
-        if (adios_debug) then
           if (my_rank == 0) then
             write (*,"(a, i5)") " Number of vars: ", adios_varcount
             write (*,*), "Variables:"
