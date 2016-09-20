@@ -102,11 +102,12 @@ c     Check for error in time stepping
 
           call TS_rollback_timecounters()
 
-          if (timecorr) then
+          if (ts_adapt_dt) then
             cycle
           else
             call pstop('Main'
-     .   ,'ERROR: Solver failed to converge; rerun with "timecorr = t"')
+     .                ,'ERROR: Solver failed to converge;'
+     .                 //' rerun with "ts_adapt_dt = t"')
             exit
           endif
 
