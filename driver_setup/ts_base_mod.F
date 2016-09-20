@@ -329,7 +329,10 @@ c     Call variables
 
 c     Local variables
 
-      external set_explicit_dt,set_user_dt
+#if defined(USER_PROVIDED_DT)
+      external set_user_dt
+#endif
+      external set_explicit_dt
 
 c     Begin program
 
