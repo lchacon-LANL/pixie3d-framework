@@ -16,6 +16,8 @@ c----------------------------------------------------------------------
 
       use var_io
 
+      use mg_solver
+
 #if defined(MK)
       use mk
 #endif
@@ -29,6 +31,8 @@ c Local variables
       integer :: ierr
 
       logical :: petsc_flg
+     .          ,bc_debg=.false.
+     .          ,mg_coarse=.true.
 
 c Begin program
      
@@ -67,6 +71,14 @@ c Read PETSc runtime options
 
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-pc_debug'
      .                         ,pc_debug,petsc_flg,ierr)
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-bc_debug'
+     .                         ,bc_debg,petsc_flg,ierr)
+      call set_BC_debug(bc_debg)
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-mg_coarse'
+     .                         ,mg_coarse,petsc_flg,ierr)
+      call MG_set_coarse_solve(mg_coarse)
 
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ilevel',ilevel
      .                       ,petsc_flg,ierr)
