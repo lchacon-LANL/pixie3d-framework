@@ -117,9 +117,7 @@ c     Read initialization parameters
 
 c     Initialize grid packing structure
 
-      g_pack(1) = gp1
-      g_pack(2) = gp2
-      g_pack(3) = gp3
+      call init_grid_pack_config(gp1,gp2,gp3)
 
 c     Consistency check
 
@@ -130,21 +128,9 @@ c     Consistency check
 
 c     Translate boundary conditions
 
-      bcond = -1
+      ioerr = initBCS(bcs)
 
-      where (bcs == 'def')
-        bcond = DEF
-      elsewhere (bcs == 'per')
-        bcond = PER
-      elsewhere (bcs == 'spt')
-        bcond = SP
-      elsewhere (bcs == 'sym')
-        bcond = FSYM  !Symmetry at faces (for conservation)
-      elsewhere (bcs == 'equ')
-        bcond = EQU
-      end where
-
-      if (minval(bcond) < 0) then
+      if (ioerr /= 0.and.my_rank == 0) then
         loc = 1 - mod(minloc(bcond),2)
         dim = 1+(minloc(bcond) - (1+loc))/2
         write (*,*) 'Error in defining boundary conditions'

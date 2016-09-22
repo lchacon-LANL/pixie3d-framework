@@ -5,56 +5,216 @@ c #####################################################################
         use math
         use grid_def_st
 
-        type(grid_pack),dimension(3),save :: g_pack
+        type(grid_pack),dimension(3),private :: g_pack
+
+        real(8), private :: eta(3)=0d0
+        integer, private :: pwr=3
 
       contains
 
-c     set_pack_var
+c     init_grid_pack_config
 c     #################################################################
-      subroutine set_pack_slope(gdef)
+      subroutine init_grid_pack_config(gp1,gp2,gp3)
+
+c     -----------------------------------------------------------------
+c     Computes slope for grid packing.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+      type(grid_pack) :: gp1,gp2,gp3
+        
+c     Begin program
+
+      g_pack(1) = gp1
+      g_pack(2) = gp2
+      g_pack(3) = gp3
+
+c     End program
+
+      end subroutine init_grid_pack_config
+
+c     get_grid_pack_config
+c     #################################################################
+      subroutine get_grid_pack_config(gp)
+
+c     -----------------------------------------------------------------
+c     Computes slope for grid packing.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+      type(grid_pack),dimension(3) :: gp
+        
+c     Begin program
+
+      gp = g_pack
+
+c     End program
+
+      end subroutine get_grid_pack_config
+
+c     setup_grid_packing
+c     #################################################################
+      function setup_grid_packing(map,gdef) result(map_grid_pack)
+
+c     -----------------------------------------------------------------
+c     Computes slope for grid packing.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+      character(*) :: map
+
+      type(grid_mg_def),pointer :: gdef
+
+      logical :: map_grid_pack
+
+c     Begin program
+
+        if (    gdef%g_pack(1)%pack
+     .      .or.gdef%g_pack(2)%pack
+     .      .or.gdef%g_pack(3)%pack) then
+
+          map_grid_pack = (map /= 'lpk')  !Do not pack via map if packing logical mesh ("lpk")
+
+          !Save packing configuration
+          call find_pack_slope(gdef)
+        else
+          map_grid_pack = .false.
+        endif
+
+c     End program
+
+      end function setup_grid_packing
+
+c     find_pack_slope
+c     #################################################################
+      subroutine find_pack_slope(gdef)
+
+c     -----------------------------------------------------------------
+c     Computes slope for grid packing.
+c     -----------------------------------------------------------------
 
       implicit none
 
       type(grid_mg_def),pointer :: gdef
 
-      integer :: nxx,nyy,nzz
-      real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+      integer :: nn(3),dim,ibc
+      real(8) :: lmin(3),lmax(3),idh
 
-      nxx = gdef%nglx
-      nyy = gdef%ngly
-      nzz = gdef%nglz
+      nn(1) = gdef%nglx
+      nn(2) = gdef%ngly
+      nn(3) = gdef%nglz
 
-      xmin = gdef%gxmin
-      xmax = gdef%gxmax
+      lmin(1) = gdef%gxmin
+      lmax(1) = gdef%gxmax
                          
-      ymin = gdef%gymin
-      ymax = gdef%gymax
+      lmin(2) = gdef%gymin
+      lmax(2) = gdef%gymax
                          
-      zmin = gdef%gzmin
-      zmax = gdef%gzmax
+      lmin(3) = gdef%gzmin
+      lmax(3) = gdef%gzmax
 
-      if (gdef%g_pack(1)%pack
-     .   .and.(.not.gdef%g_pack(1)%processed)) then
-        gdef%g_pack(1)%slope = gdef%g_pack(1)%dx0/(xmax-xmin)*nxx
-        gdef%g_pack(1)%processed = .true.
-        g_pack(1) = gdef%g_pack(1)
-      endif
+      do dim=1,3
+        if (gdef%g_pack(dim)%pack
+     .   .and.(.not.gdef%g_pack(dim)%processed)) then
+          idh = nn(dim)/(lmax(dim)-lmin(dim))
+          gdef%g_pack(dim)%slope = gdef%g_pack(dim)%dx0*idh
+          gdef%g_pack(dim)%processed = .true.
 
-      if (gdef%g_pack(2)%pack
-     .   .and.(.not.gdef%g_pack(2)%processed)) then
-        gdef%g_pack(2)%slope = gdef%g_pack(2)%dx0/(ymax-ymin)*nyy
-        gdef%g_pack(2)%processed = .true.
-        g_pack(2) = gdef%g_pack(2)
-      endif
+          g_pack(dim) = gdef%g_pack(dim) !Save config
 
-      if (gdef%g_pack(3)%pack
-     .   .and.(.not.gdef%g_pack(3)%processed)) then
-        gdef%g_pack(3)%slope = gdef%g_pack(3)%dx0/(zmax-zmin)*nzz
-        gdef%g_pack(3)%processed = .true.
-        g_pack(3) = gdef%g_pack(3)
-      endif
- 
-      end subroutine set_pack_slope
+          ibc  = 1+2*(dim-1)
+          if ((bcond(ibc)/=PER).and.(.not.g_pack(dim)%pack_both_bdrys))
+     .       eta(dim)=find_eta(lmin(dim),lmax(dim)
+     .                        ,g_pack(dim)%xp,g_pack(dim)%slope)
+        endif
+      enddo
+
+      contains
+
+c     find_eta
+c     #################################################################
+      function find_eta(xmin,xmax,x0,lambda) result(eta)
+
+        implicit none
+
+c     Global variables
+
+        real(8) :: xmin,xmax,x0,lambda,eta
+
+c     Local variables
+
+        integer,parameter :: nit=20
+
+        integer :: i
+        real(8) :: ijac,dxi(nit),res(nit)
+        real(8) :: ll,dd,xbar,dx
+
+c     Begin program
+
+        if (lambda == 0d0 .or. lambda == 1d0) then
+          eta = 0d0
+          return
+        endif
+
+        LL  = xmax-xmin
+
+        if (lambda > 1d0) then  !Pack at edges
+
+cc          eta = LL**3*(1d0-1d0/lambda)/((xmax-x0)**3-(xmin-x0)**3)
+          eta = LL**pwr*(1d0-1d0/lambda)/((xmax-x0)**pwr-(xmin-x0)**pwr)
+
+        else                    !Pack at x0
+
+          xbar= 0.5*(xmax+xmin)
+          dx  = xbar - x0
+          dd  = (dx/LL)**2
+
+c         Initial guess
+
+          eta = 4d0*(1d0-lambda)
+
+c         Newton iteration
+
+          if (dx == 0d0) return
+
+          do i=1,nit
+            res(i)=(1+2*(eta+lambda))**2*(1-lambda-0.25*eta) -27.*dd*eta
+            ijac = 4*(1+2*(eta+lambda)) *(1-lambda-0.25*eta)
+     .         -0.25*(1+2*(eta+lambda))**2                   -27.*dd
+
+            dxi(i) = -res(i)/ijac
+            eta = abs(eta + dxi(i)) !Want to find positive root
+
+cc            write (*,*) abs(res(i)),dxi(i),ijac,eta
+
+            if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
+          enddo
+
+c         Convergence check
+
+          if (i >= nit) then
+            write (*,*)
+            write (*,*) 'Newton it. in grid-packing routine find_a'
+     .                 ,' did not converge'
+            write (*,*)
+            write (*,*) 'Convergence history:'
+            do i=1,nit
+              write (*,*) 'Newton it.',i,' residual',abs(res(i))
+     .                   ,'update',abs(dxi(i))
+            enddo
+            write (*,*)
+            write (*,*) 'Aborting...'
+            stop
+          endif
+
+        endif
+
+      end function find_eta
+
+      end subroutine find_pack_slope
 
 c     scale_coord
 c     #################################################################
@@ -77,10 +237,9 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ibc,ibc1,exp=3,nn
+        integer :: ibc,nn
 
-        real(8) :: gp(2),lmin,lmax,TT
-        real(8), save :: bbx=0d0,bby=0d0,bbz=0d0
+        real(8) :: gp(2),lmin,lmax,TT,bb
 
         logical :: pack_both_bdrys
 
@@ -91,8 +250,7 @@ c     Begin program
           return
         endif
 
-        ibc = 1+2*(dim-1)
-        ibc1 = 2+2*(dim-1)
+        ibc  = 1+2*(dim-1)
 
 c     Grid packing configuration: slope gp(2) at given position gp(1)
 
@@ -126,35 +284,36 @@ c     Grid packing configuration: slope gp(2) at given position gp(1)
 c     Packing
 
         if (bcond(ibc) == PER) then !cosine jacobian
-          bbx = abs(1.-gp(2))
-          if (bbx >= 1d0) then
+          bb = abs(1.-gp(2))
+          if (bb >= 1d0) then
             write (*,*) 'Slope too small along ',dim,' coordinate'
             write (*,*) 'Aborting...'
             stop
           endif
 
-          xlog =x1-(lmax-lmin)/TT*bbx*sin(TT*(x1-gp(1))/(lmax-lmin))
+          xlog =x1-(lmax-lmin)/TT*bb*sin(TT*(x1-gp(1))/(lmax-lmin))
         elseif (pack_both_bdrys) then !sym cosine jacobian
-          bbx = abs(1.-gp(2))
-          if (bbx >= 1d0) then
+          bb = abs(1.-gp(2))
+          if (bb >= 1d0) then
             write (*,*) 'Slope too small along ',dim,' coordinate'
             write (*,*) 'Aborting...'
             stop
           endif
 
-          xlog = x1-(lmax-lmin)/TT*bbx*sin(TT*(x1-lmin)/(lmax-lmin))
+          xlog = x1-(lmax-lmin)/TT*bb*sin(TT*(x1-lmin)/(lmax-lmin))
         else  !monotonic cubic polynomial
-          select case(dim)
-          case(1)
-            if (bbx == 0d0) bbx= find_eta(lmin,lmax,gp(1),gp(2))
-            xlog = scl_coord(x1,bbx,lmin,lmax,gp(1),gp(2))
-          case(2)
-            if (bby == 0d0) bby= find_eta(lmin,lmax,gp(1),gp(2))
-            xlog = scl_coord(x1,bby,lmin,lmax,gp(1),gp(2))
-          case(3)
-            if (bbz == 0d0) bbz= find_eta(lmin,lmax,gp(1),gp(2))
-            xlog = scl_coord(x1,bbz,lmin,lmax,gp(1),gp(2))
-          end select
+          xlog = scl_coord(x1,eta(dim),lmin,lmax,gp(1),gp(2))
+c$$$          select case(dim)
+c$$$          case(1)
+c$$$            if (bbx == 0d0) bbx= find_eta(lmin,lmax,gp(1),gp(2))
+c$$$            xlog = scl_coord(x1,bbx,lmin,lmax,gp(1),gp(2))
+c$$$          case(2)
+c$$$            if (bby == 0d0) bby= find_eta(lmin,lmax,gp(1),gp(2))
+c$$$            xlog = scl_coord(x1,bby,lmin,lmax,gp(1),gp(2))
+c$$$          case(3)
+c$$$            if (bbz == 0d0) bbz= find_eta(lmin,lmax,gp(1),gp(2))
+c$$$            xlog = scl_coord(x1,bbz,lmin,lmax,gp(1),gp(2))
+c$$$          end select
         endif
 
       contains
@@ -220,7 +379,7 @@ c     Begin program
           !Pack at edges
           else
 
-            xi0 = xmin - (xmin-x0)/lambda - bb*(xmin-x0)**exp
+            xi0 = xmin - (xmin-x0)/lambda - bb*(xmin-x0)**pwr
 
             !Linear extrapolation to ensure equal mesh spacing at ghost points
 cc            if (xi > xmax) then
@@ -236,9 +395,9 @@ cc            endif
 
             !Newton iteration to find x(xi)
             do i=1,nit
-              res(i) = xi-2*dx-(xi0 + (x-x0)/lambda + bb*(x-x0)**exp)
+              res(i) = xi-2*dx-(xi0 + (x-x0)/lambda + bb*(x-x0)**pwr)
 
-              ijac = -1d0/lambda -exp*bb*(x-x0)**(exp-1)
+              ijac = -1d0/lambda -pwr*bb*(x-x0)**(pwr-1)
 
               dxi(i) = -res(i)/ijac
               x = x + dxi(i)
@@ -278,86 +437,6 @@ cc            endif
 c     End program
 
       end function scl_coord
-
-c     find_eta
-c     #################################################################
-      function find_eta(xmin,xmax,x0,lambda) result(eta)
-
-        implicit none
-
-c     Global variables
-
-        real(8) :: xmin,xmax,x0,lambda,eta
-
-c     Local variables
-
-        integer,parameter :: nit=20
-
-        integer :: i
-        real(8) :: ijac,dxi(nit),res(nit)
-        real(8) :: ll,dd,xbar,dx
-
-c     Begin program
-
-        if (lambda == 0d0 .or. lambda == 1d0) then
-          eta = 0d0
-          return
-        endif
-
-        LL  = xmax-xmin
-
-        if (lambda > 1d0) then  !Pack at edges
-
-cc          eta = LL**3*(1d0-1d0/lambda)/((xmax-x0)**3-(xmin-x0)**3)
-          eta = LL**exp*(1d0-1d0/lambda)/((xmax-x0)**exp-(xmin-x0)**exp)
-
-        else                    !Pack at x0
-
-          xbar= 0.5*(xmax+xmin)
-          dx  = xbar - x0
-          dd  = (dx/LL)**2
-
-c         Initial guess
-
-          eta = 4d0*(1d0-lambda)
-
-c         Newton iteration
-
-          if (dx == 0d0) return
-
-          do i=1,nit
-            res(i)=(1+2*(eta+lambda))**2*(1-lambda-0.25*eta) -27.*dd*eta
-            ijac = 4*(1+2*(eta+lambda)) *(1-lambda-0.25*eta)
-     .         -0.25*(1+2*(eta+lambda))**2                   -27.*dd
-
-            dxi(i) = -res(i)/ijac
-            eta = abs(eta + dxi(i)) !Want to find positive root
-
-cc            write (*,*) abs(res(i)),dxi(i),ijac,eta
-
-            if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
-          enddo
-
-c         Convergence check
-
-          if (i >= nit) then
-            write (*,*)
-            write (*,*) 'Newton it. in grid-packing routine find_a'
-     .                 ,' did not converge'
-            write (*,*)
-            write (*,*) 'Convergence history:'
-            do i=1,nit
-              write (*,*) 'Newton it.',i,' residual',abs(res(i))
-     .                   ,'update',abs(dxi(i))
-            enddo
-            write (*,*)
-            write (*,*) 'Aborting...'
-            stop
-          endif
-
-        endif
-
-      end function find_eta
 
       end function scale_coord
 

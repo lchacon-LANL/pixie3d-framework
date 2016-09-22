@@ -2135,6 +2135,77 @@ c$$$c     End program
 c$$$
 c$$$      end subroutine find_global_vec
 
+c     dumpGlobalField
+c     #################################################################
+      subroutine dumpGlobalField(g_def,file,nx,ny,nz,nxg,nyg,nzg,arr
+     .                          ,flg)
+
+      use io, ONLY: find_unit
+
+      implicit none
+
+c     -----------------------------------------------------------------
+c     Dump XDRAW contour file of global field "arr". Variable "flg"
+c     controls IO mode:
+c       * flg = 0: init mode
+c       * flg = 1: append mode
+c     -----------------------------------------------------------------
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: nx,ny,nz,nxg,nyg,nzg,flg,mpi_comm
+      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1)
+      character(*) :: file
+
+c     Local variables
+
+      integer :: unit
+      real(8),allocatable,dimension(:,:,:) :: dbg
+      real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+
+c     Begin program
+
+      xmin = g_def%gxmin
+      xmax = g_def%gxmax
+
+      ymin = g_def%gymin
+      ymax = g_def%gymax
+
+      zmin = g_def%gzmin
+      zmax = g_def%gzmax
+
+      !Open .bin file
+      if (my_rank == 0) then
+        if (flg == 0) then
+          unit = find_unit(12345)
+          open(unit=unit,file=trim(file),form='unformatted'
+     .        ,status='unknown')
+        elseif (flg == 1) then
+          unit = find_unit(12345)
+          open(unit=unit,file=trim(file),form='unformatted'
+     .        ,access='append',status='old')
+        endif
+      endif
+        
+      allocate(dbg(0:nxg+1,0:nyg+1,0:nzg+1))
+
+      call find_global_nobc(arr(1:nx ,1:ny ,1:nz )
+     .                     ,dbg(1:nxg,1:nyg,1:nzg)
+     .                     ,mpi_comm=g_def%mpi_comm)
+
+      if (my_rank == 0) then
+        call contour(dbg(1:nxg,1:nyg,1),nxg,nyg
+     .              ,xmin,xmax,ymin,ymax,flg,unit)
+      endif
+
+      deallocate(dbg)
+
+      if (my_rank == 0) close(unit)
+
+      end subroutine dumpGlobalField
+
 c     per_BC
 c     #################################################################
       subroutine per_BC(ibc,array)

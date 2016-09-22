@@ -4365,7 +4365,7 @@ c     Select operation
      .     ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,1+3*(ieq-1))
      .     ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,2+3*(ieq-1))
      .     ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,3+3*(ieq-1))
-     .                            ,'car',cvec)
+     .                          ,'car',cvec)
           enddo
 
         endif
@@ -4420,7 +4420,7 @@ c     Select operation
           endif
         endif
 
-        if (.not.res_is_curv) then
+        if (.not.res_is_curv) then  !Transform to cartesian
 
           do ieq=1,neql/3
             call transformVector(gbc_def,iig,iig,iig

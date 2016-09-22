@@ -42,11 +42,11 @@ c ---------------------------------------------------------------------
         end INTERFACE
 
         INTERFACE XformToCnv
-          module procedure XformToCnv_ijk!,XformToCnv_mesh
+          module procedure XformToCnv_ijk,XformToCnv_mesh
         end INTERFACE
 
         INTERFACE XformToCov
-          module procedure XformToCov_ijk!,XformToCov_mesh
+          module procedure XformToCov_ijk,XformToCov_mesh
         end INTERFACE
 
         INTERFACE XformVector
@@ -1449,7 +1449,7 @@ c     Begin program
       do k=0,nzl+1
         do j=0,nyl+1
           do i=0,nxl+1
-            vec2(i,j,k,:) = matmul(tensor(i,j,k,:,:),vec1(i,j,k,:))
+            vec2(i,j,k,:) = matmul(vec1(i,j,k,:),tensor(i,j,k,:,:))
           enddo
         enddo
       enddo
@@ -1875,6 +1875,90 @@ c     Begin program
      .                     +cnv_vrtx(i ,jm,k,3))
 
       end function Xform_From_VrtxCnv_To_CellCov_stg_ijk
+
+c     XformToCnv_mesh
+c     #################################################################
+      function XformToCnv_mesh(g_def,igrid,cov) result(cnv)
+
+c     -----------------------------------------------------------------
+c     Transforms a contravariant vector to a covariant representation
+c     everywhere on the mesh.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid
+        real(8),INTENT(IN) :: cov(0:,0:,0:,:)
+        real(8) :: cnv(0:size(cov,1)-1
+     .                ,0:size(cov,2)-1
+     .                ,0:size(cov,3)-1,3)
+
+c     Local variables
+
+        integer :: i,j,k,nx,ny,nz
+
+c     Begin program
+
+        nx = size(cov,1)-2
+        ny = size(cov,2)-2
+        nz = size(cov,3)-2
+
+        do k=0,nz+1
+          do j=0,ny+1
+            do i=0,nx+1
+              cnv(i,j,k,:) = XformToCnv_ijk(g_def,i,j,k,igrid
+     .                                     ,cov(i,j,k,:))
+            enddo
+          enddo
+        enddo
+
+      end function XformToCnv_mesh
+
+c     XformToCov_mesh
+c     #################################################################
+      function XformToCov_mesh(g_def,igrid,cnv) result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a contravariant vector to a covariant representation
+c     everywhere on the mesh.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid
+        real(8),INTENT(IN) :: cnv(0:,0:,0:,:)
+        real(8) :: cov(0:size(cnv,1)-1
+     .                ,0:size(cnv,2)-1
+     .                ,0:size(cnv,3)-1,3)
+
+c     Local variables
+
+        integer :: i,j,k,nx,ny,nz
+
+c     Begin program
+
+        nx = size(cnv,1)-2
+        ny = size(cnv,2)-2
+        nz = size(cnv,3)-2
+
+        do k=0,nz+1
+          do j=0,ny+1
+            do i=0,nx+1
+              cov(i,j,k,:) = XformToCov_ijk(g_def,i,j,k,igrid
+     .                                     ,cnv(i,j,k,:))
+            enddo
+          enddo
+        enddo
+
+      end function XformToCov_mesh
 
 c     XformToCnv_stg_mesh
 c     #################################################################

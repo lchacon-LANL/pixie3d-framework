@@ -20,7 +20,7 @@ c######################################################################
 
         use bc_ops
 
-        use grid_create, ONLY: grid_pack,g_pack
+cc        use grid_create, ONLY: grid_pack,g_pack
 
         use mlsolverSetup
 
@@ -7103,12 +7103,21 @@ c$$$     .   ,MG_coarse_solve
           optns_new%mg_grid_def => g_crse_def
           optns_new%is_coarse_proc_MG_solve = .true.
           optns_new%diag => null() !Reform diagonals in coarse mesh
-          optns_new%vcyc = 1       !Only one VCYCLE in coarse solve
+          optns_new%vcyc = 1       !Only ONE vcycle in coarse solve
 
           !Call MG with new solver context
-c$$$          if ((out==1.or.out==2).and.my_rank ==0)
-c$$$     .         write (*,'(a)') "Coarse Proc solve"
           call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,out,depth)
+
+c diag ****
+c$$$          call allocMGPointers(neq,optns_new%mg_grid_def,optns_new%mgctx
+c$$$     .                    ,fpointers)
+c$$$          call vec_plot_gl(optns_new%mgctx%g_def,neq,yg,1,"coarse_res"
+c$$$     .                    ,"Coarse MG residual")
+c$$$          call vec_plot_gl(optns_new%mgctx%g_def,neq,xg,1,"coarse_sol"
+c$$$     .                    ,"Coarse MG solution")
+c$$$          call deallocMGPointers(fpointers,optns_new%mgctx)
+c$$$          call pstop("","")
+cdiag ****
 
           !Recover MG context
           mgctx => options%mgctx
@@ -7166,22 +7175,20 @@ c$$$          enddo
      .               ,jmin*nyl+1:(jmin+1)*nyl
      .               ,kmin*nzl+1:(kmin+1)*nzl,:)
 
-
 c$$$          call find_local_field_vec(g_crse_def,1,arrayg,array)
 c$$$
           call mapArrayToMGVector(mgctx,array,xx,igr,.true.)
 
-          deallocate(array,arrayg)
-
 c diag ****
-c$$$          call vec_plot_gl(mgctx%g_def,neq,yy,igr,"local_res"
-c$$$     .                    ,"Coarse MG residual")
-c$$$          call vec_plot_gl(mgctx%g_def,neq,xx,igr,"local_sol"
-c$$$     .                    ,"Coarse MG solution")
+c$$$          call vec_plot_gl(mgctx%g_def,neq,yy,igr,"fine_res"
+c$$$     .                    ,"Fine MG residual")
+c$$$          call vec_plot_gl(mgctx%g_def,neq,xx,igr,"fine_sol"
+c$$$     .                    ,"Fine MG solution")
 c$$$          call pstop("","")
 cdiag ****
 
           !Free space
+          deallocate(array,arrayg)
           deallocate(xg,yg)
 
           if (outc.ge.1.and.prnt) then
