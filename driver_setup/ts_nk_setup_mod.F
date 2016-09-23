@@ -2,6 +2,8 @@ c module TS_solver_setup
 c ######################################################################
       module TS_solver_setup
 
+        use parameters
+
         use grid, ONLY: np,my_rank,pstop
 
         !NKS setup
@@ -46,7 +48,7 @@ c ######################################################################
      .            ,mg_vcyc        = 1     !Maximum number of MG V-cycles
      .            ,sm_zebra_it    = 1     !Number of relaxations in ZEBRA smoothing
      .            ,sm_zebra_dir   = 0     !Preferred smoothing direction in ZEBRA smoothing (all if zero)
-     .            ,sm_ncolors     = 8     !Number of colors for diagonal calc., smoothing
+     .            ,sm_ncolors     = 0     !Number of colors for diagonal calc., smoothing
      .            ,sm_iter        = 5     !Number of MG smoothing passes
 
         real(8) :: pc_tol        = 1d-3   !PC solvers convergence tolerance
@@ -77,6 +79,15 @@ c     ##################################################################
 
       implicit none
 
+      integer :: d
+
+      if (pc_as_solver) then
+         iguess = 1
+         maxitgm = 0
+cc         maxitnwt = 10
+         rtol = 1d-1
+      endif
+
       pc_id = (pc_type == 'id')
 
 cc      if (pc_id) iguess = 0
@@ -86,6 +97,15 @@ cc      if (np > 1) mg_gm_coarse = .false.       !Do not perform GMRES coarse so
       if (sm_type /= 'jb') sm_omega = 1d0
 
       if (maxitnwt<0) maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
+
+      !Number of colors for diagonal calc., smoothing; assume BOX stencil
+      if (sm_ncolors == 0) then
+        d = 3
+        if (nxd == 1) d = d-1
+        if (nyd == 1) d = d-1
+        if (nzd == 1) d = d-1
+        sm_ncolors   = 2**d
+      endif
 
       end subroutine TS_solver_consistency_chk
 
@@ -126,56 +146,6 @@ c     Namelists
 
 c     Begin program
 
-ccc     Set defaults (set in module now)
-cc
-cc      !NK parameters
-cc      tolgm    = 8d-1          ! Inexact Newton parameter
-cc      rtol     = 1d-4          ! Newton relative convergence tolerance
-cc      atol     = 0d0           ! Newton absolute convergence tolerance
-cc      stol     = 0d0           ! Newton update convergence tolerance
-cc      mf_eps   = 1d-6          ! Newtom matrix-free differencing parameter
-cc      maxitnwt = 20            ! Maximum number of Newton its. (if zero, maxitnwt
-cc                               !        is determined in code)
-cc      maxksp   = 15            ! Maximum krylov subspace dimension
-cc      maxitgm  = maxksp        ! Maximum GMRES iterations
-cc      method   = 1             ! Inexact Newton method:
-cc                               !   + 0: constant forcing
-cc                               !   + other: adaptive (Eisenstat-Walker)
-cc
-cc      global   = 0             ! Newton's globalization method:
-cc                               !   + 0 --> no globalization
-cc                               !   + 1 --> linesearch backtracking 
-cc                               !   + 2 --> pseudo-transient
-cc
-cc      damp     = 1d0           ! Damping parameter in Newton (see nk_mod.f doc))
-cc      dt0      = 1d30          ! Initial pseudo-transient time step (" " ")     
-cc      iguess   = 0             ! Whether preconditioner is used to give initial
-cc                               !   guess to GMRES (when =1) 
-cc
-cc      pc_as_solver= .false.    ! Whether we use PC as solver, instead of preconditioned GMRES
-cc
-cc      vol_wgt  = .true.        ! Whether residual is volume weighed or not
-cc
-cc      fpa      = .false.       ! Whether to use Carlson's Fixed-Point-Accelerator instead of JFNK
-cc
-cc      !Preconditioner parameters
-cc      pc_type  = 'id'          ! Type of preconditioner. Currently:
-cc                               !   - 'id': identity (default)
-cc                               !   - 's1': SI without flow
-cc                               !   - 's2': SI with flow
-cc      pc_iter  = 1             ! Number of SI iterations in preconditioner
-cc      pc_tol   = 1d-3          ! PC solvers convergence tolerance
-cc
-cc      pc_asm   = .false.       ! Whether we are doing additive Schwartz PC (in parallel)
-cc      pc_debug = .false.       ! PC debugging flag
-cc
-cc      mg_vcyc  = 1             ! Maximum number of MG V-cycles
-cc      mg_ores  = 0             ! Restriction order for MG
-cc      mg_oprol = 2             ! Prolongation order for MG
-cc
-cc      sm_iter  = 5             ! Number of MG smoothing passes
-cc      sm_zebra_relax = .false. ! Whether to use ZEBRA relaxation
-
 c     Read initialization parameters
 
       open(unit=uinput,file=trim(file),status='old')
@@ -195,13 +165,6 @@ cc        call pstop('readInput','Problem reading "pc"')
       close(unit=uinput)
 
 c     Consistency check
-
-      if (pc_as_solver) then
-         iguess = 1
-         maxitgm = 0
-cc         maxitnwt = 10
-         rtol = 1d-1
-      endif
 
       call TS_solver_consistency_chk
 

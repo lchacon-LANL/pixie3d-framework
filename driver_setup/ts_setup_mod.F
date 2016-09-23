@@ -2,8 +2,6 @@ c module ts_setup
 c ######################################################################
       module ts_setup
 
-        use parameters
-
         use ts_solver_setup
 
         use io
