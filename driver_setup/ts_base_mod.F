@@ -384,8 +384,10 @@ c     #######################################################################
           select case (sm_flag)
           case(1)  !Rannacher time stepping
 
-            if (   (itm <= sm_pass  .and.(.not.ts_adapt_dt))
-     .         .or.(itm <= sm_pass+1.and.      ts_adapt_dt )) then
+            if (itm == 1.and.ts_adapt_dt) then
+              call set_explicit_dt(dt)
+            elseif (   (itm <= sm_pass  .and.(.not.ts_adapt_dt))
+     .             .or.(itm <= sm_pass+1.and.      ts_adapt_dt )) then
               dt = 0.5*dtbase
             elseif((itm == sm_pass+1.and.(.not.ts_adapt_dt))
      .         .or.(itm == sm_pass+2.and.      ts_adapt_dt )) then
