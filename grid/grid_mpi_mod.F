@@ -2193,7 +2193,10 @@ c     Begin program
 
       call find_global_nobc(arr(1:nx ,1:ny ,1:nz )
      .                     ,dbg(1:nxg,1:nyg,1:nzg)
-     .                     ,mpi_comm=g_def%mpi_comm)
+#if defined(petsc)
+     .                     ,mpi_comm=g_def%mpi_comm
+#endif
+     .                     )
 
       if (my_rank == 0) then
         call contour(dbg(1:nxg,1:nyg,1),nxg,nyg
