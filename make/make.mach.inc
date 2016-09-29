@@ -298,9 +298,9 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
     ADIOS = t
 
-    ADIOS_HOME = $(HOME)/lib/adios-1.3.1
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
-    ADIOS_VER  = 1.31
+    ADIOS_HOME = $(HOME)/lib/adios-1.10.0
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L$(HOME)/lib/mxml-2.7/lib -lmxml
+    ADIOS_VER  = 1.10
 
 #    LIBS += -L/opt/local/lib -latlas
   else
@@ -630,25 +630,33 @@ endif
 ########
 
 ifeq ($(findstring sith,$(HOST)),sith)
-   FC = pgf95
+   FC = gfortran
 
-   BOPT = O
-   PETSC_DIR = /sw/sith/petsc/3.0.0/rhel6_pgi13.4_debug/petsc-3.0.0-p10
+# BOPT = O
+#PETSC_DIR = /sw/sith/petsc/3.0.0/rhel6_pgi13.4_debug/petsc-3.0.0-p10
  #/sw/sith/petsc/3.0.0/centos5.5_pgi10.9_opt/petsc-3.0.0-p10
-   PETSC_ARCH = sith-debug
+  PETSC_DIR = /sw/sith/petsc/3.0.0/rhel6_gnu4.8.2_opt/petsc-3.0.0-p10
+   PETSC_ARCH = sith-opt
 
    HDF5 = t
  #HDF5_DIR = /sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2
-   HDF5_DIR = /sw/sith/hdf5/1.8.10/rhel6_pgi12.8
+#HDF5_DIR = /sw/sith/hdf5/1.8.10/rhel6_pgi12.8
+#HDF5_DIR = /sw/sith/hdf5/1.8.10/rhel6_gnu4.8.2_ompi1.8.3
    HDF5_HOME = $(HDF5_DIR)
    HDF5_LIBS = $(HDF5_FLIB)
    HDF5_MOD  = $(HDF5_HOME)/lib #-I$(HDF5_DIR)/include
    HDF5_INC  = $(HDF5_DIR)/include
 
    ADIOS = t
-   ADIOS_HOME = $(ADIOS_DIR)
+#ADIOS_HOME = $(ADIOS_DIR)
+#  ADIOS_INC=-I/lustre/atlas2/csc143/proj-shared/tian/adios-1.3.1-install/include -I/sw/redhat6/mxml/2.9/rhel6_gnu4.7.1/includ
+#   ADIOS_FLIB=-L/lustre/atlas2/csc143/proj-shared/tian/adios-1.3.1-install/lib -ladiosf -L/sw/redhat6/mxml/2.9/rhel6_gnu4.7.1/lib -lmxml -lm -lmxml -lpthread -libverbs
+
+  ADIOS_HOME = /lustre/atlas2/csc143/proj-shared/tian/adios-1.10.0-install
+  ADIOS_INC=-I/lustre/atlas2/csc143/proj-shared/tian/adios-1.10.0-install/include -I/sw/redhat6/dataspaces/1.6.0/rhel6.6_gnu4.8.2/include -DZLIB -DBZIP2 -I/sw/sith/bzip2/1.0.6/rhel6_gnu4.7.1/include
+  ADIOS_FLIB=-L/lustre/atlas2/csc143/proj-shared/tian/adios-1.10.0-install/lib -ladiosf_v1 -L/sw/redhat6/dataspaces/1.6.0/rhel6.6_gnu4.8.2/lib -L/sw/sith/bzip2/1.0.6/rhel6_gnu4.7.1/lib64 -ldspaces -ldscommon -ldart -lrdmacm -libverbs -llustreapi -lz -lbz2 -lm -lrt
    ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB)
-   ADIOS_VER  = 1.90
+   ADIOS_VER  = 1.10
 endif
 
 ###########

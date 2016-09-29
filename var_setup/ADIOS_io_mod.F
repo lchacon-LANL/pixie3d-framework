@@ -83,7 +83,7 @@ c     Initialize ADIOS for componentized I/O
      .              ,"Could not setup ADIOS buffer")
         endif
 
-        call ADIOS_init('adios_config.xml',adios_err)
+        call ADIOS_init('adios_config.xml',adios_world_comm,adios_err);
       endif
 
       contains
@@ -100,8 +100,7 @@ c     #################################################################
 
         if (my_rank == 0) then
           text = int2char(buffer)
-          line = '    <buffer size-MB=\"'//trim(text)
-     .          //'\" allocate-time=\"now\"/>'
+          line = '    <buffer size-MB=\"'//trim(text)//'\"/>'
           ierr = replace_line('adios_config.xml',"buffer size-MB",line)
         endif
 
@@ -156,13 +155,8 @@ c     Begin program
      .                   ,adios_varcount,adios_attrcount,ierr)
 
         !Inquire ADIOS group
-        if (ADIOS_VER == 1.31) then
-          call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
-     .                        ,ts,lastts,ierr)
-        else
-          call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
-     .                        ,ierr)
-        endif
+        call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
+     .                      ,ts,lastts,ierr)
 
         ! count /var/ variables
         inq_adios_var = (PRESENT(nx).or.PRESENT(ny).or.PRESENT(nz))
@@ -206,9 +200,10 @@ cc        enddo
         endif
 
         if (PRESENT(nvar)) nvar = adios_nvar
-        if (PRESENT(nx)) nx = adios_vardims(1)-2
+        !C ordering for array dimensions
+        if (PRESENT(nx)) nx = adios_vardims(3)-2
         if (PRESENT(ny)) ny = adios_vardims(2)-2
-        if (PRESENT(nz)) nz = adios_vardims(3)-2
+        if (PRESENT(nz)) nz = adios_vardims(1)-2
 
       end subroutine openADIOSRecordFileForRead
 
@@ -249,10 +244,11 @@ c     Begin program
 cc      ufile = urecord
       ufile = find_unit(12345)
 
-      call adios_init_noxml (adios_err)
+      call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm,adios_err)
+      call adios_init_noxml (adios_world_comm, adios_err)
 
       !allocate buffer for ADIOS
-      call adios_allocate_buffer (ADIOS_BUFFER_MB,adios_err)
+      call adios_set_max_buffer_size(ADIOS_BUFFER_MB,adios_err)
 
       call openADIOSRecordFileForRead(adios_err,file=file
      .                               ,nx=nxd,ny=nyd,nz=nzd)
