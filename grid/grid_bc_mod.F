@@ -3464,7 +3464,7 @@ c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
 c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
 c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
 c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
-     .     )
+     .     .and.(.not.force_corners))
      .       return
         if ((ibcl(2) == 0)
      .  .and.((selectFace(gbc_def,ibcl(3))
@@ -3479,7 +3479,7 @@ c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
 c$$$     .         .and.(selectFace(gbc_def,ibcl(1))
 c$$$     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
 c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))))
-     .     )
+     .     .and.(.not.force_corners))
      .       return
         if ((ibcl(3) == 0)
      .  .and.((selectFace(gbc_def,ibcl(1))
@@ -3494,7 +3494,7 @@ c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
 c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
 c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
 c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
-     .     )
+     .     .and.(.not.force_corners))
      .       return
       endif
 
