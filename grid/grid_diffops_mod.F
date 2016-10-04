@@ -7142,7 +7142,7 @@ c     ---------------------------------------------------------------------
 c     Calculates v0.nabla(v1), with both v0, v1 vector fields, on the whole
 c     mesh. Result can be covariant (cov = .true.) or contravariant.
 c
-c     meth: specifies the advective scheme (only upwind=1 and central=2)
+c     meth: specifies the advective scheme
 c     ---------------------------------------------------------------------
 
       implicit none
