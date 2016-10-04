@@ -110,7 +110,7 @@ ifeq ($(HOST),jetta)
       ADIOS_BUFFER_MB = 10
 
       #Determined via modules
-      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
+      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf_v1 -lmxml
 
       SPRNG = t
 
