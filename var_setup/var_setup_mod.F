@@ -47,7 +47,7 @@ c #####################################################################
           logical :: time_n     ! Whether this is a previous time step variable
        end type var_def
 
-        type :: vec_def
+       type :: vec_def
           integer :: bconds(6,3)        !Boundary conditions, 3 refers to the 3 components
           real(8),pointer,dimension(:,:,:,:) :: vec ! vector (i,j,k,d), d being the component
           character(20) :: descr        !Description
