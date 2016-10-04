@@ -214,7 +214,6 @@ c     Begin program
          np = npcl(isp)
          do ip=1,np
            read (ufile,iostat=ierror,end=100) spcs(isp)%pcles(ip)
-cc           write (*,*) spcs(isp)%pcles(ip)
            if (ierror /= 0) goto 200
          end do
       enddo
@@ -254,7 +253,8 @@ c     Call variables
 
 c     Local variables
 
-      integer :: isp,ip,np,ufile,nsp,npcl(nsp_max)
+      integer :: isp,ip,np,ufile,nsp
+      integer(8) :: npcl(nsp_max)
       character(30) :: pcle_rstrt_file
 
 c     Begin program
@@ -3687,6 +3687,11 @@ c     Initialize particles
 
       if (pcle_rstrt) then
         ierr = pic_read_pcles(time)
+
+        if (ierr /= 0) then
+          write (*,*) 'Error reading restart file'
+          stop
+        endif
       else
         numspcs = size(spcs)
         do isp=1,numspcs
