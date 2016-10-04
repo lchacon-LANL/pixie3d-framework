@@ -24,6 +24,10 @@ c ######################################################################
       real(8) :: pit_avg=0           !Average picard iterations per substep
      .          ,pst_avg=0           !Average number of particle substeps per timestep
 
+      !Diagnostics
+      real(8) :: push_timer
+      integer,private :: clock_rate,clock_start,clock_stop
+
       contains
 
 c     pic_mover_2d
@@ -77,6 +81,13 @@ c     Local variables
       type(particle) :: pcle_nu
 
 c     Begin program
+
+c     Particle pusher timer - C. Mikida, 05/16
+
+      call system_clock(count_rate=clock_rate) 
+      call system_clock(count=clock_start)
+
+c      call start_collection()
 
       if(present(tfv)) then
          dtv = dt*tfv
@@ -359,6 +370,16 @@ cc           !VECTOR SIMD
          moms_g(:,:,1,isp,IS33) = garr_vz2
 
       end do                    !species
+
+c     Particle pusher timing end - C. Mikida, 05/16
+      
+c      call stop_collection()
+      call system_clock(count=clock_stop)
+
+c     Append to particle pusher timer/counters
+
+      push_timer= push_timer + real(clock_stop - clock_start)
+     .                        /real(clock_rate)
 
 c     Synchronize moments
 
@@ -1866,9 +1887,6 @@ c ######################################################################
       use pic_mover
 
       integer, parameter :: NDim = _Dim
-
-      !Diagnostics
-      real(8) :: push_timer
 
       contains
 
