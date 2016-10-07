@@ -12,7 +12,7 @@ c ######################################################################
         use mk
 #endif
 
-        integer :: STATUS=0
+        integer :: STATUS=1 !Hardwire to non-fatal, non-successful termination
 
         integer :: nrstep
      .            ,nrst
@@ -199,7 +199,7 @@ c     Begin program
      .         .or.(numtime.ge.0.and.itime+1.ge.(numtime+inewtime))
      .         .or.(exec_time > quota)
 
-      if (exec_time > quota) STATUS=1 !non-fatal termination
+      if (exit_tloop .and. exec_time <= quota) STATUS=0 !Successful termination
 
 c     End program
 
