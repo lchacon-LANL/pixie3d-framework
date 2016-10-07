@@ -12,8 +12,11 @@ c ######################################################################
         use mk
 #endif
 
+        integer :: STATUS=0
+
         integer :: nrstep
      .            ,nrst
+
         integer :: itnewt
      .            ,itgmres
      .            ,gmres_tot
@@ -21,8 +24,10 @@ c ######################################################################
      .            ,init_grid_offset=0
      .            ,bdf2_init_offset=1
 
-        real(8) :: tmrst       !Dump time for restart
-     .            ,quota=1d30  !Max CPU time (in seconds)
+        real(8) :: tmrst          !Dump time for restart
+     .            ,quota=1d30     !Max CPU time (in seconds)
+     .            ,exec_time=0d0  !Execution time (in seconds)
+
         real(8) :: rstep,dfreq,dtexp
 
 #if !defined(samrai)
@@ -192,6 +197,9 @@ c     Begin program
 
       exit_tloop = (tmax.gt.0d0.and.time.ge.(tmax-1d-9*dt))
      .         .or.(numtime.ge.0.and.itime+1.ge.(numtime+inewtime))
+     .         .or.(exec_time > quota)
+
+      if (exec_time > quota) STATUS=1 !non-fatal termination
 
 c     End program
 
