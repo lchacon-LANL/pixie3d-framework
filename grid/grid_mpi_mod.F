@@ -1187,6 +1187,7 @@ c     Call SAMRAI's error handler
           write (*,*) 'Program stopped at routine ',trim(routine)
         endif
         call PetscEnd(mpierr)
+        call exit(2)  !Fatal termination
 #endif
         call sstop(routine, message)
 #endif
@@ -1211,7 +1212,7 @@ c     Begin program
         write (*,*) trim(message)
         write (*,*) 'Program stopped at routine ',trim(routine)
 
-        call abort
+        call exit(2)  !Fatal termination
         stop
 
 c     End program
