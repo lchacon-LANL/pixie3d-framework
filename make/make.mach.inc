@@ -944,7 +944,7 @@ ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
 
     ADIOS = t
 
-    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1
+    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1-mustang-new
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/usr/projects/magnetic/stanier/soft/mxml-2.5/lib -lmxml
     ADIOS_VER  = 1.31
 
