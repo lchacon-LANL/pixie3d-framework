@@ -6,7 +6,7 @@ c ######################################################################
 
         use grid_operations
 
-        use xdraw_io, ONLY: contour,sstop,FATAL
+        use xdraw_io, ONLY: contour
 
 #if defined(use_pic_mpi)
         use mpi
