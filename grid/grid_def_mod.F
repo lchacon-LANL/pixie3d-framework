@@ -5,6 +5,8 @@ c #####################################################################
 
         use grid_petsc
 
+        use io, ONLY: sstop
+
         implicit none
 
         integer   ,parameter :: ngparams = 10,UNDEF_INT=-1234
@@ -226,10 +228,8 @@ c     Begin program
           call MPI_Comm_size(grid_st%mpi_comm,grid_st%np  ,mpierr)
 
           if (mx*my*mz /= grid_st%np) then
-            write (*,*)
-     .           "Processor distribution does not match total # procs"
-            write (*,*) "Aborting in allocateGridStructure"
-            stop
+            call sstop(0,"allocateGridStructure"
+     .          ,"Processor distribution does not match total # procs")
           endif
 
           allocate(grid_st%dactx(ngrid))

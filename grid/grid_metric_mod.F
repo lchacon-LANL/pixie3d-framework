@@ -946,7 +946,7 @@ c     Evaluate grid quantities (at vertices)
                   write (*,*) 'dr/dxi_3=',r(:,3)
                   write (*,*) 'Jacobian=',jac
 
-                  call sstop('findVertexMetrics','Inverted Jacobian')
+                  call sstop(0,'findVertexMetrics','Inverted Jacobian')
                 elseif (return_error) then
                   lerr = 1 ; exit
                 endif
@@ -1138,7 +1138,7 @@ c     Evaluate grid quantities
                   write (*,*) 'dr/dxi_3=',r(:,3)
                   write (*,*) 'Jacobian=',jac
 
-                  call sstop('findCellMetrics','Inverted jacobian')
+                  call sstop(0,'findCellMetrics','Inverted jacobian')
                 elseif (return_error) then
                   lerr = 2 ; exit
                 endif

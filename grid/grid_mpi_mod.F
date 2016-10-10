@@ -2,9 +2,11 @@ c module grid_mpi
 c ######################################################################
       module grid_mpi
 
+        use io, ONLY: FATAL,sstop
+
         use grid_operations
 
-        use xdraw_io, ONLY: contour
+        use xdraw_io, ONLY: contour,sstop,FATAL
 
 #if defined(use_pic_mpi)
         use mpi
@@ -1168,45 +1170,13 @@ c     Call SAMRAI's error handler
         end interface
         call pstop_samrai(trim(routine),trim(message))
 #else
+c     Call error handler
+        
+        call sstop(my_rank,routine,message)
 
-#if defined(petsc)
-        if (my_rank == 0) then
-          write (*,*)
-          write (*,*) trim(message)
-          write (*,*) 'Program stopped at routine ',trim(routine)
-        endif
-        call PetscEnd(mpierr)
-        call exit(2)  !Fatal termination
-#endif
-        call sstop(routine, message)
 #endif
 
       end subroutine pstop
-
-c     sstop
-c     ################################################################
-      subroutine sstop(routine,message)
-
-c     ---------------------------------------------------------------
-c     Stops program at "routine" with "message"
-c     ---------------------------------------------------------------
-
-        implicit none
-
-        character(*)  :: routine, message
-
-c     Begin program
-
-        write (*,*)
-        write (*,*) trim(message)
-        write (*,*) 'Program stopped at routine ',trim(routine)
-
-        call exit(2)  !Fatal termination
-        stop
-
-c     End program
-
-      end subroutine sstop
 
 #if defined(petsc)
 c     psum

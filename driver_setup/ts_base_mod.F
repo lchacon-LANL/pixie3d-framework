@@ -12,7 +12,7 @@ c ######################################################################
         use mk
 #endif
 
-        integer :: STATUS=1 !Hardwire to non-fatal, non-successful termination
+        integer :: EXIT_STATUS=FATAL !Hardwire to fatal termination
 
         integer :: nrstep
      .            ,nrst
@@ -199,8 +199,10 @@ c     Begin program
      .         .or.(numtime.ge.0.and.itime+1.ge.(numtime+inewtime))
      .         .or.(exec_time > quota)
 
-      if (exit_tloop .and. exec_time <= quota) STATUS=0 !Successful termination
+      if (exit_tloop .and. exec_time <= quota) EXIT_STATUS = SUCCESS
 
+      if (exec_time > quota) EXIT_STATUS = NON_FATAL
+      
 c     End program
 
       end function TS_chk_end

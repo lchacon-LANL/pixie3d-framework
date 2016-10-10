@@ -156,7 +156,7 @@ c End program
 
       call DR_destroy
 
-      call exit(STATUS)
+      call exit(EXIT_STATUS)
 
       end program
 
