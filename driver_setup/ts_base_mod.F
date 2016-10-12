@@ -414,11 +414,6 @@ c     Local variables
 
 c     Begin program
 
-#if defined(USER_PROVIDED_DT)
-      call set_user_dt(dt)
-
-      call calculate_cnfactor
-#else
       if (    cnfactor > 5d-1                   !Explicit
      .   .or.(timecorr.and.ierr==0.and.itm==1)  !First explicit step if timecorr
      .   ) then
@@ -428,9 +423,11 @@ c     Begin program
       else
         call adapt_dt
 
+#if defined(USER_PROVIDED_DT)
+        call set_user_dt(dt)
+#endif
         call calculate_cnfactor
       endif
-#endif
 
       ts_restart = .false.
 
@@ -545,15 +542,13 @@ c     #######################################################################
           cnp = (2*dt+dtold)/(dt+dtold)
           cn  = -(dt+dtold)/dtold
           cnm = -cnp-cn    !Sum should be zero identically
-
-          cnfactor = 0d0
         else
           cnp = 1d0
           cn  =-1d0
           cnm = 0d0
-
-          if (ts_restart) cnfactor = 0.3d0
         endif
+
+        cnfactor = 0d0
 
       else  !Theta scheme
 
