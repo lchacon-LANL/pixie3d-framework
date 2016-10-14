@@ -4094,12 +4094,6 @@ c     Process optional arguments
           cg_drvr = .false.
         endif
 
-        if(PRESENT(ks_it)) then
-          gmit = ks_it
-        else
-          gmit = 10
-        endif
-
         if (PRESENT(cvrg_tst)) then
           cvrg_test = cvrg_tst
         else
@@ -4130,6 +4124,12 @@ c     Process optional arguments
           vcyc = mg_vcyc
         else
           vcyc = 1
+        endif
+
+        if(PRESENT(ks_it)) then
+          gmit = ks_it
+        else
+          gmit = vcyc
         endif
 
         if(PRESENT(mg_cycle)) then

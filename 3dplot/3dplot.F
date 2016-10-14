@@ -293,6 +293,8 @@ c Begin program
 
       igx = 1 ; igy = 1 ; igz = 1
 
+      call TS_init_timecounters
+
 c Read user initializations
 
       call readGraphicsInput

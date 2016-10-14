@@ -6601,6 +6601,8 @@ c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcond(5),bcond(6)/)
 
 c     Compute advection
 
+      advec = 0d0
+
       do k=1,nz
         do j=1,ny
           do i=1,nx
@@ -6910,6 +6912,8 @@ c     Begin program
 
 c     Compute difference arrays and communicate BCs
 
+      darr = 0d0
+
       darr(1:nx,:,:,1) = arr(2:nx+1,:,:)-arr(0:nx-1,:,:)
       darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
       darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
@@ -6992,6 +6996,8 @@ c$$$cc      pause
 c diag *****
 c     Compute advection
 
+      advec =0d0
+
       do k=1,nz
         do j=1,ny
           do i=1,nx
@@ -7047,10 +7053,12 @@ c     End
 c     tensor_nc_advc
 c     #####################################################################
       function tensor_nc_advc(g_def,i,j,k,nxx,nyy,nzz,igx,igy,igz,v0,v1
-     .                       ,meth,transpose,v1_cov)  result(cnv)
+     .                       ,meth,transpose,v1_cov)  result(vec)
 
 c     ---------------------------------------------------------------------
-c     Calculates v0.nabla(v1), with both v0, v1 vector fields.
+c     Calculates v0.nabla(v1), with both v0, v1 vector fields.  Vector
+c     v0 is always contravariant; v1 can be covariant or
+c     contravariant. Result is in same representation as v1.
 c
 c     meth: specifies the advective scheme (only upwind=1 and central=2)
 c     ---------------------------------------------------------------------
@@ -7062,7 +7070,7 @@ c     Call variables
       type(grid_mg_def),pointer :: g_def
 
       integer :: i,j,k,nxx,nyy,nzz,igx,igy,igz,meth
-      real(8) :: cnv(3)
+      real(8) :: vec(3)
       real(8),target :: v1(0:nxx+1,0:nyy+1,0:nzz+1,3)
      .                 ,v0(0:nxx+1,0:nyy+1,0:nzz+1,3)
 
@@ -7126,21 +7134,79 @@ c     Begin program
       end select
 
       if (transp) then
-        cnv = matmul(nabla_v,v0(i,j,k,:))/jac
+        vec = matmul(nabla_v,v0(i,j,k,:))/jac
       else
-        cnv = matmul(v0(i,j,k,:),nabla_v)/jac
+        vec = matmul(v0(i,j,k,:),nabla_v)/jac
       endif
 
       end function tensor_nc_advc
 
-c     tensor_nc_advc_mesh
+c     tensor_nc_advc_mesh2
 c     #####################################################################
-      function tensor_nc_advc_mesh(g_def,igr,v0,v1,bcs,meth,cov)
+      function tensor_nc_advc_mesh2(g_def,igr,v0,v1,meth,v1_cov
+     .                             ,transpose)
      .     result(vec)
 
 c     ---------------------------------------------------------------------
 c     Calculates v0.nabla(v1), with both v0, v1 vector fields, on the whole
-c     mesh. Result can be covariant (cov = .true.) or contravariant.
+c     mesh. Vector v0 is always contravariant; v1 can be covariant or
+c     contravariant. Result is in same representation as v1.
+c
+c     meth: specifies the advective scheme
+c     ---------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igr,meth
+      real(8) :: v1(0:,0:,0:,:)
+     .          ,v0(0:,0:,0:,:)
+      real(8) :: vec(0:size(v1,1)-1
+     .              ,0:size(v1,2)-1
+     .              ,0:size(v1,3)-1,size(v1,4))
+
+      logical :: v1_cov
+      logical,optional :: transpose
+      
+c     Local variables
+
+      integer :: i,j,k,nx,ny,nz
+    
+c     Begin program
+
+      nx = size(v1,1)-2
+      ny = size(v1,2)-2
+      nz = size(v1,3)-2
+
+      vec = 0d0
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            vec(i,j,k,:)=tensor_nc_advc(g_def,i,j,k,nx,ny,nz
+     .                                 ,igr,igr,igr,v0,v1,meth
+     .                                 ,transpose=transpose
+     .                                 ,v1_cov=v1_cov)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function tensor_nc_advc_mesh2
+
+c     tensor_nc_advc_mesh
+c     #####################################################################
+      function tensor_nc_advc_mesh(g_def,igr,v0,v1,bcs,meth,v1_cov)
+     .         result(vec)
+
+c     ---------------------------------------------------------------------
+c     Calculates v0.nabla(v1), with both v0, v1 vector fields, on the whole
+c     mesh. Vector v0 is always contravariant; v1 can be covariant or
+c     contravariant. Result is in same representation as v1.
 c
 c     meth: specifies the advective scheme
 c     ---------------------------------------------------------------------
@@ -7158,7 +7224,7 @@ c     Call variables
      .              ,0:size(v1,2)-1
      .              ,0:size(v1,3)-1,size(v1,4))
 
-      logical :: cov
+      logical :: v1_cov
       
 c     Local variables
 
@@ -7185,7 +7251,7 @@ c     Begin program
      .     = flx_nc_advec_mesh(g_def,igr,v0,v1(:,:,:,3),meth,bcs(:,3))
 
       !Add geometric source
-      if (cov) then
+      if (v1_cov) then
         do k=1,nz
           do j=1,ny
             do i=1,nx
