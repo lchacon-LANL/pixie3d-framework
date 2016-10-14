@@ -228,7 +228,7 @@ c     Begin program
           call MPI_Comm_size(grid_st%mpi_comm,grid_st%np  ,mpierr)
 
           if (mx*my*mz /= grid_st%np) then
-            call sstop(0,"allocateGridStructure"
+            call sstop(grid_st%rank,"allocateGridStructure"
      .          ,"Processor distribution does not match total # procs")
           endif
 
