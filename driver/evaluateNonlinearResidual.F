@@ -94,6 +94,10 @@ c Call variables
       integer :: ntot,igr
       real(8) :: xi(ntot),fi(ntot)
 
+c Local variables
+
+      type(var_array),pointer :: varray => null()
+
 c Interfaces
 
       INTERFACE
@@ -101,7 +105,7 @@ c Interfaces
         use parameters
         use var_setup
         integer :: igr
-        real(8) :: fi(ntotd)
+        real(8) :: fi(:)
         type(var_array),pointer :: varray
         end subroutine evaluate_NLF
       END INTERFACE
@@ -145,7 +149,7 @@ c--------------------------------------------------------------------
 c Call variables
 
       integer :: igr
-      real(8) :: fi(ntotd)
+      real(8) :: fi(:)
       type(var_array),pointer :: varray
 
 c Local variables
