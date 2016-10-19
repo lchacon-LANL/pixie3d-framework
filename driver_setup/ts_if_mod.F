@@ -161,14 +161,14 @@ c     Local variables
       integer :: itnw,itgm
       real(8) :: x(ntotd),dt_save
 
-#if defined(EXT_EXPLICIT)
       INTERFACE
+#if defined(EXT_EXPLICIT)
         function app_explicit(x,itgm,iout)
         use parameters
         real(8) :: x(ntotd)
         integer :: itgm,iout,app_explicit
         end function app_explicit
-
+#endif
         subroutine evaluate_NLF(igr,varray,fi)
         use parameters
         use var_setup
@@ -177,7 +177,6 @@ c     Local variables
         type(var_array),pointer :: varray
         end subroutine evaluate_NLF
       END INTERFACE
-#endif
 
 c     Begin program
 
