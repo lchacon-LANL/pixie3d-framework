@@ -38,12 +38,12 @@ c     Begin program
 
 c     Evaluate old-time NLF
 
-      old_time_eval = .true. !This informs nlfunction that we are processing
-                             !  n time level info
-
-      call evaluateNonlinearFunction(nn,x,fold)
-
-      old_time_eval = .false.
+c$$$      old_time_eval = .true. !This informs nlfunction that we are processing
+c$$$                             !  n time level info
+c$$$
+c$$$      call evaluateNonlinearFunction(nn,x,fold)
+c$$$
+c$$$      old_time_eval = .false.
 
 c     Newton-Krylov iteration
 
@@ -118,12 +118,12 @@ c     Begin program
 
 c     Predictor step
 
-      old_time_eval = .true. !This informs nlfunction that we are processing
-                             !  n time level info
-
-      call evaluateNonlinearFunction(nn,x_old,fold)
-
-      old_time_eval = .false.
+c$$$      old_time_eval = .true. !This informs nlfunction that we are processing
+c$$$                             !  n time level info
+c$$$
+c$$$      call evaluateNonlinearFunction(nn,x_old,fold)
+c$$$
+c$$$      old_time_eval = .false.
 
       x = x_old - dt*(fold-fsrc)*cnfactor
 
@@ -168,6 +168,14 @@ c     Local variables
         real(8) :: x(ntotd)
         integer :: itgm,iout,app_explicit
         end function app_explicit
+
+        subroutine evaluate_NLF(igr,varray,fi)
+        use parameters
+        use var_setup
+        integer :: igr
+        real(8) :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluate_NLF
       END INTERFACE
 #endif
 
@@ -227,10 +235,18 @@ c     Time step update
       if (cnfactor <= 5d-1) then
         call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
 
+        old_time_eval = .true. !Processing n time level info
+        call evaluate_NLF(1,vnp,fold)
+        old_time_eval = .false.
+
         call mapStructureToVector(x_old,vnp) !BDF2 ref
 
         ierr = implicit_ts(x,itnw,itgm,iout)
       else
+        old_time_eval = .true. !Processing n time level info
+        call evaluate_NLF(1,vnp,fold)
+        old_time_eval = .false.
+
         x_old = x
 
 #if defined(EXT_EXPLICIT)
