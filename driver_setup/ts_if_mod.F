@@ -118,12 +118,12 @@ c     Begin program
 
 c     Predictor step
 
-c$$$      old_time_eval = .true. !This informs nlfunction that we are processing
-c$$$                             !  n time level info
-c$$$
-c$$$      call evaluateNonlinearFunction(nn,x_old,fold)
-c$$$
-c$$$      old_time_eval = .false.
+      old_time_eval = .true. !This informs nlfunction that we are processing
+                             !  n time level info
+
+      call evaluateNonlinearFunction(nn,x_old,fold)
+
+      old_time_eval = .false.
 
       x = x_old - dt*(fold-fsrc)*cnfactor
 
@@ -229,8 +229,6 @@ c     Define TS parameters
 
 c     Time step update
 
-      call mapStructureToVector(x,vnp)  !Old time info
-
       if (cnfactor <= 5d-1) then
         call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
 
@@ -242,9 +240,8 @@ c     Time step update
 
         ierr = implicit_ts(x,itnw,itgm,iout)
       else
-        old_time_eval = .true. !Processing n time level info
-        call evaluate_NLF(1,vnp,fold)
-        old_time_eval = .false.
+
+        call mapStructureToVector(x,vnp) !Old time info
 
         x_old = x
 
