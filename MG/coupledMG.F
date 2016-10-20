@@ -2103,13 +2103,97 @@ c       Characterize coarse and fine grids
 c       Restrict MG vector
 
         call crestrict(mg_ctx_l,mgvector(isigf:isigf+ntotf-1)
-     .                      ,mgvector(isigc:isigc+ntotc-1)
+     .                         ,mgvector(isigc:isigc+ntotc-1)
      .                ,order,igridf,volf)
       enddo
 
       call deallocMGPointers(fpointers,mg_ctx_l)
 
       end subroutine restrictArrayToMGVector
+
+c     restrictVector
+c     #################################################################
+      subroutine restrictVector(g_def,neq,igf,vf,igc,vc,order,volf)
+c     -----------------------------------------------------------------
+c     Restricts vector from grid igf to grid igc.
+c     -----------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      integer    :: order,igf,igc,neq
+      real(8)    :: vf(:),vc(:)
+      logical    :: volf
+
+      type(grid_mg_def),pointer :: g_def
+
+c     Local variables
+
+      integer    :: ieq,nxf,nyf,nzf,nxc,nyc,nzc
+     .             ,igridc,igridf,isigf,isigc,ntotc,ntotf
+      logical    :: fpointers
+      real(8),allocatable,dimension(:) :: mgvector
+
+      type(mg_ctx),pointer :: mg_ctx_l => null()
+
+c     Begin program
+
+      call allocMGPointers(neq,g_def,mg_ctx_l,fpointers)
+
+c     Consistency check
+
+      nxf = mg_ctx_l%g_def%nxv(igf)
+      nyf = mg_ctx_l%g_def%nyv(igf)
+      nzf = mg_ctx_l%g_def%nzv(igf)
+
+      if (neq*nxf*nyf*nzf /= size(vf)) then
+        write (*,*) 'Grid mismatch in restrictVector'
+        write (*,*) 'Aborting...'
+        stop
+      endif
+
+c     Restrict array to coarser grids
+
+      ntotf = neq*nxf*nyf*nzf
+      allocate(mgvector(2*ntotf))
+
+      isigf = mg_ctx_l%istart(igf)
+      mgvector(isigf:isigf+ntotf-1) = vf
+
+      do igridc = igf+1,igc
+
+        igridf = igridc-1
+
+c       Characterize coarse and fine grids
+
+        nxf = mg_ctx_l%g_def%nxv(igridf)
+        nyf = mg_ctx_l%g_def%nyv(igridf)
+        nzf = mg_ctx_l%g_def%nzv(igridf)
+
+        nxc = mg_ctx_l%g_def%nxv(igridc)
+        nyc = mg_ctx_l%g_def%nyv(igridc)
+        nzc = mg_ctx_l%g_def%nzv(igridc)
+
+        isigc = mg_ctx_l%istart(igridc)
+        isigf = mg_ctx_l%istart(igridf)
+
+        ntotf = neq*nxf*nyf*nzf
+        ntotc = neq*nxc*nyc*nzc
+
+c       Restrict MG vector
+
+        call crestrict(mg_ctx_l,mgvector(isigf:isigf+ntotf-1)
+     .                         ,mgvector(isigc:isigc+ntotc-1)
+     .                ,order,igridf,volf)
+      enddo
+
+      vc = mgvector(isigc:isigc+ntotc-1)
+
+      call deallocMGPointers(fpointers,mg_ctx_l)
+      deallocate(mgvector)
+
+      end subroutine restrictVector
 
 c     restrictMGVector
 c     #################################################################

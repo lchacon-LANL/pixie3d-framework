@@ -39,18 +39,17 @@ c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
       xdot = cnp*(x-x_old)/dt
 
-      call evaluateNonlinearFunction(ntot,x,f)
+      call evaluateNonlinearFunction(igrid,ntot,x,f)
 
 c Compute source
 
-      call evaluateSource(ntot,src)
+      call evaluateSource(igrid,ntot,src)
 
 c Temporal update
 
       do k = klo,khi
         do j = jlo,jhi
           do i = ilo,ihi
-cc            ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
             ii = neqd*vPos(gv%gparams,igrid,(/i,j,k/))
 
             f(ii+1:ii+neqd) = xdot(ii+1:ii+neqd)*dt*one_over_dt
@@ -74,7 +73,7 @@ c End program
 
 c evaluateNonlinearFunction
 c####################################################################
-      subroutine evaluateNonlinearFunction(ntot,xi,fi)
+      subroutine evaluateNonlinearFunction(igr,ntot,xi,fi)
 c--------------------------------------------------------------------
 c     Stores evaluation of nonlinear function Fi(Uj) in vector fi.
 c     The Uj's are given in varray.
@@ -92,12 +91,10 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer :: ntot
+      integer :: ntot,igr
       real(8) :: xi(ntot),fi(ntot)
 
 c Local variables
-
-      integer :: igr
 
       type(var_array),pointer :: varray => null()
 
@@ -108,14 +105,12 @@ c Interfaces
         use parameters
         use var_setup
         integer :: igr
-        real(8) :: fi(ntotd)
+        real(8) :: fi(:)
         type(var_array),pointer :: varray
         end subroutine evaluate_NLF
       END INTERFACE
 
 c Begin program
-
-      igr = 1
 
 c Prepare auxiliar quantities
 
@@ -154,7 +149,7 @@ c--------------------------------------------------------------------
 c Call variables
 
       integer :: igr
-      real(8) :: fi(ntotd)
+      real(8) :: fi(:)
       type(var_array),pointer :: varray
 
 c Local variables
@@ -316,7 +311,7 @@ c End program
 
 c evaluateSource
 c####################################################################
-      subroutine evaluateSource(ntot,src)
+      subroutine evaluateSource(igrid,ntot,src)
 c--------------------------------------------------------------------
 c     Calculates residual source, including future IMEX terms.
 c--------------------------------------------------------------------
@@ -335,16 +330,14 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      integer :: ntot
+      integer :: ntot,igrid
       real(8) :: src(ntot)
 
 c Local variables
 
-      integer :: i,j,k,ieq,ii,ig,jg,kg,igrid
+      integer :: i,j,k,ieq,ii,ig,jg,kg
 
 c Begin program
-
-      igrid = 1
 
 #if defined(MK)
       if (source.and.mk_grid) then

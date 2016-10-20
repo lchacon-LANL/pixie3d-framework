@@ -28,9 +28,11 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nn
+      integer :: nn,igrid
 
 c     Begin program
+
+      igrid = 1
 
       ierr = NOERR
 
@@ -41,7 +43,7 @@ c     Evaluate old-time NLF
 c$$$      old_time_eval = .true. !This informs nlfunction that we are processing
 c$$$                             !  n time level info
 c$$$
-c$$$      call evaluateNonlinearFunction(nn,x,fold)
+c$$$      call evaluateNonlinearFunction(igrid,nn,x,fold)
 c$$$
 c$$$      old_time_eval = .false.
 
@@ -106,9 +108,11 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nn
+      integer :: nn,igrid
 
 c     Begin program
+
+      igrid = 1
 
       vol_wgt = .false.
 
@@ -121,7 +125,7 @@ c     Predictor step
       old_time_eval = .true. !This informs nlfunction that we are processing
                              !  n time level info
 
-      call evaluateNonlinearFunction(nn,x_old,fold)
+      call evaluateNonlinearFunction(igrid,nn,x_old,fold)
 
       old_time_eval = .false.
 
@@ -129,7 +133,7 @@ c     Predictor step
 
 c     Corrector step
 
-      call evaluateNonlinearFunction(nn,x,fold)
+      call evaluateNonlinearFunction(igrid,nn,x,fold)
 
       x = x_old - dt*(fold-fsrc)
 
