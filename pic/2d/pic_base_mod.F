@@ -2387,9 +2387,13 @@ c     Call variables
 c     Local variables
 
       integer :: isp
-      real(8) :: rho0
+      real(8) :: rho0,ihx,ihy,ihz
 
 c     Define current
+
+      call get_inverse_h(ihx,ihy,ihz)
+
+      idlvol = ihx*ihy*ihz
 
       rho(:,:,:) = 0d0
       do isp = 1,n_sp
@@ -2411,8 +2415,13 @@ c     Call variables
 c     Local variables
 
       integer :: isp
+      real(8) :: ihx,ihy,ihz
 
 c     Define current
+
+      call get_inverse_h(ihx,ihy,ihz)
+
+      idlvol = ihx*ihy*ihz
 
       jcnv = 0d0
       do isp = 1,n_sp
@@ -3800,7 +3809,7 @@ c     Begin program
      .              ,"Slow shock quiet start not implemented")
         case('kaw_ii')
 #include "problem_init/kawiiLoadPartls_qs.f"
-        case('landau','2strm','iaw')!,'langdon')
+        case('landau','2strm','iaw','langdon')
 #include "problem_init/UniformLoadPartls_qs.f"
         case default  
 #include "problem_init/DefaultLoadPartls_qs.f"
@@ -3815,7 +3824,7 @@ c     Begin program
 #include "problem_init/slowShockLoadPartls.f"
         case('kaw_ii')   
 #include "problem_init/kawiiLoadPartls.f"
-        case('landau','2strm','iaw')!,'langdon')
+        case('landau','2strm','iaw','langdon')
 #include "problem_init/UniformLoadPartls.f"
         case default
 #include "problem_init/DefaultLoadPartls.f"

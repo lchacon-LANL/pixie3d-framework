@@ -53,13 +53,13 @@ c Begin program
 
       call DR_init
 
-c Initialize calculation
-
-      call initializeCalculation
-
 c Initialize counters
 
       call TS_init_otherCounters
+
+c Initialize calculation
+
+      call initializeCalculation
 
 c Initial output
 

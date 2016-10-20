@@ -2007,6 +2007,8 @@ c     Begin program
       ny = size(arr,2)-2
       nz = size(arr,3)-2
 
+      lap = 0d0
+
       do k=1,nz
         do j=1,ny
           do i=1,nx

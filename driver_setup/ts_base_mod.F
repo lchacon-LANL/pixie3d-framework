@@ -12,18 +12,21 @@ c ######################################################################
         use mk
 #endif
 
-        integer :: nrstep
-     .            ,nrst
         integer :: itnewt
      .            ,itgmres
-     .            ,gmres_tot
-     .            ,newt_tot
-     .            ,init_grid_offset=0
-     .            ,bdf2_init_offset=1
+     .            ,nrstep
 
-        real(8) :: tmrst       !Dump time for restart
-     .            ,quota=1d30  !Max CPU time (in seconds)
-        real(8) :: rstep,dfreq,dtexp
+        real(8) :: rstep,dfreq
+
+        integer :: nrst             = 0
+     .            ,gmres_tot        = 0
+     .            ,newt_tot         = 0
+     .            ,init_grid_offset = 0
+     .            ,bdf2_init_offset = 1
+
+        real(8) :: tmrst = 0d0   !Dump time for restart
+     .            ,quota = 1d30  !Max CPU time (in seconds)
+     .            ,dtexp = 0d0   !Explicit time accumulator
 
 #if !defined(samrai)
 
@@ -253,16 +256,8 @@ c     Local variables
 
 c     Begin program
 
-      gmres_tot = 0
-      newt_tot  = 0
+      itime = inewtime - 1
 
-      itime     = inewtime - 1
-
-      nrst      = 0
-      tmrst     = 0d0
-
-      dtexp     = 0d0
-      
       if (relax_init_grid) init_grid_offset = 1
 
 c     PETSc CPU counters and profiling

@@ -25,7 +25,7 @@ c ######################################################################
      .          ,pst_avg=0           !Average number of particle substeps per timestep
 
       !Diagnostics
-      real(8) :: push_timer
+      real(8) :: push_timer=0d0
       integer,private :: clock_rate,clock_start,clock_stop
 
       contains
