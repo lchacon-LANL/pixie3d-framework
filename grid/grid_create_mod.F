@@ -376,7 +376,7 @@ c     Cycle through grid hierarchies
 
           !Gather coarsest mesh over sub-procs
           call find_global(gf_def%gmetric%grid(gf_def%ngrid)%car,xc
-#if defined(petsc) || defined(samrai)
+#if defined(petsc) 
      .                    ,map_bc=.true.,mpi_comm=gc_def%mpi_comm_crse
 #endif
      .                    )

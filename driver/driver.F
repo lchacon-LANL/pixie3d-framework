@@ -108,7 +108,6 @@ c     Check for error in time stepping
             call pstop('Main'
      .                ,'ERROR: Solver failed to converge;'
      .                 //' rerun with "ts_adapt_dt = t"')
-            exit
           endif
 
         case(EXACT)     !Initial guess is exact
@@ -141,7 +140,11 @@ c     Output per time step
 
 c     Time level data dump
 
-        if (TS_dump(u_np)) exit
+        call TS_dump(u_np)
+
+c     Exit if eigenvalue computation
+
+        if (eigen) exit
 
       enddo       !End of time loop
 
@@ -152,6 +155,8 @@ c Final I/O
 c End program
 
       call DR_destroy
+
+      call exit(EXIT_STATUS)
 
       end program
 

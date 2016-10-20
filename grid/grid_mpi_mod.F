@@ -2,6 +2,8 @@ c module grid_mpi
 c ######################################################################
       module grid_mpi
 
+        use io, ONLY: FATAL,sstop
+
         use grid_operations
 
         use xdraw_io, ONLY: contour
@@ -41,24 +43,13 @@ c$$$        END INTERFACE
      .               ,my_rank=0
      .               ,group_world
      .               ,group_sp,tag=0,dest=0,root=0
-     .               ,status(MPI_STATUS_SIZE)
+cc     .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
 
         integer    :: l_lim(3,0:1)
      .               ,g_lim(3,0:1)
      .               ,rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
-
-c$$$        integer    :: MPI_COMM_SP    =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_POL   =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_RAD   =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_X     =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_Y     =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_Z     =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_XY    =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_YZ    =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_PER(3)=MPI_COMM_NULL
-cc        integer   ,allocatable,dimension(:) :: MPI_COMM_NBRS
 
         character(80) :: messg
 
@@ -1179,44 +1170,13 @@ c     Call SAMRAI's error handler
         end interface
         call pstop_samrai(trim(routine),trim(message))
 #else
+c     Call error handler
+        
+        call sstop(my_rank,routine,message)
 
-#if defined(petsc)
-        if (my_rank == 0) then
-          write (*,*)
-          write (*,*) trim(message)
-          write (*,*) 'Program stopped at routine ',trim(routine)
-        endif
-        call PetscEnd(mpierr)
-#endif
-        call sstop(routine, message)
 #endif
 
       end subroutine pstop
-
-c     sstop
-c     ################################################################
-      subroutine sstop(routine,message)
-
-c     ---------------------------------------------------------------
-c     Stops program at "routine" with "message"
-c     ---------------------------------------------------------------
-
-        implicit none
-
-        character(*)  :: routine, message
-
-c     Begin program
-
-        write (*,*)
-        write (*,*) trim(message)
-        write (*,*) 'Program stopped at routine ',trim(routine)
-
-        call abort
-        stop
-
-c     End program
-
-      end subroutine sstop
 
 #if defined(petsc)
 c     psum

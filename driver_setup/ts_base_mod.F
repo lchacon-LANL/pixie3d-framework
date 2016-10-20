@@ -12,6 +12,9 @@ c ######################################################################
         use mk
 #endif
 
+        integer :: EXIT_STATUS=FATAL !Hardwire to fatal termination
+
+
         integer :: itnewt
      .            ,itgmres
      .            ,nrstep
@@ -27,6 +30,8 @@ c ######################################################################
         real(8) :: tmrst = 0d0   !Dump time for restart
      .            ,quota = 1d30  !Max CPU time (in seconds)
      .            ,dtexp = 0d0   !Explicit time accumulator
+     .            ,exec_time=0d0 !Execution time (in seconds)
+
 
 #if !defined(samrai)
 
@@ -195,7 +200,12 @@ c     Begin program
 
       exit_tloop = (tmax.gt.0d0.and.time.ge.(tmax-1d-9*dt))
      .         .or.(numtime.ge.0.and.itime+1.ge.(numtime+inewtime))
+     .         .or.(exec_time > quota)
 
+      if (exit_tloop .and. exec_time <= quota) EXIT_STATUS = SUCCESS
+
+      if (exec_time > quota) EXIT_STATUS = NON_FATAL
+      
 c     End program
 
       end function TS_chk_end

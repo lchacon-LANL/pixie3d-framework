@@ -926,7 +926,8 @@ ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
   ifdef BOPT
-    PETSC_DIR =/usr/projects/magnetic/stanier/soft/petsc-3.0.0-p7
+#    PETSC_DIR =/usr/projects/magnetic/stanier/soft/petsc-3.0.0-p7
+    PETSC_DIR =/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
       PETSC_ARCH = turquoise_ompi165_gcc472_o
@@ -944,7 +945,8 @@ ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
 
     ADIOS = t
 
-    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1
+#    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1-mustang-new
+    ADIOS_HOME = /usr/projects/magreconn/soft/adios-1.3.1-mustang
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/usr/projects/magnetic/stanier/soft/mxml-2.5/lib -lmxml
     ADIOS_VER  = 1.31
 

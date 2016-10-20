@@ -64,18 +64,15 @@ c     End program
 
 c     TS_dump
 c     ##################################################################
-      function TS_dump(varray) result(exit_tloop)
+      subroutine TS_dump(varray)
 
       implicit none
 
 c     Call variables
 
       type(var_array),pointer :: varray
-      logical :: exit_tloop
 
 c     Local variables
-
-      real(8) :: e_time
 
       INTERFACE
         subroutine perturbEquilibrium(varray)
@@ -86,16 +83,14 @@ c     Local variables
 
 c     Begin program
 
-        if (TS_chk_dump(etime=e_time,reset_counters=.true.)
+        if (TS_chk_dump(etime=exec_time,reset_counters=.true.)
      .     .and.(.not.no_graphics_io)) then
 cc          if (.not.relax_init_grid) nrst  = 0
 cc          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
           call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
         endif
 
-        exit_tloop = (eigen .or. e_time > quota)
-
-        if (relax_init_grid.and.(.not.exit_tloop)) then
+        if (relax_init_grid) then
           relax_init_grid = .false.
 cc          if (source) call get_src(varray,.true.) !Update source with interpolated equilibrium
           call equateDerivedType (u_n,varray)     !Save interpolated (unperturbed) equilibrium
@@ -104,7 +99,7 @@ cc          if (source) call get_src(varray,.true.) !Update source with interpol
 
 c     End program
       
-      end function TS_dump
+      end subroutine TS_dump
 
 c     TS_final_io
 c     ##################################################################

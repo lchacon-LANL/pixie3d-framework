@@ -431,27 +431,17 @@ c     Find coarse domain config
         !Coordinates in new processor mesh
         ip = (npx_new*l_lim(1,0)/g_lim(1,1))
         jp = (npy_new*l_lim(2,0)/g_lim(2,1))
-        kp = (npz_new*l_lim(3,0)/g_lim(3,1))
-
-c$$$        !At bottom of hierarchy separate all procs (SELF)
-c$$$        if (npx_new == 1.and.npx /= 1) ip = my_rank
-c$$$        if (npy_new == 1.and.npy /= 1) jp = my_rank
-c$$$        if (npz_new == 1.and.npz /= 1) kp = my_rank
+        kp = (npz_new*l_lim(3,0)/g_lim(3,1)) 
 
 c     Select rank
 
         !Group processors based on location in x, y and z directions
-        !Organize in 3D COARSE processor mesh: i-1 + ny*(j-1) + ny*nz*(k-1)
-        split_key = split_key + ip  + npy_new*jp
-     .                              + npy_new*npz_new*kp
+        !Organize in 3D COARSE processor mesh: i-1 + nx*(j-1) + nx*ny*(k-1)
+        split_key = split_key + ip  + npx_new*jp
+     .                              + npx_new*npy_new*kp
 
-        !At bottom of hierarchy consider SELF
-c$$$        if (npx_new == 1.and.npy_new == 1.and.npz_new == 1) then
-c$$$          split_key = my_rank
-c$$$        endif
-
-c$$$        write(*,*) 'Proc=',my_rank,'mpi_comm_crse X'
-c$$$     .             ,npx_new,npx,l_lim(1,0),g_lim(1,1),ip,split_key
+c$$$        write (*,*) 'Proc=',my_rank,'mpi_comm_crse',npx_new,npy_new
+c$$$     .       ,npz_new,ip,jp,kp,split_key
 
 c     End program
 
