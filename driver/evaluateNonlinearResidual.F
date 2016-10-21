@@ -105,7 +105,7 @@ c Interfaces
         use parameters
         use var_setup
         integer :: igr
-        real(8) :: fi(:)
+        real(8) :: fi(ntotd)
         type(var_array),pointer :: varray
         end subroutine evaluate_NLF
       END INTERFACE
@@ -149,7 +149,7 @@ c--------------------------------------------------------------------
 c Call variables
 
       integer :: igr
-      real(8) :: fi(:)
+      real(8) :: fi(ntotd)
       type(var_array),pointer :: varray
 
 c Local variables
