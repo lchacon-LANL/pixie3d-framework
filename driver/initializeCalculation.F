@@ -97,6 +97,9 @@ c Read PETSc runtime options
      .                       ,petsc_flg,ierr)
       if (petsc_flg) numtime = -1
 
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trstrt
+     .                       ,petsc_flg,ierr)
+
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
      .                       ,petsc_flg,ierr)
 #else

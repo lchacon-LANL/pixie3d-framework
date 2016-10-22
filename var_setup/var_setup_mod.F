@@ -576,7 +576,7 @@ c     End program
 
 c     initializeDerivedType
 c     #################################################################
-      subroutine initializeDerivedType(varray,igx,igy,igz)
+      subroutine initializeDerivedType(varray,igr)
 
 c     -----------------------------------------------------------------
 c     Initializes fields of varray2 using a template (u_0) except for
@@ -586,15 +586,15 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         type(var_array),pointer  :: varray
-        integer, optional :: igx,igy,igz
+        integer, optional :: igr
 
 c     Local variables
 
-        integer          :: ieq
+        integer :: ieq
 
 c     Begin program
 
-        call allocateDerivedType(varray,igx=igx,igy=igy,igz=igz)
+        call allocateDerivedType(varray,igx=igr,igy=igr,igz=igr)
 
         varray%nvar = gv%u_0%nvar
 
@@ -671,18 +671,22 @@ c     Call variables
 
       type(grid_mg_def),pointer :: g_def
 
-      real(8),intent(out)      :: x(:)
+      real(8),intent(out) :: x(:)
       integer, optional :: igr
 
       type(var_array),pointer  :: varray
 
 c     Local variables
 
-      integer :: i,j,k,ii,ieq,neq,iigr=1
+      integer :: i,j,k,ii,ieq,neq,iigr
 
 c     Begin program
 
-      if (PRESENT(igr)) iigr=igr
+      if (PRESENT(igr)) then
+        iigr=igr
+      else
+        iigr = 1
+      endif
 
 c     Unpack vector x
 
@@ -691,7 +695,6 @@ c     Unpack vector x
       do k = 1,g_def%nzv(iigr)
         do j = 1,g_def%nyv(iigr)
           do i = 1,g_def%nxv(iigr)
-cc            ii = vecPos(neq,i,j,k,iigr,iigr,iigr)
             ii = neq*vPos(g_def,iigr,(/i,j,k/))
             do ieq=1,neq
               x(ii+ieq) = varray%array_var(ieq)%array(i,j,k)
@@ -725,15 +728,19 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: i,j,k,ii,ieq,neq,iigr=1
+      integer :: i,j,k,ii,ieq,neq,iigr
 
 c     Begin program
 
-      if (PRESENT(igr)) iigr=igr
+      if (PRESENT(igr)) then
+        iigr=igr
+      else
+        iigr=1
+      endif
 
 c     Initialize varray
 
-      call initializeDerivedType(varray)
+      call initializeDerivedType(varray,igr=igr)
 
 c     Unpack vector x
 
