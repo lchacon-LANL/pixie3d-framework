@@ -210,6 +210,8 @@ c     Begin program
          if (ierror /= 0) goto 200
          read (ufile,iostat=ierror,end=100) spcs(isp)%m
          if (ierror /= 0) goto 200
+         read (ufile,iostat=ierror,end=100) spcs(isp)%q_m
+         if (ierror /= 0) goto 200
 
          np = npcl(isp)
          do ip=1,np
@@ -286,6 +288,7 @@ c     Begin program
       do isp=1,nsp
          write (ufile) spcs(isp)%q
          write (ufile) spcs(isp)%m
+         write (ufile) spcs(isp)%q_m
 
          np = npcl(isp)
          do ip=1,np
