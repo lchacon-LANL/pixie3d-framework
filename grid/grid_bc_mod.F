@@ -597,7 +597,6 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,jj,jlog,nyg,jglobal
-      real(8) :: avg
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
@@ -656,7 +655,7 @@ c     Element exchange in poloidal direction
 
       jlog = gl_def%jlo(igybc)
       if (coords == 'hl2') then
-        stop 'hl2 staggered option not implemented'
+        stop 'hl2 staggered option not implemented for hl2 geom'
 c$$$        do k=0,nzbc+1
 c$$$          do j=0,nybc+1
 c$$$            jglobal = j + jlog - 1
@@ -672,11 +671,6 @@ c$$$          enddo
 c$$$        enddo
       else
         do k=0,nzbc+1
-#if defined(petsc)
-          if (cov.and.ivar==1) avg = sum(garray(:,k))/nyg
-#else
-          if (cov.and.ivar==1) avg = sum(vec(i,1:nybc,k))/nybc
-#endif
           do j=0,nybc+1
             jglobal = j + jlog - 1
             jj = mod(jglobal+nyg/2,nyg)
@@ -685,12 +679,11 @@ c$$$        enddo
             if (cov) then
               select case(ivar)
               case(1)
-                vec(i-1,j,k) = avg  !Set to precomputed average value
-c$$$#if defined(petsc)
-c$$$                vec(i-1,j,k) = -garray(jj,k)
-c$$$#else
-c$$$                vec(i-1,j,k) = -vec(i,jj,k)
-c$$$#endif
+#if defined(petsc)
+                vec(i-1,j,k) = 0.5*(vec(i,j,k)-garray(jj,k)) !Average r+ and r- to origin
+#else
+                vec(i-1,j,k) = 0.5*(vec(i,j,k) -vec(i,jj,k)) !Average r+ and r- to origin
+#endif
               case(2,3)
 #if defined(petsc)
                 vec(i-1,j,k) =  garray(jj,k)
