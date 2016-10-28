@@ -2900,16 +2900,6 @@ c     Gather global solution, sol => solg
 
       call find_global_nobc(reshape(sol,(/nxl,nyl,nzl,n_sp/)),solg)
 
-c$$$      do k = 1,nzg
-c$$$        do j = 1,nyg
-c$$$          do i = 1,nxg
-c$$$            print *,i,j,solg(i,j,k,:)
-c$$$          enddo
-c$$$          print *
-c$$$        enddo
-c$$$      enddo
-c$$$      stop
-
 c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., no Jac)
 
       do isp=1, numspcs 
@@ -3007,8 +2997,6 @@ c     Begin program
 
               call xform_pcle_idx_scl(spcs(isp)%pcles(ipcl)%ijk_n(i_npg)
      .                               ,nxg,i,j)
-c$$$              i = mod((spcs(isp)%pcles(ipcl)%ijk_n(i_npg)-1),nxg) + 1
-c$$$              j = (spcs(isp)%pcles(ipcl)%ijk_n(i_npg)-1)/nxg + 1
 
               ip = i + 1
               im = i - 1
@@ -3184,8 +3172,6 @@ c     Begin program
 
               call xform_pcle_idx_scl(spcs(isp)%pcles(ipcl)%ijk_n(i_npg)
      .                               ,nxg,i,j)
-c$$$              i = mod((spcs(isp)%pcles(ipcl)%ijk_n(i_npg)-1),nxg) + 1
-c$$$              j = (spcs(isp)%pcles(ipcl)%ijk_n(i_npg)-1)/nxg + 1
 
               ip = i + 1
               im = i - 1
@@ -3944,37 +3930,17 @@ cc      print *,"after arranging particles:",my_rank_pic,sum(npc_int_s),tot_np
 
 #if defined(petsc)
 !     find the index of counting particles per mpi process
-c$$$      call MPI_SCAN(tot_np,tot_np_scan,1,MPI_INTEGER,MPI_SUM
-c$$$     $     ,MPI_COMM_WORLD,mpierr)   
-c$$$      tot_np_scan = tot_np_scan - tot_np
-
       call MPI_SCAN(npc_int_s,npc_scan_s,nng,MPI_INTEGER,MPI_SUM
      $     ,MPI_COMM_WORLD,mpierr)         
       do ii = 1,nng
          npc_scan_s(ii) = npc_scan_s(ii) - npc_int_s(ii) +
      $        nint(npc_acm(ii-1)) 
       end do
-
-cc      print *,my_rank_pic,npc_scan
 #else
-cc      tot_np_scan = 0
       do ii = 1,nng
          npc_scan_s(ii) = nint(npc_acm(ii-1))
       end do
 #endif
-
-c$$$        else
-c$$$
-c$$$          write (*,*) my_rank_pic,npc_int_s(ii)
-c$$$          call pstop("compute_pcle_spat_dist"
-c$$$     .     ,"Too few particles; add pcles or turn mass matrix solve on")
-c$$$
-c$$$        endif
-c$$$         
-c$$$      end if
-
-cc      call vec_plot_gl(1,1d0*npc_int_s,1,"pcles","Pcle dist")
-cc      stop
 
       npc1_0 = npc_int_s(1) +npc_int_s(2)
       
@@ -4073,22 +4039,9 @@ C    perturb particles after matching given equilibrium
         stop
       end select
 
-c$$$#ifdef PIC_SORT
-c$$$        call sort_particles(nxg,nng,n_sp)
-c$$$#endif
-
 c     Gather moments
 
       call gather_moments
-
-c$$$        do j = 1,nyg
-c$$$          do i = 1,nxg
-c$$$            print *,i,j,moms(i,j,1,1:n_sp,:)
-c$$$          enddo
-c$$$          print *
-c$$$        enddo
-c$$$
-c$$$      stop
 
 c     Diagnostics and memory freeing
 
