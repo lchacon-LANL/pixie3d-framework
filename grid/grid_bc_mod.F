@@ -3518,6 +3518,8 @@ c     Extrapolation
 
 c     Begin program
 
+      xx = 0d0 ; yy = 0d0 ; zz = 0d0
+      
 c     Initialize variables
 
       face   = (count(ibcl /= 0) == 1)
