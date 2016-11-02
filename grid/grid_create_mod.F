@@ -148,12 +148,6 @@ c     Initialize grid structure
 #endif
      .               )
 
-c     Create MPI communicators
-
-#if defined(petsc)
-      call create_MPI_comms(g_def)
-#endif
-
 c     Store grid metric parameters in grid metric structure
 
       if (checkAnalMapDatabase()) then
@@ -295,12 +289,6 @@ c     Init coarse mesh structure
      .               )
 
       g_crse_def%mpi_comm_crse = mpi_comm_crse
-
-c     Create MPI communicators
-
-#if defined(petsc)
-      call create_MPI_comms(g_crse_def)
-#endif
 
 c     Gather map and define grid metrics
 
@@ -587,6 +575,7 @@ c     Create fortran PETSc parallel grid hierarchy (parallel version)
 #if defined(petsc)
         call createPETScGrid(gdef,0)
         call setup_petsc_BC(gdef)   !Set PETSc BC flags
+        call create_MPI_comms(gdef) !Set MPI comms
 #endif
 
       end subroutine init_gdef
