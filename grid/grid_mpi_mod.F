@@ -181,7 +181,7 @@ c     Periodic BCs communicators
      .    call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(3),'MPI_COMM_PERz')
         endif
 
-        if (chk_mpi_comm) stop 'Finished checking MPI comms'
+        if (chk_mpi_comm) write(*,*) 'Finished checking MPI comms'
 
 c     End program
 
