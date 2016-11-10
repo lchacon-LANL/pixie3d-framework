@@ -393,6 +393,13 @@ c     Begin program
         pbcond(3)   = pREF
         pbcond(4)   = pREF
 
+      case('bpnch')
+
+        pbcond(1)   = pREF
+        pbcond(2)   = pREF
+        pbcond(3)   = pPER
+        pbcond(4)   = pPER
+
       case ('wbl_bc')
  
         pbcond(1)   = pREF
@@ -4019,7 +4026,7 @@ C    perturb particles after matching given equilibrium
         if(quiet_start) then
 #include "problem_init/kawiiPerturb.f"
         end if
-      case('weibel','wbl_bc')
+      case('weibel','wbl_bc','bpnch')
         if(quiet_start) then
             call perturb_pcle_xv(1
      .                          ,(/nh1,nh2,0/)
