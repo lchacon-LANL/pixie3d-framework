@@ -1595,6 +1595,84 @@ c$$$          gamma(:,2,2) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
 
       end subroutine transf_vector_Bspl
 
+c     transf_vector_Bspl_scalar
+c     #################################################################
+      subroutine transf_vector_Bspl_scalar(i0,j0,xlog,cov,cnv,jac)
+
+c     -----------------------------------------------------------------
+c     Transform Cartesian vectors to curvilinear using B-splines.
+c     Employ Luis's convention.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Input variables
+     
+      integer, intent(in) :: i0,j0 !particle cell-indices
+      real(_prec) :: xlog(3) !normalized particle offset position
+      real(_prec),INTENT(OUT) :: cov(3,3)
+      real(_prec),optional :: cnv(3,3),jac
+
+c     Local variables
+
+      integer :: ierr,k
+
+      real(_prec) :: vec(3,3),dum3(3),iJac,jacob
+      real(_prec) :: Sx2(3),Sy2(3),DSx(3)
+      real(_prec) :: DSy(3),DSxx(3),DSyy(3)
+      real(_prec) :: map_g_1(3,3),map_g_2(3,3)
+
+c     Begin program
+
+c     Tangential vectors (2D for now)
+
+      Sx2 = shape2_offset_scalar(xlog(1))
+      Sy2 = shape2_offset_scalar(xlog(2))
+      DSx = Dx_shape2_offset_scalar(xlog(1))
+      DSy = Dy_shape2_offset_scalar(xlog(2))
+
+      map_g_1 = map_g(i0-1:i0+1,j0-1:j0+1,1)
+      map_g_2 = map_g(i0-1:i0+1,j0-1:j0+1,2)
+
+      dum3 = opt_matvec_3(DSx,map_g_1)
+      vec(1,1) = dot_product(dum3,Sy2)
+      dum3 = opt_matvec_3(DSx,map_g_2)
+      vec(1,2) = dot_product(dum3,Sy2)
+      vec(1,3)=0.0
+
+      dum3 = opt_matvec_3(Sx2,map_g_1)
+      vec(2,1) = dot_product(dum3,Dsy)
+      dum3 = opt_matvec_3(Sx2,map_g_2)
+      vec(2,2) = dot_product(dum3,DSy)
+      vec(2,3)=0.0
+
+      !(careful) z is orthogonal to the (x,y) plane
+      vec(3,1) = 0.0
+      vec(3,2) = 0.0
+      vec(3,3) = 1.0
+
+c     Find the inverse Jacobian
+
+      jacob = det(vec)
+
+      iJac = 1.0/jacob
+
+      if (PRESENT(jac)) jac = jacob
+
+c     Divide tangential vectors by Jacobian (Luis's convention)
+
+      if(present(cnv)) cnv = vec*iJac
+
+c     Normal vectors (J*grad(xi)=(dx/deta x dx/dzeta))
+
+      cov(1,:) = cross_product(vec(2,:),vec(3,:))
+      cov(2,:) = cross_product(vec(3,:),vec(1,:))
+      cov(3,:) = cross_product(vec(1,:),vec(2,:))
+
+      cov = cov*iJac
+
+      end subroutine transf_vector_Bspl_scalar
+
 c     cross_product_vec
 c     #################################################################
       subroutine cross_product_vec(vec1,vec2,vec3)
@@ -4169,7 +4247,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nsize(3),in0(3,_Npg),i,dim,nxg,nyg,nzg
+      integer :: nsize(3),in0(_Npg,3),i,dim,nxg,nyg,nzg
       real(8) :: hx,hy,hz,dh(3)
 
 c     Begin program
@@ -4180,37 +4258,40 @@ c     Begin program
       dh = (/hx,hy,hz/)
 
       nsize = (/nxg,nyg,nzg/)
-      in0(1,:)   = inp
-      in0(2,:)   = jnp
-      in0(3,:)   = 0
+      in0(:,1)   = inp
+      in0(:,2)   = jnp
+      in0(:,3)   = 0
+
+c     Impose BCs
 
       do dim=1,_Dimx
         do i=1,_Npg
           if(dx(i,dim)>0 .and. xnp(i,dim).ge.dh(dim)) then
             do while(xnp(i,dim).ge.dh(dim))
-              in0(dim,i) = in0(dim,i)+1
+              in0(i,dim) = in0(i,dim)+1
               xnp(i,dim) = xnp(i,dim) - dh(dim)
             enddo
-            if(in0(dim,i)>nsize(dim)) !BC @ location=1
-     .         call pcles_bc_offset(dim,1,pbcond,nsize(dim),xnp(i,dim)
-     .                         ,vnp(i,:),in0(dim,i))
+            if(in0(i,dim)>nsize(dim)) !BC @ location=1
+     .         call pcles_bc_offset(dim,1,pbcond,nsize(dim),xnp(i,:)
+     .                             ,vnp(i,:),in0(i,:))
           else if(dx(i,dim)<0.and. xnp(i,dim).le.0) then
             do while(xnp(i,dim).le.0d0)
-              in0(dim,i) = in0(dim,i)-1
+              in0(i,dim) = in0(i,dim)-1
               xnp(i,dim) = xnp(i,dim) + dh(dim)
             enddo
-            if(in0(dim,i)<1)         !BC @ location=0
-     .         call pcles_bc_offset(dim,0,pbcond,nsize(dim),xnp(i,dim)
-     .                             ,vnp(i,:),in0(dim,i))
+            if(in0(i,dim)<1)         !BC @ location=0
+     .         call pcles_bc_offset(dim,0,pbcond,nsize(dim),xnp(i,:)
+     .                             ,vnp(i,:),in0(i,:))
           end if
         enddo
       end do
 
-      inp = in0(1,:)
-      jnp = in0(2,:)
+c     Transfer location info
+
+      inp = in0(:,1)
+      jnp = in0(:,2)
 
       end subroutine cell_crossing
-
 
 c     pcles_bc_offset
 c     ##################################################################
@@ -4226,19 +4307,21 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       integer,intent(in)   :: pbc(6),dim,loc,nn
-      real(8),intent(inout):: xp,vp(3)
-      integer,intent(inout):: ip
+      real(8),intent(inout):: xp(3),vp(3)
+      integer,intent(inout):: ip(:)
 
 c     Local variables
 
       integer :: ibc,dim1,dim2
-      real(8) :: hx,hy,hz,dh(3)
+      real(8) :: hx,hy,hz,ihx,ihy,ihz,dh(3)
+      real(_prec) :: xlog(3),cov(3,3),cnv(3,3),v_n,jac
 
 c     Begin program
 
       ibc = (1+loc)+2*(dim-1)
 
       call get_h(hx,hy,hz)
+      call get_inverse_h(ihx,ihy,ihz)
       dh = (/hx,hy,hz/)
 
       select case(dim)
@@ -4253,18 +4336,29 @@ c     Begin program
       select case(pbc(ibc))
       case(pPER)
 !     periodic
-         if (loc == 0) ip = nn
-         if (loc == 1) ip = 1  
+         if (loc == 0) ip(dim) = nn
+         if (loc == 1) ip(dim) = 1  
       case(pREF)
 !     reflective, force it to be on the boundary, before which xp=(0:eps).
-         if (loc == 0) ip = ip + 1
-         if (loc == 1) ip = ip - 1 
-         xp = loc*dh(dim)
-         vp(dim) =-vp(dim)
+         if (loc == 0) ip(dim) = ip(dim) + 1
+         if (loc == 1) ip(dim) = ip(dim) - 1 
+         xp(dim) = loc*dh(dim)
+         if (no_map) then
+           vp(dim) =-vp(dim)
+         else
+           xlog(1) = xp(1)*ihx
+           xlog(2) = xp(2)*ihy
+           xlog(3) = xp(3)*ihz
+
+           call transf_vector_Bspl_scalar(ip(1),ip(2),xlog,cov,cnv=cnv
+     .                                   ,jac=jac)
+           v_n = jac*dot_product(cov(dim,:),vp)
+           vp  = vp - 2d0*v_n*cnv(dim,:)
+         endif
       case(pOPN)
-         if (loc == 0) ip = ip + 1
-         if (loc == 1) ip = ip - 1 
-         xp = loc*dh(dim)
+         if (loc == 0) ip(dim) = ip(dim) + 1
+         if (loc == 1) ip(dim) = ip(dim) - 1 
+         xp(dim) = loc*dh(dim)
          vp(dim) = 2d0*vinject(dim,ibc) - vp(dim) !assuming a symmetric distribution
          vp(dim1) = -vp(dim1)
          vp(dim2) = -vp(dim2)
