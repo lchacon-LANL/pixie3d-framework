@@ -7195,7 +7195,7 @@ c     Begin program
 c$$$        write (*,*) (np > 1)                           !Parallel
 c$$$     .   ,(mgctx%g_def%ngrid == igr)         !Lowest level in grid hierarchy
 c$$$     .   ,associated(mgctx%g_def%g_crse_def) !Coarse grid defs are defined
-c$$$     .   ,MG_coarse_solve
+c$$$     .   ,MG_get_coarse_solve()
         if (  (np > 1)                           !Parallel
      .   .and.(mgctx%g_def%ngrid == igr)         !Lowest level in grid hierarchy
      .   .and.associated(mgctx%g_def%g_crse_def) !Coarse grid defs are defined
