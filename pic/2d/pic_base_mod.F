@@ -891,7 +891,7 @@ c     Local variables
 
 c     Optimized matrix-vector multiplication (3) (C. Mikida)
 c     ##################################################################
-      subroutine opt_matvec_3_pcle(A,B,C)
+      subroutine opt_matvec_tr_pcle(A,B,C)
 
       implicit none
 
@@ -922,7 +922,7 @@ c     Local variables
          C(k,:) = C(k,:) + matmul(A(k,:),B(k,:,:))
       end do
 #endif
-      end subroutine opt_matvec_3_pcle
+      end subroutine opt_matvec_tr_pcle
 
 c     Optimized vector-vector multiplication (3x3) (C. Mikida)
 c     ##################################################################
@@ -1070,15 +1070,17 @@ c     Local variables
 
 c     Optimized matrix-vector multiplication (3) (C. Mikida)
 c     ##################################################################
-      function opt_matvec_3(A,B) result(C)
+      function opt_matvec_tr(A,B) result(C)
 
       implicit none
 
 c     Call variables
+
       real(_prec) :: A(3), B(3,3) 
       real(_prec) :: C(3)
 
 c     Local variables
+
       integer :: i, j
 
       C(:) = 0.0d0
@@ -1090,7 +1092,31 @@ c     Local variables
          end do
       end do
  
-      end function opt_matvec_3
+      end function opt_matvec_tr
+
+c     Optimized matrix-vector multiplication
+c     ##################################################################
+      function opt_matvec(A,B) result(C)
+
+      implicit none
+
+c     Call variables
+      real(_prec) :: B(3), A(3,3) 
+      real(_prec) :: C(3)
+
+c     Local variables
+      integer :: i, j
+
+      C(:) = 0.0d0
+
+      do i=1, 3
+         !VECTOR SIMD REDUCTION(+:C)
+         do j=1, 3
+            C(i) = C(i) + A(i,j)*B(j)
+         end do
+      end do
+ 
+      end function opt_matvec
 
 c     Optimized vector-vector multiplication (3x3) (C. Mikida)
 c     ##################################################################
@@ -1365,9 +1391,9 @@ c     Begin program
       !VECTOR SIMD
       do k=1,_Npg
 #ifdef __GNU
-        vcurv(k,:) = opt_matvec_3(vp(k,:),cov(k,:,:))
+        vcurv(k,:) = opt_matvec(cov(k,:,:),vp(k,:))
 #else               
-        vcurv(k,:) = matmul(cov(k,:,:),vp(k,:))
+        vcurv(k,:) = matmul    (cov(k,:,:),vp(k,:))
 #endif
       end do
 
@@ -1417,15 +1443,15 @@ c     Tangential vectors (2D for now)
          map_g_2(k,:,:) = map_g(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1,2)
       enddo
 
-      call opt_matvec_3_pcle(DSx,map_g_1,dum3)
+      call opt_matvec_tr_pcle(DSx,map_g_1,dum3)
       call dot_product_3_pcle(dum3,Sy2,vec(:,1,1))
-      call opt_matvec_3_pcle(DSx,map_g_2,dum3)
+      call opt_matvec_tr_pcle(DSx,map_g_2,dum3)
       call dot_product_3_pcle(dum3,Sy2,vec(:,1,2))
       vec(:,1,3)=0d0
 
-      call opt_matvec_3_pcle(Sx2,map_g_1,dum3)
+      call opt_matvec_tr_pcle(Sx2,map_g_1,dum3)
       call dot_product_3_pcle(dum3,Dsy,vec(:,2,1))
-      call opt_matvec_3_pcle(Sx2,map_g_2,dum3)
+      call opt_matvec_tr_pcle(Sx2,map_g_2,dum3)
       call dot_product_3_pcle(dum3,DSy,vec(:,2,2))
       vec(:,2,3)=0d0
 
@@ -1487,25 +1513,25 @@ c$$$
 c$$$cc         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
 c$$$cc     .             ,ierr,xder=1,yder=1,zder=0)  
 
-      call opt_matvec_3_pcle(DSx,map_g_1,dum3)
+      call opt_matvec_tr_pcle(DSx,map_g_1,dum3)
       call dot_product_3_pcle(dum3,Dsy,vec(:,1,1))
-      call opt_matvec_3_pcle(DSx,map_g_2,dum3)
+      call opt_matvec_tr_pcle(DSx,map_g_2,dum3)
       call dot_product_3_pcle(dum3,Dsy,vec(:,1,2))
       vec(:,1,3)=0d0
 
       !VECTOR SIMD
       do k=1,_Npg
 #ifdef __GNU
-        gamma(k,:,1,2) = opt_matvec_3(cov(k,:,:),vec(k,1,:))
+        gamma(k,:,1,2) = opt_matvec(cov(k,:,:),vec(k,1,:))
 #else
-        gamma(k,:,1,2) = matmul(cov(k,:,:),vec(k,1,:))
+        gamma(k,:,1,2) = matmul    (cov(k,:,:),vec(k,1,:))
 #endif
         gamma(k,:,2,1) = gamma(k,:,1,2)
       enddo
 c$$$#ifdef __GNU
-c$$$         x = dot_product(opt_matvec_3(DSx(1,:),
+c$$$         x = dot_product(opt_matvec_tr(DSx(1,:),
 c$$$     .                  map_g_1),DSy(1,:))
-c$$$         y = dot_product(opt_matvec_3(DSx(1,:),
+c$$$         y = dot_product(opt_matvec_tr(DSx(1,:),
 c$$$     .                  map_g_2),DSy(1,:))
 c$$$#else
 c$$$         x = dot_product(MATMUL(DSx(1,:),map_g_1),DSy(1,:))
@@ -1536,23 +1562,23 @@ c$$$         gamma(:,2,3) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
 c$$$         gamma(:,3,2) = gamma(:,2,3)
 
       !Gamma(:,1,1)
-      call opt_matvec_3_pcle(DSxx,map_g_1,dum3)
+      call opt_matvec_tr_pcle(DSxx,map_g_1,dum3)
       call dot_product_3_pcle(dum3,Sy2,vec(:,1,1))
-      call opt_matvec_3_pcle(DSxx,map_g_2,dum3)
+      call opt_matvec_tr_pcle(DSxx,map_g_2,dum3)
       call dot_product_3_pcle(dum3,Sy2,vec(:,1,2))
       vec(:,1,3)=0d0
       !VECTOR SIMD
       do k=1,_Npg
 #ifdef __GNU
-        gamma(k,:,1,1) = opt_matvec_3(cov(k,:,:),vec(k,1,:))
+        gamma(k,:,1,1) = opt_matvec(cov(k,:,:),vec(k,1,:))
 #else
-        gamma(k,:,1,1) = matmul      (cov(k,:,:),vec(k,1,:))
+        gamma(k,:,1,1) = matmul    (cov(k,:,:),vec(k,1,:))
 #endif
       enddo
 c$$$#ifdef __GNU
-c$$$         x = dot_product(opt_matvec_3(DSxx(1,:),
+c$$$         x = dot_product(opt_matvec_tr(DSxx(1,:),
 c$$$     .                   map_g_1),Sy2(1,:))
-c$$$         y = dot_product(opt_matvec_3(DSxx(1,:),
+c$$$         y = dot_product(opt_matvec_tr(DSxx(1,:),
 c$$$     .                   map_g_2),Sy2(1,:))
 c$$$#else
 c$$$         x = dot_product(MATMUL(DSxx(1,:),map_g_1),Sy2(1,:))
@@ -1563,25 +1589,25 @@ c$$$         gamma(:,1,1) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
 
       !Gamma(:,2,2)
       if(nyg>1) then
-        call opt_matvec_3_pcle(Sx2,map_g_1,dum3)
+        call opt_matvec_tr_pcle(Sx2,map_g_1,dum3)
         call dot_product_3_pcle(dum3,DSyy,vec(:,2,1))
-        call opt_matvec_3_pcle(Sx2,map_g_2,dum3)
+        call opt_matvec_tr_pcle(Sx2,map_g_2,dum3)
         call dot_product_3_pcle(dum3,DSyy,vec(:,2,2))
         vec(:,2,3)=0d0
         !VECTOR SIMD
         do k=1,_Npg
 #ifdef __GNU
-          gamma(k,:,2,2) = opt_matvec_3(cov(k,:,:),vec(k,2,:))
+          gamma(k,:,2,2) = opt_matvec(cov(k,:,:),vec(k,2,:))
 #else
-          gamma(k,:,2,2) = matmul      (cov(k,:,:),vec(k,2,:))
+          gamma(k,:,2,2) = matmul    (cov(k,:,:),vec(k,2,:))
 #endif
         enddo
 c$$$c$$$            call evalX(xlog(1),xlog(2),xlog(3),x,y,z
 c$$$c$$$     .           ,ierr,xder=0,yder=2,zder=0)  
 c$$$#ifdef __GNU
-c$$$          x = dot_product(opt_matvec_3(Sx2(1,:),
+c$$$          x = dot_product(opt_matvec_tr(Sx2(1,:),
 c$$$     .                    map_g_1),DSyy(1,:))
-c$$$          y = dot_product(opt_matvec_3(Sx2(1,:),
+c$$$          y = dot_product(opt_matvec_tr(Sx2(1,:),
 c$$$     .                    map_g_2),DSyy(1,:))
 c$$$#else
 c$$$          x = dot_product(MATMUL(Sx2(1,:),map_g_1),DSyy(1,:))
@@ -1634,15 +1660,15 @@ c     Tangential vectors (2D for now)
       map_g_1 = map_g(i0-1:i0+1,j0-1:j0+1,1)
       map_g_2 = map_g(i0-1:i0+1,j0-1:j0+1,2)
 
-      dum3 = opt_matvec_3(DSx,map_g_1)
+      dum3 = opt_matvec_tr(DSx,map_g_1)
       vec(1,1) = dot_product(dum3,Sy2)
-      dum3 = opt_matvec_3(DSx,map_g_2)
+      dum3 = opt_matvec_tr(DSx,map_g_2)
       vec(1,2) = dot_product(dum3,Sy2)
       vec(1,3)=0.0
 
-      dum3 = opt_matvec_3(Sx2,map_g_1)
+      dum3 = opt_matvec_tr(Sx2,map_g_1)
       vec(2,1) = dot_product(dum3,Dsy)
-      dum3 = opt_matvec_3(Sx2,map_g_2)
+      dum3 = opt_matvec_tr(Sx2,map_g_2)
       vec(2,2) = dot_product(dum3,DSy)
       vec(2,3)=0.0
 
@@ -1655,11 +1681,11 @@ c     Find the inverse Jacobian
 
       jacob = det(vec)
 
-      iJac = 1.0/jacob
-
       if (PRESENT(jac)) jac = jacob
 
 c     Divide tangential vectors by Jacobian (Luis's convention)
+
+      iJac = 1.0/jacob
 
       if(present(cnv)) cnv = vec*iJac
 
@@ -4247,7 +4273,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nsize(3),in0(_Npg,3),i,dim,nxg,nyg,nzg
+      integer :: nsize(3),in0(size(inp),3),i,dim,nxg,nyg,nzg
       real(8) :: hx,hy,hz,dh(3)
 
 c     Begin program
@@ -4308,13 +4334,13 @@ c     Call variables
 
       integer,intent(in)   :: pbc(6),dim,loc,nn
       real(8),intent(inout):: xp(3),vp(3)
-      integer,intent(inout):: ip(:)
+      integer,intent(inout):: ip(3)
 
 c     Local variables
 
       integer :: ibc,dim1,dim2
       real(8) :: hx,hy,hz,ihx,ihy,ihz,dh(3)
-      real(_prec) :: xlog(3),cov(3,3),cnv(3,3),v_n,jac
+      real(_prec) :: xlog(3),cov(3,3),vdn,inmag
 
 c     Begin program
 
@@ -4350,10 +4376,11 @@ c     Begin program
            xlog(2) = xp(2)*ihy
            xlog(3) = xp(3)*ihz
 
-           call transf_vector_Bspl_scalar(ip(1),ip(2),xlog,cov,cnv=cnv
-     .                                   ,jac=jac)
-           v_n = jac*dot_product(cov(dim,:),vp)
-           vp  = vp - 2d0*v_n*cnv(dim,:)
+           call transf_vector_Bspl_scalar(ip(1),ip(2),xlog,cov)
+           inmag = 1d0/sum(cov(dim,:)*cov(dim,:))  ! |n|
+           vdn = dot_product(cov(dim,:),vp)        ! v.n
+cc           if (vdn*(-1)**loc < 0d0) vp = vp - 2d0*vdn*cov(dim,:)*inmag ! vp = vp - 2*(v.n)n/|n|^2
+           vp = vp - 2d0*vdn*cov(dim,:)*inmag ! vp = vp - 2*(v.n)n/|n|^2
          endif
       case(pOPN)
          if (loc == 0) ip(dim) = ip(dim) + 1
@@ -4612,7 +4639,7 @@ cc      cm(1) =  pcle%v_np(1)*m + Ap*q
 cc      cm(2) =  pcle%v_np(2)*m + Ap*q               
       cm(2) =  Ap*q
 
-      Ap = dot_product(opt_matvec_3(Sx2(1,:),A_3),Sy2(1,:))
+      Ap = dot_product(opt_matvec_tr(Sx2(1,:),A_3),Sy2(1,:))
 cc      cm(3) =  pcle%v_np(3)*m + Ap*q 
       cm(3) =  Ap*q
 #else               
