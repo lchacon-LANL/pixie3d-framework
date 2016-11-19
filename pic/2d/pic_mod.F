@@ -235,7 +235,7 @@ c$$$             end if
 #ifdef __GNU
                 Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
 #else
-                Mxy2(k,1:3,1:3)= matmul(Mx2(k,:,:),My2(k,:,:))
+                Mxy2(k,1:3,1:3)= matmul      (Mx2(k,:,:),My2(k,:,:))
 #endif
              end do
 

@@ -4130,6 +4130,13 @@ C    perturb particles after matching given equilibrium
         if(quiet_start) then
 #include "problem_init/kawiiPerturb.f"
         end if
+c$$$      case('bpnch')
+c$$$        if(quiet_start) then
+c$$$            call perturb_pcle_xv(1
+c$$$     .                          ,(/nh1,nh2,0/)
+c$$$     .                          ,(/0d0,0d0,0d0/)
+c$$$     .                          ,(/0d0,0d0,eps_pic/))
+c$$$        end if
       case('weibel','wbl_bc','bpnch')
         if(quiet_start) then
             call perturb_pcle_xv(1
