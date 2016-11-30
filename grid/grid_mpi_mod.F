@@ -102,6 +102,8 @@ c     Local variables
 
         integer :: my_sp_rank,np_sp
 
+        logical :: chk_mpi_comm=.false.
+
 c     Begin program
 
         g_mpi_def => g_def
@@ -113,7 +115,8 @@ c     Singular-point boundary MPI communicator
         if (bcSP()) then
           call splitMPIComm(g_mpi_def%MPI_COMM_SP,selectRank_SP
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_SP,'MPI_COMM_SP')
+          if (chk_mpi_comm)
+     .         call check_MPI_COMM(g_mpi_def%MPI_COMM_SP,'MPI_COMM_SP')
         endif
 
 c     X MPI communicator (domains that share the same Y, Z  slices)
@@ -122,7 +125,8 @@ c     X MPI communicator (domains that share the same Y, Z  slices)
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 
         if (bcSP()) g_mpi_def%MPI_COMM_RAD = g_mpi_def%MPI_COMM_X
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_X,'MPI_COMM_X')
+        if (chk_mpi_comm)
+     .       call check_MPI_COMM(g_mpi_def%MPI_COMM_X,'MPI_COMM_X')
 
 c     Y MPI communicator (domains that share same X, Z slices)
 
@@ -130,45 +134,54 @@ c     Y MPI communicator (domains that share same X, Z slices)
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 
         if (bcSP()) g_mpi_def%MPI_COMM_POL = g_mpi_def%MPI_COMM_Y
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_Y,'MPI_COMM_Y')
+        if (chk_mpi_comm)
+     .       call check_MPI_COMM(g_mpi_def%MPI_COMM_Y,'MPI_COMM_Y')
 
 c     Z MPI communicator (domains that share same X, Z slices)
 
         call splitMPIComm(g_mpi_def%MPI_COMM_Z,selectRank_Z
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_Z,'MPI_COMM_Z')
+        if (chk_mpi_comm)
+     .       call check_MPI_COMM(g_mpi_def%MPI_COMM_Z,'MPI_COMM_Z')
 
 c     XY MPI communicator (domains that share same Z slices)
 
         call splitMPIComm(g_mpi_def%MPI_COMM_XY,selectRank_XY
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_XY,'MPI_COMM_XY')
+        if (chk_mpi_comm)
+     .       call check_MPI_COMM(g_mpi_def%MPI_COMM_XY,'MPI_COMM_XY')
 
 c     YZ MPI communicator (domains that share same X slices)
 
         call splitMPIComm(g_mpi_def%MPI_COMM_YZ,selectRank_YZ
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_YZ,'MPI_COMM_YZ')
+        if (chk_mpi_comm)
+     .       call check_MPI_COMM(g_mpi_def%MPI_COMM_YZ,'MPI_COMM_YZ')
 
 c     Periodic BCs communicators
 
         if (bcond(1) == PER) then
           call splitMPIComm(g_mpi_def%MPI_COMM_PER(1),selectRank_PER_X
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(1),'MPI_COMM_PERx')
+          if (chk_mpi_comm)
+     .    call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(1),'MPI_COMM_PERx')
         endif
 
         if (bcond(3) == PER) then
           call splitMPIComm(g_mpi_def%MPI_COMM_PER(2),selectRank_PER_Y
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(2),'MPI_COMM_PERy')
+          if (chk_mpi_comm)
+     .    call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(2),'MPI_COMM_PERy')
         endif
 
         if (bcond(5) == PER) then
           call splitMPIComm(g_mpi_def%MPI_COMM_PER(3),selectRank_PER_Z
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(3),'MPI_COMM_PERz')
+          if (chk_mpi_comm)
+     .    call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(3),'MPI_COMM_PERz')
         endif
+
+        if (chk_mpi_comm) write(*,*) 'Finished checking MPI comms'
 
 c     End program
 

@@ -78,6 +78,7 @@ c Read PETSc runtime options
      .                         ,bc_debg,petsc_flg,ierr)
       if (petsc_flg) call set_BC_debug(bc_debg)
 
+#if defined(coarse_MG)
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-mg_coarse'
      .                         ,mg_coarse,petsc_flg,ierr)
       if (petsc_flg) call MG_set_coarse_solve(mg_coarse)
@@ -85,6 +86,7 @@ c Read PETSc runtime options
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-mgcf',mgcf
      .                       ,petsc_flg,ierr)
       if (petsc_flg) call MG_set_proc_coarsen_factor(mgcf)
+#endif
 
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ilevel',ilevel
      .                       ,petsc_flg,ierr)

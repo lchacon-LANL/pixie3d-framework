@@ -104,7 +104,8 @@ c     Begin program
 c     create_gdef
 c     ######################################################################
       subroutine create_gdef(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax
-     .                      ,g_def,mpi_comm)
+     .                    ,g_def,mpi_comm,coarsen_x,coarsen_y,coarsen_z
+     .                    ,np_x,np_y,np_z)
  
       implicit none
 
@@ -117,6 +118,8 @@ c     Call variables
       integer :: nx,ny,nz,mpi_comm
       type(grid_mg_def),pointer,INTENT(IN)  :: g_def
       real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+      logical,optional :: coarsen_x,coarsen_y,coarsen_z
+      integer,optional :: np_x,np_y,np_z
 
 c     Local variables
 
@@ -130,8 +133,10 @@ c     Local variables
 
       type(grid_pack),dimension(3) :: g_pack
 
-c     Begin program
+      logical :: crsn_x,crsn_y,crsn_z
 
+c     Begin program
+      
 c     Initialize grid structure
 
       call get_grid_pack_config(g_pack)
@@ -140,18 +145,19 @@ c     Initialize grid structure
      .               ,g_pack,gparams,g_def
 #if defined(petsc) || defined(samrai)
      .               ,mpi_comm=mpi_comm
+     .               ,np_x=np_x
+     .               ,np_y=np_y
+     .               ,np_z=np_z
 #endif
 #if defined(samrai)
      .               ,coarsen_in_x=.false.
      .               ,coarsen_in_y=.false.
      .               ,coarsen_in_z=.false.
-#endif
+#else
+     .               ,coarsen_in_x=coarsen_x
+     .               ,coarsen_in_y=coarsen_y
+     .               ,coarsen_in_z=coarsen_z
      .               )
-
-c     Create MPI communicators
-
-#if defined(petsc)
-      call create_MPI_comms(g_def)
 #endif
 
 c     Store grid metric parameters in grid metric structure
@@ -295,12 +301,6 @@ c     Init coarse mesh structure
      .               )
 
       g_crse_def%mpi_comm_crse = mpi_comm_crse
-
-c     Create MPI communicators
-
-#if defined(petsc)
-      call create_MPI_comms(g_crse_def)
-#endif
 
 c     Gather map and define grid metrics
 
@@ -587,6 +587,7 @@ c     Create fortran PETSc parallel grid hierarchy (parallel version)
 #if defined(petsc)
         call createPETScGrid(gdef,0)
         call setup_petsc_BC(gdef)   !Set PETSc BC flags
+        call create_MPI_comms(gdef) !Set MPI comms
 #endif
 
       end subroutine init_gdef

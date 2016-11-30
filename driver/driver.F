@@ -118,6 +118,8 @@ c     Check for error in time stepping
             write(*,*) '   Aborting...'
           endif
 
+          if (tst_flg) EXIT_STATUS = SUCCESS
+
           exit
 
         end select
