@@ -977,3 +977,9 @@ ifeq ($(findstring cn,$(HOST)),cn)
   M_ARCH = core-avx2
   LIBS += -llapack -lblas
 endif
+
+ifeq ($(findstring darwin,$(HOST)),darwin)
+  FC = ifort
+  M_ARCH = core-avx2
+  LIBS += -llapack -lblas
+endif
