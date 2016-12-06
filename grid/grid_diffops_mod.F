@@ -5273,7 +5273,7 @@ cc      return
 
       !Compute div(cov)
       divA = 0d0
-      divA = div_stg_mesh(g_def,igrid,cov,.false.)
+      divA = div_stg_mesh(g_def,igrid,cov,iscnv=.false.)
 
       !Apply topological BCs to divergence
       bcs = bcond

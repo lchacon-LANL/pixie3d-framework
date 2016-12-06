@@ -3994,6 +3994,8 @@ c     ##################################################################
      .                  ,dg
      .                  ,cvrg_tst
      .                  ,tol
+     .                  ,atol
+     .                  ,stol
      .                  ,iters
      .                  ,conv_tol
      .                  ,gm_driver
@@ -4042,6 +4044,8 @@ c
 c       * dg: matrix neq*neq diagonal block (for stationary its).
 c       * cvrg_tst: whether we want to perform a convergence test
 c       * tol: relative convergence tolerance
+c       * atol: absolute convergence tolerance
+c       * stol: update convergence tolerance
 c       * iters (output): number of iterations at convergence
 c       * conv_tol (output): convergence tolerance
 c       * gm_driver: whether we want GMRES as a driver
@@ -4086,7 +4090,7 @@ c     Call variables
         real(8),optional,intent(IN) :: dg(neq,2*neq*ntotp)
      .                                ,sm_omega
      .                                ,sm_zebra_omega
-     .                                ,tol
+     .                                ,tol,atol,stol
         integer,optional,intent(IN) :: mg_order_res
      .                                ,mg_order_prol
      .                                ,mg_vcyc,mg_cycle
@@ -4129,7 +4133,8 @@ c     Local variables
 
         integer    :: ntot,iorder_res,iorder_prol,vcyc,mu_cyc,nclrs,smit
      .               ,mgmin,mgminl,i,ieq,gmit,zit,zdir
-        real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,rtol,zomg
+        real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,r_tol,a_tol,s_tol
+     .               ,zomg
         real(8), target :: ddg(neq,2*neq*ntotp)
         logical    :: gm_crse_solve,cvrg_test,lrelax,zrelax
      .               ,gm_drvr,smat,cg_drvr,glkin,bc_chk,mg_smth_only
@@ -4185,9 +4190,21 @@ c     Process optional arguments
         endif
 
         if(PRESENT(tol)) then
-          rtol = tol
+          r_tol = tol
         else
-          rtol = 1d-1
+          r_tol = 1d-1
+        endif
+
+        if(PRESENT(atol)) then
+          a_tol = atol
+        else
+          a_tol = 0d0
+        endif
+
+        if(PRESENT(stol)) then
+          s_tol = stol
+        else
+          s_tol = 0d0
         endif
 
         !Multigrid options <<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -4348,7 +4365,7 @@ cc
 cc          call solverOptionsInit
 cc
 cc          solverOptions%iter    = smit
-cc          solverOptions%tol     = rtol
+cc          solverOptions%tol     = r_tol
 cc
 cc          if (PRESENT(dg)) solverOptions%diag => ddg
 cc
@@ -4406,7 +4423,9 @@ c       Check whether GMRES is driving solve
           call solverOptionsInit
 
           solverOptions%iter    = gmit
-          solverOptions%tol     = rtol
+          solverOptions%tol     = r_tol
+          solverOptions%atol    = a_tol
+          solverOptions%stol    = s_tol
 
           solverOptions%stp_test = 1 
           solverOptions%krylov_subspace = solverOptions%iter 
@@ -4429,7 +4448,9 @@ c       MG solver options
 
         call solverOptionsInit
 
-        solverOptions%tol      = rtol
+        solverOptions%tol     = r_tol
+        solverOptions%atol    = a_tol
+        solverOptions%stol    = s_tol
 
         if (gm_drvr.or.cg_drvr) then
           solverOptions%vcyc   = 1
@@ -4498,7 +4519,7 @@ c       MG smoother
         call solverOptionsInit
 
         solverOptions%iter            = smit
-        solverOptions%tol             = rtol
+        solverOptions%tol             = r_tol
         solverOptions%singular_matrix = smat
 
         if (lrelax) then
@@ -5624,11 +5645,11 @@ c Local variables
 
 c Begin program
 
-      rr0=0d0 ; rr1=0d0 ; mag=0d0 ; mag1=0d0 ; mag2=0d0 ; epsmac=0d0
+      rr0=0d0 ; rr1=0d0 ; mag=0d0 ; mag1=0d0 ; mag2=0d0
 
       xx = 0d0 ; yy = 0d0; wrk = 0d0; rr = 0d0 ; x0 = 0d0
 
-      if (epsmac == 0d0) epsmac = find_mach_eps()
+      epsmac = find_mach_eps()
 
       abstol = epsmac*sqrt(1.*ntot)
 

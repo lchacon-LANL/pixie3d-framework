@@ -284,27 +284,45 @@ c     Plot PC RHS
 c     Plot corresponding linear residual to PC solution
 
 #if !defined(petsc_c)
-        mag0 = rms(y)
+        if (fpa) then
+          mag0 = rms(x)
 
-        call matrixFreeMatVec(ntot,x,rr)
-        y = y - rr
-        mag = rms(y)
+          if (my_rank == 0) then
+            write (*,*)
+            write (*,*) 'FPA RESIDUAL'
+            write (*,*) 'RMS res=',mag0
+          endif
 
-        call vec_plot_gl(gv%gparams,neqd,y,igrid,'res','Residual')
+          !Compute magnitude of individual residual eqs
+          call scatterVector(yyy,x)
+          do ieq=1,neqd
+            mag = rms(yyy(:,ieq))
+            if (my_rank == 0) write (*,*) 'RMS residual eqn',ieq,':',mag
+          enddo
 
-        if (my_rank == 0) then
-           write (*,*)
-           write (*,*) 'LINEAR RESIDUAL'
-           write (*,*) 'RMS res=',mag
-           write (*,*) 'Rel res=',mag/mag0
+        else
+          mag0 = rms(y)
+
+          call matrixFreeMatVec(ntot,x,rr)
+          y = y - rr
+          mag = rms(y)
+
+          call vec_plot_gl(gv%gparams,neqd,y,igrid,'res','Residual')
+
+          if (my_rank == 0) then
+            write (*,*)
+            write (*,*) 'LINEAR RESIDUAL'
+            write (*,*) 'RMS res=',mag
+            write (*,*) 'Rel res=',mag/mag0
+          endif
+
+          !Compute magnitude of individual residual eqs
+          call scatterVector(yyy,y)
+          do ieq=1,neqd
+            mag = rms(yyy(:,ieq))
+            if (my_rank == 0) write (*,*) 'RMS residual eqn',ieq,':',mag
+          enddo
         endif
-
-        !Compute magnitude of individual residual eqs
-        call scatterVector(yyy,y)
-        do ieq=1,neqd
-          mag = rms(yyy(:,ieq))
-          if (my_rank == 0) write (*,*) 'RMS residual eqn',ieq,':',mag
-        enddo
 #endif
 
         call pstop('PCdiag','Finished diagnostics...')
