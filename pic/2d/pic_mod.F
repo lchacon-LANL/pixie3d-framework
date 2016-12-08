@@ -1914,6 +1914,12 @@ c     Local variables
 
 c     Begin program
 
+c     Update moments
+
+      momsn = moms
+
+c     Update particle info
+
       call get_inverse_h(ihx,ihy,ihz)
       call get_global_grid_size(nxg,nyg,nzg)
       nng = nxg*nyg*nzg
