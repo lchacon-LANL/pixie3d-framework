@@ -293,6 +293,8 @@ c     Plot corresponding linear residual to PC solution
             write (*,*) 'RMS res=',mag0
           endif
 
+          call vec_plot_gl(gv%gparams,neqd,x,igrid,'res','Residual')
+
           !Compute magnitude of individual residual eqs
           call scatterVector(yyy,x)
           do ieq=1,neqd

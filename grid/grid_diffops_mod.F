@@ -5333,10 +5333,11 @@ c     Call variables
 
 c     Local variables
 
+      real(8) :: Bz_ipjp,Bz_imjp,Bz_ipjm
       integer :: ig,jg,kg
       logical :: vol_wgt
       real(8),pointer,dimension(:,:,:,:,:) :: gsupv
-      real(8),pointer,dimension(:,:,:)     :: jacv
+      real(8),pointer,dimension(:,:,:)     :: jacv,jac
 
 c     Begin program
 
@@ -5348,25 +5349,29 @@ c     Begin program
       !Code for tensor-product mesh
       gsupv => g_def%gmetric%grid(igx)%gsup_v
       jacv  => g_def%gmetric%grid(igx)%jac_v
+      jac   => g_def%gmetric%grid(igx)%jac
 
-      curlcurl(1)=-(1d0/jacv(i,j  ,k)
-     .          *((cov(i  ,j+1,k,1)-cov(i,j,k,1))/g_def%dy(jg)
-     .           -(cov(i+1,j  ,k,2)-cov(i,j,k,2))/g_def%dx(ig))
-     .          -1d0/jacv(i,j-1,k)
-     .          *((cov(i  ,j  ,k,1)-cov(i,j-1,k,1))/g_def%dy(jg)
-     .           -(cov(i+1,j-1,k,2)-cov(i,j-1,k,2))/g_def%dx(ig)))
-     .          /g_def%dy(jg)
+      Bz_ipjp = 1d0/jacv(i,j  ,k)
+     .          *((cov(i+1,j  ,k,2)-cov(i,j  ,k,2))/g_def%dx(ig)
+     .           -(cov(i  ,j+1,k,1)-cov(i,j  ,k,1))/g_def%dy(jg))
+      Bz_ipjm = 1d0/jacv(i,j-1,k)
+     .          *((cov(i+1,j-1,k,2)-cov(i,j-1,k,2))/g_def%dx(ig)
+     .           -(cov(i  ,j  ,k,1)-cov(i,j-1,k,1))/g_def%dy(jg))
+      if (isSP2(g_def,i,igx)) then
+        Bz_imjp = (cov(i  ,j,k,2)/jac(i  ,j,k)
+     .            -cov(i-1,j,k,2)/jac(i-1,j,k))/g_def%dx(ig)
+      else
+        Bz_imjp = 1d0/jacv(i-1,j,k)
+     .            *((cov(i  ,j  ,k,2)-cov(i-1,j,k,2))/g_def%dx(ig)
+     .             -(cov(i-1,j+1,k,1)-cov(i-1,j,k,1))/g_def%dy(jg))
+      endif
 
-      curlcurl(2)=-(1d0/jacv(i  ,j,k)
-     .          *((cov(i+1,j  ,k,2)-cov(i,j,k,2))/g_def%dx(ig)
-     .           -(cov(i  ,j+1,k,1)-cov(i,j,k,1))/g_def%dy(jg))
-     .          -1d0/jacv(i-1,j,k)
-     .          *((cov(i  ,j  ,k,2)-cov(i-1,j,k,2))/g_def%dx(ig)
-     .           -(cov(i-1,j+1,k,1)-cov(i-1,j,k,1))/g_def%dy(jg)))
-     .          /g_def%dx(ig)
+      curlcurl(1) = (Bz_ipjp - Bz_ipjm)/g_def%dy(jg)
+
+      curlcurl(2) =-(Bz_ipjp - Bz_imjp)/g_def%dx(ig)
 
       curlcurl(3) =-lap(g_def,i,j,k,nx,ny,nz,igx,igy,igz,cov(:,:,:,3))
-     .           *g_def%gmetric%grid(igx)%jac(i,j,k)
+     .             *jac(i,j,k)
 
       if(vol_wgt) curlcurl=curlcurl*g_def%gmetric%grid(igx)%dlvol(i,j,k)
 

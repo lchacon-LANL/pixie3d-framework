@@ -3801,6 +3801,9 @@ c     Initialize particles
           write (*,*) 'Error reading restart file'
           stop
         endif
+
+        call gather_moments
+        momsn = moms
       else
         numspcs = size(spcs)
         do isp=1,numspcs

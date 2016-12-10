@@ -482,6 +482,7 @@ c     Begin program
      $                 +gmetric%grid(igrid)%jac_v(i,j ,k )
      $                 +gmetric%grid(igrid)%jac_v(i,jm,km)
      $                 +gmetric%grid(igrid)%jac_v(i,j ,km))
+            write (*,*) jac
             cnv = cnv/jac
           endif
           car(1) = dot_product(curv_l,cnv)
@@ -989,6 +990,34 @@ cc        curv = 0d0
         enddo
 
       end function XformToCurv_stg_mesh
+
+c$$$c     XformToCurv_stg_mesh2
+c$$$c     #################################################################
+c$$$      subroutine XformToCurv_stg_mesh2(g_def,igrid,vec,tocnv)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Transforms a staggered Cartesian vector to curvilinear
+c$$$c     over the whole mesh. Curvilinear vector is contravariant if
+c$$$c     tocnv=.true., and covariant otherwise.
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Input variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer :: igrid
+c$$$        real(8) :: vec(0:,0:,0:,:)
+c$$$        logical :: tocnv
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        vec = XformToCurv_stg_mesh(g_def,igrid,vec,tocnv)
+c$$$
+c$$$      end subroutine XformToCurv_stg_mesh2
 
 c     transformVectorToCurvilinear
 c     #################################################################
@@ -2190,6 +2219,70 @@ c     End program
 
       end function XformVector_stg_mesh
 
+c     XformVector_stg_mesh2
+c     #################################################################
+      subroutine XformVector_stg_mesh2(g_def,igrid,vec,in_repr,out_repr)
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector from covariant to contravariant 
+c     (tocnv=.true.) or viceversa at cell centers on all mesh.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Input variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer    :: igrid
+      real(8)    :: vec(0:,0:,0:,:)
+
+      character(3) :: in_repr,out_repr
+
+c     Local variables
+
+      integer :: imin,imax,jmin,jmax,kmin,kmax
+
+      logical :: covariant,cnvariant,cartesian
+
+c     Begin program
+
+      cartesian = (in_repr == 'car')
+      covariant = (in_repr == 'cov')
+      cnvariant = (.not. cartesian) .and. (.not. covariant)
+
+      select case(out_repr)
+      case('car')
+
+        if (cartesian) return
+
+        vec = XformToCar_stg_mesh(g_def,igrid,vec,covariant)
+
+      case('cnv')
+
+        if (cnvariant) return
+
+        if (cartesian) then
+          vec = XformToCurv_stg_mesh(g_def,igrid,vec,.true.)
+        else
+          vec = XformToCnv_stg_mesh (g_def,igrid,vec)
+        endif
+
+      case('cov')
+
+        if (covariant) return
+
+        if (cartesian) then
+          vec = XformToCurv_stg_mesh(g_def,igrid,vec,.false.)
+        else
+          vec = XformToCov_stg_mesh (g_def,igrid,vec)
+        endif
+
+      end select
+
+c     End program
+
+      end subroutine XformVector_stg_mesh2
+
 c     Xfer_stg_to_cell_mesh
 c     #################################################################
       function Xfer_stg_to_cell_mesh(g_def,stg,vrtx) result(cell)
@@ -2601,12 +2694,7 @@ c     Begin program
      .                           vec2(0:nx-1,0:ny-1,1:nz,3)+ 
      .                           vec2(1:nx  ,0:ny-1,1:nz,3)) 
 
-      else
-c$$$        write (*,*) 'Case not implemented yet'
-c$$$        write (*,*) 'Aborting in scalarProduct_stg_mesh'
-c$$$        stop
-c$$$        call pstop("scalarProduct_stg_mesh"
-c$$$     .            ,"Case not implemented yet")
+      elseif (vertex1.and.vertex2) then
 !     At (i+1/2,j,k)
 !     Bx
          B1 = (vec1(1:nx  ,1:ny  ,1:nz,1)+
@@ -2690,9 +2778,12 @@ c$$$     .            ,"Case not implemented yet")
      .        vec2(0:nx-1,0:ny-1,1:nz  ,3)+
      .        vec2(0:nx-1,1:ny  ,1:nz  ,3))*0.25d0
          scl(1:nx,1:ny,1:nz,3) = scl(1:nx,1:ny,1:nz,3) + B1*B2
-
-
-                                                  
+      else
+        write (*,*) 'Case not implemented yet'
+        write (*,*) 'Aborting in scalarProduct_stg_mesh'
+        stop
+c$$$        call pstop("scalarProduct_stg_mesh"
+c$$$     .            ,"Case not implemented yet")
       endif                                       
 
       !Apply Jacobian factor

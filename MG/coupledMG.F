@@ -2611,14 +2611,14 @@ c     Impose boundary conditions (external)
 cc     .              ,iorder=min(order,3)             !now inherited from previous calls
      .              ,result_is_curv=(.not.cartesian)
      .              ,out_iscurv=isvec,out_iscnv=iscnv  !<= These define whether quantities are 
-     .              )                !   vectors or scalars. 
+     .              )                                  !   vectors or scalars. 
 
         else
           call setMGBC(mgctx%g_def,0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
 cc     .              ,iorder=min(order,3)             !now inherited from previous calls
      .              ,result_is_curv=(.not.cartesian)
      .              ,out_iscurv=isvec,out_iscnv=iscnv  !<= These define whether quantities are 
-     .              )                !   vectors or scalars. 
+     .              )                                  !   vectors or scalars. 
         endif
       endif
 
@@ -2675,7 +2675,11 @@ c     Prolong arrays (use scalar prolongation)
 c     Transform back to curvilinear (if isvec=.true. and cartesian=.true.)
 
       if (isvec .and. cartesian) then
-        call XformToCurv_mesh2(mgctx%g_def,igf,arrayf,iscnv)
+        if (is__stg) then
+          arrayf = XformToCurv_stg_mesh(mgctx%g_def,igf,arrayf,iscnv)
+        else
+          arrayf = XformToCurv_mesh    (mgctx%g_def,igf,arrayf,iscnv)
+        endif
       endif
 
 c     End program
