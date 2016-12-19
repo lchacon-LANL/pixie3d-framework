@@ -1,7 +1,7 @@
 
-c module grid_operations
+c module grid_operations_cell
 c #####################################################################
-      module grid_operations
+      module grid_operations_cell
 
 c ---------------------------------------------------------------------
 c     This module packs routines that perform operations on grid
@@ -51,10 +51,6 @@ c ---------------------------------------------------------------------
 
         INTERFACE XformVector
           module procedure XformVector_mesh!,XformVector_mesh2
-        end INTERFACE
-
-        INTERFACE XformVector_stg
-          module procedure XformVector_stg_mesh
         end INTERFACE
 
 cc        private :: transformVectorToCartesian
@@ -343,256 +339,6 @@ c     Begin program
 
       end function XformToCar_mesh
 
-c     XformToCar_stg_ijk
-c     #################################################################
-      function XformToCar_stg_ijk(g_def,i,j,k,igrid,curv,covariant
-     .                           ,mul_by_jac) result(car)
-
-c     -----------------------------------------------------------------
-c     Transforms a STAGGERED curvilinear vector (c1,c2,c3) to Cartesian
-c     (cx,cy,cz) at grid coordinates (i,j,k). Curvilinear vector is
-c     covariant if covariant=.true., and contravariant otherwise.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: i,j,k,igrid
-        real(8)    :: curv(0:,0:,0:,:),car(3)
-        logical    :: covariant
-
-        logical,optional :: mul_by_jac
-
-c     Local variables
-
-        integer    :: im,jm,km
-        real(8)    :: cov(3),cnv(3),jac,curv_l(3)
-        logical    :: muljac
-
-        type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-        gmetric => g_def%gmetric
-
-        if (PRESENT(mul_by_jac)) then
-          muljac = mul_by_jac
-        else
-          muljac = .false.
-        endif
-
-        im = max(i-1,0)
-        jm = max(j-1,0)
-        km = max(k-1,0)
-
-        if (covariant) then
-          !i+1/2,j,k
-          curv_l(1) = curv(i,j,k,1)
-          curv_l(2) = 0.25*(curv(i  ,jm,k,2)
-     $                     +curv(i  ,j ,k,2)
-     $                     +curv(i+1,jm,k,2)
-     $                     +curv(i+1,j ,k,2))
-          curv_l(3) = 0.25*(curv(i  ,j,km,3)
-     $                     +curv(i  ,j,k ,3)
-     $                     +curv(i+1,j,km,3)
-     $                     +curv(i+1,j,k ,3))
-
-          cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,:,1)
-     $               +gmetric%grid(igrid)%cov_v(i,j ,k ,:,1)
-     $               +gmetric%grid(igrid)%cov_v(i,jm,km,:,1)
-     $               +gmetric%grid(igrid)%cov_v(i,j ,km,:,1))
-          if (muljac) then
-            jac = 0.25*(gmetric%grid(igrid)%jac_v(i,jm,k )
-     $                 +gmetric%grid(igrid)%jac_v(i,j ,k )
-     $                 +gmetric%grid(igrid)%jac_v(i,jm,km)
-     $                 +gmetric%grid(igrid)%jac_v(i,j ,km))
-            cov = cov*jac
-          endif
-          car(1) = dot_product(curv_l,cov)
-
-          !i,j+1/2,k
-          curv_l(1) = 0.25*(curv(i ,j+1,k,1)
-     $                     +curv(i ,j  ,k,1)
-     $                     +curv(im,j+1,k,1)
-     $                     +curv(im,j  ,k,1))
-          curv_l(2) = curv(i,j,k,2)
-          curv_l(3) = 0.25*(curv(i,j+1,k ,3)
-     $                     +curv(i,j  ,k ,3)
-     $                     +curv(i,j+1,km,3)
-     $                     +curv(i,j  ,km,3))
-          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,:,2)
-     $               +gmetric%grid(igrid)%cov_v(i ,j,k ,:,2)
-     $               +gmetric%grid(igrid)%cov_v(im,j,km,:,2)
-     $               +gmetric%grid(igrid)%cov_v(i ,j,km,:,2))
-          if (muljac) then
-            jac = 0.25*(gmetric%grid(igrid)%jac_v(im,j,k )
-     $                 +gmetric%grid(igrid)%jac_v(i ,j,k )
-     $                 +gmetric%grid(igrid)%jac_v(im,j,km)
-     $                 +gmetric%grid(igrid)%jac_v(i ,j,km))
-            cov = cov*jac
-          endif
-          car(2) = dot_product(curv_l,cov)
-
-          !i,j,k+1/2
-          curv_l(1) = 0.25*(curv(i ,j,k+1,1)
-     $                     +curv(i ,j,k  ,1)
-     $                     +curv(im,j,k+1,1)
-     $                     +curv(im,j,k  ,1))
-          curv_l(2) = 0.25*(curv(i,j ,k+1,2)
-     $                     +curv(i,j ,k  ,2)
-     $                     +curv(i,jm,k+1,2)
-     $                     +curv(i,jm,k  ,2))
-          curv_l(3) = curv(i,j,k,3)
-          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,:,3)
-     $               +gmetric%grid(igrid)%cov_v(i ,j ,k,:,3)
-     $               +gmetric%grid(igrid)%cov_v(im,jm,k,:,3)
-     $               +gmetric%grid(igrid)%cov_v(i ,jm,k,:,3))
-          if (muljac) then
-            jac = 0.25*(gmetric%grid(igrid)%jac_v(im,j ,k )
-     $                 +gmetric%grid(igrid)%jac_v(i ,j ,k )
-     $                 +gmetric%grid(igrid)%jac_v(im,jm,k )
-     $                 +gmetric%grid(igrid)%jac_v(i ,jm,k ))
-            cov = cov*jac
-          endif
-          car(3) = dot_product(curv_l,cov)
-        else
-          !i+1/2,j,k
-          curv_l(1) = curv(i,j,k,1)
-          curv_l(2) = 0.25*(curv(i  ,jm,k,2)
-     $                     +curv(i  ,j ,k,2)
-     $                     +curv(i+1,jm,k,2)
-     $                     +curv(i+1,j ,k,2))
-          curv_l(3) = 0.25*(curv(i  ,j,km,3)
-     $                     +curv(i  ,j,k ,3)
-     $                     +curv(i+1,j,km,3)
-     $                     +curv(i+1,j,k ,3))
-          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,:,1)
-     $               *gmetric%grid(igrid)%jac_v(i,jm,k  )
-     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,:,1)
-     $               *gmetric%grid(igrid)%jac_v(i,j ,k  )
-     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,:,1)
-     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
-     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,:,1)
-     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
-          if (.not.muljac) then
-            jac = 0.25*(gmetric%grid(igrid)%jac_v(i,jm,k )
-     $                 +gmetric%grid(igrid)%jac_v(i,j ,k )
-     $                 +gmetric%grid(igrid)%jac_v(i,jm,km)
-     $                 +gmetric%grid(igrid)%jac_v(i,j ,km))
-            write (*,*) jac
-            cnv = cnv/jac
-          endif
-          car(1) = dot_product(curv_l,cnv)
-
-          !i,j+1/2,k
-          curv_l(1) = 0.25*(curv(i ,j+1,k,1)
-     $                     +curv(i ,j  ,k,1)
-     $                     +curv(im,j+1,k,1)
-     $                     +curv(im,j  ,k,1))
-          curv_l(2) = curv(i,j,k,2)
-          curv_l(3) = 0.25*(curv(i,j+1,k ,3)
-     $                     +curv(i,j  ,k ,3)
-     $                     +curv(i,j+1,km,3)
-     $                     +curv(i,j  ,km,3))
-          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k  ,:,2)
-     $               *gmetric%grid(igrid)%jac_v(im,j,k )  
-     $               +gmetric%grid(igrid)%cnv_v(i ,j,k  ,:,2)
-     $               *gmetric%grid(igrid)%jac_v(i ,j,k )  
-     $               +gmetric%grid(igrid)%cnv_v(im,j,km ,:,2)
-     $               *gmetric%grid(igrid)%jac_v(im,j,km)  
-     $               +gmetric%grid(igrid)%cnv_v(i ,j,km ,:,2)
-     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
-          if (.not.muljac) then
-            jac = 0.25*(gmetric%grid(igrid)%jac_v(im,j,k )
-     $                 +gmetric%grid(igrid)%jac_v(i ,j,k )
-     $                 +gmetric%grid(igrid)%jac_v(im,j,km)
-     $                 +gmetric%grid(igrid)%jac_v(i ,j,km))
-            cnv = cnv/jac
-          endif
-          car(2) = dot_product(curv_l,cnv)
-
-          !i,j,k+1/2
-          curv_l(1) = 0.25*(curv(i ,j,k+1,1)
-     $                     +curv(i ,j,k  ,1)
-     $                     +curv(im,j,k+1,1)
-     $                     +curv(im,j,k  ,1))
-          curv_l(2) = 0.25*(curv(i,j ,k+1,2)
-     $                     +curv(i,j ,k  ,2)
-     $                     +curv(i,jm,k+1,2)
-     $                     +curv(i,jm,k  ,2))
-          curv_l(3) = curv(i,j,k,3)
-          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,:,3)
-     $               *gmetric%grid(igrid)%jac_v(im,j ,k    )
-     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,:,3)
-     $               *gmetric%grid(igrid)%jac_v(i ,j ,k    )
-     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,:,3)
-     $               *gmetric%grid(igrid)%jac_v(im,jm,k    )
-     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,:,3)
-     $               *gmetric%grid(igrid)%jac_v(i ,jm,k    ) )
-          if (.not.muljac) then
-            jac = 0.25*(gmetric%grid(igrid)%jac_v(im,j ,k )
-     $                 +gmetric%grid(igrid)%jac_v(i ,j ,k )
-     $                 +gmetric%grid(igrid)%jac_v(im,jm,k )
-     $                 +gmetric%grid(igrid)%jac_v(i ,jm,k ))
-            cnv = cnv/jac
-          endif
-          car(3) = dot_product(curv_l,cnv)
-        endif
-
-      end function XformToCar_stg_ijk
-
-c     XformToCar_stg_mesh
-c     #################################################################
-      function XformToCar_stg_mesh(g_def,igrid,curv,covariant
-     .                            ,mul_by_jac) result(car)
-
-c     -----------------------------------------------------------------
-c     Transforms a staggered curvilinear vector to Cartesian 
-c     over the whole mesh. Curvilinear vector is covariant if
-c     covariant=.true., and contravariant otherwise.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,igrid
-        real(8) :: curv(0:,0:,0:,:)
-     .            ,car(0:size(curv,1)-1
-     .                ,0:size(curv,2)-1
-     .                ,0:size(curv,3)-1,size(curv,4))
-        logical :: covariant
-
-        logical,optional :: mul_by_jac
-
-c     Local variables
-
-        integer :: nxl,nyl,nzl
-        real(8) :: curv_l(3),cov_v(3,3),car_l(3)
-
-c     Begin program
-
-        nxl = size(curv,1)-2
-        nyl = size(curv,2)-2
-        nzl = size(curv,3)-2
-
-        do k = 0,nzl
-          do j = 0,nyl
-            do i = 0,nxl
-              car(i,j,k,:) = XformToCar_stg_ijk(g_def,i,j,k,igrid,curv
-     .                                         ,covariant
-     .                                         ,mul_by_jac=mul_by_jac)
-            enddo
-          enddo
-        enddo
-
-      end function XformToCar_stg_mesh
-
 c     XformToCurv_ijk
 c     #################################################################
       function XformToCurv_ijk(g_def,i,j,k,igrid,car,tocnv,nojac)
@@ -734,290 +480,6 @@ c     Begin program
 
       end subroutine XformToCurv_mesh2
 
-c     XformToCurv_stg_ijk
-c     #################################################################
-      function XformToCurv_stg_ijk(g_def,i,j,k,igrid,car,tocnv)
-     .        result(curv)
-
-c     -----------------------------------------------------------------
-c     Transforms a cartesian staggered vector (cx,cy,cz) to curvilinear
-c     (c1,c2,c3) at grid coordinates (i,j,k). Cartesian vector is
-c     contravariant if tocnv=.true., and covariant otherwise.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,igrid
-        real(8) :: curv(3),car(0:,0:,0:,:)
-        logical :: tocnv
-
-c     Local variables
-
-        integer    :: im,jm,km
-        real(8)    :: cov(3),cnv(3),car_l(3)
-        
-        type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-        gmetric => g_def%gmetric
-
-        im = max(i-1,0)
-        jm = max(j-1,0)
-        km = max(k-1,0)
-
-        if (tocnv) then
-          !i+1/2,j,k
-          car_l(1) = car(i,j,k,1)
-          car_l(2) = 0.25*(car(i  ,jm,k,2)
-     $                    +car(i  ,j ,k,2)
-     $                    +car(i+1,jm,k,2)
-     $                    +car(i+1,j ,k,2))
-          car_l(3) = 0.25*(car(i  ,j,km,3)
-     $                    +car(i  ,j,k ,3)
-     $                    +car(i+1,j,km,3)
-     $                    +car(i+1,j,k ,3))
-c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,1,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,k  )
-c$$$     $               +gmetric%grid(igrid)%cov_v(i,j ,k ,1,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,k  )
-c$$$     $               +gmetric%grid(igrid)%cov_v(i,jm,km,1,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
-c$$$     $               +gmetric%grid(igrid)%cov_v(i,j ,km,1,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
-          cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,1,:)
-     $               +gmetric%grid(igrid)%cov_v(i,j ,k ,1,:)
-     $               +gmetric%grid(igrid)%cov_v(i,jm,km,1,:)
-     $               +gmetric%grid(igrid)%cov_v(i,j ,km,1,:))
-     $         *0.25*(gmetric%grid(igrid)%jac_v(i,jm,k )
-     $               +gmetric%grid(igrid)%jac_v(i,j ,k )
-     $               +gmetric%grid(igrid)%jac_v(i,jm,km)
-     $               +gmetric%grid(igrid)%jac_v(i,j ,km))
-
-          curv(1) = dot_product(cov,car_l)
-
-          !i,j+1/2,k
-          car_l(1) = 0.25*(car(i ,j+1,k,1)
-     $                    +car(i ,j  ,k,1)
-     $                    +car(im,j+1,k,1)
-     $                    +car(im,j  ,k,1))
-          car_l(2) = car(i,j,k,2)
-          car_l(3) = 0.25*(car(i,j+1,k ,3)
-     $                    +car(i,j  ,k ,3)
-     $                    +car(i,j+1,km,3)
-     $                    +car(i,j  ,km,3))
-c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,2,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,k )
-c$$$     $               +gmetric%grid(igrid)%cov_v(i ,j,k ,2,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,k )
-c$$$     $               +gmetric%grid(igrid)%cov_v(im,j,km,2,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,km)
-c$$$     $               +gmetric%grid(igrid)%cov_v(i ,j,km,2,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
-          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,2,:)
-     $               +gmetric%grid(igrid)%cov_v(i ,j,k ,2,:)
-     $               +gmetric%grid(igrid)%cov_v(im,j,km,2,:)
-     $               +gmetric%grid(igrid)%cov_v(i ,j,km,2,:))
-     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j,k )
-     $               +gmetric%grid(igrid)%jac_v(i ,j,k )
-     $               +gmetric%grid(igrid)%jac_v(im,j,km)
-     $               +gmetric%grid(igrid)%jac_v(i ,j,km))
-          curv(2) = dot_product(cov,car_l)
-
-          !i,j,k+1/2
-          car_l(1) = 0.25*(car(i ,j,k+1,1)
-     $                    +car(i ,j,k  ,1)
-     $                    +car(im,j,k+1,1)
-     $                    +car(im,j,k  ,1))
-          car_l(2) = 0.25*(car(i,j ,k+1,2)
-     $                    +car(i,j ,k  ,2)
-     $                    +car(i,jm,k+1,2)
-     $                    +car(i,jm,k  ,2))
-          car_l(3) = car(i,j,k,3)
-c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,3,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(im,j ,k )
-c$$$     $               +gmetric%grid(igrid)%cov_v(i ,j ,k,3,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j ,k )
-c$$$     $               +gmetric%grid(igrid)%cov_v(im,jm,k,3,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(im,jm,k )
-c$$$     $               +gmetric%grid(igrid)%cov_v(i ,jm,k,3,:))
-c$$$     $               *gmetric%grid(igrid)%jac_v(i ,jm,k )
-          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,3,:)
-     $               +gmetric%grid(igrid)%cov_v(i ,j ,k,3,:)
-     $               +gmetric%grid(igrid)%cov_v(im,jm,k,3,:)
-     $               +gmetric%grid(igrid)%cov_v(i ,jm,k,3,:))
-     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j ,k )
-     $               +gmetric%grid(igrid)%jac_v(i ,j ,k )
-     $               +gmetric%grid(igrid)%jac_v(im,jm,k )
-     $               +gmetric%grid(igrid)%jac_v(i ,jm,k ))
-          curv(3) = dot_product(cov,car_l)
-        else
-          !i+1/2,j,k
-          car_l(1) = car(i,j,k,1)
-          car_l(2) = 0.25*(car(i  ,jm,k,2)
-     $                    +car(i  ,j ,k,2)
-     $                    +car(i+1,jm,k,2)
-     $                    +car(i+1,j ,k,2))
-          car_l(3) = 0.25*(car(i  ,j,km,3)
-     $                    +car(i  ,j,k ,3)
-     $                    +car(i+1,j,km,3)
-     $                    +car(i+1,j,k ,3))
-c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,1,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,k )
-c$$$     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,1,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,k )
-c$$$     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,1,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
-c$$$     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,1,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
-          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,1,:)
-     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,1,:)
-     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,1,:)
-     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,1,:))
-     $         *0.25*(gmetric%grid(igrid)%jac_v(i,jm,k )
-     $               +gmetric%grid(igrid)%jac_v(i,j ,k )
-     $               +gmetric%grid(igrid)%jac_v(i,jm,km)
-     $               +gmetric%grid(igrid)%jac_v(i,j ,km))
-
-          curv(1) = dot_product(cnv,car_l)
-
-          !i,j+1/2,k
-          car_l(1) = 0.25*(car(i ,j+1,k,1)
-     $                    +car(i ,j  ,k,1)
-     $                    +car(im,j+1,k,1)
-     $                    +car(im,j  ,k,1))
-          car_l(2) = car(i,j,k,2)
-          car_l(3) = 0.25*(car(i,j+1,k ,3)
-     $                    +car(i,j  ,k ,3)
-     $                    +car(i,j+1,km,3)
-     $                    +car(i,j  ,km,3))
-c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k ,2,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,k )
-c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,j,k ,2,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,k )
-c$$$     $               +gmetric%grid(igrid)%cnv_v(im,j,km,2,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,km)
-c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,j,km,2,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
-          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k ,2,:)
-     $               +gmetric%grid(igrid)%cnv_v(i ,j,k ,2,:)
-     $               +gmetric%grid(igrid)%cnv_v(im,j,km,2,:)
-     $               +gmetric%grid(igrid)%cnv_v(i ,j,km,2,:))
-     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j,k )
-     $               +gmetric%grid(igrid)%jac_v(i ,j,k )
-     $               +gmetric%grid(igrid)%jac_v(im,j,km)
-     $               +gmetric%grid(igrid)%jac_v(i ,j,km))
-
-          curv(2) = dot_product(cnv,car_l)
-
-          !i,j,k+1/2
-          car_l(1) = 0.25*(car(i ,j,k+1,1)
-     $                    +car(i ,j,k  ,1)
-     $                    +car(im,j,k+1,1)
-     $                    +car(im,j,k  ,1))
-          car_l(2) = 0.25*(car(i,j ,k+1,2)
-     $                    +car(i,j ,k  ,2)
-     $                    +car(i,jm,k+1,2)
-     $                    +car(i,jm,k  ,2))
-          car_l(3) = car(i,j,k,3)
-c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,3,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(im,j ,k  )
-c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,3,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j ,k  )
-c$$$     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,3,:)
-c$$$     $               *gmetric%grid(igrid)%jac_v(im,jm,k  )
-c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,3,:))
-c$$$     $               *gmetric%grid(igrid)%jac_v(i ,jm,k  )
-          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,3,:)
-     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,3,:)
-     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,3,:)
-     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,3,:))
-     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j ,k  )
-     $               +gmetric%grid(igrid)%jac_v(i ,j ,k  )
-     $               +gmetric%grid(igrid)%jac_v(im,jm,k  )
-     $               +gmetric%grid(igrid)%jac_v(i ,jm,k  ))
-          curv(3) = dot_product(cnv,car_l)
-        endif
-
-      end function XformToCurv_stg_ijk
-
-c     XformToCurv_stg_mesh
-c     #################################################################
-      function XformToCurv_stg_mesh(g_def,igrid,car,tocnv) result(curv)
-
-c     -----------------------------------------------------------------
-c     Transforms a staggered Cartesian vector to curvilinear
-c     over the whole mesh. Curvilinear vector is contravariant if
-c     tocnv=.true., and covariant otherwise.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: igrid
-        real(8) :: car(0:,0:,0:,:)
-     .            ,curv(0:size(car,1)-1
-     .                 ,0:size(car,2)-1
-     .                 ,0:size(car,3)-1,size(car,4))
-        logical :: tocnv
-
-c     Local variables
-
-        integer :: i,j,k,nxl,nyl,nzl
-
-c     Begin program
-
-        nxl = size(car,1)-2
-        nyl = size(car,2)-2
-        nzl = size(car,3)-2
-
-cc        curv = 0d0
-
-        do k = 0,nzl
-          do j = 0,nyl
-            do i = 0,nxl
-              curv(i,j,k,:) = XformToCurv_stg_ijk(g_def,i,j,k,igrid,car
-     .                                           ,tocnv)
-            enddo
-          enddo
-        enddo
-
-      end function XformToCurv_stg_mesh
-
-c$$$c     XformToCurv_stg_mesh2
-c$$$c     #################################################################
-c$$$      subroutine XformToCurv_stg_mesh2(g_def,igrid,vec,tocnv)
-c$$$
-c$$$c     -----------------------------------------------------------------
-c$$$c     Transforms a staggered Cartesian vector to curvilinear
-c$$$c     over the whole mesh. Curvilinear vector is contravariant if
-c$$$c     tocnv=.true., and covariant otherwise.
-c$$$c     -----------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Input variables
-c$$$
-c$$$        type(grid_mg_def),pointer :: g_def
-c$$$
-c$$$        integer :: igrid
-c$$$        real(8) :: vec(0:,0:,0:,:)
-c$$$        logical :: tocnv
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        vec = XformToCurv_stg_mesh(g_def,igrid,vec,tocnv)
-c$$$
-c$$$      end subroutine XformToCurv_stg_mesh2
 
 c     transformVectorToCurvilinear
 c     #################################################################
@@ -1588,76 +1050,6 @@ c     Begin program
 
       end function XformToCnv_ijk
 
-c     XformToCnv_stg_ijk
-c     #################################################################
-      function XformToCnv_stg_ijk(g_def,i,j,k,igrid,cov) result(cnv)
-
-c     -----------------------------------------------------------------
-c     Transforms a staggered covariant vector to contravariant
-c     representation at faces for cell (i,j,k).
-c
-c     CURRENTLY WORKS ONLY IN 2D
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,igrid
-        real(8) :: cov(0:,0:,0:,:),cnv(3)
-
-c     Local variables
-
-        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
-        real(8) :: gsup11,gsup22
-        real(8),pointer,dimension(:,:,:,:,:) :: gsup_v
-
-        type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-        gmetric => g_def%gmetric
-
-        cnv = 0d0
-
-        ip = min(i+1,size(cov,1)-1)
-        im = i-1
-
-        jp = min(j+1,size(cov,2)-1)
-        jm = j-1
-
-        kp = min(k+1,size(cov,3)-1)
-        km = k-1
-
-        gsup_v => gmetric%grid(igrid)%gsup_v
-
-        if (jm >= 0) then
-          gsup11 = 0.5*(gsup_v(i,jm,k,1,1)
-     .                 +gsup_v(i,j ,k,1,1))
-
-          cnv(1) = gsup11*cov(i,j,k,1)
-     .                +0.25*(gsup_v(i,j ,k,1,2)*(cov(i ,j ,k,2)
-     .                                          +cov(ip,j ,k,2))
-     .                      +gsup_v(i,jm,k,1,2)*(cov(i ,jm,k,2)
-     .                                          +cov(ip,jm,k,2)))
-        endif
-
-        if (im >= 0) then
-          gsup22 = 0.5*(gsup_v(im,j,k,2,2)
-     .                 +gsup_v(i ,j,k,2,2))
-
-          cnv(2) = gsup22*cov(i,j,k,2)
-     .                +0.25*(gsup_v(i ,j,k,2,1)*(cov(i ,j ,k,1)
-     .                                          +cov(i ,jp,k,1))
-     .                      +gsup_v(im,j,k,2,1)*(cov(im,j ,k,1)
-     .                                          +cov(im,jp,k,1)))
-        endif
-
-        cnv(3) = gmetric%grid(igrid)%gsup(i,j,k,3,3)*cov(i,j,k,3)
-
-      end function XformToCnv_stg_ijk
 
 c     XformToCov_ijk
 c     #################################################################
@@ -1690,220 +1082,6 @@ c     Begin program
 
       end function XformToCov_ijk
 
-c     XformToCov_stg_ijk
-c     #################################################################
-      function XformToCov_stg_ijk(g_def,i,j,k,igrid,cnv) result(cov)
-
-c     -----------------------------------------------------------------
-c     Transforms a staggered contravariant vector to a covariant
-c     representation at faces for cell (i,j,k).
-c
-c     CURRENTLY WORKS ONLY IN 2D
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,igrid
-        real(8) :: cnv(0:,0:,0:,:),cov(3)
-
-c     Local variables
-
-        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
-        real(8) :: gsub11,gsub22
-        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
-
-        type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-        gmetric => g_def%gmetric
-
-        cov = 0d0
-
-        ip = min(i+1,size(cnv,1)-1)
-        im = i-1
-
-        jp = min(j+1,size(cnv,2)-1)
-        jm = j-1
-
-        kp = min(k+1,size(cnv,3)-1)
-        km = k-1
-
-        gsub_v => gmetric%grid(igrid)%gsub_v
-
-        if (jm >= 0) then
-          gsub11 = 0.5*(gsub_v(i,jm,k,1,1)
-     .                 +gsub_v(i,j ,k,1,1))
-
-          cov(1) = gsub11*cnv(i,j,k,1)
-     .                +0.25*(gsub_v(i,j ,k,1,2)*(cnv(i ,j ,k,2)
-     .                                          +cnv(ip,j ,k,2))
-     .                      +gsub_v(i,jm,k,1,2)*(cnv(i ,jm,k,2)
-     .                                          +cnv(ip,jm,k,2)))
-        endif
-
-        if (im >= 0) then
-          gsub22 = 0.5*(gsub_v(im,j,k,2,2)
-     .                 +gsub_v(i ,j,k,2,2))
-
-          cov(2) = gsub22*cnv(i,j,k,2)
-     .                +0.25*(gsub_v(i ,j,k,2,1)*(cnv(i ,j ,k,1)
-     .                                          +cnv(i ,jp,k,1))
-     .                      +gsub_v(im,j,k,2,1)*(cnv(im,j ,k,1)
-     .                                          +cnv(im,jp,k,1)))
-        endif
-
-        cov(3) = gmetric%grid(igrid)%gsup(i,j,k,3,3)*cnv(i,j,k,3)
-
-      end function XformToCov_stg_ijk
-
-c     XformToCov_vrtx_stg_ijk
-c     #################################################################
-      function XformToCov_vrtx_stg_ijk(g_def,i,j,k,igrid,cnv)result(cov)
-
-c     -----------------------------------------------------------------
-c     Transforms a vertex staggered contravariant vector to a covariant
-c     representation at faces for cell (i,j,k).
-c
-c     CURRENTLY WORKS ONLY IN 2D
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,igrid
-        real(8) :: cnv(0:,0:,0:,:),cov(3)
-
-c     Local variables
-
-        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
-        real(8) :: gsub11,gsub22
-        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
-
-        type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-        gmetric => g_def%gmetric
-
-        cov = 0d0
-
-        ip = min(i+1,size(cnv,1)-1)
-        im = i-1
-
-        jp = min(j+1,size(cnv,2)-1)
-        jm = j-1
-
-        kp = min(k+1,size(cnv,3)-1)
-        km = k-1
-
-        gsub_v => gmetric%grid(igrid)%gsub_v
-
-        if (im >= 0) then
-          gsub11 = 0.5*(gsub_v(im,j,k,1,1)
-     .                 +gsub_v(i ,j,k,1,1))
-
-          cov(1) = gsub11*cnv(i,j,k,1)
-     .                +0.25*(gsub_v(i ,j,k,1,2)*(cnv(i ,j ,k,2)
-     .                                          +cnv(i ,jp,k,2))
-     .                      +gsub_v(im,j,k,1,2)*(cnv(im,j ,k,2)
-     .                                          +cnv(im,jp,k,2)))
-        endif
-
-        if (jm >= 0) then
-          gsub22 = 0.5*(gsub_v(i,jm,k,2,2)
-     .                 +gsub_v(i,j ,k,2,2))
-
-          cov(2) = gsub22*cnv(i,j,k,2)
-     .                +0.25*(gsub_v(i,j ,k,2,1)*(cnv(i ,j ,k,1)
-     .                                          +cnv(ip,j ,k,1))
-     .                      +gsub_v(i,jm,k,2,1)*(cnv(i ,jm,k,1)
-     .                                          +cnv(ip,jm,k,1)))
-        endif
-
-        cov(3) = gmetric%grid(igrid)%gsub_v(i,j,k,3,3)*cnv(i,j,k,3)
-
-      end function XformToCov_vrtx_stg_ijk
-
-c     Xform_From_VrtxCnv_To_CellCov_stg_ijk
-c     #################################################################
-      function Xform_From_VrtxCnv_To_CellCov_stg_ijk(g_def,i,j,k,igr
-     .                  ,cnv_vrtx) result(cov_cell)
-
-c     -----------------------------------------------------------------
-c     Transforms a staggered VERTEX contravariant vector to a staggered
-c     CELL covariant representation for cell (i,j,k).
-c
-c     CURRENTLY WORKS ONLY IN 2D
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,igr
-        real(8) :: cnv_vrtx(0:,0:,0:,:)
-     .            ,cov_cell(3)
-
-c     Local variables
-
-        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
-        real(8) :: gsub12,gsub21
-        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
-        real(8),pointer,dimension(:,:,:)     :: jac_v
-
-        type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-        gmetric => g_def%gmetric
-
-        ip = min(i+1,size(cnv_vrtx,1)-1)
-        im = max(i-1,0)
-
-        jp = min(j+1,size(cnv_vrtx,2)-1)
-        jm = max(j-1,0)
-
-        kp = min(k+1,size(cnv_vrtx,3)-1)
-        km = max(k-1,0)
-
-        gsub_v => gmetric%grid(igr)%gsub_v
-        jac_v  => gmetric%grid(igr)%jac_v
-
-        gsub12 = 0.5*(gsub_v(i,jm,k,1,2)
-     .               +gsub_v(i,j ,k,1,2))
-
-        cov_cell(1) = gsub12*cnv_vrtx(i,j,k,2)
-     .          +0.25*(gsub_v(i,j ,k,1,1)*(cnv_vrtx(i ,j ,k,1)
-     .                                    +cnv_vrtx(ip,j ,k,1))
-     .                +gsub_v(i,jm,k,1,1)*(cnv_vrtx(i ,jm,k,1)
-     .                                    +cnv_vrtx(ip,jm,k,1)))
-
-        gsub21 = 0.5*(gsub_v(im,j,k,2,1)
-     .               +gsub_v(i ,j,k,2,1))
-
-        cov_cell(2) = gsub21*cnv_vrtx(i,j,k,1)
-     .          +0.25*(gsub_v(i ,j,k,2,2)*(cnv_vrtx(i ,j ,k,2)
-     .                                    +cnv_vrtx(i ,jp,k,2))
-     .                +gsub_v(im,j,k,2,2)*(cnv_vrtx(im,j ,k,2)
-     .                                    +cnv_vrtx(im,jp,k,2)))
-
-        cov_cell(3) = gmetric%grid(igr)%gsub(i,j,k,3,3)
-     .               *0.25*(cnv_vrtx(im,jm,k,3)
-     .                     +cnv_vrtx(im,j ,k,3)
-     .                     +cnv_vrtx(i ,j ,k,3)
-     .                     +cnv_vrtx(i ,jm,k,3))
-
-      end function Xform_From_VrtxCnv_To_CellCov_stg_ijk
 
 c     XformToCnv_mesh
 c     #################################################################
@@ -1989,6 +1167,1420 @@ c     Begin program
 
       end function XformToCov_mesh
 
+c     vectorNorm_ijk
+c     ################################################################
+      function vectorNorm_ijk(g_def,i,j,k,igrid,vec,covar) result(norm)
+
+c     ---------------------------------------------------------------
+c     Finds L2-norm of vector A given its curvilinear components.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer    :: i,j,k,igrid
+      real(8)    :: vec(3),norm
+      logical    :: covar
+
+c     Local variables
+
+      real(8)    :: tensor(3,3)
+
+      type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+      gmetric => g_def%gmetric
+
+      if (covar) then
+        tensor = gmetric%grid(igrid)%gsup(i,j,k,:,:)
+      else
+        tensor = gmetric%grid(igrid)%gsub(i,j,k,:,:)
+      endif
+
+      norm = dot_product(vec,matmul(tensor,vec))
+     .      /gmetric%grid(igrid)%jac(i,j,k)
+
+c     End 
+
+      end function vectorNorm_ijk
+
+c     vectorNorm_mesh
+c     ################################################################
+      function vectorNorm_mesh(g_def,igrid,vec,covar) result(norm)
+
+c     ---------------------------------------------------------------
+c     Finds L2-norm of vector A given its curvilinear components.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igrid
+      real(8) :: vec(0:,0:,0:,:)
+     .          ,norm(0:size(vec,1)-1,0:size(vec,2)-1,0:size(vec,3)-1)
+      logical :: covar
+
+c     Local variables
+
+      integer :: i,j,k,nxl,nyl,nzl
+
+c     Begin program
+
+      nxl = g_def%nxv(igrid)
+      nyl = g_def%nyv(igrid)
+      nzl = g_def%nzv(igrid)
+
+      do k=0,nzl+1
+        do j=0,nyl+1
+          do i=0,nxl+1
+            norm(i,j,k) = vectorNorm_ijk(g_def,i,j,k,igrid,vec(i,j,k,:)
+     .                                  ,covar)
+          enddo
+        enddo
+      enddo
+
+c     End 
+
+      end function vectorNorm_mesh
+
+c     scalarProduct_ijk
+c     ################################################################
+      function scalarProduct_ijk(g_def,i,j,k,igrid,cov,cnv) result (dot)
+
+c     ---------------------------------------------------------------
+c     Finds scalar product of two vectors, one covariant and the
+c     other contravariant.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: i,j,k,igrid
+      real(8) :: dot,cnv(3),cov(3)
+
+c     Local variables
+
+      type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+      gmetric => g_def%gmetric
+
+      dot = dot_product(cov,cnv)/gmetric%grid(igrid)%jac(i,j,k)
+
+c     End 
+
+      end function scalarProduct_ijk
+
+c     scalarProduct_mesh
+c     ################################################################
+      function scalarProduct_mesh(g_def,igrid,vec1,vec2) result (sp)
+
+c     ---------------------------------------------------------------
+c     Finds scalar product of two vectors, one covariant and the
+c     other contravariant.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igrid
+      real(8) :: vec1(:,:,:,:),vec2(:,:,:,:)
+      real(8) :: sp(size(vec1,1),size(vec1,2),size(vec1,3))
+
+c     Local variables
+
+      type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+      gmetric => g_def%gmetric
+
+      sp = (vec1(:,:,:,1)*vec2(:,:,:,1)
+     .     +vec1(:,:,:,2)*vec2(:,:,:,2)
+     .     +vec1(:,:,:,3)*vec2(:,:,:,3))/gmetric%grid(igrid)%jac
+
+c     End 
+
+      end function scalarProduct_mesh
+
+
+c     tensorScalarProduct
+c     ################################################################
+      function tensorScalarProduct(g_def,i,j,k,igrid,tnsr1,tnsr2)
+     .         result (dot)
+
+c     ---------------------------------------------------------------
+c     Finds tensor scalar product of two tensors, one covariant
+c     and the other contravariant.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer    :: i,j,k,igrid
+      real(8)    :: dot,tnsr1(3,3),tnsr2(3,3)
+
+c     Local variables
+
+      type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+      gmetric => g_def%gmetric
+
+      dot = sum(tnsr1*tnsr2)/gmetric%grid(igrid)%jac(i,j,k)**2
+
+c     End 
+
+      end function tensorScalarProduct
+
+c     crossProduct_ijk
+c     ################################################################
+      function crossProduct_ijk(g_def,i,j,k,igrid,vec1,vec2,cnv_in)
+     .         result (vec3)
+
+c     ---------------------------------------------------------------
+c     Finds cross product of two vectors, either both covariant
+c     (cnv_in=.false.) or both contravariant (cnv_in=.true.) Result
+c     is covariant if cnv_in=.true., and contravariant otherwise.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer    :: i,j,k,igrid
+      real(8)    :: vec1(3),vec2(3),vec3(3)
+      logical    :: cnv_in
+
+c     Local variables
+
+      type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+      gmetric => g_def%gmetric
+
+      if (cnv_in) then  !Result is covariant
+        vec3(1) = (vec1(2)*vec2(3)
+     .            -vec1(3)*vec2(2))
+     .            /gmetric%grid(igrid)%jac(i,j,k)
+        vec3(2) = (vec1(3)*vec2(1)
+     .            -vec1(1)*vec2(3))
+     .            /gmetric%grid(igrid)%jac(i,j,k)
+        vec3(3) = (vec1(1)*vec2(2)
+     .            -vec1(2)*vec2(1))
+     .            /gmetric%grid(igrid)%jac(i,j,k)
+      else           !Result is contravariant
+        vec3(1) = (vec1(2)*vec2(3)
+     .            -vec1(3)*vec2(2))
+        vec3(2) = (vec1(3)*vec2(1)
+     .            -vec1(1)*vec2(3))
+        vec3(3) = (vec1(1)*vec2(2)
+     .            -vec1(2)*vec2(1))
+      endif
+
+c     End 
+
+      end function crossProduct_ijk
+
+c     crossProduct_mesh
+c     ################################################################
+      function crossProduct_mesh(g_def,igrid,vec1,vec2,cnv_in)
+     .         result (vec3)
+
+c     ---------------------------------------------------------------
+c     Finds cross product of two vectors, either both covariant
+c     (cnv_in=.false.) or both contravariant (cnv_in=.true.) Result
+c     is covariant if cnv_in=.true., and contravariant otherwise.
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer    :: igrid
+      real(8)    :: vec1(:,:,:,:),vec2(:,:,:,:)
+      real(8)    :: vec3(size(vec1,1),size(vec1,2)
+     .                  ,size(vec1,3),size(vec1,4))
+      logical    :: cnv_in
+
+c     Local variables
+
+      type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+      gmetric => g_def%gmetric
+
+      if (cnv_in) then  !Result is covariant
+        vec3(:,:,:,1) = (vec1(:,:,:,2)*vec2(:,:,:,3)
+     .                  -vec1(:,:,:,3)*vec2(:,:,:,2))
+     .                  /gmetric%grid(igrid)%jac
+        vec3(:,:,:,2) = (vec1(:,:,:,3)*vec2(:,:,:,1)
+     .                  -vec1(:,:,:,1)*vec2(:,:,:,3))
+     .                  /gmetric%grid(igrid)%jac
+        vec3(:,:,:,3) = (vec1(:,:,:,1)*vec2(:,:,:,2)
+     .                  -vec1(:,:,:,2)*vec2(:,:,:,1))
+     .                  /gmetric%grid(igrid)%jac
+      else           !Result is contravariant
+        vec3(:,:,:,1) = (vec1(:,:,:,2)*vec2(:,:,:,3)
+     .                  -vec1(:,:,:,3)*vec2(:,:,:,2))
+        vec3(:,:,:,2) = (vec1(:,:,:,3)*vec2(:,:,:,1)
+     .                  -vec1(:,:,:,1)*vec2(:,:,:,3))
+        vec3(:,:,:,3) = (vec1(:,:,:,1)*vec2(:,:,:,2)
+     .                  -vec1(:,:,:,2)*vec2(:,:,:,1))
+      endif
+
+c     End 
+
+      end function crossProduct_mesh
+
+      end module grid_operations_cell
+
+c module grid_operations_stg
+c #####################################################################
+      module grid_operations_stg
+
+c ---------------------------------------------------------------------
+c     This module packs routines that perform operations on staggered
+c     vectors, such as coordinate transformation of vector components,
+c     vector norms and scalar products.
+c ---------------------------------------------------------------------
+
+      use grid_packing
+
+      implicit none
+
+      INTERFACE XformVector_stg
+        module procedure XformVector_stg_mesh
+      end INTERFACE
+
+      contains
+
+c     XformToCar_stg_ijk
+c     #################################################################
+      function XformToCar_stg_ijk(g_def,i,j,k,igrid,curv,covariant
+     .                           ,mul_by_jac) result(car)
+
+c     -----------------------------------------------------------------
+c     Transforms a STAGGERED curvilinear vector (c1,c2,c3) to Cartesian
+c     (cx,cy,cz) at grid coordinates (i,j,k). Curvilinear vector is
+c     covariant if covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: i,j,k,igrid
+        real(8)    :: curv(0:,0:,0:,:),car(3)
+        logical    :: covariant
+
+        logical,optional :: mul_by_jac
+
+c     Local variables
+
+        integer    :: im,jm,km
+        real(8)    :: cov(3),cnv(3),jac,curv_l(3)
+        logical    :: muljac
+
+        type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+        gmetric => g_def%gmetric
+
+        if (PRESENT(mul_by_jac)) then
+          muljac = mul_by_jac
+        else
+          muljac = .false.
+        endif
+
+        im = max(i-1,0)
+        jm = max(j-1,0)
+        km = max(k-1,0)
+
+        if (covariant) then
+          !i+1/2,j,k
+          curv_l(1) = curv(i,j,k,1)
+          curv_l(2) = 0.25*(curv(i  ,jm,k,2)
+     $                     +curv(i  ,j ,k,2)
+     $                     +curv(i+1,jm,k,2)
+     $                     +curv(i+1,j ,k,2))
+          curv_l(3) = 0.25*(curv(i  ,j,km,3)
+     $                     +curv(i  ,j,k ,3)
+     $                     +curv(i+1,j,km,3)
+     $                     +curv(i+1,j,k ,3))
+
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,:,1)
+     $               +gmetric%grid(igrid)%cov_v(i,j ,k ,:,1)
+     $               +gmetric%grid(igrid)%cov_v(i,jm,km,:,1)
+     $               +gmetric%grid(igrid)%cov_v(i,j ,km,:,1))
+          if (muljac) then
+            jac = 0.25*(gmetric%grid(igrid)%jac_v(i,jm,k )
+     $                 +gmetric%grid(igrid)%jac_v(i,j ,k )
+     $                 +gmetric%grid(igrid)%jac_v(i,jm,km)
+     $                 +gmetric%grid(igrid)%jac_v(i,j ,km))
+            cov = cov*jac
+          endif
+          car(1) = dot_product(curv_l,cov)
+
+          !i,j+1/2,k
+          curv_l(1) = 0.25*(curv(i ,j+1,k,1)
+     $                     +curv(i ,j  ,k,1)
+     $                     +curv(im,j+1,k,1)
+     $                     +curv(im,j  ,k,1))
+          curv_l(2) = curv(i,j,k,2)
+          curv_l(3) = 0.25*(curv(i,j+1,k ,3)
+     $                     +curv(i,j  ,k ,3)
+     $                     +curv(i,j+1,km,3)
+     $                     +curv(i,j  ,km,3))
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,:,2)
+     $               +gmetric%grid(igrid)%cov_v(i ,j,k ,:,2)
+     $               +gmetric%grid(igrid)%cov_v(im,j,km,:,2)
+     $               +gmetric%grid(igrid)%cov_v(i ,j,km,:,2))
+          if (muljac) then
+            jac = 0.25*(gmetric%grid(igrid)%jac_v(im,j,k )
+     $                 +gmetric%grid(igrid)%jac_v(i ,j,k )
+     $                 +gmetric%grid(igrid)%jac_v(im,j,km)
+     $                 +gmetric%grid(igrid)%jac_v(i ,j,km))
+            cov = cov*jac
+          endif
+          car(2) = dot_product(curv_l,cov)
+
+          !i,j,k+1/2
+          curv_l(1) = 0.25*(curv(i ,j,k+1,1)
+     $                     +curv(i ,j,k  ,1)
+     $                     +curv(im,j,k+1,1)
+     $                     +curv(im,j,k  ,1))
+          curv_l(2) = 0.25*(curv(i,j ,k+1,2)
+     $                     +curv(i,j ,k  ,2)
+     $                     +curv(i,jm,k+1,2)
+     $                     +curv(i,jm,k  ,2))
+          curv_l(3) = curv(i,j,k,3)
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,:,3)
+     $               +gmetric%grid(igrid)%cov_v(i ,j ,k,:,3)
+     $               +gmetric%grid(igrid)%cov_v(im,jm,k,:,3)
+     $               +gmetric%grid(igrid)%cov_v(i ,jm,k,:,3))
+          if (muljac) then
+            jac = 0.25*(gmetric%grid(igrid)%jac_v(im,j ,k )
+     $                 +gmetric%grid(igrid)%jac_v(i ,j ,k )
+     $                 +gmetric%grid(igrid)%jac_v(im,jm,k )
+     $                 +gmetric%grid(igrid)%jac_v(i ,jm,k ))
+            cov = cov*jac
+          endif
+          car(3) = dot_product(curv_l,cov)
+        else
+          !i+1/2,j,k
+          curv_l(1) = curv(i,j,k,1)
+          curv_l(2) = 0.25*(curv(i  ,jm,k,2)
+     $                     +curv(i  ,j ,k,2)
+     $                     +curv(i+1,jm,k,2)
+     $                     +curv(i+1,j ,k,2))
+          curv_l(3) = 0.25*(curv(i  ,j,km,3)
+     $                     +curv(i  ,j,k ,3)
+     $                     +curv(i+1,j,km,3)
+     $                     +curv(i+1,j,k ,3))
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,:,1)
+     $               *gmetric%grid(igrid)%jac_v(i,jm,k  )
+     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,:,1)
+     $               *gmetric%grid(igrid)%jac_v(i,j ,k  )
+     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,:,1)
+     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
+     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,:,1)
+     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
+          if (.not.muljac) then
+            jac = 0.25*(gmetric%grid(igrid)%jac_v(i,jm,k )
+     $                 +gmetric%grid(igrid)%jac_v(i,j ,k )
+     $                 +gmetric%grid(igrid)%jac_v(i,jm,km)
+     $                 +gmetric%grid(igrid)%jac_v(i,j ,km))
+            cnv = cnv/jac
+          endif
+          car(1) = dot_product(curv_l,cnv)
+
+          !i,j+1/2,k
+          curv_l(1) = 0.25*(curv(i ,j+1,k,1)
+     $                     +curv(i ,j  ,k,1)
+     $                     +curv(im,j+1,k,1)
+     $                     +curv(im,j  ,k,1))
+          curv_l(2) = curv(i,j,k,2)
+          curv_l(3) = 0.25*(curv(i,j+1,k ,3)
+     $                     +curv(i,j  ,k ,3)
+     $                     +curv(i,j+1,km,3)
+     $                     +curv(i,j  ,km,3))
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k  ,:,2)
+     $               *gmetric%grid(igrid)%jac_v(im,j,k )  
+     $               +gmetric%grid(igrid)%cnv_v(i ,j,k  ,:,2)
+     $               *gmetric%grid(igrid)%jac_v(i ,j,k )  
+     $               +gmetric%grid(igrid)%cnv_v(im,j,km ,:,2)
+     $               *gmetric%grid(igrid)%jac_v(im,j,km)  
+     $               +gmetric%grid(igrid)%cnv_v(i ,j,km ,:,2)
+     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
+          if (.not.muljac) then
+            jac = 0.25*(gmetric%grid(igrid)%jac_v(im,j,k )
+     $                 +gmetric%grid(igrid)%jac_v(i ,j,k )
+     $                 +gmetric%grid(igrid)%jac_v(im,j,km)
+     $                 +gmetric%grid(igrid)%jac_v(i ,j,km))
+            cnv = cnv/jac
+          endif
+          car(2) = dot_product(curv_l,cnv)
+
+          !i,j,k+1/2
+          curv_l(1) = 0.25*(curv(i ,j,k+1,1)
+     $                     +curv(i ,j,k  ,1)
+     $                     +curv(im,j,k+1,1)
+     $                     +curv(im,j,k  ,1))
+          curv_l(2) = 0.25*(curv(i,j ,k+1,2)
+     $                     +curv(i,j ,k  ,2)
+     $                     +curv(i,jm,k+1,2)
+     $                     +curv(i,jm,k  ,2))
+          curv_l(3) = curv(i,j,k,3)
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,:,3)
+     $               *gmetric%grid(igrid)%jac_v(im,j ,k    )
+     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,:,3)
+     $               *gmetric%grid(igrid)%jac_v(i ,j ,k    )
+     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,:,3)
+     $               *gmetric%grid(igrid)%jac_v(im,jm,k    )
+     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,:,3)
+     $               *gmetric%grid(igrid)%jac_v(i ,jm,k    ) )
+          if (.not.muljac) then
+            jac = 0.25*(gmetric%grid(igrid)%jac_v(im,j ,k )
+     $                 +gmetric%grid(igrid)%jac_v(i ,j ,k )
+     $                 +gmetric%grid(igrid)%jac_v(im,jm,k )
+     $                 +gmetric%grid(igrid)%jac_v(i ,jm,k ))
+            cnv = cnv/jac
+          endif
+          car(3) = dot_product(curv_l,cnv)
+        endif
+
+      end function XformToCar_stg_ijk
+
+c     XformToCar_stg_mesh
+c     #################################################################
+      function XformToCar_stg_mesh(g_def,igrid,curv,covariant
+     .                            ,mul_by_jac) result(car)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered curvilinear vector to Cartesian 
+c     over the whole mesh. Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,igrid
+        real(8) :: curv(0:,0:,0:,:)
+     .            ,car(0:size(curv,1)-1
+     .                ,0:size(curv,2)-1
+     .                ,0:size(curv,3)-1,size(curv,4))
+        logical :: covariant
+
+        logical,optional :: mul_by_jac
+
+c     Local variables
+
+        integer :: nxl,nyl,nzl
+        real(8) :: curv_l(3),cov_v(3,3),car_l(3)
+
+c     Begin program
+
+        nxl = size(curv,1)-2
+        nyl = size(curv,2)-2
+        nzl = size(curv,3)-2
+
+        do k = 0,nzl
+          do j = 0,nyl
+            do i = 0,nxl
+              car(i,j,k,:) = XformToCar_stg_ijk(g_def,i,j,k,igrid,curv
+     .                                         ,covariant
+     .                                         ,mul_by_jac=mul_by_jac)
+            enddo
+          enddo
+        enddo
+
+      end function XformToCar_stg_mesh
+
+c     XformToCurv_stg_ijk
+c     #################################################################
+      function XformToCurv_stg_ijk(g_def,i,j,k,igrid,car,tocnv)
+     .        result(curv)
+
+c     -----------------------------------------------------------------
+c     Transforms a cartesian STAGGERED vector (cx,cy,cz) to curvilinear
+c     (c1,c2,c3) at grid coordinates (i,j,k). Cartesian vector is
+c     contravariant if tocnv=.true., and covariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,igrid
+        real(8) :: curv(3),car(0:,0:,0:,:)
+        logical :: tocnv
+
+c     Local variables
+
+        integer    :: im,jm,km
+        real(8)    :: cov(3),cnv(3),car_l(3)
+        
+        type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+        gmetric => g_def%gmetric
+
+        im = max(i-1,0)
+        jm = max(j-1,0)
+        km = max(k-1,0)
+
+        if (tocnv) then
+          !i+1/2,j,k
+          car_l(1) = car(i,j,k,1)
+          car_l(2) = 0.25*(car(i  ,jm,k,2)
+     $                    +car(i  ,j ,k,2)
+     $                    +car(i+1,jm,k,2)
+     $                    +car(i+1,j ,k,2))
+          car_l(3) = 0.25*(car(i  ,j,km,3)
+     $                    +car(i  ,j,k ,3)
+     $                    +car(i+1,j,km,3)
+     $                    +car(i+1,j,k ,3))
+c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,k  )
+c$$$     $               +gmetric%grid(igrid)%cov_v(i,j ,k ,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,k  )
+c$$$     $               +gmetric%grid(igrid)%cov_v(i,jm,km,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
+c$$$     $               +gmetric%grid(igrid)%cov_v(i,j ,km,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(i,jm,k ,1,:)
+     $               +gmetric%grid(igrid)%cov_v(i,j ,k ,1,:)
+     $               +gmetric%grid(igrid)%cov_v(i,jm,km,1,:)
+     $               +gmetric%grid(igrid)%cov_v(i,j ,km,1,:))
+     $         *0.25*(gmetric%grid(igrid)%jac_v(i,jm,k )
+     $               +gmetric%grid(igrid)%jac_v(i,j ,k )
+     $               +gmetric%grid(igrid)%jac_v(i,jm,km)
+     $               +gmetric%grid(igrid)%jac_v(i,j ,km))
+
+          curv(1) = dot_product(cov,car_l)
+
+          !i,j+1/2,k
+          car_l(1) = 0.25*(car(i ,j+1,k,1)
+     $                    +car(i ,j  ,k,1)
+     $                    +car(im,j+1,k,1)
+     $                    +car(im,j  ,k,1))
+          car_l(2) = car(i,j,k,2)
+          car_l(3) = 0.25*(car(i,j+1,k ,3)
+     $                    +car(i,j  ,k ,3)
+     $                    +car(i,j+1,km,3)
+     $                    +car(i,j  ,km,3))
+c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,k )
+c$$$     $               +gmetric%grid(igrid)%cov_v(i ,j,k ,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,k )
+c$$$     $               +gmetric%grid(igrid)%cov_v(im,j,km,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,km)
+c$$$     $               +gmetric%grid(igrid)%cov_v(i ,j,km,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j,k ,2,:)
+     $               +gmetric%grid(igrid)%cov_v(i ,j,k ,2,:)
+     $               +gmetric%grid(igrid)%cov_v(im,j,km,2,:)
+     $               +gmetric%grid(igrid)%cov_v(i ,j,km,2,:))
+     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j,k )
+     $               +gmetric%grid(igrid)%jac_v(i ,j,k )
+     $               +gmetric%grid(igrid)%jac_v(im,j,km)
+     $               +gmetric%grid(igrid)%jac_v(i ,j,km))
+          curv(2) = dot_product(cov,car_l)
+
+          !i,j,k+1/2
+          car_l(1) = 0.25*(car(i ,j,k+1,1)
+     $                    +car(i ,j,k  ,1)
+     $                    +car(im,j,k+1,1)
+     $                    +car(im,j,k  ,1))
+          car_l(2) = 0.25*(car(i,j ,k+1,2)
+     $                    +car(i,j ,k  ,2)
+     $                    +car(i,jm,k+1,2)
+     $                    +car(i,jm,k  ,2))
+          car_l(3) = car(i,j,k,3)
+c$$$          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j ,k )
+c$$$     $               +gmetric%grid(igrid)%cov_v(i ,j ,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j ,k )
+c$$$     $               +gmetric%grid(igrid)%cov_v(im,jm,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,jm,k )
+c$$$     $               +gmetric%grid(igrid)%cov_v(i ,jm,k,3,:))
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,jm,k )
+          cov = 0.25*(gmetric%grid(igrid)%cov_v(im,j ,k,3,:)
+     $               +gmetric%grid(igrid)%cov_v(i ,j ,k,3,:)
+     $               +gmetric%grid(igrid)%cov_v(im,jm,k,3,:)
+     $               +gmetric%grid(igrid)%cov_v(i ,jm,k,3,:))
+     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j ,k )
+     $               +gmetric%grid(igrid)%jac_v(i ,j ,k )
+     $               +gmetric%grid(igrid)%jac_v(im,jm,k )
+     $               +gmetric%grid(igrid)%jac_v(i ,jm,k ))
+          curv(3) = dot_product(cov,car_l)
+        else
+          !i+1/2,j,k
+          car_l(1) = car(i,j,k,1)
+          car_l(2) = 0.25*(car(i  ,jm,k,2)
+     $                    +car(i  ,j ,k,2)
+     $                    +car(i+1,jm,k,2)
+     $                    +car(i+1,j ,k,2))
+          car_l(3) = 0.25*(car(i  ,j,km,3)
+     $                    +car(i  ,j,k ,3)
+     $                    +car(i+1,j,km,3)
+     $                    +car(i+1,j,k ,3))
+c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,k )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,k )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,jm,km)
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,1,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i,j ,km))
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(i,jm,k ,1,:)
+     $               +gmetric%grid(igrid)%cnv_v(i,j ,k ,1,:)
+     $               +gmetric%grid(igrid)%cnv_v(i,jm,km,1,:)
+     $               +gmetric%grid(igrid)%cnv_v(i,j ,km,1,:))
+     $         *0.25*(gmetric%grid(igrid)%jac_v(i,jm,k )
+     $               +gmetric%grid(igrid)%jac_v(i,j ,k )
+     $               +gmetric%grid(igrid)%jac_v(i,jm,km)
+     $               +gmetric%grid(igrid)%jac_v(i,j ,km))
+
+          curv(1) = dot_product(cnv,car_l)
+
+          !i,j+1/2,k
+          car_l(1) = 0.25*(car(i ,j+1,k,1)
+     $                    +car(i ,j  ,k,1)
+     $                    +car(im,j+1,k,1)
+     $                    +car(im,j  ,k,1))
+          car_l(2) = car(i,j,k,2)
+          car_l(3) = 0.25*(car(i,j+1,k ,3)
+     $                    +car(i,j  ,k ,3)
+     $                    +car(i,j+1,km,3)
+     $                    +car(i,j  ,km,3))
+c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k ,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,k )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,j,k ,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,k )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(im,j,km,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j,km)
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,j,km,2,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j,km))
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j,k ,2,:)
+     $               +gmetric%grid(igrid)%cnv_v(i ,j,k ,2,:)
+     $               +gmetric%grid(igrid)%cnv_v(im,j,km,2,:)
+     $               +gmetric%grid(igrid)%cnv_v(i ,j,km,2,:))
+     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j,k )
+     $               +gmetric%grid(igrid)%jac_v(i ,j,k )
+     $               +gmetric%grid(igrid)%jac_v(im,j,km)
+     $               +gmetric%grid(igrid)%jac_v(i ,j,km))
+
+          curv(2) = dot_product(cnv,car_l)
+
+          !i,j,k+1/2
+          car_l(1) = 0.25*(car(i ,j,k+1,1)
+     $                    +car(i ,j,k  ,1)
+     $                    +car(im,j,k+1,1)
+     $                    +car(im,j,k  ,1))
+          car_l(2) = 0.25*(car(i,j ,k+1,2)
+     $                    +car(i,j ,k  ,2)
+     $                    +car(i,jm,k+1,2)
+     $                    +car(i,jm,k  ,2))
+          car_l(3) = car(i,j,k,3)
+c$$$          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,j ,k  )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,j ,k  )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,3,:)
+c$$$     $               *gmetric%grid(igrid)%jac_v(im,jm,k  )
+c$$$     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,3,:))
+c$$$     $               *gmetric%grid(igrid)%jac_v(i ,jm,k  )
+          cnv = 0.25*(gmetric%grid(igrid)%cnv_v(im,j ,k,3,:)
+     $               +gmetric%grid(igrid)%cnv_v(i ,j ,k,3,:)
+     $               +gmetric%grid(igrid)%cnv_v(im,jm,k,3,:)
+     $               +gmetric%grid(igrid)%cnv_v(i ,jm,k,3,:))
+     $         *0.25*(gmetric%grid(igrid)%jac_v(im,j ,k  )
+     $               +gmetric%grid(igrid)%jac_v(i ,j ,k  )
+     $               +gmetric%grid(igrid)%jac_v(im,jm,k  )
+     $               +gmetric%grid(igrid)%jac_v(i ,jm,k  ))
+          curv(3) = dot_product(cnv,car_l)
+        endif
+
+      end function XformToCurv_stg_ijk
+
+c     XformToCurv_stg_mesh
+c     #################################################################
+      function XformToCurv_stg_mesh(g_def,igrid,car,tocnv) result(curv)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered Cartesian vector to curvilinear
+c     over the whole mesh. Curvilinear vector is contravariant if
+c     tocnv=.true., and covariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid
+        real(8) :: car(0:,0:,0:,:)
+     .            ,curv(0:size(car,1)-1
+     .                 ,0:size(car,2)-1
+     .                 ,0:size(car,3)-1,size(car,4))
+        logical :: tocnv
+
+c     Local variables
+
+        integer :: i,j,k,nxl,nyl,nzl
+
+c     Begin program
+
+        nxl = size(car,1)-2
+        nyl = size(car,2)-2
+        nzl = size(car,3)-2
+
+        do k = 0,nzl
+          do j = 0,nyl
+            do i = 0,nxl
+              curv(i,j,k,:) = XformToCurv_stg_ijk(g_def,i,j,k,igrid,car
+     .                                           ,tocnv)
+            enddo
+          enddo
+        enddo
+
+      end function XformToCurv_stg_mesh
+
+c$$$c     XformToCurv_stg_mesh2
+c$$$c     #################################################################
+c$$$      subroutine XformToCurv_stg_mesh2(g_def,igrid,vec,tocnv)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Transforms a staggered Cartesian vector to curvilinear
+c$$$c     over the whole mesh. Curvilinear vector is contravariant if
+c$$$c     tocnv=.true., and covariant otherwise.
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Input variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer :: igrid
+c$$$        real(8) :: vec(0:,0:,0:,:)
+c$$$        logical :: tocnv
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        vec = XformToCurv_stg_mesh(g_def,igrid,vec,tocnv)
+c$$$
+c$$$      end subroutine XformToCurv_stg_mesh2
+
+c     XformToCnv_stg_ijk
+c     #################################################################
+      function XformToCnv_stg_ijk(g_def,i,j,k,igrid,cov) result(cnv)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered covariant vector to contravariant
+c     representation at faces for cell (i,j,k).
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,igrid
+        real(8) :: cov(0:,0:,0:,:),cnv(3)
+
+c     Local variables
+
+        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsup11,gsup22,gsup33
+        real(8),pointer,dimension(:,:,:,:,:) :: gsup_v
+
+        type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+        gmetric => g_def%gmetric
+
+        cnv = 0d0
+
+        ip = min(i+1,size(cov,1)-1)
+        im = i-1
+
+        jp = min(j+1,size(cov,2)-1)
+        jm = j-1
+
+        kp = min(k+1,size(cov,3)-1)
+        km = k-1
+
+        gsup_v => gmetric%grid(igrid)%gsup_v
+
+c$$$        if (jm >= 0) then
+c$$$          gsup11 = 0.5*(gsup_v(i,jm,k,1,1)
+c$$$     .                 +gsup_v(i,j ,k,1,1))
+c$$$
+c$$$          cnv(1) = gsup11*cov(i,j,k,1)
+c$$$     .                +0.25*(gsup_v(i,j ,k,1,2)*(cov(i ,j ,k,2)
+c$$$     .                                          +cov(ip,j ,k,2))
+c$$$     .                      +gsup_v(i,jm,k,1,2)*(cov(i ,jm,k,2)
+c$$$     .                                          +cov(ip,jm,k,2)))
+c$$$        endif
+
+        if (jm >= 0.and.km >= 0) then
+          !i+1/2,j,k
+          gsup11 = 0.25*(gsup_v(i,jm,k ,1,1)
+     .                  +gsup_v(i,j ,k ,1,1)
+     .                  +gsup_v(i,jm,km,1,1)
+     .                  +gsup_v(i,j ,km,1,1))
+
+          cnv(1) = gsup11*cov(i,j,k,1)
+     .            +0.25*(0.25*gsup_v(i,j ,k ,1,2)*(cov(i ,j ,k ,2)
+     .                                            +cov(ip,j ,k ,2)
+     .                                            +cov(i ,j ,kp,2)
+     .                                            +cov(ip,j ,kp,2))
+     .                  +0.25*gsup_v(i,jm,k ,1,2)*(cov(i ,jm,k ,2)
+     .                                            +cov(ip,jm,k ,2)
+     .                                            +cov(i ,jm,kp,2)
+     .                                            +cov(ip,jm,kp,2))
+     .                  +0.25*gsup_v(i,j ,km,1,2)*(cov(i ,j ,k ,2)
+     .                                            +cov(ip,j ,k ,2)
+     .                                            +cov(i ,j ,km,2)
+     .                                            +cov(ip,j ,km,2))
+     .                  +0.25*gsup_v(i,jm,km,1,2)*(cov(i ,jm,k ,2)
+     .                                            +cov(ip,jm,k ,2)
+     .                                            +cov(i ,jm,km,2)
+     .                                            +cov(ip,jm,km,2)))
+     .            +0.25*(0.25*gsup_v(i,j ,k ,1,3)*(cov(i ,j ,k ,3)
+     .                                            +cov(ip,j ,k ,3)
+     .                                            +cov(i ,jp,k ,3)
+     .                                            +cov(ip,jp,k ,3))
+     .                  +0.25*gsup_v(i,j ,km,1,3)*(cov(i ,j ,km,3)
+     .                                            +cov(ip,j ,km,3)
+     .                                            +cov(i ,jp,km,3)
+     .                                            +cov(ip,jp,km,3))
+     .                  +0.25*gsup_v(i,jm,k ,1,3)*(cov(i ,j ,k ,3)
+     .                                            +cov(ip,j ,k ,3)
+     .                                            +cov(i ,jm,k ,3)
+     .                                            +cov(ip,jm,k ,3))
+     .                  +0.25*gsup_v(i,jm,km,1,3)*(cov(i ,j ,km,3)
+     .                                            +cov(ip,j ,km,3)
+     .                                            +cov(i ,jm,km,3)
+     .                                            +cov(ip,jm,km,3)))
+        endif
+
+c$$$        if (im >= 0) then
+c$$$          gsup22 = 0.5*(gsup_v(im,j,k,2,2)
+c$$$     .                 +gsup_v(i ,j,k,2,2))
+c$$$
+c$$$          cnv(2) = gsup22*cov(i,j,k,2)
+c$$$     .                +0.25*(gsup_v(i ,j,k,2,1)*(cov(i ,j ,k,1)
+c$$$     .                                          +cov(i ,jp,k,1))
+c$$$     .                      +gsup_v(im,j,k,2,1)*(cov(im,j ,k,1)
+c$$$     .                                          +cov(im,jp,k,1)))
+c$$$        endif
+
+        if (im >= 0.and.km >= 0) then
+          !i,j+1/2,k
+          gsup22 = 0.25*(gsup_v(im,j,k ,2,2)
+     .                  +gsup_v(i ,j,k ,2,2)
+     .                  +gsup_v(im,j,km,2,2)
+     .                  +gsup_v(i ,j,km,2,2))
+
+          cnv(2) = gsup22*cov(i,j,k,2)
+     .            +0.25*(0.25*gsup_v(i ,j,k ,2,1)*(cov(i ,j ,k ,1)
+     .                                            +cov(i ,jp,k ,1)
+     .                                            +cov(i ,j ,kp,1)
+     .                                            +cov(i ,jp,kp,1))
+     .                  +0.25*gsup_v(im,j,k ,2,1)*(cov(im,j ,k ,1)
+     .                                            +cov(im,jp,k ,1)
+     .                                            +cov(im,j ,kp,1)
+     .                                            +cov(im,jp,kp,1))
+     .                  +0.25*gsup_v(i ,j,km,2,1)*(cov(i ,j ,k ,1)
+     .                                            +cov(i ,jp,k ,1)
+     .                                            +cov(i ,j ,km,1)
+     .                                            +cov(i ,jp,km,1))
+     .                  +0.25*gsup_v(im,j,km,2,1)*(cov(im,j ,k ,1)
+     .                                            +cov(im,jp,k ,1)
+     .                                            +cov(im,j ,km,1)
+     .                                            +cov(im,jp,km,1)))
+     .            +0.25*(0.25*gsup_v(i ,j,k ,2,3)*(cov(i ,j ,k ,3)
+     .                                            +cov(ip,j ,k ,3)
+     .                                            +cov(i ,jp,k ,3)
+     .                                            +cov(ip,jp,k ,3))
+     .                  +0.25*gsup_v(i ,j,km,2,3)*(cov(i ,j ,km,3)
+     .                                            +cov(ip,j ,km,3)
+     .                                            +cov(i ,jp,km,3)
+     .                                            +cov(ip,jp,km,3))
+     .                  +0.25*gsup_v(im,j,k ,2,3)*(cov(i ,j ,k ,3)
+     .                                            +cov(im,j ,k ,3)
+     .                                            +cov(i ,jp,k ,3)
+     .                                            +cov(im,jp,k ,3))
+     .                  +0.25*gsup_v(im,j,km,2,3)*(cov(i ,j ,km,3)
+     .                                            +cov(im,j ,km,3)
+     .                                            +cov(i ,jp,km,3)
+     .                                            +cov(im,jp,km,3)))
+        endif
+
+c$$$        cnv(3) = gmetric%grid(igrid)%gsup(i,j,k,3,3)*cov(i,j,k,3)
+        if (im >= 0.and.jm >= 0) then
+          !i,j,k+1/2
+          gsup33 = 0.25*(gsup_v(im,j ,k,3,3)
+     .                  +gsup_v(i ,j ,k,3,3)
+     .                  +gsup_v(im,jm,k,3,3)
+     .                  +gsup_v(i ,jm,k,3,3))
+
+          cnv(3) = gsup33*cov(i,j,k,3)
+     .            +0.25*(0.25*gsup_v(i ,j ,k,3,1)*(cov(i ,j ,k ,1)
+     .                                            +cov(i ,j ,kp,1)
+     .                                            +cov(i ,jp,k ,1)
+     .                                            +cov(i ,jp,kp,1))
+     .                  +0.25*gsup_v(im,j ,k,3,1)*(cov(im,j ,k ,1)
+     .                                            +cov(im,j ,kp,1)
+     .                                            +cov(im,jp,k ,1)
+     .                                            +cov(im,jp,kp,1))
+     .                  +0.25*gsup_v(i ,jm,k,3,1)*(cov(i ,j ,k ,1)
+     .                                            +cov(i ,j ,kp,1)
+     .                                            +cov(i ,jm,k ,1)
+     .                                            +cov(i ,jm,kp,1))
+     .                  +0.25*gsup_v(im,jm,k,3,1)*(cov(im,j ,k ,1)
+     .                                            +cov(im,j ,kp,1)
+     .                                            +cov(im,jm,k ,1)
+     .                                            +cov(im,jm,kp,1)))
+     .            +0.25*(0.25*gsup_v(i ,j ,k,3,2)*(cov(i ,j ,k ,2)
+     .                                            +cov(ip,j ,k ,2)
+     .                                            +cov(i ,j ,kp,2)
+     .                                            +cov(ip,j ,kp,2))
+     .                  +0.25*gsup_v(i ,jm,k,3,2)*(cov(i ,jm,k ,2)
+     .                                            +cov(ip,jm,k ,2)
+     .                                            +cov(i ,jm,kp,2)
+     .                                            +cov(ip,jm,kp,2))
+     .                  +0.25*gsup_v(im,j ,k,3,2)*(cov(i ,j ,k ,2)
+     .                                            +cov(im,j ,k ,2)
+     .                                            +cov(i ,j ,kp,2)
+     .                                            +cov(im,j ,kp,2))
+     .                  +0.25*gsup_v(im,jm,k,3,2)*(cov(i ,jm,k ,2)
+     .                                            +cov(im,jm,k ,2)
+     .                                            +cov(i ,jm,kp,2)
+     .                                            +cov(im,jm,kp,2)))
+        endif
+
+      end function XformToCnv_stg_ijk
+
+c     XformToCov_stg_ijk
+c     #################################################################
+      function XformToCov_stg_ijk(g_def,i,j,k,igrid,cnv) result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered contravariant vector to a covariant
+c     representation at faces for cell (i,j,k).
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,igrid
+        real(8) :: cnv(0:,0:,0:,:),cov(3)
+
+c     Local variables
+
+        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsub11,gsub22,gsub33
+        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
+
+        type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+        gmetric => g_def%gmetric
+
+        cov = 0d0
+
+        ip = min(i+1,size(cnv,1)-1)
+        im = i-1
+
+        jp = min(j+1,size(cnv,2)-1)
+        jm = j-1
+
+        kp = min(k+1,size(cnv,3)-1)
+        km = k-1
+
+        gsub_v => gmetric%grid(igrid)%gsub_v
+
+c$$$        if (jm >= 0) then
+c$$$          gsub11 = 0.5*(gsub_v(i,jm,k,1,1)
+c$$$     .                 +gsub_v(i,j ,k,1,1))
+c$$$
+c$$$          cov(1) = gsub11*cnv(i,j,k,1)
+c$$$     .                +0.25*(gsub_v(i,j ,k,1,2)*(cnv(i ,j ,k,2)
+c$$$     .                                          +cnv(ip,j ,k,2))
+c$$$     .                      +gsub_v(i,jm,k,1,2)*(cnv(i ,jm,k,2)
+c$$$     .                                          +cnv(ip,jm,k,2)))
+c$$$        endif
+        if (jm >= 0.and.km >= 0) then
+          !i+1/2,j,k
+          gsub11 = 0.25*(gsub_v(i,jm,k ,1,1)
+     .                  +gsub_v(i,j ,k ,1,1)
+     .                  +gsub_v(i,jm,km,1,1)
+     .                  +gsub_v(i,j ,km,1,1))
+
+          cov(1) = gsub11*cnv(i,j,k,1)
+     .            +0.25*(0.25*gsub_v(i,j ,k ,1,2)*(cnv(i ,j ,k ,2)
+     .                                            +cnv(ip,j ,k ,2)
+     .                                            +cnv(i ,j ,kp,2)
+     .                                            +cnv(ip,j ,kp,2))
+     .                  +0.25*gsub_v(i,jm,k ,1,2)*(cnv(i ,jm,k ,2)
+     .                                            +cnv(ip,jm,k ,2)
+     .                                            +cnv(i ,jm,kp,2)
+     .                                            +cnv(ip,jm,kp,2))
+     .                  +0.25*gsub_v(i,j ,km,1,2)*(cnv(i ,j ,k ,2)
+     .                                            +cnv(ip,j ,k ,2)
+     .                                            +cnv(i ,j ,km,2)
+     .                                            +cnv(ip,j ,km,2))
+     .                  +0.25*gsub_v(i,jm,km,1,2)*(cnv(i ,jm,k ,2)
+     .                                            +cnv(ip,jm,k ,2)
+     .                                            +cnv(i ,jm,km,2)
+     .                                            +cnv(ip,jm,km,2)))
+     .            +0.25*(0.25*gsub_v(i,j ,k ,1,3)*(cnv(i ,j ,k ,3)
+     .                                            +cnv(ip,j ,k ,3)
+     .                                            +cnv(i ,jp,k ,3)
+     .                                            +cnv(ip,jp,k ,3))
+     .                  +0.25*gsub_v(i,j ,km,1,3)*(cnv(i ,j ,km,3)
+     .                                            +cnv(ip,j ,km,3)
+     .                                            +cnv(i ,jp,km,3)
+     .                                            +cnv(ip,jp,km,3))
+     .                  +0.25*gsub_v(i,jm,k ,1,3)*(cnv(i ,j ,k ,3)
+     .                                            +cnv(ip,j ,k ,3)
+     .                                            +cnv(i ,jm,k ,3)
+     .                                            +cnv(ip,jm,k ,3))
+     .                  +0.25*gsub_v(i,jm,km,1,3)*(cnv(i ,j ,km,3)
+     .                                            +cnv(ip,j ,km,3)
+     .                                            +cnv(i ,jm,km,3)
+     .                                            +cnv(ip,jm,km,3)))
+        endif
+
+c$$$        if (im >= 0) then
+c$$$          gsub22 = 0.5*(gsub_v(im,j,k,2,2)
+c$$$     .                 +gsub_v(i ,j,k,2,2))
+c$$$
+c$$$          cov(2) = gsub22*cnv(i,j,k,2)
+c$$$     .                +0.25*(gsub_v(i ,j,k,2,1)*(cnv(i ,j ,k,1)
+c$$$     .                                          +cnv(i ,jp,k,1))
+c$$$     .                      +gsub_v(im,j,k,2,1)*(cnv(im,j ,k,1)
+c$$$     .                                          +cnv(im,jp,k,1)))
+c$$$        endif
+        if (im >= 0.and.km >= 0) then
+          !i,j+1/2,k
+          gsub22 = 0.25*(gsub_v(im,j,k ,2,2)
+     .                  +gsub_v(i ,j,k ,2,2)
+     .                  +gsub_v(im,j,km,2,2)
+     .                  +gsub_v(i ,j,km,2,2))
+
+          cov(2) = gsub22*cnv(i,j,k,2)
+     .            +0.25*(0.25*gsub_v(i ,j,k ,2,1)*(cnv(i ,j ,k ,1)
+     .                                            +cnv(i ,jp,k ,1)
+     .                                            +cnv(i ,j ,kp,1)
+     .                                            +cnv(i ,jp,kp,1))
+     .                  +0.25*gsub_v(im,j,k ,2,1)*(cnv(im,j ,k ,1)
+     .                                            +cnv(im,jp,k ,1)
+     .                                            +cnv(im,j ,kp,1)
+     .                                            +cnv(im,jp,kp,1))
+     .                  +0.25*gsub_v(i ,j,km,2,1)*(cnv(i ,j ,k ,1)
+     .                                            +cnv(i ,jp,k ,1)
+     .                                            +cnv(i ,j ,km,1)
+     .                                            +cnv(i ,jp,km,1))
+     .                  +0.25*gsub_v(im,j,km,2,1)*(cnv(im,j ,k ,1)
+     .                                            +cnv(im,jp,k ,1)
+     .                                            +cnv(im,j ,km,1)
+     .                                            +cnv(im,jp,km,1)))
+     .            +0.25*(0.25*gsub_v(i ,j,k ,2,3)*(cnv(i ,j ,k ,3)
+     .                                            +cnv(ip,j ,k ,3)
+     .                                            +cnv(i ,jp,k ,3)
+     .                                            +cnv(ip,jp,k ,3))
+     .                  +0.25*gsub_v(i ,j,km,2,3)*(cnv(i ,j ,km,3)
+     .                                            +cnv(ip,j ,km,3)
+     .                                            +cnv(i ,jp,km,3)
+     .                                            +cnv(ip,jp,km,3))
+     .                  +0.25*gsub_v(im,j,k ,2,3)*(cnv(i ,j ,k ,3)
+     .                                            +cnv(im,j ,k ,3)
+     .                                            +cnv(i ,jp,k ,3)
+     .                                            +cnv(im,jp,k ,3))
+     .                  +0.25*gsub_v(im,j,km,2,3)*(cnv(i ,j ,km,3)
+     .                                            +cnv(im,j ,km,3)
+     .                                            +cnv(i ,jp,km,3)
+     .                                            +cnv(im,jp,km,3)))
+        endif
+
+cc        cov(3) = gmetric%grid(igrid)%gsub(i,j,k,3,3)*cnv(i,j,k,3)
+        if (im >= 0.and.jm >= 0) then
+          !i,j,k+1/2
+          gsub33 = 0.25*(gsub_v(im,j ,k,3,3)
+     .                  +gsub_v(i ,j ,k,3,3)
+     .                  +gsub_v(im,jm,k,3,3)
+     .                  +gsub_v(i ,jm,k,3,3))
+
+          cov(3) = gsub33*cnv(i,j,k,3)
+     .            +0.25*(0.25*gsub_v(i ,j ,k,3,1)*(cnv(i ,j ,k ,1)
+     .                                            +cnv(i ,j ,kp,1)
+     .                                            +cnv(i ,jp,k ,1)
+     .                                            +cnv(i ,jp,kp,1))
+     .                  +0.25*gsub_v(im,j ,k,3,1)*(cnv(im,j ,k ,1)
+     .                                            +cnv(im,j ,kp,1)
+     .                                            +cnv(im,jp,k ,1)
+     .                                            +cnv(im,jp,kp,1))
+     .                  +0.25*gsub_v(i ,jm,k,3,1)*(cnv(i ,j ,k ,1)
+     .                                            +cnv(i ,j ,kp,1)
+     .                                            +cnv(i ,jm,k ,1)
+     .                                            +cnv(i ,jm,kp,1))
+     .                  +0.25*gsub_v(im,jm,k,3,1)*(cnv(im,j ,k ,1)
+     .                                            +cnv(im,j ,kp,1)
+     .                                            +cnv(im,jm,k ,1)
+     .                                            +cnv(im,jm,kp,1)))
+     .            +0.25*(0.25*gsub_v(i ,j ,k,3,2)*(cnv(i ,j ,k ,2)
+     .                                            +cnv(ip,j ,k ,2)
+     .                                            +cnv(i ,j ,kp,2)
+     .                                            +cnv(ip,j ,kp,2))
+     .                  +0.25*gsub_v(i ,jm,k,3,2)*(cnv(i ,jm,k ,2)
+     .                                            +cnv(ip,jm,k ,2)
+     .                                            +cnv(i ,jm,kp,2)
+     .                                            +cnv(ip,jm,kp,2))
+     .                  +0.25*gsub_v(im,j ,k,3,2)*(cnv(i ,j ,k ,2)
+     .                                            +cnv(im,j ,k ,2)
+     .                                            +cnv(i ,j ,kp,2)
+     .                                            +cnv(im,j ,kp,2))
+     .                  +0.25*gsub_v(im,jm,k,3,2)*(cnv(i ,jm,k ,2)
+     .                                            +cnv(im,jm,k ,2)
+     .                                            +cnv(i ,jm,kp,2)
+     .                                            +cnv(im,jm,kp,2)))
+        endif
+
+      end function XformToCov_stg_ijk
+
+c     XformToCov_vrtx_stg_ijk
+c     #################################################################
+      function XformToCov_vrtx_stg_ijk(g_def,i,j,k,igrid,cnv)result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a vertex staggered contravariant vector to a covariant
+c     vertex staggered representation at vertex (i+1/2,j+1/2,k+1/2).
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,igrid
+        real(8) :: cnv(0:,0:,0:,:),cov(3)
+
+c     Local variables
+
+        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
+        real(8) :: gsub11,gsub22,gsub33
+        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
+
+c     Begin program
+
+        cov = 0d0
+
+        ip = min(i+1,size(cnv,1)-1)
+        im = i-1
+
+        jp = min(j+1,size(cnv,2)-1)
+        jm = j-1
+
+        kp = min(k+1,size(cnv,3)-1)
+        km = k-1
+
+        gsub_v => g_def%gmetric%grid(igrid)%gsub_v
+
+        if (im >= 0) then
+          !i,j+1/2,k+1/2
+          gsub11 = 0.5*(gsub_v(im,j,k,1,1)
+     .                 +gsub_v(i ,j,k,1,1))
+
+          cov(1) = gsub11*cnv(i,j,k,1)
+     .                +0.25*(gsub_v(i ,j,k,1,2)*(cnv(i ,j ,k,2)
+     .                                          +cnv(i ,jp,k,2))
+     .                      +gsub_v(im,j,k,1,2)*(cnv(im,j ,k,2)
+     .                                          +cnv(im,jp,k,2)))
+     .                +0.25*(gsub_v(i ,j,k,1,3)*(cnv(i ,j,k ,3)
+     .                                          +cnv(i ,j,kp,3))
+     .                      +gsub_v(im,j,k,1,3)*(cnv(im,j,k ,3)
+     .                                          +cnv(im,j,kp,3)))
+        endif
+
+        if (jm >= 0) then
+          !i+1/2,j,k+1/2
+          gsub22 = 0.5*(gsub_v(i,jm,k,2,2)
+     .                 +gsub_v(i,j ,k,2,2))
+
+          cov(2) = gsub22*cnv(i,j,k,2)
+     .                +0.25*(gsub_v(i,j ,k,2,1)*(cnv(i ,j ,k,1)
+     .                                          +cnv(ip,j ,k,1))
+     .                      +gsub_v(i,jm,k,2,1)*(cnv(i ,jm,k,1)
+     .                                          +cnv(ip,jm,k,1)))
+     .                +0.25*(gsub_v(i,j ,k,2,3)*(cnv(i,j ,k ,3)
+     .                                          +cnv(i,j ,kp,3))
+     .                      +gsub_v(i,jm,k,2,3)*(cnv(i,jm,k ,3)
+     .                                          +cnv(i,jm,kp,3)))
+        endif
+
+        if (km >= 0) then
+          !i+1/2,j+1/2,k
+          gsub33 = 0.5*(gsub_v(i,j,km,3,3)
+     .                 +gsub_v(i,j,k ,3,3))
+
+          cov(3) = gsub33*cnv(i,j,k,3)
+     .                +0.25*(gsub_v(i,j,k ,3,1)*(cnv(i ,j,k ,1)
+     .                                          +cnv(ip,j,k ,1))
+     .                      +gsub_v(i,j,km,3,1)*(cnv(i ,j,km,1)
+     .                                          +cnv(ip,j,km,1)))
+     .                +0.25*(gsub_v(i,j,k ,3,2)*(cnv(i,j ,k ,2)
+     .                                          +cnv(i,jp,k ,2))
+     .                      +gsub_v(i,j,km,3,2)*(cnv(i,j ,km,2)
+     .                                          +cnv(i,jp,km,2)))
+        endif
+
+      end function XformToCov_vrtx_stg_ijk
+
+c     Xform_From_VrtxCnv_To_CellCov_stg_ijk
+c     #################################################################
+      function Xform_From_VrtxCnv_To_CellCov_stg_ijk(g_def,i,j,k,igr
+     .                  ,cnv_vrtx) result(cov_cell)
+
+c     -----------------------------------------------------------------
+c     Transforms a staggered VERTEX contravariant vector to a staggered
+c     CELL covariant representation for cell (i,j,k).
+c
+c     CURRENTLY WORKS ONLY IN 2D
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,igr
+        real(8) :: cnv_vrtx(0:,0:,0:,:),cov_cell(3)
+
+c     Local variables
+
+        integer :: ip,im,jp,jm,kp,km
+        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
+
+c     Begin program
+
+        ip = min(i+1,size(cnv_vrtx,1)-1)
+        im = max(i-1,0)
+
+        jp = min(j+1,size(cnv_vrtx,2)-1)
+        jm = max(j-1,0)
+
+        kp = min(k+1,size(cnv_vrtx,3)-1)
+        km = max(k-1,0)
+
+        gsub_v => g_def%gmetric%grid(igr)%gsub_v
+
+        !i+1/2,j,k
+        cov_cell(1) = 0.125*(gsub_v(i,j ,k ,1,1)*(cnv_vrtx(i ,j ,k ,1)
+     .                                           +cnv_vrtx(ip,j ,k ,1))
+     .                      +gsub_v(i,jm,k ,1,1)*(cnv_vrtx(i ,jm,k ,1)
+     .                                           +cnv_vrtx(ip,jm,k ,1))
+     .                      +gsub_v(i,j ,km,1,1)*(cnv_vrtx(i ,j ,km,1)
+     .                                           +cnv_vrtx(ip,j ,km,1))
+     .                      +gsub_v(i,jm,km,1,1)*(cnv_vrtx(i ,jm,km,1)
+     .                                           +cnv_vrtx(ip,jm,km,1)))
+     .               +0.25*((gsub_v(i,jm,k ,1,2)
+     .                      +gsub_v(i,j ,k ,1,2))*cnv_vrtx(i,j,k ,2)
+     .                     +(gsub_v(i,jm,km,1,2)
+     .                      +gsub_v(i,j ,km,1,2))*cnv_vrtx(i,j,km,2))
+     .               +0.25*((gsub_v(i,j ,km,1,3)
+     .                      +gsub_v(i,j ,k ,1,3))*cnv_vrtx(i,j ,k,3)
+     .                     +(gsub_v(i,jm,km,1,3)               
+     .                      +gsub_v(i,jm,k ,1,3))*cnv_vrtx(i,jm,k,3))
+
+        !i,j+1/2,k
+        cov_cell(2) = 0.25*((gsub_v(im,j,k ,2,1)
+     .                      +gsub_v(i ,j,k ,2,1))*cnv_vrtx(i,j,k ,1)
+     .                     +(gsub_v(im,j,km,2,1)
+     .                      +gsub_v(i ,j,km,2,1))*cnv_vrtx(i,j,km,1))
+     .               +0.125*(gsub_v(i ,j,k ,2,2)*(cnv_vrtx(i ,j ,k ,2)
+     .                                           +cnv_vrtx(i ,jp,k ,2))
+     .                      +gsub_v(im,j,k ,2,2)*(cnv_vrtx(im,j ,k ,2)
+     .                                           +cnv_vrtx(im,jp,k ,2))
+     .                      +gsub_v(i ,j,km,2,2)*(cnv_vrtx(i ,j ,km,2)
+     .                                           +cnv_vrtx(i ,jp,km,2))
+     .                      +gsub_v(im,j,km,2,2)*(cnv_vrtx(im,j ,km,2)
+     .                                           +cnv_vrtx(im,jp,km,2)))
+     .               +0.25*((gsub_v(i ,j,km,2,3)
+     .                      +gsub_v(i ,j,k ,2,3))*cnv_vrtx(i ,j,k,3)
+     .                     +(gsub_v(im,j,km,2,3)               
+     .                      +gsub_v(im,j,k ,2,3))*cnv_vrtx(im,j,k,3))
+
+        !i,j,k+1/2
+        cov_cell(3) = 0.25*((gsub_v(im,j ,k,3,1)
+     .                      +gsub_v(i ,j ,k,3,1))*cnv_vrtx(i,j ,k,1)
+     .                     +(gsub_v(im,jm,k,3,1)               
+     .                      +gsub_v(i ,jm,k,3,1))*cnv_vrtx(i,jm,k,1))
+     .               +0.25*((gsub_v(i ,jm,k,3,2)
+     .                      +gsub_v(i ,j ,k,3,2))*cnv_vrtx(i ,j,k,2)
+     .                     +(gsub_v(im,jm,k,3,2)             
+     .                      +gsub_v(im,j ,k,3,2))*cnv_vrtx(im,j,k,2))
+     .               +0.125*(gsub_v(i ,j ,k,3,3)*(cnv_vrtx(i ,j ,k ,3)
+     .                                           +cnv_vrtx(i ,j ,kp,3))
+     .                      +gsub_v(im,j ,k,3,3)*(cnv_vrtx(im,j ,k ,3)
+     .                                           +cnv_vrtx(im,j ,kp,3))
+     .                      +gsub_v(i ,jm,k,3,3)*(cnv_vrtx(i ,jm,k ,3)
+     .                                           +cnv_vrtx(i ,jm,kp,3))
+     .                      +gsub_v(im,jm,k,3,3)*(cnv_vrtx(im,jm,k ,3)
+     .                                           +cnv_vrtx(im,jm,kp,3)))
+
+      end function Xform_From_VrtxCnv_To_CellCov_stg_ijk
+
 c     XformToCnv_stg_mesh
 c     #################################################################
       function XformToCnv_stg_mesh(g_def,igrid,cov) result(cnv)
@@ -2012,9 +2604,7 @@ c     Input variables
 
 c     Local variables
 
-        integer :: i,j,k,nx,ny,nz,ip,im,jp,jm,kp,km
-        real(8) :: gsup11,gsup22
-        real(8),pointer,dimension(:,:,:,:,:) :: gsup_v
+        integer :: i,j,k,nx,ny,nz
 
 c     Begin program
 
@@ -2350,156 +2940,6 @@ c     Begin program
 
       end function Xfer_stg_to_cell_mesh
 
-c     vectorNorm_ijk
-c     ################################################################
-      function vectorNorm_ijk(g_def,i,j,k,igrid,vec,covar) result(norm)
-
-c     ---------------------------------------------------------------
-c     Finds L2-norm of vector A given its curvilinear components.
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer    :: i,j,k,igrid
-      real(8)    :: vec(3),norm
-      logical    :: covar
-
-c     Local variables
-
-      real(8)    :: tensor(3,3)
-
-      type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-      gmetric => g_def%gmetric
-
-      if (covar) then
-        tensor = gmetric%grid(igrid)%gsup(i,j,k,:,:)
-      else
-        tensor = gmetric%grid(igrid)%gsub(i,j,k,:,:)
-      endif
-
-      norm = dot_product(vec,matmul(tensor,vec))
-     .      /gmetric%grid(igrid)%jac(i,j,k)
-
-c     End 
-
-      end function vectorNorm_ijk
-
-c     vectorNorm_mesh
-c     ################################################################
-      function vectorNorm_mesh(g_def,igrid,vec,covar) result(norm)
-
-c     ---------------------------------------------------------------
-c     Finds L2-norm of vector A given its curvilinear components.
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: igrid
-      real(8) :: vec(0:,0:,0:,:)
-     .          ,norm(0:size(vec,1)-1,0:size(vec,2)-1,0:size(vec,3)-1)
-      logical :: covar
-
-c     Local variables
-
-      integer :: i,j,k,nxl,nyl,nzl
-
-c     Begin program
-
-      nxl = g_def%nxv(igrid)
-      nyl = g_def%nyv(igrid)
-      nzl = g_def%nzv(igrid)
-
-      do k=0,nzl+1
-        do j=0,nyl+1
-          do i=0,nxl+1
-            norm(i,j,k) = vectorNorm_ijk(g_def,i,j,k,igrid,vec(i,j,k,:)
-     .                                  ,covar)
-          enddo
-        enddo
-      enddo
-
-c     End 
-
-      end function vectorNorm_mesh
-
-c     scalarProduct_ijk
-c     ################################################################
-      function scalarProduct_ijk(g_def,i,j,k,igrid,cov,cnv) result (dot)
-
-c     ---------------------------------------------------------------
-c     Finds scalar product of two vectors, one covariant and the
-c     other contravariant.
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: i,j,k,igrid
-      real(8) :: dot,cnv(3),cov(3)
-
-c     Local variables
-
-      type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-      gmetric => g_def%gmetric
-
-      dot = dot_product(cov,cnv)/gmetric%grid(igrid)%jac(i,j,k)
-
-c     End 
-
-      end function scalarProduct_ijk
-
-c     scalarProduct_mesh
-c     ################################################################
-      function scalarProduct_mesh(g_def,igrid,vec1,vec2) result (sp)
-
-c     ---------------------------------------------------------------
-c     Finds scalar product of two vectors, one covariant and the
-c     other contravariant.
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: igrid
-      real(8) :: vec1(:,:,:,:),vec2(:,:,:,:)
-      real(8) :: sp(size(vec1,1),size(vec1,2),size(vec1,3))
-
-c     Local variables
-
-      type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-      gmetric => g_def%gmetric
-
-      sp = (vec1(:,:,:,1)*vec2(:,:,:,1)
-     .     +vec1(:,:,:,2)*vec2(:,:,:,2)
-     .     +vec1(:,:,:,3)*vec2(:,:,:,3))/gmetric%grid(igrid)%jac
-
-c     End 
-
-      end function scalarProduct_mesh
-
 c     crossProduct_stg_mesh
 c     ###############################################################
       function crossProduct_stg_mesh(g_def,igrid,vec1,vertex1
@@ -2551,43 +2991,66 @@ c     Begin program
      .                                +vec1(2:nx+1,0:ny-1,1:nz,2))
      .                          * 0.5*(vec2(1:nx,1:ny  ,1:nz,3)
      .                                +vec2(1:nx,0:ny-1,1:nz,3))
-     .                         -  0.5*(vec1(1:nx  ,1:ny,1:nz,3)
-     .                                +vec1(2:nx+1,1:ny,1:nz,3))
-     .                               * vec2(1:nx  ,1:ny,1:nz,2)   )
+     .                          -0.25*(vec1(1:nx  ,1:ny,1:nz  ,3)
+     .                                +vec1(2:nx+1,1:ny,1:nz  ,3)
+     .                                +vec1(1:nx  ,1:ny,0:nz-1,3)
+     .                                +vec1(2:nx+1,1:ny,0:nz-1,3))
+     .                          * 0.5*(vec2(1:nx  ,1:ny,1:nz,2)
+     .                                +vec2(0:nx-1,1:ny,1:nz,2)))
 
         !At (i,j+1/2,k)
-        vec3(1:nx,1:ny,1:nz,2) = (0.5*(vec1(1:nx,1:ny  ,1:nz,3)
-     .                                +vec1(1:nx,2:ny+1,1:nz,3))
-     .                               * vec2(1:nx,1:ny  ,1:nz,1)
-     .                           -.25*(vec1(1:nx  ,1:ny  ,1:nz,1)
+        vec3(1:nx,1:ny,1:nz,2) =(0.25*(vec1(1:nx,1:ny  ,1:nz  ,3)
+     .                                +vec1(1:nx,2:ny+1,1:nz  ,3)
+     .                                +vec1(1:nx,1:ny  ,0:nz-1,3)
+     .                                +vec1(1:nx,2:ny+1,0:nz-1,3))
+     .                           *0.5*(vec2(1:nx,1:ny  ,1:nz  ,1)
+     .                                +vec2(1:nx,1:ny  ,0:nz-1,1))
+     .                          -0.25*(vec1(1:nx  ,1:ny  ,1:nz,1)
      .                                +vec1(1:nx  ,2:ny+1,1:nz,1)
      .                                +vec1(0:nx-1,1:ny  ,1:nz,1)
      .                                +vec1(0:nx-1,2:ny+1,1:nz,1))
      .                           *0.5*(vec2(1:nx  ,1:ny,1:nz,3)
      .                                +vec2(0:nx-1,1:ny,1:nz,3)))
 
-        !At (i,j,k)
-        vec3(1:nx,1:ny,1:nz,3) =(0.5*(vec1(1:nx  ,1:ny,1:nz,1)
-     .                               +vec1(0:nx-1,1:ny,1:nz,1))
-     .                          *0.5*(vec2(1:nx  ,1:ny,1:nz,2)
-     .                               +vec2(0:nx-1,1:ny,1:nz,2))
-     .                          -0.5*(vec1(1:nx,1:ny  ,1:nz,2)
-     .                               +vec1(1:nx,0:ny-1,1:nz,2))
-     .                          *0.5*(vec2(1:nx,1:ny  ,1:nz,1)
-     .                               +vec2(1:nx,0:ny-1,1:nz,1)))
+        !At (i,j,k+1/2)
+        vec3(1:nx,1:ny,1:nz,3) =(0.25*(vec1(1:nx  ,1:ny,1:nz  ,1)
+     .                                +vec1(1:nx  ,1:ny,1:nz  ,1)
+     .                                +vec1(0:nx-1,1:ny,2:nz+1,1)
+     .                                +vec1(0:nx-1,1:ny,2:nz+1,1))
+     .                           *0.5*(vec2(1:nx  ,1:ny,1:nz,2)
+     .                                +vec2(0:nx-1,1:ny,1:nz  ,2))
+     .                          -0.25*(vec1(1:nx,1:ny  ,1:nz  ,2)
+     .                                +vec1(1:nx,0:ny-1,1:nz  ,2)
+     .                                +vec1(1:nx,1:ny  ,2:nz+1,2)
+     .                                +vec1(1:nx,0:ny-1,2:nz+1,2))
+     .                           *0.5*(vec2(1:nx,1:ny  ,1:nz,1)
+     .                                +vec2(1:nx,0:ny-1,1:nz,1)))
+
+        !Apply Jacobian factor
+        if (cnv_in) then
+          vec3(1:nx,1:ny,1:nz,1) = 4*vec3(1:nx,1:ny,1:nz,1)
+     .            /(g_def%gmetric%grid(igrid)%jac_v(1:nx,1:ny  ,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(1:nx,0:ny-1,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(1:nx,1:ny  ,0:nz-1)
+     .             +g_def%gmetric%grid(igrid)%jac_v(1:nx,0:ny-1,0:nz-1))
+          vec3(1:nx,1:ny,1:nz,2) = 4*vec3(1:nx,1:ny,1:nz,2)
+     .            /(g_def%gmetric%grid(igrid)%jac_v(1:nx  ,1:ny,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(0:nx-1,1:ny,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(1:nx  ,1:ny,0:nz-1)
+     .             +g_def%gmetric%grid(igrid)%jac_v(0:nx-1,1:ny,0:nz-1))
+          vec3(1:nx,1:ny,1:nz,3) = 4*vec3(1:nx,1:ny,1:nz,3)
+     .            /(g_def%gmetric%grid(igrid)%jac_v(1:nx  ,1:ny  ,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(0:nx-1,1:ny  ,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(1:nx  ,0:ny-1,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(0:nx-1,0:ny-1,1:nz))
+        endif
+
       else
         write (*,*) 'Case not implemented yet'
         write (*,*) 'Aborting in crossProduct_stg_mesh'
         stop
 c$$$        call pstop("crossProduct_stg_mesh"
 c$$$     .            ,"Case not implemented yet")
-      endif
-
-      !Apply Jacobian factor
-      if (cnv_in) then
-        vec3(:,:,:,1) = vec3(:,:,:,1)/g_def%gmetric%grid(igrid)%jac
-        vec3(:,:,:,2) = vec3(:,:,:,2)/g_def%gmetric%grid(igrid)%jac
-        vec3(:,:,:,3) = vec3(:,:,:,3)/g_def%gmetric%grid(igrid)%jac
       endif
 
 c     End program
@@ -2646,114 +3109,147 @@ c     Begin program
 
       if (.not.vertex1.and.vertex2) then
 !     At (i+1/2,j,k)
-         scl(1:nx,1:ny,1:nz,1) = vec1(1:nx  ,1:ny  ,1:nz,1)*
-     .                   0.25d0*(vec2(1:nx  ,1:ny  ,1:nz,1)+
-     .                           vec2(1:nx  ,0:ny-1,1:nz,1)+         
-     .                           vec2(2:nx+1,0:ny-1,1:nz,1)+         
-     .                           vec2(2:nx+1,1:ny  ,1:nz,1)) +
-     .                           vec2(1:nx  ,1:ny  ,1:nz,2)*
-     .                   0.25d0*(vec1(1:nx  ,1:ny  ,1:nz,2)+
-     .                           vec1(1:nx  ,0:ny-1,1:nz,2)+         
-     .                           vec1(2:nx+1,0:ny-1,1:nz,2)+         
-     .                           vec1(2:nx+1,1:ny  ,1:nz,2)) + 
-     .                    0.5d0*(vec1(1:nx  ,1:ny  ,1:nz,3)+
-     .                           vec1(2:nx+1,1:ny  ,1:nz,3))*
-     .                    0.5d0*(vec2(1:nx  ,1:ny  ,1:nz,3)+
-     .                           vec2(1:nx  ,0:ny-1,1:nz,3))
+         scl(1:nx,1:ny,1:nz,1) =0.125d0*(
+     .                    vec1(1:nx  ,1:ny  ,1:nz  ,1)
+     .                  *(vec2(1:nx  ,1:ny  ,1:nz  ,1)+
+     .                    vec2(1:nx  ,0:ny-1,1:nz  ,1)+         
+     .                    vec2(2:nx+1,0:ny-1,1:nz  ,1)+         
+     .                    vec2(2:nx+1,1:ny  ,1:nz  ,1)+
+     .                    vec2(1:nx  ,1:ny  ,0:nz-1,1)+
+     .                    vec2(1:nx  ,0:ny-1,0:nz-1,1)+         
+     .                    vec2(2:nx+1,0:ny-1,0:nz-1,1)+         
+     .                    vec2(2:nx+1,1:ny  ,0:nz-1,1))
+     .                +  (vec1(1:nx  ,1:ny  ,1:nz,2)+
+     .                    vec1(1:nx  ,0:ny-1,1:nz,2)+         
+     .                    vec1(2:nx+1,0:ny-1,1:nz,2)+         
+     .                    vec1(2:nx+1,1:ny  ,1:nz,2)) 
+     .                  *(vec2(1:nx  ,1:ny  ,1:nz  ,2)
+     .                   +vec2(1:nx  ,1:ny  ,0:nz-1,2))
+     .                +  (vec1(1:nx  ,1:ny  ,1:nz  ,3)+
+     .                    vec1(2:nx+1,1:ny  ,1:nz  ,3)+
+     .                    vec1(1:nx  ,1:ny  ,0:nz-1,3)+
+     .                    vec1(2:nx+1,1:ny  ,0:nz-1,3))
+     .                  *(vec2(1:nx  ,1:ny  ,1:nz  ,3)+
+     .                    vec2(1:nx  ,0:ny-1,1:nz  ,3)) )
 
 !     At (i,j+1/2,k)
-         scl(1:nx,1:ny,1:nz,2) = vec2(1:nx  ,1:ny  ,1:nz,1)*
-     .                   0.25d0*(vec1(1:nx  ,1:ny  ,1:nz,1)+
-     .                           vec1(1:nx  ,2:ny+1,1:nz,1)+
-     .                           vec1(0:nx-1,2:ny+1,1:nz,1)+
-     .                           vec1(0:nx-1,1:ny  ,1:nz,1)) +
-     .                           vec1(1:nx  ,1:ny  ,1:nz,2)*
-     .                   0.25d0*(vec2(1:nx  ,1:ny  ,1:nz,2)+
-     .                           vec2(1:nx  ,2:ny+1,1:nz,2)+ 
-     .                           vec2(0:nx-1,2:ny+1,1:nz,2)+ 
-     .                           vec2(0:nx-1,1:ny  ,1:nz,2)) +
-     .                    0.5d0*(vec2(1:nx  ,1:ny  ,1:nz,3)+
-     .                           vec2(0:nx-1,1:ny  ,1:nz,3))*
-     .                    0.5d0*(vec1(1:nx  ,1:ny  ,1:nz,3)+
-     .                           vec1(1:nx  ,2:ny+1,1:nz,3))
+         scl(1:nx,1:ny,1:nz,2) = 0.125d0*(
+     .                   (vec1(1:nx  ,1:ny  ,1:nz,1)+
+     .                    vec1(1:nx  ,2:ny+1,1:nz,1)+
+     .                    vec1(0:nx-1,2:ny+1,1:nz,1)+
+     .                    vec1(0:nx-1,1:ny  ,1:nz,1))
+     .                  *(vec2(1:nx  ,1:ny  ,1:nz  ,1)+
+     .                    vec2(1:nx  ,1:ny  ,0:nz-1,1))
+     .                 +  vec1(1:nx  ,1:ny  ,1:nz,2)
+     .                  *(vec2(1:nx  ,1:ny  ,1:nz  ,2)+
+     .                    vec2(1:nx  ,2:ny+1,1:nz  ,2)+ 
+     .                    vec2(0:nx-1,2:ny+1,1:nz  ,2)+ 
+     .                    vec2(0:nx-1,1:ny  ,1:nz  ,2)+
+     .                    vec2(1:nx  ,1:ny  ,0:nz-1,2)+
+     .                    vec2(1:nx  ,2:ny+1,0:nz-1,2)+ 
+     .                    vec2(0:nx-1,2:ny+1,0:nz-1,2)+ 
+     .                    vec2(0:nx-1,1:ny  ,0:nz-1,2))
+     .                 + (vec1(1:nx  ,1:ny  ,1:nz  ,3)+
+     .                    vec1(1:nx  ,2:ny+1,1:nz  ,3)+
+     .                    vec1(1:nx  ,1:ny  ,0:nz-1,3)+
+     .                    vec1(1:nx  ,2:ny+1,0:nz-1,3))
+     .                  *(vec2(1:nx  ,1:ny  ,1:nz  ,3)+
+     .                    vec2(0:nx-1,1:ny  ,1:nz  ,3)) )
 
-
-!     At (i,j,k)
-         scl(1:nx,1:ny,1:nz,3) = 
-     .                    0.5d0*(vec2(1:nx  ,1:ny  ,1:nz,1)+
-     .                           vec2(1:nx  ,0:ny-1,1:nz,1))*
-     .                    0.5d0*(vec1(1:nx  ,1:ny  ,1:nz,1)+
-     .                           vec1(0:nx-1,1:ny  ,1:nz,1)) +
-     .                    0.5d0*(vec1(1:nx  ,1:ny  ,1:nz,2)+
-     .                           vec1(1:nx  ,0:ny-1,1:nz,2))*
-     .                    0.5d0*(vec2(1:nx  ,1:ny  ,1:nz,2)+
-     .                           vec2(0:nx-1,1:ny  ,1:nz,2)) +
-     .                           vec1(1:nx  ,1:ny  ,1:nz,3)*
-     .                   0.25d0*(vec2(1:nx  ,1:ny  ,1:nz,3)+
-     .                           vec2(0:nx-1,1:ny  ,1:nz,3)+ 
-     .                           vec2(0:nx-1,0:ny-1,1:nz,3)+ 
-     .                           vec2(1:nx  ,0:ny-1,1:nz,3)) 
+!     At (i,j,k+1/2)
+         scl(1:nx,1:ny,1:nz,3) = 0.125d0*(
+     .                   (vec1(1:nx  ,1:ny  ,1:nz  ,1)+
+     .                    vec1(0:nx-1,1:ny  ,1:nz  ,1)+
+     .                    vec1(1:nx  ,1:ny  ,2:nz+1,1)+
+     .                    vec1(0:nx-1,1:ny  ,2:nz+1,1))
+     .                  *(vec2(1:nx  ,1:ny  ,1:nz,1)+
+     .                    vec2(1:nx  ,0:ny-1,1:nz,1))
+     .                 + (vec1(1:nx  ,1:ny  ,1:nz  ,2)+
+     .                    vec1(1:nx  ,0:ny-1,1:nz  ,2)+
+     .                    vec1(1:nx  ,1:ny  ,2:nz+1,2)+
+     .                    vec1(1:nx  ,0:ny-1,2:nz+1,2))
+     .                  *(vec2(1:nx  ,1:ny  ,1:nz,2)+
+     .                    vec2(0:nx-1,1:ny  ,1:nz,2)) 
+     .                 +  vec1(1:nx  ,1:ny  ,1:nz,3)
+     .                  *(vec2(1:nx  ,1:ny  ,1:nz  ,3)+
+     .                    vec2(0:nx-1,1:ny  ,1:nz  ,3)+ 
+     .                    vec2(0:nx-1,0:ny-1,1:nz  ,3)+ 
+     .                    vec2(1:nx  ,0:ny-1,1:nz  ,3)+
+     .                    vec2(1:nx  ,1:ny  ,2:nz+1,3)+
+     .                    vec2(0:nx-1,1:ny  ,2:nz+1,3)+ 
+     .                    vec2(0:nx-1,0:ny-1,2:nz+1,3)+ 
+     .                    vec2(1:nx  ,0:ny-1,2:nz+1,3)) )
 
       elseif (vertex1.and.vertex2) then
 !     At (i+1/2,j,k)
 !     Bx
-         B1 = (vec1(1:nx  ,1:ny  ,1:nz,1)+
-     .         vec1(2:nx+1,1:ny  ,1:nz,1)+
-     .         vec1(2:nx+1,0:ny-1,1:nz,1)+
-     .         vec1(1:nx  ,0:ny-1,1:nz,1))*0.25d0
-         B2 = (vec2(1:nx  ,1:ny  ,1:nz,1)+       
-     .         vec2(2:nx+1,1:ny  ,1:nz,1)+       
-     .         vec2(2:nx+1,0:ny-1,1:nz,1)+       
-     .         vec2(1:nx  ,0:ny-1,1:nz,1))*0.25d0                                                 
+         B1 = (vec1(1:nx  ,1:ny  ,1:nz  ,1)+
+     .         vec1(2:nx+1,1:ny  ,1:nz  ,1)+
+     .         vec1(2:nx+1,0:ny-1,1:nz  ,1)+
+     .         vec1(1:nx  ,0:ny-1,1:nz  ,1)+
+     .         vec1(1:nx  ,1:ny  ,0:nz-1,1)+
+     .         vec1(2:nx+1,1:ny  ,0:nz-1,1)+
+     .         vec1(2:nx+1,0:ny-1,0:nz-1,1)+
+     .         vec1(1:nx  ,0:ny-1,0:nz-1,1))*0.125d0
+         B2 = (vec2(1:nx  ,1:ny  ,1:nz,  1)+       
+     .         vec2(2:nx+1,1:ny  ,1:nz  ,1)+       
+     .         vec2(2:nx+1,0:ny-1,1:nz  ,1)+       
+     .         vec2(1:nx  ,0:ny-1,1:nz  ,1)+
+     .         vec2(1:nx  ,1:ny  ,0:nz-1,1)+       
+     .         vec2(2:nx+1,1:ny  ,0:nz-1,1)+       
+     .         vec2(2:nx+1,0:ny-1,0:nz-1,1)+       
+     .         vec2(1:nx  ,0:ny-1,0:nz-1,1))*0.125d0 
          scl(1:nx,1:ny,1:nz,1) = scl(1:nx,1:ny,1:nz,1) + B1*B2
                                                  
 !     By
-         B1 = vec1(1:nx  ,1:ny  ,1:nz,2)
-         B2 = vec2(1:nx  ,1:ny  ,1:nz,2)
+         B1 = (vec1(1:nx  ,1:ny  ,1:nz  ,2)+
+     .         vec1(1:nx  ,1:ny  ,0:nz-1,2))*0.5d0
+         B2 = (vec2(1:nx  ,1:ny  ,1:nz  ,2)+
+     .         vec2(1:nx  ,1:ny  ,0:nz-1,2))*0.5d0
          scl(1:nx,1:ny,1:nz,1) = scl(1:nx,1:ny,1:nz,1) + B1*B2
 
 !     Bz
          B1 =(vec1(1:nx  ,1:ny  ,1:nz  ,3)+
-     .        vec1(1:nx  ,1:ny  ,0:nz-1,3)+
-     .        vec1(1:nx  ,0:ny-1,0:nz-1,3)+
-     .        vec1(1:nx  ,0:ny-1,1:nz  ,3))*0.25d0
+     .        vec1(1:nx  ,0:ny-1,1:nz  ,3))*0.5d0
          B2 =(vec2(1:nx  ,1:ny  ,1:nz  ,3)+         
-     .        vec2(1:nx  ,1:ny  ,0:nz-1,3)+         
-     .        vec2(1:nx  ,0:ny-1,0:nz-1,3)+         
-     .        vec2(1:nx  ,0:ny-1,1:nz  ,3))*0.25d0
+     .        vec2(1:nx  ,0:ny-1,1:nz  ,3))*0.5d0
          scl(1:nx,1:ny,1:nz,1) = scl(1:nx,1:ny,1:nz,1) + B1*B2
-                                                  
 
 !     At (i,j+1/2,k)
 !     Bx
-         B1 = vec1(1:nx  ,1:ny  ,1:nz,1)
-         B2 = vec2(1:nx  ,1:ny  ,1:nz,1)
+         B1 =(vec1(1:nx  ,1:ny  ,1:nz  ,1)+
+     .        vec1(1:nx  ,1:ny  ,0:nz-1,1))*0.5d0
+         B2 =(vec2(1:nx  ,1:ny  ,1:nz  ,1)+
+     .        vec2(1:nx  ,1:ny  ,0:nz-1,1))*0.5d0
          scl(1:nx,1:ny,1:nz,2) = scl(1:nx,1:ny,1:nz,2) + B1*B2
                                                  
 !     By
-         B1 =(vec1(1:nx  ,1:ny  ,1:nz,2)+
-     .        vec1(0:nx-1,1:ny  ,1:nz,2)+
-     .        vec1(0:nx-1,2:ny+1,1:nz,2)+
-     .        vec1(1:nx  ,2:ny+1,1:nz,2))*0.25d0
-         B2 =(vec2(1:nx  ,1:ny  ,1:nz,2)+
-     .        vec2(0:nx-1,1:ny  ,1:nz,2)+
-     .        vec2(0:nx-1,2:ny+1,1:nz,2)+
-     .        vec2(1:nx  ,2:ny+1,1:nz,2))*0.25d0
+         B1 =(vec1(1:nx  ,1:ny  ,1:nz  ,2)+
+     .        vec1(1:nx  ,2:ny+1,1:nz  ,2)+ 
+     .        vec1(0:nx-1,2:ny+1,1:nz  ,2)+ 
+     .        vec1(0:nx-1,1:ny  ,1:nz  ,2)+
+     .        vec1(1:nx  ,1:ny  ,0:nz-1,2)+
+     .        vec1(1:nx  ,2:ny+1,0:nz-1,2)+ 
+     .        vec1(0:nx-1,2:ny+1,0:nz-1,2)+ 
+     .        vec1(0:nx-1,1:ny  ,0:nz-1,2))*0.125d0
+         B2 =(vec2(1:nx  ,1:ny  ,1:nz  ,2)+
+     .        vec2(1:nx  ,2:ny+1,1:nz  ,2)+ 
+     .        vec2(0:nx-1,2:ny+1,1:nz  ,2)+ 
+     .        vec2(0:nx-1,1:ny  ,1:nz  ,2)+
+     .        vec2(1:nx  ,1:ny  ,0:nz-1,2)+
+     .        vec2(1:nx  ,2:ny+1,0:nz-1,2)+ 
+     .        vec2(0:nx-1,2:ny+1,0:nz-1,2)+ 
+     .        vec2(0:nx-1,1:ny  ,0:nz-1,2))*0.125d0
          scl(1:nx,1:ny,1:nz,2) = scl(1:nx,1:ny,1:nz,2) + B1*B2
 
 !     Bz
          B1 =(vec1(1:nx  ,1:ny  ,1:nz  ,3)+
-     .        vec1(0:nx-1,1:ny  ,1:nz  ,3)+
-     .        vec1(0:nx-1,1:ny  ,0:nz-1,3)+
-     .        vec1(1:nx  ,1:ny  ,0:nz-1,3))*0.25d0
+     .        vec1(0:nx-1,1:ny  ,1:nz  ,3))*0.5d0
          B2 =(vec2(1:nx  ,1:ny  ,1:nz  ,3)+
-     .        vec2(0:nx-1,1:ny  ,1:nz  ,3)+
-     .        vec2(0:nx-1,1:ny  ,0:nz-1,3)+
-     .        vec2(1:nx  ,1:ny  ,0:nz-1,3))*0.25d0
+     .        vec2(0:nx-1,1:ny  ,1:nz  ,3))*0.5d0
          scl(1:nx,1:ny,1:nz,2) = scl(1:nx,1:ny,1:nz,2) + B1*B2
 
-
-!     At (i,j,k)
+!     At (i,j,k+1/2)
 !     Bx
          B1 =(vec1(1:nx  ,1:ny  ,1:nz,1)+
      .        vec1(1:nx  ,0:ny-1,1:nz,1))*0.5d0
@@ -2770,13 +3266,21 @@ c     Begin program
 
 !     Bz
          B1 =(vec1(1:nx  ,1:ny  ,1:nz  ,3)+
+     .        vec1(0:nx-1,1:ny  ,1:nz  ,3)+ 
+     .        vec1(0:nx-1,0:ny-1,1:nz  ,3)+ 
      .        vec1(1:nx  ,0:ny-1,1:nz  ,3)+
-     .        vec1(0:nx-1,0:ny-1,1:nz  ,3)+
-     .        vec1(0:nx-1,1:ny  ,1:nz  ,3))*0.25d0
+     .        vec1(1:nx  ,1:ny  ,2:nz+1,3)+
+     .        vec1(0:nx-1,1:ny  ,2:nz+1,3)+ 
+     .        vec1(0:nx-1,0:ny-1,2:nz+1,3)+ 
+     .        vec1(1:nx  ,0:ny-1,2:nz+1,3))*0.125d0
          B2 =(vec2(1:nx  ,1:ny  ,1:nz  ,3)+
+     .        vec2(0:nx-1,1:ny  ,1:nz  ,3)+ 
+     .        vec2(0:nx-1,0:ny-1,1:nz  ,3)+ 
      .        vec2(1:nx  ,0:ny-1,1:nz  ,3)+
-     .        vec2(0:nx-1,0:ny-1,1:nz  ,3)+
-     .        vec2(0:nx-1,1:ny  ,1:nz  ,3))*0.25d0
+     .        vec2(1:nx  ,1:ny  ,2:nz+1,3)+
+     .        vec2(0:nx-1,1:ny  ,2:nz+1,3)+ 
+     .        vec2(0:nx-1,0:ny-1,2:nz+1,3)+ 
+     .        vec2(1:nx  ,0:ny-1,2:nz+1,3))*0.125d0
          scl(1:nx,1:ny,1:nz,3) = scl(1:nx,1:ny,1:nz,3) + B1*B2
       else
         write (*,*) 'Case not implemented yet'
@@ -2787,151 +3291,35 @@ c$$$     .            ,"Case not implemented yet")
       endif                                       
 
       !Apply Jacobian factor
-      scl(:,:,:,1) = scl(:,:,:,1)/gmetric%grid(igrid)%jac_v !careful
-      scl(:,:,:,2) = scl(:,:,:,2)/gmetric%grid(igrid)%jac
-      scl(:,:,:,3) = scl(:,:,:,3)/gmetric%grid(igrid)%jac
+      scl(1:nx,1:ny,1:nz,1) = 4*scl(1:nx,1:ny,1:nz,1)
+     .            /(g_def%gmetric%grid(igrid)%jac_v(1:nx,1:ny  ,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(1:nx,0:ny-1,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(1:nx,1:ny  ,0:nz-1)
+     .             +g_def%gmetric%grid(igrid)%jac_v(1:nx,0:ny-1,0:nz-1))
+      scl(1:nx,1:ny,1:nz,2) = 4*scl(1:nx,1:ny,1:nz,2)
+     .            /(g_def%gmetric%grid(igrid)%jac_v(1:nx  ,1:ny,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(0:nx-1,1:ny,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(1:nx  ,1:ny,0:nz-1)
+     .             +g_def%gmetric%grid(igrid)%jac_v(0:nx-1,1:ny,0:nz-1))
+      scl(1:nx,1:ny,1:nz,3) = 4*scl(1:nx,1:ny,1:nz,3)
+     .            /(g_def%gmetric%grid(igrid)%jac_v(1:nx  ,1:ny  ,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(0:nx-1,1:ny  ,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(1:nx  ,0:ny-1,1:nz)
+     .             +g_def%gmetric%grid(igrid)%jac_v(0:nx-1,0:ny-1,1:nz))
 
 c     End program
 
       end function scalarProduct_stg_mesh
 
-c     tensorScalarProduct
-c     ################################################################
-      function tensorScalarProduct(g_def,i,j,k,igrid,tnsr1,tnsr2)
-     .         result (dot)
+      end module grid_operations_stg
 
-c     ---------------------------------------------------------------
-c     Finds tensor scalar product of two tensors, one covariant
-c     and the other contravariant.
-c     ---------------------------------------------------------------
+c module grid_operations
+c #####################################################################
+      module grid_operations
 
-      implicit none
+      use grid_operations_cell
 
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer    :: i,j,k,igrid
-      real(8)    :: dot,tnsr1(3,3),tnsr2(3,3)
-
-c     Local variables
-
-      type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-      gmetric => g_def%gmetric
-
-      dot = sum(tnsr1*tnsr2)/gmetric%grid(igrid)%jac(i,j,k)**2
-
-c     End 
-
-      end function tensorScalarProduct
-
-c     crossProduct_ijk
-c     ################################################################
-      function crossProduct_ijk(g_def,i,j,k,igrid,vec1,vec2,cnv_in)
-     .         result (vec3)
-
-c     ---------------------------------------------------------------
-c     Finds cross product of two vectors, either both covariant
-c     (cnv_in=.false.) or both contravariant (cnv_in=.true.) Result
-c     is covariant if cnv_in=.true., and contravariant otherwise.
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer    :: i,j,k,igrid
-      real(8)    :: vec1(3),vec2(3),vec3(3)
-      logical    :: cnv_in
-
-c     Local variables
-
-      type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-      gmetric => g_def%gmetric
-
-      if (cnv_in) then  !Result is covariant
-        vec3(1) = (vec1(2)*vec2(3)
-     .            -vec1(3)*vec2(2))
-     .            /gmetric%grid(igrid)%jac(i,j,k)
-        vec3(2) = (vec1(3)*vec2(1)
-     .            -vec1(1)*vec2(3))
-     .            /gmetric%grid(igrid)%jac(i,j,k)
-        vec3(3) = (vec1(1)*vec2(2)
-     .            -vec1(2)*vec2(1))
-     .            /gmetric%grid(igrid)%jac(i,j,k)
-      else           !Result is contravariant
-        vec3(1) = (vec1(2)*vec2(3)
-     .            -vec1(3)*vec2(2))
-        vec3(2) = (vec1(3)*vec2(1)
-     .            -vec1(1)*vec2(3))
-        vec3(3) = (vec1(1)*vec2(2)
-     .            -vec1(2)*vec2(1))
-      endif
-
-c     End 
-
-      end function crossProduct_ijk
-
-c     crossProduct_mesh
-c     ################################################################
-      function crossProduct_mesh(g_def,igrid,vec1,vec2,cnv_in)
-     .         result (vec3)
-
-c     ---------------------------------------------------------------
-c     Finds cross product of two vectors, either both covariant
-c     (cnv_in=.false.) or both contravariant (cnv_in=.true.) Result
-c     is covariant if cnv_in=.true., and contravariant otherwise.
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer    :: igrid
-      real(8)    :: vec1(:,:,:,:),vec2(:,:,:,:)
-      real(8)    :: vec3(size(vec1,1),size(vec1,2)
-     .                  ,size(vec1,3),size(vec1,4))
-      logical    :: cnv_in
-
-c     Local variables
-
-      type(MG_grid_metrics),pointer :: gmetric 
-
-c     Begin program
-
-      gmetric => g_def%gmetric
-
-      if (cnv_in) then  !Result is covariant
-        vec3(:,:,:,1) = (vec1(:,:,:,2)*vec2(:,:,:,3)
-     .                  -vec1(:,:,:,3)*vec2(:,:,:,2))
-     .                  /gmetric%grid(igrid)%jac
-        vec3(:,:,:,2) = (vec1(:,:,:,3)*vec2(:,:,:,1)
-     .                  -vec1(:,:,:,1)*vec2(:,:,:,3))
-     .                  /gmetric%grid(igrid)%jac
-        vec3(:,:,:,3) = (vec1(:,:,:,1)*vec2(:,:,:,2)
-     .                  -vec1(:,:,:,2)*vec2(:,:,:,1))
-     .                  /gmetric%grid(igrid)%jac
-      else           !Result is contravariant
-        vec3(:,:,:,1) = (vec1(:,:,:,2)*vec2(:,:,:,3)
-     .                  -vec1(:,:,:,3)*vec2(:,:,:,2))
-        vec3(:,:,:,2) = (vec1(:,:,:,3)*vec2(:,:,:,1)
-     .                  -vec1(:,:,:,1)*vec2(:,:,:,3))
-        vec3(:,:,:,3) = (vec1(:,:,:,1)*vec2(:,:,:,2)
-     .                  -vec1(:,:,:,2)*vec2(:,:,:,1))
-      endif
-
-c     End 
-
-      end function crossProduct_mesh
+      use grid_operations_stg
 
       end module grid_operations
+    
