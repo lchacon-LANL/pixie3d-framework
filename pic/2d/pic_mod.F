@@ -1887,7 +1887,7 @@ c ######################################################################
 
 c     pic_update_tnp
 c     ##################################################################
-      subroutine pic_update_tnp(A,DtA,test)
+      subroutine pic_update_tnp(A,DtA,test,init)
 
 c     ------------------------------------------------------------------
 c     Update particle position and velocities in time, compute inflow
@@ -1901,6 +1901,8 @@ c     Call variables
       real(8), intent(in) :: A(0:,0:,1:),DtA(0:,0:,1:)
 
       character(*) :: test
+
+      logical ::  init
 
 c     Local variables
 
@@ -1917,6 +1919,8 @@ c     Begin program
 c     Update moments
 
       momsn = moms
+
+      if (init) return
 
 c     Update particle info
 
