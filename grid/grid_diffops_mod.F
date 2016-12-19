@@ -4649,8 +4649,8 @@ c     ###############################################################
 
 c     ---------------------------------------------------------------
 c     Calculates curl(curl(A)) in general non-orthogonal coordinates,
-c     preserving the SPD property. The vector A is both in covariant and
-c     contravariant representations, and returns covariant components.
+c     preserving the SPD property. The vector A is both in covariant
+c     representation, and returns covariant components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -4687,8 +4687,8 @@ c     #############################################################
       subroutine curlcurl_cov_x(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                         ,t11,t12,t13,flag)
 c     -------------------------------------------------------------
-c     Calculates mixed representation tensor components t11-t13 for
-c     nabla(vec), [nab(vec))^l_m.
+c     Calculates tensor components t11-t13 of curl(curl) in covariant
+c     representation.
 c     -------------------------------------------------------------
 
         implicit none
@@ -4748,10 +4748,10 @@ c     End program
 c     curlcurl_cov_y
 c     #############################################################
       subroutine curlcurl_cov_y(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                      ,t21,t22,t23,flag)
+     .                         ,t21,t22,t23,flag)
 c     -------------------------------------------------------------
-c     Calculates mixed representation tensor components t21-t23 for
-c     nabla(vec), [nab(vec))^l_m.
+c     Calculates tensor components t21-t23 of curl(curl) in covariant
+c     representation.
 c     -------------------------------------------------------------
 
         implicit none
@@ -4811,10 +4811,10 @@ c     End program
 c     curlcurl_cov_z
 c     #############################################################
       subroutine curlcurl_cov_z(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                      ,t31,t32,t33,flag)
+     .                         ,t31,t32,t33,flag)
 c     -------------------------------------------------------------
-c     Calculates mixed representation tensor components t31-t33 for
-c     nabla(vec), [nab(vec))^l_m.
+c     Calculates tensor components t31-t33 of curl(curl) in covariant
+c     representation.
 c     -------------------------------------------------------------
 
         implicit none
@@ -4876,9 +4876,8 @@ c     ###############################################################
       function curlcurl_mesh(g_def,igrid,cnv,diff) result(cnv_out)
 
 c     ---------------------------------------------------------------
-c     Calculates curl(A) in general non-orthogonal coordinates. Is
-c     boundary-ready (can extrapolate). The vector A is
-c     covariant, and returns the contravariant component "comp".
+c     Calculates curlcurl(A) in general non-orthogonal coordinates. The
+c     vector A is contravariant, and returns contravariant components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran

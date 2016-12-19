@@ -1856,13 +1856,16 @@ c     Fill PETSc/PERIODIC ghost cells
           call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
         enddo
       endif
-#elseif
+#elif !defined(samrai)
       call sync(PER)
 #endif
 
       !Exit if all periodic domains 
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
-
+      if (bcPER(1).and.bcPER(2).and.bcPER(3)) then
+        stg_vector = .false.
+        return
+      endif
+      
 c     Fill SP ghost cells independently on cnv and cov staggered vectors
 
       call sync(SP)
