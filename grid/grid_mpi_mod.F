@@ -1674,7 +1674,6 @@ c     Communicate
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
      .                  ,mpicomm,mpierr)
 
-
       do k=1,npzl
         do j=1,npyl
           do i=1,npxl
@@ -1704,7 +1703,7 @@ c     End program
 
 c     find_global_field_scl
 c     ##############################################################
-      subroutine find_global_field_scl(lf,gf,dump,mpi_comm)
+      subroutine find_global_field_scl(lf,gf,dump,mpi_comm,no_bc)
 
       use xdraw_io
 
@@ -1718,7 +1717,7 @@ c     Call variables
 
       real(8),dimension(0:,0:,0:) :: lf,gf
 
-      logical,optional :: dump
+      logical,optional :: dump,no_bc
       integer,optional :: mpi_comm
 
 c     Local variables
@@ -1726,7 +1725,7 @@ c     Local variables
       integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc
       real(8),pointer,dimension(:) :: local_x,global_x
 
-      logical :: dmp
+      logical :: dmp,nobc
 
       integer :: mpicomm,npxl,npyl,npzl,npl
 
@@ -1736,6 +1735,12 @@ c     Begin program
         dmp=dump
       else
         dmp=.false.
+      endif
+
+      if (PRESENT(no_bc)) then
+        nobc=no_bc
+      else
+        nobc=.false.
       endif
 
 #if defined(petsc)
@@ -1800,8 +1805,8 @@ c     Communicate
       deallocate(local_x,global_x)
 
       !Synchronize global periodic boundaries
-      do ibc =1,6
-        if (bcond(ibc) == PER) call per_bc(ibc,gf)
+      do ibc=1,6
+        if (bcond(ibc)==PER.and.(.not.nobc)) call per_bc(ibc,gf)
       enddo
 #else
       gf = lf
