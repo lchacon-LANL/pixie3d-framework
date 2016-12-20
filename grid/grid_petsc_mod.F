@@ -84,6 +84,8 @@ c     Begin program
           bcond = FSYM
         elsewhere (bcs == 'equ')
           bcond = EQU
+        elsewhere (bcs == 'opn')
+          bcond = OPN
         end where
 
         if (minval(bcond) < 0) ierr = 1
