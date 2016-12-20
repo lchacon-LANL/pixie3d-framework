@@ -338,8 +338,8 @@ c ######################################################################
       use pic_io, ONLY: p_stop
 
       !B.C.
-      integer, parameter :: pPER=PER,pSP=SP,pOPN=OPN,pREF=-2  !Negative to avoid interference
-                                                              ! with framework BC defs
+      integer, parameter :: pPER=PER,pSP=SP,pOPN=OPN,pREF=-2
+
       integer :: pbcond(6)
       real(8) :: vinject(3,2*_Dimx)=0d0  !flow speed at boundaries for open b.c.
 
@@ -347,7 +347,7 @@ c ######################################################################
 
 c     defineBCs_pcles
 c     ###############################################################
-      subroutine defineBCs_pcles!(test)
+      subroutine defineBCs_pcles
 c     ---------------------------------------------------------------
 c     Defines boundary conditions of particles.
 c     ---------------------------------------------------------------
@@ -356,17 +356,37 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-cc      character(*) :: test
-
 c     Local variables
 
 c     Begin program
 
-cc      pbcond = pPER
       pbcond = bcond  !Topological BCs
 
       where (pbcond == DEF) pbcond = pREF
 
+c     End program
+
+      end subroutine defineBCs_pcles
+
+c$$$c     defineBCs_pcles
+c$$$c     ###############################################################
+c$$$      subroutine defineBCs_pcles(test)
+c$$$c     ---------------------------------------------------------------
+c$$$c     Defines boundary conditions of particles.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      character(*) :: test
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      pbcond = pPER
+c$$$
 c$$$      select case(trim(test))
 c$$$      case ('slow_shock')
 c$$$
@@ -393,10 +413,10 @@ c$$$
 c$$$        call p_stop("defineBCs_pcles","Pcle BCs undefined")
 c$$$
 c$$$      end select
-
-c     End program
-
-      end subroutine defineBCs_pcles
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine defineBCs_pcles
 
       end module pic_BCs
 
