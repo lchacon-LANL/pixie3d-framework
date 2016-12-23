@@ -1842,6 +1842,10 @@ c     Initialize GLOBAL limits
       kkmxp =  min(kkmax + 1,gbc_def%nzgl(iigz)+1)
 #endif
 
+c     Find cnv components
+
+      if (to_cnv) v_cnv =  XformToCnv_stg_mesh(gbc_def,igxbc,v_cov)
+
 c     Fill PETSc/PERIODIC ghost cells
 
 #if defined(petsc) && !defined(samrai)
