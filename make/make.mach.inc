@@ -270,7 +270,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
   FC=gfortran
 
-  NETCDF=f
+  NETCDF=t
   NETCDF_LIBS = -L/opt/local/lib -lnetcdff -lnetcdf
   NETCDF_INC  = -I/opt/local/include
 
@@ -628,25 +628,22 @@ endif
 ########
 
 ifeq ($(findstring sith,$(HOST)),sith)
-   FC = pgf95
+  FC = pgf95
 
-   BOPT = O
-   PETSC_DIR = /sw/sith/petsc/3.0.0/rhel6_pgi13.4_debug/petsc-3.0.0-p10
- #/sw/sith/petsc/3.0.0/centos5.5_pgi10.9_opt/petsc-3.0.0-p10
-   PETSC_ARCH = sith-debug
+  BOPT = O
+  PETSC_DIR ?= /sw/sith/petsc/3.0.0/centos5.5_pgi10.9_opt/petsc-3.0.0-p10
+  PETSC_ARCH ?= sith-opt
 
-   HDF5 = t
- #HDF5_DIR = /sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2
-   HDF5_DIR = /sw/sith/hdf5/1.8.10/rhel6_pgi12.8
-   HDF5_HOME = $(HDF5_DIR)
-   HDF5_LIBS = $(HDF5_FLIB)
-   HDF5_MOD  = $(HDF5_HOME)/lib #-I$(HDF5_DIR)/include
-   HDF5_INC  = $(HDF5_DIR)/include
+  HDF5 = t
+  #HDF5_DIR = /sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2
+  HDF5_HOME = $(HDF5_DIR)
+  HDF5_LIBS = $(HDF5_FLIB)
+  HDF5_MOD  = $(HDF5_HOME)/lib -I$(HDF5_DIR)/include
 
-   ADIOS = t
-   ADIOS_HOME = $(ADIOS_DIR)
-   ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB)
-   ADIOS_VER  = 1.90
+  ADIOS = t
+  ADIOS_HOME = $(ADIOS_DIR)
+  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) 
+  ADIOS_VER  = 1.3
 endif
 
 ###########
@@ -961,6 +958,62 @@ ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
   endif
 
 endif
+
+################################
+# Taitano on mustang turquoise #
+################################
+
+ifeq ($(findstring mu,$(HOST)),mu)
+#ifeq ($(HOST),mu-fe2.lanl.gov)
+#ifeq ($(HOST),mu1599.localdomain)
+
+  FC=gfortran
+
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  ifdef BOPT
+    PETSC_DIR =/turquoise/usr/projects/icfifp/Applications/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux-gnu-c-opt
+    else
+#      PETSC_ARCH = turquoise_openmpi_g
+# NOT INSTALLED DEBUG.
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME = /turquoise/usr/projects/icfifp/Applications/hdf5-1.8.11/
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = t
+
+    ADIOS_HOME = /turquoise/usr/projects/icfifp/Applications/adios-1.3.1/
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/icfifp/Applications/mxml-2.5/lib/ -lmxml
+    ADIOS_VER  = 1.31
+
+  else
+#    LIBS += -llapack -lblas
+
+#    HDF5 = t
+
+#    HDF5_HOME = $(HOME)/Software/shdf5-1.8.11
+#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#    HDF5_MOD  =$(HDF5_HOME)/include
+#    HDF5_INC  =$(HDF5_HOME)/include
+
+#    ADIOS = f
+
+  endif
+
+endif
+
 
 ##########
 # Darwin #
