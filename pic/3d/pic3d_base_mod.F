@@ -333,13 +333,13 @@ c pic_BCs
 c ######################################################################    
       module pic_BCs
 
-      use grid, ONLY: bcond,PER,NEU,DIR,DEF
+      use grid, ONLY: bcond,PER,NEU,DIR,DEF,SP,OPN
 
       use pic_io, ONLY: p_stop
 
-      !B.C. (left 1, right 2)
-      integer, parameter :: pPER=-1,pREF=-2,pOPN=-3  !Negative to avoid interference
-                                                     ! with framework BC defs
+      !B.C.
+      integer, parameter :: pPER=PER,pSP=SP,pOPN=OPN,pREF=-2
+
       integer :: pbcond(6)
       real(8) :: vinject(3,2*_Dimx)=0d0  !flow speed at boundaries for open b.c.
 
@@ -347,78 +347,22 @@ c ######################################################################
 
 c     defineBCs_pcles
 c     ###############################################################
-      subroutine defineBCs_pcles(test)
+      subroutine defineBCs_pcles
 c     ---------------------------------------------------------------
-c     Defines boundary conditions of physical quantities.
-c     On input:
-c       * varray
-c     On output:
-c       * bbcs -> real array of size (6,neq) containing BC setup:
-c           + bbcs(1) ---> at x0
-c           + bbcs(2) ---> at x1
-c           + bbcs(3) ---> at y0
-c           + bbcs(4) ---> at y1
-c           + bbcs(5) ---> at z0
-c           + bbcs(6) ---> at z1
-c     Definition of BC identifiers is given in "grid_mod.f". In vectors,
-c     a negative BC identifier means that BCs are to be imposed on
-c     covariant components instead of on (default) contravariant comps.
+c     Defines boundary conditions of particles
 c     ---------------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-      character(*) :: test
-
 c     Local variables
 
 c     Begin program
 
-      pbcond = pPER
+      pbcond = bcond  !Topological BCs
 
-      select case(trim(test))
-      case ('slow_shock')
-
-        !set pbcond(2) for particle b.c.
-        pbcond(1)   = pOPN
-        pbcond(2)   = pREF
-        pbcond(3)   = pPER
-        pbcond(4)   = pPER
-
-      case ('ic','tm')
- 
-        pbcond(1)   = pPER
-        pbcond(2)   = pPER
-        pbcond(3)   = pREF
-        pbcond(4)   = pREF
-
-      case('bpnch')
-
-        pbcond(1)   = pREF
-        pbcond(2)   = pREF
-        pbcond(3)   = pPER
-        pbcond(4)   = pPER
-
-      case ('wbl_bc')
- 
-        pbcond(1)   = pREF
-        pbcond(2)   = pREF
-        pbcond(3)   = pPER
-        pbcond(4)   = pPER
-
-      case ('weibel','kaw_ii','2strm','iaw','landau','langdon')
-
-        pbcond(1)   = pPER
-        pbcond(2)   = pPER
-        pbcond(3)   = pPER
-        pbcond(4)   = pPER
-
-      case default
-
-        call p_stop("defineBCs_pcles","Pcle BCs undefined")
-
-      end select
+      where (pbcond == DEF) pbcond = pREF
 
 c     End program
 
@@ -2009,28 +1953,23 @@ c     Begin program
 
       !for cell-centered moments
       mom_bcs(:,Ins) = pbcond
-      where (mom_bcs(:,Ins)==pPER) mom_bcs(:,Ins ) = PER
       where (mom_bcs(:,Ins)==pOPN) mom_bcs(:,Ins ) = NEU !Cell centered
       where (mom_bcs(:,Ins)==pREF) mom_bcs(:,Ins ) = NEU !Cell centered
 
       mom_bcs(:,IS11) = pbcond
-      where (mom_bcs(:,IS11)==pPER) mom_bcs(:,IS11) = PER
       where (mom_bcs(:,IS11)==pOPN
      .   .or.mom_bcs(:,IS11)==pREF) mom_bcs(:,IS11) = NEU !Cell centered
 
       mom_bcs(:,IS22) = pbcond
-      where (mom_bcs(:,IS22)==pPER) mom_bcs(:,IS22) = PER
       where (mom_bcs(:,IS22)==pOPN
      .   .or.mom_bcs(:,IS22)==pREF) mom_bcs(:,IS22) = NEU !Cell centered
 
       mom_bcs(:,IS33) = pbcond
-      where (mom_bcs(:,IS33)==pPER) mom_bcs(:,IS33) = PER
       where (mom_bcs(:,IS33)==pOPN
      .   .or.mom_bcs(:,IS33)==pREF) mom_bcs(:,IS33) = NEU !Cell centered
 
       !for staggered moments
       mom_bcs(:,Ipx) = pbcond
-      where (mom_bcs(:,Ipx) == pPER) mom_bcs(:,Ipx) = PER !All
       where (mom_bcs(:,Ipx) == pOPN) mom_bcs(:,Ipx) = DIR !All
 
 c$$$      where (mom_bcs(3:6,Ipx) == pREF) mom_bcs(3:6,Ipx) = NEU !Y,Z
@@ -2038,7 +1977,6 @@ c$$$      where (mom_bcs(1:2,Ipx) == pREF) mom_bcs(1:2,Ipx) = DIR !X
       where (mom_bcs(:,Ipx) == pREF) mom_bcs(:,Ipx) = DIR !All
 
       mom_bcs(:,Ipy) = pbcond
-      where (mom_bcs(:,Ipy) == pPER) mom_bcs(:,Ipy) = PER !All
       where (mom_bcs(:,Ipy) == pOPN) mom_bcs(:,Ipy) = DIR !All
 
 c$$$      where (mom_bcs(1:2,Ipy) == pREF) mom_bcs(1:2,Ipy) = NEU !X
@@ -2047,7 +1985,6 @@ c$$$      where (mom_bcs(5:6,Ipy) == pREF) mom_bcs(5:6,Ipy) = NEU !Z
       where (mom_bcs(:,Ipy) == pREF) mom_bcs(:,Ipy) = DIR !All
 
       mom_bcs(:,Ipz) = pbcond
-      where (mom_bcs(:,Ipz) == pPER) mom_bcs(:,Ipz) = PER !All
       where (mom_bcs(:,Ipz) == pOPN) mom_bcs(:,Ipz) = DIR !All
 
 c$$$      where (mom_bcs(1:4,Ipz) == pREF) mom_bcs(1:4,Ipz) = NEU !X,Y
@@ -2691,7 +2628,6 @@ c     Solve 2D mass matrix problem
       do isp=1,numspcs
         bcs(:,isp) = pbcond
       enddo
-      where (bcs == pPER) bcs = PER
       where (bcs == pREF .or. bcs == pOPN) bcs = NEU
 
       iiout = 0 !No output
@@ -2846,7 +2782,6 @@ c     Solve 2D mass matrix problem
       do isp=1,numspcs
         bcs(:,isp) = pbcond
       enddo
-      where (bcs == pPER) bcs = PER
       where (bcs == pREF) bcs = NEU
       where (bcs == pOPN) bcs = DIR
 
@@ -2967,7 +2902,6 @@ c     Solve 2D mass matrix problem
       do isp=1,numspcs
         bcs(:,isp) = pbcond
       enddo
-      where (bcs == pPER) bcs = PER
       where (bcs == pREF) bcs = NEU
       where (bcs == pOPN) bcs = DIR
 
@@ -3843,13 +3777,11 @@ c     ##################################################################
       
 c     defineBCs_PIC
 c     ##################################################################
-      subroutine defineBCs_PIC(test)
+      subroutine defineBCs_PIC
 
       implicit none
 
-      character(*) :: test
-
-      call defineBCs_pcles(test)
+      call defineBCs_pcles
 
       call defineBCs_moms
 
@@ -4374,7 +4306,7 @@ c     Begin program
 !     periodic
          if (loc == 0) ip(dim) = nn
          if (loc == 1) ip(dim) = 1  
-      case(pREF)
+      case(pREF,pSP)
 !     reflective, force it to be on the boundary, before which xp=(0:eps).
          if (loc == 0) ip(dim) = ip(dim) + 1
          if (loc == 1) ip(dim) = ip(dim) - 1 
