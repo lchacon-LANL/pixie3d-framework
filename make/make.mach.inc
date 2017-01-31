@@ -950,6 +950,8 @@ ifeq ($(findstring wf,$(HOST)),wf)
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/icfifp/Applications/mxml-2.5/lib/ -lmxml
     ADIOS_VER  = 1.31
 
+    ADIOS_BUFFER_MB = 1000
+
   else
 #    LIBS += -llapack -lblas
 
@@ -986,7 +988,7 @@ endif
 # Grizzly turquoise #
 #####################
 
-ifeq ($(findstring gr-f,$(HOST)),gr-f)
+ifeq ($(findstring gr,$(HOST)),gr)
 
   FC=gfortran
 
@@ -997,12 +999,12 @@ ifeq ($(findstring gr-f,$(HOST)),gr-f)
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
   ifdef BOPT
-    PETSC_DIR =/turquoise/usr/projects/icfifp/Applications-luis/petsc-3.0.0-p7
+    PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = linux64_openmpi-1.10.3_gcc-5.3.0
+      PETSC_ARCH = linux64_openmpi-1.10.5_gcc-5.3.0
     else
-      PETSC_ARCH = linux64_openmpi-1.10.3_gcc-5.3.0_dbg
+      PETSC_ARCH = linux64_openmpi-1.10.5_gcc-5.3.0_dbg
     endif
 
     HDF5 = t
@@ -1014,8 +1016,10 @@ ifeq ($(findstring gr-f,$(HOST)),gr-f)
 
     ADIOS = t
 
-    ADIOS_HOME = /turquoise/usr/projects/icfifp/Applications-luis/adios-1.3.1/
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/icfifp/Applications-luis/mxml-2.5/lib/ -lmxml
+    ADIOS_BUFFER_MB = 1000
+
+    ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.3.1-grizzly-gcc/lib
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/magreconn/soft/mxml-2.5-grizzly-gcc/lib/ -lmxml
     ADIOS_VER  = 1.31
 
   endif
