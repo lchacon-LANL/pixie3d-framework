@@ -968,17 +968,77 @@ ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
 
 endif
 
+###################
+# Wolf with intel #
+###################
+
+ifeq ($(findstring wf-fe,$(HOST)),wf-fe)
+
+  FC=ifort
+  M_ARCH = corei7-avx
+  LIBS += -llapack -lblas
+
+    ifdef BOPT
+          PETSC_DIR =/usr/projects/magnetic/stanier/soft/petsc-3.0.0-p7
+
+          ifeq ($(BOPT),O)
+               PETSC_ARCH = turquoise_ompi165-intel16.0.3_o3
+          else
+               # NOT INSTALLED DEBUG.
+          endif
+
+          HDF5 = f
+          NETCDF=f
+
+          ADIOS = t
+
+          ADIOS_HOME = /usr/projects/magreconn/soft/adios-1.3.1-mustang
+#/usr/projects/magnetic/stanier/soft/adios-1.3.1-wolf-intel-fixed
+          ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/usr/projects/magnetic/stanier/soft/mxml-2.5-wolf-intel/lib -lmxml
+          ADIOS_VER  = 1.31
+          ADIOS_BUFFER_MB = 1000
+
+    endif
+endif
+
+######################
+# Grizzly with intel #
+######################
+
+ifeq ($(findstring gr-fe,$(HOST)),gr-fe)
+
+  FC=ifort
+  M_ARCH = broadwell
+  LIBS += -llapack -lblas
+
+    ifdef BOPT
+          PETSC_DIR =/usr/projects/magnetic/stanier/soft/petsc-3.0.0-p7
+
+          ifeq ($(BOPT),O)
+               PETSC_ARCH = grizzly_ompi1.10.5_intel17.0.1
+          else
+               # NOT INSTALLED DEBUG.
+          endif
+
+          HDF5 = f
+          NETCDF=f
+
+          ADIOS = t
+
+          ADIOS_HOME = /usr/projects/magreconn/soft/adios-1.3.1-mustang
+#/usr/projects/magnetic/stanier/soft/adios-1.3.1-wolf-intel-fixed
+          ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/usr/projects/magnetic/stanier/soft/mxml-2.5-wolf-intel/lib -lmxml
+          ADIOS_VER  = 1.31
+          ADIOS_BUFFER_MB = 2000
+
+    endif
+endif
+
 ##########
 # Darwin #
 ##########
 
 ifeq ($(findstring cn,$(HOST)),cn)
-  FC = ifort
-  M_ARCH = core-avx2
-  LIBS += -llapack -lblas
-endif
-
-ifeq ($(findstring darwin,$(HOST)),darwin)
   FC = ifort
   M_ARCH = core-avx2
   LIBS += -llapack -lblas

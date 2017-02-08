@@ -385,6 +385,8 @@ c     Begin program
         pbcond(2)   = pREF
         pbcond(3)   = pPER
         pbcond(4)   = pPER
+        pbcond(5)   = pPER
+        pbcond(6)   = pPER
 
       case ('ic','tm')
  
@@ -392,6 +394,8 @@ c     Begin program
         pbcond(2)   = pPER
         pbcond(3)   = pREF
         pbcond(4)   = pREF
+        pbcond(5)   = pPER
+        pbcond(6)   = pPER
 
       case('bpnch')
 
@@ -399,6 +403,8 @@ c     Begin program
         pbcond(2)   = pREF
         pbcond(3)   = pPER
         pbcond(4)   = pPER
+        pbcond(5)   = pPER
+        pbcond(6)   = pPER
 
       case ('wbl_bc')
  
@@ -406,6 +412,8 @@ c     Begin program
         pbcond(2)   = pREF
         pbcond(3)   = pPER
         pbcond(4)   = pPER
+        pbcond(5)   = pPER
+        pbcond(6)   = pPER
 
       case ('weibel','kaw_ii','2strm','iaw','landau','langdon')
 
@@ -413,6 +421,8 @@ c     Begin program
         pbcond(2)   = pPER
         pbcond(3)   = pPER
         pbcond(4)   = pPER
+        pbcond(5)   = pPER
+        pbcond(6)   = pPER
 
       case default
 
@@ -437,28 +447,55 @@ c ######################################################################
 
 c     xform_pcle_idx_scl
 c     ##################################################################
-      subroutine xform_pcle_idx_scl(ijk,nx,i,j)
+      subroutine xform_pcle_idx_scl(ijk,nx,ny,i,j,k) 
 
       implicit none
 
-      integer :: ijk,nx,i,j
+      integer :: ijk,nx,ny,i,j,k
+
+!      j = (ijk-1)/nx + 1
+!      i = ijk - nx*(j-1)
+!cc      i  = mod(ijk, nx) + 1
+
+!ADAM 3D:
+      k = (ijk-1)/(nx*ny) + 1
+      j = ((ijk-nx*ny*(k-1))-1)/nx + 1
+      i = ijk - nx*ny*(k-1) - nx*(j-1)
+
+      end subroutine xform_pcle_idx_scl
+
+c     xform_pcle_idx_sort
+c     ##################################################################
+      subroutine xform_pcle_idx_sort(ijk,nx,i,j) ! Adam. Need to modify this too - single particle.
+
+      implicit none
+
+      integer :: ijk,nx,ny,i,j,k
 
       j = (ijk-1)/nx + 1
       i = ijk - nx*(j-1)
 cc      i  = mod(ijk, nx) + 1
 
-      end subroutine xform_pcle_idx_scl
+      end subroutine xform_pcle_idx_sort
 
 c     xform_pcle_idx
 c     ##################################################################
-      subroutine xform_pcle_idx(ijk,nx,i,j)
+!      subroutine xform_pcle_idx(ijk,nx,i,j)
+      subroutine xform_pcle_idx(ijk,nx,ny,i,j,k)
 
       implicit none
 
-      integer :: ijk(:),nx,i(:),j(:)
+!      integer :: ijk(:),nx,i(:),j(:)
+      integer :: ijk(:),nx,ny,i(:),j(:),k(:)
 
-      j = (ijk-1)/nx + 1
-      i = ijk - nx*(j-1)
+!      j = (ijk-1)/nx + 1
+!      i = ijk - nx*(j-1)
+
+!Adam 3D:
+      k = (ijk-1)/(nx*ny) + 1
+      j = ((ijk-nx*ny*(k-1))-1)/nx + 1
+      i = ijk - nx*ny*(k-1) - nx*(j-1)
+
 cc      i  = mod(ijk, nx) + 1
 
       end subroutine xform_pcle_idx
@@ -569,6 +606,27 @@ c     Begin program
 c     End program
 
       end function Dy_shape2_offset_scalar
+
+c     Dz_shape2_offset
+c     ##################################################################
+      function Dz_shape2_offset_scalar(x) result(ss)
+
+      implicit none
+
+c     Call variables
+
+      real(_prec) :: x,ss(3)
+
+c     Local variables
+
+c     Begin program
+
+      ss(1) = (x-1d0)*ihz
+      ss(2) = (-2d0*x+1d0)*ihz
+      ss(3) = x*ihz
+
+c     End program                                                                                                                                           
+      end function Dz_shape2_offset_scalar
 
 c     Dxx_shape2_offset
 c     ##################################################################
@@ -701,6 +759,28 @@ c     End program
 
       end function Dy_shape2_offset
 
+c     Dz_shape2_offset
+c     ##################################################################
+      function Dz_shape2_offset(x) result(ss)
+
+      implicit none
+
+c     Call variables
+
+      real(_prec) :: x(_Npg),ss(_Npg,3)
+
+c     Local variables
+
+c     Begin program
+
+      ss(:,1) = (x-1d0)*ihz
+      ss(:,2) = (-2d0*x+1d0)*ihz
+      ss(:,3) = x*ihz
+
+c     End program
+
+      end function Dz_shape2_offset
+
 c     Dxx_shape2_offset
 c     ##################################################################
       function Dxx_shape2_offset(x) result(ss)
@@ -744,6 +824,8 @@ c     Begin program
 c     End program
 
       end function Dyy_shape2_offset
+
+! ADAM: MAY NEED Dzz for curvilinear computation of gamma.
 
 c     Optimized matrix dot product (2) (C. Mikida)
 c     ##################################################################
@@ -948,6 +1030,31 @@ c     Local variables
 
       end function opt_vecvec_3_pcle
 
+c     Optimized vector-vector-vector outer product (3x3x3) (Adam)
+c     ##################################################################
+      function opt_vecvecvec_3_pcle(A,B,C) result(D)
+      implicit none
+
+c     Call variables                                                                       
+      real(_prec) :: A(_Npg,3,1,1), B(_Npg,1,3,1), C(_Npg,1,1,3)
+      real(_prec) :: D(_Npg,3,3,3)
+
+c     Local variables                                                                                                                          
+      integer :: i, j, k, ii
+
+      do i=1, 3
+         do j=1, 3
+            do k=1, 3
+               !VECTOR SIMD
+               do ii=1,_Npg
+                  D(ii,i,j,k) = A(ii,i,1,1)*B(ii,1,j,1)*C(ii,1,1,k)
+               end do
+            end do
+         end do
+      end do
+               
+      end function opt_vecvecvec_3_pcle
+
 c     Optimized vector-vector multiplication (2x3) (C. Mikida)
 c     ##################################################################
       function opt_vecvec_23_pcle(A,B) result(C)
@@ -995,6 +1102,156 @@ c     Local variables
       end do
 
       end function opt_vecvec_32_pcle
+
+c     Matrix-matrix (yz) contraction to 2-vector (2x3x3*3x3->2) (Adam)
+c     ################################################################
+      function opt_matmat_233_yz_pcle(A,B) result(C)
+      implicit none
+c     Call variables
+      real(_prec) :: A(_Npg,2,3,3), B(_Npg,3,3)
+      real(_prec) :: C(_Npg,2)
+c     Local variables
+      integer :: i, j, k, ii
+
+      C(:,:) = 0.0d0
+
+      do k=1, 3
+         do j=1, 3
+            do i=1, 2
+               !VECTOR SIMD
+               do ii=1,_Npg
+                  C(ii,i) = C(ii,i)+A(ii,i,j,k)*B(ii,j,k) ! Sum over y&z.
+               end do
+            end do
+         end do
+      end do
+
+      end function opt_matmat_233_yz_pcle
+
+c     Matrix-matrix (zx) contraction to 2-vector (3x2x3*3x3->2) (Adam)
+c     ################################################################
+      function opt_matmat_323_zx_pcle(A,B) result(C)
+      implicit none
+c     Call variables
+      real(_prec) :: A(_Npg,3,2,3), B(_Npg,3,3)
+      real(_prec) :: C(_Npg,2)
+c     Local variables
+      integer :: i, j, k, ii
+
+      C(:,:) = 0.0d0
+
+      do k=1, 3
+         do j=1, 2
+            do i=1, 3
+               !VECTOR SIMD
+               do ii=1,_Npg
+                  C(ii,j) = C(ii,j)+A(ii,i,j,k)*B(ii,k,i) ! Sum over z&x.
+               end do
+            end do
+         end do
+      end do
+
+      end function opt_matmat_323_zx_pcle
+
+c     Matrix-matrix (xy) contraction to 2-vector (3x3x2*3x3->2) (Adam)
+c     ################################################################
+      function opt_matmat_332_xy_pcle(A,B) result(C)
+      implicit none
+c     Call variables
+      real(_prec) :: A(_Npg,3,3,2), B(_Npg,3,3)
+      real(_prec) :: C(_Npg,2)
+c     Local variables
+      integer :: i, j, k, ii
+
+      C(:,:) = 0.0d0
+
+      do k=1, 2
+         do j=1, 3
+            do i=1, 3
+               !VECTOR SIMD
+               do ii=1,_Npg
+                  C(ii,k) = C(ii,k)+A(ii,i,j,k)*B(ii,i,j) ! Sum over x&y.
+               end do
+            end do
+         end do
+      end do
+
+      end function opt_matmat_332_xy_pcle
+
+c     Matrix-matrix (yz) contraction to 3-vector (3x3x3*3x3->3x1x1) (Adam)
+c     ################################################################
+      function opt_matmat_333_yz_pcle(A,B) result(C)
+      implicit none
+c     Call variables
+      real(_prec) :: A(_Npg,3,3,3), B(_Npg,3,3)
+      real(_prec) :: C(_Npg,3)
+c     Local variables
+      integer :: i, j, k, ii
+
+      C(:,:) = 0.0d0
+
+      do k=1, 3
+         do j=1, 3
+            do i=1, 3
+               !VECTOR SIMD
+               do ii=1,_Npg
+                  C(ii,i) = C(ii,i)+A(ii,i,j,k)*B(ii,j,k) ! Sum over y&z.
+               end do
+            end do
+         end do
+      end do
+
+      end function opt_matmat_333_yz_pcle
+
+c     Matrix-matrix (zx) contraction to 3-vector (3x3x3*3x3->3) (Adam)
+c     ################################################################
+      function opt_matmat_333_zx_pcle(A,B) result(C)
+      implicit none
+c     Call variables
+      real(_prec) :: A(_Npg,3,3,3), B(_Npg,3,3)
+      real(_prec) :: C(_Npg,3)
+c     Local variables
+      integer :: i, j, k, ii
+
+      C(:,:) = 0.0d0
+
+      do k=1, 3
+         do j=1, 3
+            do i=1, 3
+               !VECTOR SIMD
+               do ii=1,_Npg
+                  C(ii,j) = C(ii,j)+A(ii,i,j,k)*B(ii,k,i) ! Sum over z&x.
+               end do
+            end do
+         end do
+      end do
+
+      end function opt_matmat_333_zx_pcle
+
+c     Matrix-matrix (xy) contraction to 3-vector (3x3x3*3x3->3) (Adam)
+c     ################################################################
+      function opt_matmat_333_xy_pcle(A,B) result(C)
+      implicit none
+c     Call variables
+      real(_prec) :: A(_Npg,3,3,3), B(_Npg,3,3)
+      real(_prec) :: C(_Npg,3)
+c     Local variables
+      integer :: i, j, k, ii
+
+      C(:,:) = 0.0d0
+
+      do k=1, 3
+         do j=1, 3
+            do i=1, 3
+               !VECTOR SIMD
+               do ii=1,_Npg
+                  C(ii,k) = C(ii,k)+A(ii,i,j,k)*B(ii,i,j) ! Sum over x&y.
+               end do
+            end do
+         end do
+      end do
+
+      end function opt_matmat_333_xy_pcle
 
 c     Optimized matrix-vector multiplication (2) (C. Mikida)
 c     ##################################################################
@@ -1142,6 +1399,31 @@ c     Local variables
 
       end function opt_vecvec_3
 
+c     Outer product of 3 vectors (3x3x3) (Adam)
+c     ##################################################################
+      function opt_vecvecvec_3(A,B,C) result(D)
+
+      implicit none
+c     Call variables
+
+      real(_prec) :: A(3,1,1), B(1,3,1), C(1,1,3)
+      real(_prec) :: D(3,3,3)
+
+c     Local variables 
+      integer :: i, j, k
+
+      D(:,:,:) = 0.0d0
+
+      do i=1, 3
+         do j=1, 3
+            do k=1, 3
+               D(i,j,k) = A(i,1,1)*B(1,j,1)*C(1,1,k)
+            end do
+         end do
+      end do
+
+      end function opt_vecvecvec_3
+
 c     Optimized vector-vector multiplication (2x3) (C. Mikida)
 c     ##################################################################
       function opt_vecvec_23(A,B) result(C)
@@ -1165,6 +1447,31 @@ c     Local variables
       end do
 
       end function opt_vecvec_23
+
+c     Outer product of three vectors (2x3x3) (Adam)
+c     ##################################################################
+      function opt_vecvecvec_233(A,B,C) result(D)
+
+      implicit none
+c     Call variables
+      real(_prec) :: A(2,1,1), B(1,3,1), C(1,1,3)
+      real(_prec) :: D(2,3,3)
+
+c     Local variables
+      integer :: i, j, k
+
+      D(:,:,:) = 0.0d0
+
+      do i=1, 2
+         do j=1, 3
+         !VECTOR SIMD
+            do k=1, 3
+               D(i,j,k) = A(i,1,1)*B(1,j,1)*C(1,1,k)
+            end do
+         end do
+      end do
+      
+      end function opt_vecvecvec_233
 
 c     Optimized vector-vector multiplication (3x2) (C. Mikida)
 c     ##################################################################
@@ -1190,6 +1497,132 @@ c     Local variables
       end do
 
       end function opt_vecvec_32
+
+c     Outer product of three vectors (3x2x3) (Adam)
+c     ##################################################################
+      function opt_vecvecvec_323(A,B,C) result(D)
+
+      implicit none
+c     Call variables                                                                                                                           
+      real(_prec) :: A(3,1,1), B(1,2,1), C(1,1,3)
+      real(_prec) :: D(3,2,3)
+
+c     Local variables
+      integer :: i, j, k
+
+      D(:,:,:) = 0.0d0
+
+      do i=1, 3
+         do j=1, 2
+         !VECTOR SIMD
+            do k=1, 3
+               D(i,j,k) = A(i,1,1)*B(1,j,1)*C(1,1,k)
+            end do
+         end do
+      end do
+
+
+      end function opt_vecvecvec_323
+
+c     Outer product of 3 vectors (3x3x2) (Adam)
+c     ##################################################################
+      function opt_vecvecvec_332(A,B,C) result(D)
+
+      implicit none
+c     Call variables                                                                                                                           
+      real(_prec) :: A(3,1,1), B(1,3,1), C(1,1,2)
+      real(_prec) :: D(3,3,2)
+
+c     Local variables
+      integer :: i, j, k
+
+      D(:,:,:) = 0.0d0
+
+      do i=1, 3
+         do j=1, 3
+         !VECTOR SIMD
+            do k=1, 2
+               D(i,j,k) = A(i,1,1)*B(1,j,1)*C(1,1,k)
+            end do
+         end do
+      end do
+
+      end function opt_vecvecvec_332
+
+c     Matrix-vector outer product (2x3x3) (Adam)
+c     ################################################################
+      function opt_omatvec_233(A,B) result(C)
+
+      implicit none
+c     Call variables                                                                                                                           
+      real(_prec) :: A(3,3), B(2,1,1)
+      real(_prec) :: C(2,3,3)
+
+c     Local variables
+      integer :: i, j, k
+
+      C(:,:,:) = 0.0d0
+
+      do k=1, 3
+         do j=1, 3
+         !VECTOR SIMD
+            do i=1, 2
+               C(i,j,k) = B(i,1,1)*A(j,k)
+            end do
+         end do
+      end do
+
+      end function opt_omatvec_233
+
+c     Matrix-vector outer product (3x2x3) (Adam)
+c     ################################################################
+      function opt_omatvec_323(A,B) result(C)
+
+      implicit none
+c     Call variables
+      real(_prec) :: A(3,3), B(1,2,1)
+      real(_prec) :: C(3,2,3)
+
+c     Local variables
+      integer :: i, j, k
+
+      C(:,:,:) = 0.0d0
+
+      do k=1, 3
+         do j=1, 2
+         !VECTOR SIMD
+            do i=1, 3
+               C(i,j,k) = B(1,j,1)*A(k,i) ! Need in xyz, from A_zx.
+            end do
+         end do
+      end do
+
+      end function opt_omatvec_323
+
+c     Matrix-vector outer product (3x3x2) (Adam)
+c     ################################################################
+      function opt_omatvec_332(A,B) result(C)
+
+      implicit none
+c     Call variables
+      real(_prec) :: A(3,3), B(1,1,2)
+      real(_prec) :: C(3,3,2)
+
+c     Local variables
+      integer :: i, j, k
+
+      C(:,:,:) = 0.0d0
+
+      do k=1, 2
+         do j=1, 3
+         !VECTOR SIMD
+            do i=1, 3
+               C(i,j,k) = B(1,1,k)*A(i,j) ! Need in xyz, from A_xy.
+            end do
+         end do
+      end do
+
+      end function opt_omatvec_332
 
       end module pic_shape_f
 
@@ -1236,9 +1669,9 @@ c     Call variables
       nyg = nyd;
       nzg = nzd;
 
-      call alloc_map(nxg,nyg,nzg,nxl,nyl,nzl)
+      call alloc_map(nxg,nyg,nzg,nxl,nyl,nzl) ! ADAM: THIS IS 2D.
 
-      jac_g  = jac (:,:,1)
+      jac_g  = jac (:,:,1) ! ADAM: 2D.
       map_g  = xmap(:,:,1,:)
 
       if (.not.no_map.and.global_splines) then
@@ -1347,7 +1780,7 @@ c     Local variables
 
 c     Begin program
 
-      allocate(jac_g(0:nxg+1,0:nyg+1),map_g(0:nxg+1,0:nyg+1,3))
+      allocate(jac_g(0:nxg+1,0:nyg+1),map_g(0:nxg+1,0:nyg+1,3)) ! ADAM: 2D.
 
 c     End program
 
@@ -1386,7 +1819,7 @@ c     Begin program
       xlog(:,2) = xp(:,2)*ihy
       xlog(:,3) = xp(:,3)*ihz
 
-      call transf_vector_Bspl(i,j,xlog,cov,gamma=gamma)
+      call transf_vector_Bspl(i,j,xlog,cov,gamma=gamma) ! ADAM: 2D.
 
       !VECTOR SIMD
       do k=1,_Npg
@@ -2072,9 +2505,12 @@ c     Call variables
 
 c     Begin program
 
-      call gather_2d_moments(moms_g(:,:,1,1:n_sp,:))
-      moms_g(:,:,0,:,:) = moms_g(:,:,1,:,:)
-      moms_g(:,:,2,:,:) = moms_g(:,:,1,:,:)
+
+!      call gather_2d_moments(moms_g(:,:,1,1:n_sp,:))
+!      moms_g(:,:,0,:,:) = moms_g(:,:,1,:,:)
+!      moms_g(:,:,2,:,:) = moms_g(:,:,1,:,:)
+
+      call gather_3d_moments(moms_g(:,:,:,:,:))
 
       do im=0,size(moms,5)-1
        call find_local(gv%gparams,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
@@ -2099,9 +2535,9 @@ c     Call variables
 c     Local variables
 
       integer :: isp,ip,ii,jj,i,j,numspcs,numpcles
-      integer :: i_np(_Npg), j_np(_Npg)
+      integer :: i_np(_Npg), j_np(_Npg), k_np(_Npg)
 
-      real(8) :: garr_n  (0:nxg+1,0:nyg+1)
+      real(8) :: garr_n  (0:nxg+1,0:nyg+1) ! Make these 3D.
      $          ,garr_vx (0:nxg+1,0:nyg+1)
      $          ,garr_vy (0:nxg+1,0:nyg+1)
      $          ,garr_vz (0:nxg+1,0:nyg+1)
@@ -2150,7 +2586,8 @@ c     Begin program
 
           w_pcle = spcs(isp)%pcles(ip)%w_n
 
-          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)   
+          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,nyg
+     .                                          ,i_np,j_np,k_np)   
           
           if (no_map) then
              vcurv = spcs(isp)%pcles(ip)%v_np
@@ -2247,6 +2684,231 @@ c     Wrap moments around boundaries
 c     End program
 
       end subroutine gather_2d_moments
+
+c     gather_3d_moments
+c     ##################################################################
+      subroutine gather_3d_moments(mments)
+
+      implicit none
+
+c     Call variables
+
+      real(8), intent(out) :: mments(0:,0:,0:,:,0:)
+
+c     Local variables
+
+      integer :: isp,ip,ii,jj,i,j,numspcs,numpcles
+      integer :: i_np(_Npg), j_np(_Npg), k_np(_Npg)
+
+      real(8) :: garr_n  (0:nxg+1,0:nyg+1,0:nzg+1)
+     $          ,garr_vx (0:nxg+1,0:nyg+1,0:nzg+1)
+     $          ,garr_vy (0:nxg+1,0:nyg+1,0:nzg+1)
+     $          ,garr_vz (0:nxg+1,0:nyg+1,0:nzg+1)
+     $          ,garr_vx2(0:nxg+1,0:nyg+1,0:nzg+1)
+     $          ,garr_vy2(0:nxg+1,0:nyg+1,0:nzg+1)
+     $          ,garr_vz2(0:nxg+1,0:nyg+1,0:nzg+1)
+
+      real(_prec) :: Mx1(2,1,1),My1(1,2,1),Mz1(1,1,2)
+      real(_prec) :: Mx2(3,1,1),My2(1,3,1),Mz2(1,1,3)
+      real(_prec) :: Myz2(3,3),Mzx2(3,3),Mxy2(3,3)
+      real(_prec) :: M_w_prod(3,3,3)
+      real(_prec) :: dumA(3,1), dumB(1,3), dumC(1,3)
+
+
+!      real(8) :: My2(1,3),Mx2(3,1),My1(1,2)
+!      real(8) :: Mx1(2,1),Mxy2(3,3),My1_int(1,2)
+      real(_prec) :: xp(_Npg),yp(_Npg),zp(_Npg),v2,w_pcle(_Npg)
+      real(8) :: vcurv(_Npg,3)
+      real(8) :: ihx,ihy,ihz
+
+c     Begin program
+
+      call get_inverse_h(ihx,ihy,ihz)
+
+      idlvol = ihx*ihy*ihz
+
+      numspcs = size(spcs)
+
+      do isp=1,numspcs
+        numpcles = size(spcs(isp)%pcles)
+
+        garr_n = 0d0
+        garr_vx = 0d0
+        garr_vy = 0d0
+        garr_vz = 0d0
+
+        garr_vx2= 0d0
+        garr_vy2= 0d0
+        garr_vz2= 0d0
+        
+!     note that there is some issue with valgrind and libgomp.
+!$omp parallel DEFAULT(SHARED) private(ip,xp,yp,zp,i_np,j_np,vcurv,i
+!$omp.                                ,Mx1,Mx2,My1,My2,Mz1,Mz2,Myz2
+!$omp.                                ,Mzx2,Mxy2,M_w_prod,v2,w_pcle)
+!$      call set_omp_thread_id()
+!$omp DO 
+!$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
+!$omp.           ,garr_vx2,garr_vy2,garr_vz2
+!$omp.         ) 
+        do ip=nip+1,numpcles
+
+          xp = spcs(isp)%pcles(ip)%x_n(:,1)*ihx
+          yp = spcs(isp)%pcles(ip)%x_n(:,2)*ihy
+          zp = spcs(isp)%pcles(ip)%x_n(:,3)*ihz
+
+          w_pcle = spcs(isp)%pcles(ip)%w_n
+
+          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,nyg
+     .                                          ,i_np,j_np,k_np)   
+          
+          if (no_map) then
+             vcurv = spcs(isp)%pcles(ip)%v_np
+          else
+             vcurv = find_vcurv(i_np,j_np,spcs(isp)%pcles(ip)%x_n
+     .                                   ,spcs(isp)%pcles(ip)%v_n)
+          endif
+
+          do i=1,_Npg
+
+             Mx1(:,1,1) = shape1_offset_scalar(xp(i))
+             My1(1,:,1) = shape1_offset_scalar(yp(i))
+             Mz1(1,1,:) = shape1_offset_scalar(zp(i))
+
+
+             Mx2(:,1,1) = shape2_offset_scalar(xp(i))
+             My2(1,:,1) = shape2_offset_scalar(yp(i))
+             Mz2(1,1,:) = shape2_offset_scalar(zp(i))
+
+ccc!#ifdef __GNU
+ccc             Mxy2(:,:)= opt_vecvec_3(Mx2,My2)
+ccc!#else
+ccc             Mxy2(:,:)= matmul(Mx2,My2)
+ccc!#endif
+             
+             Mxy2(:,:) = opt_vecvec_3(Mx2(:,:,1),My2(:,:,1))
+
+             dumA(:,1) = My2(1,:,1)
+             dumB(1,:) = Mz2(1,1,:)
+             Myz2(:,:) = opt_vecvec_3(dumA,dumB)
+
+             dumA(:,1) = Mz2(1,1,:)
+             dumB(1,:) = Mx2(:,1,1)
+             Mzx2(:,:) = opt_vecvec_3(dumA,dumB)
+
+             M_w_prod(:,:,:) = opt_vecvecvec_3(Mx2,My2,Mz2)
+
+
+
+             !accumulate n (quadratic in x,y)
+             garr_n(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .             ,k_np(i)-1:k_np(i)+1) = 
+     .       garr_n(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .             ,k_np(i)-1:k_np(i)+1)
+     .       + M_w_prod*w_pcle(i)
+
+cc#ifdef __GNU
+cc             !accumulate vx (linear in x, 2nd in y)
+cc             garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) = 
+cc     .       garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) + 
+cc     .         vcurv(i,1)*opt_vecvec_23(Mx1,My2)*w_pcle(i)
+cc
+cc             !accumulate vy (2nd in x, linear in y)
+cc             garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) = 
+cc     .       garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) + 
+cc     .         vcurv(i,2)*opt_vecvec_32(Mx2,My1)*w_pcle(i)
+cc#else
+cc             !accumulate vx (linear in x, 2nd in y)
+cc             garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) = 
+cc     .       garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) + 
+cc     .         vcurv(i,1)*matmul(Mx1,My2)*w_pcle(i)
+cc
+cc             !accumulate vy (2nd in x, linear in y)
+cc             garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) = 
+cc     .       garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) + 
+cc     .         vcurv(i,2)*matmul(Mx2,My1)*w_pcle(i)
+cc#endif
+
+             !accumulate vx (linear in x, 2nd in y, 2nd in z)
+             garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1
+     .              ,k_np(i)-1:k_np(i)+1) =
+     .       garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1
+     .              ,k_np(i)-1:k_np(i)+1) +
+     .            vcurv(i,1)*opt_omatvec_233(Myz2,Mx1)*w_pcle(i)
+
+             !accumulate vy (2nd in x, linear in y, 2nd in z)
+             garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)
+     .            ,k_np(i)-1:k_np(i)+1) =                                                                            
+     .       garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)
+     .            ,k_np(i)-1:k_np(i)+1) +                                                                            
+     .            vcurv(i,2)*opt_omatvec_323(Mzx2,My1)*w_pcle(i)
+
+             !accumulate vz (2nd in x, 2nd in y, linear in z)
+             garr_vz(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)) =
+     .       garr_vz(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)) + 
+     .            vcurv(i,3)*opt_omatvec_332(Mxy2,Mz1)*w_pcle(i)
+          
+             !accumulate v^2 (2nd in x,y,z cell-centered)
+             v2 = spcs(isp)%pcles(ip)%v_n(i,1)
+     .           *spcs(isp)%pcles(ip)%v_n(i,1)
+             garr_vx2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)+1) = 
+     .       garr_vx2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)+1) + v2*(M_w_prod*w_pcle(i))
+
+             v2 = spcs(isp)%pcles(ip)%v_n(i,2)
+     .           *spcs(isp)%pcles(ip)%v_n(i,2)
+             garr_vy2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)+1) =
+     .       garr_vy2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)+1) + v2*(M_w_prod*w_pcle(i))
+
+             v2 = spcs(isp)%pcles(ip)%v_n(i,3)
+     .           *spcs(isp)%pcles(ip)%v_n(i,3)
+             garr_vz2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)+1) =
+     .       garr_vz2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)+1) + v2*(M_w_prod*w_pcle(i))
+
+
+c             v2 = spcs(isp)%pcles(ip)%v_n(i,2)
+c     .           *spcs(isp)%pcles(ip)%v_n(i,2)
+c             garr_vy2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) = 
+c     .       garr_vy2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) + 
+c     .         v2*(Mxy2*w_pcle(i))     
+
+c             v2 = spcs(isp)%pcles(ip)%v_n(i,3)
+c     .           *spcs(isp)%pcles(ip)%v_n(i,3)
+c             garr_vz2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) = 
+c     .       garr_vz2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) + 
+c     .         v2*(Mxy2*w_pcle(i))    
+          
+          end do
+
+        enddo
+!$omp end do 
+!$omp end parallel 
+
+!       just the moments without b.c., the b.c. should be done where needed.
+        mments(:,:,:,isp,IS11) = garr_vx2
+        mments(:,:,:,isp,IS22) = garr_vy2
+        mments(:,:,:,isp,IS33) = garr_vz2
+        mments(:,:,:,isp,Ipx ) = garr_vx
+        mments(:,:,:,isp,Ipy ) = garr_vy
+        mments(:,:,:,isp,Ipz ) = garr_vz
+        mments(:,:,:,isp,Ins ) = garr_n
+
+      enddo
+
+c     Wrap moments around boundaries
+
+      call wrap_moments_nodes3d(mments,wrap_currents=.true.)
+
+c     End program
+
+      end subroutine gather_3d_moments
+
 
 c     wrap_moments_nodes
 c     ##################################################################
@@ -2428,6 +3090,195 @@ c     end program
 
       end subroutine wrap_moments_nodes
 
+c     wrap_moments_nodes3d
+c     ##################################################################
+      subroutine wrap_moments_nodes3d(mments,wrap_currents)
+      
+      implicit none
+
+c     Call variables
+
+      real(8), intent(inout) :: mments(0:,0:,0:,:,0:)
+      logical, optional :: wrap_currents
+
+c     local variables
+
+      real(8),allocatable,dimension(:) :: send_buf,rec_buf
+      logical :: wcurr
+
+c     Begin program
+
+      if (PRESENT(wrap_currents)) then
+        wcurr = wrap_currents
+      else
+        wcurr = .true.
+      endif
+
+      if (pbcond(1) == pPER) then
+         mments(1  ,:,:,:,:) = mments(1,:,:,:,:)+mments(nxg+1,:,:,:,:)
+         mments(nxg,:,:,:,:) = mments(0,:,:,:,:)+mments(nxg  ,:,:,:,:)
+         mments(nxg+1,:,:,:,:) = mments(1  ,:,:,:,:)
+         mments(0    ,:,:,:,:) = mments(nxg,:,:,:,:)
+      else
+        if (wcurr) then
+          !Jx
+          if (     pbcond(1) == pREF
+     .        .or. pbcond(1) == pOPN) mments(0  ,:,:,:,Ipx) = 0d0
+          if (     pbcond(2) == pREF
+     .        .or. pbcond(2) == pOPN) mments(nxg,:,:,:,Ipx) = 0d0
+
+          !Recover left-over deposition for second-order splines at ghost cell
+          ! for staggered quantities
+          !Jy
+          if (pbcond(1) == pOPN)
+     .      mments(1  ,:,:,:,Ipy) = mments(1    ,:,:,:,Ipy)
+     .                           -mments(0    ,:,:,:,Ipy)
+          if (pbcond(1) == pREF)
+     .      mments(1  ,:,:,:,Ipy) = mments(1    ,:,:,:,Ipy)
+     .                           +mments(0    ,:,:,:,Ipy)
+          if (pbcond(2) == pOPN)
+     .      mments(nxg,:,:,:,Ipy) = mments(nxg  ,:,:,:,Ipy)
+     .                           -mments(nxg+1,:,:,:,Ipy)
+          if (pbcond(2) == pREF)
+     .      mments(nxg,:,:,:,Ipy) = mments(nxg  ,:,:,:,Ipy)
+     .                           +mments(nxg+1,:,:,:,Ipy)
+
+          !Jz
+          if (pbcond(1) == pOPN)
+     .      mments(1  ,:,:,:,Ipz) = mments(1    ,:,:,:,Ipz)
+     .                           -mments(0    ,:,:,:,Ipz)
+          if (pbcond(1) == pREF)
+     .      mments(1  ,:,:,:,Ipz) = mments(1    ,:,:,:,Ipz)
+     .                           +mments(0    ,:,:,:,Ipz)
+
+          if (pbcond(2) == pOPN)
+     .      mments(nxg,:,:,:,Ipz) = mments(nxg  ,:,:,:,Ipz)
+     .                           -mments(nxg+1,:,:,:,Ipz)
+          if (pbcond(2) == pREF)
+     .      mments(nxg,:,:,:,Ipz) = mments(nxg  ,:,:,:,Ipz)
+     .                           +mments(nxg+1,:,:,:,Ipz)
+
+          !Rho
+          mments(1  ,:,:,:,Ins) = mments(1    ,:,:,:,Ins)
+     .                         +mments(0    ,:,:,:,Ins)
+          mments(nxg,:,:,:,Ins) = mments(nxg  ,:,:,:,Ins)
+     .                         +mments(nxg+1,:,:,:,Ins)
+        endif
+
+        !S11
+        mments(1  ,:,:,:,IS11) = mments(1    ,:,:,:,IS11)
+     .                        +mments(0    ,:,:,:,IS11)
+        mments(nxg,:,:,:,IS11) = mments(nxg  ,:,:,:,IS11)
+     .                        +mments(nxg+1,:,:,:,IS11)
+        !S22
+        mments(1  ,:,:,:,IS22) = mments(1    ,:,:,:,IS22)
+     .                        +mments(0    ,:,:,:,IS22)
+        mments(nxg,:,:,:,IS22) = mments(nxg  ,:,:,:,IS22)
+     .                        +mments(nxg+1,:,:,:,IS22)
+        !S33
+        mments(1  ,:,:,:,IS33) = mments(1    ,:,:,:,IS33)
+     .                        +mments(0    ,:,:,:,IS33)
+        mments(nxg,:,:,:,IS33) = mments(nxg  ,:,:,:,IS33)
+     .                        +mments(nxg+1,:,:,:,IS33)
+
+      endif
+
+      if (pbcond(3) == pPER) then
+         mments(:  ,1,:,:,:) = mments(:,1,:,:,:)+mments(:,nyg+1,:,:,:)
+         mments(:,nyg,:,:,:) = mments(:,0,:,:,:)+mments(:,nyg  ,:,:,:)
+         mments(:,nyg+1,:,:,:) = mments(:,1  ,:,:,:)
+         mments(:,0    ,:,:,:) = mments(:,nyg,:,:,:)
+      else
+        if (wcurr) then
+          !Jy
+          if (     pbcond(3) == pREF
+     .        .or. pbcond(3) == pOPN) mments(:,0  ,:,:,Ipy) = 0d0
+          if (     pbcond(4) == pREF               
+     .        .or. pbcond(4) == pOPN) mments(:,nyg,:,:,Ipy) = 0d0
+
+          !Recover left-over deposition for second-order splines at ghost cell
+          ! for staggered quantities
+          !Jx
+          if (pbcond(3) == pOPN)
+     .      mments(:,1  ,:,:,Ipx) = mments(:,1    ,:,:,Ipx)
+     .                           -mments(:,0    ,:,:,Ipx)
+          if (pbcond(3) == pREF)
+     .      mments(:,1  ,:,:,Ipx) = mments(:,1    ,:,:,Ipx)
+     .                           +mments(:,0    ,:,:,Ipx)
+
+          if (pbcond(4) == pOPN)
+     .      mments(:,nyg,:,:,Ipx) = mments(:,nyg  ,:,:,Ipx)
+     .                           -mments(:,nyg+1,:,:,Ipx)
+          if (pbcond(4) == pREF)
+     .      mments(:,nyg,:,:,Ipx) = mments(:,nyg  ,:,:,Ipx)
+     .                           +mments(:,nyg+1,:,:,Ipx)
+
+          !Jz
+          if (pbcond(3) == pOPN)
+     .      mments(:,1  ,:,:,Ipz) = mments(:,1    ,:,:,Ipz)
+     .                           -mments(:,0    ,:,:,Ipz)
+          if (pbcond(3) == pREF)
+     .      mments(:,1  ,:,:,Ipz) = mments(:,1    ,:,:,Ipz)
+     .                           +mments(:,0    ,:,:,Ipz)
+
+          if (pbcond(4) == pOPN)
+     .      mments(:,nyg,:,:,Ipz) = mments(:,nyg  ,:,:,Ipz)
+     .                           -mments(:,nyg+1,:,:,Ipz)
+          if (pbcond(4) == pREF)
+     .      mments(:,nyg,:,:,Ipz) = mments(:,nyg  ,:,:,Ipz)
+     .                           +mments(:,nyg+1,:,:,Ipz)
+
+          !Rho
+          mments(:,1  ,:,:,Ins) = mments(:,1    ,:,:,Ins)
+     .                         +mments(:,0    ,:,:,Ins)
+          mments(:,nyg,:,:,Ins) = mments(:,nyg  ,:,:,Ins)
+     .                         +mments(:,nyg+1,:,:,Ins)
+#if defined(PIC_CM_DIAG)
+#endif
+        endif
+
+        !S11
+        mments(:,1  ,:,:,IS11) = mments(:,1    ,:,:,IS11)
+     .                        +mments(:,0    ,:,:,IS11)
+        mments(:,nyg,:,:,IS11) = mments(:,nyg  ,:,:,IS11)
+     .                        +mments(:,nyg+1,:,:,IS11)
+        !S22                            
+        mments(:,1  ,:,:,IS22) = mments(:,1    ,:,:,IS22)
+     .                        +mments(:,0    ,:,:,IS22)
+        mments(:,nyg,:,:,IS22) = mments(:,nyg  ,:,:,IS22)
+     .                        +mments(:,nyg+1,:,:,IS22)
+        !S33                            
+        mments(:,1  ,:,:,IS33) = mments(:,1    ,:,:,IS33)
+     .                        +mments(:,0    ,:,:,IS33)
+        mments(:,nyg,:,:,IS33) = mments(:,nyg  ,:,:,IS33)
+     .                        +mments(:,nyg+1,:,:,IS33)
+
+      endif
+
+      if (pbcond(5) == pPER) then
+         mments(:,:,1  ,:,:) = mments(:,:,1,:,:)+mments(:,:,nzg+1,:,:)
+         mments(:,:,nzg,:,:) = mments(:,:,0,:,:)+mments(:,:,nzg  ,:,:)
+         mments(:,:,nzg+1,:,:) = mments(:,:,1  ,:,:)
+         mments(:,:,0    ,:,:) = mments(:,:,nzg,:,:)
+      else
+         call pstop('readinput','Only per boundary implemented in z')
+      endif
+
+#if defined(petsc)
+      allocate(send_buf(size(mments))
+     $        ,rec_buf (size(mments)))
+      send_buf = reshape(mments, (/size(mments)/))
+      call MPI_Allreduce(send_buf,rec_buf,size(send_buf)
+     $                  ,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      mments(0:,0:,0:,:,0:) = reshape(rec_buf,shape(mments))
+      deallocate(send_buf,rec_buf)
+#endif
+
+c     end program
+
+      end subroutine wrap_moments_nodes3d
+
 c     applyBC_moms
 c     ##################################################################
       subroutine applyBC_moms
@@ -2588,7 +3439,7 @@ c ######################################################################
       real(8),pointer,dimension(:,:,:) :: MM2l
       integer :: it_count,iiout=0
 
-      real(8),pointer,dimension(:,:,:) :: Jns,Jpz,Jpx
+      real(8),pointer,dimension(:,:,:,:) :: Jns,Jpz,Jpx
 
       real(8) :: Jnpc_avg(nsp_max)        !average Jac*np/cell
 
@@ -2615,6 +3466,8 @@ c     Call variables
       integer :: nx_g,ny_g,nz_g,nx_l,ny_l,nz_l,nsp
 
 c     Begin program
+
+      write(*,*) 'b'
 
       call get_inverse_h(ihx,ihy,ihz)
 
@@ -2659,13 +3512,15 @@ c     Call variables
      .          ,numpcles
 
       real(8) :: tol_out,sump(n_sp),lsump(n_sp)
-      integer :: i_n(_Npg), j_n(_Npg)
+      integer :: i_n(_Npg), j_n(_Npg), k_n(_Npg)
 
       external massmat_mtvc
 
 c     Begin program
 
 c     Build GLOBAL 9-point stencil Mass Matrix
+      write(*,*) 'c'
+
 
       call build_mass_matrix(.false.)
 
@@ -2679,7 +3534,7 @@ c     Build LOCAL rhs taking Jacobian into account
             ii = i + nxl*(j-1) + nxl*nyl*(k-1)
             call fromLocalToGlobalLimits(gv%gparams,1,i,j,k,igl,jgl,kgl)
             !solve for delta weight
-            rr(ii,:) = Jnpc_avg(1:n_sp)*Jns(igl,jgl,:) -mments(i,j,:,0)
+            rr(ii,:) = Jnpc_avg(1:n_sp)*Jns(igl,jgl,1,:)-mments(i,j,:,0)
           enddo
         enddo
       enddo
@@ -2782,7 +3637,8 @@ c     Assign particle weights
           if(ip.le.nip) then    !reserved inflow particles
             spcs(isp)%pcles(ip)%w_n = 1d0
           else
-            call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
+            call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,nyg
+     .                                               ,i_n,j_n,k_n)
             do i=1,_Npg
               spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)
      .                                    +solg(i_n(i),j_n(i),1,isp)
@@ -2811,7 +3667,7 @@ c     ######################################################################
       integer :: i,j,k,im,ip,jm,jp,ijk,ijkim,ijkip,ijkjm,ijkjp
      .          ,ijkimjm,ijkimjp,ijkipjm,ijkipjp,igl,jgl,kgl
      .          ,ijkgl,ii,isp
-      integer :: i_n(_Npg),j_n(_Npg)
+      integer :: i_n(_Npg),j_n(_Npg),k_n(_Npg)
 
       real(8) :: send_buf(n_sp),rec_buf(n_sp),sump(n_sp),tol_out
 
@@ -2819,7 +3675,7 @@ c     ######################################################################
 
 c     Begin program
 
-      if (maxval(abs(Jpz(:,:,:)))==0d0) return
+      if (maxval(abs(Jpz(:,:,1,:)))==0d0) return
 
 c     Build GLOBAL 9-point stencil matrix
 
@@ -2834,7 +3690,7 @@ c     Build LOCAL rhs taking Jacobian into account
           do i=1,nxl
             ii = i + nxl*(j-1) + nxl*nyl*(k-1)
             call fromLocalToGlobalLimits(gv%gparams,1,i,j,k,igl,jgl,kgl)
-            rr(ii,:) = Jnpc_avg(1:n_sp)*Jpz(igl,jgl,:) -mments(i,j,:,3) !No charge included!
+            rr(ii,:) = Jnpc_avg(1:n_sp)*Jpz(igl,jgl,1,:)-mments(i,j,:,3) !No charge included!
           enddo
         enddo
       enddo
@@ -2901,7 +3757,8 @@ c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., 
             spcs(isp)%pcles(ip)%v_n (:,3) = 0d0
             spcs(isp)%pcles(ip)%v_np(:,3) = spcs(isp)%pcles(ip)%v_n(:,3)
           else
-            call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
+            call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,nyg
+     .                                               ,i_n,j_n,k_n)
             do i=1, _Npg
               spcs(isp)%pcles(ip)%v_n(i,3) =spcs(isp)%pcles(ip)%v_n(i,3)
      .                                     + solg(i_n(i),j_n(i),1,isp)
@@ -2930,7 +3787,7 @@ c     ######################################################################
       integer :: i,j,k,im,ip,jm,jp,ijk,ijkim,ijkip,ijkjm,ijkjp
      .          ,ijkimjm,ijkimjp,ijkipjm,ijkipjp,igl,jgl,kgl
      .          ,ijkgl,ii,isp
-      integer :: i_n(_Npg),j_n(_Npg)
+      integer :: i_n(_Npg),j_n(_Npg),k_n(_Npg)
 
       real(8) :: send_buf(n_sp),rec_buf(n_sp),sump(n_sp),tol_out
      .           ,xp
@@ -2940,7 +3797,7 @@ c     ######################################################################
 
 c     Begin program
 
-      if (maxval(abs(Jpx(:,:,:)))==0d0) return
+      if (maxval(abs(Jpx(:,:,1,:)))==0d0) return
 
 c     Build GLOBAL 9-point stencil matrix
 
@@ -2955,7 +3812,7 @@ c     Build LOCAL rhs taking Jacobian into account
           do i=1,nxl
             ii = i + nxl*(j-1) + nxl*nyl*(k-1)
             call fromLocalToGlobalLimits(gv%gparams,1,i,j,k,igl,jgl,kgl)
-            rr(ii,:) = Jnpc_avg(1:n_sp)*Jpx(igl,jgl,:) -mments(i,j,:,1) 
+            rr(ii,:) = Jnpc_avg(1:n_sp)*Jpx(igl,jgl,1,:)-mments(i,j,:,1) 
           enddo
         enddo
       enddo
@@ -3019,7 +3876,8 @@ c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., 
 !$OMP DO
         do ip=1,numpcles
           if(ip > nip) then    !reserved inflow particles
-            call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
+            call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,nyg
+     .                                               ,i_n,j_n,k_n)
             do i=1, _Npg
               imp = i_n(i)-1
               !periodic b.c.
@@ -3107,7 +3965,7 @@ c     Begin program
               if (include_pcle_weight) Mxy2 = Mxy2*w_pcle
 
               call xform_pcle_idx_scl(spcs(isp)%pcles(ipcl)%ijk_n(i_npg)
-     .                               ,nxg,i,j)
+     .                               ,nxg,nyg,i,j,k)
 
               ip = i + 1
               im = i - 1
@@ -3282,7 +4140,7 @@ c     Begin program
               if (include_pcle_weight) Mxy2 = Mxy2*w_pcle
 
               call xform_pcle_idx_scl(spcs(isp)%pcles(ipcl)%ijk_n(i_npg)
-     .                               ,nxg,i,j)
+     .                               ,nxg,nyg,i,j,k)
 
               ip = i + 1
               im = i - 1
@@ -3745,22 +4603,22 @@ c     Initialize pcle accounting qtys
 
 c     Find PIC physical quantities
 
-      allocate(Jns(0:nxg+1,0:nyg+1,n_sp)
-     $        ,Jpz(0:nxg+1,0:nyg+1,n_sp)
-     $        ,Jpx(0:nxg+1,0:nyg+1,n_sp))
+      allocate(Jns(0:nxg+1,0:nyg+1,0:nzg+1,n_sp) ! ADAM: MADE 3D.
+     $        ,Jpz(0:nxg+1,0:nyg+1,0:nzg+1,n_sp)
+     $        ,Jpx(0:nxg+1,0:nyg+1,0:nzg+1,n_sp))
 
       do isp=1,n_sp
-        Jns(:,:,isp)  = moms_g(:,:,1,isp,Ins)*jac(:,:,1)
+        Jns(:,:,:,isp)  = moms_g(:,:,:,isp,Ins)*jac(:,:,:) !ADAM: MADE 3D.
       enddo
-      Jpz = moms_g(:,:,1,:,IPz)
-      Jpx = moms_g(:,:,1,:,IPx)
+      Jpz = moms_g(:,:,:,:,IPz) ! ADAM: MADE 3D
+      Jpx = moms_g(:,:,:,:,IPx) !
 
       do isp=1,n_sp
          omega_p(isp) = sqrt(abs(q_m(isp))) !careful
          tot_bp = min_pcles*nng*pgroup
          nps(isp) = npcles(isp) - gnip - tot_bp
 
-         Jnpc_avg(isp) = (nps(isp))/sum(Jns(1:nxg,1:nyg,isp))
+         Jnpc_avg(isp) = (nps(isp))/sum(Jns(1:nxg,1:nyg,1:nzg,isp)) !ADAM: MADE 3D.
          n0 = Jnpc_avg(isp)/(hx*hy*hz)     !Add volume factor
 
          charge(isp) = sign(1d0,q_m(isp))/n0
@@ -3878,7 +4736,7 @@ c     Local variables
      .           ,tot_np_scan,npc_scan(nng,n_sp),numspcs,numpcles
       real(8) :: rx1(_Npg),rx2(_Npg),rx3(_Npg),rx(_Npg),ry(_Npg)
      .          ,xp(_Npg),dxp,vx2,vt2
-     .          ,yp(_Npg),signx,signy,signz,pp,pr,betaj
+     .          ,yp(_Npg),zp(_Npg),signx,signy,signz,pp,pr,betaj
       real(8) :: v_tot(1:n_sp+n_b,_Dim)
       integer, save :: seed
       real(8) :: vt(3), v0(3)
@@ -3892,7 +4750,7 @@ c     Begin program
 
       call init_random_seed(nproc,my_rank_pic,.not.tst_flg)
 
-      dimt = _Dim+_Dimx ! 2D3V
+      dimt = 6!_Dim+_Dimx ! 2D3V !ADAM - used in problem_init files.
       numspcs = size(spcs)
       do is=1,numspcs
          call compute_pcle_spat_dist(is,npc_int(:,is),npc_scan(:,is)
@@ -3967,8 +4825,8 @@ c     Begin program
       gtot_bnp = bnpc_avg*nng*pgroup
       betaj = 1d0
       gnpc_avg = (gtot_np-gnip-gtot_bnp)/
-     $            sum(Jns  (1:nxg,1:nyg,isp)
-     .               *jac_g(1:nxg,1:nyg)**(betaj-1d0))
+     $            sum(Jns(1:nxg,1:nyg,1:nzg,isp)) ! ADAM: MADE 3D.
+!     .           *jac(1:nxg,1:nyg,1:nzg)**(betaj-1d0)) !ADAM: SWITCH TO JAC (3D) ! NOT SURE JAC IS GLOBAL.
 
       if (gnpc_avg.le.0) then
         write (*,'(a,i4)')
@@ -3987,8 +4845,8 @@ c     Begin program
             do i = 1,nxg
                ii  = i + nxg*(j-1) + nxg*nyg*(k-1)
                npc_acm(ii) = npc_acm(ii-1)
-     .                     +(gnpc_avg/pgroup)*Jns(i,j,isp)
-     .                      *jac_g(i,j)**(betaj-1d0) + bnpc_avg
+     .                     +(gnpc_avg/pgroup)*Jns(i,j,k,isp)
+     .                     + bnpc_avg! *jac(i,j,k)**(betaj-1d0) + bnpc_avg
             end do
          end do
       end do      
@@ -4072,7 +4930,7 @@ c     Call variables
 c     Local variables
 
       integer :: isp,ip,ii,jj,i,j,k,im,numspcs,numpcles
-      integer :: i_np(_Npg), j_np(_Npg)
+      integer :: i_np(_Npg), j_np(_Npg), k_np(_Npg)
       real(_prec) :: kx,kxp,xn,xp,v2,xp2,yp,kyp,ky,dxp
      .              ,x_np(_Npg)
 
@@ -4125,10 +4983,10 @@ C    perturb particles after matching given equilibrium
       case('ic','tm')
 #include "problem_init/icPerturb.f"
       case('slow_shock')
-#include "problem_init/slowShockPerturb.f"
+!#include "problem_init/slowShockPerturb.f"
       case('kaw_ii')
         if(quiet_start) then
-#include "problem_init/kawiiPerturb.f"
+!#include "problem_init/kawiiPerturb.f"
         end if
 c$$$      case('bpnch')
 c$$$        if(quiet_start) then
@@ -4170,7 +5028,7 @@ c     Diagnostics and memory freeing
          do isp=1,n_sp
 cc            print *,size(spcs(isp)%pcles),charge(isp),mass(isp)            
            write (*,'(a,i3,f20.10,a,f20.10)')
-     .          '  >>Species=',isp,sum(moms_g(1:nxg,1:nyg,1,isp,Ins))
+     .          ' >>Species=',isp,sum(moms_g(1:nxg,1:nyg,1:nzg,isp,Ins))
      .         ,' vs. expected',(1+c_bkgrnd(isp))*nps(isp)
          enddo
       end if
@@ -4211,7 +5069,8 @@ c     Begin program
 
       do ip=1,numpcles
 
-        call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)
+        call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,nyg
+     .                                        ,i_np,j_np,k_np)
 
         !VECTOR SIMD
         do j=1,_Npg
@@ -4253,7 +5112,7 @@ c     Begin program
         end do
 
         call cell_crossing(dx,spcs(isp)%pcles(ip)%x_n
-     .                       ,spcs(isp)%pcles(ip)%v_n,i_np,j_np)
+     .                       ,spcs(isp)%pcles(ip)%v_n,i_np,j_np,k_np)
 
         spcs(isp)%pcles(ip)%ijk_n = i_np + nxg*(j_np - 1)        
 
@@ -4267,7 +5126,7 @@ c     Begin program
 
 c     cell_crossing
 c     ##################################################################
-      subroutine cell_crossing(dx,xnp,vnp,inp,jnp)
+      subroutine cell_crossing(dx,xnp,vnp,inp,jnp,knp)
 
       implicit none
 
@@ -4276,7 +5135,8 @@ c     Call variables
       real(_prec),intent(in)    :: dx(:,:)
       real(_prec),intent(inout) :: xnp(:,:)
       real(_prec),intent(inout) :: vnp(:,:)
-      integer,intent(inout) :: inp(:),jnp(:)
+      integer,intent(inout) :: inp(:),jnp(:),knp(:)
+
 
 c     Local variables
 
@@ -4293,11 +5153,11 @@ c     Begin program
       nsize = (/nxg,nyg,nzg/)
       in0(:,1)   = inp
       in0(:,2)   = jnp
-      in0(:,3)   = 0
+      in0(:,3)   = knp
 
 c     Impose BCs
 
-      do dim=1,_Dimx
+      do dim=1,3!_Dimx
         do i=1,_Npg
           if(dx(i,dim)>0 .and. xnp(i,dim).ge.dh(dim)) then
             do while(xnp(i,dim).ge.dh(dim))
@@ -4323,6 +5183,7 @@ c     Transfer location info
 
       inp = in0(:,1)
       jnp = in0(:,2)
+      knp = in0(:,3)
 
       end subroutine cell_crossing
 
@@ -4564,7 +5425,7 @@ c     Local variables
 
       integer :: ip,is,i,nxg,nyg,nzg
       integer :: numspcs,numpcles
-      integer :: i0(_Npg),j0(_Npg)
+      integer :: i0(_Npg),j0(_Npg),k0(_Npg)
       real(_prec) :: xp(_Npg),yp(_Npg),cml(3),q_sp,m_sp
       real(8) :: ihx,ihy,ihz
 
@@ -4589,7 +5450,8 @@ c     Begin program
           do ip=nip+1,numpcles
             xp = spcs(is)%pcles(ip)%x_np(:,1)*ihx
             yp = spcs(is)%pcles(ip)%x_np(:,2)*ihy
-            call xform_pcle_idx(spcs(is)%pcles(ip)%ijk_np,nxg,i0,j0)
+            call xform_pcle_idx(spcs(is)%pcles(ip)%ijk_np,nxg,nyg
+     .                                                  ,i0,j0,k0)
             do i=1,_Npg
                cml = cml + cmp(q_sp,i0(i),j0(i),xp(i),yp(i),A) 
                cml = cml + m_sp*spcs(is)%pcles(ip)%v_np(i,:)
@@ -4919,7 +5781,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: isp,ipc,ipl,ip,ijk(_Npg),i,k,kl
+      integer :: isp,ipc,ipl,ip,ijk(_Npg),i,k,kl,dum
       integer :: part_cell_index(nng)
      .          ,locl_cell_index(nng) !assume that particles see the whole domain
       integer :: ti_0,ti_1,Np     
@@ -4990,7 +5852,7 @@ cc!$      tid      = omp_get_thread_num()
           do k=1,_Npg
             ip = locl_cell_index(ijk(k))
 
-            call xform_pcle_idx_scl(ip,_Npg,kl,ipl)
+            call xform_pcle_idx_sort(ip,_Npg,kl,ipl)
             ipl = ipl + nip
 
             !Save old positions and velocities only

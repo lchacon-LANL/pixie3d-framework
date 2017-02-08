@@ -6,7 +6,8 @@
 
       do ip=1,size(spcs(isp)%pcles)
 
-         call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)
+         call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,nyg,
+     .                                          i_np,j_np,k_np)
 
          !perturb n
          do k=1,_Npg

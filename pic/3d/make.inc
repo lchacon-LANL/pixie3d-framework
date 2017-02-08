@@ -1,6 +1,6 @@
 #Define message
 
-MESSAGE = "Compiling 2d PIC modules"
+MESSAGE = "Compiling 3d PIC modules"
 
 #Define subdirectories for common code
 
