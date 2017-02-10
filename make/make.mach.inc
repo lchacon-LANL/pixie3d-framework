@@ -911,11 +911,13 @@ ifeq ($(HOST),t1243000)
 
 endif
 
-###################
-# Adam on mustang #
-###################
+##################
+# Wolf turquoise #
+##################
 
-ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
+ifeq ($(findstring wf,$(HOST)),notused)#wf)
+#ifeq ($(HOST),wf-fe2.lanl.gov)
+#ifeq ($(HOST),mu1599.localdomain)
 
   FC=gfortran
 
@@ -926,28 +928,26 @@ ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
   ifdef BOPT
-#    PETSC_DIR =/usr/projects/magnetic/stanier/soft/petsc-3.0.0-p7
-    PETSC_DIR =/usr/projects/magreconn/soft/petsc-3.0.0-p7
+    PETSC_DIR =/turquoise/usr/projects/icfifp/Applications-luis/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = turquoise_ompi165_gcc472_o
+      PETSC_ARCH = linux-gnu-c-opt
     else
-#      PETSC_ARCH = turquoise_openmpi_g
+      PETSC_ARCH = linux64_openmpi-1.10.3_gcc-5.3.0_dbg
 # NOT INSTALLED DEBUG.
     endif
 
-    HDF5 = t
+    HDF5 = f
 
-    HDF5_HOME = /usr/projects/magnetic/stanier/soft/
+    HDF5_HOME = /turquoise/usr/projects/icfifp/Applications/hdf5-1.8.11/
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
-    ADIOS = t
+    ADIOS = f
 
-#    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1-mustang-new
-    ADIOS_HOME = /usr/projects/magreconn/soft/adios-1.3.1-mustang
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/usr/projects/magnetic/stanier/soft/mxml-2.5/lib -lmxml
+    ADIOS_HOME = /turquoise/usr/projects/icfifp/Applications/adios-1.3.1/
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/icfifp/Applications/mxml-2.5/lib/ -lmxml
     ADIOS_VER  = 1.31
 
     ADIOS_BUFFER_MB = 1000
@@ -1042,4 +1042,46 @@ ifeq ($(findstring cn,$(HOST)),cn)
   FC = ifort
   M_ARCH = core-avx2
   LIBS += -llapack -lblas
+endif
+
+#####################
+# Grizzly turquoise #
+#####################
+
+ifeq ($(findstring gr,$(HOST)),notused)#gr)
+
+  FC=gfortran
+
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  ifdef BOPT
+    PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_openmpi-1.10.5_gcc-5.3.0
+    else
+      PETSC_ARCH = linux64_openmpi-1.10.5_gcc-5.3.0_dbg
+    endif
+
+    HDF5 = t
+
+    HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = t
+
+    ADIOS_BUFFER_MB = 1000
+
+    ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.3.1-grizzly-gcc/lib
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/magreconn/soft/mxml-2.5-grizzly-gcc/lib/ -lmxml
+    ADIOS_VER  = 1.31
+
+  endif
+
 endif
