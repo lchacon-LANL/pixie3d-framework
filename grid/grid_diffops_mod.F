@@ -1115,7 +1115,7 @@ c     End
 
 c     div_stg_mesh
 c     ###############################################################
-      function div_stg_mesh(g_def,igrid,curv,iscnv) result(scl)
+      function div_stg_mesh(g_def,igrid,curv,iscnv,bc) result(scl)
 
 c     ---------------------------------------------------------------
 c     Calculates div of a staggered vector field in general
@@ -1134,14 +1134,21 @@ c     Call variables
       real(8) :: curv(0:,0:,0:,:)
      .          ,scl(0:size(curv,1)-1,0:size(curv,2)-1,0:size(curv,3)-1)
 
-      logical,optional :: iscnv
+      logical,optional :: iscnv,bc
 
 c     Local variables
 
-      integer :: nx,ny,nz,i,j,k
-      real(8) :: cnv(0:size(curv,1)-1,0:size(curv,2)-1,0:size(curv,3)-1
+      integer :: bcs(6),nx,ny,nz,i,j,k
+      real(8) :: cnv(0:size(curv,1)-1
+     .              ,0:size(curv,2)-1
+     .              ,0:size(curv,3)-1
      .              ,size(curv,4))
-      logical :: is_cnv
+
+      real(8) :: zero(0:size(curv,1)-1
+     .               ,0:size(curv,2)-1
+     .               ,0:size(curv,3)-1)
+
+      logical :: is_cnv,do_bc
 
 c     Begin program
 
@@ -1150,6 +1157,14 @@ c     Begin program
       else
         is_cnv = .true.
       endif
+
+      if (PRESENT(bc)) then
+        do_bc = bc
+      else
+        do_bc = .false.
+      endif
+
+c     Compute divergence
 
       scl = 0d0
 
@@ -1183,13 +1198,23 @@ c     Begin program
 
       endif
 
+c     Apply topological BCs to divergence
+
+      if (do_bc) then
+        call get_topol_bcs(bcs)
+        where(bcs == DEF) bcs = DIR
+        zero = 0d0
+        call setBC(g_def,1,nx,ny,nz,scl,zero,bcs
+     .            ,igrid,igrid,igrid,iorder=1)
+      endif
+
 c     End program
 
       end function div_stg_mesh
 
 c     curl_stg_mesh
 c     ###############################################################
-      function curl_stg_mesh(g_def,igr,cov) result(cnv)
+      function curl_stg_mesh(g_def,igr,cov,vrtx) result(cnv)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates for a
@@ -1211,11 +1236,20 @@ c     Call variables
      .              ,0:size(cov,3)-1
      .                ,size(cov,4))
 
+      logical,optional :: vrtx
+
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
+      logical :: vertex
 
 c     Begin program
+
+      if (PRESENT(vrtx)) then
+        vertex = vrtx
+      else
+        vertex = .false.
+      endif
 
       cnv = 0d0
 
@@ -1223,14 +1257,25 @@ c     Begin program
       ny = size(cov,2)-2
       nz = size(cov,3)-2
 
-      do k=0,nz
-        do j=0,ny
-          do i=0,nx
-            cnv(i,j,k,:)=
-     .           curl_stg_ijk(g_def,i,j,k,nx,ny,nz,igr,igr,igr,cov)
+      if (vertex) then
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              cnv(i,j,k,:)=
+     .           curl_stg_vrtx_ijk(g_def,i,j,k,nx,ny,nz,igr,igr,igr,cov)
+            enddo
           enddo
         enddo
-      enddo
+      else
+        do k=0,nz+1
+          do j=0,ny+1
+            do i=0,nx+1
+              cnv(i,j,k,:)=
+     .           curl_stg_ijk(g_def,i,j,k,nx,ny,nz,igr,igr,igr,cov)
+            enddo
+          enddo
+        enddo
+      endif
 
 c     End program
 
@@ -1244,8 +1289,9 @@ c     ###############################################################
       implicit none
 
 c     ---------------------------------------------------------------
-c     Calculates curl of staggered covariant vector field to find
-c     staggered contravariant field in general non-orthogonal geometry.
+c     Calculates curl of CELL staggered covariant vector field to find
+c     VERTEX staggered contravariant field in general non-orthogonal
+c     geometry.
 c     ---------------------------------------------------------------
 
 c     Call variables
@@ -1266,24 +1312,82 @@ c     Begin program
 
       call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
-      ip = min(i+1,nx+1)
-      jp = min(j+1,ny+1)
-      kp = min(k+1,nz+1)
+      ip = i+1
+      jp = j+1
+      kp = k+1
 
       dxx = g_def%dx(ig)
       dyy = g_def%dy(jg)
       dzz = g_def%dz(kg)
 
-      curl(1) = (cov(i,jp,k ,3)-cov(i,j,k,3))/dyy
-     .         -(cov(i,j ,kp,2)-cov(i,j,k,2))/dzz !@(i,j+1/2,k+1/2)
-      curl(2) = (cov(i ,j,kp,1)-cov(i,j,k,1))/dzz
-     .         -(cov(ip,j,k ,3)-cov(i,j,k,3))/dxx !@(i+1/2,j,k+1/2)
-      curl(3) = (cov(ip,j ,k,2)-cov(i,j,k,2))/dxx
-     .         -(cov(i ,jp,k,1)-cov(i,j,k,1))/dyy !@(i+1/2,j+1/2,k)
+      curl = 0d0
+
+      if (jp <= ny+1.and.kp <= nz+1) then
+        curl(1) = (cov(i,jp,k ,3)-cov(i,j,k,3))/dyy
+     .           -(cov(i,j ,kp,2)-cov(i,j,k,2))/dzz !@(i,j+1/2,k+1/2)
+      endif
+      if (ip <= nx+1.and.kp <= nz+1) then
+        curl(2) = (cov(i ,j,kp,1)-cov(i,j,k,1))/dzz
+     .           -(cov(ip,j,k ,3)-cov(i,j,k,3))/dxx !@(i+1/2,j,k+1/2)
+      endif
+      if (ip <= nx+1.and.jp <= ny+1) then
+        curl(3) = (cov(ip,j ,k,2)-cov(i,j,k,2))/dxx
+     .           -(cov(i ,jp,k,1)-cov(i,j,k,1))/dyy !@(i+1/2,j+1/2,k)
+      endif
       
 c     End 
 
       end function curl_stg_ijk
+
+c     curl_stg_vrtx_ijk
+c     ###############################################################
+      function curl_stg_vrtx_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,cov)
+     .         result(curl)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Calculates curl of VERTEX staggered covariant vector field to find
+c     CELL staggered contravariant field in general non-orthogonal
+c     geometry.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+      real(8) :: cov(0:nx+1,0:ny+1,0:nz+1,3),curl(3)
+
+c     Local variables
+
+      integer :: ig,jg,kg,igrid,im,jm,km
+      real(8) :: dxx,dyy,dzz
+
+c     Begin program
+
+      igrid = igx
+
+      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+
+      im = max(i-1,0)
+      jm = max(j-1,0)
+      km = max(k-1,0)
+
+      dxx = g_def%dx(ig)
+      dyy = g_def%dy(jg)
+      dzz = g_def%dz(kg)
+
+      curl(1) = (cov(i,j,k,3)-cov(i,jm,k ,3))/dyy
+     .         -(cov(i,j,k,2)-cov(i,j ,km,2))/dzz !@(i+1/2,j,k)
+      curl(2) = (cov(i,j,k,1)-cov(i ,j,km,1))/dzz
+     .         -(cov(i,j,k,3)-cov(im,j,k ,3))/dxx !@(i,j+1/2,k)
+      curl(3) = (cov(i,j,k,2)-cov(im,j ,k,2))/dxx
+     .         -(cov(i,j,k,1)-cov(i ,jm,k,1))/dyy !@(i,j,k+1/2)
+      
+c     End 
+
+      end function curl_stg_vrtx_ijk
 
       end module grid_nabla_ops
 
@@ -5251,9 +5355,8 @@ c     Local variables
       real(8) :: divA(0:size(cov,1)-1
      .               ,0:size(cov,2)-1
      .               ,0:size(cov,3)-1)
-     .          ,zero(0:size(cov,1)-1
-     .               ,0:size(cov,2)-1
-     .               ,0:size(cov,3)-1)
+
+      real(8),pointer,dimension(:,:,:) :: div
 
 c     Begin program
 
@@ -5264,38 +5367,37 @@ c     Begin program
       vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
-      !Old way
-cc      veclap(:,:,:,1) = lap(igrid,cov(:,:,:,1),vol=vol_wgt)
-cc      veclap(:,:,:,2) = lap(igrid,cov(:,:,:,2),vol=vol_wgt)
-cc      veclap(:,:,:,3) = lap(igrid,cov(:,:,:,3),vol=vol_wgt)
-cc      return
+c     Compute div(cov)
 
-      !Compute div(cov)
-      divA = 0d0
-      divA = div_stg_mesh(g_def,igrid,cov,iscnv=.false.)
+      divA = div_stg_mesh(g_def,igrid,cov,iscnv=.false.,bc=.true.)
 
-      !Apply topological BCs to divergence
-      bcs = bcond
-      where(bcs == DEF) bcs = DIR
-      zero = 0d0
-      call setBC(g_def,1,nx,ny,nz,divA,zero,bcs
-     .          ,igrid,igrid,igrid,iorder=1)
+c     Assemble curl(curl) on the mesh
 
-      !Assemble on the mesh
-      veclap = 0d0
+      veclap =-curlcurl_stg_mesh(g_def,igrid,cov)
+
+c$$$      !Old way
+c$$$      veclap = 0d0
+c$$$      do k=1,nz
+c$$$        do j=1,ny
+c$$$          do i=1,nx
+c$$$            veclap(i,j,k,:)= -curlcurl_stg_ijk(g_def,i,j,k,nx,ny,nz
+c$$$     .                                        ,igrid,igrid,igrid,cov)
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+
+c     Assemble vector Laplacian on the mesh
+
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            !Compute grad(div) term
+            !Add grad(div) term
             veclap(i,j,k,1) = lap_flx_x_ijk(g_def,i,j,k,igrid,divA)
+     .                       +veclap(i,j,k,1)
             veclap(i,j,k,2) = lap_flx_y_ijk(g_def,i,j,k,igrid,divA)
+     .                       +veclap(i,j,k,2)
             veclap(i,j,k,3) = lap_flx_z_ijk(g_def,i,j,k,igrid,divA)
-
-            !Add curlcurl term
-            veclap(i,j,k,:) = veclap(i,j,k,:)
-     .                      - curlcurl_stg_ijk(g_def,i,j,k,nx,ny,nz
-     .                                        ,igrid,igrid,igrid,cov)
-
+     .                       +veclap(i,j,k,3)
             if (vol_wgt)veclap(i,j,k,:)
      .                 =veclap(i,j,k,:)
      .                 *g_def%gmetric%grid(igrid)%dlvol(i,j,k)
@@ -5377,6 +5479,59 @@ c     Begin program
 c     End program
 
       end function curlcurl_stg_ijk
+
+c     curlcurl_stg_mesh
+c     ###############################################################
+      function curlcurl_stg_mesh(g_def,igr,cov,vol) result(curlcurl)
+c     ---------------------------------------------------------------
+c     Calculates contravariant components of curl(curl) operator for
+c     covariant vector representation at faces on a per-cell basis.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igr,bcs(6)
+
+      real(8) :: cov(0:,0:,0:,:)
+     .          ,curlcurl(0:size(cov,1)-1
+     .                   ,0:size(cov,2)-1
+     .                   ,0:size(cov,3)-1,3)
+
+      logical,optional,intent(IN) :: vol
+
+c     Local variables
+
+      logical :: vol_wgt
+
+c     Begin program
+
+      vol_wgt = .false.
+      if (PRESENT(vol)) vol_wgt = vol
+
+      !Find first curl (vertex-based, contravariant)
+      curlcurl = curl_stg_mesh(g_def,igr,cov)
+
+      !Transform to covariant
+      curlcurl = XformToCov_stg_mesh(g_def,igr,curlcurl
+     .                              ,vertex_in =.true.
+     .                              ,vertex_out=.true.)
+
+      !Compute second curl (cell-based, contravariant)
+      curlcurl = curl_stg_mesh(g_def,igr,curlcurl,vrtx=.true.)
+
+      if (vol_wgt) then
+       curlcurl(:,:,:,1)=curlcurl(:,:,:,1)*g_def%gmetric%grid(igr)%dlvol
+       curlcurl(:,:,:,2)=curlcurl(:,:,:,2)*g_def%gmetric%grid(igr)%dlvol
+       curlcurl(:,:,:,3)=curlcurl(:,:,:,3)*g_def%gmetric%grid(igr)%dlvol
+      endif
+
+c     End program
+
+      end function curlcurl_stg_mesh
 
       end module grid_tensor_ops
 
