@@ -84,6 +84,8 @@ c     Begin program
           bcond = FSYM
         elsewhere (bcs == 'equ')
           bcond = EQU
+        elsewhere (bcs == 'opn')
+          bcond = OPN
         end where
 
         if (minval(bcond) < 0) ierr = 1
@@ -235,6 +237,16 @@ cccc     .            .or.(abs(bc(ibc)) == FSYM)
 cc        endif
 
       end function bcSYM
+
+c     get_topol_bcs
+c     #################################################################
+      subroutine get_topol_bcs(bcs)
+
+      integer :: bcs(6)
+
+      bcs = bcond
+
+      end subroutine get_topol_bcs
 
       end module bc_def
 

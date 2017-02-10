@@ -693,12 +693,6 @@ c$$$        enddo
               end select
             else
               select case(ivar)
-c$$$              case(1)
-c$$$#if defined(petsc)
-c$$$                vec(i-1,j,k) =  garray(jj,k)
-c$$$#else
-c$$$                vec(i-1,j,k) =  vec(i,jj,k)
-c$$$#endif
               case(2,3)
 #if defined(petsc)
                 vec(i-1,j,k) = -garray(jj,k)
@@ -1848,7 +1842,11 @@ c     Initialize GLOBAL limits
       kkmxp =  min(kkmax + 1,gbc_def%nzgl(iigz)+1)
 #endif
 
-c     Fill PETSc ghost cells
+c     Find cnv components
+
+      if (to_cnv) v_cnv =  XformToCnv_stg_mesh(gbc_def,igxbc,v_cov)
+
+c     Fill PETSc/PERIODIC ghost cells
 
 #if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
@@ -1862,23 +1860,26 @@ c     Fill PETSc ghost cells
           call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
         enddo
       endif
+#elif !defined(samrai)
+      call sync(PER)
 #endif
 
-c     Exit if all periodic domains (PETSc deals with all periodic domains)
+      !Exit if all periodic domains 
+      if (bcPER(1).and.bcPER(2).and.bcPER(3)) then
+        stg_vector = .false.
+        return
+      endif
+      
+c     Fill SP ghost cells independently on cnv and cov staggered vectors
 
-#if defined(petsc)
-      if (petsc__bc.and.bcPER(1).and.bcPER(2).and.bcPER(3)) return
-#endif
+      call sync(SP)
 
 c     Impose BCs
 
       cov_to_cnv = .false.
 
-#if defined(petsc) || defined(samrai)
       do bctype=2,BCLIM             !Do not do PER=1; already done by PETSc or SAMRAI
-#else
-      do bctype=1,BCLIM             !Enforces a particular order in the BCs
-#endif
+        if (bctype == SP) cycle
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1928,7 +1929,7 @@ c     Fill corners (for both cnv and cov components)
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_PER
+      call sync(PER)
 #endif
 
 c     End program
@@ -1937,11 +1938,12 @@ c     End program
 
       contains
 
-c     sync_PER
+c     sync
 c     #################################################################
-      subroutine sync_PER
+      subroutine sync(bctype)
 
-      bctype=PER
+      integer :: bctype
+
       do dim=1,3
         do loc=0,1
           ibc = (1+loc)+2*(dim-1)
@@ -1960,7 +1962,7 @@ c     #################################################################
         enddo
       enddo
 
-      end subroutine sync_PER
+      end subroutine sync
 
 c     synchronize_stg
 c     #################################################################
@@ -2017,7 +2019,7 @@ c     Begin program
         do il = ll,hl
           ibc = (1+il)+2*(id-1)
 
-          if (.not.selectFace(gbc_def,ibc).or.bcPER(id)) cycle !Do nothing for logical or periodic boundaries
+          if(.not.selectFace(gbc_def,ibc).or.bcPER(id).or.bcSP(id))cycle !Do nothing for logical, periodic, or SP boundaries
 
           !Do NOT change: SAMRAI depends on it
           call findBCLoopLimits(gbc_def
@@ -4809,8 +4811,10 @@ c     Select operation
 
       if (.not.iscurv) then  !Transform to curvilinear
 
-        call pstop('setMGBC_stg'
-     $       ,'Staggered transformation from Cartesian not implemented')
+        do ieq=1,neql/3
+          call  XformVector_stg_mesh2(gbc_def,iig
+     .              ,array(:,:,:,1+3*(ieq-1):3*ieq),'car',cvec)
+        enddo
 
 c$$$        do ieq=1,neql/3
 c$$$          call transformVector(iig,iig,iig
@@ -4875,8 +4879,13 @@ c$$$        enddo
 
       if (.not.res_is_curv) then
 
-        call pstop('setMGBC_stg'
-     $       ,'Staggered transformation to Cartesian not implemented')
+        do ieq=1,neql/3
+          call  XformVector_stg_mesh2(gbc_def,iig
+     .              ,array(:,:,:,1+3*(ieq-1):3*ieq),cvec,'car')
+        enddo
+          
+c$$$        call pstop('setMGBC_stg'
+c$$$     $       ,'Staggered transformation to Cartesian not implemented')
 
 c$$$        do ieq=1,neql/3
 c$$$          call transformVector(iig,iig,iig

@@ -1887,7 +1887,7 @@ c ######################################################################
 
 c     pic_update_tnp
 c     ##################################################################
-      subroutine pic_update_tnp(A,DtA,test)
+      subroutine pic_update_tnp(A,DtA,test,init)
 
 c     ------------------------------------------------------------------
 c     Update particle position and velocities in time, compute inflow
@@ -1902,6 +1902,8 @@ c     Call variables
 
       character(*) :: test
 
+      logical ::  init
+
 c     Local variables
 
       integer :: isp,ipc,Np,npc1,ierr !count the # of particle in the first cell
@@ -1913,6 +1915,14 @@ c     Local variables
       integer :: i, i_n(_Npg),j_n(_Npg)
 
 c     Begin program
+
+c     Update moments
+
+      momsn = moms
+
+      if (init) return
+
+c     Update particle info
 
       call get_inverse_h(ihx,ihy,ihz)
       call get_global_grid_size(nxg,nyg,nzg)
