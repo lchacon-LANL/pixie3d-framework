@@ -238,6 +238,16 @@ cc        endif
 
       end function bcSYM
 
+c     get_topol_bcs
+c     #################################################################
+      subroutine get_topol_bcs(bcs)
+
+      integer :: bcs(6)
+
+      bcs = bcond
+
+      end subroutine get_topol_bcs
+
       end module bc_def
 
 c module profile_petsc

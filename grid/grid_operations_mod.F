@@ -2418,7 +2418,9 @@ c     Input variables
 c     Local variables
 
         integer :: nx,ny,nz,ip,im,jp,jm,kp,km
-        real(8) :: gsub11,gsub22,gsub33
+        real(8) :: gsub11,gsub12,gsub13
+     .            ,gsub21,gsub22,gsub23
+     .            ,gsub31,gsub32,gsub33
         real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
 
 c     Begin program
@@ -2438,10 +2440,22 @@ c     Begin program
 
         if (im >= 0) then
           !i,j+1/2,k+1/2
-          gsub11 = 0.5*(gsub_v(im,j,k,1,1)
-     .                 +gsub_v(i ,j,k,1,1))
+          gsub11 = 0.5*(gsub_v(i ,j,k,1,1)
+     .                 +gsub_v(im,j,k,1,1))
+c$$$          gsub12 = 0.5*(gsub_v(i ,j,k,1,2)
+c$$$     .                 +gsub_v(im,j,k,1,2))
+c$$$          gsub13 = 0.5*(gsub_v(i ,j,k,1,3)
+c$$$     .                 +gsub_v(im,j,k,1,3))
 
-          cov(1) = gsub11*cnv(i,j,k,1)
+          cov(1) = gsub11      *cnv(i ,j ,k,1)
+c$$$     .            +gsub12*0.25*(cnv(i ,j ,k,2)
+c$$$     .                         +cnv(i ,jp,k,2)
+c$$$     .                         +cnv(im,j ,k,2)
+c$$$     .                         +cnv(im,jp,k,2))
+c$$$     .            +gsub13*0.25*(cnv(i ,j,k ,3)
+c$$$     .                         +cnv(i ,j,kp,3)
+c$$$     .                         +cnv(im,j,k ,3)
+c$$$     .                         +cnv(im,j,kp,3))
      .                +0.25*(gsub_v(i ,j,k,1,2)*(cnv(i ,j ,k,2)
      .                                          +cnv(i ,jp,k,2))
      .                      +gsub_v(im,j,k,1,2)*(cnv(im,j ,k,2)
@@ -2454,10 +2468,22 @@ c     Begin program
 
         if (jm >= 0) then
           !i+1/2,j,k+1/2
+c$$$          gsub21 = 0.5*(gsub_v(i,jm,k,2,1)
+c$$$     .                 +gsub_v(i,j ,k,2,1))
           gsub22 = 0.5*(gsub_v(i,jm,k,2,2)
      .                 +gsub_v(i,j ,k,2,2))
+c$$$          gsub23 = 0.5*(gsub_v(i,jm,k,2,3)
+c$$$     .                 +gsub_v(i,j ,k,2,3))
 
-          cov(2) = gsub22*cnv(i,j,k,2)
+          cov(2) = gsub22      *cnv(i ,j ,k,2)
+c$$$     .            +gsub21*0.25*(cnv(i ,j ,k,1)
+c$$$     .                         +cnv(ip,j ,k,1)
+c$$$     .                         +cnv(i ,jm,k,1)
+c$$$     .                         +cnv(ip,jm,k,1))
+c$$$     .            +gsub23*0.25*(cnv(i,j ,k ,3)
+c$$$     .                         +cnv(i,j ,kp,3)
+c$$$     .                         +cnv(i,jm,k ,3)
+c$$$     .                         +cnv(i,jm,kp,3))
      .                +0.25*(gsub_v(i,j ,k,2,1)*(cnv(i ,j ,k,1)
      .                                          +cnv(ip,j ,k,1))
      .                      +gsub_v(i,jm,k,2,1)*(cnv(i ,jm,k,1)
@@ -2470,10 +2496,22 @@ c     Begin program
 
         if (km >= 0) then
           !i+1/2,j+1/2,k
+c$$$          gsub31 = 0.5*(gsub_v(i,j,km,3,1)
+c$$$     .                 +gsub_v(i,j,k ,3,1))
+c$$$          gsub32 = 0.5*(gsub_v(i,j,km,3,2)
+c$$$     .                 +gsub_v(i,j,k ,3,2))
           gsub33 = 0.5*(gsub_v(i,j,km,3,3)
      .                 +gsub_v(i,j,k ,3,3))
 
-          cov(3) = gsub33*cnv(i,j,k,3)
+          cov(3) = gsub33      *cnv(i ,j,k ,3)
+c$$$     .            +gsub31*0.25*(cnv(i ,j,k ,1)
+c$$$     .                         +cnv(ip,j,k ,1)
+c$$$     .                         +cnv(i ,j,km,1)
+c$$$     .                         +cnv(ip,j,km,1))
+c$$$     .            +gsub32*0.25*(cnv(i,j ,k ,2)
+c$$$     .                         +cnv(i,jp,k ,2)
+c$$$     .                         +cnv(i,j ,km,2)
+c$$$     .                         +cnv(i,jp,km,2))
      .                +0.25*(gsub_v(i,j,k ,3,1)*(cnv(i ,j,k ,1)
      .                                          +cnv(ip,j,k ,1))
      .                      +gsub_v(i,j,km,3,1)*(cnv(i ,j,km,1)
@@ -2692,17 +2730,14 @@ c     Begin program
             enddo
           enddo
         elseif (vrtx_in.and.vrtx_out) then
-          do k=1,nz+1
-            do j=1,ny+1
-              do i=1,nx+1
+          do k=0,nz+1
+            do j=0,ny+1
+              do i=0,nx+1
                 cov(i,j,k,:) = XformToCov_vrtx_stg_ijk(g_def,i,j,k,igrid
      .                                                ,cnv)
               enddo
             enddo
           enddo
-          cov(0,:,:,:) = cov(1,:,:,:)
-          cov(:,0,:,:) = cov(:,1,:,:)
-          cov(:,:,0,:) = cov(:,:,1,:)
         elseif ((.not.vrtx_in).and.vrtx_out) then
           write (*,*) 'Case not implemented yet'
           write (*,*) 'Aborting in XformToCov_stg_mesh'
