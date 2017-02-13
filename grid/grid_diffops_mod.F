@@ -3955,7 +3955,9 @@ c     Call variables
      $                  ,0:size(cnv,2)-1
      $                  ,0:size(cnv,3)-1,3)
 
-      real(8),optional :: diff(0:,0:,0:)
+      real(8),optional :: diff(0:size(cnv,1)-1
+     $                        ,0:size(cnv,2)-1
+     $                        ,0:size(cnv,3)-1)
 
 c     Local variables
 
@@ -3970,7 +3972,7 @@ c     Begin program
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            cnv_out(i,j,k,:)=veclap(g_def,i,j,k,nx,ny,nz
+            cnv_out(i,j,k,:)=veclap_ijk(g_def,i,j,k,nx,ny,nz
      .                             ,igrid,igrid,igrid,cnv
      .                             ,diff=diff,alteom=alt__eom())
           enddo

@@ -2593,41 +2593,43 @@ c     Local variables
  
       real(8),allocatable :: sp_sum(:,:),dv_sum(:,:),l_sum(:,:)
 
-      integer :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg,ieq
+      integer :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg,ieq,one,two,thr
+     .          ,order_int
 
       logical :: cartesian,isvec,iscnv
 
-c     Begin program
+      real(8),pointer,dimension(:) :: xx
 
-c     Impose boundary conditions (external)
+c     Begin program
 
       isvec = (neq == 3)                !Initialize isvec (may be modified by setMGBC)
 
       cartesian = (bcSP() .and. isvec)  !Return Cartesian variables for prolongation
 
+c     Impose boundary conditions
+
       if (order > 0 .or. cartesian) then
-        if (isvec.and.is__stg) then
+        if (is__stg) then
           call setMGBC_stg(mgctx%g_def,0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
-cc     .              ,iorder=min(order,3)             !now inherited from previous calls
      .              ,result_is_curv=(.not.cartesian)
      .              ,out_iscurv=isvec,out_iscnv=iscnv  !<= These define whether quantities are 
      .              )                                  !   vectors or scalars. 
 
         else
           call setMGBC(mgctx%g_def,0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
-cc     .              ,iorder=min(order,3)             !now inherited from previous calls
      .              ,result_is_curv=(.not.cartesian)
      .              ,out_iscurv=isvec,out_iscnv=iscnv  !<= These define whether quantities are 
      .              )                                  !   vectors or scalars. 
         endif
       endif
 
-c     Perform average along azimuthal direction for SP configurations
+c     Perform average along azimuthal direction @ SP
 
-      if (isSP2(mgctx%g_def,1,igc) .and. isvec) then
+      if (isSP2(mgctx%g_def,1,igc) .and. cartesian) then
 
         allocate(sp_sum(0:nzc+1,neq),dv_sum(0:nzc+1,neq))
 
+        !Compute average
         do ieq=1,neq
           do k=0,nzc+1
             sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,ieq)
@@ -2652,14 +2654,48 @@ c     Perform average along azimuthal direction for SP configurations
         deallocate(l_sum)
 #endif
 
+        !Assign back to innermost cell center
+        xx => mgctx%g_def%xx
+
+        order_int = min(order,nxc)
+
+        one = 1 ; two = 2; thr = 3
+
+        !Safeguards to prevent stepping out of domain
+        if (order_int <= 1) then
+          two = one
+          thr = one
+        elseif (order_int == 2) then
+          thr = two
+        endif
+
+        call getMGmap(mgctx%g_def,1,1,1,igc,igc,igc,ig,jg,kg)
+
         do ieq=1,neq
           do k=0,nzc+1
             arrayc(1,:,k,ieq) = sp_sum(k,ieq)/dv_sum(k,ieq)
-            arrayc(0,:,k,ieq) = sp_sum(k,ieq)/dv_sum(k,ieq)
+c$$$            arrayc(0,:,k,ieq) = sp_sum(k,ieq)
           enddo
+
+          arrayc(1,:,:,ieq) =
+     .              quad_int(0d0,xx(ig+one),xx(ig+two),xx(ig+thr)
+     .                      ,arrayc(1    ,:,:,ieq),arrayc(1+one,:,:,ieq)
+     .                      ,arrayc(1+two,:,:,ieq),arrayc(1+thr,:,:,ieq)
+     .                      ,xx(ig),order_int)
+
+c$$$            arrayc(1,:,k,ieq) = (2./3.)*sp_sum(k,ieq)
+c$$$     .                        + (1./3.)*arrayc(2,:,k,ieq)
         enddo
 
         deallocate(sp_sum,dv_sum)
+      endif
+
+c     Impose SP boundary conditions
+
+      if (cartesian) then
+        call scalarSingularBC(mgctx%g_def,arrayc(:,:,:,1))
+        call scalarSingularBC(mgctx%g_def,arrayc(:,:,:,2))
+        call scalarSingularBC(mgctx%g_def,arrayc(:,:,:,3))
       endif
 
 c     Prolong arrays (use scalar prolongation)

@@ -721,12 +721,10 @@ c #####################################################################
 
         use singularBCinterface
 
+        use oned_int
+
         INTERFACE setBC
           module procedure imposeBConScalar,imposeBConVector
-        end INTERFACE
-
-        INTERFACE quad_int
-          module procedure quad_int_0,quad_int_1,quad_int_2
         end INTERFACE
 
         INTERFACE XferBCs
@@ -4069,135 +4067,6 @@ c     -----------------------------------------------------------------------
       end subroutine select_smooth
 
       end subroutine extrapolateToCorner
-
-c     quad_int_0
-c     #################################################################
-      function quad_int_0(x0,x1,x2,x3,y0,y1,y2,y3,x,order) result(y)
-c     -----------------------------------------------------------------
-c     Interpolation (extrapolation) routine, up to cubic order.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: order
-      real(8) :: x0,x1,x2,x3,y0,y1,y2,y3,x,y
-
-c     Local variables
-
-c     Begin program
-
-      select case (order)
-      case (3)
-        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
-     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
-     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
-     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
-      case (2)
-        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
-     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
-     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
-      case (1)
-        y = y0*(x-x1)/(x0-x1)
-     .     +y1*(x-x0)/(x1-x0)
-      case (0)
-        y = y0
-      case default
-        messg = 'Order of interpolation not implemented'
-        call pstop('quad_int_0',messg)
-      end select
-
-c     End program
-
-      end function quad_int_0
-
-c     quad_int_1
-c     #################################################################
-      function quad_int_1(x0,x1,x2,x3,y0,y1,y2,y3,x,order) result(y)
-c     -----------------------------------------------------------------
-c     Interpolation (extrapolation) routine, up to cubic order.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: order
-      real(8) :: x0,x1,x2,x3,x
-     .          ,y0(:),y1(:),y2(:),y3(:),y(size(y0))
-
-c     Local variables
-
-c     Begin program
-
-      select case (order)
-      case (3)
-        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
-     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
-     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
-     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
-      case (2)
-        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
-     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
-     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
-      case (1)
-        y = y0*(x-x1)/(x0-x1)
-     .     +y1*(x-x0)/(x1-x0)
-      case (0)
-        y = y0
-      case default
-        messg = 'Order of interpolation not implemented'
-        call pstop('quad_int_1',messg)
-      end select
-
-c     End program
-
-      end function quad_int_1
-
-c     quad_int_2
-c     #################################################################
-      function quad_int_2(x0,x1,x2,x3,y0,y1,y2,y3,x,order) result(y)
-c     -----------------------------------------------------------------
-c     Interpolation (extrapolation) routine, up to cubic order.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: order
-      real(8) :: x0,x1,x2,x3,x
-     .          ,y0(:,:),y1(:,:),y2(:,:),y3(:,:)
-     .          ,y(size(y0,1),size(y0,2))
-
-c     Local variables
-
-c     Begin program
-
-      select case (order)
-      case (3)
-        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
-     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
-     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
-     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
-      case (2)
-        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
-     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
-     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
-      case (1)
-        y = y0*(x-x1)/(x0-x1)
-     .     +y1*(x-x0)/(x1-x0)
-      case (0)
-        y = y0
-      case default
-        messg = 'Order of interpolation not implemented'
-        call pstop('quad_int_2',messg)
-      end select
-
-c     End program
-
-      end function quad_int_2
 
 c     XferBCs_scl
 c     ###################################################################
