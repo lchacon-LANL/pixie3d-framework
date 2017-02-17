@@ -2,6 +2,8 @@ c module grid_mpi
 c ######################################################################
       module grid_mpi
 
+        use io, ONLY: FATAL,sstop
+
         use grid_operations
 
         use xdraw_io, ONLY: contour
@@ -41,24 +43,13 @@ c$$$        END INTERFACE
      .               ,my_rank=0
      .               ,group_world
      .               ,group_sp,tag=0,dest=0,root=0
-     .               ,status(MPI_STATUS_SIZE)
+cc     .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
 
         integer    :: l_lim(3,0:1)
      .               ,g_lim(3,0:1)
      .               ,rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
-
-c$$$        integer    :: MPI_COMM_SP    =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_POL   =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_RAD   =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_X     =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_Y     =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_Z     =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_XY    =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_YZ    =MPI_COMM_NULL
-c$$$     .               ,MPI_COMM_PER(3)=MPI_COMM_NULL
-cc        integer   ,allocatable,dimension(:) :: MPI_COMM_NBRS
 
         character(80) :: messg
 
@@ -111,6 +102,8 @@ c     Local variables
 
         integer :: my_sp_rank,np_sp
 
+        logical :: chk_mpi_comm=.false.
+
 c     Begin program
 
         g_mpi_def => g_def
@@ -122,7 +115,8 @@ c     Singular-point boundary MPI communicator
         if (bcSP()) then
           call splitMPIComm(g_mpi_def%MPI_COMM_SP,selectRank_SP
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_SP,'MPI_COMM_SP')
+          if (chk_mpi_comm)
+     .         call check_MPI_COMM(g_mpi_def%MPI_COMM_SP,'MPI_COMM_SP')
         endif
 
 c     X MPI communicator (domains that share the same Y, Z  slices)
@@ -131,7 +125,8 @@ c     X MPI communicator (domains that share the same Y, Z  slices)
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 
         if (bcSP()) g_mpi_def%MPI_COMM_RAD = g_mpi_def%MPI_COMM_X
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_X,'MPI_COMM_X')
+        if (chk_mpi_comm)
+     .       call check_MPI_COMM(g_mpi_def%MPI_COMM_X,'MPI_COMM_X')
 
 c     Y MPI communicator (domains that share same X, Z slices)
 
@@ -139,45 +134,54 @@ c     Y MPI communicator (domains that share same X, Z slices)
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 
         if (bcSP()) g_mpi_def%MPI_COMM_POL = g_mpi_def%MPI_COMM_Y
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_Y,'MPI_COMM_Y')
+        if (chk_mpi_comm)
+     .       call check_MPI_COMM(g_mpi_def%MPI_COMM_Y,'MPI_COMM_Y')
 
 c     Z MPI communicator (domains that share same X, Z slices)
 
         call splitMPIComm(g_mpi_def%MPI_COMM_Z,selectRank_Z
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_Z,'MPI_COMM_Z')
+        if (chk_mpi_comm)
+     .       call check_MPI_COMM(g_mpi_def%MPI_COMM_Z,'MPI_COMM_Z')
 
 c     XY MPI communicator (domains that share same Z slices)
 
         call splitMPIComm(g_mpi_def%MPI_COMM_XY,selectRank_XY
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_XY,'MPI_COMM_XY')
+        if (chk_mpi_comm)
+     .       call check_MPI_COMM(g_mpi_def%MPI_COMM_XY,'MPI_COMM_XY')
 
 c     YZ MPI communicator (domains that share same X slices)
 
         call splitMPIComm(g_mpi_def%MPI_COMM_YZ,selectRank_YZ
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc        call check_MPI_COMM(g_mpi_def%MPI_COMM_YZ,'MPI_COMM_YZ')
+        if (chk_mpi_comm)
+     .       call check_MPI_COMM(g_mpi_def%MPI_COMM_YZ,'MPI_COMM_YZ')
 
 c     Periodic BCs communicators
 
         if (bcond(1) == PER) then
           call splitMPIComm(g_mpi_def%MPI_COMM_PER(1),selectRank_PER_X
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(1),'MPI_COMM_PERx')
+          if (chk_mpi_comm)
+     .    call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(1),'MPI_COMM_PERx')
         endif
 
         if (bcond(3) == PER) then
           call splitMPIComm(g_mpi_def%MPI_COMM_PER(2),selectRank_PER_Y
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(2),'MPI_COMM_PERy')
+          if (chk_mpi_comm)
+     .    call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(2),'MPI_COMM_PERy')
         endif
 
         if (bcond(5) == PER) then
           call splitMPIComm(g_mpi_def%MPI_COMM_PER(3),selectRank_PER_Z
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
-cc          call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(3),'MPI_COMM_PERz')
+          if (chk_mpi_comm)
+     .    call check_MPI_COMM(g_mpi_def%MPI_COMM_PER(3),'MPI_COMM_PERz')
         endif
+
+        if (chk_mpi_comm) write(*,*) 'Finished checking MPI comms'
 
 c     End program
 
@@ -1179,44 +1183,13 @@ c     Call SAMRAI's error handler
         end interface
         call pstop_samrai(trim(routine),trim(message))
 #else
+c     Call error handler
+        
+        call sstop(my_rank,routine,message)
 
-#if defined(petsc)
-        if (my_rank == 0) then
-          write (*,*)
-          write (*,*) trim(message)
-          write (*,*) 'Program stopped at routine ',trim(routine)
-        endif
-        call PetscEnd(mpierr)
-#endif
-        call sstop(routine, message)
 #endif
 
       end subroutine pstop
-
-c     sstop
-c     ################################################################
-      subroutine sstop(routine,message)
-
-c     ---------------------------------------------------------------
-c     Stops program at "routine" with "message"
-c     ---------------------------------------------------------------
-
-        implicit none
-
-        character(*)  :: routine, message
-
-c     Begin program
-
-        write (*,*)
-        write (*,*) trim(message)
-        write (*,*) 'Program stopped at routine ',trim(routine)
-
-        call abort
-        stop
-
-c     End program
-
-      end subroutine sstop
 
 #if defined(petsc)
 c     psum
@@ -1701,7 +1674,6 @@ c     Communicate
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
      .                  ,mpicomm,mpierr)
 
-
       do k=1,npzl
         do j=1,npyl
           do i=1,npxl
@@ -1731,7 +1703,7 @@ c     End program
 
 c     find_global_field_scl
 c     ##############################################################
-      subroutine find_global_field_scl(lf,gf,dump,mpi_comm)
+      subroutine find_global_field_scl(lf,gf,dump,mpi_comm,no_bc)
 
       use xdraw_io
 
@@ -1745,7 +1717,7 @@ c     Call variables
 
       real(8),dimension(0:,0:,0:) :: lf,gf
 
-      logical,optional :: dump
+      logical,optional :: dump,no_bc
       integer,optional :: mpi_comm
 
 c     Local variables
@@ -1753,7 +1725,7 @@ c     Local variables
       integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc
       real(8),pointer,dimension(:) :: local_x,global_x
 
-      logical :: dmp
+      logical :: dmp,nobc
 
       integer :: mpicomm,npxl,npyl,npzl,npl
 
@@ -1763,6 +1735,12 @@ c     Begin program
         dmp=dump
       else
         dmp=.false.
+      endif
+
+      if (PRESENT(no_bc)) then
+        nobc=no_bc
+      else
+        nobc=.false.
       endif
 
 #if defined(petsc)
@@ -1827,8 +1805,8 @@ c     Communicate
       deallocate(local_x,global_x)
 
       !Synchronize global periodic boundaries
-      do ibc =1,6
-        if (bcond(ibc) == PER) call per_bc(ibc,gf)
+      do ibc=1,6
+        if (bcond(ibc)==PER.and.(.not.nobc)) call per_bc(ibc,gf)
       enddo
 #else
       gf = lf

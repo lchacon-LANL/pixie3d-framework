@@ -152,8 +152,8 @@ c Begin program
       pi   =acos(-1d0)
       twopi=2*pi
 
-      lx   =  x(nx)-x(1)
-      xmed = (x(nx)+x(1))/2.
+      lx   = (x(nx)-x(1))/(nx-1)*nx
+      xmed = 0.5*(x(nx)+x(1))
 
 c Smooth initial data (Hanning)
 
@@ -161,7 +161,6 @@ c Smooth initial data (Hanning)
 
 c Check for power of 2 in signal
 
-cc      if (2**ceiling(log(1d0*nv)/log(2d0)) /= nv) then
       if (iand(nv,nv-1).ne.0) then
         write (*,*) 'FFT vectors sizes are not a power of 2.'
         write (*,*) 'Aborting...'
@@ -263,7 +262,7 @@ c Begin program
 
 c Reconstruct uniform grid from ak
 
-      lx = x(nx)-x(1)
+      lx   = (x(nx)-x(1))/(nx-1)*nx
 
       x_wrk(1) = x(1)
       do i=2,nv
@@ -272,7 +271,7 @@ c Reconstruct uniform grid from ak
          else
            im = nv+int(lx*ak(i)/twopi-1d-3)
          endif
-        x_wrk(i) = x_wrk(1) + lx/(nv-1)*im
+        x_wrk(i) = x_wrk(1) + lx/nv*im
       enddo
 
 c Interpolate ifft to original grid

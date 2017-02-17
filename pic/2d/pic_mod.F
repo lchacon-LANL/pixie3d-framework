@@ -24,6 +24,10 @@ c ######################################################################
       real(8) :: pit_avg=0           !Average picard iterations per substep
      .          ,pst_avg=0           !Average number of particle substeps per timestep
 
+      !Diagnostics
+      real(8) :: push_timer=0d0
+      integer,private :: clock_rate,clock_start,clock_stop
+
       contains
 
 c     pic_mover_2d
@@ -50,9 +54,8 @@ c     Local variables
       real(_prec) :: v_np(_Npg,3)
       real(_prec) :: x_nh(_Npg,3)
 
-      real(_prec) :: dt_sub(_Npg),dtp(_Npg),x0(_Npg,3)
-      real(_prec) :: v0(_Npg,3)
-      real(_prec) :: dx(_Npg,3)
+      real(_prec) :: dt_sub(_Npg),dtp(_Npg)
+      real(_prec) :: v0(_Npg,3),dx(_Npg,3)!,x0(_Npg,3)
       real(_prec) :: xp(_Npg),yp(_Npg),xfp(_Npg),yfp(_Npg)
      .              ,v2(_Npg),w_pcle(_Npg),m_sp,q_sp
 
@@ -77,6 +80,13 @@ c     Local variables
       type(particle) :: pcle_nu
 
 c     Begin program
+
+c     Particle pusher timer - C. Mikida, 05/16
+
+      call system_clock(count_rate=clock_rate) 
+      call system_clock(count=clock_start)
+
+c      call start_collection()
 
       if(present(tfv)) then
          dtv = dt*tfv
@@ -126,7 +136,7 @@ c     Move particles
          q_sp = spcs(isp)%q
 
 !     note that there is some issue with valgrind and libgomp.
-!$omp parallel DEFAULT(SHARED) private(ipc,it,x0,v0,v2,dtp,dt_sub
+!$omp parallel DEFAULT(SHARED) private(ipc,it,v0,v2,dtp,dt_sub
 !$omp.              ,d_x,dx,xp,yp,xfp,yfp,x_nh,dum1,dum2
 !$omp.              ,i,j,k,i0,j0,Mx1,Mx2,My1,My2,Mxy2,w_pcle
 !$omp.              ,psts,M_w_prod,pits,pcle_nu)
@@ -159,6 +169,13 @@ c     Move particles
            do while(maxval(dtp)>0)
              it = it+1
 
+c$$$             if(isp==1.and.ipc==8179) then
+c$$$               print *,isp,ipc
+c$$$               print *,"xn ",pcle_nu%x_n
+c$$$               print *,"vn ",pcle_nu%v_n
+c$$$               print *
+c$$$             end if
+
              !Perform pcle substep
              call ACC_CN_incell_offset(spcs(isp)%q_m
      .                                ,spcs(isp)%pcles(ipc),pcle_nu
@@ -167,12 +184,13 @@ c     Move particles
      $                                ,psts,pits)
 
 c$$$             !Check convergence
-c$$$             if(it>200) then
-c$$$c             if(itime==17 .and. isp==1 .and. ipc==1553590) then
-c$$$cc             if(dt_sub<1d-16 .and. dtp>0d0) then
-c$$$cc             if(isp==1.and.ipc==1340995.and.it>=20) then
-c$$$                print *,isp,ipc,it,dt_sub,dtp,x0,dx
-c$$$                print *,"#",v0,spcs(isp)%pcles(ipc)%v_np,i0,j0
+c$$$             if(isp==1.and.ipc==8179) then
+c$$$               print *,isp,ipc,it,i0,j0,pits,psts
+c$$$               print *,"time",dt_sub,dtp
+c$$$               print *,"dx ",dx
+c$$$               print *,"xnp",spcs(isp)%pcles(ipc)%x_np
+c$$$               print *,"vnp",spcs(isp)%pcles(ipc)%v_np
+c$$$               print *
 c$$$             end if
 
              !Update pcle counters
@@ -217,7 +235,7 @@ c$$$             end if
 #ifdef __GNU
                 Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
 #else
-                Mxy2(k,1:3,1:3)= matmul(Mx2(k,:,:),My2(k,:,:))
+                Mxy2(k,1:3,1:3)= matmul      (Mx2(k,:,:),My2(k,:,:))
 #endif
              end do
 
@@ -360,6 +378,16 @@ cc           !VECTOR SIMD
 
       end do                    !species
 
+c     Particle pusher timing end - C. Mikida, 05/16
+      
+c      call stop_collection()
+      call system_clock(count=clock_stop)
+
+c     Append to particle pusher timer/counters
+
+      push_timer= push_timer + real(clock_stop - clock_start)
+     .                        /real(clock_rate)
+
 c     Synchronize moments
 
       call wrap_moments_nodes(moms_g(:,:,1,:,:))
@@ -434,15 +462,17 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i0(_Npg),j0(_Npg)
+      integer :: i,j,k,nxg,nyg,nzg
+      integer :: i0(_Npg),j0(_Npg),inp_loc(_Npg),jnp_loc(_Npg)
+
+      real(8) :: ihx,ihy,ihz,hx,hy,hz
 
       real(_prec) :: rx(_Npg),ry(_Npg),rz(_Npg)
-     .          ,alpha=0d0
 
       real(_prec), parameter :: eps  = 1d-12 !Buffer for dt computation in pcle Xing
      .                         ,eps2 = 1d-8  !Buffer for pcle Xing
 
-      real(_prec) :: ptola
+      real(_prec) :: ptola,alpha=0d0
 
       real(_prec) :: am(_Npg,_Dim)
 
@@ -465,25 +495,15 @@ c     Local variables
       real(_prec) :: vhcurv(_Npg,3)
       real(_prec) :: xnp(_Npg),ynp(_Npg)
       real(_prec) :: dxl(_Npg,2),dxr(_Npg,2)
-      integer :: i,j,k,inp_loc(_Npg),jnp_loc(_Npg)
 
       real(_prec) :: DtA_1(_Npg,2,3), DtA_2(_Npg,3,2), DtA_3(_Npg,3,3)
       real(_prec) :: A_1(_Npg,2,3), A_2(_Npg,3,2), A_3(_Npg,3,3)
       real(_prec) :: phi_loc(_Npg,3,3)
-      real(_prec) :: vnp_loc(_Npg,3)
-      real(_prec) :: xnp_loc(_Npg,3)
-      real(_prec) :: x0_loc(_Npg,3)
-      real(_prec) :: v0_loc(_Npg,3)
-     .          ,x0p(_Npg),y0p(_Npg)
-      real(_prec) :: Sx2_o(_Npg,3), Sy2_o(_Npg,3)
+      real(_prec) :: xnp_loc(_Npg,3),vnp_loc(_Npg,3)
+      real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3)
+      real(_prec) :: x0p(_Npg),y0p(_Npg)
+      real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
       real(_prec) :: scatter_zeroes(_Npg)
-
-      integer :: nxg,nyg,nzg
-      real(8) :: ihx,ihy,ihz,hx,hy,hz
-
-#if defined(FPA)
-      type (fpa_state) :: fpav
-#endif
 
 c     Begin program
 
@@ -516,12 +536,12 @@ c     Also define some insets of arrays for later use (C. Mikida)
          DtA_3(i,:,:) = real(DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1, 3)
      $                      ,_prec)
 
-         A_1(i,:,:) = real(A(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1, 1)
-     $                    ,_prec)
-         A_2(i,:,:) = real(A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)  , 2)
-     $                    ,_prec)
-         A_3(i,:,:) = real(A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1, 3)
-     $                    ,_prec)
+         A_1(i,:,:)   = real(A(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1, 1)
+     $                      ,_prec)
+         A_2(i,:,:)   = real(A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)  , 2)
+     $                      ,_prec)
+         A_3(i,:,:)   = real(A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1, 3)
+     $                      ,_prec)
 
          phi_loc(i,:,:) = real(phi(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1)
      $                        ,_prec)
@@ -536,7 +556,7 @@ c     Estimate sub-time-step
 c     Initialize Picard
 
       call initialize_it(dx_err)
-
+         
       it=0
 
       substeps = 0
@@ -567,8 +587,6 @@ c$$$     $           +sum(abs(vh-vh_k)))/(2*_Npg)
       end do             
 
 c     Update particle quantities
-
-c     All FP ops should occur in local registers (C. Mikida)
 
       vnp_loc = v0_loc + 2d0*(vh - v0_loc) !2d0*vh - v0
       xnp_loc = x0_loc + dx
@@ -803,13 +821,13 @@ c$$$           end do
 
         !VECTOR SIMD
         do i=1,_Npg 
-           accl(i,:) = (at(i,:) - ac0(i,:))*2d0 !/dts added below in dt_sub
+          accl(i,:) = (at(i,:) - ac0(i,:))*2d0 !/dts added below in dt_sub
 #if defined(L1_NORM)
-           anup(i) = sum(abs(accl(i,:)))  !L1 norm
+          anup(i) = sum(abs(accl(i,:))) !L1 norm
 #else
-           anup(i) = sqrt(dot_product(accl(i,:),accl(i,:))) !L2 norm
+          anup(i) = sqrt(dot_product(accl(i,:),accl(i,:))) !L2 norm
 #endif
-         end do
+        end do
 
         dt_sub = min(dt_sub,(6d0*xtoll*dts/(anup+1d-300*dts))
      $                      **(0.333333333333333d0))
@@ -832,10 +850,8 @@ c     Call variables
 
 c     Logical variables
 
-        real(_prec) :: vhes(_Npg,3)
-     $                ,vhcurv(_Npg,3),iDenom(_Npg),dtb(_Npg,3)
-        real(_prec) :: qmdth(_Npg)
-        real(_prec) :: vhcurv_inv(_Npg,3)
+        real(_prec) :: vhes(_Npg,3),vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
+        real(_prec) :: qmdth(_Npg),iDenom(_Npg),dtb(_Npg,3)
         real(_prec) :: xp_vhcurv(_Npg,3)
 
 c     Begin program
@@ -995,7 +1011,7 @@ c     Begin program
 
 c     Find E
 
-      call opt_matvec_3_pcle(DSx,phi_loc,dum3)
+      call opt_matvec_tr_pcle(DSx,phi_loc,dum3)
       call opt_matvec_23_pcle(DtA_1,Sy2,dum2)
       call dot_product_3_pcle(dum3,Sy2,dum1)
       Ep(:,1) = -dum1
@@ -1003,15 +1019,15 @@ c     Find E
       Ep(:,1) = Ep(:,1) - dum1
      
       call opt_matvec_2_pcle(Sx2,DtA_2,dum2)
-      call opt_matvec_3_pcle(Sx2,phi_loc,dum3)
+      call opt_matvec_tr_pcle(Sx2,phi_loc,dum3)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Ep(:,2) = -dum1
       call dot_product_3_pcle(dum3,DSy,dum1)
       Ep(:,2) = Ep(:,2) - dum1
 
-      call opt_matvec_3_pcle(Sx2,DtA_3,dum3)
+      call opt_matvec_tr_pcle(Sx2,DtA_3,dum3)
       call dot_product_3_pcle(dum3,Sy2,dum1)
-      call opt_matvec_3_pcle(Sxd,DtA_3,dum3)
+      call opt_matvec_tr_pcle(Sxd,DtA_3,dum3)
       Ep(:,3) = -dum1
       call dot_product_3_pcle(dum3,Syd,dum1)
       Ep(:,3) = Ep(:,3) - dum1
@@ -1026,11 +1042,11 @@ c     Find B
          Ax_nuh(i,:,:) = Ax_nu0(i,:,:) + DtA_1(i,:,:)*dum1(i)
       enddo
 
-      call opt_matvec_3_pcle(Sx2,Az_nuh,dum3)
+      call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
       Bp(:,1) = dum1 + B0(1)
 
-      call opt_matvec_3_pcle(DSx,Az_nuh,dum3)
+      call opt_matvec_tr_pcle(DSx,Az_nuh,dum3)
       call dot_product_3_pcle(dum3,Sy2,dum1)
       Bp(:,2) =-dum1 + B0(2)
 
@@ -1102,7 +1118,7 @@ c     Find E
       Sxd = (Sx2_n-Sx2_o)*0.5d0
       Syd = (Sy2_n-Sy2_o)*0.5d0
 
-      call opt_matvec_3_pcle(DSx,phi_loc,dum3)
+      call opt_matvec_tr_pcle(DSx,phi_loc,dum3)
       call opt_matvec_23_pcle(DtA_1,Sy2,dum2)
       call dot_product_3_pcle(dum3,Sy2,dum1)
       Ep(:,1) = -dum1
@@ -1110,15 +1126,15 @@ c     Find E
       Ep(:,1) = Ep(:,1) - dum1
      
       call opt_matvec_2_pcle(Sx2,DtA_2,dum2)
-      call opt_matvec_3_pcle(Sx2,phi_loc,dum3)
+      call opt_matvec_tr_pcle(Sx2,phi_loc,dum3)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Ep(:,2) = -dum1
       call dot_product_3_pcle(dum3,DSy,dum1)
       Ep(:,2) = Ep(:,2) - dum1
 
-      call opt_matvec_3_pcle(Sx2,DtA_3,dum3)
+      call opt_matvec_tr_pcle(Sx2,DtA_3,dum3)
       call dot_product_3_pcle(dum3,Sy2,dum1)
-      call opt_matvec_3_pcle(Sxd,DtA_3,dum3)
+      call opt_matvec_tr_pcle(Sxd,DtA_3,dum3)
       Ep(:,3) = -dum1
       call dot_product_3_pcle(dum3,Syd,dum1)
       Ep(:,3) = Ep(:,3) - dum1
@@ -1134,11 +1150,11 @@ c     Find B
          Ax_nuh(i,:,:) = Ax_nu0(i,:,:) + DtA_1(i,:,:)*dum1(i)
       enddo
 
-      call opt_matvec_3_pcle(Sx2,Az_nuh,dum3)
+      call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
       Bp(:,1) = dum1
 
-      call opt_matvec_3_pcle(DSx,Az_nuh,dum3)
+      call opt_matvec_tr_pcle(DSx,Az_nuh,dum3)
       call dot_product_3_pcle(dum3,Sy2,dum1)
       Bp(:,2) =-dum1
 
@@ -1158,8 +1174,8 @@ c     Transform to Cartesian
       !VECTOR SIMD
       do i=1, _Npg
 #ifdef __GNU
-        Ep(i,:) = opt_matvec_3(Ep(i,:),cov(i,:,:))
-        Bp(i,:) = opt_matvec_3(Bp(i,:),cnv(i,:,:))
+        Ep(i,:) = opt_matvec_tr(Ep(i,:),cov(i,:,:))
+        Bp(i,:) = opt_matvec_tr(Bp(i,:),cnv(i,:,:))
 #else        
         Ep(i,:) = matmul(Ep(i,:),cov(i,:,:))
         Bp(i,:) = matmul(Bp(i,:),cnv(i,:,:))
@@ -1867,14 +1883,11 @@ c ######################################################################
 
       integer, parameter :: NDim = _Dim
 
-      !Diagnostics
-      real(8) :: push_timer
-
       contains
 
 c     pic_update_tnp
 c     ##################################################################
-      subroutine pic_update_tnp(A,DtA,test)
+      subroutine pic_update_tnp(A,DtA,test,init)
 
 c     ------------------------------------------------------------------
 c     Update particle position and velocities in time, compute inflow
@@ -1889,6 +1902,8 @@ c     Call variables
 
       character(*) :: test
 
+      logical ::  init
+
 c     Local variables
 
       integer :: isp,ipc,Np,npc1,ierr !count the # of particle in the first cell
@@ -1900,6 +1915,14 @@ c     Local variables
       integer :: i, i_n(_Npg),j_n(_Npg)
 
 c     Begin program
+
+c     Update moments
+
+      momsn = moms
+
+      if (init) return
+
+c     Update particle info
 
       call get_inverse_h(ihx,ihy,ihz)
       call get_global_grid_size(nxg,nyg,nzg)

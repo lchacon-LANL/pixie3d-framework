@@ -12,18 +12,26 @@ c ######################################################################
         use mk
 #endif
 
-        integer :: nrstep
-     .            ,nrst
+        integer :: EXIT_STATUS=FATAL !Hardwire to fatal termination
+
+
         integer :: itnewt
      .            ,itgmres
-     .            ,gmres_tot
-     .            ,newt_tot
-     .            ,init_grid_offset=0
-     .            ,bdf2_init_offset=1
+     .            ,nrstep
 
-        real(8) :: tmrst       !Dump time for restart
-     .            ,quota=1d30  !Max CPU time (in seconds)
-        real(8) :: rstep,dfreq,dtexp
+        real(8) :: rstep,dfreq
+
+        integer :: nrst             = 0
+     .            ,gmres_tot        = 0
+     .            ,newt_tot         = 0
+     .            ,init_grid_offset = 0
+     .            ,bdf2_init_offset = 1
+
+        real(8) :: tmrst = 0d0   !Dump time for restart
+     .            ,quota = 1d30  !Max CPU time (in seconds)
+     .            ,dtexp = 0d0   !Explicit time accumulator
+     .            ,exec_time=0d0 !Execution time (in seconds)
+
 
 #if !defined(samrai)
 
@@ -192,7 +200,12 @@ c     Begin program
 
       exit_tloop = (tmax.gt.0d0.and.time.ge.(tmax-1d-9*dt))
      .         .or.(numtime.ge.0.and.itime+1.ge.(numtime+inewtime))
+     .         .or.(exec_time > quota)
 
+      if (exit_tloop .and. exec_time <= quota) EXIT_STATUS = SUCCESS
+
+      if (exec_time > quota) EXIT_STATUS = NON_FATAL
+      
 c     End program
 
       end function TS_chk_end
@@ -253,16 +266,8 @@ c     Local variables
 
 c     Begin program
 
-      gmres_tot = 0
-      newt_tot  = 0
+      itime = inewtime - 1
 
-      itime     = inewtime - 1
-
-      nrst      = 0
-      tmrst     = 0d0
-
-      dtexp     = 0d0
-      
       if (relax_init_grid) init_grid_offset = 1
 
 c     PETSc CPU counters and profiling

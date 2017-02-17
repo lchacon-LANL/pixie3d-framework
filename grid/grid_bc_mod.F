@@ -576,6 +576,143 @@ c     End program
 
       end subroutine vectorSingularBC
 
+c     vectorSingularBC_stg
+c     #################################################################
+      subroutine vectorSingularBC_stg(gl_def,ivar,vec,cov)
+c     -----------------------------------------------------------------
+c     Averages vector components around singular point and calculates
+c     curvilinear components at singular point.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gl_def
+
+      integer :: ivar
+      real(8) :: vec(0:nxbc+1,0:nybc+1,0:nzbc+1)
+      logical :: cov
+
+c     Local variables
+
+      integer :: i,j,k,jj,jlog,nyg,jglobal
+
+#if defined(petsc)
+      real(8),allocatable,dimension(:)   :: local_x,global_x
+      real(8),allocatable,dimension(:,:) :: garray
+#endif
+
+c     Begin program
+
+c     Check that we are at domain adjacent to singular point
+
+      i = 1
+
+      if (.not.isSP2(gl_def,i,igxbc)) return
+
+c     Do staggered radial component case first (@origin v^1= r*vr = 0)
+
+      if (ivar == 1.and.(.not.cov)) then
+        vec(i-1,:,:) = 0d0
+        return
+      endif
+
+c     Check that domain size is a power of 2
+
+      nyg = gl_def%nygl(igybc)
+
+      if (mod(nyg,2) /= 0 .and. nyg /= 1) then
+        call pstop('vectorSingularBC'
+     .            ,'Poloidal dimension not a multiple of 2')
+      endif
+
+c     Parallel Allgather in SP communicator
+
+#if defined(petsc)
+      allocate(garray(nyg,0:nzbc+1))
+
+      if (gl_def%my < 1) then
+        call pstop('vectorSingularBC','npy < 1')
+      elseif (gl_def%my == 1) then
+        garray = vec(i,1:nyg,:)
+      else
+        allocate(global_x(nyg*(nzbc+2)))
+        call MPI_Allgather(vec(i,1:nybc,0:nzbc+1)
+     .                             ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
+     .                    ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
+     .                    ,gl_def%MPI_COMM_SP,mpierr)
+        do k=1,gl_def%my
+          garray(1+nybc*(k-1):nybc*k,:)
+     .       = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
+     .                , (/ nybc,nzbc+2 /))
+        enddo
+        deallocate(global_x)
+      endif
+#endif
+
+c     Element exchange in poloidal direction
+
+      jlog = gl_def%jlo(igybc)
+      if (coords == 'hl2') then
+        stop 'hl2 staggered option not implemented for hl2 geom'
+c$$$        do k=0,nzbc+1
+c$$$          do j=0,nybc+1
+c$$$            jglobal = j + jlog - 1
+c$$$            jj = mod(jglobal+nyg/2,nyg)
+c$$$            if (jj == 0) jj = nyg
+c$$$
+c$$$#if defined(petsc)
+c$$$            vec(i-1,j,k) =  garray(jj,k)
+c$$$#else
+c$$$            vec(i-1,j,k) =  vec(i,jj,k)
+c$$$#endif
+c$$$          enddo
+c$$$        enddo
+      else
+        do k=0,nzbc+1
+          do j=0,nybc+1
+            jglobal = j + jlog - 1
+            jj = mod(jglobal+nyg/2,nyg)
+            if (jj == 0) jj = nyg
+
+            if (cov) then
+              select case(ivar)
+              case(1)
+#if defined(petsc)
+                vec(i-1,j,k) = 0.5*(vec(i,j,k)-garray(jj,k)) !Average r+ and r- to origin
+#else
+                vec(i-1,j,k) = 0.5*(vec(i,j,k) -vec(i,jj,k)) !Average r+ and r- to origin
+#endif
+              case(2,3)
+#if defined(petsc)
+                vec(i-1,j,k) =  garray(jj,k)
+#else
+                vec(i-1,j,k) =  vec(i,jj,k)
+#endif
+              end select
+            else
+              select case(ivar)
+              case(2,3)
+#if defined(petsc)
+                vec(i-1,j,k) = -garray(jj,k)
+#else
+                vec(i-1,j,k) = -vec(i,jj,k)
+#endif
+              end select
+            endif
+          enddo
+        enddo
+      endif
+
+c     End program
+
+#if defined(petsc)
+      deallocate(garray)
+#endif
+
+      end subroutine vectorSingularBC_stg
+
       end module singularBCinterface
 
 c module imposeBCinterface
@@ -584,12 +721,10 @@ c #####################################################################
 
         use singularBCinterface
 
+        use oned_int
+
         INTERFACE setBC
           module procedure imposeBConScalar,imposeBConVector
-        end INTERFACE
-
-        INTERFACE quad_int
-          module procedure quad_int_0,quad_int_1,quad_int_2
         end INTERFACE
 
         INTERFACE XferBCs
@@ -608,6 +743,8 @@ c #####################################################################
         !(linear to preserve nearest-neighbors stencil; this is 
         ! important for colored diagonal formation)
         integer,private :: order=1
+
+        logical,private :: stg_vector=.false.
 
         private :: setASMflags,interpolateToFace
      .            ,fillEdges,fillCorners
@@ -1033,7 +1170,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: dim,loc,ibc
+      integer :: dim,loc,ibc,xtrap_o
       logical :: petsc__bc
 
 #if defined(petsc)
@@ -1131,11 +1268,13 @@ c     Impose BCs
 
 c     Fill edges
 
-      call fillEdges(gbc_def,array,array0,bcnd,order)
+      xtrap_o = max(2,order)
+
+      call fillEdges(gbc_def,array,array0,bcnd,xtrap_o)
 
 c     Fill corners
 
-      call fillCorners(gbc_def,array,bcnd,order)
+      call fillCorners(gbc_def,array,bcnd,xtrap_o)
 
 c     Periodic boundary synchronizing
 
@@ -1202,7 +1341,7 @@ c     Call variables
 c     Local variables
 
       integer    :: i,j,k,imax,imin,jmax,jmin,kmax,kmin
-      integer    :: ivar,ieq,ibc,loc,dim,bctype
+      integer    :: ivar,ieq,ibc,loc,dim,bctype,xtrap_o
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical    :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
 
@@ -1355,18 +1494,20 @@ c     Synchronize covariant and contravariant components
 
 c     Fill edges (for both cnv and cov components)
 
+      xtrap_o = max(2,order)
+
       do ivar=1,ncomp
         call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),order)
+     .                ,bcnd(:,ivar),xtrap_o)
         call fillEdges(gbc_def,v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),order)
+     .                ,bcnd(:,ivar),xtrap_o)
       enddo
 
 c     Fill corners (for both cnv and cov components)
 
       do ivar=1,ncomp
-        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),order)
-        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),order)
+        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
+        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
       enddo
 
 c     Periodic boundary synchronizing
@@ -1614,7 +1755,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin!,order
+      integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,xtrap_o
       integer :: ivar,ieq,ibc,loc,dim,bctype
      .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
@@ -1624,6 +1765,9 @@ c     Local variables
 #endif
 
 c     Begin program
+
+      !Indicate staggered vector treatment
+      stg_vector = .true.
 
       !By default, we assume input are vector components
       if (PRESENT(is_vec)) then
@@ -1700,7 +1844,11 @@ c     Initialize GLOBAL limits
       kkmxp =  min(kkmax + 1,gbc_def%nzgl(iigz)+1)
 #endif
 
-c     Fill PETSc ghost cells
+c     Find cnv components
+
+      if (to_cnv) v_cnv =  XformToCnv_stg_mesh(gbc_def,igxbc,v_cov)
+
+c     Fill PETSc/PERIODIC ghost cells
 
 #if defined(petsc) && !defined(samrai)
       !Determine whether we need to fill ghost cells using PETSc
@@ -1714,23 +1862,26 @@ c     Fill PETSc ghost cells
           call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
         enddo
       endif
+#elif !defined(samrai)
+      call sync(PER)
 #endif
 
-c     Exit if all periodic domains (PETSc deals with all periodic domains)
+      !Exit if all periodic domains 
+      if (bcPER(1).and.bcPER(2).and.bcPER(3)) then
+        stg_vector = .false.
+        return
+      endif
+      
+c     Fill SP ghost cells independently on cnv and cov staggered vectors
 
-#if defined(petsc)
-      if (petsc__bc.and.bcPER(1).and.bcPER(2).and.bcPER(3)) return
-#endif
+      call sync(SP)
 
 c     Impose BCs
 
       cov_to_cnv = .false.
 
-#if defined(petsc) || defined(samrai)
       do bctype=2,BCLIM             !Do not do PER=1; already done by PETSc or SAMRAI
-#else
-      do bctype=1,BCLIM             !Enforces a particular order in the BCs
-#endif
+        if (bctype == SP) cycle
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1763,35 +1914,40 @@ c     Synchronize covariant and contravariant components
 
 c     Fill edges (for both cnv and cov components)
 
+      xtrap_o = max(2,order)
+
       do ivar=1,ncomp
         call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),order)
+     .                ,bcnd(:,ivar),xtrap_o)
         call fillEdges(gbc_def,v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),order)
+     .                ,bcnd(:,ivar),xtrap_o)
       enddo
 
 c     Fill corners (for both cnv and cov components)
 
       do ivar=1,ncomp
-        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),order)
-        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),order)
+        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
+        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
       enddo
 
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_PER
+      call sync(PER)
 #endif
 
 c     End program
 
+      stg_vector = .false.
+
       contains
 
-c     sync_PER
+c     sync
 c     #################################################################
-      subroutine sync_PER
+      subroutine sync(bctype)
 
-      bctype=PER
+      integer :: bctype
+
       do dim=1,3
         do loc=0,1
           ibc = (1+loc)+2*(dim-1)
@@ -1810,7 +1966,7 @@ c     #################################################################
         enddo
       enddo
 
-      end subroutine sync_PER
+      end subroutine sync
 
 c     synchronize_stg
 c     #################################################################
@@ -1867,7 +2023,7 @@ c     Begin program
         do il = ll,hl
           ibc = (1+il)+2*(id-1)
 
-          if (.not.selectFace(gbc_def,ibc).or.bcPER(id)) cycle !Do nothing for logical or periodic boundaries
+          if(.not.selectFace(gbc_def,ibc).or.bcPER(id).or.bcSP(id))cycle !Do nothing for logical, periodic, or SP boundaries
 
           !Do NOT change: SAMRAI depends on it
           call findBCLoopLimits(gbc_def
@@ -2138,15 +2294,14 @@ c     Find BC update
         case(PER)
           call periodicBC(gbc_def,array(:,:,:,nvar),dim,loc)
         case(EQU)
-          call extrapolateBC(gbc_def,array (:,:,:,nvar)
-     $                      ,array0(:,:,:,nvar)
-     .                      ,dim,loc,order)
+          call scalarDirichletBC(gbc_def,array(:,:,:,nvar)
+     .                          ,array0(:,:,:,nvar)
+     .                          ,ieq,dim,loc,order)
         case(DIR)
           allocate(zeros(0:nxbc+1,0:nybc+1,0:nzbc+1,nvar))
           zeros = 0d0
           call scalarDirichletBC(gbc_def,array(:,:,:,nvar)
      .                          ,zeros(:,:,:,nvar)
-cc     .                          ,array0(:,:,:,nvar)
      .                          ,ieq,dim,loc,order)
           deallocate(zeros)
         case(NEU)
@@ -2176,14 +2331,17 @@ cc     .                          ,array0(:,:,:,nvar)
           zeros = 0d0
           call vectorDirichletBC(gbc_def,ivar,array,zeros,ieq,dim,loc
      .                          ,order)
-cc          call vectorDirichletBC(ivar,array,array0,ieq,dim,loc,order)
           deallocate(zeros)
         case(NEU)
           call vectorNeumannBC(gbc_def,ivar,array,array0,ieq,dim,loc)
         case(EXT)
           call fillFaces(gbc_def,array(:,:,:,ivar),dim,loc,order)
         case(SP)
-          call vectorSingularBC(gbc_def,ivar,array(:,:,:,ivar),cov)
+          if (stg_vector) then
+           call vectorSingularBC_stg(gbc_def,ivar,array(:,:,:,ivar),cov)
+          else
+           call vectorSingularBC    (gbc_def,ivar,array(:,:,:,ivar),cov)
+          endif
         case(IFC)
           call interpolateToFace(gbc_def,array(:,:,:,ivar),dim,loc
      .                          ,order)
@@ -3366,6 +3524,8 @@ c     Extrapolation
 
 c     Begin program
 
+      xx = 0d0 ; yy = 0d0 ; zz = 0d0
+      
 c     Initialize variables
 
       face   = (count(ibcl /= 0) == 1)
@@ -3464,7 +3624,7 @@ c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
 c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
 c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
 c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
-     .     )
+     .     .and.(.not.force_corners))
      .       return
         if ((ibcl(2) == 0)
      .  .and.((selectFace(gbc_def,ibcl(3))
@@ -3479,7 +3639,7 @@ c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
 c$$$     .         .and.(selectFace(gbc_def,ibcl(1))
 c$$$     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
 c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))))
-     .     )
+     .     .and.(.not.force_corners))
      .       return
         if ((ibcl(3) == 0)
      .  .and.((selectFace(gbc_def,ibcl(1))
@@ -3494,7 +3654,7 @@ c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
 c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
 c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
 c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
-     .     )
+     .     .and.(.not.force_corners))
      .       return
       endif
 
@@ -3913,135 +4073,6 @@ c     -----------------------------------------------------------------------
       end subroutine select_smooth
 
       end subroutine extrapolateToCorner
-
-c     quad_int_0
-c     #################################################################
-      function quad_int_0(x0,x1,x2,x3,y0,y1,y2,y3,x,order) result(y)
-c     -----------------------------------------------------------------
-c     Interpolation (extrapolation) routine, up to cubic order.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: order
-      real(8) :: x0,x1,x2,x3,y0,y1,y2,y3,x,y
-
-c     Local variables
-
-c     Begin program
-
-      select case (order)
-      case (3)
-        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
-     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
-     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
-     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
-      case (2)
-        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
-     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
-     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
-      case (1)
-        y = y0*(x-x1)/(x0-x1)
-     .     +y1*(x-x0)/(x1-x0)
-      case (0)
-        y = y0
-      case default
-        messg = 'Order of interpolation not implemented'
-        call pstop('quad_int_0',messg)
-      end select
-
-c     End program
-
-      end function quad_int_0
-
-c     quad_int_1
-c     #################################################################
-      function quad_int_1(x0,x1,x2,x3,y0,y1,y2,y3,x,order) result(y)
-c     -----------------------------------------------------------------
-c     Interpolation (extrapolation) routine, up to cubic order.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: order
-      real(8) :: x0,x1,x2,x3,x
-     .          ,y0(:),y1(:),y2(:),y3(:),y(size(y0))
-
-c     Local variables
-
-c     Begin program
-
-      select case (order)
-      case (3)
-        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
-     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
-     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
-     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
-      case (2)
-        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
-     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
-     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
-      case (1)
-        y = y0*(x-x1)/(x0-x1)
-     .     +y1*(x-x0)/(x1-x0)
-      case (0)
-        y = y0
-      case default
-        messg = 'Order of interpolation not implemented'
-        call pstop('quad_int_1',messg)
-      end select
-
-c     End program
-
-      end function quad_int_1
-
-c     quad_int_2
-c     #################################################################
-      function quad_int_2(x0,x1,x2,x3,y0,y1,y2,y3,x,order) result(y)
-c     -----------------------------------------------------------------
-c     Interpolation (extrapolation) routine, up to cubic order.
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: order
-      real(8) :: x0,x1,x2,x3,x
-     .          ,y0(:,:),y1(:,:),y2(:,:),y3(:,:)
-     .          ,y(size(y0,1),size(y0,2))
-
-c     Local variables
-
-c     Begin program
-
-      select case (order)
-      case (3)
-        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
-     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
-     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
-     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
-      case (2)
-        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
-     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
-     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
-      case (1)
-        y = y0*(x-x1)/(x0-x1)
-     .     +y1*(x-x0)/(x1-x0)
-      case (0)
-        y = y0
-      case default
-        messg = 'Order of interpolation not implemented'
-        call pstop('quad_int_2',messg)
-      end select
-
-c     End program
-
-      end function quad_int_2
 
 c     XferBCs_scl
 c     ###################################################################
@@ -4655,8 +4686,10 @@ c     Select operation
 
       if (.not.iscurv) then  !Transform to curvilinear
 
-        call pstop('setMGBC_stg'
-     $       ,'Staggered transformation from Cartesian not implemented')
+        do ieq=1,neql/3
+          call  XformVector_stg_mesh2(gbc_def,iig
+     .              ,array(:,:,:,1+3*(ieq-1):3*ieq),'car',cvec)
+        enddo
 
 c$$$        do ieq=1,neql/3
 c$$$          call transformVector(iig,iig,iig
@@ -4721,8 +4754,13 @@ c$$$        enddo
 
       if (.not.res_is_curv) then
 
-        call pstop('setMGBC_stg'
-     $       ,'Staggered transformation to Cartesian not implemented')
+        do ieq=1,neql/3
+          call  XformVector_stg_mesh2(gbc_def,iig
+     .              ,array(:,:,:,1+3*(ieq-1):3*ieq),cvec,'car')
+        enddo
+          
+c$$$        call pstop('setMGBC_stg'
+c$$$     $       ,'Staggered transformation to Cartesian not implemented')
 
 c$$$        do ieq=1,neql/3
 c$$$          call transformVector(iig,iig,iig

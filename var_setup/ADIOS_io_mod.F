@@ -1,8 +1,8 @@
-#if defined(adios)
 c module ADIOS_io
 c ######################################################################
       module ADIOS_io
 
+#if defined(adios)
         use io
 
         use variables
@@ -836,5 +836,5 @@ c     End program
 
       end subroutine readDerivedTypeADIOS
 
-      end module ADIOS_io
 #endif
+      end module ADIOS_io

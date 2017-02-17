@@ -1121,35 +1121,35 @@ c     local variables
 
 c     Begin program
 
-cc         CALL RANDOM_NUMBER(r)
 #ifdef _SPRNG
       r = sprng(stream)         
 #else
-      r = randlcg(seed)         !careful
+      CALL RANDOM_NUMBER(r)
+cc      r = randlcg(seed)         !careful
 #endif
       x1 = 2d0*r - 1d0      
 #ifdef _SPRNG
       r = sprng(stream)         
 #else
-      r = randlcg(seed)         !careful
+      CALL RANDOM_NUMBER(r)
+cc      r = randlcg(seed)         !careful
 #endif
-cc         CALL RANDOM_NUMBER(r)
       x2 = 2d0*r - 1d0
       w = x1*x1 + x2*x2
 
       do while(w>1d0)
-cc         CALL RANDOM_NUMBER(r)
 #ifdef _SPRNG
         r = sprng(stream)         
 #else
-        r = randlcg(seed)       !careful
+        CALL RANDOM_NUMBER(r)
+cc        r = randlcg(seed)       !careful
 #endif
         x1 = 2d0*r - 1d0
-cc            CALL RANDOM_NUMBER(r) 
 #ifdef _SPRNG
         r = sprng(stream)         
 #else
-        r = randlcg(seed)
+        CALL RANDOM_NUMBER(r) 
+cc        r = randlcg(seed)
 #endif
         x2 = 2d0*r - 1d0
         w = x1*x1 + x2*x2
@@ -1158,9 +1158,6 @@ cc            CALL RANDOM_NUMBER(r)
       w = sqrt((-2d0*log(w) ) / w )
       
       y1 = x2*w
-c$$$         y2 = x2*w
-c$$$         use_last = .true.
-c$$$      end if
 
 c     End program
       

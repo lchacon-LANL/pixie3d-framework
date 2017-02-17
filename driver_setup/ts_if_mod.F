@@ -28,9 +28,11 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nn
+      integer :: nn,igrid
 
 c     Begin program
+
+      igrid = 1
 
       ierr = NOERR
 
@@ -38,12 +40,12 @@ c     Begin program
 
 c     Evaluate old-time NLF
 
-      old_time_eval = .true. !This informs nlfunction that we are processing
-                             !  n time level info
-
-      call evaluateNonlinearFunction(nn,x,fold)
-
-      old_time_eval = .false.
+c$$$      old_time_eval = .true. !This informs nlfunction that we are processing
+c$$$                             !  n time level info
+c$$$
+c$$$      call evaluateNonlinearFunction(igrid,nn,x,fold)
+c$$$
+c$$$      old_time_eval = .false.
 
 c     Newton-Krylov iteration
 
@@ -106,9 +108,11 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nn
+      integer :: nn,igrid
 
 c     Begin program
+
+      igrid = 1
 
       vol_wgt = .false.
 
@@ -118,18 +122,18 @@ c     Begin program
 
 c     Predictor step
 
-      old_time_eval = .true. !This informs nlfunction that we are processing
-                             !  n time level info
-
-      call evaluateNonlinearFunction(nn,x_old,fold)
-
-      old_time_eval = .false.
+c$$$      old_time_eval = .true. !This informs nlfunction that we are processing
+c$$$                             !  n time level info
+c$$$
+c$$$      call evaluateNonlinearFunction(igrid,nn,x_old,fold)
+c$$$
+c$$$      old_time_eval = .false.
 
       x = x_old - dt*(fold-fsrc)*cnfactor
 
 c     Corrector step
 
-      call evaluateNonlinearFunction(nn,x,fold)
+      call evaluateNonlinearFunction(igrid,nn,x,fold)
 
       x = x_old - dt*(fold-fsrc)
 
@@ -161,15 +165,22 @@ c     Local variables
       integer :: itnw,itgm
       real(8) :: x(ntotd),dt_save
 
-#if defined(EXT_EXPLICIT)
       INTERFACE
+#if defined(EXT_EXPLICIT)
         function app_explicit(x,itgm,iout)
         use parameters
         real(8) :: x(ntotd)
         integer :: itgm,iout,app_explicit
         end function app_explicit
-      END INTERFACE
 #endif
+        subroutine evaluate_NLF(igr,varray,fi)
+        use parameters
+        use var_setup
+        integer :: igr
+        real(8) :: fi(ntotd)
+        type(var_array),pointer :: varray
+        end subroutine evaluate_NLF
+      END INTERFACE
 
 c     Begin program
 
@@ -222,15 +233,25 @@ c     Define TS parameters
 
 c     Time step update
 
-      call mapStructureToVector(gv%gparams,x,vnp)  !Old time info
-
       if (cnfactor <= 5d-1) then
         call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
 
-        call mapStructureToVector(gv%gparams,x_old,vnp) !BDF2 ref
+        old_time_eval = .true. !Processing n time level info
+        call evaluate_NLF(1,vnp,fold)
+        old_time_eval = .false.
+
+        call mapStructureToVector(gv%gparams,x,vnp) !BDF2 ref
+
+        x_old = x
 
         ierr = implicit_ts(x,itnw,itgm,iout)
       else
+        old_time_eval = .true. !Processing n time level info
+        call evaluate_NLF(1,vnp,fold)
+        old_time_eval = .false.
+
+        call mapStructureToVector(gv%gparams,x,vnp) !Old time info
+
         x_old = x
 
 #if defined(EXT_EXPLICIT)

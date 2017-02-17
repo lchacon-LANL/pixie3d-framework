@@ -53,13 +53,13 @@ c Begin program
 
       call DR_init
 
-c Initialize calculation
-
-      call initializeCalculation
-
 c Initialize counters
 
       call TS_init_otherCounters
+
+c Initialize calculation
+
+      call initializeCalculation
 
 c Initial output
 
@@ -108,7 +108,6 @@ c     Check for error in time stepping
             call pstop('Main'
      .                ,'ERROR: Solver failed to converge;'
      .                 //' rerun with "ts_adapt_dt = t"')
-            exit
           endif
 
         case(EXACT)     !Initial guess is exact
@@ -118,6 +117,8 @@ c     Check for error in time stepping
             write(*,*) '   Found steady state solution.'
             write(*,*) '   Aborting...'
           endif
+
+          if (tst_flg) EXIT_STATUS = SUCCESS
 
           exit
 
@@ -141,7 +142,11 @@ c     Output per time step
 
 c     Time level data dump
 
-        if (TS_dump(u_np)) exit
+        call TS_dump(u_np)
+
+c     Exit if eigenvalue computation
+
+        if (eigen) exit
 
       enddo       !End of time loop
 
@@ -152,6 +157,8 @@ c Final I/O
 c End program
 
       call DR_destroy
+
+      call exit(EXIT_STATUS)
 
       end program
 

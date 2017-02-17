@@ -11,6 +11,8 @@ c ########################################################################
      .       qp = (1+sign(1,qp_preferred))/2*qp_preferred
      .           +(1-sign(1,qp_preferred))/2*dp
 
+        integer, parameter :: SUCCESS=0, NON_FATAL=1, FATAL=2
+
         INTERFACE is_open
           module procedure is_open_file,is_open_unit
         END INTERFACE
@@ -315,6 +317,33 @@ c     Begin program
       ierr = shellcmd(trim(command))
 
       end function delete_line
+
+c     sstop
+c     ################################################################
+      subroutine sstop(rank,routine,message)
+
+c     ---------------------------------------------------------------
+c     Stops program at "routine" with "message"
+c     ---------------------------------------------------------------
+
+        implicit none
+
+        integer :: rank
+        character(*)  :: routine, message
+
+c     Begin program
+
+        if (rank == 0) then
+          write (*,*)
+          write (*,*) trim(message)
+          write (*,*) 'Program stopped at routine ',trim(routine)
+        endif
+
+        call exit(FATAL)  !Fatal termination
+
+c     End program
+
+      end subroutine sstop
 
       end module io
 

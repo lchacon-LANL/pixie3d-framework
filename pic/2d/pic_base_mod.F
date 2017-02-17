@@ -210,11 +210,12 @@ c     Begin program
          if (ierror /= 0) goto 200
          read (ufile,iostat=ierror,end=100) spcs(isp)%m
          if (ierror /= 0) goto 200
+         read (ufile,iostat=ierror,end=100) spcs(isp)%q_m
+         if (ierror /= 0) goto 200
 
          np = npcl(isp)
          do ip=1,np
            read (ufile,iostat=ierror,end=100) spcs(isp)%pcles(ip)
-cc           write (*,*) spcs(isp)%pcles(ip)
            if (ierror /= 0) goto 200
          end do
       enddo
@@ -254,7 +255,8 @@ c     Call variables
 
 c     Local variables
 
-      integer :: isp,ip,np,ufile,nsp,npcl(nsp_max)
+      integer :: isp,ip,np,ufile,nsp
+      integer(8) :: npcl(nsp_max)
       character(30) :: pcle_rstrt_file
 
 c     Begin program
@@ -286,6 +288,7 @@ c     Begin program
       do isp=1,nsp
          write (ufile) spcs(isp)%q
          write (ufile) spcs(isp)%m
+         write (ufile) spcs(isp)%q_m
 
          np = npcl(isp)
          do ip=1,np
@@ -330,13 +333,13 @@ c pic_BCs
 c ######################################################################    
       module pic_BCs
 
-      use grid, ONLY: bcond,PER,NEU,DIR,DEF
+      use grid, ONLY: bcond,PER,NEU,DIR,DEF,SP,OPN
 
       use pic_io, ONLY: p_stop
 
-      !B.C. (left 1, right 2)
-      integer, parameter :: pPER=-1,pREF=-2,pOPN=-3  !Negative to avoid interference
-                                                     ! with framework BC defs
+      !B.C.
+      integer, parameter :: pPER=PER,pSP=SP,pOPN=OPN,pREF=-2
+
       integer :: pbcond(6)
       real(8) :: vinject(3,2*_Dimx)=0d0  !flow speed at boundaries for open b.c.
 
@@ -344,75 +347,76 @@ c ######################################################################
 
 c     defineBCs_pcles
 c     ###############################################################
-      subroutine defineBCs_pcles(test)
+      subroutine defineBCs_pcles
 c     ---------------------------------------------------------------
-c     Defines boundary conditions of physical quantities.
-c     On input:
-c       * varray
-c     On output:
-c       * bbcs -> real array of size (6,neq) containing BC setup:
-c           + bbcs(1) ---> at x0
-c           + bbcs(2) ---> at x1
-c           + bbcs(3) ---> at y0
-c           + bbcs(4) ---> at y1
-c           + bbcs(5) ---> at z0
-c           + bbcs(6) ---> at z1
-c     Definition of BC identifiers is given in "grid_mod.f". In vectors,
-c     a negative BC identifier means that BCs are to be imposed on
-c     covariant components instead of on (default) contravariant comps.
+c     Defines boundary conditions of particles.
 c     ---------------------------------------------------------------
 
       implicit none
 
 c     Call variables
 
-      character(*) :: test
-
 c     Local variables
 
 c     Begin program
 
-      pbcond = pPER
+      pbcond = bcond  !Topological BCs
 
-      select case(trim(test))
-      case ('slow_shock')
-
-        !set pbcond(2) for particle b.c.
-        pbcond(1)   = pOPN
-        pbcond(2)   = pREF
-        pbcond(3)   = pPER
-        pbcond(4)   = pPER
-
-      case ('ic','tm')
- 
-        pbcond(1)   = pPER
-        pbcond(2)   = pPER
-        pbcond(3)   = pREF
-        pbcond(4)   = pREF
-
-      case ('wbl_bc')
- 
-        pbcond(1)   = pREF
-        pbcond(2)   = pREF
-        pbcond(3)   = pPER
-        pbcond(4)   = pPER
-
-      case ('weibel','kaw_ii','2strm','iaw','landau','langdon')
-
-        pbcond(1)   = pPER
-        pbcond(2)   = pPER
-        pbcond(3)   = pPER
-        pbcond(4)   = pPER
-
-      case default
-
-        call p_stop("defineBCs_pcles","Pcle BCs undefined")
-
-      end select
+      where (pbcond == DEF) pbcond = pREF
 
 c     End program
 
       end subroutine defineBCs_pcles
+
+c$$$c     defineBCs_pcles
+c$$$c     ###############################################################
+c$$$      subroutine defineBCs_pcles(test)
+c$$$c     ---------------------------------------------------------------
+c$$$c     Defines boundary conditions of particles.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      character(*) :: test
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      pbcond = pPER
+c$$$
+c$$$      select case(trim(test))
+c$$$      case ('slow_shock')
+c$$$
+c$$$        !set pbcond(2) for particle b.c.
+c$$$        pbcond(1)   = pOPN
+c$$$
+c$$$      case ('ic','tm')
+c$$$ 
+c$$$        pbcond(3)   = pREF
+c$$$        pbcond(4)   = pREF
+c$$$
+c$$$      case('bpnch')
+c$$$
+c$$$        pbcond(1)   = pSP
+c$$$        pbcond(2)   = pREF
+c$$$
+c$$$      case ('wbl_bc')
+c$$$ 
+c$$$        pbcond(1)   = pREF
+c$$$        pbcond(2)   = pREF
+c$$$
+c$$$      case default
+c$$$
+c$$$        call p_stop("defineBCs_pcles","Pcle BCs undefined")
+c$$$
+c$$$      end select
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine defineBCs_pcles
 
       end module pic_BCs
 
@@ -881,7 +885,7 @@ c     Local variables
 
 c     Optimized matrix-vector multiplication (3) (C. Mikida)
 c     ##################################################################
-      subroutine opt_matvec_3_pcle(A,B,C)
+      subroutine opt_matvec_tr_pcle(A,B,C)
 
       implicit none
 
@@ -912,7 +916,7 @@ c     Local variables
          C(k,:) = C(k,:) + matmul(A(k,:),B(k,:,:))
       end do
 #endif
-      end subroutine opt_matvec_3_pcle
+      end subroutine opt_matvec_tr_pcle
 
 c     Optimized vector-vector multiplication (3x3) (C. Mikida)
 c     ##################################################################
@@ -1060,15 +1064,17 @@ c     Local variables
 
 c     Optimized matrix-vector multiplication (3) (C. Mikida)
 c     ##################################################################
-      function opt_matvec_3(A,B) result(C)
+      function opt_matvec_tr(A,B) result(C)
 
       implicit none
 
 c     Call variables
+
       real(_prec) :: A(3), B(3,3) 
       real(_prec) :: C(3)
 
 c     Local variables
+
       integer :: i, j
 
       C(:) = 0.0d0
@@ -1080,7 +1086,31 @@ c     Local variables
          end do
       end do
  
-      end function opt_matvec_3
+      end function opt_matvec_tr
+
+c     Optimized matrix-vector multiplication
+c     ##################################################################
+      function opt_matvec(A,B) result(C)
+
+      implicit none
+
+c     Call variables
+      real(_prec) :: B(3), A(3,3) 
+      real(_prec) :: C(3)
+
+c     Local variables
+      integer :: i, j
+
+      C(:) = 0.0d0
+
+      do i=1, 3
+         !VECTOR SIMD REDUCTION(+:C)
+         do j=1, 3
+            C(i) = C(i) + A(i,j)*B(j)
+         end do
+      end do
+ 
+      end function opt_matvec
 
 c     Optimized vector-vector multiplication (3x3) (C. Mikida)
 c     ##################################################################
@@ -1355,9 +1385,9 @@ c     Begin program
       !VECTOR SIMD
       do k=1,_Npg
 #ifdef __GNU
-        vcurv(k,:) = opt_matvec_3(vp(k,:),cov(k,:,:))
+        vcurv(k,:) = opt_matvec(cov(k,:,:),vp(k,:))
 #else               
-        vcurv(k,:) = matmul(cov(k,:,:),vp(k,:))
+        vcurv(k,:) = matmul    (cov(k,:,:),vp(k,:))
 #endif
       end do
 
@@ -1407,15 +1437,15 @@ c     Tangential vectors (2D for now)
          map_g_2(k,:,:) = map_g(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1,2)
       enddo
 
-      call opt_matvec_3_pcle(DSx,map_g_1,dum3)
+      call opt_matvec_tr_pcle(DSx,map_g_1,dum3)
       call dot_product_3_pcle(dum3,Sy2,vec(:,1,1))
-      call opt_matvec_3_pcle(DSx,map_g_2,dum3)
+      call opt_matvec_tr_pcle(DSx,map_g_2,dum3)
       call dot_product_3_pcle(dum3,Sy2,vec(:,1,2))
       vec(:,1,3)=0d0
 
-      call opt_matvec_3_pcle(Sx2,map_g_1,dum3)
+      call opt_matvec_tr_pcle(Sx2,map_g_1,dum3)
       call dot_product_3_pcle(dum3,Dsy,vec(:,2,1))
-      call opt_matvec_3_pcle(Sx2,map_g_2,dum3)
+      call opt_matvec_tr_pcle(Sx2,map_g_2,dum3)
       call dot_product_3_pcle(dum3,DSy,vec(:,2,2))
       vec(:,2,3)=0d0
 
@@ -1477,25 +1507,25 @@ c$$$
 c$$$cc         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
 c$$$cc     .             ,ierr,xder=1,yder=1,zder=0)  
 
-      call opt_matvec_3_pcle(DSx,map_g_1,dum3)
+      call opt_matvec_tr_pcle(DSx,map_g_1,dum3)
       call dot_product_3_pcle(dum3,Dsy,vec(:,1,1))
-      call opt_matvec_3_pcle(DSx,map_g_2,dum3)
+      call opt_matvec_tr_pcle(DSx,map_g_2,dum3)
       call dot_product_3_pcle(dum3,Dsy,vec(:,1,2))
       vec(:,1,3)=0d0
 
       !VECTOR SIMD
       do k=1,_Npg
 #ifdef __GNU
-        gamma(k,:,1,2) = opt_matvec_3(cov(k,:,:),vec(k,1,:))
+        gamma(k,:,1,2) = opt_matvec(cov(k,:,:),vec(k,1,:))
 #else
-        gamma(k,:,1,2) = matmul(cov(k,:,:),vec(k,1,:))
+        gamma(k,:,1,2) = matmul    (cov(k,:,:),vec(k,1,:))
 #endif
         gamma(k,:,2,1) = gamma(k,:,1,2)
       enddo
 c$$$#ifdef __GNU
-c$$$         x = dot_product(opt_matvec_3(DSx(1,:),
+c$$$         x = dot_product(opt_matvec_tr(DSx(1,:),
 c$$$     .                  map_g_1),DSy(1,:))
-c$$$         y = dot_product(opt_matvec_3(DSx(1,:),
+c$$$         y = dot_product(opt_matvec_tr(DSx(1,:),
 c$$$     .                  map_g_2),DSy(1,:))
 c$$$#else
 c$$$         x = dot_product(MATMUL(DSx(1,:),map_g_1),DSy(1,:))
@@ -1526,23 +1556,23 @@ c$$$         gamma(:,2,3) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
 c$$$         gamma(:,3,2) = gamma(:,2,3)
 
       !Gamma(:,1,1)
-      call opt_matvec_3_pcle(DSxx,map_g_1,dum3)
+      call opt_matvec_tr_pcle(DSxx,map_g_1,dum3)
       call dot_product_3_pcle(dum3,Sy2,vec(:,1,1))
-      call opt_matvec_3_pcle(DSxx,map_g_2,dum3)
+      call opt_matvec_tr_pcle(DSxx,map_g_2,dum3)
       call dot_product_3_pcle(dum3,Sy2,vec(:,1,2))
       vec(:,1,3)=0d0
       !VECTOR SIMD
       do k=1,_Npg
 #ifdef __GNU
-        gamma(k,:,1,1) = opt_matvec_3(cov(k,:,:),vec(k,1,:))
+        gamma(k,:,1,1) = opt_matvec(cov(k,:,:),vec(k,1,:))
 #else
-        gamma(k,:,1,1) = matmul      (cov(k,:,:),vec(k,1,:))
+        gamma(k,:,1,1) = matmul    (cov(k,:,:),vec(k,1,:))
 #endif
       enddo
 c$$$#ifdef __GNU
-c$$$         x = dot_product(opt_matvec_3(DSxx(1,:),
+c$$$         x = dot_product(opt_matvec_tr(DSxx(1,:),
 c$$$     .                   map_g_1),Sy2(1,:))
-c$$$         y = dot_product(opt_matvec_3(DSxx(1,:),
+c$$$         y = dot_product(opt_matvec_tr(DSxx(1,:),
 c$$$     .                   map_g_2),Sy2(1,:))
 c$$$#else
 c$$$         x = dot_product(MATMUL(DSxx(1,:),map_g_1),Sy2(1,:))
@@ -1553,25 +1583,25 @@ c$$$         gamma(:,1,1) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
 
       !Gamma(:,2,2)
       if(nyg>1) then
-        call opt_matvec_3_pcle(Sx2,map_g_1,dum3)
+        call opt_matvec_tr_pcle(Sx2,map_g_1,dum3)
         call dot_product_3_pcle(dum3,DSyy,vec(:,2,1))
-        call opt_matvec_3_pcle(Sx2,map_g_2,dum3)
+        call opt_matvec_tr_pcle(Sx2,map_g_2,dum3)
         call dot_product_3_pcle(dum3,DSyy,vec(:,2,2))
         vec(:,2,3)=0d0
         !VECTOR SIMD
         do k=1,_Npg
 #ifdef __GNU
-          gamma(k,:,2,2) = opt_matvec_3(cov(k,:,:),vec(k,2,:))
+          gamma(k,:,2,2) = opt_matvec(cov(k,:,:),vec(k,2,:))
 #else
-          gamma(k,:,2,2) = matmul      (cov(k,:,:),vec(k,2,:))
+          gamma(k,:,2,2) = matmul    (cov(k,:,:),vec(k,2,:))
 #endif
         enddo
 c$$$c$$$            call evalX(xlog(1),xlog(2),xlog(3),x,y,z
 c$$$c$$$     .           ,ierr,xder=0,yder=2,zder=0)  
 c$$$#ifdef __GNU
-c$$$          x = dot_product(opt_matvec_3(Sx2(1,:),
+c$$$          x = dot_product(opt_matvec_tr(Sx2(1,:),
 c$$$     .                    map_g_1),DSyy(1,:))
-c$$$          y = dot_product(opt_matvec_3(Sx2(1,:),
+c$$$          y = dot_product(opt_matvec_tr(Sx2(1,:),
 c$$$     .                    map_g_2),DSyy(1,:))
 c$$$#else
 c$$$          x = dot_product(MATMUL(Sx2(1,:),map_g_1),DSyy(1,:))
@@ -1584,6 +1614,84 @@ c$$$          gamma(:,2,2) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
       end subroutine compute_gamma
 
       end subroutine transf_vector_Bspl
+
+c     transf_vector_Bspl_scalar
+c     #################################################################
+      subroutine transf_vector_Bspl_scalar(i0,j0,xlog,cov,cnv,jac)
+
+c     -----------------------------------------------------------------
+c     Transform Cartesian vectors to curvilinear using B-splines.
+c     Employ Luis's convention.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Input variables
+     
+      integer, intent(in) :: i0,j0 !particle cell-indices
+      real(_prec) :: xlog(3) !normalized particle offset position
+      real(_prec),INTENT(OUT) :: cov(3,3)
+      real(_prec),optional :: cnv(3,3),jac
+
+c     Local variables
+
+      integer :: ierr,k
+
+      real(_prec) :: vec(3,3),dum3(3),iJac,jacob
+      real(_prec) :: Sx2(3),Sy2(3),DSx(3)
+      real(_prec) :: DSy(3),DSxx(3),DSyy(3)
+      real(_prec) :: map_g_1(3,3),map_g_2(3,3)
+
+c     Begin program
+
+c     Tangential vectors (2D for now)
+
+      Sx2 = shape2_offset_scalar(xlog(1))
+      Sy2 = shape2_offset_scalar(xlog(2))
+      DSx = Dx_shape2_offset_scalar(xlog(1))
+      DSy = Dy_shape2_offset_scalar(xlog(2))
+
+      map_g_1 = map_g(i0-1:i0+1,j0-1:j0+1,1)
+      map_g_2 = map_g(i0-1:i0+1,j0-1:j0+1,2)
+
+      dum3 = opt_matvec_tr(DSx,map_g_1)
+      vec(1,1) = dot_product(dum3,Sy2)
+      dum3 = opt_matvec_tr(DSx,map_g_2)
+      vec(1,2) = dot_product(dum3,Sy2)
+      vec(1,3)=0.0
+
+      dum3 = opt_matvec_tr(Sx2,map_g_1)
+      vec(2,1) = dot_product(dum3,Dsy)
+      dum3 = opt_matvec_tr(Sx2,map_g_2)
+      vec(2,2) = dot_product(dum3,DSy)
+      vec(2,3)=0.0
+
+      !(careful) z is orthogonal to the (x,y) plane
+      vec(3,1) = 0.0
+      vec(3,2) = 0.0
+      vec(3,3) = 1.0
+
+c     Find the inverse Jacobian
+
+      jacob = det(vec)
+
+      if (PRESENT(jac)) jac = jacob
+
+c     Divide tangential vectors by Jacobian (Luis's convention)
+
+      iJac = 1.0/jacob
+
+      if(present(cnv)) cnv = vec*iJac
+
+c     Normal vectors (J*grad(xi)=(dx/deta x dx/dzeta))
+
+      cov(1,:) = cross_product(vec(2,:),vec(3,:))
+      cov(2,:) = cross_product(vec(3,:),vec(1,:))
+      cov(3,:) = cross_product(vec(1,:),vec(2,:))
+
+      cov = cov*iJac
+
+      end subroutine transf_vector_Bspl_scalar
 
 c     cross_product_vec
 c     #################################################################
@@ -1895,28 +2003,23 @@ c     Begin program
 
       !for cell-centered moments
       mom_bcs(:,Ins) = pbcond
-      where (mom_bcs(:,Ins)==pPER) mom_bcs(:,Ins ) = PER
       where (mom_bcs(:,Ins)==pOPN) mom_bcs(:,Ins ) = NEU !Cell centered
       where (mom_bcs(:,Ins)==pREF) mom_bcs(:,Ins ) = NEU !Cell centered
 
       mom_bcs(:,IS11) = pbcond
-      where (mom_bcs(:,IS11)==pPER) mom_bcs(:,IS11) = PER
       where (mom_bcs(:,IS11)==pOPN
      .   .or.mom_bcs(:,IS11)==pREF) mom_bcs(:,IS11) = NEU !Cell centered
 
       mom_bcs(:,IS22) = pbcond
-      where (mom_bcs(:,IS22)==pPER) mom_bcs(:,IS22) = PER
       where (mom_bcs(:,IS22)==pOPN
      .   .or.mom_bcs(:,IS22)==pREF) mom_bcs(:,IS22) = NEU !Cell centered
 
       mom_bcs(:,IS33) = pbcond
-      where (mom_bcs(:,IS33)==pPER) mom_bcs(:,IS33) = PER
       where (mom_bcs(:,IS33)==pOPN
      .   .or.mom_bcs(:,IS33)==pREF) mom_bcs(:,IS33) = NEU !Cell centered
 
       !for staggered moments
       mom_bcs(:,Ipx) = pbcond
-      where (mom_bcs(:,Ipx) == pPER) mom_bcs(:,Ipx) = PER !All
       where (mom_bcs(:,Ipx) == pOPN) mom_bcs(:,Ipx) = DIR !All
 
 c$$$      where (mom_bcs(3:6,Ipx) == pREF) mom_bcs(3:6,Ipx) = NEU !Y,Z
@@ -1924,7 +2027,6 @@ c$$$      where (mom_bcs(1:2,Ipx) == pREF) mom_bcs(1:2,Ipx) = DIR !X
       where (mom_bcs(:,Ipx) == pREF) mom_bcs(:,Ipx) = DIR !All
 
       mom_bcs(:,Ipy) = pbcond
-      where (mom_bcs(:,Ipy) == pPER) mom_bcs(:,Ipy) = PER !All
       where (mom_bcs(:,Ipy) == pOPN) mom_bcs(:,Ipy) = DIR !All
 
 c$$$      where (mom_bcs(1:2,Ipy) == pREF) mom_bcs(1:2,Ipy) = NEU !X
@@ -1933,7 +2035,6 @@ c$$$      where (mom_bcs(5:6,Ipy) == pREF) mom_bcs(5:6,Ipy) = NEU !Z
       where (mom_bcs(:,Ipy) == pREF) mom_bcs(:,Ipy) = DIR !All
 
       mom_bcs(:,Ipz) = pbcond
-      where (mom_bcs(:,Ipz) == pPER) mom_bcs(:,Ipz) = PER !All
       where (mom_bcs(:,Ipz) == pOPN) mom_bcs(:,Ipz) = DIR !All
 
 c$$$      where (mom_bcs(1:4,Ipz) == pREF) mom_bcs(1:4,Ipz) = NEU !X,Y
@@ -2387,9 +2488,13 @@ c     Call variables
 c     Local variables
 
       integer :: isp
-      real(8) :: rho0
+      real(8) :: rho0,ihx,ihy,ihz
 
 c     Define current
+
+      call get_inverse_h(ihx,ihy,ihz)
+
+      idlvol = ihx*ihy*ihz
 
       rho(:,:,:) = 0d0
       do isp = 1,n_sp
@@ -2411,8 +2516,13 @@ c     Call variables
 c     Local variables
 
       integer :: isp
+      real(8) :: ihx,ihy,ihz
 
 c     Define current
+
+      call get_inverse_h(ihx,ihy,ihz)
+
+      idlvol = ihx*ihy*ihz
 
       jcnv = 0d0
       do isp = 1,n_sp
@@ -2568,7 +2678,6 @@ c     Solve 2D mass matrix problem
       do isp=1,numspcs
         bcs(:,isp) = pbcond
       enddo
-      where (bcs == pPER) bcs = PER
       where (bcs == pREF .or. bcs == pOPN) bcs = NEU
 
       iiout = 0 !No output
@@ -2723,7 +2832,6 @@ c     Solve 2D mass matrix problem
       do isp=1,numspcs
         bcs(:,isp) = pbcond
       enddo
-      where (bcs == pPER) bcs = PER
       where (bcs == pREF) bcs = NEU
       where (bcs == pOPN) bcs = DIR
 
@@ -2844,7 +2952,6 @@ c     Solve 2D mass matrix problem
       do isp=1,numspcs
         bcs(:,isp) = pbcond
       enddo
-      where (bcs == pPER) bcs = PER
       where (bcs == pREF) bcs = NEU
       where (bcs == pOPN) bcs = DIR
 
@@ -2887,16 +2994,6 @@ c$$$      stop 'after drift vel solve'
 c     Gather global solution, sol => solg
 
       call find_global_nobc(reshape(sol,(/nxl,nyl,nzl,n_sp/)),solg)
-
-c$$$      do k = 1,nzg
-c$$$        do j = 1,nyg
-c$$$          do i = 1,nxg
-c$$$            print *,i,j,solg(i,j,k,:)
-c$$$          enddo
-c$$$          print *
-c$$$        enddo
-c$$$      enddo
-c$$$      stop
 
 c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., no Jac)
 
@@ -2995,8 +3092,6 @@ c     Begin program
 
               call xform_pcle_idx_scl(spcs(isp)%pcles(ipcl)%ijk_n(i_npg)
      .                               ,nxg,i,j)
-c$$$              i = mod((spcs(isp)%pcles(ipcl)%ijk_n(i_npg)-1),nxg) + 1
-c$$$              j = (spcs(isp)%pcles(ipcl)%ijk_n(i_npg)-1)/nxg + 1
 
               ip = i + 1
               im = i - 1
@@ -3172,8 +3267,6 @@ c     Begin program
 
               call xform_pcle_idx_scl(spcs(isp)%pcles(ipcl)%ijk_n(i_npg)
      .                               ,nxg,i,j)
-c$$$              i = mod((spcs(isp)%pcles(ipcl)%ijk_n(i_npg)-1),nxg) + 1
-c$$$              j = (spcs(isp)%pcles(ipcl)%ijk_n(i_npg)-1)/nxg + 1
 
               ip = i + 1
               im = i - 1
@@ -3687,6 +3780,14 @@ c     Initialize particles
 
       if (pcle_rstrt) then
         ierr = pic_read_pcles(time)
+
+        if (ierr /= 0) then
+          write (*,*) 'Error reading restart file'
+          stop
+        endif
+
+        call gather_moments
+        momsn = moms
       else
         numspcs = size(spcs)
         do isp=1,numspcs
@@ -3726,13 +3827,11 @@ c     ##################################################################
       
 c     defineBCs_PIC
 c     ##################################################################
-      subroutine defineBCs_PIC(test)
+      subroutine defineBCs_PIC
 
       implicit none
 
-      character(*) :: test
-
-      call defineBCs_pcles(test)
+      call defineBCs_pcles
 
       call defineBCs_moms
 
@@ -3795,7 +3894,7 @@ c     Begin program
      .              ,"Slow shock quiet start not implemented")
         case('kaw_ii')
 #include "problem_init/kawiiLoadPartls_qs.f"
-        case('landau','2strm','iaw')!,'langdon')
+        case('landau','2strm','iaw','langdon')
 #include "problem_init/UniformLoadPartls_qs.f"
         case default  
 #include "problem_init/DefaultLoadPartls_qs.f"
@@ -3810,7 +3909,7 @@ c     Begin program
 #include "problem_init/slowShockLoadPartls.f"
         case('kaw_ii')   
 #include "problem_init/kawiiLoadPartls.f"
-        case('landau','2strm','iaw')!,'langdon')
+        case('landau','2strm','iaw','langdon')
 #include "problem_init/UniformLoadPartls.f"
         case default
 #include "problem_init/DefaultLoadPartls.f"
@@ -3927,37 +4026,17 @@ cc      print *,"after arranging particles:",my_rank_pic,sum(npc_int_s),tot_np
 
 #if defined(petsc)
 !     find the index of counting particles per mpi process
-c$$$      call MPI_SCAN(tot_np,tot_np_scan,1,MPI_INTEGER,MPI_SUM
-c$$$     $     ,MPI_COMM_WORLD,mpierr)   
-c$$$      tot_np_scan = tot_np_scan - tot_np
-
       call MPI_SCAN(npc_int_s,npc_scan_s,nng,MPI_INTEGER,MPI_SUM
      $     ,MPI_COMM_WORLD,mpierr)         
       do ii = 1,nng
          npc_scan_s(ii) = npc_scan_s(ii) - npc_int_s(ii) +
      $        nint(npc_acm(ii-1)) 
       end do
-
-cc      print *,my_rank_pic,npc_scan
 #else
-cc      tot_np_scan = 0
       do ii = 1,nng
          npc_scan_s(ii) = nint(npc_acm(ii-1))
       end do
 #endif
-
-c$$$        else
-c$$$
-c$$$          write (*,*) my_rank_pic,npc_int_s(ii)
-c$$$          call pstop("compute_pcle_spat_dist"
-c$$$     .     ,"Too few particles; add pcles or turn mass matrix solve on")
-c$$$
-c$$$        endif
-c$$$         
-c$$$      end if
-
-cc      call vec_plot_gl(1,1d0*npc_int_s,1,"pcles","Pcle dist")
-cc      stop
 
       npc1_0 = npc_int_s(1) +npc_int_s(2)
       
@@ -4036,7 +4115,14 @@ C    perturb particles after matching given equilibrium
         if(quiet_start) then
 #include "problem_init/kawiiPerturb.f"
         end if
-      case('weibel','wbl_bc')
+c$$$      case('bpnch')
+c$$$        if(quiet_start) then
+c$$$            call perturb_pcle_xv(1
+c$$$     .                          ,(/nh1,nh2,0/)
+c$$$     .                          ,(/0d0,0d0,0d0/)
+c$$$     .                          ,(/0d0,0d0,eps_pic/))
+c$$$        end if
+      case('weibel','wbl_bc','bpnch')
         if(quiet_start) then
             call perturb_pcle_xv(1
      .                          ,(/nh1,nh2,0/)
@@ -4056,22 +4142,9 @@ C    perturb particles after matching given equilibrium
         stop
       end select
 
-c$$$#ifdef PIC_SORT
-c$$$        call sort_particles(nxg,nng,n_sp)
-c$$$#endif
-
 c     Gather moments
 
       call gather_moments
-
-c$$$        do j = 1,nyg
-c$$$          do i = 1,nxg
-c$$$            print *,i,j,moms(i,j,1,1:n_sp,:)
-c$$$          enddo
-c$$$          print *
-c$$$        enddo
-c$$$
-c$$$      stop
 
 c     Diagnostics and memory freeing
 
@@ -4192,7 +4265,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nsize(3),in0(3,_Npg),i,dim,nxg,nyg,nzg
+      integer :: nsize(3),in0(size(inp),3),i,dim,nxg,nyg,nzg
       real(8) :: hx,hy,hz,dh(3)
 
 c     Begin program
@@ -4203,37 +4276,40 @@ c     Begin program
       dh = (/hx,hy,hz/)
 
       nsize = (/nxg,nyg,nzg/)
-      in0(1,:)   = inp
-      in0(2,:)   = jnp
-      in0(3,:)   = 0
+      in0(:,1)   = inp
+      in0(:,2)   = jnp
+      in0(:,3)   = 0
+
+c     Impose BCs
 
       do dim=1,_Dimx
         do i=1,_Npg
           if(dx(i,dim)>0 .and. xnp(i,dim).ge.dh(dim)) then
             do while(xnp(i,dim).ge.dh(dim))
-              in0(dim,i) = in0(dim,i)+1
+              in0(i,dim) = in0(i,dim)+1
               xnp(i,dim) = xnp(i,dim) - dh(dim)
             enddo
-            if(in0(dim,i)>nsize(dim)) !BC @ location=1
-     .         call pcles_bc_offset(dim,1,pbcond,nsize(dim),xnp(i,dim)
-     .                         ,vnp(i,:),in0(dim,i))
+            if(in0(i,dim)>nsize(dim)) !BC @ location=1
+     .         call pcles_bc_offset(dim,1,pbcond,nsize(dim),xnp(i,:)
+     .                             ,vnp(i,:),in0(i,:))
           else if(dx(i,dim)<0.and. xnp(i,dim).le.0) then
             do while(xnp(i,dim).le.0d0)
-              in0(dim,i) = in0(dim,i)-1
+              in0(i,dim) = in0(i,dim)-1
               xnp(i,dim) = xnp(i,dim) + dh(dim)
             enddo
-            if(in0(dim,i)<1)         !BC @ location=0
-     .         call pcles_bc_offset(dim,0,pbcond,nsize(dim),xnp(i,dim)
-     .                             ,vnp(i,:),in0(dim,i))
+            if(in0(i,dim)<1)         !BC @ location=0
+     .         call pcles_bc_offset(dim,0,pbcond,nsize(dim),xnp(i,:)
+     .                             ,vnp(i,:),in0(i,:))
           end if
         enddo
       end do
 
-      inp = in0(1,:)
-      jnp = in0(2,:)
+c     Transfer location info
+
+      inp = in0(:,1)
+      jnp = in0(:,2)
 
       end subroutine cell_crossing
-
 
 c     pcles_bc_offset
 c     ##################################################################
@@ -4249,19 +4325,21 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       integer,intent(in)   :: pbc(6),dim,loc,nn
-      real(8),intent(inout):: xp,vp(3)
-      integer,intent(inout):: ip
+      real(8),intent(inout):: xp(3),vp(3)
+      integer,intent(inout):: ip(3)
 
 c     Local variables
 
       integer :: ibc,dim1,dim2
-      real(8) :: hx,hy,hz,dh(3)
+      real(8) :: hx,hy,hz,ihx,ihy,ihz,dh(3)
+      real(_prec) :: xlog(3),cov(3,3),vdn,inmag
 
 c     Begin program
 
       ibc = (1+loc)+2*(dim-1)
 
       call get_h(hx,hy,hz)
+      call get_inverse_h(ihx,ihy,ihz)
       dh = (/hx,hy,hz/)
 
       select case(dim)
@@ -4276,18 +4354,30 @@ c     Begin program
       select case(pbc(ibc))
       case(pPER)
 !     periodic
-         if (loc == 0) ip = nn
-         if (loc == 1) ip = 1  
-      case(pREF)
+         if (loc == 0) ip(dim) = nn
+         if (loc == 1) ip(dim) = 1  
+      case(pREF,pSP)
 !     reflective, force it to be on the boundary, before which xp=(0:eps).
-         if (loc == 0) ip = ip + 1
-         if (loc == 1) ip = ip - 1 
-         xp = loc*dh(dim)
-         vp(dim) =-vp(dim)
+         if (loc == 0) ip(dim) = ip(dim) + 1
+         if (loc == 1) ip(dim) = ip(dim) - 1 
+         xp(dim) = loc*dh(dim)
+         if (no_map) then
+           vp(dim) =-vp(dim)
+         else
+           xlog(1) = xp(1)*ihx
+           xlog(2) = xp(2)*ihy
+           xlog(3) = xp(3)*ihz
+
+           call transf_vector_Bspl_scalar(ip(1),ip(2),xlog,cov)
+           inmag = 1d0/sum(cov(dim,:)*cov(dim,:))  ! |n|
+           vdn = dot_product(cov(dim,:),vp)        ! v.n
+cc           if (vdn*(-1)**loc < 0d0) vp = vp - 2d0*vdn*cov(dim,:)*inmag ! vp = vp - 2*(v.n)n/|n|^2
+           vp = vp - 2d0*vdn*cov(dim,:)*inmag ! vp = vp - 2*(v.n)n/|n|^2
+         endif
       case(pOPN)
-         if (loc == 0) ip = ip + 1
-         if (loc == 1) ip = ip - 1 
-         xp = loc*dh(dim)
+         if (loc == 0) ip(dim) = ip(dim) + 1
+         if (loc == 1) ip(dim) = ip(dim) - 1 
+         xp(dim) = loc*dh(dim)
          vp(dim) = 2d0*vinject(dim,ibc) - vp(dim) !assuming a symmetric distribution
          vp(dim1) = -vp(dim1)
          vp(dim2) = -vp(dim2)
@@ -4541,7 +4631,7 @@ cc      cm(1) =  pcle%v_np(1)*m + Ap*q
 cc      cm(2) =  pcle%v_np(2)*m + Ap*q               
       cm(2) =  Ap*q
 
-      Ap = dot_product(opt_matvec_3(Sx2(1,:),A_3),Sy2(1,:))
+      Ap = dot_product(opt_matvec_tr(Sx2(1,:),A_3),Sy2(1,:))
 cc      cm(3) =  pcle%v_np(3)*m + Ap*q 
       cm(3) =  Ap*q
 #else               
