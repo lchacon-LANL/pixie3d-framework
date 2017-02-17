@@ -2661,7 +2661,6 @@ c     Perform average along azimuthal direction @ SP
 
         one = 1 ; two = 2; thr = 3
 
-        !Safeguards to prevent stepping out of domain
         if (order_int <= 1) then
           two = one
           thr = one

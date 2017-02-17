@@ -1170,7 +1170,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: dim,loc,ibc
+      integer :: dim,loc,ibc,xtrap_o
       logical :: petsc__bc
 
 #if defined(petsc)
@@ -1268,11 +1268,13 @@ c     Impose BCs
 
 c     Fill edges
 
-      call fillEdges(gbc_def,array,array0,bcnd,order)
+      xtrap_o = max(2,order)
+
+      call fillEdges(gbc_def,array,array0,bcnd,xtrap_o)
 
 c     Fill corners
 
-      call fillCorners(gbc_def,array,bcnd,order)
+      call fillCorners(gbc_def,array,bcnd,xtrap_o)
 
 c     Periodic boundary synchronizing
 
@@ -1339,7 +1341,7 @@ c     Call variables
 c     Local variables
 
       integer    :: i,j,k,imax,imin,jmax,jmin,kmax,kmin
-      integer    :: ivar,ieq,ibc,loc,dim,bctype
+      integer    :: ivar,ieq,ibc,loc,dim,bctype,xtrap_o
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical    :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
 
@@ -1492,18 +1494,20 @@ c     Synchronize covariant and contravariant components
 
 c     Fill edges (for both cnv and cov components)
 
+      xtrap_o = max(2,order)
+
       do ivar=1,ncomp
         call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),order)
+     .                ,bcnd(:,ivar),xtrap_o)
         call fillEdges(gbc_def,v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),order)
+     .                ,bcnd(:,ivar),xtrap_o)
       enddo
 
 c     Fill corners (for both cnv and cov components)
 
       do ivar=1,ncomp
-        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),order)
-        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),order)
+        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
+        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
       enddo
 
 c     Periodic boundary synchronizing
@@ -1751,7 +1755,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin!,order
+      integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,xtrap_o
       integer :: ivar,ieq,ibc,loc,dim,bctype
      .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
@@ -1910,18 +1914,20 @@ c     Synchronize covariant and contravariant components
 
 c     Fill edges (for both cnv and cov components)
 
+      xtrap_o = max(2,order)
+
       do ivar=1,ncomp
         call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),order)
+     .                ,bcnd(:,ivar),xtrap_o)
         call fillEdges(gbc_def,v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),order)
+     .                ,bcnd(:,ivar),xtrap_o)
       enddo
 
 c     Fill corners (for both cnv and cov components)
 
       do ivar=1,ncomp
-        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),order)
-        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),order)
+        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
+        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
       enddo
 
 c     Periodic boundary synchronizing
