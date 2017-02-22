@@ -3738,7 +3738,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid
+      integer :: ig,jg,kg,im,jm,km
 
       real(8) :: dvol,dxx,dyy,dzz,jac,ijac
 
@@ -3753,13 +3753,8 @@ c     Begin program
       vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
-      igrid = igx
-
-      ip = i+1
       im = i-1
-      jp = j+1
       jm = j-1
-      kp = k+1
       km = k-1
 
       call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
@@ -3795,7 +3790,7 @@ c     Assemble divergence of tensor
       endif
 
       !Volume factor
-      if (vol_wgt) divt=divt*g_def%gmetric%grid(igrid)%dlvol(i,j,k)  !Logical volume
+      if (vol_wgt) divt=divt*g_def%gmetric%grid(igx)%dlvol(i,j,k)  !Logical volume
 
 c     End program
 
@@ -3976,7 +3971,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid
+      integer :: ig,jg,kg,im,jm,km
 
       real(8) :: dxx,dyy,dzz
 
@@ -3991,13 +3986,8 @@ c     Begin program
       vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
-      igrid = igx
-
-      ip = i+1
       im = i-1
-      jp = j+1
       jm = j-1
-      kp = k+1
       km = k-1
 
       call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
@@ -4027,10 +4017,10 @@ c     Assemble divergence of tensor
      .      +(tp(2,:)-tm(2,:))/dyy
      .      +(tp(3,:)-tm(3,:))/dzz + msource
 
-      divt = divt/g_def%gmetric%grid(igrid)%jac(i,j,k)
+      divt = divt/g_def%gmetric%grid(igx)%jac(i,j,k)
 
       !Volume factor
-      if (vol_wgt) divt=divt*g_def%gmetric%grid(igrid)%dvol(i,j,k)
+      if (vol_wgt) divt=divt*g_def%gmetric%grid(igx)%dvol(i,j,k)
 
 c     End program
 

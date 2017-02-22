@@ -1218,13 +1218,13 @@ c     Take care of COARSER meshes
       mg_temp => mgarray%mg_crse_array
 
       if (PRESENT(mgvcov)) then
-         mgvcov_old  => mgvcov
-         mgvcov_temp => mgvcov%mg_crse_array
+        mgvcov_old  => mgvcov
+        mgvcov_temp => mgvcov%mg_crse_array
       endif
 
       if (PRESENT(equilb)) then
-         equilb_old  => equilb
-         equilb_temp => equilb%mg_crse_array
+        equilb_old  => equilb
+        equilb_temp => equilb%mg_crse_array
       endif
 
       do while (associated(mg_temp))
@@ -1235,6 +1235,24 @@ c     Take care of COARSER meshes
      .                  ,mpi_comm=mg_temp%g_def%mpi_comm_crse
 #endif
      .                  )
+
+        if (PRESENT(mgvcov)) then
+          call find_global(mgvcov_old %grid(igf)%array
+     .                    ,mgvcov_temp%grid(1  )%array
+#if defined(petsc)
+     .                    ,mpi_comm=mgvcov_temp%g_def%mpi_comm_crse
+#endif
+     .                    )
+        endif
+
+        if (PRESENT(equilb)) then
+          call find_global(equilb_old %grid(igf)%array
+     .                    ,equilb_temp%grid(1  )%array
+#if defined(petsc)
+     .                    ,mpi_comm=equilb_temp%g_def%mpi_comm_crse
+#endif
+     .                    )
+        endif
 
         !Restrict COARSE array
         do igc=2,mg_temp%g_def%ngrid
@@ -1284,13 +1302,13 @@ c     Take care of COARSER meshes
         mg_temp => mg_old%mg_crse_array
 
         if(PRESENT(mgvcov)) then
-           mgvcov_old  => mgvcov_temp
-           mgvcov_temp => mgvcov_old%mg_crse_array
+          mgvcov_old  => mgvcov_temp
+          mgvcov_temp => mgvcov_old%mg_crse_array
         endif
 
         if(PRESENT(equilb)) then
-           equilb_old  => equilb_temp
-           equilb_temp => equilb_old%mg_crse_array
+          equilb_old  => equilb_temp
+          equilb_temp => equilb_old%mg_crse_array
         endif
 
       enddo
@@ -4171,7 +4189,7 @@ c     Call variables
 c     Local variables
 
         integer    :: ntot,iorder_res,iorder_prol,vcyc,mu_cyc,nclrs,smit
-     .               ,mgmin,mgminl,i,ieq,gmit,zit,zdir
+     .               ,mgminl,i,ieq,gmit,zit,zdir!,mgmin
         real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,r_tol,a_tol,s_tol
      .               ,zomg
         real(8), target :: ddg(neq,2*neq*ntotp)
@@ -4296,11 +4314,11 @@ c     Process optional arguments
           glkin = .false.
         endif
 
-        if (PRESENT(mg_coarse_grid_size)) then
-          mgmin = mg_coarse_grid_size
-        else
-          mgmin = 2
-        endif
+c$$$        if (PRESENT(mg_coarse_grid_size)) then
+c$$$          mgmin = mg_coarse_grid_size
+c$$$        else
+c$$$          mgmin = 2
+c$$$        endif
 
         if (PRESENT(mg_coarse_grid_level)) then
           mgminl = mg_coarse_grid_level
@@ -4496,7 +4514,7 @@ c       MG solver options
         else
           solverOptions%vcyc   = vcyc
         endif
-        solverOptions%mg_coarse_grid_res  = mgmin
+cc        solverOptions%mg_coarse_grid_res  = mgmin
         solverOptions%mg_coarse_grid_level= mgminl
         solverOptions%orderres       = iorder_res
         solverOptions%orderprol      = iorder_prol
@@ -4535,7 +4553,7 @@ cc        solverOptions%vertex_based_relax = .true.
 
         !Plane/line relaxation
         if (lrelax) then
-cc          solverOptions%mg_coarse_grid_res = mgmin
+cccc          solverOptions%mg_coarse_grid_res = mgmin
 cc          solverOptions%orderres        = ores
 cc          solverOptions%orderprol       = oprol
 cc          solverOptions%mg_mu           = mu_cyc
@@ -4595,7 +4613,7 @@ c       MG coarsest grid solve
 
         call solverOptionsInit
 
-        solverOptions%tol             = 1d-1!1d-5
+        solverOptions%tol             = 1d-5
         solverOptions%krylov_subspace = min(100,2*neq*ntotp)
         solverOptions%iter            = min(100,2*neq*ntotp)
         solverOptions%stp_test        = 1 
@@ -5671,7 +5689,7 @@ c Local variables
       type(grid_mg_def),pointer :: MGgrid
 
       !Initialized from outside
-      integer :: orderres,orderprol,igmin,igmax,vcyc,crsedpth,mu,ncolors
+      integer :: orderres,orderprol,igmax,vcyc,crsedpth,mu,ncolors
       real(8) :: mgtol,abstol
       real(8) :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot),x0(ntot)
       logical :: fdiag,mg_debug,prnt,smooth_only
@@ -5703,7 +5721,7 @@ c Consistency check
 
 c Assign options
 
-      igmin           = options%mg_coarse_grid_res   !Resolution=mgratio^(igmin)
+cc      igmin           = options%mg_coarse_grid_res   !Resolution=mgratio^(igmin)
       igmax           = options%mg_coarse_grid_level !1-level, 2-level, 3-level, etc
       vcyc            = options%vcyc
       mgtol           = options%tol
@@ -5754,11 +5772,12 @@ c Set pointers and find ngrid
 c Check limits
 
       if (igmax == 0) then
-        igmax = (mgctx%ngrid+1) - (igmin-1)  !Determines maximum # of grid levels
-                                             !  (ngrid+1): total number of levels
-                                             !  igmin: coarsest level from below
+c$$$        igmax = (mgctx%ngrid+1) - (igmin-1)  !Determines maximum # of grid levels
+c$$$                                             !  (ngrid+1): total number of levels
+c$$$                                             !  igmin: coarsest level from below
+        igmax = mgctx%ngrid
       endif
-      
+
       mgctx%igmax = igmax
 
       if (igrid.gt.igmax) then
@@ -6958,7 +6977,7 @@ c     Configure recursive plane/line JB solve
 
         options%tol                         = line_tol
         options%vcyc                        = line_vcyc
-        options%mg_coarse_grid_res          = igmin
+cc        options%mg_coarse_grid_res          = igmin
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
@@ -7252,8 +7271,8 @@ c     Begin program
         nn   = mgctx%ntotv (igr)
 
 #if defined(petsc) && defined(coarse_MG)
-c$$$        write (*,*) (np > 1)                           !Parallel
-c$$$     .   ,(mgctx%g_def%ngrid == igr)         !Lowest level in grid hierarchy
+c$$$        write (*,*) (np > 1)                 !Parallel
+c$$$     .   ,mgctx%g_def%ngrid,igr              !Lowest level in grid hierarchy
 c$$$     .   ,associated(mgctx%g_def%g_crse_def) !Coarse grid defs are defined
 c$$$     .   ,MG_get_coarse_solve()
         if (  (np > 1)                           !Parallel
@@ -7320,6 +7339,9 @@ c$$$     .   ,MG_get_coarse_solve()
           optns_new%diag => null() !Reform diagonals in coarse mesh
           optns_new%vcyc = 1       !Only ONE vcycle in coarse solve
 
+cc          optns_new%mg_smooth_only = .true.
+cc          optns_new%mg_coarse_grid_level = 1
+
           !Call MG with new solver context
           call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,out,depth)
 
@@ -7331,7 +7353,7 @@ c$$$     .                    ,"Coarse MG residual")
 c$$$          call vec_plot_gl(optns_new%mgctx%g_def,neq,xg,1,"coarse_sol"
 c$$$     .                    ,"Coarse MG solution")
 c$$$          call deallocMGPointers(fpointers,optns_new%mgctx)
-c$$$          call pstop("","")
+c$$$          call pstop("Debugging coarse solution","coarseSolve")
 cdiag ****
 
           !Recover MG context
@@ -7339,36 +7361,6 @@ cdiag ****
           MGgrid=> options%mg_grid_def
 
           !Scatter GLOBAL solution vectors
-c$$$          do kg = mgctx%g_def%klo(igr),mgctx%g_def%khi(igr)
-c$$$            do jg = mgctx%g_def%jlo(igr),mgctx%g_def%jhi(igr)
-c$$$              do ig = mgctx%g_def%ilo(igr),mgctx%g_def%ihi(igr)
-c$$$                !Local limits
-c$$$                igv = (/ig,jg,kg/)
-c$$$                ilv = localIndex(mgctx%g_def,igr,igv)
-c$$$                !Vector location
-c$$$                ii  = neq*vPos(mgctx%g_def,igr,ilv) + isig - 1
-c$$$                iig = neq*vPos(g_crse_def ,1  ,igv)
-c$$$                !Vector assignment
-c$$$                xx(ii+1:ii+neq) = xg(iig+1:iig+neq)
-c$$$              enddo
-c$$$            enddo
-c$$$          enddo
-
-c$$$          do kl = 1,nzl
-c$$$            do jl = 1,nyl
-c$$$              do il = 1,nxl
-c$$$                !Local limits and local vector index (coarsest mesh in fine grid st)
-c$$$                ilv = (/il,jl,kl/)
-c$$$                ii  = neq*vPos(mgctx%g_def,igr,ilv) + isig - 1
-c$$$                !Global limits (finest mesh in coarse grid st) and global vector location
-c$$$                igv = globalIndex(g_crse_def,1,ilv)
-c$$$                iig = neq*   vPos(g_crse_def,1,igv)
-c$$$                !Vector assignment
-c$$$                xx(ii+1:ii+neq) = xg(iig+1:iig+neq)
-c$$$              enddo
-c$$$            enddo
-c$$$          enddo
-
           do kg = 1,nzg
             do jg = 1,nyg
               do ig = 1,nxg
@@ -7390,8 +7382,6 @@ c$$$          enddo
      .               ,jmin*nyl+1:(jmin+1)*nyl
      .               ,kmin*nzl+1:(kmin+1)*nzl,:)
 
-c$$$          call find_local_field_vec(g_crse_def,1,arrayg,array)
-c$$$
           call mapArrayToMGVector(mgctx,array,xx,igr,.true.)
 
 c diag ****
@@ -7435,9 +7425,9 @@ cdiag ****
 
 c diag
 c$$$          if (np == 1) then
-c$$$          call vec_plot_gl(neq,yy,igr,"local_res_serial"
-c$$$     .                    ,"Coarse MG solution")
-c$$$          call vec_plot_gl(neq,xx,igr,"local_sol_serial"
+c$$$          call vec_plot_gl(mgctx%g_def,neq,yy,igr,"coarse_res"
+c$$$     .                    ,"Coarse MG residual")
+c$$$          call vec_plot_gl(mgctx%g_def,neq,xx,igr,"coarse_sol"
 c$$$     .                    ,"Coarse MG solution")
 c$$$          call pstop("","")
 c$$$          endif
