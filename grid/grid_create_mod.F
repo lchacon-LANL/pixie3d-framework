@@ -295,9 +295,7 @@ c     Init coarse mesh structure
      .               ,g_def%g_pack,g_def%params
      .               ,g_crse_def
      .               ,np_x=npx,np_y=npy,np_z=npz
-#if defined(petsc) || defined(samrai)
      .               ,mpi_comm=mpi_comm_splt
-#endif
      .               )
 
       g_crse_def%mpi_comm_crse = mpi_comm_crse
@@ -497,7 +495,7 @@ c     Find adequate number of grid levels (for MG)
           if (mx > nxg) call pstop('init_gdef','Too many procs in X')
 
           nxx = nxg/mx
-          ngrdx = MG_levels(nxx,mg_ratio)
+          ngrdx = MG_levels(nxx,mg_ratio,mx)
         else
           ngrdx = 1
         endif
@@ -509,7 +507,7 @@ c     Find adequate number of grid levels (for MG)
           if (my > nyg) call pstop('init_gdef','Too many procs in Y')
 
           nyy = nyg/my
-          ngrdy = MG_levels(nyy,mg_ratio)
+          ngrdy = MG_levels(nyy,mg_ratio,my)
         else
           ngrdy = 1
         endif
@@ -521,7 +519,7 @@ c     Find adequate number of grid levels (for MG)
           if (mz > nzg) call pstop('init_gdef','Too many procs in Z')
 
           nzz = nzg/mz
-          ngrdz = MG_levels(nzz,mg_ratio)
+          ngrdz = MG_levels(nzz,mg_ratio,mz)
         else
           ngrdz = 1
         endif

@@ -44,7 +44,6 @@ c ######################################################################
         integer :: pc_iter        = 1     !Number of SI iterations in preconditioner
      .            ,mg_ores        = 0     !Restriction order for MG
      .            ,mg_oprol       = 2     !Prolongation order for MG
-     .            ,mg_coarse_size = 2     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
      .            ,mg_vcyc        = 1     !Maximum number of MG V-cycles
      .            ,sm_zebra_it    = 1     !Number of relaxations in ZEBRA smoothing
      .            ,sm_zebra_dir   = 0     !Preferred smoothing direction in ZEBRA smoothing (all if zero)

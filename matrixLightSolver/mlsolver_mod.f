@@ -33,7 +33,7 @@ cc          logical    :: vol_res
           integer      :: orderprol
           integer      :: mg_coarse_solver_depth
           integer      :: mg_coarse_grid_level
-          integer      :: mg_coarse_grid_res
+cc          integer      :: mg_coarse_grid_res
           integer      :: mg_mu
 
           logical      :: mg_line_relax
@@ -137,7 +137,7 @@ c       Initializes solver options
 
           !MG and smoother options
           solverOptions%vcyc     = 1               !Number of V-cycles (MG)
-          solverOptions%mg_coarse_grid_res = 2     !Minimum grid level considered (mg_ratio^()) (MG)
+cc          solverOptions%mg_coarse_grid_res = 2     !Minimum grid level considered (mg_ratio^()) (MG)
           solverOptions%mg_coarse_grid_level = 0   !Grid level considered to be coarsest (MG)
           solverOptions%orderres = 0               !Interpolation order in restriction (MG)
           solverOptions%orderprol= 0               !Interpolation order in prolongation (MG)
@@ -222,7 +222,7 @@ c       Initializes solver options
 
           !MG and smoother options
           sopts_bckup%vcyc                 = sopts%vcyc                
-          sopts_bckup%mg_coarse_grid_res   = sopts%mg_coarse_grid_res  
+cc          sopts_bckup%mg_coarse_grid_res   = sopts%mg_coarse_grid_res  
           sopts_bckup%mg_coarse_grid_level = sopts%mg_coarse_grid_level
           sopts_bckup%orderres             = sopts%orderres            
           sopts_bckup%orderprol            = sopts%orderprol           
