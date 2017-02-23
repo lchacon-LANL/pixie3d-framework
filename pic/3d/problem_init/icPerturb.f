@@ -8,7 +8,7 @@
           do isp=1,n_sp
             do i = 0, nxg+1
               do j = 0, nyg+1
-                Jpz(i,j,isp) = Jpz(i,j,isp)
+                Jpz(i,j,:,isp) = Jpz(i,j,:,isp)
      .            + 0.5*eps_pic*sign(1d0,spcs(isp)%q)
      .                     *((2d0*dble(nh1)/Lx)**2
      $                     + (    dble(nh2)/Ly)**2)*pi*pi
@@ -31,8 +31,8 @@ cc          stop
 
               do ip=1,size(spcs(isp)%pcles)
              
-                call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg
-     .                            ,i_np,j_np)
+                call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,nyg
+     .                            ,i_np,j_np,k_np)
  
                 !VECTOR SIMD
                 do k=1,_Npg

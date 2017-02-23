@@ -6,4 +6,5 @@ MESSAGE = "Compiling 1D interpolation driver"
 
 COMMONDIR = ../..
 
-SUBDIRS = 
+SUBDIRS = $(COMMONDIR)/math \
+          $(COMMONDIR)/io 

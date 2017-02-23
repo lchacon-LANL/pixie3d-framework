@@ -76,6 +76,6 @@
     </adios-group>
     <method method="MPI" group="record"/>
     <!--method method="POSIX" group="record"/-->
-    <buffer size-MB="1000" allocate-time="now"/>
+    <buffer size-MB="10" allocate-time="now"/>
     <!-- or free-memory-percentage="90" allocate-time="oncall" -->
 </adios-config>
