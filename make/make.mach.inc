@@ -1033,3 +1033,44 @@ ifeq ($(findstring gr,$(HOST)),gr)
   endif
 
 endif
+
+####################
+# marconi #
+####################
+
+ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
+
+  FC = ifort
+  OPTIMIZATION = -O3
+
+  CPPFLAGS += $(PREPROC)RFX
+
+  ifdef BOPT
+    PETSC_DIR = /marconi_work/FUA11_PIXIE3D/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_intelmpi
+    else
+      PETSC_ARCH = linux64_intelmpi_g
+    endif
+
+    HDF5 = f
+    #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+    #HDF5_HOME = $(CRAY_HDF5_DIR)
+    #HDF5_LIBS = $(HDF5_FLIB)
+    #HDF5_MOD  = $(HDF5_HOME)/lib
+
+    ADIOS = f
+    #ADIOS = t
+    #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.3.1/linux64_intelmpi
+    #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
+    #ADIOS_VER  = 1.31
+
+  else
+    HDF5 = f
+    ADIOS = f
+    LIBS += -L$(LAPACK_LIB) -llapack -L$(BLAS_LIB) -lblas
+  endif
+
+  MACHINE = marconi
+endif 
