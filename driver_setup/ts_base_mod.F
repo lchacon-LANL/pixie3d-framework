@@ -377,7 +377,7 @@ c     #######################################################################
 
           dt = dt*coef1
 
-          if (dt < 1d-3*dtbase) then
+          if (dt < 1d-6*dtbase) then
             call pstop('adapt_dt','Time step too small')
           endif
 
