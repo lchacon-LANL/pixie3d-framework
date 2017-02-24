@@ -195,9 +195,9 @@ c     Perform grid check
 
 c     End program
 
+#if defined(petsc) && defined(coarse_MG)
       contains
 
-#if defined(petsc) && defined(coarse_MG)
 c     coarse_mg_debug_io
 c     ######################################################################
       subroutine coarse_mg_debug_io
