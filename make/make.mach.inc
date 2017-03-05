@@ -1015,20 +1015,20 @@ ifeq ($(findstring gr,$(HOST)),gr)
       PETSC_ARCH = linux64_openmpi-1.10.5_gcc-5.3.0_dbg
     endif
 
-    HDF5 = t
+    HDF5 = f
 
-    HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
-    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)/include
-    HDF5_INC  = $(HDF5_MOD)
+#    HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
+#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#    HDF5_MOD  = $(HDF5_HOME)/include
+#    HDF5_INC  = $(HDF5_MOD)
 
     ADIOS = t
 
     ADIOS_BUFFER_MB = 1000
 
-    ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.3.1-grizzly-gcc/lib
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/magreconn/soft/mxml-2.5-grizzly-gcc/lib/ -lmxml
-    ADIOS_VER  = 1.31
+    ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0-grizzly-gcc/lib
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/turquoise/usr/projects/magreconn/soft/mxml-2.5-grizzly-gcc/lib/ -lmxml
+    ADIOS_VER  = 1.10
 
   endif
 
