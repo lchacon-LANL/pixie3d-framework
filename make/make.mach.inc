@@ -944,10 +944,10 @@ ifeq ($(findstring wf,$(HOST)),wf)
 
     HDF5 = f
 
-    HDF5_HOME = /turquoise/usr/projects/icfifp/Applications/hdf5-1.8.11/
-    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)/include
-    HDF5_INC  = $(HDF5_MOD)
+#    HDF5_HOME = /turquoise/usr/projects/icfifp/Applications/hdf5-1.8.11/
+#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#    HDF5_MOD  = $(HDF5_HOME)/include
+#    HDF5_INC  = $(HDF5_MOD)
 
     ADIOS = t
 
