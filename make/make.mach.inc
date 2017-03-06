@@ -924,8 +924,6 @@ endif
 ##################
 
 ifeq ($(findstring wf,$(HOST)),wf)
-#ifeq ($(HOST),wf-fe2.lanl.gov)
-#ifeq ($(HOST),mu1599.localdomain)
 
   FC=gfortran
 
@@ -939,10 +937,9 @@ ifeq ($(findstring wf,$(HOST)),wf)
     PETSC_DIR =/turquoise/usr/projects/icfifp/Applications-luis/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = linux-gnu-c-opt
+      PETSC_ARCH = linux64_wolf_openmpi-1.10.5_gcc-5.3.0
     else
-      PETSC_ARCH = linux64_openmpi-1.10.3_gcc-5.3.0_dbg
-# NOT INSTALLED DEBUG.
+      PETSC_ARCH = linux64_wolf_openmpi-1.10.5_gcc-5.3.0_dbg
     endif
 
     HDF5 = f
@@ -956,7 +953,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
 
     ADIOS_BUFFER_MB = 1000
 
-    ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0-grizzly-gcc/lib
+    ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0-wolf-gcc/lib
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/turquoise/usr/projects/magreconn/soft/mxml-2.5-grizzly-gcc/lib/ -lmxml
     ADIOS_VER  = 1.10
 
