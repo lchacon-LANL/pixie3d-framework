@@ -934,7 +934,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
   ifdef BOPT
-    PETSC_DIR =/turquoise/usr/projects/icfifp/Applications-luis/petsc-3.0.0-p7
+    PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
       PETSC_ARCH = linux64_wolf_openmpi-1.10.5_gcc-5.3.0
@@ -949,7 +949,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
-    ADIOS = f
+    ADIOS = t
 
     ADIOS_BUFFER_MB = 1000
 
