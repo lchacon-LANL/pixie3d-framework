@@ -1037,7 +1037,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
      ADIOS_BUFFER_MB = 1000
 
      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-gcc-5.3.0_openmpi-1.10.5
-     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
      ADIOS_VER  = 1.10
     endif
 
@@ -1068,7 +1068,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
        ADIOS_BUFFER_MB = 1000
 
        ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel17.0.1_intelmpi2017.1
-       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
        ADIOS_VER  = 1.10
    endif
 
