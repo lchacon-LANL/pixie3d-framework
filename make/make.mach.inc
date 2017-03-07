@@ -988,43 +988,51 @@ endif
 # Grizzly turquoise #
 #####################
 
-ifeq ($(findstring gr,$(HOST)),gr)
+elif [ `hostname | cut -c 1-4` == "gr-f" ]; then
 
-  FC=gfortran
+    if [[ $FC == *"ifort" ]]; then
 
-  NETCDF=f
-  NETCDF_LIBS = -lnetcdff -lnetcdf
-  NETCDF_INC  = -I/usr/include/netcdf
+    #####################
+    # Grizzly and intel #
+    #####################
+    echo "Configure on Grizzly with Intel"
+    export CC=icc
+    export FC=ifort
+    export CXX=icpc
+    export MPICC=mpiicc
+    export MPICXX=mpiicpc
+    export MPIFC=mpiifort
+    ./configure --prefix=/turquoise/usr/projects/magreconn/soft/adios-1.3.1/lib-grizzly-intel17.0.1_intelmpi2017.1 \
+                --enable-dependency-tracking \
+                --with-mxml=/turquoise/usr/projects/magreconn/soft/mxml-2.5/grizzly-intel17.0.1_intelmpi2017.1 \
+                --disable-shared \
+                --without-netcdf \
+                --without-nc4par \
+#                --with-phdf5-libdir=/usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3/lib \
+#                --with-phdf5-incdir=/usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3/include \
+#                --with-hdf5-libdir=/usr/projects/hpcsoft/toss3/common/hdf5/1.8.16/lib \
+#                --with-hdf5-incdir=/usr/projects/hpcsoft/toss3/common/hdf5/1.8.16/include
 
-#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+    elif [[ $FC == *"gfortran" ]]; then
 
-  ifdef BOPT
-    PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
+    ###################
+    # Grizzly and gcc #
+    ###################
+    echo "Configure on Grizzly with gfortran"
+    export CC=gcc
+    export FC=gfortran
+    ./configure --prefix=/turquoise/usr/projects/magreconn/soft/adios-1.3.1/lib-grizzly-gcc-5.3.0_openmpi-1.10.5 \
+                --enable-dependency-tracking \
+                --with-mxml=/turquoise/usr/projects/magreconn/soft/mxml-2.5/grizzly-gcc-5.3.0_openmpi-1.10.5 \
+                --disable-shared \
+                --without-netcdf \
+                --without-nc4par \
+#                --with-phdf5-libdir=/usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3/lib \
+#                --with-phdf5-incdir=/usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3/include \
+#                --with-hdf5-libdir=/usr/projects/hpcsoft/toss3/common/hdf5/1.8.16/lib \
+#                --with-hdf5-incdir=/usr/projects/hpcsoft/toss3/common/hdf5/1.8.16/include
 
-    ifeq ($(BOPT),O)
-      PETSC_ARCH = linux64_openmpi-1.10.5_gcc-5.3.0
-    else
-      PETSC_ARCH = linux64_openmpi-1.10.5_gcc-5.3.0_dbg
-    endif
-
-    HDF5 = t
-
-    HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
-    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)/include
-    HDF5_INC  = $(HDF5_MOD)
-
-    ADIOS = t
-
-    ADIOS_BUFFER_MB = 1000
-
-    ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.3.1-grizzly-gcc/lib
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/magreconn/soft/mxml-2.5-grizzly-gcc/lib/ -lmxml
-    ADIOS_VER  = 1.31
-
-  endif
-
-endif
+    fi
 
 ####################
 # marconi #
