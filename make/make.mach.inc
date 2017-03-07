@@ -1015,8 +1015,8 @@ ifeq ($(findstring gr,$(HOST)),gr)
      ADIOS_BUFFER_MB = 1000
 
      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.3.1/lib-grizzly-gcc-5.3.0_openmpi-1.10.5
-     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib  -ladiosf -ladiosreadf -L/turquoise/usr/projects/magreconn/soft/mxml-2.5/grizzly-gcc-5.3.0_openmpi-1.10.5/lib -lmxml
-     ADIOS_VER  = 1.10
+     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib  -ladiosf -ladiosreadf -L/turquoise/usr/projects/magreconn/soft/mxml-2.5/grizzly-gcc-5.3.0_openmpi-1.10.5/lib -lmxml -llustreapi
+     ADIOS_VER  = 1.31
     endif
 
   endif
@@ -1046,8 +1046,8 @@ ifeq ($(findstring gr,$(HOST)),gr)
        ADIOS_BUFFER_MB = 1000
 
        ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.3.1/lib-grizzly-intel17.0.1_intelmpi2017.1
-       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/magreconn/soft/mxml-2.5/grizzly-intel17.0.1_intelmpi2017.1/lib -lmxml
-       ADIOS_VER  = 1.10
+       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/magreconn/soft/mxml-2.5/grizzly-intel17.0.1_intelmpi2017.1/lib -lmxml -llustreapi
+       ADIOS_VER  = 1.31
    endif
 
   endif

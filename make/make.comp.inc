@@ -20,6 +20,7 @@ ifeq ($(findstring f90,$(FC)),f90)
 
   FFLAGS      += -w -YEXT_NAMES=LCS -YEXT_SFX=_ -YCFRL=1 -m64 -lU77
   LDFLAGS      = -lU77 
+  LABEL        = absoft
 endif
 
 # Flags for Lahey lf95
@@ -41,11 +42,12 @@ ifeq ($(findstring lf95,$(FC)),lf95)
   ifdef BOPT
     FFLAGS    += --ml cdecl
   endif
+  LABEL        = lahey
 endif
 
 # Flags for Intel ifort
 ifeq ($(findstring ifort,$(FC)),ifort)
-  OPTIMIZATION ?= -O3 -g -ip -qopenmp-simd -fma -align all # -march=$(M_ARCH)
+  OPTIMIZATION ?= -O3 -g -ip -qopenmp-simd  -align all # -march=$(M_ARCH) -fma
 #  DEBUG        = -g -check bounds -traceback
   DEBUG        = -g -check noarg_temp_created,bounds,format,pointers,stack -traceback
   PROFILE      = -O2 -g -p
@@ -55,6 +57,7 @@ ifeq ($(findstring ifort,$(FC)),ifort)
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)ifort
   FOPENMP      = -qopenmp 
+  LABEL        = intel
 endif
 
 # Flags for g95
@@ -68,6 +71,7 @@ ifeq ($(findstring g95,$(FC)),g95)
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)g95
   FFLAGS      += $(STATIC)
+  LABEL        = g95
 endif
 
 # Flags for gfortran
@@ -87,6 +91,7 @@ ifeq ($(findstring gfortran,$(FC)),gfortran)
   FFLAGS      += #$(STATIC)
   FOPENMP      = -fopenmp
   LDFLAGS     += -lgfortran 
+  LABEL        = gnu
 endif
 
 ifeq ($(findstring vtf77,$(FC)),vtf77)
@@ -100,6 +105,7 @@ ifeq ($(findstring vtf77,$(FC)),vtf77)
   CPPFLAGS    += $(PREPROC)gfortran
   FFLAGS      += #$(STATIC)
   LDFLAGS     += -lgfortran
+  LABEL        = gnu
 endif
 
 # Flags for Portland Group f90
@@ -115,6 +121,7 @@ ifeq ($(findstring pgf95,$(FC)),pgf95)
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)pgf90
   FOPENMP      = -mp
+  LABEL        = pgf90
 endif
 
 #Assemble compiler options
