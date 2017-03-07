@@ -988,51 +988,71 @@ endif
 # Grizzly turquoise #
 #####################
 
-elif [ `hostname | cut -c 1-4` == "gr-f" ]; then
+ifeq ($(findstring gr,$(HOST)),gr)
 
-    if [[ $FC == *"ifort" ]]; then
+  ifeq ($(findstring gfortran,$(FC)),gfortran)
 
-    #####################
-    # Grizzly and intel #
-    #####################
-    echo "Configure on Grizzly with Intel"
-    export CC=icc
-    export FC=ifort
-    export CXX=icpc
-    export MPICC=mpiicc
-    export MPICXX=mpiicpc
-    export MPIFC=mpiifort
-    ./configure --prefix=/turquoise/usr/projects/magreconn/soft/adios-1.3.1/lib-grizzly-intel17.0.1_intelmpi2017.1 \
-                --enable-dependency-tracking \
-                --with-mxml=/turquoise/usr/projects/magreconn/soft/mxml-2.5/grizzly-intel17.0.1_intelmpi2017.1 \
-                --disable-shared \
-                --without-netcdf \
-                --without-nc4par \
-#                --with-phdf5-libdir=/usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3/lib \
-#                --with-phdf5-incdir=/usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3/include \
-#                --with-hdf5-libdir=/usr/projects/hpcsoft/toss3/common/hdf5/1.8.16/lib \
-#                --with-hdf5-incdir=/usr/projects/hpcsoft/toss3/common/hdf5/1.8.16/include
+    NETCDF=f
 
-    elif [[ $FC == *"gfortran" ]]; then
+    ifdef BOPT
+     PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
-    ###################
-    # Grizzly and gcc #
-    ###################
-    echo "Configure on Grizzly with gfortran"
-    export CC=gcc
-    export FC=gfortran
-    ./configure --prefix=/turquoise/usr/projects/magreconn/soft/adios-1.3.1/lib-grizzly-gcc-5.3.0_openmpi-1.10.5 \
-                --enable-dependency-tracking \
-                --with-mxml=/turquoise/usr/projects/magreconn/soft/mxml-2.5/grizzly-gcc-5.3.0_openmpi-1.10.5 \
-                --disable-shared \
-                --without-netcdf \
-                --without-nc4par \
-#                --with-phdf5-libdir=/usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3/lib \
-#                --with-phdf5-incdir=/usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3/include \
-#                --with-hdf5-libdir=/usr/projects/hpcsoft/toss3/common/hdf5/1.8.16/lib \
-#                --with-hdf5-incdir=/usr/projects/hpcsoft/toss3/common/hdf5/1.8.16/include
+     ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_grizzly_openmpi-1.10.5_gcc-5.3.0
+     else
+      PETSC_ARCH = linux64_grizzly_openmpi-1.10.5_gcc-5.3.0_dbg
+     endif
 
-    fi
+     HDF5 = f
+
+#     HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
+#     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#     HDF5_MOD  = $(HDF5_HOME)/include
+#     HDF5_INC  = $(HDF5_MOD)
+
+     ADIOS = t
+
+     ADIOS_BUFFER_MB = 1000
+
+     ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.3.1/lib-grizzly-gcc-5.3.0_openmpi-1.10.5
+     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+     ADIOS_VER  = 1.10
+    endif
+
+  endif
+
+  ifeq ($(findstring ifort,$(FC)),ifort)
+
+    NETCDF=f
+
+    ifdef BOPT
+       PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
+
+       ifeq ($(BOPT),O)
+        PETSC_ARCH = linux64_grizzly_intel17.0.1_intelmpi2017.1
+       else
+        PETSC_ARCH = linux64_grizzly_intel17.0.1_intelmpi2017.1_dbg
+       endif
+
+       HDF5 = f
+
+#       HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
+#       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#       HDF5_MOD  = $(HDF5_HOME)/include
+#       HDF5_INC  = $(HDF5_MOD)
+
+       ADIOS = t
+
+       ADIOS_BUFFER_MB = 1000
+
+       ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.3.1/lib-grizzly-intel17.0.1_intelmpi2017.1
+       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/magreconn/soft/mxml-2.5/grizzly-intel17.0.1_intelmpi2017.1/lib -lmxml
+       ADIOS_VER  = 1.10
+   endif
+
+  endif
+
+endif
 
 ####################
 # marconi #
