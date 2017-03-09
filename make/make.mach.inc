@@ -301,7 +301,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
     ADIOS_HOME = $(HOME)/lib/adios-1.10.0
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L$(HOME)/lib/mxml-2.7/lib -lmxml
-    ADIOS_VER  = 1.10
+    ADIOS_VER  = 1.10.0
 
 #    LIBS += -L/opt/local/lib -latlas
   else
@@ -952,7 +952,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
 
      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-gcc-5.3.0_openmpi-1.10.5
      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
-     ADIOS_VER  = 1.10
+     ADIOS_VER  = 1.10.0
     endif
 
   endif
@@ -983,7 +983,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
 
        ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-intel17.0.1_intelmpi2017.1
        ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
-       ADIOS_VER  = 1.10
+       ADIOS_VER  = 1.10.0
    endif
 
   endif
