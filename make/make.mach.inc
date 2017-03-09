@@ -111,7 +111,7 @@ ifeq ($(HOST),jetta)
 
       ADIOS_HOME = /nh/u/lchacon/lib/adios-1.10.0
       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -lmxml
-      ADIOS_VER  = 1.10
+      ADIOS_VER  = 1.10.0
 
       SPRNG = t
 
@@ -1038,7 +1038,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-gcc-5.3.0_openmpi-1.10.5
      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
-     ADIOS_VER  = 1.10
+     ADIOS_VER  = 1.10.0
     endif
 
   endif
@@ -1069,7 +1069,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
        ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel17.0.1_intelmpi2017.1
        ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
-       ADIOS_VER  = 1.10
+       ADIOS_VER  = 1.10.0
    endif
 
   endif
