@@ -4,6 +4,7 @@
          <var name="time"  path="/" type="real*8"  dimensions="tidx"/>
          <var name="itime" path="/" type="integer" dimensions="tidx"/>
          <var name="dt"    path="/" type="real*8"  dimensions="tidx"/>
+         <var name="gammat"    path="/" type="real*8"  dimensions="tidx"/>
          <var name="nvar"    path="/" type="integer" />
          <attribute name="description" path="/nvar" 
                     value="Number of variables under path /var"/>
@@ -75,6 +76,6 @@
     </adios-group>
     <method method="MPI" group="record"/>
     <!--method method="POSIX" group="record"/-->
-    <buffer size-MB="100" allocate-time="now"/>
+    <buffer size-MB="10" allocate-time="now"/>
     <!-- or free-memory-percentage="90" allocate-time="oncall" -->
 </adios-config>
